@@ -12,7 +12,7 @@ export default function AddFriendScreen() {
       <AuthHeader title="친구 추가하기" subtitle="친구 태그로 검색해서 서로의 기록과 순위를 비교할 수 있어." />
 
       <Card>
-        <Text style={styles.sectionTitle}>내 친구 태그</Text>
+        <Text style={styles.sectionTitle}>내 태그</Text>
         <View style={styles.tagBox}>
           <Text style={styles.tag}>{myProfile.publicTag}</Text>
           <Text style={styles.tagHint}>친구에게 이 태그를 공유하면 바로 추가할 수 있어.</Text>

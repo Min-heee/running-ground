@@ -18,7 +18,7 @@ export default function FriendsScreen() {
         </Link>
       </View>
 
-      <InfoCard title="내 친구 태그">{`${myProfile.publicTag} · 친구에게 공유해서 쉽게 추가할 수 있어.`}</InfoCard>
+      <InfoCard title="내 태그">{`${myProfile.publicTag} · 친구에게 공유해서 쉽게 추가할 수 있어.`}</InfoCard>
 
       <InfoCard title="추천">친구를 추가하면 서로의 주간 기록, 포인트, 순위를 바로 비교할 수 있어.</InfoCard>
 
