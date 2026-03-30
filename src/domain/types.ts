@@ -70,3 +70,12 @@ export type RegionDrilldownNode = {
   rank: number;
   children?: RegionDrilldownNode[];
 };
+
+export type DistrictPersonalRank = {
+  id: string;
+  rank: number;
+  name: string;
+  distanceKm: number;
+  points: number;
+  isMe?: boolean;
+};

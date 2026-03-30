@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { Link } from 'expo-router';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { WeeklySummary } from '@/domain/types';
@@ -46,12 +47,14 @@ export function HomeOverview({ summary }: { summary: WeeklySummary }) {
           <Text style={styles.muted}>Point + km</Text>
         </Card>
 
-        <Card style={styles.halfCard}>
-          <SectionTitle>구 내 경쟁</SectionTitle>
-          <Text style={styles.body}>{summary.districtName}</Text>
-          <Text style={styles.highlight}>{summary.districtRank}위</Text>
-          <Text style={styles.muted}>{summary.totalDistanceKm}km / {summary.districtPoints}P</Text>
-        </Card>
+        <Link href="/district-personal" asChild>
+          <Card style={styles.halfCard}>
+            <SectionTitle>구 내 경쟁</SectionTitle>
+            <Text style={styles.body}>{summary.districtName}</Text>
+            <Text style={styles.highlight}>{summary.districtRank}위</Text>
+            <Text style={styles.muted}>{summary.totalDistanceKm}km / {summary.districtPoints}P</Text>
+          </Card>
+        </Link>
       </View>
 
       <View style={styles.twoColumnRow}>
