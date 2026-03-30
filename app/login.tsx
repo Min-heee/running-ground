@@ -2,12 +2,11 @@ import { StyleSheet, Text, View, Pressable, TextInput } from 'react-native';
 import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
-import { SectionTitle } from '@/components/SectionTitle';
 
 const providers = [
-  { id: 'kakao', label: '카카오톡으로 로그인' },
-  { id: 'google', label: 'Google로 로그인' },
-  { id: 'apple', label: 'Apple로 로그인' },
+  { id: 'kakao', label: '카카오톡으로 계속하기' },
+  { id: 'google', label: 'Google로 계속하기' },
+  { id: 'apple', label: 'Apple로 계속하기' },
 ];
 
 export default function LoginScreen() {
@@ -15,25 +14,25 @@ export default function LoginScreen() {
     <Screen>
       <View style={styles.header}>
         <Text style={styles.logo}>RUNNIGAPP</Text>
-        <Text style={styles.title}>러닝 경쟁을 시작해보자</Text>
-        <Text style={styles.subtitle}>로그인 후 홈에서 친구 경쟁, 구 내 경쟁, 지역 배틀을 바로 확인할 수 있어.</Text>
+        <Text style={styles.title}>로그인</Text>
+        <Text style={styles.subtitle}>계정을 만든 뒤 기록 소스를 연결하면 경쟁이 바로 시작돼.</Text>
       </View>
 
       <Card>
-        <SectionTitle>로그인</SectionTitle>
+        <Text style={styles.sectionTitle}>계정으로 로그인</Text>
         <View style={styles.form}>
           <TextInput placeholder="아이디" placeholderTextColor="#98A2B3" style={styles.input} autoCapitalize="none" />
           <TextInput placeholder="비밀번호" placeholderTextColor="#98A2B3" style={styles.input} secureTextEntry />
-          <Link href="/(tabs)/home" asChild>
+          <Link href="/connect-sources" asChild>
             <Pressable style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>로그인</Text>
+              <Text style={styles.primaryButtonText}>로그인하고 계속</Text>
             </Pressable>
           </Link>
         </View>
       </Card>
 
       <Card>
-        <SectionTitle>간편 로그인</SectionTitle>
+        <Text style={styles.sectionTitle}>간편 로그인</Text>
         <View style={styles.socialButtons}>
           {providers.map((provider) => (
             <Pressable key={provider.id} style={styles.socialButton}>
@@ -42,6 +41,11 @@ export default function LoginScreen() {
           ))}
         </View>
       </Card>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>처음이신가요?</Text>
+        <Text style={styles.footerLink}>회원가입</Text>
+      </View>
     </Screen>
   );
 }
@@ -49,9 +53,10 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   header: { gap: 8, paddingTop: 10 },
   logo: { color: '#6D5EF7', fontWeight: '800', fontSize: 13 },
-  title: { fontSize: 30, fontWeight: '800', color: '#101828' },
+  title: { fontSize: 32, fontWeight: '800', color: '#101828' },
   subtitle: { color: '#475467', lineHeight: 22 },
-  form: { gap: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
+  form: { gap: 12, marginTop: 8 },
   input: {
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
@@ -70,8 +75,9 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontWeight: '800',
+    fontSize: 15,
   },
-  socialButtons: { gap: 10 },
+  socialButtons: { gap: 10, marginTop: 8 },
   socialButton: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
@@ -84,5 +90,18 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontWeight: '700',
     textAlign: 'center',
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    paddingTop: 8,
+  },
+  footerText: {
+    color: '#667085',
+  },
+  footerLink: {
+    color: '#6D5EF7',
+    fontWeight: '700',
   },
 });
