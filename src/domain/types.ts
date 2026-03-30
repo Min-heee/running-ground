@@ -58,3 +58,14 @@ export type DistrictBattleRank = {
   participationRate: number;
   participants: number;
 };
+
+export type RegionDrilldownNode = {
+  id: string;
+  name: string;
+  level: 'country' | 'province' | 'city' | 'district';
+  averageDistanceKm: number;
+  participationRate: number;
+  participants: number;
+  rank: number;
+  children?: RegionDrilldownNode[];
+};

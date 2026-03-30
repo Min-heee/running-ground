@@ -1,57 +1,101 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
-import { districtBattleRanks, weeklySummary } from '@/data/mock';
+import { regionDrilldownTree } from '@/data/mock';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
+import { RegionDrilldownNode } from '@/domain/types';
 
 export default function LeagueScreen() {
-  const myDistrict = weeklySummary.districtBattle;
+  const [path, setPath] = useState<RegionDrilldownNode[]>([regionDrilldownTree]);
+  const currentNode = path[path.length - 1];
+  const children = currentNode.children ?? [];
+
+  const breadcrumb = useMemo(() => path.map((node) => node.name).join(' > '), [path]);
 
   return (
     <Screen>
-      <PageHeader title="지역 배틀" subtitle="우리 지역의 평균 거리와 참여율을 기준으로 경쟁하는 핵심 공간." />
+      <PageHeader title="지역 배틀" subtitle="대한민국부터 시/도, 시/군/구까지 내려가며 경쟁 구도를 볼 수 있어." />
 
-      <InfoCard title="현재 상태">지역 경쟁은 총합보다 참여 멤버 평균 거리 중심으로 보는 게 핵심이야.</InfoCard>
+      <InfoCard title="탐색 방식">지역을 누르면 하위 지역으로 내려가고, 그 지역의 순위와 평균 km를 바로 확인할 수 있어.</InfoCard>
 
       <Card style={styles.heroCard}>
-        <Text style={styles.heroLabel}>우리 지역</Text>
-        <Text style={styles.heroTitle}>{myDistrict.myDistrict}</Text>
+        <Text style={styles.heroLabel}>현재 선택 지역</Text>
+        <Text style={styles.heroTitle}>{currentNode.name}</Text>
+        <Text style={styles.breadcrumb}>{breadcrumb}</Text>
         <View style={styles.heroMetrics}>
           <View style={styles.heroMetricBox}>
-            <Text style={styles.heroMetricValue}>{myDistrict.districtRank}위</Text>
+            <Text style={styles.heroMetricValue}>{currentNode.rank}위</Text>
             <Text style={styles.heroMetricLabel}>현재 순위</Text>
           </View>
           <View style={styles.heroMetricBox}>
-            <Text style={styles.heroMetricValue}>{myDistrict.averageDistancePerMember}km</Text>
+            <Text style={styles.heroMetricValue}>{currentNode.averageDistanceKm}km</Text>
             <Text style={styles.heroMetricLabel}>평균 거리</Text>
           </View>
         </View>
       </Card>
 
       <Card>
-        <SectionTitle>참여 현황</SectionTitle>
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryValue}>{myDistrict.totalDistanceKm}km</Text>
-            <Text style={styles.summaryLabel}>총 거리</Text>
-          </View>
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryValue}>{myDistrict.participationRate}%</Text>
-            <Text style={styles.summaryLabel}>참여율</Text>
+        <SectionTitle>지역 선택</SectionTitle>
+        <View style={styles.selectorWrap}>
+          {path.length > 1 ? (
+            <Pressable style={styles.backButton} onPress={() => setPath((prev) => prev.slice(0, -1))}>
+              <Text style={styles.backButtonText}>상위 지역으로</Text>
+            </Pressable>
+          ) : null}
+
+          <View style={styles.regionGrid}>
+            {children.map((node) => (
+              <Pressable key={node.id} style={styles.regionCard} onPress={() => setPath((prev) => [...prev, node])}>
+                <Text style={styles.regionName}>{node.name}</Text>
+                <Text style={styles.regionMeta}>평균 {node.averageDistanceKm}km</Text>
+                <Text style={styles.regionMeta}>참여율 {node.participationRate}%</Text>
+              </Pressable>
+            ))}
+            {children.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>더 내려갈 지역이 없어요</Text>
+                <Text style={styles.emptyText}>현재 선택된 지역의 순위와 평균 km를 아래에서 확인하면 돼.</Text>
+              </View>
+            ) : null}
           </View>
         </View>
       </Card>
 
       <Card>
-        <SectionTitle>상위 지역 순위</SectionTitle>
-        {districtBattleRanks.map((district) => (
-          <View key={district.rank} style={[styles.rankRow, district.districtName === myDistrict.myDistrict && styles.myDistrictRow]}>
-            <Text style={styles.rankNumber}>{district.rank}</Text>
+        <SectionTitle>선택 지역 현황</SectionTitle>
+        <View style={styles.summaryGrid}>
+          <View style={styles.summaryBox}>
+            <Text style={styles.summaryValue}>{currentNode.averageDistanceKm}km</Text>
+            <Text style={styles.summaryLabel}>평균 거리</Text>
+          </View>
+          <View style={styles.summaryBox}>
+            <Text style={styles.summaryValue}>{currentNode.participationRate}%</Text>
+            <Text style={styles.summaryLabel}>참여율</Text>
+          </View>
+        </View>
+        <View style={styles.summaryGrid}>
+          <View style={styles.summaryBox}>
+            <Text style={styles.summaryValue}>{currentNode.participants}명</Text>
+            <Text style={styles.summaryLabel}>참여 인원</Text>
+          </View>
+          <View style={styles.summaryBox}>
+            <Text style={styles.summaryValue}>{currentNode.rank}위</Text>
+            <Text style={styles.summaryLabel}>현재 순위</Text>
+          </View>
+        </View>
+      </Card>
+
+      <Card>
+        <SectionTitle>하위 지역 순위</SectionTitle>
+        {(children.length > 0 ? children : [currentNode]).map((node) => (
+          <View key={node.id} style={styles.rankRow}>
+            <Text style={styles.rankNumber}>{node.rank}</Text>
             <View style={styles.rankMeta}>
-              <Text style={styles.rankName}>{district.districtName}</Text>
-              <Text style={styles.rankDetail}>평균 {district.averageDistanceKm}km · 참여율 {district.participationRate}% · {district.participants}명</Text>
+              <Text style={styles.rankName}>{node.name}</Text>
+              <Text style={styles.rankDetail}>평균 {node.averageDistanceKm}km · 참여율 {node.participationRate}% · {node.participants}명</Text>
             </View>
           </View>
         ))}
@@ -75,6 +119,10 @@ const styles = StyleSheet.create({
     fontSize: 30,
     fontWeight: '800',
   },
+  breadcrumb: {
+    color: '#E9E7FF',
+    lineHeight: 20,
+  },
   heroMetrics: {
     flexDirection: 'row',
     gap: 10,
@@ -94,9 +142,61 @@ const styles = StyleSheet.create({
   heroMetricLabel: {
     color: '#E9E7FF',
   },
+  selectorWrap: {
+    gap: 12,
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+  },
+  backButtonText: {
+    color: '#4F46E5',
+    fontWeight: '800',
+  },
+  regionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  regionCard: {
+    width: '47%',
+    backgroundColor: '#F8F7FF',
+    borderRadius: 16,
+    padding: 14,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#E9E7FF',
+  },
+  regionName: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  regionMeta: {
+    color: '#667085',
+    fontSize: 13,
+  },
+  emptyState: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 16,
+    gap: 6,
+    width: '100%',
+  },
+  emptyTitle: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  emptyText: {
+    color: '#667085',
+    lineHeight: 20,
+  },
   summaryGrid: {
     flexDirection: 'row',
     gap: 10,
+    marginTop: 10,
   },
   summaryBox: {
     flex: 1,
@@ -120,11 +220,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#EAECF0',
-  },
-  myDistrictRow: {
-    backgroundColor: '#F5F3FF',
-    borderRadius: 14,
-    paddingHorizontal: 10,
   },
   rankNumber: {
     width: 24,
