@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -6,11 +7,20 @@ import { friendRanks, myProfile, friendRequests } from '@/data/mock';
 import { InfoCard } from '@/components/ui/InfoCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/Card';
+import { FriendRequest } from '@/domain/types';
 
 export default function FriendsScreen() {
-  const pending = friendRequests.filter((request) => request.status === 'pending');
-  const received = friendRequests.filter((request) => request.status === 'received');
-  const accepted = friendRequests.filter((request) => request.status === 'accepted');
+  const [requests, setRequests] = useState<FriendRequest[]>(friendRequests);
+
+  const pending = useMemo(() => requests.filter((request) => request.status === 'pending'), [requests]);
+  const received = useMemo(() => requests.filter((request) => request.status === 'received'), [requests]);
+  const accepted = useMemo(() => requests.filter((request) => request.status === 'accepted'), [requests]);
+
+  const handleAccept = (requestId: string) => {
+    setRequests((prev) => prev.map((request) => (
+      request.id === requestId ? { ...request, status: 'accepted' } : request
+    )));
+  };
 
   return (
     <Screen>
@@ -33,7 +43,7 @@ export default function FriendsScreen() {
               <Text style={styles.requestName}>{request.name}</Text>
               <Text style={styles.requestDetail}>{request.tag} · 나에게 친구 요청 보냄</Text>
             </View>
-            <Pressable style={styles.acceptButton}>
+            <Pressable style={styles.acceptButton} onPress={() => handleAccept(request.id)}>
               <Text style={styles.acceptButtonText}>수락</Text>
             </Pressable>
           </View>
@@ -49,6 +59,9 @@ export default function FriendsScreen() {
             </View>
           </View>
         ))}
+        {received.length === 0 && pending.length === 0 ? (
+          <Text style={styles.emptyText}>처리할 친구 요청이 없어.</Text>
+        ) : null}
       </Card>
 
       <Card>
@@ -143,5 +156,9 @@ const styles = StyleSheet.create({
   compareLink: {
     color: '#6D5EF7',
     fontWeight: '800',
+  },
+  emptyText: {
+    color: '#667085',
+    marginTop: 10,
   },
 });
