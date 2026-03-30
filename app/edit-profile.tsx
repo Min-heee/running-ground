@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { StyleSheet, Text, View, TextInput } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
@@ -6,6 +7,13 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { myProfile } from '@/data/mock';
 
 export default function EditProfileScreen() {
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
   return (
     <Screen>
       <AuthHeader title="프로필 수정" subtitle="닉네임과 기본 프로필 정보를 관리할 수 있어." />
@@ -15,7 +23,8 @@ export default function EditProfileScreen() {
           <Input label="이름" value={myProfile.name} />
           <Input label="내 태그" value={myProfile.publicTag} editable={false} />
           <Input label="상태 메시지" value="러닝 경쟁 진행 중" />
-          <PrimaryButton label="저장하기" />
+          <PrimaryButton label="저장하기" onPress={handleSave} />
+          {saved ? <Text style={styles.savedText}>프로필이 저장됐어.</Text> : null}
         </View>
       </Card>
     </Screen>
@@ -51,5 +60,9 @@ const styles = StyleSheet.create({
   disabledInput: {
     color: '#98A2B3',
     backgroundColor: '#F2F4F7',
+  },
+  savedText: {
+    color: '#067647',
+    fontWeight: '700',
   },
 });

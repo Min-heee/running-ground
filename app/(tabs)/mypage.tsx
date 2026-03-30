@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -10,6 +11,13 @@ import { ListRow } from '@/components/ui/ListRow';
 
 export default function MyPageScreen() {
   const connectedCount = connectedSources.filter((source) => source.connected).length;
+  const [tagShared, setTagShared] = useState(false);
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
+
+  const handleShareTag = () => {
+    setTagShared(true);
+    setTimeout(() => setTagShared(false), 1500);
+  };
 
   return (
     <Screen>
@@ -32,8 +40,8 @@ export default function MyPageScreen() {
             <Text style={styles.primaryActionText}>프로필 수정</Text>
           </Pressable>
         </Link>
-        <Pressable style={styles.secondaryAction}>
-          <Text style={styles.secondaryActionText}>내 태그 공유</Text>
+        <Pressable style={styles.secondaryAction} onPress={handleShareTag}>
+          <Text style={styles.secondaryActionText}>{tagShared ? '공유 준비됨' : '내 태그 공유'}</Text>
         </Pressable>
       </View>
 
@@ -76,9 +84,10 @@ export default function MyPageScreen() {
         <ListRow>친구 태그 관리</ListRow>
       </Card>
 
-      <Pressable style={styles.logoutButton}>
-        <Text style={styles.logoutButtonText}>로그아웃</Text>
+      <Pressable style={styles.logoutButton} onPress={() => setLogoutConfirm((prev) => !prev)}>
+        <Text style={styles.logoutButtonText}>{logoutConfirm ? '정말 로그아웃할까요?' : '로그아웃'}</Text>
       </Pressable>
+      {logoutConfirm ? <Text style={styles.logoutHelper}>한 번 더 누르면 로그아웃 처리하는 흐름으로 연결할 수 있어.</Text> : null}
     </Screen>
   );
 }
@@ -174,5 +183,10 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     color: '#F04438',
     fontWeight: '800',
+  },
+  logoutHelper: {
+    color: '#F04438',
+    textAlign: 'center',
+    fontSize: 13,
   },
 });
