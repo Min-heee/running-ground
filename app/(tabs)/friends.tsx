@@ -10,6 +10,7 @@ import { Card } from '@/components/Card';
 export default function FriendsScreen() {
   const pending = friendRequests.filter((request) => request.status === 'pending');
   const received = friendRequests.filter((request) => request.status === 'received');
+  const accepted = friendRequests.filter((request) => request.status === 'accepted');
 
   return (
     <Screen>
@@ -50,6 +51,21 @@ export default function FriendsScreen() {
         ))}
       </Card>
 
+      <Card>
+        <Text style={styles.sectionTitle}>친구 비교 바로가기</Text>
+        {accepted.map((request) => (
+          <Link key={request.id} href="/friend-detail" asChild>
+            <Pressable style={styles.compareRow}>
+              <View style={styles.requestMeta}>
+                <Text style={styles.requestName}>{request.name}</Text>
+                <Text style={styles.requestDetail}>{request.tag} · 친구 비교 보러가기</Text>
+              </View>
+              <Text style={styles.compareLink}>보기</Text>
+            </Pressable>
+          </Link>
+        ))}
+      </Card>
+
       <InfoCard title="추천">친구를 추가하면 서로의 주간 기록, 포인트, 순위를 바로 비교할 수 있어.</InfoCard>
 
       <FriendsRanking ranks={friendRanks} />
@@ -76,6 +92,15 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   requestRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#EAECF0',
+  },
+  compareRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -113,6 +138,10 @@ const styles = StyleSheet.create({
   },
   pendingBadgeText: {
     color: '#4F46E5',
+    fontWeight: '800',
+  },
+  compareLink: {
+    color: '#6D5EF7',
     fontWeight: '800',
   },
 });
