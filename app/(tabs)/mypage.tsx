@@ -3,6 +3,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { weeklySummary, connectedSources } from '@/data/mock';
+import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
 
 export default function MyPageScreen() {
   const connectedCount = connectedSources.filter((source) => source.connected).length;
@@ -34,10 +35,12 @@ export default function MyPageScreen() {
       </Card>
 
       <Card>
-        <SectionTitle>연동 상태</SectionTitle>
+        <SectionTitle>연동 요약</SectionTitle>
         <Text style={styles.row}>현재 연결된 기록 소스 {connectedCount}개</Text>
         <Text style={styles.row}>최근 반영 기록 {weeklySummary.latestRun.distanceKm}km</Text>
       </Card>
+
+      <IntegrationStatus sources={connectedSources} />
 
       <Card>
         <SectionTitle>설정</SectionTitle>
