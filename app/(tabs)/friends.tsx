@@ -33,6 +33,14 @@ export default function FriendsScreen() {
         </Link>
       </View>
 
+      <Card style={styles.heroRankingCard}>
+        <Text style={styles.heroLabel}>이번 주 메인 경쟁</Text>
+        <Text style={styles.heroTitle}>친구 경쟁 순위표</Text>
+        <Text style={styles.heroSub}>가장 많이 뛰고, 가장 높은 포인트를 쌓은 친구가 위로 올라가.</Text>
+      </Card>
+
+      <FriendsRanking ranks={friendRanks} />
+
       <InfoCard title="내 태그">{`${myProfile.publicTag} · 친구에게 공유해서 쉽게 추가할 수 있어.`}</InfoCard>
 
       <Card>
@@ -78,10 +86,6 @@ export default function FriendsScreen() {
           </Link>
         ))}
       </Card>
-
-      <InfoCard title="추천">친구를 추가하면 서로의 주간 기록, 포인트, 순위를 바로 비교할 수 있어.</InfoCard>
-
-      <FriendsRanking ranks={friendRanks} />
     </Screen>
   );
 }
@@ -98,6 +102,24 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 15,
+  },
+  heroRankingCard: {
+    backgroundColor: '#111827',
+    gap: 6,
+  },
+  heroLabel: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  heroTitle: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  heroSub: {
+    color: '#D0D5DD',
+    lineHeight: 20,
   },
   sectionTitle: {
     fontSize: 18,
