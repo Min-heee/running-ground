@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
 import { RegionDrilldownNode } from '@/domain/types';
 
-const FEATURED_REGION_NAMES = ['서울특별시', '경기도', '부산광역시', '인천광역시', '대구광역시', '제주특별자치도'];
+const FEATURED_REGION_COUNT = 6;
 
 export default function LeagueScreen() {
   const [path, setPath] = useState<RegionDrilldownNode[]>([regionDrilldownTree]);
@@ -23,7 +23,7 @@ export default function LeagueScreen() {
 
   const visibleChildren = useMemo(() => {
     if (!isCountry || showAllRegions) return sortedChildren;
-    return sortedChildren.filter((node) => FEATURED_REGION_NAMES.includes(node.name));
+    return sortedChildren.slice(0, FEATURED_REGION_COUNT);
   }, [sortedChildren, isCountry, showAllRegions]);
 
   return (
@@ -76,7 +76,7 @@ export default function LeagueScreen() {
             ) : null}
           </View>
 
-          {isCountry && children.length > FEATURED_REGION_NAMES.length ? (
+          {isCountry && children.length > FEATURED_REGION_COUNT ? (
             <Pressable style={styles.toggleButton} onPress={() => setShowAllRegions((prev) => !prev)}>
               <Text style={styles.toggleButtonText}>{showAllRegions ? '대표 지역만 보기' : '전체 지역 보기'}</Text>
             </Pressable>
@@ -112,7 +112,7 @@ export default function LeagueScreen() {
         <SectionTitle>{children.length > 0 ? '하위 지역 순위' : '현재 지역 정보'}</SectionTitle>
         {(children.length > 0 ? visibleChildren : [currentNode]).map((node) => (
           <View key={node.id} style={styles.rankRow}>
-            <Text style={styles.rankNumber}>{isCountry ? `${node.rank}` : node.rank}</Text>
+            <Text style={styles.rankNumber}>{node.rank}</Text>
             <View style={styles.rankMeta}>
               <Text style={styles.rankName}>{node.name}</Text>
               <Text style={styles.rankDetail}>{isCountry ? `총 거리 ${node.totalDistanceKm}km · 회원 ${node.participants}명 · 평균 ${node.averageDistanceKm}km` : `평균 ${node.averageDistanceKm}km · 참여율 ${node.participationRate}% · ${node.participants}명`}</Text>
