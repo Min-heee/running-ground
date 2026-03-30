@@ -8,13 +8,21 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
 import { RegionDrilldownNode } from '@/domain/types';
 
+const FEATURED_REGION_NAMES = ['서울특별시', '경기도', '부산광역시', '인천광역시', '대구광역시', '제주특별자치도'];
+
 export default function LeagueScreen() {
   const [path, setPath] = useState<RegionDrilldownNode[]>([regionDrilldownTree]);
+  const [showAllRegions, setShowAllRegions] = useState(false);
   const currentNode = path[path.length - 1];
   const children = currentNode.children ?? [];
   const isCountry = currentNode.level === 'country';
 
   const breadcrumb = useMemo(() => path.map((node) => node.name).join(' > '), [path]);
+
+  const visibleChildren = useMemo(() => {
+    if (!isCountry || showAllRegions) return children;
+    return children.filter((node) => FEATURED_REGION_NAMES.includes(node.name));
+  }, [children, isCountry, showAllRegions]);
 
   return (
     <Screen>
@@ -48,7 +56,7 @@ export default function LeagueScreen() {
           ) : null}
 
           <View style={styles.regionGrid}>
-            {children.map((node) => (
+            {visibleChildren.map((node) => (
               <Pressable key={node.id} style={styles.regionCard} onPress={() => setPath((prev) => [...prev, node])}>
                 <Text style={styles.regionName}>{node.name}</Text>
                 <Text style={styles.regionMeta}>평균 {node.averageDistanceKm}km</Text>
@@ -62,6 +70,12 @@ export default function LeagueScreen() {
               </View>
             ) : null}
           </View>
+
+          {isCountry && children.length > FEATURED_REGION_NAMES.length ? (
+            <Pressable style={styles.toggleButton} onPress={() => setShowAllRegions((prev) => !prev)}>
+              <Text style={styles.toggleButtonText}>{showAllRegions ? '대표 지역만 보기' : '전체 지역 보기'}</Text>
+            </Pressable>
+          ) : null}
         </View>
       </Card>
 
@@ -91,7 +105,7 @@ export default function LeagueScreen() {
 
       <Card>
         <SectionTitle>{children.length > 0 ? '하위 지역 순위' : '현재 지역 정보'}</SectionTitle>
-        {(children.length > 0 ? children : [currentNode]).map((node) => (
+        {(children.length > 0 ? visibleChildren : [currentNode]).map((node) => (
           <View key={node.id} style={styles.rankRow}>
             <Text style={styles.rankNumber}>{isCountry ? '-' : node.rank}</Text>
             <View style={styles.rankMeta}>
@@ -166,18 +180,33 @@ const styles = StyleSheet.create({
     width: '47%',
     backgroundColor: '#F8F7FF',
     borderRadius: 16,
-    padding: 14,
+    padding: 12,
     gap: 4,
     borderWidth: 1,
     borderColor: '#E9E7FF',
+    minHeight: 92,
   },
   regionName: {
     color: '#111827',
     fontWeight: '800',
+    fontSize: 14,
   },
   regionMeta: {
     color: '#667085',
-    fontSize: 13,
+    fontSize: 12,
+  },
+  toggleButton: {
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  toggleButtonText: {
+    color: '#111827',
+    fontWeight: '700',
   },
   emptyState: {
     backgroundColor: '#F9FAFB',
