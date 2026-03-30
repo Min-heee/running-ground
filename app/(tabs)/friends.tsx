@@ -65,13 +65,13 @@ export default function FriendsScreen() {
       </Card>
 
       <Card>
-        <Text style={styles.sectionTitle}>친구 비교 바로가기</Text>
+        <Text style={styles.sectionTitle}>친구 구경가기</Text>
         {accepted.map((request) => (
           <Link key={request.id} href="/friend-detail" asChild>
             <Pressable style={styles.compareRow}>
               <View style={styles.requestMeta}>
                 <Text style={styles.requestName}>{request.name}</Text>
-                <Text style={styles.requestDetail}>{request.tag} · 친구 비교 보러가기</Text>
+                <Text style={styles.requestDetail}>{request.tag} · 친구가 뛴 기록 보러가기</Text>
               </View>
               <Text style={styles.compareLink}>보기</Text>
             </Pressable>
