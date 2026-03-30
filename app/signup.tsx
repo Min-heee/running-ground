@@ -4,7 +4,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 
 const providers = [
-  { id: 'kakao', label: '카카오톡으로 회원가입하기' },
+  { id: 'kakao', label: '카카오톡으로 회원가입하기', primary: true },
   { id: 'google', label: 'Google로 회원가입하기' },
   { id: 'apple', label: 'Apple로 회원가입하기' },
   { id: 'email', label: '그냥 회원가입하기' },
@@ -23,8 +23,8 @@ export default function SignupScreen() {
         <View style={styles.actions}>
           {providers.map((provider) => (
             <Link key={provider.id} href="/connect-sources" asChild>
-              <Pressable style={[styles.button, provider.id === 'kakao' && styles.primaryButton]}>
-                <Text style={[styles.buttonText, provider.id === 'kakao' && styles.primaryButtonText]}>{provider.label}</Text>
+              <Pressable style={provider.primary ? styles.primaryButton : styles.button}>
+                <Text style={provider.primary ? styles.primaryButtonText : styles.buttonText}>{provider.label}</Text>
               </Pressable>
             </Link>
           ))}
@@ -60,7 +60,12 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     backgroundColor: '#6D5EF7',
+    borderWidth: 1,
     borderColor: '#6D5EF7',
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    alignItems: 'center',
   },
   buttonText: {
     color: '#111827',
@@ -70,6 +75,7 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontWeight: '800',
+    fontSize: 16,
   },
   footer: {
     flexDirection: 'row',
