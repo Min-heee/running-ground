@@ -4,11 +4,12 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 
 const providers = [
-  { id: 'kakao', label: '카카오톡으로 회원가입하기', primary: true },
-  { id: 'google', label: 'Google로 회원가입하기' },
-  { id: 'apple', label: 'Apple로 회원가입하기' },
-  { id: 'email', label: '그냥 회원가입하기' },
-];
+  { id: 'kakao', label: '카카오톡으로 회원가입하기', buttonStyle: 'kakao' },
+  { id: 'google', label: 'Google로 회원가입하기', buttonStyle: 'google' },
+  { id: 'apple', label: 'Apple로 회원가입하기', buttonStyle: 'apple' },
+  { id: 'naver', label: '네이버로 회원가입하기', buttonStyle: 'naver' },
+  { id: 'account', label: '계정으로 회원가입하기', buttonStyle: 'account' },
+] as const;
 
 export default function SignupScreen() {
   return (
@@ -16,18 +17,23 @@ export default function SignupScreen() {
       <View style={styles.header}>
         <Text style={styles.logo}>RUNNIGAPP</Text>
         <Text style={styles.title}>회원가입</Text>
-        <Text style={styles.subtitle}>먼저 계정을 만들고, 다음 단계에서 기록 연동을 연결하면 돼.</Text>
+        <Text style={styles.subtitle}>원하는 방식으로 계정을 만든 뒤, 다음 단계에서 기록 연동을 연결하면 돼.</Text>
       </View>
 
       <Card>
         <View style={styles.actions}>
-          {providers.map((provider) => (
-            <Link key={provider.id} href="/connect-sources" asChild>
-              <Pressable style={provider.primary ? styles.primaryButton : styles.button}>
-                <Text style={provider.primary ? styles.primaryButtonText : styles.buttonText}>{provider.label}</Text>
-              </Pressable>
-            </Link>
-          ))}
+          {providers.map((provider) => {
+            const href = provider.id === 'account' ? '/signup-form' : '/connect-sources';
+            const isDarkText = provider.buttonStyle === 'kakao' || provider.buttonStyle === 'google' || provider.buttonStyle === 'account';
+
+            return (
+              <Link key={provider.id} href={href} asChild>
+                <Pressable style={getButtonStyle(provider.buttonStyle)}>
+                  <Text style={isDarkText ? styles.darkButtonText : styles.lightButtonText}>{provider.label}</Text>
+                </Pressable>
+              </Link>
+            );
+          })}
         </View>
       </Card>
 
@@ -43,13 +49,37 @@ export default function SignupScreen() {
   );
 }
 
+function getButtonStyle(type: 'kakao' | 'google' | 'apple' | 'naver' | 'account') {
+  switch (type) {
+    case 'kakao':
+      return styles.kakaoButton;
+    case 'google':
+      return styles.googleButton;
+    case 'apple':
+      return styles.appleButton;
+    case 'naver':
+      return styles.naverButton;
+    default:
+      return styles.accountButton;
+  }
+}
+
 const styles = StyleSheet.create({
   header: { gap: 8, paddingTop: 10 },
   logo: { color: '#6D5EF7', fontWeight: '800', fontSize: 13 },
   title: { fontSize: 32, fontWeight: '800', color: '#101828' },
   subtitle: { color: '#475467', lineHeight: 22 },
   actions: { gap: 10 },
-  button: {
+  kakaoButton: {
+    backgroundColor: '#FEE500',
+    borderWidth: 1,
+    borderColor: '#FEE500',
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  googleButton: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#D0D5DD',
@@ -58,21 +88,39 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     alignItems: 'center',
   },
-  primaryButton: {
-    backgroundColor: '#6D5EF7',
+  appleButton: {
+    backgroundColor: '#111111',
     borderWidth: 1,
-    borderColor: '#6D5EF7',
+    borderColor: '#111111',
     borderRadius: 18,
     paddingVertical: 16,
     paddingHorizontal: 16,
     alignItems: 'center',
   },
-  buttonText: {
+  naverButton: {
+    backgroundColor: '#03C75A',
+    borderWidth: 1,
+    borderColor: '#03C75A',
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  accountButton: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  darkButtonText: {
     color: '#111827',
-    fontWeight: '700',
+    fontWeight: '800',
     fontSize: 16,
   },
-  primaryButtonText: {
+  lightButtonText: {
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 16,
