@@ -67,8 +67,8 @@ export default function LeagueScreen() {
                   <Text style={styles.rankBadgeText}>{node.rank}등</Text>
                 </View>
                 <Text style={styles.regionName}>{node.name}</Text>
-                <Text style={styles.regionMeta}>평균 {node.averageDistanceKm}km</Text>
-                <Text style={styles.regionMeta}>참여율 {node.participationRate}%</Text>
+                <Text style={styles.regionMeta}>총거리 {node.totalDistanceKm}km</Text>
+                <Text style={styles.regionMeta}>회원수 {node.participants}명</Text>
               </Pressable>
             ))}
             {children.length === 0 ? (
