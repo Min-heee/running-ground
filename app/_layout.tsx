@@ -13,6 +13,7 @@ export default function RootLayout() {
       <Stack.Screen name="region-settings" />
       <Stack.Screen name="notification-settings" />
       <Stack.Screen name="friend-detail" />
+      <Stack.Screen name="integration-management" />
       <Stack.Screen name="(tabs)" />
     </Stack>
   );

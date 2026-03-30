@@ -82,7 +82,9 @@ export default function MyPageScreen() {
         <Link href="/notification-settings" asChild>
           <Pressable><ListRow>알림 설정</ListRow></Pressable>
         </Link>
-        <ListRow>기록 연동 관리</ListRow>
+        <Link href="/integration-management" asChild>
+          <Pressable><ListRow>기록 연동 관리</ListRow></Pressable>
+        </Link>
         <ListRow>친구 태그 관리</ListRow>
       </Card>
 
