@@ -50,3 +50,11 @@ export type UserProfile = {
   districtName: string;
   publicTag: string;
 };
+
+export type DistrictBattleRank = {
+  rank: number;
+  districtName: string;
+  averageDistanceKm: number;
+  participationRate: number;
+  participants: number;
+};

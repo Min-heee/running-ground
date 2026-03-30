@@ -1,4 +1,4 @@
-import { ConnectedSource, FriendRank, UserProfile, WeeklySummary } from '@/domain/types';
+import { ConnectedSource, DistrictBattleRank, FriendRank, UserProfile, WeeklySummary } from '@/domain/types';
 
 export const myProfile: UserProfile = {
   name: '민병희',
@@ -33,6 +33,14 @@ export const friendRanks: FriendRank[] = [
   { id: '1', rank: 1, name: '김관우', tag: '#KW8M4', distanceKm: 89, points: 98 },
   { id: '2', rank: 2, name: '민병희', tag: '#BH7K2', distanceKm: 84, points: 91 },
   { id: '3', rank: 3, name: '이서준', tag: '#SJ4Q8', distanceKm: 77, points: 86 },
+];
+
+export const districtBattleRanks: DistrictBattleRank[] = [
+  { rank: 1, districtName: '송파구', averageDistanceKm: 28.4, participationRate: 68, participants: 142 },
+  { rank: 2, districtName: '서초구', averageDistanceKm: 26.1, participationRate: 64, participants: 131 },
+  { rank: 3, districtName: '강남구', averageDistanceKm: 24.7, participationRate: 62, participants: 128 },
+  { rank: 4, districtName: '마포구', averageDistanceKm: 23.9, participationRate: 58, participants: 119 },
+  { rank: 5, districtName: '성동구', averageDistanceKm: 22.8, participationRate: 55, participants: 111 },
 ];
 
 export const connectedSources: ConnectedSource[] = [
