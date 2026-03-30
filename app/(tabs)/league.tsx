@@ -19,10 +19,12 @@ export default function LeagueScreen() {
 
   const breadcrumb = useMemo(() => path.map((node) => node.name).join(' > '), [path]);
 
+  const sortedChildren = useMemo(() => [...children].sort((a, b) => a.rank - b.rank), [children]);
+
   const visibleChildren = useMemo(() => {
-    if (!isCountry || showAllRegions) return children;
-    return children.filter((node) => FEATURED_REGION_NAMES.includes(node.name));
-  }, [children, isCountry, showAllRegions]);
+    if (!isCountry || showAllRegions) return sortedChildren;
+    return sortedChildren.filter((node) => FEATURED_REGION_NAMES.includes(node.name));
+  }, [sortedChildren, isCountry, showAllRegions]);
 
   return (
     <Screen>
@@ -58,6 +60,9 @@ export default function LeagueScreen() {
           <View style={styles.regionGrid}>
             {visibleChildren.map((node) => (
               <Pressable key={node.id} style={styles.regionCard} onPress={() => setPath((prev) => [...prev, node])}>
+                <View style={styles.rankBadge}>
+                  <Text style={styles.rankBadgeText}>{node.rank}등</Text>
+                </View>
                 <Text style={styles.regionName}>{node.name}</Text>
                 <Text style={styles.regionMeta}>평균 {node.averageDistanceKm}km</Text>
                 <Text style={styles.regionMeta}>참여율 {node.participationRate}%</Text>
@@ -107,7 +112,7 @@ export default function LeagueScreen() {
         <SectionTitle>{children.length > 0 ? '하위 지역 순위' : '현재 지역 정보'}</SectionTitle>
         {(children.length > 0 ? visibleChildren : [currentNode]).map((node) => (
           <View key={node.id} style={styles.rankRow}>
-            <Text style={styles.rankNumber}>{isCountry ? '-' : node.rank}</Text>
+            <Text style={styles.rankNumber}>{isCountry ? `${node.rank}` : node.rank}</Text>
             <View style={styles.rankMeta}>
               <Text style={styles.rankName}>{node.name}</Text>
               <Text style={styles.rankDetail}>{isCountry ? `총 거리 ${node.totalDistanceKm}km · 회원 ${node.participants}명 · 평균 ${node.averageDistanceKm}km` : `평균 ${node.averageDistanceKm}km · 참여율 ${node.participationRate}% · ${node.participants}명`}</Text>
@@ -185,11 +190,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E9E7FF',
     minHeight: 92,
+    position: 'relative',
+  },
+  rankBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    backgroundColor: '#6D5EF7',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  rankBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
   },
   regionName: {
     color: '#111827',
     fontWeight: '800',
     fontSize: 14,
+    marginTop: 26,
   },
   regionMeta: {
     color: '#667085',
