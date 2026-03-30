@@ -33,7 +33,7 @@ export default function OnboardingScreen() {
       <View style={styles.actions}>
         <Link href="/login" asChild>
           <Pressable style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>시작하기</Text>
+            <Text style={styles.primaryButtonText}>회원가입</Text>
           </Pressable>
         </Link>
         <Link href="/login" asChild>
