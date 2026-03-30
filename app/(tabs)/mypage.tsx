@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
@@ -25,6 +25,15 @@ export default function MyPageScreen() {
         </View>
       </Card>
 
+      <View style={styles.profileActions}>
+        <Pressable style={styles.primaryAction}>
+          <Text style={styles.primaryActionText}>프로필 수정</Text>
+        </Pressable>
+        <Pressable style={styles.secondaryAction}>
+          <Text style={styles.secondaryActionText}>내 태그 공유</Text>
+        </Pressable>
+      </View>
+
       <Card>
         <SectionTitle>내 활동</SectionTitle>
         <View style={styles.metricRow}>
@@ -48,12 +57,23 @@ export default function MyPageScreen() {
       <IntegrationStatus sources={connectedSources} />
 
       <Card>
-        <SectionTitle>설정</SectionTitle>
+        <SectionTitle>계정 관리</SectionTitle>
         <ListRow>계정 정보</ListRow>
+        <ListRow>비밀번호 변경</ListRow>
+        <ListRow>핸드폰번호 관리</ListRow>
+      </Card>
+
+      <Card>
+        <SectionTitle>앱 설정</SectionTitle>
         <ListRow>지역 설정</ListRow>
         <ListRow>알림 설정</ListRow>
         <ListRow>기록 연동 관리</ListRow>
+        <ListRow>친구 태그 관리</ListRow>
       </Card>
+
+      <Pressable style={styles.logoutButton}>
+        <Text style={styles.logoutButtonText}>로그아웃</Text>
+      </Pressable>
     </Screen>
   );
 }
@@ -91,6 +111,34 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 2,
   },
+  profileActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  primaryAction: {
+    flex: 1,
+    backgroundColor: '#6D5EF7',
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  primaryActionText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  secondaryAction: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+  },
+  secondaryActionText: {
+    color: '#111827',
+    fontWeight: '700',
+  },
   metricRow: {
     flexDirection: 'row',
     gap: 10,
@@ -109,5 +157,17 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     color: '#667085',
+  },
+  logoutButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#F04438',
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  logoutButtonText: {
+    color: '#F04438',
+    fontWeight: '800',
   },
 });
