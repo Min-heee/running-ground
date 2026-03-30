@@ -2,6 +2,7 @@ import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
+import { AuthHeader } from '@/components/ui/AuthHeader';
 
 const providers = [
   { id: 'kakao', label: '카카오톡으로 회원가입하기', buttonStyle: 'kakao' },
@@ -14,11 +15,7 @@ const providers = [
 export default function SignupScreen() {
   return (
     <Screen>
-      <View style={styles.header}>
-        <Text style={styles.logo}>RUNNIGAPP</Text>
-        <Text style={styles.title}>회원가입</Text>
-        <Text style={styles.subtitle}>원하는 방식으로 계정을 만든 뒤, 다음 단계에서 기록 연동을 연결하면 돼.</Text>
-      </View>
+      <AuthHeader title="회원가입" subtitle="원하는 방식으로 계정을 만든 뒤, 다음 단계에서 기록 연동을 연결하면 돼." />
 
       <Card>
         <View style={styles.actions}>
@@ -65,10 +62,6 @@ function getButtonStyle(type: 'kakao' | 'google' | 'apple' | 'naver' | 'account'
 }
 
 const styles = StyleSheet.create({
-  header: { gap: 8, paddingTop: 10 },
-  logo: { color: '#6D5EF7', fontWeight: '800', fontSize: 13 },
-  title: { fontSize: 32, fontWeight: '800', color: '#101828' },
-  subtitle: { color: '#475467', lineHeight: 22 },
   actions: { gap: 10 },
   kakaoButton: {
     backgroundColor: '#FEE500',

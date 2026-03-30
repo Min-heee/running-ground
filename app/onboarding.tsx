@@ -1,7 +1,9 @@
-import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 
 const features = [
   '친구와 주간 랭킹 경쟁',
@@ -32,14 +34,14 @@ export default function OnboardingScreen() {
 
       <View style={styles.actions}>
         <Link href="/signup" asChild>
-          <Pressable style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>회원가입</Text>
-          </Pressable>
+          <View>
+            <PrimaryButton label="회원가입" />
+          </View>
         </Link>
         <Link href="/login" asChild>
-          <Pressable style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>이미 계정이 있어요</Text>
-          </Pressable>
+          <View>
+            <SecondaryButton label="이미 계정이 있어요" />
+          </View>
         </Link>
       </View>
     </Screen>
@@ -76,28 +78,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   actions: { gap: 10 },
-  primaryButton: {
-    backgroundColor: '#6D5EF7',
-    borderRadius: 18,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  secondaryButton: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#D0D5DD',
-  },
-  secondaryButtonText: {
-    color: '#111827',
-    fontWeight: '700',
-    fontSize: 16,
-  },
 });

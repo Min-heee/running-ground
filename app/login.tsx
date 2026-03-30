@@ -2,6 +2,7 @@ import { StyleSheet, Text, View, Pressable, TextInput } from 'react-native';
 import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
+import { AuthHeader } from '@/components/ui/AuthHeader';
 
 const providers = [
   { id: 'kakao', label: '카카오톡으로 로그인하기', buttonStyle: 'kakao' },
@@ -13,11 +14,7 @@ const providers = [
 export default function LoginScreen() {
   return (
     <Screen>
-      <View style={styles.header}>
-        <Text style={styles.logo}>RUNNIGAPP</Text>
-        <Text style={styles.title}>로그인</Text>
-        <Text style={styles.subtitle}>이미 계정이 있다면 원하는 방식으로 로그인하고 기록 연동 단계로 넘어가면 돼.</Text>
-      </View>
+      <AuthHeader title="로그인" subtitle="이미 계정이 있다면 원하는 방식으로 로그인하고 기록 연동 단계로 넘어가면 돼." />
 
       <Card>
         <Text style={styles.sectionTitle}>계정으로 로그인</Text>
@@ -74,10 +71,6 @@ function getButtonStyle(type: 'kakao' | 'google' | 'apple' | 'naver') {
 }
 
 const styles = StyleSheet.create({
-  header: { gap: 8, paddingTop: 10 },
-  logo: { color: '#6D5EF7', fontWeight: '800', fontSize: 13 },
-  title: { fontSize: 32, fontWeight: '800', color: '#101828' },
-  subtitle: { color: '#475467', lineHeight: 22 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
   form: { gap: 12, marginTop: 8 },
   input: {

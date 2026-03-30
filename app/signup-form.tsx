@@ -2,15 +2,12 @@ import { StyleSheet, Text, View, Pressable, TextInput } from 'react-native';
 import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
+import { AuthHeader } from '@/components/ui/AuthHeader';
 
 export default function SignupFormScreen() {
   return (
     <Screen>
-      <View style={styles.header}>
-        <Text style={styles.logo}>RUNNIGAPP</Text>
-        <Text style={styles.title}>계정으로 회원가입</Text>
-        <Text style={styles.subtitle}>기본 정보만 입력하면 바로 시작할 수 있어.</Text>
-      </View>
+      <AuthHeader title="계정으로 회원가입" subtitle="기본 정보만 입력하면 바로 시작할 수 있어." />
 
       <Card>
         <View style={styles.form}>
@@ -57,10 +54,6 @@ function Input({
 }
 
 const styles = StyleSheet.create({
-  header: { gap: 8, paddingTop: 10 },
-  logo: { color: '#6D5EF7', fontWeight: '800', fontSize: 13 },
-  title: { fontSize: 32, fontWeight: '800', color: '#101828' },
-  subtitle: { color: '#475467', lineHeight: 22 },
   form: { gap: 14 },
   inputGroup: { gap: 8 },
   label: {

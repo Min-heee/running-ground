@@ -3,16 +3,17 @@ import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { connectedSources } from '@/data/mock';
+import { AuthHeader } from '@/components/ui/AuthHeader';
+import { InfoCard } from '@/components/ui/InfoCard';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 
 export default function ConnectSourcesScreen() {
   const recommended = connectedSources.filter((source) => ['apple_health', 'health_connect', 'manual'].includes(source.sourceType));
 
   return (
     <Screen>
-      <View style={styles.header}>
-        <Text style={styles.title}>기록 연동 시작</Text>
-        <Text style={styles.subtitle}>로그인은 끝났어. 이제 러닝 기록이 들어올 소스를 연결하면 경쟁에 바로 반영할 수 있어.</Text>
-      </View>
+      <AuthHeader title="기록 연동 시작" subtitle="이제 러닝 기록이 들어올 소스를 연결하면 경쟁에 바로 반영할 수 있어." />
 
       <Card>
         <Text style={styles.sectionTitle}>추천 연동</Text>
@@ -23,8 +24,8 @@ export default function ConnectSourcesScreen() {
                 <Text style={styles.sourceName}>{source.displayName}</Text>
                 <Text style={styles.sourceDetail}>{source.connected ? '이미 연결됨' : '연결 권장'}</Text>
               </View>
-              <Pressable style={[styles.badge, source.connected && styles.badgeConnected]}>
-                <Text style={[styles.badgeText, source.connected && styles.badgeConnectedText]}>
+              <Pressable style={source.connected ? styles.badgeConnected : styles.badge}>
+                <Text style={source.connected ? styles.badgeConnectedText : styles.badgeText}>
                   {source.connected ? '연결됨' : '연결'}
                 </Text>
               </Pressable>
@@ -33,21 +34,18 @@ export default function ConnectSourcesScreen() {
         </View>
       </Card>
 
-      <Card>
-        <Text style={styles.sectionTitle}>왜 필요한가요?</Text>
-        <Text style={styles.body}>기록 연동은 로그인과 별개야. Apple Health, Health Connect, Garmin 같은 소스를 연결하면 달린 기록이 자동으로 랭킹과 경쟁에 반영돼.</Text>
-      </Card>
+      <InfoCard title="왜 필요한가요?">기록 연동은 로그인과 별개야. Apple Health, Health Connect, Garmin 같은 소스를 연결하면 달린 기록이 자동으로 랭킹과 경쟁에 반영돼.</InfoCard>
 
       <View style={styles.actions}>
-        <Link href="/(tabs)/integrations" asChild>
-          <Pressable style={styles.secondaryButton}>
-            <Text style={styles.secondaryButtonText}>연동 화면 자세히 보기</Text>
-          </Pressable>
+        <Link href="/(tabs)/mypage" asChild>
+          <View>
+            <SecondaryButton label="연동 상태는 마이페이지에서 보기" />
+          </View>
         </Link>
         <Link href="/(tabs)/home" asChild>
-          <Pressable style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>지금은 홈으로 갈게</Text>
-          </Pressable>
+          <View>
+            <PrimaryButton label="지금은 홈으로 갈게" />
+          </View>
         </Link>
       </View>
     </Screen>
@@ -55,9 +53,6 @@ export default function ConnectSourcesScreen() {
 }
 
 const styles = StyleSheet.create({
-  header: { gap: 8, paddingTop: 10 },
-  title: { fontSize: 32, fontWeight: '800', color: '#101828' },
-  subtitle: { color: '#475467', lineHeight: 22 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
   list: { gap: 12, marginTop: 8 },
   sourceRow: {
@@ -76,6 +71,9 @@ const styles = StyleSheet.create({
   },
   badgeConnected: {
     backgroundColor: '#ECFDF3',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   badgeText: {
     color: '#4F46E5',
@@ -83,35 +81,7 @@ const styles = StyleSheet.create({
   },
   badgeConnectedText: {
     color: '#067647',
-  },
-  body: {
-    color: '#475467',
-    lineHeight: 21,
-    marginTop: 8,
+    fontWeight: '700',
   },
   actions: { gap: 10 },
-  primaryButton: {
-    backgroundColor: '#6D5EF7',
-    borderRadius: 18,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  secondaryButton: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    paddingVertical: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#D0D5DD',
-  },
-  secondaryButtonText: {
-    color: '#111827',
-    fontWeight: '700',
-    fontSize: 16,
-  },
 });
