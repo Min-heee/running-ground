@@ -8,9 +8,25 @@ export function HomeOverview({ summary }: { summary: WeeklySummary }) {
     <>
       <View style={styles.headerCard}>
         <Text style={styles.eyebrow}>RUNNIGAPP</Text>
-        <Text style={styles.title}>오늘도 경쟁은 계속된다</Text>
-        <Text style={styles.subtitle}>친구 경쟁, 구 내 경쟁, 지역 배틀을 앱 하나에서 관리.</Text>
+        <Text style={styles.title}>오늘의 핵심 경쟁</Text>
+        <Text style={styles.subtitle}>지금 가장 중요한 건 우리 지역의 순위와 평균 거리야.</Text>
       </View>
+
+      <Card style={styles.heroBattleCard}>
+        <Text style={styles.heroLabel}>우리 지역 배틀</Text>
+        <Text style={styles.heroDistrict}>{summary.districtBattle.myDistrict}</Text>
+        <View style={styles.heroMetrics}>
+          <View style={styles.heroMetricBox}>
+            <Text style={styles.heroMetricValue}>{summary.districtBattle.districtRank}위</Text>
+            <Text style={styles.heroMetricLabel}>현재 순위</Text>
+          </View>
+          <View style={styles.heroMetricBox}>
+            <Text style={styles.heroMetricValue}>{summary.districtBattle.averageDistancePerMember}km</Text>
+            <Text style={styles.heroMetricLabel}>평균 거리</Text>
+          </View>
+        </View>
+        <Text style={styles.heroFootnote}>총 거리 {summary.districtBattle.totalDistanceKm}km · 참여율 {summary.districtBattle.participationRate}%</Text>
+      </Card>
 
       <Card>
         <SectionTitle>이번 주 요약</SectionTitle>
@@ -37,12 +53,6 @@ export function HomeOverview({ summary }: { summary: WeeklySummary }) {
           <Text style={styles.muted}>{summary.totalDistanceKm}km / {summary.districtPoints}P</Text>
         </Card>
       </View>
-
-      <Card>
-        <SectionTitle>지역 배틀</SectionTitle>
-        <Text style={styles.body}>{summary.districtBattle.myDistrict} 평균 {summary.districtBattle.averageDistancePerMember}km</Text>
-        <Text style={styles.muted}>총 거리 {summary.districtBattle.totalDistanceKm}km · 참여율 {summary.districtBattle.participationRate}% · {summary.districtBattle.districtRank}위</Text>
-      </Card>
 
       <View style={styles.twoColumnRow}>
         <Card style={styles.halfCard}>
@@ -80,6 +90,43 @@ const styles = StyleSheet.create({
   eyebrow: { color: '#E9E7FF', fontWeight: '700', fontSize: 12 },
   title: { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
   subtitle: { color: '#F4F3FF', lineHeight: 21 },
+  heroBattleCard: {
+    backgroundColor: '#111827',
+    gap: 10,
+  },
+  heroLabel: {
+    color: '#C7D2FE',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  heroDistrict: {
+    color: '#FFFFFF',
+    fontSize: 30,
+    fontWeight: '800',
+  },
+  heroMetrics: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  heroMetricBox: {
+    flex: 1,
+    backgroundColor: '#1F2937',
+    borderRadius: 16,
+    padding: 14,
+    gap: 4,
+  },
+  heroMetricValue: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  heroMetricLabel: {
+    color: '#D0D5DD',
+  },
+  heroFootnote: {
+    color: '#98A2B3',
+    lineHeight: 20,
+  },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   metric: {
     width: '47%',
