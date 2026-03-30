@@ -4,12 +4,16 @@ import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { weeklySummary, connectedSources } from '@/data/mock';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { ListRow } from '@/components/ui/ListRow';
 
 export default function MyPageScreen() {
   const connectedCount = connectedSources.filter((source) => source.connected).length;
 
   return (
     <Screen>
+      <PageHeader title="마이페이지" subtitle="내 프로필, 활동 요약, 연동 상태와 설정을 한 번에 관리." />
+
       <Card style={styles.profileCard}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>민</Text>
@@ -36,18 +40,18 @@ export default function MyPageScreen() {
 
       <Card>
         <SectionTitle>연동 요약</SectionTitle>
-        <Text style={styles.row}>현재 연결된 기록 소스 {connectedCount}개</Text>
-        <Text style={styles.row}>최근 반영 기록 {weeklySummary.latestRun.distanceKm}km</Text>
+        <ListRow>{`현재 연결된 기록 소스 ${connectedCount}개`}</ListRow>
+        <ListRow>{`최근 반영 기록 ${weeklySummary.latestRun.distanceKm}km`}</ListRow>
       </Card>
 
       <IntegrationStatus sources={connectedSources} />
 
       <Card>
         <SectionTitle>설정</SectionTitle>
-        <Text style={styles.row}>계정 정보</Text>
-        <Text style={styles.row}>지역 설정</Text>
-        <Text style={styles.row}>알림 설정</Text>
-        <Text style={styles.row}>기록 연동 관리</Text>
+        <ListRow>계정 정보</ListRow>
+        <ListRow>지역 설정</ListRow>
+        <ListRow>알림 설정</ListRow>
+        <ListRow>기록 연동 관리</ListRow>
       </Card>
     </Screen>
   );
@@ -99,10 +103,5 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     color: '#667085',
-  },
-  row: {
-    color: '#344054',
-    paddingVertical: 8,
-    fontWeight: '600',
   },
 });
