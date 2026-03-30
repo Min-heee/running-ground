@@ -33,7 +33,11 @@ export default function SignupScreen() {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>이미 계정이 있나요?</Text>
-        <Link href="/login" style={styles.footerLink}>로그인</Link>
+        <Link href="/login" asChild>
+          <Pressable>
+            <Text style={styles.footerLink}>로그인</Text>
+          </Pressable>
+        </Link>
       </View>
     </Screen>
   );

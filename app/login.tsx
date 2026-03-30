@@ -44,7 +44,11 @@ export default function LoginScreen() {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>처음이신가요?</Text>
-        <Link href="/signup" style={styles.footerLink}>회원가입</Link>
+        <Link href="/signup" asChild>
+          <Pressable>
+            <Text style={styles.footerLink}>회원가입</Text>
+          </Pressable>
+        </Link>
       </View>
     </Screen>
   );
