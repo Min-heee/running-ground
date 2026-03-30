@@ -11,6 +11,7 @@ export default function RootLayout() {
       <Stack.Screen name="add-friend" />
       <Stack.Screen name="edit-profile" />
       <Stack.Screen name="region-settings" />
+      <Stack.Screen name="notification-settings" />
       <Stack.Screen name="(tabs)" />
     </Stack>
   );
