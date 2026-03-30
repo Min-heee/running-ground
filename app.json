@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "runnigapp",
+    "slug": "runnigapp",
+    "scheme": "runnigapp",
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
