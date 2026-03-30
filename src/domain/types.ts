@@ -79,3 +79,12 @@ export type DistrictPersonalRank = {
   points: number;
   isMe?: boolean;
 };
+
+export type FriendRequestStatus = 'pending' | 'received' | 'accepted';
+
+export type FriendRequest = {
+  id: string;
+  name: string;
+  tag: string;
+  status: FriendRequestStatus;
+};

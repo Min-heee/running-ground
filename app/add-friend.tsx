@@ -4,7 +4,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
-import { myProfile } from '@/data/mock';
+import { myProfile, friendRequests } from '@/data/mock';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 
 export default function AddFriendScreen() {
@@ -25,6 +25,9 @@ export default function AddFriendScreen() {
     setTimeout(() => setAdded(false), 2000);
   };
 
+  const pendingCount = friendRequests.filter((request) => request.status === 'pending').length;
+  const receivedCount = friendRequests.filter((request) => request.status === 'received').length;
+
   return (
     <Screen>
       <AuthHeader title="친구 추가하기" subtitle="친구 태그로 검색해서 서로의 기록과 순위를 비교할 수 있어." />
@@ -41,6 +44,11 @@ export default function AddFriendScreen() {
       </Card>
 
       <Card>
+        <Text style={styles.sectionTitle}>친구 요청 현황</Text>
+        <Text style={styles.statusText}>보낸 요청 {pendingCount}건 · 받은 요청 {receivedCount}건</Text>
+      </Card>
+
+      <Card>
         <Text style={styles.sectionTitle}>친구 태그 입력</Text>
         <View style={styles.form}>
           <TextInput
@@ -51,9 +59,9 @@ export default function AddFriendScreen() {
             value={friendTag}
             onChangeText={setFriendTag}
           />
-          <PrimaryButton label="친구 추가하기" onPress={handleAddFriend} />
+          <PrimaryButton label="친구 요청 보내기" onPress={handleAddFriend} />
           {friendTag.length > 0 ? <Text style={styles.helperText}>입력된 태그: {friendTag}</Text> : null}
-          {added ? <Text style={styles.successText}>친구 요청을 보냈어. 상대가 수락하면 랭킹에 함께 보여줄 수 있어.</Text> : null}
+          {added ? <Text style={styles.successText}>친구 요청을 보냈어. 상대가 수락하면 친구 랭킹에 함께 보여줄 수 있어.</Text> : null}
         </View>
       </Card>
 
@@ -96,6 +104,11 @@ const styles = StyleSheet.create({
   copyButtonText: {
     color: '#6D5EF7',
     fontWeight: '800',
+  },
+  statusText: {
+    color: '#475467',
+    lineHeight: 21,
+    marginTop: 8,
   },
   form: {
     gap: 12,
