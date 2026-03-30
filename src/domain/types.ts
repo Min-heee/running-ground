@@ -88,3 +88,10 @@ export type FriendRequest = {
   tag: string;
   status: FriendRequestStatus;
 };
+
+export type FriendRunRecord = {
+  id: string;
+  date: string;
+  distanceKm: number;
+  pace: string;
+};

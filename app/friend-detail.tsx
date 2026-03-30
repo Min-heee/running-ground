@@ -2,40 +2,43 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
-import { weeklySummary, friendRanks } from '@/data/mock';
+import { friendRanks, friendRunRecords } from '@/data/mock';
 
 export default function FriendDetailScreen() {
   const friend = friendRanks[0];
-  const gapKm = Math.abs(friend.distanceKm - weeklySummary.totalDistanceKm).toFixed(1);
-  const gapPoint = Math.abs(friend.points - weeklySummary.districtPoints);
+  const monthlyTotalKm = friendRunRecords.reduce((sum, run) => sum + run.distanceKm, 0).toFixed(1);
 
   return (
     <Screen>
-      <AuthHeader title="친구 비교" subtitle={`${friend.name}와 이번 주 기록을 나란히 비교할 수 있어.`} />
+      <AuthHeader title="친구 활동" subtitle={`${friend.name}가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어.`} />
 
       <Card style={styles.heroCard}>
-        <Text style={styles.heroLabel}>현재 비교 중</Text>
+        <Text style={styles.heroLabel}>친구 프로필</Text>
         <Text style={styles.heroTitle}>{friend.name}</Text>
         <Text style={styles.heroTag}>{friend.tag}</Text>
       </Card>
 
-      <View style={styles.compareRow}>
-        <Card style={styles.compareCard}>
-          <Text style={styles.compareLabel}>나</Text>
-          <Text style={styles.compareValue}>{weeklySummary.totalDistanceKm}km</Text>
-          <Text style={styles.compareSub}>{weeklySummary.districtPoints}P</Text>
+      <View style={styles.summaryRow}>
+        <Card style={styles.summaryCard}>
+          <Text style={styles.summaryLabel}>이번 달 총 거리</Text>
+          <Text style={styles.summaryValue}>{monthlyTotalKm}km</Text>
         </Card>
-        <Card style={styles.compareCard}>
-          <Text style={styles.compareLabel}>{friend.name}</Text>
-          <Text style={styles.compareValue}>{friend.distanceKm}km</Text>
-          <Text style={styles.compareSub}>{friend.points}P</Text>
+        <Card style={styles.summaryCard}>
+          <Text style={styles.summaryLabel}>이번 달 포인트</Text>
+          <Text style={styles.summaryValue}>{friend.points}P</Text>
         </Card>
       </View>
 
       <Card>
-        <Text style={styles.sectionTitle}>이번 주 차이</Text>
-        <Text style={styles.resultText}>거리 차이 {gapKm}km · 포인트 차이 {gapPoint}P</Text>
-        <Text style={styles.resultSub}>친구와의 차이를 줄이면 바로 순위 경쟁이 더 재밌어져.</Text>
+        <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
+        {friendRunRecords.map((run) => (
+          <View key={run.id} style={styles.recordRow}>
+            <View style={styles.recordMeta}>
+              <Text style={styles.recordDate}>{run.date}</Text>
+              <Text style={styles.recordDetail}>{run.distanceKm}km · 페이스 {run.pace}</Text>
+            </View>
+          </View>
+        ))}
       </Card>
     </Screen>
   );
@@ -60,25 +63,20 @@ const styles = StyleSheet.create({
     color: '#98A2B3',
     fontWeight: '700',
   },
-  compareRow: {
+  summaryRow: {
     flexDirection: 'row',
     gap: 10,
   },
-  compareCard: {
+  summaryCard: {
     flex: 1,
-    minHeight: 120,
   },
-  compareLabel: {
+  summaryLabel: {
     color: '#667085',
     fontWeight: '700',
   },
-  compareValue: {
+  summaryValue: {
     color: '#111827',
     fontSize: 24,
-    fontWeight: '800',
-  },
-  compareSub: {
-    color: '#6D5EF7',
     fontWeight: '800',
   },
   sectionTitle: {
@@ -86,14 +84,19 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#111827',
   },
-  resultText: {
+  recordRow: {
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#EAECF0',
+  },
+  recordMeta: {
+    gap: 2,
+  },
+  recordDate: {
     color: '#111827',
     fontWeight: '700',
-    marginTop: 8,
   },
-  resultSub: {
+  recordDetail: {
     color: '#667085',
-    lineHeight: 20,
-    marginTop: 4,
   },
 });
