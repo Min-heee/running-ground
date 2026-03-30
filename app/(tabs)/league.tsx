@@ -12,6 +12,7 @@ export default function LeagueScreen() {
   const [path, setPath] = useState<RegionDrilldownNode[]>([regionDrilldownTree]);
   const currentNode = path[path.length - 1];
   const children = currentNode.children ?? [];
+  const isCountry = currentNode.level === 'country';
 
   const breadcrumb = useMemo(() => path.map((node) => node.name).join(' > '), [path]);
 
@@ -27,12 +28,12 @@ export default function LeagueScreen() {
         <Text style={styles.breadcrumb}>{breadcrumb}</Text>
         <View style={styles.heroMetrics}>
           <View style={styles.heroMetricBox}>
-            <Text style={styles.heroMetricValue}>{currentNode.rank}위</Text>
-            <Text style={styles.heroMetricLabel}>현재 순위</Text>
+            <Text style={styles.heroMetricValue}>{isCountry ? `${currentNode.totalDistanceKm}km` : `${currentNode.rank}위`}</Text>
+            <Text style={styles.heroMetricLabel}>{isCountry ? '회원 총 거리' : '현재 순위'}</Text>
           </View>
           <View style={styles.heroMetricBox}>
-            <Text style={styles.heroMetricValue}>{currentNode.averageDistanceKm}km</Text>
-            <Text style={styles.heroMetricLabel}>평균 거리</Text>
+            <Text style={styles.heroMetricValue}>{isCountry ? `${currentNode.participants}명` : `${currentNode.averageDistanceKm}km`}</Text>
+            <Text style={styles.heroMetricLabel}>{isCountry ? '회원 수' : '평균 거리'}</Text>
           </View>
         </View>
       </Card>
@@ -65,11 +66,11 @@ export default function LeagueScreen() {
       </Card>
 
       <Card>
-        <SectionTitle>선택 지역 현황</SectionTitle>
+        <SectionTitle>{isCountry ? '대한민국 전체 현황' : '선택 지역 현황'}</SectionTitle>
         <View style={styles.summaryGrid}>
           <View style={styles.summaryBox}>
-            <Text style={styles.summaryValue}>{currentNode.averageDistanceKm}km</Text>
-            <Text style={styles.summaryLabel}>평균 거리</Text>
+            <Text style={styles.summaryValue}>{isCountry ? `${currentNode.totalDistanceKm}km` : `${currentNode.averageDistanceKm}km`}</Text>
+            <Text style={styles.summaryLabel}>{isCountry ? '회원 총 거리' : '평균 거리'}</Text>
           </View>
           <View style={styles.summaryBox}>
             <Text style={styles.summaryValue}>{currentNode.participationRate}%</Text>
@@ -79,23 +80,23 @@ export default function LeagueScreen() {
         <View style={styles.summaryGrid}>
           <View style={styles.summaryBox}>
             <Text style={styles.summaryValue}>{currentNode.participants}명</Text>
-            <Text style={styles.summaryLabel}>참여 인원</Text>
+            <Text style={styles.summaryLabel}>회원 수</Text>
           </View>
           <View style={styles.summaryBox}>
-            <Text style={styles.summaryValue}>{currentNode.rank}위</Text>
-            <Text style={styles.summaryLabel}>현재 순위</Text>
+            <Text style={styles.summaryValue}>{isCountry ? `${children.length}개` : `${currentNode.rank}위`}</Text>
+            <Text style={styles.summaryLabel}>{isCountry ? '하위 지역 수' : '현재 순위'}</Text>
           </View>
         </View>
       </Card>
 
       <Card>
-        <SectionTitle>하위 지역 순위</SectionTitle>
+        <SectionTitle>{children.length > 0 ? '하위 지역 순위' : '현재 지역 정보'}</SectionTitle>
         {(children.length > 0 ? children : [currentNode]).map((node) => (
           <View key={node.id} style={styles.rankRow}>
-            <Text style={styles.rankNumber}>{node.rank}</Text>
+            <Text style={styles.rankNumber}>{isCountry ? '-' : node.rank}</Text>
             <View style={styles.rankMeta}>
               <Text style={styles.rankName}>{node.name}</Text>
-              <Text style={styles.rankDetail}>평균 {node.averageDistanceKm}km · 참여율 {node.participationRate}% · {node.participants}명</Text>
+              <Text style={styles.rankDetail}>{isCountry ? `총 거리 ${node.totalDistanceKm}km · 회원 ${node.participants}명 · 평균 ${node.averageDistanceKm}km` : `평균 ${node.averageDistanceKm}km · 참여율 ${node.participationRate}% · ${node.participants}명`}</Text>
             </View>
           </View>
         ))}

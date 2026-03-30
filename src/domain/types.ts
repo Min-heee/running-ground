@@ -64,6 +64,7 @@ export type RegionDrilldownNode = {
   name: string;
   level: 'country' | 'province' | 'city' | 'district';
   averageDistanceKm: number;
+  totalDistanceKm: number;
   participationRate: number;
   participants: number;
   rank: number;
