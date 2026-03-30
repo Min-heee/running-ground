@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, TextInput } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View, TextInput, Pressable } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -7,6 +8,23 @@ import { myProfile } from '@/data/mock';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 
 export default function AddFriendScreen() {
+  const [friendTag, setFriendTag] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [added, setAdded] = useState(false);
+
+  const handleCopy = () => {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const handleAddFriend = () => {
+    if (!friendTag.trim()) {
+      return;
+    }
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  };
+
   return (
     <Screen>
       <AuthHeader title="친구 추가하기" subtitle="친구 태그로 검색해서 서로의 기록과 순위를 비교할 수 있어." />
@@ -16,6 +34,9 @@ export default function AddFriendScreen() {
         <View style={styles.tagBox}>
           <Text style={styles.tag}>{myProfile.publicTag}</Text>
           <Text style={styles.tagHint}>친구에게 이 태그를 공유하면 바로 추가할 수 있어.</Text>
+          <Pressable style={styles.copyButton} onPress={handleCopy}>
+            <Text style={styles.copyButtonText}>{copied ? '복사됨' : '태그 복사하기'}</Text>
+          </Pressable>
         </View>
       </Card>
 
@@ -27,8 +48,12 @@ export default function AddFriendScreen() {
             placeholderTextColor="#98A2B3"
             style={styles.input}
             autoCapitalize="characters"
+            value={friendTag}
+            onChangeText={setFriendTag}
           />
-          <PrimaryButton label="친구 추가하기" />
+          <PrimaryButton label="친구 추가하기" onPress={handleAddFriend} />
+          {friendTag.length > 0 ? <Text style={styles.helperText}>입력된 태그: {friendTag}</Text> : null}
+          {added ? <Text style={styles.successText}>친구 요청을 보냈어. 상대가 수락하면 랭킹에 함께 보여줄 수 있어.</Text> : null}
         </View>
       </Card>
 
@@ -47,7 +72,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F3FF',
     borderRadius: 18,
     padding: 16,
-    gap: 6,
+    gap: 8,
     marginTop: 8,
   },
   tag: {
@@ -58,6 +83,19 @@ const styles = StyleSheet.create({
   tagHint: {
     color: '#667085',
     lineHeight: 20,
+  },
+  copyButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+  },
+  copyButtonText: {
+    color: '#6D5EF7',
+    fontWeight: '800',
   },
   form: {
     gap: 12,
@@ -71,5 +109,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     color: '#111827',
+  },
+  helperText: {
+    color: '#667085',
+    fontWeight: '600',
+  },
+  successText: {
+    color: '#067647',
+    fontWeight: '700',
+    lineHeight: 20,
   },
 });

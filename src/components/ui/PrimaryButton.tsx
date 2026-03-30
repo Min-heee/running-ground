@@ -1,8 +1,14 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 
-export function PrimaryButton({ label }: { label: string }) {
+export function PrimaryButton({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress?: () => void;
+}) {
   return (
-    <Pressable style={styles.button}>
+    <Pressable style={styles.button} onPress={onPress}>
       <Text style={styles.text}>{label}</Text>
     </Pressable>
   );
