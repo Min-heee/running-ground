@@ -31,7 +31,7 @@ export default function OnboardingScreen() {
       </Card>
 
       <View style={styles.actions}>
-        <Link href="/login" asChild>
+        <Link href="/signup" asChild>
           <Pressable style={styles.primaryButton}>
             <Text style={styles.primaryButtonText}>회원가입</Text>
           </Pressable>

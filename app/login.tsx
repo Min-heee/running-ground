@@ -4,9 +4,9 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 
 const providers = [
-  { id: 'kakao', label: '카카오톡으로 계속하기' },
-  { id: 'google', label: 'Google로 계속하기' },
-  { id: 'apple', label: 'Apple로 계속하기' },
+  { id: 'kakao', label: '카카오톡으로 로그인하기' },
+  { id: 'google', label: 'Google로 로그인하기' },
+  { id: 'apple', label: 'Apple로 로그인하기' },
 ];
 
 export default function LoginScreen() {
@@ -15,7 +15,7 @@ export default function LoginScreen() {
       <View style={styles.header}>
         <Text style={styles.logo}>RUNNIGAPP</Text>
         <Text style={styles.title}>로그인</Text>
-        <Text style={styles.subtitle}>계정을 만든 뒤 기록 소스를 연결하면 경쟁이 바로 시작돼.</Text>
+        <Text style={styles.subtitle}>이미 계정이 있다면 로그인하고 기록 연동 단계로 넘어가면 돼.</Text>
       </View>
 
       <Card>
@@ -44,7 +44,7 @@ export default function LoginScreen() {
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>처음이신가요?</Text>
-        <Text style={styles.footerLink}>회원가입</Text>
+        <Link href="/signup" style={styles.footerLink}>회원가입</Link>
       </View>
     </Screen>
   );
