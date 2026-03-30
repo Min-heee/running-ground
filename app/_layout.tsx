@@ -8,6 +8,7 @@ export default function RootLayout() {
       <Stack.Screen name="signup-form" />
       <Stack.Screen name="login" />
       <Stack.Screen name="connect-sources" />
+      <Stack.Screen name="add-friend" />
       <Stack.Screen name="(tabs)" />
     </Stack>
   );

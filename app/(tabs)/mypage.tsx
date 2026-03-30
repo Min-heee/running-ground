@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
-import { weeklySummary, connectedSources } from '@/data/mock';
+import { weeklySummary, connectedSources, myProfile } from '@/data/mock';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ListRow } from '@/components/ui/ListRow';
@@ -19,8 +19,9 @@ export default function MyPageScreen() {
           <Text style={styles.avatarText}>민</Text>
         </View>
         <View style={styles.profileMeta}>
-          <Text style={styles.name}>민병희</Text>
-          <Text style={styles.subline}>강남구 · 러닝 경쟁 진행 중</Text>
+          <Text style={styles.name}>{myProfile.name}</Text>
+          <Text style={styles.subline}>{myProfile.districtName} · 러닝 경쟁 진행 중</Text>
+          <Text style={styles.tag}>{myProfile.publicTag}</Text>
         </View>
       </Card>
 
@@ -84,6 +85,11 @@ const styles = StyleSheet.create({
   },
   subline: {
     color: '#667085',
+  },
+  tag: {
+    color: '#6D5EF7',
+    fontWeight: '800',
+    marginTop: 2,
   },
   metricRow: {
     flexDirection: 'row',

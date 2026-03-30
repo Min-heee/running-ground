@@ -33,6 +33,7 @@ export type FriendRank = {
   id: string;
   rank: number;
   name: string;
+  tag?: string;
   distanceKm: number;
   points: number;
 };
@@ -42,4 +43,10 @@ export type ConnectedSource = {
   displayName: string;
   connected: boolean;
   connectionStatus: 'connected' | 'planned';
+};
+
+export type UserProfile = {
+  name: string;
+  districtName: string;
+  publicTag: string;
 };
