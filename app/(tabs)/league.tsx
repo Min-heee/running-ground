@@ -46,6 +46,9 @@ export default function LeagueScreen() {
             <Text style={styles.heroMetricLabel}>{isCountry ? '회원 수' : '평균 거리'}</Text>
           </View>
         </View>
+        {isCountry ? (
+          <Text style={styles.heroFootnote}>참여율 {currentNode.participationRate}% · 하위 지역 {children.length}개</Text>
+        ) : null}
       </Card>
 
       <Card>
@@ -84,29 +87,31 @@ export default function LeagueScreen() {
         </View>
       </Card>
 
-      <Card>
-        <SectionTitle>{isCountry ? '대한민국 전체 현황' : '선택 지역 현황'}</SectionTitle>
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryValue}>{isCountry ? `${currentNode.totalDistanceKm}km` : `${currentNode.averageDistanceKm}km`}</Text>
-            <Text style={styles.summaryLabel}>{isCountry ? '회원 총 거리' : '평균 거리'}</Text>
+      {!isCountry ? (
+        <Card>
+          <SectionTitle>선택 지역 현황</SectionTitle>
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryBox}>
+              <Text style={styles.summaryValue}>{currentNode.averageDistanceKm}km</Text>
+              <Text style={styles.summaryLabel}>평균 거리</Text>
+            </View>
+            <View style={styles.summaryBox}>
+              <Text style={styles.summaryValue}>{currentNode.participationRate}%</Text>
+              <Text style={styles.summaryLabel}>참여율</Text>
+            </View>
           </View>
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryValue}>{currentNode.participationRate}%</Text>
-            <Text style={styles.summaryLabel}>참여율</Text>
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryBox}>
+              <Text style={styles.summaryValue}>{currentNode.participants}명</Text>
+              <Text style={styles.summaryLabel}>회원 수</Text>
+            </View>
+            <View style={styles.summaryBox}>
+              <Text style={styles.summaryValue}>{currentNode.rank}위</Text>
+              <Text style={styles.summaryLabel}>현재 순위</Text>
+            </View>
           </View>
-        </View>
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryValue}>{currentNode.participants}명</Text>
-            <Text style={styles.summaryLabel}>회원 수</Text>
-          </View>
-          <View style={styles.summaryBox}>
-            <Text style={styles.summaryValue}>{isCountry ? `${children.length}개` : `${currentNode.rank}위`}</Text>
-            <Text style={styles.summaryLabel}>{isCountry ? '하위 지역 수' : '현재 순위'}</Text>
-          </View>
-        </View>
-      </Card>
+        </Card>
+      ) : null}
 
       <Card>
         <SectionTitle>{children.length > 0 ? '하위 지역 순위' : '현재 지역 정보'}</SectionTitle>
@@ -161,6 +166,10 @@ const styles = StyleSheet.create({
   },
   heroMetricLabel: {
     color: '#E9E7FF',
+  },
+  heroFootnote: {
+    color: '#E9E7FF',
+    lineHeight: 20,
   },
   selectorWrap: {
     gap: 12,
