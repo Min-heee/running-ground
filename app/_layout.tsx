@@ -14,6 +14,7 @@ export default function RootLayout() {
       <Stack.Screen name="notification-settings" />
       <Stack.Screen name="friend-detail" />
       <Stack.Screen name="integration-management" />
+      <Stack.Screen name="my-activity" />
       <Stack.Screen name="(tabs)" />
     </Stack>
   );

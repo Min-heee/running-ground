@@ -45,19 +45,23 @@ export default function MyPageScreen() {
         </Pressable>
       </View>
 
-      <Card>
-        <SectionTitle>내 활동</SectionTitle>
-        <View style={styles.metricRow}>
-          <View style={styles.metricBox}>
-            <Text style={styles.metricValue}>{weeklySummary.totalDistanceKm}km</Text>
-            <Text style={styles.metricLabel}>이번 주 거리</Text>
-          </View>
-          <View style={styles.metricBox}>
-            <Text style={styles.metricValue}>{weeklySummary.districtPoints}P</Text>
-            <Text style={styles.metricLabel}>포인트</Text>
-          </View>
-        </View>
-      </Card>
+      <Link href="/my-activity" asChild>
+        <Pressable>
+          <Card>
+            <SectionTitle>내 활동</SectionTitle>
+            <View style={styles.metricRow}>
+              <View style={styles.metricBox}>
+                <Text style={styles.metricValue}>{weeklySummary.totalDistanceKm}km</Text>
+                <Text style={styles.metricLabel}>이번 주 거리</Text>
+              </View>
+              <View style={styles.metricBox}>
+                <Text style={styles.metricValue}>{weeklySummary.districtPoints}P</Text>
+                <Text style={styles.metricLabel}>포인트</Text>
+              </View>
+            </View>
+          </Card>
+        </Pressable>
+      </Link>
 
       <Card>
         <SectionTitle>연동 요약</SectionTitle>

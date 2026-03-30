@@ -95,3 +95,11 @@ export type FriendRunRecord = {
   distanceKm: number;
   pace: string;
 };
+
+export type MyRunRecord = {
+  id: string;
+  date: string;
+  distanceKm: number;
+  pace: string;
+  source: string;
+};
