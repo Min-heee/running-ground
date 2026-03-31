@@ -16,6 +16,8 @@ export type FriendLeaderboardResponse = {
 export type FriendActivityResponse = {
   friend: FriendRank;
   runs: FriendRunRecordsResponse;
+  monthlyDistanceKm: number;
+  monthlyPoints: number;
 };
 
 export type FriendRunRecordsResponse = FriendRunRecord[];
@@ -25,3 +27,10 @@ export type IntegrationStatusResponse = {
 };
 
 export type MyProfileResponse = UserProfile;
+
+export type RunDetailResponse = {
+  run: MyRunRecord;
+  weeklyDistanceKm: number;
+  estimatedMinutes: number;
+  earnedPoint: number;
+};

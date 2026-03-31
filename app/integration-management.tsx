@@ -1,16 +1,25 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
-import { connectedSources } from '@/data/mock';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { fetchIntegrationStatus } from '@/lib/api/services';
+import { IntegrationStatusResponse } from '@/lib/api/types';
 
 export default function IntegrationManagementScreen() {
-  const connected = connectedSources.filter((source) => source.connected);
-  const planned = connectedSources.filter((source) => !source.connected);
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncDone, setSyncDone] = useState(false);
+
+  useEffect(() => {
+    fetchIntegrationStatus()
+      .then((data) => setIntegrationStatus(data))
+      .catch(() => setError('연동 정보를 불러오지 못했어.'))
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleSync = () => {
     setSyncing(true);
@@ -22,48 +31,58 @@ export default function IntegrationManagementScreen() {
     }, 1000);
   };
 
+  const connected = integrationStatus?.sources.filter((source) => source.connected) ?? [];
+  const planned = integrationStatus?.sources.filter((source) => !source.connected) ?? [];
+
   return (
     <Screen>
       <AuthHeader title="기록 연동 관리" subtitle="러닝 기록이 들어오는 소스를 관리하고 연결 상태를 확인할 수 있어." />
 
-      <Card>
-        <Text style={styles.sectionTitle}>연동 상태 요약</Text>
-        <Text style={styles.summaryText}>현재 {connected.length}개 소스가 연결되어 있고, 최신 기록이 경쟁 화면에 반영될 수 있어.</Text>
-        <PrimaryButton label={syncing ? '동기화 중...' : '지금 동기화하기'} onPress={handleSync} />
-        {syncDone ? <Text style={styles.successText}>동기화가 완료됐어.</Text> : null}
-      </Card>
+      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {error ? <Text>{error}</Text> : null}
 
-      <Card>
-        <Text style={styles.sectionTitle}>현재 연결된 소스</Text>
-        {connected.map((source) => (
-          <View key={source.sourceType} style={styles.row}>
-            <View style={styles.meta}>
-              <Text style={styles.name}>{source.displayName}</Text>
-              <Text style={styles.detail}>마지막 동기화 {source.lastSyncedAt ?? '정보 없음'}</Text>
-              <Text style={styles.platform}>{source.recommendedPlatform === 'ios' ? 'iPhone 추천' : source.recommendedPlatform === 'android' ? 'Android 추천' : '공통 사용 가능'}</Text>
-            </View>
-            <Pressable style={styles.manageButton}>
-              <Text style={styles.manageButtonText}>관리</Text>
-            </Pressable>
-          </View>
-        ))}
-      </Card>
+      {integrationStatus ? (
+        <>
+          <Card>
+            <Text style={styles.sectionTitle}>연동 상태 요약</Text>
+            <Text style={styles.summaryText}>현재 {connected.length}개 소스가 연결되어 있고, 최신 기록이 경쟁 화면에 반영될 수 있어.</Text>
+            <PrimaryButton label={syncing ? '동기화 중...' : '지금 동기화하기'} onPress={handleSync} />
+            {syncDone ? <Text style={styles.successText}>동기화가 완료됐어.</Text> : null}
+          </Card>
 
-      <Card>
-        <Text style={styles.sectionTitle}>지원 예정 소스</Text>
-        {planned.map((source) => (
-          <View key={source.sourceType} style={styles.row}>
-            <View style={styles.meta}>
-              <Text style={styles.name}>{source.displayName}</Text>
-              <Text style={styles.detail}>추후 연동 지원 예정</Text>
-              <Text style={styles.platform}>{source.recommendedPlatform === 'ios' ? 'iPhone 추천' : source.recommendedPlatform === 'android' ? 'Android 추천' : '공통 사용 가능'}</Text>
-            </View>
-            <View style={styles.plannedBadge}>
-              <Text style={styles.plannedBadgeText}>예정</Text>
-            </View>
-          </View>
-        ))}
-      </Card>
+          <Card>
+            <Text style={styles.sectionTitle}>현재 연결된 소스</Text>
+            {connected.map((source) => (
+              <View key={source.sourceType} style={styles.row}>
+                <View style={styles.meta}>
+                  <Text style={styles.name}>{source.displayName}</Text>
+                  <Text style={styles.detail}>마지막 동기화 {source.lastSyncedAt ?? '정보 없음'}</Text>
+                  <Text style={styles.platform}>{source.recommendedPlatform === 'ios' ? 'iPhone 추천' : source.recommendedPlatform === 'android' ? 'Android 추천' : '공통 사용 가능'}</Text>
+                </View>
+                <Pressable style={styles.manageButton}>
+                  <Text style={styles.manageButtonText}>관리</Text>
+                </Pressable>
+              </View>
+            ))}
+          </Card>
+
+          <Card>
+            <Text style={styles.sectionTitle}>지원 예정 소스</Text>
+            {planned.map((source) => (
+              <View key={source.sourceType} style={styles.row}>
+                <View style={styles.meta}>
+                  <Text style={styles.name}>{source.displayName}</Text>
+                  <Text style={styles.detail}>추후 연동 지원 예정</Text>
+                  <Text style={styles.platform}>{source.recommendedPlatform === 'ios' ? 'iPhone 추천' : source.recommendedPlatform === 'android' ? 'Android 추천' : '공통 사용 가능'}</Text>
+                </View>
+                <View style={styles.plannedBadge}>
+                  <Text style={styles.plannedBadgeText}>예정</Text>
+                </View>
+              </View>
+            ))}
+          </Card>
+        </>
+      ) : null}
     </Screen>
   );
 }

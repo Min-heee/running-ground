@@ -16,6 +16,7 @@ import {
   IntegrationStatusResponse,
   MyActivityResponse,
   MyProfileResponse,
+  RunDetailResponse,
 } from './types';
 
 export async function fetchHomeSummary(): Promise<HomeSummaryResponse> {
@@ -54,6 +55,8 @@ export async function fetchFriendActivity(): Promise<FriendActivityResponse> {
     return {
       friend: friendRanks[0],
       runs: friendRunRecords,
+      monthlyDistanceKm: Number(friendRunRecords.reduce((sum, run) => sum + run.distanceKm, 0).toFixed(1)),
+      monthlyPoints: friendRanks[0].points,
     };
   }
 
@@ -76,4 +79,18 @@ export async function fetchMyProfile(): Promise<MyProfileResponse> {
   }
 
   return apiGet<MyProfileResponse>('/me/profile');
+}
+
+export async function fetchRunDetail(): Promise<RunDetailResponse> {
+  if (USE_MOCK_API) {
+    const run = myRunRecords[0];
+    return {
+      run,
+      weeklyDistanceKm: weeklySummary.totalDistanceKm,
+      estimatedMinutes: Math.round(run.distanceKm * 5.5),
+      earnedPoint: Math.round(run.distanceKm * 2.4),
+    };
+  }
+
+  return apiGet<RunDetailResponse>('/runs/latest');
 }

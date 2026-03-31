@@ -1,49 +1,66 @@
-import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
-import { friendRanks, friendRunRecords } from '@/data/mock';
+import { fetchFriendActivity } from '@/lib/api/services';
+import { FriendActivityResponse } from '@/lib/api/types';
 
 export default function FriendDetailScreen() {
-  const friend = friendRanks[0];
-  const monthlyTotalKm = friendRunRecords.reduce((sum, run) => sum + run.distanceKm, 0).toFixed(1);
+  const [activity, setActivity] = useState<FriendActivityResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchFriendActivity()
+      .then((data) => setActivity(data))
+      .catch(() => setError('친구 활동 정보를 불러오지 못했어.'))
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
     <Screen>
-      <AuthHeader title="친구 활동" subtitle={`${friend.name}가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어.`} />
+      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {error ? <Text>{error}</Text> : null}
 
-      <Card style={styles.heroCard}>
-        <Text style={styles.heroLabel}>친구 프로필</Text>
-        <Text style={styles.heroTitle}>{friend.name}</Text>
-        <Text style={styles.heroTag}>{friend.tag}</Text>
-      </Card>
+      {activity ? (
+        <>
+          <AuthHeader title="친구 활동" subtitle={`${activity.friend.name}가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어.`} />
 
-      <View style={styles.summaryRow}>
-        <Card style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>이번 달 총 거리</Text>
-          <Text style={styles.summaryValue}>{monthlyTotalKm}km</Text>
-        </Card>
-        <Card style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>이번 달 포인트</Text>
-          <Text style={styles.summaryValue}>{friend.points}P</Text>
-        </Card>
-      </View>
+          <Card style={styles.heroCard}>
+            <Text style={styles.heroLabel}>친구 프로필</Text>
+            <Text style={styles.heroTitle}>{activity.friend.name}</Text>
+            <Text style={styles.heroTag}>{activity.friend.tag}</Text>
+          </Card>
 
-      <Card>
-        <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
-        {friendRunRecords.map((run) => (
-          <Link key={run.id} href="/run-detail" asChild>
-            <Pressable style={styles.recordRow}>
-              <View style={styles.recordMeta}>
-                <Text style={styles.recordDate}>{run.date}</Text>
-                <Text style={styles.recordDetail}>{run.distanceKm}km · 페이스 {run.pace}</Text>
-              </View>
-              <Text style={styles.recordLink}>보기</Text>
-            </Pressable>
-          </Link>
-        ))}
-      </Card>
+          <View style={styles.summaryRow}>
+            <Card style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>이번 달 총 거리</Text>
+              <Text style={styles.summaryValue}>{activity.monthlyDistanceKm}km</Text>
+            </Card>
+            <Card style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>이번 달 포인트</Text>
+              <Text style={styles.summaryValue}>{activity.monthlyPoints}P</Text>
+            </Card>
+          </View>
+
+          <Card>
+            <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
+            {activity.runs.map((run) => (
+              <Link key={run.id} href="/run-detail" asChild>
+                <Pressable style={styles.recordRow}>
+                  <View style={styles.recordMeta}>
+                    <Text style={styles.recordDate}>{run.date}</Text>
+                    <Text style={styles.recordDetail}>{run.distanceKm}km · 페이스 {run.pace}</Text>
+                  </View>
+                  <Text style={styles.recordLink}>보기</Text>
+                </Pressable>
+              </Link>
+            ))}
+          </Card>
+        </>
+      ) : null}
     </Screen>
   );
 }
