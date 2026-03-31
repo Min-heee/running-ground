@@ -70,6 +70,18 @@ This is the smallest version that still feels like a real product.
 - my activity shortcut
 - integration shortcut
 
+### 7. Release MVP tab structure
+Visible bottom tabs for v1:
+- 친구
+- 홈
+- 마이
+
+Not visible in bottom tabs for v1:
+- 지역
+- 마켓
+
+These may remain reachable through internal links, beta entry points, or later release branches, but they should not define the primary release navigation.
+
 ---
 
 ## Explicitly out of scope for v1

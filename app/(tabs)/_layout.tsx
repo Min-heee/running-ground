@@ -22,10 +22,10 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen name="friends" options={{ title: '친구' }} />
-      <Tabs.Screen name="league" options={{ title: '지역' }} />
       <Tabs.Screen name="home" options={{ title: '홈' }} />
-      <Tabs.Screen name="market" options={{ title: '마켓' }} />
       <Tabs.Screen name="mypage" options={{ title: '마이' }} />
+      <Tabs.Screen name="league" options={{ href: null }} />
+      <Tabs.Screen name="market" options={{ href: null }} />
       <Tabs.Screen name="integrations" options={{ href: null }} />
     </Tabs>
   );
