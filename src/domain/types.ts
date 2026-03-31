@@ -43,6 +43,8 @@ export type ConnectedSource = {
   displayName: string;
   connected: boolean;
   connectionStatus: 'connected' | 'planned';
+  lastSyncedAt?: string;
+  recommendedPlatform?: 'ios' | 'android' | 'all';
 };
 
 export type UserProfile = {

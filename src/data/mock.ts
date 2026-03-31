@@ -132,10 +132,10 @@ export const regionDrilldownTree: RegionDrilldownNode = {
 };
 
 export const connectedSources: ConnectedSource[] = [
-  { sourceType: 'apple_health', displayName: 'Apple Health', connected: true, connectionStatus: 'connected' },
-  { sourceType: 'manual', displayName: 'Manual', connected: true, connectionStatus: 'connected' },
-  { sourceType: 'health_connect', displayName: 'Health Connect', connected: false, connectionStatus: 'planned' },
-  { sourceType: 'garmin', displayName: 'Garmin', connected: false, connectionStatus: 'planned' },
-  { sourceType: 'strava', displayName: 'Strava', connected: false, connectionStatus: 'planned' },
-  { sourceType: 'nrc', displayName: 'NRC', connected: false, connectionStatus: 'planned' },
+  { sourceType: 'apple_health', displayName: 'Apple Health', connected: true, connectionStatus: 'connected', lastSyncedAt: '2026-03-31 14:02', recommendedPlatform: 'ios' },
+  { sourceType: 'manual', displayName: 'Manual', connected: true, connectionStatus: 'connected', lastSyncedAt: '2026-03-30 22:10', recommendedPlatform: 'all' },
+  { sourceType: 'health_connect', displayName: 'Health Connect', connected: false, connectionStatus: 'planned', recommendedPlatform: 'android' },
+  { sourceType: 'garmin', displayName: 'Garmin', connected: false, connectionStatus: 'planned', recommendedPlatform: 'all' },
+  { sourceType: 'strava', displayName: 'Strava', connected: false, connectionStatus: 'planned', recommendedPlatform: 'all' },
+  { sourceType: 'nrc', displayName: 'NRC', connected: false, connectionStatus: 'planned', recommendedPlatform: 'all' },
 ];
