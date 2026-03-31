@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View, Pressable } from 'react-native';
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { connectedSources } from '@/data/mock';
@@ -39,16 +39,8 @@ export default function ConnectSourcesScreen() {
       <InfoCard title="왜 필요한가요?">기록 연동은 로그인과 별개야. Apple Health, Health Connect, Manual 같은 경로를 연결하면 달린 기록이 홈, 내 활동, 친구 경쟁에 반영돼.</InfoCard>
 
       <View style={styles.actions}>
-        <Link href="/integration-management" asChild>
-          <View>
-            <SecondaryButton label="연동 설정 자세히 보기" />
-          </View>
-        </Link>
-        <Link href="/(tabs)/home" asChild>
-          <View>
-            <PrimaryButton label="연동하고 홈으로 들어가기" />
-          </View>
-        </Link>
+        <SecondaryButton label="연동 설정 자세히 보기" onPress={() => router.push('/integration-management')} />
+        <PrimaryButton label="연동하고 홈으로 들어가기" onPress={() => router.push('/(tabs)/home')} />
       </View>
     </Screen>
   );
