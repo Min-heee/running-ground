@@ -14,8 +14,8 @@ const providers = [
 ] as const;
 
 export default function LoginScreen() {
-  const handleLogin = () => {
-    signIn();
+  const handleLogin = async () => {
+    await signIn();
     router.push('/connect-sources');
   };
 

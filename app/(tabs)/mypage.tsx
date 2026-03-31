@@ -34,13 +34,13 @@ export default function MyPageScreen() {
     setTimeout(() => setTagShared(false), 1500);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (!logoutConfirm) {
       setLogoutConfirm(true);
       return;
     }
 
-    signOut();
+    await signOut();
     router.replace('/onboarding');
   };
 

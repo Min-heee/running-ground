@@ -7,8 +7,8 @@ import { InfoCard } from '@/components/ui/InfoCard';
 import { signIn } from '@/lib/session';
 
 export default function SignupFormScreen() {
-  const handleSignup = () => {
-    signIn();
+  const handleSignup = async () => {
+    await signIn();
     router.push('/connect-sources');
   };
 
