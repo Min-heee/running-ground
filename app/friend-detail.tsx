@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -32,12 +33,15 @@ export default function FriendDetailScreen() {
       <Card>
         <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
         {friendRunRecords.map((run) => (
-          <View key={run.id} style={styles.recordRow}>
-            <View style={styles.recordMeta}>
-              <Text style={styles.recordDate}>{run.date}</Text>
-              <Text style={styles.recordDetail}>{run.distanceKm}km · 페이스 {run.pace}</Text>
-            </View>
-          </View>
+          <Link key={run.id} href="/run-detail" asChild>
+            <Pressable style={styles.recordRow}>
+              <View style={styles.recordMeta}>
+                <Text style={styles.recordDate}>{run.date}</Text>
+                <Text style={styles.recordDetail}>{run.distanceKm}km · 페이스 {run.pace}</Text>
+              </View>
+              <Text style={styles.recordLink}>보기</Text>
+            </Pressable>
+          </Link>
         ))}
       </Card>
     </Screen>
@@ -88,9 +92,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#EAECF0',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
   },
   recordMeta: {
     gap: 2,
+    flex: 1,
   },
   recordDate: {
     color: '#111827',
@@ -98,5 +107,9 @@ const styles = StyleSheet.create({
   },
   recordDetail: {
     color: '#667085',
+  },
+  recordLink: {
+    color: '#6D5EF7',
+    fontWeight: '800',
   },
 });
