@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { ListRow } from '@/components/ui/ListRow';
 import { fetchHomeSummary, fetchIntegrationStatus, fetchMyProfile } from '@/lib/api/services';
 import { HomeSummaryResponse, IntegrationStatusResponse, MyProfileResponse } from '@/lib/api/types';
+import { signOut } from '@/lib/session';
 
 export default function MyPageScreen() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
@@ -31,6 +32,16 @@ export default function MyPageScreen() {
   const handleShareTag = () => {
     setTagShared(true);
     setTimeout(() => setTagShared(false), 1500);
+  };
+
+  const handleLogout = () => {
+    if (!logoutConfirm) {
+      setLogoutConfirm(true);
+      return;
+    }
+
+    signOut();
+    router.replace('/onboarding');
   };
 
   const connectedCount = integrationStatus?.sources.filter((source) => source.connected).length ?? 0;
@@ -118,10 +129,9 @@ export default function MyPageScreen() {
             <ListRow>마켓 / 리워드</ListRow>
           </Card>
 
-          <Pressable style={styles.logoutButton} onPress={() => setLogoutConfirm((prev) => !prev)}>
-            <Text style={styles.logoutButtonText}>{logoutConfirm ? '정말 로그아웃할까요?' : '로그아웃'}</Text>
+          <Pressable style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutButtonText}>{logoutConfirm ? '한 번 더 누르면 로그아웃' : '로그아웃'}</Text>
           </Pressable>
-          {logoutConfirm ? <Text style={styles.logoutHelper}>한 번 더 누르면 로그아웃 처리하는 흐름으로 연결할 수 있어.</Text> : null}
         </>
       ) : null}
     </Screen>
@@ -219,10 +229,5 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     color: '#F04438',
     fontWeight: '800',
-  },
-  logoutHelper: {
-    color: '#F04438',
-    textAlign: 'center',
-    fontSize: 13,
   },
 });

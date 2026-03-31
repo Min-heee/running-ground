@@ -1,11 +1,17 @@
 import { StyleSheet, Text, View, Pressable, TextInput } from 'react-native';
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
+import { signIn } from '@/lib/session';
 
 export default function SignupFormScreen() {
+  const handleSignup = () => {
+    signIn();
+    router.push('/connect-sources');
+  };
+
   return (
     <Screen>
       <AuthHeader title="계정으로 회원가입" subtitle="기본 정보만 입력하면 바로 다음 단계인 기록 연동으로 넘어갈 수 있어." />
@@ -20,11 +26,9 @@ export default function SignupFormScreen() {
           <Input label="사는지역" placeholder="예: 강남구" />
           <Input label="생년월일" placeholder="예: 1990-01-01" />
 
-          <Link href="/connect-sources" asChild>
-            <Pressable style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>회원가입하고 연동 단계로</Text>
-            </Pressable>
-          </Link>
+          <Pressable style={styles.primaryButton} onPress={handleSignup}>
+            <Text style={styles.primaryButtonText}>회원가입하고 연동 단계로</Text>
+          </Pressable>
         </View>
       </Card>
     </Screen>

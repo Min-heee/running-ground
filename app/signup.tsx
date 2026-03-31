@@ -1,9 +1,10 @@
 import { StyleSheet, Text, View, Pressable } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
+import { signIn } from '@/lib/session';
 
 const providers = [
   { id: 'kakao', label: '카카오톡으로 회원가입하기', buttonStyle: 'kakao' },
@@ -14,6 +15,11 @@ const providers = [
 ] as const;
 
 export default function SignupScreen() {
+  const handleSignup = () => {
+    signIn();
+    router.push('/connect-sources');
+  };
+
   return (
     <Screen>
       <AuthHeader title="회원가입" subtitle="계정을 만든 뒤 기록 연동만 완료하면 바로 홈으로 들어가서 경쟁을 시작할 수 있어." />
@@ -23,15 +29,22 @@ export default function SignupScreen() {
       <Card>
         <View style={styles.actions}>
           {providers.map((provider) => {
-            const href = provider.id === 'account' ? '/signup-form' : '/connect-sources';
-            const isDarkText = provider.buttonStyle === 'kakao' || provider.buttonStyle === 'google' || provider.buttonStyle === 'account';
+            if (provider.id === 'account') {
+              return (
+                <Link key={provider.id} href="/signup-form" asChild>
+                  <Pressable style={getButtonStyle(provider.buttonStyle)}>
+                    <Text style={styles.darkButtonText}>{provider.label}</Text>
+                  </Pressable>
+                </Link>
+              );
+            }
+
+            const isDarkText = provider.buttonStyle === 'kakao' || provider.buttonStyle === 'google';
 
             return (
-              <Link key={provider.id} href={href} asChild>
-                <Pressable style={getButtonStyle(provider.buttonStyle)}>
-                  <Text style={isDarkText ? styles.darkButtonText : styles.lightButtonText}>{provider.label}</Text>
-                </Pressable>
-              </Link>
+              <Pressable key={provider.id} style={getButtonStyle(provider.buttonStyle)} onPress={handleSignup}>
+                <Text style={isDarkText ? styles.darkButtonText : styles.lightButtonText}>{provider.label}</Text>
+              </Pressable>
             );
           })}
         </View>

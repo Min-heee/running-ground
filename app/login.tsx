@@ -1,9 +1,10 @@
 import { StyleSheet, Text, View, Pressable, TextInput } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
+import { signIn } from '@/lib/session';
 
 const providers = [
   { id: 'kakao', label: '카카오톡으로 로그인하기', buttonStyle: 'kakao' },
@@ -13,6 +14,11 @@ const providers = [
 ] as const;
 
 export default function LoginScreen() {
+  const handleLogin = () => {
+    signIn();
+    router.push('/connect-sources');
+  };
+
   return (
     <Screen>
       <AuthHeader title="로그인" subtitle="로그인 후 기록 연동 단계만 거치면 바로 홈에서 친구 경쟁과 내 활동을 볼 수 있어." />
@@ -24,11 +30,9 @@ export default function LoginScreen() {
         <View style={styles.form}>
           <TextInput placeholder="아이디" placeholderTextColor="#98A2B3" style={styles.input} autoCapitalize="none" />
           <TextInput placeholder="비밀번호" placeholderTextColor="#98A2B3" style={styles.input} secureTextEntry />
-          <Link href="/connect-sources" asChild>
-            <Pressable style={styles.accountButton}>
-              <Text style={styles.accountButtonText}>로그인하고 연동 단계로</Text>
-            </Pressable>
-          </Link>
+          <Pressable style={styles.accountButton} onPress={handleLogin}>
+            <Text style={styles.accountButtonText}>로그인하고 연동 단계로</Text>
+          </Pressable>
         </View>
       </Card>
 
@@ -38,11 +42,9 @@ export default function LoginScreen() {
           {providers.map((provider) => {
             const isDarkText = provider.buttonStyle === 'kakao' || provider.buttonStyle === 'google';
             return (
-              <Link key={provider.id} href="/connect-sources" asChild>
-                <Pressable style={getButtonStyle(provider.buttonStyle)}>
-                  <Text style={isDarkText ? styles.darkButtonText : styles.lightButtonText}>{provider.label}</Text>
-                </Pressable>
-              </Link>
+              <Pressable key={provider.id} style={getButtonStyle(provider.buttonStyle)} onPress={handleLogin}>
+                <Text style={isDarkText ? styles.darkButtonText : styles.lightButtonText}>{provider.label}</Text>
+              </Pressable>
             );
           })}
         </View>
