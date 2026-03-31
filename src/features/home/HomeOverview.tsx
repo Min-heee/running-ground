@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View, Pressable } from 'react-native';
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { WeeklySummary } from '@/domain/types';
@@ -27,40 +27,30 @@ export function HomeOverview({ summary }: { summary: WeeklySummary }) {
           </View>
         </View>
         <Text style={styles.heroFootnote}>총 거리 {summary.districtBattle.totalDistanceKm}km · 참여율 {summary.districtBattle.participationRate}%</Text>
-        <Link href="/(tabs)/league" asChild>
-          <Pressable style={styles.heroAction}>
-            <Text style={styles.heroActionText}>지역 경쟁 자세히 보기</Text>
-          </Pressable>
-        </Link>
+        <Pressable style={styles.heroAction} onPress={() => router.push('/(tabs)/league')}>
+          <Text style={styles.heroActionText}>지역 경쟁 자세히 보기</Text>
+        </Pressable>
       </Card>
 
       <Card>
         <SectionTitle>빠른 이동</SectionTitle>
         <View style={styles.quickActionGrid}>
-          <Link href="/(tabs)/friends" asChild>
-            <Pressable style={styles.quickActionCard}>
-              <Text style={styles.quickActionTitle}>친구 랭킹</Text>
-              <Text style={styles.quickActionSub}>친구 경쟁 보러가기</Text>
-            </Pressable>
-          </Link>
-          <Link href="/my-activity" asChild>
-            <Pressable style={styles.quickActionCard}>
-              <Text style={styles.quickActionTitle}>내 활동</Text>
-              <Text style={styles.quickActionSub}>내가 뛴 기록 보기</Text>
-            </Pressable>
-          </Link>
-          <Link href="/district-personal" asChild>
-            <Pressable style={styles.quickActionCard}>
-              <Text style={styles.quickActionTitle}>구 내 경쟁</Text>
-              <Text style={styles.quickActionSub}>내 순위 확인하기</Text>
-            </Pressable>
-          </Link>
-          <Link href="/(tabs)/mypage" asChild>
-            <Pressable style={styles.quickActionCard}>
-              <Text style={styles.quickActionTitle}>마이페이지</Text>
-              <Text style={styles.quickActionSub}>설정 관리하기</Text>
-            </Pressable>
-          </Link>
+          <Pressable style={styles.quickActionCard} onPress={() => router.push('/(tabs)/friends')}>
+            <Text style={styles.quickActionTitle}>친구 랭킹</Text>
+            <Text style={styles.quickActionSub}>친구 경쟁 보러가기</Text>
+          </Pressable>
+          <Pressable style={styles.quickActionCard} onPress={() => router.push('/my-activity')}>
+            <Text style={styles.quickActionTitle}>내 활동</Text>
+            <Text style={styles.quickActionSub}>내가 뛴 기록 보기</Text>
+          </Pressable>
+          <Pressable style={styles.quickActionCard} onPress={() => router.push('/district-personal')}>
+            <Text style={styles.quickActionTitle}>구 내 경쟁</Text>
+            <Text style={styles.quickActionSub}>내 순위 확인하기</Text>
+          </Pressable>
+          <Pressable style={styles.quickActionCard} onPress={() => router.push('/(tabs)/mypage')}>
+            <Text style={styles.quickActionTitle}>마이페이지</Text>
+            <Text style={styles.quickActionSub}>설정 관리하기</Text>
+          </Pressable>
         </View>
       </Card>
 
@@ -75,49 +65,41 @@ export function HomeOverview({ summary }: { summary: WeeklySummary }) {
       </Card>
 
       <View style={styles.twoColumnRow}>
-        <Link href="/(tabs)/friends" asChild>
-          <Pressable style={styles.linkCardWrap}>
-            <Card style={styles.halfCard}>
-              <SectionTitle>친구 경쟁</SectionTitle>
-              <Text style={styles.body}>{summary.friendName}와</Text>
-              <Text style={styles.highlight}>{summary.friendGapKm}km 차이</Text>
-              <Text style={styles.muted}>Point + km</Text>
-            </Card>
-          </Pressable>
-        </Link>
+        <Pressable style={styles.linkCardWrap} onPress={() => router.push('/(tabs)/friends')}>
+          <Card style={styles.halfCard}>
+            <SectionTitle>친구 경쟁</SectionTitle>
+            <Text style={styles.body}>{summary.friendName}와</Text>
+            <Text style={styles.highlight}>{summary.friendGapKm}km 차이</Text>
+            <Text style={styles.muted}>Point + km</Text>
+          </Card>
+        </Pressable>
 
-        <Link href="/district-personal" asChild>
-          <Pressable style={styles.linkCardWrap}>
-            <Card style={styles.halfCard}>
-              <SectionTitle>구 내 경쟁</SectionTitle>
-              <Text style={styles.body}>{summary.districtName}</Text>
-              <Text style={styles.highlight}>{summary.districtRank}위</Text>
-              <Text style={styles.muted}>{summary.totalDistanceKm}km / {summary.districtPoints}P</Text>
-            </Card>
-          </Pressable>
-        </Link>
+        <Pressable style={styles.linkCardWrap} onPress={() => router.push('/district-personal')}>
+          <Card style={styles.halfCard}>
+            <SectionTitle>구 내 경쟁</SectionTitle>
+            <Text style={styles.body}>{summary.districtName}</Text>
+            <Text style={styles.highlight}>{summary.districtRank}위</Text>
+            <Text style={styles.muted}>{summary.totalDistanceKm}km / {summary.districtPoints}P</Text>
+          </Card>
+        </Pressable>
       </View>
 
       <View style={styles.twoColumnRow}>
-        <Link href="/integration-management" asChild>
-          <Pressable style={styles.linkCardWrap}>
-            <Card style={styles.halfCard}>
-              <SectionTitle>기록 연동</SectionTitle>
-              <Text style={styles.body}>Apple Health</Text>
-              <Text style={styles.muted}>Garmin · NRC · Strava 확장</Text>
-            </Card>
-          </Pressable>
-        </Link>
+        <Pressable style={styles.linkCardWrap} onPress={() => router.push('/integration-management')}>
+          <Card style={styles.halfCard}>
+            <SectionTitle>기록 연동</SectionTitle>
+            <Text style={styles.body}>Apple Health</Text>
+            <Text style={styles.muted}>Garmin · NRC · Strava 확장</Text>
+          </Card>
+        </Pressable>
 
-        <Link href="/my-activity" asChild>
-          <Pressable style={styles.linkCardWrap}>
-            <Card style={styles.halfCard}>
-              <SectionTitle>최근 기록</SectionTitle>
-              <Text style={styles.body}>{summary.latestRun.distanceKm}km 완료</Text>
-              <Text style={styles.muted}>{summary.latestRun.source}</Text>
-            </Card>
-          </Pressable>
-        </Link>
+        <Pressable style={styles.linkCardWrap} onPress={() => router.push('/my-activity')}>
+          <Card style={styles.halfCard}>
+            <SectionTitle>최근 기록</SectionTitle>
+            <Text style={styles.body}>{summary.latestRun.distanceKm}km 완료</Text>
+            <Text style={styles.muted}>{summary.latestRun.source}</Text>
+          </Card>
+        </Pressable>
       </View>
     </>
   );

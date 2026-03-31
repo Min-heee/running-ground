@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { Link } from 'expo-router';
+import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -36,16 +36,8 @@ export default function OnboardingScreen() {
       <InfoCard title="처음 시작 흐름">회원가입 또는 로그인 → 기록 연동 → 홈 진입 순서로 바로 시작할 수 있어.</InfoCard>
 
       <View style={styles.actions}>
-        <Link href="/signup" asChild>
-          <View>
-            <PrimaryButton label="회원가입하고 시작" />
-          </View>
-        </Link>
-        <Link href="/login" asChild>
-          <View>
-            <SecondaryButton label="이미 계정이 있어요" />
-          </View>
-        </Link>
+        <PrimaryButton label="회원가입하고 시작" onPress={() => router.push('/signup')} />
+        <SecondaryButton label="이미 계정이 있어요" onPress={() => router.push('/login')} />
       </View>
     </Screen>
   );
