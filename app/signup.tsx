@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { InfoCard } from '@/components/ui/InfoCard';
 
 const providers = [
   { id: 'kakao', label: '카카오톡으로 회원가입하기', buttonStyle: 'kakao' },
@@ -15,7 +16,9 @@ const providers = [
 export default function SignupScreen() {
   return (
     <Screen>
-      <AuthHeader title="회원가입" subtitle="원하는 방식으로 계정을 만든 뒤, 다음 단계에서 기록 연동을 연결하면 돼." />
+      <AuthHeader title="회원가입" subtitle="계정을 만든 뒤 기록 연동만 완료하면 바로 홈으로 들어가서 경쟁을 시작할 수 있어." />
+
+      <InfoCard title="회원가입 후 흐름">회원가입 → 기록 연동 → 홈 진입</InfoCard>
 
       <Card>
         <View style={styles.actions}>

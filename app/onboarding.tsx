@@ -4,12 +4,13 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { InfoCard } from '@/components/ui/InfoCard';
 
 const features = [
   '친구와 주간 랭킹 경쟁',
-  '구 내 개인 순위 확인',
-  '구 vs 구 지역 배틀 참여',
-  '기록 앱 연동으로 자동 반영',
+  '내 활동과 포인트 한눈에 확인',
+  '기록 연동 후 자동 반영',
+  '마이페이지에서 연동/설정 관리',
 ];
 
 export default function OnboardingScreen() {
@@ -17,8 +18,8 @@ export default function OnboardingScreen() {
     <Screen>
       <View style={styles.hero}>
         <Text style={styles.logo}>RUNNIGAPP</Text>
-        <Text style={styles.title}>러닝 기록을 경쟁으로 바꾸자</Text>
-        <Text style={styles.subtitle}>평소 쓰던 러닝 앱은 그대로 두고, 경쟁과 랭킹은 여기서 즐기는 모바일 앱.</Text>
+        <Text style={styles.title}>달린 기록이 바로 경쟁이 되는 러닝 앱</Text>
+        <Text style={styles.subtitle}>출시 MVP는 친구 경쟁, 내 활동, 기록 연동처럼 매일 쓰게 될 핵심 흐름에 집중해.</Text>
       </View>
 
       <Card>
@@ -32,10 +33,12 @@ export default function OnboardingScreen() {
         </View>
       </Card>
 
+      <InfoCard title="처음 시작 흐름">회원가입 또는 로그인 → 기록 연동 → 홈 진입 순서로 바로 시작할 수 있어.</InfoCard>
+
       <View style={styles.actions}>
         <Link href="/signup" asChild>
           <View>
-            <PrimaryButton label="회원가입" />
+            <PrimaryButton label="회원가입하고 시작" />
           </View>
         </Link>
         <Link href="/login" asChild>

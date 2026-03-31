@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { InfoCard } from '@/components/ui/InfoCard';
 
 const providers = [
   { id: 'kakao', label: '카카오톡으로 로그인하기', buttonStyle: 'kakao' },
@@ -14,7 +15,9 @@ const providers = [
 export default function LoginScreen() {
   return (
     <Screen>
-      <AuthHeader title="로그인" subtitle="이미 계정이 있다면 원하는 방식으로 로그인하고 기록 연동 단계로 넘어가면 돼." />
+      <AuthHeader title="로그인" subtitle="로그인 후 기록 연동 단계만 거치면 바로 홈에서 친구 경쟁과 내 활동을 볼 수 있어." />
+
+      <InfoCard title="로그인 후 흐름">로그인 → 기록 연동 → 홈 진입</InfoCard>
 
       <Card>
         <Text style={styles.sectionTitle}>계정으로 로그인</Text>
@@ -23,7 +26,7 @@ export default function LoginScreen() {
           <TextInput placeholder="비밀번호" placeholderTextColor="#98A2B3" style={styles.input} secureTextEntry />
           <Link href="/connect-sources" asChild>
             <Pressable style={styles.accountButton}>
-              <Text style={styles.accountButtonText}>로그인하고 계속</Text>
+              <Text style={styles.accountButtonText}>로그인하고 연동 단계로</Text>
             </Pressable>
           </Link>
         </View>

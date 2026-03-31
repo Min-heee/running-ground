@@ -3,11 +3,14 @@ import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { InfoCard } from '@/components/ui/InfoCard';
 
 export default function SignupFormScreen() {
   return (
     <Screen>
-      <AuthHeader title="계정으로 회원가입" subtitle="기본 정보만 입력하면 바로 시작할 수 있어." />
+      <AuthHeader title="계정으로 회원가입" subtitle="기본 정보만 입력하면 바로 다음 단계인 기록 연동으로 넘어갈 수 있어." />
+
+      <InfoCard title="다음 단계">회원가입 완료 후 기록 연동을 연결하면 홈에서 바로 경쟁을 시작할 수 있어.</InfoCard>
 
       <Card>
         <View style={styles.form}>
@@ -19,7 +22,7 @@ export default function SignupFormScreen() {
 
           <Link href="/connect-sources" asChild>
             <Pressable style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>회원가입하고 계속</Text>
+              <Text style={styles.primaryButtonText}>회원가입하고 연동 단계로</Text>
             </Pressable>
           </Link>
         </View>
