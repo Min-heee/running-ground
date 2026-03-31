@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { Link } from 'expo-router';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
@@ -27,6 +27,41 @@ export function HomeOverview({ summary }: { summary: WeeklySummary }) {
           </View>
         </View>
         <Text style={styles.heroFootnote}>총 거리 {summary.districtBattle.totalDistanceKm}km · 참여율 {summary.districtBattle.participationRate}%</Text>
+        <Link href="/(tabs)/league" asChild>
+          <Pressable style={styles.heroAction}>
+            <Text style={styles.heroActionText}>지역 경쟁 자세히 보기</Text>
+          </Pressable>
+        </Link>
+      </Card>
+
+      <Card>
+        <SectionTitle>빠른 이동</SectionTitle>
+        <View style={styles.quickActionGrid}>
+          <Link href="/(tabs)/friends" asChild>
+            <Pressable style={styles.quickActionCard}>
+              <Text style={styles.quickActionTitle}>친구 랭킹</Text>
+              <Text style={styles.quickActionSub}>친구 경쟁 보러가기</Text>
+            </Pressable>
+          </Link>
+          <Link href="/my-activity" asChild>
+            <Pressable style={styles.quickActionCard}>
+              <Text style={styles.quickActionTitle}>내 활동</Text>
+              <Text style={styles.quickActionSub}>내가 뛴 기록 보기</Text>
+            </Pressable>
+          </Link>
+          <Link href="/district-personal" asChild>
+            <Pressable style={styles.quickActionCard}>
+              <Text style={styles.quickActionTitle}>구 내 경쟁</Text>
+              <Text style={styles.quickActionSub}>내 순위 확인하기</Text>
+            </Pressable>
+          </Link>
+          <Link href="/(tabs)/mypage" asChild>
+            <Pressable style={styles.quickActionCard}>
+              <Text style={styles.quickActionTitle}>마이페이지</Text>
+              <Text style={styles.quickActionSub}>설정 관리하기</Text>
+            </Pressable>
+          </Link>
+        </View>
       </Card>
 
       <Card>
@@ -40,35 +75,49 @@ export function HomeOverview({ summary }: { summary: WeeklySummary }) {
       </Card>
 
       <View style={styles.twoColumnRow}>
-        <Card style={styles.halfCard}>
-          <SectionTitle>친구 경쟁</SectionTitle>
-          <Text style={styles.body}>{summary.friendName}와</Text>
-          <Text style={styles.highlight}>{summary.friendGapKm}km 차이</Text>
-          <Text style={styles.muted}>Point + km</Text>
-        </Card>
+        <Link href="/(tabs)/friends" asChild>
+          <Pressable style={styles.linkCardWrap}>
+            <Card style={styles.halfCard}>
+              <SectionTitle>친구 경쟁</SectionTitle>
+              <Text style={styles.body}>{summary.friendName}와</Text>
+              <Text style={styles.highlight}>{summary.friendGapKm}km 차이</Text>
+              <Text style={styles.muted}>Point + km</Text>
+            </Card>
+          </Pressable>
+        </Link>
 
         <Link href="/district-personal" asChild>
-          <Card style={styles.halfCard}>
-            <SectionTitle>구 내 경쟁</SectionTitle>
-            <Text style={styles.body}>{summary.districtName}</Text>
-            <Text style={styles.highlight}>{summary.districtRank}위</Text>
-            <Text style={styles.muted}>{summary.totalDistanceKm}km / {summary.districtPoints}P</Text>
-          </Card>
+          <Pressable style={styles.linkCardWrap}>
+            <Card style={styles.halfCard}>
+              <SectionTitle>구 내 경쟁</SectionTitle>
+              <Text style={styles.body}>{summary.districtName}</Text>
+              <Text style={styles.highlight}>{summary.districtRank}위</Text>
+              <Text style={styles.muted}>{summary.totalDistanceKm}km / {summary.districtPoints}P</Text>
+            </Card>
+          </Pressable>
         </Link>
       </View>
 
       <View style={styles.twoColumnRow}>
-        <Card style={styles.halfCard}>
-          <SectionTitle>기록 연동</SectionTitle>
-          <Text style={styles.body}>Apple Health</Text>
-          <Text style={styles.muted}>Garmin · NRC · Strava 확장</Text>
-        </Card>
+        <Link href="/integration-management" asChild>
+          <Pressable style={styles.linkCardWrap}>
+            <Card style={styles.halfCard}>
+              <SectionTitle>기록 연동</SectionTitle>
+              <Text style={styles.body}>Apple Health</Text>
+              <Text style={styles.muted}>Garmin · NRC · Strava 확장</Text>
+            </Card>
+          </Pressable>
+        </Link>
 
-        <Card style={styles.halfCard}>
-          <SectionTitle>최근 기록</SectionTitle>
-          <Text style={styles.body}>{summary.latestRun.distanceKm}km 완료</Text>
-          <Text style={styles.muted}>{summary.latestRun.source}</Text>
-        </Card>
+        <Link href="/my-activity" asChild>
+          <Pressable style={styles.linkCardWrap}>
+            <Card style={styles.halfCard}>
+              <SectionTitle>최근 기록</SectionTitle>
+              <Text style={styles.body}>{summary.latestRun.distanceKm}km 완료</Text>
+              <Text style={styles.muted}>{summary.latestRun.source}</Text>
+            </Card>
+          </Pressable>
+        </Link>
       </View>
     </>
   );
@@ -130,6 +179,38 @@ const styles = StyleSheet.create({
     color: '#98A2B3',
     lineHeight: 20,
   },
+  heroAction: {
+    backgroundColor: '#6D5EF7',
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  heroActionText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  quickActionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  quickActionCard: {
+    width: '47%',
+    backgroundColor: '#F8F7FF',
+    borderRadius: 16,
+    padding: 14,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#E9E7FF',
+  },
+  quickActionTitle: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  quickActionSub: {
+    color: '#667085',
+    fontSize: 13,
+  },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   metric: {
     width: '47%',
@@ -143,6 +224,9 @@ const styles = StyleSheet.create({
   twoColumnRow: {
     flexDirection: 'row',
     gap: 10,
+  },
+  linkCardWrap: {
+    flex: 1,
   },
   halfCard: {
     flex: 1,
