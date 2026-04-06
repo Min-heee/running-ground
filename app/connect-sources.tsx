@@ -1,15 +1,36 @@
-import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
-import { connectedSources } from '@/data/mock';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { fetchIntegrationStatus } from '@/lib/api/services';
+import { IntegrationStatusResponse } from '@/lib/api/types';
+import {
+  getCurrentDevicePlatform,
+  getPlatformLabel,
+  getRecommendedSources,
+  getRecommendationCopy,
+  getSourceMetadata,
+} from '@/features/integrations/sourceCatalog';
 
 export default function ConnectSourcesScreen() {
-  const recommended = connectedSources.filter((source) => ['apple_health', 'health_connect', 'manual'].includes(source.sourceType));
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchIntegrationStatus()
+      .then((data) => setIntegrationStatus(data))
+      .catch(() => setError('추천 연동 목록을 불러오지 못했어.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const platform = getCurrentDevicePlatform();
+  const recommended = integrationStatus ? getRecommendedSources(integrationStatus.sources, platform) : [];
 
   return (
     <Screen>
@@ -18,21 +39,31 @@ export default function ConnectSourcesScreen() {
       <InfoCard title="현재 단계">로그인/회원가입은 끝났고, 이제 기록 소스를 연결한 뒤 홈으로 들어가면 돼.</InfoCard>
 
       <Card>
-        <Text style={styles.sectionTitle}>추천 연동</Text>
+        <Text style={styles.sectionTitle}>{getPlatformLabel(platform)} 기준 추천 연동</Text>
+        <Text style={styles.sectionBody}>{getRecommendationCopy(platform)}</Text>
+
+        {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
         <View style={styles.list}>
-          {recommended.map((source) => (
-            <View key={source.sourceType} style={styles.sourceRow}>
-              <View>
-                <Text style={styles.sourceName}>{source.displayName}</Text>
-                <Text style={styles.sourceDetail}>{source.connected ? '이미 연결됨' : '연결 권장'}</Text>
+          {recommended.map((source) => {
+            const metadata = getSourceMetadata(source.sourceType);
+
+            return (
+              <View key={source.sourceType} style={styles.sourceRow}>
+                <View style={styles.sourceMeta}>
+                  <Text style={styles.sourceName}>{source.displayName}</Text>
+                  <Text style={styles.sourceDetail}>{metadata.shortDescription}</Text>
+                  <Text style={styles.sourceHint}>{metadata.setupHint}</Text>
+                </View>
+                <Pressable style={source.connected ? styles.badgeConnected : styles.badge}>
+                  <Text style={source.connected ? styles.badgeConnectedText : styles.badgeText}>
+                    {source.connected ? '연결됨' : '연결'}
+                  </Text>
+                </Pressable>
               </View>
-              <Pressable style={source.connected ? styles.badgeConnected : styles.badge}>
-                <Text style={source.connected ? styles.badgeConnectedText : styles.badgeText}>
-                  {source.connected ? '연결됨' : '연결'}
-                </Text>
-              </Pressable>
-            </View>
-          ))}
+            );
+          })}
         </View>
       </Card>
 
@@ -48,15 +79,21 @@ export default function ConnectSourcesScreen() {
 
 const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
-  list: { gap: 12, marginTop: 8 },
+  sectionBody: { color: '#475467', lineHeight: 21, marginTop: 6 },
+  list: { gap: 12, marginTop: 12 },
   sourceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
+  },
+  sourceMeta: {
+    flex: 1,
+    gap: 2,
   },
   sourceName: { color: '#101828', fontWeight: '700' },
   sourceDetail: { color: '#667085', marginTop: 2 },
+  sourceHint: { color: '#6D5EF7', fontSize: 12, lineHeight: 18, marginTop: 2 },
   badge: {
     backgroundColor: '#EEF2FF',
     borderRadius: 999,
@@ -78,4 +115,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   actions: { gap: 10 },
+  errorText: { color: '#B42318', marginTop: 8 },
 });

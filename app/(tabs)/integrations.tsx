@@ -1,10 +1,27 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
-import { connectedSources } from '@/data/mock';
 import { Card } from '@/components/Card';
+import { fetchIntegrationStatus } from '@/lib/api/services';
+import { IntegrationStatusResponse } from '@/lib/api/types';
+import { getCoverageSummary, getCurrentDevicePlatform, getPlatformLabel, getRecommendationCopy } from '@/features/integrations/sourceCatalog';
 
 export default function IntegrationsScreen() {
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchIntegrationStatus()
+      .then((data) => setIntegrationStatus(data))
+      .catch(() => setError('연동 상태를 불러오지 못했어.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const platform = getCurrentDevicePlatform();
+  const coverage = integrationStatus ? getCoverageSummary(integrationStatus.sources, platform) : null;
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -13,11 +30,18 @@ export default function IntegrationsScreen() {
       </View>
 
       <Card>
-        <Text style={styles.tipTitle}>추천 시작 순서</Text>
-        <Text style={styles.tipBody}>iPhone은 Apple Health, Android는 Health Connect부터 붙이고 이후 Garmin, Strava를 확장하는 흐름이 좋아.</Text>
+        <Text style={styles.tipTitle}>{getPlatformLabel(platform)} 기준 추천 시작 순서</Text>
+        <Text style={styles.tipBody}>{getRecommendationCopy(platform)}</Text>
+        {coverage ? (
+          <Text style={styles.coverageText}>
+            추천 소스 {coverage.recommendedCount}개 중 {coverage.connectedRecommendedCount}개가 이미 준비됐어.
+          </Text>
+        ) : null}
       </Card>
 
-      <IntegrationStatus sources={connectedSources} />
+      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {integrationStatus ? <IntegrationStatus sources={integrationStatus.sources} /> : null}
     </Screen>
   );
 }
@@ -28,4 +52,6 @@ const styles = StyleSheet.create({
   subtitle: { color: '#475467', lineHeight: 21 },
   tipTitle: { fontSize: 16, fontWeight: '800', color: '#111827' },
   tipBody: { color: '#475467', lineHeight: 21, marginTop: 6 },
+  coverageText: { color: '#6D5EF7', fontWeight: '700', marginTop: 8 },
+  errorText: { color: '#B42318' },
 });
