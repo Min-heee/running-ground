@@ -234,6 +234,11 @@ Suggested response:
 }
 ```
 
+Expected behavior:
+- `syncedSources` counts only sources actually connected for the signed-in user.
+- `syncedRuns` reflects how many run records were fetched or reconciled in this sync cycle.
+- `lastSyncedAt` should be propagated back into connected sources in the next `GET /api/integrations/sources` response.
+
 ---
 
 ## 8. Friend add by tag

@@ -6,17 +6,25 @@ import { Card } from '@/components/Card';
 import { fetchIntegrationStatus } from '@/lib/api/services';
 import { IntegrationStatusResponse } from '@/lib/api/types';
 import { getCoverageSummary, getCurrentDevicePlatform, getPlatformLabel, getRecommendationCopy } from '@/features/integrations/sourceCatalog';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
 
 export default function IntegrationsScreen() {
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadIntegrations = () => {
+    setLoading(true);
+    setError(null);
+
     fetchIntegrationStatus()
       .then((data) => setIntegrationStatus(data))
-      .catch(() => setError('연동 상태를 불러오지 못했어.'))
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '연동 상태를 불러오지 못했어.'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadIntegrations();
   }, []);
 
   const platform = getCurrentDevicePlatform();
@@ -40,7 +48,13 @@ export default function IntegrationsScreen() {
       </Card>
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {!loading && error ? (
+        <Card>
+          <Text style={styles.errorTitle}>연동 상태를 아직 못 불러왔어</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <PrimaryButton label="다시 불러오기" onPress={loadIntegrations} />
+        </Card>
+      ) : null}
       {integrationStatus ? <IntegrationStatus sources={integrationStatus.sources} /> : null}
     </Screen>
   );
@@ -53,5 +67,6 @@ const styles = StyleSheet.create({
   tipTitle: { fontSize: 16, fontWeight: '800', color: '#111827' },
   tipBody: { color: '#475467', lineHeight: 21, marginTop: 6 },
   coverageText: { color: '#6D5EF7', fontWeight: '700', marginTop: 8 },
-  errorText: { color: '#B42318' },
+  errorTitle: { color: '#111827', fontWeight: '800', fontSize: 18 },
+  errorText: { color: '#B42318', fontWeight: '700', lineHeight: 20, marginTop: 10 },
 });

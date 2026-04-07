@@ -31,6 +31,13 @@ export type IntegrationStatusResponse = {
   sources: ConnectedSource[];
 };
 
+export type IntegrationSyncResponse = {
+  success: boolean;
+  syncedSources: number;
+  syncedRuns: number;
+  lastSyncedAt: string;
+};
+
 export type MyProfileResponse = UserProfile;
 
 export type UpdateMyProfileInput = {

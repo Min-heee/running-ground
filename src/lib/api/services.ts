@@ -20,6 +20,7 @@ import {
   FriendLeaderboardResponse,
   FriendRequestActionResponse,
   HomeSummaryResponse,
+  IntegrationSyncResponse,
   IntegrationStatusResponse,
   MyActivityResponse,
   MyProfileResponse,
@@ -33,6 +34,7 @@ let mockFriendRequests = friendRequests
   .filter((request) => request.status !== 'accepted')
   .map((request) => ({ ...request }));
 let mockFriendRanks = friendRanks.map((friend) => ({ ...friend }));
+let mockConnectedSources = connectedSources.map((source) => ({ ...source }));
 
 function normalizeMockFriendRanks(ranks: typeof mockFriendRanks) {
   return [...ranks]
@@ -216,7 +218,7 @@ export async function fetchFriendActivity(friendId?: string): Promise<FriendActi
 export async function fetchIntegrationStatus(): Promise<IntegrationStatusResponse> {
   if (USE_MOCK_API) {
     return {
-      sources: connectedSources,
+      sources: mockConnectedSources,
     };
   }
 
@@ -224,6 +226,38 @@ export async function fetchIntegrationStatus(): Promise<IntegrationStatusRespons
     accessToken: await requireAccessToken(),
     fallbackMessage: '연동 상태를 불러오지 못했어.',
   });
+}
+
+export async function syncIntegrationSources(): Promise<IntegrationSyncResponse> {
+  if (USE_MOCK_API) {
+    const lastSyncedAt = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const connectedCount = mockConnectedSources.filter((source) => source.connected).length;
+
+    mockConnectedSources = mockConnectedSources.map((source) => (
+      source.connected
+        ? {
+          ...source,
+          lastSyncedAt,
+        }
+        : source
+    ));
+
+    return {
+      success: true,
+      syncedSources: connectedCount,
+      syncedRuns: connectedCount * 3,
+      lastSyncedAt,
+    };
+  }
+
+  return apiPost<IntegrationSyncResponse>(
+    '/integrations/sync',
+    {},
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '연동 동기화에 실패했어.',
+    },
+  );
 }
 
 export async function fetchMyProfile(): Promise<MyProfileResponse> {

@@ -18,6 +18,7 @@ export function IntegrationStatus({ sources }: { sources: ConnectedSource[] }) {
             <View key={source.sourceType} style={styles.item}>
               <Text style={styles.name}>{source.displayName}</Text>
               <Text style={styles.detail}>{metadata.shortDescription}</Text>
+              <Text style={styles.detail}>마지막 동기화 {source.lastSyncedAt ?? '정보 없음'}</Text>
               <Text style={styles.badge}>연결됨</Text>
             </View>
           );
@@ -34,9 +35,11 @@ export function IntegrationStatus({ sources }: { sources: ConnectedSource[] }) {
             <View key={source.sourceType} style={styles.item}>
               <Text style={styles.name}>{source.displayName}</Text>
               <Text style={styles.detail}>{metadata.shortDescription}</Text>
+              <Text style={styles.hint}>{metadata.setupHint}</Text>
             </View>
           );
         })}
+        {available.length === 0 ? <Text style={styles.empty}>지금 바로 추가로 열어둘 소스가 없어.</Text> : null}
       </Card>
     </>
   );
@@ -54,6 +57,12 @@ const styles = StyleSheet.create({
   detail: {
     color: '#667085',
     lineHeight: 20,
+  },
+  hint: {
+    color: '#6D5EF7',
+    fontWeight: '700',
+    lineHeight: 18,
+    fontSize: 12,
   },
   badge: {
     color: '#067647',

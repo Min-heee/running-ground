@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { fetchIntegrationStatus } from '@/lib/api/services';
-import { IntegrationStatusResponse } from '@/lib/api/types';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { fetchIntegrationStatus, syncIntegrationSources } from '@/lib/api/services';
+import { IntegrationStatusResponse, IntegrationSyncResponse } from '@/lib/api/types';
 import {
   getCoverageSummary,
   getCurrentDevicePlatform,
@@ -20,23 +21,38 @@ export default function IntegrationManagementScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
-  const [syncDone, setSyncDone] = useState(false);
+  const [syncResult, setSyncResult] = useState<IntegrationSyncResponse | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadIntegrationStatus = () => {
+    setLoading(true);
+    setError(null);
+
     fetchIntegrationStatus()
       .then((data) => setIntegrationStatus(data))
-      .catch(() => setError('연동 정보를 불러오지 못했어.'))
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '연동 정보를 불러오지 못했어.'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadIntegrationStatus();
   }, []);
 
-  const handleSync = () => {
+  const handleSync = async () => {
     setSyncing(true);
-    setSyncDone(false);
-    setTimeout(() => {
+    setSyncError(null);
+    setSyncResult(null);
+
+    try {
+      const result = await syncIntegrationSources();
+      setSyncResult(result);
+      const refreshedStatus = await fetchIntegrationStatus();
+      setIntegrationStatus(refreshedStatus);
+    } catch (syncLoadError) {
+      setSyncError(syncLoadError instanceof Error ? syncLoadError.message : '연동 동기화에 실패했어.');
+    } finally {
       setSyncing(false);
-      setSyncDone(true);
-      setTimeout(() => setSyncDone(false), 2000);
-    }, 1000);
+    }
   };
 
   const platform = getCurrentDevicePlatform();
@@ -50,7 +66,13 @@ export default function IntegrationManagementScreen() {
       <AuthHeader title="기록 연동 관리" subtitle="러닝 기록이 들어오는 소스를 관리하고 연결 상태를 확인할 수 있어." />
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
-      {error ? <Text>{error}</Text> : null}
+      {!loading && error ? (
+        <Card>
+          <Text style={styles.stateTitle}>연동 정보를 아직 못 불러왔어</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <PrimaryButton label="다시 불러오기" onPress={loadIntegrationStatus} />
+        </Card>
+      ) : null}
 
       {integrationStatus ? (
         <>
@@ -60,7 +82,12 @@ export default function IntegrationManagementScreen() {
               현재 {connected.length}개 소스가 연결되어 있고, {getPlatformLabel(platform)} 기준 추천 소스 {coverage.recommendedCount}개 중 {coverage.connectedRecommendedCount}개가 준비됐어.
             </Text>
             <PrimaryButton label={syncing ? '동기화 중...' : '지금 동기화하기'} onPress={handleSync} />
-            {syncDone ? <Text style={styles.successText}>동기화가 완료됐어.</Text> : null}
+            {syncResult ? (
+              <Text style={styles.successText}>
+                {syncResult.syncedSources}개 소스에서 {syncResult.syncedRuns}개 기록을 확인했고, 마지막 동기화 시각은 {syncResult.lastSyncedAt} 이야.
+              </Text>
+            ) : null}
+            {syncError ? <Text style={styles.errorText}>{syncError}</Text> : null}
           </Card>
 
           <Card>
@@ -97,12 +124,13 @@ export default function IntegrationManagementScreen() {
                     <Text style={styles.detail}>마지막 동기화 {source.lastSyncedAt ?? '정보 없음'}</Text>
                     <Text style={styles.platform}>{metadata.setupHint}</Text>
                   </View>
-                  <Pressable style={styles.manageButton}>
-                    <Text style={styles.manageButtonText}>관리</Text>
-                  </Pressable>
+                  <View style={styles.connectedBadge}>
+                    <Text style={styles.connectedBadgeText}>연결됨</Text>
+                  </View>
                 </View>
               );
             })}
+            {connected.length === 0 ? <Text style={styles.emptyText}>아직 연결된 기록 소스가 없어.</Text> : null}
           </Card>
 
           <Card>
@@ -123,7 +151,10 @@ export default function IntegrationManagementScreen() {
                 </View>
               );
             })}
+            {available.length === 0 ? <Text style={styles.emptyText}>지금 바로 추가로 붙일 확장 소스가 없어.</Text> : null}
           </Card>
+
+          <SecondaryButton label="연동 상태 새로고침" onPress={loadIntegrationStatus} />
         </>
       ) : null}
     </Screen>
@@ -142,10 +173,22 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 12,
   },
+  stateTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+  },
   successText: {
     color: '#067647',
     fontWeight: '700',
     marginTop: 10,
+    lineHeight: 20,
+  },
+  errorText: {
+    color: '#B42318',
+    fontWeight: '700',
+    marginTop: 10,
+    lineHeight: 20,
   },
   row: {
     flexDirection: 'row',
@@ -160,16 +203,6 @@ const styles = StyleSheet.create({
   name: { color: '#111827', fontWeight: '700' },
   detail: { color: '#667085' },
   platform: { color: '#6D5EF7', fontWeight: '700', fontSize: 12, lineHeight: 18 },
-  manageButton: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  manageButtonText: {
-    color: '#4F46E5',
-    fontWeight: '800',
-  },
   connectedBadge: {
     backgroundColor: '#ECFDF3',
     borderRadius: 12,
@@ -189,5 +222,9 @@ const styles = StyleSheet.create({
   plannedBadgeText: {
     color: '#C2410C',
     fontWeight: '800',
+  },
+  emptyText: {
+    color: '#667085',
+    lineHeight: 20,
   },
 });
