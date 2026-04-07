@@ -9,6 +9,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { connectIntegrationSource, fetchIntegrationStatus } from '@/lib/api/services';
 import { IntegrationStatusResponse } from '@/lib/api/types';
+import { RunSourceType } from '@/domain/types';
 import {
   getCurrentDevicePlatform,
   getPlatformLabel,
@@ -37,7 +38,7 @@ export default function ConnectSourcesScreen() {
   const recommended = integrationStatus ? getRecommendedSources(sources, platform) : [];
   const connectedCount = sources.filter((source) => source.connected).length;
 
-  const handleConnect = async (sourceType: string) => {
+  const handleConnect = async (sourceType: RunSourceType) => {
     setActionSourceType(sourceType);
     setActionMessage(null);
     setActionError(null);

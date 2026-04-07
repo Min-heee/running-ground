@@ -1,4 +1,5 @@
 import { ConnectedSource, DistrictBattleRank, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, RegionDrilldownNode, UserProfile, WeeklySummary } from '@/domain/types';
+import { addressCatalog, type AddressRegionNode } from '@/features/location/addressCatalog';
 
 export const myProfile: UserProfile = {
   name: '민병희',
@@ -125,63 +126,104 @@ export const districtBattleRanks: DistrictBattleRank[] = [
   { rank: 5, districtName: '성동구', averageDistanceKm: 22.8, participationRate: 55, participants: 111 },
 ];
 
-export const regionDrilldownTree: RegionDrilldownNode = {
+function roundRegionMetric(value: number) {
+  return Number(value.toFixed(1));
+}
+
+function createMockLeafRegionNode(input: {
+  id: string;
+  name: string;
+  level: RegionDrilldownNode['level'];
+  rank: number;
+  averageDistanceKm: number;
+  participants: number;
+  participationRate: number;
+}) {
+  const averageDistanceKm = roundRegionMetric(input.averageDistanceKm);
+  const participants = Math.max(24, Math.round(input.participants));
+
+  return {
+    id: input.id,
+    name: input.name,
+    level: input.level,
+    averageDistanceKm,
+    totalDistanceKm: Math.round(averageDistanceKm * participants),
+    participationRate: Math.max(35, Math.round(input.participationRate)),
+    participants,
+    rank: input.rank,
+  } satisfies RegionDrilldownNode;
+}
+
+function createMockAggregateRegionNode(input: {
+  id: string;
+  name: string;
+  level: RegionDrilldownNode['level'];
+  rank: number;
+  children: RegionDrilldownNode[];
+}) {
+  const totalDistanceKm = input.children.reduce((sum, child) => sum + child.totalDistanceKm, 0);
+  const participants = input.children.reduce((sum, child) => sum + child.participants, 0);
+  const participationRate = roundRegionMetric(input.children.reduce((sum, child) => sum + child.participationRate, 0) / Math.max(input.children.length, 1));
+
+  return {
+    id: input.id,
+    name: input.name,
+    level: input.level,
+    averageDistanceKm: roundRegionMetric(totalDistanceKm / Math.max(participants, 1)),
+    totalDistanceKm,
+    participationRate,
+    participants,
+    rank: input.rank,
+    children: input.children,
+  } satisfies RegionDrilldownNode;
+}
+
+function buildMockRegionNodeFromCatalog(
+  node: AddressRegionNode,
+  id: string,
+  rank: number,
+  depth = 0,
+): RegionDrilldownNode {
+  const level = node.type;
+
+  if (!node.children?.length) {
+    const averageBase = level === 'district' ? 27.8 : level === 'city' ? 23.7 : 21.6;
+    const participantsBase = level === 'district' ? 162 : level === 'city' ? 520 : 860;
+    const participationBase = level === 'district' ? 66 : level === 'city' ? 61 : 57;
+
+    return createMockLeafRegionNode({
+      id,
+      name: node.name,
+      level,
+      rank,
+      averageDistanceKm: Math.max(16.4, averageBase - rank * (level === 'district' ? 0.28 : 0.18) - depth * 0.15),
+      participants: Math.max(42, participantsBase - rank * (level === 'district' ? 4 : 10) - depth * 6),
+      participationRate: Math.max(44, participationBase - Math.floor(rank / 2) - depth),
+    });
+  }
+
+  const children = node.children.map((child, index) =>
+    buildMockRegionNodeFromCatalog(child, `${id}-${String(index + 1).padStart(2, '0')}`, index + 1, depth + 1));
+
+  return createMockAggregateRegionNode({
+    id,
+    name: node.name,
+    level,
+    rank,
+    children,
+  });
+}
+
+const regionChildren = addressCatalog.map((region, index) =>
+  buildMockRegionNodeFromCatalog(region, `kr-${String(index + 1).padStart(2, '0')}`, index + 1));
+
+export const regionDrilldownTree: RegionDrilldownNode = createMockAggregateRegionNode({
   id: 'kr',
   name: '대한민국',
   level: 'country',
-  averageDistanceKm: 21.8,
-  totalDistanceKm: 271410,
-  participationRate: 57,
-  participants: 12450,
   rank: 1,
-  children: [
-    { id: 'kr-seoul', name: '서울특별시', level: 'province', averageDistanceKm: 22.4, totalDistanceKm: 60704, participationRate: 58, participants: 2710, rank: 1 },
-    { id: 'kr-busan', name: '부산광역시', level: 'province', averageDistanceKm: 20.9, totalDistanceKm: 29887, participationRate: 54, participants: 1430, rank: 2 },
-    { id: 'kr-daegu', name: '대구광역시', level: 'province', averageDistanceKm: 20.6, totalDistanceKm: 21424, participationRate: 53, participants: 1040, rank: 3 },
-    { id: 'kr-incheon', name: '인천광역시', level: 'province', averageDistanceKm: 21.1, totalDistanceKm: 26692, participationRate: 55, participants: 1265, rank: 4 },
-    { id: 'kr-gwangju', name: '광주광역시', level: 'province', averageDistanceKm: 20.3, totalDistanceKm: 16240, participationRate: 52, participants: 800, rank: 5 },
-    { id: 'kr-daejeon', name: '대전광역시', level: 'province', averageDistanceKm: 20.8, totalDistanceKm: 16910, participationRate: 54, participants: 813, rank: 6 },
-    { id: 'kr-ulsan', name: '울산광역시', level: 'province', averageDistanceKm: 21.0, totalDistanceKm: 13545, participationRate: 55, participants: 645, rank: 7 },
-    { id: 'kr-sejong', name: '세종특별자치시', level: 'province', averageDistanceKm: 22.1, totalDistanceKm: 7418, participationRate: 59, participants: 336, rank: 8 },
-    {
-      id: 'kr-gg',
-      name: '경기도',
-      level: 'province',
-      averageDistanceKm: 23.1,
-      totalDistanceKm: 73458,
-      participationRate: 61,
-      participants: 3180,
-      rank: 9,
-      children: [
-        {
-          id: 'kr-gg-goyang',
-          name: '고양시',
-          level: 'city',
-          averageDistanceKm: 24.4,
-          totalDistanceKm: 15128,
-          participationRate: 63,
-          participants: 620,
-          rank: 1,
-          children: [
-            { id: 'kr-gg-goyang-ilsanseo', name: '일산서구', level: 'district', averageDistanceKm: 25.2, totalDistanceKm: 4586, participationRate: 65, participants: 182, rank: 1 },
-            { id: 'kr-gg-goyang-deogyang', name: '덕양구', level: 'district', averageDistanceKm: 23.7, totalDistanceKm: 4834, participationRate: 61, participants: 204, rank: 2 },
-            { id: 'kr-gg-goyang-ilsandong', name: '일산동구', level: 'district', averageDistanceKm: 22.9, totalDistanceKm: 3915, participationRate: 58, participants: 171, rank: 3 },
-          ],
-        },
-        { id: 'kr-gg-seongnam', name: '성남시', level: 'city', averageDistanceKm: 22.8, totalDistanceKm: 13452, participationRate: 59, participants: 590, rank: 2 },
-        { id: 'kr-gg-suwon', name: '수원시', level: 'city', averageDistanceKm: 21.9, totalDistanceKm: 11826, participationRate: 57, participants: 540, rank: 3 },
-      ],
-    },
-    { id: 'kr-gw', name: '강원특별자치도', level: 'province', averageDistanceKm: 22.0, totalDistanceKm: 15488, participationRate: 56, participants: 704, rank: 10 },
-    { id: 'kr-cb', name: '충청북도', level: 'province', averageDistanceKm: 21.4, totalDistanceKm: 14723, participationRate: 55, participants: 688, rank: 11 },
-    { id: 'kr-cn', name: '충청남도', level: 'province', averageDistanceKm: 21.7, totalDistanceKm: 18228, participationRate: 56, participants: 840, rank: 12 },
-    { id: 'kr-jb', name: '전북특별자치도', level: 'province', averageDistanceKm: 20.7, totalDistanceKm: 15318, participationRate: 53, participants: 740, rank: 13 },
-    { id: 'kr-jn', name: '전라남도', level: 'province', averageDistanceKm: 20.4, totalDistanceKm: 14484, participationRate: 52, participants: 710, rank: 14 },
-    { id: 'kr-gb', name: '경상북도', level: 'province', averageDistanceKm: 21.2, totalDistanceKm: 19716, participationRate: 54, participants: 930, rank: 15 },
-    { id: 'kr-gn', name: '경상남도', level: 'province', averageDistanceKm: 21.5, totalDistanceKm: 22188, participationRate: 55, participants: 1032, rank: 16 },
-    { id: 'kr-jeju', name: '제주특별자치도', level: 'province', averageDistanceKm: 22.6, totalDistanceKm: 9899, participationRate: 58, participants: 438, rank: 17 },
-  ],
-};
+  children: regionChildren,
+});
 
 export const connectedSources: ConnectedSource[] = [
   { sourceType: 'apple_health', displayName: 'Apple Health', connected: true, connectionStatus: 'connected', lastSyncedAt: '2026-03-31 14:02', recommendedPlatform: 'ios' },

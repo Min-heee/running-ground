@@ -138,6 +138,179 @@ function createMarketCatalog() {
   ];
 }
 
+const SEOUL_DISTRICT_NAMES = [
+  '종로구', '중구', '용산구', '성동구', '광진구', '동대문구', '중랑구', '성북구', '강북구', '도봉구',
+  '노원구', '은평구', '서대문구', '마포구', '양천구', '강서구', '구로구', '금천구', '영등포구', '동작구',
+  '관악구', '서초구', '강남구', '송파구', '강동구',
+];
+
+const GYEONGGI_CITY_SPECS = [
+  { name: '수원시', districts: ['장안구', '권선구', '팔달구', '영통구'] },
+  { name: '성남시', districts: ['수정구', '중원구', '분당구'] },
+  { name: '의정부시' },
+  { name: '안양시', districts: ['만안구', '동안구'] },
+  { name: '부천시' },
+  { name: '광명시' },
+  { name: '평택시' },
+  { name: '동두천시' },
+  { name: '안산시', districts: ['상록구', '단원구'] },
+  { name: '고양시', districts: ['덕양구', '일산동구', '일산서구'] },
+  { name: '과천시' },
+  { name: '구리시' },
+  { name: '남양주시' },
+  { name: '오산시' },
+  { name: '시흥시' },
+  { name: '군포시' },
+  { name: '의왕시' },
+  { name: '하남시' },
+  { name: '용인시', districts: ['처인구', '기흥구', '수지구'] },
+  { name: '파주시' },
+  { name: '이천시' },
+  { name: '안성시' },
+  { name: '김포시' },
+  { name: '화성시' },
+  { name: '광주시' },
+  { name: '양주시' },
+  { name: '포천시' },
+  { name: '여주시' },
+  { name: '연천군' },
+  { name: '가평군' },
+  { name: '양평군' },
+];
+
+function roundMetric(value) {
+  return Number(value.toFixed(1));
+}
+
+function createLeafRegionNode({
+  id,
+  name,
+  level,
+  rank,
+  averageDistanceKm,
+  totalDistanceKm,
+  participationRate,
+  participants,
+}) {
+  const normalizedAverageDistanceKm = roundMetric(averageDistanceKm);
+  const normalizedParticipants = Math.max(24, Math.round(participants));
+
+  return {
+    id,
+    name,
+    level,
+    averageDistanceKm: normalizedAverageDistanceKm,
+    totalDistanceKm: totalDistanceKm ?? Math.round(normalizedAverageDistanceKm * normalizedParticipants),
+    participationRate: Math.max(35, Math.round(participationRate)),
+    participants: normalizedParticipants,
+    rank,
+  };
+}
+
+function createAggregateRegionNode({
+  id,
+  name,
+  level,
+  rank,
+  children,
+}) {
+  const totalDistanceKm = children.reduce((sum, child) => sum + child.totalDistanceKm, 0);
+  const participants = children.reduce((sum, child) => sum + child.participants, 0);
+  const participationRate = roundMetric(children.reduce((sum, child) => sum + child.participationRate, 0) / Math.max(children.length, 1));
+
+  return {
+    id,
+    name,
+    level,
+    averageDistanceKm: roundMetric(totalDistanceKm / Math.max(participants, 1)),
+    totalDistanceKm,
+    participationRate,
+    participants,
+    rank,
+    children,
+  };
+}
+
+function buildDistrictNodes(parentId, districtNames, options = {}) {
+  const {
+    averageBase = 25.8,
+    averageStep = 0.32,
+    participantsBase = 182,
+    participantsStep = 5,
+    participationBase = 65,
+  } = options;
+
+  return districtNames.map((districtName, index) => createLeafRegionNode({
+    id: `${parentId}-${String(index + 1).padStart(2, '0')}`,
+    name: districtName,
+    level: 'district',
+    rank: index + 1,
+    averageDistanceKm: Math.max(16.2, averageBase - index * averageStep + (index % 3) * 0.08),
+    participants: Math.max(42, participantsBase - index * participantsStep),
+    participationRate: Math.max(45, participationBase - Math.floor(index / 2)),
+  }));
+}
+
+function buildSeoulProvince() {
+  const children = buildDistrictNodes('kr-seoul', SEOUL_DISTRICT_NAMES, {
+    averageBase: 28.2,
+    averageStep: 0.26,
+    participantsBase: 154,
+    participantsStep: 3,
+    participationBase: 68,
+  });
+
+  return createAggregateRegionNode({
+    id: 'kr-seoul',
+    name: '서울특별시',
+    level: 'province',
+    rank: 1,
+    children,
+  });
+}
+
+function buildGyeonggiProvince() {
+  const children = GYEONGGI_CITY_SPECS.map((city, index) => {
+    const cityId = `kr-gg-${String(index + 1).padStart(2, '0')}`;
+
+    if (city.districts) {
+      const districtChildren = buildDistrictNodes(cityId, city.districts, {
+        averageBase: Math.max(20.4, 25.4 - index * 0.08),
+        averageStep: 0.28,
+        participantsBase: Math.max(74, 212 - index * 5),
+        participantsStep: 6,
+        participationBase: Math.max(48, 66 - Math.floor(index / 4)),
+      });
+
+      return createAggregateRegionNode({
+        id: cityId,
+        name: city.name,
+        level: 'city',
+        rank: index + 1,
+        children: districtChildren,
+      });
+    }
+
+    return createLeafRegionNode({
+      id: cityId,
+      name: city.name,
+      level: 'city',
+      rank: index + 1,
+      averageDistanceKm: Math.max(17.2, 23.7 - index * 0.12),
+      participants: Math.max(108, 540 - index * 11),
+      participationRate: Math.max(46, 63 - Math.floor(index / 3)),
+    });
+  });
+
+  return createAggregateRegionNode({
+    id: 'kr-gg',
+    name: '경기도',
+    level: 'province',
+    rank: 5,
+    children,
+  });
+}
+
 function createUser(input) {
   return {
     ...input,
@@ -154,76 +327,30 @@ function createRun(input) {
   };
 }
 
-function createRegionTree() {
-  return {
+export function createRegionTree() {
+  const children = [
+    buildSeoulProvince(),
+    createLeafRegionNode({ id: 'kr-busan', name: '부산광역시', level: 'province', averageDistanceKm: 20.9, totalDistanceKm: 29887, participationRate: 54, participants: 1430, rank: 2 }),
+    createLeafRegionNode({ id: 'kr-daegu', name: '대구광역시', level: 'province', averageDistanceKm: 20.6, totalDistanceKm: 21424, participationRate: 53, participants: 1040, rank: 3 }),
+    createLeafRegionNode({ id: 'kr-incheon', name: '인천광역시', level: 'province', averageDistanceKm: 21.1, totalDistanceKm: 26692, participationRate: 55, participants: 1265, rank: 4 }),
+    buildGyeonggiProvince(),
+    createLeafRegionNode({ id: 'kr-gw', name: '강원특별자치도', level: 'province', averageDistanceKm: 22.0, totalDistanceKm: 15488, participationRate: 56, participants: 704, rank: 6 }),
+    createLeafRegionNode({ id: 'kr-cb', name: '충청북도', level: 'province', averageDistanceKm: 21.4, totalDistanceKm: 14723, participationRate: 55, participants: 688, rank: 7 }),
+    createLeafRegionNode({ id: 'kr-cn', name: '충청남도', level: 'province', averageDistanceKm: 21.7, totalDistanceKm: 18228, participationRate: 56, participants: 840, rank: 8 }),
+    createLeafRegionNode({ id: 'kr-jb', name: '전북특별자치도', level: 'province', averageDistanceKm: 20.7, totalDistanceKm: 15318, participationRate: 53, participants: 740, rank: 9 }),
+    createLeafRegionNode({ id: 'kr-jn', name: '전라남도', level: 'province', averageDistanceKm: 20.4, totalDistanceKm: 14484, participationRate: 52, participants: 710, rank: 10 }),
+    createLeafRegionNode({ id: 'kr-gb', name: '경상북도', level: 'province', averageDistanceKm: 21.2, totalDistanceKm: 19716, participationRate: 54, participants: 930, rank: 11 }),
+    createLeafRegionNode({ id: 'kr-gn', name: '경상남도', level: 'province', averageDistanceKm: 21.5, totalDistanceKm: 22188, participationRate: 55, participants: 1032, rank: 12 }),
+    createLeafRegionNode({ id: 'kr-jeju', name: '제주특별자치도', level: 'province', averageDistanceKm: 22.6, totalDistanceKm: 9899, participationRate: 58, participants: 438, rank: 13 }),
+  ];
+
+  return createAggregateRegionNode({
     id: 'kr',
     name: '대한민국',
     level: 'country',
-    averageDistanceKm: 21.8,
-    totalDistanceKm: 271410,
-    participationRate: 57,
-    participants: 12450,
     rank: 1,
-    children: [
-      {
-        id: 'kr-seoul',
-        name: '서울특별시',
-        level: 'province',
-        averageDistanceKm: 22.4,
-        totalDistanceKm: 60704,
-        participationRate: 58,
-        participants: 2710,
-        rank: 1,
-        children: [
-          { id: 'kr-seoul-gangnam', name: '강남구', level: 'district', averageDistanceKm: 24.7, totalDistanceKm: 2480, participationRate: 62, participants: 128, rank: 1 },
-          { id: 'kr-seoul-seocho', name: '서초구', level: 'district', averageDistanceKm: 26.1, totalDistanceKm: 2632, participationRate: 64, participants: 131, rank: 2 },
-          { id: 'kr-seoul-songpa', name: '송파구', level: 'district', averageDistanceKm: 28.4, totalDistanceKm: 2840, participationRate: 68, participants: 142, rank: 3 },
-          { id: 'kr-seoul-mapo', name: '마포구', level: 'district', averageDistanceKm: 23.9, totalDistanceKm: 2389, participationRate: 58, participants: 119, rank: 4 },
-          { id: 'kr-seoul-seongdong', name: '성동구', level: 'district', averageDistanceKm: 22.8, totalDistanceKm: 2280, participationRate: 55, participants: 111, rank: 5 }
-        ]
-      },
-      { id: 'kr-busan', name: '부산광역시', level: 'province', averageDistanceKm: 20.9, totalDistanceKm: 29887, participationRate: 54, participants: 1430, rank: 2 },
-      { id: 'kr-daegu', name: '대구광역시', level: 'province', averageDistanceKm: 20.6, totalDistanceKm: 21424, participationRate: 53, participants: 1040, rank: 3 },
-      { id: 'kr-incheon', name: '인천광역시', level: 'province', averageDistanceKm: 21.1, totalDistanceKm: 26692, participationRate: 55, participants: 1265, rank: 4 },
-      {
-        id: 'kr-gg',
-        name: '경기도',
-        level: 'province',
-        averageDistanceKm: 23.1,
-        totalDistanceKm: 73458,
-        participationRate: 61,
-        participants: 3180,
-        rank: 5,
-        children: [
-          {
-            id: 'kr-gg-goyang',
-            name: '고양시',
-            level: 'city',
-            averageDistanceKm: 24.4,
-            totalDistanceKm: 15128,
-            participationRate: 63,
-            participants: 620,
-            rank: 1,
-            children: [
-              { id: 'kr-gg-goyang-ilsanseo', name: '일산서구', level: 'district', averageDistanceKm: 25.2, totalDistanceKm: 4586, participationRate: 65, participants: 182, rank: 1 },
-              { id: 'kr-gg-goyang-deogyang', name: '덕양구', level: 'district', averageDistanceKm: 23.7, totalDistanceKm: 4834, participationRate: 61, participants: 204, rank: 2 },
-              { id: 'kr-gg-goyang-ilsandong', name: '일산동구', level: 'district', averageDistanceKm: 22.9, totalDistanceKm: 3915, participationRate: 58, participants: 171, rank: 3 }
-            ]
-          },
-          { id: 'kr-gg-seongnam', name: '성남시', level: 'city', averageDistanceKm: 22.8, totalDistanceKm: 13452, participationRate: 59, participants: 590, rank: 2 },
-          { id: 'kr-gg-suwon', name: '수원시', level: 'city', averageDistanceKm: 21.9, totalDistanceKm: 11826, participationRate: 57, participants: 540, rank: 3 }
-        ]
-      },
-      { id: 'kr-gw', name: '강원특별자치도', level: 'province', averageDistanceKm: 22.0, totalDistanceKm: 15488, participationRate: 56, participants: 704, rank: 6 },
-      { id: 'kr-cb', name: '충청북도', level: 'province', averageDistanceKm: 21.4, totalDistanceKm: 14723, participationRate: 55, participants: 688, rank: 7 },
-      { id: 'kr-cn', name: '충청남도', level: 'province', averageDistanceKm: 21.7, totalDistanceKm: 18228, participationRate: 56, participants: 840, rank: 8 },
-      { id: 'kr-jb', name: '전북특별자치도', level: 'province', averageDistanceKm: 20.7, totalDistanceKm: 15318, participationRate: 53, participants: 740, rank: 9 },
-      { id: 'kr-jn', name: '전라남도', level: 'province', averageDistanceKm: 20.4, totalDistanceKm: 14484, participationRate: 52, participants: 710, rank: 10 },
-      { id: 'kr-gb', name: '경상북도', level: 'province', averageDistanceKm: 21.2, totalDistanceKm: 19716, participationRate: 54, participants: 930, rank: 11 },
-      { id: 'kr-gn', name: '경상남도', level: 'province', averageDistanceKm: 21.5, totalDistanceKm: 22188, participationRate: 55, participants: 1032, rank: 12 },
-      { id: 'kr-jeju', name: '제주특별자치도', level: 'province', averageDistanceKm: 22.6, totalDistanceKm: 9899, participationRate: 58, participants: 438, rank: 13 }
-    ]
-  };
+    children,
+  });
 }
 
 export function createSeedStore() {

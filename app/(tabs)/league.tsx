@@ -182,7 +182,7 @@ export default function LeagueScreen() {
                     {children.length === 0 ? (
                       <View style={styles.emptyState}>
                         <Text style={styles.emptyTitle}>더 내려갈 지역이 없어요</Text>
-                        <Text style={styles.emptyText}>현재 선택된 지역의 순위와 총거리, 회원 수를 아래에서 확인하면 돼.</Text>
+                        <Text style={styles.emptyText}>현재 선택된 지역의 순위와 총거리, 회원 수는 위 카드에서 바로 확인하면 돼.</Text>
                       </View>
                     ) : null}
                   </View>
@@ -220,19 +220,6 @@ export default function LeagueScreen() {
                   </View>
                 </Card>
               ) : null}
-
-              <Card>
-                <SectionTitle>{children.length > 0 ? '하위 지역 순위' : '현재 지역 정보'}</SectionTitle>
-                {(children.length > 0 ? visibleChildren : [currentNode]).map((node) => (
-                  <View key={node.id} style={styles.rankRow}>
-                    <Text style={styles.rankNumber}>{node.rank}</Text>
-                    <View style={styles.rankMeta}>
-                      <Text style={styles.rankName}>{node.name}</Text>
-                      <Text style={styles.rankDetail}>총 거리 {node.totalDistanceKm}km · 회원 {node.participants}명 · 참여율 {node.participationRate}%</Text>
-                    </View>
-                  </View>
-                ))}
-              </Card>
             </>
           ) : null}
         </>

@@ -7,6 +7,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { connectIntegrationSource, disconnectIntegrationSource, fetchIntegrationStatus, syncIntegrationSources } from '@/lib/api/services';
 import { IntegrationStatusResponse, IntegrationSyncResponse } from '@/lib/api/types';
+import { RunSourceType } from '@/domain/types';
 import {
   getCoverageSummary,
   getCurrentDevicePlatform,
@@ -58,7 +59,7 @@ export default function IntegrationManagementScreen() {
     }
   };
 
-  const handleConnect = async (sourceType: string) => {
+  const handleConnect = async (sourceType: RunSourceType) => {
     setActionSourceType(sourceType);
     setActionError(null);
     setActionMessage(null);
@@ -74,7 +75,7 @@ export default function IntegrationManagementScreen() {
     }
   };
 
-  const handleDisconnect = async (sourceType: string) => {
+  const handleDisconnect = async (sourceType: RunSourceType) => {
     setActionSourceType(sourceType);
     setActionError(null);
     setActionMessage(null);
