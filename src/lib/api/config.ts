@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+
 function readBooleanEnv(value: string | undefined, fallbackValue: boolean) {
   if (!value) {
     return fallbackValue;
@@ -16,7 +18,7 @@ function normalizeBaseUrl(value: string | undefined) {
   const trimmedValue = value?.trim();
 
   if (!trimmedValue) {
-    return 'http://localhost:8081/api';
+    return Platform.OS === 'android' ? 'http://10.0.2.2:8081/api' : 'http://localhost:8081/api';
   }
 
   return trimmedValue.replace(/\/+$/, '');

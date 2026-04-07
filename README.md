@@ -18,30 +18,39 @@ npm install
 cp .env.example .env
 ```
 
-If backend and Android emulator run on the same desktop:
+If backend and Android emulator run on the same Windows desktop:
 
 ```env
 EXPO_PUBLIC_USE_MOCK_API=false
-EXPO_PUBLIC_API_BASE_URL=http://localhost:8081/api
+EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:8081/api
 EXPO_PUBLIC_API_TIMEOUT_MS=10000
 ```
 
-If you use a physical device instead of the emulator, replace `localhost` with the desktop machine LAN IP.
+Why `10.0.2.2`:
+- Android Emulator reaches the host machine through `10.0.2.2`, not `localhost`.
+
+If you use a physical device instead of the emulator, replace `10.0.2.2` with the desktop machine LAN IP.
 
 ### 3. Start the backend on the desktop
 
-Run your backend server on port `8081`.
+Run the file-based MVP backend on port `8081`.
 
-Expected base URL:
-
-```text
-http://localhost:8081/api
-```
-
-### 4. Start Metro
+Recommended command:
 
 ```bash
-npm run start:dev-client
+node --watch backend/src/server.mjs
+```
+
+Expected API base URL:
+
+```text
+http://10.0.2.2:8081/api
+```
+
+### 4. Start Metro on port 8089
+
+```bash
+npm run start:dev-client -- -p 8089
 ```
 
 ### 5. Run Android
@@ -49,13 +58,13 @@ npm run start:dev-client
 First native install on the desktop:
 
 ```bash
-npx expo run:android
+npx expo run:android --port 8089
 ```
 
 After the dev client is installed, you can also use:
 
 ```bash
-npm run start:android:dev
+npm run start:dev-client -- -p 8089
 ```
 
 ### 6. Windows helper scripts
@@ -64,6 +73,7 @@ If you are running the Android GUI on a Windows desktop, these helper scripts ar
 
 ```text
 scripts\windows\start-dev-stack.cmd
+scripts\windows\start-backend.cmd
 scripts\windows\start-emulator.cmd
 scripts\windows\start-metro.cmd
 scripts\windows\install-android-app.cmd
@@ -72,8 +82,9 @@ scripts\windows\install-android-app.cmd
 Recommended order on Windows:
 
 1. `scripts\windows\start-dev-stack.cmd`
-2. Wait for the emulator window to finish booting
-3. `scripts\windows\install-android-app.cmd`
+2. Wait for the backend and Metro terminals to finish booting
+3. Wait for the emulator window to finish booting
+4. `scripts\windows\install-android-app.cmd`
 
 ## Current backend-aware flows
 
@@ -81,7 +92,13 @@ Recommended order on Windows:
 - Account signup
 - Session restore with persistent storage
 - My profile fetch
+- Home summary fetch
+- My activity fetch
+- Friend leaderboard and request actions
+- Friend activity and run detail
+- District personal and region league
 - Integration status fetch
+- Integration sync
 - Friend request creation
 - Basic profile edit save
 

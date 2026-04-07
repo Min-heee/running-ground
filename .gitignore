@@ -5,4 +5,5 @@ expo-env.d.ts
 .expo/
 node_modules/
 .env
+backend/data/store.json
 # @end expo-cli

@@ -3,6 +3,7 @@
     "name": "runnigapp",
     "slug": "runnigapp",
     "scheme": "runnigapp",
+    "newArchEnabled": false,
     "plugins": [
       "expo-router",
       [

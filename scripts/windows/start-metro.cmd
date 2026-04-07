@@ -12,4 +12,4 @@ if not exist "node_modules" (
 
 echo Starting Expo dev client server from:
 echo %ROOT%
-call npm run start:dev-client -- --localhost -p 8089
+call npm run start:dev-client -- -p 8089
