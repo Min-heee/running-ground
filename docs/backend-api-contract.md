@@ -235,6 +235,42 @@ Expected behavior:
 }
 ```
 
+### POST `/api/integrations/sources/{sourceType}/connect`
+
+Suggested response:
+
+```json
+{
+  "success": true,
+  "source": {
+    "sourceType": "health_connect",
+    "displayName": "Health Connect",
+    "connected": true,
+    "connectionStatus": "connected",
+    "recommendedPlatform": "android"
+  },
+  "sources": []
+}
+```
+
+### POST `/api/integrations/sources/{sourceType}/disconnect`
+
+Suggested response:
+
+```json
+{
+  "success": true,
+  "source": {
+    "sourceType": "health_connect",
+    "displayName": "Health Connect",
+    "connected": false,
+    "connectionStatus": "planned",
+    "recommendedPlatform": "android"
+  },
+  "sources": []
+}
+```
+
 ### POST `/api/integrations/sync`
 Suggested response:
 
@@ -248,6 +284,8 @@ Suggested response:
 ```
 
 Expected behavior:
+- connect/disconnect should immediately be reflected in the returned `sources` list.
+- when a source is disconnected, `connected` becomes `false` and it is excluded from subsequent sync counts.
 - `syncedSources` counts only sources actually connected for the signed-in user.
 - `syncedRuns` reflects how many run records were fetched or reconciled in this sync cycle.
 - `lastSyncedAt` should be propagated back into connected sources in the next `GET /api/integrations/sources` response.

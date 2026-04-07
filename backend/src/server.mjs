@@ -182,6 +182,14 @@ function buildNotificationSettings(user) {
   });
 }
 
+function buildIntegrationSourceActionResult(user, source) {
+  return {
+    success: true,
+    source: clone(source),
+    sources: clone(user.connectedSources),
+  };
+}
+
 function buildFriendRank(user, rank) {
   return {
     id: user.id,
@@ -474,6 +482,16 @@ function validateBoolean(value, message) {
   return value;
 }
 
+function requireConnectedSource(user, sourceType) {
+  const source = user.connectedSources.find((entry) => entry.sourceType === sourceType);
+
+  if (!source) {
+    throw new ApiError(404, '선택한 연동 소스를 찾을 수 없어.');
+  }
+
+  return source;
+}
+
 function createPublicTag(store) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let nextTag = '#TEMP1';
@@ -723,6 +741,23 @@ async function handlePatchMyNotifications(request, response) {
   sendJson(response, 200, payload);
 }
 
+function handleIntegrationSourceConnection(request, response, sourceType, nextConnected) {
+  const payload = mutateStore((store) => {
+    const user = requireUser(store, request);
+    const source = requireConnectedSource(user, sourceType);
+
+    source.connected = nextConnected;
+    source.connectionStatus = nextConnected ? 'connected' : 'planned';
+    source.lastSyncedAt = nextConnected
+      ? (source.lastSyncedAt ?? (source.sourceType === 'manual' ? formatTimestamp() : undefined))
+      : undefined;
+
+    return buildIntegrationSourceActionResult(user, source);
+  });
+
+  sendJson(response, 200, payload);
+}
+
 function handleFriendRequestCreate(request, response, body) {
   const payload = mutateStore((store) => {
     const currentUser = requireUser(store, request);
@@ -943,6 +978,18 @@ async function routeRequest(request, response) {
     const store = loadStore();
     const user = requireUser(store, request);
     sendJson(response, 200, { sources: clone(user.connectedSources) });
+    return;
+  }
+
+  const integrationSourceActionMatch = pathname.match(/^\/api\/integrations\/sources\/([^/]+)\/(connect|disconnect)$/);
+
+  if (integrationSourceActionMatch && request.method === 'POST') {
+    handleIntegrationSourceConnection(
+      request,
+      response,
+      integrationSourceActionMatch[1],
+      integrationSourceActionMatch[2] === 'connect',
+    );
     return;
   }
 

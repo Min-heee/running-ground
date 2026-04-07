@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator, Pressable } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { fetchIntegrationStatus, syncIntegrationSources } from '@/lib/api/services';
+import { connectIntegrationSource, disconnectIntegrationSource, fetchIntegrationStatus, syncIntegrationSources } from '@/lib/api/services';
 import { IntegrationStatusResponse, IntegrationSyncResponse } from '@/lib/api/types';
 import {
   getCoverageSummary,
@@ -23,6 +23,9 @@ export default function IntegrationManagementScreen() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<IntegrationSyncResponse | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [actionSourceType, setActionSourceType] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const loadIntegrationStatus = () => {
     setLoading(true);
@@ -52,6 +55,38 @@ export default function IntegrationManagementScreen() {
       setSyncError(syncLoadError instanceof Error ? syncLoadError.message : '연동 동기화에 실패했어.');
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleConnect = async (sourceType: string) => {
+    setActionSourceType(sourceType);
+    setActionError(null);
+    setActionMessage(null);
+
+    try {
+      const result = await connectIntegrationSource(sourceType);
+      setIntegrationStatus({ sources: result.sources });
+      setActionMessage(`${result.source.displayName} 연결 준비가 끝났어.`);
+    } catch (connectError) {
+      setActionError(connectError instanceof Error ? connectError.message : '소스 연결에 실패했어.');
+    } finally {
+      setActionSourceType(null);
+    }
+  };
+
+  const handleDisconnect = async (sourceType: string) => {
+    setActionSourceType(sourceType);
+    setActionError(null);
+    setActionMessage(null);
+
+    try {
+      const result = await disconnectIntegrationSource(sourceType);
+      setIntegrationStatus({ sources: result.sources });
+      setActionMessage(`${result.source.displayName} 연결을 해제했어.`);
+    } catch (disconnectError) {
+      setActionError(disconnectError instanceof Error ? disconnectError.message : '소스 연결 해제에 실패했어.');
+    } finally {
+      setActionSourceType(null);
     }
   };
 
@@ -88,6 +123,8 @@ export default function IntegrationManagementScreen() {
               </Text>
             ) : null}
             {syncError ? <Text style={styles.errorText}>{syncError}</Text> : null}
+            {actionMessage ? <Text style={styles.successText}>{actionMessage}</Text> : null}
+            {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
           </Card>
 
           <Card>
@@ -102,11 +139,15 @@ export default function IntegrationManagementScreen() {
                     <Text style={styles.detail}>{metadata.shortDescription}</Text>
                     <Text style={styles.platform}>{metadata.capabilities.join(' · ')}</Text>
                   </View>
-                  <View style={source.connected ? styles.connectedBadge : styles.plannedBadge}>
+                  <Pressable
+                    style={[styles.actionButton, source.connected ? styles.connectedBadge : styles.plannedBadge, actionSourceType === source.sourceType && styles.actionButtonDisabled]}
+                    disabled={source.connected || actionSourceType === source.sourceType}
+                    onPress={() => handleConnect(source.sourceType)}
+                  >
                     <Text style={source.connected ? styles.connectedBadgeText : styles.plannedBadgeText}>
-                      {source.connected ? '준비됨' : '추천'}
+                      {source.connected ? '준비됨' : actionSourceType === source.sourceType ? '연결 중...' : '연결하기'}
                     </Text>
-                  </View>
+                  </Pressable>
                 </View>
               );
             })}
@@ -124,9 +165,15 @@ export default function IntegrationManagementScreen() {
                     <Text style={styles.detail}>마지막 동기화 {source.lastSyncedAt ?? '정보 없음'}</Text>
                     <Text style={styles.platform}>{metadata.setupHint}</Text>
                   </View>
-                  <View style={styles.connectedBadge}>
-                    <Text style={styles.connectedBadgeText}>연결됨</Text>
-                  </View>
+                  <Pressable
+                    style={[styles.actionButton, styles.connectedBadge, actionSourceType === source.sourceType && styles.actionButtonDisabled]}
+                    disabled={actionSourceType === source.sourceType}
+                    onPress={() => handleDisconnect(source.sourceType)}
+                  >
+                    <Text style={styles.connectedBadgeText}>
+                      {actionSourceType === source.sourceType ? '처리 중...' : '연결 해제'}
+                    </Text>
+                  </Pressable>
                 </View>
               );
             })}
@@ -145,9 +192,15 @@ export default function IntegrationManagementScreen() {
                     <Text style={styles.detail}>{metadata.shortDescription}</Text>
                     <Text style={styles.platform}>{metadata.setupHint}</Text>
                   </View>
-                  <View style={styles.plannedBadge}>
-                    <Text style={styles.plannedBadgeText}>대기</Text>
-                  </View>
+                  <Pressable
+                    style={[styles.actionButton, styles.plannedBadge, actionSourceType === source.sourceType && styles.actionButtonDisabled]}
+                    disabled={actionSourceType === source.sourceType}
+                    onPress={() => handleConnect(source.sourceType)}
+                  >
+                    <Text style={styles.plannedBadgeText}>
+                      {actionSourceType === source.sourceType ? '연결 중...' : '연결하기'}
+                    </Text>
+                  </Pressable>
                 </View>
               );
             })}
@@ -208,6 +261,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 8,
+  },
+  actionButton: {
+    minWidth: 84,
+    alignItems: 'center',
+  },
+  actionButtonDisabled: {
+    opacity: 0.7,
   },
   connectedBadgeText: {
     color: '#067647',

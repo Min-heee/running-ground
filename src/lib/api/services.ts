@@ -10,7 +10,7 @@ import {
   regionDrilldownTree,
   weeklySummary,
 } from '@/data/mock';
-import { RegionDrilldownNode } from '@/domain/types';
+import { RegionDrilldownNode, RunSourceType } from '@/domain/types';
 import { getAccessToken, getCurrentUserProfile, setCurrentUserProfile } from '@/lib/session';
 import { apiGet, apiPatch, apiPost } from './client';
 import { USE_MOCK_API } from './config';
@@ -21,6 +21,7 @@ import {
   FriendLeaderboardResponse,
   FriendRequestActionResponse,
   HomeSummaryResponse,
+  IntegrationSourceActionResponse,
   IntegrationSyncResponse,
   IntegrationStatusResponse,
   MyActivityResponse,
@@ -42,6 +43,10 @@ let mockFriendRequests = friendRequests
 let mockFriendRanks = friendRanks.map((friend) => ({ ...friend }));
 let mockConnectedSources = connectedSources.map((source) => ({ ...source }));
 let mockNotificationPreferences = { ...myNotificationSettings };
+
+function formatMockTimestamp(date = new Date()) {
+  return date.toISOString().slice(0, 16).replace('T', ' ');
+}
 
 function normalizeMockFriendRanks(ranks: typeof mockFriendRanks) {
   return [...ranks]
@@ -237,7 +242,7 @@ export async function fetchIntegrationStatus(): Promise<IntegrationStatusRespons
 
 export async function syncIntegrationSources(): Promise<IntegrationSyncResponse> {
   if (USE_MOCK_API) {
-    const lastSyncedAt = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    const lastSyncedAt = formatMockTimestamp();
     const connectedCount = mockConnectedSources.filter((source) => source.connected).length;
 
     mockConnectedSources = mockConnectedSources.map((source) => (
@@ -263,6 +268,90 @@ export async function syncIntegrationSources(): Promise<IntegrationSyncResponse>
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '연동 동기화에 실패했어.',
+    },
+  );
+}
+
+export async function connectIntegrationSource(sourceType: RunSourceType): Promise<IntegrationSourceActionResponse> {
+  if (USE_MOCK_API) {
+    const targetSource = mockConnectedSources.find((source) => source.sourceType === sourceType);
+
+    if (!targetSource) {
+      throw new Error('연결할 소스를 찾지 못했어.');
+    }
+
+    mockConnectedSources = mockConnectedSources.map((source) => (
+      source.sourceType === sourceType
+        ? {
+          ...source,
+          connected: true,
+          connectionStatus: 'connected',
+          lastSyncedAt: source.lastSyncedAt ?? (source.sourceType === 'manual' ? formatMockTimestamp() : undefined),
+        }
+        : source
+    ));
+
+    const source = mockConnectedSources.find((entry) => entry.sourceType === sourceType);
+
+    if (!source) {
+      throw new Error('연결된 소스를 다시 확인하지 못했어.');
+    }
+
+    return {
+      success: true,
+      source,
+      sources: mockConnectedSources,
+    };
+  }
+
+  return apiPost<IntegrationSourceActionResponse>(
+    `/integrations/sources/${sourceType}/connect`,
+    {},
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '소스 연결에 실패했어.',
+    },
+  );
+}
+
+export async function disconnectIntegrationSource(sourceType: RunSourceType): Promise<IntegrationSourceActionResponse> {
+  if (USE_MOCK_API) {
+    const targetSource = mockConnectedSources.find((source) => source.sourceType === sourceType);
+
+    if (!targetSource) {
+      throw new Error('해제할 소스를 찾지 못했어.');
+    }
+
+    mockConnectedSources = mockConnectedSources.map((source) => (
+      source.sourceType === sourceType
+        ? {
+          ...source,
+          connected: false,
+          connectionStatus: 'planned',
+          lastSyncedAt: undefined,
+        }
+        : source
+    ));
+
+    const source = mockConnectedSources.find((entry) => entry.sourceType === sourceType);
+
+    if (!source) {
+      throw new Error('연결 해제된 소스를 다시 확인하지 못했어.');
+    }
+
+    return {
+      success: true,
+      source,
+      sources: mockConnectedSources,
+    };
+  }
+
+  return apiPost<IntegrationSourceActionResponse>(
+    `/integrations/sources/${sourceType}/disconnect`,
+    {},
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '소스 연결 해제에 실패했어.',
     },
   );
 }
