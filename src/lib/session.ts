@@ -17,7 +17,10 @@ type RegisterAccountInput = {
   password: string;
   name: string;
   phone: string;
+  provinceName: string;
+  cityName?: string;
   districtName: string;
+  addressDetail: string;
   birthDate: string;
 };
 
@@ -44,7 +47,10 @@ function isUserProfile(value: unknown): value is UserProfile {
   }
 
   return typeof value.name === 'string'
+    && (value.provinceName === undefined || typeof value.provinceName === 'string')
+    && (value.cityName === undefined || typeof value.cityName === 'string')
     && typeof value.districtName === 'string'
+    && (value.addressDetail === undefined || typeof value.addressDetail === 'string')
     && typeof value.publicTag === 'string';
 }
 
@@ -273,7 +279,10 @@ export async function registerAccount({
   password,
   name,
   phone,
+  provinceName,
+  cityName,
   districtName,
+  addressDetail,
   birthDate,
 }: RegisterAccountInput) {
   await ensureHydrated();
@@ -281,7 +290,10 @@ export async function registerAccount({
   const normalizedName = name.trim();
   const normalizedUsername = username.trim().toLowerCase();
   const normalizedPhone = phone.replace(/\D/g, '');
+  const normalizedProvinceName = provinceName.trim();
+  const normalizedCityName = cityName?.trim() ?? '';
   const normalizedDistrictName = districtName.trim();
+  const normalizedAddressDetail = addressDetail.trim();
   const normalizedBirthDate = birthDate.trim();
 
   if (!normalizedName) {
@@ -300,8 +312,16 @@ export async function registerAccount({
     throw new Error('휴대폰 번호를 정확히 입력해줘.');
   }
 
+  if (!normalizedProvinceName) {
+    throw new Error('시/도를 먼저 선택해줘.');
+  }
+
   if (!normalizedDistrictName) {
-    throw new Error('사는 지역을 입력해줘.');
+    throw new Error('최종 지역을 선택해줘.');
+  }
+
+  if (!normalizedAddressDetail) {
+    throw new Error('상세 주소를 입력해줘.');
   }
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedBirthDate)) {
@@ -312,7 +332,10 @@ export async function registerAccount({
     mockProfile = {
       ...mockProfile,
       name: normalizedName,
+      provinceName: normalizedProvinceName,
+      cityName: normalizedCityName || undefined,
       districtName: normalizedDistrictName,
+      addressDetail: normalizedAddressDetail,
       publicTag: myProfile.publicTag,
     };
     mockSignedIn = true;
@@ -327,7 +350,10 @@ export async function registerAccount({
       password: password.trim(),
       name: normalizedName,
       phone: normalizedPhone,
+      provinceName: normalizedProvinceName,
+      cityName: normalizedCityName,
       districtName: normalizedDistrictName,
+      addressDetail: normalizedAddressDetail,
       birthDate: normalizedBirthDate,
     },
     { fallbackMessage: '회원가입에 실패했어.' },

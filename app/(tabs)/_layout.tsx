@@ -1,19 +1,12 @@
 import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
 
-function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  return (
-    <Text
-      style={{
-        fontSize: 18,
-        color: focused ? '#6D5EF7' : '#98A2B3',
-        fontWeight: '700',
-      }}
-    >
-      {label}
-    </Text>
-  );
-}
+const TAB_TITLES = {
+  league: '\uB9AC\uADF8',
+  friends: '\uCE5C\uAD6C',
+  home: '\uD648',
+  market: '\uB9C8\uCF13',
+  mypage: '\uB9C8\uC774',
+} as const;
 
 export default function TabsLayout() {
   return (
@@ -35,31 +28,41 @@ export default function TabsLayout() {
           fontSize: 12,
           fontWeight: '700',
         },
+        tabBarIconStyle: {
+          display: 'none',
+        },
       }}
     >
       <Tabs.Screen
+        name="league"
+        options={{
+          title: TAB_TITLES.league,
+        }}
+      />
+      <Tabs.Screen
         name="friends"
         options={{
-          title: '친구',
-          tabBarIcon: ({ focused }) => <TabIcon label="친" focused={focused} />,
+          title: TAB_TITLES.friends,
         }}
       />
       <Tabs.Screen
         name="home"
         options={{
-          title: '홈',
-          tabBarIcon: ({ focused }) => <TabIcon label="홈" focused={focused} />,
+          title: TAB_TITLES.home,
+        }}
+      />
+      <Tabs.Screen
+        name="market"
+        options={{
+          title: TAB_TITLES.market,
         }}
       />
       <Tabs.Screen
         name="mypage"
         options={{
-          title: '마이',
-          tabBarIcon: ({ focused }) => <TabIcon label="MY" focused={focused} />,
+          title: TAB_TITLES.mypage,
         }}
       />
-      <Tabs.Screen name="league" options={{ href: null }} />
-      <Tabs.Screen name="market" options={{ href: null }} />
       <Tabs.Screen name="integrations" options={{ href: null }} />
     </Tabs>
   );

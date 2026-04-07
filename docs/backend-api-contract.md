@@ -43,7 +43,10 @@ Request example:
   "password": "password123",
   "name": "홍길동",
   "phone": "01012345678",
+  "provinceName": "서울특별시",
+  "cityName": "",
   "districtName": "강남구",
+  "addressDetail": "테헤란로 123, 101동 1203호",
   "birthDate": "1990-01-01"
 }
 ```
@@ -132,7 +135,9 @@ Expected behavior:
 ```json
 {
   "name": "민병희",
+  "provinceName": "서울특별시",
   "districtName": "강남구",
+  "addressDetail": "테헤란로 123",
   "publicTag": "#BH7K2"
 }
 ```

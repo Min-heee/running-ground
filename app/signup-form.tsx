@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
+import { addressCatalog, AddressRegionNode } from '@/features/location/addressCatalog';
 import { registerAccount } from '@/lib/session';
 
 export default function SignupFormScreen() {
@@ -12,10 +13,26 @@ export default function SignupFormScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
-  const [districtName, setDistrictName] = useState('');
+  const [provinceName, setProvinceName] = useState('');
+  const [secondaryRegionName, setSecondaryRegionName] = useState('');
+  const [tertiaryRegionName, setTertiaryRegionName] = useState('');
+  const [addressDetail, setAddressDetail] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedProvince = useMemo(
+    () => addressCatalog.find((region) => region.name === provinceName) ?? null,
+    [provinceName],
+  );
+  const secondaryOptions = selectedProvince?.children ?? [];
+  const selectedSecondary = secondaryOptions.find((region) => region.name === secondaryRegionName) ?? null;
+  const tertiaryOptions = selectedSecondary?.children ?? [];
+  const selectedTertiary = tertiaryOptions.find((region) => region.name === tertiaryRegionName) ?? null;
+
+  const finalRegion = tertiaryOptions.length > 0 ? selectedTertiary : selectedSecondary;
+  const finalDistrictName = finalRegion?.name ?? '';
+  const selectedAddressLabel = [provinceName, secondaryRegionName, tertiaryRegionName].filter(Boolean).join(' ');
 
   const handleSignup = async () => {
     setError(null);
@@ -27,7 +44,10 @@ export default function SignupFormScreen() {
         username,
         password,
         phone,
-        districtName,
+        provinceName,
+        cityName: selectedSecondary?.type === 'city' ? selectedSecondary.name : '',
+        districtName: finalDistrictName,
+        addressDetail,
         birthDate,
       });
       router.push('/connect-sources');
@@ -40,7 +60,7 @@ export default function SignupFormScreen() {
 
   return (
     <Screen>
-      <AuthHeader title="계정으로 회원가입" subtitle="기본 정보만 입력하면 바로 다음 단계인 기록 연동으로 넘어갈 수 있어." />
+      <AuthHeader title="계정으로 회원가입" subtitle="기본 정보와 주소를 선택하면 바로 다음 단계인 기록 연동으로 넘어갈 수 있어." />
 
       <InfoCard title="다음 단계">회원가입 완료 후 기록 연동을 연결하면 홈에서 바로 경쟁을 시작할 수 있어.</InfoCard>
 
@@ -50,7 +70,69 @@ export default function SignupFormScreen() {
           <Input label="아이디" placeholder="아이디를 입력하세요" value={username} onChangeText={setUsername} editable={!submitting} autoCapitalize="none" />
           <Input label="비밀번호" placeholder="비밀번호를 입력하세요" secureTextEntry value={password} onChangeText={setPassword} editable={!submitting} />
           <Input label="핸드폰번호" placeholder="010-0000-0000" keyboardType="phone-pad" value={phone} onChangeText={setPhone} editable={!submitting} />
-          <Input label="사는지역" placeholder="예: 강남구" value={districtName} onChangeText={setDistrictName} editable={!submitting} />
+
+          <View style={styles.addressGroup}>
+            <Text style={styles.label}>사는 지역 선택</Text>
+            <Text style={styles.helperText}>서울특별시처럼 광역시는 바로 구를 고르고, 경기도처럼 도는 시를 먼저 고른 뒤 구가 있으면 한 단계 더 내려가면 돼.</Text>
+
+            <SelectionSection
+              title="1. 시/도 선택"
+              options={addressCatalog}
+              selectedName={provinceName}
+              disabled={submitting}
+              onSelect={(nextProvince) => {
+                setProvinceName(nextProvince.name);
+                setSecondaryRegionName('');
+                setTertiaryRegionName('');
+                setAddressDetail('');
+              }}
+            />
+
+            {selectedProvince ? (
+              <SelectionSection
+                title={selectedProvince.children?.[0]?.type === 'district' ? '2. 구 선택' : '2. 시/군 선택'}
+                options={secondaryOptions}
+                selectedName={secondaryRegionName}
+                disabled={submitting}
+                onSelect={(nextSecondary) => {
+                  setSecondaryRegionName(nextSecondary.name);
+                  setTertiaryRegionName('');
+                  setAddressDetail('');
+                }}
+              />
+            ) : null}
+
+            {selectedSecondary && tertiaryOptions.length > 0 ? (
+              <SelectionSection
+                title="3. 구 선택"
+                options={tertiaryOptions}
+                selectedName={tertiaryRegionName}
+                disabled={submitting}
+                onSelect={(nextTertiary) => {
+                  setTertiaryRegionName(nextTertiary.name);
+                  setAddressDetail('');
+                }}
+              />
+            ) : null}
+
+            {selectedAddressLabel ? (
+              <View style={styles.selectedAddressCard}>
+                <Text style={styles.selectedAddressLabel}>현재 선택</Text>
+                <Text style={styles.selectedAddressValue}>{selectedAddressLabel}</Text>
+              </View>
+            ) : null}
+
+            {finalRegion ? (
+              <Input
+                label="상세 주소"
+                placeholder="예: 테헤란로 123, 101동 1203호"
+                value={addressDetail}
+                onChangeText={setAddressDetail}
+                editable={!submitting}
+              />
+            ) : null}
+          </View>
+
           <Input label="생년월일" placeholder="예: 1990-01-01" value={birthDate} onChangeText={setBirthDate} editable={!submitting} />
 
           <Pressable style={[styles.primaryButton, submitting ? styles.disabledButton : null]} onPress={handleSignup} disabled={submitting}>
@@ -60,6 +142,42 @@ export default function SignupFormScreen() {
         </View>
       </Card>
     </Screen>
+  );
+}
+
+function SelectionSection({
+  title,
+  options,
+  selectedName,
+  disabled,
+  onSelect,
+}: {
+  title: string;
+  options: AddressRegionNode[];
+  selectedName: string;
+  disabled?: boolean;
+  onSelect: (option: AddressRegionNode) => void;
+}) {
+  return (
+    <View style={styles.selectionSection}>
+      <Text style={styles.selectionTitle}>{title}</Text>
+      <View style={styles.selectionList}>
+        {options.map((option) => {
+          const selected = option.name === selectedName;
+
+          return (
+            <Pressable
+              key={option.name}
+              style={[styles.selectionChip, selected && styles.selectionChipSelected, disabled && styles.disabledButton]}
+              onPress={() => onSelect(option)}
+              disabled={disabled}
+            >
+              <Text style={[styles.selectionChipText, selected && styles.selectionChipTextSelected]}>{option.name}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -88,7 +206,7 @@ function Input({
       <TextInput
         placeholder={placeholder}
         placeholderTextColor="#98A2B3"
-        style={styles.input}
+        style={[styles.input, !editable && styles.inputDisabled]}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType ?? 'default'}
         value={value}
@@ -109,6 +227,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 15,
   },
+  helperText: {
+    color: '#667085',
+    lineHeight: 20,
+  },
   input: {
     backgroundColor: '#F9FAFB',
     borderWidth: 1,
@@ -117,6 +239,60 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
     color: '#111827',
+  },
+  inputDisabled: {
+    opacity: 0.7,
+  },
+  addressGroup: {
+    gap: 12,
+  },
+  selectionSection: {
+    gap: 8,
+  },
+  selectionTitle: {
+    color: '#344054',
+    fontWeight: '700',
+  },
+  selectionList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  selectionChip: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  selectionChipSelected: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#6D5EF7',
+  },
+  selectionChipText: {
+    color: '#344054',
+    fontWeight: '700',
+  },
+  selectionChipTextSelected: {
+    color: '#4338CA',
+  },
+  selectedAddressCard: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    padding: 14,
+    gap: 4,
+  },
+  selectedAddressLabel: {
+    color: '#475467',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  selectedAddressValue: {
+    color: '#111827',
+    fontWeight: '800',
   },
   primaryButton: {
     backgroundColor: '#6D5EF7',

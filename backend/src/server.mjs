@@ -205,7 +205,10 @@ function getTotalDistance(runs) {
 function buildProfile(user) {
   return {
     name: user.name,
+    ...(typeof user.provinceName === 'string' && user.provinceName ? { provinceName: user.provinceName } : {}),
+    ...(typeof user.cityName === 'string' && user.cityName ? { cityName: user.cityName } : {}),
     districtName: user.districtName,
+    ...(typeof user.addressDetail === 'string' && user.addressDetail ? { addressDetail: user.addressDetail } : {}),
     publicTag: user.publicTag,
   };
 }
@@ -655,7 +658,10 @@ async function handleRegister(request, response) {
   const password = validateRequiredString(body.password, '비밀번호를 입력해줘.');
   const name = validateRequiredString(body.name, '이름을 입력해줘.');
   const phone = validateRequiredString(body.phone, '휴대폰 번호를 입력해줘.').replace(/\D/g, '');
+  const provinceName = validateRequiredString(body.provinceName, '시/도를 선택해줘.');
+  const cityName = typeof body.cityName === 'string' ? body.cityName.trim() : '';
   const districtName = validateRequiredString(body.districtName, '사는 지역을 입력해줘.');
+  const addressDetail = validateRequiredString(body.addressDetail, '상세 주소를 입력해줘.');
   const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해줘.');
 
   if (password.length < 6) {
@@ -684,7 +690,10 @@ async function handleRegister(request, response) {
       name,
       phone,
       birthDate,
+      provinceName,
+      cityName,
       districtName,
+      addressDetail,
       publicTag: createPublicTag(store),
       friendDistanceKm: 12.3,
       friendPoints: 20,

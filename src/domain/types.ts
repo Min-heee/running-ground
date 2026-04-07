@@ -49,7 +49,10 @@ export type ConnectedSource = {
 
 export type UserProfile = {
   name: string;
+  provinceName?: string;
+  cityName?: string;
   districtName: string;
+  addressDetail?: string;
   publicTag: string;
 };
 

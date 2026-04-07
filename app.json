@@ -4,6 +4,16 @@
     "slug": "runnigapp",
     "scheme": "runnigapp",
     "newArchEnabled": false,
+    "ios": {
+      "bundleIdentifier": "com.anonymous.runnigapp",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Allow runnigapp to connect to local development servers on your network.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
     "plugins": [
       "expo-router",
       [
