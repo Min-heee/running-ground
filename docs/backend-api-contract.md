@@ -169,6 +169,11 @@ Response shape:
 }
 ```
 
+Expected behavior:
+- `ranks` should already be sorted by `rank ASC`.
+- accepted friend requests should be reflected in `ranks` once the friendship is active.
+- `requests` should only include still-actionable requests for the signed-in user.
+
 ---
 
 ## 6. Friend activity

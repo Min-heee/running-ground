@@ -20,16 +20,19 @@ export default function FriendsScreen() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
 
+  const syncFriends = async () => {
+    const [leaderboardData, profileData] = await Promise.all([fetchFriendLeaderboard(), fetchMyProfile()]);
+
+    setLeaderboard(leaderboardData);
+    setProfile(profileData);
+    setRequests(leaderboardData.requests);
+  };
+
   const loadFriends = () => {
     setLoading(true);
     setError(null);
 
-    Promise.all([fetchFriendLeaderboard(), fetchMyProfile()])
-      .then(([leaderboardData, profileData]) => {
-        setLeaderboard(leaderboardData);
-        setProfile(profileData);
-        setRequests(leaderboardData.requests);
-      })
+    syncFriends()
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '친구 정보를 불러오지 못했어.'))
       .finally(() => setLoading(false));
   };
@@ -54,9 +57,7 @@ export default function FriendsScreen() {
 
     try {
       await acceptFriendRequest(requestId);
-      setRequests((prev) => prev.map((request) => (
-        request.id === requestId ? { ...request, status: 'accepted' } : request
-      )));
+      await syncFriends();
     } catch (requestError) {
       setActionError(requestError instanceof Error ? requestError.message : '친구 요청 수락에 실패했어.');
     } finally {
@@ -70,7 +71,7 @@ export default function FriendsScreen() {
 
     try {
       await rejectFriendRequest(requestId);
-      setRequests((prev) => prev.filter((request) => request.id !== requestId));
+      await syncFriends();
     } catch (requestError) {
       setActionError(requestError instanceof Error ? requestError.message : '친구 요청 거절에 실패했어.');
     } finally {
@@ -84,7 +85,7 @@ export default function FriendsScreen() {
 
     try {
       await cancelFriendRequest(requestId);
-      setRequests((prev) => prev.filter((request) => request.id !== requestId));
+      await syncFriends();
     } catch (requestError) {
       setActionError(requestError instanceof Error ? requestError.message : '보낸 친구 요청 취소에 실패했어.');
     } finally {

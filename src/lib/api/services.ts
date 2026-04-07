@@ -29,7 +29,43 @@ import {
   UpdateMyProfileResponse,
 } from './types';
 
-let mockFriendRequests = friendRequests.map((request) => ({ ...request }));
+let mockFriendRequests = friendRequests
+  .filter((request) => request.status !== 'accepted')
+  .map((request) => ({ ...request }));
+let mockFriendRanks = friendRanks.map((friend) => ({ ...friend }));
+
+function normalizeMockFriendRanks(ranks: typeof mockFriendRanks) {
+  return [...ranks]
+    .sort((left, right) => {
+      if (right.distanceKm !== left.distanceKm) {
+        return right.distanceKm - left.distanceKm;
+      }
+
+      if (right.points !== left.points) {
+        return right.points - left.points;
+      }
+
+      return left.name.localeCompare(right.name, 'ko');
+    })
+    .map((runner, index) => ({
+      ...runner,
+      rank: index + 1,
+    }));
+}
+
+function createMockFriendRank(input: { id: string; name: string; tag: string }) {
+  const nextIndex = mockFriendRanks.length + 1;
+  const distanceKm = Number((62 + nextIndex * 4.3).toFixed(1));
+
+  return {
+    id: input.id,
+    name: input.name,
+    tag: input.tag,
+    distanceKm,
+    points: Math.round(distanceKm * 1.15),
+    rank: nextIndex,
+  };
+}
 
 async function requireAccessToken() {
   const accessToken = await getAccessToken();
@@ -86,7 +122,7 @@ export async function fetchMyActivity(): Promise<MyActivityResponse> {
 export async function fetchFriendLeaderboard(): Promise<FriendLeaderboardResponse> {
   if (USE_MOCK_API) {
     return {
-      ranks: friendRanks,
+      ranks: normalizeMockFriendRanks(mockFriendRanks),
       requests: mockFriendRequests,
     };
   }
@@ -154,9 +190,10 @@ export async function fetchRegionLeague(nodeId?: string): Promise<RegionLeagueRe
 
 export async function fetchFriendActivity(friendId?: string): Promise<FriendActivityResponse> {
   if (USE_MOCK_API) {
+    const normalizedRanks = normalizeMockFriendRanks(mockFriendRanks);
     const friend = friendId
-      ? (friendRanks.find((entry) => entry.id === friendId) ?? friendRanks[0])
-      : friendRanks[0];
+      ? (normalizedRanks.find((entry) => entry.id === friendId) ?? normalizedRanks[0])
+      : normalizedRanks[0];
 
     return {
       friend,
@@ -231,12 +268,13 @@ export async function createFriendRequest(tag: string): Promise<CreateFriendRequ
   if (USE_MOCK_API) {
     const normalizedTag = tag.trim().toUpperCase();
     const requestId = `mock-${Date.now()}`;
+    const existingFriend = mockFriendRanks.find((entry) => entry.tag === normalizedTag);
 
     mockFriendRequests = [
       ...mockFriendRequests.filter((entry) => entry.tag !== normalizedTag),
       {
         id: requestId,
-        name: friendRanks.find((entry) => entry.tag === normalizedTag)?.name
+        name: existingFriend?.name
           ?? mockFriendRequests.find((entry) => entry.tag === normalizedTag)?.name
           ?? '새 친구',
         tag: normalizedTag,
@@ -265,11 +303,22 @@ export async function createFriendRequest(tag: string): Promise<CreateFriendRequ
 
 export async function acceptFriendRequest(requestId: string): Promise<FriendRequestActionResponse> {
   if (USE_MOCK_API) {
-    mockFriendRequests = mockFriendRequests.map((request) => (
-      request.id === requestId
-        ? { ...request, status: 'accepted' }
-        : request
-    ));
+    const acceptedRequest = mockFriendRequests.find((request) => request.id === requestId);
+
+    if (acceptedRequest && !mockFriendRanks.some((entry) => entry.tag === acceptedRequest.tag)) {
+      mockFriendRanks = normalizeMockFriendRanks([
+        ...mockFriendRanks,
+        createMockFriendRank({
+          id: `friend-${requestId}`,
+          name: acceptedRequest.name,
+          tag: acceptedRequest.tag,
+        }),
+      ]);
+    } else {
+      mockFriendRanks = normalizeMockFriendRanks(mockFriendRanks);
+    }
+
+    mockFriendRequests = mockFriendRequests.filter((request) => request.id !== requestId);
 
     return {
       success: true,
