@@ -58,6 +58,23 @@ After the dev client is installed, you can also use:
 npm run start:android:dev
 ```
 
+### 6. Windows helper scripts
+
+If you are running the Android GUI on a Windows desktop, these helper scripts are available:
+
+```text
+scripts\windows\start-dev-stack.cmd
+scripts\windows\start-emulator.cmd
+scripts\windows\start-metro.cmd
+scripts\windows\install-android-app.cmd
+```
+
+Recommended order on Windows:
+
+1. `scripts\windows\start-dev-stack.cmd`
+2. Wait for the emulator window to finish booting
+3. `scripts\windows\install-android-app.cmd`
+
 ## Current backend-aware flows
 
 - Account login
