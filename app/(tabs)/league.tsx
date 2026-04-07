@@ -1,23 +1,43 @@
-import { useMemo, useState } from 'react';
-import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View, Pressable } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
-import { regionDrilldownTree } from '@/data/mock';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
-import { RegionDrilldownNode } from '@/domain/types';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { fetchRegionLeague } from '@/lib/api/services';
+import { RegionLeagueResponse } from '@/lib/api/types';
 
 const FEATURED_REGION_COUNT = 6;
 
 export default function LeagueScreen() {
-  const [path, setPath] = useState<RegionDrilldownNode[]>([regionDrilldownTree]);
+  const [league, setLeague] = useState<RegionLeagueResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showAllRegions, setShowAllRegions] = useState(false);
-  const currentNode = path[path.length - 1];
-  const children = currentNode.children ?? [];
-  const isCountry = currentNode.level === 'country';
+  const currentNode = league?.currentNode ?? null;
+  const children = league?.children ?? [];
+  const isCountry = currentNode?.level === 'country';
 
-  const breadcrumb = useMemo(() => path.map((node) => node.name).join(' > '), [path]);
+  const loadLeague = (nodeId?: string) => {
+    setLoading(true);
+    setError(null);
+
+    fetchRegionLeague(nodeId)
+      .then((response) => {
+        setLeague(response);
+        setShowAllRegions(false);
+      })
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '지역 리그 정보를 불러오지 못했어.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadLeague();
+  }, []);
+
+  const breadcrumb = useMemo(() => league?.breadcrumb.map((node) => node.name).join(' > ') ?? '', [league]);
 
   const sortedChildren = useMemo(() => [...children].sort((a, b) => a.rank - b.rank), [children]);
 
@@ -26,105 +46,128 @@ export default function LeagueScreen() {
     return sortedChildren.slice(0, FEATURED_REGION_COUNT);
   }, [sortedChildren, isCountry, showAllRegions]);
 
+  const canGoBack = (league?.breadcrumb.length ?? 0) > 1;
+  const parentNodeId = canGoBack ? league?.breadcrumb[league.breadcrumb.length - 2]?.id : undefined;
+
   return (
     <Screen>
       <PageHeader title="지역 배틀" subtitle="대한민국부터 시/도, 시/군/구까지 내려가며 경쟁 구도를 볼 수 있어." />
 
-      <InfoCard title="탐색 방식">지역을 누르면 하위 지역으로 내려가고, 그 지역의 순위와 평균 km를 바로 확인할 수 있어.</InfoCard>
+      <InfoCard title="탐색 방식">지역을 누르면 하위 지역으로 내려가고, 그 지역의 순위와 총거리, 회원 수를 바로 확인할 수 있어.</InfoCard>
 
-      <Card style={styles.heroCard}>
-        <Text style={styles.heroLabel}>현재 선택 지역</Text>
-        <Text style={styles.heroTitle}>{currentNode.name}</Text>
-        <Text style={styles.breadcrumb}>{breadcrumb}</Text>
-        <View style={styles.heroMetrics}>
-          <View style={styles.heroMetricBox}>
-            <Text style={styles.heroMetricValue}>{isCountry ? `${currentNode.totalDistanceKm}km` : `${currentNode.rank}위`}</Text>
-            <Text style={styles.heroMetricLabel}>{isCountry ? '회원 총 거리' : '현재 순위'}</Text>
-          </View>
-          <View style={styles.heroMetricBox}>
-            <Text style={styles.heroMetricValue}>{isCountry ? `${currentNode.participants}명` : `${currentNode.averageDistanceKm}km`}</Text>
-            <Text style={styles.heroMetricLabel}>{isCountry ? '회원 수' : '평균 거리'}</Text>
-          </View>
-        </View>
-        {isCountry ? (
-          <Text style={styles.heroFootnote}>참여율 {currentNode.participationRate}% · 하위 지역 {children.length}개</Text>
-        ) : null}
-      </Card>
+      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
 
-      <Card>
-        <SectionTitle>지역 선택</SectionTitle>
-        <View style={styles.selectorWrap}>
-          {path.length > 1 ? (
-            <Pressable style={styles.backButton} onPress={() => setPath((prev) => prev.slice(0, -1))}>
-              <Text style={styles.backButtonText}>상위 지역으로</Text>
-            </Pressable>
-          ) : null}
-
-          <View style={styles.regionGrid}>
-            {visibleChildren.map((node) => (
-              <Pressable key={node.id} style={styles.regionCard} onPress={() => setPath((prev) => [...prev, node])}>
-                <View style={styles.rankBadge}>
-                  <Text style={styles.rankBadgeText}>{node.rank}등</Text>
-                </View>
-                <Text style={styles.regionName}>{node.name}</Text>
-                <Text style={styles.regionMeta}>총거리 {node.totalDistanceKm}km</Text>
-                <Text style={styles.regionMeta}>회원수 {node.participants}명</Text>
-              </Pressable>
-            ))}
-            {children.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>더 내려갈 지역이 없어요</Text>
-                <Text style={styles.emptyText}>현재 선택된 지역의 순위와 평균 km를 아래에서 확인하면 돼.</Text>
-              </View>
-            ) : null}
-          </View>
-
-          {isCountry && children.length > FEATURED_REGION_COUNT ? (
-            <Pressable style={styles.toggleButton} onPress={() => setShowAllRegions((prev) => !prev)}>
-              <Text style={styles.toggleButtonText}>{showAllRegions ? '대표 지역만 보기' : '전체 지역 보기'}</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </Card>
-
-      {!isCountry ? (
+      {!loading && error ? (
         <Card>
-          <SectionTitle>선택 지역 현황</SectionTitle>
-          <View style={styles.summaryGrid}>
-            <View style={styles.summaryBox}>
-              <Text style={styles.summaryValue}>{currentNode.averageDistanceKm}km</Text>
-              <Text style={styles.summaryLabel}>평균 거리</Text>
-            </View>
-            <View style={styles.summaryBox}>
-              <Text style={styles.summaryValue}>{currentNode.participationRate}%</Text>
-              <Text style={styles.summaryLabel}>참여율</Text>
-            </View>
-          </View>
-          <View style={styles.summaryGrid}>
-            <View style={styles.summaryBox}>
-              <Text style={styles.summaryValue}>{currentNode.participants}명</Text>
-              <Text style={styles.summaryLabel}>회원 수</Text>
-            </View>
-            <View style={styles.summaryBox}>
-              <Text style={styles.summaryValue}>{currentNode.rank}위</Text>
-              <Text style={styles.summaryLabel}>현재 순위</Text>
-            </View>
-          </View>
+          <Text style={styles.stateTitle}>지역 리그를 아직 못 불러왔어</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <PrimaryButton label="다시 불러오기" onPress={() => loadLeague(currentNode?.id)} />
         </Card>
       ) : null}
 
-      <Card>
-        <SectionTitle>{children.length > 0 ? '하위 지역 순위' : '현재 지역 정보'}</SectionTitle>
-        {(children.length > 0 ? visibleChildren : [currentNode]).map((node) => (
-          <View key={node.id} style={styles.rankRow}>
-            <Text style={styles.rankNumber}>{node.rank}</Text>
-            <View style={styles.rankMeta}>
-              <Text style={styles.rankName}>{node.name}</Text>
-              <Text style={styles.rankDetail}>{isCountry ? `총 거리 ${node.totalDistanceKm}km · 회원 ${node.participants}명 · 평균 ${node.averageDistanceKm}km` : `평균 ${node.averageDistanceKm}km · 참여율 ${node.participationRate}% · ${node.participants}명`}</Text>
+      {!loading && !error && !currentNode ? (
+        <Card>
+          <Text style={styles.stateTitle}>지역 리그 데이터가 아직 없어</Text>
+          <Text style={styles.emptyText}>백엔드 응답이 연결되면 지역별 순위를 바로 탐색할 수 있어.</Text>
+          <PrimaryButton label="다시 불러오기" onPress={() => loadLeague()} />
+        </Card>
+      ) : null}
+
+      {currentNode ? (
+        <>
+          <Card style={styles.heroCard}>
+            <Text style={styles.heroLabel}>현재 선택 지역</Text>
+            <Text style={styles.heroTitle}>{currentNode.name}</Text>
+            <Text style={styles.breadcrumb}>{breadcrumb}</Text>
+            <View style={styles.heroMetrics}>
+              <View style={styles.heroMetricBox}>
+                <Text style={styles.heroMetricValue}>{isCountry ? `${currentNode.totalDistanceKm}km` : `${currentNode.rank}위`}</Text>
+                <Text style={styles.heroMetricLabel}>{isCountry ? '회원 총 거리' : '현재 순위'}</Text>
+              </View>
+              <View style={styles.heroMetricBox}>
+                <Text style={styles.heroMetricValue}>{currentNode.participants}명</Text>
+                <Text style={styles.heroMetricLabel}>회원 수</Text>
+              </View>
             </View>
-          </View>
-        ))}
-      </Card>
+            <Text style={styles.heroFootnote}>총 거리 {currentNode.totalDistanceKm}km · 참여율 {currentNode.participationRate}%</Text>
+          </Card>
+
+          <Card>
+            <SectionTitle>지역 선택</SectionTitle>
+            <View style={styles.selectorWrap}>
+              {canGoBack ? (
+                <Pressable style={styles.backButton} onPress={() => loadLeague(parentNodeId)}>
+                  <Text style={styles.backButtonText}>상위 지역으로</Text>
+                </Pressable>
+              ) : null}
+
+              <View style={styles.regionGrid}>
+                {visibleChildren.map((node) => (
+                  <Pressable key={node.id} style={styles.regionCard} onPress={() => loadLeague(node.id)}>
+                    <View style={styles.rankBadge}>
+                      <Text style={styles.rankBadgeText}>{node.rank}등</Text>
+                    </View>
+                    <Text style={styles.regionName}>{node.name}</Text>
+                    <Text style={styles.regionMeta}>총거리 {node.totalDistanceKm}km</Text>
+                    <Text style={styles.regionMeta}>회원수 {node.participants}명</Text>
+                  </Pressable>
+                ))}
+                {children.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyTitle}>더 내려갈 지역이 없어요</Text>
+                    <Text style={styles.emptyText}>현재 선택된 지역의 순위와 총거리, 회원 수를 아래에서 확인하면 돼.</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {isCountry && children.length > FEATURED_REGION_COUNT ? (
+                <Pressable style={styles.toggleButton} onPress={() => setShowAllRegions((prev) => !prev)}>
+                  <Text style={styles.toggleButtonText}>{showAllRegions ? '대표 지역만 보기' : '전체 지역 보기'}</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </Card>
+
+          {!isCountry ? (
+            <Card>
+              <SectionTitle>선택 지역 현황</SectionTitle>
+              <View style={styles.summaryGrid}>
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryValue}>{currentNode.rank}위</Text>
+                  <Text style={styles.summaryLabel}>현재 순위</Text>
+                </View>
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryValue}>{currentNode.totalDistanceKm}km</Text>
+                  <Text style={styles.summaryLabel}>총거리</Text>
+                </View>
+              </View>
+              <View style={styles.summaryGrid}>
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryValue}>{currentNode.participants}명</Text>
+                  <Text style={styles.summaryLabel}>회원 수</Text>
+                </View>
+                <View style={styles.summaryBox}>
+                  <Text style={styles.summaryValue}>{currentNode.participationRate}%</Text>
+                  <Text style={styles.summaryLabel}>참여율</Text>
+                </View>
+              </View>
+            </Card>
+          ) : null}
+
+          <Card>
+            <SectionTitle>{children.length > 0 ? '하위 지역 순위' : '현재 지역 정보'}</SectionTitle>
+            {(children.length > 0 ? visibleChildren : [currentNode]).map((node) => (
+              <View key={node.id} style={styles.rankRow}>
+                <Text style={styles.rankNumber}>{node.rank}</Text>
+                <View style={styles.rankMeta}>
+                  <Text style={styles.rankName}>{node.name}</Text>
+                  <Text style={styles.rankDetail}>총 거리 {node.totalDistanceKm}km · 회원 {node.participants}명 · 참여율 {node.participationRate}%</Text>
+                </View>
+              </View>
+            ))}
+          </Card>
+        </>
+      ) : null}
     </Screen>
   );
 }
@@ -296,5 +339,15 @@ const styles = StyleSheet.create({
   },
   rankDetail: {
     color: '#667085',
+  },
+  stateTitle: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  errorText: {
+    color: '#B42318',
+    fontWeight: '700',
+    lineHeight: 20,
   },
 });

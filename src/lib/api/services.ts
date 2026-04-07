@@ -6,8 +6,10 @@ import {
   friendRunRecords,
   myProfile,
   myRunRecords,
+  regionDrilldownTree,
   weeklySummary,
 } from '@/data/mock';
+import { RegionDrilldownNode } from '@/domain/types';
 import { getAccessToken, getCurrentUserProfile, setCurrentUserProfile } from '@/lib/session';
 import { apiGet, apiPatch, apiPost } from './client';
 import { USE_MOCK_API } from './config';
@@ -20,6 +22,7 @@ import {
   IntegrationStatusResponse,
   MyActivityResponse,
   MyProfileResponse,
+  RegionLeagueResponse,
   RunDetailResponse,
   UpdateMyProfileInput,
   UpdateMyProfileResponse,
@@ -33,6 +36,22 @@ async function requireAccessToken() {
   }
 
   return accessToken;
+}
+
+function findRegionPath(node: RegionDrilldownNode, targetId: string): RegionDrilldownNode[] | null {
+  if (node.id === targetId) {
+    return [node];
+  }
+
+  for (const child of node.children ?? []) {
+    const childPath = findRegionPath(child, targetId);
+
+    if (childPath) {
+      return [node, ...childPath];
+    }
+  }
+
+  return null;
 }
 
 export async function fetchHomeSummary(): Promise<HomeSummaryResponse> {
@@ -106,6 +125,27 @@ export async function fetchDistrictPersonal(): Promise<DistrictPersonalResponse>
   return apiGet<DistrictPersonalResponse>('/league/district-personal', {
     accessToken: await requireAccessToken(),
     fallbackMessage: '구 내 개인 경쟁 정보를 불러오지 못했어.',
+  });
+}
+
+export async function fetchRegionLeague(nodeId?: string): Promise<RegionLeagueResponse> {
+  if (USE_MOCK_API) {
+    const path = nodeId ? (findRegionPath(regionDrilldownTree, nodeId) ?? [regionDrilldownTree]) : [regionDrilldownTree];
+    const currentNode = path[path.length - 1];
+    const children = [...(currentNode.children ?? [])].sort((left, right) => left.rank - right.rank);
+
+    return {
+      currentNode,
+      breadcrumb: path.map(({ id, name, level }) => ({ id, name, level })),
+      children,
+    };
+  }
+
+  const query = nodeId ? `?nodeId=${encodeURIComponent(nodeId)}` : '';
+
+  return apiGet<RegionLeagueResponse>(`/league/regions${query}`, {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '지역 리그 정보를 불러오지 못했어.',
   });
 }
 

@@ -300,6 +300,60 @@ Expected behavior:
 
 ---
 
+## 10. Region league drilldown
+### GET `/api/league/regions`
+
+Query:
+- `nodeId` optional. If omitted, return the top-level Korea summary node.
+
+```json
+{
+  "currentNode": {
+    "id": "kr-gg",
+    "name": "경기도",
+    "level": "province",
+    "averageDistanceKm": 23.1,
+    "totalDistanceKm": 73458,
+    "participationRate": 61,
+    "participants": 3180,
+    "rank": 9
+  },
+  "breadcrumb": [
+    {
+      "id": "kr",
+      "name": "대한민국",
+      "level": "country"
+    },
+    {
+      "id": "kr-gg",
+      "name": "경기도",
+      "level": "province"
+    }
+  ],
+  "children": [
+    {
+      "id": "kr-gg-goyang",
+      "name": "고양시",
+      "level": "city",
+      "averageDistanceKm": 24.4,
+      "totalDistanceKm": 15128,
+      "participationRate": 63,
+      "participants": 620,
+      "rank": 1
+    }
+  ]
+}
+```
+
+Expected behavior:
+- `currentNode` is the region selected by `nodeId`, or the Korea root when `nodeId` is missing.
+- `breadcrumb` contains the full path from country to `currentNode`.
+- `children` contains the direct child regions of `currentNode`.
+- `children` should already be sorted by `rank ASC`.
+- When a region has no deeper drilldown, return `children: []`.
+
+---
+
 ## Contract notes
 - Backend should normalize platform-specific health source data before returning to app.
 - App screens should receive stable product-level shapes only.

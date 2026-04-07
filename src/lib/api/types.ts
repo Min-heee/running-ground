@@ -1,4 +1,4 @@
-import { ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MyRunRecord, UserProfile, WeeklySummary } from '@/domain/types';
+import { ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MyRunRecord, RegionDrilldownNode, UserProfile, WeeklySummary } from '@/domain/types';
 
 export type HomeSummaryResponse = WeeklySummary;
 
@@ -52,6 +52,14 @@ export type DistrictPersonalResponse = {
   weeklyDistanceKm: number;
   focusRanks: DistrictPersonalRank[];
   ranks: DistrictPersonalRank[];
+};
+
+export type RegionBreadcrumbItem = Pick<RegionDrilldownNode, 'id' | 'name' | 'level'>;
+
+export type RegionLeagueResponse = {
+  currentNode: RegionDrilldownNode;
+  breadcrumb: RegionBreadcrumbItem[];
+  children: RegionDrilldownNode[];
 };
 
 export type RunDetailResponse = {
