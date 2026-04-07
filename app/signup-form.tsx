@@ -1,15 +1,41 @@
-import { StyleSheet, Text, View, Pressable, TextInput } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
-import { signIn } from '@/lib/session';
+import { registerAccount } from '@/lib/session';
 
 export default function SignupFormScreen() {
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
+  const [districtName, setDistrictName] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const handleSignup = async () => {
-    await signIn();
-    router.push('/connect-sources');
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      await registerAccount({
+        name,
+        username,
+        password,
+        phone,
+        districtName,
+        birthDate,
+      });
+      router.push('/connect-sources');
+    } catch (signupError) {
+      setError(signupError instanceof Error ? signupError.message : '회원가입에 실패했어.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -20,15 +46,17 @@ export default function SignupFormScreen() {
 
       <Card>
         <View style={styles.form}>
-          <Input label="아이디" placeholder="아이디를 입력하세요" />
-          <Input label="비밀번호" placeholder="비밀번호를 입력하세요" secureTextEntry />
-          <Input label="핸드폰번호" placeholder="010-0000-0000" keyboardType="phone-pad" />
-          <Input label="사는지역" placeholder="예: 강남구" />
-          <Input label="생년월일" placeholder="예: 1990-01-01" />
+          <Input label="이름" placeholder="이름을 입력하세요" value={name} onChangeText={setName} editable={!submitting} />
+          <Input label="아이디" placeholder="아이디를 입력하세요" value={username} onChangeText={setUsername} editable={!submitting} autoCapitalize="none" />
+          <Input label="비밀번호" placeholder="비밀번호를 입력하세요" secureTextEntry value={password} onChangeText={setPassword} editable={!submitting} />
+          <Input label="핸드폰번호" placeholder="010-0000-0000" keyboardType="phone-pad" value={phone} onChangeText={setPhone} editable={!submitting} />
+          <Input label="사는지역" placeholder="예: 강남구" value={districtName} onChangeText={setDistrictName} editable={!submitting} />
+          <Input label="생년월일" placeholder="예: 1990-01-01" value={birthDate} onChangeText={setBirthDate} editable={!submitting} />
 
-          <Pressable style={styles.primaryButton} onPress={handleSignup}>
-            <Text style={styles.primaryButtonText}>회원가입하고 연동 단계로</Text>
+          <Pressable style={[styles.primaryButton, submitting ? styles.disabledButton : null]} onPress={handleSignup} disabled={submitting}>
+            {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>회원가입하고 연동 단계로</Text>}
           </Pressable>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
       </Card>
     </Screen>
@@ -40,11 +68,19 @@ function Input({
   placeholder,
   secureTextEntry,
   keyboardType,
+  value,
+  onChangeText,
+  editable = true,
+  autoCapitalize,
 }: {
   label: string;
   placeholder: string;
   secureTextEntry?: boolean;
   keyboardType?: 'default' | 'phone-pad';
+  value: string;
+  onChangeText: (value: string) => void;
+  editable?: boolean;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
 }) {
   return (
     <View style={styles.inputGroup}>
@@ -55,6 +91,11 @@ function Input({
         style={styles.input}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType ?? 'default'}
+        value={value}
+        onChangeText={onChangeText}
+        editable={editable}
+        autoCapitalize={autoCapitalize ?? 'sentences'}
+        autoCorrect={false}
       />
     </View>
   );
@@ -88,5 +129,13 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 16,
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  errorText: {
+    color: '#B42318',
+    fontWeight: '700',
+    lineHeight: 20,
   },
 });

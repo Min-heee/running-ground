@@ -43,6 +43,9 @@ Update screens to consume services instead of importing mock data directly.
 Turn off mock mode and connect real backend endpoints.
 
 ## Notes
-- `USE_MOCK_API = true` is intentional for now.
-- This is a release-prep step, not a final networking implementation.
-- Once backend contracts are confirmed, paths and response shapes can be adjusted centrally.
+- The app can now switch between mock mode and a real backend with Expo public env vars.
+- For desktop simulator development, keep the backend server on the desktop machine and point `EXPO_PUBLIC_API_BASE_URL` to that machine.
+- If the simulator runs on the same desktop as the backend, `http://localhost:8081/api` is fine.
+- If a physical device is used, replace `localhost` with the desktop machine LAN IP.
+- Set `EXPO_PUBLIC_USE_MOCK_API=false` to use the real backend.
+- Once backend contracts are confirmed, paths and response shapes can still be adjusted centrally.

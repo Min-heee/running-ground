@@ -8,6 +8,51 @@ Exact controller/service naming can differ on the backend, but response shapes s
 
 ---
 
+## 0. Auth
+### POST `/api/auth/login`
+
+Request example:
+
+```json
+{
+  "username": "demo-user",
+  "password": "demo-pass"
+}
+```
+
+Response example:
+
+```json
+{
+  "accessToken": "jwt-token",
+  "user": {
+    "name": "민병희",
+    "districtName": "강남구",
+    "publicTag": "#BH7K2"
+  }
+}
+```
+
+### POST `/api/auth/register`
+
+Request example:
+
+```json
+{
+  "username": "new-user",
+  "password": "password123",
+  "name": "홍길동",
+  "phone": "01012345678",
+  "districtName": "강남구",
+  "birthDate": "1990-01-01"
+}
+```
+
+Response shape:
+- same as login response
+
+---
+
 ## 1. Home summary
 ### GET `/api/home/summary`
 

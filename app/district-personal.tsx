@@ -3,17 +3,19 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { districtPersonalRanks, myProfile, weeklySummary } from '@/data/mock';
+import { getCurrentUserProfile } from '@/lib/session';
 
 export default function DistrictPersonalScreen() {
   const myRank = districtPersonalRanks.find((runner) => runner.isMe);
+  const profile = getCurrentUserProfile() ?? myProfile;
 
   return (
     <Screen>
-      <PageHeader title="구 내 개인 경쟁" subtitle={`${myProfile.districtName} 안에서 개인 랭킹과 포인트를 비교하는 공간.`} />
+      <PageHeader title="구 내 개인 경쟁" subtitle={`${profile.districtName} 안에서 개인 랭킹과 포인트를 비교하는 공간.`} />
 
       <Card style={styles.heroCard}>
         <Text style={styles.heroLabel}>내 현재 위치</Text>
-        <Text style={styles.heroTitle}>{myProfile.districtName}</Text>
+        <Text style={styles.heroTitle}>{profile.districtName}</Text>
         <View style={styles.heroMetrics}>
           <View style={styles.heroMetricBox}>
             <Text style={styles.heroMetricValue}>{myRank?.rank ?? '-'}위</Text>
@@ -41,7 +43,7 @@ export default function DistrictPersonalScreen() {
       </Card>
 
       <Card>
-        <Text style={styles.sectionTitle}>{myProfile.districtName} 전체 랭킹</Text>
+        <Text style={styles.sectionTitle}>{profile.districtName} 전체 랭킹</Text>
         {districtPersonalRanks.map((runner) => (
           <View key={runner.id} style={[styles.rankRow, runner.isMe && styles.meRow]}>
             <Text style={styles.rankNumber}>{runner.rank}</Text>

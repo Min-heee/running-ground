@@ -2,6 +2,11 @@ import { ConnectedSource, FriendRank, FriendRequest, FriendRunRecord, MyRunRecor
 
 export type HomeSummaryResponse = WeeklySummary;
 
+export type AuthResponse = {
+  accessToken: string;
+  user: UserProfile;
+};
+
 export type MyActivityResponse = {
   runs: MyRunRecord[];
   monthlyDistanceKm: number;
@@ -27,6 +32,18 @@ export type IntegrationStatusResponse = {
 };
 
 export type MyProfileResponse = UserProfile;
+
+export type UpdateMyProfileInput = {
+  name: string;
+};
+
+export type UpdateMyProfileResponse = UserProfile;
+
+export type CreateFriendRequestResponse = {
+  success: boolean;
+  requestId: string;
+  status: 'pending' | 'accepted';
+};
 
 export type RunDetailResponse = {
   run: MyRunRecord;

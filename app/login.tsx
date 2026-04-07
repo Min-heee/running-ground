@@ -1,10 +1,11 @@
-import { StyleSheet, Text, View, Pressable, TextInput } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
-import { signIn } from '@/lib/session';
+import { signIn, signInWithProvider } from '@/lib/session';
 
 const providers = [
   { id: 'kakao', label: '카카오톡으로 로그인하기', buttonStyle: 'kakao' },
@@ -14,9 +15,37 @@ const providers = [
 ] as const;
 
 export default function LoginScreen() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const handleLogin = async () => {
-    await signIn();
-    router.push('/connect-sources');
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      await signIn({ username, password });
+      router.push('/connect-sources');
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : '로그인에 실패했어.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleProviderLogin = async (providerId: (typeof providers)[number]['id']) => {
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      await signInWithProvider(providerId);
+      router.push('/connect-sources');
+    } catch (providerError) {
+      setError(providerError instanceof Error ? providerError.message : '간편 로그인에 실패했어.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -28,11 +57,28 @@ export default function LoginScreen() {
       <Card>
         <Text style={styles.sectionTitle}>계정으로 로그인</Text>
         <View style={styles.form}>
-          <TextInput placeholder="아이디" placeholderTextColor="#98A2B3" style={styles.input} autoCapitalize="none" />
-          <TextInput placeholder="비밀번호" placeholderTextColor="#98A2B3" style={styles.input} secureTextEntry />
-          <Pressable style={styles.accountButton} onPress={handleLogin}>
-            <Text style={styles.accountButtonText}>로그인하고 연동 단계로</Text>
+          <TextInput
+            placeholder="아이디"
+            placeholderTextColor="#98A2B3"
+            style={styles.input}
+            autoCapitalize="none"
+            value={username}
+            onChangeText={setUsername}
+            editable={!submitting}
+          />
+          <TextInput
+            placeholder="비밀번호"
+            placeholderTextColor="#98A2B3"
+            style={styles.input}
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+            editable={!submitting}
+          />
+          <Pressable style={[styles.accountButton, submitting ? styles.disabledButton : null]} onPress={handleLogin} disabled={submitting}>
+            {submitting ? <ActivityIndicator color="#111827" /> : <Text style={styles.accountButtonText}>로그인하고 연동 단계로</Text>}
           </Pressable>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
       </Card>
 
@@ -42,7 +88,14 @@ export default function LoginScreen() {
           {providers.map((provider) => {
             const isDarkText = provider.buttonStyle === 'kakao' || provider.buttonStyle === 'google';
             return (
-              <Pressable key={provider.id} style={getButtonStyle(provider.buttonStyle)} onPress={handleLogin}>
+              <Pressable
+                key={provider.id}
+                style={[getButtonStyle(provider.buttonStyle), submitting ? styles.disabledButton : null]}
+                onPress={() => {
+                  void handleProviderLogin(provider.id);
+                }}
+                disabled={submitting}
+              >
                 <Text style={isDarkText ? styles.darkButtonText : styles.lightButtonText}>{provider.label}</Text>
               </Pressable>
             );
@@ -99,6 +152,9 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontWeight: '800',
     fontSize: 15,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
   socialButtons: { gap: 10, marginTop: 8 },
   kakaoButton: {
@@ -159,5 +215,10 @@ const styles = StyleSheet.create({
   footerLink: {
     color: '#6D5EF7',
     fontWeight: '700',
+  },
+  errorText: {
+    color: '#B42318',
+    fontWeight: '700',
+    lineHeight: 20,
   },
 });

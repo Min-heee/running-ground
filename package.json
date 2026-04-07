@@ -5,10 +5,13 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
+    "start:dev-client": "expo start --dev-client",
+    "start:android:dev": "expo start --dev-client --android",
     "ios": "expo run:ios",
     "android": "expo run:android",
     "web": "expo start --web",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "expo": "^54.0.33",
@@ -16,6 +19,7 @@
     "expo-dev-client": "~6.0.20",
     "expo-linking": "~8.0.8",
     "expo-router": "~6.0.23",
+    "expo-secure-store": "~15.0.8",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",

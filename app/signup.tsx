@@ -1,10 +1,11 @@
-import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
-import { signIn } from '@/lib/session';
+import { signInWithProvider } from '@/lib/session';
 
 const providers = [
   { id: 'kakao', label: '카카오톡으로 회원가입하기', buttonStyle: 'kakao' },
@@ -15,9 +16,21 @@ const providers = [
 ] as const;
 
 export default function SignupScreen() {
-  const handleSignup = async () => {
-    await signIn();
-    router.push('/connect-sources');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleProviderSignup = async (providerId: Exclude<(typeof providers)[number]['id'], 'account'>) => {
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      await signInWithProvider(providerId);
+      router.push('/connect-sources');
+    } catch (providerError) {
+      setError(providerError instanceof Error ? providerError.message : '간편 회원가입에 실패했어.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -42,12 +55,22 @@ export default function SignupScreen() {
             const isDarkText = provider.buttonStyle === 'kakao' || provider.buttonStyle === 'google';
 
             return (
-              <Pressable key={provider.id} style={getButtonStyle(provider.buttonStyle)} onPress={handleSignup}>
-                <Text style={isDarkText ? styles.darkButtonText : styles.lightButtonText}>{provider.label}</Text>
+              <Pressable
+                key={provider.id}
+                style={[getButtonStyle(provider.buttonStyle), submitting ? styles.disabledButton : null]}
+                onPress={() => {
+                  void handleProviderSignup(provider.id);
+                }}
+                disabled={submitting}
+              >
+                {submitting ? <ActivityIndicator color={isDarkText ? '#111827' : '#FFFFFF'} /> : (
+                  <Text style={isDarkText ? styles.darkButtonText : styles.lightButtonText}>{provider.label}</Text>
+                )}
               </Pressable>
             );
           })}
         </View>
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </Card>
 
       <View style={styles.footer}>
@@ -146,5 +169,14 @@ const styles = StyleSheet.create({
   footerLink: {
     color: '#6D5EF7',
     fontWeight: '700',
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  errorText: {
+    color: '#B42318',
+    fontWeight: '700',
+    lineHeight: 20,
+    marginTop: 12,
   },
 });

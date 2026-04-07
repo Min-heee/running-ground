@@ -1,47 +1,89 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, Pressable } from 'react-native';
+import { useEffect, useState } from 'react';
+import { StyleSheet, Text, View, TextInput, Pressable, ActivityIndicator } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
-import { myProfile, friendRequests } from '@/data/mock';
+import { createFriendRequest, fetchFriendLeaderboard, fetchMyProfile } from '@/lib/api/services';
+import { FriendLeaderboardResponse, MyProfileResponse } from '@/lib/api/types';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 
 export default function AddFriendScreen() {
   const [friendTag, setFriendTag] = useState('');
   const [copied, setCopied] = useState(false);
   const [added, setAdded] = useState(false);
+  const [profile, setProfile] = useState<MyProfileResponse | null>(null);
+  const [leaderboard, setLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([fetchMyProfile(), fetchFriendLeaderboard()])
+      .then(([profileData, leaderboardData]) => {
+        setProfile(profileData);
+        setLeaderboard(leaderboardData);
+      })
+      .catch((loadError) => {
+        setError(loadError instanceof Error ? loadError.message : '친구 추가 정보를 불러오지 못했어.');
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleCopy = () => {
+    if (!profile) {
+      return;
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const handleAddFriend = () => {
+  const handleAddFriend = async () => {
     if (!friendTag.trim()) {
+      setError('친구 태그를 입력해줘.');
       return;
     }
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
+
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      await createFriendRequest(friendTag);
+      setAdded(true);
+      setFriendTag('');
+      setTimeout(() => setAdded(false), 2000);
+
+      const refreshedLeaderboard = await fetchFriendLeaderboard();
+      setLeaderboard(refreshedLeaderboard);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : '친구 요청 전송에 실패했어.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const pendingCount = friendRequests.filter((request) => request.status === 'pending').length;
-  const receivedCount = friendRequests.filter((request) => request.status === 'received').length;
+  const pendingCount = leaderboard?.requests.filter((request) => request.status === 'pending').length ?? 0;
+  const receivedCount = leaderboard?.requests.filter((request) => request.status === 'received').length ?? 0;
 
   return (
     <Screen>
       <AuthHeader title="친구 추가하기" subtitle="친구 태그로 검색해서 서로의 기록과 순위를 비교할 수 있어." />
 
-      <Card>
-        <Text style={styles.sectionTitle}>내 태그</Text>
-        <View style={styles.tagBox}>
-          <Text style={styles.tag}>{myProfile.publicTag}</Text>
-          <Text style={styles.tagHint}>친구에게 이 태그를 공유하면 바로 추가할 수 있어.</Text>
-          <Pressable style={styles.copyButton} onPress={handleCopy}>
-            <Text style={styles.copyButtonText}>{copied ? '복사됨' : '태그 복사하기'}</Text>
-          </Pressable>
-        </View>
-      </Card>
+      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+
+      {!loading && profile ? (
+        <Card>
+          <Text style={styles.sectionTitle}>내 태그</Text>
+          <View style={styles.tagBox}>
+            <Text style={styles.tag}>{profile.publicTag}</Text>
+            <Text style={styles.tagHint}>친구에게 이 태그를 공유하면 바로 추가할 수 있어.</Text>
+            <Pressable style={styles.copyButton} onPress={handleCopy}>
+              <Text style={styles.copyButtonText}>{copied ? '복사됨' : '태그 복사하기'}</Text>
+            </Pressable>
+          </View>
+        </Card>
+      ) : null}
 
       <Card>
         <Text style={styles.sectionTitle}>친구 요청 현황</Text>
@@ -57,11 +99,13 @@ export default function AddFriendScreen() {
             style={styles.input}
             autoCapitalize="characters"
             value={friendTag}
-            onChangeText={setFriendTag}
+            onChangeText={(value) => setFriendTag(value.toUpperCase())}
+            editable={!submitting}
           />
-          <PrimaryButton label="친구 요청 보내기" onPress={handleAddFriend} />
+          <PrimaryButton label={submitting ? '친구 요청 보내는 중...' : '친구 요청 보내기'} onPress={handleAddFriend} />
           {friendTag.length > 0 ? <Text style={styles.helperText}>입력된 태그: {friendTag}</Text> : null}
           {added ? <Text style={styles.successText}>친구 요청을 보냈어. 상대가 수락하면 친구 랭킹에 함께 보여줄 수 있어.</Text> : null}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
       </Card>
 
@@ -129,6 +173,11 @@ const styles = StyleSheet.create({
   },
   successText: {
     color: '#067647',
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  errorText: {
+    color: '#B42318',
     fontWeight: '700',
     lineHeight: 20,
   },
