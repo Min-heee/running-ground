@@ -97,6 +97,19 @@ Response shape:
 ### PATCH `/api/me/profile`
 - update profile basics
 
+### GET `/api/me/notifications`
+
+```json
+{
+  "friendAlerts": true,
+  "districtAlerts": true,
+  "marketAlerts": false
+}
+```
+
+### PATCH `/api/me/notifications`
+- update app notification preferences
+
 ### PATCH `/api/me/region`
 - update district/region settings
 

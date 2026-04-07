@@ -76,9 +76,34 @@ function createConnectedSources(profile = 'default') {
   ];
 }
 
+function createNotificationSettings(profile = 'default') {
+  if (profile === 'ios') {
+    return {
+      friendAlerts: true,
+      districtAlerts: true,
+      marketAlerts: false,
+    };
+  }
+
+  if (profile === 'android') {
+    return {
+      friendAlerts: true,
+      districtAlerts: false,
+      marketAlerts: false,
+    };
+  }
+
+  return {
+    friendAlerts: true,
+    districtAlerts: true,
+    marketAlerts: true,
+  };
+}
+
 function createUser(input) {
   return {
     ...input,
+    notificationSettings: input.notificationSettings ?? createNotificationSettings(),
     createdAt: input.createdAt ?? '2026-03-01T09:00:00.000Z',
   };
 }
@@ -179,6 +204,7 @@ export function createSeedStore() {
       districtPoints: 98,
       streakDays: 11,
       connectedSources: createConnectedSources('ios'),
+      notificationSettings: createNotificationSettings('ios'),
     }),
     createUser({
       id: 'user-2',
@@ -195,6 +221,7 @@ export function createSeedStore() {
       districtPoints: 98,
       streakDays: 13,
       connectedSources: createConnectedSources('ios'),
+      notificationSettings: createNotificationSettings('ios'),
     }),
     createUser({
       id: 'user-3',
@@ -211,6 +238,7 @@ export function createSeedStore() {
       districtPoints: 88,
       streakDays: 9,
       connectedSources: createConnectedSources('android'),
+      notificationSettings: createNotificationSettings('android'),
     }),
     createUser({
       id: 'user-4',
@@ -227,6 +255,7 @@ export function createSeedStore() {
       districtPoints: 95,
       streakDays: 8,
       connectedSources: createConnectedSources('android'),
+      notificationSettings: createNotificationSettings('android'),
     }),
     createUser({
       id: 'user-5',
@@ -243,6 +272,7 @@ export function createSeedStore() {
       districtPoints: 91,
       streakDays: 7,
       connectedSources: createConnectedSources('default'),
+      notificationSettings: createNotificationSettings('default'),
     }),
     createUser({
       id: 'user-6',
@@ -259,6 +289,7 @@ export function createSeedStore() {
       districtPoints: 85,
       streakDays: 4,
       connectedSources: createConnectedSources('default'),
+      notificationSettings: createNotificationSettings('default'),
     }),
     createUser({
       id: 'user-7',
@@ -275,6 +306,7 @@ export function createSeedStore() {
       districtPoints: 83,
       streakDays: 5,
       connectedSources: createConnectedSources('default'),
+      notificationSettings: createNotificationSettings('default'),
     }),
     createUser({
       id: 'user-8',
@@ -291,6 +323,7 @@ export function createSeedStore() {
       districtPoints: 78,
       streakDays: 6,
       connectedSources: createConnectedSources('default'),
+      notificationSettings: createNotificationSettings('default'),
     })
   ];
 

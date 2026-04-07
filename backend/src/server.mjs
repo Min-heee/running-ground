@@ -174,6 +174,14 @@ function buildProfile(user) {
   };
 }
 
+function buildNotificationSettings(user) {
+  return clone(user.notificationSettings ?? {
+    friendAlerts: true,
+    districtAlerts: true,
+    marketAlerts: false,
+  });
+}
+
 function buildFriendRank(user, rank) {
   return {
     id: user.id,
@@ -458,6 +466,14 @@ function validateRequiredString(value, message) {
   return value.trim();
 }
 
+function validateBoolean(value, message) {
+  if (typeof value !== 'boolean') {
+    throw new ApiError(400, message);
+  }
+
+  return value;
+}
+
 function createPublicTag(store) {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let nextTag = '#TEMP1';
@@ -625,6 +641,11 @@ async function handleRegister(request, response) {
           recommendedPlatform: 'all',
         },
       ],
+      notificationSettings: {
+        friendAlerts: true,
+        districtAlerts: true,
+        marketAlerts: false,
+      },
       createdAt: new Date().toISOString(),
     };
 
@@ -680,6 +701,23 @@ async function handlePatchMyRegion(request, response) {
     const user = requireUser(store, request);
     user.districtName = validateRequiredString(body.districtName, '지역 이름을 입력해줘.');
     return buildProfile(user);
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handlePatchMyNotifications(request, response) {
+  const body = await parseJsonBody(request);
+
+  const payload = mutateStore((store) => {
+    const user = requireUser(store, request);
+    user.notificationSettings = {
+      friendAlerts: validateBoolean(body.friendAlerts, '친구 알림 설정값이 올바르지 않아.'),
+      districtAlerts: validateBoolean(body.districtAlerts, '지역 알림 설정값이 올바르지 않아.'),
+      marketAlerts: validateBoolean(body.marketAlerts, '마켓 알림 설정값이 올바르지 않아.'),
+    };
+
+    return buildNotificationSettings(user);
   });
 
   sendJson(response, 200, payload);
@@ -828,6 +866,18 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/me/profile' && request.method === 'PATCH') {
     await handlePatchMyProfile(request, response);
+    return;
+  }
+
+  if (pathname === '/api/me/notifications' && request.method === 'GET') {
+    const store = loadStore();
+    const user = requireUser(store, request);
+    sendJson(response, 200, buildNotificationSettings(user));
+    return;
+  }
+
+  if (pathname === '/api/me/notifications' && request.method === 'PATCH') {
+    await handlePatchMyNotifications(request, response);
     return;
   }
 

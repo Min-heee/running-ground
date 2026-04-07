@@ -4,6 +4,7 @@ import {
   friendRanks,
   friendRequests,
   friendRunRecords,
+  myNotificationSettings,
   myProfile,
   myRunRecords,
   regionDrilldownTree,
@@ -24,8 +25,11 @@ import {
   IntegrationStatusResponse,
   MyActivityResponse,
   MyProfileResponse,
+  NotificationSettingsResponse,
   RegionLeagueResponse,
   RunDetailResponse,
+  UpdateNotificationSettingsInput,
+  UpdateNotificationSettingsResponse,
   UpdateMyRegionInput,
   UpdateMyRegionResponse,
   UpdateMyProfileInput,
@@ -37,6 +41,7 @@ let mockFriendRequests = friendRequests
   .map((request) => ({ ...request }));
 let mockFriendRanks = friendRanks.map((friend) => ({ ...friend }));
 let mockConnectedSources = connectedSources.map((source) => ({ ...source }));
+let mockNotificationPreferences = { ...myNotificationSettings };
 
 function normalizeMockFriendRanks(ranks: typeof mockFriendRanks) {
   return [...ranks]
@@ -298,6 +303,44 @@ export async function updateMyProfile(input: UpdateMyProfileInput): Promise<Upda
 
   await setCurrentUserProfile(nextProfile);
   return nextProfile;
+}
+
+export async function fetchNotificationSettings(): Promise<NotificationSettingsResponse> {
+  if (USE_MOCK_API) {
+    return { ...mockNotificationPreferences };
+  }
+
+  return apiGet<NotificationSettingsResponse>('/me/notifications', {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '알림 설정을 불러오지 못했어.',
+  });
+}
+
+export async function updateNotificationSettings(
+  input: UpdateNotificationSettingsInput,
+): Promise<UpdateNotificationSettingsResponse> {
+  if (USE_MOCK_API) {
+    mockNotificationPreferences = {
+      friendAlerts: input.friendAlerts,
+      districtAlerts: input.districtAlerts,
+      marketAlerts: input.marketAlerts,
+    };
+
+    return { ...mockNotificationPreferences };
+  }
+
+  return apiPatch<UpdateNotificationSettingsResponse>(
+    '/me/notifications',
+    {
+      friendAlerts: input.friendAlerts,
+      districtAlerts: input.districtAlerts,
+      marketAlerts: input.marketAlerts,
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '알림 설정 저장에 실패했어.',
+    },
+  );
 }
 
 export async function updateMyRegion(input: UpdateMyRegionInput): Promise<UpdateMyRegionResponse> {

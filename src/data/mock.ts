@@ -6,6 +6,12 @@ export const myProfile: UserProfile = {
   publicTag: '#BH7K2',
 };
 
+export const myNotificationSettings = {
+  friendAlerts: true,
+  districtAlerts: true,
+  marketAlerts: false,
+};
+
 export const weeklySummary: WeeklySummary = {
   totalDistanceKm: 42.4,
   totalRuns: 5,

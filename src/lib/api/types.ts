@@ -40,6 +40,12 @@ export type IntegrationSyncResponse = {
 
 export type MyProfileResponse = UserProfile;
 
+export type NotificationSettingsResponse = {
+  friendAlerts: boolean;
+  districtAlerts: boolean;
+  marketAlerts: boolean;
+};
+
 export type UpdateMyProfileInput = {
   name: string;
 };
@@ -51,6 +57,10 @@ export type UpdateMyRegionInput = {
 };
 
 export type UpdateMyRegionResponse = UserProfile;
+
+export type UpdateNotificationSettingsInput = NotificationSettingsResponse;
+
+export type UpdateNotificationSettingsResponse = NotificationSettingsResponse;
 
 export type CreateFriendRequestResponse = {
   success: boolean;
