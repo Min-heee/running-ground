@@ -253,6 +253,53 @@ Response example:
 
 ---
 
+## 9. District personal ranking
+### GET `/api/league/district-personal`
+
+```json
+{
+  "districtName": "강남구",
+  "myRank": {
+    "id": "user-1",
+    "rank": 4,
+    "name": "민병희",
+    "distanceKm": 42.4,
+    "points": 98,
+    "isMe": true
+  },
+  "myPoints": 98,
+  "weeklyDistanceKm": 42.4,
+  "focusRanks": [
+    {
+      "id": "user-2",
+      "rank": 3,
+      "name": "최민준",
+      "distanceKm": 81,
+      "points": 91
+    }
+  ],
+  "ranks": [
+    {
+      "id": "user-1",
+      "rank": 4,
+      "name": "민병희",
+      "distanceKm": 42.4,
+      "points": 98,
+      "isMe": true
+    }
+  ]
+}
+```
+
+Expected behavior:
+- `districtName` is the signed-in user's current district.
+- `ranks` are sorted by `distanceKm DESC`, then `points DESC`, then name.
+- `myRank` is the signed-in user's own row from `ranks`.
+- `focusRanks` should include nearby rows around `myRank` for quick comparison.
+- `weeklyDistanceKm` and `myPoints` reflect the current signed-in user's weekly totals.
+
+---
+
 ## Contract notes
 - Backend should normalize platform-specific health source data before returning to app.
 - App screens should receive stable product-level shapes only.

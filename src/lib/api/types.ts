@@ -1,4 +1,4 @@
-import { ConnectedSource, FriendRank, FriendRequest, FriendRunRecord, MyRunRecord, UserProfile, WeeklySummary } from '@/domain/types';
+import { ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MyRunRecord, UserProfile, WeeklySummary } from '@/domain/types';
 
 export type HomeSummaryResponse = WeeklySummary;
 
@@ -43,6 +43,15 @@ export type CreateFriendRequestResponse = {
   success: boolean;
   requestId: string;
   status: 'pending' | 'accepted';
+};
+
+export type DistrictPersonalResponse = {
+  districtName: string;
+  myRank: DistrictPersonalRank | null;
+  myPoints: number;
+  weeklyDistanceKm: number;
+  focusRanks: DistrictPersonalRank[];
+  ranks: DistrictPersonalRank[];
 };
 
 export type RunDetailResponse = {

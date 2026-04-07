@@ -1,5 +1,6 @@
 import {
   connectedSources,
+  districtPersonalRanks,
   friendRanks,
   friendRequests,
   friendRunRecords,
@@ -12,6 +13,7 @@ import { apiGet, apiPatch, apiPost } from './client';
 import { USE_MOCK_API } from './config';
 import {
   CreateFriendRequestResponse,
+  DistrictPersonalResponse,
   FriendActivityResponse,
   FriendLeaderboardResponse,
   HomeSummaryResponse,
@@ -70,6 +72,40 @@ export async function fetchFriendLeaderboard(): Promise<FriendLeaderboardRespons
   return apiGet<FriendLeaderboardResponse>('/friends/leaderboard', {
     accessToken: await requireAccessToken(),
     fallbackMessage: '친구 랭킹을 불러오지 못했어.',
+  });
+}
+
+export async function fetchDistrictPersonal(): Promise<DistrictPersonalResponse> {
+  if (USE_MOCK_API) {
+    const profile = getCurrentUserProfile() ?? myProfile;
+    const ranks = districtPersonalRanks
+      .map((runner) => (
+        runner.isMe
+          ? {
+            ...runner,
+            name: profile.name,
+          }
+          : runner
+      ))
+      .sort((left, right) => left.rank - right.rank);
+    const myRank = ranks.find((runner) => runner.isMe) ?? null;
+    const myRankIndex = myRank ? ranks.findIndex((runner) => runner.id === myRank.id) : -1;
+    const focusStart = Math.max(0, myRankIndex - 1);
+    const focusRanks = myRankIndex >= 0 ? ranks.slice(focusStart, focusStart + 4) : ranks.slice(0, 4);
+
+    return {
+      districtName: profile.districtName,
+      myRank,
+      myPoints: weeklySummary.districtPoints,
+      weeklyDistanceKm: weeklySummary.totalDistanceKm,
+      focusRanks,
+      ranks,
+    };
+  }
+
+  return apiGet<DistrictPersonalResponse>('/league/district-personal', {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '구 내 개인 경쟁 정보를 불러오지 못했어.',
   });
 }
 
