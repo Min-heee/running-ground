@@ -3,11 +3,12 @@ import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-nati
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { FriendsRanking } from '@/features/friends/FriendsRanking';
-import { fetchFriendLeaderboard, fetchMyProfile } from '@/lib/api/services';
+import { acceptFriendRequest, cancelFriendRequest, fetchFriendLeaderboard, fetchMyProfile, rejectFriendRequest } from '@/lib/api/services';
 import { FriendLeaderboardResponse, MyProfileResponse } from '@/lib/api/types';
 import { InfoCard } from '@/components/ui/InfoCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/Card';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { FriendRequest } from '@/domain/types';
 
 export default function FriendsScreen() {
@@ -16,16 +17,25 @@ export default function FriendsScreen() {
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [requestActionId, setRequestActionId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadFriends = () => {
+    setLoading(true);
+    setError(null);
+
     Promise.all([fetchFriendLeaderboard(), fetchMyProfile()])
       .then(([leaderboardData, profileData]) => {
         setLeaderboard(leaderboardData);
         setProfile(profileData);
         setRequests(leaderboardData.requests);
       })
-      .catch(() => setError('친구 정보를 불러오지 못했어.'))
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '친구 정보를 불러오지 못했어.'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadFriends();
   }, []);
 
   const pending = useMemo(() => requests.filter((request) => request.status === 'pending'), [requests]);
@@ -38,10 +48,48 @@ export default function FriendsScreen() {
     return leaderboard.ranks.filter((runner) => runner.tag !== profile.publicTag);
   }, [leaderboard, profile]);
 
-  const handleAccept = (requestId: string) => {
-    setRequests((prev) => prev.map((request) => (
-      request.id === requestId ? { ...request, status: 'accepted' } : request
-    )));
+  const handleAccept = async (requestId: string) => {
+    setActionError(null);
+    setRequestActionId(requestId);
+
+    try {
+      await acceptFriendRequest(requestId);
+      setRequests((prev) => prev.map((request) => (
+        request.id === requestId ? { ...request, status: 'accepted' } : request
+      )));
+    } catch (requestError) {
+      setActionError(requestError instanceof Error ? requestError.message : '친구 요청 수락에 실패했어.');
+    } finally {
+      setRequestActionId(null);
+    }
+  };
+
+  const handleReject = async (requestId: string) => {
+    setActionError(null);
+    setRequestActionId(requestId);
+
+    try {
+      await rejectFriendRequest(requestId);
+      setRequests((prev) => prev.filter((request) => request.id !== requestId));
+    } catch (requestError) {
+      setActionError(requestError instanceof Error ? requestError.message : '친구 요청 거절에 실패했어.');
+    } finally {
+      setRequestActionId(null);
+    }
+  };
+
+  const handleCancel = async (requestId: string) => {
+    setActionError(null);
+    setRequestActionId(requestId);
+
+    try {
+      await cancelFriendRequest(requestId);
+      setRequests((prev) => prev.filter((request) => request.id !== requestId));
+    } catch (requestError) {
+      setActionError(requestError instanceof Error ? requestError.message : '보낸 친구 요청 취소에 실패했어.');
+    } finally {
+      setRequestActionId(null);
+    }
   };
 
   return (
@@ -54,7 +102,13 @@ export default function FriendsScreen() {
       </View>
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
-      {error ? <Text>{error}</Text> : null}
+      {error ? (
+        <Card>
+          <Text style={styles.errorTitle}>친구 정보를 아직 못 불러왔어</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <PrimaryButton label="다시 불러오기" onPress={loadFriends} />
+        </Card>
+      ) : null}
 
       {leaderboard && profile ? (
         <>
@@ -70,15 +124,29 @@ export default function FriendsScreen() {
 
           <Card>
             <Text style={styles.sectionTitle}>친구 요청 상태</Text>
+            {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
             {received.map((request) => (
               <View key={request.id} style={styles.requestRow}>
                 <View style={styles.requestMeta}>
                   <Text style={styles.requestName}>{request.name}</Text>
                   <Text style={styles.requestDetail}>{request.tag} · 나에게 친구 요청 보냄</Text>
                 </View>
-                <Pressable style={styles.acceptButton} onPress={() => handleAccept(request.id)}>
-                  <Text style={styles.acceptButtonText}>수락</Text>
-                </Pressable>
+                <View style={styles.requestActions}>
+                  <Pressable
+                    style={[styles.ghostButton, requestActionId === request.id && styles.disabledButton]}
+                    onPress={() => handleReject(request.id)}
+                    disabled={requestActionId === request.id}
+                  >
+                    <Text style={styles.ghostButtonText}>거절</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.acceptButton, requestActionId === request.id && styles.disabledButton]}
+                    onPress={() => handleAccept(request.id)}
+                    disabled={requestActionId === request.id}
+                  >
+                    <Text style={styles.acceptButtonText}>{requestActionId === request.id ? '처리중' : '수락'}</Text>
+                  </Pressable>
+                </View>
               </View>
             ))}
             {pending.map((request) => (
@@ -87,8 +155,17 @@ export default function FriendsScreen() {
                   <Text style={styles.requestName}>{request.name}</Text>
                   <Text style={styles.requestDetail}>{request.tag} · 수락 대기중</Text>
                 </View>
-                <View style={styles.pendingBadge}>
-                  <Text style={styles.pendingBadgeText}>대기중</Text>
+                <View style={styles.requestActions}>
+                  <View style={styles.pendingBadge}>
+                    <Text style={styles.pendingBadgeText}>대기중</Text>
+                  </View>
+                  <Pressable
+                    style={[styles.ghostButton, requestActionId === request.id && styles.disabledButton]}
+                    onPress={() => handleCancel(request.id)}
+                    disabled={requestActionId === request.id}
+                  >
+                    <Text style={styles.ghostButtonText}>{requestActionId === request.id ? '취소중' : '취소'}</Text>
+                  </Pressable>
                 </View>
               </View>
             ))}
@@ -178,6 +255,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  requestActions: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
   requestName: {
     color: '#111827',
     fontWeight: '700',
@@ -191,8 +273,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
+  ghostButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+  },
   acceptButtonText: {
     color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  ghostButtonText: {
+    color: '#344054',
     fontWeight: '800',
   },
   pendingBadge: {
@@ -208,6 +302,19 @@ const styles = StyleSheet.create({
   compareLink: {
     color: '#6D5EF7',
     fontWeight: '800',
+  },
+  disabledButton: {
+    opacity: 0.6,
+  },
+  errorTitle: {
+    color: '#111827',
+    fontWeight: '800',
+    fontSize: 18,
+  },
+  errorText: {
+    color: '#B42318',
+    fontWeight: '700',
+    lineHeight: 20,
   },
   emptyText: {
     color: '#667085',

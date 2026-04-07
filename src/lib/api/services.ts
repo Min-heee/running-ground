@@ -18,6 +18,7 @@ import {
   DistrictPersonalResponse,
   FriendActivityResponse,
   FriendLeaderboardResponse,
+  FriendRequestActionResponse,
   HomeSummaryResponse,
   IntegrationStatusResponse,
   MyActivityResponse,
@@ -27,6 +28,8 @@ import {
   UpdateMyProfileInput,
   UpdateMyProfileResponse,
 } from './types';
+
+let mockFriendRequests = friendRequests.map((request) => ({ ...request }));
 
 async function requireAccessToken() {
   const accessToken = await getAccessToken();
@@ -84,7 +87,7 @@ export async function fetchFriendLeaderboard(): Promise<FriendLeaderboardRespons
   if (USE_MOCK_API) {
     return {
       ranks: friendRanks,
-      requests: friendRequests,
+      requests: mockFriendRequests,
     };
   }
 
@@ -226,9 +229,24 @@ export async function updateMyProfile(input: UpdateMyProfileInput): Promise<Upda
 
 export async function createFriendRequest(tag: string): Promise<CreateFriendRequestResponse> {
   if (USE_MOCK_API) {
+    const normalizedTag = tag.trim().toUpperCase();
+    const requestId = `mock-${Date.now()}`;
+
+    mockFriendRequests = [
+      ...mockFriendRequests.filter((entry) => entry.tag !== normalizedTag),
+      {
+        id: requestId,
+        name: friendRanks.find((entry) => entry.tag === normalizedTag)?.name
+          ?? mockFriendRequests.find((entry) => entry.tag === normalizedTag)?.name
+          ?? '새 친구',
+        tag: normalizedTag,
+        status: 'pending',
+      },
+    ];
+
     return {
       success: true,
-      requestId: `mock-${Date.now()}`,
+      requestId,
       status: 'pending',
     };
   }
@@ -241,6 +259,73 @@ export async function createFriendRequest(tag: string): Promise<CreateFriendRequ
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '친구 요청 전송에 실패했어.',
+    },
+  );
+}
+
+export async function acceptFriendRequest(requestId: string): Promise<FriendRequestActionResponse> {
+  if (USE_MOCK_API) {
+    mockFriendRequests = mockFriendRequests.map((request) => (
+      request.id === requestId
+        ? { ...request, status: 'accepted' }
+        : request
+    ));
+
+    return {
+      success: true,
+      requestId,
+      status: 'accepted',
+    };
+  }
+
+  return apiPost<FriendRequestActionResponse>(
+    `/friends/requests/${requestId}/accept`,
+    {},
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '친구 요청 수락에 실패했어.',
+    },
+  );
+}
+
+export async function rejectFriendRequest(requestId: string): Promise<FriendRequestActionResponse> {
+  if (USE_MOCK_API) {
+    mockFriendRequests = mockFriendRequests.filter((request) => request.id !== requestId);
+
+    return {
+      success: true,
+      requestId,
+      status: 'rejected',
+    };
+  }
+
+  return apiPost<FriendRequestActionResponse>(
+    `/friends/requests/${requestId}/reject`,
+    {},
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '친구 요청 거절에 실패했어.',
+    },
+  );
+}
+
+export async function cancelFriendRequest(requestId: string): Promise<FriendRequestActionResponse> {
+  if (USE_MOCK_API) {
+    mockFriendRequests = mockFriendRequests.filter((request) => request.id !== requestId);
+
+    return {
+      success: true,
+      requestId,
+      status: 'cancelled',
+    };
+  }
+
+  return apiPost<FriendRequestActionResponse>(
+    `/friends/requests/${requestId}/cancel`,
+    {},
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '보낸 친구 요청 취소에 실패했어.',
     },
   );
 }

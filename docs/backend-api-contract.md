@@ -251,6 +251,42 @@ Response example:
 }
 ```
 
+### POST `/api/friends/requests/{requestId}/accept`
+
+```json
+{
+  "success": true,
+  "requestId": "r10",
+  "status": "accepted"
+}
+```
+
+### POST `/api/friends/requests/{requestId}/reject`
+
+```json
+{
+  "success": true,
+  "requestId": "r10",
+  "status": "rejected"
+}
+```
+
+### POST `/api/friends/requests/{requestId}/cancel`
+
+```json
+{
+  "success": true,
+  "requestId": "r10",
+  "status": "cancelled"
+}
+```
+
+Expected behavior:
+- `leaderboard.requests` should only contain requests still actionable in the app.
+- accepted requests can be omitted from future `GET /api/friends/leaderboard` responses.
+- `cancel` is for requests the signed-in user already sent.
+- `accept` and `reject` are for requests received by the signed-in user.
+
 ---
 
 ## 9. District personal ranking

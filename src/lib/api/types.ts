@@ -45,6 +45,12 @@ export type CreateFriendRequestResponse = {
   status: 'pending' | 'accepted';
 };
 
+export type FriendRequestActionResponse = {
+  success: boolean;
+  requestId: string;
+  status: 'accepted' | 'rejected' | 'cancelled';
+};
+
 export type DistrictPersonalResponse = {
   districtName: string;
   myRank: DistrictPersonalRank | null;
