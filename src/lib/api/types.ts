@@ -46,6 +46,12 @@ export type UpdateMyProfileInput = {
 
 export type UpdateMyProfileResponse = UserProfile;
 
+export type UpdateMyRegionInput = {
+  districtName: string;
+};
+
+export type UpdateMyRegionResponse = UserProfile;
+
 export type CreateFriendRequestResponse = {
   success: boolean;
   requestId: string;

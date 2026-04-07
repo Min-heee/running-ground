@@ -26,6 +26,8 @@ import {
   MyProfileResponse,
   RegionLeagueResponse,
   RunDetailResponse,
+  UpdateMyRegionInput,
+  UpdateMyRegionResponse,
   UpdateMyProfileInput,
   UpdateMyProfileResponse,
 } from './types';
@@ -291,6 +293,33 @@ export async function updateMyProfile(input: UpdateMyProfileInput): Promise<Upda
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '프로필 저장에 실패했어.',
+    },
+  );
+
+  await setCurrentUserProfile(nextProfile);
+  return nextProfile;
+}
+
+export async function updateMyRegion(input: UpdateMyRegionInput): Promise<UpdateMyRegionResponse> {
+  if (USE_MOCK_API) {
+    const currentProfile = getCurrentUserProfile() ?? myProfile;
+    const nextProfile = {
+      ...currentProfile,
+      districtName: input.districtName.trim() || currentProfile.districtName,
+    };
+
+    await setCurrentUserProfile(nextProfile);
+    return nextProfile;
+  }
+
+  const nextProfile = await apiPatch<UpdateMyRegionResponse>(
+    '/me/region',
+    {
+      districtName: input.districtName.trim(),
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '지역 저장에 실패했어.',
     },
   );
 
