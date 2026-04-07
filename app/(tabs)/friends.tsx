@@ -30,7 +30,13 @@ export default function FriendsScreen() {
 
   const pending = useMemo(() => requests.filter((request) => request.status === 'pending'), [requests]);
   const received = useMemo(() => requests.filter((request) => request.status === 'received'), [requests]);
-  const accepted = useMemo(() => requests.filter((request) => request.status === 'accepted'), [requests]);
+  const compareTargets = useMemo(() => {
+    if (!leaderboard || !profile) {
+      return [];
+    }
+
+    return leaderboard.ranks.filter((runner) => runner.tag !== profile.publicTag);
+  }, [leaderboard, profile]);
 
   const handleAccept = (requestId: string) => {
     setRequests((prev) => prev.map((request) => (
@@ -58,7 +64,7 @@ export default function FriendsScreen() {
             <Text style={styles.heroSub}>가장 많이 뛰고, 가장 높은 포인트를 쌓은 친구가 위로 올라가.</Text>
           </Card>
 
-          <FriendsRanking ranks={leaderboard.ranks} />
+          <FriendsRanking ranks={leaderboard.ranks} highlightTag={profile.publicTag} />
 
           <InfoCard title="내 태그">{`${profile.publicTag} · 친구에게 공유해서 쉽게 추가할 수 있어.`}</InfoCard>
 
@@ -93,15 +99,20 @@ export default function FriendsScreen() {
 
           <Card>
             <Text style={styles.sectionTitle}>친구 구경가기</Text>
-            {accepted.map((request) => (
-              <Pressable key={request.id} style={styles.compareRow} onPress={() => router.push('/friend-detail')}>
+            {compareTargets.map((friend) => (
+              <Pressable
+                key={friend.id}
+                style={styles.compareRow}
+                onPress={() => router.push({ pathname: '/friend-detail', params: { friendId: friend.id } })}
+              >
                 <View style={styles.requestMeta}>
-                  <Text style={styles.requestName}>{request.name}</Text>
-                  <Text style={styles.requestDetail}>{request.tag} · 친구가 뛴 기록 보러가기</Text>
+                  <Text style={styles.requestName}>{friend.name}</Text>
+                  <Text style={styles.requestDetail}>{friend.tag} · 친구가 뛴 기록 보러가기</Text>
                 </View>
                 <Text style={styles.compareLink}>보기</Text>
               </Pressable>
             ))}
+            {compareTargets.length === 0 ? <Text style={styles.emptyText}>아직 비교할 친구 기록이 없어.</Text> : null}
           </Card>
         </>
       ) : null}

@@ -73,17 +73,25 @@ export async function fetchFriendLeaderboard(): Promise<FriendLeaderboardRespons
   });
 }
 
-export async function fetchFriendActivity(): Promise<FriendActivityResponse> {
+export async function fetchFriendActivity(friendId?: string): Promise<FriendActivityResponse> {
   if (USE_MOCK_API) {
+    const friend = friendId
+      ? (friendRanks.find((entry) => entry.id === friendId) ?? friendRanks[0])
+      : friendRanks[0];
+
     return {
-      friend: friendRanks[0],
+      friend,
       runs: friendRunRecords,
       monthlyDistanceKm: Number(friendRunRecords.reduce((sum, run) => sum + run.distanceKm, 0).toFixed(1)),
-      monthlyPoints: friendRanks[0].points,
+      monthlyPoints: friend.points,
     };
   }
 
-  return apiGet<FriendActivityResponse>('/friends/1/activity', {
+  if (!friendId) {
+    throw new Error('친구 정보를 찾을 수 없어.');
+  }
+
+  return apiGet<FriendActivityResponse>(`/friends/${friendId}/activity`, {
     accessToken: await requireAccessToken(),
     fallbackMessage: '친구 활동을 불러오지 못했어.',
   });
@@ -161,15 +169,48 @@ export async function createFriendRequest(tag: string): Promise<CreateFriendRequ
   );
 }
 
-export async function fetchRunDetail(): Promise<RunDetailResponse> {
+export async function fetchRunDetail(input?: { runId?: string; friendId?: string }): Promise<RunDetailResponse> {
   if (USE_MOCK_API) {
-    const run = myRunRecords[0];
+    if (input?.friendId) {
+      const run = input.runId
+        ? (friendRunRecords.find((entry) => entry.id === input.runId) ?? friendRunRecords[0])
+        : friendRunRecords[0];
+
+      return {
+        run: {
+          ...run,
+          source: '친구 기록',
+        },
+        weeklyDistanceKm: weeklySummary.totalDistanceKm,
+        estimatedMinutes: Math.round(run.distanceKm * 5.5),
+        earnedPoint: Math.round(run.distanceKm * 2.4),
+      };
+    }
+
+    const run = input?.runId
+      ? (myRunRecords.find((entry) => entry.id === input.runId) ?? myRunRecords[0])
+      : myRunRecords[0];
+
     return {
       run,
       weeklyDistanceKm: weeklySummary.totalDistanceKm,
       estimatedMinutes: Math.round(run.distanceKm * 5.5),
       earnedPoint: Math.round(run.distanceKm * 2.4),
     };
+  }
+
+  if (input?.friendId && input?.runId) {
+    return apiGet<RunDetailResponse>(`/friends/${input.friendId}/runs/${input.runId}`, {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '친구 러닝 상세를 불러오지 못했어.',
+    });
+  }
+
+  if (input?.runId) {
+    return apiGet<RunDetailResponse>(`/runs/${input.runId}`, {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '러닝 상세를 불러오지 못했어.',
+    });
   }
 
   return apiGet<RunDetailResponse>('/runs/latest', {

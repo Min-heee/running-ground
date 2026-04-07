@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -8,16 +8,17 @@ import { fetchFriendActivity } from '@/lib/api/services';
 import { FriendActivityResponse } from '@/lib/api/types';
 
 export default function FriendDetailScreen() {
+  const { friendId } = useLocalSearchParams<{ friendId?: string }>();
   const [activity, setActivity] = useState<FriendActivityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchFriendActivity()
+    fetchFriendActivity(friendId)
       .then((data) => setActivity(data))
-      .catch(() => setError('친구 활동 정보를 불러오지 못했어.'))
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '친구 활동 정보를 불러오지 못했어.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [friendId]);
 
   return (
     <Screen>
@@ -48,7 +49,11 @@ export default function FriendDetailScreen() {
           <Card>
             <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
             {activity.runs.map((run) => (
-              <Link key={run.id} href="/run-detail" asChild>
+              <Link
+                key={run.id}
+                href={{ pathname: '/run-detail', params: { runId: run.id, friendId: activity.friend.id } }}
+                asChild
+              >
                 <Pressable style={styles.recordRow}>
                   <View style={styles.recordMeta}>
                     <Text style={styles.recordDate}>{run.date}</Text>

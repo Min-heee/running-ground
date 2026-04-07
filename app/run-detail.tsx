@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -7,16 +8,17 @@ import { fetchRunDetail } from '@/lib/api/services';
 import { RunDetailResponse } from '@/lib/api/types';
 
 export default function RunDetailScreen() {
+  const { runId, friendId } = useLocalSearchParams<{ runId?: string; friendId?: string }>();
   const [runDetail, setRunDetail] = useState<RunDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchRunDetail()
+    fetchRunDetail({ runId, friendId })
       .then((data) => setRunDetail(data))
-      .catch(() => setError('기록 상세 정보를 불러오지 못했어.'))
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '기록 상세 정보를 불러오지 못했어.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [friendId, runId]);
 
   return (
     <Screen>

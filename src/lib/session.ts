@@ -45,8 +45,7 @@ function isUserProfile(value: unknown): value is UserProfile {
 
   return typeof value.name === 'string'
     && typeof value.districtName === 'string'
-    && typeof value.publicTag === 'string'
-    && (typeof value.universityName === 'undefined' || typeof value.universityName === 'string');
+    && typeof value.publicTag === 'string';
 }
 
 async function getStoredSessionValue() {

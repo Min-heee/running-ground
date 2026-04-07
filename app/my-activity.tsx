@@ -42,7 +42,7 @@ export default function MyActivityScreen() {
           <Card>
             <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
             {activity.runs.map((run) => (
-              <Link key={run.id} href="/run-detail" asChild>
+              <Link key={run.id} href={{ pathname: '/run-detail', params: { runId: run.id } }} asChild>
                 <Pressable style={styles.recordRow}>
                   <View style={styles.recordMeta}>
                     <Text style={styles.recordDate}>{run.date}</Text>
