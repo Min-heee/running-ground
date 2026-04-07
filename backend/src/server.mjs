@@ -43,6 +43,42 @@ const DISTRICT_BATTLE = {
   },
 };
 
+const DEFAULT_MARKET_CATALOG = [
+  {
+    id: 'reward-theme-midnight',
+    title: '미드나잇 프로필 테마',
+    category: '프로필 테마',
+    description: '프로필 카드와 랭킹 강조색을 조금 더 선명하게 바꿔주는 테마야.',
+    costPoints: 40,
+    repeatable: false,
+  },
+  {
+    id: 'reward-coupon-coffee',
+    title: '러닝 후 커피 쿠폰',
+    category: '제휴 쿠폰',
+    description: '가볍게 회복할 수 있는 아메리카노 1잔 쿠폰이야.',
+    costPoints: 60,
+    partnerName: 'Daily Beans',
+    repeatable: false,
+  },
+  {
+    id: 'reward-badge-sprinter',
+    title: '스프린터 한정 배지',
+    category: '배지',
+    description: '프로필과 친구 랭킹에서 보여줄 수 있는 시즌 배지야.',
+    costPoints: 90,
+    repeatable: false,
+  },
+  {
+    id: 'reward-challenge-ticket',
+    title: '주말 챌린지 입장권',
+    category: '챌린지',
+    description: '주말 5km 미션 보상 챌린지에 바로 참가할 수 있어.',
+    costPoints: 140,
+    repeatable: true,
+  },
+];
+
 class ApiError extends Error {
   constructor(statusCode, message) {
     super(message);
@@ -187,6 +223,47 @@ function buildIntegrationSourceActionResult(user, source) {
     success: true,
     source: clone(source),
     sources: clone(user.connectedSources),
+  };
+}
+
+function buildMarketOverview(store, user) {
+  if (!Array.isArray(store.marketCatalog)) {
+    store.marketCatalog = clone(DEFAULT_MARKET_CATALOG);
+  }
+
+  if (!Array.isArray(store.rewardRedemptions)) {
+    store.rewardRedemptions = [];
+  }
+
+  if (typeof user.rewardPoints !== 'number') {
+    user.rewardPoints = Math.max(user.districtPoints ?? 0, 60);
+  }
+
+  const redeemedItemIds = new Set(
+    store.rewardRedemptions
+      .filter((entry) => entry.userId === user.id)
+      .map((entry) => entry.itemId),
+  );
+
+  const items = store.marketCatalog.map((item) => ({
+    id: item.id,
+    title: item.title,
+    category: item.category,
+    description: item.description,
+    costPoints: item.costPoints,
+    ...(item.partnerName ? { partnerName: item.partnerName } : {}),
+    repeatable: item.repeatable,
+    claimState: redeemedItemIds.has(item.id)
+      ? 'claimed'
+      : user.rewardPoints >= item.costPoints
+        ? 'claimable'
+        : 'locked',
+  }));
+
+  return {
+    currentPoints: user.rewardPoints,
+    totalRedeemedCount: store.rewardRedemptions.filter((entry) => entry.userId === user.id).length,
+    items,
   };
 }
 
@@ -613,6 +690,7 @@ async function handleRegister(request, response) {
       friendPoints: 20,
       districtDistanceKm: 12.3,
       districtPoints: 20,
+      rewardPoints: 100,
       streakDays: 1,
       connectedSources: [
         {
@@ -736,6 +814,44 @@ async function handlePatchMyNotifications(request, response) {
     };
 
     return buildNotificationSettings(user);
+  });
+
+  sendJson(response, 200, payload);
+}
+
+function handleClaimMarketItem(request, response, itemId) {
+  const payload = mutateStore((store) => {
+    const user = requireUser(store, request);
+    buildMarketOverview(store, user);
+    const item = (store.marketCatalog ?? []).find((entry) => entry.id === itemId);
+
+    if (!item) {
+      throw new ApiError(404, '교환할 리워드를 찾지 못했어.');
+    }
+
+    const alreadyClaimed = store.rewardRedemptions.some((entry) => entry.userId === user.id && entry.itemId === item.id);
+
+    if (alreadyClaimed && !item.repeatable) {
+      throw new ApiError(409, '이미 교환한 리워드야.');
+    }
+
+    if (user.rewardPoints < item.costPoints) {
+      throw new ApiError(400, '포인트가 부족해서 아직 교환할 수 없어.');
+    }
+
+    user.rewardPoints -= item.costPoints;
+    store.rewardRedemptions.push({
+      id: nextId('redemption'),
+      userId: user.id,
+      itemId: item.id,
+      claimedAt: new Date().toISOString(),
+    });
+
+    return {
+      success: true,
+      claimedItemId: item.id,
+      overview: buildMarketOverview(store, user),
+    };
   });
 
   sendJson(response, 200, payload);
@@ -932,6 +1048,20 @@ async function routeRequest(request, response) {
     const store = loadStore();
     const user = requireUser(store, request);
     sendJson(response, 200, buildHomeSummary(store, user));
+    return;
+  }
+
+  if (pathname === '/api/market/overview' && request.method === 'GET') {
+    const store = loadStore();
+    const user = requireUser(store, request);
+    sendJson(response, 200, buildMarketOverview(store, user));
+    return;
+  }
+
+  const marketClaimMatch = pathname.match(/^\/api\/market\/items\/([^/]+)\/claim$/);
+
+  if (marketClaimMatch && request.method === 'POST') {
+    handleClaimMarketItem(request, response, marketClaimMatch[1]);
     return;
   }
 

@@ -1,4 +1,4 @@
-import { ConnectedSource, DistrictBattleRank, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MyRunRecord, RegionDrilldownNode, UserProfile, WeeklySummary } from '@/domain/types';
+import { ConnectedSource, DistrictBattleRank, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, RegionDrilldownNode, UserProfile, WeeklySummary } from '@/domain/types';
 
 export const myProfile: UserProfile = {
   name: '민병희',
@@ -10,6 +10,50 @@ export const myNotificationSettings = {
   friendAlerts: true,
   districtAlerts: true,
   marketAlerts: false,
+};
+
+export const marketOverview: MarketOverview = {
+  currentPoints: 128,
+  totalRedeemedCount: 1,
+  items: [
+    {
+      id: 'reward-theme-midnight',
+      title: '미드나잇 프로필 테마',
+      category: '프로필 테마',
+      description: '프로필 카드와 랭킹 강조색을 조금 더 선명하게 바꿔주는 테마야.',
+      costPoints: 40,
+      repeatable: false,
+      claimState: 'claimed',
+    },
+    {
+      id: 'reward-coupon-coffee',
+      title: '러닝 후 커피 쿠폰',
+      category: '제휴 쿠폰',
+      description: '가볍게 회복할 수 있는 아메리카노 1잔 쿠폰이야.',
+      costPoints: 60,
+      partnerName: 'Daily Beans',
+      repeatable: false,
+      claimState: 'claimable',
+    },
+    {
+      id: 'reward-badge-sprinter',
+      title: '스프린터 한정 배지',
+      category: '배지',
+      description: '프로필과 친구 랭킹에서 보여줄 수 있는 시즌 배지야.',
+      costPoints: 90,
+      repeatable: false,
+      claimState: 'claimable',
+    },
+    {
+      id: 'reward-challenge-ticket',
+      title: '주말 챌린지 입장권',
+      category: '챌린지',
+      description: '주말 5km 미션 보상 챌린지에 바로 참가할 수 있어.',
+      costPoints: 140,
+      repeatable: true,
+      claimState: 'locked',
+    },
+  ],
 };
 
 export const weeklySummary: WeeklySummary = {

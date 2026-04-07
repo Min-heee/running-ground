@@ -5,6 +5,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
+import { USE_MOCK_API } from '@/lib/api/config';
 import { signIn, signInWithProvider } from '@/lib/session';
 
 const providers = [
@@ -19,6 +20,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const providerAuthEnabled = USE_MOCK_API;
 
   const handleLogin = async () => {
     setError(null);
@@ -35,6 +37,11 @@ export default function LoginScreen() {
   };
 
   const handleProviderLogin = async (providerId: (typeof providers)[number]['id']) => {
+    if (!providerAuthEnabled) {
+      setError('현재 실백엔드 검증 중이라 간편 로그인은 아직 준비되지 않았어. 계정 로그인을 사용해줘.');
+      return;
+    }
+
     setError(null);
     setSubmitting(true);
 
@@ -53,6 +60,9 @@ export default function LoginScreen() {
       <AuthHeader title="로그인" subtitle="로그인 후 기록 연동 단계만 거치면 바로 홈에서 친구 경쟁과 내 활동을 볼 수 있어." />
 
       <InfoCard title="로그인 후 흐름">로그인 → 기록 연동 → 홈 진입</InfoCard>
+      {!providerAuthEnabled ? (
+        <InfoCard title="현재 권장 방식">지금은 데스크탑 백엔드 검증 단계라서 계정 로그인만 바로 사용할 수 있어.</InfoCard>
+      ) : null}
 
       <Card>
         <Text style={styles.sectionTitle}>계정으로 로그인</Text>
@@ -84,19 +94,22 @@ export default function LoginScreen() {
 
       <Card>
         <Text style={styles.sectionTitle}>간편 로그인</Text>
+        {!providerAuthEnabled ? <Text style={styles.helperText}>카카오, 구글, 애플, 네이버 로그인은 다음 단계에서 붙일 예정이야.</Text> : null}
         <View style={styles.socialButtons}>
           {providers.map((provider) => {
             const isDarkText = provider.buttonStyle === 'kakao' || provider.buttonStyle === 'google';
             return (
               <Pressable
                 key={provider.id}
-                style={[getButtonStyle(provider.buttonStyle), submitting ? styles.disabledButton : null]}
+                style={[getButtonStyle(provider.buttonStyle), (submitting || !providerAuthEnabled) ? styles.disabledButton : null]}
                 onPress={() => {
                   void handleProviderLogin(provider.id);
                 }}
-                disabled={submitting}
+                disabled={submitting || !providerAuthEnabled}
               >
-                <Text style={isDarkText ? styles.darkButtonText : styles.lightButtonText}>{provider.label}</Text>
+                <Text style={isDarkText ? styles.darkButtonText : styles.lightButtonText}>
+                  {providerAuthEnabled ? provider.label : `${provider.label} · 준비 중`}
+                </Text>
               </Pressable>
             );
           })}
@@ -157,6 +170,11 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   socialButtons: { gap: 10, marginTop: 8 },
+  helperText: {
+    color: '#667085',
+    lineHeight: 20,
+    marginTop: 8,
+  },
   kakaoButton: {
     backgroundColor: '#FEE500',
     borderWidth: 1,

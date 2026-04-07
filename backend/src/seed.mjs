@@ -100,9 +100,48 @@ function createNotificationSettings(profile = 'default') {
   };
 }
 
+function createMarketCatalog() {
+  return [
+    {
+      id: 'reward-theme-midnight',
+      title: '미드나잇 프로필 테마',
+      category: '프로필 테마',
+      description: '프로필 카드와 랭킹 강조색을 조금 더 선명하게 바꿔주는 테마야.',
+      costPoints: 40,
+      repeatable: false,
+    },
+    {
+      id: 'reward-coupon-coffee',
+      title: '러닝 후 커피 쿠폰',
+      category: '제휴 쿠폰',
+      description: '가볍게 회복할 수 있는 아메리카노 1잔 쿠폰이야.',
+      costPoints: 60,
+      partnerName: 'Daily Beans',
+      repeatable: false,
+    },
+    {
+      id: 'reward-badge-sprinter',
+      title: '스프린터 한정 배지',
+      category: '배지',
+      description: '프로필과 친구 랭킹에서 보여줄 수 있는 시즌 배지야.',
+      costPoints: 90,
+      repeatable: false,
+    },
+    {
+      id: 'reward-challenge-ticket',
+      title: '주말 챌린지 입장권',
+      category: '챌린지',
+      description: '주말 5km 미션 보상 챌린지에 바로 참가할 수 있어.',
+      costPoints: 140,
+      repeatable: true,
+    },
+  ];
+}
+
 function createUser(input) {
   return {
     ...input,
+    rewardPoints: input.rewardPoints ?? 100,
     notificationSettings: input.notificationSettings ?? createNotificationSettings(),
     createdAt: input.createdAt ?? '2026-03-01T09:00:00.000Z',
   };
@@ -202,6 +241,7 @@ export function createSeedStore() {
       friendPoints: 91,
       districtDistanceKm: 42.4,
       districtPoints: 98,
+      rewardPoints: 128,
       streakDays: 11,
       connectedSources: createConnectedSources('ios'),
       notificationSettings: createNotificationSettings('ios'),
@@ -219,6 +259,7 @@ export function createSeedStore() {
       friendPoints: 98,
       districtDistanceKm: 89,
       districtPoints: 98,
+      rewardPoints: 164,
       streakDays: 13,
       connectedSources: createConnectedSources('ios'),
       notificationSettings: createNotificationSettings('ios'),
@@ -236,6 +277,7 @@ export function createSeedStore() {
       friendPoints: 86,
       districtDistanceKm: 51.8,
       districtPoints: 88,
+      rewardPoints: 112,
       streakDays: 9,
       connectedSources: createConnectedSources('android'),
       notificationSettings: createNotificationSettings('android'),
@@ -253,6 +295,7 @@ export function createSeedStore() {
       friendPoints: 74,
       districtDistanceKm: 86,
       districtPoints: 95,
+      rewardPoints: 120,
       streakDays: 8,
       connectedSources: createConnectedSources('android'),
       notificationSettings: createNotificationSettings('android'),
@@ -270,6 +313,7 @@ export function createSeedStore() {
       friendPoints: 70,
       districtDistanceKm: 81,
       districtPoints: 91,
+      rewardPoints: 94,
       streakDays: 7,
       connectedSources: createConnectedSources('default'),
       notificationSettings: createNotificationSettings('default'),
@@ -287,6 +331,7 @@ export function createSeedStore() {
       friendPoints: 48,
       districtDistanceKm: 41.1,
       districtPoints: 85,
+      rewardPoints: 66,
       streakDays: 4,
       connectedSources: createConnectedSources('default'),
       notificationSettings: createNotificationSettings('default'),
@@ -304,6 +349,7 @@ export function createSeedStore() {
       friendPoints: 60,
       districtDistanceKm: 45.2,
       districtPoints: 83,
+      rewardPoints: 72,
       streakDays: 5,
       connectedSources: createConnectedSources('default'),
       notificationSettings: createNotificationSettings('default'),
@@ -321,6 +367,7 @@ export function createSeedStore() {
       friendPoints: 56,
       districtDistanceKm: 39.4,
       districtPoints: 78,
+      rewardPoints: 58,
       streakDays: 6,
       connectedSources: createConnectedSources('default'),
       notificationSettings: createNotificationSettings('default'),
@@ -387,7 +434,16 @@ export function createSeedStore() {
         createdAt: '2026-03-12T08:00:00.000Z'
       }
     ],
+    rewardRedemptions: [
+      {
+        id: 'redemption-1',
+        userId: 'user-1',
+        itemId: 'reward-theme-midnight',
+        claimedAt: '2026-03-20T08:30:00.000Z'
+      }
+    ],
     sessions: [],
+    marketCatalog: createMarketCatalog(),
     regionTree: createRegionTree()
   };
 }

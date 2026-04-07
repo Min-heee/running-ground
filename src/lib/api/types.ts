@@ -1,6 +1,7 @@
-import { ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MyRunRecord, RegionDrilldownNode, RunSourceType, UserProfile, WeeklySummary } from '@/domain/types';
+import { ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, RegionDrilldownNode, RunSourceType, UserProfile, WeeklySummary } from '@/domain/types';
 
 export type HomeSummaryResponse = WeeklySummary;
+export type MarketOverviewResponse = MarketOverview;
 
 export type AuthResponse = {
   accessToken: string;
@@ -46,6 +47,12 @@ export type IntegrationSourceActionResponse = {
   success: boolean;
   source: ConnectedSource;
   sources: ConnectedSource[];
+};
+
+export type MarketClaimResponse = {
+  success: boolean;
+  claimedItemId: string;
+  overview: MarketOverview;
 };
 
 export type MyProfileResponse = UserProfile;

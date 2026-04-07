@@ -105,3 +105,22 @@ export type MyRunRecord = {
   pace: string;
   source: string;
 };
+
+export type MarketRewardClaimState = 'claimable' | 'claimed' | 'locked';
+
+export type MarketRewardItem = {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  costPoints: number;
+  partnerName?: string;
+  repeatable: boolean;
+  claimState: MarketRewardClaimState;
+};
+
+export type MarketOverview = {
+  currentPoints: number;
+  totalRedeemedCount: number;
+  items: MarketRewardItem[];
+};

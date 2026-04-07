@@ -83,7 +83,50 @@ Response shape:
 
 ---
 
-## 2. My profile
+## 2. Market
+### GET `/api/market/overview`
+
+```json
+{
+  "currentPoints": 128,
+  "totalRedeemedCount": 1,
+  "items": [
+    {
+      "id": "reward-coupon-coffee",
+      "title": "러닝 후 커피 쿠폰",
+      "category": "제휴 쿠폰",
+      "description": "가볍게 회복할 수 있는 아메리카노 1잔 쿠폰이야.",
+      "costPoints": 60,
+      "partnerName": "Daily Beans",
+      "repeatable": false,
+      "claimState": "claimable"
+    }
+  ]
+}
+```
+
+### POST `/api/market/items/{itemId}/claim`
+
+```json
+{
+  "success": true,
+  "claimedItemId": "reward-coupon-coffee",
+  "overview": {
+    "currentPoints": 68,
+    "totalRedeemedCount": 2,
+    "items": []
+  }
+}
+```
+
+Expected behavior:
+- `currentPoints` is the signed-in user's reward wallet, not district ranking points.
+- `claimState` can be `claimable`, `claimed`, or `locked`.
+- non-repeatable items should not be claimable twice.
+
+---
+
+## 3. My profile
 ### GET `/api/me/profile`
 
 ```json
@@ -115,7 +158,7 @@ Response shape:
 
 ---
 
-## 3. My activity
+## 4. My activity
 ### GET `/api/me/activity`
 
 ```json
@@ -136,7 +179,7 @@ Response shape:
 
 ---
 
-## 4. Run detail
+## 5. Run detail
 ### GET `/api/runs/{runId}` or temporary GET `/api/runs/latest`
 
 ```json
@@ -156,7 +199,7 @@ Response shape:
 
 ---
 
-## 5. Friend leaderboard
+## 6. Friend leaderboard
 ### GET `/api/friends/leaderboard`
 
 ```json
@@ -189,7 +232,7 @@ Expected behavior:
 
 ---
 
-## 6. Friend activity
+## 7. Friend activity
 ### GET `/api/friends/{friendId}/activity`
 
 ```json
@@ -217,7 +260,7 @@ Expected behavior:
 
 ---
 
-## 7. Integration status
+## 8. Integration status
 ### GET `/api/integrations/sources`
 
 ```json
@@ -292,7 +335,7 @@ Expected behavior:
 
 ---
 
-## 8. Friend add by tag
+## 9. Friend add by tag
 ### POST `/api/friends/requests`
 Request example:
 
@@ -350,7 +393,7 @@ Expected behavior:
 
 ---
 
-## 9. District personal ranking
+## 10. District personal ranking
 ### GET `/api/league/district-personal`
 
 ```json
@@ -397,7 +440,7 @@ Expected behavior:
 
 ---
 
-## 10. Region league drilldown
+## 11. Region league drilldown
 ### GET `/api/league/regions`
 
 Query:

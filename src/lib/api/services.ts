@@ -4,13 +4,14 @@ import {
   friendRanks,
   friendRequests,
   friendRunRecords,
+  marketOverview,
   myNotificationSettings,
   myProfile,
   myRunRecords,
   regionDrilldownTree,
   weeklySummary,
 } from '@/data/mock';
-import { RegionDrilldownNode, RunSourceType } from '@/domain/types';
+import { MarketOverview, MarketRewardItem, RegionDrilldownNode, RunSourceType } from '@/domain/types';
 import { getAccessToken, getCurrentUserProfile, setCurrentUserProfile } from '@/lib/session';
 import { apiGet, apiPatch, apiPost } from './client';
 import { USE_MOCK_API } from './config';
@@ -24,6 +25,8 @@ import {
   IntegrationSourceActionResponse,
   IntegrationSyncResponse,
   IntegrationStatusResponse,
+  MarketClaimResponse,
+  MarketOverviewResponse,
   MyActivityResponse,
   MyProfileResponse,
   NotificationSettingsResponse,
@@ -43,9 +46,33 @@ let mockFriendRequests = friendRequests
 let mockFriendRanks = friendRanks.map((friend) => ({ ...friend }));
 let mockConnectedSources = connectedSources.map((source) => ({ ...source }));
 let mockNotificationPreferences = { ...myNotificationSettings };
+let mockMarketPoints = marketOverview.currentPoints;
+let mockClaimedMarketItemIds = new Set(
+  marketOverview.items
+    .filter((item) => item.claimState === 'claimed')
+    .map((item) => item.id),
+);
+const mockMarketCatalog = marketOverview.items.map(({ claimState, ...item }) => ({ ...item }));
 
 function formatMockTimestamp(date = new Date()) {
   return date.toISOString().slice(0, 16).replace('T', ' ');
+}
+
+function buildMockMarketOverview(): MarketOverview {
+  const items: MarketRewardItem[] = mockMarketCatalog.map((item) => ({
+    ...item,
+    claimState: mockClaimedMarketItemIds.has(item.id)
+      ? 'claimed'
+      : mockMarketPoints >= item.costPoints
+        ? 'claimable'
+        : 'locked',
+  }));
+
+  return {
+    currentPoints: mockMarketPoints,
+    totalRedeemedCount: mockClaimedMarketItemIds.size,
+    items,
+  };
 }
 
 function normalizeMockFriendRanks(ranks: typeof mockFriendRanks) {
@@ -115,6 +142,17 @@ export async function fetchHomeSummary(): Promise<HomeSummaryResponse> {
   return apiGet<HomeSummaryResponse>('/home/summary', {
     accessToken: await requireAccessToken(),
     fallbackMessage: '홈 요약을 불러오지 못했어.',
+  });
+}
+
+export async function fetchMarketOverview(): Promise<MarketOverviewResponse> {
+  if (USE_MOCK_API) {
+    return buildMockMarketOverview();
+  }
+
+  return apiGet<MarketOverviewResponse>('/market/overview', {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '마켓 정보를 불러오지 못했어.',
   });
 }
 
@@ -352,6 +390,42 @@ export async function disconnectIntegrationSource(sourceType: RunSourceType): Pr
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '소스 연결 해제에 실패했어.',
+    },
+  );
+}
+
+export async function claimMarketItem(itemId: string): Promise<MarketClaimResponse> {
+  if (USE_MOCK_API) {
+    const item = mockMarketCatalog.find((entry) => entry.id === itemId);
+
+    if (!item) {
+      throw new Error('교환할 리워드를 찾지 못했어.');
+    }
+
+    if (!item.repeatable && mockClaimedMarketItemIds.has(item.id)) {
+      throw new Error('이미 교환한 리워드야.');
+    }
+
+    if (mockMarketPoints < item.costPoints) {
+      throw new Error('포인트가 부족해서 아직 교환할 수 없어.');
+    }
+
+    mockMarketPoints -= item.costPoints;
+    mockClaimedMarketItemIds.add(item.id);
+
+    return {
+      success: true,
+      claimedItemId: item.id,
+      overview: buildMockMarketOverview(),
+    };
+  }
+
+  return apiPost<MarketClaimResponse>(
+    `/market/items/${itemId}/claim`,
+    {},
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '리워드 교환에 실패했어.',
     },
   );
 }
