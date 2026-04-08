@@ -72,15 +72,13 @@ This is the smallest version that still feels like a real product.
 
 ### 7. Release MVP tab structure
 Visible bottom tabs for v1:
+- 리그
 - 친구
 - 홈
+- 마켓
 - 마이
 
-Not visible in bottom tabs for v1:
-- 지역
-- 마켓
-
-These may remain reachable through internal links, beta entry points, or later release branches, but they should not define the primary release navigation.
+The release build should keep league and market in the main navigation because they are part of the product promise, even if some sub-features inside them are still thinner than post-launch versions.
 
 ---
 
@@ -98,8 +96,8 @@ These are good product ideas, but they increase complexity and slow down release
 - deep notification system
 
 ### Temporary handling in v1
-- keep regional competition hidden, reduced, or marked beta
-- keep market tab minimal or remove it from first release build
+- keep regional competition visible in the tab bar, but reduce scope to the flows that are already stable
+- keep market visible in the tab bar, but launch with a small curated reward set instead of expanding commerce scope
 - avoid adding more feature branches until the real backend loop works
 
 ---
