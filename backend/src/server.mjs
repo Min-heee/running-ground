@@ -731,6 +731,23 @@ async function handleLogin(request, response) {
   sendJson(response, 200, result);
 }
 
+async function handleLogout(request, response) {
+  const payload = mutateStore((store) => {
+    const token = getAccessToken(request);
+    const existingSessionIndex = store.sessions.findIndex((entry) => entry.token === token);
+
+    if (existingSessionIndex >= 0) {
+      store.sessions.splice(existingSessionIndex, 1);
+    }
+
+    return {
+      success: true,
+    };
+  });
+
+  sendJson(response, 200, payload);
+}
+
 async function handleRegister(request, response) {
   const body = await parseJsonBody(request);
   const username = validateRequiredString(body.username, '아이디를 입력해줘.').toLowerCase();
@@ -874,6 +891,9 @@ async function handlePatchMyProfile(request, response) {
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
     user.name = validateRequiredString(body.name, '이름을 입력해줘.');
+    user.universityName = typeof body.universityName === 'string' && body.universityName.trim()
+      ? body.universityName.trim()
+      : undefined;
     return buildProfile(user);
   });
 
@@ -1121,6 +1141,11 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/auth/login' && request.method === 'POST') {
     await handleLogin(request, response);
+    return;
+  }
+
+  if (pathname === '/api/auth/logout' && request.method === 'POST') {
+    await handleLogout(request, response);
     return;
   }
 

@@ -8,6 +8,10 @@ export type AuthResponse = {
   user: UserProfile;
 };
 
+export type LogoutResponse = {
+  success: boolean;
+};
+
 export type MyActivityResponse = {
   runs: MyRunRecord[];
   monthlyDistanceKm: number;
@@ -65,6 +69,7 @@ export type NotificationSettingsResponse = {
 
 export type UpdateMyProfileInput = {
   name: string;
+  universityName?: string;
 };
 
 export type UpdateMyProfileResponse = UserProfile;

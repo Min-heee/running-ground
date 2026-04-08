@@ -6,6 +6,7 @@
     "start": "node ./src/server.mjs",
     "dev": "node --watch ./src/server.mjs",
     "reset": "node ./src/reset-store.mjs",
+    "smoke": "node ./src/smoke.mjs",
     "docker:build": "docker build -t runnigapp-backend .",
     "docker:up": "docker compose -f ./compose.yaml up --build -d",
     "docker:down": "docker compose -f ./compose.yaml down",

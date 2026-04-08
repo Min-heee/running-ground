@@ -10,6 +10,7 @@
     "backend:start": "node ./backend/src/server.mjs",
     "backend:dev": "node --watch ./backend/src/server.mjs",
     "backend:reset": "node ./backend/src/reset-store.mjs",
+    "backend:smoke": "node ./backend/src/smoke.mjs",
     "backend:docker:up": "docker compose -f ./backend/compose.yaml up --build -d",
     "backend:docker:down": "docker compose -f ./backend/compose.yaml down",
     "backend:docker:logs": "docker compose -f ./backend/compose.yaml logs -f",

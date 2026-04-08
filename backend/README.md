@@ -47,6 +47,31 @@ npm run backend:docker:logs
 npm run backend:docker:down
 ```
 
+## 2.5. 스모크 테스트
+
+백엔드 단독으로 핵심 출시 흐름을 한 번에 검증할 수 있어.
+
+```bash
+cd backend
+npm run smoke
+```
+
+루트에서도 가능해.
+
+```bash
+cd ..
+npm run backend:smoke
+```
+
+이 스크립트는 임시 store 파일로 서버를 띄운 뒤 아래 흐름을 자동 확인해.
+
+- 회원가입
+- 로그인
+- 프로필 수정
+- 대학 리그 반영
+- 로그아웃 후 세션 무효화
+- 관리자 상태 / 리셋 엔드포인트
+
 ## 3. 환경 변수
 
 `backend/.env.example` 기준:
@@ -67,6 +92,12 @@ npm run backend:docker:down
 
 ```bash
 curl http://localhost:8081/api/health
+```
+
+### Logout
+
+```bash
+curl -X POST -H "Authorization: Bearer <token>" http://localhost:8081/api/auth/logout
 ```
 
 ### Admin status

@@ -10,6 +10,7 @@ import { MyProfileResponse } from '@/lib/api/types';
 export default function EditProfileScreen() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
   const [name, setName] = useState('');
+  const [universityName, setUniversityName] = useState('');
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -20,6 +21,7 @@ export default function EditProfileScreen() {
       .then((nextProfile) => {
         setProfile(nextProfile);
         setName(nextProfile.name);
+        setUniversityName(nextProfile.universityName ?? '');
       })
       .catch((loadError) => {
         setError(loadError instanceof Error ? loadError.message : '프로필을 불러오지 못했어.');
@@ -37,9 +39,10 @@ export default function EditProfileScreen() {
     setSaving(true);
 
     try {
-      const nextProfile = await updateMyProfile({ name });
+      const nextProfile = await updateMyProfile({ name, universityName });
       setProfile(nextProfile);
       setName(nextProfile.name);
+      setUniversityName(nextProfile.universityName ?? '');
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
@@ -59,9 +62,9 @@ export default function EditProfileScreen() {
         <Card>
           <View style={styles.form}>
             <Input label="이름" value={name} onChangeText={setName} editable={!saving} />
+            <Input label="소속 대학" value={universityName} onChangeText={setUniversityName} editable={!saving} />
             <Input label="내 태그" value={profile.publicTag} editable={false} />
             <Input label="대표 지역" value={profile.districtName} editable={false} />
-            <Input label="소속 대학" value={profile.universityName ?? '미설정'} editable={false} />
             <Input label="상태 메시지" value="러닝 경쟁 진행 중" editable={false} />
             <PrimaryButton label={saving ? '저장 중...' : '저장하기'} onPress={handleSave} />
             {saved ? <Text style={styles.savedText}>프로필이 저장됐어.</Text> : null}

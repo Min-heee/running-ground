@@ -3,7 +3,7 @@ import { myProfile } from '@/data/mock';
 import { UserProfile } from '@/domain/types';
 import { apiGet, apiPost } from '@/lib/api/client';
 import { USE_MOCK_API } from '@/lib/api/config';
-import { AuthResponse, MyProfileResponse } from '@/lib/api/types';
+import { AuthResponse, LogoutResponse, MyProfileResponse } from '@/lib/api/types';
 
 const SESSION_STORAGE_KEY = 'runnigapp.session.v1';
 
@@ -378,6 +378,21 @@ export async function signOut() {
     mockProfile = { ...myProfile };
     await persistSession();
     return;
+  }
+
+  if (backendAccessToken) {
+    try {
+      await apiPost<LogoutResponse>(
+        '/auth/logout',
+        {},
+        {
+          accessToken: backendAccessToken,
+          fallbackMessage: '로그아웃 처리에 실패했어.',
+        },
+      );
+    } catch {
+      // Best-effort logout: even if the server call fails, clear local session state.
+    }
   }
 
   backendAccessToken = null;

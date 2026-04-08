@@ -499,9 +499,11 @@ export async function fetchMyProfile(): Promise<MyProfileResponse> {
 export async function updateMyProfile(input: UpdateMyProfileInput): Promise<UpdateMyProfileResponse> {
   if (USE_MOCK_API) {
     const currentProfile = getCurrentUserProfile() ?? myProfile;
+    const normalizedUniversityName = input.universityName?.trim() ?? '';
     const nextProfile = {
       ...currentProfile,
       name: input.name.trim() || currentProfile.name,
+      universityName: normalizedUniversityName || undefined,
     };
 
     await setCurrentUserProfile(nextProfile);
@@ -512,6 +514,7 @@ export async function updateMyProfile(input: UpdateMyProfileInput): Promise<Upda
     '/me/profile',
     {
       name: input.name.trim(),
+      universityName: input.universityName?.trim() ?? '',
     },
     {
       accessToken: await requireAccessToken(),

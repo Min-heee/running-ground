@@ -34,6 +34,16 @@ Response example:
 }
 ```
 
+### POST `/api/auth/logout`
+
+Response example:
+
+```json
+{
+  "success": true
+}
+```
+
 ### POST `/api/auth/register`
 
 Request example:
@@ -148,6 +158,7 @@ Expected behavior:
 
 ### PATCH `/api/me/profile`
 - update profile basics
+- accepted fields: `name`, optional `universityName`
 
 ### GET `/api/me/notifications`
 
