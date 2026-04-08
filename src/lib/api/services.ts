@@ -9,9 +9,10 @@ import {
   myProfile,
   myRunRecords,
   regionDrilldownTree,
+  universityLeagueRanks,
   weeklySummary,
 } from '@/data/mock';
-import { MarketOverview, MarketRewardItem, RegionDrilldownNode, RunSourceType } from '@/domain/types';
+import { MarketOverview, MarketRewardItem, RegionDrilldownNode, RunSourceType, UniversityLeagueRank } from '@/domain/types';
 import { getAccessToken, getCurrentUserProfile, setCurrentUserProfile } from '@/lib/session';
 import { apiGet, apiPatch, apiPost } from './client';
 import { USE_MOCK_API } from './config';
@@ -38,6 +39,7 @@ import {
   UpdateMyRegionResponse,
   UpdateMyProfileInput,
   UpdateMyProfileResponse,
+  UniversityLeagueResponse,
 } from './types';
 
 let mockFriendRequests = friendRequests
@@ -106,6 +108,26 @@ function createMockFriendRank(input: { id: string; name: string; tag: string }) 
     points: Math.round(distanceKm * 1.15),
     rank: nextIndex,
   };
+}
+
+function normalizeMockUniversityRanks(ranks: UniversityLeagueRank[]) {
+  return [...ranks]
+    .sort((left, right) => {
+      if (right.totalDistanceKm !== left.totalDistanceKm) {
+        return right.totalDistanceKm - left.totalDistanceKm;
+      }
+
+      if (right.participants !== left.participants) {
+        return right.participants - left.participants;
+      }
+
+      return left.universityName.localeCompare(right.universityName, 'ko');
+    })
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+      totalDistanceKm: Number(entry.totalDistanceKm.toFixed(1)),
+    }));
 }
 
 async function requireAccessToken() {
@@ -237,6 +259,39 @@ export async function fetchRegionLeague(nodeId?: string): Promise<RegionLeagueRe
   return apiGet<RegionLeagueResponse>(`/league/regions${query}`, {
     accessToken: await requireAccessToken(),
     fallbackMessage: '지역 리그 정보를 불러오지 못했어.',
+  });
+}
+
+export async function fetchUniversityLeague(): Promise<UniversityLeagueResponse> {
+  if (USE_MOCK_API) {
+    const profile = getCurrentUserProfile() ?? myProfile;
+    const normalizedUniversityName = profile.universityName?.trim() ?? '';
+    const ranks = universityLeagueRanks.map((entry) => ({ ...entry }));
+
+    if (normalizedUniversityName) {
+      const existingRank = ranks.find((entry) => entry.universityName === normalizedUniversityName);
+
+      if (existingRank) {
+        existingRank.totalDistanceKm = Number((existingRank.totalDistanceKm + weeklySummary.totalDistanceKm).toFixed(1));
+        existingRank.participants += 1;
+      } else {
+        ranks.push({
+          rank: ranks.length + 1,
+          universityName: normalizedUniversityName,
+          totalDistanceKm: weeklySummary.totalDistanceKm,
+          participants: 1,
+        });
+      }
+    }
+
+    return {
+      ranks: normalizeMockUniversityRanks(ranks),
+    };
+  }
+
+  return apiGet<UniversityLeagueResponse>('/league/universities', {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '대학 리그 정보를 불러오지 못했어.',
   });
 }
 

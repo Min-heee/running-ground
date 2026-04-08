@@ -6,28 +6,21 @@ import { SectionTitle } from '@/components/SectionTitle';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { fetchRegionLeague } from '@/lib/api/services';
-import { RegionLeagueResponse } from '@/lib/api/types';
+import { fetchRegionLeague, fetchUniversityLeague } from '@/lib/api/services';
+import { RegionLeagueResponse, UniversityLeagueResponse } from '@/lib/api/types';
 
 const FEATURED_REGION_COUNT = 6;
-const UNIVERSITY_RANKS = [
-  { rank: 1, universityName: '서울대학교', totalDistanceKm: 312.4, participants: 18 },
-  { rank: 2, universityName: '연세대학교', totalDistanceKm: 286.7, participants: 16 },
-  { rank: 3, universityName: '고려대학교', totalDistanceKm: 271.9, participants: 15 },
-  { rank: 4, universityName: '성균관대학교', totalDistanceKm: 224.8, participants: 13 },
-  { rank: 5, universityName: '한양대학교', totalDistanceKm: 212.5, participants: 12 },
-  { rank: 6, universityName: '경희대학교', totalDistanceKm: 194.3, participants: 11 },
-  { rank: 7, universityName: '중앙대학교', totalDistanceKm: 181.6, participants: 10 },
-  { rank: 8, universityName: '이화여자대학교', totalDistanceKm: 169.2, participants: 9 },
-] as const;
 
 type LeagueMode = 'region' | 'university';
 
 export default function LeagueScreen() {
   const [leagueMode, setLeagueMode] = useState<LeagueMode>('region');
   const [league, setLeague] = useState<RegionLeagueResponse | null>(null);
+  const [universityLeague, setUniversityLeague] = useState<UniversityLeagueResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [universityLoading, setUniversityLoading] = useState(true);
+  const [universityError, setUniversityError] = useState<string | null>(null);
   const [showAllRegions, setShowAllRegions] = useState(false);
   const currentNode = league?.currentNode ?? null;
   const children = league?.children ?? [];
@@ -46,8 +39,19 @@ export default function LeagueScreen() {
       .finally(() => setLoading(false));
   };
 
+  const loadUniversityLeague = () => {
+    setUniversityLoading(true);
+    setUniversityError(null);
+
+    fetchUniversityLeague()
+      .then((response) => setUniversityLeague(response))
+      .catch((loadError) => setUniversityError(loadError instanceof Error ? loadError.message : '대학 리그 정보를 불러오지 못했어.'))
+      .finally(() => setUniversityLoading(false));
+  };
+
   useEffect(() => {
     loadLeague();
+    loadUniversityLeague();
   }, []);
 
   const breadcrumb = useMemo(() => league?.breadcrumb.map((node) => node.name).join(' > ') ?? '', [league]);
@@ -61,7 +65,7 @@ export default function LeagueScreen() {
 
   const canGoBack = (league?.breadcrumb.length ?? 0) > 1;
   const parentNodeId = canGoBack ? league?.breadcrumb[league.breadcrumb.length - 2]?.id : undefined;
-  const featuredUniversityRank = UNIVERSITY_RANKS[0];
+  const featuredUniversityRank = universityLeague?.ranks[0] ?? null;
   const isUniversityView = leagueMode === 'university';
 
   return (
@@ -88,35 +92,57 @@ export default function LeagueScreen() {
         <>
           <InfoCard title="대학 리그">학교별 참가 인원이 모이면 자동으로 대학 랭킹이 만들어지고, 총거리 기준으로 순위가 정해져.</InfoCard>
 
-          <Card style={styles.heroCard}>
-            <Text style={styles.heroLabel}>현재 1위 대학</Text>
-            <Text style={styles.heroTitle}>{featuredUniversityRank.universityName}</Text>
-            <Text style={styles.breadcrumb}>현재 참가 대학 {UNIVERSITY_RANKS.length}개가 집계되고 있어.</Text>
-            <View style={styles.heroMetrics}>
-              <View style={styles.heroMetricBox}>
-                <Text style={styles.heroMetricValue}>{featuredUniversityRank.rank}위</Text>
-                <Text style={styles.heroMetricLabel}>현재 순위</Text>
-              </View>
-              <View style={styles.heroMetricBox}>
-                <Text style={styles.heroMetricValue}>{featuredUniversityRank.totalDistanceKm}km</Text>
-                <Text style={styles.heroMetricLabel}>총거리</Text>
-              </View>
-            </View>
-            <Text style={styles.heroFootnote}>회원 수 {featuredUniversityRank.participants}명</Text>
-          </Card>
+          {universityLoading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
 
-          <Card>
-            <SectionTitle>대학 순위</SectionTitle>
-            {UNIVERSITY_RANKS.map((rank) => (
-              <View key={rank.universityName} style={styles.rankRow}>
-                <Text style={styles.rankNumber}>{rank.rank}</Text>
-                <View style={styles.rankMeta}>
-                  <Text style={styles.rankName}>{rank.universityName}</Text>
-                  <Text style={styles.rankDetail}>총 거리 {rank.totalDistanceKm}km · 회원 {rank.participants}명</Text>
+          {!universityLoading && universityError ? (
+            <Card>
+              <Text style={styles.stateTitle}>대학 리그를 아직 못 불러왔어</Text>
+              <Text style={styles.errorText}>{universityError}</Text>
+              <PrimaryButton label="다시 불러오기" onPress={loadUniversityLeague} />
+            </Card>
+          ) : null}
+
+          {!universityLoading && !universityError && !featuredUniversityRank ? (
+            <Card>
+              <Text style={styles.stateTitle}>아직 집계된 대학이 없어</Text>
+              <Text style={styles.emptyText}>회원가입에서 대학을 선택한 사용자가 생기면 여기서 바로 학교별 순위를 볼 수 있어.</Text>
+              <PrimaryButton label="다시 불러오기" onPress={loadUniversityLeague} />
+            </Card>
+          ) : null}
+
+          {featuredUniversityRank ? (
+            <>
+              <Card style={styles.heroCard}>
+                <Text style={styles.heroLabel}>현재 1위 대학</Text>
+                <Text style={styles.heroTitle}>{featuredUniversityRank.universityName}</Text>
+                <Text style={styles.breadcrumb}>현재 참가 대학 {universityLeague?.ranks.length ?? 0}개가 집계되고 있어.</Text>
+                <View style={styles.heroMetrics}>
+                  <View style={styles.heroMetricBox}>
+                    <Text style={styles.heroMetricValue}>{featuredUniversityRank.rank}위</Text>
+                    <Text style={styles.heroMetricLabel}>현재 순위</Text>
+                  </View>
+                  <View style={styles.heroMetricBox}>
+                    <Text style={styles.heroMetricValue}>{featuredUniversityRank.totalDistanceKm}km</Text>
+                    <Text style={styles.heroMetricLabel}>총거리</Text>
+                  </View>
                 </View>
-              </View>
-            ))}
-          </Card>
+                <Text style={styles.heroFootnote}>회원 수 {featuredUniversityRank.participants}명</Text>
+              </Card>
+
+              <Card>
+                <SectionTitle>대학 순위</SectionTitle>
+                {universityLeague?.ranks.map((rank) => (
+                  <View key={rank.universityName} style={styles.rankRow}>
+                    <Text style={styles.rankNumber}>{rank.rank}</Text>
+                    <View style={styles.rankMeta}>
+                      <Text style={styles.rankName}>{rank.universityName}</Text>
+                      <Text style={styles.rankDetail}>총 거리 {rank.totalDistanceKm}km · 회원 {rank.participants}명</Text>
+                    </View>
+                  </View>
+                ))}
+              </Card>
+            </>
+          ) : null}
         </>
       ) : (
         <>

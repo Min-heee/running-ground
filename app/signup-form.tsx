@@ -8,6 +8,17 @@ import { InfoCard } from '@/components/ui/InfoCard';
 import { addressCatalog, AddressRegionNode } from '@/features/location/addressCatalog';
 import { registerAccount } from '@/lib/session';
 
+const UNIVERSITY_SUGGESTIONS = [
+  '서울대학교',
+  '연세대학교',
+  '고려대학교',
+  '성균관대학교',
+  '한양대학교',
+  '경희대학교',
+  '중앙대학교',
+  '이화여자대학교',
+] as const;
+
 export default function SignupFormScreen() {
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
@@ -16,6 +27,7 @@ export default function SignupFormScreen() {
   const [provinceName, setProvinceName] = useState('');
   const [secondaryRegionName, setSecondaryRegionName] = useState('');
   const [tertiaryRegionName, setTertiaryRegionName] = useState('');
+  const [universityName, setUniversityName] = useState('');
   const [addressDetail, setAddressDetail] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -47,6 +59,7 @@ export default function SignupFormScreen() {
         provinceName,
         cityName: selectedSecondary?.type === 'city' ? selectedSecondary.name : '',
         districtName: finalDistrictName,
+        universityName,
         addressDetail,
         birthDate,
       });
@@ -131,6 +144,34 @@ export default function SignupFormScreen() {
                 editable={!submitting}
               />
             ) : null}
+          </View>
+
+          <View style={styles.addressGroup}>
+            <Text style={styles.label}>대학교 선택</Text>
+            <Text style={styles.helperText}>선택사항이야. 학교를 입력하거나 아래 빠른 선택을 누르면, 대학 리그에 바로 집계돼.</Text>
+            <Input
+              label="대학교"
+              placeholder="예: 서울대학교"
+              value={universityName}
+              onChangeText={setUniversityName}
+              editable={!submitting}
+            />
+            <View style={styles.selectionList}>
+              {UNIVERSITY_SUGGESTIONS.map((option) => {
+                const selected = option === universityName;
+
+                return (
+                  <Pressable
+                    key={option}
+                    style={[styles.selectionChip, selected && styles.selectionChipSelected, submitting && styles.disabledButton]}
+                    onPress={() => setUniversityName(option)}
+                    disabled={submitting}
+                  >
+                    <Text style={[styles.selectionChipText, selected && styles.selectionChipTextSelected]}>{option}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
           </View>
 
           <Input label="생년월일" placeholder="예: 1990-01-01" value={birthDate} onChangeText={setBirthDate} editable={!submitting} />

@@ -20,6 +20,7 @@ type RegisterAccountInput = {
   provinceName: string;
   cityName?: string;
   districtName: string;
+  universityName?: string;
   addressDetail: string;
   birthDate: string;
 };
@@ -50,6 +51,7 @@ function isUserProfile(value: unknown): value is UserProfile {
     && (value.provinceName === undefined || typeof value.provinceName === 'string')
     && (value.cityName === undefined || typeof value.cityName === 'string')
     && typeof value.districtName === 'string'
+    && (value.universityName === undefined || typeof value.universityName === 'string')
     && (value.addressDetail === undefined || typeof value.addressDetail === 'string')
     && typeof value.publicTag === 'string';
 }
@@ -282,6 +284,7 @@ export async function registerAccount({
   provinceName,
   cityName,
   districtName,
+  universityName,
   addressDetail,
   birthDate,
 }: RegisterAccountInput) {
@@ -293,6 +296,7 @@ export async function registerAccount({
   const normalizedProvinceName = provinceName.trim();
   const normalizedCityName = cityName?.trim() ?? '';
   const normalizedDistrictName = districtName.trim();
+  const normalizedUniversityName = universityName?.trim() ?? '';
   const normalizedAddressDetail = addressDetail.trim();
   const normalizedBirthDate = birthDate.trim();
 
@@ -335,6 +339,7 @@ export async function registerAccount({
       provinceName: normalizedProvinceName,
       cityName: normalizedCityName || undefined,
       districtName: normalizedDistrictName,
+      universityName: normalizedUniversityName || undefined,
       addressDetail: normalizedAddressDetail,
       publicTag: myProfile.publicTag,
     };
@@ -353,6 +358,7 @@ export async function registerAccount({
       provinceName: normalizedProvinceName,
       cityName: normalizedCityName,
       districtName: normalizedDistrictName,
+      universityName: normalizedUniversityName,
       addressDetail: normalizedAddressDetail,
       birthDate: normalizedBirthDate,
     },

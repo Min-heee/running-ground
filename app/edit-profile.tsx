@@ -61,6 +61,7 @@ export default function EditProfileScreen() {
             <Input label="이름" value={name} onChangeText={setName} editable={!saving} />
             <Input label="내 태그" value={profile.publicTag} editable={false} />
             <Input label="대표 지역" value={profile.districtName} editable={false} />
+            <Input label="소속 대학" value={profile.universityName ?? '미설정'} editable={false} />
             <Input label="상태 메시지" value="러닝 경쟁 진행 중" editable={false} />
             <PrimaryButton label={saving ? '저장 중...' : '저장하기'} onPress={handleSave} />
             {saved ? <Text style={styles.savedText}>프로필이 저장됐어.</Text> : null}

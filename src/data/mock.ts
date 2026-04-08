@@ -1,4 +1,4 @@
-import { ConnectedSource, DistrictBattleRank, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, RegionDrilldownNode, UserProfile, WeeklySummary } from '@/domain/types';
+import { ConnectedSource, DistrictBattleRank, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, RegionDrilldownNode, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
 import { addressCatalog, type AddressRegionNode } from '@/features/location/addressCatalog';
 
 export const myProfile: UserProfile = {
@@ -124,6 +124,17 @@ export const districtBattleRanks: DistrictBattleRank[] = [
   { rank: 3, districtName: '강남구', averageDistanceKm: 24.7, participationRate: 62, participants: 128 },
   { rank: 4, districtName: '마포구', averageDistanceKm: 23.9, participationRate: 58, participants: 119 },
   { rank: 5, districtName: '성동구', averageDistanceKm: 22.8, participationRate: 55, participants: 111 },
+];
+
+export const universityLeagueRanks: UniversityLeagueRank[] = [
+  { rank: 1, universityName: '서울대학교', totalDistanceKm: 312.4, participants: 18 },
+  { rank: 2, universityName: '연세대학교', totalDistanceKm: 286.7, participants: 16 },
+  { rank: 3, universityName: '고려대학교', totalDistanceKm: 271.9, participants: 15 },
+  { rank: 4, universityName: '성균관대학교', totalDistanceKm: 224.8, participants: 13 },
+  { rank: 5, universityName: '한양대학교', totalDistanceKm: 212.5, participants: 12 },
+  { rank: 6, universityName: '경희대학교', totalDistanceKm: 194.3, participants: 11 },
+  { rank: 7, universityName: '중앙대학교', totalDistanceKm: 181.6, participants: 10 },
+  { rank: 8, universityName: '이화여자대학교', totalDistanceKm: 169.2, participants: 9 },
 ];
 
 function roundRegionMetric(value: number) {

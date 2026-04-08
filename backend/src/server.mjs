@@ -1,9 +1,8 @@
 import { createServer } from 'node:http';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { loadStore, mutateStore, getStoreFilePath } from './store.mjs';
-
-const HOST = process.env.HOST ?? '0.0.0.0';
-const PORT = Number(process.env.PORT ?? '8081');
+import { loadStore, mutateStore, getStoreFilePath, resetStore } from './store.mjs';
+import { ADMIN_TOKEN, CORS_ORIGIN, ENABLE_ADMIN_STATUS, ENABLE_RESET_ENDPOINT, HOST, PORT, getPublicBackendConfig } from './config.mjs';
+const STARTED_AT = new Date().toISOString();
 
 const DISTRICT_BATTLE = {
   강남구: {
@@ -90,11 +89,17 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function buildCorsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': CORS_ORIGIN,
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token',
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
+  };
+}
+
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
+    ...buildCorsHeaders(),
     'Content-Type': 'application/json; charset=utf-8',
   });
   response.end(JSON.stringify(payload));
@@ -182,6 +187,18 @@ function requireUser(store, request) {
   return findUserByToken(store, getAccessToken(request));
 }
 
+function requireAdmin(request) {
+  if (!ADMIN_TOKEN) {
+    throw new ApiError(404, '관리자 기능이 아직 설정되지 않았어.');
+  }
+
+  const providedToken = String(request.headers['x-admin-token'] ?? '').trim();
+
+  if (!providedToken || providedToken !== ADMIN_TOKEN) {
+    throw new ApiError(401, '관리자 토큰이 올바르지 않아.');
+  }
+}
+
 function findUserById(store, userId) {
   const user = store.users.find((entry) => entry.id === userId);
 
@@ -208,6 +225,7 @@ function buildProfile(user) {
     ...(typeof user.provinceName === 'string' && user.provinceName ? { provinceName: user.provinceName } : {}),
     ...(typeof user.cityName === 'string' && user.cityName ? { cityName: user.cityName } : {}),
     districtName: user.districtName,
+    ...(typeof user.universityName === 'string' && user.universityName ? { universityName: user.universityName } : {}),
     ...(typeof user.addressDetail === 'string' && user.addressDetail ? { addressDetail: user.addressDetail } : {}),
     publicTag: user.publicTag,
   };
@@ -492,6 +510,67 @@ function buildRegionLeague(store, nodeId) {
   };
 }
 
+function buildUniversityLeague(store) {
+  const universityMap = new Map();
+
+  for (const user of store.users) {
+    const universityName = typeof user.universityName === 'string' ? user.universityName.trim() : '';
+
+    if (!universityName) {
+      continue;
+    }
+
+    const current = universityMap.get(universityName) ?? {
+      universityName,
+      totalDistanceKm: 0,
+      participants: 0,
+    };
+
+    current.totalDistanceKm = Number((current.totalDistanceKm + getTotalDistance(getRunsForUser(store, user.id))).toFixed(1));
+    current.participants += 1;
+    universityMap.set(universityName, current);
+  }
+
+  const ranks = [...universityMap.values()]
+    .sort((left, right) => {
+      if (right.totalDistanceKm !== left.totalDistanceKm) {
+        return right.totalDistanceKm - left.totalDistanceKm;
+      }
+
+      if (right.participants !== left.participants) {
+        return right.participants - left.participants;
+      }
+
+      return left.universityName.localeCompare(right.universityName, 'ko');
+    })
+    .map((entry, index) => ({
+      rank: index + 1,
+      universityName: entry.universityName,
+      totalDistanceKm: Number(entry.totalDistanceKm.toFixed(1)),
+      participants: entry.participants,
+    }));
+
+  return { ranks };
+}
+
+function buildAdminStatus(store) {
+  return {
+    status: 'ok',
+    startedAt: STARTED_AT,
+    uptimeSeconds: Math.round(process.uptime()),
+    storeFile: getStoreFilePath(),
+    config: getPublicBackendConfig(),
+    counts: {
+      users: store.users.length,
+      runs: store.runs.length,
+      friendships: store.friendships.length,
+      friendRequests: store.friendRequests.length,
+      sessions: store.sessions.length,
+      rewardRedemptions: (store.rewardRedemptions ?? []).length,
+    },
+  };
+}
+
 function buildFriendActivity(store, currentUserId, friendId) {
   const friend = findUserById(store, friendId);
   const runs = getRunsForUser(store, friend.id);
@@ -661,6 +740,7 @@ async function handleRegister(request, response) {
   const provinceName = validateRequiredString(body.provinceName, '시/도를 선택해줘.');
   const cityName = typeof body.cityName === 'string' ? body.cityName.trim() : '';
   const districtName = validateRequiredString(body.districtName, '사는 지역을 입력해줘.');
+  const universityName = typeof body.universityName === 'string' ? body.universityName.trim() : '';
   const addressDetail = validateRequiredString(body.addressDetail, '상세 주소를 입력해줘.');
   const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해줘.');
 
@@ -693,6 +773,7 @@ async function handleRegister(request, response) {
       provinceName,
       cityName,
       districtName,
+      ...(universityName ? { universityName } : {}),
       addressDetail,
       publicTag: createPublicTag(store),
       friendDistanceKm: 12.3,
@@ -988,9 +1069,7 @@ async function routeRequest(request, response) {
 
   if (request.method === 'OPTIONS') {
     response.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
+      ...buildCorsHeaders(),
     });
     response.end();
     return;
@@ -1002,9 +1081,41 @@ async function routeRequest(request, response) {
   if (pathname === '/api/health' && request.method === 'GET') {
     sendJson(response, 200, {
       status: 'ok',
+      startedAt: STARTED_AT,
+      uptimeSeconds: Math.round(process.uptime()),
       storeFile: getStoreFilePath(),
+      config: getPublicBackendConfig(),
       now: new Date().toISOString(),
     });
+    return;
+  }
+
+  if (pathname === '/api/admin/status' && request.method === 'GET') {
+    if (!ENABLE_ADMIN_STATUS) {
+      throw new ApiError(404, '관리자 상태 확인 기능이 비활성화되어 있어.');
+    }
+
+    requireAdmin(request);
+    const store = loadStore();
+    sendJson(response, 200, buildAdminStatus(store));
+    return;
+  }
+
+  if (pathname === '/api/admin/reset' && request.method === 'POST') {
+    if (!ENABLE_RESET_ENDPOINT) {
+      throw new ApiError(404, '관리자 리셋 기능이 비활성화되어 있어.');
+    }
+
+    requireAdmin(request);
+    const nextStore = resetStore();
+    const payload = {
+      success: true,
+      storeFile: getStoreFilePath(),
+      now: new Date().toISOString(),
+      counts: buildAdminStatus(nextStore).counts,
+    };
+
+    sendJson(response, 200, payload);
     return;
   }
 
@@ -1177,6 +1288,13 @@ async function routeRequest(request, response) {
     return;
   }
 
+  if (pathname === '/api/league/universities' && request.method === 'GET') {
+    const store = loadStore();
+    requireUser(store, request);
+    sendJson(response, 200, buildUniversityLeague(store));
+    return;
+  }
+
   if (pathname === '/api/runs/latest' && request.method === 'GET') {
     const store = loadStore();
     const user = requireUser(store, request);
@@ -1209,4 +1327,5 @@ const server = createServer(async (request, response) => {
 server.listen(PORT, HOST, () => {
   console.log(`[runnigapp-backend] listening on http://${HOST}:${PORT}`);
   console.log(`[runnigapp-backend] store: ${getStoreFilePath()}`);
+  console.log(`[runnigapp-backend] env: ${getPublicBackendConfig().usingEnvFile ? 'backend/.env loaded' : 'process env only'}`);
 });

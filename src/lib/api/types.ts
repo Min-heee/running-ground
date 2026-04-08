@@ -1,4 +1,4 @@
-import { ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, RegionDrilldownNode, RunSourceType, UserProfile, WeeklySummary } from '@/domain/types';
+import { ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, RegionDrilldownNode, RunSourceType, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
 
 export type HomeSummaryResponse = WeeklySummary;
 export type MarketOverviewResponse = MarketOverview;
@@ -106,6 +106,10 @@ export type RegionLeagueResponse = {
   currentNode: RegionDrilldownNode;
   breadcrumb: RegionBreadcrumbItem[];
   children: RegionDrilldownNode[];
+};
+
+export type UniversityLeagueResponse = {
+  ranks: UniversityLeagueRank[];
 };
 
 export type RunDetailResponse = {

@@ -60,7 +60,9 @@ export default function MyPageScreen() {
             </View>
             <View style={styles.profileMeta}>
               <Text style={styles.name}>{profile.name}</Text>
-              <Text style={styles.subline}>{profile.districtName} · 러닝 경쟁 진행 중</Text>
+              <Text style={styles.subline}>
+                {[profile.districtName, profile.universityName, '러닝 경쟁 진행 중'].filter(Boolean).join(' · ')}
+              </Text>
               <Text style={styles.tag}>{profile.publicTag}</Text>
             </View>
           </Card>

@@ -52,6 +52,7 @@ export type UserProfile = {
   provinceName?: string;
   cityName?: string;
   districtName: string;
+  universityName?: string;
   addressDetail?: string;
   publicTag: string;
 };
@@ -126,4 +127,11 @@ export type MarketOverview = {
   currentPoints: number;
   totalRedeemedCount: number;
   items: MarketRewardItem[];
+};
+
+export type UniversityLeagueRank = {
+  rank: number;
+  universityName: string;
+  totalDistanceKm: number;
+  participants: number;
 };

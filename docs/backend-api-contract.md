@@ -28,6 +28,7 @@ Response example:
   "user": {
     "name": "민병희",
     "districtName": "강남구",
+    "universityName": "서울대학교",
     "publicTag": "#BH7K2"
   }
 }
@@ -46,6 +47,7 @@ Request example:
   "provinceName": "서울특별시",
   "cityName": "",
   "districtName": "강남구",
+  "universityName": "서울대학교",
   "addressDetail": "테헤란로 123, 101동 1203호",
   "birthDate": "1990-01-01"
 }
@@ -53,6 +55,7 @@ Request example:
 
 Response shape:
 - same as login response
+- `universityName` is optional. If it is empty, the user is simply excluded from the university league until they choose one later.
 
 ---
 
@@ -137,6 +140,7 @@ Expected behavior:
   "name": "민병희",
   "provinceName": "서울특별시",
   "districtName": "강남구",
+  "universityName": "서울대학교",
   "addressDetail": "테헤란로 123",
   "publicTag": "#BH7K2"
 }
@@ -489,6 +493,29 @@ Query:
   ]
 }
 ```
+
+---
+
+## 12. University league
+### GET `/api/league/universities`
+
+```json
+{
+  "ranks": [
+    {
+      "rank": 1,
+      "universityName": "서울대학교",
+      "totalDistanceKm": 312.4,
+      "participants": 18
+    }
+  ]
+}
+```
+
+Expected behavior:
+- only users with a non-empty `universityName` are aggregated.
+- when a new user signs up with a university that does not exist yet, that university should appear automatically in the next response.
+- `ranks` are sorted by `totalDistanceKm DESC`, then `participants DESC`, then university name.
 
 Expected behavior:
 - `currentNode` is the region selected by `nodeId`, or the Korea root when `nodeId` is missing.

@@ -1,12 +1,10 @@
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import { createSeedStore, createRegionTree } from './seed.mjs';
+import { STORE_FILE } from './config.mjs';
 
-const currentFilePath = fileURLToPath(import.meta.url);
-const currentDirectory = dirname(currentFilePath);
-const dataDirectory = join(currentDirectory, '..', 'data');
-const storeFilePath = join(dataDirectory, 'store.json');
+const dataDirectory = dirname(STORE_FILE);
+const storeFilePath = STORE_FILE;
 
 let cachedStore = null;
 
