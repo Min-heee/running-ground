@@ -4,7 +4,6 @@ import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
-import { InfoCard } from '@/components/ui/InfoCard';
 import { addressCatalog, AddressRegionNode } from '@/features/location/addressCatalog';
 import { registerAccount } from '@/lib/session';
 
@@ -63,7 +62,7 @@ export default function SignupFormScreen() {
         addressDetail,
         birthDate,
       });
-      router.push('/connect-sources');
+      router.replace('/(tabs)/home');
     } catch (signupError) {
       setError(signupError instanceof Error ? signupError.message : '회원가입에 실패했어.');
     } finally {
@@ -73,9 +72,7 @@ export default function SignupFormScreen() {
 
   return (
     <Screen>
-      <AuthHeader title="계정으로 회원가입" subtitle="기본 정보와 주소를 선택하면 바로 다음 단계인 기록 연동으로 넘어갈 수 있어." />
-
-      <InfoCard title="다음 단계">회원가입 완료 후 기록 연동을 연결하면 홈에서 바로 경쟁을 시작할 수 있어.</InfoCard>
+      <AuthHeader title="계정으로 회원가입" subtitle="기본 정보만 입력하면 바로 홈에서 경쟁을 시작할 수 있어요." />
 
       <Card>
         <View style={styles.form}>
@@ -177,7 +174,7 @@ export default function SignupFormScreen() {
           <Input label="생년월일" placeholder="예: 1990-01-01" value={birthDate} onChangeText={setBirthDate} editable={!submitting} />
 
           <Pressable style={[styles.primaryButton, submitting ? styles.disabledButton : null]} onPress={handleSignup} disabled={submitting}>
-            {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>회원가입하고 연동 단계로</Text>}
+            {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>회원가입하고 시작</Text>}
           </Pressable>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>

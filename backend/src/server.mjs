@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { loadStore, mutateStore, getStoreFilePath, resetStore } from './store.mjs';
 import { ADMIN_TOKEN, CORS_ORIGIN, ENABLE_ADMIN_STATUS, ENABLE_RESET_ENDPOINT, HOST, PORT, getPublicBackendConfig } from './config.mjs';
 const STARTED_AT = new Date().toISOString();
+const MIN_FRIEND_LEADERBOARD_SIZE = 7;
 
 const DISTRICT_BATTLE = {
   강남구: {
@@ -444,7 +445,14 @@ function buildMyActivity(store, user) {
 }
 
 function buildFriendLeaderboard(store, user) {
-  const currentAndFriends = [user.id, ...getFriendIds(store, user.id)]
+  const relatedUserIds = new Set([user.id, ...getFriendIds(store, user.id)]);
+  const fillerUserIds = store.users
+    .filter((entry) => !relatedUserIds.has(entry.id))
+    .sort(compareFriendRank)
+    .slice(0, Math.max(0, MIN_FRIEND_LEADERBOARD_SIZE - relatedUserIds.size))
+    .map((entry) => entry.id);
+
+  const currentAndFriends = [...relatedUserIds, ...fillerUserIds]
     .map((userId) => findUserById(store, userId))
     .sort(compareFriendRank)
     .map((entry, index) => buildFriendRank(entry, index + 1));

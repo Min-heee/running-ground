@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
+import * as Clipboard from 'expo-clipboard';
 import { Screen } from '@/components/Screen';
 import { FriendsRanking } from '@/features/friends/FriendsRanking';
 import { acceptFriendRequest, cancelFriendRequest, fetchFriendLeaderboard, fetchMyProfile, rejectFriendRequest } from '@/lib/api/services';
 import { FriendLeaderboardResponse, MyProfileResponse } from '@/lib/api/types';
-import { InfoCard } from '@/components/ui/InfoCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -19,6 +19,7 @@ export default function FriendsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
   const syncFriends = async () => {
     const [leaderboardData, profileData] = await Promise.all([fetchFriendLeaderboard(), fetchMyProfile()]);
@@ -93,6 +94,19 @@ export default function FriendsScreen() {
     }
   };
 
+  const handleCopyTag = async () => {
+    if (!profile?.publicTag) {
+      return;
+    }
+
+    try {
+      await Clipboard.setStringAsync(profile.publicTag);
+      setCopyMessage('내 태그를 복사했어.');
+    } catch {
+      setCopyMessage('태그 복사에 실패했어.');
+    }
+  };
+
   return (
     <Screen>
       <View style={styles.headerWrap}>
@@ -121,7 +135,19 @@ export default function FriendsScreen() {
 
           <FriendsRanking ranks={leaderboard.ranks} highlightTag={profile.publicTag} />
 
-          <InfoCard title="내 태그">{`${profile.publicTag} · 친구에게 공유해서 쉽게 추가할 수 있어.`}</InfoCard>
+          <Card style={styles.tagCard}>
+            <View style={styles.tagHeaderRow}>
+              <View style={styles.tagCopy}>
+                <Text style={styles.tagTitle}>내 태그</Text>
+                <Text style={styles.tagValue}>{profile.publicTag}</Text>
+              </View>
+              <Pressable style={styles.copyButton} onPress={handleCopyTag}>
+                <Text style={styles.copyButtonText}>복사</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.tagDescription}>친구 추가 화면에서 이 태그로 바로 검색할 수 있어.</Text>
+            {copyMessage ? <Text style={styles.copyMessage}>{copyMessage}</Text> : null}
+          </Card>
 
           <Card>
             <Text style={styles.sectionTitle}>친구 요청 상태</Text>
@@ -227,6 +253,50 @@ const styles = StyleSheet.create({
   },
   heroSub: {
     color: '#D0D5DD',
+    lineHeight: 20,
+  },
+  tagCard: {
+    gap: 10,
+  },
+  tagHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  tagCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  tagTitle: {
+    color: '#667085',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  tagValue: {
+    color: '#111827',
+    fontSize: 24,
+    fontWeight: '900',
+    includeFontPadding: false,
+  },
+  tagDescription: {
+    color: '#475467',
+    lineHeight: 20,
+  },
+  copyButton: {
+    backgroundColor: '#111827',
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  copyButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  copyMessage: {
+    color: '#067647',
+    fontWeight: '700',
     lineHeight: 20,
   },
   sectionTitle: {

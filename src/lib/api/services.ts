@@ -1,5 +1,6 @@
 import {
   connectedSources,
+  createOfflineRaceHubMock,
   districtPersonalRanks,
   friendRanks,
   friendRequests,
@@ -12,7 +13,7 @@ import {
   universityLeagueRanks,
   weeklySummary,
 } from '@/data/mock';
-import { MarketOverview, MarketRewardItem, RegionDrilldownNode, RunSourceType, UniversityLeagueRank } from '@/domain/types';
+import { MarketOverview, MarketRewardItem, OfflineRaceEvent, OfflineRaceHub, OfflineRaceStatus, RegionDrilldownNode, RunSourceType, UniversityLeagueRank } from '@/domain/types';
 import { getAccessToken, getCurrentUserProfile, setCurrentUserProfile } from '@/lib/session';
 import { apiGet, apiPatch, apiPost } from './client';
 import { USE_MOCK_API } from './config';
@@ -31,6 +32,8 @@ import {
   MyActivityResponse,
   MyProfileResponse,
   NotificationSettingsResponse,
+  OfflineRaceEntryActionResponse,
+  OfflineRaceHubResponse,
   RegionLeagueResponse,
   RunDetailResponse,
   UpdateNotificationSettingsInput,
@@ -55,6 +58,28 @@ let mockClaimedMarketItemIds = new Set(
     .map((item) => item.id),
 );
 const mockMarketCatalog = marketOverview.items.map(({ claimState, ...item }) => ({ ...item }));
+type MockOfflineRaceEventState = Omit<OfflineRaceEvent, 'registered' | 'status'> & {
+  registeredUserTags: string[];
+};
+
+type MockOfflineRaceHubState = Omit<OfflineRaceHub, 'featuredEvent' | 'upcomingEvents'> & {
+  featuredEvent: MockOfflineRaceEventState;
+  upcomingEvents: MockOfflineRaceEventState[];
+};
+
+const initialOfflineRaceHub = createOfflineRaceHubMock();
+let mockOfflineRaceHubState: MockOfflineRaceHubState = {
+  featuredEvent: {
+    ...initialOfflineRaceHub.featuredEvent,
+    registeredUserTags: [],
+  },
+  upcomingEvents: initialOfflineRaceHub.upcomingEvents.map((event) => ({
+    ...event,
+    registeredUserTags: [],
+  })),
+  pastEvents: initialOfflineRaceHub.pastEvents.map((event) => ({ ...event })),
+  guideSteps: [...initialOfflineRaceHub.guideSteps],
+};
 
 function formatMockTimestamp(date = new Date()) {
   return date.toISOString().slice(0, 16).replace('T', ' ');
@@ -130,6 +155,132 @@ function normalizeMockUniversityRanks(ranks: UniversityLeagueRank[]) {
     }));
 }
 
+function getOfflineRaceStatus(event: Pick<OfflineRaceEvent, 'startsAt' | 'registrationClosesAt'>, now = new Date()): OfflineRaceStatus {
+  const startsAt = new Date(event.startsAt).getTime();
+  const registrationClosesAt = new Date(event.registrationClosesAt).getTime();
+  const currentTime = now.getTime();
+
+  if (currentTime >= startsAt + 2 * 60 * 60 * 1000) {
+    return 'finished';
+  }
+
+  if (currentTime >= startsAt) {
+    return 'live';
+  }
+
+  if (currentTime >= registrationClosesAt) {
+    return 'registration_closed';
+  }
+
+  if (registrationClosesAt - currentTime <= 3 * 60 * 60 * 1000) {
+    return 'registration_closing';
+  }
+
+  return 'registration_open';
+}
+
+function buildMyOfflineRacePreview() {
+  const profile = getCurrentUserProfile() ?? myProfile;
+
+  return {
+    id: 'offline-race-me',
+    name: profile.name,
+    paceGoal: '5:30/km',
+    regionLabel: profile.districtName,
+  };
+}
+
+function decorateOfflineRaceEvent(event: MockOfflineRaceEventState): OfflineRaceEvent {
+  const profile = getCurrentUserProfile() ?? myProfile;
+  const registered = event.registeredUserTags.includes(profile.publicTag);
+  const status = getOfflineRaceStatus(event);
+  const participantPreview = registered
+    ? [buildMyOfflineRacePreview(), ...event.participantPreview.filter((entry) => entry.name !== profile.name)].slice(0, 4)
+    : event.participantPreview;
+
+  const { registeredUserTags, ...rest } = event;
+
+  return {
+    ...rest,
+    participantPreview,
+    registered,
+    status,
+  };
+}
+
+function buildMockOfflineRaceHub(): OfflineRaceHubResponse {
+  return {
+    featuredEvent: decorateOfflineRaceEvent(mockOfflineRaceHubState.featuredEvent),
+    upcomingEvents: mockOfflineRaceHubState.upcomingEvents.map((event) => decorateOfflineRaceEvent(event)),
+    pastEvents: mockOfflineRaceHubState.pastEvents.map((event) => ({ ...event })),
+    guideSteps: [...mockOfflineRaceHubState.guideSteps],
+  };
+}
+
+function mutateMockOfflineRaceRegistration(
+  eventId: string,
+  action: 'join' | 'cancel',
+): OfflineRaceEntryActionResponse {
+  const profile = getCurrentUserProfile() ?? myProfile;
+  const eventGroups: Array<{ type: 'featured' | 'upcoming'; event: MockOfflineRaceEventState; index?: number }> = [
+    { type: 'featured', event: mockOfflineRaceHubState.featuredEvent },
+    ...mockOfflineRaceHubState.upcomingEvents.map((event, index) => ({ type: 'upcoming' as const, event, index })),
+  ];
+  const target = eventGroups.find((entry) => entry.event.id === eventId);
+
+  if (!target) {
+    throw new Error('참가할 레이스를 찾지 못했어.');
+  }
+
+  const event = target.event;
+  const currentStatus = getOfflineRaceStatus(event);
+
+  if (!['registration_open', 'registration_closing'].includes(currentStatus)) {
+    throw new Error('지금은 신청 가능한 시간이 아니야.');
+  }
+
+  const isRegistered = event.registeredUserTags.includes(profile.publicTag);
+
+  if (action === 'join') {
+    if (isRegistered) {
+      throw new Error('이미 신청한 레이스야.');
+    }
+
+    if (event.participantCount >= event.capacity) {
+      throw new Error('정원이 가득 차서 지금은 대기만 받을 수 있어.');
+    }
+
+    event.registeredUserTags = [...event.registeredUserTags, profile.publicTag];
+    event.participantCount += 1;
+  }
+
+  if (action === 'cancel') {
+    if (!isRegistered) {
+      throw new Error('아직 신청하지 않은 레이스야.');
+    }
+
+    event.registeredUserTags = event.registeredUserTags.filter((tag) => tag !== profile.publicTag);
+    event.participantCount = Math.max(0, event.participantCount - 1);
+  }
+
+  if (target.type === 'featured') {
+    mockOfflineRaceHubState = {
+      ...mockOfflineRaceHubState,
+      featuredEvent: event,
+    };
+  } else if (typeof target.index === 'number') {
+    mockOfflineRaceHubState = {
+      ...mockOfflineRaceHubState,
+      upcomingEvents: mockOfflineRaceHubState.upcomingEvents.map((item, index) => (index === target.index ? event : item)),
+    };
+  }
+
+  return {
+    success: true,
+    event: decorateOfflineRaceEvent(event),
+  };
+}
+
 async function requireAccessToken() {
   const accessToken = await getAccessToken();
 
@@ -176,6 +327,59 @@ export async function fetchMarketOverview(): Promise<MarketOverviewResponse> {
     accessToken: await requireAccessToken(),
     fallbackMessage: '마켓 정보를 불러오지 못했어.',
   });
+}
+
+export async function fetchOfflineRaceHub(): Promise<OfflineRaceHubResponse> {
+  if (USE_MOCK_API) {
+    return buildMockOfflineRaceHub();
+  }
+
+  try {
+    return await apiGet<OfflineRaceHubResponse>('/offline-races/hub', {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '오프라인 마라톤 정보를 불러오지 못했어.',
+    });
+  } catch {
+    return buildMockOfflineRaceHub();
+  }
+}
+
+export async function joinOfflineRace(eventId: string): Promise<OfflineRaceEntryActionResponse> {
+  if (USE_MOCK_API) {
+    return mutateMockOfflineRaceRegistration(eventId, 'join');
+  }
+
+  try {
+    return await apiPost<OfflineRaceEntryActionResponse>(
+      `/offline-races/${eventId}/join`,
+      {},
+      {
+        accessToken: await requireAccessToken(),
+        fallbackMessage: '레이스 신청에 실패했어.',
+      },
+    );
+  } catch {
+    return mutateMockOfflineRaceRegistration(eventId, 'join');
+  }
+}
+
+export async function cancelOfflineRace(eventId: string): Promise<OfflineRaceEntryActionResponse> {
+  if (USE_MOCK_API) {
+    return mutateMockOfflineRaceRegistration(eventId, 'cancel');
+  }
+
+  try {
+    return await apiPost<OfflineRaceEntryActionResponse>(
+      `/offline-races/${eventId}/cancel`,
+      {},
+      {
+        accessToken: await requireAccessToken(),
+        fallbackMessage: '레이스 신청 취소에 실패했어.',
+      },
+    );
+  } catch {
+    return mutateMockOfflineRaceRegistration(eventId, 'cancel');
+  }
 }
 
 export async function fetchMyActivity(): Promise<MyActivityResponse> {

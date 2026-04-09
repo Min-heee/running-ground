@@ -1,103 +1,95 @@
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { Card } from '@/components/Card';
-import { SectionTitle } from '@/components/SectionTitle';
-import { WeeklySummary } from '@/domain/types';
+import { OfflineRaceEvent, WeeklySummary } from '@/domain/types';
 
-export function HomeOverview({ summary }: { summary: WeeklySummary }) {
+type HomeFriendOverview = {
+  myRank: number | null;
+  totalParticipants: number;
+  leaderName: string;
+};
+
+const raceDateFormatter = new Intl.DateTimeFormat('ko-KR', {
+  month: 'numeric',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+export function HomeOverview({
+  summary,
+  friendOverview,
+  nextRace,
+}: {
+  summary: WeeklySummary;
+  friendOverview: HomeFriendOverview | null;
+  nextRace: OfflineRaceEvent | null;
+}) {
+  const friendRankLabel = friendOverview?.myRank ? `${friendOverview.myRank}위` : '친구 추가';
+  const friendSubLabel = friendOverview?.myRank
+    ? friendOverview.myRank === 1
+      ? `지금 ${friendOverview.totalParticipants}명 중 1위를 달리고 있어요`
+      : `1위 ${friendOverview.leaderName} · ${summary.friendGapKm}km 차이`
+    : '친구를 추가하면 내 순위를 바로 볼 수 있어요';
+  const nextRaceTitle = nextRace?.title ?? '다음 레이스 준비 중';
+  const nextRaceTime = nextRace ? raceDateFormatter.format(new Date(nextRace.startsAt)) : '일정 업데이트 예정';
+  const nextRaceDeadline = nextRace
+    ? `${raceDateFormatter.format(new Date(nextRace.registrationClosesAt))} 마감`
+    : '다음 회차가 열리면 바로 확인할 수 있어요';
+
   return (
     <>
-      <View style={styles.headerCard}>
-        <Text style={styles.eyebrow}>RUNNIGAPP</Text>
-        <Text style={styles.title}>오늘의 핵심 경쟁</Text>
-        <Text style={styles.subtitle}>지금 가장 중요한 건 우리 지역의 순위와 평균 거리야.</Text>
-      </View>
-
-      <Card style={styles.heroBattleCard}>
-        <Text style={styles.heroLabel}>우리 지역 배틀</Text>
-        <Text style={styles.heroDistrict}>{summary.districtBattle.myDistrict}</Text>
-        <View style={styles.heroMetrics}>
-          <View style={styles.heroMetricBox}>
-            <Text style={styles.heroMetricValue}>{summary.districtBattle.districtRank}위</Text>
-            <Text style={styles.heroMetricLabel}>현재 순위</Text>
+      <Pressable onPress={() => router.push('/(tabs)/league')}>
+        <Card style={styles.regionCard}>
+          <Text style={styles.darkEyebrow}>우리 지역 배틀</Text>
+          <Text style={styles.regionTitle}>{summary.districtBattle.myDistrict}</Text>
+          <View style={styles.regionMetricRow}>
+            <View style={styles.regionMetricBox}>
+              <Text style={styles.regionMetricLabel}>현재 순위</Text>
+              <Text style={styles.regionMetricValue}>{summary.districtBattle.districtRank}위</Text>
+            </View>
+            <View style={styles.regionMetricBox}>
+              <Text style={styles.regionMetricLabel}>총거리</Text>
+              <Text style={styles.regionMetricValue}>{summary.districtBattle.totalDistanceKm}km</Text>
+            </View>
           </View>
-          <View style={styles.heroMetricBox}>
-            <Text style={styles.heroMetricValue}>{summary.districtBattle.averageDistancePerMember}km</Text>
-            <Text style={styles.heroMetricLabel}>평균 거리</Text>
-          </View>
-        </View>
-        <Text style={styles.heroFootnote}>총 거리 {summary.districtBattle.totalDistanceKm}km · 참여율 {summary.districtBattle.participationRate}%</Text>
-        <Pressable style={styles.heroAction} onPress={() => router.push('/(tabs)/league')}>
-          <Text style={styles.heroActionText}>지역 경쟁 자세히 보기</Text>
-        </Pressable>
-      </Card>
+          <Text style={styles.regionFootnote}>참여율 {summary.districtBattle.participationRate}%</Text>
+        </Card>
+      </Pressable>
 
-      <Card>
-        <SectionTitle>빠른 이동</SectionTitle>
-        <View style={styles.quickActionGrid}>
-          <Pressable style={styles.quickActionCard} onPress={() => router.push('/(tabs)/friends')}>
-            <Text style={styles.quickActionTitle}>친구 랭킹</Text>
-            <Text style={styles.quickActionSub}>친구 경쟁 보러가기</Text>
-          </Pressable>
-          <Pressable style={styles.quickActionCard} onPress={() => router.push('/my-activity')}>
-            <Text style={styles.quickActionTitle}>내 활동</Text>
-            <Text style={styles.quickActionSub}>내가 뛴 기록 보기</Text>
-          </Pressable>
-          <Pressable style={styles.quickActionCard} onPress={() => router.push('/district-personal')}>
-            <Text style={styles.quickActionTitle}>구 내 경쟁</Text>
-            <Text style={styles.quickActionSub}>내 순위 확인하기</Text>
-          </Pressable>
-          <Pressable style={styles.quickActionCard} onPress={() => router.push('/(tabs)/mypage')}>
-            <Text style={styles.quickActionTitle}>마이페이지</Text>
-            <Text style={styles.quickActionSub}>설정 관리하기</Text>
-          </Pressable>
+      <Card style={styles.statusCard}>
+        <View style={styles.statusMetric}>
+          <Text style={styles.statusLabel}>이번 주 거리</Text>
+          <Text style={styles.statusValue}>{summary.totalDistanceKm}km</Text>
         </View>
-      </Card>
-
-      <Card>
-        <SectionTitle>이번 주 요약</SectionTitle>
-        <View style={styles.grid}>
-          <Metric label="거리" value={`${summary.totalDistanceKm}km`} />
-          <Metric label="러닝" value={`${summary.totalRuns}회`} />
-          <Metric label="목표" value={`${summary.goalAchievementRate}%`} />
-          <Metric label="streak" value={`${summary.streakDays}일`} />
+        <View style={styles.statusDivider} />
+        <View style={styles.statusMetric}>
+          <Text style={styles.statusLabel}>러닝</Text>
+          <Text style={styles.statusValue}>{summary.totalRuns}회</Text>
+        </View>
+        <View style={styles.statusDivider} />
+        <View style={styles.statusMetric}>
+          <Text style={styles.statusLabel}>연속</Text>
+          <Text style={styles.statusValue}>{summary.streakDays}일</Text>
         </View>
       </Card>
 
       <View style={styles.twoColumnRow}>
         <Pressable style={styles.linkCardWrap} onPress={() => router.push('/(tabs)/friends')}>
-          <Card style={styles.halfCard}>
-            <SectionTitle>친구 경쟁</SectionTitle>
-            <Text style={styles.body}>{summary.friendName}와</Text>
-            <Text style={styles.highlight}>{summary.friendGapKm}km 차이</Text>
-            <Text style={styles.muted}>Point + km</Text>
+          <Card style={styles.compactCard}>
+            <Text style={styles.cardEyebrow}>친구 랭킹</Text>
+            <Text style={styles.compactLabel}>내 순위</Text>
+            <Text style={styles.compactValue}>{friendRankLabel}</Text>
+            <Text style={styles.muted}>{friendSubLabel}</Text>
           </Card>
         </Pressable>
 
-        <Pressable style={styles.linkCardWrap} onPress={() => router.push('/district-personal')}>
-          <Card style={styles.halfCard}>
-            <SectionTitle>구 내 경쟁</SectionTitle>
-            <Text style={styles.body}>{summary.districtName}</Text>
-            <Text style={styles.highlight}>{summary.districtRank}위</Text>
-            <Text style={styles.muted}>{summary.totalDistanceKm}km / {summary.districtPoints}P</Text>
-          </Card>
-        </Pressable>
-      </View>
-
-      <View style={styles.twoColumnRow}>
-        <Pressable style={styles.linkCardWrap} onPress={() => router.push('/integration-management')}>
-          <Card style={styles.halfCard}>
-            <SectionTitle>기록 연동</SectionTitle>
-            <Text style={styles.body}>Apple Health</Text>
-            <Text style={styles.muted}>Garmin · NRC · Strava 확장</Text>
-          </Card>
-        </Pressable>
-
-        <Pressable style={styles.linkCardWrap} onPress={() => router.push('/my-activity')}>
-          <Card style={styles.halfCard}>
-            <SectionTitle>최근 기록</SectionTitle>
-            <Text style={styles.body}>{summary.latestRun.distanceKm}km 완료</Text>
-            <Text style={styles.muted}>{summary.latestRun.source}</Text>
+        <Pressable style={styles.linkCardWrap} onPress={() => router.push('/(tabs)/race')}>
+          <Card style={styles.compactCard}>
+            <Text style={styles.cardEyebrow}>다음 레이스</Text>
+            <Text style={styles.compactLabel}>{nextRaceTitle}</Text>
+            <Text style={styles.compactValueSmall}>{nextRaceTime}</Text>
+            <Text style={styles.muted}>{nextRaceDeadline}</Text>
           </Card>
         </Pressable>
       </View>
@@ -105,104 +97,71 @@ export function HomeOverview({ summary }: { summary: WeeklySummary }) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.metric}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  headerCard: {
-    backgroundColor: '#6D5EF7',
-    borderRadius: 24,
-    padding: 20,
-    gap: 8,
-  },
-  eyebrow: { color: '#E9E7FF', fontWeight: '700', fontSize: 12 },
-  title: { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
-  subtitle: { color: '#F4F3FF', lineHeight: 21 },
-  heroBattleCard: {
+  regionCard: {
     backgroundColor: '#111827',
     gap: 10,
   },
-  heroLabel: {
+  darkEyebrow: {
     color: '#C7D2FE',
     fontWeight: '700',
     fontSize: 12,
   },
-  heroDistrict: {
+  regionTitle: {
     color: '#FFFFFF',
     fontSize: 30,
     fontWeight: '800',
   },
-  heroMetrics: {
+  regionMetricRow: {
     flexDirection: 'row',
     gap: 10,
   },
-  heroMetricBox: {
+  regionMetricBox: {
     flex: 1,
     backgroundColor: '#1F2937',
     borderRadius: 16,
     padding: 14,
     gap: 4,
   },
-  heroMetricValue: {
+  regionMetricLabel: {
+    color: '#D0D5DD',
+    fontSize: 12,
+  },
+  regionMetricValue: {
     color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '800',
   },
-  heroMetricLabel: {
-    color: '#D0D5DD',
-  },
-  heroFootnote: {
+  regionFootnote: {
     color: '#98A2B3',
     lineHeight: 20,
   },
-  heroAction: {
-    backgroundColor: '#6D5EF7',
-    borderRadius: 14,
-    paddingVertical: 12,
+  statusCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 0,
+    paddingVertical: 14,
+  },
+  statusMetric: {
+    flex: 1,
+    gap: 4,
     alignItems: 'center',
   },
-  heroActionText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  quickActionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  quickActionCard: {
-    width: '47%',
-    backgroundColor: '#F8F7FF',
-    borderRadius: 16,
-    padding: 14,
-    gap: 4,
-    borderWidth: 1,
-    borderColor: '#E9E7FF',
-  },
-  quickActionTitle: {
-    color: '#111827',
-    fontWeight: '800',
-  },
-  quickActionSub: {
+  statusLabel: {
     color: '#667085',
-    fontSize: 13,
+    fontSize: 12,
+    fontWeight: '600',
   },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  metric: {
-    width: '47%',
-    backgroundColor: '#F2F4F7',
-    borderRadius: 16,
-    padding: 12,
-    gap: 4,
+  statusValue: {
+    color: '#111827',
+    fontSize: 20,
+    fontWeight: '800',
   },
-  metricLabel: { color: '#667085', fontSize: 12 },
-  metricValue: { color: '#111827', fontSize: 20, fontWeight: '800' },
+  statusDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#E5E7EB',
+  },
   twoColumnRow: {
     flexDirection: 'row',
     gap: 10,
@@ -210,11 +169,30 @@ const styles = StyleSheet.create({
   linkCardWrap: {
     flex: 1,
   },
-  halfCard: {
-    flex: 1,
-    minHeight: 132,
+  compactCard: {
+    minHeight: 156,
+    justifyContent: 'space-between',
   },
-  body: { color: '#101828', fontSize: 16, fontWeight: '700' },
-  highlight: { color: '#6D5EF7', fontSize: 24, fontWeight: '800' },
+  cardEyebrow: {
+    color: '#667085',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  compactLabel: {
+    color: '#101828',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  compactValue: {
+    color: '#111827',
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  compactValueSmall: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: '800',
+    lineHeight: 24,
+  },
   muted: { color: '#667085', lineHeight: 20 },
 });

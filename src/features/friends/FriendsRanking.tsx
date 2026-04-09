@@ -50,33 +50,30 @@ export function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
           return (
             <Link key={runner.id} href={{ pathname: '/friend-detail', params: { friendId: runner.id } }} asChild>
               <Pressable style={[styles.rankCard, isMine ? styles.myCard : null]}>
-                <View style={styles.rankHeader}>
+                <View style={styles.rankRow}>
                   <View style={styles.rankBadge}>
-                    <Text style={styles.rankBadgeText}>{runner.rank}</Text>
+                    <Text style={styles.rankBadgeText}>{runner.rank}위</Text>
                   </View>
 
                   <View style={styles.runnerMeta}>
                     <View style={styles.nameRow}>
-                      <Text style={styles.runnerName}>{runner.name}</Text>
+                      <Text numberOfLines={1} style={styles.runnerName}>
+                        {runner.name}
+                      </Text>
                       {isMine ? (
                         <View style={styles.selfBadge}>
                           <Text style={styles.selfBadgeText}>나</Text>
                         </View>
                       ) : null}
                     </View>
-                    {runner.tag ? <Text style={styles.runnerTag}>{runner.tag}</Text> : null}
-                  </View>
-                </View>
-
-                <View style={styles.metricsRow}>
-                  <View style={styles.metricCard}>
-                    <Text style={styles.metricLabel}>거리</Text>
-                    <Text style={styles.metricValue}>{runner.distanceKm}km</Text>
                   </View>
 
-                  <View style={styles.metricCard}>
-                    <Text style={styles.metricLabel}>포인트</Text>
-                    <Text style={styles.metricValue}>{runner.points}P</Text>
+                  <View style={styles.metricInline}>
+                    <Text style={styles.metricInlineValue}>{runner.distanceKm}km</Text>
+                  </View>
+
+                  <View style={styles.metricInline}>
+                    <Text style={styles.metricInlineValue}>{runner.points}P</Text>
                   </View>
                 </View>
               </Pressable>
@@ -172,62 +169,58 @@ const styles = StyleSheet.create({
   },
   rankCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 22,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: '#E4E7EC',
-    padding: 16,
-    gap: 14,
-    minHeight: 132,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
   },
   myCard: {
     borderColor: '#C7D2FE',
     backgroundColor: '#F8F9FF',
   },
-  rankHeader: {
+  rankRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   rankBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    minWidth: 52,
+    borderRadius: 999,
     backgroundColor: '#111827',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   rankBadgeText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '800',
     includeFontPadding: false,
   },
   runnerMeta: {
     flex: 1,
-    gap: 2,
+    minWidth: 0,
   },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
+    gap: 6,
+    minWidth: 0,
   },
   runnerName: {
     color: '#111827',
-    fontSize: 20,
+    flexShrink: 1,
+    fontSize: 16,
     fontWeight: '800',
-    includeFontPadding: false,
-  },
-  runnerTag: {
-    color: '#667085',
-    fontWeight: '600',
     includeFontPadding: false,
   },
   selfBadge: {
     backgroundColor: '#EEF2FF',
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
   },
   selfBadgeText: {
     color: '#4338CA',
@@ -235,28 +228,14 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     includeFontPadding: false,
   },
-  metricsRow: {
-    flexDirection: 'row',
-    gap: 10,
+  metricInline: {
+    width: 72,
+    alignItems: 'flex-end',
   },
-  metricCard: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  metricLabel: {
-    color: '#667085',
-    fontSize: 12,
-    fontWeight: '600',
-    includeFontPadding: false,
-  },
-  metricValue: {
+  metricInlineValue: {
     color: '#111827',
-    fontSize: 20,
+    fontSize: 15,
     fontWeight: '800',
     includeFontPadding: false,
-    marginTop: 4,
   },
 });

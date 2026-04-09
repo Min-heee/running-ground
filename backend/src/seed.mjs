@@ -522,6 +522,27 @@ export function createSeedStore() {
       streakDays: 6,
       connectedSources: createConnectedSources('default'),
       notificationSettings: createNotificationSettings('default'),
+    }),
+    createUser({
+      id: 'user-9',
+      username: 'ia-user',
+      password: 'demo-pass',
+      name: '정이안',
+      phone: '01099990000',
+      birthDate: '1998-11-03',
+      provinceName: '서울특별시',
+      districtName: '송파구',
+      universityName: '건국대학교',
+      addressDetail: '올림픽로 240',
+      publicTag: '#IA9L3',
+      friendDistanceKm: 46.2,
+      friendPoints: 54,
+      districtDistanceKm: 37.5,
+      districtPoints: 76,
+      rewardPoints: 52,
+      streakDays: 3,
+      connectedSources: createConnectedSources('default'),
+      notificationSettings: createNotificationSettings('default'),
     })
   ];
 
@@ -550,7 +571,8 @@ export function createSeedStore() {
     createRun({ id: 'u5r2', userId: 'user-5', date: '2026-03-22', distanceKm: 7.6, pace: '5:34/km', source: 'Manual' }),
     createRun({ id: 'u6r1', userId: 'user-6', date: '2026-03-26', distanceKm: 6.2, pace: '5:42/km', source: 'Manual' }),
     createRun({ id: 'u7r1', userId: 'user-7', date: '2026-03-25', distanceKm: 5.9, pace: '5:51/km', source: 'Manual' }),
-    createRun({ id: 'u8r1', userId: 'user-8', date: '2026-03-24', distanceKm: 5.4, pace: '5:49/km', source: 'Manual' })
+    createRun({ id: 'u8r1', userId: 'user-8', date: '2026-03-24', distanceKm: 5.4, pace: '5:49/km', source: 'Manual' }),
+    createRun({ id: 'u9r1', userId: 'user-9', date: '2026-03-23', distanceKm: 5.8, pace: '5:46/km', source: 'Manual' })
   ];
 
   return {
@@ -583,6 +605,26 @@ export function createSeedStore() {
         id: 'f2',
         userIds: ['user-1', 'user-3'],
         createdAt: '2026-03-12T08:00:00.000Z'
+      },
+      {
+        id: 'f3',
+        userIds: ['user-1', 'user-4'],
+        createdAt: '2026-03-14T08:00:00.000Z'
+      },
+      {
+        id: 'f4',
+        userIds: ['user-1', 'user-5'],
+        createdAt: '2026-03-16T08:00:00.000Z'
+      },
+      {
+        id: 'f5',
+        userIds: ['user-1', 'user-6'],
+        createdAt: '2026-03-18T08:00:00.000Z'
+      },
+      {
+        id: 'f6',
+        userIds: ['user-1', 'user-9'],
+        createdAt: '2026-03-19T08:00:00.000Z'
       }
     ],
     rewardRedemptions: [

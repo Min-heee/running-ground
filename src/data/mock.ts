@@ -1,4 +1,4 @@
-import { ConnectedSource, DistrictBattleRank, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, RegionDrilldownNode, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
+import { ConnectedSource, DistrictBattleRank, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceHub, OfflineRaceParticipantPreview, RegionDrilldownNode, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
 import { addressCatalog, type AddressRegionNode } from '@/features/location/addressCatalog';
 
 export const myProfile: UserProfile = {
@@ -94,6 +94,10 @@ export const friendRanks: FriendRank[] = [
   { id: '1', rank: 1, name: '김관우', tag: '#KW8M4', distanceKm: 89, points: 98 },
   { id: '2', rank: 2, name: '민병희', tag: '#BH7K2', distanceKm: 84, points: 91 },
   { id: '3', rank: 3, name: '이서준', tag: '#SJ4Q8', distanceKm: 77, points: 86 },
+  { id: '4', rank: 4, name: '박지훈', tag: '#JH3N1', distanceKm: 61.2, points: 74 },
+  { id: '5', rank: 5, name: '최민준', tag: '#MJ5T2', distanceKm: 58.4, points: 70 },
+  { id: '6', rank: 6, name: '정이안', tag: '#IA9L3', distanceKm: 46.2, points: 54 },
+  { id: '7', rank: 7, name: '이서윤', tag: '#SY1R4', distanceKm: 40.8, points: 48 },
 ];
 
 export const friendRunRecords: FriendRunRecord[] = [
@@ -136,6 +140,116 @@ export const universityLeagueRanks: UniversityLeagueRank[] = [
   { rank: 7, universityName: '중앙대학교', totalDistanceKm: 181.6, participants: 10 },
   { rank: 8, universityName: '이화여자대학교', totalDistanceKm: 169.2, participants: 9 },
 ];
+
+function addHours(base: Date, hours: number) {
+  return new Date(base.getTime() + hours * 60 * 60 * 1000);
+}
+
+function addDays(base: Date, days: number) {
+  return addHours(base, days * 24);
+}
+
+const offlineRacePreview: OfflineRaceParticipantPreview[] = [
+  { id: 'orp-1', name: '김관우', paceGoal: '4:55/km', regionLabel: '강남구' },
+  { id: 'orp-2', name: '박지훈', paceGoal: '5:10/km', regionLabel: '송파구' },
+  { id: 'orp-3', name: '최민준', paceGoal: '5:28/km', regionLabel: '성동구' },
+  { id: 'orp-4', name: '한예린', paceGoal: '5:35/km', regionLabel: '마포구' },
+];
+
+export function createOfflineRaceHubMock(now = new Date()): OfflineRaceHub {
+  const featuredStartsAt = addHours(now, 30);
+  const nextStartsAt = addDays(now, 8);
+  const thirdStartsAt = addDays(now, 15);
+
+  return {
+    featuredEvent: {
+      id: 'offline-race-hangang-night-10k',
+      title: '한강 나이트 10K',
+      subtitle: '같은 시각에 각자 출발하는 실시간 오프라인 마라톤.',
+      distanceKm: 10,
+      startsAt: featuredStartsAt.toISOString(),
+      registrationClosesAt: addHours(featuredStartsAt, -1).toISOString(),
+      participationMode: '각자 원하는 코스에서 동시 출발',
+      proofMethod: '연동 기록 또는 수동 인증 업로드',
+      runWindowMinutes: 20,
+      hostLabel: 'Runnig Crew Live',
+      participantCount: 42,
+      capacity: 80,
+      entryFeePoints: 20,
+      operationNote: '출발 시각 기준 20분 안에 러닝을 시작하면 같은 회차로 인정해.',
+      registered: false,
+      status: 'registration_open',
+      participantPreview: offlineRacePreview,
+    },
+    upcomingEvents: [
+      {
+        id: 'offline-race-seoul-bridge-5k',
+        title: '서울 브리지 5K',
+        subtitle: '퇴근 후 각자 코스에서 바로 시작하는 짧고 강한 야간 러닝.',
+        distanceKm: 5,
+        startsAt: nextStartsAt.toISOString(),
+        registrationClosesAt: addHours(nextStartsAt, -1).toISOString(),
+        participationMode: '자유 코스 동시 출발',
+        proofMethod: 'GPS 연동 기록 우선 인증',
+        runWindowMinutes: 15,
+        hostLabel: 'Runnig Sprint Club',
+        participantCount: 27,
+        capacity: 50,
+        entryFeePoints: 12,
+        operationNote: '출발 시간 기준 15분 내 시작 기록만 집계해.',
+        registered: false,
+        status: 'registration_open',
+        participantPreview: offlineRacePreview.slice(0, 3),
+      },
+      {
+        id: 'offline-race-sunrise-15k',
+        title: '선라이즈 15K',
+        subtitle: '토요일 새벽, 같은 시각에 각자 뛰는 장거리 세션.',
+        distanceKm: 15,
+        startsAt: thirdStartsAt.toISOString(),
+        registrationClosesAt: addHours(thirdStartsAt, -1).toISOString(),
+        participationMode: '자율 출발 장거리 세션',
+        proofMethod: '러닝 앱 연동 후 자동 집계',
+        runWindowMinutes: 25,
+        hostLabel: 'Morning Pacers',
+        participantCount: 18,
+        capacity: 40,
+        entryFeePoints: 28,
+        operationNote: '출발 시각 전후 여유 시간을 조금 더 길게 운영해.',
+        registered: false,
+        status: 'registration_open',
+        participantPreview: offlineRacePreview.slice(1),
+      },
+    ],
+    pastEvents: [
+      {
+        id: 'offline-race-river-loop',
+        title: '리버 루프 8K',
+        distanceKm: 8,
+        finishedAt: addDays(now, -6).toISOString(),
+        modeLabel: '각자 출발형',
+        winnerName: '김관우',
+        finishers: 33,
+        summary: '시작 10분 전 알림과 자동 기록 연동 비율이 높아서 운영이 가장 안정적으로 끝났어.',
+      },
+      {
+        id: 'offline-race-campus-run',
+        title: '캠퍼스 다운힐 6K',
+        distanceKm: 6,
+        finishedAt: addDays(now, -13).toISOString(),
+        modeLabel: '동시 출발형',
+        winnerName: '민서윤',
+        finishers: 24,
+        summary: '출발 시각은 같게 유지하고, 다음 회차부터는 거리별 그룹 가이드를 더 세분화하기로 했어.',
+      },
+    ],
+    guideSteps: [
+      '시작 1시간 전까지 참가 신청을 받고 참가 인원을 확정해.',
+      '정해진 시각에 각자 원하는 코스에서 출발하고, 허용 시간 안에 시작한 기록만 집계해.',
+      '러닝 앱 연동 또는 수동 인증으로 완주를 확인하고 포인트를 즉시 정산해.',
+    ],
+  };
+}
 
 function roundRegionMetric(value: number) {
   return Number(value.toFixed(1));

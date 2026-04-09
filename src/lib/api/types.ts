@@ -1,7 +1,8 @@
-import { ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, RegionDrilldownNode, RunSourceType, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
+import { ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceEvent, OfflineRaceHub, RegionDrilldownNode, RunSourceType, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
 
 export type HomeSummaryResponse = WeeklySummary;
 export type MarketOverviewResponse = MarketOverview;
+export type OfflineRaceHubResponse = OfflineRaceHub;
 
 export type AuthResponse = {
   accessToken: string;
@@ -57,6 +58,11 @@ export type MarketClaimResponse = {
   success: boolean;
   claimedItemId: string;
   overview: MarketOverview;
+};
+
+export type OfflineRaceEntryActionResponse = {
+  success: boolean;
+  event: OfflineRaceEvent;
 };
 
 export type MyProfileResponse = UserProfile;

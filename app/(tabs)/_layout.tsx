@@ -4,6 +4,7 @@ const TAB_TITLES = {
   league: '\uB9AC\uADF8',
   friends: '\uCE5C\uAD6C',
   home: '\uD648',
+  race: '\uB808\uC774\uC2A4',
   market: '\uB9C8\uCF13',
   mypage: '\uB9C8\uC774',
 } as const;
@@ -16,17 +17,20 @@ export default function TabsLayout() {
         tabBarActiveTintColor: '#6D5EF7',
         tabBarInactiveTintColor: '#98A2B3',
         tabBarStyle: {
-          height: 78,
-          paddingTop: 8,
-          paddingBottom: 12,
+          height: 74,
+          paddingTop: 6,
+          paddingBottom: 10,
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#EAECF0',
           elevation: 12,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: '700',
+        },
+        tabBarItemStyle: {
+          paddingHorizontal: 0,
         },
         tabBarIconStyle: {
           display: 'none',
@@ -49,6 +53,12 @@ export default function TabsLayout() {
         name="home"
         options={{
           title: TAB_TITLES.home,
+        }}
+      />
+      <Tabs.Screen
+        name="race"
+        options={{
+          title: TAB_TITLES.race,
         }}
       />
       <Tabs.Screen
