@@ -1,3 +1,5 @@
+import { addressCatalog } from './addressCatalog.mjs';
+
 function createSource({
   sourceType,
   displayName,
@@ -231,6 +233,35 @@ function createAggregateRegionNode({
   };
 }
 
+function buildRegionNodeFromCatalog(node, id, rank, depth = 0) {
+  if (!node.children?.length) {
+    const averageBase = node.type === 'district' ? 27.8 : node.type === 'city' ? 23.7 : 21.6;
+    const participantsBase = node.type === 'district' ? 162 : node.type === 'city' ? 520 : 860;
+    const participationBase = node.type === 'district' ? 66 : node.type === 'city' ? 61 : 57;
+
+    return createLeafRegionNode({
+      id,
+      name: node.name,
+      level: node.type,
+      rank,
+      averageDistanceKm: Math.max(16.4, averageBase - rank * (node.type === 'district' ? 0.28 : 0.18) - depth * 0.15),
+      participants: Math.max(42, participantsBase - rank * (node.type === 'district' ? 4 : 10) - depth * 6),
+      participationRate: Math.max(44, participationBase - Math.floor(rank / 2) - depth),
+    });
+  }
+
+  const children = node.children.map((child, index) =>
+    buildRegionNodeFromCatalog(child, `${id}-${String(index + 1).padStart(2, '0')}`, index + 1, depth + 1));
+
+  return createAggregateRegionNode({
+    id,
+    name: node.name,
+    level: node.type,
+    rank,
+    children,
+  });
+}
+
 function buildDistrictNodes(parentId, districtNames, options = {}) {
   const {
     averageBase = 25.8,
@@ -328,21 +359,8 @@ function createRun(input) {
 }
 
 export function createRegionTree() {
-  const children = [
-    buildSeoulProvince(),
-    createLeafRegionNode({ id: 'kr-busan', name: '부산광역시', level: 'province', averageDistanceKm: 20.9, totalDistanceKm: 29887, participationRate: 54, participants: 1430, rank: 2 }),
-    createLeafRegionNode({ id: 'kr-daegu', name: '대구광역시', level: 'province', averageDistanceKm: 20.6, totalDistanceKm: 21424, participationRate: 53, participants: 1040, rank: 3 }),
-    createLeafRegionNode({ id: 'kr-incheon', name: '인천광역시', level: 'province', averageDistanceKm: 21.1, totalDistanceKm: 26692, participationRate: 55, participants: 1265, rank: 4 }),
-    buildGyeonggiProvince(),
-    createLeafRegionNode({ id: 'kr-gw', name: '강원특별자치도', level: 'province', averageDistanceKm: 22.0, totalDistanceKm: 15488, participationRate: 56, participants: 704, rank: 6 }),
-    createLeafRegionNode({ id: 'kr-cb', name: '충청북도', level: 'province', averageDistanceKm: 21.4, totalDistanceKm: 14723, participationRate: 55, participants: 688, rank: 7 }),
-    createLeafRegionNode({ id: 'kr-cn', name: '충청남도', level: 'province', averageDistanceKm: 21.7, totalDistanceKm: 18228, participationRate: 56, participants: 840, rank: 8 }),
-    createLeafRegionNode({ id: 'kr-jb', name: '전북특별자치도', level: 'province', averageDistanceKm: 20.7, totalDistanceKm: 15318, participationRate: 53, participants: 740, rank: 9 }),
-    createLeafRegionNode({ id: 'kr-jn', name: '전라남도', level: 'province', averageDistanceKm: 20.4, totalDistanceKm: 14484, participationRate: 52, participants: 710, rank: 10 }),
-    createLeafRegionNode({ id: 'kr-gb', name: '경상북도', level: 'province', averageDistanceKm: 21.2, totalDistanceKm: 19716, participationRate: 54, participants: 930, rank: 11 }),
-    createLeafRegionNode({ id: 'kr-gn', name: '경상남도', level: 'province', averageDistanceKm: 21.5, totalDistanceKm: 22188, participationRate: 55, participants: 1032, rank: 12 }),
-    createLeafRegionNode({ id: 'kr-jeju', name: '제주특별자치도', level: 'province', averageDistanceKm: 22.6, totalDistanceKm: 9899, participationRate: 58, participants: 438, rank: 13 }),
-  ];
+  const children = addressCatalog.map((region, index) =>
+    buildRegionNodeFromCatalog(region, `kr-${String(index + 1).padStart(2, '0')}`, index + 1));
 
   return createAggregateRegionNode({
     id: 'kr',

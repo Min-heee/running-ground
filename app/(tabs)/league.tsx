@@ -57,7 +57,6 @@ export default function LeagueScreen() {
   const breadcrumb = useMemo(() => league?.breadcrumb.map((node) => node.name).join(' > ') ?? '', [league]);
 
   const sortedChildren = useMemo(() => [...children].sort((a, b) => a.rank - b.rank), [children]);
-
   const visibleChildren = useMemo(() => {
     if (!isCountry || showAllRegions) return sortedChildren;
     return sortedChildren.slice(0, FEATURED_REGION_COUNT);
