@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { fetchRunDetail } from '@/lib/api/services';
 import { RunDetailResponse } from '@/lib/api/types';
 
@@ -27,7 +28,7 @@ export default function RunDetailScreen() {
 
       {runDetail ? (
         <>
-          <AuthHeader title="기록 상세" subtitle={`${runDetail.run.date}에 뛴 러닝 기록 상세 정보.`} />
+          <AuthHeader title="기록 상세" subtitle={`${runDetail.run.date}에 뛴 러닝 기록 상세 정보.`} showBack />
 
           <Card style={styles.heroCard}>
             <Text style={styles.heroLabel}>기록 요약</Text>
@@ -54,6 +55,11 @@ export default function RunDetailScreen() {
             <View style={styles.detailRow}><Text style={styles.detailLabel}>기록 소스</Text><Text style={styles.detailValue}>{runDetail.run.source}</Text></View>
             <View style={styles.detailRow}><Text style={styles.detailLabel}>주간 누적 거리</Text><Text style={styles.detailValue}>{runDetail.weeklyDistanceKm}km</Text></View>
           </Card>
+
+          <SecondaryButton
+            label="친구 활동으로 돌아가기"
+            onPress={() => router.replace(friendId ? { pathname: '/friend-detail', params: { friendId } } : '/(tabs)/friends')}
+          />
         </>
       ) : null}
     </Screen>

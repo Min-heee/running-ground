@@ -132,6 +132,7 @@ function createMockFriendRank(input: { id: string; name: string; tag: string }) 
     distanceKm,
     points: Math.round(distanceKm * 1.15),
     rank: nextIndex,
+    isRunningNow: false,
   };
 }
 

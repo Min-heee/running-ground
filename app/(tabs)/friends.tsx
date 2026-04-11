@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { Screen } from '@/components/Screen';
 import { FriendsRanking } from '@/features/friends/FriendsRanking';
@@ -12,6 +12,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { FriendRequest } from '@/domain/types';
 
 export default function FriendsScreen() {
+  const { scrollToTop } = useLocalSearchParams<{ scrollToTop?: string }>();
   const [leaderboard, setLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
@@ -108,12 +109,9 @@ export default function FriendsScreen() {
   };
 
   return (
-    <Screen>
+    <Screen scrollToTopKey={scrollToTop}>
       <View style={styles.headerWrap}>
-        <PageHeader title="친구 랭킹" subtitle="친구들과 주간 거리와 포인트를 비교해볼 수 있어." />
-        <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}>
-          <Text style={styles.addButtonText}>친구 추가하기</Text>
-        </Pressable>
+        <PageHeader title="친구 랭킹" />
       </View>
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
@@ -127,13 +125,11 @@ export default function FriendsScreen() {
 
       {leaderboard && profile ? (
         <>
-          <Card style={styles.heroRankingCard}>
-            <Text style={styles.heroLabel}>이번 주 메인 경쟁</Text>
-            <Text style={styles.heroTitle}>친구 경쟁 순위표</Text>
-            <Text style={styles.heroSub}>가장 많이 뛰고, 가장 높은 포인트를 쌓은 친구가 위로 올라가.</Text>
-          </Card>
-
           <FriendsRanking ranks={leaderboard.ranks} highlightTag={profile.publicTag} />
+
+          <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}>
+            <Text style={styles.addButtonText}>친구 추가하기</Text>
+          </Pressable>
 
           <Card style={styles.tagCard}>
             <View style={styles.tagHeaderRow}>
@@ -202,7 +198,7 @@ export default function FriendsScreen() {
           </Card>
 
           <Card>
-            <Text style={styles.sectionTitle}>친구 구경가기</Text>
+            <Text style={styles.sectionTitle}>친구 목록</Text>
             {compareTargets.map((friend) => (
               <Pressable
                 key={friend.id}
@@ -210,8 +206,16 @@ export default function FriendsScreen() {
                 onPress={() => router.push({ pathname: '/friend-detail', params: { friendId: friend.id } })}
               >
                 <View style={styles.requestMeta}>
-                  <Text style={styles.requestName}>{friend.name}</Text>
-                  <Text style={styles.requestDetail}>{friend.tag} · 친구가 뛴 기록 보러가기</Text>
+                  <View style={styles.friendRowHeader}>
+                    <Text style={styles.requestName}>{friend.name}</Text>
+                    {friend.isRunningNow ? (
+                      <View style={styles.liveBadge}>
+                        <View style={styles.liveDot} />
+                        <Text style={styles.liveBadgeText}>러닝 중</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.requestDetail}>{friend.tag}</Text>
                 </View>
                 <Text style={styles.compareLink}>보기</Text>
               </Pressable>
@@ -236,24 +240,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 15,
-  },
-  heroRankingCard: {
-    backgroundColor: '#111827',
-    gap: 6,
-  },
-  heroLabel: {
-    color: '#C7D2FE',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  heroTitle: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '800',
-  },
-  heroSub: {
-    color: '#D0D5DD',
-    lineHeight: 20,
   },
   tagCard: {
     gap: 10,
@@ -331,12 +317,39 @@ const styles = StyleSheet.create({
     gap: 8,
     alignItems: 'center',
   },
+  friendRowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
   requestName: {
     color: '#111827',
     fontWeight: '700',
   },
   requestDetail: {
     color: '#667085',
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ECFDF3',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#12B76A',
+  },
+  liveBadgeText: {
+    color: '#067647',
+    fontSize: 12,
+    fontWeight: '800',
+    includeFontPadding: false,
   },
   acceptButton: {
     backgroundColor: '#6D5EF7',

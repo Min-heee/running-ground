@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { Link } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
@@ -13,38 +14,98 @@ export function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
     return null;
   }
 
-  const sortedRanks = [...ranks].sort((left, right) => left.rank - right.rank);
-  const myRank = highlightTag ? sortedRanks.find((runner) => runner.tag === highlightTag) : null;
+  const [rankingWindow, setRankingWindow] = useState<'today' | 'week' | 'month'>('week');
+  const sortedRanks = useMemo(() => [...ranks].sort((left, right) => left.rank - right.rank), [ranks]);
+  const displayedRanks = useMemo(() => {
+    const transformed = sortedRanks.map((runner, index) => {
+      if (rankingWindow === 'today') {
+        return {
+          ...runner,
+          distanceKm: Number((runner.distanceKm / 7 + (sortedRanks.length - index) * 0.2).toFixed(1)),
+          points: Math.max(1, Math.round(runner.points / 7 + (sortedRanks.length - index))),
+        };
+      }
+
+      if (rankingWindow === 'month') {
+        return {
+          ...runner,
+          distanceKm: Number((runner.distanceKm * 4.2).toFixed(1)),
+          points: Math.round(runner.points * 4.1),
+        };
+      }
+
+      return runner;
+    });
+
+    return transformed
+      .sort((left, right) => {
+        if (right.distanceKm !== left.distanceKm) {
+          return right.distanceKm - left.distanceKm;
+        }
+
+        if (right.points !== left.points) {
+          return right.points - left.points;
+        }
+
+        return left.name.localeCompare(right.name, 'ko');
+      })
+      .map((runner, index) => ({
+        ...runner,
+        rank: index + 1,
+      }));
+  }, [rankingWindow, sortedRanks]);
+  const myRank = highlightTag ? displayedRanks.find((runner) => runner.tag === highlightTag) : null;
+  const rankingWindowLabel = rankingWindow === 'today' ? '오늘' : rankingWindow === 'month' ? '이번 달' : '이번 주';
 
   return (
     <Card style={styles.card}>
       <View style={styles.headerRow}>
         <View style={styles.headerCopy}>
-          <Text style={styles.eyebrow}>이번 주 메인 랭킹</Text>
-          <Text style={styles.title}>친구 순위표</Text>
-          <Text style={styles.subtitle}>친구들과 거리와 포인트를 같은 규격으로 비교할 수 있어.</Text>
+          <Text style={styles.title}>친구 경쟁 순위표</Text>
+          <Text style={styles.subtitle}>가장 많이 뛰고, 가장 높은 포인트를 쌓은 친구가 위로 올라갑니다.</Text>
         </View>
         <View style={styles.countBadge}>
-          <Text style={styles.countBadgeText}>{sortedRanks.length}명</Text>
+          <Text style={styles.countBadgeText}>{displayedRanks.length}명</Text>
         </View>
+      </View>
+
+      <View style={styles.modeSwitch}>
+        <Pressable
+          style={[styles.modeButton, rankingWindow === 'today' && styles.modeButtonActive]}
+          onPress={() => setRankingWindow('today')}
+        >
+          <Text style={[styles.modeButtonText, rankingWindow === 'today' && styles.modeButtonTextActive]}>오늘 랭킹</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.modeButton, rankingWindow === 'week' && styles.modeButtonActive]}
+          onPress={() => setRankingWindow('week')}
+        >
+          <Text style={[styles.modeButtonText, rankingWindow === 'week' && styles.modeButtonTextActive]}>이번 주 랭킹</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.modeButton, rankingWindow === 'month' && styles.modeButtonActive]}
+          onPress={() => setRankingWindow('month')}
+        >
+          <Text style={[styles.modeButtonText, rankingWindow === 'month' && styles.modeButtonTextActive]}>이번 달 랭킹</Text>
+        </Pressable>
       </View>
 
       {myRank ? (
         <View style={styles.summaryBar}>
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>내 순위</Text>
+            <Text style={styles.summaryLabel}>{rankingWindowLabel} 내 순위</Text>
             <Text style={styles.summaryValue}>{myRank.rank}위</Text>
           </View>
           <View style={styles.summaryDivider} />
           <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>내 거리</Text>
+            <Text style={styles.summaryLabel}>{rankingWindowLabel} 내 거리</Text>
             <Text style={styles.summaryValue}>{myRank.distanceKm}km</Text>
           </View>
         </View>
       ) : null}
 
       <View style={styles.rankList}>
-        {sortedRanks.map((runner) => {
+        {displayedRanks.map((runner) => {
           const isMine = runner.tag === highlightTag;
 
           return (
@@ -87,7 +148,7 @@ export function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#111827',
     padding: 18,
     gap: 14,
   },
@@ -101,33 +162,54 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
-  eyebrow: {
-    color: '#667085',
-    fontSize: 12,
-    fontWeight: '700',
-    includeFontPadding: false,
-  },
   title: {
-    color: '#101828',
-    fontSize: 28,
+    color: '#FFFFFF',
+    fontSize: 24,
     fontWeight: '800',
     includeFontPadding: false,
   },
   subtitle: {
-    color: '#475467',
+    color: '#D0D5DD',
     lineHeight: 20,
     includeFontPadding: false,
   },
+  modeSwitch: {
+    flexDirection: 'row',
+    backgroundColor: '#1F2937',
+    borderRadius: 16,
+    padding: 4,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  modeButton: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  modeButtonActive: {
+    backgroundColor: '#374151',
+  },
+  modeButtonText: {
+    color: '#98A2B3',
+    fontSize: 12,
+    fontWeight: '700',
+    includeFontPadding: false,
+  },
+  modeButtonTextActive: {
+    color: '#FFFFFF',
+  },
   countBadge: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1F2937',
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#E4E7EC',
+    borderColor: '#374151',
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   countBadgeText: {
-    color: '#111827',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
     includeFontPadding: false,
@@ -135,10 +217,10 @@ const styles = StyleSheet.create({
   summaryBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1F2937',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderColor: '#374151',
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
@@ -149,17 +231,17 @@ const styles = StyleSheet.create({
   summaryDivider: {
     width: 1,
     height: 26,
-    backgroundColor: '#EAECF0',
+    backgroundColor: '#374151',
     marginHorizontal: 12,
   },
   summaryLabel: {
-    color: '#667085',
+    color: '#98A2B3',
     fontSize: 12,
     fontWeight: '700',
     includeFontPadding: false,
   },
   summaryValue: {
-    color: '#111827',
+    color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '800',
     includeFontPadding: false,
@@ -168,16 +250,16 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   rankCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#1F2937',
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E4E7EC',
+    borderColor: '#374151',
     paddingHorizontal: 16,
     paddingVertical: 15,
   },
   myCard: {
-    borderColor: '#C7D2FE',
-    backgroundColor: '#F8F9FF',
+    borderColor: '#6172F3',
+    backgroundColor: '#22304B',
   },
   rankRow: {
     flexDirection: 'row',
@@ -210,20 +292,20 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   runnerName: {
-    color: '#111827',
+    color: '#FFFFFF',
     flexShrink: 1,
     fontSize: 16,
     fontWeight: '800',
     includeFontPadding: false,
   },
   selfBadge: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: '#C7D2FE',
     borderRadius: 999,
     paddingHorizontal: 7,
     paddingVertical: 3,
   },
   selfBadgeText: {
-    color: '#4338CA',
+    color: '#111827',
     fontSize: 11,
     fontWeight: '800',
     includeFontPadding: false,
@@ -233,7 +315,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   metricInlineValue: {
-    color: '#111827',
+    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '800',
     includeFontPadding: false,

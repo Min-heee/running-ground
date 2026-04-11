@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { fetchFriendActivity } from '@/lib/api/services';
 import { FriendActivityResponse } from '@/lib/api/types';
 
@@ -27,7 +28,11 @@ export default function FriendDetailScreen() {
 
       {activity ? (
         <>
-          <AuthHeader title="친구 활동" subtitle={`${activity.friend.name}가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어.`} />
+          <AuthHeader
+            title="친구 활동"
+            subtitle={`${activity.friend.name}가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어.`}
+            showBack
+          />
 
           <Card style={styles.heroCard}>
             <Text style={styles.heroLabel}>친구 프로필</Text>
@@ -64,6 +69,8 @@ export default function FriendDetailScreen() {
               </Link>
             ))}
           </Card>
+
+          <SecondaryButton label="친구 화면으로 돌아가기" onPress={() => router.replace('/(tabs)/friends')} />
         </>
       ) : null}
     </Screen>

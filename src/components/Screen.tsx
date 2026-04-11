@@ -1,10 +1,29 @@
-import { PropsWithChildren } from 'react';
+import { PropsWithChildren, useEffect, useRef } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
 
-export function Screen({ children }: PropsWithChildren) {
+export function Screen({
+  children,
+  scrollToTopKey,
+}: PropsWithChildren<{
+  scrollToTopKey?: string;
+}>) {
+  const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (!scrollToTopKey) {
+      return;
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ y: 0, animated: false });
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, [scrollToTopKey]);
+
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.inner}>{children}</View>
       </ScrollView>
     </SafeAreaView>

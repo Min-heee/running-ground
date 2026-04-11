@@ -75,7 +75,10 @@ export function HomeOverview({
       </Card>
 
       <View style={styles.twoColumnRow}>
-        <Pressable style={styles.linkCardWrap} onPress={() => router.push('/(tabs)/friends')}>
+        <Pressable
+          style={styles.linkCardWrap}
+          onPress={() => router.push({ pathname: '/(tabs)/friends', params: { scrollToTop: Date.now().toString() } })}
+        >
           <Card style={styles.compactCard}>
             <Text style={styles.cardEyebrow}>친구 랭킹</Text>
             <Text style={styles.compactLabel}>내 순위</Text>
@@ -84,7 +87,10 @@ export function HomeOverview({
           </Card>
         </Pressable>
 
-        <Pressable style={styles.linkCardWrap} onPress={() => router.push('/(tabs)/race')}>
+        <Pressable
+          style={styles.linkCardWrap}
+          onPress={() => router.push({ pathname: '/(tabs)/race', params: { scrollToTop: Date.now().toString() } })}
+        >
           <Card style={styles.compactCard}>
             <Text style={styles.cardEyebrow}>다음 레이스</Text>
             <Text style={styles.compactLabel}>{nextRaceTitle}</Text>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
 import { InfoCard } from '@/components/ui/InfoCard';
@@ -117,6 +118,7 @@ function getPrimaryActionLabel(event: OfflineRaceEvent) {
 }
 
 export default function RaceScreen() {
+  const { scrollToTop } = useLocalSearchParams<{ scrollToTop?: string }>();
   const [hub, setHub] = useState<OfflineRaceHub | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -198,7 +200,7 @@ export default function RaceScreen() {
   };
 
   return (
-    <Screen>
+    <Screen scrollToTopKey={scrollToTop}>
       <PageHeader
         title="레이스"
         subtitle="정해진 시작 시각에 각자 뛰고 같은 회차로 집계되는 실시간 오프라인 마라톤 허브."

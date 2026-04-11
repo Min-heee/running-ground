@@ -36,6 +36,7 @@ export type FriendRank = {
   tag?: string;
   distanceKm: number;
   points: number;
+  isRunningNow?: boolean;
 };
 
 export type ConnectedSource = {
