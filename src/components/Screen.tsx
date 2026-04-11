@@ -1,13 +1,16 @@
-import { PropsWithChildren, useEffect, useRef } from 'react';
+import { MutableRefObject, PropsWithChildren, useEffect, useRef } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
 
 export function Screen({
   children,
   scrollToTopKey,
+  scrollRef,
 }: PropsWithChildren<{
   scrollToTopKey?: string;
+  scrollRef?: MutableRefObject<ScrollView | null>;
 }>) {
-  const scrollRef = useRef<ScrollView>(null);
+  const internalScrollRef = useRef<ScrollView>(null);
+  const activeScrollRef = scrollRef ?? internalScrollRef;
 
   useEffect(() => {
     if (!scrollToTopKey) {
@@ -15,15 +18,15 @@ export function Screen({
     }
 
     const frameId = requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ y: 0, animated: false });
+      activeScrollRef.current?.scrollTo({ y: 0, animated: false });
     });
 
     return () => cancelAnimationFrame(frameId);
-  }, [scrollToTopKey]);
+  }, [activeScrollRef, scrollToTopKey]);
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={activeScrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.inner}>{children}</View>
       </ScrollView>
     </SafeAreaView>

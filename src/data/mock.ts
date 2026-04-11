@@ -149,6 +149,14 @@ function addDays(base: Date, days: number) {
   return addHours(base, days * 24);
 }
 
+function setRaceStart(base: Date, dayOffset: number, hour: number, minute = 0) {
+  const next = new Date(base);
+  next.setHours(0, 0, 0, 0);
+  next.setDate(next.getDate() + dayOffset);
+  next.setHours(hour, minute, 0, 0);
+  return next;
+}
+
 const offlineRacePreview: OfflineRaceParticipantPreview[] = [
   { id: 'orp-1', name: '김관우', paceGoal: '4:55/km', regionLabel: '강남구' },
   { id: 'orp-2', name: '박지훈', paceGoal: '5:10/km', regionLabel: '송파구' },
@@ -156,70 +164,294 @@ const offlineRacePreview: OfflineRaceParticipantPreview[] = [
   { id: 'orp-4', name: '한예린', paceGoal: '5:35/km', regionLabel: '마포구' },
 ];
 
+function createRaceOption(input: {
+  id: string;
+  title: string;
+  subtitle: string;
+  distanceKm: number;
+  startsAt: Date;
+  participantCount: number;
+  capacity: number;
+  entryFeePoints: number;
+  hostLabel: string;
+  participationMode?: string;
+  proofMethod?: string;
+  runWindowMinutes?: number;
+  operationNote?: string;
+  participantPreview?: OfflineRaceParticipantPreview[];
+}): OfflineRaceHub['featuredEvent'] {
+  return {
+    id: input.id,
+    title: input.title,
+    subtitle: input.subtitle,
+    distanceKm: input.distanceKm,
+    startsAt: input.startsAt.toISOString(),
+    registrationClosesAt: addHours(input.startsAt, -1).toISOString(),
+    participationMode: input.participationMode ?? '각자 원하는 코스에서 동시 출발',
+    proofMethod: input.proofMethod ?? '러닝 앱 연동 후 자동 집계',
+    runWindowMinutes: input.runWindowMinutes ?? 20,
+    hostLabel: input.hostLabel,
+    participantCount: input.participantCount,
+    capacity: input.capacity,
+    entryFeePoints: input.entryFeePoints,
+    operationNote: input.operationNote ?? '출발 시각 기준 허용 시간 안에 시작한 기록만 같은 회차로 반영해.',
+    registered: false,
+    status: 'registration_open',
+    participantPreview: input.participantPreview ?? offlineRacePreview,
+  };
+}
+
 export function createOfflineRaceHubMock(now = new Date()): OfflineRaceHub {
-  const featuredStartsAt = addHours(now, 30);
-  const nextStartsAt = addDays(now, 8);
-  const thirdStartsAt = addDays(now, 15);
+  const featuredStartsAt = setRaceStart(now, 1, 18, 0);
+  const firstNightStartsAt = setRaceStart(now, 1, 20, 0);
+  const secondMorningStartsAt = setRaceStart(now, 2, 7, 0);
+  const secondEveningStartsAt = setRaceStart(now, 2, 19, 30);
+  const thirdEveningStartsAt = setRaceStart(now, 3, 18, 30);
+  const thirdNightStartsAt = setRaceStart(now, 3, 20, 30);
 
   return {
-    featuredEvent: {
+    featuredEvent: createRaceOption({
       id: 'offline-race-hangang-night-10k',
-      title: '한강 나이트 10K',
-      subtitle: '같은 시각에 각자 출발하는 실시간 오프라인 마라톤.',
+      title: '한강 나이트',
+      subtitle: '퇴근 후 같은 시각에 각자 출발하는 대표 야간 레이스.',
       distanceKm: 10,
-      startsAt: featuredStartsAt.toISOString(),
-      registrationClosesAt: addHours(featuredStartsAt, -1).toISOString(),
-      participationMode: '각자 원하는 코스에서 동시 출발',
-      proofMethod: '연동 기록 또는 수동 인증 업로드',
-      runWindowMinutes: 20,
-      hostLabel: 'Runnig Crew Live',
+      startsAt: featuredStartsAt,
       participantCount: 42,
       capacity: 80,
       entryFeePoints: 20,
+      hostLabel: 'Runnig Crew Live',
+      proofMethod: '연동 기록 또는 수동 인증 업로드',
       operationNote: '출발 시각 기준 20분 안에 러닝을 시작하면 같은 회차로 인정해.',
-      registered: false,
-      status: 'registration_open',
-      participantPreview: offlineRacePreview,
-    },
+    }),
     upcomingEvents: [
-      {
-        id: 'offline-race-seoul-bridge-5k',
-        title: '서울 브리지 5K',
-        subtitle: '퇴근 후 각자 코스에서 바로 시작하는 짧고 강한 야간 러닝.',
+      createRaceOption({
+        id: 'offline-race-hangang-night-5k',
+        title: '한강 나이트',
+        subtitle: '퇴근 후 같은 시각에 각자 출발하는 대표 야간 레이스.',
         distanceKm: 5,
-        startsAt: nextStartsAt.toISOString(),
-        registrationClosesAt: addHours(nextStartsAt, -1).toISOString(),
-        participationMode: '자유 코스 동시 출발',
+        startsAt: featuredStartsAt,
+        participantCount: 34,
+        capacity: 60,
+        entryFeePoints: 10,
+        hostLabel: 'Runnig Crew Live',
+        participantPreview: offlineRacePreview.slice(0, 3),
+      }),
+      createRaceOption({
+        id: 'offline-race-hangang-night-15k',
+        title: '한강 나이트',
+        subtitle: '퇴근 후 같은 시각에 각자 출발하는 대표 야간 레이스.',
+        distanceKm: 15,
+        startsAt: featuredStartsAt,
+        participantCount: 25,
+        capacity: 50,
+        entryFeePoints: 28,
+        hostLabel: 'Runnig Crew Live',
+        participantPreview: offlineRacePreview.slice(1),
+      }),
+      createRaceOption({
+        id: 'offline-race-hangang-night-20k',
+        title: '한강 나이트',
+        subtitle: '퇴근 후 같은 시각에 각자 출발하는 대표 야간 레이스.',
+        distanceKm: 20,
+        startsAt: featuredStartsAt,
+        participantCount: 14,
+        capacity: 30,
+        entryFeePoints: 36,
+        hostLabel: 'Runnig Crew Live',
+        runWindowMinutes: 25,
+        participantPreview: offlineRacePreview.slice(2),
+      }),
+      createRaceOption({
+        id: 'offline-race-city-tempo-3k',
+        title: '도심 템포',
+        subtitle: '저녁 시간에 템포를 끌어올리는 실시간 도심 러닝.',
+        distanceKm: 3,
+        startsAt: firstNightStartsAt,
+        participantCount: 20,
+        capacity: 40,
+        entryFeePoints: 8,
+        hostLabel: 'Night Tempo Crew',
+        proofMethod: 'GPS 연동 기록 우선 인증',
+        runWindowMinutes: 12,
+      }),
+      createRaceOption({
+        id: 'offline-race-city-tempo-5k',
+        title: '도심 템포',
+        subtitle: '저녁 시간에 템포를 끌어올리는 실시간 도심 러닝.',
+        distanceKm: 5,
+        startsAt: firstNightStartsAt,
+        participantCount: 31,
+        capacity: 55,
+        entryFeePoints: 12,
+        hostLabel: 'Night Tempo Crew',
         proofMethod: 'GPS 연동 기록 우선 인증',
         runWindowMinutes: 15,
-        hostLabel: 'Runnig Sprint Club',
-        participantCount: 27,
+      }),
+      createRaceOption({
+        id: 'offline-race-city-tempo-10k',
+        title: '도심 템포',
+        subtitle: '저녁 시간에 템포를 끌어올리는 실시간 도심 러닝.',
+        distanceKm: 10,
+        startsAt: firstNightStartsAt,
+        participantCount: 18,
+        capacity: 35,
+        entryFeePoints: 20,
+        hostLabel: 'Night Tempo Crew',
+        proofMethod: 'GPS 연동 기록 우선 인증',
+        runWindowMinutes: 18,
+      }),
+      createRaceOption({
+        id: 'offline-race-sunrise-run-5k',
+        title: '선라이즈 런',
+        subtitle: '아침 공기 속에서 함께 시작하는 새벽 러닝 세션.',
+        distanceKm: 5,
+        startsAt: secondMorningStartsAt,
+        participantCount: 24,
         capacity: 50,
-        entryFeePoints: 12,
-        operationNote: '출발 시간 기준 15분 내 시작 기록만 집계해.',
-        registered: false,
-        status: 'registration_open',
-        participantPreview: offlineRacePreview.slice(0, 3),
-      },
-      {
-        id: 'offline-race-sunrise-15k',
-        title: '선라이즈 15K',
-        subtitle: '토요일 새벽, 같은 시각에 각자 뛰는 장거리 세션.',
-        distanceKm: 15,
-        startsAt: thirdStartsAt.toISOString(),
-        registrationClosesAt: addHours(thirdStartsAt, -1).toISOString(),
-        participationMode: '자율 출발 장거리 세션',
-        proofMethod: '러닝 앱 연동 후 자동 집계',
-        runWindowMinutes: 25,
+        entryFeePoints: 10,
         hostLabel: 'Morning Pacers',
+        participantPreview: offlineRacePreview.slice(0, 2),
+      }),
+      createRaceOption({
+        id: 'offline-race-sunrise-run-10k',
+        title: '선라이즈 런',
+        subtitle: '아침 공기 속에서 함께 시작하는 새벽 러닝 세션.',
+        distanceKm: 10,
+        startsAt: secondMorningStartsAt,
+        participantCount: 28,
+        capacity: 45,
+        entryFeePoints: 18,
+        hostLabel: 'Morning Pacers',
+        participantPreview: offlineRacePreview.slice(1, 4),
+      }),
+      createRaceOption({
+        id: 'offline-race-sunrise-run-15k',
+        title: '선라이즈 런',
+        subtitle: '아침 공기 속에서 함께 시작하는 새벽 러닝 세션.',
+        distanceKm: 15,
+        startsAt: secondMorningStartsAt,
+        participantCount: 16,
+        capacity: 32,
+        entryFeePoints: 26,
+        hostLabel: 'Morning Pacers',
+        runWindowMinutes: 25,
+        participantPreview: offlineRacePreview.slice(2),
+      }),
+      createRaceOption({
+        id: 'offline-race-river-recovery-3k',
+        title: '리버 리커버리',
+        subtitle: '부담 없이 가볍게 뛰는 평일 저녁 회복 러닝.',
+        distanceKm: 3,
+        startsAt: secondEveningStartsAt,
+        participantCount: 19,
+        capacity: 45,
+        entryFeePoints: 6,
+        hostLabel: 'Easy Run Club',
+        participationMode: '회복 페이스 동시 출발',
+        proofMethod: 'GPS 연동 또는 수동 업로드',
+        runWindowMinutes: 12,
+      }),
+      createRaceOption({
+        id: 'offline-race-river-recovery-5k',
+        title: '리버 리커버리',
+        subtitle: '부담 없이 가볍게 뛰는 평일 저녁 회복 러닝.',
+        distanceKm: 5,
+        startsAt: secondEveningStartsAt,
+        participantCount: 29,
+        capacity: 60,
+        entryFeePoints: 10,
+        hostLabel: 'Easy Run Club',
+        participationMode: '회복 페이스 동시 출발',
+        proofMethod: 'GPS 연동 또는 수동 업로드',
+        runWindowMinutes: 15,
+      }),
+      createRaceOption({
+        id: 'offline-race-river-recovery-8k',
+        title: '리버 리커버리',
+        subtitle: '부담 없이 가볍게 뛰는 평일 저녁 회복 러닝.',
+        distanceKm: 8,
+        startsAt: secondEveningStartsAt,
+        participantCount: 18,
+        capacity: 36,
+        entryFeePoints: 14,
+        hostLabel: 'Easy Run Club',
+        participationMode: '회복 페이스 동시 출발',
+        proofMethod: 'GPS 연동 또는 수동 업로드',
+        runWindowMinutes: 18,
+      }),
+      createRaceOption({
+        id: 'offline-race-campus-loop-5k',
+        title: '캠퍼스 루프',
+        subtitle: '저녁 시간에 가볍게 몰입하는 캠퍼스 감성 루프 레이스.',
+        distanceKm: 5,
+        startsAt: thirdEveningStartsAt,
+        participantCount: 21,
+        capacity: 40,
+        entryFeePoints: 10,
+        hostLabel: 'Campus Run Club',
+        proofMethod: '연동 기록 우선 인증',
+      }),
+      createRaceOption({
+        id: 'offline-race-campus-loop-7k',
+        title: '캠퍼스 루프',
+        subtitle: '저녁 시간에 가볍게 몰입하는 캠퍼스 감성 루프 레이스.',
+        distanceKm: 7,
+        startsAt: thirdEveningStartsAt,
+        participantCount: 26,
+        capacity: 44,
+        entryFeePoints: 14,
+        hostLabel: 'Campus Run Club',
+        proofMethod: '연동 기록 우선 인증',
+      }),
+      createRaceOption({
+        id: 'offline-race-campus-loop-10k',
+        title: '캠퍼스 루프',
+        subtitle: '저녁 시간에 가볍게 몰입하는 캠퍼스 감성 루프 레이스.',
+        distanceKm: 10,
+        startsAt: thirdEveningStartsAt,
+        participantCount: 17,
+        capacity: 30,
+        entryFeePoints: 20,
+        hostLabel: 'Campus Run Club',
+        proofMethod: '연동 기록 우선 인증',
+        runWindowMinutes: 20,
+      }),
+      createRaceOption({
+        id: 'offline-race-riverside-night-10k',
+        title: '리버사이드 나이트',
+        subtitle: '한밤의 강변 감각으로 달리는 장거리 실시간 레이스.',
+        distanceKm: 10,
+        startsAt: thirdNightStartsAt,
         participantCount: 18,
         capacity: 40,
+        entryFeePoints: 20,
+        hostLabel: 'River Long Crew',
+        runWindowMinutes: 20,
+      }),
+      createRaceOption({
+        id: 'offline-race-riverside-night-15k',
+        title: '리버사이드 나이트',
+        subtitle: '한밤의 강변 감각으로 달리는 장거리 실시간 레이스.',
+        distanceKm: 15,
+        startsAt: thirdNightStartsAt,
+        participantCount: 12,
+        capacity: 28,
         entryFeePoints: 28,
-        operationNote: '출발 시각 전후 여유 시간을 조금 더 길게 운영해.',
-        registered: false,
-        status: 'registration_open',
-        participantPreview: offlineRacePreview.slice(1),
-      },
+        hostLabel: 'River Long Crew',
+        runWindowMinutes: 24,
+      }),
+      createRaceOption({
+        id: 'offline-race-riverside-night-20k',
+        title: '리버사이드 나이트',
+        subtitle: '한밤의 강변 감각으로 달리는 장거리 실시간 레이스.',
+        distanceKm: 20,
+        startsAt: thirdNightStartsAt,
+        participantCount: 8,
+        capacity: 20,
+        entryFeePoints: 36,
+        hostLabel: 'River Long Crew',
+        runWindowMinutes: 28,
+      }),
     ],
     pastEvents: [
       {

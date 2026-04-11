@@ -85,6 +85,7 @@ export type DistrictPersonalRank = {
   distanceKm: number;
   points: number;
   isMe?: boolean;
+  isFriend?: boolean;
 };
 
 export type FriendRequestStatus = 'pending' | 'received' | 'accepted';

@@ -1,27 +1,35 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, Pressable } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { fetchRegionLeague, fetchUniversityLeague } from '@/lib/api/services';
-import { RegionLeagueResponse, UniversityLeagueResponse } from '@/lib/api/types';
+import { myProfile } from '@/data/mock';
+import { fetchDistrictPersonal, fetchRegionLeague, fetchUniversityLeague } from '@/lib/api/services';
+import { DistrictPersonalResponse, RegionLeagueResponse, UniversityLeagueResponse } from '@/lib/api/types';
+import { getCurrentUserProfile } from '@/lib/session';
 
 const FEATURED_REGION_COUNT = 6;
 
 type LeagueMode = 'region' | 'university';
 
 export default function LeagueScreen() {
+  const scrollRef = useRef<ScrollView | null>(null);
   const [leagueMode, setLeagueMode] = useState<LeagueMode>('region');
   const [league, setLeague] = useState<RegionLeagueResponse | null>(null);
   const [universityLeague, setUniversityLeague] = useState<UniversityLeagueResponse | null>(null);
+  const [regionMembers, setRegionMembers] = useState<DistrictPersonalResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [universityLoading, setUniversityLoading] = useState(true);
   const [universityError, setUniversityError] = useState<string | null>(null);
+  const [regionMembersLoading, setRegionMembersLoading] = useState(false);
+  const [regionMembersError, setRegionMembersError] = useState<string | null>(null);
   const [showAllRegions, setShowAllRegions] = useState(false);
+  const [memberRankCardY, setMemberRankCardY] = useState(0);
+  const [myRankRowY, setMyRankRowY] = useState<number | null>(null);
   const currentNode = league?.currentNode ?? null;
   const children = league?.children ?? [];
   const isCountry = currentNode?.level === 'country';
@@ -49,12 +57,31 @@ export default function LeagueScreen() {
       .finally(() => setUniversityLoading(false));
   };
 
+  const loadRegionMembers = (nodeId: string) => {
+    setRegionMembersLoading(true);
+    setRegionMembersError(null);
+    setMyRankRowY(null);
+
+    fetchDistrictPersonal(nodeId)
+      .then((response) => setRegionMembers(response))
+      .catch((loadError) => setRegionMembersError(loadError instanceof Error ? loadError.message : '이 지역 회원 순위를 불러오지 못했어.'))
+      .finally(() => setRegionMembersLoading(false));
+  };
+
   useEffect(() => {
     loadLeague();
     loadUniversityLeague();
   }, []);
 
-  const breadcrumb = useMemo(() => league?.breadcrumb.map((node) => node.name).join(' > ') ?? '', [league]);
+  const breadcrumbNodes = useMemo(() => league?.breadcrumb ?? [], [league]);
+  const navigationPath = useMemo(
+    () => breadcrumbNodes.filter((node) => node.level !== 'country'),
+    [breadcrumbNodes],
+  );
+  const breadcrumb = useMemo(
+    () => (navigationPath.length > 0 ? navigationPath.map((node) => node.name).join(' -> ') : '대한민국'),
+    [navigationPath],
+  );
 
   const sortedChildren = useMemo(() => [...children].sort((a, b) => a.rank - b.rank), [children]);
   const visibleChildren = useMemo(() => {
@@ -62,13 +89,49 @@ export default function LeagueScreen() {
     return sortedChildren.slice(0, FEATURED_REGION_COUNT);
   }, [sortedChildren, isCountry, showAllRegions]);
 
-  const canGoBack = (league?.breadcrumb.length ?? 0) > 1;
-  const parentNodeId = canGoBack ? league?.breadcrumb[league.breadcrumb.length - 2]?.id : undefined;
   const featuredUniversityRank = universityLeague?.ranks[0] ?? null;
   const isUniversityView = leagueMode === 'university';
+  const isLeafRegion = !isUniversityView && Boolean(currentNode) && children.length === 0;
+  const profile = getCurrentUserProfile() ?? myProfile;
+
+  const isMyRegionNode = (node: { level: 'country' | 'province' | 'city' | 'district'; name: string }) => {
+    switch (node.level) {
+      case 'province':
+        return node.name === profile.provinceName;
+      case 'city':
+        return node.name === profile.cityName;
+      case 'district':
+        return node.name === profile.districtName;
+      default:
+        return false;
+    }
+  };
+
+  useEffect(() => {
+    if (!isLeafRegion || !currentNode) {
+      setRegionMembers(null);
+      setRegionMembersError(null);
+      setRegionMembersLoading(false);
+      setMyRankRowY(null);
+      return;
+    }
+
+    loadRegionMembers(currentNode.id);
+  }, [currentNode?.id, isLeafRegion]);
+
+  const scrollToMyRank = () => {
+    if (myRankRowY === null) {
+      return;
+    }
+
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, memberRankCardY + myRankRowY - 180),
+      animated: true,
+    });
+  };
 
   return (
-    <Screen>
+    <Screen scrollRef={scrollRef}>
       <PageHeader
         title="리그"
         subtitle={isUniversityView
@@ -168,7 +231,14 @@ export default function LeagueScreen() {
           {currentNode ? (
             <>
               <Card style={styles.heroCard}>
-                <Text style={styles.heroLabel}>현재 선택 지역</Text>
+                <View style={styles.heroLabelRow}>
+                  <Text style={styles.heroLabel}>현재 선택 지역</Text>
+                  {isMyRegionNode(currentNode) ? (
+                    <View style={styles.myRegionBadgeOnDark}>
+                      <Text style={styles.myRegionBadgeOnDarkText}>내 지역</Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text style={styles.heroTitle}>{currentNode.name}</Text>
                 <Text style={styles.breadcrumb}>{breadcrumb}</Text>
                 <View style={styles.heroMetrics}>
@@ -187,30 +257,61 @@ export default function LeagueScreen() {
               <Card>
                 <SectionTitle>지역 선택</SectionTitle>
                 <View style={styles.selectorWrap}>
-                  {canGoBack ? (
-                    <Pressable style={styles.backButton} onPress={() => loadLeague(parentNodeId)}>
-                      <Text style={styles.backButtonText}>상위 지역으로</Text>
-                    </Pressable>
-                  ) : null}
+                  <View style={styles.pathBlock}>
+                    <Text style={styles.pathLabel}>현재 경로</Text>
+                    <View style={styles.pathRow}>
+                      {breadcrumbNodes.length > 0 ? breadcrumbNodes.map((node, index) => {
+                        const isCurrentPath = index === breadcrumbNodes.length - 1;
+                        const isRootPath = node.level === 'country';
 
-                  <View style={styles.regionGrid}>
-                    {visibleChildren.map((node) => (
-                      <Pressable key={node.id} style={styles.regionCard} onPress={() => loadLeague(node.id)}>
-                        <View style={styles.rankBadge}>
-                          <Text style={styles.rankBadgeText}>{node.rank}등</Text>
-                        </View>
-                        <Text style={styles.regionName}>{node.name}</Text>
-                        <Text style={styles.regionMeta}>총거리 {node.totalDistanceKm}km</Text>
-                        <Text style={styles.regionMeta}>회원수 {node.participants}명</Text>
-                      </Pressable>
-                    ))}
-                    {children.length === 0 ? (
-                      <View style={styles.emptyState}>
-                        <Text style={styles.emptyTitle}>더 내려갈 지역이 없어요</Text>
-                        <Text style={styles.emptyText}>현재 선택된 지역의 순위와 총거리, 회원 수는 위 카드에서 바로 확인하면 돼.</Text>
-                      </View>
-                    ) : null}
+                        return (
+                          <View key={node.id} style={styles.pathItemWrap}>
+                            <Pressable
+                              style={[styles.pathChip, isCurrentPath && styles.pathChipActive]}
+                              onPress={() => !isCurrentPath && loadLeague(isRootPath ? undefined : node.id)}
+                              disabled={isCurrentPath}
+                            >
+                              <View style={styles.pathChipInner}>
+                                <Text style={[styles.pathChipText, isCurrentPath && styles.pathChipTextActive]}>
+                                  {node.name}
+                                </Text>
+                                {isMyRegionNode(node) ? (
+                                  <View style={[styles.myRegionBadge, isCurrentPath && styles.myRegionBadgeActive]}>
+                                    <Text style={[styles.myRegionBadgeText, isCurrentPath && styles.myRegionBadgeTextActive]}>내 지역</Text>
+                                  </View>
+                                ) : null}
+                              </View>
+                            </Pressable>
+                            {!isCurrentPath ? <Text style={styles.pathArrow}>-&gt;</Text> : null}
+                          </View>
+                        );
+                      }) : <Text style={styles.pathRootText}>대한민국</Text>}
+                    </View>
                   </View>
+
+                  {children.length > 0 ? (
+                    <View style={styles.regionGrid}>
+                      {visibleChildren.map((node) => (
+                        <Pressable
+                          key={node.id}
+                          style={[styles.regionCard, isMyRegionNode(node) && styles.regionCardMy]}
+                          onPress={() => loadLeague(node.id)}
+                        >
+                          <View style={styles.rankBadge}>
+                            <Text style={styles.rankBadgeText}>{node.rank}등</Text>
+                          </View>
+                          {isMyRegionNode(node) ? (
+                            <View style={styles.regionMyBadge}>
+                              <Text style={styles.regionMyBadgeText}>내 지역</Text>
+                            </View>
+                          ) : null}
+                          <Text style={styles.regionName}>{node.name}</Text>
+                          <Text style={styles.regionMeta}>총거리 {node.totalDistanceKm}km</Text>
+                          <Text style={styles.regionMeta}>회원수 {node.participants}명</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : null}
 
                   {isCountry && children.length > FEATURED_REGION_COUNT ? (
                     <Pressable style={styles.toggleButton} onPress={() => setShowAllRegions((prev) => !prev)}>
@@ -244,6 +345,65 @@ export default function LeagueScreen() {
                     </View>
                   </View>
                 </Card>
+              ) : null}
+
+              {isLeafRegion ? (
+                <>
+                  {regionMembersLoading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+
+                  {!regionMembersLoading && regionMembersError ? (
+                    <Card>
+                      <Text style={styles.stateTitle}>회원 순위를 아직 못 불러왔어</Text>
+                      <Text style={styles.errorText}>{regionMembersError}</Text>
+                      <PrimaryButton label="다시 불러오기" onPress={() => currentNode && loadRegionMembers(currentNode.id)} />
+                    </Card>
+                  ) : null}
+
+                  {!regionMembersLoading && !regionMembersError && regionMembers ? (
+                    <Card onLayout={(event) => setMemberRankCardY(event.nativeEvent.layout.y)}>
+                      <View style={styles.memberHeader}>
+                        <View style={styles.memberHeaderCopy}>
+                          <Text style={styles.sectionTitle}>{regionMembers.districtName} 회원 순위</Text>
+                          <Text style={styles.memberHeaderText}>해당 지역 회원들이 이번 주에 달린 거리와 포인트 순으로 정렬돼 있어.</Text>
+                        </View>
+
+                        {regionMembers.myRank ? (
+                          <Pressable style={styles.myRankButton} onPress={scrollToMyRank}>
+                            <Text style={styles.myRankButtonText}>내 순위 보기</Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+
+                      {regionMembers.myRank ? (
+                        <View style={styles.myRankSummary}>
+                          <Text style={styles.myRankSummaryText}>내 현재 순위 {regionMembers.myRank.rank}위</Text>
+                          <Text style={styles.myRankSummaryText}>{regionMembers.myRank.distanceKm}km · {regionMembers.myRank.points}P</Text>
+                        </View>
+                      ) : null}
+
+                      {regionMembers.ranks.map((runner) => (
+                        <View
+                          key={runner.id}
+                          style={[styles.rankRow, runner.isFriend && styles.friendRow, runner.isMe && styles.meRow]}
+                          onLayout={runner.isMe ? (event) => setMyRankRowY(event.nativeEvent.layout.y) : undefined}
+                        >
+                          <Text style={styles.rankNumber}>{runner.rank}</Text>
+                          <View style={styles.rankMeta}>
+                            <View style={styles.rankNameRow}>
+                              <Text style={styles.rankName}>{runner.name}</Text>
+                              {runner.isFriend && !runner.isMe ? (
+                                <View style={styles.friendBadge}>
+                                  <Text style={styles.friendBadgeText}>친구</Text>
+                                </View>
+                              ) : null}
+                            </View>
+                            <Text style={styles.rankDetail}>{runner.distanceKm}km / {runner.points}P</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </Card>
+                  ) : null}
+                </>
               ) : null}
             </>
           ) : null}
@@ -280,6 +440,11 @@ const styles = StyleSheet.create({
   modeButtonTextActive: {
     color: '#111827',
   },
+  sectionTitle: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: '800',
+  },
   heroCard: {
     backgroundColor: '#6D5EF7',
     gap: 10,
@@ -288,6 +453,11 @@ const styles = StyleSheet.create({
     color: '#E9E7FF',
     fontWeight: '700',
     fontSize: 12,
+  },
+  heroLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   heroTitle: {
     color: '#FFFFFF',
@@ -324,15 +494,82 @@ const styles = StyleSheet.create({
   selectorWrap: {
     gap: 12,
   },
-  backButton: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
+  pathBlock: {
+    gap: 8,
   },
-  backButtonText: {
-    color: '#4F46E5',
+  pathLabel: {
+    color: '#667085',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pathRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pathItemWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  pathChip: {
+    backgroundColor: '#F2F4F7',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  pathChipInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pathChipActive: {
+    backgroundColor: '#111827',
+  },
+  pathChipText: {
+    color: '#475467',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  pathChipTextActive: {
+    color: '#FFFFFF',
+  },
+  pathArrow: {
+    color: '#98A2B3',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  pathRootText: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  myRegionBadge: {
+    backgroundColor: '#D1FADF',
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  myRegionBadgeActive: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  myRegionBadgeText: {
+    color: '#067647',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  myRegionBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+  myRegionBadgeOnDark: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  myRegionBadgeOnDarkText: {
+    color: '#FFFFFF',
+    fontSize: 10,
     fontWeight: '800',
   },
   regionGrid: {
@@ -351,6 +588,10 @@ const styles = StyleSheet.create({
     minHeight: 92,
     position: 'relative',
   },
+  regionCardMy: {
+    backgroundColor: '#EEFDF3',
+    borderColor: '#ABEFC6',
+  },
   rankBadge: {
     position: 'absolute',
     top: 10,
@@ -363,6 +604,20 @@ const styles = StyleSheet.create({
   rankBadgeText: {
     color: '#FFFFFF',
     fontSize: 11,
+    fontWeight: '800',
+  },
+  regionMyBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: '#12B76A',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  regionMyBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
     fontWeight: '800',
   },
   regionName: {
@@ -387,17 +642,6 @@ const styles = StyleSheet.create({
   toggleButtonText: {
     color: '#111827',
     fontWeight: '700',
-  },
-  emptyState: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    padding: 16,
-    gap: 6,
-    width: '100%',
-  },
-  emptyTitle: {
-    color: '#111827',
-    fontWeight: '800',
   },
   emptyText: {
     color: '#667085',
@@ -431,6 +675,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#EAECF0',
   },
+  meRow: {
+    backgroundColor: '#F5F3FF',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+  },
+  friendRow: {
+    backgroundColor: '#ECFDF3',
+    borderRadius: 14,
+    paddingHorizontal: 10,
+  },
   rankNumber: {
     width: 24,
     fontWeight: '800',
@@ -440,12 +694,66 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  rankNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   rankName: {
     color: '#111827',
     fontWeight: '700',
   },
+  friendBadge: {
+    backgroundColor: '#12B76A',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  friendBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+  },
   rankDetail: {
     color: '#667085',
+  },
+  memberHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  memberHeaderCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  memberHeaderText: {
+    color: '#667085',
+    lineHeight: 20,
+  },
+  myRankButton: {
+    backgroundColor: '#111827',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  myRankButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  myRankSummary: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  myRankSummaryText: {
+    color: '#344054',
+    fontWeight: '700',
   },
   stateTitle: {
     color: '#111827',
