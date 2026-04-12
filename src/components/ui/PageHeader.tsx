@@ -1,8 +1,47 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { type Href, router } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+export function PageHeader({
+  title,
+  subtitle,
+  showBack = false,
+  backLabel = '뒤로가기',
+  backHref,
+}: {
+  title: string;
+  subtitle?: string;
+  showBack?: boolean;
+  backLabel?: string;
+  backHref?: Href;
+}) {
+  const canGoBack = () => {
+    const navigationRouter = router as typeof router & { canGoBack?: () => boolean };
+    return navigationRouter.canGoBack?.() ?? false;
+  };
+
+  const handleBack = () => {
+    if (canGoBack()) {
+      router.back();
+      return;
+    }
+
+    if (backHref) {
+      router.replace(backHref);
+      return;
+    }
+
+    router.back();
+  };
+
   return (
     <View style={styles.header}>
+      {showBack ? (
+        <Pressable onPress={handleBack} style={styles.backButton}>
+          <Feather name="chevron-left" size={16} color="#111827" />
+          <Text style={styles.backButtonText}>{backLabel}</Text>
+        </Pressable>
+      ) : null}
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
@@ -12,6 +51,23 @@ export function PageHeader({ title, subtitle }: { title: string; subtitle?: stri
 const styles = StyleSheet.create({
   header: {
     gap: 6,
+  },
+  backButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  backButtonText: {
+    color: '#111827',
+    fontWeight: '700',
+    fontSize: 13,
+    includeFontPadding: false,
   },
   title: {
     fontSize: 28,

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, TextInput, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { fetchMyProfile, updateMyProfile } from '@/lib/api/services';
 import { MyProfileResponse } from '@/lib/api/types';
 
@@ -54,7 +56,12 @@ export default function EditProfileScreen() {
 
   return (
     <Screen>
-      <AuthHeader title="프로필 수정" subtitle="닉네임과 기본 프로필 정보를 관리할 수 있어." />
+      <AuthHeader
+        title="프로필 수정"
+        subtitle="닉네임과 기본 프로필 정보를 관리할 수 있어."
+        showBack
+        backHref="/(tabs)/mypage"
+      />
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
 
@@ -67,6 +74,7 @@ export default function EditProfileScreen() {
             <Input label="대표 지역" value={profile.districtName} editable={false} />
             <Input label="상태 메시지" value="러닝 경쟁 진행 중" editable={false} />
             <PrimaryButton label={saving ? '저장 중...' : '저장하기'} onPress={handleSave} />
+            <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} />
             {saved ? <Text style={styles.savedText}>프로필이 저장됐어.</Text> : null}
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>

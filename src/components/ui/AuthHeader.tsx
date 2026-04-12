@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons';
 import { type Href, router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -14,7 +15,17 @@ export function AuthHeader({
   backLabel?: string;
   backHref?: Href;
 }) {
+  const canGoBack = () => {
+    const navigationRouter = router as typeof router & { canGoBack?: () => boolean };
+    return navigationRouter.canGoBack?.() ?? false;
+  };
+
   const handleBack = () => {
+    if (canGoBack()) {
+      router.back();
+      return;
+    }
+
     if (backHref) {
       router.replace(backHref);
       return;
@@ -27,6 +38,7 @@ export function AuthHeader({
     <View style={styles.header}>
       {showBack ? (
         <Pressable onPress={handleBack} style={styles.backButton}>
+          <Feather name="chevron-left" size={16} color="#111827" />
           <Text style={styles.backButtonText}>{backLabel}</Text>
         </Pressable>
       ) : null}
@@ -45,6 +57,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   backButtonText: {
     color: '#111827',

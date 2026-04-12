@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { fetchMyProfile, updateMyRegion } from '@/lib/api/services';
 
 const regions = ['강남구', '서초구', '송파구', '마포구', '성동구'];
@@ -49,7 +51,12 @@ export default function RegionSettingsScreen() {
 
   return (
     <Screen>
-      <AuthHeader title="지역 설정" subtitle="내가 속한 지역을 선택하면 구 내 경쟁과 지역 배틀이 그 기준으로 반영돼." />
+      <AuthHeader
+        title="지역 설정"
+        subtitle="내가 속한 지역을 선택하면 구 내 경쟁과 지역 배틀이 그 기준으로 반영돼."
+        showBack
+        backHref="/(tabs)/mypage"
+      />
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
 
@@ -73,6 +80,7 @@ export default function RegionSettingsScreen() {
           </Card>
 
           <PrimaryButton label={saving ? '저장 중...' : '지역 저장하기'} onPress={handleSave} />
+          <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} />
           {saved ? <Text style={styles.savedText}>지역이 저장됐어.</Text> : null}
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </>

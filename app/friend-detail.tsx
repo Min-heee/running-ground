@@ -32,6 +32,7 @@ export default function FriendDetailScreen() {
             title="친구 활동"
             subtitle={`${activity.friend.name}가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어.`}
             showBack
+            backHref="/(tabs)/friends"
           />
 
           <Card style={styles.heroCard}>

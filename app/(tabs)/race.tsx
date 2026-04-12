@@ -268,10 +268,7 @@ export default function RaceScreen() {
 
   return (
     <Screen scrollToTopKey={scrollToTop}>
-      <PageHeader
-        title="레이스"
-        subtitle="날짜를 선택하면 그날 열리는 레이스를 시간대와 거리별로 바로 신청할 수 있어요."
-      />
+      <PageHeader title="레이스" />
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
 
@@ -287,6 +284,20 @@ export default function RaceScreen() {
 
       {!loading && !error && hub ? (
         <>
+          <Card style={styles.guideCard}>
+            <Text style={styles.sectionTitle}>운영 방식</Text>
+            <View style={styles.guideList}>
+              {hub.guideSteps.map((step, index) => (
+                <View key={step} style={styles.guideRow}>
+                  <View style={styles.guideIndex}>
+                    <Text style={styles.guideIndexText}>{index + 1}</Text>
+                  </View>
+                  <Text style={styles.guideText}>{step}</Text>
+                </View>
+              ))}
+            </View>
+          </Card>
+
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>날짜 선택</Text>
             <Text style={styles.sectionCount}>{dateOptions.length}일</Text>
@@ -302,36 +313,20 @@ export default function RaceScreen() {
                   style={[styles.dateChip, active && styles.dateChipActive]}
                   onPress={() => setSelectedDateKey(option.key)}
                 >
-                  <Text style={[styles.dateChipDay, active && styles.dateChipDayActive]}>
-                    {dateDayFormatter.format(option.date)}
-                  </Text>
                   <Text style={[styles.dateChipWeekday, active && styles.dateChipWeekdayActive]}>
                     {dateWeekdayFormatter.format(option.date)}
                   </Text>
-                  <Text style={[styles.dateChipCount, active && styles.dateChipCountActive]}>{option.count}개 시간대</Text>
+                  <Text style={[styles.dateChipDay, active && styles.dateChipDayActive]}>
+                    {dateDayFormatter.format(option.date)}
+                  </Text>
                 </Pressable>
               );
             })}
           </ScrollView>
 
-          <Card style={styles.guideCard}>
-            <Text style={styles.sectionTitle}>운영 방식</Text>
-            <View style={styles.guideList}>
-              {hub.guideSteps.map((step, index) => (
-                <View key={step} style={styles.guideRow}>
-                  <View style={styles.guideIndex}>
-                    <Text style={styles.guideIndexText}>{index + 1}</Text>
-                  </View>
-                  <Text style={styles.guideText}>{step}</Text>
-                </View>
-              ))}
-            </View>
-          </Card>
-
           {selectedDateKey ? (
             <View style={styles.sectionHeader}>
               <Text style={styles.scheduleDateTitle}>{selectedDateFormatter.format(parseDateKey(selectedDateKey))}</Text>
-              <Text style={styles.sectionCount}>{selectedSlots.length}개 시간대</Text>
             </View>
           ) : null}
 
@@ -362,7 +357,7 @@ export default function RaceScreen() {
                       <View style={styles.slotHeader}>
                         <View style={styles.timeColumn}>
                           <Text style={styles.timeValue}>{formatShortTime(slot.startsAt)}</Text>
-                          <Text style={styles.timeLabel}>출발</Text>
+                          <Text style={styles.timeLabel}>시작</Text>
                         </View>
 
                         <View style={styles.slotBody}>
@@ -382,8 +377,6 @@ export default function RaceScreen() {
                               </View>
                             </Pressable>
                           </View>
-                          <Text style={styles.slotSubtitle}>{slot.subtitle}</Text>
-                          <Text style={styles.slotMeta}>{slot.hostLabel} · {slot.participationMode}</Text>
                         </View>
                       </View>
 
@@ -413,29 +406,21 @@ export default function RaceScreen() {
                         </View>
                       ) : null}
 
-                      <View style={[styles.selectedOptionCard, selectedEvent.registered && styles.optionCardActive]}>
-                        <View style={styles.optionTopRow}>
-                          <View>
-                            <Text style={styles.optionDistance}>{selectedEvent.distanceKm}K</Text>
-                            <Text style={styles.optionSubLabel}>선택한 거리</Text>
+                      <View style={styles.optionInlineRow}>
+                        <View style={styles.optionMetaWrap}>
+                          <View style={styles.inlinePill}>
+                            <Text style={styles.inlinePillLabel}>{selectedEvent.distanceKm}K</Text>
+                          </View>
+                          <View style={styles.inlinePill}>
+                            <Text style={styles.inlinePillText}>{selectedEvent.participantCount}/{selectedEvent.capacity}</Text>
+                          </View>
+                          <View style={styles.inlinePill}>
+                            <Text style={styles.inlinePillText}>{selectedEvent.entryFeePoints}P</Text>
                           </View>
                           <View style={[styles.statusBadge, styles[`${selectedEvent.status}Tone` as keyof typeof styles] as object]}>
                             <Text style={styles.statusBadgeText}>{getStatusLabel(selectedEvent.status)}</Text>
                           </View>
                         </View>
-
-                        <View style={styles.optionStatRow}>
-                          <View style={styles.optionStatChip}>
-                            <Text style={styles.optionStatLabel}>참가</Text>
-                            <Text style={styles.optionStatValue}>{selectedEvent.participantCount}/{selectedEvent.capacity}</Text>
-                          </View>
-                          <View style={styles.optionStatChip}>
-                            <Text style={styles.optionStatLabel}>포인트</Text>
-                            <Text style={styles.optionStatValue}>{selectedEvent.entryFeePoints}P</Text>
-                          </View>
-                        </View>
-
-                        <Text style={styles.optionNote}>{getEventNote(selectedEvent, nowTime)}</Text>
 
                         <Pressable
                           style={[
@@ -453,20 +438,22 @@ export default function RaceScreen() {
                           >
                             {isSubmitting
                               ? canCancel
-                                ? '취소 중...'
-                                : '신청 중...'
+                                ? '취소 중'
+                                : '신청 중'
                               : canCancel
-                                ? '신청 취소'
+                                ? '취소'
                                 : canJoin
-                                  ? '참가 신청'
+                                  ? '신청'
                                   : selectedEvent.status === 'registration_closed'
                                     ? '마감'
                                     : selectedEvent.status === 'live'
-                                      ? '진행 중'
+                                      ? '진행'
                                       : '종료'}
                           </Text>
                         </Pressable>
                       </View>
+
+                      <Text numberOfLines={1} style={styles.optionNote}>{getEventNote(selectedEvent, nowTime)}</Text>
                     </>
                   );
                 })()}
@@ -511,9 +498,9 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
   },
   dateChipActive: {
     backgroundColor: '#111827',
@@ -530,21 +517,12 @@ const styles = StyleSheet.create({
   },
   dateChipWeekday: {
     color: '#667085',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     includeFontPadding: false,
   },
   dateChipWeekdayActive: {
     color: '#D0D5DD',
-  },
-  dateChipCount: {
-    color: '#98A2B3',
-    fontSize: 11,
-    fontWeight: '700',
-    includeFontPadding: false,
-  },
-  dateChipCountActive: {
-    color: '#C7D2FE',
   },
   guideCard: {
     gap: 14,
@@ -605,30 +583,33 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   slotCard: {
-    gap: 16,
+    padding: 12,
+    gap: 10,
   },
   slotHeader: {
     flexDirection: 'row',
-    gap: 16,
+    alignItems: 'center',
+    gap: 12,
   },
   timeColumn: {
-    width: 72,
+    width: 62,
     alignItems: 'flex-start',
   },
   timeValue: {
     color: '#111827',
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '900',
     includeFontPadding: false,
   },
   timeLabel: {
     color: '#667085',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
+    includeFontPadding: false,
   },
   slotBody: {
     flex: 1,
-    gap: 4,
+    gap: 2,
   },
   slotTitleRow: {
     flexDirection: 'row',
@@ -638,7 +619,7 @@ const styles = StyleSheet.create({
   },
   slotTitle: {
     color: '#111827',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '900',
     includeFontPadding: false,
     flex: 1,
@@ -653,13 +634,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   distanceSelectButton: {
-    minWidth: 74,
+    minWidth: 66,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: '#D0D5DD',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -671,7 +652,7 @@ const styles = StyleSheet.create({
   },
   distanceSelectText: {
     color: '#111827',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     includeFontPadding: false,
   },
@@ -696,8 +677,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#D0D5DD',
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   distanceOptionChipActive: {
     backgroundColor: '#111827',
@@ -705,72 +686,49 @@ const styles = StyleSheet.create({
   },
   distanceOptionChipText: {
     color: '#475467',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
     includeFontPadding: false,
   },
   distanceOptionChipTextActive: {
     color: '#FFFFFF',
   },
-  selectedOptionCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 14,
-    gap: 8,
-  },
-  optionCardActive: {
-    borderColor: '#6172F3',
-    backgroundColor: '#EEF2FF',
-  },
-  optionTopRow: {
+  optionInlineRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     gap: 8,
   },
-  optionDistance: {
-    color: '#111827',
-    fontSize: 22,
-    fontWeight: '900',
-    includeFontPadding: false,
-  },
-  optionStatRow: {
+  optionMetaWrap: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
-  },
-  optionStatChip: {
     flex: 1,
+  },
+  inlinePill: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     paddingHorizontal: 10,
-    paddingVertical: 9,
-    gap: 2,
+    paddingVertical: 6,
   },
-  optionStatLabel: {
-    color: '#667085',
-    fontSize: 11,
-    fontWeight: '700',
-    includeFontPadding: false,
-  },
-  optionStatValue: {
+  inlinePillLabel: {
     color: '#111827',
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: '800',
     includeFontPadding: false,
   },
-  optionSubLabel: {
-    color: '#667085',
-    fontSize: 11,
+  inlinePillText: {
+    color: '#475467',
+    fontSize: 12,
     fontWeight: '700',
     includeFontPadding: false,
-    marginTop: 2,
   },
   statusBadge: {
     borderRadius: 999,
     paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingVertical: 6,
   },
   registration_openTone: {
     backgroundColor: '#D1FADF',
@@ -796,12 +754,13 @@ const styles = StyleSheet.create({
   optionNote: {
     color: '#667085',
     fontSize: 12,
-    lineHeight: 18,
-    minHeight: 36,
+    lineHeight: 17,
   },
   actionButton: {
-    borderRadius: 14,
-    paddingVertical: 11,
+    minWidth: 60,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     alignItems: 'center',
   },
   joinActionButton: {
@@ -816,7 +775,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   actionButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     includeFontPadding: false,
   },

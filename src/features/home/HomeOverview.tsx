@@ -20,10 +20,12 @@ export function HomeOverview({
   summary,
   friendOverview,
   nextRace,
+  myRace,
 }: {
   summary: WeeklySummary;
   friendOverview: HomeFriendOverview | null;
   nextRace: OfflineRaceEvent | null;
+  myRace: OfflineRaceEvent | null;
 }) {
   const friendRankLabel = friendOverview?.myRank ? `${friendOverview.myRank}위` : '친구 추가';
   const friendSubLabel = friendOverview?.myRank
@@ -36,6 +38,15 @@ export function HomeOverview({
   const nextRaceDeadline = nextRace
     ? `${raceDateFormatter.format(new Date(nextRace.registrationClosesAt))} 마감`
     : '다음 회차가 열리면 바로 확인할 수 있어요';
+  const myRaceTitle = myRace ? `${myRace.title} ${myRace.distanceKm}K` : '신청한 레이스 없음';
+  const myRaceTime = myRace ? raceDateFormatter.format(new Date(myRace.startsAt)) : '레이스 탭에서 원하는 회차를 신청해보세요';
+  const myRaceNote = myRace
+    ? myRace.status === 'live'
+      ? '지금 진행 중인 내 레이스예요'
+      : myRace.status === 'registration_closed'
+        ? '신청 완료 · 출발 시간만 기다리면 돼요'
+        : `${raceDateFormatter.format(new Date(myRace.registrationClosesAt))} 마감`
+    : '신청하면 여기서 바로 확인할 수 있어요';
 
   return (
     <>
@@ -99,6 +110,20 @@ export function HomeOverview({
           </Card>
         </Pressable>
       </View>
+
+      <Pressable
+        onPress={() => router.push({ pathname: '/(tabs)/race', params: { scrollToTop: Date.now().toString() } })}
+      >
+        <Card style={styles.myRaceCard}>
+          <View style={styles.myRaceHeader}>
+            <Text style={styles.cardEyebrow}>내 레이스</Text>
+            {myRace ? <Text style={styles.myRaceBadge}>신청 완료</Text> : null}
+          </View>
+          <Text style={styles.myRaceTitle}>{myRaceTitle}</Text>
+          <Text style={styles.myRaceTime}>{myRaceTime}</Text>
+          <Text style={styles.muted}>{myRaceNote}</Text>
+        </Card>
+      </Pressable>
     </>
   );
 }
@@ -201,4 +226,33 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   muted: { color: '#667085', lineHeight: 20 },
+  myRaceCard: {
+    gap: 6,
+  },
+  myRaceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+  },
+  myRaceBadge: {
+    color: '#067647',
+    backgroundColor: '#ECFDF3',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    fontSize: 11,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  myRaceTitle: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  myRaceTime: {
+    color: '#111827',
+    fontSize: 15,
+    fontWeight: '700',
+  },
 });

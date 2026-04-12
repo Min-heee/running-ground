@@ -136,6 +136,7 @@ export type UniversityLeagueRank = {
   universityName: string;
   totalDistanceKm: number;
   participants: number;
+  averageDistanceKm: number;
 };
 
 export type OfflineRaceStatus =

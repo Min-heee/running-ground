@@ -21,6 +21,9 @@ export default function RunDetailScreen() {
       .finally(() => setLoading(false));
   }, [friendId, runId]);
 
+  const backHref = friendId ? { pathname: '/friend-detail', params: { friendId } } : '/my-activity';
+  const backLabel = friendId ? '친구 활동으로 돌아가기' : '내 활동으로 돌아가기';
+
   return (
     <Screen>
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
@@ -28,7 +31,7 @@ export default function RunDetailScreen() {
 
       {runDetail ? (
         <>
-          <AuthHeader title="기록 상세" subtitle={`${runDetail.run.date}에 뛴 러닝 기록 상세 정보.`} showBack />
+          <AuthHeader title="기록 상세" subtitle={`${runDetail.run.date}에 뛴 러닝 기록 상세 정보.`} showBack backHref={backHref} />
 
           <Card style={styles.heroCard}>
             <Text style={styles.heroLabel}>기록 요약</Text>
@@ -57,8 +60,8 @@ export default function RunDetailScreen() {
           </Card>
 
           <SecondaryButton
-            label="친구 활동으로 돌아가기"
-            onPress={() => router.replace(friendId ? { pathname: '/friend-detail', params: { friendId } } : '/(tabs)/friends')}
+            label={backLabel}
+            onPress={() => router.replace(backHref)}
           />
         </>
       ) : null}

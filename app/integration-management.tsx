@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, Pressable } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -18,6 +19,7 @@ import {
 } from '@/features/integrations/sourceCatalog';
 
 export default function IntegrationManagementScreen() {
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,10 +98,18 @@ export default function IntegrationManagementScreen() {
   const { connected, available } = splitSourcesByStatus(sources);
   const recommendations = getRecommendedSources(sources, platform);
   const coverage = getCoverageSummary(sources, platform);
+  const backHref = returnTo === 'connect-sources' ? '/connect-sources' : '/(tabs)/mypage';
+  const backLabel = returnTo === 'connect-sources' ? '연동 시작으로 돌아가기' : '마이페이지로 돌아가기';
 
   return (
     <Screen>
-      <AuthHeader title="기록 연동 관리" subtitle="러닝 기록이 들어오는 소스를 관리하고 연결 상태를 확인할 수 있어." />
+      <AuthHeader
+        title="기록 연동 관리"
+        subtitle="러닝 기록이 들어오는 소스를 관리하고 연결 상태를 확인할 수 있어."
+        showBack
+        backHref={backHref}
+        backLabel={backLabel}
+      />
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
       {!loading && error ? (
@@ -209,6 +219,7 @@ export default function IntegrationManagementScreen() {
           </Card>
 
           <SecondaryButton label="연동 상태 새로고침" onPress={loadIntegrationStatus} />
+          <SecondaryButton label={backLabel} onPress={() => router.replace(backHref)} />
         </>
       ) : null}
     </Screen>

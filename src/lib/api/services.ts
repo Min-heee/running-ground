@@ -138,7 +138,15 @@ function createMockFriendRank(input: { id: string; name: string; tag: string }) 
 
 function normalizeMockUniversityRanks(ranks: UniversityLeagueRank[]) {
   return [...ranks]
+    .map((entry) => ({
+      ...entry,
+      averageDistanceKm: Number((entry.totalDistanceKm / Math.max(entry.participants, 1)).toFixed(1)),
+    }))
     .sort((left, right) => {
+      if (right.averageDistanceKm !== left.averageDistanceKm) {
+        return right.averageDistanceKm - left.averageDistanceKm;
+      }
+
       if (right.totalDistanceKm !== left.totalDistanceKm) {
         return right.totalDistanceKm - left.totalDistanceKm;
       }
@@ -153,6 +161,30 @@ function normalizeMockUniversityRanks(ranks: UniversityLeagueRank[]) {
       ...entry,
       rank: index + 1,
       totalDistanceKm: Number(entry.totalDistanceKm.toFixed(1)),
+      averageDistanceKm: Number(entry.averageDistanceKm.toFixed(1)),
+    }));
+}
+
+function normalizeRegionChildren(children: RegionDrilldownNode[]) {
+  return [...children]
+    .sort((left, right) => {
+      if (right.averageDistanceKm !== left.averageDistanceKm) {
+        return right.averageDistanceKm - left.averageDistanceKm;
+      }
+
+      if (right.totalDistanceKm !== left.totalDistanceKm) {
+        return right.totalDistanceKm - left.totalDistanceKm;
+      }
+
+      if (right.participants !== left.participants) {
+        return right.participants - left.participants;
+      }
+
+      return left.name.localeCompare(right.name, 'ko');
+    })
+    .map((child, index) => ({
+      ...child,
+      rank: index + 1,
     }));
 }
 
@@ -510,8 +542,11 @@ export async function fetchDistrictPersonal(nodeId?: string): Promise<DistrictPe
 export async function fetchRegionLeague(nodeId?: string): Promise<RegionLeagueResponse> {
   if (USE_MOCK_API) {
     const path = nodeId ? (findRegionPath(regionDrilldownTree, nodeId) ?? [regionDrilldownTree]) : [regionDrilldownTree];
-    const currentNode = path[path.length - 1];
-    const children = [...(currentNode.children ?? [])].sort((left, right) => left.rank - right.rank);
+    const rawCurrentNode = path[path.length - 1];
+    const parentNode = path[path.length - 2] ?? null;
+    const normalizedSiblings = parentNode ? normalizeRegionChildren(parentNode.children ?? []) : [rawCurrentNode];
+    const currentNode = normalizedSiblings.find((child) => child.id === rawCurrentNode.id) ?? rawCurrentNode;
+    const children = normalizeRegionChildren(currentNode.children ?? []);
 
     return {
       currentNode,
@@ -546,6 +581,7 @@ export async function fetchUniversityLeague(): Promise<UniversityLeagueResponse>
           universityName: normalizedUniversityName,
           totalDistanceKm: weeklySummary.totalDistanceKm,
           participants: 1,
+          averageDistanceKm: Number(weeklySummary.totalDistanceKm.toFixed(1)),
         });
       }
     }

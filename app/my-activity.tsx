@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { MyActivityResponse } from '@/lib/api/types';
 import { fetchMyActivity } from '@/lib/api/services';
 
@@ -21,7 +22,12 @@ export default function MyActivityScreen() {
 
   return (
     <Screen>
-      <AuthHeader title="내 활동" subtitle="내가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어." />
+      <AuthHeader
+        title="내 활동"
+        subtitle="내가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어."
+        showBack
+        backHref="/(tabs)/mypage"
+      />
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
       {error ? <Text>{error}</Text> : null}
@@ -53,6 +59,8 @@ export default function MyActivityScreen() {
               </Link>
             ))}
           </Card>
+
+          <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} />
         </>
       ) : null}
     </Screen>

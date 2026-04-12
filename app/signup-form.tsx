@@ -72,7 +72,7 @@ export default function SignupFormScreen() {
 
   return (
     <Screen>
-      <AuthHeader title="계정으로 회원가입" subtitle="기본 정보만 입력하면 바로 홈에서 경쟁을 시작할 수 있어요." />
+      <AuthHeader title="계정으로 회원가입" subtitle="기본 정보만 입력하면 바로 홈에서 경쟁을 시작할 수 있어요." showBack backHref="/signup" />
 
       <Card>
         <View style={styles.form}>

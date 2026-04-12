@@ -65,7 +65,12 @@ export default function ConnectSourcesScreen() {
 
   return (
     <Screen>
-      <AuthHeader title="기록 연동 시작" subtitle="출시 MVP에선 기록이 자동 또는 안정적으로 들어오는 연동 경로를 먼저 연결하고 홈으로 들어가는 흐름이 가장 중요해." />
+      <AuthHeader
+        title="기록 연동 시작"
+        subtitle="출시 MVP에선 기록이 자동 또는 안정적으로 들어오는 연동 경로를 먼저 연결하고 홈으로 들어가는 흐름이 가장 중요해."
+        showBack
+        backHref="/(tabs)/home"
+      />
 
       <InfoCard title="현재 단계">로그인/회원가입은 끝났고, 이제 기록 소스를 연결한 뒤 홈으로 들어가면 돼.</InfoCard>
 
@@ -108,8 +113,12 @@ export default function ConnectSourcesScreen() {
       <InfoCard title="왜 필요한가요?">기록 연동은 로그인과 별개야. Apple Health, Health Connect, Manual 같은 경로를 연결하면 달린 기록이 홈, 내 활동, 친구 경쟁에 반영돼.</InfoCard>
 
       <View style={styles.actions}>
-        <SecondaryButton label="연동 설정 자세히 보기" onPress={() => router.push('/integration-management')} />
+        <SecondaryButton
+          label="연동 설정 자세히 보기"
+          onPress={() => router.push({ pathname: '/integration-management', params: { returnTo: 'connect-sources' } })}
+        />
         <PrimaryButton label="연동하고 홈으로 들어가기" onPress={handleContinue} />
+        <SecondaryButton label="홈으로 돌아가기" onPress={() => router.replace('/(tabs)/home')} />
       </View>
     </Screen>
   );

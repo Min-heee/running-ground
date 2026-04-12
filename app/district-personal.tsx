@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { fetchDistrictPersonal } from '@/lib/api/services';
 import { DistrictPersonalResponse } from '@/lib/api/types';
 
@@ -31,6 +33,8 @@ export default function DistrictPersonalScreen() {
       <PageHeader
         title="구 내 개인 경쟁"
         subtitle={`${competition?.districtName ?? '내 지역'} 안에서 개인 랭킹과 포인트를 비교하는 공간.`}
+        showBack
+        backHref="/(tabs)/league"
       />
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
@@ -86,6 +90,8 @@ export default function DistrictPersonalScreen() {
               </View>
             )) : <Text style={styles.emptyText}>아직 이 지역 개인 랭킹이 없어.</Text>}
           </Card>
+
+          <SecondaryButton label="리그로 돌아가기" onPress={() => router.replace('/(tabs)/league')} />
         </>
       ) : null}
 
@@ -94,6 +100,7 @@ export default function DistrictPersonalScreen() {
           <Text style={styles.stateTitle}>구 내 개인 경쟁 데이터가 아직 없어</Text>
           <Text style={styles.emptyText}>실백엔드에서 응답이 오면 내 순위와 주변 경쟁자를 바로 보여줄 수 있어.</Text>
           <PrimaryButton label="다시 확인하기" onPress={loadCompetition} />
+          <SecondaryButton label="리그로 돌아가기" onPress={() => router.replace('/(tabs)/league')} />
         </Card>
       ) : null}
     </Screen>

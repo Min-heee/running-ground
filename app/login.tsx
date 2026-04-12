@@ -28,7 +28,7 @@ export default function LoginScreen() {
 
   return (
     <Screen>
-      <AuthHeader title="로그인" subtitle="로그인하면 바로 홈으로 들어가 경쟁을 시작할 수 있어요." />
+      <AuthHeader title="로그인" subtitle="로그인하면 바로 홈으로 들어가 경쟁을 시작할 수 있어요." showBack backHref="/onboarding" />
 
       <Card>
         <Text style={styles.sectionTitle}>계정으로 로그인</Text>

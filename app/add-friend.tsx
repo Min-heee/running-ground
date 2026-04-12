@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, TextInput, Pressable, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -7,6 +8,7 @@ import { InfoCard } from '@/components/ui/InfoCard';
 import { createFriendRequest, fetchFriendLeaderboard, fetchMyProfile } from '@/lib/api/services';
 import { FriendLeaderboardResponse, MyProfileResponse } from '@/lib/api/types';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 
 export default function AddFriendScreen() {
   const [friendTag, setFriendTag] = useState('');
@@ -68,7 +70,12 @@ export default function AddFriendScreen() {
 
   return (
     <Screen>
-      <AuthHeader title="친구 추가하기" subtitle="친구 태그로 검색해서 서로의 기록과 순위를 비교할 수 있어." />
+      <AuthHeader
+        title="친구 추가하기"
+        subtitle="친구 태그로 검색해서 서로의 기록과 순위를 비교할 수 있어."
+        showBack
+        backHref="/(tabs)/friends"
+      />
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
 
@@ -110,6 +117,7 @@ export default function AddFriendScreen() {
       </Card>
 
       <InfoCard title="태그 규칙">친구 태그는 짧지만 중복 가능성이 낮은 5자리 공개 코드로 운영하고, 실제 계정 식별은 내부 ID로 따로 관리하는 구조가 좋아.</InfoCard>
+      <SecondaryButton label="친구 화면으로 돌아가기" onPress={() => router.replace('/(tabs)/friends')} />
     </Screen>
   );
 }

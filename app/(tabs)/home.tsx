@@ -16,6 +16,7 @@ export default function HomeScreen() {
   const [summary, setSummary] = useState<WeeklySummary | null>(null);
   const [friendOverview, setFriendOverview] = useState<HomeFriendOverview | null>(null);
   const [nextRace, setNextRace] = useState<OfflineRaceEvent | null>(null);
+  const [myRace, setMyRace] = useState<OfflineRaceEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,11 +65,19 @@ export default function HomeScreen() {
       }
 
       if (raceHubResult.status === 'fulfilled') {
-        const nextAvailableEvent = [raceHubResult.value.featuredEvent, ...raceHubResult.value.upcomingEvents]
+        const raceEvents = [raceHubResult.value.featuredEvent, ...raceHubResult.value.upcomingEvents]
+          .filter((event) => event.status !== 'finished')
+          .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
+
+        const nextAvailableEvent = raceEvents
           .find((event) => event.status !== 'finished') ?? null;
+        const nextRegisteredEvent = raceEvents.find((event) => event.registered) ?? null;
+
         setNextRace(nextAvailableEvent);
+        setMyRace(nextRegisteredEvent);
       } else {
         setNextRace(null);
+        setMyRace(null);
       }
 
       setLoading(false);
@@ -90,7 +99,7 @@ export default function HomeScreen() {
         </View>
         {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
         {error ? <Text>{error}</Text> : null}
-        {summary ? <HomeOverview summary={summary} friendOverview={friendOverview} nextRace={nextRace} /> : null}
+        {summary ? <HomeOverview summary={summary} friendOverview={friendOverview} nextRace={nextRace} myRace={myRace} /> : null}
       </View>
     </Screen>
   );

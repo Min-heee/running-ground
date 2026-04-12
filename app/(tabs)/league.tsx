@@ -4,7 +4,6 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { InfoCard } from '@/components/ui/InfoCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { myProfile } from '@/data/mock';
 import { fetchDistrictPersonal, fetchRegionLeague, fetchUniversityLeague } from '@/lib/api/services';
@@ -14,6 +13,10 @@ import { getCurrentUserProfile } from '@/lib/session';
 const FEATURED_REGION_COUNT = 6;
 
 type LeagueMode = 'region' | 'university';
+
+function formatDistanceValue(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
 
 export default function LeagueScreen() {
   const scrollRef = useRef<ScrollView | null>(null);
@@ -78,11 +81,6 @@ export default function LeagueScreen() {
     () => breadcrumbNodes.filter((node) => node.level !== 'country'),
     [breadcrumbNodes],
   );
-  const breadcrumb = useMemo(
-    () => (navigationPath.length > 0 ? navigationPath.map((node) => node.name).join(' -> ') : '대한민국'),
-    [navigationPath],
-  );
-
   const sortedChildren = useMemo(() => [...children].sort((a, b) => a.rank - b.rank), [children]);
   const visibleChildren = useMemo(() => {
     if (!isCountry || showAllRegions) return sortedChildren;
@@ -134,9 +132,6 @@ export default function LeagueScreen() {
     <Screen scrollRef={scrollRef}>
       <PageHeader
         title="리그"
-        subtitle={isUniversityView
-          ? '학교별 총거리와 참가 인원 기준으로 대학 랭킹을 볼 수 있어.'
-          : '대한민국부터 시/도, 시/군/구까지 내려가며 경쟁 구도를 볼 수 있어.'}
       />
 
       <Card style={styles.modeCard}>
@@ -152,8 +147,6 @@ export default function LeagueScreen() {
 
       {isUniversityView ? (
         <>
-          <InfoCard title="대학 리그">학교별 참가 인원이 모이면 자동으로 대학 랭킹이 만들어지고, 총거리 기준으로 순위가 정해져.</InfoCard>
-
           {universityLoading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
 
           {!universityLoading && universityError ? (
@@ -177,15 +170,27 @@ export default function LeagueScreen() {
               <Card style={styles.heroCard}>
                 <Text style={styles.heroLabel}>현재 1위 대학</Text>
                 <Text style={styles.heroTitle}>{featuredUniversityRank.universityName}</Text>
-                <Text style={styles.breadcrumb}>현재 참가 대학 {universityLeague?.ranks.length ?? 0}개가 집계되고 있어.</Text>
+                <Text style={styles.breadcrumb}>참가 대학 {universityLeague?.ranks.length ?? 0}</Text>
                 <View style={styles.heroMetrics}>
-                  <View style={styles.heroMetricBox}>
+                  <View style={styles.heroMetricColumn}>
+                    <Text style={styles.heroMetricLabel}>현재순위</Text>
                     <Text style={styles.heroMetricValue}>{featuredUniversityRank.rank}위</Text>
-                    <Text style={styles.heroMetricLabel}>현재 순위</Text>
                   </View>
-                  <View style={styles.heroMetricBox}>
-                    <Text style={styles.heroMetricValue}>{featuredUniversityRank.totalDistanceKm}km</Text>
+                  <View style={styles.heroMetricDivider} />
+                  <View style={styles.heroMetricColumn}>
                     <Text style={styles.heroMetricLabel}>총거리</Text>
+                    <Text style={styles.heroMetricValue}>
+                      {formatDistanceValue(featuredUniversityRank.totalDistanceKm)}
+                      <Text style={styles.heroMetricUnitInline}> km</Text>
+                    </Text>
+                  </View>
+                  <View style={styles.heroMetricDivider} />
+                  <View style={styles.heroMetricColumn}>
+                    <Text style={styles.heroMetricLabel}>누적평균거리</Text>
+                    <Text style={styles.heroMetricValue}>
+                      {formatDistanceValue(featuredUniversityRank.totalDistanceKm / Math.max(featuredUniversityRank.participants, 1))}
+                      <Text style={styles.heroMetricUnitInline}> km</Text>
+                    </Text>
                   </View>
                 </View>
                 <Text style={styles.heroFootnote}>회원 수 {featuredUniversityRank.participants}명</Text>
@@ -198,7 +203,9 @@ export default function LeagueScreen() {
                     <Text style={styles.rankNumber}>{rank.rank}</Text>
                     <View style={styles.rankMeta}>
                       <Text style={styles.rankName}>{rank.universityName}</Text>
-                      <Text style={styles.rankDetail}>총 거리 {rank.totalDistanceKm}km · 회원 {rank.participants}명</Text>
+                      <Text style={styles.rankDetail}>
+                        누적 평균거리 {formatDistanceValue(rank.averageDistanceKm)}km · 총거리 {formatDistanceValue(rank.totalDistanceKm)}km · 회원 {rank.participants}명
+                      </Text>
                     </View>
                   </View>
                 ))}
@@ -208,8 +215,6 @@ export default function LeagueScreen() {
         </>
       ) : (
         <>
-          <InfoCard title="탐색 방식">지역을 누르면 하위 지역으로 내려가고, 그 지역의 순위와 총거리, 회원 수를 바로 확인할 수 있어.</InfoCard>
-
           {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
 
           {!loading && error ? (
@@ -240,18 +245,31 @@ export default function LeagueScreen() {
                   ) : null}
                 </View>
                 <Text style={styles.heroTitle}>{currentNode.name}</Text>
-                <Text style={styles.breadcrumb}>{breadcrumb}</Text>
                 <View style={styles.heroMetrics}>
-                  <View style={styles.heroMetricBox}>
-                    <Text style={styles.heroMetricValue}>{isCountry ? `${currentNode.totalDistanceKm}km` : `${currentNode.rank}위`}</Text>
-                    <Text style={styles.heroMetricLabel}>{isCountry ? '회원 총 거리' : '현재 순위'}</Text>
+                  <View style={styles.heroMetricColumn}>
+                    <Text style={styles.heroMetricLabel}>총거리</Text>
+                    <Text style={styles.heroMetricValue}>
+                      {formatDistanceValue(currentNode.totalDistanceKm)}
+                      <Text style={styles.heroMetricUnitInline}> km</Text>
+                    </Text>
                   </View>
-                  <View style={styles.heroMetricBox}>
-                    <Text style={styles.heroMetricValue}>{currentNode.participants}명</Text>
-                    <Text style={styles.heroMetricLabel}>회원 수</Text>
+                  <View style={styles.heroMetricDivider} />
+                  <View style={styles.heroMetricColumn}>
+                    <Text style={styles.heroMetricLabel}>회원수</Text>
+                    <Text style={styles.heroMetricValue}>
+                      {currentNode.participants}
+                      <Text style={styles.heroMetricUnitInline}> 명</Text>
+                    </Text>
+                  </View>
+                  <View style={styles.heroMetricDivider} />
+                  <View style={styles.heroMetricColumn}>
+                    <Text style={styles.heroMetricLabel}>누적평균거리</Text>
+                    <Text style={styles.heroMetricValue}>
+                      {formatDistanceValue(currentNode.averageDistanceKm)}
+                      <Text style={styles.heroMetricUnitInline}> km</Text>
+                    </Text>
                   </View>
                 </View>
-                <Text style={styles.heroFootnote}>총 거리 {currentNode.totalDistanceKm}km · 참여율 {currentNode.participationRate}%</Text>
               </Card>
 
               <Card>
@@ -320,32 +338,6 @@ export default function LeagueScreen() {
                   ) : null}
                 </View>
               </Card>
-
-              {!isCountry ? (
-                <Card>
-                  <SectionTitle>선택 지역 현황</SectionTitle>
-                  <View style={styles.summaryGrid}>
-                    <View style={styles.summaryBox}>
-                      <Text style={styles.summaryValue}>{currentNode.rank}위</Text>
-                      <Text style={styles.summaryLabel}>현재 순위</Text>
-                    </View>
-                    <View style={styles.summaryBox}>
-                      <Text style={styles.summaryValue}>{currentNode.totalDistanceKm}km</Text>
-                      <Text style={styles.summaryLabel}>총거리</Text>
-                    </View>
-                  </View>
-                  <View style={styles.summaryGrid}>
-                    <View style={styles.summaryBox}>
-                      <Text style={styles.summaryValue}>{currentNode.participants}명</Text>
-                      <Text style={styles.summaryLabel}>회원 수</Text>
-                    </View>
-                    <View style={styles.summaryBox}>
-                      <Text style={styles.summaryValue}>{currentNode.participationRate}%</Text>
-                      <Text style={styles.summaryLabel}>참여율</Text>
-                    </View>
-                  </View>
-                </Card>
-              ) : null}
 
               {isLeafRegion ? (
                 <>
@@ -446,11 +438,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   heroCard: {
-    backgroundColor: '#6D5EF7',
+    backgroundColor: '#111827',
     gap: 10,
   },
   heroLabel: {
-    color: '#E9E7FF',
+    color: '#C7D2FE',
     fontWeight: '700',
     fontSize: 12,
   },
@@ -465,30 +457,39 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   breadcrumb: {
-    color: '#E9E7FF',
+    color: '#C7D2FE',
     lineHeight: 20,
   },
   heroMetrics: {
     flexDirection: 'row',
-    gap: 10,
+    alignItems: 'stretch',
   },
-  heroMetricBox: {
+  heroMetricColumn: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderRadius: 16,
-    padding: 14,
-    gap: 4,
+    gap: 6,
+  },
+  heroMetricDivider: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    marginHorizontal: 10,
   },
   heroMetricValue: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
   },
   heroMetricLabel: {
-    color: '#E9E7FF',
+    color: '#D0D5DD',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  heroMetricUnitInline: {
+    color: '#C7D2FE',
+    fontSize: 11,
+    fontWeight: '700',
   },
   heroFootnote: {
-    color: '#E9E7FF',
+    color: '#C7D2FE',
     lineHeight: 20,
   },
   selectorWrap: {
@@ -646,26 +647,6 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#667085',
     lineHeight: 20,
-  },
-  summaryGrid: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 10,
-  },
-  summaryBox: {
-    flex: 1,
-    backgroundColor: '#F2F4F7',
-    borderRadius: 16,
-    padding: 14,
-    gap: 4,
-  },
-  summaryValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  summaryLabel: {
-    color: '#667085',
   },
   rankRow: {
     flexDirection: 'row',

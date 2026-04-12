@@ -46,36 +46,94 @@ const DISTRICT_BATTLE = {
 const DEFAULT_MARKET_CATALOG = [
   {
     id: 'reward-theme-midnight',
-    title: '미드나잇 프로필 테마',
-    category: '프로필 테마',
-    description: '프로필 카드와 랭킹 강조색을 조금 더 선명하게 바꿔주는 테마야.',
+    title: '러닝 양말 2팩',
+    category: '러닝 용품',
+    description: '가볍고 땀 배출이 빠른 데일리 러닝 양말 세트예요.',
     costPoints: 40,
     repeatable: false,
   },
   {
     id: 'reward-coupon-coffee',
-    title: '러닝 후 커피 쿠폰',
-    category: '제휴 쿠폰',
-    description: '가볍게 회복할 수 있는 아메리카노 1잔 쿠폰이야.',
+    title: '메가커피 5천원',
+    category: '키프티콘',
+    description: '러닝 후 가볍게 마시기 좋은 모바일 교환권이에요.',
     costPoints: 60,
-    partnerName: 'Daily Beans',
+    partnerName: '메가커피',
     repeatable: false,
   },
   {
     id: 'reward-badge-sprinter',
-    title: '스프린터 한정 배지',
-    category: '배지',
-    description: '프로필과 친구 랭킹에서 보여줄 수 있는 시즌 배지야.',
+    title: '드라이핏 반팔 티',
+    category: '런닝 티',
+    description: '가볍고 빠르게 마르는 기본 러닝 티셔츠예요.',
     costPoints: 90,
     repeatable: false,
   },
   {
     id: 'reward-challenge-ticket',
-    title: '주말 챌린지 입장권',
-    category: '챌린지',
-    description: '주말 5km 미션 보상 챌린지에 바로 참가할 수 있어.',
+    title: '경량 러닝 쇼츠',
+    category: '런닝 바지',
+    description: '가볍게 입기 좋은 베이직 5인치 러닝 쇼츠예요.',
     costPoints: 140,
-    repeatable: true,
+    repeatable: false,
+  },
+  {
+    id: 'reward-running-shoes-daily',
+    title: '데일리 쿠셔닝 러닝화',
+    category: '런닝화',
+    description: '장거리 러닝에도 편안한 쿠셔닝 중심 러닝화예요.',
+    costPoints: 280,
+    repeatable: false,
+  },
+  {
+    id: 'reward-running-shoes-race',
+    title: '레이스 데이 러닝화',
+    category: '런닝화',
+    description: '조금 더 가볍고 반응성이 좋은 레이스용 모델이에요.',
+    costPoints: 340,
+    repeatable: false,
+  },
+  {
+    id: 'reward-running-tee-sleeveless',
+    title: '메쉬 슬리브리스',
+    category: '런닝 티',
+    description: '한여름 러닝에 어울리는 통기성 중심 탑이에요.',
+    costPoints: 120,
+    repeatable: false,
+  },
+  {
+    id: 'reward-running-pants-tights',
+    title: '컴프레션 롱타이츠',
+    category: '런닝 바지',
+    description: '기온이 낮은 날 입기 좋은 압박형 타이츠예요.',
+    costPoints: 180,
+    repeatable: false,
+  },
+  {
+    id: 'reward-running-gear-belt',
+    title: '보틀 벨트',
+    category: '러닝 용품',
+    description: '장거리 러닝 때 휴대성과 수분 보충을 챙기기 좋아요.',
+    costPoints: 110,
+    repeatable: false,
+  },
+  {
+    id: 'reward-gifticon-gs',
+    title: 'GS25 5천원',
+    category: '키프티콘',
+    description: '러닝 후 간단한 간식이나 음료를 고르기 좋은 교환권이에요.',
+    costPoints: 70,
+    partnerName: 'GS25',
+    repeatable: false,
+  },
+  {
+    id: 'reward-gifticon-olive',
+    title: '올리브영 1만원',
+    category: '키프티콘',
+    description: '러닝 보조용품이나 케어 아이템 구매에 쓰기 좋아요.',
+    costPoints: 150,
+    partnerName: '올리브영',
+    repeatable: false,
   },
 ];
 
@@ -508,8 +566,32 @@ function buildRegionLeague(store, nodeId) {
     throw new ApiError(404, '선택한 지역 정보를 찾을 수 없어.');
   }
 
-  const currentNode = path[path.length - 1];
-  const children = [...(currentNode.children ?? [])].sort((left, right) => left.rank - right.rank);
+  const normalizeChildren = (children) => [...children]
+    .sort((left, right) => {
+      if (right.averageDistanceKm !== left.averageDistanceKm) {
+        return right.averageDistanceKm - left.averageDistanceKm;
+      }
+
+      if (right.totalDistanceKm !== left.totalDistanceKm) {
+        return right.totalDistanceKm - left.totalDistanceKm;
+      }
+
+      if (right.participants !== left.participants) {
+        return right.participants - left.participants;
+      }
+
+      return left.name.localeCompare(right.name, 'ko');
+    })
+    .map((child, index) => ({
+      ...child,
+      rank: index + 1,
+    }));
+
+  const rawCurrentNode = path[path.length - 1];
+  const parentNode = path[path.length - 2] ?? null;
+  const normalizedSiblings = parentNode ? normalizeChildren(parentNode.children ?? []) : [rawCurrentNode];
+  const currentNode = normalizedSiblings.find((child) => child.id === rawCurrentNode.id) ?? rawCurrentNode;
+  const children = normalizeChildren(currentNode.children ?? []);
 
   return {
     currentNode,
@@ -540,7 +622,15 @@ function buildUniversityLeague(store) {
   }
 
   const ranks = [...universityMap.values()]
+    .map((entry) => ({
+      ...entry,
+      averageDistanceKm: Number((entry.totalDistanceKm / Math.max(entry.participants, 1)).toFixed(1)),
+    }))
     .sort((left, right) => {
+      if (right.averageDistanceKm !== left.averageDistanceKm) {
+        return right.averageDistanceKm - left.averageDistanceKm;
+      }
+
       if (right.totalDistanceKm !== left.totalDistanceKm) {
         return right.totalDistanceKm - left.totalDistanceKm;
       }
@@ -556,6 +646,7 @@ function buildUniversityLeague(store) {
       universityName: entry.universityName,
       totalDistanceKm: Number(entry.totalDistanceKm.toFixed(1)),
       participants: entry.participants,
+      averageDistanceKm: entry.averageDistanceKm,
     }));
 
   return { ranks };

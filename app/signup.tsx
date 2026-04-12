@@ -7,7 +7,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 export default function SignupScreen() {
   return (
     <Screen>
-      <AuthHeader title="회원가입" subtitle="계정을 만들고 바로 러닝 경쟁을 시작해보세요." />
+      <AuthHeader title="회원가입" subtitle="계정을 만들고 바로 러닝 경쟁을 시작해보세요." showBack backHref="/onboarding" />
 
       <Card>
         <Text style={styles.helperText}>이름, 아이디, 비밀번호만 입력하면 바로 시작할 수 있어요.</Text>

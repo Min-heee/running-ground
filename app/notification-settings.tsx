@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { fetchNotificationSettings, updateNotificationSettings } from '@/lib/api/services';
 
 export default function NotificationSettingsScreen() {
@@ -53,7 +55,12 @@ export default function NotificationSettingsScreen() {
 
   return (
     <Screen>
-      <AuthHeader title="알림 설정" subtitle="친구 경쟁, 지역 경쟁, 마켓 관련 알림을 관리할 수 있어." />
+      <AuthHeader
+        title="알림 설정"
+        subtitle="친구 경쟁, 지역 경쟁, 마켓 관련 알림을 관리할 수 있어."
+        showBack
+        backHref="/(tabs)/mypage"
+      />
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
 
@@ -68,6 +75,7 @@ export default function NotificationSettingsScreen() {
           </Card>
 
           <PrimaryButton label={saving ? '저장 중...' : '알림 설정 저장'} onPress={handleSave} />
+          <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} />
           {saved ? <Text style={styles.savedText}>알림 설정이 저장됐어.</Text> : null}
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </>
