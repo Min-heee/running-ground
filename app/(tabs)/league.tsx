@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
@@ -14,8 +15,78 @@ const FEATURED_REGION_COUNT = 6;
 
 type LeagueMode = 'region' | 'university';
 
+const PODIUM_THEME = {
+  1: {
+    iconColor: '#F59E0B',
+    backgroundColor: '#FFF7CC',
+    borderColor: '#FACC15',
+    textColor: '#B45309',
+  },
+  2: {
+    iconColor: '#94A3B8',
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+    textColor: '#475467',
+  },
+  3: {
+    iconColor: '#B45309',
+    backgroundColor: '#FDEAD7',
+    borderColor: '#D97706',
+    textColor: '#92400E',
+  },
+} as const;
+
 function formatDistanceValue(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function getPodiumTheme(rank: number) {
+  if (rank === 1 || rank === 2 || rank === 3) {
+    return PODIUM_THEME[rank];
+  }
+
+  return null;
+}
+
+function PodiumBadge({ rank, compact = false }: { rank: number; compact?: boolean }) {
+  const theme = getPodiumTheme(rank);
+
+  if (!theme) {
+    return null;
+  }
+
+  return (
+    <View
+      style={[
+        styles.podiumBadge,
+        compact && styles.podiumBadgeCompact,
+        {
+          backgroundColor: theme.backgroundColor,
+          borderColor: theme.borderColor,
+        },
+      ]}
+    >
+      <MaterialCommunityIcons name="crown" size={compact ? 12 : 14} color={theme.iconColor} />
+      <Text style={[styles.podiumBadgeText, compact && styles.podiumBadgeTextCompact, { color: theme.textColor }]}>
+        {rank}위
+      </Text>
+    </View>
+  );
+}
+
+function RankMarker({ rank }: { rank: number }) {
+  const theme = getPodiumTheme(rank);
+
+  if (!theme) {
+    return <Text style={styles.rankNumber}>{rank}</Text>;
+  }
+
+  return (
+    <View style={[styles.rankMarkerPodium, { backgroundColor: theme.backgroundColor, borderColor: theme.borderColor }]}>
+      <MaterialCommunityIcons name="crown" size={13} color={theme.iconColor} />
+      <Text style={[styles.rankMarkerPodiumText, { color: theme.textColor }]}>{rank}</Text>
+    </View>
+  );
 }
 
 export default function LeagueScreen() {
@@ -169,7 +240,10 @@ export default function LeagueScreen() {
             <>
               <Card style={styles.heroCard}>
                 <Text style={styles.heroLabel}>현재 1위 대학</Text>
-                <Text style={styles.heroTitle}>{featuredUniversityRank.universityName}</Text>
+                <View style={styles.heroTitleRow}>
+                  <Text style={styles.heroTitle}>{featuredUniversityRank.universityName}</Text>
+                  <PodiumBadge rank={featuredUniversityRank.rank} />
+                </View>
                 <Text style={styles.breadcrumb}>참가 대학 {universityLeague?.ranks.length ?? 0}</Text>
                 <View style={styles.heroMetrics}>
                   <View style={styles.heroMetricColumn}>
@@ -200,7 +274,7 @@ export default function LeagueScreen() {
                 <SectionTitle>대학 순위</SectionTitle>
                 {universityLeague?.ranks.map((rank) => (
                   <View key={rank.universityName} style={styles.rankRow}>
-                    <Text style={styles.rankNumber}>{rank.rank}</Text>
+                    <RankMarker rank={rank.rank} />
                     <View style={styles.rankMeta}>
                       <Text style={styles.rankName}>{rank.universityName}</Text>
                       <Text style={styles.rankDetail}>
@@ -315,9 +389,13 @@ export default function LeagueScreen() {
                           style={[styles.regionCard, isMyRegionNode(node) && styles.regionCardMy]}
                           onPress={() => loadLeague(node.id)}
                         >
-                          <View style={styles.rankBadge}>
-                            <Text style={styles.rankBadgeText}>{node.rank}등</Text>
-                          </View>
+                          {getPodiumTheme(node.rank) ? (
+                            <PodiumBadge rank={node.rank} compact />
+                          ) : (
+                            <View style={styles.rankBadge}>
+                              <Text style={styles.rankBadgeText}>{node.rank}등</Text>
+                            </View>
+                          )}
                           {isMyRegionNode(node) ? (
                             <View style={styles.regionMyBadge}>
                               <Text style={styles.regionMyBadgeText}>내 지역</Text>
@@ -379,7 +457,7 @@ export default function LeagueScreen() {
                           style={[styles.rankRow, runner.isFriend && styles.friendRow, runner.isMe && styles.meRow]}
                           onLayout={runner.isMe ? (event) => setMyRankRowY(event.nativeEvent.layout.y) : undefined}
                         >
-                          <Text style={styles.rankNumber}>{runner.rank}</Text>
+                          <RankMarker rank={runner.rank} />
                           <View style={styles.rankMeta}>
                             <View style={styles.rankNameRow}>
                               <Text style={styles.rankName}>{runner.name}</Text>
@@ -455,6 +533,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 30,
     fontWeight: '800',
+  },
+  heroTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   breadcrumb: {
     color: '#C7D2FE',
@@ -607,6 +690,32 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
+  podiumBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderWidth: 1,
+  },
+  podiumBadgeCompact: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  podiumBadgeText: {
+    fontSize: 12,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  podiumBadgeTextCompact: {
+    fontSize: 11,
+  },
   regionMyBadge: {
     position: 'absolute',
     top: 10,
@@ -668,8 +777,24 @@ const styles = StyleSheet.create({
   },
   rankNumber: {
     width: 24,
+    textAlign: 'center',
     fontWeight: '800',
     color: '#344054',
+  },
+  rankMarkerPodium: {
+    minWidth: 42,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+  },
+  rankMarkerPodiumText: {
+    fontSize: 11,
+    fontWeight: '900',
+    includeFontPadding: false,
   },
   rankMeta: {
     flex: 1,
