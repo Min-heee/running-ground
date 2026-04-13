@@ -53,7 +53,8 @@ function isUserProfile(value: unknown): value is UserProfile {
     && typeof value.districtName === 'string'
     && (value.universityName === undefined || typeof value.universityName === 'string')
     && (value.addressDetail === undefined || typeof value.addressDetail === 'string')
-    && typeof value.publicTag === 'string';
+    && typeof value.publicTag === 'string'
+    && (value.lifetimeDistanceKm === undefined || typeof value.lifetimeDistanceKm === 'number');
 }
 
 async function getStoredSessionValue() {
@@ -342,6 +343,7 @@ export async function registerAccount({
       universityName: normalizedUniversityName || undefined,
       addressDetail: normalizedAddressDetail,
       publicTag: myProfile.publicTag,
+      lifetimeDistanceKm: mockProfile.lifetimeDistanceKm ?? 0,
     };
     mockSignedIn = true;
     await persistSession();

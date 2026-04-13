@@ -7,6 +7,7 @@ export const myProfile: UserProfile = {
   districtName: '강남구',
   addressDetail: '테헤란로 123',
   publicTag: '#BH7K2',
+  lifetimeDistanceKm: 126.8,
 };
 
 export const myNotificationSettings = {
@@ -126,9 +127,9 @@ export const marketOverview: MarketOverview = {
 
 export const weeklySummary: WeeklySummary = {
   totalDistanceKm: 42.4,
-  totalRuns: 5,
+  totalRuns: 8,
   goalAchievementRate: 84,
-  streakDays: 11,
+  streakDays: 3,
   latestRun: {
     distanceKm: 8.2,
     source: 'Apple Health',
@@ -148,11 +149,14 @@ export const weeklySummary: WeeklySummary = {
 };
 
 export const myRunRecords: MyRunRecord[] = [
-  { id: 'mr1', date: '2026-03-30', distanceKm: 8.2, pace: '5:34/km', source: 'Apple Health' },
-  { id: 'mr2', date: '2026-03-28', distanceKm: 11.0, pace: '5:22/km', source: 'Apple Health' },
-  { id: 'mr3', date: '2026-03-25', distanceKm: 6.4, pace: '5:41/km', source: 'Manual' },
-  { id: 'mr4', date: '2026-03-21', distanceKm: 9.8, pace: '5:19/km', source: 'Apple Health' },
-  { id: 'mr5', date: '2026-03-18', distanceKm: 7.0, pace: '5:48/km', source: 'Apple Health' },
+  { id: 'mr1', date: '2026-04-12', distanceKm: 8.2, pace: '5:34/km', source: 'Apple Health' },
+  { id: 'mr2', date: '2026-04-11', distanceKm: 7.0, pace: '5:22/km', source: 'Apple Health' },
+  { id: 'mr3', date: '2026-04-10', distanceKm: 6.4, pace: '5:41/km', source: 'Manual' },
+  { id: 'mr4', date: '2026-04-08', distanceKm: 5.8, pace: '5:19/km', source: 'Apple Health' },
+  { id: 'mr5', date: '2026-04-06', distanceKm: 4.5, pace: '5:48/km', source: 'Apple Health' },
+  { id: 'mr6', date: '2026-04-05', distanceKm: 3.9, pace: '5:56/km', source: 'Manual' },
+  { id: 'mr7', date: '2026-04-04', distanceKm: 3.5, pace: '6:02/km', source: 'Apple Health' },
+  { id: 'mr8', date: '2026-04-03', distanceKm: 3.1, pace: '6:10/km', source: 'Apple Health' },
 ];
 
 export const friendRanks: FriendRank[] = [

@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, View, StyleSheet } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { HomeOverview } from '@/features/home/HomeOverview';
-import { OfflineRaceEvent, WeeklySummary } from '@/domain/types';
-import { fetchFriendLeaderboard, fetchHomeSummary, fetchOfflineRaceHub } from '@/lib/api/services';
+import { OfflineRaceEvent, UserProfile, WeeklySummary } from '@/domain/types';
+import { fetchFriendLeaderboard, fetchHomeSummary, fetchMyActivity, fetchOfflineRaceHub } from '@/lib/api/services';
 import { getCurrentUserProfile } from '@/lib/session';
+import { MyActivityResponse } from '@/lib/api/types';
 
 type HomeFriendOverview = {
   myRank: number | null;
@@ -17,6 +18,8 @@ export default function HomeScreen() {
   const [friendOverview, setFriendOverview] = useState<HomeFriendOverview | null>(null);
   const [nextRace, setNextRace] = useState<OfflineRaceEvent | null>(null);
   const [myRace, setMyRace] = useState<OfflineRaceEvent | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(getCurrentUserProfile());
+  const [activity, setActivity] = useState<MyActivityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,10 +30,11 @@ export default function HomeScreen() {
       setLoading(true);
       setError(null);
 
-      const [summaryResult, leaderboardResult, raceHubResult] = await Promise.allSettled([
+      const [summaryResult, leaderboardResult, raceHubResult, activityResult] = await Promise.allSettled([
         fetchHomeSummary(),
         fetchFriendLeaderboard(),
         fetchOfflineRaceHub(),
+        fetchMyActivity(),
       ]);
 
       if (!active) {
@@ -49,10 +53,11 @@ export default function HomeScreen() {
       setSummary(summaryData);
 
       if (leaderboardResult.status === 'fulfilled') {
-        const profile = getCurrentUserProfile();
+        const currentProfile = getCurrentUserProfile();
+        setProfile(currentProfile);
         const myEntry = leaderboardResult.value.ranks.find((entry) => (
-          (profile?.publicTag && entry.tag === profile.publicTag)
-          || (profile?.name && entry.name === profile.name)
+          (currentProfile?.publicTag && entry.tag === currentProfile.publicTag)
+          || (currentProfile?.name && entry.name === currentProfile.name)
         )) ?? null;
 
         setFriendOverview({
@@ -80,6 +85,12 @@ export default function HomeScreen() {
         setMyRace(null);
       }
 
+      if (activityResult.status === 'fulfilled') {
+        setActivity(activityResult.value);
+      } else {
+        setActivity(null);
+      }
+
       setLoading(false);
     };
 
@@ -99,7 +110,16 @@ export default function HomeScreen() {
         </View>
         {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
         {error ? <Text>{error}</Text> : null}
-        {summary ? <HomeOverview summary={summary} friendOverview={friendOverview} nextRace={nextRace} myRace={myRace} /> : null}
+        {summary ? (
+          <HomeOverview
+            summary={summary}
+            lifetimeDistanceKm={profile?.lifetimeDistanceKm}
+            runs={activity?.runs ?? []}
+            friendOverview={friendOverview}
+            nextRace={nextRace}
+            myRace={myRace}
+          />
+        ) : null}
       </View>
     </Screen>
   );

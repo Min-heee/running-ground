@@ -56,6 +56,7 @@ export type UserProfile = {
   universityName?: string;
   addressDetail?: string;
   publicTag: string;
+  lifetimeDistanceKm?: number;
 };
 
 export type DistrictBattleRank = {

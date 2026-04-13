@@ -1,7 +1,9 @@
+import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { Card } from '@/components/Card';
-import { OfflineRaceEvent, WeeklySummary } from '@/domain/types';
+import { MyRunRecord, OfflineRaceEvent, WeeklySummary } from '@/domain/types';
+import { buildWeeklyPointOverview } from '@/features/points/pointSystem';
 
 type HomeFriendOverview = {
   myRank: number | null;
@@ -18,15 +20,54 @@ const raceDateFormatter = new Intl.DateTimeFormat('ko-KR', {
 
 export function HomeOverview({
   summary,
+  lifetimeDistanceKm,
+  runs,
   friendOverview,
   nextRace,
   myRace,
 }: {
   summary: WeeklySummary;
+  lifetimeDistanceKm?: number;
+  runs: MyRunRecord[];
   friendOverview: HomeFriendOverview | null;
   nextRace: OfflineRaceEvent | null;
   myRace: OfflineRaceEvent | null;
 }) {
+  const pointOverview = buildWeeklyPointOverview(summary, { lifetimeDistanceKm, runs });
+  const [selectedTrackId, setSelectedTrackId] = useState<'distance' | 'streak' | 'growth'>('distance');
+  const selectedTrack = useMemo(
+    () => pointOverview.tracks.find((track) => track.id === selectedTrackId) ?? pointOverview.tracks[0],
+    [pointOverview.tracks, selectedTrackId],
+  );
+  const calendarRows = useMemo(() => {
+    if (!selectedTrack.calendar) {
+      return [];
+    }
+
+    return Array.from({ length: Math.ceil(selectedTrack.calendar.cells.length / 7) }, (_, rowIndex) => {
+      const row = selectedTrack.calendar?.cells.slice(rowIndex * 7, rowIndex * 7 + 7) ?? [];
+
+      while (row.length < 7) {
+        row.push({
+          key: `trailing-placeholder-${rowIndex}-${row.length}`,
+          didRun: false,
+          earnedPoints: 0,
+          isToday: false,
+          isPlaceholder: true,
+        });
+      }
+
+      return row;
+    });
+  }, [selectedTrack.calendar]);
+  const streakTrack = pointOverview.tracks.find((track) => track.id === 'streak') ?? pointOverview.tracks[1];
+  const pointHeaderLabel = selectedTrack.id === 'streak'
+    ? selectedTrack.currentValue >= 1
+      ? `오늘 이어가면 +${selectedTrack.rewardPoints}P`
+      : '2일 연속부터 포인트 시작'
+    : selectedTrack.scope === 'lifetime'
+      ? `레벨업 시 +${selectedTrack.rewardPoints}P`
+      : `달성 시 +${selectedTrack.rewardPoints}P`;
   const friendRankLabel = friendOverview?.myRank ? `${friendOverview.myRank}위` : '친구 추가';
   const friendSubLabel = friendOverview?.myRank
     ? friendOverview.myRank === 1
@@ -81,8 +122,104 @@ export function HomeOverview({
         <View style={styles.statusDivider} />
         <View style={styles.statusMetric}>
           <Text style={styles.statusLabel}>연속</Text>
-          <Text style={styles.statusValue}>{summary.streakDays}일</Text>
+          <Text style={styles.statusValue}>{streakTrack.currentValue}일</Text>
         </View>
+      </Card>
+
+      <Card style={styles.pointCard}>
+        <View style={styles.pointHeader}>
+          <Text style={styles.sectionEyebrow}>포인트 게이지</Text>
+          <Text style={styles.pointTarget}>{pointHeaderLabel}</Text>
+        </View>
+
+        <View style={styles.pointTabRow}>
+          {pointOverview.tracks.map((track) => {
+            const active = track.id === selectedTrack.id;
+
+            return (
+              <Pressable
+                key={track.id}
+                style={[styles.pointTab, active && styles.pointTabActive]}
+                onPress={() => setSelectedTrackId(track.id)}
+              >
+                <Text style={[styles.pointTabText, active && styles.pointTabTextActive]}>{track.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={styles.pointValueRow}>
+          {selectedTrack.badgeText ? <Text style={styles.pointBadge}>{selectedTrack.badgeText}</Text> : null}
+          {selectedTrack.id === 'streak' ? (
+            <Text style={styles.pointValue}>
+              {selectedTrack.currentValue}
+              <Text style={styles.pointUnit}>{selectedTrack.unit} 연속</Text>
+            </Text>
+          ) : (
+            <Text style={styles.pointValue}>
+              {selectedTrack.currentValue}
+              <Text style={styles.pointUnit}> / {selectedTrack.targetValue}{selectedTrack.unit}</Text>
+            </Text>
+          )}
+          <Text style={styles.pointSub}>{selectedTrack.statusText}</Text>
+        </View>
+
+        <View style={styles.pointTrack}>
+          <View style={[styles.pointFill, { width: `${selectedTrack.progressPercent}%` }]} />
+        </View>
+
+        {selectedTrack.id === 'streak' && selectedTrack.calendar ? (
+          <View style={styles.calendarWrap}>
+            <View style={styles.calendarHeader}>
+              <Text style={styles.calendarMonth}>{selectedTrack.calendar.monthLabel}</Text>
+              <Text style={styles.calendarMeta}>이번 달 +{selectedTrack.calendar.monthlyEarnedPoints}P</Text>
+            </View>
+
+            <View style={styles.calendarWeekHeader}>
+              {selectedTrack.calendar.weekdayLabels.map((label) => (
+                <Text key={label} style={styles.calendarWeekday}>{label}</Text>
+              ))}
+            </View>
+
+            <View style={styles.calendarGrid}>
+              {calendarRows.map((row, rowIndex) => (
+                <View key={`calendar-row-${rowIndex}`} style={styles.calendarRow}>
+                  {row.map((cell) => (
+                    <View
+                      key={cell.key}
+                      style={[
+                        styles.calendarCell,
+                        cell.isPlaceholder && styles.calendarCellPlaceholder,
+                        cell.didRun && styles.calendarCellActive,
+                        cell.earnedPoints > 0 && styles.calendarCellReward,
+                        cell.isToday && styles.calendarCellToday,
+                      ]}
+                    >
+                      {!cell.isPlaceholder ? (
+                        <>
+                          <Text
+                            style={[
+                              styles.calendarDay,
+                              cell.didRun && styles.calendarDayActive,
+                              cell.earnedPoints > 0 && styles.calendarDayReward,
+                            ]}
+                          >
+                            {cell.dayNumber}
+                          </Text>
+                          {cell.earnedPoints > 0 ? (
+                            <Text style={styles.calendarReward}>+{cell.earnedPoints}</Text>
+                          ) : null}
+                        </>
+                      ) : null}
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {selectedTrack.helperText ? <Text style={styles.pointHelper}>{selectedTrack.helperText}</Text> : null}
       </Card>
 
       <View style={styles.twoColumnRow}>
@@ -208,6 +345,173 @@ const styles = StyleSheet.create({
     color: '#667085',
     fontSize: 12,
     fontWeight: '700',
+  },
+  sectionEyebrow: {
+    color: '#667085',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pointCard: {
+    gap: 12,
+  },
+  pointHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  pointTarget: {
+    color: '#667085',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pointTabRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  pointTab: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 999,
+    paddingVertical: 9,
+    alignItems: 'center',
+  },
+  pointTabActive: {
+    backgroundColor: '#111827',
+  },
+  pointTabText: {
+    color: '#475467',
+    fontSize: 12,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  pointTabTextActive: {
+    color: '#FFFFFF',
+  },
+  pointValueRow: {
+    gap: 6,
+  },
+  pointValue: {
+    color: '#111827',
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  pointUnit: {
+    color: '#667085',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  pointSub: {
+    color: '#667085',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  pointBadge: {
+    alignSelf: 'flex-start',
+    color: '#111827',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    fontSize: 11,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  pointTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  pointFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#111827',
+  },
+  pointHelper: {
+    color: '#667085',
+    lineHeight: 20,
+  },
+  calendarWrap: {
+    gap: 10,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  calendarMonth: {
+    color: '#111827',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  calendarMeta: {
+    color: '#667085',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  calendarWeekHeader: {
+    flexDirection: 'row',
+  },
+  calendarWeekday: {
+    flex: 1,
+    textAlign: 'center',
+    color: '#98A2B3',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  calendarGrid: {
+    gap: 6,
+  },
+  calendarRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  calendarCell: {
+    flex: 1,
+    aspectRatio: 1.12,
+    borderRadius: 10,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    padding: 4,
+    position: 'relative',
+  },
+  calendarCellPlaceholder: {
+    backgroundColor: 'transparent',
+  },
+  calendarCellActive: {
+    backgroundColor: '#E8F0FF',
+  },
+  calendarCellReward: {
+    backgroundColor: '#1D4ED8',
+  },
+  calendarCellToday: {
+    backgroundColor: '#E5E7EB',
+  },
+  calendarDay: {
+    color: '#667085',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  calendarDayActive: {
+    color: '#1D4ED8',
+  },
+  calendarDayReward: {
+    color: '#FFFFFF',
+  },
+  calendarReward: {
+    color: '#DBEAFE',
+    fontSize: 9,
+    fontWeight: '800',
+    includeFontPadding: false,
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    right: 0,
+    marginTop: -1,
+    textAlign: 'center',
   },
   compactLabel: {
     color: '#101828',

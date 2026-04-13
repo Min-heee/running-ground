@@ -7,23 +7,26 @@ import { SectionTitle } from '@/components/SectionTitle';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ListRow } from '@/components/ui/ListRow';
-import { fetchHomeSummary, fetchIntegrationStatus, fetchMyProfile } from '@/lib/api/services';
-import { HomeSummaryResponse, IntegrationStatusResponse, MyProfileResponse } from '@/lib/api/types';
+import { fetchHomeSummary, fetchIntegrationStatus, fetchMyActivity, fetchMyProfile } from '@/lib/api/services';
+import { HomeSummaryResponse, IntegrationStatusResponse, MyActivityResponse, MyProfileResponse } from '@/lib/api/types';
 import { signOut } from '@/lib/session';
+import { buildWeeklyPointOverview } from '@/features/points/pointSystem';
 
 export default function MyPageScreen() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
   const [summary, setSummary] = useState<HomeSummaryResponse | null>(null);
+  const [activity, setActivity] = useState<MyActivityResponse | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [tagShared, setTagShared] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
 
   useEffect(() => {
-    Promise.all([fetchMyProfile(), fetchHomeSummary(), fetchIntegrationStatus()])
-      .then(([profileData, summaryData, integrationData]) => {
+    Promise.all([fetchMyProfile(), fetchHomeSummary(), fetchMyActivity(), fetchIntegrationStatus()])
+      .then(([profileData, summaryData, activityData, integrationData]) => {
         setProfile(profileData);
         setSummary(summaryData);
+        setActivity(activityData);
         setIntegrationStatus(integrationData);
       })
       .finally(() => setLoading(false));
@@ -45,6 +48,7 @@ export default function MyPageScreen() {
   };
 
   const connectedCount = integrationStatus?.sources.filter((source) => source.connected).length ?? 0;
+  const pointOverview = summary ? buildWeeklyPointOverview(summary, { lifetimeDistanceKm: profile?.lifetimeDistanceKm, runs: activity?.runs ?? [] }) : null;
 
   return (
     <Screen>
@@ -88,13 +92,51 @@ export default function MyPageScreen() {
                     <Text style={styles.metricLabel}>이번 주 거리</Text>
                   </View>
                   <View style={styles.metricBox}>
-                    <Text style={styles.metricValue}>{summary.districtPoints}P</Text>
-                    <Text style={styles.metricLabel}>포인트</Text>
+                    <Text style={styles.metricValue}>Lv.{pointOverview?.distanceLevel ?? 0}</Text>
+                    <Text style={styles.metricLabel}>거리 레벨</Text>
                   </View>
                 </View>
               </Card>
             </Pressable>
           </Link>
+
+          {pointOverview ? (
+            <Card>
+              <SectionTitle>포인트 시스템</SectionTitle>
+              <View style={styles.pointSummaryRow}>
+                <Text style={styles.pointSummaryValue}>Lv.{pointOverview.distanceLevel}</Text>
+                <Text style={styles.pointSummaryMeta}>누적 거리 {pointOverview.lifetimeDistanceKm}km</Text>
+              </View>
+
+              <View style={styles.ruleList}>
+                {pointOverview.tracks.map((track) => (
+                  <View key={track.id} style={styles.ruleCard}>
+                    <View style={styles.ruleHeader}>
+                      <Text style={styles.ruleTitle}>{track.label}</Text>
+                      <Text style={styles.rulePoints}>
+                        {track.id === 'streak'
+                          ? `다음 +${track.rewardPoints}P`
+                          : track.scope === 'lifetime'
+                            ? `레벨업 +${track.rewardPoints}P`
+                            : `달성 +${track.rewardPoints}P`}
+                      </Text>
+                    </View>
+                    {track.badgeText ? <Text style={styles.ruleBadge}>{track.badgeText}</Text> : null}
+                    <Text style={styles.ruleDetail}>
+                      {track.id === 'streak'
+                        ? `${track.currentValue}${track.unit} 연속`
+                        : `${track.currentValue} / ${track.targetValue}${track.unit}`}
+                    </Text>
+                    <View style={styles.pointTrack}>
+                      <View style={[styles.pointFill, { width: `${track.progressPercent}%` }]} />
+                    </View>
+                    {track.helperText ? <Text style={styles.ruleHelper}>{track.helperText}</Text> : null}
+                    <Text style={styles.ruleStatus}>{track.statusText}</Text>
+                  </View>
+                ))}
+              </View>
+            </Card>
+          ) : null}
 
           <Card>
             <SectionTitle>연동 요약</SectionTitle>
@@ -219,6 +261,84 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     color: '#667085',
+  },
+  pointSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  pointSummaryValue: {
+    color: '#111827',
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  pointSummaryMeta: {
+    color: '#667085',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  pointTrack: {
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#E5E7EB',
+    overflow: 'hidden',
+    marginTop: 12,
+  },
+  pointFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#111827',
+  },
+  ruleList: {
+    gap: 10,
+    marginTop: 14,
+  },
+  ruleCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 14,
+    gap: 4,
+  },
+  ruleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  ruleTitle: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  rulePoints: {
+    color: '#111827',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  ruleDetail: {
+    color: '#667085',
+    lineHeight: 20,
+  },
+  ruleBadge: {
+    alignSelf: 'flex-start',
+    color: '#111827',
+    backgroundColor: '#EEF2F6',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    fontSize: 11,
+    fontWeight: '800',
+    includeFontPadding: false,
+    marginTop: 2,
+  },
+  ruleHelper: {
+    color: '#667085',
+    lineHeight: 20,
+  },
+  ruleStatus: {
+    color: '#111827',
+    fontWeight: '700',
+    lineHeight: 20,
   },
   logoutButton: {
     backgroundColor: '#FFFFFF',
