@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { type Href, router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -21,7 +21,7 @@ export default function RunDetailScreen() {
       .finally(() => setLoading(false));
   }, [friendId, runId]);
 
-  const backHref = friendId ? { pathname: '/friend-detail', params: { friendId } } : '/my-activity';
+  const backHref: Href = friendId ? { pathname: '/friend-detail', params: { friendId } } : '/my-activity';
   const backLabel = friendId ? '친구 활동으로 돌아가기' : '내 활동으로 돌아가기';
 
   return (

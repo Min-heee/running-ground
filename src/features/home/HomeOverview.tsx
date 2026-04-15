@@ -33,7 +33,17 @@ export function HomeOverview({
   nextRace: OfflineRaceEvent | null;
   myRace: OfflineRaceEvent | null;
 }) {
-  const pointOverview = buildWeeklyPointOverview(summary, { lifetimeDistanceKm, runs });
+  const [calendarMonthOffset, setCalendarMonthOffset] = useState(0);
+  const calendarReferenceDate = useMemo(() => {
+    const date = new Date();
+    date.setDate(1);
+    date.setMonth(date.getMonth() + calendarMonthOffset);
+    return date;
+  }, [calendarMonthOffset]);
+  const pointOverview = useMemo(
+    () => buildWeeklyPointOverview(summary, { lifetimeDistanceKm, runs, currentDate: calendarReferenceDate }),
+    [calendarReferenceDate, lifetimeDistanceKm, runs, summary],
+  );
   const [selectedTrackId, setSelectedTrackId] = useState<'distance' | 'streak' | 'growth'>('distance');
   const selectedTrack = useMemo(
     () => pointOverview.tracks.find((track) => track.id === selectedTrackId) ?? pointOverview.tracks[0],
@@ -62,9 +72,7 @@ export function HomeOverview({
   }, [selectedTrack.calendar]);
   const streakTrack = pointOverview.tracks.find((track) => track.id === 'streak') ?? pointOverview.tracks[1];
   const pointHeaderLabel = selectedTrack.id === 'streak'
-    ? selectedTrack.currentValue >= 1
-      ? `오늘 이어가면 +${selectedTrack.rewardPoints}P`
-      : '2일 연속부터 포인트 시작'
+    ? '2일차 +1P · 3일차 +3P · n일차 +(2n-3)P'
     : selectedTrack.scope === 'lifetime'
       ? `레벨업 시 +${selectedTrack.rewardPoints}P`
       : `달성 시 +${selectedTrack.rewardPoints}P`;
@@ -171,7 +179,34 @@ export function HomeOverview({
         {selectedTrack.id === 'streak' && selectedTrack.calendar ? (
           <View style={styles.calendarWrap}>
             <View style={styles.calendarHeader}>
-              <Text style={styles.calendarMonth}>{selectedTrack.calendar.monthLabel}</Text>
+              <View style={styles.calendarNav}>
+                <Pressable
+                  style={styles.calendarNavButton}
+                  onPress={() => setCalendarMonthOffset((current) => current - 1)}
+                >
+                  <Text style={styles.calendarNavButtonText}>이전 달</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.calendarNavButton, calendarMonthOffset === 0 && styles.calendarNavButtonCurrent]}
+                  onPress={() => setCalendarMonthOffset(0)}
+                >
+                  <Text
+                    style={[
+                      styles.calendarNavButtonText,
+                      calendarMonthOffset === 0 && styles.calendarNavButtonCurrentText,
+                    ]}
+                  >
+                    이번 달
+                  </Text>
+                </Pressable>
+                <Text style={styles.calendarMonth}>{selectedTrack.calendar.monthLabel}</Text>
+                <Pressable
+                  style={styles.calendarNavButton}
+                  onPress={() => setCalendarMonthOffset((current) => current + 1)}
+                >
+                  <Text style={styles.calendarNavButtonText}>다음 달</Text>
+                </Pressable>
+              </View>
               <Text style={styles.calendarMeta}>이번 달 +{selectedTrack.calendar.monthlyEarnedPoints}P</Text>
             </View>
 
@@ -191,8 +226,6 @@ export function HomeOverview({
                         styles.calendarCell,
                         cell.isPlaceholder && styles.calendarCellPlaceholder,
                         cell.didRun && styles.calendarCellActive,
-                        cell.earnedPoints > 0 && styles.calendarCellReward,
-                        cell.isToday && styles.calendarCellToday,
                       ]}
                     >
                       {!cell.isPlaceholder ? (
@@ -201,7 +234,6 @@ export function HomeOverview({
                             style={[
                               styles.calendarDay,
                               cell.didRun && styles.calendarDayActive,
-                              cell.earnedPoints > 0 && styles.calendarDayReward,
                             ]}
                           >
                             {cell.dayNumber}
@@ -441,6 +473,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  calendarNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  calendarNavButton: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+  },
+  calendarNavButtonText: {
+    color: '#344054',
+    fontSize: 11,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  calendarNavButtonCurrent: {
+    backgroundColor: '#111827',
+  },
+  calendarNavButtonCurrentText: {
+    color: '#FFFFFF',
+  },
   calendarMonth: {
     color: '#111827',
     fontSize: 13,
@@ -484,12 +539,6 @@ const styles = StyleSheet.create({
   calendarCellActive: {
     backgroundColor: '#E8F0FF',
   },
-  calendarCellReward: {
-    backgroundColor: '#1D4ED8',
-  },
-  calendarCellToday: {
-    backgroundColor: '#E5E7EB',
-  },
   calendarDay: {
     color: '#667085',
     fontSize: 11,
@@ -498,11 +547,8 @@ const styles = StyleSheet.create({
   calendarDayActive: {
     color: '#1D4ED8',
   },
-  calendarDayReward: {
-    color: '#FFFFFF',
-  },
   calendarReward: {
-    color: '#DBEAFE',
+    color: '#1D4ED8',
     fontSize: 9,
     fontWeight: '800',
     includeFontPadding: false,

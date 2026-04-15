@@ -52,7 +52,10 @@ function toFixed1(value: number) {
 }
 
 function getDateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function differenceInCalendarDays(left: Date, right: Date) {
@@ -66,7 +69,11 @@ function getConsecutiveRewardPoints(streakDays: number) {
     return 0;
   }
 
-  return streakDays * 2 - 1;
+  return streakDays * 2 - 3;
+}
+
+function getMinimumRunDistanceForStreak(distanceLevel: number) {
+  return distanceLevel >= 20 ? 5 : 3;
 }
 
 function buildTrack(input: {
@@ -89,12 +96,14 @@ function buildTrack(input: {
   };
 }
 
-function buildStreakCalendar(runs: MyRunRecord[], currentDate: Date): StreakCalendar {
+function buildStreakCalendar(runs: MyRunRecord[], currentDate: Date, minimumRunDistanceKm: number): StreakCalendar {
   const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+  const qualifiedRunDates = runs
+    .filter((run) => run.distanceKm >= minimumRunDistanceKm)
+    .map((run) => run.date);
   const monthRunKeys = new Set(
-    runs
-      .map((run) => run.date)
+    qualifiedRunDates
       .filter((date) => {
         const parsed = new Date(`${date}T00:00:00`);
         return parsed >= monthStart && parsed <= monthEnd;
@@ -180,15 +189,17 @@ export function buildWeeklyPointOverview(
   },
 ): WeeklyPointOverview {
   const currentDate = options?.currentDate ?? new Date();
-  const streakCalendar = buildStreakCalendar(options?.runs ?? [], currentDate);
   const normalizedLifetimeDistanceKm = toFixed1(Math.max(options?.lifetimeDistanceKm ?? summary.totalDistanceKm, summary.totalDistanceKm));
   const distanceLevel = Math.floor(normalizedLifetimeDistanceKm / 10);
+  const minimumRunDistanceKm = getMinimumRunDistanceForStreak(distanceLevel);
+  const streakCalendar = buildStreakCalendar(options?.runs ?? [], currentDate, minimumRunDistanceKm);
   const nextDistanceTargetKm = Math.max(10, (distanceLevel + 1) * 10);
   const distanceLevelProgressKm = normalizedLifetimeDistanceKm % 10;
   const distanceLevelProgressPercent = Math.round((distanceLevelProgressKm / 10) * 100);
   const distanceLevelRemainingKm = toFixed1(nextDistanceTargetKm - normalizedLifetimeDistanceKm);
   const previousWeekDistanceKm = toFixed1(Math.max(0, summary.totalDistanceKm - Math.max(4, summary.totalRuns * 1.4)));
   const improvementDistanceKm = toFixed1(Math.max(0, summary.totalDistanceKm - previousWeekDistanceKm));
+  const growthTargetDistanceKm = toFixed1(previousWeekDistanceKm + 0.1);
 
   const tracks: WeeklyPointTrack[] = [
     {
@@ -213,24 +224,24 @@ export function buildWeeklyPointOverview(
       targetValue: Math.max(2, streakCalendar.currentStreakDays + 1),
       unit: '일',
       rewardPoints: streakCalendar.nextRewardPoints,
-      helperText: '',
+      helperText: `레벨 ${distanceLevel} 기준 ${minimumRunDistanceKm}km 이상 뛰어야 연속으로 인정돼요.`,
       statusText: streakCalendar.currentStreakDays >= 1
-        ? `오늘 이어가면 +${streakCalendar.nextRewardPoints}P`
-        : '다시 1일차부터 시작 · 2일 연속부터 포인트 지급',
+        ? `오늘 ${minimumRunDistanceKm}km 이상 이어가면 +${streakCalendar.nextRewardPoints}P`
+        : `다시 1일차부터 시작 · ${minimumRunDistanceKm}km 이상부터 인정`,
       calendar: streakCalendar,
     }),
     buildTrack({
       id: 'growth',
       label: '저번주 대비',
       scope: 'weekly',
-      currentValue: improvementDistanceKm,
-      targetValue: 5,
+      currentValue: summary.totalDistanceKm,
+      targetValue: growthTargetDistanceKm,
       unit: 'km',
-      rewardPoints: 12,
-      helperText: '지난주보다 5km 더 달리면 성장 포인트를 받아요.',
-      statusText: improvementDistanceKm >= 5
-        ? '성장 기준 달성 · +12P'
-        : `${toFixed1(5 - improvementDistanceKm)}km 더 늘리면 +12P`,
+      rewardPoints: 10,
+      helperText: '저번주 총거리보다 더 많이 뛰면 성장 포인트를 받아요.',
+      statusText: improvementDistanceKm > 0
+        ? '저번주 대비 향상 달성 · +10P'
+        : `${toFixed1(Math.max(0, growthTargetDistanceKm - summary.totalDistanceKm))}km 더 뛰면 +10P`,
     }),
   ];
 
