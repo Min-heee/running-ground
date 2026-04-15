@@ -1,26 +1,46 @@
-import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { fetchMyProfile, updateMyRegion } from '@/lib/api/services';
-
-const regions = ['강남구', '서초구', '송파구', '마포구', '성동구'];
+import { fetchMyProfile, fetchRegionCatalog, updateMyRegion } from '@/lib/api/services';
+import { AddressRegionNode } from '@/features/location/addressCatalog';
+import { buildRegionSelectionState, RegionChipSection } from '@/features/location/RegionSelection';
 
 export default function RegionSettingsScreen() {
-  const [selectedRegion, setSelectedRegion] = useState('');
+  const [regions, setRegions] = useState<AddressRegionNode[]>([]);
+  const [provinceName, setProvinceName] = useState('');
+  const [secondaryRegionName, setSecondaryRegionName] = useState('');
+  const [tertiaryRegionName, setTertiaryRegionName] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const {
+    selectedProvince,
+    secondaryOptions,
+    selectedSecondary,
+    tertiaryOptions,
+    finalRegion,
+    finalCityName,
+    finalDistrictName,
+    selectedAddressLabel,
+  } = useMemo(
+    () => buildRegionSelectionState(regions, provinceName, secondaryRegionName, tertiaryRegionName),
+    [regions, provinceName, secondaryRegionName, tertiaryRegionName],
+  );
+
   useEffect(() => {
-    fetchMyProfile()
-      .then((profile) => {
-        setSelectedRegion(profile.districtName);
+    Promise.all([fetchMyProfile(), fetchRegionCatalog()])
+      .then(([profile, regionCatalog]) => {
+        setRegions(regionCatalog.regions);
+        setProvinceName(profile.provinceName ?? '');
+        setSecondaryRegionName(profile.cityName || profile.districtName);
+        setTertiaryRegionName(profile.cityName && profile.cityName !== profile.districtName ? profile.districtName : '');
       })
       .catch((loadError) => {
         setError(loadError instanceof Error ? loadError.message : '지역 정보를 불러오지 못했어.');
@@ -29,8 +49,8 @@ export default function RegionSettingsScreen() {
   }, []);
 
   const handleSave = async () => {
-    if (!selectedRegion) {
-      setError('지역을 먼저 선택해줘.');
+    if (!provinceName || !finalDistrictName) {
+      setError('시/도와 최종 지역을 먼저 선택해줘.');
       return;
     }
 
@@ -38,8 +58,14 @@ export default function RegionSettingsScreen() {
     setSaving(true);
 
     try {
-      const nextProfile = await updateMyRegion({ districtName: selectedRegion });
-      setSelectedRegion(nextProfile.districtName);
+      const nextProfile = await updateMyRegion({
+        provinceName,
+        cityName: finalCityName,
+        districtName: finalDistrictName,
+      });
+      setProvinceName(nextProfile.provinceName ?? '');
+      setSecondaryRegionName(nextProfile.cityName || nextProfile.districtName);
+      setTertiaryRegionName(nextProfile.cityName && nextProfile.cityName !== nextProfile.districtName ? nextProfile.districtName : '');
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
@@ -64,18 +90,47 @@ export default function RegionSettingsScreen() {
         <>
           <Card>
             <View style={styles.list}>
-              {regions.map((region) => {
-                const selected = region === selectedRegion;
-                return (
-                  <Pressable key={region} style={[styles.regionRow, selected && styles.regionRowSelected]} onPress={() => setSelectedRegion(region)}>
-                    <View>
-                      <Text style={styles.regionName}>{region}</Text>
-                      <Text style={styles.regionMeta}>{selected ? '현재 선택된 지역' : '선택 가능'}</Text>
-                    </View>
-                    {selected ? <Text style={styles.selectedText}>선택됨</Text> : null}
-                  </Pressable>
-                );
-              })}
+              <RegionChipSection
+                title="1. 시/도 선택"
+                options={regions}
+                selectedName={provinceName}
+                disabled={saving}
+                onSelect={(nextProvince) => {
+                  setProvinceName(nextProvince.name);
+                  setSecondaryRegionName('');
+                  setTertiaryRegionName('');
+                }}
+              />
+
+              {selectedProvince ? (
+                <RegionChipSection
+                  title={selectedProvince.children?.[0]?.type === 'district' ? '2. 구 선택' : '2. 시/군 선택'}
+                  options={secondaryOptions}
+                  selectedName={secondaryRegionName}
+                  disabled={saving}
+                  onSelect={(nextSecondary) => {
+                    setSecondaryRegionName(nextSecondary.name);
+                    setTertiaryRegionName('');
+                  }}
+                />
+              ) : null}
+
+              {selectedSecondary && tertiaryOptions.length > 0 ? (
+                <RegionChipSection
+                  title="3. 구 선택"
+                  options={tertiaryOptions}
+                  selectedName={tertiaryRegionName}
+                  disabled={saving}
+                  onSelect={(nextTertiary) => setTertiaryRegionName(nextTertiary.name)}
+                />
+              ) : null}
+
+              {selectedAddressLabel ? (
+                <View style={styles.selectedCard}>
+                  <Text style={styles.selectedLabel}>현재 선택</Text>
+                  <Text style={styles.selectedValue}>{selectedAddressLabel}</Text>
+                </View>
+              ) : null}
             </View>
           </Card>
 
@@ -91,30 +146,21 @@ export default function RegionSettingsScreen() {
 
 const styles = StyleSheet.create({
   list: { gap: 10 },
-  regionRow: {
-    backgroundColor: '#FFFFFF',
+  selectedCard: {
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
     borderRadius: 16,
     padding: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 4,
   },
-  regionRowSelected: {
-    backgroundColor: '#F5F3FF',
-    borderColor: '#C7D2FE',
-  },
-  regionName: {
-    color: '#111827',
+  selectedLabel: {
+    color: '#475467',
     fontWeight: '700',
+    fontSize: 12,
   },
-  regionMeta: {
-    color: '#667085',
-    marginTop: 4,
-  },
-  selectedText: {
-    color: '#6D5EF7',
+  selectedValue: {
+    color: '#111827',
     fontWeight: '800',
   },
   savedText: {

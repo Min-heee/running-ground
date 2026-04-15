@@ -107,7 +107,7 @@ function getEventNote(event: OfflineRaceEvent, nowTime: number) {
 function replaceEventInHub(currentHub: OfflineRaceHub, event: OfflineRaceEvent): OfflineRaceHub {
   return {
     ...currentHub,
-    featuredEvent: currentHub.featuredEvent.id === event.id ? event : currentHub.featuredEvent,
+    featuredEvent: currentHub.featuredEvent?.id === event.id ? event : currentHub.featuredEvent,
     upcomingEvents: currentHub.upcomingEvents.map((item) => (item.id === event.id ? event : item)),
   };
 }
@@ -150,6 +150,7 @@ export default function RaceScreen() {
     }
 
     return [hub.featuredEvent, ...hub.upcomingEvents]
+      .filter((event): event is OfflineRaceEvent => Boolean(event))
       .filter((event) => event.status !== 'finished')
       .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
   }, [hub]);

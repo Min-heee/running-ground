@@ -3,7 +3,7 @@ import { myProfile } from '@/data/mock';
 import { UserProfile } from '@/domain/types';
 import { apiGet, apiPost } from '@/lib/api/client';
 import { USE_MOCK_API } from '@/lib/api/config';
-import { AuthResponse, LogoutResponse, MyProfileResponse } from '@/lib/api/types';
+import { AuthResponse, LogoutResponse, MyProfileResponse, UsernameAvailabilityResponse } from '@/lib/api/types';
 
 const SESSION_STORAGE_KEY = 'runnigapp.session.v1';
 
@@ -15,7 +15,8 @@ type SignInInput = {
 type RegisterAccountInput = {
   username: string;
   password: string;
-  name: string;
+  nickname: string;
+  realName: string;
   phone: string;
   provinceName: string;
   cityName?: string;
@@ -37,6 +38,18 @@ let mockSignedIn = false;
 let mockProfile: UserProfile = { ...myProfile };
 let backendAccessToken: string | null = null;
 let backendProfile: UserProfile | null = null;
+
+const MOCK_TAKEN_USERNAMES = new Set([
+  'demo-user',
+  'kw-user',
+  'sj-user',
+  'jh-user',
+  'mj-user',
+  'sy-user',
+  'dy-user',
+  'yr-user',
+  'ia-user',
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
@@ -277,10 +290,36 @@ export async function signInWithProvider(provider: 'kakao' | 'google' | 'apple' 
   return mockProfile;
 }
 
+export async function checkUsernameAvailability(rawUsername: string): Promise<UsernameAvailabilityResponse> {
+  await ensureHydrated();
+
+  const username = rawUsername.trim().toLowerCase();
+
+  if (!username) {
+    throw new Error('아이디를 입력해줘.');
+  }
+
+  if (USE_MOCK_API) {
+    const available = !MOCK_TAKEN_USERNAMES.has(username);
+
+    return {
+      username,
+      available,
+      message: available ? '사용할 수 있는 아이디예요.' : '이미 사용 중인 아이디예요.',
+    };
+  }
+
+  return apiGet<UsernameAvailabilityResponse>(
+    `/auth/check-username?username=${encodeURIComponent(username)}`,
+    { fallbackMessage: '아이디 중복 확인에 실패했어.' },
+  );
+}
+
 export async function registerAccount({
   username,
   password,
-  name,
+  nickname,
+  realName,
   phone,
   provinceName,
   cityName,
@@ -291,7 +330,8 @@ export async function registerAccount({
 }: RegisterAccountInput) {
   await ensureHydrated();
 
-  const normalizedName = name.trim();
+  const normalizedNickname = nickname.trim();
+  const normalizedRealName = realName.trim();
   const normalizedUsername = username.trim().toLowerCase();
   const normalizedPhone = phone.replace(/\D/g, '');
   const normalizedProvinceName = provinceName.trim();
@@ -301,7 +341,11 @@ export async function registerAccount({
   const normalizedAddressDetail = addressDetail.trim();
   const normalizedBirthDate = birthDate.trim();
 
-  if (!normalizedName) {
+  if (!normalizedNickname) {
+    throw new Error('닉네임을 입력해줘.');
+  }
+
+  if (!normalizedRealName) {
     throw new Error('이름을 입력해줘.');
   }
 
@@ -336,7 +380,7 @@ export async function registerAccount({
   if (USE_MOCK_API) {
     mockProfile = {
       ...mockProfile,
-      name: normalizedName,
+      name: normalizedNickname,
       provinceName: normalizedProvinceName,
       cityName: normalizedCityName || undefined,
       districtName: normalizedDistrictName,
@@ -355,7 +399,9 @@ export async function registerAccount({
     {
       username: normalizedUsername,
       password: password.trim(),
-      name: normalizedName,
+      nickname: normalizedNickname,
+      name: normalizedNickname,
+      realName: normalizedRealName,
       phone: normalizedPhone,
       provinceName: normalizedProvinceName,
       cityName: normalizedCityName,

@@ -6,6 +6,15 @@ expo-env.d.ts
 node_modules/
 .env
 backend/.env
+backend/.env.preview
+backend/.env.production
 backend/data/store.json
+backend/data/backups/
+backend/data/*-store.json
+backend-preview.out.log
+backend-preview.err.log
+preview-tunnel.out.log
+preview-tunnel.err.log
+preview-public-info.json
 .DS_Store
 # @end expo-cli

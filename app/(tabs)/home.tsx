@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Text, View, StyleSheet } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { HomeOverview } from '@/features/home/HomeOverview';
 import { OfflineRaceEvent, UserProfile, WeeklySummary } from '@/domain/types';
-import { fetchFriendLeaderboard, fetchHomeSummary, fetchOfflineRaceHub } from '@/lib/api/services';
+import { fetchFriendLeaderboard, fetchHomeSummary, fetchMyActivity, fetchMyProfile, fetchOfflineRaceHub } from '@/lib/api/services';
 import { getCurrentUserProfile } from '@/lib/session';
+import { MyActivityResponse } from '@/lib/api/types';
 
 type HomeFriendOverview = {
   myRank: number | null;
@@ -18,20 +20,23 @@ export default function HomeScreen() {
   const [nextRace, setNextRace] = useState<OfflineRaceEvent | null>(null);
   const [myRace, setMyRace] = useState<OfflineRaceEvent | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(getCurrentUserProfile());
+  const [activity, setActivity] = useState<MyActivityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadHome = useCallback(() => {
     let active = true;
 
     const load = async () => {
       setLoading(true);
       setError(null);
 
-      const [summaryResult, leaderboardResult, raceHubResult] = await Promise.allSettled([
+      const [summaryResult, leaderboardResult, raceHubResult, profileResult, activityResult] = await Promise.allSettled([
         fetchHomeSummary(),
         fetchFriendLeaderboard(),
         fetchOfflineRaceHub(),
+        fetchMyProfile(),
+        fetchMyActivity(),
       ]);
 
       if (!active) {
@@ -49,8 +54,20 @@ export default function HomeScreen() {
       const summaryData = summaryResult.value;
       setSummary(summaryData);
 
+      if (profileResult.status === 'fulfilled') {
+        setProfile(profileResult.value);
+      } else {
+        setProfile(getCurrentUserProfile());
+      }
+
+      if (activityResult.status === 'fulfilled') {
+        setActivity(activityResult.value);
+      } else {
+        setActivity(null);
+      }
+
       if (leaderboardResult.status === 'fulfilled') {
-        const currentProfile = getCurrentUserProfile();
+        const currentProfile = profileResult.status === 'fulfilled' ? profileResult.value : getCurrentUserProfile();
         setProfile(currentProfile);
         const myEntry = leaderboardResult.value.ranks.find((entry) => (
           (currentProfile?.publicTag && entry.tag === currentProfile.publicTag)
@@ -68,6 +85,7 @@ export default function HomeScreen() {
 
       if (raceHubResult.status === 'fulfilled') {
         const raceEvents = [raceHubResult.value.featuredEvent, ...raceHubResult.value.upcomingEvents]
+          .filter((event): event is OfflineRaceEvent => Boolean(event))
           .filter((event) => event.status !== 'finished')
           .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
 
@@ -92,6 +110,8 @@ export default function HomeScreen() {
     };
   }, []);
 
+  useFocusEffect(loadHome);
+
   return (
     <Screen>
       <View style={styles.contentWrap}>
@@ -105,7 +125,7 @@ export default function HomeScreen() {
           <HomeOverview
             summary={summary}
             lifetimeDistanceKm={profile?.lifetimeDistanceKm}
-            runs={[]}
+            runs={activity?.runs ?? []}
             friendOverview={friendOverview}
             nextRace={nextRace}
             myRace={myRace}

@@ -99,9 +99,15 @@ function buildTrack(input: {
 function buildStreakCalendar(runs: MyRunRecord[], currentDate: Date, minimumRunDistanceKm: number): StreakCalendar {
   const monthStart = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
   const monthEnd = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-  const qualifiedRunDates = runs
-    .filter((run) => run.distanceKm >= minimumRunDistanceKm)
-    .map((run) => run.date);
+  const distanceByDate = new Map<string, number>();
+
+  runs.forEach((run) => {
+    distanceByDate.set(run.date, toFixed1((distanceByDate.get(run.date) ?? 0) + run.distanceKm));
+  });
+
+  const qualifiedRunDates = [...distanceByDate.entries()]
+    .filter(([, distanceKm]) => distanceKm >= minimumRunDistanceKm)
+    .map(([date]) => date);
   const monthRunKeys = new Set(
     qualifiedRunDates
       .filter((date) => {
@@ -197,7 +203,7 @@ export function buildWeeklyPointOverview(
   const distanceLevelProgressKm = normalizedLifetimeDistanceKm % 10;
   const distanceLevelProgressPercent = Math.round((distanceLevelProgressKm / 10) * 100);
   const distanceLevelRemainingKm = toFixed1(nextDistanceTargetKm - normalizedLifetimeDistanceKm);
-  const previousWeekDistanceKm = toFixed1(Math.max(0, summary.totalDistanceKm - Math.max(4, summary.totalRuns * 1.4)));
+  const previousWeekDistanceKm = toFixed1(Math.max(0, summary.previousWeekDistanceKm ?? Math.max(0, summary.totalDistanceKm - Math.max(4, summary.totalRuns * 1.4))));
   const improvementDistanceKm = toFixed1(Math.max(0, summary.totalDistanceKm - previousWeekDistanceKm));
   const growthTargetDistanceKm = toFixed1(previousWeekDistanceKm + 0.1);
 

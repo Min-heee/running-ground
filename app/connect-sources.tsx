@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { IntegrationJourneyCard } from '@/features/integrations/IntegrationJourneyCard';
 import { connectIntegrationSource, fetchIntegrationStatus } from '@/lib/api/services';
 import { IntegrationStatusResponse } from '@/lib/api/types';
 import { RunSourceType } from '@/domain/types';
@@ -26,12 +27,19 @@ export default function ConnectSourcesScreen() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadIntegrationStatus = useCallback(() => {
+    setLoading(true);
+    setError(null);
+
     fetchIntegrationStatus()
       .then((data) => setIntegrationStatus(data))
       .catch(() => setError('추천 연동 목록을 불러오지 못했어.'))
       .finally(() => setLoading(false));
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    loadIntegrationStatus();
+  }, [loadIntegrationStatus]));
 
   const platform = getCurrentDevicePlatform();
   const sources = integrationStatus?.sources ?? [];
@@ -55,12 +63,7 @@ export default function ConnectSourcesScreen() {
   };
 
   const handleContinue = () => {
-    if (connectedCount === 0) {
-      setActionError('홈으로 들어가기 전에 최소 1개 소스는 연결해줘.');
-      return;
-    }
-
-    router.push('/(tabs)/home');
+    router.replace('/(tabs)/home');
   };
 
   return (
@@ -72,12 +75,21 @@ export default function ConnectSourcesScreen() {
         backHref="/(tabs)/home"
       />
 
-      <InfoCard title="현재 단계">로그인/회원가입은 끝났고, 이제 기록 소스를 연결한 뒤 홈으로 들어가면 돼.</InfoCard>
+      <InfoCard title="현재 단계">로그인/회원가입은 끝났고, 이제 기록 소스를 연결해 두면 홈과 내 활동에 기록이 바로 이어져.</InfoCard>
+
+      {integrationStatus ? (
+        <IntegrationJourneyCard
+          sources={sources}
+          actionSourceType={actionSourceType}
+          onConnectSource={handleConnect}
+          onAddManualRun={() => router.push('/add-run')}
+        />
+      ) : null}
 
       <Card>
         <Text style={styles.sectionTitle}>{getPlatformLabel(platform)} 기준 추천 연동</Text>
         <Text style={styles.sectionBody}>{getRecommendationCopy(platform)}</Text>
-        <Text style={styles.helperText}>현재 연결된 소스는 {connectedCount}개야. 우선 1개만 연결해도 홈으로 들어갈 수 있어.</Text>
+        <Text style={styles.helperText}>현재 연결된 소스는 {connectedCount}개야. 가능하면 기본 소스 1개는 먼저 연결하고, 급하면 홈에서 수동 기록부터 시작해도 돼.</Text>
 
         {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -117,8 +129,8 @@ export default function ConnectSourcesScreen() {
           label="연동 설정 자세히 보기"
           onPress={() => router.push({ pathname: '/integration-management', params: { returnTo: 'connect-sources' } })}
         />
-        <PrimaryButton label="연동하고 홈으로 들어가기" onPress={handleContinue} />
-        <SecondaryButton label="홈으로 돌아가기" onPress={() => router.replace('/(tabs)/home')} />
+        <PrimaryButton label={connectedCount > 0 ? '홈으로 돌아가기' : '지금은 홈 먼저 보기'} onPress={handleContinue} />
+        <SecondaryButton label="수동 기록부터 추가하기" onPress={() => router.push('/add-run')} />
       </View>
     </Screen>
   );

@@ -1,4 +1,4 @@
-import { ConnectedSource, DistrictBattleRank, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceHub, OfflineRaceParticipantPreview, RegionDrilldownNode, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
+import { ConnectedSource, DistrictBattleRank, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceEvent, OfflineRaceHub, OfflineRaceParticipantPreview, RegionDrilldownNode, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
 import { addressCatalog, type AddressRegionNode } from '@/features/location/addressCatalog';
 
 export const myProfile: UserProfile = {
@@ -248,7 +248,7 @@ function createRaceOption(input: {
   runWindowMinutes?: number;
   operationNote?: string;
   participantPreview?: OfflineRaceParticipantPreview[];
-}): OfflineRaceHub['featuredEvent'] {
+}): OfflineRaceEvent {
   return {
     id: input.id,
     title: input.title,

@@ -178,6 +178,64 @@ Expected behavior:
 
 ---
 
+## 3.5. Integration import queue
+### POST `/api/integrations/sources/{sourceType}/import`
+
+Request example:
+
+```json
+{
+  "runs": [
+    {
+      "externalId": "health-001",
+      "date": "2026-04-15",
+      "distanceKm": 5.2,
+      "pace": "05:31/km"
+    }
+  ]
+}
+```
+
+Response example:
+
+```json
+{
+  "success": true,
+  "source": {
+    "sourceType": "health_connect",
+    "displayName": "Health Connect",
+    "connected": true,
+    "connectionStatus": "connected",
+    "pendingImportCount": 1
+  },
+  "queuedRuns": 1,
+  "pendingRuns": 1
+}
+```
+
+Expected behavior:
+- this queues provider-normalized runs before sync
+- `sourceType` should be one of the external provider sources, not `manual`
+- duplicate filtering happens during `/api/integrations/sync`
+
+### POST `/api/integrations/sync`
+
+Response example:
+
+```json
+{
+  "success": true,
+  "syncedSources": 1,
+  "scannedRuns": 4,
+  "importedRuns": 3,
+  "duplicateRuns": 1,
+  "syncedRuns": 3,
+  "lastSyncedAt": "2026-04-15 21:20"
+}
+```
+
+---
+
 ## 4. My activity
 ### GET `/api/me/activity`
 

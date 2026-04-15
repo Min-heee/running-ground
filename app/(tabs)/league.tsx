@@ -6,7 +6,6 @@ import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { myProfile } from '@/data/mock';
 import { fetchDistrictPersonal, fetchRegionLeague, fetchUniversityLeague } from '@/lib/api/services';
 import { DistrictPersonalResponse, RegionLeagueResponse, UniversityLeagueResponse } from '@/lib/api/types';
 import { getCurrentUserProfile } from '@/lib/session';
@@ -161,9 +160,13 @@ export default function LeagueScreen() {
   const featuredUniversityRank = universityLeague?.ranks[0] ?? null;
   const isUniversityView = leagueMode === 'university';
   const isLeafRegion = !isUniversityView && Boolean(currentNode) && children.length === 0;
-  const profile = getCurrentUserProfile() ?? myProfile;
+  const profile = getCurrentUserProfile();
 
   const isMyRegionNode = (node: { level: 'country' | 'province' | 'city' | 'district'; name: string }) => {
+    if (!profile) {
+      return false;
+    }
+
     switch (node.level) {
       case 'province':
         return node.name === profile.provinceName;

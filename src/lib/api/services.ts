@@ -13,17 +13,21 @@ import {
   universityLeagueRanks,
   weeklySummary,
 } from '@/data/mock';
+import { addressCatalog } from '@/features/location/addressCatalog';
 import { DistrictPersonalRank, MarketOverview, MarketRewardItem, OfflineRaceEvent, OfflineRaceHub, OfflineRaceStatus, RegionDrilldownNode, RunSourceType, UniversityLeagueRank } from '@/domain/types';
 import { getAccessToken, getCurrentUserProfile, setCurrentUserProfile } from '@/lib/session';
 import { apiGet, apiPatch, apiPost } from './client';
 import { USE_MOCK_API } from './config';
 import {
+  CreateManualRunInput,
+  CreateManualRunResponse,
   CreateFriendRequestResponse,
   DistrictPersonalResponse,
   FriendActivityResponse,
   FriendLeaderboardResponse,
   FriendRequestActionResponse,
   HomeSummaryResponse,
+  QueueIntegrationImportResponse,
   IntegrationSourceActionResponse,
   IntegrationSyncResponse,
   IntegrationStatusResponse,
@@ -35,6 +39,7 @@ import {
   OfflineRaceEntryActionResponse,
   OfflineRaceHubResponse,
   RegionLeagueResponse,
+  RegionCatalogResponse,
   RunDetailResponse,
   UpdateNotificationSettingsInput,
   UpdateNotificationSettingsResponse,
@@ -42,6 +47,7 @@ import {
   UpdateMyRegionResponse,
   UpdateMyProfileInput,
   UpdateMyProfileResponse,
+  UniversityCatalogResponse,
   UniversityLeagueResponse,
 } from './types';
 
@@ -68,9 +74,15 @@ type MockOfflineRaceHubState = Omit<OfflineRaceHub, 'featuredEvent' | 'upcomingE
 };
 
 const initialOfflineRaceHub = createOfflineRaceHubMock();
+const initialFeaturedEvent = initialOfflineRaceHub.featuredEvent;
+
+if (!initialFeaturedEvent) {
+  throw new Error('Mock offline race hub requires a featured event.');
+}
+
 let mockOfflineRaceHubState: MockOfflineRaceHubState = {
   featuredEvent: {
-    ...initialOfflineRaceHub.featuredEvent,
+    ...initialFeaturedEvent,
     registeredUserTags: [],
   },
   upcomingEvents: initialOfflineRaceHub.upcomingEvents.map((event) => ({
@@ -433,6 +445,30 @@ export async function fetchHomeSummary(): Promise<HomeSummaryResponse> {
   });
 }
 
+export async function fetchRegionCatalog(): Promise<RegionCatalogResponse> {
+  if (USE_MOCK_API) {
+    return {
+      regions: addressCatalog,
+    };
+  }
+
+  return apiGet<RegionCatalogResponse>('/catalog/regions', {
+    fallbackMessage: '지역 목록을 불러오지 못했어.',
+  });
+}
+
+export async function fetchUniversityCatalog(): Promise<UniversityCatalogResponse> {
+  if (USE_MOCK_API) {
+    return {
+      universities: [...new Set(universityLeagueRanks.map((entry) => entry.universityName))],
+    };
+  }
+
+  return apiGet<UniversityCatalogResponse>('/catalog/universities', {
+    fallbackMessage: '대학 목록을 불러오지 못했어.',
+  });
+}
+
 export async function fetchMarketOverview(): Promise<MarketOverviewResponse> {
   if (USE_MOCK_API) {
     return buildMockMarketOverview();
@@ -449,14 +485,10 @@ export async function fetchOfflineRaceHub(): Promise<OfflineRaceHubResponse> {
     return buildMockOfflineRaceHub();
   }
 
-  try {
-    return await apiGet<OfflineRaceHubResponse>('/offline-races/hub', {
-      accessToken: await requireAccessToken(),
-      fallbackMessage: '오프라인 마라톤 정보를 불러오지 못했어.',
-    });
-  } catch {
-    return buildMockOfflineRaceHub();
-  }
+  return apiGet<OfflineRaceHubResponse>('/offline-races/hub', {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '오프라인 마라톤 정보를 불러오지 못했어.',
+  });
 }
 
 export async function joinOfflineRace(eventId: string): Promise<OfflineRaceEntryActionResponse> {
@@ -464,18 +496,14 @@ export async function joinOfflineRace(eventId: string): Promise<OfflineRaceEntry
     return mutateMockOfflineRaceRegistration(eventId, 'join');
   }
 
-  try {
-    return await apiPost<OfflineRaceEntryActionResponse>(
-      `/offline-races/${eventId}/join`,
-      {},
-      {
-        accessToken: await requireAccessToken(),
-        fallbackMessage: '레이스 신청에 실패했어.',
-      },
-    );
-  } catch {
-    return mutateMockOfflineRaceRegistration(eventId, 'join');
-  }
+  return apiPost<OfflineRaceEntryActionResponse>(
+    `/offline-races/${eventId}/join`,
+    {},
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '레이스 신청에 실패했어.',
+    },
+  );
 }
 
 export async function cancelOfflineRace(eventId: string): Promise<OfflineRaceEntryActionResponse> {
@@ -483,18 +511,14 @@ export async function cancelOfflineRace(eventId: string): Promise<OfflineRaceEnt
     return mutateMockOfflineRaceRegistration(eventId, 'cancel');
   }
 
-  try {
-    return await apiPost<OfflineRaceEntryActionResponse>(
-      `/offline-races/${eventId}/cancel`,
-      {},
-      {
-        accessToken: await requireAccessToken(),
-        fallbackMessage: '레이스 신청 취소에 실패했어.',
-      },
-    );
-  } catch {
-    return mutateMockOfflineRaceRegistration(eventId, 'cancel');
-  }
+  return apiPost<OfflineRaceEntryActionResponse>(
+    `/offline-races/${eventId}/cancel`,
+    {},
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '레이스 신청 취소에 실패했어.',
+    },
+  );
 }
 
 export async function fetchMyActivity(): Promise<MyActivityResponse> {
@@ -510,6 +534,41 @@ export async function fetchMyActivity(): Promise<MyActivityResponse> {
     accessToken: await requireAccessToken(),
     fallbackMessage: '내 활동을 불러오지 못했어.',
   });
+}
+
+export async function createManualRun(input: CreateManualRunInput): Promise<CreateManualRunResponse> {
+  if (USE_MOCK_API) {
+    const distanceKm = Number(input.distanceKm.toFixed(1));
+
+    return {
+      run: {
+        id: `mock-run-${Date.now()}`,
+        date: input.date,
+        distanceKm,
+        pace: input.pace,
+        source: 'Manual',
+      },
+      weeklyDistanceKm: distanceKm,
+      estimatedMinutes: Math.round(distanceKm * 5.5),
+      earnedPoint: distanceKm >= 0.1 ? 10 : 0,
+    };
+  }
+
+  const createdRun = await apiPost<CreateManualRunResponse>(
+    '/runs/manual',
+    {
+      date: input.date,
+      distanceKm: input.distanceKm,
+      pace: input.pace,
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '수동 러닝 기록 저장에 실패했어.',
+    },
+  );
+
+  await fetchMyProfile();
+  return createdRun;
 }
 
 export async function fetchFriendLeaderboard(): Promise<FriendLeaderboardResponse> {
@@ -652,6 +711,9 @@ export async function syncIntegrationSources(): Promise<IntegrationSyncResponse>
     return {
       success: true,
       syncedSources: connectedCount,
+      scannedRuns: connectedCount * 3,
+      importedRuns: connectedCount * 3,
+      duplicateRuns: 0,
       syncedRuns: connectedCount * 3,
       lastSyncedAt,
     };
@@ -751,6 +813,50 @@ export async function disconnectIntegrationSource(sourceType: RunSourceType): Pr
   );
 }
 
+export async function queueIntegrationImports(
+  sourceType: Exclude<RunSourceType, 'manual'>,
+  runs: Array<{
+    externalId?: string;
+    date: string;
+    distanceKm: number;
+    pace: string;
+  }>,
+): Promise<QueueIntegrationImportResponse> {
+  if (USE_MOCK_API) {
+    const source = mockConnectedSources.find((entry) => entry.sourceType === sourceType);
+
+    if (!source) {
+      throw new Error('가져오기 대상 소스를 찾지 못했어.');
+    }
+
+    return {
+      success: true,
+      source: {
+        ...source,
+        pendingImportCount: (source.pendingImportCount ?? 0) + runs.length,
+      },
+      queuedRuns: runs.length,
+      pendingRuns: (source.pendingImportCount ?? 0) + runs.length,
+    };
+  }
+
+  return apiPost<QueueIntegrationImportResponse>(
+    `/integrations/sources/${sourceType}/import`,
+    {
+      runs: runs.map((run) => ({
+        ...(run.externalId ? { externalId: run.externalId.trim() } : {}),
+        date: run.date.trim(),
+        distanceKm: Number(run.distanceKm.toFixed(1)),
+        pace: run.pace.trim(),
+      })),
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '연동 기록 가져오기 요청에 실패했어.',
+    },
+  );
+}
+
 export async function claimMarketItem(itemId: string): Promise<MarketClaimResponse> {
   if (USE_MOCK_API) {
     const item = mockMarketCatalog.find((entry) => entry.id === itemId);
@@ -792,10 +898,13 @@ export async function fetchMyProfile(): Promise<MyProfileResponse> {
     return getCurrentUserProfile() ?? myProfile;
   }
 
-  return apiGet<MyProfileResponse>('/me/profile', {
+  const profile = await apiGet<MyProfileResponse>('/me/profile', {
     accessToken: await requireAccessToken(),
     fallbackMessage: '내 프로필을 불러오지 못했어.',
   });
+
+  await setCurrentUserProfile(profile);
+  return profile;
 }
 
 export async function updateMyProfile(input: UpdateMyProfileInput): Promise<UpdateMyProfileResponse> {
@@ -871,6 +980,8 @@ export async function updateMyRegion(input: UpdateMyRegionInput): Promise<Update
     const currentProfile = getCurrentUserProfile() ?? myProfile;
     const nextProfile = {
       ...currentProfile,
+      provinceName: input.provinceName.trim() || currentProfile.provinceName,
+      cityName: input.cityName?.trim() || undefined,
       districtName: input.districtName.trim() || currentProfile.districtName,
     };
 
@@ -881,6 +992,8 @@ export async function updateMyRegion(input: UpdateMyRegionInput): Promise<Update
   const nextProfile = await apiPatch<UpdateMyRegionResponse>(
     '/me/region',
     {
+      provinceName: input.provinceName.trim(),
+      cityName: input.cityName?.trim() ?? '',
       districtName: input.districtName.trim(),
     },
     {

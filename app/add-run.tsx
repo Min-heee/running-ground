@@ -1,0 +1,196 @@
+import { useMemo, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
+import { Screen } from '@/components/Screen';
+import { Card } from '@/components/Card';
+import { AuthHeader } from '@/components/ui/AuthHeader';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { createManualRun } from '@/lib/api/services';
+
+function getTodayDateValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export default function AddRunScreen() {
+  const [date, setDate] = useState(getTodayDateValue());
+  const [distanceKm, setDistanceKm] = useState('');
+  const [pace, setPace] = useState('06:00/km');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const trimmedDistance = useMemo(() => distanceKm.replace(',', '.').trim(), [distanceKm]);
+
+  const handleSubmit = async () => {
+    const parsedDistanceKm = Number(trimmedDistance);
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      setError('날짜는 YYYY-MM-DD 형식으로 입력해줘.');
+      return;
+    }
+
+    if (!Number.isFinite(parsedDistanceKm) || parsedDistanceKm <= 0) {
+      setError('거리는 0보다 큰 숫자로 입력해줘.');
+      return;
+    }
+
+    if (!/^\d{1,2}:\d{2}\/km$/i.test(pace.trim())) {
+      setError('페이스는 00:00/km 형식으로 입력해줘.');
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const createdRun = await createManualRun({
+        date,
+        distanceKm: parsedDistanceKm,
+        pace: pace.trim(),
+      });
+
+      router.replace({
+        pathname: '/run-detail',
+        params: {
+          runId: createdRun.run.id,
+        },
+      });
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : '러닝 기록 저장에 실패했어.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Screen>
+      <AuthHeader
+        title="수동 기록 추가"
+        subtitle="기록 연동 전에도 직접 러닝 기록을 넣고 바로 포인트와 순위를 확인할 수 있어."
+        showBack
+        backHref="/my-activity"
+      />
+
+      <Card style={styles.formCard}>
+        <Text style={styles.sectionTitle}>러닝 정보</Text>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>날짜</Text>
+          <TextInput
+            value={date}
+            onChangeText={setDate}
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="2026-04-15"
+            placeholderTextColor="#98A2B3"
+            style={styles.input}
+            editable={!submitting}
+          />
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>거리 (km)</Text>
+          <TextInput
+            value={distanceKm}
+            onChangeText={setDistanceKm}
+            keyboardType="decimal-pad"
+            placeholder="예: 5.2"
+            placeholderTextColor="#98A2B3"
+            style={styles.input}
+            editable={!submitting}
+          />
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <Text style={styles.fieldLabel}>페이스</Text>
+          <TextInput
+            value={pace}
+            onChangeText={setPace}
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="예: 05:45/km"
+            placeholderTextColor="#98A2B3"
+            style={styles.input}
+            editable={!submitting}
+          />
+        </View>
+
+        <View style={styles.tipBox}>
+          <Text style={styles.tipTitle}>입력 기준</Text>
+          <Text style={styles.tipText}>거리 10km마다 레벨업 +10P</Text>
+          <Text style={styles.tipText}>연속 러닝은 레벨 20 미만 3km, 20 이상 5km부터 인정</Text>
+          <Text style={styles.tipText}>이번 주가 저번 주보다 많아지면 성장 포인트 +10P</Text>
+        </View>
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+        {submitting ? <ActivityIndicator size="small" color="#6D5EF7" /> : null}
+        <PrimaryButton label={submitting ? '기록 저장 중...' : '기록 저장하기'} onPress={handleSubmit} />
+      </Card>
+
+      <Pressable style={styles.todayButton} onPress={() => setDate(getTodayDateValue())}>
+        <Text style={styles.todayButtonText}>오늘 날짜로 다시 맞추기</Text>
+      </Pressable>
+
+      <SecondaryButton label="내 활동으로 돌아가기" onPress={() => router.replace('/my-activity')} />
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  formCard: {
+    gap: 14,
+  },
+  sectionTitle: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  fieldGroup: {
+    gap: 8,
+  },
+  fieldLabel: {
+    color: '#344054',
+    fontWeight: '700',
+  },
+  input: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    color: '#111827',
+  },
+  tipBox: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 18,
+    padding: 14,
+    gap: 6,
+  },
+  tipTitle: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  tipText: {
+    color: '#667085',
+    lineHeight: 20,
+  },
+  errorText: {
+    color: '#B42318',
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  todayButton: {
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  todayButtonText: {
+    color: '#475467',
+    fontWeight: '700',
+  },
+});

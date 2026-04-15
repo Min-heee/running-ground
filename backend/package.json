@@ -5,12 +5,24 @@
   "scripts": {
     "start": "node ./src/server.mjs",
     "dev": "node --watch ./src/server.mjs",
+    "validate:env": "node ./scripts/validate-env.mjs",
+    "validate:preview": "node ./scripts/validate-env.mjs --env-file .env.preview --env preview",
+    "validate:production": "node ./scripts/validate-env.mjs --env-file .env.production --env production",
     "reset": "node ./src/reset-store.mjs",
+    "backup": "node ./src/backup-store.mjs",
+    "backups": "node ./src/list-backups.mjs",
+    "restore": "node ./src/restore-store.mjs",
     "smoke": "node ./src/smoke.mjs",
     "docker:build": "docker build -t runnigapp-backend .",
     "docker:up": "docker compose -f ./compose.yaml up --build -d",
     "docker:down": "docker compose -f ./compose.yaml down",
-    "docker:logs": "docker compose -f ./compose.yaml logs -f"
+    "docker:logs": "docker compose -f ./compose.yaml logs -f",
+    "docker:public:preview": "docker compose -p runnigapp-preview --env-file ./.env.preview -f ./compose.public.yaml up --build -d",
+    "docker:public:preview:logs": "docker compose -p runnigapp-preview --env-file ./.env.preview -f ./compose.public.yaml logs -f",
+    "docker:public:preview:down": "docker compose -p runnigapp-preview --env-file ./.env.preview -f ./compose.public.yaml down",
+    "docker:public:production": "docker compose -p runnigapp-production --env-file ./.env.production -f ./compose.public.yaml up --build -d",
+    "docker:public:production:logs": "docker compose -p runnigapp-production --env-file ./.env.production -f ./compose.public.yaml logs -f",
+    "docker:public:production:down": "docker compose -p runnigapp-production --env-file ./.env.production -f ./compose.public.yaml down"
   },
   "engines": {
     "node": ">=20"

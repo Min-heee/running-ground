@@ -1,4 +1,6 @@
 import { addressCatalog } from './addressCatalog.mjs';
+import { hashPassword } from './auth.mjs';
+import { buildUserRunMetrics } from './points.mjs';
 
 function createSource({
   sourceType,
@@ -19,57 +21,8 @@ function createSource({
 }
 
 function createConnectedSources(profile = 'default') {
-  if (profile === 'ios') {
-    return [
-      createSource({
-        sourceType: 'apple_health',
-        displayName: 'Apple Health',
-        connected: true,
-        lastSyncedAt: '2026-03-31 14:02',
-        recommendedPlatform: 'ios',
-      }),
-      createSource({
-        sourceType: 'manual',
-        displayName: 'Manual',
-        connected: true,
-        lastSyncedAt: '2026-03-30 22:10',
-      }),
-      createSource({ sourceType: 'health_connect', displayName: 'Health Connect', recommendedPlatform: 'android' }),
-      createSource({ sourceType: 'garmin', displayName: 'Garmin' }),
-      createSource({ sourceType: 'strava', displayName: 'Strava' }),
-      createSource({ sourceType: 'nrc', displayName: 'NRC' }),
-    ];
-  }
-
-  if (profile === 'android') {
-    return [
-      createSource({
-        sourceType: 'health_connect',
-        displayName: 'Health Connect',
-        connected: true,
-        lastSyncedAt: '2026-03-31 09:40',
-        recommendedPlatform: 'android',
-      }),
-      createSource({
-        sourceType: 'manual',
-        displayName: 'Manual',
-        connected: true,
-        lastSyncedAt: '2026-03-30 20:24',
-      }),
-      createSource({ sourceType: 'apple_health', displayName: 'Apple Health', recommendedPlatform: 'ios' }),
-      createSource({ sourceType: 'garmin', displayName: 'Garmin' }),
-      createSource({ sourceType: 'strava', displayName: 'Strava' }),
-      createSource({ sourceType: 'nrc', displayName: 'NRC' }),
-    ];
-  }
-
   return [
-    createSource({
-      sourceType: 'manual',
-      displayName: 'Manual',
-      connected: true,
-      lastSyncedAt: '2026-03-29 18:10',
-    }),
+    createSource({ sourceType: 'manual', displayName: 'Manual' }),
     createSource({ sourceType: 'apple_health', displayName: 'Apple Health', recommendedPlatform: 'ios' }),
     createSource({ sourceType: 'health_connect', displayName: 'Health Connect', recommendedPlatform: 'android' }),
     createSource({ sourceType: 'garmin', displayName: 'Garmin' }),
@@ -401,9 +354,14 @@ function buildGyeonggiProvince() {
 }
 
 function createUser(input) {
+  const { password, realName, ...rest } = input;
+
   return {
-    ...input,
-    rewardPoints: input.rewardPoints ?? 100,
+    ...rest,
+    realName: typeof realName === 'string' && realName.trim() ? realName.trim() : rest.name,
+    passwordHash: hashPassword(password),
+    passwordUpdatedAt: '2026-03-01T09:00:00.000Z',
+    rewardPoints: input.rewardPoints ?? 0,
     notificationSettings: input.notificationSettings ?? createNotificationSettings(),
     createdAt: input.createdAt ?? '2026-03-01T09:00:00.000Z',
   };
@@ -416,303 +374,139 @@ function createRun(input) {
   };
 }
 
-export function createRegionTree() {
-  const children = addressCatalog.map((region, index) =>
-    buildRegionNodeFromCatalog(region, `kr-${String(index + 1).padStart(2, '0')}`, index + 1));
+export function createRegionTree(data = {}) {
+  const users = Array.isArray(data.users) ? data.users : [];
+  const runs = Array.isArray(data.runs) ? data.runs : [];
+  const distanceByUserId = new Map();
+  const membersByKey = new Map();
+  const activeMembersByKey = new Map();
+  const distanceByKey = new Map();
+  const runsByUserId = new Map();
 
-  return createAggregateRegionNode({
+  for (const run of runs) {
+    if (!run?.userId || typeof run.distanceKm !== 'number') {
+      continue;
+    }
+
+    runsByUserId.set(run.userId, [...(runsByUserId.get(run.userId) ?? []), run]);
+  }
+
+  for (const user of users) {
+    const weeklyDistanceKm = buildUserRunMetrics(runsByUserId.get(user.id) ?? []).currentWeekDistanceKm;
+    distanceByUserId.set(user.id, weeklyDistanceKm);
+  }
+
+  for (const user of users) {
+    const provinceName = typeof user.provinceName === 'string' ? user.provinceName.trim() : '';
+    const cityName = typeof user.cityName === 'string' ? user.cityName.trim() : '';
+    const districtName = typeof user.districtName === 'string' ? user.districtName.trim() : '';
+    const totalDistanceKm = Number((distanceByUserId.get(user.id) ?? 0).toFixed(1));
+    const isActive = totalDistanceKm > 0;
+
+    if (!provinceName) {
+      continue;
+    }
+
+    const nodeKeys = [`province:${provinceName}`];
+
+    if (cityName) {
+      nodeKeys.push(`province:${provinceName}/city:${cityName}`);
+
+      if (districtName && districtName !== cityName) {
+        nodeKeys.push(`province:${provinceName}/city:${cityName}/district:${districtName}`);
+      }
+    } else if (districtName) {
+      nodeKeys.push(`province:${provinceName}/district:${districtName}`);
+    }
+
+    for (const key of nodeKeys) {
+      membersByKey.set(key, (membersByKey.get(key) ?? 0) + 1);
+      distanceByKey.set(key, Number(((distanceByKey.get(key) ?? 0) + totalDistanceKm).toFixed(1)));
+
+      if (isActive) {
+        activeMembersByKey.set(key, (activeMembersByKey.get(key) ?? 0) + 1);
+      }
+    }
+  }
+
+  const buildNode = (node, id, rank, parentKey = '') => {
+    const currentKey = parentKey ? `${parentKey}/${node.type}:${node.name}` : `${node.type}:${node.name}`;
+    const children = (node.children ?? []).map((child, index) =>
+      buildNode(child, `${id}-${String(index + 1).padStart(2, '0')}`, index + 1, currentKey));
+
+    if (children.length > 0) {
+      const participants = children.reduce((sum, child) => sum + child.participants, 0);
+      const totalDistanceKm = Number(children.reduce((sum, child) => sum + child.totalDistanceKm, 0).toFixed(1));
+      const activeParticipants = children.reduce(
+        (sum, child) => sum + Math.round((child.participationRate / 100) * child.participants),
+        0,
+      );
+
+      return {
+        id,
+        name: node.name,
+        level: node.type,
+        averageDistanceKm: participants > 0 ? Number((totalDistanceKm / participants).toFixed(1)) : 0,
+        totalDistanceKm,
+        participationRate: participants > 0 ? Math.round((activeParticipants / participants) * 100) : 0,
+        participants,
+        rank,
+        children,
+      };
+    }
+
+    const participants = membersByKey.get(currentKey) ?? 0;
+    const totalDistanceKm = Number((distanceByKey.get(currentKey) ?? 0).toFixed(1));
+    const activeParticipants = activeMembersByKey.get(currentKey) ?? 0;
+
+    return {
+      id,
+      name: node.name,
+      level: node.type,
+      averageDistanceKm: participants > 0 ? Number((totalDistanceKm / participants).toFixed(1)) : 0,
+      totalDistanceKm,
+      participationRate: participants > 0 ? Math.round((activeParticipants / participants) * 100) : 0,
+      participants,
+      rank,
+    };
+  };
+
+  const children = addressCatalog.map((region, index) =>
+    buildNode(region, `kr-${String(index + 1).padStart(2, '0')}`, index + 1));
+  const participants = children.reduce((sum, child) => sum + child.participants, 0);
+  const totalDistanceKm = Number(children.reduce((sum, child) => sum + child.totalDistanceKm, 0).toFixed(1));
+  const activeParticipants = children.reduce(
+    (sum, child) => sum + Math.round((child.participationRate / 100) * child.participants),
+    0,
+  );
+
+  return {
     id: 'kr',
     name: '대한민국',
     level: 'country',
+    averageDistanceKm: participants > 0 ? Number((totalDistanceKm / participants).toFixed(1)) : 0,
+    totalDistanceKm,
+    participationRate: participants > 0 ? Math.round((activeParticipants / participants) * 100) : 0,
+    participants,
     rank: 1,
     children,
-  });
+  };
 }
 
 export function createSeedStore() {
-  const users = [
-    createUser({
-      id: 'user-1',
-      username: 'demo-user',
-      password: 'demo-pass',
-      name: '민병희',
-      phone: '01012345678',
-      birthDate: '1990-01-01',
-      provinceName: '서울특별시',
-      districtName: '강남구',
-      universityName: '서울대학교',
-      addressDetail: '테헤란로 123',
-      publicTag: '#BH7K2',
-      friendDistanceKm: 84,
-      friendPoints: 91,
-      districtDistanceKm: 42.4,
-      districtPoints: 98,
-      rewardPoints: 128,
-      streakDays: 11,
-      connectedSources: createConnectedSources('ios'),
-      notificationSettings: createNotificationSettings('ios'),
-    }),
-    createUser({
-      id: 'user-2',
-      username: 'kw-user',
-      password: 'demo-pass',
-      name: '김관우',
-      phone: '01022223333',
-      birthDate: '1997-07-11',
-      provinceName: '서울특별시',
-      districtName: '강남구',
-      universityName: '연세대학교',
-      addressDetail: '역삼로 55',
-      publicTag: '#KW8M4',
-      friendDistanceKm: 89,
-      friendPoints: 98,
-      districtDistanceKm: 89,
-      districtPoints: 98,
-      rewardPoints: 164,
-      streakDays: 13,
-      connectedSources: createConnectedSources('ios'),
-      notificationSettings: createNotificationSettings('ios'),
-    }),
-    createUser({
-      id: 'user-3',
-      username: 'sj-user',
-      password: 'demo-pass',
-      name: '이서준',
-      phone: '01033334444',
-      birthDate: '1996-04-02',
-      provinceName: '서울특별시',
-      districtName: '서초구',
-      universityName: '고려대학교',
-      addressDetail: '서초대로 201',
-      publicTag: '#SJ4Q8',
-      friendDistanceKm: 77,
-      friendPoints: 86,
-      districtDistanceKm: 51.8,
-      districtPoints: 88,
-      rewardPoints: 112,
-      streakDays: 9,
-      connectedSources: createConnectedSources('android'),
-      notificationSettings: createNotificationSettings('android'),
-    }),
-    createUser({
-      id: 'user-4',
-      username: 'jh-user',
-      password: 'demo-pass',
-      name: '박지훈',
-      phone: '01044445555',
-      birthDate: '1995-12-24',
-      provinceName: '서울특별시',
-      districtName: '강남구',
-      universityName: '성균관대학교',
-      addressDetail: '학동로 77',
-      publicTag: '#JH3N1',
-      friendDistanceKm: 61.2,
-      friendPoints: 74,
-      districtDistanceKm: 86,
-      districtPoints: 95,
-      rewardPoints: 120,
-      streakDays: 8,
-      connectedSources: createConnectedSources('android'),
-      notificationSettings: createNotificationSettings('android'),
-    }),
-    createUser({
-      id: 'user-5',
-      username: 'mj-user',
-      password: 'demo-pass',
-      name: '최민준',
-      phone: '01055556666',
-      birthDate: '1997-02-18',
-      provinceName: '서울특별시',
-      districtName: '강남구',
-      universityName: '한양대학교',
-      addressDetail: '봉은사로 91',
-      publicTag: '#MJ5T2',
-      friendDistanceKm: 58.4,
-      friendPoints: 70,
-      districtDistanceKm: 81,
-      districtPoints: 91,
-      rewardPoints: 94,
-      streakDays: 7,
-      connectedSources: createConnectedSources('default'),
-      notificationSettings: createNotificationSettings('default'),
-    }),
-    createUser({
-      id: 'user-6',
-      username: 'sy-user',
-      password: 'demo-pass',
-      name: '이서윤',
-      phone: '01066667777',
-      birthDate: '1999-06-06',
-      provinceName: '서울특별시',
-      districtName: '강남구',
-      universityName: '경희대학교',
-      addressDetail: '도산대로 45',
-      publicTag: '#SY1R4',
-      friendDistanceKm: 40.8,
-      friendPoints: 48,
-      districtDistanceKm: 41.1,
-      districtPoints: 85,
-      rewardPoints: 66,
-      streakDays: 4,
-      connectedSources: createConnectedSources('default'),
-      notificationSettings: createNotificationSettings('default'),
-    }),
-    createUser({
-      id: 'user-7',
-      username: 'dy-user',
-      password: 'demo-pass',
-      name: '박도윤',
-      phone: '01077778888',
-      birthDate: '1998-09-10',
-      provinceName: '서울특별시',
-      districtName: '마포구',
-      universityName: '중앙대학교',
-      addressDetail: '월드컵북로 88',
-      publicTag: '#DY2M8',
-      friendDistanceKm: 52.3,
-      friendPoints: 60,
-      districtDistanceKm: 45.2,
-      districtPoints: 83,
-      rewardPoints: 72,
-      streakDays: 5,
-      connectedSources: createConnectedSources('default'),
-      notificationSettings: createNotificationSettings('default'),
-    }),
-    createUser({
-      id: 'user-8',
-      username: 'yr-user',
-      password: 'demo-pass',
-      name: '한예린',
-      phone: '01088889999',
-      birthDate: '2000-01-17',
-      provinceName: '서울특별시',
-      districtName: '성동구',
-      universityName: '이화여자대학교',
-      addressDetail: '왕십리로 10',
-      publicTag: '#YR4P6',
-      friendDistanceKm: 47.1,
-      friendPoints: 56,
-      districtDistanceKm: 39.4,
-      districtPoints: 78,
-      rewardPoints: 58,
-      streakDays: 6,
-      connectedSources: createConnectedSources('default'),
-      notificationSettings: createNotificationSettings('default'),
-    }),
-    createUser({
-      id: 'user-9',
-      username: 'ia-user',
-      password: 'demo-pass',
-      name: '정이안',
-      phone: '01099990000',
-      birthDate: '1998-11-03',
-      provinceName: '서울특별시',
-      districtName: '송파구',
-      universityName: '건국대학교',
-      addressDetail: '올림픽로 240',
-      publicTag: '#IA9L3',
-      friendDistanceKm: 46.2,
-      friendPoints: 54,
-      districtDistanceKm: 37.5,
-      districtPoints: 76,
-      rewardPoints: 52,
-      streakDays: 3,
-      connectedSources: createConnectedSources('default'),
-      notificationSettings: createNotificationSettings('default'),
-    })
-  ];
-
-  const runs = [
-    createRun({ id: 'mr1', userId: 'user-1', date: '2026-03-30', distanceKm: 8.2, pace: '5:34/km', source: 'Apple Health' }),
-    createRun({ id: 'mr2', userId: 'user-1', date: '2026-03-28', distanceKm: 11.0, pace: '5:22/km', source: 'Apple Health' }),
-    createRun({ id: 'mr3', userId: 'user-1', date: '2026-03-25', distanceKm: 6.4, pace: '5:41/km', source: 'Manual' }),
-    createRun({ id: 'mr4', userId: 'user-1', date: '2026-03-21', distanceKm: 9.8, pace: '5:19/km', source: 'Apple Health' }),
-    createRun({ id: 'mr5', userId: 'user-1', date: '2026-03-18', distanceKm: 7.0, pace: '5:48/km', source: 'Apple Health' }),
-
-    createRun({ id: 'fr1', userId: 'user-2', date: '2026-03-30', distanceKm: 10.0, pace: '5:12/km', source: 'Apple Health' }),
-    createRun({ id: 'fr2', userId: 'user-2', date: '2026-03-28', distanceKm: 12.4, pace: '5:05/km', source: 'Apple Health' }),
-    createRun({ id: 'fr3', userId: 'user-2', date: '2026-03-24', distanceKm: 8.6, pace: '5:18/km', source: 'Apple Health' }),
-    createRun({ id: 'fr4', userId: 'user-2', date: '2026-03-20', distanceKm: 15.0, pace: '5:27/km', source: 'Strava' }),
-    createRun({ id: 'fr5', userId: 'user-2', date: '2026-03-16', distanceKm: 9.2, pace: '5:09/km', source: 'Apple Health' }),
-
-    createRun({ id: 'u3r1', userId: 'user-3', date: '2026-03-29', distanceKm: 9.8, pace: '5:26/km', source: 'Health Connect' }),
-    createRun({ id: 'u3r2', userId: 'user-3', date: '2026-03-26', distanceKm: 7.4, pace: '5:39/km', source: 'Health Connect' }),
-    createRun({ id: 'u3r3', userId: 'user-3', date: '2026-03-23', distanceKm: 8.1, pace: '5:31/km', source: 'Manual' }),
-    createRun({ id: 'u3r4', userId: 'user-3', date: '2026-03-19', distanceKm: 6.7, pace: '5:44/km', source: 'Health Connect' }),
-    createRun({ id: 'u3r5', userId: 'user-3', date: '2026-03-15', distanceKm: 7.1, pace: '5:36/km', source: 'Manual' }),
-
-    createRun({ id: 'u4r1', userId: 'user-4', date: '2026-03-29', distanceKm: 11.2, pace: '5:11/km', source: 'Health Connect' }),
-    createRun({ id: 'u4r2', userId: 'user-4', date: '2026-03-25', distanceKm: 10.4, pace: '5:20/km', source: 'Manual' }),
-    createRun({ id: 'u5r1', userId: 'user-5', date: '2026-03-27', distanceKm: 8.7, pace: '5:28/km', source: 'Manual' }),
-    createRun({ id: 'u5r2', userId: 'user-5', date: '2026-03-22', distanceKm: 7.6, pace: '5:34/km', source: 'Manual' }),
-    createRun({ id: 'u6r1', userId: 'user-6', date: '2026-03-26', distanceKm: 6.2, pace: '5:42/km', source: 'Manual' }),
-    createRun({ id: 'u7r1', userId: 'user-7', date: '2026-03-25', distanceKm: 5.9, pace: '5:51/km', source: 'Manual' }),
-    createRun({ id: 'u8r1', userId: 'user-8', date: '2026-03-24', distanceKm: 5.4, pace: '5:49/km', source: 'Manual' }),
-    createRun({ id: 'u9r1', userId: 'user-9', date: '2026-03-23', distanceKm: 5.8, pace: '5:46/km', source: 'Manual' })
-  ];
+  const users = [];
+  const runs = [];
 
   return {
     version: 1,
     users,
     runs,
-    friendRequests: [
-      {
-        id: 'r1',
-        requesterId: 'user-1',
-        receiverId: 'user-7',
-        status: 'pending',
-        createdAt: '2026-03-30T11:20:00.000Z'
-      },
-      {
-        id: 'r2',
-        requesterId: 'user-8',
-        receiverId: 'user-1',
-        status: 'pending',
-        createdAt: '2026-03-31T07:40:00.000Z'
-      }
-    ],
-    friendships: [
-      {
-        id: 'f1',
-        userIds: ['user-1', 'user-2'],
-        createdAt: '2026-03-10T08:00:00.000Z'
-      },
-      {
-        id: 'f2',
-        userIds: ['user-1', 'user-3'],
-        createdAt: '2026-03-12T08:00:00.000Z'
-      },
-      {
-        id: 'f3',
-        userIds: ['user-1', 'user-4'],
-        createdAt: '2026-03-14T08:00:00.000Z'
-      },
-      {
-        id: 'f4',
-        userIds: ['user-1', 'user-5'],
-        createdAt: '2026-03-16T08:00:00.000Z'
-      },
-      {
-        id: 'f5',
-        userIds: ['user-1', 'user-6'],
-        createdAt: '2026-03-18T08:00:00.000Z'
-      },
-      {
-        id: 'f6',
-        userIds: ['user-1', 'user-9'],
-        createdAt: '2026-03-19T08:00:00.000Z'
-      }
-    ],
-    rewardRedemptions: [
-      {
-        id: 'redemption-1',
-        userId: 'user-1',
-        itemId: 'reward-theme-midnight',
-        claimedAt: '2026-03-20T08:30:00.000Z'
-      }
-    ],
+    integrationImports: [],
+    friendRequests: [],
+    friendships: [],
+    rewardRedemptions: [],
     sessions: [],
-    marketCatalog: createMarketCatalog(),
-    regionTree: createRegionTree()
+    marketCatalog: [],
+    regionTree: createRegionTree({ users, runs }),
   };
 }

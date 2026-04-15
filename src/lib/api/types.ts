@@ -1,4 +1,5 @@
 import { ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceEvent, OfflineRaceHub, RegionDrilldownNode, RunSourceType, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
+import { AddressRegionNode } from '@/features/location/addressCatalog';
 
 export type HomeSummaryResponse = WeeklySummary;
 export type MarketOverviewResponse = MarketOverview;
@@ -9,9 +10,31 @@ export type AuthResponse = {
   user: UserProfile;
 };
 
+export type UsernameAvailabilityResponse = {
+  username: string;
+  available: boolean;
+  message: string;
+};
+
 export type LogoutResponse = {
   success: boolean;
 };
+
+export type RegionCatalogResponse = {
+  regions: AddressRegionNode[];
+};
+
+export type UniversityCatalogResponse = {
+  universities: string[];
+};
+
+export type CreateManualRunInput = {
+  date: string;
+  distanceKm: number;
+  pace: string;
+};
+
+export type CreateManualRunResponse = RunDetailResponse;
 
 export type MyActivityResponse = {
   runs: MyRunRecord[];
@@ -40,6 +63,9 @@ export type IntegrationStatusResponse = {
 export type IntegrationSyncResponse = {
   success: boolean;
   syncedSources: number;
+  scannedRuns: number;
+  importedRuns: number;
+  duplicateRuns: number;
   syncedRuns: number;
   lastSyncedAt: string;
 };
@@ -52,6 +78,13 @@ export type IntegrationSourceActionResponse = {
   success: boolean;
   source: ConnectedSource;
   sources: ConnectedSource[];
+};
+
+export type QueueIntegrationImportResponse = {
+  success: boolean;
+  source: ConnectedSource;
+  queuedRuns: number;
+  pendingRuns: number;
 };
 
 export type MarketClaimResponse = {
@@ -81,6 +114,8 @@ export type UpdateMyProfileInput = {
 export type UpdateMyProfileResponse = UserProfile;
 
 export type UpdateMyRegionInput = {
+  provinceName: string;
+  cityName?: string;
   districtName: string;
 };
 

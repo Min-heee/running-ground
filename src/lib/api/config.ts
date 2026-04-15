@@ -37,4 +37,4 @@ export const API_CONFIG = {
   timeoutMs: readNumberEnv(expoPublicEnv.EXPO_PUBLIC_API_TIMEOUT_MS, 10000),
 };
 
-export const USE_MOCK_API = readBooleanEnv(expoPublicEnv.EXPO_PUBLIC_USE_MOCK_API, true);
+export const USE_MOCK_API = readBooleanEnv(expoPublicEnv.EXPO_PUBLIC_USE_MOCK_API, false);

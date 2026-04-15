@@ -1,29 +1,31 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, TextInput, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, TextInput, ActivityIndicator, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { fetchMyProfile, updateMyProfile } from '@/lib/api/services';
+import { fetchMyProfile, fetchUniversityCatalog, updateMyProfile } from '@/lib/api/services';
 import { MyProfileResponse } from '@/lib/api/types';
 
 export default function EditProfileScreen() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
-  const [name, setName] = useState('');
+  const [nickname, setNickname] = useState('');
   const [universityName, setUniversityName] = useState('');
+  const [universitySuggestions, setUniversitySuggestions] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchMyProfile()
-      .then((nextProfile) => {
+    Promise.all([fetchMyProfile(), fetchUniversityCatalog()])
+      .then(([nextProfile, universityCatalog]) => {
         setProfile(nextProfile);
-        setName(nextProfile.name);
+        setNickname(nextProfile.name);
         setUniversityName(nextProfile.universityName ?? '');
+        setUniversitySuggestions(universityCatalog.universities);
       })
       .catch((loadError) => {
         setError(loadError instanceof Error ? loadError.message : '프로필을 불러오지 못했어.');
@@ -32,8 +34,8 @@ export default function EditProfileScreen() {
   }, []);
 
   const handleSave = async () => {
-    if (!name.trim()) {
-      setError('이름은 비워둘 수 없어.');
+    if (!nickname.trim()) {
+      setError('닉네임은 비워둘 수 없어.');
       return;
     }
 
@@ -41,9 +43,9 @@ export default function EditProfileScreen() {
     setSaving(true);
 
     try {
-      const nextProfile = await updateMyProfile({ name, universityName });
+      const nextProfile = await updateMyProfile({ name: nickname, universityName });
       setProfile(nextProfile);
-      setName(nextProfile.name);
+      setNickname(nextProfile.name);
       setUniversityName(nextProfile.universityName ?? '');
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
@@ -58,7 +60,7 @@ export default function EditProfileScreen() {
     <Screen>
       <AuthHeader
         title="프로필 수정"
-        subtitle="닉네임과 기본 프로필 정보를 관리할 수 있어."
+        subtitle="공개 닉네임과 기본 프로필 정보를 관리할 수 있어."
         showBack
         backHref="/(tabs)/mypage"
       />
@@ -68,8 +70,28 @@ export default function EditProfileScreen() {
       {!loading && profile ? (
         <Card>
           <View style={styles.form}>
-            <Input label="이름" value={name} onChangeText={setName} editable={!saving} />
+            <Input label="닉네임" value={nickname} onChangeText={setNickname} editable={!saving} />
             <Input label="소속 대학" value={universityName} onChangeText={setUniversityName} editable={!saving} />
+            {universitySuggestions.length > 0 ? (
+              <View style={styles.selectionList}>
+                {universitySuggestions.map((option) => {
+                  const selected = option === universityName;
+
+                  return (
+                    <Pressable
+                      key={option}
+                      style={[styles.selectionChip, selected && styles.selectionChipSelected]}
+                      onPress={() => setUniversityName(option)}
+                      disabled={saving}
+                    >
+                      <Text style={[styles.selectionChipText, selected && styles.selectionChipTextSelected]}>{option}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={styles.helperText}>아직 등록된 대학이 많지 않아. 없으면 직접 입력하면 바로 추가돼.</Text>
+            )}
             <Input label="내 태그" value={profile.publicTag} editable={false} />
             <Input label="대표 지역" value={profile.districtName} editable={false} />
             <Input label="상태 메시지" value="러닝 경쟁 진행 중" editable={false} />
@@ -114,6 +136,10 @@ function Input({
 const styles = StyleSheet.create({
   form: { gap: 14 },
   inputGroup: { gap: 8 },
+  helperText: {
+    color: '#667085',
+    lineHeight: 20,
+  },
   label: {
     color: '#111827',
     fontWeight: '700',
@@ -131,6 +157,30 @@ const styles = StyleSheet.create({
   disabledInput: {
     color: '#98A2B3',
     backgroundColor: '#F2F4F7',
+  },
+  selectionList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  selectionChip: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  selectionChipSelected: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#6D5EF7',
+  },
+  selectionChipText: {
+    color: '#344054',
+    fontWeight: '700',
+  },
+  selectionChipTextSelected: {
+    color: '#4338CA',
   },
   savedText: {
     color: '#067647',

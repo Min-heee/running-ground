@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { Link, router } from 'expo-router';
+import { Link, router, useFocusEffect } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { MyActivityResponse } from '@/lib/api/types';
 import { fetchMyActivity } from '@/lib/api/services';
@@ -13,12 +14,19 @@ export default function MyActivityScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadActivity = useCallback(() => {
+    setLoading(true);
+    setError(null);
+
     fetchMyActivity()
       .then((data) => setActivity(data))
       .catch(() => setError('내 활동 정보를 불러오지 못했어.'))
       .finally(() => setLoading(false));
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    loadActivity();
+  }, [loadActivity]));
 
   return (
     <Screen>
@@ -34,6 +42,8 @@ export default function MyActivityScreen() {
 
       {activity ? (
         <>
+          <PrimaryButton label="수동 기록 추가" onPress={() => router.push('/add-run')} />
+
           <View style={styles.summaryRow}>
             <Card style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>이번 달 총 거리</Text>
@@ -47,7 +57,7 @@ export default function MyActivityScreen() {
 
           <Card>
             <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
-            {activity.runs.map((run) => (
+            {activity.runs.length > 0 ? activity.runs.map((run) => (
               <Link key={run.id} href={{ pathname: '/run-detail', params: { runId: run.id } }} asChild>
                 <Pressable style={styles.recordRow}>
                   <View style={styles.recordMeta}>
@@ -57,7 +67,12 @@ export default function MyActivityScreen() {
                   <Text style={styles.recordLink}>보기</Text>
                 </Pressable>
               </Link>
-            ))}
+            )) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>아직 저장된 러닝 기록이 없어.</Text>
+                <Text style={styles.emptyText}>첫 기록을 추가하면 홈 게이지와 친구 순위가 바로 움직이기 시작해.</Text>
+              </View>
+            )}
           </Card>
 
           <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} />
@@ -112,5 +127,17 @@ const styles = StyleSheet.create({
   recordLink: {
     color: '#6D5EF7',
     fontWeight: '800',
+  },
+  emptyState: {
+    paddingTop: 10,
+    gap: 6,
+  },
+  emptyTitle: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  emptyText: {
+    color: '#667085',
+    lineHeight: 20,
   },
 });

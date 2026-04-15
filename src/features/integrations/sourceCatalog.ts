@@ -65,6 +65,35 @@ export function getSourceMetadata(sourceType: RunSourceType): SourceMetadata {
   return SOURCE_METADATA[sourceType];
 }
 
+export function getSourceByType(sources: ConnectedSource[], sourceType: RunSourceType) {
+  return sources.find((source) => source.sourceType === sourceType) ?? null;
+}
+
+export function getPrimarySourceType(platform = getCurrentDevicePlatform()): RunSourceType | null {
+  if (platform === 'ios') {
+    return 'apple_health';
+  }
+
+  if (platform === 'android') {
+    return 'health_connect';
+  }
+
+  return null;
+}
+
+export function getPrimarySourceForPlatform(
+  sources: ConnectedSource[],
+  platform = getCurrentDevicePlatform(),
+) {
+  const primarySourceType = getPrimarySourceType(platform);
+
+  if (!primarySourceType) {
+    return null;
+  }
+
+  return getSourceByType(sources, primarySourceType);
+}
+
 export function getPlatformLabel(platform: DevicePlatform): string {
   if (platform === 'ios') {
     return 'iPhone';
@@ -90,21 +119,29 @@ export function getRecommendationCopy(platform: DevicePlatform): string {
 }
 
 export function getRecommendedSources(sources: ConnectedSource[], platform = getCurrentDevicePlatform()): ConnectedSource[] {
-  return [...sources]
-    .filter((source) => {
+  return sortSourcesByPriority(
+    sources.filter((source) => {
       if (source.sourceType === 'manual') {
         return true;
       }
 
       return source.recommendedPlatform === platform || source.recommendedPlatform === 'all';
+    }),
+  )
+    .slice(0, 3);
+}
+
+export function sortSourcesByPriority(sources: ConnectedSource[]): ConnectedSource[] {
+  return [...sources]
+    .filter((source) => {
+      return Boolean(SOURCE_METADATA[source.sourceType]);
     })
     .sort((left, right) => {
       const leftScore = SOURCE_METADATA[left.sourceType].priority + (left.connected ? 5 : 0);
       const rightScore = SOURCE_METADATA[right.sourceType].priority + (right.connected ? 5 : 0);
 
       return rightScore - leftScore;
-    })
-    .slice(0, 3);
+    });
 }
 
 export function splitSourcesByStatus(sources: ConnectedSource[]) {

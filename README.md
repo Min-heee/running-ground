@@ -31,6 +31,10 @@ Why `10.0.2.2`:
 
 If you use a physical device instead of the emulator, replace `10.0.2.2` with the desktop machine LAN IP.
 
+For release-oriented configs, use these examples instead:
+- preview: [.env.preview.example](/.env.preview.example)
+- production: [.env.production.example](/.env.production.example)
+
 ### 3. Start the backend on the desktop
 
 Run the file-based MVP backend on port `8081`.
@@ -86,6 +90,26 @@ Recommended order on Windows:
 3. Wait for the emulator window to finish booting
 4. `scripts\windows\install-android-app.cmd`
 
+## Release env check
+
+Before preview or production builds, run:
+
+```bash
+npm run release:check:preview
+npm run release:check:production
+```
+
+This now blocks the common release mistakes:
+- mock API accidentally left on
+- backend URL still pointing to localhost or emulator host
+- backend URL not using HTTPS
+- bundle/package identifiers still using anonymous defaults
+
+For backend release deployment, check [backend/README.md](/backend/README.md). It now includes:
+- backend preview/production env validation
+- Docker + Caddy public HTTPS deployment template
+- preview/production example env files
+
 ## Current backend-aware flows
 
 - Account login
@@ -106,6 +130,8 @@ Recommended order on Windows:
 
 - Social login buttons are still mock-only. In real backend mode they intentionally guide users to account login.
 - Session persistence uses `expo-secure-store` on native platforms and `localStorage` on web.
+- iOS post-Expo Go workflow is documented in [docs/ios-dev-build-and-testflight.md](/docs/ios-dev-build-and-testflight.md).
+- Release build setup is documented in [docs/release-build-guide.md](/docs/release-build-guide.md).
 - For local smoke tests, start with:
   - login -> connect sources -> home
   - signup -> connect sources -> home

@@ -52,6 +52,7 @@ export default function RootLayout() {
       <Stack.Screen name="friend-detail" />
       <Stack.Screen name="integration-management" />
       <Stack.Screen name="my-activity" />
+      <Stack.Screen name="add-run" />
       <Stack.Screen name="run-detail" />
       <Stack.Screen name="(tabs)" />
     </Stack>

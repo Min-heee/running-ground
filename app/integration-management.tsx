@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator, Pressable } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { IntegrationJourneyCard } from '@/features/integrations/IntegrationJourneyCard';
+import { NativeHealthReadinessCard } from '@/features/integrations/NativeHealthReadinessCard';
 import { connectIntegrationSource, disconnectIntegrationSource, fetchIntegrationStatus, syncIntegrationSources } from '@/lib/api/services';
 import { IntegrationStatusResponse, IntegrationSyncResponse } from '@/lib/api/types';
 import { RunSourceType } from '@/domain/types';
@@ -15,8 +17,10 @@ import {
   getPlatformLabel,
   getRecommendedSources,
   getSourceMetadata,
+  sortSourcesByPriority,
   splitSourcesByStatus,
 } from '@/features/integrations/sourceCatalog';
+import { getRecommendedNativeHealthReadiness, importRunsFromRecommendedNativeHealthSource } from '@/integrations/nativeHealth';
 
 export default function IntegrationManagementScreen() {
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
@@ -29,8 +33,9 @@ export default function IntegrationManagementScreen() {
   const [actionSourceType, setActionSourceType] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [deviceImporting, setDeviceImporting] = useState(false);
 
-  const loadIntegrationStatus = () => {
+  const loadIntegrationStatus = useCallback(() => {
     setLoading(true);
     setError(null);
 
@@ -38,11 +43,11 @@ export default function IntegrationManagementScreen() {
       .then((data) => setIntegrationStatus(data))
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '연동 정보를 불러오지 못했어.'))
       .finally(() => setLoading(false));
-  };
-
-  useEffect(() => {
-    loadIntegrationStatus();
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    loadIntegrationStatus();
+  }, [loadIntegrationStatus]));
 
   const handleSync = async () => {
     setSyncing(true);
@@ -96,10 +101,46 @@ export default function IntegrationManagementScreen() {
   const platform = getCurrentDevicePlatform();
   const sources = integrationStatus?.sources ?? [];
   const { connected, available } = splitSourcesByStatus(sources);
+  const connectedSources = sortSourcesByPriority(connected);
+  const availableSources = sortSourcesByPriority(available);
   const recommendations = getRecommendedSources(sources, platform);
   const coverage = getCoverageSummary(sources, platform);
+  const nativeHealthReadiness = getRecommendedNativeHealthReadiness(sources);
   const backHref = returnTo === 'connect-sources' ? '/connect-sources' : '/(tabs)/mypage';
   const backLabel = returnTo === 'connect-sources' ? '연동 시작으로 돌아가기' : '마이페이지로 돌아가기';
+
+  const handleImportFromDevice = async () => {
+    if (deviceImporting) {
+      return;
+    }
+
+    setDeviceImporting(true);
+    setActionError(null);
+    setActionMessage(null);
+
+    try {
+      const result = await importRunsFromRecommendedNativeHealthSource(sources);
+
+      if (result.syncResult) {
+        setSyncResult(result.syncResult);
+      }
+
+      const refreshedStatus = await fetchIntegrationStatus();
+      setIntegrationStatus(refreshedStatus);
+
+      if (result.fetchedRuns === 0) {
+        setActionMessage(`${result.sourceLabel}에서 아직 가져올 새 기록을 찾지 못했어.`);
+      } else if (result.syncResult) {
+        setActionMessage(`${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽었고, 그중 ${result.syncResult.importedRuns}개를 새로 반영했어.`);
+      } else {
+        setActionMessage(`${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽어 가져오기 대기열에 올렸어.`);
+      }
+    } catch (deviceImportError) {
+      setActionError(deviceImportError instanceof Error ? deviceImportError.message : '기기 기록을 아직 읽어오지 못했어.');
+    } finally {
+      setDeviceImporting(false);
+    }
+  };
 
   return (
     <Screen>
@@ -122,6 +163,27 @@ export default function IntegrationManagementScreen() {
 
       {integrationStatus ? (
         <>
+          <NativeHealthReadinessCard sources={sources}>
+            {nativeHealthReadiness?.state === 'config_ready' ? (
+              <PrimaryButton
+                label={deviceImporting ? '기기 기록 가져오는 중...' : '기기에서 기록 가져오기'}
+                onPress={handleImportFromDevice}
+              />
+            ) : null}
+          </NativeHealthReadinessCard>
+
+          <IntegrationJourneyCard
+            sources={sources}
+            nativeHealthReadiness={nativeHealthReadiness}
+            actionSourceType={actionSourceType}
+            syncing={syncing}
+            importing={deviceImporting}
+            onConnectSource={handleConnect}
+            onImportDevice={handleImportFromDevice}
+            onSync={handleSync}
+            onAddManualRun={() => router.push('/add-run')}
+          />
+
           <Card>
             <Text style={styles.sectionTitle}>연동 상태 요약</Text>
             <Text style={styles.summaryText}>
@@ -130,7 +192,7 @@ export default function IntegrationManagementScreen() {
             <PrimaryButton label={syncing ? '동기화 중...' : '지금 동기화하기'} onPress={handleSync} />
             {syncResult ? (
               <Text style={styles.successText}>
-                {syncResult.syncedSources}개 소스에서 {syncResult.syncedRuns}개 기록을 확인했고, 마지막 동기화 시각은 {syncResult.lastSyncedAt} 이야.
+                {syncResult.syncedSources}개 소스를 확인했고, 총 {syncResult.scannedRuns}개 기록 중 {syncResult.importedRuns}개를 새로 저장하고 {syncResult.duplicateRuns}개는 중복으로 건너뛰었어. 마지막 확인 시각은 {syncResult.lastSyncedAt} 이야.
               </Text>
             ) : null}
             {syncError ? <Text style={styles.errorText}>{syncError}</Text> : null}
@@ -166,7 +228,7 @@ export default function IntegrationManagementScreen() {
 
           <Card>
             <Text style={styles.sectionTitle}>현재 연결된 소스</Text>
-            {connected.map((source) => {
+            {connectedSources.map((source) => {
               const metadata = getSourceMetadata(source.sourceType);
 
               return (
@@ -174,6 +236,7 @@ export default function IntegrationManagementScreen() {
                   <View style={styles.meta}>
                     <Text style={styles.name}>{source.displayName}</Text>
                     <Text style={styles.detail}>마지막 동기화 {source.lastSyncedAt ?? '정보 없음'}</Text>
+                    {source.pendingImportCount ? <Text style={styles.pendingText}>대기 중인 가져오기 {source.pendingImportCount}개</Text> : null}
                     <Text style={styles.platform}>{metadata.setupHint}</Text>
                   </View>
                   <Pressable
@@ -188,12 +251,12 @@ export default function IntegrationManagementScreen() {
                 </View>
               );
             })}
-            {connected.length === 0 ? <Text style={styles.emptyText}>아직 연결된 기록 소스가 없어.</Text> : null}
+            {connectedSources.length === 0 ? <Text style={styles.emptyText}>아직 연결된 기록 소스가 없어.</Text> : null}
           </Card>
 
           <Card>
             <Text style={styles.sectionTitle}>추가 확장 소스</Text>
-            {available.map((source) => {
+            {availableSources.map((source) => {
               const metadata = getSourceMetadata(source.sourceType);
 
               return (
@@ -215,7 +278,7 @@ export default function IntegrationManagementScreen() {
                 </View>
               );
             })}
-            {available.length === 0 ? <Text style={styles.emptyText}>지금 바로 추가로 붙일 확장 소스가 없어.</Text> : null}
+            {availableSources.length === 0 ? <Text style={styles.emptyText}>지금 바로 추가로 붙일 확장 소스가 없어.</Text> : null}
           </Card>
 
           <SecondaryButton label="연동 상태 새로고침" onPress={loadIntegrationStatus} />
@@ -268,6 +331,7 @@ const styles = StyleSheet.create({
   name: { color: '#111827', fontWeight: '700' },
   detail: { color: '#667085' },
   platform: { color: '#6D5EF7', fontWeight: '700', fontSize: 12, lineHeight: 18 },
+  pendingText: { color: '#C2410C', fontWeight: '700', fontSize: 12, lineHeight: 18 },
   connectedBadge: {
     backgroundColor: '#ECFDF3',
     borderRadius: 12,

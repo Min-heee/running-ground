@@ -1,141 +1,34 @@
 import { createServer } from 'node:http';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { loadStore, mutateStore, getStoreFilePath, resetStore } from './store.mjs';
-import { ADMIN_TOKEN, CORS_ORIGIN, ENABLE_ADMIN_STATUS, ENABLE_RESET_ENDPOINT, HOST, PORT, getPublicBackendConfig } from './config.mjs';
+import {
+  ADMIN_TOKEN,
+  APP_ENV,
+  CORS_ALLOW_ANY_ORIGIN,
+  CORS_ORIGINS,
+  ENABLE_ADMIN_STATUS,
+  ENABLE_RESET_ENDPOINT,
+  HOST,
+  MAX_BODY_SIZE_BYTES,
+  MAX_BODY_SIZE_KB,
+  PORT,
+  PUBLIC_BASE_URL,
+  SESSION_TTL_MS,
+  getPublicBackendConfig,
+} from './config.mjs';
+import { buildSessionExpiry, isSessionExpired, setUserPassword, verifyPassword } from './auth.mjs';
+import { buildUserRunMetrics, getAvailableRewardPoints, getRunPointValue, parsePaceToMinutes } from './points.mjs';
+import { addressCatalog } from './addressCatalog.mjs';
 const STARTED_AT = new Date().toISOString();
-const MIN_FRIEND_LEADERBOARD_SIZE = 7;
-
-const DISTRICT_BATTLE = {
-  강남구: {
-    averageDistancePerMember: 24.7,
-    totalDistanceKm: 2480,
-    participationRate: 62,
-    districtRank: 3,
-    homeDistrictRank: 7,
-  },
-  서초구: {
-    averageDistancePerMember: 26.1,
-    totalDistanceKm: 2632,
-    participationRate: 64,
-    districtRank: 2,
-    homeDistrictRank: 5,
-  },
-  송파구: {
-    averageDistancePerMember: 28.4,
-    totalDistanceKm: 2840,
-    participationRate: 68,
-    districtRank: 1,
-    homeDistrictRank: 4,
-  },
-  마포구: {
-    averageDistancePerMember: 23.9,
-    totalDistanceKm: 2389,
-    participationRate: 58,
-    districtRank: 4,
-    homeDistrictRank: 9,
-  },
-  성동구: {
-    averageDistancePerMember: 22.8,
-    totalDistanceKm: 2280,
-    participationRate: 55,
-    districtRank: 5,
-    homeDistrictRank: 11,
-  },
+const metricsCacheByStore = new WeakMap();
+const SOURCE_LABEL_BY_TYPE = {
+  apple_health: 'Apple Health',
+  health_connect: 'Health Connect',
+  garmin: 'Garmin',
+  strava: 'Strava',
+  nrc: 'NRC',
+  manual: 'Manual',
 };
-
-const DEFAULT_MARKET_CATALOG = [
-  {
-    id: 'reward-theme-midnight',
-    title: '러닝 양말 2팩',
-    category: '러닝 용품',
-    description: '가볍고 땀 배출이 빠른 데일리 러닝 양말 세트예요.',
-    costPoints: 40,
-    repeatable: false,
-  },
-  {
-    id: 'reward-coupon-coffee',
-    title: '메가커피 5천원',
-    category: '키프티콘',
-    description: '러닝 후 가볍게 마시기 좋은 모바일 교환권이에요.',
-    costPoints: 60,
-    partnerName: '메가커피',
-    repeatable: false,
-  },
-  {
-    id: 'reward-badge-sprinter',
-    title: '드라이핏 반팔 티',
-    category: '런닝 티',
-    description: '가볍고 빠르게 마르는 기본 러닝 티셔츠예요.',
-    costPoints: 90,
-    repeatable: false,
-  },
-  {
-    id: 'reward-challenge-ticket',
-    title: '경량 러닝 쇼츠',
-    category: '런닝 바지',
-    description: '가볍게 입기 좋은 베이직 5인치 러닝 쇼츠예요.',
-    costPoints: 140,
-    repeatable: false,
-  },
-  {
-    id: 'reward-running-shoes-daily',
-    title: '데일리 쿠셔닝 러닝화',
-    category: '런닝화',
-    description: '장거리 러닝에도 편안한 쿠셔닝 중심 러닝화예요.',
-    costPoints: 280,
-    repeatable: false,
-  },
-  {
-    id: 'reward-running-shoes-race',
-    title: '레이스 데이 러닝화',
-    category: '런닝화',
-    description: '조금 더 가볍고 반응성이 좋은 레이스용 모델이에요.',
-    costPoints: 340,
-    repeatable: false,
-  },
-  {
-    id: 'reward-running-tee-sleeveless',
-    title: '메쉬 슬리브리스',
-    category: '런닝 티',
-    description: '한여름 러닝에 어울리는 통기성 중심 탑이에요.',
-    costPoints: 120,
-    repeatable: false,
-  },
-  {
-    id: 'reward-running-pants-tights',
-    title: '컴프레션 롱타이츠',
-    category: '런닝 바지',
-    description: '기온이 낮은 날 입기 좋은 압박형 타이츠예요.',
-    costPoints: 180,
-    repeatable: false,
-  },
-  {
-    id: 'reward-running-gear-belt',
-    title: '보틀 벨트',
-    category: '러닝 용품',
-    description: '장거리 러닝 때 휴대성과 수분 보충을 챙기기 좋아요.',
-    costPoints: 110,
-    repeatable: false,
-  },
-  {
-    id: 'reward-gifticon-gs',
-    title: 'GS25 5천원',
-    category: '키프티콘',
-    description: '러닝 후 간단한 간식이나 음료를 고르기 좋은 교환권이에요.',
-    costPoints: 70,
-    partnerName: 'GS25',
-    repeatable: false,
-  },
-  {
-    id: 'reward-gifticon-olive',
-    title: '올리브영 1만원',
-    category: '키프티콘',
-    description: '러닝 보조용품이나 케어 아이템 구매에 쓰기 좋아요.',
-    costPoints: 150,
-    partnerName: '올리브영',
-    repeatable: false,
-  },
-];
 
 class ApiError extends Error {
   constructor(statusCode, message) {
@@ -148,17 +41,46 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function buildCorsHeaders() {
-  return {
-    'Access-Control-Allow-Origin': CORS_ORIGIN,
+function resolveCorsOrigin(request) {
+  const requestOrigin = typeof request.headers.origin === 'string' ? request.headers.origin.trim() : '';
+
+  if (CORS_ALLOW_ANY_ORIGIN) {
+    return '*';
+  }
+
+  if (!requestOrigin) {
+    return '';
+  }
+
+  return CORS_ORIGINS.includes(requestOrigin) ? requestOrigin : '';
+}
+
+function buildCorsHeaders(request) {
+  const resolvedOrigin = resolveCorsOrigin(request);
+  const headers = {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token',
     'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
+    'Access-Control-Max-Age': '86400',
+    Vary: 'Origin',
   };
+
+  if (resolvedOrigin) {
+    headers['Access-Control-Allow-Origin'] = resolvedOrigin;
+  }
+
+  return headers;
+}
+
+function applyCorsHeaders(request, response) {
+  const headers = buildCorsHeaders(request);
+
+  for (const [key, value] of Object.entries(headers)) {
+    response.setHeader(key, value);
+  }
 }
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
-    ...buildCorsHeaders(),
     'Content-Type': 'application/json; charset=utf-8',
   });
   response.end(JSON.stringify(payload));
@@ -176,8 +98,15 @@ function sendError(response, error) {
 
 async function parseJsonBody(request) {
   const chunks = [];
+  let totalBytes = 0;
 
   for await (const chunk of request) {
+    totalBytes += chunk.length;
+
+    if (totalBytes > MAX_BODY_SIZE_BYTES) {
+      throw new ApiError(413, `요청 본문이 너무 커. 최대 ${MAX_BODY_SIZE_KB}KB 까지만 보낼 수 있어.`);
+    }
+
     chunks.push(chunk);
   }
 
@@ -233,6 +162,10 @@ function findUserByToken(store, token) {
     throw new ApiError(401, '세션이 만료됐어. 다시 로그인해줘.');
   }
 
+  if (isSessionExpired(session)) {
+    throw new ApiError(401, '세션이 만료됐어. 다시 로그인해줘.');
+  }
+
   const user = store.users.find((entry) => entry.id === session.userId);
 
   if (!user) {
@@ -278,7 +211,32 @@ function getTotalDistance(runs) {
   return Number(runs.reduce((sum, run) => sum + run.distanceKm, 0).toFixed(1));
 }
 
-function buildProfile(user) {
+function getUserMetrics(store, userId) {
+  let metricsByUserId = metricsCacheByStore.get(store);
+
+  if (!metricsByUserId) {
+    metricsByUserId = new Map();
+    metricsCacheByStore.set(store, metricsByUserId);
+  }
+
+  if (!metricsByUserId.has(userId)) {
+    metricsByUserId.set(userId, buildUserRunMetrics(getRunsForUser(store, userId)));
+  }
+
+  return metricsByUserId.get(userId);
+}
+
+function getRedeemedPointCost(store, userId) {
+  const catalogByItemId = new Map((store.marketCatalog ?? []).map((item) => [item.id, item.costPoints]));
+
+  return (store.rewardRedemptions ?? [])
+    .filter((entry) => entry.userId === userId)
+    .reduce((sum, entry) => sum + (catalogByItemId.get(entry.itemId) ?? 0), 0);
+}
+
+function buildProfile(store, user) {
+  const metrics = getUserMetrics(store, user.id);
+
   return {
     name: user.name,
     ...(typeof user.provinceName === 'string' && user.provinceName ? { provinceName: user.provinceName } : {}),
@@ -287,6 +245,7 @@ function buildProfile(user) {
     ...(typeof user.universityName === 'string' && user.universityName ? { universityName: user.universityName } : {}),
     ...(typeof user.addressDetail === 'string' && user.addressDetail ? { addressDetail: user.addressDetail } : {}),
     publicTag: user.publicTag,
+    lifetimeDistanceKm: metrics.lifetimeDistanceKm,
   };
 }
 
@@ -298,26 +257,118 @@ function buildNotificationSettings(user) {
   });
 }
 
-function buildIntegrationSourceActionResult(user, source) {
+function normalizeOptionalString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function ensureIntegrationImports(store) {
+  if (!Array.isArray(store.integrationImports)) {
+    store.integrationImports = [];
+  }
+
+  return store.integrationImports;
+}
+
+function isSyncableSourceType(sourceType) {
+  return sourceType !== 'manual';
+}
+
+function getSourceDisplayName(user, sourceType) {
+  return user.connectedSources.find((entry) => entry.sourceType === sourceType)?.displayName ?? SOURCE_LABEL_BY_TYPE[sourceType] ?? sourceType;
+}
+
+function inferSourceTypeFromLabel(label) {
+  const normalizedLabel = normalizeOptionalString(label).toLowerCase();
+
+  return Object.entries(SOURCE_LABEL_BY_TYPE).find(([, displayName]) => displayName.toLowerCase() === normalizedLabel)?.[0] ?? null;
+}
+
+function getRunSourceType(run) {
+  return normalizeOptionalString(run.sourceType) || inferSourceTypeFromLabel(run.source);
+}
+
+function buildRunExternalKey(input) {
+  const sourceType = normalizeOptionalString(input.sourceType);
+  const externalId = normalizeOptionalString(input.externalId);
+
+  if (!sourceType || !externalId) {
+    return null;
+  }
+
+  return `${sourceType}::${externalId}`;
+}
+
+function buildRunFingerprint(input) {
+  const sourceType = normalizeOptionalString(input.sourceType);
+  return [
+    sourceType || 'unknown',
+    validateRequiredString(input.date, '날짜를 입력해줘.'),
+    Number(validateDistanceKm(input.distanceKm, '거리를 입력해줘.').toFixed(1)).toFixed(1),
+    validatePace(input.pace, '페이스를 입력해줘.'),
+  ].join('::');
+}
+
+function getPendingImportCount(store, userId, sourceType) {
+  return ensureIntegrationImports(store)
+    .filter((entry) => entry.userId === userId && entry.sourceType === sourceType)
+    .length;
+}
+
+function decorateIntegrationSource(store, user, source) {
+  const pendingImportCount = getPendingImportCount(store, user.id, source.sourceType);
+  return {
+    ...clone(source),
+    ...(pendingImportCount > 0 ? { pendingImportCount } : {}),
+  };
+}
+
+function buildIntegrationSources(store, user) {
+  return user.connectedSources.map((source) => decorateIntegrationSource(store, user, source));
+}
+
+function buildUserRegionKey(user) {
+  return [
+    normalizeOptionalString(user.provinceName),
+    normalizeOptionalString(user.cityName),
+    normalizeOptionalString(user.districtName),
+  ].filter(Boolean).join(' > ');
+}
+
+function buildRegionCatalog() {
+  return {
+    regions: clone(addressCatalog),
+  };
+}
+
+function buildUniversityCatalog(store) {
+  const universities = [...new Set(
+    store.users
+      .map((user) => normalizeOptionalString(user.universityName))
+      .filter(Boolean),
+  )].sort((left, right) => left.localeCompare(right, 'ko'));
+
+  return { universities };
+}
+
+function buildIntegrationSourceActionResult(store, user, source) {
   return {
     success: true,
-    source: clone(source),
-    sources: clone(user.connectedSources),
+    source: decorateIntegrationSource(store, user, source),
+    sources: buildIntegrationSources(store, user),
   };
 }
 
 function buildMarketOverview(store, user) {
   if (!Array.isArray(store.marketCatalog)) {
-    store.marketCatalog = clone(DEFAULT_MARKET_CATALOG);
+    store.marketCatalog = [];
   }
 
   if (!Array.isArray(store.rewardRedemptions)) {
     store.rewardRedemptions = [];
   }
 
-  if (typeof user.rewardPoints !== 'number') {
-    user.rewardPoints = Math.max(user.districtPoints ?? 0, 60);
-  }
+  const metrics = getUserMetrics(store, user.id);
+  const currentPoints = getAvailableRewardPoints(metrics, getRedeemedPointCost(store, user.id));
 
   const redeemedItemIds = new Set(
     store.rewardRedemptions
@@ -335,59 +386,79 @@ function buildMarketOverview(store, user) {
     repeatable: item.repeatable,
     claimState: redeemedItemIds.has(item.id)
       ? 'claimed'
-      : user.rewardPoints >= item.costPoints
+      : currentPoints >= item.costPoints
         ? 'claimable'
         : 'locked',
   }));
 
   return {
-    currentPoints: user.rewardPoints,
+    currentPoints,
     totalRedeemedCount: store.rewardRedemptions.filter((entry) => entry.userId === user.id).length,
     items,
   };
 }
 
-function buildFriendRank(user, rank) {
+function buildFriendRank(store, user, rank) {
+  const metrics = getUserMetrics(store, user.id);
+
   return {
     id: user.id,
     rank,
     name: user.name,
     tag: user.publicTag,
-    distanceKm: user.friendDistanceKm,
-    points: user.friendPoints,
+    distanceKm: metrics.currentWeekDistanceKm,
+    points: metrics.currentWeekPoints,
   };
 }
 
-function buildDistrictRank(user, rank, currentUserId) {
+function buildDistrictRank(store, user, rank, currentUserId) {
+  const metrics = getUserMetrics(store, user.id);
+
   return {
     id: user.id,
     rank,
     name: user.name,
-    distanceKm: user.districtDistanceKm,
-    points: user.districtPoints,
+    distanceKm: metrics.currentWeekDistanceKm,
+    points: metrics.currentWeekPoints,
     ...(user.id === currentUserId ? { isMe: true } : {}),
   };
 }
 
-function compareFriendRank(left, right) {
-  if (right.friendDistanceKm !== left.friendDistanceKm) {
-    return right.friendDistanceKm - left.friendDistanceKm;
+function compareFriendRank(store, left, right) {
+  const leftMetrics = getUserMetrics(store, left.id);
+  const rightMetrics = getUserMetrics(store, right.id);
+  const leftDistanceKm = leftMetrics.currentWeekDistanceKm;
+  const rightDistanceKm = rightMetrics.currentWeekDistanceKm;
+
+  if (rightDistanceKm !== leftDistanceKm) {
+    return rightDistanceKm - leftDistanceKm;
   }
 
-  if (right.friendPoints !== left.friendPoints) {
-    return right.friendPoints - left.friendPoints;
+  const leftPoints = leftMetrics.currentWeekPoints;
+  const rightPoints = rightMetrics.currentWeekPoints;
+
+  if (rightPoints !== leftPoints) {
+    return rightPoints - leftPoints;
   }
 
   return left.name.localeCompare(right.name, 'ko');
 }
 
-function compareDistrictRank(left, right) {
-  if (right.districtDistanceKm !== left.districtDistanceKm) {
-    return right.districtDistanceKm - left.districtDistanceKm;
+function compareDistrictRank(store, left, right) {
+  const leftMetrics = getUserMetrics(store, left.id);
+  const rightMetrics = getUserMetrics(store, right.id);
+  const leftDistanceKm = leftMetrics.currentWeekDistanceKm;
+  const rightDistanceKm = rightMetrics.currentWeekDistanceKm;
+
+  if (rightDistanceKm !== leftDistanceKm) {
+    return rightDistanceKm - leftDistanceKm;
   }
 
-  if (right.districtPoints !== left.districtPoints) {
-    return right.districtPoints - left.districtPoints;
+  const leftPoints = leftMetrics.currentWeekPoints;
+  const rightPoints = rightMetrics.currentWeekPoints;
+
+  if (rightPoints !== leftPoints) {
+    return rightPoints - leftPoints;
   }
 
   return left.name.localeCompare(right.name, 'ko');
@@ -413,6 +484,14 @@ function areFriends(store, leftUserId, rightUserId) {
   ));
 }
 
+function requireFriendAccess(store, currentUserId, friendId) {
+  if (currentUserId === friendId || areFriends(store, currentUserId, friendId)) {
+    return;
+  }
+
+  throw new ApiError(403, '친구로 연결된 사용자 기록만 볼 수 있어.');
+}
+
 function getActionableRequests(store, currentUserId) {
   return store.friendRequests
     .filter((request) => request.status === 'pending')
@@ -431,37 +510,110 @@ function getActionableRequests(store, currentUserId) {
     .sort((left, right) => left.name.localeCompare(right.name, 'ko'));
 }
 
-function getDistrictBattle(districtName) {
-  const found = DISTRICT_BATTLE[districtName];
+function normalizeRegionChildren(children) {
+  return [...children]
+    .sort((left, right) => {
+      if (right.averageDistanceKm !== left.averageDistanceKm) {
+        return right.averageDistanceKm - left.averageDistanceKm;
+      }
 
-  if (found) {
-    return found;
+      if (right.totalDistanceKm !== left.totalDistanceKm) {
+        return right.totalDistanceKm - left.totalDistanceKm;
+      }
+
+      if (right.participants !== left.participants) {
+        return right.participants - left.participants;
+      }
+
+      return left.name.localeCompare(right.name, 'ko');
+    })
+    .map((child, index) => ({
+      ...child,
+      rank: index + 1,
+    }));
+}
+
+function findRegionPathForUser(node, user) {
+  const provinceName = typeof user.provinceName === 'string' ? user.provinceName.trim() : '';
+  const cityName = typeof user.cityName === 'string' ? user.cityName.trim() : '';
+  const districtName = typeof user.districtName === 'string' ? user.districtName.trim() : '';
+
+  if (!provinceName) {
+    return [node];
   }
 
+  const provinceNode = (node.children ?? []).find((entry) => entry.name === provinceName);
+
+  if (!provinceNode) {
+    return [node];
+  }
+
+  const path = [node, provinceNode];
+  let currentNode = provinceNode;
+
+  if (cityName) {
+    const cityNode = (currentNode.children ?? []).find((entry) => entry.name === cityName);
+
+    if (cityNode) {
+      path.push(cityNode);
+      currentNode = cityNode;
+    }
+  }
+
+  if (districtName && currentNode.children?.length) {
+    const districtNode = currentNode.children.find((entry) => entry.name === districtName);
+
+    if (districtNode) {
+      path.push(districtNode);
+    }
+  }
+
+  return path;
+}
+
+function getDistrictBattle(store, user) {
+  const path = findRegionPathForUser(store.regionTree, user);
+  const rawNode = path[path.length - 1] ?? null;
+  const parentNode = path[path.length - 2] ?? null;
+
+  if (!rawNode) {
+    return {
+      averageDistancePerMember: 0,
+      totalDistanceKm: 0,
+      participationRate: 0,
+      districtRank: 1,
+      homeDistrictRank: 1,
+    };
+  }
+
+  const normalizedSiblings = parentNode ? normalizeRegionChildren(parentNode.children ?? []) : [rawNode];
+  const currentNode = normalizedSiblings.find((entry) => entry.id === rawNode.id) ?? rawNode;
+
   return {
-    averageDistancePerMember: 21.3,
-    totalDistanceKm: 1840,
-    participationRate: 51,
-    districtRank: 8,
-    homeDistrictRank: 12,
+    averageDistancePerMember: currentNode.averageDistanceKm,
+    totalDistanceKm: currentNode.totalDistanceKm,
+    participationRate: currentNode.participationRate,
+    districtRank: currentNode.rank ?? 1,
+    homeDistrictRank: currentNode.rank ?? 1,
   };
 }
 
 function buildHomeSummary(store, user) {
-  const runs = getRunsForUser(store, user.id);
-  const totalDistanceKm = getTotalDistance(runs);
-  const latestRun = runs[0];
+  const metrics = getUserMetrics(store, user.id);
+  const latestRun = metrics.latestRun;
   const friendUsers = getFriendIds(store, user.id)
     .map((friendId) => findUserById(store, friendId))
-    .sort(compareFriendRank);
+    .sort((left, right) => compareFriendRank(store, left, right));
   const closestFriend = friendUsers[0] ?? null;
-  const districtBattle = getDistrictBattle(user.districtName);
+  const districtBattle = getDistrictBattle(store, user);
+  const closestFriendMetrics = closestFriend ? getUserMetrics(store, closestFriend.id) : null;
 
   return {
-    totalDistanceKm,
-    totalRuns: runs.length,
-    goalAchievementRate: Math.min(100, Math.round((totalDistanceKm / 50) * 100)),
-    streakDays: user.streakDays,
+    totalDistanceKm: metrics.currentWeekDistanceKm,
+    totalRuns: metrics.currentWeekRunCount,
+    goalAchievementRate: Math.min(100, Math.round((metrics.currentWeekDistanceKm / 50) * 100)),
+    previousWeekDistanceKm: metrics.previousWeekDistanceKm,
+    streakDays: metrics.currentStreakDays,
     latestRun: latestRun
       ? {
         distanceKm: latestRun.distanceKm,
@@ -472,10 +624,10 @@ function buildHomeSummary(store, user) {
         source: 'Manual',
       },
     friendName: closestFriend?.name ?? '친구를 추가해봐',
-    friendGapKm: closestFriend ? Number(Math.abs(closestFriend.friendDistanceKm - user.friendDistanceKm).toFixed(1)) : 0,
+    friendGapKm: closestFriendMetrics ? Number(Math.abs(closestFriendMetrics.currentWeekDistanceKm - metrics.currentWeekDistanceKm).toFixed(1)) : 0,
     districtName: user.districtName,
     districtRank: districtBattle.homeDistrictRank,
-    districtPoints: user.districtPoints,
+    districtPoints: metrics.currentWeekPoints,
     districtBattle: {
       myDistrict: user.districtName,
       averageDistancePerMember: districtBattle.averageDistancePerMember,
@@ -488,6 +640,7 @@ function buildHomeSummary(store, user) {
 
 function buildMyActivity(store, user) {
   const runs = getRunsForUser(store, user.id);
+  const metrics = getUserMetrics(store, user.id);
 
   return {
     runs: runs.map((run) => ({
@@ -497,23 +650,18 @@ function buildMyActivity(store, user) {
       pace: run.pace,
       source: run.source,
     })),
-    monthlyDistanceKm: getTotalDistance(runs),
-    monthlyPoints: user.districtPoints,
+    monthlyDistanceKm: metrics.currentMonthDistanceKm,
+    monthlyPoints: metrics.currentMonthPoints,
   };
 }
 
 function buildFriendLeaderboard(store, user) {
-  const relatedUserIds = new Set([user.id, ...getFriendIds(store, user.id)]);
-  const fillerUserIds = store.users
-    .filter((entry) => !relatedUserIds.has(entry.id))
-    .sort(compareFriendRank)
-    .slice(0, Math.max(0, MIN_FRIEND_LEADERBOARD_SIZE - relatedUserIds.size))
-    .map((entry) => entry.id);
+  const relatedUserIds = [...new Set([user.id, ...getFriendIds(store, user.id)])];
 
-  const currentAndFriends = [...relatedUserIds, ...fillerUserIds]
+  const currentAndFriends = relatedUserIds
     .map((userId) => findUserById(store, userId))
-    .sort(compareFriendRank)
-    .map((entry, index) => buildFriendRank(entry, index + 1));
+    .sort((left, right) => compareFriendRank(store, left, right))
+    .map((entry, index) => buildFriendRank(store, entry, index + 1));
 
   return {
     ranks: currentAndFriends,
@@ -522,10 +670,11 @@ function buildFriendLeaderboard(store, user) {
 }
 
 function buildDistrictPersonal(store, user) {
+  const currentRegionKey = buildUserRegionKey(user);
   const districtUsers = store.users
-    .filter((entry) => entry.districtName === user.districtName)
-    .sort(compareDistrictRank)
-    .map((entry, index) => buildDistrictRank(entry, index + 1, user.id));
+    .filter((entry) => buildUserRegionKey(entry) === currentRegionKey)
+    .sort((left, right) => compareDistrictRank(store, left, right))
+    .map((entry, index) => buildDistrictRank(store, entry, index + 1, user.id));
 
   const myRank = districtUsers.find((entry) => entry.id === user.id) ?? null;
   const myRankIndex = myRank ? districtUsers.findIndex((entry) => entry.id === user.id) : -1;
@@ -535,8 +684,8 @@ function buildDistrictPersonal(store, user) {
   return {
     districtName: user.districtName,
     myRank,
-    myPoints: user.districtPoints,
-    weeklyDistanceKm: getTotalDistance(getRunsForUser(store, user.id)),
+    myPoints: getUserMetrics(store, user.id).currentWeekPoints,
+    weeklyDistanceKm: getUserMetrics(store, user.id).currentWeekDistanceKm,
     focusRanks,
     ranks: districtUsers,
   };
@@ -566,32 +715,11 @@ function buildRegionLeague(store, nodeId) {
     throw new ApiError(404, '선택한 지역 정보를 찾을 수 없어.');
   }
 
-  const normalizeChildren = (children) => [...children]
-    .sort((left, right) => {
-      if (right.averageDistanceKm !== left.averageDistanceKm) {
-        return right.averageDistanceKm - left.averageDistanceKm;
-      }
-
-      if (right.totalDistanceKm !== left.totalDistanceKm) {
-        return right.totalDistanceKm - left.totalDistanceKm;
-      }
-
-      if (right.participants !== left.participants) {
-        return right.participants - left.participants;
-      }
-
-      return left.name.localeCompare(right.name, 'ko');
-    })
-    .map((child, index) => ({
-      ...child,
-      rank: index + 1,
-    }));
-
   const rawCurrentNode = path[path.length - 1];
   const parentNode = path[path.length - 2] ?? null;
-  const normalizedSiblings = parentNode ? normalizeChildren(parentNode.children ?? []) : [rawCurrentNode];
+  const normalizedSiblings = parentNode ? normalizeRegionChildren(parentNode.children ?? []) : [rawCurrentNode];
   const currentNode = normalizedSiblings.find((child) => child.id === rawCurrentNode.id) ?? rawCurrentNode;
-  const children = normalizeChildren(currentNode.children ?? []);
+  const children = normalizeRegionChildren(currentNode.children ?? []);
 
   return {
     currentNode,
@@ -616,7 +744,7 @@ function buildUniversityLeague(store) {
       participants: 0,
     };
 
-    current.totalDistanceKm = Number((current.totalDistanceKm + getTotalDistance(getRunsForUser(store, user.id))).toFixed(1));
+    current.totalDistanceKm = Number((current.totalDistanceKm + getUserMetrics(store, user.id).currentWeekDistanceKm).toFixed(1));
     current.participants += 1;
     universityMap.set(universityName, current);
   }
@@ -662,6 +790,7 @@ function buildAdminStatus(store) {
     counts: {
       users: store.users.length,
       runs: store.runs.length,
+      integrationImports: (store.integrationImports ?? []).length,
       friendships: store.friendships.length,
       friendRequests: store.friendRequests.length,
       sessions: store.sessions.length,
@@ -673,8 +802,9 @@ function buildAdminStatus(store) {
 function buildFriendActivity(store, currentUserId, friendId) {
   const friend = findUserById(store, friendId);
   const runs = getRunsForUser(store, friend.id);
+  const friendMetrics = getUserMetrics(store, friend.id);
   const leaderboard = buildFriendLeaderboard(store, findUserById(store, currentUserId));
-  const rankedFriend = leaderboard.ranks.find((entry) => entry.id === friend.id) ?? buildFriendRank(friend, 1);
+  const rankedFriend = leaderboard.ranks.find((entry) => entry.id === friend.id) ?? buildFriendRank(store, friend, 1);
 
   return {
     friend: rankedFriend,
@@ -684,12 +814,14 @@ function buildFriendActivity(store, currentUserId, friendId) {
       distanceKm: run.distanceKm,
       pace: run.pace,
     })),
-    monthlyDistanceKm: getTotalDistance(runs),
-    monthlyPoints: friend.friendPoints,
+    monthlyDistanceKm: friendMetrics.currentMonthDistanceKm,
+    monthlyPoints: friendMetrics.currentMonthPoints,
   };
 }
 
-function buildRunDetail(run, weeklyDistanceKm, sourceOverride) {
+function buildRunDetail(run, weeklyDistanceKm, sourceOverride, metrics) {
+  const paceMinutes = parsePaceToMinutes(run.pace);
+
   return {
     run: {
       id: run.id,
@@ -699,8 +831,8 @@ function buildRunDetail(run, weeklyDistanceKm, sourceOverride) {
       source: sourceOverride ?? run.source,
     },
     weeklyDistanceKm,
-    estimatedMinutes: Math.round(run.distanceKm * 5.5),
-    earnedPoint: Math.round(run.distanceKm * 2.4),
+    estimatedMinutes: Math.round(run.distanceKm * (paceMinutes ?? 5.5)),
+    earnedPoint: getRunPointValue(metrics, run.id),
   };
 }
 
@@ -740,6 +872,114 @@ function validateBoolean(value, message) {
   return value;
 }
 
+function resolveRegionSelection(rawProvinceName, rawCityName, rawDistrictName) {
+  const provinceName = validateRequiredString(rawProvinceName, '시/도를 선택해줘.');
+  const cityName = normalizeOptionalString(rawCityName);
+  const districtName = validateRequiredString(rawDistrictName, '최종 지역을 선택해줘.');
+  const province = addressCatalog.find((entry) => entry.name === provinceName);
+
+  if (!province) {
+    throw new ApiError(400, '시/도 선택이 올바르지 않아.');
+  }
+
+  const secondaryOptions = province.children ?? [];
+  const directDistrict = secondaryOptions.find((entry) => entry.type === 'district' && entry.name === districtName);
+
+  if (directDistrict) {
+    if (cityName) {
+      throw new ApiError(400, '이 지역은 시/군 선택이 필요하지 않아.');
+    }
+
+    return {
+      provinceName,
+      cityName: '',
+      districtName: directDistrict.name,
+    };
+  }
+
+  const city = secondaryOptions.find((entry) => entry.type === 'city' && entry.name === cityName);
+
+  if (!city) {
+    throw new ApiError(400, '시/군 선택이 올바르지 않아.');
+  }
+
+  const districtOptions = city.children ?? [];
+
+  if (districtOptions.length === 0) {
+    if (districtName !== city.name) {
+      throw new ApiError(400, '최종 지역 선택이 올바르지 않아.');
+    }
+
+    return {
+      provinceName,
+      cityName: city.name,
+      districtName: city.name,
+    };
+  }
+
+  const district = districtOptions.find((entry) => entry.name === districtName);
+
+  if (!district) {
+    throw new ApiError(400, '최종 지역 선택이 올바르지 않아.');
+  }
+
+  return {
+    provinceName,
+    cityName: city.name,
+    districtName: district.name,
+  };
+}
+
+function validateDateOnly(value, message) {
+  const date = validateRequiredString(value, message);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new ApiError(400, '날짜는 YYYY-MM-DD 형식으로 입력해줘.');
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (date > today) {
+    throw new ApiError(400, '미래 날짜의 기록은 아직 추가할 수 없어.');
+  }
+
+  return date;
+}
+
+function validateDistanceKm(value, message) {
+  const distanceKm = typeof value === 'number' ? value : Number(value);
+
+  if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
+    throw new ApiError(400, message);
+  }
+
+  if (distanceKm > 200) {
+    throw new ApiError(400, '거리는 200km 이하로 입력해줘.');
+  }
+
+  return Number(distanceKm.toFixed(1));
+}
+
+function validatePace(value, message) {
+  const pace = validateRequiredString(value, message);
+
+  if (parsePaceToMinutes(pace) === null) {
+    throw new ApiError(400, '페이스는 00:00/km 형식으로 입력해줘.');
+  }
+
+  return pace;
+}
+
+function normalizeImportedRun(sourceType, rawRun) {
+  return {
+    sourceType,
+    externalId: normalizeOptionalString(rawRun.externalId),
+    date: validateDateOnly(rawRun.date, '연동 기록 날짜를 입력해줘.'),
+    distanceKm: validateDistanceKm(rawRun.distanceKm, '연동 기록 거리를 입력해줘.'),
+    pace: validatePace(rawRun.pace, '연동 기록 페이스를 입력해줘.'),
+  };
+}
+
 function requireConnectedSource(user, sourceType) {
   const source = user.connectedSources.find((entry) => entry.sourceType === sourceType);
 
@@ -748,6 +988,123 @@ function requireConnectedSource(user, sourceType) {
   }
 
   return source;
+}
+
+function requireSyncableConnectedSource(user, sourceType) {
+  const source = requireConnectedSource(user, sourceType);
+
+  if (!isSyncableSourceType(sourceType)) {
+    throw new ApiError(400, '수동 입력 소스는 외부 import 방식 대신 앱 안에서 직접 기록을 추가해줘.');
+  }
+
+  if (!source.connected) {
+    throw new ApiError(409, '이 소스는 아직 연결되지 않았어. 먼저 연결한 뒤 기록을 가져와줘.');
+  }
+
+  return source;
+}
+
+function importPendingRunsForUser(store, user) {
+  const queue = ensureIntegrationImports(store);
+  const connectedSources = user.connectedSources.filter((source) => source.connected && isSyncableSourceType(source.sourceType));
+  const connectedSourceTypes = new Set(connectedSources.map((source) => source.sourceType));
+  const sourceDisplayNameByType = new Map(connectedSources.map((source) => [source.sourceType, source.displayName]));
+  const currentQueue = [...queue];
+  const pendingImports = currentQueue.filter((entry) => entry.userId === user.id && connectedSourceTypes.has(entry.sourceType));
+  const existingExternalKeys = new Set();
+  const existingFingerprints = new Set();
+  const processedImportIds = new Set();
+  const importedRunIds = [];
+  const lastSyncedAt = formatTimestamp();
+  let scannedRuns = 0;
+  let importedRuns = 0;
+  let duplicateRuns = 0;
+
+  for (const run of store.runs.filter((entry) => entry.userId === user.id)) {
+    const sourceType = getRunSourceType(run);
+    const externalKey = buildRunExternalKey({
+      sourceType,
+      externalId: run.externalId,
+    });
+
+    if (externalKey) {
+      existingExternalKeys.add(externalKey);
+    }
+
+    if (sourceType) {
+      existingFingerprints.add(buildRunFingerprint({
+        sourceType,
+        date: run.date,
+        distanceKm: run.distanceKm,
+        pace: run.pace,
+      }));
+    }
+  }
+
+  pendingImports.sort((left, right) => {
+    if (left.date !== right.date) {
+      return left.date.localeCompare(right.date);
+    }
+
+    return String(left.receivedAt).localeCompare(String(right.receivedAt));
+  });
+
+  for (const entry of pendingImports) {
+    scannedRuns += 1;
+    processedImportIds.add(entry.id);
+
+    const externalKey = buildRunExternalKey(entry);
+    const fingerprint = buildRunFingerprint(entry);
+
+    if ((externalKey && existingExternalKeys.has(externalKey)) || existingFingerprints.has(fingerprint)) {
+      duplicateRuns += 1;
+      continue;
+    }
+
+    const run = {
+      id: nextId('run'),
+      userId: user.id,
+      date: entry.date,
+      distanceKm: entry.distanceKm,
+      pace: entry.pace,
+      source: sourceDisplayNameByType.get(entry.sourceType) ?? SOURCE_LABEL_BY_TYPE[entry.sourceType] ?? entry.sourceType,
+      sourceType: entry.sourceType,
+      ...(entry.externalId ? { externalId: entry.externalId } : {}),
+      createdAt: new Date().toISOString(),
+      importedAt: lastSyncedAt,
+    };
+
+    store.runs.push(run);
+    importedRuns += 1;
+    importedRunIds.push(run.id);
+
+    if (externalKey) {
+      existingExternalKeys.add(externalKey);
+    }
+
+    existingFingerprints.add(fingerprint);
+  }
+
+  store.integrationImports = currentQueue.filter((entry) => !processedImportIds.has(entry.id));
+  user.connectedSources = user.connectedSources.map((source) => (
+    source.connected && connectedSourceTypes.has(source.sourceType)
+      ? {
+        ...source,
+        lastSyncedAt,
+      }
+      : source
+  ));
+
+  return {
+    success: true,
+    syncedSources: connectedSources.length,
+    scannedRuns,
+    importedRuns,
+    duplicateRuns,
+    syncedRuns: importedRuns,
+    importedRunIds,
+    lastSyncedAt,
+  };
 }
 
 function createPublicTag(store) {
@@ -768,40 +1125,28 @@ function createPublicTag(store) {
 }
 
 function createStarterRuns(userId) {
-  return [
-    {
-      id: nextId('run'),
-      userId,
-      date: '2026-04-05',
-      distanceKm: 4.1,
-      pace: '6:08/km',
-      source: 'Manual',
-    },
-    {
-      id: nextId('run'),
-      userId,
-      date: '2026-04-03',
-      distanceKm: 3.2,
-      pace: '6:20/km',
-      source: 'Manual',
-    },
-    {
-      id: nextId('run'),
-      userId,
-      date: '2026-04-01',
-      distanceKm: 5.0,
-      pace: '5:58/km',
-      source: 'Manual',
-    },
-  ];
+  return [];
+}
+
+function buildUsernameAvailability(store, rawUsername) {
+  const username = validateRequiredString(rawUsername, '아이디를 입력해줘.').toLowerCase();
+  const available = !store.users.some((entry) => entry.username === username);
+
+  return {
+    username,
+    available,
+    message: available ? '사용할 수 있는 아이디예요.' : '이미 사용 중인 아이디예요.',
+  };
 }
 
 function createSessionForUser(store, userId) {
+  const createdAt = new Date();
   const token = createToken();
   store.sessions.push({
     token,
     userId,
-    createdAt: new Date().toISOString(),
+    createdAt: createdAt.toISOString(),
+    expiresAt: buildSessionExpiry(SESSION_TTL_MS, createdAt),
   });
 
   return token;
@@ -815,7 +1160,7 @@ async function handleLogin(request, response) {
   const result = mutateStore((store) => {
     const user = store.users.find((entry) => entry.username === username);
 
-    if (!user || user.password !== password) {
+    if (!user || !verifyPassword(password, user.passwordHash ?? user.password)) {
       throw new ApiError(401, '아이디 또는 비밀번호가 맞지 않아.');
     }
 
@@ -823,7 +1168,7 @@ async function handleLogin(request, response) {
 
     return {
       accessToken,
-      user: buildProfile(user),
+      user: buildProfile(store, user),
     };
   });
 
@@ -851,11 +1196,14 @@ async function handleRegister(request, response) {
   const body = await parseJsonBody(request);
   const username = validateRequiredString(body.username, '아이디를 입력해줘.').toLowerCase();
   const password = validateRequiredString(body.password, '비밀번호를 입력해줘.');
-  const name = validateRequiredString(body.name, '이름을 입력해줘.');
+  const name = typeof body.nickname === 'string' && body.nickname.trim()
+    ? body.nickname.trim()
+    : validateRequiredString(body.name, '닉네임을 입력해줘.');
+  const realName = typeof body.realName === 'string' && body.realName.trim()
+    ? body.realName.trim()
+    : validateRequiredString(body.name, '이름을 입력해줘.');
   const phone = validateRequiredString(body.phone, '휴대폰 번호를 입력해줘.').replace(/\D/g, '');
-  const provinceName = validateRequiredString(body.provinceName, '시/도를 선택해줘.');
-  const cityName = typeof body.cityName === 'string' ? body.cityName.trim() : '';
-  const districtName = validateRequiredString(body.districtName, '사는 지역을 입력해줘.');
+  const region = resolveRegionSelection(body.provinceName, body.cityName, body.districtName);
   const universityName = typeof body.universityName === 'string' ? body.universityName.trim() : '';
   const addressDetail = validateRequiredString(body.addressDetail, '상세 주소를 입력해줘.');
   const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해줘.');
@@ -882,29 +1230,28 @@ async function handleRegister(request, response) {
     const user = {
       id: userId,
       username,
-      password,
       name,
+      realName,
       phone,
       birthDate,
-      provinceName,
-      cityName,
-      districtName,
+      provinceName: region.provinceName,
+      cityName: region.cityName,
+      districtName: region.districtName,
       ...(universityName ? { universityName } : {}),
       addressDetail,
       publicTag: createPublicTag(store),
-      friendDistanceKm: 12.3,
-      friendPoints: 20,
-      districtDistanceKm: 12.3,
-      districtPoints: 20,
-      rewardPoints: 100,
-      streakDays: 1,
+      friendDistanceKm: 0,
+      friendPoints: 0,
+      districtDistanceKm: 0,
+      districtPoints: 0,
+      rewardPoints: 0,
+      streakDays: 0,
       connectedSources: [
         {
           sourceType: 'manual',
           displayName: 'Manual',
-          connected: true,
-          connectionStatus: 'connected',
-          lastSyncedAt: formatTimestamp(new Date('2026-04-01T10:00:00')),
+          connected: false,
+          connectionStatus: 'planned',
           recommendedPlatform: 'all',
         },
         {
@@ -951,13 +1298,15 @@ async function handleRegister(request, response) {
       createdAt: new Date().toISOString(),
     };
 
+    setUserPassword(user, password, user.createdAt);
+
     store.users.push(user);
     store.runs.push(...starterRuns);
     const accessToken = createSessionForUser(store, user.id);
 
     return {
       accessToken,
-      user: buildProfile(user),
+      user: buildProfile(store, user),
     };
   });
 
@@ -966,7 +1315,7 @@ async function handleRegister(request, response) {
 
 function handleMyProfile(request, response, store, user) {
   if (request.method === 'GET') {
-    sendJson(response, 200, buildProfile(user));
+    sendJson(response, 200, buildProfile(store, user));
     return;
   }
 
@@ -974,9 +1323,9 @@ function handleMyProfile(request, response, store, user) {
     sendJson(response, 200, mutateStore((nextStore) => {
       const nextUser = findUserByToken(nextStore, getAccessToken(request));
       const body = clone(request.body);
-      const nextName = validateRequiredString(body.name, '이름을 입력해줘.');
+      const nextName = validateRequiredString(body.name, '닉네임을 입력해줘.');
       nextUser.name = nextName;
-      return buildProfile(nextUser);
+      return buildProfile(nextStore, nextUser);
     }));
     return;
   }
@@ -989,11 +1338,11 @@ async function handlePatchMyProfile(request, response) {
 
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
-    user.name = validateRequiredString(body.name, '이름을 입력해줘.');
+    user.name = validateRequiredString(body.name, '닉네임을 입력해줘.');
     user.universityName = typeof body.universityName === 'string' && body.universityName.trim()
       ? body.universityName.trim()
       : undefined;
-    return buildProfile(user);
+    return buildProfile(store, user);
   });
 
   sendJson(response, 200, payload);
@@ -1004,8 +1353,11 @@ async function handlePatchMyRegion(request, response) {
 
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
-    user.districtName = validateRequiredString(body.districtName, '지역 이름을 입력해줘.');
-    return buildProfile(user);
+    const region = resolveRegionSelection(body.provinceName, body.cityName, body.districtName);
+    user.provinceName = region.provinceName;
+    user.cityName = region.cityName;
+    user.districtName = region.districtName;
+    return buildProfile(store, user);
   });
 
   sendJson(response, 200, payload);
@@ -1031,7 +1383,6 @@ async function handlePatchMyNotifications(request, response) {
 function handleClaimMarketItem(request, response, itemId) {
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
-    buildMarketOverview(store, user);
     const item = (store.marketCatalog ?? []).find((entry) => entry.id === itemId);
 
     if (!item) {
@@ -1044,11 +1395,10 @@ function handleClaimMarketItem(request, response, itemId) {
       throw new ApiError(409, '이미 교환한 리워드야.');
     }
 
-    if (user.rewardPoints < item.costPoints) {
+    if (getAvailableRewardPoints(getUserMetrics(store, user.id), getRedeemedPointCost(store, user.id)) < item.costPoints) {
       throw new ApiError(400, '포인트가 부족해서 아직 교환할 수 없어.');
     }
 
-    user.rewardPoints -= item.costPoints;
     store.rewardRedemptions.push({
       id: nextId('redemption'),
       userId: user.id,
@@ -1066,6 +1416,39 @@ function handleClaimMarketItem(request, response, itemId) {
   sendJson(response, 200, payload);
 }
 
+async function handleCreateManualRun(request, response) {
+  const body = await parseJsonBody(request);
+
+  const payload = mutateStore((store) => {
+    const user = requireUser(store, request);
+    const run = {
+      id: nextId('run'),
+      userId: user.id,
+      date: validateDateOnly(body.date, '러닝 날짜를 입력해줘.'),
+      distanceKm: validateDistanceKm(body.distanceKm, '러닝 거리를 입력해줘.'),
+      pace: validatePace(body.pace, '페이스를 입력해줘.'),
+      source: 'Manual',
+      sourceType: 'manual',
+      createdAt: new Date().toISOString(),
+    };
+
+    store.runs.push(run);
+
+    const manualSource = user.connectedSources.find((entry) => entry.sourceType === 'manual');
+
+    if (manualSource) {
+      manualSource.connected = true;
+      manualSource.connectionStatus = 'connected';
+      manualSource.lastSyncedAt = formatTimestamp();
+    }
+
+    const metrics = getUserMetrics(store, user.id);
+    return buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics);
+  });
+
+  sendJson(response, 201, payload);
+}
+
 function handleIntegrationSourceConnection(request, response, sourceType, nextConnected) {
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
@@ -1073,14 +1456,52 @@ function handleIntegrationSourceConnection(request, response, sourceType, nextCo
 
     source.connected = nextConnected;
     source.connectionStatus = nextConnected ? 'connected' : 'planned';
-    source.lastSyncedAt = nextConnected
-      ? (source.lastSyncedAt ?? (source.sourceType === 'manual' ? formatTimestamp() : undefined))
-      : undefined;
+    source.lastSyncedAt = nextConnected ? source.lastSyncedAt : undefined;
 
-    return buildIntegrationSourceActionResult(user, source);
+    return buildIntegrationSourceActionResult(store, user, source);
   });
 
   sendJson(response, 200, payload);
+}
+
+async function handleQueueIntegrationImports(request, response, sourceType) {
+  const body = await parseJsonBody(request);
+
+  const payload = mutateStore((store) => {
+    const user = requireUser(store, request);
+    const source = requireSyncableConnectedSource(user, sourceType);
+    const rawRuns = Array.isArray(body.runs) ? body.runs : null;
+
+    if (!rawRuns || rawRuns.length === 0) {
+      throw new ApiError(400, '가져올 연동 기록 배열이 비어 있어.');
+    }
+
+    if (rawRuns.length > 500) {
+      throw new ApiError(400, '한 번에 가져오는 기록은 500개 이하로 제한해줘.');
+    }
+
+    const queue = ensureIntegrationImports(store);
+    const normalizedRuns = rawRuns.map((run) => normalizeImportedRun(sourceType, run));
+    const receivedAt = new Date().toISOString();
+
+    normalizedRuns.forEach((run) => {
+      queue.push({
+        id: nextId('import'),
+        userId: user.id,
+        ...run,
+        receivedAt,
+      });
+    });
+
+    return {
+      success: true,
+      source: decorateIntegrationSource(store, user, source),
+      queuedRuns: normalizedRuns.length,
+      pendingRuns: getPendingImportCount(store, user.id, sourceType),
+    };
+  });
+
+  sendJson(response, 202, payload);
 }
 
 function handleFriendRequestCreate(request, response, body) {
@@ -1181,15 +1602,26 @@ function handleFriendRequestAction(request, response, requestId, action) {
   sendJson(response, 200, payload);
 }
 
+function buildOfflineRaceHub() {
+  return {
+    featuredEvent: null,
+    upcomingEvents: [],
+    pastEvents: [],
+    guideSteps: [
+      '오프라인 마라톤 일정이 열리면 여기에서 날짜별로 바로 신청할 수 있어요.',
+      '지금은 일정 등록 전이라 신청 가능한 회차가 없어요.',
+      '실제 운영 일정이 준비되면 시간대와 거리 선택이 함께 열릴 예정이에요.',
+    ],
+  };
+}
+
 async function routeRequest(request, response) {
   if (!request.url) {
     throw new ApiError(400, '요청 주소를 읽을 수 없어.');
   }
 
   if (request.method === 'OPTIONS') {
-    response.writeHead(204, {
-      ...buildCorsHeaders(),
-    });
+    response.writeHead(204);
     response.end();
     return;
   }
@@ -1200,9 +1632,12 @@ async function routeRequest(request, response) {
   if (pathname === '/api/health' && request.method === 'GET') {
     sendJson(response, 200, {
       status: 'ok',
+      ready: true,
+      environment: APP_ENV,
       startedAt: STARTED_AT,
       uptimeSeconds: Math.round(process.uptime()),
       storeFile: getStoreFilePath(),
+      publicBaseUrl: PUBLIC_BASE_URL || undefined,
       config: getPublicBackendConfig(),
       now: new Date().toISOString(),
     });
@@ -1248,6 +1683,23 @@ async function routeRequest(request, response) {
     return;
   }
 
+  if (pathname === '/api/auth/check-username' && request.method === 'GET') {
+    const store = loadStore();
+    sendJson(response, 200, buildUsernameAvailability(store, url.searchParams.get('username') ?? ''));
+    return;
+  }
+
+  if (pathname === '/api/catalog/regions' && request.method === 'GET') {
+    sendJson(response, 200, buildRegionCatalog());
+    return;
+  }
+
+  if (pathname === '/api/catalog/universities' && request.method === 'GET') {
+    const store = loadStore();
+    sendJson(response, 200, buildUniversityCatalog(store));
+    return;
+  }
+
   if (pathname === '/api/auth/register' && request.method === 'POST') {
     await handleRegister(request, response);
     return;
@@ -1255,7 +1707,7 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/me/profile' && request.method === 'GET') {
     const store = loadStore();
-    sendJson(response, 200, buildProfile(requireUser(store, request)));
+    sendJson(response, 200, buildProfile(store, requireUser(store, request)));
     return;
   }
 
@@ -1302,6 +1754,21 @@ async function routeRequest(request, response) {
     return;
   }
 
+  if (pathname === '/api/offline-races/hub' && request.method === 'GET') {
+    const store = loadStore();
+    requireUser(store, request);
+    sendJson(response, 200, buildOfflineRaceHub());
+    return;
+  }
+
+  const offlineRaceActionMatch = pathname.match(/^\/api\/offline-races\/([^/]+)\/(join|cancel)$/);
+
+  if (offlineRaceActionMatch && request.method === 'POST') {
+    const store = loadStore();
+    requireUser(store, request);
+    throw new ApiError(404, '신청 가능한 레이스가 아직 없어.');
+  }
+
   const marketClaimMatch = pathname.match(/^\/api\/market\/items\/([^/]+)\/claim$/);
 
   if (marketClaimMatch && request.method === 'POST') {
@@ -1334,6 +1801,7 @@ async function routeRequest(request, response) {
   if (friendActivityMatch && request.method === 'GET') {
     const store = loadStore();
     const currentUser = requireUser(store, request);
+    requireFriendAccess(store, currentUser.id, friendActivityMatch[1]);
     sendJson(response, 200, buildFriendActivity(store, currentUser.id, friendActivityMatch[1]));
     return;
   }
@@ -1343,15 +1811,17 @@ async function routeRequest(request, response) {
   if (friendRunMatch && request.method === 'GET') {
     const store = loadStore();
     const currentUser = requireUser(store, request);
+    requireFriendAccess(store, currentUser.id, friendRunMatch[1]);
     const run = getRunForUser(store, friendRunMatch[1], friendRunMatch[2]);
-    sendJson(response, 200, buildRunDetail(run, getTotalDistance(getRunsForUser(store, currentUser.id)), '친구 기록'));
+    const metrics = getUserMetrics(store, friendRunMatch[1]);
+    sendJson(response, 200, buildRunDetail(run, metrics.currentWeekDistanceKm, '친구 기록', metrics));
     return;
   }
 
   if (pathname === '/api/integrations/sources' && request.method === 'GET') {
     const store = loadStore();
     const user = requireUser(store, request);
-    sendJson(response, 200, { sources: clone(user.connectedSources) });
+    sendJson(response, 200, { sources: buildIntegrationSources(store, user) });
     return;
   }
 
@@ -1367,31 +1837,17 @@ async function routeRequest(request, response) {
     return;
   }
 
+  const integrationSourceImportMatch = pathname.match(/^\/api\/integrations\/sources\/([^/]+)\/import$/);
+
+  if (integrationSourceImportMatch && request.method === 'POST') {
+    await handleQueueIntegrationImports(request, response, integrationSourceImportMatch[1]);
+    return;
+  }
+
   if (pathname === '/api/integrations/sync' && request.method === 'POST') {
     const payload = mutateStore((store) => {
       const user = requireUser(store, request);
-      const lastSyncedAt = formatTimestamp();
-      let syncedSources = 0;
-
-      user.connectedSources = user.connectedSources.map((source) => {
-        if (!source.connected) {
-          return source;
-        }
-
-        syncedSources += 1;
-
-        return {
-          ...source,
-          lastSyncedAt,
-        };
-      });
-
-      return {
-        success: true,
-        syncedSources,
-        syncedRuns: syncedSources * 3,
-        lastSyncedAt,
-      };
+      return importPendingRunsForUser(store, user);
     });
 
     sendJson(response, 200, payload);
@@ -1423,7 +1879,13 @@ async function routeRequest(request, response) {
     const store = loadStore();
     const user = requireUser(store, request);
     const run = getRunForUser(store, user.id);
-    sendJson(response, 200, buildRunDetail(run, getTotalDistance(getRunsForUser(store, user.id))));
+    const metrics = getUserMetrics(store, user.id);
+    sendJson(response, 200, buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics));
+    return;
+  }
+
+  if (pathname === '/api/runs/manual' && request.method === 'POST') {
+    await handleCreateManualRun(request, response);
     return;
   }
 
@@ -1433,7 +1895,8 @@ async function routeRequest(request, response) {
     const store = loadStore();
     const user = requireUser(store, request);
     const run = getRunForUser(store, user.id, ownRunMatch[1]);
-    sendJson(response, 200, buildRunDetail(run, getTotalDistance(getRunsForUser(store, user.id))));
+    const metrics = getUserMetrics(store, user.id);
+    sendJson(response, 200, buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics));
     return;
   }
 
@@ -1441,6 +1904,8 @@ async function routeRequest(request, response) {
 }
 
 const server = createServer(async (request, response) => {
+  applyCorsHeaders(request, response);
+
   try {
     await routeRequest(request, response);
   } catch (error) {
@@ -1448,8 +1913,49 @@ const server = createServer(async (request, response) => {
   }
 });
 
+server.on('error', (error) => {
+  console.error('[runnigapp-backend] server error');
+  console.error(error);
+});
+
 server.listen(PORT, HOST, () => {
   console.log(`[runnigapp-backend] listening on http://${HOST}:${PORT}`);
   console.log(`[runnigapp-backend] store: ${getStoreFilePath()}`);
   console.log(`[runnigapp-backend] env: ${getPublicBackendConfig().usingEnvFile ? 'backend/.env loaded' : 'process env only'}`);
 });
+
+let isShuttingDown = false;
+
+function shutdownServer(signal) {
+  if (isShuttingDown) {
+    return;
+  }
+
+  isShuttingDown = true;
+  console.log(`[runnigapp-backend] received ${signal}, shutting down gracefully...`);
+
+  const forceExitTimer = setTimeout(() => {
+    console.error('[runnigapp-backend] graceful shutdown timed out, forcing exit.');
+    process.exit(1);
+  }, 10000);
+
+  forceExitTimer.unref();
+
+  server.close((error) => {
+    clearTimeout(forceExitTimer);
+
+    if (error) {
+      console.error('[runnigapp-backend] shutdown error');
+      console.error(error);
+      process.exit(1);
+      return;
+    }
+
+    console.log('[runnigapp-backend] shutdown complete.');
+    process.exit(0);
+  });
+}
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => shutdownServer(signal));
+}

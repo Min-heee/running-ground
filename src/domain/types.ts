@@ -10,6 +10,7 @@ export type WeeklySummary = {
   totalDistanceKm: number;
   totalRuns: number;
   goalAchievementRate: number;
+  previousWeekDistanceKm?: number;
   streakDays: number;
   latestRun: {
     distanceKm: number;
@@ -45,6 +46,7 @@ export type ConnectedSource = {
   connected: boolean;
   connectionStatus: 'connected' | 'planned';
   lastSyncedAt?: string;
+  pendingImportCount?: number;
   recommendedPlatform?: 'ios' | 'android' | 'all';
 };
 
@@ -186,7 +188,7 @@ export type OfflineRacePastEvent = {
 };
 
 export type OfflineRaceHub = {
-  featuredEvent: OfflineRaceEvent;
+  featuredEvent: OfflineRaceEvent | null;
   upcomingEvents: OfflineRaceEvent[];
   pastEvents: OfflineRacePastEvent[];
   guideSteps: string[];
