@@ -5,14 +5,15 @@
     "scheme": "runnigapp",
     "newArchEnabled": false,
     "ios": {
-      "bundleIdentifier": "com.anonymous.runnigapp",
+      "bundleIdentifier": "com.minheee.runnigapp",
       "supportsTablet": true,
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Allow runnigapp to connect to local development servers on your network.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
-      }
+      },
+      "buildNumber": "2"
     },
     "plugins": [
       "expo-router",

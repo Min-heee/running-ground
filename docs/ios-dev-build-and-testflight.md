@@ -11,9 +11,10 @@ The correct iOS flow now is:
 ## current repo status
 This repo is now prepared for that flow:
 - local `eas-cli` is installed in the project
-- [eas.json](/eas.json) has `development`, `preview`, and `production` profiles
+- [eas.json](/eas.json) has `development`, `preview`, `testflight`, and `production` profiles
 - [app.config.ts](/app.config.ts) supports environment-based iOS bundle IDs
 - npm scripts now expose development build and TestFlight commands directly
+- [.env.testflight.example](/.env.testflight.example) shows the intended internal TestFlight runtime settings
 
 ## first-time setup
 ### 1. login to Expo
@@ -54,6 +55,10 @@ Then open the installed development build app on the iPhone and connect it to Me
 ## iOS TestFlight build
 Use this when the feature is stable enough for internal QA.
 
+This project now treats `TestFlight` and `production App Store release` as different runtime targets:
+- `testflight`: production bundle id + preview backend
+- `production`: production bundle id + production backend
+
 ### build the store-distribution binary
 ```bash
 npm run build:ios:testflight
@@ -68,9 +73,12 @@ npm run submit:ios:testflight
 - Expo account login
 - paid Apple Developer account
 - valid iOS bundle identifier
+  - current repo default: `com.minheee.runnigapp`
 - `EAS_PROJECT_ID`
+- stable preview backend URL for the `testflight` profile
+  - current placeholder: `https://preview-api.runnigapp.com/api`
 
-If you want non-interactive submit automation later, add `ascAppId` to the `submit.production.ios` section in [eas.json](/eas.json).
+`ascAppId` is now already wired in [eas.json](/eas.json), so repeated submits do not need to recreate the App Store Connect app.
 
 ## what happens after submit
 Submitting with EAS for iOS uploads the build to App Store Connect, and it appears in TestFlight after processing.

@@ -19,6 +19,9 @@ function withIosHealthInfoPlist(config) {
     nextConfig.modResults.NSHealthShareUsageDescription =
       nextConfig.modResults.NSHealthShareUsageDescription
       || 'Allow RUNNIGAPP to read your Apple Health running records so they can appear in your activity and rankings.';
+    nextConfig.modResults.NSHealthUpdateUsageDescription =
+      nextConfig.modResults.NSHealthUpdateUsageDescription
+      || 'Allow RUNNIGAPP to save synced running records and challenge progress updates to Apple Health when you choose to keep them in sync.';
 
     return nextConfig;
   });

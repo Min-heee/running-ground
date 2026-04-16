@@ -61,6 +61,12 @@ Defined in [eas.json](/eas.json).
 - iOS ad hoc / Android apk friendly
 - best profile for device QA before store submission
 
+### `testflight`
+- store-signed internal iOS testing build
+- keeps the real production bundle identifier
+- should point at a stable preview backend, not the final production backend
+- best profile for real TestFlight QA before launch
+
 ### `production`
 - store-oriented build
 - auto-increments native build numbers
@@ -70,9 +76,10 @@ Defined in [eas.json](/eas.json).
 1. Prepare one stable backend URL for preview and production.
 2. Validate backend env first.
 3. Set EAS environment variables for each environment.
-4. Build `preview` for device QA.
-5. Lock health integration scope for v1.
-6. Build `production` for App Store / Play Store submission.
+4. Build `preview` for direct device QA.
+5. Build `testflight` for internal iPhone QA with the real App Store bundle id.
+6. Lock health integration scope for v1.
+7. Build `production` for App Store / Play Store submission.
 
 ## commands
 ### inspect resolved Expo config
@@ -111,6 +118,7 @@ Backend deployment details live in [backend/README.md](/backend/README.md).
 ```bash
 npm run build:ios:preview
 npm run build:android:preview
+npm run build:ios:testflight
 ```
 
 ### production builds
