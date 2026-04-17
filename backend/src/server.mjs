@@ -26,7 +26,7 @@ const SOURCE_LABEL_BY_TYPE = {
   health_connect: 'Health Connect',
   garmin: 'Garmin',
   strava: 'Strava',
-  nrc: 'NRC',
+  nrc: 'Nike Run Club',
   manual: 'Manual',
 };
 
@@ -274,11 +274,15 @@ function isSyncableSourceType(sourceType) {
 }
 
 function getSourceDisplayName(user, sourceType) {
-  return user.connectedSources.find((entry) => entry.sourceType === sourceType)?.displayName ?? SOURCE_LABEL_BY_TYPE[sourceType] ?? sourceType;
+  return SOURCE_LABEL_BY_TYPE[sourceType] ?? user.connectedSources.find((entry) => entry.sourceType === sourceType)?.displayName ?? sourceType;
 }
 
 function inferSourceTypeFromLabel(label) {
   const normalizedLabel = normalizeOptionalString(label).toLowerCase();
+
+  if (normalizedLabel === 'nrc') {
+    return 'nrc';
+  }
 
   return Object.entries(SOURCE_LABEL_BY_TYPE).find(([, displayName]) => displayName.toLowerCase() === normalizedLabel)?.[0] ?? null;
 }
@@ -318,6 +322,7 @@ function decorateIntegrationSource(store, user, source) {
   const pendingImportCount = getPendingImportCount(store, user.id, source.sourceType);
   return {
     ...clone(source),
+    displayName: SOURCE_LABEL_BY_TYPE[source.sourceType] ?? source.displayName ?? source.sourceType,
     ...(pendingImportCount > 0 ? { pendingImportCount } : {}),
   };
 }
@@ -1284,7 +1289,7 @@ async function handleRegister(request, response) {
         },
         {
           sourceType: 'nrc',
-          displayName: 'NRC',
+          displayName: 'Nike Run Club',
           connected: false,
           connectionStatus: 'planned',
           recommendedPlatform: 'all',

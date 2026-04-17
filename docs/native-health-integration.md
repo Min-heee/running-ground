@@ -4,6 +4,7 @@
 - Expo app config includes a local health access config plugin.
 - iOS builds now prepare HealthKit entitlement and `NSHealthShareUsageDescription`.
 - Android builds now prepare Health Connect read permissions and query visibility for the Health Connect package.
+- iOS prebuilds now generate a native `RunnigappAppleHealth` bridge module that can read running workouts from HealthKit.
 - The app UI now explains whether the current device is:
   - the right platform
   - still in Expo Go
@@ -25,9 +26,9 @@ What is ready now:
 - entitlements / permissions
 - runtime readiness messaging
 - backend import pipeline
+- iOS HealthKit workout reader bridge
 
 What is still next:
-- actual HealthKit reader implementation
 - actual Health Connect reader implementation
 - permission request flow tied to the native reader
 - final QA in development build / preview build
@@ -62,6 +63,6 @@ The JS layer now normalizes these records, queues them into the backend import p
 
 ## practical release path
 1. Build a development client or preview build.
-2. Finish Apple Health reader first.
+2. Verify Apple Health import on iPhone build first.
 3. Verify imported runs appear in home, my activity, and friend ranking.
 4. Add Health Connect reader next with the same shared payload shape.

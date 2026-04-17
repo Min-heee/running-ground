@@ -4,6 +4,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { IntegrationJourneyCard } from '@/features/integrations/IntegrationJourneyCard';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
+import { NrcBridgeGuideCard } from '@/features/integrations/NrcBridgeGuideCard';
 import { NativeHealthReadinessCard } from '@/features/integrations/NativeHealthReadinessCard';
 import { Card } from '@/components/Card';
 import { fetchIntegrationStatus, syncIntegrationSources, connectIntegrationSource } from '@/lib/api/services';
@@ -146,6 +147,14 @@ export default function IntegrationsScreen() {
               />
             ) : null}
           </NativeHealthReadinessCard>
+          <NrcBridgeGuideCard
+            sources={sources}
+            platform={platform}
+            actionSourceType={actionSourceType}
+            syncing={syncing}
+            onConnectSource={handleConnect}
+            onSync={handleSync}
+          />
           <IntegrationJourneyCard
             sources={sources}
             nativeHealthReadiness={nativeHealthReadiness}

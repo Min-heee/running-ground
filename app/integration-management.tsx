@@ -7,6 +7,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { IntegrationJourneyCard } from '@/features/integrations/IntegrationJourneyCard';
+import { NrcBridgeGuideCard } from '@/features/integrations/NrcBridgeGuideCard';
 import { NativeHealthReadinessCard } from '@/features/integrations/NativeHealthReadinessCard';
 import { connectIntegrationSource, disconnectIntegrationSource, fetchIntegrationStatus, syncIntegrationSources } from '@/lib/api/services';
 import { IntegrationStatusResponse, IntegrationSyncResponse } from '@/lib/api/types';
@@ -172,6 +173,15 @@ export default function IntegrationManagementScreen() {
             ) : null}
           </NativeHealthReadinessCard>
 
+          <NrcBridgeGuideCard
+            sources={sources}
+            platform={platform}
+            actionSourceType={actionSourceType}
+            syncing={syncing}
+            onConnectSource={handleConnect}
+            onSync={handleSync}
+          />
+
           <IntegrationJourneyCard
             sources={sources}
             nativeHealthReadiness={nativeHealthReadiness}
@@ -203,7 +213,7 @@ export default function IntegrationManagementScreen() {
           <Card>
             <Text style={styles.sectionTitle}>우선 연결 추천</Text>
             {recommendations.map((source) => {
-              const metadata = getSourceMetadata(source.sourceType);
+              const metadata = getSourceMetadata(source.sourceType, platform);
 
               return (
                 <View key={source.sourceType} style={styles.row}>
@@ -229,7 +239,7 @@ export default function IntegrationManagementScreen() {
           <Card>
             <Text style={styles.sectionTitle}>현재 연결된 소스</Text>
             {connectedSources.map((source) => {
-              const metadata = getSourceMetadata(source.sourceType);
+              const metadata = getSourceMetadata(source.sourceType, platform);
 
               return (
                 <View key={source.sourceType} style={styles.row}>
@@ -257,7 +267,7 @@ export default function IntegrationManagementScreen() {
           <Card>
             <Text style={styles.sectionTitle}>추가 확장 소스</Text>
             {availableSources.map((source) => {
-              const metadata = getSourceMetadata(source.sourceType);
+              const metadata = getSourceMetadata(source.sourceType, platform);
 
               return (
                 <View key={source.sourceType} style={styles.row}>

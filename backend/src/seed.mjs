@@ -27,7 +27,7 @@ function createConnectedSources(profile = 'default') {
     createSource({ sourceType: 'health_connect', displayName: 'Health Connect', recommendedPlatform: 'android' }),
     createSource({ sourceType: 'garmin', displayName: 'Garmin' }),
     createSource({ sourceType: 'strava', displayName: 'Strava' }),
-    createSource({ sourceType: 'nrc', displayName: 'NRC' }),
+    createSource({ sourceType: 'nrc', displayName: 'Nike Run Club' }),
   ];
 }
 

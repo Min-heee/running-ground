@@ -63,7 +63,7 @@ const PLATFORM_COPY: Record<NativeHealthSourceType, {
     title: 'Apple Health 자동 연동',
     expectedPlatform: 'ios',
     connectStep: '연동 관리에서 Apple Health 연결을 먼저 켜세요.',
-    configReadyDescription: '앱 권한 설정은 준비됐고, 다음 단계는 실제 HealthKit reader를 붙여 기기 기록을 가져오는 것입니다.',
+    configReadyDescription: '이 iPhone 빌드에서는 실제 HealthKit reader로 Apple Health 러닝 기록을 읽어올 수 있어.',
   },
   health_connect: {
     title: 'Health Connect 자동 연동',
@@ -179,8 +179,12 @@ export function getNativeHealthReadiness(
     expectedPlatform: metadata.expectedPlatform,
     connected,
     steps: [
-      '이제 네이티브 reader에서 러닝 기록을 읽어 shared import payload로 변환하면 됩니다.',
-      '변환된 기록은 기존 backend import/sync 파이프라인으로 바로 보낼 수 있어요.',
+      sourceType === 'apple_health'
+        ? '권한 허용 후 기기 기록 가져오기를 누르면 Apple Health 러닝 기록을 읽어올 수 있어요.'
+        : '이제 네이티브 reader에서 러닝 기록을 읽어 shared import payload로 변환하면 됩니다.',
+      sourceType === 'apple_health'
+        ? '가져온 기록은 기존 backend import/sync 파이프라인으로 바로 반영돼요.'
+        : '변환된 기록은 기존 backend import/sync 파이프라인으로 바로 보낼 수 있어요.',
     ],
   };
 }

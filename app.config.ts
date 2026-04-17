@@ -120,14 +120,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       ...baseConfig.ios,
       bundleIdentifier: iosBundleIdentifier,
-      buildNumber: process.env.IOS_BUILD_NUMBER?.trim() || '1',
+      buildNumber: process.env.IOS_BUILD_NUMBER?.trim() || baseConfig.ios?.buildNumber || '1',
       supportsTablet: true,
       infoPlist: iosInfoPlist,
     },
     android: {
       ...baseConfig.android,
       package: androidPackage,
-      versionCode: readPositiveInteger(process.env.ANDROID_VERSION_CODE, 1),
+      versionCode: readPositiveInteger(process.env.ANDROID_VERSION_CODE, baseConfig.android?.versionCode ?? 1),
       edgeToEdgeEnabled: true,
     },
     extra: {

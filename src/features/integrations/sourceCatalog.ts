@@ -12,9 +12,9 @@ type SourceMetadata = {
 
 const SOURCE_METADATA: Record<RunSourceType, SourceMetadata> = {
   apple_health: {
-    shortDescription: 'iPhone에서 가장 자연스럽게 자동 반영되는 기본 경로',
+    shortDescription: 'iPhone에서 가장 자연스럽게 자동 반영되는 기본 건강 허브',
     capabilities: ['자동 동기화', '백그라운드 기록 반영', 'iPhone 기본 추천'],
-    setupHint: '권한 허용 후 러닝 앱 기록을 Health로 모으는 구성이 가장 안정적이야.',
+    setupHint: 'iPhone에서는 NRC 같은 러닝 앱 기록을 Apple Health에 모아두고 여기서 읽어오는 구성이 가장 안정적이야.',
     priority: 100,
   },
   health_connect: {
@@ -42,9 +42,9 @@ const SOURCE_METADATA: Record<RunSourceType, SourceMetadata> = {
     priority: 55,
   },
   nrc: {
-    shortDescription: 'NRC 사용자 대상 후속 확장 후보',
-    capabilities: ['외부 앱 연동'],
-    setupHint: 'MVP에서는 기본 소스 안정화 이후 우선순위를 두는 편이 현실적이야.',
+    shortDescription: 'Nike Run Club 기록을 브리지 소스로 넘기는 출발점',
+    capabilities: ['Apple Health 브리지', '파트너 앱/기기 브리지'],
+    setupHint: '직접 API보다 iPhone은 Apple Health, Android는 Strava/워치 파트너를 거쳐 연결하는 흐름이 현실적이야.',
     priority: 40,
   },
 };
@@ -61,7 +61,38 @@ export function getCurrentDevicePlatform(): DevicePlatform {
   return 'all';
 }
 
-export function getSourceMetadata(sourceType: RunSourceType): SourceMetadata {
+export function getSourceMetadata(
+  sourceType: RunSourceType,
+  platform = getCurrentDevicePlatform(),
+): SourceMetadata {
+  if (sourceType === 'nrc') {
+    if (platform === 'ios') {
+      return {
+        shortDescription: 'Nike Run Club 기록을 Apple Health로 넘겨 우리 앱에 반영하는 경로',
+        capabilities: ['Apple Health 브리지', 'NRC 가이드 런'],
+        setupHint: 'iPhone에서는 NRC를 Apple Health에 연결하고, 우리 앱은 Apple Health에서 읽어오는 방식이 가장 안정적이야.',
+        priority: 40,
+      };
+    }
+
+    if (platform === 'android') {
+      return {
+        shortDescription: '직접 연동보다 파트너 앱/기기 브리지로 다루기 좋은 소스',
+        capabilities: ['Strava 브리지', 'Garmin/COROS 파트너'],
+        setupHint: 'Android에서는 NRC > Settings > Partners에서 Strava나 워치를 연결한 뒤 같은 소스를 우리 앱에도 연결하는 흐름이 현실적이야.',
+        priority: 40,
+      };
+    }
+  }
+
+  if (sourceType === 'strava' && platform === 'android') {
+    return {
+      ...SOURCE_METADATA.strava,
+      shortDescription: 'Android에서 NRC 브리지로도 활용하기 좋은 확장 소스',
+      setupHint: 'NRC를 쓰고 있다면 NRC > Settings > Partners에서 Strava를 연결한 뒤 여기서도 Strava를 붙이면 흐름이 단순해져.',
+    };
+  }
+
   return SOURCE_METADATA[sourceType];
 }
 
@@ -108,11 +139,11 @@ export function getPlatformLabel(platform: DevicePlatform): string {
 
 export function getRecommendationCopy(platform: DevicePlatform): string {
   if (platform === 'ios') {
-    return '지금 기기 기준으로는 Apple Health를 먼저 붙이고, 자동 수집이 비는 구간만 Manual로 보완하는 흐름이 가장 매끄러워.';
+    return '지금 기기 기준으로는 Apple Health를 먼저 붙이고, NRC를 쓰고 있다면 NRC에서 Apple Health까지 켜두는 흐름이 가장 매끄러워.';
   }
 
   if (platform === 'android') {
-    return '지금 기기 기준으로는 Health Connect를 먼저 붙이고, 필요한 경우 Manual을 함께 열어 두는 흐름이 가장 현실적이야.';
+    return '지금 기기 기준으로는 Health Connect를 먼저 붙이고, NRC를 주로 쓴다면 NRC 자체보다 Strava나 워치 파트너 경로를 함께 보는 편이 현실적이야.';
   }
 
   return '기본 건강 허브를 먼저 연결하고, 필요할 때 Manual이나 외부 앱 소스를 덧붙이는 흐름이 가장 안정적이야.';

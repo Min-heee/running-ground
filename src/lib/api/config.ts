@@ -24,17 +24,14 @@ function normalizeBaseUrl(value: string | undefined) {
   return trimmedValue.replace(/\/+$/, '');
 }
 
-const expoPublicEnv = (
-  globalThis as typeof globalThis & {
-    process?: {
-      env?: Record<string, string | undefined>;
-    };
-  }
-).process?.env ?? {};
+// Expo inlines EXPO_PUBLIC_* values only when they are referenced directly.
+const expoPublicApiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+const expoPublicApiTimeoutMs = process.env.EXPO_PUBLIC_API_TIMEOUT_MS;
+const expoPublicUseMockApi = process.env.EXPO_PUBLIC_USE_MOCK_API;
 
 export const API_CONFIG = {
-  baseUrl: normalizeBaseUrl(expoPublicEnv.EXPO_PUBLIC_API_BASE_URL),
-  timeoutMs: readNumberEnv(expoPublicEnv.EXPO_PUBLIC_API_TIMEOUT_MS, 10000),
+  baseUrl: normalizeBaseUrl(expoPublicApiBaseUrl),
+  timeoutMs: readNumberEnv(expoPublicApiTimeoutMs, 10000),
 };
 
-export const USE_MOCK_API = readBooleanEnv(expoPublicEnv.EXPO_PUBLIC_USE_MOCK_API, false);
+export const USE_MOCK_API = readBooleanEnv(expoPublicUseMockApi, false);
