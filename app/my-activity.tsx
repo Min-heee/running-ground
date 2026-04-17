@@ -8,6 +8,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { MyActivityResponse } from '@/lib/api/types';
 import { fetchMyActivity } from '@/lib/api/services';
+import { getRunSourceLabel } from '@/features/runs/sourceLabel';
 
 export default function MyActivityScreen() {
   const [activity, setActivity] = useState<MyActivityResponse | null>(null);
@@ -62,7 +63,7 @@ export default function MyActivityScreen() {
                 <Pressable style={styles.recordRow}>
                   <View style={styles.recordMeta}>
                     <Text style={styles.recordDate}>{run.date}</Text>
-                    <Text style={styles.recordDetail}>{run.distanceKm}km · 페이스 {run.pace} · {run.source}</Text>
+                    <Text style={styles.recordDetail}>{run.distanceKm}km · 페이스 {run.pace} · {getRunSourceLabel(run)}</Text>
                   </View>
                   <Text style={styles.recordLink}>보기</Text>
                 </Pressable>

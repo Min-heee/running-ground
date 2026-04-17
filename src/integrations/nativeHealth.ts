@@ -27,6 +27,7 @@ export type NativeHealthReadiness = {
 
 type NativeHealthBridgeRun = {
   externalId?: string;
+  sourceLabel?: string;
   date?: string;
   startedAt?: string;
   distanceKm?: number;
@@ -63,7 +64,7 @@ const PLATFORM_COPY: Record<NativeHealthSourceType, {
     title: 'Apple Health 자동 연동',
     expectedPlatform: 'ios',
     connectStep: '연동 관리에서 Apple Health 연결을 먼저 켜세요.',
-    configReadyDescription: '이 iPhone 빌드에서는 실제 HealthKit reader로 Apple Health 러닝 기록을 읽어올 수 있어.',
+    configReadyDescription: 'NRC로 달린 뒤 Apple 건강 앱에 운동이 들어온 걸 확인하고, 여기서 바로 가져오면 돼.',
   },
   health_connect: {
     title: 'Health Connect 자동 연동',
@@ -180,10 +181,10 @@ export function getNativeHealthReadiness(
     connected,
     steps: [
       sourceType === 'apple_health'
-        ? '권한 허용 후 기기 기록 가져오기를 누르면 Apple Health 러닝 기록을 읽어올 수 있어요.'
+        ? '오늘 러닝은 NRC로 기록하고, 끝난 뒤 Apple 건강 앱에 운동이 들어왔는지 먼저 확인하세요.'
         : '이제 네이티브 reader에서 러닝 기록을 읽어 shared import payload로 변환하면 됩니다.',
       sourceType === 'apple_health'
-        ? '가져온 기록은 기존 backend import/sync 파이프라인으로 바로 반영돼요.'
+        ? '그다음 기기 기록 가져오기를 누르면 Apple Health 러닝 기록을 읽어오고 바로 동기화돼요.'
         : '변환된 기록은 기존 backend import/sync 파이프라인으로 바로 보낼 수 있어요.',
     ],
   };
@@ -266,6 +267,9 @@ function normalizeBridgeRun(run: NativeHealthBridgeRun, index: number): Normaliz
 
   return {
     ...(run.externalId ? { externalId: String(run.externalId).trim() } : {}),
+    ...(typeof run.sourceLabel === 'string' && run.sourceLabel.trim()
+      ? { sourceLabel: run.sourceLabel.trim() }
+      : {}),
     date: toDateOnly(dateValue),
     distanceKm: Number(distanceKm.toFixed(1)),
     pace,

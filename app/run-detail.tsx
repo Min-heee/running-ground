@@ -7,6 +7,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { fetchRunDetail } from '@/lib/api/services';
 import { RunDetailResponse } from '@/lib/api/types';
+import { getRunSourceLabel } from '@/features/runs/sourceLabel';
 
 export default function RunDetailScreen() {
   const { runId, friendId } = useLocalSearchParams<{ runId?: string; friendId?: string }>();
@@ -23,6 +24,7 @@ export default function RunDetailScreen() {
 
   const backHref: Href = friendId ? { pathname: '/friend-detail', params: { friendId } } : '/my-activity';
   const backLabel = friendId ? '친구 활동으로 돌아가기' : '내 활동으로 돌아가기';
+  const sourceLabel = runDetail ? getRunSourceLabel(runDetail.run) : '';
 
   return (
     <Screen>
@@ -36,7 +38,7 @@ export default function RunDetailScreen() {
           <Card style={styles.heroCard}>
             <Text style={styles.heroLabel}>기록 요약</Text>
             <Text style={styles.heroTitle}>{runDetail.run.distanceKm}km</Text>
-            <Text style={styles.heroSub}>페이스 {runDetail.run.pace} · {runDetail.run.source}</Text>
+            <Text style={styles.heroSub}>페이스 {runDetail.run.pace} · {sourceLabel}</Text>
           </Card>
 
           <View style={styles.summaryRow}>
@@ -55,7 +57,7 @@ export default function RunDetailScreen() {
             <View style={styles.detailRow}><Text style={styles.detailLabel}>날짜</Text><Text style={styles.detailValue}>{runDetail.run.date}</Text></View>
             <View style={styles.detailRow}><Text style={styles.detailLabel}>거리</Text><Text style={styles.detailValue}>{runDetail.run.distanceKm}km</Text></View>
             <View style={styles.detailRow}><Text style={styles.detailLabel}>페이스</Text><Text style={styles.detailValue}>{runDetail.run.pace}</Text></View>
-            <View style={styles.detailRow}><Text style={styles.detailLabel}>기록 소스</Text><Text style={styles.detailValue}>{runDetail.run.source}</Text></View>
+            <View style={styles.detailRow}><Text style={styles.detailLabel}>기록 소스</Text><Text style={styles.detailValue}>{sourceLabel}</Text></View>
             <View style={styles.detailRow}><Text style={styles.detailLabel}>주간 누적 거리</Text><Text style={styles.detailValue}>{runDetail.weeklyDistanceKm}km</Text></View>
           </Card>
 

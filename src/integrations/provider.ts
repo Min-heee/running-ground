@@ -6,6 +6,7 @@ export type ImportableRunSourceType = Exclude<RunSourceType, 'manual'>;
 
 export type NormalizedProviderRun = {
   externalId?: string;
+  sourceLabel?: string;
   date: string;
   distanceKm: number;
   pace: string;
@@ -24,6 +25,7 @@ export function buildProviderRunImportPayload(
     sourceType,
     runs: runs.map((run) => ({
       ...(run.externalId ? { externalId: run.externalId.trim() } : {}),
+      ...(run.sourceLabel ? { sourceLabel: run.sourceLabel.trim() } : {}),
       date: run.date.trim(),
       distanceKm: Number(run.distanceKm.toFixed(1)),
       pace: run.pace.trim(),

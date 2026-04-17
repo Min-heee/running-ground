@@ -773,6 +773,7 @@ function buildMyActivity(store, user) {
       distanceKm: run.distanceKm,
       pace: run.pace,
       source: run.source,
+      ...(run.sourceType ? { sourceType: run.sourceType } : {}),
     })),
     monthlyDistanceKm: metrics.currentMonthDistanceKm,
     monthlyPoints: metrics.currentMonthPoints,
@@ -1231,6 +1232,7 @@ function buildRunDetail(run, weeklyDistanceKm, sourceOverride, metrics) {
       distanceKm: run.distanceKm,
       pace: run.pace,
       source: sourceOverride ?? run.source,
+      ...(run.sourceType ? { sourceType: run.sourceType } : {}),
     },
     weeklyDistanceKm,
     estimatedMinutes: Math.round(run.distanceKm * (paceMinutes ?? 5.5)),
@@ -1468,9 +1470,12 @@ function normalizeAdminNoticeInput(body) {
 }
 
 function normalizeImportedRun(sourceType, rawRun) {
+  const sourceLabel = normalizeOptionalString(rawRun.sourceLabel);
+
   return {
     sourceType,
     externalId: normalizeOptionalString(rawRun.externalId),
+    ...(sourceLabel ? { sourceLabel: sourceLabel === 'Nike Run Club' ? 'NRC' : sourceLabel } : {}),
     date: validateDateOnly(rawRun.date, '연동 기록 날짜를 입력해줘.'),
     distanceKm: validateDistanceKm(rawRun.distanceKm, '연동 기록 거리를 입력해줘.'),
     pace: validatePace(rawRun.pace, '연동 기록 페이스를 입력해줘.'),
@@ -1564,7 +1569,7 @@ function importPendingRunsForUser(store, user) {
       date: entry.date,
       distanceKm: entry.distanceKm,
       pace: entry.pace,
-      source: sourceDisplayNameByType.get(entry.sourceType) ?? SOURCE_LABEL_BY_TYPE[entry.sourceType] ?? entry.sourceType,
+      source: entry.sourceLabel ?? sourceDisplayNameByType.get(entry.sourceType) ?? SOURCE_LABEL_BY_TYPE[entry.sourceType] ?? entry.sourceType,
       sourceType: entry.sourceType,
       ...(entry.externalId ? { externalId: entry.externalId } : {}),
       createdAt: new Date().toISOString(),

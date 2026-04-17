@@ -91,15 +91,27 @@ RCT_EXPORT_MODULE(RunnigappAppleHealth);
 
     NSTimeInterval durationSeconds = workout.duration;
     double paceSecondsPerKm = durationSeconds > 0.0 ? durationSeconds / distanceKm : 0.0;
+    NSString *sourceName = workout.sourceRevision.source.name ?: @"";
+    NSString *normalizedSourceLabel = sourceName;
 
-    [normalizedRuns addObject:@{
+    if ([[sourceName lowercaseString] containsString:@"nike"] && [[sourceName lowercaseString] containsString:@"run"]) {
+      normalizedSourceLabel = @"NRC";
+    }
+
+    NSMutableDictionary *payload = [@{
       @"externalId": workout.UUID.UUIDString ?: @"",
       @"startedAt": [self isoStringFromDate:workout.startDate],
       @"date": [[self isoStringFromDate:workout.startDate] substringToIndex:10],
       @"distanceKm": @(distanceKm),
       @"durationSeconds": @(durationSeconds),
       @"paceSecondsPerKm": @(paceSecondsPerKm),
-    }];
+    } mutableCopy];
+
+    if (normalizedSourceLabel.length > 0) {
+      payload[@"sourceLabel"] = normalizedSourceLabel;
+    }
+
+    [normalizedRuns addObject:payload];
   }
 
   return normalizedRuns;

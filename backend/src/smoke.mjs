@@ -233,12 +233,12 @@ async function main() {
     const today = new Date();
     const manualRunInputs = [
       {
-        date: formatDate(addDays(today, -1)),
+        date: formatDate(addDays(today, -2)),
         distanceKm: 4.2,
         pace: '05:40/km',
       },
       {
-        date: formatDate(today),
+        date: formatDate(addDays(today, -1)),
         distanceKm: 6.1,
         pace: '05:30/km',
       },

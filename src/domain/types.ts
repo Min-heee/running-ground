@@ -123,6 +123,7 @@ export type MyRunRecord = {
   distanceKm: number;
   pace: string;
   source: string;
+  sourceType?: RunSourceType;
 };
 
 export type MarketRewardClaimState = 'claimable' | 'claimed' | 'locked';
