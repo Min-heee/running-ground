@@ -1,10 +1,11 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Text, View, StyleSheet } from 'react-native';
 import { useFocusEffect } from 'expo-router';
+import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
 import { HomeOverview } from '@/features/home/HomeOverview';
-import { OfflineRaceEvent, UserProfile, WeeklySummary } from '@/domain/types';
-import { fetchFriendLeaderboard, fetchHomeSummary, fetchMyActivity, fetchMyProfile, fetchOfflineRaceHub } from '@/lib/api/services';
+import { AppNotice, OfflineRaceEvent, UserProfile, WeeklySummary } from '@/domain/types';
+import { fetchActiveNotices, fetchFriendLeaderboard, fetchHomeSummary, fetchMyActivity, fetchMyProfile, fetchOfflineRaceHub } from '@/lib/api/services';
 import { getCurrentUserProfile } from '@/lib/session';
 import { MyActivityResponse } from '@/lib/api/types';
 
@@ -19,6 +20,7 @@ export default function HomeScreen() {
   const [friendOverview, setFriendOverview] = useState<HomeFriendOverview | null>(null);
   const [nextRace, setNextRace] = useState<OfflineRaceEvent | null>(null);
   const [myRace, setMyRace] = useState<OfflineRaceEvent | null>(null);
+  const [notices, setNotices] = useState<AppNotice[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(getCurrentUserProfile());
   const [activity, setActivity] = useState<MyActivityResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,16 +33,23 @@ export default function HomeScreen() {
       setLoading(true);
       setError(null);
 
-      const [summaryResult, leaderboardResult, raceHubResult, profileResult, activityResult] = await Promise.allSettled([
+      const [summaryResult, leaderboardResult, raceHubResult, profileResult, activityResult, noticesResult] = await Promise.allSettled([
         fetchHomeSummary(),
         fetchFriendLeaderboard(),
         fetchOfflineRaceHub(),
         fetchMyProfile(),
         fetchMyActivity(),
+        fetchActiveNotices(),
       ]);
 
       if (!active) {
         return;
+      }
+
+      if (noticesResult.status === 'fulfilled') {
+        setNotices(noticesResult.value.items.slice(0, 2));
+      } else {
+        setNotices([]);
       }
 
       if (summaryResult.status === 'rejected') {
@@ -119,6 +128,13 @@ export default function HomeScreen() {
           <Text style={styles.headerLabel}>홈</Text>
           <Text style={styles.headerBrand}>RUNNIGAPP</Text>
         </View>
+        {notices.map((notice) => (
+          <Card key={notice.id} style={styles.noticeCard}>
+            <Text style={styles.noticeLabel}>운영 공지</Text>
+            <Text style={styles.noticeTitle}>{notice.title}</Text>
+            <Text style={styles.noticeMessage}>{notice.message}</Text>
+          </Card>
+        ))}
         {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
         {error ? <Text>{error}</Text> : null}
         {summary ? (
@@ -154,5 +170,24 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 0.4,
+  },
+  noticeCard: {
+    backgroundColor: '#111827',
+    gap: 6,
+  },
+  noticeLabel: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  noticeTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  noticeMessage: {
+    color: '#D0D5DD',
+    lineHeight: 21,
   },
 });
