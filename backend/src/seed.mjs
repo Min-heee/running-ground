@@ -498,7 +498,7 @@ export function createSeedStore() {
   const runs = [];
 
   return {
-    version: 1,
+    version: 3,
     users,
     runs,
     integrationImports: [],
@@ -507,6 +507,13 @@ export function createSeedStore() {
     rewardRedemptions: [],
     sessions: [],
     marketCatalog: [],
+    notices: [],
+    offlineRaceEvents: [],
+    offlineRaceGuideSteps: [
+      '오프라인 마라톤 일정이 열리면 여기에서 날짜별로 바로 신청할 수 있어요.',
+      '지금은 일정 등록 전이라 신청 가능한 회차가 없어요.',
+      '실제 운영 일정이 준비되면 시간대와 거리 선택이 함께 열릴 예정이에요.',
+    ],
     regionTree: createRegionTree({ users, runs }),
   };
 }

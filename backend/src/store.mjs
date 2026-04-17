@@ -48,6 +48,99 @@ function migrateIntegrationStore(store) {
   return false;
 }
 
+function migrateAdminStore(store) {
+  let changed = false;
+
+  if (!Array.isArray(store.notices)) {
+    store.notices = [];
+    changed = true;
+  }
+
+  for (const notice of store.notices) {
+    if (typeof notice.priority !== 'number' || !Number.isFinite(notice.priority)) {
+      notice.priority = 0;
+      changed = true;
+    }
+
+    if (typeof notice.isActive !== 'boolean') {
+      notice.isActive = true;
+      changed = true;
+    }
+  }
+
+  if (!Array.isArray(store.marketCatalog)) {
+    store.marketCatalog = [];
+    changed = true;
+  }
+
+  const marketItemCostById = new Map();
+
+  for (const item of store.marketCatalog) {
+    marketItemCostById.set(item.id, item.costPoints);
+
+    if (typeof item.isActive !== 'boolean') {
+      item.isActive = true;
+      changed = true;
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(item, 'inventoryCount')) {
+      item.inventoryCount = null;
+      changed = true;
+    }
+  }
+
+  if (!Array.isArray(store.offlineRaceEvents)) {
+    store.offlineRaceEvents = [];
+    changed = true;
+  }
+
+  for (const event of store.offlineRaceEvents) {
+    if (!Array.isArray(event.registeredUserTags)) {
+      event.registeredUserTags = [];
+      changed = true;
+    }
+  }
+
+  if (!Array.isArray(store.offlineRaceGuideSteps)) {
+    store.offlineRaceGuideSteps = [
+      '오프라인 마라톤 일정이 열리면 여기에서 날짜별로 바로 신청할 수 있어요.',
+      '지금은 일정 등록 전이라 신청 가능한 회차가 없어요.',
+      '실제 운영 일정이 준비되면 시간대와 거리 선택이 함께 열릴 예정이에요.',
+    ];
+    changed = true;
+  }
+
+  if (Array.isArray(store.rewardRedemptions)) {
+    for (const entry of store.rewardRedemptions) {
+      if (typeof entry.costPoints !== 'number') {
+        const catalogCostPoints = marketItemCostById.get(entry.itemId);
+
+        if (typeof catalogCostPoints === 'number') {
+          entry.costPoints = catalogCostPoints;
+          changed = true;
+        }
+      }
+
+      if (typeof entry.status !== 'string' || !entry.status.trim()) {
+        entry.status = 'requested';
+        changed = true;
+      }
+
+      if (typeof entry.adminNote !== 'string') {
+        entry.adminNote = '';
+        changed = true;
+      }
+    }
+  }
+
+  if (store.version !== 3) {
+    store.version = 3;
+    changed = true;
+  }
+
+  return changed;
+}
+
 function serializeStore(store) {
   return JSON.stringify(store, null, 2);
 }
@@ -149,6 +242,7 @@ export function loadStore() {
       migrateAuthStore(cachedStore, { sessionTtlMs: SESSION_TTL_MS, now: new Date() }),
       migrateProfileStore(cachedStore),
       migrateIntegrationStore(cachedStore),
+      migrateAdminStore(cachedStore),
     ].some(Boolean);
 
     if (changed) {
@@ -164,6 +258,7 @@ export function saveStore(nextStore) {
   migrateAuthStore(cachedStore, { sessionTtlMs: SESSION_TTL_MS, now: new Date() });
   migrateProfileStore(cachedStore);
   migrateIntegrationStore(cachedStore);
+  migrateAdminStore(cachedStore);
   cachedStore.regionTree = createRegionTree(cachedStore);
   ensureStoreFile();
   const serializedStore = serializeStore(cachedStore);

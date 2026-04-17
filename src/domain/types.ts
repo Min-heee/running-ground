@@ -61,6 +61,16 @@ export type UserProfile = {
   lifetimeDistanceKm?: number;
 };
 
+export type AppNotice = {
+  id: string;
+  title: string;
+  message: string;
+  priority: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type DistrictBattleRank = {
   rank: number;
   districtName: string;
@@ -126,6 +136,9 @@ export type MarketRewardItem = {
   partnerName?: string;
   repeatable: boolean;
   claimState: MarketRewardClaimState;
+  inventoryCount?: number | null;
+  remainingStock?: number | null;
+  isActive?: boolean;
 };
 
 export type MarketOverview = {

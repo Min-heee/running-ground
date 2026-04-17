@@ -29,6 +29,11 @@ const SOURCE_LABEL_BY_TYPE = {
   nrc: 'Nike Run Club',
   manual: 'Manual',
 };
+const DEFAULT_OFFLINE_RACE_GUIDE_STEPS = [
+  '오프라인 마라톤 일정이 열리면 여기에서 날짜별로 바로 신청할 수 있어요.',
+  '지금은 일정 등록 전이라 신청 가능한 회차가 없어요.',
+  '실제 운영 일정이 준비되면 시간대와 거리 선택이 함께 열릴 예정이에요.',
+];
 
 class ApiError extends Error {
   constructor(statusCode, message) {
@@ -59,7 +64,7 @@ function buildCorsHeaders(request) {
   const resolvedOrigin = resolveCorsOrigin(request);
   const headers = {
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token',
-    'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -230,8 +235,11 @@ function getRedeemedPointCost(store, userId) {
   const catalogByItemId = new Map((store.marketCatalog ?? []).map((item) => [item.id, item.costPoints]));
 
   return (store.rewardRedemptions ?? [])
-    .filter((entry) => entry.userId === userId)
-    .reduce((sum, entry) => sum + (catalogByItemId.get(entry.itemId) ?? 0), 0);
+    .filter((entry) => entry.userId === userId && isActiveRewardRedemption(entry))
+    .reduce((sum, entry) => {
+      const storedCostPoints = typeof entry.costPoints === 'number' ? entry.costPoints : null;
+      return sum + (storedCostPoints ?? catalogByItemId.get(entry.itemId) ?? 0);
+    }, 0);
 }
 
 function buildProfile(store, user) {
@@ -259,6 +267,15 @@ function buildNotificationSettings(user) {
 
 function normalizeOptionalString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeRewardRedemptionStatus(value) {
+  const normalizedValue = normalizeOptionalString(value);
+  return normalizedValue === 'fulfilled' || normalizedValue === 'cancelled' ? normalizedValue : 'requested';
+}
+
+function isActiveRewardRedemption(entry) {
+  return normalizeRewardRedemptionStatus(entry?.status) !== 'cancelled';
 }
 
 function ensureIntegrationImports(store) {
@@ -345,6 +362,35 @@ function buildRegionCatalog() {
   };
 }
 
+function buildNoticeEntry(notice) {
+  return {
+    id: notice.id,
+    title: notice.title,
+    message: notice.message,
+    priority: notice.priority,
+    isActive: notice.isActive !== false,
+    createdAt: notice.createdAt,
+    updatedAt: notice.updatedAt,
+  };
+}
+
+function buildActiveNotices(store) {
+  ensureNoticeStore(store);
+
+  return {
+    items: [...store.notices]
+      .filter((notice) => notice.isActive !== false)
+      .sort((left, right) => {
+        if (right.priority !== left.priority) {
+          return right.priority - left.priority;
+        }
+
+        return normalizeOptionalString(right.updatedAt).localeCompare(normalizeOptionalString(left.updatedAt));
+      })
+      .map((notice) => buildNoticeEntry(notice)),
+  };
+}
+
 function buildUniversityCatalog(store) {
   const universities = [...new Set(
     store.users
@@ -363,10 +409,75 @@ function buildIntegrationSourceActionResult(store, user, source) {
   };
 }
 
-function buildMarketOverview(store, user) {
+function ensureNoticeStore(store) {
+  if (!Array.isArray(store.notices)) {
+    store.notices = [];
+  }
+
+  for (const notice of store.notices) {
+    if (typeof notice.priority !== 'number' || !Number.isFinite(notice.priority)) {
+      notice.priority = 0;
+    }
+
+    if (typeof notice.isActive !== 'boolean') {
+      notice.isActive = true;
+    }
+  }
+}
+
+function ensureMarketCatalogStore(store) {
   if (!Array.isArray(store.marketCatalog)) {
     store.marketCatalog = [];
   }
+
+  for (const item of store.marketCatalog) {
+    if (typeof item.isActive !== 'boolean') {
+      item.isActive = true;
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(item, 'inventoryCount')) {
+      item.inventoryCount = null;
+    }
+  }
+}
+
+function ensureOfflineRaceStore(store) {
+  if (!Array.isArray(store.offlineRaceEvents)) {
+    store.offlineRaceEvents = [];
+  }
+
+  for (const event of store.offlineRaceEvents) {
+    if (!Array.isArray(event.registeredUserTags)) {
+      event.registeredUserTags = [];
+    }
+  }
+
+  if (!Array.isArray(store.offlineRaceGuideSteps)) {
+    store.offlineRaceGuideSteps = [...DEFAULT_OFFLINE_RACE_GUIDE_STEPS];
+  }
+}
+
+function buildRedemptionCountByItemId(store) {
+  return (store.rewardRedemptions ?? []).reduce((map, entry) => {
+    if (!isActiveRewardRedemption(entry)) {
+      return map;
+    }
+
+    map.set(entry.itemId, (map.get(entry.itemId) ?? 0) + 1);
+    return map;
+  }, new Map());
+}
+
+function getMarketItemRemainingStock(item, redemptionCount) {
+  if (typeof item.inventoryCount !== 'number' || !Number.isFinite(item.inventoryCount)) {
+    return null;
+  }
+
+  return Math.max(0, item.inventoryCount - redemptionCount);
+}
+
+function buildMarketOverview(store, user) {
+  ensureMarketCatalogStore(store);
 
   if (!Array.isArray(store.rewardRedemptions)) {
     store.rewardRedemptions = [];
@@ -374,10 +485,11 @@ function buildMarketOverview(store, user) {
 
   const metrics = getUserMetrics(store, user.id);
   const currentPoints = getAvailableRewardPoints(metrics, getRedeemedPointCost(store, user.id));
+  const redemptionCountByItemId = buildRedemptionCountByItemId(store);
 
   const redeemedItemIds = new Set(
     store.rewardRedemptions
-      .filter((entry) => entry.userId === user.id)
+      .filter((entry) => entry.userId === user.id && isActiveRewardRedemption(entry))
       .map((entry) => entry.itemId),
   );
 
@@ -389,7 +501,14 @@ function buildMarketOverview(store, user) {
     costPoints: item.costPoints,
     ...(item.partnerName ? { partnerName: item.partnerName } : {}),
     repeatable: item.repeatable,
-    claimState: redeemedItemIds.has(item.id)
+    inventoryCount: typeof item.inventoryCount === 'number' ? item.inventoryCount : null,
+    remainingStock: getMarketItemRemainingStock(item, redemptionCountByItemId.get(item.id) ?? 0),
+    isActive: item.isActive !== false,
+    claimState: item.isActive === false
+      ? 'locked'
+      : (getMarketItemRemainingStock(item, redemptionCountByItemId.get(item.id) ?? 0) === 0)
+        ? 'locked'
+        : redeemedItemIds.has(item.id)
       ? 'claimed'
       : currentPoints >= item.costPoints
         ? 'claimable'
@@ -398,7 +517,7 @@ function buildMarketOverview(store, user) {
 
   return {
     currentPoints,
-    totalRedeemedCount: store.rewardRedemptions.filter((entry) => entry.userId === user.id).length,
+    totalRedeemedCount: store.rewardRedemptions.filter((entry) => entry.userId === user.id && isActiveRewardRedemption(entry)).length,
     items,
   };
 }
@@ -786,6 +905,9 @@ function buildUniversityLeague(store) {
 }
 
 function buildAdminStatus(store) {
+  ensureNoticeStore(store);
+  ensureMarketCatalogStore(store);
+  ensureOfflineRaceStore(store);
   return {
     status: 'ok',
     startedAt: STARTED_AT,
@@ -800,7 +922,282 @@ function buildAdminStatus(store) {
       friendRequests: store.friendRequests.length,
       sessions: store.sessions.length,
       rewardRedemptions: (store.rewardRedemptions ?? []).length,
+      notices: (store.notices ?? []).length,
+      marketItems: (store.marketCatalog ?? []).length,
+      offlineRaceEvents: (store.offlineRaceEvents ?? []).length,
     },
+  };
+}
+
+function buildAdminSession() {
+  return {
+    success: true,
+    environment: APP_ENV,
+    publicBaseUrl: PUBLIC_BASE_URL || undefined,
+  };
+}
+
+function buildAdminOverview(store) {
+  ensureNoticeStore(store);
+  ensureMarketCatalogStore(store);
+  ensureOfflineRaceStore(store);
+  const now = new Date();
+  const activeOfflineRaceEvents = store.offlineRaceEvents.filter((event) => getOfflineRaceStatus(event, now) !== 'finished');
+
+  return {
+    environment: APP_ENV,
+    publicBaseUrl: PUBLIC_BASE_URL || undefined,
+    counts: {
+      users: store.users.length,
+      runs: store.runs.length,
+      marketItems: store.marketCatalog.length,
+      activeMarketItems: store.marketCatalog.filter((item) => item.isActive !== false).length,
+      offlineRaceEvents: store.offlineRaceEvents.length,
+      activeOfflineRaceEvents: activeOfflineRaceEvents.length,
+      notices: store.notices.length,
+      activeNotices: store.notices.filter((notice) => notice.isActive !== false).length,
+      rewardRedemptions: (store.rewardRedemptions ?? []).length,
+      sessions: store.sessions.length,
+    },
+  };
+}
+
+function buildAdminUserSummary(store, user) {
+  const metrics = getUserMetrics(store, user.id);
+  const runs = getRunsForUser(store, user.id);
+
+  return {
+    id: user.id,
+    username: user.username,
+    name: user.name,
+    ...(normalizeOptionalString(user.realName) ? { realName: user.realName } : {}),
+    ...(normalizeOptionalString(user.phone) ? { phone: user.phone } : {}),
+    ...(normalizeOptionalString(user.birthDate) ? { birthDate: user.birthDate } : {}),
+    publicTag: user.publicTag,
+    ...(normalizeOptionalString(user.provinceName) ? { provinceName: user.provinceName } : {}),
+    ...(normalizeOptionalString(user.cityName) ? { cityName: user.cityName } : {}),
+    districtName: user.districtName,
+    ...(normalizeOptionalString(user.universityName) ? { universityName: user.universityName } : {}),
+    ...(normalizeOptionalString(user.createdAt) ? { createdAt: user.createdAt } : {}),
+    lifetimeDistanceKm: metrics.lifetimeDistanceKm,
+    currentWeekDistanceKm: metrics.currentWeekDistanceKm,
+    currentWeekPoints: metrics.currentWeekPoints,
+    totalRuns: runs.length,
+    connectedSourceCount: Array.isArray(user.connectedSources)
+      ? user.connectedSources.filter((source) => source.connected).length
+      : 0,
+  };
+}
+
+function buildAdminUsers(store) {
+  return {
+    users: [...store.users]
+      .sort((left, right) => {
+        const leftCreatedAt = normalizeOptionalString(left.createdAt);
+        const rightCreatedAt = normalizeOptionalString(right.createdAt);
+
+        if (leftCreatedAt !== rightCreatedAt) {
+          return rightCreatedAt.localeCompare(leftCreatedAt);
+        }
+
+        return left.name.localeCompare(right.name, 'ko');
+      })
+      .map((user) => buildAdminUserSummary(store, user)),
+  };
+}
+
+function buildAdminMarketItem(store, item) {
+  const redemptionCountByItemId = buildRedemptionCountByItemId(store);
+  const redemptionCount = redemptionCountByItemId.get(item.id) ?? 0;
+
+  return {
+    id: item.id,
+    title: item.title,
+    category: item.category,
+    description: item.description,
+    costPoints: item.costPoints,
+    ...(item.partnerName ? { partnerName: item.partnerName } : {}),
+    repeatable: item.repeatable,
+    isActive: item.isActive !== false,
+    inventoryCount: typeof item.inventoryCount === 'number' ? item.inventoryCount : null,
+    remainingStock: getMarketItemRemainingStock(item, redemptionCount),
+    redemptionCount,
+  };
+}
+
+function buildAdminMarketCatalog(store) {
+  ensureMarketCatalogStore(store);
+  return {
+    items: store.marketCatalog.map((item) => buildAdminMarketItem(store, item)),
+  };
+}
+
+function buildAdminRewardRedemption(store, redemption) {
+  const user = store.users.find((entry) => entry.id === redemption.userId) ?? null;
+  const item = (store.marketCatalog ?? []).find((entry) => entry.id === redemption.itemId) ?? null;
+  const status = normalizeRewardRedemptionStatus(redemption.status);
+
+  return {
+    id: redemption.id,
+    userId: redemption.userId,
+    userName: user?.name ?? '알 수 없는 사용자',
+    userTag: user?.publicTag ?? '',
+    itemId: redemption.itemId,
+    itemTitle: item?.title ?? '삭제된 상품',
+    costPoints: typeof redemption.costPoints === 'number' ? redemption.costPoints : item?.costPoints ?? 0,
+    status,
+    claimedAt: redemption.claimedAt,
+    ...(normalizeOptionalString(redemption.adminNote) ? { adminNote: redemption.adminNote } : {}),
+    ...(normalizeOptionalString(redemption.fulfilledAt) ? { fulfilledAt: redemption.fulfilledAt } : {}),
+  };
+}
+
+function buildAdminRewardRedemptions(store) {
+  ensureMarketCatalogStore(store);
+
+  return {
+    items: [...(store.rewardRedemptions ?? [])]
+      .sort((left, right) => {
+        const leftClaimedAt = normalizeOptionalString(left.claimedAt);
+        const rightClaimedAt = normalizeOptionalString(right.claimedAt);
+        return rightClaimedAt.localeCompare(leftClaimedAt);
+      })
+      .map((entry) => buildAdminRewardRedemption(store, entry)),
+  };
+}
+
+function buildAdminNotices(store) {
+  ensureNoticeStore(store);
+
+  return {
+    items: [...store.notices]
+      .sort((left, right) => {
+        if (right.priority !== left.priority) {
+          return right.priority - left.priority;
+        }
+
+        return normalizeOptionalString(right.updatedAt).localeCompare(normalizeOptionalString(left.updatedAt));
+      })
+      .map((notice) => buildNoticeEntry(notice)),
+  };
+}
+
+function getOfflineRaceStatus(event, now = new Date()) {
+  const startsAt = new Date(event.startsAt).getTime();
+  const registrationClosesAt = new Date(event.registrationClosesAt).getTime();
+  const runWindowMinutes = typeof event.runWindowMinutes === 'number' && Number.isFinite(event.runWindowMinutes)
+    ? event.runWindowMinutes
+    : 180;
+  const finishedAt = startsAt + runWindowMinutes * 60 * 1000;
+  const currentTime = now.getTime();
+
+  if (currentTime >= finishedAt) {
+    return 'finished';
+  }
+
+  if (currentTime >= startsAt) {
+    return 'live';
+  }
+
+  if (currentTime >= registrationClosesAt) {
+    return 'registration_closed';
+  }
+
+  if (registrationClosesAt - currentTime <= 3 * 60 * 60 * 1000) {
+    return 'registration_closing';
+  }
+
+  return 'registration_open';
+}
+
+function buildOfflineRaceParticipantPreview(store, event, limit = 3) {
+  const uniqueTags = [...new Set(event.registeredUserTags ?? [])];
+
+  return uniqueTags
+    .map((tag) => store.users.find((user) => user.publicTag === tag))
+    .filter(Boolean)
+    .slice(0, limit)
+    .map((user) => {
+      const latestRun = getRunsForUser(store, user.id)[0] ?? null;
+
+      return {
+        id: user.id,
+        name: user.name,
+        paceGoal: latestRun?.pace ?? '5:30/km',
+        regionLabel: user.districtName,
+      };
+    });
+}
+
+function decorateOfflineRaceEvent(store, event, currentUser = null) {
+  const participantCount = [...new Set(event.registeredUserTags ?? [])].length;
+  const currentUserTag = currentUser?.publicTag;
+
+  return {
+    id: event.id,
+    title: event.title,
+    subtitle: event.subtitle,
+    distanceKm: event.distanceKm,
+    startsAt: event.startsAt,
+    registrationClosesAt: event.registrationClosesAt,
+    participationMode: event.participationMode,
+    proofMethod: event.proofMethod,
+    runWindowMinutes: event.runWindowMinutes,
+    hostLabel: event.hostLabel,
+    participantCount,
+    capacity: event.capacity,
+    entryFeePoints: event.entryFeePoints,
+    operationNote: event.operationNote,
+    registered: typeof currentUserTag === 'string' ? (event.registeredUserTags ?? []).includes(currentUserTag) : false,
+    status: getOfflineRaceStatus(event),
+    participantPreview: buildOfflineRaceParticipantPreview(store, event),
+  };
+}
+
+function buildOfflineRacePastEvent(store, event) {
+  const participantPreview = buildOfflineRaceParticipantPreview(store, event, 1);
+  const participantCount = [...new Set(event.registeredUserTags ?? [])].length;
+
+  return {
+    id: event.id,
+    title: event.title,
+    distanceKm: event.distanceKm,
+    finishedAt: event.startsAt,
+    modeLabel: event.participationMode,
+    winnerName: participantPreview[0]?.name ?? '기록 집계 중',
+    finishers: participantCount,
+    summary: participantCount > 0
+      ? `${participantCount}명이 참여한 ${event.distanceKm}km 회차였어요.`
+      : '참가 기록이 아직 없어요.',
+  };
+}
+
+function buildAdminOfflineRaceEvent(store, event) {
+  return {
+    id: event.id,
+    title: event.title,
+    subtitle: event.subtitle,
+    distanceKm: event.distanceKm,
+    startsAt: event.startsAt,
+    registrationClosesAt: event.registrationClosesAt,
+    participationMode: event.participationMode,
+    proofMethod: event.proofMethod,
+    runWindowMinutes: event.runWindowMinutes,
+    hostLabel: event.hostLabel,
+    participantCount: [...new Set(event.registeredUserTags ?? [])].length,
+    capacity: event.capacity,
+    entryFeePoints: event.entryFeePoints,
+    operationNote: event.operationNote,
+    status: getOfflineRaceStatus(event),
+  };
+}
+
+function buildAdminOfflineRaceEvents(store) {
+  ensureOfflineRaceStore(store);
+  return {
+    events: [...store.offlineRaceEvents]
+      .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime())
+      .map((event) => buildAdminOfflineRaceEvent(store, event)),
   };
 }
 
@@ -973,6 +1370,101 @@ function validatePace(value, message) {
   }
 
   return pace;
+}
+
+function validatePositiveInteger(value, message) {
+  const numberValue = typeof value === 'number' ? value : Number(value);
+
+  if (!Number.isInteger(numberValue) || numberValue <= 0) {
+    throw new ApiError(400, message);
+  }
+
+  return numberValue;
+}
+
+function validateNonNegativeInteger(value, message) {
+  const numberValue = typeof value === 'number' ? value : Number(value);
+
+  if (!Number.isInteger(numberValue) || numberValue < 0) {
+    throw new ApiError(400, message);
+  }
+
+  return numberValue;
+}
+
+function validateOptionalInventoryCount(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  return validateNonNegativeInteger(value, '재고 수량은 0 이상의 정수로 입력해줘.');
+}
+
+function validateDateTime(value, message) {
+  const text = validateRequiredString(value, message);
+  const date = new Date(text);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new ApiError(400, '일시는 올바른 날짜/시간 형식으로 입력해줘.');
+  }
+
+  return date.toISOString();
+}
+
+function normalizeAdminMarketItemInput(body) {
+  return {
+    title: validateRequiredString(body.title, '상품 이름을 입력해줘.'),
+    category: validateRequiredString(body.category, '카테고리를 입력해줘.'),
+    description: validateRequiredString(body.description, '상품 설명을 입력해줘.'),
+    costPoints: validatePositiveInteger(body.costPoints, '필요 포인트는 1 이상으로 입력해줘.'),
+    partnerName: normalizeOptionalString(body.partnerName) || undefined,
+    repeatable: validateBoolean(body.repeatable, '반복 교환 여부가 올바르지 않아.'),
+    isActive: validateBoolean(body.isActive, '활성 상태가 올바르지 않아.'),
+    inventoryCount: validateOptionalInventoryCount(body.inventoryCount),
+  };
+}
+
+function normalizeAdminOfflineRaceEventInput(body) {
+  const startsAt = validateDateTime(body.startsAt, '출발 일시를 입력해줘.');
+  const registrationClosesAt = validateDateTime(body.registrationClosesAt, '접수 마감 일시를 입력해줘.');
+
+  if (new Date(registrationClosesAt).getTime() >= new Date(startsAt).getTime()) {
+    throw new ApiError(400, '접수 마감은 출발 시간보다 이전이어야 해.');
+  }
+
+  return {
+    title: validateRequiredString(body.title, '레이스 이름을 입력해줘.'),
+    subtitle: validateRequiredString(body.subtitle, '레이스 한 줄 설명을 입력해줘.'),
+    distanceKm: validateDistanceKm(body.distanceKm, '레이스 거리를 입력해줘.'),
+    startsAt,
+    registrationClosesAt,
+    participationMode: validateRequiredString(body.participationMode, '운영 방식을 입력해줘.'),
+    proofMethod: validateRequiredString(body.proofMethod, '기록 인증 방식을 입력해줘.'),
+    runWindowMinutes: validatePositiveInteger(body.runWindowMinutes, '진행 시간은 1분 이상으로 입력해줘.'),
+    hostLabel: validateRequiredString(body.hostLabel, '운영 주체를 입력해줘.'),
+    capacity: validatePositiveInteger(body.capacity, '정원은 1명 이상으로 입력해줘.'),
+    entryFeePoints: validateNonNegativeInteger(body.entryFeePoints, '참가 포인트는 0 이상으로 입력해줘.'),
+    operationNote: validateRequiredString(body.operationNote, '운영 안내를 입력해줘.'),
+  };
+}
+
+function validateRewardRedemptionStatus(value) {
+  const status = validateRequiredString(value, '교환 상태를 선택해줘.');
+
+  if (!['requested', 'fulfilled', 'cancelled'].includes(status)) {
+    throw new ApiError(400, '교환 상태 값이 올바르지 않아.');
+  }
+
+  return status;
+}
+
+function normalizeAdminNoticeInput(body) {
+  return {
+    title: validateRequiredString(body.title, '공지 제목을 입력해줘.'),
+    message: validateRequiredString(body.message, '공지 내용을 입력해줘.'),
+    priority: validateNonNegativeInteger(body.priority, '공지 우선순위는 0 이상의 정수로 입력해줘.'),
+    isActive: validateBoolean(body.isActive, '공지 활성 상태가 올바르지 않아.'),
+  };
 }
 
 function normalizeImportedRun(sourceType, rawRun) {
@@ -1388,16 +1880,30 @@ async function handlePatchMyNotifications(request, response) {
 function handleClaimMarketItem(request, response, itemId) {
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
+    ensureMarketCatalogStore(store);
     const item = (store.marketCatalog ?? []).find((entry) => entry.id === itemId);
 
     if (!item) {
       throw new ApiError(404, '교환할 리워드를 찾지 못했어.');
     }
 
-    const alreadyClaimed = store.rewardRedemptions.some((entry) => entry.userId === user.id && entry.itemId === item.id);
+    if (item.isActive === false) {
+      throw new ApiError(409, '지금은 비활성화된 리워드라 교환할 수 없어.');
+    }
+
+    const alreadyClaimed = store.rewardRedemptions.some((entry) => (
+      entry.userId === user.id
+      && entry.itemId === item.id
+      && isActiveRewardRedemption(entry)
+    ));
+    const remainingStock = getMarketItemRemainingStock(item, buildRedemptionCountByItemId(store).get(item.id) ?? 0);
 
     if (alreadyClaimed && !item.repeatable) {
       throw new ApiError(409, '이미 교환한 리워드야.');
+    }
+
+    if (remainingStock === 0) {
+      throw new ApiError(409, '재고가 모두 소진돼서 지금은 교환할 수 없어.');
     }
 
     if (getAvailableRewardPoints(getUserMetrics(store, user.id), getRedeemedPointCost(store, user.id)) < item.costPoints) {
@@ -1408,6 +1914,9 @@ function handleClaimMarketItem(request, response, itemId) {
       id: nextId('redemption'),
       userId: user.id,
       itemId: item.id,
+      costPoints: item.costPoints,
+      status: 'requested',
+      adminNote: '',
       claimedAt: new Date().toISOString(),
     });
 
@@ -1415,6 +1924,301 @@ function handleClaimMarketItem(request, response, itemId) {
       success: true,
       claimedItemId: item.id,
       overview: buildMarketOverview(store, user),
+    };
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleCreateAdminMarketItem(request, response) {
+  const body = await parseJsonBody(request);
+
+  const payload = mutateStore((store) => {
+    ensureMarketCatalogStore(store);
+    const item = {
+      id: nextId('market'),
+      ...normalizeAdminMarketItemInput(body),
+    };
+
+    store.marketCatalog.push(item);
+
+    return {
+      success: true,
+      item: buildAdminMarketItem(store, item),
+      items: buildAdminMarketCatalog(store).items,
+    };
+  });
+
+  sendJson(response, 201, payload);
+}
+
+async function handleUpdateAdminMarketItem(request, response, itemId) {
+  const body = await parseJsonBody(request);
+
+  const payload = mutateStore((store) => {
+    ensureMarketCatalogStore(store);
+    const item = store.marketCatalog.find((entry) => entry.id === itemId);
+
+    if (!item) {
+      throw new ApiError(404, '수정할 마켓 상품을 찾지 못했어.');
+    }
+
+    Object.assign(item, normalizeAdminMarketItemInput(body));
+
+    return {
+      success: true,
+      item: buildAdminMarketItem(store, item),
+      items: buildAdminMarketCatalog(store).items,
+    };
+  });
+
+  sendJson(response, 200, payload);
+}
+
+function handleDeleteAdminMarketItem(response, itemId) {
+  const payload = mutateStore((store) => {
+    ensureMarketCatalogStore(store);
+    const nextItems = store.marketCatalog.filter((entry) => entry.id !== itemId);
+
+    if (nextItems.length === store.marketCatalog.length) {
+      throw new ApiError(404, '삭제할 마켓 상품을 찾지 못했어.');
+    }
+
+    store.marketCatalog = nextItems;
+    return buildAdminMarketCatalog(store);
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleUpdateAdminRewardRedemption(request, response, redemptionId) {
+  const body = await parseJsonBody(request);
+
+  const payload = mutateStore((store) => {
+    const redemption = (store.rewardRedemptions ?? []).find((entry) => entry.id === redemptionId);
+
+    if (!redemption) {
+      throw new ApiError(404, '수정할 교환 요청을 찾지 못했어.');
+    }
+
+    const nextStatus = validateRewardRedemptionStatus(body.status);
+    const adminNote = normalizeOptionalString(body.adminNote);
+    redemption.status = nextStatus;
+    redemption.adminNote = adminNote;
+
+    if (nextStatus === 'fulfilled') {
+      redemption.fulfilledAt = new Date().toISOString();
+    } else if (Object.prototype.hasOwnProperty.call(redemption, 'fulfilledAt')) {
+      delete redemption.fulfilledAt;
+    }
+
+    return {
+      success: true,
+      item: buildAdminRewardRedemption(store, redemption),
+      items: buildAdminRewardRedemptions(store).items,
+    };
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleCreateAdminNotice(request, response) {
+  const body = await parseJsonBody(request);
+
+  const payload = mutateStore((store) => {
+    ensureNoticeStore(store);
+    const timestamp = new Date().toISOString();
+    const notice = {
+      id: nextId('notice'),
+      ...normalizeAdminNoticeInput(body),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+
+    store.notices.push(notice);
+
+    return {
+      success: true,
+      item: buildNoticeEntry(notice),
+      items: buildAdminNotices(store).items,
+    };
+  });
+
+  sendJson(response, 201, payload);
+}
+
+async function handleUpdateAdminNotice(request, response, noticeId) {
+  const body = await parseJsonBody(request);
+
+  const payload = mutateStore((store) => {
+    ensureNoticeStore(store);
+    const notice = store.notices.find((entry) => entry.id === noticeId);
+
+    if (!notice) {
+      throw new ApiError(404, '수정할 공지를 찾지 못했어.');
+    }
+
+    Object.assign(notice, normalizeAdminNoticeInput(body), {
+      updatedAt: new Date().toISOString(),
+    });
+
+    return {
+      success: true,
+      item: buildNoticeEntry(notice),
+      items: buildAdminNotices(store).items,
+    };
+  });
+
+  sendJson(response, 200, payload);
+}
+
+function handleDeleteAdminNotice(response, noticeId) {
+  const payload = mutateStore((store) => {
+    ensureNoticeStore(store);
+    const nextItems = store.notices.filter((entry) => entry.id !== noticeId);
+
+    if (nextItems.length === store.notices.length) {
+      throw new ApiError(404, '삭제할 공지를 찾지 못했어.');
+    }
+
+    store.notices = nextItems;
+    return buildAdminNotices(store);
+  });
+
+  sendJson(response, 200, payload);
+}
+
+function handleDeleteAdminUser(response, userId) {
+  const payload = mutateStore((store) => {
+    ensureOfflineRaceStore(store);
+    const deletedUser = findUserById(store, userId);
+
+    store.users = store.users.filter((entry) => entry.id !== userId);
+    store.runs = store.runs.filter((entry) => entry.userId !== userId);
+    store.sessions = store.sessions.filter((entry) => entry.userId !== userId);
+    store.friendships = store.friendships.filter((entry) => !entry.userIds.includes(userId));
+    store.friendRequests = store.friendRequests.filter((entry) => entry.requesterId !== userId && entry.receiverId !== userId);
+    store.rewardRedemptions = (store.rewardRedemptions ?? []).filter((entry) => entry.userId !== userId);
+    store.integrationImports = ensureIntegrationImports(store).filter((entry) => entry.userId !== userId);
+
+    for (const event of store.offlineRaceEvents) {
+      event.registeredUserTags = (event.registeredUserTags ?? []).filter((tag) => tag !== deletedUser.publicTag);
+    }
+
+    return {
+      success: true,
+      deletedUserId: deletedUser.id,
+      users: buildAdminUsers(store).users,
+    };
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleCreateAdminOfflineRaceEvent(request, response) {
+  const body = await parseJsonBody(request);
+
+  const payload = mutateStore((store) => {
+    ensureOfflineRaceStore(store);
+    const event = {
+      id: nextId('race'),
+      ...normalizeAdminOfflineRaceEventInput(body),
+      registeredUserTags: [],
+    };
+
+    store.offlineRaceEvents.push(event);
+
+    return {
+      success: true,
+      event: buildAdminOfflineRaceEvent(store, event),
+      events: buildAdminOfflineRaceEvents(store).events,
+    };
+  });
+
+  sendJson(response, 201, payload);
+}
+
+async function handleUpdateAdminOfflineRaceEvent(request, response, eventId) {
+  const body = await parseJsonBody(request);
+
+  const payload = mutateStore((store) => {
+    ensureOfflineRaceStore(store);
+    const event = store.offlineRaceEvents.find((entry) => entry.id === eventId);
+
+    if (!event) {
+      throw new ApiError(404, '수정할 레이스를 찾지 못했어.');
+    }
+
+    Object.assign(event, normalizeAdminOfflineRaceEventInput(body));
+
+    return {
+      success: true,
+      event: buildAdminOfflineRaceEvent(store, event),
+      events: buildAdminOfflineRaceEvents(store).events,
+    };
+  });
+
+  sendJson(response, 200, payload);
+}
+
+function handleDeleteAdminOfflineRaceEvent(response, eventId) {
+  const payload = mutateStore((store) => {
+    ensureOfflineRaceStore(store);
+    const nextEvents = store.offlineRaceEvents.filter((entry) => entry.id !== eventId);
+
+    if (nextEvents.length === store.offlineRaceEvents.length) {
+      throw new ApiError(404, '삭제할 레이스를 찾지 못했어.');
+    }
+
+    store.offlineRaceEvents = nextEvents;
+    return buildAdminOfflineRaceEvents(store);
+  });
+
+  sendJson(response, 200, payload);
+}
+
+function handleOfflineRaceEntryAction(request, response, eventId, action) {
+  const payload = mutateStore((store) => {
+    ensureOfflineRaceStore(store);
+    const user = requireUser(store, request);
+    const event = store.offlineRaceEvents.find((entry) => entry.id === eventId);
+
+    if (!event) {
+      throw new ApiError(404, '선택한 레이스를 찾지 못했어.');
+    }
+
+    const status = getOfflineRaceStatus(event);
+
+    if (!['registration_open', 'registration_closing'].includes(status)) {
+      throw new ApiError(409, '지금은 신청을 처리할 수 없는 회차야.');
+    }
+
+    const registeredUserTags = [...new Set(event.registeredUserTags ?? [])];
+    const alreadyRegistered = registeredUserTags.includes(user.publicTag);
+
+    if (action === 'join') {
+      if (alreadyRegistered) {
+        throw new ApiError(409, '이미 신청한 레이스야.');
+      }
+
+      if (registeredUserTags.length >= event.capacity) {
+        throw new ApiError(409, '정원이 모두 차서 더 이상 신청할 수 없어.');
+      }
+
+      event.registeredUserTags = [...registeredUserTags, user.publicTag];
+    }
+
+    if (action === 'cancel') {
+      if (!alreadyRegistered) {
+        throw new ApiError(409, '아직 신청하지 않은 레이스야.');
+      }
+
+      event.registeredUserTags = registeredUserTags.filter((tag) => tag !== user.publicTag);
+    }
+
+    return {
+      success: true,
+      event: decorateOfflineRaceEvent(store, event, user),
     };
   });
 
@@ -1607,16 +2411,24 @@ function handleFriendRequestAction(request, response, requestId, action) {
   sendJson(response, 200, payload);
 }
 
-function buildOfflineRaceHub() {
+function buildOfflineRaceHub(store, user) {
+  ensureOfflineRaceStore(store);
+  const sortedEvents = [...store.offlineRaceEvents]
+    .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
+  const upcomingEvents = sortedEvents
+    .filter((event) => getOfflineRaceStatus(event) !== 'finished')
+    .map((event) => decorateOfflineRaceEvent(store, event, user));
+  const featuredEvent = upcomingEvents.find((event) => event.registered) ?? upcomingEvents[0] ?? null;
+
   return {
-    featuredEvent: null,
-    upcomingEvents: [],
-    pastEvents: [],
-    guideSteps: [
-      '오프라인 마라톤 일정이 열리면 여기에서 날짜별로 바로 신청할 수 있어요.',
-      '지금은 일정 등록 전이라 신청 가능한 회차가 없어요.',
-      '실제 운영 일정이 준비되면 시간대와 거리 선택이 함께 열릴 예정이에요.',
-    ],
+    featuredEvent,
+    upcomingEvents: upcomingEvents.filter((event) => event.id !== featuredEvent?.id),
+    pastEvents: sortedEvents
+      .filter((event) => getOfflineRaceStatus(event) === 'finished')
+      .sort((left, right) => new Date(right.startsAt).getTime() - new Date(left.startsAt).getTime())
+      .slice(0, 8)
+      .map((event) => buildOfflineRacePastEvent(store, event)),
+    guideSteps: [...(store.offlineRaceGuideSteps ?? DEFAULT_OFFLINE_RACE_GUIDE_STEPS)],
   };
 }
 
@@ -1660,6 +2472,12 @@ async function routeRequest(request, response) {
     return;
   }
 
+  if (pathname === '/api/admin/session' && request.method === 'GET') {
+    requireAdmin(request);
+    sendJson(response, 200, buildAdminSession());
+    return;
+  }
+
   if (pathname === '/api/admin/reset' && request.method === 'POST') {
     if (!ENABLE_RESET_ENDPOINT) {
       throw new ApiError(404, '관리자 리셋 기능이 비활성화되어 있어.');
@@ -1675,6 +2493,124 @@ async function routeRequest(request, response) {
     };
 
     sendJson(response, 200, payload);
+    return;
+  }
+
+  if (pathname === '/api/admin/overview' && request.method === 'GET') {
+    requireAdmin(request);
+    const store = loadStore();
+    sendJson(response, 200, buildAdminOverview(store));
+    return;
+  }
+
+  if (pathname === '/api/admin/users' && request.method === 'GET') {
+    requireAdmin(request);
+    const store = loadStore();
+    sendJson(response, 200, buildAdminUsers(store));
+    return;
+  }
+
+  const adminUserMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
+
+  if (adminUserMatch && request.method === 'DELETE') {
+    requireAdmin(request);
+    handleDeleteAdminUser(response, adminUserMatch[1]);
+    return;
+  }
+
+  if (pathname === '/api/admin/market/items' && request.method === 'GET') {
+    requireAdmin(request);
+    const store = loadStore();
+    sendJson(response, 200, buildAdminMarketCatalog(store));
+    return;
+  }
+
+  if (pathname === '/api/admin/notices' && request.method === 'GET') {
+    requireAdmin(request);
+    const store = loadStore();
+    sendJson(response, 200, buildAdminNotices(store));
+    return;
+  }
+
+  if (pathname === '/api/admin/reward-redemptions' && request.method === 'GET') {
+    requireAdmin(request);
+    const store = loadStore();
+    sendJson(response, 200, buildAdminRewardRedemptions(store));
+    return;
+  }
+
+  if (pathname === '/api/admin/market/items' && request.method === 'POST') {
+    requireAdmin(request);
+    await handleCreateAdminMarketItem(request, response);
+    return;
+  }
+
+  if (pathname === '/api/admin/notices' && request.method === 'POST') {
+    requireAdmin(request);
+    await handleCreateAdminNotice(request, response);
+    return;
+  }
+
+  const adminMarketItemMatch = pathname.match(/^\/api\/admin\/market\/items\/([^/]+)$/);
+
+  if (adminMarketItemMatch && request.method === 'PATCH') {
+    requireAdmin(request);
+    await handleUpdateAdminMarketItem(request, response, adminMarketItemMatch[1]);
+    return;
+  }
+
+  if (adminMarketItemMatch && request.method === 'DELETE') {
+    requireAdmin(request);
+    handleDeleteAdminMarketItem(response, adminMarketItemMatch[1]);
+    return;
+  }
+
+  const adminNoticeMatch = pathname.match(/^\/api\/admin\/notices\/([^/]+)$/);
+
+  if (adminNoticeMatch && request.method === 'PATCH') {
+    requireAdmin(request);
+    await handleUpdateAdminNotice(request, response, adminNoticeMatch[1]);
+    return;
+  }
+
+  if (adminNoticeMatch && request.method === 'DELETE') {
+    requireAdmin(request);
+    handleDeleteAdminNotice(response, adminNoticeMatch[1]);
+    return;
+  }
+
+  const adminRewardRedemptionMatch = pathname.match(/^\/api\/admin\/reward-redemptions\/([^/]+)$/);
+
+  if (adminRewardRedemptionMatch && request.method === 'PATCH') {
+    requireAdmin(request);
+    await handleUpdateAdminRewardRedemption(request, response, adminRewardRedemptionMatch[1]);
+    return;
+  }
+
+  if (pathname === '/api/admin/offline-races/events' && request.method === 'GET') {
+    requireAdmin(request);
+    const store = loadStore();
+    sendJson(response, 200, buildAdminOfflineRaceEvents(store));
+    return;
+  }
+
+  if (pathname === '/api/admin/offline-races/events' && request.method === 'POST') {
+    requireAdmin(request);
+    await handleCreateAdminOfflineRaceEvent(request, response);
+    return;
+  }
+
+  const adminOfflineRaceEventMatch = pathname.match(/^\/api\/admin\/offline-races\/events\/([^/]+)$/);
+
+  if (adminOfflineRaceEventMatch && request.method === 'PATCH') {
+    requireAdmin(request);
+    await handleUpdateAdminOfflineRaceEvent(request, response, adminOfflineRaceEventMatch[1]);
+    return;
+  }
+
+  if (adminOfflineRaceEventMatch && request.method === 'DELETE') {
+    requireAdmin(request);
+    handleDeleteAdminOfflineRaceEvent(response, adminOfflineRaceEventMatch[1]);
     return;
   }
 
@@ -1702,6 +2638,12 @@ async function routeRequest(request, response) {
   if (pathname === '/api/catalog/universities' && request.method === 'GET') {
     const store = loadStore();
     sendJson(response, 200, buildUniversityCatalog(store));
+    return;
+  }
+
+  if (pathname === '/api/notices/active' && request.method === 'GET') {
+    const store = loadStore();
+    sendJson(response, 200, buildActiveNotices(store));
     return;
   }
 
@@ -1761,17 +2703,16 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/offline-races/hub' && request.method === 'GET') {
     const store = loadStore();
-    requireUser(store, request);
-    sendJson(response, 200, buildOfflineRaceHub());
+    const user = requireUser(store, request);
+    sendJson(response, 200, buildOfflineRaceHub(store, user));
     return;
   }
 
   const offlineRaceActionMatch = pathname.match(/^\/api\/offline-races\/([^/]+)\/(join|cancel)$/);
 
   if (offlineRaceActionMatch && request.method === 'POST') {
-    const store = loadStore();
-    requireUser(store, request);
-    throw new ApiError(404, '신청 가능한 레이스가 아직 없어.');
+    handleOfflineRaceEntryAction(request, response, offlineRaceActionMatch[1], offlineRaceActionMatch[2]);
+    return;
   }
 
   const marketClaimMatch = pathname.match(/^\/api\/market\/items\/([^/]+)\/claim$/);

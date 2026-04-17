@@ -9,6 +9,7 @@ const PUBLIC_ROUTES = new Set([
   '/login',
   '/signup',
   '/signup-form',
+  '/admin',
 ]);
 
 export default function RootLayout() {
@@ -34,7 +35,7 @@ export default function RootLayout() {
     return <Redirect href="/onboarding" />;
   }
 
-  if (signedIn && isPublicRoute && pathname !== '/') {
+  if (signedIn && isPublicRoute && pathname !== '/' && pathname !== '/admin') {
     return <Redirect href="/(tabs)/home" />;
   }
 
@@ -44,6 +45,7 @@ export default function RootLayout() {
       <Stack.Screen name="signup" />
       <Stack.Screen name="signup-form" />
       <Stack.Screen name="login" />
+      <Stack.Screen name="admin" />
       <Stack.Screen name="connect-sources" />
       <Stack.Screen name="add-friend" />
       <Stack.Screen name="edit-profile" />

@@ -640,6 +640,236 @@ async function main() {
     assert(adminStatus.counts.users === 2, '관리자 상태 사용자 수가 예상과 달라.');
     logStep('admin status ok');
 
+    const adminSession = await request('/admin/session', {
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    });
+    assert(adminSession.success === true, '관리자 세션 확인이 성공하지 않았어.');
+    assert(adminSession.environment === 'development', '관리자 세션 환경 값이 예상과 달라.');
+
+    const adminOverview = await request('/admin/overview', {
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    });
+    assert(adminOverview.counts.users === 2, '관리자 개요 사용자 수가 예상과 달라.');
+    assert(adminOverview.counts.notices === 0, '초기 공지 수는 0이어야 해.');
+
+    const adminUsers = await request('/admin/users', {
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    });
+    assert(adminUsers.users.length === 2, '관리자 회원 목록 사용자 수가 예상과 달라.');
+
+    const createdAdminNotice = await request('/admin/notices', {
+      expectedStatuses: [201],
+      method: 'POST',
+      headers: {
+        'X-Admin-Token': adminToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: '이번 주 점검 안내',
+        message: '토요일 오전 2시에 서버 점검이 있어요.',
+        priority: 3,
+        isActive: true,
+      }),
+    });
+    assert(createdAdminNotice.item.title === '이번 주 점검 안내', '관리자 공지 추가가 반영되지 않았어.');
+
+    const activeNotices = await request('/notices/active');
+    assert(activeNotices.items.length === 1, '활성 공지 목록 개수가 예상과 달라.');
+    assert(activeNotices.items[0].title === '이번 주 점검 안내', '활성 공지 제목이 예상과 달라.');
+
+    const updatedAdminNotice = await request(`/admin/notices/${createdAdminNotice.item.id}`, {
+      method: 'PATCH',
+      headers: {
+        'X-Admin-Token': adminToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: '이번 주 점검 시간 변경',
+        message: '토요일 오전 3시에 서버 점검이 있어요.',
+        priority: 5,
+        isActive: true,
+      }),
+    });
+    assert(updatedAdminNotice.item.priority === 5, '관리자 공지 수정이 반영되지 않았어.');
+
+    const deletedAdminNotices = await request(`/admin/notices/${createdAdminNotice.item.id}`, {
+      method: 'DELETE',
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    });
+    assert(deletedAdminNotices.items.length === 0, '관리자 공지 삭제가 반영되지 않았어.');
+
+    const createdAdminMarketItem = await request('/admin/market/items', {
+      expectedStatuses: [201],
+      method: 'POST',
+      headers: {
+        'X-Admin-Token': adminToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: '스모크 상품',
+        category: '테스트',
+        description: '관리자 상품 추가 테스트용',
+        costPoints: 5,
+        partnerName: '스모크 파트너',
+        repeatable: false,
+        isActive: true,
+        inventoryCount: 25,
+      }),
+    });
+    assert(createdAdminMarketItem.item.title === '스모크 상품', '관리자 상품 추가가 반영되지 않았어.');
+    assert(createdAdminMarketItem.item.remainingStock === 25, '관리자 상품 재고가 예상과 달라.');
+
+    const renewedLogin = await request('/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: 'smoke-user',
+        password: 'smoke-pass',
+      }),
+    });
+    const renewedAccessToken = renewedLogin.accessToken;
+
+    const claimedAdminMarketItem = await request(`/market/items/${createdAdminMarketItem.item.id}/claim`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${renewedAccessToken}`,
+      },
+    });
+    assert(claimedAdminMarketItem.success === true, '관리자 생성 상품 교환이 실패했어.');
+
+    const adminRewardRedemptions = await request('/admin/reward-redemptions', {
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    });
+    assert(adminRewardRedemptions.items.length === 1, '관리자 교환 목록 개수가 예상과 달라.');
+    assert(adminRewardRedemptions.items[0].status === 'requested', '새 교환 요청 상태는 requested 여야 해.');
+
+    const updatedAdminRewardRedemption = await request(`/admin/reward-redemptions/${adminRewardRedemptions.items[0].id}`, {
+      method: 'PATCH',
+      headers: {
+        'X-Admin-Token': adminToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        status: 'fulfilled',
+        adminNote: '발송 완료',
+      }),
+    });
+    assert(updatedAdminRewardRedemption.item.status === 'fulfilled', '관리자 교환 상태 수정이 반영되지 않았어.');
+    assert(updatedAdminRewardRedemption.item.adminNote === '발송 완료', '관리자 교환 메모가 저장되지 않았어.');
+
+    const updatedAdminMarketItem = await request(`/admin/market/items/${createdAdminMarketItem.item.id}`, {
+      method: 'PATCH',
+      headers: {
+        'X-Admin-Token': adminToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: '스모크 상품 수정',
+        category: '테스트',
+        description: '관리자 상품 수정 테스트용',
+        costPoints: 8,
+        partnerName: '스모크 파트너',
+        repeatable: true,
+        isActive: false,
+        inventoryCount: 20,
+      }),
+    });
+    assert(updatedAdminMarketItem.item.title === '스모크 상품 수정', '관리자 상품 수정이 반영되지 않았어.');
+    assert(updatedAdminMarketItem.item.isActive === false, '관리자 상품 활성 상태 수정이 반영되지 않았어.');
+
+    const deletedAdminMarketItems = await request(`/admin/market/items/${createdAdminMarketItem.item.id}`, {
+      method: 'DELETE',
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    });
+    assert(
+      deletedAdminMarketItems.items.every((item) => item.id !== createdAdminMarketItem.item.id),
+      '관리자 상품 삭제가 반영되지 않았어.',
+    );
+
+    const createdAdminRaceEvent = await request('/admin/offline-races/events', {
+      expectedStatuses: [201],
+      method: 'POST',
+      headers: {
+        'X-Admin-Token': adminToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: '스모크 레이스',
+        subtitle: '관리자 레이스 추가 테스트',
+        distanceKm: 10,
+        startsAt: '2026-05-01T20:00',
+        registrationClosesAt: '2026-05-01T19:00',
+        participationMode: '각자 러닝 후 기록 제출',
+        proofMethod: '연동 기록 제출',
+        runWindowMinutes: 180,
+        hostLabel: 'RUNNIGAPP',
+        capacity: 80,
+        entryFeePoints: 0,
+        operationNote: '관리자 레이스 테스트 메모',
+      }),
+    });
+    assert(createdAdminRaceEvent.event.title === '스모크 레이스', '관리자 레이스 추가가 반영되지 않았어.');
+    assert(createdAdminRaceEvent.event.participantCount === 0, '새 레이스 참가자 수는 0이어야 해.');
+
+    const updatedAdminRaceEvent = await request(`/admin/offline-races/events/${createdAdminRaceEvent.event.id}`, {
+      method: 'PATCH',
+      headers: {
+        'X-Admin-Token': adminToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: '스모크 레이스 수정',
+        subtitle: '관리자 레이스 수정 테스트',
+        distanceKm: 15,
+        startsAt: '2026-05-02T21:00',
+        registrationClosesAt: '2026-05-02T20:00',
+        participationMode: '자율 집결 없이 각자 출발',
+        proofMethod: '앱 기록 인증',
+        runWindowMinutes: 240,
+        hostLabel: 'RUNNIGAPP',
+        capacity: 120,
+        entryFeePoints: 10,
+        operationNote: '관리자 레이스 수정 메모',
+      }),
+    });
+    assert(updatedAdminRaceEvent.event.distanceKm === 15, '관리자 레이스 수정이 반영되지 않았어.');
+    assert(updatedAdminRaceEvent.event.capacity === 120, '관리자 레이스 정원 수정이 반영되지 않았어.');
+
+    const deletedAdminRaceEvents = await request(`/admin/offline-races/events/${createdAdminRaceEvent.event.id}`, {
+      method: 'DELETE',
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    });
+    assert(
+      deletedAdminRaceEvents.events.every((event) => event.id !== createdAdminRaceEvent.event.id),
+      '관리자 레이스 삭제가 반영되지 않았어.',
+    );
+
+    const deletedAdminUser = await request(`/admin/users/${friendId}`, {
+      method: 'DELETE',
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    });
+    assert(deletedAdminUser.deletedUserId === friendId, '관리자 회원 삭제 응답이 올바르지 않아.');
+    assert(deletedAdminUser.users.length === 1, '관리자 회원 삭제 후 사용자 수가 예상과 달라.');
+    logStep('admin crud ok');
+
     const adminReset = await request('/admin/reset', {
       method: 'POST',
       headers: {
