@@ -96,6 +96,7 @@ function buildResolvedBackendEnvironment(env, options = {}) {
     backupDirectory,
     backupOnSave: parseBoolean(env.BACKEND_STORE_BACKUP_ON_SAVE, appEnv !== 'development'),
     backupRetention: Math.max(1, parseNumber(env.BACKEND_STORE_BACKUP_RETENTION, 10)),
+    tmapAppKey: normalizeOptionalString(env.BACKEND_TMAP_APP_KEY),
     publicDomain: normalizeOptionalString(env.PUBLIC_DOMAIN),
     acmeEmail: normalizeOptionalString(env.ACME_EMAIL),
   };
@@ -150,6 +151,10 @@ function validateBackendReleaseEnvironment(env, options = {}) {
 
     if (resolved.backupRetention < 5) {
       warnings.push('BACKEND_STORE_BACKUP_RETENTION 이 5보다 작아. 운영용이면 보관 개수를 조금 더 두는 편이 안전해.');
+    }
+
+    if (!resolved.tmapAppKey) {
+      warnings.push('BACKEND_TMAP_APP_KEY 가 없어서 지도로 그림 그리기 추천선은 도보 경로 대신 윤곽선 fallback 으로 동작할 거야.');
     }
   }
 
@@ -212,6 +217,7 @@ function formatBackendReleaseValidationReport(result) {
     `[backend-release-check] store file: ${result.resolved.storeFile || '(not set)'}`,
     `[backend-release-check] backup on save: ${result.resolved.backupOnSave ? 'true' : 'false'}`,
     `[backend-release-check] backup retention: ${result.resolved.backupRetention}`,
+    `[backend-release-check] tmap pedestrian route: ${result.resolved.tmapAppKey ? 'configured' : 'not configured'}`,
   ];
 
   if (result.errors.length > 0) {

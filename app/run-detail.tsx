@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -10,9 +9,10 @@ import { fetchRunDetail } from '@/lib/api/services';
 import { RunDetailResponse } from '@/lib/api/types';
 import { getRunSourceLabel } from '@/features/runs/sourceLabel';
 import { formatDuration, getRunMapRegion } from '@/features/runs/tracking';
+import { RunRouteMap } from '@/features/runs/RunRouteMap';
 
 export default function RunDetailScreen() {
-  const { runId, friendId } = useLocalSearchParams<{ runId?: string; friendId?: string }>();
+  const { runId, friendId, origin } = useLocalSearchParams<{ runId?: string; friendId?: string; origin?: string }>();
   const [runDetail, setRunDetail] = useState<RunDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +24,16 @@ export default function RunDetailScreen() {
       .finally(() => setLoading(false));
   }, [friendId, runId]);
 
-  const backHref: Href = friendId ? { pathname: '/friend-detail', params: { friendId } } : '/my-activity';
-  const backLabel = friendId ? '친구 활동으로 돌아가기' : '내 활동으로 돌아가기';
+  const backHref: Href = friendId
+    ? { pathname: '/friend-detail', params: { friendId } }
+    : origin === 'running'
+      ? '/(tabs)/running'
+      : '/my-activity';
+  const backLabel = friendId
+    ? '친구 활동으로 돌아가기'
+    : origin === 'running'
+      ? '런닝으로 돌아가기'
+      : '내 활동으로 돌아가기';
   const sourceLabel = runDetail ? getRunSourceLabel(runDetail.run) : '';
   const routeCoordinates = runDetail?.run.route?.map((point) => ({
     latitude: point.latitude,
@@ -67,22 +75,13 @@ export default function RunDetailScreen() {
             <Card style={styles.mapCard}>
               <Text style={styles.sectionTitle}>러닝 경로</Text>
               <View style={styles.mapWrap}>
-                <MapView
-                  style={StyleSheet.absoluteFill}
+                <RunRouteMap
+                  actualCoordinates={routeCoordinates}
+                  latestCoordinate={routeCoordinates.length ? routeCoordinates[routeCoordinates.length - 1] : null}
                   initialRegion={mapRegion}
-                  scrollEnabled={false}
-                  zoomEnabled={false}
-                  rotateEnabled={false}
-                  pitchEnabled={false}
-                  toolbarEnabled={false}
-                >
-                  {routeCoordinates.length > 1 ? (
-                    <Polyline coordinates={routeCoordinates} strokeColor="#6D5EF7" strokeWidth={5} />
-                  ) : null}
-                  {routeCoordinates.length ? (
-                    <Marker coordinate={routeCoordinates[routeCoordinates.length - 1]} />
-                  ) : null}
-                </MapView>
+                  emptyTitle="저장된 러닝 경로를 불러오는 중이에요."
+                  emptyText="이 기록에는 지도 경로가 함께 저장돼 있어요."
+                />
               </View>
             </Card>
           ) : null}

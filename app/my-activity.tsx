@@ -44,7 +44,7 @@ export default function MyActivityScreen() {
       {activity ? (
         <>
           <View style={styles.actionColumn}>
-            <PrimaryButton label="실시간 러닝 측정" onPress={() => router.push('/track-run')} />
+            <PrimaryButton label="런닝 탭으로 이동" onPress={() => router.push('/(tabs)/running')} />
             <SecondaryButton label="수동 기록 추가" onPress={() => router.push('/add-run')} />
           </View>
 

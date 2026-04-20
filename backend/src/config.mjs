@@ -122,6 +122,8 @@ export const STORE_BACKUP_DIRECTORY = resolveConfiguredPath(
 export const STORE_BACKUP_ON_SAVE = parseBoolean(process.env.BACKEND_STORE_BACKUP_ON_SAVE, APP_ENV !== 'development');
 export const STORE_BACKUP_RETENTION = Math.max(1, parseNumber(process.env.BACKEND_STORE_BACKUP_RETENTION, 10));
 export const PUBLIC_BASE_URL = normalizeOptionalString(process.env.BACKEND_PUBLIC_BASE_URL) || '';
+export const TMAP_APP_KEY = normalizeOptionalString(process.env.BACKEND_TMAP_APP_KEY) || '';
+export const KAKAO_MOBILITY_REST_API_KEY = normalizeOptionalString(process.env.BACKEND_KAKAO_MOBILITY_REST_API_KEY) || '';
 export const ADMIN_TOKEN = process.env.BACKEND_ADMIN_TOKEN ?? '';
 export const SESSION_TTL_HOURS = Math.max(1, parseNumber(process.env.BACKEND_SESSION_TTL_HOURS, 24 * 7));
 export const SESSION_TTL_MS = SESSION_TTL_HOURS * 60 * 60 * 1000;
@@ -158,6 +160,8 @@ export function getPublicBackendConfig() {
     storeBackupOnSave: STORE_BACKUP_ON_SAVE,
     storeBackupRetention: STORE_BACKUP_RETENTION,
     publicBaseUrl: PUBLIC_BASE_URL || undefined,
+    tmapPedestrianConfigured: Boolean(TMAP_APP_KEY),
+    kakaoMobilityConfigured: Boolean(KAKAO_MOBILITY_REST_API_KEY),
     sessionTtlHours: SESSION_TTL_HOURS,
     maxBodySizeKb: MAX_BODY_SIZE_KB,
     adminStatusEnabled: ENABLE_ADMIN_STATUS,

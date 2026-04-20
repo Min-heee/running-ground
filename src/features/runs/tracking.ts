@@ -1,5 +1,7 @@
 import { RunRoutePoint } from '@/domain/types';
 
+export type MapCoordinate = Pick<RunRoutePoint, 'latitude' | 'longitude'>;
+
 export type RunMapRegion = {
   latitude: number;
   longitude: number;
@@ -46,7 +48,7 @@ export function formatPaceFromSpeedMps(speedMps?: number | null) {
   return formatPaceFromSecondsPerKm(1000 / speedMps);
 }
 
-export function calculateDistanceBetweenPoints(start: RunRoutePoint, end: RunRoutePoint) {
+export function calculateDistanceBetweenPoints(start: MapCoordinate, end: MapCoordinate) {
   const latitudeDelta = toRadians(end.latitude - start.latitude);
   const longitudeDelta = toRadians(end.longitude - start.longitude);
   const startLatitude = toRadians(start.latitude);
@@ -117,13 +119,13 @@ export function buildAveragePace(distanceKm: number, elapsedSeconds: number) {
   return formatPaceFromSecondsPerKm(elapsedSeconds / distanceKm);
 }
 
-export function getRunMapRegion(route: RunRoutePoint[]): RunMapRegion | null {
-  if (!route.length) {
+export function getMapRegion(coordinates: MapCoordinate[]): RunMapRegion | null {
+  if (!coordinates.length) {
     return null;
   }
 
-  const latitudes = route.map((point) => point.latitude);
-  const longitudes = route.map((point) => point.longitude);
+  const latitudes = coordinates.map((point) => point.latitude);
+  const longitudes = coordinates.map((point) => point.longitude);
   const minLatitude = Math.min(...latitudes);
   const maxLatitude = Math.max(...latitudes);
   const minLongitude = Math.min(...longitudes);
@@ -135,4 +137,8 @@ export function getRunMapRegion(route: RunRoutePoint[]): RunMapRegion | null {
     latitudeDelta: Math.max((maxLatitude - minLatitude) * 1.6, 0.008),
     longitudeDelta: Math.max((maxLongitude - minLongitude) * 1.6, 0.008),
   };
+}
+
+export function getRunMapRegion(route: RunRoutePoint[]) {
+  return getMapRegion(route);
 }

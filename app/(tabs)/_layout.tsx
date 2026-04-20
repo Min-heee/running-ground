@@ -1,10 +1,12 @@
 import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 const TAB_TITLES = {
   league: '\uB9AC\uADF8',
   friends: '\uCE5C\uAD6C',
   home: '\uD648',
+  running: '\uB7F0\uB2DD',
   race: '\uB808\uC774\uC2A4',
   market: '\uB9C8\uCF13',
   mypage: '\uB9C8\uC774',
@@ -36,7 +38,7 @@ export default function TabsLayout() {
           elevation: 10,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '700',
           marginTop: 2,
         },
@@ -67,6 +69,13 @@ export default function TabsLayout() {
         options={{
           title: TAB_TITLES.home,
           tabBarIcon: ({ color, size }) => <Feather name={TAB_ICONS.home} size={size ?? 18} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="running"
+        options={{
+          title: TAB_TITLES.running,
+          tabBarIcon: ({ color, size }) => <Ionicons name="footsteps-outline" size={size ?? 18} color={color} />,
         }}
       />
       <Tabs.Screen

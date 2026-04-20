@@ -22,6 +22,8 @@ import {
   ActiveNoticesResponse,
   CreateManualRunInput,
   CreateManualRunResponse,
+  CreateRunningRoutePreviewInput,
+  CreateRunningRoutePreviewResponse,
   CreateTrackedRunInput,
   CreateTrackedRunResponse,
   CreateFriendRequestResponse,
@@ -632,6 +634,34 @@ export async function createTrackedRun(input: CreateTrackedRunInput): Promise<Cr
 
   await fetchMyProfile();
   return createdRun;
+}
+
+export async function createRunningRoutePreview(
+  input: CreateRunningRoutePreviewInput,
+): Promise<CreateRunningRoutePreviewResponse> {
+  if (USE_MOCK_API) {
+    return {
+      displayTitle: input.displayTitle,
+      description: input.description,
+      startLabel: input.startLabel,
+      requestedKeyword: input.keyword,
+      requestedDistanceKm: Number(input.desiredDistanceKm.toFixed(1)),
+      estimatedDistanceKm: Number(input.desiredDistanceKm.toFixed(2)),
+      coordinates: input.roughCoordinates,
+      provider: 'template',
+      roadFollowed: false,
+      warning: '로컬 미리보기 모드에서는 도보 경로 엔진 대신 그림 윤곽선을 먼저 보여드려요.',
+    };
+  }
+
+  return apiPost<CreateRunningRoutePreviewResponse>(
+    '/running/route-preview',
+    input,
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '추천 그림 경로를 만들지 못했어.',
+    },
+  );
 }
 
 export async function fetchFriendLeaderboard(): Promise<FriendLeaderboardResponse> {

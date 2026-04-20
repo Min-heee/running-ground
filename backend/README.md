@@ -19,6 +19,27 @@ npm run backend:dev
 
 기본 주소는 `http://localhost:8081` 이고, 앱에서는 `/api` 를 붙여서 사용해.
 
+### 1.1. 러닝 추천 경로용 TMAP 보행자 키
+
+`지도로 그림 그리기` 추천선을 실제 도보 길 기준으로 맞추려면 백엔드에 아래 키를 넣어두는 게 좋아.
+
+```bash
+BACKEND_TMAP_APP_KEY=발급받은_TMAP_APP_KEY
+```
+
+지금 백엔드는 이 순서로 추천선을 만들어요.
+- `TMAP 보행자 경로`
+- 가능하면 `카카오 길찾기`
+- 둘 다 없거나 실패하면 `그림 윤곽선 fallback`
+
+주의할 점:
+- TMAP 공식 약관에는 Open API로 얻은 데이터를 `저장 후 24시간 이상 사용할 수 없다`는 제약이 있어.
+- 그래서 이 추천 경로는 `실시간 미리보기/가이드` 용도로 쓰고, 장기 저장 데이터는 실제로 뛴 GPS 기록 위주로 가져가는 게 안전해.
+
+참고:
+- [TMAP API 가이드](https://tmapapi.tmapmobility.com/index.html)
+- [TMAP API 약관](https://tmapapi.tmapmobility.com/terms.html)
+
 ## 2. Docker 실행
 
 Docker Desktop이 있으면 아래처럼 바로 올릴 수 있어.

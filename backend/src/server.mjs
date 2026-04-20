@@ -19,6 +19,7 @@ import {
 import { buildSessionExpiry, isSessionExpired, setUserPassword, verifyPassword } from './auth.mjs';
 import { buildUserRunMetrics, getAvailableRewardPoints, getRunPointValue, parsePaceToMinutes } from './points.mjs';
 import { addressCatalog } from './addressCatalog.mjs';
+import { buildRoadAlignedRoutePreview } from './routing.mjs';
 const STARTED_AT = new Date().toISOString();
 const metricsCacheByStore = new WeakMap();
 const SOURCE_LABEL_BY_TYPE = {
@@ -1468,6 +1469,38 @@ function validateTrackedRoute(rawRoute) {
   });
 }
 
+function validateRoutePreviewCoordinates(rawCoordinates) {
+  if (!Array.isArray(rawCoordinates) || rawCoordinates.length < 2) {
+    throw new ApiError(400, '추천 경로 좌표는 최소 2개 이상 필요해.');
+  }
+
+  if (rawCoordinates.length > 40) {
+    throw new ApiError(400, '추천 경로 좌표가 너무 많아. 조금 줄여서 다시 시도해줘.');
+  }
+
+  return rawCoordinates.map((coordinate, index) => {
+    if (!coordinate || typeof coordinate !== 'object') {
+      throw new ApiError(400, `추천 경로 ${index + 1}번째 좌표가 올바르지 않아.`);
+    }
+
+    const latitude = typeof coordinate.latitude === 'number' ? coordinate.latitude : Number(coordinate.latitude);
+    const longitude = typeof coordinate.longitude === 'number' ? coordinate.longitude : Number(coordinate.longitude);
+
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+      throw new ApiError(400, `추천 경로 ${index + 1}번째 위도가 올바르지 않아.`);
+    }
+
+    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      throw new ApiError(400, `추천 경로 ${index + 1}번째 경도가 올바르지 않아.`);
+    }
+
+    return {
+      latitude: Number(latitude.toFixed(6)),
+      longitude: Number(longitude.toFixed(6)),
+    };
+  });
+}
+
 function validateOptionalInventoryCount(value) {
   if (value === null || value === undefined || value === '') {
     return null;
@@ -2810,6 +2843,28 @@ async function routeRequest(request, response) {
     const store = loadStore();
     const user = requireUser(store, request);
     sendJson(response, 200, buildMyActivity(store, user));
+    return;
+  }
+
+  if (pathname === '/api/running/route-preview' && request.method === 'POST') {
+    const store = loadStore();
+    requireUser(store, request);
+    const body = await parseJsonBody(request);
+    const keyword = validateRequiredString(body.keyword, '원하는 모양을 입력해줘.');
+    const displayTitle = validateRequiredString(body.displayTitle, '추천 경로 제목이 비어 있어.');
+    const description = validateRequiredString(body.description, '추천 경로 설명이 비어 있어.');
+    const startLabel = validateRequiredString(body.startLabel, '출발지 정보가 비어 있어.');
+    const desiredDistanceKm = validateDistanceKm(body.desiredDistanceKm, '희망 거리를 입력해줘.');
+    const roughCoordinates = validateRoutePreviewCoordinates(body.roughCoordinates);
+
+    sendJson(response, 200, await buildRoadAlignedRoutePreview({
+      keyword,
+      desiredDistanceKm,
+      displayTitle,
+      description,
+      startLabel,
+      roughCoordinates,
+    }));
     return;
   }
 

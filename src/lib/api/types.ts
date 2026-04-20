@@ -53,6 +53,33 @@ export type CreateTrackedRunInput = {
 
 export type CreateTrackedRunResponse = RunDetailResponse;
 
+export type RoutePreviewCoordinate = {
+  latitude: number;
+  longitude: number;
+};
+
+export type CreateRunningRoutePreviewInput = {
+  keyword: string;
+  desiredDistanceKm: number;
+  startLabel: string;
+  displayTitle: string;
+  description: string;
+  roughCoordinates: RoutePreviewCoordinate[];
+};
+
+export type CreateRunningRoutePreviewResponse = {
+  displayTitle: string;
+  description: string;
+  startLabel: string;
+  requestedKeyword: string;
+  requestedDistanceKm: number;
+  estimatedDistanceKm: number;
+  coordinates: RoutePreviewCoordinate[];
+  provider: 'template' | 'tmap_pedestrian' | 'kakao_mobility';
+  roadFollowed: boolean;
+  warning?: string;
+};
+
 export type MyActivityResponse = {
   runs: MyRunRecord[];
   monthlyDistanceKm: number;

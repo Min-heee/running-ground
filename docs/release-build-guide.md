@@ -48,6 +48,11 @@ Example files:
   - Optional override only.
   - If omitted, [app.config.ts](/app.config.ts) derives the URL from the linked EAS project id.
 
+### backend/runtime
+- `BACKEND_TMAP_APP_KEY`
+  - If we want the in-app running planner to suggest real walkable routes instead of simple outline previews, preview/production backend should have this set.
+  - This affects the `지도로 그림 그리기` preview flow.
+
 ## build profiles
 Defined in [eas.json](/eas.json).
 
