@@ -43,7 +43,10 @@ export default function MyActivityScreen() {
 
       {activity ? (
         <>
-          <PrimaryButton label="수동 기록 추가" onPress={() => router.push('/add-run')} />
+          <View style={styles.actionColumn}>
+            <PrimaryButton label="실시간 러닝 측정" onPress={() => router.push('/track-run')} />
+            <SecondaryButton label="수동 기록 추가" onPress={() => router.push('/add-run')} />
+          </View>
 
           <View style={styles.summaryRow}>
             <Card style={styles.summaryCard}>
@@ -84,6 +87,9 @@ export default function MyActivityScreen() {
 }
 
 const styles = StyleSheet.create({
+  actionColumn: {
+    gap: 10,
+  },
   summaryRow: {
     flexDirection: 'row',
     gap: 10,

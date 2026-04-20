@@ -22,6 +22,8 @@ import {
   ActiveNoticesResponse,
   CreateManualRunInput,
   CreateManualRunResponse,
+  CreateTrackedRunInput,
+  CreateTrackedRunResponse,
   CreateFriendRequestResponse,
   DistrictPersonalResponse,
   FriendActivityResponse,
@@ -577,6 +579,54 @@ export async function createManualRun(input: CreateManualRunInput): Promise<Crea
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '수동 러닝 기록 저장에 실패했어.',
+    },
+  );
+
+  await fetchMyProfile();
+  return createdRun;
+}
+
+export async function createTrackedRun(input: CreateTrackedRunInput): Promise<CreateTrackedRunResponse> {
+  if (USE_MOCK_API) {
+    const distanceKm = Number(input.distanceKm.toFixed(1));
+
+    return {
+      run: {
+        id: `tracked-run-${Date.now()}`,
+        date: input.date,
+        distanceKm,
+        pace: input.pace,
+        source: 'RUNNIGAPP',
+        sourceType: 'runnigapp',
+        durationSeconds: input.durationSeconds,
+        cadenceSpm: input.cadenceSpm ?? null,
+        elevationGainM: input.elevationGainM ?? null,
+        route: input.route,
+        startedAt: input.startedAt,
+        endedAt: input.endedAt,
+      },
+      weeklyDistanceKm: distanceKm,
+      estimatedMinutes: Math.round(input.durationSeconds / 60),
+      earnedPoint: distanceKm >= 0.1 ? 10 : 0,
+    };
+  }
+
+  const createdRun = await apiPost<CreateTrackedRunResponse>(
+    '/runs/tracked',
+    {
+      date: input.date,
+      distanceKm: input.distanceKm,
+      pace: input.pace,
+      durationSeconds: input.durationSeconds,
+      cadenceSpm: input.cadenceSpm ?? null,
+      elevationGainM: input.elevationGainM ?? null,
+      route: input.route,
+      startedAt: input.startedAt,
+      endedAt: input.endedAt,
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '실시간 러닝 기록 저장에 실패했어.',
     },
   );
 

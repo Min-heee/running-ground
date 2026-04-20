@@ -530,6 +530,35 @@ async function main() {
     assert(Array.isArray(offlineRaceHub.upcomingEvents) && offlineRaceHub.upcomingEvents.length === 0, '레이스 허브 일정이 비어 있지 않아.');
     logStep('offline race hub flow ok');
 
+    const trackedRun = await request('/runs/tracked', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        date: formatDate(today),
+        distanceKm: 5.1,
+        pace: '05:28/km',
+        durationSeconds: 1675,
+        cadenceSpm: 176,
+        elevationGainM: 42,
+        startedAt: `${formatDate(today)}T06:30:00.000Z`,
+        endedAt: `${formatDate(today)}T06:57:55.000Z`,
+        route: [
+          { latitude: 37.5665, longitude: 126.978, altitude: 38.1, timestamp: `${formatDate(today)}T06:30:00.000Z` },
+          { latitude: 37.5671, longitude: 126.9792, altitude: 40.8, timestamp: `${formatDate(today)}T06:38:00.000Z` },
+          { latitude: 37.5684, longitude: 126.9811, altitude: 44.2, timestamp: `${formatDate(today)}T06:57:55.000Z` },
+        ],
+      }),
+      expectedStatuses: [201],
+    });
+    assert(trackedRun.run.source === 'RUNNIGAPP', '실시간 러닝 기록 소스가 RUNNIGAPP으로 저장되지 않았어.');
+    assert(trackedRun.run.sourceType === 'runnigapp', '실시간 러닝 기록 sourceType이 runnigapp이 아니야.');
+    assert(trackedRun.run.durationSeconds === 1675, '실시간 러닝 기록 시간이 저장되지 않았어.');
+    assert(Array.isArray(trackedRun.run.route) && trackedRun.run.route.length === 3, '실시간 러닝 경로가 저장되지 않았어.');
+    logStep('tracked run flow ok');
+
     const secondRegistered = await request('/auth/register', {
       expectedStatuses: [201],
       method: 'POST',

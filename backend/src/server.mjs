@@ -27,6 +27,7 @@ const SOURCE_LABEL_BY_TYPE = {
   garmin: 'Garmin',
   strava: 'Strava',
   nrc: 'Nike Run Club',
+  runnigapp: 'RUNNIGAPP',
   manual: 'Manual',
 };
 const DEFAULT_OFFLINE_RACE_GUIDE_STEPS = [
@@ -1233,6 +1234,12 @@ function buildRunDetail(run, weeklyDistanceKm, sourceOverride, metrics) {
       pace: run.pace,
       source: sourceOverride ?? run.source,
       ...(run.sourceType ? { sourceType: run.sourceType } : {}),
+      ...(typeof run.durationSeconds === 'number' ? { durationSeconds: run.durationSeconds } : {}),
+      ...(typeof run.cadenceSpm === 'number' ? { cadenceSpm: run.cadenceSpm } : {}),
+      ...(typeof run.elevationGainM === 'number' ? { elevationGainM: run.elevationGainM } : {}),
+      ...(Array.isArray(run.route) ? { route: run.route } : {}),
+      ...(normalizeOptionalString(run.startedAt) ? { startedAt: run.startedAt } : {}),
+      ...(normalizeOptionalString(run.endedAt) ? { endedAt: run.endedAt } : {}),
     },
     weeklyDistanceKm,
     estimatedMinutes: Math.round(run.distanceKm * (paceMinutes ?? 5.5)),
@@ -1392,6 +1399,73 @@ function validateNonNegativeInteger(value, message) {
   }
 
   return numberValue;
+}
+
+function validateOptionalMetricNumber(value, {
+  message,
+  minimum = 0,
+  maximum = Number.POSITIVE_INFINITY,
+  digits = 1,
+} = {}) {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return undefined;
+  }
+
+  const numberValue = typeof value === 'number' ? value : Number(value);
+
+  if (!Number.isFinite(numberValue) || numberValue < minimum || numberValue > maximum) {
+    throw new ApiError(400, message);
+  }
+
+  return Number(numberValue.toFixed(digits));
+}
+
+function validateTrackedRoute(rawRoute) {
+  if (!Array.isArray(rawRoute) || rawRoute.length < 2) {
+    throw new ApiError(400, '러닝 경로는 최소 2개 이상의 위치 좌표가 필요해.');
+  }
+
+  if (rawRoute.length > 5000) {
+    throw new ApiError(400, '러닝 경로 좌표가 너무 많아. 5000개 이하로 줄여줘.');
+  }
+
+  return rawRoute.map((point, index) => {
+    if (!point || typeof point !== 'object') {
+      throw new ApiError(400, `러닝 경로 ${index + 1}번째 좌표가 올바르지 않아.`);
+    }
+
+    const latitude = typeof point.latitude === 'number' ? point.latitude : Number(point.latitude);
+    const longitude = typeof point.longitude === 'number' ? point.longitude : Number(point.longitude);
+
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+      throw new ApiError(400, `러닝 경로 ${index + 1}번째 위도가 올바르지 않아.`);
+    }
+
+    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      throw new ApiError(400, `러닝 경로 ${index + 1}번째 경도가 올바르지 않아.`);
+    }
+
+    const timestamp = validateRequiredString(point.timestamp, `러닝 경로 ${index + 1}번째 시각이 비어 있어.`);
+    const parsedTimestamp = new Date(timestamp);
+
+    if (Number.isNaN(parsedTimestamp.getTime())) {
+      throw new ApiError(400, `러닝 경로 ${index + 1}번째 시각 형식이 올바르지 않아.`);
+    }
+
+    const altitude = validateOptionalMetricNumber(point.altitude, {
+      message: `러닝 경로 ${index + 1}번째 고도 값이 올바르지 않아.`,
+      minimum: -1000,
+      maximum: 10000,
+      digits: 1,
+    });
+
+    return {
+      latitude: Number(latitude.toFixed(6)),
+      longitude: Number(longitude.toFixed(6)),
+      ...(typeof altitude === 'number' ? { altitude } : {}),
+      timestamp: parsedTimestamp.toISOString(),
+    };
+  });
 }
 
 function validateOptionalInventoryCount(value) {
@@ -2263,6 +2337,53 @@ async function handleCreateManualRun(request, response) {
   sendJson(response, 201, payload);
 }
 
+async function handleCreateTrackedRun(request, response) {
+  const body = await parseJsonBody(request);
+
+  const payload = mutateStore((store) => {
+    const user = requireUser(store, request);
+    const route = validateTrackedRoute(body.route);
+    const run = {
+      id: nextId('run'),
+      userId: user.id,
+      date: validateDateOnly(body.date, '러닝 날짜를 입력해줘.'),
+      distanceKm: validateDistanceKm(body.distanceKm, '러닝 거리를 입력해줘.'),
+      pace: validatePace(body.pace, '페이스를 입력해줘.'),
+      durationSeconds: validatePositiveInteger(body.durationSeconds, '러닝 시간은 1초 이상이어야 해.'),
+      ...(typeof body.cadenceSpm !== 'undefined' && body.cadenceSpm !== null
+        ? { cadenceSpm: validateNonNegativeInteger(body.cadenceSpm, '케이던스 값이 올바르지 않아.') }
+        : {}),
+      ...(typeof body.elevationGainM !== 'undefined' && body.elevationGainM !== null
+        ? { elevationGainM: validateNonNegativeInteger(body.elevationGainM, '고도 상승 값이 올바르지 않아.') }
+        : {}),
+      route,
+      startedAt: validateRequiredString(body.startedAt, '러닝 시작 시각이 비어 있어.'),
+      endedAt: validateRequiredString(body.endedAt, '러닝 종료 시각이 비어 있어.'),
+      source: 'RUNNIGAPP',
+      sourceType: 'runnigapp',
+      createdAt: new Date().toISOString(),
+    };
+
+    const startedAtMs = new Date(run.startedAt).getTime();
+    const endedAtMs = new Date(run.endedAt).getTime();
+
+    if (Number.isNaN(startedAtMs) || Number.isNaN(endedAtMs)) {
+      throw new ApiError(400, '러닝 시작/종료 시각 형식이 올바르지 않아.');
+    }
+
+    if (startedAtMs > endedAtMs) {
+      throw new ApiError(400, '러닝 종료 시각은 시작 시각보다 빠를 수 없어.');
+    }
+
+    store.runs.push(run);
+
+    const metrics = getUserMetrics(store, user.id);
+    return buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics);
+  });
+
+  sendJson(response, 201, payload);
+}
+
 function handleIntegrationSourceConnection(request, response, sourceType, nextConnected) {
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
@@ -2837,6 +2958,11 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/runs/manual' && request.method === 'POST') {
     await handleCreateManualRun(request, response);
+    return;
+  }
+
+  if (pathname === '/api/runs/tracked' && request.method === 'POST') {
+    await handleCreateTrackedRun(request, response);
     return;
   }
 

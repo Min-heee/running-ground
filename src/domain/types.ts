@@ -4,7 +4,15 @@ export type RunSourceType =
   | 'garmin'
   | 'strava'
   | 'nrc'
+  | 'runnigapp'
   | 'manual';
+
+export type RunRoutePoint = {
+  latitude: number;
+  longitude: number;
+  altitude?: number | null;
+  timestamp: string;
+};
 
 export type WeeklySummary = {
   totalDistanceKm: number;
@@ -124,6 +132,12 @@ export type MyRunRecord = {
   pace: string;
   source: string;
   sourceType?: RunSourceType;
+  durationSeconds?: number;
+  cadenceSpm?: number | null;
+  elevationGainM?: number | null;
+  route?: RunRoutePoint[];
+  startedAt?: string;
+  endedAt?: string;
 };
 
 export type MarketRewardClaimState = 'claimable' | 'claimed' | 'locked';

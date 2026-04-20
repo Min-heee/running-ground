@@ -49,6 +49,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const iosInfoPlist = {
     ...(baseConfig.ios?.infoPlist ?? {}),
     ITSAppUsesNonExemptEncryption: false,
+    NSMotionUsageDescription:
+      (baseConfig.ios?.infoPlist as Record<string, string | undefined> | undefined)?.NSMotionUsageDescription
+      || 'Allow RUNNIGAPP to read your motion data so cadence can be shown while you run.',
     ...(isDevelopmentVariant
       ? {
           NSLocalNetworkUsageDescription:
@@ -114,6 +117,20 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         ...(baseConfig.plugins ?? []),
         'expo-router',
         'expo-dev-client',
+        [
+          'expo-location',
+          {
+            locationWhenInUsePermission:
+              'Allow RUNNIGAPP to use your location so your run route, distance, pace, and elevation can be tracked live.',
+          },
+        ],
+        [
+          'expo-sensors',
+          {
+            motionPermission:
+              'Allow RUNNIGAPP to read your motion data so cadence can be shown while you run.',
+          },
+        ],
         './plugins/withHealthAccess',
       ]),
     ),

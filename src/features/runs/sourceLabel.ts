@@ -15,6 +15,10 @@ export function getRunSourceLabel(run: Pick<MyRunRecord, 'source' | 'sourceType'
     return 'NRC';
   }
 
+  if (run.sourceType === 'runnigapp' || normalizedSource === 'runnigapp') {
+    return 'RUNNIGAPP';
+  }
+
   if (run.sourceType === 'apple_health') {
     if (
       normalizedSource === 'apple health'

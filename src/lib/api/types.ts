@@ -1,4 +1,4 @@
-import { AppNotice, ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceEvent, OfflineRaceHub, RegionDrilldownNode, RunSourceType, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
+import { AppNotice, ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceEvent, OfflineRaceHub, RegionDrilldownNode, RunRoutePoint, RunSourceType, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
 import { AddressRegionNode } from '@/features/location/addressCatalog';
 
 export type HomeSummaryResponse = WeeklySummary;
@@ -38,6 +38,20 @@ export type CreateManualRunInput = {
 };
 
 export type CreateManualRunResponse = RunDetailResponse;
+
+export type CreateTrackedRunInput = {
+  date: string;
+  distanceKm: number;
+  pace: string;
+  durationSeconds: number;
+  cadenceSpm?: number | null;
+  elevationGainM?: number | null;
+  route: RunRoutePoint[];
+  startedAt: string;
+  endedAt: string;
+};
+
+export type CreateTrackedRunResponse = RunDetailResponse;
 
 export type MyActivityResponse = {
   runs: MyRunRecord[];
