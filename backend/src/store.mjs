@@ -220,6 +220,82 @@ function createStoreBackupFromContents(fileContents, reason = 'save') {
   return backupPath;
 }
 
+function createCorruptStoreSnapshot(fileContents) {
+  if (typeof fileContents !== 'string' || !fileContents.trim()) {
+    return null;
+  }
+
+  ensureBackupDirectory();
+
+  const backupFileName = `${storeBaseName}-${formatBackupTimestamp()}-corrupt-${Math.random().toString(16).slice(2, 8)}${storeExtension}.corrupt`;
+  const backupPath = join(backupDirectory, backupFileName);
+
+  writeFileSync(backupPath, fileContents, 'utf8');
+  return backupPath;
+}
+
+function listStoreBackupCandidates() {
+  if (!existsSync(backupDirectory)) {
+    return [];
+  }
+
+  return readdirSync(backupDirectory)
+    .filter((entry) => entry.startsWith(`${storeBaseName}-`) && entry.endsWith(storeExtension))
+    .map((entry) => {
+      const path = join(backupDirectory, entry);
+      return {
+        name: entry,
+        path,
+        modifiedAtMs: statSync(path).mtimeMs,
+      };
+    })
+    .sort((left, right) => right.modifiedAtMs - left.modifiedAtMs);
+}
+
+function readStoreContentsFromDisk() {
+  ensureStoreFile();
+
+  const fileContents = readFileSync(storeFilePath, 'utf8');
+
+  try {
+    return {
+      fileContents,
+      store: JSON.parse(fileContents),
+      recoveredFromBackup: false,
+    };
+  } catch (parseError) {
+    const corruptSnapshotPath = createCorruptStoreSnapshot(fileContents);
+
+    for (const backup of listStoreBackupCandidates()) {
+      try {
+        const backupContents = readFileSync(backup.path, 'utf8');
+        const backupStore = JSON.parse(backupContents);
+        writeStoreFileAtomic(storeFilePath, backupContents);
+        console.error(`[runnigapp-backend] store JSON was corrupted. Restored latest valid backup: ${backup.path}`);
+
+        if (corruptSnapshotPath) {
+          console.error(`[runnigapp-backend] corrupted store snapshot saved: ${corruptSnapshotPath}`);
+        }
+
+        return {
+          fileContents: backupContents,
+          store: backupStore,
+          recoveredFromBackup: true,
+        };
+      } catch {
+        // Keep scanning older backups until a valid JSON snapshot is found.
+      }
+    }
+
+    const error = new Error(
+      `저장소 JSON을 읽을 수 없고 복구 가능한 백업도 찾지 못했어요. store=${storeFilePath}`
+      + (corruptSnapshotPath ? ` corruptSnapshot=${corruptSnapshotPath}` : ''),
+    );
+    error.cause = parseError;
+    throw error;
+  }
+}
+
 function ensureStoreFile() {
   mkdirSync(dataDirectory, { recursive: true });
 
@@ -230,10 +306,8 @@ function ensureStoreFile() {
 }
 
 export function loadStore() {
-  ensureStoreFile();
-
   if (!cachedStore) {
-    const persistedStore = JSON.parse(readFileSync(storeFilePath, 'utf8'));
+    const { store: persistedStore, recoveredFromBackup } = readStoreContentsFromDisk();
     cachedStore = {
       ...persistedStore,
       regionTree: createRegionTree(persistedStore),
@@ -245,7 +319,7 @@ export function loadStore() {
       migrateAdminStore(cachedStore),
     ].some(Boolean);
 
-    if (changed) {
+    if (changed || recoveredFromBackup) {
       writeStoreFileAtomic(storeFilePath, serializeStore(cachedStore));
     }
   }
@@ -292,6 +366,23 @@ export function getStoreFilePath() {
 
 export function getStoreBackupDirectory() {
   return backupDirectory;
+}
+
+export function getStoreDiagnostics() {
+  const storeExists = existsSync(storeFilePath);
+  const storeStats = storeExists ? statSync(storeFilePath) : null;
+  const backups = listStoreBackups();
+
+  return {
+    storeFile: storeFilePath,
+    storeExists,
+    storeSizeBytes: storeStats?.size ?? 0,
+    storeModifiedAt: storeStats?.mtime.toISOString() ?? null,
+    backupDirectory,
+    backupCount: backups.length,
+    latestBackup: backups[0] ?? null,
+    cached: Boolean(cachedStore),
+  };
 }
 
 export function listStoreBackups() {

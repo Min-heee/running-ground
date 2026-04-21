@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const TAB_TITLES = {
   league: '\uB9AC\uADF8',
@@ -75,7 +75,7 @@ export default function TabsLayout() {
         name="running"
         options={{
           title: TAB_TITLES.running,
-          tabBarIcon: ({ color, size }) => <Ionicons name="footsteps-outline" size={size ?? 18} color={color} />,
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="shoe-sneaker" size={size ?? 18} color={color} />,
         }}
       />
       <Tabs.Screen

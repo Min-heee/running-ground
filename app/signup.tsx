@@ -10,7 +10,7 @@ export default function SignupScreen() {
       <AuthHeader title="회원가입" subtitle="계정을 만들고 바로 러닝 경쟁을 시작해보세요." showBack backHref="/onboarding" />
 
       <Card>
-        <Text style={styles.helperText}>이름, 아이디, 비밀번호만 입력하면 바로 시작할 수 있어요.</Text>
+        <Text style={styles.helperText}>닉네임은 공개되고, 이름과 연락처는 비공개로 저장돼요. 아이디 중복 확인과 비밀번호 확인까지 마치면 바로 시작할 수 있어요.</Text>
         <Link href="/signup-form" asChild>
           <Pressable style={styles.accountButton}>
             <Text style={styles.darkButtonText}>계정으로 회원가입하기</Text>

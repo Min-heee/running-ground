@@ -7,7 +7,15 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { AddressRegionNode } from '@/features/location/addressCatalog';
 import { buildRegionSelectionState, RegionChipSection } from '@/features/location/RegionSelection';
 import { fetchRegionCatalog, fetchUniversityCatalog } from '@/lib/api/services';
-import { checkUsernameAvailability, registerAccount } from '@/lib/session';
+import {
+  PASSWORD_RULE_DESCRIPTION,
+  USERNAME_RULE_DESCRIPTION,
+  checkUsernameAvailability,
+  getPasswordValidationError,
+  getUsernameValidationError,
+  normalizeUsername,
+  registerAccount,
+} from '@/lib/session';
 
 type UsernameCheckState = {
   status: 'idle' | 'checking' | 'available' | 'unavailable' | 'error';
@@ -20,6 +28,8 @@ export default function SignupFormScreen() {
   const [realName, setRealName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [phone, setPhone] = useState('');
   const [provinceName, setProvinceName] = useState('');
   const [secondaryRegionName, setSecondaryRegionName] = useState('');
@@ -38,7 +48,21 @@ export default function SignupFormScreen() {
     message: null,
     checkedUsername: '',
   });
-  const normalizedUsername = useMemo(() => username.trim().toLowerCase(), [username]);
+  const normalizedUsername = useMemo(() => normalizeUsername(username), [username]);
+  const usernameValidationMessage = useMemo(() => (
+    username ? getUsernameValidationError(username) : null
+  ), [username]);
+  const passwordValidationMessage = useMemo(() => (
+    password ? getPasswordValidationError(password) : null
+  ), [password]);
+  const passwordConfirmMessage = useMemo(() => {
+    if (!passwordConfirm) {
+      return null;
+    }
+
+    return password === passwordConfirm ? null : '비밀번호가 서로 달라요.';
+  }, [password, passwordConfirm]);
+  const passwordReady = Boolean(password && passwordConfirm && !passwordValidationMessage && !passwordConfirmMessage);
 
   useEffect(() => {
     Promise.all([fetchRegionCatalog(), fetchUniversityCatalog()])
@@ -47,7 +71,7 @@ export default function SignupFormScreen() {
         setUniversitySuggestions(universityCatalog.universities);
       })
       .catch((loadError) => {
-        setCatalogError(loadError instanceof Error ? loadError.message : '회원가입에 필요한 목록을 불러오지 못했어.');
+        setCatalogError(loadError instanceof Error ? loadError.message : '회원가입에 필요한 목록을 불러오지 못했어요.');
       })
       .finally(() => setCatalogLoading(false));
   }, []);
@@ -66,11 +90,22 @@ export default function SignupFormScreen() {
     [regions, provinceName, secondaryRegionName, tertiaryRegionName],
   );
   const checkingUsername = usernameCheck.status === 'checking';
+  const requiredProfileReady = Boolean(
+    nickname.trim()
+    && realName.trim()
+    && normalizedUsername
+    && !usernameValidationMessage
+    && phone.replace(/\D/g, '').length >= 10
+    && selectedAddressLabel
+    && addressDetail.trim()
+    && /^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim()),
+  );
 
   const handleUsernameChange = (value: string) => {
-    setUsername(value);
+    const nextUsername = value.trim().toLowerCase();
+    setUsername(nextUsername);
 
-    const nextNormalizedUsername = value.trim().toLowerCase();
+    const nextNormalizedUsername = normalizeUsername(nextUsername);
 
     setUsernameCheck((currentState) => (
       currentState.checkedUsername === nextNormalizedUsername
@@ -84,10 +119,12 @@ export default function SignupFormScreen() {
   };
 
   const handleCheckUsername = async () => {
-    if (!normalizedUsername) {
+    const usernameValidationError = getUsernameValidationError(normalizedUsername);
+
+    if (usernameValidationError) {
       setUsernameCheck({
         status: 'error',
-        message: '아이디를 입력한 뒤 중복 확인해줘.',
+        message: usernameValidationError,
         checkedUsername: '',
       });
       return false;
@@ -112,7 +149,7 @@ export default function SignupFormScreen() {
     } catch (usernameError) {
       setUsernameCheck({
         status: 'error',
-        message: usernameError instanceof Error ? usernameError.message : '아이디 중복 확인에 실패했어.',
+        message: usernameError instanceof Error ? usernameError.message : '아이디 중복 확인에 실패했어요.',
         checkedUsername: normalizedUsername,
       });
       return false;
@@ -124,13 +161,23 @@ export default function SignupFormScreen() {
     setSubmitting(true);
 
     try {
+      const passwordError = getPasswordValidationError(password);
+
+      if (passwordError) {
+        throw new Error(passwordError);
+      }
+
+      if (password !== passwordConfirm) {
+        throw new Error('비밀번호 확인이 일치하지 않아요.');
+      }
+
       const usernameReady = usernameCheck.status === 'available' && usernameCheck.checkedUsername === normalizedUsername;
 
       if (!usernameReady) {
         const available = await handleCheckUsername();
 
         if (!available) {
-          throw new Error('사용 가능한 아이디인지 먼저 확인해줘.');
+          throw new Error('사용 가능한 아이디인지 먼저 확인해주세요.');
         }
       }
 
@@ -149,7 +196,7 @@ export default function SignupFormScreen() {
       });
       router.replace('/(tabs)/home');
     } catch (signupError) {
-      setError(signupError instanceof Error ? signupError.message : '회원가입에 실패했어.');
+      setError(signupError instanceof Error ? signupError.message : '회원가입에 실패했어요.');
     } finally {
       setSubmitting(false);
     }
@@ -171,7 +218,7 @@ export default function SignupFormScreen() {
 
           <Input
             label="닉네임"
-            helperText="실명을 공개하고 싶지 않다면 여기에는 닉네임을 적어줘. 다른 사용자에게는 닉네임만 보여요."
+            helperText="실명을 공개하고 싶지 않다면 닉네임을 입력해주세요. 다른 사용자에게는 닉네임만 보여요."
             placeholder="닉네임을 입력하세요"
             value={nickname}
             onChangeText={setNickname}
@@ -179,16 +226,20 @@ export default function SignupFormScreen() {
           />
           <Input
             label="이름 (비공개)"
-            helperText="이름은 계정 확인용으로만 저장되고, 앱 화면이나 랭킹에는 공개되지 않아."
+            helperText="이름은 계정 확인용으로만 저장되고, 앱 화면이나 랭킹에는 공개되지 않아요."
             placeholder="이름을 입력하세요"
             value={realName}
             onChangeText={setRealName}
             editable={!submitting}
           />
+          <View style={styles.privacyCard}>
+            <Text style={styles.privacyTitle}>공개되는 정보</Text>
+            <Text style={styles.privacyText}>랭킹과 친구 화면에는 닉네임만 보여요. 이름, 휴대폰 번호, 상세 주소, 생년월일은 계정 확인용 비공개 정보로 처리해요.</Text>
+          </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>아이디</Text>
-            <Text style={styles.helperText}>로그인에 사용할 아이디야. 입력 후 중복 확인을 해주면 돼.</Text>
+            <Text style={styles.helperText}>{USERNAME_RULE_DESCRIPTION} 입력 후 중복 확인을 해주세요.</Text>
             <View style={styles.inlineInputRow}>
               <TextInput
                 placeholder="아이디를 입력하세요"
@@ -208,6 +259,7 @@ export default function SignupFormScreen() {
                 <Text style={styles.secondaryActionButtonText}>{checkingUsername ? '확인 중' : '중복 확인'}</Text>
               </Pressable>
             </View>
+            {usernameValidationMessage ? <Text style={[styles.statusText, styles.statusTextError]}>{usernameValidationMessage}</Text> : null}
             {usernameCheck.message ? (
               <Text
                 style={[
@@ -224,12 +276,49 @@ export default function SignupFormScreen() {
             ) : null}
           </View>
 
-          <Input label="비밀번호" placeholder="비밀번호를 입력하세요" secureTextEntry value={password} onChangeText={setPassword} editable={!submitting} />
+          <View style={styles.inputGroup}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>비밀번호</Text>
+              <Pressable onPress={() => setPasswordVisible((current) => !current)} disabled={submitting}>
+                <Text style={styles.inlineToggleText}>{passwordVisible ? '숨김' : '보기'}</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.helperText}>{PASSWORD_RULE_DESCRIPTION}</Text>
+            <TextInput
+              placeholder="비밀번호를 입력하세요"
+              placeholderTextColor="#98A2B3"
+              style={[styles.input, submitting && styles.inputDisabled]}
+              secureTextEntry={!passwordVisible}
+              value={password}
+              onChangeText={setPassword}
+              editable={!submitting}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TextInput
+              placeholder="비밀번호를 한 번 더 입력하세요"
+              placeholderTextColor="#98A2B3"
+              style={[styles.input, submitting && styles.inputDisabled]}
+              secureTextEntry={!passwordVisible}
+              value={passwordConfirm}
+              onChangeText={setPasswordConfirm}
+              editable={!submitting}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <View style={styles.validationList}>
+              <ValidationItem label="8자 이상" complete={password.length >= 8} />
+              <ValidationItem label="영문과 숫자 포함" complete={/[A-Za-z]/.test(password) && /\d/.test(password)} />
+              <ValidationItem label="비밀번호 확인 일치" complete={passwordReady} />
+            </View>
+            {passwordValidationMessage ? <Text style={[styles.statusText, styles.statusTextError]}>{passwordValidationMessage}</Text> : null}
+            {passwordConfirmMessage ? <Text style={[styles.statusText, styles.statusTextError]}>{passwordConfirmMessage}</Text> : null}
+          </View>
           <Input label="핸드폰번호" placeholder="010-0000-0000" keyboardType="phone-pad" value={phone} onChangeText={setPhone} editable={!submitting} />
 
           <View style={styles.addressGroup}>
             <Text style={styles.label}>사는 지역 선택</Text>
-            <Text style={styles.helperText}>서울특별시처럼 광역시는 바로 구를 고르고, 경기도처럼 도는 시를 먼저 고른 뒤 구가 있으면 한 단계 더 내려가면 돼.</Text>
+            <Text style={styles.helperText}>서울특별시처럼 광역시는 바로 구를 고르고, 경기도처럼 도는 시를 먼저 고른 뒤 구가 있으면 한 단계 더 내려가면 돼요.</Text>
 
             <RegionChipSection
               title="1. 시/도 선택"
@@ -291,7 +380,7 @@ export default function SignupFormScreen() {
 
           <View style={styles.addressGroup}>
             <Text style={styles.label}>대학교 선택</Text>
-            <Text style={styles.helperText}>선택사항이야. 학교를 입력하거나 아래 빠른 선택을 누르면, 대학 리그에 바로 집계돼.</Text>
+            <Text style={styles.helperText}>선택사항이에요. 학교를 입력하거나 아래 빠른 선택을 누르면 대학 리그에 바로 집계돼요.</Text>
             <Input
               label="대학교"
               placeholder="예: 서울대학교"
@@ -300,7 +389,7 @@ export default function SignupFormScreen() {
               editable={!submitting}
             />
             {universitySuggestions.length === 0 ? (
-              <Text style={styles.helperText}>아직 등록된 대학이 많지 않아. 없으면 직접 입력하면 바로 추가돼.</Text>
+              <Text style={styles.helperText}>아직 등록된 대학이 많지 않아요. 없으면 직접 입력하면 바로 추가돼요.</Text>
             ) : null}
             <View style={styles.selectionList}>
               {universitySuggestions.map((option) => {
@@ -322,6 +411,13 @@ export default function SignupFormScreen() {
 
           <Input label="생년월일" placeholder="예: 1990-01-01" value={birthDate} onChangeText={setBirthDate} editable={!submitting} />
 
+          <View style={styles.readyCard}>
+            <Text style={styles.readyTitle}>가입 준비 상태</Text>
+            <ValidationItem label="기본 정보와 지역 입력" complete={requiredProfileReady} />
+            <ValidationItem label="아이디 중복 확인 완료" complete={usernameCheck.status === 'available' && usernameCheck.checkedUsername === normalizedUsername} />
+            <ValidationItem label="비밀번호 조건 충족" complete={passwordReady} />
+          </View>
+
           <Pressable
             style={[styles.primaryButton, (submitting || catalogLoading || Boolean(catalogError)) ? styles.disabledButton : null]}
             onPress={handleSignup}
@@ -333,6 +429,15 @@ export default function SignupFormScreen() {
         </View>
       </Card>
     </Screen>
+  );
+}
+
+function ValidationItem({ label, complete }: { label: string; complete: boolean }) {
+  return (
+    <View style={styles.validationItem}>
+      <View style={[styles.validationDot, complete ? styles.validationDotComplete : styles.validationDotPending]} />
+      <Text style={[styles.validationText, complete ? styles.validationTextComplete : styles.validationTextPending]}>{label}</Text>
+    </View>
   );
 }
 
@@ -380,6 +485,22 @@ function Input({
 const styles = StyleSheet.create({
   form: { gap: 14 },
   inputGroup: { gap: 8 },
+  privacyCard: {
+    gap: 5,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  privacyTitle: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  privacyText: {
+    color: '#667085',
+    lineHeight: 20,
+  },
   inlineInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -389,6 +510,16 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontWeight: '700',
     fontSize: 15,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  inlineToggleText: {
+    color: '#6D5EF7',
+    fontWeight: '800',
   },
   helperText: {
     color: '#667085',
@@ -436,6 +567,47 @@ const styles = StyleSheet.create({
   },
   statusTextError: {
     color: '#B42318',
+  },
+  validationList: {
+    gap: 7,
+  },
+  validationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  validationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+  },
+  validationDotComplete: {
+    backgroundColor: '#12B76A',
+  },
+  validationDotPending: {
+    backgroundColor: '#D0D5DD',
+  },
+  validationText: {
+    fontWeight: '700',
+    lineHeight: 19,
+  },
+  validationTextComplete: {
+    color: '#067647',
+  },
+  validationTextPending: {
+    color: '#667085',
+  },
+  readyCard: {
+    gap: 8,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+  },
+  readyTitle: {
+    color: '#111827',
+    fontWeight: '800',
   },
   addressGroup: {
     gap: 12,

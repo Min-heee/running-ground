@@ -48,6 +48,10 @@ Example files:
   - Optional override only.
   - If omitted, [app.config.ts](/app.config.ts) derives the URL from the linked EAS project id.
 
+### map provider direction
+For now, keep the running map on the default native map path so the iPhone TestFlight flow does not require Google Cloud billing.
+If Android release testing needs a fully billing-free map later, evaluate an OpenStreetMap/MapLibre-based replacement as a separate native-map task.
+
 ## build profiles
 Defined in [eas.json](/eas.json).
 
@@ -91,6 +95,7 @@ npx expo config --type public
 ```bash
 npm run release:check:preview
 npm run release:check:production
+npm run release:check:testflight
 ```
 
 This check now fails fast when:

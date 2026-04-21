@@ -127,6 +127,11 @@ export const SESSION_TTL_HOURS = Math.max(1, parseNumber(process.env.BACKEND_SES
 export const SESSION_TTL_MS = SESSION_TTL_HOURS * 60 * 60 * 1000;
 export const MAX_BODY_SIZE_KB = Math.max(16, parseNumber(process.env.BACKEND_MAX_BODY_SIZE_KB, 256));
 export const MAX_BODY_SIZE_BYTES = MAX_BODY_SIZE_KB * 1024;
+export const REQUEST_TIMEOUT_MS = Math.max(5000, parseNumber(process.env.BACKEND_REQUEST_TIMEOUT_MS, 30000));
+export const HEADERS_TIMEOUT_MS = Math.min(REQUEST_TIMEOUT_MS, Math.max(5000, parseNumber(process.env.BACKEND_HEADERS_TIMEOUT_MS, 10000)));
+export const KEEP_ALIVE_TIMEOUT_MS = Math.max(1000, parseNumber(process.env.BACKEND_KEEP_ALIVE_TIMEOUT_MS, 5000));
+export const MAX_REQUESTS_PER_SOCKET = Math.max(1, parseNumber(process.env.BACKEND_MAX_REQUESTS_PER_SOCKET, 1000));
+export const SHUTDOWN_TIMEOUT_MS = Math.max(1000, parseNumber(process.env.BACKEND_SHUTDOWN_TIMEOUT_MS, 10000));
 export const ENABLE_ADMIN_STATUS = Boolean(ADMIN_TOKEN) && parseBoolean(process.env.BACKEND_ENABLE_ADMIN_STATUS, true);
 export const ENABLE_RESET_ENDPOINT = Boolean(ADMIN_TOKEN) && parseBoolean(process.env.BACKEND_ENABLE_RESET_ENDPOINT, false);
 
@@ -160,6 +165,11 @@ export function getPublicBackendConfig() {
     publicBaseUrl: PUBLIC_BASE_URL || undefined,
     sessionTtlHours: SESSION_TTL_HOURS,
     maxBodySizeKb: MAX_BODY_SIZE_KB,
+    requestTimeoutMs: REQUEST_TIMEOUT_MS,
+    headersTimeoutMs: HEADERS_TIMEOUT_MS,
+    keepAliveTimeoutMs: KEEP_ALIVE_TIMEOUT_MS,
+    maxRequestsPerSocket: MAX_REQUESTS_PER_SOCKET,
+    shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
     adminStatusEnabled: ENABLE_ADMIN_STATUS,
     resetEndpointEnabled: ENABLE_RESET_ENDPOINT,
     usingEnvFile: existsSync(BACKEND_ENV_PATH),

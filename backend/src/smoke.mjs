@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { buildUserRunMetrics, getRunPointValue } from './points.mjs';
+import { createSeedStore } from './seed.mjs';
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const sourceDirectory = dirname(currentFilePath);
@@ -29,6 +30,14 @@ function listBackupFiles() {
   }
 
   return readdirSync(backupDirectory).filter((entry) => entry.endsWith('.json'));
+}
+
+function listCorruptStoreSnapshots() {
+  if (!existsSync(backupDirectory)) {
+    return [];
+  }
+
+  return readdirSync(backupDirectory).filter((entry) => entry.endsWith('.json.corrupt'));
 }
 
 function formatDate(value) {
@@ -86,6 +95,14 @@ async function main() {
     rmSync(backupDirectory, { recursive: true, force: true });
   }
 
+  mkdirSync(backupDirectory, { recursive: true });
+  writeFileSync(storeFile, '{"users":', 'utf8');
+  writeFileSync(
+    join(backupDirectory, 'smoke-store-20260421-000000-000-seed-backup.json'),
+    JSON.stringify(createSeedStore(), null, 2),
+    'utf8',
+  );
+
   const serverProcess = spawn(process.execPath, ['./src/server.mjs'], {
     cwd: backendDirectory,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -101,6 +118,11 @@ async function main() {
       BACKEND_ADMIN_TOKEN: adminToken,
       BACKEND_ENABLE_ADMIN_STATUS: 'true',
       BACKEND_ENABLE_RESET_ENDPOINT: 'true',
+      BACKEND_REQUEST_TIMEOUT_MS: '30000',
+      BACKEND_HEADERS_TIMEOUT_MS: '10000',
+      BACKEND_KEEP_ALIVE_TIMEOUT_MS: '5000',
+      BACKEND_MAX_REQUESTS_PER_SOCKET: '1000',
+      BACKEND_SHUTDOWN_TIMEOUT_MS: '10000',
     },
   });
 
@@ -123,9 +145,17 @@ async function main() {
     assert(health.publicBaseUrl === `http://127.0.0.1:${port}`, 'health 응답 공개 주소가 반영되지 않았어.');
     assert(Array.isArray(health.config.corsOrigins) && health.config.corsOrigins.length === 2, 'health 응답 CORS 목록이 올바르지 않아.');
     assert(health.config.maxBodySizeKb === 256, 'health 응답 최대 본문 크기가 예상과 달라.');
+    assert(health.config.requestTimeoutMs === 30000, 'health 응답 요청 타임아웃이 예상과 달라.');
+    assert(health.config.headersTimeoutMs === 10000, 'health 응답 헤더 타임아웃이 예상과 달라.');
+    assert(health.config.keepAliveTimeoutMs === 5000, 'health 응답 keep-alive 타임아웃이 예상과 달라.');
+    assert(health.config.maxRequestsPerSocket === 1000, 'health 응답 소켓당 요청 수 제한이 예상과 달라.');
     assert(health.config.storeWriteMode === 'atomic', 'health 응답 저장 방식이 원자적 저장으로 내려오지 않았어.');
     assert(health.config.storeBackupOnSave === true, 'health 응답 자동 백업 설정이 반영되지 않았어.');
     assert(health.config.storeBackupRetention === 5, 'health 응답 백업 보관 개수가 예상과 달라.');
+    assert(health.store.storeExists === true, 'health 응답 store 진단이 파일 존재를 알려주지 않았어.');
+    assert(health.store.backupCount >= 1, 'health 응답 store 백업 개수가 예상과 달라.');
+    assert(health.store.counts.users === 0, 'health 응답 store 사용자 수가 예상과 달라.');
+    assert(listCorruptStoreSnapshots().length >= 1, '손상된 store 스냅샷이 보관되지 않았어.');
 
     const seededStoreContents = readFileSync(storeFile, 'utf8');
     assert(!seededStoreContents.includes('"password":'), '초기 저장소에 평문 비밀번호가 남아 있어.');
@@ -143,7 +173,7 @@ async function main() {
       },
       body: JSON.stringify({
         username: 'smoke-user',
-        password: 'smoke-pass',
+        password: 'smoke-pass1',
         nickname: '스모크러너',
         realName: '스모크 유저',
         phone: '01099998888',
@@ -175,7 +205,7 @@ async function main() {
       },
       body: JSON.stringify({
         username: 'smoke-user',
-        password: 'smoke-pass',
+        password: 'smoke-pass1',
       }),
     });
     const accessToken = loggedIn.accessToken;
@@ -567,7 +597,7 @@ async function main() {
       },
       body: JSON.stringify({
         username: 'friend-user',
-        password: 'friend-pass',
+        password: 'friend-pass1',
         nickname: '프렌드러너',
         realName: '친구 유저',
         phone: '01011112222',
@@ -763,7 +793,7 @@ async function main() {
       },
       body: JSON.stringify({
         username: 'smoke-user',
-        password: 'smoke-pass',
+        password: 'smoke-pass1',
       }),
     });
     const renewedAccessToken = renewedLogin.accessToken;

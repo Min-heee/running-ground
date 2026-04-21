@@ -159,8 +159,7 @@ function pickTemplate(keyword: string) {
     return ROUTE_ART_TEMPLATES.find((template) => template.key === 'star')!;
   }
 
-  const fallbacks = ROUTE_ART_TEMPLATES.filter((template) => template.key !== 'sweet-potato' && template.key !== 'cat');
-  return fallbacks[Math.abs(hashString(normalizedKeyword || 'signature')) % fallbacks.length];
+  return ROUTE_ART_TEMPLATES.find((template) => template.key === 'signature')!;
 }
 
 function rotatePoint(point: NormalizedPoint, angleRadians: number): NormalizedPoint {
@@ -200,7 +199,7 @@ function toCoordinate(anchor: MapCoordinate, point: NormalizedPoint, metersPerUn
 function buildTitle(template: RouteArtTemplate, keyword: string) {
   const trimmedKeyword = keyword.trim();
 
-  if (!trimmedKeyword || template.key !== 'signature') {
+  if (!trimmedKeyword) {
     return template.label;
   }
 
@@ -243,5 +242,6 @@ export function buildSuggestedArtRoute({
     coordinates,
     provider: 'template',
     roadFollowed: false,
+    warning: '무료 MVP 경로는 그림 목표선을 먼저 그리는 단계예요. 실제 러닝 전에는 카카오맵이나 네이버지도에서 도보 이동 가능 여부를 확인해주세요.',
   };
 }

@@ -8,6 +8,39 @@ Exact controller/service naming can differ on the backend, but response shapes s
 
 ---
 
+## Health / readiness
+### GET `/api/health`
+
+Response example:
+
+```json
+{
+  "status": "ok",
+  "ready": true,
+  "environment": "preview",
+  "uptimeSeconds": 120,
+  "publicBaseUrl": "https://preview-api.runnigapp.com",
+  "config": {
+    "maxBodySizeKb": 256,
+    "requestTimeoutMs": 30000,
+    "headersTimeoutMs": 10000,
+    "keepAliveTimeoutMs": 5000
+  },
+  "store": {
+    "storeExists": true,
+    "backupCount": 10,
+    "counts": {
+      "users": 12,
+      "runs": 48
+    }
+  }
+}
+```
+
+If the JSON store cannot be read and no valid backup can be restored, the backend returns `503` with `ready: false`.
+
+---
+
 ## 0. Auth
 ### POST `/api/auth/login`
 
@@ -16,7 +49,7 @@ Request example:
 ```json
 {
   "username": "demo-user",
-  "password": "demo-pass"
+  "password": "demo-pass1"
 }
 ```
 
@@ -52,7 +85,8 @@ Request example:
 {
   "username": "new-user",
   "password": "password123",
-  "name": "홍길동",
+  "nickname": "러너길동",
+  "realName": "홍길동",
   "phone": "01012345678",
   "provinceName": "서울특별시",
   "cityName": "",

@@ -37,6 +37,15 @@ import {
 type TrackerStatus = 'idle' | 'running' | 'paused' | 'saving';
 type TrackRunMode = 'tab' | 'stack';
 type ExternalMapProvider = 'kakao' | 'naver';
+type ConfirmedStartLocation = {
+  query: string;
+  label: string;
+  resolvedAddress?: string;
+  coordinate: {
+    latitude: number;
+    longitude: number;
+  };
+};
 
 function buildRoutePoint(location: Location.LocationObject): RunRoutePoint {
   return {
@@ -69,11 +78,11 @@ function parseDesiredDistanceKm(value: string) {
 }
 
 function getRouteProviderLabel() {
-  return '우리 앱 그림 경로';
+  return '무료 MVP 그림 초안';
 }
 
 function getRouteProviderDescription() {
-  return '그림 모양은 RUNNIGAPP에서 만들고, 실제 도보 길 확인은 카카오맵이나 네이버지도로 열 수 있어요.';
+  return '지금은 키워드와 문장의 분위기를 기준으로 그림 목표선을 먼저 만들어요. 도로에 딱 맞춰주는 기능은 추후 무료 지도 대안을 검증한 뒤 확장할게요.';
 }
 
 function formatCoordinateForUrl(coordinate: { latitude: number; longitude: number }) {
@@ -154,6 +163,18 @@ function getExternalMapFallbackUrl(provider: ExternalMapProvider, route: Suggest
   })!;
 }
 
+function formatReverseGeocodedAddress(address: Location.LocationGeocodedAddress) {
+  const parts = [
+    address.region,
+    address.city,
+    address.district,
+    address.street,
+    address.name,
+  ].filter(Boolean);
+
+  return parts.join(' ');
+}
+
 export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const pedometerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
@@ -179,6 +200,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [shapeKeyword, setShapeKeyword] = useState('고구마');
   const [desiredDistanceText, setDesiredDistanceText] = useState('5');
   const [startLocationQuery, setStartLocationQuery] = useState('');
+  const [confirmedStartLocation, setConfirmedStartLocation] = useState<ConfirmedStartLocation | null>(null);
   const [isGeneratingRoute, setIsGeneratingRoute] = useState(false);
   const [suggestedRoute, setSuggestedRoute] = useState<SuggestedArtRoute | null>(null);
   const [plannerExpanded, setPlannerExpanded] = useState(false);
@@ -356,22 +378,103 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     }
   };
 
+  const resolveTypedStartLocation = async (trimmedStartLocation: string): Promise<ConfirmedStartLocation> => {
+    const geocoded = await Location.geocodeAsync(trimmedStartLocation);
+
+    if (!geocoded.length) {
+      throw new Error('출발지 위치를 찾지 못했어요. 지하철역명, 건물명, 도로명처럼 조금 더 구체적으로 입력해주세요.');
+    }
+
+    const coordinate = {
+      latitude: geocoded[0].latitude,
+      longitude: geocoded[0].longitude,
+    };
+    let resolvedAddress = '';
+
+    try {
+      const [address] = await Location.reverseGeocodeAsync(coordinate);
+      resolvedAddress = address ? formatReverseGeocodedAddress(address) : '';
+    } catch {
+      resolvedAddress = '';
+    }
+
+    return {
+      query: trimmedStartLocation,
+      label: trimmedStartLocation,
+      resolvedAddress,
+      coordinate,
+    };
+  };
+
+  const handleUseCurrentLocationAsStart = async () => {
+    try {
+      setIsGeneratingRoute(true);
+      setError(null);
+      await ensureLocationPermission();
+      const currentLocation = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const coordinate = {
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+      };
+      let resolvedAddress = '현재 위치';
+
+      try {
+        const [address] = await Location.reverseGeocodeAsync(coordinate);
+        resolvedAddress = address ? formatReverseGeocodedAddress(address) || '현재 위치' : '현재 위치';
+      } catch {
+        resolvedAddress = '현재 위치';
+      }
+
+      setStartLocationQuery(resolvedAddress);
+      setConfirmedStartLocation({
+        query: resolvedAddress,
+        label: '현재 위치',
+        resolvedAddress,
+        coordinate,
+      });
+    } catch (locationError) {
+      setConfirmedStartLocation(null);
+      setError(locationError instanceof Error ? locationError.message : '현재 위치를 확인하지 못했어요.');
+    } finally {
+      setIsGeneratingRoute(false);
+    }
+  };
+
+  const handleConfirmStartLocation = async () => {
+    const trimmedStartLocation = startLocationQuery.trim();
+
+    if (!trimmedStartLocation) {
+      setError('출발지를 입력하면 위치를 먼저 확인할 수 있어요. 비워두면 현재 위치를 사용합니다.');
+      return;
+    }
+
+    try {
+      setIsGeneratingRoute(true);
+      setError(null);
+      const nextConfirmedStartLocation = await resolveTypedStartLocation(trimmedStartLocation);
+      setConfirmedStartLocation(nextConfirmedStartLocation);
+    } catch (locationError) {
+      setConfirmedStartLocation(null);
+      setError(locationError instanceof Error ? locationError.message : '출발지 위치를 확인하지 못했어요.');
+    } finally {
+      setIsGeneratingRoute(false);
+    }
+  };
+
   const resolveRoutePreviewStart = async () => {
     const trimmedStartLocation = startLocationQuery.trim();
 
     if (trimmedStartLocation) {
-      const geocoded = await Location.geocodeAsync(trimmedStartLocation);
+      const start = confirmedStartLocation?.query === trimmedStartLocation
+        ? confirmedStartLocation
+        : await resolveTypedStartLocation(trimmedStartLocation);
 
-      if (!geocoded.length) {
-        throw new Error('출발지 위치를 찾지 못했어. 조금 더 구체적으로 입력해줘.');
-      }
-
+      setConfirmedStartLocation(start);
       return {
-        coordinate: {
-          latitude: geocoded[0].latitude,
-          longitude: geocoded[0].longitude,
-        },
-        label: trimmedStartLocation,
+        coordinate: start.coordinate,
+        label: start.label,
       };
     }
 
@@ -609,15 +712,17 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
             {plannerExpanded ? (
               <>
                 <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>원하는 모양</Text>
+                  <Text style={styles.fieldLabel}>그리고 싶은 모양</Text>
                   <TextInput
                     value={shapeKeyword}
                     onChangeText={setShapeKeyword}
-                    placeholder="원하는 모양을 입력하세요"
+                    placeholder="예: 고구마, 고양이 얼굴, 번개처럼 꺾이는 모양"
                     placeholderTextColor="#98A2B3"
-                    style={styles.input}
+                    style={[styles.input, styles.promptInput]}
                     autoCapitalize="none"
+                    multiline
                   />
+                  <Text style={styles.fieldHelp}>정해진 선택지가 아니라 문장으로 적어도 돼요. 지금은 비용 없는 템플릿 방식으로 분위기에 맞는 그림 목표선을 먼저 만들어드려요.</Text>
                 </View>
 
                 <View style={styles.fieldGroup}>
@@ -636,12 +741,44 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                   <Text style={styles.fieldLabel}>출발지</Text>
                   <TextInput
                     value={startLocationQuery}
-                    onChangeText={setStartLocationQuery}
-                    placeholder="출발지를 입력하세요"
+                    onChangeText={(nextValue) => {
+                      setStartLocationQuery(nextValue);
+                      setConfirmedStartLocation(null);
+                    }}
+                    placeholder="예: 강남역 11번 출구, 여의나루역, 서울숲"
                     placeholderTextColor="#98A2B3"
                     style={styles.input}
                   />
-                  <Text style={styles.fieldHelp}>비워두면 현재 위치 기준으로 추천선을 만들어드려요.</Text>
+                  <Text style={styles.fieldHelp}>
+                    입력한 출발지 최대한 근처로 시작점을 잡아요. 이름이 비슷하거나 오타가 있을 수 있으니, 경로를 만들기 전에 위치를 확인해주세요.
+                  </Text>
+                  <View style={styles.inlineActionRow}>
+                    <View style={styles.inlineAction}>
+                      <SecondaryButton label="출발지 위치 확인" onPress={handleConfirmStartLocation} />
+                    </View>
+                    <View style={styles.inlineAction}>
+                      <SecondaryButton label="현재 위치 사용" onPress={handleUseCurrentLocationAsStart} />
+                    </View>
+                  </View>
+                  {confirmedStartLocation ? (
+                    <View style={styles.confirmedLocationCard}>
+                      <Text style={styles.confirmedLocationTitle}>확인된 출발지</Text>
+                      <Text style={styles.confirmedLocationText}>{confirmedStartLocation.label}</Text>
+                      {confirmedStartLocation.resolvedAddress ? (
+                        <Text style={styles.confirmedLocationAddress}>{confirmedStartLocation.resolvedAddress}</Text>
+                      ) : null}
+                      <Text style={styles.confirmedLocationMeta}>
+                        {confirmedStartLocation.coordinate.latitude.toFixed(5)}, {confirmedStartLocation.coordinate.longitude.toFixed(5)}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={styles.routeRuleCard}>
+                  <Text style={styles.routeRuleTitle}>경로 생성 기준</Text>
+                  <Text style={styles.routeRuleText}>최대한 입력한 모양과 비슷하게 만들어요.</Text>
+                  <Text style={styles.routeRuleText}>무료 MVP에서는 도로를 자동으로 따라붙이기보다 그림 목표선을 먼저 보여드려요.</Text>
+                  <Text style={styles.routeRuleText}>건물이나 횡단보도가 아닌 도로를 가로지르지 않도록 지도 앱에서 도보 경로를 한 번 더 확인해주세요.</Text>
                 </View>
 
                 {isGeneratingRoute ? <ActivityIndicator size="small" color="#6D5EF7" /> : null}
@@ -694,7 +831,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     </Card>
 
                     <Text style={styles.previewFootnote}>
-                      회색 선은 그림 목표선이에요. 실제 도보 이동 가능 여부는 카카오맵이나 네이버지도에서 한 번 확인하고, 러닝을 시작하면 실제로 뛴 길이 다른 색으로 함께 표시돼요.
+                      회색 선은 그림 목표선이에요. 앱 안 지도는 비용 없는 기본 지도 흐름으로 보여드리고, 실제 도보 이동 가능 여부는 카카오맵이나 네이버지도에서 한 번 더 확인할 수 있어요.
                     </Text>
                     {suggestedRoute.warning ? <Text style={styles.previewWarning}>{suggestedRoute.warning}</Text> : null}
 
@@ -858,10 +995,61 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 15,
   },
+  promptInput: {
+    minHeight: 88,
+    textAlignVertical: 'top',
+  },
   fieldHelp: {
     color: '#667085',
     fontSize: 13,
     lineHeight: 18,
+  },
+  inlineActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  inlineAction: {
+    flex: 1,
+  },
+  confirmedLocationCard: {
+    gap: 4,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E4E7EC',
+  },
+  confirmedLocationTitle: {
+    color: '#344054',
+    fontWeight: '800',
+  },
+  confirmedLocationText: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  confirmedLocationAddress: {
+    color: '#344054',
+    lineHeight: 19,
+  },
+  confirmedLocationMeta: {
+    color: '#667085',
+    fontSize: 12,
+  },
+  routeRuleCard: {
+    gap: 7,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+  },
+  routeRuleTitle: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  routeRuleText: {
+    color: '#667085',
+    lineHeight: 19,
   },
   previewCard: {
     gap: 14,

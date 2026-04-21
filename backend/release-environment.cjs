@@ -80,6 +80,7 @@ function buildResolvedBackendEnvironment(env, options = {}) {
   const enableResetEndpoint = Boolean(adminToken) && parseBoolean(env.BACKEND_ENABLE_RESET_ENDPOINT, false);
   const storeFile = normalizeOptionalString(env.BACKEND_STORE_FILE) || normalizeOptionalString(options.defaultStoreFile);
   const backupDirectory = normalizeOptionalString(env.BACKEND_STORE_BACKUP_DIRECTORY) || normalizeOptionalString(options.defaultBackupDirectory);
+  const requestTimeoutMs = Math.max(5000, parseNumber(env.BACKEND_REQUEST_TIMEOUT_MS, 30000));
 
   return {
     appEnv,
@@ -92,6 +93,11 @@ function buildResolvedBackendEnvironment(env, options = {}) {
     enableResetEndpoint,
     sessionTtlHours: Math.max(1, parseNumber(env.BACKEND_SESSION_TTL_HOURS, 24 * 7)),
     maxBodySizeKb: Math.max(16, parseNumber(env.BACKEND_MAX_BODY_SIZE_KB, 256)),
+    requestTimeoutMs,
+    headersTimeoutMs: Math.min(requestTimeoutMs, Math.max(5000, parseNumber(env.BACKEND_HEADERS_TIMEOUT_MS, 10000))),
+    keepAliveTimeoutMs: Math.max(1000, parseNumber(env.BACKEND_KEEP_ALIVE_TIMEOUT_MS, 5000)),
+    maxRequestsPerSocket: Math.max(1, parseNumber(env.BACKEND_MAX_REQUESTS_PER_SOCKET, 1000)),
+    shutdownTimeoutMs: Math.max(1000, parseNumber(env.BACKEND_SHUTDOWN_TIMEOUT_MS, 10000)),
     storeFile,
     backupDirectory,
     backupOnSave: parseBoolean(env.BACKEND_STORE_BACKUP_ON_SAVE, appEnv !== 'development'),
@@ -212,6 +218,7 @@ function formatBackendReleaseValidationReport(result) {
     `[backend-release-check] store file: ${result.resolved.storeFile || '(not set)'}`,
     `[backend-release-check] backup on save: ${result.resolved.backupOnSave ? 'true' : 'false'}`,
     `[backend-release-check] backup retention: ${result.resolved.backupRetention}`,
+    `[backend-release-check] request timeout ms: ${result.resolved.requestTimeoutMs}`,
   ];
 
   if (result.errors.length > 0) {

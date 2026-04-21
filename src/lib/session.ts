@@ -6,6 +6,9 @@ import { USE_MOCK_API } from '@/lib/api/config';
 import { AuthResponse, LogoutResponse, MyProfileResponse, UsernameAvailabilityResponse } from '@/lib/api/types';
 
 const SESSION_STORAGE_KEY = 'runnigapp.session.v1';
+export const USERNAME_RULE_DESCRIPTION = '아이디는 4~20자의 영문 소문자, 숫자, -, _만 사용할 수 있어요.';
+export const PASSWORD_RULE_DESCRIPTION = '비밀번호는 8자 이상이고 영문과 숫자를 모두 포함해야 해요.';
+const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{3,19}$/;
 
 type SignInInput = {
   username: string;
@@ -50,6 +53,44 @@ const MOCK_TAKEN_USERNAMES = new Set([
   'yr-user',
   'ia-user',
 ]);
+
+export function normalizeUsername(value: string) {
+  return value.trim().toLowerCase();
+}
+
+export function getUsernameValidationError(value: string) {
+  const username = normalizeUsername(value);
+
+  if (!username) {
+    return '아이디를 입력해주세요.';
+  }
+
+  if (!USERNAME_PATTERN.test(username)) {
+    return USERNAME_RULE_DESCRIPTION;
+  }
+
+  return null;
+}
+
+export function getPasswordValidationError(value: string) {
+  if (!value) {
+    return '비밀번호를 입력해주세요.';
+  }
+
+  if (value.length < 8) {
+    return '비밀번호는 8자 이상으로 입력해주세요.';
+  }
+
+  if (/\s/.test(value)) {
+    return '비밀번호에는 공백을 넣을 수 없어요.';
+  }
+
+  if (!/[A-Za-z]/.test(value) || !/\d/.test(value)) {
+    return '비밀번호에는 영문과 숫자를 모두 포함해주세요.';
+  }
+
+  return null;
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
@@ -146,7 +187,7 @@ function readStoredSession(rawValue: string | null) {
 async function fetchBackendProfile(accessToken: string) {
   return apiGet<MyProfileResponse>('/me/profile', {
     accessToken,
-    fallbackMessage: '세션 확인에 실패했어.',
+    fallbackMessage: '세션 확인에 실패했어요.',
   });
 }
 
@@ -260,17 +301,17 @@ export async function signIn(input?: SignInInput) {
     return mockProfile;
   }
 
-  const username = input?.username.trim().toLowerCase() ?? '';
+  const username = normalizeUsername(input?.username ?? '');
   const password = input?.password.trim() ?? '';
 
   if (!username || !password) {
-    throw new Error('아이디와 비밀번호를 모두 입력해줘.');
+    throw new Error('아이디와 비밀번호를 모두 입력해주세요.');
   }
 
   const authResponse = await apiPost<AuthResponse>(
     '/auth/login',
     { username, password },
-    { fallbackMessage: '로그인에 실패했어.' },
+    { fallbackMessage: '로그인에 실패했어요.' },
   );
 
   setBackendSession(authResponse);
@@ -282,7 +323,7 @@ export async function signInWithProvider(provider: 'kakao' | 'google' | 'apple' 
   await ensureHydrated();
 
   if (!USE_MOCK_API) {
-    throw new Error(`${provider} 간편 로그인은 데스크탑 백엔드에서 아직 준비되지 않았어. 지금은 계정 로그인으로 진행해줘.`);
+    throw new Error(`${provider} 간편 로그인은 아직 준비되지 않았어요. 지금은 계정 로그인으로 진행해주세요.`);
   }
 
   mockSignedIn = true;
@@ -293,10 +334,11 @@ export async function signInWithProvider(provider: 'kakao' | 'google' | 'apple' 
 export async function checkUsernameAvailability(rawUsername: string): Promise<UsernameAvailabilityResponse> {
   await ensureHydrated();
 
-  const username = rawUsername.trim().toLowerCase();
+  const username = normalizeUsername(rawUsername);
+  const usernameValidationError = getUsernameValidationError(username);
 
-  if (!username) {
-    throw new Error('아이디를 입력해줘.');
+  if (usernameValidationError) {
+    throw new Error(usernameValidationError);
   }
 
   if (USE_MOCK_API) {
@@ -311,7 +353,7 @@ export async function checkUsernameAvailability(rawUsername: string): Promise<Us
 
   return apiGet<UsernameAvailabilityResponse>(
     `/auth/check-username?username=${encodeURIComponent(username)}`,
-    { fallbackMessage: '아이디 중복 확인에 실패했어.' },
+    { fallbackMessage: '아이디 중복 확인에 실패했어요.' },
   );
 }
 
@@ -332,7 +374,7 @@ export async function registerAccount({
 
   const normalizedNickname = nickname.trim();
   const normalizedRealName = realName.trim();
-  const normalizedUsername = username.trim().toLowerCase();
+  const normalizedUsername = normalizeUsername(username);
   const normalizedPhone = phone.replace(/\D/g, '');
   const normalizedProvinceName = provinceName.trim();
   const normalizedCityName = cityName?.trim() ?? '';
@@ -342,39 +384,43 @@ export async function registerAccount({
   const normalizedBirthDate = birthDate.trim();
 
   if (!normalizedNickname) {
-    throw new Error('닉네임을 입력해줘.');
+    throw new Error('닉네임을 입력해주세요.');
   }
 
   if (!normalizedRealName) {
-    throw new Error('이름을 입력해줘.');
+    throw new Error('이름을 입력해주세요.');
   }
 
-  if (!normalizedUsername) {
-    throw new Error('아이디를 입력해줘.');
+  const usernameValidationError = getUsernameValidationError(normalizedUsername);
+
+  if (usernameValidationError) {
+    throw new Error(usernameValidationError);
   }
 
-  if (password.trim().length < 6) {
-    throw new Error('비밀번호는 6자 이상으로 입력해줘.');
+  const passwordValidationError = getPasswordValidationError(password);
+
+  if (passwordValidationError) {
+    throw new Error(passwordValidationError);
   }
 
   if (normalizedPhone.length < 10) {
-    throw new Error('휴대폰 번호를 정확히 입력해줘.');
+    throw new Error('휴대폰 번호를 정확히 입력해주세요.');
   }
 
   if (!normalizedProvinceName) {
-    throw new Error('시/도를 먼저 선택해줘.');
+    throw new Error('시/도를 먼저 선택해주세요.');
   }
 
   if (!normalizedDistrictName) {
-    throw new Error('최종 지역을 선택해줘.');
+    throw new Error('최종 지역을 선택해주세요.');
   }
 
   if (!normalizedAddressDetail) {
-    throw new Error('상세 주소를 입력해줘.');
+    throw new Error('상세 주소를 입력해주세요.');
   }
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedBirthDate)) {
-    throw new Error('생년월일은 YYYY-MM-DD 형식으로 입력해줘.');
+    throw new Error('생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
   }
 
   if (USE_MOCK_API) {
@@ -410,7 +456,7 @@ export async function registerAccount({
       addressDetail: normalizedAddressDetail,
       birthDate: normalizedBirthDate,
     },
-    { fallbackMessage: '회원가입에 실패했어.' },
+    { fallbackMessage: '회원가입에 실패했어요.' },
   );
 
   setBackendSession(authResponse);
@@ -435,7 +481,7 @@ export async function signOut() {
         {},
         {
           accessToken: backendAccessToken,
-          fallbackMessage: '로그아웃 처리에 실패했어.',
+          fallbackMessage: '로그아웃 처리에 실패했어요.',
         },
       );
     } catch {

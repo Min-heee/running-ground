@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { loadStore, mutateStore, getStoreFilePath, resetStore } from './store.mjs';
+import { loadStore, mutateStore, getStoreFilePath, getStoreDiagnostics, resetStore } from './store.mjs';
 import {
   ADMIN_TOKEN,
   APP_ENV,
@@ -11,9 +11,14 @@ import {
   HOST,
   MAX_BODY_SIZE_BYTES,
   MAX_BODY_SIZE_KB,
+  HEADERS_TIMEOUT_MS,
+  KEEP_ALIVE_TIMEOUT_MS,
+  MAX_REQUESTS_PER_SOCKET,
   PORT,
   PUBLIC_BASE_URL,
+  REQUEST_TIMEOUT_MS,
   SESSION_TTL_MS,
+  SHUTDOWN_TIMEOUT_MS,
   getPublicBackendConfig,
 } from './config.mjs';
 import { buildSessionExpiry, isSessionExpired, setUserPassword, verifyPassword } from './auth.mjs';
@@ -36,6 +41,7 @@ const DEFAULT_OFFLINE_RACE_GUIDE_STEPS = [
   '지금은 일정 등록 전이라 신청 가능한 회차가 없어요.',
   '실제 운영 일정이 준비되면 시간대와 거리 선택이 함께 열릴 예정이에요.',
 ];
+const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{3,19}$/;
 
 class ApiError extends Error {
   constructor(statusCode, message) {
@@ -46,6 +52,21 @@ class ApiError extends Error {
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function getErrorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function logBackendError(label, error, extra = {}) {
+  console.error(JSON.stringify({
+    level: 'error',
+    service: 'runnigapp-backend',
+    label,
+    message: getErrorMessage(error),
+    stack: error instanceof Error ? error.stack : undefined,
+    ...extra,
+  }));
 }
 
 function resolveCorsOrigin(request) {
@@ -87,6 +108,10 @@ function applyCorsHeaders(request, response) {
 }
 
 function sendJson(response, statusCode, payload) {
+  if (response.writableEnded || response.destroyed) {
+    return;
+  }
+
   response.writeHead(statusCode, {
     'Content-Type': 'application/json; charset=utf-8',
   });
@@ -94,13 +119,17 @@ function sendJson(response, statusCode, payload) {
 }
 
 function sendError(response, error) {
+  if (response.writableEnded || response.destroyed) {
+    return;
+  }
+
   if (error instanceof ApiError) {
     sendJson(response, error.statusCode, { message: error.message });
     return;
   }
 
-  console.error(error);
-  sendJson(response, 500, { message: '서버에서 요청 처리 중 문제가 생겼어.' });
+  logBackendError('request_failed', error);
+  sendJson(response, 500, { message: '서버에서 요청 처리 중 문제가 생겼어요.' });
 }
 
 async function parseJsonBody(request) {
@@ -907,6 +936,61 @@ function buildUniversityLeague(store) {
   return { ranks };
 }
 
+function buildStoreCounts(store) {
+  return {
+    users: store.users.length,
+    runs: store.runs.length,
+    integrationImports: (store.integrationImports ?? []).length,
+    friendships: store.friendships.length,
+    friendRequests: store.friendRequests.length,
+    sessions: store.sessions.length,
+    rewardRedemptions: (store.rewardRedemptions ?? []).length,
+    notices: (store.notices ?? []).length,
+    marketItems: (store.marketCatalog ?? []).length,
+    offlineRaceEvents: (store.offlineRaceEvents ?? []).length,
+  };
+}
+
+function buildHealthStatus() {
+  const basePayload = {
+    environment: APP_ENV,
+    startedAt: STARTED_AT,
+    uptimeSeconds: Math.round(process.uptime()),
+    storeFile: getStoreFilePath(),
+    publicBaseUrl: PUBLIC_BASE_URL || undefined,
+    config: getPublicBackendConfig(),
+    now: new Date().toISOString(),
+  };
+
+  try {
+    const store = loadStore();
+
+    return {
+      statusCode: 200,
+      payload: {
+        status: 'ok',
+        ready: true,
+        ...basePayload,
+        store: {
+          ...getStoreDiagnostics(),
+          counts: buildStoreCounts(store),
+        },
+      },
+    };
+  } catch (error) {
+    return {
+      statusCode: 503,
+      payload: {
+        status: 'error',
+        ready: false,
+        ...basePayload,
+        message: getErrorMessage(error),
+        store: getStoreDiagnostics(),
+      },
+    };
+  }
+}
+
 function buildAdminStatus(store) {
   ensureNoticeStore(store);
   ensureMarketCatalogStore(store);
@@ -917,18 +1001,8 @@ function buildAdminStatus(store) {
     uptimeSeconds: Math.round(process.uptime()),
     storeFile: getStoreFilePath(),
     config: getPublicBackendConfig(),
-    counts: {
-      users: store.users.length,
-      runs: store.runs.length,
-      integrationImports: (store.integrationImports ?? []).length,
-      friendships: store.friendships.length,
-      friendRequests: store.friendRequests.length,
-      sessions: store.sessions.length,
-      rewardRedemptions: (store.rewardRedemptions ?? []).length,
-      notices: (store.notices ?? []).length,
-      marketItems: (store.marketCatalog ?? []).length,
-      offlineRaceEvents: (store.offlineRaceEvents ?? []).length,
-    },
+    store: getStoreDiagnostics(),
+    counts: buildStoreCounts(store),
   };
 }
 
@@ -1274,6 +1348,34 @@ function validateRequiredString(value, message) {
   }
 
   return value.trim();
+}
+
+function validateUsername(value) {
+  const username = validateRequiredString(value, '아이디를 입력해주세요.').toLowerCase();
+
+  if (!USERNAME_PATTERN.test(username)) {
+    throw new ApiError(400, '아이디는 4~20자의 영문 소문자, 숫자, -, _만 사용할 수 있어요.');
+  }
+
+  return username;
+}
+
+function validateNewPassword(value) {
+  const password = validateRequiredString(value, '비밀번호를 입력해주세요.');
+
+  if (password.length < 8) {
+    throw new ApiError(400, '비밀번호는 8자 이상으로 입력해주세요.');
+  }
+
+  if (/\s/.test(password)) {
+    throw new ApiError(400, '비밀번호에는 공백을 넣을 수 없어요.');
+  }
+
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    throw new ApiError(400, '비밀번호에는 영문과 숫자를 모두 포함해주세요.');
+  }
+
+  return password;
 }
 
 function validateBoolean(value, message) {
@@ -1738,7 +1840,7 @@ function createStarterRuns(userId) {
 }
 
 function buildUsernameAvailability(store, rawUsername) {
-  const username = validateRequiredString(rawUsername, '아이디를 입력해줘.').toLowerCase();
+  const username = validateUsername(rawUsername);
   const available = !store.users.some((entry) => entry.username === username);
 
   return {
@@ -1763,14 +1865,14 @@ function createSessionForUser(store, userId) {
 
 async function handleLogin(request, response) {
   const body = await parseJsonBody(request);
-  const username = validateRequiredString(body.username, '아이디를 입력해줘.').toLowerCase();
-  const password = validateRequiredString(body.password, '비밀번호를 입력해줘.');
+  const username = validateRequiredString(body.username, '아이디를 입력해주세요.').toLowerCase();
+  const password = validateRequiredString(body.password, '비밀번호를 입력해주세요.');
 
   const result = mutateStore((store) => {
     const user = store.users.find((entry) => entry.username === username);
 
     if (!user || !verifyPassword(password, user.passwordHash ?? user.password)) {
-      throw new ApiError(401, '아이디 또는 비밀번호가 맞지 않아.');
+      throw new ApiError(401, '아이디 또는 비밀번호가 맞지 않아요.');
     }
 
     const accessToken = createSessionForUser(store, user.id);
@@ -1803,35 +1905,31 @@ async function handleLogout(request, response) {
 
 async function handleRegister(request, response) {
   const body = await parseJsonBody(request);
-  const username = validateRequiredString(body.username, '아이디를 입력해줘.').toLowerCase();
-  const password = validateRequiredString(body.password, '비밀번호를 입력해줘.');
+  const username = validateUsername(body.username);
+  const password = validateNewPassword(body.password);
   const name = typeof body.nickname === 'string' && body.nickname.trim()
     ? body.nickname.trim()
-    : validateRequiredString(body.name, '닉네임을 입력해줘.');
+    : validateRequiredString(body.name, '닉네임을 입력해주세요.');
   const realName = typeof body.realName === 'string' && body.realName.trim()
     ? body.realName.trim()
-    : validateRequiredString(body.name, '이름을 입력해줘.');
-  const phone = validateRequiredString(body.phone, '휴대폰 번호를 입력해줘.').replace(/\D/g, '');
+    : validateRequiredString(body.name, '이름을 입력해주세요.');
+  const phone = validateRequiredString(body.phone, '휴대폰 번호를 입력해주세요.').replace(/\D/g, '');
   const region = resolveRegionSelection(body.provinceName, body.cityName, body.districtName);
   const universityName = typeof body.universityName === 'string' ? body.universityName.trim() : '';
-  const addressDetail = validateRequiredString(body.addressDetail, '상세 주소를 입력해줘.');
-  const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해줘.');
-
-  if (password.length < 6) {
-    throw new ApiError(400, '비밀번호는 6자 이상으로 입력해줘.');
-  }
+  const addressDetail = validateRequiredString(body.addressDetail, '상세 주소를 입력해주세요.');
+  const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해주세요.');
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
-    throw new ApiError(400, '생년월일은 YYYY-MM-DD 형식으로 입력해줘.');
+    throw new ApiError(400, '생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
   }
 
   if (phone.length < 10) {
-    throw new ApiError(400, '휴대폰 번호를 정확히 입력해줘.');
+    throw new ApiError(400, '휴대폰 번호를 정확히 입력해주세요.');
   }
 
   const result = mutateStore((store) => {
     if (store.users.some((entry) => entry.username === username)) {
-      throw new ApiError(409, '이미 사용 중인 아이디야.');
+      throw new ApiError(409, '이미 사용 중인 아이디예요.');
     }
 
     const userId = nextId('user');
@@ -2606,17 +2704,8 @@ async function routeRequest(request, response) {
   const pathname = url.pathname;
 
   if (pathname === '/api/health' && request.method === 'GET') {
-    sendJson(response, 200, {
-      status: 'ok',
-      ready: true,
-      environment: APP_ENV,
-      startedAt: STARTED_AT,
-      uptimeSeconds: Math.round(process.uptime()),
-      storeFile: getStoreFilePath(),
-      publicBaseUrl: PUBLIC_BASE_URL || undefined,
-      config: getPublicBackendConfig(),
-      now: new Date().toISOString(),
-    });
+    const healthStatus = buildHealthStatus();
+    sendJson(response, healthStatus.statusCode, healthStatus.payload);
     return;
   }
 
@@ -3045,9 +3134,24 @@ const server = createServer(async (request, response) => {
   }
 });
 
+server.requestTimeout = REQUEST_TIMEOUT_MS;
+server.headersTimeout = HEADERS_TIMEOUT_MS;
+server.keepAliveTimeout = KEEP_ALIVE_TIMEOUT_MS;
+server.maxRequestsPerSocket = MAX_REQUESTS_PER_SOCKET;
+
 server.on('error', (error) => {
-  console.error('[runnigapp-backend] server error');
-  console.error(error);
+  logBackendError('server_error', error);
+});
+
+server.on('clientError', (error, socket) => {
+  logBackendError('client_error', error);
+
+  if (socket.writable) {
+    socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+    return;
+  }
+
+  socket.destroy();
 });
 
 server.listen(PORT, HOST, () => {
@@ -3069,7 +3173,7 @@ function shutdownServer(signal) {
   const forceExitTimer = setTimeout(() => {
     console.error('[runnigapp-backend] graceful shutdown timed out, forcing exit.');
     process.exit(1);
-  }, 10000);
+  }, SHUTDOWN_TIMEOUT_MS);
 
   forceExitTimer.unref();
 
@@ -3091,3 +3195,12 @@ function shutdownServer(signal) {
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => shutdownServer(signal));
 }
+
+process.on('unhandledRejection', (reason) => {
+  logBackendError('unhandled_rejection', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  logBackendError('uncaught_exception', error);
+  shutdownServer('uncaughtException');
+});

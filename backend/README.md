@@ -351,6 +351,11 @@ npm run provider:import -- \
 - `BACKEND_STORE_BACKUP_RETENTION`: 남겨둘 백업 개수
 - `BACKEND_SESSION_TTL_HOURS`: 세션 유지 시간, 기본 `168`
 - `BACKEND_MAX_BODY_SIZE_KB`: JSON 요청 본문 최대 크기, 기본 `256`
+- `BACKEND_REQUEST_TIMEOUT_MS`: 요청 전체 타임아웃, 기본 `30000`
+- `BACKEND_HEADERS_TIMEOUT_MS`: HTTP 헤더 수신 타임아웃, 기본 `10000`
+- `BACKEND_KEEP_ALIVE_TIMEOUT_MS`: keep-alive 연결 유지 시간, 기본 `5000`
+- `BACKEND_MAX_REQUESTS_PER_SOCKET`: 소켓당 최대 요청 수, 기본 `1000`
+- `BACKEND_SHUTDOWN_TIMEOUT_MS`: 종료 신호 후 강제 종료까지 대기 시간, 기본 `10000`
 - `BACKEND_ADMIN_TOKEN`: 관리자 토큰
 - `BACKEND_ENABLE_ADMIN_STATUS`: 관리자 상태 조회 열기 여부
 - `BACKEND_ENABLE_RESET_ENDPOINT`: 관리자 리셋 엔드포인트 열기 여부
@@ -402,6 +407,11 @@ BACKEND_STORE_BACKUP_ON_SAVE=true
 BACKEND_STORE_BACKUP_RETENTION=20
 BACKEND_SESSION_TTL_HOURS=168
 BACKEND_MAX_BODY_SIZE_KB=256
+BACKEND_REQUEST_TIMEOUT_MS=30000
+BACKEND_HEADERS_TIMEOUT_MS=10000
+BACKEND_KEEP_ALIVE_TIMEOUT_MS=5000
+BACKEND_MAX_REQUESTS_PER_SOCKET=1000
+BACKEND_SHUTDOWN_TIMEOUT_MS=10000
 BACKEND_ADMIN_TOKEN=replace-this
 BACKEND_ENABLE_ADMIN_STATUS=true
 BACKEND_ENABLE_RESET_ENDPOINT=false
@@ -415,7 +425,7 @@ BACKEND_ENABLE_RESET_ENDPOINT=false
 curl http://localhost:8081/api/health
 ```
 
-응답에는 현재 환경, 공개 주소, CORS 정책, 최대 요청 크기 같은 운영 점검 정보도 포함돼.
+응답에는 현재 환경, 공개 주소, CORS 정책, 타임아웃, 최대 요청 크기, store 파일/백업 상태 같은 운영 점검 정보도 포함돼. store JSON이 깨진 경우에는 최신 정상 백업을 자동 복구하고, 복구 가능한 백업이 없으면 `503`과 진단 메시지를 내려.
 
 ### Logout
 
