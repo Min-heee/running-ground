@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
   Platform,
   Pressable,
   StyleSheet,
@@ -18,7 +19,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RunRoutePoint } from '@/domain/types';
-import { createRunningRoutePreview, createTrackedRun } from '@/lib/api/services';
+import { createTrackedRun } from '@/lib/api/services';
 import { buildSuggestedArtRoute, type SuggestedArtRoute } from '@/features/runs/routeArt';
 import { RunRouteMap } from '@/features/runs/RunRouteMap';
 import {
@@ -35,6 +36,7 @@ import {
 
 type TrackerStatus = 'idle' | 'running' | 'paused' | 'saving';
 type TrackRunMode = 'tab' | 'stack';
+type ExternalMapProvider = 'kakao' | 'naver';
 
 function buildRoutePoint(location: Location.LocationObject): RunRoutePoint {
   return {
@@ -66,26 +68,90 @@ function parseDesiredDistanceKm(value: string) {
   return Math.min(20, Math.max(2, nextValue));
 }
 
-function getRouteProviderLabel(provider: SuggestedArtRoute['provider']) {
-  switch (provider) {
-    case 'tmap_pedestrian':
-      return 'TMAP 도보 경로';
-    case 'kakao_mobility':
-      return '카카오 길찾기';
-    default:
-      return '그림 윤곽선';
-  }
+function getRouteProviderLabel() {
+  return '우리 앱 그림 경로';
 }
 
-function getRouteProviderDescription(route: SuggestedArtRoute) {
-  switch (route.provider) {
-    case 'tmap_pedestrian':
-      return '국내 도보 길찾기 기준으로 추천선을 다시 맞춘 경로예요.';
-    case 'kakao_mobility':
-      return '길찾기 엔진으로 한 번 더 보정한 추천선이에요.';
-    default:
-      return '아직 도보 길찾기 엔진이 연결되지 않아 그림 윤곽선을 먼저 보여드리는 상태예요.';
+function getRouteProviderDescription() {
+  return '그림 모양은 RUNNIGAPP에서 만들고, 실제 도보 길 확인은 카카오맵이나 네이버지도로 열 수 있어요.';
+}
+
+function formatCoordinateForUrl(coordinate: { latitude: number; longitude: number }) {
+  return `${coordinate.latitude.toFixed(6)},${coordinate.longitude.toFixed(6)}`;
+}
+
+function encodeRouteName(value: string) {
+  return value.trim() || 'RUNNIGAPP 경로';
+}
+
+function sampleExternalMapWaypoints(coordinates: SuggestedArtRoute['coordinates'], maximumWaypoints = 5) {
+  if (coordinates.length <= 2) {
+    return [];
   }
+
+  const intermediateCoordinates = coordinates.slice(1, -1);
+
+  if (intermediateCoordinates.length <= maximumWaypoints) {
+    return intermediateCoordinates;
+  }
+
+  return Array.from({ length: maximumWaypoints }, (_, index) => {
+    const sourceIndex = Math.round((index / (maximumWaypoints - 1)) * (intermediateCoordinates.length - 1));
+    return intermediateCoordinates[sourceIndex];
+  });
+}
+
+function buildKakaoWalkRouteUrl(route: SuggestedArtRoute, useWebFallback = false) {
+  const [startCoordinate] = route.coordinates;
+  const endCoordinate = route.coordinates[route.coordinates.length - 1];
+  const waypoints = sampleExternalMapWaypoints(route.coordinates);
+  const params = new URLSearchParams({
+    sp: formatCoordinateForUrl(startCoordinate),
+    ep: formatCoordinateForUrl(endCoordinate),
+    by: 'foot',
+  });
+
+  waypoints.forEach((waypoint, index) => {
+    params.set(index === 0 ? 'vp' : `vp${index + 1}`, formatCoordinateForUrl(waypoint));
+  });
+
+  return `${useWebFallback ? 'https://m.map.kakao.com/scheme/route' : 'kakaomap://route'}?${params.toString()}`;
+}
+
+function buildNaverWalkRouteUrl(route: SuggestedArtRoute) {
+  const [startCoordinate] = route.coordinates;
+  const endCoordinate = route.coordinates[route.coordinates.length - 1];
+  const waypoints = sampleExternalMapWaypoints(route.coordinates);
+  const params = new URLSearchParams({
+    slat: startCoordinate.latitude.toFixed(6),
+    slng: startCoordinate.longitude.toFixed(6),
+    sname: encodeRouteName(route.startLabel),
+    dlat: endCoordinate.latitude.toFixed(6),
+    dlng: endCoordinate.longitude.toFixed(6),
+    dname: encodeRouteName(route.displayTitle),
+    appname: 'com.minheee.runnigapp',
+  });
+
+  waypoints.forEach((waypoint, index) => {
+    const waypointNumber = index + 1;
+    params.set(`v${waypointNumber}lat`, waypoint.latitude.toFixed(6));
+    params.set(`v${waypointNumber}lng`, waypoint.longitude.toFixed(6));
+    params.set(`v${waypointNumber}name`, encodeRouteName(`경유 ${waypointNumber}`));
+  });
+
+  return `nmap://route/walk?${params.toString()}`;
+}
+
+function getExternalMapFallbackUrl(provider: ExternalMapProvider, route: SuggestedArtRoute) {
+  if (provider === 'kakao') {
+    return buildKakaoWalkRouteUrl(route, true);
+  }
+
+  return Platform.select({
+    ios: 'https://apps.apple.com/kr/app/naver-map-navigation/id311867728',
+    android: 'market://details?id=com.nhn.android.nmap',
+    default: 'https://map.naver.com',
+  })!;
 }
 
 export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
@@ -340,47 +406,37 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         startCoordinate: start.coordinate,
         startLabel: start.label,
       });
-      let previewToShow = nextSuggestedRoute;
-
-      try {
-        const routedPreview = await createRunningRoutePreview({
-          keyword: nextSuggestedRoute.requestedKeyword || shapeKeyword || '시그니처',
-          desiredDistanceKm: nextSuggestedRoute.requestedDistanceKm,
-          startLabel: nextSuggestedRoute.startLabel,
-          displayTitle: nextSuggestedRoute.displayTitle,
-          description: nextSuggestedRoute.description,
-          roughCoordinates: nextSuggestedRoute.coordinates,
-        });
-
-        previewToShow = {
-          ...nextSuggestedRoute,
-          displayTitle: routedPreview.displayTitle,
-          description: routedPreview.description,
-          startLabel: routedPreview.startLabel,
-          requestedKeyword: routedPreview.requestedKeyword,
-          requestedDistanceKm: routedPreview.requestedDistanceKm,
-          estimatedDistanceKm: routedPreview.estimatedDistanceKm,
-          coordinates: routedPreview.coordinates,
-          provider: routedPreview.provider,
-          roadFollowed: routedPreview.roadFollowed,
-          warning: routedPreview.warning,
-        };
-      } catch (previewError) {
-        previewToShow = {
-          ...nextSuggestedRoute,
-          warning: previewError instanceof Error
-            ? `${previewError.message} 우선 그림 윤곽선을 먼저 보여드릴게요.`
-            : '도로 기반 추천선을 아직 만들지 못해서, 우선 그림 윤곽선을 먼저 보여드려요.',
-        };
-      }
 
       setDesiredDistanceText(String(nextSuggestedRoute.requestedDistanceKm));
-      setSuggestedRoute(previewToShow);
+      setSuggestedRoute(nextSuggestedRoute);
       setPlannerExpanded(true);
     } catch (planningError) {
       setError(planningError instanceof Error ? planningError.message : '추천 그림 경로를 만들지 못했어.');
     } finally {
       setIsGeneratingRoute(false);
+    }
+  };
+
+  const handleOpenExternalMap = async (provider: ExternalMapProvider) => {
+    if (!suggestedRoute || suggestedRoute.coordinates.length < 2) {
+      setError('먼저 지도로 그림 경로를 만들어주세요.');
+      return;
+    }
+
+    const primaryUrl = provider === 'kakao'
+      ? buildKakaoWalkRouteUrl(suggestedRoute)
+      : buildNaverWalkRouteUrl(suggestedRoute);
+    const fallbackUrl = getExternalMapFallbackUrl(provider, suggestedRoute);
+    const providerName = provider === 'kakao' ? '카카오맵' : '네이버지도';
+
+    try {
+      await Linking.openURL(primaryUrl);
+    } catch {
+      try {
+        await Linking.openURL(fallbackUrl);
+      } catch {
+        setError(`${providerName}을 열지 못했어요. 지도 앱 설치 상태를 확인해주세요.`);
+      }
     }
   };
 
@@ -633,19 +689,19 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
                     <Card style={styles.previewStatCard}>
                       <Text style={styles.previewStatLabel}>경로 기준</Text>
-                      <Text style={styles.previewStatValue}>{getRouteProviderLabel(suggestedRoute.provider)}</Text>
-                      <Text style={styles.previewProviderText}>{getRouteProviderDescription(suggestedRoute)}</Text>
+                      <Text style={styles.previewStatValue}>{getRouteProviderLabel()}</Text>
+                      <Text style={styles.previewProviderText}>{getRouteProviderDescription()}</Text>
                     </Card>
 
                     <Text style={styles.previewFootnote}>
-                      {suggestedRoute.roadFollowed
-                        ? '회색 선은 실제로 이동 가능한 도보 경로 기준 추천선이에요. 러닝을 시작하면 실제로 뛴 길이 다른 색으로 함께 표시돼요.'
-                        : '회색 선은 그림 윤곽을 먼저 보여주는 추천선이에요. 러닝을 시작하면 실제로 뛴 길이 다른 색으로 함께 표시돼요.'}
+                      회색 선은 그림 목표선이에요. 실제 도보 이동 가능 여부는 카카오맵이나 네이버지도에서 한 번 확인하고, 러닝을 시작하면 실제로 뛴 길이 다른 색으로 함께 표시돼요.
                     </Text>
                     {suggestedRoute.warning ? <Text style={styles.previewWarning}>{suggestedRoute.warning}</Text> : null}
 
                     <View style={styles.actionColumn}>
-                      <PrimaryButton label="권장 길대로 뛰기" onPress={handleStartTracking} />
+                      <SecondaryButton label="카카오맵으로 도보 길 확인" onPress={() => handleOpenExternalMap('kakao')} />
+                      <SecondaryButton label="네이버지도로 도보 길 확인" onPress={() => handleOpenExternalMap('naver')} />
+                      <PrimaryButton label="이 길로 런닝 시작" onPress={handleStartTracking} />
                       <SecondaryButton label="그림 경로 다시 만들기" onPress={handleCreateRoutePreview} />
                     </View>
                   </>
@@ -659,7 +715,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
           <Card style={styles.mapCard}>
             <Text style={styles.mapLabel}>실시간 러닝 맵</Text>
             <Text style={styles.mapLegend}>
-              {suggestedRoute ? '회색은 추천 경로, 보라는 실제로 뛴 경로예요.' : '달리기를 시작한 뒤 실제로 뛴 경로가 여기에 표시돼요.'}
+              {suggestedRoute ? '회색은 그림 목표선, 보라는 실제로 뛴 경로예요.' : '달리기를 시작한 뒤 실제로 뛴 경로가 여기에 표시돼요.'}
             </Text>
             <View style={styles.mapWrap}>
               {liveMapRegion ? (

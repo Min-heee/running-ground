@@ -19,26 +19,16 @@ npm run backend:dev
 
 기본 주소는 `http://localhost:8081` 이고, 앱에서는 `/api` 를 붙여서 사용해.
 
-### 1.1. 러닝 추천 경로용 TMAP 보행자 키
+### 1.1. 지도로 그림 그리기 방향
 
-`지도로 그림 그리기` 추천선을 실제 도보 길 기준으로 맞추려면 백엔드에 아래 키를 넣어두는 게 좋아.
+`지도로 그림 그리기`는 백엔드 유료 라우팅 API에 묶지 않고, 앱 안에서 그림 목표선을 만든 뒤 실제 도보 길 확인은 카카오맵/네이버지도 앱으로 넘기는 방향으로 정리했어.
 
-```bash
-BACKEND_TMAP_APP_KEY=발급받은_TMAP_APP_KEY
-```
+지금 역할은 이렇게 나뉘어 있어.
+- RUNNIGAPP: 원하는 모양, 희망 거리, 출발지 기준으로 그림 목표선 만들기
+- 카카오맵/네이버지도: 실제 도보 이동 가능 경로 확인
+- RUNNIGAPP: 러닝 중 실제 GPS 기록 저장, 목표선과 실제 경로 비교
 
-지금 백엔드는 이 순서로 추천선을 만들어요.
-- `TMAP 보행자 경로`
-- 가능하면 `카카오 길찾기`
-- 둘 다 없거나 실패하면 `그림 윤곽선 fallback`
-
-주의할 점:
-- TMAP 공식 약관에는 Open API로 얻은 데이터를 `저장 후 24시간 이상 사용할 수 없다`는 제약이 있어.
-- 그래서 이 추천 경로는 `실시간 미리보기/가이드` 용도로 쓰고, 장기 저장 데이터는 실제로 뛴 GPS 기록 위주로 가져가는 게 안전해.
-
-참고:
-- [TMAP API 가이드](https://tmapapi.tmapmobility.com/index.html)
-- [TMAP API 약관](https://tmapapi.tmapmobility.com/terms.html)
+이렇게 하면 특정 유료 경로 API에 묶이지 않고, 한국 사용자에게 익숙한 지도앱을 바로 활용할 수 있어.
 
 ## 2. Docker 실행
 
@@ -156,7 +146,50 @@ npm run backend:docker:public:production:down
 
 즉 지금은 도메인만 준비되면 HTTPS 백엔드를 바로 띄울 수 있는 상태야.
 
-## 2.6.1. Windows 데스크탑 임시 preview 공개 실행
+### 2.6.1. 고정 HTTPS 백엔드 배포 명령
+
+도메인의 DNS `A` 레코드가 백엔드를 띄울 서버 공인 IP를 가리키고, 서버에 Docker가 준비되어 있으면 아래 명령으로 `.env.preview` / `.env.production` 생성, 환경 검증, Docker + Caddy 실행, 공개 health check까지 한 번에 진행할 수 있어.
+
+preview:
+
+```bash
+cd ..
+npm run backend:deploy:public -- --env preview --domain preview-api.runnigapp.com --email ops@runnigapp.com --sync-eas-preview
+```
+
+production:
+
+```bash
+npm run backend:deploy:public -- --env production --domain api.runnigapp.com --email ops@runnigapp.com
+```
+
+먼저 파일 생성 없이 검증만 해보고 싶으면:
+
+```bash
+npm run backend:deploy:public -- --env preview --domain preview-api.runnigapp.com --email ops@runnigapp.com --dry-run
+```
+
+DNS가 서버를 제대로 가리키는지 먼저 확인하려면:
+
+```bash
+npm run backend:check-domain -- --domain preview-api.runnigapp.com --expected-ip 서버공인IP --skip-health
+```
+
+배포 후 health까지 강하게 확인하려면:
+
+```bash
+npm run backend:check-domain -- --domain preview-api.runnigapp.com --require-ports --require-health
+```
+
+이 명령은 아래를 자동으로 처리해.
+- `backend/.env.preview` 또는 `backend/.env.production` 생성
+- `backend/scripts/validate-env.mjs` 로 운영 환경 검증
+- DNS 사전 점검
+- [backend/compose.public.yaml](/backend/compose.public.yaml) 실행
+- `https://도메인/api/health` 확인
+- `--sync-eas-preview` 를 붙인 경우 TestFlight용 EAS preview API 주소 갱신
+
+## 2.6.2. Windows 데스크탑 임시 preview 공개 실행
 
 도메인과 Docker Desktop이 아직 없어도, Windows 데스크탑에서 `Cloudflare Quick Tunnel`로 preview HTTPS 주소를 바로 열 수 있게 스크립트를 준비해뒀어.
 
@@ -185,6 +218,19 @@ cd ..
 - 백엔드를 다시 띄움
 - `trycloudflare.com` 임시 HTTPS 주소를 열어줌
 - 실행 결과를 `preview-public-info.json` 에 저장
+
+Mac에서 TestFlight가 볼 EAS preview 환경까지 맞추려면, 공개 주소가 준비된 뒤 아래 명령을 한 번 실행하면 돼.
+
+```bash
+cd ..
+npm run preview:sync-eas-env
+```
+
+데스크탑과 맥북 저장소가 분리되어 있어서 `preview-public-info.json` 이 맥북에 없다면 주소를 직접 넘겨도 돼.
+
+```bash
+npm run preview:sync-eas-env -- --api-base-url https://YOUR-TUNNEL.trycloudflare.com/api
+```
 
 결과 파일:
 - info: `preview-public-info.json`

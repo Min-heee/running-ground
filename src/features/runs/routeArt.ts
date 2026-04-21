@@ -22,7 +22,7 @@ export type SuggestedArtRoute = {
   requestedDistanceKm: number;
   estimatedDistanceKm: number;
   coordinates: MapCoordinate[];
-  provider: 'template' | 'tmap_pedestrian' | 'kakao_mobility';
+  provider: 'template';
   roadFollowed: boolean;
   warning?: string;
 };

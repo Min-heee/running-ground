@@ -75,7 +75,7 @@ export type CreateRunningRoutePreviewResponse = {
   requestedDistanceKm: number;
   estimatedDistanceKm: number;
   coordinates: RoutePreviewCoordinate[];
-  provider: 'template' | 'tmap_pedestrian' | 'kakao_mobility';
+  provider: 'template';
   roadFollowed: boolean;
   warning?: string;
 };

@@ -48,11 +48,6 @@ Example files:
   - Optional override only.
   - If omitted, [app.config.ts](/app.config.ts) derives the URL from the linked EAS project id.
 
-### backend/runtime
-- `BACKEND_TMAP_APP_KEY`
-  - If we want the in-app running planner to suggest real walkable routes instead of simple outline previews, preview/production backend should have this set.
-  - This affects the `지도로 그림 그리기` preview flow.
-
 ## build profiles
 Defined in [eas.json](/eas.json).
 
@@ -69,7 +64,7 @@ Defined in [eas.json](/eas.json).
 ### `testflight`
 - store-signed internal iOS testing build
 - keeps the real production bundle identifier
-- should point at a stable preview backend, not the final production backend
+- should point at the EAS `preview` environment backend URL, not the final production backend
 - best profile for real TestFlight QA before launch
 
 ### `production`
@@ -105,6 +100,36 @@ This check now fails fast when:
 - bundle/package identifiers still use anonymous defaults
 - `EAS_PROJECT_ID` is missing or malformed
 
+### update TestFlight preview backend URL
+For TestFlight, keep temporary tunnel URLs out of [eas.json](/eas.json).
+When the Cloudflare tunnel URL changes, update the EAS `preview` environment instead.
+
+If `preview-public-info.json` or `.env` already has the current URL:
+
+```bash
+npm run preview:sync-eas-env
+```
+
+Or pass the tunnel URL directly:
+
+```bash
+npm run preview:sync-eas-env -- --api-base-url https://YOUR-TUNNEL.trycloudflare.com/api
+```
+
+Under the hood this updates:
+
+```bash
+npx eas env:create preview --name EXPO_PUBLIC_API_BASE_URL --value https://YOUR-TUNNEL.trycloudflare.com/api --visibility plaintext --type string --force
+npx eas env:create preview --name EXPO_PUBLIC_USE_MOCK_API --value false --visibility plaintext --type string --force
+npx eas env:create preview --name EXPO_PUBLIC_API_TIMEOUT_MS --value 10000 --visibility plaintext --type string --force
+```
+
+Then confirm the cloud build environment:
+
+```bash
+npx eas env:list preview --format long
+```
+
 ### validate backend env before deploy
 ```bash
 npm run backend:release:check:preview
@@ -112,6 +137,14 @@ npm run backend:release:check:production
 ```
 
 If you use the Docker + Caddy public template:
+```bash
+npm run backend:check-domain -- --domain preview-api.runnigapp.com --expected-ip SERVER_PUBLIC_IP --skip-health
+npm run backend:deploy:public -- --env preview --domain preview-api.runnigapp.com --email ops@runnigapp.com --sync-eas-preview
+npm run backend:deploy:public -- --env production --domain api.runnigapp.com --email ops@runnigapp.com
+```
+
+The older direct Docker commands are still available if `.env.preview` / `.env.production` already exist:
+
 ```bash
 npm run backend:docker:public:preview
 npm run backend:docker:public:production

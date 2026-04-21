@@ -46,9 +46,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const version = process.env.APP_VERSION?.trim() || packageJson.version || '0.1.0';
   const baseDisplayName = baseConfig.name || 'RUNNIGAPP';
   const baseBundleIdentifier = baseConfig.ios?.bundleIdentifier;
+  const iosApplicationQueriesSchemes = Array.from(
+    new Set([
+      ...((baseConfig.ios?.infoPlist as Record<string, string[] | undefined> | undefined)?.LSApplicationQueriesSchemes ?? []),
+      'kakaomap',
+      'nmap',
+    ]),
+  );
   const iosInfoPlist = {
     ...(baseConfig.ios?.infoPlist ?? {}),
     ITSAppUsesNonExemptEncryption: false,
+    LSApplicationQueriesSchemes: iosApplicationQueriesSchemes,
     NSMotionUsageDescription:
       (baseConfig.ios?.infoPlist as Record<string, string | undefined> | undefined)?.NSMotionUsageDescription
       || 'Allow RUNNIGAPP to read your motion data so cadence can be shown while you run.',

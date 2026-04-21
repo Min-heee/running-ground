@@ -32,7 +32,6 @@
       "env": {
         "APP_VARIANT": "production",
         "EXPO_PUBLIC_USE_MOCK_API": "false",
-        "EXPO_PUBLIC_API_BASE_URL": "https://faces-screen-protect-cycling.trycloudflare.com/api",
         "EXPO_PUBLIC_API_TIMEOUT_MS": "10000",
         "IOS_BUNDLE_ID": "com.minheee.runnigapp",
         "ANDROID_PACKAGE": "com.minheee.runnigapp",

@@ -13,7 +13,7 @@
           "NSAllowsArbitraryLoads": true
         }
       },
-      "buildNumber": "12"
+      "buildNumber": "13"
     },
     "plugins": [
       "expo-router",

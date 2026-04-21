@@ -16,6 +16,8 @@ backend-preview.err.log
 preview-tunnel.out.log
 preview-tunnel.err.log
 preview-public-info.json
+credentials.json
+credentials/
 dist/
 .DS_Store
 # @end expo-cli
