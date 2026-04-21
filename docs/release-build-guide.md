@@ -148,6 +148,16 @@ npm run backend:deploy:public -- --env preview --domain preview-api.runnigapp.co
 npm run backend:deploy:public -- --env production --domain api.runnigapp.com --email ops@runnigapp.com
 ```
 
+For the temporary desktop preview backend:
+```powershell
+scripts\windows\install-preview-backend-task.cmd -StartNow
+scripts\windows\start-preview-public-backend.cmd
+scripts\windows\status-preview-public-backend.cmd
+scripts\windows\stop-preview-public-backend.cmd
+```
+
+`install-preview-backend-task.cmd -StartNow` registers the desktop backend as a Windows scheduled task. `status-preview-public-backend.cmd` checks the local backend, public tunnel, admin status, store counts, backup count, and log file paths in one place.
+
 The older direct Docker commands are still available if `.env.preview` / `.env.production` already exist:
 
 ```bash

@@ -447,6 +447,33 @@ PowerShell:
 Invoke-RestMethod -Headers @{ "X-Admin-Token" = "change-me" } -Uri http://localhost:8081/api/admin/status
 ```
 
+### Desktop preview status
+
+데스크탑에서 Cloudflare Quick Tunnel 기반 preview 백엔드를 열어두는 동안에는 아래 명령으로 현재 상태를 한 번에 확인할 수 있어.
+
+```powershell
+scripts\windows\status-preview-public-backend.cmd
+```
+
+데스크탑이 직접 백엔드 Node 프로세스를 계속 유지하게 하려면 작업 스케줄러 태스크를 설치해.
+
+```powershell
+scripts\windows\install-preview-backend-task.cmd -StartNow
+```
+
+확인 항목:
+- backend/tunnel PID가 살아 있는지
+- 로컬 `http://127.0.0.1:8081/api/health` 가 정상인지
+- 공개 `https://...trycloudflare.com/api/health` 가 정상인지
+- store 사용자/기록/백업 개수가 보이는지
+- 로그 파일 위치와 다음 조치가 무엇인지
+
+자동화나 원격 점검에서 실패 코드를 받고 싶으면:
+
+```powershell
+scripts\windows\status-preview-public-backend.cmd -RequireHealthy
+```
+
 ### Admin reset
 
 `BACKEND_ENABLE_RESET_ENDPOINT=true` 일 때만 열려.
