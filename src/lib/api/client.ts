@@ -56,7 +56,11 @@ async function apiRequest<T>(
     return (await response.json()) as T;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('요청 시간이 초과됐어. 데스크탑 백엔드 주소와 네트워크를 확인해줘.');
+      throw new Error(`요청 시간이 초과됐어요. 현재 API 주소: ${API_CONFIG.baseUrl}`);
+    }
+
+    if (error instanceof Error && /network request failed|load failed|failed to fetch/i.test(error.message)) {
+      throw new Error(`서버에 연결하지 못했어요. 현재 API 주소: ${API_CONFIG.baseUrl}`);
     }
 
     throw error;

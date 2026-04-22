@@ -1,10 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, TextInput, ActivityIndicator } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { API_CONFIG } from '@/lib/api/config';
 import { normalizeUsername, signIn } from '@/lib/session';
+
+type ServerCheckState = {
+  status: 'idle' | 'checking' | 'ok' | 'error';
+  message: string;
+};
 
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
@@ -12,8 +18,52 @@ export default function LoginScreen() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [serverCheck, setServerCheck] = useState<ServerCheckState>({
+    status: 'idle',
+    message: `API: ${API_CONFIG.baseUrl}`,
+  });
   const normalizedUsername = normalizeUsername(username);
   const loginReady = Boolean(normalizedUsername && password.trim());
+
+  const handleCheckServer = async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), API_CONFIG.timeoutMs);
+
+    setServerCheck({
+      status: 'checking',
+      message: `서버 연결을 확인하고 있어요. API: ${API_CONFIG.baseUrl}`,
+    });
+
+    try {
+      const response = await fetch(`${API_CONFIG.baseUrl}/health`, {
+        method: 'GET',
+        signal: controller.signal,
+      });
+      const payload = await response.json();
+
+      if (!response.ok || payload?.status !== 'ok') {
+        throw new Error(payload?.message ?? `health ${response.status}`);
+      }
+
+      setServerCheck({
+        status: 'ok',
+        message: `서버 연결 정상 · ${payload.publicBaseUrl ?? API_CONFIG.baseUrl}`,
+      });
+    } catch (checkError) {
+      setServerCheck({
+        status: 'error',
+        message: checkError instanceof Error
+          ? `서버 연결 실패 · ${checkError.message} · API: ${API_CONFIG.baseUrl}`
+          : `서버 연결 실패 · API: ${API_CONFIG.baseUrl}`,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  useEffect(() => {
+    handleCheckServer();
+  }, []);
 
   const handleLogin = async () => {
     if (!loginReady || submitting) {
@@ -73,6 +123,27 @@ export default function LoginScreen() {
           </Pressable>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
+      </Card>
+
+      <Card>
+        <View style={styles.serverCardHeader}>
+          <Text style={styles.serverTitle}>서버 연결</Text>
+          <Pressable onPress={handleCheckServer} disabled={serverCheck.status === 'checking'}>
+            <Text style={styles.serverAction}>{serverCheck.status === 'checking' ? '확인 중' : '다시 확인'}</Text>
+          </Pressable>
+        </View>
+        <Text
+          style={[
+            styles.serverText,
+            serverCheck.status === 'ok'
+              ? styles.serverTextOk
+              : serverCheck.status === 'error'
+                ? styles.serverTextError
+                : null,
+          ]}
+        >
+          {serverCheck.message}
+        </Text>
       </Card>
 
       <View style={styles.footer}>
@@ -137,6 +208,34 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontWeight: '800',
     fontSize: 15,
+  },
+  serverCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  serverTitle: {
+    color: '#111827',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  serverAction: {
+    color: '#6D5EF7',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  serverText: {
+    marginTop: 8,
+    color: '#667085',
+    lineHeight: 19,
+    fontSize: 12,
+  },
+  serverTextOk: {
+    color: '#067647',
+  },
+  serverTextError: {
+    color: '#B42318',
   },
   disabledButton: {
     opacity: 0.6,
