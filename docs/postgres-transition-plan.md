@@ -84,6 +84,7 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 현재 진행 상황:
 - `backend/src/repositories/authRepository.mjs`로 인증 경계를 먼저 분리했다.
 - 로그인, 로그아웃, 아이디 중복 확인, 회원가입은 route layer에서 repository를 호출한다.
+- `npm --prefix backend run test:auth`로 JSON auth repository 계약을 검증한다.
 - 아직 runtime store driver는 JSON만 사용한다.
 
 ### Phase 5. Preview 전환
@@ -100,6 +101,6 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 
 ## 다음 구현 후보
 1. `authRepository` PostgreSQL 구현 추가
-2. auth repository 단위 테스트 또는 smoke test driver 분리
+2. auth repository 테스트를 JSON/PostgreSQL 공통 계약 테스트로 확장
 3. runs/imports repository 분리
 4. smoke test에 `BACKEND_STORE_DRIVER` 케이스 추가

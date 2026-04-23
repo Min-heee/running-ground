@@ -4,7 +4,14 @@ Repository modules are the migration seam between the current JSON store and the
 
 Current status:
 - `authRepository.mjs` owns username availability, login, logout, and registration.
+- `authRepository.test.mjs` locks the JSON implementation behavior before the PostgreSQL version is added.
 - Runtime still uses the JSON implementation.
 - PostgreSQL implementations should match the same method names before routes switch drivers.
 
 The route layer should keep request parsing, response formatting, and API error messages. Repositories should own data lookup, inserts, updates, and duplicate checks.
+
+Run repository tests:
+
+```bash
+npm --prefix backend run test:auth
+```

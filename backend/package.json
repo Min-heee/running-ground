@@ -13,6 +13,8 @@
     "backups": "node ./src/list-backups.mjs",
     "restore": "node ./src/restore-store.mjs",
     "smoke": "node ./src/smoke.mjs",
+    "test": "npm run test:auth",
+    "test:auth": "node ./src/repositories/authRepository.test.mjs",
     "docker:build": "docker build -t runnigapp-backend .",
     "docker:up": "docker compose -f ./compose.yaml up --build -d",
     "docker:down": "docker compose -f ./compose.yaml down",
