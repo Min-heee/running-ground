@@ -392,7 +392,7 @@ function getPostgresFriendsRepository() {
       database,
       nextId,
       buildRunDetail,
-      buildUserMetrics,
+      buildUserMetrics: buildUserRunMetrics,
       createError: (statusCode, message) => new ApiError(statusCode, message),
     });
   }
@@ -414,7 +414,7 @@ function getPostgresLeagueRepository() {
 
     postgresLeagueRepository = createPostgresLeagueRepository({
       database,
-      buildUserMetrics,
+      buildUserMetrics: buildUserRunMetrics,
       createError: (statusCode, message) => new ApiError(statusCode, message),
     });
   }
