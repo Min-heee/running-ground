@@ -1,6 +1,7 @@
 const { isAbsolute, relative } = require('node:path');
 
 const APP_ENVS = ['development', 'preview', 'production'];
+const STORE_DRIVERS = ['json'];
 
 function normalizeOptionalString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -79,6 +80,7 @@ function buildResolvedBackendEnvironment(env, options = {}) {
   const enableAdminStatus = Boolean(adminToken) && parseBoolean(env.BACKEND_ENABLE_ADMIN_STATUS, true);
   const enableResetEndpoint = Boolean(adminToken) && parseBoolean(env.BACKEND_ENABLE_RESET_ENDPOINT, false);
   const storeFile = normalizeOptionalString(env.BACKEND_STORE_FILE) || normalizeOptionalString(options.defaultStoreFile);
+  const storeDriver = normalizeOptionalString(env.BACKEND_STORE_DRIVER) || 'json';
   const backupDirectory = normalizeOptionalString(env.BACKEND_STORE_BACKUP_DIRECTORY) || normalizeOptionalString(options.defaultBackupDirectory);
   const requestTimeoutMs = Math.max(5000, parseNumber(env.BACKEND_REQUEST_TIMEOUT_MS, 30000));
 
@@ -98,6 +100,7 @@ function buildResolvedBackendEnvironment(env, options = {}) {
     keepAliveTimeoutMs: Math.max(1000, parseNumber(env.BACKEND_KEEP_ALIVE_TIMEOUT_MS, 5000)),
     maxRequestsPerSocket: Math.max(1, parseNumber(env.BACKEND_MAX_REQUESTS_PER_SOCKET, 1000)),
     shutdownTimeoutMs: Math.max(1000, parseNumber(env.BACKEND_SHUTDOWN_TIMEOUT_MS, 10000)),
+    storeDriver,
     storeFile,
     backupDirectory,
     backupOnSave: parseBoolean(env.BACKEND_STORE_BACKUP_ON_SAVE, appEnv !== 'development'),
@@ -159,6 +162,10 @@ function validateBackendReleaseEnvironment(env, options = {}) {
     }
   }
 
+  if (!STORE_DRIVERS.includes(resolved.storeDriver)) {
+    errors.push(`BACKEND_STORE_DRIVER 는 현재 ${STORE_DRIVERS.join(', ')} 만 지원해.`);
+  }
+
   if (resolved.host && resolved.host !== '0.0.0.0' && resolved.appEnv !== 'development') {
     warnings.push(`${resolved.appEnv} 환경에서는 BACKEND_HOST 를 0.0.0.0 으로 두는 편이 일반적이야.`);
   }
@@ -215,6 +222,7 @@ function formatBackendReleaseValidationReport(result) {
     `[backend-release-check] env: ${result.resolved.appEnv}`,
     `[backend-release-check] public base url: ${result.resolved.publicBaseUrl || '(not set)'}`,
     `[backend-release-check] cors origin: ${result.resolved.corsOrigin || '(not set)'}`,
+    `[backend-release-check] store driver: ${result.resolved.storeDriver}`,
     `[backend-release-check] store file: ${result.resolved.storeFile || '(not set)'}`,
     `[backend-release-check] backup on save: ${result.resolved.backupOnSave ? 'true' : 'false'}`,
     `[backend-release-check] backup retention: ${result.resolved.backupRetention}`,

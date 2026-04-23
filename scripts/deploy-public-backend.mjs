@@ -98,6 +98,7 @@ function buildEnvFileContents({
     'BACKEND_PORT=8081',
     `BACKEND_CORS_ORIGIN=${quoteEnvValue(corsOrigin)}`,
     `BACKEND_PUBLIC_BASE_URL=https://${domain}`,
+    'BACKEND_STORE_DRIVER=json',
     'BACKEND_STORE_FILE=/app/data/store.json',
     'BACKEND_STORE_BACKUP_DIRECTORY=/app/data/backups',
     'BACKEND_STORE_BACKUP_ON_SAVE=true',

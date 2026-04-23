@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { loadStore, mutateStore, getStoreFilePath, getStoreDiagnostics, resetStore } from './store.mjs';
+import { loadStore, mutateStore, getStoreFilePath, getStoreDiagnostics, resetStore, STORE_DRIVER } from './storage/index.mjs';
 import {
   ADMIN_TOKEN,
   APP_ENV,
@@ -956,6 +956,7 @@ function buildHealthStatus() {
     environment: APP_ENV,
     startedAt: STARTED_AT,
     uptimeSeconds: Math.round(process.uptime()),
+    storeDriver: STORE_DRIVER,
     storeFile: getStoreFilePath(),
     publicBaseUrl: PUBLIC_BASE_URL || undefined,
     config: getPublicBackendConfig(),
@@ -999,6 +1000,7 @@ function buildAdminStatus(store) {
     status: 'ok',
     startedAt: STARTED_AT,
     uptimeSeconds: Math.round(process.uptime()),
+    storeDriver: STORE_DRIVER,
     storeFile: getStoreFilePath(),
     config: getPublicBackendConfig(),
     store: getStoreDiagnostics(),

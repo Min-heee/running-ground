@@ -345,6 +345,7 @@ npm run provider:import -- \
 - `BACKEND_PORT`: 기본 `8081`
 - `BACKEND_CORS_ORIGIN`: 웹 검증용 origin, 기본 `*`
 - `BACKEND_PUBLIC_BASE_URL`: 서버 외부 접근 기준 주소
+- `BACKEND_STORE_DRIVER`: 저장소 드라이버, 현재 런타임은 `json` 지원
 - `BACKEND_STORE_FILE`: JSON 저장 파일 위치
 - `BACKEND_STORE_BACKUP_DIRECTORY`: 백업 파일 폴더
 - `BACKEND_STORE_BACKUP_ON_SAVE`: 저장 시 기존 store 자동 백업 여부
@@ -382,6 +383,7 @@ BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8081
 BACKEND_PUBLIC_BASE_URL=http://192.168.0.10:8081
 BACKEND_CORS_ORIGIN=*
+BACKEND_STORE_DRIVER=json
 BACKEND_STORE_FILE=backend/data/store.json
 BACKEND_STORE_BACKUP_DIRECTORY=backend/data/backups
 BACKEND_STORE_BACKUP_ON_SAVE=true
@@ -401,6 +403,7 @@ BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8081
 BACKEND_PUBLIC_BASE_URL=https://api.runnigapp.com
 BACKEND_CORS_ORIGIN=https://app.runnigapp.com
+BACKEND_STORE_DRIVER=json
 BACKEND_STORE_FILE=/srv/runnigapp/store.json
 BACKEND_STORE_BACKUP_DIRECTORY=/srv/runnigapp/backups
 BACKEND_STORE_BACKUP_ON_SAVE=true

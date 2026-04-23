@@ -22,7 +22,11 @@
     "docker:public:preview:down": "docker compose -p runnigapp-preview --env-file ./.env.preview -f ./compose.public.yaml down",
     "docker:public:production": "docker compose -p runnigapp-production --env-file ./.env.production -f ./compose.public.yaml up --build -d",
     "docker:public:production:logs": "docker compose -p runnigapp-production --env-file ./.env.production -f ./compose.public.yaml logs -f",
-    "docker:public:production:down": "docker compose -p runnigapp-production --env-file ./.env.production -f ./compose.public.yaml down"
+    "docker:public:production:down": "docker compose -p runnigapp-production --env-file ./.env.production -f ./compose.public.yaml down",
+    "db:up": "docker compose -f ./compose.postgres.yaml up -d",
+    "db:down": "docker compose -f ./compose.postgres.yaml down",
+    "db:logs": "docker compose -f ./compose.postgres.yaml logs -f",
+    "db:psql": "docker compose -f ./compose.postgres.yaml exec postgres psql -U runnigapp -d runnigapp_preview"
   },
   "engines": {
     "node": ">=20"

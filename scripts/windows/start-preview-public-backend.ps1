@@ -38,6 +38,7 @@ function Write-BackendEnv([string]$publicUrl, [string]$token) {
     "BACKEND_PORT=$backendPort",
     'BACKEND_CORS_ORIGIN=*',
     "BACKEND_PUBLIC_BASE_URL=$publicUrl",
+    'BACKEND_STORE_DRIVER=json',
     'BACKEND_STORE_FILE=backend/data/preview-store.json',
     'BACKEND_STORE_BACKUP_DIRECTORY=backend/data/preview-backups',
     'BACKEND_STORE_BACKUP_ON_SAVE=true',
