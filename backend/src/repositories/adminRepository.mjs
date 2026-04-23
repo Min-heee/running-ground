@@ -1,0 +1,119 @@
+function createNowIso() {
+  return new Date().toISOString();
+}
+
+export function createJsonAdminRepository({
+  loadStore,
+  mutateStore,
+  ensureNoticeStore,
+  ensureOfflineRaceStore,
+  ensureIntegrationImports,
+  findUserById,
+  buildAdminOverview,
+  buildAdminUsers,
+  buildAdminNotices,
+  buildActiveNotices,
+  buildNoticeEntry,
+  nextId,
+  nowIso = createNowIso,
+  createError,
+}) {
+  return {
+    getOverview() {
+      return buildAdminOverview(loadStore());
+    },
+
+    getUsers() {
+      return buildAdminUsers(loadStore());
+    },
+
+    getNotices() {
+      return buildAdminNotices(loadStore());
+    },
+
+    getActiveNotices() {
+      return buildActiveNotices(loadStore());
+    },
+
+    createNotice({ input }) {
+      return mutateStore((store) => {
+        ensureNoticeStore(store);
+        const timestamp = nowIso();
+        const notice = {
+          id: nextId('notice'),
+          ...input,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
+
+        store.notices.push(notice);
+
+        return {
+          success: true,
+          item: buildNoticeEntry(notice),
+          items: buildAdminNotices(store).items,
+        };
+      });
+    },
+
+    updateNotice({ noticeId, input }) {
+      return mutateStore((store) => {
+        ensureNoticeStore(store);
+        const notice = store.notices.find((entry) => entry.id === noticeId);
+
+        if (!notice) {
+          throw createError(404, '수정할 공지를 찾지 못했어.');
+        }
+
+        Object.assign(notice, input, {
+          updatedAt: nowIso(),
+        });
+
+        return {
+          success: true,
+          item: buildNoticeEntry(notice),
+          items: buildAdminNotices(store).items,
+        };
+      });
+    },
+
+    deleteNotice({ noticeId }) {
+      return mutateStore((store) => {
+        ensureNoticeStore(store);
+        const nextItems = store.notices.filter((entry) => entry.id !== noticeId);
+
+        if (nextItems.length === store.notices.length) {
+          throw createError(404, '삭제할 공지를 찾지 못했어.');
+        }
+
+        store.notices = nextItems;
+        return buildAdminNotices(store);
+      });
+    },
+
+    deleteUser({ userId }) {
+      return mutateStore((store) => {
+        ensureOfflineRaceStore(store);
+        const deletedUser = findUserById(store, userId);
+
+        store.users = store.users.filter((entry) => entry.id !== userId);
+        store.runs = store.runs.filter((entry) => entry.userId !== userId);
+        store.sessions = store.sessions.filter((entry) => entry.userId !== userId);
+        store.friendships = store.friendships.filter((entry) => !entry.userIds.includes(userId));
+        store.friendRequests = store.friendRequests.filter((entry) => entry.requesterId !== userId && entry.receiverId !== userId);
+        store.rewardRedemptions = (store.rewardRedemptions ?? []).filter((entry) => entry.userId !== userId);
+        store.integrationImports = ensureIntegrationImports(store).filter((entry) => entry.userId !== userId);
+
+        for (const event of store.offlineRaceEvents) {
+          event.registeredUserTags = (event.registeredUserTags ?? []).filter((tag) => tag !== deletedUser.publicTag);
+        }
+
+        return {
+          success: true,
+          deletedUserId: deletedUser.id,
+          users: buildAdminUsers(store).users,
+        };
+      });
+    },
+  };
+}

@@ -90,6 +90,9 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - `backend/src/repositories/postgresRunsRepository.mjs`로 PostgreSQL 기록/import 구현 초안을 추가했다.
 - `backend/src/repositories/friendsRepository.mjs`로 친구 요청, 친구 관계, 친구 랭킹/활동 조회 경계를 분리했다.
 - `backend/src/repositories/leagueRepository.mjs`로 지역 개인전, 지역 리그, 대학 리그 조회 경계를 분리했다.
+- `backend/src/repositories/adminRepository.mjs`로 관리자 개요/유저 정리와 공지 CRUD 경계를 분리했다.
+- `backend/src/repositories/marketRepository.mjs`로 마켓 개요, 리워드 교환, 관리자 상품/교환 요청 관리 경계를 분리했다.
+- `backend/src/repositories/raceRepository.mjs`로 오프라인 레이스 허브, 신청/취소, 관리자 레이스 CRUD 경계를 분리했다.
 - `backend/src/repositories/postgresFriendsRepository.mjs`로 PostgreSQL 친구 요청/친구 관계/친구 랭킹 초안을 추가했다.
 - `backend/src/repositories/postgresLeagueRepository.mjs`로 PostgreSQL 지역 개인전/지역 트리/대학 리그 초안을 추가했다.
 - `backend/src/database/postgresDatabase.mjs`로 공용 PostgreSQL query/transaction adapter를 추가했다.
@@ -99,6 +102,7 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - 로그인, 로그아웃, 아이디 중복 확인, 회원가입은 route layer에서 repository를 호출한다.
 - 기록 관련 route layer는 입력 검증만 맡고, 저장/중복 판단은 repository가 맡는다.
 - 친구 요청/수락과 친구·리그 조회 route도 repository를 호출하도록 옮겼다.
+- 관리자 공지/유저 삭제, 마켓 교환/상품 관리, 오프라인 레이스 신청/관리 route도 repository를 호출하도록 옮겼다.
 - JSON -> PostgreSQL migration SQL은 `app_metadata.region_tree`까지 함께 적재하도록 보강했다.
 - 친구 랭킹, 친구 활동, 친구 기록, 지역 개인전, 지역 리그, 대학 리그 GET route는 bridge를 통해 부분 전환할 수 있다.
 - route layer는 sync/async repository를 모두 받을 수 있게 repository 호출을 `await`한다.

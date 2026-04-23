@@ -4,11 +4,14 @@ import { loadStore, mutateStore, getStoreFilePath, getStoreDiagnostics, resetSto
 import { createFriendsLeagueBridge } from './bridges/friendsLeagueBridge.mjs';
 import { createSessionRunsBridge } from './bridges/sessionRunsBridge.mjs';
 import { createPostgresDatabase } from './database/postgresDatabase.mjs';
+import { createJsonAdminRepository } from './repositories/adminRepository.mjs';
 import { createJsonAuthRepository } from './repositories/authRepository.mjs';
 import { createJsonFriendsRepository } from './repositories/friendsRepository.mjs';
 import { createJsonLeagueRepository } from './repositories/leagueRepository.mjs';
+import { createJsonMarketRepository } from './repositories/marketRepository.mjs';
 import { createPostgresFriendsRepository } from './repositories/postgresFriendsRepository.mjs';
 import { createPostgresLeagueRepository } from './repositories/postgresLeagueRepository.mjs';
+import { createJsonRaceRepository } from './repositories/raceRepository.mjs';
 import { createJsonRunsRepository, ensureIntegrationImports, getPendingImportCount } from './repositories/runsRepository.mjs';
 import {
   ADMIN_TOKEN,
@@ -191,11 +194,14 @@ function nextId(prefix) {
 }
 
 let authRepository = null;
+let adminRepository = null;
 let friendsRepository = null;
 let friendsLeagueBridge = null;
 let leagueRepository = null;
+let marketRepository = null;
 let postgresFriendsRepository = null;
 let postgresLeagueRepository = null;
+let raceRepository = null;
 let runsRepository = null;
 let postgresDatabase = null;
 let sessionRunsBridge = null;
@@ -214,6 +220,28 @@ function getAuthRepository() {
   }
 
   return authRepository;
+}
+
+function getAdminRepository() {
+  if (!adminRepository) {
+    adminRepository = createJsonAdminRepository({
+      loadStore,
+      mutateStore,
+      ensureNoticeStore,
+      ensureOfflineRaceStore,
+      ensureIntegrationImports,
+      findUserById,
+      buildAdminOverview,
+      buildAdminUsers,
+      buildAdminNotices,
+      buildActiveNotices,
+      buildNoticeEntry,
+      nextId,
+      createError: (statusCode, message) => new ApiError(statusCode, message),
+    });
+  }
+
+  return adminRepository;
 }
 
 function getPostgresDatabase() {
@@ -300,6 +328,52 @@ function getLeagueRepository() {
   }
 
   return leagueRepository;
+}
+
+function getMarketRepository() {
+  if (!marketRepository) {
+    marketRepository = createJsonMarketRepository({
+      loadStore,
+      mutateStore,
+      requireUserByToken: (store, token) => findUserByToken(store, token),
+      ensureMarketCatalogStore,
+      buildMarketOverviewWithMetrics,
+      buildAdminMarketCatalog,
+      buildAdminMarketItem,
+      buildAdminRewardRedemptions,
+      buildAdminRewardRedemption,
+      getUserMetrics,
+      getAvailableRewardPoints,
+      getRedeemedPointCost,
+      buildRedemptionCountByItemId,
+      getMarketItemRemainingStock,
+      isActiveRewardRedemption,
+      nextId,
+      createError: (statusCode, message) => new ApiError(statusCode, message),
+    });
+  }
+
+  return marketRepository;
+}
+
+function getRaceRepository() {
+  if (!raceRepository) {
+    raceRepository = createJsonRaceRepository({
+      loadStore,
+      mutateStore,
+      requireUserByToken: (store, token) => findUserByToken(store, token),
+      ensureOfflineRaceStore,
+      buildOfflineRaceHub,
+      buildAdminOfflineRaceEvents,
+      buildAdminOfflineRaceEvent,
+      decorateOfflineRaceEvent,
+      getOfflineRaceStatus,
+      nextId,
+      createError: (statusCode, message) => new ApiError(statusCode, message),
+    });
+  }
+
+  return raceRepository;
 }
 
 function getPostgresFriendsRepository() {
@@ -1649,12 +1723,12 @@ async function buildMarketOverviewReadPayload(request) {
     includeMetrics: true,
   });
 
-  return buildMarketOverviewWithMetrics(store, user, metrics);
+  return getMarketRepository().getOverviewForUser({ store, user, metrics });
 }
 
 async function buildOfflineRaceHubReadPayload(request) {
   const { store, user } = await loadCurrentUserReadContext(request);
-  return buildOfflineRaceHub(store, user);
+  return getRaceRepository().getHubForUser({ store, user });
 }
 
 async function buildCurrentRunReadPayload(request, runId) {
@@ -2170,53 +2244,9 @@ async function handlePatchMyNotifications(request, response) {
 }
 
 function handleClaimMarketItem(request, response, itemId) {
-  const payload = mutateStore((store) => {
-    const user = requireUser(store, request);
-    ensureMarketCatalogStore(store);
-    const item = (store.marketCatalog ?? []).find((entry) => entry.id === itemId);
-
-    if (!item) {
-      throw new ApiError(404, '교환할 리워드를 찾지 못했어.');
-    }
-
-    if (item.isActive === false) {
-      throw new ApiError(409, '지금은 비활성화된 리워드라 교환할 수 없어.');
-    }
-
-    const alreadyClaimed = store.rewardRedemptions.some((entry) => (
-      entry.userId === user.id
-      && entry.itemId === item.id
-      && isActiveRewardRedemption(entry)
-    ));
-    const remainingStock = getMarketItemRemainingStock(item, buildRedemptionCountByItemId(store).get(item.id) ?? 0);
-
-    if (alreadyClaimed && !item.repeatable) {
-      throw new ApiError(409, '이미 교환한 리워드야.');
-    }
-
-    if (remainingStock === 0) {
-      throw new ApiError(409, '재고가 모두 소진돼서 지금은 교환할 수 없어.');
-    }
-
-    if (getAvailableRewardPoints(getUserMetrics(store, user.id), getRedeemedPointCost(store, user.id)) < item.costPoints) {
-      throw new ApiError(400, '포인트가 부족해서 아직 교환할 수 없어.');
-    }
-
-    store.rewardRedemptions.push({
-      id: nextId('redemption'),
-      userId: user.id,
-      itemId: item.id,
-      costPoints: item.costPoints,
-      status: 'requested',
-      adminNote: '',
-      claimedAt: new Date().toISOString(),
-    });
-
-    return {
-      success: true,
-      claimedItemId: item.id,
-      overview: buildMarketOverview(store, user),
-    };
+  const payload = getMarketRepository().claimItem({
+    token: getAccessToken(request),
+    itemId,
   });
 
   sendJson(response, 200, payload);
@@ -2224,21 +2254,8 @@ function handleClaimMarketItem(request, response, itemId) {
 
 async function handleCreateAdminMarketItem(request, response) {
   const body = await parseJsonBody(request);
-
-  const payload = mutateStore((store) => {
-    ensureMarketCatalogStore(store);
-    const item = {
-      id: nextId('market'),
-      ...normalizeAdminMarketItemInput(body),
-    };
-
-    store.marketCatalog.push(item);
-
-    return {
-      success: true,
-      item: buildAdminMarketItem(store, item),
-      items: buildAdminMarketCatalog(store).items,
-    };
+  const payload = getMarketRepository().createAdminItem({
+    input: normalizeAdminMarketItemInput(body),
   });
 
   sendJson(response, 201, payload);
@@ -2246,38 +2263,17 @@ async function handleCreateAdminMarketItem(request, response) {
 
 async function handleUpdateAdminMarketItem(request, response, itemId) {
   const body = await parseJsonBody(request);
-
-  const payload = mutateStore((store) => {
-    ensureMarketCatalogStore(store);
-    const item = store.marketCatalog.find((entry) => entry.id === itemId);
-
-    if (!item) {
-      throw new ApiError(404, '수정할 마켓 상품을 찾지 못했어.');
-    }
-
-    Object.assign(item, normalizeAdminMarketItemInput(body));
-
-    return {
-      success: true,
-      item: buildAdminMarketItem(store, item),
-      items: buildAdminMarketCatalog(store).items,
-    };
+  const payload = getMarketRepository().updateAdminItem({
+    itemId,
+    input: normalizeAdminMarketItemInput(body),
   });
 
   sendJson(response, 200, payload);
 }
 
 function handleDeleteAdminMarketItem(response, itemId) {
-  const payload = mutateStore((store) => {
-    ensureMarketCatalogStore(store);
-    const nextItems = store.marketCatalog.filter((entry) => entry.id !== itemId);
-
-    if (nextItems.length === store.marketCatalog.length) {
-      throw new ApiError(404, '삭제할 마켓 상품을 찾지 못했어.');
-    }
-
-    store.marketCatalog = nextItems;
-    return buildAdminMarketCatalog(store);
+  const payload = getMarketRepository().deleteAdminItem({
+    itemId,
   });
 
   sendJson(response, 200, payload);
@@ -2285,30 +2281,10 @@ function handleDeleteAdminMarketItem(response, itemId) {
 
 async function handleUpdateAdminRewardRedemption(request, response, redemptionId) {
   const body = await parseJsonBody(request);
-
-  const payload = mutateStore((store) => {
-    const redemption = (store.rewardRedemptions ?? []).find((entry) => entry.id === redemptionId);
-
-    if (!redemption) {
-      throw new ApiError(404, '수정할 교환 요청을 찾지 못했어.');
-    }
-
-    const nextStatus = validateRewardRedemptionStatus(body.status);
-    const adminNote = normalizeOptionalString(body.adminNote);
-    redemption.status = nextStatus;
-    redemption.adminNote = adminNote;
-
-    if (nextStatus === 'fulfilled') {
-      redemption.fulfilledAt = new Date().toISOString();
-    } else if (Object.prototype.hasOwnProperty.call(redemption, 'fulfilledAt')) {
-      delete redemption.fulfilledAt;
-    }
-
-    return {
-      success: true,
-      item: buildAdminRewardRedemption(store, redemption),
-      items: buildAdminRewardRedemptions(store).items,
-    };
+  const payload = getMarketRepository().updateAdminRewardRedemption({
+    redemptionId,
+    status: validateRewardRedemptionStatus(body.status),
+    adminNote: normalizeOptionalString(body.adminNote),
   });
 
   sendJson(response, 200, payload);
@@ -2316,24 +2292,8 @@ async function handleUpdateAdminRewardRedemption(request, response, redemptionId
 
 async function handleCreateAdminNotice(request, response) {
   const body = await parseJsonBody(request);
-
-  const payload = mutateStore((store) => {
-    ensureNoticeStore(store);
-    const timestamp = new Date().toISOString();
-    const notice = {
-      id: nextId('notice'),
-      ...normalizeAdminNoticeInput(body),
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    };
-
-    store.notices.push(notice);
-
-    return {
-      success: true,
-      item: buildNoticeEntry(notice),
-      items: buildAdminNotices(store).items,
-    };
+  const payload = getAdminRepository().createNotice({
+    input: normalizeAdminNoticeInput(body),
   });
 
   sendJson(response, 201, payload);
@@ -2341,67 +2301,25 @@ async function handleCreateAdminNotice(request, response) {
 
 async function handleUpdateAdminNotice(request, response, noticeId) {
   const body = await parseJsonBody(request);
-
-  const payload = mutateStore((store) => {
-    ensureNoticeStore(store);
-    const notice = store.notices.find((entry) => entry.id === noticeId);
-
-    if (!notice) {
-      throw new ApiError(404, '수정할 공지를 찾지 못했어.');
-    }
-
-    Object.assign(notice, normalizeAdminNoticeInput(body), {
-      updatedAt: new Date().toISOString(),
-    });
-
-    return {
-      success: true,
-      item: buildNoticeEntry(notice),
-      items: buildAdminNotices(store).items,
-    };
+  const payload = getAdminRepository().updateNotice({
+    noticeId,
+    input: normalizeAdminNoticeInput(body),
   });
 
   sendJson(response, 200, payload);
 }
 
 function handleDeleteAdminNotice(response, noticeId) {
-  const payload = mutateStore((store) => {
-    ensureNoticeStore(store);
-    const nextItems = store.notices.filter((entry) => entry.id !== noticeId);
-
-    if (nextItems.length === store.notices.length) {
-      throw new ApiError(404, '삭제할 공지를 찾지 못했어.');
-    }
-
-    store.notices = nextItems;
-    return buildAdminNotices(store);
+  const payload = getAdminRepository().deleteNotice({
+    noticeId,
   });
 
   sendJson(response, 200, payload);
 }
 
 function handleDeleteAdminUser(response, userId) {
-  const payload = mutateStore((store) => {
-    ensureOfflineRaceStore(store);
-    const deletedUser = findUserById(store, userId);
-
-    store.users = store.users.filter((entry) => entry.id !== userId);
-    store.runs = store.runs.filter((entry) => entry.userId !== userId);
-    store.sessions = store.sessions.filter((entry) => entry.userId !== userId);
-    store.friendships = store.friendships.filter((entry) => !entry.userIds.includes(userId));
-    store.friendRequests = store.friendRequests.filter((entry) => entry.requesterId !== userId && entry.receiverId !== userId);
-    store.rewardRedemptions = (store.rewardRedemptions ?? []).filter((entry) => entry.userId !== userId);
-    store.integrationImports = ensureIntegrationImports(store).filter((entry) => entry.userId !== userId);
-
-    for (const event of store.offlineRaceEvents) {
-      event.registeredUserTags = (event.registeredUserTags ?? []).filter((tag) => tag !== deletedUser.publicTag);
-    }
-
-    return {
-      success: true,
-      deletedUserId: deletedUser.id,
-      users: buildAdminUsers(store).users,
-    };
+  const payload = getAdminRepository().deleteUser({
+    userId,
   });
 
   sendJson(response, 200, payload);
@@ -2409,22 +2327,8 @@ function handleDeleteAdminUser(response, userId) {
 
 async function handleCreateAdminOfflineRaceEvent(request, response) {
   const body = await parseJsonBody(request);
-
-  const payload = mutateStore((store) => {
-    ensureOfflineRaceStore(store);
-    const event = {
-      id: nextId('race'),
-      ...normalizeAdminOfflineRaceEventInput(body),
-      registeredUserTags: [],
-    };
-
-    store.offlineRaceEvents.push(event);
-
-    return {
-      success: true,
-      event: buildAdminOfflineRaceEvent(store, event),
-      events: buildAdminOfflineRaceEvents(store).events,
-    };
+  const payload = getRaceRepository().createAdminEvent({
+    input: normalizeAdminOfflineRaceEventInput(body),
   });
 
   sendJson(response, 201, payload);
@@ -2432,86 +2336,27 @@ async function handleCreateAdminOfflineRaceEvent(request, response) {
 
 async function handleUpdateAdminOfflineRaceEvent(request, response, eventId) {
   const body = await parseJsonBody(request);
-
-  const payload = mutateStore((store) => {
-    ensureOfflineRaceStore(store);
-    const event = store.offlineRaceEvents.find((entry) => entry.id === eventId);
-
-    if (!event) {
-      throw new ApiError(404, '수정할 레이스를 찾지 못했어.');
-    }
-
-    Object.assign(event, normalizeAdminOfflineRaceEventInput(body));
-
-    return {
-      success: true,
-      event: buildAdminOfflineRaceEvent(store, event),
-      events: buildAdminOfflineRaceEvents(store).events,
-    };
+  const payload = getRaceRepository().updateAdminEvent({
+    eventId,
+    input: normalizeAdminOfflineRaceEventInput(body),
   });
 
   sendJson(response, 200, payload);
 }
 
 function handleDeleteAdminOfflineRaceEvent(response, eventId) {
-  const payload = mutateStore((store) => {
-    ensureOfflineRaceStore(store);
-    const nextEvents = store.offlineRaceEvents.filter((entry) => entry.id !== eventId);
-
-    if (nextEvents.length === store.offlineRaceEvents.length) {
-      throw new ApiError(404, '삭제할 레이스를 찾지 못했어.');
-    }
-
-    store.offlineRaceEvents = nextEvents;
-    return buildAdminOfflineRaceEvents(store);
+  const payload = getRaceRepository().deleteAdminEvent({
+    eventId,
   });
 
   sendJson(response, 200, payload);
 }
 
 function handleOfflineRaceEntryAction(request, response, eventId, action) {
-  const payload = mutateStore((store) => {
-    ensureOfflineRaceStore(store);
-    const user = requireUser(store, request);
-    const event = store.offlineRaceEvents.find((entry) => entry.id === eventId);
-
-    if (!event) {
-      throw new ApiError(404, '선택한 레이스를 찾지 못했어.');
-    }
-
-    const status = getOfflineRaceStatus(event);
-
-    if (!['registration_open', 'registration_closing'].includes(status)) {
-      throw new ApiError(409, '지금은 신청을 처리할 수 없는 회차야.');
-    }
-
-    const registeredUserTags = [...new Set(event.registeredUserTags ?? [])];
-    const alreadyRegistered = registeredUserTags.includes(user.publicTag);
-
-    if (action === 'join') {
-      if (alreadyRegistered) {
-        throw new ApiError(409, '이미 신청한 레이스야.');
-      }
-
-      if (registeredUserTags.length >= event.capacity) {
-        throw new ApiError(409, '정원이 모두 차서 더 이상 신청할 수 없어.');
-      }
-
-      event.registeredUserTags = [...registeredUserTags, user.publicTag];
-    }
-
-    if (action === 'cancel') {
-      if (!alreadyRegistered) {
-        throw new ApiError(409, '아직 신청하지 않은 레이스야.');
-      }
-
-      event.registeredUserTags = registeredUserTags.filter((tag) => tag !== user.publicTag);
-    }
-
-    return {
-      success: true,
-      event: decorateOfflineRaceEvent(store, event, user),
-    };
+  const payload = getRaceRepository().applyEntryAction({
+    token: getAccessToken(request),
+    eventId,
+    action,
   });
 
   sendJson(response, 200, payload);
@@ -2701,15 +2546,13 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/admin/overview' && request.method === 'GET') {
     requireAdmin(request);
-    const store = loadStore();
-    sendJson(response, 200, buildAdminOverview(store));
+    sendJson(response, 200, getAdminRepository().getOverview());
     return;
   }
 
   if (pathname === '/api/admin/users' && request.method === 'GET') {
     requireAdmin(request);
-    const store = loadStore();
-    sendJson(response, 200, buildAdminUsers(store));
+    sendJson(response, 200, getAdminRepository().getUsers());
     return;
   }
 
@@ -2723,22 +2566,19 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/admin/market/items' && request.method === 'GET') {
     requireAdmin(request);
-    const store = loadStore();
-    sendJson(response, 200, buildAdminMarketCatalog(store));
+    sendJson(response, 200, getMarketRepository().getAdminCatalog());
     return;
   }
 
   if (pathname === '/api/admin/notices' && request.method === 'GET') {
     requireAdmin(request);
-    const store = loadStore();
-    sendJson(response, 200, buildAdminNotices(store));
+    sendJson(response, 200, getAdminRepository().getNotices());
     return;
   }
 
   if (pathname === '/api/admin/reward-redemptions' && request.method === 'GET') {
     requireAdmin(request);
-    const store = loadStore();
-    sendJson(response, 200, buildAdminRewardRedemptions(store));
+    sendJson(response, 200, getMarketRepository().getAdminRewardRedemptions());
     return;
   }
 
@@ -2792,8 +2632,7 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/admin/offline-races/events' && request.method === 'GET') {
     requireAdmin(request);
-    const store = loadStore();
-    sendJson(response, 200, buildAdminOfflineRaceEvents(store));
+    sendJson(response, 200, getRaceRepository().getAdminEvents());
     return;
   }
 
@@ -2845,8 +2684,7 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/notices/active' && request.method === 'GET') {
-    const store = loadStore();
-    sendJson(response, 200, buildActiveNotices(store));
+    sendJson(response, 200, getAdminRepository().getActiveNotices());
     return;
   }
 
