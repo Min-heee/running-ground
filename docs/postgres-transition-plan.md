@@ -81,6 +81,11 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - 랭킹은 SQL aggregate query로 계산한다.
 - 마켓/레이스/공지 같은 운영 데이터는 마지막에 옮긴다.
 
+현재 진행 상황:
+- `backend/src/repositories/authRepository.mjs`로 인증 경계를 먼저 분리했다.
+- 로그인, 로그아웃, 아이디 중복 확인, 회원가입은 route layer에서 repository를 호출한다.
+- 아직 runtime store driver는 JSON만 사용한다.
+
 ### Phase 5. Preview 전환
 - preview API만 PostgreSQL에 연결한다.
 - TestFlight 앱에서 회원가입, 로그인, 기록 가져오기, 친구 랭킹을 확인한다.
@@ -94,7 +99,7 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - 운영 장애: PostgreSQL 전환 후에는 DB backup과 restore rehearsal을 별도 체크리스트로 둔다.
 
 ## 다음 구현 후보
-1. 데스크탑 Docker에서 `npm --prefix backend run db:up` 실행 검증
-2. 생성된 migration SQL을 preview PostgreSQL에 적용
-3. `authRepository`부터 JSON/PostgreSQL 이중 구현
+1. `authRepository` PostgreSQL 구현 추가
+2. auth repository 단위 테스트 또는 smoke test driver 분리
+3. runs/imports repository 분리
 4. smoke test에 `BACKEND_STORE_DRIVER` 케이스 추가

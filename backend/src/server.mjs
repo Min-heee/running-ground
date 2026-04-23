@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { loadStore, mutateStore, getStoreFilePath, getStoreDiagnostics, resetStore, STORE_DRIVER } from './storage/index.mjs';
+import { createJsonAuthRepository } from './repositories/authRepository.mjs';
 import {
   ADMIN_TOKEN,
   APP_ENV,
@@ -21,7 +22,7 @@ import {
   SHUTDOWN_TIMEOUT_MS,
   getPublicBackendConfig,
 } from './config.mjs';
-import { buildSessionExpiry, isSessionExpired, setUserPassword, verifyPassword } from './auth.mjs';
+import { isSessionExpired } from './auth.mjs';
 import { buildUserRunMetrics, getAvailableRewardPoints, getRunPointValue, parsePaceToMinutes } from './points.mjs';
 import { addressCatalog } from './addressCatalog.mjs';
 import { buildRoadAlignedRoutePreview } from './routing.mjs';
@@ -169,6 +170,24 @@ function createToken() {
 
 function nextId(prefix) {
   return `${prefix}-${randomUUID().slice(0, 8)}`;
+}
+
+let authRepository = null;
+
+function getAuthRepository() {
+  if (!authRepository) {
+    authRepository = createJsonAuthRepository({
+      loadStore,
+      mutateStore,
+      sessionTtlMs: SESSION_TTL_MS,
+      createToken,
+      nextId,
+      buildProfile,
+      createError: (statusCode, message) => new ApiError(statusCode, message),
+    });
+  }
+
+  return authRepository;
 }
 
 function formatTimestamp(date = new Date()) {
@@ -1820,86 +1839,18 @@ function importPendingRunsForUser(store, user) {
   };
 }
 
-function createPublicTag(store) {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let nextTag = '#TEMP1';
-
-  do {
-    let suffix = '';
-
-    for (let index = 0; index < 5; index += 1) {
-      suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
-    }
-
-    nextTag = `#${suffix}`;
-  } while (store.users.some((entry) => entry.publicTag === nextTag));
-
-  return nextTag;
-}
-
-function createStarterRuns(userId) {
-  return [];
-}
-
-function buildUsernameAvailability(store, rawUsername) {
-  const username = validateUsername(rawUsername);
-  const available = !store.users.some((entry) => entry.username === username);
-
-  return {
-    username,
-    available,
-    message: available ? '사용할 수 있는 아이디예요.' : '이미 사용 중인 아이디예요.',
-  };
-}
-
-function createSessionForUser(store, userId) {
-  const createdAt = new Date();
-  const token = createToken();
-  store.sessions.push({
-    token,
-    userId,
-    createdAt: createdAt.toISOString(),
-    expiresAt: buildSessionExpiry(SESSION_TTL_MS, createdAt),
-  });
-
-  return token;
-}
-
 async function handleLogin(request, response) {
   const body = await parseJsonBody(request);
   const username = validateRequiredString(body.username, '아이디를 입력해주세요.').toLowerCase();
   const password = validateRequiredString(body.password, '비밀번호를 입력해주세요.');
-
-  const result = mutateStore((store) => {
-    const user = store.users.find((entry) => entry.username === username);
-
-    if (!user || !verifyPassword(password, user.passwordHash ?? user.password)) {
-      throw new ApiError(401, '아이디 또는 비밀번호가 맞지 않아요.');
-    }
-
-    const accessToken = createSessionForUser(store, user.id);
-
-    return {
-      accessToken,
-      user: buildProfile(store, user),
-    };
-  });
+  const result = getAuthRepository().login({ username, password });
 
   sendJson(response, 200, result);
 }
 
 async function handleLogout(request, response) {
-  const payload = mutateStore((store) => {
-    const token = getAccessToken(request);
-    const existingSessionIndex = store.sessions.findIndex((entry) => entry.token === token);
-
-    if (existingSessionIndex >= 0) {
-      store.sessions.splice(existingSessionIndex, 1);
-    }
-
-    return {
-      success: true,
-    };
+  const payload = getAuthRepository().logout({
+    token: getAccessToken(request),
   });
 
   sendJson(response, 200, payload);
@@ -1929,94 +1880,16 @@ async function handleRegister(request, response) {
     throw new ApiError(400, '휴대폰 번호를 정확히 입력해주세요.');
   }
 
-  const result = mutateStore((store) => {
-    if (store.users.some((entry) => entry.username === username)) {
-      throw new ApiError(409, '이미 사용 중인 아이디예요.');
-    }
-
-    const userId = nextId('user');
-    const starterRuns = createStarterRuns(userId);
-    const user = {
-      id: userId,
-      username,
-      name,
-      realName,
-      phone,
-      birthDate,
-      provinceName: region.provinceName,
-      cityName: region.cityName,
-      districtName: region.districtName,
-      ...(universityName ? { universityName } : {}),
-      addressDetail,
-      publicTag: createPublicTag(store),
-      friendDistanceKm: 0,
-      friendPoints: 0,
-      districtDistanceKm: 0,
-      districtPoints: 0,
-      rewardPoints: 0,
-      streakDays: 0,
-      connectedSources: [
-        {
-          sourceType: 'manual',
-          displayName: 'Manual',
-          connected: false,
-          connectionStatus: 'planned',
-          recommendedPlatform: 'all',
-        },
-        {
-          sourceType: 'apple_health',
-          displayName: 'Apple Health',
-          connected: false,
-          connectionStatus: 'planned',
-          recommendedPlatform: 'ios',
-        },
-        {
-          sourceType: 'health_connect',
-          displayName: 'Health Connect',
-          connected: false,
-          connectionStatus: 'planned',
-          recommendedPlatform: 'android',
-        },
-        {
-          sourceType: 'garmin',
-          displayName: 'Garmin',
-          connected: false,
-          connectionStatus: 'planned',
-          recommendedPlatform: 'all',
-        },
-        {
-          sourceType: 'strava',
-          displayName: 'Strava',
-          connected: false,
-          connectionStatus: 'planned',
-          recommendedPlatform: 'all',
-        },
-        {
-          sourceType: 'nrc',
-          displayName: 'Nike Run Club',
-          connected: false,
-          connectionStatus: 'planned',
-          recommendedPlatform: 'all',
-        },
-      ],
-      notificationSettings: {
-        friendAlerts: true,
-        districtAlerts: true,
-        marketAlerts: false,
-      },
-      createdAt: new Date().toISOString(),
-    };
-
-    setUserPassword(user, password, user.createdAt);
-
-    store.users.push(user);
-    store.runs.push(...starterRuns);
-    const accessToken = createSessionForUser(store, user.id);
-
-    return {
-      accessToken,
-      user: buildProfile(store, user),
-    };
+  const result = getAuthRepository().register({
+    username,
+    password,
+    name,
+    realName,
+    phone,
+    birthDate,
+    region,
+    universityName,
+    addressDetail,
   });
 
   sendJson(response, 201, result);
@@ -2875,8 +2748,8 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/auth/check-username' && request.method === 'GET') {
-    const store = loadStore();
-    sendJson(response, 200, buildUsernameAvailability(store, url.searchParams.get('username') ?? ''));
+    const username = validateUsername(url.searchParams.get('username') ?? '');
+    sendJson(response, 200, getAuthRepository().checkUsername(username));
     return;
   }
 
