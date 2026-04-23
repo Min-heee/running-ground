@@ -64,7 +64,8 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 ### Phase 2. PostgreSQL 개발 환경 준비
 - `backend/db/schema.sql` 기준으로 preview PostgreSQL 컨테이너를 띄운다.
 - `backend/compose.postgres.yaml`과 `npm --prefix backend run db:up`으로 로컬 DB를 재현한다.
-- `DATABASE_URL`과 `BACKEND_STORE_DRIVER=postgres` 환경 변수를 준비한다.
+- `BACKEND_POSTGRES_DATABASE_URL` 또는 `DATABASE_URL`로 DB 주소를 준비한다.
+- `npm --prefix backend run db:check`로 연결 상태를 가볍게 확인한다.
 - 아직 production/TestFlight는 JSON store를 유지한다.
 
 ### Phase 3. Migration script
@@ -86,11 +87,13 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - `backend/src/repositories/postgresAuthRepository.mjs`로 PostgreSQL 인증 구현 초안을 추가했다.
 - `backend/src/repositories/runsRepository.mjs`로 수동 기록, 앱 자체 측정 기록, 연동 import 큐, 중복 방지 동기화 흐름을 분리했다.
 - `backend/src/repositories/postgresRunsRepository.mjs`로 PostgreSQL 기록/import 구현 초안을 추가했다.
+- `backend/src/database/postgresDatabase.mjs`로 공용 PostgreSQL query/transaction adapter를 추가했다.
 - 로그인, 로그아웃, 아이디 중복 확인, 회원가입은 route layer에서 repository를 호출한다.
 - 기록 관련 route layer는 입력 검증만 맡고, 저장/중복 판단은 repository가 맡는다.
 - route layer는 sync/async repository를 모두 받을 수 있게 repository 호출을 `await`한다.
-- `npm --prefix backend run test:repositories`로 JSON/PostgreSQL auth와 JSON/PostgreSQL runs repository 동작을 함께 검증한다.
+- `npm --prefix backend run test`로 JSON/PostgreSQL repository와 DB adapter 동작을 함께 검증한다.
 - 아직 runtime store driver는 JSON만 사용한다.
+- auth/runs만 성급하게 PostgreSQL로 켜면 나머지 JSON 기반 토큰/랭킹 흐름과 어긋날 수 있어서, 런타임 전환은 route 단위로 더 천천히 진행한다.
 
 ### Phase 5. Preview 전환
 - preview API만 PostgreSQL에 연결한다.
@@ -105,7 +108,7 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - 운영 장애: PostgreSQL 전환 후에는 DB backup과 restore rehearsal을 별도 체크리스트로 둔다.
 
 ## 다음 구현 후보
-1. PostgreSQL query adapter와 transaction helper 추가
-2. smoke test에 PostgreSQL auth/runs repository 케이스 추가
-3. preview API에서 auth만 PostgreSQL로 켜보는 작은 전환 플래그 추가
+1. smoke test에 PostgreSQL auth/runs repository 케이스 추가
+2. 세션 조회와 run 집계를 JSON/DB 둘 다 읽을 수 있게 만드는 bridge helper 추가
+3. preview API에서 auth/runs를 작은 전환 플래그로 켜보기
 4. friends/league repository를 같은 방식으로 분리

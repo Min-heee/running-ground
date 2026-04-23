@@ -123,6 +123,15 @@ export const STORE_BACKUP_ON_SAVE = parseBoolean(process.env.BACKEND_STORE_BACKU
 export const STORE_BACKUP_RETENTION = Math.max(1, parseNumber(process.env.BACKEND_STORE_BACKUP_RETENTION, 10));
 export const PUBLIC_BASE_URL = normalizeOptionalString(process.env.BACKEND_PUBLIC_BASE_URL) || '';
 export const ADMIN_TOKEN = process.env.BACKEND_ADMIN_TOKEN ?? '';
+export const POSTGRES_DATABASE_URL = normalizeOptionalString(
+  process.env.BACKEND_POSTGRES_DATABASE_URL ?? process.env.DATABASE_URL,
+);
+export const POSTGRES_SSL = parseBoolean(process.env.BACKEND_POSTGRES_SSL, APP_ENV !== 'development');
+export const POSTGRES_POOL_MAX = Math.max(1, parseNumber(process.env.BACKEND_POSTGRES_POOL_MAX, 10));
+export const POSTGRES_IDLE_TIMEOUT_MS = Math.max(1000, parseNumber(process.env.BACKEND_POSTGRES_IDLE_TIMEOUT_MS, 30000));
+export const POSTGRES_CONNECTION_TIMEOUT_MS = Math.max(1000, parseNumber(process.env.BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS, 10000));
+export const POSTGRES_APPLICATION_NAME = normalizeOptionalString(process.env.BACKEND_POSTGRES_APPLICATION_NAME)
+  || `runnigapp-backend-${APP_ENV}`;
 export const SESSION_TTL_HOURS = Math.max(1, parseNumber(process.env.BACKEND_SESSION_TTL_HOURS, 24 * 7));
 export const SESSION_TTL_MS = SESSION_TTL_HOURS * 60 * 60 * 1000;
 export const MAX_BODY_SIZE_KB = Math.max(16, parseNumber(process.env.BACKEND_MAX_BODY_SIZE_KB, 256));
@@ -163,6 +172,14 @@ export function getPublicBackendConfig() {
     storeBackupOnSave: STORE_BACKUP_ON_SAVE,
     storeBackupRetention: STORE_BACKUP_RETENTION,
     publicBaseUrl: PUBLIC_BASE_URL || undefined,
+    postgres: {
+      configured: Boolean(POSTGRES_DATABASE_URL),
+      ssl: POSTGRES_SSL,
+      poolMax: POSTGRES_POOL_MAX,
+      idleTimeoutMs: POSTGRES_IDLE_TIMEOUT_MS,
+      connectionTimeoutMs: POSTGRES_CONNECTION_TIMEOUT_MS,
+      applicationName: POSTGRES_APPLICATION_NAME,
+    },
     sessionTtlHours: SESSION_TTL_HOURS,
     maxBodySizeKb: MAX_BODY_SIZE_KB,
     requestTimeoutMs: REQUEST_TIMEOUT_MS,

@@ -393,6 +393,12 @@ npm run provider:import -- \
 - `BACKEND_STORE_BACKUP_DIRECTORY`: 백업 파일 폴더
 - `BACKEND_STORE_BACKUP_ON_SAVE`: 저장 시 기존 store 자동 백업 여부
 - `BACKEND_STORE_BACKUP_RETENTION`: 남겨둘 백업 개수
+- `BACKEND_POSTGRES_DATABASE_URL`: PostgreSQL 연결 주소, `DATABASE_URL` 대체용으로도 사용 가능
+- `BACKEND_POSTGRES_SSL`: PostgreSQL SSL 사용 여부
+- `BACKEND_POSTGRES_POOL_MAX`: PostgreSQL pool 최대 연결 수
+- `BACKEND_POSTGRES_IDLE_TIMEOUT_MS`: PostgreSQL idle timeout
+- `BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS`: PostgreSQL 연결 타임아웃
+- `BACKEND_POSTGRES_APPLICATION_NAME`: PostgreSQL application name
 - `BACKEND_SESSION_TTL_HOURS`: 세션 유지 시간, 기본 `168`
 - `BACKEND_MAX_BODY_SIZE_KB`: JSON 요청 본문 최대 크기, 기본 `256`
 - `BACKEND_REQUEST_TIMEOUT_MS`: 요청 전체 타임아웃, 기본 `30000`
@@ -411,6 +417,12 @@ npm run provider:import -- \
 `BACKEND_CORS_ORIGIN` 은 `*` 또는 쉼표로 구분한 여러 origin 값을 받을 수 있어.
 
 저장소는 원자적으로 저장되고, `BACKEND_STORE_BACKUP_ON_SAVE=true` 이면 변경 전 store 파일이 자동으로 백업돼.
+
+PostgreSQL 연결 정보만 먼저 준비해두고 싶은 경우에는 아래 명령으로 가볍게 연결 상태를 확인할 수 있어.
+
+```bash
+npm --prefix backend run db:check
+```
 
 예시:
 
@@ -431,6 +443,12 @@ BACKEND_STORE_FILE=backend/data/store.json
 BACKEND_STORE_BACKUP_DIRECTORY=backend/data/backups
 BACKEND_STORE_BACKUP_ON_SAVE=true
 BACKEND_STORE_BACKUP_RETENTION=10
+BACKEND_POSTGRES_DATABASE_URL=postgres://runnigapp:runnigapp-preview-password@localhost:5432/runnigapp_preview
+BACKEND_POSTGRES_SSL=false
+BACKEND_POSTGRES_POOL_MAX=10
+BACKEND_POSTGRES_IDLE_TIMEOUT_MS=30000
+BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS=10000
+BACKEND_POSTGRES_APPLICATION_NAME=runnigapp-backend-preview
 BACKEND_SESSION_TTL_HOURS=168
 BACKEND_MAX_BODY_SIZE_KB=256
 BACKEND_ADMIN_TOKEN=change-me
@@ -451,6 +469,12 @@ BACKEND_STORE_FILE=/srv/runnigapp/store.json
 BACKEND_STORE_BACKUP_DIRECTORY=/srv/runnigapp/backups
 BACKEND_STORE_BACKUP_ON_SAVE=true
 BACKEND_STORE_BACKUP_RETENTION=20
+BACKEND_POSTGRES_DATABASE_URL=postgres://runnigapp:replace-me@postgres:5432/runnigapp_production
+BACKEND_POSTGRES_SSL=false
+BACKEND_POSTGRES_POOL_MAX=10
+BACKEND_POSTGRES_IDLE_TIMEOUT_MS=30000
+BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS=10000
+BACKEND_POSTGRES_APPLICATION_NAME=runnigapp-backend-production
 BACKEND_SESSION_TTL_HOURS=168
 BACKEND_MAX_BODY_SIZE_KB=256
 BACKEND_REQUEST_TIMEOUT_MS=30000

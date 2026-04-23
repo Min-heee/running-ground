@@ -83,6 +83,8 @@ function buildResolvedBackendEnvironment(env, options = {}) {
   const storeDriver = normalizeOptionalString(env.BACKEND_STORE_DRIVER) || 'json';
   const backupDirectory = normalizeOptionalString(env.BACKEND_STORE_BACKUP_DIRECTORY) || normalizeOptionalString(options.defaultBackupDirectory);
   const requestTimeoutMs = Math.max(5000, parseNumber(env.BACKEND_REQUEST_TIMEOUT_MS, 30000));
+  const postgresDatabaseUrl = normalizeOptionalString(env.BACKEND_POSTGRES_DATABASE_URL)
+    || normalizeOptionalString(env.DATABASE_URL);
 
   return {
     appEnv,
@@ -105,6 +107,12 @@ function buildResolvedBackendEnvironment(env, options = {}) {
     backupDirectory,
     backupOnSave: parseBoolean(env.BACKEND_STORE_BACKUP_ON_SAVE, appEnv !== 'development'),
     backupRetention: Math.max(1, parseNumber(env.BACKEND_STORE_BACKUP_RETENTION, 10)),
+    postgresDatabaseUrl,
+    postgresSsl: parseBoolean(env.BACKEND_POSTGRES_SSL, appEnv !== 'development'),
+    postgresPoolMax: Math.max(1, parseNumber(env.BACKEND_POSTGRES_POOL_MAX, 10)),
+    postgresIdleTimeoutMs: Math.max(1000, parseNumber(env.BACKEND_POSTGRES_IDLE_TIMEOUT_MS, 30000)),
+    postgresConnectionTimeoutMs: Math.max(1000, parseNumber(env.BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS, 10000)),
+    postgresApplicationName: normalizeOptionalString(env.BACKEND_POSTGRES_APPLICATION_NAME) || `runnigapp-backend-${appEnv}`,
     publicDomain: normalizeOptionalString(env.PUBLIC_DOMAIN),
     acmeEmail: normalizeOptionalString(env.ACME_EMAIL),
   };
@@ -115,12 +123,21 @@ function validateBackendReleaseEnvironment(env, options = {}) {
   const errors = [];
   const warnings = [];
   let parsedPublicBaseUrl = null;
+  let parsedPostgresUrl = null;
 
   if (resolved.publicBaseUrl) {
     try {
       parsedPublicBaseUrl = new URL(resolved.publicBaseUrl);
     } catch {
       errors.push('BACKEND_PUBLIC_BASE_URL 이 올바른 URL 형식이 아니야.');
+    }
+  }
+
+  if (resolved.postgresDatabaseUrl) {
+    try {
+      parsedPostgresUrl = new URL(resolved.postgresDatabaseUrl);
+    } catch {
+      errors.push('BACKEND_POSTGRES_DATABASE_URL 이 올바른 URL 형식이 아니야.');
     }
   }
 
@@ -166,12 +183,28 @@ function validateBackendReleaseEnvironment(env, options = {}) {
     errors.push(`BACKEND_STORE_DRIVER 는 현재 ${STORE_DRIVERS.join(', ')} 만 지원해.`);
   }
 
+  if (parsedPostgresUrl && !['postgres:', 'postgresql:'].includes(parsedPostgresUrl.protocol)) {
+    errors.push('BACKEND_POSTGRES_DATABASE_URL 은 postgres:// 또는 postgresql:// 형식이어야 해.');
+  }
+
+  if (resolved.postgresPoolMax < 1) {
+    errors.push('BACKEND_POSTGRES_POOL_MAX 는 1 이상이어야 해.');
+  }
+
   if (resolved.host && resolved.host !== '0.0.0.0' && resolved.appEnv !== 'development') {
     warnings.push(`${resolved.appEnv} 환경에서는 BACKEND_HOST 를 0.0.0.0 으로 두는 편이 일반적이야.`);
   }
 
+  if (resolved.postgresDatabaseUrl && parsedPostgresUrl && isLocalHostname(parsedPostgresUrl.hostname) && resolved.appEnv !== 'development') {
+    warnings.push('운영/preview PostgreSQL 주소가 사설 호스트를 가리켜. 내부망이면 괜찮지만, 실제 배포 구조와 다시 맞춰봐.');
+  }
+
   if (parsedPublicBaseUrl && (parsedPublicBaseUrl.search || parsedPublicBaseUrl.hash)) {
     warnings.push('BACKEND_PUBLIC_BASE_URL 에 query 또는 hash 를 넣지 않는 편이 안전해.');
+  }
+
+  if (parsedPostgresUrl && (parsedPostgresUrl.search || parsedPostgresUrl.hash)) {
+    warnings.push('BACKEND_POSTGRES_DATABASE_URL 에 query 또는 hash 가 많으면 운영 시 추적이 어려워질 수 있어. 필요한 파라미터만 남겨둬.');
   }
 
   if (resolved.storeFile && !isAbsolute(resolved.storeFile) && resolved.appEnv !== 'development') {
@@ -226,6 +259,8 @@ function formatBackendReleaseValidationReport(result) {
     `[backend-release-check] store file: ${result.resolved.storeFile || '(not set)'}`,
     `[backend-release-check] backup on save: ${result.resolved.backupOnSave ? 'true' : 'false'}`,
     `[backend-release-check] backup retention: ${result.resolved.backupRetention}`,
+    `[backend-release-check] postgres configured: ${result.resolved.postgresDatabaseUrl ? 'true' : 'false'}`,
+    `[backend-release-check] postgres pool max: ${result.resolved.postgresPoolMax}`,
     `[backend-release-check] request timeout ms: ${result.resolved.requestTimeoutMs}`,
   ];
 

@@ -13,10 +13,11 @@
     "backups": "node ./src/list-backups.mjs",
     "restore": "node ./src/restore-store.mjs",
     "smoke": "node ./src/smoke.mjs",
-    "test": "npm run test:repositories",
+    "test": "npm run test:repositories && npm run test:db",
     "test:repositories": "npm run test:auth && npm run test:runs",
     "test:auth": "node ./src/repositories/authRepository.test.mjs && node ./src/repositories/postgresAuthRepository.test.mjs",
     "test:runs": "node ./src/repositories/runsRepository.test.mjs && node ./src/repositories/postgresRunsRepository.test.mjs",
+    "test:db": "node ./src/database/postgresDatabase.test.mjs",
     "docker:build": "docker build -t runnigapp-backend .",
     "docker:up": "docker compose -f ./compose.yaml up --build -d",
     "docker:down": "docker compose -f ./compose.yaml down",
@@ -31,10 +32,14 @@
     "db:down": "docker compose -f ./compose.postgres.yaml down",
     "db:logs": "docker compose -f ./compose.postgres.yaml logs -f",
     "db:psql": "docker compose -f ./compose.postgres.yaml exec postgres psql -U runnigapp -d runnigapp_preview",
+    "db:check": "node ./scripts/check-postgres.mjs",
     "db:migrate:dry-run": "node ./db/migrate-json-to-postgres.mjs --dry-run",
     "db:migrate:sql": "node ./db/migrate-json-to-postgres.mjs --write-sql"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.20.0"
   }
 }
