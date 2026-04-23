@@ -85,10 +85,11 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - `backend/src/repositories/authRepository.mjs`로 인증 경계를 먼저 분리했다.
 - `backend/src/repositories/postgresAuthRepository.mjs`로 PostgreSQL 인증 구현 초안을 추가했다.
 - `backend/src/repositories/runsRepository.mjs`로 수동 기록, 앱 자체 측정 기록, 연동 import 큐, 중복 방지 동기화 흐름을 분리했다.
+- `backend/src/repositories/postgresRunsRepository.mjs`로 PostgreSQL 기록/import 구현 초안을 추가했다.
 - 로그인, 로그아웃, 아이디 중복 확인, 회원가입은 route layer에서 repository를 호출한다.
 - 기록 관련 route layer는 입력 검증만 맡고, 저장/중복 판단은 repository가 맡는다.
 - route layer는 sync/async repository를 모두 받을 수 있게 repository 호출을 `await`한다.
-- `npm --prefix backend run test:repositories`로 JSON/PostgreSQL auth와 JSON runs repository 동작을 함께 검증한다.
+- `npm --prefix backend run test:repositories`로 JSON/PostgreSQL auth와 JSON/PostgreSQL runs repository 동작을 함께 검증한다.
 - 아직 runtime store driver는 JSON만 사용한다.
 
 ### Phase 5. Preview 전환
@@ -105,6 +106,6 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 
 ## 다음 구현 후보
 1. PostgreSQL query adapter와 transaction helper 추가
-2. PostgreSQL runs/imports repository 구현 추가
-3. smoke test에 PostgreSQL auth repository 케이스 추가
-4. preview API에서 auth만 PostgreSQL로 켜보는 작은 전환 플래그 추가
+2. smoke test에 PostgreSQL auth/runs repository 케이스 추가
+3. preview API에서 auth만 PostgreSQL로 켜보는 작은 전환 플래그 추가
+4. friends/league repository를 같은 방식으로 분리

@@ -6,7 +6,8 @@ Current status:
 - `authRepository.mjs` owns username availability, login, logout, and registration.
 - `postgresAuthRepository.mjs` mirrors the same auth methods against PostgreSQL-style tables.
 - `runsRepository.mjs` owns manual runs, tracked runs, integration import queueing, and duplicate-safe sync.
-- Repository tests lock JSON auth, PostgreSQL auth, and JSON runs behavior before routes switch drivers.
+- `postgresRunsRepository.mjs` mirrors the same run/import methods against PostgreSQL-style tables.
+- Repository tests lock JSON auth, PostgreSQL auth, JSON runs, and PostgreSQL runs behavior before routes switch drivers.
 - Runtime still uses the JSON implementation.
 - PostgreSQL runtime wiring still needs a database adapter with a real `query(sql, params)` method and transaction support.
 

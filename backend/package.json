@@ -16,7 +16,7 @@
     "test": "npm run test:repositories",
     "test:repositories": "npm run test:auth && npm run test:runs",
     "test:auth": "node ./src/repositories/authRepository.test.mjs && node ./src/repositories/postgresAuthRepository.test.mjs",
-    "test:runs": "node ./src/repositories/runsRepository.test.mjs",
+    "test:runs": "node ./src/repositories/runsRepository.test.mjs && node ./src/repositories/postgresRunsRepository.test.mjs",
     "docker:build": "docker build -t runnigapp-backend .",
     "docker:up": "docker compose -f ./compose.yaml up --build -d",
     "docker:down": "docker compose -f ./compose.yaml down",
