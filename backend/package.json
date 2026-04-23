@@ -26,7 +26,9 @@
     "db:up": "docker compose -f ./compose.postgres.yaml up -d",
     "db:down": "docker compose -f ./compose.postgres.yaml down",
     "db:logs": "docker compose -f ./compose.postgres.yaml logs -f",
-    "db:psql": "docker compose -f ./compose.postgres.yaml exec postgres psql -U runnigapp -d runnigapp_preview"
+    "db:psql": "docker compose -f ./compose.postgres.yaml exec postgres psql -U runnigapp -d runnigapp_preview",
+    "db:migrate:dry-run": "node ./db/migrate-json-to-postgres.mjs --dry-run",
+    "db:migrate:sql": "node ./db/migrate-json-to-postgres.mjs --write-sql"
   },
   "engines": {
     "node": ">=20"

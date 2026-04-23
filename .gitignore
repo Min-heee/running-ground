@@ -11,6 +11,7 @@ backend/.env.production
 backend/data/store.json
 backend/data/backups/
 backend/data/*-store.json
+backend/db/generated/
 backend-preview.out.log
 backend-preview.err.log
 preview-tunnel.out.log

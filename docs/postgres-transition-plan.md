@@ -72,6 +72,8 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - 사용자, 세션, 기록, 친구, 마켓, 레이스 순서로 insert한다.
 - 중복 기록은 `external_id`와 fingerprint 기준으로 건너뛴다.
 - migration 후 smoke test로 로그인, 홈, 기록, 친구 랭킹을 확인한다.
+- `npm --prefix backend run db:migrate:dry-run`으로 먼저 건수와 누락 필드를 확인한다.
+- `npm --prefix backend run db:migrate:sql`로 PostgreSQL에 넣을 SQL 파일을 생성한다.
 
 ### Phase 4. Repository 전환
 - 인증과 회원가입부터 PostgreSQL repository로 옮긴다.
@@ -92,7 +94,7 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - 운영 장애: PostgreSQL 전환 후에는 DB backup과 restore rehearsal을 별도 체크리스트로 둔다.
 
 ## 다음 구현 후보
-1. `backend/db/migrate-json-to-postgres.mjs` 추가
-2. preview용 `backend/compose.postgres.yaml` 추가
+1. 데스크탑 Docker에서 `npm --prefix backend run db:up` 실행 검증
+2. 생성된 migration SQL을 preview PostgreSQL에 적용
 3. `authRepository`부터 JSON/PostgreSQL 이중 구현
 4. smoke test에 `BACKEND_STORE_DRIVER` 케이스 추가

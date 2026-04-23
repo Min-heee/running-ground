@@ -32,3 +32,29 @@ npm --prefix backend run db:down
 - user: `runnigapp`
 - password: `runnigapp-preview-password`
 - port: `5432`
+
+## JSON store migration dry-run
+현재 JSON store를 PostgreSQL insert SQL로 변환하기 전에 dry-run으로 테이블별 건수와 누락 필드를 확인한다.
+
+```bash
+npm --prefix backend run db:migrate:dry-run
+```
+
+SQL 파일을 만들 때:
+
+```bash
+npm --prefix backend run db:migrate:sql
+```
+
+생성된 SQL은 `backend/db/schema.sql`을 먼저 적용한 DB에 넣는다.
+
+```bash
+psql "$DATABASE_URL" -f backend/db/schema.sql
+psql "$DATABASE_URL" -f backend/db/generated/json-store-YYYYMMDDTHHMMSSZ.sql
+```
+
+활성 로그인 세션을 옮기지 않을 때:
+
+```bash
+node backend/db/migrate-json-to-postgres.mjs --dry-run --skip-sessions
+```
