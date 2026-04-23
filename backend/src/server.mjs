@@ -1,6 +1,8 @@
 import { createServer } from 'node:http';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { loadStore, mutateStore, getStoreFilePath, getStoreDiagnostics, resetStore, STORE_DRIVER } from './storage/index.mjs';
+import { createSessionRunsBridge } from './bridges/sessionRunsBridge.mjs';
+import { createPostgresDatabase } from './database/postgresDatabase.mjs';
 import { createJsonAuthRepository } from './repositories/authRepository.mjs';
 import { createJsonRunsRepository, ensureIntegrationImports, getPendingImportCount } from './repositories/runsRepository.mjs';
 import {
@@ -18,6 +20,14 @@ import {
   MAX_REQUESTS_PER_SOCKET,
   PORT,
   PUBLIC_BASE_URL,
+  POSTGRES_APPLICATION_NAME,
+  POSTGRES_CONNECTION_TIMEOUT_MS,
+  POSTGRES_DATABASE_URL,
+  POSTGRES_ENABLE_RUN_READS,
+  POSTGRES_ENABLE_SESSION_READS,
+  POSTGRES_IDLE_TIMEOUT_MS,
+  POSTGRES_POOL_MAX,
+  POSTGRES_SSL,
   REQUEST_TIMEOUT_MS,
   SESSION_TTL_MS,
   SHUTDOWN_TIMEOUT_MS,
@@ -175,6 +185,8 @@ function nextId(prefix) {
 
 let authRepository = null;
 let runsRepository = null;
+let postgresDatabase = null;
+let sessionRunsBridge = null;
 
 function getAuthRepository() {
   if (!authRepository) {
@@ -190,6 +202,42 @@ function getAuthRepository() {
   }
 
   return authRepository;
+}
+
+function getPostgresDatabase() {
+  if (!(POSTGRES_ENABLE_SESSION_READS || POSTGRES_ENABLE_RUN_READS)) {
+    return null;
+  }
+
+  if (!POSTGRES_DATABASE_URL) {
+    return null;
+  }
+
+  if (!postgresDatabase) {
+    postgresDatabase = createPostgresDatabase({
+      connectionString: POSTGRES_DATABASE_URL,
+      ssl: POSTGRES_SSL,
+      maxConnections: POSTGRES_POOL_MAX,
+      idleTimeoutMs: POSTGRES_IDLE_TIMEOUT_MS,
+      connectionTimeoutMs: POSTGRES_CONNECTION_TIMEOUT_MS,
+      applicationName: POSTGRES_APPLICATION_NAME,
+    });
+  }
+
+  return postgresDatabase;
+}
+
+function getSessionRunsBridge() {
+  if (!sessionRunsBridge) {
+    sessionRunsBridge = createSessionRunsBridge({
+      database: getPostgresDatabase(),
+      sessionReadsEnabled: POSTGRES_ENABLE_SESSION_READS,
+      runReadsEnabled: POSTGRES_ENABLE_RUN_READS,
+      createError: (statusCode, message) => new ApiError(statusCode, message),
+    });
+  }
+
+  return sessionRunsBridge;
 }
 
 function getRunsRepository() {
@@ -255,6 +303,55 @@ function requireUser(store, request) {
   return findUserByToken(store, getAccessToken(request));
 }
 
+async function loadCurrentUserReadContext(request, {
+  includeRuns = false,
+  includeMetrics = false,
+  fallbackToJsonIfEmpty = true,
+} = {}) {
+  const store = loadStore();
+  const token = getAccessToken(request);
+  const bridge = getSessionRunsBridge();
+  const { user, source: userSource } = await bridge.findUserByToken({
+    store,
+    token,
+  });
+  const context = {
+    store,
+    token,
+    user,
+    userSource,
+  };
+
+  if (includeRuns) {
+    const runResult = await bridge.getRunsForUser({
+      store,
+      userId: user.id,
+      fallbackToJsonIfEmpty,
+    });
+    context.runs = runResult.runs;
+    context.runSource = runResult.source;
+  }
+
+  if (includeMetrics) {
+    if (includeRuns) {
+      context.metrics = context.runSource === 'json'
+        ? getUserMetrics(store, user.id)
+        : buildUserRunMetrics(context.runs);
+      context.metricsSource = context.runSource;
+    } else {
+      const metricResult = await bridge.getUserMetrics({
+        store,
+        userId: user.id,
+        fallbackToJsonIfEmpty,
+      });
+      context.metrics = metricResult.metrics;
+      context.metricsSource = metricResult.source;
+    }
+  }
+
+  return context;
+}
+
 function requireAdmin(request) {
   if (!ADMIN_TOKEN) {
     throw new ApiError(404, '관리자 기능이 아직 설정되지 않았어.');
@@ -314,8 +411,10 @@ function getRedeemedPointCost(store, userId) {
 }
 
 function buildProfile(store, user) {
-  const metrics = getUserMetrics(store, user.id);
+  return buildProfileWithMetrics(user, getUserMetrics(store, user.id));
+}
 
+function buildProfileWithMetrics(user, metrics) {
   return {
     name: user.name,
     ...(typeof user.provinceName === 'string' && user.provinceName ? { provinceName: user.provinceName } : {}),
@@ -738,6 +837,10 @@ function getDistrictBattle(store, user) {
 
 function buildHomeSummary(store, user) {
   const metrics = getUserMetrics(store, user.id);
+  return buildHomeSummaryWithMetrics(store, user, metrics);
+}
+
+function buildHomeSummaryWithMetrics(store, user, metrics) {
   const latestRun = metrics.latestRun;
   const friendUsers = getFriendIds(store, user.id)
     .map((friendId) => findUserById(store, friendId))
@@ -777,9 +880,13 @@ function buildHomeSummary(store, user) {
 }
 
 function buildMyActivity(store, user) {
-  const runs = getRunsForUser(store, user.id);
-  const metrics = getUserMetrics(store, user.id);
+  return buildMyActivityWithRunsAndMetrics(
+    getRunsForUser(store, user.id),
+    getUserMetrics(store, user.id),
+  );
+}
 
+function buildMyActivityWithRunsAndMetrics(runs, metrics) {
   return {
     runs: runs.map((run) => ({
       id: run.id,
@@ -1305,6 +1412,71 @@ function buildRunDetail(run, weeklyDistanceKm, sourceOverride, metrics) {
     estimatedMinutes: Math.round(run.distanceKm * (paceMinutes ?? 5.5)),
     earnedPoint: getRunPointValue(metrics, run.id),
   };
+}
+
+function getRunFromList(runs, runId) {
+  if (!runs.length) {
+    throw new ApiError(404, '러닝 기록이 없어.');
+  }
+
+  if (!runId) {
+    return runs[0];
+  }
+
+  const run = runs.find((entry) => entry.id === runId);
+
+  if (!run) {
+    throw new ApiError(404, '러닝 기록을 찾을 수 없어.');
+  }
+
+  return run;
+}
+
+async function buildProfileReadPayload(request) {
+  const { user, metrics } = await loadCurrentUserReadContext(request, {
+    includeMetrics: true,
+  });
+
+  return buildProfileWithMetrics(user, metrics);
+}
+
+async function buildNotificationSettingsReadPayload(request) {
+  const { user } = await loadCurrentUserReadContext(request);
+  return buildNotificationSettings(user);
+}
+
+async function buildHomeSummaryReadPayload(request) {
+  const { store, user, metrics } = await loadCurrentUserReadContext(request, {
+    includeMetrics: true,
+  });
+
+  return buildHomeSummaryWithMetrics(store, user, metrics);
+}
+
+async function buildMyActivityReadPayload(request) {
+  const { runs, metrics } = await loadCurrentUserReadContext(request, {
+    includeRuns: true,
+    includeMetrics: true,
+  });
+
+  return buildMyActivityWithRunsAndMetrics(runs, metrics);
+}
+
+async function buildIntegrationSourcesReadPayload(request) {
+  const { store, user } = await loadCurrentUserReadContext(request);
+  return {
+    sources: buildIntegrationSources(store, user),
+  };
+}
+
+async function buildCurrentRunReadPayload(request, runId) {
+  const { runs, metrics } = await loadCurrentUserReadContext(request, {
+    includeRuns: true,
+    includeMetrics: true,
+  });
+  const run = getRunFromList(runs, runId);
+
+  return buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics);
 }
 
 function getRunForUser(store, userId, runId) {
@@ -2575,8 +2747,7 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/me/profile' && request.method === 'GET') {
-    const store = loadStore();
-    sendJson(response, 200, buildProfile(store, requireUser(store, request)));
+    sendJson(response, 200, await buildProfileReadPayload(request));
     return;
   }
 
@@ -2586,9 +2757,7 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/me/notifications' && request.method === 'GET') {
-    const store = loadStore();
-    const user = requireUser(store, request);
-    sendJson(response, 200, buildNotificationSettings(user));
+    sendJson(response, 200, await buildNotificationSettingsReadPayload(request));
     return;
   }
 
@@ -2603,9 +2772,7 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/me/activity' && request.method === 'GET') {
-    const store = loadStore();
-    const user = requireUser(store, request);
-    sendJson(response, 200, buildMyActivity(store, user));
+    sendJson(response, 200, await buildMyActivityReadPayload(request));
     return;
   }
 
@@ -2632,9 +2799,7 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/home/summary' && request.method === 'GET') {
-    const store = loadStore();
-    const user = requireUser(store, request);
-    sendJson(response, 200, buildHomeSummary(store, user));
+    sendJson(response, 200, await buildHomeSummaryReadPayload(request));
     return;
   }
 
@@ -2709,9 +2874,7 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/integrations/sources' && request.method === 'GET') {
-    const store = loadStore();
-    const user = requireUser(store, request);
-    sendJson(response, 200, { sources: buildIntegrationSources(store, user) });
+    sendJson(response, 200, await buildIntegrationSourcesReadPayload(request));
     return;
   }
 
@@ -2765,9 +2928,7 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/runs/latest' && request.method === 'GET') {
-    sendJson(response, 200, await getRunsRepository().getRun({
-      token: getAccessToken(request),
-    }));
+    sendJson(response, 200, await buildCurrentRunReadPayload(request));
     return;
   }
 
@@ -2784,10 +2945,7 @@ async function routeRequest(request, response) {
   const ownRunMatch = pathname.match(/^\/api\/runs\/([^/]+)$/);
 
   if (ownRunMatch && request.method === 'GET') {
-    sendJson(response, 200, await getRunsRepository().getRun({
-      token: getAccessToken(request),
-      runId: ownRunMatch[1],
-    }));
+    sendJson(response, 200, await buildCurrentRunReadPayload(request, ownRunMatch[1]));
     return;
   }
 
@@ -2848,17 +3006,27 @@ function shutdownServer(signal) {
   forceExitTimer.unref();
 
   server.close((error) => {
-    clearTimeout(forceExitTimer);
+    (async () => {
+      clearTimeout(forceExitTimer);
 
-    if (error) {
+      if (error) {
+        console.error('[runnigapp-backend] shutdown error');
+        console.error(error);
+        process.exit(1);
+        return;
+      }
+
+      if (postgresDatabase) {
+        await postgresDatabase.close();
+      }
+
+      console.log('[runnigapp-backend] shutdown complete.');
+      process.exit(0);
+    })().catch((shutdownError) => {
       console.error('[runnigapp-backend] shutdown error');
-      console.error(error);
+      console.error(shutdownError);
       process.exit(1);
-      return;
-    }
-
-    console.log('[runnigapp-backend] shutdown complete.');
-    process.exit(0);
+    });
   });
 }
 
