@@ -23,6 +23,34 @@ type UsernameCheckState = {
   checkedUsername: string;
 };
 
+function formatPhoneInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+
+  if (digits.length <= 3) {
+    return digits;
+  }
+
+  if (digits.length <= 7) {
+    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  }
+
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+}
+
+function formatBirthDateInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+
+  if (digits.length <= 4) {
+    return digits;
+  }
+
+  if (digits.length <= 6) {
+    return `${digits.slice(0, 4)}-${digits.slice(4)}`;
+  }
+
+  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+}
+
 export default function SignupFormScreen() {
   const [nickname, setNickname] = useState('');
   const [realName, setRealName] = useState('');
@@ -90,6 +118,7 @@ export default function SignupFormScreen() {
     [regions, provinceName, secondaryRegionName, tertiaryRegionName],
   );
   const checkingUsername = usernameCheck.status === 'checking';
+  const usernameReady = usernameCheck.status === 'available' && usernameCheck.checkedUsername === normalizedUsername;
   const requiredProfileReady = Boolean(
     nickname.trim()
     && realName.trim()
@@ -100,10 +129,12 @@ export default function SignupFormScreen() {
     && addressDetail.trim()
     && /^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim()),
   );
+  const signupReady = requiredProfileReady && usernameReady && passwordReady;
 
   const handleUsernameChange = (value: string) => {
     const nextUsername = value.trim().toLowerCase();
     setUsername(nextUsername);
+    setError(null);
 
     const nextNormalizedUsername = normalizeUsername(nextUsername);
 
@@ -196,7 +227,17 @@ export default function SignupFormScreen() {
       });
       router.replace('/(tabs)/home');
     } catch (signupError) {
-      setError(signupError instanceof Error ? signupError.message : '회원가입에 실패했어요.');
+      const message = signupError instanceof Error ? signupError.message : '회원가입에 실패했어요.';
+
+      if (message.includes('이미 사용 중인 아이디')) {
+        setUsernameCheck({
+          status: 'unavailable',
+          message,
+          checkedUsername: normalizedUsername,
+        });
+      }
+
+      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -218,7 +259,7 @@ export default function SignupFormScreen() {
 
           <Input
             label="닉네임"
-            helperText="실명을 공개하고 싶지 않다면 닉네임을 입력해주세요. 다른 사용자에게는 닉네임만 보여요."
+            helperText="랭킹, 친구 화면, 기록 화면에 표시되는 공개 이름이에요."
             placeholder="닉네임을 입력하세요"
             value={nickname}
             onChangeText={setNickname}
@@ -256,7 +297,7 @@ export default function SignupFormScreen() {
                 onPress={handleCheckUsername}
                 disabled={submitting || checkingUsername}
               >
-                <Text style={styles.secondaryActionButtonText}>{checkingUsername ? '확인 중' : '중복 확인'}</Text>
+                <Text style={styles.secondaryActionButtonText}>{checkingUsername ? '확인 중' : usernameReady ? '사용 가능' : '중복 확인'}</Text>
               </Pressable>
             </View>
             {usernameValidationMessage ? <Text style={[styles.statusText, styles.statusTextError]}>{usernameValidationMessage}</Text> : null}
@@ -314,7 +355,15 @@ export default function SignupFormScreen() {
             {passwordValidationMessage ? <Text style={[styles.statusText, styles.statusTextError]}>{passwordValidationMessage}</Text> : null}
             {passwordConfirmMessage ? <Text style={[styles.statusText, styles.statusTextError]}>{passwordConfirmMessage}</Text> : null}
           </View>
-          <Input label="핸드폰번호" placeholder="010-0000-0000" keyboardType="phone-pad" value={phone} onChangeText={setPhone} editable={!submitting} />
+          <Input
+            label="핸드폰번호"
+            helperText="비공개 정보예요. 계정 확인과 운영상 필요한 연락에만 사용해요."
+            placeholder="010-0000-0000"
+            keyboardType="phone-pad"
+            value={phone}
+            onChangeText={(nextValue) => setPhone(formatPhoneInput(nextValue))}
+            editable={!submitting}
+          />
 
           <View style={styles.addressGroup}>
             <Text style={styles.label}>사는 지역 선택</Text>
@@ -409,21 +458,28 @@ export default function SignupFormScreen() {
             </View>
           </View>
 
-          <Input label="생년월일" placeholder="예: 1990-01-01" value={birthDate} onChangeText={setBirthDate} editable={!submitting} />
+          <Input
+            label="생년월일"
+            helperText="비공개 정보예요. YYYY-MM-DD 형식으로 저장돼요."
+            placeholder="예: 1990-01-01"
+            value={birthDate}
+            onChangeText={(nextValue) => setBirthDate(formatBirthDateInput(nextValue))}
+            editable={!submitting}
+          />
 
           <View style={styles.readyCard}>
             <Text style={styles.readyTitle}>가입 준비 상태</Text>
             <ValidationItem label="기본 정보와 지역 입력" complete={requiredProfileReady} />
-            <ValidationItem label="아이디 중복 확인 완료" complete={usernameCheck.status === 'available' && usernameCheck.checkedUsername === normalizedUsername} />
+            <ValidationItem label="아이디 중복 확인 완료" complete={usernameReady} />
             <ValidationItem label="비밀번호 조건 충족" complete={passwordReady} />
           </View>
 
           <Pressable
-            style={[styles.primaryButton, (submitting || catalogLoading || Boolean(catalogError)) ? styles.disabledButton : null]}
+            style={[styles.primaryButton, (submitting || catalogLoading || Boolean(catalogError) || !signupReady) ? styles.disabledButton : null]}
             onPress={handleSignup}
-            disabled={submitting || catalogLoading || Boolean(catalogError)}
+            disabled={submitting || catalogLoading || Boolean(catalogError) || !signupReady}
           >
-            {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>회원가입하고 시작</Text>}
+            {submitting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>{signupReady ? '회원가입하고 시작' : '필수 정보 확인 필요'}</Text>}
           </Pressable>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
