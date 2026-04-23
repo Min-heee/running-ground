@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { loadStore, mutateStore, getStoreFilePath, getStoreDiagnostics, resetStore, STORE_DRIVER } from './storage/index.mjs';
 import { createJsonAuthRepository } from './repositories/authRepository.mjs';
+import { createJsonRunsRepository, ensureIntegrationImports, getPendingImportCount } from './repositories/runsRepository.mjs';
 import {
   ADMIN_TOKEN,
   APP_ENV,
@@ -173,6 +174,7 @@ function nextId(prefix) {
 }
 
 let authRepository = null;
+let runsRepository = null;
 
 function getAuthRepository() {
   if (!authRepository) {
@@ -188,6 +190,25 @@ function getAuthRepository() {
   }
 
   return authRepository;
+}
+
+function getRunsRepository() {
+  if (!runsRepository) {
+    runsRepository = createJsonRunsRepository({
+      loadStore,
+      mutateStore,
+      requireUserByToken: (store, token) => findUserByToken(store, token),
+      nextId,
+      buildRunDetail,
+      getUserMetrics,
+      decorateIntegrationSource,
+      sourceLabels: SOURCE_LABEL_BY_TYPE,
+      formatTimestamp,
+      createError: (statusCode, message) => new ApiError(statusCode, message),
+    });
+  }
+
+  return runsRepository;
 }
 
 function formatTimestamp(date = new Date()) {
@@ -326,63 +347,6 @@ function normalizeRewardRedemptionStatus(value) {
 
 function isActiveRewardRedemption(entry) {
   return normalizeRewardRedemptionStatus(entry?.status) !== 'cancelled';
-}
-
-function ensureIntegrationImports(store) {
-  if (!Array.isArray(store.integrationImports)) {
-    store.integrationImports = [];
-  }
-
-  return store.integrationImports;
-}
-
-function isSyncableSourceType(sourceType) {
-  return sourceType !== 'manual';
-}
-
-function getSourceDisplayName(user, sourceType) {
-  return SOURCE_LABEL_BY_TYPE[sourceType] ?? user.connectedSources.find((entry) => entry.sourceType === sourceType)?.displayName ?? sourceType;
-}
-
-function inferSourceTypeFromLabel(label) {
-  const normalizedLabel = normalizeOptionalString(label).toLowerCase();
-
-  if (normalizedLabel === 'nrc') {
-    return 'nrc';
-  }
-
-  return Object.entries(SOURCE_LABEL_BY_TYPE).find(([, displayName]) => displayName.toLowerCase() === normalizedLabel)?.[0] ?? null;
-}
-
-function getRunSourceType(run) {
-  return normalizeOptionalString(run.sourceType) || inferSourceTypeFromLabel(run.source);
-}
-
-function buildRunExternalKey(input) {
-  const sourceType = normalizeOptionalString(input.sourceType);
-  const externalId = normalizeOptionalString(input.externalId);
-
-  if (!sourceType || !externalId) {
-    return null;
-  }
-
-  return `${sourceType}::${externalId}`;
-}
-
-function buildRunFingerprint(input) {
-  const sourceType = normalizeOptionalString(input.sourceType);
-  return [
-    sourceType || 'unknown',
-    validateRequiredString(input.date, '날짜를 입력해줘.'),
-    Number(validateDistanceKm(input.distanceKm, '거리를 입력해줘.').toFixed(1)).toFixed(1),
-    validatePace(input.pace, '페이스를 입력해줘.'),
-  ].join('::');
-}
-
-function getPendingImportCount(store, userId, sourceType) {
-  return ensureIntegrationImports(store)
-    .filter((entry) => entry.userId === userId && entry.sourceType === sourceType)
-    .length;
 }
 
 function decorateIntegrationSource(store, user, source) {
@@ -1722,123 +1686,6 @@ function requireConnectedSource(user, sourceType) {
   return source;
 }
 
-function requireSyncableConnectedSource(user, sourceType) {
-  const source = requireConnectedSource(user, sourceType);
-
-  if (!isSyncableSourceType(sourceType)) {
-    throw new ApiError(400, '수동 입력 소스는 외부 import 방식 대신 앱 안에서 직접 기록을 추가해줘.');
-  }
-
-  if (!source.connected) {
-    throw new ApiError(409, '이 소스는 아직 연결되지 않았어. 먼저 연결한 뒤 기록을 가져와줘.');
-  }
-
-  return source;
-}
-
-function importPendingRunsForUser(store, user) {
-  const queue = ensureIntegrationImports(store);
-  const connectedSources = user.connectedSources.filter((source) => source.connected && isSyncableSourceType(source.sourceType));
-  const connectedSourceTypes = new Set(connectedSources.map((source) => source.sourceType));
-  const sourceDisplayNameByType = new Map(connectedSources.map((source) => [source.sourceType, source.displayName]));
-  const currentQueue = [...queue];
-  const pendingImports = currentQueue.filter((entry) => entry.userId === user.id && connectedSourceTypes.has(entry.sourceType));
-  const existingExternalKeys = new Set();
-  const existingFingerprints = new Set();
-  const processedImportIds = new Set();
-  const importedRunIds = [];
-  const lastSyncedAt = formatTimestamp();
-  let scannedRuns = 0;
-  let importedRuns = 0;
-  let duplicateRuns = 0;
-
-  for (const run of store.runs.filter((entry) => entry.userId === user.id)) {
-    const sourceType = getRunSourceType(run);
-    const externalKey = buildRunExternalKey({
-      sourceType,
-      externalId: run.externalId,
-    });
-
-    if (externalKey) {
-      existingExternalKeys.add(externalKey);
-    }
-
-    if (sourceType) {
-      existingFingerprints.add(buildRunFingerprint({
-        sourceType,
-        date: run.date,
-        distanceKm: run.distanceKm,
-        pace: run.pace,
-      }));
-    }
-  }
-
-  pendingImports.sort((left, right) => {
-    if (left.date !== right.date) {
-      return left.date.localeCompare(right.date);
-    }
-
-    return String(left.receivedAt).localeCompare(String(right.receivedAt));
-  });
-
-  for (const entry of pendingImports) {
-    scannedRuns += 1;
-    processedImportIds.add(entry.id);
-
-    const externalKey = buildRunExternalKey(entry);
-    const fingerprint = buildRunFingerprint(entry);
-
-    if ((externalKey && existingExternalKeys.has(externalKey)) || existingFingerprints.has(fingerprint)) {
-      duplicateRuns += 1;
-      continue;
-    }
-
-    const run = {
-      id: nextId('run'),
-      userId: user.id,
-      date: entry.date,
-      distanceKm: entry.distanceKm,
-      pace: entry.pace,
-      source: entry.sourceLabel ?? sourceDisplayNameByType.get(entry.sourceType) ?? SOURCE_LABEL_BY_TYPE[entry.sourceType] ?? entry.sourceType,
-      sourceType: entry.sourceType,
-      ...(entry.externalId ? { externalId: entry.externalId } : {}),
-      createdAt: new Date().toISOString(),
-      importedAt: lastSyncedAt,
-    };
-
-    store.runs.push(run);
-    importedRuns += 1;
-    importedRunIds.push(run.id);
-
-    if (externalKey) {
-      existingExternalKeys.add(externalKey);
-    }
-
-    existingFingerprints.add(fingerprint);
-  }
-
-  store.integrationImports = currentQueue.filter((entry) => !processedImportIds.has(entry.id));
-  user.connectedSources = user.connectedSources.map((source) => (
-    source.connected && connectedSourceTypes.has(source.sourceType)
-      ? {
-        ...source,
-        lastSyncedAt,
-      }
-      : source
-  ));
-
-  return {
-    success: true,
-    syncedSources: connectedSources.length,
-    scannedRuns,
-    importedRuns,
-    duplicateRuns,
-    syncedRuns: importedRuns,
-    importedRunIds,
-    lastSyncedAt,
-  };
-}
-
 async function handleLogin(request, response) {
   const body = await parseJsonBody(request);
   const username = validateRequiredString(body.username, '아이디를 입력해주세요.').toLowerCase();
@@ -2312,32 +2159,13 @@ function handleOfflineRaceEntryAction(request, response, eventId, action) {
 
 async function handleCreateManualRun(request, response) {
   const body = await parseJsonBody(request);
-
-  const payload = mutateStore((store) => {
-    const user = requireUser(store, request);
-    const run = {
-      id: nextId('run'),
-      userId: user.id,
+  const payload = await getRunsRepository().createManualRun({
+    token: getAccessToken(request),
+    input: {
       date: validateDateOnly(body.date, '러닝 날짜를 입력해줘.'),
       distanceKm: validateDistanceKm(body.distanceKm, '러닝 거리를 입력해줘.'),
       pace: validatePace(body.pace, '페이스를 입력해줘.'),
-      source: 'Manual',
-      sourceType: 'manual',
-      createdAt: new Date().toISOString(),
-    };
-
-    store.runs.push(run);
-
-    const manualSource = user.connectedSources.find((entry) => entry.sourceType === 'manual');
-
-    if (manualSource) {
-      manualSource.connected = true;
-      manualSource.connectionStatus = 'connected';
-      manualSource.lastSyncedAt = formatTimestamp();
-    }
-
-    const metrics = getUserMetrics(store, user.id);
-    return buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics);
+    },
   });
 
   sendJson(response, 201, payload);
@@ -2345,13 +2173,22 @@ async function handleCreateManualRun(request, response) {
 
 async function handleCreateTrackedRun(request, response) {
   const body = await parseJsonBody(request);
+  const startedAt = validateRequiredString(body.startedAt, '러닝 시작 시각이 비어 있어.');
+  const endedAt = validateRequiredString(body.endedAt, '러닝 종료 시각이 비어 있어.');
+  const startedAtMs = new Date(startedAt).getTime();
+  const endedAtMs = new Date(endedAt).getTime();
 
-  const payload = mutateStore((store) => {
-    const user = requireUser(store, request);
-    const route = validateTrackedRoute(body.route);
-    const run = {
-      id: nextId('run'),
-      userId: user.id,
+  if (Number.isNaN(startedAtMs) || Number.isNaN(endedAtMs)) {
+    throw new ApiError(400, '러닝 시작/종료 시각 형식이 올바르지 않아.');
+  }
+
+  if (startedAtMs > endedAtMs) {
+    throw new ApiError(400, '러닝 종료 시각은 시작 시각보다 빠를 수 없어.');
+  }
+
+  const payload = await getRunsRepository().createTrackedRun({
+    token: getAccessToken(request),
+    input: {
       date: validateDateOnly(body.date, '러닝 날짜를 입력해줘.'),
       distanceKm: validateDistanceKm(body.distanceKm, '러닝 거리를 입력해줘.'),
       pace: validatePace(body.pace, '페이스를 입력해줘.'),
@@ -2362,29 +2199,10 @@ async function handleCreateTrackedRun(request, response) {
       ...(typeof body.elevationGainM !== 'undefined' && body.elevationGainM !== null
         ? { elevationGainM: validateNonNegativeInteger(body.elevationGainM, '고도 상승 값이 올바르지 않아.') }
         : {}),
-      route,
-      startedAt: validateRequiredString(body.startedAt, '러닝 시작 시각이 비어 있어.'),
-      endedAt: validateRequiredString(body.endedAt, '러닝 종료 시각이 비어 있어.'),
-      source: 'RUNNIGAPP',
-      sourceType: 'runnigapp',
-      createdAt: new Date().toISOString(),
-    };
-
-    const startedAtMs = new Date(run.startedAt).getTime();
-    const endedAtMs = new Date(run.endedAt).getTime();
-
-    if (Number.isNaN(startedAtMs) || Number.isNaN(endedAtMs)) {
-      throw new ApiError(400, '러닝 시작/종료 시각 형식이 올바르지 않아.');
-    }
-
-    if (startedAtMs > endedAtMs) {
-      throw new ApiError(400, '러닝 종료 시각은 시작 시각보다 빠를 수 없어.');
-    }
-
-    store.runs.push(run);
-
-    const metrics = getUserMetrics(store, user.id);
-    return buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics);
+      route: validateTrackedRoute(body.route),
+      startedAt,
+      endedAt,
+    },
   });
 
   sendJson(response, 201, payload);
@@ -2407,39 +2225,20 @@ function handleIntegrationSourceConnection(request, response, sourceType, nextCo
 
 async function handleQueueIntegrationImports(request, response, sourceType) {
   const body = await parseJsonBody(request);
+  const rawRuns = Array.isArray(body.runs) ? body.runs : null;
 
-  const payload = mutateStore((store) => {
-    const user = requireUser(store, request);
-    const source = requireSyncableConnectedSource(user, sourceType);
-    const rawRuns = Array.isArray(body.runs) ? body.runs : null;
+  if (!rawRuns || rawRuns.length === 0) {
+    throw new ApiError(400, '가져올 연동 기록 배열이 비어 있어.');
+  }
 
-    if (!rawRuns || rawRuns.length === 0) {
-      throw new ApiError(400, '가져올 연동 기록 배열이 비어 있어.');
-    }
+  if (rawRuns.length > 500) {
+    throw new ApiError(400, '한 번에 가져오는 기록은 500개 이하로 제한해줘.');
+  }
 
-    if (rawRuns.length > 500) {
-      throw new ApiError(400, '한 번에 가져오는 기록은 500개 이하로 제한해줘.');
-    }
-
-    const queue = ensureIntegrationImports(store);
-    const normalizedRuns = rawRuns.map((run) => normalizeImportedRun(sourceType, run));
-    const receivedAt = new Date().toISOString();
-
-    normalizedRuns.forEach((run) => {
-      queue.push({
-        id: nextId('import'),
-        userId: user.id,
-        ...run,
-        receivedAt,
-      });
-    });
-
-    return {
-      success: true,
-      source: decorateIntegrationSource(store, user, source),
-      queuedRuns: normalizedRuns.length,
-      pendingRuns: getPendingImportCount(store, user.id, sourceType),
-    };
+  const payload = await getRunsRepository().queueIntegrationImports({
+    token: getAccessToken(request),
+    sourceType,
+    normalizedRuns: rawRuns.map((run) => normalizeImportedRun(sourceType, run)),
   });
 
   sendJson(response, 202, payload);
@@ -2936,9 +2735,8 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/integrations/sync' && request.method === 'POST') {
-    const payload = mutateStore((store) => {
-      const user = requireUser(store, request);
-      return importPendingRunsForUser(store, user);
+    const payload = await getRunsRepository().syncIntegrationImports({
+      token: getAccessToken(request),
     });
 
     sendJson(response, 200, payload);
@@ -2967,11 +2765,9 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/runs/latest' && request.method === 'GET') {
-    const store = loadStore();
-    const user = requireUser(store, request);
-    const run = getRunForUser(store, user.id);
-    const metrics = getUserMetrics(store, user.id);
-    sendJson(response, 200, buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics));
+    sendJson(response, 200, await getRunsRepository().getRun({
+      token: getAccessToken(request),
+    }));
     return;
   }
 
@@ -2988,11 +2784,10 @@ async function routeRequest(request, response) {
   const ownRunMatch = pathname.match(/^\/api\/runs\/([^/]+)$/);
 
   if (ownRunMatch && request.method === 'GET') {
-    const store = loadStore();
-    const user = requireUser(store, request);
-    const run = getRunForUser(store, user.id, ownRunMatch[1]);
-    const metrics = getUserMetrics(store, user.id);
-    sendJson(response, 200, buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics));
+    sendJson(response, 200, await getRunsRepository().getRun({
+      token: getAccessToken(request),
+      runId: ownRunMatch[1],
+    }));
     return;
   }
 
