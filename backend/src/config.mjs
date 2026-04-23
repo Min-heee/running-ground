@@ -134,6 +134,8 @@ export const POSTGRES_APPLICATION_NAME = normalizeOptionalString(process.env.BAC
   || `runnigapp-backend-${APP_ENV}`;
 export const POSTGRES_ENABLE_SESSION_READS = parseBoolean(process.env.BACKEND_POSTGRES_ENABLE_SESSION_READS, false);
 export const POSTGRES_ENABLE_RUN_READS = parseBoolean(process.env.BACKEND_POSTGRES_ENABLE_RUN_READS, false);
+export const POSTGRES_ENABLE_FRIEND_READS = parseBoolean(process.env.BACKEND_POSTGRES_ENABLE_FRIEND_READS, false);
+export const POSTGRES_ENABLE_LEAGUE_READS = parseBoolean(process.env.BACKEND_POSTGRES_ENABLE_LEAGUE_READS, false);
 export const SESSION_TTL_HOURS = Math.max(1, parseNumber(process.env.BACKEND_SESSION_TTL_HOURS, 24 * 7));
 export const SESSION_TTL_MS = SESSION_TTL_HOURS * 60 * 60 * 1000;
 export const MAX_BODY_SIZE_KB = Math.max(16, parseNumber(process.env.BACKEND_MAX_BODY_SIZE_KB, 256));
@@ -183,6 +185,8 @@ export function getPublicBackendConfig() {
       applicationName: POSTGRES_APPLICATION_NAME,
       enableSessionReads: POSTGRES_ENABLE_SESSION_READS,
       enableRunReads: POSTGRES_ENABLE_RUN_READS,
+      enableFriendReads: POSTGRES_ENABLE_FRIEND_READS,
+      enableLeagueReads: POSTGRES_ENABLE_LEAGUE_READS,
     },
     sessionTtlHours: SESSION_TTL_HOURS,
     maxBodySizeKb: MAX_BODY_SIZE_KB,

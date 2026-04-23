@@ -115,6 +115,8 @@ function buildResolvedBackendEnvironment(env, options = {}) {
     postgresApplicationName: normalizeOptionalString(env.BACKEND_POSTGRES_APPLICATION_NAME) || `runnigapp-backend-${appEnv}`,
     postgresEnableSessionReads: parseBoolean(env.BACKEND_POSTGRES_ENABLE_SESSION_READS, false),
     postgresEnableRunReads: parseBoolean(env.BACKEND_POSTGRES_ENABLE_RUN_READS, false),
+    postgresEnableFriendReads: parseBoolean(env.BACKEND_POSTGRES_ENABLE_FRIEND_READS, false),
+    postgresEnableLeagueReads: parseBoolean(env.BACKEND_POSTGRES_ENABLE_LEAGUE_READS, false),
     publicDomain: normalizeOptionalString(env.PUBLIC_DOMAIN),
     acmeEmail: normalizeOptionalString(env.ACME_EMAIL),
   };
@@ -189,8 +191,16 @@ function validateBackendReleaseEnvironment(env, options = {}) {
     errors.push('BACKEND_POSTGRES_DATABASE_URL 은 postgres:// 또는 postgresql:// 형식이어야 해.');
   }
 
-  if ((resolved.postgresEnableSessionReads || resolved.postgresEnableRunReads) && !resolved.postgresDatabaseUrl) {
-    errors.push('BACKEND_POSTGRES_ENABLE_SESSION_READS 또는 BACKEND_POSTGRES_ENABLE_RUN_READS 를 켜려면 BACKEND_POSTGRES_DATABASE_URL 이 필요해.');
+  if (
+    (
+      resolved.postgresEnableSessionReads
+      || resolved.postgresEnableRunReads
+      || resolved.postgresEnableFriendReads
+      || resolved.postgresEnableLeagueReads
+    )
+    && !resolved.postgresDatabaseUrl
+  ) {
+    errors.push('PostgreSQL read 플래그를 켜려면 BACKEND_POSTGRES_DATABASE_URL 이 필요해.');
   }
 
   if (resolved.postgresPoolMax < 1) {

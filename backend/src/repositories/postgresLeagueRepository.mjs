@@ -102,6 +102,24 @@ async function requireUserByToken(database, token, createError) {
   return mapUserRow(result.rows[0]);
 }
 
+async function findUserById(database, userId, createError) {
+  const result = await database.query(
+    `
+      select *
+      from users
+      where id = $1
+      limit 1
+    `,
+    [userId],
+  );
+
+  if (!result.rows[0]) {
+    throw createError(404, '사용자를 찾을 수 없어.');
+  }
+
+  return mapUserRow(result.rows[0]);
+}
+
 async function loadUsersByRegion(database, user) {
   const result = await database.query(
     `
@@ -371,8 +389,8 @@ export function createPostgresLeagueRepository({
   }
 
   return {
-    async getDistrictPersonal({ token }) {
-      const currentUser = await requireUserByToken(database, token, createError);
+    async getDistrictPersonalByUserId({ currentUserId }) {
+      const currentUser = await findUserById(database, currentUserId, createError);
       const users = await loadUsersByRegion(database, currentUser);
       const userIds = users.map((user) => user.id);
       const runsByUserId = await loadRunsByUserIds(database, userIds);
@@ -381,20 +399,42 @@ export function createPostgresLeagueRepository({
       return buildDistrictPersonal(users, currentUser, metricsByUserId);
     },
 
-    async getRegions({ token, nodeId }) {
-      await requireUserByToken(database, token, createError);
+    async getDistrictPersonal({ token }) {
+      const currentUser = await requireUserByToken(database, token, createError);
+      return this.getDistrictPersonalByUserId({
+        currentUserId: currentUser.id,
+      });
+    },
+
+    async getRegionsByUserId({ currentUserId, nodeId }) {
+      await findUserById(database, currentUserId, createError);
       const regionTree = await loadRegionTree(database, defaultRegionTree);
       return buildRegionLeague(regionTree, nodeId, createError);
     },
 
-    async getUniversities({ token }) {
-      await requireUserByToken(database, token, createError);
+    async getRegions({ token, nodeId }) {
+      const currentUser = await requireUserByToken(database, token, createError);
+      return this.getRegionsByUserId({
+        currentUserId: currentUser.id,
+        nodeId,
+      });
+    },
+
+    async getUniversitiesByUserId({ currentUserId }) {
+      await findUserById(database, currentUserId, createError);
       const users = await loadUsersWithUniversity(database);
       const userIds = users.map((user) => user.id);
       const runsByUserId = await loadRunsByUserIds(database, userIds);
       const metricsByUserId = buildMetricsByUserId(runsByUserId, userIds, buildUserMetrics);
 
       return buildUniversityLeague(users, metricsByUserId);
+    },
+
+    async getUniversities({ token }) {
+      const currentUser = await requireUserByToken(database, token, createError);
+      return this.getUniversitiesByUserId({
+        currentUserId: currentUser.id,
+      });
     },
   };
 }

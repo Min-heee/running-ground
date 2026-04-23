@@ -36,6 +36,13 @@ class FakePostgresDatabase {
       };
     }
 
+    if (normalizedSql.startsWith('select * from users where id = $1 limit 1')) {
+      const user = this.users.find((entry) => entry.id === params[0]);
+      return {
+        rows: user ? [clone(user)] : [],
+      };
+    }
+
     if (normalizedSql.startsWith("select * from users where coalesce(province_name, '') = $1")) {
       return {
         rows: this.users

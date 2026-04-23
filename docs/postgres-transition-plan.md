@@ -94,10 +94,12 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - `backend/src/repositories/postgresLeagueRepository.mjs`로 PostgreSQL 지역 개인전/지역 트리/대학 리그 초안을 추가했다.
 - `backend/src/database/postgresDatabase.mjs`로 공용 PostgreSQL query/transaction adapter를 추가했다.
 - `backend/src/bridges/sessionRunsBridge.mjs`로 세션 조회와 run 집계를 JSON/PostgreSQL 양쪽에서 읽을 수 있는 bridge helper를 추가했다.
+- `backend/src/bridges/friendsLeagueBridge.mjs`로 친구/리그 GET API를 PostgreSQL 우선 + JSON fallback 방식으로 읽을 수 있게 만들었다.
 - 로그인, 로그아웃, 아이디 중복 확인, 회원가입은 route layer에서 repository를 호출한다.
 - 기록 관련 route layer는 입력 검증만 맡고, 저장/중복 판단은 repository가 맡는다.
 - 친구 요청/수락과 친구·리그 조회 route도 repository를 호출하도록 옮겼다.
 - JSON -> PostgreSQL migration SQL은 `app_metadata.region_tree`까지 함께 적재하도록 보강했다.
+- 친구 랭킹, 친구 활동, 친구 기록, 지역 개인전, 지역 리그, 대학 리그 GET route는 bridge를 통해 부분 전환할 수 있다.
 - route layer는 sync/async repository를 모두 받을 수 있게 repository 호출을 `await`한다.
 - `npm --prefix backend run test`로 JSON/PostgreSQL repository, bridge helper, DB adapter 동작을 함께 검증한다.
 - 아직 runtime store driver는 JSON만 사용한다.
@@ -116,7 +118,7 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - 운영 장애: PostgreSQL 전환 후에는 DB backup과 restore rehearsal을 별도 체크리스트로 둔다.
 
 ## 다음 구현 후보
-1. 랭킹성 GET API를 JSON/PostgreSQL 양쪽에서 읽을 수 있는 bridge helper 추가하기
-2. preview API에서 세션/런 read 플래그와 친구/리그 read 경계를 함께 점검하기
-3. admin/market/race 쓰기 경계를 repository로 추가 분리하기
-4. 지역 트리를 `app_metadata`에서 전용 테이블로 승격할지 검토하기
+1. preview API에서 세션/런 read 플래그와 친구/리그 read 경계를 함께 점검하기
+2. admin/market/race 쓰기 경계를 repository로 추가 분리하기
+3. 지역 트리를 `app_metadata`에서 전용 테이블로 승격할지 검토하기
+4. friends/league bridge health 정보를 admin status에 노출할지 검토하기

@@ -19,7 +19,7 @@
     "test:runs": "node ./src/repositories/runsRepository.test.mjs && node ./src/repositories/postgresRunsRepository.test.mjs",
     "test:friends": "node ./src/repositories/friendsRepository.test.mjs && node ./src/repositories/postgresFriendsRepository.test.mjs",
     "test:league": "node ./src/repositories/leagueRepository.test.mjs && node ./src/repositories/postgresLeagueRepository.test.mjs",
-    "test:bridges": "node ./src/bridges/sessionRunsBridge.test.mjs",
+    "test:bridges": "node ./src/bridges/sessionRunsBridge.test.mjs && node ./src/bridges/friendsLeagueBridge.test.mjs",
     "test:db": "node ./src/database/postgresDatabase.test.mjs",
     "docker:build": "docker build -t runnigapp-backend .",
     "docker:up": "docker compose -f ./compose.yaml up --build -d",

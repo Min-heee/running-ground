@@ -13,6 +13,7 @@ Current status:
 - `postgresLeagueRepository.mjs` mirrors district/region/university league reads against PostgreSQL tables plus `app_metadata.region_tree`.
 - `../database/postgresDatabase.mjs` now provides the shared PostgreSQL `query / transaction / close / check` adapter.
 - `../bridges/sessionRunsBridge.mjs` is the next-step bridge for mixed JSON/PostgreSQL session and run reads.
+- `../bridges/friendsLeagueBridge.mjs` does the same kind of staged fallback for friends and league read APIs.
 - Repository tests lock JSON auth, PostgreSQL auth, JSON runs, PostgreSQL runs, friends, and league behavior before routes switch drivers.
 - Runtime still uses the JSON implementation.
 - PostgreSQL runtime wiring still needs safe route-by-route adoption because rankings and admin views still read the JSON store today.

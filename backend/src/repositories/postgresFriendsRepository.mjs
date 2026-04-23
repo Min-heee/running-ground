@@ -440,14 +440,21 @@ export function createPostgresFriendsRepository({
   }
 
   return {
-    async getLeaderboard({ token }) {
-      const currentUser = await requireUserByToken(database, token, createError);
+    async getLeaderboardByUserId({ currentUserId }) {
+      const currentUser = await findUserById(database, currentUserId, createError);
       const context = await buildLeaderboardContext(database, currentUser, buildUserMetrics);
 
       return {
         ranks: context.ranks,
         requests: context.requests,
       };
+    },
+
+    async getLeaderboard({ token }) {
+      const currentUser = await requireUserByToken(database, token, createError);
+      return this.getLeaderboardByUserId({
+        currentUserId: currentUser.id,
+      });
     },
 
     async createRequest({ token, tag }) {
@@ -542,8 +549,8 @@ export function createPostgresFriendsRepository({
       });
     },
 
-    async getFriendActivity({ token, friendId }) {
-      const currentUser = await requireUserByToken(database, token, createError);
+    async getFriendActivityByUserId({ currentUserId, friendId }) {
+      const currentUser = await findUserById(database, currentUserId, createError);
       await requireFriendAccess(database, currentUser.id, friendId, createError);
 
       const friend = await findUserById(database, friendId, createError);
@@ -566,8 +573,16 @@ export function createPostgresFriendsRepository({
       };
     },
 
-    async getFriendRun({ token, friendId, runId }) {
+    async getFriendActivity({ token, friendId }) {
       const currentUser = await requireUserByToken(database, token, createError);
+      return this.getFriendActivityByUserId({
+        currentUserId: currentUser.id,
+        friendId,
+      });
+    },
+
+    async getFriendRunByUserId({ currentUserId, friendId, runId }) {
+      const currentUser = await findUserById(database, currentUserId, createError);
       await requireFriendAccess(database, currentUser.id, friendId, createError);
 
       await findUserById(database, friendId, createError);
@@ -577,6 +592,15 @@ export function createPostgresFriendsRepository({
       const metrics = buildUserMetrics(runs);
 
       return buildRunDetail(run, metrics.currentWeekDistanceKm, '친구 기록', metrics);
+    },
+
+    async getFriendRun({ token, friendId, runId }) {
+      const currentUser = await requireUserByToken(database, token, createError);
+      return this.getFriendRunByUserId({
+        currentUserId: currentUser.id,
+        friendId,
+        runId,
+      });
     },
   };
 }

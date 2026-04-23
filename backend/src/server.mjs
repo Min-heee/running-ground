@@ -1,11 +1,14 @@
 import { createServer } from 'node:http';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { loadStore, mutateStore, getStoreFilePath, getStoreDiagnostics, resetStore, STORE_DRIVER } from './storage/index.mjs';
+import { createFriendsLeagueBridge } from './bridges/friendsLeagueBridge.mjs';
 import { createSessionRunsBridge } from './bridges/sessionRunsBridge.mjs';
 import { createPostgresDatabase } from './database/postgresDatabase.mjs';
 import { createJsonAuthRepository } from './repositories/authRepository.mjs';
 import { createJsonFriendsRepository } from './repositories/friendsRepository.mjs';
 import { createJsonLeagueRepository } from './repositories/leagueRepository.mjs';
+import { createPostgresFriendsRepository } from './repositories/postgresFriendsRepository.mjs';
+import { createPostgresLeagueRepository } from './repositories/postgresLeagueRepository.mjs';
 import { createJsonRunsRepository, ensureIntegrationImports, getPendingImportCount } from './repositories/runsRepository.mjs';
 import {
   ADMIN_TOKEN,
@@ -25,6 +28,8 @@ import {
   POSTGRES_APPLICATION_NAME,
   POSTGRES_CONNECTION_TIMEOUT_MS,
   POSTGRES_DATABASE_URL,
+  POSTGRES_ENABLE_FRIEND_READS,
+  POSTGRES_ENABLE_LEAGUE_READS,
   POSTGRES_ENABLE_RUN_READS,
   POSTGRES_ENABLE_SESSION_READS,
   POSTGRES_IDLE_TIMEOUT_MS,
@@ -187,7 +192,10 @@ function nextId(prefix) {
 
 let authRepository = null;
 let friendsRepository = null;
+let friendsLeagueBridge = null;
 let leagueRepository = null;
+let postgresFriendsRepository = null;
+let postgresLeagueRepository = null;
 let runsRepository = null;
 let postgresDatabase = null;
 let sessionRunsBridge = null;
@@ -209,7 +217,7 @@ function getAuthRepository() {
 }
 
 function getPostgresDatabase() {
-  if (!(POSTGRES_ENABLE_SESSION_READS || POSTGRES_ENABLE_RUN_READS)) {
+  if (!(POSTGRES_ENABLE_SESSION_READS || POSTGRES_ENABLE_RUN_READS || POSTGRES_ENABLE_FRIEND_READS || POSTGRES_ENABLE_LEAGUE_READS)) {
     return null;
   }
 
@@ -292,6 +300,68 @@ function getLeagueRepository() {
   }
 
   return leagueRepository;
+}
+
+function getPostgresFriendsRepository() {
+  if (!POSTGRES_ENABLE_FRIEND_READS) {
+    return null;
+  }
+
+  if (!postgresFriendsRepository) {
+    const database = getPostgresDatabase();
+
+    if (!database) {
+      return null;
+    }
+
+    postgresFriendsRepository = createPostgresFriendsRepository({
+      database,
+      nextId,
+      buildRunDetail,
+      buildUserMetrics,
+      createError: (statusCode, message) => new ApiError(statusCode, message),
+    });
+  }
+
+  return postgresFriendsRepository;
+}
+
+function getPostgresLeagueRepository() {
+  if (!POSTGRES_ENABLE_LEAGUE_READS) {
+    return null;
+  }
+
+  if (!postgresLeagueRepository) {
+    const database = getPostgresDatabase();
+
+    if (!database) {
+      return null;
+    }
+
+    postgresLeagueRepository = createPostgresLeagueRepository({
+      database,
+      buildUserMetrics,
+      createError: (statusCode, message) => new ApiError(statusCode, message),
+    });
+  }
+
+  return postgresLeagueRepository;
+}
+
+function getFriendsLeagueBridge() {
+  if (!friendsLeagueBridge) {
+    friendsLeagueBridge = createFriendsLeagueBridge({
+      sessionRunsBridge: getSessionRunsBridge(),
+      friendsRepository: getFriendsRepository(),
+      postgresFriendsRepository: getPostgresFriendsRepository(),
+      leagueRepository: getLeagueRepository(),
+      postgresLeagueRepository: getPostgresLeagueRepository(),
+      friendReadsEnabled: POSTGRES_ENABLE_FRIEND_READS,
+      leagueReadsEnabled: POSTGRES_ENABLE_LEAGUE_READS,
+    });
+  }
+
+  return friendsLeagueBridge;
 }
 
 function formatTimestamp(date = new Date()) {
@@ -1508,43 +1578,61 @@ async function buildIntegrationSourcesReadPayload(request) {
 }
 
 async function buildFriendLeaderboardReadPayload(request) {
-  return getFriendsRepository().getLeaderboard({
+  const { payload } = await getFriendsLeagueBridge().getFriendLeaderboard({
+    store: loadStore(),
     token: getAccessToken(request),
   });
+
+  return payload;
 }
 
 async function buildFriendActivityReadPayload(request, friendId) {
-  return getFriendsRepository().getFriendActivity({
+  const { payload } = await getFriendsLeagueBridge().getFriendActivity({
+    store: loadStore(),
     token: getAccessToken(request),
     friendId,
   });
+
+  return payload;
 }
 
 async function buildFriendRunReadPayload(request, friendId, runId) {
-  return getFriendsRepository().getFriendRun({
+  const { payload } = await getFriendsLeagueBridge().getFriendRun({
+    store: loadStore(),
     token: getAccessToken(request),
     friendId,
     runId,
   });
+
+  return payload;
 }
 
 async function buildDistrictPersonalReadPayload(request) {
-  return getLeagueRepository().getDistrictPersonal({
+  const { payload } = await getFriendsLeagueBridge().getDistrictPersonal({
+    store: loadStore(),
     token: getAccessToken(request),
   });
+
+  return payload;
 }
 
 async function buildRegionLeagueReadPayload(request, nodeId) {
-  return getLeagueRepository().getRegions({
+  const { payload } = await getFriendsLeagueBridge().getRegions({
+    store: loadStore(),
     token: getAccessToken(request),
     nodeId,
   });
+
+  return payload;
 }
 
 async function buildUniversityLeagueReadPayload(request) {
-  return getLeagueRepository().getUniversities({
+  const { payload } = await getFriendsLeagueBridge().getUniversities({
+    store: loadStore(),
     token: getAccessToken(request),
   });
+
+  return payload;
 }
 
 async function buildMarketOverviewReadPayload(request) {
