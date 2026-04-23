@@ -30,6 +30,27 @@ function Stop-ProcessById([Nullable[int]]$processId, [string]$label) {
   }
 }
 
+function Stop-ScheduledTaskSafe([string]$taskName) {
+  if ([string]::IsNullOrWhiteSpace($taskName)) {
+    return
+  }
+
+  try {
+    Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+  } catch {
+    # The task may not exist.
+  }
+}
+
+function Reset-TailscaleFunnel {
+  try {
+    tailscale funnel reset | Out-Null
+    Write-Host 'Reset Tailscale Funnel configuration.'
+  } catch {
+    # Ignore when no funnel config exists.
+  }
+}
+
 $previewInfo = $null
 
 if (Test-Path $previewInfoPath) {
@@ -41,11 +62,25 @@ if (Test-Path $previewInfoPath) {
 }
 
 if ($previewInfo) {
+  Stop-ScheduledTaskSafe -taskName $previewInfo.backendTaskName
+  Stop-ScheduledTaskSafe -taskName $previewInfo.tunnelTaskName
   Stop-ProcessById -processId $previewInfo.backendPid -label 'preview backend'
   Stop-ProcessById -processId $previewInfo.tunnelPid -label 'preview tunnel'
+
+  if ([string]$previewInfo.transport -eq 'tailscale-funnel') {
+    Reset-TailscaleFunnel
+  }
 }
 
 Stop-PortListener -port $backendPort
+
+Get-Process cloudflared -ErrorAction SilentlyContinue | ForEach-Object {
+  try {
+    Stop-Process -Id $_.Id -Force -ErrorAction Stop
+  } catch {
+    # Ignore already-terminated processes.
+  }
+}
 
 if ($previewInfo) {
   $previewInfo.status = 'stopped'
@@ -53,5 +88,5 @@ if ($previewInfo) {
   $previewInfo | ConvertTo-Json | Set-Content -Path $previewInfoPath -Encoding UTF8
 }
 
-Write-Host 'Preview backend/tunnel stop sequence finished.'
+Write-Host 'Preview backend/public transport stop sequence finished.'
 Write-Host "Info file: $previewInfoPath"

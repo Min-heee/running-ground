@@ -242,6 +242,49 @@ npm run preview:sync-eas-env -- --api-base-url https://YOUR-TUNNEL.trycloudflare
 - 데스크탑이 꺼지거나 스크립트로 띄운 프로세스가 종료되면 같이 내려가.
 - 정식 production 공개 주소는 이 방식이 아니라 커스텀 도메인 + 고정 배포로 가는 게 맞아.
 
+## 2.6.3. Windows 데스크탑 고정 preview 공개 실행 with Tailscale Funnel
+
+데스크탑에 Tailscale이 이미 연결되어 있다면, `Cloudflare Quick Tunnel` 대신 `Tailscale Funnel`로 더 안정적인 preview 주소를 쓸 수 있어.
+
+시작:
+
+```powershell
+cd ..
+.\scripts\windows\start-preview-public-backend.cmd -Transport tailscale-funnel
+```
+
+상태 확인:
+
+```powershell
+.\scripts\windows\status-preview-public-backend.cmd
+```
+
+중지:
+
+```powershell
+.\scripts\windows\stop-preview-public-backend.cmd
+```
+
+특징:
+- 주소가 매번 바뀌는 `trycloudflare.com` 대신 `https://<machine>.<tailnet>.ts.net` 고정 주소를 쓴다.
+- Docker, Caddy, 공인 DNS 없이도 preview HTTPS 주소를 만들 수 있다.
+- 라우터 포트 포워딩 없이도 iPhone TestFlight 앱이 접근할 수 있다.
+- 한 번만 Tailscale Funnel 승인을 해두면 이후에는 같은 명령으로 다시 올릴 수 있다.
+
+첫 실행에서 Funnel이 아직 허용되지 않았다면, 스크립트가 아래처럼 승인 URL을 보여준다.
+
+```text
+Tailscale Funnel needs one-time approval: https://login.tailscale.com/f/funnel?node=...
+```
+
+그 URL을 한 번 열어서 승인한 뒤 같은 명령을 다시 실행하면 된다.
+
+추천 흐름:
+1. `start-preview-public-backend.cmd -Transport tailscale-funnel`
+2. 필요하면 Funnel 승인 URL 한 번 열기
+3. `npm run preview:sync-eas-env -- --api-base-url https://<machine>.<tailnet>.ts.net/api`
+4. TestFlight preview 빌드 다시 올리기
+
 ## 2.7. 스모크 테스트
 
 백엔드 단독으로 핵심 출시 흐름을 한 번에 검증할 수 있어.

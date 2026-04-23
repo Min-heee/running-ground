@@ -53,7 +53,7 @@ flowchart TD
 | 인증 | 자체 세션 토큰 + 비밀번호 해시 | 로그인, 로그아웃, 보호 API |
 | 저장소 | JSON 파일 + atomic write | MVP용 영속 저장소 |
 | 백업 | 저장 전 자동 백업 | JSON 손상/실수 복구 |
-| Preview 공개 | Cloudflare Quick Tunnel | TestFlight 앱이 접근할 HTTPS 임시 주소 |
+| Preview 공개 | Cloudflare Quick Tunnel, Tailscale Funnel | TestFlight 앱이 접근할 HTTPS preview 주소 |
 | 데스크탑 원격 제어 | Tailscale + SSH | 독서실/외부에서 집 데스크탑 서버 관리 |
 | iOS 배포 | EAS Build, EAS Update, TestFlight | 빌드/OTA/테스트 배포 |
 
@@ -243,7 +243,8 @@ flowchart TD
 ```
 
 현재 Preview 운영 방식:
-- 데스크탑에서 백엔드와 Cloudflare Tunnel을 Windows 작업 스케줄러로 실행한다.
+- 데스크탑에서 백엔드를 Windows 작업 스케줄러로 실행한다.
+- 공개 주소는 `Cloudflare Quick Tunnel` 또는 `Tailscale Funnel` 중 하나를 쓴다.
 - 맥북은 Tailscale SSH로 데스크탑을 제어한다.
 - `scripts/windows/start-preview-public-backend.cmd`로 새 HTTPS API 주소를 만든다.
 - 새 주소를 EAS preview 환경 변수와 OTA 업데이트에 반영한다.
@@ -252,6 +253,7 @@ flowchart TD
 
 ```powershell
 .\scripts\windows\start-preview-public-backend.cmd
+.\scripts\windows\start-preview-public-backend.cmd -Transport tailscale-funnel
 .\scripts\windows\status-preview-public-backend.cmd
 .\scripts\windows\stop-preview-public-backend.cmd
 ```

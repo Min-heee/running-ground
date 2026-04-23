@@ -73,7 +73,7 @@ function Get-PortListenerProcessId([int]$port) {
   }
 }
 
-function Get-TunnelProcessId([int]$port) {
+function Get-QuickTunnelProcessId([int]$port) {
   $process = Get-CimInstance Win32_Process -Filter "name = 'cloudflared.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -match "127\.0\.0\.1:$port" } |
     Select-Object -First 1
@@ -161,23 +161,108 @@ function Mask-Secret([string]$value) {
   return "$($value.Substring(0, 12))..."
 }
 
+function Get-Transport([object]$previewInfo, [string]$publicUrl) {
+  if ($previewInfo -and -not [string]::IsNullOrWhiteSpace([string]$previewInfo.transport)) {
+    return [string]$previewInfo.transport
+  }
+
+  if ($publicUrl -match '\.ts\.net/?$') {
+    return 'tailscale-funnel'
+  }
+
+  return 'quick-tunnel'
+}
+
+function Get-TailscaleFunnelState {
+  try {
+    $raw = tailscale funnel status --json | Out-String
+    $trimmed = $raw.Trim()
+
+    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed -eq '{}') {
+      return [ordered]@{
+        configured = $false
+        raw = $trimmed
+      }
+    }
+
+    return [ordered]@{
+      configured = $true
+      raw = $trimmed
+    }
+  } catch {
+    return [ordered]@{
+      configured = $false
+      error = $_.Exception.Message
+    }
+  }
+}
+
+function Get-TailscaleNodeId {
+  try {
+    $statusRaw = tailscale status --json | Out-String
+    $match = [regex]::Match($statusRaw, '"ID"\s*:\s*"([^"]+)"')
+
+    if ($match.Success) {
+      return [string]$match.Groups[1].Value
+    }
+  } catch {
+    # Ignore and fall back to log parsing.
+  }
+
+  return ''
+}
+
+function Get-FunnelApprovalUrlFromLogs {
+  foreach ($logPath in @($tunnelOutLog, $tunnelErrLog)) {
+    if (-not (Test-Path $logPath)) {
+      continue
+    }
+
+    $content = Get-Content $logPath -Raw
+    $match = [regex]::Match($content, 'https://login\.tailscale\.com/f/funnel\?node=[A-Za-z0-9]+')
+
+    if ($match.Success) {
+      return $match.Value
+    }
+  }
+
+  $nodeId = Get-TailscaleNodeId
+
+  if ($nodeId) {
+    return "https://login.tailscale.com/f/funnel?node=$nodeId"
+  }
+
+  return ''
+}
+
 $previewInfo = Read-PreviewInfo
 $envValues = Read-EnvFile
 $portListenerPid = Get-PortListenerProcessId -port $backendPort
 $backendPid = if ($portListenerPid) { $portListenerPid } elseif ($previewInfo -and $previewInfo.backendPid) { [Nullable[int]]$previewInfo.backendPid } else { $null }
-$activeTunnelPid = Get-TunnelProcessId -port $backendPort
-$tunnelPid = if ($activeTunnelPid) { $activeTunnelPid } elseif ($previewInfo) { [Nullable[int]]$previewInfo.tunnelPid } else { $null }
 $publicUrlFromEnv = if ($envValues.ContainsKey('BACKEND_PUBLIC_BASE_URL')) { [string]$envValues.BACKEND_PUBLIC_BASE_URL } else { '' }
 $publicUrl = if ($publicUrlFromEnv) { $publicUrlFromEnv } elseif ($previewInfo -and $previewInfo.publicUrl) { [string]$previewInfo.publicUrl } else { '' }
 $apiBaseUrl = if ($publicUrl) { "$publicUrl/api" } elseif ($previewInfo -and $previewInfo.apiBaseUrl) { [string]$previewInfo.apiBaseUrl } else { '' }
 $adminToken = if ($previewInfo -and $previewInfo.adminToken) { [string]$previewInfo.adminToken } elseif ($envValues.ContainsKey('BACKEND_ADMIN_TOKEN')) { [string]$envValues.BACKEND_ADMIN_TOKEN } else { '' }
+$transport = Get-Transport -previewInfo $previewInfo -publicUrl $publicUrl
 
 $backendRunning = Test-ProcessRunning -processId $backendPid
-$tunnelRunning = Test-ProcessRunning -processId $tunnelPid
 $portListening = Test-PortListening -port $backendPort
 $localHealth = Invoke-HealthCheck -url "http://127.0.0.1:$backendPort/api/health"
 $publicHealth = if ($apiBaseUrl) { Invoke-HealthCheck -url "$apiBaseUrl/health" } else { [ordered]@{ ok = $false; error = 'Preview API base URL is not set.' } }
 $adminStatus = Invoke-AdminStatus -apiBaseUrl $apiBaseUrl -adminToken $adminToken
+
+$quickTunnelPid = $null
+$funnelState = $null
+
+if ($transport -eq 'tailscale-funnel') {
+  $funnelState = Get-TailscaleFunnelState
+  $tunnelPid = $null
+  $tunnelRunning = [bool]$funnelState.configured
+} else {
+  $quickTunnelPid = Get-QuickTunnelProcessId -port $backendPort
+  $tunnelPid = if ($quickTunnelPid) { $quickTunnelPid } elseif ($previewInfo) { [Nullable[int]]$previewInfo.tunnelPid } else { $null }
+  $tunnelRunning = Test-ProcessRunning -processId $tunnelPid
+}
 
 $healthy = $backendRunning -and $portListening -and $localHealth.ok -and $publicHealth.ok
 $status = if ($healthy) {
@@ -195,10 +280,24 @@ if (-not $previewInfo -and -not $publicUrl) {
 }
 
 if (-not $backendRunning -or -not $portListening -or -not $localHealth.ok) {
-  $nextActions += 'Restart the preview backend with scripts\windows\start-preview-public-backend.cmd.'
+  if ($transport -eq 'tailscale-funnel') {
+    $nextActions += 'Restart the preview backend with scripts\windows\start-preview-public-backend.cmd -Transport tailscale-funnel.'
+  } else {
+    $nextActions += 'Restart the preview backend with scripts\windows\start-preview-public-backend.cmd.'
+  }
 }
 
-if (-not $publicHealth.ok) {
+if ($transport -eq 'tailscale-funnel') {
+  $approvalUrl = Get-FunnelApprovalUrlFromLogs
+
+  if (-not $tunnelRunning) {
+    if ($approvalUrl) {
+      $nextActions += "Approve Tailscale Funnel once: $approvalUrl"
+    } else {
+      $nextActions += 'Tailscale Funnel is not configured. Run the start script with -Transport tailscale-funnel.'
+    }
+  }
+} elseif (-not $publicHealth.ok) {
   $nextActions += 'The quick tunnel is not healthy. Restarting preview backend will create a new public URL.'
 } elseif (-not $tunnelRunning) {
   $nextActions += 'Public API is healthy, but the tunnel PID is not tracked on this machine.'
@@ -215,6 +314,7 @@ if ($nextActions.Count -eq 0) {
 $payload = [ordered]@{
   status = $status
   healthy = $healthy
+  transport = $transport
   checkedAt = (Get-Date).ToString('o')
   infoFile = $previewInfoPath
   publicUrl = $publicUrl
@@ -231,6 +331,9 @@ $payload = [ordered]@{
     pid = $tunnelPid
     running = $tunnelRunning
     publicHealth = $publicHealth
+    approvalUrl = if ($transport -eq 'tailscale-funnel') { Get-FunnelApprovalUrlFromLogs } else { '' }
+    rawStatus = if ($transport -eq 'tailscale-funnel') { $funnelState.raw } else { '' }
+    error = if ($transport -eq 'tailscale-funnel') { $funnelState.error } else { '' }
   }
   admin = $adminStatus
   logs = [ordered]@{
@@ -246,6 +349,7 @@ if ($Json) {
   $payload | ConvertTo-Json -Depth 8
 } else {
   Write-Host "Preview backend status: $($payload.status)"
+  Write-Host "Transport: $($payload.transport)"
   Write-Host "Public URL: $($payload.publicUrl)"
   Write-Host "API base URL: $($payload.apiBaseUrl)"
   Write-Host "Admin token: $($payload.adminToken)"

@@ -1,3 +1,8 @@
+param(
+  [ValidateSet('quick-tunnel', 'tailscale-funnel')]
+  [string]$Transport = 'quick-tunnel'
+)
+
 $ErrorActionPreference = 'Stop'
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
@@ -12,8 +17,7 @@ $previewInfoPath = Join-Path $root 'preview-public-info.json'
 $backendPort = 8081
 $placeholderUrl = 'https://preview-temp.invalid'
 $adminToken = 'preview-admin-' + [guid]::NewGuid().ToString('N')
-$nodePath = (Get-Command node).Source
-$cloudflaredPath = (Get-Command cloudflared -ErrorAction Stop).Source
+$nodePath = (Get-Command node -ErrorAction Stop).Source
 $backendTaskName = 'RunnigappPreviewBackend'
 $tunnelTaskName = 'RunnigappPreviewTunnel'
 $backendRunnerPath = Join-Path $root 'scripts\windows\.generated-preview-backend.cmd'
@@ -125,7 +129,7 @@ function Get-BackendProcessId {
   return $null
 }
 
-function Get-TunnelProcessId {
+function Get-QuickTunnelProcessId {
   $process = Get-CimInstance Win32_Process -Filter "name = 'cloudflared.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -match "127\.0\.0\.1:$backendPort" } |
     Select-Object -First 1
@@ -135,6 +139,98 @@ function Get-TunnelProcessId {
   }
 
   return $null
+}
+
+function Stop-CloudflaredProcesses {
+  $cloudflaredProcesses = Get-Process cloudflared -ErrorAction SilentlyContinue
+
+  foreach ($process in $cloudflaredProcesses) {
+    try {
+      Stop-Process -Id $process.Id -Force -ErrorAction Stop
+      Write-Host "Stopped leftover cloudflared process ($($process.Id))."
+    } catch {
+      # Ignore already-terminated processes.
+    }
+  }
+}
+
+function Get-TailscaleDnsName {
+  try {
+    $statusRaw = tailscale status --json | Out-String
+    $match = [regex]::Match($statusRaw, '"DNSName"\s*:\s*"([^"]+)"')
+
+    if (-not $match.Success) {
+      throw 'Tailscale DNS name is empty.'
+    }
+
+    $dnsName = [string]$match.Groups[1].Value
+
+    if ([string]::IsNullOrWhiteSpace($dnsName)) {
+      throw 'Tailscale DNS name is empty.'
+    }
+
+    return $dnsName.TrimEnd('.')
+  } catch {
+    throw "Unable to read Tailscale DNS name: $($_.Exception.Message)"
+  }
+}
+
+function Get-TailscaleNodeId {
+  try {
+    $statusRaw = tailscale status --json | Out-String
+    $match = [regex]::Match($statusRaw, '"ID"\s*:\s*"([^"]+)"')
+
+    if (-not $match.Success) {
+      throw 'Tailscale node ID is empty.'
+    }
+
+    $nodeId = [string]$match.Groups[1].Value
+
+    if ([string]::IsNullOrWhiteSpace($nodeId)) {
+      throw 'Tailscale node ID is empty.'
+    }
+
+    return $nodeId
+  } catch {
+    throw "Unable to read Tailscale node ID: $($_.Exception.Message)"
+  }
+}
+
+function Get-TailscalePublicUrl {
+  $dnsName = Get-TailscaleDnsName
+  return "https://$dnsName"
+}
+
+function Get-TailscaleFunnelState {
+  try {
+    $raw = tailscale funnel status --json | Out-String
+    $trimmed = $raw.Trim()
+
+    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed -eq '{}') {
+      return [ordered]@{
+        configured = $false
+        raw = $trimmed
+      }
+    }
+
+    return [ordered]@{
+      configured = $true
+      raw = $trimmed
+    }
+  } catch {
+    return [ordered]@{
+      configured = $false
+      error = $_.Exception.Message
+    }
+  }
+}
+
+function Reset-TailscaleFunnel {
+  try {
+    tailscale funnel reset | Out-Null
+  } catch {
+    # Ignore when no funnel config exists yet.
+  }
 }
 
 function Stop-ExistingPreviewProcesses {
@@ -149,17 +245,8 @@ function Stop-ExistingPreviewProcesses {
   }
 
   Stop-PortListener -port $backendPort
-
-  $cloudflaredProcesses = Get-Process cloudflared -ErrorAction SilentlyContinue
-
-  foreach ($process in $cloudflaredProcesses) {
-    try {
-      Stop-Process -Id $process.Id -Force -ErrorAction Stop
-      Write-Host "Stopped leftover cloudflared process ($($process.Id))."
-    } catch {
-      # Ignore already-terminated processes.
-    }
-  }
+  Stop-CloudflaredProcesses
+  Reset-TailscaleFunnel
 }
 
 function Wait-ForLocalHealth([int]$timeoutSeconds = 30, [string]$expectedPublicUrl = '') {
@@ -206,13 +293,17 @@ cd /d "$backendRoot"
 "$nodePath" .\src\server.mjs > "$backendOutLog" 2> "$backendErrLog"
 "@
 
+  Set-Content -Path $backendRunnerPath -Value $backendRunner -Encoding ASCII
+}
+
+function Write-QuickTunnelRunnerScript {
+  $cloudflaredPath = (Get-Command cloudflared -ErrorAction Stop).Source
   $tunnelRunner = @"
 @echo off
 setlocal
 "$cloudflaredPath" tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:$backendPort > "$tunnelOutLog" 2> "$tunnelErrLog"
 "@
 
-  Set-Content -Path $backendRunnerPath -Value $backendRunner -Encoding ASCII
   Set-Content -Path $tunnelRunnerPath -Value $tunnelRunner -Encoding ASCII
 }
 
@@ -241,15 +332,16 @@ function Start-BackendProcess([string]$expectedPublicUrl) {
   return Get-BackendProcessId
 }
 
-function Start-TunnelProcess {
+function Start-QuickTunnelProcess {
   Stop-ScheduledTaskSafe -taskName $tunnelTaskName
   Remove-Item $tunnelOutLog, $tunnelErrLog -ErrorAction SilentlyContinue
+  Write-QuickTunnelRunnerScript
 
   Register-PreviewTask -taskName $tunnelTaskName -runnerPath $tunnelRunnerPath
   Start-ScheduledTask -TaskName $tunnelTaskName
 }
 
-function Wait-ForTunnelUrl([int]$timeoutSeconds = 40) {
+function Wait-ForQuickTunnelUrl([int]$timeoutSeconds = 40) {
   $deadline = (Get-Date).AddSeconds($timeoutSeconds)
 
   while ((Get-Date) -lt $deadline) {
@@ -276,10 +368,48 @@ function Wait-ForTunnelUrl([int]$timeoutSeconds = 40) {
   throw 'quick tunnel url was not found in the log'
 }
 
-function Write-PreviewInfo([string]$publicUrl, [string]$token, [Nullable[int]]$backendPid, [Nullable[int]]$tunnelPid) {
+function Start-TailscaleFunnel {
+  Remove-Item $tunnelOutLog, $tunnelErrLog -ErrorAction SilentlyContinue
+  Reset-TailscaleFunnel
+
+  $tailscalePath = (Get-Command tailscale -ErrorAction Stop).Source
+  $process = Start-Process `
+    -FilePath $tailscalePath `
+    -ArgumentList 'funnel', '--bg', '--yes', "http://127.0.0.1:$backendPort" `
+    -RedirectStandardOutput $tunnelOutLog `
+    -RedirectStandardError $tunnelErrLog `
+    -PassThru
+
+  try {
+    Wait-Process -Id $process.Id -Timeout 10 -ErrorAction SilentlyContinue
+  } catch {
+    # We'll inspect the resulting funnel state below.
+  }
+
+  if (-not $process.HasExited) {
+    try {
+      Stop-Process -Id $process.Id -Force -ErrorAction Stop
+    } catch {
+      # Ignore if it already exited.
+    }
+  }
+
+  Start-Sleep -Seconds 2
+  $funnelState = Get-TailscaleFunnelState
+
+  if ($funnelState.configured) {
+    return
+  }
+
+  $approvalUrl = "https://login.tailscale.com/f/funnel?node=$(Get-TailscaleNodeId)"
+  throw "Tailscale Funnel needs one-time approval: $approvalUrl"
+}
+
+function Write-PreviewInfo([string]$publicUrl, [string]$token, [Nullable[int]]$backendPid, [Nullable[int]]$tunnelPid, [string]$transport) {
   $payload = [ordered]@{
     startedAt = (Get-Date).ToString('o')
     status = 'running'
+    transport = $transport
     publicUrl = $publicUrl
     apiBaseUrl = "$publicUrl/api"
     adminToken = $token
@@ -298,18 +428,51 @@ function Write-PreviewInfo([string]$publicUrl, [string]$token, [Nullable[int]]$b
   $payload | ConvertTo-Json | Set-Content -Path $previewInfoPath -Encoding UTF8
 }
 
-Write-Host '0. Stopping existing preview backend/tunnel processes...'
+Write-Host '0. Stopping existing preview backend/public processes...'
 Stop-ExistingPreviewProcesses
 Write-TaskRunnerScripts
+
+if ($Transport -eq 'tailscale-funnel') {
+  $publicUrl = Get-TailscalePublicUrl
+
+  Write-Host "1. Starting preview backend with Tailscale public base URL ($publicUrl)..."
+  Write-BackendEnv -publicUrl $publicUrl -token $adminToken
+  Write-AppEnv -publicUrl $publicUrl
+  $backendPid = Start-BackendProcess -expectedPublicUrl $publicUrl
+
+  Write-Host '2. Starting Tailscale Funnel in background mode...'
+  Start-TailscaleFunnel
+
+  Write-Host '3. Waiting for public preview health...'
+  $remoteHealth = $null
+
+  try {
+    $remoteHealth = Wait-ForRemoteHealth -publicUrl $publicUrl -expectedPublicUrl $publicUrl
+  } catch {
+    Write-Warning "Public preview health could not be verified yet: $($_.Exception.Message)"
+    Write-Warning 'The backend is configured for the stable Tailscale URL. Check funnel approval and retry if needed.'
+  }
+
+  $localHealth = Wait-ForLocalHealth -expectedPublicUrl $publicUrl
+  Write-PreviewInfo -publicUrl $publicUrl -token $adminToken -backendPid $backendPid -tunnelPid $null -transport $Transport
+
+  Write-Host ''
+  Write-Host 'Preview backend is ready.'
+  Write-Host "Transport: $Transport"
+  Write-Host "Public URL: $publicUrl"
+  Write-Host "API base URL: $publicUrl/api"
+  Write-Host "Admin token: $adminToken"
+  exit 0
+}
 
 Write-Host '1. Starting preview backend with temporary public base URL...'
 Write-BackendEnv -publicUrl $placeholderUrl -token $adminToken
 $backendPid = Start-BackendProcess -expectedPublicUrl $placeholderUrl
 
 Write-Host '2. Starting Cloudflare Quick Tunnel with http2...'
-Start-TunnelProcess
-$publicUrl = Wait-ForTunnelUrl
-$tunnelPid = Get-TunnelProcessId
+Start-QuickTunnelProcess
+$publicUrl = Wait-ForQuickTunnelUrl
+$tunnelPid = Get-QuickTunnelProcessId
 
 Write-Host "3. Tunnel ready: $publicUrl"
 Write-Host '4. Updating backend and app env files to the new public URL...'
@@ -330,16 +493,12 @@ try {
   Write-Warning 'The tunnel URL was created and local backend health passed. Verify the public API from the Mac or phone network.'
 }
 
-$tunnelPid = Get-TunnelProcessId
-
-Write-PreviewInfo -publicUrl $publicUrl -token $adminToken -backendPid $backendPid -tunnelPid $tunnelPid
+$tunnelPid = Get-QuickTunnelProcessId
+Write-PreviewInfo -publicUrl $publicUrl -token $adminToken -backendPid $backendPid -tunnelPid $tunnelPid -transport $Transport
 
 Write-Host ''
 Write-Host 'Preview backend is ready.'
+Write-Host "Transport: $Transport"
 Write-Host "Public URL: $publicUrl"
 Write-Host "API base URL: $publicUrl/api"
 Write-Host "Admin token: $adminToken"
-Write-Host "Backend PID: $backendPid"
-Write-Host "Tunnel PID: $tunnelPid"
-Write-Host "Info file: $previewInfoPath"
-Write-Host "Local status: $($localHealth.status) / Public status: $(if ($remoteHealth) { $remoteHealth.status } else { 'not verified from Windows' })"
