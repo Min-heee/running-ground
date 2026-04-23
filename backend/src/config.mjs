@@ -132,6 +132,8 @@ export const POSTGRES_IDLE_TIMEOUT_MS = Math.max(1000, parseNumber(process.env.B
 export const POSTGRES_CONNECTION_TIMEOUT_MS = Math.max(1000, parseNumber(process.env.BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS, 10000));
 export const POSTGRES_APPLICATION_NAME = normalizeOptionalString(process.env.BACKEND_POSTGRES_APPLICATION_NAME)
   || `runnigapp-backend-${APP_ENV}`;
+export const POSTGRES_ENABLE_SESSION_READS = parseBoolean(process.env.BACKEND_POSTGRES_ENABLE_SESSION_READS, false);
+export const POSTGRES_ENABLE_RUN_READS = parseBoolean(process.env.BACKEND_POSTGRES_ENABLE_RUN_READS, false);
 export const SESSION_TTL_HOURS = Math.max(1, parseNumber(process.env.BACKEND_SESSION_TTL_HOURS, 24 * 7));
 export const SESSION_TTL_MS = SESSION_TTL_HOURS * 60 * 60 * 1000;
 export const MAX_BODY_SIZE_KB = Math.max(16, parseNumber(process.env.BACKEND_MAX_BODY_SIZE_KB, 256));
@@ -179,6 +181,8 @@ export function getPublicBackendConfig() {
       idleTimeoutMs: POSTGRES_IDLE_TIMEOUT_MS,
       connectionTimeoutMs: POSTGRES_CONNECTION_TIMEOUT_MS,
       applicationName: POSTGRES_APPLICATION_NAME,
+      enableSessionReads: POSTGRES_ENABLE_SESSION_READS,
+      enableRunReads: POSTGRES_ENABLE_RUN_READS,
     },
     sessionTtlHours: SESSION_TTL_HOURS,
     maxBodySizeKb: MAX_BODY_SIZE_KB,

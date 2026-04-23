@@ -113,6 +113,8 @@ function buildResolvedBackendEnvironment(env, options = {}) {
     postgresIdleTimeoutMs: Math.max(1000, parseNumber(env.BACKEND_POSTGRES_IDLE_TIMEOUT_MS, 30000)),
     postgresConnectionTimeoutMs: Math.max(1000, parseNumber(env.BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS, 10000)),
     postgresApplicationName: normalizeOptionalString(env.BACKEND_POSTGRES_APPLICATION_NAME) || `runnigapp-backend-${appEnv}`,
+    postgresEnableSessionReads: parseBoolean(env.BACKEND_POSTGRES_ENABLE_SESSION_READS, false),
+    postgresEnableRunReads: parseBoolean(env.BACKEND_POSTGRES_ENABLE_RUN_READS, false),
     publicDomain: normalizeOptionalString(env.PUBLIC_DOMAIN),
     acmeEmail: normalizeOptionalString(env.ACME_EMAIL),
   };
@@ -185,6 +187,10 @@ function validateBackendReleaseEnvironment(env, options = {}) {
 
   if (parsedPostgresUrl && !['postgres:', 'postgresql:'].includes(parsedPostgresUrl.protocol)) {
     errors.push('BACKEND_POSTGRES_DATABASE_URL 은 postgres:// 또는 postgresql:// 형식이어야 해.');
+  }
+
+  if ((resolved.postgresEnableSessionReads || resolved.postgresEnableRunReads) && !resolved.postgresDatabaseUrl) {
+    errors.push('BACKEND_POSTGRES_ENABLE_SESSION_READS 또는 BACKEND_POSTGRES_ENABLE_RUN_READS 를 켜려면 BACKEND_POSTGRES_DATABASE_URL 이 필요해.');
   }
 
   if (resolved.postgresPoolMax < 1) {
@@ -261,6 +267,8 @@ function formatBackendReleaseValidationReport(result) {
     `[backend-release-check] backup retention: ${result.resolved.backupRetention}`,
     `[backend-release-check] postgres configured: ${result.resolved.postgresDatabaseUrl ? 'true' : 'false'}`,
     `[backend-release-check] postgres pool max: ${result.resolved.postgresPoolMax}`,
+    `[backend-release-check] postgres session reads: ${result.resolved.postgresEnableSessionReads ? 'true' : 'false'}`,
+    `[backend-release-check] postgres run reads: ${result.resolved.postgresEnableRunReads ? 'true' : 'false'}`,
     `[backend-release-check] request timeout ms: ${result.resolved.requestTimeoutMs}`,
   ];
 
