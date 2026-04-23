@@ -1,6 +1,6 @@
 import { buildSessionExpiry, setUserPassword, verifyPassword } from '../auth.mjs';
 
-function createDefaultConnectedSources() {
+export function createDefaultConnectedSources() {
   return [
     {
       sourceType: 'manual',
@@ -47,7 +47,7 @@ function createDefaultConnectedSources() {
   ];
 }
 
-function createDefaultNotificationSettings() {
+export function createDefaultNotificationSettings() {
   return {
     friendAlerts: true,
     districtAlerts: true,
@@ -72,7 +72,7 @@ function createPublicTag(store) {
   return nextTag;
 }
 
-function createStarterRuns() {
+export function createStarterRuns() {
   return [];
 }
 

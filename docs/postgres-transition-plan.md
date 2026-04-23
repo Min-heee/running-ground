@@ -83,8 +83,10 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 
 현재 진행 상황:
 - `backend/src/repositories/authRepository.mjs`로 인증 경계를 먼저 분리했다.
+- `backend/src/repositories/postgresAuthRepository.mjs`로 PostgreSQL 인증 구현 초안을 추가했다.
 - 로그인, 로그아웃, 아이디 중복 확인, 회원가입은 route layer에서 repository를 호출한다.
-- `npm --prefix backend run test:auth`로 JSON auth repository 계약을 검증한다.
+- route layer는 sync/async repository를 모두 받을 수 있게 인증 repository 호출을 `await`한다.
+- `npm --prefix backend run test:auth`로 JSON/PostgreSQL auth repository 동작을 함께 검증한다.
 - 아직 runtime store driver는 JSON만 사용한다.
 
 ### Phase 5. Preview 전환
@@ -100,7 +102,7 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - 운영 장애: PostgreSQL 전환 후에는 DB backup과 restore rehearsal을 별도 체크리스트로 둔다.
 
 ## 다음 구현 후보
-1. `authRepository` PostgreSQL 구현 추가
-2. auth repository 테스트를 JSON/PostgreSQL 공통 계약 테스트로 확장
-3. runs/imports repository 분리
-4. smoke test에 `BACKEND_STORE_DRIVER` 케이스 추가
+1. PostgreSQL query adapter와 transaction helper 추가
+2. runs/imports repository 분리
+3. smoke test에 PostgreSQL auth repository 케이스 추가
+4. preview API에서 auth만 PostgreSQL로 켜보는 작은 전환 플래그 추가

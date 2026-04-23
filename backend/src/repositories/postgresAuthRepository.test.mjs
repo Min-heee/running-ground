@@ -1,0 +1,355 @@
+import assert from 'node:assert/strict';
+import { hashPassword, verifyPassword } from '../auth.mjs';
+import { createPostgresAuthRepository } from './postgresAuthRepository.mjs';
+
+class TestApiError extends Error {
+  constructor(statusCode, message) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function normalizeSql(sql) {
+  return sql.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+class FakePostgresDatabase {
+  constructor(initialStore = {}) {
+    this.users = clone(initialStore.users ?? []);
+    this.sessions = clone(initialStore.sessions ?? []);
+    this.runs = clone(initialStore.runs ?? []);
+    this.insertUserError = initialStore.insertUserError;
+    this.transactions = 0;
+  }
+
+  async transaction(callback) {
+    this.transactions += 1;
+    return callback(this);
+  }
+
+  async query(sql, params = []) {
+    const normalizedSql = normalizeSql(sql);
+
+    if (normalizedSql.startsWith('select * from users where username = $1')) {
+      return {
+        rows: this.users.filter((user) => user.username === params[0]).slice(0, 1),
+      };
+    }
+
+    if (normalizedSql.startsWith('select id from users where username = $1')) {
+      return {
+        rows: this.users
+          .filter((user) => user.username === params[0])
+          .slice(0, 1)
+          .map((user) => ({ id: user.id })),
+      };
+    }
+
+    if (normalizedSql.startsWith('select 1 from users where public_tag = $1')) {
+      return {
+        rows: this.users.some((user) => user.public_tag === params[0]) ? [{ '?column?': 1 }] : [],
+      };
+    }
+
+    if (normalizedSql.startsWith('insert into users')) {
+      if (this.insertUserError) {
+        throw this.insertUserError;
+      }
+
+      this.users.push({
+        id: params[0],
+        username: params[1],
+        password_hash: params[2],
+        password_updated_at: params[3],
+        nickname: params[4],
+        real_name: params[5],
+        phone: params[6],
+        birth_date: params[7],
+        public_tag: params[8],
+        province_name: params[9],
+        city_name: params[10],
+        district_name: params[11],
+        university_name: params[12],
+        address_detail: params[13],
+        reward_points: params[14],
+        streak_days: params[15],
+        connected_sources: clone(params[16]),
+        notification_settings: clone(params[17]),
+        created_at: params[18],
+        updated_at: params[19],
+      });
+
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith('insert into sessions')) {
+      this.sessions.push({
+        token: params[0],
+        user_id: params[1],
+        created_at: params[2],
+        expires_at: params[3],
+      });
+
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith('select id, user_id, run_date, distance_km')) {
+      return {
+        rows: this.runs
+          .filter((run) => run.user_id === params[0])
+          .sort((left, right) => String(right.run_date).localeCompare(String(left.run_date))),
+      };
+    }
+
+    if (normalizedSql.startsWith('delete from sessions where token = $1')) {
+      this.sessions = this.sessions.filter((session) => session.token !== params[0]);
+      return { rows: [] };
+    }
+
+    throw new Error(`Unhandled fake SQL: ${normalizedSql}`);
+  }
+}
+
+function createRepositoryHarness(initialStore = {}) {
+  const database = new FakePostgresDatabase(initialStore);
+  let tokenIndex = 0;
+  let idIndex = 0;
+  const publicTags = ['#TAG01', '#TAG02', '#TAG03'];
+
+  const repository = createPostgresAuthRepository({
+    database,
+    sessionTtlMs: 60 * 60 * 1000,
+    createToken: () => {
+      tokenIndex += 1;
+      return `token-${tokenIndex}`;
+    },
+    nextId: (prefix) => {
+      idIndex += 1;
+      return `${prefix}-test-${idIndex}`;
+    },
+    createPublicTag: () => publicTags.shift() ?? '#TAG99',
+    buildProfile: (store, user) => ({
+      id: user.id,
+      name: user.name,
+      publicTag: user.publicTag,
+      lifetimeDistanceKm: store.runs
+        .filter((run) => run.userId === user.id)
+        .reduce((sum, run) => sum + run.distanceKm, 0),
+    }),
+    createError: (statusCode, message) => new TestApiError(statusCode, message),
+  });
+
+  return {
+    repository,
+    database,
+  };
+}
+
+function assertApiError(error, statusCode, message) {
+  assert(error instanceof TestApiError);
+  assert.equal(error.statusCode, statusCode);
+  assert.equal(error.message, message);
+}
+
+async function runTest(name, testFn) {
+  try {
+    await testFn();
+    console.log(`[postgresAuthRepository] ok - ${name}`);
+  } catch (error) {
+    console.error(`[postgresAuthRepository] failed - ${name}`);
+    throw error;
+  }
+}
+
+await runTest('checks username availability', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-existing',
+        username: 'runner',
+        nickname: '러너',
+        public_tag: '#RUN01',
+      },
+    ],
+  });
+
+  assert.deepEqual(await repository.checkUsername('new-runner'), {
+    username: 'new-runner',
+    available: true,
+    message: '사용할 수 있는 아이디예요.',
+  });
+  assert.deepEqual(await repository.checkUsername('runner'), {
+    username: 'runner',
+    available: false,
+    message: '이미 사용 중인 아이디예요.',
+  });
+});
+
+await runTest('registers a user, hashes password, and creates a session', async () => {
+  const { repository, database } = createRepositoryHarness();
+  const result = await repository.register({
+    username: 'new-runner',
+    password: 'Password123',
+    name: '새러너',
+    realName: '민병희',
+    phone: '01012345678',
+    birthDate: '1990-01-01',
+    region: {
+      provinceName: '서울특별시',
+      cityName: '',
+      districtName: '강남구',
+    },
+    universityName: '서울대학교',
+    addressDetail: '테헤란로 123',
+  });
+  const user = database.users[0];
+
+  assert.equal(result.accessToken, 'token-1');
+  assert.equal(result.user.name, '새러너');
+  assert.equal(database.users.length, 1);
+  assert.equal(database.sessions.length, 1);
+  assert.equal(database.sessions[0].user_id, user.id);
+  assert.equal(database.sessions[0].token, 'token-1');
+  assert.equal(user.username, 'new-runner');
+  assert.equal(user.real_name, '민병희');
+  assert.notEqual(user.password_hash, 'Password123');
+  assert.equal(verifyPassword('Password123', user.password_hash), true);
+  assert.equal(user.public_tag, '#TAG01');
+  assert.equal(user.connected_sources.length, 6);
+  assert.deepEqual(user.notification_settings, {
+    friendAlerts: true,
+    districtAlerts: true,
+    marketAlerts: false,
+  });
+  assert.equal(database.transactions, 1);
+});
+
+await runTest('rejects duplicate registration', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-existing',
+        username: 'runner',
+        password_hash: hashPassword('Password123'),
+        nickname: '러너',
+        public_tag: '#RUN01',
+      },
+    ],
+  });
+
+  await assert.rejects(() => repository.register({
+    username: 'runner',
+    password: 'Password123',
+    name: '중복러너',
+    realName: '중복',
+    phone: '01012345678',
+    birthDate: '1990-01-01',
+    region: {
+      provinceName: '서울특별시',
+      cityName: '',
+      districtName: '강남구',
+    },
+    universityName: '',
+    addressDetail: '테스트',
+  }), (error) => {
+    assertApiError(error, 409, '이미 사용 중인 아이디예요.');
+    return true;
+  });
+});
+
+await runTest('maps database username unique violations to duplicate registration', async () => {
+  const uniqueViolation = new Error('duplicate key value violates unique constraint "users_username_unique_idx"');
+  uniqueViolation.code = '23505';
+  uniqueViolation.constraint = 'users_username_unique_idx';
+  const { repository } = createRepositoryHarness({
+    insertUserError: uniqueViolation,
+  });
+
+  await assert.rejects(() => repository.register({
+    username: 'runner',
+    password: 'Password123',
+    name: '동시가입러너',
+    realName: '동시가입',
+    phone: '01012345678',
+    birthDate: '1990-01-01',
+    region: {
+      provinceName: '서울특별시',
+      cityName: '',
+      districtName: '강남구',
+    },
+    universityName: '',
+    addressDetail: '테스트',
+  }), (error) => {
+    assertApiError(error, 409, '이미 사용 중인 아이디예요.');
+    return true;
+  });
+});
+
+await runTest('logs in with a valid password and rejects invalid credentials', async () => {
+  const { repository, database } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-existing',
+        username: 'runner',
+        password_hash: hashPassword('Password123'),
+        nickname: '러너',
+        public_tag: '#RUN01',
+      },
+    ],
+    runs: [
+      {
+        id: 'run-1',
+        user_id: 'user-existing',
+        run_date: '2026-04-23',
+        distance_km: 5,
+        pace: '5:10',
+        source_label: 'Nike Run Club',
+        source_type: 'nrc',
+      },
+    ],
+  });
+
+  await assert.rejects(() => repository.login({
+    username: 'runner',
+    password: 'WrongPassword1',
+  }), (error) => {
+    assertApiError(error, 401, '아이디 또는 비밀번호가 맞지 않아요.');
+    return true;
+  });
+
+  const result = await repository.login({
+    username: 'runner',
+    password: 'Password123',
+  });
+
+  assert.equal(result.accessToken, 'token-1');
+  assert.equal(result.user.id, 'user-existing');
+  assert.equal(result.user.lifetimeDistanceKm, 5);
+  assert.equal(database.sessions.length, 1);
+  assert.equal(database.sessions[0].token, 'token-1');
+});
+
+await runTest('logs out idempotently', async () => {
+  const { repository, database } = createRepositoryHarness({
+    sessions: [
+      {
+        token: 'token-1',
+        user_id: 'user-existing',
+        created_at: '2026-04-23T00:00:00.000Z',
+        expires_at: '2026-04-23T01:00:00.000Z',
+      },
+    ],
+  });
+
+  assert.deepEqual(await repository.logout({ token: 'token-1' }), {
+    success: true,
+  });
+  assert.equal(database.sessions.length, 0);
+  assert.deepEqual(await repository.logout({ token: 'token-1' }), {
+    success: true,
+  });
+});

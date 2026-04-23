@@ -1843,13 +1843,13 @@ async function handleLogin(request, response) {
   const body = await parseJsonBody(request);
   const username = validateRequiredString(body.username, '아이디를 입력해주세요.').toLowerCase();
   const password = validateRequiredString(body.password, '비밀번호를 입력해주세요.');
-  const result = getAuthRepository().login({ username, password });
+  const result = await getAuthRepository().login({ username, password });
 
   sendJson(response, 200, result);
 }
 
 async function handleLogout(request, response) {
-  const payload = getAuthRepository().logout({
+  const payload = await getAuthRepository().logout({
     token: getAccessToken(request),
   });
 
@@ -1880,7 +1880,7 @@ async function handleRegister(request, response) {
     throw new ApiError(400, '휴대폰 번호를 정확히 입력해주세요.');
   }
 
-  const result = getAuthRepository().register({
+  const result = await getAuthRepository().register({
     username,
     password,
     name,
@@ -2749,7 +2749,7 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/auth/check-username' && request.method === 'GET') {
     const username = validateUsername(url.searchParams.get('username') ?? '');
-    sendJson(response, 200, getAuthRepository().checkUsername(username));
+    sendJson(response, 200, await getAuthRepository().checkUsername(username));
     return;
   }
 
