@@ -219,6 +219,9 @@ function Get-FunnelApprovalUrlFromLogs {
     }
 
     $content = Get-Content $logPath -Raw
+    if ([string]::IsNullOrWhiteSpace($content)) {
+      continue
+    }
     $match = [regex]::Match($content, 'https://login\.tailscale\.com/f/funnel\?node=[A-Za-z0-9]+')
 
     if ($match.Success) {
