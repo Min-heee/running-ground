@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 const appJson = require('./app.json');
@@ -11,6 +13,39 @@ const {
 const DEFAULT_EAS_UPDATE_URL = `https://u.expo.dev/${DEFAULT_EAS_PROJECT_ID}`;
 
 type AppVariant = 'development' | 'preview' | 'production';
+
+function loadEnvFile(filePath: string) {
+  if (!existsSync(filePath)) {
+    return;
+  }
+
+  const lines = readFileSync(filePath, 'utf8').split(/\r?\n/);
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf('=');
+
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    let value = trimmed.slice(separatorIndex + 1).trim();
+
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith('\'') && value.endsWith('\''))) {
+      value = value.slice(1, -1);
+    }
+
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
 
 function readPositiveInteger(value: string | undefined, fallbackValue: number) {
   const parsedValue = Number.parseInt(value ?? '', 10);
@@ -40,6 +75,7 @@ function buildIdentifier(baseIdentifier: string | undefined, variant: AppVariant
 }
 
 export default ({ config }: ConfigContext): ExpoConfig => {
+  loadEnvFile(resolve(process.cwd(), '.env'));
   const baseConfig = (appJson.expo ?? config) as ExpoConfig;
   const appVariant = normalizeAppVariant(process.env.APP_VARIANT) as AppVariant;
   const isDevelopmentVariant = appVariant === 'development';
