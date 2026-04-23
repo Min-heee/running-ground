@@ -223,7 +223,7 @@ function makeMetadataRows(store, sourceStoreFile) {
     notices: asArray(store.notices).length,
   };
 
-  return [
+  const rows = [
     {
       key: sqlString('json_store_snapshot'),
       value: sqlJson({
@@ -235,6 +235,16 @@ function makeMetadataRows(store, sourceStoreFile) {
       updated_at: sqlTimestamp(migratedAt),
     },
   ];
+
+  if (store.regionTree && typeof store.regionTree === 'object' && !Array.isArray(store.regionTree)) {
+    rows.push({
+      key: sqlString('region_tree'),
+      value: sqlJson(store.regionTree),
+      updated_at: sqlTimestamp(migratedAt),
+    });
+  }
+
+  return rows;
 }
 
 function buildUserRows(store, issues) {

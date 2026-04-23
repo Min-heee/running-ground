@@ -9,6 +9,8 @@ Current status:
 - `postgresRunsRepository.mjs` mirrors the same run/import methods against PostgreSQL-style tables.
 - `friendsRepository.mjs` owns friend requests, friend relationships, friend leaderboard reads, and friend activity/run lookups.
 - `leagueRepository.mjs` owns district personal ranking plus region/university league reads.
+- `postgresFriendsRepository.mjs` mirrors friend requests, friendships, leaderboard reads, and friend activity/run lookups against PostgreSQL tables.
+- `postgresLeagueRepository.mjs` mirrors district/region/university league reads against PostgreSQL tables plus `app_metadata.region_tree`.
 - `../database/postgresDatabase.mjs` now provides the shared PostgreSQL `query / transaction / close / check` adapter.
 - `../bridges/sessionRunsBridge.mjs` is the next-step bridge for mixed JSON/PostgreSQL session and run reads.
 - Repository tests lock JSON auth, PostgreSQL auth, JSON runs, PostgreSQL runs, friends, and league behavior before routes switch drivers.
