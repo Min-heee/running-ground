@@ -14,6 +14,10 @@ $placeholderUrl = 'https://preview-temp.invalid'
 $adminToken = 'preview-admin-' + [guid]::NewGuid().ToString('N')
 $nodePath = (Get-Command node).Source
 $cloudflaredPath = (Get-Command cloudflared -ErrorAction Stop).Source
+$backendTaskName = 'RunnigappPreviewBackend'
+$tunnelTaskName = 'RunnigappPreviewTunnel'
+$backendRunnerPath = Join-Path $root 'scripts\windows\.generated-preview-backend.cmd'
+$tunnelRunnerPath = Join-Path $root 'scripts\windows\.generated-preview-tunnel.cmd'
 
 function Read-PreviewInfo {
   if (-not (Test-Path $previewInfoPath)) {
@@ -76,6 +80,14 @@ function Stop-PortListener([int]$port) {
   }
 }
 
+function Stop-ScheduledTaskSafe([string]$taskName) {
+  try {
+    Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+  } catch {
+    # The task may not exist yet.
+  }
+}
+
 function Stop-ProcessById([Nullable[int]]$processId, [string]$label) {
   if (-not $processId) {
     return
@@ -90,8 +102,45 @@ function Stop-ProcessById([Nullable[int]]$processId, [string]$label) {
   }
 }
 
+function Get-BackendProcessId {
+  try {
+    $listener = Get-NetTCPConnection -LocalPort $backendPort -State Listen -ErrorAction Stop | Select-Object -First 1
+
+    if ($listener) {
+      return [Nullable[int]]$listener.OwningProcess
+    }
+  } catch {
+    # Fall back to command-line inspection below.
+  }
+
+  $process = Get-CimInstance Win32_Process -Filter "name = 'node.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match 'server\.mjs' -and $_.CommandLine -match 'runnigapp' } |
+    Select-Object -First 1
+
+  if ($process) {
+    return [Nullable[int]]$process.ProcessId
+  }
+
+  return $null
+}
+
+function Get-TunnelProcessId {
+  $process = Get-CimInstance Win32_Process -Filter "name = 'cloudflared.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match "127\.0\.0\.1:$backendPort" } |
+    Select-Object -First 1
+
+  if ($process) {
+    return [Nullable[int]]$process.ProcessId
+  }
+
+  return $null
+}
+
 function Stop-ExistingPreviewProcesses {
   $previewInfo = Read-PreviewInfo
+
+  Stop-ScheduledTaskSafe -taskName $backendTaskName
+  Stop-ScheduledTaskSafe -taskName $tunnelTaskName
 
   if ($previewInfo) {
     Stop-ProcessById -processId $previewInfo.backendPid -label 'preview backend'
@@ -112,14 +161,14 @@ function Stop-ExistingPreviewProcesses {
   }
 }
 
-function Wait-ForLocalHealth([int]$timeoutSeconds = 30) {
+function Wait-ForLocalHealth([int]$timeoutSeconds = 30, [string]$expectedPublicUrl = '') {
   $deadline = (Get-Date).AddSeconds($timeoutSeconds)
 
   while ((Get-Date) -lt $deadline) {
     try {
       $response = Invoke-RestMethod -Uri "http://127.0.0.1:$backendPort/api/health" -TimeoutSec 3
 
-      if ($response.status -eq 'ok') {
+      if ($response.status -eq 'ok' -and ([string]::IsNullOrWhiteSpace($expectedPublicUrl) -or $response.publicBaseUrl -eq $expectedPublicUrl)) {
         return $response
       }
     } catch {
@@ -130,14 +179,14 @@ function Wait-ForLocalHealth([int]$timeoutSeconds = 30) {
   throw 'preview backend local health check timed out'
 }
 
-function Wait-ForRemoteHealth([string]$publicUrl, [int]$timeoutSeconds = 90) {
+function Wait-ForRemoteHealth([string]$publicUrl, [int]$timeoutSeconds = 180, [string]$expectedPublicUrl = '') {
   $deadline = (Get-Date).AddSeconds($timeoutSeconds)
 
   while ((Get-Date) -lt $deadline) {
     try {
-      $response = Invoke-RestMethod -Uri "$publicUrl/api/health" -TimeoutSec 5
+      $response = Invoke-RestMethod -Uri "$publicUrl/api/health" -TimeoutSec 8
 
-      if ($response.status -eq 'ok') {
+      if ($response.status -eq 'ok' -and ([string]::IsNullOrWhiteSpace($expectedPublicUrl) -or $response.publicBaseUrl -eq $expectedPublicUrl)) {
         return $response
       }
     } catch {
@@ -148,19 +197,55 @@ function Wait-ForRemoteHealth([string]$publicUrl, [int]$timeoutSeconds = 90) {
   throw 'preview backend public health check timed out'
 }
 
-function Start-BackendProcess {
+function Write-TaskRunnerScripts {
+  $backendRunner = @"
+@echo off
+setlocal
+cd /d "$backendRoot"
+"$nodePath" .\src\server.mjs > "$backendOutLog" 2> "$backendErrLog"
+"@
+
+  $tunnelRunner = @"
+@echo off
+setlocal
+"$cloudflaredPath" tunnel --no-autoupdate --protocol http2 --url http://127.0.0.1:$backendPort > "$tunnelOutLog" 2> "$tunnelErrLog"
+"@
+
+  Set-Content -Path $backendRunnerPath -Value $backendRunner -Encoding ASCII
+  Set-Content -Path $tunnelRunnerPath -Value $tunnelRunner -Encoding ASCII
+}
+
+function Register-PreviewTask([string]$taskName, [string]$runnerPath) {
+  $action = New-ScheduledTaskAction -Execute $runnerPath
+  $trigger = New-ScheduledTaskTrigger -AtLogOn
+  $settings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries `
+    -DontStopIfGoingOnBatteries `
+    -ExecutionTimeLimit (New-TimeSpan -Days 30) `
+    -MultipleInstances IgnoreNew `
+    -RestartCount 3 `
+    -RestartInterval (New-TimeSpan -Minutes 1)
+
+  Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
+}
+
+function Start-BackendProcess([string]$expectedPublicUrl) {
+  Stop-ScheduledTaskSafe -taskName $backendTaskName
   Stop-PortListener -port $backendPort
   Remove-Item $backendOutLog, $backendErrLog -ErrorAction SilentlyContinue
 
-  $process = Start-Process -FilePath $nodePath -ArgumentList @('./src/server.mjs') -WorkingDirectory $backendRoot -RedirectStandardOutput $backendOutLog -RedirectStandardError $backendErrLog -WindowStyle Hidden -PassThru
-  $null = Wait-ForLocalHealth
-  return $process
+  Register-PreviewTask -taskName $backendTaskName -runnerPath $backendRunnerPath
+  Start-ScheduledTask -TaskName $backendTaskName
+  $null = Wait-ForLocalHealth -expectedPublicUrl $expectedPublicUrl
+  return Get-BackendProcessId
 }
 
 function Start-TunnelProcess {
+  Stop-ScheduledTaskSafe -taskName $tunnelTaskName
   Remove-Item $tunnelOutLog, $tunnelErrLog -ErrorAction SilentlyContinue
 
-  return Start-Process -FilePath $cloudflaredPath -ArgumentList @('tunnel', '--url', "http://127.0.0.1:$backendPort", '--no-autoupdate') -RedirectStandardOutput $tunnelOutLog -RedirectStandardError $tunnelErrLog -WindowStyle Hidden -PassThru
+  Register-PreviewTask -taskName $tunnelTaskName -runnerPath $tunnelRunnerPath
+  Start-ScheduledTask -TaskName $tunnelTaskName
 }
 
 function Wait-ForTunnelUrl([int]$timeoutSeconds = 40) {
@@ -190,7 +275,7 @@ function Wait-ForTunnelUrl([int]$timeoutSeconds = 40) {
   throw 'quick tunnel url was not found in the log'
 }
 
-function Write-PreviewInfo([string]$publicUrl, [string]$token, [int]$backendPid, [int]$tunnelPid) {
+function Write-PreviewInfo([string]$publicUrl, [string]$token, [Nullable[int]]$backendPid, [Nullable[int]]$tunnelPid) {
   $payload = [ordered]@{
     startedAt = (Get-Date).ToString('o')
     status = 'running'
@@ -199,6 +284,8 @@ function Write-PreviewInfo([string]$publicUrl, [string]$token, [int]$backendPid,
     adminToken = $token
     backendPid = $backendPid
     tunnelPid = $tunnelPid
+    backendTaskName = $backendTaskName
+    tunnelTaskName = $tunnelTaskName
     backendEnvPath = $backendEnvPath
     appEnvPath = $appEnvPath
     backendOutLog = $backendOutLog
@@ -212,14 +299,16 @@ function Write-PreviewInfo([string]$publicUrl, [string]$token, [int]$backendPid,
 
 Write-Host '0. Stopping existing preview backend/tunnel processes...'
 Stop-ExistingPreviewProcesses
+Write-TaskRunnerScripts
 
 Write-Host '1. Starting preview backend with temporary public base URL...'
 Write-BackendEnv -publicUrl $placeholderUrl -token $adminToken
-$backendProcess = Start-BackendProcess
+$backendPid = Start-BackendProcess -expectedPublicUrl $placeholderUrl
 
-Write-Host '2. Starting Cloudflare Quick Tunnel...'
-$tunnelProcess = Start-TunnelProcess
+Write-Host '2. Starting Cloudflare Quick Tunnel with http2...'
+Start-TunnelProcess
 $publicUrl = Wait-ForTunnelUrl
+$tunnelPid = Get-TunnelProcessId
 
 Write-Host "3. Tunnel ready: $publicUrl"
 Write-Host '4. Updating backend and app env files to the new public URL...'
@@ -227,20 +316,29 @@ Write-BackendEnv -publicUrl $publicUrl -token $adminToken
 Write-AppEnv -publicUrl $publicUrl
 
 Write-Host '5. Restarting preview backend with final public base URL...'
-$backendProcess = Start-BackendProcess
-$localHealth = Wait-ForLocalHealth
+$backendPid = Start-BackendProcess -expectedPublicUrl $publicUrl
+$localHealth = Wait-ForLocalHealth -expectedPublicUrl $publicUrl
 
 Write-Host '6. Waiting for public preview health...'
-$remoteHealth = Wait-ForRemoteHealth -publicUrl $publicUrl
+$remoteHealth = $null
 
-Write-PreviewInfo -publicUrl $publicUrl -token $adminToken -backendPid $backendProcess.Id -tunnelPid $tunnelProcess.Id
+try {
+  $remoteHealth = Wait-ForRemoteHealth -publicUrl $publicUrl -expectedPublicUrl $publicUrl
+} catch {
+  Write-Warning "Public preview health could not be verified from this Windows host: $($_.Exception.Message)"
+  Write-Warning 'The tunnel URL was created and local backend health passed. Verify the public API from the Mac or phone network.'
+}
+
+$tunnelPid = Get-TunnelProcessId
+
+Write-PreviewInfo -publicUrl $publicUrl -token $adminToken -backendPid $backendPid -tunnelPid $tunnelPid
 
 Write-Host ''
 Write-Host 'Preview backend is ready.'
 Write-Host "Public URL: $publicUrl"
 Write-Host "API base URL: $publicUrl/api"
 Write-Host "Admin token: $adminToken"
-Write-Host "Backend PID: $($backendProcess.Id)"
-Write-Host "Tunnel PID: $($tunnelProcess.Id)"
+Write-Host "Backend PID: $backendPid"
+Write-Host "Tunnel PID: $tunnelPid"
 Write-Host "Info file: $previewInfoPath"
-Write-Host "Local status: $($localHealth.status) / Public status: $($remoteHealth.status)"
+Write-Host "Local status: $($localHealth.status) / Public status: $(if ($remoteHealth) { $remoteHealth.status } else { 'not verified from Windows' })"

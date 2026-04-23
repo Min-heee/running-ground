@@ -73,6 +73,18 @@ function Get-PortListenerProcessId([int]$port) {
   }
 }
 
+function Get-TunnelProcessId([int]$port) {
+  $process = Get-CimInstance Win32_Process -Filter "name = 'cloudflared.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -match "127\.0\.0\.1:$port" } |
+    Select-Object -First 1
+
+  if ($process) {
+    return [Nullable[int]]$process.ProcessId
+  }
+
+  return $null
+}
+
 function Test-PortListening([int]$port) {
   try {
     return [bool](Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop)
@@ -152,11 +164,12 @@ function Mask-Secret([string]$value) {
 $previewInfo = Read-PreviewInfo
 $envValues = Read-EnvFile
 $portListenerPid = Get-PortListenerProcessId -port $backendPort
-$backendPid = if ($previewInfo -and $previewInfo.backendPid) { [Nullable[int]]$previewInfo.backendPid } else { $portListenerPid }
-$tunnelPid = if ($previewInfo) { [Nullable[int]]$previewInfo.tunnelPid } else { $null }
+$backendPid = if ($portListenerPid) { $portListenerPid } elseif ($previewInfo -and $previewInfo.backendPid) { [Nullable[int]]$previewInfo.backendPid } else { $null }
+$activeTunnelPid = Get-TunnelProcessId -port $backendPort
+$tunnelPid = if ($activeTunnelPid) { $activeTunnelPid } elseif ($previewInfo) { [Nullable[int]]$previewInfo.tunnelPid } else { $null }
 $publicUrlFromEnv = if ($envValues.ContainsKey('BACKEND_PUBLIC_BASE_URL')) { [string]$envValues.BACKEND_PUBLIC_BASE_URL } else { '' }
-$apiBaseUrl = if ($previewInfo -and $previewInfo.apiBaseUrl) { [string]$previewInfo.apiBaseUrl } elseif ($publicUrlFromEnv) { "$publicUrlFromEnv/api" } else { '' }
-$publicUrl = if ($previewInfo -and $previewInfo.publicUrl) { [string]$previewInfo.publicUrl } else { $publicUrlFromEnv }
+$publicUrl = if ($publicUrlFromEnv) { $publicUrlFromEnv } elseif ($previewInfo -and $previewInfo.publicUrl) { [string]$previewInfo.publicUrl } else { '' }
+$apiBaseUrl = if ($publicUrl) { "$publicUrl/api" } elseif ($previewInfo -and $previewInfo.apiBaseUrl) { [string]$previewInfo.apiBaseUrl } else { '' }
 $adminToken = if ($previewInfo -and $previewInfo.adminToken) { [string]$previewInfo.adminToken } elseif ($envValues.ContainsKey('BACKEND_ADMIN_TOKEN')) { [string]$envValues.BACKEND_ADMIN_TOKEN } else { '' }
 
 $backendRunning = Test-ProcessRunning -processId $backendPid

@@ -16,6 +16,8 @@ backend-preview.err.log
 preview-tunnel.out.log
 preview-tunnel.err.log
 preview-public-info.json
+scripts/windows/.generated-preview-backend.cmd
+scripts/windows/.generated-preview-tunnel.cmd
 credentials.json
 credentials/
 dist/
