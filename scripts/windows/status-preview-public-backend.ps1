@@ -109,7 +109,10 @@ function Invoke-HealthCheck([string]$url) {
       ready = $response.ready
       startedAt = $response.startedAt
       uptimeSeconds = $response.uptimeSeconds
+      storeDriver = $response.storeDriver
       publicBaseUrl = $response.publicBaseUrl
+      postgres = $response.config.postgres
+      readBridges = $response.readBridges
       requestTimeoutMs = $response.config.requestTimeoutMs
       backupCount = $response.store.backupCount
       users = $response.store.counts.users
@@ -136,6 +139,9 @@ function Invoke-AdminStatus([string]$apiBaseUrl, [string]$adminToken) {
     return [ordered]@{
       ok = ($response.status -eq 'ok')
       status = $response.status
+      storeDriver = $response.storeDriver
+      postgres = $response.config.postgres
+      readBridges = $response.readBridges
       users = $response.counts.users
       runs = $response.counts.runs
       sessions = $response.counts.sessions
@@ -253,6 +259,8 @@ $portListening = Test-PortListening -port $backendPort
 $localHealth = Invoke-HealthCheck -url "http://127.0.0.1:$backendPort/api/health"
 $publicHealth = if ($apiBaseUrl) { Invoke-HealthCheck -url "$apiBaseUrl/health" } else { [ordered]@{ ok = $false; error = 'Preview API base URL is not set.' } }
 $adminStatus = Invoke-AdminStatus -apiBaseUrl $apiBaseUrl -adminToken $adminToken
+$postgresConfig = if ($publicHealth.postgres) { $publicHealth.postgres } elseif ($localHealth.postgres) { $localHealth.postgres } elseif ($adminStatus.postgres) { $adminStatus.postgres } else { $null }
+$readBridges = if ($publicHealth.readBridges) { $publicHealth.readBridges } elseif ($localHealth.readBridges) { $localHealth.readBridges } elseif ($adminStatus.readBridges) { $adminStatus.readBridges } else { $null }
 
 $quickTunnelPid = $null
 $funnelState = $null
@@ -339,6 +347,8 @@ $payload = [ordered]@{
     error = if ($transport -eq 'tailscale-funnel') { $funnelState.error } else { '' }
   }
   admin = $adminStatus
+  postgres = $postgresConfig
+  readBridges = $readBridges
   logs = [ordered]@{
     backendOut = if ($previewInfo -and $previewInfo.backendOutLog) { $previewInfo.backendOutLog } else { $backendOutLog }
     backendErr = if ($previewInfo -and $previewInfo.backendErrLog) { $previewInfo.backendErrLog } else { $backendErrLog }
@@ -361,6 +371,9 @@ if ($Json) {
   Write-Host "Local health: $($payload.backend.localHealth.status) / ready: $($payload.backend.localHealth.ready)"
   Write-Host "Public health: $($payload.tunnel.publicHealth.status) / ready: $($payload.tunnel.publicHealth.ready)"
   Write-Host "Store: users=$($payload.tunnel.publicHealth.users), runs=$($payload.tunnel.publicHealth.runs), backups=$($payload.tunnel.publicHealth.backupCount)"
+  Write-Host "Postgres: configured=$($payload.postgres.configured) / session=$($payload.postgres.enableSessionReads) / runs=$($payload.postgres.enableRunReads) / friends=$($payload.postgres.enableFriendReads) / league=$($payload.postgres.enableLeagueReads)"
+  Write-Host "Bridge session/runs: session=$($payload.readBridges.sessionRuns.sessionReadsEnabled) / runs=$($payload.readBridges.sessionRuns.runReadsEnabled) / postgres=$($payload.readBridges.sessionRuns.postgresConfigured)"
+  Write-Host "Bridge friends/league: friends=$($payload.readBridges.friendsLeague.friendReadsEnabled) / league=$($payload.readBridges.friendsLeague.leagueReadsEnabled) / postgresFriends=$($payload.readBridges.friendsLeague.postgresFriendsConfigured) / postgresLeague=$($payload.readBridges.friendsLeague.postgresLeagueConfigured)"
   Write-Host "Logs:"
   Write-Host "  backend out: $($payload.logs.backendOut)"
   Write-Host "  backend err: $($payload.logs.backendErr)"

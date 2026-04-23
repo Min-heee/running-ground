@@ -35,7 +35,36 @@ function Read-PreviewInfo {
   }
 }
 
+function Read-EnvFile([string]$path) {
+  $values = @{}
+
+  if (-not (Test-Path $path)) {
+    return $values
+  }
+
+  foreach ($line in Get-Content $path) {
+    $trimmed = $line.Trim()
+
+    if (-not $trimmed -or $trimmed.StartsWith('#')) {
+      continue
+    }
+
+    $separatorIndex = $trimmed.IndexOf('=')
+
+    if ($separatorIndex -le 0) {
+      continue
+    }
+
+    $key = $trimmed.Substring(0, $separatorIndex).Trim()
+    $value = $trimmed.Substring($separatorIndex + 1).Trim().Trim('"').Trim("'")
+    $values[$key] = $value
+  }
+
+  return $values
+}
+
 function Write-BackendEnv([string]$publicUrl, [string]$token) {
+  $existingEnv = Read-EnvFile -path $backendEnvPath
   $lines = @(
     'BACKEND_APP_ENV=preview',
     'BACKEND_HOST=0.0.0.0',
@@ -47,6 +76,15 @@ function Write-BackendEnv([string]$publicUrl, [string]$token) {
     'BACKEND_STORE_BACKUP_DIRECTORY=backend/data/preview-backups',
     'BACKEND_STORE_BACKUP_ON_SAVE=true',
     'BACKEND_STORE_BACKUP_RETENTION=10',
+    "BACKEND_POSTGRES_SSL=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_SSL')) { $existingEnv.BACKEND_POSTGRES_SSL } else { 'false' })",
+    "BACKEND_POSTGRES_POOL_MAX=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_POOL_MAX')) { $existingEnv.BACKEND_POSTGRES_POOL_MAX } else { '10' })",
+    "BACKEND_POSTGRES_IDLE_TIMEOUT_MS=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_IDLE_TIMEOUT_MS')) { $existingEnv.BACKEND_POSTGRES_IDLE_TIMEOUT_MS } else { '30000' })",
+    "BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS')) { $existingEnv.BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS } else { '10000' })",
+    "BACKEND_POSTGRES_APPLICATION_NAME=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_APPLICATION_NAME')) { $existingEnv.BACKEND_POSTGRES_APPLICATION_NAME } else { 'runnigapp-backend-preview' })",
+    "BACKEND_POSTGRES_ENABLE_SESSION_READS=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_ENABLE_SESSION_READS')) { $existingEnv.BACKEND_POSTGRES_ENABLE_SESSION_READS } else { 'false' })",
+    "BACKEND_POSTGRES_ENABLE_RUN_READS=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_ENABLE_RUN_READS')) { $existingEnv.BACKEND_POSTGRES_ENABLE_RUN_READS } else { 'false' })",
+    "BACKEND_POSTGRES_ENABLE_FRIEND_READS=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_ENABLE_FRIEND_READS')) { $existingEnv.BACKEND_POSTGRES_ENABLE_FRIEND_READS } else { 'false' })",
+    "BACKEND_POSTGRES_ENABLE_LEAGUE_READS=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_ENABLE_LEAGUE_READS')) { $existingEnv.BACKEND_POSTGRES_ENABLE_LEAGUE_READS } else { 'false' })",
     'BACKEND_SESSION_TTL_HOURS=168',
     'BACKEND_MAX_BODY_SIZE_KB=256',
     'BACKEND_REQUEST_TIMEOUT_MS=30000',
@@ -58,6 +96,19 @@ function Write-BackendEnv([string]$publicUrl, [string]$token) {
     'BACKEND_ENABLE_ADMIN_STATUS=true',
     'BACKEND_ENABLE_RESET_ENDPOINT=false'
   )
+
+  foreach ($key in @(
+    'BACKEND_POSTGRES_DATABASE_URL',
+    'DATABASE_URL',
+    'POSTGRES_DB',
+    'POSTGRES_USER',
+    'POSTGRES_PASSWORD',
+    'POSTGRES_PORT'
+  )) {
+    if ($existingEnv.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace([string]$existingEnv[$key])) {
+      $lines += "$key=$($existingEnv[$key])"
+    }
+  }
 
   Set-Content -Path $backendEnvPath -Value $lines -Encoding UTF8
 }

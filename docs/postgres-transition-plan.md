@@ -111,6 +111,13 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - TestFlight 앱에서 회원가입, 로그인, 기록 가져오기, 친구 랭킹을 확인한다.
 - 문제가 없으면 production API 전환 후보로 올린다.
 
+preview 운영 순서:
+- 데스크탑 preview 는 `scripts\windows\start-preview-public-backend.cmd -Transport tailscale-funnel` 기준으로 띄운다.
+- `scripts\windows\set-preview-postgres-read-flags.cmd -Preset session-runs` 로 세션/러닝 read 부터 켠다.
+- `scripts\windows\status-preview-public-backend.cmd` 에서 `Postgres`, `Bridge session/runs`, `Bridge friends/league` 상태를 확인한다.
+- session/runs QA가 끝나면 `scripts\windows\set-preview-postgres-read-flags.cmd -Preset all` 로 전체 read bridge 를 켠다.
+- 문제 발생 시 `scripts\windows\set-preview-postgres-read-flags.cmd -Preset off -RestartPreview` 로 즉시 JSON 우선 read 로 되돌린다.
+
 ## 리스크와 방어선
 - 데이터 손실 방지: migration 전 JSON backup을 반드시 만든다.
 - 중복 기록 방지: DB unique index와 앱/서버 fingerprint 검사를 같이 둔다.

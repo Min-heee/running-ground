@@ -542,6 +542,7 @@ scripts\windows\install-preview-backend-task.cmd -StartNow
 - 로컬 `http://127.0.0.1:8081/api/health` 가 정상인지
 - 공개 `https://...trycloudflare.com/api/health` 가 정상인지
 - store 사용자/기록/백업 개수가 보이는지
+- PostgreSQL read 플래그와 bridge 상태가 어떤 값인지
 - 로그 파일 위치와 다음 조치가 무엇인지
 
 자동화나 원격 점검에서 실패 코드를 받고 싶으면:
@@ -549,6 +550,44 @@ scripts\windows\install-preview-backend-task.cmd -StartNow
 ```powershell
 scripts\windows\status-preview-public-backend.cmd -RequireHealthy
 ```
+
+### Desktop preview PostgreSQL read rollout
+
+preview 데스크탑에서 PostgreSQL read 를 부분 전환할 때는 아래 순서가 가장 안전해.
+
+1. 먼저 `backend/.env` 에 `BACKEND_POSTGRES_DATABASE_URL` 이 들어 있는지 확인
+2. 가능하면 `tailscale-funnel` preview 로 띄워서 URL 변경 없이 재시작
+3. `session-runs` -> `all` 순서로 단계적으로 켜기
+4. 매 단계마다 `status-preview-public-backend.cmd` 로 `Postgres` 와 `Bridge` 출력 확인
+
+플래그만 먼저 바꾸고 싶으면:
+
+```powershell
+scripts\windows\set-preview-postgres-read-flags.cmd -Preset session-runs
+```
+
+바꾸고 바로 preview 를 재시작하려면:
+
+```powershell
+scripts\windows\set-preview-postgres-read-flags.cmd -Preset session-runs -RestartPreview
+```
+
+전체 read bridge 를 다 켜려면:
+
+```powershell
+scripts\windows\set-preview-postgres-read-flags.cmd -Preset all -RestartPreview
+```
+
+문제가 생기면 즉시 롤백:
+
+```powershell
+scripts\windows\set-preview-postgres-read-flags.cmd -Preset off -RestartPreview
+```
+
+주의:
+- `quick-tunnel` 상태에서 재시작하면 공개 URL이 바뀔 수 있어.
+- URL이 바뀌면 Mac에서 `npm run preview:sync-eas-env` 를 다시 실행해 TestFlight preview 주소를 맞춰줘.
+- 플래그를 켤 때 스크립트가 env 검증과 PostgreSQL 연결 확인까지 먼저 해주므로, 실패하면 기존 `.env` 로 되돌린다.
 
 ### Admin reset
 
