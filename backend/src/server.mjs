@@ -596,7 +596,10 @@ function buildMarketOverview(store, user) {
     store.rewardRedemptions = [];
   }
 
-  const metrics = getUserMetrics(store, user.id);
+  return buildMarketOverviewWithMetrics(store, user, getUserMetrics(store, user.id));
+}
+
+function buildMarketOverviewWithMetrics(store, user, metrics) {
   const currentPoints = getAvailableRewardPoints(metrics, getRedeemedPointCost(store, user.id));
   const redemptionCountByItemId = buildRedemptionCountByItemId(store);
 
@@ -1467,6 +1470,19 @@ async function buildIntegrationSourcesReadPayload(request) {
   return {
     sources: buildIntegrationSources(store, user),
   };
+}
+
+async function buildMarketOverviewReadPayload(request) {
+  const { store, user, metrics } = await loadCurrentUserReadContext(request, {
+    includeMetrics: true,
+  });
+
+  return buildMarketOverviewWithMetrics(store, user, metrics);
+}
+
+async function buildOfflineRaceHubReadPayload(request) {
+  const { store, user } = await loadCurrentUserReadContext(request);
+  return buildOfflineRaceHub(store, user);
 }
 
 async function buildCurrentRunReadPayload(request, runId) {
@@ -2804,16 +2820,12 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/market/overview' && request.method === 'GET') {
-    const store = loadStore();
-    const user = requireUser(store, request);
-    sendJson(response, 200, buildMarketOverview(store, user));
+    sendJson(response, 200, await buildMarketOverviewReadPayload(request));
     return;
   }
 
   if (pathname === '/api/offline-races/hub' && request.method === 'GET') {
-    const store = loadStore();
-    const user = requireUser(store, request);
-    sendJson(response, 200, buildOfflineRaceHub(store, user));
+    sendJson(response, 200, await buildOfflineRaceHubReadPayload(request));
     return;
   }
 
