@@ -1150,6 +1150,10 @@ function buildStoreCounts(store) {
 }
 
 function buildHealthStatus() {
+  const readBridges = {
+    sessionRuns: getSessionRunsBridge().getConfig(),
+    friendsLeague: getFriendsLeagueBridge().getConfig(),
+  };
   const basePayload = {
     environment: APP_ENV,
     startedAt: STARTED_AT,
@@ -1158,6 +1162,7 @@ function buildHealthStatus() {
     storeFile: getStoreFilePath(),
     publicBaseUrl: PUBLIC_BASE_URL || undefined,
     config: getPublicBackendConfig(),
+    readBridges,
     now: new Date().toISOString(),
   };
 
@@ -1201,6 +1206,10 @@ function buildAdminStatus(store) {
     storeDriver: STORE_DRIVER,
     storeFile: getStoreFilePath(),
     config: getPublicBackendConfig(),
+    readBridges: {
+      sessionRuns: getSessionRunsBridge().getConfig(),
+      friendsLeague: getFriendsLeagueBridge().getConfig(),
+    },
     store: getStoreDiagnostics(),
     counts: buildStoreCounts(store),
   };

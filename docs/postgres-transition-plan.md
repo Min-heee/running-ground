@@ -95,6 +95,7 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - `backend/src/database/postgresDatabase.mjs`로 공용 PostgreSQL query/transaction adapter를 추가했다.
 - `backend/src/bridges/sessionRunsBridge.mjs`로 세션 조회와 run 집계를 JSON/PostgreSQL 양쪽에서 읽을 수 있는 bridge helper를 추가했다.
 - `backend/src/bridges/friendsLeagueBridge.mjs`로 친구/리그 GET API를 PostgreSQL 우선 + JSON fallback 방식으로 읽을 수 있게 만들었다.
+- health/admin status 응답에서 bridge 플래그와 postgres 연결 경로를 같이 노출해서 preview QA 때 현재 읽기 경로를 바로 확인할 수 있다.
 - 로그인, 로그아웃, 아이디 중복 확인, 회원가입은 route layer에서 repository를 호출한다.
 - 기록 관련 route layer는 입력 검증만 맡고, 저장/중복 판단은 repository가 맡는다.
 - 친구 요청/수락과 친구·리그 조회 route도 repository를 호출하도록 옮겼다.

@@ -152,6 +152,12 @@ async function main() {
     assert(health.config.storeWriteMode === 'atomic', 'health 응답 저장 방식이 원자적 저장으로 내려오지 않았어.');
     assert(health.config.storeBackupOnSave === true, 'health 응답 자동 백업 설정이 반영되지 않았어.');
     assert(health.config.storeBackupRetention === 5, 'health 응답 백업 보관 개수가 예상과 달라.');
+    assert(health.config.postgres.enableFriendReads === false, 'health 응답 친구 postgres read 플래그 기본값이 예상과 달라.');
+    assert(health.config.postgres.enableLeagueReads === false, 'health 응답 리그 postgres read 플래그 기본값이 예상과 달라.');
+    assert(health.readBridges.sessionRuns.sessionReadsEnabled === false, 'health 응답 session bridge 상태가 예상과 달라.');
+    assert(health.readBridges.sessionRuns.runReadsEnabled === false, 'health 응답 run bridge 상태가 예상과 달라.');
+    assert(health.readBridges.friendsLeague.friendReadsEnabled === false, 'health 응답 friend bridge 상태가 예상과 달라.');
+    assert(health.readBridges.friendsLeague.leagueReadsEnabled === false, 'health 응답 league bridge 상태가 예상과 달라.');
     assert(health.store.storeExists === true, 'health 응답 store 진단이 파일 존재를 알려주지 않았어.');
     assert(health.store.backupCount >= 1, 'health 응답 store 백업 개수가 예상과 달라.');
     assert(health.store.counts.users === 0, 'health 응답 store 사용자 수가 예상과 달라.');
@@ -696,6 +702,11 @@ async function main() {
         'X-Admin-Token': adminToken,
       },
     });
+    assert(adminStatus.status === 'ok', '관리자 상태 응답이 정상 상태가 아니야.');
+    assert(adminStatus.config.adminStatusEnabled === true, '관리자 상태 응답에 admin status 설정이 반영되지 않았어.');
+    assert(adminStatus.readBridges.sessionRuns.postgresConfigured === false, '관리자 상태 응답에 session/run bridge postgres 설정이 예상과 달라.');
+    assert(adminStatus.readBridges.friendsLeague.postgresFriendsConfigured === false, '관리자 상태 응답에 friends bridge postgres 설정이 예상과 달라.');
+    assert(adminStatus.readBridges.friendsLeague.postgresLeagueConfigured === false, '관리자 상태 응답에 league bridge postgres 설정이 예상과 달라.');
     assert(adminStatus.counts.users === 2, '관리자 상태 사용자 수가 예상과 달라.');
     logStep('admin status ok');
 
