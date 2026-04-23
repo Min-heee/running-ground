@@ -4,6 +4,8 @@ import { loadStore, mutateStore, getStoreFilePath, getStoreDiagnostics, resetSto
 import { createSessionRunsBridge } from './bridges/sessionRunsBridge.mjs';
 import { createPostgresDatabase } from './database/postgresDatabase.mjs';
 import { createJsonAuthRepository } from './repositories/authRepository.mjs';
+import { createJsonFriendsRepository } from './repositories/friendsRepository.mjs';
+import { createJsonLeagueRepository } from './repositories/leagueRepository.mjs';
 import { createJsonRunsRepository, ensureIntegrationImports, getPendingImportCount } from './repositories/runsRepository.mjs';
 import {
   ADMIN_TOKEN,
@@ -184,6 +186,8 @@ function nextId(prefix) {
 }
 
 let authRepository = null;
+let friendsRepository = null;
+let leagueRepository = null;
 let runsRepository = null;
 let postgresDatabase = null;
 let sessionRunsBridge = null;
@@ -257,6 +261,37 @@ function getRunsRepository() {
   }
 
   return runsRepository;
+}
+
+function getFriendsRepository() {
+  if (!friendsRepository) {
+    friendsRepository = createJsonFriendsRepository({
+      loadStore,
+      mutateStore,
+      requireUserByToken: (store, token) => findUserByToken(store, token),
+      findUserById,
+      getRunsForUser,
+      getUserMetrics,
+      buildRunDetail,
+      nextId,
+      createError: (statusCode, message) => new ApiError(statusCode, message),
+    });
+  }
+
+  return friendsRepository;
+}
+
+function getLeagueRepository() {
+  if (!leagueRepository) {
+    leagueRepository = createJsonLeagueRepository({
+      loadStore,
+      requireUserByToken: (store, token) => findUserByToken(store, token),
+      getUserMetrics,
+      createError: (statusCode, message) => new ApiError(statusCode, message),
+    });
+  }
+
+  return leagueRepository;
 }
 
 function formatTimestamp(date = new Date()) {
@@ -1472,6 +1507,46 @@ async function buildIntegrationSourcesReadPayload(request) {
   };
 }
 
+async function buildFriendLeaderboardReadPayload(request) {
+  return getFriendsRepository().getLeaderboard({
+    token: getAccessToken(request),
+  });
+}
+
+async function buildFriendActivityReadPayload(request, friendId) {
+  return getFriendsRepository().getFriendActivity({
+    token: getAccessToken(request),
+    friendId,
+  });
+}
+
+async function buildFriendRunReadPayload(request, friendId, runId) {
+  return getFriendsRepository().getFriendRun({
+    token: getAccessToken(request),
+    friendId,
+    runId,
+  });
+}
+
+async function buildDistrictPersonalReadPayload(request) {
+  return getLeagueRepository().getDistrictPersonal({
+    token: getAccessToken(request),
+  });
+}
+
+async function buildRegionLeagueReadPayload(request, nodeId) {
+  return getLeagueRepository().getRegions({
+    token: getAccessToken(request),
+    nodeId,
+  });
+}
+
+async function buildUniversityLeagueReadPayload(request) {
+  return getLeagueRepository().getUniversities({
+    token: getAccessToken(request),
+  });
+}
+
 async function buildMarketOverviewReadPayload(request) {
   const { store, user, metrics } = await loadCurrentUserReadContext(request, {
     includeMetrics: true,
@@ -2433,98 +2508,19 @@ async function handleQueueIntegrationImports(request, response, sourceType) {
 }
 
 function handleFriendRequestCreate(request, response, body) {
-  const payload = mutateStore((store) => {
-    const currentUser = requireUser(store, request);
-    const tag = normalizeTag(validateRequiredString(body.tag, '친구 태그를 입력해줘.'));
-    const targetUser = store.users.find((entry) => entry.publicTag === tag);
-
-    if (!targetUser) {
-      throw new ApiError(404, '해당 태그의 사용자를 찾지 못했어.');
-    }
-
-    if (targetUser.id === currentUser.id) {
-      throw new ApiError(400, '내 태그로는 친구 요청을 보낼 수 없어.');
-    }
-
-    if (areFriends(store, currentUser.id, targetUser.id)) {
-      throw new ApiError(409, '이미 친구로 연결되어 있어.');
-    }
-
-    const existingRequest = store.friendRequests.find((entry) => (
-      entry.status === 'pending'
-      && (
-        (entry.requesterId === currentUser.id && entry.receiverId === targetUser.id)
-        || (entry.requesterId === targetUser.id && entry.receiverId === currentUser.id)
-      )
-    ));
-
-    if (existingRequest) {
-      throw new ApiError(409, '이미 대기 중인 친구 요청이 있어.');
-    }
-
-    const requestId = nextId('request');
-    store.friendRequests.push({
-      id: requestId,
-      requesterId: currentUser.id,
-      receiverId: targetUser.id,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    });
-
-    return {
-      success: true,
-      requestId,
-      status: 'pending',
-    };
+  const payload = getFriendsRepository().createRequest({
+    token: getAccessToken(request),
+    tag: normalizeTag(validateRequiredString(body.tag, '친구 태그를 입력해줘.')),
   });
 
   sendJson(response, 201, payload);
 }
 
 function handleFriendRequestAction(request, response, requestId, action) {
-  const payload = mutateStore((store) => {
-    const currentUser = requireUser(store, request);
-    const friendRequest = store.friendRequests.find((entry) => entry.id === requestId);
-
-    if (!friendRequest || friendRequest.status !== 'pending') {
-      throw new ApiError(404, '처리할 친구 요청을 찾을 수 없어.');
-    }
-
-    if (action === 'accept' || action === 'reject') {
-      if (friendRequest.receiverId !== currentUser.id) {
-        throw new ApiError(403, '받은 친구 요청만 처리할 수 있어.');
-      }
-    }
-
-    if (action === 'cancel' && friendRequest.requesterId !== currentUser.id) {
-      throw new ApiError(403, '내가 보낸 요청만 취소할 수 있어.');
-    }
-
-    if (action === 'accept') {
-      friendRequest.status = 'accepted';
-
-      if (!areFriends(store, friendRequest.requesterId, friendRequest.receiverId)) {
-        store.friendships.push({
-          id: nextId('friendship'),
-          userIds: [friendRequest.requesterId, friendRequest.receiverId],
-          createdAt: new Date().toISOString(),
-        });
-      }
-    }
-
-    if (action === 'reject') {
-      friendRequest.status = 'rejected';
-    }
-
-    if (action === 'cancel') {
-      friendRequest.status = 'cancelled';
-    }
-
-    return {
-      success: true,
-      requestId: friendRequest.id,
-      status: action === 'accept' ? 'accepted' : action === 'reject' ? 'rejected' : 'cancelled',
-    };
+  const payload = getFriendsRepository().respondToRequest({
+    token: getAccessToken(request),
+    requestId,
+    action,
   });
 
   sendJson(response, 200, payload);
@@ -2844,9 +2840,7 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/friends/leaderboard' && request.method === 'GET') {
-    const store = loadStore();
-    const user = requireUser(store, request);
-    sendJson(response, 200, buildFriendLeaderboard(store, user));
+    sendJson(response, 200, await buildFriendLeaderboardReadPayload(request));
     return;
   }
 
@@ -2866,22 +2860,14 @@ async function routeRequest(request, response) {
   const friendActivityMatch = pathname.match(/^\/api\/friends\/([^/]+)\/activity$/);
 
   if (friendActivityMatch && request.method === 'GET') {
-    const store = loadStore();
-    const currentUser = requireUser(store, request);
-    requireFriendAccess(store, currentUser.id, friendActivityMatch[1]);
-    sendJson(response, 200, buildFriendActivity(store, currentUser.id, friendActivityMatch[1]));
+    sendJson(response, 200, await buildFriendActivityReadPayload(request, friendActivityMatch[1]));
     return;
   }
 
   const friendRunMatch = pathname.match(/^\/api\/friends\/([^/]+)\/runs\/([^/]+)$/);
 
   if (friendRunMatch && request.method === 'GET') {
-    const store = loadStore();
-    const currentUser = requireUser(store, request);
-    requireFriendAccess(store, currentUser.id, friendRunMatch[1]);
-    const run = getRunForUser(store, friendRunMatch[1], friendRunMatch[2]);
-    const metrics = getUserMetrics(store, friendRunMatch[1]);
-    sendJson(response, 200, buildRunDetail(run, metrics.currentWeekDistanceKm, '친구 기록', metrics));
+    sendJson(response, 200, await buildFriendRunReadPayload(request, friendRunMatch[1], friendRunMatch[2]));
     return;
   }
 
@@ -2919,23 +2905,17 @@ async function routeRequest(request, response) {
   }
 
   if (pathname === '/api/league/district-personal' && request.method === 'GET') {
-    const store = loadStore();
-    const user = requireUser(store, request);
-    sendJson(response, 200, buildDistrictPersonal(store, user));
+    sendJson(response, 200, await buildDistrictPersonalReadPayload(request));
     return;
   }
 
   if (pathname === '/api/league/regions' && request.method === 'GET') {
-    const store = loadStore();
-    requireUser(store, request);
-    sendJson(response, 200, buildRegionLeague(store, url.searchParams.get('nodeId') ?? undefined));
+    sendJson(response, 200, await buildRegionLeagueReadPayload(request, url.searchParams.get('nodeId') ?? undefined));
     return;
   }
 
   if (pathname === '/api/league/universities' && request.method === 'GET') {
-    const store = loadStore();
-    requireUser(store, request);
-    sendJson(response, 200, buildUniversityLeague(store));
+    sendJson(response, 200, await buildUniversityLeagueReadPayload(request));
     return;
   }
 
