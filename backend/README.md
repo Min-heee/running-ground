@@ -564,6 +564,18 @@ scripts\windows\install-preview-backend-task.cmd -Transport tailscale-funnel -St
 scripts\windows\status-preview-public-backend.cmd -RequireHealthy
 ```
 
+공개 API까지 더 깊게 보고 싶으면:
+
+```powershell
+scripts\windows\status-preview-public-backend.cmd -RunPublicSmoke
+```
+
+상태 확인과 공개 smoke 둘 다 반드시 통과해야 실패 코드 없이 끝나게 하려면:
+
+```powershell
+scripts\windows\status-preview-public-backend.cmd -RunPublicSmoke -RequireHealthy -RequireSmokeHealthy
+```
+
 맥북이나 데스크탑에서 공개 preview API 자체를 한 번에 점검하려면 아래 명령을 쓰면 돼.
 
 ```bash

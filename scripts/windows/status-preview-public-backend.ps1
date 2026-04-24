@@ -1,6 +1,8 @@
 param(
   [switch]$Json,
   [switch]$RequireHealthy,
+  [switch]$RunPublicSmoke,
+  [switch]$RequireSmokeHealthy,
   [switch]$ShowSecrets,
   [int]$HealthTimeoutSeconds = 8
 )
@@ -16,6 +18,7 @@ $tunnelOutLog = Join-Path $root 'preview-tunnel.out.log'
 $tunnelErrLog = Join-Path $root 'preview-tunnel.err.log'
 $backendPort = 8081
 $previewPostgresStatusScriptPath = Join-Path $PSScriptRoot 'status-preview-postgres.ps1'
+$publicSmokeScriptPath = Join-Path $root 'scripts\check-preview-public-api.mjs'
 
 function Read-PreviewInfo {
   if (-not (Test-Path $previewInfoPath)) {
@@ -266,6 +269,47 @@ function Get-PreviewPostgresStatus {
   }
 }
 
+function Invoke-PublicSmoke([string]$apiBaseUrl, [string]$adminToken) {
+  if (-not (Test-Path $publicSmokeScriptPath)) {
+    return [ordered]@{
+      ok = $false
+      error = "Preview smoke script was not found: $publicSmokeScriptPath"
+    }
+  }
+
+  if ([string]::IsNullOrWhiteSpace($apiBaseUrl)) {
+    return [ordered]@{
+      ok = $false
+      error = 'Preview API base URL is not set.'
+    }
+  }
+
+  try {
+    $nodePath = (Get-Command node -ErrorAction Stop).Source
+    $arguments = @($publicSmokeScriptPath, '--api-base-url', $apiBaseUrl, '--json')
+
+    if (-not [string]::IsNullOrWhiteSpace($adminToken)) {
+      $arguments += @('--admin-token', $adminToken)
+    }
+
+    $raw = & $nodePath @arguments
+
+    if ([string]::IsNullOrWhiteSpace([string]$raw)) {
+      return [ordered]@{
+        ok = $false
+        error = 'Preview smoke script returned no output.'
+      }
+    }
+
+    return $raw | ConvertFrom-Json
+  } catch {
+    return [ordered]@{
+      ok = $false
+      error = $_.Exception.Message
+    }
+  }
+}
+
 $previewInfo = Read-PreviewInfo
 $envValues = Read-EnvFile
 $portListenerPid = Get-PortListenerProcessId -port $backendPort
@@ -281,6 +325,7 @@ $portListening = Test-PortListening -port $backendPort
 $localHealth = Invoke-HealthCheck -url "http://127.0.0.1:$backendPort/api/health"
 $publicHealth = if ($apiBaseUrl) { Invoke-HealthCheck -url "$apiBaseUrl/health" } else { [ordered]@{ ok = $false; error = 'Preview API base URL is not set.' } }
 $adminStatus = Invoke-AdminStatus -apiBaseUrl $apiBaseUrl -adminToken $adminToken
+$publicSmoke = if ($RunPublicSmoke -or $RequireSmokeHealthy) { Invoke-PublicSmoke -apiBaseUrl $apiBaseUrl -adminToken $adminToken } else { $null }
 $postgresConfig = if ($publicHealth.postgres) { $publicHealth.postgres } elseif ($localHealth.postgres) { $localHealth.postgres } elseif ($adminStatus.postgres) { $adminStatus.postgres } else { $null }
 $readBridges = if ($publicHealth.readBridges) { $publicHealth.readBridges } elseif ($localHealth.readBridges) { $localHealth.readBridges } elseif ($adminStatus.readBridges) { $adminStatus.readBridges } else { $null }
 $previewPostgres = Get-PreviewPostgresStatus
@@ -341,6 +386,10 @@ if ($publicHealth.ok -and -not $adminStatus.ok) {
   $nextActions += 'Public API works, but admin status failed. Check the admin token in preview-public-info.json.'
 }
 
+if (($RunPublicSmoke -or $RequireSmokeHealthy) -and -not $publicSmoke.ok) {
+  $nextActions += "Public smoke failed. $($publicSmoke.error)"
+}
+
 if ($previewPostgres -and $previewPostgres.configuredLocal -and -not $previewPostgres.ready) {
   $nextActions += 'Local preview PostgreSQL is not ready. Run scripts\windows\start-preview-postgres.cmd.'
 }
@@ -374,6 +423,7 @@ $payload = [ordered]@{
     error = if ($transport -eq 'tailscale-funnel') { $funnelState.error } else { '' }
   }
   admin = $adminStatus
+  publicSmoke = $publicSmoke
   postgres = $postgresConfig
   readBridges = $readBridges
   previewPostgres = $previewPostgres
@@ -399,6 +449,9 @@ if ($Json) {
   Write-Host "Local health: $($payload.backend.localHealth.status) / ready: $($payload.backend.localHealth.ready)"
   Write-Host "Public health: $($payload.tunnel.publicHealth.status) / ready: $($payload.tunnel.publicHealth.ready)"
   Write-Host "Store: users=$($payload.tunnel.publicHealth.users), runs=$($payload.tunnel.publicHealth.runs), backups=$($payload.tunnel.publicHealth.backupCount)"
+  if ($payload.publicSmoke) {
+    Write-Host "Public smoke: ok=$($payload.publicSmoke.ok) / environment=$($payload.publicSmoke.environment) / latestRunId=$($payload.publicSmoke.latestRunId)"
+  }
   Write-Host "Postgres: configured=$($payload.postgres.configured) / session=$($payload.postgres.enableSessionReads) / runs=$($payload.postgres.enableRunReads) / friends=$($payload.postgres.enableFriendReads) / league=$($payload.postgres.enableLeagueReads)"
   Write-Host "Bridge session/runs: session=$($payload.readBridges.sessionRuns.sessionReadsEnabled) / runs=$($payload.readBridges.sessionRuns.runReadsEnabled) / postgres=$($payload.readBridges.sessionRuns.postgresConfigured)"
   Write-Host "Bridge friends/league: friends=$($payload.readBridges.friendsLeague.friendReadsEnabled) / league=$($payload.readBridges.friendsLeague.leagueReadsEnabled) / postgresFriends=$($payload.readBridges.friendsLeague.postgresFriendsConfigured) / postgresLeague=$($payload.readBridges.friendsLeague.postgresLeagueConfigured)"
@@ -417,6 +470,6 @@ if ($Json) {
   }
 }
 
-if ($RequireHealthy -and -not $healthy) {
+if (($RequireHealthy -and -not $healthy) -or ($RequireSmokeHealthy -and -not $publicSmoke.ok)) {
   exit 1
 }

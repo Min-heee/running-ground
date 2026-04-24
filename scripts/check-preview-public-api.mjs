@@ -16,6 +16,10 @@ function hasFlag(flagName) {
   return process.argv.includes(flagName);
 }
 
+function isJsonMode() {
+  return hasFlag('--json');
+}
+
 function usage() {
   return `
 Usage:
@@ -30,6 +34,7 @@ Options:
   --password <value>     Smoke user password. Defaults to change-this-preview-smoke-password
   --require-admin        Fail when admin token is missing or admin status is unhealthy.
   --timeout-ms <number>  Request timeout in milliseconds. Defaults to 10000.
+  --json                 Print machine-readable JSON output only.
   --help                 Show this message.
 `.trim();
 }
@@ -40,7 +45,9 @@ function fail(message) {
 }
 
 function logStep(message) {
-  console.log(`[preview-smoke] ${message}`);
+  if (!isJsonMode()) {
+    console.log(`[preview-smoke] ${message}`);
+  }
 }
 
 function assert(condition, message) {
@@ -238,6 +245,17 @@ function getRunId(payload) {
   return payload?.run?.id ?? payload?.id ?? '';
 }
 
+function emitResult(result) {
+  if (isJsonMode()) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (result.ok === false) {
+    console.error(`[preview-smoke] ${result.error}`);
+  }
+}
+
 async function main() {
   if (hasFlag('--help') || hasFlag('-h')) {
     console.log(usage());
@@ -261,6 +279,31 @@ async function main() {
     || '',
   );
   const adminToken = readArgValue('--admin-token') || previewInfo?.adminToken || process.env.PREVIEW_ADMIN_TOKEN || '';
+  const summary = {
+    ok: false,
+    apiBaseUrl,
+    publicBaseUrl: '',
+    environment: '',
+    admin: {
+      checked: false,
+      ok: false,
+      users: null,
+      runs: null,
+    },
+    auth: {
+      username,
+      created: false,
+    },
+    latestRunId: '',
+    counts: {
+      leaderboardRanks: 0,
+      regionChildren: 0,
+      universityRanks: 0,
+      marketItems: 0,
+      upcomingRaces: 0,
+      integrationSources: 0,
+    },
+  };
 
   logStep(`api base url: ${apiBaseUrl}`);
   logStep(`smoke user: ${username}`);
@@ -268,9 +311,12 @@ async function main() {
   const health = await requestJson(apiBaseUrl, '/health', { timeoutMs: safeTimeoutMs });
   assert(health.payload.status === 'ok', 'public health status is not ok.');
   assert(health.payload.ready === true, 'public health ready flag is missing.');
+  summary.publicBaseUrl = health.payload.publicBaseUrl ?? apiBaseUrl.replace(/\/api$/, '');
+  summary.environment = health.payload.environment ?? '';
   logStep(`public health ok (${health.payload.environment ?? 'unknown'})`);
 
   if (adminToken) {
+    summary.admin.checked = true;
     const adminStatus = await requestJson(apiBaseUrl, '/admin/status', {
       timeoutMs: safeTimeoutMs,
       headers: {
@@ -278,6 +324,9 @@ async function main() {
       },
     });
     assert(adminStatus.payload.status === 'ok', 'admin status response is not ok.');
+    summary.admin.ok = true;
+    summary.admin.users = adminStatus.payload.counts?.users ?? null;
+    summary.admin.runs = adminStatus.payload.counts?.runs ?? null;
     logStep(`admin status ok (users=${adminStatus.payload.counts?.users ?? 'n/a'}, runs=${adminStatus.payload.counts?.runs ?? 'n/a'})`);
   } else if (hasFlag('--require-admin')) {
     fail('admin token is required but was not provided.');
@@ -292,6 +341,7 @@ async function main() {
   });
   const accessToken = session.accessToken;
   assert(typeof accessToken === 'string' && accessToken.length > 10, 'access token is missing after auth.');
+  summary.auth.created = session.created;
   logStep(session.created ? 'preview smoke user registered' : 'preview smoke user logged in');
 
   const authHeaders = createRequestHeaders(accessToken);
@@ -342,6 +392,7 @@ async function main() {
 
   const latestRunId = getRunId(latestRun.payload);
   assert(latestRunId, 'latest run payload is missing an id.');
+  summary.latestRunId = latestRunId;
 
   const runDetail = await requestJson(apiBaseUrl, `/runs/${latestRunId}`, {
     timeoutMs: safeTimeoutMs,
@@ -354,6 +405,7 @@ async function main() {
     headers: authHeaders,
   });
   assert(Array.isArray(leaderboard.payload.ranks), 'friends leaderboard ranks payload is invalid.');
+  summary.counts.leaderboardRanks = leaderboard.payload.ranks.length;
 
   const regionLeague = await requestJson(apiBaseUrl, '/league/regions', {
     timeoutMs: safeTimeoutMs,
@@ -361,18 +413,21 @@ async function main() {
   });
   assert(regionLeague.payload.currentNode?.id, 'region league current node is missing.');
   assert(Array.isArray(regionLeague.payload.children), 'region league children payload is invalid.');
+  summary.counts.regionChildren = regionLeague.payload.children.length;
 
   const universityLeague = await requestJson(apiBaseUrl, '/league/universities', {
     timeoutMs: safeTimeoutMs,
     headers: authHeaders,
   });
   assert(Array.isArray(universityLeague.payload.ranks), 'university league ranks payload is invalid.');
+  summary.counts.universityRanks = universityLeague.payload.ranks.length;
 
   const marketOverview = await requestJson(apiBaseUrl, '/market/overview', {
     timeoutMs: safeTimeoutMs,
     headers: authHeaders,
   });
   assert(Array.isArray(marketOverview.payload.items), 'market overview items payload is invalid.');
+  summary.counts.marketItems = marketOverview.payload.items.length;
 
   const offlineRaceHub = await requestJson(apiBaseUrl, '/offline-races/hub', {
     timeoutMs: safeTimeoutMs,
@@ -380,29 +435,44 @@ async function main() {
   });
   assert(Array.isArray(offlineRaceHub.payload.upcomingEvents), 'offline race hub upcoming events payload is invalid.');
   assert(Array.isArray(offlineRaceHub.payload.guideSteps), 'offline race hub guide steps payload is invalid.');
+  summary.counts.upcomingRaces = offlineRaceHub.payload.upcomingEvents.length;
 
   const integrationSources = await requestJson(apiBaseUrl, '/integrations/sources', {
     timeoutMs: safeTimeoutMs,
     headers: authHeaders,
   });
   assert(Array.isArray(integrationSources.payload.sources), 'integration sources payload is invalid.');
+  summary.counts.integrationSources = integrationSources.payload.sources.length;
+  summary.ok = true;
+
+  if (isJsonMode()) {
+    emitResult(summary);
+    return;
+  }
 
   console.log('');
   console.log('[preview-smoke] summary');
-  console.log(`[preview-smoke] publicBaseUrl: ${health.payload.publicBaseUrl ?? apiBaseUrl.replace(/\/api$/, '')}`);
-  console.log(`[preview-smoke] environment: ${health.payload.environment ?? 'unknown'}`);
+  console.log(`[preview-smoke] publicBaseUrl: ${summary.publicBaseUrl}`);
+  console.log(`[preview-smoke] environment: ${summary.environment || 'unknown'}`);
   console.log(`[preview-smoke] user: ${profile.payload.name} (${username})`);
   console.log(`[preview-smoke] latestRunId: ${latestRunId}`);
-  console.log(`[preview-smoke] leaderboardRanks: ${leaderboard.payload.ranks.length}`);
-  console.log(`[preview-smoke] regionChildren: ${regionLeague.payload.children.length}`);
-  console.log(`[preview-smoke] universityRanks: ${universityLeague.payload.ranks.length}`);
-  console.log(`[preview-smoke] marketItems: ${marketOverview.payload.items.length}`);
-  console.log(`[preview-smoke] upcomingRaces: ${offlineRaceHub.payload.upcomingEvents.length}`);
-  console.log(`[preview-smoke] integrationSources: ${integrationSources.payload.sources.length}`);
+  console.log(`[preview-smoke] leaderboardRanks: ${summary.counts.leaderboardRanks}`);
+  console.log(`[preview-smoke] regionChildren: ${summary.counts.regionChildren}`);
+  console.log(`[preview-smoke] universityRanks: ${summary.counts.universityRanks}`);
+  console.log(`[preview-smoke] marketItems: ${summary.counts.marketItems}`);
+  console.log(`[preview-smoke] upcomingRaces: ${summary.counts.upcomingRaces}`);
+  console.log(`[preview-smoke] integrationSources: ${summary.counts.integrationSources}`);
   console.log('[preview-smoke] all public preview checks passed');
 }
 
 main().catch((error) => {
-  console.error(`[preview-smoke] ${error.message}`);
+  if (isJsonMode()) {
+    emitResult({
+      ok: false,
+      error: error.message,
+    });
+  } else {
+    console.error(`[preview-smoke] ${error.message}`);
+  }
   process.exitCode = 1;
 });
