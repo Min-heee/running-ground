@@ -204,6 +204,9 @@ npm run build:android:production
 - at least one real native health integration path for the release promise
 - device QA on both iOS and Android
 
+For store copy and reviewer notes, start from:
+- [store-submission-draft.md](/docs/store-submission-draft.md)
+
 ## honest release answer
 Yes, this direction can lead to release.
 
