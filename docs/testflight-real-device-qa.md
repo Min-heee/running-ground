@@ -198,6 +198,7 @@ npm run preview:smoke -- --admin-token PREVIEW_ADMIN_TOKEN
 8. 연동 관리에서 기록 가져오기
 9. 마켓
 10. 레이스
+11. 마이페이지에서 `회원 탈퇴` 버튼 노출과 두 번 확인 동작 확인
 
 시간이 충분하면 그다음에 신규 회원가입도 같이 본다.
 

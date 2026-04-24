@@ -2137,6 +2137,14 @@ async function handleLogout(request, response) {
   sendJson(response, 200, payload);
 }
 
+async function handleDeleteMyAccount(request, response) {
+  const payload = await getAuthRepository().deleteAccount({
+    token: getAccessToken(request),
+  });
+
+  sendJson(response, 200, payload);
+}
+
 async function handleRegister(request, response) {
   const body = await parseJsonBody(request);
   const username = validateUsername(body.username);
@@ -2695,6 +2703,11 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/me/profile' && request.method === 'GET') {
     sendJson(response, 200, await buildProfileReadPayload(request));
+    return;
+  }
+
+  if (pathname === '/api/me/account' && request.method === 'DELETE') {
+    await handleDeleteMyAccount(request, response);
     return;
   }
 

@@ -3,7 +3,7 @@
 Repository modules are the migration seam between the current JSON store and the future PostgreSQL store.
 
 Current status:
-- `authRepository.mjs` owns username availability, login, logout, and registration.
+- `authRepository.mjs` owns username availability, login, logout, self-service account deletion, and registration.
 - `postgresAuthRepository.mjs` mirrors the same auth methods against PostgreSQL-style tables.
 - `runsRepository.mjs` owns manual runs, tracked runs, integration import queueing, and duplicate-safe sync.
 - `postgresRunsRepository.mjs` mirrors the same run/import methods against PostgreSQL-style tables.

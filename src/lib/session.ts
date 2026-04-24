@@ -1,9 +1,9 @@
 import * as SecureStore from 'expo-secure-store';
 import { myProfile } from '@/data/mock';
 import { UserProfile } from '@/domain/types';
-import { apiGet, apiPost } from '@/lib/api/client';
+import { apiDelete, apiGet, apiPost } from '@/lib/api/client';
 import { USE_MOCK_API } from '@/lib/api/config';
-import { AuthResponse, LogoutResponse, MyProfileResponse, UsernameAvailabilityResponse } from '@/lib/api/types';
+import { AuthResponse, DeleteMyAccountResponse, LogoutResponse, MyProfileResponse, UsernameAvailabilityResponse } from '@/lib/api/types';
 
 const SESSION_STORAGE_KEY = 'runnigapp.session.v1';
 export const USERNAME_RULE_DESCRIPTION = '아이디는 4~20자의 영문 소문자, 숫자, -, _만 사용할 수 있어요.';
@@ -492,4 +492,35 @@ export async function signOut() {
   backendAccessToken = null;
   backendProfile = null;
   await persistSession();
+}
+
+export async function deleteAccount() {
+  await ensureHydrated();
+
+  if (USE_MOCK_API) {
+    mockSignedIn = false;
+    mockProfile = { ...myProfile };
+    await persistSession();
+    return {
+      success: true,
+      deletedUserId: 'mock-user',
+    } satisfies DeleteMyAccountResponse;
+  }
+
+  if (!backendAccessToken) {
+    throw new Error('로그인이 필요해요.');
+  }
+
+  const response = await apiDelete<DeleteMyAccountResponse>(
+    '/me/account',
+    {
+      accessToken: backendAccessToken,
+      fallbackMessage: '회원 탈퇴 처리에 실패했어요.',
+    },
+  );
+
+  backendAccessToken = null;
+  backendProfile = null;
+  await persistSession();
+  return response;
 }

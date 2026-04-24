@@ -244,3 +244,102 @@ await runTest('logs out idempotently', () => {
     success: true,
   });
 });
+
+await runTest('deletes the current account and cleans related records', () => {
+  const { repository, storeHarness } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-existing',
+        username: 'runner',
+        password: 'Password123',
+        name: '러너',
+        publicTag: '#RUN01',
+      },
+      {
+        id: 'user-friend',
+        username: 'friend',
+        password: 'Password123',
+        name: '친구',
+        publicTag: '#FRI01',
+      },
+    ],
+    sessions: [
+      {
+        token: 'token-1',
+        userId: 'user-existing',
+        createdAt: '2026-04-23T00:00:00.000Z',
+        expiresAt: '2026-04-23T01:00:00.000Z',
+      },
+      {
+        token: 'token-friend',
+        userId: 'user-friend',
+        createdAt: '2026-04-23T00:00:00.000Z',
+        expiresAt: '2026-04-23T01:00:00.000Z',
+      },
+    ],
+    runs: [
+      {
+        id: 'run-1',
+        userId: 'user-existing',
+        distanceKm: 5,
+      },
+    ],
+    friendships: [
+      {
+        id: 'friendship-1',
+        userIds: ['user-existing', 'user-friend'],
+      },
+    ],
+    friendRequests: [
+      {
+        id: 'request-1',
+        requesterId: 'user-existing',
+        receiverId: 'user-friend',
+      },
+    ],
+    rewardRedemptions: [
+      {
+        id: 'reward-1',
+        userId: 'user-existing',
+      },
+    ],
+    integrationImports: [
+      {
+        id: 'import-1',
+        userId: 'user-existing',
+      },
+    ],
+    offlineRaceEvents: [
+      {
+        id: 'race-1',
+        registeredUserTags: ['#RUN01', '#FRI01'],
+      },
+    ],
+  });
+
+  assert.deepEqual(repository.deleteAccount({ token: 'token-1' }), {
+    success: true,
+    deletedUserId: 'user-existing',
+  });
+
+  const store = storeHarness.getStore();
+  assert.equal(store.users.length, 1);
+  assert.equal(store.users[0].id, 'user-friend');
+  assert.equal(store.sessions.length, 1);
+  assert.equal(store.sessions[0].userId, 'user-friend');
+  assert.equal(store.runs.length, 0);
+  assert.equal(store.friendships.length, 0);
+  assert.equal(store.friendRequests.length, 0);
+  assert.equal(store.rewardRedemptions.length, 0);
+  assert.equal(store.integrationImports.length, 0);
+  assert.deepEqual(store.offlineRaceEvents[0].registeredUserTags, ['#FRI01']);
+});
+
+await runTest('requires a valid session to delete the current account', () => {
+  const { repository } = createRepositoryHarness();
+
+  assert.throws(() => repository.deleteAccount({ token: 'missing-token' }), (error) => {
+    assertApiError(error, 401, '로그인이 필요해요.');
+    return true;
+  });
+});

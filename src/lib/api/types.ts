@@ -23,6 +23,11 @@ export type LogoutResponse = {
   success: boolean;
 };
 
+export type DeleteMyAccountResponse = {
+  success: boolean;
+  deletedUserId: string;
+};
+
 export type RegionCatalogResponse = {
   regions: AddressRegionNode[];
 };

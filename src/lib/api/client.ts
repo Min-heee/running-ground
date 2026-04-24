@@ -94,3 +94,13 @@ export async function apiPatch<T>(path: string, body?: unknown, options?: ApiReq
     options,
   );
 }
+
+export async function apiDelete<T>(path: string, options?: ApiRequestOptions): Promise<T> {
+  return apiRequest<T>(
+    path,
+    {
+      method: 'DELETE',
+    },
+    options,
+  );
+}

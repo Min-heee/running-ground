@@ -22,6 +22,11 @@ class FakePostgresDatabase {
     this.users = clone(initialStore.users ?? []);
     this.sessions = clone(initialStore.sessions ?? []);
     this.runs = clone(initialStore.runs ?? []);
+    this.integrationImports = clone(initialStore.integrationImports ?? []);
+    this.friendRequests = clone(initialStore.friendRequests ?? []);
+    this.friendships = clone(initialStore.friendships ?? []);
+    this.rewardRedemptions = clone(initialStore.rewardRedemptions ?? []);
+    this.offlineRaceEntries = clone(initialStore.offlineRaceEntries ?? []);
     this.insertUserError = initialStore.insertUserError;
     this.transactions = 0;
   }
@@ -105,8 +110,32 @@ class FakePostgresDatabase {
       };
     }
 
+    if (normalizedSql.startsWith('select users.* from sessions join users on users.id = sessions.user_id where sessions.token = $1')) {
+      const session = this.sessions.find((entry) => entry.token === params[0]);
+
+      if (!session) {
+        return { rows: [] };
+      }
+
+      return {
+        rows: this.users.filter((user) => user.id === session.user_id).slice(0, 1),
+      };
+    }
+
     if (normalizedSql.startsWith('delete from sessions where token = $1')) {
       this.sessions = this.sessions.filter((session) => session.token !== params[0]);
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith('delete from users where id = $1')) {
+      this.users = this.users.filter((user) => user.id !== params[0]);
+      this.sessions = this.sessions.filter((session) => session.user_id !== params[0]);
+      this.runs = this.runs.filter((run) => run.user_id !== params[0]);
+      this.integrationImports = this.integrationImports.filter((entry) => entry.user_id !== params[0]);
+      this.friendRequests = this.friendRequests.filter((entry) => entry.requester_id !== params[0] && entry.receiver_id !== params[0]);
+      this.friendships = this.friendships.filter((entry) => entry.user_a_id !== params[0] && entry.user_b_id !== params[0]);
+      this.rewardRedemptions = this.rewardRedemptions.filter((entry) => entry.user_id !== params[0]);
+      this.offlineRaceEntries = this.offlineRaceEntries.filter((entry) => entry.user_id !== params[0]);
       return { rows: [] };
     }
 
@@ -351,5 +380,105 @@ await runTest('logs out idempotently', async () => {
   assert.equal(database.sessions.length, 0);
   assert.deepEqual(await repository.logout({ token: 'token-1' }), {
     success: true,
+  });
+});
+
+await runTest('deletes the current account and lets cascades clear related records', async () => {
+  const { repository, database } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-existing',
+        username: 'runner',
+        password_hash: hashPassword('Password123'),
+        nickname: '러너',
+        public_tag: '#RUN01',
+      },
+      {
+        id: 'user-friend',
+        username: 'friend',
+        password_hash: hashPassword('Password123'),
+        nickname: '친구',
+        public_tag: '#FRI01',
+      },
+    ],
+    sessions: [
+      {
+        token: 'token-1',
+        user_id: 'user-existing',
+        created_at: '2026-04-23T00:00:00.000Z',
+        expires_at: '2026-04-23T01:00:00.000Z',
+      },
+      {
+        token: 'token-friend',
+        user_id: 'user-friend',
+        created_at: '2026-04-23T00:00:00.000Z',
+        expires_at: '2026-04-23T01:00:00.000Z',
+      },
+    ],
+    runs: [
+      {
+        id: 'run-1',
+        user_id: 'user-existing',
+        run_date: '2026-04-23',
+        distance_km: 5,
+      },
+    ],
+    integrationImports: [
+      {
+        id: 'import-1',
+        user_id: 'user-existing',
+      },
+    ],
+    friendRequests: [
+      {
+        id: 'request-1',
+        requester_id: 'user-existing',
+        receiver_id: 'user-friend',
+      },
+    ],
+    friendships: [
+      {
+        id: 'friendship-1',
+        user_a_id: 'user-existing',
+        user_b_id: 'user-friend',
+      },
+    ],
+    rewardRedemptions: [
+      {
+        id: 'reward-1',
+        user_id: 'user-existing',
+      },
+    ],
+    offlineRaceEntries: [
+      {
+        id: 'entry-1',
+        user_id: 'user-existing',
+      },
+    ],
+  });
+
+  assert.deepEqual(await repository.deleteAccount({ token: 'token-1' }), {
+    success: true,
+    deletedUserId: 'user-existing',
+  });
+
+  assert.equal(database.users.length, 1);
+  assert.equal(database.users[0].id, 'user-friend');
+  assert.equal(database.sessions.length, 1);
+  assert.equal(database.sessions[0].user_id, 'user-friend');
+  assert.equal(database.runs.length, 0);
+  assert.equal(database.integrationImports.length, 0);
+  assert.equal(database.friendRequests.length, 0);
+  assert.equal(database.friendships.length, 0);
+  assert.equal(database.rewardRedemptions.length, 0);
+  assert.equal(database.offlineRaceEntries.length, 0);
+});
+
+await runTest('requires a valid session to delete the current account', async () => {
+  const { repository } = createRepositoryHarness();
+
+  await assert.rejects(() => repository.deleteAccount({ token: 'missing-token' }), (error) => {
+    assertApiError(error, 401, '로그인이 필요해요.');
+    return true;
   });
 });

@@ -109,6 +109,21 @@ async function findUserByUsername(database, username) {
   return result.rows[0] ? mapUserRow(result.rows[0]) : null;
 }
 
+async function findUserBySessionToken(database, token) {
+  const result = await database.query(
+    `
+      select users.*
+      from sessions
+      join users on users.id = sessions.user_id
+      where sessions.token = $1
+      limit 1
+    `,
+    [token],
+  );
+
+  return result.rows[0] ? mapUserRow(result.rows[0]) : null;
+}
+
 async function loadProfileStore(database, userId) {
   const result = await database.query(
     `
@@ -244,6 +259,29 @@ export function createPostgresAuthRepository({
       return {
         success: true,
       };
+    },
+
+    async deleteAccount({ token }) {
+      return runWriteOperation(database, async (client) => {
+        const user = await findUserBySessionToken(client, token);
+
+        if (!user) {
+          throw createError(401, '로그인이 필요해요.');
+        }
+
+        await client.query(
+          `
+            delete from users
+            where id = $1
+          `,
+          [user.id],
+        );
+
+        return {
+          success: true,
+          deletedUserId: user.id,
+        };
+      });
     },
 
     async register({

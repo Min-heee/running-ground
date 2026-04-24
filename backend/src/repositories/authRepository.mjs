@@ -93,6 +93,25 @@ function createSessionForUser(store, {
   return token;
 }
 
+function findUserBySessionToken(store, token) {
+  const session = store.sessions.find((entry) => entry.token === token);
+
+  if (!session) {
+    return null;
+  }
+
+  const user = store.users.find((entry) => entry.id === session.userId);
+
+  if (!user) {
+    return null;
+  }
+
+  return {
+    session,
+    user,
+  };
+}
+
 export function createJsonAuthRepository({
   loadStore,
   mutateStore,
@@ -145,6 +164,37 @@ export function createJsonAuthRepository({
 
         return {
           success: true,
+        };
+      });
+    },
+
+    deleteAccount({ token }) {
+      return mutateStore((store) => {
+        const sessionUser = findUserBySessionToken(store, token);
+
+        if (!sessionUser) {
+          throw createError(401, '로그인이 필요해요.');
+        }
+
+        const { user } = sessionUser;
+
+        store.users = store.users.filter((entry) => entry.id !== user.id);
+        store.runs = (store.runs ?? []).filter((entry) => entry.userId !== user.id);
+        store.sessions = (store.sessions ?? []).filter((entry) => entry.userId !== user.id);
+        store.friendships = (store.friendships ?? []).filter((entry) => !entry.userIds.includes(user.id));
+        store.friendRequests = (store.friendRequests ?? []).filter((entry) => entry.requesterId !== user.id && entry.receiverId !== user.id);
+        store.rewardRedemptions = (store.rewardRedemptions ?? []).filter((entry) => entry.userId !== user.id);
+        store.integrationImports = (store.integrationImports ?? []).filter((entry) => entry.userId !== user.id);
+
+        if (Array.isArray(store.offlineRaceEvents)) {
+          for (const event of store.offlineRaceEvents) {
+            event.registeredUserTags = (event.registeredUserTags ?? []).filter((tag) => tag !== user.publicTag);
+          }
+        }
+
+        return {
+          success: true,
+          deletedUserId: user.id,
         };
       });
     },

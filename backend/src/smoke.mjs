@@ -839,6 +839,44 @@ async function main() {
     assert(updatedAdminRewardRedemption.item.status === 'fulfilled', '관리자 교환 상태 수정이 반영되지 않았어.');
     assert(updatedAdminRewardRedemption.item.adminNote === '발송 완료', '관리자 교환 메모가 저장되지 않았어.');
 
+    const deletedMyAccount = await request('/me/account', {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${renewedAccessToken}`,
+      },
+    });
+    assert(deletedMyAccount.success === true, '회원 탈퇴 응답이 성공으로 내려오지 않았어.');
+    assert(typeof deletedMyAccount.deletedUserId === 'string' && deletedMyAccount.deletedUserId.length > 0, '회원 탈퇴 응답 사용자 ID가 비어 있어.');
+
+    let deletedAccountUnauthorizedCaught = false;
+
+    try {
+      await request('/me/profile', {
+        headers: {
+          Authorization: `Bearer ${renewedAccessToken}`,
+        },
+      });
+    } catch {
+      deletedAccountUnauthorizedCaught = true;
+    }
+
+    assert(deletedAccountUnauthorizedCaught, '회원 탈퇴 후에도 보호 API에 접근할 수 있어.');
+
+    const adminUsersAfterSelfDelete = await request('/admin/users', {
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    });
+    assert(adminUsersAfterSelfDelete.users.length === 1, '회원 탈퇴 후에는 관리자 회원 목록이 한 명만 남아야 해.');
+
+    const adminRewardRedemptionsAfterSelfDelete = await request('/admin/reward-redemptions', {
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    });
+    assert(adminRewardRedemptionsAfterSelfDelete.items.length === 0, '회원 탈퇴 후 교환 기록이 같이 정리되지 않았어.');
+    logStep('account deletion ok');
+
     const updatedAdminMarketItem = await request(`/admin/market/items/${createdAdminMarketItem.item.id}`, {
       method: 'PATCH',
       headers: {
@@ -937,7 +975,7 @@ async function main() {
       },
     });
     assert(deletedAdminUser.deletedUserId === friendId, '관리자 회원 삭제 응답이 올바르지 않아.');
-    assert(deletedAdminUser.users.length === 1, '관리자 회원 삭제 후 사용자 수가 예상과 달라.');
+    assert(deletedAdminUser.users.length === 0, '관리자 회원 삭제 후 사용자 수가 예상과 달라.');
     logStep('admin crud ok');
 
     const adminReset = await request('/admin/reset', {

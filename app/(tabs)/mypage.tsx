@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { ListRow } from '@/components/ui/ListRow';
 import { fetchHomeSummary, fetchIntegrationStatus, fetchMyProfile } from '@/lib/api/services';
 import { HomeSummaryResponse, IntegrationStatusResponse, MyProfileResponse } from '@/lib/api/types';
-import { signOut } from '@/lib/session';
+import { deleteAccount, signOut } from '@/lib/session';
 
 export default function MyPageScreen() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
@@ -18,14 +18,20 @@ export default function MyPageScreen() {
   const [loading, setLoading] = useState(true);
   const [tagShared, setTagShared] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [logoutSubmitting, setLogoutSubmitting] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setError(null);
     Promise.all([fetchMyProfile(), fetchHomeSummary(), fetchIntegrationStatus()])
       .then(([profileData, summaryData, integrationData]) => {
         setProfile(profileData);
         setSummary(summaryData);
         setIntegrationStatus(integrationData);
       })
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '마이페이지 정보를 불러오지 못했어요.'))
       .finally(() => setLoading(false));
   }, []);
 
@@ -36,12 +42,42 @@ export default function MyPageScreen() {
 
   const handleLogout = async () => {
     if (!logoutConfirm) {
+      setDeleteConfirm(false);
       setLogoutConfirm(true);
       return;
     }
 
-    await signOut();
-    router.replace('/onboarding');
+    setError(null);
+    setLogoutSubmitting(true);
+
+    try {
+      await signOut();
+      router.replace('/onboarding');
+    } catch (logoutError) {
+      setError(logoutError instanceof Error ? logoutError.message : '로그아웃 처리에 실패했어요.');
+    } finally {
+      setLogoutSubmitting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deleteConfirm) {
+      setLogoutConfirm(false);
+      setDeleteConfirm(true);
+      return;
+    }
+
+    setError(null);
+    setDeleteSubmitting(true);
+
+    try {
+      await deleteAccount();
+      router.replace('/onboarding');
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : '회원 탈퇴 처리에 실패했어요.');
+    } finally {
+      setDeleteSubmitting(false);
+    }
   };
 
   const connectedCount = integrationStatus?.sources.filter((source) => source.connected).length ?? 0;
@@ -50,6 +86,7 @@ export default function MyPageScreen() {
       <PageHeader title="마이페이지" />
 
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       {profile && summary && integrationStatus ? (
         <>
@@ -110,6 +147,29 @@ export default function MyPageScreen() {
             <ListRow>핸드폰번호 관리</ListRow>
           </Card>
 
+          <Card style={styles.dangerCard}>
+            <SectionTitle>회원 탈퇴</SectionTitle>
+            <Text style={styles.dangerDescription}>
+              탈퇴하면 러닝 기록, 친구 관계, 참가 신청과 교환 내역이 함께 삭제돼요.
+            </Text>
+            <Pressable
+              disabled={deleteSubmitting || logoutSubmitting}
+              style={[
+                styles.deleteButton,
+                (deleteSubmitting || logoutSubmitting) ? styles.disabledButton : null,
+              ]}
+              onPress={handleDeleteAccount}
+            >
+              <Text style={styles.deleteButtonText}>
+                {deleteSubmitting
+                  ? '탈퇴 처리 중...'
+                  : deleteConfirm
+                    ? '한 번 더 누르면 회원 탈퇴'
+                    : '회원 탈퇴'}
+              </Text>
+            </Pressable>
+          </Card>
+
           <Card>
             <SectionTitle>앱 설정</SectionTitle>
             <Link href="/region-settings" asChild>
@@ -130,8 +190,17 @@ export default function MyPageScreen() {
             <ListRow>마켓 / 리워드</ListRow>
           </Card>
 
-          <Pressable style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutButtonText}>{logoutConfirm ? '한 번 더 누르면 로그아웃' : '로그아웃'}</Text>
+          <Pressable
+            disabled={logoutSubmitting || deleteSubmitting}
+            style={[
+              styles.logoutButton,
+              (logoutSubmitting || deleteSubmitting) ? styles.disabledButton : null,
+            ]}
+            onPress={handleLogout}
+          >
+            <Text style={styles.logoutButtonText}>
+              {logoutSubmitting ? '로그아웃 중...' : logoutConfirm ? '한 번 더 누르면 로그아웃' : '로그아웃'}
+            </Text>
           </Pressable>
         </>
       ) : null}
@@ -219,6 +288,11 @@ const styles = StyleSheet.create({
   metricLabel: {
     color: '#667085',
   },
+  errorText: {
+    color: '#D92D20',
+    fontWeight: '600',
+    lineHeight: 20,
+  },
   logoutButton: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
@@ -230,5 +304,27 @@ const styles = StyleSheet.create({
   logoutButtonText: {
     color: '#F04438',
     fontWeight: '800',
+  },
+  dangerCard: {
+    gap: 12,
+  },
+  dangerDescription: {
+    color: '#667085',
+    lineHeight: 20,
+  },
+  deleteButton: {
+    backgroundColor: '#FFF1F3',
+    borderWidth: 1,
+    borderColor: '#FDA29B',
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    color: '#D92D20',
+    fontWeight: '800',
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });
