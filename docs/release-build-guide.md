@@ -206,6 +206,8 @@ npm run build:android:production
 
 For store copy and reviewer notes, start from:
 - [store-submission-draft.md](/docs/store-submission-draft.md)
+- [privacy-policy-draft.md](/docs/privacy-policy-draft.md)
+- [support-account-deletion-draft.md](/docs/support-account-deletion-draft.md)
 
 ## honest release answer
 Yes, this direction can lead to release.

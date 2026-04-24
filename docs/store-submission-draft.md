@@ -157,6 +157,10 @@ RUNNIGAPP은 러닝 기록을 기반으로 친구와 경쟁하고, 지역과 대
 - [ ] 앱 아이콘 / 스크린샷 최종본 준비
 - [ ] 출시 국가와 기본 언어 확정
 
+바로 이어서 다듬을 문서:
+- `docs/privacy-policy-draft.md`
+- `docs/support-account-deletion-draft.md`
+
 ### iOS
 - [ ] TestFlight 최종 빌드 확인
 - [ ] App Review 메모 입력
