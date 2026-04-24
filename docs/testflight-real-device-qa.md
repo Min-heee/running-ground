@@ -30,6 +30,12 @@ scripts\windows\status-preview-public-backend.cmd -RunPublicSmoke -RequireHealth
 npm run preview:smoke
 ```
 
+빌드 직전에는 아래 게이트 명령으로 env와 smoke를 한 번에 보는 편이 더 안전하다.
+
+```bash
+npm run release:gate:testflight -- --admin-token PREVIEW_ADMIN_TOKEN
+```
+
 관리자 상태까지 같이 보고 싶으면:
 
 ```bash

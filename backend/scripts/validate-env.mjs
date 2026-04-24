@@ -54,7 +54,10 @@ function readArgValue(flagName) {
 }
 
 const backendRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const envFile = resolve(backendRoot, readArgValue('--env-file') || '.env');
+const envFile = resolve(
+  backendRoot,
+  readArgValue('--backend-env-file') || readArgValue('--env-file') || '.env',
+);
 const appEnv = readArgValue('--env');
 const defaultStoreFile = resolve(backendRoot, 'data', 'store.json');
 const defaultBackupDirectory = resolve(backendRoot, 'data', 'backups');

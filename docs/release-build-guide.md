@@ -172,6 +172,8 @@ Backend deployment details live in [backend/README.md](/backend/README.md).
 
 ### preview builds
 ```bash
+npm run release:gate:preview
+npm run release:gate:testflight -- --admin-token PREVIEW_ADMIN_TOKEN
 npm run build:ios:preview
 npm run build:android:preview
 npm run build:ios:testflight
@@ -185,6 +187,8 @@ Before starting the phone pass, you can generate a seeded QA note:
 ```bash
 npm run testflight:qa:report -- --build-label 1.0.0(15) --device "iPhone 16 Pro"
 ```
+
+`release:gate:*` runs the frontend env check, backend env check, and public smoke in one pass. Use `release:gate:testflight` right before a TestFlight build, and `release:gate:production -- --api-base-url https://api.runnigapp.com/api` when the real production domain is ready.
 
 ### production builds
 ```bash
