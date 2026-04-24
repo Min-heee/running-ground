@@ -65,13 +65,28 @@ function Read-EnvFile([string]$path) {
   return $values
 }
 
+function Get-PreviewCorsOrigins([string]$publicUrl) {
+  $origins = @(
+    'http://localhost:8081',
+    'http://127.0.0.1:8081',
+    'http://localhost:19006',
+    'http://127.0.0.1:19006'
+  )
+
+  if (-not [string]::IsNullOrWhiteSpace($publicUrl) -and $publicUrl -notmatch 'preview-temp\.invalid') {
+    $origins = @($publicUrl) + $origins
+  }
+
+  return (($origins | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) | Select-Object -Unique) -join ','
+}
+
 function Write-BackendEnv([string]$publicUrl, [string]$token) {
   $existingEnv = Read-EnvFile -path $backendEnvPath
   $lines = @(
     'BACKEND_APP_ENV=preview',
     'BACKEND_HOST=0.0.0.0',
     "BACKEND_PORT=$backendPort",
-    'BACKEND_CORS_ORIGIN=*',
+    "BACKEND_CORS_ORIGIN=$(Get-PreviewCorsOrigins -publicUrl $publicUrl)",
     "BACKEND_PUBLIC_BASE_URL=$publicUrl",
     'BACKEND_STORE_DRIVER=json',
     'BACKEND_STORE_FILE=backend/data/preview-store.json',

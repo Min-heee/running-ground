@@ -71,6 +71,52 @@ function loadEnvFile(filePath) {
   }
 }
 
+function readEnvFile(filePath) {
+  if (!existsSync(filePath)) {
+    return {};
+  }
+
+  const values = {};
+  const lines = readFileSync(filePath, 'utf8').split(/\r?\n/);
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf('=');
+
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    let value = trimmed.slice(separatorIndex + 1).trim();
+
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+
+    values[key] = value;
+  }
+
+  return values;
+}
+
+function readJsonFile(filePath) {
+  if (!existsSync(filePath)) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 function fail(message) {
   console.error(`[release-gate] ${message}`);
   process.exit(1);
@@ -126,6 +172,21 @@ function resolvePublicBaseUrl(mode) {
   );
 }
 
+function buildManagedPreviewCorsOrigin(publicBaseUrl) {
+  const origins = [
+    'http://localhost:8081',
+    'http://127.0.0.1:8081',
+    'http://localhost:19006',
+    'http://127.0.0.1:19006',
+  ];
+
+  if (publicBaseUrl) {
+    origins.unshift(publicBaseUrl);
+  }
+
+  return [...new Set(origins)].join(',');
+}
+
 function createSmokeArgs() {
   const args = ['run', 'preview:smoke', '--'];
 
@@ -148,14 +209,31 @@ function createSmokeArgs() {
   return args;
 }
 
-function buildSteps(mode) {
+function buildSteps(mode, context) {
   const smokeArgs = createSmokeArgs();
   const shouldSkipSmoke = hasFlag('--skip-smoke');
   const productionHasSmokeTarget = Boolean(readArgValue('--api-base-url'));
   const publicBaseUrl = resolvePublicBaseUrl(mode);
+  const backendEnvValues = context.backendEnvValues ?? {};
+  const previewInfo = context.previewInfo ?? null;
+  const managedPreviewDefaults = mode !== 'production' && !context.hasBackendEnv;
+  const resolvedAdminToken = readArgValue('--admin-token')
+    || previewInfo?.adminToken
+    || process.env.PREVIEW_ADMIN_TOKEN
+    || process.env.BACKEND_ADMIN_TOKEN
+    || backendEnvValues.BACKEND_ADMIN_TOKEN
+    || (managedPreviewDefaults ? 'managed-preview-admin-token' : '');
+  const resolvedBackupRetention = backendEnvValues.BACKEND_STORE_BACKUP_RETENTION
+    || process.env.BACKEND_STORE_BACKUP_RETENTION
+    || (managedPreviewDefaults ? '10' : '');
+  const resolvedCorsOrigin = backendEnvValues.BACKEND_CORS_ORIGIN
+    || process.env.BACKEND_CORS_ORIGIN
+    || (managedPreviewDefaults ? buildManagedPreviewCorsOrigin(publicBaseUrl) : '');
   const backendEnvOverrides = {
     ...(publicBaseUrl && !process.env.BACKEND_PUBLIC_BASE_URL ? { BACKEND_PUBLIC_BASE_URL: publicBaseUrl } : {}),
-    ...(readArgValue('--admin-token') && !process.env.BACKEND_ADMIN_TOKEN ? { BACKEND_ADMIN_TOKEN: readArgValue('--admin-token') } : {}),
+    ...(resolvedCorsOrigin ? { BACKEND_CORS_ORIGIN: resolvedCorsOrigin } : {}),
+    ...(resolvedAdminToken ? { BACKEND_ADMIN_TOKEN: resolvedAdminToken, BACKEND_ENABLE_ADMIN_STATUS: 'true' } : {}),
+    ...(resolvedBackupRetention ? { BACKEND_STORE_BACKUP_RETENTION: resolvedBackupRetention } : {}),
   };
   const steps = [];
 
@@ -354,6 +432,24 @@ function collectDiagnostics(results) {
   };
 }
 
+function buildAssumptions(mode, context) {
+  if (mode === 'production') {
+    return [];
+  }
+
+  const assumptions = [];
+
+  if (!context.hasPreviewInfo) {
+    assumptions.push('preview-public-info.json 이 이 맥북에 없어서 preview 공개 주소/관리자 토큰 일부는 로컬 기준으로 추정했습니다.');
+  }
+
+  if (!context.hasBackendEnv) {
+    assumptions.push('backend/.env 가 이 맥북에 없어서 preview 백엔드 점검은 managed preview 기본값(admin token 있음, backup retention 10)으로 보정했습니다.');
+  }
+
+  return assumptions;
+}
+
 function printTextSummary(summary) {
   logStep(`mode: ${summary.mode}`);
 
@@ -368,6 +464,13 @@ function printTextSummary(summary) {
   }
 
   logStep(`overall: ${summary.ok ? 'PASS' : 'FAIL'}`);
+
+  if (summary.assumptions.length > 0) {
+    logStep('assumptions:');
+    summary.assumptions.forEach((message) => {
+      logStep(`- ${message}`);
+    });
+  }
 
   if (summary.blockers.length > 0) {
     logStep('blocking issues:');
@@ -393,7 +496,15 @@ function main() {
   const mode = getMode();
   const projectRoot = getProjectRoot();
   loadEnvFile(resolve(projectRoot, '.env'));
-  const steps = buildSteps(mode);
+  const previewInfoPath = resolve(projectRoot, 'preview-public-info.json');
+  const backendEnvPath = resolve(projectRoot, 'backend', '.env');
+  const context = {
+    previewInfo: readJsonFile(previewInfoPath),
+    backendEnvValues: readEnvFile(backendEnvPath),
+    hasPreviewInfo: existsSync(previewInfoPath),
+    hasBackendEnv: existsSync(backendEnvPath),
+  };
+  const steps = buildSteps(mode, context);
   const results = [];
 
   for (const step of steps) {
@@ -410,6 +521,7 @@ function main() {
     ok: results.every((result) => result.ok),
     mode,
     generatedAt: new Date().toISOString(),
+    assumptions: buildAssumptions(mode, context),
     blockers: diagnostics.blockers,
     warnings: diagnostics.warnings,
     steps: results.map((result) => ({
