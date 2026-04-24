@@ -22,6 +22,7 @@ $backendTaskName = 'RunnigappPreviewBackend'
 $tunnelTaskName = 'RunnigappPreviewTunnel'
 $backendRunnerPath = Join-Path $root 'scripts\windows\.generated-preview-backend.cmd'
 $tunnelRunnerPath = Join-Path $root 'scripts\windows\.generated-preview-tunnel.cmd'
+$previewPostgresStartScriptPath = Join-Path $PSScriptRoot 'start-preview-postgres.ps1'
 
 function Read-PreviewInfo {
   if (-not (Test-Path $previewInfoPath)) {
@@ -103,7 +104,13 @@ function Write-BackendEnv([string]$publicUrl, [string]$token) {
     'POSTGRES_DB',
     'POSTGRES_USER',
     'POSTGRES_PASSWORD',
-    'POSTGRES_PORT'
+    'POSTGRES_PORT',
+    'PREVIEW_POSTGRES_ROOT',
+    'PREVIEW_POSTGRES_BIN_DIR',
+    'PREVIEW_POSTGRES_DATA_DIR',
+    'PREVIEW_POSTGRES_LOG_PATH',
+    'PREVIEW_POSTGRES_SUPERUSER',
+    'PREVIEW_POSTGRES_SUPERUSER_PASSWORD'
   )) {
     if ($existingEnv.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace([string]$existingEnv[$key])) {
       $lines += "$key=$($existingEnv[$key])"
@@ -347,6 +354,48 @@ cd /d "$backendRoot"
   Set-Content -Path $backendRunnerPath -Value $backendRunner -Encoding ASCII
 }
 
+function Get-ConfiguredPostgresUrl {
+  $envValues = Read-EnvFile -path $backendEnvPath
+
+  if ($envValues.ContainsKey('BACKEND_POSTGRES_DATABASE_URL')) {
+    return [string]$envValues.BACKEND_POSTGRES_DATABASE_URL
+  }
+
+  if ($envValues.ContainsKey('DATABASE_URL')) {
+    return [string]$envValues.DATABASE_URL
+  }
+
+  return ''
+}
+
+function Test-LocalPreviewPostgresUrl([string]$databaseUrl) {
+  if ([string]::IsNullOrWhiteSpace($databaseUrl)) {
+    return $false
+  }
+
+  try {
+    $uri = [Uri]$databaseUrl
+    return $uri.Host -in @('127.0.0.1', 'localhost')
+  } catch {
+    return $false
+  }
+}
+
+function Ensure-PreviewPostgresReady {
+  $databaseUrl = Get-ConfiguredPostgresUrl
+
+  if (-not (Test-LocalPreviewPostgresUrl -databaseUrl $databaseUrl)) {
+    return
+  }
+
+  if (-not (Test-Path $previewPostgresStartScriptPath)) {
+    throw "Preview PostgreSQL start script was not found: $previewPostgresStartScriptPath"
+  }
+
+  Write-Host 'Ensuring local preview PostgreSQL is ready...'
+  & $previewPostgresStartScriptPath -RequireReady | Out-Null
+}
+
 function Write-QuickTunnelRunnerScript {
   $cloudflaredPath = (Get-Command cloudflared -ErrorAction Stop).Source
   $tunnelRunner = @"
@@ -489,6 +538,7 @@ if ($Transport -eq 'tailscale-funnel') {
   Write-Host "1. Starting preview backend with Tailscale public base URL ($publicUrl)..."
   Write-BackendEnv -publicUrl $publicUrl -token $adminToken
   Write-AppEnv -publicUrl $publicUrl
+  Ensure-PreviewPostgresReady
   $backendPid = Start-BackendProcess -expectedPublicUrl $publicUrl
 
   Write-Host '2. Starting Tailscale Funnel in background mode...'
@@ -518,6 +568,7 @@ if ($Transport -eq 'tailscale-funnel') {
 
 Write-Host '1. Starting preview backend with temporary public base URL...'
 Write-BackendEnv -publicUrl $placeholderUrl -token $adminToken
+Ensure-PreviewPostgresReady
 $backendPid = Start-BackendProcess -expectedPublicUrl $placeholderUrl
 
 Write-Host '2. Starting Cloudflare Quick Tunnel with http2...'

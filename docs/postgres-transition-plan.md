@@ -116,9 +116,10 @@ PostgreSQL은 JSON 파일처럼 “전체 store를 읽고 통째로 저장”하
 - 문제가 없으면 production API 전환 후보로 올린다.
 
 preview 운영 순서:
+- local preview DB를 쓸 때는 `scripts\windows\start-preview-postgres.cmd` 로 PostgreSQL ready 상태를 먼저 맞춘다.
 - 데스크탑 preview 는 `scripts\windows\start-preview-public-backend.cmd -Transport tailscale-funnel` 기준으로 띄운다.
 - `scripts\windows\set-preview-postgres-read-flags.cmd -Preset session-runs` 로 세션/러닝 read 부터 켠다.
-- `scripts\windows\status-preview-public-backend.cmd` 에서 `Postgres`, `Bridge session/runs`, `Bridge friends/league` 상태를 확인한다.
+- `scripts\windows\status-preview-public-backend.cmd` 에서 `Postgres`, `Bridge session/runs`, `Bridge friends/league`, `Preview PostgreSQL` 상태를 확인한다.
 - session/runs QA가 끝나면 `scripts\windows\set-preview-postgres-read-flags.cmd -Preset all` 로 전체 read bridge 를 켠다.
 - 문제 발생 시 `scripts\windows\set-preview-postgres-read-flags.cmd -Preset off -RestartPreview` 로 즉시 JSON 우선 read 로 되돌린다.
 

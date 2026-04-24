@@ -15,6 +15,7 @@ $backendErrLog = Join-Path $root 'backend-preview.err.log'
 $tunnelOutLog = Join-Path $root 'preview-tunnel.out.log'
 $tunnelErrLog = Join-Path $root 'preview-tunnel.err.log'
 $backendPort = 8081
+$previewPostgresStatusScriptPath = Join-Path $PSScriptRoot 'status-preview-postgres.ps1'
 
 function Read-PreviewInfo {
   if (-not (Test-Path $previewInfoPath)) {
@@ -244,6 +245,27 @@ function Get-FunnelApprovalUrlFromLogs {
   return ''
 }
 
+function Get-PreviewPostgresStatus {
+  if (-not (Test-Path $previewPostgresStatusScriptPath)) {
+    return $null
+  }
+
+  try {
+    $raw = & $previewPostgresStatusScriptPath -Json
+
+    if ([string]::IsNullOrWhiteSpace([string]$raw)) {
+      return $null
+    }
+
+    return $raw | ConvertFrom-Json
+  } catch {
+    return [ordered]@{
+      ok = $false
+      error = $_.Exception.Message
+    }
+  }
+}
+
 $previewInfo = Read-PreviewInfo
 $envValues = Read-EnvFile
 $portListenerPid = Get-PortListenerProcessId -port $backendPort
@@ -261,6 +283,7 @@ $publicHealth = if ($apiBaseUrl) { Invoke-HealthCheck -url "$apiBaseUrl/health" 
 $adminStatus = Invoke-AdminStatus -apiBaseUrl $apiBaseUrl -adminToken $adminToken
 $postgresConfig = if ($publicHealth.postgres) { $publicHealth.postgres } elseif ($localHealth.postgres) { $localHealth.postgres } elseif ($adminStatus.postgres) { $adminStatus.postgres } else { $null }
 $readBridges = if ($publicHealth.readBridges) { $publicHealth.readBridges } elseif ($localHealth.readBridges) { $localHealth.readBridges } elseif ($adminStatus.readBridges) { $adminStatus.readBridges } else { $null }
+$previewPostgres = Get-PreviewPostgresStatus
 
 $quickTunnelPid = $null
 $funnelState = $null
@@ -318,6 +341,10 @@ if ($publicHealth.ok -and -not $adminStatus.ok) {
   $nextActions += 'Public API works, but admin status failed. Check the admin token in preview-public-info.json.'
 }
 
+if ($previewPostgres -and $previewPostgres.configuredLocal -and -not $previewPostgres.ready) {
+  $nextActions += 'Local preview PostgreSQL is not ready. Run scripts\windows\start-preview-postgres.cmd.'
+}
+
 if ($nextActions.Count -eq 0) {
   $nextActions += 'No action needed.'
 }
@@ -349,6 +376,7 @@ $payload = [ordered]@{
   admin = $adminStatus
   postgres = $postgresConfig
   readBridges = $readBridges
+  previewPostgres = $previewPostgres
   logs = [ordered]@{
     backendOut = if ($previewInfo -and $previewInfo.backendOutLog) { $previewInfo.backendOutLog } else { $backendOutLog }
     backendErr = if ($previewInfo -and $previewInfo.backendErrLog) { $previewInfo.backendErrLog } else { $backendErrLog }
@@ -374,6 +402,9 @@ if ($Json) {
   Write-Host "Postgres: configured=$($payload.postgres.configured) / session=$($payload.postgres.enableSessionReads) / runs=$($payload.postgres.enableRunReads) / friends=$($payload.postgres.enableFriendReads) / league=$($payload.postgres.enableLeagueReads)"
   Write-Host "Bridge session/runs: session=$($payload.readBridges.sessionRuns.sessionReadsEnabled) / runs=$($payload.readBridges.sessionRuns.runReadsEnabled) / postgres=$($payload.readBridges.sessionRuns.postgresConfigured)"
   Write-Host "Bridge friends/league: friends=$($payload.readBridges.friendsLeague.friendReadsEnabled) / league=$($payload.readBridges.friendsLeague.leagueReadsEnabled) / postgresFriends=$($payload.readBridges.friendsLeague.postgresFriendsConfigured) / postgresLeague=$($payload.readBridges.friendsLeague.postgresLeagueConfigured)"
+  if ($payload.previewPostgres) {
+    Write-Host "Preview PostgreSQL: configured=$($payload.previewPostgres.configured) / local=$($payload.previewPostgres.configuredLocal) / ready=$($payload.previewPostgres.ready) / port=$($payload.previewPostgres.port)"
+  }
   Write-Host "Logs:"
   Write-Host "  backend out: $($payload.logs.backendOut)"
   Write-Host "  backend err: $($payload.logs.backendErr)"

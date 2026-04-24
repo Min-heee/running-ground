@@ -237,6 +237,12 @@ npm run preview:sync-eas-env -- --api-base-url https://YOUR-TUNNEL.trycloudflare
 - backend 로그: `backend-preview.out.log`, `backend-preview.err.log`
 - tunnel 로그: `preview-tunnel.out.log`, `preview-tunnel.err.log`
 
+local preview PostgreSQL 도 같이 쓸 때:
+- `scripts\windows\start-preview-postgres.cmd`: portable preview PostgreSQL 시작/초기화
+- `scripts\windows\status-preview-postgres.cmd`: PostgreSQL ready 상태 확인
+- `scripts\windows\stop-preview-postgres.cmd`: PostgreSQL 중지
+- `start-preview-public-backend.cmd` 는 `BACKEND_POSTGRES_DATABASE_URL` 이 `localhost` 또는 `127.0.0.1` 일 때 PostgreSQL도 같이 확인하고 올린다
+
 주의:
 - 이 주소는 실행할 때마다 바뀔 수 있는 임시 preview 주소야.
 - 데스크탑이 꺼지거나 스크립트로 띄운 프로세스가 종료되면 같이 내려가.
@@ -543,6 +549,7 @@ scripts\windows\install-preview-backend-task.cmd -StartNow
 - 공개 `https://...trycloudflare.com/api/health` 가 정상인지
 - store 사용자/기록/백업 개수가 보이는지
 - PostgreSQL read 플래그와 bridge 상태가 어떤 값인지
+- local preview PostgreSQL 이 실제로 ready 인지
 - 로그 파일 위치와 다음 조치가 무엇인지
 
 자동화나 원격 점검에서 실패 코드를 받고 싶으면:
@@ -556,9 +563,16 @@ scripts\windows\status-preview-public-backend.cmd -RequireHealthy
 preview 데스크탑에서 PostgreSQL read 를 부분 전환할 때는 아래 순서가 가장 안전해.
 
 1. 먼저 `backend/.env` 에 `BACKEND_POSTGRES_DATABASE_URL` 이 들어 있는지 확인
-2. 가능하면 `tailscale-funnel` preview 로 띄워서 URL 변경 없이 재시작
-3. `session-runs` -> `all` 순서로 단계적으로 켜기
-4. 매 단계마다 `status-preview-public-backend.cmd` 로 `Postgres` 와 `Bridge` 출력 확인
+2. local preview DB를 쓴다면 `scripts\windows\start-preview-postgres.cmd` 로 DB ready 상태를 먼저 맞춘다
+3. 가능하면 `tailscale-funnel` preview 로 띄워서 URL 변경 없이 재시작
+4. `session-runs` -> `all` 순서로 단계적으로 켜기
+5. 매 단계마다 `status-preview-public-backend.cmd` 로 `Postgres`, `Bridge`, `Preview PostgreSQL` 출력을 확인한다
+
+직접 PostgreSQL 상태만 보고 싶으면:
+
+```powershell
+scripts\windows\status-preview-postgres.cmd
+```
 
 플래그만 먼저 바꾸고 싶으면:
 
