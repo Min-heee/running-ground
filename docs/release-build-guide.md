@@ -150,13 +150,13 @@ npm run backend:deploy:public -- --env production --domain api.runnigapp.com --e
 
 For the temporary desktop preview backend:
 ```powershell
-scripts\windows\install-preview-backend-task.cmd -StartNow
+scripts\windows\install-preview-backend-task.cmd -Transport tailscale-funnel -StartNow
 scripts\windows\start-preview-public-backend.cmd
 scripts\windows\status-preview-public-backend.cmd
 scripts\windows\stop-preview-public-backend.cmd
 ```
 
-`install-preview-backend-task.cmd -StartNow` registers the desktop backend as a Windows scheduled task. `status-preview-public-backend.cmd` checks the local backend, public tunnel, admin status, store counts, backup count, and log file paths in one place.
+`install-preview-backend-task.cmd -Transport tailscale-funnel -StartNow` registers a Windows logon bootstrap task that reruns the full desktop preview startup flow, including local preview PostgreSQL checks when configured. The bootstrap task starts the preview stack as background processes instead of trying to re-register nested scheduled tasks. `status-preview-public-backend.cmd` checks the local backend, public tunnel, admin status, store counts, backup count, PostgreSQL bridge flags, and log file paths in one place.
 
 The older direct Docker commands are still available if `.env.preview` / `.env.production` already exist:
 

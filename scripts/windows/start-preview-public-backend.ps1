@@ -1,6 +1,7 @@
 param(
   [ValidateSet('quick-tunnel', 'tailscale-funnel')]
-  [string]$Transport = 'quick-tunnel'
+  [string]$Transport = 'quick-tunnel',
+  [switch]$UseDirectProcesses
 )
 
 $ErrorActionPreference = 'Stop'
@@ -421,24 +422,41 @@ function Register-PreviewTask([string]$taskName, [string]$runnerPath) {
   Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
 }
 
-function Start-BackendProcess([string]$expectedPublicUrl) {
+function Start-RunnerDirectly([string]$runnerPath) {
+  Start-Process `
+    -FilePath 'cmd.exe' `
+    -ArgumentList '/d', '/c', "`"$runnerPath`"" `
+    -WorkingDirectory $root `
+    -WindowStyle Hidden | Out-Null
+}
+
+function Start-BackendProcess([string]$expectedPublicUrl, [switch]$UseDirectProcesses) {
   Stop-ScheduledTaskSafe -taskName $backendTaskName
   Stop-PortListener -port $backendPort
   Remove-Item $backendOutLog, $backendErrLog -ErrorAction SilentlyContinue
 
-  Register-PreviewTask -taskName $backendTaskName -runnerPath $backendRunnerPath
-  Start-ScheduledTask -TaskName $backendTaskName
+  if ($UseDirectProcesses) {
+    Start-RunnerDirectly -runnerPath $backendRunnerPath
+  } else {
+    Register-PreviewTask -taskName $backendTaskName -runnerPath $backendRunnerPath
+    Start-ScheduledTask -TaskName $backendTaskName
+  }
+
   $null = Wait-ForLocalHealth -expectedPublicUrl $expectedPublicUrl
   return Get-BackendProcessId
 }
 
-function Start-QuickTunnelProcess {
+function Start-QuickTunnelProcess([switch]$UseDirectProcesses) {
   Stop-ScheduledTaskSafe -taskName $tunnelTaskName
   Remove-Item $tunnelOutLog, $tunnelErrLog -ErrorAction SilentlyContinue
   Write-QuickTunnelRunnerScript
 
-  Register-PreviewTask -taskName $tunnelTaskName -runnerPath $tunnelRunnerPath
-  Start-ScheduledTask -TaskName $tunnelTaskName
+  if ($UseDirectProcesses) {
+    Start-RunnerDirectly -runnerPath $tunnelRunnerPath
+  } else {
+    Register-PreviewTask -taskName $tunnelTaskName -runnerPath $tunnelRunnerPath
+    Start-ScheduledTask -TaskName $tunnelTaskName
+  }
 }
 
 function Wait-ForQuickTunnelUrl([int]$timeoutSeconds = 40) {
@@ -539,7 +557,7 @@ if ($Transport -eq 'tailscale-funnel') {
   Write-BackendEnv -publicUrl $publicUrl -token $adminToken
   Write-AppEnv -publicUrl $publicUrl
   Ensure-PreviewPostgresReady
-  $backendPid = Start-BackendProcess -expectedPublicUrl $publicUrl
+  $backendPid = Start-BackendProcess -expectedPublicUrl $publicUrl -UseDirectProcesses:$UseDirectProcesses
 
   Write-Host '2. Starting Tailscale Funnel in background mode...'
   Start-TailscaleFunnel
@@ -569,10 +587,10 @@ if ($Transport -eq 'tailscale-funnel') {
 Write-Host '1. Starting preview backend with temporary public base URL...'
 Write-BackendEnv -publicUrl $placeholderUrl -token $adminToken
 Ensure-PreviewPostgresReady
-$backendPid = Start-BackendProcess -expectedPublicUrl $placeholderUrl
+$backendPid = Start-BackendProcess -expectedPublicUrl $placeholderUrl -UseDirectProcesses:$UseDirectProcesses
 
 Write-Host '2. Starting Cloudflare Quick Tunnel with http2...'
-Start-QuickTunnelProcess
+Start-QuickTunnelProcess -UseDirectProcesses:$UseDirectProcesses
 $publicUrl = Wait-ForQuickTunnelUrl
 $tunnelPid = Get-QuickTunnelProcessId
 
@@ -582,7 +600,7 @@ Write-BackendEnv -publicUrl $publicUrl -token $adminToken
 Write-AppEnv -publicUrl $publicUrl
 
 Write-Host '5. Restarting preview backend with final public base URL...'
-$backendPid = Start-BackendProcess -expectedPublicUrl $publicUrl
+$backendPid = Start-BackendProcess -expectedPublicUrl $publicUrl -UseDirectProcesses:$UseDirectProcesses
 $localHealth = Wait-ForLocalHealth -expectedPublicUrl $publicUrl
 
 Write-Host '6. Waiting for public preview health...'

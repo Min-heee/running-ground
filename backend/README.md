@@ -537,10 +537,16 @@ Invoke-RestMethod -Headers @{ "X-Admin-Token" = "change-me" } -Uri http://localh
 scripts\windows\status-preview-public-backend.cmd
 ```
 
-데스크탑이 직접 백엔드 Node 프로세스를 계속 유지하게 하려면 작업 스케줄러 태스크를 설치해.
+데스크탑이 로그인할 때마다 preview 전체 스택(PostgreSQL 확인, backend, public transport)을 다시 올리게 하려면 작업 스케줄러 태스크를 설치해.
 
 ```powershell
 scripts\windows\install-preview-backend-task.cmd -StartNow
+```
+
+기본값은 `tailscale-funnel` 이고, 필요하면 transport를 직접 지정할 수 있어.
+
+```powershell
+scripts\windows\install-preview-backend-task.cmd -Transport tailscale-funnel -StartNow
 ```
 
 확인 항목:
@@ -567,6 +573,8 @@ preview 데스크탑에서 PostgreSQL read 를 부분 전환할 때는 아래 �
 3. 가능하면 `tailscale-funnel` preview 로 띄워서 URL 변경 없이 재시작
 4. `session-runs` -> `all` 순서로 단계적으로 켜기
 5. 매 단계마다 `status-preview-public-backend.cmd` 로 `Postgres`, `Bridge`, `Preview PostgreSQL` 출력을 확인한다
+
+`install-preview-backend-task.cmd` 는 이 전체 흐름을 로그인 시점에 다시 실행하는 bootstrap 태스크를 등록한다. bootstrap 태스크 안에서는 backend/tunnel 을 직접 백그라운드 프로세스로 띄우기 때문에, 작업 스케줄러 권한 차이로 재기동이 막히는 문제를 피할 수 있다.
 
 직접 PostgreSQL 상태만 보고 싶으면:
 

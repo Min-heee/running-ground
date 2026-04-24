@@ -1,23 +1,24 @@
 param(
-  [string]$TaskName = 'RunnigappPreviewBackend',
+  [string]$TaskName = 'RunnigappPreviewBootstrap',
+  [ValidateSet('quick-tunnel', 'tailscale-funnel')]
+  [string]$Transport = 'tailscale-funnel',
   [switch]$StartNow
 )
 
 $ErrorActionPreference = 'Stop'
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$backendRoot = Join-Path $root 'backend'
-$taskLogPath = Join-Path $backendRoot 'backend.task.log'
-$nodePath = (Get-Command node -ErrorAction Stop).Source
+$taskLogPath = Join-Path $root 'preview-bootstrap.task.log'
+$startScriptPath = Join-Path $PSScriptRoot 'start-preview-public-backend.cmd'
 
-if (-not (Test-Path (Join-Path $backendRoot 'src\server.mjs'))) {
-  throw "Backend server file was not found: $backendRoot"
+if (-not (Test-Path $startScriptPath)) {
+  throw "Preview public backend start script was not found: $startScriptPath"
 }
 
-$quotedBackendRoot = '"' + $backendRoot + '"'
-$quotedNodePath = '"' + $nodePath + '"'
+$quotedRoot = '"' + $root + '"'
+$quotedStartScriptPath = '"' + $startScriptPath + '"'
 $quotedTaskLogPath = '"' + $taskLogPath + '"'
-$cmdArguments = "/d /c cd /d $quotedBackendRoot && $quotedNodePath .\src\server.mjs >> $quotedTaskLogPath 2>&1"
+$cmdArguments = "/d /c cd /d $quotedRoot && $quotedStartScriptPath -Transport $Transport -UseDirectProcesses >> $quotedTaskLogPath 2>&1"
 
 $action = New-ScheduledTaskAction -Execute 'cmd.exe' -Argument $cmdArguments
 $trigger = New-ScheduledTaskTrigger -AtLogOn
@@ -32,12 +33,13 @@ $settings = New-ScheduledTaskSettingsSet `
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
 
 Write-Host "Installed scheduled task: $TaskName"
-Write-Host "Backend root: $backendRoot"
+Write-Host "Workspace root: $root"
+Write-Host "Transport: $Transport"
+Write-Host "Start script: $startScriptPath"
 Write-Host "Task log: $taskLogPath"
+Write-Host 'This bootstrap task replays the full preview startup flow on Windows logon.'
 
 if ($StartNow) {
-  Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
-  Start-Sleep -Seconds 1
   Start-ScheduledTask -TaskName $TaskName
   Write-Host "Started scheduled task: $TaskName"
 }
