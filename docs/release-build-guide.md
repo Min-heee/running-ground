@@ -180,6 +180,12 @@ npm run build:ios:testflight
 After the build lands on the phone, use:
 - [testflight-real-device-qa.md](/docs/testflight-real-device-qa.md)
 
+Before starting the phone pass, you can generate a seeded QA note:
+
+```bash
+npm run testflight:qa:report -- --build-label 1.0.0(15) --device "iPhone 16 Pro"
+```
+
 ### production builds
 ```bash
 npm run build:ios:production

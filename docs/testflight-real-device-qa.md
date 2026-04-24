@@ -233,6 +233,20 @@ npm run preview:smoke -- --admin-token PREVIEW_ADMIN_TOKEN
 - “업데이트할 기록이 없다” 안내가 떠야 하는 상황인지
 
 ## QA 기록 템플릿
+매번 손으로 템플릿을 복사하는 대신, 아래 명령으로 오늘 QA 리포트를 먼저 생성해도 된다.
+
+```bash
+npm run testflight:qa:report -- --build-label 1.0.0(15) --device "iPhone 16 Pro"
+```
+
+관리자 상태까지 같이 고정해서 남기고 싶으면:
+
+```bash
+npm run testflight:qa:report -- --build-label 1.0.0(15) --device "iPhone 16 Pro" --admin-token PREVIEW_ADMIN_TOKEN
+```
+
+기본 저장 위치는 `docs/qa-sessions/testflight-qa-YYYYMMDD-HHmm.md` 이고, `preview:smoke` 가 실패해도 실패 상태를 포함한 리포트는 남겨준다.
+
 아래 형식으로 짧게 남기면 다음 번 수정 때 비교하기 좋다.
 
 ```text
