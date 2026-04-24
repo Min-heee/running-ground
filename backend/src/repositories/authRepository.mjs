@@ -185,6 +185,7 @@ export function createJsonAuthRepository({
         store.friendRequests = (store.friendRequests ?? []).filter((entry) => entry.requesterId !== user.id && entry.receiverId !== user.id);
         store.rewardRedemptions = (store.rewardRedemptions ?? []).filter((entry) => entry.userId !== user.id);
         store.integrationImports = (store.integrationImports ?? []).filter((entry) => entry.userId !== user.id);
+        store.liveRunShares = (store.liveRunShares ?? []).filter((entry) => entry.userId !== user.id);
 
         if (Array.isArray(store.offlineRaceEvents)) {
           for (const event of store.offlineRaceEvents) {

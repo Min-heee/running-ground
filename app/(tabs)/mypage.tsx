@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { Link, router } from 'expo-router';
+import { type Href, Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
@@ -12,6 +12,7 @@ import { HomeSummaryResponse, IntegrationStatusResponse, MyProfileResponse } fro
 import { deleteAccount, signOut } from '@/lib/session';
 
 export default function MyPageScreen() {
+  const universityVerificationHref = '/university-verification' as Href;
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
   const [summary, setSummary] = useState<HomeSummaryResponse | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
@@ -80,7 +81,6 @@ export default function MyPageScreen() {
     }
   };
 
-  const connectedCount = integrationStatus?.sources.filter((source) => source.connected).length ?? 0;
   return (
     <Screen>
       <PageHeader title="마이페이지" />
@@ -132,12 +132,6 @@ export default function MyPageScreen() {
             </Pressable>
           </Link>
 
-          <Card>
-            <SectionTitle>연동 요약</SectionTitle>
-            <ListRow>{`현재 연결된 기록 소스 ${connectedCount}개`}</ListRow>
-            <ListRow>{`최근 반영 기록 ${summary.latestRun.distanceKm}km`}</ListRow>
-          </Card>
-
           <IntegrationStatus sources={integrationStatus.sources} />
 
           <Card>
@@ -146,6 +140,26 @@ export default function MyPageScreen() {
             <ListRow>비밀번호 변경</ListRow>
             <ListRow>핸드폰번호 관리</ListRow>
           </Card>
+
+          <Link href={universityVerificationHref} asChild>
+            <Pressable>
+              <Card>
+                <SectionTitle>대학교 인증</SectionTitle>
+                <Text style={styles.universityVerificationText}>
+                  대학교는 회원가입 때 바로 받지 않고, 마이페이지에서 재학증명서나 에브리타임 같은 인증 방식으로 연결할 예정이에요.
+                </Text>
+                <View style={styles.universityVerificationStatus}>
+                  <Text style={styles.universityVerificationStatusLabel}>현재 상태</Text>
+                  <Text style={styles.universityVerificationStatusValue}>
+                    {profile.universityName ? `${profile.universityName} 연결됨` : '인증 전'}
+                  </Text>
+                </View>
+                <Text style={styles.universityVerificationHint}>
+                  인증 방법과 진행 흐름을 보려면 눌러서 확인해보세요.
+                </Text>
+              </Card>
+            </Pressable>
+          </Link>
 
           <Card style={styles.dangerCard}>
             <SectionTitle>회원 탈퇴</SectionTitle>
@@ -268,6 +282,34 @@ const styles = StyleSheet.create({
   secondaryActionText: {
     color: '#111827',
     fontWeight: '700',
+  },
+  universityVerificationText: {
+    color: '#667085',
+    lineHeight: 20,
+  },
+  universityVerificationStatus: {
+    marginTop: 12,
+    marginBottom: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 16,
+    padding: 14,
+    gap: 4,
+  },
+  universityVerificationStatusLabel: {
+    color: '#475467',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  universityVerificationStatusValue: {
+    color: '#111827',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  universityVerificationHint: {
+    color: '#667085',
+    lineHeight: 20,
   },
   metricRow: {
     flexDirection: 'row',

@@ -46,6 +46,7 @@ export type FriendRank = {
   distanceKm: number;
   points: number;
   isRunningNow?: boolean;
+  liveLocationLabel?: string;
 };
 
 export type ConnectedSource = {

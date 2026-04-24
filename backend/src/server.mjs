@@ -377,10 +377,6 @@ function getRaceRepository() {
 }
 
 function getPostgresFriendsRepository() {
-  if (!POSTGRES_ENABLE_FRIEND_READS) {
-    return null;
-  }
-
   if (!postgresFriendsRepository) {
     const database = getPostgresDatabase();
 
@@ -2421,6 +2417,26 @@ async function handleCreateTrackedRun(request, response) {
   sendJson(response, 201, payload);
 }
 
+async function handlePatchMyLiveSharing(request, response) {
+  const body = await parseJsonBody(request);
+  const token = getAccessToken(request);
+  const enabled = validateBoolean(body.enabled, '위치 공유 설정값이 올바르지 않아.');
+  const status = ['idle', 'paused', 'running'].includes(body.status)
+    ? body.status
+    : 'idle';
+  const locationLabel = normalizeOptionalString(body.locationLabel);
+  const postgresRepository = getPostgresFriendsRepository();
+  const repository = postgresRepository ?? getFriendsRepository();
+  const payload = await repository.updateLiveSharing({
+    token,
+    enabled,
+    status,
+    locationLabel,
+  });
+
+  sendJson(response, 200, payload);
+}
+
 function handleIntegrationSourceConnection(request, response, sourceType, nextConnected) {
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
@@ -2728,6 +2744,11 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/me/region' && request.method === 'PATCH') {
     await handlePatchMyRegion(request, response);
+    return;
+  }
+
+  if (pathname === '/api/me/live-sharing' && request.method === 'PATCH') {
+    await handlePatchMyLiveSharing(request, response);
     return;
   }
 

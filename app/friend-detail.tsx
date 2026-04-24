@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { Link, router, useLocalSearchParams } from 'expo-router';
+import { Link, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -8,18 +8,62 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { fetchFriendActivity } from '@/lib/api/services';
 import { FriendActivityResponse } from '@/lib/api/types';
 
+function formatRefreshTime(timestamp: string | null) {
+  if (!timestamp) {
+    return '방금 갱신 대기 중';
+  }
+
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return '방금 갱신';
+  }
+
+  const hours = `${date.getHours()}`.padStart(2, '0');
+  const minutes = `${date.getMinutes()}`.padStart(2, '0');
+  return `${hours}:${minutes} 기준`;
+}
+
 export default function FriendDetailScreen() {
   const { friendId } = useLocalSearchParams<{ friendId?: string }>();
   const [activity, setActivity] = useState<FriendActivityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchFriendActivity(friendId)
-      .then((data) => setActivity(data))
-      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '친구 활동 정보를 불러오지 못했어.'))
-      .finally(() => setLoading(false));
+  const loadActivity = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setLoading(true);
+      setError(null);
+    }
+
+    try {
+      const data = await fetchFriendActivity(friendId);
+      setActivity(data);
+      setLastRefreshedAt(new Date().toISOString());
+      if (showLoading) {
+        setError(null);
+      }
+    } catch (loadError) {
+      if (showLoading) {
+        setError(loadError instanceof Error ? loadError.message : '친구 활동 정보를 불러오지 못했어.');
+      }
+    } finally {
+      if (showLoading) {
+        setLoading(false);
+      }
+    }
   }, [friendId]);
+
+  useFocusEffect(useCallback(() => {
+    void loadActivity(true);
+
+    const refreshInterval = setInterval(() => {
+      void loadActivity(false);
+    }, 20000);
+
+    return () => clearInterval(refreshInterval);
+  }, [loadActivity]));
 
   return (
     <Screen>
@@ -30,7 +74,9 @@ export default function FriendDetailScreen() {
         <>
           <AuthHeader
             title="친구 활동"
-            subtitle={`${activity.friend.name}가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어.`}
+            subtitle={activity.friend.isRunningNow
+              ? `${activity.friend.name} 님이 지금 달리는 중이라 최근 기록과 실시간 위치 공유 상태를 함께 볼 수 있어요.`
+              : `${activity.friend.name}가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어.`}
             showBack
             backHref="/(tabs)/friends"
           />
@@ -40,6 +86,22 @@ export default function FriendDetailScreen() {
             <Text style={styles.heroTitle}>{activity.friend.name}</Text>
             <Text style={styles.heroTag}>{activity.friend.tag}</Text>
           </Card>
+
+          {activity.friend.isRunningNow ? (
+            <Card style={styles.liveCard}>
+              <View style={styles.liveHeader}>
+                <View style={styles.liveBadge}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveBadgeText}>러닝 중</Text>
+                </View>
+                <Text style={styles.liveRefreshText}>{formatRefreshTime(lastRefreshedAt)}</Text>
+              </View>
+              <Text style={styles.liveLocation}>{activity.friend.liveLocationLabel ?? '현재 위치 근처'}</Text>
+              <Text style={styles.liveHint}>
+                정확한 좌표 대신 동네 단위로만 보여드리고, 이 화면은 20초마다 자동으로 새로고침돼요.
+              </Text>
+            </Card>
+          ) : null}
 
           <View style={styles.summaryRow}>
             <Card style={styles.summaryCard}>
@@ -96,6 +158,53 @@ const styles = StyleSheet.create({
   heroTag: {
     color: '#98A2B3',
     fontWeight: '700',
+  },
+  liveCard: {
+    backgroundColor: '#ECFDF3',
+    gap: 10,
+  },
+  liveHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#D1FADF',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#12B76A',
+  },
+  liveBadgeText: {
+    color: '#067647',
+    fontSize: 12,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  liveRefreshText: {
+    color: '#027A48',
+    fontSize: 12,
+    fontWeight: '700',
+    includeFontPadding: false,
+  },
+  liveLocation: {
+    color: '#111827',
+    fontSize: 24,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  liveHint: {
+    color: '#027A48',
+    lineHeight: 20,
   },
   summaryRow: {
     flexDirection: 'row',

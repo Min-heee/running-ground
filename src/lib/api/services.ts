@@ -26,6 +26,8 @@ import {
   CreateRunningRoutePreviewResponse,
   CreateTrackedRunInput,
   CreateTrackedRunResponse,
+  UpdateRunningLiveShareInput,
+  UpdateRunningLiveShareResponse,
   CreateFriendRequestResponse,
   DistrictPersonalResponse,
   FriendActivityResponse,
@@ -150,7 +152,28 @@ function createMockFriendRank(input: { id: string; name: string; tag: string }) 
     points: Math.round(distanceKm * 1.15),
     rank: nextIndex,
     isRunningNow: false,
+    liveLocationLabel: undefined,
   };
+}
+
+function upsertMockCurrentUserRank() {
+  const profile = getCurrentUserProfile() ?? myProfile;
+  const existingRank = mockFriendRanks.find((entry) => entry.tag === profile.publicTag);
+
+  if (existingRank) {
+    existingRank.name = profile.name;
+    existingRank.tag = profile.publicTag;
+    return existingRank;
+  }
+
+  const nextRank = createMockFriendRank({
+    id: `me-${Date.now()}`,
+    name: profile.name,
+    tag: profile.publicTag,
+  });
+
+  mockFriendRanks = normalizeMockFriendRanks([...mockFriendRanks, nextRank]);
+  return mockFriendRanks.find((entry) => entry.tag === profile.publicTag) ?? nextRank;
 }
 
 function normalizeMockUniversityRanks(ranks: UniversityLeagueRank[]) {
@@ -660,6 +683,41 @@ export async function createRunningRoutePreview(
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '추천 그림 경로를 만들지 못했어.',
+    },
+  );
+}
+
+export async function updateRunningLiveShare(
+  input: UpdateRunningLiveShareInput,
+): Promise<UpdateRunningLiveShareResponse> {
+  if (USE_MOCK_API) {
+    const currentUserRank = upsertMockCurrentUserRank();
+    const isRunningNow = input.enabled && input.status === 'running';
+    const normalizedLocationLabel = input.locationLabel?.trim();
+
+    currentUserRank.isRunningNow = isRunningNow;
+    currentUserRank.liveLocationLabel = isRunningNow && normalizedLocationLabel ? normalizedLocationLabel : undefined;
+    mockFriendRanks = normalizeMockFriendRanks(mockFriendRanks);
+
+    return {
+      success: true,
+      liveSharingEnabled: input.enabled,
+      isRunningNow,
+      ...(isRunningNow && normalizedLocationLabel ? { locationLabel: normalizedLocationLabel } : {}),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  return apiPatch<UpdateRunningLiveShareResponse>(
+    '/me/live-sharing',
+    {
+      enabled: input.enabled,
+      status: input.status,
+      locationLabel: input.locationLabel?.trim() ?? '',
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '위치 공유 상태를 반영하지 못했어.',
     },
   );
 }

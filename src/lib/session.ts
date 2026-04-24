@@ -20,6 +20,7 @@ type RegisterAccountInput = {
   password: string;
   nickname: string;
   realName: string;
+  displayNamePreference: 'nickname' | 'realName';
   phone: string;
   provinceName: string;
   cityName?: string;
@@ -362,6 +363,7 @@ export async function registerAccount({
   password,
   nickname,
   realName,
+  displayNamePreference,
   phone,
   provinceName,
   cityName,
@@ -374,6 +376,7 @@ export async function registerAccount({
 
   const normalizedNickname = nickname.trim();
   const normalizedRealName = realName.trim();
+  const normalizedDisplayName = displayNamePreference === 'realName' ? normalizedRealName : normalizedNickname;
   const normalizedUsername = normalizeUsername(username);
   const normalizedPhone = phone.replace(/\D/g, '');
   const normalizedProvinceName = provinceName.trim();
@@ -383,12 +386,16 @@ export async function registerAccount({
   const normalizedAddressDetail = addressDetail.trim();
   const normalizedBirthDate = birthDate.trim();
 
-  if (!normalizedNickname) {
+  if (displayNamePreference === 'nickname' && !normalizedNickname) {
     throw new Error('닉네임을 입력해주세요.');
   }
 
   if (!normalizedRealName) {
     throw new Error('이름을 입력해주세요.');
+  }
+
+  if (!normalizedDisplayName) {
+    throw new Error('공개 표시 이름을 선택해주세요.');
   }
 
   const usernameValidationError = getUsernameValidationError(normalizedUsername);
@@ -426,7 +433,7 @@ export async function registerAccount({
   if (USE_MOCK_API) {
     mockProfile = {
       ...mockProfile,
-      name: normalizedNickname,
+      name: normalizedDisplayName,
       provinceName: normalizedProvinceName,
       cityName: normalizedCityName || undefined,
       districtName: normalizedDistrictName,
@@ -445,8 +452,8 @@ export async function registerAccount({
     {
       username: normalizedUsername,
       password: password.trim(),
-      nickname: normalizedNickname,
-      name: normalizedNickname,
+      nickname: normalizedDisplayName,
+      name: normalizedDisplayName,
       realName: normalizedRealName,
       phone: normalizedPhone,
       provinceName: normalizedProvinceName,

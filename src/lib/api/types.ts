@@ -58,6 +58,20 @@ export type CreateTrackedRunInput = {
 
 export type CreateTrackedRunResponse = RunDetailResponse;
 
+export type UpdateRunningLiveShareInput = {
+  enabled: boolean;
+  status: 'idle' | 'paused' | 'running';
+  locationLabel?: string;
+};
+
+export type UpdateRunningLiveShareResponse = {
+  success: boolean;
+  liveSharingEnabled: boolean;
+  isRunningNow: boolean;
+  locationLabel?: string;
+  updatedAt: string;
+};
+
 export type RoutePreviewCoordinate = {
   latitude: number;
   longitude: number;

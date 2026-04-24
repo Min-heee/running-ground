@@ -166,6 +166,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           {
             locationWhenInUsePermission:
               'Allow RUNNIGAPP to use your location so your run route, distance, pace, and elevation can be tracked live.',
+            locationAlwaysAndWhenInUsePermission:
+              'Allow RUNNIGAPP to keep tracking your running route, distance, and pace even when the app is in the background.',
+            isIosBackgroundLocationEnabled: true,
+            isAndroidBackgroundLocationEnabled: true,
+            isAndroidForegroundServiceEnabled: true,
           },
         ],
         [

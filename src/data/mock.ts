@@ -160,11 +160,11 @@ export const myRunRecords: MyRunRecord[] = [
 ];
 
 export const friendRanks: FriendRank[] = [
-  { id: '1', rank: 1, name: '김관우', tag: '#KW8M4', distanceKm: 89, points: 98, isRunningNow: true },
+  { id: '1', rank: 1, name: '김관우', tag: '#KW8M4', distanceKm: 89, points: 98, isRunningNow: true, liveLocationLabel: '서울숲 근처' },
   { id: '2', rank: 2, name: '민병희', tag: '#BH7K2', distanceKm: 84, points: 91 },
-  { id: '3', rank: 3, name: '이서준', tag: '#SJ4Q8', distanceKm: 77, points: 86, isRunningNow: true },
+  { id: '3', rank: 3, name: '이서준', tag: '#SJ4Q8', distanceKm: 77, points: 86, isRunningNow: true, liveLocationLabel: '반포한강공원 근처' },
   { id: '4', rank: 4, name: '박지훈', tag: '#JH3N1', distanceKm: 61.2, points: 74 },
-  { id: '5', rank: 5, name: '최민준', tag: '#MJ5T2', distanceKm: 58.4, points: 70, isRunningNow: true },
+  { id: '5', rank: 5, name: '최민준', tag: '#MJ5T2', distanceKm: 58.4, points: 70, isRunningNow: true, liveLocationLabel: '송정동 근처' },
   { id: '6', rank: 6, name: '정이안', tag: '#IA9L3', distanceKm: 46.2, points: 54 },
   { id: '7', rank: 7, name: '이서윤', tag: '#SY1R4', distanceKm: 40.8, points: 48 },
 ];

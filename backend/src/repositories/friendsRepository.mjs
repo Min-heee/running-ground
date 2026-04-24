@@ -12,14 +12,67 @@ function getFriendIds(store, userId) {
   });
 }
 
+const LIVE_RUN_SHARE_STALE_MS = 2 * 60 * 1000;
+
+function ensureLiveRunSharesStore(store) {
+  if (!Array.isArray(store.liveRunShares)) {
+    store.liveRunShares = [];
+  }
+}
+
+function normalizeLiveShareStatus(value) {
+  return value === 'running' || value === 'paused' ? value : 'idle';
+}
+
+function normalizeLiveShareLabel(value) {
+  return typeof value === 'string' ? value.trim().slice(0, 80) : '';
+}
+
+function getLiveRunShareByUserId(store, userId) {
+  ensureLiveRunSharesStore(store);
+  return store.liveRunShares.find((entry) => entry.userId === userId) ?? null;
+}
+
+function buildLiveRunSharePresentation(liveShare, nowIso = () => new Date().toISOString()) {
+  if (!liveShare || liveShare.enabled !== true || liveShare.status !== 'running') {
+    return {
+      isRunningNow: false,
+      liveLocationLabel: undefined,
+    };
+  }
+
+  const updatedAtMs = Date.parse(liveShare.updatedAt ?? '');
+  const nowMs = Date.parse(nowIso());
+  const isFresh = Number.isFinite(updatedAtMs) && Number.isFinite(nowMs)
+    ? nowMs - updatedAtMs <= LIVE_RUN_SHARE_STALE_MS
+    : true;
+
+  if (!isFresh) {
+    return {
+      isRunningNow: false,
+      liveLocationLabel: undefined,
+    };
+  }
+
+  const liveLocationLabel = normalizeLiveShareLabel(liveShare.locationLabel);
+
+  return {
+    isRunningNow: true,
+    liveLocationLabel: liveLocationLabel || undefined,
+  };
+}
+
 function areFriends(store, leftUserId, rightUserId) {
   return (store.friendships ?? []).some((entry) => (
     entry.userIds.includes(leftUserId) && entry.userIds.includes(rightUserId)
   ));
 }
 
-function buildFriendRank(store, user, rank, getUserMetrics) {
+function buildFriendRank(store, user, rank, getUserMetrics, {
+  nowIso = () => new Date().toISOString(),
+} = {}) {
   const metrics = getUserMetrics(store, user.id);
+  const liveShare = buildLiveRunSharePresentation(getLiveRunShareByUserId(store, user.id), nowIso);
 
   return {
     id: user.id,
@@ -28,6 +81,8 @@ function buildFriendRank(store, user, rank, getUserMetrics) {
     tag: user.publicTag,
     distanceKm: metrics.currentWeekDistanceKm,
     points: metrics.currentWeekPoints,
+    ...(liveShare.isRunningNow ? { isRunningNow: true } : {}),
+    ...(liveShare.liveLocationLabel ? { liveLocationLabel: liveShare.liveLocationLabel } : {}),
   };
 }
 
@@ -80,12 +135,13 @@ function getActionableRequests(store, currentUserId, findUserById) {
 function buildFriendLeaderboard(store, user, {
   findUserById,
   getUserMetrics,
+  nowIso,
 }) {
   const relatedUserIds = [...new Set([user.id, ...getFriendIds(store, user.id)])];
   const ranks = relatedUserIds
     .map((userId) => findUserById(store, userId))
     .sort((left, right) => compareFriendRank(store, left, right, getUserMetrics))
-    .map((entry, index) => buildFriendRank(store, entry, index + 1, getUserMetrics));
+    .map((entry, index) => buildFriendRank(store, entry, index + 1, getUserMetrics, { nowIso }));
 
   return {
     ranks,
@@ -131,6 +187,41 @@ export function createJsonFriendsRepository({
       return buildFriendLeaderboard(store, user, {
         findUserById,
         getUserMetrics,
+        nowIso,
+      });
+    },
+
+    updateLiveSharing({ token, enabled, status, locationLabel }) {
+      return mutateStore((store) => {
+        ensureLiveRunSharesStore(store);
+
+        const currentUser = requireUserByToken(store, token);
+        const nextStatus = normalizeLiveShareStatus(status);
+        const updatedAt = nowIso();
+        const normalizedLocationLabel = normalizeLiveShareLabel(locationLabel);
+
+        store.liveRunShares = store.liveRunShares.filter((entry) => entry.userId !== currentUser.id);
+
+        if (enabled && (nextStatus === 'running' || nextStatus === 'paused')) {
+          store.liveRunShares.push({
+            userId: currentUser.id,
+            enabled: true,
+            status: nextStatus,
+            ...(normalizedLocationLabel ? { locationLabel: normalizedLocationLabel } : {}),
+            updatedAt,
+          });
+        }
+
+        const liveShare = getLiveRunShareByUserId(store, currentUser.id);
+        const presentation = buildLiveRunSharePresentation(liveShare, nowIso);
+
+        return {
+          success: true,
+          liveSharingEnabled: Boolean(liveShare?.enabled),
+          isRunningNow: presentation.isRunningNow,
+          ...(presentation.liveLocationLabel ? { locationLabel: presentation.liveLocationLabel } : {}),
+          updatedAt,
+        };
       });
     },
 
@@ -249,9 +340,10 @@ export function createJsonFriendsRepository({
       const leaderboard = buildFriendLeaderboard(store, currentUser, {
         findUserById,
         getUserMetrics,
+        nowIso,
       });
       const rankedFriend = leaderboard.ranks.find((entry) => entry.id === friend.id)
-        ?? buildFriendRank(store, friend, 1, getUserMetrics);
+        ?? buildFriendRank(store, friend, 1, getUserMetrics, { nowIso });
 
       return {
         friend: rankedFriend,

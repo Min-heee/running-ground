@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect, Stack, usePathname } from 'expo-router';
+import '@/features/runs/backgroundTracking';
 import { getIsSignedIn, hydrateSession } from '@/lib/session';
 
 const PUBLIC_ROUTES = new Set([
@@ -49,6 +50,7 @@ export default function RootLayout() {
       <Stack.Screen name="connect-sources" />
       <Stack.Screen name="add-friend" />
       <Stack.Screen name="edit-profile" />
+      <Stack.Screen name="university-verification" />
       <Stack.Screen name="region-settings" />
       <Stack.Screen name="notification-settings" />
       <Stack.Screen name="friend-detail" />

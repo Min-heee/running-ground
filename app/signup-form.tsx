@@ -6,7 +6,7 @@ import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { AddressRegionNode } from '@/features/location/addressCatalog';
 import { buildRegionSelectionState, RegionChipSection } from '@/features/location/RegionSelection';
-import { fetchRegionCatalog, fetchUniversityCatalog } from '@/lib/api/services';
+import { fetchRegionCatalog } from '@/lib/api/services';
 import {
   PASSWORD_RULE_DESCRIPTION,
   USERNAME_RULE_DESCRIPTION,
@@ -22,6 +22,8 @@ type UsernameCheckState = {
   message: string | null;
   checkedUsername: string;
 };
+
+type DisplayNamePreference = 'nickname' | 'realName';
 
 function formatPhoneInput(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -54,6 +56,7 @@ function formatBirthDateInput(value: string) {
 export default function SignupFormScreen() {
   const [nickname, setNickname] = useState('');
   const [realName, setRealName] = useState('');
+  const [displayNamePreference, setDisplayNamePreference] = useState<DisplayNamePreference>('nickname');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
@@ -62,9 +65,7 @@ export default function SignupFormScreen() {
   const [provinceName, setProvinceName] = useState('');
   const [secondaryRegionName, setSecondaryRegionName] = useState('');
   const [tertiaryRegionName, setTertiaryRegionName] = useState('');
-  const [universityName, setUniversityName] = useState('');
   const [regions, setRegions] = useState<AddressRegionNode[]>([]);
-  const [universitySuggestions, setUniversitySuggestions] = useState<string[]>([]);
   const [addressDetail, setAddressDetail] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [catalogLoading, setCatalogLoading] = useState(true);
@@ -91,12 +92,15 @@ export default function SignupFormScreen() {
     return password === passwordConfirm ? null : '비밀번호가 서로 달라요.';
   }, [password, passwordConfirm]);
   const passwordReady = Boolean(password && passwordConfirm && !passwordValidationMessage && !passwordConfirmMessage);
+  const publicDisplayName = useMemo(
+    () => (displayNamePreference === 'realName' ? realName.trim() : nickname.trim()),
+    [displayNamePreference, nickname, realName],
+  );
 
   useEffect(() => {
-    Promise.all([fetchRegionCatalog(), fetchUniversityCatalog()])
-      .then(([regionCatalog, universityCatalog]) => {
+    fetchRegionCatalog()
+      .then((regionCatalog) => {
         setRegions(regionCatalog.regions);
-        setUniversitySuggestions(universityCatalog.universities);
       })
       .catch((loadError) => {
         setCatalogError(loadError instanceof Error ? loadError.message : '회원가입에 필요한 목록을 불러오지 못했어요.');
@@ -120,7 +124,7 @@ export default function SignupFormScreen() {
   const checkingUsername = usernameCheck.status === 'checking';
   const usernameReady = usernameCheck.status === 'available' && usernameCheck.checkedUsername === normalizedUsername;
   const requiredProfileReady = Boolean(
-    nickname.trim()
+    publicDisplayName
     && realName.trim()
     && normalizedUsername
     && !usernameValidationMessage
@@ -215,13 +219,13 @@ export default function SignupFormScreen() {
       await registerAccount({
         nickname,
         realName,
+        displayNamePreference,
         username,
         password,
         phone,
         provinceName,
         cityName: finalCityName,
         districtName: finalDistrictName,
-        universityName,
         addressDetail,
         birthDate,
       });
@@ -247,7 +251,7 @@ export default function SignupFormScreen() {
     <Screen>
       <AuthHeader
         title="계정으로 회원가입"
-        subtitle="공개 닉네임과 비공개 이름을 포함한 기본 정보만 입력하면 바로 홈에서 경쟁을 시작할 수 있어요."
+        subtitle="기본 정보와 공개 표시 이름만 정하면 바로 홈으로 들어갈 수 있어요."
         showBack
         backHref="/signup"
       />
@@ -259,7 +263,7 @@ export default function SignupFormScreen() {
 
           <Input
             label="닉네임"
-            helperText="랭킹, 친구 화면, 기록 화면에 표시되는 공개 이름이에요."
+            helperText="닉네임 표시를 선택하면 랭킹, 친구 화면, 기록 화면에 이 이름이 보여요."
             placeholder="닉네임을 입력하세요"
             value={nickname}
             onChangeText={setNickname}
@@ -273,9 +277,71 @@ export default function SignupFormScreen() {
             onChangeText={setRealName}
             editable={!submitting}
           />
+          <View style={styles.displayNameCard}>
+            <Text style={styles.privacyTitle}>공개 표시 이름 선택</Text>
+            <Text style={styles.helperText}>지역 랭킹, 친구 화면, 기록 화면에 어떤 이름으로 보일지 선택해주세요.</Text>
+            <View style={styles.displayNameOptionRow}>
+              <Pressable
+                style={[
+                  styles.displayNameOption,
+                  displayNamePreference === 'nickname' ? styles.displayNameOptionSelected : null,
+                ]}
+                onPress={() => setDisplayNamePreference('nickname')}
+                disabled={submitting}
+              >
+                <Text
+                  style={[
+                    styles.displayNameOptionTitle,
+                    displayNamePreference === 'nickname' ? styles.displayNameOptionTitleSelected : null,
+                  ]}
+                >
+                  닉네임으로 표시
+                </Text>
+                <Text
+                  style={[
+                    styles.displayNameOptionDescription,
+                    displayNamePreference === 'nickname' ? styles.displayNameOptionDescriptionSelected : null,
+                  ]}
+                >
+                  러닝 경쟁 화면에 닉네임을 보여줘요.
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.displayNameOption,
+                  displayNamePreference === 'realName' ? styles.displayNameOptionSelected : null,
+                ]}
+                onPress={() => setDisplayNamePreference('realName')}
+                disabled={submitting}
+              >
+                <Text
+                  style={[
+                    styles.displayNameOptionTitle,
+                    displayNamePreference === 'realName' ? styles.displayNameOptionTitleSelected : null,
+                  ]}
+                >
+                  본명으로 표시
+                </Text>
+                <Text
+                  style={[
+                    styles.displayNameOptionDescription,
+                    displayNamePreference === 'realName' ? styles.displayNameOptionDescriptionSelected : null,
+                  ]}
+                >
+                  지역 랭킹과 기록 화면에 본명을 보여줘요.
+                </Text>
+              </Pressable>
+            </View>
+            <View style={styles.displayNamePreviewCard}>
+              <Text style={styles.displayNamePreviewLabel}>현재 공개 표시 이름</Text>
+              <Text style={styles.displayNamePreviewValue}>{publicDisplayName || '아직 선택 전'}</Text>
+            </View>
+          </View>
           <View style={styles.privacyCard}>
             <Text style={styles.privacyTitle}>공개되는 정보</Text>
-            <Text style={styles.privacyText}>랭킹과 친구 화면에는 닉네임만 보여요. 이름, 휴대폰 번호, 상세 주소, 생년월일은 계정 확인용 비공개 정보로 처리해요.</Text>
+            <Text style={styles.privacyText}>
+              랭킹과 친구 화면에는 지금 선택한 공개 표시 이름만 보여요. 이름, 휴대폰 번호, 상세 주소, 생년월일은 계정 확인용 비공개 정보로 처리해요.
+            </Text>
           </View>
 
           <View style={styles.inputGroup}>
@@ -427,35 +493,11 @@ export default function SignupFormScreen() {
             ) : null}
           </View>
 
-          <View style={styles.addressGroup}>
-            <Text style={styles.label}>대학교 선택</Text>
-            <Text style={styles.helperText}>선택사항이에요. 학교를 입력하거나 아래 빠른 선택을 누르면 대학 리그에 바로 집계돼요.</Text>
-            <Input
-              label="대학교"
-              placeholder="예: 서울대학교"
-              value={universityName}
-              onChangeText={setUniversityName}
-              editable={!submitting}
-            />
-            {universitySuggestions.length === 0 ? (
-              <Text style={styles.helperText}>아직 등록된 대학이 많지 않아요. 없으면 직접 입력하면 바로 추가돼요.</Text>
-            ) : null}
-            <View style={styles.selectionList}>
-              {universitySuggestions.map((option) => {
-                const selected = option === universityName;
-
-                return (
-                  <Pressable
-                    key={option}
-                    style={[styles.selectionChip, selected && styles.selectionChipSelected, submitting && styles.disabledButton]}
-                    onPress={() => setUniversityName(option)}
-                    disabled={submitting}
-                  >
-                    <Text style={[styles.selectionChipText, selected && styles.selectionChipTextSelected]}>{option}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+          <View style={styles.readyCard}>
+            <Text style={styles.readyTitle}>대학교 인증은 나중에 할 수 있어요</Text>
+            <Text style={styles.helperText}>
+              지금은 회원가입을 먼저 끝내고, 대학교 인증은 마이페이지에서 재학증명서나 에브리타임 같은 방식으로 붙일 예정이에요.
+            </Text>
           </View>
 
           <Input
@@ -556,6 +598,62 @@ const styles = StyleSheet.create({
   privacyText: {
     color: '#667085',
     lineHeight: 20,
+  },
+  displayNameCard: {
+    gap: 10,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  displayNameOptionRow: {
+    gap: 10,
+  },
+  displayNameOption: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    gap: 4,
+  },
+  displayNameOptionSelected: {
+    borderColor: '#6D5EF7',
+    backgroundColor: '#EEF2FF',
+  },
+  displayNameOptionTitle: {
+    color: '#111827',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  displayNameOptionTitleSelected: {
+    color: '#4338CA',
+  },
+  displayNameOptionDescription: {
+    color: '#667085',
+    lineHeight: 19,
+  },
+  displayNameOptionDescriptionSelected: {
+    color: '#5B4FCF',
+  },
+  displayNamePreviewCard: {
+    gap: 4,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  displayNamePreviewLabel: {
+    color: '#475467',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  displayNamePreviewValue: {
+    color: '#111827',
+    fontWeight: '800',
+    fontSize: 18,
   },
   inlineInputRow: {
     flexDirection: 'row',
@@ -667,30 +765,6 @@ const styles = StyleSheet.create({
   },
   addressGroup: {
     gap: 12,
-  },
-  selectionList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  selectionChip: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D0D5DD',
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  selectionChipSelected: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#6D5EF7',
-  },
-  selectionChipText: {
-    color: '#344054',
-    fontWeight: '700',
-  },
-  selectionChipTextSelected: {
-    color: '#4338CA',
   },
   selectedAddressCard: {
     backgroundColor: '#F8FAFC',

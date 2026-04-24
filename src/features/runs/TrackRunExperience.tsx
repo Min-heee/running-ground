@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
   ActivityIndicator,
   Alert,
   Linking,
@@ -19,9 +20,19 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RunRoutePoint } from '@/domain/types';
-import { createTrackedRun } from '@/lib/api/services';
+import { createTrackedRun, updateRunningLiveShare } from '@/lib/api/services';
 import { buildSuggestedArtRoute, type SuggestedArtRoute } from '@/features/runs/routeArt';
 import { RunRouteMap } from '@/features/runs/RunRouteMap';
+import {
+  getBackgroundRunElapsedSeconds,
+  getBackgroundRunTrackingSnapshot,
+  pauseBackgroundRunTracking,
+  resetBackgroundRunTracking,
+  resumeBackgroundRunTracking,
+  startBackgroundRunTracking,
+  subscribeBackgroundRunTracking,
+  type BackgroundRunTrackingSnapshot,
+} from '@/features/runs/backgroundTracking';
 import {
   buildAveragePace,
   buildRunDateFromTimestamp,
@@ -175,17 +186,44 @@ function formatReverseGeocodedAddress(address: Location.LocationGeocodedAddress)
   return parts.join(' ');
 }
 
+function buildLiveShareLabelFromAddress(address?: Location.LocationGeocodedAddress | null) {
+  if (!address) {
+    return '현재 위치 근처';
+  }
+
+  const parts = [
+    address.district,
+    address.street,
+    address.city,
+    address.region,
+    address.name,
+  ].filter(Boolean);
+
+  return parts.length ? `${parts[0]} 근처` : '현재 위치 근처';
+}
+
+function buildLiveShareFallbackLabel(location?: ConfirmedStartLocation | null) {
+  if (!location) {
+    return '현재 위치 근처';
+  }
+
+  if (location.resolvedAddress) {
+    return `${location.resolvedAddress.split(' ').slice(-1)[0] || location.resolvedAddress} 근처`;
+  }
+
+  return `${location.label} 근처`;
+}
+
 export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
-  const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const pedometerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const routeRef = useRef<RunRoutePoint[]>([]);
-  const elapsedBeforePauseRef = useRef(0);
-  const lastResumeAtRef = useRef<number | null>(null);
   const elapsedSecondsRef = useRef(0);
   const totalStepsRef = useRef(0);
   const pedometerStepOffsetRef = useRef(0);
-  const sessionStartedAtRef = useRef<string | null>(null);
+  const liveShareEnabledRef = useRef(false);
+  const liveShareLabelRef = useRef<string | null>(null);
+  const liveShareHeartbeatRef = useRef(0);
 
   const [status, setStatus] = useState<TrackerStatus>('idle');
   const [route, setRoute] = useState<RunRoutePoint[]>([]);
@@ -195,6 +233,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [elevationGainM, setElevationGainM] = useState(0);
   const [cadenceSpm, setCadenceSpm] = useState<number | null>(null);
   const [locationPermissionGranted, setLocationPermissionGranted] = useState<boolean | null>(null);
+  const [backgroundLocationPermissionGranted, setBackgroundLocationPermissionGranted] = useState<boolean | null>(null);
   const [motionPermissionGranted, setMotionPermissionGranted] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shapeKeyword, setShapeKeyword] = useState('고구마');
@@ -204,6 +243,8 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [isGeneratingRoute, setIsGeneratingRoute] = useState(false);
   const [suggestedRoute, setSuggestedRoute] = useState<SuggestedArtRoute | null>(null);
   const [plannerExpanded, setPlannerExpanded] = useState(false);
+  const [liveShareEnabled, setLiveShareEnabled] = useState(false);
+  const [liveShareLabel, setLiveShareLabel] = useState<string | null>(null);
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const routeCoordinates = useMemo(
@@ -225,22 +266,25 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const backHref: Href = '/my-activity';
   const discardRedirectHref: Href | null = isTabMode ? null : '/my-activity';
 
+  useEffect(() => {
+    liveShareEnabledRef.current = liveShareEnabled;
+  }, [liveShareEnabled]);
+
+  useEffect(() => {
+    liveShareLabelRef.current = liveShareLabel;
+  }, [liveShareLabel]);
+
   const syncElapsedSeconds = (nextElapsedSeconds: number) => {
     elapsedSecondsRef.current = nextElapsedSeconds;
     setElapsedSeconds(nextElapsedSeconds);
     setCadenceSpm(calculateCadenceSpm(totalStepsRef.current, nextElapsedSeconds));
   };
 
-  const clearTimer = () => {
+  const clearElapsedTicker = () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-  };
-
-  const stopLocationSubscription = () => {
-    locationSubscriptionRef.current?.remove();
-    locationSubscriptionRef.current = null;
   };
 
   const stopPedometerSubscription = () => {
@@ -248,44 +292,16 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     pedometerSubscriptionRef.current = null;
   };
 
-  const stopLiveSubscriptions = () => {
-    stopLocationSubscription();
+  const stopForegroundTrackingHelpers = () => {
     stopPedometerSubscription();
+    clearElapsedTicker();
   };
 
-  const pauseClock = () => {
-    clearTimer();
-
-    if (lastResumeAtRef.current) {
-      elapsedBeforePauseRef.current += Date.now() - lastResumeAtRef.current;
-      lastResumeAtRef.current = null;
-    }
-
-    syncElapsedSeconds(Math.floor(elapsedBeforePauseRef.current / 1000));
-  };
-
-  const startClock = () => {
-    lastResumeAtRef.current = Date.now();
-    clearTimer();
-    timerRef.current = setInterval(() => {
-      if (!lastResumeAtRef.current) {
-        return;
-      }
-
-      const nextElapsedSeconds = Math.floor((elapsedBeforePauseRef.current + (Date.now() - lastResumeAtRef.current)) / 1000);
-      syncElapsedSeconds(nextElapsedSeconds);
-    }, 1000);
-  };
-
-  const resetLiveTrackingState = () => {
-    stopLiveSubscriptions();
-    clearTimer();
-    elapsedBeforePauseRef.current = 0;
-    lastResumeAtRef.current = null;
+  const resetForegroundTrackingState = () => {
+    stopForegroundTrackingHelpers();
     elapsedSecondsRef.current = 0;
     totalStepsRef.current = 0;
     pedometerStepOffsetRef.current = 0;
-    sessionStartedAtRef.current = null;
     routeRef.current = [];
     setRoute([]);
     setDistanceKm(0);
@@ -295,38 +311,21 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     setCadenceSpm(null);
   };
 
-  const returnToIdleState = ({ keepSuggestedRoute = true }: { keepSuggestedRoute?: boolean } = {}) => {
-    resetLiveTrackingState();
-    setStatus('idle');
-    setError(null);
-
-    if (!keepSuggestedRoute) {
-      setSuggestedRoute(null);
-    }
+  const syncFromBackgroundTracking = (snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot()) => {
+    routeRef.current = snapshot.route;
+    setRoute(snapshot.route);
+    setDistanceKm(snapshot.distanceKm);
+    setElevationGainM(snapshot.elevationGainM);
+    setCurrentPace(snapshot.currentPace);
+    setStatus(snapshot.status);
+    syncElapsedSeconds(getBackgroundRunElapsedSeconds(snapshot));
   };
 
-  const appendLocationPoint = (location: Location.LocationObject) => {
-    const nextPoint = buildRoutePoint(location);
-    const previousPoint = routeRef.current.length ? routeRef.current[routeRef.current.length - 1] : null;
-
-    if (previousPoint) {
-      const segmentDistanceMeters = calculateDistanceBetweenPoints(previousPoint, nextPoint);
-      const timeDelta = new Date(nextPoint.timestamp).getTime() - new Date(previousPoint.timestamp).getTime();
-
-      if (segmentDistanceMeters < 2 && timeDelta < 4000) {
-        if (typeof location.coords.speed === 'number') {
-          setCurrentPace(formatPaceFromSpeedMps(location.coords.speed));
-        }
-        return;
-      }
-    }
-
-    const nextRoute = [...routeRef.current, nextPoint];
-    routeRef.current = nextRoute;
-    setRoute(nextRoute);
-    setDistanceKm(calculateRouteDistanceKm(nextRoute));
-    setElevationGainM(calculateElevationGainM(nextRoute));
-    setCurrentPace(formatPaceFromSpeedMps(location.coords.speed));
+  const startElapsedTicker = () => {
+    clearElapsedTicker();
+    timerRef.current = setInterval(() => {
+      syncElapsedSeconds(getBackgroundRunElapsedSeconds());
+    }, 1000);
   };
 
   const startPedometerUpdates = async () => {
@@ -356,18 +355,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     }
   };
 
-  const startLocationUpdates = async () => {
-    locationSubscriptionRef.current = await Location.watchPositionAsync(
-      {
-        accuracy: Location.Accuracy.BestForNavigation,
-        timeInterval: 2000,
-        distanceInterval: 4,
-        mayShowUserSettingsDialog: true,
-      },
-      appendLocationPoint,
-    );
-  };
-
   const ensureLocationPermission = async () => {
     const foregroundPermission = await Location.requestForegroundPermissionsAsync();
     const granted = foregroundPermission.granted || foregroundPermission.status === 'granted';
@@ -376,6 +363,86 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     if (!granted) {
       throw new Error('위치 권한을 허용해야 지도와 거리 측정이 가능해.');
     }
+  };
+
+  const ensureBackgroundLocationPermission = async () => {
+    const currentBackgroundPermission = await Location.getBackgroundPermissionsAsync();
+    let granted = currentBackgroundPermission.granted || currentBackgroundPermission.status === 'granted';
+
+    if (!granted) {
+      const requestedBackgroundPermission = await Location.requestBackgroundPermissionsAsync();
+      granted = requestedBackgroundPermission.granted || requestedBackgroundPermission.status === 'granted';
+    }
+
+    setBackgroundLocationPermissionGranted(granted);
+
+    if (!granted) {
+      throw new Error(
+        Platform.OS === 'ios'
+          ? '백그라운드에서도 계속 측정하려면 설정 > RUNNIGAPP > 위치에서 `항상 허용`을 켜주세요.'
+          : '백그라운드에서도 계속 측정하려면 RUNNIGAPP 위치 권한을 `항상 허용`으로 바꿔주세요.',
+      );
+    }
+  };
+
+  const resolveLiveShareLabel = async (coordinate?: { latitude: number; longitude: number }) => {
+    if (!coordinate) {
+      const fallbackLabel = buildLiveShareFallbackLabel(confirmedStartLocation);
+      setLiveShareLabel(fallbackLabel);
+      return fallbackLabel;
+    }
+
+    try {
+      const [address] = await Location.reverseGeocodeAsync(coordinate);
+      const nextLabel = buildLiveShareLabelFromAddress(address) || buildLiveShareFallbackLabel(confirmedStartLocation);
+      setLiveShareLabel(nextLabel);
+      return nextLabel;
+    } catch {
+      const fallbackLabel = buildLiveShareFallbackLabel(confirmedStartLocation);
+      setLiveShareLabel(fallbackLabel);
+      return fallbackLabel;
+    }
+  };
+
+  const syncLiveSharing = async ({
+    enabled,
+    status: nextStatus,
+    locationLabel,
+  }: {
+    enabled: boolean;
+    status: 'idle' | 'paused' | 'running';
+    locationLabel?: string | null;
+  }) => {
+    const payload = await updateRunningLiveShare({
+      enabled,
+      status: nextStatus,
+      ...(locationLabel ? { locationLabel } : {}),
+    });
+
+    setLiveShareLabel(payload.locationLabel ?? null);
+    liveShareHeartbeatRef.current = payload.isRunningNow ? Date.now() : 0;
+    return payload;
+  };
+
+  const refreshLiveSharingHeartbeat = (snapshot: BackgroundRunTrackingSnapshot) => {
+    if (!liveShareEnabledRef.current || snapshot.status !== 'running') {
+      return;
+    }
+
+    const now = Date.now();
+
+    if (now - liveShareHeartbeatRef.current < 25000) {
+      return;
+    }
+
+    liveShareHeartbeatRef.current = now;
+    void syncLiveSharing({
+      enabled: true,
+      status: 'running',
+      locationLabel: liveShareLabelRef.current,
+    }).catch(() => {
+      // Keep the run going even if the optional live-share heartbeat fails.
+    });
   };
 
   const resolveTypedStartLocation = async (trimmedStartLocation: string): Promise<ConfirmedStartLocation> => {
@@ -552,18 +619,17 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     try {
       setError(null);
       await ensureLocationPermission();
-      resetLiveTrackingState();
+      await ensureBackgroundLocationPermission();
+      resetForegroundTrackingState();
+      await resetBackgroundRunTracking();
 
       const initialLocation = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.BestForNavigation,
       });
-      const initialPoint = buildRoutePoint(initialLocation);
-      routeRef.current = [initialPoint];
-      setRoute([initialPoint]);
-      sessionStartedAtRef.current = initialPoint.timestamp;
       setLocationPermissionGranted(true);
 
       if (suggestedRoute?.coordinates.length) {
+        const initialPoint = buildRoutePoint(initialLocation);
         const gapFromSuggestedStartMeters = calculateDistanceBetweenPoints(initialPoint, suggestedRoute.coordinates[0]);
 
         if (gapFromSuggestedStartMeters > 200) {
@@ -571,37 +637,97 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         }
       }
 
-      await startLocationUpdates();
-      await startPedometerUpdates();
-      setStatus('running');
-      startClock();
+      await startBackgroundRunTracking(initialLocation);
+      syncFromBackgroundTracking();
+
+      try {
+        if (liveShareEnabledRef.current) {
+          const initialLabel = await resolveLiveShareLabel({
+            latitude: initialLocation.coords.latitude,
+            longitude: initialLocation.coords.longitude,
+          });
+          await syncLiveSharing({
+            enabled: true,
+            status: 'running',
+            locationLabel: initialLabel,
+          });
+        } else {
+          await syncLiveSharing({
+            enabled: false,
+            status: 'idle',
+          });
+        }
+      } catch {
+        setError('러닝은 시작됐지만 위치 공유 상태를 반영하지 못했어요.');
+      }
     } catch (trackingError) {
       setError(trackingError instanceof Error ? trackingError.message : '러닝 측정을 시작하지 못했어.');
-      stopLiveSubscriptions();
-      clearTimer();
+      stopForegroundTrackingHelpers();
+      await resetBackgroundRunTracking();
+      void syncLiveSharing({
+        enabled: false,
+        status: 'idle',
+      }).catch(() => {});
       setStatus('idle');
     }
   };
 
-  const handlePauseTracking = () => {
-    stopLiveSubscriptions();
-    pauseClock();
-    setCurrentPace('--:--/km');
-    setStatus('paused');
+  const handlePauseTracking = async () => {
+    await pauseBackgroundRunTracking();
+    stopForegroundTrackingHelpers();
+    syncFromBackgroundTracking();
+
+    try {
+      await syncLiveSharing({
+        enabled: liveShareEnabledRef.current,
+        status: liveShareEnabledRef.current ? 'paused' : 'idle',
+        locationLabel: liveShareLabelRef.current,
+      });
+    } catch {
+      setError('측정은 멈췄지만 위치 공유 상태를 업데이트하지 못했어요.');
+    }
   };
 
   const handleResumeTracking = async () => {
     try {
       setError(null);
-      await startLocationUpdates();
-      await startPedometerUpdates();
-      startClock();
-      setStatus('running');
+      await ensureBackgroundLocationPermission();
+      await resumeBackgroundRunTracking();
+      syncFromBackgroundTracking();
+
+      if (liveShareEnabledRef.current) {
+        const currentSnapshot = getBackgroundRunTrackingSnapshot();
+        const latestTrackedPoint = currentSnapshot.route[currentSnapshot.route.length - 1];
+        const nextLocationLabel = liveShareLabelRef.current ?? await resolveLiveShareLabel(
+          latestTrackedPoint
+            ? { latitude: latestTrackedPoint.latitude, longitude: latestTrackedPoint.longitude }
+            : undefined,
+        );
+        await syncLiveSharing({
+          enabled: true,
+          status: 'running',
+          locationLabel: nextLocationLabel,
+        });
+      }
     } catch (resumeError) {
       setError(resumeError instanceof Error ? resumeError.message : '러닝 측정을 다시 시작하지 못했어.');
-      stopLiveSubscriptions();
-      pauseClock();
+      stopForegroundTrackingHelpers();
       setStatus('paused');
+    }
+  };
+
+  const discardCurrentTracking = async () => {
+    await resetBackgroundRunTracking();
+    await syncLiveSharing({
+      enabled: false,
+      status: 'idle',
+    }).catch(() => {});
+    resetForegroundTrackingState();
+    setStatus('idle');
+    setError(null);
+
+    if (discardRedirectHref) {
+      router.replace(discardRedirectHref);
     }
   };
 
@@ -612,11 +738,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         text: '버릴게요',
         style: 'destructive',
         onPress: () => {
-          returnToIdleState({ keepSuggestedRoute: true });
-
-          if (discardRedirectHref) {
-            router.replace(discardRedirectHref);
-          }
+          void discardCurrentTracking();
         },
       },
     ]);
@@ -627,17 +749,25 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       setError(null);
 
       if (status === 'running') {
-        handlePauseTracking();
+        await pauseBackgroundRunTracking();
+        stopForegroundTrackingHelpers();
       }
 
-      const startedAt = sessionStartedAtRef.current ?? new Date().toISOString();
-      const endedAt = routeRef.current.length ? routeRef.current[routeRef.current.length - 1].timestamp : new Date().toISOString();
-      const finalDistanceKm = calculateRouteDistanceKm(routeRef.current);
-      const finalElevationGainM = calculateElevationGainM(routeRef.current);
-      const finalCadenceSpm = calculateCadenceSpm(totalStepsRef.current, elapsedSecondsRef.current);
-      const averagePaceLabel = buildAveragePace(finalDistanceKm, elapsedSecondsRef.current);
+      const trackingSnapshot = getBackgroundRunTrackingSnapshot();
+      syncFromBackgroundTracking(trackingSnapshot);
+      const finalElapsedSeconds = getBackgroundRunElapsedSeconds(trackingSnapshot);
+      syncElapsedSeconds(finalElapsedSeconds);
 
-      if (routeRef.current.length < 2 || finalDistanceKm < 0.1) {
+      const startedAt = trackingSnapshot.startedAt ?? new Date().toISOString();
+      const endedAt = trackingSnapshot.route.length
+        ? trackingSnapshot.route[trackingSnapshot.route.length - 1].timestamp
+        : new Date().toISOString();
+      const finalDistanceKm = trackingSnapshot.distanceKm;
+      const finalElevationGainM = trackingSnapshot.elevationGainM;
+      const finalCadenceSpm = calculateCadenceSpm(totalStepsRef.current, finalElapsedSeconds);
+      const averagePaceLabel = buildAveragePace(finalDistanceKm, finalElapsedSeconds);
+
+      if (trackingSnapshot.route.length < 2 || finalDistanceKm < 0.1) {
         throw new Error('저장하려면 실제로 이동한 러닝 경로가 조금 더 필요해.');
       }
 
@@ -650,13 +780,18 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         date: buildRunDateFromTimestamp(startedAt),
         distanceKm: finalDistanceKm,
         pace: averagePaceLabel,
-        durationSeconds: elapsedSecondsRef.current,
+        durationSeconds: finalElapsedSeconds,
         cadenceSpm: finalCadenceSpm,
         elevationGainM: finalElevationGainM,
-        route: routeRef.current,
+        route: trackingSnapshot.route,
         startedAt,
         endedAt,
       });
+
+      await syncLiveSharing({
+        enabled: false,
+        status: 'idle',
+      }).catch(() => {});
 
       router.replace({
         pathname: '/run-detail',
@@ -672,11 +807,41 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   };
 
   useEffect(() => {
+    const unsubscribe = subscribeBackgroundRunTracking((snapshot) => {
+      syncFromBackgroundTracking(snapshot);
+      refreshLiveSharingHeartbeat(snapshot);
+
+      if (snapshot.status === 'running') {
+        startElapsedTicker();
+      } else {
+        clearElapsedTicker();
+      }
+    });
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        syncFromBackgroundTracking();
+      }
+    });
+
     return () => {
-      stopLiveSubscriptions();
-      clearTimer();
+      unsubscribe();
+      appStateSubscription.remove();
+      stopForegroundTrackingHelpers();
     };
   }, []);
+
+  useEffect(() => {
+    if (status !== 'running') {
+      stopPedometerSubscription();
+      return;
+    }
+
+    void startPedometerUpdates();
+
+    return () => {
+      stopPedometerSubscription();
+    };
+  }, [status]);
 
   return (
     <Screen>
@@ -698,6 +863,45 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
             <Text style={styles.readyText}>
               실시간 맵과 기록 카드는 러닝을 시작하면 열려요. 바로 시작할 수도 있고, 먼저 그림 러닝을 만들어볼 수도 있어요.
             </Text>
+            <View style={styles.liveShareCard}>
+              <View style={styles.liveShareCopy}>
+                <Text style={styles.liveShareTitle}>위치 공유</Text>
+                <Text style={styles.liveShareText}>
+                  {liveShareEnabled
+                    ? '왼쪽 공유 O 상태예요. 친구들에게 지금 뛰는 동네를 대략적으로 보여줘요.'
+                    : '오른쪽 공유 X 상태예요. 러닝 기록은 남아도 현재 위치는 친구에게 보이지 않아요.'}
+                </Text>
+                <Text style={styles.liveShareHint}>
+                  러닝 시작 뒤에는 {liveShareEnabled ? (liveShareLabel ?? '현재 위치 근처') : '위치를 공개하지 않음'} 형태로 보여줘요.
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="switch"
+                accessibilityState={{ checked: liveShareEnabled }}
+                style={[styles.liveShareToggle, liveShareEnabled ? styles.liveShareToggleEnabled : styles.liveShareToggleDisabled]}
+                onPress={() => setLiveShareEnabled((current) => !current)}
+              >
+                <View style={[styles.liveShareThumb, liveShareEnabled ? styles.liveShareThumbEnabled : styles.liveShareThumbDisabled]} />
+                <View style={styles.liveShareToggleLabels}>
+                  <Text
+                    style={[
+                      styles.liveShareToggleText,
+                      liveShareEnabled ? styles.liveShareToggleTextActive : styles.liveShareToggleTextInactiveLight,
+                    ]}
+                  >
+                    공유 O
+                  </Text>
+                  <Text
+                    style={[
+                      styles.liveShareToggleText,
+                      liveShareEnabled ? styles.liveShareToggleTextInactiveDark : styles.liveShareToggleTextActive,
+                    ]}
+                  >
+                    공유 X
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
             <PrimaryButton label="바로 런닝 시작" onPress={handleStartTracking} />
           </Card>
 
@@ -914,10 +1118,13 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
               위치 권한: {locationPermissionGranted === null ? '아직 확인 전' : locationPermissionGranted ? '허용됨' : '허용 안 됨'}
             </Text>
             <Text style={styles.guideText}>
+              백그라운드 위치: {backgroundLocationPermissionGranted === null ? '아직 확인 전' : backgroundLocationPermissionGranted ? '항상 허용됨' : '항상 허용 필요'}
+            </Text>
+            <Text style={styles.guideText}>
               모션 권한: {motionPermissionGranted === null ? '아직 확인 전' : motionPermissionGranted ? '허용됨' : '케이던스 측정 제한'}
             </Text>
             {suggestedRoute ? <Text style={styles.guideText}>추천 경로: {suggestedRoute.displayTitle}</Text> : null}
-            <Text style={styles.guideHint}>앱이 열려 있는 동안 실시간 경로와 거리 측정이 가장 안정적이에요.</Text>
+            <Text style={styles.guideHint}>백그라운드 위치가 허용되면 화면을 벗어나도 계속 측정돼요. 다만 앱을 강제로 종료하면 측정이 중단될 수 있어요.</Text>
           </Card>
 
           {isSaving ? <ActivityIndicator size="small" color="#6D5EF7" /> : null}
@@ -953,6 +1160,77 @@ const styles = StyleSheet.create({
   readyText: {
     color: '#667085',
     lineHeight: 21,
+  },
+  liveShareCard: {
+    gap: 12,
+    padding: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E4E7EC',
+    backgroundColor: '#F8FAFC',
+  },
+  liveShareCopy: {
+    gap: 4,
+  },
+  liveShareTitle: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  liveShareText: {
+    color: '#475467',
+    lineHeight: 19,
+  },
+  liveShareHint: {
+    color: '#667085',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  liveShareToggle: {
+    position: 'relative',
+    height: 52,
+    borderRadius: 999,
+    padding: 4,
+    justifyContent: 'center',
+  },
+  liveShareToggleEnabled: {
+    backgroundColor: '#111827',
+  },
+  liveShareToggleDisabled: {
+    backgroundColor: '#D0D5DD',
+  },
+  liveShareThumb: {
+    position: 'absolute',
+    top: 4,
+    width: '48%',
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+  },
+  liveShareThumbEnabled: {
+    left: 4,
+  },
+  liveShareThumbDisabled: {
+    right: 4,
+  },
+  liveShareToggleLabels: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  liveShareToggleText: {
+    fontSize: 13,
+    fontWeight: '800',
+    zIndex: 1,
+  },
+  liveShareToggleTextActive: {
+    color: '#111827',
+  },
+  liveShareToggleTextInactiveDark: {
+    color: '#F2F4F7',
+  },
+  liveShareToggleTextInactiveLight: {
+    color: '#475467',
   },
   plannerCard: {
     gap: 16,

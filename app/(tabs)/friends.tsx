@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { Screen } from '@/components/Screen';
 import { FriendsRanking } from '@/features/friends/FriendsRanking';
@@ -10,6 +10,22 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { FriendRequest } from '@/domain/types';
+
+function formatRefreshTime(timestamp: string | null) {
+  if (!timestamp) {
+    return '방금 갱신 대기 중';
+  }
+
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return '방금 갱신';
+  }
+
+  const hours = `${date.getHours()}`.padStart(2, '0');
+  const minutes = `${date.getMinutes()}`.padStart(2, '0');
+  return `${hours}:${minutes} 기준`;
+}
 
 export default function FriendsScreen() {
   const { scrollToTop } = useLocalSearchParams<{ scrollToTop?: string }>();
@@ -21,27 +37,35 @@ export default function FriendsScreen() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const [lastLiveRefreshAt, setLastLiveRefreshAt] = useState<string | null>(null);
 
-  const syncFriends = async () => {
+  const syncFriends = useCallback(async () => {
     const [leaderboardData, profileData] = await Promise.all([fetchFriendLeaderboard(), fetchMyProfile()]);
 
     setLeaderboard(leaderboardData);
     setProfile(profileData);
     setRequests(leaderboardData.requests);
-  };
+    setLastLiveRefreshAt(new Date().toISOString());
+  }, []);
 
-  const loadFriends = () => {
+  const loadFriends = useCallback(() => {
     setLoading(true);
     setError(null);
 
     syncFriends()
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '친구 정보를 불러오지 못했어.'))
       .finally(() => setLoading(false));
-  };
+  }, [syncFriends]);
 
-  useEffect(() => {
-    loadFriends();
-  }, []);
+  useFocusEffect(useCallback(() => {
+    void loadFriends();
+
+    const refreshInterval = setInterval(() => {
+      void syncFriends().catch(() => undefined);
+    }, 20000);
+
+    return () => clearInterval(refreshInterval);
+  }, [loadFriends, syncFriends]));
 
   const pending = useMemo(() => requests.filter((request) => request.status === 'pending'), [requests]);
   const received = useMemo(() => requests.filter((request) => request.status === 'received'), [requests]);
@@ -52,6 +76,7 @@ export default function FriendsScreen() {
 
     return leaderboard.ranks.filter((runner) => runner.tag !== profile.publicTag);
   }, [leaderboard, profile]);
+  const liveFriends = useMemo(() => compareTargets.filter((friend) => friend.isRunningNow), [compareTargets]);
 
   const handleAccept = async (requestId: string) => {
     setActionError(null);
@@ -123,9 +148,55 @@ export default function FriendsScreen() {
         </Card>
       ) : null}
 
-      {leaderboard && profile ? (
+        {leaderboard && profile ? (
         <>
           <FriendsRanking ranks={leaderboard.ranks} highlightTag={profile.publicTag} />
+
+          <Card style={styles.liveCard}>
+            <View style={styles.liveCardHeader}>
+              <View style={styles.liveCardCopy}>
+                <Text style={styles.liveCardEyebrow}>지금 뛰는 친구</Text>
+                <Text style={styles.liveCardTitle}>
+                  {liveFriends.length > 0 ? `${liveFriends.length}명이 지금 달리고 있어요` : '지금은 위치 공유 중인 친구가 없어요'}
+                </Text>
+                <Text style={styles.liveCardHint}>
+                  위치 공유를 켠 친구만 동네 단위로 보이고, 친구 탭은 20초마다 자동으로 새로고침돼요.
+                </Text>
+              </View>
+              <View style={styles.liveCardCountBadge}>
+                <Text style={styles.liveCardCountText}>{liveFriends.length}명</Text>
+              </View>
+            </View>
+            <Text style={styles.liveCardRefreshText}>{formatRefreshTime(lastLiveRefreshAt)}</Text>
+            {liveFriends.length > 0 ? (
+              <View style={styles.liveFriendList}>
+                {liveFriends.slice(0, 3).map((friend) => (
+                  <Pressable
+                    key={friend.id}
+                    style={styles.liveFriendRow}
+                    onPress={() => router.push({ pathname: '/friend-detail', params: { friendId: friend.id } })}
+                  >
+                    <View style={styles.liveFriendMeta}>
+                      <View style={styles.liveFriendNameRow}>
+                        <Text style={styles.liveFriendName}>{friend.name}</Text>
+                        <View style={styles.liveBadge}>
+                          <View style={styles.liveDot} />
+                          <Text style={styles.liveBadgeText}>러닝 중</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.liveFriendLocation}>{friend.liveLocationLabel ?? '현재 위치 근처'}</Text>
+                    </View>
+                    <Text style={styles.compareLink}>보기</Text>
+                  </Pressable>
+                ))}
+                {liveFriends.length > 3 ? (
+                  <Text style={styles.liveCardMoreText}>더 뛰는 친구는 아래 친구 목록에서 바로 볼 수 있어.</Text>
+                ) : null}
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>친구가 러닝 시작 전에 위치 공유를 켜면 여기에서 바로 보여요.</Text>
+            )}
+          </Card>
 
           <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}>
             <Text style={styles.addButtonText}>친구 추가하기</Text>
@@ -215,7 +286,11 @@ export default function FriendsScreen() {
                       </View>
                     ) : null}
                   </View>
-                  <Text style={styles.requestDetail}>{friend.tag}</Text>
+                  <Text style={styles.requestDetail}>
+                    {friend.isRunningNow && friend.liveLocationLabel
+                      ? `${friend.tag} · ${friend.liveLocationLabel}`
+                      : friend.tag}
+                  </Text>
                 </View>
                 <Text style={styles.compareLink}>보기</Text>
               </Pressable>
@@ -240,6 +315,92 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 15,
+  },
+  liveCard: {
+    backgroundColor: '#111827',
+    gap: 12,
+  },
+  liveCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  liveCardCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  liveCardEyebrow: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  liveCardTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  liveCardHint: {
+    color: '#D0D5DD',
+    lineHeight: 20,
+  },
+  liveCardCountBadge: {
+    backgroundColor: '#123524',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  liveCardCountText: {
+    color: '#D1FADF',
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  liveCardRefreshText: {
+    color: '#98A2B3',
+    fontSize: 12,
+    fontWeight: '700',
+    includeFontPadding: false,
+  },
+  liveFriendList: {
+    gap: 10,
+  },
+  liveFriendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: '#1F2937',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#374151',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  liveFriendMeta: {
+    flex: 1,
+    gap: 4,
+  },
+  liveFriendNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  liveFriendName: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    includeFontPadding: false,
+  },
+  liveFriendLocation: {
+    color: '#D0D5DD',
+    includeFontPadding: false,
+  },
+  liveCardMoreText: {
+    color: '#98A2B3',
+    lineHeight: 20,
   },
   tagCard: {
     gap: 10,

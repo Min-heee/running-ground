@@ -1,31 +1,28 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, TextInput, ActivityIndicator, Pressable } from 'react-native';
-import { router } from 'expo-router';
+import { type Href, Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { fetchMyProfile, fetchUniversityCatalog, updateMyProfile } from '@/lib/api/services';
+import { fetchMyProfile, updateMyProfile } from '@/lib/api/services';
 import { MyProfileResponse } from '@/lib/api/types';
 
 export default function EditProfileScreen() {
+  const universityVerificationHref = '/university-verification' as Href;
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
-  const [nickname, setNickname] = useState('');
-  const [universityName, setUniversityName] = useState('');
-  const [universitySuggestions, setUniversitySuggestions] = useState<string[]>([]);
+  const [displayName, setDisplayName] = useState('');
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([fetchMyProfile(), fetchUniversityCatalog()])
-      .then(([nextProfile, universityCatalog]) => {
+    fetchMyProfile()
+      .then((nextProfile) => {
         setProfile(nextProfile);
-        setNickname(nextProfile.name);
-        setUniversityName(nextProfile.universityName ?? '');
-        setUniversitySuggestions(universityCatalog.universities);
+        setDisplayName(nextProfile.name);
       })
       .catch((loadError) => {
         setError(loadError instanceof Error ? loadError.message : '프로필을 불러오지 못했어.');
@@ -34,8 +31,8 @@ export default function EditProfileScreen() {
   }, []);
 
   const handleSave = async () => {
-    if (!nickname.trim()) {
-      setError('닉네임은 비워둘 수 없어.');
+    if (!displayName.trim()) {
+      setError('표시 이름은 비워둘 수 없어요.');
       return;
     }
 
@@ -43,10 +40,9 @@ export default function EditProfileScreen() {
     setSaving(true);
 
     try {
-      const nextProfile = await updateMyProfile({ name: nickname, universityName });
+      const nextProfile = await updateMyProfile({ name: displayName });
       setProfile(nextProfile);
-      setNickname(nextProfile.name);
-      setUniversityName(nextProfile.universityName ?? '');
+      setDisplayName(nextProfile.name);
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
@@ -60,7 +56,7 @@ export default function EditProfileScreen() {
     <Screen>
       <AuthHeader
         title="프로필 수정"
-        subtitle="공개 닉네임과 기본 프로필 정보를 관리할 수 있어."
+        subtitle="랭킹과 친구 화면에 보이는 표시 이름과 기본 프로필 정보를 관리할 수 있어요."
         showBack
         backHref="/(tabs)/mypage"
       />
@@ -70,28 +66,18 @@ export default function EditProfileScreen() {
       {!loading && profile ? (
         <Card>
           <View style={styles.form}>
-            <Input label="닉네임" value={nickname} onChangeText={setNickname} editable={!saving} />
-            <Input label="소속 대학" value={universityName} onChangeText={setUniversityName} editable={!saving} />
-            {universitySuggestions.length > 0 ? (
-              <View style={styles.selectionList}>
-                {universitySuggestions.map((option) => {
-                  const selected = option === universityName;
-
-                  return (
-                    <Pressable
-                      key={option}
-                      style={[styles.selectionChip, selected && styles.selectionChipSelected]}
-                      onPress={() => setUniversityName(option)}
-                      disabled={saving}
-                    >
-                      <Text style={[styles.selectionChipText, selected && styles.selectionChipTextSelected]}>{option}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            ) : (
-              <Text style={styles.helperText}>아직 등록된 대학이 많지 않아. 없으면 직접 입력하면 바로 추가돼.</Text>
-            )}
+            <Input label="표시 이름" value={displayName} onChangeText={setDisplayName} editable={!saving} />
+            <View style={styles.noticeCard}>
+              <Text style={styles.noticeTitle}>대학교 인증</Text>
+              <Text style={styles.helperText}>
+                소속 대학은 직접 입력 대신 마이페이지에서 재학증명서나 에브리타임 같은 인증 방식으로 연결할 수 있게 바꿀 예정이에요.
+              </Text>
+              <Link href={universityVerificationHref} asChild>
+                <Pressable style={styles.inlineLinkButton}>
+                  <Text style={styles.inlineLinkButtonText}>대학교 인증 안내 보기</Text>
+                </Pressable>
+              </Link>
+            </View>
             <Input label="내 태그" value={profile.publicTag} editable={false} />
             <Input label="대표 지역" value={profile.districtName} editable={false} />
             <Input label="상태 메시지" value="러닝 경쟁 진행 중" editable={false} />
@@ -136,9 +122,36 @@ function Input({
 const styles = StyleSheet.create({
   form: { gap: 14 },
   inputGroup: { gap: 8 },
+  noticeCard: {
+    gap: 8,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  noticeTitle: {
+    color: '#111827',
+    fontWeight: '800',
+  },
   helperText: {
     color: '#667085',
     lineHeight: 20,
+  },
+  inlineLinkButton: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  inlineLinkButtonText: {
+    color: '#111827',
+    fontWeight: '700',
+    fontSize: 13,
   },
   label: {
     color: '#111827',
@@ -157,30 +170,6 @@ const styles = StyleSheet.create({
   disabledInput: {
     color: '#98A2B3',
     backgroundColor: '#F2F4F7',
-  },
-  selectionList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  selectionChip: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D0D5DD',
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  selectionChipSelected: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#6D5EF7',
-  },
-  selectionChipText: {
-    color: '#344054',
-    fontWeight: '700',
-  },
-  selectionChipTextSelected: {
-    color: '#4338CA',
   },
   savedText: {
     color: '#067647',

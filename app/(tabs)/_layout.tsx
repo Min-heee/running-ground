@@ -65,17 +65,17 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="running"
+        options={{
+          title: TAB_TITLES.running,
+          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="run" size={(size ?? 18) + 1} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="home"
         options={{
           title: TAB_TITLES.home,
           tabBarIcon: ({ color, size }) => <Feather name={TAB_ICONS.home} size={size ?? 18} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="running"
-        options={{
-          title: TAB_TITLES.running,
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="shoe-sneaker" size={size ?? 18} color={color} />,
         }}
       />
       <Tabs.Screen

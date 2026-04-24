@@ -149,6 +149,45 @@ await runTest('returns leaderboard with ranks and actionable requests', () => {
   ]);
 });
 
+await runTest('stores live sharing and exposes running location on leaderboard', () => {
+  const { repository, storeHarness } = createRepositoryHarness({
+    users: [
+      { id: 'user-me', name: '민병희', publicTag: '#ME001' },
+      { id: 'user-juno', name: '준호', publicTag: '#JUNO1' },
+    ],
+    sessions: [
+      { token: 'token-me', userId: 'user-me' },
+    ],
+    friendships: [
+      { id: 'friendship-1', userIds: ['user-me', 'user-juno'] },
+    ],
+  }, {
+    'user-me': { currentWeekDistanceKm: 8, currentWeekPoints: 12, currentMonthDistanceKm: 24, currentMonthPoints: 30 },
+    'user-juno': { currentWeekDistanceKm: 12, currentWeekPoints: 18, currentMonthDistanceKm: 40, currentMonthPoints: 50 },
+  });
+
+  const updated = repository.updateLiveSharing({
+    token: 'token-me',
+    enabled: true,
+    status: 'running',
+    locationLabel: '성수동 근처',
+  });
+  const leaderboard = repository.getLeaderboard({ token: 'token-me' });
+
+  assert.deepEqual(updated, {
+    success: true,
+    liveSharingEnabled: true,
+    isRunningNow: true,
+    locationLabel: '성수동 근처',
+    updatedAt: '2026-04-24T00:00:00.000Z',
+  });
+  assert.equal(storeHarness.getStore().liveRunShares[0].locationLabel, '성수동 근처');
+  assert.equal(
+    leaderboard.ranks.find((entry) => entry.id === 'user-me')?.liveLocationLabel,
+    '성수동 근처',
+  );
+});
+
 await runTest('creates a friend request and rejects duplicates', () => {
   const { repository, storeHarness } = createRepositoryHarness({
     users: [

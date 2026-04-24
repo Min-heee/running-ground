@@ -15,6 +15,9 @@ function asNumber(value, fallback = 0) {
   return Number.isFinite(numberValue) ? numberValue : fallback;
 }
 
+const LIVE_RUN_SHARE_METADATA_KEY = 'live_run_shares';
+const LIVE_RUN_SHARE_STALE_MS = 2 * 60 * 1000;
+
 function hasValue(value) {
   return value !== null && value !== undefined && value !== '';
 }
@@ -49,6 +52,14 @@ function createNowIso() {
 
 function normalizeOptionalString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeLiveShareStatus(value) {
+  return value === 'running' || value === 'paused' ? value : 'idle';
+}
+
+function normalizeLiveShareLabel(value) {
+  return normalizeOptionalString(value).slice(0, 80);
 }
 
 function mapUserRow(row) {
@@ -215,6 +226,37 @@ async function loadRunsByUserIds(database, userIds) {
   return runsByUserId;
 }
 
+async function loadLiveRunShares(database) {
+  const result = await database.query(
+    `
+      select value
+      from app_metadata
+      where key = $1
+      limit 1
+    `,
+    [LIVE_RUN_SHARE_METADATA_KEY],
+  );
+
+  const rawValue = result.rows[0]?.value;
+  return rawValue && typeof rawValue === 'object' && !Array.isArray(rawValue)
+    ? clone(rawValue)
+    : {};
+}
+
+async function saveLiveRunShares(database, liveRunShares) {
+  await database.query(
+    `
+      insert into app_metadata (key, value, updated_at)
+      values ($1, $2::jsonb, now())
+      on conflict (key)
+      do update set
+        value = excluded.value,
+        updated_at = now()
+    `,
+    [LIVE_RUN_SHARE_METADATA_KEY, JSON.stringify(liveRunShares)],
+  );
+}
+
 async function loadFriendIdsForUser(database, userId) {
   const result = await database.query(
     `
@@ -336,7 +378,38 @@ function getRunForUser(runs, runId, createError) {
   return run;
 }
 
-function buildFriendRank(user, rank, metrics) {
+function buildLiveRunSharePresentation(liveShare, nowIso = createNowIso) {
+  if (!liveShare || liveShare.enabled !== true || liveShare.status !== 'running') {
+    return {
+      isRunningNow: false,
+      liveLocationLabel: undefined,
+    };
+  }
+
+  const updatedAtMs = Date.parse(liveShare.updatedAt ?? '');
+  const nowMs = Date.parse(nowIso());
+  const isFresh = Number.isFinite(updatedAtMs) && Number.isFinite(nowMs)
+    ? nowMs - updatedAtMs <= LIVE_RUN_SHARE_STALE_MS
+    : true;
+
+  if (!isFresh) {
+    return {
+      isRunningNow: false,
+      liveLocationLabel: undefined,
+    };
+  }
+
+  const liveLocationLabel = normalizeLiveShareLabel(liveShare.locationLabel);
+
+  return {
+    isRunningNow: true,
+    liveLocationLabel: liveLocationLabel || undefined,
+  };
+}
+
+function buildFriendRank(user, rank, metrics, liveShare, nowIso = createNowIso) {
+  const liveSharePresentation = buildLiveRunSharePresentation(liveShare, nowIso);
+
   return {
     id: user.id,
     rank,
@@ -344,6 +417,8 @@ function buildFriendRank(user, rank, metrics) {
     tag: user.publicTag,
     distanceKm: metrics.currentWeekDistanceKm,
     points: metrics.currentWeekPoints,
+    ...(liveSharePresentation.isRunningNow ? { isRunningNow: true } : {}),
+    ...(liveSharePresentation.liveLocationLabel ? { liveLocationLabel: liveSharePresentation.liveLocationLabel } : {}),
   };
 }
 
@@ -402,22 +477,24 @@ async function buildActionableRequests(database, currentUserId) {
     .sort((left, right) => left.name.localeCompare(right.name, 'ko'));
 }
 
-async function buildLeaderboardContext(database, currentUser, buildUserMetrics) {
+async function buildLeaderboardContext(database, currentUser, buildUserMetrics, nowIso = createNowIso) {
   const friendIds = await loadFriendIdsForUser(database, currentUser.id);
   const userIds = [...new Set([currentUser.id, ...friendIds])];
   const users = await loadUsersByIds(database, userIds);
   const usersById = new Map(users.map((user) => [user.id, user]));
   const runsByUserId = await loadRunsByUserIds(database, userIds);
   const metricsByUserId = buildMetricsByUserId(runsByUserId, userIds, buildUserMetrics);
+  const liveRunShares = await loadLiveRunShares(database);
   const ranks = [...users]
     .sort((left, right) => compareFriendRank(left, right, metricsByUserId))
-    .map((user, index) => buildFriendRank(user, index + 1, metricsByUserId.get(user.id)));
+    .map((user, index) => buildFriendRank(user, index + 1, metricsByUserId.get(user.id), liveRunShares[user.id], nowIso));
   const requests = await buildActionableRequests(database, currentUser.id);
 
   return {
     usersById,
     runsByUserId,
     metricsByUserId,
+    liveRunShares,
     ranks,
     requests,
   };
@@ -442,7 +519,7 @@ export function createPostgresFriendsRepository({
   return {
     async getLeaderboardByUserId({ currentUserId }) {
       const currentUser = await findUserById(database, currentUserId, createError);
-      const context = await buildLeaderboardContext(database, currentUser, buildUserMetrics);
+      const context = await buildLeaderboardContext(database, currentUser, buildUserMetrics, nowIso);
 
       return {
         ranks: context.ranks,
@@ -454,6 +531,38 @@ export function createPostgresFriendsRepository({
       const currentUser = await requireUserByToken(database, token, createError);
       return this.getLeaderboardByUserId({
         currentUserId: currentUser.id,
+      });
+    },
+
+    async updateLiveSharing({ token, enabled, status, locationLabel }) {
+      return runWriteOperation(database, async (client) => {
+        const currentUser = await requireUserByToken(client, token, createError);
+        const updatedAt = nowIso();
+        const nextStatus = normalizeLiveShareStatus(status);
+        const normalizedLocationLabel = normalizeLiveShareLabel(locationLabel);
+        const liveRunShares = await loadLiveRunShares(client);
+
+        delete liveRunShares[currentUser.id];
+
+        if (enabled && (nextStatus === 'running' || nextStatus === 'paused')) {
+          liveRunShares[currentUser.id] = {
+            enabled: true,
+            status: nextStatus,
+            ...(normalizedLocationLabel ? { locationLabel: normalizedLocationLabel } : {}),
+            updatedAt,
+          };
+        }
+
+        await saveLiveRunShares(client, liveRunShares);
+        const presentation = buildLiveRunSharePresentation(liveRunShares[currentUser.id], () => updatedAt);
+
+        return {
+          success: true,
+          liveSharingEnabled: Boolean(liveRunShares[currentUser.id]?.enabled),
+          isRunningNow: presentation.isRunningNow,
+          ...(presentation.liveLocationLabel ? { locationLabel: presentation.liveLocationLabel } : {}),
+          updatedAt,
+        };
       });
     },
 
@@ -554,11 +663,11 @@ export function createPostgresFriendsRepository({
       await requireFriendAccess(database, currentUser.id, friendId, createError);
 
       const friend = await findUserById(database, friendId, createError);
-      const context = await buildLeaderboardContext(database, currentUser, buildUserMetrics);
+      const context = await buildLeaderboardContext(database, currentUser, buildUserMetrics, nowIso);
       const friendRuns = context.runsByUserId.get(friend.id) ?? [];
       const friendMetrics = context.metricsByUserId.get(friend.id) ?? buildUserMetrics(friendRuns);
       const rankedFriend = context.ranks.find((entry) => entry.id === friend.id)
-        ?? buildFriendRank(friend, 1, friendMetrics);
+        ?? buildFriendRank(friend, 1, friendMetrics, context.liveRunShares[friend.id], nowIso);
 
       return {
         friend: rankedFriend,

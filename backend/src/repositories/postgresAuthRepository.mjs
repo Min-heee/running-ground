@@ -192,6 +192,39 @@ async function runWriteOperation(database, callback) {
   return callback(database);
 }
 
+async function removeLiveRunShare(client, userId) {
+  const result = await client.query(
+    `
+      select value
+      from app_metadata
+      where key = $1
+      limit 1
+    `,
+    ['live_run_shares'],
+  );
+
+  const liveRunShares = result.rows[0]?.value && typeof result.rows[0].value === 'object' && !Array.isArray(result.rows[0].value)
+    ? { ...result.rows[0].value }
+    : {};
+
+  if (!Object.prototype.hasOwnProperty.call(liveRunShares, userId)) {
+    return;
+  }
+
+  delete liveRunShares[userId];
+  await client.query(
+    `
+      insert into app_metadata (key, value, updated_at)
+      values ($1, $2::jsonb, now())
+      on conflict (key)
+      do update set
+        value = excluded.value,
+        updated_at = now()
+    `,
+    ['live_run_shares', JSON.stringify(liveRunShares)],
+  );
+}
+
 export function createPostgresAuthRepository({
   database,
   sessionTtlMs,
@@ -268,6 +301,8 @@ export function createPostgresAuthRepository({
         if (!user) {
           throw createError(401, '로그인이 필요해요.');
         }
+
+        await removeLiveRunShare(client, user.id);
 
         await client.query(
           `

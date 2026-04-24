@@ -31,6 +31,7 @@ class FakePostgresDatabase {
     this.runs = clone(initialStore.runs ?? []);
     this.friendRequests = clone(initialStore.friendRequests ?? []);
     this.friendships = clone(initialStore.friendships ?? []);
+    this.appMetadata = clone(initialStore.appMetadata ?? {});
     this.transactions = 0;
   }
 
@@ -90,6 +91,13 @@ class FakePostgresDatabase {
             return String(right.created_at ?? '').localeCompare(String(left.created_at ?? ''));
           })
           .map((row) => clone(row)),
+      };
+    }
+
+    if (normalizedSql.startsWith('select value from app_metadata where key = $1 limit 1')) {
+      const value = this.appMetadata[params[0]];
+      return {
+        rows: typeof value === 'undefined' ? [] : [{ value: clone(value) }],
       };
     }
 
@@ -175,6 +183,11 @@ class FakePostgresDatabase {
         user_b_id: params[2],
         created_at: params[3],
       });
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith('insert into app_metadata (key, value, updated_at) values ($1, $2::jsonb, now()) on conflict (key) do update set value = excluded.value, updated_at = now()')) {
+      this.appMetadata[params[0]] = JSON.parse(params[1]);
       return { rows: [] };
     }
 
@@ -266,6 +279,52 @@ await runTest('returns leaderboard with ranks and actionable requests', async ()
     { id: 'request-1', name: '가영', tag: '#GAY01', status: 'received' },
     { id: 'request-2', name: '하늘', tag: '#HAN01', status: 'pending' },
   ]);
+});
+
+await runTest('stores live sharing and exposes running location on leaderboard', async () => {
+  const { repository, database } = createRepositoryHarness({
+    users: [
+      { id: 'user-me', nickname: '민병희', public_tag: '#ME001' },
+      { id: 'user-juno', nickname: '준호', public_tag: '#JUNO1' },
+    ],
+    sessions: [
+      { token: 'token-me', user_id: 'user-me', expires_at: '2099-01-01T00:00:00.000Z' },
+    ],
+    friendships: [
+      { id: 'friendship-1', user_a_id: 'user-juno', user_b_id: 'user-me' },
+    ],
+    runs: [
+      { id: 'run-me', user_id: 'user-me', run_date: '2026-04-23', distance_km: 8, pace: '05:40/km', source_label: 'Manual', source_type: 'manual' },
+      { id: 'run-juno', user_id: 'user-juno', run_date: '2026-04-23', distance_km: 12, pace: '05:20/km', source_label: 'NRC', source_type: 'nrc' },
+    ],
+  });
+
+  const updated = await repository.updateLiveSharing({
+    token: 'token-me',
+    enabled: true,
+    status: 'running',
+    locationLabel: '성수동 근처',
+  });
+  const leaderboard = await repository.getLeaderboard({
+    token: 'token-me',
+  });
+
+  assert.deepEqual(updated, {
+    success: true,
+    liveSharingEnabled: true,
+    isRunningNow: true,
+    locationLabel: '성수동 근처',
+    updatedAt: '2026-04-24T00:00:00.000Z',
+  });
+  assert.equal(database.appMetadata.live_run_shares['user-me'].locationLabel, '성수동 근처');
+  assert.equal(
+    leaderboard.ranks.find((entry) => entry.id === 'user-me')?.liveLocationLabel,
+    '성수동 근처',
+  );
+  assert.equal(
+    leaderboard.ranks.find((entry) => entry.id === 'user-me')?.isRunningNow,
+    true,
+  );
 });
 
 await runTest('creates friend requests with duplicate protection', async () => {

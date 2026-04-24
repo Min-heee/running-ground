@@ -27,6 +27,7 @@ class FakePostgresDatabase {
     this.friendships = clone(initialStore.friendships ?? []);
     this.rewardRedemptions = clone(initialStore.rewardRedemptions ?? []);
     this.offlineRaceEntries = clone(initialStore.offlineRaceEntries ?? []);
+    this.appMetadata = clone(initialStore.appMetadata ?? {});
     this.insertUserError = initialStore.insertUserError;
     this.transactions = 0;
   }
@@ -122,6 +123,13 @@ class FakePostgresDatabase {
       };
     }
 
+    if (normalizedSql.startsWith('select value from app_metadata where key = $1 limit 1')) {
+      const value = this.appMetadata[params[0]];
+      return {
+        rows: typeof value === 'undefined' ? [] : [{ value: clone(value) }],
+      };
+    }
+
     if (normalizedSql.startsWith('delete from sessions where token = $1')) {
       this.sessions = this.sessions.filter((session) => session.token !== params[0]);
       return { rows: [] };
@@ -136,6 +144,11 @@ class FakePostgresDatabase {
       this.friendships = this.friendships.filter((entry) => entry.user_a_id !== params[0] && entry.user_b_id !== params[0]);
       this.rewardRedemptions = this.rewardRedemptions.filter((entry) => entry.user_id !== params[0]);
       this.offlineRaceEntries = this.offlineRaceEntries.filter((entry) => entry.user_id !== params[0]);
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith('insert into app_metadata (key, value, updated_at) values ($1, $2::jsonb, now()) on conflict (key) do update set value = excluded.value, updated_at = now()')) {
+      this.appMetadata[params[0]] = JSON.parse(params[1]);
       return { rows: [] };
     }
 
@@ -455,6 +468,16 @@ await runTest('deletes the current account and lets cascades clear related recor
         user_id: 'user-existing',
       },
     ],
+    appMetadata: {
+      live_run_shares: {
+        'user-existing': {
+          enabled: true,
+          status: 'running',
+          locationLabel: '성수동 근처',
+          updatedAt: '2026-04-24T00:00:00.000Z',
+        },
+      },
+    },
   });
 
   assert.deepEqual(await repository.deleteAccount({ token: 'token-1' }), {
@@ -472,6 +495,7 @@ await runTest('deletes the current account and lets cascades clear related recor
   assert.equal(database.friendships.length, 0);
   assert.equal(database.rewardRedemptions.length, 0);
   assert.equal(database.offlineRaceEntries.length, 0);
+  assert.deepEqual(database.appMetadata.live_run_shares, {});
 });
 
 await runTest('requires a valid session to delete the current account', async () => {
