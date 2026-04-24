@@ -70,6 +70,7 @@ Defined in [eas.json](/eas.json).
 - keeps the real production bundle identifier
 - should point at the EAS `preview` environment backend URL, not the final production backend
 - best profile for real TestFlight QA before launch
+- follow [testflight-real-device-qa.md](/docs/testflight-real-device-qa.md) for the actual iPhone pass order
 
 ### `production`
 - store-oriented build
@@ -175,6 +176,9 @@ npm run build:ios:preview
 npm run build:android:preview
 npm run build:ios:testflight
 ```
+
+After the build lands on the phone, use:
+- [testflight-real-device-qa.md](/docs/testflight-real-device-qa.md)
 
 ### production builds
 ```bash

@@ -69,6 +69,9 @@ npm run build:ios:testflight
 npm run submit:ios:testflight
 ```
 
+After the build is visible in TestFlight, run the phone pass using:
+- [testflight-real-device-qa.md](/docs/testflight-real-device-qa.md)
+
 ## required values before TestFlight submission
 - Expo account login
 - paid Apple Developer account
@@ -92,3 +95,4 @@ TestFlight is still an internal or external testing stage before final review su
 3. create the first iOS development build
 4. finish Apple Health reader work there
 5. move stable builds to TestFlight
+6. follow the real-device QA flow before calling the build stable
