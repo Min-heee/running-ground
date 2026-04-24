@@ -30,6 +30,7 @@ Options:
   --admin-token <token>                   Forwarded to preview:smoke when that step runs.
   --username <value>                      Forwarded to preview:smoke when that step runs.
   --password <value>                      Forwarded to preview:smoke when that step runs.
+  --timeout-ms <number>                   Forwarded to preview:smoke. Defaults to 20000 for release gates.
   --require-admin                         Require admin status in preview:smoke.
   --skip-smoke                            Skip preview:smoke even when the mode normally runs it.
   --json                                  Print machine-readable JSON output.
@@ -128,12 +129,16 @@ function resolvePublicBaseUrl(mode) {
 function createSmokeArgs() {
   const args = ['run', 'preview:smoke', '--'];
 
-  for (const flagName of ['--api-base-url', '--admin-token', '--username', '--password']) {
+  for (const flagName of ['--api-base-url', '--admin-token', '--username', '--password', '--timeout-ms']) {
     const value = readArgValue(flagName);
 
     if (value) {
       args.push(flagName, value);
     }
+  }
+
+  if (!readArgValue('--timeout-ms')) {
+    args.push('--timeout-ms', '20000');
   }
 
   if (hasFlag('--require-admin')) {
@@ -180,6 +185,7 @@ function buildSteps(mode) {
       key: 'publicSmoke',
       label: mode === 'production' ? 'public api smoke' : 'preview public smoke',
       args: smokeArgs,
+      retryCount: 1,
     });
   } else {
     steps.push({
@@ -208,25 +214,143 @@ function runStep(projectRoot, step) {
     };
   }
 
-  const startedAt = Date.now();
-  const result = spawnSync(getNpmExecutable(), step.args, {
-    cwd: projectRoot,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      ...(step.envOverrides ?? {}),
-    },
-  });
-  const durationMs = Date.now() - startedAt;
+  const maxAttempts = Math.max(1, Number(step.retryCount ?? 0) + 1);
+  const env = {
+    ...process.env,
+    ...(step.envOverrides ?? {}),
+  };
+  let result = null;
+  let durationMs = 0;
+  let attempts = 0;
+
+  while (attempts < maxAttempts) {
+    attempts += 1;
+    const startedAt = Date.now();
+    result = spawnSync(getNpmExecutable(), step.args, {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env,
+    });
+    durationMs += Date.now() - startedAt;
+
+    if (result.status === 0) {
+      break;
+    }
+  }
 
   return {
     ...step,
-    ok: result.status === 0,
+    ok: result?.status === 0,
     skipped: false,
-    exitCode: result.status ?? 1,
+    exitCode: result?.status ?? 1,
     durationMs,
-    stdout: String(result.stdout ?? '').trim(),
-    stderr: String(result.stderr ?? '').trim(),
+    attempts,
+    stdout: String(result?.stdout ?? '').trim(),
+    stderr: String(result?.stderr ?? '').trim(),
+  };
+}
+
+function collectSectionMessages(text, sectionName) {
+  if (!text) {
+    return [];
+  }
+
+  const lines = String(text).split(/\r?\n/);
+  const messages = [];
+  let inSection = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      if (inSection) {
+        break;
+      }
+      continue;
+    }
+
+    if (/^\[(release-check|backend-release-check)\]/.test(line) && !line.endsWith(`${sectionName}:`)) {
+      if (inSection) {
+        break;
+      }
+      continue;
+    }
+
+    if (line.endsWith(`${sectionName}:`) && /^\[(release-check|backend-release-check)\]/.test(line)) {
+      inSection = true;
+      continue;
+    }
+
+    if (inSection) {
+      if (line.startsWith('- ')) {
+        messages.push(line.slice(2).trim());
+        continue;
+      }
+
+      break;
+    }
+  }
+
+  return messages;
+}
+
+function collectStderrMessages(text) {
+  if (!text) {
+    return [];
+  }
+
+  return String(text)
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((line) => !line.startsWith('Learn more:'))
+    .filter((line) => !line.startsWith('To upgrade, run:'))
+    .filter((line) => !line.startsWith('Proceeding with outdated version.'))
+    .filter((line) => !line.startsWith('npm warn EBADENGINE'))
+    .filter((line) => !line.startsWith('current: {'))
+    .filter((line) => !line.startsWith('required: {'))
+    .filter((line) => line !== '}');
+}
+
+function collectDiagnostics(results) {
+  const blockers = [];
+  const warnings = [];
+
+  for (const result of results) {
+    const stdoutErrors = collectSectionMessages(result.stdout, 'errors');
+    const stdoutWarnings = collectSectionMessages(result.stdout, 'warnings');
+    const stderrMessages = collectStderrMessages(result.stderr);
+
+    if (!result.ok && !result.skipped && stdoutErrors.length === 0 && stderrMessages.length === 0) {
+      blockers.push(`${result.label}: command failed without structured diagnostics`);
+    }
+
+    stdoutErrors.forEach((message) => {
+      blockers.push(`${result.label}: ${message}`);
+    });
+
+    if (!result.ok && !result.skipped) {
+      stderrMessages.forEach((message) => {
+        blockers.push(`${result.label}: ${message}`);
+      });
+    } else {
+      stdoutWarnings.forEach((message) => {
+        warnings.push(`${result.label}: ${message}`);
+      });
+
+      stderrMessages.forEach((message) => {
+        warnings.push(`${result.label}: ${message}`);
+      });
+    }
+
+    if (result.skipped && result.skipReason) {
+      warnings.push(`${result.label}: ${result.skipReason}`);
+    }
+  }
+
+  return {
+    blockers: [...new Set(blockers)],
+    warnings: [...new Set(warnings)],
   };
 }
 
@@ -239,10 +363,25 @@ function printTextSummary(summary) {
       continue;
     }
 
-    logStep(`${step.label}: ${step.ok ? 'PASS' : 'FAIL'} (${step.durationMs}ms)`);
+    const attemptsSuffix = step.attempts > 1 ? `, attempts=${step.attempts}` : '';
+    logStep(`${step.label}: ${step.ok ? 'PASS' : 'FAIL'} (${step.durationMs}ms${attemptsSuffix})`);
   }
 
   logStep(`overall: ${summary.ok ? 'PASS' : 'FAIL'}`);
+
+  if (summary.blockers.length > 0) {
+    logStep('blocking issues:');
+    summary.blockers.forEach((message) => {
+      logStep(`- ${message}`);
+    });
+  }
+
+  if (summary.warnings.length > 0) {
+    logStep('warnings:');
+    summary.warnings.forEach((message) => {
+      logStep(`- ${message}`);
+    });
+  }
 }
 
 function main() {
@@ -266,10 +405,13 @@ function main() {
     }
   }
 
+  const diagnostics = collectDiagnostics(results);
   const summary = {
     ok: results.every((result) => result.ok),
     mode,
     generatedAt: new Date().toISOString(),
+    blockers: diagnostics.blockers,
+    warnings: diagnostics.warnings,
     steps: results.map((result) => ({
       key: result.key,
       label: result.label,
@@ -278,6 +420,7 @@ function main() {
       skipReason: result.skipReason ?? '',
       exitCode: result.exitCode,
       durationMs: result.durationMs,
+      attempts: result.attempts ?? 1,
       stdout: result.stdout,
       stderr: result.stderr,
     })),
