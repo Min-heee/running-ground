@@ -11,6 +11,7 @@ The correct iOS flow now is:
 ## current repo status
 This repo is now prepared for that flow:
 - local `eas-cli` is installed in the project
+- [eas.json](/eas.json) pins the EAS CLI version used by the project
 - [eas.json](/eas.json) has `development`, `preview`, `testflight`, and `production` profiles
 - [app.config.ts](/app.config.ts) supports environment-based iOS bundle IDs
 - npm scripts now expose development build and TestFlight commands directly
