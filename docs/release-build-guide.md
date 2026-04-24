@@ -188,7 +188,7 @@ Before starting the phone pass, you can generate a seeded QA note:
 npm run testflight:qa:report -- --build-label 1.0.0(15) --device "iPhone 16 Pro"
 ```
 
-`release:gate:*` runs the frontend env check, backend env check, and public smoke in one pass. It now also surfaces blocking issues and warnings in one summary, and retries the public smoke once before failing so brief network hiccups are less noisy. Use `release:gate:testflight` right before a TestFlight build, and `release:gate:production -- --api-base-url https://api.runnigapp.com/api` when the real production domain is ready.
+`release:gate:*` runs the frontend env check, backend env check, and public smoke in one pass. It now also surfaces assumptions, blocking issues, and warnings in one summary, and retries the public smoke once before failing so brief network hiccups are less noisy. If `preview-public-info.json` or `backend/.env` is missing on the Mac, the gate tells you that some preview values are inferred from the managed preview workflow. Use `release:gate:testflight` right before a TestFlight build, and `release:gate:production -- --api-base-url https://api.runnigapp.com/api` when the real production domain is ready.
 
 ### production builds
 ```bash
