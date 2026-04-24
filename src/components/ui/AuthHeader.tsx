@@ -10,7 +10,7 @@ export function AuthHeader({
   backHref,
 }: {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   showBack?: boolean;
   backLabel?: string;
   backHref?: Href;
@@ -44,7 +44,7 @@ export function AuthHeader({
       ) : null}
       <Text style={styles.logo}>RUNNIGAPP</Text>
       <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
+      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
   );
 }

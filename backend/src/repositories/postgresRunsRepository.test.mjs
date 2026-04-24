@@ -3,6 +3,7 @@ import { buildUserRunMetrics, getRunPointValue } from '../points.mjs';
 import { createPostgresRunsRepository } from './postgresRunsRepository.mjs';
 
 const SOURCE_LABELS = {
+  apple_health: 'Apple Health',
   health_connect: 'Health Connect',
   manual: 'Manual',
   nrc: 'Nike Run Club',
@@ -365,6 +366,90 @@ await runTest('queues integration imports and syncs only new runs', async () => 
   assert.equal(duplicateSyncResult.duplicateRuns, 2);
   assert.equal(database.integrationImports.length, 0);
   assert.equal(database.runs.length, 2);
+});
+
+await runTest('deduplicates overlapping runs imported from different sources', async () => {
+  const { repository, database } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-1',
+        username: 'runner',
+        nickname: '러너',
+        public_tag: '#RUN01',
+        connected_sources: [
+          {
+            sourceType: 'manual',
+            displayName: 'Manual',
+            connected: false,
+            connectionStatus: 'planned',
+          },
+          {
+            sourceType: 'health_connect',
+            displayName: 'Health Connect',
+            connected: true,
+            connectionStatus: 'connected',
+          },
+          {
+            sourceType: 'nrc',
+            displayName: 'Nike Run Club',
+            connected: true,
+            connectionStatus: 'connected',
+          },
+        ],
+        notification_settings: {
+          friendAlerts: true,
+          districtAlerts: true,
+          marketAlerts: false,
+        },
+      },
+    ],
+  });
+
+  await repository.queueIntegrationImports({
+    token: 'token-1',
+    sourceType: 'health_connect',
+    normalizedRuns: [
+      {
+        sourceType: 'health_connect',
+        externalId: 'health-1',
+        date: '2026-04-24',
+        distanceKm: 6.0,
+        pace: '05:31/km',
+        sourceLabel: 'Apple Health',
+        startedAt: '2026-04-24T10:00:00.000Z',
+        endedAt: '2026-04-24T10:33:00.000Z',
+        durationSeconds: 1980,
+      },
+    ],
+  });
+
+  await repository.queueIntegrationImports({
+    token: 'token-1',
+    sourceType: 'nrc',
+    normalizedRuns: [
+      {
+        sourceType: 'nrc',
+        externalId: 'nrc-1',
+        date: '2026-04-24',
+        distanceKm: 6.1,
+        pace: '05:29/km',
+        sourceLabel: 'NRC',
+        startedAt: '2026-04-24T10:03:00.000Z',
+        endedAt: '2026-04-24T10:34:00.000Z',
+        durationSeconds: 1860,
+      },
+    ],
+  });
+
+  const syncResult = await repository.syncIntegrationImports({
+    token: 'token-1',
+  });
+
+  assert.equal(syncResult.scannedRuns, 2);
+  assert.equal(syncResult.importedRuns, 1);
+  assert.equal(syncResult.duplicateRuns, 1);
+  assert.equal(database.integrationImports.length, 0);
+  assert.equal(database.runs.length, 1);
 });
 
 await runTest('ignores duplicate pending imports with the same external id before sync', async () => {

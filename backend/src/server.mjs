@@ -58,6 +58,7 @@ const SOURCE_LABEL_BY_TYPE = {
   runnigapp: 'RUNNIGAPP',
   manual: 'Manual',
 };
+const EXCLUSIVE_INTEGRATION_SOURCE_TYPES = new Set(['apple_health', 'health_connect', 'garmin', 'strava', 'nrc']);
 const DEFAULT_OFFLINE_RACE_GUIDE_STEPS = [
   '오프라인 마라톤 일정이 열리면 여기에서 날짜별로 바로 신청할 수 있어요.',
   '지금은 일정 등록 전이라 신청 가능한 회차가 없어요.',
@@ -74,6 +75,10 @@ class ApiError extends Error {
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function isExclusiveIntegrationSourceType(sourceType) {
+  return EXCLUSIVE_INTEGRATION_SOURCE_TYPES.has(sourceType);
 }
 
 function getErrorMessage(error) {
@@ -2037,6 +2042,14 @@ function validateDateTime(value, message) {
   return date.toISOString();
 }
 
+function validateOptionalDateTime(value, message) {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return undefined;
+  }
+
+  return validateDateTime(value, message);
+}
+
 function normalizeAdminMarketItemInput(body) {
   return {
     title: validateRequiredString(body.title, '상품 이름을 입력해줘.'),
@@ -2095,6 +2108,15 @@ function normalizeAdminNoticeInput(body) {
 
 function normalizeImportedRun(sourceType, rawRun) {
   const sourceLabel = normalizeOptionalString(rawRun.sourceLabel);
+  const startedAt = validateOptionalDateTime(rawRun.startedAt, '연동 기록 시작 시각 형식이 올바르지 않아.');
+  const endedAt = validateOptionalDateTime(rawRun.endedAt, '연동 기록 종료 시각 형식이 올바르지 않아.');
+  const durationSeconds = rawRun.durationSeconds === null || typeof rawRun.durationSeconds === 'undefined' || rawRun.durationSeconds === ''
+    ? undefined
+    : validatePositiveInteger(rawRun.durationSeconds, '연동 기록 시간은 1초 이상이어야 해.');
+
+  if (startedAt && endedAt && new Date(endedAt).getTime() <= new Date(startedAt).getTime()) {
+    throw new ApiError(400, '연동 기록 종료 시각은 시작 시각보다 뒤여야 해.');
+  }
 
   return {
     sourceType,
@@ -2103,6 +2125,9 @@ function normalizeImportedRun(sourceType, rawRun) {
     date: validateDateOnly(rawRun.date, '연동 기록 날짜를 입력해줘.'),
     distanceKm: validateDistanceKm(rawRun.distanceKm, '연동 기록 거리를 입력해줘.'),
     pace: validatePace(rawRun.pace, '연동 기록 페이스를 입력해줘.'),
+    ...(typeof durationSeconds === 'number' ? { durationSeconds } : {}),
+    ...(startedAt ? { startedAt } : {}),
+    ...(endedAt ? { endedAt } : {}),
   };
 }
 
@@ -2441,12 +2466,53 @@ function handleIntegrationSourceConnection(request, response, sourceType, nextCo
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
     const source = requireConnectedSource(user, sourceType);
+    const sourceTypesToClear = new Set();
 
-    source.connected = nextConnected;
-    source.connectionStatus = nextConnected ? 'connected' : 'planned';
-    source.lastSyncedAt = nextConnected ? source.lastSyncedAt : undefined;
+    if (nextConnected) {
+      user.connectedSources = user.connectedSources.map((entry) => {
+        if (entry.sourceType === sourceType) {
+          return {
+            ...entry,
+            connected: true,
+            connectionStatus: 'connected',
+          };
+        }
 
-    return buildIntegrationSourceActionResult(store, user, source);
+        if (isExclusiveIntegrationSourceType(sourceType) && isExclusiveIntegrationSourceType(entry.sourceType) && entry.connected) {
+          sourceTypesToClear.add(entry.sourceType);
+          return {
+            ...entry,
+            connected: false,
+            connectionStatus: 'planned',
+            lastSyncedAt: undefined,
+          };
+        }
+
+        return entry;
+      });
+    } else {
+      sourceTypesToClear.add(sourceType);
+      user.connectedSources = user.connectedSources.map((entry) => (
+        entry.sourceType === sourceType
+          ? {
+            ...entry,
+            connected: false,
+            connectionStatus: 'planned',
+            lastSyncedAt: undefined,
+          }
+          : entry
+      ));
+    }
+
+    if (sourceTypesToClear.size > 0) {
+      store.integrationImports = ensureIntegrationImports(store).filter((entry) => (
+        entry.userId !== user.id || !sourceTypesToClear.has(entry.sourceType)
+      ));
+    }
+
+    const updatedSource = requireConnectedSource(user, sourceType);
+
+    return buildIntegrationSourceActionResult(store, user, updatedSource);
   });
 
   sendJson(response, 200, payload);

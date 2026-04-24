@@ -847,11 +847,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     <Screen>
       <AuthHeader
         title="실시간 러닝"
-        subtitle={
-          isTabMode
-            ? '바로 달리기를 시작하거나, 원하는 그림 모양 경로를 먼저 만들어보고 따라 뛸 수 있어.'
-            : '원하는 그림 경로를 먼저 미리 보고, 마음에 들면 바로 달리기를 시작할 수 있어.'
-        }
         showBack={!isTabMode}
         backHref={backHref}
       />
@@ -859,21 +854,32 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       {isIdle ? (
         <>
           <Card style={styles.readyCard}>
-            <Text style={styles.sectionTitle}>런닝 시작 준비</Text>
-            <Text style={styles.readyText}>
-              실시간 맵과 기록 카드는 러닝을 시작하면 열려요. 바로 시작할 수도 있고, 먼저 그림 러닝을 만들어볼 수도 있어요.
-            </Text>
+            <View style={styles.readyHero}>
+              <Text style={styles.readyEyebrow}>RUNNIGAPP</Text>
+              <Text style={styles.readyTitle}>런닝 시작 준비</Text>
+              <View style={styles.readyPillRow}>
+                <View style={styles.readyPill}>
+                  <Text style={styles.readyPillText}>실시간 맵</Text>
+                </View>
+                <View style={styles.readyPill}>
+                  <Text style={styles.readyPillText}>거리 · 페이스</Text>
+                </View>
+                <View style={styles.readyPill}>
+                  <Text style={styles.readyPillText}>백그라운드 측정</Text>
+                </View>
+              </View>
+            </View>
             <View style={styles.liveShareCard}>
-              <View style={styles.liveShareCopy}>
-                <Text style={styles.liveShareTitle}>위치 공유</Text>
-                <Text style={styles.liveShareText}>
-                  {liveShareEnabled
-                    ? '왼쪽 공유 O 상태예요. 친구들에게 지금 뛰는 동네를 대략적으로 보여줘요.'
-                    : '오른쪽 공유 X 상태예요. 러닝 기록은 남아도 현재 위치는 친구에게 보이지 않아요.'}
-                </Text>
-                <Text style={styles.liveShareHint}>
-                  러닝 시작 뒤에는 {liveShareEnabled ? (liveShareLabel ?? '현재 위치 근처') : '위치를 공개하지 않음'} 형태로 보여줘요.
-                </Text>
+              <View style={styles.liveShareHeader}>
+                <View style={styles.liveShareCopy}>
+                  <Text style={styles.liveShareTitle}>위치 공유</Text>
+                  <Text style={styles.liveShareText}>
+                    {liveShareEnabled ? (liveShareLabel ?? '동네 단위로 공개 중') : '친구에게 현재 위치를 공개하지 않음'}
+                  </Text>
+                </View>
+                <View style={styles.liveShareModeBadge}>
+                  <Text style={styles.liveShareModeBadgeText}>{liveShareEnabled ? 'ON' : 'OFF'}</Text>
+                </View>
               </View>
               <Pressable
                 accessibilityRole="switch"
@@ -1054,10 +1060,17 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       ) : (
         <>
           <Card style={styles.mapCard}>
-            <Text style={styles.mapLabel}>실시간 러닝 맵</Text>
-            <Text style={styles.mapLegend}>
-              {suggestedRoute ? '회색은 그림 목표선, 보라는 실제로 뛴 경로예요.' : '달리기를 시작한 뒤 실제로 뛴 경로가 여기에 표시돼요.'}
-            </Text>
+            <View style={styles.mapHeader}>
+              <View style={styles.mapLabelWrap}>
+                <Text style={styles.mapKicker}>LIVE TRACKING</Text>
+                <Text style={styles.mapLabel}>실시간 러닝 맵</Text>
+              </View>
+              <View style={[styles.statusBadge, isRunning ? styles.statusRunningDark : isPaused ? styles.statusPausedDark : styles.statusIdleDark]}>
+                <Text style={[styles.statusBadgeText, isRunning ? styles.statusRunningDarkText : isPaused ? styles.statusPausedDarkText : styles.statusIdleDarkText]}>
+                  {isRunning ? '러닝 중' : isPaused ? '일시정지' : isSaving ? '저장 중' : '준비됨'}
+                </Text>
+              </View>
+            </View>
             <View style={styles.mapWrap}>
               {liveMapRegion ? (
                 <RunRouteMap
@@ -1155,35 +1168,79 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
 const styles = StyleSheet.create({
   readyCard: {
-    gap: 12,
+    gap: 16,
+    backgroundColor: '#111827',
+    paddingTop: 18,
+    paddingBottom: 18,
   },
-  readyText: {
-    color: '#667085',
-    lineHeight: 21,
+  readyHero: {
+    gap: 10,
+  },
+  readyEyebrow: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  readyTitle: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '800',
+  },
+  readyPillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  readyPill: {
+    borderRadius: 999,
+    backgroundColor: '#1F2937',
+    borderWidth: 1,
+    borderColor: '#374151',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  readyPillText: {
+    color: '#E5E7EB',
+    fontSize: 12,
+    fontWeight: '700',
   },
   liveShareCard: {
     gap: 12,
     padding: 14,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#E4E7EC',
-    backgroundColor: '#F8FAFC',
+    borderColor: '#374151',
+    backgroundColor: '#1F2937',
+  },
+  liveShareHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
   },
   liveShareCopy: {
     gap: 4,
+    flex: 1,
   },
   liveShareTitle: {
-    color: '#111827',
+    color: '#FFFFFF',
     fontWeight: '800',
   },
   liveShareText: {
-    color: '#475467',
+    color: '#D0D5DD',
     lineHeight: 19,
   },
-  liveShareHint: {
-    color: '#667085',
-    fontSize: 12,
-    lineHeight: 18,
+  liveShareModeBadge: {
+    borderRadius: 999,
+    backgroundColor: '#123524',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  liveShareModeBadgeText: {
+    color: '#D1FADF',
+    fontSize: 11,
+    fontWeight: '800',
   },
   liveShareToggle: {
     position: 'relative',
@@ -1196,7 +1253,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#111827',
   },
   liveShareToggleDisabled: {
-    backgroundColor: '#D0D5DD',
+    backgroundColor: '#475467',
   },
   liveShareThumb: {
     position: 'absolute',
@@ -1234,6 +1291,8 @@ const styles = StyleSheet.create({
   },
   plannerCard: {
     gap: 16,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
   },
   plannerHeader: {
     flexDirection: 'row',
@@ -1250,7 +1309,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: '#F2F4F7',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#EAECF0',
   },
   toggleButtonText: {
     color: '#344054',
@@ -1269,7 +1330,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FCFCFD',
     color: '#111827',
     fontSize: 15,
   },
@@ -1398,20 +1459,32 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   mapCard: {
+    gap: 14,
+    backgroundColor: '#111827',
+  },
+  mapHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     gap: 12,
   },
-  mapLabel: {
-    color: '#111827',
-    fontSize: 18,
-    fontWeight: '800',
+  mapLabelWrap: {
+    gap: 4,
   },
-  mapLegend: {
-    color: '#667085',
-    lineHeight: 20,
+  mapKicker: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  mapLabel: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
   },
   mapWrap: {
     height: 280,
-    borderRadius: 22,
+    borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: '#E5E7EB',
   },
@@ -1441,18 +1514,24 @@ const styles = StyleSheet.create({
     width: '48.5%',
     minHeight: 96,
     justifyContent: 'space-between',
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1F2937',
   },
   metricLabel: {
-    color: '#667085',
+    color: '#98A2B3',
     fontWeight: '700',
   },
   metricValue: {
-    color: '#111827',
+    color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '800',
   },
   guideCard: {
     gap: 10,
+    borderWidth: 1,
+    borderColor: '#EAECF0',
+    backgroundColor: '#FCFCFD',
   },
   guideHeader: {
     flexDirection: 'row',
@@ -1485,6 +1564,24 @@ const styles = StyleSheet.create({
   },
   statusIdleText: {
     color: '#344054',
+  },
+  statusRunningDark: {
+    backgroundColor: '#123524',
+  },
+  statusPausedDark: {
+    backgroundColor: '#4A2B0F',
+  },
+  statusIdleDark: {
+    backgroundColor: '#1F2937',
+  },
+  statusRunningDarkText: {
+    color: '#D1FADF',
+  },
+  statusPausedDarkText: {
+    color: '#FDEAD7',
+  },
+  statusIdleDarkText: {
+    color: '#E5E7EB',
   },
   guideText: {
     color: '#344054',

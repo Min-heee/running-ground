@@ -1,4 +1,4 @@
-import { buildRunExternalKey, buildRunFingerprint } from './runsRepository.mjs';
+import { areRunsPotentialDuplicates, buildRunExternalKey, buildRunFingerprint } from './runsRepository.mjs';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -135,6 +135,8 @@ function mapRunRow(row) {
 }
 
 function mapImportRow(row) {
+  const rawPayload = asObject(row.raw_payload);
+
   return {
     id: row.id,
     userId: row.user_id,
@@ -145,7 +147,10 @@ function mapImportRow(row) {
     distanceKm: asNumber(row.distance_km),
     pace: row.pace ?? '',
     importStatus: row.import_status ?? 'pending',
-    rawPayload: asObject(row.raw_payload),
+    ...(hasValue(rawPayload.durationSeconds) ? { durationSeconds: asNumber(rawPayload.durationSeconds) } : {}),
+    ...(normalizeOptionalString(rawPayload.startedAt) ? { startedAt: toIsoString(rawPayload.startedAt) } : {}),
+    ...(normalizeOptionalString(rawPayload.endedAt) ? { endedAt: toIsoString(rawPayload.endedAt) } : {}),
+    rawPayload,
     receivedAt: toIsoString(row.received_at),
     processedAt: toIsoString(row.processed_at),
   };
@@ -465,6 +470,9 @@ export function createPostgresRunsRepository({
               id: nextId('import'),
               userId: user.id,
               ...run,
+              rawPayload: {
+                ...clone(run),
+              },
               receivedAt,
             });
             queuedRuns += 1;
@@ -502,6 +510,7 @@ export function createPostgresRunsRepository({
         const existingRuns = await loadRunsForUser(client, user.id);
         const existingExternalKeys = new Set();
         const existingFingerprints = new Set();
+        const existingTimedRuns = [];
         const processedImportIds = [];
         const importedRunIds = [];
         const lastSyncedAt = formatTimestamp();
@@ -527,8 +536,11 @@ export function createPostgresRunsRepository({
               date: run.date,
               distanceKm: run.distanceKm,
               pace: run.pace,
+              startedAt: run.startedAt,
             }));
           }
+
+          existingTimedRuns.push(run);
         }
 
         pendingImports.sort((left, right) => {
@@ -548,8 +560,9 @@ export function createPostgresRunsRepository({
 
           const externalKey = buildRunExternalKey(entry);
           const fingerprint = buildRunFingerprint(entry);
+          const timedDuplicate = existingTimedRuns.some((existingRun) => areRunsPotentialDuplicates(existingRun, entry));
 
-          if ((externalKey && existingExternalKeys.has(externalKey)) || existingFingerprints.has(fingerprint)) {
+          if ((externalKey && existingExternalKeys.has(externalKey)) || existingFingerprints.has(fingerprint) || timedDuplicate) {
             duplicateRuns += 1;
             continue;
           }
@@ -563,6 +576,9 @@ export function createPostgresRunsRepository({
             source: entry.sourceLabel ?? sourceDisplayNameByType.get(entry.sourceType) ?? entry.sourceType,
             sourceType: entry.sourceType,
             ...(entry.externalId ? { externalId: entry.externalId } : {}),
+            ...(typeof entry.durationSeconds === 'number' ? { durationSeconds: entry.durationSeconds } : {}),
+            ...(entry.startedAt ? { startedAt: entry.startedAt } : {}),
+            ...(entry.endedAt ? { endedAt: entry.endedAt } : {}),
             importedAt: syncedAtIso,
             createdAt: syncedAtIso,
             updatedAt: syncedAtIso,
@@ -578,6 +594,7 @@ export function createPostgresRunsRepository({
             }
 
             existingFingerprints.add(fingerprint);
+            existingTimedRuns.push(run);
           } catch (error) {
             if (isUniqueViolation(error, 'runs_user_source_external_unique_idx')) {
               duplicateRuns += 1;

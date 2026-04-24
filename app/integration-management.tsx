@@ -9,7 +9,9 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { NrcBridgeGuideCard } from '@/features/integrations/NrcBridgeGuideCard';
 import {
   getCurrentDevicePlatform,
+  getConnectedExclusiveSources,
   getSourceMetadata,
+  isExclusiveIntegrationSourceType,
   sortSourcesByPriority,
   splitSourcesByStatus,
 } from '@/features/integrations/sourceCatalog';
@@ -95,7 +97,16 @@ export default function IntegrationManagementScreen() {
     try {
       const result = await connectIntegrationSource(sourceType);
       setIntegrationStatus({ sources: result.sources });
-      setActionMessage(`${result.source.displayName} 연결 준비가 끝났어.`);
+      if (isExclusiveIntegrationSourceType(sourceType)) {
+        const replacedSource = connectedExclusiveSources.find((source) => source.sourceType !== sourceType);
+        setActionMessage(
+          replacedSource
+            ? `${result.source.displayName}로 기록 연동을 바꿨어. ${replacedSource.displayName}는 자동으로 해제돼.`
+            : `${result.source.displayName} 연결 준비가 끝났어. 자동 기록 소스는 한 번에 1개만 연결돼.`,
+        );
+      } else {
+        setActionMessage(`${result.source.displayName} 연결 준비가 끝났어.`);
+      }
     } catch (connectError) {
       setActionError(connectError instanceof Error ? connectError.message : '소스 연결에 실패했어.');
     } finally {
@@ -122,6 +133,7 @@ export default function IntegrationManagementScreen() {
 
   const platform = getCurrentDevicePlatform();
   const sources = integrationStatus?.sources ?? [];
+  const connectedExclusiveSources = getConnectedExclusiveSources(sources);
   const { connected, available } = splitSourcesByStatus(sources);
   const connectedSources = sortSourcesByPriority(connected);
   const availableSources = sortSourcesByPriority(available);
@@ -210,6 +222,7 @@ export default function IntegrationManagementScreen() {
 
           <Card>
             <Text style={styles.sectionTitle}>지금 연결된 소스</Text>
+            <Text style={styles.helperText}>자동 기록 소스는 한 번에 1개만 연결돼. 새로 연결하면 이전 자동 연동은 자동으로 해제돼.</Text>
             {connectedSources.map((source) => {
               const metadata = getSourceMetadata(source.sourceType, platform);
 
@@ -281,6 +294,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#111827',
+  },
+  helperText: {
+    color: '#667085',
+    lineHeight: 20,
+    marginTop: 8,
   },
   successText: {
     color: '#067647',

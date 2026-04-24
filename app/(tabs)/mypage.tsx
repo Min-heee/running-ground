@@ -6,7 +6,6 @@ import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { ListRow } from '@/components/ui/ListRow';
 import { fetchHomeSummary, fetchIntegrationStatus, fetchMyProfile } from '@/lib/api/services';
 import { HomeSummaryResponse, IntegrationStatusResponse, MyProfileResponse } from '@/lib/api/types';
 import { deleteAccount, signOut } from '@/lib/session';
@@ -91,33 +90,41 @@ export default function MyPageScreen() {
       {profile && summary && integrationStatus ? (
         <>
           <Card style={styles.profileCard}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{profile.name.slice(0, 1)}</Text>
+            <View style={styles.profileRow}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{profile.name.slice(0, 1)}</Text>
+              </View>
+              <View style={styles.profileMeta}>
+                <Text style={styles.name}>{profile.name}</Text>
+                <Text style={styles.subline}>
+                  {[profile.districtName, profile.universityName].filter(Boolean).join(' · ') || '대학교 인증 전'}
+                </Text>
+              </View>
             </View>
-            <View style={styles.profileMeta}>
-              <Text style={styles.name}>{profile.name}</Text>
-              <Text style={styles.subline}>
-                {[profile.districtName, profile.universityName, '러닝 경쟁 진행 중'].filter(Boolean).join(' · ')}
-              </Text>
+            <View style={styles.profileTagRow}>
+              <Text style={styles.tagLabel}>공개 태그</Text>
               <Text style={styles.tag}>{profile.publicTag}</Text>
+            </View>
+            <Text style={styles.profileHint}>연결된 소스 {integrationStatus.sources.filter((source) => source.connected).length}개</Text>
+            <View style={styles.inlineActions}>
+              <Link href="/edit-profile" asChild>
+                <Pressable style={styles.inlineActionButton}>
+                  <Text style={styles.inlineActionText}>프로필 수정</Text>
+                </Pressable>
+              </Link>
+              <Pressable style={styles.inlineActionButton} onPress={handleShareTag}>
+                <Text style={styles.inlineActionText}>{tagShared ? '복사 준비됨' : '내 태그 공유'}</Text>
+              </Pressable>
             </View>
           </Card>
 
-          <View style={styles.profileActions}>
-            <Link href="/edit-profile" asChild>
-              <Pressable style={styles.primaryAction}>
-                <Text style={styles.primaryActionText}>프로필 수정</Text>
-              </Pressable>
-            </Link>
-            <Pressable style={styles.secondaryAction} onPress={handleShareTag}>
-              <Text style={styles.secondaryActionText}>{tagShared ? '공유 준비됨' : '내 태그 공유'}</Text>
-            </Pressable>
-          </View>
-
           <Link href="/my-activity" asChild>
             <Pressable>
-              <Card>
-                <SectionTitle>내 활동</SectionTitle>
+              <Card style={styles.summaryCard}>
+                <View style={styles.sectionHeaderRow}>
+                  <SectionTitle>이번 주 요약</SectionTitle>
+                  <Text style={styles.sectionLink}>활동</Text>
+                </View>
                 <View style={styles.metricRow}>
                   <View style={styles.metricBox}>
                     <Text style={styles.metricValue}>{summary.totalDistanceKm}km</Text>
@@ -132,90 +139,84 @@ export default function MyPageScreen() {
             </Pressable>
           </Link>
 
-          <IntegrationStatus sources={integrationStatus.sources} />
-
-          <Card>
-            <SectionTitle>계정 관리</SectionTitle>
-            <ListRow>계정 정보</ListRow>
-            <ListRow>비밀번호 변경</ListRow>
-            <ListRow>핸드폰번호 관리</ListRow>
-          </Card>
-
           <Link href={universityVerificationHref} asChild>
             <Pressable>
-              <Card>
-                <SectionTitle>대학교 인증</SectionTitle>
-                <Text style={styles.universityVerificationText}>
-                  대학교는 회원가입 때 바로 받지 않고, 마이페이지에서 재학증명서나 에브리타임 같은 인증 방식으로 연결할 예정이에요.
-                </Text>
-                <View style={styles.universityVerificationStatus}>
-                  <Text style={styles.universityVerificationStatusLabel}>현재 상태</Text>
-                  <Text style={styles.universityVerificationStatusValue}>
-                    {profile.universityName ? `${profile.universityName} 연결됨` : '인증 전'}
-                  </Text>
+              <Card style={styles.universityCard}>
+                <View style={styles.sectionHeaderRow}>
+                  <SectionTitle>대학교 인증</SectionTitle>
+                  <Text style={styles.sectionLink}>관리</Text>
                 </View>
-                <Text style={styles.universityVerificationHint}>
-                  인증 방법과 진행 흐름을 보려면 눌러서 확인해보세요.
+                <Text style={styles.universityVerificationStatusValue}>
+                  {profile.universityName ? `${profile.universityName} 연결됨` : '아직 인증 전'}
                 </Text>
+                <Text style={styles.universityVerificationHint}>재학증명서 또는 에브리타임 방식</Text>
               </Card>
             </Pressable>
           </Link>
 
-          <Card style={styles.dangerCard}>
-            <SectionTitle>회원 탈퇴</SectionTitle>
-            <Text style={styles.dangerDescription}>
-              탈퇴하면 러닝 기록, 친구 관계, 참가 신청과 교환 내역이 함께 삭제돼요.
-            </Text>
-            <Pressable
-              disabled={deleteSubmitting || logoutSubmitting}
-              style={[
-                styles.deleteButton,
-                (deleteSubmitting || logoutSubmitting) ? styles.disabledButton : null,
-              ]}
-              onPress={handleDeleteAccount}
-            >
-              <Text style={styles.deleteButtonText}>
-                {deleteSubmitting
-                  ? '탈퇴 처리 중...'
-                  : deleteConfirm
-                    ? '한 번 더 누르면 회원 탈퇴'
-                    : '회원 탈퇴'}
-              </Text>
-            </Pressable>
-          </Card>
+          <IntegrationStatus sources={integrationStatus.sources} />
 
-          <Card>
-            <SectionTitle>앱 설정</SectionTitle>
+          <Card style={styles.settingsCard}>
+            <View style={styles.sectionHeaderRow}>
+              <SectionTitle>설정</SectionTitle>
+              <Text style={styles.sectionLink}>3개</Text>
+            </View>
             <Link href="/region-settings" asChild>
-              <Pressable><ListRow>지역 설정</ListRow></Pressable>
+              <Pressable style={[styles.settingRow, styles.firstSettingRow]}>
+                <Text style={styles.settingLabel}>지역 설정</Text>
+                <Text style={styles.settingValue}>변경</Text>
+              </Pressable>
             </Link>
             <Link href="/notification-settings" asChild>
-              <Pressable><ListRow>알림 설정</ListRow></Pressable>
+              <Pressable style={styles.settingRow}>
+                <Text style={styles.settingLabel}>알림 설정</Text>
+                <Text style={styles.settingValue}>관리</Text>
+              </Pressable>
             </Link>
             <Link href="/integration-management" asChild>
-              <Pressable><ListRow>기록 연동 관리</ListRow></Pressable>
+              <Pressable style={styles.settingRow}>
+                <Text style={styles.settingLabel}>기록 연동 관리</Text>
+                <Text style={styles.settingValue}>열기</Text>
+              </Pressable>
             </Link>
-            <Pressable><ListRow>친구 태그 관리</ListRow></Pressable>
           </Card>
 
-          <Card>
-            <SectionTitle>출시 후 확장 예정</SectionTitle>
-            <ListRow>지역 경쟁 고도화</ListRow>
-            <ListRow>마켓 / 리워드</ListRow>
+          <Card style={styles.dangerCard}>
+            <View style={styles.sectionHeaderRow}>
+              <SectionTitle>계정</SectionTitle>
+              <Text style={styles.sectionLink}>로그아웃 / 탈퇴</Text>
+            </View>
+            <View style={styles.accountActionRow}>
+              <Pressable
+                disabled={logoutSubmitting || deleteSubmitting}
+                style={[
+                  styles.logoutButton,
+                  (logoutSubmitting || deleteSubmitting) ? styles.disabledButton : null,
+                ]}
+                onPress={handleLogout}
+              >
+                <Text style={styles.logoutButtonText}>
+                  {logoutSubmitting ? '로그아웃 중...' : logoutConfirm ? '다시 누르면 로그아웃' : '로그아웃'}
+                </Text>
+              </Pressable>
+              <Pressable
+                disabled={deleteSubmitting || logoutSubmitting}
+                style={[
+                  styles.deleteButton,
+                  (deleteSubmitting || logoutSubmitting) ? styles.disabledButton : null,
+                ]}
+                onPress={handleDeleteAccount}
+              >
+                <Text style={styles.deleteButtonText}>
+                  {deleteSubmitting
+                    ? '탈퇴 처리 중...'
+                    : deleteConfirm
+                      ? '다시 누르면 탈퇴'
+                      : '회원 탈퇴'}
+                </Text>
+              </Pressable>
+            </View>
           </Card>
-
-          <Pressable
-            disabled={logoutSubmitting || deleteSubmitting}
-            style={[
-              styles.logoutButton,
-              (logoutSubmitting || deleteSubmitting) ? styles.disabledButton : null,
-            ]}
-            onPress={handleLogout}
-          >
-            <Text style={styles.logoutButtonText}>
-              {logoutSubmitting ? '로그아웃 중...' : logoutConfirm ? '한 번 더 누르면 로그아웃' : '로그아웃'}
-            </Text>
-          </Pressable>
         </>
       ) : null}
     </Screen>
@@ -224,15 +225,20 @@ export default function MyPageScreen() {
 
 const styles = StyleSheet.create({
   profileCard: {
+    gap: 12,
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
+  profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
   },
   avatar: {
-    width: 60,
-    height: 60,
+    width: 54,
+    height: 54,
     borderRadius: 99,
-    backgroundColor: '#6D5EF7',
+    backgroundColor: '#111827',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -241,75 +247,81 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
   },
-  profileMeta: { gap: 4 },
+  profileMeta: {
+    flex: 1,
+    gap: 4,
+  },
   name: {
-    fontSize: 24,
+    fontSize: 26,
     fontWeight: '800',
     color: '#101828',
   },
   subline: {
     color: '#667085',
   },
+  profileTagRow: {
+    gap: 4,
+  },
+  tagLabel: {
+    color: '#667085',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   tag: {
-    color: '#6D5EF7',
+    color: '#111827',
     fontWeight: '800',
-    marginTop: 2,
+    fontSize: 16,
   },
-  profileActions: {
+  profileHint: {
+    fontSize: 12,
+    color: '#667085',
+    fontWeight: '700',
+  },
+  inlineActions: {
     flexDirection: 'row',
-    gap: 10,
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  primaryAction: {
-    flex: 1,
-    backgroundColor: '#6D5EF7',
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  primaryActionText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  secondaryAction: {
-    flex: 1,
+  inlineActionButton: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 14,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#D0D5DD',
   },
-  secondaryActionText: {
+  inlineActionText: {
     color: '#111827',
     fontWeight: '700',
+    fontSize: 12,
   },
-  universityVerificationText: {
+  summaryCard: {
+    gap: 12,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sectionLink: {
     color: '#667085',
-    lineHeight: 20,
-  },
-  universityVerificationStatus: {
-    marginTop: 12,
-    marginBottom: 8,
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 16,
-    padding: 14,
-    gap: 4,
-  },
-  universityVerificationStatusLabel: {
-    color: '#475467',
     fontSize: 12,
     fontWeight: '700',
   },
+  universityCard: {
+    gap: 6,
+  },
   universityVerificationStatusValue: {
     color: '#111827',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
   },
   universityVerificationHint: {
     color: '#667085',
-    lineHeight: 20,
+    lineHeight: 18,
+    fontSize: 12,
   },
   metricRow: {
     flexDirection: 'row',
@@ -318,7 +330,7 @@ const styles = StyleSheet.create({
   metricBox: {
     flex: 1,
     backgroundColor: '#F2F4F7',
-    borderRadius: 16,
+    borderRadius: 14,
     padding: 14,
     gap: 4,
   },
@@ -335,32 +347,56 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 20,
   },
+  settingsCard: {
+    gap: 0,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#EAECF0',
+  },
+  firstSettingRow: {
+    marginTop: 4,
+  },
+  settingLabel: {
+    color: '#111827',
+    fontWeight: '700',
+  },
+  settingValue: {
+    color: '#667085',
+    fontWeight: '700',
+  },
   logoutButton: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#F04438',
+    borderColor: '#D0D5DD',
     borderRadius: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: 'center',
+    flex: 1,
   },
   logoutButtonText: {
-    color: '#F04438',
+    color: '#111827',
     fontWeight: '800',
   },
   dangerCard: {
-    gap: 12,
+    gap: 10,
   },
-  dangerDescription: {
-    color: '#667085',
-    lineHeight: 20,
+  accountActionRow: {
+    flexDirection: 'row',
+    gap: 10,
   },
   deleteButton: {
     backgroundColor: '#FFF1F3',
     borderWidth: 1,
     borderColor: '#FDA29B',
     borderRadius: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
     alignItems: 'center',
+    flex: 1,
   },
   deleteButtonText: {
     color: '#D92D20',

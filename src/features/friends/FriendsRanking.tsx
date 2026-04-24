@@ -56,7 +56,6 @@ export function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
   }, [rankingWindow, sortedRanks]);
   const myRank = highlightTag ? displayedRanks.find((runner) => runner.tag === highlightTag) : null;
   const rankingWindowLabel = rankingWindow === 'today' ? '오늘' : rankingWindow === 'month' ? '이번 달' : '이번 주';
-  const liveCount = displayedRanks.filter((runner) => runner.isRunningNow).length;
 
   return (
     <Card style={styles.card}>
@@ -69,16 +68,6 @@ export function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
           <Text style={styles.countBadgeText}>{displayedRanks.length}명</Text>
         </View>
       </View>
-
-      {liveCount > 0 ? (
-        <View style={styles.liveSummaryBar}>
-          <View style={styles.liveSummaryBadge}>
-            <View style={styles.liveSummaryDot} />
-            <Text style={styles.liveSummaryBadgeText}>러닝 중 {liveCount}명</Text>
-          </View>
-          <Text style={styles.liveSummaryText}>친구 목록에서 바로 확인</Text>
-        </View>
-      ) : null}
 
       <View style={styles.modeSwitch}>
         <Pressable
@@ -144,11 +133,6 @@ export function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
                         </View>
                       ) : null}
                     </View>
-                    {runner.isRunningNow && runner.liveLocationLabel ? (
-                      <Text numberOfLines={1} style={styles.runnerLiveText}>
-                        {runner.liveLocationLabel}
-                      </Text>
-                    ) : null}
                   </View>
 
                   <View style={styles.metricInline}>
@@ -236,39 +220,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     includeFontPadding: false,
   },
-  liveSummaryBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-  },
-  liveSummaryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#123524',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  liveSummaryDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: '#32D583',
-  },
-  liveSummaryBadgeText: {
-    color: '#D1FADF',
-    fontSize: 12,
-    fontWeight: '800',
-    includeFontPadding: false,
-  },
-  liveSummaryText: {
-    color: '#98A2B3',
-    fontSize: 12,
-    fontWeight: '700',
-    includeFontPadding: false,
-  },
   summaryBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -352,11 +303,6 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontSize: 16,
     fontWeight: '800',
-    includeFontPadding: false,
-  },
-  runnerLiveText: {
-    color: '#98A2B3',
-    fontSize: 12,
     includeFontPadding: false,
   },
   selfBadge: {

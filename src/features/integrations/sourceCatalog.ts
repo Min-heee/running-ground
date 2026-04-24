@@ -106,6 +106,14 @@ export function getSourceByType(sources: ConnectedSource[], sourceType: RunSourc
   return sources.find((source) => source.sourceType === sourceType) ?? null;
 }
 
+export function isExclusiveIntegrationSourceType(sourceType: RunSourceType) {
+  return sourceType !== 'manual' && sourceType !== 'runnigapp';
+}
+
+export function getConnectedExclusiveSources(sources: ConnectedSource[]) {
+  return sources.filter((source) => source.connected && isExclusiveIntegrationSourceType(source.sourceType));
+}
+
 export function getPrimarySourceType(platform = getCurrentDevicePlatform()): RunSourceType | null {
   if (platform === 'ios') {
     return 'apple_health';

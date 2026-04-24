@@ -68,13 +68,87 @@ export function buildRunExternalKey(input) {
 export function buildRunFingerprint(input) {
   const sourceType = normalizeOptionalString(input.sourceType);
   const distanceKm = Number(input.distanceKm);
+  const startedAt = normalizeOptionalString(input.startedAt);
 
   return [
     sourceType || 'unknown',
     normalizeOptionalString(input.date),
     Number.isFinite(distanceKm) ? distanceKm.toFixed(1) : '0.0',
     normalizeOptionalString(input.pace),
+    startedAt || 'na',
   ].join('::');
+}
+
+function parseTimestampMs(value) {
+  const text = normalizeOptionalString(value);
+
+  if (!text) {
+    return null;
+  }
+
+  const timestampMs = new Date(text).getTime();
+  return Number.isFinite(timestampMs) ? timestampMs : null;
+}
+
+export function buildRunTimeWindow(input) {
+  const startedAtMs = parseTimestampMs(input.startedAt);
+
+  if (!startedAtMs) {
+    return null;
+  }
+
+  const durationSeconds = Number(input.durationSeconds);
+  const durationMs = Number.isFinite(durationSeconds) && durationSeconds > 0
+    ? Math.round(durationSeconds * 1000)
+    : null;
+  let endedAtMs = parseTimestampMs(input.endedAt);
+
+  if ((!endedAtMs || endedAtMs <= startedAtMs) && durationMs) {
+    endedAtMs = startedAtMs + durationMs;
+  }
+
+  if (!endedAtMs || endedAtMs <= startedAtMs) {
+    return null;
+  }
+
+  return {
+    startMs: startedAtMs,
+    endMs: endedAtMs,
+    durationMs: endedAtMs - startedAtMs,
+  };
+}
+
+export function areRunsPotentialDuplicates(left, right) {
+  const leftWindow = buildRunTimeWindow(left);
+  const rightWindow = buildRunTimeWindow(right);
+
+  if (!leftWindow || !rightWindow) {
+    return false;
+  }
+
+  const leftDistanceKm = Number(left.distanceKm);
+  const rightDistanceKm = Number(right.distanceKm);
+  const distanceGapKm = Math.abs(leftDistanceKm - rightDistanceKm);
+
+  if (!Number.isFinite(distanceGapKm) || distanceGapKm > 0.8) {
+    return false;
+  }
+
+  const startGapMs = Math.abs(leftWindow.startMs - rightWindow.startMs);
+  const endGapMs = Math.abs(leftWindow.endMs - rightWindow.endMs);
+
+  if (startGapMs <= 15 * 60 * 1000 && endGapMs <= 15 * 60 * 1000) {
+    return true;
+  }
+
+  const overlapMs = Math.min(leftWindow.endMs, rightWindow.endMs) - Math.max(leftWindow.startMs, rightWindow.startMs);
+
+  if (overlapMs <= 0) {
+    return false;
+  }
+
+  const shorterDurationMs = Math.min(leftWindow.durationMs, rightWindow.durationMs);
+  return overlapMs >= shorterDurationMs * 0.5;
 }
 
 function requireConnectedSource(user, sourceType, createError) {
@@ -141,6 +215,7 @@ function importPendingRunsForUser(store, user, {
   const pendingImports = currentQueue.filter((entry) => entry.userId === user.id && connectedSourceTypes.has(entry.sourceType));
   const existingExternalKeys = new Set();
   const existingFingerprints = new Set();
+  const existingTimedRuns = [];
   const processedImportIds = new Set();
   const importedRunIds = [];
   const lastSyncedAt = formatTimestamp();
@@ -165,8 +240,11 @@ function importPendingRunsForUser(store, user, {
         date: run.date,
         distanceKm: run.distanceKm,
         pace: run.pace,
+        startedAt: run.startedAt,
       }));
     }
+
+    existingTimedRuns.push(run);
   }
 
   pendingImports.sort((left, right) => {
@@ -183,8 +261,9 @@ function importPendingRunsForUser(store, user, {
 
     const externalKey = buildRunExternalKey(entry);
     const fingerprint = buildRunFingerprint(entry);
+    const timedDuplicate = existingTimedRuns.some((existingRun) => areRunsPotentialDuplicates(existingRun, entry));
 
-    if ((externalKey && existingExternalKeys.has(externalKey)) || existingFingerprints.has(fingerprint)) {
+    if ((externalKey && existingExternalKeys.has(externalKey)) || existingFingerprints.has(fingerprint) || timedDuplicate) {
       duplicateRuns += 1;
       continue;
     }
@@ -198,6 +277,9 @@ function importPendingRunsForUser(store, user, {
       source: entry.sourceLabel ?? sourceDisplayNameByType.get(entry.sourceType) ?? sourceLabels[entry.sourceType] ?? entry.sourceType,
       sourceType: entry.sourceType,
       ...(entry.externalId ? { externalId: entry.externalId } : {}),
+      ...(typeof entry.durationSeconds === 'number' ? { durationSeconds: entry.durationSeconds } : {}),
+      ...(entry.startedAt ? { startedAt: entry.startedAt } : {}),
+      ...(entry.endedAt ? { endedAt: entry.endedAt } : {}),
       createdAt: nowIso(),
       importedAt: lastSyncedAt,
     };
@@ -211,6 +293,7 @@ function importPendingRunsForUser(store, user, {
     }
 
     existingFingerprints.add(fingerprint);
+    existingTimedRuns.push(run);
   }
 
   store.integrationImports = currentQueue.filter((entry) => !processedImportIds.has(entry.id));

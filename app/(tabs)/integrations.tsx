@@ -9,7 +9,14 @@ import { NativeHealthReadinessCard } from '@/features/integrations/NativeHealthR
 import { Card } from '@/components/Card';
 import { fetchIntegrationStatus, syncIntegrationSources, connectIntegrationSource } from '@/lib/api/services';
 import { IntegrationStatusResponse, IntegrationSyncResponse } from '@/lib/api/types';
-import { getCoverageSummary, getCurrentDevicePlatform, getPlatformLabel, getRecommendationCopy } from '@/features/integrations/sourceCatalog';
+import {
+  getConnectedExclusiveSources,
+  getCoverageSummary,
+  getCurrentDevicePlatform,
+  getPlatformLabel,
+  getRecommendationCopy,
+  isExclusiveIntegrationSourceType,
+} from '@/features/integrations/sourceCatalog';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { getRecommendedNativeHealthReadiness, importRunsFromRecommendedNativeHealthSource } from '@/integrations/nativeHealth';
 import { RunSourceType } from '@/domain/types';
@@ -41,6 +48,7 @@ export default function IntegrationsScreen() {
 
   const platform = getCurrentDevicePlatform();
   const sources = integrationStatus?.sources ?? [];
+  const connectedExclusiveSources = getConnectedExclusiveSources(sources);
   const coverage = integrationStatus ? getCoverageSummary(sources, platform) : null;
   const nativeHealthReadiness = getRecommendedNativeHealthReadiness(sources);
 
@@ -52,7 +60,16 @@ export default function IntegrationsScreen() {
     try {
       const result = await connectIntegrationSource(sourceType);
       setIntegrationStatus({ sources: result.sources });
-      setActionMessage(`${result.source.displayName} 연결 준비가 끝났어.`);
+      if (isExclusiveIntegrationSourceType(sourceType)) {
+        const replacedSource = connectedExclusiveSources.find((source) => source.sourceType !== sourceType);
+        setActionMessage(
+          replacedSource
+            ? `${result.source.displayName}로 기록 연동을 바꿨어. ${replacedSource.displayName}는 자동으로 해제돼.`
+            : `${result.source.displayName} 연결 준비가 끝났어. 자동 기록 소스는 한 번에 1개만 연결돼.`,
+        );
+      } else {
+        setActionMessage(`${result.source.displayName} 연결 준비가 끝났어.`);
+      }
     } catch (connectError) {
       setActionError(connectError instanceof Error ? connectError.message : '연동 연결에 실패했어.');
     } finally {
@@ -119,6 +136,7 @@ export default function IntegrationsScreen() {
       <Card>
         <Text style={styles.tipTitle}>{getPlatformLabel(platform)} 기준 추천 시작 순서</Text>
         <Text style={styles.tipBody}>{getRecommendationCopy(platform)}</Text>
+        <Text style={styles.policyText}>자동 기록 소스는 한 번에 1개만 연결돼. 새로 연결하면 이전 자동 연동은 자동으로 해제돼.</Text>
         {coverage ? (
           <Text style={styles.coverageText}>
             추천 소스 {coverage.recommendedCount}개 중 {coverage.connectedRecommendedCount}개가 이미 준비됐어.
@@ -179,6 +197,7 @@ const styles = StyleSheet.create({
   subtitle: { color: '#475467', lineHeight: 21 },
   tipTitle: { fontSize: 16, fontWeight: '800', color: '#111827' },
   tipBody: { color: '#475467', lineHeight: 21, marginTop: 6 },
+  policyText: { color: '#667085', lineHeight: 20, marginTop: 8 },
   coverageText: { color: '#6D5EF7', fontWeight: '700', marginTop: 8 },
   syncText: { color: '#475467', lineHeight: 20, marginTop: 8 },
   successText: { color: '#067647', fontWeight: '700', marginTop: 8, lineHeight: 20 },

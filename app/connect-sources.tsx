@@ -13,9 +13,11 @@ import { IntegrationStatusResponse } from '@/lib/api/types';
 import { RunSourceType } from '@/domain/types';
 import {
   getCurrentDevicePlatform,
+  getConnectedExclusiveSources,
   getPlatformLabel,
   getRecommendedSources,
   getRecommendationCopy,
+  isExclusiveIntegrationSourceType,
   getSourceMetadata,
 } from '@/features/integrations/sourceCatalog';
 
@@ -45,6 +47,7 @@ export default function ConnectSourcesScreen() {
   const sources = integrationStatus?.sources ?? [];
   const recommended = integrationStatus ? getRecommendedSources(sources, platform) : [];
   const connectedCount = sources.filter((source) => source.connected).length;
+  const connectedExclusiveSources = getConnectedExclusiveSources(sources);
 
   const handleConnect = async (sourceType: RunSourceType) => {
     setActionSourceType(sourceType);
@@ -54,7 +57,16 @@ export default function ConnectSourcesScreen() {
     try {
       const result = await connectIntegrationSource(sourceType);
       setIntegrationStatus({ sources: result.sources });
-      setActionMessage(`${result.source.displayName} 연결 준비가 끝났어.`);
+      if (isExclusiveIntegrationSourceType(sourceType)) {
+        const replacedSource = connectedExclusiveSources.find((source) => source.sourceType !== sourceType);
+        setActionMessage(
+          replacedSource
+            ? `${result.source.displayName}로 기록 연동을 바꿨어. ${replacedSource.displayName}는 자동으로 해제돼.`
+            : `${result.source.displayName} 연결 준비가 끝났어. 자동 기록 소스는 한 번에 1개만 연결돼.`,
+        );
+      } else {
+        setActionMessage(`${result.source.displayName} 연결 준비가 끝났어.`);
+      }
     } catch (connectError) {
       setActionError(connectError instanceof Error ? connectError.message : '연동 연결에 실패했어.');
     } finally {
@@ -89,7 +101,9 @@ export default function ConnectSourcesScreen() {
       <Card>
         <Text style={styles.sectionTitle}>{getPlatformLabel(platform)} 기준 추천 연동</Text>
         <Text style={styles.sectionBody}>{getRecommendationCopy(platform)}</Text>
-        <Text style={styles.helperText}>현재 연결된 소스는 {connectedCount}개야. 가능하면 기본 소스 1개는 먼저 연결하고, 급하면 홈에서 수동 기록부터 시작해도 돼.</Text>
+        <Text style={styles.helperText}>
+          현재 연결된 소스는 {connectedCount}개야. 자동 기록 소스는 한 번에 1개만 연결되고, 새로 연결하면 이전 자동 연동은 자동으로 해제돼.
+        </Text>
 
         {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
         {error ? <Text style={styles.errorText}>{error}</Text> : null}

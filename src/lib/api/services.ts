@@ -104,6 +104,10 @@ function formatMockTimestamp(date = new Date()) {
   return date.toISOString().slice(0, 16).replace('T', ' ');
 }
 
+function isExclusiveIntegrationSourceType(sourceType: RunSourceType) {
+  return sourceType !== 'manual' && sourceType !== 'runnigapp';
+}
+
 function buildMockMarketOverview(): MarketOverview {
   const items: MarketRewardItem[] = mockMarketCatalog.map((item) => ({
     ...item,
@@ -896,6 +900,14 @@ export async function connectIntegrationSource(sourceType: RunSourceType): Promi
           connectionStatus: 'connected',
           lastSyncedAt: source.lastSyncedAt ?? (source.sourceType === 'manual' ? formatMockTimestamp() : undefined),
         }
+        : isExclusiveIntegrationSourceType(sourceType) && isExclusiveIntegrationSourceType(source.sourceType)
+          ? {
+            ...source,
+            connected: false,
+            connectionStatus: 'planned',
+            lastSyncedAt: undefined,
+            pendingImportCount: undefined,
+          }
         : source
     ));
 
@@ -972,6 +984,9 @@ export async function queueIntegrationImports(
     date: string;
     distanceKm: number;
     pace: string;
+    startedAt?: string;
+    endedAt?: string;
+    durationSeconds?: number;
   }>,
 ): Promise<QueueIntegrationImportResponse> {
   if (USE_MOCK_API) {
@@ -1001,6 +1016,9 @@ export async function queueIntegrationImports(
         date: run.date.trim(),
         distanceKm: Number(run.distanceKm.toFixed(1)),
         pace: run.pace.trim(),
+        ...(run.startedAt ? { startedAt: run.startedAt.trim() } : {}),
+        ...(run.endedAt ? { endedAt: run.endedAt.trim() } : {}),
+        ...(typeof run.durationSeconds === 'number' ? { durationSeconds: Math.max(1, Math.round(run.durationSeconds)) } : {}),
       })),
     },
     {

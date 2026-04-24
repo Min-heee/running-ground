@@ -11,22 +11,6 @@ import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { FriendRequest } from '@/domain/types';
 
-function formatRefreshTime(timestamp: string | null) {
-  if (!timestamp) {
-    return '방금 갱신 대기 중';
-  }
-
-  const date = new Date(timestamp);
-
-  if (Number.isNaN(date.getTime())) {
-    return '방금 갱신';
-  }
-
-  const hours = `${date.getHours()}`.padStart(2, '0');
-  const minutes = `${date.getMinutes()}`.padStart(2, '0');
-  return `${hours}:${minutes} 기준`;
-}
-
 export default function FriendsScreen() {
   const { scrollToTop } = useLocalSearchParams<{ scrollToTop?: string }>();
   const [leaderboard, setLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
@@ -37,7 +21,7 @@ export default function FriendsScreen() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
-  const [lastLiveRefreshAt, setLastLiveRefreshAt] = useState<string | null>(null);
+  const [expandedLiveFriendId, setExpandedLiveFriendId] = useState<string | null>(null);
 
   const syncFriends = useCallback(async () => {
     const [leaderboardData, profileData] = await Promise.all([fetchFriendLeaderboard(), fetchMyProfile()]);
@@ -45,7 +29,17 @@ export default function FriendsScreen() {
     setLeaderboard(leaderboardData);
     setProfile(profileData);
     setRequests(leaderboardData.requests);
-    setLastLiveRefreshAt(new Date().toISOString());
+    setExpandedLiveFriendId((current) => {
+      if (!current) {
+        return null;
+      }
+
+      const visibleLiveFriend = leaderboardData.ranks.find(
+        (friend) => friend.id === current && friend.isRunningNow && friend.liveLocationLabel,
+      );
+
+      return visibleLiveFriend ? current : null;
+    });
   }, []);
 
   const loadFriends = useCallback(() => {
@@ -76,7 +70,6 @@ export default function FriendsScreen() {
 
     return leaderboard.ranks.filter((runner) => runner.tag !== profile.publicTag);
   }, [leaderboard, profile]);
-  const liveFriends = useMemo(() => compareTargets.filter((friend) => friend.isRunningNow), [compareTargets]);
 
   const handleAccept = async (requestId: string) => {
     setActionError(null);
@@ -152,52 +145,6 @@ export default function FriendsScreen() {
         <>
           <FriendsRanking ranks={leaderboard.ranks} highlightTag={profile.publicTag} />
 
-          <Card style={styles.liveCard}>
-            <View style={styles.liveCardHeader}>
-              <View style={styles.liveCardCopy}>
-                <Text style={styles.liveCardEyebrow}>지금 뛰는 친구</Text>
-                <Text style={styles.liveCardTitle}>
-                  {liveFriends.length > 0 ? `${liveFriends.length}명이 지금 달리고 있어요` : '지금은 위치 공유 중인 친구가 없어요'}
-                </Text>
-                <Text style={styles.liveCardHint}>
-                  위치 공유를 켠 친구만 동네 단위로 보이고, 친구 탭은 20초마다 자동으로 새로고침돼요.
-                </Text>
-              </View>
-              <View style={styles.liveCardCountBadge}>
-                <Text style={styles.liveCardCountText}>{liveFriends.length}명</Text>
-              </View>
-            </View>
-            <Text style={styles.liveCardRefreshText}>{formatRefreshTime(lastLiveRefreshAt)}</Text>
-            {liveFriends.length > 0 ? (
-              <View style={styles.liveFriendList}>
-                {liveFriends.slice(0, 3).map((friend) => (
-                  <Pressable
-                    key={friend.id}
-                    style={styles.liveFriendRow}
-                    onPress={() => router.push({ pathname: '/friend-detail', params: { friendId: friend.id } })}
-                  >
-                    <View style={styles.liveFriendMeta}>
-                      <View style={styles.liveFriendNameRow}>
-                        <Text style={styles.liveFriendName}>{friend.name}</Text>
-                        <View style={styles.liveBadge}>
-                          <View style={styles.liveDot} />
-                          <Text style={styles.liveBadgeText}>러닝 중</Text>
-                        </View>
-                      </View>
-                      <Text style={styles.liveFriendLocation}>{friend.liveLocationLabel ?? '현재 위치 근처'}</Text>
-                    </View>
-                    <Text style={styles.compareLink}>보기</Text>
-                  </Pressable>
-                ))}
-                {liveFriends.length > 3 ? (
-                  <Text style={styles.liveCardMoreText}>더 뛰는 친구는 아래 친구 목록에서 바로 볼 수 있어.</Text>
-                ) : null}
-              </View>
-            ) : (
-              <Text style={styles.emptyText}>친구가 러닝 시작 전에 위치 공유를 켜면 여기에서 바로 보여요.</Text>
-            )}
-          </Card>
-
           <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}>
             <Text style={styles.addButtonText}>친구 추가하기</Text>
           </Pressable>
@@ -271,29 +218,66 @@ export default function FriendsScreen() {
           <Card>
             <Text style={styles.sectionTitle}>친구 목록</Text>
             {compareTargets.map((friend) => (
-              <Pressable
-                key={friend.id}
-                style={styles.compareRow}
-                onPress={() => router.push({ pathname: '/friend-detail', params: { friendId: friend.id } })}
-              >
-                <View style={styles.requestMeta}>
-                  <View style={styles.friendRowHeader}>
-                    <Text style={styles.requestName}>{friend.name}</Text>
-                    {friend.isRunningNow ? (
-                      <View style={styles.liveBadge}>
-                        <View style={styles.liveDot} />
-                        <Text style={styles.liveBadgeText}>러닝 중</Text>
+              <View key={friend.id} style={styles.friendItem}>
+                <View style={styles.compareRow}>
+                  <Pressable
+                    style={styles.friendPrimaryAction}
+                    onPress={() => router.push({ pathname: '/friend-detail', params: { friendId: friend.id } })}
+                  >
+                    <View style={styles.requestMeta}>
+                      <View style={styles.friendRowHeader}>
+                        {friend.isRunningNow ? <View style={styles.friendLiveDot} /> : null}
+                        <Text style={styles.requestName}>{friend.name}</Text>
+                        {friend.isRunningNow ? (
+                          <Text style={styles.friendLiveLabel}>위치 공유 중</Text>
+                        ) : null}
                       </View>
+                      <Text style={styles.requestDetail}>{friend.tag}</Text>
+                    </View>
+                  </Pressable>
+
+                  <View style={styles.friendRowActions}>
+                    {friend.isRunningNow && friend.liveLocationLabel ? (
+                      <Pressable
+                        style={[
+                          styles.locationButton,
+                          expandedLiveFriendId === friend.id ? styles.locationButtonActive : null,
+                        ]}
+                        onPress={() =>
+                          setExpandedLiveFriendId((current) => (current === friend.id ? null : friend.id))
+                        }
+                      >
+                        <View style={styles.locationButtonDot} />
+                        <Text
+                          style={[
+                            styles.locationButtonText,
+                            expandedLiveFriendId === friend.id ? styles.locationButtonTextActive : null,
+                          ]}
+                        >
+                          {expandedLiveFriendId === friend.id ? '닫기' : '위치'}
+                        </Text>
+                      </Pressable>
                     ) : null}
+
+                    <Pressable
+                      style={styles.friendDetailButton}
+                      onPress={() => router.push({ pathname: '/friend-detail', params: { friendId: friend.id } })}
+                    >
+                      <Text style={styles.compareLink}>보기</Text>
+                    </Pressable>
                   </View>
-                  <Text style={styles.requestDetail}>
-                    {friend.isRunningNow && friend.liveLocationLabel
-                      ? `${friend.tag} · ${friend.liveLocationLabel}`
-                      : friend.tag}
-                  </Text>
                 </View>
-                <Text style={styles.compareLink}>보기</Text>
-              </Pressable>
+
+                {expandedLiveFriendId === friend.id && friend.liveLocationLabel ? (
+                  <View style={styles.liveLocationPanel}>
+                    <View style={styles.liveLocationHeader}>
+                      <View style={styles.liveLocationDot} />
+                      <Text style={styles.liveLocationTitle}>{friend.name}님이 지금 뛰는 곳</Text>
+                    </View>
+                    <Text style={styles.liveLocationText}>{friend.liveLocationLabel}</Text>
+                  </View>
+                ) : null}
+              </View>
             ))}
             {compareTargets.length === 0 ? <Text style={styles.emptyText}>아직 비교할 친구 기록이 없어.</Text> : null}
           </Card>
@@ -315,92 +299,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 15,
-  },
-  liveCard: {
-    backgroundColor: '#111827',
-    gap: 12,
-  },
-  liveCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  liveCardCopy: {
-    flex: 1,
-    gap: 4,
-  },
-  liveCardEyebrow: {
-    color: '#C7D2FE',
-    fontSize: 12,
-    fontWeight: '800',
-    includeFontPadding: false,
-  },
-  liveCardTitle: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '800',
-    includeFontPadding: false,
-  },
-  liveCardHint: {
-    color: '#D0D5DD',
-    lineHeight: 20,
-  },
-  liveCardCountBadge: {
-    backgroundColor: '#123524',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  liveCardCountText: {
-    color: '#D1FADF',
-    fontWeight: '800',
-    includeFontPadding: false,
-  },
-  liveCardRefreshText: {
-    color: '#98A2B3',
-    fontSize: 12,
-    fontWeight: '700',
-    includeFontPadding: false,
-  },
-  liveFriendList: {
-    gap: 10,
-  },
-  liveFriendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-    backgroundColor: '#1F2937',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#374151',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  liveFriendMeta: {
-    flex: 1,
-    gap: 4,
-  },
-  liveFriendNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  liveFriendName: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-    includeFontPadding: false,
-  },
-  liveFriendLocation: {
-    color: '#D0D5DD',
-    includeFontPadding: false,
-  },
-  liveCardMoreText: {
-    color: '#98A2B3',
-    lineHeight: 20,
   },
   tagCard: {
     gap: 10,
@@ -463,11 +361,22 @@ const styles = StyleSheet.create({
   compareRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: 12,
     gap: 12,
+  },
+  friendItem: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#EAECF0',
+  },
+  friendPrimaryAction: {
+    flex: 1,
+  },
+  friendRowActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'center',
   },
   requestMeta: {
     flex: 1,
@@ -483,6 +392,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     flexWrap: 'wrap',
+  },
+  friendLiveDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 999,
+    backgroundColor: '#12B76A',
+    shadowColor: '#12B76A',
+    shadowOpacity: 0.28,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  friendLiveLabel: {
+    color: '#067647',
+    fontSize: 12,
+    fontWeight: '700',
+    includeFontPadding: false,
   },
   requestName: {
     color: '#111827',
@@ -511,6 +436,73 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     includeFontPadding: false,
+  },
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    backgroundColor: '#FFFFFF',
+  },
+  locationButtonActive: {
+    borderColor: '#ABEFC6',
+    backgroundColor: '#ECFDF3',
+  },
+  locationButtonDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: '#12B76A',
+  },
+  locationButtonText: {
+    color: '#344054',
+    fontSize: 12,
+    fontWeight: '700',
+    includeFontPadding: false,
+  },
+  locationButtonTextActive: {
+    color: '#067647',
+  },
+  friendDetailButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+  },
+  liveLocationPanel: {
+    marginBottom: 14,
+    marginTop: -2,
+    marginLeft: 2,
+    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 5,
+  },
+  liveLocationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  liveLocationDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#12B76A',
+  },
+  liveLocationTitle: {
+    color: '#111827',
+    fontSize: 13,
+    fontWeight: '700',
+    includeFontPadding: false,
+  },
+  liveLocationText: {
+    color: '#475467',
+    lineHeight: 20,
   },
   acceptButton: {
     backgroundColor: '#6D5EF7',

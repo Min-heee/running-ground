@@ -10,6 +10,9 @@ export type NormalizedProviderRun = {
   date: string;
   distanceKm: number;
   pace: string;
+  startedAt?: string;
+  endedAt?: string;
+  durationSeconds?: number;
 };
 
 export type ProviderRunImportPayload = {
@@ -29,6 +32,9 @@ export function buildProviderRunImportPayload(
       date: run.date.trim(),
       distanceKm: Number(run.distanceKm.toFixed(1)),
       pace: run.pace.trim(),
+      ...(run.startedAt ? { startedAt: run.startedAt.trim() } : {}),
+      ...(run.endedAt ? { endedAt: run.endedAt.trim() } : {}),
+      ...(typeof run.durationSeconds === 'number' ? { durationSeconds: Math.max(1, Math.round(run.durationSeconds)) } : {}),
     })),
   };
 }

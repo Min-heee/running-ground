@@ -2,101 +2,86 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { ConnectedSource } from '@/domain/types';
-import { getPrimarySourceForPlatform, getSourceMetadata, sortSourcesByPriority, splitSourcesByStatus } from './sourceCatalog';
+import { getPrimarySourceForPlatform, sortSourcesByPriority, splitSourcesByStatus } from './sourceCatalog';
 
 export function IntegrationStatus({ sources }: { sources: ConnectedSource[] }) {
-  const { connected, available } = splitSourcesByStatus(sources);
+  const { connected } = splitSourcesByStatus(sources);
   const primarySource = getPrimarySourceForPlatform(sources);
   const connectedSources = sortSourcesByPriority(connected);
-  const availableSources = sortSourcesByPriority(available);
 
   return (
-    <>
-      <Card>
+    <Card style={styles.card}>
+      <View style={styles.headerRow}>
         <SectionTitle>연결된 소스</SectionTitle>
-        {connectedSources.map((source) => {
-          const metadata = getSourceMetadata(source.sourceType);
-          const isPrimary = primarySource?.sourceType === source.sourceType;
+        <Text style={styles.countText}>{connectedSources.length}개</Text>
+      </View>
+      {connectedSources.map((source) => {
+        const isPrimary = primarySource?.sourceType === source.sourceType;
 
-          return (
-            <View key={source.sourceType} style={styles.item}>
-              <View style={styles.nameRow}>
-                <Text style={styles.name}>{source.displayName}</Text>
-                {isPrimary ? <Text style={styles.primaryBadge}>기본</Text> : null}
-              </View>
-              <Text style={styles.detail}>{metadata.shortDescription}</Text>
-              <Text style={styles.detail}>마지막 동기화 {source.lastSyncedAt ?? '정보 없음'}</Text>
-              {source.pendingImportCount ? <Text style={styles.pending}>대기 중인 가져오기 {source.pendingImportCount}개</Text> : null}
-              <Text style={styles.badge}>연결됨</Text>
+        return (
+          <View key={source.sourceType} style={styles.item}>
+            <View style={styles.nameRow}>
+              <Text style={styles.name}>{source.displayName}</Text>
+              {isPrimary ? <Text style={styles.primaryBadge}>기본</Text> : null}
             </View>
-          );
-        })}
-        {connected.length === 0 ? <Text style={styles.empty}>아직 연결된 기록 소스가 없어.</Text> : null}
-      </Card>
-
-      <Card>
-        <SectionTitle>다음으로 붙이기 좋은 소스</SectionTitle>
-        {availableSources.map((source) => {
-          const metadata = getSourceMetadata(source.sourceType);
-          const isPrimary = primarySource?.sourceType === source.sourceType;
-
-          return (
-            <View key={source.sourceType} style={styles.item}>
-              <View style={styles.nameRow}>
-                <Text style={styles.name}>{source.displayName}</Text>
-                {isPrimary ? <Text style={styles.primaryBadge}>우선</Text> : null}
-              </View>
-              <Text style={styles.detail}>{metadata.shortDescription}</Text>
-              <Text style={styles.hint}>{metadata.setupHint}</Text>
-            </View>
-          );
-        })}
-        {available.length === 0 ? <Text style={styles.empty}>지금 바로 추가로 열어둘 소스가 없어.</Text> : null}
-      </Card>
-    </>
+            <Text style={styles.detail}>마지막 동기화 {source.lastSyncedAt ?? '정보 없음'}</Text>
+            {source.pendingImportCount ? <Text style={styles.pending}>대기 중인 가져오기 {source.pendingImportCount}개</Text> : null}
+          </View>
+        );
+      })}
+      {connected.length === 0 ? <Text style={styles.empty}>아직 연결된 기록 소스가 없어.</Text> : null}
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
+  card: {
+    gap: 6,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  countText: {
+    color: '#667085',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   item: {
-    paddingVertical: 8,
-    gap: 4,
+    paddingVertical: 9,
+    gap: 2,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#EAECF0',
   },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    flexWrap: 'wrap',
   },
   name: {
     color: '#111827',
     fontWeight: '700',
   },
   primaryBadge: {
-    color: '#4F46E5',
-    backgroundColor: '#EEF2FF',
+    color: '#344054',
+    backgroundColor: '#F2F4F7',
     borderRadius: 999,
     overflow: 'hidden',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    fontSize: 12,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    fontSize: 11,
     fontWeight: '800',
   },
   detail: {
     color: '#667085',
-    lineHeight: 20,
-  },
-  hint: {
-    color: '#6D5EF7',
-    fontWeight: '700',
     lineHeight: 18,
     fontSize: 12,
   },
-  badge: {
-    color: '#067647',
-    fontWeight: '700',
-  },
   pending: {
-    color: '#C2410C',
+    color: '#B54708',
     fontWeight: '700',
     lineHeight: 18,
     fontSize: 12,

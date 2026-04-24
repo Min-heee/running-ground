@@ -30,6 +30,7 @@ type NativeHealthBridgeRun = {
   sourceLabel?: string;
   date?: string;
   startedAt?: string;
+  endedAt?: string;
   distanceKm?: number;
   distanceMeters?: number;
   pace?: string;
@@ -230,6 +231,16 @@ function formatPaceFromMinutesPerKm(minutesPerKm: number) {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}/km`;
 }
 
+function normalizeIsoDateTime(value: string, label: string, index: number) {
+  const parsedTime = new Date(value);
+
+  if (Number.isNaN(parsedTime.getTime())) {
+    throw new Error(`기기 기록 ${index + 1}번의 ${label} 형식이 올바르지 않아.`);
+  }
+
+  return parsedTime.toISOString();
+}
+
 function normalizeBridgeRun(run: NativeHealthBridgeRun, index: number): NormalizedProviderRun {
   const dateValue = typeof run.date === 'string' && run.date.trim()
     ? run.date
@@ -265,6 +276,18 @@ function normalizeBridgeRun(run: NativeHealthBridgeRun, index: number): Normaliz
     throw new Error(`기기 기록 ${index + 1}번의 페이스를 계산할 수 없어.`);
   }
 
+  const startedAt = typeof run.startedAt === 'string' && run.startedAt.trim()
+    ? normalizeIsoDateTime(run.startedAt, '시작 시각', index)
+    : undefined;
+  const durationSeconds = typeof run.durationSeconds === 'number' && Number.isFinite(run.durationSeconds) && run.durationSeconds > 0
+    ? Math.round(run.durationSeconds)
+    : undefined;
+  const endedAt = typeof run.endedAt === 'string' && run.endedAt.trim()
+    ? normalizeIsoDateTime(run.endedAt, '종료 시각', index)
+    : startedAt && durationSeconds
+      ? new Date(new Date(startedAt).getTime() + durationSeconds * 1000).toISOString()
+      : undefined;
+
   return {
     ...(run.externalId ? { externalId: String(run.externalId).trim() } : {}),
     ...(typeof run.sourceLabel === 'string' && run.sourceLabel.trim()
@@ -273,6 +296,9 @@ function normalizeBridgeRun(run: NativeHealthBridgeRun, index: number): Normaliz
     date: toDateOnly(dateValue),
     distanceKm: Number(distanceKm.toFixed(1)),
     pace,
+    ...(startedAt ? { startedAt } : {}),
+    ...(endedAt ? { endedAt } : {}),
+    ...(typeof durationSeconds === 'number' ? { durationSeconds } : {}),
   };
 }
 
