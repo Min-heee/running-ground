@@ -564,6 +564,20 @@ scripts\windows\install-preview-backend-task.cmd -Transport tailscale-funnel -St
 scripts\windows\status-preview-public-backend.cmd -RequireHealthy
 ```
 
+맥북이나 데스크탑에서 공개 preview API 자체를 한 번에 점검하려면 아래 명령을 쓰면 돼.
+
+```bash
+npm run preview:smoke
+```
+
+가능한 검사:
+- 공개 `/api/health`
+- 관리자 토큰이 있으면 `/api/admin/status`
+- smoke 계정 회원가입 또는 로그인
+- 프로필, 홈, 내 활동, 최신 러닝
+- 친구 랭킹, 지역/대학 리그
+- 마켓 개요, 오프라인 레이스 허브, 연동 소스
+
 ### Desktop preview PostgreSQL read rollout
 
 preview 데스크탑에서 PostgreSQL read 를 부분 전환할 때는 아래 순서가 가장 안전해.

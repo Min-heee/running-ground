@@ -25,6 +25,7 @@
     "backend:backups": "node ./backend/src/list-backups.mjs",
     "backend:restore": "node ./backend/src/restore-store.mjs",
     "backend:smoke": "node ./backend/src/smoke.mjs",
+    "preview:smoke": "node ./scripts/check-preview-public-api.mjs",
     "provider:import": "node ./scripts/provider-import.mjs",
     "preview:sync-eas-env": "node ./scripts/sync-preview-eas-env.mjs",
     "build:ios:development": "eas build --platform ios --profile development",
