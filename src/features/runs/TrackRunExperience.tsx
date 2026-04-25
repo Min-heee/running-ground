@@ -20,7 +20,8 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RunRoutePoint } from '@/domain/types';
-import { createTrackedRun, updateRunningLiveShare } from '@/lib/api/services';
+import { createTrackedRun, requestDuelMatch, requestGroupMatch, updateRunningLiveShare } from '@/lib/api/services';
+import { type RequestDuelMatchResponse, type RequestGroupMatchResponse } from '@/lib/api/types';
 import { buildSuggestedArtRoute, type SuggestedArtRoute } from '@/features/runs/routeArt';
 import { RunRouteMap } from '@/features/runs/RunRouteMap';
 import {
@@ -57,6 +58,13 @@ type ConfirmedStartLocation = {
     latitude: number;
     longitude: number;
   };
+};
+type GroupLiveStanding = RequestGroupMatchResponse['participants'][number] & {
+  rank: number;
+  currentDistanceKm: number;
+  gapAheadKm: number | null;
+  gapLeaderKm: number;
+  isCurrentUser: boolean;
 };
 
 function buildRoutePoint(location: Location.LocationObject): RunRoutePoint {
@@ -219,6 +227,109 @@ function formatMatchTargetDistance(distanceKm: number) {
   return `${Number(distanceKm.toFixed(1))}km`;
 }
 
+function clampDuelMatchDistanceKm(value: number) {
+  return Math.min(42.2, Math.max(2, Number(value.toFixed(1))));
+}
+
+function parseDuelMatchDistanceKm(value: string) {
+  const parsedValue = Number(String(value).replace(',', '.'));
+
+  if (!Number.isFinite(parsedValue)) {
+    return 5;
+  }
+
+  return clampDuelMatchDistanceKm(parsedValue);
+}
+
+function buildUpcomingHalfHourSlots(count = 6, referenceDate = new Date()) {
+  const nextSlot = new Date(referenceDate);
+  nextSlot.setSeconds(0, 0);
+  const currentMinutes = nextSlot.getMinutes();
+
+  if (currentMinutes === 0 || currentMinutes === 30) {
+    nextSlot.setMinutes(currentMinutes + 30);
+  } else if (currentMinutes < 30) {
+    nextSlot.setMinutes(30);
+  } else {
+    nextSlot.setHours(nextSlot.getHours() + 1, 0, 0, 0);
+  }
+
+  return Array.from({ length: count }, (_, index) => {
+    const slotStart = new Date(nextSlot.getTime() + index * 30 * 60 * 1000);
+    const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000);
+    const startHours = String(slotStart.getHours()).padStart(2, '0');
+    const startMinutes = String(slotStart.getMinutes()).padStart(2, '0');
+    const endHours = String(slotEnd.getHours()).padStart(2, '0');
+    const endMinutes = String(slotEnd.getMinutes()).padStart(2, '0');
+
+    return {
+      startsAt: slotStart.toISOString(),
+      label: `${startHours}:${startMinutes}`,
+      meta: `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`,
+    };
+  });
+}
+
+function parsePaceSecondsPerKm(paceLabel: string) {
+  const matched = String(paceLabel).trim().match(/^(\d{1,2}):(\d{2})\/km$/i);
+
+  if (!matched) {
+    return 5 * 60 + 30;
+  }
+
+  return Number(matched[1]) * 60 + Number(matched[2]);
+}
+
+function buildGroupLiveStandings(
+  groupMatchResult: RequestGroupMatchResponse | null,
+  currentDistanceKm: number,
+  elapsedSeconds: number,
+): GroupLiveStanding[] {
+  if (!groupMatchResult?.matched || !groupMatchResult.participants.length) {
+    return [];
+  }
+
+  const currentSeedRank = groupMatchResult.mySeedRank ?? 1;
+  const standings = groupMatchResult.participants
+    .map((participant) => {
+      const isCurrentUser = participant.seedRank === currentSeedRank;
+      const estimatedDistanceKm = isCurrentUser
+        ? currentDistanceKm
+        : elapsedSeconds <= 0
+          ? 0
+          : elapsedSeconds / Math.max(1, parsePaceSecondsPerKm(participant.averagePace) * (1 - Math.max(-0.08, Math.min(0.08, (6 - participant.seedRank) * 0.012))));
+
+      return {
+        ...participant,
+        currentDistanceKm: Number(Math.max(0, estimatedDistanceKm).toFixed(2)),
+        rank: 0,
+        gapAheadKm: null,
+        gapLeaderKm: 0,
+        isCurrentUser,
+      };
+    })
+    .sort((left, right) => {
+      if (right.currentDistanceKm !== left.currentDistanceKm) {
+        return right.currentDistanceKm - left.currentDistanceKm;
+      }
+
+      return parsePaceSecondsPerKm(left.averagePace) - parsePaceSecondsPerKm(right.averagePace);
+    })
+    .map((participant, index, array) => {
+      const leaderDistance = array[0]?.currentDistanceKm ?? participant.currentDistanceKm;
+      const aheadRunner = index > 0 ? array[index - 1] : null;
+
+      return {
+        ...participant,
+        rank: index + 1,
+        gapLeaderKm: Number(Math.max(0, leaderDistance - participant.currentDistanceKm).toFixed(2)),
+        gapAheadKm: aheadRunner ? Number(Math.max(0, aheadRunner.currentDistanceKm - participant.currentDistanceKm).toFixed(2)) : null,
+      };
+    });
+
+  return standings;
+}
+
 export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const pedometerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -251,6 +362,14 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [liveShareEnabled, setLiveShareEnabled] = useState(false);
   const [liveShareLabel, setLiveShareLabel] = useState<string | null>(null);
   const [matchMode, setMatchMode] = useState<RunMatchMode>('duel');
+  const [duelDistanceText, setDuelDistanceText] = useState('5');
+  const [selectedDuelSlotStartAt, setSelectedDuelSlotStartAt] = useState(() => buildUpcomingHalfHourSlots()[0]?.startsAt ?? new Date().toISOString());
+  const [isRequestingDuelMatch, setIsRequestingDuelMatch] = useState(false);
+  const [duelMatchResult, setDuelMatchResult] = useState<RequestDuelMatchResponse | null>(null);
+  const [groupDistanceText, setGroupDistanceText] = useState('5');
+  const [selectedGroupSlotStartAt, setSelectedGroupSlotStartAt] = useState(() => buildUpcomingHalfHourSlots()[0]?.startsAt ?? new Date().toISOString());
+  const [isRequestingGroupMatch, setIsRequestingGroupMatch] = useState(false);
+  const [groupMatchResult, setGroupMatchResult] = useState<RequestGroupMatchResponse | null>(null);
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const routeCoordinates = useMemo(
@@ -267,6 +386,12 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     () => suggestedRoute?.requestedDistanceKm ?? parseDesiredDistanceKm(desiredDistanceText),
     [desiredDistanceText, suggestedRoute],
   );
+  const duelDistanceKm = useMemo(() => parseDuelMatchDistanceKm(duelDistanceText), [duelDistanceText]);
+  const groupDistanceKm = useMemo(() => parseDuelMatchDistanceKm(groupDistanceText), [groupDistanceText]);
+  const duelSlotOptions = useMemo(() => buildUpcomingHalfHourSlots(8), []);
+  const selectedDuelSlot = duelSlotOptions.find((slot) => slot.startsAt === selectedDuelSlotStartAt) ?? duelSlotOptions[0] ?? null;
+  const groupSlotOptions = useMemo(() => buildUpcomingHalfHourSlots(8), []);
+  const selectedGroupSlot = groupSlotOptions.find((slot) => slot.startsAt === selectedGroupSlotStartAt) ?? groupSlotOptions[0] ?? null;
   const matchOptions = useMemo(
     () => [
       {
@@ -284,7 +409,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         label: '1대1',
         title: '1대1 매치',
         summary: '비슷한 목표 러너 한 명과 바로 붙는 대결 모드예요.',
-        meta: `${formatMatchTargetDistance(matchTargetDistanceKm)} 기준 · 시간과 페이스 비교`,
+        meta: `${formatMatchTargetDistance(duelDistanceKm)} 기준 · 30분 단위 시간대 매칭`,
         startLabel: '1대1 매치로 시작',
         liveTitle: '1대1 매치 진행 중',
         liveText: '완주 시간과 평균 페이스를 중심으로 오늘 결과를 비교하기 좋은 모드예요.',
@@ -293,17 +418,46 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         mode: 'group' as const,
         label: '그룹',
         title: '그룹 대결',
-        summary: '4명 안팎 러너와 순위표를 보는 그룹전 모드예요.',
-        meta: `${formatMatchTargetDistance(matchTargetDistanceKm)} 기준 · 누적 거리와 페이스 순위`,
+        summary: '최대 30명까지 모아 순위 흐름을 보는 그룹전 모드예요.',
+        meta: `${formatMatchTargetDistance(groupDistanceKm)} 기준 · 30분 단위 그룹 매칭`,
         startLabel: '그룹 대결로 시작',
         liveTitle: '그룹 대결 진행 중',
-        liveText: '중간에 흔들리지 않고 꾸준히 밀어붙일 때 더 재미있는 모드예요.',
+        liveText: '비슷한 러너들과 함께 뛰면서 내 순위를 보는 재미를 주는 모드예요.',
       },
     ],
-    [matchTargetDistanceKm],
+    [duelDistanceKm, groupDistanceKm],
   );
   const latestPoint = route.length ? route[route.length - 1] : null;
   const selectedMatch = matchOptions.find((option) => option.mode === matchMode) ?? matchOptions[0];
+  const groupLiveStandings = useMemo(
+    () => buildGroupLiveStandings(groupMatchResult, distanceKm, elapsedSeconds),
+    [groupMatchResult, distanceKm, elapsedSeconds],
+  );
+  const currentGroupStanding = groupLiveStandings.find((participant) => participant.isCurrentUser) ?? null;
+  const currentGroupLeader = groupLiveStandings[0] ?? null;
+  const liveMatchTitle = matchMode === 'duel' && duelMatchResult?.matched && duelMatchResult.opponent
+    ? `${duelMatchResult.opponent.name}님과 1대1 매치 진행 중`
+    : matchMode === 'group' && groupMatchResult?.matched
+      ? `${groupMatchResult.participantsCount}명 그룹 대결 진행 중`
+      : selectedMatch.liveTitle;
+  const liveMatchText = matchMode === 'duel' && duelMatchResult?.matched && duelMatchResult.opponent
+    ? `${duelMatchResult.opponent.compatibilitySummary} · ${duelMatchResult.slotLabel}`
+    : matchMode === 'group' && groupMatchResult?.matched
+      ? `${groupMatchResult.slotLabel} · 내 시작 시드 ${groupMatchResult.mySeedRank ?? 1}위`
+      : selectedMatch.liveText;
+  const readyActionLabel = matchMode === 'duel'
+    ? duelMatchResult?.matched && duelMatchResult.opponent
+      ? `${duelMatchResult.opponent.name}님과 매치 시작`
+      : isRequestingDuelMatch
+        ? '1대1 매칭 찾는 중...'
+        : '1대1 매칭 찾기'
+    : matchMode === 'group'
+      ? groupMatchResult?.matched
+        ? `${groupMatchResult.participantsCount}명 그룹으로 시작`
+        : isRequestingGroupMatch
+          ? '그룹 매칭 찾는 중...'
+          : '그룹 매칭 찾기'
+      : selectedMatch.startLabel;
   const isRunning = status === 'running';
   const isPaused = status === 'paused';
   const isSaving = status === 'saving';
@@ -319,6 +473,14 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   useEffect(() => {
     liveShareLabelRef.current = liveShareLabel;
   }, [liveShareLabel]);
+
+  useEffect(() => {
+    setDuelMatchResult(null);
+  }, [duelDistanceKm, selectedDuelSlotStartAt, matchMode]);
+
+  useEffect(() => {
+    setGroupMatchResult(null);
+  }, [groupDistanceKm, selectedGroupSlotStartAt, matchMode]);
 
   const syncElapsedSeconds = (nextElapsedSeconds: number) => {
     elapsedSecondsRef.current = nextElapsedSeconds;
@@ -662,6 +824,20 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       return;
     }
 
+    if (matchMode === 'duel' && !duelMatchResult?.matched) {
+      if (!isRequestingDuelMatch) {
+        void handleRequestDuelMatch();
+      }
+      return;
+    }
+
+    if (matchMode === 'group' && !groupMatchResult?.matched) {
+      if (!isRequestingGroupMatch) {
+        void handleRequestGroupMatch();
+      }
+      return;
+    }
+
     try {
       setError(null);
       await ensureLocationPermission();
@@ -715,6 +891,42 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         status: 'idle',
       }).catch(() => {});
       setStatus('idle');
+    }
+  };
+
+  const handleRequestDuelMatch = async () => {
+    try {
+      setError(null);
+      setIsRequestingDuelMatch(true);
+
+      const payload = await requestDuelMatch({
+        distanceKm: duelDistanceKm,
+        slotStartAt: selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt,
+      });
+
+      setDuelMatchResult(payload);
+    } catch (matchError) {
+      setError(matchError instanceof Error ? matchError.message : '1대1 매칭을 찾지 못했어.');
+    } finally {
+      setIsRequestingDuelMatch(false);
+    }
+  };
+
+  const handleRequestGroupMatch = async () => {
+    try {
+      setError(null);
+      setIsRequestingGroupMatch(true);
+
+      const payload = await requestGroupMatch({
+        distanceKm: groupDistanceKm,
+        slotStartAt: selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt,
+      });
+
+      setGroupMatchResult(payload);
+    } catch (matchError) {
+      setError(matchError instanceof Error ? matchError.message : '그룹 매칭을 찾지 못했어.');
+    } finally {
+      setIsRequestingGroupMatch(false);
     }
   };
 
@@ -995,8 +1207,213 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                 <Text style={styles.matchSummaryText}>{selectedMatch.summary}</Text>
                 <Text style={styles.matchSummaryMeta}>{selectedMatch.meta}</Text>
               </View>
+              {matchMode === 'duel' ? (
+                <View style={styles.duelSetupCard}>
+                  <View style={styles.duelSection}>
+                    <View style={styles.duelSectionHeader}>
+                      <Text style={styles.duelSectionTitle}>원하는 거리</Text>
+                      <Text style={styles.duelSectionMeta}>2km - 42.2km</Text>
+                    </View>
+                    <TextInput
+                      value={duelDistanceText}
+                      onChangeText={setDuelDistanceText}
+                      placeholder="예: 5, 10, 21.1"
+                      placeholderTextColor="#98A2B3"
+                      keyboardType="decimal-pad"
+                      style={styles.duelDistanceInput}
+                    />
+                    <Text style={styles.duelHelperText}>같은 목표 거리로 뛰는 러너를 우선으로 찾습니다.</Text>
+                  </View>
+
+                  <View style={styles.duelSection}>
+                    <View style={styles.duelSectionHeader}>
+                      <Text style={styles.duelSectionTitle}>출발 시간대</Text>
+                      <Text style={styles.duelSectionMeta}>30분 단위</Text>
+                    </View>
+                    <View style={styles.duelSlotGrid}>
+                      {duelSlotOptions.map((slot) => {
+                        const isSelected = slot.startsAt === (selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt);
+
+                        return (
+                          <Pressable
+                            key={slot.startsAt}
+                            style={[styles.duelSlotChip, isSelected ? styles.duelSlotChipSelected : undefined]}
+                            onPress={() => setSelectedDuelSlotStartAt(slot.startsAt)}
+                          >
+                            <Text style={[styles.duelSlotLabel, isSelected ? styles.duelSlotLabelSelected : undefined]}>
+                              {slot.label}
+                            </Text>
+                            <Text style={[styles.duelSlotMeta, isSelected ? styles.duelSlotMetaSelected : undefined]}>
+                              {slot.meta}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  <View style={styles.duelCriteriaCard}>
+                    <Text style={styles.duelCriteriaTitle}>매칭 기준</Text>
+                    <Text style={styles.duelCriteriaText}>비슷한 평균 페이스와 누적 거리 레벨을 우선으로 봐요.</Text>
+                    <Text style={styles.duelCriteriaMeta}>
+                      {duelMatchResult
+                        ? `${duelMatchResult.paceBandLabel} · ${duelMatchResult.levelBandLabel}`
+                        : '평균 페이스 ±15초/km · 레벨 ±2 전후'}
+                    </Text>
+                  </View>
+
+                  {isRequestingDuelMatch ? <ActivityIndicator size="small" color="#818CF8" /> : null}
+
+                  {duelMatchResult ? (
+                    <View style={styles.duelResultCard}>
+                      <Text style={styles.duelResultEyebrow}>{duelMatchResult.matched ? 'MATCHED' : 'MATCHING'}</Text>
+                      {duelMatchResult.matched && duelMatchResult.opponent ? (
+                        <>
+                          <Text style={styles.duelResultTitle}>{duelMatchResult.opponent.name}님이 잡혔어요</Text>
+                          <Text style={styles.duelResultBody}>{duelMatchResult.criteriaSummary}</Text>
+                          <Text style={styles.duelResultMeta}>
+                            {duelMatchResult.opponent.averagePace} · {duelMatchResult.opponent.levelLabel} · {duelMatchResult.opponent.districtName}
+                          </Text>
+                          <Text style={styles.duelResultMeta}>{duelMatchResult.opponent.compatibilitySummary}</Text>
+                          <Text style={styles.duelResultMeta}>{duelMatchResult.slotLabel} 시작</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.duelResultTitle}>비슷한 러너를 찾는 중이에요</Text>
+                          <Text style={styles.duelResultBody}>{duelMatchResult.criteriaSummary}</Text>
+                          <Text style={styles.duelResultMeta}>예상 대기 {duelMatchResult.estimatedWaitMinutes}분</Text>
+                        </>
+                      )}
+                    </View>
+                  ) : (
+                    <View style={styles.duelHintCard}>
+                      <Text style={styles.duelHintTitle}>1대1 매칭은 이렇게 잡아요</Text>
+                      <Text style={styles.duelHintText}>선택한 거리와 시간대, 최근 평균 페이스, 누적 거리 레벨이 비슷한 러너를 우선으로 찾습니다.</Text>
+                    </View>
+                  )}
+
+                  <SecondaryButton
+                    label={duelMatchResult?.matched ? '다시 매칭 찾기' : '1대1 매칭 찾기'}
+                    onPress={() => {
+                      void handleRequestDuelMatch();
+                    }}
+                  />
+                </View>
+              ) : null}
+              {matchMode === 'group' ? (
+                <View style={styles.duelSetupCard}>
+                  <View style={styles.duelSection}>
+                    <View style={styles.duelSectionHeader}>
+                      <Text style={styles.duelSectionTitle}>원하는 거리</Text>
+                      <Text style={styles.duelSectionMeta}>2km - 42.2km</Text>
+                    </View>
+                    <TextInput
+                      value={groupDistanceText}
+                      onChangeText={setGroupDistanceText}
+                      placeholder="예: 5, 10, 21.1"
+                      placeholderTextColor="#98A2B3"
+                      keyboardType="decimal-pad"
+                      style={styles.duelDistanceInput}
+                    />
+                    <Text style={styles.duelHelperText}>같은 목표 거리로 뛰는 러너를 최대 30명까지 한 그룹으로 묶어요.</Text>
+                  </View>
+
+                  <View style={styles.duelSection}>
+                    <View style={styles.duelSectionHeader}>
+                      <Text style={styles.duelSectionTitle}>출발 시간대</Text>
+                      <Text style={styles.duelSectionMeta}>30분 단위</Text>
+                    </View>
+                    <View style={styles.duelSlotGrid}>
+                      {groupSlotOptions.map((slot) => {
+                        const isSelected = slot.startsAt === (selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt);
+
+                        return (
+                          <Pressable
+                            key={slot.startsAt}
+                            style={[styles.duelSlotChip, isSelected ? styles.duelSlotChipSelected : undefined]}
+                            onPress={() => setSelectedGroupSlotStartAt(slot.startsAt)}
+                          >
+                            <Text style={[styles.duelSlotLabel, isSelected ? styles.duelSlotLabelSelected : undefined]}>
+                              {slot.label}
+                            </Text>
+                            <Text style={[styles.duelSlotMeta, isSelected ? styles.duelSlotMetaSelected : undefined]}>
+                              {slot.meta}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  <View style={styles.duelCriteriaCard}>
+                    <Text style={styles.duelCriteriaTitle}>그룹 매칭 기준</Text>
+                    <Text style={styles.duelCriteriaText}>비슷한 평균 페이스와 누적 거리 레벨 러너를 우선으로 30명까지 모아요.</Text>
+                    <Text style={styles.duelCriteriaMeta}>
+                      {groupMatchResult
+                        ? `${groupMatchResult.paceBandLabel} · ${groupMatchResult.levelBandLabel}`
+                        : '평균 페이스 ±15초/km · 레벨 ±2 전후 · 최대 30명'}
+                    </Text>
+                  </View>
+
+                  {isRequestingGroupMatch ? <ActivityIndicator size="small" color="#818CF8" /> : null}
+
+                  {groupMatchResult ? (
+                    <View style={styles.duelResultCard}>
+                      <Text style={styles.duelResultEyebrow}>{groupMatchResult.matched ? 'GROUP READY' : 'GROUP FILLING'}</Text>
+                      {groupMatchResult.matched ? (
+                        <>
+                          <Text style={styles.duelResultTitle}>{groupMatchResult.participantsCount}명 그룹이 잡혔어요</Text>
+                          <Text style={styles.duelResultBody}>{groupMatchResult.criteriaSummary}</Text>
+                          <Text style={styles.duelResultMeta}>
+                            {groupMatchResult.slotLabel} · 내 시작 시드 {groupMatchResult.mySeedRank ?? 1}위 · 최대 {groupMatchResult.maxGroupSize}명
+                          </Text>
+                          <View style={styles.groupParticipantList}>
+                            {groupMatchResult.participants.slice(0, 5).map((participant) => (
+                              <View key={participant.id} style={styles.groupParticipantRow}>
+                                <Text style={styles.groupParticipantRank}>{participant.seedRank}</Text>
+                                <View style={styles.groupParticipantCopy}>
+                                  <Text style={styles.groupParticipantName}>
+                                    {participant.name}
+                                    {participant.seedRank === (groupMatchResult.mySeedRank ?? 1) ? ' (나)' : ''}
+                                  </Text>
+                                  <Text style={styles.groupParticipantMeta}>
+                                    {participant.averagePace} · {participant.levelLabel} · {participant.districtName}
+                                  </Text>
+                                </View>
+                              </View>
+                            ))}
+                          </View>
+                          {groupMatchResult.participantsCount > 5 ? (
+                            <Text style={styles.duelResultMeta}>외 {groupMatchResult.participantsCount - 5}명은 시작 후 실시간 순위판에 합류해요.</Text>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          <Text style={styles.duelResultTitle}>비슷한 러너들이 더 모이는 중이에요</Text>
+                          <Text style={styles.duelResultBody}>{groupMatchResult.criteriaSummary}</Text>
+                          <Text style={styles.duelResultMeta}>
+                            현재 {groupMatchResult.participantsCount}명 · 예상 대기 {groupMatchResult.estimatedWaitMinutes}분
+                          </Text>
+                        </>
+                      )}
+                    </View>
+                  ) : (
+                    <View style={styles.duelHintCard}>
+                      <Text style={styles.duelHintTitle}>그룹 매칭은 이렇게 잡아요</Text>
+                      <Text style={styles.duelHintText}>같은 거리와 시간대를 고른 러너 중에서 페이스와 레벨이 비슷한 순서로 최대 30명까지 그룹을 만듭니다.</Text>
+                    </View>
+                  )}
+
+                  <SecondaryButton
+                    label={groupMatchResult?.matched ? '다시 그룹 찾기' : '그룹 매칭 찾기'}
+                    onPress={() => {
+                      void handleRequestGroupMatch();
+                    }}
+                  />
+                </View>
+              ) : null}
             </View>
-            <PrimaryButton label={selectedMatch.startLabel} onPress={handleStartTracking} />
+            <PrimaryButton label={readyActionLabel} onPress={handleStartTracking} />
           </Card>
 
           <Card style={styles.plannerCard}>
@@ -1180,8 +1597,67 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
             {matchMode !== 'solo' ? (
               <View style={styles.liveMatchCard}>
                 <Text style={styles.liveMatchEyebrow}>MATCH MODE</Text>
-                <Text style={styles.liveMatchTitle}>{selectedMatch.liveTitle}</Text>
-                <Text style={styles.liveMatchText}>{selectedMatch.liveText}</Text>
+                <Text style={styles.liveMatchTitle}>{liveMatchTitle}</Text>
+                <Text style={styles.liveMatchText}>{liveMatchText}</Text>
+              </View>
+            ) : null}
+            {matchMode === 'group' && groupMatchResult?.matched && currentGroupStanding ? (
+              <View style={styles.groupLiveCard}>
+                <View style={styles.groupLiveHeader}>
+                  <View style={styles.groupLiveHeaderCopy}>
+                    <Text style={styles.liveMatchEyebrow}>LIVE RANK</Text>
+                    <Text style={styles.groupLiveTitle}>
+                      현재 {currentGroupStanding.rank}/{groupMatchResult.participantsCount}위
+                    </Text>
+                    <Text style={styles.groupLiveSummary}>
+                      {currentGroupStanding.rank === 1
+                        ? '지금은 선두예요. 이 흐름을 그대로 유지해보세요.'
+                        : `앞 사람과 ${currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km 차이 · 1위와 ${currentGroupStanding.gapLeaderKm.toFixed(2)}km 차이`}
+                    </Text>
+                  </View>
+                  <View style={styles.groupLiveBadge}>
+                    <Text style={styles.groupLiveBadgeText}>{groupMatchResult.participantsCount}명</Text>
+                  </View>
+                </View>
+                <View style={styles.groupLiveTopList}>
+                  {groupLiveStandings.slice(0, 5).map((participant) => (
+                    <View
+                      key={participant.id}
+                      style={[styles.groupLiveRow, participant.isCurrentUser ? styles.groupLiveRowCurrent : undefined]}
+                    >
+                      <Text style={styles.groupLiveRank}>{participant.rank}</Text>
+                      <View style={styles.groupLiveCopy}>
+                        <Text style={styles.groupLiveName}>
+                          {participant.name}
+                          {participant.isCurrentUser ? ' (나)' : ''}
+                        </Text>
+                        <Text style={styles.groupLiveMeta}>
+                          {participant.averagePace} · {participant.levelLabel} · {participant.seedSummary}
+                        </Text>
+                      </View>
+                      <Text style={styles.groupLiveDistance}>{participant.currentDistanceKm.toFixed(2)}km</Text>
+                    </View>
+                  ))}
+                </View>
+                {currentGroupStanding.rank > 5 ? (
+                  <View style={[styles.groupLiveRow, styles.groupLiveRowCurrent]}>
+                    <Text style={styles.groupLiveRank}>{currentGroupStanding.rank}</Text>
+                    <View style={styles.groupLiveCopy}>
+                      <Text style={styles.groupLiveName}>{currentGroupStanding.name} (나)</Text>
+                      <Text style={styles.groupLiveMeta}>
+                        {currentGroupStanding.averagePace} · {currentGroupStanding.levelLabel} · 앞 사람과 {currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km
+                      </Text>
+                    </View>
+                    <Text style={styles.groupLiveDistance}>{currentGroupStanding.currentDistanceKm.toFixed(2)}km</Text>
+                  </View>
+                ) : null}
+                {currentGroupLeader && currentGroupStanding.rank !== 1 ? (
+                  <Text style={styles.groupLiveFooter}>
+                    선두는 {currentGroupLeader.name}님이에요. {currentGroupLeader.currentDistanceKm.toFixed(2)}km로 앞서가고 있어요.
+                  </Text>
+                ) : (
+                  <Text style={styles.groupLiveFooter}>지금은 선두예요. 다음 러너와 간격을 유지해보세요.</Text>
+                )}
               </View>
             ) : null}
           </Card>
@@ -1491,6 +1967,173 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  duelSetupCard: {
+    gap: 12,
+  },
+  duelSection: {
+    gap: 10,
+  },
+  duelSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  duelSectionTitle: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  duelSectionMeta: {
+    color: '#98A2B3',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  duelDistanceInput: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#111827',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  duelHelperText: {
+    color: '#98A2B3',
+    lineHeight: 18,
+  },
+  duelSlotGrid: {
+    gap: 8,
+  },
+  duelSlotChip: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#111827',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  duelSlotChipSelected: {
+    borderColor: '#818CF8',
+    backgroundColor: '#1E1B4B',
+  },
+  duelSlotLabel: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  duelSlotLabelSelected: {
+    color: '#E0E7FF',
+  },
+  duelSlotMeta: {
+    color: '#98A2B3',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  duelSlotMetaSelected: {
+    color: '#C7D2FE',
+  },
+  duelCriteriaCard: {
+    gap: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#111827',
+    padding: 14,
+  },
+  duelCriteriaTitle: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  duelCriteriaText: {
+    color: '#D0D5DD',
+    lineHeight: 19,
+  },
+  duelCriteriaMeta: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  duelResultCard: {
+    gap: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#818CF8',
+    backgroundColor: '#1E1B4B',
+    padding: 14,
+  },
+  duelResultEyebrow: {
+    color: '#C7D2FE',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  duelResultTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  duelResultBody: {
+    color: '#E5E7EB',
+    lineHeight: 20,
+  },
+  duelResultMeta: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  groupParticipantList: {
+    gap: 8,
+    marginTop: 4,
+  },
+  groupParticipantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  groupParticipantRank: {
+    width: 24,
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  groupParticipantCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  groupParticipantName: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  groupParticipantMeta: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  duelHintCard: {
+    gap: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#111827',
+    padding: 14,
+  },
+  duelHintTitle: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  duelHintText: {
+    color: '#D0D5DD',
+    lineHeight: 19,
+  },
   plannerCard: {
     gap: 16,
     borderWidth: 1,
@@ -1712,6 +2355,92 @@ const styles = StyleSheet.create({
   liveMatchText: {
     color: '#D0D5DD',
     lineHeight: 20,
+  },
+  groupLiveCard: {
+    gap: 12,
+    padding: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#312E81',
+    backgroundColor: '#111827',
+  },
+  groupLiveHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  groupLiveHeaderCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  groupLiveTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  groupLiveSummary: {
+    color: '#D0D5DD',
+    lineHeight: 20,
+  },
+  groupLiveBadge: {
+    borderRadius: 999,
+    backgroundColor: '#1E1B4B',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  groupLiveBadgeText: {
+    color: '#E0E7FF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  groupLiveTopList: {
+    gap: 8,
+  },
+  groupLiveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 16,
+    backgroundColor: '#1F2937',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  groupLiveRowCurrent: {
+    borderWidth: 1,
+    borderColor: '#818CF8',
+    backgroundColor: '#1E1B4B',
+  },
+  groupLiveRank: {
+    width: 24,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  groupLiveCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  groupLiveName: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  groupLiveMeta: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  groupLiveDistance: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  groupLiveFooter: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    lineHeight: 18,
   },
   mapEmptyState: {
     flex: 1,

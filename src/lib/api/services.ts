@@ -35,6 +35,10 @@ import {
   FriendRequestActionResponse,
   HomeSummaryResponse,
   QueueIntegrationImportResponse,
+  RequestDuelMatchInput,
+  RequestDuelMatchResponse,
+  RequestGroupMatchInput,
+  RequestGroupMatchResponse,
   IntegrationSourceActionResponse,
   IntegrationSyncResponse,
   IntegrationStatusResponse,
@@ -100,8 +104,241 @@ let mockOfflineRaceHubState: MockOfflineRaceHubState = {
   guideSteps: [...initialOfflineRaceHub.guideSteps],
 };
 
+const mockDuelMatchPool = [
+  {
+    id: 'duel-runner-1',
+    name: '박지훈',
+    tag: '#PJ82Q',
+    districtName: '송파구',
+    averagePace: '05:18/km',
+    weeklyDistanceKm: 31.2,
+    lifetimeDistanceKm: 182.4,
+  },
+  {
+    id: 'duel-runner-2',
+    name: '한예린',
+    tag: '#HY55R',
+    districtName: '마포구',
+    averagePace: '05:34/km',
+    weeklyDistanceKm: 24.6,
+    lifetimeDistanceKm: 149.1,
+  },
+  {
+    id: 'duel-runner-3',
+    name: '정이안',
+    tag: '#JI20M',
+    districtName: '성동구',
+    averagePace: '05:49/km',
+    weeklyDistanceKm: 19.8,
+    lifetimeDistanceKm: 98.7,
+  },
+  {
+    id: 'duel-runner-4',
+    name: '윤서준',
+    tag: '#YS44K',
+    districtName: '강서구',
+    averagePace: '06:08/km',
+    weeklyDistanceKm: 16.2,
+    lifetimeDistanceKm: 74.3,
+  },
+];
+
 function formatMockTimestamp(date = new Date()) {
   return date.toISOString().slice(0, 16).replace('T', ' ');
+}
+
+function parsePaceLabelToSeconds(pace: string) {
+  const matched = String(pace).trim().match(/^(\d{1,2}):(\d{2})\/km$/i);
+
+  if (!matched) {
+    return 5 * 60 + 30;
+  }
+
+  return Number(matched[1]) * 60 + Number(matched[2]);
+}
+
+function formatSecondsPerKm(seconds: number) {
+  const normalizedSeconds = Math.max(0, Math.round(seconds));
+  const minutesPart = Math.floor(normalizedSeconds / 60);
+  const secondsPart = String(normalizedSeconds % 60).padStart(2, '0');
+  return `${minutesPart}:${secondsPart}/km`;
+}
+
+function formatDuelSlotLabel(slotStartAt: string) {
+  const slotStart = new Date(slotStartAt);
+
+  if (Number.isNaN(slotStart.getTime())) {
+    return '시간대 미정';
+  }
+
+  const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000);
+  const startHours = String(slotStart.getHours()).padStart(2, '0');
+  const startMinutes = String(slotStart.getMinutes()).padStart(2, '0');
+  const endHours = String(slotEnd.getHours()).padStart(2, '0');
+  const endMinutes = String(slotEnd.getMinutes()).padStart(2, '0');
+
+  return `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`;
+}
+
+function buildPaceBandLabel(baseSecondsPerKm: number) {
+  return `${formatSecondsPerKm(baseSecondsPerKm - 15)} ~ ${formatSecondsPerKm(baseSecondsPerKm + 15)}`;
+}
+
+function buildLevelLabel(lifetimeDistanceKm: number) {
+  return `Lv.${Math.floor(Math.max(lifetimeDistanceKm, 0) / 10)}`;
+}
+
+function estimateMockCurrentPaceSeconds() {
+  const paceValues = myRunRecords
+    .map((run) => parsePaceLabelToSeconds(run.pace))
+    .filter((value) => Number.isFinite(value));
+
+  if (!paceValues.length) {
+    return 5 * 60 + 30;
+  }
+
+  return Math.round(paceValues.reduce((sum, value) => sum + value, 0) / paceValues.length);
+}
+
+function buildMockDuelMatchResponse(input: RequestDuelMatchInput): RequestDuelMatchResponse {
+  const profile = getCurrentUserProfile() ?? myProfile;
+  const currentPaceSeconds = estimateMockCurrentPaceSeconds();
+  const currentLifetimeDistanceKm = profile.lifetimeDistanceKm ?? weeklySummary.totalDistanceKm;
+
+  const opponent = [...mockDuelMatchPool]
+    .sort((left, right) => {
+      const leftScore = Math.abs(parsePaceLabelToSeconds(left.averagePace) - currentPaceSeconds)
+        + Math.abs(left.lifetimeDistanceKm - currentLifetimeDistanceKm) * 1.8
+        + Math.abs(left.weeklyDistanceKm - input.distanceKm * 3) * 4;
+      const rightScore = Math.abs(parsePaceLabelToSeconds(right.averagePace) - currentPaceSeconds)
+        + Math.abs(right.lifetimeDistanceKm - currentLifetimeDistanceKm) * 1.8
+        + Math.abs(right.weeklyDistanceKm - input.distanceKm * 3) * 4;
+
+      return leftScore - rightScore;
+    })[0];
+  const opponentLevelLabel = buildLevelLabel(opponent.lifetimeDistanceKm);
+
+  return {
+    success: true,
+    matched: true,
+    requestId: `mock-duel-${Date.now()}`,
+    distanceKm: Number(input.distanceKm.toFixed(1)),
+    slotStartAt: input.slotStartAt,
+    slotLabel: formatDuelSlotLabel(input.slotStartAt),
+    paceBandLabel: buildPaceBandLabel(currentPaceSeconds),
+    levelBandLabel: `${buildLevelLabel(currentLifetimeDistanceKm)} 전후`,
+    criteriaSummary: '최근 평균 페이스와 누적 거리 레벨이 비슷한 러너를 먼저 붙였어요.',
+    estimatedWaitMinutes: 0,
+    opponent: {
+      ...opponent,
+      levelLabel: opponentLevelLabel,
+      compatibilitySummary: `${opponent.averagePace} 페이스 · ${opponentLevelLabel} · ${opponent.weeklyDistanceKm.toFixed(1)}km/주`,
+    },
+  };
+}
+
+function buildMockGroupMatchResponse(input: RequestGroupMatchInput): RequestGroupMatchResponse {
+  const profile = getCurrentUserProfile() ?? myProfile;
+  const currentPaceSeconds = estimateMockCurrentPaceSeconds();
+  const currentLifetimeDistanceKm = profile.lifetimeDistanceKm ?? weeklySummary.totalDistanceKm;
+  const currentLevelLabel = buildLevelLabel(currentLifetimeDistanceKm);
+  const currentParticipantId = profile.publicTag || 'current-runner';
+  const maxGroupSize = 30;
+  const candidateCount = Math.min(mockDuelMatchPool.length, maxGroupSize - 1);
+  const selectedCandidates = [...mockDuelMatchPool]
+    .sort((left, right) => {
+      const leftScore = Math.abs(parsePaceLabelToSeconds(left.averagePace) - currentPaceSeconds)
+        + Math.abs(left.lifetimeDistanceKm - currentLifetimeDistanceKm) * 1.6
+        + Math.abs(left.weeklyDistanceKm - input.distanceKm * 3) * 3.5;
+      const rightScore = Math.abs(parsePaceLabelToSeconds(right.averagePace) - currentPaceSeconds)
+        + Math.abs(right.lifetimeDistanceKm - currentLifetimeDistanceKm) * 1.6
+        + Math.abs(right.weeklyDistanceKm - input.distanceKm * 3) * 3.5;
+
+      return leftScore - rightScore;
+    })
+    .slice(0, candidateCount);
+
+  if (!selectedCandidates.length) {
+    return {
+      success: true,
+      matched: false,
+      requestId: `group-request-${Date.now()}`,
+      distanceKm: Number(input.distanceKm.toFixed(1)),
+      slotStartAt: input.slotStartAt,
+      slotLabel: formatDuelSlotLabel(input.slotStartAt),
+      paceBandLabel: buildPaceBandLabel(currentPaceSeconds),
+      levelBandLabel: `${currentLevelLabel} 전후`,
+      criteriaSummary: '같은 시간대 그룹이 아직 작아서 비슷한 러너들이 더 모일 때까지 기다리고 있어요.',
+      estimatedWaitMinutes: 15,
+      maxGroupSize,
+      participantsCount: 1,
+      mySeedRank: 1,
+      participants: [
+        {
+          id: currentParticipantId,
+          name: profile.name,
+          tag: profile.publicTag,
+          districtName: profile.districtName,
+          averagePace: formatSecondsPerKm(currentPaceSeconds),
+          levelLabel: currentLevelLabel,
+          weeklyDistanceKm: weeklySummary.totalDistanceKm,
+          lifetimeDistanceKm: currentLifetimeDistanceKm,
+          seedRank: 1,
+          seedSummary: '첫 대기 러너',
+        },
+      ],
+    };
+  }
+
+  const participants = [
+    {
+      id: currentParticipantId,
+      name: profile.name,
+      tag: profile.publicTag,
+      districtName: profile.districtName,
+      averagePace: formatSecondsPerKm(currentPaceSeconds),
+      levelLabel: currentLevelLabel,
+      weeklyDistanceKm: weeklySummary.totalDistanceKm,
+      lifetimeDistanceKm: currentLifetimeDistanceKm,
+      seedRank: 0,
+      seedSummary: '',
+    },
+    ...selectedCandidates.map((candidate) => ({
+      ...candidate,
+      levelLabel: buildLevelLabel(candidate.lifetimeDistanceKm),
+      seedRank: 0,
+      seedSummary: '',
+    })),
+  ]
+    .sort((left, right) => {
+      const leftScore = parsePaceLabelToSeconds(left.averagePace) * 0.65 + left.weeklyDistanceKm * -1.9 + left.lifetimeDistanceKm * -0.08;
+      const rightScore = parsePaceLabelToSeconds(right.averagePace) * 0.65 + right.weeklyDistanceKm * -1.9 + right.lifetimeDistanceKm * -0.08;
+      return leftScore - rightScore;
+    })
+    .map((participant, index) => ({
+      ...participant,
+      seedRank: index + 1,
+      seedSummary: `${index + 1}번 시드 · ${participant.averagePace}`,
+    }));
+
+  const mySeedRank = participants.find((participant) => participant.id === currentParticipantId)?.seedRank ?? 1;
+
+  return {
+    success: true,
+    matched: true,
+    requestId: `group-request-${Date.now()}`,
+    distanceKm: Number(input.distanceKm.toFixed(1)),
+    slotStartAt: input.slotStartAt,
+    slotLabel: formatDuelSlotLabel(input.slotStartAt),
+    paceBandLabel: buildPaceBandLabel(currentPaceSeconds),
+    levelBandLabel: `${currentLevelLabel} 전후`,
+    criteriaSummary: '비슷한 페이스와 누적 거리 레벨 러너를 먼저 모아 그룹 대결을 만들었어요.',
+    estimatedWaitMinutes: 0,
+    maxGroupSize,
+    participantsCount: participants.length,
+    mySeedRank,
+    participants,
+  };
 }
 
 function isExclusiveIntegrationSourceType(sourceType: RunSourceType) {
@@ -722,6 +959,42 @@ export async function updateRunningLiveShare(
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '위치 공유 상태를 반영하지 못했어.',
+    },
+  );
+}
+
+export async function requestDuelMatch(input: RequestDuelMatchInput): Promise<RequestDuelMatchResponse> {
+  if (USE_MOCK_API) {
+    return buildMockDuelMatchResponse(input);
+  }
+
+  return apiPost<RequestDuelMatchResponse>(
+    '/running/matches/duel',
+    {
+      distanceKm: Number(input.distanceKm.toFixed(1)),
+      slotStartAt: input.slotStartAt,
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '1대1 매칭을 찾지 못했어.',
+    },
+  );
+}
+
+export async function requestGroupMatch(input: RequestGroupMatchInput): Promise<RequestGroupMatchResponse> {
+  if (USE_MOCK_API) {
+    return buildMockGroupMatchResponse(input);
+  }
+
+  return apiPost<RequestGroupMatchResponse>(
+    '/running/matches/group',
+    {
+      distanceKm: Number(input.distanceKm.toFixed(1)),
+      slotStartAt: input.slotStartAt,
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '그룹 매칭을 찾지 못했어.',
     },
   );
 }

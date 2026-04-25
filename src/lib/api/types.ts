@@ -72,6 +72,72 @@ export type UpdateRunningLiveShareResponse = {
   updatedAt: string;
 };
 
+export type RequestDuelMatchInput = {
+  distanceKm: number;
+  slotStartAt: string;
+};
+
+export type DuelMatchOpponent = {
+  id: string;
+  name: string;
+  tag?: string;
+  districtName: string;
+  averagePace: string;
+  levelLabel: string;
+  weeklyDistanceKm: number;
+  lifetimeDistanceKm: number;
+  compatibilitySummary: string;
+};
+
+export type RequestDuelMatchResponse = {
+  success: boolean;
+  matched: boolean;
+  requestId: string;
+  distanceKm: number;
+  slotStartAt: string;
+  slotLabel: string;
+  paceBandLabel: string;
+  levelBandLabel: string;
+  criteriaSummary: string;
+  estimatedWaitMinutes: number;
+  opponent?: DuelMatchOpponent;
+};
+
+export type RequestGroupMatchInput = {
+  distanceKm: number;
+  slotStartAt: string;
+};
+
+export type GroupMatchParticipant = {
+  id: string;
+  name: string;
+  tag?: string;
+  districtName: string;
+  averagePace: string;
+  levelLabel: string;
+  weeklyDistanceKm: number;
+  lifetimeDistanceKm: number;
+  seedRank: number;
+  seedSummary: string;
+};
+
+export type RequestGroupMatchResponse = {
+  success: boolean;
+  matched: boolean;
+  requestId: string;
+  distanceKm: number;
+  slotStartAt: string;
+  slotLabel: string;
+  paceBandLabel: string;
+  levelBandLabel: string;
+  criteriaSummary: string;
+  estimatedWaitMinutes: number;
+  maxGroupSize: number;
+  participantsCount: number;
+  mySeedRank?: number;
+  participants: GroupMatchParticipant[];
+};
+
 export type RoutePreviewCoordinate = {
   latitude: number;
   longitude: number;

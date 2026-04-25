@@ -607,6 +607,222 @@ function buildProfileWithMetrics(user, metrics) {
   };
 }
 
+function formatDuelSlotLabel(slotStartAt) {
+  const slotStart = new Date(slotStartAt);
+
+  if (Number.isNaN(slotStart.getTime())) {
+    return '시간대 미정';
+  }
+
+  const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000);
+  const startHours = String(slotStart.getHours()).padStart(2, '0');
+  const startMinutes = String(slotStart.getMinutes()).padStart(2, '0');
+  const endHours = String(slotEnd.getHours()).padStart(2, '0');
+  const endMinutes = String(slotEnd.getMinutes()).padStart(2, '0');
+
+  return `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`;
+}
+
+function formatPaceMinutesLabel(paceMinutes) {
+  const totalSeconds = Math.max(0, Math.round(paceMinutes * 60));
+  const minutesPart = Math.floor(totalSeconds / 60);
+  const secondsPart = String(totalSeconds % 60).padStart(2, '0');
+  return `${minutesPart}:${secondsPart}/km`;
+}
+
+function buildPaceBandLabel(paceMinutes) {
+  return `${formatPaceMinutesLabel(Math.max(0, paceMinutes - 0.25))} ~ ${formatPaceMinutesLabel(paceMinutes + 0.25)}`;
+}
+
+function buildLevelLabel(distanceLevel) {
+  return `Lv.${distanceLevel}`;
+}
+
+function buildMatchRunnerProfile(store, user) {
+  const metrics = getUserMetrics(store, user.id);
+  const recentRuns = getRunsForUser(store, user.id).slice(0, 3);
+  const parsedPaces = recentRuns
+    .map((run) => parsePaceToMinutes(run.pace))
+    .filter((pace) => pace !== null);
+  const averagePaceMinutes = parsedPaces.length
+    ? parsedPaces.reduce((sum, pace) => sum + pace, 0) / parsedPaces.length
+    : 5.5;
+  const latestDistanceKm = recentRuns[0]?.distanceKm ?? metrics.currentWeekDistanceKm ?? 0;
+
+  return {
+    id: user.id,
+    name: user.name,
+    tag: user.publicTag,
+    districtName: user.districtName,
+    averagePaceMinutes,
+    averagePace: formatPaceMinutesLabel(averagePaceMinutes),
+    distanceLevel: metrics.distanceLevel,
+    levelLabel: buildLevelLabel(metrics.distanceLevel),
+    weeklyDistanceKm: metrics.currentWeekDistanceKm,
+    lifetimeDistanceKm: metrics.lifetimeDistanceKm,
+    latestDistanceKm,
+  };
+}
+
+function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
+  const currentRunner = buildMatchRunnerProfile(store, currentUser);
+  const candidates = store.users
+    .filter((user) => user.id !== currentUser.id)
+    .map((user) => buildMatchRunnerProfile(store, user))
+    .filter((candidate) => candidate.latestDistanceKm > 0);
+
+  const slotLabel = formatDuelSlotLabel(slotStartAt);
+  const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
+  const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
+
+  if (!candidates.length) {
+    return {
+      success: true,
+      matched: false,
+      requestId: nextId('duel-request'),
+      distanceKm,
+      slotStartAt,
+      slotLabel,
+      paceBandLabel,
+      levelBandLabel,
+      criteriaSummary: '같은 시간대 대기 러너가 아직 없어 비슷한 조건의 상대를 찾는 중이에요.',
+      estimatedWaitMinutes: 15,
+    };
+  }
+
+  const opponent = [...candidates]
+    .sort((left, right) => {
+      const leftScore = Math.abs(left.averagePaceMinutes - currentRunner.averagePaceMinutes) * 600
+        + Math.abs(left.distanceLevel - currentRunner.distanceLevel) * 55
+        + Math.abs(left.latestDistanceKm - distanceKm) * 24
+        + Math.abs(left.weeklyDistanceKm - currentRunner.weeklyDistanceKm) * 8;
+      const rightScore = Math.abs(right.averagePaceMinutes - currentRunner.averagePaceMinutes) * 600
+        + Math.abs(right.distanceLevel - currentRunner.distanceLevel) * 55
+        + Math.abs(right.latestDistanceKm - distanceKm) * 24
+        + Math.abs(right.weeklyDistanceKm - currentRunner.weeklyDistanceKm) * 8;
+
+      return leftScore - rightScore;
+    })[0];
+
+  return {
+    success: true,
+    matched: true,
+    requestId: nextId('duel-request'),
+    distanceKm,
+    slotStartAt,
+    slotLabel,
+    paceBandLabel,
+    levelBandLabel,
+    criteriaSummary: '최근 평균 페이스와 누적 거리 레벨이 비슷한 러너를 우선으로 붙였어요.',
+    estimatedWaitMinutes: 0,
+    opponent: {
+      id: opponent.id,
+      name: opponent.name,
+      tag: opponent.tag,
+      districtName: opponent.districtName,
+      averagePace: opponent.averagePace,
+      levelLabel: opponent.levelLabel,
+      weeklyDistanceKm: opponent.weeklyDistanceKm,
+      lifetimeDistanceKm: opponent.lifetimeDistanceKm,
+      compatibilitySummary: `${opponent.averagePace} 페이스 · ${opponent.levelLabel} · 이번 주 ${opponent.weeklyDistanceKm.toFixed(1)}km`,
+    },
+  };
+}
+
+function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
+  const maxGroupSize = 30;
+  const currentRunner = buildMatchRunnerProfile(store, currentUser);
+  const candidates = store.users
+    .filter((user) => user.id !== currentUser.id)
+    .map((user) => buildMatchRunnerProfile(store, user))
+    .filter((candidate) => candidate.latestDistanceKm > 0);
+
+  const slotLabel = formatDuelSlotLabel(slotStartAt);
+  const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
+  const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
+
+  if (!candidates.length) {
+    return {
+      success: true,
+      matched: false,
+      requestId: nextId('group-request'),
+      distanceKm,
+      slotStartAt,
+      slotLabel,
+      paceBandLabel,
+      levelBandLabel,
+      criteriaSummary: '아직 같은 시간대 그룹에 모인 러너가 적어 조금 더 비슷한 러너를 기다리는 중이에요.',
+      estimatedWaitMinutes: 15,
+      maxGroupSize,
+      participantsCount: 1,
+      mySeedRank: 1,
+      participants: [
+        {
+          id: currentRunner.id,
+          name: currentRunner.name,
+          tag: currentRunner.tag,
+          districtName: currentRunner.districtName,
+          averagePace: currentRunner.averagePace,
+          levelLabel: currentRunner.levelLabel,
+          weeklyDistanceKm: currentRunner.weeklyDistanceKm,
+          lifetimeDistanceKm: currentRunner.lifetimeDistanceKm,
+          seedRank: 1,
+          seedSummary: '첫 대기 러너',
+        },
+      ],
+    };
+  }
+
+  const participants = [currentRunner, ...[...candidates]
+    .sort((left, right) => {
+      const leftScore = Math.abs(left.averagePaceMinutes - currentRunner.averagePaceMinutes) * 520
+        + Math.abs(left.distanceLevel - currentRunner.distanceLevel) * 48
+        + Math.abs(left.latestDistanceKm - distanceKm) * 20
+        + Math.abs(left.weeklyDistanceKm - currentRunner.weeklyDistanceKm) * 6;
+      const rightScore = Math.abs(right.averagePaceMinutes - currentRunner.averagePaceMinutes) * 520
+        + Math.abs(right.distanceLevel - currentRunner.distanceLevel) * 48
+        + Math.abs(right.latestDistanceKm - distanceKm) * 20
+        + Math.abs(right.weeklyDistanceKm - currentRunner.weeklyDistanceKm) * 6;
+
+      return leftScore - rightScore;
+    })
+    .slice(0, maxGroupSize - 1)]
+    .sort((left, right) => {
+      const leftSeed = left.averagePaceMinutes * 60 * 0.7 - left.weeklyDistanceKm * 1.8 - left.lifetimeDistanceKm * 0.03;
+      const rightSeed = right.averagePaceMinutes * 60 * 0.7 - right.weeklyDistanceKm * 1.8 - right.lifetimeDistanceKm * 0.03;
+      return leftSeed - rightSeed;
+    })
+    .map((participant, index) => ({
+      id: participant.id,
+      name: participant.name,
+      tag: participant.tag,
+      districtName: participant.districtName,
+      averagePace: participant.averagePace,
+      levelLabel: participant.levelLabel,
+      weeklyDistanceKm: participant.weeklyDistanceKm,
+      lifetimeDistanceKm: participant.lifetimeDistanceKm,
+      seedRank: index + 1,
+      seedSummary: `${index + 1}번 시드 · 이번 주 ${participant.weeklyDistanceKm.toFixed(1)}km`,
+    }));
+
+  return {
+    success: true,
+    matched: true,
+    requestId: nextId('group-request'),
+    distanceKm,
+    slotStartAt,
+    slotLabel,
+    paceBandLabel,
+    levelBandLabel,
+    criteriaSummary: '같은 거리와 시간대를 원하는 러너를 모아 비슷한 페이스/레벨 순으로 그룹을 만들었어요.',
+    estimatedWaitMinutes: 0,
+    maxGroupSize,
+    participantsCount: participants.length,
+    mySeedRank: participants.find((participant) => participant.id === currentRunner.id)?.seedRank ?? 1,
+    participants,
+  };
+}
+
 function buildNotificationSettings(user) {
   return clone(user.notificationSettings ?? {
     friendAlerts: true,
@@ -1894,6 +2110,33 @@ function validateDistanceKm(value, message) {
   return Number(distanceKm.toFixed(1));
 }
 
+function validateDuelMatchDistanceKm(value) {
+  const distanceKm = validateDistanceKm(value, '매칭할 거리를 입력해줘.');
+
+  if (distanceKm < 2 || distanceKm > 42.2) {
+    throw new ApiError(400, '매칭 거리는 2km 이상 42.2km 이하로 선택해줘.');
+  }
+
+  return distanceKm;
+}
+
+function validateHalfHourSlotStartAt(value) {
+  const slotStartAt = validateRequiredString(value, '매칭 시간대를 선택해줘.');
+  const slotDate = new Date(slotStartAt);
+
+  if (Number.isNaN(slotDate.getTime())) {
+    throw new ApiError(400, '매칭 시간대 형식이 올바르지 않아.');
+  }
+
+  const minutes = slotDate.getMinutes();
+
+  if (minutes !== 0 && minutes !== 30) {
+    throw new ApiError(400, '매칭 시간대는 30분 단위로 선택해줘.');
+  }
+
+  return slotDate.toISOString();
+}
+
 function validatePace(value, message) {
   const pace = validateRequiredString(value, message);
 
@@ -2462,6 +2705,30 @@ async function handlePatchMyLiveSharing(request, response) {
   sendJson(response, 200, payload);
 }
 
+async function handleRequestDuelMatch(request, response) {
+  const body = await parseJsonBody(request);
+  const store = loadStore();
+  const currentUser = requireUser(store, request);
+  const payload = buildDuelMatchResponse(store, currentUser, {
+    distanceKm: validateDuelMatchDistanceKm(body.distanceKm),
+    slotStartAt: validateHalfHourSlotStartAt(body.slotStartAt),
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleRequestGroupMatch(request, response) {
+  const body = await parseJsonBody(request);
+  const store = loadStore();
+  const currentUser = requireUser(store, request);
+  const payload = buildGroupMatchResponse(store, currentUser, {
+    distanceKm: validateDuelMatchDistanceKm(body.distanceKm),
+    slotStartAt: validateHalfHourSlotStartAt(body.slotStartAt),
+  });
+
+  sendJson(response, 200, payload);
+}
+
 function handleIntegrationSourceConnection(request, response, sourceType, nextConnected) {
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
@@ -2815,6 +3082,16 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/me/live-sharing' && request.method === 'PATCH') {
     await handlePatchMyLiveSharing(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/matches/duel' && request.method === 'POST') {
+    await handleRequestDuelMatch(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/matches/group' && request.method === 'POST') {
+    await handleRequestGroupMatch(request, response);
     return;
   }
 
