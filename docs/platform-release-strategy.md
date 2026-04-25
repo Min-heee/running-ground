@@ -10,7 +10,7 @@ Only split what must be platform-specific.
 ---
 
 ## Shared across iOS and Android
-These should remain common inside `runnigapp`.
+These should remain common inside `runningground`.
 
 ### Shared product/UI
 - onboarding

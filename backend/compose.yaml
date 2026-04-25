@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: runnigapp-backend
+    container_name: runningground-backend
     init: true
     environment:
       BACKEND_APP_ENV: ${BACKEND_APP_ENV:-development}

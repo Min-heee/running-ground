@@ -385,8 +385,8 @@ export function createJsonRunsRepository({
           route: clone(input.route),
           startedAt: input.startedAt,
           endedAt: input.endedAt,
-          source: 'RUNNIGAPP',
-          sourceType: 'runnigapp',
+          source: 'RunningGround',
+          sourceType: 'runningground',
           createdAt: nowIso(),
         };
 

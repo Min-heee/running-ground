@@ -126,7 +126,7 @@ export default function HomeScreen() {
       <View style={styles.contentWrap}>
         <View style={styles.headerWrap}>
           <Text style={styles.headerLabel}>홈</Text>
-          <Text style={styles.headerBrand}>RUNNIGAPP</Text>
+          <Text style={styles.headerBrand}>RunningGround</Text>
         </View>
         {notices.map((notice) => (
           <Card key={notice.id} style={styles.noticeCard}>

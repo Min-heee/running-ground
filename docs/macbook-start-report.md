@@ -5,7 +5,7 @@
 - Inspected current app config and integration screens for iOS/OAuth/deep-link readiness
 
 ## Immediate findings
-- `app.json` already defines scheme: `runnigapp`
+- `app.json` already defines scheme: `runningground`
 - `expo-linking` is installed
 - Main branch UI still looks mostly MVP/mock-oriented for integrations
 - `connect-sources.tsx` currently recommends Apple Health / Health Connect / Manual only

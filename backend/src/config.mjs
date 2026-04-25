@@ -131,7 +131,7 @@ export const POSTGRES_POOL_MAX = Math.max(1, parseNumber(process.env.BACKEND_POS
 export const POSTGRES_IDLE_TIMEOUT_MS = Math.max(1000, parseNumber(process.env.BACKEND_POSTGRES_IDLE_TIMEOUT_MS, 30000));
 export const POSTGRES_CONNECTION_TIMEOUT_MS = Math.max(1000, parseNumber(process.env.BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS, 10000));
 export const POSTGRES_APPLICATION_NAME = normalizeOptionalString(process.env.BACKEND_POSTGRES_APPLICATION_NAME)
-  || `runnigapp-backend-${APP_ENV}`;
+  || `runningground-backend-${APP_ENV}`;
 export const POSTGRES_ENABLE_SESSION_READS = parseBoolean(process.env.BACKEND_POSTGRES_ENABLE_SESSION_READS, false);
 export const POSTGRES_ENABLE_RUN_READS = parseBoolean(process.env.BACKEND_POSTGRES_ENABLE_RUN_READS, false);
 export const POSTGRES_ENABLE_FRIEND_READS = parseBoolean(process.env.BACKEND_POSTGRES_ENABLE_FRIEND_READS, false);

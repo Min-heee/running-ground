@@ -7,7 +7,7 @@ const SOURCE_LABELS = {
   health_connect: 'Health Connect',
   manual: 'Manual',
   nrc: 'Nike Run Club',
-  runnigapp: 'RUNNIGAPP',
+  runningground: 'RunningGround',
 };
 
 class TestApiError extends Error {
@@ -301,12 +301,12 @@ await runTest('creates tracked runs with route metrics', async () => {
   });
 
   assert.equal(result.run.id, 'run-test-1');
-  assert.equal(result.run.sourceType, 'runnigapp');
+  assert.equal(result.run.sourceType, 'runningground');
   assert.equal(result.run.durationSeconds, 2604);
   assert.equal(result.run.cadenceSpm, 176);
   assert.equal(result.run.elevationGainM, 32);
   assert.equal(Array.isArray(result.run.route), true);
-  assert.equal(database.runs[0].source_type, 'runnigapp');
+  assert.equal(database.runs[0].source_type, 'runningground');
 });
 
 await runTest('queues integration imports and syncs only new runs', async () => {
@@ -501,8 +501,8 @@ await runTest('returns latest and specific run details', async () => {
         run_date: '2026-04-23',
         distance_km: 5,
         pace: '05:30/km',
-        source_label: 'RUNNIGAPP',
-        source_type: 'runnigapp',
+        source_label: 'RunningGround',
+        source_type: 'runningground',
         created_at: '2026-04-23T00:00:00.000Z',
       },
     ],

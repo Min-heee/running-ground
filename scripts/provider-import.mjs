@@ -3,7 +3,10 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const DEFAULT_BASE_URL = process.env.RUNNIGAPP_API_BASE_URL ?? 'http://localhost:8081/api';
+const DEFAULT_BASE_URL =
+  process.env.RUNNINGGROUND_API_BASE_URL
+  ?? process.env.RUNNIGAPP_API_BASE_URL
+  ?? 'http://localhost:8081/api';
 const SUPPORTED_SOURCES = new Set(['apple_health', 'health_connect', 'garmin', 'strava', 'nrc']);
 
 function printUsage() {

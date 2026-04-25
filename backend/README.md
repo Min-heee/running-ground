@@ -24,9 +24,9 @@ npm run backend:dev
 `지도로 그림 그리기`는 백엔드 유료 라우팅 API에 묶지 않고, 앱 안에서 그림 목표선을 만든 뒤 실제 도보 길 확인은 카카오맵/네이버지도 앱으로 넘기는 방향으로 정리했어.
 
 지금 역할은 이렇게 나뉘어 있어.
-- RUNNIGAPP: 원하는 모양, 희망 거리, 출발지 기준으로 그림 목표선 만들기
+- RunningGround: 원하는 모양, 희망 거리, 출발지 기준으로 그림 목표선 만들기
 - 카카오맵/네이버지도: 실제 도보 이동 가능 경로 확인
-- RUNNIGAPP: 러닝 중 실제 GPS 기록 저장, 목표선과 실제 경로 비교
+- RunningGround: 러닝 중 실제 GPS 기록 저장, 목표선과 실제 경로 비교
 
 이렇게 하면 특정 유료 경로 API에 묶이지 않고, 한국 사용자에게 익숙한 지도앱을 바로 활용할 수 있어.
 
@@ -97,7 +97,7 @@ npm run backend:release:check:production
 
 ## 2.6. HTTPS 공개 배포 템플릿
 
-지금은 가장 단순하고 락인 적은 경로로 `Docker + Caddy` 템플릿을 넣어뒀어.
+지금은 가장 단순하고 락인 적은 경로로 `Docker + Caddy + PostgreSQL` 공개 템플릿을 넣어뒀어.
 
 관련 파일:
 - compose: [backend/compose.public.yaml](/backend/compose.public.yaml)
@@ -143,6 +143,14 @@ npm run backend:docker:public:production:down
 - `PUBLIC_DOMAIN`: 실제 DNS 가 연결된 도메인
 - `ACME_EMAIL`: Caddy/Let's Encrypt 인증서 발급용 메일
 - `BACKEND_PUBLIC_BASE_URL`: `https://도메인` 형식
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: 공개 스택 안 PostgreSQL 초기값
+
+이 공개 compose는 이제 아래를 같이 올린다.
+- Node backend
+- Caddy reverse proxy
+- 같은 프로젝트 안 PostgreSQL
+
+다만 현재 템플릿은 Caddy가 서버의 `80/443` 을 직접 점유하는 가장 단순한 구조라서, 공개 preview 와 공개 production 을 같은 서버에서 동시에 붙이려면 별도 edge Caddy 구성이 한 단계 더 필요해. 가장 단순한 시작은 `env당 서버 1대` 기준이야.
 
 즉 지금은 도메인만 준비되면 HTTPS 백엔드를 바로 띄울 수 있는 상태야.
 
@@ -154,31 +162,31 @@ preview:
 
 ```bash
 cd ..
-npm run backend:deploy:public -- --env preview --domain preview-api.runnigapp.com --email ops@runnigapp.com --sync-eas-preview
+npm run backend:deploy:public -- --env preview --domain preview-api.runningground.com --email ops@runningground.com --sync-eas-preview
 ```
 
 production:
 
 ```bash
-npm run backend:deploy:public -- --env production --domain api.runnigapp.com --email ops@runnigapp.com
+npm run backend:deploy:public -- --env production --domain api.runningground.com --email ops@runningground.com
 ```
 
 먼저 파일 생성 없이 검증만 해보고 싶으면:
 
 ```bash
-npm run backend:deploy:public -- --env preview --domain preview-api.runnigapp.com --email ops@runnigapp.com --dry-run
+npm run backend:deploy:public -- --env preview --domain preview-api.runningground.com --email ops@runningground.com --dry-run
 ```
 
 DNS가 서버를 제대로 가리키는지 먼저 확인하려면:
 
 ```bash
-npm run backend:check-domain -- --domain preview-api.runnigapp.com --expected-ip 서버공인IP --skip-health
+npm run backend:check-domain -- --domain preview-api.runningground.com --expected-ip 서버공인IP --skip-health
 ```
 
 배포 후 health까지 강하게 확인하려면:
 
 ```bash
-npm run backend:check-domain -- --domain preview-api.runnigapp.com --require-ports --require-health
+npm run backend:check-domain -- --domain preview-api.runningground.com --require-ports --require-health
 ```
 
 이 명령은 아래를 자동으로 처리해.
@@ -188,6 +196,44 @@ npm run backend:check-domain -- --domain preview-api.runnigapp.com --require-por
 - [backend/compose.public.yaml](/backend/compose.public.yaml) 실행
 - `https://도메인/api/health` 확인
 - `--sync-eas-preview` 를 붙인 경우 TestFlight용 EAS preview API 주소 갱신
+
+이미 같은 env 파일이 있으면 아래 값은 유지한 채 다시 배포한다.
+- `BACKEND_ADMIN_TOKEN`
+- `POSTGRES_DB`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- `BACKEND_POSTGRES_ENABLE_*`
+
+그래서 재배포할 때 PostgreSQL 비밀번호나 운영 토큰이 매번 바뀌지 않아.
+
+### 2.6.1.1. public PostgreSQL 로 JSON 스냅샷 이관
+
+공개 스택은 아직 JSON 저장소를 쓰면서 PostgreSQL read bridge를 점진적으로 켜는 구조야. 그래서 기존 JSON 데이터를 public PostgreSQL 컨테이너로 옮길 때는 아래 명령을 쓰면 된다.
+
+preview:
+
+```bash
+cd ..
+npm run backend:migrate:public:postgres -- --env preview
+```
+
+production:
+
+```bash
+npm run backend:migrate:public:postgres -- --env production
+```
+
+먼저 건수만 보고 싶으면:
+
+```bash
+npm run backend:migrate:public:postgres -- --env preview --dry-run
+```
+
+이 명령은 아래를 자동으로 처리해.
+- public `api` 컨테이너 안의 `/app/data/store.json` 추출
+- PostgreSQL용 SQL 생성
+- public `postgres` 컨테이너에 schema 재적용
+- JSON 스냅샷 import
 
 ## 2.6.2. Windows 데스크탑 임시 preview 공개 실행
 
@@ -451,12 +497,12 @@ BACKEND_STORE_FILE=backend/data/store.json
 BACKEND_STORE_BACKUP_DIRECTORY=backend/data/backups
 BACKEND_STORE_BACKUP_ON_SAVE=true
 BACKEND_STORE_BACKUP_RETENTION=10
-BACKEND_POSTGRES_DATABASE_URL=postgres://runnigapp:runnigapp-preview-password@localhost:5432/runnigapp_preview
+BACKEND_POSTGRES_DATABASE_URL=postgres://runningground:runningground-preview-password@localhost:5432/runningground_preview
 BACKEND_POSTGRES_SSL=false
 BACKEND_POSTGRES_POOL_MAX=10
 BACKEND_POSTGRES_IDLE_TIMEOUT_MS=30000
 BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS=10000
-BACKEND_POSTGRES_APPLICATION_NAME=runnigapp-backend-preview
+BACKEND_POSTGRES_APPLICATION_NAME=runningground-backend-preview
 BACKEND_POSTGRES_ENABLE_SESSION_READS=false
 BACKEND_POSTGRES_ENABLE_RUN_READS=false
 BACKEND_SESSION_TTL_HOURS=168
@@ -472,19 +518,19 @@ BACKEND_ENABLE_RESET_ENDPOINT=false
 BACKEND_APP_ENV=production
 BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8081
-BACKEND_PUBLIC_BASE_URL=https://api.runnigapp.com
-BACKEND_CORS_ORIGIN=https://app.runnigapp.com
+BACKEND_PUBLIC_BASE_URL=https://api.runningground.com
+BACKEND_CORS_ORIGIN=https://app.runningground.com
 BACKEND_STORE_DRIVER=json
-BACKEND_STORE_FILE=/srv/runnigapp/store.json
-BACKEND_STORE_BACKUP_DIRECTORY=/srv/runnigapp/backups
+BACKEND_STORE_FILE=/srv/runningground/store.json
+BACKEND_STORE_BACKUP_DIRECTORY=/srv/runningground/backups
 BACKEND_STORE_BACKUP_ON_SAVE=true
 BACKEND_STORE_BACKUP_RETENTION=20
-BACKEND_POSTGRES_DATABASE_URL=postgres://runnigapp:replace-me@postgres:5432/runnigapp_production
+BACKEND_POSTGRES_DATABASE_URL=postgres://runningground:replace-me@postgres:5432/runningground_production
 BACKEND_POSTGRES_SSL=false
 BACKEND_POSTGRES_POOL_MAX=10
 BACKEND_POSTGRES_IDLE_TIMEOUT_MS=30000
 BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS=10000
-BACKEND_POSTGRES_APPLICATION_NAME=runnigapp-backend-production
+BACKEND_POSTGRES_APPLICATION_NAME=runningground-backend-production
 BACKEND_POSTGRES_ENABLE_SESSION_READS=false
 BACKEND_POSTGRES_ENABLE_RUN_READS=false
 BACKEND_SESSION_TTL_HOURS=168

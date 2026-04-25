@@ -47,7 +47,7 @@ const SOURCE_METADATA: Record<RunSourceType, SourceMetadata> = {
     setupHint: '직접 API보다 iPhone은 Apple Health, Android는 Strava/워치 파트너를 거쳐 연결하는 흐름이 현실적이야.',
     priority: 40,
   },
-  runnigapp: {
+  runningground: {
     shortDescription: '앱 안에서 직접 러닝을 측정하고 저장하는 자체 기록 소스',
     capabilities: ['실시간 지도', '거리/페이스 측정', '바로 저장'],
     setupHint: '연동이 없어도 앱 안에서 바로 러닝을 측정해 기록으로 남길 수 있어.',
@@ -107,7 +107,7 @@ export function getSourceByType(sources: ConnectedSource[], sourceType: RunSourc
 }
 
 export function isExclusiveIntegrationSourceType(sourceType: RunSourceType) {
-  return sourceType !== 'manual' && sourceType !== 'runnigapp';
+  return sourceType !== 'manual' && sourceType !== 'runningground';
 }
 
 export function getConnectedExclusiveSources(sources: ConnectedSource[]) {

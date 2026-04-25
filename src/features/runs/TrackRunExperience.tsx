@@ -101,7 +101,7 @@ function formatCoordinateForUrl(coordinate: { latitude: number; longitude: numbe
 }
 
 function encodeRouteName(value: string) {
-  return value.trim() || 'RUNNIGAPP 경로';
+  return value.trim() || 'RunningGround 경로';
 }
 
 function sampleExternalMapWaypoints(coordinates: SuggestedArtRoute['coordinates'], maximumWaypoints = 5) {
@@ -149,7 +149,7 @@ function buildNaverWalkRouteUrl(route: SuggestedArtRoute) {
     dlat: endCoordinate.latitude.toFixed(6),
     dlng: endCoordinate.longitude.toFixed(6),
     dname: encodeRouteName(route.displayTitle),
-    appname: 'com.minheee.runnigapp',
+    appname: 'com.minheee.runningground',
   });
 
   waypoints.forEach((waypoint, index) => {
@@ -379,8 +379,8 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     if (!granted) {
       throw new Error(
         Platform.OS === 'ios'
-          ? '백그라운드에서도 계속 측정하려면 설정 > RUNNIGAPP > 위치에서 `항상 허용`을 켜주세요.'
-          : '백그라운드에서도 계속 측정하려면 RUNNIGAPP 위치 권한을 `항상 허용`으로 바꿔주세요.',
+          ? '백그라운드에서도 계속 측정하려면 설정 > RunningGround > 위치에서 `항상 허용`을 켜주세요.'
+          : '백그라운드에서도 계속 측정하려면 RunningGround 위치 권한을 `항상 허용`으로 바꿔주세요.',
       );
     }
   };
@@ -855,7 +855,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         <>
           <Card style={styles.readyCard}>
             <View style={styles.readyHero}>
-              <Text style={styles.readyEyebrow}>RUNNIGAPP</Text>
+              <Text style={styles.readyEyebrow}>RunningGround</Text>
               <Text style={styles.readyTitle}>런닝 시작 준비</Text>
               <View style={styles.readyPillRow}>
                 <View style={styles.readyPill}>

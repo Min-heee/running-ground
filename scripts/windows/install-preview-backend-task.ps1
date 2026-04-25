@@ -1,5 +1,5 @@
 param(
-  [string]$TaskName = 'RunnigappPreviewBootstrap',
+  [string]$TaskName = 'RunningGroundPreviewBootstrap',
   [ValidateSet('quick-tunnel', 'tailscale-funnel')]
   [string]$Transport = 'tailscale-funnel',
   [switch]$StartNow
@@ -29,6 +29,18 @@ $settings = New-ScheduledTaskSettingsSet `
   -MultipleInstances IgnoreNew `
   -RestartCount 3 `
   -RestartInterval (New-TimeSpan -Minutes 1)
+
+foreach ($legacyTaskName in @('RunnigappPreviewBootstrap')) {
+  if ($legacyTaskName -eq $TaskName) {
+    continue
+  }
+
+  try {
+    Unregister-ScheduledTask -TaskName $legacyTaskName -Confirm:$false -ErrorAction SilentlyContinue
+  } catch {
+    # Ignore if the legacy task is not installed.
+  }
+}
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings -Force | Out-Null
 

@@ -77,10 +77,10 @@ After the build is visible in TestFlight, run the phone pass using:
 - Expo account login
 - paid Apple Developer account
 - valid iOS bundle identifier
-  - current repo default: `com.minheee.runnigapp`
+  - current repo default: `com.minheee.runningground`
 - `EAS_PROJECT_ID`
 - stable preview backend URL for the `testflight` profile
-  - current placeholder: `https://preview-api.runnigapp.com/api`
+  - current placeholder: `https://preview-api.runningground.com/api`
 
 `ascAppId` is now already wired in [eas.json](/eas.json), so repeated submits do not need to recreate the App Store Connect app.
 

@@ -5,7 +5,8 @@ import { apiDelete, apiGet, apiPost } from '@/lib/api/client';
 import { USE_MOCK_API } from '@/lib/api/config';
 import { AuthResponse, DeleteMyAccountResponse, LogoutResponse, MyProfileResponse, UsernameAvailabilityResponse } from '@/lib/api/types';
 
-const SESSION_STORAGE_KEY = 'runnigapp.session.v1';
+const SESSION_STORAGE_KEY = 'runningground.session.v1';
+const LEGACY_SESSION_STORAGE_KEY = 'runnigapp.session.v1';
 export const USERNAME_RULE_DESCRIPTION = '아이디는 4~20자의 영문 소문자, 숫자, -, _만 사용할 수 있어요.';
 export const PASSWORD_RULE_DESCRIPTION = '비밀번호는 8자 이상이고 영문과 숫자를 모두 포함해야 해요.';
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{3,19}$/;
@@ -114,12 +115,43 @@ function isUserProfile(value: unknown): value is UserProfile {
 
 async function getStoredSessionValue() {
   if (typeof window !== 'undefined' && 'localStorage' in window && window.localStorage) {
-    return window.localStorage.getItem(SESSION_STORAGE_KEY);
+    const currentValue = window.localStorage.getItem(SESSION_STORAGE_KEY);
+
+    if (currentValue) {
+      return currentValue;
+    }
+
+    const legacyValue = window.localStorage.getItem(LEGACY_SESSION_STORAGE_KEY);
+
+    if (legacyValue) {
+      window.localStorage.setItem(SESSION_STORAGE_KEY, legacyValue);
+      window.localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
+    }
+
+    return legacyValue;
   }
 
   try {
     const isSecureStoreAvailable = await SecureStore.isAvailableAsync();
-    return isSecureStoreAvailable ? await SecureStore.getItemAsync(SESSION_STORAGE_KEY) : null;
+
+    if (!isSecureStoreAvailable) {
+      return null;
+    }
+
+    const currentValue = await SecureStore.getItemAsync(SESSION_STORAGE_KEY);
+
+    if (currentValue) {
+      return currentValue;
+    }
+
+    const legacyValue = await SecureStore.getItemAsync(LEGACY_SESSION_STORAGE_KEY);
+
+    if (legacyValue) {
+      await SecureStore.setItemAsync(SESSION_STORAGE_KEY, legacyValue);
+      await SecureStore.deleteItemAsync(LEGACY_SESSION_STORAGE_KEY);
+    }
+
+    return legacyValue;
   } catch {
     return null;
   }
@@ -128,12 +160,14 @@ async function getStoredSessionValue() {
 async function setStoredSessionValue(value: string) {
   if (typeof window !== 'undefined' && 'localStorage' in window && window.localStorage) {
     window.localStorage.setItem(SESSION_STORAGE_KEY, value);
+    window.localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
     return;
   }
 
   try {
     if (await SecureStore.isAvailableAsync()) {
       await SecureStore.setItemAsync(SESSION_STORAGE_KEY, value);
+      await SecureStore.deleteItemAsync(LEGACY_SESSION_STORAGE_KEY);
     }
   } catch {
     // Ignore persistence failures and continue with in-memory session state.
@@ -143,12 +177,14 @@ async function setStoredSessionValue(value: string) {
 async function clearStoredSessionValue() {
   if (typeof window !== 'undefined' && 'localStorage' in window && window.localStorage) {
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
     return;
   }
 
   try {
     if (await SecureStore.isAvailableAsync()) {
       await SecureStore.deleteItemAsync(SESSION_STORAGE_KEY);
+      await SecureStore.deleteItemAsync(LEGACY_SESSION_STORAGE_KEY);
     }
   } catch {
     // Ignore persistence failures and continue with in-memory session state.

@@ -42,7 +42,8 @@ import {
   AdminUserSummary,
 } from '@/lib/api/types';
 
-const ADMIN_TOKEN_STORAGE_KEY = 'runnigapp-admin-token';
+const ADMIN_TOKEN_STORAGE_KEY = 'runningground-admin-token';
+const LEGACY_ADMIN_TOKEN_STORAGE_KEY = 'runnigapp-admin-token';
 
 type MarketFormState = {
   title: string;
@@ -109,7 +110,7 @@ function createEmptyRaceForm(): RaceFormState {
     participationMode: '각자 러닝 후 기록 인증',
     proofMethod: '앱 연동 기록 또는 수동 인증',
     runWindowMinutes: '180',
-    hostLabel: 'RUNNIGAPP',
+    hostLabel: 'RunningGround',
     capacity: '80',
     entryFeePoints: '0',
     operationNote: '정해진 시간 안에 각자 출발하고 기록이 자동 집계돼요.',
@@ -122,7 +123,20 @@ function readStoredAdminToken() {
   }
 
   try {
-    return globalThis.localStorage?.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? '';
+    const currentValue = globalThis.localStorage?.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? '';
+
+    if (currentValue) {
+      return currentValue;
+    }
+
+    const legacyValue = globalThis.localStorage?.getItem(LEGACY_ADMIN_TOKEN_STORAGE_KEY) ?? '';
+
+    if (legacyValue) {
+      globalThis.localStorage?.setItem(ADMIN_TOKEN_STORAGE_KEY, legacyValue);
+      globalThis.localStorage?.removeItem(LEGACY_ADMIN_TOKEN_STORAGE_KEY);
+    }
+
+    return legacyValue;
   } catch {
     return '';
   }
@@ -135,6 +149,7 @@ function writeStoredAdminToken(adminToken: string) {
 
   try {
     globalThis.localStorage?.setItem(ADMIN_TOKEN_STORAGE_KEY, adminToken);
+    globalThis.localStorage?.removeItem(LEGACY_ADMIN_TOKEN_STORAGE_KEY);
   } catch {
     // Ignore storage failures in private mode or restricted browsers.
   }
@@ -147,6 +162,7 @@ function clearStoredAdminToken() {
 
   try {
     globalThis.localStorage?.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    globalThis.localStorage?.removeItem(LEGACY_ADMIN_TOKEN_STORAGE_KEY);
   } catch {
     // Ignore storage failures in restricted browsers.
   }
@@ -768,7 +784,7 @@ export default function AdminScreen() {
         <View style={[styles.container, isWide ? styles.containerWide : null]}>
           <View style={styles.hero}>
             <View style={styles.heroBadge}>
-              <Text style={styles.heroBadgeText}>RUNNIGAPP ADMIN</Text>
+              <Text style={styles.heroBadgeText}>RunningGround ADMIN</Text>
             </View>
             <Text style={styles.heroTitle}>운영 관리 웹</Text>
             <Text style={styles.heroSubtitle}>

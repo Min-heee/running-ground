@@ -271,10 +271,10 @@ function readStoreContentsFromDisk() {
         const backupContents = readFileSync(backup.path, 'utf8');
         const backupStore = JSON.parse(backupContents);
         writeStoreFileAtomic(storeFilePath, backupContents);
-        console.error(`[runnigapp-backend] store JSON was corrupted. Restored latest valid backup: ${backup.path}`);
+        console.error(`[runningground-backend] store JSON was corrupted. Restored latest valid backup: ${backup.path}`);
 
         if (corruptSnapshotPath) {
-          console.error(`[runnigapp-backend] corrupted store snapshot saved: ${corruptSnapshotPath}`);
+          console.error(`[runningground-backend] corrupted store snapshot saved: ${corruptSnapshotPath}`);
         }
 
         return {

@@ -9,7 +9,8 @@ import {
   formatPaceFromSpeedMps,
 } from '@/features/runs/tracking';
 
-const BACKGROUND_RUN_TASK_NAME = 'runnigapp-background-run-location';
+const BACKGROUND_RUN_TASK_NAME = 'runningground-background-run-location';
+const LEGACY_BACKGROUND_RUN_TASK_NAME = 'runnigapp-background-run-location';
 
 type BackgroundTrackingStatus = 'idle' | 'running' | 'paused';
 
@@ -105,7 +106,7 @@ function buildLocationTaskOptions(): Location.LocationTaskOptions {
     ...(Platform.OS === 'android'
       ? {
           foregroundService: {
-            notificationTitle: 'RUNNIGAPP가 러닝을 측정 중이에요',
+            notificationTitle: 'RunningGround가 러닝을 측정 중이에요',
             notificationBody: '백그라운드에서도 거리와 경로를 계속 기록하고 있어요.',
           },
         }
@@ -113,8 +114,12 @@ function buildLocationTaskOptions(): Location.LocationTaskOptions {
   };
 }
 
-if (Platform.OS !== 'web' && !TaskManager.isTaskDefined(BACKGROUND_RUN_TASK_NAME)) {
-  TaskManager.defineTask(BACKGROUND_RUN_TASK_NAME, async ({ data, error }) => {
+function defineBackgroundRunTask(taskName: string) {
+  if (TaskManager.isTaskDefined(taskName)) {
+    return;
+  }
+
+  TaskManager.defineTask(taskName, async ({ data, error }) => {
     if (error || !data) {
       return;
     }
@@ -125,6 +130,11 @@ if (Platform.OS !== 'web' && !TaskManager.isTaskDefined(BACKGROUND_RUN_TASK_NAME
 
     locations.forEach(appendTrackedLocation);
   });
+}
+
+if (Platform.OS !== 'web') {
+  defineBackgroundRunTask(BACKGROUND_RUN_TASK_NAME);
+  defineBackgroundRunTask(LEGACY_BACKGROUND_RUN_TASK_NAME);
 }
 
 export function getBackgroundRunTrackingSnapshot() {
@@ -167,10 +177,12 @@ async function stopLocationTaskIfNeeded() {
     return;
   }
 
-  const started = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_RUN_TASK_NAME);
+  for (const taskName of [BACKGROUND_RUN_TASK_NAME, LEGACY_BACKGROUND_RUN_TASK_NAME]) {
+    const started = await Location.hasStartedLocationUpdatesAsync(taskName);
 
-  if (started) {
-    await Location.stopLocationUpdatesAsync(BACKGROUND_RUN_TASK_NAME);
+    if (started) {
+      await Location.stopLocationUpdatesAsync(taskName);
+    }
   }
 }
 

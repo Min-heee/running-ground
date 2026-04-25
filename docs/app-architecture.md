@@ -1,4 +1,4 @@
-# runnigapp architecture
+# RunningGround architecture
 
 ## Goal
 Build one mobile app codebase for both iOS and Android.

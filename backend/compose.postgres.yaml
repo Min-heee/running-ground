@@ -1,11 +1,11 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: runnigapp-postgres
+    container_name: runningground-postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-runnigapp_preview}
-      POSTGRES_USER: ${POSTGRES_USER:-runnigapp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-runnigapp-preview-password}
+      POSTGRES_DB: ${POSTGRES_DB:-runningground_preview}
+      POSTGRES_USER: ${POSTGRES_USER:-runningground}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-runningground-preview-password}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:

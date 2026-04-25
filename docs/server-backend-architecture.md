@@ -1,7 +1,7 @@
 # Server / Backend Architecture
 
 ## 목적
-RUNNIGAPP 백엔드는 출시 전 MVP에서 아래 역할을 맡는다.
+RunningGround 백엔드는 출시 전 MVP에서 아래 역할을 맡는다.
 
 - 회원가입, 로그인, 세션 관리
 - 러닝 기록 저장과 조회
@@ -10,7 +10,7 @@ RUNNIGAPP 백엔드는 출시 전 MVP에서 아래 역할을 맡는다.
 - 마켓, 레이스, 관리자 운영 데이터 제공
 - TestFlight / Preview 앱이 붙을 HTTPS API 제공
 
-현재는 빠른 출시 검증을 위해 **Node.js 단일 서버 + JSON 파일 저장소**로 구성되어 있다. 다만 RUNNIGAPP은 출시 후 장기 운영해야 하므로, 이 구조는 최종 운영 구조가 아니라 **preview / MVP 검증용 임시 구조**로 본다.
+현재는 빠른 출시 검증을 위해 **Node.js 단일 서버 + JSON 파일 저장소**로 구성되어 있다. 다만 RunningGround는 출시 후 장기 운영해야 하므로, 이 구조는 최종 운영 구조가 아니라 **preview / MVP 검증용 임시 구조**로 본다.
 
 장기 운영 목표는 아래와 같다.
 
@@ -66,7 +66,7 @@ flowchart TD
 | 저장소 | JSON 파일 | PostgreSQL |
 | 파일 백업 | JSON 백업 파일 | DB 자동 백업 + 수동 복구 절차 |
 | HTTPS | Cloudflare Quick Tunnel | Cloudflare Named Tunnel 또는 Docker + Caddy |
-| 주소 | 매번 바뀌는 `trycloudflare.com` | `api.runnigapp.com`, `preview-api.runnigapp.com` |
+| 주소 | 매번 바뀌는 `trycloudflare.com` | `api.runningground.com`, `preview-api.runningground.com` |
 | 실행 환경 | 집 데스크탑 | 초기에는 데스크탑 가능, 이후 VPS/클라우드 권장 |
 | 관리자 인증 | 단일 admin token | 관리자 계정, 역할, 감사 로그 |
 | 로그 | stdout/log file | 구조화 로그 + 에러 알림 |
@@ -219,7 +219,7 @@ flowchart TD
 현재 iPhone에서 가장 안정적인 흐름:
 - NRC로 러닝 기록
 - NRC가 Apple 건강 앱에 운동 기록 공유
-- RUNNIGAPP에서 Apple Health 기록 가져오기
+- RunningGround에서 Apple Health 기록 가져오기
 - 백엔드가 `externalId` 또는 날짜/거리/페이스 fingerprint로 중복 기록을 건너뜀
 
 ## Preview 운영 구조
@@ -228,8 +228,8 @@ flowchart TD
   Mac["MacBook Codex"]
   Tailscale["Tailscale Private Network"]
   Desktop["Windows Desktop"]
-  BackendTask["Scheduled Task<br/>RunnigappPreviewBackend"]
-  TunnelTask["Scheduled Task<br/>RunnigappPreviewTunnel"]
+  BackendTask["Scheduled Task<br/>RunningGroundPreviewBackend"]
+  TunnelTask["Scheduled Task<br/>RunningGroundPreviewTunnel"]
   Cloudflare["Cloudflare Quick Tunnel"]
   TestFlight["TestFlight App"]
 
@@ -261,7 +261,7 @@ flowchart TD
 맥북에서 데스크탑 접속:
 
 ```bash
-ssh desktop-runnigapp
+ssh <desktop-ssh-alias>
 ```
 
 ## 출시 목표 구조
@@ -270,7 +270,7 @@ ssh desktop-runnigapp
 ```mermaid
 flowchart TD
   App["App Store / Play Store App"]
-  Domain["https://api.runnigapp.com"]
+  Domain["https://api.runningground.com"]
   CloudflareNamed["Cloudflare Named Tunnel<br/>or Docker + Caddy"]
   Backend["Backend Service"]
   Store["Persistent Store"]
@@ -320,7 +320,7 @@ flowchart TD
 
 ### Phase 1. 고정 Preview API
 - 도메인을 준비한다.
-- `preview-api.runnigapp.com`을 Cloudflare에 연결한다.
+- `preview-api.runningground.com`을 Cloudflare에 연결한다.
 - Cloudflare Named Tunnel로 데스크탑 preview 서버를 고정 주소에 붙인다.
 - TestFlight preview 앱은 이 주소만 바라보게 한다.
 
@@ -331,10 +331,12 @@ flowchart TD
 - smoke test를 PostgreSQL 환경에서도 통과시킨다.
 
 ### Phase 3. Production API
-- `api.runnigapp.com`을 production API로 분리한다.
+- `api.runningground.com`을 production API로 분리한다.
 - production DB, preview DB를 분리한다.
 - 자동 백업, 로그, uptime monitor를 붙인다.
 - App Store / Play Store 제출 앱은 production API를 바라보게 한다.
+
+권장 운영 베이스라인은 [digitalocean-cloudflare-caddy-runbook.md](/docs/digitalocean-cloudflare-caddy-runbook.md)를 따른다.
 
 ### Phase 4. 운영 강화
 - 관리자 계정/권한 모델을 만든다.

@@ -10,7 +10,7 @@ function buildPoolConfig({
   maxConnections = 10,
   idleTimeoutMs = 30000,
   connectionTimeoutMs = 10000,
-  applicationName = 'runnigapp-backend',
+  applicationName = 'runningground-backend',
 }) {
   const normalizedConnectionString = normalizeOptionalString(connectionString);
 

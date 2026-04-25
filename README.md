@@ -1,4 +1,4 @@
-# runnigapp
+# RunningGround
 
 Expo Router based running app prototype.
 

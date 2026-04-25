@@ -55,7 +55,7 @@ const SOURCE_LABEL_BY_TYPE = {
   garmin: 'Garmin',
   strava: 'Strava',
   nrc: 'Nike Run Club',
-  runnigapp: 'RUNNIGAPP',
+  runningground: 'RunningGround',
   manual: 'Manual',
 };
 const EXCLUSIVE_INTEGRATION_SOURCE_TYPES = new Set(['apple_health', 'health_connect', 'garmin', 'strava', 'nrc']);
@@ -88,7 +88,7 @@ function getErrorMessage(error) {
 function logBackendError(label, error, extra = {}) {
   console.error(JSON.stringify({
     level: 'error',
-    service: 'runnigapp-backend',
+    service: 'runningground-backend',
     label,
     message: getErrorMessage(error),
     stack: error instanceof Error ? error.stack : undefined,
@@ -3010,9 +3010,9 @@ server.on('clientError', (error, socket) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`[runnigapp-backend] listening on http://${HOST}:${PORT}`);
-  console.log(`[runnigapp-backend] store: ${getStoreFilePath()}`);
-  console.log(`[runnigapp-backend] env: ${getPublicBackendConfig().usingEnvFile ? 'backend/.env loaded' : 'process env only'}`);
+  console.log(`[runningground-backend] listening on http://${HOST}:${PORT}`);
+  console.log(`[runningground-backend] store: ${getStoreFilePath()}`);
+  console.log(`[runningground-backend] env: ${getPublicBackendConfig().usingEnvFile ? 'backend/.env loaded' : 'process env only'}`);
 });
 
 let isShuttingDown = false;
@@ -3023,10 +3023,10 @@ function shutdownServer(signal) {
   }
 
   isShuttingDown = true;
-  console.log(`[runnigapp-backend] received ${signal}, shutting down gracefully...`);
+  console.log(`[runningground-backend] received ${signal}, shutting down gracefully...`);
 
   const forceExitTimer = setTimeout(() => {
-    console.error('[runnigapp-backend] graceful shutdown timed out, forcing exit.');
+    console.error('[runningground-backend] graceful shutdown timed out, forcing exit.');
     process.exit(1);
   }, SHUTDOWN_TIMEOUT_MS);
 
@@ -3037,7 +3037,7 @@ function shutdownServer(signal) {
       clearTimeout(forceExitTimer);
 
       if (error) {
-        console.error('[runnigapp-backend] shutdown error');
+        console.error('[runningground-backend] shutdown error');
         console.error(error);
         process.exit(1);
         return;
@@ -3047,10 +3047,10 @@ function shutdownServer(signal) {
         await postgresDatabase.close();
       }
 
-      console.log('[runnigapp-backend] shutdown complete.');
+      console.log('[runningground-backend] shutdown complete.');
       process.exit(0);
     })().catch((shutdownError) => {
-      console.error('[runnigapp-backend] shutdown error');
+      console.error('[runningground-backend] shutdown error');
       console.error(shutdownError);
       process.exit(1);
     });

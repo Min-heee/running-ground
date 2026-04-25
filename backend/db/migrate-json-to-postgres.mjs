@@ -12,7 +12,7 @@ const SOURCE_LABEL_BY_TYPE = {
   garmin: 'Garmin',
   strava: 'Strava',
   nrc: 'Nike Run Club',
-  runnigapp: 'RUNNIGAPP',
+  runningground: 'RunningGround',
   manual: 'Manual',
 };
 
@@ -689,7 +689,7 @@ function buildOfflineRaceEventRows(store, issues) {
       participation_mode: sqlString(text(event.participationMode) || 'remote'),
       proof_method: sqlString(text(event.proofMethod) || 'app_record'),
       run_window_minutes: sqlInteger(integerValue(event.runWindowMinutes, 60)),
-      host_label: sqlString(text(event.hostLabel) || 'RUNNIGAPP'),
+      host_label: sqlString(text(event.hostLabel) || 'RunningGround'),
       capacity: sqlInteger(integerValue(event.capacity)),
       entry_fee_points: sqlInteger(integerValue(event.entryFeePoints, 0)),
       distance_options: sqlJson(asArray(event.distanceOptions).length > 0

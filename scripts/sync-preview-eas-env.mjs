@@ -8,8 +8,8 @@ const defaultPreviewInfoPath = resolve(projectRoot, 'preview-public-info.json');
 const defaultEnvPath = resolve(projectRoot, '.env');
 const DEFAULT_TIMEOUT_MS = 10000;
 const DEFAULT_EAS_PROJECT_ID = 'd57b0e4f-f084-4000-8ec7-188ee2561c52';
-const DEFAULT_IOS_BUNDLE_ID = 'com.minheee.runnigapp';
-const DEFAULT_ANDROID_PACKAGE = 'com.minheee.runnigapp';
+const DEFAULT_IOS_BUNDLE_ID = 'com.minheee.runningground';
+const DEFAULT_ANDROID_PACKAGE = 'com.minheee.runningground';
 
 function readArgValue(flagName) {
   const index = process.argv.indexOf(flagName);

@@ -1,4 +1,4 @@
-# runnigapp work split
+# RunningGround work split
 
 ## Final ownership
 

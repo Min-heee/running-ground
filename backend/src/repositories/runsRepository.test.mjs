@@ -7,7 +7,7 @@ const SOURCE_LABELS = {
   health_connect: 'Health Connect',
   manual: 'Manual',
   nrc: 'Nike Run Club',
-  runnigapp: 'RUNNIGAPP',
+  runningground: 'RunningGround',
 };
 
 class TestApiError extends Error {
@@ -307,8 +307,8 @@ await runTest('returns latest and specific run details', () => {
         date: '2026-04-23',
         distanceKm: 5,
         pace: '05:30/km',
-        source: 'RUNNIGAPP',
-        sourceType: 'runnigapp',
+        source: 'RunningGround',
+        sourceType: 'runningground',
       },
     ],
   });

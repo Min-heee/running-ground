@@ -85,7 +85,7 @@ function createDatabaseHarness(options = {}) {
 
   return {
     database: createPostgresDatabase({
-      connectionString: 'postgres://runner:secret@localhost:5432/runnigapp_preview',
+      connectionString: 'postgres://runner:secret@localhost:5432/runningground_preview',
       ...options.config,
     }, { PoolCtor: HarnessPool }),
     getPool() {
@@ -106,20 +106,20 @@ async function runTest(name, testFn) {
 
 await runTest('builds pool config from connection settings', async () => {
   const config = buildPoolConfig({
-    connectionString: 'postgres://runner:secret@localhost:5432/runnigapp_preview',
+    connectionString: 'postgres://runner:secret@localhost:5432/runningground_preview',
     ssl: true,
     maxConnections: 12,
     idleTimeoutMs: 45000,
     connectionTimeoutMs: 9000,
-    applicationName: 'runnigapp-preview',
+    applicationName: 'runningground-preview',
   });
 
-  assert.equal(config.connectionString, 'postgres://runner:secret@localhost:5432/runnigapp_preview');
+  assert.equal(config.connectionString, 'postgres://runner:secret@localhost:5432/runningground_preview');
   assert.deepEqual(config.ssl, { rejectUnauthorized: false });
   assert.equal(config.max, 12);
   assert.equal(config.idleTimeoutMillis, 45000);
   assert.equal(config.connectionTimeoutMillis, 9000);
-  assert.equal(config.application_name, 'runnigapp-preview');
+  assert.equal(config.application_name, 'runningground-preview');
 });
 
 await runTest('runs direct queries through the pool', async () => {
@@ -178,9 +178,9 @@ await runTest('rolls back failed transactions and rethrows the error', async () 
 await runTest('checks connection metadata with a lightweight select', async () => {
   const { database, getPool } = createDatabaseHarness({
     nextQueryRows: [{
-      database_name: 'runnigapp_preview',
+      database_name: 'runningground_preview',
       schema_name: 'public',
-      current_user: 'runnigapp',
+      current_user: 'runningground',
       server_time: '2026-04-24T01:00:00.000Z',
     }],
   });
@@ -189,9 +189,9 @@ await runTest('checks connection metadata with a lightweight select', async () =
 
   assert.deepEqual(result, {
     ok: true,
-    databaseName: 'runnigapp_preview',
+    databaseName: 'runningground_preview',
     schemaName: 'public',
-    currentUser: 'runnigapp',
+    currentUser: 'runningground',
     serverTime: '2026-04-24T01:00:00.000Z',
   });
   assert.equal(getPool().queries.length, 1);

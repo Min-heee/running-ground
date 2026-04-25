@@ -589,8 +589,8 @@ async function main() {
       }),
       expectedStatuses: [201],
     });
-    assert(trackedRun.run.source === 'RUNNIGAPP', '실시간 러닝 기록 소스가 RUNNIGAPP으로 저장되지 않았어.');
-    assert(trackedRun.run.sourceType === 'runnigapp', '실시간 러닝 기록 sourceType이 runnigapp이 아니야.');
+    assert(trackedRun.run.source === 'RunningGround', '실시간 러닝 기록 소스가 RunningGround으로 저장되지 않았어.');
+    assert(trackedRun.run.sourceType === 'runningground', '실시간 러닝 기록 sourceType이 runningground이 아니야.');
     assert(trackedRun.run.durationSeconds === 1675, '실시간 러닝 기록 시간이 저장되지 않았어.');
     assert(Array.isArray(trackedRun.run.route) && trackedRun.run.route.length === 3, '실시간 러닝 경로가 저장되지 않았어.');
     logStep('tracked run flow ok');
@@ -924,7 +924,7 @@ async function main() {
         participationMode: '각자 러닝 후 기록 제출',
         proofMethod: '연동 기록 제출',
         runWindowMinutes: 180,
-        hostLabel: 'RUNNIGAPP',
+        hostLabel: 'RunningGround',
         capacity: 80,
         entryFeePoints: 0,
         operationNote: '관리자 레이스 테스트 메모',
@@ -948,7 +948,7 @@ async function main() {
         participationMode: '자율 집결 없이 각자 출발',
         proofMethod: '앱 기록 인증',
         runWindowMinutes: 240,
-        hostLabel: 'RUNNIGAPP',
+        hostLabel: 'RunningGround',
         capacity: 120,
         entryFeePoints: 10,
         operationNote: '관리자 레이스 수정 메모',

@@ -443,8 +443,8 @@ export function createPostgresRunsRepository({
           route: Array.isArray(input.route) ? clone(input.route) : [],
           startedAt: input.startedAt,
           endedAt: input.endedAt,
-          source: 'RUNNIGAPP',
-          sourceType: 'runnigapp',
+          source: 'RunningGround',
+          sourceType: 'runningground',
           createdAt,
           updatedAt: createdAt,
         };

@@ -112,7 +112,7 @@ function buildResolvedBackendEnvironment(env, options = {}) {
     postgresPoolMax: Math.max(1, parseNumber(env.BACKEND_POSTGRES_POOL_MAX, 10)),
     postgresIdleTimeoutMs: Math.max(1000, parseNumber(env.BACKEND_POSTGRES_IDLE_TIMEOUT_MS, 30000)),
     postgresConnectionTimeoutMs: Math.max(1000, parseNumber(env.BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS, 10000)),
-    postgresApplicationName: normalizeOptionalString(env.BACKEND_POSTGRES_APPLICATION_NAME) || `runnigapp-backend-${appEnv}`,
+    postgresApplicationName: normalizeOptionalString(env.BACKEND_POSTGRES_APPLICATION_NAME) || `runningground-backend-${appEnv}`,
     postgresEnableSessionReads: parseBoolean(env.BACKEND_POSTGRES_ENABLE_SESSION_READS, false),
     postgresEnableRunReads: parseBoolean(env.BACKEND_POSTGRES_ENABLE_RUN_READS, false),
     postgresEnableFriendReads: parseBoolean(env.BACKEND_POSTGRES_ENABLE_FRIEND_READS, false),

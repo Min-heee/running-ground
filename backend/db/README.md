@@ -1,6 +1,6 @@
 # Backend Database
 
-이 폴더는 RUNNIGAPP 백엔드를 JSON 저장소에서 PostgreSQL 운영 저장소로 옮기기 위한 기준 파일을 둔다.
+이 폴더는 RunningGround 백엔드를 JSON 저장소에서 PostgreSQL 운영 저장소로 옮기기 위한 기준 파일을 둔다.
 
 현재 런타임은 아직 `backend/src/store.mjs` 기반 JSON 저장소를 사용한다. `schema.sql`은 바로 production에 적용하기 전 검토할 목표 스키마이며, migration script와 PostgreSQL adapter는 이미 준비를 시작했다.
 
@@ -30,9 +30,9 @@ npm --prefix backend run db:down
 ```
 
 기본 접속 정보:
-- database: `runnigapp_preview`
-- user: `runnigapp`
-- password: `runnigapp-preview-password`
+- database: `runningground_preview`
+- user: `runningground`
+- password: `runningground-preview-password`
 - port: `5432`
 
 ## JSON store migration dry-run

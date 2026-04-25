@@ -1,10 +1,28 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ${COMPOSE_PROJECT_NAME:-runnigapp}-api
     init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       BACKEND_APP_ENV: ${BACKEND_APP_ENV}
       BACKEND_HOST: ${BACKEND_HOST:-0.0.0.0}
@@ -16,6 +34,16 @@ services:
       BACKEND_STORE_BACKUP_DIRECTORY: ${BACKEND_STORE_BACKUP_DIRECTORY:-/app/data/backups}
       BACKEND_STORE_BACKUP_ON_SAVE: ${BACKEND_STORE_BACKUP_ON_SAVE:-true}
       BACKEND_STORE_BACKUP_RETENTION: ${BACKEND_STORE_BACKUP_RETENTION:-10}
+      BACKEND_POSTGRES_DATABASE_URL: ${BACKEND_POSTGRES_DATABASE_URL:-}
+      BACKEND_POSTGRES_SSL: ${BACKEND_POSTGRES_SSL:-false}
+      BACKEND_POSTGRES_POOL_MAX: ${BACKEND_POSTGRES_POOL_MAX:-10}
+      BACKEND_POSTGRES_IDLE_TIMEOUT_MS: ${BACKEND_POSTGRES_IDLE_TIMEOUT_MS:-30000}
+      BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS: ${BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS:-10000}
+      BACKEND_POSTGRES_APPLICATION_NAME: ${BACKEND_POSTGRES_APPLICATION_NAME:-}
+      BACKEND_POSTGRES_ENABLE_SESSION_READS: ${BACKEND_POSTGRES_ENABLE_SESSION_READS:-false}
+      BACKEND_POSTGRES_ENABLE_RUN_READS: ${BACKEND_POSTGRES_ENABLE_RUN_READS:-false}
+      BACKEND_POSTGRES_ENABLE_FRIEND_READS: ${BACKEND_POSTGRES_ENABLE_FRIEND_READS:-false}
+      BACKEND_POSTGRES_ENABLE_LEAGUE_READS: ${BACKEND_POSTGRES_ENABLE_LEAGUE_READS:-false}
       BACKEND_SESSION_TTL_HOURS: ${BACKEND_SESSION_TTL_HOURS:-168}
       BACKEND_MAX_BODY_SIZE_KB: ${BACKEND_MAX_BODY_SIZE_KB:-256}
       BACKEND_REQUEST_TIMEOUT_MS: ${BACKEND_REQUEST_TIMEOUT_MS:-30000}
@@ -28,11 +56,19 @@ services:
       BACKEND_ENABLE_RESET_ENDPOINT: ${BACKEND_ENABLE_RESET_ENDPOINT:-false}
     volumes:
       - backend_data:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8081/api/health').then((response)=>process.exit(response.ok?0:1)).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: unless-stopped
 
   caddy:
     image: caddy:2-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-runnigapp}-caddy
     depends_on:
       api:
         condition: service_healthy
@@ -49,6 +85,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  postgres_data:
   backend_data:
   caddy_data:
   caddy_config:

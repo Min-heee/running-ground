@@ -9,7 +9,7 @@ export default function OnboardingScreen() {
     <Screen>
       <View style={styles.container}>
         <View style={styles.hero}>
-          <Text style={styles.logo}>RUNNIGAPP</Text>
+          <Text style={styles.logo}>RunningGround</Text>
           <Text style={styles.title}>러닝 기록이 경쟁이 되는 앱</Text>
           <Text style={styles.subtitle}>친구와 기록을 비교하고 내 러닝 흐름을 간단하게 쌓아가자.</Text>
         </View>

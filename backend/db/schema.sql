@@ -1,4 +1,4 @@
--- RUNNIGAPP PostgreSQL schema draft.
+-- RunningGround PostgreSQL schema draft.
 -- This file is not wired to the runtime yet. It is the target shape for
 -- moving the current JSON store to a durable production database.
 
@@ -161,7 +161,7 @@ create table if not exists offline_race_events (
   participation_mode text not null default 'remote',
   proof_method text not null default 'app_record',
   run_window_minutes integer not null default 60 check (run_window_minutes > 0),
-  host_label text not null default 'RUNNIGAPP',
+  host_label text not null default 'RunningGround',
   capacity integer check (capacity is null or capacity > 0),
   entry_fee_points integer not null default 0 check (entry_fee_points >= 0),
   distance_options jsonb not null default '[]'::jsonb,

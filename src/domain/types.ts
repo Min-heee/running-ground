@@ -4,7 +4,7 @@ export type RunSourceType =
   | 'garmin'
   | 'strava'
   | 'nrc'
-  | 'runnigapp'
+  | 'runningground'
   | 'manual';
 
 export type RunRoutePoint = {

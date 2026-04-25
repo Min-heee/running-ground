@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -80,18 +80,90 @@ function quoteEnvValue(value) {
   return JSON.stringify(value);
 }
 
+function readEnvFile(filePath) {
+  if (!existsSync(filePath)) {
+    return {};
+  }
+
+  const entries = {};
+  const lines = readFileSync(filePath, 'utf8').split(/\r?\n/);
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf('=');
+
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    let value = trimmed.slice(separatorIndex + 1).trim();
+
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+
+    entries[key] = value;
+  }
+
+  return entries;
+}
+
+function parsePostgresConnectionString(value) {
+  if (!value) {
+    return {};
+  }
+
+  try {
+    const parsed = new URL(value);
+
+    if (!['postgres:', 'postgresql:'].includes(parsed.protocol)) {
+      return {};
+    }
+
+    return {
+      username: decodeURIComponent(parsed.username || ''),
+      password: decodeURIComponent(parsed.password || ''),
+      database: parsed.pathname.replace(/^\//, ''),
+    };
+  } catch {
+    return {};
+  }
+}
+
 function buildEnvFileContents({
   appEnv,
   domain,
   email,
   adminToken,
   corsOrigin,
+  backupRetention,
+  postgresDb,
+  postgresUser,
+  postgresPassword,
+  postgresDatabaseUrl,
+  postgresSsl,
+  postgresPoolMax,
+  postgresIdleTimeoutMs,
+  postgresConnectionTimeoutMs,
+  postgresApplicationName,
+  postgresEnableSessionReads,
+  postgresEnableRunReads,
+  postgresEnableFriendReads,
+  postgresEnableLeagueReads,
 }) {
-  const backupRetention = appEnv === 'production' ? '20' : '10';
-
   const lines = [
     `PUBLIC_DOMAIN=${domain}`,
     `ACME_EMAIL=${email}`,
+    '',
+    `POSTGRES_DB=${quoteEnvValue(postgresDb)}`,
+    `POSTGRES_USER=${quoteEnvValue(postgresUser)}`,
+    `POSTGRES_PASSWORD=${quoteEnvValue(postgresPassword)}`,
     '',
     `BACKEND_APP_ENV=${appEnv}`,
     'BACKEND_HOST=0.0.0.0',
@@ -103,6 +175,16 @@ function buildEnvFileContents({
     'BACKEND_STORE_BACKUP_DIRECTORY=/app/data/backups',
     'BACKEND_STORE_BACKUP_ON_SAVE=true',
     `BACKEND_STORE_BACKUP_RETENTION=${backupRetention}`,
+    `BACKEND_POSTGRES_DATABASE_URL=${quoteEnvValue(postgresDatabaseUrl)}`,
+    `BACKEND_POSTGRES_SSL=${postgresSsl}`,
+    `BACKEND_POSTGRES_POOL_MAX=${postgresPoolMax}`,
+    `BACKEND_POSTGRES_IDLE_TIMEOUT_MS=${postgresIdleTimeoutMs}`,
+    `BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS=${postgresConnectionTimeoutMs}`,
+    `BACKEND_POSTGRES_APPLICATION_NAME=${quoteEnvValue(postgresApplicationName)}`,
+    `BACKEND_POSTGRES_ENABLE_SESSION_READS=${postgresEnableSessionReads}`,
+    `BACKEND_POSTGRES_ENABLE_RUN_READS=${postgresEnableRunReads}`,
+    `BACKEND_POSTGRES_ENABLE_FRIEND_READS=${postgresEnableFriendReads}`,
+    `BACKEND_POSTGRES_ENABLE_LEAGUE_READS=${postgresEnableLeagueReads}`,
     'BACKEND_SESSION_TTL_HOURS=168',
     'BACKEND_MAX_BODY_SIZE_KB=256',
     'BACKEND_REQUEST_TIMEOUT_MS=30000',
@@ -149,7 +231,7 @@ function deployDocker({ appEnv, envFilePath }) {
   runCommand('docker', [
     'compose',
     '-p',
-    `runnigapp-${appEnv}`,
+    `runningground-${appEnv}`,
     '--env-file',
     envFilePath,
     '-f',
@@ -220,11 +302,37 @@ async function main() {
   const email = normalizeEmail(readArgValue('--email'));
   const expectedIp = readArgValue('--expected-ip');
   const publicBaseUrl = `https://${domain}`;
-  const adminToken = readArgValue('--admin-token') || `${appEnv}-admin-${randomBytes(24).toString('hex')}`;
-  const corsOrigin = readArgValue('--cors-origin') || '*';
   const envFilePath = dryRun
-    ? join(mkdtempSync(join(tmpdir(), 'runnigapp-backend-env-')), `.env.${appEnv}`)
+    ? join(mkdtempSync(join(tmpdir(), 'runningground-backend-env-')), `.env.${appEnv}`)
     : resolve(projectRoot, readArgValue('--env-file') || `backend/.env.${appEnv}`);
+  const existingEnv = dryRun ? {} : readEnvFile(envFilePath);
+  const existingPostgresConnection = parsePostgresConnectionString(
+    existingEnv.BACKEND_POSTGRES_DATABASE_URL || existingEnv.DATABASE_URL || '',
+  );
+  const adminToken = readArgValue('--admin-token')
+    || existingEnv.BACKEND_ADMIN_TOKEN
+    || `${appEnv}-admin-${randomBytes(24).toString('hex')}`;
+  const corsOrigin = readArgValue('--cors-origin') || existingEnv.BACKEND_CORS_ORIGIN || '*';
+  const backupRetention = existingEnv.BACKEND_STORE_BACKUP_RETENTION || (appEnv === 'production' ? '20' : '10');
+  const postgresDb = existingEnv.POSTGRES_DB
+    || existingPostgresConnection.database
+    || `runningground_${appEnv}`;
+  const postgresUser = existingEnv.POSTGRES_USER
+    || existingPostgresConnection.username
+    || 'runningground';
+  const postgresPassword = existingEnv.POSTGRES_PASSWORD
+    || existingPostgresConnection.password
+    || `${appEnv}-postgres-${randomBytes(18).toString('hex')}`;
+  const postgresDatabaseUrl = `postgres://${encodeURIComponent(postgresUser)}:${encodeURIComponent(postgresPassword)}@postgres:5432/${postgresDb}`;
+  const postgresSsl = existingEnv.BACKEND_POSTGRES_SSL || 'false';
+  const postgresPoolMax = existingEnv.BACKEND_POSTGRES_POOL_MAX || '10';
+  const postgresIdleTimeoutMs = existingEnv.BACKEND_POSTGRES_IDLE_TIMEOUT_MS || '30000';
+  const postgresConnectionTimeoutMs = existingEnv.BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS || '10000';
+  const postgresApplicationName = existingEnv.BACKEND_POSTGRES_APPLICATION_NAME || `runningground-backend-${appEnv}`;
+  const postgresEnableSessionReads = existingEnv.BACKEND_POSTGRES_ENABLE_SESSION_READS || 'false';
+  const postgresEnableRunReads = existingEnv.BACKEND_POSTGRES_ENABLE_RUN_READS || 'false';
+  const postgresEnableFriendReads = existingEnv.BACKEND_POSTGRES_ENABLE_FRIEND_READS || 'false';
+  const postgresEnableLeagueReads = existingEnv.BACKEND_POSTGRES_ENABLE_LEAGUE_READS || 'false';
 
   const envFileContents = buildEnvFileContents({
     appEnv,
@@ -232,6 +340,20 @@ async function main() {
     email,
     adminToken,
     corsOrigin,
+    backupRetention,
+    postgresDb,
+    postgresUser,
+    postgresPassword,
+    postgresDatabaseUrl,
+    postgresSsl,
+    postgresPoolMax,
+    postgresIdleTimeoutMs,
+    postgresConnectionTimeoutMs,
+    postgresApplicationName,
+    postgresEnableSessionReads,
+    postgresEnableRunReads,
+    postgresEnableFriendReads,
+    postgresEnableLeagueReads,
   });
 
   writeFileSync(envFilePath, envFileContents, 'utf8');

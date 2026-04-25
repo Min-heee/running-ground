@@ -1,14 +1,14 @@
 {
   "expo": {
-    "name": "runnigapp",
-    "slug": "runnigapp",
-    "scheme": "runnigapp",
+    "name": "RunningGround",
+    "slug": "runningground",
+    "scheme": "runningground",
     "newArchEnabled": false,
     "ios": {
-      "bundleIdentifier": "com.minheee.runnigapp",
+      "bundleIdentifier": "com.minheee.runningground",
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "Allow runnigapp to connect to local development servers on your network.",
+        "NSLocalNetworkUsageDescription": "Allow RunningGround to connect to local development servers on your network.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }

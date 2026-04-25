@@ -65,7 +65,7 @@ function buildAppName(baseName: string, variant: AppVariant) {
 }
 
 function buildIdentifier(baseIdentifier: string | undefined, variant: AppVariant) {
-  const safeBaseIdentifier = baseIdentifier?.trim() || 'com.anonymous.runnigapp';
+  const safeBaseIdentifier = baseIdentifier?.trim() || 'com.anonymous.runningground';
 
   if (variant === 'production') {
     return safeBaseIdentifier;
@@ -80,7 +80,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const appVariant = normalizeAppVariant(process.env.APP_VARIANT) as AppVariant;
   const isDevelopmentVariant = appVariant === 'development';
   const version = process.env.APP_VERSION?.trim() || packageJson.version || '0.1.0';
-  const baseDisplayName = baseConfig.name || 'RUNNIGAPP';
+  const baseDisplayName = baseConfig.name || 'RunningGround';
   const baseBundleIdentifier = baseConfig.ios?.bundleIdentifier;
   const iosApplicationQueriesSchemes = Array.from(
     new Set([
@@ -95,11 +95,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     LSApplicationQueriesSchemes: iosApplicationQueriesSchemes,
     NSMotionUsageDescription:
       (baseConfig.ios?.infoPlist as Record<string, string | undefined> | undefined)?.NSMotionUsageDescription
-      || 'Allow RUNNIGAPP to read your motion data so cadence can be shown while you run.',
+      || 'Allow RunningGround to read your motion data so cadence can be shown while you run.',
     ...(isDevelopmentVariant
       ? {
           NSLocalNetworkUsageDescription:
-            'Allow RUNNIGAPP to connect to your local development servers on the same network.',
+            'Allow RunningGround to connect to your local development servers on the same network.',
           NSAppTransportSecurity: {
             NSAllowsArbitraryLoads: true,
           },
@@ -143,8 +143,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   return {
     ...baseConfig,
     name: buildAppName(baseDisplayName, appVariant),
-    slug: baseConfig.slug ?? 'runnigapp',
-    scheme: baseConfig.scheme ?? 'runnigapp',
+    slug: baseConfig.slug ?? 'runningground',
+    scheme: baseConfig.scheme ?? 'runningground',
     version,
     orientation: 'portrait',
     userInterfaceStyle: 'light',
@@ -165,9 +165,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           'expo-location',
           {
             locationWhenInUsePermission:
-              'Allow RUNNIGAPP to use your location so your run route, distance, pace, and elevation can be tracked live.',
+              'Allow RunningGround to use your location so your run route, distance, pace, and elevation can be tracked live.',
             locationAlwaysAndWhenInUsePermission:
-              'Allow RUNNIGAPP to keep tracking your running route, distance, and pace even when the app is in the background.',
+              'Allow RunningGround to keep tracking your running route, distance, and pace even when the app is in the background.',
             isIosBackgroundLocationEnabled: true,
             isAndroidBackgroundLocationEnabled: true,
             isAndroidForegroundServiceEnabled: true,
@@ -177,7 +177,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           'expo-sensors',
           {
             motionPermission:
-              'Allow RUNNIGAPP to read your motion data so cadence can be shown while you run.',
+              'Allow RunningGround to read your motion data so cadence can be shown while you run.',
           },
         ],
         './plugins/withHealthAccess',

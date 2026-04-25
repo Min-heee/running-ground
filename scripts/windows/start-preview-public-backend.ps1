@@ -19,8 +19,10 @@ $backendPort = 8081
 $placeholderUrl = 'https://preview-temp.invalid'
 $adminToken = 'preview-admin-' + [guid]::NewGuid().ToString('N')
 $nodePath = (Get-Command node -ErrorAction Stop).Source
-$backendTaskName = 'RunnigappPreviewBackend'
-$tunnelTaskName = 'RunnigappPreviewTunnel'
+$backendTaskName = 'RunningGroundPreviewBackend'
+$tunnelTaskName = 'RunningGroundPreviewTunnel'
+$legacyBackendTaskName = 'RunnigappPreviewBackend'
+$legacyTunnelTaskName = 'RunnigappPreviewTunnel'
 $backendRunnerPath = Join-Path $root 'scripts\windows\.generated-preview-backend.cmd'
 $tunnelRunnerPath = Join-Path $root 'scripts\windows\.generated-preview-tunnel.cmd'
 $previewPostgresStartScriptPath = Join-Path $PSScriptRoot 'start-preview-postgres.ps1'
@@ -97,7 +99,7 @@ function Write-BackendEnv([string]$publicUrl, [string]$token) {
     "BACKEND_POSTGRES_POOL_MAX=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_POOL_MAX')) { $existingEnv.BACKEND_POSTGRES_POOL_MAX } else { '10' })",
     "BACKEND_POSTGRES_IDLE_TIMEOUT_MS=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_IDLE_TIMEOUT_MS')) { $existingEnv.BACKEND_POSTGRES_IDLE_TIMEOUT_MS } else { '30000' })",
     "BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS')) { $existingEnv.BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS } else { '10000' })",
-    "BACKEND_POSTGRES_APPLICATION_NAME=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_APPLICATION_NAME')) { $existingEnv.BACKEND_POSTGRES_APPLICATION_NAME } else { 'runnigapp-backend-preview' })",
+    "BACKEND_POSTGRES_APPLICATION_NAME=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_APPLICATION_NAME')) { $existingEnv.BACKEND_POSTGRES_APPLICATION_NAME } else { 'runningground-backend-preview' })",
     "BACKEND_POSTGRES_ENABLE_SESSION_READS=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_ENABLE_SESSION_READS')) { $existingEnv.BACKEND_POSTGRES_ENABLE_SESSION_READS } else { 'false' })",
     "BACKEND_POSTGRES_ENABLE_RUN_READS=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_ENABLE_RUN_READS')) { $existingEnv.BACKEND_POSTGRES_ENABLE_RUN_READS } else { 'false' })",
     "BACKEND_POSTGRES_ENABLE_FRIEND_READS=$(if ($existingEnv.ContainsKey('BACKEND_POSTGRES_ENABLE_FRIEND_READS')) { $existingEnv.BACKEND_POSTGRES_ENABLE_FRIEND_READS } else { 'false' })",
@@ -193,7 +195,7 @@ function Get-BackendProcessId {
   }
 
   $process = Get-CimInstance Win32_Process -Filter "name = 'node.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -match 'server\.mjs' -and $_.CommandLine -match 'runnigapp' } |
+    Where-Object { $_.CommandLine -match 'server\.mjs' -and $_.CommandLine -match '(runningground|runnigapp)' } |
     Select-Object -First 1
 
   if ($process) {
@@ -312,6 +314,8 @@ function Stop-ExistingPreviewProcesses {
 
   Stop-ScheduledTaskSafe -taskName $backendTaskName
   Stop-ScheduledTaskSafe -taskName $tunnelTaskName
+  Stop-ScheduledTaskSafe -taskName $legacyBackendTaskName
+  Stop-ScheduledTaskSafe -taskName $legacyTunnelTaskName
 
   if ($previewInfo) {
     Stop-ProcessById -processId $previewInfo.backendPid -label 'preview backend'
@@ -447,6 +451,7 @@ function Start-RunnerDirectly([string]$runnerPath) {
 
 function Start-BackendProcess([string]$expectedPublicUrl, [switch]$UseDirectProcesses) {
   Stop-ScheduledTaskSafe -taskName $backendTaskName
+  Stop-ScheduledTaskSafe -taskName $legacyBackendTaskName
   Stop-PortListener -port $backendPort
   Remove-Item $backendOutLog, $backendErrLog -ErrorAction SilentlyContinue
 
@@ -463,6 +468,7 @@ function Start-BackendProcess([string]$expectedPublicUrl, [switch]$UseDirectProc
 
 function Start-QuickTunnelProcess([switch]$UseDirectProcesses) {
   Stop-ScheduledTaskSafe -taskName $tunnelTaskName
+  Stop-ScheduledTaskSafe -taskName $legacyTunnelTaskName
   Remove-Item $tunnelOutLog, $tunnelErrLog -ErrorAction SilentlyContinue
   Write-QuickTunnelRunnerScript
 

@@ -105,7 +105,7 @@ function formatMockTimestamp(date = new Date()) {
 }
 
 function isExclusiveIntegrationSourceType(sourceType: RunSourceType) {
-  return sourceType !== 'manual' && sourceType !== 'runnigapp';
+  return sourceType !== 'manual' && sourceType !== 'runningground';
 }
 
 function buildMockMarketOverview(): MarketOverview {
@@ -625,8 +625,8 @@ export async function createTrackedRun(input: CreateTrackedRunInput): Promise<Cr
         date: input.date,
         distanceKm,
         pace: input.pace,
-        source: 'RUNNIGAPP',
-        sourceType: 'runnigapp',
+        source: 'RunningGround',
+        sourceType: 'runningground',
         durationSeconds: input.durationSeconds,
         cadenceSpm: input.cadenceSpm ?? null,
         elevationGainM: input.elevationGainM ?? null,

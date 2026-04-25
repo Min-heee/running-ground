@@ -10,7 +10,7 @@ const {
 const fs = require('fs');
 const path = require('path');
 
-const PLUGIN_NAME = 'with-runnigapp-health-access';
+const PLUGIN_NAME = 'with-runningground-health-access';
 const PLUGIN_VERSION = '1.0.0';
 const HEALTH_CONNECT_PACKAGE = 'com.google.android.apps.healthdata';
 const IOS_APPLE_HEALTH_MODULE_FILENAME = 'RunnigappAppleHealth.m';
@@ -175,10 +175,10 @@ function withIosHealthInfoPlist(config) {
   return withInfoPlist(config, (nextConfig) => {
     nextConfig.modResults.NSHealthShareUsageDescription =
       nextConfig.modResults.NSHealthShareUsageDescription
-      || 'Allow RUNNIGAPP to read your Apple Health running records so they can appear in your activity and rankings.';
+      || 'Allow RunningGround to read your Apple Health running records so they can appear in your activity and rankings.';
     nextConfig.modResults.NSHealthUpdateUsageDescription =
       nextConfig.modResults.NSHealthUpdateUsageDescription
-      || 'Allow RUNNIGAPP to save synced running records and challenge progress updates to Apple Health when you choose to keep them in sync.';
+      || 'Allow RunningGround to save synced running records and challenge progress updates to Apple Health when you choose to keep them in sync.';
 
     return nextConfig;
   });

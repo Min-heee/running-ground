@@ -1,4 +1,4 @@
-# runnigapp release MVP plan
+# RunningGround release MVP plan
 
 ## Why we are changing direction
 The current app has enough surface area to validate the product concept, but it is still mostly a UX prototype backed by mock data.
