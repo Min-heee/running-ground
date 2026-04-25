@@ -48,6 +48,7 @@ import {
 type TrackerStatus = 'idle' | 'running' | 'paused' | 'saving';
 type TrackRunMode = 'tab' | 'stack';
 type ExternalMapProvider = 'kakao' | 'naver';
+type RunMatchMode = 'solo' | 'duel' | 'group';
 type ConfirmedStartLocation = {
   query: string;
   label: string;
@@ -214,6 +215,10 @@ function buildLiveShareFallbackLabel(location?: ConfirmedStartLocation | null) {
   return `${location.label} 근처`;
 }
 
+function formatMatchTargetDistance(distanceKm: number) {
+  return `${Number(distanceKm.toFixed(1))}km`;
+}
+
 export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const pedometerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -245,6 +250,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [plannerExpanded, setPlannerExpanded] = useState(false);
   const [liveShareEnabled, setLiveShareEnabled] = useState(false);
   const [liveShareLabel, setLiveShareLabel] = useState<string | null>(null);
+  const [matchMode, setMatchMode] = useState<RunMatchMode>('duel');
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const routeCoordinates = useMemo(
@@ -257,7 +263,47 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     () => getMapRegion(plannedCoordinates.length ? [...plannedCoordinates, ...routeCoordinates] : routeCoordinates),
     [plannedCoordinates, routeCoordinates],
   );
+  const matchTargetDistanceKm = useMemo(
+    () => suggestedRoute?.requestedDistanceKm ?? parseDesiredDistanceKm(desiredDistanceText),
+    [desiredDistanceText, suggestedRoute],
+  );
+  const matchOptions = useMemo(
+    () => [
+      {
+        mode: 'solo' as const,
+        label: '혼자',
+        title: '혼자 러닝',
+        summary: '기록에만 집중하는 기본 러닝 모드예요.',
+        meta: '지금 페이스와 거리 흐름에만 집중',
+        startLabel: '바로 런닝 시작',
+        liveTitle: '개인 러닝 진행 중',
+        liveText: '내 페이스와 현재 리듬을 지켜가는 데 집중하기 좋아요.',
+      },
+      {
+        mode: 'duel' as const,
+        label: '1대1',
+        title: '1대1 매치',
+        summary: '비슷한 목표 러너 한 명과 바로 붙는 대결 모드예요.',
+        meta: `${formatMatchTargetDistance(matchTargetDistanceKm)} 기준 · 시간과 페이스 비교`,
+        startLabel: '1대1 매치로 시작',
+        liveTitle: '1대1 매치 진행 중',
+        liveText: '완주 시간과 평균 페이스를 중심으로 오늘 결과를 비교하기 좋은 모드예요.',
+      },
+      {
+        mode: 'group' as const,
+        label: '그룹',
+        title: '그룹 대결',
+        summary: '4명 안팎 러너와 순위표를 보는 그룹전 모드예요.',
+        meta: `${formatMatchTargetDistance(matchTargetDistanceKm)} 기준 · 누적 거리와 페이스 순위`,
+        startLabel: '그룹 대결로 시작',
+        liveTitle: '그룹 대결 진행 중',
+        liveText: '중간에 흔들리지 않고 꾸준히 밀어붙일 때 더 재미있는 모드예요.',
+      },
+    ],
+    [matchTargetDistanceKm],
+  );
   const latestPoint = route.length ? route[route.length - 1] : null;
+  const selectedMatch = matchOptions.find((option) => option.mode === matchMode) ?? matchOptions[0];
   const isRunning = status === 'running';
   const isPaused = status === 'paused';
   const isSaving = status === 'saving';
@@ -908,7 +954,49 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                 </View>
               </Pressable>
             </View>
-            <PrimaryButton label="바로 런닝 시작" onPress={handleStartTracking} />
+            <View style={styles.matchCard}>
+              <View style={styles.matchHeader}>
+                <View style={styles.matchHeaderCopy}>
+                  <Text style={styles.matchTitle}>경쟁 매칭</Text>
+                  <Text style={styles.matchDescription}>혼자 뛰기 아쉬운 날엔 바로 매칭 모드를 고르고 시작할 수 있어요.</Text>
+                </View>
+                <View style={styles.matchBadge}>
+                  <Text style={styles.matchBadgeText}>{selectedMatch.label}</Text>
+                </View>
+              </View>
+              <View style={styles.matchOptionRow}>
+                {matchOptions.map((option) => {
+                  const isSelected = option.mode === matchMode;
+
+                  return (
+                    <Pressable
+                      key={option.mode}
+                      style={[styles.matchOption, isSelected ? styles.matchOptionSelected : styles.matchOptionIdle]}
+                      onPress={() => setMatchMode(option.mode)}
+                    >
+                      <Text style={[styles.matchOptionLabel, isSelected ? styles.matchOptionLabelSelected : undefined]}>
+                        {option.label}
+                      </Text>
+                      <Text style={[styles.matchOptionTitle, isSelected ? styles.matchOptionTitleSelected : undefined]}>
+                        {option.title}
+                      </Text>
+                      <Text style={[styles.matchOptionSummary, isSelected ? styles.matchOptionSummarySelected : undefined]}>
+                        {option.summary}
+                      </Text>
+                      <Text style={[styles.matchOptionMeta, isSelected ? styles.matchOptionMetaSelected : undefined]}>
+                        {option.meta}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={styles.matchSummaryCard}>
+                <Text style={styles.matchSummaryTitle}>{selectedMatch.title}</Text>
+                <Text style={styles.matchSummaryText}>{selectedMatch.summary}</Text>
+                <Text style={styles.matchSummaryMeta}>{selectedMatch.meta}</Text>
+              </View>
+            </View>
+            <PrimaryButton label={selectedMatch.startLabel} onPress={handleStartTracking} />
           </Card>
 
           <Card style={styles.plannerCard}>
@@ -1089,6 +1177,13 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                 </View>
               )}
             </View>
+            {matchMode !== 'solo' ? (
+              <View style={styles.liveMatchCard}>
+                <Text style={styles.liveMatchEyebrow}>MATCH MODE</Text>
+                <Text style={styles.liveMatchTitle}>{selectedMatch.liveTitle}</Text>
+                <Text style={styles.liveMatchText}>{selectedMatch.liveText}</Text>
+              </View>
+            ) : null}
           </Card>
 
           <View style={styles.metricGrid}>
@@ -1289,6 +1384,113 @@ const styles = StyleSheet.create({
   liveShareToggleTextInactiveLight: {
     color: '#475467',
   },
+  matchCard: {
+    gap: 12,
+    padding: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#1F2937',
+  },
+  matchHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  matchHeaderCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  matchTitle: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  matchDescription: {
+    color: '#D0D5DD',
+    lineHeight: 19,
+  },
+  matchBadge: {
+    borderRadius: 999,
+    backgroundColor: '#312E81',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  matchBadgeText: {
+    color: '#E0E7FF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  matchOptionRow: {
+    gap: 10,
+  },
+  matchOption: {
+    gap: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 14,
+  },
+  matchOptionIdle: {
+    borderColor: '#374151',
+    backgroundColor: '#111827',
+  },
+  matchOptionSelected: {
+    borderColor: '#818CF8',
+    backgroundColor: '#1E1B4B',
+  },
+  matchOptionLabel: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  matchOptionLabelSelected: {
+    color: '#E0E7FF',
+  },
+  matchOptionTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  matchOptionTitleSelected: {
+    color: '#FFFFFF',
+  },
+  matchOptionSummary: {
+    color: '#D0D5DD',
+    lineHeight: 19,
+  },
+  matchOptionSummarySelected: {
+    color: '#E5E7EB',
+  },
+  matchOptionMeta: {
+    color: '#98A2B3',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  matchOptionMetaSelected: {
+    color: '#C7D2FE',
+  },
+  matchSummaryCard: {
+    gap: 6,
+    borderRadius: 18,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#374151',
+    padding: 14,
+  },
+  matchSummaryTitle: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  matchSummaryText: {
+    color: '#D0D5DD',
+    lineHeight: 19,
+  },
+  matchSummaryMeta: {
+    color: '#98A2B3',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   plannerCard: {
     gap: 16,
     borderWidth: 1,
@@ -1487,6 +1689,29 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: '#E5E7EB',
+  },
+  liveMatchCard: {
+    gap: 5,
+    padding: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#1F2937',
+  },
+  liveMatchEyebrow: {
+    color: '#C7D2FE',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  liveMatchTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  liveMatchText: {
+    color: '#D0D5DD',
+    lineHeight: 20,
   },
   mapEmptyState: {
     flex: 1,
