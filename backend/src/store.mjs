@@ -48,6 +48,30 @@ function migrateIntegrationStore(store) {
   return false;
 }
 
+function migrateMatchQueueStore(store) {
+  let changed = false;
+
+  if (!store.matchQueues || typeof store.matchQueues !== 'object') {
+    store.matchQueues = {
+      duel: [],
+      group: [],
+    };
+    changed = true;
+  }
+
+  if (!Array.isArray(store.matchQueues.duel)) {
+    store.matchQueues.duel = [];
+    changed = true;
+  }
+
+  if (!Array.isArray(store.matchQueues.group)) {
+    store.matchQueues.group = [];
+    changed = true;
+  }
+
+  return changed;
+}
+
 function migrateAdminStore(store) {
   let changed = false;
 
@@ -133,8 +157,8 @@ function migrateAdminStore(store) {
     }
   }
 
-  if (store.version !== 3) {
-    store.version = 3;
+  if (store.version !== 4) {
+    store.version = 4;
     changed = true;
   }
 
@@ -316,6 +340,7 @@ export function loadStore() {
       migrateAuthStore(cachedStore, { sessionTtlMs: SESSION_TTL_MS, now: new Date() }),
       migrateProfileStore(cachedStore),
       migrateIntegrationStore(cachedStore),
+      migrateMatchQueueStore(cachedStore),
       migrateAdminStore(cachedStore),
     ].some(Boolean);
 
@@ -332,6 +357,7 @@ export function saveStore(nextStore) {
   migrateAuthStore(cachedStore, { sessionTtlMs: SESSION_TTL_MS, now: new Date() });
   migrateProfileStore(cachedStore);
   migrateIntegrationStore(cachedStore);
+  migrateMatchQueueStore(cachedStore);
   migrateAdminStore(cachedStore);
   cachedStore.regionTree = createRegionTree(cachedStore);
   ensureStoreFile();

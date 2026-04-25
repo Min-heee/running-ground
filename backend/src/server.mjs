@@ -65,6 +65,11 @@ const DEFAULT_OFFLINE_RACE_GUIDE_STEPS = [
   '실제 운영 일정이 준비되면 시간대와 거리 선택이 함께 열릴 예정이에요.',
 ];
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{3,19}$/;
+const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.2];
+const DUEL_MIN_COMPATIBILITY_SCORE = 72;
+const GROUP_MIN_COMPATIBILITY_SCORE = 68;
+const GROUP_MIN_PARTICIPANTS = 4;
+const MATCH_QUEUE_ENTRY_TTL_MS = 2 * 60 * 60 * 1000;
 
 class ApiError extends Error {
   constructor(statusCode, message) {
@@ -664,129 +669,147 @@ function buildMatchRunnerProfile(store, user) {
   };
 }
 
-function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
-  const currentRunner = buildMatchRunnerProfile(store, currentUser);
-  const candidates = store.users
-    .filter((user) => user.id !== currentUser.id)
-    .map((user) => buildMatchRunnerProfile(store, user))
-    .filter((candidate) => candidate.latestDistanceKm > 0);
+function calculateMatchCompatibilityScore(currentRunner, candidate, distanceKm, mode) {
+  const paceGapSeconds = Math.abs(candidate.averagePaceMinutes - currentRunner.averagePaceMinutes) * 60;
+  const levelGap = Math.abs(candidate.distanceLevel - currentRunner.distanceLevel);
+  const distanceGap = Math.abs(candidate.latestDistanceKm - distanceKm);
+  const weeklyGap = Math.abs(candidate.weeklyDistanceKm - currentRunner.weeklyDistanceKm);
+  const penalty = paceGapSeconds * (mode === 'duel' ? 0.22 : 0.16)
+    + levelGap * (mode === 'duel' ? 8 : 6.5)
+    + distanceGap * (mode === 'duel' ? 2.8 : 2.2)
+    + weeklyGap * (mode === 'duel' ? 0.8 : 0.55);
 
-  const slotLabel = formatDuelSlotLabel(slotStartAt);
-  const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
-  const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
-
-  if (!candidates.length) {
-    return {
-      success: true,
-      matched: false,
-      requestId: nextId('duel-request'),
-      distanceKm,
-      slotStartAt,
-      slotLabel,
-      paceBandLabel,
-      levelBandLabel,
-      criteriaSummary: '같은 시간대 대기 러너가 아직 없어 비슷한 조건의 상대를 찾는 중이에요.',
-      estimatedWaitMinutes: 15,
-    };
-  }
-
-  const opponent = [...candidates]
-    .sort((left, right) => {
-      const leftScore = Math.abs(left.averagePaceMinutes - currentRunner.averagePaceMinutes) * 600
-        + Math.abs(left.distanceLevel - currentRunner.distanceLevel) * 55
-        + Math.abs(left.latestDistanceKm - distanceKm) * 24
-        + Math.abs(left.weeklyDistanceKm - currentRunner.weeklyDistanceKm) * 8;
-      const rightScore = Math.abs(right.averagePaceMinutes - currentRunner.averagePaceMinutes) * 600
-        + Math.abs(right.distanceLevel - currentRunner.distanceLevel) * 55
-        + Math.abs(right.latestDistanceKm - distanceKm) * 24
-        + Math.abs(right.weeklyDistanceKm - currentRunner.weeklyDistanceKm) * 8;
-
-      return leftScore - rightScore;
-    })[0];
-
-  return {
-    success: true,
-    matched: true,
-    requestId: nextId('duel-request'),
-    distanceKm,
-    slotStartAt,
-    slotLabel,
-    paceBandLabel,
-    levelBandLabel,
-    criteriaSummary: '최근 평균 페이스와 누적 거리 레벨이 비슷한 러너를 우선으로 붙였어요.',
-    estimatedWaitMinutes: 0,
-    opponent: {
-      id: opponent.id,
-      name: opponent.name,
-      tag: opponent.tag,
-      districtName: opponent.districtName,
-      averagePace: opponent.averagePace,
-      levelLabel: opponent.levelLabel,
-      weeklyDistanceKm: opponent.weeklyDistanceKm,
-      lifetimeDistanceKm: opponent.lifetimeDistanceKm,
-      compatibilitySummary: `${opponent.averagePace} 페이스 · ${opponent.levelLabel} · 이번 주 ${opponent.weeklyDistanceKm.toFixed(1)}km`,
-    },
-  };
+  return Math.max(0, Math.min(100, Number((100 - penalty).toFixed(1))));
 }
 
-function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
-  const maxGroupSize = 30;
-  const currentRunner = buildMatchRunnerProfile(store, currentUser);
-  const candidates = store.users
-    .filter((user) => user.id !== currentUser.id)
-    .map((user) => buildMatchRunnerProfile(store, user))
-    .filter((candidate) => candidate.latestDistanceKm > 0);
+function isRecommendedMatchDistance(distanceKm) {
+  return RECOMMENDED_MATCH_DISTANCES.some((recommendedDistanceKm) => Math.abs(recommendedDistanceKm - distanceKm) < 0.15);
+}
 
-  const slotLabel = formatDuelSlotLabel(slotStartAt);
-  const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
-  const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
+function findNearestRecommendedDistance(distanceKm) {
+  return RECOMMENDED_MATCH_DISTANCES.reduce((closestDistanceKm, candidateDistanceKm) => (
+    Math.abs(candidateDistanceKm - distanceKm) < Math.abs(closestDistanceKm - distanceKm)
+      ? candidateDistanceKm
+      : closestDistanceKm
+  ));
+}
 
-  if (!candidates.length) {
-    return {
-      success: true,
-      matched: false,
-      requestId: nextId('group-request'),
-      distanceKm,
-      slotStartAt,
-      slotLabel,
-      paceBandLabel,
-      levelBandLabel,
-      criteriaSummary: '아직 같은 시간대 그룹에 모인 러너가 적어 조금 더 비슷한 러너를 기다리는 중이에요.',
-      estimatedWaitMinutes: 15,
-      maxGroupSize,
-      participantsCount: 1,
-      mySeedRank: 1,
-      participants: [
-        {
-          id: currentRunner.id,
-          name: currentRunner.name,
-          tag: currentRunner.tag,
-          districtName: currentRunner.districtName,
-          averagePace: currentRunner.averagePace,
-          levelLabel: currentRunner.levelLabel,
-          weeklyDistanceKm: currentRunner.weeklyDistanceKm,
-          lifetimeDistanceKm: currentRunner.lifetimeDistanceKm,
-          seedRank: 1,
-          seedSummary: '첫 대기 러너',
-        },
-      ],
+function buildDistanceRecommendationHint(distanceKm) {
+  if (isRecommendedMatchDistance(distanceKm)) {
+    return '';
+  }
+
+  return `추천 거리 ${findNearestRecommendedDistance(distanceKm)}km로 바꾸면 더 빨리 비슷한 러너가 모일 수 있어요.`;
+}
+
+function normalizeMatchQueueDistance(distanceKm) {
+  return Number(distanceKm.toFixed(1));
+}
+
+function ensureMatchQueues(store) {
+  if (!store.matchQueues || typeof store.matchQueues !== 'object') {
+    store.matchQueues = {
+      duel: [],
+      group: [],
     };
   }
 
-  const participants = [currentRunner, ...[...candidates]
-    .sort((left, right) => {
-      const leftScore = Math.abs(left.averagePaceMinutes - currentRunner.averagePaceMinutes) * 520
-        + Math.abs(left.distanceLevel - currentRunner.distanceLevel) * 48
-        + Math.abs(left.latestDistanceKm - distanceKm) * 20
-        + Math.abs(left.weeklyDistanceKm - currentRunner.weeklyDistanceKm) * 6;
-      const rightScore = Math.abs(right.averagePaceMinutes - currentRunner.averagePaceMinutes) * 520
-        + Math.abs(right.distanceLevel - currentRunner.distanceLevel) * 48
-        + Math.abs(right.latestDistanceKm - distanceKm) * 20
-        + Math.abs(right.weeklyDistanceKm - currentRunner.weeklyDistanceKm) * 6;
+  if (!Array.isArray(store.matchQueues.duel)) {
+    store.matchQueues.duel = [];
+  }
 
-      return leftScore - rightScore;
-    })
-    .slice(0, maxGroupSize - 1)]
+  if (!Array.isArray(store.matchQueues.group)) {
+    store.matchQueues.group = [];
+  }
+
+  return store.matchQueues;
+}
+
+function pruneMatchQueues(store, now = new Date()) {
+  const queues = ensureMatchQueues(store);
+  const nowMs = now.getTime();
+  const activeUserIds = new Set(store.users.map((user) => user.id));
+
+  for (const mode of ['duel', 'group']) {
+    queues[mode] = queues[mode].filter((entry) => {
+      if (!entry || !activeUserIds.has(entry.userId)) {
+        return false;
+      }
+
+      const requestedAtMs = new Date(entry.requestedAt).getTime();
+      const slotStartAtMs = new Date(entry.slotStartAt).getTime();
+
+      if (!Number.isFinite(requestedAtMs) || !Number.isFinite(slotStartAtMs)) {
+        return false;
+      }
+
+      if (requestedAtMs + MATCH_QUEUE_ENTRY_TTL_MS <= nowMs) {
+        return false;
+      }
+
+      return slotStartAtMs + 30 * 60 * 1000 > nowMs;
+    });
+  }
+
+  return queues;
+}
+
+function upsertMatchQueueEntry(store, mode, userId, distanceKm, slotStartAt) {
+  const queues = pruneMatchQueues(store);
+  const normalizedDistanceKm = normalizeMatchQueueDistance(distanceKm);
+  queues[mode] = queues[mode].filter((entry) => entry.userId !== userId);
+  const queueEntry = {
+    id: nextId(`${mode}-queue`),
+    userId,
+    distanceKm: normalizedDistanceKm,
+    slotStartAt,
+    requestedAt: new Date().toISOString(),
+  };
+  queues[mode].push(queueEntry);
+  return queueEntry;
+}
+
+function removeUsersFromMatchQueue(store, mode, userIds) {
+  if (!userIds.length) {
+    return;
+  }
+
+  const queues = ensureMatchQueues(store);
+  const blockedUserIds = new Set(userIds);
+  queues[mode] = queues[mode].filter((entry) => !blockedUserIds.has(entry.userId));
+}
+
+function getMatchQueueEntries(store, mode, distanceKm, slotStartAt) {
+  const normalizedDistanceKm = normalizeMatchQueueDistance(distanceKm);
+  const queues = pruneMatchQueues(store);
+
+  return queues[mode].filter((entry) => (
+    entry.slotStartAt === slotStartAt && Math.abs(entry.distanceKm - normalizedDistanceKm) < 0.15
+  ));
+}
+
+function buildQueuedMatchRunnerEntries(store, mode, currentRunner, { distanceKm, slotStartAt, includeCurrentUser = false }) {
+  const queueEntries = getMatchQueueEntries(store, mode, distanceKm, slotStartAt)
+    .filter((entry) => includeCurrentUser || entry.userId !== currentRunner.id);
+
+  return queueEntries.map((queueEntry) => {
+    const user = findUserById(store, queueEntry.userId);
+    const runner = buildMatchRunnerProfile(store, user);
+    const score = runner.id === currentRunner.id
+      ? 100
+      : calculateMatchCompatibilityScore(currentRunner, runner, distanceKm, mode);
+
+    return {
+      queueEntry,
+      runner,
+      score,
+    };
+  });
+}
+
+function buildQueuedParticipants(entries) {
+  return entries
+    .map((entry) => entry.runner)
     .sort((left, right) => {
       const leftSeed = left.averagePaceMinutes * 60 * 0.7 - left.weeklyDistanceKm * 1.8 - left.lifetimeDistanceKm * 0.03;
       const rightSeed = right.averagePaceMinutes * 60 * 0.7 - right.weeklyDistanceKm * 1.8 - right.lifetimeDistanceKm * 0.03;
@@ -804,6 +827,128 @@ function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt }
       seedRank: index + 1,
       seedSummary: `${index + 1}번 시드 · 이번 주 ${participant.weeklyDistanceKm.toFixed(1)}km`,
     }));
+}
+
+function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
+  const currentRunner = buildMatchRunnerProfile(store, currentUser);
+  const slotLabel = formatDuelSlotLabel(slotStartAt);
+  const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
+  const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
+  const distanceRecommendationHint = buildDistanceRecommendationHint(distanceKm);
+
+  upsertMatchQueueEntry(store, 'duel', currentUser.id, distanceKm, slotStartAt);
+  const queuedEntries = buildQueuedMatchRunnerEntries(store, 'duel', currentRunner, {
+    distanceKm,
+    slotStartAt,
+  }).sort((left, right) => right.score - left.score);
+
+  if (!queuedEntries.length) {
+    return {
+      success: true,
+      matched: false,
+      requestId: nextId('duel-request'),
+      distanceKm,
+      slotStartAt,
+      slotLabel,
+      paceBandLabel,
+      levelBandLabel,
+      criteriaSummary: `같은 시간대 대기 러너가 아직 없어 먼저 대기열에 들어갔어요. 현재 신청 1/2명.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+      estimatedWaitMinutes: 15,
+    };
+  }
+
+  const bestCandidate = queuedEntries[0];
+
+  if (!bestCandidate || bestCandidate.score < DUEL_MIN_COMPATIBILITY_SCORE) {
+    return {
+      success: true,
+      matched: false,
+      requestId: nextId('duel-request'),
+      distanceKm,
+      slotStartAt,
+      slotLabel,
+      paceBandLabel,
+      levelBandLabel,
+      criteriaSummary: `현재 같은 조건 신청은 ${queuedEntries.length + 1}/2명이지만 아직 페이스나 레벨이 잘 맞지 않아요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+      estimatedWaitMinutes: 10,
+    };
+  }
+
+  removeUsersFromMatchQueue(store, 'duel', [currentUser.id, bestCandidate.runner.id]);
+
+  const opponent = bestCandidate.runner;
+  return {
+    success: true,
+    matched: true,
+    requestId: nextId('duel-request'),
+    distanceKm,
+    slotStartAt,
+    slotLabel,
+    paceBandLabel,
+    levelBandLabel,
+    criteriaSummary: '실제 신청 대기열에서 비슷한 페이스와 누적 거리 레벨 러너를 바로 붙였어요.',
+    estimatedWaitMinutes: 0,
+    opponent: {
+      id: opponent.id,
+      name: opponent.name,
+      tag: opponent.tag,
+      districtName: opponent.districtName,
+      averagePace: opponent.averagePace,
+      levelLabel: opponent.levelLabel,
+      weeklyDistanceKm: opponent.weeklyDistanceKm,
+      lifetimeDistanceKm: opponent.lifetimeDistanceKm,
+      compatibilitySummary: `${opponent.averagePace} 페이스 · ${opponent.levelLabel} · 이번 주 ${opponent.weeklyDistanceKm.toFixed(1)}km · 적합도 ${bestCandidate.score.toFixed(0)}점`,
+    },
+  };
+}
+
+function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
+  const maxGroupSize = 30;
+  const currentRunner = buildMatchRunnerProfile(store, currentUser);
+  const slotLabel = formatDuelSlotLabel(slotStartAt);
+  const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
+  const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
+  const distanceRecommendationHint = buildDistanceRecommendationHint(distanceKm);
+
+  upsertMatchQueueEntry(store, 'group', currentUser.id, distanceKm, slotStartAt);
+  const queuedEntries = buildQueuedMatchRunnerEntries(store, 'group', currentRunner, {
+    distanceKm,
+    slotStartAt,
+    includeCurrentUser: true,
+  }).sort((left, right) => {
+    if (right.score !== left.score) {
+      return right.score - left.score;
+    }
+
+    return new Date(left.queueEntry.requestedAt).getTime() - new Date(right.queueEntry.requestedAt).getTime();
+  });
+
+  const compatibleEntries = queuedEntries
+    .filter((entry) => entry.runner.id === currentRunner.id || entry.score >= GROUP_MIN_COMPATIBILITY_SCORE)
+    .slice(0, maxGroupSize);
+  const participants = buildQueuedParticipants(compatibleEntries);
+  const mySeedRank = participants.find((participant) => participant.id === currentRunner.id)?.seedRank ?? 1;
+
+  if (participants.length < GROUP_MIN_PARTICIPANTS) {
+    return {
+      success: true,
+      matched: false,
+      requestId: nextId('group-request'),
+      distanceKm,
+      slotStartAt,
+      slotLabel,
+      paceBandLabel,
+      levelBandLabel,
+      criteriaSummary: `현재 같은 조건으로 신청한 비슷한 러너는 ${participants.length}/${maxGroupSize}명이라 아직 그룹을 열지 않았어요. 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+      estimatedWaitMinutes: 10,
+      maxGroupSize,
+      participantsCount: participants.length,
+      mySeedRank,
+      participants,
+    };
+  }
+
+  removeUsersFromMatchQueue(store, 'group', participants.map((participant) => participant.id));
 
   return {
     success: true,
@@ -814,12 +959,54 @@ function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt }
     slotLabel,
     paceBandLabel,
     levelBandLabel,
-    criteriaSummary: '같은 거리와 시간대를 원하는 러너를 모아 비슷한 페이스/레벨 순으로 그룹을 만들었어요.',
+    criteriaSummary: '실제 신청 대기열에서 비슷한 러너를 모아 그룹 대결을 만들었어요.',
     estimatedWaitMinutes: 0,
     maxGroupSize,
     participantsCount: participants.length,
-    mySeedRank: participants.find((participant) => participant.id === currentRunner.id)?.seedRank ?? 1,
+    mySeedRank,
     participants,
+  };
+}
+
+function buildMatchDemandSummaryResponse(store, currentUser, { mode, distanceKm, slotStartAt }) {
+  const currentRunner = buildMatchRunnerProfile(store, currentUser);
+  const capacity = mode === 'duel' ? 2 : 30;
+  const competitiveThreshold = mode === 'duel' ? DUEL_MIN_COMPATIBILITY_SCORE : GROUP_MIN_COMPATIBILITY_SCORE;
+  const queuedEntries = buildQueuedMatchRunnerEntries(store, mode, currentRunner, {
+    distanceKm,
+    slotStartAt,
+    includeCurrentUser: true,
+  });
+  const queuedParticipants = queuedEntries.map((entry) => entry.runner);
+  const competitiveParticipantsCount = queuedEntries
+    .filter((entry) => entry.runner.id === currentRunner.id || entry.score >= competitiveThreshold)
+    .length;
+  const participantsCount = queuedEntries.length;
+  const averagePaceMinutes = queuedParticipants.length
+    ? queuedParticipants.reduce((sum, runner) => sum + runner.averagePaceMinutes, 0) / queuedParticipants.length
+    : null;
+  const distanceRecommendationHint = buildDistanceRecommendationHint(distanceKm);
+  const averagePace = averagePaceMinutes === null ? '신청 없음' : formatPaceMinutesLabel(averagePaceMinutes);
+
+  return {
+    success: true,
+    mode,
+    distanceKm,
+    slotStartAt,
+    slotLabel: formatDuelSlotLabel(slotStartAt),
+    averagePace,
+    participantsCount,
+    competitiveParticipantsCount,
+    capacity,
+    fillRatioLabel: `${participantsCount}/${capacity}`,
+    paceBandLabel: averagePaceMinutes === null ? '대기 없음' : buildPaceBandLabel(averagePaceMinutes),
+    summaryText: mode === 'duel'
+      ? participantsCount
+        ? `현재 실제 신청은 ${participantsCount}/${capacity}명이고, 바로 붙일 만한 러너는 ${competitiveParticipantsCount}/${capacity}명이에요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+        : `아직 이 시간대 신청이 없어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+      : participantsCount
+        ? `현재 실제 신청은 ${participantsCount}/${capacity}명이고, 비슷한 러너는 ${competitiveParticipantsCount}/${capacity}명이에요.${competitiveParticipantsCount < GROUP_MIN_PARTICIPANTS ? ` 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.` : ''}${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+        : `아직 이 시간대 신청이 없어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
   };
 }
 
@@ -2137,6 +2324,16 @@ function validateHalfHourSlotStartAt(value) {
   return slotDate.toISOString();
 }
 
+function validateMatchMode(value) {
+  const mode = validateRequiredString(value, '매칭 모드를 선택해줘.');
+
+  if (mode !== 'duel' && mode !== 'group') {
+    throw new ApiError(400, '매칭 모드 값이 올바르지 않아.');
+  }
+
+  return mode;
+}
+
 function validatePace(value, message) {
   const pace = validateRequiredString(value, message);
 
@@ -2707,11 +2904,14 @@ async function handlePatchMyLiveSharing(request, response) {
 
 async function handleRequestDuelMatch(request, response) {
   const body = await parseJsonBody(request);
-  const store = loadStore();
-  const currentUser = requireUser(store, request);
-  const payload = buildDuelMatchResponse(store, currentUser, {
-    distanceKm: validateDuelMatchDistanceKm(body.distanceKm),
-    slotStartAt: validateHalfHourSlotStartAt(body.slotStartAt),
+  const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
+  const slotStartAt = validateHalfHourSlotStartAt(body.slotStartAt);
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return buildDuelMatchResponse(store, currentUser, {
+      distanceKm,
+      slotStartAt,
+    });
   });
 
   sendJson(response, 200, payload);
@@ -2719,9 +2919,25 @@ async function handleRequestDuelMatch(request, response) {
 
 async function handleRequestGroupMatch(request, response) {
   const body = await parseJsonBody(request);
+  const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
+  const slotStartAt = validateHalfHourSlotStartAt(body.slotStartAt);
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return buildGroupMatchResponse(store, currentUser, {
+      distanceKm,
+      slotStartAt,
+    });
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleFetchMatchDemandSummary(request, response) {
+  const body = await parseJsonBody(request);
   const store = loadStore();
   const currentUser = requireUser(store, request);
-  const payload = buildGroupMatchResponse(store, currentUser, {
+  const payload = buildMatchDemandSummaryResponse(store, currentUser, {
+    mode: validateMatchMode(body.mode),
     distanceKm: validateDuelMatchDistanceKm(body.distanceKm),
     slotStartAt: validateHalfHourSlotStartAt(body.slotStartAt),
   });
@@ -3092,6 +3308,11 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/running/matches/group' && request.method === 'POST') {
     await handleRequestGroupMatch(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/matches/summary' && request.method === 'POST') {
+    await handleFetchMatchDemandSummary(request, response);
     return;
   }
 

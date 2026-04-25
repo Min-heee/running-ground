@@ -20,8 +20,8 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RunRoutePoint } from '@/domain/types';
-import { createTrackedRun, requestDuelMatch, requestGroupMatch, updateRunningLiveShare } from '@/lib/api/services';
-import { type RequestDuelMatchResponse, type RequestGroupMatchResponse } from '@/lib/api/types';
+import { createTrackedRun, fetchMatchDemandSummary, requestDuelMatch, requestGroupMatch, updateRunningLiveShare } from '@/lib/api/services';
+import { type MatchDemandSummaryResponse, type RequestDuelMatchResponse, type RequestGroupMatchResponse } from '@/lib/api/types';
 import { buildSuggestedArtRoute, type SuggestedArtRoute } from '@/features/runs/routeArt';
 import { RunRouteMap } from '@/features/runs/RunRouteMap';
 import {
@@ -66,6 +66,14 @@ type GroupLiveStanding = RequestGroupMatchResponse['participants'][number] & {
   gapLeaderKm: number;
   isCurrentUser: boolean;
 };
+type MatchSlotOption = ReturnType<typeof buildUpcomingHalfHourSlots>[number];
+type MatchExpansionSuggestion = {
+  slotStartAt: string;
+  slotLabel: string;
+  directionLabel: string;
+  summary: MatchDemandSummaryResponse;
+};
+const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.2];
 
 function buildRoutePoint(location: Location.LocationObject): RunRoutePoint {
   return {
@@ -241,6 +249,71 @@ function parseDuelMatchDistanceKm(value: string) {
   return clampDuelMatchDistanceKm(parsedValue);
 }
 
+function isRecommendedMatchDistance(distanceKm: number) {
+  return RECOMMENDED_MATCH_DISTANCES.some((recommendedDistanceKm) => Math.abs(recommendedDistanceKm - distanceKm) < 0.15);
+}
+
+function findNearestRecommendedDistance(distanceKm: number) {
+  return RECOMMENDED_MATCH_DISTANCES.reduce((closestDistanceKm, candidateDistanceKm) => (
+    Math.abs(candidateDistanceKm - distanceKm) < Math.abs(closestDistanceKm - distanceKm)
+      ? candidateDistanceKm
+      : closestDistanceKm
+  ));
+}
+
+function shouldSuggestExpandedSlot(mode: 'duel' | 'group', currentSummary: MatchDemandSummaryResponse, candidateSummary: MatchDemandSummaryResponse) {
+  if (candidateSummary.competitiveParticipantsCount <= currentSummary.competitiveParticipantsCount) {
+    return false;
+  }
+
+  if (mode === 'duel') {
+    return currentSummary.competitiveParticipantsCount < currentSummary.capacity;
+  }
+
+  return currentSummary.competitiveParticipantsCount < 4;
+}
+
+function buildMatchExpansionSuggestion(
+  mode: 'duel' | 'group',
+  currentSummary: MatchDemandSummaryResponse,
+  slotOptions: MatchSlotOption[],
+  selectedSlotStartAt: string,
+  nearbySummaries: MatchDemandSummaryResponse[],
+): MatchExpansionSuggestion | null {
+  const currentIndex = slotOptions.findIndex((slot) => slot.startsAt === selectedSlotStartAt);
+
+  if (currentIndex < 0) {
+    return null;
+  }
+
+  const candidates = nearbySummaries
+    .map((summary) => {
+      const slotIndex = slotOptions.findIndex((slot) => slot.startsAt === summary.slotStartAt);
+
+      if (slotIndex < 0 || !shouldSuggestExpandedSlot(mode, currentSummary, summary)) {
+        return null;
+      }
+
+      return {
+        slotStartAt: summary.slotStartAt,
+        slotLabel: summary.slotLabel,
+        directionLabel: slotIndex < currentIndex ? '30분 앞' : '30분 뒤',
+        summary,
+      };
+    })
+    .filter((entry): entry is MatchExpansionSuggestion => Boolean(entry))
+    .sort((left, right) => {
+      if (right.summary.participantsCount !== left.summary.participantsCount) {
+        return right.summary.participantsCount - left.summary.participantsCount;
+      }
+
+      return Math.abs(new Date(left.slotStartAt).getTime() - new Date(selectedSlotStartAt).getTime())
+        - Math.abs(new Date(right.slotStartAt).getTime() - new Date(selectedSlotStartAt).getTime());
+    });
+
+  return candidates[0] ?? null;
+}
+
 function buildUpcomingHalfHourSlots(count = 6, referenceDate = new Date()) {
   const nextSlot = new Date(referenceDate);
   nextSlot.setSeconds(0, 0);
@@ -366,10 +439,16 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [selectedDuelSlotStartAt, setSelectedDuelSlotStartAt] = useState(() => buildUpcomingHalfHourSlots()[0]?.startsAt ?? new Date().toISOString());
   const [isRequestingDuelMatch, setIsRequestingDuelMatch] = useState(false);
   const [duelMatchResult, setDuelMatchResult] = useState<RequestDuelMatchResponse | null>(null);
+  const [duelDemandSummary, setDuelDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
+  const [isLoadingDuelDemandSummary, setIsLoadingDuelDemandSummary] = useState(false);
+  const [duelExpansionSuggestion, setDuelExpansionSuggestion] = useState<MatchExpansionSuggestion | null>(null);
   const [groupDistanceText, setGroupDistanceText] = useState('5');
   const [selectedGroupSlotStartAt, setSelectedGroupSlotStartAt] = useState(() => buildUpcomingHalfHourSlots()[0]?.startsAt ?? new Date().toISOString());
   const [isRequestingGroupMatch, setIsRequestingGroupMatch] = useState(false);
   const [groupMatchResult, setGroupMatchResult] = useState<RequestGroupMatchResponse | null>(null);
+  const [groupDemandSummary, setGroupDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
+  const [isLoadingGroupDemandSummary, setIsLoadingGroupDemandSummary] = useState(false);
+  const [groupExpansionSuggestion, setGroupExpansionSuggestion] = useState<MatchExpansionSuggestion | null>(null);
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const routeCoordinates = useMemo(
@@ -475,12 +554,180 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   }, [liveShareLabel]);
 
   useEffect(() => {
-    setDuelMatchResult(null);
-  }, [duelDistanceKm, selectedDuelSlotStartAt, matchMode]);
+    if (matchMode !== 'duel') {
+      return;
+    }
+
+    setDuelMatchResult((current) => {
+      if (!current) {
+        return null;
+      }
+
+      const activeSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
+      return current.distanceKm === duelDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
+    });
+  }, [duelDistanceKm, matchMode, selectedDuelSlot, selectedDuelSlotStartAt]);
 
   useEffect(() => {
-    setGroupMatchResult(null);
-  }, [groupDistanceKm, selectedGroupSlotStartAt, matchMode]);
+    if (matchMode !== 'group') {
+      return;
+    }
+
+    setGroupMatchResult((current) => {
+      if (!current) {
+        return null;
+      }
+
+      const activeSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
+      return current.distanceKm === groupDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
+    });
+  }, [groupDistanceKm, matchMode, selectedGroupSlot, selectedGroupSlotStartAt]);
+
+  useEffect(() => {
+    if (matchMode !== 'duel') {
+      setDuelExpansionSuggestion(null);
+      return;
+    }
+
+    let canceled = false;
+    setIsLoadingDuelDemandSummary(true);
+
+    void fetchMatchDemandSummary({
+      mode: 'duel',
+      distanceKm: duelDistanceKm,
+      slotStartAt: selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt,
+    })
+      .then((payload) => {
+        if (!canceled) {
+          setDuelDemandSummary(payload);
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setDuelDemandSummary(null);
+        }
+      })
+      .finally(() => {
+        if (!canceled) {
+          setIsLoadingDuelDemandSummary(false);
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [matchMode, duelDistanceKm, selectedDuelSlot, selectedDuelSlotStartAt]);
+
+  useEffect(() => {
+    if (matchMode !== 'group') {
+      setGroupExpansionSuggestion(null);
+      return;
+    }
+
+    let canceled = false;
+    setIsLoadingGroupDemandSummary(true);
+
+    void fetchMatchDemandSummary({
+      mode: 'group',
+      distanceKm: groupDistanceKm,
+      slotStartAt: selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt,
+    })
+      .then((payload) => {
+        if (!canceled) {
+          setGroupDemandSummary(payload);
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setGroupDemandSummary(null);
+        }
+      })
+      .finally(() => {
+        if (!canceled) {
+          setIsLoadingGroupDemandSummary(false);
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [matchMode, groupDistanceKm, selectedGroupSlot, selectedGroupSlotStartAt]);
+
+  useEffect(() => {
+    if (matchMode !== 'duel' || !duelDemandSummary) {
+      setDuelExpansionSuggestion(null);
+      return;
+    }
+
+    const currentIndex = duelSlotOptions.findIndex((slot) => slot.startsAt === (selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt));
+    const nearbySlots = [duelSlotOptions[currentIndex - 1], duelSlotOptions[currentIndex + 1]].filter(Boolean);
+
+    if (!nearbySlots.length) {
+      setDuelExpansionSuggestion(null);
+      return;
+    }
+
+    let canceled = false;
+    void Promise.all(nearbySlots.map((slot) => fetchMatchDemandSummary({
+      mode: 'duel',
+      distanceKm: duelDistanceKm,
+      slotStartAt: slot.startsAt,
+    })))
+      .then((summaries) => {
+        if (!canceled) {
+          setDuelExpansionSuggestion(
+            buildMatchExpansionSuggestion('duel', duelDemandSummary, duelSlotOptions, selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt, summaries),
+          );
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setDuelExpansionSuggestion(null);
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [duelDemandSummary, duelDistanceKm, duelSlotOptions, matchMode, selectedDuelSlot, selectedDuelSlotStartAt]);
+
+  useEffect(() => {
+    if (matchMode !== 'group' || !groupDemandSummary) {
+      setGroupExpansionSuggestion(null);
+      return;
+    }
+
+    const currentIndex = groupSlotOptions.findIndex((slot) => slot.startsAt === (selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt));
+    const nearbySlots = [groupSlotOptions[currentIndex - 1], groupSlotOptions[currentIndex + 1]].filter(Boolean);
+
+    if (!nearbySlots.length) {
+      setGroupExpansionSuggestion(null);
+      return;
+    }
+
+    let canceled = false;
+    void Promise.all(nearbySlots.map((slot) => fetchMatchDemandSummary({
+      mode: 'group',
+      distanceKm: groupDistanceKm,
+      slotStartAt: slot.startsAt,
+    })))
+      .then((summaries) => {
+        if (!canceled) {
+          setGroupExpansionSuggestion(
+            buildMatchExpansionSuggestion('group', groupDemandSummary, groupSlotOptions, selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt, summaries),
+          );
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setGroupExpansionSuggestion(null);
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [groupDemandSummary, groupDistanceKm, groupSlotOptions, matchMode, selectedGroupSlot, selectedGroupSlotStartAt]);
 
   const syncElapsedSeconds = (nextElapsedSeconds: number) => {
     elapsedSecondsRef.current = nextElapsedSeconds;
@@ -894,17 +1141,23 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     }
   };
 
-  const handleRequestDuelMatch = async () => {
+  const handleRequestDuelMatch = async (slotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt) => {
     try {
       setError(null);
       setIsRequestingDuelMatch(true);
 
       const payload = await requestDuelMatch({
         distanceKm: duelDistanceKm,
-        slotStartAt: selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt,
+        slotStartAt,
       });
 
       setDuelMatchResult(payload);
+      const nextSummary = await fetchMatchDemandSummary({
+        mode: 'duel',
+        distanceKm: duelDistanceKm,
+        slotStartAt,
+      });
+      setDuelDemandSummary(nextSummary);
     } catch (matchError) {
       setError(matchError instanceof Error ? matchError.message : '1대1 매칭을 찾지 못했어.');
     } finally {
@@ -912,22 +1165,46 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     }
   };
 
-  const handleRequestGroupMatch = async () => {
+  const handleRequestGroupMatch = async (slotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt) => {
     try {
       setError(null);
       setIsRequestingGroupMatch(true);
 
       const payload = await requestGroupMatch({
         distanceKm: groupDistanceKm,
-        slotStartAt: selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt,
+        slotStartAt,
       });
 
       setGroupMatchResult(payload);
+      const nextSummary = await fetchMatchDemandSummary({
+        mode: 'group',
+        distanceKm: groupDistanceKm,
+        slotStartAt,
+      });
+      setGroupDemandSummary(nextSummary);
     } catch (matchError) {
       setError(matchError instanceof Error ? matchError.message : '그룹 매칭을 찾지 못했어.');
     } finally {
       setIsRequestingGroupMatch(false);
     }
+  };
+
+  const handleApplyDuelExpansionSuggestion = async () => {
+    if (!duelExpansionSuggestion) {
+      return;
+    }
+
+    setSelectedDuelSlotStartAt(duelExpansionSuggestion.slotStartAt);
+    await handleRequestDuelMatch(duelExpansionSuggestion.slotStartAt);
+  };
+
+  const handleApplyGroupExpansionSuggestion = async () => {
+    if (!groupExpansionSuggestion) {
+      return;
+    }
+
+    setSelectedGroupSlotStartAt(groupExpansionSuggestion.slotStartAt);
+    await handleRequestGroupMatch(groupExpansionSuggestion.slotStartAt);
   };
 
   const handlePauseTracking = async () => {
@@ -1222,7 +1499,28 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       keyboardType="decimal-pad"
                       style={styles.duelDistanceInput}
                     />
-                    <Text style={styles.duelHelperText}>같은 목표 거리로 뛰는 러너를 우선으로 찾습니다.</Text>
+                    <View style={styles.matchDistanceChipRow}>
+                      {RECOMMENDED_MATCH_DISTANCES.map((recommendedDistanceKm) => {
+                        const isSelected = Math.abs(duelDistanceKm - recommendedDistanceKm) < 0.15;
+
+                        return (
+                          <Pressable
+                            key={`duel-${recommendedDistanceKm}`}
+                            style={[styles.matchDistanceChip, isSelected ? styles.matchDistanceChipSelected : undefined]}
+                            onPress={() => setDuelDistanceText(String(recommendedDistanceKm))}
+                          >
+                            <Text style={[styles.matchDistanceChipText, isSelected ? styles.matchDistanceChipTextSelected : undefined]}>
+                              {recommendedDistanceKm}km
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <Text style={styles.duelHelperText}>
+                      {isRecommendedMatchDistance(duelDistanceKm)
+                        ? '같은 목표 거리로 뛰는 러너를 우선으로 찾습니다.'
+                        : `추천 거리 ${findNearestRecommendedDistance(duelDistanceKm)}km로 맞추면 더 빨리 비슷한 러너가 모여요.`}
+                    </Text>
                   </View>
 
                   <View style={styles.duelSection}>
@@ -1261,6 +1559,36 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         : '평균 페이스 ±15초/km · 레벨 ±2 전후'}
                     </Text>
                   </View>
+
+                  <View style={styles.matchDemandCard}>
+                    <View style={styles.matchDemandHeader}>
+                      <Text style={styles.matchDemandTitle}>현재 신청 현황</Text>
+                      {isLoadingDuelDemandSummary ? <ActivityIndicator size="small" color="#818CF8" /> : null}
+                    </View>
+                    <Text style={styles.matchDemandHeadline}>
+                      {duelDemandSummary
+                        ? `${duelDemandSummary.averagePace} · ${duelDemandSummary.fillRatioLabel}`
+                        : '평균 페이스와 신청 인원을 불러오는 중'}
+                    </Text>
+                    <Text style={styles.matchDemandText}>
+                      {duelDemandSummary?.summaryText ?? '선택한 거리와 시간대 기준으로 바로 붙을 수 있는 러너 수를 보여드려요.'}
+                    </Text>
+                  </View>
+
+                  {duelExpansionSuggestion ? (
+                    <View style={styles.matchExpansionCard}>
+                      <Text style={styles.matchExpansionTitle}>옆 시간대 제안</Text>
+                      <Text style={styles.matchExpansionText}>
+                        지금 슬롯보다 {duelExpansionSuggestion.directionLabel} {duelExpansionSuggestion.slotLabel}에 비슷한 러너가 더 많아요.
+                      </Text>
+                      <Text style={styles.matchExpansionMeta}>
+                        {duelExpansionSuggestion.summary.averagePace} · {duelExpansionSuggestion.summary.fillRatioLabel}
+                      </Text>
+                      <Pressable style={styles.matchExpansionButton} onPress={() => { void handleApplyDuelExpansionSuggestion(); }}>
+                        <Text style={styles.matchExpansionButtonText}>{duelExpansionSuggestion.slotLabel}로 넓혀서 다시 찾기</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
 
                   {isRequestingDuelMatch ? <ActivityIndicator size="small" color="#818CF8" /> : null}
 
@@ -1315,7 +1643,28 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       keyboardType="decimal-pad"
                       style={styles.duelDistanceInput}
                     />
-                    <Text style={styles.duelHelperText}>같은 목표 거리로 뛰는 러너를 최대 30명까지 한 그룹으로 묶어요.</Text>
+                    <View style={styles.matchDistanceChipRow}>
+                      {RECOMMENDED_MATCH_DISTANCES.map((recommendedDistanceKm) => {
+                        const isSelected = Math.abs(groupDistanceKm - recommendedDistanceKm) < 0.15;
+
+                        return (
+                          <Pressable
+                            key={`group-${recommendedDistanceKm}`}
+                            style={[styles.matchDistanceChip, isSelected ? styles.matchDistanceChipSelected : undefined]}
+                            onPress={() => setGroupDistanceText(String(recommendedDistanceKm))}
+                          >
+                            <Text style={[styles.matchDistanceChipText, isSelected ? styles.matchDistanceChipTextSelected : undefined]}>
+                              {recommendedDistanceKm}km
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <Text style={styles.duelHelperText}>
+                      {isRecommendedMatchDistance(groupDistanceKm)
+                        ? '같은 목표 거리로 뛰는 러너를 최대 30명까지 한 그룹으로 묶어요.'
+                        : `추천 거리 ${findNearestRecommendedDistance(groupDistanceKm)}km로 맞추면 더 빨리 비슷한 러너가 모여요.`}
+                    </Text>
                   </View>
 
                   <View style={styles.duelSection}>
@@ -1354,6 +1703,36 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         : '평균 페이스 ±15초/km · 레벨 ±2 전후 · 최대 30명'}
                     </Text>
                   </View>
+
+                  <View style={styles.matchDemandCard}>
+                    <View style={styles.matchDemandHeader}>
+                      <Text style={styles.matchDemandTitle}>현재 신청 현황</Text>
+                      {isLoadingGroupDemandSummary ? <ActivityIndicator size="small" color="#818CF8" /> : null}
+                    </View>
+                    <Text style={styles.matchDemandHeadline}>
+                      {groupDemandSummary
+                        ? `${groupDemandSummary.averagePace} · ${groupDemandSummary.fillRatioLabel}`
+                        : '평균 페이스와 신청 인원을 불러오는 중'}
+                    </Text>
+                    <Text style={styles.matchDemandText}>
+                      {groupDemandSummary?.summaryText ?? '선택한 거리와 시간대 기준으로 그룹이 얼마나 차 있는지 보여드려요.'}
+                    </Text>
+                  </View>
+
+                  {groupExpansionSuggestion ? (
+                    <View style={styles.matchExpansionCard}>
+                      <Text style={styles.matchExpansionTitle}>옆 시간대 제안</Text>
+                      <Text style={styles.matchExpansionText}>
+                        지금 슬롯보다 {groupExpansionSuggestion.directionLabel} {groupExpansionSuggestion.slotLabel}에 비슷한 러너가 더 많이 모여 있어요.
+                      </Text>
+                      <Text style={styles.matchExpansionMeta}>
+                        {groupExpansionSuggestion.summary.averagePace} · {groupExpansionSuggestion.summary.fillRatioLabel}
+                      </Text>
+                      <Pressable style={styles.matchExpansionButton} onPress={() => { void handleApplyGroupExpansionSuggestion(); }}>
+                        <Text style={styles.matchExpansionButtonText}>{groupExpansionSuggestion.slotLabel}로 넓혀서 다시 찾기</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
 
                   {isRequestingGroupMatch ? <ActivityIndicator size="small" color="#818CF8" /> : null}
 
@@ -2003,6 +2382,31 @@ const styles = StyleSheet.create({
     color: '#98A2B3',
     lineHeight: 18,
   },
+  matchDistanceChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  matchDistanceChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#1F2937',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  matchDistanceChipSelected: {
+    borderColor: '#818CF8',
+    backgroundColor: '#1E1B4B',
+  },
+  matchDistanceChipText: {
+    color: '#E5E7EB',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  matchDistanceChipTextSelected: {
+    color: '#E0E7FF',
+  },
   duelSlotGrid: {
     gap: 8,
   },
@@ -2053,6 +2457,66 @@ const styles = StyleSheet.create({
   },
   duelCriteriaMeta: {
     color: '#C7D2FE',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  matchDemandCard: {
+    gap: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#111827',
+    padding: 14,
+  },
+  matchDemandHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  matchDemandTitle: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  matchDemandHeadline: {
+    color: '#E0E7FF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  matchDemandText: {
+    color: '#C7D2FE',
+    lineHeight: 19,
+  },
+  matchExpansionCard: {
+    gap: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#312E81',
+    backgroundColor: '#111827',
+    padding: 14,
+  },
+  matchExpansionTitle: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  matchExpansionText: {
+    color: '#E5E7EB',
+    lineHeight: 19,
+  },
+  matchExpansionMeta: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  matchExpansionButton: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    backgroundColor: '#1E1B4B',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  matchExpansionButtonText: {
+    color: '#E0E7FF',
     fontSize: 12,
     fontWeight: '800',
   },

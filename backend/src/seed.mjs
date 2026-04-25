@@ -498,10 +498,14 @@ export function createSeedStore() {
   const runs = [];
 
   return {
-    version: 3,
+    version: 4,
     users,
     runs,
     integrationImports: [],
+    matchQueues: {
+      duel: [],
+      group: [],
+    },
     friendRequests: [],
     friendships: [],
     rewardRedemptions: [],

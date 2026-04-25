@@ -138,6 +138,27 @@ export type RequestGroupMatchResponse = {
   participants: GroupMatchParticipant[];
 };
 
+export type FetchMatchDemandSummaryInput = {
+  mode: 'duel' | 'group';
+  distanceKm: number;
+  slotStartAt: string;
+};
+
+export type MatchDemandSummaryResponse = {
+  success: boolean;
+  mode: 'duel' | 'group';
+  distanceKm: number;
+  slotStartAt: string;
+  slotLabel: string;
+  averagePace: string;
+  participantsCount: number;
+  competitiveParticipantsCount: number;
+  capacity: number;
+  fillRatioLabel: string;
+  paceBandLabel: string;
+  summaryText: string;
+};
+
 export type RoutePreviewCoordinate = {
   latitude: number;
   longitude: number;

@@ -33,8 +33,10 @@ import {
   FriendActivityResponse,
   FriendLeaderboardResponse,
   FriendRequestActionResponse,
+  FetchMatchDemandSummaryInput,
   HomeSummaryResponse,
   QueueIntegrationImportResponse,
+  MatchDemandSummaryResponse,
   RequestDuelMatchInput,
   RequestDuelMatchResponse,
   RequestGroupMatchInput,
@@ -142,6 +144,10 @@ const mockDuelMatchPool = [
     lifetimeDistanceKm: 74.3,
   },
 ];
+const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.2];
+const DUEL_MIN_COMPATIBILITY_SCORE = 72;
+const GROUP_MIN_COMPATIBILITY_SCORE = 68;
+const GROUP_MIN_PARTICIPANTS = 4;
 
 function formatMockTimestamp(date = new Date()) {
   return date.toISOString().slice(0, 16).replace('T', ' ');
@@ -188,6 +194,48 @@ function buildLevelLabel(lifetimeDistanceKm: number) {
   return `Lv.${Math.floor(Math.max(lifetimeDistanceKm, 0) / 10)}`;
 }
 
+function calculateMockCompatibilityScore(
+  currentPaceSeconds: number,
+  currentLifetimeDistanceKm: number,
+  currentWeeklyDistanceKm: number,
+  candidate: (typeof mockDuelMatchPool)[number],
+  distanceKm: number,
+  mode: 'duel' | 'group',
+) {
+  const currentLevel = Math.floor(Math.max(currentLifetimeDistanceKm, 0) / 10);
+  const candidateLevel = Math.floor(Math.max(candidate.lifetimeDistanceKm, 0) / 10);
+  const paceGapSeconds = Math.abs(parsePaceLabelToSeconds(candidate.averagePace) - currentPaceSeconds);
+  const levelGap = Math.abs(candidateLevel - currentLevel);
+  const distanceGap = Math.abs(candidate.weeklyDistanceKm / 3 - distanceKm);
+  const weeklyGap = Math.abs(candidate.weeklyDistanceKm - currentWeeklyDistanceKm);
+  const penalty = paceGapSeconds * (mode === 'duel' ? 0.22 : 0.16)
+    + levelGap * (mode === 'duel' ? 8 : 6.5)
+    + distanceGap * (mode === 'duel' ? 2.8 : 2.2)
+    + weeklyGap * (mode === 'duel' ? 0.8 : 0.55);
+
+  return Math.max(0, Math.min(100, Number((100 - penalty).toFixed(1))));
+}
+
+function isRecommendedMatchDistance(distanceKm: number) {
+  return RECOMMENDED_MATCH_DISTANCES.some((recommendedDistanceKm) => Math.abs(recommendedDistanceKm - distanceKm) < 0.15);
+}
+
+function findNearestRecommendedDistance(distanceKm: number) {
+  return RECOMMENDED_MATCH_DISTANCES.reduce((closestDistanceKm, candidateDistanceKm) => (
+    Math.abs(candidateDistanceKm - distanceKm) < Math.abs(closestDistanceKm - distanceKm)
+      ? candidateDistanceKm
+      : closestDistanceKm
+  ));
+}
+
+function buildDistanceRecommendationHint(distanceKm: number) {
+  if (isRecommendedMatchDistance(distanceKm)) {
+    return '';
+  }
+
+  return `추천 거리 ${findNearestRecommendedDistance(distanceKm)}km로 바꾸면 더 빨리 비슷한 러너가 모일 수 있어요.`;
+}
+
 function estimateMockCurrentPaceSeconds() {
   const paceValues = myRunRecords
     .map((run) => parsePaceLabelToSeconds(run.pace))
@@ -204,18 +252,39 @@ function buildMockDuelMatchResponse(input: RequestDuelMatchInput): RequestDuelMa
   const profile = getCurrentUserProfile() ?? myProfile;
   const currentPaceSeconds = estimateMockCurrentPaceSeconds();
   const currentLifetimeDistanceKm = profile.lifetimeDistanceKm ?? weeklySummary.totalDistanceKm;
+  const currentWeeklyDistanceKm = weeklySummary.totalDistanceKm;
+  const distanceRecommendationHint = buildDistanceRecommendationHint(input.distanceKm);
 
-  const opponent = [...mockDuelMatchPool]
-    .sort((left, right) => {
-      const leftScore = Math.abs(parsePaceLabelToSeconds(left.averagePace) - currentPaceSeconds)
-        + Math.abs(left.lifetimeDistanceKm - currentLifetimeDistanceKm) * 1.8
-        + Math.abs(left.weeklyDistanceKm - input.distanceKm * 3) * 4;
-      const rightScore = Math.abs(parsePaceLabelToSeconds(right.averagePace) - currentPaceSeconds)
-        + Math.abs(right.lifetimeDistanceKm - currentLifetimeDistanceKm) * 1.8
-        + Math.abs(right.weeklyDistanceKm - input.distanceKm * 3) * 4;
+  const bestCandidate = [...mockDuelMatchPool]
+    .map((candidate) => ({
+      candidate,
+      score: calculateMockCompatibilityScore(
+        currentPaceSeconds,
+        currentLifetimeDistanceKm,
+        currentWeeklyDistanceKm,
+        candidate,
+        input.distanceKm,
+        'duel',
+      ),
+    }))
+    .sort((left, right) => right.score - left.score)[0];
 
-      return leftScore - rightScore;
-    })[0];
+  if (!bestCandidate || bestCandidate.score < DUEL_MIN_COMPATIBILITY_SCORE) {
+    return {
+      success: true,
+      matched: false,
+      requestId: `mock-duel-${Date.now()}`,
+      distanceKm: Number(input.distanceKm.toFixed(1)),
+      slotStartAt: input.slotStartAt,
+      slotLabel: formatDuelSlotLabel(input.slotStartAt),
+      paceBandLabel: buildPaceBandLabel(currentPaceSeconds),
+      levelBandLabel: `${buildLevelLabel(currentLifetimeDistanceKm)} 전후`,
+      criteriaSummary: `지금 이 시간대에는 사람이 있어도 페이스나 레벨 차이가 커서 바로 붙이지 않았어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+      estimatedWaitMinutes: 10,
+    };
+  }
+
+  const opponent = bestCandidate.candidate;
   const opponentLevelLabel = buildLevelLabel(opponent.lifetimeDistanceKm);
 
   return {
@@ -232,7 +301,7 @@ function buildMockDuelMatchResponse(input: RequestDuelMatchInput): RequestDuelMa
     opponent: {
       ...opponent,
       levelLabel: opponentLevelLabel,
-      compatibilitySummary: `${opponent.averagePace} 페이스 · ${opponentLevelLabel} · ${opponent.weeklyDistanceKm.toFixed(1)}km/주`,
+      compatibilitySummary: `${opponent.averagePace} 페이스 · ${opponentLevelLabel} · ${opponent.weeklyDistanceKm.toFixed(1)}km/주 · 적합도 ${bestCandidate.score.toFixed(0)}점`,
     },
   };
 }
@@ -241,22 +310,27 @@ function buildMockGroupMatchResponse(input: RequestGroupMatchInput): RequestGrou
   const profile = getCurrentUserProfile() ?? myProfile;
   const currentPaceSeconds = estimateMockCurrentPaceSeconds();
   const currentLifetimeDistanceKm = profile.lifetimeDistanceKm ?? weeklySummary.totalDistanceKm;
+  const currentWeeklyDistanceKm = weeklySummary.totalDistanceKm;
   const currentLevelLabel = buildLevelLabel(currentLifetimeDistanceKm);
   const currentParticipantId = profile.publicTag || 'current-runner';
   const maxGroupSize = 30;
-  const candidateCount = Math.min(mockDuelMatchPool.length, maxGroupSize - 1);
+  const distanceRecommendationHint = buildDistanceRecommendationHint(input.distanceKm);
   const selectedCandidates = [...mockDuelMatchPool]
-    .sort((left, right) => {
-      const leftScore = Math.abs(parsePaceLabelToSeconds(left.averagePace) - currentPaceSeconds)
-        + Math.abs(left.lifetimeDistanceKm - currentLifetimeDistanceKm) * 1.6
-        + Math.abs(left.weeklyDistanceKm - input.distanceKm * 3) * 3.5;
-      const rightScore = Math.abs(parsePaceLabelToSeconds(right.averagePace) - currentPaceSeconds)
-        + Math.abs(right.lifetimeDistanceKm - currentLifetimeDistanceKm) * 1.6
-        + Math.abs(right.weeklyDistanceKm - input.distanceKm * 3) * 3.5;
-
-      return leftScore - rightScore;
-    })
-    .slice(0, candidateCount);
+    .map((candidate) => ({
+      candidate,
+      score: calculateMockCompatibilityScore(
+        currentPaceSeconds,
+        currentLifetimeDistanceKm,
+        currentWeeklyDistanceKm,
+        candidate,
+        input.distanceKm,
+        'group',
+      ),
+    }))
+    .filter((entry) => entry.score >= GROUP_MIN_COMPATIBILITY_SCORE)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, maxGroupSize - 1)
+    .map((entry) => entry.candidate);
 
   if (!selectedCandidates.length) {
     return {
@@ -268,7 +342,7 @@ function buildMockGroupMatchResponse(input: RequestGroupMatchInput): RequestGrou
       slotLabel: formatDuelSlotLabel(input.slotStartAt),
       paceBandLabel: buildPaceBandLabel(currentPaceSeconds),
       levelBandLabel: `${currentLevelLabel} 전후`,
-      criteriaSummary: '같은 시간대 그룹이 아직 작아서 비슷한 러너들이 더 모일 때까지 기다리고 있어요.',
+      criteriaSummary: `아직 같은 시간대 그룹에 모인 비슷한 러너가 적어요. 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
       estimatedWaitMinutes: 15,
       maxGroupSize,
       participantsCount: 1,
@@ -323,6 +397,25 @@ function buildMockGroupMatchResponse(input: RequestGroupMatchInput): RequestGrou
 
   const mySeedRank = participants.find((participant) => participant.id === currentParticipantId)?.seedRank ?? 1;
 
+  if (participants.length < GROUP_MIN_PARTICIPANTS) {
+    return {
+      success: true,
+      matched: false,
+      requestId: `group-request-${Date.now()}`,
+      distanceKm: Number(input.distanceKm.toFixed(1)),
+      slotStartAt: input.slotStartAt,
+      slotLabel: formatDuelSlotLabel(input.slotStartAt),
+      paceBandLabel: buildPaceBandLabel(currentPaceSeconds),
+      levelBandLabel: `${currentLevelLabel} 전후`,
+      criteriaSummary: `현재 비슷한 러너는 ${participants.length}/${maxGroupSize}명이라 아직 그룹을 열지 않았어요. 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 재미있는 경쟁이 됩니다.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+      estimatedWaitMinutes: 10,
+      maxGroupSize,
+      participantsCount: participants.length,
+      mySeedRank,
+      participants,
+    };
+  }
+
   return {
     success: true,
     matched: true,
@@ -338,6 +431,53 @@ function buildMockGroupMatchResponse(input: RequestGroupMatchInput): RequestGrou
     participantsCount: participants.length,
     mySeedRank,
     participants,
+  };
+}
+
+function buildMockMatchDemandSummary(input: FetchMatchDemandSummaryInput): MatchDemandSummaryResponse {
+  const profile = getCurrentUserProfile() ?? myProfile;
+  const currentPaceSeconds = estimateMockCurrentPaceSeconds();
+  const currentLifetimeDistanceKm = profile.lifetimeDistanceKm ?? weeklySummary.totalDistanceKm;
+  const currentWeeklyDistanceKm = weeklySummary.totalDistanceKm;
+  const capacity = input.mode === 'duel' ? 2 : 30;
+  const compatibleThreshold = input.mode === 'duel' ? DUEL_MIN_COMPATIBILITY_SCORE : GROUP_MIN_COMPATIBILITY_SCORE;
+  const matchingCandidates = [...mockDuelMatchPool]
+    .map((candidate) => ({
+      candidate,
+      score: calculateMockCompatibilityScore(
+        currentPaceSeconds,
+        currentLifetimeDistanceKm,
+        currentWeeklyDistanceKm,
+        candidate,
+        input.distanceKm,
+        input.mode,
+      ),
+    }))
+    .filter((entry) => entry.score >= compatibleThreshold)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, input.mode === 'duel' ? 1 : Math.min(capacity - 1, mockDuelMatchPool.length))
+    .map((entry) => entry.candidate);
+
+  const paceSamples = [currentPaceSeconds, ...matchingCandidates.map((candidate) => parsePaceLabelToSeconds(candidate.averagePace))];
+  const averagePaceSeconds = Math.round(paceSamples.reduce((sum, value) => sum + value, 0) / paceSamples.length);
+  const participantsCount = Math.min(capacity, matchingCandidates.length + 1);
+  const distanceRecommendationHint = buildDistanceRecommendationHint(input.distanceKm);
+
+  return {
+    success: true,
+    mode: input.mode,
+    distanceKm: Number(input.distanceKm.toFixed(1)),
+    slotStartAt: input.slotStartAt,
+    slotLabel: formatDuelSlotLabel(input.slotStartAt),
+    averagePace: formatSecondsPerKm(averagePaceSeconds),
+    participantsCount,
+    competitiveParticipantsCount: participantsCount,
+    capacity,
+    fillRatioLabel: `${participantsCount}/${capacity}`,
+    paceBandLabel: buildPaceBandLabel(averagePaceSeconds),
+    summaryText: input.mode === 'duel'
+      ? `현재 이 시간대에는 바로 붙일 만한 러너 ${participantsCount}/${capacity}명이 있고, 평균 페이스는 ${formatSecondsPerKm(averagePaceSeconds)}예요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+      : `현재 이 시간대에는 비슷한 그룹 러너 ${participantsCount}/${capacity}명이 있고, 평균 페이스는 ${formatSecondsPerKm(averagePaceSeconds)}예요.${participantsCount < GROUP_MIN_PARTICIPANTS ? ` 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.` : ''}${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
   };
 }
 
@@ -995,6 +1135,25 @@ export async function requestGroupMatch(input: RequestGroupMatchInput): Promise<
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '그룹 매칭을 찾지 못했어.',
+    },
+  );
+}
+
+export async function fetchMatchDemandSummary(input: FetchMatchDemandSummaryInput): Promise<MatchDemandSummaryResponse> {
+  if (USE_MOCK_API) {
+    return buildMockMatchDemandSummary(input);
+  }
+
+  return apiPost<MatchDemandSummaryResponse>(
+    '/running/matches/summary',
+    {
+      mode: input.mode,
+      distanceKm: Number(input.distanceKm.toFixed(1)),
+      slotStartAt: input.slotStartAt,
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '현재 매칭 현황을 불러오지 못했어.',
     },
   );
 }
