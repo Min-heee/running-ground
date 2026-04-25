@@ -16,12 +16,12 @@ function usage() {
   return `
 Usage:
   node ./scripts/render-public-deploy-plan.mjs \\
-    --root-domain runningground.com \\
+    --root-domain running-ground.com \\
     --preview-ip 203.0.113.10 \\
     --production-ip 203.0.113.11
 
 Options:
-  --root-domain <domain>         Root domain such as runningground.com.
+  --root-domain <domain>         Root domain such as running-ground.com.
   --preview-ip <ip>              Public IPv4 for preview-api.<domain>.
   --production-ip <ip>           Public IPv4 for api.<domain>.
   --ops-email <email>            Optional ACME email. Defaults to ops@<domain>.

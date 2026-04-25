@@ -8,8 +8,8 @@ RunningGround의 첫 운영 배포는 아래 조합을 기본값으로 잡는다
 - 리전: Singapore (`SGP1`)
 - DNS: Cloudflare
 - HTTPS / reverse proxy: Caddy
-- 앱 API 도메인: `api.runningground.com`
-- preview API 도메인: `preview-api.runningground.com`
+- 앱 API 도메인 예시: `api.running-ground.com`
+- preview API 도메인 예시: `preview-api.running-ground.com`
 - 백엔드 / DB: Docker Compose로 Node backend + PostgreSQL을 같은 서버에서 먼저 운영
 
 이 조합을 기본값으로 잡는 이유는 아래와 같다.
@@ -46,7 +46,7 @@ RunningGround의 첫 운영 배포는 아래 조합을 기본값으로 잡는다
 
 ### 2. 장기 운영에 유리하다
 
-- API 주소를 `api.runningground.com` 으로 고정할 수 있다.
+- API 주소를 `api.<root-domain>` 으로 고정할 수 있다.
 - 나중에 서버를 더 큰 사양으로 교체하거나, 다른 클라우드로 옮겨도 앱은 같은 도메인을 계속 쓴다.
 - preview / production 을 깔끔하게 분리할 수 있다.
 
@@ -84,8 +84,10 @@ RunningGround의 첫 운영 배포는 아래 조합을 기본값으로 잡는다
 
 아래 둘을 쓸 수 있게 도메인을 준비한다.
 
-- `api.runningground.com`
-- `preview-api.runningground.com`
+- `api.<root-domain>`
+- `preview-api.<root-domain>`
+
+현재 실제 운영 기준 루트 도메인은 `running-ground.com` 이다.
 
 ### 2. Cloudflare에 도메인 연결
 
@@ -157,9 +159,9 @@ Cloudflare에 아래 A 레코드를 만든다.
 이 저장소 기준으로 아래 흐름을 탄다.
 
 ```bash
-npm run backend:check-domain -- --domain preview-api.runningground.com --expected-ip SERVER_PUBLIC_IP --skip-health
-npm run backend:deploy:public -- --env preview --domain preview-api.runningground.com --email ops@runningground.com --sync-eas-preview
-npm run backend:deploy:public -- --env production --domain api.runningground.com --email ops@runningground.com
+npm run backend:check-domain -- --domain preview-api.running-ground.com --expected-ip SERVER_PUBLIC_IP --skip-health
+npm run backend:deploy:public -- --env preview --domain preview-api.running-ground.com --email ops@running-ground.com --sync-eas-preview
+npm run backend:deploy:public -- --env production --domain api.running-ground.com --email ops@running-ground.com
 ```
 
 이 공개 스택은 이제 아래를 같이 띄운다.
@@ -189,8 +191,8 @@ npm run backend:migrate:public:postgres -- --env preview --dry-run
 
 ### 7. 앱 연결
 
-- TestFlight / preview 는 `preview-api.runningground.com/api`
-- 실제 스토어 빌드는 `api.runningground.com/api`
+- TestFlight / preview 는 `preview-api.<root-domain>/api`
+- 실제 스토어 빌드는 `api.<root-domain>/api`
 
 ## 운영 초기 원칙
 
@@ -214,7 +216,7 @@ npm run backend:migrate:public:postgres -- --env preview --dry-run
 ### DB 분리
 
 - PostgreSQL만 별도 서버 또는 Managed DB로 이동
-- 앱은 `api.runningground.com` 을 계속 쓴다
+- 앱은 `api.running-ground.com` 을 계속 쓴다
 
 ### 다른 클라우드로 이전
 
@@ -245,7 +247,7 @@ npm run backend:migrate:public:postgres -- --env preview --dry-run
 도메인과 IP가 준비되면 아래 명령으로 실제 배포 순서를 한 번에 렌더링할 수 있다.
 
 ```bash
-npm run server:render:deploy-plan -- --root-domain runningground.com --preview-ip 203.0.113.10 --production-ip 203.0.113.11
+npm run server:render:deploy-plan -- --root-domain running-ground.com --preview-ip 203.0.113.10 --production-ip 203.0.113.11
 ```
 
 이 출력에는 아래가 같이 들어간다.

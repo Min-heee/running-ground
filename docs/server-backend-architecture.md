@@ -66,7 +66,7 @@ flowchart TD
 | 저장소 | JSON 파일 | PostgreSQL |
 | 파일 백업 | JSON 백업 파일 | DB 자동 백업 + 수동 복구 절차 |
 | HTTPS | Cloudflare Quick Tunnel | Cloudflare Named Tunnel 또는 Docker + Caddy |
-| 주소 | 매번 바뀌는 `trycloudflare.com` | `api.runningground.com`, `preview-api.runningground.com` |
+| 주소 | 매번 바뀌는 `trycloudflare.com` | `api.running-ground.com`, `preview-api.running-ground.com` |
 | 실행 환경 | 집 데스크탑 | 초기에는 데스크탑 가능, 이후 VPS/클라우드 권장 |
 | 관리자 인증 | 단일 admin token | 관리자 계정, 역할, 감사 로그 |
 | 로그 | stdout/log file | 구조화 로그 + 에러 알림 |
@@ -270,7 +270,7 @@ ssh <desktop-ssh-alias>
 ```mermaid
 flowchart TD
   App["App Store / Play Store App"]
-  Domain["https://api.runningground.com"]
+  Domain["https://api.running-ground.com"]
   CloudflareNamed["Cloudflare Named Tunnel<br/>or Docker + Caddy"]
   Backend["Backend Service"]
   Store["Persistent Store"]
@@ -320,7 +320,7 @@ flowchart TD
 
 ### Phase 1. 고정 Preview API
 - 도메인을 준비한다.
-- `preview-api.runningground.com`을 Cloudflare에 연결한다.
+- `preview-api.running-ground.com`을 Cloudflare에 연결한다.
 - Cloudflare Named Tunnel로 데스크탑 preview 서버를 고정 주소에 붙인다.
 - TestFlight preview 앱은 이 주소만 바라보게 한다.
 
@@ -331,7 +331,7 @@ flowchart TD
 - smoke test를 PostgreSQL 환경에서도 통과시킨다.
 
 ### Phase 3. Production API
-- `api.runningground.com`을 production API로 분리한다.
+- `api.running-ground.com`을 production API로 분리한다.
 - production DB, preview DB를 분리한다.
 - 자동 백업, 로그, uptime monitor를 붙인다.
 - App Store / Play Store 제출 앱은 production API를 바라보게 한다.

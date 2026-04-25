@@ -19,7 +19,7 @@ Response example:
   "ready": true,
   "environment": "preview",
   "uptimeSeconds": 120,
-  "publicBaseUrl": "https://preview-api.runningground.com",
+  "publicBaseUrl": "https://preview-api.running-ground.com",
   "config": {
     "maxBodySizeKb": 256,
     "requestTimeoutMs": 30000,
