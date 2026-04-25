@@ -7,14 +7,27 @@ type ApiRequestOptions = {
 
 async function readErrorMessage(response: Response, fallbackMessage: string) {
   try {
-    const payload = await response.json();
+    const contentType = response.headers.get('content-type') ?? '';
+    const rawBody = await response.text();
 
-    if (typeof payload?.message === 'string') {
-      return payload.message;
+    if (!rawBody.trim()) {
+      return fallbackMessage;
     }
 
-    if (Array.isArray(payload?.message) && typeof payload.message[0] === 'string') {
-      return payload.message[0];
+    if (contentType.includes('application/json')) {
+      const payload = JSON.parse(rawBody);
+
+      if (typeof payload?.message === 'string') {
+        return payload.message;
+      }
+
+      if (Array.isArray(payload?.message) && typeof payload.message[0] === 'string') {
+        return payload.message[0];
+      }
+    }
+
+    if (contentType.includes('text/html')) {
+      return `${fallbackMessage} (공개 터널 또는 프록시 응답 오류)`;
     }
   } catch {
     return fallbackMessage;
@@ -53,7 +66,18 @@ async function apiRequest<T>(
       throw new Error(await readErrorMessage(response, fallbackMessage));
     }
 
-    return (await response.json()) as T;
+    const contentType = response.headers.get('content-type') ?? '';
+    const rawBody = await response.text();
+
+    if (!rawBody.trim()) {
+      throw new Error(`${fallbackMessage} (빈 응답)`);
+    }
+
+    if (!contentType.includes('application/json')) {
+      throw new Error(`${fallbackMessage} (JSON 응답이 아니에요)`);
+    }
+
+    return JSON.parse(rawBody) as T;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error(`요청 시간이 초과됐어요. 현재 API 주소: ${API_CONFIG.baseUrl}`);

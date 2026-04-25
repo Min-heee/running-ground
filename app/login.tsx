@@ -12,6 +12,28 @@ type ServerCheckState = {
   message: string;
 };
 
+function parseHealthResponseBody(rawBody: string, contentType: string) {
+  const trimmedBody = rawBody.trim();
+
+  if (!trimmedBody) {
+    throw new Error('서버가 아직 응답을 비우고 있어요. 잠시 후 다시 확인해주세요.');
+  }
+
+  if (!contentType.includes('application/json')) {
+    if (contentType.includes('text/html')) {
+      throw new Error('공개 터널이 아직 준비되지 않았어요. 잠시 후 다시 확인해주세요.');
+    }
+
+    throw new Error('서버 응답 형식을 아직 확인하지 못했어요. 잠시 후 다시 확인해주세요.');
+  }
+
+  return JSON.parse(trimmedBody) as {
+    status?: string;
+    message?: string;
+    publicBaseUrl?: string;
+  };
+}
+
 export default function LoginScreen() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -39,7 +61,9 @@ export default function LoginScreen() {
         method: 'GET',
         signal: controller.signal,
       });
-      const payload = await response.json();
+      const contentType = response.headers.get('content-type') ?? '';
+      const rawBody = await response.text();
+      const payload = parseHealthResponseBody(rawBody, contentType);
 
       if (!response.ok || payload?.status !== 'ok') {
         throw new Error(payload?.message ?? `health ${response.status}`);
