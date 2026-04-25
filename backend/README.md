@@ -162,31 +162,31 @@ preview:
 
 ```bash
 cd ..
-npm run backend:deploy:public -- --env preview --domain preview-api.runningground.com --email ops@runningground.com --sync-eas-preview
+npm run backend:deploy:public -- --env preview --domain preview-api.running-ground.com --email ops@running-ground.com --sync-eas-preview
 ```
 
 production:
 
 ```bash
-npm run backend:deploy:public -- --env production --domain api.runningground.com --email ops@runningground.com
+npm run backend:deploy:public -- --env production --domain api.running-ground.com --email ops@running-ground.com
 ```
 
 먼저 파일 생성 없이 검증만 해보고 싶으면:
 
 ```bash
-npm run backend:deploy:public -- --env preview --domain preview-api.runningground.com --email ops@runningground.com --dry-run
+npm run backend:deploy:public -- --env preview --domain preview-api.running-ground.com --email ops@running-ground.com --dry-run
 ```
 
 DNS가 서버를 제대로 가리키는지 먼저 확인하려면:
 
 ```bash
-npm run backend:check-domain -- --domain preview-api.runningground.com --expected-ip 서버공인IP --skip-health
+npm run backend:check-domain -- --domain preview-api.running-ground.com --expected-ip 서버공인IP --skip-health
 ```
 
 배포 후 health까지 강하게 확인하려면:
 
 ```bash
-npm run backend:check-domain -- --domain preview-api.runningground.com --require-ports --require-health
+npm run backend:check-domain -- --domain preview-api.running-ground.com --require-ports --require-health
 ```
 
 이 명령은 아래를 자동으로 처리해.
@@ -438,7 +438,7 @@ npm run provider:import -- \
 - `BACKEND_APP_ENV`: 기본 `development`, 운영 구분용 문자열
 - `BACKEND_HOST`: 기본 `0.0.0.0`
 - `BACKEND_PORT`: 기본 `8081`
-- `BACKEND_CORS_ORIGIN`: 웹 검증용 origin, 기본 `*`
+- `BACKEND_CORS_ORIGIN`: 웹 검증용 origin. 공개 배포 스크립트는 preview에 `https://preview-api.running-ground.com + localhost` 조합, production에는 `https://api.running-ground.com` 을 기본으로 넣는다.
 - `BACKEND_PUBLIC_BASE_URL`: 서버 외부 접근 기준 주소
 - `BACKEND_STORE_DRIVER`: 저장소 드라이버, 현재 런타임은 `json` 지원
 - `BACKEND_STORE_FILE`: JSON 저장 파일 위치
@@ -518,8 +518,8 @@ BACKEND_ENABLE_RESET_ENDPOINT=false
 BACKEND_APP_ENV=production
 BACKEND_HOST=0.0.0.0
 BACKEND_PORT=8081
-BACKEND_PUBLIC_BASE_URL=https://api.runningground.com
-BACKEND_CORS_ORIGIN=https://app.runningground.com
+BACKEND_PUBLIC_BASE_URL=https://api.running-ground.com
+BACKEND_CORS_ORIGIN=https://api.running-ground.com
 BACKEND_STORE_DRIVER=json
 BACKEND_STORE_FILE=/srv/runningground/store.json
 BACKEND_STORE_BACKUP_DIRECTORY=/srv/runningground/backups

@@ -34,7 +34,7 @@ Options:
   --domain <domain>              Public HTTPS domain that points to this server.
   --email <email>                ACME/Let's Encrypt contact email for Caddy.
   --admin-token <token>          Optional admin token. Generated when omitted.
-  --cors-origin <origin>         Optional CORS origin. Defaults to *.
+  --cors-origin <origin>         Optional CORS origin. Defaults to the public domain (plus localhost for preview).
   --env-file <path>              Optional backend env file path.
   --expected-ip <ip>             Optional IP that DNS must resolve to.
   --skip-domain-check            Skip pre-deploy DNS check.
@@ -78,6 +78,22 @@ function quoteEnvValue(value) {
   }
 
   return JSON.stringify(value);
+}
+
+function buildDefaultCorsOrigin(appEnv, domain) {
+  const publicOrigin = `https://${domain}`;
+
+  if (appEnv === 'preview') {
+    return [
+      publicOrigin,
+      'http://localhost:8081',
+      'http://127.0.0.1:8081',
+      'http://localhost:19006',
+      'http://127.0.0.1:19006',
+    ].join(',');
+  }
+
+  return publicOrigin;
 }
 
 function readEnvFile(filePath) {
@@ -312,7 +328,11 @@ async function main() {
   const adminToken = readArgValue('--admin-token')
     || existingEnv.BACKEND_ADMIN_TOKEN
     || `${appEnv}-admin-${randomBytes(24).toString('hex')}`;
-  const corsOrigin = readArgValue('--cors-origin') || existingEnv.BACKEND_CORS_ORIGIN || '*';
+  const explicitCorsOrigin = readArgValue('--cors-origin');
+  const existingCorsOrigin = existingEnv.BACKEND_CORS_ORIGIN || '';
+  const corsOrigin = explicitCorsOrigin
+    || (existingCorsOrigin && existingCorsOrigin !== '*' ? existingCorsOrigin : '')
+    || buildDefaultCorsOrigin(appEnv, domain);
   const backupRetention = existingEnv.BACKEND_STORE_BACKUP_RETENTION || (appEnv === 'production' ? '20' : '10');
   const postgresDb = existingEnv.POSTGRES_DB
     || existingPostgresConnection.database
