@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "RunningGround",
-    "slug": "runningground",
+    "slug": "runnigapp",
     "scheme": "runningground",
     "icon": "./assets/branding/icon.png",
     "splash": {
@@ -11,7 +11,7 @@
     },
     "newArchEnabled": false,
     "ios": {
-      "bundleIdentifier": "com.minheee.runningground",
+      "bundleIdentifier": "com.minheee.runnigapp",
       "supportsTablet": true,
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Allow RunningGround to connect to local development servers on your network.",
@@ -19,7 +19,7 @@
           "NSAllowsArbitraryLoads": true
         }
       },
-      "buildNumber": "18"
+      "buildNumber": "19"
     },
     "android": {
       "adaptiveIcon": {
