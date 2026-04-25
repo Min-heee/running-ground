@@ -3,6 +3,12 @@
     "name": "RunningGround",
     "slug": "runningground",
     "scheme": "runningground",
+    "icon": "./assets/branding/icon.png",
+    "splash": {
+      "image": "./assets/branding/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#11161B"
+    },
     "newArchEnabled": false,
     "ios": {
       "bundleIdentifier": "com.minheee.runningground",
@@ -14,6 +20,15 @@
         }
       },
       "buildNumber": "18"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/branding/adaptive-icon.png",
+        "backgroundColor": "#11161B"
+      }
+    },
+    "web": {
+      "favicon": "./assets/branding/favicon.png"
     },
     "plugins": [
       "expo-router",
