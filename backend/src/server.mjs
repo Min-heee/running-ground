@@ -70,6 +70,9 @@ const DUEL_MIN_COMPATIBILITY_SCORE = 72;
 const GROUP_MIN_COMPATIBILITY_SCORE = 68;
 const GROUP_MIN_PARTICIPANTS = 4;
 const MATCH_QUEUE_ENTRY_TTL_MS = 2 * 60 * 60 * 1000;
+const MATCH_SESSION_READY_TTL_MS = 20 * 60 * 1000;
+const MATCH_SESSION_COUNTDOWN_SECONDS = 10;
+const MATCH_SESSION_ACTIVE_TTL_MS = 4 * 60 * 60 * 1000;
 
 class ApiError extends Error {
   constructor(statusCode, message) {
@@ -619,13 +622,9 @@ function formatDuelSlotLabel(slotStartAt) {
     return '시간대 미정';
   }
 
-  const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000);
   const startHours = String(slotStart.getHours()).padStart(2, '0');
   const startMinutes = String(slotStart.getMinutes()).padStart(2, '0');
-  const endHours = String(slotEnd.getHours()).padStart(2, '0');
-  const endMinutes = String(slotEnd.getMinutes()).padStart(2, '0');
-
-  return `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`;
+  return `${startHours}:${startMinutes}`;
 }
 
 function formatPaceMinutesLabel(paceMinutes) {
@@ -779,6 +778,183 @@ function removeUsersFromMatchQueue(store, mode, userIds) {
   queues[mode] = queues[mode].filter((entry) => !blockedUserIds.has(entry.userId));
 }
 
+function ensureMatchSessions(store) {
+  if (!Array.isArray(store.matchSessions)) {
+    store.matchSessions = [];
+  }
+
+  return store.matchSessions;
+}
+
+function hydrateMatchSessionState(session, now = new Date()) {
+  const nowMs = now.getTime();
+  const createdAtMs = new Date(session.createdAt).getTime();
+  const countdownEndsAtMs = session.countdownEndsAt ? new Date(session.countdownEndsAt).getTime() : Number.NaN;
+  const startedAtMs = session.startedAt ? new Date(session.startedAt).getTime() : Number.NaN;
+
+  if (Number.isFinite(startedAtMs)) {
+    return startedAtMs + MATCH_SESSION_ACTIVE_TTL_MS > nowMs ? 'active' : 'expired';
+  }
+
+  if (Number.isFinite(countdownEndsAtMs)) {
+    if (countdownEndsAtMs <= nowMs) {
+      session.startedAt = new Date(countdownEndsAtMs).toISOString();
+      return 'active';
+    }
+
+    return 'countdown';
+  }
+
+  if (!Number.isFinite(createdAtMs) || createdAtMs + MATCH_SESSION_READY_TTL_MS <= nowMs) {
+    return 'expired';
+  }
+
+  return 'ready';
+}
+
+function pruneMatchSessions(store, now = new Date()) {
+  const sessions = ensureMatchSessions(store);
+  const activeUserIds = new Set(store.users.map((user) => user.id));
+
+  store.matchSessions = sessions.filter((session) => {
+    if (!session || !Array.isArray(session.participants) || !session.participants.length) {
+      return false;
+    }
+
+    if (session.participants.some((participant) => !activeUserIds.has(participant.userId))) {
+      return false;
+    }
+
+    return hydrateMatchSessionState(session, now) !== 'expired';
+  });
+
+  return store.matchSessions;
+}
+
+function clearUsersFromMatchSessions(store, mode, userIds) {
+  const blockedUserIds = new Set(userIds);
+  const sessions = pruneMatchSessions(store);
+  store.matchSessions = sessions.filter((session) => (
+    session.mode !== mode || !session.participants.some((participant) => blockedUserIds.has(participant.userId))
+  ));
+}
+
+function createMatchSession(store, mode, distanceKm, slotStartAt, participants) {
+  clearUsersFromMatchSessions(store, mode, participants.map((participant) => participant.id));
+  const session = {
+    id: nextId(`${mode}-match`),
+    mode,
+    distanceKm: normalizeMatchQueueDistance(distanceKm),
+    slotStartAt,
+    createdAt: new Date().toISOString(),
+    participants: participants.map((participant, index) => ({
+      userId: participant.id,
+      seedRank: participant.seedRank ?? index + 1,
+      acceptedAt: null,
+      liveDistanceKm: 0,
+      liveElapsedSeconds: 0,
+      livePace: '--:--/km',
+      liveUpdatedAt: null,
+      finishedAt: null,
+    })),
+  };
+  ensureMatchSessions(store).push(session);
+  return session;
+}
+
+function buildParticipantLiveSnapshot(participant) {
+  return {
+    ...(typeof participant.liveDistanceKm === 'number' ? { liveDistanceKm: Number(participant.liveDistanceKm.toFixed(2)) } : {}),
+    ...(typeof participant.liveElapsedSeconds === 'number' ? { liveElapsedSeconds: participant.liveElapsedSeconds } : {}),
+    ...(typeof participant.livePace === 'string' && participant.livePace.trim() ? { livePace: participant.livePace.trim() } : {}),
+    ...(typeof participant.liveUpdatedAt === 'string' && participant.liveUpdatedAt ? { liveUpdatedAt: participant.liveUpdatedAt } : {}),
+    ...(typeof participant.finishedAt === 'string' && participant.finishedAt ? { finishedAt: participant.finishedAt } : {}),
+  };
+}
+
+function findMatchSessionForUser(store, mode, userId, { distanceKm, slotStartAt } = {}) {
+  const normalizedDistanceKm = distanceKm === undefined ? null : normalizeMatchQueueDistance(distanceKm);
+  const sessions = pruneMatchSessions(store);
+
+  return sessions.find((session) => {
+    if (session.mode !== mode) {
+      return false;
+    }
+
+    if (!session.participants.some((participant) => participant.userId === userId)) {
+      return false;
+    }
+
+    if (normalizedDistanceKm !== null && Math.abs(session.distanceKm - normalizedDistanceKm) >= 0.15) {
+      return false;
+    }
+
+    if (slotStartAt && session.slotStartAt !== slotStartAt) {
+      return false;
+    }
+
+    return true;
+  }) ?? null;
+}
+
+function findMatchSessionById(store, matchId) {
+  if (!matchId) {
+    return null;
+  }
+
+  return pruneMatchSessions(store).find((session) => session.id === matchId) ?? null;
+}
+
+function buildSessionGroupParticipants(store, session) {
+  return session.participants
+    .map((participant) => {
+      const runner = buildMatchRunnerProfile(store, findUserById(store, participant.userId));
+      return {
+        id: runner.id,
+        name: runner.name,
+        tag: runner.tag,
+        districtName: runner.districtName,
+        averagePace: runner.averagePace,
+        levelLabel: runner.levelLabel,
+        weeklyDistanceKm: runner.weeklyDistanceKm,
+        lifetimeDistanceKm: runner.lifetimeDistanceKm,
+        seedRank: participant.seedRank,
+        seedSummary: `${participant.seedRank}번 시드 · 이번 주 ${runner.weeklyDistanceKm.toFixed(1)}km`,
+        accepted: Boolean(participant.acceptedAt),
+        ...buildParticipantLiveSnapshot(participant),
+      };
+    })
+    .sort((left, right) => left.seedRank - right.seedRank);
+}
+
+function buildSessionDuelOpponent(store, session, currentUserId) {
+  const currentUser = findUserById(store, currentUserId);
+  const currentRunner = buildMatchRunnerProfile(store, currentUser);
+  const opponentEntry = session.participants.find((participant) => participant.userId !== currentUserId);
+
+  if (!opponentEntry) {
+    return null;
+  }
+
+  const opponentUser = findUserById(store, opponentEntry.userId);
+  const opponentRunner = buildMatchRunnerProfile(store, opponentUser);
+  const compatibilityScore = calculateMatchCompatibilityScore(currentRunner, opponentRunner, session.distanceKm, 'duel');
+
+  return {
+    id: opponentRunner.id,
+    name: opponentRunner.name,
+    tag: opponentRunner.tag,
+    districtName: opponentRunner.districtName,
+    averagePace: opponentRunner.averagePace,
+    levelLabel: opponentRunner.levelLabel,
+    weeklyDistanceKm: opponentRunner.weeklyDistanceKm,
+    lifetimeDistanceKm: opponentRunner.lifetimeDistanceKm,
+    compatibilitySummary: `${opponentRunner.averagePace} 페이스 · ${opponentRunner.levelLabel} · 이번 주 ${opponentRunner.weeklyDistanceKm.toFixed(1)}km · 적합도 ${compatibilityScore.toFixed(0)}점`,
+    accepted: Boolean(opponentEntry.acceptedAt),
+    ...buildParticipantLiveSnapshot(opponentEntry),
+  };
+}
+
 function getMatchQueueEntries(store, mode, distanceKm, slotStartAt) {
   const normalizedDistanceKm = normalizeMatchQueueDistance(distanceKm);
   const queues = pruneMatchQueues(store);
@@ -829,6 +1005,135 @@ function buildQueuedParticipants(entries) {
     }));
 }
 
+function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm, slotStartAt }) {
+  const currentRunner = buildMatchRunnerProfile(store, currentUser);
+  const slotLabel = formatDuelSlotLabel(slotStartAt);
+  const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
+  const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
+  const session = findMatchSessionForUser(store, mode, currentUser.id, {
+    distanceKm,
+    slotStartAt,
+  });
+  const capacity = mode === 'duel' ? 2 : 30;
+  const distanceRecommendationHint = buildDistanceRecommendationHint(distanceKm);
+
+  if (session) {
+    const state = hydrateMatchSessionState(session);
+    const acceptedCount = session.participants.filter((participant) => participant.acceptedAt).length;
+    const currentParticipant = session.participants.find((participant) => participant.userId === currentUser.id) ?? null;
+    const countdownRemainingSeconds = session.countdownEndsAt
+      ? Math.max(0, Math.ceil((new Date(session.countdownEndsAt).getTime() - Date.now()) / 1000))
+      : undefined;
+
+    if (mode === 'duel') {
+      const opponent = buildSessionDuelOpponent(store, session, currentUser.id);
+      return {
+        success: true,
+        mode,
+        state,
+        matchId: session.id,
+        distanceKm: session.distanceKm,
+        slotStartAt: session.slotStartAt,
+        slotLabel,
+        paceBandLabel,
+        levelBandLabel,
+        criteriaSummary: state === 'ready'
+          ? '상대가 잡혔어요. 두 사람이 모두 수락하면 10초 카운트다운 뒤 시작해요.'
+          : state === 'countdown'
+            ? `두 사람이 모두 수락했어요. ${countdownRemainingSeconds ?? MATCH_SESSION_COUNTDOWN_SECONDS}초 뒤 출발해요.`
+            : '이제 바로 출발할 수 있어요.',
+        estimatedWaitMinutes: 0,
+        participantCount: session.participants.length,
+        acceptedCount,
+        capacity,
+        userAccepted: Boolean(currentParticipant?.acceptedAt),
+        readyToStart: state === 'active',
+        ...(session.countdownEndsAt ? { countdownEndsAt: session.countdownEndsAt } : {}),
+        ...(typeof countdownRemainingSeconds === 'number' ? { countdownRemainingSeconds } : {}),
+        ...(opponent ? { opponent } : {}),
+      };
+    }
+
+    const participants = buildSessionGroupParticipants(store, session);
+    const mySeedRank = participants.find((participant) => participant.id === currentUser.id)?.seedRank ?? 1;
+
+    return {
+      success: true,
+      mode,
+      state,
+      matchId: session.id,
+      distanceKm: session.distanceKm,
+      slotStartAt: session.slotStartAt,
+      slotLabel,
+      paceBandLabel,
+      levelBandLabel,
+      criteriaSummary: state === 'ready'
+        ? '그룹이 잡혔어요. 모두 수락하면 10초 카운트다운 뒤 같이 출발해요.'
+        : state === 'countdown'
+          ? `모두 수락했어요. ${countdownRemainingSeconds ?? MATCH_SESSION_COUNTDOWN_SECONDS}초 뒤 그룹전이 시작돼요.`
+          : '이제 바로 그룹 러닝을 시작할 수 있어요.',
+      estimatedWaitMinutes: 0,
+      participantCount: session.participants.length,
+      acceptedCount,
+      capacity,
+      userAccepted: Boolean(currentParticipant?.acceptedAt),
+      readyToStart: state === 'active',
+      ...(session.countdownEndsAt ? { countdownEndsAt: session.countdownEndsAt } : {}),
+      ...(typeof countdownRemainingSeconds === 'number' ? { countdownRemainingSeconds } : {}),
+      participants,
+      mySeedRank,
+    };
+  }
+
+  const queuedEntries = buildQueuedMatchRunnerEntries(store, mode, currentRunner, {
+    distanceKm,
+    slotStartAt,
+    includeCurrentUser: true,
+  });
+  const queuedParticipants = queuedEntries.map((entry) => entry.runner);
+  const competitiveThreshold = mode === 'duel' ? DUEL_MIN_COMPATIBILITY_SCORE : GROUP_MIN_COMPATIBILITY_SCORE;
+  const competitiveParticipantsCount = queuedEntries.filter((entry) => (
+    entry.runner.id === currentRunner.id || entry.score >= competitiveThreshold
+  )).length;
+  const averagePaceMinutes = queuedParticipants.length
+    ? queuedParticipants.reduce((sum, runner) => sum + runner.averagePaceMinutes, 0) / queuedParticipants.length
+    : null;
+  const averagePace = averagePaceMinutes === null ? '신청 없음' : formatPaceMinutesLabel(averagePaceMinutes);
+  const participants = mode === 'group' ? buildQueuedParticipants(queuedEntries) : undefined;
+  const mySeedRank = participants?.find((participant) => participant.id === currentUser.id)?.seedRank ?? 1;
+
+  return {
+    success: true,
+    mode,
+    state: queuedEntries.length ? 'waiting' : 'idle',
+    distanceKm: normalizeMatchQueueDistance(distanceKm),
+    slotStartAt,
+    slotLabel,
+    paceBandLabel: averagePaceMinutes === null ? paceBandLabel : buildPaceBandLabel(averagePaceMinutes),
+    levelBandLabel,
+    criteriaSummary: mode === 'duel'
+      ? queuedEntries.length
+        ? `현재 같은 조건 대기 러너는 ${queuedEntries.length}/${capacity}명이에요. 잘 맞는 상대가 잡히면 바로 수락 단계로 넘어가요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+        : `아직 이 조건으로 대기 중인 러너가 없어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+      : queuedEntries.length
+        ? `현재 실제 대기열은 ${queuedEntries.length}/${capacity}명이고, 비슷한 러너는 ${competitiveParticipantsCount}/${capacity}명이에요.${competitiveParticipantsCount < GROUP_MIN_PARTICIPANTS ? ` 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.` : ''}${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+        : `아직 이 조건으로 대기 중인 그룹이 없어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+    estimatedWaitMinutes: mode === 'duel' ? 12 : 10,
+    participantCount: queuedEntries.length,
+    acceptedCount: 0,
+    capacity,
+    userAccepted: false,
+    readyToStart: false,
+    ...(mode === 'duel' ? {
+      opponent: undefined,
+    } : {
+      participants,
+      mySeedRank,
+    }),
+    averagePace,
+  };
+}
+
 function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
   const currentRunner = buildMatchRunnerProfile(store, currentUser);
   const slotLabel = formatDuelSlotLabel(slotStartAt);
@@ -875,6 +1180,10 @@ function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt })
   }
 
   removeUsersFromMatchQueue(store, 'duel', [currentUser.id, bestCandidate.runner.id]);
+  createMatchSession(store, 'duel', distanceKm, slotStartAt, [
+    { id: currentUser.id, seedRank: 1 },
+    { id: bestCandidate.runner.id, seedRank: 2 },
+  ]);
 
   const opponent = bestCandidate.runner;
   return {
@@ -949,6 +1258,7 @@ function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt }
   }
 
   removeUsersFromMatchQueue(store, 'group', participants.map((participant) => participant.id));
+  createMatchSession(store, 'group', distanceKm, slotStartAt, participants);
 
   return {
     success: true,
@@ -1008,6 +1318,115 @@ function buildMatchDemandSummaryResponse(store, currentUser, { mode, distanceKm,
         ? `현재 실제 신청은 ${participantsCount}/${capacity}명이고, 비슷한 러너는 ${competitiveParticipantsCount}/${capacity}명이에요.${competitiveParticipantsCount < GROUP_MIN_PARTICIPANTS ? ` 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.` : ''}${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
         : `아직 이 시간대 신청이 없어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
   };
+}
+
+function acceptRunningMatch(store, currentUser, matchId) {
+  const session = findMatchSessionById(store, matchId);
+
+  if (!session || !session.participants.some((participant) => participant.userId === currentUser.id)) {
+    throw new ApiError(404, '수락할 매치를 찾지 못했어.');
+  }
+
+  const state = hydrateMatchSessionState(session);
+
+  if (state === 'active') {
+    return buildRunningMatchStatusResponse(store, currentUser, {
+      mode: session.mode,
+      distanceKm: session.distanceKm,
+      slotStartAt: session.slotStartAt,
+    });
+  }
+
+  const currentParticipant = session.participants.find((participant) => participant.userId === currentUser.id);
+
+  if (currentParticipant && !currentParticipant.acceptedAt) {
+    currentParticipant.acceptedAt = new Date().toISOString();
+  }
+
+  if (
+    session.participants.every((participant) => participant.acceptedAt)
+    && !session.countdownEndsAt
+    && !session.startedAt
+  ) {
+    session.countdownEndsAt = new Date(Date.now() + MATCH_SESSION_COUNTDOWN_SECONDS * 1000).toISOString();
+  }
+
+  return buildRunningMatchStatusResponse(store, currentUser, {
+    mode: session.mode,
+    distanceKm: session.distanceKm,
+    slotStartAt: session.slotStartAt,
+  });
+}
+
+function cancelRunningMatch(store, currentUser, { mode, distanceKm, slotStartAt, matchId }) {
+  const normalizedDistanceKm = normalizeMatchQueueDistance(distanceKm);
+  const queueEntries = getMatchQueueEntries(store, mode, normalizedDistanceKm, slotStartAt);
+  const session = matchId
+    ? findMatchSessionById(store, matchId)
+    : findMatchSessionForUser(store, mode, currentUser.id, { distanceKm: normalizedDistanceKm, slotStartAt });
+
+  removeUsersFromMatchQueue(store, mode, [currentUser.id]);
+
+  if (session && session.participants.some((participant) => participant.userId === currentUser.id)) {
+    const state = hydrateMatchSessionState(session);
+
+    if (state === 'active') {
+      throw new ApiError(400, '이미 출발한 매치는 취소할 수 없어.');
+    }
+
+    const requeuedParticipants = session.participants
+      .filter((participant) => participant.userId !== currentUser.id)
+      .map((participant) => findUserById(store, participant.userId));
+
+    store.matchSessions = ensureMatchSessions(store).filter((entry) => entry.id !== session.id);
+
+    for (const participant of requeuedParticipants) {
+      upsertMatchQueueEntry(store, mode, participant.id, session.distanceKm, session.slotStartAt);
+    }
+
+    return { success: true };
+  }
+
+  if (!queueEntries.some((entry) => entry.userId === currentUser.id)) {
+    return { success: true };
+  }
+
+  return { success: true };
+}
+
+function updateRunningMatchProgress(store, currentUser, { matchId, distanceKm, elapsedSeconds, currentPace, status }) {
+  const session = findMatchSessionById(store, matchId);
+
+  if (!session || !session.participants.some((participant) => participant.userId === currentUser.id)) {
+    throw new ApiError(404, '진행 상태를 반영할 매치를 찾지 못했어.');
+  }
+
+  const sessionState = hydrateMatchSessionState(session);
+
+  if (!['countdown', 'active'].includes(sessionState)) {
+    throw new ApiError(400, '아직 시작 전인 매치에는 진행 상태를 반영할 수 없어.');
+  }
+
+  const currentParticipant = session.participants.find((participant) => participant.userId === currentUser.id);
+
+  currentParticipant.liveDistanceKm = Number(distanceKm.toFixed(2));
+  currentParticipant.liveElapsedSeconds = elapsedSeconds;
+  currentParticipant.livePace = currentPace;
+  currentParticipant.liveUpdatedAt = new Date().toISOString();
+
+  if (status === 'finished') {
+    currentParticipant.finishedAt = currentParticipant.liveUpdatedAt;
+  }
+
+  if (status === 'running') {
+    currentParticipant.finishedAt = null;
+  }
+
+  return buildRunningMatchStatusResponse(store, currentUser, {
+    mode: session.mode,
+    distanceKm: session.distanceKm,
+    slotStartAt: session.slotStartAt,
+  });
 }
 
 function buildNotificationSettings(user) {
@@ -2945,6 +3364,76 @@ async function handleFetchMatchDemandSummary(request, response) {
   sendJson(response, 200, payload);
 }
 
+async function handleFetchRunningMatchStatus(request, response) {
+  const body = await parseJsonBody(request);
+  const mode = validateMatchMode(body.mode);
+  const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
+  const slotStartAt = validateHalfHourSlotStartAt(body.slotStartAt);
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return buildRunningMatchStatusResponse(store, currentUser, {
+      mode,
+      distanceKm,
+      slotStartAt,
+    });
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleAcceptRunningMatch(request, response) {
+  const body = await parseJsonBody(request);
+  const matchId = validateRequiredString(body.matchId, '수락할 매치 아이디가 필요해.');
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return acceptRunningMatch(store, currentUser, matchId);
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleCancelRunningMatch(request, response) {
+  const body = await parseJsonBody(request);
+  const mode = validateMatchMode(body.mode);
+  const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
+  const slotStartAt = validateHalfHourSlotStartAt(body.slotStartAt);
+  const matchId = typeof body.matchId === 'string' && body.matchId.trim() ? body.matchId.trim() : '';
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return cancelRunningMatch(store, currentUser, {
+      mode,
+      distanceKm,
+      slotStartAt,
+      ...(matchId ? { matchId } : {}),
+    });
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleUpdateRunningMatchProgress(request, response) {
+  const body = await parseJsonBody(request);
+  const matchId = validateRequiredString(body.matchId, '진행 상태를 반영할 매치 아이디가 필요해.');
+  const distanceKm = validateDistanceKm(body.distanceKm, '러닝 거리를 입력해줘.');
+  const elapsedSeconds = validateNonNegativeInteger(body.elapsedSeconds, '러닝 시간은 0초 이상이어야 해.');
+  const currentPace = validatePace(body.currentPace, '현재 페이스가 올바르지 않아.');
+  const status = ['running', 'paused', 'finished'].includes(body.status)
+    ? body.status
+    : 'running';
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return updateRunningMatchProgress(store, currentUser, {
+      matchId,
+      distanceKm,
+      elapsedSeconds,
+      currentPace,
+      status,
+    });
+  });
+
+  sendJson(response, 200, payload);
+}
+
 function handleIntegrationSourceConnection(request, response, sourceType, nextConnected) {
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
@@ -3313,6 +3802,26 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/running/matches/summary' && request.method === 'POST') {
     await handleFetchMatchDemandSummary(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/matches/status' && request.method === 'POST') {
+    await handleFetchRunningMatchStatus(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/matches/accept' && request.method === 'POST') {
+    await handleAcceptRunningMatch(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/matches/cancel' && request.method === 'POST') {
+    await handleCancelRunningMatch(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/matches/progress' && request.method === 'POST') {
+    await handleUpdateRunningMatchProgress(request, response);
     return;
   }
 

@@ -28,8 +28,12 @@ import {
   CreateTrackedRunResponse,
   UpdateRunningLiveShareInput,
   UpdateRunningLiveShareResponse,
+  AcceptRunningMatchInput,
+  CancelRunningMatchInput,
+  CancelRunningMatchResponse,
   CreateFriendRequestResponse,
   DistrictPersonalResponse,
+  FetchRunningMatchStatusInput,
   FriendActivityResponse,
   FriendLeaderboardResponse,
   FriendRequestActionResponse,
@@ -53,7 +57,10 @@ import {
   OfflineRaceHubResponse,
   RegionLeagueResponse,
   RegionCatalogResponse,
+  RunningMatchStatusResponse,
   RunDetailResponse,
+  UpdateRunningMatchProgressInput,
+  UpdateRunningMatchProgressResponse,
   UpdateNotificationSettingsInput,
   UpdateNotificationSettingsResponse,
   UpdateMyRegionInput,
@@ -148,6 +155,12 @@ const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.2];
 const DUEL_MIN_COMPATIBILITY_SCORE = 72;
 const GROUP_MIN_COMPATIBILITY_SCORE = 68;
 const GROUP_MIN_PARTICIPANTS = 4;
+const MATCH_COUNTDOWN_SECONDS = 10;
+
+let mockRunningMatchSessions: Record<'duel' | 'group', RunningMatchStatusResponse | null> = {
+  duel: null,
+  group: null,
+};
 
 function formatMockTimestamp(date = new Date()) {
   return date.toISOString().slice(0, 16).replace('T', ' ');
@@ -177,13 +190,9 @@ function formatDuelSlotLabel(slotStartAt: string) {
     return '시간대 미정';
   }
 
-  const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000);
   const startHours = String(slotStart.getHours()).padStart(2, '0');
   const startMinutes = String(slotStart.getMinutes()).padStart(2, '0');
-  const endHours = String(slotEnd.getHours()).padStart(2, '0');
-  const endMinutes = String(slotEnd.getMinutes()).padStart(2, '0');
-
-  return `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`;
+  return `${startHours}:${startMinutes}`;
 }
 
 function buildPaceBandLabel(baseSecondsPerKm: number) {
@@ -478,6 +487,146 @@ function buildMockMatchDemandSummary(input: FetchMatchDemandSummaryInput): Match
     summaryText: input.mode === 'duel'
       ? `현재 이 시간대에는 바로 붙일 만한 러너 ${participantsCount}/${capacity}명이 있고, 평균 페이스는 ${formatSecondsPerKm(averagePaceSeconds)}예요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
       : `현재 이 시간대에는 비슷한 그룹 러너 ${participantsCount}/${capacity}명이 있고, 평균 페이스는 ${formatSecondsPerKm(averagePaceSeconds)}예요.${participantsCount < GROUP_MIN_PARTICIPANTS ? ` 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.` : ''}${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+  };
+}
+
+function syncMockRunningMatchSession(mode: 'duel' | 'group') {
+  const currentSession = mockRunningMatchSessions[mode];
+
+  if (!currentSession) {
+    return null;
+  }
+
+  if (currentSession.state !== 'countdown' || !currentSession.countdownEndsAt) {
+    return currentSession;
+  }
+
+  const remainingSeconds = Math.max(
+    0,
+    Math.ceil((new Date(currentSession.countdownEndsAt).getTime() - Date.now()) / 1000),
+  );
+
+  if (remainingSeconds <= 0) {
+    const nextSession: RunningMatchStatusResponse = {
+      ...currentSession,
+      state: 'active',
+      readyToStart: true,
+      countdownRemainingSeconds: 0,
+    };
+    mockRunningMatchSessions[mode] = nextSession;
+    return nextSession;
+  }
+
+  const nextSession: RunningMatchStatusResponse = {
+    ...currentSession,
+    countdownRemainingSeconds: remainingSeconds,
+  };
+  mockRunningMatchSessions[mode] = nextSession;
+  return nextSession;
+}
+
+function buildMockWaitingMatchStatus(input: FetchRunningMatchStatusInput): RunningMatchStatusResponse {
+  const summary = buildMockMatchDemandSummary({
+    mode: input.mode,
+    distanceKm: input.distanceKm,
+    slotStartAt: input.slotStartAt,
+  });
+  const profile = getCurrentUserProfile() ?? myProfile;
+  const currentLifetimeDistanceKm = profile.lifetimeDistanceKm ?? weeklySummary.totalDistanceKm;
+  const groupPreview = input.mode === 'group'
+    ? buildMockGroupMatchResponse({
+        distanceKm: input.distanceKm,
+        slotStartAt: input.slotStartAt,
+      })
+    : null;
+
+  return {
+    success: true,
+    mode: input.mode,
+    state: 'waiting',
+    distanceKm: summary.distanceKm,
+    slotStartAt: summary.slotStartAt,
+    slotLabel: summary.slotLabel,
+    paceBandLabel: summary.paceBandLabel,
+    levelBandLabel: `${buildLevelLabel(currentLifetimeDistanceKm)} 전후`,
+    criteriaSummary: summary.summaryText,
+    estimatedWaitMinutes: input.mode === 'duel' ? 12 : 10,
+    participantCount: summary.participantsCount,
+    acceptedCount: 0,
+    capacity: summary.capacity,
+    userAccepted: false,
+    readyToStart: false,
+    ...(groupPreview ? {
+      participants: groupPreview.participants.slice(0, summary.participantsCount),
+      mySeedRank: groupPreview.mySeedRank,
+    } : {}),
+  };
+}
+
+function buildMockDuelMatchStatus(response: RequestDuelMatchResponse): RunningMatchStatusResponse {
+  if (!response.matched || !response.opponent) {
+    return buildMockWaitingMatchStatus({
+      mode: 'duel',
+      distanceKm: response.distanceKm,
+      slotStartAt: response.slotStartAt,
+    });
+  }
+
+  return {
+    success: true,
+    mode: 'duel',
+    state: 'ready',
+    matchId: response.requestId,
+    distanceKm: response.distanceKm,
+    slotStartAt: response.slotStartAt,
+    slotLabel: response.slotLabel,
+    paceBandLabel: response.paceBandLabel,
+    levelBandLabel: response.levelBandLabel,
+    criteriaSummary: '상대가 잡혔어요. 두 사람이 모두 수락하면 10초 카운트다운 뒤 출발해요.',
+    estimatedWaitMinutes: 0,
+    participantCount: 2,
+    acceptedCount: 0,
+    capacity: 2,
+    userAccepted: false,
+    readyToStart: false,
+    opponent: {
+      ...response.opponent,
+      accepted: false,
+    },
+  };
+}
+
+function buildMockGroupMatchStatus(response: RequestGroupMatchResponse): RunningMatchStatusResponse {
+  if (!response.matched) {
+    return buildMockWaitingMatchStatus({
+      mode: 'group',
+      distanceKm: response.distanceKm,
+      slotStartAt: response.slotStartAt,
+    });
+  }
+
+  return {
+    success: true,
+    mode: 'group',
+    state: 'ready',
+    matchId: response.requestId,
+    distanceKm: response.distanceKm,
+    slotStartAt: response.slotStartAt,
+    slotLabel: response.slotLabel,
+    paceBandLabel: response.paceBandLabel,
+    levelBandLabel: response.levelBandLabel,
+    criteriaSummary: '그룹이 잡혔어요. 모두 수락하면 10초 카운트다운 뒤 같이 출발해요.',
+    estimatedWaitMinutes: 0,
+    participantCount: response.participantsCount,
+    acceptedCount: 0,
+    capacity: response.maxGroupSize,
+    userAccepted: false,
+    readyToStart: false,
+    participants: response.participants.map((participant) => ({
+      ...participant,
+      accepted: false,
+    })),
+    mySeedRank: response.mySeedRank,
   };
 }
 
@@ -1105,7 +1254,9 @@ export async function updateRunningLiveShare(
 
 export async function requestDuelMatch(input: RequestDuelMatchInput): Promise<RequestDuelMatchResponse> {
   if (USE_MOCK_API) {
-    return buildMockDuelMatchResponse(input);
+    const response = buildMockDuelMatchResponse(input);
+    mockRunningMatchSessions.duel = buildMockDuelMatchStatus(response);
+    return response;
   }
 
   return apiPost<RequestDuelMatchResponse>(
@@ -1123,7 +1274,9 @@ export async function requestDuelMatch(input: RequestDuelMatchInput): Promise<Re
 
 export async function requestGroupMatch(input: RequestGroupMatchInput): Promise<RequestGroupMatchResponse> {
   if (USE_MOCK_API) {
-    return buildMockGroupMatchResponse(input);
+    const response = buildMockGroupMatchResponse(input);
+    mockRunningMatchSessions.group = buildMockGroupMatchStatus(response);
+    return response;
   }
 
   return apiPost<RequestGroupMatchResponse>(
@@ -1154,6 +1307,173 @@ export async function fetchMatchDemandSummary(input: FetchMatchDemandSummaryInpu
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '현재 매칭 현황을 불러오지 못했어.',
+    },
+  );
+}
+
+export async function fetchRunningMatchStatus(input: FetchRunningMatchStatusInput): Promise<RunningMatchStatusResponse> {
+  if (USE_MOCK_API) {
+    const currentSession = syncMockRunningMatchSession(input.mode);
+
+    if (
+      currentSession
+      && currentSession.distanceKm === Number(input.distanceKm.toFixed(1))
+      && currentSession.slotStartAt === input.slotStartAt
+    ) {
+      return currentSession;
+    }
+
+    return buildMockWaitingMatchStatus(input);
+  }
+
+  return apiPost<RunningMatchStatusResponse>(
+    '/running/matches/status',
+    {
+      mode: input.mode,
+      distanceKm: Number(input.distanceKm.toFixed(1)),
+      slotStartAt: input.slotStartAt,
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '매칭 상태를 불러오지 못했어.',
+    },
+  );
+}
+
+export async function acceptRunningMatch(input: AcceptRunningMatchInput): Promise<RunningMatchStatusResponse> {
+  if (USE_MOCK_API) {
+    const duelSession = syncMockRunningMatchSession('duel');
+    const groupSession = syncMockRunningMatchSession('group');
+    const currentSession = duelSession?.matchId === input.matchId
+      ? duelSession
+      : groupSession?.matchId === input.matchId
+        ? groupSession
+        : null;
+
+    if (!currentSession) {
+      throw new Error('수락할 매치를 찾지 못했어.');
+    }
+
+    const countdownEndsAt = new Date(Date.now() + MATCH_COUNTDOWN_SECONDS * 1000).toISOString();
+    const nextSession: RunningMatchStatusResponse = {
+      ...currentSession,
+      state: 'countdown',
+      acceptedCount: currentSession.participantCount,
+      userAccepted: true,
+      readyToStart: false,
+      countdownEndsAt,
+      countdownRemainingSeconds: MATCH_COUNTDOWN_SECONDS,
+      criteriaSummary: '모두 수락했어요. 카운트다운이 끝나면 바로 시작할 수 있어요.',
+      ...(currentSession.opponent ? {
+        opponent: {
+          ...currentSession.opponent,
+          accepted: true,
+        },
+      } : {}),
+      ...(currentSession.participants ? {
+        participants: currentSession.participants.map((participant) => ({
+          ...participant,
+          accepted: true,
+        })),
+      } : {}),
+    };
+
+    mockRunningMatchSessions[currentSession.mode] = nextSession;
+    return nextSession;
+  }
+
+  return apiPost<RunningMatchStatusResponse>(
+    '/running/matches/accept',
+    input,
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '매치 수락을 반영하지 못했어.',
+    },
+  );
+}
+
+export async function cancelRunningMatch(input: CancelRunningMatchInput): Promise<CancelRunningMatchResponse> {
+  if (USE_MOCK_API) {
+    mockRunningMatchSessions[input.mode] = null;
+    return { success: true };
+  }
+
+  return apiPost<CancelRunningMatchResponse>(
+    '/running/matches/cancel',
+    {
+      ...input,
+      distanceKm: Number(input.distanceKm.toFixed(1)),
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '매칭 취소를 반영하지 못했어.',
+    },
+  );
+}
+
+export async function updateRunningMatchProgress(
+  input: UpdateRunningMatchProgressInput,
+): Promise<UpdateRunningMatchProgressResponse> {
+  if (USE_MOCK_API) {
+    const duelSession = syncMockRunningMatchSession('duel');
+    const groupSession = syncMockRunningMatchSession('group');
+    const currentSession = duelSession?.matchId === input.matchId
+      ? duelSession
+      : groupSession?.matchId === input.matchId
+        ? groupSession
+        : null;
+
+    if (!currentSession) {
+      throw new Error('진행 중인 매치를 찾지 못했어.');
+    }
+
+    if (currentSession.mode === 'duel' && currentSession.opponent) {
+      const nextSession = {
+        ...currentSession,
+        opponent: {
+          ...currentSession.opponent,
+          liveUpdatedAt: new Date().toISOString(),
+        },
+      };
+      mockRunningMatchSessions.duel = nextSession;
+      return nextSession;
+    }
+
+    if (currentSession.mode === 'group' && currentSession.participants) {
+      const nextParticipants = currentSession.participants.map((participant) => (
+        participant.seedRank === (currentSession.mySeedRank ?? 1)
+          ? {
+            ...participant,
+            liveDistanceKm: Number(input.distanceKm.toFixed(2)),
+            liveElapsedSeconds: input.elapsedSeconds,
+            livePace: input.currentPace,
+            liveUpdatedAt: new Date().toISOString(),
+            ...(input.status === 'finished' ? { finishedAt: new Date().toISOString() } : {}),
+          }
+          : participant
+      ));
+
+      const nextSession = {
+        ...currentSession,
+        participants: nextParticipants,
+      };
+      mockRunningMatchSessions.group = nextSession;
+      return nextSession;
+    }
+
+    return currentSession;
+  }
+
+  return apiPost<UpdateRunningMatchProgressResponse>(
+    '/running/matches/progress',
+    {
+      ...input,
+      distanceKm: Number(input.distanceKm.toFixed(2)),
+      elapsedSeconds: Math.max(0, Math.round(input.elapsedSeconds)),
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '실시간 경쟁 상태를 업데이트하지 못했어.',
     },
   );
 }

@@ -69,6 +69,11 @@ function migrateMatchQueueStore(store) {
     changed = true;
   }
 
+  if (!Array.isArray(store.matchSessions)) {
+    store.matchSessions = [];
+    changed = true;
+  }
+
   return changed;
 }
 

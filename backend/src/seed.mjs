@@ -506,6 +506,7 @@ export function createSeedStore() {
       duel: [],
       group: [],
     },
+    matchSessions: [],
     friendRequests: [],
     friendships: [],
     rewardRedemptions: [],

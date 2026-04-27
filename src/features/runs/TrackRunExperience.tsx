@@ -20,8 +20,25 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RunRoutePoint } from '@/domain/types';
-import { createTrackedRun, fetchMatchDemandSummary, requestDuelMatch, requestGroupMatch, updateRunningLiveShare } from '@/lib/api/services';
-import { type MatchDemandSummaryResponse, type RequestDuelMatchResponse, type RequestGroupMatchResponse } from '@/lib/api/types';
+import {
+  acceptRunningMatch,
+  cancelRunningMatch,
+  createTrackedRun,
+  fetchMatchDemandSummary,
+  fetchRunningMatchStatus,
+  requestDuelMatch,
+  requestGroupMatch,
+  updateRunningMatchProgress,
+  updateRunningLiveShare,
+} from '@/lib/api/services';
+import {
+  type GroupMatchParticipant,
+  type MatchDemandSummaryResponse,
+  type RequestDuelMatchResponse,
+  type RequestGroupMatchResponse,
+  type RunningMatchStatusResponse,
+  type UpdateRunningMatchProgressInput,
+} from '@/lib/api/types';
 import { buildSuggestedArtRoute, type SuggestedArtRoute } from '@/features/runs/routeArt';
 import { RunRouteMap } from '@/features/runs/RunRouteMap';
 import {
@@ -59,7 +76,7 @@ type ConfirmedStartLocation = {
     longitude: number;
   };
 };
-type GroupLiveStanding = RequestGroupMatchResponse['participants'][number] & {
+type GroupLiveStanding = GroupMatchParticipant & {
   rank: number;
   currentDistanceKm: number;
   gapAheadKm: number | null;
@@ -329,16 +346,12 @@ function buildUpcomingHalfHourSlots(count = 6, referenceDate = new Date()) {
 
   return Array.from({ length: count }, (_, index) => {
     const slotStart = new Date(nextSlot.getTime() + index * 30 * 60 * 1000);
-    const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000);
     const startHours = String(slotStart.getHours()).padStart(2, '0');
     const startMinutes = String(slotStart.getMinutes()).padStart(2, '0');
-    const endHours = String(slotEnd.getHours()).padStart(2, '0');
-    const endMinutes = String(slotEnd.getMinutes()).padStart(2, '0');
 
     return {
       startsAt: slotStart.toISOString(),
       label: `${startHours}:${startMinutes}`,
-      meta: `${startHours}:${startMinutes} - ${endHours}:${endMinutes}`,
     };
   });
 }
@@ -353,28 +366,60 @@ function parsePaceSecondsPerKm(paceLabel: string) {
   return Number(matched[1]) * 60 + Number(matched[2]);
 }
 
+function normalizeMatchProgressPace(paceLabel: string, fallbackPaceLabel?: string) {
+  const matched = String(paceLabel).trim().match(/^\d{1,2}:\d{2}\/km$/i);
+
+  if (matched) {
+    return paceLabel;
+  }
+
+  const fallbackMatched = String(fallbackPaceLabel ?? '').trim().match(/^\d{1,2}:\d{2}\/km$/i);
+  if (fallbackMatched) {
+    return fallbackPaceLabel!;
+  }
+
+  return '06:00/km';
+}
+
+function buildSeedRankPaceAdjustment(seedRank: number) {
+  return 1 - Math.max(-0.08, Math.min(0.08, (6 - seedRank) * 0.012));
+}
+
+function buildEstimatedCompetitiveDistanceKm(paceLabel: string, elapsedSeconds: number, seedRank?: number) {
+  if (elapsedSeconds <= 0) {
+    return 0;
+  }
+
+  const paceSecondsPerKm = parsePaceSecondsPerKm(paceLabel);
+  const paceAdjustment = typeof seedRank === 'number' ? buildSeedRankPaceAdjustment(seedRank) : 1;
+  const estimatedDistanceKm = elapsedSeconds / Math.max(1, paceSecondsPerKm * paceAdjustment);
+
+  return Number(Math.max(0, estimatedDistanceKm).toFixed(2));
+}
+
 function buildGroupLiveStandings(
-  groupMatchResult: RequestGroupMatchResponse | null,
+  participants: GroupMatchParticipant[],
+  mySeedRank: number | undefined,
   currentDistanceKm: number,
   elapsedSeconds: number,
 ): GroupLiveStanding[] {
-  if (!groupMatchResult?.matched || !groupMatchResult.participants.length) {
+  if (!participants.length) {
     return [];
   }
 
-  const currentSeedRank = groupMatchResult.mySeedRank ?? 1;
-  const standings = groupMatchResult.participants
+  const currentSeedRank = mySeedRank ?? 1;
+  const standings = participants
     .map((participant) => {
       const isCurrentUser = participant.seedRank === currentSeedRank;
       const estimatedDistanceKm = isCurrentUser
         ? currentDistanceKm
-        : elapsedSeconds <= 0
-          ? 0
-          : elapsedSeconds / Math.max(1, parsePaceSecondsPerKm(participant.averagePace) * (1 - Math.max(-0.08, Math.min(0.08, (6 - participant.seedRank) * 0.012))));
+        : typeof participant.liveDistanceKm === 'number'
+          ? participant.liveDistanceKm
+          : buildEstimatedCompetitiveDistanceKm(participant.averagePace, elapsedSeconds, participant.seedRank);
 
       return {
         ...participant,
-        currentDistanceKm: Number(Math.max(0, estimatedDistanceKm).toFixed(2)),
+        currentDistanceKm: estimatedDistanceKm,
         rank: 0,
         gapAheadKm: null,
         gapLeaderKm: 0,
@@ -413,6 +458,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const liveShareEnabledRef = useRef(false);
   const liveShareLabelRef = useRef<string | null>(null);
   const liveShareHeartbeatRef = useRef(0);
+  const matchProgressHeartbeatRef = useRef(0);
 
   const [status, setStatus] = useState<TrackerStatus>('idle');
   const [route, setRoute] = useState<RunRoutePoint[]>([]);
@@ -436,16 +482,24 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [liveShareLabel, setLiveShareLabel] = useState<string | null>(null);
   const [matchMode, setMatchMode] = useState<RunMatchMode>('duel');
   const [duelDistanceText, setDuelDistanceText] = useState('5');
+  const [showDuelCustomDistanceInput, setShowDuelCustomDistanceInput] = useState(false);
   const [selectedDuelSlotStartAt, setSelectedDuelSlotStartAt] = useState(() => buildUpcomingHalfHourSlots()[0]?.startsAt ?? new Date().toISOString());
   const [isRequestingDuelMatch, setIsRequestingDuelMatch] = useState(false);
   const [duelMatchResult, setDuelMatchResult] = useState<RequestDuelMatchResponse | null>(null);
+  const [duelMatchStatus, setDuelMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
+  const [isAcceptingDuelMatch, setIsAcceptingDuelMatch] = useState(false);
+  const [isCancelingDuelMatch, setIsCancelingDuelMatch] = useState(false);
   const [duelDemandSummary, setDuelDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
   const [isLoadingDuelDemandSummary, setIsLoadingDuelDemandSummary] = useState(false);
   const [duelExpansionSuggestion, setDuelExpansionSuggestion] = useState<MatchExpansionSuggestion | null>(null);
   const [groupDistanceText, setGroupDistanceText] = useState('5');
+  const [showGroupCustomDistanceInput, setShowGroupCustomDistanceInput] = useState(false);
   const [selectedGroupSlotStartAt, setSelectedGroupSlotStartAt] = useState(() => buildUpcomingHalfHourSlots()[0]?.startsAt ?? new Date().toISOString());
   const [isRequestingGroupMatch, setIsRequestingGroupMatch] = useState(false);
   const [groupMatchResult, setGroupMatchResult] = useState<RequestGroupMatchResponse | null>(null);
+  const [groupMatchStatus, setGroupMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
+  const [isAcceptingGroupMatch, setIsAcceptingGroupMatch] = useState(false);
+  const [isCancelingGroupMatch, setIsCancelingGroupMatch] = useState(false);
   const [groupDemandSummary, setGroupDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
   const [isLoadingGroupDemandSummary, setIsLoadingGroupDemandSummary] = useState(false);
   const [groupExpansionSuggestion, setGroupExpansionSuggestion] = useState<MatchExpansionSuggestion | null>(null);
@@ -469,8 +523,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const groupDistanceKm = useMemo(() => parseDuelMatchDistanceKm(groupDistanceText), [groupDistanceText]);
   const duelSlotOptions = useMemo(() => buildUpcomingHalfHourSlots(8), []);
   const selectedDuelSlot = duelSlotOptions.find((slot) => slot.startsAt === selectedDuelSlotStartAt) ?? duelSlotOptions[0] ?? null;
+  const activeDuelSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
   const groupSlotOptions = useMemo(() => buildUpcomingHalfHourSlots(8), []);
   const selectedGroupSlot = groupSlotOptions.find((slot) => slot.startsAt === selectedGroupSlotStartAt) ?? groupSlotOptions[0] ?? null;
+  const activeGroupSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
   const matchOptions = useMemo(
     () => [
       {
@@ -508,34 +564,104 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   );
   const latestPoint = route.length ? route[route.length - 1] : null;
   const selectedMatch = matchOptions.find((option) => option.mode === matchMode) ?? matchOptions[0];
+  const duelMatchState = duelMatchStatus?.state ?? 'idle';
+  const groupMatchState = groupMatchStatus?.state ?? 'idle';
+  const effectiveDuelOpponent = duelMatchStatus?.opponent ?? duelMatchResult?.opponent ?? null;
+  const effectiveDuelSlotLabel = duelMatchStatus?.slotLabel ?? duelMatchResult?.slotLabel ?? selectedDuelSlot?.label ?? '시간 미정';
+  const effectiveGroupParticipants = groupMatchStatus?.participants ?? groupMatchResult?.participants ?? [];
+  const effectiveGroupParticipantCount = groupMatchStatus?.participantCount ?? groupMatchResult?.participantsCount ?? effectiveGroupParticipants.length;
+  const effectiveGroupSeedRank = groupMatchStatus?.mySeedRank ?? groupMatchResult?.mySeedRank;
+  const effectiveGroupSlotLabel = groupMatchStatus?.slotLabel ?? groupMatchResult?.slotLabel ?? selectedGroupSlot?.label ?? '시간 미정';
   const groupLiveStandings = useMemo(
-    () => buildGroupLiveStandings(groupMatchResult, distanceKm, elapsedSeconds),
-    [groupMatchResult, distanceKm, elapsedSeconds],
+    () => buildGroupLiveStandings(effectiveGroupParticipants, effectiveGroupSeedRank, distanceKm, elapsedSeconds),
+    [distanceKm, elapsedSeconds, effectiveGroupParticipants, effectiveGroupSeedRank],
   );
   const currentGroupStanding = groupLiveStandings.find((participant) => participant.isCurrentUser) ?? null;
   const currentGroupLeader = groupLiveStandings[0] ?? null;
-  const liveMatchTitle = matchMode === 'duel' && duelMatchResult?.matched && duelMatchResult.opponent
-    ? `${duelMatchResult.opponent.name}님과 1대1 매치 진행 중`
-    : matchMode === 'group' && groupMatchResult?.matched
-      ? `${groupMatchResult.participantsCount}명 그룹 대결 진행 중`
+  const duelLiveGapKm = useMemo(() => {
+    if (!effectiveDuelOpponent || typeof effectiveDuelOpponent.liveDistanceKm !== 'number') {
+      return null;
+    }
+
+    return Number((distanceKm - effectiveDuelOpponent.liveDistanceKm).toFixed(2));
+  }, [distanceKm, effectiveDuelOpponent]);
+  const duelFinishSummary = useMemo(() => {
+    if (!effectiveDuelOpponent) {
+      return null;
+    }
+
+    const opponentDistanceKm = buildEstimatedCompetitiveDistanceKm(effectiveDuelOpponent.averagePace, elapsedSeconds, 2);
+    const gapKm = Number(Math.abs(distanceKm - opponentDistanceKm).toFixed(2));
+    const isDraw = gapKm < 0.03;
+    const resultTone = isDraw ? 'draw' : distanceKm > opponentDistanceKm ? 'win' : 'lose';
+    const title = isDraw
+      ? `${effectiveDuelOpponent.name}님과 거의 같은 흐름으로 마쳤어요`
+      : resultTone === 'win'
+        ? `${effectiveDuelOpponent.name}님보다 앞서서 마쳤어요`
+        : `${effectiveDuelOpponent.name}님이 조금 앞섰어요`;
+    const summary = isDraw
+      ? `현재 기준으로 두 러너 차이가 ${gapKm.toFixed(2)}km 안쪽이에요.`
+      : resultTone === 'win'
+        ? `${gapKm.toFixed(2)}km 앞선 상태로 종료했어요.`
+        : `${gapKm.toFixed(2)}km 차이로 따라가는 흐름이었어요.`;
+
+    return {
+      title,
+      summary,
+      resultTone,
+      opponentDistanceKm,
+      gapKm,
+    };
+  }, [distanceKm, effectiveDuelOpponent, elapsedSeconds]);
+  const groupFinishSummary = useMemo(() => {
+    if (!currentGroupStanding || !effectiveGroupParticipantCount) {
+      return null;
+    }
+
+    const title = currentGroupStanding.rank === 1
+      ? '선두로 마무리했어요'
+      : `${effectiveGroupParticipantCount}명 중 ${currentGroupStanding.rank}위로 마쳤어요`;
+    const summary = currentGroupStanding.rank === 1
+      ? '마지막까지 페이스를 잘 지켜서 선두를 유지했어요.'
+      : `앞 사람과 ${currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km 차이였어요.`;
+    const podium = groupLiveStandings.slice(0, 3);
+
+    return {
+      title,
+      summary,
+      podium,
+    };
+  }, [currentGroupStanding, effectiveGroupParticipantCount, groupLiveStandings]);
+  const liveMatchTitle = matchMode === 'duel' && effectiveDuelOpponent
+    ? `${effectiveDuelOpponent.name}님과 1대1 매치 진행 중`
+    : matchMode === 'group' && effectiveGroupParticipantCount
+      ? `${effectiveGroupParticipantCount}명 그룹 대결 진행 중`
       : selectedMatch.liveTitle;
-  const liveMatchText = matchMode === 'duel' && duelMatchResult?.matched && duelMatchResult.opponent
-    ? `${duelMatchResult.opponent.compatibilitySummary} · ${duelMatchResult.slotLabel}`
-    : matchMode === 'group' && groupMatchResult?.matched
-      ? `${groupMatchResult.slotLabel} · 내 시작 시드 ${groupMatchResult.mySeedRank ?? 1}위`
+  const liveMatchText = matchMode === 'duel' && effectiveDuelOpponent
+    ? `${effectiveDuelOpponent.compatibilitySummary} · ${effectiveDuelSlotLabel}`
+    : matchMode === 'group' && effectiveGroupParticipantCount
+      ? `${effectiveGroupSlotLabel} · 내 시작 시드 ${effectiveGroupSeedRank ?? 1}위`
       : selectedMatch.liveText;
   const readyActionLabel = matchMode === 'duel'
-    ? duelMatchResult?.matched && duelMatchResult.opponent
-      ? `${duelMatchResult.opponent.name}님과 매치 시작`
-      : isRequestingDuelMatch
-        ? '1대1 매칭 찾는 중...'
-        : '1대1 매칭 찾기'
+    ? duelMatchState === 'active'
+      ? `${effectiveDuelOpponent?.name ?? '상대'}님과 매치 시작`
+      : duelMatchState === 'countdown'
+        ? `${duelMatchStatus?.countdownRemainingSeconds ?? 0}초 뒤 시작`
+        : duelMatchState === 'ready'
+          ? duelMatchStatus?.userAccepted
+            ? '상대 수락 대기 중'
+            : '수락 후 시작'
+          : '매칭 완료 후 시작'
     : matchMode === 'group'
-      ? groupMatchResult?.matched
-        ? `${groupMatchResult.participantsCount}명 그룹으로 시작`
-        : isRequestingGroupMatch
-          ? '그룹 매칭 찾는 중...'
-          : '그룹 매칭 찾기'
+      ? groupMatchState === 'active'
+        ? `${effectiveGroupParticipantCount}명 그룹으로 시작`
+        : groupMatchState === 'countdown'
+          ? `${groupMatchStatus?.countdownRemainingSeconds ?? 0}초 뒤 시작`
+          : groupMatchState === 'ready'
+            ? groupMatchStatus?.userAccepted
+              ? '모두 수락 대기 중'
+              : '수락 후 시작'
+            : '그룹 완료 후 시작'
       : selectedMatch.startLabel;
   const isRunning = status === 'running';
   const isPaused = status === 'paused';
@@ -544,6 +670,23 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const isTabMode = mode === 'tab';
   const backHref: Href = '/my-activity';
   const discardRedirectHref: Href | null = isTabMode ? null : '/my-activity';
+
+  const pushRunningMatchProgress = async (input: UpdateRunningMatchProgressInput) => {
+    const nextStatus = await updateRunningMatchProgress({
+      ...input,
+      currentPace: normalizeMatchProgressPace(input.currentPace, averagePace),
+    });
+
+    if (input.matchId === duelMatchStatus?.matchId) {
+      setDuelMatchStatus(nextStatus);
+    }
+
+    if (input.matchId === groupMatchStatus?.matchId) {
+      setGroupMatchStatus(nextStatus);
+    }
+
+    return nextStatus;
+  };
 
   useEffect(() => {
     liveShareEnabledRef.current = liveShareEnabled;
@@ -566,6 +709,14 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       const activeSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
       return current.distanceKm === duelDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
     });
+    setDuelMatchStatus((current) => {
+      if (!current) {
+        return null;
+      }
+
+      const activeSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
+      return current.distanceKm === duelDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
+    });
   }, [duelDistanceKm, matchMode, selectedDuelSlot, selectedDuelSlotStartAt]);
 
   useEffect(() => {
@@ -574,6 +725,14 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     }
 
     setGroupMatchResult((current) => {
+      if (!current) {
+        return null;
+      }
+
+      const activeSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
+      return current.distanceKm === groupDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
+    });
+    setGroupMatchStatus((current) => {
       if (!current) {
         return null;
       }
@@ -728,6 +887,90 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       canceled = true;
     };
   }, [groupDemandSummary, groupDistanceKm, groupSlotOptions, matchMode, selectedGroupSlot, selectedGroupSlotStartAt]);
+
+  const loadDuelMatchStatus = async (slotStartAt = activeDuelSlotStartAt) => {
+    const payload = await fetchRunningMatchStatus({
+      mode: 'duel',
+      distanceKm: duelDistanceKm,
+      slotStartAt,
+    });
+    setDuelMatchStatus(payload);
+    return payload;
+  };
+
+  const loadGroupMatchStatus = async (slotStartAt = activeGroupSlotStartAt) => {
+    const payload = await fetchRunningMatchStatus({
+      mode: 'group',
+      distanceKm: groupDistanceKm,
+      slotStartAt,
+    });
+    setGroupMatchStatus(payload);
+    return payload;
+  };
+
+  useEffect(() => {
+    if (matchMode !== 'duel') {
+      return;
+    }
+
+    let canceled = false;
+    void loadDuelMatchStatus(activeDuelSlotStartAt).catch(() => {
+      if (!canceled) {
+        setDuelMatchStatus(null);
+      }
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, [matchMode, duelDistanceKm, activeDuelSlotStartAt]);
+
+  useEffect(() => {
+    if (matchMode !== 'group') {
+      return;
+    }
+
+    let canceled = false;
+    void loadGroupMatchStatus(activeGroupSlotStartAt).catch(() => {
+      if (!canceled) {
+        setGroupMatchStatus(null);
+      }
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, [matchMode, groupDistanceKm, activeGroupSlotStartAt]);
+
+  useEffect(() => {
+    if (matchMode !== 'duel' || !duelMatchStatus || !['waiting', 'ready', 'countdown', 'active'].includes(duelMatchStatus.state)) {
+      return;
+    }
+
+    const intervalMs = duelMatchStatus.state === 'countdown' ? 1000 : 5000;
+    const timer = setInterval(() => {
+      void loadDuelMatchStatus().catch(() => {});
+    }, intervalMs);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [matchMode, duelMatchStatus?.state, duelMatchStatus?.matchId, duelDistanceKm, activeDuelSlotStartAt]);
+
+  useEffect(() => {
+    if (matchMode !== 'group' || !groupMatchStatus || !['waiting', 'ready', 'countdown', 'active'].includes(groupMatchStatus.state)) {
+      return;
+    }
+
+    const intervalMs = groupMatchStatus.state === 'countdown' ? 1000 : 5000;
+    const timer = setInterval(() => {
+      void loadGroupMatchStatus().catch(() => {});
+    }, intervalMs);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [matchMode, groupMatchStatus?.state, groupMatchStatus?.matchId, groupDistanceKm, activeGroupSlotStartAt]);
 
   const syncElapsedSeconds = (nextElapsedSeconds: number) => {
     elapsedSecondsRef.current = nextElapsedSeconds;
@@ -897,6 +1140,39 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       locationLabel: liveShareLabelRef.current,
     }).catch(() => {
       // Keep the run going even if the optional live-share heartbeat fails.
+    });
+  };
+
+  const refreshMatchProgressHeartbeat = (snapshot: BackgroundRunTrackingSnapshot) => {
+    if (snapshot.status !== 'running') {
+      return;
+    }
+
+    const activeMatchId = matchMode === 'duel'
+      ? (duelMatchState === 'active' ? duelMatchStatus?.matchId : null)
+      : matchMode === 'group'
+        ? (groupMatchState === 'active' ? groupMatchStatus?.matchId : null)
+        : null;
+
+    if (!activeMatchId) {
+      return;
+    }
+
+    const now = Date.now();
+
+    if (now - matchProgressHeartbeatRef.current < 5000) {
+      return;
+    }
+
+    matchProgressHeartbeatRef.current = now;
+    void pushRunningMatchProgress({
+      matchId: activeMatchId,
+      distanceKm: snapshot.distanceKm,
+      elapsedSeconds: getBackgroundRunElapsedSeconds(snapshot),
+      currentPace: snapshot.currentPace,
+      status: 'running',
+    }).catch(() => {
+      // Keep the run going even if the optional match heartbeat fails.
     });
   };
 
@@ -1071,17 +1347,13 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       return;
     }
 
-    if (matchMode === 'duel' && !duelMatchResult?.matched) {
-      if (!isRequestingDuelMatch) {
-        void handleRequestDuelMatch();
-      }
+    if (matchMode === 'duel' && duelMatchState !== 'active') {
+      setError('1대1 매칭이 모두 수락되고 카운트다운이 끝나야 시작할 수 있어요.');
       return;
     }
 
-    if (matchMode === 'group' && !groupMatchResult?.matched) {
-      if (!isRequestingGroupMatch) {
-        void handleRequestGroupMatch();
-      }
+    if (matchMode === 'group' && groupMatchState !== 'active') {
+      setError('그룹 매칭이 모두 수락되고 카운트다운이 끝나야 시작할 수 있어요.');
       return;
     }
 
@@ -1152,11 +1424,14 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       });
 
       setDuelMatchResult(payload);
-      const nextSummary = await fetchMatchDemandSummary({
-        mode: 'duel',
-        distanceKm: duelDistanceKm,
-        slotStartAt,
-      });
+      const [nextSummary] = await Promise.all([
+        fetchMatchDemandSummary({
+          mode: 'duel',
+          distanceKm: duelDistanceKm,
+          slotStartAt,
+        }),
+        loadDuelMatchStatus(slotStartAt),
+      ]);
       setDuelDemandSummary(nextSummary);
     } catch (matchError) {
       setError(matchError instanceof Error ? matchError.message : '1대1 매칭을 찾지 못했어.');
@@ -1176,16 +1451,117 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       });
 
       setGroupMatchResult(payload);
-      const nextSummary = await fetchMatchDemandSummary({
-        mode: 'group',
-        distanceKm: groupDistanceKm,
-        slotStartAt,
-      });
+      const [nextSummary] = await Promise.all([
+        fetchMatchDemandSummary({
+          mode: 'group',
+          distanceKm: groupDistanceKm,
+          slotStartAt,
+        }),
+        loadGroupMatchStatus(slotStartAt),
+      ]);
       setGroupDemandSummary(nextSummary);
     } catch (matchError) {
       setError(matchError instanceof Error ? matchError.message : '그룹 매칭을 찾지 못했어.');
     } finally {
       setIsRequestingGroupMatch(false);
+    }
+  };
+
+  const handleAcceptDuelMatch = async () => {
+    if (!duelMatchStatus?.matchId) {
+      return;
+    }
+
+    try {
+      setError(null);
+      setIsAcceptingDuelMatch(true);
+      const payload = await acceptRunningMatch({
+        matchId: duelMatchStatus.matchId,
+      });
+      setDuelMatchStatus(payload);
+    } catch (matchError) {
+      setError(matchError instanceof Error ? matchError.message : '1대1 매치 수락을 반영하지 못했어.');
+    } finally {
+      setIsAcceptingDuelMatch(false);
+    }
+  };
+
+  const handleCancelDuelMatch = async () => {
+    try {
+      setError(null);
+      setIsCancelingDuelMatch(true);
+      await cancelRunningMatch({
+        mode: 'duel',
+        distanceKm: duelDistanceKm,
+        slotStartAt: activeDuelSlotStartAt,
+        ...(duelMatchStatus?.matchId ? { matchId: duelMatchStatus.matchId } : {}),
+      });
+      setDuelMatchResult(null);
+      const [nextSummary, nextStatus] = await Promise.all([
+        fetchMatchDemandSummary({
+          mode: 'duel',
+          distanceKm: duelDistanceKm,
+          slotStartAt: activeDuelSlotStartAt,
+        }),
+        loadDuelMatchStatus(activeDuelSlotStartAt),
+      ]);
+      setDuelDemandSummary(nextSummary);
+      if (nextStatus.state === 'idle') {
+        setDuelMatchStatus(null);
+      }
+    } catch (matchError) {
+      setError(matchError instanceof Error ? matchError.message : '1대1 매치를 취소하지 못했어.');
+    } finally {
+      setIsCancelingDuelMatch(false);
+    }
+  };
+
+  const handleAcceptGroupMatch = async () => {
+    if (!groupMatchStatus?.matchId) {
+      return;
+    }
+
+    try {
+      setError(null);
+      setIsAcceptingGroupMatch(true);
+      const payload = await acceptRunningMatch({
+        matchId: groupMatchStatus.matchId,
+      });
+      setGroupMatchStatus(payload);
+    } catch (matchError) {
+      setError(matchError instanceof Error ? matchError.message : '그룹 매치 수락을 반영하지 못했어.');
+    } finally {
+      setIsAcceptingGroupMatch(false);
+    }
+  };
+
+  const handleCancelGroupMatch = async () => {
+    try {
+      setError(null);
+      setIsCancelingGroupMatch(true);
+      await cancelRunningMatch({
+        mode: 'group',
+        distanceKm: groupDistanceKm,
+        slotStartAt: activeGroupSlotStartAt,
+        ...(groupMatchStatus?.matchId ? { matchId: groupMatchStatus.matchId } : {}),
+      });
+      setGroupMatchResult(null);
+      const [nextSummary, nextStatus] = await Promise.all([
+        fetchMatchDemandSummary({
+          mode: 'group',
+          distanceKm: groupDistanceKm,
+          slotStartAt: activeGroupSlotStartAt,
+        }),
+        loadGroupMatchStatus(activeGroupSlotStartAt),
+      ]);
+      setGroupDemandSummary(nextSummary);
+      if (nextStatus.state === 'idle') {
+        setGroupMatchStatus(null);
+      }
+    } catch (matchError) {
+      setError(matchError instanceof Error ? matchError.message : '그룹 매치를 취소하지 못했어.');
+    } finally {
+      setIsCancelingGroupMatch(false);
     }
   };
 
@@ -1211,6 +1587,26 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     await pauseBackgroundRunTracking();
     stopForegroundTrackingHelpers();
     syncFromBackgroundTracking();
+
+    const activeMatchId = matchMode === 'duel'
+      ? duelMatchStatus?.matchId
+      : matchMode === 'group'
+        ? groupMatchStatus?.matchId
+        : null;
+
+    if (activeMatchId) {
+      try {
+        await pushRunningMatchProgress({
+          matchId: activeMatchId,
+          distanceKm,
+          elapsedSeconds,
+          currentPace,
+          status: 'paused',
+        });
+      } catch {
+        setError('러닝은 멈췄지만 경쟁 상태를 업데이트하지 못했어요.');
+      }
+    }
 
     try {
       await syncLiveSharing({
@@ -1242,6 +1638,23 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
           enabled: true,
           status: 'running',
           locationLabel: nextLocationLabel,
+        });
+      }
+
+      const activeMatchId = matchMode === 'duel'
+        ? duelMatchStatus?.matchId
+        : matchMode === 'group'
+          ? groupMatchStatus?.matchId
+          : null;
+
+      if (activeMatchId) {
+        const currentSnapshot = getBackgroundRunTrackingSnapshot();
+        await pushRunningMatchProgress({
+          matchId: activeMatchId,
+          distanceKm: currentSnapshot.distanceKm,
+          elapsedSeconds: getBackgroundRunElapsedSeconds(currentSnapshot),
+          currentPace: currentSnapshot.currentPace,
+          status: 'running',
         });
       }
     } catch (resumeError) {
@@ -1310,6 +1723,26 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         throw new Error('페이스 계산이 아직 부족해서 저장할 수 없어. 조금 더 측정한 뒤 다시 시도해줘.');
       }
 
+      const activeMatchId = matchMode === 'duel'
+        ? duelMatchStatus?.matchId
+        : matchMode === 'group'
+          ? groupMatchStatus?.matchId
+          : null;
+
+      if (activeMatchId) {
+        try {
+          await pushRunningMatchProgress({
+            matchId: activeMatchId,
+            distanceKm: finalDistanceKm,
+            elapsedSeconds: finalElapsedSeconds,
+            currentPace: averagePaceLabel,
+            status: 'finished',
+          });
+        } catch {
+          setError('러닝 결과는 계산됐지만 경쟁 상태를 마지막으로 반영하지 못했어요.');
+        }
+      }
+
       setStatus('saving');
       const savedRun = await createTrackedRun({
         date: buildRunDateFromTimestamp(startedAt),
@@ -1345,6 +1778,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     const unsubscribe = subscribeBackgroundRunTracking((snapshot) => {
       syncFromBackgroundTracking(snapshot);
       refreshLiveSharingHeartbeat(snapshot);
+      refreshMatchProgressHeartbeat(snapshot);
 
       if (snapshot.status === 'running') {
         startElapsedTicker();
@@ -1390,19 +1824,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         <>
           <Card style={styles.readyCard}>
             <View style={styles.readyHero}>
-              <Text style={styles.readyEyebrow}>RunningGround</Text>
-              <Text style={styles.readyTitle}>런닝 시작 준비</Text>
-              <View style={styles.readyPillRow}>
-                <View style={styles.readyPill}>
-                  <Text style={styles.readyPillText}>실시간 맵</Text>
-                </View>
-                <View style={styles.readyPill}>
-                  <Text style={styles.readyPillText}>거리 · 페이스</Text>
-                </View>
-                <View style={styles.readyPill}>
-                  <Text style={styles.readyPillText}>백그라운드 측정</Text>
-                </View>
-              </View>
+              <Text style={styles.readyTitle}>러닝 준비</Text>
             </View>
             <View style={styles.liveShareCard}>
               <View style={styles.liveShareHeader}>
@@ -1447,7 +1869,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
               <View style={styles.matchHeader}>
                 <View style={styles.matchHeaderCopy}>
                   <Text style={styles.matchTitle}>경쟁 매칭</Text>
-                  <Text style={styles.matchDescription}>혼자 뛰기 아쉬운 날엔 바로 매칭 모드를 고르고 시작할 수 있어요.</Text>
                 </View>
                 <View style={styles.matchBadge}>
                   <Text style={styles.matchBadgeText}>{selectedMatch.label}</Text>
@@ -1462,43 +1883,31 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       key={option.mode}
                       style={[styles.matchOption, isSelected ? styles.matchOptionSelected : styles.matchOptionIdle]}
                       onPress={() => setMatchMode(option.mode)}
-                    >
-                      <Text style={[styles.matchOptionLabel, isSelected ? styles.matchOptionLabelSelected : undefined]}>
-                        {option.label}
-                      </Text>
-                      <Text style={[styles.matchOptionTitle, isSelected ? styles.matchOptionTitleSelected : undefined]}>
-                        {option.title}
-                      </Text>
-                      <Text style={[styles.matchOptionSummary, isSelected ? styles.matchOptionSummarySelected : undefined]}>
-                        {option.summary}
-                      </Text>
-                      <Text style={[styles.matchOptionMeta, isSelected ? styles.matchOptionMetaSelected : undefined]}>
-                        {option.meta}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <View style={styles.matchSummaryCard}>
-                <Text style={styles.matchSummaryTitle}>{selectedMatch.title}</Text>
-                <Text style={styles.matchSummaryText}>{selectedMatch.summary}</Text>
-                <Text style={styles.matchSummaryMeta}>{selectedMatch.meta}</Text>
+                      >
+                        <Text style={[styles.matchOptionLabel, isSelected ? styles.matchOptionLabelSelected : undefined]}>
+                          {option.label}
+                        </Text>
+                        <Text style={[styles.matchOptionTitle, isSelected ? styles.matchOptionTitleSelected : undefined]}>
+                          {option.title}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
               </View>
               {matchMode === 'duel' ? (
                 <View style={styles.duelSetupCard}>
                   <View style={styles.duelSection}>
                     <View style={styles.duelSectionHeader}>
-                      <Text style={styles.duelSectionTitle}>원하는 거리</Text>
-                      <Text style={styles.duelSectionMeta}>2km - 42.2km</Text>
+                      <Text style={styles.duelSectionTitle}>거리</Text>
+                      <Pressable
+                        style={styles.distanceInputToggle}
+                        onPress={() => setShowDuelCustomDistanceInput((current) => !current)}
+                      >
+                        <Text style={styles.distanceInputToggleText}>
+                          {showDuelCustomDistanceInput ? '추천 거리' : '직접 입력'}
+                        </Text>
+                      </Pressable>
                     </View>
-                    <TextInput
-                      value={duelDistanceText}
-                      onChangeText={setDuelDistanceText}
-                      placeholder="예: 5, 10, 21.1"
-                      placeholderTextColor="#98A2B3"
-                      keyboardType="decimal-pad"
-                      style={styles.duelDistanceInput}
-                    />
                     <View style={styles.matchDistanceChipRow}>
                       {RECOMMENDED_MATCH_DISTANCES.map((recommendedDistanceKm) => {
                         const isSelected = Math.abs(duelDistanceKm - recommendedDistanceKm) < 0.15;
@@ -1507,7 +1916,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           <Pressable
                             key={`duel-${recommendedDistanceKm}`}
                             style={[styles.matchDistanceChip, isSelected ? styles.matchDistanceChipSelected : undefined]}
-                            onPress={() => setDuelDistanceText(String(recommendedDistanceKm))}
+                            onPress={() => {
+                              setDuelDistanceText(String(recommendedDistanceKm));
+                              setShowDuelCustomDistanceInput(false);
+                            }}
                           >
                             <Text style={[styles.matchDistanceChipText, isSelected ? styles.matchDistanceChipTextSelected : undefined]}>
                               {recommendedDistanceKm}km
@@ -1516,17 +1928,26 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         );
                       })}
                     </View>
-                    <Text style={styles.duelHelperText}>
-                      {isRecommendedMatchDistance(duelDistanceKm)
-                        ? '같은 목표 거리로 뛰는 러너를 우선으로 찾습니다.'
-                        : `추천 거리 ${findNearestRecommendedDistance(duelDistanceKm)}km로 맞추면 더 빨리 비슷한 러너가 모여요.`}
-                    </Text>
+                    {showDuelCustomDistanceInput ? (
+                      <TextInput
+                        value={duelDistanceText}
+                        onChangeText={setDuelDistanceText}
+                        placeholder="예: 5, 10, 21.1"
+                        placeholderTextColor="#98A2B3"
+                        keyboardType="decimal-pad"
+                        style={styles.duelDistanceInput}
+                      />
+                    ) : null}
+                    {!isRecommendedMatchDistance(duelDistanceKm) ? (
+                      <Text style={styles.duelHelperText}>
+                        추천 거리 {findNearestRecommendedDistance(duelDistanceKm)}km로 맞추면 더 빨리 비슷한 러너가 모여요.
+                      </Text>
+                    ) : null}
                   </View>
 
                   <View style={styles.duelSection}>
                     <View style={styles.duelSectionHeader}>
                       <Text style={styles.duelSectionTitle}>출발 시간대</Text>
-                      <Text style={styles.duelSectionMeta}>30분 단위</Text>
                     </View>
                     <View style={styles.duelSlotGrid}>
                       {duelSlotOptions.map((slot) => {
@@ -1541,23 +1962,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                             <Text style={[styles.duelSlotLabel, isSelected ? styles.duelSlotLabelSelected : undefined]}>
                               {slot.label}
                             </Text>
-                            <Text style={[styles.duelSlotMeta, isSelected ? styles.duelSlotMetaSelected : undefined]}>
-                              {slot.meta}
-                            </Text>
                           </Pressable>
                         );
                       })}
                     </View>
-                  </View>
-
-                  <View style={styles.duelCriteriaCard}>
-                    <Text style={styles.duelCriteriaTitle}>매칭 기준</Text>
-                    <Text style={styles.duelCriteriaText}>비슷한 평균 페이스와 누적 거리 레벨을 우선으로 봐요.</Text>
-                    <Text style={styles.duelCriteriaMeta}>
-                      {duelMatchResult
-                        ? `${duelMatchResult.paceBandLabel} · ${duelMatchResult.levelBandLabel}`
-                        : '평균 페이스 ±15초/km · 레벨 ±2 전후'}
-                    </Text>
                   </View>
 
                   <View style={styles.matchDemandCard}>
@@ -1570,9 +1978,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         ? `${duelDemandSummary.averagePace} · ${duelDemandSummary.fillRatioLabel}`
                         : '평균 페이스와 신청 인원을 불러오는 중'}
                     </Text>
-                    <Text style={styles.matchDemandText}>
-                      {duelDemandSummary?.summaryText ?? '선택한 거리와 시간대 기준으로 바로 붙을 수 있는 러너 수를 보여드려요.'}
-                    </Text>
+                    {duelDemandSummary?.participantsCount ? (
+                      <Text style={styles.matchDemandText}>{duelDemandSummary.summaryText}</Text>
+                    ) : null}
                   </View>
 
                   {duelExpansionSuggestion ? (
@@ -1592,57 +2000,114 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
                   {isRequestingDuelMatch ? <ActivityIndicator size="small" color="#818CF8" /> : null}
 
-                  {duelMatchResult ? (
+                  {duelMatchState === 'waiting' ? (
                     <View style={styles.duelResultCard}>
-                      <Text style={styles.duelResultEyebrow}>{duelMatchResult.matched ? 'MATCHED' : 'MATCHING'}</Text>
-                      {duelMatchResult.matched && duelMatchResult.opponent ? (
-                        <>
-                          <Text style={styles.duelResultTitle}>{duelMatchResult.opponent.name}님이 잡혔어요</Text>
-                          <Text style={styles.duelResultBody}>{duelMatchResult.criteriaSummary}</Text>
-                          <Text style={styles.duelResultMeta}>
-                            {duelMatchResult.opponent.averagePace} · {duelMatchResult.opponent.levelLabel} · {duelMatchResult.opponent.districtName}
-                          </Text>
-                          <Text style={styles.duelResultMeta}>{duelMatchResult.opponent.compatibilitySummary}</Text>
-                          <Text style={styles.duelResultMeta}>{duelMatchResult.slotLabel} 시작</Text>
-                        </>
-                      ) : (
-                        <>
-                          <Text style={styles.duelResultTitle}>비슷한 러너를 찾는 중이에요</Text>
-                          <Text style={styles.duelResultBody}>{duelMatchResult.criteriaSummary}</Text>
-                          <Text style={styles.duelResultMeta}>예상 대기 {duelMatchResult.estimatedWaitMinutes}분</Text>
-                        </>
-                      )}
+                      <Text style={styles.duelResultEyebrow}>WAITING</Text>
+                      <Text style={styles.duelResultTitle}>비슷한 상대를 찾는 중이에요</Text>
+                      <Text style={styles.duelResultMeta}>
+                        현재 {duelMatchStatus?.participantCount ?? 0}/{duelMatchStatus?.capacity ?? 2}명 대기 · 평균 {duelDemandSummary?.averagePace ?? '페이스 계산 중'}
+                      </Text>
+                      <Text style={styles.duelResultMeta}>{duelMatchStatus?.criteriaSummary}</Text>
                     </View>
-                  ) : (
-                    <View style={styles.duelHintCard}>
-                      <Text style={styles.duelHintTitle}>1대1 매칭은 이렇게 잡아요</Text>
-                      <Text style={styles.duelHintText}>선택한 거리와 시간대, 최근 평균 페이스, 누적 거리 레벨이 비슷한 러너를 우선으로 찾습니다.</Text>
-                    </View>
-                  )}
+                  ) : null}
 
-                  <SecondaryButton
-                    label={duelMatchResult?.matched ? '다시 매칭 찾기' : '1대1 매칭 찾기'}
-                    onPress={() => {
-                      void handleRequestDuelMatch();
-                    }}
-                  />
+                  {duelMatchState === 'ready' && effectiveDuelOpponent ? (
+                    <View style={styles.duelResultCard}>
+                      <Text style={styles.duelResultEyebrow}>READY</Text>
+                      <Text style={styles.duelResultTitle}>{effectiveDuelOpponent.name}님이 대기 중이에요</Text>
+                      <Text style={styles.duelResultMeta}>
+                        {effectiveDuelOpponent.averagePace} · {effectiveDuelOpponent.levelLabel} · {effectiveDuelSlotLabel}
+                      </Text>
+                      <Text style={styles.duelResultMeta}>
+                        수락 {duelMatchStatus?.acceptedCount ?? 0}/{duelMatchStatus?.participantCount ?? 2}
+                      </Text>
+                      <Text style={styles.duelResultMeta}>{duelMatchStatus?.criteriaSummary}</Text>
+                    </View>
+                  ) : null}
+
+                  {duelMatchState === 'countdown' && effectiveDuelOpponent ? (
+                    <View style={styles.duelResultCard}>
+                      <Text style={styles.duelResultEyebrow}>COUNTDOWN</Text>
+                      <Text style={styles.duelResultTitle}>{duelMatchStatus?.countdownRemainingSeconds ?? 0}초 뒤 출발해요</Text>
+                      <Text style={styles.duelResultMeta}>
+                        {effectiveDuelOpponent.name}님 · {effectiveDuelSlotLabel}
+                      </Text>
+                      <Text style={styles.duelResultMeta}>{duelMatchStatus?.criteriaSummary}</Text>
+                    </View>
+                  ) : null}
+
+                  {duelMatchState === 'active' && effectiveDuelOpponent ? (
+                    <View style={styles.duelResultCard}>
+                      <Text style={styles.duelResultEyebrow}>MATCH ACTIVE</Text>
+                      <Text style={styles.duelResultTitle}>{effectiveDuelOpponent.name}님과 바로 시작할 수 있어요</Text>
+                      <Text style={styles.duelResultMeta}>
+                        {effectiveDuelOpponent.averagePace} · {effectiveDuelOpponent.levelLabel} · {effectiveDuelOpponent.districtName}
+                      </Text>
+                      {duelLiveGapKm !== null ? (
+                        <Text style={styles.duelResultMeta}>
+                          {duelLiveGapKm >= 0
+                            ? `${duelLiveGapKm.toFixed(2)}km 앞서고 있어요`
+                            : `${Math.abs(duelLiveGapKm).toFixed(2)}km 따라가는 중이에요`}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.duelResultMeta}>{effectiveDuelSlotLabel} 시작</Text>
+                    </View>
+                  ) : null}
+
+                  {duelMatchState === 'ready' ? (
+                    <View style={styles.matchActionRow}>
+                      {!duelMatchStatus?.userAccepted ? (
+                        <View style={styles.matchActionItem}>
+                          <PrimaryButton label={isAcceptingDuelMatch ? '수락 중...' : '수락하기'} onPress={handleAcceptDuelMatch} />
+                        </View>
+                      ) : null}
+                      <View style={styles.matchActionItem}>
+                        <SecondaryButton
+                          label={isCancelingDuelMatch ? '취소 중...' : '대기 취소'}
+                          onPress={() => {
+                            void handleCancelDuelMatch();
+                          }}
+                        />
+                      </View>
+                    </View>
+                  ) : duelMatchState === 'waiting' ? (
+                    <SecondaryButton
+                      label={isCancelingDuelMatch ? '취소 중...' : '1대1 대기 취소'}
+                      onPress={() => {
+                        void handleCancelDuelMatch();
+                      }}
+                    />
+                  ) : duelMatchState === 'countdown' ? (
+                    <SecondaryButton
+                      label={isCancelingDuelMatch ? '취소 중...' : '매치 취소'}
+                      onPress={() => {
+                        void handleCancelDuelMatch();
+                      }}
+                    />
+                  ) : duelMatchState === 'active' ? null : (
+                    <SecondaryButton
+                      label="1대1 매칭 찾기"
+                      onPress={() => {
+                        void handleRequestDuelMatch();
+                      }}
+                    />
+                  )}
                 </View>
               ) : null}
               {matchMode === 'group' ? (
                 <View style={styles.duelSetupCard}>
                   <View style={styles.duelSection}>
                     <View style={styles.duelSectionHeader}>
-                      <Text style={styles.duelSectionTitle}>원하는 거리</Text>
-                      <Text style={styles.duelSectionMeta}>2km - 42.2km</Text>
+                      <Text style={styles.duelSectionTitle}>거리</Text>
+                      <Pressable
+                        style={styles.distanceInputToggle}
+                        onPress={() => setShowGroupCustomDistanceInput((current) => !current)}
+                      >
+                        <Text style={styles.distanceInputToggleText}>
+                          {showGroupCustomDistanceInput ? '추천 거리' : '직접 입력'}
+                        </Text>
+                      </Pressable>
                     </View>
-                    <TextInput
-                      value={groupDistanceText}
-                      onChangeText={setGroupDistanceText}
-                      placeholder="예: 5, 10, 21.1"
-                      placeholderTextColor="#98A2B3"
-                      keyboardType="decimal-pad"
-                      style={styles.duelDistanceInput}
-                    />
                     <View style={styles.matchDistanceChipRow}>
                       {RECOMMENDED_MATCH_DISTANCES.map((recommendedDistanceKm) => {
                         const isSelected = Math.abs(groupDistanceKm - recommendedDistanceKm) < 0.15;
@@ -1651,7 +2116,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           <Pressable
                             key={`group-${recommendedDistanceKm}`}
                             style={[styles.matchDistanceChip, isSelected ? styles.matchDistanceChipSelected : undefined]}
-                            onPress={() => setGroupDistanceText(String(recommendedDistanceKm))}
+                            onPress={() => {
+                              setGroupDistanceText(String(recommendedDistanceKm));
+                              setShowGroupCustomDistanceInput(false);
+                            }}
                           >
                             <Text style={[styles.matchDistanceChipText, isSelected ? styles.matchDistanceChipTextSelected : undefined]}>
                               {recommendedDistanceKm}km
@@ -1660,17 +2128,26 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         );
                       })}
                     </View>
-                    <Text style={styles.duelHelperText}>
-                      {isRecommendedMatchDistance(groupDistanceKm)
-                        ? '같은 목표 거리로 뛰는 러너를 최대 30명까지 한 그룹으로 묶어요.'
-                        : `추천 거리 ${findNearestRecommendedDistance(groupDistanceKm)}km로 맞추면 더 빨리 비슷한 러너가 모여요.`}
-                    </Text>
+                    {showGroupCustomDistanceInput ? (
+                      <TextInput
+                        value={groupDistanceText}
+                        onChangeText={setGroupDistanceText}
+                        placeholder="예: 5, 10, 21.1"
+                        placeholderTextColor="#98A2B3"
+                        keyboardType="decimal-pad"
+                        style={styles.duelDistanceInput}
+                      />
+                    ) : null}
+                    {!isRecommendedMatchDistance(groupDistanceKm) ? (
+                      <Text style={styles.duelHelperText}>
+                        추천 거리 {findNearestRecommendedDistance(groupDistanceKm)}km로 맞추면 더 빨리 비슷한 러너가 모여요.
+                      </Text>
+                    ) : null}
                   </View>
 
                   <View style={styles.duelSection}>
                     <View style={styles.duelSectionHeader}>
                       <Text style={styles.duelSectionTitle}>출발 시간대</Text>
-                      <Text style={styles.duelSectionMeta}>30분 단위</Text>
                     </View>
                     <View style={styles.duelSlotGrid}>
                       {groupSlotOptions.map((slot) => {
@@ -1685,23 +2162,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                             <Text style={[styles.duelSlotLabel, isSelected ? styles.duelSlotLabelSelected : undefined]}>
                               {slot.label}
                             </Text>
-                            <Text style={[styles.duelSlotMeta, isSelected ? styles.duelSlotMetaSelected : undefined]}>
-                              {slot.meta}
-                            </Text>
                           </Pressable>
                         );
                       })}
                     </View>
-                  </View>
-
-                  <View style={styles.duelCriteriaCard}>
-                    <Text style={styles.duelCriteriaTitle}>그룹 매칭 기준</Text>
-                    <Text style={styles.duelCriteriaText}>비슷한 평균 페이스와 누적 거리 레벨 러너를 우선으로 30명까지 모아요.</Text>
-                    <Text style={styles.duelCriteriaMeta}>
-                      {groupMatchResult
-                        ? `${groupMatchResult.paceBandLabel} · ${groupMatchResult.levelBandLabel}`
-                        : '평균 페이스 ±15초/km · 레벨 ±2 전후 · 최대 30명'}
-                    </Text>
                   </View>
 
                   <View style={styles.matchDemandCard}>
@@ -1714,9 +2178,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         ? `${groupDemandSummary.averagePace} · ${groupDemandSummary.fillRatioLabel}`
                         : '평균 페이스와 신청 인원을 불러오는 중'}
                     </Text>
-                    <Text style={styles.matchDemandText}>
-                      {groupDemandSummary?.summaryText ?? '선택한 거리와 시간대 기준으로 그룹이 얼마나 차 있는지 보여드려요.'}
-                    </Text>
+                    {groupDemandSummary?.participantsCount ? (
+                      <Text style={styles.matchDemandText}>{groupDemandSummary.summaryText}</Text>
+                    ) : null}
                   </View>
 
                   {groupExpansionSuggestion ? (
@@ -1736,59 +2200,98 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
                   {isRequestingGroupMatch ? <ActivityIndicator size="small" color="#818CF8" /> : null}
 
-                  {groupMatchResult ? (
+                  {groupMatchState === 'waiting' ? (
                     <View style={styles.duelResultCard}>
-                      <Text style={styles.duelResultEyebrow}>{groupMatchResult.matched ? 'GROUP READY' : 'GROUP FILLING'}</Text>
-                      {groupMatchResult.matched ? (
-                        <>
-                          <Text style={styles.duelResultTitle}>{groupMatchResult.participantsCount}명 그룹이 잡혔어요</Text>
-                          <Text style={styles.duelResultBody}>{groupMatchResult.criteriaSummary}</Text>
-                          <Text style={styles.duelResultMeta}>
-                            {groupMatchResult.slotLabel} · 내 시작 시드 {groupMatchResult.mySeedRank ?? 1}위 · 최대 {groupMatchResult.maxGroupSize}명
-                          </Text>
-                          <View style={styles.groupParticipantList}>
-                            {groupMatchResult.participants.slice(0, 5).map((participant) => (
-                              <View key={participant.id} style={styles.groupParticipantRow}>
-                                <Text style={styles.groupParticipantRank}>{participant.seedRank}</Text>
-                                <View style={styles.groupParticipantCopy}>
-                                  <Text style={styles.groupParticipantName}>
-                                    {participant.name}
-                                    {participant.seedRank === (groupMatchResult.mySeedRank ?? 1) ? ' (나)' : ''}
-                                  </Text>
-                                  <Text style={styles.groupParticipantMeta}>
-                                    {participant.averagePace} · {participant.levelLabel} · {participant.districtName}
-                                  </Text>
-                                </View>
-                              </View>
-                            ))}
-                          </View>
-                          {groupMatchResult.participantsCount > 5 ? (
-                            <Text style={styles.duelResultMeta}>외 {groupMatchResult.participantsCount - 5}명은 시작 후 실시간 순위판에 합류해요.</Text>
-                          ) : null}
-                        </>
-                      ) : (
-                        <>
-                          <Text style={styles.duelResultTitle}>비슷한 러너들이 더 모이는 중이에요</Text>
-                          <Text style={styles.duelResultBody}>{groupMatchResult.criteriaSummary}</Text>
-                          <Text style={styles.duelResultMeta}>
-                            현재 {groupMatchResult.participantsCount}명 · 예상 대기 {groupMatchResult.estimatedWaitMinutes}분
-                          </Text>
-                        </>
-                      )}
+                      <Text style={styles.duelResultEyebrow}>WAITING</Text>
+                      <Text style={styles.duelResultTitle}>비슷한 그룹을 모으는 중이에요</Text>
+                      <Text style={styles.duelResultMeta}>
+                        현재 {groupMatchStatus?.participantCount ?? 0}/{groupMatchStatus?.capacity ?? 30}명 대기 · 평균 {groupDemandSummary?.averagePace ?? '페이스 계산 중'}
+                      </Text>
+                      <Text style={styles.duelResultMeta}>{groupMatchStatus?.criteriaSummary}</Text>
                     </View>
-                  ) : (
-                    <View style={styles.duelHintCard}>
-                      <Text style={styles.duelHintTitle}>그룹 매칭은 이렇게 잡아요</Text>
-                      <Text style={styles.duelHintText}>같은 거리와 시간대를 고른 러너 중에서 페이스와 레벨이 비슷한 순서로 최대 30명까지 그룹을 만듭니다.</Text>
-                    </View>
-                  )}
+                  ) : null}
 
-                  <SecondaryButton
-                    label={groupMatchResult?.matched ? '다시 그룹 찾기' : '그룹 매칭 찾기'}
-                    onPress={() => {
-                      void handleRequestGroupMatch();
-                    }}
-                  />
+                  {(groupMatchState === 'ready' || groupMatchState === 'countdown' || groupMatchState === 'active') && effectiveGroupParticipantCount ? (
+                    <View style={styles.duelResultCard}>
+                      <Text style={styles.duelResultEyebrow}>
+                        {groupMatchState === 'ready' ? 'GROUP READY' : groupMatchState === 'countdown' ? 'COUNTDOWN' : 'GROUP ACTIVE'}
+                      </Text>
+                      <Text style={styles.duelResultTitle}>
+                        {groupMatchState === 'ready'
+                          ? `${effectiveGroupParticipantCount}명 그룹이 잡혔어요`
+                          : groupMatchState === 'countdown'
+                            ? `${groupMatchStatus?.countdownRemainingSeconds ?? 0}초 뒤 그룹전이 시작돼요`
+                            : `${effectiveGroupParticipantCount}명 그룹전 바로 시작 가능`}
+                      </Text>
+                      <Text style={styles.duelResultMeta}>
+                        {effectiveGroupSlotLabel} · 내 시작 시드 {effectiveGroupSeedRank ?? 1}위
+                      </Text>
+                      {groupMatchState !== 'active' ? (
+                        <Text style={styles.duelResultMeta}>
+                          수락 {groupMatchStatus?.acceptedCount ?? 0}/{groupMatchStatus?.participantCount ?? effectiveGroupParticipantCount}
+                        </Text>
+                      ) : null}
+                      <View style={styles.groupParticipantList}>
+                        {effectiveGroupParticipants.slice(0, 3).map((participant) => (
+                          <View key={participant.id} style={styles.groupParticipantRow}>
+                            <Text style={styles.groupParticipantRank}>{participant.seedRank}</Text>
+                            <View style={styles.groupParticipantCopy}>
+                              <Text style={styles.groupParticipantName}>
+                                {participant.name}
+                                {participant.seedRank === (effectiveGroupSeedRank ?? 1) ? ' (나)' : ''}
+                              </Text>
+                              <Text style={styles.groupParticipantMeta}>
+                                {participant.averagePace} · {participant.levelLabel}
+                                {typeof participant.accepted === 'boolean' ? ` · ${participant.accepted ? '수락 완료' : '수락 대기'}` : ''}
+                              </Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                      {effectiveGroupParticipantCount > 3 ? (
+                        <Text style={styles.duelResultMeta}>외 {effectiveGroupParticipantCount - 3}명</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+
+                  {groupMatchState === 'ready' ? (
+                    <View style={styles.matchActionRow}>
+                      {!groupMatchStatus?.userAccepted ? (
+                        <View style={styles.matchActionItem}>
+                          <PrimaryButton label={isAcceptingGroupMatch ? '수락 중...' : '수락하기'} onPress={handleAcceptGroupMatch} />
+                        </View>
+                      ) : null}
+                      <View style={styles.matchActionItem}>
+                        <SecondaryButton
+                          label={isCancelingGroupMatch ? '취소 중...' : '대기 취소'}
+                          onPress={() => {
+                            void handleCancelGroupMatch();
+                          }}
+                        />
+                      </View>
+                    </View>
+                  ) : groupMatchState === 'waiting' ? (
+                    <SecondaryButton
+                      label={isCancelingGroupMatch ? '취소 중...' : '그룹 대기 취소'}
+                      onPress={() => {
+                        void handleCancelGroupMatch();
+                      }}
+                    />
+                  ) : groupMatchState === 'countdown' ? (
+                    <SecondaryButton
+                      label={isCancelingGroupMatch ? '취소 중...' : '그룹전 취소'}
+                      onPress={() => {
+                        void handleCancelGroupMatch();
+                      }}
+                    />
+                  ) : groupMatchState === 'active' ? null : (
+                    <SecondaryButton
+                      label="그룹 매칭 찾기"
+                      onPress={() => {
+                        void handleRequestGroupMatch();
+                      }}
+                    />
+                  )}
                 </View>
               ) : null}
             </View>
@@ -1980,13 +2483,13 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                 <Text style={styles.liveMatchText}>{liveMatchText}</Text>
               </View>
             ) : null}
-            {matchMode === 'group' && groupMatchResult?.matched && currentGroupStanding ? (
+            {matchMode === 'group' && effectiveGroupParticipantCount > 0 && currentGroupStanding ? (
               <View style={styles.groupLiveCard}>
                 <View style={styles.groupLiveHeader}>
                   <View style={styles.groupLiveHeaderCopy}>
                     <Text style={styles.liveMatchEyebrow}>LIVE RANK</Text>
                     <Text style={styles.groupLiveTitle}>
-                      현재 {currentGroupStanding.rank}/{groupMatchResult.participantsCount}위
+                      현재 {currentGroupStanding.rank}/{effectiveGroupParticipantCount}위
                     </Text>
                     <Text style={styles.groupLiveSummary}>
                       {currentGroupStanding.rank === 1
@@ -1995,7 +2498,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     </Text>
                   </View>
                   <View style={styles.groupLiveBadge}>
-                    <Text style={styles.groupLiveBadgeText}>{groupMatchResult.participantsCount}명</Text>
+                    <Text style={styles.groupLiveBadgeText}>{effectiveGroupParticipantCount}명</Text>
                   </View>
                 </View>
                 <View style={styles.groupLiveTopList}>
@@ -2094,19 +2597,86 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
           {isRunning ? (
             <View style={styles.actionColumn}>
-              <PrimaryButton label="러닝 종료하고 저장" onPress={handleSaveTracking} />
+              <PrimaryButton
+                label={matchMode === 'solo' ? '러닝 종료하고 저장' : '러닝 종료하고 결과 보기'}
+                onPress={matchMode === 'solo' ? handleSaveTracking : handlePauseTracking}
+              />
               <SecondaryButton label="일시정지" onPress={handlePauseTracking} />
             </View>
           ) : null}
 
           {isPaused ? (
-            <View style={styles.actionColumn}>
-              <PrimaryButton label="이 기록 저장하기" onPress={handleSaveTracking} />
-              <SecondaryButton label="측정 다시 시작" onPress={handleResumeTracking} />
-              <Pressable style={styles.discardButton} onPress={handleDiscardTracking}>
-                <Text style={styles.discardButtonText}>이 기록 버리기</Text>
-              </Pressable>
-            </View>
+            <>
+              {matchMode === 'duel' && effectiveDuelOpponent && duelFinishSummary ? (
+                <Card style={styles.finishSummaryCard}>
+                  <View style={styles.finishSummaryHeader}>
+                    <View style={styles.finishSummaryCopy}>
+                      <Text style={styles.finishSummaryEyebrow}>MATCH RESULT</Text>
+                      <Text style={styles.finishSummaryTitle}>{duelFinishSummary.title}</Text>
+                      <Text style={styles.finishSummaryText}>{duelFinishSummary.summary}</Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.finishSummaryBadge,
+                        duelFinishSummary.resultTone === 'win'
+                          ? styles.finishSummaryBadgeWin
+                          : duelFinishSummary.resultTone === 'lose'
+                            ? styles.finishSummaryBadgeLose
+                            : styles.finishSummaryBadgeDraw,
+                      ]}
+                    >
+                      <Text style={styles.finishSummaryBadgeText}>
+                        {duelFinishSummary.resultTone === 'win' ? 'WIN' : duelFinishSummary.resultTone === 'lose' ? 'CHASE' : 'DRAW'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.finishSummaryMeta}>
+                    내 거리 {distanceKm.toFixed(2)}km · {effectiveDuelOpponent.name}님 추정 {duelFinishSummary.opponentDistanceKm.toFixed(2)}km
+                  </Text>
+                  <Text style={styles.finishSummaryHint}>상대 기록은 현재 매치 페이스 기준 추정치예요. 저장 후 최종 기록 비교를 이어서 볼 수 있게 확장할 예정입니다.</Text>
+                </Card>
+              ) : null}
+
+              {matchMode === 'group' && groupFinishSummary ? (
+                <Card style={styles.finishSummaryCard}>
+                  <View style={styles.finishSummaryHeader}>
+                    <View style={styles.finishSummaryCopy}>
+                      <Text style={styles.finishSummaryEyebrow}>GROUP RESULT</Text>
+                      <Text style={styles.finishSummaryTitle}>{groupFinishSummary.title}</Text>
+                      <Text style={styles.finishSummaryText}>{groupFinishSummary.summary}</Text>
+                    </View>
+                    <View style={styles.finishSummaryBadge}>
+                      <Text style={styles.finishSummaryBadgeText}>
+                        {currentGroupStanding?.rank ?? 1}/{effectiveGroupParticipantCount}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.finishSummaryPodium}>
+                    {groupFinishSummary.podium.map((participant) => (
+                      <View key={participant.id} style={styles.finishSummaryPodiumRow}>
+                        <Text style={styles.finishSummaryPodiumRank}>{participant.rank}</Text>
+                        <View style={styles.finishSummaryPodiumCopy}>
+                          <Text style={styles.finishSummaryPodiumName}>
+                            {participant.name}
+                            {participant.isCurrentUser ? ' (나)' : ''}
+                          </Text>
+                          <Text style={styles.finishSummaryPodiumMeta}>{participant.currentDistanceKm.toFixed(2)}km · {participant.averagePace}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={styles.finishSummaryHint}>지금 보이는 순위는 종료 시점 기준 임시 순위예요. 이후 실시간 동기화 결과에 따라 조금 조정될 수 있어요.</Text>
+                </Card>
+              ) : null}
+
+              <View style={styles.actionColumn}>
+                <PrimaryButton label="이 기록 저장하기" onPress={handleSaveTracking} />
+                <SecondaryButton label="측정 다시 시작" onPress={handleResumeTracking} />
+                <Pressable style={styles.discardButton} onPress={handleDiscardTracking}>
+                  <Text style={styles.discardButtonText}>이 기록 버리기</Text>
+                </Pressable>
+              </View>
+            </>
           ) : null}
         </>
       )}
@@ -2240,7 +2810,7 @@ const styles = StyleSheet.create({
     color: '#475467',
   },
   matchCard: {
-    gap: 12,
+    gap: 10,
     padding: 14,
     borderRadius: 20,
     borderWidth: 1,
@@ -2255,15 +2825,11 @@ const styles = StyleSheet.create({
   },
   matchHeaderCopy: {
     flex: 1,
-    gap: 4,
+    gap: 0,
   },
   matchTitle: {
     color: '#FFFFFF',
     fontWeight: '800',
-  },
-  matchDescription: {
-    color: '#D0D5DD',
-    lineHeight: 19,
   },
   matchBadge: {
     borderRadius: 999,
@@ -2277,13 +2843,16 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   matchOptionRow: {
+    flexDirection: 'row',
     gap: 10,
   },
   matchOption: {
-    gap: 6,
+    flex: 1,
+    gap: 2,
     borderRadius: 18,
     borderWidth: 1,
-    padding: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
   },
   matchOptionIdle: {
     borderColor: '#374151',
@@ -2310,42 +2879,6 @@ const styles = StyleSheet.create({
   matchOptionTitleSelected: {
     color: '#FFFFFF',
   },
-  matchOptionSummary: {
-    color: '#D0D5DD',
-    lineHeight: 19,
-  },
-  matchOptionSummarySelected: {
-    color: '#E5E7EB',
-  },
-  matchOptionMeta: {
-    color: '#98A2B3',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  matchOptionMetaSelected: {
-    color: '#C7D2FE',
-  },
-  matchSummaryCard: {
-    gap: 6,
-    borderRadius: 18,
-    backgroundColor: '#111827',
-    borderWidth: 1,
-    borderColor: '#374151',
-    padding: 14,
-  },
-  matchSummaryTitle: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  matchSummaryText: {
-    color: '#D0D5DD',
-    lineHeight: 19,
-  },
-  matchSummaryMeta: {
-    color: '#98A2B3',
-    fontSize: 12,
-    fontWeight: '700',
-  },
   duelSetupCard: {
     gap: 12,
   },
@@ -2366,6 +2899,19 @@ const styles = StyleSheet.create({
     color: '#98A2B3',
     fontSize: 12,
     fontWeight: '700',
+  },
+  distanceInputToggle: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#111827',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  distanceInputToggleText: {
+    color: '#C7D2FE',
+    fontSize: 11,
+    fontWeight: '800',
   },
   duelDistanceInput: {
     borderRadius: 18,
@@ -2408,16 +2954,19 @@ const styles = StyleSheet.create({
     color: '#E0E7FF',
   },
   duelSlotGrid: {
-    gap: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   duelSlotChip: {
-    borderRadius: 18,
+    width: '23.5%',
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#374151',
     backgroundColor: '#111827',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
   },
   duelSlotChipSelected: {
     borderColor: '#818CF8',
@@ -2426,42 +2975,13 @@ const styles = StyleSheet.create({
   duelSlotLabel: {
     color: '#FFFFFF',
     fontWeight: '800',
-    fontSize: 15,
+    fontSize: 13,
   },
   duelSlotLabelSelected: {
     color: '#E0E7FF',
   },
-  duelSlotMeta: {
-    color: '#98A2B3',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  duelSlotMetaSelected: {
-    color: '#C7D2FE',
-  },
-  duelCriteriaCard: {
-    gap: 6,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#374151',
-    backgroundColor: '#111827',
-    padding: 14,
-  },
-  duelCriteriaTitle: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  duelCriteriaText: {
-    color: '#D0D5DD',
-    lineHeight: 19,
-  },
-  duelCriteriaMeta: {
-    color: '#C7D2FE',
-    fontSize: 12,
-    fontWeight: '800',
-  },
   matchDemandCard: {
-    gap: 6,
+    gap: 4,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#374151',
@@ -2520,8 +3040,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
+  matchActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  matchActionItem: {
+    flex: 1,
+  },
   duelResultCard: {
-    gap: 6,
+    gap: 4,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#818CF8',
@@ -2582,21 +3109,101 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  duelHintCard: {
-    gap: 6,
+  finishSummaryCard: {
+    gap: 10,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#374151',
-    backgroundColor: '#111827',
-    padding: 14,
+    borderColor: '#D0D5DD',
+    backgroundColor: '#F8FAFC',
+    padding: 16,
   },
-  duelHintTitle: {
-    color: '#FFFFFF',
+  finishSummaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  finishSummaryCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  finishSummaryEyebrow: {
+    color: '#6D5EF7',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  finishSummaryTitle: {
+    color: '#111827',
+    fontSize: 18,
     fontWeight: '800',
   },
-  duelHintText: {
-    color: '#D0D5DD',
-    lineHeight: 19,
+  finishSummaryText: {
+    color: '#475467',
+    lineHeight: 20,
+  },
+  finishSummaryMeta: {
+    color: '#344054',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  finishSummaryHint: {
+    color: '#667085',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  finishSummaryBadge: {
+    borderRadius: 999,
+    backgroundColor: '#111827',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  finishSummaryBadgeWin: {
+    backgroundColor: '#123524',
+  },
+  finishSummaryBadgeLose: {
+    backgroundColor: '#4A1D1F',
+  },
+  finishSummaryBadgeDraw: {
+    backgroundColor: '#344054',
+  },
+  finishSummaryBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  finishSummaryPodium: {
+    gap: 8,
+  },
+  finishSummaryPodiumRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+  },
+  finishSummaryPodiumRank: {
+    width: 22,
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  finishSummaryPodiumCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  finishSummaryPodiumName: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  finishSummaryPodiumMeta: {
+    color: '#667085',
+    fontSize: 12,
+    fontWeight: '600',
   },
   plannerCard: {
     gap: 16,

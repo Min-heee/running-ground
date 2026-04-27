@@ -87,6 +87,12 @@ export type DuelMatchOpponent = {
   weeklyDistanceKm: number;
   lifetimeDistanceKm: number;
   compatibilitySummary: string;
+  accepted?: boolean;
+  liveDistanceKm?: number;
+  liveElapsedSeconds?: number;
+  livePace?: string;
+  liveUpdatedAt?: string;
+  finishedAt?: string;
 };
 
 export type RequestDuelMatchResponse = {
@@ -119,7 +125,70 @@ export type GroupMatchParticipant = {
   lifetimeDistanceKm: number;
   seedRank: number;
   seedSummary: string;
+  accepted?: boolean;
+  liveDistanceKm?: number;
+  liveElapsedSeconds?: number;
+  livePace?: string;
+  liveUpdatedAt?: string;
+  finishedAt?: string;
 };
+
+export type RunningMatchState = 'idle' | 'waiting' | 'ready' | 'countdown' | 'active';
+
+export type FetchRunningMatchStatusInput = {
+  mode: 'duel' | 'group';
+  distanceKm: number;
+  slotStartAt: string;
+};
+
+export type AcceptRunningMatchInput = {
+  matchId: string;
+};
+
+export type CancelRunningMatchInput = {
+  mode: 'duel' | 'group';
+  distanceKm: number;
+  slotStartAt: string;
+  matchId?: string;
+};
+
+export type UpdateRunningMatchProgressInput = {
+  matchId: string;
+  distanceKm: number;
+  elapsedSeconds: number;
+  currentPace: string;
+  status: 'running' | 'paused' | 'finished';
+};
+
+export type RunningMatchStatusResponse = {
+  success: boolean;
+  mode: 'duel' | 'group';
+  state: RunningMatchState;
+  matchId?: string;
+  distanceKm: number;
+  slotStartAt: string;
+  slotLabel: string;
+  paceBandLabel: string;
+  levelBandLabel: string;
+  criteriaSummary: string;
+  estimatedWaitMinutes: number;
+  participantCount: number;
+  acceptedCount: number;
+  capacity: number;
+  userAccepted: boolean;
+  readyToStart: boolean;
+  countdownRemainingSeconds?: number;
+  countdownEndsAt?: string;
+  opponent?: DuelMatchOpponent;
+  participants?: GroupMatchParticipant[];
+  mySeedRank?: number;
+};
+
+export type CancelRunningMatchResponse = {
+  success: boolean;
+};
+
+export type UpdateRunningMatchProgressResponse = RunningMatchStatusResponse;
 
 export type RequestGroupMatchResponse = {
   success: boolean;
