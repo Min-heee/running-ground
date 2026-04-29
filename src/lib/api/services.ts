@@ -92,6 +92,7 @@ type MockOfflineRaceHubState = Omit<OfflineRaceHub, 'featuredEvent' | 'upcomingE
   featuredEvent: MockOfflineRaceEventState;
   upcomingEvents: MockOfflineRaceEventState[];
 };
+type MockMatchLiveStatus = 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'finished';
 
 const initialOfflineRaceHub = createOfflineRaceHubMock();
 const initialFeaturedEvent = initialOfflineRaceHub.featuredEvent;
@@ -156,6 +157,8 @@ const DUEL_MIN_COMPATIBILITY_SCORE = 72;
 const GROUP_MIN_COMPATIBILITY_SCORE = 68;
 const GROUP_MIN_PARTICIPANTS = 4;
 const MATCH_COUNTDOWN_SECONDS = 10;
+const MATCH_RUNNING_STALE_MS = 90 * 1000;
+const MATCH_BACKGROUND_STALE_MS = 20 * 60 * 1000;
 
 let mockRunningMatchSessions: Record<'duel' | 'group', RunningMatchStatusResponse | null> = {
   duel: null,
@@ -498,7 +501,7 @@ function syncMockRunningMatchSession(mode: 'duel' | 'group') {
   }
 
   if (currentSession.state !== 'countdown' || !currentSession.countdownEndsAt) {
-    return currentSession;
+    return hydrateMockRunningMatchSessionStatuses(currentSession);
   }
 
   const remainingSeconds = Math.max(
@@ -514,7 +517,7 @@ function syncMockRunningMatchSession(mode: 'duel' | 'group') {
       countdownRemainingSeconds: 0,
     };
     mockRunningMatchSessions[mode] = nextSession;
-    return nextSession;
+    return hydrateMockRunningMatchSessionStatuses(nextSession);
   }
 
   const nextSession: RunningMatchStatusResponse = {
@@ -522,7 +525,62 @@ function syncMockRunningMatchSession(mode: 'duel' | 'group') {
     countdownRemainingSeconds: remainingSeconds,
   };
   mockRunningMatchSessions[mode] = nextSession;
-  return nextSession;
+  return hydrateMockRunningMatchSessionStatuses(nextSession);
+}
+
+function resolveMockParticipantLiveStatus(
+  participant: { liveStatus?: string; liveUpdatedAt?: string; finishedAt?: string },
+  now = Date.now(),
+): MockMatchLiveStatus {
+  if (participant.finishedAt) {
+    return 'finished';
+  }
+
+  const storedStatus: MockMatchLiveStatus = participant.liveStatus === 'running'
+    || participant.liveStatus === 'background'
+    || participant.liveStatus === 'paused'
+    || participant.liveStatus === 'disconnected'
+    || participant.liveStatus === 'finished'
+    || participant.liveStatus === 'ready'
+    ? participant.liveStatus
+    : 'ready';
+  if (!participant.liveUpdatedAt || storedStatus === 'ready') {
+    return storedStatus;
+  }
+
+  const liveUpdatedAtMs = new Date(participant.liveUpdatedAt).getTime();
+  if (!Number.isFinite(liveUpdatedAtMs)) {
+    return storedStatus;
+  }
+
+  const ageMs = now - liveUpdatedAtMs;
+  if (storedStatus === 'running' && ageMs > MATCH_RUNNING_STALE_MS) {
+    return 'disconnected';
+  }
+
+  if ((storedStatus === 'background' || storedStatus === 'paused') && ageMs > MATCH_BACKGROUND_STALE_MS) {
+    return 'disconnected';
+  }
+
+  return storedStatus;
+}
+
+function hydrateMockRunningMatchSessionStatuses(session: RunningMatchStatusResponse): RunningMatchStatusResponse {
+  return {
+    ...session,
+    ...(session.opponent ? {
+      opponent: {
+        ...session.opponent,
+        liveStatus: resolveMockParticipantLiveStatus(session.opponent),
+      },
+    } : {}),
+    ...(session.participants ? {
+      participants: session.participants.map((participant) => ({
+        ...participant,
+        liveStatus: resolveMockParticipantLiveStatus(participant),
+      })),
+    } : {}),
+  };
 }
 
 function buildMockWaitingMatchStatus(input: FetchRunningMatchStatusInput): RunningMatchStatusResponse {
@@ -539,6 +597,7 @@ function buildMockWaitingMatchStatus(input: FetchRunningMatchStatusInput): Runni
         slotStartAt: input.slotStartAt,
       })
     : null;
+  const expiresAt = new Date(Date.now() + 90 * 60 * 1000).toISOString();
 
   return {
     success: true,
@@ -556,6 +615,8 @@ function buildMockWaitingMatchStatus(input: FetchRunningMatchStatusInput): Runni
     capacity: summary.capacity,
     userAccepted: false,
     readyToStart: false,
+    expiresAt,
+    expiresInSeconds: Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 1000),
     ...(groupPreview ? {
       participants: groupPreview.participants.slice(0, summary.participantsCount),
       mySeedRank: groupPreview.mySeedRank,
@@ -589,9 +650,12 @@ function buildMockDuelMatchStatus(response: RequestDuelMatchResponse): RunningMa
     capacity: 2,
     userAccepted: false,
     readyToStart: false,
+    expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+    expiresInSeconds: 20 * 60,
     opponent: {
       ...response.opponent,
       accepted: false,
+      liveStatus: 'ready',
     },
   };
 }
@@ -622,9 +686,12 @@ function buildMockGroupMatchStatus(response: RequestGroupMatchResponse): Running
     capacity: response.maxGroupSize,
     userAccepted: false,
     readyToStart: false,
+    expiresAt: new Date(Date.now() + 20 * 60 * 1000).toISOString(),
+    expiresInSeconds: 20 * 60,
     participants: response.participants.map((participant) => ({
       ...participant,
       accepted: false,
+      liveStatus: 'ready',
     })),
     mySeedRank: response.mySeedRank,
   };
@@ -1144,22 +1211,26 @@ export async function createManualRun(input: CreateManualRunInput): Promise<Crea
 export async function createTrackedRun(input: CreateTrackedRunInput): Promise<CreateTrackedRunResponse> {
   if (USE_MOCK_API) {
     const distanceKm = Number(input.distanceKm.toFixed(1));
+    const trackedRun = {
+      id: `tracked-run-${Date.now()}`,
+      date: input.date,
+      distanceKm,
+      pace: input.pace,
+      source: 'RunningGround',
+      sourceType: 'runningground' as const,
+      durationSeconds: input.durationSeconds,
+      cadenceSpm: input.cadenceSpm ?? null,
+      elevationGainM: input.elevationGainM ?? null,
+      route: input.route,
+      startedAt: input.startedAt,
+      endedAt: input.endedAt,
+      ...(input.matchResult ? { matchResult: input.matchResult } : {}),
+    };
+
+    myRunRecords.unshift(trackedRun);
 
     return {
-      run: {
-        id: `tracked-run-${Date.now()}`,
-        date: input.date,
-        distanceKm,
-        pace: input.pace,
-        source: 'RunningGround',
-        sourceType: 'runningground',
-        durationSeconds: input.durationSeconds,
-        cadenceSpm: input.cadenceSpm ?? null,
-        elevationGainM: input.elevationGainM ?? null,
-        route: input.route,
-        startedAt: input.startedAt,
-        endedAt: input.endedAt,
-      },
+      run: trackedRun,
       weeklyDistanceKm: distanceKm,
       estimatedMinutes: Math.round(input.durationSeconds / 60),
       earnedPoint: distanceKm >= 0.1 ? 10 : 0,
@@ -1178,6 +1249,7 @@ export async function createTrackedRun(input: CreateTrackedRunInput): Promise<Cr
       route: input.route,
       startedAt: input.startedAt,
       endedAt: input.endedAt,
+      matchResult: input.matchResult ?? null,
     },
     {
       accessToken: await requireAccessToken(),
@@ -1428,27 +1500,35 @@ export async function updateRunningMatchProgress(
     }
 
     if (currentSession.mode === 'duel' && currentSession.opponent) {
+      const nextLiveStatus: MockMatchLiveStatus = input.status === 'finished' ? 'finished' : input.status;
       const nextSession = {
         ...currentSession,
         opponent: {
           ...currentSession.opponent,
+          liveStatus: nextLiveStatus,
+          liveDistanceKm: Number(input.distanceKm.toFixed(2)),
+          liveElapsedSeconds: input.elapsedSeconds,
+          livePace: input.currentPace,
           liveUpdatedAt: new Date().toISOString(),
+          ...(input.status === 'finished' ? { finishedAt: new Date().toISOString() } : { finishedAt: undefined }),
         },
       };
       mockRunningMatchSessions.duel = nextSession;
-      return nextSession;
+      return hydrateMockRunningMatchSessionStatuses(nextSession);
     }
 
     if (currentSession.mode === 'group' && currentSession.participants) {
+      const nextLiveStatus: MockMatchLiveStatus = input.status === 'finished' ? 'finished' : input.status;
       const nextParticipants = currentSession.participants.map((participant) => (
         participant.seedRank === (currentSession.mySeedRank ?? 1)
           ? {
             ...participant,
+            liveStatus: nextLiveStatus,
             liveDistanceKm: Number(input.distanceKm.toFixed(2)),
             liveElapsedSeconds: input.elapsedSeconds,
             livePace: input.currentPace,
             liveUpdatedAt: new Date().toISOString(),
-            ...(input.status === 'finished' ? { finishedAt: new Date().toISOString() } : {}),
+            ...(input.status === 'finished' ? { finishedAt: new Date().toISOString() } : { finishedAt: undefined }),
           }
           : participant
       ));
@@ -1458,10 +1538,10 @@ export async function updateRunningMatchProgress(
         participants: nextParticipants,
       };
       mockRunningMatchSessions.group = nextSession;
-      return nextSession;
+      return hydrateMockRunningMatchSessionStatuses(nextSession);
     }
 
-    return currentSession;
+    return hydrateMockRunningMatchSessionStatuses(currentSession);
   }
 
   return apiPost<UpdateRunningMatchProgressResponse>(

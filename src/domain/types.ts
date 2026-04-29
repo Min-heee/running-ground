@@ -14,6 +14,19 @@ export type RunRoutePoint = {
   timestamp: string;
 };
 
+export type RunMatchResult = {
+  mode: 'duel' | 'group';
+  title: string;
+  summary: string;
+  badgeLabel: string;
+  opponentName?: string;
+  resultTone?: 'win' | 'lose' | 'draw';
+  rank?: number;
+  participantCount?: number;
+  gapKm?: number;
+  comparedDistanceKm?: number;
+};
+
 export type WeeklySummary = {
   totalDistanceKm: number;
   totalRuns: number;
@@ -139,6 +152,7 @@ export type MyRunRecord = {
   route?: RunRoutePoint[];
   startedAt?: string;
   endedAt?: string;
+  matchResult?: RunMatchResult;
 };
 
 export type MarketRewardClaimState = 'claimable' | 'claimed' | 'locked';

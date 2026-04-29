@@ -73,6 +73,8 @@ const MATCH_QUEUE_ENTRY_TTL_MS = 2 * 60 * 60 * 1000;
 const MATCH_SESSION_READY_TTL_MS = 20 * 60 * 1000;
 const MATCH_SESSION_COUNTDOWN_SECONDS = 10;
 const MATCH_SESSION_ACTIVE_TTL_MS = 4 * 60 * 60 * 1000;
+const MATCH_PARTICIPANT_RUNNING_STALE_MS = 90 * 1000;
+const MATCH_PARTICIPANT_BACKGROUND_STALE_MS = 20 * 60 * 1000;
 
 class ApiError extends Error {
   constructor(statusCode, message) {
@@ -851,6 +853,7 @@ function createMatchSession(store, mode, distanceKm, slotStartAt, participants) 
       userId: participant.id,
       seedRank: participant.seedRank ?? index + 1,
       acceptedAt: null,
+      liveStatus: 'ready',
       liveDistanceKm: 0,
       liveElapsedSeconds: 0,
       livePace: '--:--/km',
@@ -862,13 +865,57 @@ function createMatchSession(store, mode, distanceKm, slotStartAt, participants) 
   return session;
 }
 
-function buildParticipantLiveSnapshot(participant) {
+function resolveParticipantLiveStatus(participant, now = new Date()) {
+  if (typeof participant.finishedAt === 'string' && participant.finishedAt) {
+    return 'finished';
+  }
+
+  const storedStatus = typeof participant.liveStatus === 'string' && participant.liveStatus
+    ? participant.liveStatus
+    : 'ready';
+
+  if (!participant.liveUpdatedAt || ['ready', 'finished'].includes(storedStatus)) {
+    return storedStatus;
+  }
+
+  const liveUpdatedAtMs = new Date(participant.liveUpdatedAt).getTime();
+  if (!Number.isFinite(liveUpdatedAtMs)) {
+    return storedStatus;
+  }
+
+  const ageMs = now.getTime() - liveUpdatedAtMs;
+  if (storedStatus === 'running' && ageMs > MATCH_PARTICIPANT_RUNNING_STALE_MS) {
+    return 'disconnected';
+  }
+
+  if (['background', 'paused'].includes(storedStatus) && ageMs > MATCH_PARTICIPANT_BACKGROUND_STALE_MS) {
+    return 'disconnected';
+  }
+
+  return storedStatus;
+}
+
+function buildParticipantLiveSnapshot(participant, now = new Date()) {
   return {
     ...(typeof participant.liveDistanceKm === 'number' ? { liveDistanceKm: Number(participant.liveDistanceKm.toFixed(2)) } : {}),
     ...(typeof participant.liveElapsedSeconds === 'number' ? { liveElapsedSeconds: participant.liveElapsedSeconds } : {}),
     ...(typeof participant.livePace === 'string' && participant.livePace.trim() ? { livePace: participant.livePace.trim() } : {}),
     ...(typeof participant.liveUpdatedAt === 'string' && participant.liveUpdatedAt ? { liveUpdatedAt: participant.liveUpdatedAt } : {}),
+    liveStatus: resolveParticipantLiveStatus(participant, now),
     ...(typeof participant.finishedAt === 'string' && participant.finishedAt ? { finishedAt: participant.finishedAt } : {}),
+  };
+}
+
+function buildExpirySnapshot(expiresAt, now = new Date()) {
+  const expiresAtMs = new Date(expiresAt).getTime();
+
+  if (!Number.isFinite(expiresAtMs)) {
+    return {};
+  }
+
+  return {
+    expiresAt,
+    expiresInSeconds: Math.max(0, Math.ceil((expiresAtMs - now.getTime()) / 1000)),
   };
 }
 
@@ -905,7 +952,7 @@ function findMatchSessionById(store, matchId) {
   return pruneMatchSessions(store).find((session) => session.id === matchId) ?? null;
 }
 
-function buildSessionGroupParticipants(store, session) {
+function buildSessionGroupParticipants(store, session, now = new Date()) {
   return session.participants
     .map((participant) => {
       const runner = buildMatchRunnerProfile(store, findUserById(store, participant.userId));
@@ -921,13 +968,13 @@ function buildSessionGroupParticipants(store, session) {
         seedRank: participant.seedRank,
         seedSummary: `${participant.seedRank}번 시드 · 이번 주 ${runner.weeklyDistanceKm.toFixed(1)}km`,
         accepted: Boolean(participant.acceptedAt),
-        ...buildParticipantLiveSnapshot(participant),
+        ...buildParticipantLiveSnapshot(participant, now),
       };
     })
     .sort((left, right) => left.seedRank - right.seedRank);
 }
 
-function buildSessionDuelOpponent(store, session, currentUserId) {
+function buildSessionDuelOpponent(store, session, currentUserId, now = new Date()) {
   const currentUser = findUserById(store, currentUserId);
   const currentRunner = buildMatchRunnerProfile(store, currentUser);
   const opponentEntry = session.participants.find((participant) => participant.userId !== currentUserId);
@@ -951,7 +998,7 @@ function buildSessionDuelOpponent(store, session, currentUserId) {
     lifetimeDistanceKm: opponentRunner.lifetimeDistanceKm,
     compatibilitySummary: `${opponentRunner.averagePace} 페이스 · ${opponentRunner.levelLabel} · 이번 주 ${opponentRunner.weeklyDistanceKm.toFixed(1)}km · 적합도 ${compatibilityScore.toFixed(0)}점`,
     accepted: Boolean(opponentEntry.acceptedAt),
-    ...buildParticipantLiveSnapshot(opponentEntry),
+    ...buildParticipantLiveSnapshot(opponentEntry, now),
   };
 }
 
@@ -1006,6 +1053,7 @@ function buildQueuedParticipants(entries) {
 }
 
 function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm, slotStartAt }) {
+  const now = new Date();
   const currentRunner = buildMatchRunnerProfile(store, currentUser);
   const slotLabel = formatDuelSlotLabel(slotStartAt);
   const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
@@ -1018,15 +1066,23 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
   const distanceRecommendationHint = buildDistanceRecommendationHint(distanceKm);
 
   if (session) {
-    const state = hydrateMatchSessionState(session);
+    const state = hydrateMatchSessionState(session, now);
     const acceptedCount = session.participants.filter((participant) => participant.acceptedAt).length;
     const currentParticipant = session.participants.find((participant) => participant.userId === currentUser.id) ?? null;
     const countdownRemainingSeconds = session.countdownEndsAt
-      ? Math.max(0, Math.ceil((new Date(session.countdownEndsAt).getTime() - Date.now()) / 1000))
+      ? Math.max(0, Math.ceil((new Date(session.countdownEndsAt).getTime() - now.getTime()) / 1000))
       : undefined;
+    const readyExpiresAt = session.createdAt
+      ? new Date(new Date(session.createdAt).getTime() + MATCH_SESSION_READY_TTL_MS).toISOString()
+      : null;
+    const expirySnapshot = state === 'ready' && readyExpiresAt
+      ? buildExpirySnapshot(readyExpiresAt, now)
+      : state === 'countdown' && session.countdownEndsAt
+        ? buildExpirySnapshot(session.countdownEndsAt, now)
+        : {};
 
     if (mode === 'duel') {
-      const opponent = buildSessionDuelOpponent(store, session, currentUser.id);
+      const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now);
       return {
         success: true,
         mode,
@@ -1050,11 +1106,12 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
         readyToStart: state === 'active',
         ...(session.countdownEndsAt ? { countdownEndsAt: session.countdownEndsAt } : {}),
         ...(typeof countdownRemainingSeconds === 'number' ? { countdownRemainingSeconds } : {}),
+        ...expirySnapshot,
         ...(opponent ? { opponent } : {}),
       };
     }
 
-    const participants = buildSessionGroupParticipants(store, session);
+    const participants = buildSessionGroupParticipants(store, session, now);
     const mySeedRank = participants.find((participant) => participant.id === currentUser.id)?.seedRank ?? 1;
 
     return {
@@ -1080,6 +1137,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
       readyToStart: state === 'active',
       ...(session.countdownEndsAt ? { countdownEndsAt: session.countdownEndsAt } : {}),
       ...(typeof countdownRemainingSeconds === 'number' ? { countdownRemainingSeconds } : {}),
+      ...expirySnapshot,
       participants,
       mySeedRank,
     };
@@ -1095,12 +1153,16 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
   const competitiveParticipantsCount = queuedEntries.filter((entry) => (
     entry.runner.id === currentRunner.id || entry.score >= competitiveThreshold
   )).length;
+  const currentQueueEntry = queuedEntries.find((entry) => entry.runner.id === currentRunner.id)?.queueEntry ?? null;
   const averagePaceMinutes = queuedParticipants.length
     ? queuedParticipants.reduce((sum, runner) => sum + runner.averagePaceMinutes, 0) / queuedParticipants.length
     : null;
   const averagePace = averagePaceMinutes === null ? '신청 없음' : formatPaceMinutesLabel(averagePaceMinutes);
   const participants = mode === 'group' ? buildQueuedParticipants(queuedEntries) : undefined;
   const mySeedRank = participants?.find((participant) => participant.id === currentUser.id)?.seedRank ?? 1;
+  const queueExpiresAt = currentQueueEntry?.requestedAt
+    ? new Date(new Date(currentQueueEntry.requestedAt).getTime() + MATCH_QUEUE_ENTRY_TTL_MS).toISOString()
+    : null;
 
   return {
     success: true,
@@ -1124,6 +1186,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
     capacity,
     userAccepted: false,
     readyToStart: false,
+    ...(queueExpiresAt ? buildExpirySnapshot(queueExpiresAt, now) : {}),
     ...(mode === 'duel' ? {
       opponent: undefined,
     } : {
@@ -1413,12 +1476,17 @@ function updateRunningMatchProgress(store, currentUser, { matchId, distanceKm, e
   currentParticipant.liveElapsedSeconds = elapsedSeconds;
   currentParticipant.livePace = currentPace;
   currentParticipant.liveUpdatedAt = new Date().toISOString();
+  currentParticipant.liveStatus = status === 'finished' ? 'finished' : status;
 
   if (status === 'finished') {
     currentParticipant.finishedAt = currentParticipant.liveUpdatedAt;
   }
 
   if (status === 'running') {
+    currentParticipant.finishedAt = null;
+  }
+
+  if (status === 'background' || status === 'paused') {
     currentParticipant.finishedAt = null;
   }
 
@@ -2421,6 +2489,7 @@ function buildRunDetail(run, weeklyDistanceKm, sourceOverride, metrics) {
       ...(Array.isArray(run.route) ? { route: run.route } : {}),
       ...(normalizeOptionalString(run.startedAt) ? { startedAt: run.startedAt } : {}),
       ...(normalizeOptionalString(run.endedAt) ? { endedAt: run.endedAt } : {}),
+      ...(run.matchResult ? { matchResult: clone(run.matchResult) } : {}),
     },
     weeklyDistanceKm,
     estimatedMinutes: Math.round(run.distanceKm * (paceMinutes ?? 5.5)),
@@ -2848,6 +2917,58 @@ function validateTrackedRoute(rawRoute) {
       timestamp: parsedTimestamp.toISOString(),
     };
   });
+}
+
+function validateRunMatchResult(rawMatchResult) {
+  if (rawMatchResult === null || typeof rawMatchResult === 'undefined') {
+    return undefined;
+  }
+
+  if (!rawMatchResult || typeof rawMatchResult !== 'object') {
+    throw new ApiError(400, '매치 결과 형식이 올바르지 않아.');
+  }
+
+  const mode = validateMatchMode(rawMatchResult.mode);
+  const title = validateRequiredString(rawMatchResult.title, '매치 결과 제목이 비어 있어.');
+  const summary = validateRequiredString(rawMatchResult.summary, '매치 결과 요약이 비어 있어.');
+  const badgeLabel = validateRequiredString(rawMatchResult.badgeLabel, '매치 결과 배지가 비어 있어.');
+  const opponentName = normalizeOptionalString(rawMatchResult.opponentName);
+  const resultTone = normalizeOptionalString(rawMatchResult.resultTone);
+  const rank = typeof rawMatchResult.rank !== 'undefined' && rawMatchResult.rank !== null
+    ? validatePositiveInteger(rawMatchResult.rank, '매치 순위 값이 올바르지 않아.')
+    : undefined;
+  const participantCount = typeof rawMatchResult.participantCount !== 'undefined' && rawMatchResult.participantCount !== null
+    ? validatePositiveInteger(rawMatchResult.participantCount, '매치 참가 인원 값이 올바르지 않아.')
+    : undefined;
+  const gapKm = validateOptionalMetricNumber(rawMatchResult.gapKm, {
+    message: '매치 거리 차이 값이 올바르지 않아.',
+    minimum: 0,
+    maximum: 200,
+    digits: 2,
+  });
+  const comparedDistanceKm = validateOptionalMetricNumber(rawMatchResult.comparedDistanceKm, {
+    message: '비교 거리 값이 올바르지 않아.',
+    minimum: 0,
+    maximum: 200,
+    digits: 2,
+  });
+
+  if (resultTone && !['win', 'lose', 'draw'].includes(resultTone)) {
+    throw new ApiError(400, '매치 결과 상태 값이 올바르지 않아.');
+  }
+
+  return {
+    mode,
+    title,
+    summary,
+    badgeLabel,
+    ...(opponentName ? { opponentName } : {}),
+    ...(resultTone ? { resultTone } : {}),
+    ...(typeof rank === 'number' ? { rank } : {}),
+    ...(typeof participantCount === 'number' ? { participantCount } : {}),
+    ...(typeof gapKm === 'number' ? { gapKm } : {}),
+    ...(typeof comparedDistanceKm === 'number' ? { comparedDistanceKm } : {}),
+  };
 }
 
 function validateRoutePreviewCoordinates(rawCoordinates) {
@@ -3295,6 +3416,9 @@ async function handleCreateTrackedRun(request, response) {
       route: validateTrackedRoute(body.route),
       startedAt,
       endedAt,
+      ...(typeof body.matchResult !== 'undefined' && body.matchResult !== null
+        ? { matchResult: validateRunMatchResult(body.matchResult) }
+        : {}),
     },
   });
 
@@ -3417,7 +3541,7 @@ async function handleUpdateRunningMatchProgress(request, response) {
   const distanceKm = validateDistanceKm(body.distanceKm, '러닝 거리를 입력해줘.');
   const elapsedSeconds = validateNonNegativeInteger(body.elapsedSeconds, '러닝 시간은 0초 이상이어야 해.');
   const currentPace = validatePace(body.currentPace, '현재 페이스가 올바르지 않아.');
-  const status = ['running', 'paused', 'finished'].includes(body.status)
+  const status = ['running', 'background', 'paused', 'finished'].includes(body.status)
     ? body.status
     : 'running';
   const payload = mutateStore((store) => {

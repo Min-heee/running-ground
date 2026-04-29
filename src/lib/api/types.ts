@@ -1,4 +1,4 @@
-import { AppNotice, ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceEvent, OfflineRaceHub, RegionDrilldownNode, RunRoutePoint, RunSourceType, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
+import { AppNotice, ConnectedSource, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceEvent, OfflineRaceHub, RegionDrilldownNode, RunMatchResult, RunRoutePoint, RunSourceType, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
 import { AddressRegionNode } from '@/features/location/addressCatalog';
 
 export type HomeSummaryResponse = WeeklySummary;
@@ -54,6 +54,7 @@ export type CreateTrackedRunInput = {
   route: RunRoutePoint[];
   startedAt: string;
   endedAt: string;
+  matchResult?: RunMatchResult;
 };
 
 export type CreateTrackedRunResponse = RunDetailResponse;
@@ -92,6 +93,7 @@ export type DuelMatchOpponent = {
   liveElapsedSeconds?: number;
   livePace?: string;
   liveUpdatedAt?: string;
+  liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'finished';
   finishedAt?: string;
 };
 
@@ -130,6 +132,7 @@ export type GroupMatchParticipant = {
   liveElapsedSeconds?: number;
   livePace?: string;
   liveUpdatedAt?: string;
+  liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'finished';
   finishedAt?: string;
 };
 
@@ -157,7 +160,7 @@ export type UpdateRunningMatchProgressInput = {
   distanceKm: number;
   elapsedSeconds: number;
   currentPace: string;
-  status: 'running' | 'paused' | 'finished';
+  status: 'running' | 'background' | 'paused' | 'finished';
 };
 
 export type RunningMatchStatusResponse = {
@@ -179,6 +182,8 @@ export type RunningMatchStatusResponse = {
   readyToStart: boolean;
   countdownRemainingSeconds?: number;
   countdownEndsAt?: string;
+  expiresAt?: string;
+  expiresInSeconds?: number;
   opponent?: DuelMatchOpponent;
   participants?: GroupMatchParticipant[];
   mySeedRank?: number;

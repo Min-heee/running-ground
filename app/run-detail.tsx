@@ -71,6 +71,49 @@ export default function RunDetailScreen() {
             </Card>
           </View>
 
+          {runDetail.run.matchResult ? (
+            <Card style={styles.matchResultCard}>
+              <View style={styles.matchResultHeader}>
+                <View>
+                  <Text style={styles.matchResultLabel}>
+                    {runDetail.run.matchResult.mode === 'duel' ? '1대1 매치 결과' : '그룹 매치 결과'}
+                  </Text>
+                  <Text style={styles.matchResultTitle}>{runDetail.run.matchResult.title}</Text>
+                </View>
+                <View
+                  style={[
+                    styles.matchResultBadge,
+                    runDetail.run.matchResult.resultTone === 'win'
+                      ? styles.matchResultBadgeWin
+                      : runDetail.run.matchResult.resultTone === 'lose'
+                        ? styles.matchResultBadgeLose
+                        : runDetail.run.matchResult.resultTone === 'draw'
+                          ? styles.matchResultBadgeDraw
+                          : null,
+                  ]}
+                >
+                  <Text style={styles.matchResultBadgeText}>{runDetail.run.matchResult.badgeLabel}</Text>
+                </View>
+              </View>
+              <Text style={styles.matchResultSummary}>{runDetail.run.matchResult.summary}</Text>
+              <View style={styles.matchResultMetaRow}>
+                {runDetail.run.matchResult.opponentName ? (
+                  <Text style={styles.matchResultMeta}>상대 {runDetail.run.matchResult.opponentName}</Text>
+                ) : null}
+                {typeof runDetail.run.matchResult.rank === 'number' && typeof runDetail.run.matchResult.participantCount === 'number' ? (
+                  <Text style={styles.matchResultMeta}>
+                    {runDetail.run.matchResult.participantCount}명 중 {runDetail.run.matchResult.rank}위
+                  </Text>
+                ) : null}
+                {typeof runDetail.run.matchResult.gapKm === 'number' ? (
+                  <Text style={styles.matchResultMeta}>
+                    거리 차이 {runDetail.run.matchResult.gapKm.toFixed(2)}km
+                  </Text>
+                ) : null}
+              </View>
+            </Card>
+          ) : null}
+
           {mapRegion ? (
             <Card style={styles.mapCard}>
               <Text style={styles.sectionTitle}>러닝 경로</Text>
@@ -148,6 +191,66 @@ const styles = StyleSheet.create({
   },
   heroSub: {
     color: '#98A2B3',
+    fontWeight: '700',
+  },
+  matchResultCard: {
+    backgroundColor: '#F8F7FF',
+    borderWidth: 1,
+    borderColor: '#D9D6FE',
+    gap: 10,
+  },
+  matchResultHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  matchResultLabel: {
+    color: '#6D5EF7',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  matchResultTitle: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  matchResultBadge: {
+    minWidth: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#111827',
+  },
+  matchResultBadgeWin: {
+    backgroundColor: '#0F9D58',
+  },
+  matchResultBadgeLose: {
+    backgroundColor: '#F97316',
+  },
+  matchResultBadgeDraw: {
+    backgroundColor: '#6B7280',
+  },
+  matchResultBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  matchResultSummary: {
+    color: '#344054',
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  matchResultMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  matchResultMeta: {
+    color: '#475467',
+    fontSize: 13,
     fontWeight: '700',
   },
   summaryRow: {

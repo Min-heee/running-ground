@@ -19,7 +19,7 @@ import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { RunRoutePoint } from '@/domain/types';
+import { RunMatchResult, RunRoutePoint } from '@/domain/types';
 import {
   acceptRunningMatch,
   cancelRunningMatch,
@@ -32,6 +32,7 @@ import {
   updateRunningLiveShare,
 } from '@/lib/api/services';
 import {
+  type DuelMatchOpponent,
   type GroupMatchParticipant,
   type MatchDemandSummaryResponse,
   type RequestDuelMatchResponse,
@@ -83,7 +84,9 @@ type GroupLiveStanding = GroupMatchParticipant & {
   gapLeaderKm: number;
   isCurrentUser: boolean;
 };
+type MatchParticipantLiveStatus = DuelMatchOpponent['liveStatus'];
 type MatchSlotOption = ReturnType<typeof buildUpcomingHalfHourSlots>[number];
+type MatchSlotSectionKey = 'dawn' | 'morning' | 'afternoon' | 'night';
 type MatchExpansionSuggestion = {
   slotStartAt: string;
   slotLabel: string;
@@ -91,6 +94,12 @@ type MatchExpansionSuggestion = {
   summary: MatchDemandSummaryResponse;
 };
 const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.2];
+const MATCH_SLOT_SECTIONS: { key: MatchSlotSectionKey; label: string }[] = [
+  { key: 'dawn', label: '새벽' },
+  { key: 'morning', label: '오전' },
+  { key: 'afternoon', label: '오후' },
+  { key: 'night', label: '밤' },
+];
 
 function buildRoutePoint(location: Location.LocationObject): RunRoutePoint {
   return {
@@ -356,6 +365,87 @@ function buildUpcomingHalfHourSlots(count = 6, referenceDate = new Date()) {
   });
 }
 
+function getMatchSlotSectionKey(slotStartAt: string): MatchSlotSectionKey {
+  const slotDate = new Date(slotStartAt);
+  const hour = slotDate.getHours();
+
+  if (hour < 6) {
+    return 'dawn';
+  }
+
+  if (hour < 12) {
+    return 'morning';
+  }
+
+  if (hour < 18) {
+    return 'afternoon';
+  }
+
+  return 'night';
+}
+
+function formatMatchExpiryCountdown(seconds?: number | null) {
+  if (typeof seconds !== 'number' || seconds <= 0) {
+    return null;
+  }
+
+  if (seconds >= 3600) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.ceil((seconds % 3600) / 60);
+    return `${hours}시간 ${minutes}분`;
+  }
+
+  if (seconds >= 60) {
+    return `${Math.ceil(seconds / 60)}분`;
+  }
+
+  return `${seconds}초`;
+}
+
+function buildMatchParticipantStatusLabel(status?: MatchParticipantLiveStatus) {
+  switch (status) {
+    case 'running':
+      return '러닝 중';
+    case 'background':
+      return '백그라운드';
+    case 'paused':
+      return '일시정지';
+    case 'disconnected':
+      return '연결 끊김';
+    case 'finished':
+      return '완료';
+    case 'ready':
+    default:
+      return '준비됨';
+  }
+}
+
+function buildMatchTransitionNotice(
+  mode: 'duel' | 'group',
+  previousState: RunningMatchStatusResponse['state'],
+  nextState: RunningMatchStatusResponse['state'],
+) {
+  if (previousState === nextState) {
+    return null;
+  }
+
+  if (previousState === 'waiting' && nextState === 'idle') {
+    return '대기 시간이 지나 자동으로 정리됐어요. 다시 찾으면 새 대기열로 들어가요.';
+  }
+
+  if ((previousState === 'ready' || previousState === 'countdown') && nextState === 'waiting') {
+    return mode === 'duel'
+      ? '상대가 빠져서 다시 비슷한 상대를 찾는 중이에요.'
+      : '일부 참가자가 빠져서 다시 비슷한 그룹을 모으는 중이에요.';
+  }
+
+  if ((previousState === 'ready' || previousState === 'countdown') && nextState === 'idle') {
+    return '매칭이 정리됐어요. 다시 찾으면 새 대기열로 들어가요.';
+  }
+
+  return null;
+}
+
 function parsePaceSecondsPerKm(paceLabel: string) {
   const matched = String(paceLabel).trim().match(/^(\d{1,2}):(\d{2})\/km$/i);
 
@@ -459,6 +549,12 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const liveShareLabelRef = useRef<string | null>(null);
   const liveShareHeartbeatRef = useRef(0);
   const matchProgressHeartbeatRef = useRef(0);
+  const appStateRef = useRef(AppState.currentState);
+  const trackerStatusRef = useRef<TrackerStatus>('idle');
+  const matchModeRef = useRef<RunMatchMode>('duel');
+  const duelMatchStatusRef = useRef<RunningMatchStatusResponse | null>(null);
+  const groupMatchStatusRef = useRef<RunningMatchStatusResponse | null>(null);
+  const pushRunningMatchProgressRef = useRef<((input: UpdateRunningMatchProgressInput) => Promise<RunningMatchStatusResponse>) | null>(null);
 
   const [status, setStatus] = useState<TrackerStatus>('idle');
   const [route, setRoute] = useState<RunRoutePoint[]>([]);
@@ -483,7 +579,8 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [matchMode, setMatchMode] = useState<RunMatchMode>('duel');
   const [duelDistanceText, setDuelDistanceText] = useState('5');
   const [showDuelCustomDistanceInput, setShowDuelCustomDistanceInput] = useState(false);
-  const [selectedDuelSlotStartAt, setSelectedDuelSlotStartAt] = useState(() => buildUpcomingHalfHourSlots()[0]?.startsAt ?? new Date().toISOString());
+  const [selectedDuelSlotStartAt, setSelectedDuelSlotStartAt] = useState(() => buildUpcomingHalfHourSlots(48)[0]?.startsAt ?? new Date().toISOString());
+  const [selectedDuelSlotSection, setSelectedDuelSlotSection] = useState<MatchSlotSectionKey>(() => getMatchSlotSectionKey(buildUpcomingHalfHourSlots(48)[0]?.startsAt ?? new Date().toISOString()));
   const [isRequestingDuelMatch, setIsRequestingDuelMatch] = useState(false);
   const [duelMatchResult, setDuelMatchResult] = useState<RequestDuelMatchResponse | null>(null);
   const [duelMatchStatus, setDuelMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
@@ -492,9 +589,11 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [duelDemandSummary, setDuelDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
   const [isLoadingDuelDemandSummary, setIsLoadingDuelDemandSummary] = useState(false);
   const [duelExpansionSuggestion, setDuelExpansionSuggestion] = useState<MatchExpansionSuggestion | null>(null);
+  const [duelMatchNotice, setDuelMatchNotice] = useState<string | null>(null);
   const [groupDistanceText, setGroupDistanceText] = useState('5');
   const [showGroupCustomDistanceInput, setShowGroupCustomDistanceInput] = useState(false);
-  const [selectedGroupSlotStartAt, setSelectedGroupSlotStartAt] = useState(() => buildUpcomingHalfHourSlots()[0]?.startsAt ?? new Date().toISOString());
+  const [selectedGroupSlotStartAt, setSelectedGroupSlotStartAt] = useState(() => buildUpcomingHalfHourSlots(48)[0]?.startsAt ?? new Date().toISOString());
+  const [selectedGroupSlotSection, setSelectedGroupSlotSection] = useState<MatchSlotSectionKey>(() => getMatchSlotSectionKey(buildUpcomingHalfHourSlots(48)[0]?.startsAt ?? new Date().toISOString()));
   const [isRequestingGroupMatch, setIsRequestingGroupMatch] = useState(false);
   const [groupMatchResult, setGroupMatchResult] = useState<RequestGroupMatchResponse | null>(null);
   const [groupMatchStatus, setGroupMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
@@ -503,6 +602,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [groupDemandSummary, setGroupDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
   const [isLoadingGroupDemandSummary, setIsLoadingGroupDemandSummary] = useState(false);
   const [groupExpansionSuggestion, setGroupExpansionSuggestion] = useState<MatchExpansionSuggestion | null>(null);
+  const [groupMatchNotice, setGroupMatchNotice] = useState<string | null>(null);
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const routeCoordinates = useMemo(
@@ -521,11 +621,19 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   );
   const duelDistanceKm = useMemo(() => parseDuelMatchDistanceKm(duelDistanceText), [duelDistanceText]);
   const groupDistanceKm = useMemo(() => parseDuelMatchDistanceKm(groupDistanceText), [groupDistanceText]);
-  const duelSlotOptions = useMemo(() => buildUpcomingHalfHourSlots(8), []);
+  const duelSlotOptions = useMemo(() => buildUpcomingHalfHourSlots(48), []);
   const selectedDuelSlot = duelSlotOptions.find((slot) => slot.startsAt === selectedDuelSlotStartAt) ?? duelSlotOptions[0] ?? null;
+  const visibleDuelSlotOptions = useMemo(
+    () => duelSlotOptions.filter((slot) => getMatchSlotSectionKey(slot.startsAt) === selectedDuelSlotSection),
+    [duelSlotOptions, selectedDuelSlotSection],
+  );
   const activeDuelSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
-  const groupSlotOptions = useMemo(() => buildUpcomingHalfHourSlots(8), []);
+  const groupSlotOptions = useMemo(() => buildUpcomingHalfHourSlots(48), []);
   const selectedGroupSlot = groupSlotOptions.find((slot) => slot.startsAt === selectedGroupSlotStartAt) ?? groupSlotOptions[0] ?? null;
+  const visibleGroupSlotOptions = useMemo(
+    () => groupSlotOptions.filter((slot) => getMatchSlotSectionKey(slot.startsAt) === selectedGroupSlotSection),
+    [groupSlotOptions, selectedGroupSlotSection],
+  );
   const activeGroupSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
   const matchOptions = useMemo(
     () => [
@@ -562,16 +670,33 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     ],
     [duelDistanceKm, groupDistanceKm],
   );
+
+  useEffect(() => {
+    if (selectedDuelSlot) {
+      setSelectedDuelSlotSection(getMatchSlotSectionKey(selectedDuelSlot.startsAt));
+    }
+  }, [selectedDuelSlot]);
+
+  useEffect(() => {
+    if (selectedGroupSlot) {
+      setSelectedGroupSlotSection(getMatchSlotSectionKey(selectedGroupSlot.startsAt));
+    }
+  }, [selectedGroupSlot]);
   const latestPoint = route.length ? route[route.length - 1] : null;
   const selectedMatch = matchOptions.find((option) => option.mode === matchMode) ?? matchOptions[0];
   const duelMatchState = duelMatchStatus?.state ?? 'idle';
   const groupMatchState = groupMatchStatus?.state ?? 'idle';
   const effectiveDuelOpponent = duelMatchStatus?.opponent ?? duelMatchResult?.opponent ?? null;
+  const effectiveDuelOpponentStatusLabel = effectiveDuelOpponent
+    ? buildMatchParticipantStatusLabel(effectiveDuelOpponent.liveStatus)
+    : null;
   const effectiveDuelSlotLabel = duelMatchStatus?.slotLabel ?? duelMatchResult?.slotLabel ?? selectedDuelSlot?.label ?? '시간 미정';
+  const duelExpiryCountdownLabel = formatMatchExpiryCountdown(duelMatchStatus?.expiresInSeconds);
   const effectiveGroupParticipants = groupMatchStatus?.participants ?? groupMatchResult?.participants ?? [];
   const effectiveGroupParticipantCount = groupMatchStatus?.participantCount ?? groupMatchResult?.participantsCount ?? effectiveGroupParticipants.length;
   const effectiveGroupSeedRank = groupMatchStatus?.mySeedRank ?? groupMatchResult?.mySeedRank;
   const effectiveGroupSlotLabel = groupMatchStatus?.slotLabel ?? groupMatchResult?.slotLabel ?? selectedGroupSlot?.label ?? '시간 미정';
+  const groupExpiryCountdownLabel = formatMatchExpiryCountdown(groupMatchStatus?.expiresInSeconds);
   const groupLiveStandings = useMemo(
     () => buildGroupLiveStandings(effectiveGroupParticipants, effectiveGroupSeedRank, distanceKm, elapsedSeconds),
     [distanceKm, elapsedSeconds, effectiveGroupParticipants, effectiveGroupSeedRank],
@@ -593,7 +718,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     const opponentDistanceKm = buildEstimatedCompetitiveDistanceKm(effectiveDuelOpponent.averagePace, elapsedSeconds, 2);
     const gapKm = Number(Math.abs(distanceKm - opponentDistanceKm).toFixed(2));
     const isDraw = gapKm < 0.03;
-    const resultTone = isDraw ? 'draw' : distanceKm > opponentDistanceKm ? 'win' : 'lose';
+    const resultTone: RunMatchResult['resultTone'] = isDraw ? 'draw' : distanceKm > opponentDistanceKm ? 'win' : 'lose';
     const title = isDraw
       ? `${effectiveDuelOpponent.name}님과 거의 같은 흐름으로 마쳤어요`
       : resultTone === 'win'
@@ -632,6 +757,45 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       podium,
     };
   }, [currentGroupStanding, effectiveGroupParticipantCount, groupLiveStandings]);
+  const trackedMatchResult = useMemo<RunMatchResult | undefined>(() => {
+    if (matchMode === 'duel' && effectiveDuelOpponent && duelFinishSummary) {
+      return {
+        mode: 'duel',
+        title: duelFinishSummary.title,
+        summary: duelFinishSummary.summary,
+        badgeLabel: duelFinishSummary.resultTone === 'win'
+          ? 'WIN'
+          : duelFinishSummary.resultTone === 'lose'
+            ? 'CHASE'
+            : 'DRAW',
+        opponentName: effectiveDuelOpponent.name,
+        resultTone: duelFinishSummary.resultTone,
+        gapKm: duelFinishSummary.gapKm,
+        comparedDistanceKm: duelFinishSummary.opponentDistanceKm,
+      };
+    }
+
+    if (matchMode === 'group' && groupFinishSummary && currentGroupStanding && effectiveGroupParticipantCount) {
+      return {
+        mode: 'group',
+        title: groupFinishSummary.title,
+        summary: groupFinishSummary.summary,
+        badgeLabel: `${currentGroupStanding.rank}/${effectiveGroupParticipantCount}`,
+        rank: currentGroupStanding.rank,
+        participantCount: effectiveGroupParticipantCount,
+        gapKm: currentGroupStanding.gapAheadKm ?? undefined,
+      };
+    }
+
+    return undefined;
+  }, [
+    currentGroupStanding,
+    duelFinishSummary,
+    effectiveDuelOpponent,
+    effectiveGroupParticipantCount,
+    groupFinishSummary,
+    matchMode,
+  ]);
   const liveMatchTitle = matchMode === 'duel' && effectiveDuelOpponent
     ? `${effectiveDuelOpponent.name}님과 1대1 매치 진행 중`
     : matchMode === 'group' && effectiveGroupParticipantCount
@@ -688,6 +852,41 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     return nextStatus;
   };
 
+  const getActiveMatchHeartbeatTarget = () => {
+    if (matchModeRef.current === 'duel' && duelMatchStatusRef.current?.state === 'active' && duelMatchStatusRef.current.matchId) {
+      return {
+        matchId: duelMatchStatusRef.current.matchId,
+      };
+    }
+
+    if (matchModeRef.current === 'group' && groupMatchStatusRef.current?.state === 'active' && groupMatchStatusRef.current.matchId) {
+      return {
+        matchId: groupMatchStatusRef.current.matchId,
+      };
+    }
+
+    return null;
+  };
+
+  const syncMatchLifecycleStatus = async (
+    nextStatus: Extract<UpdateRunningMatchProgressInput['status'], 'running' | 'background'>,
+    snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot(),
+  ) => {
+    const target = getActiveMatchHeartbeatTarget();
+    if (!target || !pushRunningMatchProgressRef.current) {
+      return;
+    }
+
+    await pushRunningMatchProgressRef.current({
+      matchId: target.matchId,
+      distanceKm: snapshot.distanceKm,
+      elapsedSeconds: getBackgroundRunElapsedSeconds(snapshot),
+      currentPace: snapshot.currentPace,
+      status: nextStatus,
+    });
+    matchProgressHeartbeatRef.current = Date.now();
+  };
+
   useEffect(() => {
     liveShareEnabledRef.current = liveShareEnabled;
   }, [liveShareEnabled]);
@@ -695,6 +894,26 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   useEffect(() => {
     liveShareLabelRef.current = liveShareLabel;
   }, [liveShareLabel]);
+
+  useEffect(() => {
+    trackerStatusRef.current = status;
+  }, [status]);
+
+  useEffect(() => {
+    matchModeRef.current = matchMode;
+  }, [matchMode]);
+
+  useEffect(() => {
+    duelMatchStatusRef.current = duelMatchStatus;
+  }, [duelMatchStatus]);
+
+  useEffect(() => {
+    groupMatchStatusRef.current = groupMatchStatus;
+  }, [groupMatchStatus]);
+
+  useEffect(() => {
+    pushRunningMatchProgressRef.current = pushRunningMatchProgress;
+  }, [pushRunningMatchProgress]);
 
   useEffect(() => {
     if (matchMode !== 'duel') {
@@ -717,6 +936,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       const activeSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
       return current.distanceKm === duelDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
     });
+    setDuelMatchNotice(null);
   }, [duelDistanceKm, matchMode, selectedDuelSlot, selectedDuelSlotStartAt]);
 
   useEffect(() => {
@@ -740,6 +960,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       const activeSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
       return current.distanceKm === groupDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
     });
+    setGroupMatchNotice(null);
   }, [groupDistanceKm, matchMode, selectedGroupSlot, selectedGroupSlotStartAt]);
 
   useEffect(() => {
@@ -894,6 +1115,24 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       distanceKm: duelDistanceKm,
       slotStartAt,
     });
+    const transitionNotice = duelMatchStatus
+      && duelMatchStatus.slotStartAt === payload.slotStartAt
+      && Math.abs(duelMatchStatus.distanceKm - payload.distanceKm) < 0.15
+      ? buildMatchTransitionNotice('duel', duelMatchStatus.state, payload.state)
+      : null;
+
+    if (payload.state === 'idle') {
+      setDuelMatchResult(null);
+    } else if (payload.state === 'waiting' && duelMatchStatus && duelMatchStatus.state !== 'waiting') {
+      setDuelMatchResult(null);
+    }
+
+    if (transitionNotice) {
+      setDuelMatchNotice(transitionNotice);
+    } else if (payload.state !== 'idle') {
+      setDuelMatchNotice(null);
+    }
+
     setDuelMatchStatus(payload);
     return payload;
   };
@@ -904,6 +1143,24 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       distanceKm: groupDistanceKm,
       slotStartAt,
     });
+    const transitionNotice = groupMatchStatus
+      && groupMatchStatus.slotStartAt === payload.slotStartAt
+      && Math.abs(groupMatchStatus.distanceKm - payload.distanceKm) < 0.15
+      ? buildMatchTransitionNotice('group', groupMatchStatus.state, payload.state)
+      : null;
+
+    if (payload.state === 'idle') {
+      setGroupMatchResult(null);
+    } else if (payload.state === 'waiting' && groupMatchStatus && groupMatchStatus.state !== 'waiting') {
+      setGroupMatchResult(null);
+    }
+
+    if (transitionNotice) {
+      setGroupMatchNotice(transitionNotice);
+    } else if (payload.state !== 'idle') {
+      setGroupMatchNotice(null);
+    }
+
     setGroupMatchStatus(payload);
     return payload;
   };
@@ -1416,6 +1673,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const handleRequestDuelMatch = async (slotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt) => {
     try {
       setError(null);
+      setDuelMatchNotice(null);
       setIsRequestingDuelMatch(true);
 
       const payload = await requestDuelMatch({
@@ -1443,6 +1701,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const handleRequestGroupMatch = async (slotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt) => {
     try {
       setError(null);
+      setGroupMatchNotice(null);
       setIsRequestingGroupMatch(true);
 
       const payload = await requestGroupMatch({
@@ -1474,6 +1733,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
     try {
       setError(null);
+      setDuelMatchNotice(null);
       setIsAcceptingDuelMatch(true);
       const payload = await acceptRunningMatch({
         matchId: duelMatchStatus.matchId,
@@ -1489,6 +1749,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const handleCancelDuelMatch = async () => {
     try {
       setError(null);
+      setDuelMatchNotice(null);
       setIsCancelingDuelMatch(true);
       await cancelRunningMatch({
         mode: 'duel',
@@ -1523,6 +1784,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
     try {
       setError(null);
+      setGroupMatchNotice(null);
       setIsAcceptingGroupMatch(true);
       const payload = await acceptRunningMatch({
         matchId: groupMatchStatus.matchId,
@@ -1538,6 +1800,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const handleCancelGroupMatch = async () => {
     try {
       setError(null);
+      setGroupMatchNotice(null);
       setIsCancelingGroupMatch(true);
       await cancelRunningMatch({
         mode: 'group',
@@ -1754,6 +2017,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         route: trackingSnapshot.route,
         startedAt,
         endedAt,
+        ...(trackedMatchResult ? { matchResult: trackedMatchResult } : {}),
       });
 
       await syncLiveSharing({
@@ -1787,8 +2051,29 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       }
     });
     const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+
       if (nextState === 'active') {
-        syncFromBackgroundTracking();
+        const snapshot = getBackgroundRunTrackingSnapshot();
+        syncFromBackgroundTracking(snapshot);
+
+        if (trackerStatusRef.current === 'running') {
+          void syncMatchLifecycleStatus('running', snapshot).catch(() => {
+            // Keep the run going even if the optional lifecycle heartbeat fails.
+          });
+        }
+        return;
+      }
+
+      if (
+        previousState === 'active'
+        && (nextState === 'inactive' || nextState === 'background')
+        && trackerStatusRef.current === 'running'
+      ) {
+        void syncMatchLifecycleStatus('background').catch(() => {
+          // Keep the run going even if the optional lifecycle heartbeat fails.
+        });
       }
     });
 
@@ -1949,15 +2234,35 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     <View style={styles.duelSectionHeader}>
                       <Text style={styles.duelSectionTitle}>출발 시간대</Text>
                     </View>
+                    <View style={styles.slotSectionRow}>
+                      {MATCH_SLOT_SECTIONS.map((section) => {
+                        const isSelected = section.key === selectedDuelSlotSection;
+
+                        return (
+                          <Pressable
+                            key={`duel-section-${section.key}`}
+                            style={[styles.slotSectionChip, isSelected ? styles.slotSectionChipSelected : undefined]}
+                            onPress={() => setSelectedDuelSlotSection(section.key)}
+                          >
+                            <Text style={[styles.slotSectionChipText, isSelected ? styles.slotSectionChipTextSelected : undefined]}>
+                              {section.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                     <View style={styles.duelSlotGrid}>
-                      {duelSlotOptions.map((slot) => {
+                      {visibleDuelSlotOptions.map((slot) => {
                         const isSelected = slot.startsAt === (selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt);
 
                         return (
                           <Pressable
                             key={slot.startsAt}
                             style={[styles.duelSlotChip, isSelected ? styles.duelSlotChipSelected : undefined]}
-                            onPress={() => setSelectedDuelSlotStartAt(slot.startsAt)}
+                            onPress={() => {
+                              setSelectedDuelSlotStartAt(slot.startsAt);
+                              setSelectedDuelSlotSection(getMatchSlotSectionKey(slot.startsAt));
+                            }}
                           >
                             <Text style={[styles.duelSlotLabel, isSelected ? styles.duelSlotLabelSelected : undefined]}>
                               {slot.label}
@@ -1966,21 +2271,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         );
                       })}
                     </View>
-                  </View>
-
-                  <View style={styles.matchDemandCard}>
-                    <View style={styles.matchDemandHeader}>
-                      <Text style={styles.matchDemandTitle}>현재 신청 현황</Text>
-                      {isLoadingDuelDemandSummary ? <ActivityIndicator size="small" color="#818CF8" /> : null}
-                    </View>
-                    <Text style={styles.matchDemandHeadline}>
-                      {duelDemandSummary
-                        ? `${duelDemandSummary.averagePace} · ${duelDemandSummary.fillRatioLabel}`
-                        : '평균 페이스와 신청 인원을 불러오는 중'}
+                    <Text style={styles.duelHelperText}>
+                      찾기 누르면 이 시간대에 먼저 대기한 러너들 중에서 페이스와 레벨이 비슷한 상대를 바로 붙여줘요.
                     </Text>
-                    {duelDemandSummary?.participantsCount ? (
-                      <Text style={styles.matchDemandText}>{duelDemandSummary.summaryText}</Text>
-                    ) : null}
                   </View>
 
                   {duelExpansionSuggestion ? (
@@ -2005,8 +2298,11 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       <Text style={styles.duelResultEyebrow}>WAITING</Text>
                       <Text style={styles.duelResultTitle}>비슷한 상대를 찾는 중이에요</Text>
                       <Text style={styles.duelResultMeta}>
-                        현재 {duelMatchStatus?.participantCount ?? 0}/{duelMatchStatus?.capacity ?? 2}명 대기 · 평균 {duelDemandSummary?.averagePace ?? '페이스 계산 중'}
+                        같은 거리와 시간대에서 먼저 찾기한 러너들 중 페이스와 레벨이 잘 맞는 상대를 찾고 있어요.
                       </Text>
+                      {duelExpiryCountdownLabel ? (
+                        <Text style={styles.duelResultMeta}>자동 정리까지 {duelExpiryCountdownLabel} 남음</Text>
+                      ) : null}
                       <Text style={styles.duelResultMeta}>{duelMatchStatus?.criteriaSummary}</Text>
                     </View>
                   ) : null}
@@ -2017,13 +2313,19 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       <Text style={styles.duelResultTitle}>{effectiveDuelOpponent.name}님이 대기 중이에요</Text>
                       <Text style={styles.duelResultMeta}>
                         {effectiveDuelOpponent.averagePace} · {effectiveDuelOpponent.levelLabel} · {effectiveDuelSlotLabel}
+                        {effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}
                       </Text>
                       <Text style={styles.duelResultMeta}>
                         수락 {duelMatchStatus?.acceptedCount ?? 0}/{duelMatchStatus?.participantCount ?? 2}
                       </Text>
+                      {duelExpiryCountdownLabel ? (
+                        <Text style={styles.duelResultMeta}>수락이 없으면 {duelExpiryCountdownLabel} 뒤 자동 정리돼요</Text>
+                      ) : null}
                       <Text style={styles.duelResultMeta}>{duelMatchStatus?.criteriaSummary}</Text>
                     </View>
                   ) : null}
+
+                  {duelMatchNotice ? <Text style={styles.matchNoticeText}>{duelMatchNotice}</Text> : null}
 
                   {duelMatchState === 'countdown' && effectiveDuelOpponent ? (
                     <View style={styles.duelResultCard}>
@@ -2031,6 +2333,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       <Text style={styles.duelResultTitle}>{duelMatchStatus?.countdownRemainingSeconds ?? 0}초 뒤 출발해요</Text>
                       <Text style={styles.duelResultMeta}>
                         {effectiveDuelOpponent.name}님 · {effectiveDuelSlotLabel}
+                        {effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}
                       </Text>
                       <Text style={styles.duelResultMeta}>{duelMatchStatus?.criteriaSummary}</Text>
                     </View>
@@ -2042,6 +2345,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       <Text style={styles.duelResultTitle}>{effectiveDuelOpponent.name}님과 바로 시작할 수 있어요</Text>
                       <Text style={styles.duelResultMeta}>
                         {effectiveDuelOpponent.averagePace} · {effectiveDuelOpponent.levelLabel} · {effectiveDuelOpponent.districtName}
+                        {effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}
                       </Text>
                       {duelLiveGapKm !== null ? (
                         <Text style={styles.duelResultMeta}>
@@ -2149,15 +2453,35 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     <View style={styles.duelSectionHeader}>
                       <Text style={styles.duelSectionTitle}>출발 시간대</Text>
                     </View>
+                    <View style={styles.slotSectionRow}>
+                      {MATCH_SLOT_SECTIONS.map((section) => {
+                        const isSelected = section.key === selectedGroupSlotSection;
+
+                        return (
+                          <Pressable
+                            key={`group-section-${section.key}`}
+                            style={[styles.slotSectionChip, isSelected ? styles.slotSectionChipSelected : undefined]}
+                            onPress={() => setSelectedGroupSlotSection(section.key)}
+                          >
+                            <Text style={[styles.slotSectionChipText, isSelected ? styles.slotSectionChipTextSelected : undefined]}>
+                              {section.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                     <View style={styles.duelSlotGrid}>
-                      {groupSlotOptions.map((slot) => {
+                      {visibleGroupSlotOptions.map((slot) => {
                         const isSelected = slot.startsAt === (selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt);
 
                         return (
                           <Pressable
                             key={slot.startsAt}
                             style={[styles.duelSlotChip, isSelected ? styles.duelSlotChipSelected : undefined]}
-                            onPress={() => setSelectedGroupSlotStartAt(slot.startsAt)}
+                            onPress={() => {
+                              setSelectedGroupSlotStartAt(slot.startsAt);
+                              setSelectedGroupSlotSection(getMatchSlotSectionKey(slot.startsAt));
+                            }}
                           >
                             <Text style={[styles.duelSlotLabel, isSelected ? styles.duelSlotLabelSelected : undefined]}>
                               {slot.label}
@@ -2207,6 +2531,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       <Text style={styles.duelResultMeta}>
                         현재 {groupMatchStatus?.participantCount ?? 0}/{groupMatchStatus?.capacity ?? 30}명 대기 · 평균 {groupDemandSummary?.averagePace ?? '페이스 계산 중'}
                       </Text>
+                      {groupExpiryCountdownLabel ? (
+                        <Text style={styles.duelResultMeta}>자동 정리까지 {groupExpiryCountdownLabel} 남음</Text>
+                      ) : null}
                       <Text style={styles.duelResultMeta}>{groupMatchStatus?.criteriaSummary}</Text>
                     </View>
                   ) : null}
@@ -2231,6 +2558,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           수락 {groupMatchStatus?.acceptedCount ?? 0}/{groupMatchStatus?.participantCount ?? effectiveGroupParticipantCount}
                         </Text>
                       ) : null}
+                      {groupMatchState === 'ready' && groupExpiryCountdownLabel ? (
+                        <Text style={styles.duelResultMeta}>수락이 없으면 {groupExpiryCountdownLabel} 뒤 자동 정리돼요</Text>
+                      ) : null}
                       <View style={styles.groupParticipantList}>
                         {effectiveGroupParticipants.slice(0, 3).map((participant) => (
                           <View key={participant.id} style={styles.groupParticipantRow}>
@@ -2243,6 +2573,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                               <Text style={styles.groupParticipantMeta}>
                                 {participant.averagePace} · {participant.levelLabel}
                                 {typeof participant.accepted === 'boolean' ? ` · ${participant.accepted ? '수락 완료' : '수락 대기'}` : ''}
+                                {participant.liveStatus ? ` · ${buildMatchParticipantStatusLabel(participant.liveStatus)}` : ''}
                               </Text>
                             </View>
                           </View>
@@ -2253,6 +2584,8 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       ) : null}
                     </View>
                   ) : null}
+
+                  {groupMatchNotice ? <Text style={styles.matchNoticeText}>{groupMatchNotice}</Text> : null}
 
                   {groupMatchState === 'ready' ? (
                     <View style={styles.matchActionRow}>
@@ -2515,6 +2848,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         </Text>
                         <Text style={styles.groupLiveMeta}>
                           {participant.averagePace} · {participant.levelLabel} · {participant.seedSummary}
+                          {participant.liveStatus ? ` · ${buildMatchParticipantStatusLabel(participant.liveStatus)}` : ''}
                         </Text>
                       </View>
                       <Text style={styles.groupLiveDistance}>{participant.currentDistanceKm.toFixed(2)}km</Text>
@@ -2527,7 +2861,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     <View style={styles.groupLiveCopy}>
                       <Text style={styles.groupLiveName}>{currentGroupStanding.name} (나)</Text>
                       <Text style={styles.groupLiveMeta}>
-                        {currentGroupStanding.averagePace} · {currentGroupStanding.levelLabel} · 앞 사람과 {currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km
+                        {currentGroupStanding.averagePace} · {currentGroupStanding.levelLabel}
+                        {currentGroupStanding.liveStatus ? ` · ${buildMatchParticipantStatusLabel(currentGroupStanding.liveStatus)}` : ''}
+                        {' · '}
+                        앞 사람과 {currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km
                       </Text>
                     </View>
                     <Text style={styles.groupLiveDistance}>{currentGroupStanding.currentDistanceKm.toFixed(2)}km</Text>
@@ -2958,6 +3295,31 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
   },
+  slotSectionRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  slotSectionChip: {
+    flex: 1,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#111827',
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  slotSectionChipSelected: {
+    borderColor: '#818CF8',
+    backgroundColor: '#1E1B4B',
+  },
+  slotSectionChipText: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  slotSectionChipTextSelected: {
+    color: '#E0E7FF',
+  },
   duelSlotChip: {
     width: '23.5%',
     borderRadius: 14,
@@ -2965,7 +3327,7 @@ const styles = StyleSheet.create({
     borderColor: '#374151',
     backgroundColor: '#111827',
     paddingHorizontal: 8,
-    paddingVertical: 10,
+    paddingVertical: 9,
     alignItems: 'center',
   },
   duelSlotChipSelected: {
@@ -3074,6 +3436,12 @@ const styles = StyleSheet.create({
     color: '#C7D2FE',
     fontSize: 12,
     fontWeight: '700',
+  },
+  matchNoticeText: {
+    color: '#A5B4FC',
+    fontSize: 12,
+    lineHeight: 18,
+    paddingHorizontal: 4,
   },
   groupParticipantList: {
     gap: 8,
