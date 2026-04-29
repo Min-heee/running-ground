@@ -1955,7 +1955,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     ]);
   };
 
-  const handleSaveTracking = async () => {
+  const handleSaveTracking = async ({ rematchAfterSave = false }: { rematchAfterSave?: boolean } = {}) => {
     try {
       setError(null);
 
@@ -2024,6 +2024,29 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         enabled: false,
         status: 'idle',
       }).catch(() => {});
+
+      if (rematchAfterSave && matchMode !== 'solo') {
+        await resetBackgroundRunTracking();
+        resetForegroundTrackingState();
+        matchProgressHeartbeatRef.current = 0;
+        setStatus('idle');
+
+        if (matchMode === 'duel') {
+          setDuelMatchResult(null);
+          setDuelMatchStatus(null);
+          setDuelMatchNotice(null);
+          await handleRequestDuelMatch(activeDuelSlotStartAt);
+          return;
+        }
+
+        if (matchMode === 'group') {
+          setGroupMatchResult(null);
+          setGroupMatchStatus(null);
+          setGroupMatchNotice(null);
+          await handleRequestGroupMatch(activeGroupSlotStartAt);
+          return;
+        }
+      }
 
       router.replace({
         pathname: '/run-detail',
@@ -3008,6 +3031,14 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
               <View style={styles.actionColumn}>
                 <PrimaryButton label="이 기록 저장하기" onPress={handleSaveTracking} />
+                {matchMode !== 'solo' ? (
+                  <SecondaryButton
+                    label="저장 후 다시 매칭"
+                    onPress={() => {
+                      void handleSaveTracking({ rematchAfterSave: true });
+                    }}
+                  />
+                ) : null}
                 <SecondaryButton label="측정 다시 시작" onPress={handleResumeTracking} />
                 <Pressable style={styles.discardButton} onPress={handleDiscardTracking}>
                   <Text style={styles.discardButtonText}>이 기록 버리기</Text>
