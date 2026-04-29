@@ -38,6 +38,8 @@ import {
   FriendLeaderboardResponse,
   FriendRequestActionResponse,
   FetchMatchDemandSummaryInput,
+  LeaveRunningMatchInput,
+  LeaveRunningMatchResponse,
   HomeSummaryResponse,
   QueueIntegrationImportResponse,
   MatchDemandSummaryResponse,
@@ -92,7 +94,7 @@ type MockOfflineRaceHubState = Omit<OfflineRaceHub, 'featuredEvent' | 'upcomingE
   featuredEvent: MockOfflineRaceEventState;
   upcomingEvents: MockOfflineRaceEventState[];
 };
-type MockMatchLiveStatus = 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'finished';
+type MockMatchLiveStatus = 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'forfeited' | 'finished';
 
 const initialOfflineRaceHub = createOfflineRaceHubMock();
 const initialFeaturedEvent = initialOfflineRaceHub.featuredEvent;
@@ -540,11 +542,12 @@ function resolveMockParticipantLiveStatus(
     || participant.liveStatus === 'background'
     || participant.liveStatus === 'paused'
     || participant.liveStatus === 'disconnected'
+    || participant.liveStatus === 'forfeited'
     || participant.liveStatus === 'finished'
     || participant.liveStatus === 'ready'
     ? participant.liveStatus
     : 'ready';
-  if (!participant.liveUpdatedAt || storedStatus === 'ready') {
+  if (!participant.liveUpdatedAt || storedStatus === 'ready' || storedStatus === 'forfeited') {
     return storedStatus;
   }
 
@@ -1479,6 +1482,23 @@ export async function cancelRunningMatch(input: CancelRunningMatchInput): Promis
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '매칭 취소를 반영하지 못했어.',
+    },
+  );
+}
+
+export async function leaveRunningMatch(input: LeaveRunningMatchInput): Promise<LeaveRunningMatchResponse> {
+  if (USE_MOCK_API) {
+    mockRunningMatchSessions.duel = null;
+    mockRunningMatchSessions.group = null;
+    return { success: true };
+  }
+
+  return apiPost<LeaveRunningMatchResponse>(
+    '/running/matches/leave',
+    input,
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '매치 이탈 상태를 반영하지 못했어.',
     },
   );
 }

@@ -827,6 +827,10 @@ function pruneMatchSessions(store, now = new Date()) {
       return false;
     }
 
+    if (session.participants.every((participant) => resolveParticipantLiveStatus(participant, now) === 'forfeited')) {
+      return false;
+    }
+
     return hydrateMatchSessionState(session, now) !== 'expired';
   });
 
@@ -837,7 +841,9 @@ function clearUsersFromMatchSessions(store, mode, userIds) {
   const blockedUserIds = new Set(userIds);
   const sessions = pruneMatchSessions(store);
   store.matchSessions = sessions.filter((session) => (
-    session.mode !== mode || !session.participants.some((participant) => blockedUserIds.has(participant.userId))
+    session.mode !== mode || !session.participants.some((participant) => (
+      blockedUserIds.has(participant.userId) && resolveParticipantLiveStatus(participant) !== 'forfeited'
+    ))
   ));
 }
 
@@ -874,7 +880,7 @@ function resolveParticipantLiveStatus(participant, now = new Date()) {
     ? participant.liveStatus
     : 'ready';
 
-  if (!participant.liveUpdatedAt || ['ready', 'finished'].includes(storedStatus)) {
+  if (!participant.liveUpdatedAt || ['ready', 'finished', 'forfeited'].includes(storedStatus)) {
     return storedStatus;
   }
 
@@ -928,7 +934,9 @@ function findMatchSessionForUser(store, mode, userId, { distanceKm, slotStartAt 
       return false;
     }
 
-    if (!session.participants.some((participant) => participant.userId === userId)) {
+    if (!session.participants.some((participant) => (
+      participant.userId === userId && resolveParticipantLiveStatus(participant) !== 'forfeited'
+    ))) {
       return false;
     }
 
@@ -942,6 +950,33 @@ function findMatchSessionForUser(store, mode, userId, { distanceKm, slotStartAt 
 
     return true;
   }) ?? null;
+}
+
+function leaveRunningMatch(store, currentUser, { matchId }) {
+  const session = findMatchSessionById(store, matchId);
+
+  if (!session) {
+    return { success: true };
+  }
+
+  const currentParticipant = session.participants.find((participant) => participant.userId === currentUser.id);
+
+  if (!currentParticipant) {
+    return { success: true };
+  }
+
+  const state = hydrateMatchSessionState(session);
+
+  if (!['countdown', 'active'].includes(state)) {
+    throw new ApiError(400, '이미 출발한 매치에서만 혼자 계속 달릴 수 있어.');
+  }
+
+  const forfeitedAt = new Date().toISOString();
+  currentParticipant.liveStatus = 'forfeited';
+  currentParticipant.liveUpdatedAt = forfeitedAt;
+  currentParticipant.forfeitedAt = forfeitedAt;
+
+  return { success: true };
 }
 
 function findMatchSessionById(store, matchId) {
@@ -1471,6 +1506,14 @@ function updateRunningMatchProgress(store, currentUser, { matchId, distanceKm, e
   }
 
   const currentParticipant = session.participants.find((participant) => participant.userId === currentUser.id);
+
+  if (resolveParticipantLiveStatus(currentParticipant) === 'forfeited') {
+    return buildRunningMatchStatusResponse(store, currentUser, {
+      mode: session.mode,
+      distanceKm: session.distanceKm,
+      slotStartAt: session.slotStartAt,
+    });
+  }
 
   currentParticipant.liveDistanceKm = Number(distanceKm.toFixed(2));
   currentParticipant.liveElapsedSeconds = elapsedSeconds;
@@ -3535,6 +3578,17 @@ async function handleCancelRunningMatch(request, response) {
   sendJson(response, 200, payload);
 }
 
+async function handleLeaveRunningMatch(request, response) {
+  const body = await parseJsonBody(request);
+  const matchId = validateRequiredString(body.matchId, '이탈할 매치 아이디가 필요해.');
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return leaveRunningMatch(store, currentUser, { matchId });
+  });
+
+  sendJson(response, 200, payload);
+}
+
 async function handleUpdateRunningMatchProgress(request, response) {
   const body = await parseJsonBody(request);
   const matchId = validateRequiredString(body.matchId, '진행 상태를 반영할 매치 아이디가 필요해.');
@@ -3941,6 +3995,11 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/running/matches/cancel' && request.method === 'POST') {
     await handleCancelRunningMatch(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/matches/leave' && request.method === 'POST') {
+    await handleLeaveRunningMatch(request, response);
     return;
   }
 

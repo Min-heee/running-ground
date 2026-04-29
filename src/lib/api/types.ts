@@ -93,7 +93,7 @@ export type DuelMatchOpponent = {
   liveElapsedSeconds?: number;
   livePace?: string;
   liveUpdatedAt?: string;
-  liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'finished';
+  liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'forfeited' | 'finished';
   finishedAt?: string;
 };
 
@@ -132,7 +132,7 @@ export type GroupMatchParticipant = {
   liveElapsedSeconds?: number;
   livePace?: string;
   liveUpdatedAt?: string;
-  liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'finished';
+  liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'forfeited' | 'finished';
   finishedAt?: string;
 };
 
@@ -153,6 +153,10 @@ export type CancelRunningMatchInput = {
   distanceKm: number;
   slotStartAt: string;
   matchId?: string;
+};
+
+export type LeaveRunningMatchInput = {
+  matchId: string;
 };
 
 export type UpdateRunningMatchProgressInput = {
@@ -190,6 +194,10 @@ export type RunningMatchStatusResponse = {
 };
 
 export type CancelRunningMatchResponse = {
+  success: boolean;
+};
+
+export type LeaveRunningMatchResponse = {
   success: boolean;
 };
 

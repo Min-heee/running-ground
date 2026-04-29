@@ -26,6 +26,7 @@ import {
   createTrackedRun,
   fetchMatchDemandSummary,
   fetchRunningMatchStatus,
+  leaveRunningMatch,
   requestDuelMatch,
   requestGroupMatch,
   updateRunningMatchProgress,
@@ -82,6 +83,7 @@ type GroupLiveStanding = GroupMatchParticipant & {
   currentDistanceKm: number;
   gapAheadKm: number | null;
   gapLeaderKm: number;
+  isForfeited: boolean;
   isCurrentUser: boolean;
 };
 type MatchParticipantLiveStatus = DuelMatchOpponent['liveStatus'];
@@ -412,6 +414,8 @@ function buildMatchParticipantStatusLabel(status?: MatchParticipantLiveStatus) {
       return '일시정지';
     case 'disconnected':
       return '연결 끊김';
+    case 'forfeited':
+      return '포기함';
     case 'finished':
       return '완료';
     case 'ready':
@@ -501,6 +505,7 @@ function buildGroupLiveStandings(
   const standings = participants
     .map((participant) => {
       const isCurrentUser = participant.seedRank === currentSeedRank;
+      const isForfeited = participant.liveStatus === 'forfeited';
       const estimatedDistanceKm = isCurrentUser
         ? currentDistanceKm
         : typeof participant.liveDistanceKm === 'number'
@@ -510,6 +515,7 @@ function buildGroupLiveStandings(
       return {
         ...participant,
         currentDistanceKm: estimatedDistanceKm,
+        isForfeited,
         rank: 0,
         gapAheadKm: null,
         gapLeaderKm: 0,
@@ -517,6 +523,10 @@ function buildGroupLiveStandings(
       };
     })
     .sort((left, right) => {
+      if (left.isForfeited !== right.isForfeited) {
+        return left.isForfeited ? 1 : -1;
+      }
+
       if (right.currentDistanceKm !== left.currentDistanceKm) {
         return right.currentDistanceKm - left.currentDistanceKm;
       }
@@ -586,6 +596,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [duelMatchStatus, setDuelMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
   const [isAcceptingDuelMatch, setIsAcceptingDuelMatch] = useState(false);
   const [isCancelingDuelMatch, setIsCancelingDuelMatch] = useState(false);
+  const [isLeavingDuelMatch, setIsLeavingDuelMatch] = useState(false);
   const [duelDemandSummary, setDuelDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
   const [isLoadingDuelDemandSummary, setIsLoadingDuelDemandSummary] = useState(false);
   const [duelExpansionSuggestion, setDuelExpansionSuggestion] = useState<MatchExpansionSuggestion | null>(null);
@@ -599,6 +610,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [groupMatchStatus, setGroupMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
   const [isAcceptingGroupMatch, setIsAcceptingGroupMatch] = useState(false);
   const [isCancelingGroupMatch, setIsCancelingGroupMatch] = useState(false);
+  const [isLeavingGroupMatch, setIsLeavingGroupMatch] = useState(false);
   const [groupDemandSummary, setGroupDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
   const [isLoadingGroupDemandSummary, setIsLoadingGroupDemandSummary] = useState(false);
   const [groupExpansionSuggestion, setGroupExpansionSuggestion] = useState<MatchExpansionSuggestion | null>(null);
@@ -705,6 +717,12 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   );
   const currentGroupStanding = groupLiveStandings.find((participant) => participant.isCurrentUser) ?? null;
   const currentGroupLeader = groupLiveStandings[0] ?? null;
+  const groupAheadParticipant = currentGroupStanding
+    ? groupLiveStandings.find((participant) => participant.rank === currentGroupStanding.rank - 1) ?? null
+    : null;
+  const groupBehindParticipant = currentGroupStanding
+    ? groupLiveStandings.find((participant) => participant.rank === currentGroupStanding.rank + 1) ?? null
+    : null;
   const duelLiveGapKm = useMemo(() => {
     if (!effectiveDuelOpponent || typeof effectiveDuelOpponent.liveDistanceKm !== 'number') {
       return null;
@@ -712,6 +730,91 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
     return Number((distanceKm - effectiveDuelOpponent.liveDistanceKm).toFixed(2));
   }, [distanceKm, effectiveDuelOpponent]);
+  const duelLiveTitle = duelLiveGapKm === null
+    ? '거리 동기화 중'
+    : duelLiveGapKm >= 0
+      ? `${duelLiveGapKm.toFixed(2)}km 앞서고 있어요`
+      : `${Math.abs(duelLiveGapKm).toFixed(2)}km 따라가는 중이에요`;
+  const duelLiveSummary = effectiveDuelOpponent
+    ? `${effectiveDuelOpponent.name}님 · ${effectiveDuelOpponent.averagePace}${effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}`
+    : '상대 러너 정보를 불러오는 중이에요.';
+  const duelStatusAlert = useMemo(() => {
+    if (!effectiveDuelOpponent?.liveStatus || ['running', 'finished'].includes(effectiveDuelOpponent.liveStatus)) {
+      return null;
+    }
+
+    if (effectiveDuelOpponent.liveStatus === 'forfeited') {
+      return {
+        tone: 'danger' as const,
+        title: '상대가 매치를 포기했어요',
+        summary: '이제 혼자 이어서 달리거나 바로 결과를 정리할 수 있어요.',
+      };
+    }
+
+    if (effectiveDuelOpponent.liveStatus === 'disconnected') {
+      return {
+        tone: 'danger' as const,
+        title: '상대 연결이 끊겼어요',
+        summary: '잠시 뒤 자동 정리되거나 다시 찾기 흐름으로 넘어갈 수 있어요.',
+      };
+    }
+
+    if (effectiveDuelOpponent.liveStatus === 'background') {
+      return {
+        tone: 'warning' as const,
+        title: '상대가 백그라운드 상태예요',
+        summary: '앱으로 돌아오면 진행 상태가 다시 이어서 반영돼요.',
+      };
+    }
+
+    if (effectiveDuelOpponent.liveStatus === 'paused') {
+      return {
+        tone: 'warning' as const,
+        title: '상대가 잠시 멈췄어요',
+        summary: '다시 움직이기 시작하면 거리 차이도 이어서 갱신돼요.',
+      };
+    }
+
+    return {
+      tone: 'neutral' as const,
+      title: '상대 상태를 다시 확인 중이에요',
+      summary: '곧 최신 상태로 반영될 거예요.',
+    };
+  }, [effectiveDuelOpponent?.liveStatus]);
+  const groupStatusAlert = useMemo(() => {
+    const others = groupLiveStandings.filter((participant) => !participant.isCurrentUser);
+    const forfeitedCount = others.filter((participant) => participant.liveStatus === 'forfeited').length;
+    const disconnectedCount = others.filter((participant) => participant.liveStatus === 'disconnected').length;
+    const backgroundCount = others.filter((participant) => participant.liveStatus === 'background').length;
+    const pausedCount = others.filter((participant) => participant.liveStatus === 'paused').length;
+
+    if (!forfeitedCount && !disconnectedCount && !backgroundCount && !pausedCount) {
+      return null;
+    }
+
+    if (forfeitedCount > 0 || disconnectedCount > 0) {
+      const titleParts = [];
+      if (forfeitedCount > 0) {
+        titleParts.push(`포기 ${forfeitedCount}명`);
+      }
+      if (disconnectedCount > 0) {
+        titleParts.push(`연결 끊김 ${disconnectedCount}명`);
+      }
+      return {
+        tone: 'danger' as const,
+        title: titleParts.join(' · '),
+        summary: forfeitedCount > 0
+          ? '남은 러너 기준으로 순위가 다시 정리되고 있어요.'
+          : '잠시 뒤 자동 정리되거나 순위 구성이 다시 달라질 수 있어요.',
+      };
+    }
+
+    return {
+      tone: 'warning' as const,
+      title: `백그라운드 ${backgroundCount}명 · 일시정지 ${pausedCount}명`,
+      summary: '앱으로 돌아오거나 다시 달리면 실시간 순위가 계속 갱신돼요.',
+    };
+  }, [groupLiveStandings]);
   const duelFinishSummary = useMemo(() => {
     if (!effectiveDuelOpponent) {
       return null;
@@ -1830,6 +1933,58 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     }
   };
 
+  const handleContinueSoloFromMatch = (source: 'duel' | 'group') => {
+    Alert.alert(
+      '혼자 계속 달릴까요?',
+      '지금 매치 표시는 정리하고, 러닝 측정은 그대로 이어갈게요.',
+      [
+        { text: '계속 볼게요', style: 'cancel' },
+        {
+          text: '혼자 계속',
+          style: 'destructive',
+          onPress: async () => {
+            setError(null);
+            const matchId = source === 'duel' ? duelMatchStatus?.matchId : groupMatchStatus?.matchId;
+
+            if (source === 'duel') {
+              setIsLeavingDuelMatch(true);
+            } else {
+              setIsLeavingGroupMatch(true);
+            }
+
+            try {
+              if (matchId) {
+                await leaveRunningMatch({ matchId });
+              }
+
+              matchProgressHeartbeatRef.current = 0;
+
+              if (source === 'duel') {
+                setDuelMatchResult(null);
+                setDuelMatchStatus(null);
+                setDuelMatchNotice('매치에서는 빠졌고, 지금 러닝은 혼자 계속 이어가요.');
+              } else {
+                setGroupMatchResult(null);
+                setGroupMatchStatus(null);
+                setGroupMatchNotice('그룹전에서는 빠졌고, 지금 러닝은 혼자 계속 이어가요.');
+              }
+
+              setMatchMode('solo');
+            } catch (matchError) {
+              setError(matchError instanceof Error ? matchError.message : '혼자 계속 달리기 전환에 실패했어.');
+            } finally {
+              if (source === 'duel') {
+                setIsLeavingDuelMatch(false);
+              } else {
+                setIsLeavingGroupMatch(false);
+              }
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleApplyDuelExpansionSuggestion = async () => {
     if (!duelExpansionSuggestion) {
       return;
@@ -2869,6 +3024,60 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                 <Text style={styles.liveMatchText}>{liveMatchText}</Text>
               </View>
             ) : null}
+            {matchMode === 'duel' && effectiveDuelOpponent ? (
+              <View style={styles.duelLiveCard}>
+                <View style={styles.duelLiveHeader}>
+                  <View style={styles.groupLiveHeaderCopy}>
+                    <Text style={styles.liveMatchEyebrow}>LIVE GAP</Text>
+                    <Text style={styles.groupLiveTitle}>{duelLiveTitle}</Text>
+                    <Text style={styles.groupLiveSummary}>{duelLiveSummary}</Text>
+                  </View>
+                  <View style={styles.duelLiveBadge}>
+                    <Text style={styles.duelLiveBadgeText}>1대1</Text>
+                  </View>
+                </View>
+                <View style={styles.groupLiveGapRow}>
+                  <View style={styles.groupLiveGapChip}>
+                    <Text style={styles.groupLiveGapEyebrow}>나</Text>
+                    <Text style={styles.groupLiveGapText}>{distanceKm.toFixed(2)}km</Text>
+                  </View>
+                  <View style={styles.groupLiveGapChip}>
+                    <Text style={styles.groupLiveGapEyebrow}>상대</Text>
+                    <Text style={styles.groupLiveGapText}>
+                      {typeof effectiveDuelOpponent.liveDistanceKm === 'number'
+                        ? `${effectiveDuelOpponent.liveDistanceKm.toFixed(2)}km`
+                        : '동기화 중'}
+                    </Text>
+                  </View>
+                </View>
+                {duelStatusAlert ? (
+                  <View
+                    style={[
+                      styles.matchStatusBanner,
+                      duelStatusAlert.tone === 'danger'
+                        ? styles.matchStatusBannerDanger
+                        : duelStatusAlert.tone === 'warning'
+                          ? styles.matchStatusBannerWarning
+                          : styles.matchStatusBannerNeutral,
+                    ]}
+                  >
+                    <Text style={styles.matchStatusBannerTitle}>{duelStatusAlert.title}</Text>
+                    <Text style={styles.matchStatusBannerText}>{duelStatusAlert.summary}</Text>
+                    <Pressable
+                      style={styles.matchStatusBannerAction}
+                      disabled={isLeavingDuelMatch}
+                      onPress={() => {
+                        handleContinueSoloFromMatch('duel');
+                      }}
+                    >
+                      <Text style={styles.matchStatusBannerActionText}>
+                        {isLeavingDuelMatch ? '전환 중...' : '혼자 계속 달릴게요'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
             {matchMode === 'group' && effectiveGroupParticipantCount > 0 && currentGroupStanding ? (
               <View style={styles.groupLiveCard}>
                 <View style={styles.groupLiveHeader}>
@@ -2879,16 +3088,62 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     </Text>
                     <Text style={styles.groupLiveSummary}>
                       {currentGroupStanding.rank === 1
-                        ? '지금은 선두예요. 이 흐름을 그대로 유지해보세요.'
+                        ? groupBehindParticipant
+                          ? `${groupBehindParticipant.name}님보다 ${groupBehindParticipant.gapAheadKm?.toFixed(2) ?? '0.00'}km 앞서 있어요.`
+                          : '지금은 선두예요. 이 흐름을 그대로 유지해보세요.'
                         : `앞 사람과 ${currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km 차이 · 1위와 ${currentGroupStanding.gapLeaderKm.toFixed(2)}km 차이`}
                     </Text>
+                    <View style={styles.groupLiveGapRow}>
+                      {groupAheadParticipant ? (
+                        <View style={styles.groupLiveGapChip}>
+                          <Text style={styles.groupLiveGapEyebrow}>앞</Text>
+                          <Text style={styles.groupLiveGapText}>
+                            {groupAheadParticipant.name} · {currentGroupStanding?.gapAheadKm?.toFixed(2) ?? '0.00'}km
+                          </Text>
+                        </View>
+                      ) : null}
+                      {groupBehindParticipant ? (
+                        <View style={styles.groupLiveGapChip}>
+                          <Text style={styles.groupLiveGapEyebrow}>뒤</Text>
+                          <Text style={styles.groupLiveGapText}>
+                            {groupBehindParticipant.name} · {groupBehindParticipant.gapAheadKm?.toFixed(2) ?? '0.00'}km
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
                   </View>
                   <View style={styles.groupLiveBadge}>
                     <Text style={styles.groupLiveBadgeText}>{effectiveGroupParticipantCount}명</Text>
+                    </View>
                   </View>
-                </View>
-                <View style={styles.groupLiveTopList}>
-                  {groupLiveStandings.slice(0, 5).map((participant) => (
+                  {groupStatusAlert ? (
+                    <View
+                      style={[
+                        styles.matchStatusBanner,
+                        groupStatusAlert.tone === 'danger'
+                          ? styles.matchStatusBannerDanger
+                          : styles.matchStatusBannerWarning,
+                      ]}
+                    >
+                      <Text style={styles.matchStatusBannerTitle}>{groupStatusAlert.title}</Text>
+                      <Text style={styles.matchStatusBannerText}>{groupStatusAlert.summary}</Text>
+                      {groupStatusAlert.tone === 'danger' ? (
+                        <Pressable
+                          style={styles.matchStatusBannerAction}
+                          disabled={isLeavingGroupMatch}
+                          onPress={() => {
+                            handleContinueSoloFromMatch('group');
+                          }}
+                        >
+                          <Text style={styles.matchStatusBannerActionText}>
+                            {isLeavingGroupMatch ? '전환 중...' : '혼자 계속 달릴게요'}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ) : null}
+                  <View style={styles.groupLiveTopList}>
+                    {groupLiveStandings.slice(0, 5).map((participant) => (
                     <View
                       key={participant.id}
                       style={[styles.groupLiveRow, participant.isCurrentUser ? styles.groupLiveRowCurrent : undefined]}
@@ -3881,6 +4136,75 @@ const styles = StyleSheet.create({
     borderColor: '#312E81',
     backgroundColor: '#111827',
   },
+  duelLiveCard: {
+    gap: 12,
+    padding: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#1D4ED8',
+    backgroundColor: '#0F172A',
+  },
+  duelLiveHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  duelLiveBadge: {
+    borderRadius: 999,
+    backgroundColor: '#172554',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  duelLiveBadgeText: {
+    color: '#DBEAFE',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  matchStatusBanner: {
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  matchStatusBannerNeutral: {
+    backgroundColor: 'rgba(148, 163, 184, 0.10)',
+    borderColor: 'rgba(148, 163, 184, 0.18)',
+  },
+  matchStatusBannerWarning: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderColor: 'rgba(245, 158, 11, 0.22)',
+  },
+  matchStatusBannerDanger: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderColor: 'rgba(239, 68, 68, 0.22)',
+  },
+  matchStatusBannerTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  matchStatusBannerText: {
+    color: '#D0D5DD',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  matchStatusBannerAction: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+  },
+  matchStatusBannerActionText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   groupLiveHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -3899,6 +4223,34 @@ const styles = StyleSheet.create({
   groupLiveSummary: {
     color: '#D0D5DD',
     lineHeight: 20,
+  },
+  groupLiveGapRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 2,
+  },
+  groupLiveGapChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(129, 140, 248, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(129, 140, 248, 0.22)',
+  },
+  groupLiveGapEyebrow: {
+    color: '#C7D2FE',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  groupLiveGapText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   groupLiveBadge: {
     borderRadius: 999,
