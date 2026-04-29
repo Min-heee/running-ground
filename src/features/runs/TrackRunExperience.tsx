@@ -697,6 +697,8 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const effectiveGroupSeedRank = groupMatchStatus?.mySeedRank ?? groupMatchResult?.mySeedRank;
   const effectiveGroupSlotLabel = groupMatchStatus?.slotLabel ?? groupMatchResult?.slotLabel ?? selectedGroupSlot?.label ?? '시간 미정';
   const groupExpiryCountdownLabel = formatMatchExpiryCountdown(groupMatchStatus?.expiresInSeconds);
+  const duelNeedsManualRematch = Boolean(duelMatchNotice && duelMatchState === 'idle');
+  const groupNeedsManualRematch = Boolean(groupMatchNotice && groupMatchState === 'idle');
   const groupLiveStandings = useMemo(
     () => buildGroupLiveStandings(effectiveGroupParticipants, effectiveGroupSeedRank, distanceKm, elapsedSeconds),
     [distanceKm, elapsedSeconds, effectiveGroupParticipants, effectiveGroupSeedRank],
@@ -2348,7 +2350,21 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     </View>
                   ) : null}
 
-                  {duelMatchNotice ? <Text style={styles.matchNoticeText}>{duelMatchNotice}</Text> : null}
+                  {duelMatchNotice ? (
+                    <View style={styles.matchNoticeBlock}>
+                      <Text style={styles.matchNoticeText}>{duelMatchNotice}</Text>
+                      {duelNeedsManualRematch ? (
+                        <Pressable
+                          style={styles.matchNoticeAction}
+                          onPress={() => {
+                            void handleRequestDuelMatch(activeDuelSlotStartAt);
+                          }}
+                        >
+                          <Text style={styles.matchNoticeActionText}>같은 조건으로 다시 찾기</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ) : null}
 
                   {duelMatchState === 'countdown' && effectiveDuelOpponent ? (
                     <View style={styles.duelResultCard}>
@@ -2608,7 +2624,21 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     </View>
                   ) : null}
 
-                  {groupMatchNotice ? <Text style={styles.matchNoticeText}>{groupMatchNotice}</Text> : null}
+                  {groupMatchNotice ? (
+                    <View style={styles.matchNoticeBlock}>
+                      <Text style={styles.matchNoticeText}>{groupMatchNotice}</Text>
+                      {groupNeedsManualRematch ? (
+                        <Pressable
+                          style={styles.matchNoticeAction}
+                          onPress={() => {
+                            void handleRequestGroupMatch(activeGroupSlotStartAt);
+                          }}
+                        >
+                          <Text style={styles.matchNoticeActionText}>같은 조건으로 다시 찾기</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ) : null}
 
                   {groupMatchState === 'ready' ? (
                     <View style={styles.matchActionRow}>
@@ -3473,6 +3503,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     paddingHorizontal: 4,
+  },
+  matchNoticeBlock: {
+    gap: 8,
+  },
+  matchNoticeAction: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(129, 140, 248, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(129, 140, 248, 0.28)',
+  },
+  matchNoticeActionText: {
+    color: '#E0E7FF',
+    fontSize: 12,
+    fontWeight: '800',
   },
   groupParticipantList: {
     gap: 8,
