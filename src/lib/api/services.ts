@@ -14,7 +14,7 @@ import {
   weeklySummary,
 } from '@/data/mock';
 import { addressCatalog } from '@/features/location/addressCatalog';
-import { DistrictPersonalRank, MarketOverview, MarketRewardItem, OfflineRaceEvent, OfflineRaceHub, OfflineRaceStatus, RegionDrilldownNode, RunSourceType, UniversityLeagueRank } from '@/domain/types';
+import { DistrictPersonalRank, MarketOverview, MarketRewardItem, OfflineRaceEvent, OfflineRaceHub, OfflineRaceStatus, RegionDrilldownNode, RunMatchResult, RunSourceType, UniversityLeagueRank } from '@/domain/types';
 import { getAccessToken, getCurrentUserProfile, setCurrentUserProfile } from '@/lib/session';
 import { apiGet, apiPatch, apiPost } from './client';
 import { USE_MOCK_API } from './config';
@@ -179,6 +179,62 @@ function parsePaceLabelToSeconds(pace: string) {
   }
 
   return Number(matched[1]) * 60 + Number(matched[2]);
+}
+
+function getMockMatchBonusPoints(matchResult?: RunMatchResult | null) {
+  if (!matchResult) {
+    return 0;
+  }
+
+  if (matchResult.mode === 'duel') {
+    if (matchResult.resultTone === 'win') {
+      return 12;
+    }
+
+    if (matchResult.resultTone === 'draw') {
+      return 6;
+    }
+
+    if (matchResult.resultTone === 'lose') {
+      return 3;
+    }
+
+    return 0;
+  }
+
+  const participantCount = typeof matchResult.participantCount === 'number' ? matchResult.participantCount : 0;
+  const rank = typeof matchResult.rank === 'number' ? matchResult.rank : 0;
+
+  if (participantCount < 2 || rank < 1) {
+    return 0;
+  }
+
+  if (rank === 1) {
+    return 15;
+  }
+
+  if (rank <= 3) {
+    return 10;
+  }
+
+  if (rank <= 10) {
+    return 6;
+  }
+
+  return 4;
+}
+
+function buildMockPointBreakdown(basePoints: number, matchResult?: RunMatchResult | null) {
+  const normalizedBasePoints = Math.max(0, Math.round(basePoints));
+  const matchBonusPoints = getMockMatchBonusPoints(matchResult);
+
+  return {
+    levelPoints: normalizedBasePoints,
+    streakPoints: 0,
+    growthPoints: 0,
+    matchBonusPoints,
+    totalPoints: normalizedBasePoints + matchBonusPoints,
+  };
 }
 
 function formatSecondsPerKm(seconds: number) {
@@ -1179,6 +1235,7 @@ export async function fetchMyActivity(): Promise<MyActivityResponse> {
 export async function createManualRun(input: CreateManualRunInput): Promise<CreateManualRunResponse> {
   if (USE_MOCK_API) {
     const distanceKm = Number(input.distanceKm.toFixed(1));
+    const pointBreakdown = buildMockPointBreakdown(distanceKm >= 0.1 ? 10 : 0);
 
     return {
       run: {
@@ -1190,7 +1247,8 @@ export async function createManualRun(input: CreateManualRunInput): Promise<Crea
       },
       weeklyDistanceKm: distanceKm,
       estimatedMinutes: Math.round(distanceKm * 5.5),
-      earnedPoint: distanceKm >= 0.1 ? 10 : 0,
+      earnedPoint: pointBreakdown.totalPoints,
+      pointBreakdown,
     };
   }
 
@@ -1214,6 +1272,7 @@ export async function createManualRun(input: CreateManualRunInput): Promise<Crea
 export async function createTrackedRun(input: CreateTrackedRunInput): Promise<CreateTrackedRunResponse> {
   if (USE_MOCK_API) {
     const distanceKm = Number(input.distanceKm.toFixed(1));
+    const pointBreakdown = buildMockPointBreakdown(distanceKm >= 0.1 ? 10 : 0, input.matchResult);
     const trackedRun = {
       id: `tracked-run-${Date.now()}`,
       date: input.date,
@@ -1236,7 +1295,8 @@ export async function createTrackedRun(input: CreateTrackedRunInput): Promise<Cr
       run: trackedRun,
       weeklyDistanceKm: distanceKm,
       estimatedMinutes: Math.round(input.durationSeconds / 60),
-      earnedPoint: distanceKm >= 0.1 ? 10 : 0,
+      earnedPoint: pointBreakdown.totalPoints,
+      pointBreakdown,
     };
   }
 
@@ -2150,6 +2210,7 @@ export async function fetchRunDetail(input?: { runId?: string; friendId?: string
       const run = input.runId
         ? (friendRunRecords.find((entry) => entry.id === input.runId) ?? friendRunRecords[0])
         : friendRunRecords[0];
+      const pointBreakdown = buildMockPointBreakdown(Math.round(run.distanceKm * 2.4));
 
       return {
         run: {
@@ -2158,19 +2219,22 @@ export async function fetchRunDetail(input?: { runId?: string; friendId?: string
         },
         weeklyDistanceKm: weeklySummary.totalDistanceKm,
         estimatedMinutes: Math.round(run.distanceKm * 5.5),
-        earnedPoint: Math.round(run.distanceKm * 2.4),
+        earnedPoint: pointBreakdown.totalPoints,
+        pointBreakdown,
       };
     }
 
     const run = input?.runId
       ? (myRunRecords.find((entry) => entry.id === input.runId) ?? myRunRecords[0])
       : myRunRecords[0];
+    const pointBreakdown = buildMockPointBreakdown(Math.round(run.distanceKm * 2.4), run.matchResult);
 
     return {
       run,
       weeklyDistanceKm: weeklySummary.totalDistanceKm,
       estimatedMinutes: Math.round(run.distanceKm * 5.5),
-      earnedPoint: Math.round(run.distanceKm * 2.4),
+      earnedPoint: pointBreakdown.totalPoints,
+      pointBreakdown,
     };
   }
 

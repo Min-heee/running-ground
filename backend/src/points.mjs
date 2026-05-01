@@ -49,6 +49,53 @@ function getConsecutiveRewardPoints(streakDays) {
   return streakDays * 2 - 3;
 }
 
+function getMatchBonusPoints(matchResult) {
+  if (!matchResult || typeof matchResult !== 'object') {
+    return 0;
+  }
+
+  if (matchResult.mode === 'duel') {
+    if (matchResult.resultTone === 'win') {
+      return 12;
+    }
+
+    if (matchResult.resultTone === 'draw') {
+      return 6;
+    }
+
+    if (matchResult.resultTone === 'lose') {
+      return 3;
+    }
+
+    return 0;
+  }
+
+  if (matchResult.mode === 'group') {
+    const participantCount = typeof matchResult.participantCount === 'number' ? matchResult.participantCount : 0;
+    const rank = typeof matchResult.rank === 'number' ? matchResult.rank : 0;
+
+    if (participantCount < 2 || rank < 1) {
+      return 0;
+    }
+
+    if (rank === 1) {
+      return 15;
+    }
+
+    if (rank <= 3) {
+      return 10;
+    }
+
+    if (rank <= 10) {
+      return 6;
+    }
+
+    return 4;
+  }
+
+  return 0;
+}
+
 function getMinimumRunDistanceForStreak(distanceLevel) {
   return distanceLevel >= 20 ? 5 : 3;
 }
@@ -83,14 +130,16 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     cumulativeDistanceKm = toFixed1(cumulativeDistanceKm + run.distanceKm);
     const afterLevel = Math.floor(cumulativeDistanceKm / 10);
     const levelPoints = Math.max(0, afterLevel - beforeLevel) * 10;
+    const matchBonusPoints = getMatchBonusPoints(run.matchResult);
 
     const runDate = parseRunDate(run.date);
     const weekKey = getWeekKey(runDate);
     const monthKey = getMonthKey(runDate);
 
     runPointsById.set(run.id, {
-      earnedPoint: levelPoints,
+      earnedPoint: levelPoints + matchBonusPoints,
       levelPoints,
+      matchBonusPoints,
       streakPoints: 0,
       growthPoints: 0,
       weekKey,
@@ -227,6 +276,28 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
 
 export function getRunPointValue(metrics, runId) {
   return metrics.runPointsById.get(runId)?.earnedPoint ?? 0;
+}
+
+export function getRunPointBreakdown(metrics, runId) {
+  const pointEntry = metrics.runPointsById.get(runId);
+
+  if (!pointEntry) {
+    return {
+      levelPoints: 0,
+      streakPoints: 0,
+      growthPoints: 0,
+      matchBonusPoints: 0,
+      totalPoints: 0,
+    };
+  }
+
+  return {
+    levelPoints: pointEntry.levelPoints ?? 0,
+    streakPoints: pointEntry.streakPoints ?? 0,
+    growthPoints: pointEntry.growthPoints ?? 0,
+    matchBonusPoints: pointEntry.matchBonusPoints ?? 0,
+    totalPoints: pointEntry.earnedPoint ?? 0,
+  };
 }
 
 export function getAvailableRewardPoints(metrics, redeemedPointCost = 0) {

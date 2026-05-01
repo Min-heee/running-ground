@@ -71,6 +71,44 @@ export default function RunDetailScreen() {
             </Card>
           </View>
 
+          <Card style={styles.pointBreakdownCard}>
+            <View style={styles.pointBreakdownHeader}>
+              <Text style={styles.sectionTitle}>포인트 내역</Text>
+              {runDetail.pointBreakdown.matchBonusPoints > 0 ? (
+                <View style={styles.matchBonusPill}>
+                  <Text style={styles.matchBonusPillText}>매치 보너스 +{runDetail.pointBreakdown.matchBonusPoints}P</Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.pointBreakdownRow}>
+              <Text style={styles.pointBreakdownLabel}>레벨 보너스</Text>
+              <Text style={styles.pointBreakdownValue}>+{runDetail.pointBreakdown.levelPoints}P</Text>
+            </View>
+            <View style={styles.pointBreakdownRow}>
+              <Text style={styles.pointBreakdownLabel}>연속 러닝 보너스</Text>
+              <Text style={styles.pointBreakdownValue}>+{runDetail.pointBreakdown.streakPoints}P</Text>
+            </View>
+            <View style={styles.pointBreakdownRow}>
+              <Text style={styles.pointBreakdownLabel}>성장 보너스</Text>
+              <Text style={styles.pointBreakdownValue}>+{runDetail.pointBreakdown.growthPoints}P</Text>
+            </View>
+            <View style={styles.pointBreakdownRow}>
+              <Text style={styles.pointBreakdownLabel}>매치 보너스</Text>
+              <Text
+                style={[
+                  styles.pointBreakdownValue,
+                  runDetail.pointBreakdown.matchBonusPoints > 0 ? styles.pointBreakdownValueHighlight : null,
+                ]}
+              >
+                +{runDetail.pointBreakdown.matchBonusPoints}P
+              </Text>
+            </View>
+            <View style={styles.pointBreakdownTotalRow}>
+              <Text style={styles.pointBreakdownTotalLabel}>총 획득 포인트</Text>
+              <Text style={styles.pointBreakdownTotalValue}>+{runDetail.pointBreakdown.totalPoints}P</Text>
+            </View>
+          </Card>
+
           {runDetail.run.matchResult ? (
             <Card style={styles.matchResultCard}>
               <View style={styles.matchResultHeader}>
@@ -273,6 +311,60 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 24,
     fontWeight: '800',
+  },
+  pointBreakdownCard: {
+    gap: 10,
+  },
+  pointBreakdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
+  matchBonusPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#EEF4FF',
+  },
+  matchBonusPillText: {
+    color: '#1D4ED8',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  pointBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  pointBreakdownLabel: {
+    color: '#475467',
+    fontWeight: '700',
+  },
+  pointBreakdownValue: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  pointBreakdownValueHighlight: {
+    color: '#1D4ED8',
+  },
+  pointBreakdownTotalRow: {
+    marginTop: 4,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#D0D5DD',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  pointBreakdownTotalLabel: {
+    color: '#111827',
+    fontWeight: '800',
+  },
+  pointBreakdownTotalValue: {
+    color: '#111827',
+    fontSize: 18,
+    fontWeight: '900',
   },
   sectionTitle: {
     fontSize: 18,

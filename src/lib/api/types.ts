@@ -390,11 +390,20 @@ export type UniversityLeagueResponse = {
   ranks: UniversityLeagueRank[];
 };
 
+export type RunPointBreakdown = {
+  levelPoints: number;
+  streakPoints: number;
+  growthPoints: number;
+  matchBonusPoints: number;
+  totalPoints: number;
+};
+
 export type RunDetailResponse = {
   run: MyRunRecord;
   weeklyDistanceKm: number;
   estimatedMinutes: number;
   earnedPoint: number;
+  pointBreakdown: RunPointBreakdown;
 };
 
 export type AdminOverviewResponse = {

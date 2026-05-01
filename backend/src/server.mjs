@@ -44,7 +44,7 @@ import {
   getPublicBackendConfig,
 } from './config.mjs';
 import { isSessionExpired } from './auth.mjs';
-import { buildUserRunMetrics, getAvailableRewardPoints, getRunPointValue, parsePaceToMinutes } from './points.mjs';
+import { buildUserRunMetrics, getAvailableRewardPoints, getRunPointBreakdown, getRunPointValue, parsePaceToMinutes } from './points.mjs';
 import { addressCatalog } from './addressCatalog.mjs';
 import { buildRoadAlignedRoutePreview } from './routing.mjs';
 const STARTED_AT = new Date().toISOString();
@@ -2537,6 +2537,7 @@ function buildRunDetail(run, weeklyDistanceKm, sourceOverride, metrics) {
     weeklyDistanceKm,
     estimatedMinutes: Math.round(run.distanceKm * (paceMinutes ?? 5.5)),
     earnedPoint: getRunPointValue(metrics, run.id),
+    pointBreakdown: getRunPointBreakdown(metrics, run.id),
   };
 }
 
