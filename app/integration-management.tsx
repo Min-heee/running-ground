@@ -15,7 +15,11 @@ import {
   sortSourcesByPriority,
   splitSourcesByStatus,
 } from '@/features/integrations/sourceCatalog';
-import { getRecommendedNativeHealthReadiness, importRunsFromRecommendedNativeHealthSource } from '@/integrations/nativeHealth';
+import {
+  NativeHealthImportResult,
+  getRecommendedNativeHealthReadiness,
+  importRunsFromRecommendedNativeHealthSource,
+} from '@/integrations/nativeHealth';
 import {
   connectIntegrationSource,
   disconnectIntegrationSource,
@@ -41,6 +45,26 @@ function buildSyncSummary(result: IntegrationSyncResponse) {
   return `${result.syncedSources}개 소스를 확인했지만 아직 새로 반영할 기록은 없었어.`;
 }
 
+function buildImportDiagnosisHint(result: NativeHealthImportResult) {
+  if (result.fetchedRuns === 0) {
+    return '기기 허브 쪽에 아직 새 러닝이 없거나, 권한/동기화가 덜 끝난 상태일 가능성이 커.';
+  }
+
+  if (!result.syncResult) {
+    return '기기에서 읽은 기록을 가져오기 대기열에 올려둔 상태야. 이어서 동기화가 돌아야 실제 기록으로 보이게 돼.';
+  }
+
+  if (result.syncResult.importedRuns === 0 && result.syncResult.duplicateRuns > 0) {
+    return '이번 기록은 이미 들어와 있어서 중복 방지 규칙에 따라 건너뛴 상태야.';
+  }
+
+  if (result.syncResult.importedRuns > 0) {
+    return '기기에서 읽은 기록이 실제 러닝 기록으로 정상 반영됐어.';
+  }
+
+  return '기록을 확인했지만 아직 반영할 새 변화는 없었어.';
+}
+
 export default function IntegrationManagementScreen() {
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
@@ -53,6 +77,7 @@ export default function IntegrationManagementScreen() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [deviceImporting, setDeviceImporting] = useState(false);
+  const [lastImportResult, setLastImportResult] = useState<NativeHealthImportResult | null>(null);
 
   const loadIntegrationStatus = useCallback(() => {
     setLoading(true);
@@ -72,6 +97,7 @@ export default function IntegrationManagementScreen() {
     setSyncing(true);
     setSyncError(null);
     setSyncResult(null);
+    setLastImportResult(null);
     setActionMessage(null);
     setActionError(null);
 
@@ -93,6 +119,7 @@ export default function IntegrationManagementScreen() {
     setActionError(null);
     setActionMessage(null);
     setSyncError(null);
+    setLastImportResult(null);
 
     try {
       const result = await connectIntegrationSource(sourceType);
@@ -119,6 +146,7 @@ export default function IntegrationManagementScreen() {
     setActionError(null);
     setActionMessage(null);
     setSyncError(null);
+    setLastImportResult(null);
 
     try {
       const result = await disconnectIntegrationSource(sourceType);
@@ -150,9 +178,11 @@ export default function IntegrationManagementScreen() {
     setActionError(null);
     setActionMessage(null);
     setSyncError(null);
+    setLastImportResult(null);
 
     try {
       const result = await importRunsFromRecommendedNativeHealthSource(sources);
+      setLastImportResult(result);
 
       if (result.syncResult) {
         setSyncResult(result.syncResult);
@@ -217,6 +247,39 @@ export default function IntegrationManagementScreen() {
               {!actionMessage && syncResult ? <Text style={styles.successText}>{buildSyncSummary(syncResult)}</Text> : null}
               {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
               {syncError ? <Text style={styles.errorText}>{syncError}</Text> : null}
+            </Card>
+          ) : null}
+
+          {lastImportResult ? (
+            <Card>
+              <Text style={styles.sectionTitle}>이번 가져오기 진단</Text>
+              <View style={styles.diagnosticGrid}>
+                <View style={styles.diagnosticChip}>
+                  <Text style={styles.diagnosticLabel}>확인한 소스</Text>
+                  <Text style={styles.diagnosticValue}>{lastImportResult.sourceLabel}</Text>
+                </View>
+                <View style={styles.diagnosticChip}>
+                  <Text style={styles.diagnosticLabel}>기기에서 읽음</Text>
+                  <Text style={styles.diagnosticValue}>{lastImportResult.fetchedRuns}개</Text>
+                </View>
+                <View style={styles.diagnosticChip}>
+                  <Text style={styles.diagnosticLabel}>대기열 등록</Text>
+                  <Text style={styles.diagnosticValue}>{lastImportResult.queuedRuns}개</Text>
+                </View>
+                <View style={styles.diagnosticChip}>
+                  <Text style={styles.diagnosticLabel}>새 반영</Text>
+                  <Text style={styles.diagnosticValue}>{lastImportResult.syncResult?.importedRuns ?? 0}개</Text>
+                </View>
+                <View style={styles.diagnosticChip}>
+                  <Text style={styles.diagnosticLabel}>중복 건너뜀</Text>
+                  <Text style={styles.diagnosticValue}>{lastImportResult.syncResult?.duplicateRuns ?? 0}개</Text>
+                </View>
+                <View style={styles.diagnosticChip}>
+                  <Text style={styles.diagnosticLabel}>마지막 확인</Text>
+                  <Text style={styles.diagnosticValue}>{lastImportResult.syncResult?.lastSyncedAt ?? '아직 없음'}</Text>
+                </View>
+              </View>
+              <Text style={styles.helperText}>{buildImportDiagnosisHint(lastImportResult)}</Text>
             </Card>
           ) : null}
 
@@ -299,6 +362,31 @@ const styles = StyleSheet.create({
     color: '#667085',
     lineHeight: 20,
     marginTop: 8,
+  },
+  diagnosticGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 12,
+  },
+  diagnosticChip: {
+    minWidth: '47%',
+    flexGrow: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  diagnosticLabel: {
+    color: '#667085',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  diagnosticValue: {
+    color: '#111827',
+    fontSize: 14,
+    fontWeight: '800',
   },
   successText: {
     color: '#067647',
