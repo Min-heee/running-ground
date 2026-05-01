@@ -97,6 +97,7 @@ export type UpdateRunningLiveShareResponse = {
 export type RequestDuelMatchInput = {
   distanceKm: number;
   slotStartAt: string;
+  testMode?: boolean;
 };
 
 export type DuelMatchOpponent = {
@@ -121,6 +122,7 @@ export type DuelMatchOpponent = {
 export type RequestDuelMatchResponse = {
   success: boolean;
   matched: boolean;
+  isTestMatch?: boolean;
   requestId: string;
   distanceKm: number;
   slotStartAt: string;
@@ -135,6 +137,7 @@ export type RequestDuelMatchResponse = {
 export type RequestGroupMatchInput = {
   distanceKm: number;
   slotStartAt: string;
+  testMode?: boolean;
 };
 
 export type GroupMatchParticipant = {
@@ -192,6 +195,7 @@ export type RunningMatchStatusResponse = {
   success: boolean;
   mode: 'duel' | 'group';
   state: RunningMatchState;
+  isTestMatch?: boolean;
   matchId?: string;
   distanceKm: number;
   slotStartAt: string;
@@ -220,6 +224,7 @@ export type RunningMatchStatusResponse = {
 export type UpcomingRunningMatchItem = {
   matchId: string;
   mode: 'duel' | 'group';
+  isTestMatch?: boolean;
   distanceKm: number;
   slotStartAt: string;
   slotLabel: string;
@@ -248,6 +253,7 @@ export type UpdateRunningMatchProgressResponse = RunningMatchStatusResponse;
 export type RequestGroupMatchResponse = {
   success: boolean;
   matched: boolean;
+  isTestMatch?: boolean;
   requestId: string;
   distanceKm: number;
   slotStartAt: string;

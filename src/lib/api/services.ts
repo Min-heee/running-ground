@@ -375,6 +375,31 @@ function buildMockDuelMatchResponse(input: RequestDuelMatchInput): RequestDuelMa
     }))
     .sort((left, right) => right.score - left.score)[0];
 
+  if (input.testMode) {
+    const testOpponent = bestCandidate?.candidate ?? mockDuelMatchPool[0];
+    const testOpponentLevelLabel = buildLevelLabel(testOpponent.lifetimeDistanceKm);
+
+    return {
+      success: true,
+      matched: true,
+      isTestMatch: true,
+      requestId: `mock-duel-test-${Date.now()}`,
+      distanceKm: Number(input.distanceKm.toFixed(1)),
+      slotStartAt: input.slotStartAt,
+      slotLabel: formatDuelSlotLabel(input.slotStartAt),
+      paceBandLabel: buildPaceBandLabel(currentPaceSeconds),
+      levelBandLabel: `${buildLevelLabel(currentLifetimeDistanceKm)} 전후`,
+      criteriaSummary: '테스트용 1대1 매칭을 바로 만들었어요.',
+      estimatedWaitMinutes: 0,
+      opponent: {
+        ...testOpponent,
+        name: `테스트 ${testOpponent.name}`,
+        levelLabel: testOpponentLevelLabel,
+        compatibilitySummary: `${testOpponent.averagePace} 페이스 · ${testOpponentLevelLabel} · 테스트 상대`,
+      },
+    };
+  }
+
   if (!bestCandidate || bestCandidate.score < DUEL_MIN_COMPATIBILITY_SCORE) {
     return {
       success: true,
@@ -437,6 +462,59 @@ function buildMockGroupMatchResponse(input: RequestGroupMatchInput): RequestGrou
     .sort((left, right) => right.score - left.score)
     .slice(0, maxGroupSize - 1)
     .map((entry) => entry.candidate);
+
+  if (input.testMode) {
+    const testParticipants = [
+      {
+        id: currentParticipantId,
+        name: profile.name,
+        tag: profile.publicTag,
+        districtName: profile.districtName,
+        averagePace: formatSecondsPerKm(currentPaceSeconds),
+        levelLabel: currentLevelLabel,
+        weeklyDistanceKm: weeklySummary.totalDistanceKm,
+        lifetimeDistanceKm: currentLifetimeDistanceKm,
+        seedRank: 0,
+        seedSummary: '',
+      },
+      ...Array.from({ length: 5 }, (_, index) => {
+        const baseCandidate = selectedCandidates[index % Math.max(selectedCandidates.length, 1)] ?? mockDuelMatchPool[index % mockDuelMatchPool.length];
+        return {
+          ...baseCandidate,
+          id: `group-test-${index + 1}`,
+          name: `테스트 러너 ${index + 1}`,
+          levelLabel: buildLevelLabel(baseCandidate.lifetimeDistanceKm),
+          seedRank: 0,
+          seedSummary: '',
+        };
+      }),
+    ]
+      .sort((left, right) => parsePaceLabelToSeconds(left.averagePace) - parsePaceLabelToSeconds(right.averagePace))
+      .map((participant, index) => ({
+        ...participant,
+        seedRank: index + 1,
+        seedSummary: `${index + 1}번 시드 · ${participant.averagePace}`,
+      }));
+    const mySeedRank = testParticipants.find((participant) => participant.id === currentParticipantId)?.seedRank ?? 1;
+
+    return {
+      success: true,
+      matched: true,
+      isTestMatch: true,
+      requestId: `mock-group-test-${Date.now()}`,
+      distanceKm: Number(input.distanceKm.toFixed(1)),
+      slotStartAt: input.slotStartAt,
+      slotLabel: formatDuelSlotLabel(input.slotStartAt),
+      paceBandLabel: buildPaceBandLabel(currentPaceSeconds),
+      levelBandLabel: `${currentLevelLabel} 전후`,
+      criteriaSummary: '테스트용 6인 그룹 매칭을 바로 만들었어요.',
+      estimatedWaitMinutes: 0,
+      maxGroupSize,
+      participantsCount: testParticipants.length,
+      mySeedRank,
+      participants: testParticipants,
+    };
+  }
 
   if (!selectedCandidates.length) {
     return {
@@ -714,6 +792,7 @@ function buildMockDuelMatchStatus(response: RequestDuelMatchResponse): RunningMa
     success: true,
     mode: 'duel',
     state: 'matched',
+    ...(response.isTestMatch ? { isTestMatch: true } : {}),
     matchId: response.requestId,
     distanceKm: response.distanceKm,
     slotStartAt: response.slotStartAt,
@@ -755,6 +834,7 @@ function buildMockGroupMatchStatus(response: RequestGroupMatchResponse): Running
     success: true,
     mode: 'group',
     state: 'matched',
+    ...(response.isTestMatch ? { isTestMatch: true } : {}),
     matchId: response.requestId,
     distanceKm: response.distanceKm,
     slotStartAt: response.slotStartAt,
@@ -1427,6 +1507,7 @@ export async function requestDuelMatch(input: RequestDuelMatchInput): Promise<Re
     {
       distanceKm: Number(input.distanceKm.toFixed(1)),
       slotStartAt: input.slotStartAt,
+      testMode: Boolean(input.testMode),
     },
     {
       accessToken: await requireAccessToken(),
@@ -1447,6 +1528,7 @@ export async function requestGroupMatch(input: RequestGroupMatchInput): Promise<
     {
       distanceKm: Number(input.distanceKm.toFixed(1)),
       slotStartAt: input.slotStartAt,
+      testMode: Boolean(input.testMode),
     },
     {
       accessToken: await requireAccessToken(),
@@ -1517,6 +1599,7 @@ export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatc
       .map((session) => ({
         matchId: session.matchId ?? `${session.mode}-${session.slotStartAt}`,
         mode: session.mode,
+        ...(session.isTestMatch ? { isTestMatch: true } : {}),
         distanceKm: session.distanceKm,
         slotStartAt: session.slotStartAt,
         slotLabel: session.slotLabel,

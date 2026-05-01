@@ -4,11 +4,13 @@ type ArenaParticipant = {
   id: string;
   name: string;
   paceLabel: string;
+  bpmLabel?: string | null;
   distanceKm: number;
   rankLabel?: string;
   isCurrentUser?: boolean;
   isLeader?: boolean;
   showPaceBubble?: boolean;
+  emphasis?: 'featured' | 'compact';
 };
 
 function getTrackPoint(progress: number, laneIndex: number, width: number, height: number, markerSize: number) {
@@ -27,6 +29,10 @@ function getTrackPoint(progress: number, laneIndex: number, width: number, heigh
 
 function buildInitialLabel(name: string) {
   return name.slice(0, 1);
+}
+
+function buildBubbleLabel(participant: ArenaParticipant) {
+  return participant.bpmLabel ? `${participant.paceLabel} · ${participant.bpmLabel}` : participant.paceLabel;
 }
 
 export function LiveMatchArena({
@@ -82,8 +88,14 @@ export function LiveMatchArena({
         <View style={styles.finishLine} />
         {participants.map((participant, index) => {
           const laneIndex = mode === 'duel' ? index : index % laneCount;
+          const isCompact = mode === 'group' && participant.emphasis === 'compact';
+          const participantMarkerSize = mode === 'duel'
+            ? markerSize
+            : isCompact
+              ? 18
+              : 30;
           const progress = targetDistanceKm > 0 ? participant.distanceKm / targetDistanceKm : 0;
-          const point = getTrackPoint(progress, laneIndex, cardWidth - 32, arenaHeight, markerSize);
+          const point = getTrackPoint(progress, laneIndex, cardWidth - 32, arenaHeight, participantMarkerSize);
 
           return (
             <View
@@ -91,33 +103,56 @@ export function LiveMatchArena({
               style={[
                 styles.runnerWrap,
                 {
+                  width: isCompact ? 54 : 78,
                   left: point.left,
                   top: point.top,
                 },
               ]}
             >
               {participant.showPaceBubble ? (
-                <View style={[styles.paceBubble, participant.isCurrentUser ? styles.paceBubbleCurrent : undefined]}>
-                  <Text style={styles.paceBubbleText}>{participant.paceLabel}</Text>
+                <View
+                  style={[
+                    styles.paceBubble,
+                    participant.isCurrentUser ? styles.paceBubbleCurrent : undefined,
+                    isCompact ? styles.paceBubbleCompact : undefined,
+                  ]}
+                >
+                  <Text style={[styles.paceBubbleText, isCompact ? styles.paceBubbleTextCompact : undefined]}>
+                    {buildBubbleLabel(participant)}
+                  </Text>
                 </View>
               ) : null}
               <View
                 style={[
                   styles.runnerMarker,
-                  mode === 'duel' ? styles.runnerMarkerLarge : styles.runnerMarkerSmall,
+                  mode === 'duel'
+                    ? styles.runnerMarkerLarge
+                    : isCompact
+                      ? styles.runnerMarkerCompact
+                      : styles.runnerMarkerMedium,
                   participant.isCurrentUser ? styles.runnerMarkerCurrent : participant.isLeader ? styles.runnerMarkerLeader : styles.runnerMarkerDefault,
                 ]}
               >
-                <Text style={[styles.runnerMarkerText, mode === 'duel' ? styles.runnerMarkerTextLarge : undefined]}>
+                <Text
+                  style={[
+                    styles.runnerMarkerText,
+                    mode === 'duel' ? styles.runnerMarkerTextLarge : undefined,
+                    isCompact ? styles.runnerMarkerTextCompact : undefined,
+                  ]}
+                >
                   {mode === 'duel' ? buildInitialLabel(participant.name) : participant.rankLabel ?? buildInitialLabel(participant.name)}
                 </Text>
               </View>
-              <View style={styles.runnerLabelWrap}>
-                <Text style={styles.runnerLabelName}>
-                  {participant.isCurrentUser ? '나' : participant.name}
-                </Text>
-                <Text style={styles.runnerLabelMeta}>{participant.distanceKm.toFixed(2)}km</Text>
-              </View>
+              {isCompact ? (
+                <Text style={styles.runnerCompactMeta}>{participant.distanceKm.toFixed(1)}km</Text>
+              ) : (
+                <View style={styles.runnerLabelWrap}>
+                  <Text style={styles.runnerLabelName}>
+                    {participant.isCurrentUser ? '나' : participant.name}
+                  </Text>
+                  <Text style={styles.runnerLabelMeta}>{participant.distanceKm.toFixed(2)}km</Text>
+                </View>
+              )}
             </View>
           );
         })}
@@ -202,10 +237,18 @@ const styles = StyleSheet.create({
   paceBubbleCurrent: {
     backgroundColor: 'rgba(129, 140, 248, 0.32)',
   },
+  paceBubbleCompact: {
+    marginBottom: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
   paceBubbleText: {
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '800',
+  },
+  paceBubbleTextCompact: {
+    fontSize: 9,
   },
   runnerMarker: {
     alignItems: 'center',
@@ -217,9 +260,13 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
   },
-  runnerMarkerSmall: {
-    width: 28,
-    height: 28,
+  runnerMarkerMedium: {
+    width: 30,
+    height: 30,
+  },
+  runnerMarkerCompact: {
+    width: 18,
+    height: 18,
   },
   runnerMarkerCurrent: {
     backgroundColor: '#6D5EF7',
@@ -241,6 +288,9 @@ const styles = StyleSheet.create({
   runnerMarkerTextLarge: {
     fontSize: 18,
   },
+  runnerMarkerTextCompact: {
+    fontSize: 8,
+  },
   runnerLabelWrap: {
     marginTop: 6,
     alignItems: 'center',
@@ -254,6 +304,12 @@ const styles = StyleSheet.create({
   runnerLabelMeta: {
     color: '#C7D2FE',
     fontSize: 10,
+    fontWeight: '700',
+  },
+  runnerCompactMeta: {
+    marginTop: 4,
+    color: '#C7D2FE',
+    fontSize: 9,
     fontWeight: '700',
   },
   footer: {

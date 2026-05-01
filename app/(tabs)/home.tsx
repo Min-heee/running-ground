@@ -157,7 +157,7 @@ export default function HomeScreen() {
                 <View key={match.matchId} style={styles.upcomingRow}>
                   <View style={styles.upcomingCopy}>
                     <Text style={styles.upcomingTitle}>
-                      {match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
+                      {match.isTestMatch ? '테스트 ' : ''}{match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
                     </Text>
                     <Text style={styles.upcomingMeta}>{match.counterpartLabel}</Text>
                     {(() => {

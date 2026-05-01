@@ -786,6 +786,20 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const groupBehindParticipant = currentGroupStanding
     ? groupLiveStandings.find((participant) => participant.rank === currentGroupStanding.rank + 1) ?? null
     : null;
+  const featuredGroupArenaParticipantIds = useMemo(() => {
+    const ids = new Set<string>();
+    groupLiveStandings.slice(0, 3).forEach((participant) => ids.add(participant.id));
+    if (currentGroupStanding) {
+      ids.add(currentGroupStanding.id);
+    }
+    if (groupAheadParticipant) {
+      ids.add(groupAheadParticipant.id);
+    }
+    if (groupBehindParticipant) {
+      ids.add(groupBehindParticipant.id);
+    }
+    return ids;
+  }, [currentGroupStanding, groupAheadParticipant, groupBehindParticipant, groupLiveStandings]);
   const duelLiveGapKm = useMemo(() => {
     if (!effectiveDuelOpponent || typeof effectiveDuelOpponent.liveDistanceKm !== 'number') {
       return null;
@@ -1039,8 +1053,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         isCurrentUser: participant.isCurrentUser,
         isLeader: participant.rank === 1,
         showPaceBubble: true,
+        emphasis: featuredGroupArenaParticipantIds.has(participant.id) ? ('featured' as const) : ('compact' as const),
       })),
-    [groupLiveStandings],
+    [featuredGroupArenaParticipantIds, groupLiveStandings],
   );
   const showLiveArena =
     isRunning
@@ -1891,7 +1906,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     }
   };
 
-  const handleRequestDuelMatch = async (slotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt) => {
+  const handleRequestDuelMatch = async (
+    slotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt,
+    options?: { testMode?: boolean },
+  ) => {
     try {
       setError(null);
       setDuelMatchNotice(null);
@@ -1900,6 +1918,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       const payload = await requestDuelMatch({
         distanceKm: duelDistanceKm,
         slotStartAt,
+        testMode: options?.testMode,
       });
 
       setDuelMatchResult(payload);
@@ -1919,7 +1938,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     }
   };
 
-  const handleRequestGroupMatch = async (slotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt) => {
+  const handleRequestGroupMatch = async (
+    slotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt,
+    options?: { testMode?: boolean },
+  ) => {
     try {
       setError(null);
       setGroupMatchNotice(null);
@@ -1928,6 +1950,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       const payload = await requestGroupMatch({
         distanceKm: groupDistanceKm,
         slotStartAt,
+        testMode: options?.testMode,
       });
 
       setGroupMatchResult(payload);
@@ -2685,7 +2708,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                   <View key={match.matchId} style={styles.upcomingMatchRow}>
                     <View style={styles.upcomingMatchCopy}>
                       <Text style={styles.upcomingMatchTitle}>
-                        {match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
+                        {match.isTestMatch ? '테스트 ' : ''}{match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
                       </Text>
                       <Text style={styles.upcomingMatchMeta}>{match.counterpartLabel}</Text>
                       {(() => {
@@ -2920,7 +2943,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                   {duelMatchState === 'matched' && effectiveDuelOpponent ? (
                     <View style={styles.duelResultCard}>
                       <Text style={styles.duelResultEyebrow}>MATCHED</Text>
-                      <Text style={styles.duelResultTitle}>매칭이 잡혔습니다</Text>
+                      <Text style={styles.duelResultTitle}>
+                        {duelMatchStatus?.isTestMatch ? '테스트 매칭이 잡혔습니다' : '매칭이 잡혔습니다'}
+                      </Text>
                       <Text style={styles.duelResultMeta}>
                         {buildMatchSlotDateLabel(duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt)} {effectiveDuelSlotLabel}
                       </Text>
@@ -2986,12 +3011,20 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       {duelReservationLocked ? <Text style={styles.matchCancelHelperText}>출발 1시간 전부터는 예약을 취소할 수 없어요.</Text> : null}
                     </>
                   ) : duelMatchState === 'active' ? null : (
-                    <SecondaryButton
-                      label="1대1 매칭 찾기"
-                      onPress={() => {
-                        void handleRequestDuelMatch();
-                      }}
-                    />
+                    <View style={styles.matchActionColumn}>
+                      <SecondaryButton
+                        label="1대1 매칭 찾기"
+                        onPress={() => {
+                          void handleRequestDuelMatch();
+                        }}
+                      />
+                      <SecondaryButton
+                        label="1대1 테스트 매칭"
+                        onPress={() => {
+                          void handleRequestDuelMatch(activeDuelSlotStartAt, { testMode: true });
+                        }}
+                      />
+                    </View>
                   )}
                 </View>
               ) : null}
@@ -3149,7 +3182,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       </Text>
                       <Text style={styles.duelResultTitle}>
                         {groupMatchState === 'matched'
-                          ? '매칭이 잡혔습니다'
+                          ? groupMatchStatus?.isTestMatch ? '테스트 그룹이 잡혔습니다' : '매칭이 잡혔습니다'
                           : `${effectiveGroupParticipantCount}명 그룹전 바로 시작 가능`}
                       </Text>
                       <Text style={styles.duelResultMeta}>
@@ -3219,12 +3252,20 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       {groupReservationLocked ? <Text style={styles.matchCancelHelperText}>출발 1시간 전부터는 예약을 취소할 수 없어요.</Text> : null}
                     </>
                   ) : groupMatchState === 'active' ? null : (
-                    <SecondaryButton
-                      label="그룹 매칭 찾기"
-                      onPress={() => {
-                        void handleRequestGroupMatch();
-                      }}
-                    />
+                    <View style={styles.matchActionColumn}>
+                      <SecondaryButton
+                        label="그룹 매칭 찾기"
+                        onPress={() => {
+                          void handleRequestGroupMatch();
+                        }}
+                      />
+                      <SecondaryButton
+                        label="그룹 테스트 매칭"
+                        onPress={() => {
+                          void handleRequestGroupMatch(activeGroupSlotStartAt, { testMode: true });
+                        }}
+                      />
+                    </View>
                   )}
                 </View>
               ) : null}
@@ -4084,6 +4125,9 @@ const styles = StyleSheet.create({
   },
   matchActionItem: {
     flex: 1,
+  },
+  matchActionColumn: {
+    gap: 10,
   },
   duelResultCard: {
     gap: 4,

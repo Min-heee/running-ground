@@ -789,6 +789,214 @@ function buildMatchRunnerProfile(store, user) {
   };
 }
 
+function cloneMatchRunnerProfile(profile) {
+  return {
+    id: profile.id,
+    name: profile.name,
+    tag: profile.tag,
+    districtName: profile.districtName,
+    averagePaceMinutes: profile.averagePaceMinutes,
+    averagePace: profile.averagePace,
+    distanceLevel: profile.distanceLevel,
+    levelLabel: profile.levelLabel,
+    weeklyDistanceKm: profile.weeklyDistanceKm,
+    lifetimeDistanceKm: profile.lifetimeDistanceKm,
+    latestDistanceKm: profile.latestDistanceKm,
+  };
+}
+
+function resolveSessionParticipantProfile(store, participant) {
+  if (participant.profileSnapshot) {
+    return participant.profileSnapshot;
+  }
+
+  return buildMatchRunnerProfile(store, findUserById(store, participant.userId));
+}
+
+function createSyntheticRunnerProfile(currentRunner, {
+  id,
+  name,
+  paceOffsetSeconds = 0,
+  weeklyDistanceDeltaKm = 0,
+  lifetimeDistanceDeltaKm = 0,
+  districtName = '테스트 트랙',
+  tag = '#TEST',
+}) {
+  const averagePaceMinutes = Math.max(3.4, Number((currentRunner.averagePaceMinutes + paceOffsetSeconds / 60).toFixed(2)));
+  const lifetimeDistanceKm = Math.max(12, Number((currentRunner.lifetimeDistanceKm + lifetimeDistanceDeltaKm).toFixed(1)));
+  const weeklyDistanceKm = Math.max(4, Number((currentRunner.weeklyDistanceKm + weeklyDistanceDeltaKm).toFixed(1)));
+  const distanceLevel = Math.max(1, Math.round(lifetimeDistanceKm / 25));
+
+  return {
+    id,
+    name,
+    tag,
+    districtName,
+    averagePaceMinutes,
+    averagePace: formatPaceMinutesLabel(averagePaceMinutes),
+    distanceLevel,
+    levelLabel: buildLevelLabel(distanceLevel),
+    weeklyDistanceKm,
+    lifetimeDistanceKm,
+    latestDistanceKm: Number(currentRunner.latestDistanceKm.toFixed(1)),
+  };
+}
+
+function buildTestDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
+  const normalizedSlotStartAt = validateMatchSlotStartAt(slotStartAt);
+  const currentRunner = buildMatchRunnerProfile(store, currentUser);
+  const slotLabel = formatDuelSlotLabel(normalizedSlotStartAt);
+  const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
+  const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
+  const opponentRunner = createSyntheticRunnerProfile(currentRunner, {
+    id: `synthetic-duel-${Date.now()}`,
+    name: '테스트 상대',
+    paceOffsetSeconds: 8,
+    weeklyDistanceDeltaKm: 1.8,
+    lifetimeDistanceDeltaKm: 16.4,
+    districtName: '테스트 센터',
+    tag: '#TEST-DUEL',
+  });
+
+  createMatchSession(store, 'duel', distanceKm, normalizedSlotStartAt, [
+    { id: currentUser.id, seedRank: 1 },
+    { id: opponentRunner.id, seedRank: 2, profileSnapshot: cloneMatchRunnerProfile(opponentRunner) },
+  ]);
+
+  const compatibilityScore = calculateMatchCompatibilityScore(currentRunner, opponentRunner, distanceKm, 'duel');
+
+  return {
+    success: true,
+    matched: true,
+    isTestMatch: true,
+    requestId: nextId('duel-test-request'),
+    distanceKm,
+    slotStartAt: normalizedSlotStartAt,
+    slotLabel,
+    paceBandLabel,
+    levelBandLabel,
+    criteriaSummary: `${buildMatchSlotDateLabel(normalizedSlotStartAt)} ${slotLabel}에 테스트 상대를 바로 붙였어요.`,
+    estimatedWaitMinutes: 0,
+    opponent: {
+      id: opponentRunner.id,
+      name: opponentRunner.name,
+      tag: opponentRunner.tag,
+      districtName: opponentRunner.districtName,
+      averagePace: opponentRunner.averagePace,
+      levelLabel: opponentRunner.levelLabel,
+      weeklyDistanceKm: opponentRunner.weeklyDistanceKm,
+      lifetimeDistanceKm: opponentRunner.lifetimeDistanceKm,
+      compatibilitySummary: `${opponentRunner.averagePace} 페이스 · ${opponentRunner.levelLabel} · 테스트 상대 · 적합도 ${compatibilityScore.toFixed(0)}점`,
+    },
+  };
+}
+
+function buildTestGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
+  const normalizedSlotStartAt = validateMatchSlotStartAt(slotStartAt);
+  const currentRunner = buildMatchRunnerProfile(store, currentUser);
+  const slotLabel = formatDuelSlotLabel(normalizedSlotStartAt);
+  const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
+  const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
+  const syntheticRunners = [
+    createSyntheticRunnerProfile(currentRunner, {
+      id: `synthetic-group-${Date.now()}-1`,
+      name: '테스트 러너 1',
+      paceOffsetSeconds: -12,
+      weeklyDistanceDeltaKm: 3.4,
+      lifetimeDistanceDeltaKm: 25.1,
+      districtName: '테스트 트랙 A',
+      tag: '#TG-1',
+    }),
+    createSyntheticRunnerProfile(currentRunner, {
+      id: `synthetic-group-${Date.now()}-2`,
+      name: '테스트 러너 2',
+      paceOffsetSeconds: -4,
+      weeklyDistanceDeltaKm: 1.2,
+      lifetimeDistanceDeltaKm: 12.6,
+      districtName: '테스트 트랙 B',
+      tag: '#TG-2',
+    }),
+    createSyntheticRunnerProfile(currentRunner, {
+      id: `synthetic-group-${Date.now()}-3`,
+      name: '테스트 러너 3',
+      paceOffsetSeconds: 6,
+      weeklyDistanceDeltaKm: -0.6,
+      lifetimeDistanceDeltaKm: 6.8,
+      districtName: '테스트 트랙 C',
+      tag: '#TG-3',
+    }),
+    createSyntheticRunnerProfile(currentRunner, {
+      id: `synthetic-group-${Date.now()}-4`,
+      name: '테스트 러너 4',
+      paceOffsetSeconds: 12,
+      weeklyDistanceDeltaKm: -1.8,
+      lifetimeDistanceDeltaKm: -4.2,
+      districtName: '테스트 트랙 D',
+      tag: '#TG-4',
+    }),
+    createSyntheticRunnerProfile(currentRunner, {
+      id: `synthetic-group-${Date.now()}-5`,
+      name: '테스트 러너 5',
+      paceOffsetSeconds: 18,
+      weeklyDistanceDeltaKm: 4.1,
+      lifetimeDistanceDeltaKm: 18.5,
+      districtName: '테스트 트랙 E',
+      tag: '#TG-5',
+    }),
+  ];
+  const sessionParticipants = [currentRunner, ...syntheticRunners]
+    .sort((left, right) => {
+      const leftSeed = left.averagePaceMinutes * 60 * 0.7 - left.weeklyDistanceKm * 1.8 - left.lifetimeDistanceKm * 0.03;
+      const rightSeed = right.averagePaceMinutes * 60 * 0.7 - right.weeklyDistanceKm * 1.8 - right.lifetimeDistanceKm * 0.03;
+      return leftSeed - rightSeed;
+    })
+    .map((runner, index) => ({
+      id: runner.id,
+      seedRank: index + 1,
+      ...(runner.id === currentUser.id ? {} : { profileSnapshot: cloneMatchRunnerProfile(runner) }),
+    }));
+
+  createMatchSession(store, 'group', distanceKm, normalizedSlotStartAt, sessionParticipants);
+
+  const responseParticipants = [currentRunner, ...syntheticRunners]
+    .sort((left, right) => {
+      const leftSeed = left.averagePaceMinutes * 60 * 0.7 - left.weeklyDistanceKm * 1.8 - left.lifetimeDistanceKm * 0.03;
+      const rightSeed = right.averagePaceMinutes * 60 * 0.7 - right.weeklyDistanceKm * 1.8 - right.lifetimeDistanceKm * 0.03;
+      return leftSeed - rightSeed;
+    })
+    .map((runner, index) => ({
+      id: runner.id,
+      name: runner.name,
+      tag: runner.tag,
+      districtName: runner.districtName,
+      averagePace: runner.averagePace,
+      levelLabel: runner.levelLabel,
+      weeklyDistanceKm: runner.weeklyDistanceKm,
+      lifetimeDistanceKm: runner.lifetimeDistanceKm,
+      seedRank: index + 1,
+      seedSummary: `${index + 1}번 시드 · ${runner.averagePace}`,
+    }));
+  const mySeedRank = responseParticipants.find((participant) => participant.id === currentUser.id)?.seedRank ?? 1;
+
+  return {
+    success: true,
+    matched: true,
+    isTestMatch: true,
+    requestId: nextId('group-test-request'),
+    distanceKm,
+    slotStartAt: normalizedSlotStartAt,
+    slotLabel,
+    paceBandLabel,
+    levelBandLabel,
+    criteriaSummary: `${buildMatchSlotDateLabel(normalizedSlotStartAt)} ${slotLabel}에 테스트 6인 그룹을 바로 만들었어요.`,
+    estimatedWaitMinutes: 0,
+    maxGroupSize: 30,
+    participantsCount: responseParticipants.length,
+    mySeedRank,
+    participants: responseParticipants,
+  };
+}
+
 function calculateMatchCompatibilityScore(currentRunner, candidate, distanceKm, mode) {
   const paceGapSeconds = Math.abs(candidate.averagePaceMinutes - currentRunner.averagePaceMinutes) * 60;
   const levelGap = Math.abs(candidate.distanceLevel - currentRunner.distanceLevel);
@@ -941,7 +1149,7 @@ function pruneMatchSessions(store, now = new Date()) {
       return false;
     }
 
-    if (session.participants.some((participant) => !activeUserIds.has(participant.userId))) {
+    if (session.participants.some((participant) => !participant.profileSnapshot && !activeUserIds.has(participant.userId))) {
       return false;
     }
 
@@ -977,6 +1185,7 @@ function createMatchSession(store, mode, distanceKm, slotStartAt, participants) 
     participants: participants.map((participant, index) => ({
       userId: participant.id,
       seedRank: participant.seedRank ?? index + 1,
+      ...(participant.profileSnapshot ? { profileSnapshot: participant.profileSnapshot } : {}),
       acceptedAt: null,
       liveStatus: 'ready',
       liveDistanceKm: 0,
@@ -1109,7 +1318,7 @@ function findMatchSessionById(store, matchId) {
 function buildSessionGroupParticipants(store, session, now = new Date()) {
   return session.participants
     .map((participant) => {
-      const runner = buildMatchRunnerProfile(store, findUserById(store, participant.userId));
+      const runner = resolveSessionParticipantProfile(store, participant);
       return {
         id: runner.id,
         name: runner.name,
@@ -1137,8 +1346,7 @@ function buildSessionDuelOpponent(store, session, currentUserId, now = new Date(
     return null;
   }
 
-  const opponentUser = findUserById(store, opponentEntry.userId);
-  const opponentRunner = buildMatchRunnerProfile(store, opponentUser);
+  const opponentRunner = resolveSessionParticipantProfile(store, opponentEntry);
   const compatibilityScore = calculateMatchCompatibilityScore(currentRunner, opponentRunner, session.distanceKm, 'duel');
 
   return {
@@ -1232,6 +1440,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
         success: true,
         mode,
         state,
+        ...(session.participants.some((participant) => participant.profileSnapshot) ? { isTestMatch: true } : {}),
         matchId: session.id,
         distanceKm: session.distanceKm,
         slotStartAt: session.slotStartAt,
@@ -1262,6 +1471,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
       success: true,
       mode,
       state,
+      ...(session.participants.some((participant) => participant.profileSnapshot) ? { isTestMatch: true } : {}),
       matchId: session.id,
       distanceKm: session.distanceKm,
       slotStartAt: session.slotStartAt,
@@ -1341,7 +1551,11 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
   };
 }
 
-function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
+function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt, testMode = false }) {
+  if (testMode) {
+    return buildTestDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt });
+  }
+
   const normalizedSlotStartAt = validateMatchSlotStartAt(slotStartAt);
   const currentRunner = buildMatchRunnerProfile(store, currentUser);
   const slotLabel = formatDuelSlotLabel(normalizedSlotStartAt);
@@ -1419,7 +1633,11 @@ function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt })
   };
 }
 
-function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
+function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt, testMode = false }) {
+  if (testMode) {
+    return buildTestGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt });
+  }
+
   const maxGroupSize = 30;
   const normalizedSlotStartAt = validateMatchSlotStartAt(slotStartAt);
   const currentRunner = buildMatchRunnerProfile(store, currentUser);
@@ -1542,12 +1760,13 @@ function buildUpcomingRunningMatchesResponse(store, currentUser) {
       }
 
       if (session.mode === 'duel') {
-        const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now);
-        const cancelableUntilAt = new Date(new Date(session.slotStartAt).getTime() - MATCH_CANCELLATION_CUTOFF_MS).toISOString();
-        return {
-          matchId: session.id,
-          mode: 'duel',
-          distanceKm: session.distanceKm,
+      const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now);
+      const cancelableUntilAt = new Date(new Date(session.slotStartAt).getTime() - MATCH_CANCELLATION_CUTOFF_MS).toISOString();
+      return {
+        matchId: session.id,
+        mode: 'duel',
+        ...(session.participants.some((participant) => participant.profileSnapshot) ? { isTestMatch: true } : {}),
+        distanceKm: session.distanceKm,
           slotStartAt: session.slotStartAt,
           slotLabel: formatDuelSlotLabel(session.slotStartAt),
           status: state,
@@ -1564,6 +1783,7 @@ function buildUpcomingRunningMatchesResponse(store, currentUser) {
       return {
         matchId: session.id,
         mode: 'group',
+        ...(session.participants.some((participant) => participant.profileSnapshot) ? { isTestMatch: true } : {}),
         distanceKm: session.distanceKm,
         slotStartAt: session.slotStartAt,
         slotLabel: formatDuelSlotLabel(session.slotStartAt),
@@ -1623,6 +1843,7 @@ function cancelRunningMatch(store, currentUser, { mode, distanceKm, slotStartAt,
 
     const requeuedParticipants = session.participants
       .filter((participant) => participant.userId !== currentUser.id)
+      .filter((participant) => !participant.profileSnapshot)
       .map((participant) => findUserById(store, participant.userId));
 
     store.matchSessions = ensureMatchSessions(store).filter((entry) => entry.id !== session.id);
@@ -3936,11 +4157,13 @@ async function handleRequestDuelMatch(request, response) {
   const body = await parseJsonBody(request);
   const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
   const slotStartAt = validateMatchSlotInput(body.slotStartAt);
+  const testMode = body.testMode === true;
   const payload = mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return buildDuelMatchResponse(store, currentUser, {
       distanceKm,
       slotStartAt,
+      testMode,
     });
   });
 
@@ -3951,11 +4174,13 @@ async function handleRequestGroupMatch(request, response) {
   const body = await parseJsonBody(request);
   const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
   const slotStartAt = validateMatchSlotInput(body.slotStartAt);
+  const testMode = body.testMode === true;
   const payload = mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return buildGroupMatchResponse(store, currentUser, {
       distanceKm,
       slotStartAt,
+      testMode,
     });
   });
 
