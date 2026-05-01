@@ -143,7 +143,7 @@ await runTest('registers a user, hashes password, and creates a session', () => 
   assert.notEqual(user.passwordHash, 'Password123');
   assert.equal(verifyPassword('Password123', user.passwordHash), true);
   assert.match(user.publicTag, /^#[A-Z2-9]{5}$/);
-  assert.equal(user.connectedSources.length, 6);
+  assert.equal(user.connectedSources.length, 7);
   assert.deepEqual(user.notificationSettings, {
     friendAlerts: true,
     districtAlerts: true,

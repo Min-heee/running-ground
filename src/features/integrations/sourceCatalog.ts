@@ -47,6 +47,12 @@ const SOURCE_METADATA: Record<RunSourceType, SourceMetadata> = {
     setupHint: '직접 API보다 iPhone은 Apple Health, Android는 Strava/워치 파트너를 거쳐 연결하는 흐름이 현실적이야.',
     priority: 40,
   },
+  mynb: {
+    shortDescription: 'MyNB 기록을 기본 건강 허브나 파트너 경로로 넘기는 브리지 소스',
+    capabilities: ['Apple Health 브리지', 'Health Connect 브리지', '앱 파트너 경로'],
+    setupHint: 'iPhone은 Apple Health, Android는 Health Connect나 파트너 경로로 정리해 두면 흐름이 가장 안정적이야.',
+    priority: 45,
+  },
   runningground: {
     shortDescription: '앱 안에서 직접 러닝을 측정하고 저장하는 자체 기록 소스',
     capabilities: ['실시간 지도', '거리/페이스 측정', '바로 저장'],
@@ -87,6 +93,26 @@ export function getSourceMetadata(
         capabilities: ['Strava 브리지', 'Garmin/COROS 파트너'],
         setupHint: 'Android에서는 NRC > Settings > Partners에서 Strava나 워치를 연결한 뒤 같은 소스를 우리 앱에도 연결하는 흐름이 현실적이야.',
         priority: 40,
+      };
+    }
+  }
+
+  if (sourceType === 'mynb') {
+    if (platform === 'ios') {
+      return {
+        shortDescription: 'MyNB 기록을 Apple Health로 넘겨 우리 앱에 반영하는 경로',
+        capabilities: ['Apple Health 브리지', 'MyNB 앱 러닝 기록'],
+        setupHint: 'iPhone에서는 MyNB를 Apple Health에 연결하고, 우리 앱은 Apple Health에서 읽어오는 흐름이 가장 현실적이야.',
+        priority: 45,
+      };
+    }
+
+    if (platform === 'android') {
+      return {
+        shortDescription: 'MyNB 기록을 Health Connect나 파트너 소스로 정리해 받는 경로',
+        capabilities: ['Health Connect 브리지', 'Strava/워치 파트너'],
+        setupHint: 'Android에서는 MyNB 직접 수집보다 Health Connect나 Strava 같은 파트너 경로를 함께 보는 편이 안전해.',
+        priority: 45,
       };
     }
   }
@@ -153,11 +179,11 @@ export function getPlatformLabel(platform: DevicePlatform): string {
 
 export function getRecommendationCopy(platform: DevicePlatform): string {
   if (platform === 'ios') {
-    return '지금 기기 기준으로는 Apple Health를 먼저 붙이고, NRC를 쓰고 있다면 NRC에서 Apple Health까지 켜두는 흐름이 가장 매끄러워.';
+    return '지금 기기 기준으로는 Apple Health를 먼저 붙이고, NRC나 MyNB를 쓰고 있다면 그 앱 기록을 Apple Health까지 보내는 흐름이 가장 매끄러워.';
   }
 
   if (platform === 'android') {
-    return '지금 기기 기준으로는 Health Connect를 먼저 붙이고, NRC를 주로 쓴다면 NRC 자체보다 Strava나 워치 파트너 경로를 함께 보는 편이 현실적이야.';
+    return '지금 기기 기준으로는 Health Connect를 먼저 붙이고, NRC나 MyNB를 주로 쓴다면 Strava나 워치 파트너까지 함께 보는 편이 현실적이야.';
   }
 
   return '기본 건강 허브를 먼저 연결하고, 필요할 때 Manual이나 외부 앱 소스를 덧붙이는 흐름이 가장 안정적이야.';

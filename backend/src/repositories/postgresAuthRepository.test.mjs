@@ -261,7 +261,7 @@ await runTest('registers a user, hashes password, and creates a session', async 
   assert.notEqual(user.password_hash, 'Password123');
   assert.equal(verifyPassword('Password123', user.password_hash), true);
   assert.equal(user.public_tag, '#TAG01');
-  assert.equal(user.connected_sources.length, 6);
+  assert.equal(user.connected_sources.length, 7);
   assert.deepEqual(user.notification_settings, {
     friendAlerts: true,
     districtAlerts: true,

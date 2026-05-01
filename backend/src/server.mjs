@@ -5,7 +5,7 @@ import { createFriendsLeagueBridge } from './bridges/friendsLeagueBridge.mjs';
 import { createSessionRunsBridge } from './bridges/sessionRunsBridge.mjs';
 import { createPostgresDatabase } from './database/postgresDatabase.mjs';
 import { createJsonAdminRepository } from './repositories/adminRepository.mjs';
-import { createJsonAuthRepository } from './repositories/authRepository.mjs';
+import { createDefaultConnectedSources, createJsonAuthRepository } from './repositories/authRepository.mjs';
 import { createJsonFriendsRepository } from './repositories/friendsRepository.mjs';
 import { createJsonLeagueRepository } from './repositories/leagueRepository.mjs';
 import { createJsonMarketRepository } from './repositories/marketRepository.mjs';
@@ -55,10 +55,11 @@ const SOURCE_LABEL_BY_TYPE = {
   garmin: 'Garmin',
   strava: 'Strava',
   nrc: 'Nike Run Club',
+  mynb: 'MyNB',
   runningground: 'RunningGround',
   manual: 'Manual',
 };
-const EXCLUSIVE_INTEGRATION_SOURCE_TYPES = new Set(['apple_health', 'health_connect', 'garmin', 'strava', 'nrc']);
+const EXCLUSIVE_INTEGRATION_SOURCE_TYPES = new Set(['apple_health', 'health_connect', 'garmin', 'strava', 'nrc', 'mynb']);
 const DEFAULT_OFFLINE_RACE_GUIDE_STEPS = [
   '오프라인 마라톤 일정이 열리면 여기에서 날짜별로 바로 신청할 수 있어요.',
   '지금은 일정 등록 전이라 신청 가능한 회차가 없어요.',
@@ -601,6 +602,7 @@ function getRedeemedPointCost(store, userId) {
 }
 
 function buildProfile(store, user) {
+  ensureUserConnectedSources(user);
   return buildProfileWithMetrics(user, getUserMetrics(store, user.id));
 }
 
@@ -1552,6 +1554,38 @@ function normalizeOptionalString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function ensureUserConnectedSources(user) {
+  const defaultSources = createDefaultConnectedSources();
+  const currentSources = Array.isArray(user.connectedSources) ? user.connectedSources : [];
+  const currentSourceByType = new Map(
+    currentSources
+      .filter((entry) => entry && typeof entry === 'object' && typeof entry.sourceType === 'string')
+      .map((entry) => [entry.sourceType, entry]),
+  );
+  const knownSourceTypes = new Set(defaultSources.map((source) => source.sourceType));
+  const mergedDefaultSources = defaultSources.map((defaultSource) => {
+    const existingSource = currentSourceByType.get(defaultSource.sourceType);
+
+    if (!existingSource) {
+      return clone(defaultSource);
+    }
+
+    return {
+      ...clone(defaultSource),
+      ...clone(existingSource),
+      sourceType: defaultSource.sourceType,
+      displayName: existingSource.displayName ?? defaultSource.displayName,
+      recommendedPlatform: existingSource.recommendedPlatform ?? defaultSource.recommendedPlatform,
+    };
+  });
+  const extraSources = currentSources
+    .filter((source) => !knownSourceTypes.has(source?.sourceType))
+    .map((source) => clone(source));
+
+  user.connectedSources = [...mergedDefaultSources, ...extraSources];
+  return user.connectedSources;
+}
+
 function normalizeRewardRedemptionStatus(value) {
   const normalizedValue = normalizeOptionalString(value);
   return normalizedValue === 'fulfilled' || normalizedValue === 'cancelled' ? normalizedValue : 'requested';
@@ -1571,7 +1605,7 @@ function decorateIntegrationSource(store, user, source) {
 }
 
 function buildIntegrationSources(store, user) {
-  return user.connectedSources.map((source) => decorateIntegrationSource(store, user, source));
+  return ensureUserConnectedSources(user).map((source) => decorateIntegrationSource(store, user, source));
 }
 
 function buildUserRegionKey(user) {
@@ -2277,9 +2311,7 @@ function buildAdminUserSummary(store, user) {
     currentWeekDistanceKm: metrics.currentWeekDistanceKm,
     currentWeekPoints: metrics.currentWeekPoints,
     totalRuns: runs.length,
-    connectedSourceCount: Array.isArray(user.connectedSources)
-      ? user.connectedSources.filter((source) => source.connected).length
-      : 0,
+    connectedSourceCount: ensureUserConnectedSources(user).filter((source) => source.connected).length,
   };
 }
 
@@ -3145,7 +3177,16 @@ function normalizeImportedRun(sourceType, rawRun) {
   return {
     sourceType,
     externalId: normalizeOptionalString(rawRun.externalId),
-    ...(sourceLabel ? { sourceLabel: sourceLabel === 'Nike Run Club' ? 'NRC' : sourceLabel } : {}),
+    ...(sourceLabel
+      ? {
+          sourceLabel:
+            sourceLabel === 'Nike Run Club'
+              ? 'NRC'
+              : sourceLabel === 'New Balance' || sourceLabel === 'My NB'
+                ? 'MyNB'
+                : sourceLabel,
+        }
+      : {}),
     date: validateDateOnly(rawRun.date, '연동 기록 날짜를 입력해줘.'),
     distanceKm: validateDistanceKm(rawRun.distanceKm, '연동 기록 거리를 입력해줘.'),
     pace: validatePace(rawRun.pace, '연동 기록 페이스를 입력해줘.'),
@@ -3156,7 +3197,7 @@ function normalizeImportedRun(sourceType, rawRun) {
 }
 
 function requireConnectedSource(user, sourceType) {
-  const source = user.connectedSources.find((entry) => entry.sourceType === sourceType);
+  const source = ensureUserConnectedSources(user).find((entry) => entry.sourceType === sourceType);
 
   if (!source) {
     throw new ApiError(404, '선택한 연동 소스를 찾을 수 없어.');

@@ -7,6 +7,7 @@ const SOURCE_LABELS = {
   health_connect: 'Health Connect',
   manual: 'Manual',
   nrc: 'Nike Run Club',
+  mynb: 'MyNB',
   runningground: 'RunningGround',
 };
 

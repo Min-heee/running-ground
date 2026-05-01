@@ -658,4 +658,5 @@ export const connectedSources: ConnectedSource[] = [
   { sourceType: 'garmin', displayName: 'Garmin', connected: false, connectionStatus: 'planned', recommendedPlatform: 'all' },
   { sourceType: 'strava', displayName: 'Strava', connected: false, connectionStatus: 'planned', recommendedPlatform: 'all' },
   { sourceType: 'nrc', displayName: 'Nike Run Club', connected: false, connectionStatus: 'planned', recommendedPlatform: 'all' },
+  { sourceType: 'mynb', displayName: 'MyNB', connected: false, connectionStatus: 'planned', recommendedPlatform: 'all' },
 ];

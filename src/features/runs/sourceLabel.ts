@@ -11,8 +11,16 @@ export function getRunSourceLabel(run: Pick<MyRunRecord, 'source' | 'sourceType'
     return 'NRC';
   }
 
+  if (normalizedSource === 'mynb' || normalizedSource === 'my nb' || normalizedSource === 'new balance') {
+    return 'MyNB';
+  }
+
   if (run.sourceType === 'nrc') {
     return 'NRC';
+  }
+
+  if (run.sourceType === 'mynb') {
+    return 'MyNB';
   }
 
   if (run.sourceType === 'runningground' || normalizedSource === 'runningground') {

@@ -12,6 +12,7 @@ const SOURCE_LABEL_BY_TYPE = {
   garmin: 'Garmin',
   strava: 'Strava',
   nrc: 'Nike Run Club',
+  mynb: 'MyNB',
   runningground: 'RunningGround',
   manual: 'Manual',
 };

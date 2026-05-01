@@ -17,6 +17,10 @@ function inferSourceTypeFromLabel(label, sourceLabels) {
     return 'nrc';
   }
 
+  if (normalizedLabel === 'mynb' || normalizedLabel === 'my nb' || normalizedLabel === 'new balance') {
+    return 'mynb';
+  }
+
   return Object.entries(sourceLabels)
     .find(([, displayName]) => displayName.toLowerCase() === normalizedLabel)?.[0] ?? null;
 }

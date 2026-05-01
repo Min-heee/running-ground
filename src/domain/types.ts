@@ -4,6 +4,7 @@ export type RunSourceType =
   | 'garmin'
   | 'strava'
   | 'nrc'
+  | 'mynb'
   | 'runningground'
   | 'manual';
 
