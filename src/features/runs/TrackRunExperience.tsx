@@ -716,6 +716,78 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     [groupSlotOptions, selectedGroupDateKey, selectedGroupTimeSection],
   );
   const activeGroupSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
+  const selectNextDuelSlotForDate = (dateKey: string, preferredSection = selectedDuelTimeSection) => {
+    const nextSlot = duelSlotOptions.find((slot) => (
+      slot.dateKey === dateKey &&
+      resolveMatchTimeSection(slot.startsAt) === preferredSection &&
+      !slot.isClosed
+    ))
+      ?? duelSlotOptions.find((slot) => (
+        slot.dateKey === dateKey &&
+        resolveMatchTimeSection(slot.startsAt) === preferredSection
+      ))
+      ?? duelSlotOptions.find((slot) => slot.dateKey === dateKey && !slot.isClosed)
+      ?? duelSlotOptions.find((slot) => slot.dateKey === dateKey)
+      ?? null;
+
+    if (nextSlot) {
+      setSelectedDuelSlotStartAt(nextSlot.startsAt);
+      setSelectedDuelTimeSection(resolveMatchTimeSection(nextSlot.startsAt));
+    }
+  };
+  const selectNextGroupSlotForDate = (dateKey: string, preferredSection = selectedGroupTimeSection) => {
+    const nextSlot = groupSlotOptions.find((slot) => (
+      slot.dateKey === dateKey &&
+      resolveMatchTimeSection(slot.startsAt) === preferredSection &&
+      !slot.isClosed
+    ))
+      ?? groupSlotOptions.find((slot) => (
+        slot.dateKey === dateKey &&
+        resolveMatchTimeSection(slot.startsAt) === preferredSection
+      ))
+      ?? groupSlotOptions.find((slot) => slot.dateKey === dateKey && !slot.isClosed)
+      ?? groupSlotOptions.find((slot) => slot.dateKey === dateKey)
+      ?? null;
+
+    if (nextSlot) {
+      setSelectedGroupSlotStartAt(nextSlot.startsAt);
+      setSelectedGroupTimeSection(resolveMatchTimeSection(nextSlot.startsAt));
+    }
+  };
+  const selectDuelTimeSection = (section: MatchTimeSection) => {
+    setSelectedDuelTimeSection(section);
+    const nextSlot = duelSlotOptions.find((slot) => (
+      slot.dateKey === selectedDuelDateKey &&
+      resolveMatchTimeSection(slot.startsAt) === section &&
+      !slot.isClosed
+    ))
+      ?? duelSlotOptions.find((slot) => (
+        slot.dateKey === selectedDuelDateKey &&
+        resolveMatchTimeSection(slot.startsAt) === section
+      ))
+      ?? null;
+
+    if (nextSlot) {
+      setSelectedDuelSlotStartAt(nextSlot.startsAt);
+    }
+  };
+  const selectGroupTimeSection = (section: MatchTimeSection) => {
+    setSelectedGroupTimeSection(section);
+    const nextSlot = groupSlotOptions.find((slot) => (
+      slot.dateKey === selectedGroupDateKey &&
+      resolveMatchTimeSection(slot.startsAt) === section &&
+      !slot.isClosed
+    ))
+      ?? groupSlotOptions.find((slot) => (
+        slot.dateKey === selectedGroupDateKey &&
+        resolveMatchTimeSection(slot.startsAt) === section
+      ))
+      ?? null;
+
+    if (nextSlot) {
+      setSelectedGroupSlotStartAt(nextSlot.startsAt);
+    }
+  };
   const matchOptions = useMemo(
     () => [
       {
@@ -755,14 +827,12 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   useEffect(() => {
     if (selectedDuelSlot) {
       setSelectedDuelDateKey(selectedDuelSlot.dateKey);
-      setSelectedDuelTimeSection(resolveMatchTimeSection(selectedDuelSlot.startsAt));
     }
   }, [selectedDuelSlot]);
 
   useEffect(() => {
     if (selectedGroupSlot) {
       setSelectedGroupDateKey(selectedGroupSlot.dateKey);
-      setSelectedGroupTimeSection(resolveMatchTimeSection(selectedGroupSlot.startsAt));
     }
   }, [selectedGroupSlot]);
   const latestPoint = route.length ? route[route.length - 1] : null;
@@ -1031,9 +1101,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     ? duelMatchState === 'active'
       ? `${effectiveDuelOpponent?.name ?? '상대'}님과 매치 시작`
       : duelMatchState === 'matched'
-        ? duelMatchStatus?.readyToStart
-          ? '예약된 1대1 시작'
-          : '예약된 시간 이후 시작 가능'
+        ? null
         : duelMatchState === 'waiting'
           ? '비슷한 상대를 계속 찾는 중'
           : '매칭 완료 후 시작'
@@ -1041,9 +1109,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       ? groupMatchState === 'active'
         ? `${effectiveGroupParticipantCount}명 그룹으로 시작`
         : groupMatchState === 'matched'
-          ? groupMatchStatus?.readyToStart
-            ? `${effectiveGroupParticipantCount || 5}명 그룹 시작`
-            : '예약된 시간 이후 시작 가능'
+          ? null
           : groupMatchState === 'waiting'
             ? '비슷한 그룹을 계속 찾는 중'
             : '그룹 매칭 완료 후 시작'
@@ -2901,7 +2967,12 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     <View style={styles.duelSectionHeader}>
                       <Text style={styles.duelSectionTitle}>출발 시간대</Text>
                     </View>
-                    <View style={styles.slotDateWrap}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.slotDateScrollContent}
+                      style={styles.slotDateScroll}
+                    >
                       {duelDateOptions.map((dateOption) => {
                         const isSelected = dateOption.key === selectedDuelDateKey;
 
@@ -2911,13 +2982,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                             style={[styles.slotDateChip, isSelected ? styles.slotDateChipSelected : undefined]}
                             onPress={() => {
                               setSelectedDuelDateKey(dateOption.key);
-                              const nextSlot = duelSlotOptions.find((slot) => slot.dateKey === dateOption.key && !slot.isClosed)
-                                ?? duelSlotOptions.find((slot) => slot.dateKey === dateOption.key)
-                                ?? null;
-                              if (nextSlot) {
-                                setSelectedDuelSlotStartAt(nextSlot.startsAt);
-                                setSelectedDuelTimeSection(resolveMatchTimeSection(nextSlot.startsAt));
-                              }
+                              selectNextDuelSlotForDate(dateOption.key);
                             }}
                           >
                             <Text style={[styles.slotDateChipLabel, isSelected ? styles.slotDateChipLabelSelected : undefined]}>
@@ -2929,7 +2994,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           </Pressable>
                         );
                       })}
-                    </View>
+                    </ScrollView>
                     <View style={styles.slotSectionRow}>
                       {[
                         { key: 'am' as const, label: '오전' },
@@ -2941,7 +3006,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           <Pressable
                             key={`duel-section-${section.key}`}
                             style={[styles.slotSectionChip, isSelected ? styles.slotSectionChipSelected : undefined]}
-                            onPress={() => setSelectedDuelTimeSection(section.key)}
+                            onPress={() => selectDuelTimeSection(section.key)}
                           >
                             <Text style={[styles.slotSectionChipText, isSelected ? styles.slotSectionChipTextSelected : undefined]}>
                               {section.label}
@@ -3146,7 +3211,12 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     <View style={styles.duelSectionHeader}>
                       <Text style={styles.duelSectionTitle}>출발 시간대</Text>
                     </View>
-                    <View style={styles.slotDateWrap}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.slotDateScrollContent}
+                      style={styles.slotDateScroll}
+                    >
                       {groupDateOptions.map((dateOption) => {
                         const isSelected = dateOption.key === selectedGroupDateKey;
 
@@ -3156,13 +3226,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                             style={[styles.slotDateChip, isSelected ? styles.slotDateChipSelected : undefined]}
                             onPress={() => {
                               setSelectedGroupDateKey(dateOption.key);
-                              const nextSlot = groupSlotOptions.find((slot) => slot.dateKey === dateOption.key && !slot.isClosed)
-                                ?? groupSlotOptions.find((slot) => slot.dateKey === dateOption.key)
-                                ?? null;
-                              if (nextSlot) {
-                                setSelectedGroupSlotStartAt(nextSlot.startsAt);
-                                setSelectedGroupTimeSection(resolveMatchTimeSection(nextSlot.startsAt));
-                              }
+                              selectNextGroupSlotForDate(dateOption.key);
                             }}
                           >
                             <Text style={[styles.slotDateChipLabel, isSelected ? styles.slotDateChipLabelSelected : undefined]}>
@@ -3174,7 +3238,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           </Pressable>
                         );
                       })}
-                    </View>
+                    </ScrollView>
                     <View style={styles.slotSectionRow}>
                       {[
                         { key: 'am' as const, label: '오전' },
@@ -3186,7 +3250,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           <Pressable
                             key={`group-section-${section.key}`}
                             style={[styles.slotSectionChip, isSelected ? styles.slotSectionChipSelected : undefined]}
-                            onPress={() => setSelectedGroupTimeSection(section.key)}
+                            onPress={() => selectGroupTimeSection(section.key)}
                           >
                             <Text style={[styles.slotSectionChipText, isSelected ? styles.slotSectionChipTextSelected : undefined]}>
                               {section.label}
@@ -3359,7 +3423,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                 </View>
               ) : null}
             </View>
-            <PrimaryButton label={readyActionLabel} onPress={handleStartTracking} />
+            {readyActionLabel ? <PrimaryButton label={readyActionLabel} onPress={handleStartTracking} /> : null}
           </Card>
 
           <Card style={styles.plannerCard}>
@@ -4054,10 +4118,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
   },
-  slotDateWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  slotDateScroll: {
+    marginHorizontal: -4,
+  },
+  slotDateScrollContent: {
     gap: 8,
+    paddingHorizontal: 4,
   },
   slotDateChip: {
     minWidth: 68,
