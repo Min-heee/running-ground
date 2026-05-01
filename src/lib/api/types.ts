@@ -201,6 +201,7 @@ export type RunningMatchStatusResponse = {
   criteriaSummary: string;
   estimatedWaitMinutes: number;
   participantCount: number;
+  competitiveParticipantsCount?: number;
   acceptedCount: number;
   capacity: number;
   userAccepted: boolean;

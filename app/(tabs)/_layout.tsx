@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const TAB_TITLES = {
   league: '\uB9AC\uADF8',
@@ -22,6 +23,10 @@ const TAB_ICONS = {
 } as const;
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  const tabBarBottomPadding = Math.max(insets.bottom, 12);
+  const tabBarHeight = 58 + tabBarBottomPadding + 8;
+
   return (
     <Tabs
       screenOptions={{
@@ -29,9 +34,9 @@ export default function TabsLayout() {
         tabBarActiveTintColor: '#111827',
         tabBarInactiveTintColor: '#98A2B3',
         tabBarStyle: {
-          height: 78,
+          height: tabBarHeight,
           paddingTop: 8,
-          paddingBottom: 12,
+          paddingBottom: tabBarBottomPadding,
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#EAECF0',

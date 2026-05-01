@@ -1,5 +1,6 @@
 import { MutableRefObject, PropsWithChildren, useEffect, useRef } from 'react';
-import { SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export function Screen({
   children,
@@ -9,6 +10,7 @@ export function Screen({
   scrollToTopKey?: string;
   scrollRef?: MutableRefObject<ScrollView | null>;
 }>) {
+  const insets = useSafeAreaInsets();
   const internalScrollRef = useRef<ScrollView>(null);
   const activeScrollRef = scrollRef ?? internalScrollRef;
 
@@ -25,8 +27,12 @@ export function Screen({
   }, [activeScrollRef, scrollToTopKey]);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView ref={activeScrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <ScrollView
+        ref={activeScrollRef}
+        contentContainerStyle={[styles.content, { paddingBottom: 120 + Math.max(insets.bottom, 16) }]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.inner}>{children}</View>
       </ScrollView>
     </SafeAreaView>
@@ -39,7 +45,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F7FB',
   },
   content: {
-    paddingBottom: 120,
+    paddingBottom: 136,
   },
   inner: {
     paddingHorizontal: 16,

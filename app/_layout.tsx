@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect, Stack, usePathname } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '@/features/runs/backgroundTracking';
 import { getIsSignedIn, hydrateSession } from '@/lib/session';
 
@@ -23,9 +24,11 @@ export default function RootLayout() {
 
   if (!ready) {
     return (
-      <View style={styles.loaderWrap}>
-        <ActivityIndicator size="large" color="#6D5EF7" />
-      </View>
+      <SafeAreaProvider>
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color="#6D5EF7" />
+        </View>
+      </SafeAreaProvider>
     );
   }
 
@@ -41,26 +44,28 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="onboarding" />
-      <Stack.Screen name="signup" />
-      <Stack.Screen name="signup-form" />
-      <Stack.Screen name="login" />
-      <Stack.Screen name="admin" />
-      <Stack.Screen name="connect-sources" />
-      <Stack.Screen name="add-friend" />
-      <Stack.Screen name="edit-profile" />
-      <Stack.Screen name="university-verification" />
-      <Stack.Screen name="region-settings" />
-      <Stack.Screen name="notification-settings" />
-      <Stack.Screen name="friend-detail" />
-      <Stack.Screen name="integration-management" />
-      <Stack.Screen name="my-activity" />
-      <Stack.Screen name="add-run" />
-      <Stack.Screen name="track-run" />
-      <Stack.Screen name="run-detail" />
-      <Stack.Screen name="(tabs)" />
-    </Stack>
+    <SafeAreaProvider>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="signup" />
+        <Stack.Screen name="signup-form" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="admin" />
+        <Stack.Screen name="connect-sources" />
+        <Stack.Screen name="add-friend" />
+        <Stack.Screen name="edit-profile" />
+        <Stack.Screen name="university-verification" />
+        <Stack.Screen name="region-settings" />
+        <Stack.Screen name="notification-settings" />
+        <Stack.Screen name="friend-detail" />
+        <Stack.Screen name="integration-management" />
+        <Stack.Screen name="my-activity" />
+        <Stack.Screen name="add-run" />
+        <Stack.Screen name="track-run" />
+        <Stack.Screen name="run-detail" />
+        <Stack.Screen name="(tabs)" />
+      </Stack>
+    </SafeAreaProvider>
   );
 }
 

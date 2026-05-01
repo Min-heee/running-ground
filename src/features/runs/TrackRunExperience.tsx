@@ -14,6 +14,7 @@ import {
 import { type Href, router } from 'expo-router';
 import * as Location from 'expo-location';
 import { Pedometer } from 'expo-sensors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -549,6 +550,7 @@ function buildGroupLiveStandings(
 }
 
 export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
+  const insets = useSafeAreaInsets();
   const pedometerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const routeRef = useRef<RunRoutePoint[]>([]);
@@ -937,6 +939,18 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const isSaving = status === 'saving';
   const isIdle = status === 'idle';
   const isTabMode = mode === 'tab';
+  const duelCompatibleCount = duelMatchStatus?.competitiveParticipantsCount ?? 0;
+  const duelWaitingHasOtherApplicants = (duelMatchStatus?.participantCount ?? 0) > 1;
+  const duelWaitingTitle = duelWaitingHasOtherApplicants
+    ? duelCompatibleCount >= 2
+      ? '지금 바로 붙을 상대를 정리하는 중이에요'
+      : '신청은 들어왔지만 아직 바로 붙이진 않았어요'
+    : '비슷한 상대를 찾는 중이에요';
+  const duelWaitingMeta = duelWaitingHasOtherApplicants
+    ? duelCompatibleCount >= 2
+      ? `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 바로 붙을 수 있는 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
+      : `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 지금 바로 붙을 수 있는 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
+    : '같은 거리와 시간대에서 먼저 찾기한 러너들 중 페이스와 레벨이 잘 맞는 상대를 찾고 있어요.';
   const backHref: Href = '/my-activity';
   const discardRedirectHref: Href | null = isTabMode ? null : '/my-activity';
 
@@ -2287,7 +2301,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
       {isIdle ? (
         <>
-          <Card style={styles.readyCard}>
+          <Card style={[styles.readyCard, { paddingBottom: 18 + Math.max(insets.bottom, 10) }]}>
             <View style={styles.readyHero}>
               <Text style={styles.readyTitle}>러닝 준비</Text>
             </View>
@@ -2476,10 +2490,8 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                   {duelMatchState === 'waiting' ? (
                     <View style={styles.duelResultCard}>
                       <Text style={styles.duelResultEyebrow}>WAITING</Text>
-                      <Text style={styles.duelResultTitle}>비슷한 상대를 찾는 중이에요</Text>
-                      <Text style={styles.duelResultMeta}>
-                        같은 거리와 시간대에서 먼저 찾기한 러너들 중 페이스와 레벨이 잘 맞는 상대를 찾고 있어요.
-                      </Text>
+                      <Text style={styles.duelResultTitle}>{duelWaitingTitle}</Text>
+                      <Text style={styles.duelResultMeta}>{duelWaitingMeta}</Text>
                       {duelExpiryCountdownLabel ? (
                         <Text style={styles.duelResultMeta}>자동 정리까지 {duelExpiryCountdownLabel} 남음</Text>
                       ) : null}
