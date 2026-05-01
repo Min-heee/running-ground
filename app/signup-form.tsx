@@ -14,7 +14,9 @@ import {
   getPasswordValidationError,
   getUsernameValidationError,
   normalizeUsername,
+  requestSignupPhoneVerification,
   registerAccount,
+  verifySignupPhoneCode,
 } from '@/lib/session';
 
 type UsernameCheckState = {
@@ -24,6 +26,7 @@ type UsernameCheckState = {
 };
 
 type DisplayNamePreference = 'nickname' | 'realName';
+type PhoneVerificationStatus = 'idle' | 'sending' | 'sent' | 'verifying' | 'verified' | 'error';
 
 function formatPhoneInput(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -62,6 +65,13 @@ export default function SignupFormScreen() {
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [phone, setPhone] = useState('');
+  const [phoneVerificationCode, setPhoneVerificationCode] = useState('');
+  const [phoneVerificationRequestId, setPhoneVerificationRequestId] = useState('');
+  const [phoneVerificationToken, setPhoneVerificationToken] = useState('');
+  const [phoneVerificationStatus, setPhoneVerificationStatus] = useState<PhoneVerificationStatus>('idle');
+  const [phoneVerificationMessage, setPhoneVerificationMessage] = useState<string | null>(null);
+  const [phoneVerificationDebugCode, setPhoneVerificationDebugCode] = useState<string | null>(null);
+  const [verifiedPhoneDigits, setVerifiedPhoneDigits] = useState('');
   const [provinceName, setProvinceName] = useState('');
   const [secondaryRegionName, setSecondaryRegionName] = useState('');
   const [tertiaryRegionName, setTertiaryRegionName] = useState('');
@@ -123,12 +133,19 @@ export default function SignupFormScreen() {
   );
   const checkingUsername = usernameCheck.status === 'checking';
   const usernameReady = usernameCheck.status === 'available' && usernameCheck.checkedUsername === normalizedUsername;
+  const normalizedPhone = useMemo(() => phone.replace(/\D/g, ''), [phone]);
+  const phoneVerified = Boolean(
+    phoneVerificationToken
+    && verifiedPhoneDigits
+    && verifiedPhoneDigits === normalizedPhone,
+  );
   const requiredProfileReady = Boolean(
     publicDisplayName
     && realName.trim()
     && normalizedUsername
     && !usernameValidationMessage
-    && phone.replace(/\D/g, '').length >= 10
+    && normalizedPhone.length >= 10
+    && phoneVerified
     && selectedAddressLabel
     && addressDetail.trim()
     && /^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim()),
@@ -151,6 +168,27 @@ export default function SignupFormScreen() {
             checkedUsername: '',
           }
     ));
+  };
+
+  const resetPhoneVerification = () => {
+    setPhoneVerificationCode('');
+    setPhoneVerificationRequestId('');
+    setPhoneVerificationToken('');
+    setPhoneVerificationStatus('idle');
+    setPhoneVerificationMessage(null);
+    setPhoneVerificationDebugCode(null);
+    setVerifiedPhoneDigits('');
+  };
+
+  const handlePhoneChange = (nextValue: string) => {
+    const nextFormattedPhone = formatPhoneInput(nextValue);
+    const nextPhoneDigits = nextFormattedPhone.replace(/\D/g, '');
+
+    setPhone(nextFormattedPhone);
+
+    if (nextPhoneDigits !== verifiedPhoneDigits || nextPhoneDigits !== normalizedPhone) {
+      resetPhoneVerification();
+    }
   };
 
   const handleCheckUsername = async () => {
@@ -191,6 +229,43 @@ export default function SignupFormScreen() {
     }
   };
 
+  const handleRequestPhoneCode = async () => {
+    setError(null);
+    setPhoneVerificationStatus('sending');
+    setPhoneVerificationMessage(null);
+
+    try {
+      const result = await requestSignupPhoneVerification(phone);
+      setPhoneVerificationRequestId(result.requestId);
+      setPhoneVerificationToken('');
+      setVerifiedPhoneDigits('');
+      setPhoneVerificationCode('');
+      setPhoneVerificationDebugCode(result.testCode ?? null);
+      setPhoneVerificationStatus('sent');
+      setPhoneVerificationMessage(`인증번호를 ${result.maskedPhone}로 보냈어요.`);
+    } catch (phoneError) {
+      setPhoneVerificationStatus('error');
+      setPhoneVerificationMessage(phoneError instanceof Error ? phoneError.message : '인증번호 발송에 실패했어요.');
+    }
+  };
+
+  const handleVerifyPhoneCode = async () => {
+    setError(null);
+    setPhoneVerificationStatus('verifying');
+    setPhoneVerificationMessage(null);
+
+    try {
+      const result = await verifySignupPhoneCode(phoneVerificationRequestId, phoneVerificationCode);
+      setPhoneVerificationToken(result.verifiedToken);
+      setVerifiedPhoneDigits(result.phone);
+      setPhoneVerificationStatus('verified');
+      setPhoneVerificationMessage(`${result.maskedPhone} 인증이 완료됐어요.`);
+    } catch (phoneError) {
+      setPhoneVerificationStatus('error');
+      setPhoneVerificationMessage(phoneError instanceof Error ? phoneError.message : '인증번호 확인에 실패했어요.');
+    }
+  };
+
   const handleSignup = async () => {
     setError(null);
     setSubmitting(true);
@@ -228,6 +303,7 @@ export default function SignupFormScreen() {
         districtName: finalDistrictName,
         addressDetail,
         birthDate,
+        phoneVerificationToken,
       });
       router.replace('/(tabs)/home');
     } catch (signupError) {
@@ -251,7 +327,7 @@ export default function SignupFormScreen() {
     <Screen>
       <AuthHeader
         title="계정으로 회원가입"
-        subtitle="기본 정보와 공개 표시 이름만 정하면 바로 홈으로 들어갈 수 있어요."
+        subtitle="기본 정보와 휴대폰 인증까지 마치면 바로 홈으로 들어갈 수 있어요."
         showBack
         backHref="/signup"
       />
@@ -423,13 +499,69 @@ export default function SignupFormScreen() {
           </View>
           <Input
             label="핸드폰번호"
-            helperText="비공개 정보예요. 계정 확인과 운영상 필요한 연락에만 사용해요."
+            helperText="비공개 정보예요. 회원가입 스팸을 막기 위해 인증번호 확인까지 진행해요."
             placeholder="010-0000-0000"
             keyboardType="phone-pad"
             value={phone}
-            onChangeText={(nextValue) => setPhone(formatPhoneInput(nextValue))}
+            onChangeText={handlePhoneChange}
             editable={!submitting}
           />
+          <View style={styles.inputGroup}>
+            <View style={styles.inlineInputRow}>
+              <TextInput
+                placeholder="인증번호 6자리"
+                placeholderTextColor="#98A2B3"
+                style={[styles.input, styles.inlineInput, submitting && styles.inputDisabled]}
+                keyboardType="phone-pad"
+                value={phoneVerificationCode}
+                onChangeText={(nextValue) => setPhoneVerificationCode(nextValue.replace(/\D/g, '').slice(0, 6))}
+                editable={!submitting && Boolean(phoneVerificationRequestId)}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Pressable
+                style={[styles.secondaryActionButton, (submitting || phoneVerificationStatus === 'sending' || normalizedPhone.length < 10) && styles.disabledButton]}
+                onPress={handleRequestPhoneCode}
+                disabled={submitting || phoneVerificationStatus === 'sending' || normalizedPhone.length < 10}
+              >
+                <Text style={styles.secondaryActionButtonText}>
+                  {phoneVerificationStatus === 'sending' ? '발송 중' : phoneVerificationRequestId ? '재전송' : '인증번호 받기'}
+                </Text>
+              </Pressable>
+            </View>
+            <Pressable
+              style={[
+                styles.secondaryActionButton,
+                styles.verifyButton,
+                (submitting || !phoneVerificationRequestId || phoneVerificationStatus === 'verifying' || phoneVerified) && styles.disabledButton,
+              ]}
+              onPress={handleVerifyPhoneCode}
+              disabled={submitting || !phoneVerificationRequestId || phoneVerificationStatus === 'verifying' || phoneVerified}
+            >
+              <Text style={styles.secondaryActionButtonText}>
+                {phoneVerified ? '인증 완료' : phoneVerificationStatus === 'verifying' ? '확인 중' : '인증 확인'}
+              </Text>
+            </Pressable>
+            {phoneVerificationMessage ? (
+              <Text
+                style={[
+                  styles.statusText,
+                  phoneVerified
+                    ? styles.statusTextSuccess
+                    : phoneVerificationStatus === 'sending' || phoneVerificationStatus === 'sent' || phoneVerificationStatus === 'verifying'
+                      ? styles.statusTextNeutral
+                      : styles.statusTextError,
+                ]}
+              >
+                {phoneVerificationMessage}
+              </Text>
+            ) : null}
+            {phoneVerificationDebugCode ? (
+              <Text style={[styles.statusText, styles.statusTextNeutral]}>
+                개발용 인증번호: {phoneVerificationDebugCode}
+              </Text>
+            ) : null}
+          </View>
 
           <View style={styles.addressGroup}>
             <Text style={styles.label}>사는 지역 선택</Text>
@@ -512,6 +644,7 @@ export default function SignupFormScreen() {
           <View style={styles.readyCard}>
             <Text style={styles.readyTitle}>가입 준비 상태</Text>
             <ValidationItem label="기본 정보와 지역 입력" complete={requiredProfileReady} />
+            <ValidationItem label="휴대폰 인증 완료" complete={phoneVerified} />
             <ValidationItem label="아이디 중복 확인 완료" complete={usernameReady} />
             <ValidationItem label="비밀번호 조건 충족" complete={passwordReady} />
           </View>
@@ -703,6 +836,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  verifyButton: {
+    alignSelf: 'flex-start',
   },
   secondaryActionButtonText: {
     color: '#111827',

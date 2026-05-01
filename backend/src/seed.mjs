@@ -503,6 +503,7 @@ export function createSeedStore() {
     users,
     runs,
     integrationImports: [],
+    phoneVerificationChallenges: [],
     matchQueues: {
       duel: [],
       group: [],

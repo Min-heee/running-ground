@@ -26,6 +26,12 @@ import {
   HEADERS_TIMEOUT_MS,
   KEEP_ALIVE_TIMEOUT_MS,
   MAX_REQUESTS_PER_SOCKET,
+  PHONE_VERIFICATION_CODE_TTL_MS,
+  PHONE_VERIFICATION_EXPOSE_TEST_CODE,
+  PHONE_VERIFICATION_MAX_ATTEMPTS,
+  PHONE_VERIFICATION_PROVIDER,
+  PHONE_VERIFICATION_RESEND_COOLDOWN_MS,
+  PHONE_VERIFICATION_VERIFIED_TTL_MS,
   PORT,
   PUBLIC_BASE_URL,
   POSTGRES_APPLICATION_NAME,
@@ -41,12 +47,24 @@ import {
   REQUEST_TIMEOUT_MS,
   SESSION_TTL_MS,
   SHUTDOWN_TIMEOUT_MS,
+  SOLAPI_API_KEY,
+  SOLAPI_API_SECRET,
+  SOLAPI_SENDER,
   getPublicBackendConfig,
 } from './config.mjs';
 import { isSessionExpired } from './auth.mjs';
 import { buildUserRunMetrics, getAvailableRewardPoints, getRunPointBreakdown, getRunPointValue, parsePaceToMinutes } from './points.mjs';
 import { addressCatalog } from './addressCatalog.mjs';
 import { buildRoadAlignedRoutePreview } from './routing.mjs';
+import {
+  createPhoneVerificationService,
+  generatePhoneVerificationCode,
+  hashPhoneVerificationCode,
+  isPhoneVerificationPurpose,
+  isValidKoreanMobilePhoneNumber,
+  maskPhoneNumber,
+  normalizePhoneNumber,
+} from './phoneVerification.mjs';
 const STARTED_AT = new Date().toISOString();
 const metricsCacheByStore = new WeakMap();
 const SOURCE_LABEL_BY_TYPE = {
@@ -209,6 +227,15 @@ function nextId(prefix) {
   return `${prefix}-${randomUUID().slice(0, 8)}`;
 }
 
+const phoneVerificationService = createPhoneVerificationService({
+  provider: PHONE_VERIFICATION_PROVIDER,
+  appEnv: APP_ENV,
+  exposeTestCode: PHONE_VERIFICATION_EXPOSE_TEST_CODE,
+  solapiApiKey: SOLAPI_API_KEY,
+  solapiApiSecret: SOLAPI_API_SECRET,
+  solapiSender: SOLAPI_SENDER,
+});
+
 let authRepository = null;
 let adminRepository = null;
 let friendsRepository = null;
@@ -221,6 +248,38 @@ let raceRepository = null;
 let runsRepository = null;
 let postgresDatabase = null;
 let sessionRunsBridge = null;
+
+function ensurePhoneVerificationChallenges(store) {
+  if (!Array.isArray(store.phoneVerificationChallenges)) {
+    store.phoneVerificationChallenges = [];
+  }
+
+  return store.phoneVerificationChallenges;
+}
+
+function cleanupPhoneVerificationChallenges(store, now = new Date()) {
+  const challenges = ensurePhoneVerificationChallenges(store);
+  const nowMs = now.getTime();
+  const beforeCount = challenges.length;
+
+  store.phoneVerificationChallenges = challenges.filter((challenge) => {
+    const expiresAtMs = Date.parse(challenge.expiresAt ?? '');
+    const registrationExpiresAtMs = Date.parse(challenge.registrationExpiresAt ?? '');
+    const updatedAtMs = Date.parse(challenge.updatedAt ?? challenge.createdAt ?? '');
+
+    if (challenge.status === 'verified') {
+      return Number.isFinite(registrationExpiresAtMs) && registrationExpiresAtMs > nowMs;
+    }
+
+    if (challenge.status === 'consumed') {
+      return Number.isFinite(updatedAtMs) && updatedAtMs + 10 * 60 * 1000 > nowMs;
+    }
+
+    return Number.isFinite(expiresAtMs) && expiresAtMs > nowMs;
+  });
+
+  return beforeCount !== store.phoneVerificationChallenges.length;
+}
 
 function getAuthRepository() {
   if (!authRepository) {
@@ -2765,6 +2824,36 @@ function validateNewPassword(value) {
   return password;
 }
 
+function validatePhoneVerificationPurpose(value) {
+  const purpose = validateRequiredString(value, '휴대폰 인증 목적을 확인할 수 없어요.');
+
+  if (!isPhoneVerificationPurpose(purpose)) {
+    throw new ApiError(400, '지원하지 않는 휴대폰 인증 목적이에요.');
+  }
+
+  return purpose;
+}
+
+function validatePhoneNumber(value) {
+  const normalizedPhone = normalizePhoneNumber(validateRequiredString(value, '휴대폰 번호를 입력해주세요.'));
+
+  if (!isValidKoreanMobilePhoneNumber(normalizedPhone)) {
+    throw new ApiError(400, '휴대폰 번호를 정확히 입력해주세요.');
+  }
+
+  return normalizedPhone;
+}
+
+function validatePhoneVerificationCode(value) {
+  const code = validateRequiredString(value, '인증번호를 입력해주세요.').replace(/\D/g, '');
+
+  if (!/^\d{6}$/.test(code)) {
+    throw new ApiError(400, '인증번호 6자리를 입력해주세요.');
+  }
+
+  return code;
+}
+
 function validateBoolean(value, message) {
   if (typeof value !== 'boolean') {
     throw new ApiError(400, message);
@@ -2829,6 +2918,80 @@ function resolveRegionSelection(rawProvinceName, rawCityName, rawDistrictName) {
     cityName: city.name,
     districtName: district.name,
   };
+}
+
+function buildPhoneVerificationPayload(challenge, providerResult = {}) {
+  return {
+    success: true,
+    purpose: challenge.purpose,
+    requestId: challenge.id,
+    maskedPhone: maskPhoneNumber(challenge.phone),
+    expiresAt: challenge.expiresAt,
+    resendAvailableAt: challenge.resendAvailableAt,
+    provider: providerResult.provider ?? PHONE_VERIFICATION_PROVIDER,
+    ...(typeof providerResult.testCode === 'string' ? { testCode: providerResult.testCode } : {}),
+  };
+}
+
+function buildPhoneVerificationSuccessPayload(challenge) {
+  return {
+    success: true,
+    purpose: challenge.purpose,
+    phone: challenge.phone,
+    maskedPhone: maskPhoneNumber(challenge.phone),
+    verifiedAt: challenge.verifiedAt,
+    registrationExpiresAt: challenge.registrationExpiresAt,
+    verifiedToken: challenge.verifiedToken,
+  };
+}
+
+function createPhoneVerificationChallenge({ purpose, phone, now = new Date() }) {
+  const requestId = nextId('phone');
+  const code = generatePhoneVerificationCode();
+  const createdAt = now.toISOString();
+  const expiresAt = new Date(now.getTime() + PHONE_VERIFICATION_CODE_TTL_MS).toISOString();
+  const resendAvailableAt = new Date(now.getTime() + PHONE_VERIFICATION_RESEND_COOLDOWN_MS).toISOString();
+
+  return {
+    challenge: {
+      id: requestId,
+      purpose,
+      phone,
+      codeHash: hashPhoneVerificationCode(requestId, code),
+      attempts: 0,
+      maxAttempts: PHONE_VERIFICATION_MAX_ATTEMPTS,
+      status: 'pending',
+      createdAt,
+      updatedAt: createdAt,
+      expiresAt,
+      resendAvailableAt,
+      verifiedAt: '',
+      registrationExpiresAt: '',
+      verifiedToken: '',
+      consumedAt: '',
+    },
+    code,
+  };
+}
+
+function requireVerifiedPhoneChallenge({
+  phone,
+  verifiedToken,
+}) {
+  const store = loadStore();
+  cleanupPhoneVerificationChallenges(store);
+  const challenge = ensurePhoneVerificationChallenges(store).find((entry) => (
+    entry.purpose === 'signup'
+    && entry.status === 'verified'
+    && entry.verifiedToken === verifiedToken
+    && entry.phone === phone
+  ));
+
+  if (!challenge) {
+    throw new ApiError(400, '휴대폰 인증을 먼저 완료해주세요.');
+  }
+
+  return challenge;
 }
 
 function validateDateOnly(value, message) {
@@ -3215,6 +3378,131 @@ async function handleLogin(request, response) {
   sendJson(response, 200, result);
 }
 
+async function handleRequestPhoneVerificationCode(request, response) {
+  const body = await parseJsonBody(request);
+  const purpose = validatePhoneVerificationPurpose(body.purpose);
+  const phone = validatePhoneNumber(body.phone);
+  const now = new Date();
+
+  let createdChallenge = null;
+  let rawCode = '';
+
+  mutateStore((store) => {
+    cleanupPhoneVerificationChallenges(store, now);
+    const challenges = ensurePhoneVerificationChallenges(store);
+    const activeChallenge = challenges.find((entry) => (
+      entry.purpose === purpose
+      && entry.phone === phone
+      && entry.status === 'pending'
+      && Date.parse(entry.expiresAt) > now.getTime()
+    ));
+
+    if (activeChallenge) {
+      const resendAvailableAtMs = Date.parse(activeChallenge.resendAvailableAt);
+
+      if (Number.isFinite(resendAvailableAtMs) && resendAvailableAtMs > now.getTime()) {
+        const remainingSeconds = Math.max(1, Math.ceil((resendAvailableAtMs - now.getTime()) / 1000));
+        throw new ApiError(429, `인증번호를 너무 자주 요청하고 있어요. ${remainingSeconds}초 뒤에 다시 시도해주세요.`);
+      }
+    }
+
+    const { challenge, code } = createPhoneVerificationChallenge({
+      purpose,
+      phone,
+      now,
+    });
+
+    for (const existingChallenge of challenges) {
+      if (existingChallenge.phone === phone && existingChallenge.purpose === purpose && existingChallenge.status === 'pending') {
+        existingChallenge.status = 'superseded';
+        existingChallenge.updatedAt = now.toISOString();
+      }
+    }
+
+    challenges.push(challenge);
+    createdChallenge = challenge;
+    rawCode = code;
+  });
+
+  try {
+    const providerResult = await phoneVerificationService.sendCode({
+      phone,
+      code: rawCode,
+      purpose,
+    });
+    sendJson(response, 200, buildPhoneVerificationPayload(createdChallenge, providerResult));
+  } catch (error) {
+    mutateStore((store) => {
+      cleanupPhoneVerificationChallenges(store);
+      store.phoneVerificationChallenges = ensurePhoneVerificationChallenges(store)
+        .filter((entry) => entry.id !== createdChallenge?.id);
+    });
+    throw new ApiError(502, error instanceof Error ? error.message : '인증번호 발송에 실패했어요.');
+  }
+}
+
+async function handleVerifyPhoneVerificationCode(request, response) {
+  const body = await parseJsonBody(request);
+  const requestId = validateRequiredString(body.requestId, '인증 요청을 먼저 시작해주세요.');
+  const purpose = validatePhoneVerificationPurpose(body.purpose);
+  const code = validatePhoneVerificationCode(body.code);
+  const now = new Date();
+  let verifiedChallenge = null;
+
+  mutateStore((store) => {
+    cleanupPhoneVerificationChallenges(store, now);
+    const challenge = ensurePhoneVerificationChallenges(store).find((entry) => entry.id === requestId && entry.purpose === purpose);
+
+    if (!challenge) {
+      throw new ApiError(404, '인증 요청을 찾을 수 없어요. 다시 인증번호를 요청해주세요.');
+    }
+
+    if (challenge.status === 'verified' && challenge.verifiedToken && challenge.registrationExpiresAt) {
+      verifiedChallenge = challenge;
+      return;
+    }
+
+    if (challenge.status !== 'pending') {
+      throw new ApiError(400, '이미 만료되었거나 사용할 수 없는 인증 요청이에요. 다시 시도해주세요.');
+    }
+
+    const expiresAtMs = Date.parse(challenge.expiresAt);
+
+    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= now.getTime()) {
+      challenge.status = 'expired';
+      challenge.updatedAt = now.toISOString();
+      throw new ApiError(400, '인증번호가 만료됐어요. 다시 요청해주세요.');
+    }
+
+    if (challenge.attempts >= challenge.maxAttempts) {
+      challenge.status = 'locked';
+      challenge.updatedAt = now.toISOString();
+      throw new ApiError(429, '인증 시도 횟수를 초과했어요. 새 인증번호를 다시 요청해주세요.');
+    }
+
+    if (challenge.codeHash !== hashPhoneVerificationCode(challenge.id, code)) {
+      challenge.attempts += 1;
+      challenge.updatedAt = now.toISOString();
+
+      if (challenge.attempts >= challenge.maxAttempts) {
+        challenge.status = 'locked';
+        throw new ApiError(429, '인증 시도 횟수를 초과했어요. 새 인증번호를 다시 요청해주세요.');
+      }
+
+      throw new ApiError(400, '인증번호가 맞지 않아요.');
+    }
+
+    challenge.status = 'verified';
+    challenge.verifiedAt = now.toISOString();
+    challenge.registrationExpiresAt = new Date(now.getTime() + PHONE_VERIFICATION_VERIFIED_TTL_MS).toISOString();
+    challenge.verifiedToken = createToken();
+    challenge.updatedAt = now.toISOString();
+    verifiedChallenge = challenge;
+  });
+
+  sendJson(response, 200, buildPhoneVerificationSuccessPayload(verifiedChallenge));
+}
+
 async function handleLogout(request, response) {
   const payload = await getAuthRepository().logout({
     token: getAccessToken(request),
@@ -3246,6 +3534,7 @@ async function handleRegister(request, response) {
   const universityName = typeof body.universityName === 'string' ? body.universityName.trim() : '';
   const addressDetail = validateRequiredString(body.addressDetail, '상세 주소를 입력해주세요.');
   const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해주세요.');
+  const phoneVerificationToken = validateRequiredString(body.phoneVerificationToken, '휴대폰 인증을 먼저 완료해주세요.');
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
     throw new ApiError(400, '생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
@@ -3254,6 +3543,11 @@ async function handleRegister(request, response) {
   if (phone.length < 10) {
     throw new ApiError(400, '휴대폰 번호를 정확히 입력해주세요.');
   }
+
+  requireVerifiedPhoneChallenge({
+    phone,
+    verifiedToken: phoneVerificationToken,
+  });
 
   const result = await getAuthRepository().register({
     username,
@@ -3265,6 +3559,21 @@ async function handleRegister(request, response) {
     region,
     universityName,
     addressDetail,
+  });
+
+  mutateStore((store) => {
+    cleanupPhoneVerificationChallenges(store);
+    const challenge = ensurePhoneVerificationChallenges(store).find((entry) => (
+      entry.phone === phone
+      && entry.verifiedToken === phoneVerificationToken
+      && entry.purpose === 'signup'
+    ));
+
+    if (challenge) {
+      challenge.status = 'consumed';
+      challenge.consumedAt = new Date().toISOString();
+      challenge.updatedAt = challenge.consumedAt;
+    }
   });
 
   sendJson(response, 201, result);
@@ -3951,6 +4260,16 @@ async function routeRequest(request, response) {
   if (pathname === '/api/auth/check-username' && request.method === 'GET') {
     const username = validateUsername(url.searchParams.get('username') ?? '');
     sendJson(response, 200, await getAuthRepository().checkUsername(username));
+    return;
+  }
+
+  if (pathname === '/api/auth/phone/request-code' && request.method === 'POST') {
+    await handleRequestPhoneVerificationCode(request, response);
+    return;
+  }
+
+  if (pathname === '/api/auth/phone/verify-code' && request.method === 'POST') {
+    await handleVerifyPhoneVerificationCode(request, response);
     return;
   }
 

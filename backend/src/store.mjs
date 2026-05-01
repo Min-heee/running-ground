@@ -48,6 +48,15 @@ function migrateIntegrationStore(store) {
   return false;
 }
 
+function migratePhoneVerificationStore(store) {
+  if (!Array.isArray(store.phoneVerificationChallenges)) {
+    store.phoneVerificationChallenges = [];
+    return true;
+  }
+
+  return false;
+}
+
 function migrateMatchQueueStore(store) {
   let changed = false;
 
@@ -345,6 +354,7 @@ export function loadStore() {
       migrateAuthStore(cachedStore, { sessionTtlMs: SESSION_TTL_MS, now: new Date() }),
       migrateProfileStore(cachedStore),
       migrateIntegrationStore(cachedStore),
+      migratePhoneVerificationStore(cachedStore),
       migrateMatchQueueStore(cachedStore),
       migrateAdminStore(cachedStore),
     ].some(Boolean);
@@ -362,6 +372,7 @@ export function saveStore(nextStore) {
   migrateAuthStore(cachedStore, { sessionTtlMs: SESSION_TTL_MS, now: new Date() });
   migrateProfileStore(cachedStore);
   migrateIntegrationStore(cachedStore);
+  migratePhoneVerificationStore(cachedStore);
   migrateMatchQueueStore(cachedStore);
   migrateAdminStore(cachedStore);
   cachedStore.regionTree = createRegionTree(cachedStore);

@@ -3,7 +3,15 @@ import { myProfile } from '@/data/mock';
 import { UserProfile } from '@/domain/types';
 import { apiDelete, apiGet, apiPost } from '@/lib/api/client';
 import { USE_MOCK_API } from '@/lib/api/config';
-import { AuthResponse, DeleteMyAccountResponse, LogoutResponse, MyProfileResponse, UsernameAvailabilityResponse } from '@/lib/api/types';
+import {
+  AuthResponse,
+  DeleteMyAccountResponse,
+  LogoutResponse,
+  MyProfileResponse,
+  RequestPhoneVerificationCodeResponse,
+  UsernameAvailabilityResponse,
+  VerifyPhoneVerificationCodeResponse,
+} from '@/lib/api/types';
 
 const SESSION_STORAGE_KEY = 'runningground.session.v1';
 const LEGACY_SESSION_STORAGE_KEY = 'runnigapp.session.v1';
@@ -29,6 +37,7 @@ type RegisterAccountInput = {
   universityName?: string;
   addressDetail: string;
   birthDate: string;
+  phoneVerificationToken: string;
 };
 
 type SessionSnapshot = {
@@ -43,6 +52,12 @@ let mockSignedIn = false;
 let mockProfile: UserProfile = { ...myProfile };
 let backendAccessToken: string | null = null;
 let backendProfile: UserProfile | null = null;
+let mockPhoneVerificationSession: {
+  requestId: string;
+  phone: string;
+  code: string;
+  verifiedToken: string | null;
+} | null = null;
 
 const MOCK_TAKEN_USERNAMES = new Set([
   'demo-user',
@@ -394,6 +409,95 @@ export async function checkUsernameAvailability(rawUsername: string): Promise<Us
   );
 }
 
+export async function requestSignupPhoneVerification(rawPhone: string): Promise<RequestPhoneVerificationCodeResponse> {
+  await ensureHydrated();
+
+  const normalizedPhone = rawPhone.replace(/\D/g, '');
+
+  if (normalizedPhone.length < 10) {
+    throw new Error('휴대폰 번호를 정확히 입력해주세요.');
+  }
+
+  if (USE_MOCK_API) {
+    const requestId = `mock-phone-${Date.now()}`;
+    const testCode = '123456';
+    mockPhoneVerificationSession = {
+      requestId,
+      phone: normalizedPhone,
+      code: testCode,
+      verifiedToken: null,
+    };
+
+    return {
+      success: true,
+      purpose: 'signup',
+      requestId,
+      maskedPhone: `${normalizedPhone.slice(0, 3)}-****-${normalizedPhone.slice(-4)}`,
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      resendAvailableAt: new Date(Date.now() + 60 * 1000).toISOString(),
+      provider: 'mock',
+      testCode,
+    };
+  }
+
+  return apiPost<RequestPhoneVerificationCodeResponse>(
+    '/auth/phone/request-code',
+    {
+      phone: normalizedPhone,
+      purpose: 'signup',
+    },
+    { fallbackMessage: '인증번호 발송에 실패했어요.' },
+  );
+}
+
+export async function verifySignupPhoneCode(requestId: string, rawCode: string): Promise<VerifyPhoneVerificationCodeResponse> {
+  await ensureHydrated();
+
+  const normalizedRequestId = requestId.trim();
+  const normalizedCode = rawCode.replace(/\D/g, '').slice(0, 6);
+
+  if (!normalizedRequestId) {
+    throw new Error('인증 요청을 먼저 시작해주세요.');
+  }
+
+  if (normalizedCode.length !== 6) {
+    throw new Error('인증번호 6자리를 입력해주세요.');
+  }
+
+  if (USE_MOCK_API) {
+    if (!mockPhoneVerificationSession || mockPhoneVerificationSession.requestId !== normalizedRequestId) {
+      throw new Error('인증 요청이 만료됐어요. 다시 요청해주세요.');
+    }
+
+    if (mockPhoneVerificationSession.code !== normalizedCode) {
+      throw new Error('인증번호가 맞지 않아요.');
+    }
+
+    const verifiedToken = `mock-phone-token-${Date.now()}`;
+    mockPhoneVerificationSession.verifiedToken = verifiedToken;
+
+    return {
+      success: true,
+      purpose: 'signup',
+      phone: mockPhoneVerificationSession.phone,
+      maskedPhone: `${mockPhoneVerificationSession.phone.slice(0, 3)}-****-${mockPhoneVerificationSession.phone.slice(-4)}`,
+      verifiedAt: new Date().toISOString(),
+      registrationExpiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      verifiedToken,
+    };
+  }
+
+  return apiPost<VerifyPhoneVerificationCodeResponse>(
+    '/auth/phone/verify-code',
+    {
+      requestId: normalizedRequestId,
+      code: normalizedCode,
+      purpose: 'signup',
+    },
+    { fallbackMessage: '인증번호 확인에 실패했어요.' },
+  );
+}
+
 export async function registerAccount({
   username,
   password,
@@ -407,6 +511,7 @@ export async function registerAccount({
   universityName,
   addressDetail,
   birthDate,
+  phoneVerificationToken,
 }: RegisterAccountInput) {
   await ensureHydrated();
 
@@ -450,6 +555,10 @@ export async function registerAccount({
     throw new Error('휴대폰 번호를 정확히 입력해주세요.');
   }
 
+  if (!phoneVerificationToken.trim()) {
+    throw new Error('휴대폰 인증을 먼저 완료해주세요.');
+  }
+
   if (!normalizedProvinceName) {
     throw new Error('시/도를 먼저 선택해주세요.');
   }
@@ -467,6 +576,14 @@ export async function registerAccount({
   }
 
   if (USE_MOCK_API) {
+    if (!mockPhoneVerificationSession?.verifiedToken || mockPhoneVerificationSession.verifiedToken !== phoneVerificationToken.trim()) {
+      throw new Error('휴대폰 인증을 먼저 완료해주세요.');
+    }
+
+    if (mockPhoneVerificationSession.phone !== normalizedPhone) {
+      throw new Error('인증한 휴대폰 번호와 가입 번호가 달라요.');
+    }
+
     mockProfile = {
       ...mockProfile,
       name: normalizedDisplayName,
@@ -479,6 +596,7 @@ export async function registerAccount({
       lifetimeDistanceKm: mockProfile.lifetimeDistanceKm ?? 0,
     };
     mockSignedIn = true;
+    mockPhoneVerificationSession = null;
     await persistSession();
     return mockProfile;
   }
@@ -498,6 +616,7 @@ export async function registerAccount({
       universityName: normalizedUniversityName,
       addressDetail: normalizedAddressDetail,
       birthDate: normalizedBirthDate,
+      phoneVerificationToken: phoneVerificationToken.trim(),
     },
     { fallbackMessage: '회원가입에 실패했어요.' },
   );

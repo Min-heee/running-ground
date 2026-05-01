@@ -19,6 +19,27 @@ export type UsernameAvailabilityResponse = {
   message: string;
 };
 
+export type RequestPhoneVerificationCodeResponse = {
+  success: boolean;
+  purpose: 'signup';
+  requestId: string;
+  maskedPhone: string;
+  expiresAt: string;
+  resendAvailableAt: string;
+  provider: 'mock' | 'solapi';
+  testCode?: string;
+};
+
+export type VerifyPhoneVerificationCodeResponse = {
+  success: boolean;
+  purpose: 'signup';
+  phone: string;
+  maskedPhone: string;
+  verifiedAt: string;
+  registrationExpiresAt: string;
+  verifiedToken: string;
+};
+
 export type LogoutResponse = {
   success: boolean;
 };

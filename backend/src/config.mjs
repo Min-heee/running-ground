@@ -138,6 +138,19 @@ export const POSTGRES_ENABLE_FRIEND_READS = parseBoolean(process.env.BACKEND_POS
 export const POSTGRES_ENABLE_LEAGUE_READS = parseBoolean(process.env.BACKEND_POSTGRES_ENABLE_LEAGUE_READS, false);
 export const SESSION_TTL_HOURS = Math.max(1, parseNumber(process.env.BACKEND_SESSION_TTL_HOURS, 24 * 7));
 export const SESSION_TTL_MS = SESSION_TTL_HOURS * 60 * 60 * 1000;
+export const PHONE_VERIFICATION_PROVIDER = normalizeOptionalString(process.env.BACKEND_PHONE_VERIFICATION_PROVIDER).toLowerCase()
+  || (APP_ENV === 'development' ? 'mock' : 'solapi');
+export const PHONE_VERIFICATION_CODE_TTL_MINUTES = Math.max(1, parseNumber(process.env.BACKEND_PHONE_VERIFICATION_CODE_TTL_MINUTES, 5));
+export const PHONE_VERIFICATION_CODE_TTL_MS = PHONE_VERIFICATION_CODE_TTL_MINUTES * 60 * 1000;
+export const PHONE_VERIFICATION_RESEND_COOLDOWN_SECONDS = Math.max(10, parseNumber(process.env.BACKEND_PHONE_VERIFICATION_RESEND_COOLDOWN_SECONDS, 60));
+export const PHONE_VERIFICATION_RESEND_COOLDOWN_MS = PHONE_VERIFICATION_RESEND_COOLDOWN_SECONDS * 1000;
+export const PHONE_VERIFICATION_MAX_ATTEMPTS = Math.max(1, parseNumber(process.env.BACKEND_PHONE_VERIFICATION_MAX_ATTEMPTS, 5));
+export const PHONE_VERIFICATION_VERIFIED_TTL_MINUTES = Math.max(5, parseNumber(process.env.BACKEND_PHONE_VERIFICATION_VERIFIED_TTL_MINUTES, 30));
+export const PHONE_VERIFICATION_VERIFIED_TTL_MS = PHONE_VERIFICATION_VERIFIED_TTL_MINUTES * 60 * 1000;
+export const PHONE_VERIFICATION_EXPOSE_TEST_CODE = parseBoolean(process.env.BACKEND_PHONE_VERIFICATION_EXPOSE_TEST_CODE, APP_ENV === 'development');
+export const SOLAPI_API_KEY = normalizeOptionalString(process.env.BACKEND_SOLAPI_API_KEY);
+export const SOLAPI_API_SECRET = normalizeOptionalString(process.env.BACKEND_SOLAPI_API_SECRET);
+export const SOLAPI_SENDER = normalizeOptionalString(process.env.BACKEND_SOLAPI_SENDER);
 export const MAX_BODY_SIZE_KB = Math.max(16, parseNumber(process.env.BACKEND_MAX_BODY_SIZE_KB, 256));
 export const MAX_BODY_SIZE_BYTES = MAX_BODY_SIZE_KB * 1024;
 export const REQUEST_TIMEOUT_MS = Math.max(5000, parseNumber(process.env.BACKEND_REQUEST_TIMEOUT_MS, 30000));
@@ -189,6 +202,15 @@ export function getPublicBackendConfig() {
       enableLeagueReads: POSTGRES_ENABLE_LEAGUE_READS,
     },
     sessionTtlHours: SESSION_TTL_HOURS,
+    phoneVerification: {
+      provider: PHONE_VERIFICATION_PROVIDER,
+      codeTtlMinutes: PHONE_VERIFICATION_CODE_TTL_MINUTES,
+      resendCooldownSeconds: PHONE_VERIFICATION_RESEND_COOLDOWN_SECONDS,
+      maxAttempts: PHONE_VERIFICATION_MAX_ATTEMPTS,
+      verifiedTtlMinutes: PHONE_VERIFICATION_VERIFIED_TTL_MINUTES,
+      exposeTestCode: PHONE_VERIFICATION_EXPOSE_TEST_CODE,
+      solapiConfigured: Boolean(SOLAPI_API_KEY && SOLAPI_API_SECRET && SOLAPI_SENDER),
+    },
     maxBodySizeKb: MAX_BODY_SIZE_KB,
     requestTimeoutMs: REQUEST_TIMEOUT_MS,
     headersTimeoutMs: HEADERS_TIMEOUT_MS,

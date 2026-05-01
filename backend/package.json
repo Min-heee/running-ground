@@ -15,7 +15,7 @@
     "smoke": "node ./src/smoke.mjs",
     "test": "npm run test:repositories && npm run test:bridges && npm run test:db",
     "test:repositories": "npm run test:auth && npm run test:runs && npm run test:friends && npm run test:league && npm run test:admin && npm run test:market && npm run test:race",
-    "test:auth": "node ./src/repositories/authRepository.test.mjs && node ./src/repositories/postgresAuthRepository.test.mjs",
+    "test:auth": "node ./src/phoneVerification.test.mjs && node ./src/repositories/authRepository.test.mjs && node ./src/repositories/postgresAuthRepository.test.mjs",
     "test:runs": "node ./src/repositories/runsRepository.test.mjs && node ./src/repositories/postgresRunsRepository.test.mjs",
     "test:friends": "node ./src/repositories/friendsRepository.test.mjs && node ./src/repositories/postgresFriendsRepository.test.mjs",
     "test:league": "node ./src/repositories/leagueRepository.test.mjs && node ./src/repositories/postgresLeagueRepository.test.mjs",
@@ -46,6 +46,7 @@
     "node": ">=20"
   },
   "dependencies": {
-    "pg": "^8.20.0"
+    "pg": "^8.20.0",
+    "solapi": "^6.0.1"
   }
 }
