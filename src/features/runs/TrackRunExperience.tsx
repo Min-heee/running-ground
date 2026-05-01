@@ -1038,7 +1038,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         rankLabel: String(participant.rank),
         isCurrentUser: participant.isCurrentUser,
         isLeader: participant.rank === 1,
-        showPaceBubble: participant.isCurrentUser || participant.rank <= 3,
+        showPaceBubble: true,
       })),
     [groupLiveStandings],
   );
