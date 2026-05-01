@@ -56,15 +56,15 @@ function getMatchBonusPoints(matchResult) {
 
   if (matchResult.mode === 'duel') {
     if (matchResult.resultTone === 'win') {
-      return 12;
+      return 20;
     }
 
     if (matchResult.resultTone === 'draw') {
-      return 6;
+      return 15;
     }
 
     if (matchResult.resultTone === 'lose') {
-      return 3;
+      return 10;
     }
 
     return 0;
@@ -79,18 +79,18 @@ function getMatchBonusPoints(matchResult) {
     }
 
     if (rank === 1) {
+      return 25;
+    }
+
+    if (rank === 2) {
+      return 20;
+    }
+
+    if (rank === 3) {
       return 15;
     }
 
-    if (rank <= 3) {
-      return 10;
-    }
-
-    if (rank <= 10) {
-      return 6;
-    }
-
-    return 4;
+    return 10;
   }
 
   return 0;

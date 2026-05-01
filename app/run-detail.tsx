@@ -35,6 +35,12 @@ export default function RunDetailScreen() {
       ? '런닝으로 돌아가기'
       : '내 활동으로 돌아가기';
   const sourceLabel = runDetail ? getRunSourceLabel(runDetail.run) : '';
+  const matchResult = runDetail?.run.matchResult ?? null;
+  const matchBonusLabel = matchResult
+    ? matchResult.mode === 'duel'
+      ? '1대1 대결 포인트'
+      : '그룹 대결 포인트'
+    : '매치 보너스';
   const routeCoordinates = runDetail?.run.route?.map((point) => ({
     latitude: point.latitude,
     longitude: point.longitude,
@@ -93,7 +99,7 @@ export default function RunDetailScreen() {
               <Text style={styles.pointBreakdownValue}>+{runDetail.pointBreakdown.growthPoints}P</Text>
             </View>
             <View style={styles.pointBreakdownRow}>
-              <Text style={styles.pointBreakdownLabel}>매치 보너스</Text>
+              <Text style={styles.pointBreakdownLabel}>{matchBonusLabel}</Text>
               <Text
                 style={[
                   styles.pointBreakdownValue,
@@ -109,43 +115,46 @@ export default function RunDetailScreen() {
             </View>
           </Card>
 
-          {runDetail.run.matchResult ? (
+          {matchResult ? (
             <Card style={styles.matchResultCard}>
               <View style={styles.matchResultHeader}>
                 <View>
                   <Text style={styles.matchResultLabel}>
-                    {runDetail.run.matchResult.mode === 'duel' ? '1대1 매치 결과' : '그룹 매치 결과'}
+                    {matchResult.mode === 'duel' ? '1대1 대결 결과' : '그룹 대결 결과'}
                   </Text>
-                  <Text style={styles.matchResultTitle}>{runDetail.run.matchResult.title}</Text>
+                  <Text style={styles.matchResultTitle}>{matchResult.title}</Text>
                 </View>
                 <View
                   style={[
                     styles.matchResultBadge,
-                    runDetail.run.matchResult.resultTone === 'win'
+                    matchResult.resultTone === 'win'
                       ? styles.matchResultBadgeWin
-                      : runDetail.run.matchResult.resultTone === 'lose'
+                      : matchResult.resultTone === 'lose'
                         ? styles.matchResultBadgeLose
-                        : runDetail.run.matchResult.resultTone === 'draw'
+                        : matchResult.resultTone === 'draw'
                           ? styles.matchResultBadgeDraw
                           : null,
                   ]}
                 >
-                  <Text style={styles.matchResultBadgeText}>{runDetail.run.matchResult.badgeLabel}</Text>
+                  <Text style={styles.matchResultBadgeText}>{matchResult.badgeLabel}</Text>
                 </View>
               </View>
-              <Text style={styles.matchResultSummary}>{runDetail.run.matchResult.summary}</Text>
+              <Text style={styles.matchResultSummary}>{matchResult.summary}</Text>
+              <View style={styles.matchResultPointPill}>
+                <Text style={styles.matchResultPointPillText}>매치 포인트 +{runDetail.pointBreakdown.matchBonusPoints}P</Text>
+              </View>
               <View style={styles.matchResultMetaRow}>
-                {runDetail.run.matchResult.opponentName ? (
-                  <Text style={styles.matchResultMeta}>상대 {runDetail.run.matchResult.opponentName}</Text>
+                {matchResult.opponentName ? (
+                  <Text style={styles.matchResultMeta}>상대 {matchResult.opponentName}</Text>
                 ) : null}
-                {typeof runDetail.run.matchResult.rank === 'number' && typeof runDetail.run.matchResult.participantCount === 'number' ? (
+                {typeof matchResult.rank === 'number' && typeof matchResult.participantCount === 'number' ? (
                   <Text style={styles.matchResultMeta}>
-                    {runDetail.run.matchResult.participantCount}명 중 {runDetail.run.matchResult.rank}위
+                    {matchResult.participantCount}명 중 {matchResult.rank}위
                   </Text>
                 ) : null}
-                {typeof runDetail.run.matchResult.gapKm === 'number' ? (
+                {typeof matchResult.gapKm === 'number' ? (
                   <Text style={styles.matchResultMeta}>
-                    거리 차이 {runDetail.run.matchResult.gapKm.toFixed(2)}km
+                    거리 차이 {matchResult.gapKm.toFixed(2)}km
                   </Text>
                 ) : null}
               </View>
@@ -280,6 +289,18 @@ const styles = StyleSheet.create({
     color: '#344054',
     fontWeight: '700',
     lineHeight: 20,
+  },
+  matchResultPointPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#EEF2FF',
+  },
+  matchResultPointPillText: {
+    color: '#4338CA',
+    fontSize: 12,
+    fontWeight: '800',
   },
   matchResultMetaRow: {
     flexDirection: 'row',

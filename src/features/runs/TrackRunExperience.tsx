@@ -391,6 +391,48 @@ function buildMatchSlotDateLabel(slotStartAt: string) {
   });
 }
 
+function getEstimatedMatchBonusPoints(matchResult?: RunMatchResult) {
+  if (!matchResult) {
+    return 0;
+  }
+
+  if (matchResult.mode === 'duel') {
+    if (matchResult.resultTone === 'win') {
+      return 20;
+    }
+
+    if (matchResult.resultTone === 'draw') {
+      return 15;
+    }
+
+    if (matchResult.resultTone === 'lose') {
+      return 10;
+    }
+
+    return 0;
+  }
+
+  if (matchResult.mode === 'group') {
+    if (matchResult.rank === 1) {
+      return 25;
+    }
+
+    if (matchResult.rank === 2) {
+      return 20;
+    }
+
+    if (matchResult.rank === 3) {
+      return 15;
+    }
+
+    if (typeof matchResult.rank === 'number' && matchResult.rank >= 4) {
+      return 10;
+    }
+  }
+
+  return 0;
+}
+
 function buildMatchParticipantStatusLabel(status?: MatchParticipantLiveStatus) {
   switch (status) {
     case 'running':
@@ -819,20 +861,22 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     const isDraw = gapKm < 0.03;
     const resultTone: RunMatchResult['resultTone'] = isDraw ? 'draw' : distanceKm > opponentDistanceKm ? 'win' : 'lose';
     const title = isDraw
-      ? `${effectiveDuelOpponent.name}님과 거의 같은 흐름으로 마쳤어요`
+      ? `${effectiveDuelOpponent.name}님과 비슷한 흐름으로 마쳤어요`
       : resultTone === 'win'
-        ? `${effectiveDuelOpponent.name}님보다 앞서서 마쳤어요`
-        : `${effectiveDuelOpponent.name}님이 조금 앞섰어요`;
+        ? `${effectiveDuelOpponent.name}님을 이겼어요`
+        : `${effectiveDuelOpponent.name}님에게 졌어요`;
     const summary = isDraw
-      ? `현재 기준으로 두 러너 차이가 ${gapKm.toFixed(2)}km 안쪽이에요.`
+      ? `두 러너 차이가 ${gapKm.toFixed(2)}km 안쪽으로 거의 비슷했어요.`
       : resultTone === 'win'
-        ? `${gapKm.toFixed(2)}km 앞선 상태로 종료했어요.`
-        : `${gapKm.toFixed(2)}km 차이로 따라가는 흐름이었어요.`;
+        ? `${gapKm.toFixed(2)}km 차이로 앞서 마무리했어요.`
+        : `${gapKm.toFixed(2)}km 차이로 뒤에서 마무리했어요.`;
+    const badgeLabel = isDraw ? '무승부' : resultTone === 'win' ? '승리' : '패배';
 
     return {
       title,
       summary,
       resultTone,
+      badgeLabel,
       opponentDistanceKm,
       gapKm,
     };
@@ -843,10 +887,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     }
 
     const title = currentGroupStanding.rank === 1
-      ? '선두로 마무리했어요'
+      ? '1위로 마무리했어요'
       : `${effectiveGroupParticipantCount}명 중 ${currentGroupStanding.rank}위로 마쳤어요`;
     const summary = currentGroupStanding.rank === 1
-      ? '마지막까지 페이스를 잘 지켜서 선두를 유지했어요.'
+      ? '마지막까지 페이스를 잘 지켜서 가장 먼저 들어왔어요.'
       : `앞 사람과 ${currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km 차이였어요.`;
     const podium = groupLiveStandings.slice(0, 3);
 
@@ -862,11 +906,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         mode: 'duel',
         title: duelFinishSummary.title,
         summary: duelFinishSummary.summary,
-        badgeLabel: duelFinishSummary.resultTone === 'win'
-          ? 'WIN'
-          : duelFinishSummary.resultTone === 'lose'
-            ? 'CHASE'
-            : 'DRAW',
+        badgeLabel: duelFinishSummary.badgeLabel,
         opponentName: effectiveDuelOpponent.name,
         resultTone: duelFinishSummary.resultTone,
         gapKm: duelFinishSummary.gapKm,
@@ -879,7 +919,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         mode: 'group',
         title: groupFinishSummary.title,
         summary: groupFinishSummary.summary,
-        badgeLabel: `${currentGroupStanding.rank}/${effectiveGroupParticipantCount}`,
+        badgeLabel: `${currentGroupStanding.rank}위`,
         rank: currentGroupStanding.rank,
         participantCount: effectiveGroupParticipantCount,
         gapKm: currentGroupStanding.gapAheadKm ?? undefined,
@@ -895,6 +935,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     groupFinishSummary,
     matchMode,
   ]);
+  const estimatedMatchBonusPoints = useMemo(
+    () => getEstimatedMatchBonusPoints(trackedMatchResult),
+    [trackedMatchResult],
+  );
   const liveMatchTitle = matchMode === 'duel' && effectiveDuelOpponent
     ? `${effectiveDuelOpponent.name}님과 1대1 매치 진행 중`
     : matchMode === 'group' && effectiveGroupParticipantCount
@@ -2077,7 +2121,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     ]);
   };
 
-  const handleSaveTracking = async ({ rematchAfterSave = false }: { rematchAfterSave?: boolean } = {}) => {
+  const handleSaveTracking = async () => {
     try {
       setError(null);
 
@@ -2146,29 +2190,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         enabled: false,
         status: 'idle',
       }).catch(() => {});
-
-      if (rematchAfterSave && matchMode !== 'solo') {
-        await resetBackgroundRunTracking();
-        resetForegroundTrackingState();
-        matchProgressHeartbeatRef.current = 0;
-        setStatus('idle');
-
-        if (matchMode === 'duel') {
-          setDuelMatchResult(null);
-          setDuelMatchStatus(null);
-          setDuelMatchNotice(null);
-          await handleRequestDuelMatch(activeDuelSlotStartAt);
-          return;
-        }
-
-        if (matchMode === 'group') {
-          setGroupMatchResult(null);
-          setGroupMatchStatus(null);
-          setGroupMatchNotice(null);
-          await handleRequestGroupMatch(activeGroupSlotStartAt);
-          return;
-        }
-      }
 
       router.replace({
         pathname: '/run-detail',
@@ -3209,7 +3230,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                 <Card style={styles.finishSummaryCard}>
                   <View style={styles.finishSummaryHeader}>
                     <View style={styles.finishSummaryCopy}>
-                      <Text style={styles.finishSummaryEyebrow}>MATCH RESULT</Text>
+                      <Text style={styles.finishSummaryEyebrow}>1대1 대결 결과</Text>
                       <Text style={styles.finishSummaryTitle}>{duelFinishSummary.title}</Text>
                       <Text style={styles.finishSummaryText}>{duelFinishSummary.summary}</Text>
                     </View>
@@ -3224,14 +3245,16 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       ]}
                     >
                       <Text style={styles.finishSummaryBadgeText}>
-                        {duelFinishSummary.resultTone === 'win' ? 'WIN' : duelFinishSummary.resultTone === 'lose' ? 'CHASE' : 'DRAW'}
+                        {duelFinishSummary.badgeLabel}
                       </Text>
                     </View>
                   </View>
                   <Text style={styles.finishSummaryMeta}>
                     내 거리 {distanceKm.toFixed(2)}km · {effectiveDuelOpponent.name}님 추정 {duelFinishSummary.opponentDistanceKm.toFixed(2)}km
                   </Text>
-                  <Text style={styles.finishSummaryHint}>상대 기록은 현재 매치 페이스 기준 추정치예요. 저장 후 최종 기록 비교를 이어서 볼 수 있게 확장할 예정입니다.</Text>
+                  <View style={styles.finishSummaryPointPill}>
+                    <Text style={styles.finishSummaryPointPillText}>매치 포인트 +{estimatedMatchBonusPoints}P</Text>
+                  </View>
                 </Card>
               ) : null}
 
@@ -3239,7 +3262,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                 <Card style={styles.finishSummaryCard}>
                   <View style={styles.finishSummaryHeader}>
                     <View style={styles.finishSummaryCopy}>
-                      <Text style={styles.finishSummaryEyebrow}>GROUP RESULT</Text>
+                      <Text style={styles.finishSummaryEyebrow}>그룹 대결 결과</Text>
                       <Text style={styles.finishSummaryTitle}>{groupFinishSummary.title}</Text>
                       <Text style={styles.finishSummaryText}>{groupFinishSummary.summary}</Text>
                     </View>
@@ -3248,6 +3271,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         {currentGroupStanding?.rank ?? 1}/{effectiveGroupParticipantCount}
                       </Text>
                     </View>
+                  </View>
+                  <View style={styles.finishSummaryPointPill}>
+                    <Text style={styles.finishSummaryPointPillText}>매치 포인트 +{estimatedMatchBonusPoints}P</Text>
                   </View>
                   <View style={styles.finishSummaryPodium}>
                     {groupFinishSummary.podium.map((participant) => (
@@ -3263,20 +3289,11 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       </View>
                     ))}
                   </View>
-                  <Text style={styles.finishSummaryHint}>지금 보이는 순위는 종료 시점 기준 임시 순위예요. 이후 실시간 동기화 결과에 따라 조금 조정될 수 있어요.</Text>
                 </Card>
               ) : null}
 
               <View style={styles.actionColumn}>
                 <PrimaryButton label="이 기록 저장하기" onPress={handleSaveTracking} />
-                {matchMode !== 'solo' ? (
-                  <SecondaryButton
-                    label="저장 후 다시 매칭"
-                    onPress={() => {
-                      void handleSaveTracking({ rematchAfterSave: true });
-                    }}
-                  />
-                ) : null}
                 <SecondaryButton label="측정 다시 시작" onPress={handleResumeTracking} />
                 <Pressable style={styles.discardButton} onPress={handleDiscardTracking}>
                   <Text style={styles.discardButtonText}>이 기록 버리기</Text>
@@ -3916,6 +3933,18 @@ const styles = StyleSheet.create({
     color: '#344054',
     fontSize: 13,
     fontWeight: '700',
+  },
+  finishSummaryPointPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#EEF2FF',
+  },
+  finishSummaryPointPillText: {
+    color: '#4338CA',
+    fontSize: 12,
+    fontWeight: '800',
   },
   finishSummaryHint: {
     color: '#667085',
