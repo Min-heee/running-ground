@@ -185,6 +185,7 @@ npm run build:ios:testflight
 After the build lands on the phone, use:
 - [testflight-real-device-qa.md](/docs/testflight-real-device-qa.md)
 - [device-integration-qa-matrix.md](/docs/device-integration-qa-matrix.md)
+- [android-install-and-first-sync.md](/docs/android-install-and-first-sync.md)
 
 Before starting the phone pass, you can generate a seeded QA note:
 

@@ -8,6 +8,9 @@
 - Galaxy + Galaxy Watch 사용자 흐름이 Health Connect 중심으로 자연스럽게 동작하는지 확인
 - NRC, MyNB, Strava, Garmin 조합이 실제로 어떤 경로로 앱에 들어오는지 헷갈리지 않게 정리
 
+Galaxy 설치부터 바로 보고 싶으면:
+- [android-install-and-first-sync.md](/docs/android-install-and-first-sync.md)
+
 ## 현재 지원 전략 한 줄 요약
 ### iPhone / Apple Watch
 - 기본 허브: `Apple Health`
