@@ -266,6 +266,7 @@ await runTest('registers a user, hashes password, and creates a session', async 
     friendAlerts: true,
     districtAlerts: true,
     marketAlerts: false,
+    matchReminders: true,
   });
   assert.equal(database.transactions, 1);
 });

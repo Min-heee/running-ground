@@ -59,6 +59,7 @@ export function createDefaultNotificationSettings() {
     friendAlerts: true,
     districtAlerts: true,
     marketAlerts: false,
+    matchReminders: true,
   };
 }
 

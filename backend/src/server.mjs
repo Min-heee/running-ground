@@ -5,7 +5,7 @@ import { createFriendsLeagueBridge } from './bridges/friendsLeagueBridge.mjs';
 import { createSessionRunsBridge } from './bridges/sessionRunsBridge.mjs';
 import { createPostgresDatabase } from './database/postgresDatabase.mjs';
 import { createJsonAdminRepository } from './repositories/adminRepository.mjs';
-import { createDefaultConnectedSources, createJsonAuthRepository } from './repositories/authRepository.mjs';
+import { createDefaultConnectedSources, createDefaultNotificationSettings, createJsonAuthRepository } from './repositories/authRepository.mjs';
 import { createJsonFriendsRepository } from './repositories/friendsRepository.mjs';
 import { createJsonLeagueRepository } from './repositories/leagueRepository.mjs';
 import { createJsonMarketRepository } from './repositories/marketRepository.mjs';
@@ -90,6 +90,7 @@ const GROUP_MIN_COMPATIBILITY_SCORE = 68;
 const GROUP_MIN_PARTICIPANTS = 5;
 const MATCH_BOOKING_WINDOW_DAYS = 7;
 const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
+const MATCH_CANCELLATION_CUTOFF_MS = 60 * 60 * 1000;
 const MATCH_SESSION_ACTIVE_TTL_MS = 4 * 60 * 60 * 1000;
 const MATCH_PARTICIPANT_RUNNING_STALE_MS = 90 * 1000;
 const MATCH_PARTICIPANT_BACKGROUND_STALE_MS = 20 * 60 * 1000;
@@ -1217,6 +1218,8 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
   });
   const capacity = mode === 'duel' ? 2 : 30;
   const distanceRecommendationHint = buildDistanceRecommendationHint(distanceKm);
+  const cancelableUntilAt = new Date(new Date(slotStartAt).getTime() - MATCH_CANCELLATION_CUTOFF_MS).toISOString();
+  const canCancelReservation = now.getTime() < new Date(cancelableUntilAt).getTime();
 
   if (session) {
     const state = hydrateMatchSessionState(session, now);
@@ -1246,6 +1249,8 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
         capacity,
         userAccepted: true,
         readyToStart,
+        canCancel: state === 'matched' ? canCancelReservation : false,
+        cancelableUntilAt,
         ...(opponent ? { opponent } : {}),
       };
     }
@@ -1274,6 +1279,8 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
       capacity,
       userAccepted: true,
       readyToStart,
+      canCancel: state === 'matched' ? canCancelReservation : false,
+      cancelableUntilAt,
       participants,
       mySeedRank,
     };
@@ -1536,6 +1543,7 @@ function buildUpcomingRunningMatchesResponse(store, currentUser) {
 
       if (session.mode === 'duel') {
         const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now);
+        const cancelableUntilAt = new Date(new Date(session.slotStartAt).getTime() - MATCH_CANCELLATION_CUTOFF_MS).toISOString();
         return {
           matchId: session.id,
           mode: 'duel',
@@ -1546,10 +1554,13 @@ function buildUpcomingRunningMatchesResponse(store, currentUser) {
           participantCount: 2,
           counterpartLabel: opponent?.name ?? '상대 미정',
           summary: `${buildMatchSlotDateLabel(session.slotStartAt)} ${formatDuelSlotLabel(session.slotStartAt)} · ${session.distanceKm.toFixed(1)}km`,
+          canCancel: state === 'matched' && now.getTime() < new Date(cancelableUntilAt).getTime(),
+          cancelableUntilAt,
         };
       }
 
       const participants = buildSessionGroupParticipants(store, session, now);
+      const cancelableUntilAt = new Date(new Date(session.slotStartAt).getTime() - MATCH_CANCELLATION_CUTOFF_MS).toISOString();
       return {
         matchId: session.id,
         mode: 'group',
@@ -1560,6 +1571,8 @@ function buildUpcomingRunningMatchesResponse(store, currentUser) {
         participantCount: participants.length,
         counterpartLabel: `${participants.length}명 그룹`,
         summary: `${buildMatchSlotDateLabel(session.slotStartAt)} ${formatDuelSlotLabel(session.slotStartAt)} · ${session.distanceKm.toFixed(1)}km`,
+        canCancel: state === 'matched' && now.getTime() < new Date(cancelableUntilAt).getTime(),
+        cancelableUntilAt,
       };
     })
     .filter(Boolean)
@@ -1598,6 +1611,14 @@ function cancelRunningMatch(store, currentUser, { mode, distanceKm, slotStartAt,
 
     if (state === 'active') {
       throw new ApiError(400, '이미 출발한 매치는 취소할 수 없어.');
+    }
+
+    if (state === 'matched') {
+      const cancellationDeadline = new Date(new Date(session.slotStartAt).getTime() - MATCH_CANCELLATION_CUTOFF_MS);
+
+      if (Date.now() >= cancellationDeadline.getTime()) {
+        throw new ApiError(400, '출발 1시간 전부터는 예약을 취소할 수 없어.');
+      }
     }
 
     const requeuedParticipants = session.participants
@@ -1680,10 +1701,9 @@ function updateRunningMatchProgress(store, currentUser, { matchId, distanceKm, e
 }
 
 function buildNotificationSettings(user) {
-  return clone(user.notificationSettings ?? {
-    friendAlerts: true,
-    districtAlerts: true,
-    marketAlerts: false,
+  return clone({
+    ...createDefaultNotificationSettings(),
+    ...(user.notificationSettings ?? {}),
   });
 }
 
@@ -3710,6 +3730,7 @@ async function handlePatchMyNotifications(request, response) {
       friendAlerts: validateBoolean(body.friendAlerts, '친구 알림 설정값이 올바르지 않아.'),
       districtAlerts: validateBoolean(body.districtAlerts, '지역 알림 설정값이 올바르지 않아.'),
       marketAlerts: validateBoolean(body.marketAlerts, '마켓 알림 설정값이 올바르지 않아.'),
+      matchReminders: validateBoolean(body.matchReminders, '매치 알림 설정값이 올바르지 않아.'),
     };
 
     return buildNotificationSettings(user);

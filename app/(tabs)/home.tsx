@@ -1,11 +1,12 @@
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Text, View, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, Text, View, StyleSheet } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
 import { HomeOverview } from '@/features/home/HomeOverview';
 import { AppNotice, UserProfile, WeeklySummary } from '@/domain/types';
-import { fetchActiveNotices, fetchHomeSummary, fetchMyActivity, fetchMyProfile, fetchUpcomingRunningMatches } from '@/lib/api/services';
+import { syncScheduledMatchNotifications } from '@/lib/matchNotifications';
+import { cancelRunningMatch, fetchActiveNotices, fetchHomeSummary, fetchMyActivity, fetchMyProfile, fetchNotificationSettings, fetchUpcomingRunningMatches } from '@/lib/api/services';
 import { getCurrentUserProfile } from '@/lib/session';
 import { MyActivityResponse, UpcomingRunningMatchItem } from '@/lib/api/types';
 
@@ -15,6 +16,8 @@ export default function HomeScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(getCurrentUserProfile());
   const [activity, setActivity] = useState<MyActivityResponse | null>(null);
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingRunningMatchItem[]>([]);
+  const [matchRemindersEnabled, setMatchRemindersEnabled] = useState(true);
+  const [cancelingMatchId, setCancelingMatchId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,12 +28,13 @@ export default function HomeScreen() {
       setLoading(true);
       setError(null);
 
-      const [summaryResult, profileResult, activityResult, noticesResult, upcomingMatchesResult] = await Promise.allSettled([
+      const [summaryResult, profileResult, activityResult, noticesResult, upcomingMatchesResult, notificationSettingsResult] = await Promise.allSettled([
         fetchHomeSummary(),
         fetchMyProfile(),
         fetchMyActivity(),
         fetchActiveNotices(),
         fetchUpcomingRunningMatches(),
+        fetchNotificationSettings(),
       ]);
 
       if (!active) {
@@ -44,9 +48,13 @@ export default function HomeScreen() {
       }
 
       if (upcomingMatchesResult.status === 'fulfilled') {
-        setUpcomingMatches(upcomingMatchesResult.value.items.slice(0, 2));
+        setUpcomingMatches(upcomingMatchesResult.value.items);
       } else {
         setUpcomingMatches([]);
+      }
+
+      if (notificationSettingsResult.status === 'fulfilled') {
+        setMatchRemindersEnabled(notificationSettingsResult.value.matchReminders);
       }
 
       if (summaryResult.status === 'rejected') {
@@ -83,6 +91,29 @@ export default function HomeScreen() {
 
   useFocusEffect(loadHome);
 
+  useEffect(() => {
+    void syncScheduledMatchNotifications(upcomingMatches, matchRemindersEnabled);
+  }, [matchRemindersEnabled, upcomingMatches]);
+
+  const handleCancelUpcomingMatch = async (match: UpcomingRunningMatchItem) => {
+    try {
+      setError(null);
+      setCancelingMatchId(match.matchId);
+      await cancelRunningMatch({
+        mode: match.mode,
+        distanceKm: match.distanceKm,
+        slotStartAt: match.slotStartAt,
+        matchId: match.matchId,
+      });
+      const payload = await fetchUpcomingRunningMatches();
+      setUpcomingMatches(payload.items);
+    } catch (cancelError) {
+      setError(cancelError instanceof Error ? cancelError.message : '예약을 취소하지 못했어.');
+    } finally {
+      setCancelingMatchId(null);
+    }
+  };
+
   return (
     <Screen>
       <View style={styles.contentWrap}>
@@ -102,13 +133,29 @@ export default function HomeScreen() {
         {upcomingMatches.length ? (
           <Card style={styles.upcomingCard}>
             <Text style={styles.upcomingLabel}>다가오는 대결</Text>
-            {upcomingMatches.map((match) => (
+            {upcomingMatches.slice(0, 2).map((match) => (
               <View key={match.matchId} style={styles.upcomingRow}>
                 <View style={styles.upcomingCopy}>
                   <Text style={styles.upcomingTitle}>
                     {match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
                   </Text>
                   <Text style={styles.upcomingMeta}>{match.counterpartLabel}</Text>
+                  {match.status === 'matched' ? (
+                    match.canCancel ? (
+                      <Pressable
+                        style={styles.upcomingCancelButton}
+                        onPress={() => {
+                          void handleCancelUpcomingMatch(match);
+                        }}
+                      >
+                        <Text style={styles.upcomingCancelText}>
+                          {cancelingMatchId === match.matchId ? '취소 중...' : '예약 취소'}
+                        </Text>
+                      </Pressable>
+                    ) : (
+                      <Text style={styles.upcomingHelperText}>출발 1시간 전부터는 취소할 수 없어요.</Text>
+                    )
+                  ) : null}
                 </View>
                 <Text style={styles.upcomingState}>{match.status === 'active' ? '진행 중' : '예약됨'}</Text>
               </View>
@@ -196,6 +243,27 @@ const styles = StyleSheet.create({
   upcomingMeta: {
     color: '#D0D5DD',
     lineHeight: 19,
+  },
+  upcomingCancelButton: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#1F2937',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  upcomingCancelText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  upcomingHelperText: {
+    color: '#A5B4FC',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
   },
   upcomingState: {
     color: '#A5B4FC',

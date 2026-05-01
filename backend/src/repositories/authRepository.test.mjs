@@ -148,6 +148,7 @@ await runTest('registers a user, hashes password, and creates a session', () => 
     friendAlerts: true,
     districtAlerts: true,
     marketAlerts: false,
+    matchReminders: true,
   });
 });
 

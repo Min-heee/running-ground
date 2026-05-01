@@ -206,6 +206,8 @@ export type RunningMatchStatusResponse = {
   capacity: number;
   userAccepted: boolean;
   readyToStart: boolean;
+  canCancel?: boolean;
+  cancelableUntilAt?: string;
   countdownRemainingSeconds?: number;
   countdownEndsAt?: string;
   expiresAt?: string;
@@ -225,6 +227,8 @@ export type UpcomingRunningMatchItem = {
   participantCount: number;
   counterpartLabel: string;
   summary: string;
+  canCancel: boolean;
+  cancelableUntilAt: string;
 };
 
 export type UpcomingRunningMatchesResponse = {
@@ -374,6 +378,7 @@ export type NotificationSettingsResponse = {
   friendAlerts: boolean;
   districtAlerts: boolean;
   marketAlerts: boolean;
+  matchReminders: boolean;
 };
 
 export type UpdateMyProfileInput = {

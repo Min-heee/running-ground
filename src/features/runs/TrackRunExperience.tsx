@@ -25,6 +25,7 @@ import {
   cancelRunningMatch,
   createTrackedRun,
   fetchMatchDemandSummary,
+  fetchNotificationSettings,
   fetchUpcomingRunningMatches,
   fetchRunningMatchStatus,
   leaveRunningMatch,
@@ -33,6 +34,7 @@ import {
   updateRunningMatchProgress,
   updateRunningLiveShare,
 } from '@/lib/api/services';
+import { syncScheduledMatchNotifications } from '@/lib/matchNotifications';
 import {
   type DuelMatchOpponent,
   type GroupMatchParticipant,
@@ -600,6 +602,8 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [isLoadingGroupDemandSummary, setIsLoadingGroupDemandSummary] = useState(false);
   const [groupMatchNotice, setGroupMatchNotice] = useState<string | null>(null);
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingRunningMatchItem[]>([]);
+  const [matchRemindersEnabled, setMatchRemindersEnabled] = useState(true);
+  const [cancelingUpcomingMatchId, setCancelingUpcomingMatchId] = useState<string | null>(null);
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const routeCoordinates = useMemo(
@@ -686,6 +690,8 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const selectedMatch = matchOptions.find((option) => option.mode === matchMode) ?? matchOptions[0];
   const duelMatchState = duelMatchStatus?.state ?? 'idle';
   const groupMatchState = groupMatchStatus?.state ?? 'idle';
+  const duelReservationLocked = duelMatchState === 'matched' && duelMatchStatus?.canCancel === false;
+  const groupReservationLocked = groupMatchState === 'matched' && groupMatchStatus?.canCancel === false;
   const effectiveDuelOpponent = duelMatchStatus?.opponent ?? duelMatchResult?.opponent ?? null;
   const effectiveDuelOpponentStatusLabel = effectiveDuelOpponent
     ? buildMatchParticipantStatusLabel(effectiveDuelOpponent.liveStatus)
@@ -1251,6 +1257,29 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   }, [duelMatchStatus?.matchId, duelMatchStatus?.state, groupMatchStatus?.matchId, groupMatchStatus?.state]);
 
   useEffect(() => {
+    let canceled = false;
+    void fetchNotificationSettings()
+      .then((settings) => {
+        if (!canceled) {
+          setMatchRemindersEnabled(settings.matchReminders);
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setMatchRemindersEnabled(true);
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    void syncScheduledMatchNotifications(upcomingMatches, matchRemindersEnabled);
+  }, [matchRemindersEnabled, upcomingMatches]);
+
+  useEffect(() => {
     if (matchMode !== 'duel' || !duelMatchStatus || !['waiting', 'matched', 'active'].includes(duelMatchStatus.state)) {
       return;
     }
@@ -1789,6 +1818,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
   const handleCancelDuelMatch = async () => {
     try {
+      if (duelMatchState === 'matched' && duelMatchStatus?.canCancel === false) {
+        throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어.');
+      }
+
       setError(null);
       setDuelMatchNotice(null);
       setIsCancelingDuelMatch(true);
@@ -1820,6 +1853,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
   const handleCancelGroupMatch = async () => {
     try {
+      if (groupMatchState === 'matched' && groupMatchStatus?.canCancel === false) {
+        throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어.');
+      }
+
       setError(null);
       setGroupMatchNotice(null);
       setIsCancelingGroupMatch(true);
@@ -1846,6 +1883,36 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       setError(matchError instanceof Error ? matchError.message : '그룹 매치를 취소하지 못했어.');
     } finally {
       setIsCancelingGroupMatch(false);
+    }
+  };
+
+  const handleCancelUpcomingMatch = async (match: UpcomingRunningMatchItem) => {
+    try {
+      if (!match.canCancel) {
+        throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어.');
+      }
+
+      setError(null);
+      setCancelingUpcomingMatchId(match.matchId);
+      await cancelRunningMatch({
+        mode: match.mode,
+        distanceKm: match.distanceKm,
+        slotStartAt: match.slotStartAt,
+        matchId: match.matchId,
+      });
+      await loadUpcomingMatches();
+      if (match.mode === 'duel' && duelMatchStatus?.matchId === match.matchId) {
+        setDuelMatchResult(null);
+        setDuelMatchStatus(null);
+      }
+      if (match.mode === 'group' && groupMatchStatus?.matchId === match.matchId) {
+        setGroupMatchResult(null);
+        setGroupMatchStatus(null);
+      }
+    } catch (cancelError) {
+      setError(cancelError instanceof Error ? cancelError.message : '예약을 취소하지 못했어.');
+    } finally {
+      setCancelingUpcomingMatchId(null);
     }
   };
 
@@ -2199,6 +2266,22 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         {match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
                       </Text>
                       <Text style={styles.upcomingMatchMeta}>{match.counterpartLabel}</Text>
+                      {match.status === 'matched' ? (
+                        match.canCancel ? (
+                          <Pressable
+                            style={styles.upcomingMatchCancelButton}
+                            onPress={() => {
+                              void handleCancelUpcomingMatch(match);
+                            }}
+                          >
+                            <Text style={styles.upcomingMatchCancelText}>
+                              {cancelingUpcomingMatchId === match.matchId ? '취소 중...' : '예약 취소'}
+                            </Text>
+                          </Pressable>
+                        ) : (
+                          <Text style={styles.upcomingMatchHelperText}>출발 1시간 전부터는 취소할 수 없어요.</Text>
+                        )
+                      ) : null}
                     </View>
                     <Text style={styles.upcomingMatchState}>{match.status === 'active' ? '진행 중' : '예약됨'}</Text>
                   </View>
@@ -2457,12 +2540,16 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                   ) : null}
 
                   {duelMatchState === 'waiting' || duelMatchState === 'matched' ? (
-                    <SecondaryButton
-                      label={isCancelingDuelMatch ? '취소 중...' : duelMatchState === 'matched' ? '1대1 예약 취소' : '1대1 대기 취소'}
-                      onPress={() => {
-                        void handleCancelDuelMatch();
-                      }}
-                    />
+                    <>
+                      <SecondaryButton
+                        label={isCancelingDuelMatch ? '취소 중...' : duelMatchState === 'matched' ? '1대1 예약 취소' : '1대1 대기 취소'}
+                        onPress={() => {
+                          void handleCancelDuelMatch();
+                        }}
+                        disabled={duelReservationLocked}
+                      />
+                      {duelReservationLocked ? <Text style={styles.matchCancelHelperText}>출발 1시간 전부터는 예약을 취소할 수 없어요.</Text> : null}
+                    </>
                   ) : duelMatchState === 'active' ? null : (
                     <SecondaryButton
                       label="1대1 매칭 찾기"
@@ -2681,12 +2768,16 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                   ) : null}
 
                   {groupMatchState === 'waiting' || groupMatchState === 'matched' ? (
-                    <SecondaryButton
-                      label={isCancelingGroupMatch ? '취소 중...' : groupMatchState === 'matched' ? '그룹 예약 취소' : '그룹 대기 취소'}
-                      onPress={() => {
-                        void handleCancelGroupMatch();
-                      }}
-                    />
+                    <>
+                      <SecondaryButton
+                        label={isCancelingGroupMatch ? '취소 중...' : groupMatchState === 'matched' ? '그룹 예약 취소' : '그룹 대기 취소'}
+                        onPress={() => {
+                          void handleCancelGroupMatch();
+                        }}
+                        disabled={groupReservationLocked}
+                      />
+                      {groupReservationLocked ? <Text style={styles.matchCancelHelperText}>출발 1시간 전부터는 예약을 취소할 수 없어요.</Text> : null}
+                    </>
                   ) : groupMatchState === 'active' ? null : (
                     <SecondaryButton
                       label="그룹 매칭 찾기"
@@ -3258,6 +3349,27 @@ const styles = StyleSheet.create({
     color: '#D0D5DD',
     lineHeight: 18,
   },
+  upcomingMatchCancelButton: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  upcomingMatchCancelText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  upcomingMatchHelperText: {
+    color: '#A5B4FC',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
+  },
   upcomingMatchState: {
     color: '#A5B4FC',
     fontSize: 12,
@@ -3725,6 +3837,13 @@ const styles = StyleSheet.create({
     color: '#E0E7FF',
     fontSize: 12,
     fontWeight: '800',
+  },
+  matchCancelHelperText: {
+    color: '#98A2B3',
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: -4,
   },
   groupParticipantList: {
     gap: 8,

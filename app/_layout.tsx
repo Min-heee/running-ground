@@ -22,6 +22,23 @@ export default function RootLayout() {
     hydrateSession().finally(() => setReady(true));
   }, []);
 
+  useEffect(() => {
+    void import('expo-notifications')
+      .then((Notifications) => {
+        Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+          }),
+        });
+      })
+      .catch(() => {
+        // Older binaries may not have the native notification module yet.
+      });
+  }, []);
+
   if (!ready) {
     return (
       <SafeAreaProvider>

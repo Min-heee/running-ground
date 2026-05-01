@@ -14,6 +14,7 @@ export const myNotificationSettings = {
   friendAlerts: true,
   districtAlerts: true,
   marketAlerts: false,
+  matchReminders: true,
 };
 
 export const marketOverview: MarketOverview = {

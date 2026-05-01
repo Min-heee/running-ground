@@ -6,12 +6,14 @@ import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { fetchNotificationSettings, updateNotificationSettings } from '@/lib/api/services';
+import { syncScheduledMatchNotifications, ensureMatchReminderPermissions } from '@/lib/matchNotifications';
+import { fetchNotificationSettings, fetchUpcomingRunningMatches, updateNotificationSettings } from '@/lib/api/services';
 
 export default function NotificationSettingsScreen() {
   const [friendAlerts, setFriendAlerts] = useState(true);
   const [districtAlerts, setDistrictAlerts] = useState(true);
   const [marketAlerts, setMarketAlerts] = useState(false);
+  const [matchReminders, setMatchReminders] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -23,6 +25,7 @@ export default function NotificationSettingsScreen() {
         setFriendAlerts(settings.friendAlerts);
         setDistrictAlerts(settings.districtAlerts);
         setMarketAlerts(settings.marketAlerts);
+        setMatchReminders(settings.matchReminders);
       })
       .catch((loadError) => {
         setError(loadError instanceof Error ? loadError.message : '알림 설정을 불러오지 못했어.');
@@ -35,15 +38,27 @@ export default function NotificationSettingsScreen() {
     setSaving(true);
 
     try {
+      if (matchReminders) {
+        const hasPermission = await ensureMatchReminderPermissions();
+
+        if (!hasPermission) {
+          throw new Error('기기 알림 권한을 허용해야 예약 매치 알림을 켤 수 있어.');
+        }
+      }
+
       const settings = await updateNotificationSettings({
         friendAlerts,
         districtAlerts,
         marketAlerts,
+        matchReminders,
       });
+      const upcomingMatches = await fetchUpcomingRunningMatches().catch(() => ({ items: [] }));
+      await syncScheduledMatchNotifications(upcomingMatches.items, settings.matchReminders);
 
       setFriendAlerts(settings.friendAlerts);
       setDistrictAlerts(settings.districtAlerts);
       setMarketAlerts(settings.marketAlerts);
+      setMatchReminders(settings.matchReminders);
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
@@ -71,6 +86,7 @@ export default function NotificationSettingsScreen() {
               <ToggleRow label="친구 요청 및 수락 알림" active={friendAlerts} disabled={saving} onPress={() => setFriendAlerts((prev) => !prev)} />
               <ToggleRow label="지역 경쟁 순위 변동 알림" active={districtAlerts} disabled={saving} onPress={() => setDistrictAlerts((prev) => !prev)} />
               <ToggleRow label="마켓/리워드 소식 알림" active={marketAlerts} disabled={saving} onPress={() => setMarketAlerts((prev) => !prev)} />
+              <ToggleRow label="예약 매치 시작 알림" active={matchReminders} disabled={saving} onPress={() => setMatchReminders((prev) => !prev)} />
             </View>
           </Card>
 

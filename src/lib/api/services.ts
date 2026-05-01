@@ -160,6 +160,7 @@ const DUEL_MIN_COMPATIBILITY_SCORE = 72;
 const GROUP_MIN_COMPATIBILITY_SCORE = 68;
 const GROUP_MIN_PARTICIPANTS = 5;
 const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
+const MATCH_CANCELLATION_CUTOFF_MS = 60 * 60 * 1000;
 const MATCH_RUNNING_STALE_MS = 90 * 1000;
 const MATCH_BACKGROUND_STALE_MS = 20 * 60 * 1000;
 
@@ -279,6 +280,16 @@ function getMockMatchBookingClosesAt(slotStartAt: string) {
   }
 
   return new Date(slotStartAtMs - MATCH_BOOKING_CUTOFF_MS).toISOString();
+}
+
+function getMockMatchCancelableUntilAt(slotStartAt: string) {
+  const slotStartAtMs = new Date(slotStartAt).getTime();
+
+  if (!Number.isFinite(slotStartAtMs)) {
+    return null;
+  }
+
+  return new Date(slotStartAtMs - MATCH_CANCELLATION_CUTOFF_MS).toISOString();
 }
 
 function buildPaceBandLabel(baseSecondsPerKm: number) {
@@ -716,6 +727,9 @@ function buildMockDuelMatchStatus(response: RequestDuelMatchResponse): RunningMa
     capacity: 2,
     userAccepted: true,
     readyToStart: new Date(response.slotStartAt).getTime() <= Date.now(),
+    canCancel: Boolean(getMockMatchCancelableUntilAt(response.slotStartAt))
+      && Date.now() < new Date(getMockMatchCancelableUntilAt(response.slotStartAt) ?? 0).getTime(),
+    cancelableUntilAt: getMockMatchCancelableUntilAt(response.slotStartAt) ?? undefined,
     expiresAt: getMockMatchBookingClosesAt(response.slotStartAt) ?? undefined,
     expiresInSeconds: getMockMatchBookingClosesAt(response.slotStartAt)
       ? Math.max(0, Math.ceil((new Date(getMockMatchBookingClosesAt(response.slotStartAt)!).getTime() - Date.now()) / 1000))
@@ -754,6 +768,9 @@ function buildMockGroupMatchStatus(response: RequestGroupMatchResponse): Running
     capacity: response.maxGroupSize,
     userAccepted: true,
     readyToStart: new Date(response.slotStartAt).getTime() <= Date.now(),
+    canCancel: Boolean(getMockMatchCancelableUntilAt(response.slotStartAt))
+      && Date.now() < new Date(getMockMatchCancelableUntilAt(response.slotStartAt) ?? 0).getTime(),
+    cancelableUntilAt: getMockMatchCancelableUntilAt(response.slotStartAt) ?? undefined,
     expiresAt: getMockMatchBookingClosesAt(response.slotStartAt) ?? undefined,
     expiresInSeconds: getMockMatchBookingClosesAt(response.slotStartAt)
       ? Math.max(0, Math.ceil((new Date(getMockMatchBookingClosesAt(response.slotStartAt)!).getTime() - Date.now()) / 1000))
@@ -1509,6 +1526,10 @@ export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatc
           ? session.opponent?.name ?? '상대 미정'
           : `${session.participantCount}명 그룹`,
         summary: `${formatMockMatchSlotDateLabel(session.slotStartAt)} ${session.slotLabel} · ${session.distanceKm.toFixed(1)}km`,
+        canCancel: session.state === 'matched'
+          && Boolean(getMockMatchCancelableUntilAt(session.slotStartAt))
+          && Date.now() < new Date(getMockMatchCancelableUntilAt(session.slotStartAt) ?? 0).getTime(),
+        cancelableUntilAt: getMockMatchCancelableUntilAt(session.slotStartAt) ?? new Date(session.slotStartAt).toISOString(),
       }))
       .sort((left, right) => new Date(left.slotStartAt).getTime() - new Date(right.slotStartAt).getTime());
 
@@ -2063,6 +2084,7 @@ export async function updateNotificationSettings(
       friendAlerts: input.friendAlerts,
       districtAlerts: input.districtAlerts,
       marketAlerts: input.marketAlerts,
+      matchReminders: input.matchReminders,
     };
 
     return { ...mockNotificationPreferences };
@@ -2074,6 +2096,7 @@ export async function updateNotificationSettings(
       friendAlerts: input.friendAlerts,
       districtAlerts: input.districtAlerts,
       marketAlerts: input.marketAlerts,
+      matchReminders: input.matchReminders,
     },
     {
       accessToken: await requireAccessToken(),
