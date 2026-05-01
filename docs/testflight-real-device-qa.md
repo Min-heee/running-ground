@@ -8,6 +8,9 @@
 - 로그인 이후 핵심 화면이 실제 preview 백엔드와 정상 연결되는지 확인
 - 기록 가져오기, 친구/리그, 마켓/레이스처럼 출시 직전 리스크가 큰 흐름을 짧은 시간 안에 확인
 
+기기 연동 조합까지 같이 볼 때는 아래 문서를 같이 열어두는 편이 좋다.
+- [device-integration-qa-matrix.md](/docs/device-integration-qa-matrix.md)
+
 ## 시작 전 준비
 ### 데스크탑 preview 상태 먼저 확인
 Windows 데스크탑에서 아래 명령이 가장 강한 사전 점검이야.
@@ -171,6 +174,9 @@ npm run preview:smoke -- --admin-token PREVIEW_ADMIN_TOKEN
 1. NRC로 러닝 기록
 2. Apple 건강 앱 반영 확인
 3. 우리 앱에서 기록 가져오기 또는 동기화
+
+기기/앱 조합별 더 자세한 체크는:
+- [device-integration-qa-matrix.md](/docs/device-integration-qa-matrix.md)
 
 통과 기준:
 - 연동 관리 화면 설명이 현재 정책과 맞다.

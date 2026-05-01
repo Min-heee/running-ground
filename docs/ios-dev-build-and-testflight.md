@@ -72,6 +72,7 @@ npm run submit:ios:testflight
 
 After the build is visible in TestFlight, run the phone pass using:
 - [testflight-real-device-qa.md](/docs/testflight-real-device-qa.md)
+- [device-integration-qa-matrix.md](/docs/device-integration-qa-matrix.md)
 
 ## required values before TestFlight submission
 - Expo account login
