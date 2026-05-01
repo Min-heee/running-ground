@@ -4,22 +4,13 @@ import { useFocusEffect } from 'expo-router';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
 import { HomeOverview } from '@/features/home/HomeOverview';
-import { AppNotice, OfflineRaceEvent, UserProfile, WeeklySummary } from '@/domain/types';
-import { fetchActiveNotices, fetchFriendLeaderboard, fetchHomeSummary, fetchMyActivity, fetchMyProfile, fetchOfflineRaceHub } from '@/lib/api/services';
+import { AppNotice, UserProfile, WeeklySummary } from '@/domain/types';
+import { fetchActiveNotices, fetchHomeSummary, fetchMyActivity, fetchMyProfile } from '@/lib/api/services';
 import { getCurrentUserProfile } from '@/lib/session';
 import { MyActivityResponse } from '@/lib/api/types';
 
-type HomeFriendOverview = {
-  myRank: number | null;
-  totalParticipants: number;
-  leaderName: string;
-};
-
 export default function HomeScreen() {
   const [summary, setSummary] = useState<WeeklySummary | null>(null);
-  const [friendOverview, setFriendOverview] = useState<HomeFriendOverview | null>(null);
-  const [nextRace, setNextRace] = useState<OfflineRaceEvent | null>(null);
-  const [myRace, setMyRace] = useState<OfflineRaceEvent | null>(null);
   const [notices, setNotices] = useState<AppNotice[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(getCurrentUserProfile());
   const [activity, setActivity] = useState<MyActivityResponse | null>(null);
@@ -33,10 +24,8 @@ export default function HomeScreen() {
       setLoading(true);
       setError(null);
 
-      const [summaryResult, leaderboardResult, raceHubResult, profileResult, activityResult, noticesResult] = await Promise.allSettled([
+      const [summaryResult, profileResult, activityResult, noticesResult] = await Promise.allSettled([
         fetchHomeSummary(),
-        fetchFriendLeaderboard(),
-        fetchOfflineRaceHub(),
         fetchMyProfile(),
         fetchMyActivity(),
         fetchActiveNotices(),
@@ -54,7 +43,6 @@ export default function HomeScreen() {
 
       if (summaryResult.status === 'rejected') {
         setSummary(null);
-        setFriendOverview(null);
         setError('홈 정보를 불러오지 못했어.');
         setLoading(false);
         return;
@@ -73,40 +61,6 @@ export default function HomeScreen() {
         setActivity(activityResult.value);
       } else {
         setActivity(null);
-      }
-
-      if (leaderboardResult.status === 'fulfilled') {
-        const currentProfile = profileResult.status === 'fulfilled' ? profileResult.value : getCurrentUserProfile();
-        setProfile(currentProfile);
-        const myEntry = leaderboardResult.value.ranks.find((entry) => (
-          (currentProfile?.publicTag && entry.tag === currentProfile.publicTag)
-          || (currentProfile?.name && entry.name === currentProfile.name)
-        )) ?? null;
-
-        setFriendOverview({
-          myRank: myEntry?.rank ?? null,
-          totalParticipants: leaderboardResult.value.ranks.length,
-          leaderName: leaderboardResult.value.ranks[0]?.name ?? summaryData.friendName,
-        });
-      } else {
-        setFriendOverview(null);
-      }
-
-      if (raceHubResult.status === 'fulfilled') {
-        const raceEvents = [raceHubResult.value.featuredEvent, ...raceHubResult.value.upcomingEvents]
-          .filter((event): event is OfflineRaceEvent => Boolean(event))
-          .filter((event) => event.status !== 'finished')
-          .sort((left, right) => new Date(left.startsAt).getTime() - new Date(right.startsAt).getTime());
-
-        const nextAvailableEvent = raceEvents
-          .find((event) => event.status !== 'finished') ?? null;
-        const nextRegisteredEvent = raceEvents.find((event) => event.registered) ?? null;
-
-        setNextRace(nextAvailableEvent);
-        setMyRace(nextRegisteredEvent);
-      } else {
-        setNextRace(null);
-        setMyRace(null);
       }
 
       setLoading(false);
@@ -142,9 +96,6 @@ export default function HomeScreen() {
             summary={summary}
             lifetimeDistanceKm={profile?.lifetimeDistanceKm}
             runs={activity?.runs ?? []}
-            friendOverview={friendOverview}
-            nextRace={nextRace}
-            myRace={myRace}
           />
         ) : null}
       </View>

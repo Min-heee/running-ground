@@ -1,37 +1,17 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
-import { router } from 'expo-router';
 import { Card } from '@/components/Card';
-import { MyRunRecord, OfflineRaceEvent, WeeklySummary } from '@/domain/types';
+import { MyRunRecord, WeeklySummary } from '@/domain/types';
 import { buildWeeklyPointOverview } from '@/features/points/pointSystem';
-
-type HomeFriendOverview = {
-  myRank: number | null;
-  totalParticipants: number;
-  leaderName: string;
-};
-
-const raceDateFormatter = new Intl.DateTimeFormat('ko-KR', {
-  month: 'numeric',
-  day: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-});
 
 export function HomeOverview({
   summary,
   lifetimeDistanceKm,
   runs,
-  friendOverview,
-  nextRace,
-  myRace,
 }: {
   summary: WeeklySummary;
   lifetimeDistanceKm?: number;
   runs: MyRunRecord[];
-  friendOverview: HomeFriendOverview | null;
-  nextRace: OfflineRaceEvent | null;
-  myRace: OfflineRaceEvent | null;
 }) {
   const [calendarMonthOffset, setCalendarMonthOffset] = useState(0);
   const calendarReferenceDate = useMemo(() => {
@@ -76,46 +56,23 @@ export function HomeOverview({
     : selectedTrack.scope === 'lifetime'
       ? `레벨업 시 +${selectedTrack.rewardPoints}P`
       : `달성 시 +${selectedTrack.rewardPoints}P`;
-  const friendRankLabel = friendOverview?.myRank ? `${friendOverview.myRank}위` : '친구 추가';
-  const friendSubLabel = friendOverview?.myRank
-    ? friendOverview.myRank === 1
-      ? `지금 ${friendOverview.totalParticipants}명 중 1위를 달리고 있어요`
-      : `1위 ${friendOverview.leaderName} · ${summary.friendGapKm}km 차이`
-    : '친구를 추가하면 내 순위를 바로 볼 수 있어요';
-  const nextRaceTitle = nextRace?.title ?? '다음 레이스 준비 중';
-  const nextRaceTime = nextRace ? raceDateFormatter.format(new Date(nextRace.startsAt)) : '일정 업데이트 예정';
-  const nextRaceDeadline = nextRace
-    ? `${raceDateFormatter.format(new Date(nextRace.registrationClosesAt))} 마감`
-    : '다음 회차가 열리면 바로 확인할 수 있어요';
-  const myRaceTitle = myRace ? `${myRace.title} ${myRace.distanceKm}K` : '신청한 레이스 없음';
-  const myRaceTime = myRace ? raceDateFormatter.format(new Date(myRace.startsAt)) : '레이스 탭에서 원하는 회차를 신청해보세요';
-  const myRaceNote = myRace
-    ? myRace.status === 'live'
-      ? '지금 진행 중인 내 레이스예요'
-      : myRace.status === 'registration_closed'
-        ? '신청 완료 · 출발 시간만 기다리면 돼요'
-        : `${raceDateFormatter.format(new Date(myRace.registrationClosesAt))} 마감`
-    : '신청하면 여기서 바로 확인할 수 있어요';
 
   return (
     <>
-      <Pressable onPress={() => router.push('/(tabs)/league')}>
-        <Card style={styles.regionCard}>
-          <Text style={styles.darkEyebrow}>우리 지역 배틀</Text>
-          <Text style={styles.regionTitle}>{summary.districtBattle.myDistrict}</Text>
-          <View style={styles.regionMetricRow}>
-            <View style={styles.regionMetricBox}>
-              <Text style={styles.regionMetricLabel}>현재 순위</Text>
-              <Text style={styles.regionMetricValue}>{summary.districtBattle.districtRank}위</Text>
-            </View>
-            <View style={styles.regionMetricBox}>
-              <Text style={styles.regionMetricLabel}>총거리</Text>
-              <Text style={styles.regionMetricValue}>{summary.districtBattle.totalDistanceKm}km</Text>
-            </View>
+      <Card style={styles.regionCard}>
+        <Text style={styles.darkEyebrow}>우리 지역 배틀</Text>
+        <Text style={styles.regionTitle}>{summary.districtBattle.myDistrict}</Text>
+        <View style={styles.regionMetricRow}>
+          <View style={styles.regionMetricBox}>
+            <Text style={styles.regionMetricLabel}>현재 순위</Text>
+            <Text style={styles.regionMetricValue}>{summary.districtBattle.districtRank}위</Text>
           </View>
-          <Text style={styles.regionFootnote}>참여율 {summary.districtBattle.participationRate}%</Text>
-        </Card>
-      </Pressable>
+          <View style={styles.regionMetricBox}>
+            <Text style={styles.regionMetricLabel}>총거리</Text>
+            <Text style={styles.regionMetricValue}>{summary.districtBattle.totalDistanceKm}km</Text>
+          </View>
+        </View>
+      </Card>
 
       <Card style={styles.statusCard}>
         <View style={styles.statusMetric}>
@@ -253,46 +210,6 @@ export function HomeOverview({
 
         {selectedTrack.helperText ? <Text style={styles.pointHelper}>{selectedTrack.helperText}</Text> : null}
       </Card>
-
-      <View style={styles.twoColumnRow}>
-        <Pressable
-          style={styles.linkCardWrap}
-          onPress={() => router.push({ pathname: '/(tabs)/friends', params: { scrollToTop: Date.now().toString() } })}
-        >
-          <Card style={styles.compactCard}>
-            <Text style={styles.cardEyebrow}>친구 랭킹</Text>
-            <Text style={styles.compactLabel}>내 순위</Text>
-            <Text style={styles.compactValue}>{friendRankLabel}</Text>
-            <Text style={styles.muted}>{friendSubLabel}</Text>
-          </Card>
-        </Pressable>
-
-        <Pressable
-          style={styles.linkCardWrap}
-          onPress={() => router.push({ pathname: '/(tabs)/race', params: { scrollToTop: Date.now().toString() } })}
-        >
-          <Card style={styles.compactCard}>
-            <Text style={styles.cardEyebrow}>다음 레이스</Text>
-            <Text style={styles.compactLabel}>{nextRaceTitle}</Text>
-            <Text style={styles.compactValueSmall}>{nextRaceTime}</Text>
-            <Text style={styles.muted}>{nextRaceDeadline}</Text>
-          </Card>
-        </Pressable>
-      </View>
-
-      <Pressable
-        onPress={() => router.push({ pathname: '/(tabs)/race', params: { scrollToTop: Date.now().toString() } })}
-      >
-        <Card style={styles.myRaceCard}>
-          <View style={styles.myRaceHeader}>
-            <Text style={styles.cardEyebrow}>내 레이스</Text>
-            {myRace ? <Text style={styles.myRaceBadge}>신청 완료</Text> : null}
-          </View>
-          <Text style={styles.myRaceTitle}>{myRaceTitle}</Text>
-          <Text style={styles.myRaceTime}>{myRaceTime}</Text>
-          <Text style={styles.muted}>{myRaceNote}</Text>
-        </Card>
-      </Pressable>
     </>
   );
 }
@@ -331,10 +248,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '800',
-  },
-  regionFootnote: {
-    color: '#98A2B3',
-    lineHeight: 20,
   },
   statusCard: {
     flexDirection: 'row',

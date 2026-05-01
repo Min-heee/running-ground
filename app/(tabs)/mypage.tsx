@@ -6,14 +6,13 @@ import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { fetchHomeSummary, fetchIntegrationStatus, fetchMyProfile } from '@/lib/api/services';
-import { HomeSummaryResponse, IntegrationStatusResponse, MyProfileResponse } from '@/lib/api/types';
+import { fetchIntegrationStatus, fetchMyProfile } from '@/lib/api/services';
+import { IntegrationStatusResponse, MyProfileResponse } from '@/lib/api/types';
 import { deleteAccount, signOut } from '@/lib/session';
 
 export default function MyPageScreen() {
   const universityVerificationHref = '/university-verification' as Href;
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
-  const [summary, setSummary] = useState<HomeSummaryResponse | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [tagShared, setTagShared] = useState(false);
@@ -25,10 +24,9 @@ export default function MyPageScreen() {
 
   useEffect(() => {
     setError(null);
-    Promise.all([fetchMyProfile(), fetchHomeSummary(), fetchIntegrationStatus()])
-      .then(([profileData, summaryData, integrationData]) => {
+    Promise.all([fetchMyProfile(), fetchIntegrationStatus()])
+      .then(([profileData, integrationData]) => {
         setProfile(profileData);
-        setSummary(summaryData);
         setIntegrationStatus(integrationData);
       })
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '마이페이지 정보를 불러오지 못했어요.'))
@@ -87,7 +85,7 @@ export default function MyPageScreen() {
       {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-      {profile && summary && integrationStatus ? (
+      {profile && integrationStatus ? (
         <>
           <Card style={styles.profileCard}>
             <View style={styles.profileRow}>
@@ -118,27 +116,6 @@ export default function MyPageScreen() {
             </View>
           </Card>
 
-          <Link href="/my-activity" asChild>
-            <Pressable>
-              <Card style={styles.summaryCard}>
-                <View style={styles.sectionHeaderRow}>
-                  <SectionTitle>이번 주 요약</SectionTitle>
-                  <Text style={styles.sectionLink}>활동</Text>
-                </View>
-                <View style={styles.metricRow}>
-                  <View style={styles.metricBox}>
-                    <Text style={styles.metricValue}>{summary.totalDistanceKm}km</Text>
-                    <Text style={styles.metricLabel}>이번 주 거리</Text>
-                  </View>
-                  <View style={styles.metricBox}>
-                    <Text style={styles.metricValue}>{summary.totalRuns}회</Text>
-                    <Text style={styles.metricLabel}>이번 주 러닝</Text>
-                  </View>
-                </View>
-              </Card>
-            </Pressable>
-          </Link>
-
           <Link href={universityVerificationHref} asChild>
             <Pressable>
               <Card style={styles.universityCard}>
@@ -162,7 +139,7 @@ export default function MyPageScreen() {
               <Text style={styles.sectionLink}>3개</Text>
             </View>
             <Link href="/region-settings" asChild>
-              <Pressable style={[styles.settingRow, styles.firstSettingRow]}>
+              <Pressable style={styles.settingRow}>
                 <Text style={styles.settingLabel}>지역 설정</Text>
                 <Text style={styles.settingValue}>변경</Text>
               </Pressable>
@@ -296,9 +273,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 12,
   },
-  summaryCard: {
-    gap: 12,
-  },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -323,25 +297,6 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontSize: 12,
   },
-  metricRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  metricBox: {
-    flex: 1,
-    backgroundColor: '#F2F4F7',
-    borderRadius: 14,
-    padding: 14,
-    gap: 4,
-  },
-  metricValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  metricLabel: {
-    color: '#667085',
-  },
   errorText: {
     color: '#D92D20',
     fontWeight: '600',
@@ -357,9 +312,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#EAECF0',
-  },
-  firstSettingRow: {
-    marginTop: 4,
   },
   settingLabel: {
     color: '#111827',
