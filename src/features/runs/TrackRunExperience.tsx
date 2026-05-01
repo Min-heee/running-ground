@@ -312,6 +312,14 @@ function formatMatchDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+type MatchTimeSection = 'am' | 'pm';
+
+function resolveMatchTimeSection(slotStartAt: string): MatchTimeSection {
+  const slotDate = new Date(slotStartAt);
+  const hour = Number.isNaN(slotDate.getTime()) ? 0 : slotDate.getHours();
+  return hour < 12 ? 'am' : 'pm';
+}
+
 function isMatchSlotClosed(slotStartAt: string, now = new Date()) {
   const slotStartAtMs = new Date(slotStartAt).getTime();
 
@@ -636,6 +644,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [showDuelCustomDistanceInput, setShowDuelCustomDistanceInput] = useState(false);
   const [selectedDuelSlotStartAt, setSelectedDuelSlotStartAt] = useState(() => initialMatchSlot?.startsAt ?? new Date().toISOString());
   const [selectedDuelDateKey, setSelectedDuelDateKey] = useState(() => initialMatchSlot?.dateKey ?? formatMatchDateKey(new Date()));
+  const [selectedDuelTimeSection, setSelectedDuelTimeSection] = useState<MatchTimeSection>(() => (
+    resolveMatchTimeSection(initialMatchSlot?.startsAt ?? new Date().toISOString())
+  ));
   const [isRequestingDuelMatch, setIsRequestingDuelMatch] = useState(false);
   const [duelMatchResult, setDuelMatchResult] = useState<RequestDuelMatchResponse | null>(null);
   const [duelMatchStatus, setDuelMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
@@ -648,6 +659,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [showGroupCustomDistanceInput, setShowGroupCustomDistanceInput] = useState(false);
   const [selectedGroupSlotStartAt, setSelectedGroupSlotStartAt] = useState(() => initialMatchSlot?.startsAt ?? new Date().toISOString());
   const [selectedGroupDateKey, setSelectedGroupDateKey] = useState(() => initialMatchSlot?.dateKey ?? formatMatchDateKey(new Date()));
+  const [selectedGroupTimeSection, setSelectedGroupTimeSection] = useState<MatchTimeSection>(() => (
+    resolveMatchTimeSection(initialMatchSlot?.startsAt ?? new Date().toISOString())
+  ));
   const [isRequestingGroupMatch, setIsRequestingGroupMatch] = useState(false);
   const [groupMatchResult, setGroupMatchResult] = useState<RequestGroupMatchResponse | null>(null);
   const [groupMatchStatus, setGroupMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
@@ -684,16 +698,22 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const duelDateOptions = useMemo(() => buildMatchDateOptions(duelSlotOptions), [duelSlotOptions]);
   const selectedDuelSlot = duelSlotOptions.find((slot) => slot.startsAt === selectedDuelSlotStartAt) ?? duelSlotOptions[0] ?? null;
   const visibleDuelSlotOptions = useMemo(
-    () => duelSlotOptions.filter((slot) => slot.dateKey === selectedDuelDateKey),
-    [duelSlotOptions, selectedDuelDateKey],
+    () => duelSlotOptions.filter((slot) => (
+      slot.dateKey === selectedDuelDateKey &&
+      resolveMatchTimeSection(slot.startsAt) === selectedDuelTimeSection
+    )),
+    [duelSlotOptions, selectedDuelDateKey, selectedDuelTimeSection],
   );
   const activeDuelSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
   const groupSlotOptions = weeklyMatchSlotOptions;
   const groupDateOptions = useMemo(() => buildMatchDateOptions(groupSlotOptions), [groupSlotOptions]);
   const selectedGroupSlot = groupSlotOptions.find((slot) => slot.startsAt === selectedGroupSlotStartAt) ?? groupSlotOptions[0] ?? null;
   const visibleGroupSlotOptions = useMemo(
-    () => groupSlotOptions.filter((slot) => slot.dateKey === selectedGroupDateKey),
-    [groupSlotOptions, selectedGroupDateKey],
+    () => groupSlotOptions.filter((slot) => (
+      slot.dateKey === selectedGroupDateKey &&
+      resolveMatchTimeSection(slot.startsAt) === selectedGroupTimeSection
+    )),
+    [groupSlotOptions, selectedGroupDateKey, selectedGroupTimeSection],
   );
   const activeGroupSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
   const matchOptions = useMemo(
@@ -735,12 +755,14 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   useEffect(() => {
     if (selectedDuelSlot) {
       setSelectedDuelDateKey(selectedDuelSlot.dateKey);
+      setSelectedDuelTimeSection(resolveMatchTimeSection(selectedDuelSlot.startsAt));
     }
   }, [selectedDuelSlot]);
 
   useEffect(() => {
     if (selectedGroupSlot) {
       setSelectedGroupDateKey(selectedGroupSlot.dateKey);
+      setSelectedGroupTimeSection(resolveMatchTimeSection(selectedGroupSlot.startsAt));
     }
   }, [selectedGroupSlot]);
   const latestPoint = route.length ? route[route.length - 1] : null;
@@ -2879,12 +2901,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     <View style={styles.duelSectionHeader}>
                       <Text style={styles.duelSectionTitle}>출발 시간대</Text>
                     </View>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.slotDateScrollContent}
-                      style={styles.slotDateScroll}
-                    >
+                    <View style={styles.slotDateWrap}>
                       {duelDateOptions.map((dateOption) => {
                         const isSelected = dateOption.key === selectedDuelDateKey;
 
@@ -2899,6 +2916,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                                 ?? null;
                               if (nextSlot) {
                                 setSelectedDuelSlotStartAt(nextSlot.startsAt);
+                                setSelectedDuelTimeSection(resolveMatchTimeSection(nextSlot.startsAt));
                               }
                             }}
                           >
@@ -2911,13 +2929,28 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           </Pressable>
                         );
                       })}
-                    </ScrollView>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.slotTimeScrollContent}
-                      style={styles.slotTimeScroll}
-                    >
+                    </View>
+                    <View style={styles.slotSectionRow}>
+                      {[
+                        { key: 'am' as const, label: '오전' },
+                        { key: 'pm' as const, label: '오후' },
+                      ].map((section) => {
+                        const isSelected = selectedDuelTimeSection === section.key;
+
+                        return (
+                          <Pressable
+                            key={`duel-section-${section.key}`}
+                            style={[styles.slotSectionChip, isSelected ? styles.slotSectionChipSelected : undefined]}
+                            onPress={() => setSelectedDuelTimeSection(section.key)}
+                          >
+                            <Text style={[styles.slotSectionChipText, isSelected ? styles.slotSectionChipTextSelected : undefined]}>
+                              {section.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <View style={styles.duelSlotGrid}>
                       {visibleDuelSlotOptions.map((slot) => {
                         const isSelected = slot.startsAt === (selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt);
 
@@ -2944,9 +2977,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           </Pressable>
                         );
                       })}
-                    </ScrollView>
+                    </View>
                     <Text style={styles.duelHelperText}>
-                      출발 30분 전까지만 신청할 수 있고, 그 전까지 나와 비슷한 페이스 상대를 계속 찾아줘요.
+                      오전은 00:00~11:00, 오후는 12:00~23:00 기준으로 보여줘요. 출발 30분 전까지만 신청할 수 있어요.
                     </Text>
                   </View>
 
@@ -3113,12 +3146,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     <View style={styles.duelSectionHeader}>
                       <Text style={styles.duelSectionTitle}>출발 시간대</Text>
                     </View>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.slotDateScrollContent}
-                      style={styles.slotDateScroll}
-                    >
+                    <View style={styles.slotDateWrap}>
                       {groupDateOptions.map((dateOption) => {
                         const isSelected = dateOption.key === selectedGroupDateKey;
 
@@ -3133,6 +3161,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                                 ?? null;
                               if (nextSlot) {
                                 setSelectedGroupSlotStartAt(nextSlot.startsAt);
+                                setSelectedGroupTimeSection(resolveMatchTimeSection(nextSlot.startsAt));
                               }
                             }}
                           >
@@ -3145,13 +3174,28 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           </Pressable>
                         );
                       })}
-                    </ScrollView>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.slotTimeScrollContent}
-                      style={styles.slotTimeScroll}
-                    >
+                    </View>
+                    <View style={styles.slotSectionRow}>
+                      {[
+                        { key: 'am' as const, label: '오전' },
+                        { key: 'pm' as const, label: '오후' },
+                      ].map((section) => {
+                        const isSelected = selectedGroupTimeSection === section.key;
+
+                        return (
+                          <Pressable
+                            key={`group-section-${section.key}`}
+                            style={[styles.slotSectionChip, isSelected ? styles.slotSectionChipSelected : undefined]}
+                            onPress={() => setSelectedGroupTimeSection(section.key)}
+                          >
+                            <Text style={[styles.slotSectionChipText, isSelected ? styles.slotSectionChipTextSelected : undefined]}>
+                              {section.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <View style={styles.duelSlotGrid}>
                       {visibleGroupSlotOptions.map((slot) => {
                         const isSelected = slot.startsAt === (selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt);
 
@@ -3178,9 +3222,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           </Pressable>
                         );
                       })}
-                    </ScrollView>
+                    </View>
                     <Text style={styles.duelHelperText}>
-                      출발 30분 전까지만 신청할 수 있고, 최소 5명이 모일 때까지 비슷한 러너를 계속 찾아줘요.
+                      오전은 00:00~11:00, 오후는 12:00~23:00 기준으로 보여줘요. 출발 30분 전까지만 신청할 수 있어요.
                     </Text>
                   </View>
 
@@ -4007,21 +4051,13 @@ const styles = StyleSheet.create({
   },
   duelSlotGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 6,
   },
-  slotDateScroll: {
-    marginHorizontal: -4,
-  },
-  slotDateScrollContent: {
+  slotDateWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
-    paddingHorizontal: 4,
-  },
-  slotTimeScroll: {
-    marginHorizontal: -4,
-  },
-  slotTimeScrollContent: {
-    gap: 6,
-    paddingHorizontal: 4,
   },
   slotDateChip: {
     minWidth: 68,
