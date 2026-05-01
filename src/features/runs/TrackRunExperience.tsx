@@ -6,9 +6,11 @@ import {
   Linking,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { type Href, router } from 'expo-router';
@@ -17,6 +19,7 @@ import { Pedometer } from 'expo-sensors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
+import { LiveMatchArena } from '@/components/matches/LiveMatchArena';
 import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -587,8 +590,10 @@ function buildGroupLiveStandings(
 
 export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const pedometerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const livePagerRef = useRef<ScrollView | null>(null);
   const routeRef = useRef<RunRoutePoint[]>([]);
   const elapsedSecondsRef = useRef(0);
   const totalStepsRef = useRef(0);
@@ -655,6 +660,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [matchRemindersEnabled, setMatchRemindersEnabled] = useState(true);
   const [cancelingUpcomingMatchId, setCancelingUpcomingMatchId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [liveArenaPage, setLiveArenaPage] = useState(0);
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const routeCoordinates = useMemo(
@@ -996,6 +1002,52 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const isSaving = status === 'saving';
   const isIdle = status === 'idle';
   const isTabMode = mode === 'tab';
+  const liveArenaPageWidth = Math.max(windowWidth - 32, 280);
+  const currentUserLivePace = currentPace !== '--:--/km' ? currentPace : averagePace;
+  const duelArenaParticipants = useMemo(
+    () => (effectiveDuelOpponent
+      ? [
+          {
+            id: 'me',
+            name: '나',
+            paceLabel: currentUserLivePace,
+            distanceKm,
+            isCurrentUser: true,
+            isLeader: duelLiveGapKm !== null ? duelLiveGapKm >= 0 : false,
+            showPaceBubble: true,
+          },
+          {
+            id: effectiveDuelOpponent.id,
+            name: effectiveDuelOpponent.name,
+            paceLabel: effectiveDuelOpponent.livePace ?? effectiveDuelOpponent.averagePace,
+            distanceKm: effectiveDuelOpponent.liveDistanceKm ?? 0,
+            isLeader: duelLiveGapKm !== null ? duelLiveGapKm < 0 : true,
+            showPaceBubble: true,
+          },
+        ]
+      : []),
+    [currentUserLivePace, distanceKm, duelLiveGapKm, effectiveDuelOpponent],
+  );
+  const groupArenaParticipants = useMemo(
+    () =>
+      groupLiveStandings.map((participant) => ({
+        id: participant.id,
+        name: participant.isCurrentUser ? '나' : participant.name,
+        paceLabel: participant.livePace ?? participant.averagePace,
+        distanceKm: participant.currentDistanceKm,
+        rankLabel: String(participant.rank),
+        isCurrentUser: participant.isCurrentUser,
+        isLeader: participant.rank === 1,
+        showPaceBubble: participant.isCurrentUser || participant.rank <= 3,
+      })),
+    [groupLiveStandings],
+  );
+  const showLiveArena =
+    isRunning
+    && (
+      (matchMode === 'duel' && duelMatchState === 'active' && duelArenaParticipants.length === 2)
+      || (matchMode === 'group' && groupMatchState === 'active' && groupArenaParticipants.length > 0)
+    );
   const duelCompatibleCount = duelMatchStatus?.competitiveParticipantsCount ?? 0;
   const duelWaitingHasOtherApplicants = (duelMatchStatus?.participantCount ?? 0) > 1;
   const duelWaitingTitle = duelWaitingHasOtherApplicants
@@ -1348,6 +1400,15 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     const timer = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!showLiveArena) {
+      return;
+    }
+
+    setLiveArenaPage(0);
+    livePagerRef.current?.scrollTo({ x: 0, animated: false });
+  }, [duelMatchStatus?.matchId, groupMatchStatus?.matchId, showLiveArena]);
 
   useEffect(() => {
     if (matchMode !== 'duel' || !duelMatchStatus || !['waiting', 'matched', 'active'].includes(duelMatchStatus.state)) {
@@ -2289,6 +2350,319 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     };
   }, [status]);
 
+  const renderLiveArenaPage = () => {
+    if (matchMode === 'duel' && effectiveDuelOpponent) {
+      return (
+        <LiveMatchArena
+          mode="duel"
+          targetDistanceKm={duelDistanceKm}
+          title={`${effectiveDuelOpponent.name}님과 1대1 대결`}
+          subtitle={duelLiveSummary}
+          summaryChips={[
+            `내 페이스 ${currentUserLivePace}`,
+            `상대 페이스 ${effectiveDuelOpponent.livePace ?? effectiveDuelOpponent.averagePace}`,
+            duelLiveGapKm === null
+              ? '거리 동기화 중'
+              : duelLiveGapKm >= 0
+                ? `${duelLiveGapKm.toFixed(2)}km 앞섬`
+                : `${Math.abs(duelLiveGapKm).toFixed(2)}km 뒤짐`,
+          ]}
+          participants={duelArenaParticipants}
+          footer={
+            duelLiveGapKm === null
+              ? '두 러너의 위치를 맞추는 중이에요.'
+              : `내 거리 ${distanceKm.toFixed(2)}km · 상대 ${typeof effectiveDuelOpponent.liveDistanceKm === 'number' ? `${effectiveDuelOpponent.liveDistanceKm.toFixed(2)}km` : '동기화 중'}`
+          }
+        />
+      );
+    }
+
+    if (matchMode === 'group' && currentGroupStanding) {
+      return (
+        <LiveMatchArena
+          mode="group"
+          targetDistanceKm={groupDistanceKm}
+          title={`${effectiveGroupParticipantCount}명 그룹 대결`}
+          subtitle={
+            currentGroupStanding.rank === 1
+              ? '지금은 선두예요. 흐름을 유지해보세요.'
+              : `현재 ${currentGroupStanding.rank}/${effectiveGroupParticipantCount}위 · 앞 사람과 ${currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km 차이`
+          }
+          summaryChips={[
+            `내 페이스 ${currentUserLivePace}`,
+            `현재 ${currentGroupStanding.rank}/${effectiveGroupParticipantCount}위`,
+            currentGroupLeader ? `선두 ${currentGroupLeader.name} · ${currentGroupLeader.currentDistanceKm.toFixed(2)}km` : '선두 동기화 중',
+          ]}
+          participants={groupArenaParticipants}
+          footer={
+            groupAheadParticipant
+              ? `앞 사람 ${groupAheadParticipant.name} · ${currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km 차이`
+              : groupBehindParticipant
+                ? `뒤 사람 ${groupBehindParticipant.name}보다 ${groupBehindParticipant.gapAheadKm?.toFixed(2) ?? '0.00'}km 앞서 있어요.`
+                : '참가자 상태를 계속 정리하고 있어요.'
+          }
+        />
+      );
+    }
+
+    return null;
+  };
+
+  const renderRunningStatsBoard = (includeMatchCards: boolean) => (
+    <>
+      <Card style={styles.mapCard}>
+        <View style={styles.mapHeader}>
+          <View style={styles.mapLabelWrap}>
+            <Text style={styles.mapKicker}>LIVE TRACKING</Text>
+            <Text style={styles.mapLabel}>실시간 러닝 맵</Text>
+          </View>
+          <View style={[styles.statusBadge, isRunning ? styles.statusRunningDark : isPaused ? styles.statusPausedDark : styles.statusIdleDark]}>
+            <Text style={[styles.statusBadgeText, isRunning ? styles.statusRunningDarkText : isPaused ? styles.statusPausedDarkText : styles.statusIdleDarkText]}>
+              {isRunning ? '러닝 중' : isPaused ? '일시정지' : isSaving ? '저장 중' : '준비됨'}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.mapWrap}>
+          {liveMapRegion ? (
+            <RunRouteMap
+              actualCoordinates={routeCoordinates}
+              plannedCoordinates={plannedCoordinates}
+              latestCoordinate={latestPoint ? { latitude: latestPoint.latitude, longitude: latestPoint.longitude } : null}
+              initialRegion={liveMapRegion}
+              live={isRunning}
+              emptyTitle="러닝을 시작하면 경로가 여기에 표시돼요."
+              emptyText="위치 권한을 허용한 뒤 측정을 시작해보세요."
+            />
+          ) : (
+            <View style={styles.mapEmptyState}>
+              <Text style={styles.mapEmptyTitle}>러닝을 시작하면 경로가 여기에 표시돼요.</Text>
+              <Text style={styles.mapEmptyText}>위치 권한을 허용한 뒤 측정을 시작해보세요.</Text>
+            </View>
+          )}
+        </View>
+        {includeMatchCards && matchMode !== 'solo' ? (
+          <View style={styles.liveMatchCard}>
+            <Text style={styles.liveMatchEyebrow}>MATCH MODE</Text>
+            <Text style={styles.liveMatchTitle}>{liveMatchTitle}</Text>
+            <Text style={styles.liveMatchText}>{liveMatchText}</Text>
+          </View>
+        ) : null}
+        {includeMatchCards && matchMode === 'duel' && effectiveDuelOpponent ? (
+          <View style={styles.duelLiveCard}>
+            <View style={styles.duelLiveHeader}>
+              <View style={styles.groupLiveHeaderCopy}>
+                <Text style={styles.liveMatchEyebrow}>LIVE GAP</Text>
+                <Text style={styles.groupLiveTitle}>{duelLiveTitle}</Text>
+                <Text style={styles.groupLiveSummary}>{duelLiveSummary}</Text>
+              </View>
+              <View style={styles.duelLiveBadge}>
+                <Text style={styles.duelLiveBadgeText}>1대1</Text>
+              </View>
+            </View>
+            <View style={styles.groupLiveGapRow}>
+              <View style={styles.groupLiveGapChip}>
+                <Text style={styles.groupLiveGapEyebrow}>나</Text>
+                <Text style={styles.groupLiveGapText}>{distanceKm.toFixed(2)}km</Text>
+              </View>
+              <View style={styles.groupLiveGapChip}>
+                <Text style={styles.groupLiveGapEyebrow}>상대</Text>
+                <Text style={styles.groupLiveGapText}>
+                  {typeof effectiveDuelOpponent.liveDistanceKm === 'number'
+                    ? `${effectiveDuelOpponent.liveDistanceKm.toFixed(2)}km`
+                    : '동기화 중'}
+                </Text>
+              </View>
+            </View>
+            {duelStatusAlert ? (
+              <View
+                style={[
+                  styles.matchStatusBanner,
+                  duelStatusAlert.tone === 'danger'
+                    ? styles.matchStatusBannerDanger
+                    : duelStatusAlert.tone === 'warning'
+                      ? styles.matchStatusBannerWarning
+                      : styles.matchStatusBannerNeutral,
+                ]}
+              >
+                <Text style={styles.matchStatusBannerTitle}>{duelStatusAlert.title}</Text>
+                <Text style={styles.matchStatusBannerText}>{duelStatusAlert.summary}</Text>
+                <Pressable
+                  style={styles.matchStatusBannerAction}
+                  disabled={isLeavingDuelMatch}
+                  onPress={() => {
+                    handleContinueSoloFromMatch('duel');
+                  }}
+                >
+                  <Text style={styles.matchStatusBannerActionText}>
+                    {isLeavingDuelMatch ? '전환 중...' : '혼자 계속 달릴게요'}
+                  </Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+        {includeMatchCards && matchMode === 'group' && effectiveGroupParticipantCount > 0 && currentGroupStanding ? (
+          <View style={styles.groupLiveCard}>
+            <View style={styles.groupLiveHeader}>
+              <View style={styles.groupLiveHeaderCopy}>
+                <Text style={styles.liveMatchEyebrow}>LIVE RANK</Text>
+                <Text style={styles.groupLiveTitle}>
+                  현재 {currentGroupStanding.rank}/{effectiveGroupParticipantCount}위
+                </Text>
+                <Text style={styles.groupLiveSummary}>
+                  {currentGroupStanding.rank === 1
+                    ? groupBehindParticipant
+                      ? `${groupBehindParticipant.name}님보다 ${groupBehindParticipant.gapAheadKm?.toFixed(2) ?? '0.00'}km 앞서 있어요.`
+                      : '지금은 선두예요. 이 흐름을 그대로 유지해보세요.'
+                    : `앞 사람과 ${currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km 차이 · 1위와 ${currentGroupStanding.gapLeaderKm.toFixed(2)}km 차이`}
+                </Text>
+                <View style={styles.groupLiveGapRow}>
+                  {groupAheadParticipant ? (
+                    <View style={styles.groupLiveGapChip}>
+                      <Text style={styles.groupLiveGapEyebrow}>앞</Text>
+                      <Text style={styles.groupLiveGapText}>
+                        {groupAheadParticipant.name} · {currentGroupStanding?.gapAheadKm?.toFixed(2) ?? '0.00'}km
+                      </Text>
+                    </View>
+                  ) : null}
+                  {groupBehindParticipant ? (
+                    <View style={styles.groupLiveGapChip}>
+                      <Text style={styles.groupLiveGapEyebrow}>뒤</Text>
+                      <Text style={styles.groupLiveGapText}>
+                        {groupBehindParticipant.name} · {groupBehindParticipant.gapAheadKm?.toFixed(2) ?? '0.00'}km
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+              <View style={styles.groupLiveBadge}>
+                <Text style={styles.groupLiveBadgeText}>{effectiveGroupParticipantCount}명</Text>
+              </View>
+            </View>
+            {groupStatusAlert ? (
+              <View
+                style={[
+                  styles.matchStatusBanner,
+                  groupStatusAlert.tone === 'danger'
+                    ? styles.matchStatusBannerDanger
+                    : styles.matchStatusBannerWarning,
+                ]}
+              >
+                <Text style={styles.matchStatusBannerTitle}>{groupStatusAlert.title}</Text>
+                <Text style={styles.matchStatusBannerText}>{groupStatusAlert.summary}</Text>
+                {groupStatusAlert.tone === 'danger' ? (
+                  <Pressable
+                    style={styles.matchStatusBannerAction}
+                    disabled={isLeavingGroupMatch}
+                    onPress={() => {
+                      handleContinueSoloFromMatch('group');
+                    }}
+                  >
+                    <Text style={styles.matchStatusBannerActionText}>
+                      {isLeavingGroupMatch ? '전환 중...' : '혼자 계속 달릴게요'}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+            <View style={styles.groupLiveTopList}>
+              {groupLiveStandings.slice(0, 5).map((participant) => (
+                <View
+                  key={participant.id}
+                  style={[styles.groupLiveRow, participant.isCurrentUser ? styles.groupLiveRowCurrent : undefined]}
+                >
+                  <Text style={styles.groupLiveRank}>{participant.rank}</Text>
+                  <View style={styles.groupLiveCopy}>
+                    <Text style={styles.groupLiveName}>
+                      {participant.name}
+                      {participant.isCurrentUser ? ' (나)' : ''}
+                    </Text>
+                    <Text style={styles.groupLiveMeta}>
+                      {participant.averagePace} · {participant.levelLabel} · {participant.seedSummary}
+                      {participant.liveStatus ? ` · ${buildMatchParticipantStatusLabel(participant.liveStatus)}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={styles.groupLiveDistance}>{participant.currentDistanceKm.toFixed(2)}km</Text>
+                </View>
+              ))}
+            </View>
+            {currentGroupStanding.rank > 5 ? (
+              <View style={[styles.groupLiveRow, styles.groupLiveRowCurrent]}>
+                <Text style={styles.groupLiveRank}>{currentGroupStanding.rank}</Text>
+                <View style={styles.groupLiveCopy}>
+                  <Text style={styles.groupLiveName}>{currentGroupStanding.name} (나)</Text>
+                  <Text style={styles.groupLiveMeta}>
+                    {currentGroupStanding.averagePace} · {currentGroupStanding.levelLabel}
+                    {currentGroupStanding.liveStatus ? ` · ${buildMatchParticipantStatusLabel(currentGroupStanding.liveStatus)}` : ''}
+                    {' · '}
+                    앞 사람과 {currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km
+                  </Text>
+                </View>
+                <Text style={styles.groupLiveDistance}>{currentGroupStanding.currentDistanceKm.toFixed(2)}km</Text>
+              </View>
+            ) : null}
+            {currentGroupLeader && currentGroupStanding.rank !== 1 ? (
+              <Text style={styles.groupLiveFooter}>
+                선두는 {currentGroupLeader.name}님이에요. {currentGroupLeader.currentDistanceKm.toFixed(2)}km로 앞서가고 있어요.
+              </Text>
+            ) : (
+              <Text style={styles.groupLiveFooter}>지금은 선두예요. 다음 러너와 간격을 유지해보세요.</Text>
+            )}
+          </View>
+        ) : null}
+      </Card>
+
+      <View style={styles.metricGrid}>
+        <Card style={styles.metricCard}>
+          <Text style={styles.metricLabel}>시간</Text>
+          <Text style={styles.metricValue}>{formatDuration(elapsedSeconds)}</Text>
+        </Card>
+        <Card style={styles.metricCard}>
+          <Text style={styles.metricLabel}>거리</Text>
+          <Text style={styles.metricValue}>{formatMetricDistance(distanceKm)}</Text>
+        </Card>
+        <Card style={styles.metricCard}>
+          <Text style={styles.metricLabel}>평균 페이스</Text>
+          <Text style={styles.metricValue}>{averagePace}</Text>
+        </Card>
+        <Card style={styles.metricCard}>
+          <Text style={styles.metricLabel}>현재 페이스</Text>
+          <Text style={styles.metricValue}>{currentPace}</Text>
+        </Card>
+        <Card style={styles.metricCard}>
+          <Text style={styles.metricLabel}>케이던스</Text>
+          <Text style={styles.metricValue}>{formatCadence(cadenceSpm)}</Text>
+        </Card>
+        <Card style={styles.metricCard}>
+          <Text style={styles.metricLabel}>고도 상승</Text>
+          <Text style={styles.metricValue}>{formatElevation(elevationGainM)}</Text>
+        </Card>
+      </View>
+
+      <Card style={styles.guideCard}>
+        <View style={styles.guideHeader}>
+          <Text style={styles.sectionTitle}>측정 상태</Text>
+          <View style={[styles.statusBadge, isRunning ? styles.statusRunning : isPaused ? styles.statusPaused : styles.statusIdle]}>
+            <Text style={[styles.statusBadgeText, isRunning ? styles.statusRunningText : isPaused ? styles.statusPausedText : styles.statusIdleText]}>
+              {isRunning ? '러닝 중' : isPaused ? '일시정지' : isSaving ? '저장 중' : '준비됨'}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.guideText}>
+          위치 권한: {locationPermissionGranted === null ? '아직 확인 전' : locationPermissionGranted ? '허용됨' : '허용 안 됨'}
+        </Text>
+        <Text style={styles.guideText}>
+          백그라운드 위치: {backgroundLocationPermissionGranted === null ? '아직 확인 전' : backgroundLocationPermissionGranted ? '항상 허용됨' : '항상 허용 필요'}
+        </Text>
+        <Text style={styles.guideText}>
+          모션 권한: {motionPermissionGranted === null ? '아직 확인 전' : motionPermissionGranted ? '허용됨' : '케이던스 측정 제한'}
+        </Text>
+        {suggestedRoute ? <Text style={styles.guideText}>추천 경로: {suggestedRoute.displayTitle}</Text> : null}
+        <Text style={styles.guideHint}>백그라운드 위치가 허용되면 화면을 벗어나도 계속 측정돼요. 다만 앱을 강제로 종료하면 측정이 중단될 수 있어요.</Text>
+      </Card>
+    </>
+  );
+
   return (
     <View style={styles.root}>
       <Screen>
@@ -3006,256 +3380,54 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         </>
       ) : (
         <>
-          <Card style={styles.mapCard}>
-            <View style={styles.mapHeader}>
-              <View style={styles.mapLabelWrap}>
-                <Text style={styles.mapKicker}>LIVE TRACKING</Text>
-                <Text style={styles.mapLabel}>실시간 러닝 맵</Text>
-              </View>
-              <View style={[styles.statusBadge, isRunning ? styles.statusRunningDark : isPaused ? styles.statusPausedDark : styles.statusIdleDark]}>
-                <Text style={[styles.statusBadgeText, isRunning ? styles.statusRunningDarkText : isPaused ? styles.statusPausedDarkText : styles.statusIdleDarkText]}>
-                  {isRunning ? '러닝 중' : isPaused ? '일시정지' : isSaving ? '저장 중' : '준비됨'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.mapWrap}>
-              {liveMapRegion ? (
-                <RunRouteMap
-                  actualCoordinates={routeCoordinates}
-                  plannedCoordinates={plannedCoordinates}
-                  latestCoordinate={latestPoint ? { latitude: latestPoint.latitude, longitude: latestPoint.longitude } : null}
-                  initialRegion={liveMapRegion}
-                  live={isRunning}
-                  emptyTitle="러닝을 시작하면 경로가 여기에 표시돼요."
-                  emptyText="위치 권한을 허용한 뒤 측정을 시작해보세요."
-                />
-              ) : (
-                <View style={styles.mapEmptyState}>
-                  <Text style={styles.mapEmptyTitle}>러닝을 시작하면 경로가 여기에 표시돼요.</Text>
-                  <Text style={styles.mapEmptyText}>위치 권한을 허용한 뒤 측정을 시작해보세요.</Text>
-                </View>
-              )}
-            </View>
-            {matchMode !== 'solo' ? (
-              <View style={styles.liveMatchCard}>
-                <Text style={styles.liveMatchEyebrow}>MATCH MODE</Text>
-                <Text style={styles.liveMatchTitle}>{liveMatchTitle}</Text>
-                <Text style={styles.liveMatchText}>{liveMatchText}</Text>
-              </View>
-            ) : null}
-            {matchMode === 'duel' && effectiveDuelOpponent ? (
-              <View style={styles.duelLiveCard}>
-                <View style={styles.duelLiveHeader}>
-                  <View style={styles.groupLiveHeaderCopy}>
-                    <Text style={styles.liveMatchEyebrow}>LIVE GAP</Text>
-                    <Text style={styles.groupLiveTitle}>{duelLiveTitle}</Text>
-                    <Text style={styles.groupLiveSummary}>{duelLiveSummary}</Text>
-                  </View>
-                  <View style={styles.duelLiveBadge}>
-                    <Text style={styles.duelLiveBadgeText}>1대1</Text>
-                  </View>
-                </View>
-                <View style={styles.groupLiveGapRow}>
-                  <View style={styles.groupLiveGapChip}>
-                    <Text style={styles.groupLiveGapEyebrow}>나</Text>
-                    <Text style={styles.groupLiveGapText}>{distanceKm.toFixed(2)}km</Text>
-                  </View>
-                  <View style={styles.groupLiveGapChip}>
-                    <Text style={styles.groupLiveGapEyebrow}>상대</Text>
-                    <Text style={styles.groupLiveGapText}>
-                      {typeof effectiveDuelOpponent.liveDistanceKm === 'number'
-                        ? `${effectiveDuelOpponent.liveDistanceKm.toFixed(2)}km`
-                        : '동기화 중'}
-                    </Text>
-                  </View>
-                </View>
-                {duelStatusAlert ? (
-                  <View
-                    style={[
-                      styles.matchStatusBanner,
-                      duelStatusAlert.tone === 'danger'
-                        ? styles.matchStatusBannerDanger
-                        : duelStatusAlert.tone === 'warning'
-                          ? styles.matchStatusBannerWarning
-                          : styles.matchStatusBannerNeutral,
-                    ]}
-                  >
-                    <Text style={styles.matchStatusBannerTitle}>{duelStatusAlert.title}</Text>
-                    <Text style={styles.matchStatusBannerText}>{duelStatusAlert.summary}</Text>
-                    <Pressable
-                      style={styles.matchStatusBannerAction}
-                      disabled={isLeavingDuelMatch}
-                      onPress={() => {
-                        handleContinueSoloFromMatch('duel');
-                      }}
-                    >
-                      <Text style={styles.matchStatusBannerActionText}>
-                        {isLeavingDuelMatch ? '전환 중...' : '혼자 계속 달릴게요'}
-                      </Text>
-                    </Pressable>
-                  </View>
-                ) : null}
-              </View>
-            ) : null}
-            {matchMode === 'group' && effectiveGroupParticipantCount > 0 && currentGroupStanding ? (
-              <View style={styles.groupLiveCard}>
-                <View style={styles.groupLiveHeader}>
-                  <View style={styles.groupLiveHeaderCopy}>
-                    <Text style={styles.liveMatchEyebrow}>LIVE RANK</Text>
-                    <Text style={styles.groupLiveTitle}>
-                      현재 {currentGroupStanding.rank}/{effectiveGroupParticipantCount}위
-                    </Text>
-                    <Text style={styles.groupLiveSummary}>
-                      {currentGroupStanding.rank === 1
-                        ? groupBehindParticipant
-                          ? `${groupBehindParticipant.name}님보다 ${groupBehindParticipant.gapAheadKm?.toFixed(2) ?? '0.00'}km 앞서 있어요.`
-                          : '지금은 선두예요. 이 흐름을 그대로 유지해보세요.'
-                        : `앞 사람과 ${currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km 차이 · 1위와 ${currentGroupStanding.gapLeaderKm.toFixed(2)}km 차이`}
-                    </Text>
-                    <View style={styles.groupLiveGapRow}>
-                      {groupAheadParticipant ? (
-                        <View style={styles.groupLiveGapChip}>
-                          <Text style={styles.groupLiveGapEyebrow}>앞</Text>
-                          <Text style={styles.groupLiveGapText}>
-                            {groupAheadParticipant.name} · {currentGroupStanding?.gapAheadKm?.toFixed(2) ?? '0.00'}km
-                          </Text>
-                        </View>
-                      ) : null}
-                      {groupBehindParticipant ? (
-                        <View style={styles.groupLiveGapChip}>
-                          <Text style={styles.groupLiveGapEyebrow}>뒤</Text>
-                          <Text style={styles.groupLiveGapText}>
-                            {groupBehindParticipant.name} · {groupBehindParticipant.gapAheadKm?.toFixed(2) ?? '0.00'}km
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  </View>
-                  <View style={styles.groupLiveBadge}>
-                    <Text style={styles.groupLiveBadgeText}>{effectiveGroupParticipantCount}명</Text>
-                    </View>
-                  </View>
-                  {groupStatusAlert ? (
-                    <View
-                      style={[
-                        styles.matchStatusBanner,
-                        groupStatusAlert.tone === 'danger'
-                          ? styles.matchStatusBannerDanger
-                          : styles.matchStatusBannerWarning,
-                      ]}
-                    >
-                      <Text style={styles.matchStatusBannerTitle}>{groupStatusAlert.title}</Text>
-                      <Text style={styles.matchStatusBannerText}>{groupStatusAlert.summary}</Text>
-                      {groupStatusAlert.tone === 'danger' ? (
-                        <Pressable
-                          style={styles.matchStatusBannerAction}
-                          disabled={isLeavingGroupMatch}
-                          onPress={() => {
-                            handleContinueSoloFromMatch('group');
-                          }}
-                        >
-                          <Text style={styles.matchStatusBannerActionText}>
-                            {isLeavingGroupMatch ? '전환 중...' : '혼자 계속 달릴게요'}
-                          </Text>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                  ) : null}
-                  <View style={styles.groupLiveTopList}>
-                    {groupLiveStandings.slice(0, 5).map((participant) => (
-                    <View
-                      key={participant.id}
-                      style={[styles.groupLiveRow, participant.isCurrentUser ? styles.groupLiveRowCurrent : undefined]}
-                    >
-                      <Text style={styles.groupLiveRank}>{participant.rank}</Text>
-                      <View style={styles.groupLiveCopy}>
-                        <Text style={styles.groupLiveName}>
-                          {participant.name}
-                          {participant.isCurrentUser ? ' (나)' : ''}
-                        </Text>
-                        <Text style={styles.groupLiveMeta}>
-                          {participant.averagePace} · {participant.levelLabel} · {participant.seedSummary}
-                          {participant.liveStatus ? ` · ${buildMatchParticipantStatusLabel(participant.liveStatus)}` : ''}
-                        </Text>
-                      </View>
-                      <Text style={styles.groupLiveDistance}>{participant.currentDistanceKm.toFixed(2)}km</Text>
-                    </View>
-                  ))}
-                </View>
-                {currentGroupStanding.rank > 5 ? (
-                  <View style={[styles.groupLiveRow, styles.groupLiveRowCurrent]}>
-                    <Text style={styles.groupLiveRank}>{currentGroupStanding.rank}</Text>
-                    <View style={styles.groupLiveCopy}>
-                      <Text style={styles.groupLiveName}>{currentGroupStanding.name} (나)</Text>
-                      <Text style={styles.groupLiveMeta}>
-                        {currentGroupStanding.averagePace} · {currentGroupStanding.levelLabel}
-                        {currentGroupStanding.liveStatus ? ` · ${buildMatchParticipantStatusLabel(currentGroupStanding.liveStatus)}` : ''}
-                        {' · '}
-                        앞 사람과 {currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km
-                      </Text>
-                    </View>
-                    <Text style={styles.groupLiveDistance}>{currentGroupStanding.currentDistanceKm.toFixed(2)}km</Text>
-                  </View>
-                ) : null}
-                {currentGroupLeader && currentGroupStanding.rank !== 1 ? (
-                  <Text style={styles.groupLiveFooter}>
-                    선두는 {currentGroupLeader.name}님이에요. {currentGroupLeader.currentDistanceKm.toFixed(2)}km로 앞서가고 있어요.
+          {showLiveArena ? (
+            <View style={styles.livePagerShell}>
+              <View style={styles.livePagerTabRow}>
+                <Pressable
+                  style={[styles.livePagerTab, liveArenaPage === 0 ? styles.livePagerTabSelected : undefined]}
+                  onPress={() => {
+                    livePagerRef.current?.scrollTo({ x: 0, animated: true });
+                    setLiveArenaPage(0);
+                  }}
+                >
+                  <Text style={[styles.livePagerTabText, liveArenaPage === 0 ? styles.livePagerTabTextSelected : undefined]}>
+                    대결 보기
                   </Text>
-                ) : (
-                  <Text style={styles.groupLiveFooter}>지금은 선두예요. 다음 러너와 간격을 유지해보세요.</Text>
-                )}
+                </Pressable>
+                <Pressable
+                  style={[styles.livePagerTab, liveArenaPage === 1 ? styles.livePagerTabSelected : undefined]}
+                  onPress={() => {
+                    livePagerRef.current?.scrollTo({ x: liveArenaPageWidth, animated: true });
+                    setLiveArenaPage(1);
+                  }}
+                >
+                  <Text style={[styles.livePagerTabText, liveArenaPage === 1 ? styles.livePagerTabTextSelected : undefined]}>
+                    기록 보기
+                  </Text>
+                </Pressable>
               </View>
-            ) : null}
-          </Card>
-
-          <View style={styles.metricGrid}>
-            <Card style={styles.metricCard}>
-              <Text style={styles.metricLabel}>시간</Text>
-              <Text style={styles.metricValue}>{formatDuration(elapsedSeconds)}</Text>
-            </Card>
-            <Card style={styles.metricCard}>
-              <Text style={styles.metricLabel}>거리</Text>
-              <Text style={styles.metricValue}>{formatMetricDistance(distanceKm)}</Text>
-            </Card>
-            <Card style={styles.metricCard}>
-              <Text style={styles.metricLabel}>평균 페이스</Text>
-              <Text style={styles.metricValue}>{averagePace}</Text>
-            </Card>
-            <Card style={styles.metricCard}>
-              <Text style={styles.metricLabel}>현재 페이스</Text>
-              <Text style={styles.metricValue}>{currentPace}</Text>
-            </Card>
-            <Card style={styles.metricCard}>
-              <Text style={styles.metricLabel}>케이던스</Text>
-              <Text style={styles.metricValue}>{formatCadence(cadenceSpm)}</Text>
-            </Card>
-            <Card style={styles.metricCard}>
-              <Text style={styles.metricLabel}>고도 상승</Text>
-              <Text style={styles.metricValue}>{formatElevation(elevationGainM)}</Text>
-            </Card>
-          </View>
-
-          <Card style={styles.guideCard}>
-            <View style={styles.guideHeader}>
-              <Text style={styles.sectionTitle}>측정 상태</Text>
-              <View style={[styles.statusBadge, isRunning ? styles.statusRunning : isPaused ? styles.statusPaused : styles.statusIdle]}>
-                <Text style={[styles.statusBadgeText, isRunning ? styles.statusRunningText : isPaused ? styles.statusPausedText : styles.statusIdleText]}>
-                  {isRunning ? '러닝 중' : isPaused ? '일시정지' : isSaving ? '저장 중' : '준비됨'}
-                </Text>
-              </View>
+              <ScrollView
+                ref={livePagerRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(event) => {
+                  const page = Math.round(event.nativeEvent.contentOffset.x / liveArenaPageWidth);
+                  setLiveArenaPage(page);
+                }}
+              >
+                <View style={[styles.livePagerPage, { width: liveArenaPageWidth }]}>
+                  {renderLiveArenaPage()}
+                </View>
+                <View style={[styles.livePagerPage, { width: liveArenaPageWidth }]}>
+                  {renderRunningStatsBoard(false)}
+                </View>
+              </ScrollView>
+              <Text style={styles.livePagerHint}>옆으로 넘기면 기록 화면을 볼 수 있어요.</Text>
             </View>
-            <Text style={styles.guideText}>
-              위치 권한: {locationPermissionGranted === null ? '아직 확인 전' : locationPermissionGranted ? '허용됨' : '허용 안 됨'}
-            </Text>
-            <Text style={styles.guideText}>
-              백그라운드 위치: {backgroundLocationPermissionGranted === null ? '아직 확인 전' : backgroundLocationPermissionGranted ? '항상 허용됨' : '항상 허용 필요'}
-            </Text>
-            <Text style={styles.guideText}>
-              모션 권한: {motionPermissionGranted === null ? '아직 확인 전' : motionPermissionGranted ? '허용됨' : '케이던스 측정 제한'}
-            </Text>
-            {suggestedRoute ? <Text style={styles.guideText}>추천 경로: {suggestedRoute.displayTitle}</Text> : null}
-            <Text style={styles.guideHint}>백그라운드 위치가 허용되면 화면을 벗어나도 계속 측정돼요. 다만 앱을 강제로 종료하면 측정이 중단될 수 있어요.</Text>
-          </Card>
+          ) : (
+            renderRunningStatsBoard(true)
+          )}
 
           {isSaving ? <ActivityIndicator size="small" color="#6D5EF7" /> : null}
 
@@ -3564,6 +3736,44 @@ const styles = StyleSheet.create({
   },
   liveShareToggleTextInactiveLight: {
     color: '#475467',
+  },
+  livePagerShell: {
+    gap: 12,
+  },
+  livePagerTabRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  livePagerTab: {
+    flex: 1,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    backgroundColor: '#F8FAFC',
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  livePagerTabSelected: {
+    borderColor: '#6D5EF7',
+    backgroundColor: '#EEF2FF',
+  },
+  livePagerTabText: {
+    color: '#667085',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  livePagerTabTextSelected: {
+    color: '#4338CA',
+  },
+  livePagerPage: {
+    paddingRight: 16,
+    gap: 16,
+  },
+  livePagerHint: {
+    color: '#98A2B3',
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
   },
   matchCard: {
     gap: 10,
