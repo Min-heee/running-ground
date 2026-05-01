@@ -1373,6 +1373,78 @@ function getMatchQueueEntries(store, mode, distanceKm, slotStartAt) {
   ));
 }
 
+function findAnyQueuedMatchEntryForUser(store, userId) {
+  const queues = pruneMatchQueues(store);
+
+  for (const mode of ['duel', 'group']) {
+    const entry = queues[mode].find((item) => item.userId === userId);
+
+    if (entry) {
+      return { mode, entry };
+    }
+  }
+
+  return null;
+}
+
+function findAnyReservedMatchSessionForUser(store, userId, now = new Date()) {
+  const sessions = pruneMatchSessions(store, now);
+
+  for (const session of sessions) {
+    const participant = session.participants.find((item) => (
+      item.userId === userId && resolveParticipantLiveStatus(item, now) !== 'forfeited'
+    ));
+
+    if (!participant) {
+      continue;
+    }
+
+    const state = hydrateMatchSessionState(session, now);
+
+    if (['matched', 'active'].includes(state)) {
+      return { session, state };
+    }
+  }
+
+  return null;
+}
+
+function buildSingleMatchLockMessage(mode, slotStartAt, state = 'waiting') {
+  const modeLabel = mode === 'duel' ? '1대1 대결' : '그룹 대결';
+  const slotSummary = `${buildMatchSlotDateLabel(slotStartAt)} ${formatDuelSlotLabel(slotStartAt)}`;
+
+  if (state === 'active') {
+    return `이미 진행 중인 ${modeLabel}이 있어요. ${slotSummary} 매치를 먼저 끝내야 새 매칭을 신청할 수 있어요.`;
+  }
+
+  if (state === 'matched') {
+    return `이미 예약된 ${modeLabel}이 있어요. ${slotSummary} 매치를 먼저 취소하거나 끝내야 다른 매칭을 신청할 수 있어요.`;
+  }
+
+  return `이미 신청한 ${modeLabel}이 있어요. ${slotSummary} 매치를 먼저 취소하거나 끝내야 다른 매칭을 신청할 수 있어요.`;
+}
+
+function assertUserCanRequestAnotherMatch(store, currentUser) {
+  const now = new Date();
+  const existingSession = findAnyReservedMatchSessionForUser(store, currentUser.id, now);
+
+  if (existingSession) {
+    throw new ApiError(
+      400,
+      buildSingleMatchLockMessage(existingSession.session.mode, existingSession.session.slotStartAt, existingSession.state),
+    );
+  }
+
+  const existingQueue = findAnyQueuedMatchEntryForUser(store, currentUser.id);
+
+  if (existingQueue) {
+    throw new ApiError(
+      400,
+      buildSingleMatchLockMessage(existingQueue.mode, existingQueue.entry.slotStartAt, 'waiting'),
+    );
+  }
+}
+
 function buildQueuedMatchRunnerEntries(store, mode, currentRunner, { distanceKm, slotStartAt, includeCurrentUser = false }) {
   const queueEntries = getMatchQueueEntries(store, mode, distanceKm, slotStartAt)
     .filter((entry) => includeCurrentUser || entry.userId !== currentRunner.id);
@@ -1552,6 +1624,8 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
 }
 
 function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt, testMode = false }) {
+  assertUserCanRequestAnotherMatch(store, currentUser);
+
   if (testMode) {
     return buildTestDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt });
   }
@@ -1634,6 +1708,8 @@ function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt, t
 }
 
 function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt, testMode = false }) {
+  assertUserCanRequestAnotherMatch(store, currentUser);
+
   if (testMode) {
     return buildTestGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt });
   }

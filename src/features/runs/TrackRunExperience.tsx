@@ -747,6 +747,21 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const selectedMatch = matchOptions.find((option) => option.mode === matchMode) ?? matchOptions[0];
   const duelMatchState = duelMatchStatus?.state ?? 'idle';
   const groupMatchState = groupMatchStatus?.state ?? 'idle';
+  const hasBlockingScheduledMatch = useMemo(
+    () => upcomingMatches.some((match) => ['matched', 'active'].includes(match.status)),
+    [upcomingMatches],
+  );
+  const hasBlockingDuelMatch = ['waiting', 'matched', 'active'].includes(duelMatchState);
+  const hasBlockingGroupMatch = ['waiting', 'matched', 'active'].includes(groupMatchState);
+  const canCreateDuelMatch = !hasBlockingScheduledMatch && !hasBlockingGroupMatch && !hasBlockingDuelMatch;
+  const canCreateGroupMatch = !hasBlockingScheduledMatch && !hasBlockingDuelMatch && !hasBlockingGroupMatch;
+  const blockingMatchHelperText = hasBlockingScheduledMatch
+    ? '매칭은 한 번에 하나만 잡을 수 있어요. 지금 예약된 매치를 먼저 취소하거나 끝내야 해요.'
+    : hasBlockingDuelMatch
+      ? '이미 1대1 매칭 신청이나 예약이 있어요. 먼저 정리한 뒤 새 매칭을 잡을 수 있어요.'
+      : hasBlockingGroupMatch
+        ? '이미 그룹 매칭 신청이나 예약이 있어요. 먼저 정리한 뒤 새 매칭을 잡을 수 있어요.'
+        : null;
   const duelReservationLocked = duelMatchState === 'matched' && duelMatchStatus?.canCancel === false;
   const groupReservationLocked = groupMatchState === 'matched' && groupMatchStatus?.canCancel === false;
   const effectiveDuelOpponent = duelMatchStatus?.opponent ?? duelMatchResult?.opponent ?? null;
@@ -2864,7 +2879,12 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     <View style={styles.duelSectionHeader}>
                       <Text style={styles.duelSectionTitle}>출발 시간대</Text>
                     </View>
-                    <View style={styles.slotDateRow}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.slotDateScrollContent}
+                      style={styles.slotDateScroll}
+                    >
                       {duelDateOptions.map((dateOption) => {
                         const isSelected = dateOption.key === selectedDuelDateKey;
 
@@ -2891,8 +2911,13 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           </Pressable>
                         );
                       })}
-                    </View>
-                    <View style={styles.duelSlotGrid}>
+                    </ScrollView>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.slotTimeScrollContent}
+                      style={styles.slotTimeScroll}
+                    >
                       {visibleDuelSlotOptions.map((slot) => {
                         const isSelected = slot.startsAt === (selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt);
 
@@ -2919,7 +2944,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           </Pressable>
                         );
                       })}
-                    </View>
+                    </ScrollView>
                     <Text style={styles.duelHelperText}>
                       출발 30분 전까지만 신청할 수 있고, 그 전까지 나와 비슷한 페이스 상대를 계속 찾아줘요.
                     </Text>
@@ -3017,15 +3042,20 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         onPress={() => {
                           void handleRequestDuelMatch();
                         }}
+                        disabled={!canCreateDuelMatch}
                       />
                       <SecondaryButton
                         label="1대1 테스트 매칭"
                         onPress={() => {
                           void handleRequestDuelMatch(activeDuelSlotStartAt, { testMode: true });
                         }}
+                        disabled={!canCreateDuelMatch}
                       />
                     </View>
                   )}
+                  {!canCreateDuelMatch && blockingMatchHelperText ? (
+                    <Text style={styles.matchCancelHelperText}>{blockingMatchHelperText}</Text>
+                  ) : null}
                 </View>
               ) : null}
               {matchMode === 'group' ? (
@@ -3083,7 +3113,12 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     <View style={styles.duelSectionHeader}>
                       <Text style={styles.duelSectionTitle}>출발 시간대</Text>
                     </View>
-                    <View style={styles.slotDateRow}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.slotDateScrollContent}
+                      style={styles.slotDateScroll}
+                    >
                       {groupDateOptions.map((dateOption) => {
                         const isSelected = dateOption.key === selectedGroupDateKey;
 
@@ -3110,8 +3145,13 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           </Pressable>
                         );
                       })}
-                    </View>
-                    <View style={styles.duelSlotGrid}>
+                    </ScrollView>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.slotTimeScrollContent}
+                      style={styles.slotTimeScroll}
+                    >
                       {visibleGroupSlotOptions.map((slot) => {
                         const isSelected = slot.startsAt === (selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt);
 
@@ -3138,7 +3178,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           </Pressable>
                         );
                       })}
-                    </View>
+                    </ScrollView>
                     <Text style={styles.duelHelperText}>
                       출발 30분 전까지만 신청할 수 있고, 최소 5명이 모일 때까지 비슷한 러너를 계속 찾아줘요.
                     </Text>
@@ -3258,15 +3298,20 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         onPress={() => {
                           void handleRequestGroupMatch();
                         }}
+                        disabled={!canCreateGroupMatch}
                       />
                       <SecondaryButton
                         label="그룹 테스트 매칭"
                         onPress={() => {
                           void handleRequestGroupMatch(activeGroupSlotStartAt, { testMode: true });
                         }}
+                        disabled={!canCreateGroupMatch}
                       />
                     </View>
                   )}
+                  {!canCreateGroupMatch && blockingMatchHelperText ? (
+                    <Text style={styles.matchCancelHelperText}>{blockingMatchHelperText}</Text>
+                  ) : null}
                 </View>
               ) : null}
             </View>
@@ -3962,13 +4007,21 @@ const styles = StyleSheet.create({
   },
   duelSlotGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 6,
   },
-  slotDateRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  slotDateScroll: {
+    marginHorizontal: -4,
+  },
+  slotDateScrollContent: {
     gap: 8,
+    paddingHorizontal: 4,
+  },
+  slotTimeScroll: {
+    marginHorizontal: -4,
+  },
+  slotTimeScrollContent: {
+    gap: 6,
+    paddingHorizontal: 4,
   },
   slotDateChip: {
     minWidth: 68,
