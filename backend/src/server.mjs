@@ -1263,7 +1263,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
   return {
     success: true,
     mode,
-    state: queuedEntries.length ? 'waiting' : 'idle',
+    state: currentQueueEntry ? 'waiting' : 'idle',
     distanceKm: normalizeMatchQueueDistance(distanceKm),
     slotStartAt,
     slotLabel,

@@ -922,7 +922,11 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
           ? duelMatchStatus?.userAccepted
             ? '상대 수락 대기 중'
             : '수락 후 시작'
-          : '매칭 완료 후 시작'
+          : duelMatchState === 'waiting'
+            ? (duelMatchStatus?.competitiveParticipantsCount ?? 0) >= 2
+              ? '상대 연결 정리 중'
+              : '상대 잡히면 수락 가능'
+            : '매칭 완료 후 시작'
     : matchMode === 'group'
       ? groupMatchState === 'active'
         ? `${effectiveGroupParticipantCount}명 그룹으로 시작`
@@ -951,6 +955,11 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       ? `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 바로 붙을 수 있는 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
       : `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 지금 바로 붙을 수 있는 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
     : '같은 거리와 시간대에서 먼저 찾기한 러너들 중 페이스와 레벨이 잘 맞는 상대를 찾고 있어요.';
+  const duelWaitingHint = duelWaitingHasOtherApplicants
+    ? duelCompatibleCount >= 2
+      ? '상대 연결이 마무리되면 READY로 바뀌고, 그때 수락 버튼이 나타나요.'
+      : '수락 버튼은 페이스와 레벨이 맞는 상대가 실제로 잡혔을 때만 나타나요.'
+    : '지금은 먼저 대기열에 들어간 상태예요. 잘 맞는 상대가 잡히면 수락 버튼이 바로 나타나요.';
   const backHref: Href = '/my-activity';
   const discardRedirectHref: Href | null = isTabMode ? null : '/my-activity';
 
@@ -2492,6 +2501,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       <Text style={styles.duelResultEyebrow}>WAITING</Text>
                       <Text style={styles.duelResultTitle}>{duelWaitingTitle}</Text>
                       <Text style={styles.duelResultMeta}>{duelWaitingMeta}</Text>
+                      <Text style={styles.duelResultMeta}>{duelWaitingHint}</Text>
                       {duelExpiryCountdownLabel ? (
                         <Text style={styles.duelResultMeta}>자동 정리까지 {duelExpiryCountdownLabel} 남음</Text>
                       ) : null}
