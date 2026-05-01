@@ -17,6 +17,7 @@ import { Pedometer } from 'expo-sensors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
+import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
@@ -35,6 +36,13 @@ import {
   updateRunningLiveShare,
 } from '@/lib/api/services';
 import { syncScheduledMatchNotifications } from '@/lib/matchNotifications';
+import {
+  findNextStartingMatchedMatch,
+  formatMatchCountdown,
+  getMatchStartRemainingSeconds,
+  shouldShowMatchCardCountdown,
+  shouldShowMatchStartOverlay,
+} from '@/lib/matchCountdown';
 import {
   type DuelMatchOpponent,
   type GroupMatchParticipant,
@@ -646,6 +654,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingRunningMatchItem[]>([]);
   const [matchRemindersEnabled, setMatchRemindersEnabled] = useState(true);
   const [cancelingUpcomingMatchId, setCancelingUpcomingMatchId] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const routeCoordinates = useMemo(
@@ -739,14 +748,26 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     ? buildMatchParticipantStatusLabel(effectiveDuelOpponent.liveStatus)
     : null;
   const effectiveDuelSlotLabel = duelMatchStatus?.slotLabel ?? duelMatchResult?.slotLabel ?? selectedDuelSlot?.label ?? '시간 미정';
+  const duelStartCountdownSeconds =
+    duelMatchState === 'matched'
+      ? getMatchStartRemainingSeconds(duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt, nowMs)
+      : null;
   const duelExpiryCountdownLabel = formatMatchExpiryCountdown(duelMatchStatus?.expiresInSeconds);
   const effectiveGroupParticipants = groupMatchStatus?.participants ?? groupMatchResult?.participants ?? [];
   const effectiveGroupParticipantCount = groupMatchStatus?.participantCount ?? groupMatchResult?.participantsCount ?? effectiveGroupParticipants.length;
   const effectiveGroupSeedRank = groupMatchStatus?.mySeedRank ?? groupMatchResult?.mySeedRank;
   const effectiveGroupSlotLabel = groupMatchStatus?.slotLabel ?? groupMatchResult?.slotLabel ?? selectedGroupSlot?.label ?? '시간 미정';
+  const groupStartCountdownSeconds =
+    groupMatchState === 'matched'
+      ? getMatchStartRemainingSeconds(groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt, nowMs)
+      : null;
   const groupExpiryCountdownLabel = formatMatchExpiryCountdown(groupMatchStatus?.expiresInSeconds);
   const duelNeedsManualRematch = Boolean(duelMatchNotice && duelMatchState === 'idle');
   const groupNeedsManualRematch = Boolean(groupMatchNotice && groupMatchState === 'idle');
+  const nextStartingMatch = useMemo(
+    () => findNextStartingMatchedMatch(upcomingMatches, nowMs),
+    [nowMs, upcomingMatches],
+  );
   const groupLiveStandings = useMemo(
     () => buildGroupLiveStandings(effectiveGroupParticipants, effectiveGroupSeedRank, distanceKm, elapsedSeconds),
     [distanceKm, elapsedSeconds, effectiveGroupParticipants, effectiveGroupSeedRank],
@@ -1322,6 +1343,11 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   useEffect(() => {
     void syncScheduledMatchNotifications(upcomingMatches, matchRemindersEnabled);
   }, [matchRemindersEnabled, upcomingMatches]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (matchMode !== 'duel' || !duelMatchStatus || !['waiting', 'matched', 'active'].includes(duelMatchStatus.state)) {
@@ -2264,7 +2290,8 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   }, [status]);
 
   return (
-    <Screen>
+    <View style={styles.root}>
+      <Screen>
       <AuthHeader
         title="실시간 러닝"
         showBack={!isTabMode}
@@ -2287,6 +2314,14 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         {match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
                       </Text>
                       <Text style={styles.upcomingMatchMeta}>{match.counterpartLabel}</Text>
+                      {(() => {
+                        const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
+                        return shouldShowMatchCardCountdown(remainingSeconds) ? (
+                          <View style={styles.upcomingMatchCountdownPill}>
+                            <Text style={styles.upcomingMatchCountdownText}>시작까지 {formatMatchCountdown(remainingSeconds!)}</Text>
+                          </View>
+                        ) : null;
+                      })()}
                       {match.status === 'matched' ? (
                         match.canCancel ? (
                           <Pressable
@@ -2515,6 +2550,11 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       <Text style={styles.duelResultMeta}>
                         {buildMatchSlotDateLabel(duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt)} {effectiveDuelSlotLabel}
                       </Text>
+                      {shouldShowMatchCardCountdown(duelStartCountdownSeconds) ? (
+                        <View style={styles.matchCountdownPill}>
+                          <Text style={styles.matchCountdownText}>시작까지 {formatMatchCountdown(duelStartCountdownSeconds!)}</Text>
+                        </View>
+                      ) : null}
                       <Text style={styles.duelResultMeta}>
                         상대 {effectiveDuelOpponent.name} · {effectiveDuelOpponent.averagePace} · {effectiveDuelOpponent.levelLabel}
                         {effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}
@@ -2741,6 +2781,11 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       <Text style={styles.duelResultMeta}>
                         {buildMatchSlotDateLabel(groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt)} {effectiveGroupSlotLabel}
                       </Text>
+                      {groupMatchState === 'matched' && shouldShowMatchCardCountdown(groupStartCountdownSeconds) ? (
+                        <View style={styles.matchCountdownPill}>
+                          <Text style={styles.matchCountdownText}>시작까지 {formatMatchCountdown(groupStartCountdownSeconds!)}</Text>
+                        </View>
+                      ) : null}
                       <Text style={styles.duelResultMeta}>
                         {effectiveGroupParticipantCount}명 그룹 · 내 시작 시드 {effectiveGroupSeedRank ?? 1}위
                       </Text>
@@ -3305,11 +3350,22 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       )}
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
-    </Screen>
+      </Screen>
+      {isIdle && nextStartingMatch && shouldShowMatchStartOverlay(nextStartingMatch.remainingSeconds) ? (
+        <MatchStartCountdownOverlay
+          title={nextStartingMatch.match.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작'}
+          subtitle={`${nextStartingMatch.match.counterpartLabel} · ${nextStartingMatch.match.summary}`}
+          secondsRemaining={nextStartingMatch.remainingSeconds}
+        />
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   readyCard: {
     gap: 16,
     backgroundColor: '#111827',
@@ -3365,6 +3421,21 @@ const styles = StyleSheet.create({
   upcomingMatchMeta: {
     color: '#D0D5DD',
     lineHeight: 18,
+  },
+  upcomingMatchCountdownPill: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(129, 140, 248, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(129, 140, 248, 0.32)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  upcomingMatchCountdownText: {
+    color: '#E0E7FF',
+    fontSize: 12,
+    fontWeight: '800',
   },
   upcomingMatchCancelButton: {
     alignSelf: 'flex-start',
@@ -3831,6 +3902,22 @@ const styles = StyleSheet.create({
     color: '#C7D2FE',
     fontSize: 12,
     fontWeight: '700',
+  },
+  matchCountdownPill: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+    marginBottom: 2,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  matchCountdownText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
   matchNoticeText: {
     color: '#A5B4FC',

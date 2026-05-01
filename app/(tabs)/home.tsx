@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View, StyleSheet } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { Card } from '@/components/Card';
+import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
 import { Screen } from '@/components/Screen';
 import { HomeOverview } from '@/features/home/HomeOverview';
 import { AppNotice, UserProfile, WeeklySummary } from '@/domain/types';
 import { syncScheduledMatchNotifications } from '@/lib/matchNotifications';
+import {
+  findNextStartingMatchedMatch,
+  formatMatchCountdown,
+  getMatchStartRemainingSeconds,
+  shouldShowMatchCardCountdown,
+  shouldShowMatchStartOverlay,
+} from '@/lib/matchCountdown';
 import { cancelRunningMatch, fetchActiveNotices, fetchHomeSummary, fetchMyActivity, fetchMyProfile, fetchNotificationSettings, fetchUpcomingRunningMatches } from '@/lib/api/services';
 import { getCurrentUserProfile } from '@/lib/session';
 import { MyActivityResponse, UpcomingRunningMatchItem } from '@/lib/api/types';
@@ -18,6 +26,7 @@ export default function HomeScreen() {
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingRunningMatchItem[]>([]);
   const [matchRemindersEnabled, setMatchRemindersEnabled] = useState(true);
   const [cancelingMatchId, setCancelingMatchId] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -95,6 +104,16 @@ export default function HomeScreen() {
     void syncScheduledMatchNotifications(upcomingMatches, matchRemindersEnabled);
   }, [matchRemindersEnabled, upcomingMatches]);
 
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const nextStartingMatch = useMemo(
+    () => findNextStartingMatchedMatch(upcomingMatches, nowMs),
+    [nowMs, upcomingMatches],
+  );
+
   const handleCancelUpcomingMatch = async (match: UpcomingRunningMatchItem) => {
     try {
       setError(null);
@@ -115,8 +134,9 @@ export default function HomeScreen() {
   };
 
   return (
-    <Screen>
-      <View style={styles.contentWrap}>
+    <View style={styles.root}>
+      <Screen>
+        <View style={styles.contentWrap}>
         <View style={styles.headerWrap}>
           <Text style={styles.headerLabel}>홈</Text>
           <Text style={styles.headerBrand}>RunningGround</Text>
@@ -134,15 +154,23 @@ export default function HomeScreen() {
           <Card style={styles.upcomingCard}>
             <Text style={styles.upcomingLabel}>다가오는 대결</Text>
             {upcomingMatches.slice(0, 2).map((match) => (
-              <View key={match.matchId} style={styles.upcomingRow}>
-                <View style={styles.upcomingCopy}>
-                  <Text style={styles.upcomingTitle}>
-                    {match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
-                  </Text>
-                  <Text style={styles.upcomingMeta}>{match.counterpartLabel}</Text>
-                  {match.status === 'matched' ? (
-                    match.canCancel ? (
-                      <Pressable
+                <View key={match.matchId} style={styles.upcomingRow}>
+                  <View style={styles.upcomingCopy}>
+                    <Text style={styles.upcomingTitle}>
+                      {match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
+                    </Text>
+                    <Text style={styles.upcomingMeta}>{match.counterpartLabel}</Text>
+                    {(() => {
+                      const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
+                      return shouldShowMatchCardCountdown(remainingSeconds) ? (
+                        <View style={styles.upcomingCountdownPill}>
+                          <Text style={styles.upcomingCountdownText}>시작까지 {formatMatchCountdown(remainingSeconds!)}</Text>
+                        </View>
+                      ) : null;
+                    })()}
+                    {match.status === 'matched' ? (
+                      match.canCancel ? (
+                        <Pressable
                         style={styles.upcomingCancelButton}
                         onPress={() => {
                           void handleCancelUpcomingMatch(match);
@@ -169,12 +197,23 @@ export default function HomeScreen() {
             runs={activity?.runs ?? []}
           />
         ) : null}
-      </View>
-    </Screen>
+        </View>
+      </Screen>
+      {nextStartingMatch && shouldShowMatchStartOverlay(nextStartingMatch.remainingSeconds) ? (
+        <MatchStartCountdownOverlay
+          title={nextStartingMatch.match.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작'}
+          subtitle={`${nextStartingMatch.match.counterpartLabel} · ${nextStartingMatch.match.summary}`}
+          secondsRemaining={nextStartingMatch.remainingSeconds}
+        />
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   contentWrap: {
     gap: 16,
   },
@@ -243,6 +282,21 @@ const styles = StyleSheet.create({
   upcomingMeta: {
     color: '#D0D5DD',
     lineHeight: 19,
+  },
+  upcomingCountdownPill: {
+    alignSelf: 'flex-start',
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(109, 94, 247, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(199, 210, 254, 0.32)',
+  },
+  upcomingCountdownText: {
+    color: '#E0E7FF',
+    fontSize: 12,
+    fontWeight: '800',
   },
   upcomingCancelButton: {
     alignSelf: 'flex-start',
