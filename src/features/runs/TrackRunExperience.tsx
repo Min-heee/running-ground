@@ -22,10 +22,10 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RunMatchResult, RunRoutePoint } from '@/domain/types';
 import {
-  acceptRunningMatch,
   cancelRunningMatch,
   createTrackedRun,
   fetchMatchDemandSummary,
+  fetchUpcomingRunningMatches,
   fetchRunningMatchStatus,
   leaveRunningMatch,
   requestDuelMatch,
@@ -40,6 +40,7 @@ import {
   type RequestDuelMatchResponse,
   type RequestGroupMatchResponse,
   type RunningMatchStatusResponse,
+  type UpcomingRunningMatchItem,
   type UpdateRunningMatchProgressInput,
 } from '@/lib/api/types';
 import { buildSuggestedArtRoute, type SuggestedArtRoute } from '@/features/runs/routeArt';
@@ -88,21 +89,22 @@ type GroupLiveStanding = GroupMatchParticipant & {
   isCurrentUser: boolean;
 };
 type MatchParticipantLiveStatus = DuelMatchOpponent['liveStatus'];
-type MatchSlotOption = ReturnType<typeof buildUpcomingHalfHourSlots>[number];
-type MatchSlotSectionKey = 'dawn' | 'morning' | 'afternoon' | 'night';
-type MatchExpansionSuggestion = {
-  slotStartAt: string;
-  slotLabel: string;
-  directionLabel: string;
-  summary: MatchDemandSummaryResponse;
+type MatchSlotOption = {
+  startsAt: string;
+  label: string;
+  dateKey: string;
+  dateLabel: string;
+  weekdayLabel: string;
+  isClosed: boolean;
+};
+type MatchDateOption = {
+  key: string;
+  label: string;
+  subtitle: string;
 };
 const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.2];
-const MATCH_SLOT_SECTIONS: { key: MatchSlotSectionKey; label: string }[] = [
-  { key: 'dawn', label: '새벽' },
-  { key: 'morning', label: '오전' },
-  { key: 'afternoon', label: '오후' },
-  { key: 'night', label: '밤' },
-];
+const MATCH_BOOKING_WINDOW_DAYS = 7;
+const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
 
 function buildRoutePoint(location: Location.LocationObject): RunRoutePoint {
   return {
@@ -290,101 +292,69 @@ function findNearestRecommendedDistance(distanceKm: number) {
   ));
 }
 
-function shouldSuggestExpandedSlot(mode: 'duel' | 'group', currentSummary: MatchDemandSummaryResponse, candidateSummary: MatchDemandSummaryResponse) {
-  if (candidateSummary.competitiveParticipantsCount <= currentSummary.competitiveParticipantsCount) {
-    return false;
-  }
-
-  if (mode === 'duel') {
-    return currentSummary.competitiveParticipantsCount < currentSummary.capacity;
-  }
-
-  return currentSummary.competitiveParticipantsCount < 4;
+function formatMatchDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-function buildMatchExpansionSuggestion(
-  mode: 'duel' | 'group',
-  currentSummary: MatchDemandSummaryResponse,
-  slotOptions: MatchSlotOption[],
-  selectedSlotStartAt: string,
-  nearbySummaries: MatchDemandSummaryResponse[],
-): MatchExpansionSuggestion | null {
-  const currentIndex = slotOptions.findIndex((slot) => slot.startsAt === selectedSlotStartAt);
+function isMatchSlotClosed(slotStartAt: string, now = new Date()) {
+  const slotStartAtMs = new Date(slotStartAt).getTime();
 
-  if (currentIndex < 0) {
-    return null;
+  if (!Number.isFinite(slotStartAtMs)) {
+    return true;
   }
 
-  const candidates = nearbySummaries
-    .map((summary) => {
-      const slotIndex = slotOptions.findIndex((slot) => slot.startsAt === summary.slotStartAt);
+  return slotStartAtMs - MATCH_BOOKING_CUTOFF_MS <= now.getTime();
+}
 
-      if (slotIndex < 0 || !shouldSuggestExpandedSlot(mode, currentSummary, summary)) {
-        return null;
-      }
+function buildWeeklyHourlySlots(referenceDate = new Date()): MatchSlotOption[] {
+  const baseDate = new Date(referenceDate);
+  baseDate.setMinutes(0, 0, 0);
+  const maxSelectableAtMs = referenceDate.getTime() + MATCH_BOOKING_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
+  return Array.from({ length: MATCH_BOOKING_WINDOW_DAYS + 1 }, (_, dayOffset) => {
+    const currentDate = new Date(baseDate);
+    currentDate.setDate(baseDate.getDate() + dayOffset);
+    currentDate.setHours(0, 0, 0, 0);
+
+    return Array.from({ length: 24 }, (_, hour) => {
+      const slotStart = new Date(currentDate);
+      slotStart.setHours(hour, 0, 0, 0);
+      const startsAt = slotStart.toISOString();
       return {
-        slotStartAt: summary.slotStartAt,
-        slotLabel: summary.slotLabel,
-        directionLabel: slotIndex < currentIndex ? '30분 앞' : '30분 뒤',
-        summary,
+        startsAt,
+        label: `${String(hour).padStart(2, '0')}:00`,
+        dateKey: formatMatchDateKey(slotStart),
+        dateLabel: slotStart.toLocaleDateString('ko-KR', {
+          month: 'numeric',
+          day: 'numeric',
+        }),
+        weekdayLabel: slotStart.toLocaleDateString('ko-KR', {
+          weekday: 'short',
+        }),
+        isClosed: isMatchSlotClosed(startsAt, referenceDate),
       };
-    })
-    .filter((entry): entry is MatchExpansionSuggestion => Boolean(entry))
-    .sort((left, right) => {
-      if (right.summary.participantsCount !== left.summary.participantsCount) {
-        return right.summary.participantsCount - left.summary.participantsCount;
-      }
-
-      return Math.abs(new Date(left.slotStartAt).getTime() - new Date(selectedSlotStartAt).getTime())
-        - Math.abs(new Date(right.slotStartAt).getTime() - new Date(selectedSlotStartAt).getTime());
     });
-
-  return candidates[0] ?? null;
+  })
+    .flat()
+    .filter((slot) => new Date(slot.startsAt).getTime() <= maxSelectableAtMs);
 }
 
-function buildUpcomingHalfHourSlots(count = 6, referenceDate = new Date()) {
-  const nextSlot = new Date(referenceDate);
-  nextSlot.setSeconds(0, 0);
-  const currentMinutes = nextSlot.getMinutes();
-
-  if (currentMinutes === 0 || currentMinutes === 30) {
-    nextSlot.setMinutes(currentMinutes + 30);
-  } else if (currentMinutes < 30) {
-    nextSlot.setMinutes(30);
-  } else {
-    nextSlot.setHours(nextSlot.getHours() + 1, 0, 0, 0);
-  }
-
-  return Array.from({ length: count }, (_, index) => {
-    const slotStart = new Date(nextSlot.getTime() + index * 30 * 60 * 1000);
-    const startHours = String(slotStart.getHours()).padStart(2, '0');
-    const startMinutes = String(slotStart.getMinutes()).padStart(2, '0');
-
-    return {
-      startsAt: slotStart.toISOString(),
-      label: `${startHours}:${startMinutes}`,
-    };
-  });
-}
-
-function getMatchSlotSectionKey(slotStartAt: string): MatchSlotSectionKey {
-  const slotDate = new Date(slotStartAt);
-  const hour = slotDate.getHours();
-
-  if (hour < 6) {
-    return 'dawn';
-  }
-
-  if (hour < 12) {
-    return 'morning';
-  }
-
-  if (hour < 18) {
-    return 'afternoon';
-  }
-
-  return 'night';
+function buildMatchDateOptions(slotOptions: MatchSlotOption[]): MatchDateOption[] {
+  const seen = new Set<string>();
+  return slotOptions.filter((slot) => {
+    if (seen.has(slot.dateKey)) {
+      return false;
+    }
+    seen.add(slot.dateKey);
+    return true;
+  }).map((slot) => ({
+    key: slot.dateKey,
+    label: slot.dateLabel,
+    subtitle: slot.weekdayLabel,
+  }));
 }
 
 function formatMatchExpiryCountdown(seconds?: number | null) {
@@ -403,6 +373,20 @@ function formatMatchExpiryCountdown(seconds?: number | null) {
   }
 
   return `${seconds}초`;
+}
+
+function buildMatchSlotDateLabel(slotStartAt: string) {
+  const slotStart = new Date(slotStartAt);
+
+  if (Number.isNaN(slotStart.getTime())) {
+    return '날짜 미정';
+  }
+
+  return slotStart.toLocaleDateString('ko-KR', {
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+  });
 }
 
 function buildMatchParticipantStatusLabel(status?: MatchParticipantLiveStatus) {
@@ -438,13 +422,13 @@ function buildMatchTransitionNotice(
     return '대기 시간이 지나 자동으로 정리됐어요. 다시 찾으면 새 대기열로 들어가요.';
   }
 
-  if ((previousState === 'ready' || previousState === 'countdown') && nextState === 'waiting') {
+  if ((previousState === 'matched' || previousState === 'active') && nextState === 'waiting') {
     return mode === 'duel'
       ? '상대가 빠져서 다시 비슷한 상대를 찾는 중이에요.'
       : '일부 참가자가 빠져서 다시 비슷한 그룹을 모으는 중이에요.';
   }
 
-  if ((previousState === 'ready' || previousState === 'countdown') && nextState === 'idle') {
+  if ((previousState === 'matched' || previousState === 'active') && nextState === 'idle') {
     return '매칭이 정리됐어요. 다시 찾으면 새 대기열로 들어가요.';
   }
 
@@ -589,34 +573,33 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [liveShareEnabled, setLiveShareEnabled] = useState(false);
   const [liveShareLabel, setLiveShareLabel] = useState<string | null>(null);
   const [matchMode, setMatchMode] = useState<RunMatchMode>('duel');
+  const initialMatchSlotOptions = buildWeeklyHourlySlots();
+  const initialMatchSlot = initialMatchSlotOptions.find((slot) => !slot.isClosed) ?? initialMatchSlotOptions[0];
   const [duelDistanceText, setDuelDistanceText] = useState('5');
   const [showDuelCustomDistanceInput, setShowDuelCustomDistanceInput] = useState(false);
-  const [selectedDuelSlotStartAt, setSelectedDuelSlotStartAt] = useState(() => buildUpcomingHalfHourSlots(48)[0]?.startsAt ?? new Date().toISOString());
-  const [selectedDuelSlotSection, setSelectedDuelSlotSection] = useState<MatchSlotSectionKey>(() => getMatchSlotSectionKey(buildUpcomingHalfHourSlots(48)[0]?.startsAt ?? new Date().toISOString()));
+  const [selectedDuelSlotStartAt, setSelectedDuelSlotStartAt] = useState(() => initialMatchSlot?.startsAt ?? new Date().toISOString());
+  const [selectedDuelDateKey, setSelectedDuelDateKey] = useState(() => initialMatchSlot?.dateKey ?? formatMatchDateKey(new Date()));
   const [isRequestingDuelMatch, setIsRequestingDuelMatch] = useState(false);
   const [duelMatchResult, setDuelMatchResult] = useState<RequestDuelMatchResponse | null>(null);
   const [duelMatchStatus, setDuelMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
-  const [isAcceptingDuelMatch, setIsAcceptingDuelMatch] = useState(false);
   const [isCancelingDuelMatch, setIsCancelingDuelMatch] = useState(false);
   const [isLeavingDuelMatch, setIsLeavingDuelMatch] = useState(false);
   const [duelDemandSummary, setDuelDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
   const [isLoadingDuelDemandSummary, setIsLoadingDuelDemandSummary] = useState(false);
-  const [duelExpansionSuggestion, setDuelExpansionSuggestion] = useState<MatchExpansionSuggestion | null>(null);
   const [duelMatchNotice, setDuelMatchNotice] = useState<string | null>(null);
   const [groupDistanceText, setGroupDistanceText] = useState('5');
   const [showGroupCustomDistanceInput, setShowGroupCustomDistanceInput] = useState(false);
-  const [selectedGroupSlotStartAt, setSelectedGroupSlotStartAt] = useState(() => buildUpcomingHalfHourSlots(48)[0]?.startsAt ?? new Date().toISOString());
-  const [selectedGroupSlotSection, setSelectedGroupSlotSection] = useState<MatchSlotSectionKey>(() => getMatchSlotSectionKey(buildUpcomingHalfHourSlots(48)[0]?.startsAt ?? new Date().toISOString()));
+  const [selectedGroupSlotStartAt, setSelectedGroupSlotStartAt] = useState(() => initialMatchSlot?.startsAt ?? new Date().toISOString());
+  const [selectedGroupDateKey, setSelectedGroupDateKey] = useState(() => initialMatchSlot?.dateKey ?? formatMatchDateKey(new Date()));
   const [isRequestingGroupMatch, setIsRequestingGroupMatch] = useState(false);
   const [groupMatchResult, setGroupMatchResult] = useState<RequestGroupMatchResponse | null>(null);
   const [groupMatchStatus, setGroupMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
-  const [isAcceptingGroupMatch, setIsAcceptingGroupMatch] = useState(false);
   const [isCancelingGroupMatch, setIsCancelingGroupMatch] = useState(false);
   const [isLeavingGroupMatch, setIsLeavingGroupMatch] = useState(false);
   const [groupDemandSummary, setGroupDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
   const [isLoadingGroupDemandSummary, setIsLoadingGroupDemandSummary] = useState(false);
-  const [groupExpansionSuggestion, setGroupExpansionSuggestion] = useState<MatchExpansionSuggestion | null>(null);
   const [groupMatchNotice, setGroupMatchNotice] = useState<string | null>(null);
+  const [upcomingMatches, setUpcomingMatches] = useState<UpcomingRunningMatchItem[]>([]);
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const routeCoordinates = useMemo(
@@ -635,18 +618,21 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   );
   const duelDistanceKm = useMemo(() => parseDuelMatchDistanceKm(duelDistanceText), [duelDistanceText]);
   const groupDistanceKm = useMemo(() => parseDuelMatchDistanceKm(groupDistanceText), [groupDistanceText]);
-  const duelSlotOptions = useMemo(() => buildUpcomingHalfHourSlots(48), []);
+  const weeklyMatchSlotOptions = buildWeeklyHourlySlots();
+  const duelSlotOptions = weeklyMatchSlotOptions;
+  const duelDateOptions = useMemo(() => buildMatchDateOptions(duelSlotOptions), [duelSlotOptions]);
   const selectedDuelSlot = duelSlotOptions.find((slot) => slot.startsAt === selectedDuelSlotStartAt) ?? duelSlotOptions[0] ?? null;
   const visibleDuelSlotOptions = useMemo(
-    () => duelSlotOptions.filter((slot) => getMatchSlotSectionKey(slot.startsAt) === selectedDuelSlotSection),
-    [duelSlotOptions, selectedDuelSlotSection],
+    () => duelSlotOptions.filter((slot) => slot.dateKey === selectedDuelDateKey),
+    [duelSlotOptions, selectedDuelDateKey],
   );
   const activeDuelSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
-  const groupSlotOptions = useMemo(() => buildUpcomingHalfHourSlots(48), []);
+  const groupSlotOptions = weeklyMatchSlotOptions;
+  const groupDateOptions = useMemo(() => buildMatchDateOptions(groupSlotOptions), [groupSlotOptions]);
   const selectedGroupSlot = groupSlotOptions.find((slot) => slot.startsAt === selectedGroupSlotStartAt) ?? groupSlotOptions[0] ?? null;
   const visibleGroupSlotOptions = useMemo(
-    () => groupSlotOptions.filter((slot) => getMatchSlotSectionKey(slot.startsAt) === selectedGroupSlotSection),
-    [groupSlotOptions, selectedGroupSlotSection],
+    () => groupSlotOptions.filter((slot) => slot.dateKey === selectedGroupDateKey),
+    [groupSlotOptions, selectedGroupDateKey],
   );
   const activeGroupSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
   const matchOptions = useMemo(
@@ -666,7 +652,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         label: '1대1',
         title: '1대1 매치',
         summary: '비슷한 목표 러너 한 명과 바로 붙는 대결 모드예요.',
-        meta: `${formatMatchTargetDistance(duelDistanceKm)} 기준 · 30분 단위 시간대 매칭`,
+        meta: `${formatMatchTargetDistance(duelDistanceKm)} 기준 · 1시간 단위 주간 예약`,
         startLabel: '1대1 매치로 시작',
         liveTitle: '1대1 매치 진행 중',
         liveText: '완주 시간과 평균 페이스를 중심으로 오늘 결과를 비교하기 좋은 모드예요.',
@@ -676,7 +662,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         label: '그룹',
         title: '그룹 대결',
         summary: '최대 30명까지 모아 순위 흐름을 보는 그룹전 모드예요.',
-        meta: `${formatMatchTargetDistance(groupDistanceKm)} 기준 · 30분 단위 그룹 매칭`,
+        meta: `${formatMatchTargetDistance(groupDistanceKm)} 기준 · 1시간 단위 주간 예약`,
         startLabel: '그룹 대결로 시작',
         liveTitle: '그룹 대결 진행 중',
         liveText: '비슷한 러너들과 함께 뛰면서 내 순위를 보는 재미를 주는 모드예요.',
@@ -687,13 +673,13 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
   useEffect(() => {
     if (selectedDuelSlot) {
-      setSelectedDuelSlotSection(getMatchSlotSectionKey(selectedDuelSlot.startsAt));
+      setSelectedDuelDateKey(selectedDuelSlot.dateKey);
     }
   }, [selectedDuelSlot]);
 
   useEffect(() => {
     if (selectedGroupSlot) {
-      setSelectedGroupSlotSection(getMatchSlotSectionKey(selectedGroupSlot.startsAt));
+      setSelectedGroupDateKey(selectedGroupSlot.dateKey);
     }
   }, [selectedGroupSlot]);
   const latestPoint = route.length ? route[route.length - 1] : null;
@@ -916,27 +902,23 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const readyActionLabel = matchMode === 'duel'
     ? duelMatchState === 'active'
       ? `${effectiveDuelOpponent?.name ?? '상대'}님과 매치 시작`
-      : duelMatchState === 'countdown'
-        ? `${duelMatchStatus?.countdownRemainingSeconds ?? 0}초 뒤 시작`
-        : duelMatchState === 'ready'
-          ? duelMatchStatus?.userAccepted
-            ? '상대 수락 대기 중'
-            : '수락 후 시작'
-          : duelMatchState === 'waiting'
-            ? (duelMatchStatus?.competitiveParticipantsCount ?? 0) >= 2
-              ? '상대 연결 정리 중'
-              : '상대 잡히면 수락 가능'
-            : '매칭 완료 후 시작'
+      : duelMatchState === 'matched'
+        ? duelMatchStatus?.readyToStart
+          ? '예약된 1대1 시작'
+          : '예약된 시간 이후 시작 가능'
+        : duelMatchState === 'waiting'
+          ? '비슷한 상대를 계속 찾는 중'
+          : '매칭 완료 후 시작'
     : matchMode === 'group'
       ? groupMatchState === 'active'
         ? `${effectiveGroupParticipantCount}명 그룹으로 시작`
-        : groupMatchState === 'countdown'
-          ? `${groupMatchStatus?.countdownRemainingSeconds ?? 0}초 뒤 시작`
-          : groupMatchState === 'ready'
-            ? groupMatchStatus?.userAccepted
-              ? '모두 수락 대기 중'
-              : '수락 후 시작'
-            : '그룹 완료 후 시작'
+        : groupMatchState === 'matched'
+          ? groupMatchStatus?.readyToStart
+            ? `${effectiveGroupParticipantCount || 5}명 그룹 시작`
+            : '예약된 시간 이후 시작 가능'
+          : groupMatchState === 'waiting'
+            ? '비슷한 그룹을 계속 찾는 중'
+            : '그룹 매칭 완료 후 시작'
       : selectedMatch.startLabel;
   const isRunning = status === 'running';
   const isPaused = status === 'paused';
@@ -957,9 +939,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     : '같은 거리와 시간대에서 먼저 찾기한 러너들 중 페이스와 레벨이 잘 맞는 상대를 찾고 있어요.';
   const duelWaitingHint = duelWaitingHasOtherApplicants
     ? duelCompatibleCount >= 2
-      ? '상대 연결이 마무리되면 READY로 바뀌고, 그때 수락 버튼이 나타나요.'
-      : '수락 버튼은 페이스와 레벨이 맞는 상대가 실제로 잡혔을 때만 나타나요.'
-    : '지금은 먼저 대기열에 들어간 상태예요. 잘 맞는 상대가 잡히면 수락 버튼이 바로 나타나요.';
+      ? '잘 맞는 상대가 먼저 잡히면 바로 예약된 1대1로 바뀌어요.'
+      : '페이스와 레벨이 실제로 잘 맞는 상대가 잡히면 자동으로 매치가 확정돼요.'
+    : '지금은 먼저 대기열에 들어간 상태예요. 잘 맞는 상대가 잡히면 자동으로 매치가 확정돼요.';
   const backHref: Href = '/my-activity';
   const discardRedirectHref: Href | null = isTabMode ? null : '/my-activity';
 
@@ -1093,7 +1075,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
   useEffect(() => {
     if (matchMode !== 'duel') {
-      setDuelExpansionSuggestion(null);
       return;
     }
 
@@ -1128,7 +1109,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
   useEffect(() => {
     if (matchMode !== 'group') {
-      setGroupExpansionSuggestion(null);
       return;
     }
 
@@ -1160,82 +1140,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       canceled = true;
     };
   }, [matchMode, groupDistanceKm, selectedGroupSlot, selectedGroupSlotStartAt]);
-
-  useEffect(() => {
-    if (matchMode !== 'duel' || !duelDemandSummary) {
-      setDuelExpansionSuggestion(null);
-      return;
-    }
-
-    const currentIndex = duelSlotOptions.findIndex((slot) => slot.startsAt === (selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt));
-    const nearbySlots = [duelSlotOptions[currentIndex - 1], duelSlotOptions[currentIndex + 1]].filter(Boolean);
-
-    if (!nearbySlots.length) {
-      setDuelExpansionSuggestion(null);
-      return;
-    }
-
-    let canceled = false;
-    void Promise.all(nearbySlots.map((slot) => fetchMatchDemandSummary({
-      mode: 'duel',
-      distanceKm: duelDistanceKm,
-      slotStartAt: slot.startsAt,
-    })))
-      .then((summaries) => {
-        if (!canceled) {
-          setDuelExpansionSuggestion(
-            buildMatchExpansionSuggestion('duel', duelDemandSummary, duelSlotOptions, selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt, summaries),
-          );
-        }
-      })
-      .catch(() => {
-        if (!canceled) {
-          setDuelExpansionSuggestion(null);
-        }
-      });
-
-    return () => {
-      canceled = true;
-    };
-  }, [duelDemandSummary, duelDistanceKm, duelSlotOptions, matchMode, selectedDuelSlot, selectedDuelSlotStartAt]);
-
-  useEffect(() => {
-    if (matchMode !== 'group' || !groupDemandSummary) {
-      setGroupExpansionSuggestion(null);
-      return;
-    }
-
-    const currentIndex = groupSlotOptions.findIndex((slot) => slot.startsAt === (selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt));
-    const nearbySlots = [groupSlotOptions[currentIndex - 1], groupSlotOptions[currentIndex + 1]].filter(Boolean);
-
-    if (!nearbySlots.length) {
-      setGroupExpansionSuggestion(null);
-      return;
-    }
-
-    let canceled = false;
-    void Promise.all(nearbySlots.map((slot) => fetchMatchDemandSummary({
-      mode: 'group',
-      distanceKm: groupDistanceKm,
-      slotStartAt: slot.startsAt,
-    })))
-      .then((summaries) => {
-        if (!canceled) {
-          setGroupExpansionSuggestion(
-            buildMatchExpansionSuggestion('group', groupDemandSummary, groupSlotOptions, selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt, summaries),
-          );
-        }
-      })
-      .catch(() => {
-        if (!canceled) {
-          setGroupExpansionSuggestion(null);
-        }
-      });
-
-    return () => {
-      canceled = true;
-    };
-  }, [groupDemandSummary, groupDistanceKm, groupSlotOptions, matchMode, selectedGroupSlot, selectedGroupSlotStartAt]);
 
   const loadDuelMatchStatus = async (slotStartAt = activeDuelSlotStartAt) => {
     const payload = await fetchRunningMatchStatus({
@@ -1293,6 +1197,12 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     return payload;
   };
 
+  const loadUpcomingMatches = async () => {
+    const payload = await fetchUpcomingRunningMatches();
+    setUpcomingMatches(payload.items);
+    return payload.items;
+  };
+
   useEffect(() => {
     if (matchMode !== 'duel') {
       return;
@@ -1328,11 +1238,24 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   }, [matchMode, groupDistanceKm, activeGroupSlotStartAt]);
 
   useEffect(() => {
-    if (matchMode !== 'duel' || !duelMatchStatus || !['waiting', 'ready', 'countdown', 'active'].includes(duelMatchStatus.state)) {
+    let canceled = false;
+    void loadUpcomingMatches().catch(() => {
+      if (!canceled) {
+        setUpcomingMatches([]);
+      }
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, [duelMatchStatus?.matchId, duelMatchStatus?.state, groupMatchStatus?.matchId, groupMatchStatus?.state]);
+
+  useEffect(() => {
+    if (matchMode !== 'duel' || !duelMatchStatus || !['waiting', 'matched', 'active'].includes(duelMatchStatus.state)) {
       return;
     }
 
-    const intervalMs = duelMatchStatus.state === 'countdown' ? 1000 : 5000;
+    const intervalMs = duelMatchStatus.state === 'active' ? 5000 : 15000;
     const timer = setInterval(() => {
       void loadDuelMatchStatus().catch(() => {});
     }, intervalMs);
@@ -1343,11 +1266,11 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   }, [matchMode, duelMatchStatus?.state, duelMatchStatus?.matchId, duelDistanceKm, activeDuelSlotStartAt]);
 
   useEffect(() => {
-    if (matchMode !== 'group' || !groupMatchStatus || !['waiting', 'ready', 'countdown', 'active'].includes(groupMatchStatus.state)) {
+    if (matchMode !== 'group' || !groupMatchStatus || !['waiting', 'matched', 'active'].includes(groupMatchStatus.state)) {
       return;
     }
 
-    const intervalMs = groupMatchStatus.state === 'countdown' ? 1000 : 5000;
+    const intervalMs = groupMatchStatus.state === 'active' ? 5000 : 15000;
     const timer = setInterval(() => {
       void loadGroupMatchStatus().catch(() => {});
     }, intervalMs);
@@ -1732,13 +1655,23 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       return;
     }
 
-    if (matchMode === 'duel' && duelMatchState !== 'active') {
-      setError('1대1 매칭이 모두 수락되고 카운트다운이 끝나야 시작할 수 있어요.');
+    if (matchMode === 'duel' && !['matched', 'active'].includes(duelMatchState)) {
+      setError('1대1 매칭이 잡힌 뒤에만 시작할 수 있어요.');
       return;
     }
 
-    if (matchMode === 'group' && groupMatchState !== 'active') {
-      setError('그룹 매칭이 모두 수락되고 카운트다운이 끝나야 시작할 수 있어요.');
+    if (matchMode === 'group' && !['matched', 'active'].includes(groupMatchState)) {
+      setError('그룹 매칭이 잡힌 뒤에만 시작할 수 있어요.');
+      return;
+    }
+
+    if (matchMode === 'duel' && duelMatchState === 'matched' && !duelMatchStatus?.readyToStart) {
+      setError('예약된 시작 시간이 되면 1대1 대결을 시작할 수 있어요.');
+      return;
+    }
+
+    if (matchMode === 'group' && groupMatchState === 'matched' && !groupMatchStatus?.readyToStart) {
+      setError('예약된 시작 시간이 되면 그룹 대결을 시작할 수 있어요.');
       return;
     }
 
@@ -1854,26 +1787,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     }
   };
 
-  const handleAcceptDuelMatch = async () => {
-    if (!duelMatchStatus?.matchId) {
-      return;
-    }
-
-    try {
-      setError(null);
-      setDuelMatchNotice(null);
-      setIsAcceptingDuelMatch(true);
-      const payload = await acceptRunningMatch({
-        matchId: duelMatchStatus.matchId,
-      });
-      setDuelMatchStatus(payload);
-    } catch (matchError) {
-      setError(matchError instanceof Error ? matchError.message : '1대1 매치 수락을 반영하지 못했어.');
-    } finally {
-      setIsAcceptingDuelMatch(false);
-    }
-  };
-
   const handleCancelDuelMatch = async () => {
     try {
       setError(null);
@@ -1902,26 +1815,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       setError(matchError instanceof Error ? matchError.message : '1대1 매치를 취소하지 못했어.');
     } finally {
       setIsCancelingDuelMatch(false);
-    }
-  };
-
-  const handleAcceptGroupMatch = async () => {
-    if (!groupMatchStatus?.matchId) {
-      return;
-    }
-
-    try {
-      setError(null);
-      setGroupMatchNotice(null);
-      setIsAcceptingGroupMatch(true);
-      const payload = await acceptRunningMatch({
-        matchId: groupMatchStatus.matchId,
-      });
-      setGroupMatchStatus(payload);
-    } catch (matchError) {
-      setError(matchError instanceof Error ? matchError.message : '그룹 매치 수락을 반영하지 못했어.');
-    } finally {
-      setIsAcceptingGroupMatch(false);
     }
   };
 
@@ -2006,24 +1899,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         },
       ],
     );
-  };
-
-  const handleApplyDuelExpansionSuggestion = async () => {
-    if (!duelExpansionSuggestion) {
-      return;
-    }
-
-    setSelectedDuelSlotStartAt(duelExpansionSuggestion.slotStartAt);
-    await handleRequestDuelMatch(duelExpansionSuggestion.slotStartAt);
-  };
-
-  const handleApplyGroupExpansionSuggestion = async () => {
-    if (!groupExpansionSuggestion) {
-      return;
-    }
-
-    setSelectedGroupSlotStartAt(groupExpansionSuggestion.slotStartAt);
-    await handleRequestGroupMatch(groupExpansionSuggestion.slotStartAt);
   };
 
   const handlePauseTracking = async () => {
@@ -2314,6 +2189,22 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
             <View style={styles.readyHero}>
               <Text style={styles.readyTitle}>러닝 준비</Text>
             </View>
+            {upcomingMatches.length ? (
+              <View style={styles.upcomingMatchCard}>
+                <Text style={styles.upcomingMatchEyebrow}>다가오는 매치</Text>
+                {upcomingMatches.slice(0, 2).map((match) => (
+                  <View key={match.matchId} style={styles.upcomingMatchRow}>
+                    <View style={styles.upcomingMatchCopy}>
+                      <Text style={styles.upcomingMatchTitle}>
+                        {match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
+                      </Text>
+                      <Text style={styles.upcomingMatchMeta}>{match.counterpartLabel}</Text>
+                    </View>
+                    <Text style={styles.upcomingMatchState}>{match.status === 'active' ? '진행 중' : '예약됨'}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             <View style={styles.liveShareCard}>
               <View style={styles.liveShareHeader}>
                 <View style={styles.liveShareCopy}>
@@ -2437,18 +2328,29 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     <View style={styles.duelSectionHeader}>
                       <Text style={styles.duelSectionTitle}>출발 시간대</Text>
                     </View>
-                    <View style={styles.slotSectionRow}>
-                      {MATCH_SLOT_SECTIONS.map((section) => {
-                        const isSelected = section.key === selectedDuelSlotSection;
+                    <View style={styles.slotDateRow}>
+                      {duelDateOptions.map((dateOption) => {
+                        const isSelected = dateOption.key === selectedDuelDateKey;
 
                         return (
                           <Pressable
-                            key={`duel-section-${section.key}`}
-                            style={[styles.slotSectionChip, isSelected ? styles.slotSectionChipSelected : undefined]}
-                            onPress={() => setSelectedDuelSlotSection(section.key)}
+                            key={`duel-date-${dateOption.key}`}
+                            style={[styles.slotDateChip, isSelected ? styles.slotDateChipSelected : undefined]}
+                            onPress={() => {
+                              setSelectedDuelDateKey(dateOption.key);
+                              const nextSlot = duelSlotOptions.find((slot) => slot.dateKey === dateOption.key && !slot.isClosed)
+                                ?? duelSlotOptions.find((slot) => slot.dateKey === dateOption.key)
+                                ?? null;
+                              if (nextSlot) {
+                                setSelectedDuelSlotStartAt(nextSlot.startsAt);
+                              }
+                            }}
                           >
-                            <Text style={[styles.slotSectionChipText, isSelected ? styles.slotSectionChipTextSelected : undefined]}>
-                              {section.label}
+                            <Text style={[styles.slotDateChipLabel, isSelected ? styles.slotDateChipLabelSelected : undefined]}>
+                              {dateOption.label}
+                            </Text>
+                            <Text style={[styles.slotDateChipMeta, isSelected ? styles.slotDateChipMetaSelected : undefined]}>
+                              {dateOption.subtitle}
                             </Text>
                           </Pressable>
                         );
@@ -2461,38 +2363,31 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         return (
                           <Pressable
                             key={slot.startsAt}
-                            style={[styles.duelSlotChip, isSelected ? styles.duelSlotChipSelected : undefined]}
+                            disabled={slot.isClosed}
+                            style={[
+                              styles.duelSlotChip,
+                              isSelected ? styles.duelSlotChipSelected : undefined,
+                              slot.isClosed ? styles.duelSlotChipDisabled : undefined,
+                            ]}
                             onPress={() => {
+                              if (slot.isClosed) {
+                                return;
+                              }
                               setSelectedDuelSlotStartAt(slot.startsAt);
-                              setSelectedDuelSlotSection(getMatchSlotSectionKey(slot.startsAt));
                             }}
                           >
                             <Text style={[styles.duelSlotLabel, isSelected ? styles.duelSlotLabelSelected : undefined]}>
                               {slot.label}
                             </Text>
+                            {slot.isClosed ? <Text style={styles.duelSlotClosedText}>마감</Text> : null}
                           </Pressable>
                         );
                       })}
                     </View>
                     <Text style={styles.duelHelperText}>
-                      찾기 누르면 이 시간대에 먼저 대기한 러너들 중에서 페이스와 레벨이 비슷한 상대를 바로 붙여줘요.
+                      출발 30분 전까지만 신청할 수 있고, 그 전까지 나와 비슷한 페이스 상대를 계속 찾아줘요.
                     </Text>
                   </View>
-
-                  {duelExpansionSuggestion ? (
-                    <View style={styles.matchExpansionCard}>
-                      <Text style={styles.matchExpansionTitle}>옆 시간대 제안</Text>
-                      <Text style={styles.matchExpansionText}>
-                        지금 슬롯보다 {duelExpansionSuggestion.directionLabel} {duelExpansionSuggestion.slotLabel}에 비슷한 러너가 더 많아요.
-                      </Text>
-                      <Text style={styles.matchExpansionMeta}>
-                        {duelExpansionSuggestion.summary.averagePace} · {duelExpansionSuggestion.summary.fillRatioLabel}
-                      </Text>
-                      <Pressable style={styles.matchExpansionButton} onPress={() => { void handleApplyDuelExpansionSuggestion(); }}>
-                        <Text style={styles.matchExpansionButtonText}>{duelExpansionSuggestion.slotLabel}로 넓혀서 다시 찾기</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
 
                   {isRequestingDuelMatch ? <ActivityIndicator size="small" color="#818CF8" /> : null}
 
@@ -2509,21 +2404,20 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     </View>
                   ) : null}
 
-                  {duelMatchState === 'ready' && effectiveDuelOpponent ? (
+                  {duelMatchState === 'matched' && effectiveDuelOpponent ? (
                     <View style={styles.duelResultCard}>
-                      <Text style={styles.duelResultEyebrow}>READY</Text>
-                      <Text style={styles.duelResultTitle}>{effectiveDuelOpponent.name}님이 대기 중이에요</Text>
+                      <Text style={styles.duelResultEyebrow}>MATCHED</Text>
+                      <Text style={styles.duelResultTitle}>매칭이 잡혔습니다</Text>
                       <Text style={styles.duelResultMeta}>
-                        {effectiveDuelOpponent.averagePace} · {effectiveDuelOpponent.levelLabel} · {effectiveDuelSlotLabel}
+                        {buildMatchSlotDateLabel(duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt)} {effectiveDuelSlotLabel}
+                      </Text>
+                      <Text style={styles.duelResultMeta}>
+                        상대 {effectiveDuelOpponent.name} · {effectiveDuelOpponent.averagePace} · {effectiveDuelOpponent.levelLabel}
                         {effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}
                       </Text>
                       <Text style={styles.duelResultMeta}>
-                        수락 {duelMatchStatus?.acceptedCount ?? 0}/{duelMatchStatus?.participantCount ?? 2}
+                        {duelMatchStatus?.readyToStart ? '지금 바로 시작할 수 있어요.' : '시작 시간 전까지 자동으로 예약 상태를 유지해요.'}
                       </Text>
-                      {duelExpiryCountdownLabel ? (
-                        <Text style={styles.duelResultMeta}>수락이 없으면 {duelExpiryCountdownLabel} 뒤 자동 정리돼요</Text>
-                      ) : null}
-                      <Text style={styles.duelResultMeta}>{duelMatchStatus?.criteriaSummary}</Text>
                     </View>
                   ) : null}
 
@@ -2540,18 +2434,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                           <Text style={styles.matchNoticeActionText}>같은 조건으로 다시 찾기</Text>
                         </Pressable>
                       ) : null}
-                    </View>
-                  ) : null}
-
-                  {duelMatchState === 'countdown' && effectiveDuelOpponent ? (
-                    <View style={styles.duelResultCard}>
-                      <Text style={styles.duelResultEyebrow}>COUNTDOWN</Text>
-                      <Text style={styles.duelResultTitle}>{duelMatchStatus?.countdownRemainingSeconds ?? 0}초 뒤 출발해요</Text>
-                      <Text style={styles.duelResultMeta}>
-                        {effectiveDuelOpponent.name}님 · {effectiveDuelSlotLabel}
-                        {effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}
-                      </Text>
-                      <Text style={styles.duelResultMeta}>{duelMatchStatus?.criteriaSummary}</Text>
                     </View>
                   ) : null}
 
@@ -2574,32 +2456,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     </View>
                   ) : null}
 
-                  {duelMatchState === 'ready' ? (
-                    <View style={styles.matchActionRow}>
-                      {!duelMatchStatus?.userAccepted ? (
-                        <View style={styles.matchActionItem}>
-                          <PrimaryButton label={isAcceptingDuelMatch ? '수락 중...' : '수락하기'} onPress={handleAcceptDuelMatch} />
-                        </View>
-                      ) : null}
-                      <View style={styles.matchActionItem}>
-                        <SecondaryButton
-                          label={isCancelingDuelMatch ? '취소 중...' : '대기 취소'}
-                          onPress={() => {
-                            void handleCancelDuelMatch();
-                          }}
-                        />
-                      </View>
-                    </View>
-                  ) : duelMatchState === 'waiting' ? (
+                  {duelMatchState === 'waiting' || duelMatchState === 'matched' ? (
                     <SecondaryButton
-                      label={isCancelingDuelMatch ? '취소 중...' : '1대1 대기 취소'}
-                      onPress={() => {
-                        void handleCancelDuelMatch();
-                      }}
-                    />
-                  ) : duelMatchState === 'countdown' ? (
-                    <SecondaryButton
-                      label={isCancelingDuelMatch ? '취소 중...' : '매치 취소'}
+                      label={isCancelingDuelMatch ? '취소 중...' : duelMatchState === 'matched' ? '1대1 예약 취소' : '1대1 대기 취소'}
                       onPress={() => {
                         void handleCancelDuelMatch();
                       }}
@@ -2669,18 +2528,29 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     <View style={styles.duelSectionHeader}>
                       <Text style={styles.duelSectionTitle}>출발 시간대</Text>
                     </View>
-                    <View style={styles.slotSectionRow}>
-                      {MATCH_SLOT_SECTIONS.map((section) => {
-                        const isSelected = section.key === selectedGroupSlotSection;
+                    <View style={styles.slotDateRow}>
+                      {groupDateOptions.map((dateOption) => {
+                        const isSelected = dateOption.key === selectedGroupDateKey;
 
                         return (
                           <Pressable
-                            key={`group-section-${section.key}`}
-                            style={[styles.slotSectionChip, isSelected ? styles.slotSectionChipSelected : undefined]}
-                            onPress={() => setSelectedGroupSlotSection(section.key)}
+                            key={`group-date-${dateOption.key}`}
+                            style={[styles.slotDateChip, isSelected ? styles.slotDateChipSelected : undefined]}
+                            onPress={() => {
+                              setSelectedGroupDateKey(dateOption.key);
+                              const nextSlot = groupSlotOptions.find((slot) => slot.dateKey === dateOption.key && !slot.isClosed)
+                                ?? groupSlotOptions.find((slot) => slot.dateKey === dateOption.key)
+                                ?? null;
+                              if (nextSlot) {
+                                setSelectedGroupSlotStartAt(nextSlot.startsAt);
+                              }
+                            }}
                           >
-                            <Text style={[styles.slotSectionChipText, isSelected ? styles.slotSectionChipTextSelected : undefined]}>
-                              {section.label}
+                            <Text style={[styles.slotDateChipLabel, isSelected ? styles.slotDateChipLabelSelected : undefined]}>
+                              {dateOption.label}
+                            </Text>
+                            <Text style={[styles.slotDateChipMeta, isSelected ? styles.slotDateChipMetaSelected : undefined]}>
+                              {dateOption.subtitle}
                             </Text>
                           </Pressable>
                         );
@@ -2693,19 +2563,30 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         return (
                           <Pressable
                             key={slot.startsAt}
-                            style={[styles.duelSlotChip, isSelected ? styles.duelSlotChipSelected : undefined]}
+                            disabled={slot.isClosed}
+                            style={[
+                              styles.duelSlotChip,
+                              isSelected ? styles.duelSlotChipSelected : undefined,
+                              slot.isClosed ? styles.duelSlotChipDisabled : undefined,
+                            ]}
                             onPress={() => {
+                              if (slot.isClosed) {
+                                return;
+                              }
                               setSelectedGroupSlotStartAt(slot.startsAt);
-                              setSelectedGroupSlotSection(getMatchSlotSectionKey(slot.startsAt));
                             }}
                           >
                             <Text style={[styles.duelSlotLabel, isSelected ? styles.duelSlotLabelSelected : undefined]}>
                               {slot.label}
                             </Text>
+                            {slot.isClosed ? <Text style={styles.duelSlotClosedText}>마감</Text> : null}
                           </Pressable>
                         );
                       })}
                     </View>
+                    <Text style={styles.duelHelperText}>
+                      출발 30분 전까지만 신청할 수 있고, 최소 5명이 모일 때까지 비슷한 러너를 계속 찾아줘요.
+                    </Text>
                   </View>
 
                   <View style={styles.matchDemandCard}>
@@ -2723,21 +2604,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     ) : null}
                   </View>
 
-                  {groupExpansionSuggestion ? (
-                    <View style={styles.matchExpansionCard}>
-                      <Text style={styles.matchExpansionTitle}>옆 시간대 제안</Text>
-                      <Text style={styles.matchExpansionText}>
-                        지금 슬롯보다 {groupExpansionSuggestion.directionLabel} {groupExpansionSuggestion.slotLabel}에 비슷한 러너가 더 많이 모여 있어요.
-                      </Text>
-                      <Text style={styles.matchExpansionMeta}>
-                        {groupExpansionSuggestion.summary.averagePace} · {groupExpansionSuggestion.summary.fillRatioLabel}
-                      </Text>
-                      <Pressable style={styles.matchExpansionButton} onPress={() => { void handleApplyGroupExpansionSuggestion(); }}>
-                        <Text style={styles.matchExpansionButtonText}>{groupExpansionSuggestion.slotLabel}로 넓혀서 다시 찾기</Text>
-                      </Pressable>
-                    </View>
-                  ) : null}
-
                   {isRequestingGroupMatch ? <ActivityIndicator size="small" color="#818CF8" /> : null}
 
                   {groupMatchState === 'waiting' ? (
@@ -2754,28 +2620,26 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     </View>
                   ) : null}
 
-                  {(groupMatchState === 'ready' || groupMatchState === 'countdown' || groupMatchState === 'active') && effectiveGroupParticipantCount ? (
+                  {(groupMatchState === 'matched' || groupMatchState === 'active') && effectiveGroupParticipantCount ? (
                     <View style={styles.duelResultCard}>
                       <Text style={styles.duelResultEyebrow}>
-                        {groupMatchState === 'ready' ? 'GROUP READY' : groupMatchState === 'countdown' ? 'COUNTDOWN' : 'GROUP ACTIVE'}
+                        {groupMatchState === 'matched' ? 'MATCHED' : 'GROUP ACTIVE'}
                       </Text>
                       <Text style={styles.duelResultTitle}>
-                        {groupMatchState === 'ready'
-                          ? `${effectiveGroupParticipantCount}명 그룹이 잡혔어요`
-                          : groupMatchState === 'countdown'
-                            ? `${groupMatchStatus?.countdownRemainingSeconds ?? 0}초 뒤 그룹전이 시작돼요`
-                            : `${effectiveGroupParticipantCount}명 그룹전 바로 시작 가능`}
+                        {groupMatchState === 'matched'
+                          ? '매칭이 잡혔습니다'
+                          : `${effectiveGroupParticipantCount}명 그룹전 바로 시작 가능`}
                       </Text>
                       <Text style={styles.duelResultMeta}>
-                        {effectiveGroupSlotLabel} · 내 시작 시드 {effectiveGroupSeedRank ?? 1}위
+                        {buildMatchSlotDateLabel(groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt)} {effectiveGroupSlotLabel}
                       </Text>
-                      {groupMatchState !== 'active' ? (
+                      <Text style={styles.duelResultMeta}>
+                        {effectiveGroupParticipantCount}명 그룹 · 내 시작 시드 {effectiveGroupSeedRank ?? 1}위
+                      </Text>
+                      {groupMatchState === 'matched' ? (
                         <Text style={styles.duelResultMeta}>
-                          수락 {groupMatchStatus?.acceptedCount ?? 0}/{groupMatchStatus?.participantCount ?? effectiveGroupParticipantCount}
+                          {groupMatchStatus?.readyToStart ? '지금 바로 시작할 수 있어요.' : '시작 시간 전까지 자동으로 예약 상태를 유지해요.'}
                         </Text>
-                      ) : null}
-                      {groupMatchState === 'ready' && groupExpiryCountdownLabel ? (
-                        <Text style={styles.duelResultMeta}>수락이 없으면 {groupExpiryCountdownLabel} 뒤 자동 정리돼요</Text>
                       ) : null}
                       <View style={styles.groupParticipantList}>
                         {effectiveGroupParticipants.slice(0, 3).map((participant) => (
@@ -2788,7 +2652,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                               </Text>
                               <Text style={styles.groupParticipantMeta}>
                                 {participant.averagePace} · {participant.levelLabel}
-                                {typeof participant.accepted === 'boolean' ? ` · ${participant.accepted ? '수락 완료' : '수락 대기'}` : ''}
                                 {participant.liveStatus ? ` · ${buildMatchParticipantStatusLabel(participant.liveStatus)}` : ''}
                               </Text>
                             </View>
@@ -2817,32 +2680,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     </View>
                   ) : null}
 
-                  {groupMatchState === 'ready' ? (
-                    <View style={styles.matchActionRow}>
-                      {!groupMatchStatus?.userAccepted ? (
-                        <View style={styles.matchActionItem}>
-                          <PrimaryButton label={isAcceptingGroupMatch ? '수락 중...' : '수락하기'} onPress={handleAcceptGroupMatch} />
-                        </View>
-                      ) : null}
-                      <View style={styles.matchActionItem}>
-                        <SecondaryButton
-                          label={isCancelingGroupMatch ? '취소 중...' : '대기 취소'}
-                          onPress={() => {
-                            void handleCancelGroupMatch();
-                          }}
-                        />
-                      </View>
-                    </View>
-                  ) : groupMatchState === 'waiting' ? (
+                  {groupMatchState === 'waiting' || groupMatchState === 'matched' ? (
                     <SecondaryButton
-                      label={isCancelingGroupMatch ? '취소 중...' : '그룹 대기 취소'}
-                      onPress={() => {
-                        void handleCancelGroupMatch();
-                      }}
-                    />
-                  ) : groupMatchState === 'countdown' ? (
-                    <SecondaryButton
-                      label={isCancelingGroupMatch ? '취소 중...' : '그룹전 취소'}
+                      label={isCancelingGroupMatch ? '취소 중...' : groupMatchState === 'matched' ? '그룹 예약 취소' : '그룹 대기 취소'}
                       onPress={() => {
                         void handleCancelGroupMatch();
                       }}
@@ -3382,6 +3222,47 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
   },
+  upcomingMatchCard: {
+    gap: 10,
+    padding: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#1F2937',
+  },
+  upcomingMatchEyebrow: {
+    color: '#C7D2FE',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  upcomingMatchRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+    paddingTop: 10,
+  },
+  upcomingMatchCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  upcomingMatchTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  upcomingMatchMeta: {
+    color: '#D0D5DD',
+    lineHeight: 18,
+  },
+  upcomingMatchState: {
+    color: '#A5B4FC',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   readyPillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -3633,6 +3514,42 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 6,
   },
+  slotDateRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  slotDateChip: {
+    minWidth: 68,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#111827',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    alignItems: 'center',
+    gap: 2,
+  },
+  slotDateChipSelected: {
+    borderColor: '#818CF8',
+    backgroundColor: '#1E1B4B',
+  },
+  slotDateChipLabel: {
+    color: '#E5E7EB',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  slotDateChipLabelSelected: {
+    color: '#FFFFFF',
+  },
+  slotDateChipMeta: {
+    color: '#98A2B3',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  slotDateChipMetaSelected: {
+    color: '#C7D2FE',
+  },
   slotSectionRow: {
     flexDirection: 'row',
     gap: 6,
@@ -3672,6 +3589,11 @@ const styles = StyleSheet.create({
     borderColor: '#818CF8',
     backgroundColor: '#1E1B4B',
   },
+  duelSlotChipDisabled: {
+    borderColor: '#344054',
+    backgroundColor: '#101828',
+    opacity: 0.65,
+  },
   duelSlotLabel: {
     color: '#FFFFFF',
     fontWeight: '800',
@@ -3679,6 +3601,12 @@ const styles = StyleSheet.create({
   },
   duelSlotLabelSelected: {
     color: '#E0E7FF',
+  },
+  duelSlotClosedText: {
+    color: '#98A2B3',
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 2,
   },
   matchDemandCard: {
     gap: 4,

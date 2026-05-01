@@ -87,10 +87,9 @@ const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{3,19}$/;
 const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.2];
 const DUEL_MIN_COMPATIBILITY_SCORE = 72;
 const GROUP_MIN_COMPATIBILITY_SCORE = 68;
-const GROUP_MIN_PARTICIPANTS = 4;
-const MATCH_QUEUE_ENTRY_TTL_MS = 2 * 60 * 60 * 1000;
-const MATCH_SESSION_READY_TTL_MS = 20 * 60 * 1000;
-const MATCH_SESSION_COUNTDOWN_SECONDS = 10;
+const GROUP_MIN_PARTICIPANTS = 5;
+const MATCH_BOOKING_WINDOW_DAYS = 7;
+const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
 const MATCH_SESSION_ACTIVE_TTL_MS = 4 * 60 * 60 * 1000;
 const MATCH_PARTICIPANT_RUNNING_STALE_MS = 90 * 1000;
 const MATCH_PARTICIPANT_BACKGROUND_STALE_MS = 20 * 60 * 1000;
@@ -690,6 +689,64 @@ function formatDuelSlotLabel(slotStartAt) {
   return `${startHours}:${startMinutes}`;
 }
 
+function buildMatchSlotDateLabel(slotStartAt) {
+  const slotStart = new Date(slotStartAt);
+
+  if (Number.isNaN(slotStart.getTime())) {
+    return '날짜 미정';
+  }
+
+  return slotStart.toLocaleDateString('ko-KR', {
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+  });
+}
+
+function getMatchBookingClosesAt(slotStartAt) {
+  const slotStartAtMs = new Date(slotStartAt).getTime();
+
+  if (!Number.isFinite(slotStartAtMs)) {
+    return null;
+  }
+
+  return new Date(slotStartAtMs - MATCH_BOOKING_CUTOFF_MS).toISOString();
+}
+
+function isMatchSlotClosed(slotStartAt, now = new Date()) {
+  const closesAt = getMatchBookingClosesAt(slotStartAt);
+
+  if (!closesAt) {
+    return true;
+  }
+
+  return new Date(closesAt).getTime() <= now.getTime();
+}
+
+function validateMatchSlotStartAt(slotStartAt, now = new Date()) {
+  const slotStart = new Date(slotStartAt);
+
+  if (Number.isNaN(slotStart.getTime())) {
+    throw new ApiError(400, '매칭 시작 시간이 올바르지 않아.');
+  }
+
+  if (slotStart.getMinutes() !== 0 || slotStart.getSeconds() !== 0 || slotStart.getMilliseconds() !== 0) {
+    throw new ApiError(400, '매칭 시간은 1시간 단위로만 선택할 수 있어.');
+  }
+
+  const maxSelectableAt = new Date(now.getTime() + MATCH_BOOKING_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+  if (slotStart.getTime() > maxSelectableAt.getTime()) {
+    throw new ApiError(400, '매칭은 오늘부터 1주일 안의 시간대까지만 예약할 수 있어.');
+  }
+
+  if (isMatchSlotClosed(slotStartAt, now)) {
+    throw new ApiError(400, '이 시간대는 출발 30분 전이 지나서 더 이상 선택할 수 없어.');
+  }
+
+  return slotStart.toISOString();
+}
+
 function formatPaceMinutesLabel(paceMinutes) {
   const totalSeconds = Math.max(0, Math.round(paceMinutes * 60));
   const minutesPart = Math.floor(totalSeconds / 60);
@@ -805,11 +862,11 @@ function pruneMatchQueues(store, now = new Date()) {
         return false;
       }
 
-      if (requestedAtMs + MATCH_QUEUE_ENTRY_TTL_MS <= nowMs) {
+      if (requestedAtMs > nowMs) {
         return false;
       }
 
-      return slotStartAtMs + 30 * 60 * 1000 > nowMs;
+      return slotStartAtMs - MATCH_BOOKING_CUTOFF_MS > nowMs;
     });
   }
 
@@ -851,28 +908,27 @@ function ensureMatchSessions(store) {
 
 function hydrateMatchSessionState(session, now = new Date()) {
   const nowMs = now.getTime();
-  const createdAtMs = new Date(session.createdAt).getTime();
-  const countdownEndsAtMs = session.countdownEndsAt ? new Date(session.countdownEndsAt).getTime() : Number.NaN;
   const startedAtMs = session.startedAt ? new Date(session.startedAt).getTime() : Number.NaN;
+  const slotStartAtMs = new Date(session.slotStartAt).getTime();
+  const hasLiveProgress = session.participants.some((participant) => {
+    const liveStatus = resolveParticipantLiveStatus(participant, now);
+    return ['running', 'background', 'paused', 'finished', 'disconnected', 'forfeited'].includes(liveStatus);
+  });
 
   if (Number.isFinite(startedAtMs)) {
     return startedAtMs + MATCH_SESSION_ACTIVE_TTL_MS > nowMs ? 'active' : 'expired';
   }
 
-  if (Number.isFinite(countdownEndsAtMs)) {
-    if (countdownEndsAtMs <= nowMs) {
-      session.startedAt = new Date(countdownEndsAtMs).toISOString();
-      return 'active';
-    }
-
-    return 'countdown';
+  if (hasLiveProgress) {
+    session.startedAt = new Date(Math.min(nowMs, slotStartAtMs)).toISOString();
+    return 'active';
   }
 
-  if (!Number.isFinite(createdAtMs) || createdAtMs + MATCH_SESSION_READY_TTL_MS <= nowMs) {
+  if (!Number.isFinite(slotStartAtMs) || slotStartAtMs + MATCH_SESSION_ACTIVE_TTL_MS <= nowMs) {
     return 'expired';
   }
 
-  return 'ready';
+  return 'matched';
 }
 
 function pruneMatchSessions(store, now = new Date()) {
@@ -916,6 +972,7 @@ function createMatchSession(store, mode, distanceKm, slotStartAt, participants) 
     distanceKm: normalizeMatchQueueDistance(distanceKm),
     slotStartAt,
     createdAt: new Date().toISOString(),
+    matchedAt: new Date().toISOString(),
     participants: participants.map((participant, index) => ({
       userId: participant.id,
       seedRank: participant.seedRank ?? index + 1,
@@ -1028,8 +1085,8 @@ function leaveRunningMatch(store, currentUser, { matchId }) {
 
   const state = hydrateMatchSessionState(session);
 
-  if (!['countdown', 'active'].includes(state)) {
-    throw new ApiError(400, '이미 출발한 매치에서만 혼자 계속 달릴 수 있어.');
+  if (!['matched', 'active'].includes(state)) {
+    throw new ApiError(400, '매칭이 잡힌 뒤에만 혼자 계속 달릴 수 있어.');
   }
 
   const forfeitedAt = new Date().toISOString();
@@ -1163,19 +1220,8 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
 
   if (session) {
     const state = hydrateMatchSessionState(session, now);
-    const acceptedCount = session.participants.filter((participant) => participant.acceptedAt).length;
     const currentParticipant = session.participants.find((participant) => participant.userId === currentUser.id) ?? null;
-    const countdownRemainingSeconds = session.countdownEndsAt
-      ? Math.max(0, Math.ceil((new Date(session.countdownEndsAt).getTime() - now.getTime()) / 1000))
-      : undefined;
-    const readyExpiresAt = session.createdAt
-      ? new Date(new Date(session.createdAt).getTime() + MATCH_SESSION_READY_TTL_MS).toISOString()
-      : null;
-    const expirySnapshot = state === 'ready' && readyExpiresAt
-      ? buildExpirySnapshot(readyExpiresAt, now)
-      : state === 'countdown' && session.countdownEndsAt
-        ? buildExpirySnapshot(session.countdownEndsAt, now)
-        : {};
+    const readyToStart = new Date(session.slotStartAt).getTime() <= now.getTime();
 
     if (mode === 'duel') {
       const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now);
@@ -1189,20 +1235,17 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
         slotLabel,
         paceBandLabel,
         levelBandLabel,
-        criteriaSummary: state === 'ready'
-          ? '상대가 잡혔어요. 두 사람이 모두 수락하면 10초 카운트다운 뒤 시작해요.'
-          : state === 'countdown'
-            ? `두 사람이 모두 수락했어요. ${countdownRemainingSeconds ?? MATCH_SESSION_COUNTDOWN_SECONDS}초 뒤 출발해요.`
-            : '이제 바로 출발할 수 있어요.',
+        criteriaSummary: state === 'matched'
+          ? readyToStart
+            ? `매칭이 잡혔어요. ${buildMatchSlotDateLabel(session.slotStartAt)} ${slotLabel} 대결을 이제 시작할 수 있어요.`
+            : `매칭이 잡혔어요. ${buildMatchSlotDateLabel(session.slotStartAt)} ${slotLabel}에 ${opponent?.name ?? '상대'}님과 1대1로 시작해요.`
+          : '이제 실제 러닝 기록이 실시간으로 반영되고 있어요.',
         estimatedWaitMinutes: 0,
         participantCount: session.participants.length,
-        acceptedCount,
+        acceptedCount: 0,
         capacity,
-        userAccepted: Boolean(currentParticipant?.acceptedAt),
-        readyToStart: state === 'active',
-        ...(session.countdownEndsAt ? { countdownEndsAt: session.countdownEndsAt } : {}),
-        ...(typeof countdownRemainingSeconds === 'number' ? { countdownRemainingSeconds } : {}),
-        ...expirySnapshot,
+        userAccepted: true,
+        readyToStart,
         ...(opponent ? { opponent } : {}),
       };
     }
@@ -1220,20 +1263,17 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
       slotLabel,
       paceBandLabel,
       levelBandLabel,
-      criteriaSummary: state === 'ready'
-        ? '그룹이 잡혔어요. 모두 수락하면 10초 카운트다운 뒤 같이 출발해요.'
-        : state === 'countdown'
-          ? `모두 수락했어요. ${countdownRemainingSeconds ?? MATCH_SESSION_COUNTDOWN_SECONDS}초 뒤 그룹전이 시작돼요.`
-          : '이제 바로 그룹 러닝을 시작할 수 있어요.',
+      criteriaSummary: state === 'matched'
+        ? readyToStart
+          ? `그룹 매칭이 잡혔어요. ${buildMatchSlotDateLabel(session.slotStartAt)} ${slotLabel} 대결을 이제 시작할 수 있어요.`
+          : `그룹 매칭이 잡혔어요. ${buildMatchSlotDateLabel(session.slotStartAt)} ${slotLabel}에 ${participants.length}명 대결이 열려요.`
+        : '이제 그룹 러닝 기록이 실시간으로 반영되고 있어요.',
       estimatedWaitMinutes: 0,
       participantCount: session.participants.length,
-      acceptedCount,
+      acceptedCount: 0,
       capacity,
-      userAccepted: Boolean(currentParticipant?.acceptedAt),
-      readyToStart: state === 'active',
-      ...(session.countdownEndsAt ? { countdownEndsAt: session.countdownEndsAt } : {}),
-      ...(typeof countdownRemainingSeconds === 'number' ? { countdownRemainingSeconds } : {}),
-      ...expirySnapshot,
+      userAccepted: true,
+      readyToStart,
       participants,
       mySeedRank,
     };
@@ -1256,8 +1296,8 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
   const averagePace = averagePaceMinutes === null ? '신청 없음' : formatPaceMinutesLabel(averagePaceMinutes);
   const participants = mode === 'group' ? buildQueuedParticipants(queuedEntries) : undefined;
   const mySeedRank = participants?.find((participant) => participant.id === currentUser.id)?.seedRank ?? 1;
-  const queueExpiresAt = currentQueueEntry?.requestedAt
-    ? new Date(new Date(currentQueueEntry.requestedAt).getTime() + MATCH_QUEUE_ENTRY_TTL_MS).toISOString()
+  const queueExpiresAt = currentQueueEntry
+    ? getMatchBookingClosesAt(slotStartAt)
     : null;
 
   return {
@@ -1271,12 +1311,12 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
     levelBandLabel,
     criteriaSummary: mode === 'duel'
       ? queuedEntries.length
-        ? `현재 같은 조건 대기 러너는 ${queuedEntries.length}/${capacity}명이에요. 잘 맞는 상대가 잡히면 바로 수락 단계로 넘어가요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+        ? `현재 같은 조건 대기 러너는 ${queuedEntries.length}/${capacity}명이에요. 출발 30분 전까지 잘 맞는 상대를 계속 찾고 있어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
         : `아직 이 조건으로 대기 중인 러너가 없어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
       : queuedEntries.length
-        ? `현재 실제 대기열은 ${queuedEntries.length}/${capacity}명이고, 비슷한 러너는 ${competitiveParticipantsCount}/${capacity}명이에요.${competitiveParticipantsCount < GROUP_MIN_PARTICIPANTS ? ` 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.` : ''}${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+        ? `현재 실제 대기열은 ${queuedEntries.length}/${capacity}명이고, 비슷한 러너는 ${competitiveParticipantsCount}/${capacity}명이에요.${competitiveParticipantsCount < GROUP_MIN_PARTICIPANTS ? ` 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.` : ''} 출발 30분 전까지 자동으로 계속 맞춰봐요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
         : `아직 이 조건으로 대기 중인 그룹이 없어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
-    estimatedWaitMinutes: mode === 'duel' ? 12 : 10,
+    estimatedWaitMinutes: Math.max(1, Math.ceil((new Date(slotStartAt).getTime() - MATCH_BOOKING_CUTOFF_MS - now.getTime()) / (60 * 1000))),
     participantCount: queuedEntries.length,
     competitiveParticipantsCount,
     acceptedCount: 0,
@@ -1295,16 +1335,17 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
 }
 
 function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
+  const normalizedSlotStartAt = validateMatchSlotStartAt(slotStartAt);
   const currentRunner = buildMatchRunnerProfile(store, currentUser);
-  const slotLabel = formatDuelSlotLabel(slotStartAt);
+  const slotLabel = formatDuelSlotLabel(normalizedSlotStartAt);
   const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
   const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
   const distanceRecommendationHint = buildDistanceRecommendationHint(distanceKm);
 
-  upsertMatchQueueEntry(store, 'duel', currentUser.id, distanceKm, slotStartAt);
+  upsertMatchQueueEntry(store, 'duel', currentUser.id, distanceKm, normalizedSlotStartAt);
   const queuedEntries = buildQueuedMatchRunnerEntries(store, 'duel', currentRunner, {
     distanceKm,
-    slotStartAt,
+    slotStartAt: normalizedSlotStartAt,
   }).sort((left, right) => right.score - left.score);
 
   if (!queuedEntries.length) {
@@ -1313,11 +1354,11 @@ function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt })
       matched: false,
       requestId: nextId('duel-request'),
       distanceKm,
-      slotStartAt,
+      slotStartAt: normalizedSlotStartAt,
       slotLabel,
       paceBandLabel,
       levelBandLabel,
-      criteriaSummary: `같은 시간대 대기 러너가 아직 없어 먼저 대기열에 들어갔어요. 현재 신청 1/2명.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+      criteriaSummary: `나와 비슷한 페이스를 가진 상대를 계속 찾고 있어요. 출발 30분 전까지만 매칭돼요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
       estimatedWaitMinutes: 15,
     };
   }
@@ -1330,17 +1371,17 @@ function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt })
       matched: false,
       requestId: nextId('duel-request'),
       distanceKm,
-      slotStartAt,
+      slotStartAt: normalizedSlotStartAt,
       slotLabel,
       paceBandLabel,
       levelBandLabel,
-      criteriaSummary: `현재 같은 조건 신청은 ${queuedEntries.length + 1}/2명이지만 아직 페이스나 레벨이 잘 맞지 않아요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+      criteriaSummary: `신청자는 있지만 아직 바로 붙일 만큼 페이스와 레벨이 잘 맞지 않아요. 출발 30분 전까지 계속 찾아볼게요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
       estimatedWaitMinutes: 10,
     };
   }
 
   removeUsersFromMatchQueue(store, 'duel', [currentUser.id, bestCandidate.runner.id]);
-  createMatchSession(store, 'duel', distanceKm, slotStartAt, [
+  createMatchSession(store, 'duel', distanceKm, normalizedSlotStartAt, [
     { id: currentUser.id, seedRank: 1 },
     { id: bestCandidate.runner.id, seedRank: 2 },
   ]);
@@ -1351,11 +1392,11 @@ function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt })
     matched: true,
     requestId: nextId('duel-request'),
     distanceKm,
-    slotStartAt,
+    slotStartAt: normalizedSlotStartAt,
     slotLabel,
     paceBandLabel,
     levelBandLabel,
-    criteriaSummary: '실제 신청 대기열에서 비슷한 페이스와 누적 거리 레벨 러너를 바로 붙였어요.',
+    criteriaSummary: `${buildMatchSlotDateLabel(normalizedSlotStartAt)} ${slotLabel}에 비슷한 페이스 상대와 매칭이 잡혔어요.`,
     estimatedWaitMinutes: 0,
     opponent: {
       id: opponent.id,
@@ -1373,16 +1414,17 @@ function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt })
 
 function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt }) {
   const maxGroupSize = 30;
+  const normalizedSlotStartAt = validateMatchSlotStartAt(slotStartAt);
   const currentRunner = buildMatchRunnerProfile(store, currentUser);
-  const slotLabel = formatDuelSlotLabel(slotStartAt);
+  const slotLabel = formatDuelSlotLabel(normalizedSlotStartAt);
   const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
   const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
   const distanceRecommendationHint = buildDistanceRecommendationHint(distanceKm);
 
-  upsertMatchQueueEntry(store, 'group', currentUser.id, distanceKm, slotStartAt);
+  upsertMatchQueueEntry(store, 'group', currentUser.id, distanceKm, normalizedSlotStartAt);
   const queuedEntries = buildQueuedMatchRunnerEntries(store, 'group', currentRunner, {
     distanceKm,
-    slotStartAt,
+    slotStartAt: normalizedSlotStartAt,
     includeCurrentUser: true,
   }).sort((left, right) => {
     if (right.score !== left.score) {
@@ -1404,11 +1446,11 @@ function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt }
       matched: false,
       requestId: nextId('group-request'),
       distanceKm,
-      slotStartAt,
+      slotStartAt: normalizedSlotStartAt,
       slotLabel,
       paceBandLabel,
       levelBandLabel,
-      criteriaSummary: `현재 같은 조건으로 신청한 비슷한 러너는 ${participants.length}/${maxGroupSize}명이라 아직 그룹을 열지 않았어요. 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+      criteriaSummary: `나와 비슷한 페이스 러너를 계속 모으는 중이에요. 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 하고, 출발 30분 전까지만 매칭돼요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
       estimatedWaitMinutes: 10,
       maxGroupSize,
       participantsCount: participants.length,
@@ -1418,18 +1460,18 @@ function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt }
   }
 
   removeUsersFromMatchQueue(store, 'group', participants.map((participant) => participant.id));
-  createMatchSession(store, 'group', distanceKm, slotStartAt, participants);
+  createMatchSession(store, 'group', distanceKm, normalizedSlotStartAt, participants);
 
   return {
     success: true,
     matched: true,
     requestId: nextId('group-request'),
     distanceKm,
-    slotStartAt,
+    slotStartAt: normalizedSlotStartAt,
     slotLabel,
     paceBandLabel,
     levelBandLabel,
-    criteriaSummary: '실제 신청 대기열에서 비슷한 러너를 모아 그룹 대결을 만들었어요.',
+    criteriaSummary: `${buildMatchSlotDateLabel(normalizedSlotStartAt)} ${slotLabel}에 ${participants.length}명 그룹 대결이 잡혔어요.`,
     estimatedWaitMinutes: 0,
     maxGroupSize,
     participantsCount: participants.length,
@@ -1439,12 +1481,13 @@ function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt }
 }
 
 function buildMatchDemandSummaryResponse(store, currentUser, { mode, distanceKm, slotStartAt }) {
+  const normalizedSlotStartAt = validateMatchSlotStartAt(slotStartAt);
   const currentRunner = buildMatchRunnerProfile(store, currentUser);
   const capacity = mode === 'duel' ? 2 : 30;
   const competitiveThreshold = mode === 'duel' ? DUEL_MIN_COMPATIBILITY_SCORE : GROUP_MIN_COMPATIBILITY_SCORE;
   const queuedEntries = buildQueuedMatchRunnerEntries(store, mode, currentRunner, {
     distanceKm,
-    slotStartAt,
+    slotStartAt: normalizedSlotStartAt,
     includeCurrentUser: true,
   });
   const queuedParticipants = queuedEntries.map((entry) => entry.runner);
@@ -1462,8 +1505,8 @@ function buildMatchDemandSummaryResponse(store, currentUser, { mode, distanceKm,
     success: true,
     mode,
     distanceKm,
-    slotStartAt,
-    slotLabel: formatDuelSlotLabel(slotStartAt),
+    slotStartAt: normalizedSlotStartAt,
+    slotLabel: formatDuelSlotLabel(normalizedSlotStartAt),
     averagePace,
     participantsCount,
     competitiveParticipantsCount,
@@ -1472,11 +1515,58 @@ function buildMatchDemandSummaryResponse(store, currentUser, { mode, distanceKm,
     paceBandLabel: averagePaceMinutes === null ? '대기 없음' : buildPaceBandLabel(averagePaceMinutes),
     summaryText: mode === 'duel'
       ? participantsCount
-        ? `현재 실제 신청은 ${participantsCount}/${capacity}명이고, 바로 붙일 만한 러너는 ${competitiveParticipantsCount}/${capacity}명이에요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+        ? `현재 실제 신청은 ${participantsCount}/${capacity}명이고, 바로 붙일 만한 러너는 ${competitiveParticipantsCount}/${capacity}명이에요. 출발 30분 전까지 자동으로 계속 맞춰봐요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
         : `아직 이 시간대 신청이 없어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
       : participantsCount
-        ? `현재 실제 신청은 ${participantsCount}/${capacity}명이고, 비슷한 러너는 ${competitiveParticipantsCount}/${capacity}명이에요.${competitiveParticipantsCount < GROUP_MIN_PARTICIPANTS ? ` 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.` : ''}${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+        ? `현재 실제 신청은 ${participantsCount}/${capacity}명이고, 비슷한 러너는 ${competitiveParticipantsCount}/${capacity}명이에요.${competitiveParticipantsCount < GROUP_MIN_PARTICIPANTS ? ` 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.` : ''} 출발 30분 전까지 자동으로 계속 맞춰봐요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
         : `아직 이 시간대 신청이 없어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+  };
+}
+
+function buildUpcomingRunningMatchesResponse(store, currentUser) {
+  const now = new Date();
+  const sessions = pruneMatchSessions(store)
+    .filter((session) => session.participants.some((participant) => participant.userId === currentUser.id))
+    .map((session) => {
+      const state = hydrateMatchSessionState(session, now);
+
+      if (!['matched', 'active'].includes(state)) {
+        return null;
+      }
+
+      if (session.mode === 'duel') {
+        const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now);
+        return {
+          matchId: session.id,
+          mode: 'duel',
+          distanceKm: session.distanceKm,
+          slotStartAt: session.slotStartAt,
+          slotLabel: formatDuelSlotLabel(session.slotStartAt),
+          status: state,
+          participantCount: 2,
+          counterpartLabel: opponent?.name ?? '상대 미정',
+          summary: `${buildMatchSlotDateLabel(session.slotStartAt)} ${formatDuelSlotLabel(session.slotStartAt)} · ${session.distanceKm.toFixed(1)}km`,
+        };
+      }
+
+      const participants = buildSessionGroupParticipants(store, session, now);
+      return {
+        matchId: session.id,
+        mode: 'group',
+        distanceKm: session.distanceKm,
+        slotStartAt: session.slotStartAt,
+        slotLabel: formatDuelSlotLabel(session.slotStartAt),
+        status: state,
+        participantCount: participants.length,
+        counterpartLabel: `${participants.length}명 그룹`,
+        summary: `${buildMatchSlotDateLabel(session.slotStartAt)} ${formatDuelSlotLabel(session.slotStartAt)} · ${session.distanceKm.toFixed(1)}km`,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => new Date(left.slotStartAt).getTime() - new Date(right.slotStartAt).getTime());
+
+  return {
+    items: sessions,
   };
 }
 
@@ -1485,30 +1575,6 @@ function acceptRunningMatch(store, currentUser, matchId) {
 
   if (!session || !session.participants.some((participant) => participant.userId === currentUser.id)) {
     throw new ApiError(404, '수락할 매치를 찾지 못했어.');
-  }
-
-  const state = hydrateMatchSessionState(session);
-
-  if (state === 'active') {
-    return buildRunningMatchStatusResponse(store, currentUser, {
-      mode: session.mode,
-      distanceKm: session.distanceKm,
-      slotStartAt: session.slotStartAt,
-    });
-  }
-
-  const currentParticipant = session.participants.find((participant) => participant.userId === currentUser.id);
-
-  if (currentParticipant && !currentParticipant.acceptedAt) {
-    currentParticipant.acceptedAt = new Date().toISOString();
-  }
-
-  if (
-    session.participants.every((participant) => participant.acceptedAt)
-    && !session.countdownEndsAt
-    && !session.startedAt
-  ) {
-    session.countdownEndsAt = new Date(Date.now() + MATCH_SESSION_COUNTDOWN_SECONDS * 1000).toISOString();
   }
 
   return buildRunningMatchStatusResponse(store, currentUser, {
@@ -1563,7 +1629,15 @@ function updateRunningMatchProgress(store, currentUser, { matchId, distanceKm, e
 
   const sessionState = hydrateMatchSessionState(session);
 
-  if (!['countdown', 'active'].includes(sessionState)) {
+  if (sessionState === 'matched' && !buildRunningMatchStatusResponse(store, currentUser, {
+    mode: session.mode,
+    distanceKm: session.distanceKm,
+    slotStartAt: session.slotStartAt,
+  }).readyToStart) {
+    throw new ApiError(400, '예약된 시작 시간이 아직 되지 않았어.');
+  }
+
+  if (!['matched', 'active'].includes(sessionState)) {
     throw new ApiError(400, '아직 시작 전인 매치에는 진행 상태를 반영할 수 없어.');
   }
 
@@ -1582,6 +1656,9 @@ function updateRunningMatchProgress(store, currentUser, { matchId, distanceKm, e
   currentParticipant.livePace = currentPace;
   currentParticipant.liveUpdatedAt = new Date().toISOString();
   currentParticipant.liveStatus = status === 'finished' ? 'finished' : status;
+  if (!session.startedAt) {
+    session.startedAt = currentParticipant.liveUpdatedAt;
+  }
 
   if (status === 'finished') {
     currentParticipant.finishedAt = currentParticipant.liveUpdatedAt;
@@ -2672,6 +2749,11 @@ async function buildHomeSummaryReadPayload(request) {
   return buildHomeSummaryWithMetrics(store, user, metrics);
 }
 
+async function buildUpcomingRunningMatchesReadPayload(request) {
+  const { store, user } = await loadCurrentUserReadContext(request);
+  return buildUpcomingRunningMatchesResponse(store, user);
+}
+
 async function buildMyActivityReadPayload(request) {
   const { runs, metrics } = await loadCurrentUserReadContext(request, {
     includeRuns: true,
@@ -3035,21 +3117,10 @@ function validateDuelMatchDistanceKm(value) {
   return distanceKm;
 }
 
-function validateHalfHourSlotStartAt(value) {
-  const slotStartAt = validateRequiredString(value, '매칭 시간대를 선택해줘.');
-  const slotDate = new Date(slotStartAt);
-
-  if (Number.isNaN(slotDate.getTime())) {
-    throw new ApiError(400, '매칭 시간대 형식이 올바르지 않아.');
-  }
-
-  const minutes = slotDate.getMinutes();
-
-  if (minutes !== 0 && minutes !== 30) {
-    throw new ApiError(400, '매칭 시간대는 30분 단위로 선택해줘.');
-  }
-
-  return slotDate.toISOString();
+function validateMatchSlotInput(value) {
+  return validateMatchSlotStartAt(
+    validateRequiredString(value, '매칭 시간대를 선택해줘.'),
+  );
 }
 
 function validateMatchMode(value) {
@@ -3843,7 +3914,7 @@ async function handlePatchMyLiveSharing(request, response) {
 async function handleRequestDuelMatch(request, response) {
   const body = await parseJsonBody(request);
   const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
-  const slotStartAt = validateHalfHourSlotStartAt(body.slotStartAt);
+  const slotStartAt = validateMatchSlotInput(body.slotStartAt);
   const payload = mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return buildDuelMatchResponse(store, currentUser, {
@@ -3858,7 +3929,7 @@ async function handleRequestDuelMatch(request, response) {
 async function handleRequestGroupMatch(request, response) {
   const body = await parseJsonBody(request);
   const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
-  const slotStartAt = validateHalfHourSlotStartAt(body.slotStartAt);
+  const slotStartAt = validateMatchSlotInput(body.slotStartAt);
   const payload = mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return buildGroupMatchResponse(store, currentUser, {
@@ -3877,7 +3948,7 @@ async function handleFetchMatchDemandSummary(request, response) {
   const payload = buildMatchDemandSummaryResponse(store, currentUser, {
     mode: validateMatchMode(body.mode),
     distanceKm: validateDuelMatchDistanceKm(body.distanceKm),
-    slotStartAt: validateHalfHourSlotStartAt(body.slotStartAt),
+    slotStartAt: validateMatchSlotInput(body.slotStartAt),
   });
 
   sendJson(response, 200, payload);
@@ -3887,7 +3958,7 @@ async function handleFetchRunningMatchStatus(request, response) {
   const body = await parseJsonBody(request);
   const mode = validateMatchMode(body.mode);
   const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
-  const slotStartAt = validateHalfHourSlotStartAt(body.slotStartAt);
+  const slotStartAt = validateMatchSlotInput(body.slotStartAt);
   const payload = mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return buildRunningMatchStatusResponse(store, currentUser, {
@@ -3915,7 +3986,7 @@ async function handleCancelRunningMatch(request, response) {
   const body = await parseJsonBody(request);
   const mode = validateMatchMode(body.mode);
   const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
-  const slotStartAt = validateHalfHourSlotStartAt(body.slotStartAt);
+  const slotStartAt = validateMatchSlotInput(body.slotStartAt);
   const matchId = typeof body.matchId === 'string' && body.matchId.trim() ? body.matchId.trim() : '';
   const payload = mutateStore((store) => {
     const currentUser = requireUser(store, request);
@@ -4347,6 +4418,11 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/running/matches/status' && request.method === 'POST') {
     await handleFetchRunningMatchStatus(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/matches/upcoming' && request.method === 'GET') {
+    sendJson(response, 200, await buildUpcomingRunningMatchesReadPayload(request));
     return;
   }
 

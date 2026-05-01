@@ -157,7 +157,7 @@ export type GroupMatchParticipant = {
   finishedAt?: string;
 };
 
-export type RunningMatchState = 'idle' | 'waiting' | 'ready' | 'countdown' | 'active';
+export type RunningMatchState = 'idle' | 'waiting' | 'matched' | 'active';
 
 export type FetchRunningMatchStatusInput = {
   mode: 'duel' | 'group';
@@ -213,6 +213,22 @@ export type RunningMatchStatusResponse = {
   opponent?: DuelMatchOpponent;
   participants?: GroupMatchParticipant[];
   mySeedRank?: number;
+};
+
+export type UpcomingRunningMatchItem = {
+  matchId: string;
+  mode: 'duel' | 'group';
+  distanceKm: number;
+  slotStartAt: string;
+  slotLabel: string;
+  status: 'matched' | 'active';
+  participantCount: number;
+  counterpartLabel: string;
+  summary: string;
+};
+
+export type UpcomingRunningMatchesResponse = {
+  items: UpcomingRunningMatchItem[];
 };
 
 export type CancelRunningMatchResponse = {
