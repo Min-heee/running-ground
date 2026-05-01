@@ -6,6 +6,10 @@ const MATCH_REMINDER_CHANNEL_ID = 'runningground-match-reminders';
 const MATCH_REMINDER_OFFSETS_MINUTES = [30, 10, 0] as const;
 
 async function getNotificationsModule() {
+  if (Platform.OS === 'ios') {
+    return null;
+  }
+
   try {
     return await import('expo-notifications');
   } catch {

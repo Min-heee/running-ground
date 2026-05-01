@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
 import { Redirect, Stack, usePathname } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '@/features/runs/backgroundTracking';
@@ -23,6 +23,10 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    if (Platform.OS === 'ios') {
+      return;
+    }
+
     void import('expo-notifications')
       .then((Notifications) => {
         Notifications.setNotificationHandler({
