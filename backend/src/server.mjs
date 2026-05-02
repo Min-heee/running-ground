@@ -1493,6 +1493,21 @@ function assertUserCanRequestAnotherMatch(store, currentUser) {
   }
 }
 
+function clearUserTestMatchArtifacts(store, userId) {
+  const queues = ensureMatchQueues(store);
+  queues.duel = queues.duel.filter((entry) => !(entry.userId === userId && entry.testMode));
+  queues.group = queues.group.filter((entry) => !(entry.userId === userId && entry.testMode));
+
+  const sessions = ensureMatchSessions(store);
+  store.matchSessions = sessions.filter((session) => {
+    if (!isTestMatchSession(session)) {
+      return true;
+    }
+
+    return !session.participants.some((participant) => participant.userId === userId);
+  });
+}
+
 function buildQueuedMatchRunnerEntries(store, mode, currentRunner, { distanceKm, slotStartAt, includeCurrentUser = false, testMode = false }) {
   const queueEntries = getMatchQueueEntries(store, mode, distanceKm, slotStartAt, { testMode })
     .filter((entry) => includeCurrentUser || entry.userId !== currentRunner.id);
@@ -1731,11 +1746,13 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
 }
 
 function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt, testMode = false }) {
-  assertUserCanRequestAnotherMatch(store, currentUser);
-
   if (testMode) {
+    clearUserTestMatchArtifacts(store, currentUser.id);
+    assertUserCanRequestAnotherMatch(store, currentUser);
     return buildTestDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt });
   }
+
+  assertUserCanRequestAnotherMatch(store, currentUser);
 
   const normalizedSlotStartAt = validateMatchSlotStartAt(slotStartAt);
   const currentRunner = buildMatchRunnerProfile(store, currentUser);
@@ -1815,11 +1832,13 @@ function buildDuelMatchResponse(store, currentUser, { distanceKm, slotStartAt, t
 }
 
 function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt, testMode = false }) {
-  assertUserCanRequestAnotherMatch(store, currentUser);
-
   if (testMode) {
+    clearUserTestMatchArtifacts(store, currentUser.id);
+    assertUserCanRequestAnotherMatch(store, currentUser);
     return buildTestGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt });
   }
+
+  assertUserCanRequestAnotherMatch(store, currentUser);
 
   const maxGroupSize = 30;
   const normalizedSlotStartAt = validateMatchSlotStartAt(slotStartAt);
