@@ -166,6 +166,7 @@ export type FetchRunningMatchStatusInput = {
   mode: 'duel' | 'group';
   distanceKm: number;
   slotStartAt: string;
+  testMode?: boolean;
 };
 
 export type AcceptRunningMatchInput = {
@@ -176,6 +177,7 @@ export type CancelRunningMatchInput = {
   mode: 'duel' | 'group';
   distanceKm: number;
   slotStartAt: string;
+  testMode?: boolean;
   matchId?: string;
 };
 

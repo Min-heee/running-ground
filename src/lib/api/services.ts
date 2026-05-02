@@ -163,6 +163,7 @@ const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
 const MATCH_CANCELLATION_CUTOFF_MS = 60 * 60 * 1000;
 const MATCH_RUNNING_STALE_MS = 90 * 1000;
 const MATCH_BACKGROUND_STALE_MS = 20 * 60 * 1000;
+const MATCH_TEST_COUNTDOWN_SECONDS = 30;
 
 let mockRunningMatchSessions: Record<'duel' | 'group', RunningMatchStatusResponse | null> = {
   duel: null,
@@ -256,6 +257,10 @@ function formatDuelSlotLabel(slotStartAt: string) {
   const startHours = String(slotStart.getHours()).padStart(2, '0');
   const startMinutes = String(slotStart.getMinutes()).padStart(2, '0');
   return `${startHours}:${startMinutes}`;
+}
+
+function buildMockTestMatchStartAt() {
+  return new Date(Date.now() + MATCH_TEST_COUNTDOWN_SECONDS * 1000).toISOString();
 }
 
 function formatMockMatchSlotDateLabel(slotStartAt: string) {
@@ -378,6 +383,7 @@ function buildMockDuelMatchResponse(input: RequestDuelMatchInput): RequestDuelMa
   if (input.testMode) {
     const testOpponent = bestCandidate?.candidate ?? mockDuelMatchPool[0];
     const testOpponentLevelLabel = buildLevelLabel(testOpponent.lifetimeDistanceKm);
+    const countdownStartAt = buildMockTestMatchStartAt();
 
     return {
       success: true,
@@ -385,11 +391,11 @@ function buildMockDuelMatchResponse(input: RequestDuelMatchInput): RequestDuelMa
       isTestMatch: true,
       requestId: `mock-duel-test-${Date.now()}`,
       distanceKm: Number(input.distanceKm.toFixed(1)),
-      slotStartAt: input.slotStartAt,
-      slotLabel: formatDuelSlotLabel(input.slotStartAt),
+      slotStartAt: countdownStartAt,
+      slotLabel: formatDuelSlotLabel(countdownStartAt),
       paceBandLabel: buildPaceBandLabel(currentPaceSeconds),
       levelBandLabel: `${buildLevelLabel(currentLifetimeDistanceKm)} 전후`,
-      criteriaSummary: '테스트용 1대1 매칭을 바로 만들었어요.',
+      criteriaSummary: '테스트용 1대1 매칭이 잡혔어요. 30초 뒤 바로 시작해요.',
       estimatedWaitMinutes: 0,
       opponent: {
         ...testOpponent,
@@ -464,6 +470,7 @@ function buildMockGroupMatchResponse(input: RequestGroupMatchInput): RequestGrou
     .map((entry) => entry.candidate);
 
   if (input.testMode) {
+    const countdownStartAt = buildMockTestMatchStartAt();
     const testParticipants = [
       {
         id: currentParticipantId,
@@ -477,7 +484,7 @@ function buildMockGroupMatchResponse(input: RequestGroupMatchInput): RequestGrou
         seedRank: 0,
         seedSummary: '',
       },
-      ...Array.from({ length: 5 }, (_, index) => {
+      ...Array.from({ length: 1 }, (_, index) => {
         const baseCandidate = selectedCandidates[index % Math.max(selectedCandidates.length, 1)] ?? mockDuelMatchPool[index % mockDuelMatchPool.length];
         return {
           ...baseCandidate,
@@ -503,11 +510,11 @@ function buildMockGroupMatchResponse(input: RequestGroupMatchInput): RequestGrou
       isTestMatch: true,
       requestId: `mock-group-test-${Date.now()}`,
       distanceKm: Number(input.distanceKm.toFixed(1)),
-      slotStartAt: input.slotStartAt,
-      slotLabel: formatDuelSlotLabel(input.slotStartAt),
+      slotStartAt: countdownStartAt,
+      slotLabel: formatDuelSlotLabel(countdownStartAt),
       paceBandLabel: buildPaceBandLabel(currentPaceSeconds),
       levelBandLabel: `${currentLevelLabel} 전후`,
-      criteriaSummary: '테스트용 6인 그룹 매칭을 바로 만들었어요.',
+      criteriaSummary: '테스트용 그룹 매칭이 잡혔어요. 30초 뒤 바로 시작해요.',
       estimatedWaitMinutes: 0,
       maxGroupSize,
       participantsCount: testParticipants.length,
@@ -672,9 +679,11 @@ function syncMockRunningMatchSession(mode: 'duel' | 'group') {
     return null;
   }
 
+  const readyToStart = new Date(currentSession.slotStartAt).getTime() <= Date.now();
   const nextSession: RunningMatchStatusResponse = {
     ...currentSession,
-    readyToStart: new Date(currentSession.slotStartAt).getTime() <= Date.now(),
+    state: currentSession.isTestMatch && readyToStart ? 'active' : currentSession.state,
+    readyToStart,
   };
   mockRunningMatchSessions[mode] = nextSession;
   return hydrateMockRunningMatchSessionStatuses(nextSession);
@@ -788,6 +797,10 @@ function buildMockDuelMatchStatus(response: RequestDuelMatchResponse): RunningMa
     });
   }
 
+  const canCancelUntilAt = response.isTestMatch
+    ? response.slotStartAt
+    : getMockMatchCancelableUntilAt(response.slotStartAt) ?? undefined;
+
   return {
     success: true,
     mode: 'duel',
@@ -806,9 +819,8 @@ function buildMockDuelMatchStatus(response: RequestDuelMatchResponse): RunningMa
     capacity: 2,
     userAccepted: true,
     readyToStart: new Date(response.slotStartAt).getTime() <= Date.now(),
-    canCancel: Boolean(getMockMatchCancelableUntilAt(response.slotStartAt))
-      && Date.now() < new Date(getMockMatchCancelableUntilAt(response.slotStartAt) ?? 0).getTime(),
-    cancelableUntilAt: getMockMatchCancelableUntilAt(response.slotStartAt) ?? undefined,
+    canCancel: Boolean(canCancelUntilAt) && Date.now() < new Date(canCancelUntilAt ?? 0).getTime(),
+    cancelableUntilAt: canCancelUntilAt,
     expiresAt: getMockMatchBookingClosesAt(response.slotStartAt) ?? undefined,
     expiresInSeconds: getMockMatchBookingClosesAt(response.slotStartAt)
       ? Math.max(0, Math.ceil((new Date(getMockMatchBookingClosesAt(response.slotStartAt)!).getTime() - Date.now()) / 1000))
@@ -830,6 +842,10 @@ function buildMockGroupMatchStatus(response: RequestGroupMatchResponse): Running
     });
   }
 
+  const canCancelUntilAt = response.isTestMatch
+    ? response.slotStartAt
+    : getMockMatchCancelableUntilAt(response.slotStartAt) ?? undefined;
+
   return {
     success: true,
     mode: 'group',
@@ -848,9 +864,8 @@ function buildMockGroupMatchStatus(response: RequestGroupMatchResponse): Running
     capacity: response.maxGroupSize,
     userAccepted: true,
     readyToStart: new Date(response.slotStartAt).getTime() <= Date.now(),
-    canCancel: Boolean(getMockMatchCancelableUntilAt(response.slotStartAt))
-      && Date.now() < new Date(getMockMatchCancelableUntilAt(response.slotStartAt) ?? 0).getTime(),
-    cancelableUntilAt: getMockMatchCancelableUntilAt(response.slotStartAt) ?? undefined,
+    canCancel: Boolean(canCancelUntilAt) && Date.now() < new Date(canCancelUntilAt ?? 0).getTime(),
+    cancelableUntilAt: canCancelUntilAt,
     expiresAt: getMockMatchBookingClosesAt(response.slotStartAt) ?? undefined,
     expiresInSeconds: getMockMatchBookingClosesAt(response.slotStartAt)
       ? Math.max(0, Math.ceil((new Date(getMockMatchBookingClosesAt(response.slotStartAt)!).getTime() - Date.now()) / 1000))
@@ -1563,7 +1578,10 @@ export async function fetchRunningMatchStatus(input: FetchRunningMatchStatusInpu
     if (
       currentSession
       && currentSession.distanceKm === Number(input.distanceKm.toFixed(1))
-      && currentSession.slotStartAt === input.slotStartAt
+      && (
+        (input.testMode && currentSession.isTestMatch)
+        || (!input.testMode && currentSession.slotStartAt === input.slotStartAt)
+      )
     ) {
       return currentSession;
     }
@@ -1577,6 +1595,7 @@ export async function fetchRunningMatchStatus(input: FetchRunningMatchStatusInpu
       mode: input.mode,
       distanceKm: Number(input.distanceKm.toFixed(1)),
       slotStartAt: input.slotStartAt,
+      testMode: Boolean(input.testMode),
     },
     {
       accessToken: await requireAccessToken(),
@@ -1610,9 +1629,14 @@ export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatc
           : `${session.participantCount}명 그룹`,
         summary: `${formatMockMatchSlotDateLabel(session.slotStartAt)} ${session.slotLabel} · ${session.distanceKm.toFixed(1)}km`,
         canCancel: session.state === 'matched'
-          && Boolean(getMockMatchCancelableUntilAt(session.slotStartAt))
-          && Date.now() < new Date(getMockMatchCancelableUntilAt(session.slotStartAt) ?? 0).getTime(),
-        cancelableUntilAt: getMockMatchCancelableUntilAt(session.slotStartAt) ?? new Date(session.slotStartAt).toISOString(),
+          && Date.now() < new Date(
+            session.isTestMatch
+              ? session.slotStartAt
+              : getMockMatchCancelableUntilAt(session.slotStartAt) ?? session.slotStartAt,
+          ).getTime(),
+        cancelableUntilAt: session.isTestMatch
+          ? session.slotStartAt
+          : getMockMatchCancelableUntilAt(session.slotStartAt) ?? new Date(session.slotStartAt).toISOString(),
       }))
       .sort((left, right) => new Date(left.slotStartAt).getTime() - new Date(right.slotStartAt).getTime());
 
@@ -1666,6 +1690,7 @@ export async function cancelRunningMatch(input: CancelRunningMatchInput): Promis
     {
       ...input,
       distanceKm: Number(input.distanceKm.toFixed(1)),
+      testMode: Boolean(input.testMode),
     },
     {
       accessToken: await requireAccessToken(),

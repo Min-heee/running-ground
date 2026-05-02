@@ -856,6 +856,8 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         : null;
   const duelReservationLocked = duelMatchState === 'matched' && duelMatchStatus?.canCancel === false;
   const groupReservationLocked = groupMatchState === 'matched' && groupMatchStatus?.canCancel === false;
+  const isDuelTestFlow = Boolean(duelMatchStatus?.isTestMatch || duelMatchResult?.isTestMatch);
+  const isGroupTestFlow = Boolean(groupMatchStatus?.isTestMatch || groupMatchResult?.isTestMatch);
   const effectiveDuelOpponent = duelMatchStatus?.opponent ?? duelMatchResult?.opponent ?? null;
   const effectiveDuelOpponentStatusLabel = effectiveDuelOpponent
     ? buildMatchParticipantStatusLabel(effectiveDuelOpponent.liveStatus)
@@ -1160,25 +1162,49 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       })),
     [featuredGroupArenaParticipantIds, groupLiveStandings],
   );
+  const canRenderLiveArena =
+    (matchMode === 'duel' && duelMatchState === 'active' && duelArenaParticipants.length === 2)
+    || (matchMode === 'group' && groupMatchState === 'active' && groupArenaParticipants.length > 0);
   const showLiveArena =
-    isRunning
+    canRenderLiveArena
     && (
-      (matchMode === 'duel' && duelMatchState === 'active' && duelArenaParticipants.length === 2)
-      || (matchMode === 'group' && groupMatchState === 'active' && groupArenaParticipants.length > 0)
+      isRunning
+      || (status === 'idle' && (
+        (matchMode === 'duel' && isDuelTestFlow)
+        || (matchMode === 'group' && isGroupTestFlow)
+      ))
     );
   const duelCompatibleCount = duelMatchStatus?.competitiveParticipantsCount ?? 0;
   const duelWaitingHasOtherApplicants = (duelMatchStatus?.participantCount ?? 0) > 1;
-  const duelWaitingTitle = duelWaitingHasOtherApplicants
+  const duelWaitingTitle = isDuelTestFlow
+    ? duelWaitingHasOtherApplicants
+      ? duelCompatibleCount >= 2
+        ? '테스트 상대를 정리하는 중이에요'
+        : '테스트 신청은 들어왔지만 아직 바로 붙이진 않았어요'
+      : '비슷한 테스트 상대를 찾는 중이에요'
+    : duelWaitingHasOtherApplicants
     ? duelCompatibleCount >= 2
       ? '지금 바로 붙을 상대를 정리하는 중이에요'
       : '신청은 들어왔지만 아직 바로 붙이진 않았어요'
     : '비슷한 상대를 찾는 중이에요';
-  const duelWaitingMeta = duelWaitingHasOtherApplicants
+  const duelWaitingMeta = isDuelTestFlow
+    ? duelWaitingHasOtherApplicants
+      ? duelCompatibleCount >= 2
+        ? `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 바로 붙을 수 있는 테스트 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
+        : `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 지금 바로 붙을 수 있는 테스트 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
+      : '같은 거리 조건에서 먼저 테스트 매칭을 누른 러너 중 페이스와 레벨이 잘 맞는 상대를 찾고 있어요.'
+    : duelWaitingHasOtherApplicants
     ? duelCompatibleCount >= 2
       ? `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 바로 붙을 수 있는 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
       : `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 지금 바로 붙을 수 있는 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
     : '같은 거리와 시간대에서 먼저 찾기한 러너들 중 페이스와 레벨이 잘 맞는 상대를 찾고 있어요.';
-  const duelWaitingHint = duelWaitingHasOtherApplicants
+  const duelWaitingHint = isDuelTestFlow
+    ? duelWaitingHasOtherApplicants
+      ? duelCompatibleCount >= 2
+        ? '잘 맞는 테스트 상대가 정리되면 바로 30초 카운트다운이 시작돼요.'
+        : '페이스와 레벨이 실제로 잘 맞는 상대가 잡히면 자동으로 매치가 확정되고 30초 뒤 바로 시작해요.'
+      : '지금은 테스트 대기열에 들어간 상태예요. 잘 맞는 상대가 잡히면 자동으로 30초 카운트다운이 시작돼요.'
+    : duelWaitingHasOtherApplicants
     ? duelCompatibleCount >= 2
       ? '잘 맞는 상대가 먼저 잡히면 바로 예약된 1대1로 바뀌어요.'
       : '페이스와 레벨이 실제로 잘 맞는 상대가 잡히면 자동으로 매치가 확정돼요.'
@@ -1276,12 +1302,20 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         return null;
       }
 
+      if (current.isTestMatch) {
+        return current;
+      }
+
       const activeSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
       return current.distanceKm === duelDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
     });
     setDuelMatchStatus((current) => {
       if (!current) {
         return null;
+      }
+
+      if (current.isTestMatch) {
+        return current;
       }
 
       const activeSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
@@ -1300,12 +1334,20 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         return null;
       }
 
+      if (current.isTestMatch) {
+        return current;
+      }
+
       const activeSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
       return current.distanceKm === groupDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
     });
     setGroupMatchStatus((current) => {
       if (!current) {
         return null;
+      }
+
+      if (current.isTestMatch) {
+        return current;
       }
 
       const activeSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
@@ -1382,11 +1424,15 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     };
   }, [matchMode, groupDistanceKm, selectedGroupSlot, selectedGroupSlotStartAt]);
 
-  const loadDuelMatchStatus = async (slotStartAt = activeDuelSlotStartAt) => {
+  const loadDuelMatchStatus = async (
+    slotStartAt = activeDuelSlotStartAt,
+    options?: { testMode?: boolean },
+  ) => {
     const payload = await fetchRunningMatchStatus({
       mode: 'duel',
       distanceKm: duelDistanceKm,
       slotStartAt,
+      testMode: options?.testMode ?? isDuelTestFlow,
     });
     const transitionNotice = duelMatchStatus
       && duelMatchStatus.slotStartAt === payload.slotStartAt
@@ -1410,11 +1456,15 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     return payload;
   };
 
-  const loadGroupMatchStatus = async (slotStartAt = activeGroupSlotStartAt) => {
+  const loadGroupMatchStatus = async (
+    slotStartAt = activeGroupSlotStartAt,
+    options?: { testMode?: boolean },
+  ) => {
     const payload = await fetchRunningMatchStatus({
       mode: 'group',
       distanceKm: groupDistanceKm,
       slotStartAt,
+      testMode: options?.testMode ?? isGroupTestFlow,
     });
     const transitionNotice = groupMatchStatus
       && groupMatchStatus.slotStartAt === payload.slotStartAt
@@ -2025,15 +2075,20 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       });
 
       setDuelMatchResult(payload);
-      const [nextSummary] = await Promise.all([
-        fetchMatchDemandSummary({
-          mode: 'duel',
-          distanceKm: duelDistanceKm,
-          slotStartAt,
-        }),
-        loadDuelMatchStatus(slotStartAt),
-      ]);
-      setDuelDemandSummary(nextSummary);
+      if (payload.isTestMatch) {
+        setDuelDemandSummary(null);
+        await loadDuelMatchStatus(slotStartAt, { testMode: true });
+      } else {
+        const [nextSummary] = await Promise.all([
+          fetchMatchDemandSummary({
+            mode: 'duel',
+            distanceKm: duelDistanceKm,
+            slotStartAt,
+          }),
+          loadDuelMatchStatus(slotStartAt),
+        ]);
+        setDuelDemandSummary(nextSummary);
+      }
     } catch (matchError) {
       setError(matchError instanceof Error ? matchError.message : '1대1 매칭을 찾지 못했어.');
     } finally {
@@ -2057,15 +2112,20 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       });
 
       setGroupMatchResult(payload);
-      const [nextSummary] = await Promise.all([
-        fetchMatchDemandSummary({
-          mode: 'group',
-          distanceKm: groupDistanceKm,
-          slotStartAt,
-        }),
-        loadGroupMatchStatus(slotStartAt),
-      ]);
-      setGroupDemandSummary(nextSummary);
+      if (payload.isTestMatch) {
+        setGroupDemandSummary(null);
+        await loadGroupMatchStatus(slotStartAt, { testMode: true });
+      } else {
+        const [nextSummary] = await Promise.all([
+          fetchMatchDemandSummary({
+            mode: 'group',
+            distanceKm: groupDistanceKm,
+            slotStartAt,
+          }),
+          loadGroupMatchStatus(slotStartAt),
+        ]);
+        setGroupDemandSummary(nextSummary);
+      }
     } catch (matchError) {
       setError(matchError instanceof Error ? matchError.message : '그룹 매칭을 찾지 못했어.');
     } finally {
@@ -2079,6 +2139,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어.');
       }
 
+      const wasTestMatch = isDuelTestFlow;
       setError(null);
       setDuelMatchNotice(null);
       setIsCancelingDuelMatch(true);
@@ -2086,18 +2147,21 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         mode: 'duel',
         distanceKm: duelDistanceKm,
         slotStartAt: activeDuelSlotStartAt,
+        testMode: wasTestMatch,
         ...(duelMatchStatus?.matchId ? { matchId: duelMatchStatus.matchId } : {}),
       });
       setDuelMatchResult(null);
-      const [nextSummary, nextStatus] = await Promise.all([
-        fetchMatchDemandSummary({
+      const nextStatus = await loadDuelMatchStatus(activeDuelSlotStartAt, { testMode: wasTestMatch });
+      if (wasTestMatch) {
+        setDuelDemandSummary(null);
+      } else {
+        const nextSummary = await fetchMatchDemandSummary({
           mode: 'duel',
           distanceKm: duelDistanceKm,
           slotStartAt: activeDuelSlotStartAt,
-        }),
-        loadDuelMatchStatus(activeDuelSlotStartAt),
-      ]);
-      setDuelDemandSummary(nextSummary);
+        });
+        setDuelDemandSummary(nextSummary);
+      }
       if (nextStatus.state === 'idle') {
         setDuelMatchStatus(null);
       }
@@ -2114,6 +2178,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어.');
       }
 
+      const wasTestMatch = isGroupTestFlow;
       setError(null);
       setGroupMatchNotice(null);
       setIsCancelingGroupMatch(true);
@@ -2121,18 +2186,21 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         mode: 'group',
         distanceKm: groupDistanceKm,
         slotStartAt: activeGroupSlotStartAt,
+        testMode: wasTestMatch,
         ...(groupMatchStatus?.matchId ? { matchId: groupMatchStatus.matchId } : {}),
       });
       setGroupMatchResult(null);
-      const [nextSummary, nextStatus] = await Promise.all([
-        fetchMatchDemandSummary({
+      const nextStatus = await loadGroupMatchStatus(activeGroupSlotStartAt, { testMode: wasTestMatch });
+      if (wasTestMatch) {
+        setGroupDemandSummary(null);
+      } else {
+        const nextSummary = await fetchMatchDemandSummary({
           mode: 'group',
           distanceKm: groupDistanceKm,
           slotStartAt: activeGroupSlotStartAt,
-        }),
-        loadGroupMatchStatus(activeGroupSlotStartAt),
-      ]);
-      setGroupDemandSummary(nextSummary);
+        });
+        setGroupDemandSummary(nextSummary);
+      }
       if (nextStatus.state === 'idle') {
         setGroupMatchStatus(null);
       }
@@ -2798,7 +2866,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         backHref={backHref}
       />
 
-      {isIdle ? (
+      {isIdle && !showLiveArena ? (
         <>
           <Card style={[styles.readyCard, { paddingBottom: 18 + Math.max(insets.bottom, 10) }]}>
             <View style={styles.readyHero}>
@@ -3082,7 +3150,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                         {effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}
                       </Text>
                       <Text style={styles.duelResultMeta}>
-                        {duelMatchStatus?.readyToStart ? '지금 바로 시작할 수 있어요.' : '시작 시간 전까지 자동으로 예약 상태를 유지해요.'}
+                        {duelMatchStatus?.isTestMatch
+                          ? (duelMatchStatus?.readyToStart ? '카운트다운이 끝나서 바로 시작돼요.' : '테스트 카운트다운이 끝나면 자동으로 대결이 시작돼요.')
+                          : duelMatchStatus?.readyToStart ? '지금 바로 시작할 수 있어요.' : '시작 시간 전까지 자동으로 예약 상태를 유지해요.'}
                       </Text>
                     </View>
                   ) : null}
@@ -3292,29 +3362,33 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                     </Text>
                   </View>
 
-                  <View style={styles.matchDemandCard}>
-                    <View style={styles.matchDemandHeader}>
-                      <Text style={styles.matchDemandTitle}>현재 신청 현황</Text>
-                      {isLoadingGroupDemandSummary ? <ActivityIndicator size="small" color="#818CF8" /> : null}
+                  {!isGroupTestFlow ? (
+                    <View style={styles.matchDemandCard}>
+                      <View style={styles.matchDemandHeader}>
+                        <Text style={styles.matchDemandTitle}>현재 신청 현황</Text>
+                        {isLoadingGroupDemandSummary ? <ActivityIndicator size="small" color="#818CF8" /> : null}
+                      </View>
+                      <Text style={styles.matchDemandHeadline}>
+                        {groupDemandSummary
+                          ? `${groupDemandSummary.averagePace} · ${groupDemandSummary.fillRatioLabel}`
+                          : '평균 페이스와 신청 인원을 불러오는 중'}
+                      </Text>
+                      {groupDemandSummary?.participantsCount ? (
+                        <Text style={styles.matchDemandText}>{groupDemandSummary.summaryText}</Text>
+                      ) : null}
                     </View>
-                    <Text style={styles.matchDemandHeadline}>
-                      {groupDemandSummary
-                        ? `${groupDemandSummary.averagePace} · ${groupDemandSummary.fillRatioLabel}`
-                        : '평균 페이스와 신청 인원을 불러오는 중'}
-                    </Text>
-                    {groupDemandSummary?.participantsCount ? (
-                      <Text style={styles.matchDemandText}>{groupDemandSummary.summaryText}</Text>
-                    ) : null}
-                  </View>
+                  ) : null}
 
                   {isRequestingGroupMatch ? <ActivityIndicator size="small" color="#818CF8" /> : null}
 
                   {groupMatchState === 'waiting' ? (
                     <View style={styles.duelResultCard}>
                       <Text style={styles.duelResultEyebrow}>WAITING</Text>
-                      <Text style={styles.duelResultTitle}>비슷한 그룹을 모으는 중이에요</Text>
+                      <Text style={styles.duelResultTitle}>{isGroupTestFlow ? '비슷한 테스트 그룹을 모으는 중이에요' : '비슷한 그룹을 모으는 중이에요'}</Text>
                       <Text style={styles.duelResultMeta}>
-                        현재 {groupMatchStatus?.participantCount ?? 0}/{groupMatchStatus?.capacity ?? 30}명 대기 · 평균 {groupDemandSummary?.averagePace ?? '페이스 계산 중'}
+                        {isGroupTestFlow
+                          ? `현재 ${groupMatchStatus?.participantCount ?? 0}/${groupMatchStatus?.capacity ?? 30}명 대기 · 2명만 모이면 시작`
+                          : `현재 ${groupMatchStatus?.participantCount ?? 0}/${groupMatchStatus?.capacity ?? 30}명 대기 · 평균 ${groupDemandSummary?.averagePace ?? '페이스 계산 중'}`}
                       </Text>
                       {groupExpiryCountdownLabel ? (
                         <Text style={styles.duelResultMeta}>자동 정리까지 {groupExpiryCountdownLabel} 남음</Text>
@@ -3346,7 +3420,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                       </Text>
                       {groupMatchState === 'matched' ? (
                         <Text style={styles.duelResultMeta}>
-                          {groupMatchStatus?.readyToStart ? '지금 바로 시작할 수 있어요.' : '시작 시간 전까지 자동으로 예약 상태를 유지해요.'}
+                          {groupMatchStatus?.isTestMatch
+                            ? (groupMatchStatus?.readyToStart ? '카운트다운이 끝나서 바로 시작돼요.' : '테스트 카운트다운이 끝나면 자동으로 그룹 대결이 시작돼요.')
+                            : groupMatchStatus?.readyToStart ? '지금 바로 시작할 수 있어요.' : '시작 시간 전까지 자동으로 예약 상태를 유지해요.'}
                         </Text>
                       ) : null}
                       <View style={styles.groupParticipantList}>
