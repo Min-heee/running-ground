@@ -889,51 +889,32 @@ function buildTestDuelMatchResponse(store, currentUser, { distanceKm }) {
     slotStartAt: previewSlotStartAt,
     testMode: true,
   }).sort((left, right) => right.score - left.score);
-
-  if (!queuedEntries.length) {
-    return {
-      success: true,
-      matched: false,
-      isTestMatch: true,
-      requestId: nextId('duel-test-request'),
-      distanceKm,
-      slotStartAt: previewSlotStartAt,
-      slotLabel: formatDuelSlotLabel(previewSlotStartAt),
-      paceBandLabel,
-      levelBandLabel,
-      criteriaSummary: '테스트 상대를 기다리는 중이에요. 다른 러너가 테스트 매칭을 누르면 바로 30초 카운트다운이 시작돼요.',
-      estimatedWaitMinutes: 30,
-    };
-  }
-
-  const bestCandidate = queuedEntries[0];
-
-  if (!bestCandidate) {
-    return {
-      success: true,
-      matched: false,
-      isTestMatch: true,
-      requestId: nextId('duel-test-request'),
-      distanceKm,
-      slotStartAt: previewSlotStartAt,
-      slotLabel: formatDuelSlotLabel(previewSlotStartAt),
-      paceBandLabel,
-      levelBandLabel,
-      criteriaSummary: '테스트 상대를 기다리는 중이에요. 다른 러너가 테스트 매칭을 누르면 바로 30초 카운트다운이 시작돼요.',
-      estimatedWaitMinutes: 30,
-    };
-  }
+  const bestCandidate = queuedEntries[0] ?? null;
+  const syntheticOpponent = createSyntheticRunnerProfile(currentRunner, {
+    id: nextId('duel-test-bot'),
+    name: '테스트 상대',
+    paceOffsetSeconds: 6,
+    weeklyDistanceDeltaKm: 1.2,
+    lifetimeDistanceDeltaKm: 18,
+    districtName: '테스트 트랙',
+    tag: '#TEST',
+  });
 
   const countdownStartAt = buildTestMatchStartAt(now);
-  removeUsersFromMatchQueue(store, 'duel', [currentUser.id, bestCandidate.runner.id]);
+  removeUsersFromMatchQueue(store, 'duel', [
+    currentUser.id,
+    ...(bestCandidate ? [bestCandidate.runner.id] : []),
+  ]);
   createMatchSession(store, 'duel', distanceKm, countdownStartAt, [
     { id: currentUser.id, seedRank: 1 },
-    { id: bestCandidate.runner.id, seedRank: 2 },
+    bestCandidate
+      ? { id: bestCandidate.runner.id, seedRank: 2 }
+      : { id: syntheticOpponent.id, seedRank: 2, profileSnapshot: syntheticOpponent },
   ], {
     isTestMatch: true,
   });
 
-  const opponentRunner = bestCandidate.runner;
+  const opponentRunner = bestCandidate?.runner ?? syntheticOpponent;
   return {
     success: true,
     matched: true,
@@ -985,33 +966,46 @@ function buildTestGroupMatchResponse(store, currentUser, { distanceKm }) {
     return new Date(left.queueEntry.requestedAt).getTime() - new Date(right.queueEntry.requestedAt).getTime();
   });
   const compatibleEntries = queuedEntries.slice(0, maxGroupSize);
-  const responseParticipants = buildQueuedParticipants(compatibleEntries);
-  const mySeedRank = responseParticipants.find((participant) => participant.id === currentUser.id)?.seedRank ?? 1;
+  const sessionParticipants = compatibleEntries.map((entry, index) => ({
+    id: entry.runner.id,
+    seedRank: index + 1,
+  }));
 
-  if (responseParticipants.length < MATCH_TEST_GROUP_MIN_PARTICIPANTS) {
-    return {
-      success: true,
-      matched: false,
-      isTestMatch: true,
-      requestId: nextId('group-test-request'),
-      distanceKm,
-      slotStartAt: countdownStartAt,
-      slotLabel: formatDuelSlotLabel(countdownStartAt),
-      paceBandLabel,
-      levelBandLabel,
-      criteriaSummary: '테스트 그룹을 찾는 중이에요. 2명만 모이면 바로 30초 카운트다운이 시작돼요.',
-      estimatedWaitMinutes: 30,
-      maxGroupSize,
-      participantsCount: responseParticipants.length,
-      mySeedRank,
-      participants: responseParticipants,
-    };
+  while (sessionParticipants.length < MATCH_TEST_GROUP_MIN_PARTICIPANTS) {
+    const syntheticRunner = createSyntheticRunnerProfile(currentRunner, {
+      id: nextId('group-test-bot'),
+      name: `테스트 러너 ${sessionParticipants.length + 1}`,
+      paceOffsetSeconds: sessionParticipants.length * 7,
+      weeklyDistanceDeltaKm: 0.8 + sessionParticipants.length,
+      lifetimeDistanceDeltaKm: 10 + sessionParticipants.length * 6,
+      districtName: '테스트 트랙',
+      tag: '#TEST',
+    });
+    sessionParticipants.push({
+      id: syntheticRunner.id,
+      seedRank: sessionParticipants.length + 1,
+      profileSnapshot: syntheticRunner,
+    });
   }
 
-  removeUsersFromMatchQueue(store, 'group', responseParticipants.map((participant) => participant.id));
-  createMatchSession(store, 'group', distanceKm, countdownStartAt, responseParticipants, {
+  removeUsersFromMatchQueue(
+    store,
+    'group',
+    sessionParticipants
+      .filter((participant) => !participant.profileSnapshot)
+      .map((participant) => participant.id),
+  );
+  createMatchSession(store, 'group', distanceKm, countdownStartAt, sessionParticipants, {
     isTestMatch: true,
   });
+  const createdSession = findMatchSessionForUser(store, 'group', currentUser.id, {
+    distanceKm,
+    testMode: true,
+  });
+  const responseParticipants = createdSession
+    ? buildSessionGroupParticipants(store, createdSession, now)
+    : [];
+  const mySeedRank = responseParticipants.find((participant) => participant.id === currentUser.id)?.seedRank ?? 1;
 
   return {
     success: true,
