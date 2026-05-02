@@ -109,6 +109,24 @@ async function findUserByUsername(database, username) {
   return result.rows[0] ? mapUserRow(result.rows[0]) : null;
 }
 
+async function findUserByIdentity(database, { realName, phone, birthDate }) {
+  const result = await database.query(
+    `
+      select *
+      from users
+      where real_name = $1 and phone = $2 and birth_date = $3
+      limit 1
+    `,
+    [realName, phone, birthDate],
+  );
+
+  return result.rows[0] ? mapUserRow(result.rows[0]) : null;
+}
+
+function maskPhone(phone) {
+  return `${phone.slice(0, 3)}-****-${phone.slice(-4)}`;
+}
+
 async function findUserBySessionToken(database, token) {
   const result = await database.query(
     `
@@ -258,6 +276,20 @@ export function createPostgresAuthRepository({
       };
     },
 
+    async findUsername({ realName, phone, birthDate }) {
+      const user = await findUserByIdentity(database, { realName, phone, birthDate });
+
+      if (!user) {
+        throw createError(404, '일치하는 계정을 찾지 못했어요.');
+      }
+
+      return {
+        success: true,
+        username: user.username,
+        maskedPhone: maskPhone(user.phone),
+      };
+    },
+
     async login({ username, password }) {
       return runWriteOperation(database, async (client) => {
         const user = await findUserByUsername(client, username);
@@ -315,6 +347,50 @@ export function createPostgresAuthRepository({
         return {
           success: true,
           deletedUserId: user.id,
+        };
+      });
+    },
+
+    async resetPassword({ username, realName, phone, birthDate, newPassword }) {
+      return runWriteOperation(database, async (client) => {
+        const result = await client.query(
+          `
+            select *
+            from users
+            where username = $1 and real_name = $2 and phone = $3 and birth_date = $4
+            limit 1
+          `,
+          [username, realName, phone, birthDate],
+        );
+
+        if (!result.rows[0]) {
+          throw createError(404, '입력한 정보와 일치하는 계정을 찾지 못했어요.');
+        }
+
+        const user = mapUserRow(result.rows[0]);
+        const updatedAt = new Date().toISOString();
+
+        await client.query(
+          `
+            update users
+            set password_hash = $2, password_updated_at = $3, updated_at = $3
+            where id = $1
+          `,
+          [user.id, hashPassword(newPassword), updatedAt],
+        );
+
+        await client.query(
+          `
+            delete from sessions
+            where user_id = $1
+          `,
+          [user.id],
+        );
+
+        return {
+          success: true,
+          username: user.username,
+          message: '비밀번호를 새로 바꿨어요. 이제 새 비밀번호로 로그인해주세요.',
         };
       });
     },

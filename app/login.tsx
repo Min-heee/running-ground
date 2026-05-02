@@ -178,6 +178,15 @@ export default function LoginScreen() {
           </Pressable>
         </Link>
       </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>계정이 기억나지 않나요?</Text>
+        <Link href={'/account-recovery' as never} asChild>
+          <Pressable>
+            <Text style={styles.footerLink}>아이디/비밀번호 찾기</Text>
+          </Pressable>
+        </Link>
+      </View>
     </Screen>
   );
 }

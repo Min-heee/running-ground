@@ -40,6 +40,18 @@ export type VerifyPhoneVerificationCodeResponse = {
   verifiedToken: string;
 };
 
+export type FindUsernameResponse = {
+  success: boolean;
+  username: string;
+  maskedPhone: string;
+};
+
+export type ResetPasswordResponse = {
+  success: boolean;
+  username: string;
+  message: string;
+};
+
 export type LogoutResponse = {
   success: boolean;
 };

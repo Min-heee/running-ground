@@ -120,6 +120,10 @@ function findUserBySessionToken(store, token) {
   };
 }
 
+function maskPhone(phone) {
+  return `${phone.slice(0, 3)}-****-${phone.slice(-4)}`;
+}
+
 export function createJsonAuthRepository({
   loadStore,
   mutateStore,
@@ -138,6 +142,25 @@ export function createJsonAuthRepository({
         username,
         available,
         message: available ? '사용할 수 있는 아이디예요.' : '이미 사용 중인 아이디예요.',
+      };
+    },
+
+    findUsername({ realName, phone, birthDate }) {
+      const store = loadStore();
+      const user = store.users.find((entry) => (
+        entry.realName === realName
+        && entry.phone === phone
+        && entry.birthDate === birthDate
+      ));
+
+      if (!user) {
+        throw createError(404, '일치하는 계정을 찾지 못했어요.');
+      }
+
+      return {
+        success: true,
+        username: user.username,
+        maskedPhone: maskPhone(user.phone),
       };
     },
 
@@ -204,6 +227,30 @@ export function createJsonAuthRepository({
         return {
           success: true,
           deletedUserId: user.id,
+        };
+      });
+    },
+
+    resetPassword({ username, realName, phone, birthDate, newPassword }) {
+      return mutateStore((store) => {
+        const user = store.users.find((entry) => (
+          entry.username === username
+          && entry.realName === realName
+          && entry.phone === phone
+          && entry.birthDate === birthDate
+        ));
+
+        if (!user) {
+          throw createError(404, '입력한 정보와 일치하는 계정을 찾지 못했어요.');
+        }
+
+        setUserPassword(user, newPassword);
+        store.sessions = (store.sessions ?? []).filter((entry) => entry.userId !== user.id);
+
+        return {
+          success: true,
+          username: user.username,
+          message: '비밀번호를 새로 바꿨어요. 이제 새 비밀번호로 로그인해주세요.',
         };
       });
     },

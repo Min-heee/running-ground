@@ -111,6 +111,32 @@ await runTest('checks username availability', () => {
   });
 });
 
+await runTest('finds username by identity fields', () => {
+  const { repository } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-existing',
+        username: 'runner',
+        realName: '민병희',
+        phone: '01012345678',
+        birthDate: '1990-01-01',
+        name: '러너',
+        publicTag: '#RUN01',
+      },
+    ],
+  });
+
+  assert.deepEqual(repository.findUsername({
+    realName: '민병희',
+    phone: '01012345678',
+    birthDate: '1990-01-01',
+  }), {
+    success: true,
+    username: 'runner',
+    maskedPhone: '010-****-5678',
+  });
+});
+
 await runTest('registers a user, hashes password, and creates a session', () => {
   const { repository, storeHarness } = createRepositoryHarness();
   const result = repository.register({
@@ -223,6 +249,47 @@ await runTest('logs in with a valid password and rejects invalid credentials', (
   assert.equal(result.user.lifetimeDistanceKm, 5);
   assert.equal(store.sessions.length, 1);
   assert.equal(store.sessions[0].token, 'token-1');
+});
+
+await runTest('resets password by identity and clears sessions', () => {
+  const { repository, storeHarness } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-existing',
+        username: 'runner',
+        password: 'Password123',
+        realName: '민병희',
+        phone: '01012345678',
+        birthDate: '1990-01-01',
+        name: '러너',
+        publicTag: '#RUN01',
+      },
+    ],
+    sessions: [
+      {
+        token: 'token-1',
+        userId: 'user-existing',
+        createdAt: '2026-04-23T00:00:00.000Z',
+        expiresAt: '2026-04-23T01:00:00.000Z',
+      },
+    ],
+  });
+
+  assert.deepEqual(repository.resetPassword({
+    username: 'runner',
+    realName: '민병희',
+    phone: '01012345678',
+    birthDate: '1990-01-01',
+    newPassword: 'NewPassword123',
+  }), {
+    success: true,
+    username: 'runner',
+    message: '비밀번호를 새로 바꿨어요. 이제 새 비밀번호로 로그인해주세요.',
+  });
+
+  const store = storeHarness.getStore();
+  assert.equal(store.sessions.length, 0);
+  assert.equal(verifyPassword('NewPassword123', store.users[0].passwordHash), true);
 });
 
 await runTest('logs out idempotently', () => {

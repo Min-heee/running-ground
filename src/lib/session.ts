@@ -6,9 +6,11 @@ import { USE_MOCK_API } from '@/lib/api/config';
 import {
   AuthResponse,
   DeleteMyAccountResponse,
+  FindUsernameResponse,
   LogoutResponse,
   MyProfileResponse,
   RequestPhoneVerificationCodeResponse,
+  ResetPasswordResponse,
   UsernameAvailabilityResponse,
   VerifyPhoneVerificationCodeResponse,
 } from '@/lib/api/types';
@@ -37,7 +39,21 @@ type RegisterAccountInput = {
   universityName?: string;
   addressDetail: string;
   birthDate: string;
-  phoneVerificationToken: string;
+  phoneVerificationToken?: string;
+};
+
+type FindUsernameInput = {
+  realName: string;
+  phone: string;
+  birthDate: string;
+};
+
+type ResetPasswordInput = {
+  username: string;
+  realName: string;
+  phone: string;
+  birthDate: string;
+  newPassword: string;
 };
 
 type SessionSnapshot = {
@@ -511,7 +527,6 @@ export async function registerAccount({
   universityName,
   addressDetail,
   birthDate,
-  phoneVerificationToken,
 }: RegisterAccountInput) {
   await ensureHydrated();
 
@@ -555,10 +570,6 @@ export async function registerAccount({
     throw new Error('휴대폰 번호를 정확히 입력해주세요.');
   }
 
-  if (!phoneVerificationToken.trim()) {
-    throw new Error('휴대폰 인증을 먼저 완료해주세요.');
-  }
-
   if (!normalizedProvinceName) {
     throw new Error('시/도를 먼저 선택해주세요.');
   }
@@ -576,14 +587,6 @@ export async function registerAccount({
   }
 
   if (USE_MOCK_API) {
-    if (!mockPhoneVerificationSession?.verifiedToken || mockPhoneVerificationSession.verifiedToken !== phoneVerificationToken.trim()) {
-      throw new Error('휴대폰 인증을 먼저 완료해주세요.');
-    }
-
-    if (mockPhoneVerificationSession.phone !== normalizedPhone) {
-      throw new Error('인증한 휴대폰 번호와 가입 번호가 달라요.');
-    }
-
     mockProfile = {
       ...mockProfile,
       name: normalizedDisplayName,
@@ -596,7 +599,6 @@ export async function registerAccount({
       lifetimeDistanceKm: mockProfile.lifetimeDistanceKm ?? 0,
     };
     mockSignedIn = true;
-    mockPhoneVerificationSession = null;
     await persistSession();
     return mockProfile;
   }
@@ -616,7 +618,6 @@ export async function registerAccount({
       universityName: normalizedUniversityName,
       addressDetail: normalizedAddressDetail,
       birthDate: normalizedBirthDate,
-      phoneVerificationToken: phoneVerificationToken.trim(),
     },
     { fallbackMessage: '회원가입에 실패했어요.' },
   );
@@ -624,6 +625,104 @@ export async function registerAccount({
   setBackendSession(authResponse);
   await persistSession();
   return authResponse.user;
+}
+
+export async function findUsernameByIdentity({
+  realName,
+  phone,
+  birthDate,
+}: FindUsernameInput) {
+  await ensureHydrated();
+
+  const normalizedRealName = realName.trim();
+  const normalizedPhone = phone.replace(/\D/g, '');
+  const normalizedBirthDate = birthDate.trim();
+
+  if (!normalizedRealName) {
+    throw new Error('이름을 입력해주세요.');
+  }
+
+  if (normalizedPhone.length < 10) {
+    throw new Error('휴대폰 번호를 정확히 입력해주세요.');
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedBirthDate)) {
+    throw new Error('생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
+  }
+
+  if (USE_MOCK_API) {
+    return {
+      success: true,
+      username: 'demo-user',
+      maskedPhone: `${normalizedPhone.slice(0, 3)}-****-${normalizedPhone.slice(-4)}`,
+    } satisfies FindUsernameResponse;
+  }
+
+  return apiPost<FindUsernameResponse>(
+    '/auth/find-username',
+    {
+      realName: normalizedRealName,
+      phone: normalizedPhone,
+      birthDate: normalizedBirthDate,
+    },
+    { fallbackMessage: '아이디를 찾지 못했어요.' },
+  );
+}
+
+export async function resetPasswordByIdentity({
+  username,
+  realName,
+  phone,
+  birthDate,
+  newPassword,
+}: ResetPasswordInput) {
+  await ensureHydrated();
+
+  const normalizedUsername = normalizeUsername(username);
+  const normalizedRealName = realName.trim();
+  const normalizedPhone = phone.replace(/\D/g, '');
+  const normalizedBirthDate = birthDate.trim();
+  const passwordValidationError = getPasswordValidationError(newPassword);
+
+  if (getUsernameValidationError(normalizedUsername)) {
+    throw new Error('아이디를 정확히 입력해주세요.');
+  }
+
+  if (!normalizedRealName) {
+    throw new Error('이름을 입력해주세요.');
+  }
+
+  if (normalizedPhone.length < 10) {
+    throw new Error('휴대폰 번호를 정확히 입력해주세요.');
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedBirthDate)) {
+    throw new Error('생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
+  }
+
+  if (passwordValidationError) {
+    throw new Error(passwordValidationError);
+  }
+
+  if (USE_MOCK_API) {
+    return {
+      success: true,
+      username: normalizedUsername,
+      message: '비밀번호를 새로 바꿨어요. 이제 새 비밀번호로 로그인해주세요.',
+    } satisfies ResetPasswordResponse;
+  }
+
+  return apiPost<ResetPasswordResponse>(
+    '/auth/reset-password',
+    {
+      username: normalizedUsername,
+      realName: normalizedRealName,
+      phone: normalizedPhone,
+      birthDate: normalizedBirthDate,
+      newPassword: newPassword.trim(),
+    },
+    { fallbackMessage: '비밀번호를 재설정하지 못했어요.' },
+  );
 }
 
 export async function signOut() {

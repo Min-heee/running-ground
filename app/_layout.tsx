@@ -9,6 +9,7 @@ const PUBLIC_ROUTES = new Set([
   '/',
   '/onboarding',
   '/login',
+  '/account-recovery',
   '/signup',
   '/signup-form',
   '/admin',
@@ -71,6 +72,7 @@ export default function RootLayout() {
         <Stack.Screen name="signup" />
         <Stack.Screen name="signup-form" />
         <Stack.Screen name="login" />
+        <Stack.Screen name="account-recovery" />
         <Stack.Screen name="admin" />
         <Stack.Screen name="connect-sources" />
         <Stack.Screen name="add-friend" />

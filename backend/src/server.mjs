@@ -3894,6 +3894,56 @@ async function handleLogin(request, response) {
   sendJson(response, 200, result);
 }
 
+async function handleFindUsername(request, response) {
+  const body = await parseJsonBody(request);
+  const realName = validateRequiredString(body.realName, '이름을 입력해주세요.');
+  const phone = validateRequiredString(body.phone, '휴대폰 번호를 입력해주세요.').replace(/\D/g, '');
+  const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해주세요.');
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+    throw new ApiError(400, '생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
+  }
+
+  if (phone.length < 10) {
+    throw new ApiError(400, '휴대폰 번호를 정확히 입력해주세요.');
+  }
+
+  const result = await getAuthRepository().findUsername({
+    realName,
+    phone,
+    birthDate,
+  });
+
+  sendJson(response, 200, result);
+}
+
+async function handleResetPassword(request, response) {
+  const body = await parseJsonBody(request);
+  const username = validateUsername(body.username);
+  const realName = validateRequiredString(body.realName, '이름을 입력해주세요.');
+  const phone = validateRequiredString(body.phone, '휴대폰 번호를 입력해주세요.').replace(/\D/g, '');
+  const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해주세요.');
+  const newPassword = validateNewPassword(body.newPassword);
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+    throw new ApiError(400, '생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
+  }
+
+  if (phone.length < 10) {
+    throw new ApiError(400, '휴대폰 번호를 정확히 입력해주세요.');
+  }
+
+  const result = await getAuthRepository().resetPassword({
+    username,
+    realName,
+    phone,
+    birthDate,
+    newPassword,
+  });
+
+  sendJson(response, 200, result);
+}
+
 async function handleRequestPhoneVerificationCode(request, response) {
   const body = await parseJsonBody(request);
   const purpose = validatePhoneVerificationPurpose(body.purpose);
@@ -4050,7 +4100,6 @@ async function handleRegister(request, response) {
   const universityName = typeof body.universityName === 'string' ? body.universityName.trim() : '';
   const addressDetail = validateRequiredString(body.addressDetail, '상세 주소를 입력해주세요.');
   const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해주세요.');
-  const phoneVerificationToken = validateRequiredString(body.phoneVerificationToken, '휴대폰 인증을 먼저 완료해주세요.');
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
     throw new ApiError(400, '생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
@@ -4059,11 +4108,6 @@ async function handleRegister(request, response) {
   if (phone.length < 10) {
     throw new ApiError(400, '휴대폰 번호를 정확히 입력해주세요.');
   }
-
-  requireVerifiedPhoneChallenge({
-    phone,
-    verifiedToken: phoneVerificationToken,
-  });
 
   const result = await getAuthRepository().register({
     username,
@@ -4075,21 +4119,6 @@ async function handleRegister(request, response) {
     region,
     universityName,
     addressDetail,
-  });
-
-  mutateStore((store) => {
-    cleanupPhoneVerificationChallenges(store);
-    const challenge = ensurePhoneVerificationChallenges(store).find((entry) => (
-      entry.phone === phone
-      && entry.verifiedToken === phoneVerificationToken
-      && entry.purpose === 'signup'
-    ));
-
-    if (challenge) {
-      challenge.status = 'consumed';
-      challenge.consumedAt = new Date().toISOString();
-      challenge.updatedAt = challenge.consumedAt;
-    }
   });
 
   sendJson(response, 201, result);
@@ -4782,6 +4811,16 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/auth/login' && request.method === 'POST') {
     await handleLogin(request, response);
+    return;
+  }
+
+  if (pathname === '/api/auth/find-username' && request.method === 'POST') {
+    await handleFindUsername(request, response);
+    return;
+  }
+
+  if (pathname === '/api/auth/reset-password' && request.method === 'POST') {
+    await handleResetPassword(request, response);
     return;
   }
 

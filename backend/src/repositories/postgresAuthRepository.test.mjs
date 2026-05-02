@@ -46,6 +46,27 @@ class FakePostgresDatabase {
       };
     }
 
+    if (normalizedSql.startsWith('select * from users where real_name = $1 and phone = $2 and birth_date = $3 limit 1')) {
+      return {
+        rows: this.users.filter((user) => (
+          user.real_name === params[0]
+          && user.phone === params[1]
+          && user.birth_date === params[2]
+        )).slice(0, 1),
+      };
+    }
+
+    if (normalizedSql.startsWith('select * from users where username = $1 and real_name = $2 and phone = $3 and birth_date = $4 limit 1')) {
+      return {
+        rows: this.users.filter((user) => (
+          user.username === params[0]
+          && user.real_name === params[1]
+          && user.phone === params[2]
+          && user.birth_date === params[3]
+        )).slice(0, 1),
+      };
+    }
+
     if (normalizedSql.startsWith('select id from users where username = $1')) {
       return {
         rows: this.users
@@ -132,6 +153,25 @@ class FakePostgresDatabase {
 
     if (normalizedSql.startsWith('delete from sessions where token = $1')) {
       this.sessions = this.sessions.filter((session) => session.token !== params[0]);
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith('delete from sessions where user_id = $1')) {
+      this.sessions = this.sessions.filter((session) => session.user_id !== params[0]);
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith('update users set password_hash = $2, password_updated_at = $3, updated_at = $3 where id = $1')) {
+      this.users = this.users.map((user) => (
+        user.id === params[0]
+          ? {
+              ...user,
+              password_hash: params[1],
+              password_updated_at: params[2],
+              updated_at: params[2],
+            }
+          : user
+      ));
       return { rows: [] };
     }
 
@@ -228,6 +268,33 @@ await runTest('checks username availability', async () => {
     username: 'runner',
     available: false,
     message: '이미 사용 중인 아이디예요.',
+  });
+});
+
+await runTest('finds username by identity fields', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-existing',
+        username: 'runner',
+        password_hash: hashPassword('Password123'),
+        nickname: '러너',
+        real_name: '민병희',
+        phone: '01012345678',
+        birth_date: '1990-01-01',
+        public_tag: '#RUN01',
+      },
+    ],
+  });
+
+  assert.deepEqual(await repository.findUsername({
+    realName: '민병희',
+    phone: '01012345678',
+    birthDate: '1990-01-01',
+  }), {
+    success: true,
+    username: 'runner',
+    maskedPhone: '010-****-5678',
   });
 });
 
@@ -374,6 +441,46 @@ await runTest('logs in with a valid password and rejects invalid credentials', a
   assert.equal(result.user.lifetimeDistanceKm, 5);
   assert.equal(database.sessions.length, 1);
   assert.equal(database.sessions[0].token, 'token-1');
+});
+
+await runTest('resets password by identity and clears sessions', async () => {
+  const { repository, database } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-existing',
+        username: 'runner',
+        password_hash: hashPassword('Password123'),
+        nickname: '러너',
+        real_name: '민병희',
+        phone: '01012345678',
+        birth_date: '1990-01-01',
+        public_tag: '#RUN01',
+      },
+    ],
+    sessions: [
+      {
+        token: 'token-1',
+        user_id: 'user-existing',
+        created_at: '2026-04-23T00:00:00.000Z',
+        expires_at: '2026-04-23T01:00:00.000Z',
+      },
+    ],
+  });
+
+  assert.deepEqual(await repository.resetPassword({
+    username: 'runner',
+    realName: '민병희',
+    phone: '01012345678',
+    birthDate: '1990-01-01',
+    newPassword: 'NewPassword123',
+  }), {
+    success: true,
+    username: 'runner',
+    message: '비밀번호를 새로 바꿨어요. 이제 새 비밀번호로 로그인해주세요.',
+  });
+
+  assert.equal(database.sessions.length, 0);
+  assert.equal(verifyPassword('NewPassword123', database.users[0].password_hash), true);
 });
 
 await runTest('logs out idempotently', async () => {
