@@ -901,14 +901,14 @@ function buildTestDuelMatchResponse(store, currentUser, { distanceKm }) {
       slotLabel: formatDuelSlotLabel(previewSlotStartAt),
       paceBandLabel,
       levelBandLabel,
-      criteriaSummary: '나와 비슷한 페이스를 가진 테스트 상대를 찾는 중이에요. 상대가 잡히면 바로 30초 카운트다운이 시작돼요.',
+      criteriaSummary: '테스트 상대를 기다리는 중이에요. 다른 러너가 테스트 매칭을 누르면 바로 30초 카운트다운이 시작돼요.',
       estimatedWaitMinutes: 30,
     };
   }
 
   const bestCandidate = queuedEntries[0];
 
-  if (!bestCandidate || bestCandidate.score < DUEL_MIN_COMPATIBILITY_SCORE) {
+  if (!bestCandidate) {
     return {
       success: true,
       matched: false,
@@ -919,7 +919,7 @@ function buildTestDuelMatchResponse(store, currentUser, { distanceKm }) {
       slotLabel: formatDuelSlotLabel(previewSlotStartAt),
       paceBandLabel,
       levelBandLabel,
-      criteriaSummary: '테스트 대기열에는 러너가 있지만 아직 페이스와 레벨이 잘 맞는 상대가 없어요. 최대 30분 동안 계속 찾아볼게요.',
+      criteriaSummary: '테스트 상대를 기다리는 중이에요. 다른 러너가 테스트 매칭을 누르면 바로 30초 카운트다운이 시작돼요.',
       estimatedWaitMinutes: 30,
     };
   }
@@ -955,7 +955,7 @@ function buildTestDuelMatchResponse(store, currentUser, { distanceKm }) {
       levelLabel: opponentRunner.levelLabel,
       weeklyDistanceKm: opponentRunner.weeklyDistanceKm,
       lifetimeDistanceKm: opponentRunner.lifetimeDistanceKm,
-      compatibilitySummary: `${opponentRunner.averagePace} 페이스 · ${opponentRunner.levelLabel} · 테스트 상대 · 적합도 ${bestCandidate.score.toFixed(0)}점`,
+      compatibilitySummary: `${opponentRunner.averagePace} 페이스 · ${opponentRunner.levelLabel} · 테스트 상대`,
     },
   };
 }
@@ -984,9 +984,7 @@ function buildTestGroupMatchResponse(store, currentUser, { distanceKm }) {
 
     return new Date(left.queueEntry.requestedAt).getTime() - new Date(right.queueEntry.requestedAt).getTime();
   });
-  const compatibleEntries = queuedEntries
-    .filter((entry) => entry.runner.id === currentRunner.id || entry.score >= GROUP_MIN_COMPATIBILITY_SCORE)
-    .slice(0, maxGroupSize);
+  const compatibleEntries = queuedEntries.slice(0, maxGroupSize);
   const responseParticipants = buildQueuedParticipants(compatibleEntries);
   const mySeedRank = responseParticipants.find((participant) => participant.id === currentUser.id)?.seedRank ?? 1;
 
@@ -1001,7 +999,7 @@ function buildTestGroupMatchResponse(store, currentUser, { distanceKm }) {
       slotLabel: formatDuelSlotLabel(countdownStartAt),
       paceBandLabel,
       levelBandLabel,
-      criteriaSummary: '테스트 그룹을 찾는 중이에요. 비슷한 러너가 2명만 모이면 바로 30초 카운트다운이 시작돼요.',
+      criteriaSummary: '테스트 그룹을 찾는 중이에요. 2명만 모이면 바로 30초 카운트다운이 시작돼요.',
       estimatedWaitMinutes: 30,
       maxGroupSize,
       participantsCount: responseParticipants.length,
@@ -1654,9 +1652,11 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
   });
   const queuedParticipants = queuedEntries.map((entry) => entry.runner);
   const competitiveThreshold = mode === 'duel' ? DUEL_MIN_COMPATIBILITY_SCORE : GROUP_MIN_COMPATIBILITY_SCORE;
-  const competitiveParticipantsCount = queuedEntries.filter((entry) => (
-    entry.runner.id === currentRunner.id || entry.score >= competitiveThreshold
-  )).length;
+  const competitiveParticipantsCount = testMode
+    ? queuedEntries.length
+    : queuedEntries.filter((entry) => (
+      entry.runner.id === currentRunner.id || entry.score >= competitiveThreshold
+    )).length;
   const currentQueueEntry = queuedEntries.find((entry) => entry.runner.id === currentRunner.id)?.queueEntry ?? null;
   const averagePaceMinutes = queuedParticipants.length
     ? queuedParticipants.reduce((sum, runner) => sum + runner.averagePaceMinutes, 0) / queuedParticipants.length
@@ -1680,8 +1680,8 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
       paceBandLabel: averagePaceMinutes === null ? paceBandLabel : buildPaceBandLabel(averagePaceMinutes),
       levelBandLabel,
       criteriaSummary: mode === 'duel'
-        ? `나와 비슷한 페이스를 가진 테스트 상대를 찾는 중이에요. 상대가 잡히면 바로 30초 카운트다운이 시작되고, 최대 30분 동안 계속 매칭돼요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
-        : `나와 비슷한 테스트 그룹을 찾는 중이에요. ${MATCH_TEST_GROUP_MIN_PARTICIPANTS}명만 모이면 바로 30초 카운트다운이 시작되고, 최대 30분 동안 계속 매칭돼요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+        ? `테스트 상대를 찾는 중이에요. 다른 러너가 들어오면 수준 상관없이 바로 30초 카운트다운이 시작되고, 최대 30분 동안 계속 매칭돼요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+        : `테스트 그룹을 찾는 중이에요. ${MATCH_TEST_GROUP_MIN_PARTICIPANTS}명만 모이면 수준 상관없이 바로 30초 카운트다운이 시작되고, 최대 30분 동안 계속 매칭돼요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
       estimatedWaitMinutes: queueExpiresAt
         ? Math.max(1, Math.ceil((new Date(queueExpiresAt).getTime() - now.getTime()) / (60 * 1000)))
         : 30,

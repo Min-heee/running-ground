@@ -1180,8 +1180,8 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     ? duelWaitingHasOtherApplicants
       ? duelCompatibleCount >= 2
         ? '테스트 상대를 정리하는 중이에요'
-        : '테스트 신청은 들어왔지만 아직 바로 붙이진 않았어요'
-      : '비슷한 테스트 상대를 찾는 중이에요'
+        : '테스트 신청은 들어왔지만 아직 세션을 만드는 중이에요'
+      : '테스트 상대를 기다리는 중이에요'
     : duelWaitingHasOtherApplicants
     ? duelCompatibleCount >= 2
       ? '지금 바로 붙을 상대를 정리하는 중이에요'
@@ -1192,7 +1192,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       ? duelCompatibleCount >= 2
         ? `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 바로 붙을 수 있는 테스트 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
         : `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 지금 바로 붙을 수 있는 테스트 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
-      : '같은 거리 조건에서 먼저 테스트 매칭을 누른 러너 중 페이스와 레벨이 잘 맞는 상대를 찾고 있어요.'
+      : '다른 러너가 테스트 매칭을 누르면 바로 30초 카운트다운이 시작돼요.'
     : duelWaitingHasOtherApplicants
     ? duelCompatibleCount >= 2
       ? `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 바로 붙을 수 있는 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
@@ -1201,9 +1201,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const duelWaitingHint = isDuelTestFlow
     ? duelWaitingHasOtherApplicants
       ? duelCompatibleCount >= 2
-        ? '잘 맞는 테스트 상대가 정리되면 바로 30초 카운트다운이 시작돼요.'
-        : '페이스와 레벨이 실제로 잘 맞는 상대가 잡히면 자동으로 매치가 확정되고 30초 뒤 바로 시작해요.'
-      : '지금은 테스트 대기열에 들어간 상태예요. 잘 맞는 상대가 잡히면 자동으로 30초 카운트다운이 시작돼요.'
+        ? '테스트 상대 세션이 정리되면 바로 30초 카운트다운이 시작돼요.'
+        : '테스트 상대 세션을 만들고 있어요. 잠시만 기다리면 자동으로 30초 카운트다운이 시작돼요.'
+      : '지금은 테스트 대기열에 들어간 상태예요. 다른 러너가 들어오면 자동으로 30초 카운트다운이 시작돼요.'
     : duelWaitingHasOtherApplicants
     ? duelCompatibleCount >= 2
       ? '잘 맞는 상대가 먼저 잡히면 바로 예약된 1대1로 바뀌어요.'
@@ -3384,7 +3384,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                   {groupMatchState === 'waiting' ? (
                     <View style={styles.duelResultCard}>
                       <Text style={styles.duelResultEyebrow}>WAITING</Text>
-                      <Text style={styles.duelResultTitle}>{isGroupTestFlow ? '비슷한 테스트 그룹을 모으는 중이에요' : '비슷한 그룹을 모으는 중이에요'}</Text>
+                      <Text style={styles.duelResultTitle}>{isGroupTestFlow ? '테스트 그룹을 모으는 중이에요' : '비슷한 그룹을 모으는 중이에요'}</Text>
                       <Text style={styles.duelResultMeta}>
                         {isGroupTestFlow
                           ? `현재 ${groupMatchStatus?.participantCount ?? 0}/${groupMatchStatus?.capacity ?? 30}명 대기 · 2명만 모이면 시작`
