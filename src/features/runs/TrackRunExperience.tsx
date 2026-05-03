@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { LiveMatchArena } from '@/components/matches/LiveMatchArena';
+import { LiveMatchRaceBoard } from '@/components/matches/LiveMatchRaceBoard';
 import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -2602,6 +2603,65 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     return null;
   };
 
+  const renderLiveRaceBoardPage = () => {
+    if (matchMode === 'duel' && effectiveDuelOpponent) {
+      const duelRows = [
+        {
+          id: 'current-user',
+          name: '나',
+          paceLabel: currentUserLivePace,
+          distanceKm,
+          remainingKm: Math.max(0, duelDistanceKm - distanceKm),
+          progress: duelDistanceKm > 0 ? distanceKm / duelDistanceKm : 0,
+          isCurrentUser: true,
+        },
+        {
+          id: effectiveDuelOpponent.id,
+          name: effectiveDuelOpponent.name,
+          paceLabel: effectiveDuelOpponent.livePace ?? effectiveDuelOpponent.averagePace,
+          distanceKm: effectiveDuelOpponent.liveDistanceKm ?? 0,
+          remainingKm: Math.max(0, duelDistanceKm - (effectiveDuelOpponent.liveDistanceKm ?? 0)),
+          progress: duelDistanceKm > 0 ? (effectiveDuelOpponent.liveDistanceKm ?? 0) / duelDistanceKm : 0,
+          isCurrentUser: false,
+        },
+      ]
+        .sort((left, right) => right.distanceKm - left.distanceKm)
+        .map((row, index) => ({
+          ...row,
+          rank: index + 1,
+        }));
+
+      return (
+        <LiveMatchRaceBoard
+          title="1대1 레이스 보드"
+          subtitle="누가 더 앞서 있는지, 각자 얼마 남았는지 한눈에 볼 수 있어요."
+          rows={duelRows}
+        />
+      );
+    }
+
+    if (matchMode === 'group' && groupLiveStandings.length > 0) {
+      return (
+        <LiveMatchRaceBoard
+          title="그룹 레이스 보드"
+          subtitle="전체 순위 흐름과 각 러너의 남은 거리를 계속 확인할 수 있어요."
+          rows={groupLiveStandings.map((participant) => ({
+            id: participant.id,
+            rank: participant.rank,
+            name: participant.name,
+            paceLabel: participant.livePace ?? participant.averagePace,
+            distanceKm: participant.currentDistanceKm,
+            remainingKm: Math.max(0, groupDistanceKm - participant.currentDistanceKm),
+            progress: groupDistanceKm > 0 ? participant.currentDistanceKm / groupDistanceKm : 0,
+            isCurrentUser: participant.isCurrentUser,
+          }))}
+        />
+      );
+    }
+
+    return null;
+  };
+
   const renderRunningStatsBoard = (includeMatchCards: boolean) => (
     <>
       <Card style={styles.mapCard}>
@@ -3672,6 +3732,17 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                   }}
                 >
                   <Text style={[styles.livePagerTabText, liveArenaPage === 1 ? styles.livePagerTabTextSelected : undefined]}>
+                    순위 보기
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.livePagerTab, liveArenaPage === 2 ? styles.livePagerTabSelected : undefined]}
+                  onPress={() => {
+                    livePagerRef.current?.scrollTo({ x: liveArenaPageWidth * 2, animated: true });
+                    setLiveArenaPage(2);
+                  }}
+                >
+                  <Text style={[styles.livePagerTabText, liveArenaPage === 2 ? styles.livePagerTabTextSelected : undefined]}>
                     기록 보기
                   </Text>
                 </Pressable>
@@ -3690,10 +3761,13 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                   {renderLiveArenaPage()}
                 </View>
                 <View style={[styles.livePagerPage, { width: liveArenaPageWidth }]}>
+                  {renderLiveRaceBoardPage()}
+                </View>
+                <View style={[styles.livePagerPage, { width: liveArenaPageWidth }]}>
                   {renderRunningStatsBoard(false)}
                 </View>
               </ScrollView>
-              <Text style={styles.livePagerHint}>옆으로 넘기면 기록 화면을 볼 수 있어요.</Text>
+              <Text style={styles.livePagerHint}>옆으로 넘기면 순위와 기록 화면을 볼 수 있어요.</Text>
             </View>
           ) : (
             renderRunningStatsBoard(true)
