@@ -27,6 +27,19 @@ function getTrackPoint(progress: number, laneIndex: number, width: number, heigh
   };
 }
 
+function getDuelTrackPoint(progress: number, laneIndex: number, width: number, height: number, markerSize: number) {
+  const normalized = Math.max(0, Math.min(1, progress));
+  const trackPaddingX = 34;
+  const minLeft = trackPaddingX;
+  const maxLeft = Math.max(trackPaddingX, width - trackPaddingX - markerSize);
+  const laneOffsetY = laneIndex === 0 ? -54 : 54;
+
+  return {
+    left: minLeft + normalized * (maxLeft - minLeft),
+    top: height / 2 + laneOffsetY - markerSize / 2,
+  };
+}
+
 function buildInitialLabel(name: string) {
   return name.slice(0, 1);
 }
@@ -95,7 +108,9 @@ export function LiveMatchArena({
               ? 18
               : 30;
           const progress = targetDistanceKm > 0 ? participant.distanceKm / targetDistanceKm : 0;
-          const point = getTrackPoint(progress, laneIndex, cardWidth - 32, arenaHeight, participantMarkerSize);
+          const point = mode === 'duel'
+            ? getDuelTrackPoint(progress, laneIndex, cardWidth - 32, arenaHeight, participantMarkerSize)
+            : getTrackPoint(progress, laneIndex, cardWidth - 32, arenaHeight, participantMarkerSize);
 
           return (
             <View
@@ -165,6 +180,11 @@ export function LiveMatchArena({
 const styles = StyleSheet.create({
   card: {
     gap: 10,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#1F2A44',
+    backgroundColor: '#0F172A',
+    padding: 16,
   },
   eyebrow: {
     color: '#C7D2FE',
@@ -295,6 +315,9 @@ const styles = StyleSheet.create({
     marginTop: 6,
     alignItems: 'center',
     gap: 1,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    backgroundColor: 'rgba(15,23,42,0.92)',
   },
   runnerLabelName: {
     color: '#FFFFFF',

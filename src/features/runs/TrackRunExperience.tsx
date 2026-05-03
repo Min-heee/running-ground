@@ -2584,28 +2584,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         </Card>
       </View>
 
-      <Card style={styles.guideCard}>
-        <View style={styles.guideHeader}>
-          <Text style={styles.sectionTitle}>측정 상태</Text>
-          <View style={[styles.statusBadge, isRunning ? styles.statusRunning : isPaused ? styles.statusPaused : styles.statusIdle]}>
-            <Text style={[styles.statusBadgeText, isRunning ? styles.statusRunningText : isPaused ? styles.statusPausedText : styles.statusIdleText]}>
-              {isRunning ? '러닝 중' : isPaused ? '일시정지' : isSaving ? '저장 중' : '준비됨'}
-            </Text>
-          </View>
-        </View>
-        <Text style={styles.guideText}>
-          위치 권한: {locationPermissionGranted === null ? '아직 확인 전' : locationPermissionGranted ? '허용됨' : '허용 안 됨'}
-        </Text>
-        <Text style={styles.guideText}>
-          백그라운드 위치: {backgroundLocationPermissionGranted === null ? '아직 확인 전' : backgroundLocationPermissionGranted ? '항상 허용됨' : '항상 허용 필요'}
-        </Text>
-        <Text style={styles.guideText}>
-          모션 권한: {motionPermissionGranted === null ? '아직 확인 전' : motionPermissionGranted ? '허용됨' : '케이던스 측정 제한'}
-        </Text>
-        <Text style={styles.guideHint}>
-          휴대폰만 있어도 러닝 측정은 가능해요. 백그라운드 위치가 허용되면 화면을 벗어나도 계속 측정되고, 워치가 있으면 심박수나 자동 가져오기만 추가로 좋아져요.
-        </Text>
-      </Card>
       {!includeMatchCards && testMatchExitSource ? (
         <Card style={styles.testExitCard}>
           <Text style={styles.testExitTitle}>테스트 대결을 여기서 끝낼 수 있어요</Text>

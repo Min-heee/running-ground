@@ -62,6 +62,11 @@ export function LiveMatchRaceBoard({
 const styles = StyleSheet.create({
   card: {
     gap: 12,
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#1F2A44',
+    backgroundColor: '#0F172A',
+    padding: 16,
   },
   eyebrow: {
     color: '#C7D2FE',
@@ -75,7 +80,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   subtitle: {
-    color: '#D0D5DD',
+    color: '#E5E7EB',
     fontSize: 14,
     lineHeight: 20,
   },
@@ -146,7 +151,7 @@ const styles = StyleSheet.create({
     borderColor: '#6D5EF7',
   },
   distanceText: {
-    color: '#C7D2FE',
+    color: '#E0E7FF',
     fontSize: 11,
     fontWeight: '700',
   },
@@ -161,7 +166,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   metaRemaining: {
-    color: '#98A2B3',
+    color: '#CBD5E1',
     fontSize: 11,
     fontWeight: '700',
   },
