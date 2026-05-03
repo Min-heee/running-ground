@@ -10,6 +10,7 @@
 
 기기 연동 조합까지 같이 볼 때는 아래 문서를 같이 열어두는 편이 좋다.
 - [device-integration-qa-matrix.md](/docs/device-integration-qa-matrix.md)
+- [match-real-device-qa.md](/docs/match-real-device-qa.md)
 
 ## 시작 전 준비
 ### 데스크탑 preview 상태 먼저 확인
@@ -191,6 +192,20 @@ npm run preview:smoke -- --admin-token PREVIEW_ADMIN_TOKEN
 - 주간 누적
 - source 또는 sourceType
 
+## 5차 게이트: 매칭 흐름
+매칭은 별도 문서를 같이 보는 편이 가장 안전하다.
+
+- [match-real-device-qa.md](/docs/match-real-device-qa.md)
+
+핵심 확인 항목:
+- 1대1 테스트 매칭
+- 그룹 테스트 매칭
+- 예약 매칭
+- 시작 10분 전 카운트다운
+- 시작 30초 전 오버레이
+- 대결 시작 / 종료 / 결과 저장
+- `테스트 대결 그만`
+
 ## 권장 테스트 순서
 시간이 적으면 아래 순서만 먼저 하면 된다.
 
@@ -204,7 +219,8 @@ npm run preview:smoke -- --admin-token PREVIEW_ADMIN_TOKEN
 8. 연동 관리에서 기록 가져오기
 9. 마켓
 10. 레이스
-11. 마이페이지에서 `회원 탈퇴` 버튼 노출과 두 번 확인 동작 확인
+11. 매칭 흐름 한 바퀴 확인
+12. 마이페이지에서 `회원 탈퇴` 버튼 노출과 두 번 확인 동작 확인
 
 시간이 충분하면 그다음에 신규 회원가입도 같이 본다.
 
@@ -293,4 +309,5 @@ npm run testflight:qa:report -- --build-label 1.0.0(15) --device "iPhone 16 Pro"
 - 홈, 친구, 리그, 내 활동, 마켓, 레이스 진입 가능
 - 기록 상세/친구 상세에서 갇히지 않음
 - 기록 가져오기 또는 동기화 흐름이 깨지지 않음
+- 매칭 테스트 / 예약 / 카운트다운 / 종료 흐름이 끝까지 이어짐
 - preview smoke와 실기기 체감 흐름이 서로 모순되지 않음

@@ -184,6 +184,7 @@ npm run build:ios:testflight
 
 After the build lands on the phone, use:
 - [testflight-real-device-qa.md](/docs/testflight-real-device-qa.md)
+- [match-real-device-qa.md](/docs/match-real-device-qa.md)
 - [device-integration-qa-matrix.md](/docs/device-integration-qa-matrix.md)
 - [android-install-and-first-sync.md](/docs/android-install-and-first-sync.md)
 
