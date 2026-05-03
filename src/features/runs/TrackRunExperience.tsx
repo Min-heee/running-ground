@@ -3,7 +3,6 @@ import {
   AppState,
   ActivityIndicator,
   Alert,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -57,8 +56,6 @@ import {
   type UpcomingRunningMatchItem,
   type UpdateRunningMatchProgressInput,
 } from '@/lib/api/types';
-import { buildSuggestedArtRoute, type SuggestedArtRoute } from '@/features/runs/routeArt';
-import { RunRouteMap } from '@/features/runs/RunRouteMap';
 import {
   getBackgroundRunElapsedSeconds,
   getBackgroundRunTrackingSnapshot,
@@ -73,27 +70,15 @@ import {
   buildAveragePace,
   buildRunDateFromTimestamp,
   calculateCadenceSpm,
-  calculateDistanceBetweenPoints,
   calculateElevationGainM,
   calculateRouteDistanceKm,
   formatDuration,
   formatPaceFromSpeedMps,
-  getMapRegion,
 } from '@/features/runs/tracking';
 
 type TrackerStatus = 'idle' | 'running' | 'paused' | 'saving';
 type TrackRunMode = 'tab' | 'stack';
-type ExternalMapProvider = 'kakao' | 'naver';
 type RunMatchMode = 'solo' | 'duel' | 'group';
-type ConfirmedStartLocation = {
-  query: string;
-  label: string;
-  resolvedAddress?: string;
-  coordinate: {
-    latitude: number;
-    longitude: number;
-  };
-};
 type GroupLiveStanding = GroupMatchParticipant & {
   rank: number;
   currentDistanceKm: number;
@@ -141,113 +126,6 @@ function formatCadence(cadenceSpm: number | null) {
   return cadenceSpm ? `${cadenceSpm}spm` : '--';
 }
 
-function parseDesiredDistanceKm(value: string) {
-  const nextValue = Number(value.replace(',', '.'));
-  if (!Number.isFinite(nextValue)) {
-    return 5;
-  }
-
-  return Math.min(20, Math.max(2, nextValue));
-}
-
-function getRouteProviderLabel() {
-  return '무료 MVP 그림 초안';
-}
-
-function getRouteProviderDescription() {
-  return '지금은 키워드와 문장의 분위기를 기준으로 그림 목표선을 먼저 만들어요. 도로에 딱 맞춰주는 기능은 추후 무료 지도 대안을 검증한 뒤 확장할게요.';
-}
-
-function formatCoordinateForUrl(coordinate: { latitude: number; longitude: number }) {
-  return `${coordinate.latitude.toFixed(6)},${coordinate.longitude.toFixed(6)}`;
-}
-
-function encodeRouteName(value: string) {
-  return value.trim() || 'RunningGround 경로';
-}
-
-function sampleExternalMapWaypoints(coordinates: SuggestedArtRoute['coordinates'], maximumWaypoints = 5) {
-  if (coordinates.length <= 2) {
-    return [];
-  }
-
-  const intermediateCoordinates = coordinates.slice(1, -1);
-
-  if (intermediateCoordinates.length <= maximumWaypoints) {
-    return intermediateCoordinates;
-  }
-
-  return Array.from({ length: maximumWaypoints }, (_, index) => {
-    const sourceIndex = Math.round((index / (maximumWaypoints - 1)) * (intermediateCoordinates.length - 1));
-    return intermediateCoordinates[sourceIndex];
-  });
-}
-
-function buildKakaoWalkRouteUrl(route: SuggestedArtRoute, useWebFallback = false) {
-  const [startCoordinate] = route.coordinates;
-  const endCoordinate = route.coordinates[route.coordinates.length - 1];
-  const waypoints = sampleExternalMapWaypoints(route.coordinates);
-  const params = new URLSearchParams({
-    sp: formatCoordinateForUrl(startCoordinate),
-    ep: formatCoordinateForUrl(endCoordinate),
-    by: 'foot',
-  });
-
-  waypoints.forEach((waypoint, index) => {
-    params.set(index === 0 ? 'vp' : `vp${index + 1}`, formatCoordinateForUrl(waypoint));
-  });
-
-  return `${useWebFallback ? 'https://m.map.kakao.com/scheme/route' : 'kakaomap://route'}?${params.toString()}`;
-}
-
-function buildNaverWalkRouteUrl(route: SuggestedArtRoute) {
-  const [startCoordinate] = route.coordinates;
-  const endCoordinate = route.coordinates[route.coordinates.length - 1];
-  const waypoints = sampleExternalMapWaypoints(route.coordinates);
-  const params = new URLSearchParams({
-    slat: startCoordinate.latitude.toFixed(6),
-    slng: startCoordinate.longitude.toFixed(6),
-    sname: encodeRouteName(route.startLabel),
-    dlat: endCoordinate.latitude.toFixed(6),
-    dlng: endCoordinate.longitude.toFixed(6),
-    dname: encodeRouteName(route.displayTitle),
-    appname: 'com.minheee.runningground',
-  });
-
-  waypoints.forEach((waypoint, index) => {
-    const waypointNumber = index + 1;
-    params.set(`v${waypointNumber}lat`, waypoint.latitude.toFixed(6));
-    params.set(`v${waypointNumber}lng`, waypoint.longitude.toFixed(6));
-    params.set(`v${waypointNumber}name`, encodeRouteName(`경유 ${waypointNumber}`));
-  });
-
-  return `nmap://route/walk?${params.toString()}`;
-}
-
-function getExternalMapFallbackUrl(provider: ExternalMapProvider, route: SuggestedArtRoute) {
-  if (provider === 'kakao') {
-    return buildKakaoWalkRouteUrl(route, true);
-  }
-
-  return Platform.select({
-    ios: 'https://apps.apple.com/kr/app/naver-map-navigation/id311867728',
-    android: 'market://details?id=com.nhn.android.nmap',
-    default: 'https://map.naver.com',
-  })!;
-}
-
-function formatReverseGeocodedAddress(address: Location.LocationGeocodedAddress) {
-  const parts = [
-    address.region,
-    address.city,
-    address.district,
-    address.street,
-    address.name,
-  ].filter(Boolean);
-
-  return parts.join(' ');
-}
-
 function buildLiveShareLabelFromAddress(address?: Location.LocationGeocodedAddress | null) {
   if (!address) {
     return '현재 위치 근처';
@@ -264,16 +142,8 @@ function buildLiveShareLabelFromAddress(address?: Location.LocationGeocodedAddre
   return parts.length ? `${parts[0]} 근처` : '현재 위치 근처';
 }
 
-function buildLiveShareFallbackLabel(location?: ConfirmedStartLocation | null) {
-  if (!location) {
-    return '현재 위치 근처';
-  }
-
-  if (location.resolvedAddress) {
-    return `${location.resolvedAddress.split(' ').slice(-1)[0] || location.resolvedAddress} 근처`;
-  }
-
-  return `${location.label} 근처`;
+function buildLiveShareFallbackLabel() {
+  return '현재 위치 근처';
 }
 
 function formatMatchTargetDistance(distanceKm: number) {
@@ -597,6 +467,37 @@ function buildGroupLiveStandings(
   return standings;
 }
 
+function buildPhoneRunChecklist(input: {
+  locationPermissionGranted: boolean | null;
+  backgroundLocationPermissionGranted: boolean | null;
+  motionPermissionGranted: boolean | null;
+}) {
+  return [
+    {
+      key: 'gps',
+      label: '거리 · 페이스 · 시간은 휴대폰 GPS만으로도 측정돼요.',
+    },
+    {
+      key: 'location',
+      label: input.locationPermissionGranted
+        ? '위치 권한이 허용돼 있어서 바로 시작할 수 있어요.'
+        : '위치 권한을 켜야 거리와 경로가 정확하게 기록돼요.',
+    },
+    {
+      key: 'background',
+      label: input.backgroundLocationPermissionGranted
+        ? '화면을 꺼도 계속 측정할 수 있어요.'
+        : '백그라운드 위치를 허용하면 화면을 꺼도 측정이 덜 끊겨요.',
+    },
+    {
+      key: 'motion',
+      label: input.motionPermissionGranted
+        ? '모션 권한도 켜져 있어 케이던스까지 같이 볼 수 있어요.'
+        : '모션 권한이 없으면 케이던스는 비워둘 수 있어도 러닝 측정은 가능해요.',
+    },
+  ];
+}
+
 export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -629,13 +530,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [backgroundLocationPermissionGranted, setBackgroundLocationPermissionGranted] = useState<boolean | null>(null);
   const [motionPermissionGranted, setMotionPermissionGranted] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [shapeKeyword, setShapeKeyword] = useState('고구마');
-  const [desiredDistanceText, setDesiredDistanceText] = useState('5');
-  const [startLocationQuery, setStartLocationQuery] = useState('');
-  const [confirmedStartLocation, setConfirmedStartLocation] = useState<ConfirmedStartLocation | null>(null);
-  const [isGeneratingRoute, setIsGeneratingRoute] = useState(false);
-  const [suggestedRoute, setSuggestedRoute] = useState<SuggestedArtRoute | null>(null);
-  const [plannerExpanded, setPlannerExpanded] = useState(false);
   const [liveShareEnabled, setLiveShareEnabled] = useState(false);
   const [liveShareLabel, setLiveShareLabel] = useState<string | null>(null);
   const [matchMode, setMatchMode] = useState<RunMatchMode>('duel');
@@ -678,20 +572,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const [liveArenaPage, setLiveArenaPage] = useState(0);
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
-  const routeCoordinates = useMemo(
-    () => route.map((point) => ({ latitude: point.latitude, longitude: point.longitude })),
-    [route],
-  );
-  const plannedCoordinates = suggestedRoute?.coordinates ?? [];
-  const previewMapRegion = useMemo(() => getMapRegion(plannedCoordinates), [plannedCoordinates]);
-  const liveMapRegion = useMemo(
-    () => getMapRegion(plannedCoordinates.length ? [...plannedCoordinates, ...routeCoordinates] : routeCoordinates),
-    [plannedCoordinates, routeCoordinates],
-  );
-  const matchTargetDistanceKm = useMemo(
-    () => suggestedRoute?.requestedDistanceKm ?? parseDesiredDistanceKm(desiredDistanceText),
-    [desiredDistanceText, suggestedRoute],
-  );
   const duelDistanceKm = useMemo(() => parseDuelMatchDistanceKm(duelDistanceText), [duelDistanceText]);
   const groupDistanceKm = useMemo(() => parseDuelMatchDistanceKm(groupDistanceText), [groupDistanceText]);
   const weeklyMatchSlotOptions = buildWeeklyHourlySlots();
@@ -836,7 +716,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       setSelectedGroupDateKey(selectedGroupSlot.dateKey);
     }
   }, [selectedGroupSlot]);
-  const latestPoint = route.length ? route[route.length - 1] : null;
   const selectedMatch = matchOptions.find((option) => option.mode === matchMode) ?? matchOptions[0];
   const duelMatchState = duelMatchStatus?.state ?? 'idle';
   const groupMatchState = groupMatchStatus?.state ?? 'idle';
@@ -968,6 +847,14 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       summary: '곧 최신 상태로 반영될 거예요.',
     };
   }, [effectiveDuelOpponent?.liveStatus]);
+  const phoneRunChecklist = useMemo(
+    () => buildPhoneRunChecklist({
+      locationPermissionGranted,
+      backgroundLocationPermissionGranted,
+      motionPermissionGranted,
+    }),
+    [backgroundLocationPermissionGranted, locationPermissionGranted, motionPermissionGranted],
+  );
   const groupStatusAlert = useMemo(() => {
     const others = groupLiveStandings.filter((participant) => !participant.isCurrentUser);
     const forfeitedCount = others.filter((participant) => participant.liveStatus === 'forfeited').length;
@@ -1722,18 +1609,18 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
   const resolveLiveShareLabel = async (coordinate?: { latitude: number; longitude: number }) => {
     if (!coordinate) {
-      const fallbackLabel = buildLiveShareFallbackLabel(confirmedStartLocation);
+      const fallbackLabel = buildLiveShareFallbackLabel();
       setLiveShareLabel(fallbackLabel);
       return fallbackLabel;
     }
 
     try {
       const [address] = await Location.reverseGeocodeAsync(coordinate);
-      const nextLabel = buildLiveShareLabelFromAddress(address) || buildLiveShareFallbackLabel(confirmedStartLocation);
+      const nextLabel = buildLiveShareLabelFromAddress(address) || buildLiveShareFallbackLabel();
       setLiveShareLabel(nextLabel);
       return nextLabel;
     } catch {
-      const fallbackLabel = buildLiveShareFallbackLabel(confirmedStartLocation);
+      const fallbackLabel = buildLiveShareFallbackLabel();
       setLiveShareLabel(fallbackLabel);
       return fallbackLabel;
     }
@@ -1813,171 +1700,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     });
   };
 
-  const resolveTypedStartLocation = async (trimmedStartLocation: string): Promise<ConfirmedStartLocation> => {
-    const geocoded = await Location.geocodeAsync(trimmedStartLocation);
-
-    if (!geocoded.length) {
-      throw new Error('출발지 위치를 찾지 못했어요. 지하철역명, 건물명, 도로명처럼 조금 더 구체적으로 입력해주세요.');
-    }
-
-    const coordinate = {
-      latitude: geocoded[0].latitude,
-      longitude: geocoded[0].longitude,
-    };
-    let resolvedAddress = '';
-
-    try {
-      const [address] = await Location.reverseGeocodeAsync(coordinate);
-      resolvedAddress = address ? formatReverseGeocodedAddress(address) : '';
-    } catch {
-      resolvedAddress = '';
-    }
-
-    return {
-      query: trimmedStartLocation,
-      label: trimmedStartLocation,
-      resolvedAddress,
-      coordinate,
-    };
-  };
-
-  const handleUseCurrentLocationAsStart = async () => {
-    try {
-      setIsGeneratingRoute(true);
-      setError(null);
-      await ensureLocationPermission();
-      const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const coordinate = {
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-      };
-      let resolvedAddress = '현재 위치';
-
-      try {
-        const [address] = await Location.reverseGeocodeAsync(coordinate);
-        resolvedAddress = address ? formatReverseGeocodedAddress(address) || '현재 위치' : '현재 위치';
-      } catch {
-        resolvedAddress = '현재 위치';
-      }
-
-      setStartLocationQuery(resolvedAddress);
-      setConfirmedStartLocation({
-        query: resolvedAddress,
-        label: '현재 위치',
-        resolvedAddress,
-        coordinate,
-      });
-    } catch (locationError) {
-      setConfirmedStartLocation(null);
-      setError(locationError instanceof Error ? locationError.message : '현재 위치를 확인하지 못했어요.');
-    } finally {
-      setIsGeneratingRoute(false);
-    }
-  };
-
-  const handleConfirmStartLocation = async () => {
-    const trimmedStartLocation = startLocationQuery.trim();
-
-    if (!trimmedStartLocation) {
-      setError('출발지를 입력하면 위치를 먼저 확인할 수 있어요. 비워두면 현재 위치를 사용합니다.');
-      return;
-    }
-
-    try {
-      setIsGeneratingRoute(true);
-      setError(null);
-      const nextConfirmedStartLocation = await resolveTypedStartLocation(trimmedStartLocation);
-      setConfirmedStartLocation(nextConfirmedStartLocation);
-    } catch (locationError) {
-      setConfirmedStartLocation(null);
-      setError(locationError instanceof Error ? locationError.message : '출발지 위치를 확인하지 못했어요.');
-    } finally {
-      setIsGeneratingRoute(false);
-    }
-  };
-
-  const resolveRoutePreviewStart = async () => {
-    const trimmedStartLocation = startLocationQuery.trim();
-
-    if (trimmedStartLocation) {
-      const start = confirmedStartLocation?.query === trimmedStartLocation
-        ? confirmedStartLocation
-        : await resolveTypedStartLocation(trimmedStartLocation);
-
-      setConfirmedStartLocation(start);
-      return {
-        coordinate: start.coordinate,
-        label: start.label,
-      };
-    }
-
-    await ensureLocationPermission();
-    const currentLocation = await Location.getCurrentPositionAsync({
-      accuracy: Location.Accuracy.Balanced,
-    });
-
-    return {
-      coordinate: {
-        latitude: currentLocation.coords.latitude,
-        longitude: currentLocation.coords.longitude,
-      },
-      label: '현재 위치',
-    };
-  };
-
-  const handleCreateRoutePreview = async () => {
-    if (Platform.OS === 'web') {
-      setError('모양 러닝 미리보기는 iPhone이나 Android 앱에서 사용하는 게 가장 정확해.');
-      return;
-    }
-
-    try {
-      setIsGeneratingRoute(true);
-      setError(null);
-
-      const start = await resolveRoutePreviewStart();
-      const nextSuggestedRoute = buildSuggestedArtRoute({
-        keyword: shapeKeyword || '시그니처',
-        desiredDistanceKm: parseDesiredDistanceKm(desiredDistanceText),
-        startCoordinate: start.coordinate,
-        startLabel: start.label,
-      });
-
-      setDesiredDistanceText(String(nextSuggestedRoute.requestedDistanceKm));
-      setSuggestedRoute(nextSuggestedRoute);
-      setPlannerExpanded(true);
-    } catch (planningError) {
-      setError(planningError instanceof Error ? planningError.message : '추천 그림 경로를 만들지 못했어.');
-    } finally {
-      setIsGeneratingRoute(false);
-    }
-  };
-
-  const handleOpenExternalMap = async (provider: ExternalMapProvider) => {
-    if (!suggestedRoute || suggestedRoute.coordinates.length < 2) {
-      setError('먼저 지도로 그림 경로를 만들어주세요.');
-      return;
-    }
-
-    const primaryUrl = provider === 'kakao'
-      ? buildKakaoWalkRouteUrl(suggestedRoute)
-      : buildNaverWalkRouteUrl(suggestedRoute);
-    const fallbackUrl = getExternalMapFallbackUrl(provider, suggestedRoute);
-    const providerName = provider === 'kakao' ? '카카오맵' : '네이버지도';
-
-    try {
-      await Linking.openURL(primaryUrl);
-    } catch {
-      try {
-        await Linking.openURL(fallbackUrl);
-      } catch {
-        setError(`${providerName}을 열지 못했어요. 지도 앱 설치 상태를 확인해주세요.`);
-      }
-    }
-  };
-
   const handleStartTracking = async () => {
     if (Platform.OS === 'web') {
       setError('실시간 러닝 측정은 iPhone이나 Android 앱에서 사용할 수 있어.');
@@ -2015,15 +1737,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         accuracy: Location.Accuracy.BestForNavigation,
       });
       setLocationPermissionGranted(true);
-
-      if (suggestedRoute?.coordinates.length) {
-        const initialPoint = buildRoutePoint(initialLocation);
-        const gapFromSuggestedStartMeters = calculateDistanceBetweenPoints(initialPoint, suggestedRoute.coordinates[0]);
-
-        if (gapFromSuggestedStartMeters > 200) {
-          setError(`현재 위치가 추천 경로 시작점에서 ${Math.round(gapFromSuggestedStartMeters)}m 정도 떨어져 있어요. 안내선은 참고선으로 보시면 좋아요.`);
-        }
-      }
 
       await startBackgroundRunTracking(initialLocation);
       syncFromBackgroundTracking();
@@ -2664,45 +2377,15 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
 
   const renderRunningStatsBoard = (includeMatchCards: boolean) => (
     <>
-      <Card style={styles.mapCard}>
-        <View style={styles.mapHeader}>
-          <View style={styles.mapLabelWrap}>
-            <Text style={styles.mapKicker}>LIVE TRACKING</Text>
-            <Text style={styles.mapLabel}>실시간 러닝 맵</Text>
-          </View>
-          <View style={[styles.statusBadge, isRunning ? styles.statusRunningDark : isPaused ? styles.statusPausedDark : styles.statusIdleDark]}>
-            <Text style={[styles.statusBadgeText, isRunning ? styles.statusRunningDarkText : isPaused ? styles.statusPausedDarkText : styles.statusIdleDarkText]}>
-              {isRunning ? '러닝 중' : isPaused ? '일시정지' : isSaving ? '저장 중' : '준비됨'}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.mapWrap}>
-          {liveMapRegion ? (
-            <RunRouteMap
-              actualCoordinates={routeCoordinates}
-              plannedCoordinates={plannedCoordinates}
-              latestCoordinate={latestPoint ? { latitude: latestPoint.latitude, longitude: latestPoint.longitude } : null}
-              initialRegion={liveMapRegion}
-              live={isRunning}
-              emptyTitle="러닝을 시작하면 경로가 여기에 표시돼요."
-              emptyText="위치 권한을 허용한 뒤 측정을 시작해보세요."
-            />
-          ) : (
-            <View style={styles.mapEmptyState}>
-              <Text style={styles.mapEmptyTitle}>러닝을 시작하면 경로가 여기에 표시돼요.</Text>
-              <Text style={styles.mapEmptyText}>위치 권한을 허용한 뒤 측정을 시작해보세요.</Text>
-            </View>
-          )}
-        </View>
-        {includeMatchCards && matchMode !== 'solo' ? (
+      {includeMatchCards && matchMode !== 'solo' ? (
+        <Card style={styles.mapCard}>
           <View style={styles.liveMatchCard}>
             <Text style={styles.liveMatchEyebrow}>MATCH MODE</Text>
             <Text style={styles.liveMatchTitle}>{liveMatchTitle}</Text>
             <Text style={styles.liveMatchText}>{liveMatchText}</Text>
           </View>
-        ) : null}
-        {includeMatchCards && matchMode === 'duel' && effectiveDuelOpponent ? (
-          <View style={styles.duelLiveCard}>
+          {matchMode === 'duel' && effectiveDuelOpponent ? (
+            <View style={styles.duelLiveCard}>
             <View style={styles.duelLiveHeader}>
               <View style={styles.groupLiveHeaderCopy}>
                 <Text style={styles.liveMatchEyebrow}>LIVE GAP</Text>
@@ -2753,10 +2436,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                 </Pressable>
               </View>
             ) : null}
-          </View>
-        ) : null}
-        {includeMatchCards && matchMode === 'group' && effectiveGroupParticipantCount > 0 && currentGroupStanding ? (
-          <View style={styles.groupLiveCard}>
+            </View>
+          ) : null}
+          {matchMode === 'group' && effectiveGroupParticipantCount > 0 && currentGroupStanding ? (
+            <View style={styles.groupLiveCard}>
             <View style={styles.groupLiveHeader}>
               <View style={styles.groupLiveHeaderCopy}>
                 <Text style={styles.liveMatchEyebrow}>LIVE RANK</Text>
@@ -2862,9 +2545,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
             ) : (
               <Text style={styles.groupLiveFooter}>지금은 선두예요. 다음 러너와 간격을 유지해보세요.</Text>
             )}
-          </View>
-        ) : null}
-      </Card>
+            </View>
+          ) : null}
+        </Card>
+      ) : null}
 
       <View style={styles.metricGrid}>
         <Card style={styles.metricCard}>
@@ -2911,8 +2595,9 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         <Text style={styles.guideText}>
           모션 권한: {motionPermissionGranted === null ? '아직 확인 전' : motionPermissionGranted ? '허용됨' : '케이던스 측정 제한'}
         </Text>
-        {suggestedRoute ? <Text style={styles.guideText}>추천 경로: {suggestedRoute.displayTitle}</Text> : null}
-        <Text style={styles.guideHint}>백그라운드 위치가 허용되면 화면을 벗어나도 계속 측정돼요. 다만 앱을 강제로 종료하면 측정이 중단될 수 있어요.</Text>
+        <Text style={styles.guideHint}>
+          휴대폰만 있어도 러닝 측정은 가능해요. 백그라운드 위치가 허용되면 화면을 벗어나도 계속 측정되고, 워치가 있으면 심박수나 자동 가져오기만 추가로 좋아져요.
+        </Text>
       </Card>
     </>
   );
@@ -2972,6 +2657,30 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                 ))}
               </View>
             ) : null}
+            <View style={styles.phoneRunGuideCard}>
+              <View style={styles.phoneRunGuideHeader}>
+                <View style={styles.phoneRunGuideCopy}>
+                  <Text style={styles.phoneRunGuideTitle}>휴대폰만으로도 바로 뛸 수 있어요</Text>
+                  <Text style={styles.phoneRunGuideSummary}>
+                    워치가 없어도 혼자 러닝이든 대결이든 거리, 페이스, 시간, 경로를 기록할 수 있어요.
+                  </Text>
+                </View>
+                <View style={styles.phoneRunGuideBadge}>
+                  <Text style={styles.phoneRunGuideBadgeText}>PHONE OK</Text>
+                </View>
+              </View>
+              <View style={styles.phoneRunChecklist}>
+                {phoneRunChecklist.map((item) => (
+                  <View key={item.key} style={styles.phoneRunChecklistRow}>
+                    <View style={styles.phoneRunChecklistDot} />
+                    <Text style={styles.phoneRunChecklistText}>{item.label}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.phoneRunGuideFootnote}>
+                주머니나 손에 휴대폰을 두고 뛰면 되고, 워치가 있으면 심박수나 자동 기록 가져오기만 더 좋아져요.
+              </Text>
+            </View>
             <View style={styles.liveShareCard}>
               <View style={styles.liveShareHeader}>
                 <View style={styles.liveShareCopy}>
@@ -3562,151 +3271,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
             {readyActionLabel ? <PrimaryButton label={readyActionLabel} onPress={handleStartTracking} /> : null}
           </Card>
 
-          <Card style={styles.plannerCard}>
-            <View style={styles.plannerHeader}>
-              <Text style={styles.sectionTitle}>지도로 그림 그리기</Text>
-              <Pressable style={styles.toggleButton} onPress={() => setPlannerExpanded((current) => !current)}>
-                <Text style={styles.toggleButtonText}>{plannerExpanded ? '접기' : '펼치기'}</Text>
-              </Pressable>
-            </View>
-
-            {plannerExpanded ? (
-              <>
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>그리고 싶은 모양</Text>
-                  <TextInput
-                    value={shapeKeyword}
-                    onChangeText={setShapeKeyword}
-                    placeholder="예: 고구마, 고양이 얼굴, 번개처럼 꺾이는 모양"
-                    placeholderTextColor="#98A2B3"
-                    style={[styles.input, styles.promptInput]}
-                    autoCapitalize="none"
-                    multiline
-                  />
-                  <Text style={styles.fieldHelp}>정해진 선택지가 아니라 문장으로 적어도 돼요. 지금은 비용 없는 템플릿 방식으로 분위기에 맞는 그림 목표선을 먼저 만들어드려요.</Text>
-                </View>
-
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>희망 거리 (km)</Text>
-                  <TextInput
-                    value={desiredDistanceText}
-                    onChangeText={setDesiredDistanceText}
-                    placeholder="희망 거리를 입력하세요"
-                    placeholderTextColor="#98A2B3"
-                    keyboardType="decimal-pad"
-                    style={styles.input}
-                  />
-                </View>
-
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.fieldLabel}>출발지</Text>
-                  <TextInput
-                    value={startLocationQuery}
-                    onChangeText={(nextValue) => {
-                      setStartLocationQuery(nextValue);
-                      setConfirmedStartLocation(null);
-                    }}
-                    placeholder="예: 강남역 11번 출구, 여의나루역, 서울숲"
-                    placeholderTextColor="#98A2B3"
-                    style={styles.input}
-                  />
-                  <Text style={styles.fieldHelp}>
-                    입력한 출발지 최대한 근처로 시작점을 잡아요. 이름이 비슷하거나 오타가 있을 수 있으니, 경로를 만들기 전에 위치를 확인해주세요.
-                  </Text>
-                  <View style={styles.inlineActionRow}>
-                    <View style={styles.inlineAction}>
-                      <SecondaryButton label="출발지 위치 확인" onPress={handleConfirmStartLocation} />
-                    </View>
-                    <View style={styles.inlineAction}>
-                      <SecondaryButton label="현재 위치 사용" onPress={handleUseCurrentLocationAsStart} />
-                    </View>
-                  </View>
-                  {confirmedStartLocation ? (
-                    <View style={styles.confirmedLocationCard}>
-                      <Text style={styles.confirmedLocationTitle}>확인된 출발지</Text>
-                      <Text style={styles.confirmedLocationText}>{confirmedStartLocation.label}</Text>
-                      {confirmedStartLocation.resolvedAddress ? (
-                        <Text style={styles.confirmedLocationAddress}>{confirmedStartLocation.resolvedAddress}</Text>
-                      ) : null}
-                      <Text style={styles.confirmedLocationMeta}>
-                        {confirmedStartLocation.coordinate.latitude.toFixed(5)}, {confirmedStartLocation.coordinate.longitude.toFixed(5)}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-
-                <View style={styles.routeRuleCard}>
-                  <Text style={styles.routeRuleTitle}>경로 생성 기준</Text>
-                  <Text style={styles.routeRuleText}>최대한 입력한 모양과 비슷하게 만들어요.</Text>
-                  <Text style={styles.routeRuleText}>무료 MVP에서는 도로를 자동으로 따라붙이기보다 그림 목표선을 먼저 보여드려요.</Text>
-                  <Text style={styles.routeRuleText}>건물이나 횡단보도가 아닌 도로를 가로지르지 않도록 지도 앱에서 도보 경로를 한 번 더 확인해주세요.</Text>
-                </View>
-
-                {isGeneratingRoute ? <ActivityIndicator size="small" color="#6D5EF7" /> : null}
-
-                <PrimaryButton label={suggestedRoute ? '추천 그림 경로 다시 보기' : '추천 그림 경로 보기'} onPress={handleCreateRoutePreview} />
-
-                {suggestedRoute ? (
-                  <>
-                    <View style={styles.previewHeader}>
-                      <View style={styles.previewHeaderCopy}>
-                        <Text style={styles.previewTitle}>{suggestedRoute.displayTitle}</Text>
-                        <Text style={styles.previewDescription}>{suggestedRoute.description}</Text>
-                      </View>
-                      <View style={styles.previewBadge}>
-                        <Text style={styles.previewBadgeText}>{suggestedRoute.estimatedDistanceKm}km</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.previewMapWrap}>
-                      {previewMapRegion ? (
-                        <RunRouteMap
-                          plannedCoordinates={plannedCoordinates}
-                          initialRegion={previewMapRegion}
-                          emptyTitle="추천 그림 경로를 준비 중이에요."
-                          emptyText="잠시만 기다려주세요."
-                        />
-                      ) : (
-                        <View style={styles.mapEmptyState}>
-                          <Text style={styles.mapEmptyTitle}>추천 그림 경로를 준비 중이에요.</Text>
-                          <Text style={styles.mapEmptyText}>출발지와 거리 정보를 확인한 뒤 다시 시도해보세요.</Text>
-                        </View>
-                      )}
-                    </View>
-
-                    <View style={styles.previewStats}>
-                      <Card style={styles.previewStatCard}>
-                        <Text style={styles.previewStatLabel}>출발지</Text>
-                        <Text style={styles.previewStatValue}>{suggestedRoute.startLabel}</Text>
-                      </Card>
-                      <Card style={styles.previewStatCard}>
-                        <Text style={styles.previewStatLabel}>희망 거리</Text>
-                        <Text style={styles.previewStatValue}>{suggestedRoute.requestedDistanceKm}km</Text>
-                      </Card>
-                    </View>
-
-                    <Card style={styles.previewStatCard}>
-                      <Text style={styles.previewStatLabel}>경로 기준</Text>
-                      <Text style={styles.previewStatValue}>{getRouteProviderLabel()}</Text>
-                      <Text style={styles.previewProviderText}>{getRouteProviderDescription()}</Text>
-                    </Card>
-
-                    <Text style={styles.previewFootnote}>
-                      회색 선은 그림 목표선이에요. 앱 안 지도는 비용 없는 기본 지도 흐름으로 보여드리고, 실제 도보 이동 가능 여부는 카카오맵이나 네이버지도에서 한 번 더 확인할 수 있어요.
-                    </Text>
-                    {suggestedRoute.warning ? <Text style={styles.previewWarning}>{suggestedRoute.warning}</Text> : null}
-
-                    <View style={styles.actionColumn}>
-                      <SecondaryButton label="카카오맵으로 도보 길 확인" onPress={() => handleOpenExternalMap('kakao')} />
-                      <SecondaryButton label="네이버지도로 도보 길 확인" onPress={() => handleOpenExternalMap('naver')} />
-                      <PrimaryButton label="이 길로 런닝 시작" onPress={handleStartTracking} />
-                      <SecondaryButton label="그림 경로 다시 만들기" onPress={handleCreateRoutePreview} />
-                    </View>
-                  </>
-                ) : null}
-              </>
-            ) : null}
-          </Card>
         </>
       ) : (
         <>
@@ -3996,6 +3560,71 @@ const styles = StyleSheet.create({
     color: '#E5E7EB',
     fontSize: 12,
     fontWeight: '700',
+  },
+  phoneRunGuideCard: {
+    gap: 12,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#1F2937',
+  },
+  phoneRunGuideHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  phoneRunGuideCopy: {
+    gap: 4,
+    flex: 1,
+  },
+  phoneRunGuideTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  phoneRunGuideSummary: {
+    color: '#D0D5DD',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  phoneRunGuideBadge: {
+    borderRadius: 999,
+    backgroundColor: '#1E1B4B',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  phoneRunGuideBadgeText: {
+    color: '#C7D2FE',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  phoneRunChecklist: {
+    gap: 8,
+  },
+  phoneRunChecklistRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  phoneRunChecklistDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    marginTop: 6,
+    backgroundColor: '#818CF8',
+  },
+  phoneRunChecklistText: {
+    flex: 1,
+    color: '#E5E7EB',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  phoneRunGuideFootnote: {
+    color: '#98A2B3',
+    fontSize: 12,
+    lineHeight: 18,
   },
   liveShareCard: {
     gap: 12,
