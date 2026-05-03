@@ -384,8 +384,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    left: '33%',
-    width: '34%',
+    left: '19%',
+    width: '62%',
     borderRadius: 28,
     backgroundColor: '#101A31',
     borderWidth: 1,
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(109,94,247,0.14)',
   },
   groupRankColumn: {
-    width: '28%',
+    width: '22%',
     gap: 2,
   },
   groupRankText: {
@@ -527,7 +527,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   groupRoadLane: {
-    width: '22%',
+    width: '42%',
     alignItems: 'center',
     justifyContent: 'center',
   },

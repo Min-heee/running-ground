@@ -551,6 +551,7 @@ export function TrackRunExperience({
   const [cancelingUpcomingMatchId, setCancelingUpcomingMatchId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [liveArenaPage, setLiveArenaPage] = useState(0);
+  const [forceOpenActiveMatch, setForceOpenActiveMatch] = useState(false);
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const duelDistanceKm = useMemo(() => parseDuelMatchDistanceKm(duelDistanceText), [duelDistanceText]);
@@ -1030,6 +1031,7 @@ export function TrackRunExperience({
     canRenderLiveArena
     && (
       isRunning
+      || forceOpenActiveMatch
       || (status === 'idle' && (
         (matchMode === 'duel' && isDuelTestFlow)
         || (matchMode === 'group' && isGroupTestFlow)
@@ -1361,6 +1363,49 @@ export function TrackRunExperience({
     return payload.items;
   };
 
+  const focusRunningMatch = async ({
+    mode,
+    slotStartAt,
+    isTestMatch,
+  }: {
+    mode: Extract<RunMatchMode, 'duel' | 'group'>;
+    slotStartAt?: string;
+    isTestMatch?: boolean;
+  }) => {
+    setLiveArenaPage(0);
+    livePagerRef.current?.scrollTo({ x: 0, animated: false });
+
+    if (mode === 'duel') {
+      setMatchMode('duel');
+
+      if (slotStartAt) {
+        setSelectedDuelSlotStartAt(slotStartAt);
+        setSelectedDuelDateKey(formatMatchDateKey(new Date(slotStartAt)));
+        setSelectedDuelTimeSection(resolveMatchTimeSection(slotStartAt));
+      }
+
+      const payload = await loadDuelMatchStatus(slotStartAt ?? activeDuelSlotStartAt, {
+        testMode: isTestMatch,
+      });
+      setForceOpenActiveMatch(payload.state === 'active');
+      return payload;
+    }
+
+    setMatchMode('group');
+
+    if (slotStartAt) {
+      setSelectedGroupSlotStartAt(slotStartAt);
+      setSelectedGroupDateKey(formatMatchDateKey(new Date(slotStartAt)));
+      setSelectedGroupTimeSection(resolveMatchTimeSection(slotStartAt));
+    }
+
+    const payload = await loadGroupMatchStatus(slotStartAt ?? activeGroupSlotStartAt, {
+      testMode: isTestMatch,
+    });
+    setForceOpenActiveMatch(payload.state === 'active');
+    return payload;
+  };
+
   const clearLocalDuelMatchState = (notice?: string | null) => {
     setDuelMatchResult(null);
     setDuelMatchStatus(null);
@@ -1451,37 +1496,18 @@ export function TrackRunExperience({
     if (!focusMatchNonce || !focusMatchMode) {
       return;
     }
-
-    setLiveArenaPage(0);
-    livePagerRef.current?.scrollTo({ x: 0, animated: false });
-
-    if (focusMatchMode === 'duel') {
-      setMatchMode('duel');
-
-      if (focusMatchSlotStartAt) {
-        setSelectedDuelSlotStartAt(focusMatchSlotStartAt);
-        setSelectedDuelDateKey(formatMatchDateKey(new Date(focusMatchSlotStartAt)));
-        setSelectedDuelTimeSection(resolveMatchTimeSection(focusMatchSlotStartAt));
-      }
-
-      void loadDuelMatchStatus(focusMatchSlotStartAt ?? activeDuelSlotStartAt, {
-        testMode: focusMatchIsTest,
-      }).catch(() => {});
-      return;
-    }
-
-    setMatchMode('group');
-
-    if (focusMatchSlotStartAt) {
-      setSelectedGroupSlotStartAt(focusMatchSlotStartAt);
-      setSelectedGroupDateKey(formatMatchDateKey(new Date(focusMatchSlotStartAt)));
-      setSelectedGroupTimeSection(resolveMatchTimeSection(focusMatchSlotStartAt));
-    }
-
-    void loadGroupMatchStatus(focusMatchSlotStartAt ?? activeGroupSlotStartAt, {
-      testMode: focusMatchIsTest,
+    void focusRunningMatch({
+      mode: focusMatchMode,
+      slotStartAt: focusMatchSlotStartAt,
+      isTestMatch: focusMatchIsTest,
     }).catch(() => {});
   }, [focusMatchIsTest, focusMatchMode, focusMatchNonce, focusMatchSlotStartAt]);
+
+  useEffect(() => {
+    if (duelMatchState !== 'active' && groupMatchState !== 'active') {
+      setForceOpenActiveMatch(false);
+    }
+  }, [duelMatchState, groupMatchState]);
 
   useEffect(() => {
     let canceled = false;
@@ -2673,7 +2699,22 @@ export function TrackRunExperience({
               <View style={styles.upcomingMatchCard}>
                 <Text style={styles.upcomingMatchEyebrow}>다가오는 매치</Text>
                 {upcomingMatches.slice(0, 2).map((match) => (
-                  <View key={match.matchId} style={styles.upcomingMatchRow}>
+                  <Pressable
+                    key={match.matchId}
+                    style={styles.upcomingMatchRow}
+                    disabled={match.status !== 'active'}
+                    onPress={() => {
+                      if (match.status !== 'active') {
+                        return;
+                      }
+
+                      void focusRunningMatch({
+                        mode: match.mode,
+                        slotStartAt: match.slotStartAt,
+                        isTestMatch: match.isTestMatch,
+                      }).catch(() => {});
+                    }}
+                  >
                     <View style={styles.upcomingMatchCopy}>
                       <Text style={styles.upcomingMatchTitle}>
                         {match.isTestMatch ? '테스트 ' : ''}{match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
@@ -2703,9 +2744,12 @@ export function TrackRunExperience({
                           <Text style={styles.upcomingMatchHelperText}>출발 1시간 전부터는 취소할 수 없어요.</Text>
                         )
                       ) : null}
+                      {match.status === 'active' ? (
+                        <Text style={styles.upcomingMatchHelperText}>누르면 바로 진행 중인 대결 보기로 이동해요.</Text>
+                      ) : null}
                     </View>
                     <Text style={styles.upcomingMatchState}>{match.status === 'active' ? '진행 중' : '예약됨'}</Text>
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             ) : null}

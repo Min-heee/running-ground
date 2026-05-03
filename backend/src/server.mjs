@@ -953,7 +953,7 @@ function buildTestGroupMatchResponse(store, currentUser, { distanceKm }) {
   const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
   const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
   const maxGroupSize = 30;
-  const targetTestParticipantCount = 21;
+  const targetTestParticipantCount = 26;
 
   upsertMatchQueueEntry(store, 'group', currentUser.id, distanceKm, countdownStartAt, {
     testMode: true,
