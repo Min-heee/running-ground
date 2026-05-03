@@ -1062,6 +1062,12 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
         || (matchMode === 'group' && isGroupTestFlow)
       ))
     );
+  const testMatchExitSource =
+    matchMode === 'duel'
+      ? (isDuelTestFlow && ['matched', 'active'].includes(duelMatchState) ? 'duel' : null)
+      : matchMode === 'group'
+        ? (isGroupTestFlow && ['matched', 'active'].includes(groupMatchState) ? 'group' : null)
+        : null;
   const duelCompatibleCount = duelMatchStatus?.competitiveParticipantsCount ?? 0;
   const duelWaitingHasOtherApplicants = (duelMatchStatus?.participantCount ?? 0) > 1;
   const duelWaitingTitle = isDuelTestFlow
@@ -2599,6 +2605,25 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
           휴대폰만 있어도 러닝 측정은 가능해요. 백그라운드 위치가 허용되면 화면을 벗어나도 계속 측정되고, 워치가 있으면 심박수나 자동 가져오기만 추가로 좋아져요.
         </Text>
       </Card>
+      {!includeMatchCards && testMatchExitSource ? (
+        <Card style={styles.testExitCard}>
+          <Text style={styles.testExitTitle}>테스트 대결을 여기서 끝낼 수 있어요</Text>
+          <Text style={styles.testExitText}>
+            테스트 상대 표시는 정리하고, 지금 러닝 기록은 혼자 계속 이어갈게요.
+          </Text>
+          <SecondaryButton
+            label={
+              testMatchExitSource === 'duel'
+                ? (isLeavingDuelMatch ? '정리 중...' : '테스트 대결 그만')
+                : (isLeavingGroupMatch ? '정리 중...' : '테스트 대결 그만')
+            }
+            onPress={() => {
+              handleContinueSoloFromMatch(testMatchExitSource);
+            }}
+            disabled={testMatchExitSource === 'duel' ? isLeavingDuelMatch : isLeavingGroupMatch}
+          />
+        </Card>
+      ) : null}
     </>
   );
 
@@ -4785,6 +4810,21 @@ const styles = StyleSheet.create({
   },
   guideHint: {
     color: '#667085',
+    lineHeight: 20,
+  },
+  testExitCard: {
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#E9D7FE',
+    backgroundColor: '#F9F5FF',
+  },
+  testExitTitle: {
+    color: '#42307D',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  testExitText: {
+    color: '#6941C6',
     lineHeight: 20,
   },
   actionColumn: {
