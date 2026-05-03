@@ -264,8 +264,10 @@ async function main() {
 
   const projectRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
   const envFilePath = resolve(projectRoot, '.env');
+  const backendPreviewEnvFilePath = resolve(projectRoot, 'backend/.env.preview');
   const previewInfoPath = resolve(projectRoot, 'preview-public-info.json');
   loadEnvFile(envFilePath);
+  loadEnvFile(backendPreviewEnvFilePath);
 
   const previewInfo = readJsonFile(previewInfoPath);
   const timeoutMs = Number.parseInt(readArgValue('--timeout-ms') || '10000', 10);
@@ -275,6 +277,7 @@ async function main() {
   const apiBaseUrl = withTrailingApiBase(
     readArgValue('--api-base-url')
     || previewInfo?.apiBaseUrl
+    || process.env.BACKEND_PUBLIC_BASE_URL
     || process.env.EXPO_PUBLIC_API_BASE_URL
     || '',
   );
