@@ -432,10 +432,10 @@ const styles = StyleSheet.create({
     marginLeft: -60,
   },
   duelRunnerLeft: {
-    left: '30%',
+    left: '39%',
   },
   duelRunnerRight: {
-    left: '70%',
+    left: '61%',
   },
   runnerBubble: {
     marginBottom: 8,

@@ -848,12 +848,16 @@ function createSyntheticRunnerProfile(currentRunner, {
   id,
   name,
   paceOffsetSeconds = 0,
+  paceSecondsOverride = null,
   weeklyDistanceDeltaKm = 0,
   lifetimeDistanceDeltaKm = 0,
   districtName = '테스트 트랙',
   tag = '#TEST',
 }) {
-  const averagePaceMinutes = Math.max(3.4, Number((currentRunner.averagePaceMinutes + paceOffsetSeconds / 60).toFixed(2)));
+  const resolvedPaceMinutes = paceSecondsOverride === null
+    ? currentRunner.averagePaceMinutes + paceOffsetSeconds / 60
+    : paceSecondsOverride / 60;
+  const averagePaceMinutes = Math.max(3.4, Number(resolvedPaceMinutes.toFixed(2)));
   const lifetimeDistanceKm = Math.max(12, Number((currentRunner.lifetimeDistanceKm + lifetimeDistanceDeltaKm).toFixed(1)));
   const weeklyDistanceKm = Math.max(4, Number((currentRunner.weeklyDistanceKm + weeklyDistanceDeltaKm).toFixed(1)));
   const distanceLevel = Math.max(1, Math.round(lifetimeDistanceKm / 25));
@@ -890,10 +894,11 @@ function buildTestDuelMatchResponse(store, currentUser, { distanceKm }) {
     testMode: true,
   }).sort((left, right) => right.score - left.score);
   const bestCandidate = queuedEntries[0] ?? null;
+  const duelTestPaceSeconds = 370 + Math.floor(Math.random() * 10);
   const syntheticOpponent = createSyntheticRunnerProfile(currentRunner, {
     id: nextId('duel-test-bot'),
     name: '테스트 상대',
-    paceOffsetSeconds: 6,
+    paceSecondsOverride: duelTestPaceSeconds,
     weeklyDistanceDeltaKm: 1.2,
     lifetimeDistanceDeltaKm: 18,
     districtName: '테스트 트랙',
@@ -948,6 +953,7 @@ function buildTestGroupMatchResponse(store, currentUser, { distanceKm }) {
   const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
   const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
   const maxGroupSize = 30;
+  const targetTestParticipantCount = 21;
 
   upsertMatchQueueEntry(store, 'group', currentUser.id, distanceKm, countdownStartAt, {
     testMode: true,
@@ -971,11 +977,12 @@ function buildTestGroupMatchResponse(store, currentUser, { distanceKm }) {
     seedRank: index + 1,
   }));
 
-  while (sessionParticipants.length < MATCH_TEST_GROUP_MIN_PARTICIPANTS) {
+  while (sessionParticipants.length < targetTestParticipantCount) {
+    const randomPaceSeconds = 360 + Math.floor(Math.random() * 31);
     const syntheticRunner = createSyntheticRunnerProfile(currentRunner, {
       id: nextId('group-test-bot'),
       name: `테스트 러너 ${sessionParticipants.length + 1}`,
-      paceOffsetSeconds: sessionParticipants.length * 7,
+      paceSecondsOverride: randomPaceSeconds,
       weeklyDistanceDeltaKm: 0.8 + sessionParticipants.length,
       lifetimeDistanceDeltaKm: 10 + sessionParticipants.length * 6,
       districtName: '테스트 트랙',
