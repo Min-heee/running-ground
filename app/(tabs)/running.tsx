@@ -1,5 +1,23 @@
+import { useLocalSearchParams } from 'expo-router';
 import { TrackRunExperience } from '@/features/runs/TrackRunExperience';
 
 export default function RunningTabScreen() {
-  return <TrackRunExperience mode="tab" />;
+  const params = useLocalSearchParams<{
+    focusMatchMode?: string;
+    focusMatchSlotStartAt?: string;
+    focusMatchIsTest?: string;
+    focusMatchNonce?: string;
+  }>();
+
+  const focusMatchMode = params.focusMatchMode === 'group' ? 'group' : params.focusMatchMode === 'duel' ? 'duel' : undefined;
+
+  return (
+    <TrackRunExperience
+      mode="tab"
+      focusMatchMode={focusMatchMode}
+      focusMatchSlotStartAt={typeof params.focusMatchSlotStartAt === 'string' ? params.focusMatchSlotStartAt : undefined}
+      focusMatchIsTest={params.focusMatchIsTest === '1'}
+      focusMatchNonce={typeof params.focusMatchNonce === 'string' ? params.focusMatchNonce : undefined}
+    />
+  );
 }

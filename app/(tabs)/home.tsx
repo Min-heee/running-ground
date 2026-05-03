@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View, StyleSheet } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Card } from '@/components/Card';
 import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
 import { Screen } from '@/components/Screen';
@@ -133,6 +133,18 @@ export default function HomeScreen() {
     }
   };
 
+  const handleOpenRunningMatch = (match: UpcomingRunningMatchItem) => {
+    router.push({
+      pathname: '/(tabs)/running',
+      params: {
+        focusMatchMode: match.mode,
+        focusMatchSlotStartAt: match.slotStartAt,
+        focusMatchIsTest: match.isTestMatch ? '1' : '0',
+        focusMatchNonce: String(Date.now()),
+      },
+    });
+  };
+
   return (
     <View style={styles.root}>
       <Screen>
@@ -153,8 +165,16 @@ export default function HomeScreen() {
         {upcomingMatches.length ? (
           <Card style={styles.upcomingCard}>
             <Text style={styles.upcomingLabel}>다가오는 대결</Text>
-            {upcomingMatches.slice(0, 2).map((match) => (
-                <View key={match.matchId} style={styles.upcomingRow}>
+            {upcomingMatches.slice(0, 2).map((match) => {
+              const isActiveMatch = match.status === 'active';
+
+              return (
+                <Pressable
+                  key={match.matchId}
+                  style={styles.upcomingRow}
+                  disabled={!isActiveMatch}
+                  onPress={() => handleOpenRunningMatch(match)}
+                >
                   <View style={styles.upcomingCopy}>
                     <Text style={styles.upcomingTitle}>
                       {match.isTestMatch ? '테스트 ' : ''}{match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
@@ -184,10 +204,14 @@ export default function HomeScreen() {
                       <Text style={styles.upcomingHelperText}>출발 1시간 전부터는 취소할 수 없어요.</Text>
                     )
                   ) : null}
+                  {isActiveMatch ? (
+                    <Text style={styles.upcomingLinkText}>누르면 진행 중인 대결로 이동해요</Text>
+                  ) : null}
                 </View>
                 <Text style={styles.upcomingState}>{match.status === 'active' ? '진행 중' : '예약됨'}</Text>
-              </View>
-            ))}
+              </Pressable>
+            );
+            })}
           </Card>
         ) : null}
         {summary ? (
@@ -282,6 +306,12 @@ const styles = StyleSheet.create({
   upcomingMeta: {
     color: '#D0D5DD',
     lineHeight: 19,
+  },
+  upcomingLinkText: {
+    color: '#C7D2FE',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
   },
   upcomingCountdownPill: {
     alignSelf: 'flex-start',

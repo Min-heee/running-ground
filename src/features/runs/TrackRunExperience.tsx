@@ -467,7 +467,19 @@ function buildGroupLiveStandings(
   return standings;
 }
 
-export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
+export function TrackRunExperience({
+  mode,
+  focusMatchMode,
+  focusMatchSlotStartAt,
+  focusMatchIsTest,
+  focusMatchNonce,
+}: {
+  mode: TrackRunMode;
+  focusMatchMode?: Extract<RunMatchMode, 'duel' | 'group'>;
+  focusMatchSlotStartAt?: string;
+  focusMatchIsTest?: boolean;
+  focusMatchNonce?: string;
+}) {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const pedometerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
@@ -1434,6 +1446,42 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   useEffect(() => {
     void refreshStaleTestMatches().catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!focusMatchNonce || !focusMatchMode) {
+      return;
+    }
+
+    setLiveArenaPage(0);
+    livePagerRef.current?.scrollTo({ x: 0, animated: false });
+
+    if (focusMatchMode === 'duel') {
+      setMatchMode('duel');
+
+      if (focusMatchSlotStartAt) {
+        setSelectedDuelSlotStartAt(focusMatchSlotStartAt);
+        setSelectedDuelDateKey(formatMatchDateKey(new Date(focusMatchSlotStartAt)));
+        setSelectedDuelTimeSection(resolveMatchTimeSection(focusMatchSlotStartAt));
+      }
+
+      void loadDuelMatchStatus(focusMatchSlotStartAt ?? activeDuelSlotStartAt, {
+        testMode: focusMatchIsTest,
+      }).catch(() => {});
+      return;
+    }
+
+    setMatchMode('group');
+
+    if (focusMatchSlotStartAt) {
+      setSelectedGroupSlotStartAt(focusMatchSlotStartAt);
+      setSelectedGroupDateKey(formatMatchDateKey(new Date(focusMatchSlotStartAt)));
+      setSelectedGroupTimeSection(resolveMatchTimeSection(focusMatchSlotStartAt));
+    }
+
+    void loadGroupMatchStatus(focusMatchSlotStartAt ?? activeGroupSlotStartAt, {
+      testMode: focusMatchIsTest,
+    }).catch(() => {});
+  }, [focusMatchIsTest, focusMatchMode, focusMatchNonce, focusMatchSlotStartAt]);
 
   useEffect(() => {
     let canceled = false;
