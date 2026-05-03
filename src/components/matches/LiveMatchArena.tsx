@@ -13,6 +13,12 @@ type ArenaParticipant = {
   emphasis?: 'featured' | 'compact';
 };
 
+const DUEL_TRACK_TOP_BASE = 78;
+const DUEL_TRACK_BOTTOM_BASE = 24;
+const DUEL_TRACK_SIDE_BASE = 26;
+const DUEL_TRACK_INSET_STEP = 18;
+const DUEL_START_ANGLE_OFFSET = 0.18;
+
 function getTrackPoint(progress: number, laneIndex: number, width: number, height: number, markerSize: number) {
   const normalized = Math.max(0, Math.min(1, progress));
   const centerX = width / 2;
@@ -29,12 +35,15 @@ function getTrackPoint(progress: number, laneIndex: number, width: number, heigh
 
 function getDuelTrackPoint(progress: number, laneIndex: number, width: number, height: number, markerSize: number) {
   const normalized = Math.max(0, Math.min(1, progress));
+  const sideInset = DUEL_TRACK_SIDE_BASE + laneIndex * DUEL_TRACK_INSET_STEP;
+  const topInset = DUEL_TRACK_TOP_BASE + laneIndex * DUEL_TRACK_INSET_STEP;
+  const bottomInset = DUEL_TRACK_BOTTOM_BASE + laneIndex * 10;
+  const radiusX = Math.max(58, (width - sideInset * 2) / 2);
+  const radiusY = Math.max(118, (height - topInset - bottomInset) / 2);
   const centerX = width / 2;
-  const centerY = height / 2;
-  const laneInset = 22 + laneIndex * 18;
-  const radiusX = Math.max(58, width / 2 - 72 - laneInset);
-  const radiusY = Math.max(126, height / 2 - 42 - laneInset * 0.4);
-  const angle = -Math.PI / 2 + normalized * Math.PI * 2;
+  const centerY = topInset + radiusY;
+  const angleOffset = laneIndex === 0 ? DUEL_START_ANGLE_OFFSET : -DUEL_START_ANGLE_OFFSET;
+  const angle = -Math.PI / 2 + normalized * Math.PI * 2 + angleOffset;
 
   return {
     left: centerX + radiusX * Math.cos(angle) - markerSize / 2,
@@ -87,9 +96,10 @@ export function LiveMatchArena({
       </View>
       <View style={[styles.trackWrap, { height: arenaHeight }]}>
         {Array.from({ length: laneCount }).map((_, index) => {
-          const duelInset = 22 + index * 18;
+          const duelSideInset = DUEL_TRACK_SIDE_BASE + index * DUEL_TRACK_INSET_STEP;
+          const duelTopInset = DUEL_TRACK_TOP_BASE + index * DUEL_TRACK_INSET_STEP;
+          const duelBottomInset = DUEL_TRACK_BOTTOM_BASE + index * 10;
           const groupInset = 16 + index * 8;
-          const laneInset = mode === 'duel' ? duelInset : groupInset;
 
           return (
             <View
@@ -97,16 +107,16 @@ export function LiveMatchArena({
               style={[
                 styles.trackLane,
                 {
-                  top: laneInset,
-                  right: laneInset,
-                  bottom: laneInset,
-                  left: laneInset,
+                  top: mode === 'duel' ? duelTopInset : groupInset,
+                  right: mode === 'duel' ? duelSideInset : groupInset,
+                  bottom: mode === 'duel' ? duelBottomInset : groupInset,
+                  left: mode === 'duel' ? duelSideInset : groupInset,
                 },
               ]}
             />
           );
         })}
-        <View style={styles.finishLine} />
+        <View style={[styles.finishLine, mode === 'duel' ? styles.finishLineDuel : undefined]} />
         {participants.map((participant, index) => {
           const laneIndex = mode === 'duel'
             ? participant.isCurrentUser
@@ -253,6 +263,9 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 999,
     backgroundColor: '#FFFFFF',
+  },
+  finishLineDuel: {
+    top: 42,
   },
   runnerWrap: {
     position: 'absolute',
