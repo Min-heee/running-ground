@@ -1953,7 +1953,10 @@ function buildMatchDemandSummaryResponse(store, currentUser, { mode, distanceKm,
 function buildUpcomingRunningMatchesResponse(store, currentUser) {
   const now = new Date();
   const sessions = pruneMatchSessions(store)
-    .filter((session) => session.participants.some((participant) => participant.userId === currentUser.id))
+    .filter((session) => session.participants.some((participant) => (
+      participant.userId === currentUser.id
+      && resolveParticipantLiveStatus(participant, now) !== 'forfeited'
+    )))
     .map((session) => {
       const state = hydrateMatchSessionState(session, now);
 
