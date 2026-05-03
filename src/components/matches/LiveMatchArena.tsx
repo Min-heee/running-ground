@@ -29,14 +29,16 @@ function getTrackPoint(progress: number, laneIndex: number, width: number, heigh
 
 function getDuelTrackPoint(progress: number, laneIndex: number, width: number, height: number, markerSize: number) {
   const normalized = Math.max(0, Math.min(1, progress));
-  const trackPaddingX = 34;
-  const minLeft = trackPaddingX;
-  const maxLeft = Math.max(trackPaddingX, width - trackPaddingX - markerSize);
-  const laneOffsetY = laneIndex === 0 ? -54 : 54;
+  const centerX = width / 2;
+  const centerY = height / 2;
+  const laneInset = 24 + laneIndex * 14;
+  const radiusX = Math.max(72, width / 2 - 42 - laneInset);
+  const radiusY = Math.max(58, height / 2 - 54 - laneInset * 0.6);
+  const angle = -Math.PI / 2 + normalized * Math.PI * 2;
 
   return {
-    left: minLeft + normalized * (maxLeft - minLeft),
-    top: height / 2 + laneOffsetY - markerSize / 2,
+    left: centerX + radiusX * Math.cos(angle) - markerSize / 2,
+    top: centerY + radiusY * Math.sin(angle) - markerSize / 2,
   };
 }
 
@@ -84,20 +86,26 @@ export function LiveMatchArena({
         ))}
       </View>
       <View style={[styles.trackWrap, { height: arenaHeight }]}>
-        {Array.from({ length: laneCount }).map((_, index) => (
-          <View
-            key={`lane-${index}`}
-            style={[
-              styles.trackLane,
-              {
-                top: 16 + index * 8,
-                right: 16 + index * 8,
-                bottom: 16 + index * 8,
-                left: 16 + index * 8,
-              },
-            ]}
-          />
-        ))}
+        {Array.from({ length: laneCount }).map((_, index) => {
+          const duelInset = 24 + index * 14;
+          const groupInset = 16 + index * 8;
+          const laneInset = mode === 'duel' ? duelInset : groupInset;
+
+          return (
+            <View
+              key={`lane-${index}`}
+              style={[
+                styles.trackLane,
+                {
+                  top: laneInset,
+                  right: laneInset,
+                  bottom: laneInset,
+                  left: laneInset,
+                },
+              ]}
+            />
+          );
+        })}
         <View style={styles.finishLine} />
         {participants.map((participant, index) => {
           const laneIndex = mode === 'duel' ? index : index % laneCount;
