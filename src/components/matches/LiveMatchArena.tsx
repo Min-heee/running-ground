@@ -1,4 +1,13 @@
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import {
+  Animated,
+  Easing,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 
 type ArenaParticipant = {
   id: string;
@@ -13,50 +22,219 @@ type ArenaParticipant = {
   emphasis?: 'featured' | 'compact';
 };
 
-const DUEL_TRACK_TOP_BASE = 78;
-const DUEL_TRACK_BOTTOM_BASE = 24;
-const DUEL_TRACK_SIDE_BASE = 26;
-const DUEL_TRACK_INSET_STEP = 18;
-const DUEL_START_ANGLE_OFFSET = 0.18;
+const ROAD_HEIGHT_DUEL = 432;
+const ROAD_HEIGHT_GROUP = 432;
+const ROAD_STRIPE_HEIGHT = 34;
+const ROAD_STRIPE_SPACING = 88;
+const GROUP_ROW_HEIGHT = 78;
 
-function getTrackPoint(progress: number, laneIndex: number, width: number, height: number, markerSize: number) {
-  const normalized = Math.max(0, Math.min(1, progress));
-  const centerX = width / 2;
-  const centerY = height / 2;
-  const radiusX = width / 2 - 34 - laneIndex * 8;
-  const radiusY = height / 2 - 42 - laneIndex * 8;
-  const angle = -Math.PI / 2 + normalized * Math.PI * 2;
-
-  return {
-    left: centerX + radiusX * Math.cos(angle) - markerSize / 2,
-    top: centerY + radiusY * Math.sin(angle) - markerSize / 2,
-  };
-}
-
-function getDuelTrackPoint(progress: number, laneIndex: number, width: number, height: number, markerSize: number) {
-  const normalized = Math.max(0, Math.min(1, progress));
-  const sideInset = DUEL_TRACK_SIDE_BASE + laneIndex * DUEL_TRACK_INSET_STEP;
-  const topInset = DUEL_TRACK_TOP_BASE + laneIndex * DUEL_TRACK_INSET_STEP;
-  const bottomInset = DUEL_TRACK_BOTTOM_BASE + laneIndex * 10;
-  const radiusX = Math.max(58, (width - sideInset * 2) / 2);
-  const radiusY = Math.max(118, (height - topInset - bottomInset) / 2);
-  const centerX = width / 2;
-  const centerY = topInset + radiusY;
-  const angleOffset = laneIndex === 0 ? DUEL_START_ANGLE_OFFSET : -DUEL_START_ANGLE_OFFSET;
-  const angle = -Math.PI / 2 + normalized * Math.PI * 2 + angleOffset;
-
-  return {
-    left: centerX + radiusX * Math.cos(angle) - markerSize / 2,
-    top: centerY + radiusY * Math.sin(angle) - markerSize / 2,
-  };
-}
-
-function buildInitialLabel(name: string) {
-  return name.slice(0, 1);
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
 }
 
 function buildBubbleLabel(participant: ArenaParticipant) {
   return participant.bpmLabel ? `${participant.paceLabel} · ${participant.bpmLabel}` : participant.paceLabel;
+}
+
+function buildRemainingLabel(distanceKm: number, targetDistanceKm: number) {
+  return `${Math.max(0, targetDistanceKm - distanceKm).toFixed(1)}km 남음`;
+}
+
+function RoadMotion({
+  roadHeight,
+  laneMode,
+}: {
+  roadHeight: number;
+  laneMode: 'duel' | 'group';
+}) {
+  const shift = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(shift, {
+        toValue: 1,
+        duration: 1400,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    );
+
+    loop.start();
+    return () => {
+      loop.stop();
+      shift.stopAnimation();
+      shift.setValue(0);
+    };
+  }, [shift]);
+
+  const translateY = shift.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, ROAD_STRIPE_SPACING],
+  });
+
+  return (
+    <View style={styles.roadBackground}>
+      {laneMode === 'duel' ? (
+        <>
+          <View style={[styles.duelLaneBase, styles.duelLaneLeft]} />
+          <View style={[styles.duelLaneBase, styles.duelLaneRight]} />
+          <View style={[styles.duelShoulder, styles.duelShoulderLeft]} />
+          <View style={[styles.duelShoulder, styles.duelShoulderRight]} />
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.duelCenterMarkingsWrap,
+              {
+                transform: [{ translateY }],
+              },
+            ]}
+          >
+            {Array.from({ length: 12 }).map((_, index) => (
+              <View key={`duel-stripe-${index}`} style={styles.duelStripeRow}>
+                <View style={styles.duelStripe} />
+                <View style={styles.duelStripe} />
+              </View>
+            ))}
+          </Animated.View>
+        </>
+      ) : (
+        <>
+          <View style={styles.groupRoadBase} />
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.groupCenterMarkingsWrap,
+              {
+                transform: [{ translateY }],
+              },
+            ]}
+          >
+            {Array.from({ length: 14 }).map((_, index) => (
+              <View key={`group-stripe-${index}`} style={styles.groupStripe} />
+            ))}
+          </Animated.View>
+        </>
+      )}
+      <View style={[styles.finishRibbon, laneMode === 'group' ? styles.finishRibbonGroup : undefined]}>
+        <Text style={styles.finishRibbonText}>FINISH</Text>
+      </View>
+    </View>
+  );
+}
+
+function DuelRoad({
+  participants,
+  targetDistanceKm,
+}: {
+  participants: ArenaParticipant[];
+  targetDistanceKm: number;
+}) {
+  const currentUser = participants.find((participant) => participant.isCurrentUser) ?? participants[0] ?? null;
+  const opponent = participants.find((participant) => !participant.isCurrentUser) ?? participants[1] ?? null;
+
+  if (!currentUser || !opponent) {
+    return null;
+  }
+
+  const gapKm = currentUser.distanceKm - opponent.distanceKm;
+  const gapOffset = clamp((gapKm / Math.max(0.2, targetDistanceKm * 0.08)) * 96, -84, 84);
+  const centerY = ROAD_HEIGHT_DUEL * 0.56;
+  const userTop = centerY - gapOffset / 2;
+  const opponentTop = centerY + gapOffset / 2;
+
+  return (
+    <View style={[styles.roadCard, { height: ROAD_HEIGHT_DUEL }]}>
+      <RoadMotion laneMode="duel" roadHeight={ROAD_HEIGHT_DUEL} />
+      <View style={[styles.duelRunnerWrap, styles.duelRunnerLeft, { top: opponentTop }]}>
+        {opponent.showPaceBubble ? (
+          <View style={styles.runnerBubble}>
+            <Text style={styles.runnerBubbleText}>{buildBubbleLabel(opponent)}</Text>
+          </View>
+        ) : null}
+        <View style={[styles.runnerMarker, styles.runnerMarkerOpponent]}>
+          <Text style={styles.runnerMarkerText}>{opponent.name.slice(0, 1)}</Text>
+        </View>
+        <Text style={styles.runnerName}>{opponent.name}</Text>
+        <Text style={styles.runnerMeta}>{opponent.distanceKm.toFixed(2)}km</Text>
+        <Text style={styles.runnerMetaMuted}>{buildRemainingLabel(opponent.distanceKm, targetDistanceKm)}</Text>
+      </View>
+      <View style={[styles.duelRunnerWrap, styles.duelRunnerRight, { top: userTop }]}>
+        {currentUser.showPaceBubble ? (
+          <View style={[styles.runnerBubble, styles.runnerBubbleCurrent]}>
+            <Text style={styles.runnerBubbleText}>{buildBubbleLabel(currentUser)}</Text>
+          </View>
+        ) : null}
+        <View style={[styles.runnerMarker, styles.runnerMarkerCurrent]}>
+          <Text style={styles.runnerMarkerText}>나</Text>
+        </View>
+        <Text style={styles.runnerName}>나</Text>
+        <Text style={styles.runnerMeta}>{currentUser.distanceKm.toFixed(2)}km</Text>
+        <Text style={styles.runnerMetaMuted}>{buildRemainingLabel(currentUser.distanceKm, targetDistanceKm)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function GroupRoad({
+  participants,
+  targetDistanceKm,
+}: {
+  participants: ArenaParticipant[];
+  targetDistanceKm: number;
+}) {
+  const orderedParticipants = useMemo(
+    () => [...participants].sort((left, right) => left.distanceKm - right.distanceKm),
+    [participants],
+  );
+  const currentUserIndex = Math.max(
+    0,
+    orderedParticipants.findIndex((participant) => participant.isCurrentUser),
+  );
+  const initialOffset = Math.max(0, currentUserIndex * GROUP_ROW_HEIGHT - ROAD_HEIGHT_GROUP / 2 + GROUP_ROW_HEIGHT / 2);
+
+  return (
+    <View style={[styles.roadCard, { height: ROAD_HEIGHT_GROUP }]}>
+      <RoadMotion laneMode="group" roadHeight={ROAD_HEIGHT_GROUP} />
+      <ScrollView
+        style={styles.groupScroll}
+        contentContainerStyle={[
+          styles.groupScrollContent,
+          { minHeight: Math.max(ROAD_HEIGHT_GROUP + GROUP_ROW_HEIGHT, orderedParticipants.length * GROUP_ROW_HEIGHT + 32) },
+        ]}
+        showsVerticalScrollIndicator={false}
+        contentOffset={{ x: 0, y: initialOffset }}
+      >
+        {orderedParticipants.map((participant, index) => {
+          const isCurrentUser = Boolean(participant.isCurrentUser);
+          const rankLabel = participant.rankLabel ?? `${orderedParticipants.length - index}위`;
+          const displayName = isCurrentUser ? '나' : participant.name;
+
+          return (
+            <View
+              key={participant.id}
+              style={[styles.groupRow, isCurrentUser ? styles.groupRowCurrent : undefined]}
+            >
+              <View style={styles.groupRankColumn}>
+                <Text style={styles.groupRankText}>{rankLabel}</Text>
+                <Text style={styles.groupNameText}>{displayName}</Text>
+              </View>
+              <View style={styles.groupRoadLane}>
+                <View style={[styles.groupRunnerMarker, isCurrentUser ? styles.runnerMarkerCurrent : participant.isLeader ? styles.runnerMarkerLeader : styles.runnerMarkerOpponent]}>
+                  <Text style={styles.groupRunnerMarkerText}>
+                    {isCurrentUser ? '나' : participant.name.slice(0, 1)}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.groupMetaColumn}>
+                <Text style={styles.groupMetaText}>{participant.paceLabel}</Text>
+                <Text style={styles.groupMetaSubtext}>{buildRemainingLabel(participant.distanceKm, targetDistanceKm)}</Text>
+              </View>
+            </View>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
 }
 
 export function LiveMatchArena({
@@ -78,13 +256,10 @@ export function LiveMatchArena({
 }) {
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = Math.max(300, windowWidth - 32);
-  const arenaHeight = mode === 'duel' ? 448 : 380;
-  const markerSize = mode === 'duel' ? 52 : 28;
-  const laneCount = mode === 'duel' ? 2 : 5;
 
   return (
     <View style={[styles.card, { width: cardWidth }]}>
-      <Text style={styles.eyebrow}>{mode === 'duel' ? 'DUEL ARENA' : 'GROUP ARENA'}</Text>
+      <Text style={styles.eyebrow}>{mode === 'duel' ? 'DUEL ROAD' : 'GROUP ROAD'}</Text>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
       <View style={styles.summaryChipRow}>
@@ -94,106 +269,11 @@ export function LiveMatchArena({
           </View>
         ))}
       </View>
-      <View style={[styles.trackWrap, { height: arenaHeight }]}>
-        {Array.from({ length: laneCount }).map((_, index) => {
-          const duelSideInset = DUEL_TRACK_SIDE_BASE + index * DUEL_TRACK_INSET_STEP;
-          const duelTopInset = DUEL_TRACK_TOP_BASE + index * DUEL_TRACK_INSET_STEP;
-          const duelBottomInset = DUEL_TRACK_BOTTOM_BASE + index * 10;
-          const groupInset = 16 + index * 8;
-
-          return (
-            <View
-              key={`lane-${index}`}
-              style={[
-                styles.trackLane,
-                {
-                  top: mode === 'duel' ? duelTopInset : groupInset,
-                  right: mode === 'duel' ? duelSideInset : groupInset,
-                  bottom: mode === 'duel' ? duelBottomInset : groupInset,
-                  left: mode === 'duel' ? duelSideInset : groupInset,
-                },
-              ]}
-            />
-          );
-        })}
-        <View style={[styles.finishLine, mode === 'duel' ? styles.finishLineDuel : undefined]} />
-        {participants.map((participant, index) => {
-          const laneIndex = mode === 'duel'
-            ? participant.isCurrentUser
-              ? 0
-              : 1
-            : index % laneCount;
-          const isCompact = mode === 'group' && participant.emphasis === 'compact';
-          const participantMarkerSize = mode === 'duel'
-            ? markerSize
-            : isCompact
-              ? 18
-              : 30;
-          const progress = targetDistanceKm > 0 ? participant.distanceKm / targetDistanceKm : 0;
-          const point = mode === 'duel'
-            ? getDuelTrackPoint(progress, laneIndex, cardWidth - 32, arenaHeight, participantMarkerSize)
-            : getTrackPoint(progress, laneIndex, cardWidth - 32, arenaHeight, participantMarkerSize);
-
-          return (
-            <View
-              key={participant.id}
-              style={[
-                styles.runnerWrap,
-                {
-                  width: isCompact ? 54 : 78,
-                  left: point.left,
-                  top: point.top,
-                },
-              ]}
-            >
-              {participant.showPaceBubble ? (
-                <View
-                  style={[
-                    styles.paceBubble,
-                    participant.isCurrentUser ? styles.paceBubbleCurrent : undefined,
-                    isCompact ? styles.paceBubbleCompact : undefined,
-                  ]}
-                >
-                  <Text style={[styles.paceBubbleText, isCompact ? styles.paceBubbleTextCompact : undefined]}>
-                    {buildBubbleLabel(participant)}
-                  </Text>
-                </View>
-              ) : null}
-              <View
-                style={[
-                  styles.runnerMarker,
-                  mode === 'duel'
-                    ? styles.runnerMarkerLarge
-                    : isCompact
-                      ? styles.runnerMarkerCompact
-                      : styles.runnerMarkerMedium,
-                  participant.isCurrentUser ? styles.runnerMarkerCurrent : participant.isLeader ? styles.runnerMarkerLeader : styles.runnerMarkerDefault,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.runnerMarkerText,
-                    mode === 'duel' ? styles.runnerMarkerTextLarge : undefined,
-                    isCompact ? styles.runnerMarkerTextCompact : undefined,
-                  ]}
-                >
-                  {mode === 'duel' ? buildInitialLabel(participant.name) : participant.rankLabel ?? buildInitialLabel(participant.name)}
-                </Text>
-              </View>
-              {isCompact ? (
-                <Text style={styles.runnerCompactMeta}>{participant.distanceKm.toFixed(1)}km</Text>
-              ) : (
-                <View style={styles.runnerLabelWrap}>
-                  <Text style={styles.runnerLabelName}>
-                    {participant.isCurrentUser ? '나' : participant.name}
-                  </Text>
-                  <Text style={styles.runnerLabelMeta}>{participant.distanceKm.toFixed(2)}km</Text>
-                </View>
-              )}
-            </View>
-          );
-        })}
-      </View>
+      {mode === 'duel' ? (
+        <DuelRoad participants={participants} targetDistanceKm={targetDistanceKm} />
+      ) : (
+        <GroupRoad participants={participants} targetDistanceKm={targetDistanceKm} />
+      )}
       {footer ? <Text style={styles.footer}>{footer}</Text> : null}
     </View>
   );
@@ -240,124 +320,243 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
   },
-  trackWrap: {
+  roadCard: {
     position: 'relative',
     overflow: 'hidden',
     borderRadius: 28,
-    backgroundColor: '#0F172A',
     borderWidth: 1,
     borderColor: '#312E81',
+    backgroundColor: '#091122',
   },
-  trackLane: {
+  roadBackground: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  duelLaneBase: {
     position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: '37%',
+    borderRadius: 32,
+    backgroundColor: '#101A31',
+    borderWidth: 1,
+    borderColor: 'rgba(199,210,254,0.12)',
+  },
+  duelLaneLeft: {
+    left: '9%',
+  },
+  duelLaneRight: {
+    right: '9%',
+  },
+  duelShoulder: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 3,
     borderRadius: 999,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
-  finishLine: {
+  duelShoulderLeft: {
+    left: '47.5%',
+  },
+  duelShoulderRight: {
+    right: '47.5%',
+  },
+  duelCenterMarkingsWrap: {
     position: 'absolute',
+    top: -ROAD_STRIPE_SPACING,
+    left: '17%',
+    right: '17%',
+  },
+  duelStripeRow: {
+    height: ROAD_STRIPE_SPACING,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: '10%',
+  },
+  duelStripe: {
+    width: 10,
+    height: ROAD_STRIPE_HEIGHT,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+  },
+  groupRoadBase: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '33%',
+    width: '34%',
+    borderRadius: 28,
+    backgroundColor: '#101A31',
+    borderWidth: 1,
+    borderColor: 'rgba(199,210,254,0.14)',
+  },
+  groupCenterMarkingsWrap: {
+    position: 'absolute',
+    top: -ROAD_STRIPE_SPACING,
+    left: '49%',
+    marginLeft: -4,
+  },
+  groupStripe: {
+    width: 8,
+    height: ROAD_STRIPE_HEIGHT,
+    marginBottom: ROAD_STRIPE_SPACING - ROAD_STRIPE_HEIGHT,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+  },
+  finishRibbon: {
+    position: 'absolute',
+    top: 18,
+    left: 14,
+    right: 14,
+    borderRadius: 999,
+    backgroundColor: 'rgba(109,94,247,0.24)',
+    borderWidth: 1,
+    borderColor: 'rgba(224,231,255,0.18)',
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  finishRibbonGroup: {
     top: 10,
-    left: '50%',
-    marginLeft: -2,
-    width: 4,
-    height: 52,
-    borderRadius: 999,
-    backgroundColor: '#FFFFFF',
   },
-  finishLineDuel: {
-    top: 42,
+  finishRibbonText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.4,
   },
-  runnerWrap: {
+  duelRunnerWrap: {
     position: 'absolute',
     alignItems: 'center',
-    width: 78,
+    width: 120,
+    marginLeft: -60,
   },
-  paceBubble: {
-    marginBottom: 6,
+  duelRunnerLeft: {
+    left: '30%',
+  },
+  duelRunnerRight: {
+    left: '70%',
+  },
+  runnerBubble: {
+    marginBottom: 8,
     borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.14)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  paceBubbleCurrent: {
+  runnerBubbleCurrent: {
     backgroundColor: 'rgba(129, 140, 248, 0.32)',
   },
-  paceBubbleCompact: {
-    marginBottom: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-  },
-  paceBubbleText: {
+  runnerBubbleText: {
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '800',
   },
-  paceBubbleTextCompact: {
-    fontSize: 9,
-  },
   runnerMarker: {
+    width: 56,
+    height: 56,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 999,
     borderWidth: 2,
-  },
-  runnerMarkerLarge: {
-    width: 52,
-    height: 52,
-  },
-  runnerMarkerMedium: {
-    width: 30,
-    height: 30,
-  },
-  runnerMarkerCompact: {
-    width: 18,
-    height: 18,
   },
   runnerMarkerCurrent: {
     backgroundColor: '#6D5EF7',
     borderColor: '#E0E7FF',
   },
+  runnerMarkerOpponent: {
+    backgroundColor: '#1F2937',
+    borderColor: '#94A3B8',
+  },
   runnerMarkerLeader: {
     backgroundColor: '#F59E0B',
     borderColor: '#FEF3C7',
   },
-  runnerMarkerDefault: {
-    backgroundColor: '#1F2937',
-    borderColor: '#475467',
-  },
   runnerMarkerText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  runnerMarkerTextLarge: {
     fontSize: 18,
-  },
-  runnerMarkerTextCompact: {
-    fontSize: 8,
-  },
-  runnerLabelWrap: {
-    marginTop: 6,
-    alignItems: 'center',
-    gap: 1,
-    paddingHorizontal: 4,
-    borderRadius: 10,
-    backgroundColor: 'rgba(15,23,42,0.92)',
-  },
-  runnerLabelName: {
-    color: '#FFFFFF',
-    fontSize: 11,
     fontWeight: '800',
   },
-  runnerLabelMeta: {
+  runnerName: {
+    marginTop: 8,
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  runnerMeta: {
+    marginTop: 2,
     color: '#C7D2FE',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  runnerMetaMuted: {
+    marginTop: 2,
+    color: '#98A2B3',
     fontSize: 10,
     fontWeight: '700',
   },
-  runnerCompactMeta: {
-    marginTop: 4,
+  groupScroll: {
+    flex: 1,
+  },
+  groupScrollContent: {
+    paddingTop: 56,
+    paddingBottom: 72,
+  },
+  groupRow: {
+    height: GROUP_ROW_HEIGHT,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  groupRowCurrent: {
+    backgroundColor: 'rgba(109,94,247,0.14)',
+  },
+  groupRankColumn: {
+    width: '28%',
+    gap: 2,
+  },
+  groupRankText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  groupNameText: {
     color: '#C7D2FE',
-    fontSize: 9,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  groupRoadLane: {
+    width: '22%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groupRunnerMarker: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+  },
+  groupRunnerMarkerText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  groupMetaColumn: {
+    flex: 1,
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  groupMetaText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  groupMetaSubtext: {
+    color: '#98A2B3',
+    fontSize: 10,
     fontWeight: '700',
   },
   footer: {
