@@ -467,37 +467,6 @@ function buildGroupLiveStandings(
   return standings;
 }
 
-function buildPhoneRunChecklist(input: {
-  locationPermissionGranted: boolean | null;
-  backgroundLocationPermissionGranted: boolean | null;
-  motionPermissionGranted: boolean | null;
-}) {
-  return [
-    {
-      key: 'gps',
-      label: '거리 · 페이스 · 시간은 휴대폰 GPS만으로도 측정돼요.',
-    },
-    {
-      key: 'location',
-      label: input.locationPermissionGranted
-        ? '위치 권한이 허용돼 있어서 바로 시작할 수 있어요.'
-        : '위치 권한을 켜야 거리와 경로가 정확하게 기록돼요.',
-    },
-    {
-      key: 'background',
-      label: input.backgroundLocationPermissionGranted
-        ? '화면을 꺼도 계속 측정할 수 있어요.'
-        : '백그라운드 위치를 허용하면 화면을 꺼도 측정이 덜 끊겨요.',
-    },
-    {
-      key: 'motion',
-      label: input.motionPermissionGranted
-        ? '모션 권한도 켜져 있어 케이던스까지 같이 볼 수 있어요.'
-        : '모션 권한이 없으면 케이던스는 비워둘 수 있어도 러닝 측정은 가능해요.',
-    },
-  ];
-}
-
 export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -847,14 +816,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       summary: '곧 최신 상태로 반영될 거예요.',
     };
   }, [effectiveDuelOpponent?.liveStatus]);
-  const phoneRunChecklist = useMemo(
-    () => buildPhoneRunChecklist({
-      locationPermissionGranted,
-      backgroundLocationPermissionGranted,
-      motionPermissionGranted,
-    }),
-    [backgroundLocationPermissionGranted, locationPermissionGranted, motionPermissionGranted],
-  );
   const groupStatusAlert = useMemo(() => {
     const others = groupLiveStandings.filter((participant) => !participant.isCurrentUser);
     const forfeitedCount = others.filter((participant) => participant.liveStatus === 'forfeited').length;
@@ -2722,30 +2683,6 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
                 ))}
               </View>
             ) : null}
-            <View style={styles.phoneRunGuideCard}>
-              <View style={styles.phoneRunGuideHeader}>
-                <View style={styles.phoneRunGuideCopy}>
-                  <Text style={styles.phoneRunGuideTitle}>휴대폰만으로도 바로 뛸 수 있어요</Text>
-                  <Text style={styles.phoneRunGuideSummary}>
-                    워치가 없어도 혼자 러닝이든 대결이든 거리, 페이스, 시간, 경로를 기록할 수 있어요.
-                  </Text>
-                </View>
-                <View style={styles.phoneRunGuideBadge}>
-                  <Text style={styles.phoneRunGuideBadgeText}>PHONE OK</Text>
-                </View>
-              </View>
-              <View style={styles.phoneRunChecklist}>
-                {phoneRunChecklist.map((item) => (
-                  <View key={item.key} style={styles.phoneRunChecklistRow}>
-                    <View style={styles.phoneRunChecklistDot} />
-                    <Text style={styles.phoneRunChecklistText}>{item.label}</Text>
-                  </View>
-                ))}
-              </View>
-              <Text style={styles.phoneRunGuideFootnote}>
-                주머니나 손에 휴대폰을 두고 뛰면 되고, 워치가 있으면 심박수나 자동 기록 가져오기만 더 좋아져요.
-              </Text>
-            </View>
             <View style={styles.liveShareCard}>
               <View style={styles.liveShareHeader}>
                 <View style={styles.liveShareCopy}>
