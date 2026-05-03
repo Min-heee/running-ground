@@ -31,9 +31,9 @@ function getDuelTrackPoint(progress: number, laneIndex: number, width: number, h
   const normalized = Math.max(0, Math.min(1, progress));
   const centerX = width / 2;
   const centerY = height / 2;
-  const laneInset = 24 + laneIndex * 14;
-  const radiusX = Math.max(72, width / 2 - 42 - laneInset);
-  const radiusY = Math.max(58, height / 2 - 54 - laneInset * 0.6);
+  const laneInset = 22 + laneIndex * 18;
+  const radiusX = Math.max(58, width / 2 - 72 - laneInset);
+  const radiusY = Math.max(126, height / 2 - 42 - laneInset * 0.4);
   const angle = -Math.PI / 2 + normalized * Math.PI * 2;
 
   return {
@@ -69,7 +69,7 @@ export function LiveMatchArena({
 }) {
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = Math.max(300, windowWidth - 32);
-  const arenaHeight = mode === 'duel' ? 320 : 380;
+  const arenaHeight = mode === 'duel' ? 448 : 380;
   const markerSize = mode === 'duel' ? 52 : 28;
   const laneCount = mode === 'duel' ? 2 : 5;
 
@@ -87,7 +87,7 @@ export function LiveMatchArena({
       </View>
       <View style={[styles.trackWrap, { height: arenaHeight }]}>
         {Array.from({ length: laneCount }).map((_, index) => {
-          const duelInset = 24 + index * 14;
+          const duelInset = 22 + index * 18;
           const groupInset = 16 + index * 8;
           const laneInset = mode === 'duel' ? duelInset : groupInset;
 
@@ -108,7 +108,11 @@ export function LiveMatchArena({
         })}
         <View style={styles.finishLine} />
         {participants.map((participant, index) => {
-          const laneIndex = mode === 'duel' ? index : index % laneCount;
+          const laneIndex = mode === 'duel'
+            ? participant.isCurrentUser
+              ? 0
+              : 1
+            : index % laneCount;
           const isCompact = mode === 'group' && participant.emphasis === 'compact';
           const participantMarkerSize = mode === 'duel'
             ? markerSize
