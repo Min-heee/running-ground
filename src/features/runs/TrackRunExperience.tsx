@@ -1388,6 +1388,41 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
     return payload.items;
   };
 
+  const clearLocalDuelMatchState = (notice?: string | null) => {
+    setDuelMatchResult(null);
+    setDuelMatchStatus(null);
+    setDuelMatchNotice(notice ?? null);
+  };
+
+  const clearLocalGroupMatchState = (notice?: string | null) => {
+    setGroupMatchResult(null);
+    setGroupMatchStatus(null);
+    setGroupMatchNotice(notice ?? null);
+  };
+
+  const refreshStaleTestMatches = async () => {
+    const [upcomingItems, duelStatusPayload, groupStatusPayload] = await Promise.all([
+      loadUpcomingMatches().catch(() => upcomingMatches),
+      (isDuelTestFlow || duelMatchStatus || duelMatchResult)
+        ? loadDuelMatchStatus(activeDuelSlotStartAt, { testMode: isDuelTestFlow || Boolean(duelMatchStatus?.isTestMatch || duelMatchResult?.isTestMatch) }).catch(() => null)
+        : Promise.resolve(null),
+      (isGroupTestFlow || groupMatchStatus || groupMatchResult)
+        ? loadGroupMatchStatus(activeGroupSlotStartAt, { testMode: isGroupTestFlow || Boolean(groupMatchStatus?.isTestMatch || groupMatchResult?.isTestMatch) }).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    const hasUpcomingDuel = upcomingItems.some((match) => match.mode === 'duel');
+    const hasUpcomingGroup = upcomingItems.some((match) => match.mode === 'group');
+
+    if (duelStatusPayload?.state === 'idle' && !hasUpcomingDuel && (isDuelTestFlow || duelMatchStatus || duelMatchResult)) {
+      clearLocalDuelMatchState('이전 테스트 1대1 대결은 이미 정리됐어요. 새로 시작할 수 있어요.');
+    }
+
+    if (groupStatusPayload?.state === 'idle' && !hasUpcomingGroup && (isGroupTestFlow || groupMatchStatus || groupMatchResult)) {
+      clearLocalGroupMatchState('이전 테스트 그룹 대결은 이미 정리됐어요. 새로 시작할 수 있어요.');
+    }
+  };
+
   useEffect(() => {
     if (matchMode !== 'duel') {
       return;
@@ -1434,6 +1469,10 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       canceled = true;
     };
   }, [duelMatchStatus?.matchId, duelMatchStatus?.state, groupMatchStatus?.matchId, groupMatchStatus?.state]);
+
+  useEffect(() => {
+    void refreshStaleTestMatches().catch(() => {});
+  }, []);
 
   useEffect(() => {
     let canceled = false;
@@ -2224,6 +2263,7 @@ export function TrackRunExperience({ mode }: { mode: TrackRunMode }) {
       if (nextState === 'active') {
         const snapshot = getBackgroundRunTrackingSnapshot();
         syncFromBackgroundTracking(snapshot);
+        void refreshStaleTestMatches().catch(() => {});
 
         if (trackerStatusRef.current === 'running') {
           void syncMatchLifecycleStatus('running', snapshot).catch(() => {
