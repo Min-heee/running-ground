@@ -554,6 +554,7 @@ export function TrackRunExperience({
   const [liveArenaPage, setLiveArenaPage] = useState(0);
   const [forceOpenActiveMatch, setForceOpenActiveMatch] = useState(false);
   const countdownAutoOpenMatchIdRef = useRef<string | null>(null);
+  const autoStartedMatchIdRef = useRef<string | null>(null);
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const duelDistanceKm = useMemo(() => parseDuelMatchDistanceKm(duelDistanceText), [duelDistanceText]);
@@ -1623,6 +1624,43 @@ export function TrackRunExperience({
     setLiveArenaPage(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
   }, [duelMatchStatus?.matchId, groupMatchStatus?.matchId, showLiveArena]);
+
+  useEffect(() => {
+    const activeMatchId = matchMode === 'duel'
+      ? duelMatchStatus?.state === 'active'
+        ? duelMatchStatus.matchId
+        : null
+      : matchMode === 'group'
+        ? groupMatchStatus?.state === 'active'
+          ? groupMatchStatus.matchId
+          : null
+        : null;
+
+    if (!activeMatchId) {
+      autoStartedMatchIdRef.current = null;
+      return;
+    }
+
+    if (status !== 'idle') {
+      return;
+    }
+
+    if (autoStartedMatchIdRef.current === activeMatchId) {
+      return;
+    }
+
+    autoStartedMatchIdRef.current = activeMatchId;
+    void handleStartTracking().catch(() => {
+      autoStartedMatchIdRef.current = null;
+    });
+  }, [
+    duelMatchStatus?.matchId,
+    duelMatchStatus?.state,
+    groupMatchStatus?.matchId,
+    groupMatchStatus?.state,
+    matchMode,
+    status,
+  ]);
 
   useEffect(() => {
     if (matchMode !== 'duel' || !duelMatchStatus || !['waiting', 'matched', 'active'].includes(duelMatchStatus.state)) {
