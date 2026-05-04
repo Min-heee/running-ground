@@ -555,6 +555,14 @@ export function TrackRunExperience({
   const [forceOpenActiveMatch, setForceOpenActiveMatch] = useState(false);
   const countdownAutoOpenMatchIdRef = useRef<string | null>(null);
   const autoStartedMatchIdRef = useRef<string | null>(null);
+  const preStartWarmupMatchIdRef = useRef<string | null>(null);
+  const officialStartBaselineRef = useRef<{
+    matchId: string;
+    distanceKm: number;
+    elapsedSeconds: number;
+    routeStartIndex: number;
+    startedAt: string;
+  } | null>(null);
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const duelDistanceKm = useMemo(() => parseDuelMatchDistanceKm(duelDistanceText), [duelDistanceText]);
@@ -1148,11 +1156,12 @@ export function TrackRunExperience({
       return;
     }
 
+    const progress = buildDisplayedMatchProgress(snapshot);
     await pushRunningMatchProgressRef.current({
       matchId: target.matchId,
-      distanceKm: snapshot.distanceKm,
-      elapsedSeconds: getBackgroundRunElapsedSeconds(snapshot),
-      currentPace: snapshot.currentPace,
+      distanceKm: progress.distanceKm,
+      elapsedSeconds: progress.elapsedSeconds,
+      currentPace: progress.currentPace,
       status: nextStatus,
     });
     matchProgressHeartbeatRef.current = Date.now();
@@ -1626,6 +1635,47 @@ export function TrackRunExperience({
   }, [duelMatchStatus?.matchId, groupMatchStatus?.matchId, showLiveArena]);
 
   useEffect(() => {
+    const warmupMatchId = matchMode === 'duel'
+      ? duelMatchState === 'matched' && shouldAutoOpenMatchArena(duelStartCountdownSeconds)
+        ? duelMatchStatus?.matchId ?? null
+        : null
+      : matchMode === 'group'
+        ? groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds)
+          ? groupMatchStatus?.matchId ?? null
+          : null
+        : null;
+
+    if (!warmupMatchId) {
+      if (!officialStartBaselineRef.current) {
+        preStartWarmupMatchIdRef.current = null;
+      }
+      return;
+    }
+
+    if (status !== 'idle') {
+      return;
+    }
+
+    if (autoStartedMatchIdRef.current === warmupMatchId) {
+      return;
+    }
+
+    autoStartedMatchIdRef.current = warmupMatchId;
+    void handleStartTracking({ allowCountdownWarmup: true }).catch(() => {
+      autoStartedMatchIdRef.current = null;
+    });
+  }, [
+    duelMatchState,
+    duelMatchStatus?.matchId,
+    duelStartCountdownSeconds,
+    groupMatchState,
+    groupMatchStatus?.matchId,
+    groupStartCountdownSeconds,
+    matchMode,
+    status,
+  ]);
+
+  useEffect(() => {
     const activeMatchId = matchMode === 'duel'
       ? duelMatchStatus?.state === 'active'
         ? duelMatchStatus.matchId
@@ -1638,6 +1688,27 @@ export function TrackRunExperience({
 
     if (!activeMatchId) {
       autoStartedMatchIdRef.current = null;
+      if (!preStartWarmupMatchIdRef.current) {
+        officialStartBaselineRef.current = null;
+      }
+      return;
+    }
+
+    if (
+      preStartWarmupMatchIdRef.current === activeMatchId
+      && status === 'running'
+      && !officialStartBaselineRef.current
+    ) {
+      const currentSnapshot = getBackgroundRunTrackingSnapshot();
+      officialStartBaselineRef.current = {
+        matchId: activeMatchId,
+        distanceKm: currentSnapshot.distanceKm,
+        elapsedSeconds: getBackgroundRunElapsedSeconds(currentSnapshot),
+        routeStartIndex: Math.max(0, currentSnapshot.route.length - 1),
+        startedAt: currentSnapshot.route[currentSnapshot.route.length - 1]?.timestamp ?? new Date().toISOString(),
+      };
+      preStartWarmupMatchIdRef.current = null;
+      syncFromBackgroundTracking(currentSnapshot);
       return;
     }
 
@@ -1731,20 +1802,71 @@ export function TrackRunExperience({
     setCadenceSpm(null);
   };
 
+  const getDisplayedTrackingSnapshot = (
+    snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot(),
+  ) => {
+    const rawElapsedSeconds = getBackgroundRunElapsedSeconds(snapshot);
+    const baseline = officialStartBaselineRef.current;
+
+    if (baseline) {
+      const adjustedRoute = snapshot.route.slice(Math.max(0, baseline.routeStartIndex));
+      return {
+        route: adjustedRoute,
+        distanceKm: Math.max(0, Number((snapshot.distanceKm - baseline.distanceKm).toFixed(2))),
+        elevationGainM: calculateElevationGainM(adjustedRoute),
+        currentPace: snapshot.currentPace,
+        elapsedSeconds: Math.max(0, rawElapsedSeconds - baseline.elapsedSeconds),
+        startedAt: baseline.startedAt,
+      };
+    }
+
+    if (preStartWarmupMatchIdRef.current) {
+      return {
+        route: [] as RunRoutePoint[],
+        distanceKm: 0,
+        elevationGainM: 0,
+        currentPace: snapshot.currentPace,
+        elapsedSeconds: 0,
+        startedAt: snapshot.startedAt,
+      };
+    }
+
+    return {
+      route: snapshot.route,
+      distanceKm: snapshot.distanceKm,
+      elevationGainM: snapshot.elevationGainM,
+      currentPace: snapshot.currentPace,
+      elapsedSeconds: rawElapsedSeconds,
+      startedAt: snapshot.startedAt,
+    };
+  };
+
+  const buildDisplayedMatchProgress = (
+    snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot(),
+  ) => {
+    const displayedSnapshot = getDisplayedTrackingSnapshot(snapshot);
+    return {
+      distanceKm: displayedSnapshot.distanceKm,
+      elapsedSeconds: displayedSnapshot.elapsedSeconds,
+      currentPace: displayedSnapshot.currentPace,
+    };
+  };
+
   const syncFromBackgroundTracking = (snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot()) => {
-    routeRef.current = snapshot.route;
-    setRoute(snapshot.route);
-    setDistanceKm(snapshot.distanceKm);
-    setElevationGainM(snapshot.elevationGainM);
-    setCurrentPace(snapshot.currentPace);
+    const displayedSnapshot = getDisplayedTrackingSnapshot(snapshot);
+    routeRef.current = displayedSnapshot.route;
+    setRoute(displayedSnapshot.route);
+    setDistanceKm(displayedSnapshot.distanceKm);
+    setElevationGainM(displayedSnapshot.elevationGainM);
+    setCurrentPace(displayedSnapshot.currentPace);
     setStatus(snapshot.status);
-    syncElapsedSeconds(getBackgroundRunElapsedSeconds(snapshot));
+    syncElapsedSeconds(displayedSnapshot.elapsedSeconds);
   };
 
   const startElapsedTicker = () => {
     clearElapsedTicker();
     timerRef.current = setInterval(() => {
-      syncElapsedSeconds(getBackgroundRunElapsedSeconds());
+      syncFromBackgroundTracking();
     }, 1000);
   };
 
@@ -1887,18 +2009,19 @@ export function TrackRunExperience({
     }
 
     matchProgressHeartbeatRef.current = now;
+    const progress = buildDisplayedMatchProgress(snapshot);
     void pushRunningMatchProgress({
       matchId: activeMatchId,
-      distanceKm: snapshot.distanceKm,
-      elapsedSeconds: getBackgroundRunElapsedSeconds(snapshot),
-      currentPace: snapshot.currentPace,
+      distanceKm: progress.distanceKm,
+      elapsedSeconds: progress.elapsedSeconds,
+      currentPace: progress.currentPace,
       status: 'running',
     }).catch(() => {
       // Keep the run going even if the optional match heartbeat fails.
     });
   };
 
-  const handleStartTracking = async () => {
+  const handleStartTracking = async (options?: { allowCountdownWarmup?: boolean }) => {
     if (Platform.OS === 'web') {
       setError('실시간 러닝 측정은 iPhone이나 Android 앱에서 사용할 수 있어.');
       return;
@@ -1914,12 +2037,12 @@ export function TrackRunExperience({
       return;
     }
 
-    if (matchMode === 'duel' && duelMatchState === 'matched' && !duelMatchStatus?.readyToStart) {
+    if (matchMode === 'duel' && duelMatchState === 'matched' && !duelMatchStatus?.readyToStart && !options?.allowCountdownWarmup) {
       setError('예약된 시작 시간이 되면 1대1 대결을 시작할 수 있어요.');
       return;
     }
 
-    if (matchMode === 'group' && groupMatchState === 'matched' && !groupMatchStatus?.readyToStart) {
+    if (matchMode === 'group' && groupMatchState === 'matched' && !groupMatchStatus?.readyToStart && !options?.allowCountdownWarmup) {
       setError('예약된 시작 시간이 되면 그룹 대결을 시작할 수 있어요.');
       return;
     }
@@ -1935,6 +2058,14 @@ export function TrackRunExperience({
         accuracy: Location.Accuracy.BestForNavigation,
       });
       setLocationPermissionGranted(true);
+
+      if (options?.allowCountdownWarmup) {
+        const warmupMatchId = matchMode === 'duel' ? duelMatchStatus?.matchId : groupMatchStatus?.matchId;
+        preStartWarmupMatchIdRef.current = warmupMatchId ?? null;
+        officialStartBaselineRef.current = null;
+      } else {
+        preStartWarmupMatchIdRef.current = null;
+      }
 
       await startBackgroundRunTracking(initialLocation);
       syncFromBackgroundTracking();
@@ -2218,11 +2349,12 @@ export function TrackRunExperience({
 
     if (activeMatchId) {
       try {
+        const progress = buildDisplayedMatchProgress();
         await pushRunningMatchProgress({
           matchId: activeMatchId,
-          distanceKm,
-          elapsedSeconds,
-          currentPace,
+          distanceKm: progress.distanceKm,
+          elapsedSeconds: progress.elapsedSeconds,
+          currentPace: progress.currentPace,
           status: 'paused',
         });
       } catch {
@@ -2271,11 +2403,12 @@ export function TrackRunExperience({
 
       if (activeMatchId) {
         const currentSnapshot = getBackgroundRunTrackingSnapshot();
+        const progress = buildDisplayedMatchProgress(currentSnapshot);
         await pushRunningMatchProgress({
           matchId: activeMatchId,
-          distanceKm: currentSnapshot.distanceKm,
-          elapsedSeconds: getBackgroundRunElapsedSeconds(currentSnapshot),
-          currentPace: currentSnapshot.currentPace,
+          distanceKm: progress.distanceKm,
+          elapsedSeconds: progress.elapsedSeconds,
+          currentPace: progress.currentPace,
           status: 'running',
         });
       }
@@ -2292,6 +2425,9 @@ export function TrackRunExperience({
       enabled: false,
       status: 'idle',
     }).catch(() => {});
+    preStartWarmupMatchIdRef.current = null;
+    officialStartBaselineRef.current = null;
+    autoStartedMatchIdRef.current = null;
     resetForegroundTrackingState();
     setStatus('idle');
     setError(null);
@@ -2324,20 +2460,21 @@ export function TrackRunExperience({
       }
 
       const trackingSnapshot = getBackgroundRunTrackingSnapshot();
+      const displayedSnapshot = getDisplayedTrackingSnapshot(trackingSnapshot);
       syncFromBackgroundTracking(trackingSnapshot);
-      const finalElapsedSeconds = getBackgroundRunElapsedSeconds(trackingSnapshot);
+      const finalElapsedSeconds = displayedSnapshot.elapsedSeconds;
       syncElapsedSeconds(finalElapsedSeconds);
 
-      const startedAt = trackingSnapshot.startedAt ?? new Date().toISOString();
-      const endedAt = trackingSnapshot.route.length
-        ? trackingSnapshot.route[trackingSnapshot.route.length - 1].timestamp
+      const startedAt = displayedSnapshot.startedAt ?? new Date().toISOString();
+      const endedAt = displayedSnapshot.route.length
+        ? displayedSnapshot.route[displayedSnapshot.route.length - 1].timestamp
         : new Date().toISOString();
-      const finalDistanceKm = trackingSnapshot.distanceKm;
-      const finalElevationGainM = trackingSnapshot.elevationGainM;
+      const finalDistanceKm = displayedSnapshot.distanceKm;
+      const finalElevationGainM = displayedSnapshot.elevationGainM;
       const finalCadenceSpm = calculateCadenceSpm(totalStepsRef.current, finalElapsedSeconds);
       const averagePaceLabel = buildAveragePace(finalDistanceKm, finalElapsedSeconds);
 
-      if (trackingSnapshot.route.length < 2 || finalDistanceKm < 0.1) {
+      if (displayedSnapshot.route.length < 2 || finalDistanceKm < 0.1) {
         throw new Error('저장하려면 실제로 이동한 러닝 경로가 조금 더 필요해.');
       }
 
@@ -2353,11 +2490,12 @@ export function TrackRunExperience({
 
       if (activeMatchId) {
         try {
+          const progress = buildDisplayedMatchProgress(trackingSnapshot);
           await pushRunningMatchProgress({
             matchId: activeMatchId,
-            distanceKm: finalDistanceKm,
-            elapsedSeconds: finalElapsedSeconds,
-            currentPace: averagePaceLabel,
+            distanceKm: progress.distanceKm,
+            elapsedSeconds: progress.elapsedSeconds,
+            currentPace: progress.currentPace,
             status: 'finished',
           });
         } catch {
@@ -2373,7 +2511,7 @@ export function TrackRunExperience({
         durationSeconds: finalElapsedSeconds,
         cadenceSpm: finalCadenceSpm,
         elevationGainM: finalElevationGainM,
-        route: trackingSnapshot.route,
+        route: displayedSnapshot.route,
         startedAt,
         endedAt,
         ...(trackedMatchResult ? { matchResult: trackedMatchResult } : {}),
@@ -2383,6 +2521,9 @@ export function TrackRunExperience({
         enabled: false,
         status: 'idle',
       }).catch(() => {});
+      preStartWarmupMatchIdRef.current = null;
+      officialStartBaselineRef.current = null;
+      autoStartedMatchIdRef.current = null;
 
       router.replace({
         pathname: '/run-detail',
