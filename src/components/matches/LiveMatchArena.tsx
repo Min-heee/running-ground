@@ -79,8 +79,6 @@ function RoadMotion({
           <View style={styles.duelRoadBase} />
           <View style={[styles.duelLaneBase, styles.duelLaneLeft]} />
           <View style={[styles.duelLaneBase, styles.duelLaneRight]} />
-          <View style={[styles.duelShoulder, styles.duelShoulderLeft]} />
-          <View style={[styles.duelShoulder, styles.duelShoulderRight]} />
           <Animated.View
             pointerEvents="none"
             style={[
@@ -349,29 +347,13 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '40%',
     borderRadius: 32,
-    backgroundColor: 'rgba(9,17,34,0.45)',
-    borderWidth: 1,
-    borderColor: 'rgba(199,210,254,0.12)',
+    backgroundColor: 'rgba(9,17,34,0.32)',
   },
   duelLaneLeft: {
     left: '10%',
   },
   duelLaneRight: {
     right: '10%',
-  },
-  duelShoulder: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 3,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  duelShoulderLeft: {
-    left: '47.5%',
-  },
-  duelShoulderRight: {
-    right: '47.5%',
   },
   duelCenterMarkingsWrap: {
     position: 'absolute',
