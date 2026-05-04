@@ -358,8 +358,8 @@ const styles = StyleSheet.create({
   duelCenterMarkingsWrap: {
     position: 'absolute',
     top: -ROAD_STRIPE_SPACING,
-    left: '40%',
-    right: '40%',
+    left: '30%',
+    right: '30%',
   },
   duelStripeRow: {
     height: ROAD_STRIPE_SPACING,
@@ -426,10 +426,10 @@ const styles = StyleSheet.create({
     marginLeft: -48,
   },
   duelRunnerLeft: {
-    left: '40%',
+    left: '30%',
   },
   duelRunnerRight: {
-    left: '60%',
+    left: '70%',
   },
   runnerBubble: {
     marginBottom: 8,
