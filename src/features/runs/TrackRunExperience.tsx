@@ -880,7 +880,9 @@ export function TrackRunExperience({
       return null;
     }
 
-    const opponentDistanceKm = buildEstimatedCompetitiveDistanceKm(effectiveDuelOpponent.averagePace, elapsedSeconds, 2);
+    const opponentDistanceKm = typeof effectiveDuelOpponent.liveDistanceKm === 'number'
+      ? effectiveDuelOpponent.liveDistanceKm
+      : buildEstimatedCompetitiveDistanceKm(effectiveDuelOpponent.averagePace, elapsedSeconds, 2);
     const gapKm = Number(Math.abs(distanceKm - opponentDistanceKm).toFixed(2));
     const isDraw = gapKm < 0.03;
     const resultTone: RunMatchResult['resultTone'] = isDraw ? 'draw' : distanceKm > opponentDistanceKm ? 'win' : 'lose';
