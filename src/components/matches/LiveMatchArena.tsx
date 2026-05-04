@@ -76,6 +76,7 @@ function RoadMotion({
     <View style={styles.roadBackground}>
       {laneMode === 'duel' ? (
         <>
+          <View style={styles.duelRoadBase} />
           <View style={[styles.duelLaneBase, styles.duelLaneLeft]} />
           <View style={[styles.duelLaneBase, styles.duelLaneRight]} />
           <View style={[styles.duelShoulder, styles.duelShoulderLeft]} />
@@ -331,21 +332,32 @@ const styles = StyleSheet.create({
   roadBackground: {
     ...StyleSheet.absoluteFillObject,
   },
+  duelRoadBase: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '4%',
+    width: '92%',
+    borderRadius: 28,
+    backgroundColor: '#101A31',
+    borderWidth: 1,
+    borderColor: 'rgba(199,210,254,0.14)',
+  },
   duelLaneBase: {
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: '31%',
+    width: '36%',
     borderRadius: 32,
-    backgroundColor: '#101A31',
+    backgroundColor: 'rgba(9,17,34,0.45)',
     borderWidth: 1,
     borderColor: 'rgba(199,210,254,0.12)',
   },
   duelLaneLeft: {
-    left: '18%',
+    left: '12%',
   },
   duelLaneRight: {
-    right: '18%',
+    right: '12%',
   },
   duelShoulder: {
     position: 'absolute',
@@ -364,15 +376,15 @@ const styles = StyleSheet.create({
   duelCenterMarkingsWrap: {
     position: 'absolute',
     top: -ROAD_STRIPE_SPACING,
-    left: '17%',
-    right: '17%',
+    left: '33%',
+    right: '33%',
   },
   duelStripeRow: {
     height: ROAD_STRIPE_SPACING,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: '10%',
+    paddingHorizontal: 0,
   },
   duelStripe: {
     width: 10,
@@ -432,10 +444,10 @@ const styles = StyleSheet.create({
     marginLeft: -48,
   },
   duelRunnerLeft: {
-    left: '40%',
+    left: '33%',
   },
   duelRunnerRight: {
-    left: '60%',
+    left: '67%',
   },
   runnerBubble: {
     marginBottom: 8,

@@ -1245,14 +1245,74 @@ function resolveParticipantLiveStatus(participant, now = new Date()) {
   return storedStatus;
 }
 
-function buildParticipantLiveSnapshot(participant, now = new Date()) {
+function buildSyntheticParticipantLiveSnapshot(session, participant, now = new Date()) {
+  if (!participant?.profileSnapshot || hydrateMatchSessionState(session, now) !== 'active') {
+    return null;
+  }
+
+  const storedStatus = typeof participant.liveStatus === 'string' && participant.liveStatus
+    ? participant.liveStatus
+    : 'ready';
+
+  if (['forfeited', 'finished'].includes(storedStatus)) {
+    return null;
+  }
+
+  const startedAtMs = new Date(session.startedAt ?? session.slotStartAt).getTime();
+  const paceMinutes = parsePaceToMinutes(participant.profileSnapshot.averagePace);
+
+  if (!Number.isFinite(startedAtMs) || paceMinutes === null) {
+    return null;
+  }
+
+  const elapsedSeconds = Math.max(0, Math.floor((now.getTime() - startedAtMs) / 1000));
+  const estimatedDistanceKm = Math.min(
+    session.distanceKm,
+    Number((elapsedSeconds / Math.max(1, paceMinutes * 60)).toFixed(2)),
+  );
+  const syntheticStatus = estimatedDistanceKm >= session.distanceKm ? 'finished' : 'running';
+
   return {
-    ...(typeof participant.liveDistanceKm === 'number' ? { liveDistanceKm: Number(participant.liveDistanceKm.toFixed(2)) } : {}),
-    ...(typeof participant.liveElapsedSeconds === 'number' ? { liveElapsedSeconds: participant.liveElapsedSeconds } : {}),
-    ...(typeof participant.livePace === 'string' && participant.livePace.trim() ? { livePace: participant.livePace.trim() } : {}),
-    ...(typeof participant.liveUpdatedAt === 'string' && participant.liveUpdatedAt ? { liveUpdatedAt: participant.liveUpdatedAt } : {}),
-    liveStatus: resolveParticipantLiveStatus(participant, now),
-    ...(typeof participant.finishedAt === 'string' && participant.finishedAt ? { finishedAt: participant.finishedAt } : {}),
+    liveDistanceKm: estimatedDistanceKm,
+    liveElapsedSeconds: elapsedSeconds,
+    livePace: participant.profileSnapshot.averagePace,
+    liveUpdatedAt: now.toISOString(),
+    liveStatus: syntheticStatus,
+    ...(syntheticStatus === 'finished' ? { finishedAt: now.toISOString() } : {}),
+  };
+}
+
+function buildParticipantLiveSnapshot(session, participant, now = new Date()) {
+  const syntheticSnapshot = buildSyntheticParticipantLiveSnapshot(session, participant, now);
+  const liveStatus = syntheticSnapshot?.liveStatus ?? resolveParticipantLiveStatus(participant, now);
+
+  return {
+    ...(typeof syntheticSnapshot?.liveDistanceKm === 'number'
+      ? { liveDistanceKm: syntheticSnapshot.liveDistanceKm }
+      : typeof participant.liveDistanceKm === 'number'
+        ? { liveDistanceKm: Number(participant.liveDistanceKm.toFixed(2)) }
+        : {}),
+    ...(typeof syntheticSnapshot?.liveElapsedSeconds === 'number'
+      ? { liveElapsedSeconds: syntheticSnapshot.liveElapsedSeconds }
+      : typeof participant.liveElapsedSeconds === 'number'
+        ? { liveElapsedSeconds: participant.liveElapsedSeconds }
+        : {}),
+    ...(typeof syntheticSnapshot?.livePace === 'string' && syntheticSnapshot.livePace.trim()
+      ? { livePace: syntheticSnapshot.livePace.trim() }
+      : typeof participant.livePace === 'string' && participant.livePace.trim()
+        ? { livePace: participant.livePace.trim() }
+        : {}),
+    ...(typeof syntheticSnapshot?.liveUpdatedAt === 'string' && syntheticSnapshot.liveUpdatedAt
+      ? { liveUpdatedAt: syntheticSnapshot.liveUpdatedAt }
+      : typeof participant.liveUpdatedAt === 'string' && participant.liveUpdatedAt
+        ? { liveUpdatedAt: participant.liveUpdatedAt }
+        : {}),
+    liveStatus,
+    ...(typeof syntheticSnapshot?.finishedAt === 'string' && syntheticSnapshot.finishedAt
+      ? { finishedAt: syntheticSnapshot.finishedAt }
+      : typeof participant.finishedAt === 'string' && participant.finishedAt
+        ? { finishedAt: participant.finishedAt }
+        : {}),
   };
 }
 
@@ -1351,7 +1411,7 @@ function buildSessionGroupParticipants(store, session, now = new Date()) {
         seedRank: participant.seedRank,
         seedSummary: `${participant.seedRank}번 시드 · 이번 주 ${runner.weeklyDistanceKm.toFixed(1)}km`,
         accepted: Boolean(participant.acceptedAt),
-        ...buildParticipantLiveSnapshot(participant, now),
+        ...buildParticipantLiveSnapshot(session, participant, now),
       };
     })
     .sort((left, right) => left.seedRank - right.seedRank);
@@ -1380,7 +1440,7 @@ function buildSessionDuelOpponent(store, session, currentUserId, now = new Date(
     lifetimeDistanceKm: opponentRunner.lifetimeDistanceKm,
     compatibilitySummary: `${opponentRunner.averagePace} 페이스 · ${opponentRunner.levelLabel} · 이번 주 ${opponentRunner.weeklyDistanceKm.toFixed(1)}km · 적합도 ${compatibilityScore.toFixed(0)}점`,
     accepted: Boolean(opponentEntry.acceptedAt),
-    ...buildParticipantLiveSnapshot(opponentEntry, now),
+    ...buildParticipantLiveSnapshot(session, opponentEntry, now),
   };
 }
 
