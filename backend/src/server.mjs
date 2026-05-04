@@ -888,13 +888,7 @@ function buildTestDuelMatchResponse(store, currentUser, { distanceKm }) {
     testMode: true,
     expiresAt: buildTestMatchQueueExpiresAt(now),
   });
-  const queuedEntries = buildQueuedMatchRunnerEntries(store, 'duel', currentRunner, {
-    distanceKm,
-    slotStartAt: previewSlotStartAt,
-    testMode: true,
-  }).sort((left, right) => right.score - left.score);
-  const bestCandidate = queuedEntries[0] ?? null;
-  const duelTestPaceSeconds = 370 + Math.floor(Math.random() * 10);
+  const duelTestPaceSeconds = 380 + Math.floor(Math.random() * 10);
   const syntheticOpponent = createSyntheticRunnerProfile(currentRunner, {
     id: nextId('duel-test-bot'),
     name: '테스트 상대',
@@ -906,20 +900,15 @@ function buildTestDuelMatchResponse(store, currentUser, { distanceKm }) {
   });
 
   const countdownStartAt = buildTestMatchStartAt(now);
-  removeUsersFromMatchQueue(store, 'duel', [
-    currentUser.id,
-    ...(bestCandidate ? [bestCandidate.runner.id] : []),
-  ]);
+  removeUsersFromMatchQueue(store, 'duel', [currentUser.id]);
   createMatchSession(store, 'duel', distanceKm, countdownStartAt, [
     { id: currentUser.id, seedRank: 1 },
-    bestCandidate
-      ? { id: bestCandidate.runner.id, seedRank: 2 }
-      : { id: syntheticOpponent.id, seedRank: 2, profileSnapshot: syntheticOpponent },
+    { id: syntheticOpponent.id, seedRank: 2, profileSnapshot: syntheticOpponent },
   ], {
     isTestMatch: true,
   });
 
-  const opponentRunner = bestCandidate?.runner ?? syntheticOpponent;
+  const opponentRunner = syntheticOpponent;
   return {
     success: true,
     matched: true,
@@ -953,35 +942,19 @@ function buildTestGroupMatchResponse(store, currentUser, { distanceKm }) {
   const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
   const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
   const maxGroupSize = 30;
-  const targetTestParticipantCount = 26;
+  const targetTestOpponentCount = 25;
 
   upsertMatchQueueEntry(store, 'group', currentUser.id, distanceKm, countdownStartAt, {
     testMode: true,
     expiresAt: buildTestMatchQueueExpiresAt(now),
   });
-  const queuedEntries = buildQueuedMatchRunnerEntries(store, 'group', currentRunner, {
-    distanceKm,
-    slotStartAt: countdownStartAt,
-    includeCurrentUser: true,
-    testMode: true,
-  }).sort((left, right) => {
-    if (right.score !== left.score) {
-      return right.score - left.score;
-    }
+  const sessionParticipants = [{ id: currentUser.id, seedRank: 1 }];
 
-    return new Date(left.queueEntry.requestedAt).getTime() - new Date(right.queueEntry.requestedAt).getTime();
-  });
-  const compatibleEntries = queuedEntries.slice(0, maxGroupSize);
-  const sessionParticipants = compatibleEntries.map((entry, index) => ({
-    id: entry.runner.id,
-    seedRank: index + 1,
-  }));
-
-  while (sessionParticipants.length < targetTestParticipantCount) {
-    const randomPaceSeconds = 360 + Math.floor(Math.random() * 31);
+  while (sessionParticipants.length - 1 < targetTestOpponentCount) {
+    const randomPaceSeconds = 380 + Math.floor(Math.random() * 10);
     const syntheticRunner = createSyntheticRunnerProfile(currentRunner, {
       id: nextId('group-test-bot'),
-      name: `테스트 러너 ${sessionParticipants.length + 1}`,
+      name: `테스트 러너 ${sessionParticipants.length}`,
       paceSecondsOverride: randomPaceSeconds,
       weeklyDistanceDeltaKm: 0.8 + sessionParticipants.length,
       lifetimeDistanceDeltaKm: 10 + sessionParticipants.length * 6,
@@ -995,13 +968,7 @@ function buildTestGroupMatchResponse(store, currentUser, { distanceKm }) {
     });
   }
 
-  removeUsersFromMatchQueue(
-    store,
-    'group',
-    sessionParticipants
-      .filter((participant) => !participant.profileSnapshot)
-      .map((participant) => participant.id),
-  );
+  removeUsersFromMatchQueue(store, 'group', [currentUser.id]);
   createMatchSession(store, 'group', distanceKm, countdownStartAt, sessionParticipants, {
     isTestMatch: true,
   });
