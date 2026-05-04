@@ -11,6 +11,7 @@ import {
   findNextStartingMatchedMatch,
   formatMatchCountdown,
   getMatchStartRemainingSeconds,
+  shouldAutoOpenMatchArena,
   shouldShowMatchCardCountdown,
   shouldShowMatchStartOverlay,
 } from '@/lib/matchCountdown';
@@ -166,13 +167,15 @@ export default function HomeScreen() {
           <Card style={styles.upcomingCard}>
             <Text style={styles.upcomingLabel}>다가오는 대결</Text>
             {upcomingMatches.slice(0, 2).map((match) => {
-              const isActiveMatch = match.status === 'active';
+              const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
+              const canOpenArena = match.status === 'active'
+                || (match.status === 'matched' && shouldAutoOpenMatchArena(remainingSeconds));
 
               return (
                 <Pressable
                   key={match.matchId}
                   style={styles.upcomingRow}
-                  disabled={!isActiveMatch}
+                  disabled={!canOpenArena}
                   onPress={() => handleOpenRunningMatch(match)}
                 >
                   <View style={styles.upcomingCopy}>
@@ -181,7 +184,6 @@ export default function HomeScreen() {
                     </Text>
                     <Text style={styles.upcomingMeta}>{match.counterpartLabel}</Text>
                     {(() => {
-                      const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
                       return shouldShowMatchCardCountdown(remainingSeconds) ? (
                         <View style={styles.upcomingCountdownPill}>
                           <Text style={styles.upcomingCountdownText}>시작까지 {formatMatchCountdown(remainingSeconds!)}</Text>
@@ -204,11 +206,13 @@ export default function HomeScreen() {
                       <Text style={styles.upcomingHelperText}>출발 1시간 전부터는 취소할 수 없어요.</Text>
                     )
                   ) : null}
-                  {isActiveMatch ? (
-                    <Text style={styles.upcomingLinkText}>누르면 진행 중인 대결로 이동해요</Text>
+                  {canOpenArena ? (
+                    <Text style={styles.upcomingLinkText}>누르면 바로 대결 보기로 이동해요</Text>
                   ) : null}
                 </View>
-                <Text style={styles.upcomingState}>{match.status === 'active' ? '진행 중' : '예약됨'}</Text>
+                <Text style={styles.upcomingState}>
+                  {match.status === 'active' ? '진행 중' : canOpenArena ? '곧 시작' : '예약됨'}
+                </Text>
               </Pressable>
             );
             })}

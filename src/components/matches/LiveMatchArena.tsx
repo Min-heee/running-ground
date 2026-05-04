@@ -336,8 +336,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    left: '4%',
-    width: '92%',
+    left: '2%',
+    width: '96%',
     borderRadius: 28,
     backgroundColor: '#101A31',
     borderWidth: 1,
@@ -347,17 +347,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: '36%',
+    width: '40%',
     borderRadius: 32,
     backgroundColor: 'rgba(9,17,34,0.45)',
     borderWidth: 1,
     borderColor: 'rgba(199,210,254,0.12)',
   },
   duelLaneLeft: {
-    left: '12%',
+    left: '10%',
   },
   duelLaneRight: {
-    right: '12%',
+    right: '10%',
   },
   duelShoulder: {
     position: 'absolute',
@@ -376,8 +376,8 @@ const styles = StyleSheet.create({
   duelCenterMarkingsWrap: {
     position: 'absolute',
     top: -ROAD_STRIPE_SPACING,
-    left: '33%',
-    right: '33%',
+    left: '30%',
+    right: '30%',
   },
   duelStripeRow: {
     height: ROAD_STRIPE_SPACING,
@@ -444,10 +444,10 @@ const styles = StyleSheet.create({
     marginLeft: -48,
   },
   duelRunnerLeft: {
-    left: '33%',
+    left: '30%',
   },
   duelRunnerRight: {
-    left: '67%',
+    left: '70%',
   },
   runnerBubble: {
     marginBottom: 8,

@@ -2742,13 +2742,18 @@ export function TrackRunExperience({
             {upcomingMatches.length ? (
               <View style={styles.upcomingMatchCard}>
                 <Text style={styles.upcomingMatchEyebrow}>다가오는 매치</Text>
-                {upcomingMatches.slice(0, 2).map((match) => (
+                {upcomingMatches.slice(0, 2).map((match) => {
+                  const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
+                  const canOpenArena = match.status === 'active'
+                    || (match.status === 'matched' && shouldAutoOpenMatchArena(remainingSeconds));
+
+                  return (
                   <Pressable
                     key={match.matchId}
                     style={styles.upcomingMatchRow}
-                    disabled={match.status !== 'active'}
+                    disabled={!canOpenArena}
                     onPress={() => {
-                      if (match.status !== 'active') {
+                      if (!canOpenArena) {
                         return;
                       }
 
@@ -2765,7 +2770,6 @@ export function TrackRunExperience({
                       </Text>
                       <Text style={styles.upcomingMatchMeta}>{match.counterpartLabel}</Text>
                       {(() => {
-                        const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
                         return shouldShowMatchCardCountdown(remainingSeconds) ? (
                           <View style={styles.upcomingMatchCountdownPill}>
                             <Text style={styles.upcomingMatchCountdownText}>시작까지 {formatMatchCountdown(remainingSeconds!)}</Text>
@@ -2788,13 +2792,16 @@ export function TrackRunExperience({
                           <Text style={styles.upcomingMatchHelperText}>출발 1시간 전부터는 취소할 수 없어요.</Text>
                         )
                       ) : null}
-                      {match.status === 'active' ? (
-                        <Text style={styles.upcomingMatchHelperText}>누르면 바로 진행 중인 대결 보기로 이동해요.</Text>
+                      {canOpenArena ? (
+                        <Text style={styles.upcomingMatchHelperText}>누르면 바로 대결 보기로 이동해요.</Text>
                       ) : null}
                     </View>
-                    <Text style={styles.upcomingMatchState}>{match.status === 'active' ? '진행 중' : '예약됨'}</Text>
+                    <Text style={styles.upcomingMatchState}>
+                      {match.status === 'active' ? '진행 중' : canOpenArena ? '곧 시작' : '예약됨'}
+                    </Text>
                   </Pressable>
-                ))}
+                );
+                })}
               </View>
             ) : null}
             <View style={styles.liveShareCard}>
