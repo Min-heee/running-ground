@@ -88,7 +88,7 @@ import {
 
 type TrackerStatus = 'idle' | 'running' | 'paused' | 'saving';
 type TrackRunMode = 'tab' | 'stack';
-type RunMatchMode = 'solo' | 'duel' | 'group';
+type RunMatchMode = 'solo' | 'duel' | 'group' | 'room';
 type GroupLiveStanding = GroupMatchParticipant & {
   rank: number;
   currentDistanceKm: number;
@@ -560,6 +560,7 @@ export function TrackRunExperience({
   const [isLoadingGroupDemandSummary, setIsLoadingGroupDemandSummary] = useState(false);
   const [groupMatchNotice, setGroupMatchNotice] = useState<string | null>(null);
   const [matchRoom, setMatchRoom] = useState<RunningMatchRoom | null>(null);
+  const [roomMatchMode, setRoomMatchMode] = useState<'duel' | 'group'>('duel');
   const [roomStartMode, setRoomStartMode] = useState<RoomStartMode>('scheduled');
   const [roomMaxParticipants, setRoomMaxParticipants] = useState('10');
   const [roomInviteTokenInput, setRoomInviteTokenInput] = useState('');
@@ -690,7 +691,6 @@ export function TrackRunExperience({
     () => [
       {
         mode: 'solo' as const,
-        label: '혼자',
         title: '혼자 러닝',
         summary: '기록에만 집중하는 기본 러닝 모드예요.',
         meta: '지금 페이스와 거리 흐름에만 집중',
@@ -700,7 +700,6 @@ export function TrackRunExperience({
       },
       {
         mode: 'duel' as const,
-        label: '1대1',
         title: '1대1 매치',
         summary: '비슷한 목표 러너 한 명과 바로 붙는 대결 모드예요.',
         meta: `${formatMatchTargetDistance(duelDistanceKm)} 기준 · 1시간 단위 주간 예약`,
@@ -710,7 +709,6 @@ export function TrackRunExperience({
       },
       {
         mode: 'group' as const,
-        label: '그룹',
         title: '그룹 대결',
         summary: '최대 30명까지 모아 순위 흐름을 보는 그룹전 모드예요.',
         meta: `${formatMatchTargetDistance(groupDistanceKm)} 기준 · 1시간 단위 주간 예약`,
@@ -718,8 +716,17 @@ export function TrackRunExperience({
         liveTitle: '그룹 대결 진행 중',
         liveText: '비슷한 러너들과 함께 뛰면서 내 순위를 보는 재미를 주는 모드예요.',
       },
+      {
+        mode: 'room' as const,
+        title: '방만들기',
+        summary: '친구 초대나 링크 공유로 직접 대결 방을 열 수 있어요.',
+        meta: `${roomMatchMode === 'duel' ? '1대1 방' : '그룹 방'} · ${roomStartMode === 'scheduled' ? '예약 시작' : '방장 시작'}`,
+        startLabel: '방 만들기',
+        liveTitle: '친구 방 대기 중',
+        liveText: '친구를 모아 직접 대결을 열고 시작할 수 있어요.',
+      },
     ],
-    [duelDistanceKm, groupDistanceKm],
+    [duelDistanceKm, groupDistanceKm, roomMatchMode, roomStartMode],
   );
 
   useEffect(() => {
@@ -1048,6 +1055,7 @@ export function TrackRunExperience({
   const isSaving = status === 'saving';
   const isIdle = status === 'idle';
   const isTabMode = mode === 'tab';
+  const hasMatchResultPage = isPaused && matchMode !== 'solo' && Boolean(trackedMatchResult);
   const liveArenaPageWidth = Math.max(windowWidth - 32, 280);
   const currentUserLivePace = currentPace !== '--:--/km' ? currentPace : averagePace;
   const duelArenaParticipants = useMemo(
@@ -1106,6 +1114,7 @@ export function TrackRunExperience({
     canRenderLiveArena
     && (
       isRunning
+      || hasMatchResultPage
       || forceOpenActiveMatch
       || (status === 'idle' && (
         (matchMode === 'duel' && isDuelTestFlow)
@@ -1155,6 +1164,99 @@ export function TrackRunExperience({
     : '지금은 먼저 대기열에 들어간 상태예요. 잘 맞는 상대가 잡히면 자동으로 매치가 확정돼요.';
   const backHref: Href = '/my-activity';
   const discardRedirectHref: Href | null = isTabMode ? null : '/my-activity';
+
+  const duelResultRows = useMemo(() => {
+    if (matchMode !== 'duel' || !effectiveDuelOpponent || !duelFinishSummary) {
+      return [];
+    }
+
+    const meWon = duelFinishSummary.resultTone === 'win';
+    const isDraw = duelFinishSummary.resultTone === 'draw';
+    const opponentDistanceKm = duelFinishSummary.opponentDistanceKm;
+    const opponentElapsedSeconds = effectiveDuelOpponent.liveElapsedSeconds ?? elapsedSeconds;
+    const opponentPace = effectiveDuelOpponent.livePace ?? effectiveDuelOpponent.averagePace;
+
+    if (isDraw) {
+      return [
+        {
+          id: 'me',
+          resultLabel: 'DRAW',
+          name: '나',
+          paceLabel: currentUserLivePace,
+          durationLabel: formatDuration(elapsedSeconds),
+          distanceKm,
+          isCurrentUser: true,
+        },
+        {
+          id: effectiveDuelOpponent.id,
+          resultLabel: 'DRAW',
+          name: effectiveDuelOpponent.name,
+          paceLabel: opponentPace,
+          durationLabel: formatDuration(opponentElapsedSeconds),
+          distanceKm: opponentDistanceKm,
+          isCurrentUser: false,
+        },
+      ];
+    }
+
+    return [
+      {
+        id: meWon ? 'me' : effectiveDuelOpponent.id,
+        resultLabel: 'WIN',
+        name: meWon ? '나' : effectiveDuelOpponent.name,
+        paceLabel: meWon ? currentUserLivePace : opponentPace,
+        durationLabel: formatDuration(meWon ? elapsedSeconds : opponentElapsedSeconds),
+        distanceKm: meWon ? distanceKm : opponentDistanceKm,
+        isCurrentUser: meWon,
+      },
+      {
+        id: meWon ? effectiveDuelOpponent.id : 'me',
+        resultLabel: 'LOSER',
+        name: meWon ? effectiveDuelOpponent.name : '나',
+        paceLabel: meWon ? opponentPace : currentUserLivePace,
+        durationLabel: formatDuration(meWon ? opponentElapsedSeconds : elapsedSeconds),
+        distanceKm: meWon ? opponentDistanceKm : distanceKm,
+        isCurrentUser: !meWon,
+      },
+    ];
+  }, [
+    averagePace,
+    currentUserLivePace,
+    distanceKm,
+    duelFinishSummary,
+    elapsedSeconds,
+    effectiveDuelOpponent,
+    matchMode,
+  ]);
+
+  const groupResultRows = useMemo(
+    () => groupLiveStandings.map((participant) => ({
+      id: participant.id,
+      rank: participant.rank,
+      name: participant.isCurrentUser ? '나' : participant.name,
+      paceLabel: participant.livePace ?? participant.averagePace,
+      durationLabel: formatDuration(participant.liveElapsedSeconds ?? elapsedSeconds),
+      distanceKm: participant.currentDistanceKm,
+      isCurrentUser: participant.isCurrentUser,
+      liveStatus: participant.liveStatus,
+    })),
+    [elapsedSeconds, groupLiveStandings],
+  );
+
+  const groupResultStatusLabel = useMemo(() => {
+    if (!groupResultRows.length) {
+      return null;
+    }
+
+    const hasOngoingParticipants = groupResultRows.some((participant) => (
+      !['finished', 'forfeited', 'disconnected'].includes(participant.liveStatus ?? '')
+      && participant.distanceKm < Math.max(0, groupDistanceKm - 0.01)
+    ));
+
+    return hasOngoingParticipants
+      ? '진행중 · 들어오는 대로 순위가 계속 업데이트돼요.'
+      : '결과 확정 · 모든 참가자 기록이 정리됐어요.';
+  }, [groupDistanceKm, groupResultRows]);
 
   const pushRunningMatchProgress = async (input: UpdateRunningMatchProgressInput) => {
     const nextStatus = await updateRunningMatchProgress({
@@ -1463,22 +1565,19 @@ export function TrackRunExperience({
   };
 
   const handleCreateMatchRoom = async () => {
-    if (matchMode !== 'duel' && matchMode !== 'group') {
-      return;
-    }
-
     setIsCreatingMatchRoom(true);
     setError(null);
 
     try {
+      const nextRoomMode = roomMatchMode;
       const payload = await createRunningMatchRoom({
-        mode: matchMode,
-        distanceKm: matchMode === 'duel' ? duelDistanceKm : groupDistanceKm,
+        mode: nextRoomMode,
+        distanceKm: nextRoomMode === 'duel' ? duelDistanceKm : groupDistanceKm,
         startMode: roomStartMode,
         ...(roomStartMode === 'scheduled'
-          ? { slotStartAt: matchMode === 'duel' ? activeDuelSlotStartAt : activeGroupSlotStartAt }
+          ? { slotStartAt: nextRoomMode === 'duel' ? activeDuelSlotStartAt : activeGroupSlotStartAt }
           : {}),
-        ...(matchMode === 'group' ? { maxParticipants: Number(roomMaxParticipants) || 10 } : {}),
+        ...(nextRoomMode === 'group' ? { maxParticipants: Number(roomMaxParticipants) || 10 } : {}),
         invitedFriendIds: selectedRoomFriendIds,
       });
       setMatchRoom(payload.room);
@@ -1783,6 +1882,15 @@ export function TrackRunExperience({
       livePagerRef.current?.scrollTo({ x: 0, animated: false });
     }
   }, [duelMatchState, groupMatchState]);
+
+  useEffect(() => {
+    if (!hasMatchResultPage) {
+      return;
+    }
+
+    setLiveArenaPage(3);
+    livePagerRef.current?.scrollTo({ x: liveArenaPageWidth * 3, animated: true });
+  }, [hasMatchResultPage, liveArenaPageWidth]);
 
   useEffect(() => {
     if (!isIdle || !nextStartingMatch || !shouldAutoOpenMatchArena(nextStartingMatch.remainingSeconds)) {
@@ -2931,6 +3039,101 @@ export function TrackRunExperience({
     return null;
   };
 
+  const renderMatchResultPage = () => {
+    if (matchMode === 'duel' && duelResultRows.length) {
+      return (
+        <Card style={styles.matchResultCard}>
+          <View style={styles.matchResultHeader}>
+            <View style={styles.matchResultHeaderCopy}>
+              <Text style={styles.matchResultEyebrow}>DUEL RESULT</Text>
+              <Text style={styles.matchResultTitle}>1대1 대결 결과</Text>
+              <Text style={styles.matchResultSubtitle}>먼저 들어온 러너가 위에 정렬돼요.</Text>
+            </View>
+            <View style={styles.finishSummaryPointPill}>
+              <Text style={styles.finishSummaryPointPillText}>매치 포인트 +{estimatedMatchBonusPoints}P</Text>
+            </View>
+          </View>
+          <View style={styles.matchResultList}>
+            {duelResultRows.map((row) => (
+              <View
+                key={row.id}
+                style={[
+                  styles.matchResultRow,
+                  row.resultLabel === 'WIN'
+                    ? styles.matchResultRowWin
+                    : row.resultLabel === 'LOSER'
+                      ? styles.matchResultRowLose
+                      : styles.matchResultRowDraw,
+                ]}
+              >
+                <View style={styles.matchResultLabelColumn}>
+                  <Text style={styles.matchResultLabel}>{row.resultLabel}</Text>
+                </View>
+                <View style={styles.matchResultCopy}>
+                  <Text style={styles.matchResultName}>
+                    {row.name}
+                    {row.isCurrentUser ? ' (나)' : ''}
+                  </Text>
+                  <Text style={styles.matchResultMeta}>
+                    페이스 {row.paceLabel} · 시간 {row.durationLabel}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </Card>
+      );
+    }
+
+    if (matchMode === 'group' && groupResultRows.length) {
+      return (
+        <Card style={styles.matchResultCard}>
+          <View style={styles.matchResultHeader}>
+            <View style={styles.matchResultHeaderCopy}>
+              <Text style={styles.matchResultEyebrow}>GROUP RESULT</Text>
+              <Text style={styles.matchResultTitle}>그룹 대결 순위표</Text>
+              <Text style={styles.matchResultSubtitle}>들어오는 기록 순서대로 계속 업데이트돼요.</Text>
+            </View>
+            <View style={styles.finishSummaryPointPill}>
+              <Text style={styles.finishSummaryPointPillText}>매치 포인트 +{estimatedMatchBonusPoints}P</Text>
+            </View>
+          </View>
+          <View style={styles.matchResultList}>
+            {groupResultRows.map((row) => (
+              <View
+                key={row.id}
+                style={[styles.groupResultRow, row.isCurrentUser ? styles.groupResultRowCurrent : undefined]}
+              >
+                <Text style={styles.groupResultRank}>{row.rank}등</Text>
+                <View style={styles.groupResultCopy}>
+                  <Text style={styles.groupResultName}>
+                    {row.name}
+                    {row.isCurrentUser ? ' (나)' : ''}
+                  </Text>
+                  <Text style={styles.groupResultMeta}>
+                    페이스 {row.paceLabel} · 시간 {row.durationLabel}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+          {groupResultStatusLabel ? (
+            <View style={styles.matchResultStatusPill}>
+              <Text style={styles.matchResultStatusText}>{groupResultStatusLabel}</Text>
+            </View>
+          ) : null}
+        </Card>
+      );
+    }
+
+    return (
+      <Card style={styles.matchResultCard}>
+        <Text style={styles.matchResultTitle}>결과를 정리하는 중이에요</Text>
+        <Text style={styles.matchResultSubtitle}>조금만 더 지나면 여기서 바로 결과를 볼 수 있어요.</Text>
+      </Card>
+    );
+  };
+
   const renderRunningStatsBoard = (includeMatchCards: boolean) => (
     <>
       {includeMatchCards && matchMode !== 'solo' ? (
@@ -3235,200 +3438,13 @@ export function TrackRunExperience({
                 })}
               </View>
             ) : null}
-            <View style={styles.roomCard}>
-              <View style={styles.roomHeader}>
-                <View>
-                  <Text style={styles.roomEyebrow}>친구 방</Text>
-                  <Text style={styles.roomTitle}>친구 초대나 링크 공유로 직접 대결을 열 수 있어요</Text>
-                </View>
-                <View style={styles.roomBadge}>
-                  <Text style={styles.roomBadgeText}>NEW</Text>
-                </View>
-              </View>
-              {matchRoom ? (
-                <View style={styles.roomLobby}>
-                  <Text style={styles.roomLobbyTitle}>
-                    {matchRoom.mode === 'duel' ? '1대1 방' : '그룹 방'} · {matchRoom.distanceKm.toFixed(1)}km
-                  </Text>
-                  <Text style={styles.roomLobbyMeta}>
-                    {matchRoom.startMode === 'host'
-                      ? (matchRoom.linkedMatchSlotStartAt
-                        ? `방장 시작 · ${buildMatchSlotDateLabel(matchRoom.linkedMatchSlotStartAt)} ${matchRoom.slotLabel}`
-                        : '방장 시작 대기 중')
-                      : `${buildMatchSlotDateLabel(matchRoom.slotStartAt)} ${matchRoom.slotLabel} 예약`}
-                  </Text>
-                  <Text style={styles.roomLobbyMeta}>
-                    {matchRoom.hostName}님 방장 · {roomParticipantsCount}/{matchRoom.maxParticipants}명 참여
-                  </Text>
-                  <Text style={styles.roomLobbyMeta}>
-                    초대 코드 {matchRoom.inviteToken}
-                  </Text>
-                  {matchRoom.linkedMatchSlotStartAt && shouldShowMatchCardCountdown(roomCountdownRemainingSeconds) ? (
-                    <View style={styles.upcomingMatchCountdownPill}>
-                      <Text style={styles.upcomingMatchCountdownText}>시작까지 {formatMatchCountdown(roomCountdownRemainingSeconds!)}</Text>
-                    </View>
-                  ) : null}
-                  <View style={styles.roomParticipantRow}>
-                    {matchRoom.participants.map((participant) => (
-                      <View key={participant.userId} style={styles.roomParticipantChip}>
-                        <Text style={styles.roomParticipantChipText}>
-                          {participant.isHost ? '방장 · ' : ''}{participant.name}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                  {!matchRoom.joined && !matchRoom.isHost ? (
-                    <PrimaryButton
-                      label={isJoiningMatchRoom ? '참가 중...' : '이 방 참가하기'}
-                      onPress={() => {
-                        setRoomInviteTokenInput(matchRoom.inviteToken);
-                        void handleJoinMatchRoom();
-                      }}
-                      disabled={isJoiningMatchRoom}
-                    />
-                  ) : null}
-                  {matchRoom.isHost && matchRoom.startMode === 'host' && matchRoom.canStart ? (
-                    <PrimaryButton
-                      label={isStartingMatchRoom ? '시작 준비 중...' : '방장 시작'}
-                      onPress={() => {
-                        void handleStartHostMatchRoom();
-                      }}
-                      disabled={isStartingMatchRoom}
-                    />
-                  ) : null}
-                  {canOpenRoomArena ? (
-                    <SecondaryButton
-                      label="대결로 이동"
-                      onPress={() => {
-                        if (!matchRoom) {
-                          return;
-                        }
-                        void openRoomLinkedMatch(matchRoom);
-                      }}
-                    />
-                  ) : null}
-                  <View style={styles.roomActionRow}>
-                    <Pressable style={styles.roomActionButton} onPress={() => { void handleShareMatchRoom(); }}>
-                      <Text style={styles.roomActionButtonText}>링크 공유</Text>
-                    </Pressable>
-                    {!matchRoom.linkedMatchId ? (
-                      <Pressable
-                        style={styles.roomActionButton}
-                        onPress={() => {
-                          void handleLeaveMatchRoom();
-                        }}
-                      >
-                        <Text style={styles.roomActionButtonText}>
-                          {isLeavingMatchRoom ? '나가는 중...' : (matchRoom.isHost ? '방 닫기' : '방 나가기')}
-                        </Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-              ) : (
-                <>
-                  <View style={styles.roomModeRow}>
-                    {([
-                      { key: 'scheduled' as const, label: '예약 시작' },
-                      { key: 'host' as const, label: '방장 시작' },
-                    ]).map((option) => {
-                      const isSelected = roomStartMode === option.key;
-
-                      return (
-                        <Pressable
-                          key={option.key}
-                          style={[styles.roomModeChip, isSelected ? styles.roomModeChipSelected : undefined]}
-                          onPress={() => setRoomStartMode(option.key)}
-                        >
-                          <Text style={[styles.roomModeChipText, isSelected ? styles.roomModeChipTextSelected : undefined]}>
-                            {option.label}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                  <Text style={styles.roomHelperText}>
-                    {roomStartMode === 'scheduled'
-                      ? '선택한 날짜와 시간에 30초 카운트다운 후 시작돼요.'
-                      : '참가자가 모이면 방장이 직접 30초 카운트다운을 시작할 수 있어요.'}
-                  </Text>
-                  {matchMode === 'group' ? (
-                    <TextInput
-                      value={roomMaxParticipants}
-                      onChangeText={setRoomMaxParticipants}
-                      placeholder="최대 인원 예: 10, 20, 30"
-                      placeholderTextColor="#98A2B3"
-                      keyboardType="number-pad"
-                      style={styles.roomInput}
-                    />
-                  ) : null}
-                  {roomFriendOptions.length ? (
-                    <View style={styles.roomFriendSelector}>
-                      <Text style={styles.roomPickerTitle}>친구 초대</Text>
-                      <View style={styles.roomFriendChipWrap}>
-                        {roomFriendOptions.map((friend) => {
-                          const isSelected = selectedRoomFriendIds.includes(friend.id);
-                          return (
-                            <Pressable
-                              key={friend.id}
-                              style={[styles.roomFriendChip, isSelected ? styles.roomFriendChipSelected : undefined]}
-                              onPress={() => {
-                                setSelectedRoomFriendIds((current) => (
-                                  current.includes(friend.id)
-                                    ? current.filter((id) => id !== friend.id)
-                                    : [...current, friend.id].slice(
-                                        0,
-                                        matchMode === 'duel'
-                                          ? 1
-                                          : Math.max(1, (Number(roomMaxParticipants) || 10) - 1),
-                                      )
-                                ));
-                              }}
-                            >
-                              <Text style={[styles.roomFriendChipText, isSelected ? styles.roomFriendChipTextSelected : undefined]}>
-                                {friend.name}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                    </View>
-                  ) : null}
-                  <PrimaryButton
-                    label={isCreatingMatchRoom ? '방 만드는 중...' : `${matchMode === 'duel' ? '1대1' : '그룹'} 방 만들기`}
-                    onPress={() => {
-                      void handleCreateMatchRoom();
-                    }}
-                    disabled={isCreatingMatchRoom || matchMode === 'solo'}
-                  />
-                  <View style={styles.roomJoinBox}>
-                    <Text style={styles.roomPickerTitle}>초대 코드로 입장</Text>
-                    <TextInput
-                      value={roomInviteTokenInput}
-                      onChangeText={setRoomInviteTokenInput}
-                      placeholder="예: AB12CD"
-                      placeholderTextColor="#98A2B3"
-                      autoCapitalize="characters"
-                      style={styles.roomInput}
-                    />
-                    <SecondaryButton
-                      label={isJoiningMatchRoom ? '입장 중...' : '방 입장'}
-                      onPress={() => {
-                        void handleJoinMatchRoom();
-                      }}
-                      disabled={isJoiningMatchRoom}
-                    />
-                  </View>
-                </>
-              )}
-            </View>
             <View style={styles.matchCard}>
               <View style={styles.matchHeader}>
                 <View style={styles.matchHeaderCopy}>
                   <Text style={styles.matchTitle}>경쟁 매칭</Text>
                 </View>
                 <View style={styles.matchBadge}>
-                  <Text style={styles.matchBadgeText}>{selectedMatch.label}</Text>
+                  <Text style={styles.matchBadgeText}>{selectedMatch.title}</Text>
                 </View>
               </View>
               <View style={styles.matchOptionRow}>
@@ -3441,9 +3457,6 @@ export function TrackRunExperience({
                       style={[styles.matchOption, isSelected ? styles.matchOptionSelected : styles.matchOptionIdle]}
                       onPress={() => setMatchMode(option.mode)}
                       >
-                        <Text style={[styles.matchOptionLabel, isSelected ? styles.matchOptionLabelSelected : undefined]}>
-                          {option.label}
-                        </Text>
                         <Text style={[styles.matchOptionTitle, isSelected ? styles.matchOptionTitleSelected : undefined]}>
                           {option.title}
                         </Text>
@@ -3451,6 +3464,214 @@ export function TrackRunExperience({
                     );
                   })}
               </View>
+              {matchMode === 'room' ? (
+                <View style={styles.roomCard}>
+                  <View style={styles.roomHeader}>
+                    <View>
+                      <Text style={styles.roomTitle}>친구 초대나 링크 공유로 직접 대결을 열 수 있어요</Text>
+                    </View>
+                    <View style={styles.roomBadge}>
+                      <Text style={styles.roomBadgeText}>NEW</Text>
+                    </View>
+                  </View>
+                  {matchRoom ? (
+                    <View style={styles.roomLobby}>
+                      <Text style={styles.roomLobbyTitle}>
+                        {matchRoom.mode === 'duel' ? '1대1 방' : '그룹 방'} · {matchRoom.distanceKm.toFixed(1)}km
+                      </Text>
+                      <Text style={styles.roomLobbyMeta}>
+                        {matchRoom.startMode === 'host'
+                          ? (matchRoom.linkedMatchSlotStartAt
+                            ? `방장 시작 · ${buildMatchSlotDateLabel(matchRoom.linkedMatchSlotStartAt)} ${matchRoom.slotLabel}`
+                            : '방장 시작 대기 중')
+                          : `${buildMatchSlotDateLabel(matchRoom.slotStartAt)} ${matchRoom.slotLabel} 예약`}
+                      </Text>
+                      <Text style={styles.roomLobbyMeta}>
+                        {matchRoom.hostName}님 방장 · {roomParticipantsCount}/{matchRoom.maxParticipants}명 참여
+                      </Text>
+                      <Text style={styles.roomLobbyMeta}>
+                        초대 코드 {matchRoom.inviteToken}
+                      </Text>
+                      {matchRoom.linkedMatchSlotStartAt && shouldShowMatchCardCountdown(roomCountdownRemainingSeconds) ? (
+                        <View style={styles.upcomingMatchCountdownPill}>
+                          <Text style={styles.upcomingMatchCountdownText}>시작까지 {formatMatchCountdown(roomCountdownRemainingSeconds!)}</Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.roomParticipantRow}>
+                        {matchRoom.participants.map((participant) => (
+                          <View key={participant.userId} style={styles.roomParticipantChip}>
+                            <Text style={styles.roomParticipantChipText}>
+                              {participant.isHost ? '방장 · ' : ''}{participant.name}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                      {!matchRoom.joined && !matchRoom.isHost ? (
+                        <PrimaryButton
+                          label={isJoiningMatchRoom ? '참가 중...' : '이 방 참가하기'}
+                          onPress={() => {
+                            setRoomInviteTokenInput(matchRoom.inviteToken);
+                            void handleJoinMatchRoom();
+                          }}
+                          disabled={isJoiningMatchRoom}
+                        />
+                      ) : null}
+                      {matchRoom.isHost && matchRoom.startMode === 'host' && matchRoom.canStart ? (
+                        <PrimaryButton
+                          label={isStartingMatchRoom ? '시작 준비 중...' : '방장 시작'}
+                          onPress={() => {
+                            void handleStartHostMatchRoom();
+                          }}
+                          disabled={isStartingMatchRoom}
+                        />
+                      ) : null}
+                      {canOpenRoomArena ? (
+                        <SecondaryButton
+                          label="대결로 이동"
+                          onPress={() => {
+                            if (!matchRoom) {
+                              return;
+                            }
+                            void openRoomLinkedMatch(matchRoom);
+                          }}
+                        />
+                      ) : null}
+                      <View style={styles.roomActionRow}>
+                        <Pressable style={styles.roomActionButton} onPress={() => { void handleShareMatchRoom(); }}>
+                          <Text style={styles.roomActionButtonText}>링크 공유</Text>
+                        </Pressable>
+                        {!matchRoom.linkedMatchId ? (
+                          <Pressable
+                            style={styles.roomActionButton}
+                            onPress={() => {
+                              void handleLeaveMatchRoom();
+                            }}
+                          >
+                            <Text style={styles.roomActionButtonText}>
+                              {isLeavingMatchRoom ? '나가는 중...' : (matchRoom.isHost ? '방 닫기' : '방 나가기')}
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.roomModeRow}>
+                        {([
+                          { key: 'duel' as const, label: '1대1 방' },
+                          { key: 'group' as const, label: '그룹 방' },
+                        ]).map((option) => {
+                          const isSelected = roomMatchMode === option.key;
+
+                          return (
+                            <Pressable
+                              key={option.key}
+                              style={[styles.roomModeChip, isSelected ? styles.roomModeChipSelected : undefined]}
+                              onPress={() => setRoomMatchMode(option.key)}
+                            >
+                              <Text style={[styles.roomModeChipText, isSelected ? styles.roomModeChipTextSelected : undefined]}>
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      <View style={styles.roomModeRow}>
+                        {([
+                          { key: 'scheduled' as const, label: '예약 시작' },
+                          { key: 'host' as const, label: '방장 시작' },
+                        ]).map((option) => {
+                          const isSelected = roomStartMode === option.key;
+
+                          return (
+                            <Pressable
+                              key={option.key}
+                              style={[styles.roomModeChip, isSelected ? styles.roomModeChipSelected : undefined]}
+                              onPress={() => setRoomStartMode(option.key)}
+                            >
+                              <Text style={[styles.roomModeChipText, isSelected ? styles.roomModeChipTextSelected : undefined]}>
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                      <Text style={styles.roomHelperText}>
+                        {roomStartMode === 'scheduled'
+                          ? '선택한 날짜와 시간에 30초 카운트다운 후 시작돼요.'
+                          : '참가자가 모이면 방장이 직접 30초 카운트다운을 시작할 수 있어요.'}
+                      </Text>
+                      {roomMatchMode === 'group' ? (
+                        <TextInput
+                          value={roomMaxParticipants}
+                          onChangeText={setRoomMaxParticipants}
+                          placeholder="최대 인원 예: 10, 20, 30"
+                          placeholderTextColor="#98A2B3"
+                          keyboardType="number-pad"
+                          style={styles.roomInput}
+                        />
+                      ) : null}
+                      {roomFriendOptions.length ? (
+                        <View style={styles.roomFriendSelector}>
+                          <Text style={styles.roomPickerTitle}>친구 초대</Text>
+                          <View style={styles.roomFriendChipWrap}>
+                            {roomFriendOptions.map((friend) => {
+                              const isSelected = selectedRoomFriendIds.includes(friend.id);
+                              return (
+                                <Pressable
+                                  key={friend.id}
+                                  style={[styles.roomFriendChip, isSelected ? styles.roomFriendChipSelected : undefined]}
+                                  onPress={() => {
+                                    setSelectedRoomFriendIds((current) => (
+                                      current.includes(friend.id)
+                                        ? current.filter((id) => id !== friend.id)
+                                        : [...current, friend.id].slice(
+                                            0,
+                                            roomMatchMode === 'duel'
+                                              ? 1
+                                              : Math.max(1, (Number(roomMaxParticipants) || 10) - 1),
+                                          )
+                                    ));
+                                  }}
+                                >
+                                  <Text style={[styles.roomFriendChipText, isSelected ? styles.roomFriendChipTextSelected : undefined]}>
+                                    {friend.name}
+                                  </Text>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      ) : null}
+                      <PrimaryButton
+                        label={isCreatingMatchRoom ? '방 만드는 중...' : `${roomMatchMode === 'duel' ? '1대1' : '그룹'} 방 만들기`}
+                        onPress={() => {
+                          void handleCreateMatchRoom();
+                        }}
+                        disabled={isCreatingMatchRoom}
+                      />
+                      <View style={styles.roomJoinBox}>
+                        <Text style={styles.roomPickerTitle}>초대 코드로 입장</Text>
+                        <TextInput
+                          value={roomInviteTokenInput}
+                          onChangeText={setRoomInviteTokenInput}
+                          placeholder="예: AB12CD"
+                          placeholderTextColor="#98A2B3"
+                          autoCapitalize="characters"
+                          style={styles.roomInput}
+                        />
+                        <SecondaryButton
+                          label={isJoiningMatchRoom ? '입장 중...' : '방 입장'}
+                          onPress={() => {
+                            void handleJoinMatchRoom();
+                          }}
+                          disabled={isJoiningMatchRoom}
+                        />
+                      </View>
+                    </>
+                  )}
+                </View>
+              ) : null}
               {matchMode === 'duel' ? (
                 <View style={styles.duelSetupCard}>
                   <View style={styles.duelSection}>
@@ -4006,6 +4227,19 @@ export function TrackRunExperience({
                     기록 보기
                   </Text>
                 </Pressable>
+                {hasMatchResultPage ? (
+                  <Pressable
+                    style={[styles.livePagerTab, liveArenaPage === 3 ? styles.livePagerTabSelected : undefined]}
+                    onPress={() => {
+                      livePagerRef.current?.scrollTo({ x: liveArenaPageWidth * 3, animated: true });
+                      setLiveArenaPage(3);
+                    }}
+                  >
+                    <Text style={[styles.livePagerTabText, liveArenaPage === 3 ? styles.livePagerTabTextSelected : undefined]}>
+                      결과 보기
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
               <ScrollView
                 ref={livePagerRef}
@@ -4026,8 +4260,17 @@ export function TrackRunExperience({
                 <View style={[styles.livePagerPage, { width: liveArenaPageWidth }]}>
                   {renderRunningStatsBoard(false)}
                 </View>
+                {hasMatchResultPage ? (
+                  <View style={[styles.livePagerPage, { width: liveArenaPageWidth }]}>
+                    {renderMatchResultPage()}
+                  </View>
+                ) : null}
               </ScrollView>
-              <Text style={styles.livePagerHint}>옆으로 넘기면 순위와 기록 화면을 볼 수 있어요.</Text>
+              <Text style={styles.livePagerHint}>
+                {hasMatchResultPage
+                  ? '옆으로 넘기면 순위, 기록, 결과 화면을 볼 수 있어요.'
+                  : '옆으로 넘기면 순위와 기록 화면을 볼 수 있어요.'}
+              </Text>
             </View>
           ) : (
             renderRunningStatsBoard(true)
@@ -4047,72 +4290,6 @@ export function TrackRunExperience({
 
           {isPaused ? (
             <>
-              {matchMode === 'duel' && effectiveDuelOpponent && duelFinishSummary ? (
-                <Card style={styles.finishSummaryCard}>
-                  <View style={styles.finishSummaryHeader}>
-                    <View style={styles.finishSummaryCopy}>
-                      <Text style={styles.finishSummaryEyebrow}>1대1 대결 결과</Text>
-                      <Text style={styles.finishSummaryTitle}>{duelFinishSummary.title}</Text>
-                      <Text style={styles.finishSummaryText}>{duelFinishSummary.summary}</Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.finishSummaryBadge,
-                        duelFinishSummary.resultTone === 'win'
-                          ? styles.finishSummaryBadgeWin
-                          : duelFinishSummary.resultTone === 'lose'
-                            ? styles.finishSummaryBadgeLose
-                            : styles.finishSummaryBadgeDraw,
-                      ]}
-                    >
-                      <Text style={styles.finishSummaryBadgeText}>
-                        {duelFinishSummary.badgeLabel}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.finishSummaryMeta}>
-                    내 거리 {distanceKm.toFixed(2)}km · {effectiveDuelOpponent.name}님 추정 {duelFinishSummary.opponentDistanceKm.toFixed(2)}km
-                  </Text>
-                  <View style={styles.finishSummaryPointPill}>
-                    <Text style={styles.finishSummaryPointPillText}>매치 포인트 +{estimatedMatchBonusPoints}P</Text>
-                  </View>
-                </Card>
-              ) : null}
-
-              {matchMode === 'group' && groupFinishSummary ? (
-                <Card style={styles.finishSummaryCard}>
-                  <View style={styles.finishSummaryHeader}>
-                    <View style={styles.finishSummaryCopy}>
-                      <Text style={styles.finishSummaryEyebrow}>그룹 대결 결과</Text>
-                      <Text style={styles.finishSummaryTitle}>{groupFinishSummary.title}</Text>
-                      <Text style={styles.finishSummaryText}>{groupFinishSummary.summary}</Text>
-                    </View>
-                    <View style={styles.finishSummaryBadge}>
-                      <Text style={styles.finishSummaryBadgeText}>
-                        {currentGroupStanding?.rank ?? 1}/{effectiveGroupParticipantCount}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.finishSummaryPointPill}>
-                    <Text style={styles.finishSummaryPointPillText}>매치 포인트 +{estimatedMatchBonusPoints}P</Text>
-                  </View>
-                  <View style={styles.finishSummaryPodium}>
-                    {groupFinishSummary.podium.map((participant) => (
-                      <View key={participant.id} style={styles.finishSummaryPodiumRow}>
-                        <Text style={styles.finishSummaryPodiumRank}>{participant.rank}</Text>
-                        <View style={styles.finishSummaryPodiumCopy}>
-                          <Text style={styles.finishSummaryPodiumName}>
-                            {participant.name}
-                            {participant.isCurrentUser ? ' (나)' : ''}
-                          </Text>
-                          <Text style={styles.finishSummaryPodiumMeta}>{participant.currentDistanceKm.toFixed(2)}km · {participant.averagePace}</Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                </Card>
-              ) : null}
-
               <View style={styles.actionColumn}>
                 <PrimaryButton label="이 기록 저장하기" onPress={handleSaveTracking} />
                 <SecondaryButton label="측정 다시 시작" onPress={handleResumeTracking} />
@@ -5145,6 +5322,129 @@ const styles = StyleSheet.create({
     color: '#667085',
     fontSize: 12,
     fontWeight: '600',
+  },
+  matchResultCard: {
+    gap: 16,
+    padding: 18,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#312E81',
+    backgroundColor: '#111827',
+  },
+  matchResultHeader: {
+    gap: 12,
+  },
+  matchResultHeaderCopy: {
+    gap: 4,
+  },
+  matchResultEyebrow: {
+    color: '#C7D2FE',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  matchResultTitle: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  matchResultSubtitle: {
+    color: '#D0D5DD',
+    lineHeight: 20,
+  },
+  matchResultList: {
+    gap: 10,
+  },
+  matchResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+  },
+  matchResultRowWin: {
+    borderColor: 'rgba(129, 140, 248, 0.42)',
+    backgroundColor: 'rgba(67, 56, 202, 0.24)',
+  },
+  matchResultRowLose: {
+    borderColor: 'rgba(244, 114, 182, 0.28)',
+    backgroundColor: 'rgba(136, 19, 55, 0.22)',
+  },
+  matchResultRowDraw: {
+    borderColor: 'rgba(148, 163, 184, 0.32)',
+    backgroundColor: 'rgba(30, 41, 59, 0.72)',
+  },
+  matchResultLabelColumn: {
+    minWidth: 54,
+  },
+  matchResultLabel: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  matchResultCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  matchResultName: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  matchResultMeta: {
+    color: '#E5E7EB',
+    lineHeight: 19,
+  },
+  groupResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#0F172A',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  groupResultRowCurrent: {
+    borderColor: 'rgba(129, 140, 248, 0.48)',
+    backgroundColor: 'rgba(67, 56, 202, 0.18)',
+  },
+  groupResultRank: {
+    width: 34,
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  groupResultCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  groupResultName: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  groupResultMeta: {
+    color: '#D0D5DD',
+    lineHeight: 19,
+  },
+  matchResultStatusPill: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(129, 140, 248, 0.28)',
+    backgroundColor: 'rgba(79, 70, 229, 0.18)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  matchResultStatusText: {
+    color: '#E0E7FF',
+    fontSize: 12,
+    fontWeight: '800',
   },
   plannerCard: {
     gap: 16,

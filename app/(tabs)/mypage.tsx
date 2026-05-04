@@ -6,14 +6,16 @@ import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { fetchIntegrationStatus, fetchMyProfile } from '@/lib/api/services';
-import { IntegrationStatusResponse, MyProfileResponse } from '@/lib/api/types';
+import { fetchIntegrationStatus, fetchMyActivity, fetchMyProfile } from '@/lib/api/services';
+import { IntegrationStatusResponse, MyActivityResponse, MyProfileResponse } from '@/lib/api/types';
 import { deleteAccount, signOut } from '@/lib/session';
 
 export default function MyPageScreen() {
   const universityVerificationHref = '/university-verification' as Href;
+  const matchRecordHref = '/match-record' as Href;
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
+  const [activity, setActivity] = useState<MyActivityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [tagShared, setTagShared] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
@@ -24,14 +26,19 @@ export default function MyPageScreen() {
 
   useEffect(() => {
     setError(null);
-    Promise.all([fetchMyProfile(), fetchIntegrationStatus()])
-      .then(([profileData, integrationData]) => {
+    Promise.all([fetchMyProfile(), fetchIntegrationStatus(), fetchMyActivity()])
+      .then(([profileData, integrationData, activityData]) => {
         setProfile(profileData);
         setIntegrationStatus(integrationData);
+        setActivity(activityData);
       })
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '마이페이지 정보를 불러오지 못했어요.'))
       .finally(() => setLoading(false));
   }, []);
+
+  const matchRuns = activity?.runs.filter((run) => run.matchResult) ?? [];
+  const duelMatchRuns = matchRuns.filter((run) => run.matchResult?.mode === 'duel');
+  const groupMatchRuns = matchRuns.filter((run) => run.matchResult?.mode === 'group');
 
   const handleShareTag = () => {
     setTagShared(true);
@@ -132,6 +139,21 @@ export default function MyPageScreen() {
           </Link>
 
           <IntegrationStatus sources={integrationStatus.sources} />
+
+          <Link href={matchRecordHref} asChild>
+            <Pressable>
+              <Card style={styles.matchRecordCard}>
+                <View style={styles.sectionHeaderRow}>
+                  <SectionTitle>전적 보기</SectionTitle>
+                  <Text style={styles.sectionLink}>열기</Text>
+                </View>
+                <Text style={styles.matchRecordHeadline}>{matchRuns.length}번 대결했어요</Text>
+                <Text style={styles.matchRecordHint}>
+                  1대1 {duelMatchRuns.length}전 · 그룹 {groupMatchRuns.length}전
+                </Text>
+              </Card>
+            </Pressable>
+          </Link>
 
           <Card style={styles.settingsCard}>
             <View style={styles.sectionHeaderRow}>
@@ -253,6 +275,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#667085',
     fontWeight: '700',
+  },
+  matchRecordCard: {
+    gap: 6,
+  },
+  matchRecordHeadline: {
+    color: '#111827',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  matchRecordHint: {
+    color: '#667085',
+    lineHeight: 20,
   },
   inlineActions: {
     flexDirection: 'row',
