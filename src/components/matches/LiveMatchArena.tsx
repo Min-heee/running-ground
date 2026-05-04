@@ -385,8 +385,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    left: '19%',
-    width: '62%',
+    left: '12%',
+    width: '76%',
     borderRadius: 28,
     backgroundColor: '#101A31',
     borderWidth: 1,
@@ -507,14 +507,14 @@ const styles = StyleSheet.create({
     height: GROUP_ROW_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    gap: 10,
+    paddingHorizontal: 10,
+    gap: 6,
   },
   groupRowCurrent: {
     backgroundColor: 'rgba(109,94,247,0.14)',
   },
   groupRankColumn: {
-    width: '22%',
+    width: '16%',
     gap: 2,
   },
   groupRankText: {
@@ -528,7 +528,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   groupRoadLane: {
-    width: '42%',
+    width: '54%',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -546,7 +546,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   groupMetaColumn: {
-    flex: 1,
+    width: '20%',
     alignItems: 'flex-end',
     gap: 2,
   },
