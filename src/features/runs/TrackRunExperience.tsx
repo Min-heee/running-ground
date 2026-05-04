@@ -1525,6 +1525,14 @@ export function TrackRunExperience({
   }, [duelMatchState, duelShouldOpenCountdownArena, groupMatchState, groupShouldOpenCountdownArena]);
 
   useEffect(() => {
+    if (duelMatchState === 'active' || groupMatchState === 'active') {
+      setForceOpenActiveMatch(true);
+      setLiveArenaPage(0);
+      livePagerRef.current?.scrollTo({ x: 0, animated: false });
+    }
+  }, [duelMatchState, groupMatchState]);
+
+  useEffect(() => {
     if (!isIdle || !nextStartingMatch || !shouldAutoOpenMatchArena(nextStartingMatch.remainingSeconds)) {
       countdownAutoOpenMatchIdRef.current = null;
       return;
@@ -2804,45 +2812,6 @@ export function TrackRunExperience({
                 })}
               </View>
             ) : null}
-            <View style={styles.liveShareCard}>
-              <View style={styles.liveShareHeader}>
-                <View style={styles.liveShareCopy}>
-                  <Text style={styles.liveShareTitle}>위치 공유</Text>
-                  <Text style={styles.liveShareText}>
-                    {liveShareEnabled ? (liveShareLabel ?? '동네 단위로 공개 중') : '친구에게 현재 위치를 공개하지 않음'}
-                  </Text>
-                </View>
-                <View style={styles.liveShareModeBadge}>
-                  <Text style={styles.liveShareModeBadgeText}>{liveShareEnabled ? 'ON' : 'OFF'}</Text>
-                </View>
-              </View>
-              <Pressable
-                accessibilityRole="switch"
-                accessibilityState={{ checked: liveShareEnabled }}
-                style={[styles.liveShareToggle, liveShareEnabled ? styles.liveShareToggleEnabled : styles.liveShareToggleDisabled]}
-                onPress={() => setLiveShareEnabled((current) => !current)}
-              >
-                <View style={[styles.liveShareThumb, liveShareEnabled ? styles.liveShareThumbEnabled : styles.liveShareThumbDisabled]} />
-                <View style={styles.liveShareToggleLabels}>
-                  <Text
-                    style={[
-                      styles.liveShareToggleText,
-                      liveShareEnabled ? styles.liveShareToggleTextActive : styles.liveShareToggleTextInactiveLight,
-                    ]}
-                  >
-                    공유 O
-                  </Text>
-                  <Text
-                    style={[
-                      styles.liveShareToggleText,
-                      liveShareEnabled ? styles.liveShareToggleTextInactiveDark : styles.liveShareToggleTextActive,
-                    ]}
-                  >
-                    공유 X
-                  </Text>
-                </View>
-              </Pressable>
-            </View>
             <View style={styles.matchCard}>
               <View style={styles.matchHeader}>
                 <View style={styles.matchHeaderCopy}>
@@ -3003,9 +2972,6 @@ export function TrackRunExperience({
                         );
                       })}
                     </View>
-                    <Text style={styles.duelHelperText}>
-                      오전은 00:00~11:00, 오후는 12:00~23:00 기준으로 보여줘요. 출발 30분 전까지만 신청할 수 있어요.
-                    </Text>
                   </View>
 
                   {isRequestingDuelMatch ? <ActivityIndicator size="small" color="#818CF8" /> : null}
@@ -3249,9 +3215,6 @@ export function TrackRunExperience({
                         );
                       })}
                     </View>
-                    <Text style={styles.duelHelperText}>
-                      오전은 00:00~11:00, 오후는 12:00~23:00 기준으로 보여줘요. 출발 30분 전까지만 신청할 수 있어요.
-                    </Text>
                   </View>
 
                   {!isGroupTestFlow ? (
