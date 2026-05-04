@@ -720,8 +720,18 @@ export function TrackRunExperience({
         : null;
   const duelReservationLocked = duelMatchState === 'matched' && duelMatchStatus?.canCancel === false;
   const groupReservationLocked = groupMatchState === 'matched' && groupMatchStatus?.canCancel === false;
-  const isDuelTestFlow = Boolean(duelMatchStatus?.isTestMatch || duelMatchResult?.isTestMatch);
-  const isGroupTestFlow = Boolean(groupMatchStatus?.isTestMatch || groupMatchResult?.isTestMatch);
+  const focusRequestedDuelTest = focusMatchMode === 'duel' && focusMatchIsTest === true;
+  const focusRequestedGroupTest = focusMatchMode === 'group' && focusMatchIsTest === true;
+  const isDuelTestFlow = Boolean(
+    duelMatchStatus?.isTestMatch
+    || duelMatchResult?.isTestMatch
+    || (focusRequestedDuelTest && matchMode === 'duel'),
+  );
+  const isGroupTestFlow = Boolean(
+    groupMatchStatus?.isTestMatch
+    || groupMatchResult?.isTestMatch
+    || (focusRequestedGroupTest && matchMode === 'group'),
+  );
   const effectiveDuelOpponent = duelMatchStatus?.opponent ?? duelMatchResult?.opponent ?? null;
   const effectiveDuelOpponentStatusLabel = effectiveDuelOpponent
     ? buildMatchParticipantStatusLabel(effectiveDuelOpponent.liveStatus)
@@ -1386,6 +1396,7 @@ export function TrackRunExperience({
   }) => {
     setLiveArenaPage(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
+    setForceOpenActiveMatch(true);
 
     if (mode === 'duel') {
       setMatchMode('duel');
@@ -1465,7 +1476,9 @@ export function TrackRunExperience({
     }
 
     let canceled = false;
-    void loadDuelMatchStatus(activeDuelSlotStartAt).catch(() => {
+    void loadDuelMatchStatus(activeDuelSlotStartAt, {
+      testMode: focusRequestedDuelTest || isDuelTestFlow,
+    }).catch(() => {
       if (!canceled) {
         setDuelMatchStatus(null);
       }
@@ -1474,7 +1487,7 @@ export function TrackRunExperience({
     return () => {
       canceled = true;
     };
-  }, [matchMode, duelDistanceKm, activeDuelSlotStartAt]);
+  }, [matchMode, duelDistanceKm, activeDuelSlotStartAt, focusRequestedDuelTest, isDuelTestFlow]);
 
   useEffect(() => {
     if (matchMode !== 'group') {
@@ -1482,7 +1495,9 @@ export function TrackRunExperience({
     }
 
     let canceled = false;
-    void loadGroupMatchStatus(activeGroupSlotStartAt).catch(() => {
+    void loadGroupMatchStatus(activeGroupSlotStartAt, {
+      testMode: focusRequestedGroupTest || isGroupTestFlow,
+    }).catch(() => {
       if (!canceled) {
         setGroupMatchStatus(null);
       }
@@ -1491,7 +1506,7 @@ export function TrackRunExperience({
     return () => {
       canceled = true;
     };
-  }, [matchMode, groupDistanceKm, activeGroupSlotStartAt]);
+  }, [matchMode, groupDistanceKm, activeGroupSlotStartAt, focusRequestedGroupTest, isGroupTestFlow]);
 
   useEffect(() => {
     let canceled = false;

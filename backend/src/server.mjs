@@ -901,14 +901,17 @@ function buildTestDuelMatchResponse(store, currentUser, { distanceKm }) {
 
   const countdownStartAt = buildTestMatchStartAt(now);
   removeUsersFromMatchQueue(store, 'duel', [currentUser.id]);
-  createMatchSession(store, 'duel', distanceKm, countdownStartAt, [
+  const createdSession = createMatchSession(store, 'duel', distanceKm, countdownStartAt, [
     { id: currentUser.id, seedRank: 1 },
     { id: syntheticOpponent.id, seedRank: 2, profileSnapshot: syntheticOpponent },
   ], {
     isTestMatch: true,
   });
 
-  const opponentRunner = syntheticOpponent;
+  const opponentParticipant = createdSession.participants.find((participant) => participant.userId === syntheticOpponent.id);
+  const opponentRunner = opponentParticipant
+    ? resolveSessionParticipantProfile(store, opponentParticipant)
+    : syntheticOpponent;
   return {
     success: true,
     matched: true,
@@ -969,12 +972,8 @@ function buildTestGroupMatchResponse(store, currentUser, { distanceKm }) {
   }
 
   removeUsersFromMatchQueue(store, 'group', [currentUser.id]);
-  createMatchSession(store, 'group', distanceKm, countdownStartAt, sessionParticipants, {
+  const createdSession = createMatchSession(store, 'group', distanceKm, countdownStartAt, sessionParticipants, {
     isTestMatch: true,
-  });
-  const createdSession = findMatchSessionForUser(store, 'group', currentUser.id, {
-    distanceKm,
-    testMode: true,
   });
   const responseParticipants = createdSession
     ? buildSessionGroupParticipants(store, createdSession, now)
@@ -1333,31 +1332,34 @@ function findMatchSessionForUser(store, mode, userId, { distanceKm, slotStartAt,
   const normalizedDistanceKm = distanceKm === undefined ? null : normalizeMatchQueueDistance(distanceKm);
   const sessions = pruneMatchSessions(store);
 
-  return sessions.find((session) => {
+  for (let index = sessions.length - 1; index >= 0; index -= 1) {
+    const session = sessions[index];
     if (session.mode !== mode) {
-      return false;
+      continue;
     }
 
     if (isTestMatchSession(session) !== testMode) {
-      return false;
+      continue;
     }
 
     if (!session.participants.some((participant) => (
       participant.userId === userId && resolveParticipantLiveStatus(participant) !== 'forfeited'
     ))) {
-      return false;
+      continue;
     }
 
     if (normalizedDistanceKm !== null && Math.abs(session.distanceKm - normalizedDistanceKm) >= 0.15) {
-      return false;
+      continue;
     }
 
     if (!testMode && slotStartAt && session.slotStartAt !== slotStartAt) {
-      return false;
+      continue;
     }
 
-    return true;
-  }) ?? null;
+    return session;
+  }
+
+  return null;
 }
 
 function leaveRunningMatch(store, currentUser, { matchId }) {
