@@ -83,6 +83,11 @@ function migrateMatchQueueStore(store) {
     changed = true;
   }
 
+  if (!Array.isArray(store.matchRooms)) {
+    store.matchRooms = [];
+    changed = true;
+  }
+
   return changed;
 }
 
@@ -171,8 +176,8 @@ function migrateAdminStore(store) {
     }
   }
 
-  if (store.version !== 4) {
-    store.version = 4;
+  if (store.version !== 5) {
+    store.version = 5;
     changed = true;
   }
 

@@ -5,6 +5,7 @@ import {
   Alert,
   Platform,
   Pressable,
+  Share,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,14 +28,20 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RunMatchResult, RunRoutePoint } from '@/domain/types';
 import {
   cancelRunningMatch,
+  createRunningMatchRoom,
   createTrackedRun,
+  fetchFriendLeaderboard,
   fetchMatchDemandSummary,
   fetchNotificationSettings,
+  fetchRunningMatchRoom,
   fetchUpcomingRunningMatches,
   fetchRunningMatchStatus,
+  joinRunningMatchRoom,
   leaveRunningMatch,
+  leaveRunningMatchRoom,
   requestDuelMatch,
   requestGroupMatch,
+  startRunningMatchRoom,
   updateRunningMatchProgress,
   updateRunningLiveShare,
 } from '@/lib/api/services';
@@ -49,10 +56,12 @@ import {
 } from '@/lib/matchCountdown';
 import {
   type DuelMatchOpponent,
+  type FriendLeaderboardResponse,
   type GroupMatchParticipant,
   type MatchDemandSummaryResponse,
   type RequestDuelMatchResponse,
   type RequestGroupMatchResponse,
+  type RunningMatchRoom,
   type RunningMatchStatusResponse,
   type UpcomingRunningMatchItem,
   type UpdateRunningMatchProgressInput,
@@ -102,6 +111,7 @@ type MatchDateOption = {
   label: string;
   subtitle: string;
 };
+type RoomStartMode = 'scheduled' | 'host';
 const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.2];
 const MATCH_BOOKING_WINDOW_DAYS = 7;
 const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
@@ -474,12 +484,14 @@ export function TrackRunExperience({
   focusMatchSlotStartAt,
   focusMatchIsTest,
   focusMatchNonce,
+  roomInviteToken,
 }: {
   mode: TrackRunMode;
   focusMatchMode?: Extract<RunMatchMode, 'duel' | 'group'>;
   focusMatchSlotStartAt?: string;
   focusMatchIsTest?: boolean;
   focusMatchNonce?: string;
+  roomInviteToken?: string;
 }) {
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -547,6 +559,17 @@ export function TrackRunExperience({
   const [groupDemandSummary, setGroupDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
   const [isLoadingGroupDemandSummary, setIsLoadingGroupDemandSummary] = useState(false);
   const [groupMatchNotice, setGroupMatchNotice] = useState<string | null>(null);
+  const [matchRoom, setMatchRoom] = useState<RunningMatchRoom | null>(null);
+  const [roomStartMode, setRoomStartMode] = useState<RoomStartMode>('scheduled');
+  const [roomMaxParticipants, setRoomMaxParticipants] = useState('10');
+  const [roomInviteTokenInput, setRoomInviteTokenInput] = useState('');
+  const [selectedRoomFriendIds, setSelectedRoomFriendIds] = useState<string[]>([]);
+  const [friendLeaderboard, setFriendLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
+  const [isLoadingMatchRoom, setIsLoadingMatchRoom] = useState(false);
+  const [isCreatingMatchRoom, setIsCreatingMatchRoom] = useState(false);
+  const [isJoiningMatchRoom, setIsJoiningMatchRoom] = useState(false);
+  const [isStartingMatchRoom, setIsStartingMatchRoom] = useState(false);
+  const [isLeavingMatchRoom, setIsLeavingMatchRoom] = useState(false);
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingRunningMatchItem[]>([]);
   const [matchRemindersEnabled, setMatchRemindersEnabled] = useState(true);
   const [cancelingUpcomingMatchId, setCancelingUpcomingMatchId] = useState<string | null>(null);
@@ -556,6 +579,7 @@ export function TrackRunExperience({
   const countdownAutoOpenMatchIdRef = useRef<string | null>(null);
   const autoStartedMatchIdRef = useRef<string | null>(null);
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
+  const handledRoomInviteTokenRef = useRef<string | null>(null);
   const officialStartBaselineRef = useRef<{
     matchId: string;
     distanceKm: number;
@@ -712,15 +736,18 @@ export function TrackRunExperience({
   const selectedMatch = matchOptions.find((option) => option.mode === matchMode) ?? matchOptions[0];
   const duelMatchState = duelMatchStatus?.state ?? 'idle';
   const groupMatchState = groupMatchStatus?.state ?? 'idle';
+  const hasBlockingRoom = Boolean(matchRoom);
   const hasBlockingScheduledMatch = useMemo(
     () => upcomingMatches.some((match) => ['matched', 'active'].includes(match.status)),
     [upcomingMatches],
   );
   const hasBlockingDuelMatch = ['waiting', 'matched', 'active'].includes(duelMatchState);
   const hasBlockingGroupMatch = ['waiting', 'matched', 'active'].includes(groupMatchState);
-  const canCreateDuelMatch = !hasBlockingScheduledMatch && !hasBlockingGroupMatch && !hasBlockingDuelMatch;
-  const canCreateGroupMatch = !hasBlockingScheduledMatch && !hasBlockingDuelMatch && !hasBlockingGroupMatch;
-  const blockingMatchHelperText = hasBlockingScheduledMatch
+  const canCreateDuelMatch = !hasBlockingRoom && !hasBlockingScheduledMatch && !hasBlockingGroupMatch && !hasBlockingDuelMatch;
+  const canCreateGroupMatch = !hasBlockingRoom && !hasBlockingScheduledMatch && !hasBlockingDuelMatch && !hasBlockingGroupMatch;
+  const blockingMatchHelperText = hasBlockingRoom
+    ? '이미 참여 중이거나 초대된 방이 있어요. 먼저 그 방을 정리한 뒤 다른 매칭을 잡을 수 있어요.'
+    : hasBlockingScheduledMatch
     ? '매칭은 한 번에 하나만 잡을 수 있어요. 지금 예약된 매치를 먼저 취소하거나 끝내야 해요.'
     : hasBlockingDuelMatch
       ? '이미 1대1 매칭 신청이나 예약이 있어요. 먼저 정리한 뒤 새 매칭을 잡을 수 있어요.'
@@ -765,6 +792,21 @@ export function TrackRunExperience({
   const nextStartingMatch = useMemo(
     () => findNextStartingMatchedMatch(upcomingMatches, nowMs),
     [nowMs, upcomingMatches],
+  );
+  const roomParticipantsCount = matchRoom?.participants.length ?? 0;
+  const roomCountdownRemainingSeconds = matchRoom?.linkedMatchSlotStartAt
+    ? getMatchStartRemainingSeconds(matchRoom.linkedMatchSlotStartAt, nowMs)
+    : null;
+  const canOpenRoomArena = Boolean(
+    matchRoom?.linkedMatchSlotStartAt
+    && (
+      matchRoom.linkedMatchStatus === 'active'
+      || shouldAutoOpenMatchArena(roomCountdownRemainingSeconds)
+    ),
+  );
+  const roomFriendOptions = useMemo(
+    () => (friendLeaderboard?.ranks ?? []).slice(0, 12),
+    [friendLeaderboard],
   );
   const groupLiveStandings = useMemo(
     () => buildGroupLiveStandings(effectiveGroupParticipants, effectiveGroupSeedRank, distanceKm, elapsedSeconds),
@@ -1397,6 +1439,132 @@ export function TrackRunExperience({
     return payload.items;
   };
 
+  const loadMatchRoom = async () => {
+    const payload = await fetchRunningMatchRoom();
+    setMatchRoom(payload.room);
+    return payload.room;
+  };
+
+  const loadFriendLeaderboardData = async () => {
+    const payload = await fetchFriendLeaderboard();
+    setFriendLeaderboard(payload);
+    return payload;
+  };
+
+  const openRoomLinkedMatch = async (room: RunningMatchRoom) => {
+    if (!room.linkedMatchSlotStartAt) {
+      return null;
+    }
+
+    return focusRunningMatch({
+      mode: room.mode,
+      slotStartAt: room.linkedMatchSlotStartAt,
+    });
+  };
+
+  const handleCreateMatchRoom = async () => {
+    if (matchMode !== 'duel' && matchMode !== 'group') {
+      return;
+    }
+
+    setIsCreatingMatchRoom(true);
+    setError(null);
+
+    try {
+      const payload = await createRunningMatchRoom({
+        mode: matchMode,
+        distanceKm: matchMode === 'duel' ? duelDistanceKm : groupDistanceKm,
+        startMode: roomStartMode,
+        ...(roomStartMode === 'scheduled'
+          ? { slotStartAt: matchMode === 'duel' ? activeDuelSlotStartAt : activeGroupSlotStartAt }
+          : {}),
+        ...(matchMode === 'group' ? { maxParticipants: Number(roomMaxParticipants) || 10 } : {}),
+        invitedFriendIds: selectedRoomFriendIds,
+      });
+      setMatchRoom(payload.room);
+    } catch (roomError) {
+      setError(roomError instanceof Error ? roomError.message : '방을 만들지 못했어.');
+    } finally {
+      setIsCreatingMatchRoom(false);
+    }
+  };
+
+  const handleJoinMatchRoom = async () => {
+    const inviteToken = roomInviteTokenInput.trim();
+
+    if (!inviteToken) {
+      setError('방 초대 코드를 입력해줘.');
+      return;
+    }
+
+    setIsJoiningMatchRoom(true);
+    setError(null);
+
+    try {
+      const payload = await joinRunningMatchRoom({ inviteToken });
+      setMatchRoom(payload.room);
+      setRoomInviteTokenInput('');
+    } catch (roomError) {
+      setError(roomError instanceof Error ? roomError.message : '방에 들어가지 못했어.');
+    } finally {
+      setIsJoiningMatchRoom(false);
+    }
+  };
+
+  const handleStartHostMatchRoom = async () => {
+    if (!matchRoom) {
+      return;
+    }
+
+    setIsStartingMatchRoom(true);
+    setError(null);
+
+    try {
+      const payload = await startRunningMatchRoom({ roomId: matchRoom.roomId });
+      setMatchRoom(payload.room);
+      if (payload.room) {
+        await openRoomLinkedMatch(payload.room);
+      }
+    } catch (roomError) {
+      setError(roomError instanceof Error ? roomError.message : '방 시작을 반영하지 못했어.');
+    } finally {
+      setIsStartingMatchRoom(false);
+    }
+  };
+
+  const handleLeaveMatchRoom = async () => {
+    if (!matchRoom) {
+      return;
+    }
+
+    setIsLeavingMatchRoom(true);
+    setError(null);
+
+    try {
+      const payload = await leaveRunningMatchRoom({ roomId: matchRoom.roomId });
+      setMatchRoom(payload.room);
+      setSelectedRoomFriendIds([]);
+    } catch (roomError) {
+      setError(roomError instanceof Error ? roomError.message : '방에서 나가지 못했어.');
+    } finally {
+      setIsLeavingMatchRoom(false);
+    }
+  };
+
+  const handleShareMatchRoom = async () => {
+    if (!matchRoom) {
+      return;
+    }
+
+    try {
+      await Share.share({
+        message: `${matchRoom.mode === 'duel' ? '1대1' : '그룹'} 러닝 방에 같이 들어와요.\n초대 코드: ${matchRoom.inviteToken}\n링크: ${matchRoom.inviteLink}`,
+      });
+    } catch {
+      Alert.alert('공유 실패', '지금은 초대 링크를 공유하지 못했어.');
+    }
+  };
+
   const focusRunningMatch = async ({
     mode,
     slotStartAt,
@@ -1534,6 +1702,38 @@ export function TrackRunExperience({
   }, [duelMatchStatus?.matchId, duelMatchStatus?.state, groupMatchStatus?.matchId, groupMatchStatus?.state]);
 
   useEffect(() => {
+    let canceled = false;
+
+    void loadMatchRoom().catch(() => {
+      if (!canceled) {
+        setMatchRoom(null);
+      }
+    });
+
+    void loadFriendLeaderboardData().catch(() => {
+      if (!canceled) {
+        setFriendLeaderboard(null);
+      }
+    });
+
+    return () => {
+      canceled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      void loadMatchRoom().catch(() => {});
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    void loadUpcomingMatches().catch(() => {});
+  }, [matchRoom?.linkedMatchId, matchRoom?.state]);
+
+  useEffect(() => {
     void refreshStaleTestMatches().catch(() => {});
   }, []);
 
@@ -1547,6 +1747,22 @@ export function TrackRunExperience({
       isTestMatch: focusMatchIsTest,
     }).catch(() => {});
   }, [focusMatchIsTest, focusMatchMode, focusMatchNonce, focusMatchSlotStartAt]);
+
+  useEffect(() => {
+    if (!roomInviteToken || handledRoomInviteTokenRef.current === roomInviteToken) {
+      return;
+    }
+
+    handledRoomInviteTokenRef.current = roomInviteToken;
+    setRoomInviteTokenInput(roomInviteToken);
+    void joinRunningMatchRoom({ inviteToken: roomInviteToken })
+      .then((payload) => {
+        setMatchRoom(payload.room);
+      })
+      .catch((roomError) => {
+        setError(roomError instanceof Error ? roomError.message : '초대 링크로 방에 들어가지 못했어.');
+      });
+  }, [roomInviteToken]);
 
   useEffect(() => {
     if (
@@ -3019,6 +3235,193 @@ export function TrackRunExperience({
                 })}
               </View>
             ) : null}
+            <View style={styles.roomCard}>
+              <View style={styles.roomHeader}>
+                <View>
+                  <Text style={styles.roomEyebrow}>친구 방</Text>
+                  <Text style={styles.roomTitle}>친구 초대나 링크 공유로 직접 대결을 열 수 있어요</Text>
+                </View>
+                <View style={styles.roomBadge}>
+                  <Text style={styles.roomBadgeText}>NEW</Text>
+                </View>
+              </View>
+              {matchRoom ? (
+                <View style={styles.roomLobby}>
+                  <Text style={styles.roomLobbyTitle}>
+                    {matchRoom.mode === 'duel' ? '1대1 방' : '그룹 방'} · {matchRoom.distanceKm.toFixed(1)}km
+                  </Text>
+                  <Text style={styles.roomLobbyMeta}>
+                    {matchRoom.startMode === 'host'
+                      ? (matchRoom.linkedMatchSlotStartAt
+                        ? `방장 시작 · ${buildMatchSlotDateLabel(matchRoom.linkedMatchSlotStartAt)} ${matchRoom.slotLabel}`
+                        : '방장 시작 대기 중')
+                      : `${buildMatchSlotDateLabel(matchRoom.slotStartAt)} ${matchRoom.slotLabel} 예약`}
+                  </Text>
+                  <Text style={styles.roomLobbyMeta}>
+                    {matchRoom.hostName}님 방장 · {roomParticipantsCount}/{matchRoom.maxParticipants}명 참여
+                  </Text>
+                  <Text style={styles.roomLobbyMeta}>
+                    초대 코드 {matchRoom.inviteToken}
+                  </Text>
+                  {matchRoom.linkedMatchSlotStartAt && shouldShowMatchCardCountdown(roomCountdownRemainingSeconds) ? (
+                    <View style={styles.upcomingMatchCountdownPill}>
+                      <Text style={styles.upcomingMatchCountdownText}>시작까지 {formatMatchCountdown(roomCountdownRemainingSeconds!)}</Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.roomParticipantRow}>
+                    {matchRoom.participants.map((participant) => (
+                      <View key={participant.userId} style={styles.roomParticipantChip}>
+                        <Text style={styles.roomParticipantChipText}>
+                          {participant.isHost ? '방장 · ' : ''}{participant.name}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                  {!matchRoom.joined && !matchRoom.isHost ? (
+                    <PrimaryButton
+                      label={isJoiningMatchRoom ? '참가 중...' : '이 방 참가하기'}
+                      onPress={() => {
+                        setRoomInviteTokenInput(matchRoom.inviteToken);
+                        void handleJoinMatchRoom();
+                      }}
+                      disabled={isJoiningMatchRoom}
+                    />
+                  ) : null}
+                  {matchRoom.isHost && matchRoom.startMode === 'host' && matchRoom.canStart ? (
+                    <PrimaryButton
+                      label={isStartingMatchRoom ? '시작 준비 중...' : '방장 시작'}
+                      onPress={() => {
+                        void handleStartHostMatchRoom();
+                      }}
+                      disabled={isStartingMatchRoom}
+                    />
+                  ) : null}
+                  {canOpenRoomArena ? (
+                    <SecondaryButton
+                      label="대결로 이동"
+                      onPress={() => {
+                        if (!matchRoom) {
+                          return;
+                        }
+                        void openRoomLinkedMatch(matchRoom);
+                      }}
+                    />
+                  ) : null}
+                  <View style={styles.roomActionRow}>
+                    <Pressable style={styles.roomActionButton} onPress={() => { void handleShareMatchRoom(); }}>
+                      <Text style={styles.roomActionButtonText}>링크 공유</Text>
+                    </Pressable>
+                    {!matchRoom.linkedMatchId ? (
+                      <Pressable
+                        style={styles.roomActionButton}
+                        onPress={() => {
+                          void handleLeaveMatchRoom();
+                        }}
+                      >
+                        <Text style={styles.roomActionButtonText}>
+                          {isLeavingMatchRoom ? '나가는 중...' : (matchRoom.isHost ? '방 닫기' : '방 나가기')}
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ) : (
+                <>
+                  <View style={styles.roomModeRow}>
+                    {([
+                      { key: 'scheduled' as const, label: '예약 시작' },
+                      { key: 'host' as const, label: '방장 시작' },
+                    ]).map((option) => {
+                      const isSelected = roomStartMode === option.key;
+
+                      return (
+                        <Pressable
+                          key={option.key}
+                          style={[styles.roomModeChip, isSelected ? styles.roomModeChipSelected : undefined]}
+                          onPress={() => setRoomStartMode(option.key)}
+                        >
+                          <Text style={[styles.roomModeChipText, isSelected ? styles.roomModeChipTextSelected : undefined]}>
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.roomHelperText}>
+                    {roomStartMode === 'scheduled'
+                      ? '선택한 날짜와 시간에 30초 카운트다운 후 시작돼요.'
+                      : '참가자가 모이면 방장이 직접 30초 카운트다운을 시작할 수 있어요.'}
+                  </Text>
+                  {matchMode === 'group' ? (
+                    <TextInput
+                      value={roomMaxParticipants}
+                      onChangeText={setRoomMaxParticipants}
+                      placeholder="최대 인원 예: 10, 20, 30"
+                      placeholderTextColor="#98A2B3"
+                      keyboardType="number-pad"
+                      style={styles.roomInput}
+                    />
+                  ) : null}
+                  {roomFriendOptions.length ? (
+                    <View style={styles.roomFriendSelector}>
+                      <Text style={styles.roomPickerTitle}>친구 초대</Text>
+                      <View style={styles.roomFriendChipWrap}>
+                        {roomFriendOptions.map((friend) => {
+                          const isSelected = selectedRoomFriendIds.includes(friend.id);
+                          return (
+                            <Pressable
+                              key={friend.id}
+                              style={[styles.roomFriendChip, isSelected ? styles.roomFriendChipSelected : undefined]}
+                              onPress={() => {
+                                setSelectedRoomFriendIds((current) => (
+                                  current.includes(friend.id)
+                                    ? current.filter((id) => id !== friend.id)
+                                    : [...current, friend.id].slice(
+                                        0,
+                                        matchMode === 'duel'
+                                          ? 1
+                                          : Math.max(1, (Number(roomMaxParticipants) || 10) - 1),
+                                      )
+                                ));
+                              }}
+                            >
+                              <Text style={[styles.roomFriendChipText, isSelected ? styles.roomFriendChipTextSelected : undefined]}>
+                                {friend.name}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  ) : null}
+                  <PrimaryButton
+                    label={isCreatingMatchRoom ? '방 만드는 중...' : `${matchMode === 'duel' ? '1대1' : '그룹'} 방 만들기`}
+                    onPress={() => {
+                      void handleCreateMatchRoom();
+                    }}
+                    disabled={isCreatingMatchRoom || matchMode === 'solo'}
+                  />
+                  <View style={styles.roomJoinBox}>
+                    <Text style={styles.roomPickerTitle}>초대 코드로 입장</Text>
+                    <TextInput
+                      value={roomInviteTokenInput}
+                      onChangeText={setRoomInviteTokenInput}
+                      placeholder="예: AB12CD"
+                      placeholderTextColor="#98A2B3"
+                      autoCapitalize="characters"
+                      style={styles.roomInput}
+                    />
+                    <SecondaryButton
+                      label={isJoiningMatchRoom ? '입장 중...' : '방 입장'}
+                      onPress={() => {
+                        void handleJoinMatchRoom();
+                      }}
+                      disabled={isJoiningMatchRoom}
+                    />
+                  </View>
+                </>
+              )}
+            </View>
             <View style={styles.matchCard}>
               <View style={styles.matchHeader}>
                 <View style={styles.matchHeaderCopy}>
@@ -3840,6 +4243,171 @@ const styles = StyleSheet.create({
   upcomingMatchState: {
     color: '#A5B4FC',
     fontSize: 12,
+    fontWeight: '800',
+  },
+  roomCard: {
+    gap: 12,
+    padding: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#374151',
+    backgroundColor: '#1F2937',
+  },
+  roomHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  roomEyebrow: {
+    color: '#C7D2FE',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  roomTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+    lineHeight: 22,
+    marginTop: 4,
+  },
+  roomBadge: {
+    borderRadius: 999,
+    backgroundColor: '#312E81',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  roomBadgeText: {
+    color: '#E0E7FF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  roomModeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  roomModeChip: {
+    flex: 1,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#475467',
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: '#111827',
+  },
+  roomModeChipSelected: {
+    borderColor: '#818CF8',
+    backgroundColor: '#312E81',
+  },
+  roomModeChipText: {
+    color: '#D0D5DD',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  roomModeChipTextSelected: {
+    color: '#FFFFFF',
+  },
+  roomHelperText: {
+    color: '#98A2B3',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  roomInput: {
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#475467',
+    backgroundColor: '#111827',
+    color: '#FFFFFF',
+    paddingHorizontal: 14,
+    fontWeight: '700',
+  },
+  roomFriendSelector: {
+    gap: 8,
+  },
+  roomPickerTitle: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  roomFriendChipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  roomFriendChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#475467',
+    backgroundColor: '#111827',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  roomFriendChipSelected: {
+    borderColor: '#818CF8',
+    backgroundColor: '#312E81',
+  },
+  roomFriendChipText: {
+    color: '#D0D5DD',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  roomFriendChipTextSelected: {
+    color: '#FFFFFF',
+  },
+  roomJoinBox: {
+    gap: 10,
+    paddingTop: 2,
+  },
+  roomLobby: {
+    gap: 10,
+    paddingTop: 4,
+  },
+  roomLobbyTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  roomLobbyMeta: {
+    color: '#D0D5DD',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  roomParticipantRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  roomParticipantChip: {
+    borderRadius: 999,
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#374151',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  roomParticipantChipText: {
+    color: '#E5E7EB',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  roomActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  roomActionButton: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#475467',
+    backgroundColor: '#111827',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  roomActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
     fontWeight: '800',
   },
   readyPillRow: {

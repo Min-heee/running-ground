@@ -97,6 +97,10 @@ const MATCH_PARTICIPANT_BACKGROUND_STALE_MS = 20 * 60 * 1000;
 const MATCH_TEST_COUNTDOWN_SECONDS = 30;
 const MATCH_TEST_MAX_WAIT_MS = 30 * 60 * 1000;
 const MATCH_TEST_GROUP_MIN_PARTICIPANTS = 2;
+const MATCH_ROOM_HOST_START_DELAY_SECONDS = 30;
+const MATCH_ROOM_GROUP_MIN_PARTICIPANTS = 2;
+const MATCH_ROOM_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
+const MATCH_ROOM_INVITE_LINK_BASE = 'runningground://running';
 
 class ApiError extends Error {
   constructor(statusCode, message) {
@@ -1214,6 +1218,466 @@ function createMatchSession(store, mode, distanceKm, slotStartAt, participants, 
   return session;
 }
 
+function ensureMatchRooms(store) {
+  if (!Array.isArray(store.matchRooms)) {
+    store.matchRooms = [];
+  }
+
+  return store.matchRooms;
+}
+
+function createMatchRoomInviteToken(store) {
+  const rooms = ensureMatchRooms(store);
+  const existingTokens = new Set(rooms.map((room) => String(room.inviteToken ?? '').toUpperCase()).filter(Boolean));
+
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const token = Math.random().toString(36).slice(2, 8).toUpperCase();
+
+    if (!existingTokens.has(token)) {
+      return token;
+    }
+  }
+
+  return nextId('room-invite').replace(/[^A-Z0-9]/gi, '').slice(-8).toUpperCase();
+}
+
+function normalizeMatchRoomMaxParticipants(mode, value) {
+  if (mode === 'duel') {
+    return 2;
+  }
+
+  const parsedValue = typeof value === 'number' ? value : Number(value);
+
+  if (!Number.isFinite(parsedValue)) {
+    return 10;
+  }
+
+  return Math.max(2, Math.min(30, Math.round(parsedValue)));
+}
+
+function getMatchRoomMinParticipants(mode) {
+  return mode === 'duel' ? 2 : MATCH_ROOM_GROUP_MIN_PARTICIPANTS;
+}
+
+function isMatchRoomVisibleToUser(room, userId) {
+  return room.hostUserId === userId
+    || room.participants.some((participant) => participant.userId === userId)
+    || room.invitedFriendIds.includes(userId);
+}
+
+function buildMatchRoomInviteLink(inviteToken) {
+  return `${MATCH_ROOM_INVITE_LINK_BASE}?roomInviteToken=${inviteToken}`;
+}
+
+function pruneMatchRooms(store, now = new Date()) {
+  const rooms = ensureMatchRooms(store);
+  const activeUserIds = new Set(store.users.map((user) => user.id));
+  const nowMs = now.getTime();
+
+  store.matchRooms = rooms.filter((room) => {
+    if (!room || typeof room !== 'object') {
+      return false;
+    }
+
+    if (!room.hostUserId || !activeUserIds.has(room.hostUserId)) {
+      return false;
+    }
+
+    if (!Array.isArray(room.participants) || room.participants.length === 0) {
+      return false;
+    }
+
+    room.participants = room.participants.filter((participant) => activeUserIds.has(participant.userId));
+    room.invitedFriendIds = Array.isArray(room.invitedFriendIds)
+      ? room.invitedFriendIds.filter((userId) => activeUserIds.has(userId) && userId !== room.hostUserId)
+      : [];
+
+    if (!room.participants.some((participant) => participant.userId === room.hostUserId)) {
+      return false;
+    }
+
+    if (room.linkedMatchId) {
+      const linkedSession = findMatchSessionById(store, room.linkedMatchId);
+
+      if (!linkedSession) {
+        return false;
+      }
+
+      const linkedState = hydrateMatchSessionState(linkedSession, now);
+      return linkedState === 'matched' || linkedState === 'active';
+    }
+
+    if (room.startMode === 'scheduled') {
+      const slotStartAtMs = new Date(room.slotStartAt).getTime();
+      return Number.isFinite(slotStartAtMs) && slotStartAtMs + MATCH_SESSION_ACTIVE_TTL_MS > nowMs;
+    }
+
+    const createdAtMs = new Date(room.createdAt).getTime();
+    return Number.isFinite(createdAtMs) && createdAtMs + MATCH_ROOM_IDLE_TTL_MS > nowMs;
+  });
+
+  return store.matchRooms;
+}
+
+function getMatchRoomLinkedSession(room, store) {
+  if (!room?.linkedMatchId) {
+    return null;
+  }
+
+  return findMatchSessionById(store, room.linkedMatchId);
+}
+
+function getRunningMatchRoomState(room, store, now = new Date()) {
+  const linkedSession = getMatchRoomLinkedSession(room, store);
+
+  if (!linkedSession) {
+    return 'waiting';
+  }
+
+  const linkedState = hydrateMatchSessionState(linkedSession, now);
+
+  if (linkedState === 'active') {
+    return 'active';
+  }
+
+  if (linkedState === 'matched') {
+    const remainingSeconds = Math.max(0, Math.ceil((new Date(linkedSession.slotStartAt).getTime() - now.getTime()) / 1000));
+    return remainingSeconds <= MATCH_ROOM_HOST_START_DELAY_SECONDS ? 'countdown' : 'waiting';
+  }
+
+  return 'waiting';
+}
+
+function syncScheduledMatchRoom(room, store, now = new Date()) {
+  if (!room || room.startMode !== 'scheduled' || room.linkedMatchId) {
+    return room;
+  }
+
+  if (room.participants.length < room.minParticipants) {
+    return room;
+  }
+
+  const slotStartAtMs = new Date(room.slotStartAt).getTime();
+
+  if (!Number.isFinite(slotStartAtMs)) {
+    return room;
+  }
+
+  if (now.getTime() < slotStartAtMs - MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000) {
+    return room;
+  }
+
+  const session = createMatchSession(
+    store,
+    room.mode,
+    room.distanceKm,
+    room.slotStartAt,
+    room.participants.map((participant, index) => ({
+      id: participant.userId,
+      seedRank: index + 1,
+    })),
+  );
+
+  room.linkedMatchId = session.id;
+  return room;
+}
+
+function syncMatchRooms(store, now = new Date()) {
+  const rooms = pruneMatchRooms(store, now);
+  return rooms.map((room) => syncScheduledMatchRoom(room, store, now));
+}
+
+function findRunningMatchRoomById(store, roomId, now = new Date()) {
+  return syncMatchRooms(store, now).find((room) => room.id === roomId) ?? null;
+}
+
+function findRunningMatchRoomByInviteToken(store, inviteToken, now = new Date()) {
+  const normalizedToken = String(inviteToken ?? '').trim().toUpperCase();
+
+  if (!normalizedToken) {
+    return null;
+  }
+
+  return syncMatchRooms(store, now).find((room) => String(room.inviteToken).toUpperCase() === normalizedToken) ?? null;
+}
+
+function findRunningMatchRoomForUser(store, userId, now = new Date()) {
+  const rooms = syncMatchRooms(store, now)
+    .filter((room) => isMatchRoomVisibleToUser(room, userId))
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+
+  return rooms[0] ?? null;
+}
+
+function buildRunningMatchRoomParticipantPayload(store, participant) {
+  const user = findUserById(store, participant.userId);
+  const runner = buildMatchRunnerProfile(store, user);
+
+  return {
+    userId: runner.id,
+    name: runner.name,
+    tag: runner.tag,
+    districtName: runner.districtName,
+    averagePace: runner.averagePace,
+    levelLabel: runner.levelLabel,
+    isHost: Boolean(participant.isHost),
+    invited: Boolean(participant.invited),
+    joinedAt: participant.joinedAt,
+  };
+}
+
+function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date()) {
+  if (!room) {
+    return {
+      success: true,
+      room: null,
+    };
+  }
+
+  const hostUser = findUserById(store, room.hostUserId);
+  const linkedSession = getMatchRoomLinkedSession(room, store);
+  const linkedMatchState = linkedSession ? hydrateMatchSessionState(linkedSession, now) : null;
+  const roomState = getRunningMatchRoomState(room, store, now);
+  const hasJoined = room.participants.some((participant) => participant.userId === currentUser.id);
+
+  return {
+    success: true,
+    room: {
+      roomId: room.id,
+      inviteToken: room.inviteToken,
+      inviteLink: buildMatchRoomInviteLink(room.inviteToken),
+      mode: room.mode,
+      state: roomState,
+      startMode: room.startMode,
+      distanceKm: room.distanceKm,
+      slotStartAt: room.slotStartAt,
+      slotLabel: room.startMode === 'host' && !linkedSession
+        ? '방장 시작'
+        : formatDuelSlotLabel(room.slotStartAt),
+      maxParticipants: room.maxParticipants,
+      minParticipants: room.minParticipants,
+      canStart: room.startMode === 'host' && room.hostUserId === currentUser.id && !linkedSession && room.participants.length >= room.minParticipants,
+      isHost: room.hostUserId === currentUser.id,
+      hostUserId: room.hostUserId,
+      hostName: hostUser.name,
+      participants: room.participants
+        .map((participant) => buildRunningMatchRoomParticipantPayload(store, participant))
+        .sort((left, right) => {
+          if (left.isHost !== right.isHost) {
+            return left.isHost ? -1 : 1;
+          }
+
+          return new Date(left.joinedAt).getTime() - new Date(right.joinedAt).getTime();
+        }),
+      invitedFriendIds: room.invitedFriendIds,
+      ...(linkedSession ? {
+        linkedMatchId: linkedSession.id,
+        linkedMatchStatus: linkedMatchState === 'active' ? 'active' : 'matched',
+        linkedMatchSlotStartAt: linkedSession.slotStartAt,
+      } : {}),
+      joined: hasJoined,
+    },
+  };
+}
+
+function buildMatchRoomLockMessage(room, store, currentUserId) {
+  const modeLabel = room.mode === 'duel' ? '1대1 방' : '그룹 방';
+  const roomState = getRunningMatchRoomState(room, store);
+
+  if (roomState === 'active') {
+    return `이미 진행 중인 ${modeLabel}이 있어요. 현재 대결을 먼저 끝내야 새 매칭을 신청할 수 있어요.`;
+  }
+
+  if (room.startMode === 'host' && !room.linkedMatchId) {
+    return `이미 참여 중인 ${modeLabel}이 있어요. 그 방을 먼저 나와야 다른 매칭을 신청할 수 있어요.`;
+  }
+
+  return `이미 예약된 ${modeLabel}이 있어요. 기존 방을 먼저 정리해야 다른 매칭을 신청할 수 있어요.`;
+}
+
+function createRunningMatchRoom(store, currentUser, {
+  mode,
+  distanceKm,
+  startMode,
+  slotStartAt,
+  maxParticipants,
+  invitedFriendIds = [],
+}) {
+  assertUserCanRequestAnotherMatch(store, currentUser);
+
+  const normalizedInvitedFriendIds = [...new Set(invitedFriendIds
+    .filter((userId) => typeof userId === 'string')
+    .map((userId) => userId.trim())
+    .filter((userId) => userId && userId !== currentUser.id))];
+
+  for (const friendId of normalizedInvitedFriendIds) {
+    if (!areFriends(store, currentUser.id, friendId)) {
+      throw new ApiError(400, '친구 목록에 있는 러너만 방에 초대할 수 있어.');
+    }
+  }
+
+  const normalizedStartMode = startMode === 'host' ? 'host' : 'scheduled';
+  const normalizedSlotStartAt = normalizedStartMode === 'host'
+    ? new Date().toISOString()
+    : validateMatchSlotInput(slotStartAt);
+  const room = {
+    id: nextId(`${mode}-room`),
+    inviteToken: createMatchRoomInviteToken(store),
+    hostUserId: currentUser.id,
+    mode,
+    startMode: normalizedStartMode,
+    distanceKm: normalizeMatchQueueDistance(distanceKm),
+    slotStartAt: normalizedSlotStartAt,
+    maxParticipants: normalizeMatchRoomMaxParticipants(mode, maxParticipants),
+    minParticipants: getMatchRoomMinParticipants(mode),
+    invitedFriendIds: normalizedInvitedFriendIds,
+    participants: [{
+      userId: currentUser.id,
+      isHost: true,
+      invited: false,
+      joinedAt: new Date().toISOString(),
+    }],
+    createdAt: new Date().toISOString(),
+    linkedMatchId: null,
+  };
+
+  ensureMatchRooms(store).push(room);
+  syncMatchRooms(store);
+  return buildRunningMatchRoomResponse(store, currentUser, room);
+}
+
+function joinRunningMatchRoom(store, currentUser, { inviteToken }) {
+  const room = findRunningMatchRoomByInviteToken(store, inviteToken);
+
+  if (!room) {
+    throw new ApiError(404, '참여할 방을 찾지 못했어.');
+  }
+
+  const existingSession = findAnyReservedMatchSessionForUser(store, currentUser.id);
+  if (existingSession) {
+    throw new ApiError(
+      400,
+      buildSingleMatchLockMessage(existingSession.session.mode, existingSession.session.slotStartAt, existingSession.state),
+    );
+  }
+
+  const existingQueue = findAnyQueuedMatchEntryForUser(store, currentUser.id);
+  if (existingQueue) {
+    throw new ApiError(
+      400,
+      buildSingleMatchLockMessage(existingQueue.mode, existingQueue.entry.slotStartAt, 'waiting'),
+    );
+  }
+
+  const existingRoom = findRunningMatchRoomForUser(store, currentUser.id);
+  if (existingRoom && existingRoom.id !== room.id) {
+    throw new ApiError(400, buildMatchRoomLockMessage(existingRoom, store, currentUser.id));
+  }
+
+  if (room.linkedMatchId) {
+    throw new ApiError(400, '이미 시작 준비에 들어간 방이라 지금은 참여할 수 없어.');
+  }
+
+  if (room.participants.some((participant) => participant.userId === currentUser.id)) {
+    return buildRunningMatchRoomResponse(store, currentUser, room);
+  }
+
+  if (room.participants.length >= room.maxParticipants) {
+    throw new ApiError(400, '이 방은 이미 정원이 다 찼어.');
+  }
+
+  room.participants.push({
+    userId: currentUser.id,
+    isHost: false,
+    invited: room.invitedFriendIds.includes(currentUser.id),
+    joinedAt: new Date().toISOString(),
+  });
+
+  syncMatchRooms(store);
+  return buildRunningMatchRoomResponse(store, currentUser, room);
+}
+
+function startRunningMatchRoom(store, currentUser, { roomId }) {
+  const room = findRunningMatchRoomById(store, roomId);
+
+  if (!room) {
+    throw new ApiError(404, '시작할 방을 찾지 못했어.');
+  }
+
+  if (room.hostUserId !== currentUser.id) {
+    throw new ApiError(403, '방장만 시작할 수 있어.');
+  }
+
+  if (room.startMode !== 'host') {
+    throw new ApiError(400, '예약 시작 방은 시간에 맞춰 자동으로 시작돼.');
+  }
+
+  if (room.linkedMatchId) {
+    return buildRunningMatchRoomResponse(store, currentUser, room);
+  }
+
+  if (room.participants.length < room.minParticipants) {
+    throw new ApiError(400, `최소 ${room.minParticipants}명은 모여야 시작할 수 있어.`);
+  }
+
+  const slotStartAt = new Date(Date.now() + MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000).toISOString();
+  room.slotStartAt = slotStartAt;
+  const session = createMatchSession(
+    store,
+    room.mode,
+    room.distanceKm,
+    slotStartAt,
+    room.participants.map((participant, index) => ({
+      id: participant.userId,
+      seedRank: index + 1,
+    })),
+  );
+  room.linkedMatchId = session.id;
+
+  return buildRunningMatchRoomResponse(store, currentUser, room);
+}
+
+function leaveRunningMatchRoom(store, currentUser, { roomId }) {
+  const room = findRunningMatchRoomById(store, roomId);
+
+  if (!room) {
+    return { success: true, room: null };
+  }
+
+  if (room.linkedMatchId) {
+    throw new ApiError(400, '이미 대결 세션이 만들어진 방은 대결 화면에서 정리해줘.');
+  }
+
+  const participantIndex = room.participants.findIndex((participant) => participant.userId === currentUser.id);
+  const wasInvitedOnly = room.invitedFriendIds.includes(currentUser.id) && participantIndex === -1;
+
+  if (participantIndex === -1 && !wasInvitedOnly) {
+    return buildRunningMatchRoomResponse(store, currentUser, room);
+  }
+
+  room.invitedFriendIds = room.invitedFriendIds.filter((userId) => userId !== currentUser.id);
+
+  if (participantIndex !== -1) {
+    const wasHost = room.participants[participantIndex].isHost;
+    room.participants.splice(participantIndex, 1);
+
+    if (!room.participants.length) {
+      store.matchRooms = ensureMatchRooms(store).filter((entry) => entry.id !== room.id);
+      return { success: true, room: null };
+    }
+
+    if (wasHost) {
+      room.hostUserId = room.participants[0].userId;
+      room.participants = room.participants.map((participant, index) => ({
+        ...participant,
+        isHost: index === 0,
+      }));
+    }
+  }
+
+  return buildRunningMatchRoomResponse(store, currentUser, room);
+}
+
 function resolveParticipantLiveStatus(participant, now = new Date()) {
   if (typeof participant.finishedAt === 'string' && participant.finishedAt) {
     return 'finished';
@@ -1526,6 +1990,12 @@ function assertUserCanRequestAnotherMatch(store, currentUser) {
       400,
       buildSingleMatchLockMessage(existingQueue.mode, existingQueue.entry.slotStartAt, 'waiting'),
     );
+  }
+
+  const existingRoom = findRunningMatchRoomForUser(store, currentUser.id, now);
+
+  if (existingRoom) {
+    throw new ApiError(400, buildMatchRoomLockMessage(existingRoom, store, currentUser.id));
   }
 }
 
@@ -3629,6 +4099,28 @@ function validateMatchMode(value) {
   return mode;
 }
 
+function validateMatchRoomStartMode(value) {
+  const startMode = validateRequiredString(value, '방 시작 방식을 선택해줘.');
+
+  if (startMode !== 'scheduled' && startMode !== 'host') {
+    throw new ApiError(400, '방 시작 방식 값이 올바르지 않아.');
+  }
+
+  return startMode;
+}
+
+function validateOptionalUserIdArray(value, message) {
+  if (value == null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new ApiError(400, message);
+  }
+
+  return value.map((userId) => validateRequiredString(userId, message));
+}
+
 function validatePace(value, message) {
   const pace = validateRequiredString(value, message);
 
@@ -4577,6 +5069,69 @@ async function handleUpdateRunningMatchProgress(request, response) {
   sendJson(response, 200, payload);
 }
 
+function handleFetchMyRunningMatchRoom(request, response) {
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    const room = findRunningMatchRoomForUser(store, currentUser.id);
+    return buildRunningMatchRoomResponse(store, currentUser, room);
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleCreateRunningMatchRoom(request, response) {
+  const body = await parseJsonBody(request);
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return createRunningMatchRoom(store, currentUser, {
+      mode: validateMatchMode(body.mode),
+      distanceKm: validateDuelMatchDistanceKm(body.distanceKm),
+      startMode: validateMatchRoomStartMode(body.startMode),
+      slotStartAt: body.slotStartAt,
+      maxParticipants: body.maxParticipants,
+      invitedFriendIds: validateOptionalUserIdArray(body.invitedFriendIds, '초대할 친구 목록이 올바르지 않아.'),
+    });
+  });
+
+  sendJson(response, 201, payload);
+}
+
+async function handleJoinRunningMatchRoom(request, response) {
+  const body = await parseJsonBody(request);
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return joinRunningMatchRoom(store, currentUser, {
+      inviteToken: validateRequiredString(body.inviteToken, '방 초대 코드를 입력해줘.'),
+    });
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleStartRunningMatchRoom(request, response) {
+  const body = await parseJsonBody(request);
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return startRunningMatchRoom(store, currentUser, {
+      roomId: validateRequiredString(body.roomId, '시작할 방 아이디가 필요해.'),
+    });
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleLeaveRunningMatchRoom(request, response) {
+  const body = await parseJsonBody(request);
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return leaveRunningMatchRoom(store, currentUser, {
+      roomId: validateRequiredString(body.roomId, '나갈 방 아이디가 필요해.'),
+    });
+  });
+
+  sendJson(response, 200, payload);
+}
+
 function handleIntegrationSourceConnection(request, response, sourceType, nextConnected) {
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
@@ -4995,6 +5550,31 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/running/matches/progress' && request.method === 'POST') {
     await handleUpdateRunningMatchProgress(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/rooms/my' && request.method === 'GET') {
+    handleFetchMyRunningMatchRoom(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/rooms' && request.method === 'POST') {
+    await handleCreateRunningMatchRoom(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/rooms/join' && request.method === 'POST') {
+    await handleJoinRunningMatchRoom(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/rooms/start' && request.method === 'POST') {
+    await handleStartRunningMatchRoom(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/rooms/leave' && request.method === 'POST') {
+    await handleLeaveRunningMatchRoom(request, response);
     return;
   }
 

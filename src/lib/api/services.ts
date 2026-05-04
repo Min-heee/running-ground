@@ -31,6 +31,7 @@ import {
   AcceptRunningMatchInput,
   CancelRunningMatchInput,
   CancelRunningMatchResponse,
+  CreateRunningMatchRoomInput,
   CreateFriendRequestResponse,
   DistrictPersonalResponse,
   FetchRunningMatchStatusInput,
@@ -38,8 +39,10 @@ import {
   FriendLeaderboardResponse,
   FriendRequestActionResponse,
   FetchMatchDemandSummaryInput,
+  JoinRunningMatchRoomInput,
   LeaveRunningMatchInput,
   LeaveRunningMatchResponse,
+  LeaveRunningMatchRoomInput,
   HomeSummaryResponse,
   QueueIntegrationImportResponse,
   MatchDemandSummaryResponse,
@@ -47,6 +50,9 @@ import {
   RequestDuelMatchResponse,
   RequestGroupMatchInput,
   RequestGroupMatchResponse,
+  RunningMatchRoom,
+  RunningMatchRoomParticipant,
+  RunningMatchRoomResponse,
   IntegrationSourceActionResponse,
   IntegrationSyncResponse,
   IntegrationStatusResponse,
@@ -61,6 +67,7 @@ import {
   RegionCatalogResponse,
   RunningMatchStatusResponse,
   RunDetailResponse,
+  StartRunningMatchRoomInput,
   UpdateRunningMatchProgressInput,
   UpdateRunningMatchProgressResponse,
   UpdateNotificationSettingsInput,
@@ -169,6 +176,7 @@ let mockRunningMatchSessions: Record<'duel' | 'group', RunningMatchStatusRespons
   duel: null,
   group: null,
 };
+let mockRunningMatchRoom: RunningMatchRoom | null = null;
 
 function formatMockTimestamp(date = new Date()) {
   return date.toISOString().slice(0, 16).replace('T', ' ');
@@ -1648,6 +1656,145 @@ export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatc
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '다가오는 매치를 불러오지 못했어.',
+    },
+  );
+}
+
+function buildMockRunningMatchRoomResponse(room: RunningMatchRoom | null): RunningMatchRoomResponse {
+  return {
+    success: true,
+    room,
+  };
+}
+
+export async function fetchRunningMatchRoom(): Promise<RunningMatchRoomResponse> {
+  if (USE_MOCK_API) {
+    return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+  }
+
+  return apiGet<RunningMatchRoomResponse>(
+    '/running/rooms/my',
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '내 방 상태를 불러오지 못했어.',
+    },
+  );
+}
+
+export async function createRunningMatchRoom(input: CreateRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
+  if (USE_MOCK_API) {
+    const profile = getCurrentUserProfile() ?? myProfile;
+    const now = new Date();
+    const slotStartAt = input.startMode === 'host'
+      ? now.toISOString()
+      : input.slotStartAt ?? now.toISOString();
+    const roomId = `mock-room-${Date.now()}`;
+    const inviteToken = `ROOM${String(Date.now()).slice(-4)}`;
+    const invitedFriendIds = [...new Set((input.invitedFriendIds ?? []).filter(Boolean))];
+    const participants: RunningMatchRoomParticipant[] = [{
+      userId: profile.publicTag || 'mock-current-user',
+      name: profile.name,
+      tag: profile.publicTag,
+      districtName: profile.districtName,
+      averagePace: '06:20/km',
+      levelLabel: buildLevelLabel(profile.lifetimeDistanceKm ?? weeklySummary.totalDistanceKm),
+      isHost: true,
+      invited: false,
+      joinedAt: now.toISOString(),
+    }];
+    mockRunningMatchRoom = {
+      roomId,
+      inviteToken,
+      inviteLink: `runningground://running?roomInviteToken=${inviteToken}`,
+      mode: input.mode,
+      state: 'waiting',
+      startMode: input.startMode,
+      distanceKm: Number(input.distanceKm.toFixed(1)),
+      slotStartAt,
+      slotLabel: input.startMode === 'host' ? '방장 시작' : formatDuelSlotLabel(slotStartAt),
+      maxParticipants: input.mode === 'duel' ? 2 : Math.max(2, Math.min(30, Math.round(input.maxParticipants ?? 10))),
+      minParticipants: input.mode === 'duel' ? 2 : 2,
+      canStart: false,
+      isHost: true,
+      hostUserId: participants[0].userId,
+      hostName: participants[0].name,
+      participants,
+      invitedFriendIds,
+    };
+    return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+  }
+
+  return apiPost<RunningMatchRoomResponse>(
+    '/running/rooms',
+    {
+      ...input,
+      distanceKm: Number(input.distanceKm.toFixed(1)),
+      maxParticipants: input.maxParticipants ? Math.round(input.maxParticipants) : undefined,
+      invitedFriendIds: input.invitedFriendIds ?? [],
+    },
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '방을 만들지 못했어.',
+    },
+  );
+}
+
+export async function joinRunningMatchRoom(input: JoinRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
+  if (USE_MOCK_API) {
+    return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+  }
+
+  return apiPost<RunningMatchRoomResponse>(
+    '/running/rooms/join',
+    input,
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '방에 들어가지 못했어.',
+    },
+  );
+}
+
+export async function startRunningMatchRoom(input: StartRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
+  if (USE_MOCK_API) {
+    if (mockRunningMatchRoom) {
+      const slotStartAt = new Date(Date.now() + 30_000).toISOString();
+      mockRunningMatchRoom = {
+        ...mockRunningMatchRoom,
+        state: 'countdown',
+        slotStartAt,
+        slotLabel: formatDuelSlotLabel(slotStartAt),
+        canStart: false,
+        linkedMatchId: `mock-room-match-${Date.now()}`,
+        linkedMatchStatus: 'matched',
+        linkedMatchSlotStartAt: slotStartAt,
+      };
+    }
+
+    return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+  }
+
+  return apiPost<RunningMatchRoomResponse>(
+    '/running/rooms/start',
+    input,
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '방 시작을 반영하지 못했어.',
+    },
+  );
+}
+
+export async function leaveRunningMatchRoom(input: LeaveRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
+  if (USE_MOCK_API) {
+    mockRunningMatchRoom = null;
+    return buildMockRunningMatchRoomResponse(null);
+  }
+
+  return apiPost<RunningMatchRoomResponse>(
+    '/running/rooms/leave',
+    input,
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '방에서 나가지 못했어.',
     },
   );
 }

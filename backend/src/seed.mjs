@@ -499,7 +499,7 @@ export function createSeedStore() {
   const runs = [];
 
   return {
-    version: 4,
+    version: 5,
     users,
     runs,
     integrationImports: [],
@@ -509,6 +509,7 @@ export function createSeedStore() {
       group: [],
     },
     matchSessions: [],
+    matchRooms: [],
     friendRequests: [],
     friendships: [],
     rewardRedemptions: [],

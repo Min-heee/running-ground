@@ -254,6 +254,72 @@ export type UpcomingRunningMatchesResponse = {
   items: UpcomingRunningMatchItem[];
 };
 
+export type RunningMatchRoomMode = 'duel' | 'group';
+export type RunningMatchRoomStartMode = 'scheduled' | 'host';
+export type RunningMatchRoomState = 'waiting' | 'countdown' | 'active';
+
+export type RunningMatchRoomParticipant = {
+  userId: string;
+  name: string;
+  tag?: string;
+  districtName: string;
+  averagePace: string;
+  levelLabel: string;
+  isHost: boolean;
+  invited: boolean;
+  joinedAt: string;
+};
+
+export type RunningMatchRoom = {
+  roomId: string;
+  inviteToken: string;
+  inviteLink: string;
+  mode: RunningMatchRoomMode;
+  state: RunningMatchRoomState;
+  startMode: RunningMatchRoomStartMode;
+  distanceKm: number;
+  slotStartAt: string;
+  slotLabel: string;
+  maxParticipants: number;
+  minParticipants: number;
+  canStart: boolean;
+  isHost: boolean;
+  joined?: boolean;
+  hostUserId: string;
+  hostName: string;
+  participants: RunningMatchRoomParticipant[];
+  invitedFriendIds: string[];
+  linkedMatchId?: string;
+  linkedMatchStatus?: 'matched' | 'active';
+  linkedMatchSlotStartAt?: string;
+};
+
+export type RunningMatchRoomResponse = {
+  success: boolean;
+  room: RunningMatchRoom | null;
+};
+
+export type CreateRunningMatchRoomInput = {
+  mode: RunningMatchRoomMode;
+  distanceKm: number;
+  startMode: RunningMatchRoomStartMode;
+  slotStartAt?: string;
+  maxParticipants?: number;
+  invitedFriendIds?: string[];
+};
+
+export type JoinRunningMatchRoomInput = {
+  inviteToken: string;
+};
+
+export type StartRunningMatchRoomInput = {
+  roomId: string;
+};
+
+export type LeaveRunningMatchRoomInput = {
+  roomId: string;
+};
+
 export type CancelRunningMatchResponse = {
   success: boolean;
 };

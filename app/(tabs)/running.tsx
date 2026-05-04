@@ -7,6 +7,7 @@ export default function RunningTabScreen() {
     focusMatchSlotStartAt?: string;
     focusMatchIsTest?: string;
     focusMatchNonce?: string;
+    roomInviteToken?: string;
   }>();
 
   const focusMatchMode = params.focusMatchMode === 'group' ? 'group' : params.focusMatchMode === 'duel' ? 'duel' : undefined;
@@ -18,6 +19,7 @@ export default function RunningTabScreen() {
       focusMatchSlotStartAt={typeof params.focusMatchSlotStartAt === 'string' ? params.focusMatchSlotStartAt : undefined}
       focusMatchIsTest={params.focusMatchIsTest === '1'}
       focusMatchNonce={typeof params.focusMatchNonce === 'string' ? params.focusMatchNonce : undefined}
+      roomInviteToken={typeof params.roomInviteToken === 'string' ? params.roomInviteToken : undefined}
     />
   );
 }
