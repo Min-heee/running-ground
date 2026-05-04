@@ -77,6 +77,7 @@ function RoadMotion({
       {laneMode === 'duel' ? (
         <>
           <View style={styles.duelRoadBase} />
+          <View style={styles.duelCenterDivider} />
           <View style={[styles.duelLaneBase, styles.duelLaneLeft]} />
           <View style={[styles.duelLaneBase, styles.duelLaneRight]} />
           <Animated.View
@@ -334,32 +335,38 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    left: '2%',
-    width: '96%',
-    borderRadius: 28,
-    backgroundColor: '#101A31',
-    borderWidth: 1,
-    borderColor: 'rgba(199,210,254,0.14)',
+    left: '1%',
+    width: '98%',
+    borderRadius: 24,
+    backgroundColor: '#0B1020',
+  },
+  duelCenterDivider: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '48%',
+    width: '4%',
+    backgroundColor: 'rgba(44, 67, 160, 0.38)',
   },
   duelLaneBase: {
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: '40%',
-    borderRadius: 32,
-    backgroundColor: 'rgba(9,17,34,0.32)',
+    width: '47%',
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.02)',
   },
   duelLaneLeft: {
-    left: '10%',
+    left: '1%',
   },
   duelLaneRight: {
-    right: '10%',
+    right: '1%',
   },
   duelCenterMarkingsWrap: {
     position: 'absolute',
     top: -ROAD_STRIPE_SPACING,
-    left: '30%',
-    right: '30%',
+    left: '22%',
+    right: '22%',
   },
   duelStripeRow: {
     height: ROAD_STRIPE_SPACING,
@@ -400,14 +407,14 @@ const styles = StyleSheet.create({
   },
   finishRibbon: {
     position: 'absolute',
-    top: 18,
-    left: 14,
-    right: 14,
+    top: 14,
+    left: 10,
+    right: 10,
     borderRadius: 999,
     backgroundColor: 'rgba(109,94,247,0.24)',
     borderWidth: 1,
     borderColor: 'rgba(224,231,255,0.18)',
-    paddingVertical: 6,
+    paddingVertical: 8,
     alignItems: 'center',
   },
   finishRibbonGroup: {
@@ -426,10 +433,10 @@ const styles = StyleSheet.create({
     marginLeft: -48,
   },
   duelRunnerLeft: {
-    left: '30%',
+    left: '24%',
   },
   duelRunnerRight: {
-    left: '70%',
+    left: '76%',
   },
   runnerBubble: {
     marginBottom: 8,
