@@ -43,6 +43,7 @@ import {
   findNextStartingMatchedMatch,
   formatMatchCountdown,
   getMatchStartRemainingSeconds,
+  shouldAutoOpenMatchArena,
   shouldShowMatchCardCountdown,
   shouldShowMatchStartOverlay,
 } from '@/lib/matchCountdown';
@@ -1025,8 +1026,8 @@ export function TrackRunExperience({
       })),
     [featuredGroupArenaParticipantIds, groupLiveStandings],
   );
-  const duelShouldOpenCountdownArena = duelMatchState === 'matched' && shouldShowMatchStartOverlay(duelStartCountdownSeconds);
-  const groupShouldOpenCountdownArena = groupMatchState === 'matched' && shouldShowMatchStartOverlay(groupStartCountdownSeconds);
+  const duelShouldOpenCountdownArena = duelMatchState === 'matched' && shouldAutoOpenMatchArena(duelStartCountdownSeconds);
+  const groupShouldOpenCountdownArena = groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds);
   const canRenderLiveArena =
     (matchMode === 'duel' && ['matched', 'active'].includes(duelMatchState) && duelArenaParticipants.length === 2 && (duelMatchState === 'active' || duelShouldOpenCountdownArena))
     || (matchMode === 'group' && ['matched', 'active'].includes(groupMatchState) && groupArenaParticipants.length > 0 && (groupMatchState === 'active' || groupShouldOpenCountdownArena));
@@ -1392,7 +1393,7 @@ export function TrackRunExperience({
       });
       setForceOpenActiveMatch(
         payload.state === 'active'
-        || (payload.state === 'matched' && shouldShowMatchStartOverlay(getMatchStartRemainingSeconds(payload.slotStartAt, Date.now()))),
+        || (payload.state === 'matched' && shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, Date.now()))),
       );
       return payload;
     }
@@ -1410,7 +1411,7 @@ export function TrackRunExperience({
     });
     setForceOpenActiveMatch(
       payload.state === 'active'
-      || (payload.state === 'matched' && shouldShowMatchStartOverlay(getMatchStartRemainingSeconds(payload.slotStartAt, Date.now()))),
+      || (payload.state === 'matched' && shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, Date.now()))),
     );
     return payload;
   };
@@ -1524,7 +1525,7 @@ export function TrackRunExperience({
   }, [duelMatchState, duelShouldOpenCountdownArena, groupMatchState, groupShouldOpenCountdownArena]);
 
   useEffect(() => {
-    if (!isIdle || !nextStartingMatch || !shouldShowMatchStartOverlay(nextStartingMatch.remainingSeconds)) {
+    if (!isIdle || !nextStartingMatch || !shouldAutoOpenMatchArena(nextStartingMatch.remainingSeconds)) {
       countdownAutoOpenMatchIdRef.current = null;
       return;
     }
@@ -1541,6 +1542,16 @@ export function TrackRunExperience({
       isTestMatch: nextStartingMatch.match.isTestMatch,
     }).catch(() => {});
   }, [focusRunningMatch, isIdle, nextStartingMatch]);
+
+  const shouldShowFullscreenMatchCountdown =
+    isIdle
+    && Boolean(nextStartingMatch)
+    && shouldShowMatchStartOverlay(nextStartingMatch?.remainingSeconds ?? null)
+    && !shouldAutoOpenMatchArena(nextStartingMatch?.remainingSeconds ?? null);
+  const shouldShowCenteredMatchCountdown =
+    Boolean(nextStartingMatch)
+    && shouldAutoOpenMatchArena(nextStartingMatch?.remainingSeconds ?? null)
+    && showLiveArena;
 
   useEffect(() => {
     let canceled = false;
@@ -3536,11 +3547,17 @@ export function TrackRunExperience({
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
       </Screen>
-      {isIdle && nextStartingMatch && shouldShowMatchStartOverlay(nextStartingMatch.remainingSeconds) ? (
+      {shouldShowFullscreenMatchCountdown && nextStartingMatch ? (
         <MatchStartCountdownOverlay
           title={nextStartingMatch.match.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작'}
           subtitle={`${nextStartingMatch.match.counterpartLabel} · ${nextStartingMatch.match.summary}`}
           secondsRemaining={nextStartingMatch.remainingSeconds}
+        />
+      ) : null}
+      {shouldShowCenteredMatchCountdown && nextStartingMatch ? (
+        <MatchStartCountdownOverlay
+          secondsRemaining={nextStartingMatch.remainingSeconds}
+          variant="centered"
         />
       ) : null}
     </View>

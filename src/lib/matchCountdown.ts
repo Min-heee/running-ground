@@ -1,7 +1,8 @@
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
 
 export const MATCH_CARD_COUNTDOWN_WINDOW_SECONDS = 10 * 60;
-export const MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS = 20;
+export const MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS = 30;
+export const MATCH_ARENA_HANDOFF_COUNTDOWN_WINDOW_SECONDS = 20;
 
 export function getMatchStartRemainingSeconds(slotStartAt: string, nowMs = Date.now()) {
   const slotStartAtMs = new Date(slotStartAt).getTime();
@@ -25,6 +26,10 @@ export function shouldShowMatchCardCountdown(remainingSeconds: number | null) {
 
 export function shouldShowMatchStartOverlay(remainingSeconds: number | null) {
   return typeof remainingSeconds === 'number' && remainingSeconds > 0 && remainingSeconds <= MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS;
+}
+
+export function shouldAutoOpenMatchArena(remainingSeconds: number | null) {
+  return typeof remainingSeconds === 'number' && remainingSeconds > 0 && remainingSeconds <= MATCH_ARENA_HANDOFF_COUNTDOWN_WINDOW_SECONDS;
 }
 
 export function formatMatchCountdown(remainingSeconds: number) {

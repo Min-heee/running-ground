@@ -1,20 +1,26 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 export function MatchStartCountdownOverlay({
+  secondsRemaining,
   title,
   subtitle,
-  secondsRemaining,
+  variant = 'fullscreen',
 }: {
-  title: string;
-  subtitle: string;
   secondsRemaining: number;
+  title?: string;
+  subtitle?: string;
+  variant?: 'fullscreen' | 'centered';
 }) {
   return (
-    <View style={styles.overlay}>
+    <View style={[styles.overlay, variant === 'centered' ? styles.overlayCentered : null]} pointerEvents="none">
       <View style={styles.content}>
-        <Text style={styles.eyebrow}>MATCH START</Text>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+        {variant === 'fullscreen' ? (
+          <>
+            <Text style={styles.eyebrow}>MATCH START</Text>
+            {title ? <Text style={styles.title}>{title}</Text> : null}
+            {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          </>
+        ) : null}
         <Text style={styles.countdown}>{secondsRemaining}</Text>
       </View>
     </View>
@@ -29,6 +35,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
     zIndex: 100,
+  },
+  overlayCentered: {
+    backgroundColor: 'transparent',
   },
   content: {
     alignItems: 'center',
