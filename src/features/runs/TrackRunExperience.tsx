@@ -1028,9 +1028,17 @@ export function TrackRunExperience({
   );
   const duelShouldOpenCountdownArena = duelMatchState === 'matched' && shouldAutoOpenMatchArena(duelStartCountdownSeconds);
   const groupShouldOpenCountdownArena = groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds);
+  const duelShouldHoldArenaDuringActivation = duelMatchState === 'matched' && forceOpenActiveMatch;
+  const groupShouldHoldArenaDuringActivation = groupMatchState === 'matched' && forceOpenActiveMatch;
   const canRenderLiveArena =
-    (matchMode === 'duel' && ['matched', 'active'].includes(duelMatchState) && duelArenaParticipants.length === 2 && (duelMatchState === 'active' || duelShouldOpenCountdownArena))
-    || (matchMode === 'group' && ['matched', 'active'].includes(groupMatchState) && groupArenaParticipants.length > 0 && (groupMatchState === 'active' || groupShouldOpenCountdownArena));
+    (matchMode === 'duel'
+      && ['matched', 'active'].includes(duelMatchState)
+      && duelArenaParticipants.length === 2
+      && (duelMatchState === 'active' || duelShouldOpenCountdownArena || duelShouldHoldArenaDuringActivation))
+    || (matchMode === 'group'
+      && ['matched', 'active'].includes(groupMatchState)
+      && groupArenaParticipants.length > 0
+      && (groupMatchState === 'active' || groupShouldOpenCountdownArena || groupShouldHoldArenaDuringActivation));
   const showLiveArena =
     canRenderLiveArena
     && (
@@ -1519,10 +1527,11 @@ export function TrackRunExperience({
       && groupMatchState !== 'active'
       && !duelShouldOpenCountdownArena
       && !groupShouldOpenCountdownArena
+      && !(forceOpenActiveMatch && (duelMatchState === 'matched' || groupMatchState === 'matched'))
     ) {
       setForceOpenActiveMatch(false);
     }
-  }, [duelMatchState, duelShouldOpenCountdownArena, groupMatchState, groupShouldOpenCountdownArena]);
+  }, [duelMatchState, duelShouldOpenCountdownArena, forceOpenActiveMatch, groupMatchState, groupShouldOpenCountdownArena]);
 
   useEffect(() => {
     if (duelMatchState === 'active' || groupMatchState === 'active') {
@@ -1603,7 +1612,8 @@ export function TrackRunExperience({
       return;
     }
 
-    const intervalMs = duelMatchStatus.state === 'active' ? 5000 : 15000;
+    const remainingSeconds = getMatchStartRemainingSeconds(duelMatchStatus.slotStartAt, Date.now());
+    const intervalMs = duelMatchStatus.state === 'active' || shouldAutoOpenMatchArena(remainingSeconds) ? 1000 : 15000;
     const timer = setInterval(() => {
       void loadDuelMatchStatus().catch(() => {});
     }, intervalMs);
@@ -1618,7 +1628,8 @@ export function TrackRunExperience({
       return;
     }
 
-    const intervalMs = groupMatchStatus.state === 'active' ? 5000 : 15000;
+    const remainingSeconds = getMatchStartRemainingSeconds(groupMatchStatus.slotStartAt, Date.now());
+    const intervalMs = groupMatchStatus.state === 'active' || shouldAutoOpenMatchArena(remainingSeconds) ? 1000 : 15000;
     const timer = setInterval(() => {
       void loadGroupMatchStatus().catch(() => {});
     }, intervalMs);
