@@ -1,7 +1,7 @@
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
 
 export const MATCH_CARD_COUNTDOWN_WINDOW_SECONDS = 10 * 60;
-export const MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS = 30;
+export const MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS = 20;
 
 export function getMatchStartRemainingSeconds(slotStartAt: string, nowMs = Date.now()) {
   const slotStartAtMs = new Date(slotStartAt).getTime();

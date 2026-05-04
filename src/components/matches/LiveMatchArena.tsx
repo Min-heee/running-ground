@@ -138,7 +138,7 @@ function DuelRoad({
 
   const gapKm = currentUser.distanceKm - opponent.distanceKm;
   const gapOffset = clamp((gapKm / Math.max(0.2, targetDistanceKm * 0.08)) * 96, -84, 84);
-  const centerY = ROAD_HEIGHT_DUEL * 0.56;
+  const centerY = ROAD_HEIGHT_DUEL * 0.74;
   const userTop = centerY - gapOffset / 2;
   const opponentTop = centerY + gapOffset / 2;
 
@@ -335,17 +335,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: '37%',
+    width: '31%',
     borderRadius: 32,
     backgroundColor: '#101A31',
     borderWidth: 1,
     borderColor: 'rgba(199,210,254,0.12)',
   },
   duelLaneLeft: {
-    left: '9%',
+    left: '18%',
   },
   duelLaneRight: {
-    right: '9%',
+    right: '18%',
   },
   duelShoulder: {
     position: 'absolute',
@@ -428,14 +428,14 @@ const styles = StyleSheet.create({
   duelRunnerWrap: {
     position: 'absolute',
     alignItems: 'center',
-    width: 120,
-    marginLeft: -60,
+    width: 96,
+    marginLeft: -48,
   },
   duelRunnerLeft: {
-    left: '39%',
+    left: '40%',
   },
   duelRunnerRight: {
-    left: '61%',
+    left: '60%',
   },
   runnerBubble: {
     marginBottom: 8,

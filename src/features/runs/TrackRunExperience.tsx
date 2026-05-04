@@ -552,6 +552,7 @@ export function TrackRunExperience({
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [liveArenaPage, setLiveArenaPage] = useState(0);
   const [forceOpenActiveMatch, setForceOpenActiveMatch] = useState(false);
+  const countdownAutoOpenMatchIdRef = useRef<string | null>(null);
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const duelDistanceKm = useMemo(() => parseDuelMatchDistanceKm(duelDistanceText), [duelDistanceText]);
@@ -1024,9 +1025,11 @@ export function TrackRunExperience({
       })),
     [featuredGroupArenaParticipantIds, groupLiveStandings],
   );
+  const duelShouldOpenCountdownArena = duelMatchState === 'matched' && shouldShowMatchStartOverlay(duelStartCountdownSeconds);
+  const groupShouldOpenCountdownArena = groupMatchState === 'matched' && shouldShowMatchStartOverlay(groupStartCountdownSeconds);
   const canRenderLiveArena =
-    (matchMode === 'duel' && duelMatchState === 'active' && duelArenaParticipants.length === 2)
-    || (matchMode === 'group' && groupMatchState === 'active' && groupArenaParticipants.length > 0);
+    (matchMode === 'duel' && ['matched', 'active'].includes(duelMatchState) && duelArenaParticipants.length === 2 && (duelMatchState === 'active' || duelShouldOpenCountdownArena))
+    || (matchMode === 'group' && ['matched', 'active'].includes(groupMatchState) && groupArenaParticipants.length > 0 && (groupMatchState === 'active' || groupShouldOpenCountdownArena));
   const showLiveArena =
     canRenderLiveArena
     && (
@@ -1387,7 +1390,10 @@ export function TrackRunExperience({
       const payload = await loadDuelMatchStatus(slotStartAt ?? activeDuelSlotStartAt, {
         testMode: isTestMatch,
       });
-      setForceOpenActiveMatch(payload.state === 'active');
+      setForceOpenActiveMatch(
+        payload.state === 'active'
+        || (payload.state === 'matched' && shouldShowMatchStartOverlay(getMatchStartRemainingSeconds(payload.slotStartAt, Date.now()))),
+      );
       return payload;
     }
 
@@ -1402,7 +1408,10 @@ export function TrackRunExperience({
     const payload = await loadGroupMatchStatus(slotStartAt ?? activeGroupSlotStartAt, {
       testMode: isTestMatch,
     });
-    setForceOpenActiveMatch(payload.state === 'active');
+    setForceOpenActiveMatch(
+      payload.state === 'active'
+      || (payload.state === 'matched' && shouldShowMatchStartOverlay(getMatchStartRemainingSeconds(payload.slotStartAt, Date.now()))),
+    );
     return payload;
   };
 
@@ -1504,10 +1513,34 @@ export function TrackRunExperience({
   }, [focusMatchIsTest, focusMatchMode, focusMatchNonce, focusMatchSlotStartAt]);
 
   useEffect(() => {
-    if (duelMatchState !== 'active' && groupMatchState !== 'active') {
+    if (
+      duelMatchState !== 'active'
+      && groupMatchState !== 'active'
+      && !duelShouldOpenCountdownArena
+      && !groupShouldOpenCountdownArena
+    ) {
       setForceOpenActiveMatch(false);
     }
-  }, [duelMatchState, groupMatchState]);
+  }, [duelMatchState, duelShouldOpenCountdownArena, groupMatchState, groupShouldOpenCountdownArena]);
+
+  useEffect(() => {
+    if (!isIdle || !nextStartingMatch || !shouldShowMatchStartOverlay(nextStartingMatch.remainingSeconds)) {
+      countdownAutoOpenMatchIdRef.current = null;
+      return;
+    }
+
+    if (countdownAutoOpenMatchIdRef.current === nextStartingMatch.match.matchId) {
+      return;
+    }
+
+    countdownAutoOpenMatchIdRef.current = nextStartingMatch.match.matchId;
+
+    void focusRunningMatch({
+      mode: nextStartingMatch.match.mode,
+      slotStartAt: nextStartingMatch.match.slotStartAt,
+      isTestMatch: nextStartingMatch.match.isTestMatch,
+    }).catch(() => {});
+  }, [focusRunningMatch, isIdle, nextStartingMatch]);
 
   useEffect(() => {
     let canceled = false;
