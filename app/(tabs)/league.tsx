@@ -10,8 +10,6 @@ import { fetchDistrictPersonal, fetchRegionLeague, fetchUniversityLeague } from 
 import { DistrictPersonalResponse, RegionLeagueResponse, UniversityLeagueResponse } from '@/lib/api/types';
 import { getCurrentUserProfile } from '@/lib/session';
 
-const FEATURED_REGION_COUNT = 6;
-
 type LeagueMode = 'region' | 'university';
 
 const PODIUM_THEME = {
@@ -100,7 +98,6 @@ export default function LeagueScreen() {
   const [universityError, setUniversityError] = useState<string | null>(null);
   const [regionMembersLoading, setRegionMembersLoading] = useState(false);
   const [regionMembersError, setRegionMembersError] = useState<string | null>(null);
-  const [showAllRegions, setShowAllRegions] = useState(false);
   const [memberRankCardY, setMemberRankCardY] = useState(0);
   const [myRankRowY, setMyRankRowY] = useState<number | null>(null);
   const currentNode = league?.currentNode ?? null;
@@ -114,7 +111,6 @@ export default function LeagueScreen() {
     fetchRegionLeague(nodeId)
       .then((response) => {
         setLeague(response);
-        setShowAllRegions(false);
       })
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '지역 리그 정보를 불러오지 못했어.'))
       .finally(() => setLoading(false));
@@ -152,10 +148,7 @@ export default function LeagueScreen() {
     [breadcrumbNodes],
   );
   const sortedChildren = useMemo(() => [...children].sort((a, b) => a.rank - b.rank), [children]);
-  const visibleChildren = useMemo(() => {
-    if (!isCountry || showAllRegions) return sortedChildren;
-    return sortedChildren.slice(0, FEATURED_REGION_COUNT);
-  }, [sortedChildren, isCountry, showAllRegions]);
+  const visibleChildren = useMemo(() => sortedChildren, [sortedChildren]);
 
   const featuredUniversityRank = universityLeague?.ranks[0] ?? null;
   const isUniversityView = leagueMode === 'university';
@@ -412,11 +405,6 @@ export default function LeagueScreen() {
                     </View>
                   ) : null}
 
-                  {isCountry && children.length > FEATURED_REGION_COUNT ? (
-                    <Pressable style={styles.toggleButton} onPress={() => setShowAllRegions((prev) => !prev)}>
-                      <Text style={styles.toggleButtonText}>{showAllRegions ? '대표 지역만 보기' : '전체 지역 보기'}</Text>
-                    </Pressable>
-                  ) : null}
                 </View>
               </Card>
 

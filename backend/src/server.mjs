@@ -1421,9 +1421,23 @@ function buildRunningMatchRoomParticipantPayload(store, participant) {
     averagePace: runner.averagePace,
     levelLabel: runner.levelLabel,
     isHost: Boolean(participant.isHost),
+    isReady: Boolean(participant.isReady),
     invited: Boolean(participant.invited),
     joinedAt: participant.joinedAt,
   };
+}
+
+function areAllRunningMatchRoomGuestsReady(room) {
+  if (!room) {
+    return false;
+  }
+
+  const guests = room.participants.filter((participant) => !participant.isHost);
+  if (!guests.length) {
+    return false;
+  }
+
+  return guests.every((participant) => participant.isReady);
 }
 
 function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date()) {
@@ -1456,7 +1470,11 @@ function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date(
         : formatDuelSlotLabel(room.slotStartAt),
       maxParticipants: room.maxParticipants,
       minParticipants: room.minParticipants,
-      canStart: room.startMode === 'host' && room.hostUserId === currentUser.id && !linkedSession && room.participants.length >= room.minParticipants,
+      canStart: room.startMode === 'host'
+        && room.hostUserId === currentUser.id
+        && !linkedSession
+        && room.participants.length >= room.minParticipants
+        && areAllRunningMatchRoomGuestsReady(room),
       isHost: room.hostUserId === currentUser.id,
       hostUserId: room.hostUserId,
       hostName: hostUser.name,
@@ -1534,6 +1552,7 @@ function createRunningMatchRoom(store, currentUser, {
     participants: [{
       userId: currentUser.id,
       isHost: true,
+      isReady: false,
       invited: false,
       joinedAt: new Date().toISOString(),
     }],
@@ -1589,6 +1608,7 @@ function joinRunningMatchRoom(store, currentUser, { inviteToken }) {
   room.participants.push({
     userId: currentUser.id,
     isHost: false,
+    isReady: false,
     invited: room.invitedFriendIds.includes(currentUser.id),
     joinedAt: new Date().toISOString(),
   });
@@ -1620,6 +1640,10 @@ function startRunningMatchRoom(store, currentUser, { roomId }) {
     throw new ApiError(400, `최소 ${room.minParticipants}명은 모여야 시작할 수 있어.`);
   }
 
+  if (!areAllRunningMatchRoomGuestsReady(room)) {
+    throw new ApiError(400, '모든 참가자가 준비 완료해야 시작할 수 있어.');
+  }
+
   const slotStartAt = new Date(Date.now() + MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000).toISOString();
   room.slotStartAt = slotStartAt;
   const session = createMatchSession(
@@ -1634,6 +1658,35 @@ function startRunningMatchRoom(store, currentUser, { roomId }) {
   );
   room.linkedMatchId = session.id;
 
+  return buildRunningMatchRoomResponse(store, currentUser, room);
+}
+
+function updateRunningMatchRoomReady(store, currentUser, {
+  roomId,
+  ready,
+}) {
+  const room = findRunningMatchRoomById(store, roomId);
+
+  if (!room) {
+    throw new ApiError(404, '준비 상태를 바꿀 방을 찾지 못했어.');
+  }
+
+  if (room.linkedMatchId) {
+    throw new ApiError(400, '이미 시작 준비에 들어간 방은 준비 상태를 바꿀 수 없어.');
+  }
+
+  const participant = room.participants.find((entry) => entry.userId === currentUser.id);
+
+  if (!participant) {
+    throw new ApiError(404, '이 방 참가자 목록에서 사용자를 찾지 못했어.');
+  }
+
+  if (participant.isHost) {
+    throw new ApiError(400, '방장은 준비 버튼 대신 시작 버튼을 사용해줘.');
+  }
+
+  participant.isReady = Boolean(ready);
+  syncMatchRooms(store);
   return buildRunningMatchRoomResponse(store, currentUser, room);
 }
 
@@ -5182,6 +5235,19 @@ async function handleUpdateRunningMatchRoom(request, response) {
   sendJson(response, 200, payload);
 }
 
+async function handleUpdateRunningMatchRoomReady(request, response) {
+  const body = await parseJsonBody(request);
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return updateRunningMatchRoomReady(store, currentUser, {
+      roomId: validateRequiredString(body.roomId, '준비 상태를 바꿀 방 아이디가 필요해.'),
+      ready: body.ready === true,
+    });
+  });
+
+  sendJson(response, 200, payload);
+}
+
 async function handleLeaveRunningMatchRoom(request, response) {
   const body = await parseJsonBody(request);
   const payload = mutateStore((store) => {
@@ -5632,6 +5698,11 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/running/rooms/update' && request.method === 'POST') {
     await handleUpdateRunningMatchRoom(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/rooms/ready' && request.method === 'POST') {
+    await handleUpdateRunningMatchRoomReady(request, response);
     return;
   }
 

@@ -191,6 +191,10 @@ export default function MatchRoomScreen() {
       return;
     }
 
+    if (room.state !== 'countdown' && room.state !== 'active') {
+      return;
+    }
+
     router.replace({
       pathname: '/(tabs)/running',
       params: {
@@ -199,7 +203,7 @@ export default function MatchRoomScreen() {
         focusMatchNonce: `room-${Date.now()}`,
       },
     } as Href);
-  }, [room?.linkedMatchSlotStartAt, room?.mode]);
+  }, [room?.linkedMatchSlotStartAt, room?.mode, room?.state]);
 
   useEffect(() => {
     if (!room) {
@@ -220,6 +224,9 @@ export default function MatchRoomScreen() {
   );
   const currentParticipant = room?.participants.find((participant) => participant.userId === currentUserId) ?? null;
   const isReady = Boolean(currentParticipant?.isReady);
+  const allGuestsReady = room
+    ? room.participants.filter((participant) => !participant.isHost).every((participant) => participant.isReady)
+    : false;
   const scheduledStartAt = buildScheduledStartAt(meridiem, HOUR_OPTIONS[hourIndex] ?? 12, MINUTE_OPTIONS[minuteIndex] ?? 0);
 
   const saveRoomSettings = async (overrides: Partial<{
@@ -379,6 +386,7 @@ export default function MatchRoomScreen() {
               <View>
                 <Text style={styles.roomModeTitle}>{room.mode === 'duel' ? '1대1 대결' : '그룹 대결'}</Text>
                 <Text style={styles.roomMeta}>{room.hostName}님 방 · {room.participants.length}/{room.maxParticipants}명</Text>
+                <Text style={styles.roomMeta}>거리 · {room.distanceKm}km</Text>
                 <Text style={styles.roomMeta}>시작 방식 · {room.startMode === 'host' ? '방장 시작' : `예약 시작 ${formatRoomDateLabel(room.slotStartAt)}`}</Text>
               </View>
               <View style={styles.codePill}>
@@ -400,8 +408,8 @@ export default function MatchRoomScreen() {
                     <Text style={styles.participantName}>{participant.name}</Text>
                     {participant.isHost ? <Text style={styles.hostBadge}>방장</Text> : null}
                   </View>
-                  <Text style={participant.isReady ? styles.readyText : styles.pendingText}>
-                    {participant.isReady ? '준비 완료' : '대기 중'}
+                  <Text style={participant.isHost ? styles.hostStatusText : (participant.isReady ? styles.readyText : styles.pendingText)}>
+                    {participant.isHost ? '시작 권한' : (participant.isReady ? '준비 완료' : '대기 중')}
                   </Text>
                 </View>
               ))}
@@ -421,6 +429,13 @@ export default function MatchRoomScreen() {
             ) : (
               <Text style={styles.helperText}>예약 시간 30초 전에 카운트다운이 시작돼요.</Text>
             )}
+            {room.isHost && room.startMode === 'host' && !room.canStart ? (
+              <Text style={styles.helperText}>
+                {allGuestsReady
+                  ? `최소 ${room.minParticipants}명은 모여야 시작할 수 있어요.`
+                  : '모든 참가자가 준비 완료해야 시작할 수 있어요.'}
+              </Text>
+            ) : null}
           </Card>
 
           {room.isHost && !room.linkedMatchId ? (
@@ -665,6 +680,11 @@ const styles = StyleSheet.create({
   },
   readyText: {
     color: '#1570EF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  hostStatusText: {
+    color: '#6D5EF7',
     fontSize: 14,
     fontWeight: '800',
   },

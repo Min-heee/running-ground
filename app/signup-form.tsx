@@ -67,6 +67,7 @@ export default function SignupFormScreen() {
   const [regions, setRegions] = useState<AddressRegionNode[]>([]);
   const [addressDetail, setAddressDetail] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [openRegionStep, setOpenRegionStep] = useState<'province' | 'secondary' | 'tertiary' | 'detail'>('province');
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -134,6 +135,25 @@ export default function SignupFormScreen() {
     && /^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim()),
   );
   const signupReady = requiredProfileReady && usernameReady && passwordReady;
+
+  useEffect(() => {
+    if (!selectedProvince) {
+      setOpenRegionStep('province');
+      return;
+    }
+
+    if (!selectedSecondary) {
+      setOpenRegionStep('secondary');
+      return;
+    }
+
+    if (tertiaryOptions.length > 0 && !finalRegion) {
+      setOpenRegionStep('tertiary');
+      return;
+    }
+
+    setOpenRegionStep('detail');
+  }, [finalRegion, selectedProvince, selectedSecondary, tertiaryOptions.length]);
 
   const handleUsernameChange = (value: string) => {
     const nextUsername = value.trim().toLowerCase();
@@ -438,46 +458,73 @@ export default function SignupFormScreen() {
 
           <View style={styles.addressGroup}>
             <Text style={styles.label}>사는 지역 선택</Text>
-            <Text style={styles.helperText}>서울특별시처럼 광역시는 바로 구를 고르고, 경기도처럼 도는 시를 먼저 고른 뒤 구가 있으면 한 단계 더 내려가면 돼요.</Text>
+            <Text style={styles.helperText}>한 단계씩 차례대로 고르면 돼요. 지금 선택한 지역만 접힌 카드로 보여서 덜 복잡하게 정리했어요.</Text>
 
-            <RegionChipSection
+            <RegionPickerCard
               title="1. 시/도 선택"
-              options={regions}
-              selectedName={provinceName}
+              selectedLabel={provinceName || '시/도를 선택해주세요'}
+              active={openRegionStep === 'province'}
               disabled={submitting || catalogLoading}
-              onSelect={(nextProvince) => {
-                setProvinceName(nextProvince.name);
-                setSecondaryRegionName('');
-                setTertiaryRegionName('');
-                setAddressDetail('');
-              }}
-            />
-
-            {selectedProvince ? (
+              onPress={() => setOpenRegionStep('province')}
+            >
               <RegionChipSection
-                title={selectedProvince.children?.[0]?.type === 'district' ? '2. 구 선택' : '2. 시/군 선택'}
-                options={secondaryOptions}
-                selectedName={secondaryRegionName}
+                title="시/도 목록"
+                options={regions}
+                selectedName={provinceName}
                 disabled={submitting || catalogLoading}
-                onSelect={(nextSecondary) => {
-                  setSecondaryRegionName(nextSecondary.name);
+                onSelect={(nextProvince) => {
+                  setProvinceName(nextProvince.name);
+                  setSecondaryRegionName('');
                   setTertiaryRegionName('');
                   setAddressDetail('');
+                  setOpenRegionStep('secondary');
                 }}
               />
+            </RegionPickerCard>
+
+            {selectedProvince ? (
+              <RegionPickerCard
+                title={selectedProvince.children?.[0]?.type === 'district' ? '2. 구 선택' : '2. 시/군 선택'}
+                selectedLabel={secondaryRegionName || '세부 지역을 선택해주세요'}
+                active={openRegionStep === 'secondary'}
+                disabled={submitting || catalogLoading}
+                onPress={() => setOpenRegionStep('secondary')}
+              >
+                <RegionChipSection
+                  title={selectedProvince.children?.[0]?.type === 'district' ? '구 목록' : '시/군 목록'}
+                  options={secondaryOptions}
+                  selectedName={secondaryRegionName}
+                  disabled={submitting || catalogLoading}
+                  onSelect={(nextSecondary) => {
+                    setSecondaryRegionName(nextSecondary.name);
+                    setTertiaryRegionName('');
+                    setAddressDetail('');
+                    setOpenRegionStep(nextSecondary.children?.length ? 'tertiary' : 'detail');
+                  }}
+                />
+              </RegionPickerCard>
             ) : null}
 
             {selectedSecondary && tertiaryOptions.length > 0 ? (
-              <RegionChipSection
+              <RegionPickerCard
                 title="3. 구 선택"
-                options={tertiaryOptions}
-                selectedName={tertiaryRegionName}
+                selectedLabel={tertiaryRegionName || '구를 선택해주세요'}
+                active={openRegionStep === 'tertiary'}
                 disabled={submitting || catalogLoading}
-                onSelect={(nextTertiary) => {
-                  setTertiaryRegionName(nextTertiary.name);
-                  setAddressDetail('');
-                }}
-              />
+                onPress={() => setOpenRegionStep('tertiary')}
+              >
+                <RegionChipSection
+                  title="구 목록"
+                  options={tertiaryOptions}
+                  selectedName={tertiaryRegionName}
+                  disabled={submitting || catalogLoading}
+                  onSelect={(nextTertiary) => {
+                    setTertiaryRegionName(nextTertiary.name);
+                    setAddressDetail('');
+                    setOpenRegionStep('detail');
+                  }}
+                />
+              </RegionPickerCard>
             ) : null}
 
             {selectedAddressLabel ? (
@@ -533,6 +580,39 @@ export default function SignupFormScreen() {
         </View>
       </Card>
     </Screen>
+  );
+}
+
+function RegionPickerCard({
+  title,
+  selectedLabel,
+  active,
+  disabled = false,
+  onPress,
+  children,
+}: {
+  title: string;
+  selectedLabel: string;
+  active: boolean;
+  disabled?: boolean;
+  onPress: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.regionPickerCard}>
+      <Pressable
+        style={[styles.regionPickerHeader, disabled && styles.disabledButton]}
+        onPress={onPress}
+        disabled={disabled}
+      >
+        <View style={styles.regionPickerHeaderCopy}>
+          <Text style={styles.regionPickerTitle}>{title}</Text>
+          <Text style={styles.regionPickerValue}>{selectedLabel}</Text>
+        </View>
+        <Text style={styles.regionPickerToggle}>{active ? '접기' : '열기'}</Text>
+      </Pressable>
+      {active ? <View style={styles.regionPickerContent}>{children}</View> : null}
+    </View>
   );
 }
 
@@ -774,6 +854,44 @@ const styles = StyleSheet.create({
   },
   addressGroup: {
     gap: 12,
+  },
+  regionPickerCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    overflow: 'hidden',
+  },
+  regionPickerHeader: {
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  regionPickerHeaderCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  regionPickerTitle: {
+    color: '#111827',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  regionPickerValue: {
+    color: '#667085',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  regionPickerToggle: {
+    color: '#6D5EF7',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  regionPickerContent: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
   },
   selectedAddressCard: {
     backgroundColor: '#F8FAFC',

@@ -746,7 +746,7 @@ export function TrackRunExperience({
       },
       {
         mode: 'room' as const,
-        title: '방만들기',
+        title: '파티런',
         summary: '친구 초대나 링크 공유로 직접 대결 방을 열 수 있어요.',
         meta: `${roomMatchMode === 'duel' ? '1대1 대결' : '그룹 대결'} · ${roomStartMode === 'scheduled' ? '예약 시작' : '방장 시작'}`,
         startLabel: matchRoom ? '방 입장' : '방 만들기',
@@ -3529,7 +3529,14 @@ export function TrackRunExperience({
                     <Pressable
                       key={option.mode}
                       style={[styles.matchOption, isSelected ? styles.matchOptionSelected : styles.matchOptionIdle]}
-                      onPress={() => setMatchMode(option.mode)}
+                      onPress={() => {
+                        if (option.mode === 'room' && matchRoom) {
+                          router.push('/match-room' as Href);
+                          return;
+                        }
+
+                        setMatchMode(option.mode);
+                      }}
                       >
                         <Text style={[styles.matchOptionTitle, isSelected ? styles.matchOptionTitleSelected : undefined]}>
                           {option.title}
@@ -3540,95 +3547,7 @@ export function TrackRunExperience({
               </View>
               {matchMode === 'room' ? (
                 <View style={styles.roomCard}>
-                  {matchRoom ? (
-                    <View style={styles.roomLobby}>
-                      <Text style={styles.roomLobbyTitle}>
-                        {matchRoom.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {matchRoom.distanceKm.toFixed(1)}km
-                      </Text>
-                      <Text style={styles.roomLobbyMeta}>
-                        {matchRoom.startMode === 'host'
-                          ? (matchRoom.linkedMatchSlotStartAt
-                            ? `방장 시작 · ${buildMatchSlotDateLabel(matchRoom.linkedMatchSlotStartAt)} ${matchRoom.slotLabel}`
-                            : '방장 시작 대기 중')
-                          : `${buildMatchSlotDateLabel(matchRoom.slotStartAt)} ${matchRoom.slotLabel} 예약`}
-                      </Text>
-                      <Text style={styles.roomLobbyMeta}>
-                        {matchRoom.hostName}님 방장 · {roomParticipantsCount}/{matchRoom.maxParticipants}명 참여
-                      </Text>
-                      <Text style={styles.roomLobbyMeta}>
-                        초대 코드 {matchRoom.inviteToken}
-                      </Text>
-                      {matchRoom.linkedMatchSlotStartAt && shouldShowMatchCardCountdown(roomCountdownRemainingSeconds) ? (
-                        <View style={styles.upcomingMatchCountdownPill}>
-                          <Text style={styles.upcomingMatchCountdownText}>시작까지 {formatMatchCountdown(roomCountdownRemainingSeconds!)}</Text>
-                        </View>
-                      ) : null}
-                      <View style={styles.roomParticipantRow}>
-                        {matchRoom.participants.map((participant) => (
-                          <View key={participant.userId} style={styles.roomParticipantChip}>
-                            <Text style={styles.roomParticipantChipText}>
-                              {participant.isHost ? '방장 · ' : ''}{participant.name}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                      {!matchRoom.linkedMatchId ? (
-                        <SecondaryButton
-                          label="방 입장"
-                          onPress={() => {
-                            router.push('/match-room' as Href);
-                          }}
-                        />
-                      ) : null}
-                      {!matchRoom.joined && !matchRoom.isHost ? (
-                        <PrimaryButton
-                          label={isJoiningMatchRoom ? '참가 중...' : '이 방 참가하기'}
-                          onPress={() => {
-                            setRoomInviteTokenInput(matchRoom.inviteToken);
-                            void handleJoinMatchRoom();
-                          }}
-                          disabled={isJoiningMatchRoom}
-                        />
-                      ) : null}
-                      {matchRoom.isHost && matchRoom.startMode === 'host' && matchRoom.canStart ? (
-                        <PrimaryButton
-                          label={isStartingMatchRoom ? '시작 준비 중...' : '방장 시작'}
-                          onPress={() => {
-                            void handleStartHostMatchRoom();
-                          }}
-                          disabled={isStartingMatchRoom}
-                        />
-                      ) : null}
-                      {canOpenRoomArena ? (
-                        <SecondaryButton
-                          label="대결로 이동"
-                          onPress={() => {
-                            if (!matchRoom) {
-                              return;
-                            }
-                            void openRoomLinkedMatch(matchRoom);
-                          }}
-                        />
-                      ) : null}
-                      <View style={styles.roomActionRow}>
-                        <Pressable style={styles.roomActionButton} onPress={() => { void handleShareMatchRoom(); }}>
-                          <Text style={styles.roomActionButtonText}>링크 공유</Text>
-                        </Pressable>
-                        {!matchRoom.linkedMatchId ? (
-                          <Pressable
-                            style={styles.roomActionButton}
-                            onPress={() => {
-                              void handleLeaveMatchRoom();
-                            }}
-                          >
-                            <Text style={styles.roomActionButtonText}>
-                              {isLeavingMatchRoom ? '나가는 중...' : (matchRoom.isHost ? '방 삭제' : '방 나가기')}
-                            </Text>
-                          </Pressable>
-                        ) : null}
-                      </View>
-                    </View>
-                  ) : (
+                  {!matchRoom ? (
                     <>
                       <View style={styles.roomModeRow}>
                         {([
@@ -3669,7 +3588,7 @@ export function TrackRunExperience({
                         />
                       </View>
                     </>
-                  )}
+                  ) : null}
                 </View>
               ) : null}
               {matchMode === 'duel' ? (

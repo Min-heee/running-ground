@@ -12,7 +12,26 @@ const cityWithDistricts = (name: string, ...districtNames: string[]): AddressReg
   children: districts(...districtNames),
 });
 
-export const addressCatalog: AddressRegionNode[] = [
+function removeCountyRegions(node: AddressRegionNode): AddressRegionNode | null {
+  if (node.name.endsWith('군')) {
+    return null;
+  }
+
+  if (!node.children?.length) {
+    return node;
+  }
+
+  const children = node.children
+    .map(removeCountyRegions)
+    .filter((child): child is AddressRegionNode => Boolean(child));
+
+  return {
+    ...node,
+    children,
+  };
+}
+
+const rawAddressCatalog: AddressRegionNode[] = [
   {
     name: '서울특별시',
     type: 'province',
@@ -174,3 +193,7 @@ export const addressCatalog: AddressRegionNode[] = [
     children: municipalities('제주시', '서귀포시'),
   },
 ];
+
+export const addressCatalog: AddressRegionNode[] = rawAddressCatalog
+  .map(removeCountyRegions)
+  .filter((region): region is AddressRegionNode => Boolean(region));

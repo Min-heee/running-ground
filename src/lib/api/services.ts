@@ -1681,6 +1681,24 @@ function shouldFallbackToLocalRunningRoomApi(error: unknown) {
   );
 }
 
+function recalculateMockRunningMatchRoomCanStart(room: RunningMatchRoom | null) {
+  if (!room) {
+    return room;
+  }
+
+  const allGuestsReady = room.participants
+    .filter((participant) => !participant.isHost)
+    .every((participant) => participant.isReady);
+
+  return {
+    ...room,
+    canStart: room.startMode === 'host'
+      && room.isHost
+      && room.participants.length >= room.minParticipants
+      && allGuestsReady,
+  };
+}
+
 function createMockRunningMatchRoomState(input: CreateRunningMatchRoomInput) {
   const profile = getCurrentUserProfile() ?? myProfile;
   const now = new Date();
@@ -1723,6 +1741,7 @@ function createMockRunningMatchRoomState(input: CreateRunningMatchRoomInput) {
     invitedFriendIds,
   };
 
+  mockRunningMatchRoom = recalculateMockRunningMatchRoomCanStart(mockRunningMatchRoom);
   return mockRunningMatchRoom;
 }
 
@@ -1746,6 +1765,7 @@ function applyMockRunningMatchRoomUpdate(input: UpdateRunningMatchRoomInput) {
     invitedFriendIds: [...new Set((input.invitedFriendIds ?? []).filter(Boolean))],
   };
 
+  mockRunningMatchRoom = recalculateMockRunningMatchRoomCanStart(mockRunningMatchRoom);
   return mockRunningMatchRoom;
 }
 
@@ -1948,6 +1968,7 @@ export async function updateRunningMatchRoomReady(input: UpdateRunningMatchRoomR
       )),
     };
 
+    mockRunningMatchRoom = recalculateMockRunningMatchRoomCanStart(mockRunningMatchRoom);
     return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
   };
 
