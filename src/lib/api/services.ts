@@ -1593,10 +1593,16 @@ export async function fetchRunningMatchStatus(input: FetchRunningMatchStatusInpu
         || (!input.testMode && currentSession.slotStartAt === input.slotStartAt)
       )
     ) {
-      return currentSession;
+      return {
+        ...currentSession,
+        serverNow: new Date().toISOString(),
+      };
     }
 
-    return buildMockWaitingMatchStatus(input);
+    return {
+      ...buildMockWaitingMatchStatus(input),
+      serverNow: new Date().toISOString(),
+    };
   }
 
   return apiPost<RunningMatchStatusResponse>(
@@ -1650,7 +1656,10 @@ export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatc
       }))
       .sort((left, right) => new Date(left.slotStartAt).getTime() - new Date(right.slotStartAt).getTime());
 
-    return { items };
+    return {
+      serverNow: new Date().toISOString(),
+      items,
+    };
   }
 
   return apiGet<UpcomingRunningMatchesResponse>(
@@ -1665,6 +1674,7 @@ export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatc
 function buildMockRunningMatchRoomResponse(room: RunningMatchRoom | null): RunningMatchRoomResponse {
   return {
     success: true,
+    serverNow: new Date().toISOString(),
     room,
   };
 }

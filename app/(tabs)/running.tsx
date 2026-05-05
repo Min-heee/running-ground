@@ -7,6 +7,7 @@ export default function RunningTabScreen() {
     focusMatchSlotStartAt?: string;
     focusMatchIsTest?: string;
     focusMatchNonce?: string;
+    forceMatchArena?: string;
     roomInviteToken?: string;
   }>();
 
@@ -19,6 +20,7 @@ export default function RunningTabScreen() {
       focusMatchSlotStartAt={typeof params.focusMatchSlotStartAt === 'string' ? params.focusMatchSlotStartAt : undefined}
       focusMatchIsTest={params.focusMatchIsTest === '1'}
       focusMatchNonce={typeof params.focusMatchNonce === 'string' ? params.focusMatchNonce : undefined}
+      forceMatchArena={params.forceMatchArena === '1'}
       roomInviteToken={typeof params.roomInviteToken === 'string' ? params.roomInviteToken : undefined}
     />
   );

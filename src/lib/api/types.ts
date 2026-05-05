@@ -207,6 +207,7 @@ export type UpdateRunningMatchProgressInput = {
 
 export type RunningMatchStatusResponse = {
   success: boolean;
+  serverNow?: string;
   mode: 'duel' | 'group';
   state: RunningMatchState;
   isTestMatch?: boolean;
@@ -251,6 +252,7 @@ export type UpcomingRunningMatchItem = {
 };
 
 export type UpcomingRunningMatchesResponse = {
+  serverNow?: string;
   items: UpcomingRunningMatchItem[];
 };
 
@@ -297,6 +299,7 @@ export type RunningMatchRoom = {
 
 export type RunningMatchRoomResponse = {
   success: boolean;
+  serverNow?: string;
   room: RunningMatchRoom | null;
 };
 

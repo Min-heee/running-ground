@@ -1444,6 +1444,7 @@ function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date(
   if (!room) {
     return {
       success: true,
+      serverNow: now.toISOString(),
       room: null,
     };
   }
@@ -1456,6 +1457,7 @@ function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date(
 
   return {
     success: true,
+    serverNow: now.toISOString(),
     room: {
       roomId: room.id,
       inviteToken: room.inviteToken,
@@ -2183,6 +2185,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
       const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now);
       return {
         success: true,
+        serverNow: now.toISOString(),
         mode,
         state,
         ...(isTestMatch ? { isTestMatch: true } : {}),
@@ -2222,6 +2225,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
 
       return {
         success: true,
+        serverNow: now.toISOString(),
         mode,
         state,
         ...(isTestMatch ? { isTestMatch: true } : {}),
@@ -2284,6 +2288,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
   if (currentQueueEntry?.testMode) {
     return {
       success: true,
+      serverNow: now.toISOString(),
       mode,
       state: 'waiting',
       isTestMatch: true,
@@ -2317,6 +2322,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
 
   return {
     success: true,
+    serverNow: now.toISOString(),
     mode,
     state: currentQueueEntry ? 'waiting' : 'idle',
     distanceKm: normalizeMatchQueueDistance(distanceKm),
@@ -2610,6 +2616,7 @@ function buildUpcomingRunningMatchesResponse(store, currentUser) {
     .sort((left, right) => new Date(left.slotStartAt).getTime() - new Date(right.slotStartAt).getTime());
 
   return {
+    serverNow: now.toISOString(),
     items: sessions,
   };
 }

@@ -15,6 +15,7 @@ import {
   updateRunningMatchRoomReady,
 } from '@/lib/api/services';
 import type { FriendLeaderboardResponse, RunningMatchRoom, RunningMatchRoomStartMode } from '@/lib/api/types';
+import { getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { getCurrentUserProfile } from '@/lib/session';
 
 const ITEM_HEIGHT = 48;
@@ -132,10 +133,25 @@ export default function MatchRoomScreen() {
   const [minuteIndex, setMinuteIndex] = useState(0);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
   const [customDistanceText, setCustomDistanceText] = useState('5');
+  const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0);
+
+  const syncServerClock = (serverNow?: string) => {
+    if (!serverNow) {
+      return;
+    }
+
+    const serverNowMs = new Date(serverNow).getTime();
+    if (!Number.isFinite(serverNowMs)) {
+      return;
+    }
+
+    setServerClockOffsetMs(serverNowMs - Date.now());
+  };
 
   const loadRoom = async () => {
     try {
       const payload = await fetchRunningMatchRoom();
+      syncServerClock(payload.serverNow);
       setRoom(payload.room);
       setError(null);
       return payload.room;
@@ -178,7 +194,7 @@ export default function MatchRoomScreen() {
     void hydrate();
     const intervalId = setInterval(() => {
       void loadRoom();
-    }, 3000);
+    }, 1000);
 
     return () => {
       cancelled = true;
@@ -191,7 +207,13 @@ export default function MatchRoomScreen() {
       return;
     }
 
-    if (room.state !== 'countdown' && room.state !== 'active') {
+    const remainingSeconds = getMatchStartRemainingSeconds(
+      room.linkedMatchSlotStartAt,
+      Date.now() + serverClockOffsetMs,
+    );
+    const shouldOpenArena = room.linkedMatchStatus === 'active' || shouldAutoOpenMatchArena(remainingSeconds);
+
+    if (!shouldOpenArena) {
       return;
     }
 
@@ -200,10 +222,11 @@ export default function MatchRoomScreen() {
       params: {
         focusMatchMode: room.mode,
         focusMatchSlotStartAt: room.linkedMatchSlotStartAt,
+        forceMatchArena: '1',
         focusMatchNonce: `room-${Date.now()}`,
       },
     } as Href);
-  }, [room?.linkedMatchSlotStartAt, room?.mode, room?.state]);
+  }, [room?.linkedMatchSlotStartAt, room?.linkedMatchStatus, room?.mode, serverClockOffsetMs]);
 
   useEffect(() => {
     if (!room) {
@@ -256,6 +279,7 @@ export default function MatchRoomScreen() {
           : 2,
         invitedFriendIds: overrides.invitedFriendIds ?? selectedFriendIds,
       });
+      syncServerClock(payload.serverNow);
       setRoom(payload.room);
     } catch (roomError) {
       setError(roomError instanceof Error ? roomError.message : '대기실 설정을 저장하지 못했어.');
@@ -277,6 +301,7 @@ export default function MatchRoomScreen() {
         roomId: room.roomId,
         ready: !isReady,
       });
+      syncServerClock(payload.serverNow);
       setRoom(payload.room);
     } catch (roomError) {
       setError(roomError instanceof Error ? roomError.message : '준비 상태를 바꾸지 못했어.');
@@ -295,6 +320,7 @@ export default function MatchRoomScreen() {
 
     try {
       const payload = await startRunningMatchRoom({ roomId: room.roomId });
+      syncServerClock(payload.serverNow);
       setRoom(payload.room);
     } catch (roomError) {
       setError(roomError instanceof Error ? roomError.message : '방을 시작하지 못했어.');
