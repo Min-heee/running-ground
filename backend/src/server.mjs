@@ -1494,6 +1494,7 @@ function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date(
         linkedMatchId: linkedSession.id,
         linkedMatchStatus: linkedMatchState === 'active' ? 'active' : 'matched',
         linkedMatchSlotStartAt: linkedSession.slotStartAt,
+        linkedMatchDistanceKm: linkedSession.distanceKm,
       } : {}),
       joined: hasJoined,
     },

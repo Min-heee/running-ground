@@ -15,7 +15,7 @@ import {
   updateRunningMatchRoomReady,
 } from '@/lib/api/services';
 import type { FriendLeaderboardResponse, RunningMatchRoom, RunningMatchRoomStartMode } from '@/lib/api/types';
-import { getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
+import { formatMatchCountdown, getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { getCurrentUserProfile } from '@/lib/session';
 
 const ITEM_HEIGHT = 48;
@@ -148,6 +148,29 @@ export default function MatchRoomScreen() {
     setServerClockOffsetMs(serverNowMs - Date.now());
   };
 
+  const openLinkedMatchInRunning = (nextRoom: RunningMatchRoom) => {
+    if (!nextRoom.linkedMatchSlotStartAt) {
+      return;
+    }
+
+    const remainingSeconds = getMatchStartRemainingSeconds(
+      nextRoom.linkedMatchSlotStartAt,
+      Date.now() + serverClockOffsetMs,
+    );
+    const shouldForceArena = nextRoom.linkedMatchStatus === 'active' || shouldAutoOpenMatchArena(remainingSeconds);
+
+    router.replace({
+      pathname: '/(tabs)/running',
+      params: {
+        focusMatchMode: nextRoom.mode,
+        focusMatchDistanceKm: String(nextRoom.linkedMatchDistanceKm ?? nextRoom.distanceKm),
+        focusMatchSlotStartAt: nextRoom.linkedMatchSlotStartAt,
+        ...(shouldForceArena ? { forceMatchArena: '1' } : {}),
+        focusMatchNonce: `room-${Date.now()}`,
+      },
+    } as Href);
+  };
+
   const loadRoom = async () => {
     try {
       const payload = await fetchRunningMatchRoom();
@@ -194,7 +217,7 @@ export default function MatchRoomScreen() {
     void hydrate();
     const intervalId = setInterval(() => {
       void loadRoom();
-    }, 1000);
+    }, 500);
 
     return () => {
       cancelled = true;
@@ -207,25 +230,7 @@ export default function MatchRoomScreen() {
       return;
     }
 
-    const remainingSeconds = getMatchStartRemainingSeconds(
-      room.linkedMatchSlotStartAt,
-      Date.now() + serverClockOffsetMs,
-    );
-    const shouldOpenArena = room.linkedMatchStatus === 'active' || shouldAutoOpenMatchArena(remainingSeconds);
-
-    if (!shouldOpenArena) {
-      return;
-    }
-
-    router.replace({
-      pathname: '/(tabs)/running',
-      params: {
-        focusMatchMode: room.mode,
-        focusMatchSlotStartAt: room.linkedMatchSlotStartAt,
-        forceMatchArena: '1',
-        focusMatchNonce: `room-${Date.now()}`,
-      },
-    } as Href);
+    openLinkedMatchInRunning(room);
   }, [room?.linkedMatchSlotStartAt, room?.linkedMatchStatus, room?.mode, serverClockOffsetMs]);
 
   useEffect(() => {
@@ -251,6 +256,9 @@ export default function MatchRoomScreen() {
     ? room.participants.filter((participant) => !participant.isHost).every((participant) => participant.isReady)
     : false;
   const scheduledStartAt = buildScheduledStartAt(meridiem, HOUR_OPTIONS[hourIndex] ?? 12, MINUTE_OPTIONS[minuteIndex] ?? 0);
+  const linkedMatchRemainingSeconds = room?.linkedMatchSlotStartAt
+    ? getMatchStartRemainingSeconds(room.linkedMatchSlotStartAt, Date.now() + serverClockOffsetMs)
+    : null;
 
   const saveRoomSettings = async (overrides: Partial<{
     distanceKm: number;
@@ -322,6 +330,9 @@ export default function MatchRoomScreen() {
       const payload = await startRunningMatchRoom({ roomId: room.roomId });
       syncServerClock(payload.serverNow);
       setRoom(payload.room);
+      if (payload.room) {
+        openLinkedMatchInRunning(payload.room);
+      }
     } catch (roomError) {
       setError(roomError instanceof Error ? roomError.message : '방을 시작하지 못했어.');
     } finally {
@@ -419,6 +430,12 @@ export default function MatchRoomScreen() {
                 <Text style={styles.codePillText}>{room.inviteToken}</Text>
               </View>
             </View>
+            {linkedMatchRemainingSeconds ? (
+              <View style={styles.countdownBanner}>
+                <Text style={styles.countdownBannerTitle}>시작까지 {formatMatchCountdown(linkedMatchRemainingSeconds)}</Text>
+                <Text style={styles.countdownBannerText}>20초 전이 되면 자동으로 대결 화면으로 이동해요.</Text>
+              </View>
+            ) : null}
             <View style={styles.actionGrid}>
               <SecondaryButton label="친구 초대" onPress={() => { void handleInviteFriends(); }} />
               <SecondaryButton label="방 코드 복사" onPress={() => { void handleCopyCode(); }} />
@@ -619,7 +636,7 @@ export default function MatchRoomScreen() {
 const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
   },
   backButton: {
     width: 36,
@@ -671,6 +688,23 @@ const styles = StyleSheet.create({
   },
   actionGrid: {
     gap: 10,
+  },
+  countdownBanner: {
+    borderRadius: 18,
+    backgroundColor: '#1E1B4B',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 4,
+  },
+  countdownBannerTitle: {
+    color: '#EEF2FF',
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  countdownBannerText: {
+    color: '#C7D2FE',
+    fontSize: 13,
+    fontWeight: '600',
   },
   sectionTitle: {
     color: '#111827',

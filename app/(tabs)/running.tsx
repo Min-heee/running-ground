@@ -4,6 +4,7 @@ import { TrackRunExperience } from '@/features/runs/TrackRunExperience';
 export default function RunningTabScreen() {
   const params = useLocalSearchParams<{
     focusMatchMode?: string;
+    focusMatchDistanceKm?: string;
     focusMatchSlotStartAt?: string;
     focusMatchIsTest?: string;
     focusMatchNonce?: string;
@@ -17,6 +18,11 @@ export default function RunningTabScreen() {
     <TrackRunExperience
       mode="tab"
       focusMatchMode={focusMatchMode}
+      focusMatchDistanceKm={
+        typeof params.focusMatchDistanceKm === 'string'
+          ? Number.parseFloat(params.focusMatchDistanceKm)
+          : undefined
+      }
       focusMatchSlotStartAt={typeof params.focusMatchSlotStartAt === 'string' ? params.focusMatchSlotStartAt : undefined}
       focusMatchIsTest={params.focusMatchIsTest === '1'}
       focusMatchNonce={typeof params.focusMatchNonce === 'string' ? params.focusMatchNonce : undefined}

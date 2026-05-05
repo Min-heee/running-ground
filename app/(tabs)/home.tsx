@@ -19,6 +19,28 @@ import { cancelRunningMatch, fetchActiveNotices, fetchHomeSummary, fetchMyActivi
 import { getCurrentUserProfile } from '@/lib/session';
 import { MyActivityResponse, UpcomingRunningMatchItem } from '@/lib/api/types';
 
+const STALE_RENDER_MATCHED_MATCH_MS = 10 * 60 * 1000;
+const STALE_RENDER_ACTIVE_MATCH_MS = 8 * 60 * 60 * 1000;
+
+function shouldHidePastUpcomingMatch(
+  match: Pick<UpcomingRunningMatchItem, 'slotStartAt' | 'status'>,
+  nowMs: number,
+) {
+  const slotStartMs = new Date(match.slotStartAt).getTime();
+
+  if (!Number.isFinite(slotStartMs)) {
+    return false;
+  }
+
+  const elapsedMs = nowMs - slotStartMs;
+
+  if (match.status === 'active') {
+    return elapsedMs > STALE_RENDER_ACTIVE_MATCH_MS;
+  }
+
+  return elapsedMs > STALE_RENDER_MATCHED_MATCH_MS;
+}
+
 export default function HomeScreen() {
   const [summary, setSummary] = useState<WeeklySummary | null>(null);
   const [notices, setNotices] = useState<AppNotice[]>([]);
@@ -110,9 +132,14 @@ export default function HomeScreen() {
     return () => clearInterval(timer);
   }, []);
 
-  const nextStartingMatch = useMemo(
-    () => findNextStartingMatchedMatch(upcomingMatches, nowMs),
+  const visibleUpcomingMatches = useMemo(
+    () => upcomingMatches.filter((match) => !shouldHidePastUpcomingMatch(match, nowMs)),
     [nowMs, upcomingMatches],
+  );
+
+  const nextStartingMatch = useMemo(
+    () => findNextStartingMatchedMatch(visibleUpcomingMatches, nowMs),
+    [nowMs, visibleUpcomingMatches],
   );
 
   const handleCancelUpcomingMatch = async (match: UpcomingRunningMatchItem) => {
@@ -139,6 +166,7 @@ export default function HomeScreen() {
       pathname: '/(tabs)/running',
       params: {
         focusMatchMode: match.mode,
+        focusMatchDistanceKm: String(match.distanceKm),
         focusMatchSlotStartAt: match.slotStartAt,
         focusMatchIsTest: match.isTestMatch ? '1' : '0',
         focusMatchNonce: String(Date.now()),
@@ -163,10 +191,10 @@ export default function HomeScreen() {
         ))}
         {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
         {error ? <Text>{error}</Text> : null}
-        {upcomingMatches.length ? (
+        {visibleUpcomingMatches.length ? (
           <Card style={styles.upcomingCard}>
             <Text style={styles.upcomingLabel}>다가오는 대결</Text>
-            {upcomingMatches.slice(0, 2).map((match) => {
+            {visibleUpcomingMatches.slice(0, 2).map((match) => {
               const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
               const canOpenArena = match.status === 'active'
                 || (match.status === 'matched' && shouldAutoOpenMatchArena(remainingSeconds));

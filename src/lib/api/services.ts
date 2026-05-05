@@ -173,6 +173,8 @@ const MATCH_CANCELLATION_CUTOFF_MS = 60 * 60 * 1000;
 const MATCH_RUNNING_STALE_MS = 90 * 1000;
 const MATCH_BACKGROUND_STALE_MS = 20 * 60 * 1000;
 const MATCH_TEST_COUNTDOWN_SECONDS = 30;
+const STALE_MATCHED_HIDE_MS = 10 * 60 * 1000;
+const STALE_ACTIVE_MATCH_HIDE_MS = 8 * 60 * 60 * 1000;
 
 let mockRunningMatchSessions: Record<'duel' | 'group', RunningMatchStatusResponse | null> = {
   duel: null,
@@ -182,6 +184,67 @@ let mockRunningMatchRoom: RunningMatchRoom | null = null;
 
 function formatMockTimestamp(date = new Date()) {
   return date.toISOString().slice(0, 16).replace('T', ' ');
+}
+
+function getResponseNowMs(serverNow?: string) {
+  const parsedMs = serverNow ? new Date(serverNow).getTime() : NaN;
+  return Number.isFinite(parsedMs) ? parsedMs : Date.now();
+}
+
+function shouldHideStaleUpcomingMatch(
+  match: { slotStartAt: string; status: 'matched' | 'active' },
+  nowMs: number,
+) {
+  const slotStartMs = new Date(match.slotStartAt).getTime();
+
+  if (!Number.isFinite(slotStartMs)) {
+    return false;
+  }
+
+  const elapsedMs = nowMs - slotStartMs;
+
+  if (match.status === 'active') {
+    return elapsedMs > STALE_ACTIVE_MATCH_HIDE_MS;
+  }
+
+  return elapsedMs > STALE_MATCHED_HIDE_MS;
+}
+
+function sanitizeUpcomingRunningMatchesResponse(payload: UpcomingRunningMatchesResponse): UpcomingRunningMatchesResponse {
+  const nowMs = getResponseNowMs(payload.serverNow);
+
+  return {
+    ...payload,
+    items: payload.items.filter((match) => !shouldHideStaleUpcomingMatch(match, nowMs)),
+  };
+}
+
+function sanitizeRunningMatchRoomResponse(payload: RunningMatchRoomResponse): RunningMatchRoomResponse {
+  if (!payload.room) {
+    return payload;
+  }
+
+  const nowMs = getResponseNowMs(payload.serverNow);
+  const referenceStartAt = payload.room.linkedMatchSlotStartAt ?? payload.room.slotStartAt;
+  const referenceStartMs = new Date(referenceStartAt).getTime();
+
+  if (!Number.isFinite(referenceStartMs)) {
+    return payload;
+  }
+
+  const elapsedMs = nowMs - referenceStartMs;
+  const shouldHideRoom = payload.room.linkedMatchId || payload.room.state === 'countdown'
+    ? elapsedMs > STALE_MATCHED_HIDE_MS
+    : elapsedMs > STALE_MATCHED_HIDE_MS;
+
+  if (!shouldHideRoom) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    room: null,
+  };
 }
 
 function parsePaceLabelToSeconds(pace: string) {
@@ -1656,19 +1719,21 @@ export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatc
       }))
       .sort((left, right) => new Date(left.slotStartAt).getTime() - new Date(right.slotStartAt).getTime());
 
-    return {
+    return sanitizeUpcomingRunningMatchesResponse({
       serverNow: new Date().toISOString(),
       items,
-    };
+    });
   }
 
-  return apiGet<UpcomingRunningMatchesResponse>(
+  const payload = await apiGet<UpcomingRunningMatchesResponse>(
     '/running/matches/upcoming',
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '다가오는 매치를 불러오지 못했어.',
     },
   );
+
+  return sanitizeUpcomingRunningMatchesResponse(payload);
 }
 
 function buildMockRunningMatchRoomResponse(room: RunningMatchRoom | null): RunningMatchRoomResponse {
@@ -1781,20 +1846,22 @@ function applyMockRunningMatchRoomUpdate(input: UpdateRunningMatchRoomInput) {
 
 export async function fetchRunningMatchRoom(): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
-    return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+    return sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(mockRunningMatchRoom));
   }
 
   try {
-    return await apiGet<RunningMatchRoomResponse>(
+    const payload = await apiGet<RunningMatchRoomResponse>(
       '/running/rooms/my',
       {
         accessToken: await requireAccessToken(),
         fallbackMessage: '내 방 상태를 불러오지 못했어.',
       },
     );
+
+    return sanitizeRunningMatchRoomResponse(payload);
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
-      return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+      return sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(mockRunningMatchRoom));
     }
 
     throw error;

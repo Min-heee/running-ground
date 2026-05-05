@@ -295,6 +295,7 @@ export type RunningMatchRoom = {
   linkedMatchId?: string;
   linkedMatchStatus?: 'matched' | 'active';
   linkedMatchSlotStartAt?: string;
+  linkedMatchDistanceKm?: number;
 };
 
 export type RunningMatchRoomResponse = {
