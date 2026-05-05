@@ -80,6 +80,7 @@ export default function RootLayout() {
         <Stack.Screen name="university-verification" />
         <Stack.Screen name="region-settings" />
         <Stack.Screen name="notification-settings" />
+        <Stack.Screen name="match-room" />
         <Stack.Screen name="friend-detail" />
         <Stack.Screen name="integration-management" />
         <Stack.Screen name="my-activity" />

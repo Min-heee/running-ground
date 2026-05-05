@@ -266,6 +266,7 @@ export type RunningMatchRoomParticipant = {
   averagePace: string;
   levelLabel: string;
   isHost: boolean;
+  isReady?: boolean;
   invited: boolean;
   joinedAt: string;
 };
@@ -308,6 +309,15 @@ export type CreateRunningMatchRoomInput = {
   invitedFriendIds?: string[];
 };
 
+export type UpdateRunningMatchRoomInput = {
+  roomId: string;
+  distanceKm: number;
+  startMode: RunningMatchRoomStartMode;
+  slotStartAt?: string;
+  maxParticipants?: number;
+  invitedFriendIds?: string[];
+};
+
 export type JoinRunningMatchRoomInput = {
   inviteToken: string;
 };
@@ -318,6 +328,11 @@ export type StartRunningMatchRoomInput = {
 
 export type LeaveRunningMatchRoomInput = {
   roomId: string;
+};
+
+export type UpdateRunningMatchRoomReadyInput = {
+  roomId: string;
+  ready: boolean;
 };
 
 export type CancelRunningMatchResponse = {

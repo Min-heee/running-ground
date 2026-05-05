@@ -1637,6 +1637,51 @@ function startRunningMatchRoom(store, currentUser, { roomId }) {
   return buildRunningMatchRoomResponse(store, currentUser, room);
 }
 
+function updateRunningMatchRoom(store, currentUser, {
+  roomId,
+  distanceKm,
+  startMode,
+  slotStartAt,
+  maxParticipants,
+  invitedFriendIds = [],
+}) {
+  const room = findRunningMatchRoomById(store, roomId);
+
+  if (!room) {
+    throw new ApiError(404, '설정할 방을 찾지 못했어.');
+  }
+
+  if (room.hostUserId !== currentUser.id) {
+    throw new ApiError(403, '방장만 방 설정을 바꿀 수 있어.');
+  }
+
+  if (room.linkedMatchId) {
+    throw new ApiError(400, '이미 시작 준비에 들어간 방은 설정을 바꿀 수 없어.');
+  }
+
+  const normalizedInvitedFriendIds = [...new Set(invitedFriendIds
+    .filter((userId) => typeof userId === 'string')
+    .map((userId) => userId.trim())
+    .filter((userId) => userId && userId !== currentUser.id))];
+
+  for (const friendId of normalizedInvitedFriendIds) {
+    if (!areFriends(store, currentUser.id, friendId)) {
+      throw new ApiError(400, '친구 목록에 있는 러너만 방에 초대할 수 있어.');
+    }
+  }
+
+  room.distanceKm = normalizeMatchQueueDistance(distanceKm);
+  room.startMode = startMode === 'host' ? 'host' : 'scheduled';
+  room.slotStartAt = room.startMode === 'host'
+    ? new Date().toISOString()
+    : validateMatchSlotInput(slotStartAt);
+  room.maxParticipants = normalizeMatchRoomMaxParticipants(room.mode, maxParticipants);
+  room.invitedFriendIds = normalizedInvitedFriendIds;
+  syncMatchRooms(store);
+
+  return buildRunningMatchRoomResponse(store, currentUser, room);
+}
+
 function leaveRunningMatchRoom(store, currentUser, { roomId }) {
   const room = findRunningMatchRoomById(store, roomId);
 
@@ -5120,6 +5165,23 @@ async function handleStartRunningMatchRoom(request, response) {
   sendJson(response, 200, payload);
 }
 
+async function handleUpdateRunningMatchRoom(request, response) {
+  const body = await parseJsonBody(request);
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return updateRunningMatchRoom(store, currentUser, {
+      roomId: validateRequiredString(body.roomId, '설정할 방 아이디가 필요해.'),
+      distanceKm: validateDuelMatchDistanceKm(body.distanceKm),
+      startMode: validateMatchRoomStartMode(body.startMode),
+      slotStartAt: body.slotStartAt,
+      maxParticipants: body.maxParticipants,
+      invitedFriendIds: validateOptionalUserIdArray(body.invitedFriendIds, '초대할 친구 목록이 올바르지 않아.'),
+    });
+  });
+
+  sendJson(response, 200, payload);
+}
+
 async function handleLeaveRunningMatchRoom(request, response) {
   const body = await parseJsonBody(request);
   const payload = mutateStore((store) => {
@@ -5565,6 +5627,11 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/running/rooms/join' && request.method === 'POST') {
     await handleJoinRunningMatchRoom(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/rooms/update' && request.method === 'POST') {
+    await handleUpdateRunningMatchRoom(request, response);
     return;
   }
 
