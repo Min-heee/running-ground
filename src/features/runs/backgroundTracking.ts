@@ -15,6 +15,9 @@ const LEGACY_BACKGROUND_RUN_TASK_NAME = 'runnigapp-background-run-location';
 const CURRENT_PACE_SMOOTHING_WINDOW_MS = 12000;
 const CURRENT_PACE_MIN_WINDOW_MS = 4000;
 const CURRENT_PACE_MIN_DISTANCE_METERS = 8;
+const MAX_TRACKING_ACCURACY_METERS = 65;
+const MAX_REASONABLE_RUNNING_SPEED_MPS = 12;
+const MIN_TELEPORT_FILTER_DISTANCE_METERS = 35;
 
 type BackgroundTrackingStatus = 'idle' | 'running' | 'paused';
 
@@ -42,6 +45,7 @@ const INITIAL_SNAPSHOT: BackgroundRunTrackingSnapshot = {
 
 const listeners = new Set<(snapshot: BackgroundRunTrackingSnapshot) => void>();
 let snapshotState: BackgroundRunTrackingSnapshot = { ...INITIAL_SNAPSHOT };
+let foregroundLocationSubscription: { remove: () => void } | null = null;
 
 function cloneRoute(route: RunRoutePoint[]) {
   return route.map((point) => ({ ...point }));
@@ -59,11 +63,20 @@ function emitSnapshot() {
   listeners.forEach((listener) => listener(nextSnapshot));
 }
 
+function normalizeAccuracyMeters(value?: number | null) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? Number(value.toFixed(1))
+    : null;
+}
+
 function buildRoutePoint(location: Location.LocationObject): RunRoutePoint {
+  const accuracyM = normalizeAccuracyMeters(location.coords.accuracy);
+
   return {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
     altitude: typeof location.coords.altitude === 'number' ? Number(location.coords.altitude.toFixed(1)) : null,
+    ...(accuracyM !== null ? { accuracyM } : {}),
     timestamp: new Date(location.timestamp).toISOString(),
   };
 }
@@ -114,12 +127,46 @@ function buildSmoothedCurrentPace(route: RunRoutePoint[], fallbackSpeedMps?: num
 }
 
 function appendTrackedLocation(location: Location.LocationObject) {
+  const accuracyM = normalizeAccuracyMeters(location.coords.accuracy);
+
+  if (accuracyM !== null && accuracyM > MAX_TRACKING_ACCURACY_METERS) {
+    snapshotState = {
+      ...snapshotState,
+      currentPace: buildSmoothedCurrentPace(snapshotState.route, location.coords.speed),
+    };
+    emitSnapshot();
+    return;
+  }
+
   const nextPoint = buildRoutePoint(location);
   const previousPoint = snapshotState.route.length ? snapshotState.route[snapshotState.route.length - 1] : null;
 
   if (previousPoint) {
     const segmentDistanceMeters = calculateDistanceBetweenPoints(previousPoint, nextPoint);
     const timeDelta = new Date(nextPoint.timestamp).getTime() - new Date(previousPoint.timestamp).getTime();
+
+    if (timeDelta <= 0) {
+      snapshotState = {
+        ...snapshotState,
+        currentPace: buildSmoothedCurrentPace(snapshotState.route, location.coords.speed),
+      };
+      emitSnapshot();
+      return;
+    }
+
+    const segmentSpeedMps = segmentDistanceMeters / (timeDelta / 1000);
+
+    if (
+      segmentDistanceMeters >= MIN_TELEPORT_FILTER_DISTANCE_METERS
+      && segmentSpeedMps > MAX_REASONABLE_RUNNING_SPEED_MPS
+    ) {
+      snapshotState = {
+        ...snapshotState,
+        currentPace: buildSmoothedCurrentPace(snapshotState.route, location.coords.speed),
+      };
+      emitSnapshot();
+      return;
+    }
 
     if (segmentDistanceMeters < 2 && timeDelta < 4000) {
       snapshotState = {
@@ -160,6 +207,15 @@ function buildLocationTaskOptions(): Location.LocationTaskOptions {
           },
         }
       : {}),
+  };
+}
+
+function buildForegroundLocationOptions(): Location.LocationOptions {
+  return {
+    accuracy: Location.Accuracy.BestForNavigation,
+    timeInterval: 2000,
+    distanceInterval: 4,
+    mayShowUserSettingsDialog: true,
   };
 }
 
@@ -226,6 +282,9 @@ async function stopLocationTaskIfNeeded() {
     return;
   }
 
+  foregroundLocationSubscription?.remove();
+  foregroundLocationSubscription = null;
+
   for (const taskName of [BACKGROUND_RUN_TASK_NAME, LEGACY_BACKGROUND_RUN_TASK_NAME]) {
     const started = await Location.hasStartedLocationUpdatesAsync(taskName);
 
@@ -241,15 +300,35 @@ async function startLocationTask() {
   }
 
   await stopLocationTaskIfNeeded();
-  await Location.startLocationUpdatesAsync(BACKGROUND_RUN_TASK_NAME, buildLocationTaskOptions());
+
+  try {
+    foregroundLocationSubscription = await Location.watchPositionAsync(
+      buildForegroundLocationOptions(),
+      appendTrackedLocation,
+    );
+  } catch {
+    foregroundLocationSubscription = null;
+  }
+
+  try {
+    await Location.startLocationUpdatesAsync(BACKGROUND_RUN_TASK_NAME, buildLocationTaskOptions());
+  } catch {
+    // Foreground tracking is enough while the race screen is open; background updates are best-effort.
+  }
 }
 
-export async function startBackgroundRunTracking(initialLocation: Location.LocationObject) {
+export async function startBackgroundRunTracking(initialLocation?: Location.LocationObject | null) {
   snapshotState = {
     ...INITIAL_SNAPSHOT,
     status: 'running',
   };
-  appendTrackedLocation(initialLocation);
+
+  if (initialLocation) {
+    appendTrackedLocation(initialLocation);
+  } else {
+    emitSnapshot();
+  }
+
   snapshotState = {
     ...snapshotState,
     status: 'running',

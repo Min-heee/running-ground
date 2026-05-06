@@ -15,7 +15,12 @@ import {
   updateRunningMatchRoomReady,
 } from '@/lib/api/services';
 import type { FriendLeaderboardResponse, RunningMatchRoom, RunningMatchRoomStartMode } from '@/lib/api/types';
-import { formatMatchCountdown, getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
+import {
+  formatMatchCountdown,
+  getMatchStartRemainingSeconds,
+  shouldAutoOpenMatchArena,
+  shouldShowMatchStartOverlay,
+} from '@/lib/matchCountdown';
 import { getCurrentUserProfile } from '@/lib/session';
 
 const ITEM_HEIGHT = 48;
@@ -24,6 +29,69 @@ const WHEEL_PADDING = ITEM_HEIGHT * 2;
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => index);
 const DISTANCE_OPTIONS = [3, 5, 7, 10, 15, 21.1, 42.2];
+const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 3000;
+const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
+const SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR = 0.25;
+
+function parseServerNowMs(serverNow?: string) {
+  const parsedMs = serverNow ? new Date(serverNow).getTime() : NaN;
+  return Number.isFinite(parsedMs) ? parsedMs : null;
+}
+
+function resolveStableServerClockOffset(currentOffsetMs: number, nextOffsetMs: number) {
+  if (Math.abs(nextOffsetMs) < SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS) {
+    return 0;
+  }
+
+  if (currentOffsetMs === 0) {
+    return nextOffsetMs;
+  }
+
+  const offsetDeltaMs = nextOffsetMs - currentOffsetMs;
+  if (Math.abs(offsetDeltaMs) < SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS) {
+    return currentOffsetMs;
+  }
+
+  return Math.round(currentOffsetMs + offsetDeltaMs * SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR);
+}
+
+function shouldAcceptServerSnapshot(latestServerNowMsRef: { current: number }, serverNow?: string) {
+  const serverNowMs = parseServerNowMs(serverNow);
+  if (serverNowMs === null) {
+    return true;
+  }
+
+  if (serverNowMs < latestServerNowMsRef.current) {
+    return false;
+  }
+
+  latestServerNowMsRef.current = serverNowMs;
+  return true;
+}
+
+function buildRoomRenderKey(room: RunningMatchRoom | null) {
+  if (!room) {
+    return 'empty';
+  }
+
+  return [
+    room.roomId,
+    room.state,
+    room.startMode,
+    room.distanceKm,
+    room.slotStartAt,
+    room.maxParticipants,
+    room.canStart ? 'can-start' : 'cannot-start',
+    room.linkedMatchId ?? 'no-match',
+    room.linkedMatchStatus ?? 'no-status',
+    room.linkedMatchSlotStartAt ?? 'no-linked-slot',
+    room.participants.map((participant) => [
+      participant.userId,
+      participant.isReady ? 'ready' : 'waiting',
+      participant.isCountdownReady ? 'loaded' : 'loading',
+    ].join(':')).join('|'),
+  ].join('::');
+}
 
 function formatRoomDateLabel(value: string) {
   const date = new Date(value);
@@ -123,6 +191,9 @@ function WheelColumn({
 export default function MatchRoomScreen() {
   const currentUser = getCurrentUserProfile();
   const currentUserId = currentUser?.publicTag ?? 'mock-current-user';
+  const openedLinkedMatchKeyRef = useRef<string | null>(null);
+  const latestRoomServerNowMsRef = useRef(0);
+  const roomRenderKeyRef = useRef<string | null>(null);
   const [room, setRoom] = useState<RunningMatchRoom | null>(null);
   const [friendLeaderboard, setFriendLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -136,35 +207,64 @@ export default function MatchRoomScreen() {
   const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0);
 
   const syncServerClock = (serverNow?: string) => {
-    if (!serverNow) {
+    const serverNowMs = parseServerNowMs(serverNow);
+    if (serverNowMs === null) {
       return;
     }
 
-    const serverNowMs = new Date(serverNow).getTime();
-    if (!Number.isFinite(serverNowMs)) {
+    const nextOffsetMs = serverNowMs - Date.now();
+    setServerClockOffsetMs((currentOffsetMs) => resolveStableServerClockOffset(currentOffsetMs, nextOffsetMs));
+  };
+
+  const commitRoom = (nextRoom: RunningMatchRoom | null) => {
+    const nextKey = buildRoomRenderKey(nextRoom);
+    if (roomRenderKeyRef.current === nextKey) {
       return;
     }
 
-    setServerClockOffsetMs(serverNowMs - Date.now());
+    roomRenderKeyRef.current = nextKey;
+    setRoom(nextRoom);
   };
 
   const openLinkedMatchInRunning = (nextRoom: RunningMatchRoom) => {
-    if (!nextRoom.linkedMatchSlotStartAt) {
+    if (!nextRoom.linkedMatchId) {
       return;
     }
 
     const remainingSeconds = getMatchStartRemainingSeconds(
-      nextRoom.linkedMatchSlotStartAt,
+      nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
       Date.now() + serverClockOffsetMs,
     );
+    const canOpenCountdown = nextRoom.state === 'active'
+      || nextRoom.linkedMatchStatus === 'active'
+      || shouldShowMatchStartOverlay(remainingSeconds);
+
+    if (!canOpenCountdown) {
+      return;
+    }
+
+    const nextKey = [
+      nextRoom.roomId,
+      nextRoom.linkedMatchId,
+      nextRoom.state,
+      nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
+    ].join(':');
+
+    if (openedLinkedMatchKeyRef.current === nextKey) {
+      return;
+    }
+
+    openedLinkedMatchKeyRef.current = nextKey;
+
     const shouldForceArena = nextRoom.linkedMatchStatus === 'active' || shouldAutoOpenMatchArena(remainingSeconds);
 
     router.replace({
       pathname: '/(tabs)/running',
       params: {
         focusMatchMode: nextRoom.mode,
+        focusMatchId: nextRoom.linkedMatchId,
         focusMatchDistanceKm: String(nextRoom.linkedMatchDistanceKm ?? nextRoom.distanceKm),
-        focusMatchSlotStartAt: nextRoom.linkedMatchSlotStartAt,
+        focusMatchSlotStartAt: nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
         ...(shouldForceArena ? { forceMatchArena: '1' } : {}),
         focusMatchNonce: `room-${Date.now()}`,
       },
@@ -174,8 +274,12 @@ export default function MatchRoomScreen() {
   const loadRoom = async () => {
     try {
       const payload = await fetchRunningMatchRoom();
+      if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
+        return null;
+      }
+
       syncServerClock(payload.serverNow);
-      setRoom(payload.room);
+      commitRoom(payload.room);
       setError(null);
       return payload.room;
     } catch (roomError) {
@@ -215,23 +319,26 @@ export default function MatchRoomScreen() {
     };
 
     void hydrate();
+    const intervalMs = room?.linkedMatchId ? 750 : 1500;
     const intervalId = setInterval(() => {
       void loadRoom();
-    }, 500);
+    }, intervalMs);
 
     return () => {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, []);
+  }, [room?.linkedMatchId]);
+
+  const currentParticipant = room?.participants.find((participant) => participant.userId === currentUserId) ?? null;
 
   useEffect(() => {
-    if (!room?.linkedMatchSlotStartAt) {
+    if (!room?.linkedMatchId) {
       return;
     }
 
     openLinkedMatchInRunning(room);
-  }, [room?.linkedMatchSlotStartAt, room?.linkedMatchStatus, room?.mode, serverClockOffsetMs]);
+  }, [room?.linkedMatchId, room?.linkedMatchSlotStartAt, room?.linkedMatchStatus, room?.mode, room?.state, serverClockOffsetMs]);
 
   useEffect(() => {
     if (!room) {
@@ -250,7 +357,6 @@ export default function MatchRoomScreen() {
     () => (friendLeaderboard?.ranks ?? []).slice(0, 12),
     [friendLeaderboard],
   );
-  const currentParticipant = room?.participants.find((participant) => participant.userId === currentUserId) ?? null;
   const isReady = Boolean(currentParticipant?.isReady);
   const allGuestsReady = room
     ? room.participants.filter((participant) => !participant.isHost).every((participant) => participant.isReady)
@@ -259,7 +365,6 @@ export default function MatchRoomScreen() {
   const linkedMatchRemainingSeconds = room?.linkedMatchSlotStartAt
     ? getMatchStartRemainingSeconds(room.linkedMatchSlotStartAt, Date.now() + serverClockOffsetMs)
     : null;
-
   const saveRoomSettings = async (overrides: Partial<{
     distanceKm: number;
     startMode: RunningMatchRoomStartMode;
@@ -287,8 +392,12 @@ export default function MatchRoomScreen() {
           : 2,
         invitedFriendIds: overrides.invitedFriendIds ?? selectedFriendIds,
       });
+      if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
+        return;
+      }
+
       syncServerClock(payload.serverNow);
-      setRoom(payload.room);
+      commitRoom(payload.room);
     } catch (roomError) {
       setError(roomError instanceof Error ? roomError.message : '대기실 설정을 저장하지 못했어.');
     } finally {
@@ -309,8 +418,12 @@ export default function MatchRoomScreen() {
         roomId: room.roomId,
         ready: !isReady,
       });
+      if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
+        return;
+      }
+
       syncServerClock(payload.serverNow);
-      setRoom(payload.room);
+      commitRoom(payload.room);
     } catch (roomError) {
       setError(roomError instanceof Error ? roomError.message : '준비 상태를 바꾸지 못했어.');
     } finally {
@@ -328,11 +441,12 @@ export default function MatchRoomScreen() {
 
     try {
       const payload = await startRunningMatchRoom({ roomId: room.roomId });
-      syncServerClock(payload.serverNow);
-      setRoom(payload.room);
-      if (payload.room) {
-        openLinkedMatchInRunning(payload.room);
+      if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
+        return;
       }
+
+      syncServerClock(payload.serverNow);
+      commitRoom(payload.room);
     } catch (roomError) {
       setError(roomError instanceof Error ? roomError.message : '방을 시작하지 못했어.');
     } finally {
@@ -430,7 +544,15 @@ export default function MatchRoomScreen() {
                 <Text style={styles.codePillText}>{room.inviteToken}</Text>
               </View>
             </View>
-            {linkedMatchRemainingSeconds ? (
+            {room.state === 'arming' ? (
+              <View style={styles.countdownBanner}>
+                <Text style={styles.countdownBannerTitle}>로딩중...</Text>
+                <Text style={styles.countdownBannerText}>
+                  대결 화면을 맞추는 중이에요. 잠시 뒤 모든 참가자에게 같은 카운트다운이 보여요.
+                </Text>
+              </View>
+            ) : null}
+            {room.state !== 'arming' && linkedMatchRemainingSeconds ? (
               <View style={styles.countdownBanner}>
                 <Text style={styles.countdownBannerTitle}>시작까지 {formatMatchCountdown(linkedMatchRemainingSeconds)}</Text>
                 <Text style={styles.countdownBannerText}>20초 전이 되면 자동으로 대결 화면으로 이동해요.</Text>
@@ -452,23 +574,31 @@ export default function MatchRoomScreen() {
                     {participant.isHost ? <Text style={styles.hostBadge}>방장</Text> : null}
                   </View>
                   <Text style={participant.isHost ? styles.hostStatusText : (participant.isReady ? styles.readyText : styles.pendingText)}>
-                    {participant.isHost ? '시작 권한' : (participant.isReady ? '준비 완료' : '대기 중')}
+                    {room.linkedMatchId
+                      ? (participant.isCountdownReady ? '로딩 완료' : '로딩 중')
+                      : participant.isHost
+                        ? '시작 권한'
+                        : (participant.isReady ? '준비 완료' : '대기 중')}
                   </Text>
                 </View>
               ))}
             </View>
-            {!room.isHost ? (
+            {!room.isHost && !room.linkedMatchId ? (
               <PrimaryButton
                 label={saving ? '반영 중...' : isReady ? '준비 취소' : '준비'}
                 onPress={() => { void handleToggleReady(); }}
                 disabled={saving}
               />
-            ) : room.startMode === 'host' ? (
+            ) : room.isHost && room.startMode === 'host' && !room.linkedMatchId ? (
               <PrimaryButton
                 label={saving ? '시작 준비 중...' : '시작'}
                 onPress={() => { void handleStart(); }}
                 disabled={saving || !room.canStart}
               />
+            ) : room.state === 'arming' ? (
+              <Text style={styles.helperText}>모든 기기가 카운트다운 준비를 마치면 함께 시작 카운트다운이 보여요.</Text>
+            ) : room.linkedMatchId ? (
+              <Text style={styles.helperText}>카운트다운이 시작되면 자동으로 대결 화면으로 이동해요.</Text>
             ) : (
               <Text style={styles.helperText}>예약 시간 30초 전에 카운트다운이 시작돼요.</Text>
             )}

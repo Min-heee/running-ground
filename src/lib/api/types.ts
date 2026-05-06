@@ -129,6 +129,14 @@ export type DuelMatchOpponent = {
   liveUpdatedAt?: string;
   liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'forfeited' | 'finished';
   finishedAt?: string;
+  officialDistanceKm?: number;
+  officialElapsedSeconds?: number;
+  officialAveragePace?: string;
+  officialRank?: number;
+  officialGapAheadKm?: number | null;
+  officialGapLeaderKm?: number;
+  officialComparedAt?: string;
+  officialReady?: boolean;
 };
 
 export type RequestDuelMatchResponse = {
@@ -170,6 +178,14 @@ export type GroupMatchParticipant = {
   liveUpdatedAt?: string;
   liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'forfeited' | 'finished';
   finishedAt?: string;
+  officialDistanceKm?: number;
+  officialElapsedSeconds?: number;
+  officialAveragePace?: string;
+  officialRank?: number;
+  officialGapAheadKm?: number | null;
+  officialGapLeaderKm?: number;
+  officialComparedAt?: string;
+  officialReady?: boolean;
 };
 
 export type RunningMatchState = 'idle' | 'waiting' | 'matched' | 'active';
@@ -179,6 +195,7 @@ export type FetchRunningMatchStatusInput = {
   distanceKm: number;
   slotStartAt: string;
   testMode?: boolean;
+  matchId?: string;
 };
 
 export type AcceptRunningMatchInput = {
@@ -234,6 +251,21 @@ export type RunningMatchStatusResponse = {
   opponent?: DuelMatchOpponent;
   participants?: GroupMatchParticipant[];
   mySeedRank?: number;
+  officialComparison?: {
+    comparedAt: string;
+    elapsedSeconds: number;
+    participantCount: number;
+    readyParticipantCount: number;
+    userRank?: number;
+    userDistanceKm?: number;
+    userAveragePace?: string;
+    leaderUserId?: string;
+    leaderName?: string;
+    leaderDistanceKm?: number;
+    leaderAveragePace?: string;
+    gapAheadKm?: number | null;
+    gapLeaderKm?: number;
+  };
 };
 
 export type UpcomingRunningMatchItem = {
@@ -258,7 +290,7 @@ export type UpcomingRunningMatchesResponse = {
 
 export type RunningMatchRoomMode = 'duel' | 'group';
 export type RunningMatchRoomStartMode = 'scheduled' | 'host';
-export type RunningMatchRoomState = 'waiting' | 'countdown' | 'active';
+export type RunningMatchRoomState = 'waiting' | 'arming' | 'countdown' | 'active';
 
 export type RunningMatchRoomParticipant = {
   userId: string;
@@ -269,6 +301,7 @@ export type RunningMatchRoomParticipant = {
   levelLabel: string;
   isHost: boolean;
   isReady?: boolean;
+  isCountdownReady?: boolean;
   invited: boolean;
   joinedAt: string;
 };
@@ -292,6 +325,8 @@ export type RunningMatchRoom = {
   hostName: string;
   participants: RunningMatchRoomParticipant[];
   invitedFriendIds: string[];
+  countdownReadyCount?: number;
+  countdownReadyRequiredCount?: number;
   linkedMatchId?: string;
   linkedMatchStatus?: 'matched' | 'active';
   linkedMatchSlotStartAt?: string;
@@ -337,6 +372,10 @@ export type LeaveRunningMatchRoomInput = {
 export type UpdateRunningMatchRoomReadyInput = {
   roomId: string;
   ready: boolean;
+};
+
+export type AcknowledgeRunningMatchRoomCountdownInput = {
+  roomId: string;
 };
 
 export type CancelRunningMatchResponse = {

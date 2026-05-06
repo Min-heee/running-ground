@@ -166,6 +166,7 @@ export default function HomeScreen() {
       pathname: '/(tabs)/running',
       params: {
         focusMatchMode: match.mode,
+        focusMatchId: match.matchId,
         focusMatchDistanceKm: String(match.distanceKm),
         focusMatchSlotStartAt: match.slotStartAt,
         focusMatchIsTest: match.isTestMatch ? '1' : '0',

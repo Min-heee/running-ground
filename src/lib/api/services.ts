@@ -29,6 +29,7 @@ import {
   UpdateRunningLiveShareInput,
   UpdateRunningLiveShareResponse,
   AcceptRunningMatchInput,
+  AcknowledgeRunningMatchRoomCountdownInput,
   CancelRunningMatchInput,
   CancelRunningMatchResponse,
   CreateRunningMatchRoomInput,
@@ -1650,6 +1651,7 @@ export async function fetchRunningMatchStatus(input: FetchRunningMatchStatusInpu
 
     if (
       currentSession
+      && (!input.matchId || currentSession.matchId === input.matchId)
       && currentSession.distanceKm === Number(input.distanceKm.toFixed(1))
       && (
         (input.testMode && currentSession.isTestMatch)
@@ -1675,6 +1677,7 @@ export async function fetchRunningMatchStatus(input: FetchRunningMatchStatusInpu
       distanceKm: Number(input.distanceKm.toFixed(1)),
       slotStartAt: input.slotStartAt,
       testMode: Boolean(input.testMode),
+      ...(input.matchId ? { matchId: input.matchId } : {}),
     },
     {
       accessToken: await requireAccessToken(),
@@ -1774,6 +1777,30 @@ function recalculateMockRunningMatchRoomCanStart(room: RunningMatchRoom | null) 
   };
 }
 
+function countMockRunningMatchRoomCountdownReady(room: RunningMatchRoom | null) {
+  if (!room) {
+    return { readyCount: 0, requiredCount: 0 };
+  }
+
+  return {
+    readyCount: room.participants.filter((participant) => participant.isCountdownReady).length,
+    requiredCount: room.participants.length,
+  };
+}
+
+function decorateMockRunningMatchRoom(room: RunningMatchRoom | null): RunningMatchRoom | null {
+  if (!room) {
+    return room;
+  }
+
+  const { readyCount, requiredCount } = countMockRunningMatchRoomCountdownReady(room);
+  return {
+    ...room,
+    countdownReadyCount: readyCount,
+    countdownReadyRequiredCount: requiredCount,
+  };
+}
+
 function createMockRunningMatchRoomState(input: CreateRunningMatchRoomInput) {
   const profile = getCurrentUserProfile() ?? myProfile;
   const now = new Date();
@@ -1792,6 +1819,7 @@ function createMockRunningMatchRoomState(input: CreateRunningMatchRoomInput) {
     levelLabel: buildLevelLabel(profile.lifetimeDistanceKm ?? weeklySummary.totalDistanceKm),
     isHost: true,
     isReady: false,
+    isCountdownReady: false,
     invited: false,
     joinedAt: now.toISOString(),
   }];
@@ -1846,7 +1874,7 @@ function applyMockRunningMatchRoomUpdate(input: UpdateRunningMatchRoomInput) {
 
 export async function fetchRunningMatchRoom(): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
-    return sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(mockRunningMatchRoom));
+    return sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom)));
   }
 
   try {
@@ -1861,7 +1889,7 @@ export async function fetchRunningMatchRoom(): Promise<RunningMatchRoomResponse>
     return sanitizeRunningMatchRoomResponse(payload);
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
-      return sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(mockRunningMatchRoom));
+      return sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom)));
     }
 
     throw error;
@@ -1871,7 +1899,7 @@ export async function fetchRunningMatchRoom(): Promise<RunningMatchRoomResponse>
 export async function createRunningMatchRoom(input: CreateRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
     createMockRunningMatchRoomState(input);
-    return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+    return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom));
   }
 
   try {
@@ -1891,7 +1919,7 @@ export async function createRunningMatchRoom(input: CreateRunningMatchRoomInput)
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
       createMockRunningMatchRoomState(input);
-      return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+      return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom));
     }
 
     throw error;
@@ -1900,7 +1928,7 @@ export async function createRunningMatchRoom(input: CreateRunningMatchRoomInput)
 
 export async function joinRunningMatchRoom(input: JoinRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
-    return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+    return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom));
   }
 
   try {
@@ -1914,7 +1942,7 @@ export async function joinRunningMatchRoom(input: JoinRunningMatchRoomInput): Pr
     );
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
-      return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+      return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom));
     }
 
     throw error;
@@ -1924,7 +1952,7 @@ export async function joinRunningMatchRoom(input: JoinRunningMatchRoomInput): Pr
 export async function updateRunningMatchRoom(input: UpdateRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
     applyMockRunningMatchRoomUpdate(input);
-    return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+    return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom));
   }
 
   try {
@@ -1944,7 +1972,7 @@ export async function updateRunningMatchRoom(input: UpdateRunningMatchRoomInput)
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
       applyMockRunningMatchRoomUpdate(input);
-      return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+      return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom));
     }
 
     throw error;
@@ -1954,20 +1982,25 @@ export async function updateRunningMatchRoom(input: UpdateRunningMatchRoomInput)
 export async function startRunningMatchRoom(input: StartRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
     if (mockRunningMatchRoom) {
-      const slotStartAt = new Date(Date.now() + 30_000).toISOString();
+      const slotStartAt = new Date(Date.now() + 40_000).toISOString();
       mockRunningMatchRoom = {
         ...mockRunningMatchRoom,
-        state: 'countdown',
+        state: 'arming',
         slotStartAt,
         slotLabel: formatDuelSlotLabel(slotStartAt),
         canStart: false,
+        participants: mockRunningMatchRoom.participants.map((participant) => ({
+          ...participant,
+          isCountdownReady: true,
+        })),
         linkedMatchId: `mock-room-match-${Date.now()}`,
         linkedMatchStatus: 'matched',
         linkedMatchSlotStartAt: slotStartAt,
+        linkedMatchDistanceKm: mockRunningMatchRoom.distanceKm,
       };
     }
 
-    return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+    return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom));
   }
 
   try {
@@ -1982,20 +2015,25 @@ export async function startRunningMatchRoom(input: StartRunningMatchRoomInput): 
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
       if (mockRunningMatchRoom) {
-        const slotStartAt = new Date(Date.now() + 30_000).toISOString();
+        const slotStartAt = new Date(Date.now() + 40_000).toISOString();
         mockRunningMatchRoom = {
           ...mockRunningMatchRoom,
-          state: 'countdown',
+          state: 'arming',
           slotStartAt,
           slotLabel: formatDuelSlotLabel(slotStartAt),
           canStart: false,
+          participants: mockRunningMatchRoom.participants.map((participant) => ({
+            ...participant,
+            isCountdownReady: true,
+          })),
           linkedMatchId: `mock-room-match-${Date.now()}`,
           linkedMatchStatus: 'matched',
           linkedMatchSlotStartAt: slotStartAt,
+          linkedMatchDistanceKm: mockRunningMatchRoom.distanceKm,
         };
       }
 
-      return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+      return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom));
     }
 
     throw error;
@@ -2033,7 +2071,7 @@ export async function updateRunningMatchRoomReady(input: UpdateRunningMatchRoomR
 
   const applyLocalReadyState = () => {
     if (!mockRunningMatchRoom || mockRunningMatchRoom.roomId !== input.roomId) {
-      return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+      return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom));
     }
 
     mockRunningMatchRoom = {
@@ -2046,7 +2084,7 @@ export async function updateRunningMatchRoomReady(input: UpdateRunningMatchRoomR
     };
 
     mockRunningMatchRoom = recalculateMockRunningMatchRoomCanStart(mockRunningMatchRoom);
-    return buildMockRunningMatchRoomResponse(mockRunningMatchRoom);
+    return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom));
   };
 
   if (USE_MOCK_API) {
@@ -2065,6 +2103,62 @@ export async function updateRunningMatchRoomReady(input: UpdateRunningMatchRoomR
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
       return applyLocalReadyState();
+    }
+
+    throw error;
+  }
+}
+
+export async function acknowledgeRunningMatchRoomCountdown(
+  input: AcknowledgeRunningMatchRoomCountdownInput,
+): Promise<RunningMatchRoomResponse> {
+  const profile = getCurrentUserProfile() ?? myProfile;
+  const currentUserId = profile.publicTag || 'mock-current-user';
+
+  const applyLocalCountdownReady = () => {
+    if (!mockRunningMatchRoom || mockRunningMatchRoom.roomId !== input.roomId) {
+      return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom));
+    }
+
+    mockRunningMatchRoom = {
+      ...mockRunningMatchRoom,
+      participants: mockRunningMatchRoom.participants.map((participant) => (
+        participant.userId === currentUserId
+          ? { ...participant, isCountdownReady: true }
+          : participant
+      )),
+    };
+
+    if (mockRunningMatchRoom.participants.every((participant) => participant.isCountdownReady)) {
+      const slotStartAt = new Date(Date.now() + 30_000).toISOString();
+      mockRunningMatchRoom = {
+        ...mockRunningMatchRoom,
+        state: 'countdown',
+        slotStartAt,
+        slotLabel: formatDuelSlotLabel(slotStartAt),
+        linkedMatchSlotStartAt: slotStartAt,
+      };
+    }
+
+    return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockRunningMatchRoom));
+  };
+
+  if (USE_MOCK_API) {
+    return applyLocalCountdownReady();
+  }
+
+  try {
+    return await apiPost<RunningMatchRoomResponse>(
+      '/running/rooms/countdown-ready',
+      input,
+      {
+        accessToken: await requireAccessToken(),
+        fallbackMessage: '카운트다운 준비 상태를 반영하지 못했어.',
+      },
+    );
+  } catch (error) {
+    if (shouldFallbackToLocalRunningRoomApi(error)) {
+      return applyLocalCountdownReady();
     }
 
     throw error;

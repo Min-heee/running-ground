@@ -36,6 +36,10 @@ function buildBubbleLabel(participant: ArenaParticipant) {
   return participant.bpmLabel ? `${participant.paceLabel} · ${participant.bpmLabel}` : participant.paceLabel;
 }
 
+function shouldShowRunnerBubble(participant: ArenaParticipant) {
+  return Boolean(participant.showPaceBubble && participant.paceLabel.trim());
+}
+
 function buildRemainingLabel(distanceKm: number, targetDistanceKm: number) {
   return `${Math.max(0, targetDistanceKm - distanceKm).toFixed(1)}km 남음`;
 }
@@ -146,27 +150,27 @@ function DuelRoad({
     <View style={[styles.roadCard, { height: ROAD_HEIGHT_DUEL }]}>
       <RoadMotion laneMode="duel" roadHeight={ROAD_HEIGHT_DUEL} />
       <View style={[styles.duelRunnerWrap, styles.duelRunnerLeft, { top: opponentTop }]}>
-        {opponent.showPaceBubble ? (
+        <View style={[styles.runnerMarker, styles.runnerMarkerOpponent]}>
+          <Text style={styles.runnerMarkerText}>{opponent.name.slice(0, 1)}</Text>
+        </View>
+        {shouldShowRunnerBubble(opponent) ? (
           <View style={styles.runnerBubble}>
             <Text style={styles.runnerBubbleText}>{buildBubbleLabel(opponent)}</Text>
           </View>
         ) : null}
-        <View style={[styles.runnerMarker, styles.runnerMarkerOpponent]}>
-          <Text style={styles.runnerMarkerText}>{opponent.name.slice(0, 1)}</Text>
-        </View>
         <Text style={styles.runnerName}>{opponent.name}</Text>
         <Text style={styles.runnerMeta}>{opponent.distanceKm.toFixed(2)}km</Text>
         <Text style={styles.runnerMetaMuted}>{buildRemainingLabel(opponent.distanceKm, targetDistanceKm)}</Text>
       </View>
       <View style={[styles.duelRunnerWrap, styles.duelRunnerRight, { top: userTop }]}>
-        {currentUser.showPaceBubble ? (
+        <View style={[styles.runnerMarker, styles.runnerMarkerCurrent]}>
+          <Text style={styles.runnerMarkerText}>나</Text>
+        </View>
+        {shouldShowRunnerBubble(currentUser) ? (
           <View style={[styles.runnerBubble, styles.runnerBubbleCurrent]}>
             <Text style={styles.runnerBubbleText}>{buildBubbleLabel(currentUser)}</Text>
           </View>
         ) : null}
-        <View style={[styles.runnerMarker, styles.runnerMarkerCurrent]}>
-          <Text style={styles.runnerMarkerText}>나</Text>
-        </View>
         <Text style={styles.runnerName}>나</Text>
         <Text style={styles.runnerMeta}>{currentUser.distanceKm.toFixed(2)}km</Text>
         <Text style={styles.runnerMetaMuted}>{buildRemainingLabel(currentUser.distanceKm, targetDistanceKm)}</Text>
@@ -226,7 +230,7 @@ function GroupRoad({
                 </View>
               </View>
               <View style={styles.groupMetaColumn}>
-                <Text style={styles.groupMetaText}>{participant.paceLabel}</Text>
+                <Text style={styles.groupMetaText}>{participant.paceLabel || '측정 대기'}</Text>
                 <Text style={styles.groupMetaSubtext}>{buildRemainingLabel(participant.distanceKm, targetDistanceKm)}</Text>
               </View>
             </View>
@@ -439,7 +443,7 @@ const styles = StyleSheet.create({
     left: '76%',
   },
   runnerBubble: {
-    marginBottom: 8,
+    marginTop: 7,
     borderRadius: 999,
     backgroundColor: 'rgba(255,255,255,0.14)',
     paddingHorizontal: 10,

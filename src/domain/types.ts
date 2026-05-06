@@ -12,6 +12,7 @@ export type RunRoutePoint = {
   latitude: number;
   longitude: number;
   altitude?: number | null;
+  accuracyM?: number | null;
   timestamp: string;
 };
 

@@ -92,15 +92,19 @@ const MATCH_BOOKING_WINDOW_DAYS = 7;
 const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
 const MATCH_CANCELLATION_CUTOFF_MS = 60 * 60 * 1000;
 const MATCH_SESSION_ACTIVE_TTL_MS = 4 * 60 * 60 * 1000;
+const MATCH_SESSION_UNSTARTED_ACTIVE_GRACE_MS = 10 * 60 * 1000;
 const MATCH_PARTICIPANT_RUNNING_STALE_MS = 90 * 1000;
 const MATCH_PARTICIPANT_BACKGROUND_STALE_MS = 20 * 60 * 1000;
 const MATCH_TEST_COUNTDOWN_SECONDS = 30;
 const MATCH_TEST_MAX_WAIT_MS = 30 * 60 * 1000;
 const MATCH_TEST_GROUP_MIN_PARTICIPANTS = 2;
 const MATCH_ROOM_HOST_START_DELAY_SECONDS = 30;
+const MATCH_ROOM_HOST_LOADING_SECONDS = 10;
 const MATCH_ROOM_GROUP_MIN_PARTICIPANTS = 2;
 const MATCH_ROOM_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
 const MATCH_ROOM_INVITE_LINK_BASE = 'runningground://running';
+const MATCH_PROGRESS_MAX_SPEED_MPS = 12;
+const MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND = MATCH_PROGRESS_MAX_SPEED_MPS / 1000;
 
 class ApiError extends Error {
   constructor(statusCode, message) {
@@ -1138,10 +1142,21 @@ function hydrateMatchSessionState(session, now = new Date()) {
   });
 
   if (Number.isFinite(startedAtMs)) {
+    const hasNeverReallyStarted = !hasLiveProgress
+      && session.participants.every((participant) => !participant.liveUpdatedAt);
+
+    if (hasNeverReallyStarted) {
+      const referenceStartMs = Number.isFinite(slotStartAtMs) ? slotStartAtMs : startedAtMs;
+
+      if (referenceStartMs + MATCH_SESSION_UNSTARTED_ACTIVE_GRACE_MS <= nowMs) {
+        return 'expired';
+      }
+    }
+
     return startedAtMs + MATCH_SESSION_ACTIVE_TTL_MS > nowMs ? 'active' : 'expired';
   }
 
-  if (isTestMatchSession(session) && Number.isFinite(slotStartAtMs) && slotStartAtMs <= nowMs) {
+  if (Number.isFinite(slotStartAtMs) && slotStartAtMs <= nowMs) {
     session.startedAt = new Date(slotStartAtMs).toISOString();
     return 'active';
   }
@@ -1342,6 +1357,11 @@ function getRunningMatchRoomState(room, store, now = new Date()) {
 
   if (linkedState === 'matched') {
     const remainingSeconds = Math.max(0, Math.ceil((new Date(linkedSession.slotStartAt).getTime() - now.getTime()) / 1000));
+
+    if (room.startMode === 'host' && remainingSeconds > MATCH_ROOM_HOST_START_DELAY_SECONDS) {
+      return 'arming';
+    }
+
     return remainingSeconds <= MATCH_ROOM_HOST_START_DELAY_SECONDS ? 'countdown' : 'waiting';
   }
 
@@ -1422,6 +1442,7 @@ function buildRunningMatchRoomParticipantPayload(store, participant) {
     levelLabel: runner.levelLabel,
     isHost: Boolean(participant.isHost),
     isReady: Boolean(participant.isReady),
+    isCountdownReady: Boolean(participant.isCountdownReady),
     invited: Boolean(participant.invited),
     joinedAt: participant.joinedAt,
   };
@@ -1438,6 +1459,34 @@ function areAllRunningMatchRoomGuestsReady(room) {
   }
 
   return guests.every((participant) => participant.isReady);
+}
+
+function areAllRunningMatchRoomParticipantsCountdownReady(room) {
+  if (!room) {
+    return false;
+  }
+
+  if (!room.participants.length) {
+    return false;
+  }
+
+  return room.participants.every((participant) => participant.isCountdownReady);
+}
+
+function armRunningMatchRoomCountdown(store, room, now = new Date()) {
+  if (!room?.linkedMatchId) {
+    return room;
+  }
+
+  const linkedSession = findMatchSessionById(store, room.linkedMatchId);
+  if (!linkedSession) {
+    return room;
+  }
+
+  const slotStartAt = new Date(now.getTime() + MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000).toISOString();
+  room.slotStartAt = slotStartAt;
+  linkedSession.slotStartAt = slotStartAt;
+  return room;
 }
 
 function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date()) {
@@ -1490,6 +1539,8 @@ function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date(
           return new Date(left.joinedAt).getTime() - new Date(right.joinedAt).getTime();
         }),
       invitedFriendIds: room.invitedFriendIds,
+      countdownReadyCount: room.participants.filter((participant) => participant.isCountdownReady).length,
+      countdownReadyRequiredCount: room.participants.length,
       ...(linkedSession ? {
         linkedMatchId: linkedSession.id,
         linkedMatchStatus: linkedMatchState === 'active' ? 'active' : 'matched',
@@ -1556,6 +1607,7 @@ function createRunningMatchRoom(store, currentUser, {
       userId: currentUser.id,
       isHost: true,
       isReady: false,
+      isCountdownReady: false,
       invited: false,
       joinedAt: new Date().toISOString(),
     }],
@@ -1612,6 +1664,7 @@ function joinRunningMatchRoom(store, currentUser, { inviteToken }) {
     userId: currentUser.id,
     isHost: false,
     isReady: false,
+    isCountdownReady: false,
     invited: room.invitedFriendIds.includes(currentUser.id),
     joinedAt: new Date().toISOString(),
   });
@@ -1647,8 +1700,12 @@ function startRunningMatchRoom(store, currentUser, { roomId }) {
     throw new ApiError(400, '모든 참가자가 준비 완료해야 시작할 수 있어.');
   }
 
-  const slotStartAt = new Date(Date.now() + MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000).toISOString();
+  const slotStartAt = new Date(Date.now() + (MATCH_ROOM_HOST_LOADING_SECONDS + MATCH_ROOM_HOST_START_DELAY_SECONDS) * 1000).toISOString();
   room.slotStartAt = slotStartAt;
+  room.participants = room.participants.map((participant) => ({
+    ...participant,
+    isCountdownReady: true,
+  }));
   const session = createMatchSession(
     store,
     room.mode,
@@ -1689,6 +1746,28 @@ function updateRunningMatchRoomReady(store, currentUser, {
   }
 
   participant.isReady = Boolean(ready);
+  syncMatchRooms(store);
+  return buildRunningMatchRoomResponse(store, currentUser, room);
+}
+
+function acknowledgeRunningMatchRoomCountdown(store, currentUser, { roomId }) {
+  const room = findRunningMatchRoomById(store, roomId);
+
+  if (!room) {
+    throw new ApiError(404, '카운트다운 준비 상태를 반영할 방을 찾지 못했어.');
+  }
+
+  if (!room.linkedMatchId) {
+    throw new ApiError(400, '아직 시작 준비가 시작되지 않은 방이에요.');
+  }
+
+  const participant = room.participants.find((entry) => entry.userId === currentUser.id);
+
+  if (!participant) {
+    throw new ApiError(404, '이 방 참가자 목록에서 사용자를 찾지 못했어.');
+  }
+
+  participant.isCountdownReady = true;
   syncMatchRooms(store);
   return buildRunningMatchRoomResponse(store, currentUser, room);
 }
@@ -1876,7 +1955,149 @@ function buildParticipantLiveSnapshot(session, participant, now = new Date()) {
       ? { finishedAt: syntheticSnapshot.finishedAt }
       : typeof participant.finishedAt === 'string' && participant.finishedAt
         ? { finishedAt: participant.finishedAt }
-        : {}),
+      : {}),
+  };
+}
+
+function buildProgressAveragePaceLabel(distanceKm, elapsedSeconds) {
+  if (!Number.isFinite(distanceKm) || distanceKm <= 0 || !Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) {
+    return '--:--/km';
+  }
+
+  return formatPaceMinutesLabel(elapsedSeconds / distanceKm / 60);
+}
+
+function projectOfficialDistanceKm(distanceKm, elapsedSeconds, officialElapsedSeconds, targetDistanceKm) {
+  if (!Number.isFinite(distanceKm) || !Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) {
+    return 0;
+  }
+
+  const safeOfficialElapsedSeconds = Math.max(0, Math.min(officialElapsedSeconds, elapsedSeconds));
+  const projectedDistanceKm = (distanceKm * safeOfficialElapsedSeconds) / elapsedSeconds;
+  return Number(Math.max(0, Math.min(targetDistanceKm, projectedDistanceKm)).toFixed(2));
+}
+
+function buildOfficialSessionStandings(store, session, now = new Date()) {
+  const snapshots = session.participants.map((participant) => {
+    const runner = resolveSessionParticipantProfile(store, participant);
+    const liveSnapshot = buildParticipantLiveSnapshot(session, participant, now);
+    const liveDistanceKm = typeof liveSnapshot.liveDistanceKm === 'number' && Number.isFinite(liveSnapshot.liveDistanceKm)
+      ? Math.max(0, liveSnapshot.liveDistanceKm)
+      : 0;
+    const liveElapsedSeconds = Number.isInteger(liveSnapshot.liveElapsedSeconds) && liveSnapshot.liveElapsedSeconds >= 0
+      ? liveSnapshot.liveElapsedSeconds
+      : 0;
+    const liveStatus = liveSnapshot.liveStatus ?? 'ready';
+    const hasProgress = typeof liveSnapshot.liveUpdatedAt === 'string'
+      && liveSnapshot.liveUpdatedAt
+      && liveElapsedSeconds > 0
+      && !['ready', 'forfeited'].includes(liveStatus);
+
+    return {
+      userId: participant.userId,
+      name: runner.name,
+      seedRank: participant.seedRank,
+      liveDistanceKm,
+      liveElapsedSeconds,
+      liveStatus,
+      hasProgress,
+      officialAveragePace: buildProgressAveragePaceLabel(liveDistanceKm, liveElapsedSeconds),
+    };
+  });
+
+  const readySnapshots = snapshots.filter((snapshot) => snapshot.hasProgress);
+  const officialElapsedSeconds = readySnapshots.length >= 2
+    ? Math.max(0, Math.min(...readySnapshots.map((snapshot) => snapshot.liveElapsedSeconds)))
+    : 0;
+  const comparedAt = now.toISOString();
+
+  const rankedSnapshots = snapshots
+    .map((snapshot) => {
+      const officialReady = officialElapsedSeconds > 0 && snapshot.hasProgress;
+      return {
+        ...snapshot,
+        officialReady,
+        officialElapsedSeconds,
+        officialComparedAt: comparedAt,
+        officialDistanceKm: officialReady
+          ? projectOfficialDistanceKm(
+              snapshot.liveDistanceKm,
+              snapshot.liveElapsedSeconds,
+              officialElapsedSeconds,
+              session.distanceKm,
+            )
+          : 0,
+      };
+    })
+    .sort((left, right) => {
+      if (left.officialReady !== right.officialReady) {
+        return left.officialReady ? -1 : 1;
+      }
+
+      if (left.liveStatus === 'forfeited' || right.liveStatus === 'forfeited') {
+        return left.liveStatus === 'forfeited' ? 1 : -1;
+      }
+
+      if (right.officialDistanceKm !== left.officialDistanceKm) {
+        return right.officialDistanceKm - left.officialDistanceKm;
+      }
+
+      return left.seedRank - right.seedRank;
+    });
+
+  return rankedSnapshots.map((snapshot, index, array) => {
+    const leaderDistanceKm = array[0]?.officialDistanceKm ?? 0;
+    const aheadRunner = index > 0 ? array[index - 1] : null;
+    return {
+      ...snapshot,
+      officialRank: index + 1,
+      officialGapLeaderKm: Number(Math.max(0, leaderDistanceKm - snapshot.officialDistanceKm).toFixed(2)),
+      officialGapAheadKm: aheadRunner
+        ? Number(Math.max(0, aheadRunner.officialDistanceKm - snapshot.officialDistanceKm).toFixed(2))
+        : null,
+    };
+  });
+}
+
+function buildOfficialStandingFields(standing) {
+  if (!standing) {
+    return {};
+  }
+
+  return {
+    officialDistanceKm: standing.officialDistanceKm,
+    officialElapsedSeconds: standing.officialElapsedSeconds,
+    officialAveragePace: standing.officialAveragePace,
+    officialRank: standing.officialRank,
+    officialGapAheadKm: standing.officialGapAheadKm,
+    officialGapLeaderKm: standing.officialGapLeaderKm,
+    officialComparedAt: standing.officialComparedAt,
+    officialReady: standing.officialReady,
+  };
+}
+
+function buildOfficialComparisonSummary(standings, currentUserId) {
+  const currentStanding = standings.find((standing) => standing.userId === currentUserId);
+  const leader = standings[0] ?? null;
+
+  if (!currentStanding || !leader) {
+    return null;
+  }
+
+  return {
+    comparedAt: currentStanding.officialComparedAt,
+    elapsedSeconds: currentStanding.officialElapsedSeconds,
+    participantCount: standings.length,
+    readyParticipantCount: standings.filter((standing) => standing.officialReady).length,
+    userRank: currentStanding.officialReady ? currentStanding.officialRank : undefined,
+    userDistanceKm: currentStanding.officialReady ? currentStanding.officialDistanceKm : undefined,
+    userAveragePace: currentStanding.officialReady ? currentStanding.officialAveragePace : undefined,
+    leaderUserId: leader.officialReady ? leader.userId : undefined,
+    leaderName: leader.officialReady ? leader.name : undefined,
+    leaderDistanceKm: leader.officialReady ? leader.officialDistanceKm : undefined,
+    leaderAveragePace: leader.officialReady ? leader.officialAveragePace : undefined,
+    gapAheadKm: currentStanding.officialReady ? currentStanding.officialGapAheadKm : undefined,
+    gapLeaderKm: currentStanding.officialReady ? currentStanding.officialGapLeaderKm : undefined,
   };
 }
 
@@ -1893,7 +2114,27 @@ function buildExpirySnapshot(expiresAt, now = new Date()) {
   };
 }
 
-function findMatchSessionForUser(store, mode, userId, { distanceKm, slotStartAt, testMode = false } = {}) {
+function findMatchSessionForUser(store, mode, userId, { distanceKm, slotStartAt, testMode = false, matchId } = {}) {
+  if (matchId) {
+    const directSession = findMatchSessionById(store, matchId);
+
+    if (!directSession || directSession.mode !== mode) {
+      return null;
+    }
+
+    if (isTestMatchSession(directSession) !== testMode) {
+      return null;
+    }
+
+    if (!directSession.participants.some((participant) => (
+      participant.userId === userId && resolveParticipantLiveStatus(participant) !== 'forfeited'
+    ))) {
+      return null;
+    }
+
+    return directSession;
+  }
+
   const normalizedDistanceKm = distanceKm === undefined ? null : normalizeMatchQueueDistance(distanceKm);
   const sessions = pruneMatchSessions(store);
 
@@ -1962,7 +2203,10 @@ function findMatchSessionById(store, matchId) {
   return pruneMatchSessions(store).find((session) => session.id === matchId) ?? null;
 }
 
-function buildSessionGroupParticipants(store, session, now = new Date()) {
+function buildSessionGroupParticipants(store, session, now = new Date(), officialStandings = null) {
+  const officialByUserId = new Map((officialStandings ?? buildOfficialSessionStandings(store, session, now))
+    .map((standing) => [standing.userId, standing]));
+
   return session.participants
     .map((participant) => {
       const runner = resolveSessionParticipantProfile(store, participant);
@@ -1979,15 +2223,18 @@ function buildSessionGroupParticipants(store, session, now = new Date()) {
         seedSummary: `${participant.seedRank}번 시드 · 이번 주 ${runner.weeklyDistanceKm.toFixed(1)}km`,
         accepted: Boolean(participant.acceptedAt),
         ...buildParticipantLiveSnapshot(session, participant, now),
+        ...buildOfficialStandingFields(officialByUserId.get(participant.userId)),
       };
     })
-    .sort((left, right) => left.seedRank - right.seedRank);
+    .sort((left, right) => (left.officialRank ?? left.seedRank) - (right.officialRank ?? right.seedRank));
 }
 
-function buildSessionDuelOpponent(store, session, currentUserId, now = new Date()) {
+function buildSessionDuelOpponent(store, session, currentUserId, now = new Date(), officialStandings = null) {
   const currentUser = findUserById(store, currentUserId);
   const currentRunner = buildMatchRunnerProfile(store, currentUser);
   const opponentEntry = session.participants.find((participant) => participant.userId !== currentUserId);
+  const officialByUserId = new Map((officialStandings ?? buildOfficialSessionStandings(store, session, now))
+    .map((standing) => [standing.userId, standing]));
 
   if (!opponentEntry) {
     return null;
@@ -2008,6 +2255,7 @@ function buildSessionDuelOpponent(store, session, currentUserId, now = new Date(
     compatibilitySummary: `${opponentRunner.averagePace} 페이스 · ${opponentRunner.levelLabel} · 이번 주 ${opponentRunner.weeklyDistanceKm.toFixed(1)}km · 적합도 ${compatibilityScore.toFixed(0)}점`,
     accepted: Boolean(opponentEntry.acceptedAt),
     ...buildParticipantLiveSnapshot(session, opponentEntry, now),
+    ...buildOfficialStandingFields(officialByUserId.get(opponentEntry.userId)),
   };
 }
 
@@ -2156,7 +2404,7 @@ function buildQueuedParticipants(entries) {
     }));
 }
 
-function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm, slotStartAt, testMode = false }) {
+function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm, slotStartAt, testMode = false, matchId } = {}) {
   const now = new Date();
   const currentRunner = buildMatchRunnerProfile(store, currentUser);
   const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
@@ -2165,6 +2413,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
     distanceKm,
     slotStartAt,
     testMode,
+    matchId,
   });
   const capacity = mode === 'duel' ? 2 : 30;
   const distanceRecommendationHint = buildDistanceRecommendationHint(distanceKm);
@@ -2181,9 +2430,11 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
       ? Math.max(0, Math.ceil((new Date(session.slotStartAt).getTime() - now.getTime()) / 1000))
       : undefined;
     const sessionSlotLabel = formatDuelSlotLabel(session.slotStartAt);
+    const officialStandings = buildOfficialSessionStandings(store, session, now);
+    const officialComparison = buildOfficialComparisonSummary(officialStandings, currentUser.id);
 
     if (mode === 'duel') {
-      const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now);
+      const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now, officialStandings);
       return {
         success: true,
         serverNow: now.toISOString(),
@@ -2218,10 +2469,11 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
           countdownEndsAt: session.slotStartAt,
         } : {}),
         ...(opponent ? { opponent } : {}),
+        ...(officialComparison ? { officialComparison } : {}),
       };
     }
 
-    const participants = buildSessionGroupParticipants(store, session, now);
+    const participants = buildSessionGroupParticipants(store, session, now, officialStandings);
     const mySeedRank = participants.find((participant) => participant.id === currentUser.id)?.seedRank ?? 1;
 
       return {
@@ -2259,6 +2511,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
         } : {}),
         participants,
         mySeedRank,
+        ...(officialComparison ? { officialComparison } : {}),
       };
   }
 
@@ -2692,6 +2945,30 @@ function cancelRunningMatch(store, currentUser, { mode, distanceKm, slotStartAt,
   return { success: true };
 }
 
+function normalizeRunningMatchProgress(session, participant, { distanceKm, elapsedSeconds }) {
+  const previousDistanceKm = typeof participant.liveDistanceKm === 'number' && Number.isFinite(participant.liveDistanceKm)
+    ? Math.max(0, participant.liveDistanceKm)
+    : 0;
+  const previousElapsedSeconds = Number.isInteger(participant.liveElapsedSeconds) && participant.liveElapsedSeconds >= 0
+    ? participant.liveElapsedSeconds
+    : 0;
+  const nextElapsedSeconds = Math.max(previousElapsedSeconds, elapsedSeconds);
+  const elapsedDeltaSeconds = Math.max(0, nextElapsedSeconds - previousElapsedSeconds);
+  const cappedInputDistanceKm = Math.min(session.distanceKm, Math.max(0, distanceKm));
+  const speedLimitedDistanceKm = elapsedDeltaSeconds > 0
+    ? Math.min(
+      cappedInputDistanceKm,
+      previousDistanceKm + elapsedDeltaSeconds * MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND,
+    )
+    : previousDistanceKm;
+  const nextDistanceKm = Math.max(previousDistanceKm, speedLimitedDistanceKm);
+
+  return {
+    distanceKm: Number(Math.min(session.distanceKm, nextDistanceKm).toFixed(2)),
+    elapsedSeconds: nextElapsedSeconds,
+  };
+}
+
 function updateRunningMatchProgress(store, currentUser, { matchId, distanceKm, elapsedSeconds, currentPace, status }) {
   const session = findMatchSessionById(store, matchId);
 
@@ -2724,8 +3001,13 @@ function updateRunningMatchProgress(store, currentUser, { matchId, distanceKm, e
     });
   }
 
-  currentParticipant.liveDistanceKm = Number(distanceKm.toFixed(2));
-  currentParticipant.liveElapsedSeconds = elapsedSeconds;
+  const normalizedProgress = normalizeRunningMatchProgress(session, currentParticipant, {
+    distanceKm,
+    elapsedSeconds,
+  });
+
+  currentParticipant.liveDistanceKm = normalizedProgress.distanceKm;
+  currentParticipant.liveElapsedSeconds = normalizedProgress.elapsedSeconds;
   currentParticipant.livePace = currentPace;
   currentParticipant.liveUpdatedAt = new Date().toISOString();
   currentParticipant.liveStatus = status === 'finished' ? 'finished' : status;
@@ -5091,6 +5373,7 @@ async function handleFetchRunningMatchStatus(request, response) {
   const mode = validateMatchMode(body.mode);
   const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
   const testMode = body.testMode === true;
+  const matchId = typeof body.matchId === 'string' && body.matchId.trim() ? body.matchId.trim() : undefined;
   const slotStartAt = testMode
     ? (typeof body.slotStartAt === 'string' && body.slotStartAt.trim() ? body.slotStartAt.trim() : new Date().toISOString())
     : validateMatchSlotInput(body.slotStartAt);
@@ -5101,6 +5384,7 @@ async function handleFetchRunningMatchStatus(request, response) {
       distanceKm,
       slotStartAt,
       testMode,
+      matchId,
     });
   });
 
@@ -5157,7 +5441,9 @@ async function handleUpdateRunningMatchProgress(request, response) {
   const matchId = validateRequiredString(body.matchId, '진행 상태를 반영할 매치 아이디가 필요해.');
   const distanceKm = validateDistanceKm(body.distanceKm, '러닝 거리를 입력해줘.');
   const elapsedSeconds = validateNonNegativeInteger(body.elapsedSeconds, '러닝 시간은 0초 이상이어야 해.');
-  const currentPace = validatePace(body.currentPace, '현재 페이스가 올바르지 않아.');
+  const currentPace = String(body.currentPace ?? '').trim() === '--:--/km'
+    ? '--:--/km'
+    : validatePace(body.currentPace, '현재 페이스가 올바르지 않아.');
   const status = ['running', 'background', 'paused', 'finished'].includes(body.status)
     ? body.status
     : 'running';
@@ -5250,6 +5536,18 @@ async function handleUpdateRunningMatchRoomReady(request, response) {
     return updateRunningMatchRoomReady(store, currentUser, {
       roomId: validateRequiredString(body.roomId, '준비 상태를 바꿀 방 아이디가 필요해.'),
       ready: body.ready === true,
+    });
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleAcknowledgeRunningMatchRoomCountdown(request, response) {
+  const body = await parseJsonBody(request);
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return acknowledgeRunningMatchRoomCountdown(store, currentUser, {
+      roomId: validateRequiredString(body.roomId, '카운트다운 준비를 반영할 방 아이디가 필요해.'),
     });
   });
 
@@ -5711,6 +6009,11 @@ async function routeRequest(request, response) {
 
   if (pathname === '/api/running/rooms/ready' && request.method === 'POST') {
     await handleUpdateRunningMatchRoomReady(request, response);
+    return;
+  }
+
+  if (pathname === '/api/running/rooms/countdown-ready' && request.method === 'POST') {
+    await handleAcknowledgeRunningMatchRoomCountdown(request, response);
     return;
   }
 
