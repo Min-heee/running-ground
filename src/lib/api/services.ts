@@ -804,6 +804,12 @@ function resolveMockParticipantLiveStatus(
 function hydrateMockRunningMatchSessionStatuses(session: RunningMatchStatusResponse): RunningMatchStatusResponse {
   return {
     ...session,
+    currentUserLiveStatus: session.currentUserLiveStatus
+      ? resolveMockParticipantLiveStatus({
+        liveStatus: session.currentUserLiveStatus,
+        liveUpdatedAt: new Date().toISOString(),
+      })
+      : session.currentUserLiveStatus,
     ...(session.opponent ? {
       opponent: {
         ...session.opponent,
@@ -893,6 +899,7 @@ function buildMockDuelMatchStatus(response: RequestDuelMatchResponse): RunningMa
     capacity: 2,
     userAccepted: true,
     readyToStart: new Date(response.slotStartAt).getTime() <= Date.now(),
+    currentUserLiveStatus: 'ready',
     canCancel: Boolean(canCancelUntilAt) && Date.now() < new Date(canCancelUntilAt ?? 0).getTime(),
     cancelableUntilAt: canCancelUntilAt,
     expiresAt: getMockMatchBookingClosesAt(response.slotStartAt) ?? undefined,
@@ -938,6 +945,7 @@ function buildMockGroupMatchStatus(response: RequestGroupMatchResponse): Running
     capacity: response.maxGroupSize,
     userAccepted: true,
     readyToStart: new Date(response.slotStartAt).getTime() <= Date.now(),
+    currentUserLiveStatus: 'ready',
     canCancel: Boolean(canCancelUntilAt) && Date.now() < new Date(canCancelUntilAt ?? 0).getTime(),
     cancelableUntilAt: canCancelUntilAt,
     expiresAt: getMockMatchBookingClosesAt(response.slotStartAt) ?? undefined,
@@ -2214,8 +2222,33 @@ export async function cancelRunningMatch(input: CancelRunningMatchInput): Promis
 
 export async function leaveRunningMatch(input: LeaveRunningMatchInput): Promise<LeaveRunningMatchResponse> {
   if (USE_MOCK_API) {
-    mockRunningMatchSessions.duel = null;
-    mockRunningMatchSessions.group = null;
+    const duelSession = mockRunningMatchSessions.duel;
+    const groupSession = mockRunningMatchSessions.group;
+    const forfeitedAt = new Date().toISOString();
+
+    if (duelSession?.matchId === input.matchId) {
+      mockRunningMatchSessions.duel = {
+        ...duelSession,
+        currentUserLiveStatus: 'forfeited',
+      };
+    }
+
+    if (groupSession?.matchId === input.matchId) {
+      mockRunningMatchSessions.group = {
+        ...groupSession,
+        currentUserLiveStatus: 'forfeited',
+        participants: groupSession.participants?.map((participant) => (
+          participant.seedRank === (groupSession.mySeedRank ?? 1)
+            ? {
+              ...participant,
+              liveStatus: 'forfeited',
+              liveUpdatedAt: forfeitedAt,
+            }
+            : participant
+        )),
+      };
+    }
+
     return { success: true };
   }
 

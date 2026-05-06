@@ -2126,9 +2126,7 @@ function findMatchSessionForUser(store, mode, userId, { distanceKm, slotStartAt,
       return null;
     }
 
-    if (!directSession.participants.some((participant) => (
-      participant.userId === userId && resolveParticipantLiveStatus(participant) !== 'forfeited'
-    ))) {
+    if (!directSession.participants.some((participant) => participant.userId === userId)) {
       return null;
     }
 
@@ -2432,6 +2430,10 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
     const sessionSlotLabel = formatDuelSlotLabel(session.slotStartAt);
     const officialStandings = buildOfficialSessionStandings(store, session, now);
     const officialComparison = buildOfficialComparisonSummary(officialStandings, currentUser.id);
+    const currentParticipant = session.participants.find((participant) => participant.userId === currentUser.id);
+    const currentUserLiveSnapshot = currentParticipant
+      ? buildParticipantLiveSnapshot(session, currentParticipant, now)
+      : null;
 
     if (mode === 'duel') {
       const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now, officialStandings);
@@ -2462,6 +2464,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
         capacity,
         userAccepted: true,
         readyToStart,
+        ...(currentUserLiveSnapshot?.liveStatus ? { currentUserLiveStatus: currentUserLiveSnapshot.liveStatus } : {}),
         canCancel: state === 'matched' ? canCancelReservation : false,
         cancelableUntilAt,
         ...(countdownRemainingSeconds !== undefined ? {
@@ -2503,6 +2506,7 @@ function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm,
         capacity,
         userAccepted: true,
         readyToStart,
+        ...(currentUserLiveSnapshot?.liveStatus ? { currentUserLiveStatus: currentUserLiveSnapshot.liveStatus } : {}),
         canCancel: state === 'matched' ? canCancelReservation : false,
         cancelableUntilAt,
         ...(countdownRemainingSeconds !== undefined ? {

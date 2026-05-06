@@ -1469,6 +1469,15 @@ export function TrackRunExperience({
     [distanceKm, elapsedSeconds, effectiveGroupParticipants, effectiveGroupSeedRank],
   );
   const currentGroupStanding = groupLiveStandings.find((participant) => participant.isCurrentUser) ?? null;
+  const currentUserDuelLiveStatus = duelMatchStatus?.currentUserLiveStatus ?? null;
+  const currentUserGroupLiveStatus = groupMatchStatus?.currentUserLiveStatus ?? currentGroupStanding?.liveStatus ?? null;
+  const currentUserHasForfeitedActiveMatch = (
+    matchMode === 'duel'
+      ? currentUserDuelLiveStatus === 'forfeited'
+      : matchMode === 'group'
+        ? currentUserGroupLiveStatus === 'forfeited'
+        : false
+  );
   const currentGroupLeader = groupLiveStandings[0] ?? null;
   const groupAheadParticipant = currentGroupStanding
     ? groupLiveStandings.find((participant) => participant.rank === currentGroupStanding.rank - 1) ?? null
@@ -1800,6 +1809,7 @@ export function TrackRunExperience({
             distanceKm: duelLiveGapKm === null ? 0 : syncedDuelDistanceKm,
             isCurrentUser: true,
             isLeader: duelLiveGapKm !== null ? duelLiveGapKm >= 0 : false,
+            liveStatus: currentUserDuelLiveStatus ?? undefined,
             showPaceBubble: Boolean(currentUserArenaPace),
           },
           {
@@ -1808,11 +1818,20 @@ export function TrackRunExperience({
             paceLabel: effectiveDuelOpponentArenaPace,
             distanceKm: duelLiveGapKm === null ? 0 : syncedDuelOpponentDistanceKm,
             isLeader: duelLiveGapKm !== null ? duelLiveGapKm < 0 : true,
+            liveStatus: effectiveDuelOpponent.liveStatus,
             showPaceBubble: Boolean(effectiveDuelOpponentArenaPace),
           },
         ]
       : []),
-    [currentUserArenaPace, duelLiveGapKm, effectiveDuelOpponent, effectiveDuelOpponentArenaPace, syncedDuelDistanceKm, syncedDuelOpponentDistanceKm],
+    [
+      currentUserArenaPace,
+      currentUserDuelLiveStatus,
+      duelLiveGapKm,
+      effectiveDuelOpponent,
+      effectiveDuelOpponentArenaPace,
+      syncedDuelDistanceKm,
+      syncedDuelOpponentDistanceKm,
+    ],
   );
   const roomLinkedDuelPlaceholderParticipants = useMemo(() => {
     if (!hasRoomLinkedDuelContext || !visibleMatchRoom) {
@@ -1830,6 +1849,7 @@ export function TrackRunExperience({
         distanceKm: 0,
         isCurrentUser,
         isLeader: index === 0,
+        liveStatus: undefined,
         showPaceBubble: isCurrentUser ? Boolean(currentUserArenaPace) : false,
       };
     });
@@ -1846,6 +1866,7 @@ export function TrackRunExperience({
         rankLabel: String(participant.rank),
         isCurrentUser: participant.isCurrentUser,
         isLeader: participant.rank === 1,
+        liveStatus: participant.liveStatus,
         showPaceBubble: participant.isCurrentUser
           ? Boolean(currentUserArenaPace)
           : Boolean(buildParticipantAveragePaceLabel(participant, groupArenaUsesLivePace)),
@@ -1870,6 +1891,7 @@ export function TrackRunExperience({
         rankLabel: String(index + 1),
         isCurrentUser,
         isLeader: index === 0,
+        liveStatus: undefined,
         showPaceBubble: isCurrentUser ? Boolean(currentUserArenaPace) : false,
         emphasis: 'featured' as const,
       };
@@ -1919,7 +1941,9 @@ export function TrackRunExperience({
       ))
     );
   const activeMatchExitSource =
-    isRunning && matchMode === 'duel'
+    currentUserHasForfeitedActiveMatch
+      ? null
+      : isRunning && matchMode === 'duel'
       ? (
           (duelMatchStatus?.matchId && ['matched', 'active'].includes(duelMatchState))
           || roomLinkedMatchContext?.mode === 'duel'
@@ -4089,21 +4113,96 @@ export function TrackRunExperience({
     ]);
   };
 
+  const forfeitMatchAndKeepRunning = async (source: 'duel' | 'group') => {
+    setError(null);
+    const roomLinkedMatchId = roomLinkedMatchContext?.mode === source
+      ? roomLinkedMatchContext.matchId
+      : null;
+    const roomLinkedSlotStartAt = roomLinkedMatchContext?.mode === source
+      ? roomLinkedMatchContext.slotStartAt
+      : null;
+    const roomLinkedDistanceKm = roomLinkedMatchContext?.mode === source
+      ? roomLinkedMatchContext.distanceKm
+      : null;
+    const matchId = source === 'duel'
+      ? duelMatchStatus?.matchId ?? roomLinkedMatchId
+      : groupMatchStatus?.matchId ?? roomLinkedMatchId;
+
+    if (source === 'duel') {
+      setIsLeavingDuelMatch(true);
+    } else {
+      setIsLeavingGroupMatch(true);
+    }
+
+    try {
+      if (!matchId) {
+        throw new Error('기권 처리할 대결을 찾지 못했어.');
+      }
+
+      await leaveRunningMatch({ matchId });
+      matchProgressHeartbeatRef.current = Date.now();
+
+      if (source === 'duel') {
+        const slotStartAt = duelMatchStatus?.slotStartAt ?? roomLinkedSlotStartAt ?? activeDuelSlotStartAt;
+        const distanceKmForStatus = duelMatchStatus?.distanceKm ?? roomLinkedDistanceKm ?? duelDistanceKm;
+        setDuelMatchStatus((currentStatus) => (
+          currentStatus?.matchId === matchId
+            ? { ...currentStatus, currentUserLiveStatus: 'forfeited' }
+            : currentStatus
+        ));
+        await loadDuelMatchStatus(slotStartAt, {
+          matchId,
+          distanceKm: distanceKmForStatus,
+          testMode: isDuelTestFlow,
+        });
+        setDuelMatchNotice('기권 처리됐어요. 러닝 기록 측정은 계속 이어가요.');
+      } else {
+        const slotStartAt = groupMatchStatus?.slotStartAt ?? roomLinkedSlotStartAt ?? activeGroupSlotStartAt;
+        const distanceKmForStatus = groupMatchStatus?.distanceKm ?? roomLinkedDistanceKm ?? groupDistanceKm;
+        setGroupMatchStatus((currentStatus) => (
+          currentStatus?.matchId === matchId
+            ? {
+              ...currentStatus,
+              currentUserLiveStatus: 'forfeited',
+              participants: currentStatus.participants?.map((participant) => (
+                participant.seedRank === (currentStatus.mySeedRank ?? 1)
+                  ? { ...participant, liveStatus: 'forfeited' as const }
+                  : participant
+              )),
+            }
+            : currentStatus
+        ));
+        await loadGroupMatchStatus(slotStartAt, {
+          matchId,
+          distanceKm: distanceKmForStatus,
+          testMode: isGroupTestFlow,
+        });
+        setGroupMatchNotice('기권 처리됐어요. 러닝 기록 측정은 계속 이어가요.');
+      }
+
+      await loadUpcomingMatches().catch(() => {});
+    } catch (matchError) {
+      setError(matchError instanceof Error ? matchError.message : '기권 처리에 실패했어.');
+    } finally {
+      if (source === 'duel') {
+        setIsLeavingDuelMatch(false);
+      } else {
+        setIsLeavingGroupMatch(false);
+      }
+    }
+  };
+
   const handleForfeitMatch = (source: 'duel' | 'group') => {
     Alert.alert(
       '대결을 기권할까요?',
-      '기권하면 대결에서는 포기 처리돼요. 지금 측정 중인 러닝 기록은 혼자 계속 이어갈 수 있어요.',
+      '기권하면 대결판에는 기권으로 표시되고, 지금 측정 중인 러닝 기록은 그대로 이어가요.',
       [
         { text: '취소', style: 'cancel' },
         {
           text: '기권하기',
           style: 'destructive',
           onPress: () => {
-            void leaveMatchAndContinueSolo(source, {
-              duelNotice: '1대1 대결을 기권했고, 지금 러닝은 혼자 계속 이어가요.',
-              groupNotice: '그룹 대결을 기권했고, 지금 러닝은 혼자 계속 이어가요.',
-              errorMessage: '기권 처리에 실패했어.',
-            });
+            void forfeitMatchAndKeepRunning(source);
           },
         },
       ],

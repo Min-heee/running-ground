@@ -18,6 +18,7 @@ type ArenaParticipant = {
   rankLabel?: string;
   isCurrentUser?: boolean;
   isLeader?: boolean;
+  liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'forfeited' | 'finished';
   showPaceBubble?: boolean;
   emphasis?: 'featured' | 'compact';
 };
@@ -38,6 +39,14 @@ function buildBubbleLabel(participant: ArenaParticipant) {
 
 function shouldShowRunnerBubble(participant: ArenaParticipant) {
   return Boolean(participant.showPaceBubble && participant.paceLabel.trim());
+}
+
+function isForfeited(participant: ArenaParticipant) {
+  return participant.liveStatus === 'forfeited';
+}
+
+function buildMarkerLabel(participant: ArenaParticipant, fallbackLabel: string) {
+  return isForfeited(participant) ? '기권' : fallbackLabel;
 }
 
 function buildRemainingLabel(distanceKm: number, targetDistanceKm: number) {
@@ -140,38 +149,60 @@ function DuelRoad({
     return null;
   }
 
+  const safeTargetDistanceKm = Math.max(0.1, targetDistanceKm);
+  const finishTop = 62;
+  const startTop = ROAD_HEIGHT_DUEL - 124;
+  const pathHeight = startTop - finishTop;
+  const currentProgress = clamp(currentUser.distanceKm / safeTargetDistanceKm, 0, 1);
+  const opponentProgress = clamp(opponent.distanceKm / safeTargetDistanceKm, 0, 1);
   const gapKm = currentUser.distanceKm - opponent.distanceKm;
-  const gapOffset = clamp((gapKm / Math.max(0.2, targetDistanceKm * 0.08)) * 96, -84, 84);
-  const centerY = ROAD_HEIGHT_DUEL * 0.74;
-  const userTop = centerY - gapOffset / 2;
-  const opponentTop = centerY + gapOffset / 2;
+  let userTop = startTop - currentProgress * pathHeight;
+  let opponentTop = startTop - opponentProgress * pathHeight;
+
+  if (Math.abs(gapKm) >= 0.005 && Math.abs(userTop - opponentTop) < 22) {
+    const visualLeadOffset = 14;
+    if (gapKm > 0) {
+      userTop -= visualLeadOffset;
+      opponentTop += visualLeadOffset;
+    } else {
+      userTop += visualLeadOffset;
+      opponentTop -= visualLeadOffset;
+    }
+  }
+
+  userTop = clamp(userTop, finishTop, startTop);
+  opponentTop = clamp(opponentTop, finishTop, startTop);
 
   return (
     <View style={[styles.roadCard, { height: ROAD_HEIGHT_DUEL }]}>
       <RoadMotion laneMode="duel" roadHeight={ROAD_HEIGHT_DUEL} />
       <View style={[styles.duelRunnerWrap, styles.duelRunnerLeft, { top: opponentTop }]}>
-        <View style={[styles.runnerMarker, styles.runnerMarkerOpponent]}>
-          <Text style={styles.runnerMarkerText}>{opponent.name.slice(0, 1)}</Text>
+        <View style={[styles.runnerMarker, styles.runnerMarkerOpponent, isForfeited(opponent) ? styles.runnerMarkerForfeited : undefined]}>
+          <Text style={[styles.runnerMarkerText, isForfeited(opponent) ? styles.runnerMarkerForfeitedText : undefined]}>
+            {buildMarkerLabel(opponent, opponent.name.slice(0, 1))}
+          </Text>
         </View>
         {shouldShowRunnerBubble(opponent) ? (
-          <View style={styles.runnerBubble}>
+          <View style={[styles.runnerBubble, isForfeited(opponent) ? styles.runnerBubbleForfeited : undefined]}>
             <Text style={styles.runnerBubbleText}>{buildBubbleLabel(opponent)}</Text>
           </View>
         ) : null}
-        <Text style={styles.runnerName}>{opponent.name}</Text>
+        <Text style={[styles.runnerName, isForfeited(opponent) ? styles.runnerNameForfeited : undefined]}>{opponent.name}</Text>
         <Text style={styles.runnerMeta}>{opponent.distanceKm.toFixed(2)}km</Text>
         <Text style={styles.runnerMetaMuted}>{buildRemainingLabel(opponent.distanceKm, targetDistanceKm)}</Text>
       </View>
       <View style={[styles.duelRunnerWrap, styles.duelRunnerRight, { top: userTop }]}>
-        <View style={[styles.runnerMarker, styles.runnerMarkerCurrent]}>
-          <Text style={styles.runnerMarkerText}>나</Text>
+        <View style={[styles.runnerMarker, styles.runnerMarkerCurrent, isForfeited(currentUser) ? styles.runnerMarkerForfeited : undefined]}>
+          <Text style={[styles.runnerMarkerText, isForfeited(currentUser) ? styles.runnerMarkerForfeitedText : undefined]}>
+            {buildMarkerLabel(currentUser, '나')}
+          </Text>
         </View>
         {shouldShowRunnerBubble(currentUser) ? (
-          <View style={[styles.runnerBubble, styles.runnerBubbleCurrent]}>
+          <View style={[styles.runnerBubble, styles.runnerBubbleCurrent, isForfeited(currentUser) ? styles.runnerBubbleForfeited : undefined]}>
             <Text style={styles.runnerBubbleText}>{buildBubbleLabel(currentUser)}</Text>
           </View>
         ) : null}
-        <Text style={styles.runnerName}>나</Text>
+        <Text style={[styles.runnerName, isForfeited(currentUser) ? styles.runnerNameForfeited : undefined]}>나</Text>
         <Text style={styles.runnerMeta}>{currentUser.distanceKm.toFixed(2)}km</Text>
         <Text style={styles.runnerMetaMuted}>{buildRemainingLabel(currentUser.distanceKm, targetDistanceKm)}</Text>
       </View>
@@ -187,7 +218,13 @@ function GroupRoad({
   targetDistanceKm: number;
 }) {
   const orderedParticipants = useMemo(
-    () => [...participants].sort((left, right) => left.distanceKm - right.distanceKm),
+    () => [...participants].sort((left, right) => {
+      if (isForfeited(left) !== isForfeited(right)) {
+        return isForfeited(left) ? 1 : -1;
+      }
+
+      return right.distanceKm - left.distanceKm;
+    }),
     [participants],
   );
   const currentUserIndex = Math.max(
@@ -210,27 +247,38 @@ function GroupRoad({
       >
         {orderedParticipants.map((participant, index) => {
           const isCurrentUser = Boolean(participant.isCurrentUser);
-          const rankLabel = participant.rankLabel ?? `${orderedParticipants.length - index}위`;
+          const participantForfeited = isForfeited(participant);
+          const rankLabel = participant.rankLabel ?? `${index + 1}위`;
           const displayName = isCurrentUser ? '나' : participant.name;
 
           return (
             <View
               key={participant.id}
-              style={[styles.groupRow, isCurrentUser ? styles.groupRowCurrent : undefined]}
+              style={[
+                styles.groupRow,
+                isCurrentUser ? styles.groupRowCurrent : undefined,
+                participantForfeited ? styles.groupRowForfeited : undefined,
+              ]}
             >
               <View style={styles.groupRankColumn}>
                 <Text style={styles.groupRankText}>{rankLabel}</Text>
                 <Text style={styles.groupNameText}>{displayName}</Text>
               </View>
               <View style={styles.groupRoadLane}>
-                <View style={[styles.groupRunnerMarker, isCurrentUser ? styles.runnerMarkerCurrent : participant.isLeader ? styles.runnerMarkerLeader : styles.runnerMarkerOpponent]}>
-                  <Text style={styles.groupRunnerMarkerText}>
-                    {isCurrentUser ? '나' : participant.name.slice(0, 1)}
+                <View style={[
+                  styles.groupRunnerMarker,
+                  isCurrentUser ? styles.runnerMarkerCurrent : participant.isLeader ? styles.runnerMarkerLeader : styles.runnerMarkerOpponent,
+                  participantForfeited ? styles.runnerMarkerForfeited : undefined,
+                ]}>
+                  <Text style={[styles.groupRunnerMarkerText, participantForfeited ? styles.groupRunnerMarkerForfeitedText : undefined]}>
+                    {buildMarkerLabel(participant, isCurrentUser ? '나' : participant.name.slice(0, 1))}
                   </Text>
                 </View>
               </View>
               <View style={styles.groupMetaColumn}>
-                <Text style={styles.groupMetaText}>{participant.paceLabel || '측정 대기'}</Text>
+                <Text style={[styles.groupMetaText, participantForfeited ? styles.groupMetaForfeitedText : undefined]}>
+                  {participantForfeited ? '기권' : participant.paceLabel || '측정 대기'}
+                </Text>
                 <Text style={styles.groupMetaSubtext}>{buildRemainingLabel(participant.distanceKm, targetDistanceKm)}</Text>
               </View>
             </View>
@@ -477,16 +525,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#F59E0B',
     borderColor: '#FEF3C7',
   },
+  runnerMarkerForfeited: {
+    backgroundColor: '#DC2626',
+    borderColor: '#FECACA',
+  },
   runnerMarkerText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',
+  },
+  runnerMarkerForfeitedText: {
+    fontSize: 13,
+    letterSpacing: -0.2,
   },
   runnerName: {
     marginTop: 8,
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
+  },
+  runnerNameForfeited: {
+    color: '#FECACA',
+  },
+  runnerBubbleForfeited: {
+    backgroundColor: 'rgba(220,38,38,0.36)',
   },
   runnerMeta: {
     marginTop: 2,
@@ -516,6 +578,9 @@ const styles = StyleSheet.create({
   },
   groupRowCurrent: {
     backgroundColor: 'rgba(109,94,247,0.14)',
+  },
+  groupRowForfeited: {
+    backgroundColor: 'rgba(220,38,38,0.12)',
   },
   groupRankColumn: {
     width: '16%',
@@ -549,6 +614,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
+  groupRunnerMarkerForfeitedText: {
+    fontSize: 9,
+    letterSpacing: -0.4,
+  },
   groupMetaColumn: {
     width: '20%',
     alignItems: 'flex-end',
@@ -558,6 +627,9 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '800',
+  },
+  groupMetaForfeitedText: {
+    color: '#FECACA',
   },
   groupMetaSubtext: {
     color: '#98A2B3',

@@ -242,6 +242,7 @@ export type RunningMatchStatusResponse = {
   capacity: number;
   userAccepted: boolean;
   readyToStart: boolean;
+  currentUserLiveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'forfeited' | 'finished';
   canCancel?: boolean;
   cancelableUntilAt?: string;
   countdownRemainingSeconds?: number;
