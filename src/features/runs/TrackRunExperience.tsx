@@ -4588,27 +4588,44 @@ export function TrackRunExperience({
 
   const renderLiveRaceBoardPage = () => {
     if (matchMode === 'duel' && effectiveDuelOpponent) {
+      const currentBoardDistanceKm = duelLiveGapKm === null ? distanceKm : syncedDuelDistanceKm;
+      const opponentBoardDistanceKm = duelLiveGapKm === null
+        ? effectiveDuelOpponent.liveDistanceKm ?? 0
+        : syncedDuelOpponentDistanceKm;
       const duelRows = [
         {
           id: 'current-user',
           name: '나',
-          paceLabel: currentUserArenaPace,
-          distanceKm,
-          remainingKm: Math.max(0, duelDistanceKm - distanceKm),
-          progress: duelDistanceKm > 0 ? distanceKm / duelDistanceKm : 0,
+          distanceKm: currentBoardDistanceKm,
+          remainingKm: Math.max(0, duelDistanceKm - currentBoardDistanceKm),
+          progress: duelDistanceKm > 0 ? currentBoardDistanceKm / duelDistanceKm : 0,
           isCurrentUser: true,
+          liveStatus: currentUserDuelLiveStatus ?? undefined,
         },
         {
           id: effectiveDuelOpponent.id,
           name: effectiveDuelOpponent.name,
-          paceLabel: effectiveDuelOpponentArenaPace,
-          distanceKm: effectiveDuelOpponent.liveDistanceKm ?? 0,
-          remainingKm: Math.max(0, duelDistanceKm - (effectiveDuelOpponent.liveDistanceKm ?? 0)),
-          progress: duelDistanceKm > 0 ? (effectiveDuelOpponent.liveDistanceKm ?? 0) / duelDistanceKm : 0,
+          distanceKm: opponentBoardDistanceKm,
+          remainingKm: Math.max(0, duelDistanceKm - opponentBoardDistanceKm),
+          progress: duelDistanceKm > 0 ? opponentBoardDistanceKm / duelDistanceKm : 0,
           isCurrentUser: false,
+          liveStatus: effectiveDuelOpponent.liveStatus,
         },
       ]
-        .sort((left, right) => right.distanceKm - left.distanceKm)
+        .sort((left, right) => {
+          const leftForfeited = left.liveStatus === 'forfeited';
+          const rightForfeited = right.liveStatus === 'forfeited';
+
+          if (leftForfeited !== rightForfeited) {
+            return leftForfeited ? 1 : -1;
+          }
+
+          if (right.distanceKm !== left.distanceKm) {
+            return right.distanceKm - left.distanceKm;
+          }
+
+          return left.isCurrentUser ? -1 : 1;
+        })
         .map((row, index) => ({
           ...row,
           rank: index + 1,
@@ -4617,7 +4634,7 @@ export function TrackRunExperience({
       return (
         <LiveMatchRaceBoard
           title="1대1 레이스 보드"
-          subtitle="누가 더 앞서 있는지, 각자 얼마 남았는지 한눈에 볼 수 있어요."
+          subtitle="누가 더 앞서 있는지, 각각 얼마 남았는지 한눈에 볼 수 있어요."
           rows={duelRows}
         />
       );
@@ -4639,6 +4656,7 @@ export function TrackRunExperience({
             remainingKm: Math.max(0, groupDistanceKm - participant.currentDistanceKm),
             progress: groupDistanceKm > 0 ? participant.currentDistanceKm / groupDistanceKm : 0,
             isCurrentUser: participant.isCurrentUser,
+            liveStatus: participant.liveStatus,
           }))}
         />
       );
