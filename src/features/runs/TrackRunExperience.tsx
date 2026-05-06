@@ -90,7 +90,7 @@ import {
 } from '@/features/runs/tracking';
 import { getCurrentUserProfile } from '@/lib/session';
 
-type TrackerStatus = 'idle' | 'running' | 'paused' | 'saving';
+type TrackerStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving';
 type StableCountdownTracker = {
   key: string;
   baselineRemainingSeconds: number;
@@ -111,6 +111,7 @@ const MATCH_COMPARISON_INTERVAL_SECONDS = 30;
 const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 3000;
 const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
 const SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR = 0.25;
+const SOLO_START_COUNTDOWN_SECONDS = 5;
 
 function parseServerNowMs(serverNow?: string) {
   const parsedMs = serverNow ? new Date(serverNow).getTime() : NaN;
@@ -928,6 +929,8 @@ export function TrackRunExperience({
   const currentUserId = currentUser?.publicTag ?? 'mock-current-user';
   const pedometerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const soloStartCountdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const soloStartCountdownResolveRef = useRef<((completed: boolean) => void) | null>(null);
   const livePagerRef = useRef<ScrollView | null>(null);
   const routeRef = useRef<RunRoutePoint[]>([]);
   const elapsedSecondsRef = useRef(0);
@@ -959,6 +962,7 @@ export function TrackRunExperience({
   const pushRunningMatchProgressRef = useRef<((input: UpdateRunningMatchProgressInput) => Promise<RunningMatchStatusResponse>) | null>(null);
 
   const [status, setStatus] = useState<TrackerStatus>('idle');
+  const [soloStartCountdownSeconds, setSoloStartCountdownSeconds] = useState<number | null>(null);
   const [route, setRoute] = useState<RunRoutePoint[]>([]);
   const [distanceKm, setDistanceKm] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -1718,6 +1722,7 @@ export function TrackRunExperience({
         ? null
         : selectedMatch.startLabel;
   const isRunning = status === 'running';
+  const isStarting = status === 'starting';
   const isPaused = status === 'paused';
   const isSaving = status === 'saving';
   const isIdle = status === 'idle';
@@ -3368,6 +3373,37 @@ export function TrackRunExperience({
     }
   };
 
+  const finishSoloStartCountdown = (completed: boolean) => {
+    if (soloStartCountdownTimerRef.current) {
+      clearInterval(soloStartCountdownTimerRef.current);
+      soloStartCountdownTimerRef.current = null;
+    }
+
+    setSoloStartCountdownSeconds(null);
+    soloStartCountdownResolveRef.current?.(completed);
+    soloStartCountdownResolveRef.current = null;
+  };
+
+  const runSoloStartCountdown = () => new Promise<boolean>((resolve) => {
+    finishSoloStartCountdown(false);
+
+    soloStartCountdownResolveRef.current = resolve;
+    let remainingSeconds = SOLO_START_COUNTDOWN_SECONDS;
+    setSoloStartCountdownSeconds(remainingSeconds);
+    setStatus('starting');
+
+    soloStartCountdownTimerRef.current = setInterval(() => {
+      remainingSeconds -= 1;
+
+      if (remainingSeconds <= 0) {
+        finishSoloStartCountdown(true);
+        return;
+      }
+
+      setSoloStartCountdownSeconds(remainingSeconds);
+    }, 1000);
+  });
+
   const stopPedometerSubscription = () => {
     pedometerSubscriptionRef.current?.remove();
     pedometerSubscriptionRef.current = null;
@@ -3380,6 +3416,7 @@ export function TrackRunExperience({
 
   const resetForegroundTrackingState = () => {
     stopForegroundTrackingHelpers();
+    finishSoloStartCountdown(false);
     elapsedSecondsRef.current = 0;
     totalStepsRef.current = 0;
     pedometerStepOffsetRef.current = 0;
@@ -3748,6 +3785,7 @@ export function TrackRunExperience({
 
     try {
       setError(null);
+      const shouldUseSoloStartCountdown = matchMode === 'solo' && !options?.allowCountdownWarmup;
       await ensureLocationPermission();
       await ensureBackgroundLocationPermission();
       resetForegroundTrackingState();
@@ -3761,6 +3799,14 @@ export function TrackRunExperience({
         officialStartBaselineRef.current = null;
       } else {
         preStartWarmupMatchIdRef.current = null;
+      }
+
+      if (shouldUseSoloStartCountdown) {
+        const countdownCompleted = await runSoloStartCountdown();
+
+        if (!countdownCompleted) {
+          return;
+        }
       }
 
       await startBackgroundRunTracking();
@@ -3784,6 +3830,7 @@ export function TrackRunExperience({
         setError('러닝은 시작됐지만 위치 공유 상태를 반영하지 못했어요.');
       }
     } catch (trackingError) {
+      finishSoloStartCountdown(false);
       setError(trackingError instanceof Error ? trackingError.message : '러닝 측정을 시작하지 못했어.');
       stopForegroundTrackingHelpers();
       await resetBackgroundRunTracking();
@@ -4323,6 +4370,7 @@ export function TrackRunExperience({
     return () => {
       unsubscribe();
       appStateSubscription.remove();
+      finishSoloStartCountdown(false);
       stopForegroundTrackingHelpers();
     };
   }, []);
@@ -5659,6 +5707,16 @@ export function TrackRunExperience({
           </Text>
         </View>
       ) : null}
+      {isStarting && typeof soloStartCountdownSeconds === 'number' ? (
+        <View style={styles.soloStartCountdownOverlay} pointerEvents="none">
+          <View style={styles.soloStartCountdownCard}>
+            <Text style={styles.soloStartCountdownEyebrow}>READY</Text>
+            <Text style={styles.soloStartCountdownTitle}>러닝 시작</Text>
+            <Text style={styles.soloStartCountdownNumber}>{soloStartCountdownSeconds}</Text>
+            <Text style={styles.soloStartCountdownText}>카운트가 끝나면 기록 측정을 시작해요.</Text>
+          </View>
+        </View>
+      ) : null}
       {shouldShowCenteredMatchCountdown && visibleCountdownEntry ? (
         <MatchStartCountdownOverlay
           secondsRemaining={visibleCountdownEntry.remainingSeconds}
@@ -5693,6 +5751,54 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  soloStartCountdownOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    zIndex: 35,
+  },
+  soloStartCountdownCard: {
+    width: '100%',
+    maxWidth: 280,
+    borderRadius: 30,
+    backgroundColor: 'rgba(17, 24, 39, 0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(141, 132, 255, 0.45)',
+    alignItems: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 22,
+    shadowColor: '#111827',
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 16 },
+    elevation: 8,
+  },
+  soloStartCountdownEyebrow: {
+    color: '#8D84FF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1.6,
+  },
+  soloStartCountdownTitle: {
+    marginTop: 8,
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  soloStartCountdownNumber: {
+    marginTop: 10,
+    color: '#FFFFFF',
+    fontSize: 88,
+    fontWeight: '900',
+    lineHeight: 96,
+  },
+  soloStartCountdownText: {
+    color: '#D6D9F9',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   readyCard: {
     gap: 16,
