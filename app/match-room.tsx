@@ -9,12 +9,18 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import {
   fetchFriendLeaderboard,
   fetchRunningMatchRoom,
+  joinRunningMatchRoom,
   leaveRunningMatchRoom,
   startRunningMatchRoom,
   updateRunningMatchRoom,
   updateRunningMatchRoomReady,
 } from '@/lib/api/services';
-import type { FriendLeaderboardResponse, RunningMatchRoom, RunningMatchRoomStartMode } from '@/lib/api/types';
+import type {
+  FriendLeaderboardResponse,
+  RunningMatchRoom,
+  RunningMatchRoomInvitee,
+  RunningMatchRoomStartMode,
+} from '@/lib/api/types';
 import {
   formatMatchCountdown,
   getMatchStartRemainingSeconds,
@@ -85,12 +91,24 @@ function buildRoomRenderKey(room: RunningMatchRoom | null) {
     room.linkedMatchId ?? 'no-match',
     room.linkedMatchStatus ?? 'no-status',
     room.linkedMatchSlotStartAt ?? 'no-linked-slot',
+    room.joined === false ? 'invited-only' : 'joined',
+    room.invitedFriendIds.join('|'),
+    room.invitedFriends?.map((friend) => [friend.userId, friend.name, friend.status].join(':')).join('|') ?? 'no-invites',
     room.participants.map((participant) => [
       participant.userId,
       participant.isReady ? 'ready' : 'waiting',
       participant.isCountdownReady ? 'loaded' : 'loading',
     ].join(':')).join('|'),
   ].join('::');
+}
+
+function areSameIdSet(left: string[], right: string[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const leftSet = new Set(left);
+  return right.every((id) => leftSet.has(id));
 }
 
 function formatRoomDateLabel(value: string) {
@@ -190,7 +208,7 @@ function WheelColumn({
 
 export default function MatchRoomScreen() {
   const currentUser = getCurrentUserProfile();
-  const currentUserId = currentUser?.publicTag ?? 'mock-current-user';
+  const currentUserTag = currentUser?.publicTag ?? 'mock-current-user';
   const openedLinkedMatchKeyRef = useRef<string | null>(null);
   const latestRoomServerNowMsRef = useRef(0);
   const roomRenderKeyRef = useRef<string | null>(null);
@@ -330,7 +348,9 @@ export default function MatchRoomScreen() {
     };
   }, [room?.linkedMatchId]);
 
-  const currentParticipant = room?.participants.find((participant) => participant.userId === currentUserId) ?? null;
+  const currentParticipant = room?.participants.find((participant) => (
+    participant.userId === currentUserTag || participant.tag === currentUserTag
+  )) ?? null;
 
   useEffect(() => {
     if (!room?.linkedMatchId) {
@@ -357,6 +377,37 @@ export default function MatchRoomScreen() {
     () => (friendLeaderboard?.ranks ?? []).slice(0, 12),
     [friendLeaderboard],
   );
+  const pendingInvitees = useMemo<RunningMatchRoomInvitee[]>(() => {
+    if (!room) {
+      return [];
+    }
+
+    const joinedIds = new Set(room.participants.map((participant) => participant.userId));
+    const serverInvitees = room.invitedFriends ?? [];
+    const serverInviteeIds = new Set(serverInvitees.map((invitee) => invitee.userId));
+    const fallbackInvitees = room.invitedFriendIds
+      .filter((friendId) => !joinedIds.has(friendId) && !serverInviteeIds.has(friendId))
+      .map((friendId) => {
+        const friend = friendLeaderboard?.ranks.find((rank) => rank.id === friendId);
+
+        return {
+          userId: friendId,
+          name: friend?.name ?? '초대한 친구',
+          tag: friend?.tag,
+          districtName: friend?.liveLocationLabel ?? '친구',
+          averagePace: '페이스 준비 중',
+          levelLabel: '',
+          status: 'pending' as const,
+        };
+      });
+
+    return [
+      ...serverInvitees.filter((invitee) => !joinedIds.has(invitee.userId)),
+      ...fallbackInvitees,
+    ];
+  }, [friendLeaderboard?.ranks, room]);
+  const isInvitedOnly = Boolean(room && room.joined === false);
+  const hasInviteDraftChanges = room ? !areSameIdSet(selectedFriendIds, room.invitedFriendIds) : false;
   const isReady = Boolean(currentParticipant?.isReady);
   const allGuestsReady = room
     ? room.participants.filter((participant) => !participant.isHost).every((participant) => participant.isReady)
@@ -473,6 +524,61 @@ export default function MatchRoomScreen() {
     }
   };
 
+  const handleAcceptInvite = async () => {
+    if (!room) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const payload = await joinRunningMatchRoom({ inviteToken: room.inviteToken });
+      if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
+        return;
+      }
+
+      syncServerClock(payload.serverNow);
+      commitRoom(payload.room);
+    } catch (roomError) {
+      setError(roomError instanceof Error ? roomError.message : '초대를 수락하지 못했어.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeclineInvite = async () => {
+    if (!room) {
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      const payload = await leaveRunningMatchRoom({ roomId: room.roomId });
+      if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
+        return;
+      }
+
+      syncServerClock(payload.serverNow);
+      commitRoom(payload.room);
+      router.replace('/(tabs)/running');
+    } catch (roomError) {
+      setError(roomError instanceof Error ? roomError.message : '초대를 거절하지 못했어.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSendFriendInvites = async () => {
+    if (!room?.isHost || room.linkedMatchId) {
+      return;
+    }
+
+    await saveRoomSettings({ invitedFriendIds: selectedFriendIds });
+  };
+
   const handleCopyCode = async () => {
     if (!room) {
       return;
@@ -558,12 +664,40 @@ export default function MatchRoomScreen() {
                 <Text style={styles.countdownBannerText}>20초 전이 되면 자동으로 대결 화면으로 이동해요.</Text>
               </View>
             ) : null}
-            <View style={styles.actionGrid}>
-              <SecondaryButton label="친구 초대" onPress={() => { void handleInviteFriends(); }} />
-              <SecondaryButton label="방 코드 복사" onPress={() => { void handleCopyCode(); }} />
-            </View>
+            {!isInvitedOnly ? (
+              <View style={styles.actionGrid}>
+                <SecondaryButton label="친구 초대" onPress={() => { void handleInviteFriends(); }} />
+                <SecondaryButton label="방 코드 복사" onPress={() => { void handleCopyCode(); }} />
+              </View>
+            ) : null}
           </Card>
 
+          {isInvitedOnly ? (
+            <Card style={styles.inviteActionCard}>
+              <Text style={styles.inviteActionTitle}>파티런 초대가 왔어요</Text>
+              <Text style={styles.helperText}>
+                수락하면 바로 이 대기실 참가자 명단에 들어가고, 거절하면 초대 카드가 사라져요.
+              </Text>
+              <View style={styles.inviteButtonRow}>
+                <Pressable
+                  style={[styles.declineInviteButton, saving ? styles.actionButtonDisabled : undefined]}
+                  onPress={() => { void handleDeclineInvite(); }}
+                  disabled={saving}
+                >
+                  <Text style={styles.declineInviteButtonText}>{saving ? '처리 중...' : '거절'}</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.acceptInviteButton, saving ? styles.actionButtonDisabled : undefined]}
+                  onPress={() => { void handleAcceptInvite(); }}
+                  disabled={saving}
+                >
+                  <Text style={styles.acceptInviteButtonText}>{saving ? '처리 중...' : '수락'}</Text>
+                </Pressable>
+              </View>
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            </Card>
+          ) : (
+            <>
           <Card>
             <Text style={styles.sectionTitle}>참가자 명단</Text>
             <View style={styles.participantList}>
@@ -580,6 +714,15 @@ export default function MatchRoomScreen() {
                         ? '시작 권한'
                         : (participant.isReady ? '준비 완료' : '대기 중')}
                   </Text>
+                </View>
+              ))}
+              {pendingInvitees.map((invitee) => (
+                <View key={`invitee-${invitee.userId}`} style={[styles.participantRow, styles.invitedParticipantRow]}>
+                  <View style={styles.participantIdentity}>
+                    <Text style={styles.participantName}>{invitee.name}</Text>
+                    <Text style={styles.invitedBadge}>초대됨</Text>
+                  </View>
+                  <Text style={styles.invitedStatusText}>수락 대기중</Text>
                 </View>
               ))}
             </View>
@@ -730,9 +873,10 @@ export default function MatchRoomScreen() {
                           onPress={() => {
                             const nextIds = isSelected
                               ? selectedFriendIds.filter((id) => id !== friend.id)
-                              : [...selectedFriendIds, friend.id].slice(0, room.mode === 'duel' ? 1 : room.maxParticipants - 1);
+                              : room.mode === 'duel'
+                                ? [friend.id]
+                                : [...selectedFriendIds, friend.id].slice(0, room.maxParticipants - 1);
                             setSelectedFriendIds(nextIds);
-                            void saveRoomSettings({ invitedFriendIds: nextIds });
                           }}
                           disabled={saving}
                         >
@@ -746,6 +890,25 @@ export default function MatchRoomScreen() {
                 ) : (
                   <Text style={styles.helperText}>친구 목록이 아직 없으면 링크 공유로 초대하면 돼요.</Text>
                 )}
+                {friendOptions.length ? (
+                  <View style={styles.inviteSubmitBox}>
+                    <Text style={styles.helperText}>
+                      친구 이름을 눌러 선택한 뒤 초대하기를 누르면 대기명단에 수락 대기중으로 표시돼요.
+                    </Text>
+                    <Pressable
+                      style={[
+                        styles.sendInviteButton,
+                        (saving || !hasInviteDraftChanges) ? styles.actionButtonDisabled : undefined,
+                      ]}
+                      onPress={() => { void handleSendFriendInvites(); }}
+                      disabled={saving || !hasInviteDraftChanges}
+                    >
+                      <Text style={styles.sendInviteButtonText}>
+                        {saving ? '초대 반영 중...' : selectedFriendIds.length ? `${selectedFriendIds.length}명 초대하기` : '초대 비우기'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </Card>
             </>
           ) : null}
@@ -757,6 +920,8 @@ export default function MatchRoomScreen() {
           ) : null}
 
           <SecondaryButton label={saving ? '반영 중...' : (room.isHost ? '방 삭제' : '방 나가기')} onPress={() => { void handleLeave(); }} disabled={saving} />
+            </>
+          )}
         </>
       ) : null}
     </Screen>
@@ -836,6 +1001,47 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
+  inviteActionCard: {
+    gap: 14,
+  },
+  inviteActionTitle: {
+    color: '#111827',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  inviteButtonRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  acceptInviteButton: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: '#6D5EF7',
+    paddingVertical: 15,
+  },
+  acceptInviteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  declineInviteButton: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 15,
+  },
+  declineInviteButtonText: {
+    color: '#344054',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  actionButtonDisabled: {
+    opacity: 0.45,
+  },
   sectionTitle: {
     color: '#111827',
     fontSize: 18,
@@ -853,6 +1059,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
+  invitedParticipantRow: {
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+    backgroundColor: '#EEF2FF',
+  },
   participantIdentity: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -865,6 +1076,11 @@ const styles = StyleSheet.create({
   },
   hostBadge: {
     color: '#6D5EF7',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  invitedBadge: {
+    color: '#4338CA',
     fontSize: 12,
     fontWeight: '800',
   },
@@ -882,6 +1098,11 @@ const styles = StyleSheet.create({
     color: '#667085',
     fontSize: 14,
     fontWeight: '700',
+  },
+  invitedStatusText: {
+    color: '#4338CA',
+    fontSize: 14,
+    fontWeight: '900',
   },
   distanceWrap: {
     flexDirection: 'row',
@@ -1019,6 +1240,21 @@ const styles = StyleSheet.create({
   },
   friendChipTextSelected: {
     color: '#4338CA',
+  },
+  inviteSubmitBox: {
+    gap: 10,
+    marginTop: 14,
+  },
+  sendInviteButton: {
+    alignItems: 'center',
+    borderRadius: 18,
+    backgroundColor: '#6D5EF7',
+    paddingVertical: 15,
+  },
+  sendInviteButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '900',
   },
   helperText: {
     color: '#667085',

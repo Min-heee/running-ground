@@ -52,6 +52,7 @@ import {
   RequestGroupMatchInput,
   RequestGroupMatchResponse,
   RunningMatchRoom,
+  RunningMatchRoomInvitee,
   RunningMatchRoomParticipant,
   RunningMatchRoomResponse,
   IntegrationSourceActionResponse,
@@ -1796,6 +1797,27 @@ function countMockRunningMatchRoomCountdownReady(room: RunningMatchRoom | null) 
   };
 }
 
+function buildMockRunningMatchRoomInvitees(room: RunningMatchRoom): RunningMatchRoomInvitee[] {
+  const joinedIds = new Set(room.participants.map((participant) => participant.userId));
+
+  return room.invitedFriendIds
+    .filter((friendId) => !joinedIds.has(friendId))
+    .map((friendId) => {
+      const friend = mockFriendRanks.find((rank) => rank.id === friendId);
+
+      return {
+        userId: friendId,
+        name: friend?.name ?? '초대한 친구',
+        tag: friend?.tag,
+        districtName: friend?.liveLocationLabel ?? '친구',
+        averagePace: '06:20/km',
+        levelLabel: 'Lv.1',
+        status: 'pending' as const,
+        invitedAt: new Date().toISOString(),
+      };
+    });
+}
+
 function decorateMockRunningMatchRoom(room: RunningMatchRoom | null): RunningMatchRoom | null {
   if (!room) {
     return room;
@@ -1804,6 +1826,7 @@ function decorateMockRunningMatchRoom(room: RunningMatchRoom | null): RunningMat
   const { readyCount, requiredCount } = countMockRunningMatchRoomCountdownReady(room);
   return {
     ...room,
+    invitedFriends: buildMockRunningMatchRoomInvitees(room),
     countdownReadyCount: readyCount,
     countdownReadyRequiredCount: requiredCount,
   };

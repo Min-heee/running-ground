@@ -1448,6 +1448,22 @@ function buildRunningMatchRoomParticipantPayload(store, participant) {
   };
 }
 
+function buildRunningMatchRoomInviteePayload(store, userId, invitedAt) {
+  const user = findUserById(store, userId);
+  const runner = buildMatchRunnerProfile(store, user);
+
+  return {
+    userId: runner.id,
+    name: runner.name,
+    tag: runner.tag,
+    districtName: runner.districtName,
+    averagePace: runner.averagePace,
+    levelLabel: runner.levelLabel,
+    status: 'pending',
+    ...(invitedAt ? { invitedAt } : {}),
+  };
+}
+
 function areAllRunningMatchRoomGuestsReady(room) {
   if (!room) {
     return false;
@@ -1503,6 +1519,8 @@ function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date(
   const linkedMatchState = linkedSession ? hydrateMatchSessionState(linkedSession, now) : null;
   const roomState = getRunningMatchRoomState(room, store, now);
   const hasJoined = room.participants.some((participant) => participant.userId === currentUser.id);
+  const joinedUserIds = new Set(room.participants.map((participant) => participant.userId));
+  const pendingInvitedFriendIds = room.invitedFriendIds.filter((userId) => !joinedUserIds.has(userId));
 
   return {
     success: true,
@@ -1539,6 +1557,7 @@ function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date(
           return new Date(left.joinedAt).getTime() - new Date(right.joinedAt).getTime();
         }),
       invitedFriendIds: room.invitedFriendIds,
+      invitedFriends: pendingInvitedFriendIds.map((userId) => buildRunningMatchRoomInviteePayload(store, userId, room.updatedAt ?? room.createdAt)),
       countdownReadyCount: room.participants.filter((participant) => participant.isCountdownReady).length,
       countdownReadyRequiredCount: room.participants.length,
       ...(linkedSession ? {
@@ -1812,6 +1831,7 @@ function updateRunningMatchRoom(store, currentUser, {
     : validateMatchSlotInput(slotStartAt);
   room.maxParticipants = normalizeMatchRoomMaxParticipants(room.mode, maxParticipants);
   room.invitedFriendIds = normalizedInvitedFriendIds;
+  room.updatedAt = new Date().toISOString();
   syncMatchRooms(store);
 
   return buildRunningMatchRoomResponse(store, currentUser, room);

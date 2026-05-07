@@ -307,6 +307,17 @@ export type RunningMatchRoomParticipant = {
   joinedAt: string;
 };
 
+export type RunningMatchRoomInvitee = {
+  userId: string;
+  name: string;
+  tag?: string;
+  districtName: string;
+  averagePace: string;
+  levelLabel: string;
+  status: 'pending';
+  invitedAt?: string;
+};
+
 export type RunningMatchRoom = {
   roomId: string;
   inviteToken: string;
@@ -326,6 +337,7 @@ export type RunningMatchRoom = {
   hostName: string;
   participants: RunningMatchRoomParticipant[];
   invitedFriendIds: string[];
+  invitedFriends?: RunningMatchRoomInvitee[];
   countdownReadyCount?: number;
   countdownReadyRequiredCount?: number;
   linkedMatchId?: string;
