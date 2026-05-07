@@ -98,9 +98,10 @@ class FakePostgresDatabase {
 
 function createRepositoryHarness(initialStore = {}) {
   const database = new FakePostgresDatabase(initialStore);
+  const fixedNow = new Date('2026-04-24T00:00:00.000Z');
   const repository = createPostgresLeagueRepository({
     database,
-    buildUserMetrics: (runs) => buildUserRunMetrics(runs),
+    buildUserMetrics: (runs) => buildUserRunMetrics(runs, fixedNow),
     createError: (statusCode, message) => new TestApiError(statusCode, message),
   });
 

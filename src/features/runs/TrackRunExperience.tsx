@@ -756,7 +756,7 @@ function formatArenaPaceChip(label: string, paceLabel: string) {
 }
 
 function hasRemoteRunnerProgress(
-  participant?: Pick<DuelMatchOpponent, 'liveDistanceKm' | 'liveUpdatedAt'> | null,
+  participant?: Pick<DuelMatchOpponent, 'liveDistanceKm' | 'liveUpdatedAt'> | Pick<GroupMatchParticipant, 'liveDistanceKm' | 'liveUpdatedAt'> | null,
 ) {
   if (!participant) {
     return false;
@@ -885,11 +885,12 @@ function buildGroupLiveStandings(
     .map((participant) => {
       const isCurrentUser = participant.seedRank === currentSeedRank;
       const isForfeited = participant.liveStatus === 'forfeited';
+      const hasParticipantProgress = hasRemoteRunnerProgress(participant);
       const estimatedDistanceKm = isCurrentUser
         ? currentDistanceKm
-        : typeof participant.liveDistanceKm === 'number'
+        : hasParticipantProgress && typeof participant.liveDistanceKm === 'number'
           ? participant.liveDistanceKm
-          : buildEstimatedCompetitiveDistanceKm(participant.averagePace, elapsedSeconds, participant.seedRank);
+          : 0;
 
       return {
         ...participant,
@@ -1162,9 +1163,16 @@ export function TrackRunExperience({
     }
 
     const elapsedMs = syncedNowMs - referenceStartMs;
-  const shouldHideRoom = matchRoom.linkedMatchId || matchRoom.state === 'countdown'
-    ? elapsedMs > STALE_RENDER_MATCHED_MATCH_MS
-    : elapsedMs > STALE_RENDER_MATCHED_MATCH_MS;
+    const shouldUseActiveTtl = Boolean(
+      matchRoom.linkedMatchId
+      || matchRoom.state === 'countdown'
+      || matchRoom.state === 'active'
+      || matchRoom.linkedMatchStatus === 'active',
+    );
+    const staleThresholdMs = shouldUseActiveTtl
+      ? STALE_RENDER_ACTIVE_MATCH_MS
+      : STALE_RENDER_MATCHED_MATCH_MS;
+    const shouldHideRoom = elapsedMs > staleThresholdMs;
 
     return shouldHideRoom ? null : matchRoom;
   }, [matchRoom, syncedNowMs]);
@@ -1673,23 +1681,37 @@ export function TrackRunExperience({
       return null;
     }
 
-    const opponentDistanceKm = typeof effectiveDuelOpponent.liveDistanceKm === 'number'
-      ? effectiveDuelOpponent.liveDistanceKm
-      : buildEstimatedCompetitiveDistanceKm(effectiveDuelOpponent.averagePace, elapsedSeconds, 2);
+    const opponentForfeited = effectiveDuelOpponent.liveStatus === 'forfeited';
+    const opponentHasProgress = hasRemoteRunnerProgress(effectiveDuelOpponent);
+    const opponentDistanceKm = opponentForfeited
+      ? effectiveDuelOpponent.liveDistanceKm ?? 0
+      : opponentHasProgress && typeof effectiveDuelOpponent.liveDistanceKm === 'number'
+        ? effectiveDuelOpponent.liveDistanceKm
+        : 0;
     const gapKm = Number(Math.abs(distanceKm - opponentDistanceKm).toFixed(2));
-    const isDraw = gapKm < 0.03;
-    const resultTone: RunMatchResult['resultTone'] = isDraw ? 'draw' : distanceKm > opponentDistanceKm ? 'win' : 'lose';
-    const title = isDraw
+    const isDraw = !opponentForfeited && gapKm < 0.03;
+    const resultTone: RunMatchResult['resultTone'] = opponentForfeited
+      ? 'win'
+      : isDraw
+        ? 'draw'
+        : distanceKm > opponentDistanceKm
+          ? 'win'
+          : 'lose';
+    const title = opponentForfeited
+      ? `${effectiveDuelOpponent.name}님이 기권해서 승리했어요`
+      : isDraw
       ? `${effectiveDuelOpponent.name}님과 비슷한 흐름으로 마쳤어요`
       : resultTone === 'win'
         ? `${effectiveDuelOpponent.name}님을 이겼어요`
         : `${effectiveDuelOpponent.name}님에게 졌어요`;
-    const summary = isDraw
+    const summary = opponentForfeited
+      ? `상대가 기권했고 내 기록은 ${distanceKm.toFixed(2)}km로 저장돼요.`
+      : isDraw
       ? `두 러너 차이가 ${gapKm.toFixed(2)}km 안쪽으로 거의 비슷했어요.`
       : resultTone === 'win'
         ? `${gapKm.toFixed(2)}km 차이로 앞서 마무리했어요.`
         : `${gapKm.toFixed(2)}km 차이로 뒤에서 마무리했어요.`;
-    const badgeLabel = isDraw ? '무승부' : resultTone === 'win' ? '승리' : '패배';
+    const badgeLabel = opponentForfeited ? '상대 기권 승' : isDraw ? '무승부' : resultTone === 'win' ? '승리' : '패배';
 
     return {
       title,
@@ -1699,7 +1721,7 @@ export function TrackRunExperience({
       opponentDistanceKm,
       gapKm,
     };
-  }, [distanceKm, effectiveDuelOpponent, elapsedSeconds]);
+  }, [distanceKm, effectiveDuelOpponent]);
   const groupFinishSummary = useMemo(() => {
     if (!currentGroupStanding || !effectiveGroupParticipantCount) {
       return null;
@@ -4834,6 +4856,13 @@ export function TrackRunExperience({
           liveStatus: participant.liveStatus,
         }))
         .sort((left, right) => {
+          const leftForfeited = left.liveStatus === 'forfeited';
+          const rightForfeited = right.liveStatus === 'forfeited';
+
+          if (leftForfeited !== rightForfeited) {
+            return leftForfeited ? 1 : -1;
+          }
+
           if (right.distanceKm !== left.distanceKm) {
             return right.distanceKm - left.distanceKm;
           }
@@ -4882,16 +4911,32 @@ export function TrackRunExperience({
         <LiveMatchRaceBoard
           title="그룹 레이스 보드"
           subtitle="그룹 대결 정보를 맞추는 중에도 참가자 목록과 내 진행 거리를 볼 수 있어요."
-          rows={roomLinkedGroupPlaceholderParticipants.map((participant, index) => ({
-            id: participant.id,
-            rank: index + 1,
-            name: participant.name,
-            distanceKm: participant.distanceKm,
-            remainingKm: Math.max(0, placeholderDistanceKm - participant.distanceKm),
-            progress: placeholderDistanceKm > 0 ? participant.distanceKm / placeholderDistanceKm : 0,
-            isCurrentUser: participant.isCurrentUser,
-            liveStatus: participant.liveStatus,
-          }))}
+          rows={roomLinkedGroupPlaceholderParticipants
+            .map((participant) => ({
+              id: participant.id,
+              rank: 0,
+              name: participant.name,
+              distanceKm: participant.distanceKm,
+              remainingKm: Math.max(0, placeholderDistanceKm - participant.distanceKm),
+              progress: placeholderDistanceKm > 0 ? participant.distanceKm / placeholderDistanceKm : 0,
+              isCurrentUser: participant.isCurrentUser,
+              liveStatus: participant.liveStatus,
+            }))
+            .sort((left, right) => {
+              const leftForfeited = left.liveStatus === 'forfeited';
+              const rightForfeited = right.liveStatus === 'forfeited';
+
+              if (leftForfeited !== rightForfeited) {
+                return leftForfeited ? 1 : -1;
+              }
+
+              if (right.distanceKm !== left.distanceKm) {
+                return right.distanceKm - left.distanceKm;
+              }
+
+              return left.isCurrentUser ? -1 : 1;
+            })
+            .map((row, index) => ({ ...row, rank: index + 1 }))}
         />
       );
     }

@@ -198,6 +198,7 @@ class FakePostgresDatabase {
 function createRepositoryHarness(initialStore = {}) {
   const database = new FakePostgresDatabase(initialStore);
   let idIndex = 0;
+  const fixedNow = new Date('2026-04-24T00:00:00.000Z');
 
   const repository = createPostgresFriendsRepository({
     database,
@@ -213,9 +214,9 @@ function createRepositoryHarness(initialStore = {}) {
       weeklyDistanceKm,
       earnedPoint: getRunPointValue(metrics, run.id),
     }),
-    buildUserMetrics: (runs) => buildUserRunMetrics(runs),
+    buildUserMetrics: (runs) => buildUserRunMetrics(runs, fixedNow),
     createError: (statusCode, message) => new TestApiError(statusCode, message),
-    nowIso: () => '2026-04-24T00:00:00.000Z',
+    nowIso: () => fixedNow.toISOString(),
   });
 
   return {

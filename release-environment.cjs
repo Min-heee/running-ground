@@ -78,6 +78,10 @@ function isLocalHostname(hostname) {
   return false;
 }
 
+function isTailnetHostname(hostname) {
+  return hostname.toLowerCase().endsWith('.ts.net');
+}
+
 function parseApiBaseUrl(value) {
   const normalized = normalizeOptionalString(value);
 
@@ -146,6 +150,10 @@ function validateReleaseEnvironment(env, options = {}) {
 
     if (parsedApiUrl && isLocalHostname(parsedApiUrl.hostname)) {
       errors.push(`${resolved.appVariant} 빌드의 EXPO_PUBLIC_API_BASE_URL 은 localhost, emulator host, 사설 IP를 쓰면 안 돼.`);
+    }
+
+    if (parsedApiUrl && resolved.appVariant === 'production' && isTailnetHostname(parsedApiUrl.hostname)) {
+      errors.push('production 빌드의 EXPO_PUBLIC_API_BASE_URL 은 Tailnet 내부 주소(.ts.net)가 아니라 공개 API 도메인을 써야 해.');
     }
 
     if (!resolved.easProjectId || !isUuid(resolved.easProjectId)) {

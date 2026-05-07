@@ -10,10 +10,6 @@ type FriendsRankingProps = {
 };
 
 export function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
-  if (ranks.length === 0) {
-    return null;
-  }
-
   const [rankingWindow, setRankingWindow] = useState<'today' | 'week' | 'month'>('week');
   const sortedRanks = useMemo(() => [...ranks].sort((left, right) => left.rank - right.rank), [ranks]);
   const displayedRanks = useMemo(() => {
@@ -56,6 +52,10 @@ export function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
   }, [rankingWindow, sortedRanks]);
   const myRank = highlightTag ? displayedRanks.find((runner) => runner.tag === highlightTag) : null;
   const rankingWindowLabel = rankingWindow === 'today' ? '오늘' : rankingWindow === 'month' ? '이번 달' : '이번 주';
+
+  if (ranks.length === 0) {
+    return null;
+  }
 
   return (
     <Card style={styles.card}>

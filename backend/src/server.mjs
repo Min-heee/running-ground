@@ -1404,7 +1404,9 @@ function syncScheduledMatchRoom(room, store, now = new Date()) {
 
 function syncMatchRooms(store, now = new Date()) {
   const rooms = pruneMatchRooms(store, now);
-  return rooms.map((room) => syncScheduledMatchRoom(room, store, now));
+  return rooms
+    .map((room) => syncScheduledMatchRoom(room, store, now))
+    .map((room) => syncHostStartedMatchRoomCountdown(room, store, now));
 }
 
 function findRunningMatchRoomById(store, roomId, now = new Date()) {
@@ -1504,6 +1506,27 @@ function armRunningMatchRoomCountdown(store, room, now = new Date()) {
   const slotStartAt = new Date(now.getTime() + MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000).toISOString();
   room.slotStartAt = slotStartAt;
   linkedSession.slotStartAt = slotStartAt;
+  return room;
+}
+
+function syncHostStartedMatchRoomCountdown(room, store, now = new Date()) {
+  if (!room || room.startMode !== 'host' || !room.linkedMatchId) {
+    return room;
+  }
+
+  const linkedSession = getMatchRoomLinkedSession(room, store);
+  if (!linkedSession || hydrateMatchSessionState(linkedSession, now) !== 'matched') {
+    return room;
+  }
+
+  const remainingSeconds = Math.ceil((new Date(linkedSession.slotStartAt).getTime() - now.getTime()) / 1000);
+  if (
+    remainingSeconds > MATCH_ROOM_HOST_START_DELAY_SECONDS
+    && areAllRunningMatchRoomParticipantsCountdownReady(room)
+  ) {
+    return armRunningMatchRoomCountdown(store, room, now);
+  }
+
   return room;
 }
 
@@ -1746,7 +1769,7 @@ function startRunningMatchRoom(store, currentUser, { roomId }) {
   room.slotStartAt = slotStartAt;
   room.participants = room.participants.map((participant) => ({
     ...participant,
-    isCountdownReady: true,
+    isCountdownReady: participant.userId === currentUser.id,
   }));
   const session = createMatchSession(
     store,
