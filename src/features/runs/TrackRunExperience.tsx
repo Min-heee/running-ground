@@ -991,6 +991,7 @@ export function TrackRunExperience({
   const [duelMatchStatus, setDuelMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
   const [isCancelingDuelMatch, setIsCancelingDuelMatch] = useState(false);
   const [isLeavingDuelMatch, setIsLeavingDuelMatch] = useState(false);
+  const pendingForfeitMatchRef = useRef<string | null>(null);
   const [duelDemandSummary, setDuelDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
   const [isLoadingDuelDemandSummary, setIsLoadingDuelDemandSummary] = useState(false);
   const [duelMatchNotice, setDuelMatchNotice] = useState<string | null>(null);
@@ -4166,6 +4167,10 @@ export function TrackRunExperience({
 
   const forfeitMatchAndKeepRunning = async (source: 'duel' | 'group') => {
     setError(null);
+    const previousDuelStatus = duelMatchStatus;
+    const previousGroupStatus = groupMatchStatus;
+    const previousDuelNotice = duelMatchNotice;
+    const previousGroupNotice = groupMatchNotice;
     const roomLinkedMatchId = roomLinkedMatchContext?.mode === source
       ? roomLinkedMatchContext.matchId
       : null;
@@ -4179,6 +4184,15 @@ export function TrackRunExperience({
       ? duelMatchStatus?.matchId ?? roomLinkedMatchId
       : groupMatchStatus?.matchId ?? roomLinkedMatchId;
 
+    if (!matchId) {
+      setError('기권 처리할 대결을 찾지 못했어.');
+      return;
+    }
+
+    if (pendingForfeitMatchRef.current === matchId) {
+      return;
+    }
+
     if (source === 'duel') {
       setIsLeavingDuelMatch(true);
     } else {
@@ -4186,12 +4200,7 @@ export function TrackRunExperience({
     }
 
     try {
-      if (!matchId) {
-        throw new Error('기권 처리할 대결을 찾지 못했어.');
-      }
-
-      await leaveRunningMatch({ matchId });
-      matchProgressHeartbeatRef.current = Date.now();
+      pendingForfeitMatchRef.current = matchId;
 
       if (source === 'duel') {
         const slotStartAt = duelMatchStatus?.slotStartAt ?? roomLinkedSlotStartAt ?? activeDuelSlotStartAt;
@@ -4201,12 +4210,14 @@ export function TrackRunExperience({
             ? { ...currentStatus, currentUserLiveStatus: 'forfeited' }
             : currentStatus
         ));
-        await loadDuelMatchStatus(slotStartAt, {
+        setDuelMatchNotice('기권 처리됐어요. 러닝 기록 측정은 계속 이어가요.');
+        await leaveRunningMatch({ matchId });
+        matchProgressHeartbeatRef.current = Date.now();
+        void loadDuelMatchStatus(slotStartAt, {
           matchId,
           distanceKm: distanceKmForStatus,
           testMode: isDuelTestFlow,
-        });
-        setDuelMatchNotice('기권 처리됐어요. 러닝 기록 측정은 계속 이어가요.');
+        }).catch(() => {});
       } else {
         const slotStartAt = groupMatchStatus?.slotStartAt ?? roomLinkedSlotStartAt ?? activeGroupSlotStartAt;
         const distanceKmForStatus = groupMatchStatus?.distanceKm ?? roomLinkedDistanceKm ?? groupDistanceKm;
@@ -4223,18 +4234,30 @@ export function TrackRunExperience({
             }
             : currentStatus
         ));
-        await loadGroupMatchStatus(slotStartAt, {
+        setGroupMatchNotice('기권 처리됐어요. 러닝 기록 측정은 계속 이어가요.');
+        await leaveRunningMatch({ matchId });
+        matchProgressHeartbeatRef.current = Date.now();
+        void loadGroupMatchStatus(slotStartAt, {
           matchId,
           distanceKm: distanceKmForStatus,
           testMode: isGroupTestFlow,
-        });
-        setGroupMatchNotice('기권 처리됐어요. 러닝 기록 측정은 계속 이어가요.');
+        }).catch(() => {});
       }
 
-      await loadUpcomingMatches().catch(() => {});
+      void loadUpcomingMatches().catch(() => {});
     } catch (matchError) {
+      if (source === 'duel') {
+        setDuelMatchStatus(previousDuelStatus);
+        setDuelMatchNotice(previousDuelNotice);
+      } else {
+        setGroupMatchStatus(previousGroupStatus);
+        setGroupMatchNotice(previousGroupNotice);
+      }
       setError(matchError instanceof Error ? matchError.message : '기권 처리에 실패했어.');
     } finally {
+      if (pendingForfeitMatchRef.current === matchId) {
+        pendingForfeitMatchRef.current = null;
+      }
       if (source === 'duel') {
         setIsLeavingDuelMatch(false);
       } else {
