@@ -1555,6 +1555,7 @@ export function TrackRunExperience({
     [effectiveDuelOpponent, syncedDuelProgress],
   );
   const officialDuelComparison = duelMatchStatus?.officialComparison ?? null;
+  const isDuelOpponentForfeited = effectiveDuelOpponent?.liveStatus === 'forfeited';
   const officialDuelReady = Boolean(
     officialDuelComparison
     && officialDuelComparison.readyParticipantCount >= 2
@@ -1583,7 +1584,9 @@ export function TrackRunExperience({
       ? Number((syncedDuelDistanceKm - syncedDuelOpponentDistanceKm).toFixed(2))
       : null
   );
-  const duelLiveTitle = duelLiveGapKm === null
+  const duelLiveTitle = isDuelOpponentForfeited
+    ? '상대가 기권했어요'
+    : duelLiveGapKm === null
     ? '서버 공식 판정 준비 중'
     : duelLiveGapKm >= 0
       ? `${duelLiveGapKm.toFixed(2)}km 앞서고 있어요`
@@ -1851,7 +1854,9 @@ export function TrackRunExperience({
       );
   const effectiveDuelOpponentArenaPace = buildParticipantAveragePaceLabel(effectiveDuelOpponent, duelArenaUsesLivePace);
   const duelLiveSummary = effectiveDuelOpponent
-    ? `${effectiveDuelOpponent.name}님${effectiveDuelOpponentArenaPace ? ` · ${effectiveDuelOpponentArenaPace}` : ''}${effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}`
+    ? isDuelOpponentForfeited
+      ? `${effectiveDuelOpponent.name}님 · 기권`
+      : `${effectiveDuelOpponent.name}님${effectiveDuelOpponentArenaPace ? ` · ${effectiveDuelOpponentArenaPace}` : ''}${effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}`
     : '상대 러너 정보를 불러오는 중이에요.';
   const duelArenaParticipants = useMemo(
     () => (effectiveDuelOpponent
@@ -1869,11 +1874,11 @@ export function TrackRunExperience({
           {
             id: effectiveDuelOpponent.id,
             name: effectiveDuelOpponent.name,
-            paceLabel: effectiveDuelOpponentArenaPace,
+            paceLabel: isDuelOpponentForfeited ? '기권' : effectiveDuelOpponentArenaPace,
             distanceKm: syncedDuelOpponentDistanceKm,
             isLeader: duelLiveGapKm !== null ? duelLiveGapKm < 0 : true,
             liveStatus: effectiveDuelOpponent.liveStatus,
-            showPaceBubble: Boolean(effectiveDuelOpponentArenaPace),
+            showPaceBubble: isDuelOpponentForfeited || Boolean(effectiveDuelOpponentArenaPace),
           },
         ]
       : []),
@@ -1883,6 +1888,7 @@ export function TrackRunExperience({
       duelLiveGapKm,
       effectiveDuelOpponent,
       effectiveDuelOpponentArenaPace,
+      isDuelOpponentForfeited,
       syncedDuelDistanceKm,
       syncedDuelOpponentDistanceKm,
     ],
@@ -4650,8 +4656,12 @@ export function TrackRunExperience({
           subtitle={duelLiveSummary}
           summaryChips={[
             formatArenaPaceChip('내 페이스', currentUserArenaPace),
-            formatArenaPaceChip('상대 페이스', effectiveDuelOpponentArenaPace),
-            duelComparisonSnapshot
+            isDuelOpponentForfeited
+              ? '상대 기권'
+              : formatArenaPaceChip('상대 페이스', effectiveDuelOpponentArenaPace),
+            isDuelOpponentForfeited
+              ? '내 기록은 계속 저장'
+              : duelComparisonSnapshot
               ? `${officialDuelReady ? '서버' : '동기화'} ${formatDuration(duelComparisonSnapshot.checkpointSeconds)} 기준 ${buildDistanceGapLabel(duelLiveGapKm)}`
               : duelLiveGapKm !== null
                 ? `실시간 수신 ${buildDistanceGapLabel(duelLiveGapKm)}`
@@ -4659,7 +4669,9 @@ export function TrackRunExperience({
           ]}
           participants={duelArenaParticipants}
           footer={
-            duelLiveGapKm === null
+            isDuelOpponentForfeited
+              ? '상대가 기권했어요. 상대 동그라미는 기권 상태로 고정되고, 내 러닝 기록은 계속 저장돼요.'
+              : duelLiveGapKm === null
               ? '서버가 양쪽 기록을 받은 뒤 같은 기준 시간의 공식 거리로 비교해요.'
               : `${duelComparisonSnapshot ? (officialDuelReady ? '서버 공식' : '동기화') : '실시간 수신'} ${duelComparisonSnapshot ? `${formatDuration(duelComparisonSnapshot.checkpointSeconds)} 기준 · ` : ''}내 ${syncedDuelDistanceKm.toFixed(2)}km · 상대 ${syncedDuelOpponentDistanceKm.toFixed(2)}km`
           }

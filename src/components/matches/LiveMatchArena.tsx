@@ -49,6 +49,10 @@ function buildMarkerLabel(participant: ArenaParticipant, fallbackLabel: string) 
   return isForfeited(participant) ? '기권' : fallbackLabel;
 }
 
+function buildRunnerBubbleLabel(participant: ArenaParticipant) {
+  return isForfeited(participant) ? '기권 처리됨' : buildBubbleLabel(participant);
+}
+
 function buildRemainingLabel(distanceKm: number, targetDistanceKm: number) {
   return `${Math.max(0, targetDistanceKm - distanceKm).toFixed(1)}km 남음`;
 }
@@ -184,12 +188,18 @@ function DuelRoad({
         </View>
         {shouldShowRunnerBubble(opponent) ? (
           <View style={[styles.runnerBubble, isForfeited(opponent) ? styles.runnerBubbleForfeited : undefined]}>
-            <Text style={styles.runnerBubbleText}>{buildBubbleLabel(opponent)}</Text>
+            <Text style={[styles.runnerBubbleText, isForfeited(opponent) ? styles.runnerBubbleForfeitedText : undefined]}>
+              {buildRunnerBubbleLabel(opponent)}
+            </Text>
           </View>
         ) : null}
         <Text style={[styles.runnerName, isForfeited(opponent) ? styles.runnerNameForfeited : undefined]}>{opponent.name}</Text>
-        <Text style={styles.runnerMeta}>{opponent.distanceKm.toFixed(2)}km</Text>
-        <Text style={styles.runnerMetaMuted}>{buildRemainingLabel(opponent.distanceKm, targetDistanceKm)}</Text>
+        <Text style={[styles.runnerMeta, isForfeited(opponent) ? styles.runnerMetaForfeited : undefined]}>
+          {isForfeited(opponent) ? '기권' : `${opponent.distanceKm.toFixed(2)}km`}
+        </Text>
+        <Text style={styles.runnerMetaMuted}>
+          {isForfeited(opponent) ? '대결 중단' : buildRemainingLabel(opponent.distanceKm, targetDistanceKm)}
+        </Text>
       </View>
       <View style={[styles.duelRunnerWrap, styles.duelRunnerRight, { top: userTop }]}>
         <View style={[styles.runnerMarker, styles.runnerMarkerCurrent, isForfeited(currentUser) ? styles.runnerMarkerForfeited : undefined]}>
@@ -199,12 +209,18 @@ function DuelRoad({
         </View>
         {shouldShowRunnerBubble(currentUser) ? (
           <View style={[styles.runnerBubble, styles.runnerBubbleCurrent, isForfeited(currentUser) ? styles.runnerBubbleForfeited : undefined]}>
-            <Text style={styles.runnerBubbleText}>{buildBubbleLabel(currentUser)}</Text>
+            <Text style={[styles.runnerBubbleText, isForfeited(currentUser) ? styles.runnerBubbleForfeitedText : undefined]}>
+              {buildRunnerBubbleLabel(currentUser)}
+            </Text>
           </View>
         ) : null}
         <Text style={[styles.runnerName, isForfeited(currentUser) ? styles.runnerNameForfeited : undefined]}>나</Text>
-        <Text style={styles.runnerMeta}>{currentUser.distanceKm.toFixed(2)}km</Text>
-        <Text style={styles.runnerMetaMuted}>{buildRemainingLabel(currentUser.distanceKm, targetDistanceKm)}</Text>
+        <Text style={[styles.runnerMeta, isForfeited(currentUser) ? styles.runnerMetaForfeited : undefined]}>
+          {isForfeited(currentUser) ? '기권' : `${currentUser.distanceKm.toFixed(2)}km`}
+        </Text>
+        <Text style={styles.runnerMetaMuted}>
+          {isForfeited(currentUser) ? '대결 중단' : buildRemainingLabel(currentUser.distanceKm, targetDistanceKm)}
+        </Text>
       </View>
     </View>
   );
@@ -505,6 +521,9 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
+  runnerBubbleForfeitedText: {
+    color: '#FEE2E2',
+  },
   runnerMarker: {
     width: 56,
     height: 56,
@@ -555,6 +574,9 @@ const styles = StyleSheet.create({
     color: '#C7D2FE',
     fontSize: 11,
     fontWeight: '700',
+  },
+  runnerMetaForfeited: {
+    color: '#FCA5A5',
   },
   runnerMetaMuted: {
     marginTop: 2,
