@@ -373,10 +373,24 @@ export default function MatchRoomScreen() {
     setCustomDistanceText(String(room.distanceKm));
   }, [room?.slotStartAt, room?.invitedFriendIds, room?.roomId]);
 
-  const friendOptions = useMemo(
-    () => (friendLeaderboard?.ranks ?? []).slice(0, 12),
-    [friendLeaderboard],
-  );
+  const friendOptions = useMemo(() => {
+    const excludedIds = new Set<string>([currentUserTag]);
+
+    if (room?.hostUserId) {
+      excludedIds.add(room.hostUserId);
+    }
+
+    room?.participants.forEach((participant) => {
+      excludedIds.add(participant.userId);
+      if (participant.tag) {
+        excludedIds.add(participant.tag);
+      }
+    });
+
+    return (friendLeaderboard?.ranks ?? [])
+      .filter((friend) => !excludedIds.has(friend.id) && (!friend.tag || !excludedIds.has(friend.tag)))
+      .slice(0, 12);
+  }, [currentUserTag, friendLeaderboard?.ranks, room?.hostUserId, room?.participants]);
   const pendingInvitees = useMemo<RunningMatchRoomInvitee[]>(() => {
     if (!room) {
       return [];

@@ -1470,10 +1470,24 @@ export function TrackRunExperience({
       || shouldAutoOpenMatchArena(roomCountdownRemainingSeconds)
     ),
   );
-  const roomFriendOptions = useMemo(
-    () => (friendLeaderboard?.ranks ?? []).slice(0, 12),
-    [friendLeaderboard],
-  );
+  const roomFriendOptions = useMemo(() => {
+    const excludedIds = new Set<string>([currentUserId]);
+
+    if (matchRoom?.hostUserId) {
+      excludedIds.add(matchRoom.hostUserId);
+    }
+
+    matchRoom?.participants.forEach((participant) => {
+      excludedIds.add(participant.userId);
+      if (participant.tag) {
+        excludedIds.add(participant.tag);
+      }
+    });
+
+    return (friendLeaderboard?.ranks ?? [])
+      .filter((friend) => !excludedIds.has(friend.id) && (!friend.tag || !excludedIds.has(friend.tag)))
+      .slice(0, 12);
+  }, [currentUserId, friendLeaderboard?.ranks, matchRoom?.hostUserId, matchRoom?.participants]);
   const effectiveRoomMode = matchRoom?.mode ?? roomMatchMode;
   const roomDateOptions = effectiveRoomMode === 'group' ? groupDateOptions : duelDateOptions;
   const selectedRoomDateKey = effectiveRoomMode === 'group' ? selectedGroupDateKey : selectedDuelDateKey;
@@ -4284,20 +4298,7 @@ export function TrackRunExperience({
   };
 
   const handleForfeitMatch = (source: 'duel' | 'group') => {
-    Alert.alert(
-      '대결을 기권할까요?',
-      '기권하면 대결판에는 기권으로 표시되고, 지금까지 측정한 러닝 기록을 저장한 뒤 화면에서 나갈게요.',
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '기권하기',
-          style: 'destructive',
-          onPress: () => {
-            void forfeitMatchAndKeepRunning(source);
-          },
-        },
-      ],
-    );
+    void forfeitMatchAndKeepRunning(source);
   };
 
   const handlePauseTracking = async () => {
@@ -5922,7 +5923,7 @@ export function TrackRunExperience({
                 label={matchMode === 'solo' ? '러닝 종료하고 저장' : '러닝 종료하고 결과 보기'}
                 onPress={matchMode === 'solo' ? () => { void handleSaveTracking(); } : handlePauseTracking}
               />
-              <SecondaryButton label="일시정지" onPress={handlePauseTracking} />
+              {matchMode === 'solo' ? <SecondaryButton label="일시정지" onPress={handlePauseTracking} /> : null}
             </View>
           ) : null}
 
