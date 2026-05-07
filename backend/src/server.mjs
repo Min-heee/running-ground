@@ -1521,6 +1521,15 @@ function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date(
   const hasJoined = room.participants.some((participant) => participant.userId === currentUser.id);
   const joinedUserIds = new Set(room.participants.map((participant) => participant.userId));
   const pendingInvitedFriendIds = room.invitedFriendIds.filter((userId) => !joinedUserIds.has(userId));
+  const linkedCurrentParticipant = linkedSession?.participants?.find((participant) => participant.userId === currentUser.id);
+
+  if (linkedCurrentParticipant && resolveParticipantLiveStatus(linkedCurrentParticipant, now) === 'forfeited') {
+    return {
+      success: true,
+      serverNow: now.toISOString(),
+      room: null,
+    };
+  }
 
   return {
     success: true,

@@ -93,6 +93,7 @@ import { getCurrentUserProfile } from '@/lib/session';
 type TrackerStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving';
 type SaveTrackingOptions = {
   exitIfUnsavable?: boolean;
+  resetAfterSave?: boolean;
 };
 type StableCountdownTracker = {
   key: string;
@@ -1063,6 +1064,7 @@ export function TrackRunExperience({
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
   const handledRoomInviteTokenRef = useRef<string | null>(null);
   const officialStartBaselineRef = useRef<OfficialStartBaseline | null>(null);
+  const forfeitedMatchIdsRef = useRef<Set<string>>(new Set());
 
   const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
   const syncedNowMs = nowMs + serverClockOffsetMs;
@@ -2429,6 +2431,11 @@ export function TrackRunExperience({
     }
 
     syncServerClock(payload.serverNow);
+    if (payload.matchId && forfeitedMatchIdsRef.current.has(payload.matchId)) {
+      clearLocalDuelMatchState(null);
+      return payload;
+    }
+
     focusedDuelMatchIdRef.current = payload.state === 'idle' ? null : (payload.matchId ?? focusedDuelMatchIdRef.current);
     const transitionNotice = duelMatchStatus
       && duelMatchStatus.slotStartAt === payload.slotStartAt
@@ -2470,6 +2477,11 @@ export function TrackRunExperience({
     }
 
     syncServerClock(payload.serverNow);
+    if (payload.matchId && forfeitedMatchIdsRef.current.has(payload.matchId)) {
+      clearLocalGroupMatchState(null);
+      return payload;
+    }
+
     focusedGroupMatchIdRef.current = payload.state === 'idle' ? null : (payload.matchId ?? focusedGroupMatchIdRef.current);
     const transitionNotice = groupMatchStatus
       && groupMatchStatus.slotStartAt === payload.slotStartAt
@@ -2513,8 +2525,11 @@ export function TrackRunExperience({
     }
 
     syncServerClock(payload.serverNow);
-    commitMatchRoom(payload.room);
-    return payload.room;
+    const nextRoom = payload.room?.linkedMatchId && forfeitedMatchIdsRef.current.has(payload.room.linkedMatchId)
+      ? null
+      : payload.room;
+    commitMatchRoom(nextRoom);
+    return nextRoom;
   };
 
   const loadFriendLeaderboardData = async () => {
@@ -2861,6 +2876,34 @@ export function TrackRunExperience({
     setGroupMatchResult(null);
     setGroupMatchStatus(null);
     setGroupMatchNotice(notice ?? null);
+  };
+
+  const clearLocalForfeitedMatchState = (source: 'duel' | 'group', matchId: string) => {
+    forfeitedMatchIdsRef.current.add(matchId);
+    matchProgressHeartbeatRef.current = 0;
+    preStartWarmupMatchIdRef.current = null;
+    autoStartedMatchIdRef.current = null;
+    countdownAutoOpenMatchIdRef.current = null;
+    activeAutoOpenMatchIdRef.current = null;
+    roomLinkedMatchContextRef.current = null;
+    setForceOpenActiveMatch(false);
+    setLiveArenaPage(0);
+    setLastSyncedMatchProgress(null);
+    setUpcomingMatches((currentItems) => currentItems.filter((match) => match.matchId !== matchId));
+
+    if (matchRoom?.linkedMatchId === matchId) {
+      matchRoomRenderKeyRef.current = null;
+      setMatchRoom(null);
+    }
+
+    if (source === 'duel') {
+      clearLocalDuelMatchState(null);
+    } else {
+      clearLocalGroupMatchState(null);
+    }
+
+    setMatchMode('solo');
+    livePagerRef.current?.scrollTo({ x: 0, animated: false });
   };
 
   const refreshStaleMatchArtifacts = async () => {
@@ -4225,12 +4268,6 @@ export function TrackRunExperience({
     const roomLinkedMatchId = roomLinkedMatchContext?.mode === source
       ? roomLinkedMatchContext.matchId
       : null;
-    const roomLinkedSlotStartAt = roomLinkedMatchContext?.mode === source
-      ? roomLinkedMatchContext.slotStartAt
-      : null;
-    const roomLinkedDistanceKm = roomLinkedMatchContext?.mode === source
-      ? roomLinkedMatchContext.distanceKm
-      : null;
     const matchId = source === 'duel'
       ? duelMatchStatus?.matchId ?? roomLinkedMatchId
       : groupMatchStatus?.matchId ?? roomLinkedMatchId;
@@ -4254,8 +4291,6 @@ export function TrackRunExperience({
       pendingForfeitMatchRef.current = matchId;
 
       if (source === 'duel') {
-        const slotStartAt = duelMatchStatus?.slotStartAt ?? roomLinkedSlotStartAt ?? activeDuelSlotStartAt;
-        const distanceKmForStatus = duelMatchStatus?.distanceKm ?? roomLinkedDistanceKm ?? duelDistanceKm;
         setDuelMatchStatus((currentStatus) => (
           currentStatus?.matchId === matchId
             ? { ...currentStatus, currentUserLiveStatus: 'forfeited' }
@@ -4264,14 +4299,7 @@ export function TrackRunExperience({
         setDuelMatchNotice('기권 처리됐어요. 기록을 저장하고 대결 화면에서 나갈게요.');
         await leaveRunningMatch({ matchId });
         matchProgressHeartbeatRef.current = Date.now();
-        void loadDuelMatchStatus(slotStartAt, {
-          matchId,
-          distanceKm: distanceKmForStatus,
-          testMode: isDuelTestFlow,
-        }).catch(() => {});
       } else {
-        const slotStartAt = groupMatchStatus?.slotStartAt ?? roomLinkedSlotStartAt ?? activeGroupSlotStartAt;
-        const distanceKmForStatus = groupMatchStatus?.distanceKm ?? roomLinkedDistanceKm ?? groupDistanceKm;
         setGroupMatchStatus((currentStatus) => (
           currentStatus?.matchId === matchId
             ? {
@@ -4288,15 +4316,11 @@ export function TrackRunExperience({
         setGroupMatchNotice('기권 처리됐어요. 기록을 저장하고 대결 화면에서 나갈게요.');
         await leaveRunningMatch({ matchId });
         matchProgressHeartbeatRef.current = Date.now();
-        void loadGroupMatchStatus(slotStartAt, {
-          matchId,
-          distanceKm: distanceKmForStatus,
-          testMode: isGroupTestFlow,
-        }).catch(() => {});
       }
 
+      clearLocalForfeitedMatchState(source, matchId);
       void loadUpcomingMatches().catch(() => {});
-      await handleSaveTracking({ exitIfUnsavable: true });
+      await handleSaveTracking({ exitIfUnsavable: true, resetAfterSave: true });
     } catch (matchError) {
       if (source === 'duel') {
         setDuelMatchStatus(previousDuelStatus);
@@ -4528,6 +4552,12 @@ export function TrackRunExperience({
       preStartWarmupMatchIdRef.current = null;
       officialStartBaselineRef.current = null;
       autoStartedMatchIdRef.current = null;
+
+      if (options.resetAfterSave) {
+        await resetBackgroundRunTracking();
+        resetForegroundTrackingState();
+        setStatus('idle');
+      }
 
       router.replace({
         pathname: '/run-detail',
