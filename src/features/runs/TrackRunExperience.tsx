@@ -1406,6 +1406,7 @@ export function TrackRunExperience({
     matchMode,
   ]);
   const roomParticipantsCount = visibleMatchRoom?.participants.length ?? 0;
+  const visibleMatchRoomIsInviteOnly = Boolean(visibleMatchRoom?.joined === false);
   const rawRoomCountdownRemainingSeconds = visibleMatchRoom?.linkedMatchSlotStartAt
     ? getMatchStartRemainingSeconds(visibleMatchRoom.linkedMatchSlotStartAt, syncedNowMs)
     : null;
@@ -2648,6 +2649,56 @@ export function TrackRunExperience({
       setSelectedRoomFriendIds([]);
     } catch (roomError) {
       setError(roomError instanceof Error ? roomError.message : '방에서 나가지 못했어.');
+    } finally {
+      setIsLeavingMatchRoom(false);
+    }
+  };
+
+  const handleAcceptRoomInviteFromRunning = async () => {
+    if (!visibleMatchRoom) {
+      return;
+    }
+
+    setIsJoiningMatchRoom(true);
+    setError(null);
+
+    try {
+      const payload = await joinRunningMatchRoom({ inviteToken: visibleMatchRoom.inviteToken });
+      if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
+        return;
+      }
+
+      syncServerClock(payload.serverNow);
+      commitMatchRoom(payload.room);
+      if (payload.room) {
+        router.push('/match-room' as Href);
+      }
+    } catch (roomError) {
+      setError(roomError instanceof Error ? roomError.message : '초대를 수락하지 못했어.');
+    } finally {
+      setIsJoiningMatchRoom(false);
+    }
+  };
+
+  const handleDeclineRoomInviteFromRunning = async () => {
+    if (!visibleMatchRoom) {
+      return;
+    }
+
+    setIsLeavingMatchRoom(true);
+    setError(null);
+
+    try {
+      const payload = await leaveRunningMatchRoom({ roomId: visibleMatchRoom.roomId });
+      if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
+        return;
+      }
+
+      syncServerClock(payload.serverNow);
+      commitMatchRoom(payload.room);
+      setSelectedRoomFriendIds([]);
+    } catch (roomError) {
+      setError(roomError instanceof Error ? roomError.message : '초대를 거절하지 못했어.');
     } finally {
       setIsLeavingMatchRoom(false);
     }
@@ -5105,14 +5156,47 @@ export function TrackRunExperience({
                   })}
               </View>
               {visibleMatchRoom ? (
-                <Pressable
-                  style={styles.partyRoomEntryButton}
-                  onPress={() => {
-                    router.push('/match-room' as Href);
-                  }}
-                >
-                  <Text style={styles.partyRoomEntryButtonText}>파티런 대기실로 가기</Text>
-                </Pressable>
+                visibleMatchRoomIsInviteOnly ? (
+                  <View style={styles.partyInviteCard}>
+                    <View style={styles.partyInviteHeader}>
+                      <View>
+                        <Text style={styles.partyInviteEyebrow}>파티런 초대</Text>
+                        <Text style={styles.partyInviteTitle}>
+                          {visibleMatchRoom.hostName}님이 {visibleMatchRoom.mode === 'duel' ? '1대1 대결' : '그룹 대결'}에 초대했어요
+                        </Text>
+                      </View>
+                      <Text style={styles.partyInviteCode}>{visibleMatchRoom.inviteToken}</Text>
+                    </View>
+                    <Text style={styles.partyInviteMeta}>
+                      {visibleMatchRoom.distanceKm.toFixed(1)}km · {visibleMatchRoom.startMode === 'host' ? '방장 시작' : visibleMatchRoom.slotLabel}
+                    </Text>
+                    <View style={styles.partyInviteActionRow}>
+                      <Pressable
+                        style={[styles.partyInviteDeclineButton, isLeavingMatchRoom ? styles.partyInviteButtonDisabled : undefined]}
+                        onPress={() => { void handleDeclineRoomInviteFromRunning(); }}
+                        disabled={isLeavingMatchRoom || isJoiningMatchRoom}
+                      >
+                        <Text style={styles.partyInviteDeclineText}>{isLeavingMatchRoom ? '처리 중...' : '거절'}</Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.partyInviteAcceptButton, isJoiningMatchRoom ? styles.partyInviteButtonDisabled : undefined]}
+                        onPress={() => { void handleAcceptRoomInviteFromRunning(); }}
+                        disabled={isJoiningMatchRoom || isLeavingMatchRoom}
+                      >
+                        <Text style={styles.partyInviteAcceptText}>{isJoiningMatchRoom ? '입장 중...' : '수락'}</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : (
+                  <Pressable
+                    style={styles.partyRoomEntryButton}
+                    onPress={() => {
+                      router.push('/match-room' as Href);
+                    }}
+                  >
+                    <Text style={styles.partyRoomEntryButtonText}>파티런 대기실로 가기</Text>
+                  </Pressable>
+                )
               ) : null}
               {matchMode === 'room' ? (
                 <View style={styles.roomCard}>
@@ -6449,6 +6533,80 @@ const styles = StyleSheet.create({
     color: '#EEF2FF',
     fontSize: 15,
     fontWeight: '900',
+  },
+  partyInviteCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#818CF8',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  partyInviteHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  partyInviteEyebrow: {
+    color: '#6D5EF7',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  partyInviteTitle: {
+    color: '#111827',
+    fontSize: 17,
+    fontWeight: '900',
+    lineHeight: 23,
+  },
+  partyInviteCode: {
+    overflow: 'hidden',
+    borderRadius: 999,
+    backgroundColor: '#1E1B4B',
+    color: '#EEF2FF',
+    fontSize: 12,
+    fontWeight: '900',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  partyInviteMeta: {
+    color: '#475467',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  partyInviteActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  partyInviteDeclineButton: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 13,
+  },
+  partyInviteDeclineText: {
+    color: '#334155',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  partyInviteAcceptButton: {
+    flex: 1,
+    alignItems: 'center',
+    borderRadius: 16,
+    backgroundColor: '#6D5EF7',
+    paddingVertical: 13,
+  },
+  partyInviteAcceptText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  partyInviteButtonDisabled: {
+    opacity: 0.45,
   },
   matchOption: {
     width: '48%',
