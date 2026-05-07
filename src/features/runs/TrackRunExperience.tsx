@@ -91,6 +91,9 @@ import {
 import { getCurrentUserProfile } from '@/lib/session';
 
 type TrackerStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving';
+type SaveTrackingOptions = {
+  exitIfUnsavable?: boolean;
+};
 type StableCountdownTracker = {
   key: string;
   baselineRemainingSeconds: number;
@@ -621,6 +624,18 @@ function getEstimatedMatchBonusPoints(matchResult?: RunMatchResult) {
   }
 
   return 0;
+}
+
+function isUnsavableShortRunError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+
+  return [
+    '저장하려면 실제로 이동한 러닝 경로가 조금 더 필요해.',
+    '페이스 계산이 아직 부족해서 저장할 수 없어.',
+    '러닝 경로는 최소 2개 이상의 위치 좌표가 필요해.',
+    '러닝 거리를 입력해줘.',
+    '페이스를 입력해줘.',
+  ].some((snippet) => message.includes(snippet));
 }
 
 function buildMatchParticipantStatusLabel(status?: MatchParticipantLiveStatus) {
@@ -1930,6 +1945,7 @@ export function TrackRunExperience({
       && roomShouldOpenCountdownArena);
   const showLiveArena =
     canRenderLiveArena
+    && !currentUserHasForfeitedActiveMatch
     && (
       isRunning
       || hasMatchResultPage
@@ -4210,7 +4226,7 @@ export function TrackRunExperience({
             ? { ...currentStatus, currentUserLiveStatus: 'forfeited' }
             : currentStatus
         ));
-        setDuelMatchNotice('기권 처리됐어요. 러닝 기록 측정은 계속 이어가요.');
+        setDuelMatchNotice('기권 처리됐어요. 기록을 저장하고 대결 화면에서 나갈게요.');
         await leaveRunningMatch({ matchId });
         matchProgressHeartbeatRef.current = Date.now();
         void loadDuelMatchStatus(slotStartAt, {
@@ -4234,7 +4250,7 @@ export function TrackRunExperience({
             }
             : currentStatus
         ));
-        setGroupMatchNotice('기권 처리됐어요. 러닝 기록 측정은 계속 이어가요.');
+        setGroupMatchNotice('기권 처리됐어요. 기록을 저장하고 대결 화면에서 나갈게요.');
         await leaveRunningMatch({ matchId });
         matchProgressHeartbeatRef.current = Date.now();
         void loadGroupMatchStatus(slotStartAt, {
@@ -4245,6 +4261,7 @@ export function TrackRunExperience({
       }
 
       void loadUpcomingMatches().catch(() => {});
+      await handleSaveTracking({ exitIfUnsavable: true });
     } catch (matchError) {
       if (source === 'duel') {
         setDuelMatchStatus(previousDuelStatus);
@@ -4269,7 +4286,7 @@ export function TrackRunExperience({
   const handleForfeitMatch = (source: 'duel' | 'group') => {
     Alert.alert(
       '대결을 기권할까요?',
-      '기권하면 대결판에는 기권으로 표시되고, 지금 측정 중인 러닝 기록은 그대로 이어가요.',
+      '기권하면 대결판에는 기권으로 표시되고, 지금까지 측정한 러닝 기록을 저장한 뒤 화면에서 나갈게요.',
       [
         { text: '취소', style: 'cancel' },
         {
@@ -4385,6 +4402,9 @@ export function TrackRunExperience({
     preStartWarmupMatchIdRef.current = null;
     officialStartBaselineRef.current = null;
     autoStartedMatchIdRef.current = null;
+    focusedDuelMatchIdRef.current = null;
+    focusedGroupMatchIdRef.current = null;
+    setForceOpenActiveMatch(false);
     resetForegroundTrackingState();
     setStatus('idle');
     setError(null);
@@ -4407,7 +4427,7 @@ export function TrackRunExperience({
     ]);
   };
 
-  const handleSaveTracking = async () => {
+  const handleSaveTracking = async (options: SaveTrackingOptions = {}) => {
     try {
       setError(null);
 
@@ -4494,9 +4514,16 @@ export function TrackRunExperience({
           origin: isTabMode ? 'running' : 'activity',
         },
       });
+      return true;
     } catch (saveError) {
+      if (options.exitIfUnsavable && isUnsavableShortRunError(saveError)) {
+        await discardCurrentTracking();
+        return false;
+      }
+
       setStatus('paused');
       setError(saveError instanceof Error ? saveError.message : '러닝 기록 저장에 실패했어.');
+      return false;
     }
   };
 
@@ -5044,7 +5071,7 @@ export function TrackRunExperience({
           <Text style={activeMatchExitIsTest ? styles.testExitText : styles.matchForfeitText}>
             {activeMatchExitIsTest
               ? '테스트 상대 표시는 정리하고, 지금 러닝 기록은 혼자 계속 이어갈게요.'
-              : '기권하면 대결 순위에서는 포기 처리되고, 지금 러닝 기록은 혼자 계속 측정돼요.'}
+              : '기권하면 대결 순위에서는 포기 처리되고, 지금까지 측정한 기록을 저장한 뒤 나가요.'}
           </Text>
           {activeMatchExitIsTest ? (
             <SecondaryButton
@@ -5063,7 +5090,7 @@ export function TrackRunExperience({
               disabled={activeMatchExitIsLeaving}
             >
               <Text style={styles.matchForfeitButtonText}>
-                {activeMatchExitIsLeaving ? '기권 처리 중...' : '기권하기'}
+                {activeMatchExitIsLeaving ? '기권 처리 중...' : '기권하고 나가기'}
               </Text>
             </Pressable>
           )}
@@ -5893,7 +5920,7 @@ export function TrackRunExperience({
             <View style={styles.actionColumn}>
               <PrimaryButton
                 label={matchMode === 'solo' ? '러닝 종료하고 저장' : '러닝 종료하고 결과 보기'}
-                onPress={matchMode === 'solo' ? handleSaveTracking : handlePauseTracking}
+                onPress={matchMode === 'solo' ? () => { void handleSaveTracking(); } : handlePauseTracking}
               />
               <SecondaryButton label="일시정지" onPress={handlePauseTracking} />
             </View>
@@ -5902,7 +5929,7 @@ export function TrackRunExperience({
           {isPaused ? (
             <>
               <View style={styles.actionColumn}>
-                <PrimaryButton label="이 기록 저장하기" onPress={handleSaveTracking} />
+                <PrimaryButton label="이 기록 저장하기" onPress={() => { void handleSaveTracking(); }} />
                 <SecondaryButton label="측정 다시 시작" onPress={handleResumeTracking} />
                 <Pressable style={styles.discardButton} onPress={handleDiscardTracking}>
                   <Text style={styles.discardButtonText}>이 기록 버리기</Text>
