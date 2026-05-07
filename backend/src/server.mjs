@@ -1429,9 +1429,10 @@ function findRunningMatchRoomForUser(store, userId, now = new Date()) {
   return rooms[0] ?? null;
 }
 
-function buildRunningMatchRoomParticipantPayload(store, participant) {
+function buildRunningMatchRoomParticipantPayload(store, participant, linkedParticipantFieldsByUserId = null) {
   const user = findUserById(store, participant.userId);
   const runner = buildMatchRunnerProfile(store, user);
+  const linkedParticipantFields = linkedParticipantFieldsByUserId?.get(participant.userId) ?? null;
 
   return {
     userId: runner.id,
@@ -1440,6 +1441,7 @@ function buildRunningMatchRoomParticipantPayload(store, participant) {
     districtName: runner.districtName,
     averagePace: runner.averagePace,
     levelLabel: runner.levelLabel,
+    ...(linkedParticipantFields ?? {}),
     isHost: Boolean(participant.isHost),
     isReady: Boolean(participant.isReady),
     isCountdownReady: Boolean(participant.isCountdownReady),
@@ -1517,6 +1519,18 @@ function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date(
   const hostUser = findUserById(store, room.hostUserId);
   const linkedSession = getMatchRoomLinkedSession(room, store);
   const linkedMatchState = linkedSession ? hydrateMatchSessionState(linkedSession, now) : null;
+  const linkedOfficialByUserId = linkedSession
+    ? new Map(buildOfficialSessionStandings(store, linkedSession, now).map((standing) => [standing.userId, standing]))
+    : null;
+  const linkedParticipantFieldsByUserId = linkedSession
+    ? new Map(linkedSession.participants.map((participant) => [
+        participant.userId,
+        {
+          ...buildParticipantLiveSnapshot(linkedSession, participant, now),
+          ...buildOfficialStandingFields(linkedOfficialByUserId?.get(participant.userId)),
+        },
+      ]))
+    : null;
   const roomState = getRunningMatchRoomState(room, store, now);
   const hasJoined = room.participants.some((participant) => participant.userId === currentUser.id);
   const joinedUserIds = new Set(room.participants.map((participant) => participant.userId));
@@ -1557,7 +1571,7 @@ function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date(
       hostUserId: room.hostUserId,
       hostName: hostUser.name,
       participants: room.participants
-        .map((participant) => buildRunningMatchRoomParticipantPayload(store, participant))
+        .map((participant) => buildRunningMatchRoomParticipantPayload(store, participant, linkedParticipantFieldsByUserId))
         .sort((left, right) => {
           if (left.isHost !== right.isHost) {
             return left.isHost ? -1 : 1;

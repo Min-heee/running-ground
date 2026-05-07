@@ -1900,17 +1900,26 @@ export function TrackRunExperience({
 
     return visibleMatchRoom.participants.slice(0, 2).map((participant, index) => {
       const isCurrentUser = participant.userId === currentUserId || participant.tag === currentUserId;
+      const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
+        ? distanceKm
+        : typeof participant.officialDistanceKm === 'number'
+          ? participant.officialDistanceKm
+          : typeof participant.liveDistanceKm === 'number'
+            ? participant.liveDistanceKm
+            : 0;
+      const participantPaceLabel = isCurrentUser
+        ? currentUserArenaPace
+        : buildParticipantAveragePaceLabel(participant, roomLinkedMatchContext?.state === 'active');
+
       return {
         id: participant.userId,
         name: isCurrentUser ? '나' : participant.name,
-        paceLabel: isCurrentUser
-          ? currentUserArenaPace
-          : '',
-        distanceKm: isCurrentUser && roomLinkedMatchContext?.state === 'active' ? distanceKm : 0,
+        paceLabel: participant.liveStatus === 'forfeited' ? '기권' : participantPaceLabel,
+        distanceKm: participantDistanceKm,
         isCurrentUser,
         isLeader: index === 0,
-        liveStatus: undefined,
-        showPaceBubble: isCurrentUser ? Boolean(currentUserArenaPace) : false,
+        liveStatus: participant.liveStatus,
+        showPaceBubble: participant.liveStatus === 'forfeited' || Boolean(participantPaceLabel),
       };
     });
   }, [currentUserArenaPace, currentUserId, distanceKm, hasRoomLinkedDuelContext, roomLinkedMatchContext?.state, visibleMatchRoom]);
@@ -1941,18 +1950,27 @@ export function TrackRunExperience({
 
     return visibleMatchRoom.participants.map((participant, index) => {
       const isCurrentUser = participant.userId === currentUserId || participant.tag === currentUserId;
+      const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
+        ? distanceKm
+        : typeof participant.officialDistanceKm === 'number'
+          ? participant.officialDistanceKm
+          : typeof participant.liveDistanceKm === 'number'
+            ? participant.liveDistanceKm
+            : 0;
+      const participantPaceLabel = isCurrentUser
+        ? currentUserArenaPace
+        : buildParticipantAveragePaceLabel(participant, roomLinkedMatchContext?.state === 'active');
+
       return {
         id: participant.userId,
         name: isCurrentUser ? '나' : participant.name,
-        paceLabel: isCurrentUser
-          ? currentUserArenaPace
-          : '',
-        distanceKm: isCurrentUser && roomLinkedMatchContext?.state === 'active' ? distanceKm : 0,
+        paceLabel: participant.liveStatus === 'forfeited' ? '기권' : participantPaceLabel,
+        distanceKm: participantDistanceKm,
         rankLabel: String(index + 1),
         isCurrentUser,
         isLeader: index === 0,
-        liveStatus: undefined,
-        showPaceBubble: isCurrentUser ? Boolean(currentUserArenaPace) : false,
+        liveStatus: participant.liveStatus,
+        showPaceBubble: participant.liveStatus === 'forfeited' || Boolean(participantPaceLabel),
         emphasis: 'featured' as const,
       };
     });
@@ -2164,20 +2182,6 @@ export function TrackRunExperience({
   const pushRunningMatchProgress = async (input: UpdateRunningMatchProgressInput) => {
     const progressAveragePace = buildAveragePace(input.distanceKm, input.elapsedSeconds);
     const normalizedCurrentPace = normalizeMatchProgressPace(input.currentPace, progressAveragePace);
-    if (normalizedCurrentPace === '--:--/km' && input.status !== 'finished') {
-      const currentStatus = input.matchId === duelMatchStatus?.matchId
-        ? duelMatchStatus
-        : input.matchId === groupMatchStatus?.matchId
-          ? groupMatchStatus
-          : roomLinkedMatchContext?.mode === 'duel'
-            ? duelMatchStatus
-            : groupMatchStatus;
-
-      if (currentStatus) {
-        return currentStatus;
-      }
-    }
-
     const syncedProgress = {
       matchId: input.matchId,
       distanceKm: input.distanceKm,
@@ -2423,7 +2427,7 @@ export function TrackRunExperience({
 
   const loadDuelMatchStatus = async (
     slotStartAt = activeDuelSlotStartAt,
-    options?: { testMode?: boolean; distanceKm?: number; matchId?: string },
+    options?: { testMode?: boolean; distanceKm?: number; matchId?: string; forceAccept?: boolean },
   ) => {
     const payload = await fetchRunningMatchStatus({
       mode: 'duel',
@@ -2432,7 +2436,7 @@ export function TrackRunExperience({
       testMode: options?.testMode ?? isDuelTestFlow,
       matchId: options?.matchId ?? focusedDuelMatchIdRef.current ?? undefined,
     });
-    if (!shouldAcceptServerSnapshot(latestDuelStatusServerNowMsRef, payload.serverNow)) {
+    if (!options?.forceAccept && !shouldAcceptServerSnapshot(latestDuelStatusServerNowMsRef, payload.serverNow)) {
       return duelMatchStatus ?? payload;
     }
 
@@ -2469,7 +2473,7 @@ export function TrackRunExperience({
 
   const loadGroupMatchStatus = async (
     slotStartAt = activeGroupSlotStartAt,
-    options?: { testMode?: boolean; distanceKm?: number; matchId?: string },
+    options?: { testMode?: boolean; distanceKm?: number; matchId?: string; forceAccept?: boolean },
   ) => {
     const payload = await fetchRunningMatchStatus({
       mode: 'group',
@@ -2478,7 +2482,7 @@ export function TrackRunExperience({
       testMode: options?.testMode ?? isGroupTestFlow,
       matchId: options?.matchId ?? focusedGroupMatchIdRef.current ?? undefined,
     });
-    if (!shouldAcceptServerSnapshot(latestGroupStatusServerNowMsRef, payload.serverNow)) {
+    if (!options?.forceAccept && !shouldAcceptServerSnapshot(latestGroupStatusServerNowMsRef, payload.serverNow)) {
       return groupMatchStatus ?? payload;
     }
 
@@ -2960,6 +2964,10 @@ export function TrackRunExperience({
       return;
     }
 
+    if (roomLinkedMatchContext?.mode === 'duel') {
+      return;
+    }
+
     let canceled = false;
     void loadDuelMatchStatus(activeDuelSlotStartAt, {
       testMode: focusRequestedDuelTest || isDuelTestFlow,
@@ -2972,10 +2980,14 @@ export function TrackRunExperience({
     return () => {
       canceled = true;
     };
-  }, [matchMode, duelDistanceKm, activeDuelSlotStartAt, focusRequestedDuelTest, isDuelTestFlow]);
+  }, [matchMode, duelDistanceKm, activeDuelSlotStartAt, focusRequestedDuelTest, isDuelTestFlow, roomLinkedMatchContext?.mode]);
 
   useEffect(() => {
     if (matchMode !== 'group') {
+      return;
+    }
+
+    if (roomLinkedMatchContext?.mode === 'group') {
       return;
     }
 
@@ -2991,7 +3003,7 @@ export function TrackRunExperience({
     return () => {
       canceled = true;
     };
-  }, [matchMode, groupDistanceKm, activeGroupSlotStartAt, focusRequestedGroupTest, isGroupTestFlow]);
+  }, [matchMode, groupDistanceKm, activeGroupSlotStartAt, focusRequestedGroupTest, isGroupTestFlow, roomLinkedMatchContext?.mode]);
 
   useEffect(() => {
     let canceled = false;
@@ -3131,11 +3143,13 @@ export function TrackRunExperience({
               distanceKm: roomLinkedMatchContext.distanceKm,
               matchId: roomLinkedMatchContext.matchId,
               testMode: false,
+              forceAccept: true,
             })
           : await loadGroupMatchStatus(roomLinkedMatchContext.slotStartAt, {
               distanceKm: roomLinkedMatchContext.distanceKm,
               matchId: roomLinkedMatchContext.matchId,
               testMode: false,
+              forceAccept: true,
             });
 
         if (canceled) {
@@ -4878,6 +4892,48 @@ export function TrackRunExperience({
             isCurrentUser: participant.isCurrentUser,
             liveStatus: participant.liveStatus,
           }))}
+        />
+      );
+    }
+
+    if (matchMode === 'duel') {
+      return (
+        <LiveMatchRaceBoard
+          title="1대1 레이스 보드"
+          subtitle="대결 기록을 맞추는 중이에요. 내 기록은 계속 측정되고 있어요."
+          rows={[
+            {
+              id: 'current-user-fallback',
+              rank: 1,
+              name: '나',
+              distanceKm,
+              remainingKm: Math.max(0, duelDistanceKm - distanceKm),
+              progress: duelDistanceKm > 0 ? distanceKm / duelDistanceKm : 0,
+              isCurrentUser: true,
+              liveStatus: currentUserDuelLiveStatus ?? undefined,
+            },
+          ]}
+        />
+      );
+    }
+
+    if (matchMode === 'group') {
+      return (
+        <LiveMatchRaceBoard
+          title="그룹 레이스 보드"
+          subtitle="그룹 기록을 맞추는 중이에요. 내 기록은 계속 측정되고 있어요."
+          rows={[
+            {
+              id: 'current-user-fallback',
+              rank: 1,
+              name: '나',
+              distanceKm,
+              remainingKm: Math.max(0, groupDistanceKm - distanceKm),
+              progress: groupDistanceKm > 0 ? distanceKm / groupDistanceKm : 0,
+              isCurrentUser: true,
+              liveStatus: currentUserGroupLiveStatus ?? undefined,
+            },
+          ]}
         />
       );
     }
