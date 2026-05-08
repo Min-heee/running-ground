@@ -3993,18 +3993,10 @@ export function TrackRunExperience({
       return;
     }
 
-    const roomActiveMatchId =
-      roomLinkedMatchContext?.state === 'active'
-      && roomLinkedMatchContext.mode === matchMode
-        ? roomLinkedMatchContext.matchId
-        : null;
-    const activeMatchId = matchMode === 'duel'
-      ? (duelMatchState === 'active' ? duelMatchStatus?.matchId ?? roomActiveMatchId : roomActiveMatchId)
-      : matchMode === 'group'
-        ? (groupMatchState === 'active' ? groupMatchStatus?.matchId ?? roomActiveMatchId : roomActiveMatchId)
-        : roomActiveMatchId;
+    const target = getActiveMatchHeartbeatTarget();
+    const pushProgress = pushRunningMatchProgressRef.current;
 
-    if (!activeMatchId) {
+    if (!target || !pushProgress) {
       return;
     }
 
@@ -4016,8 +4008,8 @@ export function TrackRunExperience({
 
     matchProgressHeartbeatRef.current = now;
     const progress = buildDisplayedMatchProgress(snapshot);
-    void pushRunningMatchProgress({
-      matchId: activeMatchId,
+    void pushProgress({
+      matchId: target.matchId,
       distanceKm: progress.distanceKm,
       elapsedSeconds: progress.elapsedSeconds,
       currentPace: progress.currentPace,
