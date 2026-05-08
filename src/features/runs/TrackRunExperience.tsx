@@ -1938,17 +1938,19 @@ export function TrackRunExperience({
         ? effectiveDuelOpponent
         : null;
       const participantLiveStatus = duelStatusParticipant?.liveStatus ?? participant.liveStatus;
+      const participantOfficialDistanceKm = duelStatusParticipant?.officialReady && typeof duelStatusParticipant.officialDistanceKm === 'number'
+        ? duelStatusParticipant.officialDistanceKm
+        : participant.officialReady && typeof participant.officialDistanceKm === 'number'
+          ? participant.officialDistanceKm
+          : null;
+      const participantLiveDistanceKm = typeof duelStatusParticipant?.liveDistanceKm === 'number'
+        ? duelStatusParticipant.liveDistanceKm
+        : typeof participant.liveDistanceKm === 'number'
+          ? participant.liveDistanceKm
+          : null;
       const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
         ? distanceKm
-        : typeof duelStatusParticipant?.officialDistanceKm === 'number'
-          ? duelStatusParticipant.officialDistanceKm
-          : typeof participant.officialDistanceKm === 'number'
-            ? participant.officialDistanceKm
-            : typeof duelStatusParticipant?.liveDistanceKm === 'number'
-              ? duelStatusParticipant.liveDistanceKm
-              : typeof participant.liveDistanceKm === 'number'
-                ? participant.liveDistanceKm
-                : 0;
+        : participantOfficialDistanceKm ?? participantLiveDistanceKm ?? 0;
       const mergedParticipant = duelStatusParticipant
         ? {
             ...participant,
@@ -2016,17 +2018,19 @@ export function TrackRunExperience({
         || statusParticipant.tag === participant.userId
       )) ?? null;
       const participantLiveStatus = groupStatusParticipant?.liveStatus ?? participant.liveStatus;
+      const participantOfficialDistanceKm = groupStatusParticipant?.officialReady && typeof groupStatusParticipant.officialDistanceKm === 'number'
+        ? groupStatusParticipant.officialDistanceKm
+        : participant.officialReady && typeof participant.officialDistanceKm === 'number'
+          ? participant.officialDistanceKm
+          : null;
+      const participantLiveDistanceKm = typeof groupStatusParticipant?.liveDistanceKm === 'number'
+        ? groupStatusParticipant.liveDistanceKm
+        : typeof participant.liveDistanceKm === 'number'
+          ? participant.liveDistanceKm
+          : null;
       const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
         ? distanceKm
-        : typeof groupStatusParticipant?.officialDistanceKm === 'number'
-          ? groupStatusParticipant.officialDistanceKm
-          : typeof participant.officialDistanceKm === 'number'
-            ? participant.officialDistanceKm
-            : typeof groupStatusParticipant?.liveDistanceKm === 'number'
-              ? groupStatusParticipant.liveDistanceKm
-              : typeof participant.liveDistanceKm === 'number'
-                ? participant.liveDistanceKm
-                : 0;
+        : participantOfficialDistanceKm ?? participantLiveDistanceKm ?? 0;
       const mergedParticipant = groupStatusParticipant
         ? {
             ...participant,
