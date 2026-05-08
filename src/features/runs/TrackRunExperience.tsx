@@ -1024,6 +1024,7 @@ export function TrackRunExperience({
   const [isCancelingDuelMatch, setIsCancelingDuelMatch] = useState(false);
   const [isLeavingDuelMatch, setIsLeavingDuelMatch] = useState(false);
   const pendingForfeitMatchRef = useRef<string | null>(null);
+  const pendingCounterpartForfeitResultRef = useRef(false);
   const [duelDemandSummary, setDuelDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
   const [isLoadingDuelDemandSummary, setIsLoadingDuelDemandSummary] = useState(false);
   const [duelMatchNotice, setDuelMatchNotice] = useState<string | null>(null);
@@ -4710,8 +4711,28 @@ export function TrackRunExperience({
     }
   };
 
-  const handleShowResultAfterCounterpartForfeit = () => {
-    void handlePauseTracking();
+  const handleShowResultAfterCounterpartForfeit = async (source: 'duel' | 'group') => {
+    if (pendingCounterpartForfeitResultRef.current || isSaving || status !== 'running') {
+      return;
+    }
+
+    pendingCounterpartForfeitResultRef.current = true;
+    if (source === 'duel') {
+      setIsLeavingDuelMatch(true);
+    } else {
+      setIsLeavingGroupMatch(true);
+    }
+
+    try {
+      await handleSaveTracking({ exitIfUnsavable: true });
+    } finally {
+      pendingCounterpartForfeitResultRef.current = false;
+      if (source === 'duel') {
+        setIsLeavingDuelMatch(false);
+      } else {
+        setIsLeavingGroupMatch(false);
+      }
+    }
   };
 
   const renderLiveArenaExitAction = () => {
@@ -4738,6 +4759,7 @@ export function TrackRunExperience({
     }
 
     if (activeMatchExitCounterpartForfeited) {
+      const isPreparingCounterpartForfeitResult = activeMatchExitIsLeaving || isSaving || !isRunning;
       return (
         <Card style={styles.matchForfeitCard}>
           <Text style={styles.matchForfeitTitle}>상대가 기권했어요</Text>
@@ -4745,12 +4767,14 @@ export function TrackRunExperience({
             내가 승리한 상태예요. 러닝을 종료하면 결과 화면에서 대결 결과를 확인할 수 있어요.
           </Text>
           <Pressable
-            style={[styles.matchForfeitButton, isSaving || !isRunning ? styles.matchForfeitButtonDisabled : undefined]}
-            onPress={handleShowResultAfterCounterpartForfeit}
-            disabled={isSaving || !isRunning}
+            style={[styles.matchForfeitButton, isPreparingCounterpartForfeitResult ? styles.matchForfeitButtonDisabled : undefined]}
+            onPress={() => {
+              void handleShowResultAfterCounterpartForfeit(activeMatchExitSource);
+            }}
+            disabled={isPreparingCounterpartForfeitResult}
           >
             <Text style={styles.matchForfeitButtonText}>
-              {isSaving || !isRunning ? '결과 화면 준비 중...' : '러닝 종료하고 결과보기'}
+              {activeMatchExitIsLeaving || isSaving ? '결과 저장 중...' : !isRunning ? '결과 화면 준비 중...' : '러닝 종료하고 결과보기'}
             </Text>
           </Pressable>
         </Card>
