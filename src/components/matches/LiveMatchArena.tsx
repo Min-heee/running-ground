@@ -54,7 +54,7 @@ function buildRunnerBubbleLabel(participant: ArenaParticipant) {
 }
 
 function buildRemainingLabel(distanceKm: number, targetDistanceKm: number) {
-  return `${Math.max(0, targetDistanceKm - distanceKm).toFixed(1)}km 남음`;
+  return `${Math.max(0, targetDistanceKm - distanceKm).toFixed(2)}km 남음`;
 }
 
 function RoadMotion({
