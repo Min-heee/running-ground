@@ -2075,6 +2075,12 @@ export function TrackRunExperience({
     : activeMatchExitSource === 'group'
       ? isLeavingGroupMatch
       : false;
+  const activeMatchExitCounterpartForfeited = activeMatchExitSource === 'duel'
+    ? Boolean(
+        isDuelOpponentForfeited
+        || roomLinkedDuelPlaceholderParticipants.some((participant) => !participant.isCurrentUser && participant.liveStatus === 'forfeited'),
+      )
+    : false;
   const duelCompatibleCount = duelMatchStatus?.competitiveParticipantsCount ?? 0;
   const duelWaitingHasOtherApplicants = (duelMatchStatus?.participantCount ?? 0) > 1;
   const duelWaitingTitle = isDuelTestFlow
@@ -4629,6 +4635,74 @@ export function TrackRunExperience({
     }
   };
 
+  const handleEndMatchAfterCounterpartForfeit = () => {
+    void handleSaveTracking({ exitIfUnsavable: true, resetAfterSave: true });
+  };
+
+  const renderLiveArenaExitAction = () => {
+    if (!activeMatchExitSource) {
+      return null;
+    }
+
+    if (activeMatchExitIsTest) {
+      return (
+        <Card style={styles.testExitCard}>
+          <Text style={styles.testExitTitle}>테스트 대결을 여기서 끝낼 수 있어요</Text>
+          <Text style={styles.testExitText}>
+            테스트 상대 표시는 정리하고, 지금 러닝 기록은 혼자 계속 이어갈게요.
+          </Text>
+          <SecondaryButton
+            label={activeMatchExitIsLeaving ? '정리 중...' : '테스트 대결 그만'}
+            onPress={() => {
+              handleContinueSoloFromMatch(activeMatchExitSource);
+            }}
+            disabled={activeMatchExitIsLeaving}
+          />
+        </Card>
+      );
+    }
+
+    if (activeMatchExitCounterpartForfeited) {
+      return (
+        <Card style={styles.matchForfeitCard}>
+          <Text style={styles.matchForfeitTitle}>상대가 기권했어요</Text>
+          <Text style={styles.matchForfeitText}>
+            내 기록은 계속 측정되고 있어요. 대결을 그만하면 지금까지의 기록을 저장하고 상세 페이지로 이동해요.
+          </Text>
+          <Pressable
+            style={[styles.matchForfeitButton, isSaving ? styles.matchForfeitButtonDisabled : undefined]}
+            onPress={handleEndMatchAfterCounterpartForfeit}
+            disabled={isSaving}
+          >
+            <Text style={styles.matchForfeitButtonText}>
+              {isSaving ? '기록 저장 중...' : '대결 그만하기'}
+            </Text>
+          </Pressable>
+        </Card>
+      );
+    }
+
+    return (
+      <Card style={styles.matchForfeitCard}>
+        <Text style={styles.matchForfeitTitle}>대결을 기권할 수 있어요</Text>
+        <Text style={styles.matchForfeitText}>
+          기권하면 내 동그라미가 기권 상태로 표시되고, 지금까지 측정한 기록을 저장한 뒤 나가요.
+        </Text>
+        <Pressable
+          style={[styles.matchForfeitButton, activeMatchExitIsLeaving ? styles.matchForfeitButtonDisabled : undefined]}
+          onPress={() => {
+            handleForfeitMatch(activeMatchExitSource);
+          }}
+          disabled={activeMatchExitIsLeaving}
+        >
+          <Text style={styles.matchForfeitButtonText}>
+            {activeMatchExitIsLeaving ? '기권 처리 중...' : '기권하기'}
+          </Text>
+        </Pressable>
+      </Card>
+    );
+  };
+
   useEffect(() => {
     const unsubscribe = subscribeBackgroundRunTracking((snapshot) => {
       syncFromBackgroundTracking(snapshot);
@@ -5291,39 +5365,6 @@ export function TrackRunExperience({
         </Card>
       </View>
 
-      {!includeMatchCards && activeMatchExitSource ? (
-        <Card style={activeMatchExitIsTest ? styles.testExitCard : styles.matchForfeitCard}>
-          <Text style={activeMatchExitIsTest ? styles.testExitTitle : styles.matchForfeitTitle}>
-            {activeMatchExitIsTest ? '테스트 대결을 여기서 끝낼 수 있어요' : '대결을 기권할 수 있어요'}
-          </Text>
-          <Text style={activeMatchExitIsTest ? styles.testExitText : styles.matchForfeitText}>
-            {activeMatchExitIsTest
-              ? '테스트 상대 표시는 정리하고, 지금 러닝 기록은 혼자 계속 이어갈게요.'
-              : '기권하면 대결 순위에서는 포기 처리되고, 지금까지 측정한 기록을 저장한 뒤 나가요.'}
-          </Text>
-          {activeMatchExitIsTest ? (
-            <SecondaryButton
-              label={activeMatchExitIsLeaving ? '정리 중...' : '테스트 대결 그만'}
-              onPress={() => {
-                handleContinueSoloFromMatch(activeMatchExitSource);
-              }}
-              disabled={activeMatchExitIsLeaving}
-            />
-          ) : (
-            <Pressable
-              style={[styles.matchForfeitButton, activeMatchExitIsLeaving ? styles.matchForfeitButtonDisabled : undefined]}
-              onPress={() => {
-                handleForfeitMatch(activeMatchExitSource);
-              }}
-              disabled={activeMatchExitIsLeaving}
-            >
-              <Text style={styles.matchForfeitButtonText}>
-                {activeMatchExitIsLeaving ? '기권 처리 중...' : '기권하고 나가기'}
-              </Text>
-            </Pressable>
-          )}
-        </Card>
-      ) : null}
     </>
   );
 
@@ -6119,6 +6160,7 @@ export function TrackRunExperience({
               >
                 <View style={[styles.livePagerPage, { width: liveArenaPageWidth }]}>
                   {renderLiveArenaPage()}
+                  {renderLiveArenaExitAction()}
                 </View>
                 <View style={[styles.livePagerPage, { width: liveArenaPageWidth }]}>
                   {renderLiveRaceBoardPage()}

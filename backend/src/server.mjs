@@ -1186,7 +1186,7 @@ function pruneMatchSessions(store, now = new Date()) {
       return false;
     }
 
-    if (session.participants.every((participant) => resolveParticipantLiveStatus(participant, now) === 'forfeited')) {
+    if (session.participants.every((participant) => isParticipantDoneWithMatch(participant, now))) {
       return false;
     }
 
@@ -1201,7 +1201,7 @@ function clearUsersFromMatchSessions(store, mode, userIds) {
   const sessions = pruneMatchSessions(store);
   store.matchSessions = sessions.filter((session) => (
     session.mode !== mode || !session.participants.some((participant) => (
-      blockedUserIds.has(participant.userId) && resolveParticipantLiveStatus(participant) !== 'forfeited'
+      blockedUserIds.has(participant.userId) && !isParticipantDoneWithMatch(participant)
     ))
   ));
 }
@@ -1560,7 +1560,7 @@ function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date(
   const pendingInvitedFriendIds = room.invitedFriendIds.filter((userId) => !joinedUserIds.has(userId));
   const linkedCurrentParticipant = linkedSession?.participants?.find((participant) => participant.userId === currentUser.id);
 
-  if (linkedCurrentParticipant && resolveParticipantLiveStatus(linkedCurrentParticipant, now) === 'forfeited') {
+  if (linkedCurrentParticipant && isParticipantDoneWithMatch(linkedCurrentParticipant, now)) {
     return {
       success: true,
       serverNow: now.toISOString(),
@@ -1954,6 +1954,10 @@ function resolveParticipantLiveStatus(participant, now = new Date()) {
   return storedStatus;
 }
 
+function isParticipantDoneWithMatch(participant, now = new Date()) {
+  return ['finished', 'forfeited'].includes(resolveParticipantLiveStatus(participant, now));
+}
+
 function buildSyntheticParticipantLiveSnapshot(session, participant, now = new Date()) {
   if (!participant?.profileSnapshot || hydrateMatchSessionState(session, now) !== 'active') {
     return null;
@@ -2213,7 +2217,7 @@ function findMatchSessionForUser(store, mode, userId, { distanceKm, slotStartAt,
     }
 
     if (!session.participants.some((participant) => (
-      participant.userId === userId && resolveParticipantLiveStatus(participant) !== 'forfeited'
+      participant.userId === userId && !isParticipantDoneWithMatch(participant)
     ))) {
       continue;
     }
@@ -2353,7 +2357,7 @@ function findAnyReservedMatchSessionForUser(store, userId, now = new Date()) {
 
   for (const session of sessions) {
     const participant = session.participants.find((item) => (
-      item.userId === userId && resolveParticipantLiveStatus(item, now) !== 'forfeited'
+      item.userId === userId && !isParticipantDoneWithMatch(item, now)
     ));
 
     if (!participant) {
@@ -2889,7 +2893,7 @@ function buildUpcomingRunningMatchesResponse(store, currentUser) {
   const sessions = pruneMatchSessions(store)
     .filter((session) => session.participants.some((participant) => (
       participant.userId === currentUser.id
-      && resolveParticipantLiveStatus(participant, now) !== 'forfeited'
+      && !isParticipantDoneWithMatch(participant, now)
     )))
     .map((session) => {
       const state = hydrateMatchSessionState(session, now);
