@@ -4695,8 +4695,8 @@ export function TrackRunExperience({
     }
   };
 
-  const handleEndMatchAfterCounterpartForfeit = () => {
-    void handleSaveTracking({ exitIfUnsavable: true, resetAfterSave: true });
+  const handleShowResultAfterCounterpartForfeit = () => {
+    void handlePauseTracking();
   };
 
   const renderLiveArenaExitAction = () => {
@@ -4727,15 +4727,15 @@ export function TrackRunExperience({
         <Card style={styles.matchForfeitCard}>
           <Text style={styles.matchForfeitTitle}>상대가 기권했어요</Text>
           <Text style={styles.matchForfeitText}>
-            내 기록은 계속 측정되고 있어요. 대결을 그만하면 지금까지의 기록을 저장하고 상세 페이지로 이동해요.
+            내가 승리한 상태예요. 러닝을 종료하면 결과 화면에서 대결 결과를 확인할 수 있어요.
           </Text>
           <Pressable
-            style={[styles.matchForfeitButton, isSaving ? styles.matchForfeitButtonDisabled : undefined]}
-            onPress={handleEndMatchAfterCounterpartForfeit}
-            disabled={isSaving}
+            style={[styles.matchForfeitButton, isSaving || !isRunning ? styles.matchForfeitButtonDisabled : undefined]}
+            onPress={handleShowResultAfterCounterpartForfeit}
+            disabled={isSaving || !isRunning}
           >
             <Text style={styles.matchForfeitButtonText}>
-              {isSaving ? '기록 저장 중...' : '대결 그만하기'}
+              {isSaving || !isRunning ? '결과 화면 준비 중...' : '러닝 종료하고 결과보기'}
             </Text>
           </Pressable>
         </Card>
