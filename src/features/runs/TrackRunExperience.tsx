@@ -84,7 +84,6 @@ import {
   calculateCadenceSpm,
   calculateDistanceBetweenPoints,
   calculateElevationGainM,
-  calculateRouteDistanceKm,
   formatDuration,
   formatPaceFromSpeedMps,
 } from '@/features/runs/tracking';
@@ -112,6 +111,8 @@ type OfficialStartBaseline = {
 const STALE_RENDER_MATCHED_MATCH_MS = 10 * 60 * 1000;
 const STALE_RENDER_ACTIVE_MATCH_MS = 8 * 60 * 60 * 1000;
 const MATCH_COMPARISON_INTERVAL_SECONDS = 30;
+const OFFICIAL_START_DISTANCE_NOISE_GRACE_SECONDS = 5;
+const OFFICIAL_START_DISTANCE_NOISE_GRACE_KM = 0.05;
 const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 3000;
 const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
 const SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR = 0.25;
@@ -158,6 +159,26 @@ function buildRoomRenderKey(room: RunningMatchRoom | null) {
     return 'empty';
   }
 
+  const participantKey = room.participants.map((participant) => [
+    participant.userId,
+    participant.isReady ? 'ready' : 'waiting',
+    participant.isCountdownReady ? 'loaded' : 'loading',
+    participant.liveStatus ?? 'no-live-status',
+    participant.liveDistanceKm ?? 'no-live-distance',
+    participant.liveElapsedSeconds ?? 'no-live-elapsed',
+    participant.livePace ?? 'no-live-pace',
+    participant.liveUpdatedAt ?? 'no-live-updated',
+    participant.finishedAt ?? 'no-finished',
+    participant.officialReady ? 'official-ready' : 'official-waiting',
+    participant.officialDistanceKm ?? 'no-official-distance',
+    participant.officialElapsedSeconds ?? 'no-official-elapsed',
+    participant.officialAveragePace ?? 'no-official-pace',
+    participant.officialRank ?? 'no-official-rank',
+    participant.officialGapAheadKm ?? 'no-official-gap-ahead',
+    participant.officialGapLeaderKm ?? 'no-official-gap-leader',
+    participant.officialComparedAt ?? 'no-official-compared',
+  ].join(':')).join('|');
+
   return [
     room.roomId,
     room.state,
@@ -169,23 +190,8 @@ function buildRoomRenderKey(room: RunningMatchRoom | null) {
     room.linkedMatchId ?? 'no-match',
     room.linkedMatchStatus ?? 'no-status',
     room.linkedMatchSlotStartAt ?? 'no-linked-slot',
-    room.participants.map((participant) => [
-      participant.userId,
-      participant.isReady ? 'ready' : 'waiting',
-      participant.isCountdownReady ? 'loaded' : 'loading',
-    ].join(':')).join('|'),
+    participantKey,
   ].join('::');
-}
-
-function shouldSkipMatchedStatusRender(
-  currentStatus: RunningMatchStatusResponse | null,
-  nextStatus: RunningMatchStatusResponse,
-) {
-  return currentStatus?.state === 'matched'
-    && nextStatus.state === 'matched'
-    && currentStatus.matchId === nextStatus.matchId
-    && currentStatus.slotStartAt === nextStatus.slotStartAt
-    && Math.abs(currentStatus.distanceKm - nextStatus.distanceKm) < 0.001;
 }
 
 function parseRoutePointMs(point?: RunRoutePoint) {
@@ -2487,9 +2493,7 @@ export function TrackRunExperience({
       setDuelMatchNotice(null);
     }
 
-    if (!shouldSkipMatchedStatusRender(duelMatchStatus, payload)) {
-      setDuelMatchStatus(payload);
-    }
+    setDuelMatchStatus(payload);
     return payload;
   };
 
@@ -2533,9 +2537,7 @@ export function TrackRunExperience({
       setGroupMatchNotice(null);
     }
 
-    if (!shouldSkipMatchedStatusRender(groupMatchStatus, payload)) {
-      setGroupMatchStatus(payload);
-    }
+    setGroupMatchStatus(payload);
     return payload;
   };
 
@@ -3714,12 +3716,18 @@ export function TrackRunExperience({
 
     if (baseline) {
       const adjustedRoute = buildRouteFromOfficialStart(snapshot, baseline);
+      const adjustedElapsedSeconds = Math.max(0, rawElapsedSeconds - baseline.elapsedSeconds);
+      const adjustedDistanceKm = Number(Math.max(0, snapshot.distanceKm - baseline.distanceKm).toFixed(2));
+      const shouldSuppressStartNoise = adjustedElapsedSeconds <= OFFICIAL_START_DISTANCE_NOISE_GRACE_SECONDS
+        && adjustedDistanceKm <= OFFICIAL_START_DISTANCE_NOISE_GRACE_KM;
+      const displayRoute = shouldSuppressStartNoise ? adjustedRoute.slice(0, 1) : adjustedRoute;
+
       return {
-        route: adjustedRoute,
-        distanceKm: calculateRouteDistanceKm(adjustedRoute),
-        elevationGainM: calculateElevationGainM(adjustedRoute),
+        route: displayRoute,
+        distanceKm: shouldSuppressStartNoise ? 0 : adjustedDistanceKm,
+        elevationGainM: shouldSuppressStartNoise ? 0 : calculateElevationGainM(displayRoute),
         currentPace: snapshot.currentPace,
-        elapsedSeconds: Math.max(0, rawElapsedSeconds - baseline.elapsedSeconds),
+        elapsedSeconds: adjustedElapsedSeconds,
         startedAt: baseline.startedAt,
       };
     }
