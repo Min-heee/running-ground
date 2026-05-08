@@ -1349,6 +1349,14 @@ function getRunningMatchRoomState(room, store, now = new Date()) {
     return 'waiting';
   }
 
+  if (
+    room.startMode === 'host'
+    && !room.countdownArmedAt
+    && !areAllRunningMatchRoomParticipantsCountdownReady(room)
+  ) {
+    return 'arming';
+  }
+
   const linkedState = hydrateMatchSessionState(linkedSession, now);
 
   if (linkedState === 'active') {
@@ -1505,7 +1513,9 @@ function armRunningMatchRoomCountdown(store, room, now = new Date()) {
 
   const slotStartAt = new Date(now.getTime() + MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000).toISOString();
   room.slotStartAt = slotStartAt;
+  room.countdownArmedAt = now.toISOString();
   linkedSession.slotStartAt = slotStartAt;
+  delete linkedSession.startedAt;
   return room;
 }
 
@@ -1515,15 +1525,11 @@ function syncHostStartedMatchRoomCountdown(room, store, now = new Date()) {
   }
 
   const linkedSession = getMatchRoomLinkedSession(room, store);
-  if (!linkedSession || hydrateMatchSessionState(linkedSession, now) !== 'matched') {
+  if (!linkedSession || room.countdownArmedAt) {
     return room;
   }
 
-  const remainingSeconds = Math.ceil((new Date(linkedSession.slotStartAt).getTime() - now.getTime()) / 1000);
-  if (
-    remainingSeconds > MATCH_ROOM_HOST_START_DELAY_SECONDS
-    && areAllRunningMatchRoomParticipantsCountdownReady(room)
-  ) {
+  if (areAllRunningMatchRoomParticipantsCountdownReady(room)) {
     return armRunningMatchRoomCountdown(store, room, now);
   }
 

@@ -1928,29 +1928,61 @@ export function TrackRunExperience({
 
     return visibleMatchRoom.participants.slice(0, 2).map((participant, index) => {
       const isCurrentUser = participant.userId === currentUserId || participant.tag === currentUserId;
+      const duelStatusParticipant = !isCurrentUser
+        && effectiveDuelOpponent
+        && (
+          effectiveDuelOpponent.id === participant.userId
+          || effectiveDuelOpponent.tag === participant.tag
+          || effectiveDuelOpponent.tag === participant.userId
+        )
+        ? effectiveDuelOpponent
+        : null;
+      const participantLiveStatus = duelStatusParticipant?.liveStatus ?? participant.liveStatus;
       const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
         ? distanceKm
-        : typeof participant.officialDistanceKm === 'number'
-          ? participant.officialDistanceKm
-          : typeof participant.liveDistanceKm === 'number'
-            ? participant.liveDistanceKm
-            : 0;
+        : typeof duelStatusParticipant?.officialDistanceKm === 'number'
+          ? duelStatusParticipant.officialDistanceKm
+          : typeof participant.officialDistanceKm === 'number'
+            ? participant.officialDistanceKm
+            : typeof duelStatusParticipant?.liveDistanceKm === 'number'
+              ? duelStatusParticipant.liveDistanceKm
+              : typeof participant.liveDistanceKm === 'number'
+                ? participant.liveDistanceKm
+                : 0;
+      const mergedParticipant = duelStatusParticipant
+        ? {
+            ...participant,
+            liveDistanceKm: duelStatusParticipant.liveDistanceKm ?? participant.liveDistanceKm,
+            liveElapsedSeconds: duelStatusParticipant.liveElapsedSeconds ?? participant.liveElapsedSeconds,
+            livePace: duelStatusParticipant.livePace ?? participant.livePace,
+            liveUpdatedAt: duelStatusParticipant.liveUpdatedAt ?? participant.liveUpdatedAt,
+            officialAveragePace: duelStatusParticipant.officialAveragePace ?? participant.officialAveragePace,
+          }
+        : participant;
       const participantPaceLabel = isCurrentUser
         ? currentUserArenaPace
-        : buildParticipantAveragePaceLabel(participant, roomLinkedMatchContext?.state === 'active');
+        : buildParticipantAveragePaceLabel(mergedParticipant, roomLinkedMatchContext?.state === 'active');
 
       return {
         id: participant.userId,
         name: isCurrentUser ? '나' : participant.name,
-        paceLabel: participant.liveStatus === 'forfeited' ? '기권' : participantPaceLabel,
+        paceLabel: participantLiveStatus === 'forfeited' ? '기권' : participantPaceLabel,
         distanceKm: participantDistanceKm,
         isCurrentUser,
         isLeader: index === 0,
-        liveStatus: participant.liveStatus,
-        showPaceBubble: participant.liveStatus === 'forfeited' || Boolean(participantPaceLabel),
+        liveStatus: participantLiveStatus,
+        showPaceBubble: participantLiveStatus === 'forfeited' || Boolean(participantPaceLabel),
       };
     });
-  }, [currentUserArenaPace, currentUserId, distanceKm, hasRoomLinkedDuelContext, roomLinkedMatchContext?.state, visibleMatchRoom]);
+  }, [
+    currentUserArenaPace,
+    currentUserId,
+    distanceKm,
+    effectiveDuelOpponent,
+    hasRoomLinkedDuelContext,
+    roomLinkedMatchContext?.state,
+    visibleMatchRoom,
+  ]);
   const groupArenaParticipants = useMemo(
     () =>
       groupLiveStandings.map((participant) => ({
@@ -1978,31 +2010,59 @@ export function TrackRunExperience({
 
     return visibleMatchRoom.participants.map((participant, index) => {
       const isCurrentUser = participant.userId === currentUserId || participant.tag === currentUserId;
+      const groupStatusParticipant = effectiveGroupParticipants.find((statusParticipant) => (
+        statusParticipant.id === participant.userId
+        || statusParticipant.tag === participant.tag
+        || statusParticipant.tag === participant.userId
+      )) ?? null;
+      const participantLiveStatus = groupStatusParticipant?.liveStatus ?? participant.liveStatus;
       const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
         ? distanceKm
-        : typeof participant.officialDistanceKm === 'number'
-          ? participant.officialDistanceKm
-          : typeof participant.liveDistanceKm === 'number'
-            ? participant.liveDistanceKm
-            : 0;
+        : typeof groupStatusParticipant?.officialDistanceKm === 'number'
+          ? groupStatusParticipant.officialDistanceKm
+          : typeof participant.officialDistanceKm === 'number'
+            ? participant.officialDistanceKm
+            : typeof groupStatusParticipant?.liveDistanceKm === 'number'
+              ? groupStatusParticipant.liveDistanceKm
+              : typeof participant.liveDistanceKm === 'number'
+                ? participant.liveDistanceKm
+                : 0;
+      const mergedParticipant = groupStatusParticipant
+        ? {
+            ...participant,
+            liveDistanceKm: groupStatusParticipant.liveDistanceKm ?? participant.liveDistanceKm,
+            liveElapsedSeconds: groupStatusParticipant.liveElapsedSeconds ?? participant.liveElapsedSeconds,
+            livePace: groupStatusParticipant.livePace ?? participant.livePace,
+            liveUpdatedAt: groupStatusParticipant.liveUpdatedAt ?? participant.liveUpdatedAt,
+            officialAveragePace: groupStatusParticipant.officialAveragePace ?? participant.officialAveragePace,
+          }
+        : participant;
       const participantPaceLabel = isCurrentUser
         ? currentUserArenaPace
-        : buildParticipantAveragePaceLabel(participant, roomLinkedMatchContext?.state === 'active');
+        : buildParticipantAveragePaceLabel(mergedParticipant, roomLinkedMatchContext?.state === 'active');
 
       return {
         id: participant.userId,
         name: isCurrentUser ? '나' : participant.name,
-        paceLabel: participant.liveStatus === 'forfeited' ? '기권' : participantPaceLabel,
+        paceLabel: participantLiveStatus === 'forfeited' ? '기권' : participantPaceLabel,
         distanceKm: participantDistanceKm,
         rankLabel: String(index + 1),
         isCurrentUser,
         isLeader: index === 0,
-        liveStatus: participant.liveStatus,
-        showPaceBubble: participant.liveStatus === 'forfeited' || Boolean(participantPaceLabel),
+        liveStatus: participantLiveStatus,
+        showPaceBubble: participantLiveStatus === 'forfeited' || Boolean(participantPaceLabel),
         emphasis: 'featured' as const,
       };
     });
-  }, [currentUserArenaPace, currentUserId, distanceKm, hasRoomLinkedGroupContext, roomLinkedMatchContext?.state, visibleMatchRoom]);
+  }, [
+    currentUserArenaPace,
+    currentUserId,
+    distanceKm,
+    effectiveGroupParticipants,
+    hasRoomLinkedGroupContext,
+    roomLinkedMatchContext?.state,
+    visibleMatchRoom,
+  ]);
   const duelShouldOpenCountdownArena = duelMatchState === 'matched' && shouldAutoOpenMatchArena(duelStartCountdownSeconds);
   const groupShouldOpenCountdownArena = groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds);
   const roomShouldOpenCountdownArena = Boolean(
@@ -3379,7 +3439,7 @@ export function TrackRunExperience({
   const shouldShowCenteredMatchCountdown =
     Boolean(visibleCountdownEntry)
     && shouldAutoOpenMatchArena(visibleCountdownEntry?.remainingSeconds ?? null)
-    && showLiveArena;
+    && (showLiveArena || Boolean(roomCountdownEntry));
 
   useEffect(() => {
     let canceled = false;
@@ -6186,13 +6246,13 @@ export function TrackRunExperience({
 
           {isSaving ? <ActivityIndicator size="small" color="#6D5EF7" /> : null}
 
-          {isRunning ? (
+          {isRunning && matchMode === 'solo' ? (
             <View style={styles.actionColumn}>
               <PrimaryButton
-                label={matchMode === 'solo' ? '러닝 종료하고 저장' : '러닝 종료하고 결과 보기'}
-                onPress={matchMode === 'solo' ? () => { void handleSaveTracking(); } : handlePauseTracking}
+                label="러닝 종료하고 저장"
+                onPress={() => { void handleSaveTracking(); }}
               />
-              {matchMode === 'solo' ? <SecondaryButton label="일시정지" onPress={handlePauseTracking} /> : null}
+              <SecondaryButton label="일시정지" onPress={handlePauseTracking} />
             </View>
           ) : null}
 
