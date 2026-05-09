@@ -2128,6 +2128,17 @@ export function TrackRunExperience({
   );
   const duelShouldHoldArenaDuringActivation = duelMatchState === 'matched' && forceOpenActiveMatch;
   const groupShouldHoldArenaDuringActivation = groupMatchState === 'matched' && forceOpenActiveMatch;
+  const runningMatchIdentity = matchMode === 'duel'
+    ? duelMatchStatus?.matchId
+      ?? (roomLinkedMatchContext?.mode === 'duel' ? roomLinkedMatchContext.matchId : null)
+      ?? lastSyncedMatchProgress?.matchId
+      ?? null
+    : matchMode === 'group'
+      ? groupMatchStatus?.matchId
+        ?? (roomLinkedMatchContext?.mode === 'group' ? roomLinkedMatchContext.matchId : null)
+        ?? lastSyncedMatchProgress?.matchId
+        ?? null
+      : null;
   const canRenderLiveArena =
     (matchMode === 'duel'
       && ['matched', 'active'].includes(duelMatchState)
@@ -2145,8 +2156,15 @@ export function TrackRunExperience({
       && hasRoomLinkedGroupContext
       && roomLinkedGroupPlaceholderParticipants.length > 0
       && roomShouldOpenCountdownArena);
+  const shouldKeepRunningMatchArena = Boolean(
+    isRunning
+    && runningMatchIdentity
+    && matchMode !== 'solo'
+    && matchMode !== 'room'
+    && !currentUserHasForfeitedActiveMatch,
+  );
   const showLiveArena =
-    canRenderLiveArena
+    (canRenderLiveArena || shouldKeepRunningMatchArena)
     && !currentUserHasForfeitedActiveMatch
     && (
       isRunning
@@ -3400,6 +3418,7 @@ export function TrackRunExperience({
       && !groupShouldOpenCountdownArena
       && !roomShouldOpenCountdownArena
       && !(forceOpenActiveMatch && (duelMatchState === 'matched' || groupMatchState === 'matched'))
+      && !shouldKeepRunningMatchArena
     ) {
       setForceOpenActiveMatch(false);
     }
@@ -3411,6 +3430,7 @@ export function TrackRunExperience({
     groupShouldOpenCountdownArena,
     isResolvingFocusedMatch,
     roomShouldOpenCountdownArena,
+    shouldKeepRunningMatchArena,
   ]);
 
   useEffect(() => {
@@ -4998,6 +5018,88 @@ export function TrackRunExperience({
           ]}
           participants={roomLinkedGroupPlaceholderParticipants}
           footer="참가자와 같은 대결방에 연결됐어요. 카운트다운이 끝나면 순위 비교가 시작돼요."
+        />
+      );
+    }
+
+    if (matchMode === 'duel' && shouldKeepRunningMatchArena) {
+      const placeholderDistanceKm = visibleMatchRoom?.linkedMatchDistanceKm ?? visibleMatchRoom?.distanceKm ?? duelDistanceKm;
+      const opponentName = roomLinkedDuelOpponentParticipant?.name ?? effectiveDuelOpponent?.name ?? '상대';
+      const opponentDistanceKm = roomLinkedDuelOpponentParticipant?.distanceKm
+        ?? (effectiveDuelOpponent ? resolveParticipantDisplayDistanceKm(effectiveDuelOpponent, placeholderDistanceKm) : 0);
+      const opponentPaceLabel = roomLinkedDuelOpponentParticipant?.paceLabel
+        ?? effectiveDuelOpponentArenaPace
+        ?? '동기화 중';
+
+      return (
+        <LiveMatchArena
+          mode="duel"
+          targetDistanceKm={placeholderDistanceKm}
+          title={`${opponentName}님과 1대1 대결`}
+          subtitle="대결 화면을 유지하면서 기록 연결을 다시 맞추는 중이에요."
+          summaryChips={[
+            formatArenaPaceChip('내 페이스', currentUserArenaPace),
+            formatArenaPaceChip('상대 페이스', opponentPaceLabel),
+            '대결 화면 유지 중',
+          ]}
+          participants={[
+            {
+              id: 'duel-fallback-opponent',
+              name: opponentName,
+              paceLabel: opponentPaceLabel,
+              distanceKm: opponentDistanceKm,
+              isLeader: opponentDistanceKm > distanceKm,
+              liveStatus: roomLinkedDuelOpponentParticipant?.liveStatus ?? effectiveDuelOpponent?.liveStatus,
+              showPaceBubble: Boolean(opponentPaceLabel),
+            },
+            {
+              id: 'duel-fallback-current',
+              name: '나',
+              paceLabel: currentUserArenaPace,
+              distanceKm,
+              isCurrentUser: true,
+              isLeader: distanceKm >= opponentDistanceKm,
+              liveStatus: currentUserDuelLiveStatus ?? undefined,
+              showPaceBubble: Boolean(currentUserArenaPace),
+            },
+          ]}
+          footer="서버 응답이 잠깐 흔들려도 측정 화면으로 빠지지 않고 대결 화면을 유지해요."
+        />
+      );
+    }
+
+    if (matchMode === 'group' && shouldKeepRunningMatchArena) {
+      const placeholderDistanceKm = visibleMatchRoom?.linkedMatchDistanceKm ?? visibleMatchRoom?.distanceKm ?? groupDistanceKm;
+      const fallbackGroupParticipants = roomLinkedGroupPlaceholderParticipants.length
+        ? roomLinkedGroupPlaceholderParticipants
+        : [
+            {
+              id: 'group-fallback-current',
+              name: '나',
+              paceLabel: currentUserArenaPace,
+              distanceKm,
+              rankLabel: '1',
+              isCurrentUser: true,
+              isLeader: true,
+              liveStatus: currentUserGroupLiveStatus ?? undefined,
+              showPaceBubble: Boolean(currentUserArenaPace),
+              emphasis: 'featured' as const,
+            },
+          ];
+
+      return (
+        <LiveMatchArena
+          mode="group"
+          targetDistanceKm={placeholderDistanceKm}
+          title="그룹 대결"
+          subtitle="그룹 대결 화면을 유지하면서 참가자 기록을 다시 맞추는 중이에요."
+          summaryChips={[
+            formatArenaPaceChip('내 페이스', currentUserArenaPace),
+            `${fallbackGroupParticipants.length}명 연결 확인 중`,
+            '대결 화면 유지 중',
+          ]}
+          participants={fallbackGroupParticipants}
+          footer="서버 응답이 잠깐 흔들려도 측정 화면으로 빠지지 않고 대결 화면을 유지해요."
         />
       );
     }
