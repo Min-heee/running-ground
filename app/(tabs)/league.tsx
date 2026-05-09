@@ -6,8 +6,8 @@ import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { fetchDistrictPersonal, fetchRegionLeague, fetchUniversityLeague } from '@/lib/api/services';
-import { DistrictPersonalResponse, RegionLeagueResponse, UniversityLeagueResponse } from '@/lib/api/types';
+import { fetchDistrictPersonal, fetchRegionLeague } from '@/lib/api/services';
+import { DistrictPersonalResponse, RegionLeagueResponse } from '@/lib/api/types';
 import { getCurrentUserProfile } from '@/lib/session';
 
 type LeagueMode = 'region' | 'university';
@@ -90,12 +90,9 @@ export default function LeagueScreen() {
   const scrollRef = useRef<ScrollView | null>(null);
   const [leagueMode, setLeagueMode] = useState<LeagueMode>('region');
   const [league, setLeague] = useState<RegionLeagueResponse | null>(null);
-  const [universityLeague, setUniversityLeague] = useState<UniversityLeagueResponse | null>(null);
   const [regionMembers, setRegionMembers] = useState<DistrictPersonalResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [universityLoading, setUniversityLoading] = useState(true);
-  const [universityError, setUniversityError] = useState<string | null>(null);
   const [regionMembersLoading, setRegionMembersLoading] = useState(false);
   const [regionMembersError, setRegionMembersError] = useState<string | null>(null);
   const [memberRankCardY, setMemberRankCardY] = useState(0);
@@ -116,16 +113,6 @@ export default function LeagueScreen() {
       .finally(() => setLoading(false));
   };
 
-  const loadUniversityLeague = () => {
-    setUniversityLoading(true);
-    setUniversityError(null);
-
-    fetchUniversityLeague()
-      .then((response) => setUniversityLeague(response))
-      .catch((loadError) => setUniversityError(loadError instanceof Error ? loadError.message : '대학 리그 정보를 불러오지 못했어.'))
-      .finally(() => setUniversityLoading(false));
-  };
-
   const loadRegionMembers = (nodeId: string) => {
     setRegionMembersLoading(true);
     setRegionMembersError(null);
@@ -139,7 +126,6 @@ export default function LeagueScreen() {
 
   useEffect(() => {
     loadLeague();
-    loadUniversityLeague();
   }, []);
 
   const breadcrumbNodes = useMemo(() => league?.breadcrumb ?? [], [league]);
@@ -150,7 +136,6 @@ export default function LeagueScreen() {
   const sortedChildren = useMemo(() => [...children].sort((a, b) => a.rank - b.rank), [children]);
   const visibleChildren = useMemo(() => sortedChildren, [sortedChildren]);
 
-  const featuredUniversityRank = universityLeague?.ranks[0] ?? null;
   const isUniversityView = leagueMode === 'university';
   const isLeafRegion = !isUniversityView && Boolean(currentNode) && children.length === 0;
   const profile = getCurrentUserProfile();
@@ -213,76 +198,13 @@ export default function LeagueScreen() {
       </Card>
 
       {isUniversityView ? (
-        <>
-          {universityLoading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
-
-          {!universityLoading && universityError ? (
-            <Card>
-              <Text style={styles.stateTitle}>대학 리그를 아직 못 불러왔어</Text>
-              <Text style={styles.errorText}>{universityError}</Text>
-              <PrimaryButton label="다시 불러오기" onPress={loadUniversityLeague} />
-            </Card>
-          ) : null}
-
-          {!universityLoading && !universityError && !featuredUniversityRank ? (
-            <Card>
-              <Text style={styles.stateTitle}>아직 집계된 대학이 없어</Text>
-              <Text style={styles.emptyText}>회원가입에서 대학을 선택한 사용자가 생기면 여기서 바로 학교별 순위를 볼 수 있어.</Text>
-              <PrimaryButton label="다시 불러오기" onPress={loadUniversityLeague} />
-            </Card>
-          ) : null}
-
-          {featuredUniversityRank ? (
-            <>
-              <Card style={styles.heroCard}>
-                <Text style={styles.heroLabel}>현재 1위 대학</Text>
-                <View style={styles.heroTitleRow}>
-                  <Text style={styles.heroTitle}>{featuredUniversityRank.universityName}</Text>
-                  <PodiumBadge rank={featuredUniversityRank.rank} />
-                </View>
-                <Text style={styles.breadcrumb}>참가 대학 {universityLeague?.ranks.length ?? 0}</Text>
-                <View style={styles.heroMetrics}>
-                  <View style={styles.heroMetricColumn}>
-                    <Text style={styles.heroMetricLabel}>현재순위</Text>
-                    <Text style={styles.heroMetricValue}>{featuredUniversityRank.rank}위</Text>
-                  </View>
-                  <View style={styles.heroMetricDivider} />
-                  <View style={styles.heroMetricColumn}>
-                    <Text style={styles.heroMetricLabel}>총거리</Text>
-                    <Text style={styles.heroMetricValue}>
-                      {formatDistanceValue(featuredUniversityRank.totalDistanceKm)}
-                      <Text style={styles.heroMetricUnitInline}> km</Text>
-                    </Text>
-                  </View>
-                  <View style={styles.heroMetricDivider} />
-                  <View style={styles.heroMetricColumn}>
-                    <Text style={styles.heroMetricLabel}>누적평균거리</Text>
-                    <Text style={styles.heroMetricValue}>
-                      {formatDistanceValue(featuredUniversityRank.totalDistanceKm / Math.max(featuredUniversityRank.participants, 1))}
-                      <Text style={styles.heroMetricUnitInline}> km</Text>
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.heroFootnote}>회원 수 {featuredUniversityRank.participants}명</Text>
-              </Card>
-
-              <Card>
-                <SectionTitle>대학 순위</SectionTitle>
-                {universityLeague?.ranks.map((rank) => (
-                  <View key={rank.universityName} style={styles.rankRow}>
-                    <RankMarker rank={rank.rank} />
-                    <View style={styles.rankMeta}>
-                      <Text style={styles.rankName}>{rank.universityName}</Text>
-                      <Text style={styles.rankDetail}>
-                        누적 평균거리 {formatDistanceValue(rank.averageDistanceKm)}km · 총거리 {formatDistanceValue(rank.totalDistanceKm)}km · 회원 {rank.participants}명
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </Card>
-            </>
-          ) : null}
-        </>
+        <Card style={styles.comingSoonCard}>
+          <MaterialCommunityIcons name="school-outline" size={42} color="#6D5EF7" />
+          <Text style={styles.comingSoonTitle}>준비중입니다</Text>
+          <Text style={styles.comingSoonText}>
+            대학 리그는 인증된 학교 기준으로 공정하게 경쟁할 수 있도록 준비하고 있어요.
+          </Text>
+        </Card>
       ) : (
         <>
           {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
@@ -747,6 +669,22 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#667085',
     lineHeight: 20,
+  },
+  comingSoonCard: {
+    alignItems: 'center',
+    paddingVertical: 42,
+    gap: 12,
+  },
+  comingSoonTitle: {
+    color: '#111827',
+    fontSize: 22,
+    fontWeight: '900',
+  },
+  comingSoonText: {
+    color: '#667085',
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: 'center',
   },
   rankRow: {
     flexDirection: 'row',
