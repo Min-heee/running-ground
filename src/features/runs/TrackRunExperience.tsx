@@ -117,6 +117,10 @@ const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 3000;
 const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
 const SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR = 0.25;
 const SOLO_START_COUNTDOWN_SECONDS = 5;
+const MATCH_ROOM_FAST_POLL_MS = Platform.OS === 'android' ? 1500 : 1000;
+const MATCH_ROOM_IDLE_POLL_MS = 5000;
+const MATCH_STATUS_FAST_POLL_MS = Platform.OS === 'android' ? 2500 : 2000;
+const MATCH_STATUS_IDLE_POLL_MS = 3000;
 
 function parseServerNowMs(serverNow?: string) {
   const parsedMs = serverNow ? new Date(serverNow).getTime() : NaN;
@@ -3200,9 +3204,10 @@ export function TrackRunExperience({
   }, []);
 
   useEffect(() => {
-    const intervalMs = matchRoom?.linkedMatchId || ['arming', 'countdown', 'active'].includes(matchRoom?.state ?? '')
-      ? 750
-      : 5000;
+    const needsFastRoomPolling = Boolean(
+      matchRoom?.linkedMatchId || ['arming', 'countdown', 'active'].includes(matchRoom?.state ?? ''),
+    );
+    const intervalMs = needsFastRoomPolling ? MATCH_ROOM_FAST_POLL_MS : MATCH_ROOM_IDLE_POLL_MS;
     const timer = setInterval(() => {
       void loadMatchRoom().catch(() => {});
     }, intervalMs);
@@ -3319,13 +3324,17 @@ export function TrackRunExperience({
 
         setMatchMode(roomLinkedMatchContext.mode);
 
-        if (
-          payload.state === 'active'
-          || shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
-        ) {
+        const shouldPinArenaPage = shouldAutoOpenMatchArena(
+          getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()),
+        );
+
+        if (payload.state === 'active' || shouldPinArenaPage) {
           setForceOpenActiveMatch(true);
-          setLiveArenaPage(0);
-          livePagerRef.current?.scrollTo({ x: 0, animated: false });
+
+          if (shouldPinArenaPage) {
+            setLiveArenaPage(0);
+            livePagerRef.current?.scrollTo({ x: 0, animated: false });
+          }
         }
       } catch {
         // The room snapshot still keeps the arena open; retry on the next short poll.
@@ -3336,8 +3345,8 @@ export function TrackRunExperience({
 
     const intervalMs = roomLinkedMatchContext.state === 'active'
       || shouldShowMatchStartOverlay(roomCountdownRemainingSeconds)
-      ? 2000
-      : 2500;
+      ? MATCH_STATUS_FAST_POLL_MS
+      : MATCH_STATUS_IDLE_POLL_MS;
     const timer = setInterval(() => {
       void syncRoomLinkedMatchStatus();
     }, intervalMs);
@@ -3687,7 +3696,9 @@ export function TrackRunExperience({
     }
 
     const remainingSeconds = getMatchStartRemainingSeconds(duelMatchStatus.slotStartAt, syncedNowMs);
-    const intervalMs = duelMatchStatus.state === 'active' || shouldShowMatchStartOverlay(remainingSeconds) ? 2000 : 15000;
+    const intervalMs = duelMatchStatus.state === 'active' || shouldShowMatchStartOverlay(remainingSeconds)
+      ? MATCH_STATUS_FAST_POLL_MS
+      : 15000;
     const timer = setInterval(() => {
       void loadDuelMatchStatus().catch(() => {});
     }, intervalMs);
@@ -3703,7 +3714,9 @@ export function TrackRunExperience({
     }
 
     const remainingSeconds = getMatchStartRemainingSeconds(groupMatchStatus.slotStartAt, syncedNowMs);
-    const intervalMs = groupMatchStatus.state === 'active' || shouldShowMatchStartOverlay(remainingSeconds) ? 2000 : 15000;
+    const intervalMs = groupMatchStatus.state === 'active' || shouldShowMatchStartOverlay(remainingSeconds)
+      ? MATCH_STATUS_FAST_POLL_MS
+      : 15000;
     const timer = setInterval(() => {
       void loadGroupMatchStatus().catch(() => {});
     }, intervalMs);

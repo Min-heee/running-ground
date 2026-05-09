@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Easing,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -28,6 +29,9 @@ const ROAD_HEIGHT_GROUP = 432;
 const ROAD_STRIPE_HEIGHT = 34;
 const ROAD_STRIPE_SPACING = 88;
 const GROUP_ROW_HEIGHT = 78;
+const SHOULD_ANIMATE_ROAD = Platform.OS !== 'android';
+const DUEL_STRIPE_COUNT = Platform.OS === 'android' ? 6 : 12;
+const GROUP_STRIPE_COUNT = Platform.OS === 'android' ? 7 : 14;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -87,7 +91,7 @@ function buildRemainingLabel(distanceKm: number, targetDistanceKm: number) {
   return `${Math.max(0, targetDistanceKm - distanceKm).toFixed(2)}km 남음`;
 }
 
-function RoadMotion({
+const RoadMotion = memo(function RoadMotion({
   roadHeight,
   laneMode,
 }: {
@@ -97,6 +101,12 @@ function RoadMotion({
   const shift = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    if (!SHOULD_ANIMATE_ROAD) {
+      shift.stopAnimation();
+      shift.setValue(0);
+      return undefined;
+    }
+
     const loop = Animated.loop(
       Animated.timing(shift, {
         toValue: 1,
@@ -118,6 +128,9 @@ function RoadMotion({
     inputRange: [0, 1],
     outputRange: [0, ROAD_STRIPE_SPACING],
   });
+  const roadMotionStyle = SHOULD_ANIMATE_ROAD
+    ? { transform: [{ translateY }] }
+    : undefined;
 
   return (
     <View style={styles.roadBackground}>
@@ -131,12 +144,10 @@ function RoadMotion({
             pointerEvents="none"
             style={[
               styles.duelCenterMarkingsWrap,
-              {
-                transform: [{ translateY }],
-              },
+              roadMotionStyle,
             ]}
           >
-            {Array.from({ length: 12 }).map((_, index) => (
+            {Array.from({ length: DUEL_STRIPE_COUNT }).map((_, index) => (
               <View key={`duel-stripe-${index}`} style={styles.duelStripeRow}>
                 <View style={styles.duelStripe} />
                 <View style={styles.duelStripe} />
@@ -151,12 +162,10 @@ function RoadMotion({
             pointerEvents="none"
             style={[
               styles.groupCenterMarkingsWrap,
-              {
-                transform: [{ translateY }],
-              },
+              roadMotionStyle,
             ]}
           >
-            {Array.from({ length: 14 }).map((_, index) => (
+            {Array.from({ length: GROUP_STRIPE_COUNT }).map((_, index) => (
               <View key={`group-stripe-${index}`} style={styles.groupStripe} />
             ))}
           </Animated.View>
@@ -167,7 +176,7 @@ function RoadMotion({
       </View>
     </View>
   );
-}
+});
 
 function DuelRoad({
   participants,
@@ -335,7 +344,7 @@ function GroupRoad({
   );
 }
 
-export function LiveMatchArena({
+export const LiveMatchArena = memo(function LiveMatchArena({
   mode,
   targetDistanceKm,
   title,
@@ -375,7 +384,7 @@ export function LiveMatchArena({
       {footer ? <Text style={styles.footer}>{footer}</Text> : null}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
