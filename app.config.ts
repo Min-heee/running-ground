@@ -160,7 +160,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       new Set([
         ...(baseConfig.plugins ?? []),
         'expo-router',
-        'expo-dev-client',
+        ...(isDevelopmentVariant ? ['expo-dev-client'] : []),
         [
           'expo-location',
           {
