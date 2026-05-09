@@ -5,15 +5,15 @@ import { RunRoutePoint } from '@/domain/types';
 import {
   calculateDistanceBetweenPoints,
   calculateElevationGainM,
-  formatPaceFromSpeedMps,
   formatPaceFromSecondsPerKm,
 } from '@/features/runs/tracking';
 
 const BACKGROUND_RUN_TASK_NAME = 'runningground-background-run-location';
 const LEGACY_BACKGROUND_RUN_TASK_NAME = 'runnigapp-background-run-location';
-const CURRENT_PACE_SMOOTHING_WINDOW_MS = 25000;
-const CURRENT_PACE_MIN_WINDOW_MS = 8000;
-const CURRENT_PACE_MIN_DISTANCE_METERS = 20;
+const CURRENT_PACE_SMOOTHING_WINDOW_MS = 35000;
+const CURRENT_PACE_MIN_WINDOW_MS = 12000;
+const CURRENT_PACE_MIN_DISTANCE_METERS = 28;
+const CURRENT_PACE_STALE_AFTER_MS = 14000;
 const MAX_TRACKING_ACCURACY_METERS = 45;
 const MAX_REASONABLE_RUNNING_SPEED_MPS = 8.5;
 const MIN_RELIABLE_RUNNING_SPEED_MPS = 0.7;
@@ -22,6 +22,10 @@ const MIN_MOVEMENT_DISTANCE_METERS = 2.5;
 const MAX_LOCATION_AGE_MS = 15000;
 const MAX_FUTURE_LOCATION_MS = 3000;
 const MIN_TELEPORT_FILTER_DISTANCE_METERS = 35;
+const STATIONARY_SPEED_MPS = 0.9;
+const POOR_ACCURACY_METERS = 25;
+const MIN_REASONABLE_PACE_SECONDS_PER_KM = 150;
+const MAX_REASONABLE_PACE_SECONDS_PER_KM = 1200;
 
 type BackgroundTrackingStatus = 'idle' | 'running' | 'paused';
 
@@ -51,6 +55,8 @@ const listeners = new Set<(snapshot: BackgroundRunTrackingSnapshot) => void>();
 let snapshotState: BackgroundRunTrackingSnapshot = { ...INITIAL_SNAPSHOT };
 let foregroundLocationSubscription: { remove: () => void } | null = null;
 let accumulatedDistanceMeters = 0;
+let smoothedCurrentPaceSecondsPerKm: number | null = null;
+let smoothedPaceUpdatedAtMs: number | null = null;
 
 function cloneRoute(route: RunRoutePoint[]) {
   return route.map((point) => ({ ...point }));
@@ -86,6 +92,10 @@ function normalizeReliableSpeedMps(value?: number | null) {
   return value;
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function resolveLocationTimestampMs(location: Location.LocationObject) {
   const timestampMs = typeof location.timestamp === 'number' ? location.timestamp : NaN;
 
@@ -113,18 +123,77 @@ function buildRoutePoint(location: Location.LocationObject): RunRoutePoint {
   };
 }
 
-function buildSmoothedCurrentPace(route: RunRoutePoint[], fallbackSpeedMps?: number | null) {
-  const reliableFallbackSpeedMps = normalizeReliableSpeedMps(fallbackSpeedMps);
+function resolveRoutePointTimestampMs(point: RunRoutePoint) {
+  const timestampMs = new Date(point.timestamp).getTime();
+  return Number.isNaN(timestampMs) ? null : timestampMs;
+}
+
+function buildFallbackPaceSecondsPerKm(speedMps?: number | null) {
+  const reliableFallbackSpeedMps = normalizeReliableSpeedMps(speedMps);
+
+  if (reliableFallbackSpeedMps === null) {
+    return null;
+  }
+
+  return 1000 / reliableFallbackSpeedMps;
+}
+
+function formatSmoothedPaceCandidate(candidateSecondsPerKm: number | null, referenceTimestampMs: number) {
+  if (candidateSecondsPerKm === null) {
+    if (
+      smoothedCurrentPaceSecondsPerKm !== null
+      && smoothedPaceUpdatedAtMs !== null
+      && referenceTimestampMs - smoothedPaceUpdatedAtMs <= CURRENT_PACE_STALE_AFTER_MS
+    ) {
+      return formatPaceFromSecondsPerKm(smoothedCurrentPaceSecondsPerKm);
+    }
+
+    smoothedCurrentPaceSecondsPerKm = null;
+    smoothedPaceUpdatedAtMs = null;
+    return '--:--/km';
+  }
+
+  const safeCandidateSecondsPerKm = clamp(
+    candidateSecondsPerKm,
+    MIN_REASONABLE_PACE_SECONDS_PER_KM,
+    MAX_REASONABLE_PACE_SECONDS_PER_KM,
+  );
+
+  if (smoothedCurrentPaceSecondsPerKm === null) {
+    smoothedCurrentPaceSecondsPerKm = safeCandidateSecondsPerKm;
+  } else {
+    const changeRatio = Math.abs(safeCandidateSecondsPerKm - smoothedCurrentPaceSecondsPerKm)
+      / Math.max(1, smoothedCurrentPaceSecondsPerKm);
+    const smoothingAlpha = changeRatio > 0.35 ? 0.22 : 0.42;
+    smoothedCurrentPaceSecondsPerKm += (
+      safeCandidateSecondsPerKm - smoothedCurrentPaceSecondsPerKm
+    ) * smoothingAlpha;
+  }
+
+  smoothedPaceUpdatedAtMs = referenceTimestampMs;
+  return formatPaceFromSecondsPerKm(smoothedCurrentPaceSecondsPerKm);
+}
+
+function buildSmoothedCurrentPace(
+  route: RunRoutePoint[],
+  fallbackSpeedMps?: number | null,
+  referenceTimestampMs = Date.now(),
+) {
+  const fallbackPaceSecondsPerKm = buildFallbackPaceSecondsPerKm(fallbackSpeedMps);
 
   if (route.length < 2) {
-    return formatPaceFromSpeedMps(reliableFallbackSpeedMps);
+    return formatSmoothedPaceCandidate(fallbackPaceSecondsPerKm, referenceTimestampMs);
   }
 
   const endPoint = route[route.length - 1];
-  const endMs = new Date(endPoint.timestamp).getTime();
+  const endMs = resolveRoutePointTimestampMs(endPoint);
 
-  if (Number.isNaN(endMs)) {
-    return formatPaceFromSpeedMps(reliableFallbackSpeedMps);
+  if (endMs === null) {
+    return formatSmoothedPaceCandidate(fallbackPaceSecondsPerKm, referenceTimestampMs);
+  }
+
+  if (referenceTimestampMs - endMs > CURRENT_PACE_STALE_AFTER_MS && fallbackPaceSecondsPerKm === null) {
+    return formatSmoothedPaceCandidate(null, referenceTimestampMs);
   }
 
   let startIndex = route.length - 2;
@@ -140,11 +209,16 @@ function buildSmoothedCurrentPace(route: RunRoutePoint[], fallbackSpeedMps?: num
   }
 
   const paceWindow = route.slice(startIndex);
-  const startMs = new Date(paceWindow[0].timestamp).getTime();
+  const startMs = resolveRoutePointTimestampMs(paceWindow[0]);
+
+  if (startMs === null) {
+    return formatSmoothedPaceCandidate(fallbackPaceSecondsPerKm, referenceTimestampMs);
+  }
+
   const elapsedMs = endMs - startMs;
 
-  if (Number.isNaN(startMs) || elapsedMs < CURRENT_PACE_MIN_WINDOW_MS) {
-    return formatPaceFromSpeedMps(reliableFallbackSpeedMps);
+  if (elapsedMs < CURRENT_PACE_MIN_WINDOW_MS) {
+    return formatSmoothedPaceCandidate(fallbackPaceSecondsPerKm, referenceTimestampMs);
   }
 
   let distanceMeters = 0;
@@ -153,15 +227,57 @@ function buildSmoothedCurrentPace(route: RunRoutePoint[], fallbackSpeedMps?: num
   }
 
   if (distanceMeters < CURRENT_PACE_MIN_DISTANCE_METERS) {
-    return formatPaceFromSpeedMps(reliableFallbackSpeedMps);
+    return formatSmoothedPaceCandidate(fallbackPaceSecondsPerKm, referenceTimestampMs);
   }
 
   const secondsPerKm = (elapsedMs / 1000) / (distanceMeters / 1000);
-  return formatPaceFromSecondsPerKm(secondsPerKm);
+  return formatSmoothedPaceCandidate(secondsPerKm, referenceTimestampMs);
+}
+
+function resolveDynamicMinMovementMeters(worstAccuracyM: number) {
+  return Math.max(
+    MIN_MOVEMENT_DISTANCE_METERS,
+    Math.min(4.5, worstAccuracyM * 0.1),
+  );
+}
+
+function shouldIgnoreNoisySegment({
+  segmentDistanceMeters,
+  segmentSpeedMps,
+  worstAccuracyM,
+  reliableSpeedMps,
+}: {
+  segmentDistanceMeters: number;
+  segmentSpeedMps: number;
+  worstAccuracyM: number;
+  reliableSpeedMps: number | null;
+}) {
+  if (segmentDistanceMeters < resolveDynamicMinMovementMeters(worstAccuracyM)) {
+    return true;
+  }
+
+  const looksStationary = (
+    (reliableSpeedMps !== null && reliableSpeedMps < STATIONARY_SPEED_MPS)
+    || segmentSpeedMps < STATIONARY_SPEED_MPS
+  );
+  const stationaryNoiseRadiusMeters = Math.max(4, Math.min(12, worstAccuracyM * 0.35));
+
+  if (looksStationary && segmentDistanceMeters < stationaryNoiseRadiusMeters) {
+    return true;
+  }
+
+  const hasPoorAccuracy = worstAccuracyM >= POOR_ACCURACY_METERS;
+  const poorAccuracyNoiseRadiusMeters = Math.min(12, worstAccuracyM * 0.25);
+
+  return hasPoorAccuracy
+    && segmentSpeedMps < 1.4
+    && segmentDistanceMeters < poorAccuracyNoiseRadiusMeters;
 }
 
 function appendTrackedLocation(location: Location.LocationObject) {
-  if (resolveLocationTimestampMs(location) === null) {
+  const locationTimestampMs = resolveLocationTimestampMs(location);
+
+  if (locationTimestampMs === null) {
     return;
   }
 
@@ -171,7 +287,7 @@ function appendTrackedLocation(location: Location.LocationObject) {
   if (accuracyM !== null && accuracyM > MAX_TRACKING_ACCURACY_METERS) {
     snapshotState = {
       ...snapshotState,
-      currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps),
+      currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
     };
     emitSnapshot();
     return;
@@ -188,7 +304,7 @@ function appendTrackedLocation(location: Location.LocationObject) {
     if (timeDelta < MIN_LOCATION_TIME_DELTA_MS) {
       snapshotState = {
         ...snapshotState,
-        currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps),
+        currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
       };
       emitSnapshot();
       return;
@@ -204,7 +320,7 @@ function appendTrackedLocation(location: Location.LocationObject) {
     ) {
       snapshotState = {
         ...snapshotState,
-        currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps),
+        currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
       };
       emitSnapshot();
       return;
@@ -216,16 +332,21 @@ function appendTrackedLocation(location: Location.LocationObject) {
     ) {
       snapshotState = {
         ...snapshotState,
-        currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps),
+        currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
       };
       emitSnapshot();
       return;
     }
 
-    if (segmentDistanceMeters < MIN_MOVEMENT_DISTANCE_METERS) {
+    if (shouldIgnoreNoisySegment({
+      segmentDistanceMeters,
+      segmentSpeedMps,
+      worstAccuracyM,
+      reliableSpeedMps,
+    })) {
       snapshotState = {
         ...snapshotState,
-        currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps),
+        currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
       };
       emitSnapshot();
       return;
@@ -242,7 +363,7 @@ function appendTrackedLocation(location: Location.LocationObject) {
     startedAt: snapshotState.startedAt ?? nextPoint.timestamp,
     distanceKm: Number((accumulatedDistanceMeters / 1000).toFixed(2)),
     elevationGainM: calculateElevationGainM(nextRoute),
-    currentPace: buildSmoothedCurrentPace(nextRoute, reliableSpeedMps),
+    currentPace: buildSmoothedCurrentPace(nextRoute, reliableSpeedMps, locationTimestampMs),
   };
   emitSnapshot();
 }
@@ -376,6 +497,8 @@ async function startLocationTask() {
 
 export async function startBackgroundRunTracking(initialLocation?: Location.LocationObject | null) {
   accumulatedDistanceMeters = 0;
+  smoothedCurrentPaceSecondsPerKm = null;
+  smoothedPaceUpdatedAtMs = null;
   const initialTimestampMs = initialLocation ? resolveLocationTimestampMs(initialLocation) : null;
   snapshotState = {
     ...INITIAL_SNAPSHOT,
@@ -409,6 +532,8 @@ export async function pauseBackgroundRunTracking() {
     pausedAt: new Date().toISOString(),
     currentPace: '--:--/km',
   };
+  smoothedCurrentPaceSecondsPerKm = null;
+  smoothedPaceUpdatedAtMs = null;
   emitSnapshot();
   await stopLocationTaskIfNeeded();
 }
@@ -435,6 +560,8 @@ export async function resumeBackgroundRunTracking() {
 export async function resetBackgroundRunTracking() {
   await stopLocationTaskIfNeeded();
   accumulatedDistanceMeters = 0;
+  smoothedCurrentPaceSecondsPerKm = null;
+  smoothedPaceUpdatedAtMs = null;
   snapshotState = { ...INITIAL_SNAPSHOT };
   emitSnapshot();
 }
