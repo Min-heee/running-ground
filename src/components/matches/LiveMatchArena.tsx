@@ -50,7 +50,37 @@ function buildMarkerLabel(participant: ArenaParticipant, fallbackLabel: string) 
 }
 
 function buildRunnerBubbleLabel(participant: ArenaParticipant) {
-  return isForfeited(participant) ? '기권 처리됨' : buildBubbleLabel(participant);
+  if (isForfeited(participant)) {
+    return '기권 처리됨';
+  }
+
+  const paceLabel = buildBubbleLabel(participant).trim();
+  if (!paceLabel) {
+    return '평균 계산 중';
+  }
+
+  if (paceLabel.includes('평균') || paceLabel.includes('측정') || paceLabel.includes('계산')) {
+    return paceLabel;
+  }
+
+  return `평균 ${paceLabel}`;
+}
+
+function buildAveragePaceDisplayLabel(participant: ArenaParticipant) {
+  if (isForfeited(participant)) {
+    return '기권';
+  }
+
+  const paceLabel = participant.paceLabel.trim();
+  if (!paceLabel) {
+    return '평균 계산 중';
+  }
+
+  if (paceLabel.includes('평균') || paceLabel.includes('측정') || paceLabel.includes('계산')) {
+    return paceLabel;
+  }
+
+  return `평균 ${paceLabel}`;
 }
 
 function buildRemainingLabel(distanceKm: number, targetDistanceKm: number) {
@@ -293,7 +323,7 @@ function GroupRoad({
               </View>
               <View style={styles.groupMetaColumn}>
                 <Text style={[styles.groupMetaText, participantForfeited ? styles.groupMetaForfeitedText : undefined]}>
-                  {participantForfeited ? '기권' : participant.paceLabel || '측정 대기'}
+                  {buildAveragePaceDisplayLabel(participant)}
                 </Text>
                 <Text style={styles.groupMetaSubtext}>{buildRemainingLabel(participant.distanceKm, targetDistanceKm)}</Text>
               </View>
