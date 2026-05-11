@@ -26,6 +26,11 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RunMatchResult, RunRoutePoint } from '@/domain/types';
+import { MatchOptionSelector } from '@/features/runs/components/MatchOptionSelector';
+import { MatchResultPanel } from '@/features/runs/components/MatchResultPanel';
+import { PartyRunInviteCard } from '@/features/runs/components/PartyRunInviteCard';
+import { RunningMetricGrid } from '@/features/runs/components/RunningMetricGrid';
+import { UpcomingMatchList } from '@/features/runs/components/UpcomingMatchList';
 import {
   acknowledgeRunningMatchRoomCountdown,
   cancelRunningMatch,
@@ -82,11 +87,55 @@ import {
   buildAveragePace,
   buildRunDateFromTimestamp,
   calculateCadenceSpm,
-  calculateDistanceBetweenPoints,
   calculateElevationGainM,
   formatDuration,
   formatPaceFromSpeedMps,
 } from '@/features/runs/tracking';
+import {
+  buildLiveShareFallbackLabel,
+  buildLiveShareLabelFromAddress,
+  buildOfficialStartBaseline,
+  buildRouteFromOfficialStart,
+  buildRoutePoint,
+  formatCadence,
+  formatElevation,
+  formatMetricDistance,
+  type OfficialStartBaseline,
+} from '@/features/runs/trackingSession';
+import {
+  RECOMMENDED_MATCH_DISTANCES,
+  buildMatchDateOptions,
+  buildMatchSlotDateLabel,
+  buildWeeklyHourlySlots,
+  findNearestRecommendedDistance,
+  formatMatchDateKey,
+  formatMatchExpiryCountdown,
+  formatMatchTargetDistance,
+  getEstimatedMatchBonusPoints,
+  isRecommendedMatchDistance,
+  isUnsavableShortRunError,
+  parseDuelMatchDistanceKm,
+  resolveMatchTimeSection,
+  type MatchDateOption,
+  type MatchSlotOption,
+  type MatchTimeSection,
+} from '@/features/runs/matchScheduling';
+import {
+  buildAverageArenaPaceLabel,
+  buildDuelComparisonSnapshot,
+  buildDistanceGapLabel,
+  buildEstimatedCompetitiveDistanceKm,
+  buildGroupLiveStandings,
+  buildParticipantAveragePaceLabel,
+  formatArenaPaceChip,
+  hasRemoteRunnerProgress,
+  isMeasuredPaceLabel,
+  normalizeMatchProgressPace,
+  resolveParticipantDisplayDistanceKm,
+  type DuelComparisonSnapshot,
+  type GroupLiveStanding,
+  type LastSyncedMatchProgress,
+} from '@/features/runs/matchProgress';
 import { getCurrentUserProfile } from '@/lib/session';
 
 type TrackerStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving';
@@ -99,18 +148,8 @@ type StableCountdownTracker = {
   baselineRemainingSeconds: number;
   baselineNowMs: number;
 };
-type OfficialStartBaseline = {
-  matchId: string;
-  distanceKm: number;
-  elapsedSeconds: number;
-  routeStartIndex: number;
-  routeStartPoint: RunRoutePoint | null;
-  startedAt: string;
-};
-
 const STALE_RENDER_MATCHED_MATCH_MS = 10 * 60 * 1000;
 const STALE_RENDER_ACTIVE_MATCH_MS = 8 * 60 * 60 * 1000;
-const MATCH_COMPARISON_INTERVAL_SECONDS = 30;
 const OFFICIAL_START_DISTANCE_NOISE_GRACE_SECONDS = 5;
 const OFFICIAL_START_DISTANCE_NOISE_GRACE_KM = 0.05;
 const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 3000;
@@ -198,115 +237,6 @@ function buildRoomRenderKey(room: RunningMatchRoom | null) {
   ].join('::');
 }
 
-function parseRoutePointMs(point?: RunRoutePoint) {
-  const parsedMs = point ? new Date(point.timestamp).getTime() : NaN;
-  return Number.isFinite(parsedMs) ? parsedMs : null;
-}
-
-function interpolateRoutePoint(start: RunRoutePoint, end: RunRoutePoint, targetMs: number): RunRoutePoint {
-  const startMs = parseRoutePointMs(start);
-  const endMs = parseRoutePointMs(end);
-  const ratio = startMs === null || endMs === null || endMs <= startMs
-    ? 0
-    : Math.max(0, Math.min(1, (targetMs - startMs) / (endMs - startMs)));
-
-  return {
-    latitude: start.latitude + (end.latitude - start.latitude) * ratio,
-    longitude: start.longitude + (end.longitude - start.longitude) * ratio,
-    altitude: typeof start.altitude === 'number' && typeof end.altitude === 'number'
-      ? Number((start.altitude + (end.altitude - start.altitude) * ratio).toFixed(1))
-      : start.altitude ?? end.altitude ?? null,
-    timestamp: new Date(targetMs).toISOString(),
-  };
-}
-
-function calculateRouteDistanceMeters(route: RunRoutePoint[]) {
-  let totalDistanceMeters = 0;
-
-  for (let index = 1; index < route.length; index += 1) {
-    totalDistanceMeters += calculateDistanceBetweenPoints(route[index - 1], route[index]);
-  }
-
-  return totalDistanceMeters;
-}
-
-function buildOfficialStartBaseline(
-  snapshot: BackgroundRunTrackingSnapshot,
-  matchId: string,
-  officialStartAt: string,
-): OfficialStartBaseline {
-  const officialStartMs = new Date(officialStartAt).getTime();
-  const safeOfficialStartMs = Number.isFinite(officialStartMs) ? officialStartMs : Date.now();
-  const route = snapshot.route;
-
-  if (route.length === 0) {
-    return {
-      matchId,
-      distanceKm: 0,
-      elapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, safeOfficialStartMs),
-      routeStartIndex: 0,
-      routeStartPoint: null,
-      startedAt: new Date(safeOfficialStartMs).toISOString(),
-    };
-  }
-
-  const firstAfterStartIndex = route.findIndex((point) => {
-    const pointMs = parseRoutePointMs(point);
-    return pointMs !== null && pointMs >= safeOfficialStartMs;
-  });
-
-  if (firstAfterStartIndex === -1) {
-    const lastPoint = route[route.length - 1];
-    return {
-      matchId,
-      distanceKm: snapshot.distanceKm,
-      elapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, safeOfficialStartMs),
-      routeStartIndex: route.length,
-      routeStartPoint: { ...lastPoint, timestamp: new Date(safeOfficialStartMs).toISOString() },
-      startedAt: new Date(safeOfficialStartMs).toISOString(),
-    };
-  }
-
-  if (firstAfterStartIndex === 0) {
-    return {
-      matchId,
-      distanceKm: 0,
-      elapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, safeOfficialStartMs),
-      routeStartIndex: 0,
-      routeStartPoint: route[0],
-      startedAt: new Date(safeOfficialStartMs).toISOString(),
-    };
-  }
-
-  const previousPoint = route[firstAfterStartIndex - 1];
-  const nextPoint = route[firstAfterStartIndex];
-  const startPoint = interpolateRoutePoint(previousPoint, nextPoint, safeOfficialStartMs);
-  const baselineRoute = [...route.slice(0, firstAfterStartIndex), startPoint];
-
-  return {
-    matchId,
-    distanceKm: Number((calculateRouteDistanceMeters(baselineRoute) / 1000).toFixed(3)),
-    elapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, safeOfficialStartMs),
-    routeStartIndex: firstAfterStartIndex,
-    routeStartPoint: startPoint,
-    startedAt: new Date(safeOfficialStartMs).toISOString(),
-  };
-}
-
-function buildRouteFromOfficialStart(snapshot: BackgroundRunTrackingSnapshot, baseline: OfficialStartBaseline) {
-  const routeTail = snapshot.route.slice(Math.max(0, baseline.routeStartIndex));
-
-  if (!baseline.routeStartPoint) {
-    return routeTail;
-  }
-
-  if (routeTail[0]?.timestamp === baseline.routeStartPoint.timestamp) {
-    return routeTail;
-  }
-
-  return [baseline.routeStartPoint, ...routeTail];
-}
-
 function shouldHidePastUpcomingMatch(
   match: Pick<UpcomingRunningMatchItem, 'slotStartAt' | 'status'>,
   nowMs: number,
@@ -379,275 +309,8 @@ type RoomLinkedMatchContext = {
   distanceKm: number;
   state: 'matched' | 'active';
 };
-type GroupLiveStanding = GroupMatchParticipant & {
-  rank: number;
-  currentDistanceKm: number;
-  gapAheadKm: number | null;
-  gapLeaderKm: number;
-  isForfeited: boolean;
-  isCurrentUser: boolean;
-};
-type LastSyncedMatchProgress = {
-  matchId: string;
-  distanceKm: number;
-  elapsedSeconds: number;
-  currentPace: string;
-  updatedAt: number;
-};
-type DuelComparisonSnapshot = {
-  checkpointSeconds: number;
-  currentDistanceKm: number;
-  opponentDistanceKm: number;
-  gapKm: number;
-};
 type MatchParticipantLiveStatus = DuelMatchOpponent['liveStatus'];
-type MatchSlotOption = {
-  startsAt: string;
-  label: string;
-  dateKey: string;
-  dateLabel: string;
-  weekdayLabel: string;
-  isClosed: boolean;
-};
-type MatchDateOption = {
-  key: string;
-  label: string;
-  subtitle: string;
-};
 type RoomStartMode = 'scheduled' | 'host';
-const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.2];
-const MATCH_BOOKING_WINDOW_DAYS = 7;
-const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
-
-function buildRoutePoint(location: Location.LocationObject): RunRoutePoint {
-  return {
-    latitude: location.coords.latitude,
-    longitude: location.coords.longitude,
-    altitude: typeof location.coords.altitude === 'number' ? Number(location.coords.altitude.toFixed(1)) : null,
-    timestamp: new Date(location.timestamp).toISOString(),
-  };
-}
-
-function formatMetricDistance(distanceKm: number) {
-  return `${distanceKm.toFixed(2)}km`;
-}
-
-function formatElevation(elevationGainM: number) {
-  return `${Math.round(elevationGainM)}m`;
-}
-
-function formatCadence(cadenceSpm: number | null) {
-  return cadenceSpm ? `${cadenceSpm}spm` : '--';
-}
-
-function buildLiveShareLabelFromAddress(address?: Location.LocationGeocodedAddress | null) {
-  if (!address) {
-    return '현재 위치 근처';
-  }
-
-  const parts = [
-    address.district,
-    address.street,
-    address.city,
-    address.region,
-    address.name,
-  ].filter(Boolean);
-
-  return parts.length ? `${parts[0]} 근처` : '현재 위치 근처';
-}
-
-function buildLiveShareFallbackLabel() {
-  return '현재 위치 근처';
-}
-
-function formatMatchTargetDistance(distanceKm: number) {
-  return `${Number(distanceKm.toFixed(1))}km`;
-}
-
-function clampDuelMatchDistanceKm(value: number) {
-  return Math.min(42.2, Math.max(2, Number(value.toFixed(1))));
-}
-
-function parseDuelMatchDistanceKm(value: string) {
-  const parsedValue = Number(String(value).replace(',', '.'));
-
-  if (!Number.isFinite(parsedValue)) {
-    return 5;
-  }
-
-  return clampDuelMatchDistanceKm(parsedValue);
-}
-
-function isRecommendedMatchDistance(distanceKm: number) {
-  return RECOMMENDED_MATCH_DISTANCES.some((recommendedDistanceKm) => Math.abs(recommendedDistanceKm - distanceKm) < 0.15);
-}
-
-function findNearestRecommendedDistance(distanceKm: number) {
-  return RECOMMENDED_MATCH_DISTANCES.reduce((closestDistanceKm, candidateDistanceKm) => (
-    Math.abs(candidateDistanceKm - distanceKm) < Math.abs(closestDistanceKm - distanceKm)
-      ? candidateDistanceKm
-      : closestDistanceKm
-  ));
-}
-
-function formatMatchDateKey(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-type MatchTimeSection = 'am' | 'pm';
-
-function resolveMatchTimeSection(slotStartAt: string): MatchTimeSection {
-  const slotDate = new Date(slotStartAt);
-  const hour = Number.isNaN(slotDate.getTime()) ? 0 : slotDate.getHours();
-  return hour < 12 ? 'am' : 'pm';
-}
-
-function isMatchSlotClosed(slotStartAt: string, now = new Date()) {
-  const slotStartAtMs = new Date(slotStartAt).getTime();
-
-  if (!Number.isFinite(slotStartAtMs)) {
-    return true;
-  }
-
-  return slotStartAtMs - MATCH_BOOKING_CUTOFF_MS <= now.getTime();
-}
-
-function buildWeeklyHourlySlots(referenceDate = new Date()): MatchSlotOption[] {
-  const baseDate = new Date(referenceDate);
-  baseDate.setMinutes(0, 0, 0);
-  const maxSelectableAtMs = referenceDate.getTime() + MATCH_BOOKING_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-
-  return Array.from({ length: MATCH_BOOKING_WINDOW_DAYS + 1 }, (_, dayOffset) => {
-    const currentDate = new Date(baseDate);
-    currentDate.setDate(baseDate.getDate() + dayOffset);
-    currentDate.setHours(0, 0, 0, 0);
-
-    return Array.from({ length: 24 }, (_, hour) => {
-      const slotStart = new Date(currentDate);
-      slotStart.setHours(hour, 0, 0, 0);
-      const startsAt = slotStart.toISOString();
-      return {
-        startsAt,
-        label: `${String(hour).padStart(2, '0')}:00`,
-        dateKey: formatMatchDateKey(slotStart),
-        dateLabel: slotStart.toLocaleDateString('ko-KR', {
-          month: 'numeric',
-          day: 'numeric',
-        }),
-        weekdayLabel: slotStart.toLocaleDateString('ko-KR', {
-          weekday: 'short',
-        }),
-        isClosed: isMatchSlotClosed(startsAt, referenceDate),
-      };
-    });
-  })
-    .flat()
-    .filter((slot) => new Date(slot.startsAt).getTime() <= maxSelectableAtMs);
-}
-
-function buildMatchDateOptions(slotOptions: MatchSlotOption[]): MatchDateOption[] {
-  const seen = new Set<string>();
-  return slotOptions.filter((slot) => {
-    if (seen.has(slot.dateKey)) {
-      return false;
-    }
-    seen.add(slot.dateKey);
-    return true;
-  }).map((slot) => ({
-    key: slot.dateKey,
-    label: slot.dateLabel,
-    subtitle: slot.weekdayLabel,
-  }));
-}
-
-function formatMatchExpiryCountdown(seconds?: number | null) {
-  if (typeof seconds !== 'number' || seconds <= 0) {
-    return null;
-  }
-
-  if (seconds >= 3600) {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.ceil((seconds % 3600) / 60);
-    return `${hours}시간 ${minutes}분`;
-  }
-
-  if (seconds >= 60) {
-    return `${Math.ceil(seconds / 60)}분`;
-  }
-
-  return `${seconds}초`;
-}
-
-function buildMatchSlotDateLabel(slotStartAt: string) {
-  const slotStart = new Date(slotStartAt);
-
-  if (Number.isNaN(slotStart.getTime())) {
-    return '날짜 미정';
-  }
-
-  return slotStart.toLocaleDateString('ko-KR', {
-    month: 'numeric',
-    day: 'numeric',
-    weekday: 'short',
-  });
-}
-
-function getEstimatedMatchBonusPoints(matchResult?: RunMatchResult) {
-  if (!matchResult) {
-    return 0;
-  }
-
-  if (matchResult.mode === 'duel') {
-    if (matchResult.resultTone === 'win') {
-      return 20;
-    }
-
-    if (matchResult.resultTone === 'draw') {
-      return 15;
-    }
-
-    if (matchResult.resultTone === 'lose') {
-      return 10;
-    }
-
-    return 0;
-  }
-
-  if (matchResult.mode === 'group') {
-    if (matchResult.rank === 1) {
-      return 25;
-    }
-
-    if (matchResult.rank === 2) {
-      return 20;
-    }
-
-    if (matchResult.rank === 3) {
-      return 15;
-    }
-
-    if (typeof matchResult.rank === 'number' && matchResult.rank >= 4) {
-      return 10;
-    }
-  }
-
-  return 0;
-}
-
-function isUnsavableShortRunError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? '');
-
-  return [
-    '저장하려면 실제로 이동한 러닝 경로가 조금 더 필요해.',
-    '페이스 계산이 아직 부족해서 저장할 수 없어.',
-    '러닝 경로는 최소 2개 이상의 위치 좌표가 필요해.',
-    '러닝 거리를 입력해줘.',
-    '페이스를 입력해줘.',
-  ].some((snippet) => message.includes(snippet));
-}
 
 function buildMatchParticipantStatusLabel(status?: MatchParticipantLiveStatus) {
   switch (status) {
@@ -693,288 +356,6 @@ function buildMatchTransitionNotice(
   }
 
   return null;
-}
-
-function parsePaceSecondsPerKm(paceLabel: string) {
-  const matched = String(paceLabel).trim().match(/^(\d{1,2}):(\d{2})\/km$/i);
-
-  if (!matched) {
-    return 5 * 60 + 30;
-  }
-
-  return Number(matched[1]) * 60 + Number(matched[2]);
-}
-
-function normalizeMatchProgressPace(paceLabel: string, fallbackPaceLabel?: string) {
-  const matched = String(paceLabel).trim().match(/^\d{1,2}:\d{2}\/km$/i);
-
-  if (matched) {
-    return paceLabel;
-  }
-
-  const fallbackMatched = String(fallbackPaceLabel ?? '').trim().match(/^\d{1,2}:\d{2}\/km$/i);
-  if (fallbackMatched) {
-    return fallbackPaceLabel!;
-  }
-
-  return '--:--/km';
-}
-
-function isMeasuredPaceLabel(paceLabel?: string | null) {
-  return /^\d{1,2}:\d{2}\/km$/i.test(String(paceLabel ?? '').trim());
-}
-
-function buildAverageArenaPaceLabel(distanceKm: number, elapsedSeconds: number, hasOfficialStart: boolean) {
-  if (!hasOfficialStart) {
-    return '';
-  }
-
-  const averagePaceLabel = buildAveragePace(distanceKm, elapsedSeconds);
-  return isMeasuredPaceLabel(averagePaceLabel) ? averagePaceLabel : '평균 계산 중';
-}
-
-function buildParticipantAveragePaceLabel(
-  participant: Pick<DuelMatchOpponent, 'liveDistanceKm' | 'liveElapsedSeconds' | 'livePace' | 'liveUpdatedAt' | 'officialAveragePace'> | null | undefined,
-  hasOfficialStart: boolean,
-) {
-  if (!hasOfficialStart) {
-    return '';
-  }
-
-  if (isMeasuredPaceLabel(participant?.officialAveragePace)) {
-    return participant!.officialAveragePace!;
-  }
-
-  if (!hasRemoteRunnerProgress(participant)) {
-    return '측정 대기';
-  }
-
-  const averagePaceLabel = buildAverageArenaPaceLabel(participant?.liveDistanceKm ?? 0, participant?.liveElapsedSeconds ?? 0, true);
-  if (isMeasuredPaceLabel(averagePaceLabel)) {
-    return averagePaceLabel;
-  }
-
-  if (isMeasuredPaceLabel(participant?.livePace)) {
-    return participant!.livePace!;
-  }
-
-  return averagePaceLabel || '측정 대기';
-}
-
-function resolveParticipantDisplayDistanceKm(
-  participant: {
-    liveDistanceKm?: number;
-    liveElapsedSeconds?: number;
-    livePace?: string;
-    averagePace?: string;
-    officialAveragePace?: string;
-  } | null | undefined,
-  targetDistanceKm: number,
-) {
-  const safeTargetDistanceKm = Math.max(0, targetDistanceKm);
-  const liveDistanceKm = typeof participant?.liveDistanceKm === 'number' && Number.isFinite(participant.liveDistanceKm)
-    ? Math.max(0, participant.liveDistanceKm)
-    : 0;
-
-  if (liveDistanceKm > 0) {
-    return Number(Math.min(safeTargetDistanceKm, liveDistanceKm).toFixed(2));
-  }
-
-  const elapsedSeconds = typeof participant?.liveElapsedSeconds === 'number' && Number.isFinite(participant.liveElapsedSeconds)
-    ? Math.max(0, participant.liveElapsedSeconds)
-    : 0;
-  const paceLabel = [
-    participant?.officialAveragePace,
-    participant?.livePace,
-    participant?.averagePace,
-  ].find((label) => isMeasuredPaceLabel(label));
-
-  if (!elapsedSeconds || !paceLabel) {
-    return Number(Math.min(safeTargetDistanceKm, liveDistanceKm).toFixed(2));
-  }
-
-  const paceSecondsPerKm = parsePaceSecondsPerKm(paceLabel);
-  const estimatedDistanceKm = elapsedSeconds / Math.max(1, paceSecondsPerKm);
-  return Number(Math.min(safeTargetDistanceKm, Math.max(0, estimatedDistanceKm)).toFixed(2));
-}
-
-function formatArenaPaceChip(label: string, paceLabel: string) {
-  return `${label} ${paceLabel || '측정 대기'}`;
-}
-
-function hasRemoteRunnerProgress(
-  participant?: Pick<DuelMatchOpponent, 'liveDistanceKm' | 'liveUpdatedAt'> | Pick<GroupMatchParticipant, 'liveDistanceKm' | 'liveUpdatedAt'> | null,
-) {
-  if (!participant) {
-    return false;
-  }
-
-  if (typeof participant.liveUpdatedAt === 'string' && participant.liveUpdatedAt.trim()) {
-    return true;
-  }
-
-  return typeof participant.liveDistanceKm === 'number' && participant.liveDistanceKm > 0;
-}
-
-function projectDistanceAtElapsed(distanceKm: number, elapsedSeconds: number, targetElapsedSeconds: number) {
-  if (!Number.isFinite(distanceKm) || !Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) {
-    return 0;
-  }
-
-  const safeTargetElapsedSeconds = Math.max(0, Math.min(targetElapsedSeconds, elapsedSeconds));
-  return Number(((distanceKm * safeTargetElapsedSeconds) / elapsedSeconds).toFixed(2));
-}
-
-function buildDuelComparisonSnapshot(
-  currentProgress: LastSyncedMatchProgress | null,
-  opponent: DuelMatchOpponent | null,
-  targetDistanceKm: number,
-): DuelComparisonSnapshot | null {
-  if (
-    !currentProgress
-    || !opponent
-    || !hasRemoteRunnerProgress(opponent)
-    || typeof opponent.liveElapsedSeconds !== 'number'
-  ) {
-    return null;
-  }
-
-  const commonElapsedSeconds = Math.min(currentProgress.elapsedSeconds, opponent.liveElapsedSeconds);
-  const checkpointSeconds = Math.floor(commonElapsedSeconds / MATCH_COMPARISON_INTERVAL_SECONDS) * MATCH_COMPARISON_INTERVAL_SECONDS;
-  if (checkpointSeconds < MATCH_COMPARISON_INTERVAL_SECONDS) {
-    return null;
-  }
-
-  const currentDistanceKm = projectDistanceAtElapsed(
-    currentProgress.distanceKm,
-    currentProgress.elapsedSeconds,
-    checkpointSeconds,
-  );
-  const opponentDistanceKm = projectDistanceAtElapsed(
-    resolveParticipantDisplayDistanceKm(opponent, targetDistanceKm),
-    opponent.liveElapsedSeconds,
-    checkpointSeconds,
-  );
-
-  return {
-    checkpointSeconds,
-    currentDistanceKm,
-    opponentDistanceKm,
-    gapKm: Number((currentDistanceKm - opponentDistanceKm).toFixed(2)),
-  };
-}
-
-function buildDistanceGapLabel(gapKm: number | null) {
-  if (gapKm === null) {
-    return '서버 공식 판정 준비 중';
-  }
-
-  const absoluteGapKm = Math.abs(gapKm);
-  if (absoluteGapKm < 0.005) {
-    return '거리차 0.00km';
-  }
-
-  return gapKm >= 0
-    ? `${absoluteGapKm.toFixed(2)}km 앞섬`
-    : `${absoluteGapKm.toFixed(2)}km 뒤짐`;
-}
-
-function buildSeedRankPaceAdjustment(seedRank: number) {
-  return 1 - Math.max(-0.08, Math.min(0.08, (6 - seedRank) * 0.012));
-}
-
-function buildEstimatedCompetitiveDistanceKm(paceLabel: string, elapsedSeconds: number, seedRank?: number) {
-  if (elapsedSeconds <= 0) {
-    return 0;
-  }
-
-  const paceSecondsPerKm = parsePaceSecondsPerKm(paceLabel);
-  const paceAdjustment = typeof seedRank === 'number' ? buildSeedRankPaceAdjustment(seedRank) : 1;
-  const estimatedDistanceKm = elapsedSeconds / Math.max(1, paceSecondsPerKm * paceAdjustment);
-
-  return Number(Math.max(0, estimatedDistanceKm).toFixed(2));
-}
-
-function buildGroupLiveStandings(
-  participants: GroupMatchParticipant[],
-  mySeedRank: number | undefined,
-  currentDistanceKm: number,
-  elapsedSeconds: number,
-  targetDistanceKm: number,
-): GroupLiveStanding[] {
-  if (!participants.length) {
-    return [];
-  }
-
-  if (participants.some((participant) => participant.officialReady && typeof participant.officialRank === 'number')) {
-    return participants
-      .map((participant) => {
-        const isCurrentUser = participant.seedRank === (mySeedRank ?? 1);
-        return {
-          ...participant,
-          currentDistanceKm: participant.officialReady ? participant.officialDistanceKm ?? 0 : 0,
-          isForfeited: participant.liveStatus === 'forfeited',
-          rank: participant.officialRank ?? participants.length,
-          gapAheadKm: participant.officialReady ? participant.officialGapAheadKm ?? null : null,
-          gapLeaderKm: participant.officialReady ? participant.officialGapLeaderKm ?? 0 : 0,
-          isCurrentUser,
-        };
-      })
-      .sort((left, right) => {
-        if (left.isForfeited !== right.isForfeited) {
-          return left.isForfeited ? 1 : -1;
-        }
-
-        return left.rank - right.rank;
-      });
-  }
-
-  const currentSeedRank = mySeedRank ?? 1;
-  const standings = participants
-    .map((participant) => {
-      const isCurrentUser = participant.seedRank === currentSeedRank;
-      const isForfeited = participant.liveStatus === 'forfeited';
-      const hasParticipantProgress = hasRemoteRunnerProgress(participant);
-      const estimatedDistanceKm = isCurrentUser
-        ? currentDistanceKm
-        : hasParticipantProgress
-          ? resolveParticipantDisplayDistanceKm(participant, targetDistanceKm)
-          : 0;
-
-      return {
-        ...participant,
-        currentDistanceKm: estimatedDistanceKm,
-        isForfeited,
-        rank: 0,
-        gapAheadKm: null,
-        gapLeaderKm: 0,
-        isCurrentUser,
-      };
-    })
-    .sort((left, right) => {
-      if (left.isForfeited !== right.isForfeited) {
-        return left.isForfeited ? 1 : -1;
-      }
-
-      if (right.currentDistanceKm !== left.currentDistanceKm) {
-        return right.currentDistanceKm - left.currentDistanceKm;
-      }
-
-      return parsePaceSecondsPerKm(left.averagePace) - parsePaceSecondsPerKm(right.averagePace);
-    })
-    .map((participant, index, array) => {
-      const leaderDistance = array[0]?.currentDistanceKm ?? participant.currentDistanceKm;
-      const aheadRunner = index > 0 ? array[index - 1] : null;
-
-      return {
-        ...participant,
-        rank: index + 1,
-        gapLeaderKm: Number(Math.max(0, leaderDistance - participant.currentDistanceKm).toFixed(2)),
-        gapAheadKm: aheadRunner ? Number(Math.max(0, aheadRunner.currentDistanceKm - participant.currentDistanceKm).toFixed(2)) : null,
-      };
-    });
-
-  return standings;
 }
 
 export function TrackRunExperience({
@@ -5318,97 +4699,14 @@ export function TrackRunExperience({
   };
 
   const renderMatchResultPage = () => {
-    if (matchMode === 'duel' && duelResultRows.length) {
-      return (
-        <Card style={styles.matchResultCard}>
-          <View style={styles.matchResultHeader}>
-            <View style={styles.matchResultHeaderCopy}>
-              <Text style={styles.matchResultEyebrow}>DUEL RESULT</Text>
-              <Text style={styles.matchResultTitle}>1대1 대결 결과</Text>
-              <Text style={styles.matchResultSubtitle}>먼저 들어온 러너가 위에 정렬돼요.</Text>
-            </View>
-            <View style={styles.finishSummaryPointPill}>
-              <Text style={styles.finishSummaryPointPillText}>매치 포인트 +{estimatedMatchBonusPoints}P</Text>
-            </View>
-          </View>
-          <View style={styles.matchResultList}>
-            {duelResultRows.map((row) => (
-              <View
-                key={row.id}
-                style={[
-                  styles.matchResultRow,
-                  row.resultLabel === 'WIN'
-                    ? styles.matchResultRowWin
-                    : row.resultLabel === 'LOSER'
-                      ? styles.matchResultRowLose
-                      : styles.matchResultRowDraw,
-                ]}
-              >
-                <View style={styles.matchResultLabelColumn}>
-                  <Text style={styles.matchResultLabel}>{row.resultLabel}</Text>
-                </View>
-                <View style={styles.matchResultCopy}>
-                  <Text style={styles.matchResultName}>
-                    {row.name}
-                    {row.isCurrentUser ? ' (나)' : ''}
-                  </Text>
-                  <Text style={styles.matchResultMeta}>
-                    페이스 {row.paceLabel} · 시간 {row.durationLabel}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        </Card>
-      );
-    }
-
-    if (matchMode === 'group' && groupResultRows.length) {
-      return (
-        <Card style={styles.matchResultCard}>
-          <View style={styles.matchResultHeader}>
-            <View style={styles.matchResultHeaderCopy}>
-              <Text style={styles.matchResultEyebrow}>GROUP RESULT</Text>
-              <Text style={styles.matchResultTitle}>그룹 대결 순위표</Text>
-              <Text style={styles.matchResultSubtitle}>들어오는 기록 순서대로 계속 업데이트돼요.</Text>
-            </View>
-            <View style={styles.finishSummaryPointPill}>
-              <Text style={styles.finishSummaryPointPillText}>매치 포인트 +{estimatedMatchBonusPoints}P</Text>
-            </View>
-          </View>
-          <View style={styles.matchResultList}>
-            {groupResultRows.map((row) => (
-              <View
-                key={row.id}
-                style={[styles.groupResultRow, row.isCurrentUser ? styles.groupResultRowCurrent : undefined]}
-              >
-                <Text style={styles.groupResultRank}>{row.rank}등</Text>
-                <View style={styles.groupResultCopy}>
-                  <Text style={styles.groupResultName}>
-                    {row.name}
-                    {row.isCurrentUser ? ' (나)' : ''}
-                  </Text>
-                  <Text style={styles.groupResultMeta}>
-                    페이스 {row.paceLabel} · 시간 {row.durationLabel}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
-          {groupResultStatusLabel ? (
-            <View style={styles.matchResultStatusPill}>
-              <Text style={styles.matchResultStatusText}>{groupResultStatusLabel}</Text>
-            </View>
-          ) : null}
-        </Card>
-      );
-    }
-
     return (
-      <Card style={styles.matchResultCard}>
-        <Text style={styles.matchResultTitle}>결과를 정리하는 중이에요</Text>
-        <Text style={styles.matchResultSubtitle}>조금만 더 지나면 여기서 바로 결과를 볼 수 있어요.</Text>
-      </Card>
+      <MatchResultPanel
+        mode={matchMode === 'group' ? 'group' : 'duel'}
+        estimatedBonusPoints={estimatedMatchBonusPoints}
+        duelRows={duelResultRows}
+        groupRows={groupResultRows}
+        groupStatusLabel={groupResultStatusLabel}
+      />
     );
   };
 
@@ -5587,32 +4885,14 @@ export function TrackRunExperience({
         </Card>
       ) : null}
 
-      <View style={styles.metricGrid}>
-        <Card style={styles.metricCard}>
-          <Text style={styles.metricLabel}>시간</Text>
-          <Text style={styles.metricValue}>{formatDuration(elapsedSeconds)}</Text>
-        </Card>
-        <Card style={styles.metricCard}>
-          <Text style={styles.metricLabel}>거리</Text>
-          <Text style={styles.metricValue}>{formatMetricDistance(distanceKm)}</Text>
-        </Card>
-        <Card style={styles.metricCard}>
-          <Text style={styles.metricLabel}>평균 페이스</Text>
-          <Text style={styles.metricValue}>{averagePace}</Text>
-        </Card>
-        <Card style={styles.metricCard}>
-          <Text style={styles.metricLabel}>현재 페이스</Text>
-          <Text style={styles.metricValue}>{currentPace}</Text>
-        </Card>
-        <Card style={styles.metricCard}>
-          <Text style={styles.metricLabel}>케이던스</Text>
-          <Text style={styles.metricValue}>{formatCadence(cadenceSpm)}</Text>
-        </Card>
-        <Card style={styles.metricCard}>
-          <Text style={styles.metricLabel}>고도 상승</Text>
-          <Text style={styles.metricValue}>{formatElevation(elevationGainM)}</Text>
-        </Card>
-      </View>
+      <RunningMetricGrid
+        elapsedLabel={formatDuration(elapsedSeconds)}
+        distanceLabel={formatMetricDistance(distanceKm)}
+        averagePaceLabel={averagePace}
+        currentPaceLabel={currentPace}
+        cadenceLabel={formatCadence(cadenceSpm)}
+        elevationLabel={formatElevation(elevationGainM)}
+      />
 
     </>
   );
@@ -5632,129 +4912,44 @@ export function TrackRunExperience({
             <View style={styles.readyHero}>
               <Text style={styles.readyTitle}>러닝 준비</Text>
             </View>
-            {visibleUpcomingMatches.length ? (
-              <View style={styles.upcomingMatchCard}>
-                <Text style={styles.upcomingMatchEyebrow}>다가오는 매치</Text>
-                {visibleUpcomingMatches.slice(0, 2).map((match) => {
-                  const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, syncedNowMs);
-                  const canOpenArena = match.status === 'active'
-                    || (match.status === 'matched' && shouldAutoOpenMatchArena(remainingSeconds));
-
-                  return (
-                  <Pressable
-                    key={match.matchId}
-                    style={styles.upcomingMatchRow}
-                    disabled={!canOpenArena}
-                    onPress={() => {
-                      if (!canOpenArena) {
-                        return;
-                      }
-
-                      void focusRunningMatch({
-                        mode: match.mode,
-                        distanceKm: match.distanceKm,
-                        slotStartAt: match.slotStartAt,
-                        isTestMatch: match.isTestMatch,
-                      }).catch(() => {});
-                    }}
-                  >
-                    <View style={styles.upcomingMatchCopy}>
-                      <Text style={styles.upcomingMatchTitle}>
-                        {match.isTestMatch ? '테스트 ' : ''}{match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
-                      </Text>
-                      <Text style={styles.upcomingMatchMeta}>{match.counterpartLabel}</Text>
-                      {(() => {
-                        return shouldShowMatchCardCountdown(remainingSeconds) ? (
-                          <View style={styles.upcomingMatchCountdownPill}>
-                            <Text style={styles.upcomingMatchCountdownText}>시작까지 {formatMatchCountdown(remainingSeconds!)}</Text>
-                          </View>
-                        ) : null;
-                      })()}
-                      {match.status === 'matched' ? (
-                        match.canCancel ? (
-                          <Pressable
-                            style={styles.upcomingMatchCancelButton}
-                            onPress={() => {
-                              void handleCancelUpcomingMatch(match);
-                            }}
-                          >
-                            <Text style={styles.upcomingMatchCancelText}>
-                              {cancelingUpcomingMatchId === match.matchId ? '취소 중...' : '예약 취소'}
-                            </Text>
-                          </Pressable>
-                        ) : (
-                          <Text style={styles.upcomingMatchHelperText}>출발 1시간 전부터는 취소할 수 없어요.</Text>
-                        )
-                      ) : null}
-                      {canOpenArena ? (
-                        <Text style={styles.upcomingMatchHelperText}>누르면 바로 대결 보기로 이동해요.</Text>
-                      ) : null}
-                    </View>
-                    <Text style={styles.upcomingMatchState}>
-                      {match.status === 'active' ? '진행 중' : canOpenArena ? '곧 시작' : '예약됨'}
-                    </Text>
-                  </Pressable>
-                );
-                })}
-              </View>
-            ) : null}
+            <UpcomingMatchList
+              matches={visibleUpcomingMatches}
+              nowMs={syncedNowMs}
+              cancelingMatchId={cancelingUpcomingMatchId}
+              onOpenMatch={(match) => {
+                void focusRunningMatch({
+                  mode: match.mode,
+                  distanceKm: match.distanceKm,
+                  slotStartAt: match.slotStartAt,
+                  isTestMatch: match.isTestMatch,
+                }).catch(() => {});
+              }}
+              onCancelMatch={(match) => {
+                void handleCancelUpcomingMatch(match);
+              }}
+            />
             <View style={styles.matchCard}>
-              <View style={styles.matchOptionRow}>
-                {matchOptions.map((option) => {
-                  const isSelected = option.mode === matchMode;
+              <MatchOptionSelector
+                options={matchOptions}
+                selectedMode={matchMode}
+                onSelect={(option) => {
+                  if (option.mode === 'room' && visibleMatchRoom) {
+                    router.push('/match-room' as Href);
+                    return;
+                  }
 
-                  return (
-                    <Pressable
-                      key={option.mode}
-                      style={[styles.matchOption, isSelected ? styles.matchOptionSelected : styles.matchOptionIdle]}
-                      onPress={() => {
-                        if (option.mode === 'room' && visibleMatchRoom) {
-                          router.push('/match-room' as Href);
-                          return;
-                        }
-
-                        setMatchMode(option.mode);
-                      }}
-                      >
-                        <Text style={[styles.matchOptionTitle, isSelected ? styles.matchOptionTitleSelected : undefined]}>
-                          {option.title}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-              </View>
+                  setMatchMode(option.mode);
+                }}
+              />
               {visibleMatchRoom ? (
                 visibleMatchRoomIsInviteOnly ? (
-                  <View style={styles.partyInviteCard}>
-                    <View style={styles.partyInviteHeader}>
-                      <View>
-                        <Text style={styles.partyInviteEyebrow}>파티런 초대</Text>
-                        <Text style={styles.partyInviteTitle}>
-                          {visibleMatchRoom.hostName}님이 {visibleMatchRoom.mode === 'duel' ? '1대1 대결' : '그룹 대결'}에 초대했어요
-                        </Text>
-                      </View>
-                      <Text style={styles.partyInviteCode}>{visibleMatchRoom.inviteToken}</Text>
-                    </View>
-                    <Text style={styles.partyInviteMeta}>
-                      {visibleMatchRoom.distanceKm.toFixed(1)}km · {visibleMatchRoom.startMode === 'host' ? '방장 시작' : visibleMatchRoom.slotLabel}
-                    </Text>
-                    <View style={styles.partyInviteActionRow}>
-                      <Pressable
-                        style={[styles.partyInviteDeclineButton, isLeavingMatchRoom ? styles.partyInviteButtonDisabled : undefined]}
-                        onPress={() => { void handleDeclineRoomInviteFromRunning(); }}
-                        disabled={isLeavingMatchRoom || isJoiningMatchRoom}
-                      >
-                        <Text style={styles.partyInviteDeclineText}>{isLeavingMatchRoom ? '처리 중...' : '거절'}</Text>
-                      </Pressable>
-                      <Pressable
-                        style={[styles.partyInviteAcceptButton, isJoiningMatchRoom ? styles.partyInviteButtonDisabled : undefined]}
-                        onPress={() => { void handleAcceptRoomInviteFromRunning(); }}
-                        disabled={isJoiningMatchRoom || isLeavingMatchRoom}
-                      >
-                        <Text style={styles.partyInviteAcceptText}>{isJoiningMatchRoom ? '입장 중...' : '수락'}</Text>
-                      </Pressable>
-                    </View>
-                  </View>
+                  <PartyRunInviteCard
+                    room={visibleMatchRoom}
+                    isAccepting={isJoiningMatchRoom}
+                    isDeclining={isLeavingMatchRoom}
+                    onAccept={() => { void handleAcceptRoomInviteFromRunning(); }}
+                    onDecline={() => { void handleDeclineRoomInviteFromRunning(); }}
+                  />
                 ) : (
                   <Pressable
                     style={styles.partyRoomEntryButton}
@@ -6590,83 +5785,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
   },
-  upcomingMatchCard: {
-    gap: 10,
-    padding: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#374151',
-    backgroundColor: '#1F2937',
-  },
-  upcomingMatchEyebrow: {
-    color: '#C7D2FE',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-  },
-  upcomingMatchRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.08)',
-    paddingTop: 10,
-  },
-  upcomingMatchCopy: {
-    flex: 1,
-    gap: 4,
-  },
-  upcomingMatchTitle: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  upcomingMatchMeta: {
-    color: '#D0D5DD',
-    lineHeight: 18,
-  },
-  upcomingMatchCountdownPill: {
-    alignSelf: 'flex-start',
-    marginTop: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(129, 140, 248, 0.16)',
-    borderWidth: 1,
-    borderColor: 'rgba(129, 140, 248, 0.32)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  upcomingMatchCountdownText: {
-    color: '#E0E7FF',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  upcomingMatchCancelButton: {
-    alignSelf: 'flex-start',
-    marginTop: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: '#111827',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  upcomingMatchCancelText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  upcomingMatchHelperText: {
-    color: '#A5B4FC',
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 4,
-  },
-  upcomingMatchState: {
-    color: '#A5B4FC',
-    fontSize: 12,
-    fontWeight: '800',
-  },
   roomCard: {
     gap: 12,
     padding: 14,
@@ -7082,12 +6200,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
-  matchOptionRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
   partyRoomEntryButton: {
     borderRadius: 16,
     borderWidth: 1,
@@ -7102,117 +6214,6 @@ const styles = StyleSheet.create({
     color: '#EEF2FF',
     fontSize: 15,
     fontWeight: '900',
-  },
-  partyInviteCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#818CF8',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  partyInviteHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  partyInviteEyebrow: {
-    color: '#6D5EF7',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  partyInviteTitle: {
-    color: '#111827',
-    fontSize: 17,
-    fontWeight: '900',
-    lineHeight: 23,
-  },
-  partyInviteCode: {
-    overflow: 'hidden',
-    borderRadius: 999,
-    backgroundColor: '#1E1B4B',
-    color: '#EEF2FF',
-    fontSize: 12,
-    fontWeight: '900',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  partyInviteMeta: {
-    color: '#475467',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  partyInviteActionRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  partyInviteDeclineButton: {
-    flex: 1,
-    alignItems: 'center',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 13,
-  },
-  partyInviteDeclineText: {
-    color: '#334155',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  partyInviteAcceptButton: {
-    flex: 1,
-    alignItems: 'center',
-    borderRadius: 16,
-    backgroundColor: '#6D5EF7',
-    paddingVertical: 13,
-  },
-  partyInviteAcceptText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  partyInviteButtonDisabled: {
-    opacity: 0.45,
-  },
-  matchOption: {
-    width: '48%',
-    gap: 4,
-    borderRadius: 18,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    minHeight: 68,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  matchOptionIdle: {
-    borderColor: '#374151',
-    backgroundColor: '#111827',
-  },
-  matchOptionSelected: {
-    borderColor: '#818CF8',
-    backgroundColor: '#1E1B4B',
-  },
-  matchOptionLabel: {
-    color: '#C7D2FE',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  matchOptionLabelSelected: {
-    color: '#E0E7FF',
-  },
-  matchOptionTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  matchOptionTitleSelected: {
-    color: '#FFFFFF',
   },
   duelSetupCard: {
     gap: 12,
@@ -7675,129 +6676,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  matchResultCard: {
-    gap: 16,
-    padding: 18,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#312E81',
-    backgroundColor: '#111827',
-  },
-  matchResultHeader: {
-    gap: 12,
-  },
-  matchResultHeaderCopy: {
-    gap: 4,
-  },
-  matchResultEyebrow: {
-    color: '#C7D2FE',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-  },
-  matchResultTitle: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  matchResultSubtitle: {
-    color: '#D0D5DD',
-    lineHeight: 20,
-  },
-  matchResultList: {
-    gap: 10,
-  },
-  matchResultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    borderWidth: 1,
-  },
-  matchResultRowWin: {
-    borderColor: 'rgba(129, 140, 248, 0.42)',
-    backgroundColor: 'rgba(67, 56, 202, 0.24)',
-  },
-  matchResultRowLose: {
-    borderColor: 'rgba(244, 114, 182, 0.28)',
-    backgroundColor: 'rgba(136, 19, 55, 0.22)',
-  },
-  matchResultRowDraw: {
-    borderColor: 'rgba(148, 163, 184, 0.32)',
-    backgroundColor: 'rgba(30, 41, 59, 0.72)',
-  },
-  matchResultLabelColumn: {
-    minWidth: 54,
-  },
-  matchResultLabel: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.4,
-  },
-  matchResultCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  matchResultName: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  matchResultMeta: {
-    color: '#E5E7EB',
-    lineHeight: 19,
-  },
-  groupResultRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: '#0F172A',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  groupResultRowCurrent: {
-    borderColor: 'rgba(129, 140, 248, 0.48)',
-    backgroundColor: 'rgba(67, 56, 202, 0.18)',
-  },
-  groupResultRank: {
-    width: 34,
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  groupResultCopy: {
-    flex: 1,
-    gap: 2,
-  },
-  groupResultName: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  groupResultMeta: {
-    color: '#D0D5DD',
-    lineHeight: 19,
-  },
-  matchResultStatusPill: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(129, 140, 248, 0.28)',
-    backgroundColor: 'rgba(79, 70, 229, 0.18)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  matchResultStatusText: {
-    color: '#E0E7FF',
-    fontSize: 12,
-    fontWeight: '800',
-  },
   plannerCard: {
     gap: 16,
     borderWidth: 1,
@@ -8219,28 +7097,6 @@ const styles = StyleSheet.create({
     color: '#667085',
     textAlign: 'center',
     lineHeight: 20,
-  },
-  metricGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  metricCard: {
-    width: '48.5%',
-    minHeight: 96,
-    justifyContent: 'space-between',
-    backgroundColor: '#111827',
-    borderWidth: 1,
-    borderColor: '#1F2937',
-  },
-  metricLabel: {
-    color: '#98A2B3',
-    fontWeight: '700',
-  },
-  metricValue: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '800',
   },
   guideCard: {
     gap: 10,
