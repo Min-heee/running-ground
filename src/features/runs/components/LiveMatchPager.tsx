@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from 'react';
-import { NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 type LiveMatchPagerProps = {
   scrollRef: RefObject<ScrollView | null>;
@@ -18,6 +18,13 @@ type PagerTab = {
   label: string;
 };
 
+const BASE_TABS: PagerTab[] = [
+  { index: 0, label: '대결 보기' },
+  { index: 1, label: '순위 보기' },
+  { index: 2, label: '기록 보기' },
+];
+const RESULT_TAB: PagerTab = { index: 3, label: '결과 보기' };
+
 export function LiveMatchPager({
   scrollRef,
   page,
@@ -29,14 +36,12 @@ export function LiveMatchPager({
   resultPage,
   onPageChange,
 }: LiveMatchPagerProps) {
-  const tabs: PagerTab[] = [
-    { index: 0, label: '대결 보기' },
-    { index: 1, label: '순위 보기' },
-    { index: 2, label: '기록 보기' },
-    ...(hasResultPage ? [{ index: 3, label: '결과 보기' }] : []),
-  ];
+  const tabs = hasResultPage ? [...BASE_TABS, RESULT_TAB] : BASE_TABS;
 
   const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (pageWidth <= 0) {
+      return;
+    }
     onPageChange(Math.round(event.nativeEvent.contentOffset.x / pageWidth));
   };
 
@@ -67,6 +72,11 @@ export function LiveMatchPager({
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
+        directionalLockEnabled
+        nestedScrollEnabled
+        overScrollMode="never"
+        removeClippedSubviews={Platform.OS === 'android'}
+        scrollEventThrottle={32}
         onMomentumScrollEnd={handleMomentumEnd}
       >
         <View style={[styles.page, { width: pageWidth }]}>

@@ -1,4 +1,5 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Platform, StyleSheet, Text, View } from 'react-native';
+import { memo } from 'react';
 
 type RaceBoardRow = {
   id: string;
@@ -12,9 +13,84 @@ type RaceBoardRow = {
   liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'forfeited' | 'finished';
 };
 
+const RACE_BOARD_ROW_HEIGHT = 104;
+
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
+
+const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: RaceBoardRow }) {
+  const isForfeited = row.liveStatus === 'forfeited';
+  const rawProgress = clamp(row.progress, 0, 1);
+  const lineProgressPercent = `${rawProgress * 100}%` as const;
+  const dotProgressPercent = `${clamp(rawProgress, 0.04, 0.96) * 100}%` as const;
+  const distanceOffsetStyle = rawProgress < 0.12
+    ? styles.distanceTextNearStart
+    : rawProgress > 0.88
+      ? styles.distanceTextNearFinish
+      : styles.distanceTextCentered;
+
+  return (
+    <View
+      style={[
+        styles.row,
+        row.isCurrentUser ? styles.rowCurrent : undefined,
+        isForfeited ? styles.rowForfeited : undefined,
+      ]}
+    >
+      <View style={styles.nameColumn}>
+        <Text style={[styles.rankText, isForfeited ? styles.rankTextForfeited : undefined]}>{row.rank}위</Text>
+        <Text
+          numberOfLines={2}
+          style={[
+            styles.nameText,
+            row.isCurrentUser ? styles.nameTextCurrent : undefined,
+            isForfeited ? styles.nameTextForfeited : undefined,
+          ]}
+        >
+          {row.isCurrentUser ? '나' : row.name}
+        </Text>
+      </View>
+      <View style={styles.trackColumn}>
+        <View style={styles.trackStack}>
+          <View style={styles.trackLine}>
+            <View
+              style={[
+                styles.trackProgress,
+                row.isCurrentUser ? styles.trackProgressCurrent : undefined,
+                isForfeited ? styles.trackProgressForfeited : undefined,
+                { width: lineProgressPercent },
+              ]}
+            />
+            <View
+              style={[
+                styles.trackDot,
+                row.isCurrentUser ? styles.trackDotCurrent : undefined,
+                isForfeited ? styles.trackDotForfeited : undefined,
+                { left: dotProgressPercent },
+              ]}
+            >
+              {isForfeited ? <Text style={styles.trackDotForfeitedText}>기권</Text> : null}
+            </View>
+          </View>
+          <Text style={[styles.distanceText, distanceOffsetStyle, { left: dotProgressPercent }]}>
+            {row.distanceKm.toFixed(2)}km
+          </Text>
+        </View>
+      </View>
+      <View style={styles.metaColumn}>
+        <Text
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.82}
+          style={[styles.metaRemaining, isForfeited ? styles.metaRemainingForfeited : undefined]}
+        >
+          {isForfeited ? '기권' : `${row.remainingKm.toFixed(2)}km 남음`}
+        </Text>
+      </View>
+    </View>
+  );
+});
 
 export function LiveMatchRaceBoard({
   title,
@@ -30,86 +106,24 @@ export function LiveMatchRaceBoard({
       <Text style={styles.eyebrow}>RACE BOARD</Text>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
-      <ScrollView
+      <FlatList
         style={styles.rowsScroller}
         contentContainerStyle={styles.rows}
+        data={rows}
+        renderItem={({ item }) => <RaceBoardListRow row={item} />}
+        keyExtractor={(row) => row.id}
+        getItemLayout={(_, index) => ({
+          length: RACE_BOARD_ROW_HEIGHT + 14,
+          offset: (RACE_BOARD_ROW_HEIGHT + 14) * index,
+          index,
+        })}
+        initialNumToRender={Platform.OS === 'android' ? 5 : 8}
+        maxToRenderPerBatch={Platform.OS === 'android' ? 5 : 8}
+        windowSize={Platform.OS === 'android' ? 5 : 9}
+        removeClippedSubviews={Platform.OS === 'android'}
         showsVerticalScrollIndicator={false}
         nestedScrollEnabled
-      >
-        {rows.map((row) => {
-            const isForfeited = row.liveStatus === 'forfeited';
-            const rawProgress = clamp(row.progress, 0, 1);
-            const lineProgressPercent = `${rawProgress * 100}%` as const;
-            const dotProgressPercent = `${clamp(rawProgress, 0.04, 0.96) * 100}%` as const;
-            const distanceOffsetStyle = rawProgress < 0.12
-              ? styles.distanceTextNearStart
-              : rawProgress > 0.88
-                ? styles.distanceTextNearFinish
-                : styles.distanceTextCentered;
-
-            return (
-              <View
-                key={row.id}
-                style={[
-                  styles.row,
-                  row.isCurrentUser ? styles.rowCurrent : undefined,
-                  isForfeited ? styles.rowForfeited : undefined,
-                ]}
-              >
-                <View style={styles.nameColumn}>
-                  <Text style={[styles.rankText, isForfeited ? styles.rankTextForfeited : undefined]}>{row.rank}위</Text>
-                  <Text
-                    numberOfLines={2}
-                    style={[
-                      styles.nameText,
-                      row.isCurrentUser ? styles.nameTextCurrent : undefined,
-                      isForfeited ? styles.nameTextForfeited : undefined,
-                    ]}
-                  >
-                    {row.isCurrentUser ? '나' : row.name}
-                  </Text>
-                </View>
-                <View style={styles.trackColumn}>
-                  <View style={styles.trackStack}>
-                    <View style={styles.trackLine}>
-                      <View
-                        style={[
-                          styles.trackProgress,
-                          row.isCurrentUser ? styles.trackProgressCurrent : undefined,
-                          isForfeited ? styles.trackProgressForfeited : undefined,
-                          { width: lineProgressPercent },
-                        ]}
-                      />
-                      <View
-                        style={[
-                          styles.trackDot,
-                          row.isCurrentUser ? styles.trackDotCurrent : undefined,
-                          isForfeited ? styles.trackDotForfeited : undefined,
-                          { left: dotProgressPercent },
-                        ]}
-                      >
-                        {isForfeited ? <Text style={styles.trackDotForfeitedText}>기권</Text> : null}
-                      </View>
-                    </View>
-                    <Text style={[styles.distanceText, distanceOffsetStyle, { left: dotProgressPercent }]}>
-                      {row.distanceKm.toFixed(2)}km
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.metaColumn}>
-                  <Text
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.82}
-                    style={[styles.metaRemaining, isForfeited ? styles.metaRemainingForfeited : undefined]}
-                  >
-                    {isForfeited ? '기권' : `${row.remainingKm.toFixed(2)}km 남음`}
-                  </Text>
-                </View>
-              </View>
-            );
-          })}
-      </ScrollView>
+      />
     </View>
   );
 }

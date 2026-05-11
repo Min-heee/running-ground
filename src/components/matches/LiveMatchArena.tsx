@@ -2,8 +2,8 @@ import { memo, useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Easing,
+  FlatList,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -32,6 +32,8 @@ const GROUP_ROW_HEIGHT = 78;
 const SHOULD_ANIMATE_ROAD = Platform.OS !== 'android';
 const DUEL_STRIPE_COUNT = Platform.OS === 'android' ? 6 : 12;
 const GROUP_STRIPE_COUNT = Platform.OS === 'android' ? 7 : 14;
+const DUEL_STRIPES = Array.from({ length: DUEL_STRIPE_COUNT });
+const GROUP_STRIPES = Array.from({ length: GROUP_STRIPE_COUNT });
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -92,10 +94,8 @@ function buildRemainingLabel(distanceKm: number, targetDistanceKm: number) {
 }
 
 const RoadMotion = memo(function RoadMotion({
-  roadHeight,
   laneMode,
 }: {
-  roadHeight: number;
   laneMode: 'duel' | 'group';
 }) {
   const shift = useRef(new Animated.Value(0)).current;
@@ -128,9 +128,8 @@ const RoadMotion = memo(function RoadMotion({
     inputRange: [0, 1],
     outputRange: [0, ROAD_STRIPE_SPACING],
   });
-  const roadMotionStyle = SHOULD_ANIMATE_ROAD
-    ? { transform: [{ translateY }] }
-    : undefined;
+  const roadMotionStyle = { transform: [{ translateY }] };
+  const MotionWrap = SHOULD_ANIMATE_ROAD ? Animated.View : View;
 
   return (
     <View style={styles.roadBackground}>
@@ -140,35 +139,35 @@ const RoadMotion = memo(function RoadMotion({
           <View style={styles.duelCenterDivider} />
           <View style={[styles.duelLaneBase, styles.duelLaneLeft]} />
           <View style={[styles.duelLaneBase, styles.duelLaneRight]} />
-          <Animated.View
+          <MotionWrap
             pointerEvents="none"
             style={[
               styles.duelCenterMarkingsWrap,
-              roadMotionStyle,
+              SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined,
             ]}
           >
-            {Array.from({ length: DUEL_STRIPE_COUNT }).map((_, index) => (
+            {DUEL_STRIPES.map((_, index) => (
               <View key={`duel-stripe-${index}`} style={styles.duelStripeRow}>
                 <View style={styles.duelStripe} />
                 <View style={styles.duelStripe} />
               </View>
             ))}
-          </Animated.View>
+          </MotionWrap>
         </>
       ) : (
         <>
           <View style={styles.groupRoadBase} />
-          <Animated.View
+          <MotionWrap
             pointerEvents="none"
             style={[
               styles.groupCenterMarkingsWrap,
-              roadMotionStyle,
+              SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined,
             ]}
           >
-            {Array.from({ length: GROUP_STRIPE_COUNT }).map((_, index) => (
+            {GROUP_STRIPES.map((_, index) => (
               <View key={`group-stripe-${index}`} style={styles.groupStripe} />
             ))}
-          </Animated.View>
+          </MotionWrap>
         </>
       )}
       <View style={[styles.finishRibbon, laneMode === 'group' ? styles.finishRibbonGroup : undefined]}>
@@ -178,7 +177,7 @@ const RoadMotion = memo(function RoadMotion({
   );
 });
 
-function DuelRoad({
+const DuelRoad = memo(function DuelRoad({
   participants,
   targetDistanceKm,
 }: {
@@ -218,7 +217,7 @@ function DuelRoad({
 
   return (
     <View style={[styles.roadCard, { height: ROAD_HEIGHT_DUEL }]}>
-      <RoadMotion laneMode="duel" roadHeight={ROAD_HEIGHT_DUEL} />
+      <RoadMotion laneMode="duel" />
       <View style={[styles.duelRunnerWrap, styles.duelRunnerLeft, { top: opponentTop }]}>
         <View style={[styles.runnerMarker, styles.runnerMarkerOpponent, isForfeited(opponent) ? styles.runnerMarkerForfeited : undefined]}>
           <Text style={[styles.runnerMarkerText, isForfeited(opponent) ? styles.runnerMarkerForfeitedText : undefined]}>
@@ -263,9 +262,58 @@ function DuelRoad({
       </View>
     </View>
   );
-}
+});
 
-function GroupRoad({
+type GroupRoadRowProps = {
+  participant: ArenaParticipant;
+  index: number;
+  targetDistanceKm: number;
+};
+
+const GroupRoadRow = memo(function GroupRoadRow({
+  participant,
+  index,
+  targetDistanceKm,
+}: GroupRoadRowProps) {
+  const isCurrentUser = Boolean(participant.isCurrentUser);
+  const participantForfeited = isForfeited(participant);
+  const rankLabel = participant.rankLabel ?? `${index + 1}위`;
+  const displayName = isCurrentUser ? '나' : participant.name;
+
+  return (
+    <View
+      style={[
+        styles.groupRow,
+        isCurrentUser ? styles.groupRowCurrent : undefined,
+        participantForfeited ? styles.groupRowForfeited : undefined,
+      ]}
+    >
+      <View style={styles.groupRankColumn}>
+        <Text style={styles.groupRankText}>{rankLabel}</Text>
+        <Text style={styles.groupNameText}>{displayName}</Text>
+      </View>
+      <View style={styles.groupRoadLane}>
+        <View style={[
+          styles.groupRunnerMarker,
+          isCurrentUser ? styles.runnerMarkerCurrent : participant.isLeader ? styles.runnerMarkerLeader : styles.runnerMarkerOpponent,
+          participantForfeited ? styles.runnerMarkerForfeited : undefined,
+        ]}>
+          <Text style={[styles.groupRunnerMarkerText, participantForfeited ? styles.groupRunnerMarkerForfeitedText : undefined]}>
+            {buildMarkerLabel(participant, isCurrentUser ? '나' : participant.name.slice(0, 1))}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.groupMetaColumn}>
+        <Text style={[styles.groupMetaText, participantForfeited ? styles.groupMetaForfeitedText : undefined]}>
+          {buildAveragePaceDisplayLabel(participant)}
+        </Text>
+        <Text style={styles.groupMetaSubtext}>{buildRemainingLabel(participant.distanceKm, targetDistanceKm)}</Text>
+      </View>
+    </View>
+  );
+});
+
+const GroupRoad = memo(function GroupRoad({
   participants,
   targetDistanceKm,
 }: {
@@ -286,63 +334,46 @@ function GroupRoad({
     0,
     orderedParticipants.findIndex((participant) => participant.isCurrentUser),
   );
-  const initialOffset = Math.max(0, currentUserIndex * GROUP_ROW_HEIGHT - ROAD_HEIGHT_GROUP / 2 + GROUP_ROW_HEIGHT / 2);
+  const initialScrollIndex = Math.min(currentUserIndex, Math.max(orderedParticipants.length - 1, 0));
 
   return (
     <View style={[styles.roadCard, { height: ROAD_HEIGHT_GROUP }]}>
-      <RoadMotion laneMode="group" roadHeight={ROAD_HEIGHT_GROUP} />
-      <ScrollView
+      <RoadMotion laneMode="group" />
+      <FlatList
         style={styles.groupScroll}
         contentContainerStyle={[
           styles.groupScrollContent,
           { minHeight: Math.max(ROAD_HEIGHT_GROUP + GROUP_ROW_HEIGHT, orderedParticipants.length * GROUP_ROW_HEIGHT + 32) },
         ]}
-        showsVerticalScrollIndicator={false}
-        contentOffset={{ x: 0, y: initialOffset }}
-      >
-        {orderedParticipants.map((participant, index) => {
-          const isCurrentUser = Boolean(participant.isCurrentUser);
-          const participantForfeited = isForfeited(participant);
-          const rankLabel = participant.rankLabel ?? `${index + 1}위`;
-          const displayName = isCurrentUser ? '나' : participant.name;
-
-          return (
-            <View
-              key={participant.id}
-              style={[
-                styles.groupRow,
-                isCurrentUser ? styles.groupRowCurrent : undefined,
-                participantForfeited ? styles.groupRowForfeited : undefined,
-              ]}
-            >
-              <View style={styles.groupRankColumn}>
-                <Text style={styles.groupRankText}>{rankLabel}</Text>
-                <Text style={styles.groupNameText}>{displayName}</Text>
-              </View>
-              <View style={styles.groupRoadLane}>
-                <View style={[
-                  styles.groupRunnerMarker,
-                  isCurrentUser ? styles.runnerMarkerCurrent : participant.isLeader ? styles.runnerMarkerLeader : styles.runnerMarkerOpponent,
-                  participantForfeited ? styles.runnerMarkerForfeited : undefined,
-                ]}>
-                  <Text style={[styles.groupRunnerMarkerText, participantForfeited ? styles.groupRunnerMarkerForfeitedText : undefined]}>
-                    {buildMarkerLabel(participant, isCurrentUser ? '나' : participant.name.slice(0, 1))}
-                  </Text>
-                </View>
-              </View>
-              <View style={styles.groupMetaColumn}>
-                <Text style={[styles.groupMetaText, participantForfeited ? styles.groupMetaForfeitedText : undefined]}>
-                  {buildAveragePaceDisplayLabel(participant)}
-                </Text>
-                <Text style={styles.groupMetaSubtext}>{buildRemainingLabel(participant.distanceKm, targetDistanceKm)}</Text>
-              </View>
-            </View>
-          );
+        data={orderedParticipants}
+        renderItem={({ item, index }) => (
+          <GroupRoadRow participant={item} index={index} targetDistanceKm={targetDistanceKm} />
+        )}
+        keyExtractor={(participant) => participant.id}
+        getItemLayout={(_, index) => ({
+          length: GROUP_ROW_HEIGHT,
+          offset: GROUP_ROW_HEIGHT * index,
+          index,
         })}
-      </ScrollView>
+        initialScrollIndex={orderedParticipants.length ? initialScrollIndex : undefined}
+        initialNumToRender={Platform.OS === 'android' ? 7 : 12}
+        maxToRenderPerBatch={Platform.OS === 'android' ? 5 : 10}
+        windowSize={Platform.OS === 'android' ? 5 : 9}
+        removeClippedSubviews={Platform.OS === 'android'}
+        showsVerticalScrollIndicator={false}
+        onScrollToIndexFailed={() => {}}
+      />
     </View>
   );
-}
+});
+
+const SummaryChip = memo(function SummaryChip({ label }: { label: string }) {
+  return (
+    <View style={styles.summaryChip}>
+      <Text style={styles.summaryChipText}>{label}</Text>
+    </View>
+  );
+});
 
 export const LiveMatchArena = memo(function LiveMatchArena({
   mode,
@@ -371,9 +402,7 @@ export const LiveMatchArena = memo(function LiveMatchArena({
       <Text style={styles.subtitle}>{subtitle}</Text>
       <View style={styles.summaryChipRow}>
         {summaryChips.map((chip) => (
-          <View key={chip} style={styles.summaryChip}>
-            <Text style={styles.summaryChipText}>{chip}</Text>
-          </View>
+          <SummaryChip key={chip} label={chip} />
         ))}
       </View>
       {mode === 'duel' ? (
