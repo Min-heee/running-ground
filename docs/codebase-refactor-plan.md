@@ -84,6 +84,16 @@ Mock-only builders should move to `src/lib/api/mock/*` so real API code stays re
    - Do this after frontend QA stabilizes.
    - Match-room and running-match official judgement should be the first backend split.
 
+6. Add pure logic tests.
+   - Example done: match scheduling tests cover distance parsing, slot cutoffs, countdown labels, and bonus points.
+   - Example done: match progress tests cover fair 30-second duel comparison, pace labels, group standings, forfeits, and official server ranks.
+   - Example done: tracking session tests cover official start baseline interpolation and elapsed-time correction.
+   - Example done: match state machine tests cover blocking/live states, participant status labels, transition notices, and tracking state transitions.
+
+7. Centralize match state decisions.
+   - Example done: repeated match state checks are now grouped in `src/features/runs/matchStateMachine.ts`.
+   - Follow-up: move more screen-specific countdown and arena-opening rules into this state machine after live-device QA.
+
 ## Guardrails
 
 - Do not refactor party run countdown and tracking logic in the same commit.

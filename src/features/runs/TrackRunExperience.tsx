@@ -133,6 +133,12 @@ import {
   normalizeMatchProgressPace,
   resolveParticipantDisplayDistanceKm,
 } from '@/features/runs/matchProgress';
+import {
+  buildMatchParticipantStatusLabel,
+  buildMatchTransitionNotice,
+  isBlockingMatchState,
+  isLiveMatchState,
+} from '@/features/runs/matchStateMachine';
 import { getCurrentUserProfile } from '@/lib/session';
 
 type StableCountdownTracker = {
@@ -240,53 +246,6 @@ type RoomLinkedMatchContext = {
   distanceKm: number;
   state: 'matched' | 'active';
 };
-type MatchParticipantLiveStatus = DuelMatchOpponent['liveStatus'];
-
-function buildMatchParticipantStatusLabel(status?: MatchParticipantLiveStatus) {
-  switch (status) {
-    case 'running':
-      return '러닝 중';
-    case 'background':
-      return '백그라운드';
-    case 'paused':
-      return '일시정지';
-    case 'disconnected':
-      return '연결 끊김';
-    case 'forfeited':
-      return '포기함';
-    case 'finished':
-      return '완료';
-    case 'ready':
-    default:
-      return '준비됨';
-  }
-}
-
-function buildMatchTransitionNotice(
-  mode: 'duel' | 'group',
-  previousState: RunningMatchStatusResponse['state'],
-  nextState: RunningMatchStatusResponse['state'],
-) {
-  if (previousState === nextState) {
-    return null;
-  }
-
-  if (previousState === 'waiting' && nextState === 'idle') {
-    return '대기 시간이 지나 자동으로 정리됐어요. 다시 찾으면 새 대기열로 들어가요.';
-  }
-
-  if ((previousState === 'matched' || previousState === 'active') && nextState === 'waiting') {
-    return mode === 'duel'
-      ? '상대가 빠져서 다시 비슷한 상대를 찾는 중이에요.'
-      : '일부 참가자가 빠져서 다시 비슷한 그룹을 모으는 중이에요.';
-  }
-
-  if ((previousState === 'matched' || previousState === 'active') && nextState === 'idle') {
-    return '매칭이 정리됐어요. 다시 찾으면 새 대기열로 들어가요.';
-  }
-
-  return null;
-}
 
 export function TrackRunExperience({
   mode,
@@ -600,11 +559,11 @@ export function TrackRunExperience({
   );
   const hasBlockingRoom = Boolean(visibleMatchRoom);
   const hasBlockingScheduledMatch = useMemo(
-    () => visibleUpcomingMatches.some((match) => ['matched', 'active'].includes(match.status)),
+    () => visibleUpcomingMatches.some((match) => isLiveMatchState(match.status)),
     [visibleUpcomingMatches],
   );
-  const hasBlockingDuelMatch = ['waiting', 'matched', 'active'].includes(duelMatchState);
-  const hasBlockingGroupMatch = ['waiting', 'matched', 'active'].includes(groupMatchState);
+  const hasBlockingDuelMatch = isBlockingMatchState(duelMatchState);
+  const hasBlockingGroupMatch = isBlockingMatchState(groupMatchState);
   const canCreateDuelMatch = !hasBlockingRoom && !hasBlockingScheduledMatch && !hasBlockingGroupMatch && !hasBlockingDuelMatch;
   const canCreateGroupMatch = !hasBlockingRoom && !hasBlockingScheduledMatch && !hasBlockingDuelMatch && !hasBlockingGroupMatch;
   const blockingMatchHelperText = hasBlockingRoom
@@ -1217,7 +1176,7 @@ export function TrackRunExperience({
       : null;
   const canRenderLiveArena =
     (matchMode === 'duel'
-      && ['matched', 'active'].includes(duelMatchState)
+      && isLiveMatchState(duelMatchState)
       && duelArenaParticipants.length === 2
       && (duelMatchState === 'active' || duelShouldOpenCountdownArena || duelShouldHoldArenaDuringActivation))
     || (matchMode === 'duel'
@@ -1225,7 +1184,7 @@ export function TrackRunExperience({
       && roomLinkedDuelPlaceholderParticipants.length === 2
       && roomShouldOpenCountdownArena)
     || (matchMode === 'group'
-      && ['matched', 'active'].includes(groupMatchState)
+      && isLiveMatchState(groupMatchState)
       && groupArenaParticipants.length > 0
       && (groupMatchState === 'active' || groupShouldOpenCountdownArena || groupShouldHoldArenaDuringActivation))
     || (matchMode === 'group'
@@ -1259,14 +1218,14 @@ export function TrackRunExperience({
       ? null
       : isRunning && matchMode === 'duel'
       ? (
-          (duelMatchStatus?.matchId && ['matched', 'active'].includes(duelMatchState))
+          (duelMatchStatus?.matchId && isLiveMatchState(duelMatchState))
           || roomLinkedMatchContext?.mode === 'duel'
             ? 'duel'
             : null
         )
       : isRunning && matchMode === 'group'
         ? (
-            (groupMatchStatus?.matchId && ['matched', 'active'].includes(groupMatchState))
+            (groupMatchStatus?.matchId && isLiveMatchState(groupMatchState))
             || roomLinkedMatchContext?.mode === 'group'
               ? 'group'
               : null
@@ -2762,7 +2721,7 @@ export function TrackRunExperience({
   ]);
 
   useEffect(() => {
-    if (matchMode !== 'duel' || !duelMatchStatus || !['waiting', 'matched', 'active'].includes(duelMatchStatus.state)) {
+    if (matchMode !== 'duel' || !duelMatchStatus || !isBlockingMatchState(duelMatchStatus.state)) {
       return;
     }
 
@@ -2780,7 +2739,7 @@ export function TrackRunExperience({
   }, [activeDuelSlotStartAt, duelDistanceKm, duelMatchStatus?.matchId, duelMatchStatus?.state, matchMode, syncedNowMs]);
 
   useEffect(() => {
-    if (matchMode !== 'group' || !groupMatchStatus || !['waiting', 'matched', 'active'].includes(groupMatchStatus.state)) {
+    if (matchMode !== 'group' || !groupMatchStatus || !isBlockingMatchState(groupMatchStatus.state)) {
       return;
     }
 
@@ -3186,12 +3145,12 @@ export function TrackRunExperience({
       ? roomLinkedMatchContext
       : null;
 
-    if (matchMode === 'duel' && !['matched', 'active'].includes(duelMatchState) && roomLinkedStartContext?.mode !== 'duel') {
+    if (matchMode === 'duel' && !isLiveMatchState(duelMatchState) && roomLinkedStartContext?.mode !== 'duel') {
       setError('1대1 매칭이 잡힌 뒤에만 시작할 수 있어요.');
       return;
     }
 
-    if (matchMode === 'group' && !['matched', 'active'].includes(groupMatchState) && roomLinkedStartContext?.mode !== 'group') {
+    if (matchMode === 'group' && !isLiveMatchState(groupMatchState) && roomLinkedStartContext?.mode !== 'group') {
       setError('그룹 매칭이 잡힌 뒤에만 시작할 수 있어요.');
       return;
     }

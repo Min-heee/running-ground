@@ -1,9 +1,6 @@
 import type * as Location from 'expo-location';
 import type { RunRoutePoint } from '@/domain/types';
-import {
-  getBackgroundRunElapsedSeconds,
-  type BackgroundRunTrackingSnapshot,
-} from '@/features/runs/backgroundTracking';
+import type { BackgroundRunTrackingSnapshot } from '@/features/runs/backgroundTracking';
 import { calculateDistanceBetweenPoints } from '@/features/runs/tracking';
 
 export type OfficialStartBaseline = {
@@ -47,6 +44,28 @@ function calculateRouteDistanceMeters(route: RunRoutePoint[]) {
   return totalDistanceMeters;
 }
 
+export function getTrackingSnapshotElapsedSeconds(snapshot: BackgroundRunTrackingSnapshot, nowMs = Date.now()) {
+  if (!snapshot.startedAt) {
+    return 0;
+  }
+
+  const startedAtMs = new Date(snapshot.startedAt).getTime();
+
+  if (Number.isNaN(startedAtMs)) {
+    return 0;
+  }
+
+  const referenceMs = snapshot.status === 'paused' && snapshot.pausedAt
+    ? new Date(snapshot.pausedAt).getTime()
+    : nowMs;
+
+  if (Number.isNaN(referenceMs)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.floor((referenceMs - startedAtMs - snapshot.accumulatedPausedMs) / 1000));
+}
+
 export function buildOfficialStartBaseline(
   snapshot: BackgroundRunTrackingSnapshot,
   matchId: string,
@@ -60,7 +79,7 @@ export function buildOfficialStartBaseline(
     return {
       matchId,
       distanceKm: 0,
-      elapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, safeOfficialStartMs),
+      elapsedSeconds: getTrackingSnapshotElapsedSeconds(snapshot, safeOfficialStartMs),
       routeStartIndex: 0,
       routeStartPoint: null,
       startedAt: new Date(safeOfficialStartMs).toISOString(),
@@ -77,7 +96,7 @@ export function buildOfficialStartBaseline(
     return {
       matchId,
       distanceKm: snapshot.distanceKm,
-      elapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, safeOfficialStartMs),
+      elapsedSeconds: getTrackingSnapshotElapsedSeconds(snapshot, safeOfficialStartMs),
       routeStartIndex: route.length,
       routeStartPoint: { ...lastPoint, timestamp: new Date(safeOfficialStartMs).toISOString() },
       startedAt: new Date(safeOfficialStartMs).toISOString(),
@@ -88,7 +107,7 @@ export function buildOfficialStartBaseline(
     return {
       matchId,
       distanceKm: 0,
-      elapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, safeOfficialStartMs),
+      elapsedSeconds: getTrackingSnapshotElapsedSeconds(snapshot, safeOfficialStartMs),
       routeStartIndex: 0,
       routeStartPoint: route[0],
       startedAt: new Date(safeOfficialStartMs).toISOString(),
@@ -103,7 +122,7 @@ export function buildOfficialStartBaseline(
   return {
     matchId,
     distanceKm: Number((calculateRouteDistanceMeters(baselineRoute) / 1000).toFixed(3)),
-    elapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, safeOfficialStartMs),
+    elapsedSeconds: getTrackingSnapshotElapsedSeconds(snapshot, safeOfficialStartMs),
     routeStartIndex: firstAfterStartIndex,
     routeStartPoint: startPoint,
     startedAt: new Date(safeOfficialStartMs).toISOString(),

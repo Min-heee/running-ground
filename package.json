@@ -58,6 +58,7 @@
     "android": "expo run:android",
     "web": "expo start --web",
     "lint": "eslint .",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -87,6 +88,7 @@
     "eas-cli": "^18.8.1",
     "eslint": "^9.22.0",
     "eslint-config-expo": "~10.0.0",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.2"
   }
 }
