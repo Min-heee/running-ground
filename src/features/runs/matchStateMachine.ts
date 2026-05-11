@@ -2,6 +2,10 @@ import type {
   DuelMatchOpponent,
   RunningMatchState,
 } from '@/lib/api/types';
+import {
+  shouldAutoOpenMatchArena,
+  shouldShowMatchStartOverlay,
+} from '@/lib/matchCountdown';
 
 export type MatchParticipantLiveStatus = DuelMatchOpponent['liveStatus'];
 
@@ -116,4 +120,140 @@ export function buildMatchTransitionNotice(
   }
 
   return null;
+}
+
+type CountdownVisibilityInput = {
+  hasCountdownEntry: boolean;
+  remainingSeconds: number | null;
+};
+
+type CenteredCountdownVisibilityInput = CountdownVisibilityInput & {
+  showLiveArena: boolean;
+  hasRoomCountdownEntry: boolean;
+};
+
+type MatchArenaForceInput = {
+  isResolvingFocusedMatch: boolean;
+  duelState?: RunningMatchState | null;
+  groupState?: RunningMatchState | null;
+  duelShouldOpenCountdownArena: boolean;
+  groupShouldOpenCountdownArena: boolean;
+  roomShouldOpenCountdownArena: boolean;
+  forceOpenActiveMatch: boolean;
+  shouldKeepRunningMatchArena: boolean;
+};
+
+type MatchArenaEntryInput = {
+  duelState?: RunningMatchState | null;
+  groupState?: RunningMatchState | null;
+  duelShouldOpenCountdownArena: boolean;
+  groupShouldOpenCountdownArena: boolean;
+};
+
+type ActiveMatchIdentityInput = {
+  matchMode: 'solo' | 'duel' | 'group' | 'room';
+  duelMatchId?: string | null;
+  groupMatchId?: string | null;
+  roomLinkedMatchContext?: {
+    mode: 'duel' | 'group';
+    matchId: string;
+    state: 'matched' | 'active';
+  } | null;
+};
+
+export function shouldUseFullscreenMatchCountdown({
+  hasCountdownEntry,
+  remainingSeconds,
+}: CountdownVisibilityInput) {
+  return (
+    hasCountdownEntry
+    && shouldShowMatchStartOverlay(remainingSeconds)
+    && !shouldAutoOpenMatchArena(remainingSeconds)
+  );
+}
+
+export function shouldUseCenteredMatchCountdown({
+  hasCountdownEntry,
+  remainingSeconds,
+  showLiveArena,
+  hasRoomCountdownEntry,
+}: CenteredCountdownVisibilityInput) {
+  return (
+    hasCountdownEntry
+    && shouldAutoOpenMatchArena(remainingSeconds)
+    && (showLiveArena || hasRoomCountdownEntry)
+  );
+}
+
+export function shouldAutoFocusMatchArena(isIdle: boolean, remainingSeconds: number | null) {
+  return isIdle && shouldAutoOpenMatchArena(remainingSeconds);
+}
+
+export function shouldEnterMatchArenaForLifecycle({
+  duelState,
+  groupState,
+  duelShouldOpenCountdownArena,
+  groupShouldOpenCountdownArena,
+}: MatchArenaEntryInput) {
+  return (
+    duelState === 'active'
+    || groupState === 'active'
+    || duelShouldOpenCountdownArena
+    || groupShouldOpenCountdownArena
+  );
+}
+
+export function shouldKeepMatchArenaForceOpen({
+  isResolvingFocusedMatch,
+  duelState,
+  groupState,
+  duelShouldOpenCountdownArena,
+  groupShouldOpenCountdownArena,
+  roomShouldOpenCountdownArena,
+  forceOpenActiveMatch,
+  shouldKeepRunningMatchArena,
+}: MatchArenaForceInput) {
+  if (isResolvingFocusedMatch) {
+    return true;
+  }
+
+  return (
+    duelState === 'active'
+    || groupState === 'active'
+    || duelShouldOpenCountdownArena
+    || groupShouldOpenCountdownArena
+    || roomShouldOpenCountdownArena
+    || (forceOpenActiveMatch && (duelState === 'matched' || groupState === 'matched'))
+    || shouldKeepRunningMatchArena
+  );
+}
+
+export function shouldPreferRoomLinkedArena(
+  linkedMatchStatus: 'matched' | 'active' | null | undefined,
+  remainingSeconds: number | null,
+) {
+  return linkedMatchStatus === 'active' || shouldAutoOpenMatchArena(remainingSeconds);
+}
+
+export function resolveActiveMatchId({
+  matchMode,
+  duelMatchId,
+  groupMatchId,
+  roomLinkedMatchContext,
+}: ActiveMatchIdentityInput) {
+  const roomActiveMatchId =
+    roomLinkedMatchContext?.state === 'active'
+    && roomLinkedMatchContext.mode === matchMode
+      ? roomLinkedMatchContext.matchId
+      : null;
+
+  if (matchMode === 'duel') {
+    return duelMatchId ?? roomActiveMatchId;
+  }
+
+  if (matchMode === 'group') {
+    return groupMatchId ?? roomActiveMatchId;
+  }
+
+  return roomActiveMatchId;
 }

@@ -28,6 +28,8 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RunMatchResult, RunRoutePoint } from '@/domain/types';
 import { MatchOptionSelector } from '@/features/runs/components/MatchOptionSelector';
 import { MatchResultPanel } from '@/features/runs/components/MatchResultPanel';
+import { LiveMatchExitActionCard } from '@/features/runs/components/LiveMatchExitActionCard';
+import { LiveMatchPager } from '@/features/runs/components/LiveMatchPager';
 import { PartyRunInviteCard } from '@/features/runs/components/PartyRunInviteCard';
 import { RunningMetricGrid } from '@/features/runs/components/RunningMetricGrid';
 import { UpcomingMatchList } from '@/features/runs/components/UpcomingMatchList';
@@ -138,6 +140,13 @@ import {
   buildMatchTransitionNotice,
   isBlockingMatchState,
   isLiveMatchState,
+  resolveActiveMatchId,
+  shouldAutoFocusMatchArena,
+  shouldEnterMatchArenaForLifecycle,
+  shouldKeepMatchArenaForceOpen,
+  shouldPreferRoomLinkedArena,
+  shouldUseCenteredMatchCountdown,
+  shouldUseFullscreenMatchCountdown,
 } from '@/features/runs/matchStateMachine';
 import { getCurrentUserProfile } from '@/lib/session';
 
@@ -2280,8 +2289,10 @@ export function TrackRunExperience({
       return;
     }
 
-    const shouldPreferArena = matchRoom.linkedMatchStatus === 'active'
-      || shouldAutoOpenMatchArena(roomCountdownRemainingSeconds);
+    const shouldPreferArena = shouldPreferRoomLinkedArena(
+      matchRoom.linkedMatchStatus,
+      roomCountdownRemainingSeconds,
+    );
 
     const nextKey = [
       matchRoom.roomId,
@@ -2450,15 +2461,16 @@ export function TrackRunExperience({
       return;
     }
 
-    if (
-      duelMatchState !== 'active'
-      && groupMatchState !== 'active'
-      && !duelShouldOpenCountdownArena
-      && !groupShouldOpenCountdownArena
-      && !roomShouldOpenCountdownArena
-      && !(forceOpenActiveMatch && (duelMatchState === 'matched' || groupMatchState === 'matched'))
-      && !shouldKeepRunningMatchArena
-    ) {
+    if (!shouldKeepMatchArenaForceOpen({
+      isResolvingFocusedMatch,
+      duelState: duelMatchState,
+      groupState: groupMatchState,
+      duelShouldOpenCountdownArena,
+      groupShouldOpenCountdownArena,
+      roomShouldOpenCountdownArena,
+      forceOpenActiveMatch,
+      shouldKeepRunningMatchArena,
+    })) {
       setForceOpenActiveMatch(false);
     }
   }, [
@@ -2473,22 +2485,19 @@ export function TrackRunExperience({
   ]);
 
   useEffect(() => {
-    if (duelMatchState === 'active' || groupMatchState === 'active') {
-      setForceOpenActiveMatch(true);
-      setLiveArenaPage(0);
-      livePagerRef.current?.scrollTo({ x: 0, animated: false });
-    }
-  }, [duelMatchState, groupMatchState]);
-
-  useEffect(() => {
-    if (!duelShouldOpenCountdownArena && !groupShouldOpenCountdownArena) {
+    if (!shouldEnterMatchArenaForLifecycle({
+      duelState: duelMatchState,
+      groupState: groupMatchState,
+      duelShouldOpenCountdownArena,
+      groupShouldOpenCountdownArena,
+    })) {
       return;
     }
 
     setForceOpenActiveMatch(true);
     setLiveArenaPage(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
-  }, [duelShouldOpenCountdownArena, groupShouldOpenCountdownArena]);
+  }, [duelMatchState, duelShouldOpenCountdownArena, groupMatchState, groupShouldOpenCountdownArena]);
 
   useEffect(() => {
     if (!hasMatchResultPage) {
@@ -2500,7 +2509,7 @@ export function TrackRunExperience({
   }, [hasMatchResultPage, liveArenaPageWidth]);
 
   useEffect(() => {
-    if (!isIdle || !nextStartingMatch || !shouldAutoOpenMatchArena(nextStartingMatch.remainingSeconds)) {
+    if (!nextStartingMatch || !shouldAutoFocusMatchArena(isIdle, nextStartingMatch.remainingSeconds)) {
       countdownAutoOpenMatchIdRef.current = null;
       return;
     }
@@ -2545,13 +2554,16 @@ export function TrackRunExperience({
 
   const shouldShowFullscreenMatchCountdown =
     isIdle
-    && Boolean(visibleCountdownEntry)
-    && shouldShowMatchStartOverlay(visibleCountdownEntry?.remainingSeconds ?? null)
-    && !shouldAutoOpenMatchArena(visibleCountdownEntry?.remainingSeconds ?? null);
-  const shouldShowCenteredMatchCountdown =
-    Boolean(visibleCountdownEntry)
-    && shouldAutoOpenMatchArena(visibleCountdownEntry?.remainingSeconds ?? null)
-    && (showLiveArena || Boolean(roomCountdownEntry));
+    && shouldUseFullscreenMatchCountdown({
+      hasCountdownEntry: Boolean(visibleCountdownEntry),
+      remainingSeconds: visibleCountdownEntry?.remainingSeconds ?? null,
+    });
+  const shouldShowCenteredMatchCountdown = shouldUseCenteredMatchCountdown({
+    hasCountdownEntry: Boolean(visibleCountdownEntry),
+    remainingSeconds: visibleCountdownEntry?.remainingSeconds ?? null,
+    showLiveArena,
+    hasRoomCountdownEntry: Boolean(roomCountdownEntry),
+  });
 
   useEffect(() => {
     let canceled = false;
@@ -3575,16 +3587,12 @@ export function TrackRunExperience({
     stopForegroundTrackingHelpers();
     syncFromBackgroundTracking();
 
-    const roomActiveMatchId =
-      roomLinkedMatchContext?.state === 'active'
-      && roomLinkedMatchContext.mode === matchMode
-        ? roomLinkedMatchContext.matchId
-        : null;
-    const activeMatchId = matchMode === 'duel'
-      ? duelMatchStatus?.matchId ?? roomActiveMatchId
-      : matchMode === 'group'
-        ? groupMatchStatus?.matchId ?? roomActiveMatchId
-        : roomActiveMatchId;
+    const activeMatchId = resolveActiveMatchId({
+      matchMode,
+      duelMatchId: duelMatchStatus?.matchId,
+      groupMatchId: groupMatchStatus?.matchId,
+      roomLinkedMatchContext,
+    });
 
     if (activeMatchId) {
       try {
@@ -3634,16 +3642,12 @@ export function TrackRunExperience({
         });
       }
 
-      const roomActiveMatchId =
-        roomLinkedMatchContext?.state === 'active'
-        && roomLinkedMatchContext.mode === matchMode
-          ? roomLinkedMatchContext.matchId
-          : null;
-      const activeMatchId = matchMode === 'duel'
-        ? duelMatchStatus?.matchId ?? roomActiveMatchId
-        : matchMode === 'group'
-          ? groupMatchStatus?.matchId ?? roomActiveMatchId
-          : roomActiveMatchId;
+      const activeMatchId = resolveActiveMatchId({
+        matchMode,
+        duelMatchId: duelMatchStatus?.matchId,
+        groupMatchId: groupMatchStatus?.matchId,
+        roomLinkedMatchContext,
+      });
 
       if (activeMatchId) {
         const currentSnapshot = getBackgroundRunTrackingSnapshot();
@@ -3729,16 +3733,12 @@ export function TrackRunExperience({
         throw new Error('페이스 계산이 아직 부족해서 저장할 수 없어. 조금 더 측정한 뒤 다시 시도해줘.');
       }
 
-      const roomActiveMatchId =
-        roomLinkedMatchContext?.state === 'active'
-        && roomLinkedMatchContext.mode === matchMode
-          ? roomLinkedMatchContext.matchId
-          : null;
-      const activeMatchId = matchMode === 'duel'
-        ? duelMatchStatus?.matchId ?? roomActiveMatchId
-        : matchMode === 'group'
-          ? groupMatchStatus?.matchId ?? roomActiveMatchId
-          : roomActiveMatchId;
+      const activeMatchId = resolveActiveMatchId({
+        matchMode,
+        duelMatchId: duelMatchStatus?.matchId,
+        groupMatchId: groupMatchStatus?.matchId,
+        roomLinkedMatchContext,
+      });
 
       if (activeMatchId) {
         try {
@@ -3828,69 +3828,20 @@ export function TrackRunExperience({
   };
 
   const renderLiveArenaExitAction = () => {
-    if (!activeMatchExitSource) {
-      return null;
-    }
-
-    if (activeMatchExitIsTest) {
-      return (
-        <Card style={styles.testExitCard}>
-          <Text style={styles.testExitTitle}>테스트 대결을 여기서 끝낼 수 있어요</Text>
-          <Text style={styles.testExitText}>
-            테스트 상대 표시는 정리하고, 지금 러닝 기록은 혼자 계속 이어갈게요.
-          </Text>
-          <SecondaryButton
-            label={activeMatchExitIsLeaving ? '정리 중...' : '테스트 대결 그만'}
-            onPress={() => {
-              handleContinueSoloFromMatch(activeMatchExitSource);
-            }}
-            disabled={activeMatchExitIsLeaving}
-          />
-        </Card>
-      );
-    }
-
-    if (activeMatchExitCounterpartForfeited) {
-      const isPreparingCounterpartForfeitResult = activeMatchExitIsLeaving || isSaving || !isRunning;
-      return (
-        <Card style={styles.matchForfeitCard}>
-          <Text style={styles.matchForfeitTitle}>상대가 기권했어요</Text>
-          <Text style={styles.matchForfeitText}>
-            내가 승리한 상태예요. 러닝을 종료하면 결과 화면에서 대결 결과를 확인할 수 있어요.
-          </Text>
-          <Pressable
-            style={[styles.matchForfeitButton, isPreparingCounterpartForfeitResult ? styles.matchForfeitButtonDisabled : undefined]}
-            onPress={() => {
-              void handleShowResultAfterCounterpartForfeit(activeMatchExitSource);
-            }}
-            disabled={isPreparingCounterpartForfeitResult}
-          >
-            <Text style={styles.matchForfeitButtonText}>
-              {activeMatchExitIsLeaving || isSaving ? '결과 저장 중...' : !isRunning ? '결과 화면 준비 중...' : '러닝 종료하고 결과보기'}
-            </Text>
-          </Pressable>
-        </Card>
-      );
-    }
-
     return (
-      <Card style={styles.matchForfeitCard}>
-        <Text style={styles.matchForfeitTitle}>대결을 기권할 수 있어요</Text>
-        <Text style={styles.matchForfeitText}>
-          기권하면 내 동그라미가 기권 상태로 표시되고, 지금까지 측정한 기록을 저장한 뒤 나가요.
-        </Text>
-        <Pressable
-          style={[styles.matchForfeitButton, activeMatchExitIsLeaving ? styles.matchForfeitButtonDisabled : undefined]}
-          onPress={() => {
-            handleForfeitMatch(activeMatchExitSource);
-          }}
-          disabled={activeMatchExitIsLeaving}
-        >
-          <Text style={styles.matchForfeitButtonText}>
-            {activeMatchExitIsLeaving ? '기권 처리 중...' : '기권하기'}
-          </Text>
-        </Pressable>
-      </Card>
+      <LiveMatchExitActionCard
+        source={activeMatchExitSource}
+        isTestMatch={activeMatchExitIsTest}
+        isLeaving={activeMatchExitIsLeaving}
+        isSaving={isSaving}
+        isRunning={isRunning}
+        counterpartForfeited={activeMatchExitCounterpartForfeited}
+        onContinueSolo={handleContinueSoloFromMatch}
+        onForfeit={handleForfeitMatch}
+        onShowResultAfterCounterpartForfeit={(source) => {
+          void handleShowResultAfterCounterpartForfeit(source);
+        }}
+      />
     );
   };
 
@@ -5192,87 +5143,22 @@ export function TrackRunExperience({
       ) : (
         <>
           {showLiveArena ? (
-            <View style={styles.livePagerShell}>
-              <View style={styles.livePagerTabRow}>
-                <Pressable
-                  style={[styles.livePagerTab, liveArenaPage === 0 ? styles.livePagerTabSelected : undefined]}
-                  onPress={() => {
-                    livePagerRef.current?.scrollTo({ x: 0, animated: true });
-                    setLiveArenaPage(0);
-                  }}
-                >
-                  <Text style={[styles.livePagerTabText, liveArenaPage === 0 ? styles.livePagerTabTextSelected : undefined]}>
-                    대결 보기
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.livePagerTab, liveArenaPage === 1 ? styles.livePagerTabSelected : undefined]}
-                  onPress={() => {
-                    livePagerRef.current?.scrollTo({ x: liveArenaPageWidth, animated: true });
-                    setLiveArenaPage(1);
-                  }}
-                >
-                  <Text style={[styles.livePagerTabText, liveArenaPage === 1 ? styles.livePagerTabTextSelected : undefined]}>
-                    순위 보기
-                  </Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.livePagerTab, liveArenaPage === 2 ? styles.livePagerTabSelected : undefined]}
-                  onPress={() => {
-                    livePagerRef.current?.scrollTo({ x: liveArenaPageWidth * 2, animated: true });
-                    setLiveArenaPage(2);
-                  }}
-                >
-                  <Text style={[styles.livePagerTabText, liveArenaPage === 2 ? styles.livePagerTabTextSelected : undefined]}>
-                    기록 보기
-                  </Text>
-                </Pressable>
-                {hasMatchResultPage ? (
-                  <Pressable
-                    style={[styles.livePagerTab, liveArenaPage === 3 ? styles.livePagerTabSelected : undefined]}
-                    onPress={() => {
-                      livePagerRef.current?.scrollTo({ x: liveArenaPageWidth * 3, animated: true });
-                      setLiveArenaPage(3);
-                    }}
-                  >
-                    <Text style={[styles.livePagerTabText, liveArenaPage === 3 ? styles.livePagerTabTextSelected : undefined]}>
-                      결과 보기
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-              <ScrollView
-                ref={livePagerRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={(event) => {
-                  const page = Math.round(event.nativeEvent.contentOffset.x / liveArenaPageWidth);
-                  setLiveArenaPage(page);
-                }}
-              >
-                <View style={[styles.livePagerPage, { width: liveArenaPageWidth }]}>
+            <LiveMatchPager
+              scrollRef={livePagerRef}
+              page={liveArenaPage}
+              pageWidth={liveArenaPageWidth}
+              hasResultPage={hasMatchResultPage}
+              arenaPage={(
+                <>
                   {renderLiveArenaPage()}
                   {renderLiveArenaExitAction()}
-                </View>
-                <View style={[styles.livePagerPage, { width: liveArenaPageWidth }]}>
-                  {renderLiveRaceBoardPage()}
-                </View>
-                <View style={[styles.livePagerPage, { width: liveArenaPageWidth }]}>
-                  {renderRunningStatsBoard(false)}
-                </View>
-                {hasMatchResultPage ? (
-                  <View style={[styles.livePagerPage, { width: liveArenaPageWidth }]}>
-                    {renderMatchResultPage()}
-                  </View>
-                ) : null}
-              </ScrollView>
-              <Text style={styles.livePagerHint}>
-                {hasMatchResultPage
-                  ? '옆으로 넘기면 순위, 기록, 결과 화면을 볼 수 있어요.'
-                  : '옆으로 넘기면 순위와 기록 화면을 볼 수 있어요.'}
-              </Text>
-            </View>
+                </>
+              )}
+              raceBoardPage={renderLiveRaceBoardPage()}
+              statsPage={renderRunningStatsBoard(false)}
+              resultPage={renderMatchResultPage()}
+              onPageChange={setLiveArenaPage}
+            />
           ) : (
             renderRunningStatsBoard(true)
           )}
@@ -5777,44 +5663,6 @@ const styles = StyleSheet.create({
   },
   liveShareToggleTextInactiveLight: {
     color: '#475467',
-  },
-  livePagerShell: {
-    gap: 12,
-  },
-  livePagerTabRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  livePagerTab: {
-    flex: 1,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#D0D5DD',
-    backgroundColor: '#F8FAFC',
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  livePagerTabSelected: {
-    borderColor: '#6D5EF7',
-    backgroundColor: '#EEF2FF',
-  },
-  livePagerTabText: {
-    color: '#667085',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  livePagerTabTextSelected: {
-    color: '#4338CA',
-  },
-  livePagerPage: {
-    paddingRight: 16,
-    gap: 16,
-  },
-  livePagerHint: {
-    color: '#98A2B3',
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
   },
   matchCard: {
     gap: 10,
@@ -6810,51 +6658,6 @@ const styles = StyleSheet.create({
   guideHint: {
     color: '#667085',
     lineHeight: 20,
-  },
-  testExitCard: {
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#E9D7FE',
-    backgroundColor: '#F9F5FF',
-  },
-  testExitTitle: {
-    color: '#42307D',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  testExitText: {
-    color: '#6941C6',
-    lineHeight: 20,
-  },
-  matchForfeitCard: {
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#FECDCA',
-    backgroundColor: '#FFF1F3',
-  },
-  matchForfeitTitle: {
-    color: '#7A271A',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  matchForfeitText: {
-    color: '#B42318',
-    lineHeight: 20,
-  },
-  matchForfeitButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 48,
-    borderRadius: 18,
-    backgroundColor: '#D92D20',
-  },
-  matchForfeitButtonDisabled: {
-    opacity: 0.55,
-  },
-  matchForfeitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
   },
   actionColumn: {
     gap: 10,
