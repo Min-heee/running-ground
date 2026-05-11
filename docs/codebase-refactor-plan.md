@@ -68,14 +68,17 @@ Mock-only builders should move to `src/lib/api/mock/*` so real API code stays re
    - Example done: match result panel moved to `src/features/runs/components/MatchResultPanel.tsx`.
 
 3. Extract hooks after the UI is split.
-   - `useRunTracking`
-   - `useMatchLifecycle`
-   - `usePartyRunRoom`
-   - `useMatchProgressSync`
+   - Example done: tracking state and refs moved to `src/features/runs/hooks/useRunTracking.ts`.
+   - Example done: 1:1/group match lifecycle state and slot selection moved to `src/features/runs/hooks/useMatchLifecycle.ts`.
+   - Example done: party run room state and derived room participants moved to `src/features/runs/hooks/usePartyRunRoom.ts`.
+   - Example done: live match progress, duel comparison, and group standings moved to `src/features/runs/hooks/useLiveMatchProgress.ts`.
 
 4. Split API services.
    - First create smaller files and re-export the same function names.
    - Only after that should call sites be moved to feature-specific imports.
+   - Example done: `src/lib/api/services.ts` is now a compatibility barrel.
+   - Example done: public service exports are grouped under `src/lib/api/services/`.
+   - Remaining follow-up: move implementation out of `src/lib/api/services/_legacy.ts` into each domain file once the split is stable.
 
 5. Split backend match logic.
    - Do this after frontend QA stabilizes.

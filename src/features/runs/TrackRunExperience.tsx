@@ -32,6 +32,20 @@ import { PartyRunInviteCard } from '@/features/runs/components/PartyRunInviteCar
 import { RunningMetricGrid } from '@/features/runs/components/RunningMetricGrid';
 import { UpcomingMatchList } from '@/features/runs/components/UpcomingMatchList';
 import {
+  useRunTracking,
+  type SaveTrackingOptions,
+  type TrackerStatus,
+} from '@/features/runs/hooks/useRunTracking';
+import {
+  usePartyRunRoom,
+  type RoomStartMode,
+} from '@/features/runs/hooks/usePartyRunRoom';
+import {
+  useMatchLifecycle,
+  type RunMatchMode,
+} from '@/features/runs/hooks/useMatchLifecycle';
+import { useLiveMatchProgress } from '@/features/runs/hooks/useLiveMatchProgress';
+import {
   acknowledgeRunningMatchRoomCountdown,
   cancelRunningMatch,
   createRunningMatchRoom,
@@ -63,11 +77,6 @@ import {
 } from '@/lib/matchCountdown';
 import {
   type DuelMatchOpponent,
-  type FriendLeaderboardResponse,
-  type GroupMatchParticipant,
-  type MatchDemandSummaryResponse,
-  type RequestDuelMatchResponse,
-  type RequestGroupMatchResponse,
   type RunningMatchRoom,
   type RunningMatchStatusResponse,
   type UpcomingRunningMatchItem,
@@ -100,13 +109,10 @@ import {
   formatCadence,
   formatElevation,
   formatMetricDistance,
-  type OfficialStartBaseline,
 } from '@/features/runs/trackingSession';
 import {
   RECOMMENDED_MATCH_DISTANCES,
-  buildMatchDateOptions,
   buildMatchSlotDateLabel,
-  buildWeeklyHourlySlots,
   findNearestRecommendedDistance,
   formatMatchDateKey,
   formatMatchExpiryCountdown,
@@ -114,35 +120,21 @@ import {
   getEstimatedMatchBonusPoints,
   isRecommendedMatchDistance,
   isUnsavableShortRunError,
-  parseDuelMatchDistanceKm,
   resolveMatchTimeSection,
-  type MatchDateOption,
-  type MatchSlotOption,
-  type MatchTimeSection,
 } from '@/features/runs/matchScheduling';
 import {
   buildAverageArenaPaceLabel,
-  buildDuelComparisonSnapshot,
   buildDistanceGapLabel,
   buildEstimatedCompetitiveDistanceKm,
-  buildGroupLiveStandings,
   buildParticipantAveragePaceLabel,
   formatArenaPaceChip,
   hasRemoteRunnerProgress,
   isMeasuredPaceLabel,
   normalizeMatchProgressPace,
   resolveParticipantDisplayDistanceKm,
-  type DuelComparisonSnapshot,
-  type GroupLiveStanding,
-  type LastSyncedMatchProgress,
 } from '@/features/runs/matchProgress';
 import { getCurrentUserProfile } from '@/lib/session';
 
-type TrackerStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving';
-type SaveTrackingOptions = {
-  exitIfUnsavable?: boolean;
-  resetAfterSave?: boolean;
-};
 type StableCountdownTracker = {
   key: string;
   baselineRemainingSeconds: number;
@@ -152,9 +144,6 @@ const STALE_RENDER_MATCHED_MATCH_MS = 10 * 60 * 1000;
 const STALE_RENDER_ACTIVE_MATCH_MS = 8 * 60 * 60 * 1000;
 const OFFICIAL_START_DISTANCE_NOISE_GRACE_SECONDS = 5;
 const OFFICIAL_START_DISTANCE_NOISE_GRACE_KM = 0.05;
-const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 3000;
-const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
-const SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR = 0.25;
 const SOLO_START_COUNTDOWN_SECONDS = 5;
 const MATCH_ROOM_FAST_POLL_MS = Platform.OS === 'android' ? 1500 : 1000;
 const MATCH_ROOM_IDLE_POLL_MS = 5000;
@@ -164,23 +153,6 @@ const MATCH_STATUS_IDLE_POLL_MS = 3000;
 function parseServerNowMs(serverNow?: string) {
   const parsedMs = serverNow ? new Date(serverNow).getTime() : NaN;
   return Number.isFinite(parsedMs) ? parsedMs : null;
-}
-
-function resolveStableServerClockOffset(currentOffsetMs: number, nextOffsetMs: number) {
-  if (Math.abs(nextOffsetMs) < SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS) {
-    return 0;
-  }
-
-  if (currentOffsetMs === 0) {
-    return nextOffsetMs;
-  }
-
-  const offsetDeltaMs = nextOffsetMs - currentOffsetMs;
-  if (Math.abs(offsetDeltaMs) < SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS) {
-    return currentOffsetMs;
-  }
-
-  return Math.round(currentOffsetMs + offsetDeltaMs * SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR);
 }
 
 function shouldAcceptServerSnapshot(latestServerNowMsRef: { current: number }, serverNow?: string) {
@@ -195,46 +167,6 @@ function shouldAcceptServerSnapshot(latestServerNowMsRef: { current: number }, s
 
   latestServerNowMsRef.current = serverNowMs;
   return true;
-}
-
-function buildRoomRenderKey(room: RunningMatchRoom | null) {
-  if (!room) {
-    return 'empty';
-  }
-
-  const participantKey = room.participants.map((participant) => [
-    participant.userId,
-    participant.isReady ? 'ready' : 'waiting',
-    participant.isCountdownReady ? 'loaded' : 'loading',
-    participant.liveStatus ?? 'no-live-status',
-    participant.liveDistanceKm ?? 'no-live-distance',
-    participant.liveElapsedSeconds ?? 'no-live-elapsed',
-    participant.livePace ?? 'no-live-pace',
-    participant.liveUpdatedAt ?? 'no-live-updated',
-    participant.finishedAt ?? 'no-finished',
-    participant.officialReady ? 'official-ready' : 'official-waiting',
-    participant.officialDistanceKm ?? 'no-official-distance',
-    participant.officialElapsedSeconds ?? 'no-official-elapsed',
-    participant.officialAveragePace ?? 'no-official-pace',
-    participant.officialRank ?? 'no-official-rank',
-    participant.officialGapAheadKm ?? 'no-official-gap-ahead',
-    participant.officialGapLeaderKm ?? 'no-official-gap-leader',
-    participant.officialComparedAt ?? 'no-official-compared',
-  ].join(':')).join('|');
-
-  return [
-    room.roomId,
-    room.state,
-    room.startMode,
-    room.distanceKm,
-    room.slotStartAt,
-    room.maxParticipants,
-    room.canStart ? 'can-start' : 'cannot-start',
-    room.linkedMatchId ?? 'no-match',
-    room.linkedMatchStatus ?? 'no-status',
-    room.linkedMatchSlotStartAt ?? 'no-linked-slot',
-    participantKey,
-  ].join('::');
 }
 
 function shouldHidePastUpcomingMatch(
@@ -301,7 +233,6 @@ function resolveStableCountdownRemainingSeconds(
   return modeledRemainingSeconds;
 }
 type TrackRunMode = 'tab' | 'stack';
-type RunMatchMode = 'solo' | 'duel' | 'group' | 'room';
 type RoomLinkedMatchContext = {
   mode: Extract<RunMatchMode, 'duel' | 'group'>;
   matchId: string;
@@ -310,7 +241,6 @@ type RoomLinkedMatchContext = {
   state: 'matched' | 'active';
 };
 type MatchParticipantLiveStatus = DuelMatchOpponent['liveStatus'];
-type RoomStartMode = 'scheduled' | 'host';
 
 function buildMatchParticipantStatusLabel(status?: MatchParticipantLiveStatus) {
   switch (status) {
@@ -383,21 +313,55 @@ export function TrackRunExperience({
   const { width: windowWidth } = useWindowDimensions();
   const currentUser = getCurrentUserProfile();
   const currentUserId = currentUser?.publicTag ?? 'mock-current-user';
-  const pedometerSubscriptionRef = useRef<{ remove: () => void } | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const soloStartCountdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const soloStartCountdownResolveRef = useRef<((completed: boolean) => void) | null>(null);
+  const {
+    pedometerSubscriptionRef,
+    timerRef,
+    soloStartCountdownTimerRef,
+    soloStartCountdownResolveRef,
+    routeRef,
+    elapsedSecondsRef,
+    totalStepsRef,
+    pedometerStepOffsetRef,
+    liveShareEnabledRef,
+    liveShareLabelRef,
+    liveShareHeartbeatRef,
+    matchProgressHeartbeatRef,
+    appStateRef,
+    trackerStatusRef,
+    officialStartBaselineRef,
+    status,
+    setStatus,
+    soloStartCountdownSeconds,
+    setSoloStartCountdownSeconds,
+    route,
+    setRoute,
+    distanceKm,
+    setDistanceKm,
+    elapsedSeconds,
+    setElapsedSeconds,
+    currentPace,
+    setCurrentPace,
+    lastSyncedMatchProgress,
+    setLastSyncedMatchProgress,
+    elevationGainM,
+    setElevationGainM,
+    cadenceSpm,
+    setCadenceSpm,
+    locationPermissionGranted,
+    setLocationPermissionGranted,
+    backgroundLocationPermissionGranted,
+    setBackgroundLocationPermissionGranted,
+    motionPermissionGranted,
+    setMotionPermissionGranted,
+    error,
+    setError,
+    liveShareEnabled,
+    setLiveShareEnabled,
+    liveShareLabel,
+    setLiveShareLabel,
+    averagePace,
+  } = useRunTracking();
   const livePagerRef = useRef<ScrollView | null>(null);
-  const routeRef = useRef<RunRoutePoint[]>([]);
-  const elapsedSecondsRef = useRef(0);
-  const totalStepsRef = useRef(0);
-  const pedometerStepOffsetRef = useRef(0);
-  const liveShareEnabledRef = useRef(false);
-  const liveShareLabelRef = useRef<string | null>(null);
-  const liveShareHeartbeatRef = useRef(0);
-  const matchProgressHeartbeatRef = useRef(0);
-  const appStateRef = useRef(AppState.currentState);
-  const trackerStatusRef = useRef<TrackerStatus>('idle');
   const matchModeRef = useRef<RunMatchMode>('duel');
   const duelMatchStatusRef = useRef<RunningMatchStatusResponse | null>(null);
   const groupMatchStatusRef = useRef<RunningMatchStatusResponse | null>(null);
@@ -414,147 +378,153 @@ export function TrackRunExperience({
   const latestGroupStatusServerNowMsRef = useRef(0);
   const latestUpcomingServerNowMsRef = useRef(0);
   const latestMatchRoomServerNowMsRef = useRef(0);
-  const matchRoomRenderKeyRef = useRef<string | null>(null);
   const pushRunningMatchProgressRef = useRef<((input: UpdateRunningMatchProgressInput) => Promise<RunningMatchStatusResponse>) | null>(null);
 
-  const [status, setStatus] = useState<TrackerStatus>('idle');
-  const [soloStartCountdownSeconds, setSoloStartCountdownSeconds] = useState<number | null>(null);
-  const [route, setRoute] = useState<RunRoutePoint[]>([]);
-  const [distanceKm, setDistanceKm] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [currentPace, setCurrentPace] = useState('--:--/km');
-  const [lastSyncedMatchProgress, setLastSyncedMatchProgress] = useState<LastSyncedMatchProgress | null>(null);
-  const [elevationGainM, setElevationGainM] = useState(0);
-  const [cadenceSpm, setCadenceSpm] = useState<number | null>(null);
-  const [locationPermissionGranted, setLocationPermissionGranted] = useState<boolean | null>(null);
-  const [backgroundLocationPermissionGranted, setBackgroundLocationPermissionGranted] = useState<boolean | null>(null);
-  const [motionPermissionGranted, setMotionPermissionGranted] = useState<boolean | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [liveShareEnabled, setLiveShareEnabled] = useState(false);
-  const [liveShareLabel, setLiveShareLabel] = useState<string | null>(null);
-  const [matchMode, setMatchMode] = useState<RunMatchMode>('duel');
-  const initialMatchSlotOptions = buildWeeklyHourlySlots();
-  const initialMatchSlot = initialMatchSlotOptions.find((slot) => !slot.isClosed) ?? initialMatchSlotOptions[0];
-  const [duelDistanceText, setDuelDistanceText] = useState('5');
-  const [showDuelCustomDistanceInput, setShowDuelCustomDistanceInput] = useState(false);
-  const [selectedDuelSlotStartAt, setSelectedDuelSlotStartAt] = useState(() => initialMatchSlot?.startsAt ?? new Date().toISOString());
-  const [selectedDuelDateKey, setSelectedDuelDateKey] = useState(() => initialMatchSlot?.dateKey ?? formatMatchDateKey(new Date()));
-  const [selectedDuelTimeSection, setSelectedDuelTimeSection] = useState<MatchTimeSection>(() => (
-    resolveMatchTimeSection(initialMatchSlot?.startsAt ?? new Date().toISOString())
-  ));
-  const [isRequestingDuelMatch, setIsRequestingDuelMatch] = useState(false);
-  const [duelMatchResult, setDuelMatchResult] = useState<RequestDuelMatchResponse | null>(null);
-  const [duelMatchStatus, setDuelMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
-  const [isCancelingDuelMatch, setIsCancelingDuelMatch] = useState(false);
-  const [isLeavingDuelMatch, setIsLeavingDuelMatch] = useState(false);
+  const {
+    matchMode,
+    setMatchMode,
+    duelDistanceText,
+    setDuelDistanceText,
+    showDuelCustomDistanceInput,
+    setShowDuelCustomDistanceInput,
+    selectedDuelSlotStartAt,
+    setSelectedDuelSlotStartAt,
+    selectedDuelDateKey,
+    setSelectedDuelDateKey,
+    selectedDuelTimeSection,
+    setSelectedDuelTimeSection,
+    isRequestingDuelMatch,
+    setIsRequestingDuelMatch,
+    duelMatchResult,
+    setDuelMatchResult,
+    duelMatchStatus,
+    setDuelMatchStatus,
+    isCancelingDuelMatch,
+    setIsCancelingDuelMatch,
+    isLeavingDuelMatch,
+    setIsLeavingDuelMatch,
+    duelDemandSummary,
+    setDuelDemandSummary,
+    isLoadingDuelDemandSummary,
+    setIsLoadingDuelDemandSummary,
+    duelMatchNotice,
+    setDuelMatchNotice,
+    groupDistanceText,
+    setGroupDistanceText,
+    showGroupCustomDistanceInput,
+    setShowGroupCustomDistanceInput,
+    selectedGroupSlotStartAt,
+    setSelectedGroupSlotStartAt,
+    selectedGroupDateKey,
+    setSelectedGroupDateKey,
+    selectedGroupTimeSection,
+    setSelectedGroupTimeSection,
+    isRequestingGroupMatch,
+    setIsRequestingGroupMatch,
+    groupMatchResult,
+    setGroupMatchResult,
+    groupMatchStatus,
+    setGroupMatchStatus,
+    isCancelingGroupMatch,
+    setIsCancelingGroupMatch,
+    isLeavingGroupMatch,
+    setIsLeavingGroupMatch,
+    groupDemandSummary,
+    setGroupDemandSummary,
+    isLoadingGroupDemandSummary,
+    setIsLoadingGroupDemandSummary,
+    groupMatchNotice,
+    setGroupMatchNotice,
+    upcomingMatches,
+    setUpcomingMatches,
+    matchRemindersEnabled,
+    setMatchRemindersEnabled,
+    cancelingUpcomingMatchId,
+    setCancelingUpcomingMatchId,
+    nowMs,
+    setNowMs,
+    syncedNowMs,
+    serverClockOffsetMsRef,
+    syncServerClock,
+    getSyncedNowMs,
+    liveArenaPage,
+    setLiveArenaPage,
+    forceOpenActiveMatch,
+    setForceOpenActiveMatch,
+    isResolvingFocusedMatch,
+    setIsResolvingFocusedMatch,
+    duelDistanceKm,
+    groupDistanceKm,
+    duelSlotOptions,
+    groupSlotOptions,
+    duelDateOptions,
+    groupDateOptions,
+    selectedDuelSlot,
+    selectedGroupSlot,
+    visibleDuelSlotOptions,
+    visibleGroupSlotOptions,
+    activeDuelSlotStartAt,
+    activeGroupSlotStartAt,
+    duelMatchState,
+    groupMatchState,
+    focusRequestedDuelTest,
+    focusRequestedGroupTest,
+    isDuelTestFlow,
+    isGroupTestFlow,
+    effectiveGroupParticipants,
+    effectiveGroupParticipantCount,
+    effectiveGroupSeedRank,
+    selectNextDuelSlotForDate,
+    selectNextGroupSlotForDate,
+    selectDuelTimeSection,
+    selectGroupTimeSection,
+  } = useMatchLifecycle({ focusMatchMode, focusMatchIsTest });
   const pendingForfeitMatchRef = useRef<string | null>(null);
   const pendingCounterpartForfeitResultRef = useRef(false);
-  const [duelDemandSummary, setDuelDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
-  const [isLoadingDuelDemandSummary, setIsLoadingDuelDemandSummary] = useState(false);
-  const [duelMatchNotice, setDuelMatchNotice] = useState<string | null>(null);
-  const [groupDistanceText, setGroupDistanceText] = useState('5');
-  const [showGroupCustomDistanceInput, setShowGroupCustomDistanceInput] = useState(false);
-  const [selectedGroupSlotStartAt, setSelectedGroupSlotStartAt] = useState(() => initialMatchSlot?.startsAt ?? new Date().toISOString());
-  const [selectedGroupDateKey, setSelectedGroupDateKey] = useState(() => initialMatchSlot?.dateKey ?? formatMatchDateKey(new Date()));
-  const [selectedGroupTimeSection, setSelectedGroupTimeSection] = useState<MatchTimeSection>(() => (
-    resolveMatchTimeSection(initialMatchSlot?.startsAt ?? new Date().toISOString())
-  ));
-  const [isRequestingGroupMatch, setIsRequestingGroupMatch] = useState(false);
-  const [groupMatchResult, setGroupMatchResult] = useState<RequestGroupMatchResponse | null>(null);
-  const [groupMatchStatus, setGroupMatchStatus] = useState<RunningMatchStatusResponse | null>(null);
-  const [isCancelingGroupMatch, setIsCancelingGroupMatch] = useState(false);
-  const [isLeavingGroupMatch, setIsLeavingGroupMatch] = useState(false);
-  const [groupDemandSummary, setGroupDemandSummary] = useState<MatchDemandSummaryResponse | null>(null);
-  const [isLoadingGroupDemandSummary, setIsLoadingGroupDemandSummary] = useState(false);
-  const [groupMatchNotice, setGroupMatchNotice] = useState<string | null>(null);
-  const [matchRoom, setMatchRoom] = useState<RunningMatchRoom | null>(null);
-  const [roomMatchMode, setRoomMatchMode] = useState<'duel' | 'group'>('duel');
-  const [roomStartMode, setRoomStartMode] = useState<RoomStartMode>('host');
-  const [roomMaxParticipants, setRoomMaxParticipants] = useState('10');
-  const [roomInviteTokenInput, setRoomInviteTokenInput] = useState('');
-  const [selectedRoomFriendIds, setSelectedRoomFriendIds] = useState<string[]>([]);
-  const [friendLeaderboard, setFriendLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
-  const [isLoadingMatchRoom, setIsLoadingMatchRoom] = useState(false);
-  const [isCreatingMatchRoom, setIsCreatingMatchRoom] = useState(false);
-  const [isJoiningMatchRoom, setIsJoiningMatchRoom] = useState(false);
-  const [isUpdatingMatchRoom, setIsUpdatingMatchRoom] = useState(false);
-  const [isStartingMatchRoom, setIsStartingMatchRoom] = useState(false);
-  const [isLeavingMatchRoom, setIsLeavingMatchRoom] = useState(false);
-  const [upcomingMatches, setUpcomingMatches] = useState<UpcomingRunningMatchItem[]>([]);
-  const [matchRemindersEnabled, setMatchRemindersEnabled] = useState(true);
-  const [cancelingUpcomingMatchId, setCancelingUpcomingMatchId] = useState<string | null>(null);
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0);
-  const [liveArenaPage, setLiveArenaPage] = useState(0);
-  const [forceOpenActiveMatch, setForceOpenActiveMatch] = useState(false);
-  const [isResolvingFocusedMatch, setIsResolvingFocusedMatch] = useState(false);
-  const serverClockOffsetMsRef = useRef(0);
   const countdownAutoOpenMatchIdRef = useRef<string | null>(null);
   const activeAutoOpenMatchIdRef = useRef<string | null>(null);
   const autoStartedMatchIdRef = useRef<string | null>(null);
   const autoStartingMatchTrackingRef = useRef(false);
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
   const handledRoomInviteTokenRef = useRef<string | null>(null);
-  const officialStartBaselineRef = useRef<OfficialStartBaseline | null>(null);
   const forfeitedMatchIdsRef = useRef<Set<string>>(new Set());
 
-  const averagePace = useMemo(() => buildAveragePace(distanceKm, elapsedSeconds), [distanceKm, elapsedSeconds]);
-  const syncedNowMs = nowMs + serverClockOffsetMs;
-
-  const syncServerClock = (serverNow?: string) => {
-    const serverNowMs = parseServerNowMs(serverNow);
-    if (serverNowMs === null) {
-      return;
-    }
-
-    const nextOffsetMs = serverNowMs - Date.now();
-    setServerClockOffsetMs((currentOffsetMs) => {
-      const stableOffsetMs = resolveStableServerClockOffset(currentOffsetMs, nextOffsetMs);
-      serverClockOffsetMsRef.current = stableOffsetMs;
-      return stableOffsetMs;
-    });
-  };
-
-  const commitMatchRoom = (nextRoom: RunningMatchRoom | null) => {
-    const nextKey = buildRoomRenderKey(nextRoom);
-    if (matchRoomRenderKeyRef.current === nextKey) {
-      return;
-    }
-
-    matchRoomRenderKeyRef.current = nextKey;
-    setMatchRoom(nextRoom);
-  };
-
-  const getSyncedNowMs = () => Date.now() + serverClockOffsetMsRef.current;
-  const duelDistanceKm = useMemo(() => parseDuelMatchDistanceKm(duelDistanceText), [duelDistanceText]);
-  const groupDistanceKm = useMemo(() => parseDuelMatchDistanceKm(groupDistanceText), [groupDistanceText]);
-  const weeklyMatchSlotOptions = buildWeeklyHourlySlots();
-  const duelSlotOptions = weeklyMatchSlotOptions;
-  const duelDateOptions = useMemo(() => buildMatchDateOptions(duelSlotOptions), [duelSlotOptions]);
-  const selectedDuelSlot = duelSlotOptions.find((slot) => slot.startsAt === selectedDuelSlotStartAt) ?? duelSlotOptions[0] ?? null;
-  const visibleDuelSlotOptions = useMemo(
-    () => duelSlotOptions.filter((slot) => (
-      slot.dateKey === selectedDuelDateKey &&
-      resolveMatchTimeSection(slot.startsAt) === selectedDuelTimeSection
-    )),
-    [duelSlotOptions, selectedDuelDateKey, selectedDuelTimeSection],
-  );
-  const activeDuelSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
-  const groupSlotOptions = weeklyMatchSlotOptions;
-  const groupDateOptions = useMemo(() => buildMatchDateOptions(groupSlotOptions), [groupSlotOptions]);
-  const selectedGroupSlot = groupSlotOptions.find((slot) => slot.startsAt === selectedGroupSlotStartAt) ?? groupSlotOptions[0] ?? null;
-  const visibleGroupSlotOptions = useMemo(
-    () => groupSlotOptions.filter((slot) => (
-      slot.dateKey === selectedGroupDateKey &&
-      resolveMatchTimeSection(slot.startsAt) === selectedGroupTimeSection
-    )),
-    [groupSlotOptions, selectedGroupDateKey, selectedGroupTimeSection],
-  );
-  const activeGroupSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
-
-  useEffect(() => {
-    serverClockOffsetMsRef.current = serverClockOffsetMs;
-  }, [serverClockOffsetMs]);
+  const {
+    matchRoom,
+    commitMatchRoom,
+    visibleMatchRoom,
+    currentRoomParticipant,
+    roomFriendOptions,
+    roomMatchMode,
+    setRoomMatchMode,
+    roomStartMode,
+    setRoomStartMode,
+    roomMaxParticipants,
+    setRoomMaxParticipants,
+    roomInviteTokenInput,
+    setRoomInviteTokenInput,
+    selectedRoomFriendIds,
+    setSelectedRoomFriendIds,
+    friendLeaderboard,
+    setFriendLeaderboard,
+    isLoadingMatchRoom,
+    setIsLoadingMatchRoom,
+    isCreatingMatchRoom,
+    setIsCreatingMatchRoom,
+    isJoiningMatchRoom,
+    setIsJoiningMatchRoom,
+    isUpdatingMatchRoom,
+    setIsUpdatingMatchRoom,
+    isStartingMatchRoom,
+    setIsStartingMatchRoom,
+    isLeavingMatchRoom,
+    setIsLeavingMatchRoom,
+  } = usePartyRunRoom({
+    currentUserId,
+    syncedNowMs,
+    staleMatchedMatchMs: STALE_RENDER_MATCHED_MATCH_MS,
+    staleActiveMatchMs: STALE_RENDER_ACTIVE_MATCH_MS,
+  });
 
   useEffect(() => {
     if (!matchRoom) {
@@ -581,111 +551,6 @@ export function TrackRunExperience({
     setSelectedGroupTimeSection(resolveMatchTimeSection(matchRoom.slotStartAt));
   }, [matchRoom]);
 
-  const visibleMatchRoom = useMemo(() => {
-    if (!matchRoom) {
-      return null;
-    }
-
-    const referenceStartAt = matchRoom.linkedMatchSlotStartAt ?? matchRoom.slotStartAt;
-    const referenceStartMs = new Date(referenceStartAt).getTime();
-
-    if (!Number.isFinite(referenceStartMs)) {
-      return matchRoom;
-    }
-
-    const elapsedMs = syncedNowMs - referenceStartMs;
-    const shouldUseActiveTtl = Boolean(
-      matchRoom.linkedMatchId
-      || matchRoom.state === 'countdown'
-      || matchRoom.state === 'active'
-      || matchRoom.linkedMatchStatus === 'active',
-    );
-    const staleThresholdMs = shouldUseActiveTtl
-      ? STALE_RENDER_ACTIVE_MATCH_MS
-      : STALE_RENDER_MATCHED_MATCH_MS;
-    const shouldHideRoom = elapsedMs > staleThresholdMs;
-
-    return shouldHideRoom ? null : matchRoom;
-  }, [matchRoom, syncedNowMs]);
-
-  useEffect(() => {
-    if (matchRoom && !visibleMatchRoom) {
-      commitMatchRoom(null);
-    }
-  }, [matchRoom, visibleMatchRoom]);
-
-  const selectNextDuelSlotForDate = (dateKey: string, preferredSection = selectedDuelTimeSection) => {
-    const nextSlot = duelSlotOptions.find((slot) => (
-      slot.dateKey === dateKey &&
-      resolveMatchTimeSection(slot.startsAt) === preferredSection &&
-      !slot.isClosed
-    ))
-      ?? duelSlotOptions.find((slot) => (
-        slot.dateKey === dateKey &&
-        resolveMatchTimeSection(slot.startsAt) === preferredSection
-      ))
-      ?? duelSlotOptions.find((slot) => slot.dateKey === dateKey && !slot.isClosed)
-      ?? duelSlotOptions.find((slot) => slot.dateKey === dateKey)
-      ?? null;
-
-    if (nextSlot) {
-      setSelectedDuelSlotStartAt(nextSlot.startsAt);
-      setSelectedDuelTimeSection(resolveMatchTimeSection(nextSlot.startsAt));
-    }
-  };
-  const selectNextGroupSlotForDate = (dateKey: string, preferredSection = selectedGroupTimeSection) => {
-    const nextSlot = groupSlotOptions.find((slot) => (
-      slot.dateKey === dateKey &&
-      resolveMatchTimeSection(slot.startsAt) === preferredSection &&
-      !slot.isClosed
-    ))
-      ?? groupSlotOptions.find((slot) => (
-        slot.dateKey === dateKey &&
-        resolveMatchTimeSection(slot.startsAt) === preferredSection
-      ))
-      ?? groupSlotOptions.find((slot) => slot.dateKey === dateKey && !slot.isClosed)
-      ?? groupSlotOptions.find((slot) => slot.dateKey === dateKey)
-      ?? null;
-
-    if (nextSlot) {
-      setSelectedGroupSlotStartAt(nextSlot.startsAt);
-      setSelectedGroupTimeSection(resolveMatchTimeSection(nextSlot.startsAt));
-    }
-  };
-  const selectDuelTimeSection = (section: MatchTimeSection) => {
-    setSelectedDuelTimeSection(section);
-    const nextSlot = duelSlotOptions.find((slot) => (
-      slot.dateKey === selectedDuelDateKey &&
-      resolveMatchTimeSection(slot.startsAt) === section &&
-      !slot.isClosed
-    ))
-      ?? duelSlotOptions.find((slot) => (
-        slot.dateKey === selectedDuelDateKey &&
-        resolveMatchTimeSection(slot.startsAt) === section
-      ))
-      ?? null;
-
-    if (nextSlot) {
-      setSelectedDuelSlotStartAt(nextSlot.startsAt);
-    }
-  };
-  const selectGroupTimeSection = (section: MatchTimeSection) => {
-    setSelectedGroupTimeSection(section);
-    const nextSlot = groupSlotOptions.find((slot) => (
-      slot.dateKey === selectedGroupDateKey &&
-      resolveMatchTimeSection(slot.startsAt) === section &&
-      !slot.isClosed
-    ))
-      ?? groupSlotOptions.find((slot) => (
-        slot.dateKey === selectedGroupDateKey &&
-        resolveMatchTimeSection(slot.startsAt) === section
-      ))
-      ?? null;
-
-    if (nextSlot) {
-      setSelectedGroupSlotStartAt(nextSlot.startsAt);
-    }
-  };
   const matchOptions = useMemo(
     () => [
       {
@@ -728,20 +593,7 @@ export function TrackRunExperience({
     [duelDistanceKm, groupDistanceKm, roomMatchMode, roomStartMode, visibleMatchRoom],
   );
 
-  useEffect(() => {
-    if (selectedDuelSlot) {
-      setSelectedDuelDateKey(selectedDuelSlot.dateKey);
-    }
-  }, [selectedDuelSlot]);
-
-  useEffect(() => {
-    if (selectedGroupSlot) {
-      setSelectedGroupDateKey(selectedGroupSlot.dateKey);
-    }
-  }, [selectedGroupSlot]);
   const selectedMatch = matchOptions.find((option) => option.mode === matchMode) ?? matchOptions[0];
-  const duelMatchState = duelMatchStatus?.state ?? 'idle';
-  const groupMatchState = groupMatchStatus?.state ?? 'idle';
   const visibleUpcomingMatches = useMemo(
     () => upcomingMatches.filter((match) => !shouldHidePastUpcomingMatch(match, syncedNowMs)),
     [syncedNowMs, upcomingMatches],
@@ -766,18 +618,6 @@ export function TrackRunExperience({
         : null;
   const duelReservationLocked = duelMatchState === 'matched' && duelMatchStatus?.canCancel === false;
   const groupReservationLocked = groupMatchState === 'matched' && groupMatchStatus?.canCancel === false;
-  const focusRequestedDuelTest = focusMatchMode === 'duel' && focusMatchIsTest === true;
-  const focusRequestedGroupTest = focusMatchMode === 'group' && focusMatchIsTest === true;
-  const isDuelTestFlow = Boolean(
-    duelMatchStatus?.isTestMatch
-    || duelMatchResult?.isTestMatch
-    || (focusRequestedDuelTest && matchMode === 'duel'),
-  );
-  const isGroupTestFlow = Boolean(
-    groupMatchStatus?.isTestMatch
-    || groupMatchResult?.isTestMatch
-    || (focusRequestedGroupTest && matchMode === 'group'),
-  );
   const effectiveDuelOpponent = duelMatchStatus?.opponent ?? duelMatchResult?.opponent ?? null;
   const effectiveDuelOpponentStatusLabel = effectiveDuelOpponent
     ? buildMatchParticipantStatusLabel(effectiveDuelOpponent.liveStatus)
@@ -796,9 +636,6 @@ export function TrackRunExperience({
     nowMs,
   );
   const duelExpiryCountdownLabel = formatMatchExpiryCountdown(duelMatchStatus?.expiresInSeconds);
-  const effectiveGroupParticipants = groupMatchStatus?.participants ?? groupMatchResult?.participants ?? [];
-  const effectiveGroupParticipantCount = groupMatchStatus?.participantCount ?? groupMatchResult?.participantsCount ?? effectiveGroupParticipants.length;
-  const effectiveGroupSeedRank = groupMatchStatus?.mySeedRank ?? groupMatchResult?.mySeedRank;
   const effectiveGroupSlotLabel = groupMatchStatus?.slotLabel ?? groupMatchResult?.slotLabel ?? selectedGroupSlot?.label ?? '시간 미정';
   const rawGroupStartCountdownSeconds =
     groupMatchState === 'matched'
@@ -906,9 +743,6 @@ export function TrackRunExperience({
         remainingSeconds: stableNextStartingMatch.remainingSeconds,
       }
     : fallbackCountdownEntry);
-  const currentRoomParticipant = matchRoom?.participants.find((participant) => (
-    participant.userId === currentUserId || participant.tag === currentUserId
-  )) ?? null;
   const shouldShowRoomArmingOverlay = Boolean(
     matchRoom?.linkedMatchId
     && matchRoom.state === 'arming'
@@ -922,24 +756,6 @@ export function TrackRunExperience({
       || shouldAutoOpenMatchArena(roomCountdownRemainingSeconds)
     ),
   );
-  const roomFriendOptions = useMemo(() => {
-    const excludedIds = new Set<string>([currentUserId]);
-
-    if (matchRoom?.hostUserId) {
-      excludedIds.add(matchRoom.hostUserId);
-    }
-
-    matchRoom?.participants.forEach((participant) => {
-      excludedIds.add(participant.userId);
-      if (participant.tag) {
-        excludedIds.add(participant.tag);
-      }
-    });
-
-    return (friendLeaderboard?.ranks ?? [])
-      .filter((friend) => !excludedIds.has(friend.id) && (!friend.tag || !excludedIds.has(friend.tag)))
-      .slice(0, 12);
-  }, [currentUserId, friendLeaderboard?.ranks, matchRoom?.hostUserId, matchRoom?.participants]);
   const effectiveRoomMode = matchRoom?.mode ?? roomMatchMode;
   const roomDateOptions = effectiveRoomMode === 'group' ? groupDateOptions : duelDateOptions;
   const selectedRoomDateKey = effectiveRoomMode === 'group' ? selectedGroupDateKey : selectedDuelDateKey;
@@ -947,164 +763,39 @@ export function TrackRunExperience({
   const roomVisibleSlotOptions = effectiveRoomMode === 'group' ? visibleGroupSlotOptions : visibleDuelSlotOptions;
   const activeRoomSlotStartAt = effectiveRoomMode === 'group' ? activeGroupSlotStartAt : activeDuelSlotStartAt;
   const activeRoomDistanceKm = effectiveRoomMode === 'group' ? groupDistanceKm : duelDistanceKm;
-  const groupLiveStandings = useMemo(
-    () => buildGroupLiveStandings(effectiveGroupParticipants, effectiveGroupSeedRank, distanceKm, elapsedSeconds, groupDistanceKm),
-    [distanceKm, elapsedSeconds, effectiveGroupParticipants, effectiveGroupSeedRank, groupDistanceKm],
-  );
-  const currentGroupStanding = groupLiveStandings.find((participant) => participant.isCurrentUser) ?? null;
-  const currentUserDuelLiveStatus = duelMatchStatus?.currentUserLiveStatus ?? null;
-  const currentUserGroupLiveStatus = groupMatchStatus?.currentUserLiveStatus ?? currentGroupStanding?.liveStatus ?? null;
-  const currentUserHasForfeitedActiveMatch = (
-    matchMode === 'duel'
-      ? currentUserDuelLiveStatus === 'forfeited'
-      : matchMode === 'group'
-        ? currentUserGroupLiveStatus === 'forfeited'
-        : false
-  );
-  const currentGroupLeader = groupLiveStandings[0] ?? null;
-  const groupAheadParticipant = currentGroupStanding
-    ? groupLiveStandings.find((participant) => participant.rank === currentGroupStanding.rank - 1) ?? null
-    : null;
-  const groupBehindParticipant = currentGroupStanding
-    ? groupLiveStandings.find((participant) => participant.rank === currentGroupStanding.rank + 1) ?? null
-    : null;
-  const featuredGroupArenaParticipantIds = useMemo(() => {
-    const ids = new Set<string>();
-    groupLiveStandings.slice(0, 3).forEach((participant) => ids.add(participant.id));
-    if (currentGroupStanding) {
-      ids.add(currentGroupStanding.id);
-    }
-    if (groupAheadParticipant) {
-      ids.add(groupAheadParticipant.id);
-    }
-    if (groupBehindParticipant) {
-      ids.add(groupBehindParticipant.id);
-    }
-    return ids;
-  }, [currentGroupStanding, groupAheadParticipant, groupBehindParticipant, groupLiveStandings]);
-  const activeDuelArenaMatchId = matchMode === 'duel'
-    ? duelMatchStatus?.matchId
-      ?? (visibleMatchRoom?.mode === 'duel' ? visibleMatchRoom.linkedMatchId ?? null : null)
-    : null;
-  const syncedDuelProgress = activeDuelArenaMatchId && lastSyncedMatchProgress?.matchId === activeDuelArenaMatchId
-    ? lastSyncedMatchProgress
-    : null;
-  const fallbackDuelComparisonSnapshot = useMemo(
-    () => buildDuelComparisonSnapshot(syncedDuelProgress, effectiveDuelOpponent, duelDistanceKm),
-    [duelDistanceKm, effectiveDuelOpponent, syncedDuelProgress],
-  );
-  const officialDuelComparison = duelMatchStatus?.officialComparison ?? null;
-  const isDuelOpponentForfeited = effectiveDuelOpponent?.liveStatus === 'forfeited';
-  const officialDuelReady = Boolean(
-    officialDuelComparison
-    && officialDuelComparison.readyParticipantCount >= 2
-    && typeof officialDuelComparison.userDistanceKm === 'number'
-    && effectiveDuelOpponent?.officialReady
-    && typeof effectiveDuelOpponent.officialDistanceKm === 'number',
-  );
-  const duelComparisonSnapshot = officialDuelReady
-    ? {
-        checkpointSeconds: officialDuelComparison?.elapsedSeconds ?? 0,
-        currentDistanceKm: officialDuelComparison?.userDistanceKm ?? 0,
-        opponentDistanceKm: effectiveDuelOpponent?.officialDistanceKm ?? 0,
-        gapKm: Number(((officialDuelComparison?.userDistanceKm ?? 0) - (effectiveDuelOpponent?.officialDistanceKm ?? 0)).toFixed(2)),
-      }
-    : fallbackDuelComparisonSnapshot;
-  const rawDuelOpponentDistanceKm = resolveParticipantDisplayDistanceKm(effectiveDuelOpponent, duelDistanceKm);
-  const hasDuelOpponentDisplayProgress = Boolean(
-    duelComparisonSnapshot || hasRemoteRunnerProgress(effectiveDuelOpponent),
-  );
-  const syncedDuelDistanceKm = duelComparisonSnapshot?.currentDistanceKm ?? distanceKm;
-  const syncedDuelOpponentDistanceKm = duelComparisonSnapshot?.opponentDistanceKm ?? rawDuelOpponentDistanceKm;
-  const duelLiveGapKm = duelComparisonSnapshot?.gapKm ?? (
-    hasDuelOpponentDisplayProgress
-      ? Number((syncedDuelDistanceKm - syncedDuelOpponentDistanceKm).toFixed(2))
-      : null
-  );
-  const duelLiveTitle = isDuelOpponentForfeited
-    ? '상대가 기권했어요'
-    : duelLiveGapKm === null
-    ? '서버 공식 판정 준비 중'
-    : duelLiveGapKm >= 0
-      ? `${duelLiveGapKm.toFixed(2)}km 앞서고 있어요`
-      : `${Math.abs(duelLiveGapKm).toFixed(2)}km 따라가는 중이에요`;
-  const duelStatusAlert = useMemo(() => {
-    if (!effectiveDuelOpponent?.liveStatus || ['running', 'finished'].includes(effectiveDuelOpponent.liveStatus)) {
-      return null;
-    }
-
-    if (effectiveDuelOpponent.liveStatus === 'forfeited') {
-      return {
-        tone: 'danger' as const,
-        title: '상대가 매치를 포기했어요',
-        summary: '이제 혼자 이어서 달리거나 바로 결과를 정리할 수 있어요.',
-      };
-    }
-
-    if (effectiveDuelOpponent.liveStatus === 'disconnected') {
-      return {
-        tone: 'danger' as const,
-        title: '상대 연결이 끊겼어요',
-        summary: '잠시 뒤 자동 정리되거나 다시 찾기 흐름으로 넘어갈 수 있어요.',
-      };
-    }
-
-    if (effectiveDuelOpponent.liveStatus === 'background') {
-      return {
-        tone: 'warning' as const,
-        title: '상대가 백그라운드 상태예요',
-        summary: '앱으로 돌아오면 진행 상태가 다시 이어서 반영돼요.',
-      };
-    }
-
-    if (effectiveDuelOpponent.liveStatus === 'paused') {
-      return {
-        tone: 'warning' as const,
-        title: '상대가 잠시 멈췄어요',
-        summary: '다시 움직이기 시작하면 거리 차이도 이어서 갱신돼요.',
-      };
-    }
-
-    return {
-      tone: 'neutral' as const,
-      title: '상대 상태를 다시 확인 중이에요',
-      summary: '곧 최신 상태로 반영될 거예요.',
-    };
-  }, [effectiveDuelOpponent?.liveStatus]);
-  const groupStatusAlert = useMemo(() => {
-    const others = groupLiveStandings.filter((participant) => !participant.isCurrentUser);
-    const forfeitedCount = others.filter((participant) => participant.liveStatus === 'forfeited').length;
-    const disconnectedCount = others.filter((participant) => participant.liveStatus === 'disconnected').length;
-    const backgroundCount = others.filter((participant) => participant.liveStatus === 'background').length;
-    const pausedCount = others.filter((participant) => participant.liveStatus === 'paused').length;
-
-    if (!forfeitedCount && !disconnectedCount && !backgroundCount && !pausedCount) {
-      return null;
-    }
-
-    if (forfeitedCount > 0 || disconnectedCount > 0) {
-      const titleParts = [];
-      if (forfeitedCount > 0) {
-        titleParts.push(`포기 ${forfeitedCount}명`);
-      }
-      if (disconnectedCount > 0) {
-        titleParts.push(`연결 끊김 ${disconnectedCount}명`);
-      }
-      return {
-        tone: 'danger' as const,
-        title: titleParts.join(' · '),
-        summary: forfeitedCount > 0
-          ? '남은 러너 기준으로 순위가 다시 정리되고 있어요.'
-          : '잠시 뒤 자동 정리되거나 순위 구성이 다시 달라질 수 있어요.',
-      };
-    }
-
-    return {
-      tone: 'warning' as const,
-      title: `백그라운드 ${backgroundCount}명 · 일시정지 ${pausedCount}명`,
-      summary: '앱으로 돌아오거나 다시 달리면 실시간 순위가 계속 갱신돼요.',
-    };
-  }, [groupLiveStandings]);
+  const {
+    groupLiveStandings,
+    currentGroupStanding,
+    currentUserDuelLiveStatus,
+    currentUserGroupLiveStatus,
+    currentUserHasForfeitedActiveMatch,
+    currentGroupLeader,
+    groupAheadParticipant,
+    groupBehindParticipant,
+    featuredGroupArenaParticipantIds,
+    isDuelOpponentForfeited,
+    officialDuelReady,
+    duelComparisonSnapshot,
+    syncedDuelDistanceKm,
+    syncedDuelOpponentDistanceKm,
+    duelLiveGapKm,
+    duelLiveTitle,
+    duelStatusAlert,
+    groupStatusAlert,
+  } = useLiveMatchProgress({
+    matchMode,
+    duelMatchStatus,
+    groupMatchStatus,
+    visibleMatchRoom,
+    effectiveDuelOpponent,
+    effectiveGroupParticipants,
+    effectiveGroupSeedRank,
+    lastSyncedMatchProgress,
+    distanceKm,
+    elapsedSeconds,
+    duelDistanceKm,
+    groupDistanceKm,
+  });
   const duelFinishSummary = useMemo(() => {
     if (!effectiveDuelOpponent) {
       return null;
@@ -2448,8 +2139,7 @@ export function TrackRunExperience({
     setUpcomingMatches((currentItems) => currentItems.filter((match) => match.matchId !== matchId));
 
     if (matchRoom?.linkedMatchId === matchId) {
-      matchRoomRenderKeyRef.current = null;
-      setMatchRoom(null);
+      commitMatchRoom(null);
     }
 
     if (source === 'duel') {
