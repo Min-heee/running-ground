@@ -1,5 +1,6 @@
 import type {
   DuelMatchOpponent,
+  RunningMatchRoomState,
   RunningMatchState,
 } from '@/lib/api/types';
 import {
@@ -25,6 +26,27 @@ export type RunTrackingEvent =
   | 'saved'
   | 'discard'
   | 'forfeit';
+
+export type PartyRunStartPhase =
+  | 'waiting'
+  | 'arming'
+  | 'readyAcked'
+  | 'countdown'
+  | 'arenaHandoff'
+  | 'active';
+
+type PartyRunStartPhaseInput = {
+  roomState?: RunningMatchRoomState | null;
+  linkedMatchStatus?: 'matched' | 'active' | null;
+  isCountdownReady?: boolean;
+  remainingSeconds?: number | null;
+};
+
+export type PartyRunStartEvent =
+  | { type: 'hostStartRequested' }
+  | { type: 'countdownReadyAcked' }
+  | { type: 'serverSnapshot'; payload: PartyRunStartPhaseInput }
+  | { type: 'reset' };
 
 const BLOCKING_MATCH_STATES = new Set<RunningMatchState>(['waiting', 'matched', 'active']);
 const LIVE_MATCH_STATES = new Set<RunningMatchState>(['matched', 'active']);
@@ -74,6 +96,61 @@ export function isTerminalMatchLifecycleState(state?: MatchLifecycleState | null
 
 export function resolveRunTrackingState(currentState: RunTrackingState, event: RunTrackingEvent) {
   return RUN_TRACKING_TRANSITIONS[currentState][event] ?? currentState;
+}
+
+export function derivePartyRunStartPhase({
+  roomState,
+  linkedMatchStatus,
+  isCountdownReady = false,
+  remainingSeconds = null,
+}: PartyRunStartPhaseInput): PartyRunStartPhase {
+  if (roomState === 'active' || linkedMatchStatus === 'active') {
+    return 'active';
+  }
+
+  if (linkedMatchStatus === 'matched' || roomState === 'countdown') {
+    if (shouldAutoOpenMatchArena(remainingSeconds)) {
+      return 'arenaHandoff';
+    }
+
+    if (shouldShowMatchStartOverlay(remainingSeconds)) {
+      return 'countdown';
+    }
+
+    return isCountdownReady ? 'readyAcked' : 'arming';
+  }
+
+  if (roomState === 'arming') {
+    return isCountdownReady ? 'readyAcked' : 'arming';
+  }
+
+  return 'waiting';
+}
+
+export function resolvePartyRunStartPhase(
+  currentPhase: PartyRunStartPhase,
+  event: PartyRunStartEvent,
+): PartyRunStartPhase {
+  switch (event.type) {
+    case 'hostStartRequested':
+      return currentPhase === 'active' ? 'active' : 'arming';
+    case 'countdownReadyAcked':
+      return currentPhase === 'active' ? 'active' : 'readyAcked';
+    case 'serverSnapshot':
+      return derivePartyRunStartPhase(event.payload);
+    case 'reset':
+      return 'waiting';
+    default:
+      return currentPhase;
+  }
+}
+
+export function shouldShowPartyRunLoading(phase: PartyRunStartPhase) {
+  return phase === 'arming' || phase === 'readyAcked';
+}
+
+export function shouldOpenPartyRunArena(phase: PartyRunStartPhase) {
+  return phase === 'arenaHandoff' || phase === 'active';
 }
 
 export function buildMatchParticipantStatusLabel(status?: MatchParticipantLiveStatus) {

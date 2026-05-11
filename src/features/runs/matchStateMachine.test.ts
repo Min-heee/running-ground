@@ -5,15 +5,19 @@ import {
   buildMatchTransitionNotice,
   canAutoStartMatchTracking,
   canShowMatchCountdown,
+  derivePartyRunStartPhase,
   isBlockingMatchState,
   isLiveMatchState,
   isTerminalMatchLifecycleState,
   resolveActiveMatchId,
+  resolvePartyRunStartPhase,
   resolveRunTrackingState,
   shouldAutoFocusMatchArena,
   shouldEnterMatchArenaForLifecycle,
   shouldKeepMatchArenaForceOpen,
+  shouldOpenPartyRunArena,
   shouldPreferRoomLinkedArena,
+  shouldShowPartyRunLoading,
   shouldUseCenteredMatchCountdown,
   shouldUseFullscreenMatchCountdown,
 } from './matchStateMachine';
@@ -37,6 +41,7 @@ test('run tracking state transitions ignore invalid jumps', () => {
   assert.equal(resolveRunTrackingState('running', 'pause'), 'paused');
   assert.equal(resolveRunTrackingState('paused', 'resume'), 'running');
   assert.equal(resolveRunTrackingState('running', 'requestSave'), 'saving');
+  assert.equal(resolveRunTrackingState('running', 'forfeit'), 'saving');
   assert.equal(resolveRunTrackingState('saving', 'saved'), 'idle');
   assert.equal(resolveRunTrackingState('idle', 'pause'), 'idle');
 });
@@ -150,4 +155,34 @@ test('active match identity prefers explicit match status and falls back to acti
     matchMode: 'room',
     roomLinkedMatchContext: { mode: 'duel', matchId: 'room-match', state: 'active' },
   }), null);
+});
+
+test('party run start phase normalizes host loading, countdown, arena handoff, and active states', () => {
+  assert.equal(resolvePartyRunStartPhase('waiting', { type: 'hostStartRequested' }), 'arming');
+  assert.equal(resolvePartyRunStartPhase('arming', { type: 'countdownReadyAcked' }), 'readyAcked');
+  assert.equal(resolvePartyRunStartPhase('readyAcked', {
+    type: 'serverSnapshot',
+    payload: { roomState: 'arming', isCountdownReady: true },
+  }), 'readyAcked');
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'countdown',
+    linkedMatchStatus: 'matched',
+    isCountdownReady: true,
+    remainingSeconds: 30,
+  }), 'countdown');
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'countdown',
+    linkedMatchStatus: 'matched',
+    isCountdownReady: true,
+    remainingSeconds: 20,
+  }), 'arenaHandoff');
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'active',
+    linkedMatchStatus: 'active',
+    remainingSeconds: 0,
+  }), 'active');
+  assert.equal(shouldShowPartyRunLoading('arming'), true);
+  assert.equal(shouldShowPartyRunLoading('countdown'), false);
+  assert.equal(shouldOpenPartyRunArena('arenaHandoff'), true);
+  assert.equal(shouldOpenPartyRunArena('countdown'), false);
 });

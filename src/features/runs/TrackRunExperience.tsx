@@ -30,7 +30,7 @@ import { MatchOptionSelector } from '@/features/runs/components/MatchOptionSelec
 import { MatchResultPanel } from '@/features/runs/components/MatchResultPanel';
 import { LiveMatchExitActionCard } from '@/features/runs/components/LiveMatchExitActionCard';
 import { LiveMatchPager } from '@/features/runs/components/LiveMatchPager';
-import { PartyRunInviteCard } from '@/features/runs/components/PartyRunInviteCard';
+import { PartyRunHomePanel } from '@/features/runs/components/PartyRunHomePanel';
 import { RunningMetricGrid } from '@/features/runs/components/RunningMetricGrid';
 import { UpcomingMatchList } from '@/features/runs/components/UpcomingMatchList';
 import {
@@ -136,15 +136,24 @@ import {
   resolveParticipantDisplayDistanceKm,
 } from '@/features/runs/matchProgress';
 import {
+  buildDuelArenaParticipants,
+  buildGroupArenaParticipants,
+  buildRoomLinkedDuelPlaceholderParticipants,
+  buildRoomLinkedGroupPlaceholderParticipants,
+} from '@/features/runs/matchViewModels';
+import {
   buildMatchParticipantStatusLabel,
   buildMatchTransitionNotice,
+  derivePartyRunStartPhase,
   isBlockingMatchState,
   isLiveMatchState,
   resolveActiveMatchId,
   shouldAutoFocusMatchArena,
   shouldEnterMatchArenaForLifecycle,
   shouldKeepMatchArenaForceOpen,
+  shouldOpenPartyRunArena,
   shouldPreferRoomLinkedArena,
+  shouldShowPartyRunLoading,
   shouldUseCenteredMatchCountdown,
   shouldUseFullscreenMatchCountdown,
 } from '@/features/runs/matchStateMachine';
@@ -689,6 +698,18 @@ export function TrackRunExperience({
     rawRoomCountdownRemainingSeconds,
     nowMs,
   );
+  const visiblePartyRunStartPhase = derivePartyRunStartPhase({
+    roomState: visibleMatchRoom?.state,
+    linkedMatchStatus: visibleMatchRoom?.linkedMatchStatus,
+    isCountdownReady: currentRoomParticipant?.isCountdownReady,
+    remainingSeconds: roomCountdownRemainingSeconds,
+  });
+  const matchRoomStartPhase = derivePartyRunStartPhase({
+    roomState: matchRoom?.state,
+    linkedMatchStatus: matchRoom?.linkedMatchStatus,
+    isCountdownReady: currentRoomParticipant?.isCountdownReady,
+    remainingSeconds: roomCountdownRemainingSeconds,
+  });
   const roomCountdownEntry = useMemo(() => {
     if (
       !visibleMatchRoom?.linkedMatchId
@@ -713,16 +734,12 @@ export function TrackRunExperience({
     : fallbackCountdownEntry);
   const shouldShowRoomArmingOverlay = Boolean(
     matchRoom?.linkedMatchId
-    && matchRoom.state === 'arming'
-    && !shouldShowMatchStartOverlay(roomCountdownRemainingSeconds)
+    && shouldShowPartyRunLoading(matchRoomStartPhase)
     && (matchMode === 'duel' || matchMode === 'group'),
   );
   const canOpenRoomArena = Boolean(
     visibleMatchRoom?.linkedMatchSlotStartAt
-    && (
-      visibleMatchRoom.linkedMatchStatus === 'active'
-      || shouldAutoOpenMatchArena(roomCountdownRemainingSeconds)
-    ),
+    && shouldOpenPartyRunArena(visiblePartyRunStartPhase),
   );
   const effectiveRoomMode = matchRoom?.mode ?? roomMatchMode;
   const roomDateOptions = effectiveRoomMode === 'group' ? groupDateOptions : duelDateOptions;
@@ -967,105 +984,40 @@ export function TrackRunExperience({
       : `${effectiveDuelOpponent.name}님${effectiveDuelOpponentArenaPace ? ` · ${effectiveDuelOpponentArenaPace}` : ''}${effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}`
     : '상대 러너 정보를 불러오는 중이에요.';
   const duelArenaParticipants = useMemo(
-    () => (effectiveDuelOpponent
-      ? [
-          {
-            id: 'me',
-            name: '나',
-            paceLabel: currentUserArenaPace,
-            distanceKm: syncedDuelDistanceKm,
-            isCurrentUser: true,
-            isLeader: duelLiveGapKm !== null ? duelLiveGapKm >= 0 : false,
-            liveStatus: currentUserDuelLiveStatus ?? undefined,
-            showPaceBubble: Boolean(currentUserArenaPace),
-          },
-          {
-            id: effectiveDuelOpponent.id,
-            name: effectiveDuelOpponent.name,
-            paceLabel: isDuelOpponentForfeited ? '기권' : effectiveDuelOpponentArenaPace,
-            distanceKm: syncedDuelOpponentDistanceKm,
-            isLeader: duelLiveGapKm !== null ? duelLiveGapKm < 0 : true,
-            liveStatus: effectiveDuelOpponent.liveStatus,
-            showPaceBubble: isDuelOpponentForfeited || Boolean(effectiveDuelOpponentArenaPace),
-          },
-        ]
-      : []),
+    () => buildDuelArenaParticipants({
+      currentUserPaceLabel: currentUserArenaPace,
+      currentUserLiveStatus: currentUserDuelLiveStatus ?? undefined,
+      currentDistanceKm: syncedDuelDistanceKm,
+      opponent: effectiveDuelOpponent,
+      opponentPaceLabel: effectiveDuelOpponentArenaPace,
+      opponentDistanceKm: syncedDuelOpponentDistanceKm,
+      liveGapKm: duelLiveGapKm,
+    }),
     [
       currentUserArenaPace,
       currentUserDuelLiveStatus,
       duelLiveGapKm,
       effectiveDuelOpponent,
       effectiveDuelOpponentArenaPace,
-      isDuelOpponentForfeited,
       syncedDuelDistanceKm,
       syncedDuelOpponentDistanceKm,
     ],
   );
-  const roomLinkedDuelPlaceholderParticipants = useMemo(() => {
-    if (!hasRoomLinkedDuelContext || !visibleMatchRoom) {
-      return [];
-    }
-
-    const placeholderDistanceKm = visibleMatchRoom.linkedMatchDistanceKm ?? visibleMatchRoom.distanceKm;
-    const participants = visibleMatchRoom.participants.slice(0, 2).map((participant) => {
-      const isCurrentUser = participant.userId === currentUserId || participant.tag === currentUserId;
-      const duelStatusParticipant = !isCurrentUser
-        && effectiveDuelOpponent
-        && (
-          effectiveDuelOpponent.id === participant.userId
-          || effectiveDuelOpponent.tag === participant.tag
-          || effectiveDuelOpponent.tag === participant.userId
-        )
-        ? effectiveDuelOpponent
-        : null;
-      const participantLiveStatus = duelStatusParticipant?.liveStatus ?? participant.liveStatus;
-      const participantOfficialDistanceKm = duelStatusParticipant?.officialReady && typeof duelStatusParticipant.officialDistanceKm === 'number'
-        ? duelStatusParticipant.officialDistanceKm
-        : participant.officialReady && typeof participant.officialDistanceKm === 'number'
-          ? participant.officialDistanceKm
-          : null;
-      const participantLiveDistanceKm = resolveParticipantDisplayDistanceKm(duelStatusParticipant ?? participant, placeholderDistanceKm);
-      const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
-        ? distanceKm
-        : participantOfficialDistanceKm ?? participantLiveDistanceKm ?? 0;
-      const mergedParticipant = duelStatusParticipant
-        ? {
-            ...participant,
-            liveDistanceKm: duelStatusParticipant.liveDistanceKm ?? participant.liveDistanceKm,
-            liveElapsedSeconds: duelStatusParticipant.liveElapsedSeconds ?? participant.liveElapsedSeconds,
-            livePace: duelStatusParticipant.livePace ?? participant.livePace,
-            liveUpdatedAt: duelStatusParticipant.liveUpdatedAt ?? participant.liveUpdatedAt,
-            officialAveragePace: duelStatusParticipant.officialAveragePace ?? participant.officialAveragePace,
-          }
-        : participant;
-      const participantPaceLabel = isCurrentUser
-        ? currentUserArenaPace
-        : buildParticipantAveragePaceLabel(mergedParticipant, roomLinkedMatchContext?.state === 'active');
-
-      return {
-        id: participant.userId,
-        name: isCurrentUser ? '나' : participant.name,
-        paceLabel: participantLiveStatus === 'forfeited' ? '기권' : participantPaceLabel,
-        distanceKm: participantDistanceKm,
-        isCurrentUser,
-        isLeader: false,
-        liveStatus: participantLiveStatus,
-        showPaceBubble: participantLiveStatus === 'forfeited' || Boolean(participantPaceLabel),
-      };
-    });
-
-    const leaderDistanceKm = Math.max(...participants.map((participant) => participant.distanceKm));
-    return participants.map((participant) => ({
-      ...participant,
-      isLeader: participant.distanceKm >= leaderDistanceKm && leaderDistanceKm > 0,
-    }));
-  }, [
+  const roomLinkedDuelPlaceholderParticipants = useMemo(() => buildRoomLinkedDuelPlaceholderParticipants({
+    room: visibleMatchRoom,
+    hasRoomLinkedDuelContext,
+    currentUserId,
+    currentDistanceKm: distanceKm,
+    currentUserPaceLabel: currentUserArenaPace,
+    opponent: effectiveDuelOpponent,
+    roomLinkedMatchContext,
+  }), [
     currentUserArenaPace,
     currentUserId,
     distanceKm,
     effectiveDuelOpponent,
     hasRoomLinkedDuelContext,
-    roomLinkedMatchContext?.state,
+    roomLinkedMatchContext,
     visibleMatchRoom,
   ]);
   const roomLinkedDuelCurrentParticipant = roomLinkedDuelPlaceholderParticipants.find((participant) => participant.isCurrentUser) ?? null;
@@ -1082,93 +1034,36 @@ export function TrackRunExperience({
     ),
   );
   const groupArenaParticipants = useMemo(
-    () =>
-      groupLiveStandings.map((participant) => ({
-        id: participant.id,
-        name: participant.isCurrentUser ? '나' : participant.name,
-        paceLabel: participant.isCurrentUser
-          ? currentUserArenaPace
-          : buildParticipantAveragePaceLabel(participant, groupArenaUsesLivePace),
-        distanceKm: participant.currentDistanceKm,
-        rankLabel: String(participant.rank),
-        isCurrentUser: participant.isCurrentUser,
-        isLeader: participant.rank === 1,
-        liveStatus: participant.liveStatus,
-        showPaceBubble: participant.isCurrentUser
-          ? Boolean(currentUserArenaPace)
-          : Boolean(buildParticipantAveragePaceLabel(participant, groupArenaUsesLivePace)),
-        emphasis: featuredGroupArenaParticipantIds.has(participant.id) ? ('featured' as const) : ('compact' as const),
-      })),
+    () => buildGroupArenaParticipants({
+      standings: groupLiveStandings,
+      currentUserPaceLabel: currentUserArenaPace,
+      hasOfficialStart: groupArenaUsesLivePace,
+      featuredParticipantIds: featuredGroupArenaParticipantIds,
+    }),
     [currentUserArenaPace, featuredGroupArenaParticipantIds, groupArenaUsesLivePace, groupLiveStandings],
   );
-  const roomLinkedGroupPlaceholderParticipants = useMemo(() => {
-    if (!hasRoomLinkedGroupContext || !visibleMatchRoom) {
-      return [];
-    }
-
-    return visibleMatchRoom.participants.map((participant, index) => {
-      const isCurrentUser = participant.userId === currentUserId || participant.tag === currentUserId;
-      const groupStatusParticipant = effectiveGroupParticipants.find((statusParticipant) => (
-        statusParticipant.id === participant.userId
-        || statusParticipant.tag === participant.tag
-        || statusParticipant.tag === participant.userId
-      )) ?? null;
-      const participantLiveStatus = groupStatusParticipant?.liveStatus ?? participant.liveStatus;
-      const participantOfficialDistanceKm = groupStatusParticipant?.officialReady && typeof groupStatusParticipant.officialDistanceKm === 'number'
-        ? groupStatusParticipant.officialDistanceKm
-        : participant.officialReady && typeof participant.officialDistanceKm === 'number'
-          ? participant.officialDistanceKm
-          : null;
-      const placeholderDistanceKm = visibleMatchRoom.linkedMatchDistanceKm ?? visibleMatchRoom.distanceKm;
-      const participantLiveDistanceKm = resolveParticipantDisplayDistanceKm(groupStatusParticipant ?? participant, placeholderDistanceKm);
-      const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
-        ? distanceKm
-        : participantOfficialDistanceKm ?? participantLiveDistanceKm ?? 0;
-      const mergedParticipant = groupStatusParticipant
-        ? {
-            ...participant,
-            liveDistanceKm: groupStatusParticipant.liveDistanceKm ?? participant.liveDistanceKm,
-            liveElapsedSeconds: groupStatusParticipant.liveElapsedSeconds ?? participant.liveElapsedSeconds,
-            livePace: groupStatusParticipant.livePace ?? participant.livePace,
-            liveUpdatedAt: groupStatusParticipant.liveUpdatedAt ?? participant.liveUpdatedAt,
-            officialAveragePace: groupStatusParticipant.officialAveragePace ?? participant.officialAveragePace,
-          }
-        : participant;
-      const participantPaceLabel = isCurrentUser
-        ? currentUserArenaPace
-        : buildParticipantAveragePaceLabel(mergedParticipant, roomLinkedMatchContext?.state === 'active');
-
-      return {
-        id: participant.userId,
-        name: isCurrentUser ? '나' : participant.name,
-        paceLabel: participantLiveStatus === 'forfeited' ? '기권' : participantPaceLabel,
-        distanceKm: participantDistanceKm,
-        rankLabel: String(index + 1),
-        isCurrentUser,
-        isLeader: index === 0,
-        liveStatus: participantLiveStatus,
-        showPaceBubble: participantLiveStatus === 'forfeited' || Boolean(participantPaceLabel),
-        emphasis: 'featured' as const,
-      };
-    });
-  }, [
+  const roomLinkedGroupPlaceholderParticipants = useMemo(() => buildRoomLinkedGroupPlaceholderParticipants({
+    room: visibleMatchRoom,
+    hasRoomLinkedGroupContext,
+    currentUserId,
+    currentDistanceKm: distanceKm,
+    currentUserPaceLabel: currentUserArenaPace,
+    effectiveGroupParticipants,
+    roomLinkedMatchContext,
+  }), [
     currentUserArenaPace,
     currentUserId,
     distanceKm,
     effectiveGroupParticipants,
     hasRoomLinkedGroupContext,
-    roomLinkedMatchContext?.state,
+    roomLinkedMatchContext,
     visibleMatchRoom,
   ]);
   const duelShouldOpenCountdownArena = duelMatchState === 'matched' && shouldAutoOpenMatchArena(duelStartCountdownSeconds);
   const groupShouldOpenCountdownArena = groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds);
   const roomShouldOpenCountdownArena = Boolean(
     visibleMatchRoom?.linkedMatchId
-    && (
-      visibleMatchRoom.linkedMatchStatus === 'active'
-      || shouldAutoOpenMatchArena(roomCountdownRemainingSeconds)
-      || forceOpenActiveMatch
-    ),
+    && (shouldOpenPartyRunArena(visiblePartyRunStartPhase) || forceOpenActiveMatch),
   );
   const duelShouldHoldArenaDuringActivation = duelMatchState === 'matched' && forceOpenActiveMatch;
   const groupShouldHoldArenaDuringActivation = groupMatchState === 'matched' && forceOpenActiveMatch;
@@ -2384,8 +2279,8 @@ export function TrackRunExperience({
 
     void syncRoomLinkedMatchStatus();
 
-    const intervalMs = roomLinkedMatchContext.state === 'active'
-      || shouldShowMatchStartOverlay(roomCountdownRemainingSeconds)
+    const intervalMs = visiblePartyRunStartPhase === 'countdown'
+      || shouldOpenPartyRunArena(visiblePartyRunStartPhase)
       ? MATCH_STATUS_FAST_POLL_MS
       : MATCH_STATUS_IDLE_POLL_MS;
     const timer = setInterval(() => {
@@ -2402,7 +2297,7 @@ export function TrackRunExperience({
     roomLinkedMatchContext?.mode,
     roomLinkedMatchContext?.slotStartAt,
     roomLinkedMatchContext?.state,
-    roomCountdownRemainingSeconds,
+    visiblePartyRunStartPhase,
   ]);
 
   useEffect(() => {
@@ -2622,7 +2517,7 @@ export function TrackRunExperience({
       roomLinkedMatchContext
       && roomLinkedMatchContext.mode === matchMode
       && roomLinkedMatchContext.state === 'matched'
-      && shouldAutoOpenMatchArena(roomCountdownRemainingSeconds)
+      && shouldOpenPartyRunArena(visiblePartyRunStartPhase)
         ? roomLinkedMatchContext.matchId
         : null;
     const warmupMatchId = matchMode === 'duel'
@@ -2660,9 +2555,9 @@ export function TrackRunExperience({
     groupStartCountdownSeconds,
     matchMode,
     nowMs,
-    roomCountdownRemainingSeconds,
     roomLinkedMatchContext,
     status,
+    visiblePartyRunStartPhase,
   ]);
 
   useEffect(() => {
@@ -4541,72 +4436,21 @@ export function TrackRunExperience({
                   setMatchMode(option.mode);
                 }}
               />
-              {visibleMatchRoom ? (
-                visibleMatchRoomIsInviteOnly ? (
-                  <PartyRunInviteCard
-                    room={visibleMatchRoom}
-                    isAccepting={isJoiningMatchRoom}
-                    isDeclining={isLeavingMatchRoom}
-                    onAccept={() => { void handleAcceptRoomInviteFromRunning(); }}
-                    onDecline={() => { void handleDeclineRoomInviteFromRunning(); }}
-                  />
-                ) : (
-                  <Pressable
-                    style={styles.partyRoomEntryButton}
-                    onPress={() => {
-                      router.push('/match-room' as Href);
-                    }}
-                  >
-                    <Text style={styles.partyRoomEntryButtonText}>파티런 대기실로 가기</Text>
-                  </Pressable>
-                )
-              ) : null}
-              {matchMode === 'room' ? (
-                <View style={styles.roomCard}>
-                  {!matchRoom ? (
-                    <>
-                      <View style={styles.roomModeRow}>
-                        {([
-                          { key: 'duel' as const, label: '1대1 대결' },
-                          { key: 'group' as const, label: '그룹 대결' },
-                        ]).map((option) => {
-                          const isSelected = roomMatchMode === option.key;
-
-                          return (
-                            <Pressable
-                              key={option.key}
-                              style={[styles.roomModeChip, isSelected ? styles.roomModeChipSelected : undefined]}
-                              onPress={() => setRoomMatchMode(option.key)}
-                            >
-                              <Text style={[styles.roomModeChipText, isSelected ? styles.roomModeChipTextSelected : undefined]}>
-                                {option.label}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-                      <View style={styles.roomJoinBox}>
-                        <Text style={styles.roomPickerTitle}>초대 코드로 입장</Text>
-                        <TextInput
-                          value={roomInviteTokenInput}
-                          onChangeText={setRoomInviteTokenInput}
-                          placeholder="예: AB12CD"
-                          placeholderTextColor="#98A2B3"
-                          autoCapitalize="characters"
-                          style={styles.roomInput}
-                        />
-                        <SecondaryButton
-                          label={isJoiningMatchRoom ? '입장 중...' : '방 입장'}
-                          onPress={() => {
-                            void handleJoinMatchRoom();
-                          }}
-                          disabled={isJoiningMatchRoom}
-                        />
-                      </View>
-                    </>
-                  ) : null}
-                </View>
-              ) : null}
+              <PartyRunHomePanel
+                visibleRoom={visibleMatchRoom}
+                currentRoom={matchRoom}
+                isSelected={matchMode === 'room'}
+                isInviteOnly={visibleMatchRoomIsInviteOnly}
+                isJoining={isJoiningMatchRoom}
+                isLeaving={isLeavingMatchRoom}
+                roomMode={roomMatchMode}
+                inviteTokenInput={roomInviteTokenInput}
+                onRoomModeChange={setRoomMatchMode}
+                onInviteTokenChange={setRoomInviteTokenInput}
+                onAcceptInvite={() => { void handleAcceptRoomInviteFromRunning(); }}
+                onDeclineInvite={() => { void handleDeclineRoomInviteFromRunning(); }}
+                onJoinRoom={() => { void handleJoinMatchRoom(); }}
+              />
               {matchMode === 'duel' ? (
                 <View style={styles.duelSetupCard}>
                   <View style={styles.duelSection}>
@@ -5320,183 +5164,6 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '800',
   },
-  roomCard: {
-    gap: 12,
-    padding: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#374151',
-    backgroundColor: '#1F2937',
-  },
-  roomHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  roomEyebrow: {
-    color: '#C7D2FE',
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-  },
-  roomTitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-    lineHeight: 22,
-    marginTop: 4,
-  },
-  roomBadge: {
-    borderRadius: 999,
-    backgroundColor: '#312E81',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  roomBadgeText: {
-    color: '#E0E7FF',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  roomModeRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  roomModeChip: {
-    flex: 1,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#475467',
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: '#111827',
-  },
-  roomModeChipSelected: {
-    borderColor: '#818CF8',
-    backgroundColor: '#312E81',
-  },
-  roomModeChipText: {
-    color: '#D0D5DD',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  roomModeChipTextSelected: {
-    color: '#FFFFFF',
-  },
-  roomHelperText: {
-    color: '#98A2B3',
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  roomInput: {
-    height: 48,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#475467',
-    backgroundColor: '#111827',
-    color: '#FFFFFF',
-    paddingHorizontal: 14,
-    fontWeight: '700',
-  },
-  roomFriendSelector: {
-    gap: 8,
-  },
-  roomPickerTitle: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  roomFriendChipWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  roomFriendChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#475467',
-    backgroundColor: '#111827',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  roomFriendChipSelected: {
-    borderColor: '#818CF8',
-    backgroundColor: '#312E81',
-  },
-  roomFriendChipText: {
-    color: '#D0D5DD',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  roomFriendChipTextSelected: {
-    color: '#FFFFFF',
-  },
-  roomJoinBox: {
-    gap: 10,
-    paddingTop: 2,
-  },
-  roomLobby: {
-    gap: 10,
-    paddingTop: 4,
-  },
-  roomSettingsPanel: {
-    gap: 14,
-    marginTop: 2,
-    padding: 14,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#312E81',
-    backgroundColor: '#0F172A',
-  },
-  roomSettingBlock: {
-    gap: 8,
-  },
-  roomLobbyTitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  roomLobbyMeta: {
-    color: '#D0D5DD',
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  roomParticipantRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  roomParticipantChip: {
-    borderRadius: 999,
-    backgroundColor: '#111827',
-    borderWidth: 1,
-    borderColor: '#374151',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  roomParticipantChipText: {
-    color: '#E5E7EB',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  roomActionRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  roomActionButton: {
-    flex: 1,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#475467',
-    backgroundColor: '#111827',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  roomActionButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-  },
   readyPillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -5696,21 +5363,6 @@ const styles = StyleSheet.create({
     color: '#E0E7FF',
     fontSize: 11,
     fontWeight: '800',
-  },
-  partyRoomEntryButton: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#818CF8',
-    backgroundColor: '#1E1B4B',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  partyRoomEntryButtonText: {
-    color: '#EEF2FF',
-    fontSize: 15,
-    fontWeight: '900',
   },
   duelSetupCard: {
     gap: 12,
