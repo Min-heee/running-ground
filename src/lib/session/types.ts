@@ -1,0 +1,48 @@
+import type { UserProfile } from '@/domain/types';
+
+export type SignInInput = {
+  username: string;
+  password: string;
+};
+
+export type RegisterAccountInput = {
+  username: string;
+  password: string;
+  nickname: string;
+  realName: string;
+  displayNamePreference: 'nickname' | 'realName';
+  phone: string;
+  provinceName: string;
+  cityName?: string;
+  districtName: string;
+  universityName?: string;
+  addressDetail: string;
+  birthDate: string;
+  phoneVerificationToken?: string;
+};
+
+export type FindUsernameInput = {
+  realName: string;
+  phone: string;
+  birthDate: string;
+};
+
+export type ResetPasswordInput = {
+  username: string;
+  realName: string;
+  phone: string;
+  birthDate: string;
+  newPassword: string;
+};
+
+export type SessionSnapshot = {
+  mode: 'mock' | 'backend';
+  signedIn: boolean;
+  accessToken?: string | null;
+  profile?: UserProfile | null;
+};
+
+export type BackendSessionState = {
+  accessToken: string | null;
+  profile: UserProfile | null;
+};

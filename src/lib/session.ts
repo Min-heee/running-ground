@@ -1,4 +1,3 @@
-import * as SecureStore from 'expo-secure-store';
 import { myProfile } from '@/data/mock';
 import { UserProfile } from '@/domain/types';
 import { apiDelete, apiGet, apiPost } from '@/lib/api/client';
@@ -8,72 +7,52 @@ import {
   DeleteMyAccountResponse,
   FindUsernameResponse,
   LogoutResponse,
-  MyProfileResponse,
   RequestPhoneVerificationCodeResponse,
   ResetPasswordResponse,
   UsernameAvailabilityResponse,
   VerifyPhoneVerificationCodeResponse,
 } from '@/lib/api/types';
+import {
+  buildBackendSessionSnapshot,
+  createBackendSession,
+  fetchBackendProfile,
+} from '@/lib/session/backendSession';
+import {
+  createMockSignupPhoneVerification,
+  verifyMockSignupPhoneCode,
+} from '@/lib/session/phoneVerification';
+import { readStoredSession } from '@/lib/session/snapshot';
+import {
+  clearStoredSessionValue,
+  getStoredSessionValue,
+  setStoredSessionValue,
+} from '@/lib/session/storage';
+import type {
+  FindUsernameInput,
+  RegisterAccountInput,
+  ResetPasswordInput,
+  SessionSnapshot,
+  SignInInput,
+} from '@/lib/session/types';
+import {
+  getPasswordValidationError,
+  getUsernameValidationError,
+  normalizeUsername,
+} from '@/lib/session/validation';
 
-const SESSION_STORAGE_KEY = 'runningground.session.v1';
-const LEGACY_SESSION_STORAGE_KEY = 'runnigapp.session.v1';
-export const USERNAME_RULE_DESCRIPTION = '아이디는 4~20자의 영문 소문자, 숫자, -, _만 사용할 수 있어요.';
-export const PASSWORD_RULE_DESCRIPTION = '비밀번호는 8자 이상이고 영문과 숫자를 모두 포함해야 해요.';
-const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{3,19}$/;
-
-type SignInInput = {
-  username: string;
-  password: string;
-};
-
-type RegisterAccountInput = {
-  username: string;
-  password: string;
-  nickname: string;
-  realName: string;
-  displayNamePreference: 'nickname' | 'realName';
-  phone: string;
-  provinceName: string;
-  cityName?: string;
-  districtName: string;
-  universityName?: string;
-  addressDetail: string;
-  birthDate: string;
-  phoneVerificationToken?: string;
-};
-
-type FindUsernameInput = {
-  realName: string;
-  phone: string;
-  birthDate: string;
-};
-
-type ResetPasswordInput = {
-  username: string;
-  realName: string;
-  phone: string;
-  birthDate: string;
-  newPassword: string;
-};
-
-type SessionSnapshot = {
-  mode: 'mock' | 'backend';
-  signedIn: boolean;
-  accessToken?: string | null;
-  profile?: UserProfile | null;
-};
+export {
+  PASSWORD_RULE_DESCRIPTION,
+  USERNAME_RULE_DESCRIPTION,
+  getPasswordValidationError,
+  getUsernameValidationError,
+  normalizeUsername,
+} from '@/lib/session/validation';
 
 let hydrated = false;
 let mockSignedIn = false;
 let mockProfile: UserProfile = { ...myProfile };
 let backendAccessToken: string | null = null;
 let backendProfile: UserProfile | null = null;
-let mockPhoneVerificationSession: {
-  requestId: string;
-  phone: string;
-  code: string;
-  verifiedToken: string | null;
-} | null = null;
 
 const MOCK_TAKEN_USERNAMES = new Set([
   'demo-user',
@@ -86,178 +65,6 @@ const MOCK_TAKEN_USERNAMES = new Set([
   'yr-user',
   'ia-user',
 ]);
-
-export function normalizeUsername(value: string) {
-  return value.trim().toLowerCase();
-}
-
-export function getUsernameValidationError(value: string) {
-  const username = normalizeUsername(value);
-
-  if (!username) {
-    return '아이디를 입력해주세요.';
-  }
-
-  if (!USERNAME_PATTERN.test(username)) {
-    return USERNAME_RULE_DESCRIPTION;
-  }
-
-  return null;
-}
-
-export function getPasswordValidationError(value: string) {
-  if (!value) {
-    return '비밀번호를 입력해주세요.';
-  }
-
-  if (value.length < 8) {
-    return '비밀번호는 8자 이상으로 입력해주세요.';
-  }
-
-  if (/\s/.test(value)) {
-    return '비밀번호에는 공백을 넣을 수 없어요.';
-  }
-
-  if (!/[A-Za-z]/.test(value) || !/\d/.test(value)) {
-    return '비밀번호에는 영문과 숫자를 모두 포함해주세요.';
-  }
-
-  return null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === 'object';
-}
-
-function isUserProfile(value: unknown): value is UserProfile {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return typeof value.name === 'string'
-    && (value.provinceName === undefined || typeof value.provinceName === 'string')
-    && (value.cityName === undefined || typeof value.cityName === 'string')
-    && typeof value.districtName === 'string'
-    && (value.universityName === undefined || typeof value.universityName === 'string')
-    && (value.addressDetail === undefined || typeof value.addressDetail === 'string')
-    && typeof value.publicTag === 'string'
-    && (value.lifetimeDistanceKm === undefined || typeof value.lifetimeDistanceKm === 'number');
-}
-
-async function getStoredSessionValue() {
-  if (typeof window !== 'undefined' && 'localStorage' in window && window.localStorage) {
-    const currentValue = window.localStorage.getItem(SESSION_STORAGE_KEY);
-
-    if (currentValue) {
-      return currentValue;
-    }
-
-    const legacyValue = window.localStorage.getItem(LEGACY_SESSION_STORAGE_KEY);
-
-    if (legacyValue) {
-      window.localStorage.setItem(SESSION_STORAGE_KEY, legacyValue);
-      window.localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
-    }
-
-    return legacyValue;
-  }
-
-  try {
-    const isSecureStoreAvailable = await SecureStore.isAvailableAsync();
-
-    if (!isSecureStoreAvailable) {
-      return null;
-    }
-
-    const currentValue = await SecureStore.getItemAsync(SESSION_STORAGE_KEY);
-
-    if (currentValue) {
-      return currentValue;
-    }
-
-    const legacyValue = await SecureStore.getItemAsync(LEGACY_SESSION_STORAGE_KEY);
-
-    if (legacyValue) {
-      await SecureStore.setItemAsync(SESSION_STORAGE_KEY, legacyValue);
-      await SecureStore.deleteItemAsync(LEGACY_SESSION_STORAGE_KEY);
-    }
-
-    return legacyValue;
-  } catch {
-    return null;
-  }
-}
-
-async function setStoredSessionValue(value: string) {
-  if (typeof window !== 'undefined' && 'localStorage' in window && window.localStorage) {
-    window.localStorage.setItem(SESSION_STORAGE_KEY, value);
-    window.localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
-    return;
-  }
-
-  try {
-    if (await SecureStore.isAvailableAsync()) {
-      await SecureStore.setItemAsync(SESSION_STORAGE_KEY, value);
-      await SecureStore.deleteItemAsync(LEGACY_SESSION_STORAGE_KEY);
-    }
-  } catch {
-    // Ignore persistence failures and continue with in-memory session state.
-  }
-}
-
-async function clearStoredSessionValue() {
-  if (typeof window !== 'undefined' && 'localStorage' in window && window.localStorage) {
-    window.localStorage.removeItem(SESSION_STORAGE_KEY);
-    window.localStorage.removeItem(LEGACY_SESSION_STORAGE_KEY);
-    return;
-  }
-
-  try {
-    if (await SecureStore.isAvailableAsync()) {
-      await SecureStore.deleteItemAsync(SESSION_STORAGE_KEY);
-      await SecureStore.deleteItemAsync(LEGACY_SESSION_STORAGE_KEY);
-    }
-  } catch {
-    // Ignore persistence failures and continue with in-memory session state.
-  }
-}
-
-function readStoredSession(rawValue: string | null) {
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    const parsedValue = JSON.parse(rawValue) as SessionSnapshot;
-
-    if (!parsedValue || typeof parsedValue !== 'object') {
-      return null;
-    }
-
-    if (parsedValue.mode !== 'mock' && parsedValue.mode !== 'backend') {
-      return null;
-    }
-
-    if (typeof parsedValue.signedIn !== 'boolean') {
-      return null;
-    }
-
-    return {
-      ...parsedValue,
-      accessToken: typeof parsedValue.accessToken === 'string' ? parsedValue.accessToken : null,
-      profile: isUserProfile(parsedValue.profile) ? parsedValue.profile : null,
-    } satisfies SessionSnapshot;
-  } catch {
-    return null;
-  }
-}
-
-async function fetchBackendProfile(accessToken: string) {
-  return apiGet<MyProfileResponse>('/me/profile', {
-    accessToken,
-    fallbackMessage: '세션 확인에 실패했어요.',
-  });
-}
 
 async function persistSession() {
   if (USE_MOCK_API) {
@@ -280,18 +87,23 @@ async function persistSession() {
     return;
   }
 
-  const snapshot: SessionSnapshot = {
-    mode: 'backend',
-    signedIn: true,
+  const snapshot = buildBackendSessionSnapshot({
     accessToken: backendAccessToken,
     profile: backendProfile,
-  };
+  });
+
+  if (!snapshot) {
+    await clearStoredSessionValue();
+    return;
+  }
+
   await setStoredSessionValue(JSON.stringify(snapshot));
 }
 
 function setBackendSession(authResponse: AuthResponse) {
-  backendAccessToken = authResponse.accessToken;
-  backendProfile = authResponse.user;
+  const backendSession = createBackendSession(authResponse);
+  backendAccessToken = backendSession.accessToken;
+  backendProfile = backendSession.profile;
 }
 
 async function ensureHydrated() {
@@ -435,25 +247,7 @@ export async function requestSignupPhoneVerification(rawPhone: string): Promise<
   }
 
   if (USE_MOCK_API) {
-    const requestId = `mock-phone-${Date.now()}`;
-    const testCode = '123456';
-    mockPhoneVerificationSession = {
-      requestId,
-      phone: normalizedPhone,
-      code: testCode,
-      verifiedToken: null,
-    };
-
-    return {
-      success: true,
-      purpose: 'signup',
-      requestId,
-      maskedPhone: `${normalizedPhone.slice(0, 3)}-****-${normalizedPhone.slice(-4)}`,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-      resendAvailableAt: new Date(Date.now() + 60 * 1000).toISOString(),
-      provider: 'mock',
-      testCode,
-    };
+    return createMockSignupPhoneVerification(normalizedPhone);
   }
 
   return apiPost<RequestPhoneVerificationCodeResponse>(
@@ -481,26 +275,7 @@ export async function verifySignupPhoneCode(requestId: string, rawCode: string):
   }
 
   if (USE_MOCK_API) {
-    if (!mockPhoneVerificationSession || mockPhoneVerificationSession.requestId !== normalizedRequestId) {
-      throw new Error('인증 요청이 만료됐어요. 다시 요청해주세요.');
-    }
-
-    if (mockPhoneVerificationSession.code !== normalizedCode) {
-      throw new Error('인증번호가 맞지 않아요.');
-    }
-
-    const verifiedToken = `mock-phone-token-${Date.now()}`;
-    mockPhoneVerificationSession.verifiedToken = verifiedToken;
-
-    return {
-      success: true,
-      purpose: 'signup',
-      phone: mockPhoneVerificationSession.phone,
-      maskedPhone: `${mockPhoneVerificationSession.phone.slice(0, 3)}-****-${mockPhoneVerificationSession.phone.slice(-4)}`,
-      verifiedAt: new Date().toISOString(),
-      registrationExpiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-      verifiedToken,
-    };
+    return verifyMockSignupPhoneCode(normalizedRequestId, normalizedCode);
   }
 
   return apiPost<VerifyPhoneVerificationCodeResponse>(

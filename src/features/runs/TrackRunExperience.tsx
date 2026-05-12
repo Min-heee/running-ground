@@ -37,12 +37,12 @@ import { useLiveMatchProgress } from '@/features/runs/hooks/useLiveMatchProgress
 import { useForfeitController } from '@/features/runs/hooks/useForfeitController';
 import { useAndroidLiveMatchDisplayFrame } from '@/features/runs/hooks/useAndroidLiveMatchDisplayFrame';
 import { usePartyRunSync } from '@/features/runs/hooks/usePartyRunSync';
-import { useStableCountdownSeconds } from '@/features/runs/hooks/useStableCountdownSeconds';
 import { useMatchRoomSelectionSync } from '@/features/runs/hooks/useMatchRoomSelectionSync';
 import { useLiveMatchNavigationEffects } from '@/features/runs/hooks/useLiveMatchNavigationEffects';
 import { useMatchProgressSync } from '@/features/runs/hooks/useMatchProgressSync';
 import { useMatchSelectionModel } from '@/features/runs/hooks/useMatchSelectionModel';
 import { useMatchEntryEffects } from '@/features/runs/hooks/useMatchEntryEffects';
+import { useMatchCountdownModel } from '@/features/runs/hooks/useMatchCountdownModel';
 import {
   acknowledgeRunningMatchRoomCountdown,
   cancelRunningMatch,
@@ -63,7 +63,6 @@ import {
 } from '@/lib/api/services';
 import { syncScheduledMatchNotifications } from '@/lib/matchNotifications';
 import {
-  findNextStartingMatchedMatch,
   getMatchStartRemainingSeconds,
   shouldAutoOpenMatchArena,
   shouldShowMatchStartOverlay,
@@ -115,7 +114,6 @@ import {
   buildRoomLinkedGroupPlaceholderParticipants,
 } from '@/features/runs/matchViewModels';
 import {
-  buildPartyRunFlowSnapshot,
   buildMatchTransitionNotice,
   isBlockingMatchState,
   isLiveMatchState,
@@ -450,136 +448,37 @@ export function TrackRunExperience({
     effectiveGroupParticipantCount,
     effectiveGroupSeedRank,
   });
-  const rawDuelStartCountdownSeconds =
-    duelMatchState === 'matched'
-      ? getMatchStartRemainingSeconds(duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt, syncedNowMs)
-      : null;
-  const duelStartCountdownSeconds = useStableCountdownSeconds({
-    key: duelMatchState === 'matched'
-      ? `${duelMatchStatus?.matchId ?? 'duel'}:${duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt}`
-      : null,
-    rawRemainingSeconds: rawDuelStartCountdownSeconds,
-    nowMs,
-  });
   const duelExpiryCountdownLabel = formatMatchExpiryCountdown(duelMatchStatus?.expiresInSeconds);
-  const rawGroupStartCountdownSeconds =
-    groupMatchState === 'matched'
-      ? getMatchStartRemainingSeconds(groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt, syncedNowMs)
-      : null;
-  const groupStartCountdownSeconds = useStableCountdownSeconds({
-    key: groupMatchState === 'matched'
-      ? `${groupMatchStatus?.matchId ?? 'group'}:${groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt}`
-      : null,
-    rawRemainingSeconds: rawGroupStartCountdownSeconds,
-    nowMs,
-  });
   const groupExpiryCountdownLabel = formatMatchExpiryCountdown(groupMatchStatus?.expiresInSeconds);
-  const nextStartingMatch = useMemo(
-    () => findNextStartingMatchedMatch(visibleUpcomingMatches, syncedNowMs),
-    [syncedNowMs, visibleUpcomingMatches],
-  );
-  const stableNextStartingMatchKey = useMemo(
-    () => nextStartingMatch
-      ? `${nextStartingMatch.match.matchId}:${nextStartingMatch.match.slotStartAt}`
-      : null,
-    [nextStartingMatch],
-  );
-  const stableNextStartingMatchRemainingSeconds = useStableCountdownSeconds({
-    key: stableNextStartingMatchKey,
-    rawRemainingSeconds: nextStartingMatch?.remainingSeconds ?? null,
-    nowMs,
-  });
-  const stableNextStartingMatch = useMemo(() => {
-    if (!nextStartingMatch || stableNextStartingMatchRemainingSeconds === null) {
-      return null;
-    }
-
-    return {
-      ...nextStartingMatch,
-      remainingSeconds: stableNextStartingMatchRemainingSeconds,
-    };
-  }, [nextStartingMatch, stableNextStartingMatchRemainingSeconds]);
-  const activeUpcomingMatch = useMemo(
-    () => visibleUpcomingMatches.find((match) => match.status === 'active') ?? null,
-    [visibleUpcomingMatches],
-  );
-  const fallbackCountdownEntry = useMemo(() => {
-    if (matchMode === 'duel' && duelMatchState === 'matched' && duelMatchStatus && typeof duelStartCountdownSeconds === 'number') {
-      return {
-        title: '1대1 대결 곧 시작',
-        subtitle: `${duelMatchStatus.opponent?.name ?? '상대'} · ${duelMatchStatus.distanceKm.toFixed(1)}km`,
-        remainingSeconds: duelStartCountdownSeconds,
-      };
-    }
-
-    if (matchMode === 'group' && groupMatchState === 'matched' && groupMatchStatus && typeof groupStartCountdownSeconds === 'number') {
-      return {
-        title: '그룹 대결 곧 시작',
-        subtitle: `${groupMatchStatus.participantCount}명 그룹 · ${groupMatchStatus.distanceKm.toFixed(1)}km`,
-        remainingSeconds: groupStartCountdownSeconds,
-      };
-    }
-
-    return null;
-  }, [
-    duelMatchState,
-    duelMatchStatus,
-    duelStartCountdownSeconds,
-    groupMatchState,
-    groupMatchStatus,
-    groupStartCountdownSeconds,
-    matchMode,
-  ]);
   const roomParticipantsCount = visibleMatchRoom?.participants.length ?? 0;
   const visibleMatchRoomIsInviteOnly = Boolean(visibleMatchRoom?.joined === false);
-  const rawRoomCountdownRemainingSeconds = visibleMatchRoom?.linkedMatchSlotStartAt
-    ? getMatchStartRemainingSeconds(visibleMatchRoom.linkedMatchSlotStartAt, syncedNowMs)
-    : null;
-  const roomCountdownRemainingSeconds = useStableCountdownSeconds({
-    key: visibleMatchRoom?.linkedMatchId
-      ? `${visibleMatchRoom.linkedMatchId}:${visibleMatchRoom.linkedMatchSlotStartAt ?? visibleMatchRoom.slotStartAt}`
-      : null,
-    rawRemainingSeconds: rawRoomCountdownRemainingSeconds,
+  const {
+    duelStartCountdownSeconds,
+    groupStartCountdownSeconds,
+    roomCountdownRemainingSeconds,
+    visiblePartyRunFlow,
+    matchRoomFlow,
+    roomCountdownEntry,
+    visibleCountdownEntry,
+    nextStartingMatch,
+    activeUpcomingMatch,
+    shouldShowRoomArmingOverlay,
+    canOpenRoomArena,
+  } = useMatchCountdownModel({
+    matchMode,
     nowMs,
+    syncedNowMs,
+    visibleUpcomingMatches,
+    duelMatchState,
+    groupMatchState,
+    duelMatchStatus,
+    groupMatchStatus,
+    activeDuelSlotStartAt,
+    activeGroupSlotStartAt,
+    visibleMatchRoom,
+    matchRoom,
+    currentRoomParticipantIsCountdownReady: currentRoomParticipant?.isCountdownReady,
   });
-  const visiblePartyRunFlow = useMemo(() => buildPartyRunFlowSnapshot({
-    room: visibleMatchRoom,
-    isCountdownReady: currentRoomParticipant?.isCountdownReady,
-    remainingSeconds: roomCountdownRemainingSeconds,
-  }), [currentRoomParticipant?.isCountdownReady, roomCountdownRemainingSeconds, visibleMatchRoom]);
-  const matchRoomFlow = useMemo(() => buildPartyRunFlowSnapshot({
-    room: matchRoom,
-    isCountdownReady: currentRoomParticipant?.isCountdownReady,
-    remainingSeconds: roomCountdownRemainingSeconds,
-  }), [currentRoomParticipant?.isCountdownReady, matchRoom, roomCountdownRemainingSeconds]);
-  const roomCountdownEntry = useMemo(() => {
-    if (
-      !visibleMatchRoom?.linkedMatchId
-      || typeof roomCountdownRemainingSeconds !== 'number'
-      || !['arming', 'countdown', 'active'].includes(visibleMatchRoom.state)
-    ) {
-      return null;
-    }
-
-    return {
-      title: visibleMatchRoom.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',
-      subtitle: `${visibleMatchRoom.hostName}님 방 · ${(visibleMatchRoom.linkedMatchDistanceKm ?? visibleMatchRoom.distanceKm).toFixed(1)}km`,
-      remainingSeconds: roomCountdownRemainingSeconds,
-    };
-  }, [roomCountdownRemainingSeconds, visibleMatchRoom]);
-  const visibleCountdownEntry = roomCountdownEntry ?? (stableNextStartingMatch
-    ? {
-        title: stableNextStartingMatch.match.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',
-        subtitle: `${stableNextStartingMatch.match.counterpartLabel} · ${stableNextStartingMatch.match.summary}`,
-        remainingSeconds: stableNextStartingMatch.remainingSeconds,
-      }
-    : fallbackCountdownEntry);
-  const shouldShowRoomArmingOverlay = Boolean(
-    matchRoom?.linkedMatchId
-    && matchRoomFlow.shouldShowLoading
-    && (matchMode === 'duel' || matchMode === 'group'),
-  );
-  const canOpenRoomArena = visiblePartyRunFlow.shouldOpenArena;
   const effectiveRoomMode = matchRoom?.mode ?? roomMatchMode;
   const roomDateOptions = effectiveRoomMode === 'group' ? groupDateOptions : duelDateOptions;
   const selectedRoomDateKey = effectiveRoomMode === 'group' ? selectedGroupDateKey : selectedDuelDateKey;

@@ -3652,6 +3652,7 @@ function buildMyActivityWithRunsAndMetrics(runs, metrics) {
       pace: run.pace,
       source: run.source,
       ...(run.sourceType ? { sourceType: run.sourceType } : {}),
+      ...(run.matchResult ? { matchResult: clone(run.matchResult) } : {}),
     })),
     monthlyDistanceKm: metrics.currentMonthDistanceKm,
     monthlyPoints: metrics.currentMonthPoints,

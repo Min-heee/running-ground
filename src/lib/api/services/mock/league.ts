@@ -1,0 +1,163 @@
+import {
+  friendRanks,
+  myProfile,
+  regionDrilldownTree,
+  weeklySummary,
+} from '@/data/mock';
+import type {
+  DistrictPersonalRank,
+  RegionDrilldownNode,
+  UniversityLeagueRank,
+} from '@/domain/types';
+import { getCurrentUserProfile } from '@/lib/session';
+import type { DistrictPersonalResponse } from '../../types';
+
+export function normalizeMockUniversityRanks(ranks: UniversityLeagueRank[]) {
+  return [...ranks]
+    .map((entry) => ({
+      ...entry,
+      averageDistanceKm: Number((entry.totalDistanceKm / Math.max(entry.participants, 1)).toFixed(1)),
+    }))
+    .sort((left, right) => {
+      if (right.averageDistanceKm !== left.averageDistanceKm) {
+        return right.averageDistanceKm - left.averageDistanceKm;
+      }
+
+      if (right.totalDistanceKm !== left.totalDistanceKm) {
+        return right.totalDistanceKm - left.totalDistanceKm;
+      }
+
+      if (right.participants !== left.participants) {
+        return right.participants - left.participants;
+      }
+
+      return left.universityName.localeCompare(right.universityName, 'ko');
+    })
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+      totalDistanceKm: Number(entry.totalDistanceKm.toFixed(1)),
+      averageDistanceKm: Number(entry.averageDistanceKm.toFixed(1)),
+    }));
+}
+
+export function normalizeRegionChildren(children: RegionDrilldownNode[]) {
+  return [...children]
+    .sort((left, right) => {
+      if (right.averageDistanceKm !== left.averageDistanceKm) {
+        return right.averageDistanceKm - left.averageDistanceKm;
+      }
+
+      if (right.totalDistanceKm !== left.totalDistanceKm) {
+        return right.totalDistanceKm - left.totalDistanceKm;
+      }
+
+      if (right.participants !== left.participants) {
+        return right.participants - left.participants;
+      }
+
+      return left.name.localeCompare(right.name, 'ko');
+    })
+    .map((child, index) => ({
+      ...child,
+      rank: index + 1,
+    }));
+}
+
+export function findRegionPath(node: RegionDrilldownNode, targetId: string): RegionDrilldownNode[] | null {
+  if (node.id === targetId) {
+    return [node];
+  }
+
+  for (const child of node.children ?? []) {
+    const childPath = findRegionPath(child, targetId);
+
+    if (childPath) {
+      return [node, ...childPath];
+    }
+  }
+
+  return null;
+}
+
+export function findRegionByName(node: RegionDrilldownNode, targetName: string): RegionDrilldownNode | null {
+  if (node.name === targetName) {
+    return node;
+  }
+
+  for (const child of node.children ?? []) {
+    const matchedChild = findRegionByName(child, targetName);
+
+    if (matchedChild) {
+      return matchedChild;
+    }
+  }
+
+  return null;
+}
+
+export const mockRegionalRunnerNames = [
+  '김관우', '박지훈', '최민준', '한예린', '정이안', '이서윤', '박도윤', '김서하', '윤지후', '장민재',
+  '이도현', '오하린', '조유준', '강서아', '백시우', '문가온', '남지호', '전유나', '신민호', '임다온',
+  '유시온', '배하준', '권채은', '서태윤', '노서준', '정하율', '차도현', '홍서진', '최연우', '김하민',
+  '안채린', '오민재', '류예린', '송도윤', '이하율', '하서준', '주아린', '문지후', '고예준', '서가은',
+];
+
+export function buildMockDistrictPersonalResponse(nodeId?: string): DistrictPersonalResponse {
+  const profile = getCurrentUserProfile() ?? myProfile;
+  const friendNameSet = new Set(friendRanks.map((friend) => friend.name));
+  const targetNode = nodeId
+    ? findRegionPath(regionDrilldownTree, nodeId)?.at(-1) ?? findRegionByName(regionDrilldownTree, profile.districtName) ?? regionDrilldownTree
+    : findRegionByName(regionDrilldownTree, profile.districtName) ?? regionDrilldownTree;
+  const isMyRegion = targetNode.name === profile.districtName;
+  const listSize = Math.min(Math.max(Math.round(targetNode.participants / 5), 18), 48);
+  const myRankPosition = isMyRegion ? Math.min(Math.max(Math.round(listSize * 0.58), 6), listSize - 3) : -1;
+  const topDistance = Math.max(targetNode.averageDistanceKm + 14, weeklySummary.totalDistanceKm + 8);
+  const ranks: DistrictPersonalRank[] = [];
+  let runnerCursor = 0;
+
+  for (let index = 0; index < listSize; index += 1) {
+    const rank = index + 1;
+
+    if (index === myRankPosition) {
+      ranks.push({
+        id: `region-me-${targetNode.id}`,
+        rank,
+        name: profile.name,
+        distanceKm: Number(weeklySummary.totalDistanceKm.toFixed(1)),
+        points: weeklySummary.districtPoints,
+        isMe: true,
+        isFriend: friendNameSet.has(profile.name),
+      });
+      continue;
+    }
+
+    const baseName = mockRegionalRunnerNames[runnerCursor % mockRegionalRunnerNames.length];
+    runnerCursor += 1;
+    const distanceKm = Number(Math.max(3.2, topDistance - index * 1.15 - (index % 3) * 0.25).toFixed(1));
+    const points = Math.max(12, Math.round(distanceKm * 2.15 + (listSize - index) * 0.6));
+
+    ranks.push({
+      id: `${targetNode.id}-runner-${rank}`,
+      rank,
+      name: `${baseName}${runnerCursor > mockRegionalRunnerNames.length ? ` ${Math.ceil(runnerCursor / mockRegionalRunnerNames.length)}` : ''}`,
+      distanceKm,
+      points,
+      isFriend: friendNameSet.has(baseName),
+    });
+  }
+
+  const myRank = ranks.find((runner) => runner.isMe) ?? null;
+  const myRankIndex = myRank ? ranks.findIndex((runner) => runner.id === myRank.id) : -1;
+  const focusStart = Math.max(0, myRankIndex - 1);
+  const focusRanks = myRankIndex >= 0 ? ranks.slice(focusStart, focusStart + 4) : ranks.slice(0, 4);
+
+  return {
+    districtName: targetNode.name,
+    myRank,
+    myPoints: myRank?.points ?? 0,
+    weeklyDistanceKm: myRank?.distanceKm ?? 0,
+    focusRanks,
+    ranks,
+  };
+}

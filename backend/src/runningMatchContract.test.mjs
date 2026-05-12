@@ -353,6 +353,111 @@ await runTest('match progress uploads feed official comparison and forfeit state
   });
 });
 
+await runTest('duel forfeit flow persists both match results and exposes them in activity records', async () => {
+  const { store, slotStartAt } = createActiveDuelStore();
+
+  await withBackend(store, async ({ request }) => {
+    await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 0.42,
+      elapsedSeconds: 150,
+      currentPace: '05:57/km',
+      status: 'running',
+    });
+
+    await request('guest-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 0.35,
+      elapsedSeconds: 150,
+      currentPace: '07:08/km',
+      status: 'running',
+    });
+
+    const forfeitResult = await request('guest-token', 'POST', '/api/running/matches/leave', {
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(forfeitResult.success, true);
+
+    const hostStatus = await request('host-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(hostStatus.opponent.id, 'guest-user');
+    assert.equal(hostStatus.opponent.liveStatus, 'forfeited');
+    assert.equal(hostStatus.currentUserLiveStatus, 'running');
+
+    const guestStartedAt = iso(-9 * 60 * 1000);
+    const guestEndedAt = iso(-7 * 60 * 1000);
+    const guestSaved = await request('guest-token', 'POST', '/api/runs/tracked', {
+      date: guestStartedAt.slice(0, 10),
+      distanceKm: 0.35,
+      pace: '07:08/km',
+      durationSeconds: 150,
+      startedAt: guestStartedAt,
+      endedAt: guestEndedAt,
+      route: [
+        { latitude: 37.658, longitude: 126.77, timestamp: guestStartedAt },
+        { latitude: 37.661, longitude: 126.773, timestamp: guestEndedAt },
+      ],
+      matchResult: {
+        mode: 'duel',
+        title: '기권으로 대결을 마쳤어요',
+        summary: '내 기록은 저장되고 대결 전적은 기권 패로 남아요.',
+        badgeLabel: '기권 패',
+        opponentName: '방장 러너',
+        resultTone: 'lose',
+        gapKm: 0.07,
+        comparedDistanceKm: 0.35,
+      },
+    });
+    assert.equal(guestSaved.run.matchResult.badgeLabel, '기권 패');
+    assert.equal(guestSaved.pointBreakdown.matchBonusPoints, 10);
+
+    const hostStartedAt = iso(-9 * 60 * 1000);
+    const hostEndedAt = iso(-7 * 60 * 1000);
+    const hostSaved = await request('host-token', 'POST', '/api/runs/tracked', {
+      date: hostStartedAt.slice(0, 10),
+      distanceKm: 0.42,
+      pace: '05:57/km',
+      durationSeconds: 150,
+      startedAt: hostStartedAt,
+      endedAt: hostEndedAt,
+      route: [
+        { latitude: 37.668, longitude: 126.78, timestamp: hostStartedAt },
+        { latitude: 37.672, longitude: 126.784, timestamp: hostEndedAt },
+      ],
+      matchResult: {
+        mode: 'duel',
+        title: '상대 기권으로 승리했어요',
+        summary: '상대가 기권해서 내 전적은 승리로 저장돼요.',
+        badgeLabel: '상대 기권 승',
+        opponentName: '참가 러너',
+        resultTone: 'win',
+        gapKm: 0.07,
+        comparedDistanceKm: 0.42,
+      },
+    });
+    assert.equal(hostSaved.run.matchResult.badgeLabel, '상대 기권 승');
+    assert.equal(hostSaved.pointBreakdown.matchBonusPoints, 20);
+
+    const guestActivity = await request('guest-token', 'GET', '/api/me/activity');
+    const guestRecord = guestActivity.runs.find((run) => run.id === guestSaved.run.id);
+    assert.equal(guestRecord.matchResult.mode, 'duel');
+    assert.equal(guestRecord.matchResult.resultTone, 'lose');
+    assert.equal(guestRecord.matchResult.badgeLabel, '기권 패');
+    assert.equal(guestRecord.matchResult.opponentName, '방장 러너');
+
+    const hostActivity = await request('host-token', 'GET', '/api/me/activity');
+    const hostRecord = hostActivity.runs.find((run) => run.id === hostSaved.run.id);
+    assert.equal(hostRecord.matchResult.mode, 'duel');
+    assert.equal(hostRecord.matchResult.resultTone, 'win');
+    assert.equal(hostRecord.matchResult.badgeLabel, '상대 기권 승');
+    assert.equal(hostRecord.matchResult.opponentName, '참가 러너');
+  });
+});
+
 await runTest('tracked run API persists match result records and match bonus points', async () => {
   await withBackend(createBaseStore(), async ({ request }) => {
     const startedAt = iso(-10 * 60 * 1000);
