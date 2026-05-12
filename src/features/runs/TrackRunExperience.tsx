@@ -745,6 +745,7 @@ export function TrackRunExperience({
     effectiveGroupParticipantCount,
     groupLiveStandings,
     currentUserArenaPace,
+    currentUserDuelLiveStatus,
     distanceKm,
     duelDistanceKm,
     groupDistanceKm,

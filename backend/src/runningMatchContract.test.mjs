@@ -352,3 +352,50 @@ await runTest('match progress uploads feed official comparison and forfeit state
     assert.equal(afterForfeit.currentUserLiveStatus, 'running');
   });
 });
+
+await runTest('tracked run API persists match result records and match bonus points', async () => {
+  await withBackend(createBaseStore(), async ({ request }) => {
+    const startedAt = iso(-10 * 60 * 1000);
+    const endedAt = iso(-1 * 60 * 1000);
+    const saved = await request('host-token', 'POST', '/api/runs/tracked', {
+      date: startedAt.slice(0, 10),
+      distanceKm: 1.2,
+      pace: '08:20/km',
+      durationSeconds: 600,
+      cadenceSpm: 160,
+      elevationGainM: 5,
+      startedAt,
+      endedAt,
+      route: [
+        {
+          latitude: 37.658,
+          longitude: 126.77,
+          accuracyM: 8,
+          timestamp: startedAt,
+        },
+        {
+          latitude: 37.668,
+          longitude: 126.78,
+          accuracyM: 8,
+          timestamp: endedAt,
+        },
+      ],
+      matchResult: {
+        mode: 'duel',
+        title: '기권으로 대결을 마쳤어요',
+        summary: '전적은 기권 패로 남아요.',
+        badgeLabel: '기권 패',
+        opponentName: '참가 러너',
+        resultTone: 'lose',
+        gapKm: 0.3,
+        comparedDistanceKm: 0.9,
+      },
+    });
+
+    assert.equal(saved.run.matchResult.mode, 'duel');
+    assert.equal(saved.run.matchResult.badgeLabel, '기권 패');
+    assert.equal(saved.run.matchResult.resultTone, 'lose');
+    assert.equal(saved.run.matchResult.comparedDistanceKm, 0.9);
+    assert.equal(saved.pointBreakdown.matchBonusPoints, 10);
+  });
+});
