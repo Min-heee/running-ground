@@ -50,6 +50,9 @@ export function AndroidLiveMatchPerfPanel({ label }: AndroidLiveMatchPerfPanelPr
       <Text style={[styles.diagnosis, diagnosisStyle]}>
         진단 {summary.diagnosis.label}
       </Text>
+      <Text style={styles.hint}>
+        조치 {summary.diagnosis.hint}
+      </Text>
       <Text style={styles.meta}>
         참가 {summary.participants}명{visibleParticipantsLabel} · {summary.targetDistanceKm.toFixed(1)}km · 샘플 {summary.sampleCount}
       </Text>
@@ -82,6 +85,12 @@ const styles = StyleSheet.create({
     color: '#CBD5E1',
     fontSize: 11,
     fontWeight: '700',
+  },
+  hint: {
+    color: '#E0E7FF',
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 15,
   },
   diagnosis: {
     borderRadius: 999,

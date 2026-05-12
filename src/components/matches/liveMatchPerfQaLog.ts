@@ -21,6 +21,7 @@ export type LiveMatchPerfDiagnosisLevel = 'stable' | 'watch' | 'critical';
 export type LiveMatchPerfDiagnosis = {
   level: LiveMatchPerfDiagnosisLevel;
   label: string;
+  hint: string;
 };
 
 export type LiveMatchPerfSummary = {
@@ -71,31 +72,83 @@ export function subscribeLiveMatchPerfSamples(listener: () => void) {
 }
 
 export function diagnoseLiveMatchPerfSample(sample: LiveMatchPerfSample): LiveMatchPerfDiagnosis {
+  if (sample.fps < 35 && sample.renders >= 12 && sample.hiddenProgressUpdates >= 4) {
+    return {
+      level: 'critical',
+      label: '숨은 참가자 갱신 과다',
+      hint: '화면 밖 참가자 변화가 카드 렌더를 밀어 올려요.',
+    };
+  }
+
+  if (sample.fps < 35 && sample.renders >= 12 && sample.staticRenders >= 5) {
+    return {
+      level: 'critical',
+      label: '정적 재렌더 과다',
+      hint: '표시값 변화 없이 부모 화면이 자주 다시 그려져요.',
+    };
+  }
+
+  if (sample.fps < 35 && (sample.visibleParticipants ?? sample.participants) >= 14) {
+    return {
+      level: 'critical',
+      label: '표시 인원 부담',
+      hint: 'Android에서 한 번에 보이는 참가자를 더 줄여야 해요.',
+    };
+  }
+
   if (sample.fps < 35 && sample.renders >= 12) {
-    return { level: 'critical', label: 'FPS 저하 + 렌더 과다' };
+    return {
+      level: 'critical',
+      label: 'FPS 저하 + 렌더 과다',
+      hint: 'progress 갱신 주기와 화면 prop 생성을 같이 봐야 해요.',
+    };
   }
 
   if (sample.fps < 35) {
-    return { level: 'critical', label: 'FPS 저하' };
+    return {
+      level: 'critical',
+      label: 'FPS 저하',
+      hint: '렌더 횟수보다 도로/리스트 렌더 비용이 클 수 있어요.',
+    };
   }
 
   if (sample.hiddenProgressUpdates >= 4) {
-    return { level: 'watch', label: '숨은 참가자 갱신 영향' };
+    return {
+      level: 'watch',
+      label: '숨은 참가자 갱신 영향',
+      hint: '경량 모드 밖 참가자 변화가 상위 렌더에 섞여요.',
+    };
   }
 
   if (sample.staticRenders >= 5) {
-    return { level: 'watch', label: '변화 없는 재렌더 많음' };
+    return {
+      level: 'watch',
+      label: '변화 없는 재렌더 많음',
+      hint: '부모 상태나 새 배열/객체 생성 흐름을 의심해요.',
+    };
   }
 
   if (sample.renders >= 12) {
-    return { level: 'watch', label: '렌더 과다' };
+    return {
+      level: 'watch',
+      label: '렌더 과다',
+      hint: '대결 progress 수신 주기와 memo 경계를 확인해요.',
+    };
   }
 
   if ((sample.visibleParticipants ?? sample.participants) >= 14) {
-    return { level: 'watch', label: '표시 인원 부담' };
+    return {
+      level: 'watch',
+      label: '표시 인원 부담',
+      hint: '그룹전 Android 경량 표시 수를 더 줄일 여지가 있어요.',
+    };
   }
 
-  return { level: 'stable', label: '안정' };
+  return {
+    level: 'stable',
+    label: '안정',
+    hint: '현재 샘플 기준으로 렉 원인이 크게 보이지 않아요.',
+  };
 }
 
 export function buildLiveMatchPerfSummary(

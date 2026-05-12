@@ -59,7 +59,11 @@ test('live match perf QA log stores latest samples and summarizes by label', () 
     latestLayoutUpdates: 0,
     latestTargetUpdates: 0,
     latestStaticRenders: 0,
-    diagnosis: { level: 'stable', label: '안정' },
+    diagnosis: {
+      level: 'stable',
+      label: '안정',
+      hint: '현재 샘플 기준으로 렉 원인이 크게 보이지 않아요.',
+    },
     sampleCount: 2,
     participants: 2,
     visibleParticipants: undefined,
@@ -129,7 +133,11 @@ test('live match perf diagnosis highlights likely lag causes', () => {
     visibleParticipants: 10,
     targetDistanceKm: 5,
     capturedAt: 1000,
-  }), { level: 'critical', label: 'FPS 저하 + 렌더 과다' });
+  }), {
+    level: 'critical',
+    label: '숨은 참가자 갱신 과다',
+    hint: '화면 밖 참가자 변화가 카드 렌더를 밀어 올려요.',
+  });
 
   assert.deepEqual(diagnoseLiveMatchPerfSample({
     label: 'group-arena',
@@ -147,5 +155,9 @@ test('live match perf diagnosis highlights likely lag causes', () => {
     visibleParticipants: 10,
     targetDistanceKm: 5,
     capturedAt: 1000,
-  }), { level: 'watch', label: '숨은 참가자 갱신 영향' });
+  }), {
+    level: 'watch',
+    label: '숨은 참가자 갱신 영향',
+    hint: '경량 모드 밖 참가자 변화가 상위 렌더에 섞여요.',
+  });
 });
