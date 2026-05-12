@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  buildPartyRunFlowSnapshot,
   buildMatchParticipantStatusLabel,
   buildMatchTransitionNotice,
   canAutoStartMatchTracking,
@@ -185,4 +186,62 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
   assert.equal(shouldShowPartyRunLoading('countdown'), false);
   assert.equal(shouldOpenPartyRunArena('arenaHandoff'), true);
   assert.equal(shouldOpenPartyRunArena('countdown'), false);
+});
+
+test('party run flow snapshot centralizes loading, countdown, arena, and ack decisions', () => {
+  const room = {
+    mode: 'duel' as const,
+    state: 'arming' as const,
+    distanceKm: 5,
+    slotStartAt: '2026-05-12T00:00:30.000Z',
+    linkedMatchId: 'room-match-1',
+    linkedMatchStatus: 'matched' as const,
+    linkedMatchSlotStartAt: '2026-05-12T00:00:30.000Z',
+    linkedMatchDistanceKm: 5,
+  };
+
+  const loading = buildPartyRunFlowSnapshot({
+    room,
+    isCountdownReady: false,
+    remainingSeconds: 45,
+  });
+  assert.equal(loading.phase, 'arming');
+  assert.equal(loading.canAcknowledgeCountdownReady, true);
+  assert.equal(loading.shouldShowLoading, true);
+  assert.equal(loading.canOpenLinkedMatch, false);
+
+  const countdown = buildPartyRunFlowSnapshot({
+    room: { ...room, state: 'countdown' },
+    isCountdownReady: true,
+    remainingSeconds: 30,
+  });
+  assert.equal(countdown.phase, 'countdown');
+  assert.equal(countdown.canAcknowledgeCountdownReady, false);
+  assert.equal(countdown.shouldShowCountdown, true);
+  assert.equal(countdown.canOpenLinkedMatch, true);
+  assert.equal(countdown.shouldOpenArena, false);
+
+  const handoff = buildPartyRunFlowSnapshot({
+    room: { ...room, state: 'countdown' },
+    isCountdownReady: true,
+    remainingSeconds: 20,
+  });
+  assert.equal(handoff.phase, 'arenaHandoff');
+  assert.equal(handoff.shouldOpenArena, true);
+  assert.equal(handoff.shouldPreferArena, true);
+  assert.deepEqual(handoff.linkedMatchContext, {
+    mode: 'duel',
+    matchId: 'room-match-1',
+    slotStartAt: '2026-05-12T00:00:30.000Z',
+    distanceKm: 5,
+    state: 'matched',
+  });
+
+  const active = buildPartyRunFlowSnapshot({
+    room: { ...room, state: 'active', linkedMatchStatus: 'active' },
+    isCountdownReady: true,
+    remainingSeconds: null,
+  });
+  assert.equal(active.phase, 'active');
+  assert.equal(active.linkedMatchContext?.state, 'active');
 });

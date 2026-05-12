@@ -18,9 +18,7 @@ import type {
   RunningMatchRoomStartMode,
 } from '@/lib/api/types';
 import {
-  derivePartyRunStartPhase,
-  shouldOpenPartyRunArena,
-  shouldShowPartyRunLoading,
+  buildPartyRunFlowSnapshot,
 } from '@/features/runs/matchStateMachine';
 import { getMatchStartRemainingSeconds } from '@/lib/matchCountdown';
 import { getCurrentUserProfile } from '@/lib/session';
@@ -201,15 +199,13 @@ export function useMatchRoomLobby() {
       nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
       Date.now() + serverClockOffsetMs,
     );
-    const nextPhase = derivePartyRunStartPhase({
-      roomState: nextRoom.state,
-      linkedMatchStatus: nextRoom.linkedMatchStatus,
+    const flow = buildPartyRunFlowSnapshot({
+      room: nextRoom,
       isCountdownReady: nextParticipant?.isCountdownReady,
       remainingSeconds,
     });
-    const canOpenCountdown = nextPhase === 'countdown' || shouldOpenPartyRunArena(nextPhase);
 
-    if (!canOpenCountdown) {
+    if (!flow.canOpenLinkedMatch) {
       return;
     }
 
@@ -226,7 +222,7 @@ export function useMatchRoomLobby() {
 
     openedLinkedMatchKeyRef.current = nextKey;
 
-    const shouldForceArena = shouldOpenPartyRunArena(nextPhase);
+    const shouldForceArena = flow.shouldOpenArena;
 
     router.replace({
       pathname: '/(tabs)/running',
@@ -388,16 +384,15 @@ export function useMatchRoomLobby() {
   const linkedMatchRemainingSeconds = room?.linkedMatchSlotStartAt
     ? getMatchStartRemainingSeconds(room.linkedMatchSlotStartAt, Date.now() + serverClockOffsetMs)
     : null;
-  const partyRunStartPhase = derivePartyRunStartPhase({
-    roomState: room?.state,
-    linkedMatchStatus: room?.linkedMatchStatus,
+  const partyRunFlow = buildPartyRunFlowSnapshot({
+    room,
     isCountdownReady: currentParticipant?.isCountdownReady,
     remainingSeconds: linkedMatchRemainingSeconds,
   });
-  const showPartyRunLoadingBanner = Boolean(room?.linkedMatchId && shouldShowPartyRunLoading(partyRunStartPhase));
+  const partyRunStartPhase = partyRunFlow.phase;
+  const showPartyRunLoadingBanner = partyRunFlow.shouldShowLoading;
   const showPartyRunCountdownBanner = Boolean(
-    room?.linkedMatchId
-    && partyRunStartPhase === 'countdown'
+    partyRunFlow.shouldShowCountdown
     && linkedMatchRemainingSeconds !== null,
   );
 

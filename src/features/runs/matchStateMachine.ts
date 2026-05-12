@@ -1,5 +1,6 @@
 import type {
   DuelMatchOpponent,
+  RunningMatchRoomMode,
   RunningMatchRoomState,
   RunningMatchState,
 } from '@/lib/api/types';
@@ -238,6 +239,43 @@ type ActiveMatchIdentityInput = {
   } | null;
 };
 
+type PartyRunLinkedRoomInput = {
+  mode: RunningMatchRoomMode;
+  state?: RunningMatchRoomState | null;
+  distanceKm: number;
+  slotStartAt: string;
+  linkedMatchId?: string | null;
+  linkedMatchStatus?: 'matched' | 'active' | null;
+  linkedMatchSlotStartAt?: string | null;
+  linkedMatchDistanceKm?: number | null;
+};
+
+type PartyRunFlowSnapshotInput = {
+  room?: PartyRunLinkedRoomInput | null;
+  isCountdownReady?: boolean;
+  remainingSeconds?: number | null;
+};
+
+export type PartyRunLinkedMatchContext = {
+  mode: RunningMatchRoomMode;
+  matchId: string;
+  slotStartAt: string;
+  distanceKm: number;
+  state: 'matched' | 'active';
+};
+
+export type PartyRunFlowSnapshot = {
+  phase: PartyRunStartPhase;
+  hasLinkedMatch: boolean;
+  canAcknowledgeCountdownReady: boolean;
+  canOpenLinkedMatch: boolean;
+  shouldShowLoading: boolean;
+  shouldShowCountdown: boolean;
+  shouldOpenArena: boolean;
+  shouldPreferArena: boolean;
+  linkedMatchContext: PartyRunLinkedMatchContext | null;
+};
+
 export function shouldUseFullscreenMatchCountdown({
   hasCountdownEntry,
   remainingSeconds,
@@ -310,6 +348,68 @@ export function shouldPreferRoomLinkedArena(
   remainingSeconds: number | null,
 ) {
   return linkedMatchStatus === 'active' || shouldAutoOpenMatchArena(remainingSeconds);
+}
+
+export function buildPartyRunFlowSnapshot({
+  room,
+  isCountdownReady = false,
+  remainingSeconds = null,
+}: PartyRunFlowSnapshotInput): PartyRunFlowSnapshot {
+  const phase = derivePartyRunStartPhase({
+    roomState: room?.state,
+    linkedMatchStatus: room?.linkedMatchStatus,
+    isCountdownReady,
+    remainingSeconds,
+  });
+  const hasLinkedMatch = Boolean(room?.linkedMatchId);
+  const shouldOpenArena = hasLinkedMatch && shouldOpenPartyRunArena(phase);
+  const linkedMatchSlotStartAt = room?.linkedMatchSlotStartAt ?? room?.slotStartAt;
+  const linkedMatchDistanceKm = room?.linkedMatchDistanceKm ?? room?.distanceKm;
+  const isLinkedRoomLifecycle = Boolean(
+    hasLinkedMatch
+    && room
+    && ['arming', 'countdown', 'active'].includes(room.state ?? ''),
+  );
+  const hasReachedOfficialStart = typeof remainingSeconds !== 'number';
+  const linkedMatchContext = (
+    room?.linkedMatchId
+    && linkedMatchSlotStartAt
+    && typeof linkedMatchDistanceKm === 'number'
+    && isLinkedRoomLifecycle
+  )
+    ? {
+        mode: room.mode,
+        matchId: room.linkedMatchId,
+        slotStartAt: linkedMatchSlotStartAt,
+        distanceKm: linkedMatchDistanceKm,
+        state: room.linkedMatchStatus === 'active' || room.state === 'active' || hasReachedOfficialStart
+          ? 'active' as const
+          : 'matched' as const,
+      }
+    : null;
+
+  return {
+    phase,
+    hasLinkedMatch,
+    canAcknowledgeCountdownReady: Boolean(
+      room?.linkedMatchId
+      && room.state === 'arming'
+      && !isCountdownReady,
+    ),
+    canOpenLinkedMatch: Boolean(
+      hasLinkedMatch
+      && (phase === 'countdown' || phase === 'arenaHandoff' || phase === 'active'),
+    ),
+    shouldShowLoading: hasLinkedMatch && shouldShowPartyRunLoading(phase),
+    shouldShowCountdown: Boolean(
+      hasLinkedMatch
+      && phase === 'countdown'
+      && typeof remainingSeconds === 'number',
+    ),
+    shouldOpenArena,
+    shouldPreferArena: hasLinkedMatch && shouldPreferRoomLinkedArena(room?.linkedMatchStatus, remainingSeconds),
+    linkedMatchContext,
+  };
 }
 
 export function resolveActiveMatchId({
