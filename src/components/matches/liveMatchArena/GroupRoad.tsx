@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { FlatList, Platform, Text, View } from 'react-native';
 import { buildLiveMatchRunnerVisualState } from '@/components/matches/liveMatchArenaVisualState';
 import { RoadMotion } from '@/components/matches/liveMatchArena/RoadMotion';
@@ -88,31 +88,44 @@ export const GroupRoad = memo(function GroupRoad({
   participants: ArenaParticipant[];
   targetDistanceKm: number;
 }) {
-  const currentUserIndex = Math.max(
-    0,
-    participants.findIndex((participant) => participant.isCurrentUser),
+  const currentUserIndex = useMemo(
+    () => Math.max(
+      0,
+      participants.findIndex((participant) => participant.isCurrentUser),
+    ),
+    [participants],
   );
-  const initialScrollIndex = Math.min(currentUserIndex, Math.max(participants.length - 1, 0));
+  const initialScrollIndex = useMemo(
+    () => Math.min(currentUserIndex, Math.max(participants.length - 1, 0)),
+    [currentUserIndex, participants.length],
+  );
+  const contentContainerStyle = useMemo(
+    () => [
+      styles.groupScrollContent,
+      { minHeight: Math.max(ROAD_HEIGHT_GROUP + GROUP_ROW_HEIGHT, participants.length * GROUP_ROW_HEIGHT + 32) },
+    ],
+    [participants.length],
+  );
+  const renderItem = useCallback(({ item, index }: { item: ArenaParticipant; index: number }) => (
+    <GroupRoadRow participant={item} index={index} targetDistanceKm={targetDistanceKm} />
+  ), [targetDistanceKm]);
+  const keyExtractor = useCallback((participant: ArenaParticipant) => participant.id, []);
+  const getItemLayout = useCallback((_: ArrayLike<ArenaParticipant> | null | undefined, index: number) => ({
+    length: GROUP_ROW_HEIGHT,
+    offset: GROUP_ROW_HEIGHT * index,
+    index,
+  }), []);
 
   return (
     <View style={[styles.roadCard, { height: ROAD_HEIGHT_GROUP }]}>
       <RoadMotion laneMode="group" />
       <FlatList
         style={styles.groupScroll}
-        contentContainerStyle={[
-          styles.groupScrollContent,
-          { minHeight: Math.max(ROAD_HEIGHT_GROUP + GROUP_ROW_HEIGHT, participants.length * GROUP_ROW_HEIGHT + 32) },
-        ]}
+        contentContainerStyle={contentContainerStyle}
         data={participants}
-        renderItem={({ item, index }) => (
-          <GroupRoadRow participant={item} index={index} targetDistanceKm={targetDistanceKm} />
-        )}
-        keyExtractor={(participant) => participant.id}
-        getItemLayout={(_, index) => ({
-          length: GROUP_ROW_HEIGHT,
-          offset: GROUP_ROW_HEIGHT * index,
-          index,
-        })}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        getItemLayout={getItemLayout}
         initialScrollIndex={participants.length ? initialScrollIndex : undefined}
         initialNumToRender={Platform.OS === 'android' ? 7 : 12}
         maxToRenderPerBatch={Platform.OS === 'android' ? 5 : 10}

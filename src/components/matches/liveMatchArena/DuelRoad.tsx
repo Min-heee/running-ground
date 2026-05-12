@@ -106,8 +106,10 @@ export const DuelRoad = memo(function DuelRoad({
   participants: ArenaParticipant[];
   targetDistanceKm: number;
 }) {
-  const currentUser = participants.find((participant) => participant.isCurrentUser) ?? participants[0] ?? null;
-  const opponent = participants.find((participant) => !participant.isCurrentUser) ?? participants[1] ?? null;
+  const { currentUser, opponent } = useMemo(() => ({
+    currentUser: participants.find((participant) => participant.isCurrentUser) ?? participants[0] ?? null,
+    opponent: participants.find((participant) => !participant.isCurrentUser) ?? participants[1] ?? null,
+  }), [participants]);
 
   const { userTop, opponentTop } = useMemo(() => {
     if (!currentUser || !opponent) {

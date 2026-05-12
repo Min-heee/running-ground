@@ -13,6 +13,7 @@ export const GROUP_STRIPE_COUNT = Platform.OS === 'android' ? 7 : 14;
 export const ANDROID_GROUP_LIGHT_MODE_THRESHOLD = 12;
 export const DUEL_STRIPES = Array.from({ length: DUEL_STRIPE_COUNT });
 export const GROUP_STRIPES = Array.from({ length: GROUP_STRIPE_COUNT });
+const ANDROID_RENDER_DISTANCE_PRECISION = 2;
 
 export function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -49,6 +50,34 @@ export function buildAndroidLightParticipants(participants: ArenaParticipant[]) 
   return participants.filter((_, index) => keepIndexes.has(index));
 }
 
+function roundDistanceKmForAndroidRender(distanceKm: number) {
+  const factor = 10 ** ANDROID_RENDER_DISTANCE_PRECISION;
+  return Math.round(distanceKm * factor) / factor;
+}
+
+function getComparableDistanceKm(distanceKm: number) {
+  return Platform.OS === 'android' ? roundDistanceKmForAndroidRender(distanceKm) : distanceKm;
+}
+
+export function buildAndroidRenderParticipants(participants: ArenaParticipant[]) {
+  if (Platform.OS !== 'android') {
+    return participants;
+  }
+
+  return participants.map((participant) => {
+    const roundedDistanceKm = getComparableDistanceKm(participant.distanceKm);
+
+    if (roundedDistanceKm === participant.distanceKm) {
+      return participant;
+    }
+
+    return {
+      ...participant,
+      distanceKm: roundedDistanceKm,
+    };
+  });
+}
+
 export function sortGroupParticipants(participants: ArenaParticipant[]) {
   return [...participants].sort((left, right) => {
     if (isForfeited(left) !== isForfeited(right)) {
@@ -65,7 +94,7 @@ export function areParticipantsEqual(left: ArenaParticipant, right: ArenaPartici
     && left.name === right.name
     && left.paceLabel === right.paceLabel
     && left.bpmLabel === right.bpmLabel
-    && left.distanceKm === right.distanceKm
+    && getComparableDistanceKm(left.distanceKm) === getComparableDistanceKm(right.distanceKm)
     && left.rankLabel === right.rankLabel
     && left.isCurrentUser === right.isCurrentUser
     && left.isLeader === right.isLeader

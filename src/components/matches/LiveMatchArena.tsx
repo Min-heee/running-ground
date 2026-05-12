@@ -7,6 +7,7 @@ import {
   areParticipantArraysEqual,
   areStringArraysEqual,
   buildAndroidLightParticipants,
+  buildAndroidRenderParticipants,
   sortGroupParticipants,
 } from '@/components/matches/liveMatchArena/helpers';
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
@@ -43,12 +44,16 @@ export const LiveMatchArena = memo(function LiveMatchArena({
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = Math.max(300, windowWidth - 32);
   const perfLabel = mode === 'duel' ? 'duel-arena' : 'group-arena';
+  const duelParticipants = useMemo(
+    () => (mode === 'duel' ? buildAndroidRenderParticipants(participants) : []),
+    [mode, participants],
+  );
   const visibleGroupParticipants = useMemo(() => {
     if (mode !== 'group') {
       return [];
     }
 
-    return buildAndroidLightParticipants(sortGroupParticipants(participants));
+    return buildAndroidRenderParticipants(buildAndroidLightParticipants(sortGroupParticipants(participants)));
   }, [mode, participants]);
   const visibleParticipantsCount = mode === 'group' ? visibleGroupParticipants.length : participants.length;
 
@@ -77,7 +82,7 @@ export const LiveMatchArena = memo(function LiveMatchArena({
       </View>
       {perfPanel}
       {mode === 'duel' ? (
-        <DuelRoad participants={participants} targetDistanceKm={targetDistanceKm} />
+        <DuelRoad participants={duelParticipants} targetDistanceKm={targetDistanceKm} />
       ) : (
         <GroupRoad participants={visibleGroupParticipants} targetDistanceKm={targetDistanceKm} />
       )}

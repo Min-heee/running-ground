@@ -40,6 +40,7 @@ import { useMatchSelectionModel } from '@/features/runs/hooks/useMatchSelectionM
 import { useMatchEntryEffects } from '@/features/runs/hooks/useMatchEntryEffects';
 import { useMatchCountdownModel } from '@/features/runs/hooks/useMatchCountdownModel';
 import { useRunTrackingFlow } from '@/features/runs/hooks/useRunTrackingFlow';
+import { useRunningMatchFocus } from '@/features/runs/hooks/useRunningMatchFocus';
 import {
   acknowledgeRunningMatchRoomCountdown,
   cancelRunningMatch,
@@ -65,14 +66,11 @@ import {
 } from '@/lib/matchCountdown';
 import {
   type DuelMatchOpponent,
-  type RunningMatchRoom,
   type RunningMatchStatusResponse,
   type UpcomingRunningMatchItem,
 } from '@/lib/api/types';
 import {
-  formatMatchDateKey,
   formatMatchExpiryCountdown,
-  resolveMatchTimeSection,
 } from '@/features/runs/matchScheduling';
 import {
   buildEstimatedCompetitiveDistanceKm,
@@ -1050,20 +1048,31 @@ export function TrackRunExperience({
     return payload;
   };
 
-  const focusRoomLinkedMatch = async (room: RunningMatchRoom, options?: { preferArena?: boolean }) => {
-    if (!room.linkedMatchId) {
-      return null;
-    }
-
-    return focusRunningMatch({
-      mode: room.mode,
-      matchId: room.linkedMatchId ?? undefined,
-      distanceKm: room.linkedMatchDistanceKm ?? room.distanceKm,
-      slotStartAt: room.linkedMatchSlotStartAt ?? room.slotStartAt,
-      isTestMatch: false,
-      preferArena: Boolean(options?.preferArena),
-    });
-  };
+  const {
+    focusRoomLinkedMatch,
+    focusRunningMatch,
+  } = useRunningMatchFocus({
+    livePagerRef,
+    activeDuelSlotStartAt,
+    activeGroupSlotStartAt,
+    focusedDuelMatchIdRef,
+    focusedGroupMatchIdRef,
+    setMatchMode,
+    setDuelDistanceText,
+    setGroupDistanceText,
+    setSelectedDuelSlotStartAt,
+    setSelectedGroupSlotStartAt,
+    setSelectedDuelDateKey,
+    setSelectedGroupDateKey,
+    setSelectedDuelTimeSection,
+    setSelectedGroupTimeSection,
+    setLiveArenaPage,
+    setForceOpenActiveMatch,
+    setIsResolvingFocusedMatch,
+    getSyncedNowMs,
+    loadDuelMatchStatus,
+    loadGroupMatchStatus,
+  });
 
   const handleCreateMatchRoom = async () => {
     setIsCreatingMatchRoom(true);
@@ -1279,85 +1288,6 @@ export function TrackRunExperience({
       });
     } catch {
       Alert.alert('공유 실패', '지금은 초대 링크를 공유하지 못했어.');
-    }
-  };
-
-  const focusRunningMatch = async ({
-    mode,
-    matchId,
-    distanceKm,
-    slotStartAt,
-    isTestMatch,
-    preferArena = false,
-  }: {
-    mode: Extract<RunMatchMode, 'duel' | 'group'>;
-    matchId?: string;
-    distanceKm?: number;
-    slotStartAt?: string;
-    isTestMatch?: boolean;
-    preferArena?: boolean;
-  }) => {
-    setLiveArenaPage(0);
-    livePagerRef.current?.scrollTo({ x: 0, animated: false });
-    setForceOpenActiveMatch(Boolean(preferArena));
-    setIsResolvingFocusedMatch(true);
-
-    try {
-      if (mode === 'duel') {
-        setMatchMode('duel');
-        if (typeof distanceKm === 'number' && Number.isFinite(distanceKm)) {
-          setDuelDistanceText(String(distanceKm));
-        }
-
-      if (slotStartAt) {
-        setSelectedDuelSlotStartAt(slotStartAt);
-        setSelectedDuelDateKey(formatMatchDateKey(new Date(slotStartAt)));
-        setSelectedDuelTimeSection(resolveMatchTimeSection(slotStartAt));
-      }
-      focusedDuelMatchIdRef.current = matchId ?? focusedDuelMatchIdRef.current;
-
-      const payload = await loadDuelMatchStatus(slotStartAt ?? activeDuelSlotStartAt, {
-        distanceKm,
-        testMode: isTestMatch,
-        matchId,
-      });
-      setForceOpenActiveMatch(
-        payload.state === 'active'
-          || (payload.state === 'matched' && (
-            preferArena
-            || shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
-          )),
-        );
-        return payload;
-      }
-
-      setMatchMode('group');
-      if (typeof distanceKm === 'number' && Number.isFinite(distanceKm)) {
-        setGroupDistanceText(String(distanceKm));
-      }
-
-      if (slotStartAt) {
-        setSelectedGroupSlotStartAt(slotStartAt);
-        setSelectedGroupDateKey(formatMatchDateKey(new Date(slotStartAt)));
-        setSelectedGroupTimeSection(resolveMatchTimeSection(slotStartAt));
-      }
-      focusedGroupMatchIdRef.current = matchId ?? focusedGroupMatchIdRef.current;
-
-      const payload = await loadGroupMatchStatus(slotStartAt ?? activeGroupSlotStartAt, {
-        distanceKm,
-        testMode: isTestMatch,
-        matchId,
-      });
-      setForceOpenActiveMatch(
-        payload.state === 'active'
-        || (payload.state === 'matched' && (
-          preferArena
-          || shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
-        )),
-      );
-      return payload;
-    } finally {
-      setIsResolvingFocusedMatch(false);
     }
   };
 
