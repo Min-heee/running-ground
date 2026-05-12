@@ -279,6 +279,7 @@ await runTest('party run room start creates a linked match and accepts countdown
       roomId: created.room.roomId,
     });
     assert.equal(started.room.linkedMatchId.length > 0, true);
+    assert.equal(started.room.linkedMatchSlotStartAt, started.room.slotStartAt);
     assert.equal(started.room.countdownReadyCount, 1);
     assert.equal(started.room.countdownReadyRequiredCount, 2);
     assert.equal(started.room.participants.find((participant) => participant.userId === 'host-user').isCountdownReady, true);
@@ -288,6 +289,8 @@ await runTest('party run room start creates a linked match and accepts countdown
       roomId: created.room.roomId,
     });
     assert.equal(guestReady.room.linkedMatchId, started.room.linkedMatchId);
+    assert.equal(guestReady.room.slotStartAt, started.room.slotStartAt);
+    assert.equal(guestReady.room.linkedMatchSlotStartAt, started.room.linkedMatchSlotStartAt);
     assert.equal(guestReady.room.countdownReadyCount, 2);
     assert.equal(guestReady.room.participants.every((participant) => participant.isCountdownReady), true);
 

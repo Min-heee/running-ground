@@ -1512,7 +1512,7 @@ function armRunningMatchRoomCountdown(store, room, now = new Date()) {
     return room;
   }
 
-  const slotStartAt = new Date(now.getTime() + MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000).toISOString();
+  const slotStartAt = linkedSession.slotStartAt ?? room.slotStartAt;
   room.slotStartAt = slotStartAt;
   room.countdownArmedAt = now.toISOString();
   linkedSession.slotStartAt = slotStartAt;
@@ -1530,7 +1530,11 @@ function syncHostStartedMatchRoomCountdown(room, store, now = new Date()) {
     return room;
   }
 
-  if (areAllRunningMatchRoomParticipantsCountdownReady(room)) {
+  const slotStartAtMs = new Date(linkedSession.slotStartAt ?? room.slotStartAt).getTime();
+  const loadingWindowEnded = Number.isFinite(slotStartAtMs)
+    && now.getTime() >= slotStartAtMs - MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000;
+
+  if (loadingWindowEnded) {
     return armRunningMatchRoomCountdown(store, room, now);
   }
 

@@ -55,11 +55,18 @@ export function useMatchEntryEffects({
   focusRunningMatch,
 }: UseMatchEntryEffectsInput) {
   const handledRoomInviteTokenRef = useRef<string | null>(null);
+  const handledFocusMatchNonceRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!focusMatchNonce || !focusMatchMode) {
       return;
     }
+
+    if (handledFocusMatchNonceRef.current === focusMatchNonce) {
+      return;
+    }
+
+    handledFocusMatchNonceRef.current = focusMatchNonce;
 
     if (forceMatchArena) {
       onForceOpenActiveMatchChange(true);

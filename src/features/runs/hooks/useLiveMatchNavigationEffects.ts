@@ -73,6 +73,8 @@ export function useLiveMatchNavigationEffects({
 }: UseLiveMatchNavigationEffectsInput) {
   const countdownAutoOpenMatchIdRef = useRef<string | null>(null);
   const activeAutoOpenMatchIdRef = useRef<string | null>(null);
+  const lifecycleArenaEntryKeyRef = useRef<string | null>(null);
+  const visibleArenaEntryKeyRef = useRef<string | null>(null);
   const callbackRef = useRef({
     focusRunningMatch,
     onForceOpenActiveMatchChange,
@@ -123,12 +125,28 @@ export function useLiveMatchNavigationEffects({
       return;
     }
 
+    const nextEntryKey = [
+      duelMatchId ?? 'no-duel',
+      groupMatchId ?? 'no-group',
+      duelState,
+      groupState,
+      duelShouldOpenCountdownArena ? 'duel-countdown' : 'no-duel-countdown',
+      groupShouldOpenCountdownArena ? 'group-countdown' : 'no-group-countdown',
+    ].join(':');
+
+    if (lifecycleArenaEntryKeyRef.current === nextEntryKey) {
+      return;
+    }
+
+    lifecycleArenaEntryKeyRef.current = nextEntryKey;
     callbackRef.current.onForceOpenActiveMatchChange(true);
     callbackRef.current.onLiveArenaPageChange(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
   }, [
+    duelMatchId,
     duelState,
     duelShouldOpenCountdownArena,
+    groupMatchId,
     groupState,
     groupShouldOpenCountdownArena,
     livePagerRef,
@@ -189,9 +207,16 @@ export function useLiveMatchNavigationEffects({
 
   useEffect(() => {
     if (!showLiveArena) {
+      visibleArenaEntryKeyRef.current = null;
       return;
     }
 
+    const nextVisibleKey = `${duelMatchId ?? 'no-duel'}:${groupMatchId ?? 'no-group'}`;
+    if (visibleArenaEntryKeyRef.current === nextVisibleKey) {
+      return;
+    }
+
+    visibleArenaEntryKeyRef.current = nextVisibleKey;
     callbackRef.current.onLiveArenaPageChange(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
   }, [duelMatchId, groupMatchId, livePagerRef, showLiveArena]);
