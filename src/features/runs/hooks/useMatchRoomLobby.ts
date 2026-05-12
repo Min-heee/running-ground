@@ -5,6 +5,7 @@ import { type Href, router } from 'expo-router';
 import {
   fetchFriendLeaderboard,
   fetchRunningMatchRoom,
+  acknowledgeRunningMatchRoomCountdown,
   joinRunningMatchRoom,
   leaveRunningMatchRoom,
   startRunningMatchRoom,
@@ -121,6 +122,7 @@ export function useMatchRoomLobby() {
   const currentUser = getCurrentUserProfile();
   const currentUserTag = currentUser?.publicTag ?? 'mock-current-user';
   const openedLinkedMatchKeyRef = useRef<string | null>(null);
+  const countdownReadyRoomAckRef = useRef<string | null>(null);
   const latestRoomServerNowMsRef = useRef(0);
   const roomRenderKeyRef = useRef<string | null>(null);
 
@@ -344,6 +346,43 @@ export function useMatchRoomLobby() {
     partyRunFlow.shouldShowCountdown
     && linkedMatchRemainingSeconds !== null,
   );
+
+  useEffect(() => {
+    if (!room?.roomId || !partyRunFlow.canAcknowledgeCountdownReady) {
+      if (!partyRunFlow.hasLinkedMatch || partyRunFlow.phase !== 'arming') {
+        countdownReadyRoomAckRef.current = null;
+      }
+      return;
+    }
+
+    const ackKey = `${room.roomId}:${room.linkedMatchId}:${currentUserTag}`;
+    if (countdownReadyRoomAckRef.current === ackKey) {
+      return;
+    }
+
+    countdownReadyRoomAckRef.current = ackKey;
+    void acknowledgeRunningMatchRoomCountdown({ roomId: room.roomId })
+      .then((payload) => {
+        if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
+          return;
+        }
+
+        syncServerClock(payload.serverNow);
+        commitRoom(payload.room);
+        setError(null);
+      })
+      .catch((roomError) => {
+        countdownReadyRoomAckRef.current = null;
+        setError(roomError instanceof Error ? roomError.message : '파티런 카운트다운 준비를 맞추지 못했어.');
+      });
+  }, [
+    currentUserTag,
+    partyRunFlow.canAcknowledgeCountdownReady,
+    partyRunFlow.hasLinkedMatch,
+    partyRunFlow.phase,
+    room?.linkedMatchId,
+    room?.roomId,
+  ]);
 
   const saveRoomSettings = async (overrides: UpdateRoomSettingsInput = {}) => {
     if (!room || !room.isHost || room.linkedMatchId) {

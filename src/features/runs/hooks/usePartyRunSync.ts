@@ -114,6 +114,7 @@ export function usePartyRunSync({
 }: UsePartyRunSyncInput) {
   const countdownReadyRoomAckRef = useRef<string | null>(null);
   const roomLinkedMatchAutoFocusRef = useRef<string | null>(null);
+  const roomLinkedArenaPinRef = useRef<string | null>(null);
   const callbackRef = useRef({
     getSyncedNowMs,
     loadMatchRoom,
@@ -241,6 +242,7 @@ export function usePartyRunSync({
 
   useEffect(() => {
     if (!roomLinkedMatchContext) {
+      roomLinkedArenaPinRef.current = null;
       return undefined;
     }
 
@@ -263,7 +265,14 @@ export function usePartyRunSync({
         if (payload.state === 'active' || shouldPinArenaPage) {
           callbackRef.current.onForceOpenActiveMatchChange(true);
 
-          if (shouldPinArenaPage) {
+          const pinKey = [
+            roomLinkedMatchContext.matchId,
+            payload.slotStartAt,
+            'arena-handoff',
+          ].join(':');
+
+          if (shouldPinArenaPage && roomLinkedArenaPinRef.current !== pinKey) {
+            roomLinkedArenaPinRef.current = pinKey;
             callbackRef.current.onLiveArenaPageChange(0);
             livePagerRef.current?.scrollTo({ x: 0, animated: false });
           }
