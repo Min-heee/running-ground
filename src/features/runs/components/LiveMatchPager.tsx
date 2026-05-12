@@ -37,6 +37,8 @@ export function LiveMatchPager({
   onPageChange,
 }: LiveMatchPagerProps) {
   const tabs = hasResultPage ? [...BASE_TABS, RESULT_TAB] : BASE_TABS;
+  const pages = [arenaPage, raceBoardPage, statsPage, ...(hasResultPage ? [resultPage] : [])];
+  const activePage = pages[page] ?? pages[0];
 
   const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (pageWidth <= 0) {
@@ -45,28 +47,49 @@ export function LiveMatchPager({
     onPageChange(Math.round(event.nativeEvent.contentOffset.x / pageWidth));
   };
 
+  const renderTabRow = () => (
+    <View style={styles.tabRow}>
+      {tabs.map((tab) => {
+        const isSelected = page === tab.index;
+
+        return (
+          <Pressable
+            key={tab.index}
+            style={[styles.tab, isSelected ? styles.tabSelected : undefined]}
+            onPress={() => {
+              if (Platform.OS === 'android') {
+                onPageChange(tab.index);
+                return;
+              }
+
+              scrollRef.current?.scrollTo({ x: pageWidth * tab.index, animated: true });
+              onPageChange(tab.index);
+            }}
+          >
+            <Text style={[styles.tabText, isSelected ? styles.tabTextSelected : undefined]}>
+              {tab.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+
+  if (Platform.OS === 'android') {
+    return (
+      <View style={styles.shell}>
+        {renderTabRow()}
+        <View style={styles.androidPage}>
+          {activePage}
+        </View>
+        <Text style={styles.hint}>위 탭을 누르면 순위와 기록 화면을 볼 수 있어요.</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.shell}>
-      <View style={styles.tabRow}>
-        {tabs.map((tab) => {
-          const isSelected = page === tab.index;
-
-          return (
-            <Pressable
-              key={tab.index}
-              style={[styles.tab, isSelected ? styles.tabSelected : undefined]}
-              onPress={() => {
-                scrollRef.current?.scrollTo({ x: pageWidth * tab.index, animated: true });
-                onPageChange(tab.index);
-              }}
-            >
-              <Text style={[styles.tabText, isSelected ? styles.tabTextSelected : undefined]}>
-                {tab.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      {renderTabRow()}
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -75,7 +98,7 @@ export function LiveMatchPager({
         directionalLockEnabled
         nestedScrollEnabled
         overScrollMode="never"
-        removeClippedSubviews={Platform.OS === 'android'}
+        removeClippedSubviews={false}
         scrollEventThrottle={32}
         onMomentumScrollEnd={handleMomentumEnd}
       >
@@ -136,6 +159,9 @@ const styles = StyleSheet.create({
   page: {
     gap: 14,
     paddingRight: 0,
+  },
+  androidPage: {
+    gap: 14,
   },
   hint: {
     color: '#98A2B3',

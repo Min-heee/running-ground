@@ -2122,9 +2122,13 @@ export function TrackRunExperience({
 
   useEffect(() => {
     const needsFastRoomPolling = Boolean(
-      matchRoom?.linkedMatchId || ['arming', 'countdown', 'active'].includes(matchRoom?.state ?? ''),
+      matchRoom?.linkedMatchId || ['arming', 'countdown'].includes(matchRoom?.state ?? ''),
     );
-    const intervalMs = needsFastRoomPolling ? MATCH_ROOM_FAST_POLL_MS : MATCH_ROOM_IDLE_POLL_MS;
+    const intervalMs = matchRoom?.state === 'active'
+      ? MATCH_ROOM_IDLE_POLL_MS
+      : needsFastRoomPolling
+        ? MATCH_ROOM_FAST_POLL_MS
+        : MATCH_ROOM_IDLE_POLL_MS;
     const timer = setInterval(() => {
       void loadMatchRoom().catch(() => {});
     }, intervalMs);
