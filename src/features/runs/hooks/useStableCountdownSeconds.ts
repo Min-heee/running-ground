@@ -6,6 +6,8 @@ type StableCountdownTracker = {
   baselineNowMs: number;
 };
 
+const LOWER_CORRECTION_THRESHOLD_SECONDS = 3;
+
 export function resolveStableCountdownRemainingSeconds(
   tracker: { current: StableCountdownTracker | null },
   key: string | null,
@@ -39,7 +41,7 @@ export function resolveStableCountdownRemainingSeconds(
     return modeledRemainingSeconds > 0 ? modeledRemainingSeconds : null;
   }
 
-  if (rawRemainingSeconds < modeledRemainingSeconds) {
+  if (rawRemainingSeconds < modeledRemainingSeconds - LOWER_CORRECTION_THRESHOLD_SECONDS) {
     tracker.current = {
       key,
       baselineRemainingSeconds: rawRemainingSeconds,

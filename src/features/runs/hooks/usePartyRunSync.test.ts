@@ -64,6 +64,14 @@ test('party run linked match opens from countdown and enters arena at handoff la
   }), true);
 });
 
+test('party run linked match opens by local countdown time even if room snapshot is still arming', () => {
+  assert.equal(canOpenPartyRunLinkedMatch({
+    room: room({ state: 'arming' }),
+    currentUserId: 'host',
+    nowMs: Date.parse('2026-05-12T00:00:00.000Z'),
+  }), true);
+});
+
 test('party run linked match opens immediately once server marks it active', () => {
   assert.equal(canOpenPartyRunLinkedMatch({
     room: room({ state: 'active', linkedMatchStatus: 'active' }),

@@ -277,7 +277,22 @@ export function useMatchRoomLobby() {
     }
 
     openLinkedMatchInRunning(room);
-  }, [room?.linkedMatchId, room?.linkedMatchSlotStartAt, room?.linkedMatchStatus, room?.mode, room?.state, serverClockOffsetMs]);
+
+    const timer = setInterval(() => {
+      openLinkedMatchInRunning(room);
+    }, 500);
+
+    return () => clearInterval(timer);
+  }, [
+    room?.linkedMatchId,
+    room?.linkedMatchSlotStartAt,
+    room?.linkedMatchStatus,
+    room?.mode,
+    room?.roomId,
+    room?.slotStartAt,
+    room?.state,
+    serverClockOffsetMs,
+  ]);
 
   useEffect(() => {
     if (!room) {
