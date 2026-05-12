@@ -41,6 +41,8 @@ import { useStableCountdownSeconds } from '@/features/runs/hooks/useStableCountd
 import { useMatchRoomSelectionSync } from '@/features/runs/hooks/useMatchRoomSelectionSync';
 import { useLiveMatchNavigationEffects } from '@/features/runs/hooks/useLiveMatchNavigationEffects';
 import { useMatchProgressSync } from '@/features/runs/hooks/useMatchProgressSync';
+import { useMatchSelectionModel } from '@/features/runs/hooks/useMatchSelectionModel';
+import { useMatchEntryEffects } from '@/features/runs/hooks/useMatchEntryEffects';
 import {
   acknowledgeRunningMatchRoomCountdown,
   cancelRunningMatch,
@@ -97,7 +99,6 @@ import { buildDisplayedTrackingSnapshot } from '@/features/runs/trackingDisplayM
 import {
   formatMatchDateKey,
   formatMatchExpiryCountdown,
-  formatMatchTargetDistance,
   resolveMatchTimeSection,
 } from '@/features/runs/matchScheduling';
 import {
@@ -115,7 +116,6 @@ import {
 } from '@/features/runs/matchViewModels';
 import {
   buildPartyRunFlowSnapshot,
-  buildMatchParticipantStatusLabel,
   buildMatchTransitionNotice,
   isBlockingMatchState,
   isLiveMatchState,
@@ -353,7 +353,6 @@ export function TrackRunExperience({
   const autoStartedMatchIdRef = useRef<string | null>(null);
   const autoStartingMatchTrackingRef = useRef(false);
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
-  const handledRoomInviteTokenRef = useRef<string | null>(null);
   const forfeitedMatchIdsRef = useRef<Set<string>>(new Set());
 
   const {
@@ -410,78 +409,47 @@ export function TrackRunExperience({
     onGroupTimeSectionChange: setSelectedGroupTimeSection,
   });
 
-  const matchOptions = useMemo(
-    () => [
-      {
-        mode: 'solo' as const,
-        title: '혼자 러닝',
-        summary: '기록에만 집중하는 기본 러닝 모드예요.',
-        meta: '지금 페이스와 거리 흐름에만 집중',
-        startLabel: '바로 런닝 시작',
-        liveTitle: '개인 러닝 진행 중',
-        liveText: '내 페이스와 현재 리듬을 지켜가는 데 집중하기 좋아요.',
-      },
-      {
-        mode: 'duel' as const,
-        title: '1대1 매치',
-        summary: '비슷한 목표 러너 한 명과 바로 붙는 대결 모드예요.',
-        meta: `${formatMatchTargetDistance(duelDistanceKm)} 기준 · 1시간 단위 주간 예약`,
-        startLabel: '1대1 매치로 시작',
-        liveTitle: '1대1 매치 진행 중',
-        liveText: '완주 시간과 평균 페이스를 중심으로 오늘 결과를 비교하기 좋은 모드예요.',
-      },
-      {
-        mode: 'group' as const,
-        title: '그룹 대결',
-        summary: '최대 30명까지 모아 순위 흐름을 보는 그룹전 모드예요.',
-        meta: `${formatMatchTargetDistance(groupDistanceKm)} 기준 · 1시간 단위 주간 예약`,
-        startLabel: '그룹 대결로 시작',
-        liveTitle: '그룹 대결 진행 중',
-        liveText: '비슷한 러너들과 함께 뛰면서 내 순위를 보는 재미를 주는 모드예요.',
-      },
-      {
-        mode: 'room' as const,
-        title: '파티런',
-        summary: '친구 초대나 링크 공유로 직접 대결 방을 열 수 있어요.',
-        meta: `${roomMatchMode === 'duel' ? '1대1 대결' : '그룹 대결'} · ${roomStartMode === 'scheduled' ? '예약 시작' : '방장 시작'}`,
-        startLabel: visibleMatchRoom ? '방 입장' : '방 만들기',
-        liveTitle: '친구 방 대기 중',
-        liveText: '친구를 모아 직접 대결을 열고 시작할 수 있어요.',
-      },
-    ],
-    [duelDistanceKm, groupDistanceKm, roomMatchMode, roomStartMode, visibleMatchRoom],
-  );
-
-  const selectedMatch = matchOptions.find((option) => option.mode === matchMode) ?? matchOptions[0];
   const visibleUpcomingMatches = useMemo(
     () => upcomingMatches.filter((match) => !shouldHidePastUpcomingMatch(match, syncedNowMs)),
     [syncedNowMs, upcomingMatches],
   );
-  const hasBlockingRoom = Boolean(visibleMatchRoom);
-  const hasBlockingScheduledMatch = useMemo(
-    () => visibleUpcomingMatches.some((match) => isLiveMatchState(match.status)),
-    [visibleUpcomingMatches],
-  );
-  const hasBlockingDuelMatch = isBlockingMatchState(duelMatchState);
-  const hasBlockingGroupMatch = isBlockingMatchState(groupMatchState);
-  const canCreateDuelMatch = !hasBlockingRoom && !hasBlockingScheduledMatch && !hasBlockingGroupMatch && !hasBlockingDuelMatch;
-  const canCreateGroupMatch = !hasBlockingRoom && !hasBlockingScheduledMatch && !hasBlockingDuelMatch && !hasBlockingGroupMatch;
-  const blockingMatchHelperText = hasBlockingRoom
-    ? '이미 참여 중이거나 초대된 방이 있어요. 먼저 그 방을 정리한 뒤 다른 매칭을 잡을 수 있어요.'
-    : hasBlockingScheduledMatch
-    ? '매칭은 한 번에 하나만 잡을 수 있어요. 지금 예약된 매치를 먼저 취소하거나 끝내야 해요.'
-    : hasBlockingDuelMatch
-      ? '이미 1대1 매칭 신청이나 예약이 있어요. 먼저 정리한 뒤 새 매칭을 잡을 수 있어요.'
-      : hasBlockingGroupMatch
-        ? '이미 그룹 매칭 신청이나 예약이 있어요. 먼저 정리한 뒤 새 매칭을 잡을 수 있어요.'
-        : null;
-  const duelReservationLocked = duelMatchState === 'matched' && duelMatchStatus?.canCancel === false;
-  const groupReservationLocked = groupMatchState === 'matched' && groupMatchStatus?.canCancel === false;
-  const effectiveDuelOpponent = duelMatchStatus?.opponent ?? duelMatchResult?.opponent ?? null;
-  const effectiveDuelOpponentStatusLabel = effectiveDuelOpponent
-    ? buildMatchParticipantStatusLabel(effectiveDuelOpponent.liveStatus)
-    : null;
-  const effectiveDuelSlotLabel = duelMatchStatus?.slotLabel ?? duelMatchResult?.slotLabel ?? selectedDuelSlot?.label ?? '시간 미정';
+  const {
+    matchOptions,
+    canCreateDuelMatch,
+    canCreateGroupMatch,
+    blockingMatchHelperText,
+    duelReservationLocked,
+    groupReservationLocked,
+    effectiveDuelOpponent,
+    effectiveDuelOpponentStatusLabel,
+    effectiveDuelSlotLabel,
+    effectiveGroupSlotLabel,
+    duelNeedsManualRematch,
+    groupNeedsManualRematch,
+    liveMatchTitle,
+    liveMatchText,
+    readyActionLabel,
+  } = useMatchSelectionModel({
+    matchMode,
+    duelDistanceKm,
+    groupDistanceKm,
+    roomMatchMode,
+    roomStartMode,
+    visibleMatchRoom,
+    visibleUpcomingMatches,
+    duelMatchState,
+    groupMatchState,
+    duelMatchStatus,
+    groupMatchStatus,
+    duelMatchResult,
+    groupMatchResult,
+    selectedDuelSlot,
+    selectedGroupSlot,
+    duelMatchNotice,
+    groupMatchNotice,
+    effectiveGroupParticipantCount,
+    effectiveGroupSeedRank,
+  });
   const rawDuelStartCountdownSeconds =
     duelMatchState === 'matched'
       ? getMatchStartRemainingSeconds(duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt, syncedNowMs)
@@ -494,7 +462,6 @@ export function TrackRunExperience({
     nowMs,
   });
   const duelExpiryCountdownLabel = formatMatchExpiryCountdown(duelMatchStatus?.expiresInSeconds);
-  const effectiveGroupSlotLabel = groupMatchStatus?.slotLabel ?? groupMatchResult?.slotLabel ?? selectedGroupSlot?.label ?? '시간 미정';
   const rawGroupStartCountdownSeconds =
     groupMatchState === 'matched'
       ? getMatchStartRemainingSeconds(groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt, syncedNowMs)
@@ -507,8 +474,6 @@ export function TrackRunExperience({
     nowMs,
   });
   const groupExpiryCountdownLabel = formatMatchExpiryCountdown(groupMatchStatus?.expiresInSeconds);
-  const duelNeedsManualRematch = Boolean(duelMatchNotice && duelMatchState === 'idle');
-  const groupNeedsManualRematch = Boolean(groupMatchNotice && groupMatchState === 'idle');
   const nextStartingMatch = useMemo(
     () => findNextStartingMatchedMatch(visibleUpcomingMatches, syncedNowMs),
     [syncedNowMs, visibleUpcomingMatches],
@@ -672,35 +637,6 @@ export function TrackRunExperience({
     duelDistanceKm,
     groupDistanceKm,
   });
-  const liveMatchTitle = matchMode === 'duel' && effectiveDuelOpponent
-    ? `${effectiveDuelOpponent.name}님과 1대1 매치 진행 중`
-    : matchMode === 'group' && effectiveGroupParticipantCount
-      ? `${effectiveGroupParticipantCount}명 그룹 대결 진행 중`
-      : selectedMatch.liveTitle;
-  const liveMatchText = matchMode === 'duel' && effectiveDuelOpponent
-    ? `${effectiveDuelOpponent.compatibilitySummary} · ${effectiveDuelSlotLabel}`
-    : matchMode === 'group' && effectiveGroupParticipantCount
-      ? `${effectiveGroupSlotLabel} · 내 시작 시드 ${effectiveGroupSeedRank ?? 1}위`
-      : selectedMatch.liveText;
-  const readyActionLabel = matchMode === 'duel'
-    ? duelMatchState === 'active'
-      ? `${effectiveDuelOpponent?.name ?? '상대'}님과 매치 시작`
-      : duelMatchState === 'matched'
-        ? null
-        : duelMatchState === 'waiting'
-          ? '비슷한 상대를 계속 찾는 중'
-          : '매칭 완료 후 시작'
-    : matchMode === 'group'
-      ? groupMatchState === 'active'
-        ? `${effectiveGroupParticipantCount}명 그룹으로 시작`
-        : groupMatchState === 'matched'
-          ? null
-          : groupMatchState === 'waiting'
-            ? '비슷한 그룹을 계속 찾는 중'
-            : '그룹 매칭 완료 후 시작'
-      : matchRoom
-        ? null
-        : selectedMatch.startLabel;
   const isTabMode = mode === 'tab';
   const liveArenaPageWidth = Math.max(windowWidth - 32, 280);
   const roomLinkedMatchContext = visiblePartyRunFlow.linkedMatchContext;
@@ -1777,48 +1713,25 @@ export function TrackRunExperience({
     void refreshStaleMatchArtifacts().catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (!focusMatchNonce || !focusMatchMode) {
-      return;
-    }
-    if (forceMatchArena) {
-      setForceOpenActiveMatch(true);
-      setLiveArenaPage(0);
-      livePagerRef.current?.scrollTo({ x: 0, animated: false });
-    }
-    void focusRunningMatch({
-      mode: focusMatchMode,
-      matchId: focusMatchId,
-      distanceKm: focusMatchDistanceKm,
-      slotStartAt: focusMatchSlotStartAt,
-      isTestMatch: focusMatchIsTest,
-      preferArena: Boolean(forceMatchArena),
-    }).catch(() => {});
-  }, [focusMatchDistanceKm, focusMatchId, focusMatchIsTest, focusMatchMode, focusMatchNonce, focusMatchSlotStartAt, forceMatchArena]);
-
-  useEffect(() => {
-    if (!roomInviteToken || handledRoomInviteTokenRef.current === roomInviteToken) {
-      return;
-    }
-
-    handledRoomInviteTokenRef.current = roomInviteToken;
-    setRoomInviteTokenInput(roomInviteToken);
-    void joinRunningMatchRoom({ inviteToken: roomInviteToken })
-      .then((payload) => {
-        if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
-          return;
-        }
-
-        syncServerClock(payload.serverNow);
-        commitMatchRoom(payload.room);
-        if (payload.room) {
-          router.push('/match-room' as Href);
-        }
-      })
-      .catch((roomError) => {
-        setError(roomError instanceof Error ? roomError.message : '초대 링크로 방에 들어가지 못했어.');
-      });
-  }, [roomInviteToken]);
+  useMatchEntryEffects({
+    focusMatchNonce,
+    focusMatchMode,
+    focusMatchId,
+    focusMatchDistanceKm,
+    focusMatchSlotStartAt,
+    focusMatchIsTest,
+    forceMatchArena,
+    roomInviteToken,
+    livePagerRef,
+    latestMatchRoomServerNowMsRef,
+    onForceOpenActiveMatchChange: setForceOpenActiveMatch,
+    onLiveArenaPageChange: setLiveArenaPage,
+    onRoomInviteTokenInputChange: setRoomInviteTokenInput,
+    syncServerClock,
+    commitMatchRoom,
+    onError: setError,
+    focusRunningMatch,
+  });
 
   useLiveMatchNavigationEffects({
     livePagerRef,

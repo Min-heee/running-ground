@@ -27,6 +27,7 @@ import {
   createTrackedRun,
   leaveRunningMatch,
 } from '@/lib/api/services';
+import { buildRunDetailRedirect } from '@/features/runs/runSaveNavigation';
 import type {
   RequestDuelMatchResponse,
   RequestGroupMatchResponse,
@@ -270,13 +271,7 @@ export function useRunSaveFlow({
         setStatus('idle');
       }
 
-      router.replace({
-        pathname: '/run-detail',
-        params: {
-          runId: savedRun.run.id,
-          origin: isTabMode ? 'running' : 'activity',
-        },
-      });
+      router.replace(buildRunDetailRedirect({ runId: savedRun.run.id, isTabMode }));
       return true;
     } catch (saveError) {
       if (options.exitIfUnsavable && isUnsavableShortRunError(saveError)) {

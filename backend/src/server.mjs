@@ -65,6 +65,14 @@ import {
   maskPhoneNumber,
   normalizePhoneNumber,
 } from './phoneVerification.mjs';
+import { routeAdminRequest } from './routes/adminRoutes.mjs';
+import { routeAuthRequest } from './routes/authRoutes.mjs';
+import { routeLeagueRequest } from './routes/leagueRoutes.mjs';
+import { routeMarketRequest } from './routes/marketRoutes.mjs';
+import { routeRaceRequest } from './routes/raceRoutes.mjs';
+import { routeRunningMatchRequest } from './routes/runningMatchRoutes.mjs';
+import { routeRunRequest } from './routes/runRoutes.mjs';
+import { routeSocialRequest } from './routes/socialRoutes.mjs';
 const STARTED_AT = new Date().toISOString();
 const metricsCacheByStore = new WeakMap();
 const SOURCE_LABEL_BY_TYPE = {
@@ -5804,493 +5812,122 @@ async function routeRequest(request, response) {
 
   const url = new URL(request.url, `http://${request.headers.host ?? 'localhost'}`);
   const pathname = url.pathname;
+  const method = request.method;
 
-  if (pathname === '/api/health' && request.method === 'GET') {
+  if (pathname === '/api/health' && method === 'GET') {
     const healthStatus = buildHealthStatus();
     sendJson(response, healthStatus.statusCode, healthStatus.payload);
     return;
   }
 
-  if (pathname === '/api/admin/status' && request.method === 'GET') {
-    if (!ENABLE_ADMIN_STATUS) {
-      throw new ApiError(404, '관리자 상태 확인 기능이 비활성화되어 있어.');
+  const routeContext = {
+    method,
+    pathname,
+    request,
+    response,
+    url,
+    ApiError,
+    ENABLE_ADMIN_STATUS,
+    ENABLE_RESET_ENDPOINT,
+    sendJson,
+    parseJsonBody,
+    loadStore,
+    resetStore,
+    getStoreFilePath,
+    requireAdmin,
+    requireUser,
+    getAccessToken,
+    getAdminRepository,
+    getAuthRepository,
+    getMarketRepository,
+    getRaceRepository,
+    getRunsRepository,
+    buildAdminStatus,
+    buildAdminSession,
+    buildRegionCatalog,
+    buildUniversityCatalog,
+    buildProfileReadPayload,
+    buildNotificationSettingsReadPayload,
+    buildUpcomingRunningMatchesReadPayload,
+    buildMyActivityReadPayload,
+    buildIntegrationSourcesReadPayload,
+    buildFriendLeaderboardReadPayload,
+    buildFriendActivityReadPayload,
+    buildFriendRunReadPayload,
+    buildDistrictPersonalReadPayload,
+    buildRegionLeagueReadPayload,
+    buildUniversityLeagueReadPayload,
+    buildMarketOverviewReadPayload,
+    buildOfflineRaceHubReadPayload,
+    buildCurrentRunReadPayload,
+    buildHomeSummaryReadPayload,
+    validateUsername,
+    validateRequiredString,
+    validateDistanceKm,
+    validateRoutePreviewCoordinates,
+    buildRoadAlignedRoutePreview,
+    handleLogin,
+    handleFindUsername,
+    handleResetPassword,
+    handleRequestPhoneVerificationCode,
+    handleVerifyPhoneVerificationCode,
+    handleLogout,
+    handleDeleteMyAccount,
+    handleRegister,
+    handlePatchMyProfile,
+    handlePatchMyRegion,
+    handlePatchMyNotifications,
+    handlePatchMyLiveSharing,
+    handleDeleteAdminUser,
+    handleCreateAdminMarketItem,
+    handleUpdateAdminMarketItem,
+    handleDeleteAdminMarketItem,
+    handleCreateAdminNotice,
+    handleUpdateAdminNotice,
+    handleDeleteAdminNotice,
+    handleUpdateAdminRewardRedemption,
+    handleCreateAdminOfflineRaceEvent,
+    handleUpdateAdminOfflineRaceEvent,
+    handleDeleteAdminOfflineRaceEvent,
+    handleCreateManualRun,
+    handleCreateTrackedRun,
+    handleRequestDuelMatch,
+    handleRequestGroupMatch,
+    handleFetchMatchDemandSummary,
+    handleFetchRunningMatchStatus,
+    handleAcceptRunningMatch,
+    handleCancelRunningMatch,
+    handleLeaveRunningMatch,
+    handleUpdateRunningMatchProgress,
+    handleFetchMyRunningMatchRoom,
+    handleCreateRunningMatchRoom,
+    handleJoinRunningMatchRoom,
+    handleStartRunningMatchRoom,
+    handleUpdateRunningMatchRoom,
+    handleUpdateRunningMatchRoomReady,
+    handleAcknowledgeRunningMatchRoomCountdown,
+    handleLeaveRunningMatchRoom,
+    handleOfflineRaceEntryAction,
+    handleClaimMarketItem,
+    handleFriendRequestCreate,
+    handleFriendRequestAction,
+    handleIntegrationSourceConnection,
+    handleQueueIntegrationImports,
+  };
+
+  for (const handleRoute of [
+    routeAdminRequest,
+    routeAuthRequest,
+    routeRunningMatchRequest,
+    routeRunRequest,
+    routeMarketRequest,
+    routeRaceRequest,
+    routeSocialRequest,
+    routeLeagueRequest,
+  ]) {
+    if (await handleRoute(routeContext)) {
+      return;
     }
-
-    requireAdmin(request);
-    const store = loadStore();
-    sendJson(response, 200, buildAdminStatus(store));
-    return;
-  }
-
-  if (pathname === '/api/admin/session' && request.method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, buildAdminSession());
-    return;
-  }
-
-  if (pathname === '/api/admin/reset' && request.method === 'POST') {
-    if (!ENABLE_RESET_ENDPOINT) {
-      throw new ApiError(404, '관리자 리셋 기능이 비활성화되어 있어.');
-    }
-
-    requireAdmin(request);
-    const nextStore = resetStore();
-    const payload = {
-      success: true,
-      storeFile: getStoreFilePath(),
-      now: new Date().toISOString(),
-      counts: buildAdminStatus(nextStore).counts,
-    };
-
-    sendJson(response, 200, payload);
-    return;
-  }
-
-  if (pathname === '/api/admin/overview' && request.method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, getAdminRepository().getOverview());
-    return;
-  }
-
-  if (pathname === '/api/admin/users' && request.method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, getAdminRepository().getUsers());
-    return;
-  }
-
-  const adminUserMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
-
-  if (adminUserMatch && request.method === 'DELETE') {
-    requireAdmin(request);
-    handleDeleteAdminUser(response, adminUserMatch[1]);
-    return;
-  }
-
-  if (pathname === '/api/admin/market/items' && request.method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, getMarketRepository().getAdminCatalog());
-    return;
-  }
-
-  if (pathname === '/api/admin/notices' && request.method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, getAdminRepository().getNotices());
-    return;
-  }
-
-  if (pathname === '/api/admin/reward-redemptions' && request.method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, getMarketRepository().getAdminRewardRedemptions());
-    return;
-  }
-
-  if (pathname === '/api/admin/market/items' && request.method === 'POST') {
-    requireAdmin(request);
-    await handleCreateAdminMarketItem(request, response);
-    return;
-  }
-
-  if (pathname === '/api/admin/notices' && request.method === 'POST') {
-    requireAdmin(request);
-    await handleCreateAdminNotice(request, response);
-    return;
-  }
-
-  const adminMarketItemMatch = pathname.match(/^\/api\/admin\/market\/items\/([^/]+)$/);
-
-  if (adminMarketItemMatch && request.method === 'PATCH') {
-    requireAdmin(request);
-    await handleUpdateAdminMarketItem(request, response, adminMarketItemMatch[1]);
-    return;
-  }
-
-  if (adminMarketItemMatch && request.method === 'DELETE') {
-    requireAdmin(request);
-    handleDeleteAdminMarketItem(response, adminMarketItemMatch[1]);
-    return;
-  }
-
-  const adminNoticeMatch = pathname.match(/^\/api\/admin\/notices\/([^/]+)$/);
-
-  if (adminNoticeMatch && request.method === 'PATCH') {
-    requireAdmin(request);
-    await handleUpdateAdminNotice(request, response, adminNoticeMatch[1]);
-    return;
-  }
-
-  if (adminNoticeMatch && request.method === 'DELETE') {
-    requireAdmin(request);
-    handleDeleteAdminNotice(response, adminNoticeMatch[1]);
-    return;
-  }
-
-  const adminRewardRedemptionMatch = pathname.match(/^\/api\/admin\/reward-redemptions\/([^/]+)$/);
-
-  if (adminRewardRedemptionMatch && request.method === 'PATCH') {
-    requireAdmin(request);
-    await handleUpdateAdminRewardRedemption(request, response, adminRewardRedemptionMatch[1]);
-    return;
-  }
-
-  if (pathname === '/api/admin/offline-races/events' && request.method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, getRaceRepository().getAdminEvents());
-    return;
-  }
-
-  if (pathname === '/api/admin/offline-races/events' && request.method === 'POST') {
-    requireAdmin(request);
-    await handleCreateAdminOfflineRaceEvent(request, response);
-    return;
-  }
-
-  const adminOfflineRaceEventMatch = pathname.match(/^\/api\/admin\/offline-races\/events\/([^/]+)$/);
-
-  if (adminOfflineRaceEventMatch && request.method === 'PATCH') {
-    requireAdmin(request);
-    await handleUpdateAdminOfflineRaceEvent(request, response, adminOfflineRaceEventMatch[1]);
-    return;
-  }
-
-  if (adminOfflineRaceEventMatch && request.method === 'DELETE') {
-    requireAdmin(request);
-    handleDeleteAdminOfflineRaceEvent(response, adminOfflineRaceEventMatch[1]);
-    return;
-  }
-
-  if (pathname === '/api/auth/login' && request.method === 'POST') {
-    await handleLogin(request, response);
-    return;
-  }
-
-  if (pathname === '/api/auth/find-username' && request.method === 'POST') {
-    await handleFindUsername(request, response);
-    return;
-  }
-
-  if (pathname === '/api/auth/reset-password' && request.method === 'POST') {
-    await handleResetPassword(request, response);
-    return;
-  }
-
-  if (pathname === '/api/auth/logout' && request.method === 'POST') {
-    await handleLogout(request, response);
-    return;
-  }
-
-  if (pathname === '/api/auth/check-username' && request.method === 'GET') {
-    const username = validateUsername(url.searchParams.get('username') ?? '');
-    sendJson(response, 200, await getAuthRepository().checkUsername(username));
-    return;
-  }
-
-  if (pathname === '/api/auth/phone/request-code' && request.method === 'POST') {
-    await handleRequestPhoneVerificationCode(request, response);
-    return;
-  }
-
-  if (pathname === '/api/auth/phone/verify-code' && request.method === 'POST') {
-    await handleVerifyPhoneVerificationCode(request, response);
-    return;
-  }
-
-  if (pathname === '/api/catalog/regions' && request.method === 'GET') {
-    sendJson(response, 200, buildRegionCatalog());
-    return;
-  }
-
-  if (pathname === '/api/catalog/universities' && request.method === 'GET') {
-    const store = loadStore();
-    sendJson(response, 200, buildUniversityCatalog(store));
-    return;
-  }
-
-  if (pathname === '/api/notices/active' && request.method === 'GET') {
-    sendJson(response, 200, getAdminRepository().getActiveNotices());
-    return;
-  }
-
-  if (pathname === '/api/auth/register' && request.method === 'POST') {
-    await handleRegister(request, response);
-    return;
-  }
-
-  if (pathname === '/api/me/profile' && request.method === 'GET') {
-    sendJson(response, 200, await buildProfileReadPayload(request));
-    return;
-  }
-
-  if (pathname === '/api/me/account' && request.method === 'DELETE') {
-    await handleDeleteMyAccount(request, response);
-    return;
-  }
-
-  if (pathname === '/api/me/profile' && request.method === 'PATCH') {
-    await handlePatchMyProfile(request, response);
-    return;
-  }
-
-  if (pathname === '/api/me/notifications' && request.method === 'GET') {
-    sendJson(response, 200, await buildNotificationSettingsReadPayload(request));
-    return;
-  }
-
-  if (pathname === '/api/me/notifications' && request.method === 'PATCH') {
-    await handlePatchMyNotifications(request, response);
-    return;
-  }
-
-  if (pathname === '/api/me/region' && request.method === 'PATCH') {
-    await handlePatchMyRegion(request, response);
-    return;
-  }
-
-  if (pathname === '/api/me/live-sharing' && request.method === 'PATCH') {
-    await handlePatchMyLiveSharing(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/matches/duel' && request.method === 'POST') {
-    await handleRequestDuelMatch(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/matches/group' && request.method === 'POST') {
-    await handleRequestGroupMatch(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/matches/summary' && request.method === 'POST') {
-    await handleFetchMatchDemandSummary(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/matches/status' && request.method === 'POST') {
-    await handleFetchRunningMatchStatus(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/matches/upcoming' && request.method === 'GET') {
-    sendJson(response, 200, await buildUpcomingRunningMatchesReadPayload(request));
-    return;
-  }
-
-  if (pathname === '/api/running/matches/accept' && request.method === 'POST') {
-    await handleAcceptRunningMatch(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/matches/cancel' && request.method === 'POST') {
-    await handleCancelRunningMatch(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/matches/leave' && request.method === 'POST') {
-    await handleLeaveRunningMatch(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/matches/progress' && request.method === 'POST') {
-    await handleUpdateRunningMatchProgress(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/rooms/my' && request.method === 'GET') {
-    handleFetchMyRunningMatchRoom(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/rooms' && request.method === 'POST') {
-    await handleCreateRunningMatchRoom(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/rooms/join' && request.method === 'POST') {
-    await handleJoinRunningMatchRoom(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/rooms/update' && request.method === 'POST') {
-    await handleUpdateRunningMatchRoom(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/rooms/ready' && request.method === 'POST') {
-    await handleUpdateRunningMatchRoomReady(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/rooms/countdown-ready' && request.method === 'POST') {
-    await handleAcknowledgeRunningMatchRoomCountdown(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/rooms/start' && request.method === 'POST') {
-    await handleStartRunningMatchRoom(request, response);
-    return;
-  }
-
-  if (pathname === '/api/running/rooms/leave' && request.method === 'POST') {
-    await handleLeaveRunningMatchRoom(request, response);
-    return;
-  }
-
-  if (pathname === '/api/me/activity' && request.method === 'GET') {
-    sendJson(response, 200, await buildMyActivityReadPayload(request));
-    return;
-  }
-
-  if (pathname === '/api/running/route-preview' && request.method === 'POST') {
-    const store = loadStore();
-    requireUser(store, request);
-    const body = await parseJsonBody(request);
-    const keyword = validateRequiredString(body.keyword, '원하는 모양을 입력해줘.');
-    const displayTitle = validateRequiredString(body.displayTitle, '추천 경로 제목이 비어 있어.');
-    const description = validateRequiredString(body.description, '추천 경로 설명이 비어 있어.');
-    const startLabel = validateRequiredString(body.startLabel, '출발지 정보가 비어 있어.');
-    const desiredDistanceKm = validateDistanceKm(body.desiredDistanceKm, '희망 거리를 입력해줘.');
-    const roughCoordinates = validateRoutePreviewCoordinates(body.roughCoordinates);
-
-    sendJson(response, 200, await buildRoadAlignedRoutePreview({
-      keyword,
-      desiredDistanceKm,
-      displayTitle,
-      description,
-      startLabel,
-      roughCoordinates,
-    }));
-    return;
-  }
-
-  if (pathname === '/api/home/summary' && request.method === 'GET') {
-    sendJson(response, 200, await buildHomeSummaryReadPayload(request));
-    return;
-  }
-
-  if (pathname === '/api/market/overview' && request.method === 'GET') {
-    sendJson(response, 200, await buildMarketOverviewReadPayload(request));
-    return;
-  }
-
-  if (pathname === '/api/offline-races/hub' && request.method === 'GET') {
-    sendJson(response, 200, await buildOfflineRaceHubReadPayload(request));
-    return;
-  }
-
-  const offlineRaceActionMatch = pathname.match(/^\/api\/offline-races\/([^/]+)\/(join|cancel)$/);
-
-  if (offlineRaceActionMatch && request.method === 'POST') {
-    handleOfflineRaceEntryAction(request, response, offlineRaceActionMatch[1], offlineRaceActionMatch[2]);
-    return;
-  }
-
-  const marketClaimMatch = pathname.match(/^\/api\/market\/items\/([^/]+)\/claim$/);
-
-  if (marketClaimMatch && request.method === 'POST') {
-    handleClaimMarketItem(request, response, marketClaimMatch[1]);
-    return;
-  }
-
-  if (pathname === '/api/friends/leaderboard' && request.method === 'GET') {
-    sendJson(response, 200, await buildFriendLeaderboardReadPayload(request));
-    return;
-  }
-
-  if (pathname === '/api/friends/requests' && request.method === 'POST') {
-    const body = await parseJsonBody(request);
-    handleFriendRequestCreate(request, response, body);
-    return;
-  }
-
-  const friendRequestActionMatch = pathname.match(/^\/api\/friends\/requests\/([^/]+)\/(accept|reject|cancel)$/);
-
-  if (friendRequestActionMatch && request.method === 'POST') {
-    handleFriendRequestAction(request, response, friendRequestActionMatch[1], friendRequestActionMatch[2]);
-    return;
-  }
-
-  const friendActivityMatch = pathname.match(/^\/api\/friends\/([^/]+)\/activity$/);
-
-  if (friendActivityMatch && request.method === 'GET') {
-    sendJson(response, 200, await buildFriendActivityReadPayload(request, friendActivityMatch[1]));
-    return;
-  }
-
-  const friendRunMatch = pathname.match(/^\/api\/friends\/([^/]+)\/runs\/([^/]+)$/);
-
-  if (friendRunMatch && request.method === 'GET') {
-    sendJson(response, 200, await buildFriendRunReadPayload(request, friendRunMatch[1], friendRunMatch[2]));
-    return;
-  }
-
-  if (pathname === '/api/integrations/sources' && request.method === 'GET') {
-    sendJson(response, 200, await buildIntegrationSourcesReadPayload(request));
-    return;
-  }
-
-  const integrationSourceActionMatch = pathname.match(/^\/api\/integrations\/sources\/([^/]+)\/(connect|disconnect)$/);
-
-  if (integrationSourceActionMatch && request.method === 'POST') {
-    handleIntegrationSourceConnection(
-      request,
-      response,
-      integrationSourceActionMatch[1],
-      integrationSourceActionMatch[2] === 'connect',
-    );
-    return;
-  }
-
-  const integrationSourceImportMatch = pathname.match(/^\/api\/integrations\/sources\/([^/]+)\/import$/);
-
-  if (integrationSourceImportMatch && request.method === 'POST') {
-    await handleQueueIntegrationImports(request, response, integrationSourceImportMatch[1]);
-    return;
-  }
-
-  if (pathname === '/api/integrations/sync' && request.method === 'POST') {
-    const payload = await getRunsRepository().syncIntegrationImports({
-      token: getAccessToken(request),
-    });
-
-    sendJson(response, 200, payload);
-    return;
-  }
-
-  if (pathname === '/api/league/district-personal' && request.method === 'GET') {
-    sendJson(response, 200, await buildDistrictPersonalReadPayload(request));
-    return;
-  }
-
-  if (pathname === '/api/league/regions' && request.method === 'GET') {
-    sendJson(response, 200, await buildRegionLeagueReadPayload(request, url.searchParams.get('nodeId') ?? undefined));
-    return;
-  }
-
-  if (pathname === '/api/league/universities' && request.method === 'GET') {
-    sendJson(response, 200, await buildUniversityLeagueReadPayload(request));
-    return;
-  }
-
-  if (pathname === '/api/runs/latest' && request.method === 'GET') {
-    sendJson(response, 200, await buildCurrentRunReadPayload(request));
-    return;
-  }
-
-  if (pathname === '/api/runs/manual' && request.method === 'POST') {
-    await handleCreateManualRun(request, response);
-    return;
-  }
-
-  if (pathname === '/api/runs/tracked' && request.method === 'POST') {
-    await handleCreateTrackedRun(request, response);
-    return;
-  }
-
-  const ownRunMatch = pathname.match(/^\/api\/runs\/([^/]+)$/);
-
-  if (ownRunMatch && request.method === 'GET') {
-    sendJson(response, 200, await buildCurrentRunReadPayload(request, ownRunMatch[1]));
-    return;
   }
 
   throw new ApiError(404, '요청한 API를 찾을 수 없어.');
