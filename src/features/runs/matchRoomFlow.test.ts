@@ -5,6 +5,11 @@ import type { RunningMatchRoom } from '@/lib/api/types';
 import {
   areAllMatchRoomGuestsReady,
   buildMatchRoomInviteAcceptanceState,
+  buildMatchRoomInviteUxState,
+  buildMatchRoomParticipantUxRows,
+  buildMatchRoomReadyActionState,
+  buildMatchRoomHostStartActionState,
+  buildMatchRoomUxModel,
   buildPendingMatchRoomInvitees,
   canHostStartMatchRoom,
 } from './matchRoomFlow';
@@ -65,6 +70,7 @@ test('host can start only after every guest is ready', () => {
   assert.equal(canHostStartMatchRoom(waitingRoom), false);
 
   const readyRoom = room({
+    canStart: true,
     participants: room().participants.map((participant) => (
       participant.isHost ? participant : { ...participant, isReady: true }
     )),
@@ -72,6 +78,7 @@ test('host can start only after every guest is ready', () => {
 
   assert.equal(areAllMatchRoomGuestsReady(readyRoom), true);
   assert.equal(canHostStartMatchRoom(readyRoom), true);
+  assert.equal(canHostStartMatchRoom({ ...readyRoom, canStart: false }), false);
 });
 
 test('invite acceptance state only shows accept and decline before the invited runner joins', () => {
@@ -93,6 +100,9 @@ test('invite acceptance state only shows accept and decline before the invited r
     canAccept: false,
     canDecline: false,
   });
+
+  assert.equal(buildMatchRoomInviteUxState(invitedRoom, 'guest').state, 'pending');
+  assert.equal(buildMatchRoomInviteUxState(room({ joined: true }), 'guest').state, 'joined');
 });
 
 test('pending invitees exclude joined runners and preserve server invite status', () => {
@@ -118,4 +128,102 @@ test('pending invitees exclude joined runners and preserve server invite status'
   assert.deepEqual(invitees.map((invitee) => invitee.userId), ['server-pending', 'pending-friend']);
   assert.equal(invitees[1].name, '초대친구');
   assert.equal(invitees[1].status, 'pending');
+});
+
+test('participant UX rows separate host, ready guests, and pending invitees', () => {
+  const readyRoom = room({
+    participants: room().participants.map((participant) => (
+      participant.isHost ? participant : { ...participant, isReady: true }
+    )),
+  });
+  const rows = buildMatchRoomParticipantUxRows(readyRoom, [{
+    userId: 'pending-friend',
+    name: '초대친구',
+    districtName: '고양시',
+    averagePace: '06:20/km',
+    levelLabel: 'Lv.1',
+    status: 'pending',
+  }]);
+
+  assert.deepEqual(rows.map((row) => row.status), ['host', 'ready', 'invite-pending']);
+  assert.deepEqual(rows.map((row) => row.statusLabel), ['시작 권한', '준비 완료', '수락 대기중']);
+  assert.equal(rows[2].badgeLabel, '초대됨');
+});
+
+test('participant UX rows show countdown loading readiness after linked match opens', () => {
+  const rows = buildMatchRoomParticipantUxRows(room({
+    linkedMatchId: 'match-1',
+    state: 'arming',
+    participants: room().participants.map((participant) => (
+      participant.isHost
+        ? { ...participant, isCountdownReady: true }
+        : { ...participant, isCountdownReady: false }
+    )),
+  }));
+
+  assert.deepEqual(rows.map((row) => row.status), ['countdown-ready', 'countdown-loading']);
+  assert.deepEqual(rows.map((row) => row.statusLabel), ['로딩 완료', '로딩 중']);
+});
+
+test('ready action is explicit for guest ready, not-ready, and locked states', () => {
+  const guestRoom = room({ isHost: false });
+  const guest = guestRoom.participants.find((participant) => participant.userId === 'guest');
+
+  assert.deepEqual(buildMatchRoomReadyActionState(guestRoom, guest), {
+    state: 'not-ready',
+    visible: true,
+    label: '준비',
+    canToggle: true,
+    helperText: '준비를 누르면 방장이 시작할 수 있는 조건에 포함돼요.',
+  });
+
+  assert.equal(
+    buildMatchRoomReadyActionState(guestRoom, guest ? { ...guest, isReady: true } : null).state,
+    'ready',
+  );
+  assert.equal(buildMatchRoomReadyActionState({ ...guestRoom, linkedMatchId: 'match-1' }, guest).state, 'locked');
+  assert.equal(buildMatchRoomReadyActionState(room(), room().participants[0]).state, 'hidden');
+});
+
+test('host start action explains each room start blocker', () => {
+  const readyParticipants = room().participants.map((participant) => (
+    participant.isHost ? participant : { ...participant, isReady: true }
+  ));
+
+  assert.equal(buildMatchRoomHostStartActionState(room({
+    participants: [room().participants[0]],
+  })).state, 'needs-participants');
+  assert.equal(buildMatchRoomHostStartActionState(room()).state, 'needs-ready');
+  assert.equal(buildMatchRoomHostStartActionState(room({
+    canStart: true,
+    participants: readyParticipants,
+  })).state, 'can-start');
+  assert.equal(buildMatchRoomHostStartActionState(room({
+    startMode: 'scheduled',
+    participants: readyParticipants,
+  })).state, 'scheduled');
+  assert.equal(buildMatchRoomHostStartActionState(room({
+    state: 'arming',
+    linkedMatchId: 'match-1',
+    participants: readyParticipants,
+  })).state, 'arming');
+});
+
+test('room UX model collects invite, participant, ready, and start states together', () => {
+  const model = buildMatchRoomUxModel({
+    room: room({
+      canStart: true,
+      participants: room().participants.map((participant) => (
+        participant.isHost ? participant : { ...participant, isReady: true }
+      )),
+    }),
+    currentUserId: 'host',
+    pendingInvitees: [],
+  });
+
+  assert.equal(model.invite.state, 'joined');
+  assert.deepEqual(model.participants.map((participant) => participant.status), ['host', 'ready']);
+  assert.equal(model.readyAction.state, 'hidden');
+  assert.equal(model.startAction.state, 'can-start');
+  assert.equal(model.startAction.canStart, true);
 });

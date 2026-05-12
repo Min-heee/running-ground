@@ -15,34 +15,12 @@ import {
   resolveMatchTimeSection,
   type MatchTimeSection,
 } from '@/features/runs/matchScheduling';
+import {
+  parseServerNowMs,
+  resolveStableServerClockOffset,
+} from '@/features/runs/serverClockSync';
 
 export type RunMatchMode = 'solo' | 'duel' | 'group' | 'room';
-
-const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 3000;
-const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
-const SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR = 0.25;
-
-function parseServerNowMs(serverNow?: string) {
-  const parsedMs = serverNow ? new Date(serverNow).getTime() : NaN;
-  return Number.isFinite(parsedMs) ? parsedMs : null;
-}
-
-function resolveStableServerClockOffset(currentOffsetMs: number, nextOffsetMs: number) {
-  if (Math.abs(nextOffsetMs) < SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS) {
-    return 0;
-  }
-
-  if (currentOffsetMs === 0) {
-    return nextOffsetMs;
-  }
-
-  const offsetDeltaMs = nextOffsetMs - currentOffsetMs;
-  if (Math.abs(offsetDeltaMs) < SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS) {
-    return currentOffsetMs;
-  }
-
-  return Math.round(currentOffsetMs + offsetDeltaMs * SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR);
-}
 
 type TestFlowInput = {
   focusMatchMode?: Extract<RunMatchMode, 'duel' | 'group'>;

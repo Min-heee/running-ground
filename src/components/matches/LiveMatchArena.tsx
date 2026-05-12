@@ -9,10 +9,12 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { AndroidLiveMatchPerfPanel } from '@/components/matches/AndroidLiveMatchPerfPanel';
 import {
   buildLiveMatchRunnerVisualState,
   isRunnerForfeited,
 } from '@/components/matches/liveMatchArenaVisualState';
+import { useAndroidLiveMatchPerfProbe } from '@/components/matches/useAndroidLiveMatchPerfProbe';
 
 type ArenaParticipant = {
   id: string;
@@ -39,7 +41,6 @@ const GROUP_STRIPE_COUNT = Platform.OS === 'android' ? 7 : 14;
 const ANDROID_GROUP_LIGHT_MODE_THRESHOLD = 12;
 const DUEL_STRIPES = Array.from({ length: DUEL_STRIPE_COUNT });
 const GROUP_STRIPES = Array.from({ length: GROUP_STRIPE_COUNT });
-const LIVE_MATCH_PERF_LOG_ENABLED = __DEV__ && Platform.OS === 'android';
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -74,48 +75,6 @@ function buildAndroidLightParticipants(participants: ArenaParticipant[]) {
   }
 
   return participants.filter((_, index) => keepIndexes.has(index));
-}
-
-function useAndroidLiveMatchPerfProbe(label: string, detail: string) {
-  const renderCountRef = useRef(0);
-  const detailRef = useRef(detail);
-
-  renderCountRef.current += 1;
-  detailRef.current = detail;
-
-  useEffect(() => {
-    if (!LIVE_MATCH_PERF_LOG_ENABLED) {
-      return undefined;
-    }
-
-    let frameCount = 0;
-    let frameRef = 0;
-    let windowStartedAt = Date.now();
-    let renderCountAtStart = renderCountRef.current;
-
-    const tick = () => {
-      frameCount += 1;
-      const now = Date.now();
-      const elapsedMs = now - windowStartedAt;
-
-      if (elapsedMs >= 5000) {
-        const fps = Math.round((frameCount * 1000) / Math.max(1, elapsedMs));
-        const renders = renderCountRef.current - renderCountAtStart;
-        // eslint-disable-next-line no-console
-        console.debug(`[LiveMatchPerf] ${label} fps=${fps} renders=${renders}/5s ${detailRef.current}`);
-        frameCount = 0;
-        windowStartedAt = now;
-        renderCountAtStart = renderCountRef.current;
-      }
-
-      frameRef = requestAnimationFrame(tick);
-    };
-
-    frameRef = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(frameRef);
-    };
-  }, [label]);
 }
 
 const RoadMotion = memo(function RoadMotion({
@@ -435,9 +394,34 @@ export const LiveMatchArena = memo(function LiveMatchArena({
 }) {
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = Math.max(300, windowWidth - 32);
-  useAndroidLiveMatchPerfProbe(
-    mode === 'duel' ? 'duel-arena' : 'group-arena',
-    `participants=${participants.length} target=${targetDistanceKm}`,
+  const perfLabel = mode === 'duel' ? 'duel-arena' : 'group-arena';
+  const visibleParticipantsCount = useMemo(() => {
+    if (mode !== 'group' || Platform.OS !== 'android') {
+      return participants.length;
+    }
+
+    const orderedParticipants = [...participants].sort((left, right) => {
+      if (isForfeited(left) !== isForfeited(right)) {
+        return isForfeited(left) ? 1 : -1;
+      }
+
+      return right.distanceKm - left.distanceKm;
+    });
+
+    return buildAndroidLightParticipants(orderedParticipants).length;
+  }, [mode, participants]);
+
+  useAndroidLiveMatchPerfProbe({
+    label: perfLabel,
+    mode,
+    participants: participants.length,
+    visibleParticipants: visibleParticipantsCount,
+    targetDistanceKm,
+  });
+
+  const perfPanel = useMemo(
+    () => <AndroidLiveMatchPerfPanel label={perfLabel} />,
+    [perfLabel],
   );
 
   return (
@@ -450,6 +434,7 @@ export const LiveMatchArena = memo(function LiveMatchArena({
           <SummaryChip key={chip} label={chip} />
         ))}
       </View>
+      {perfPanel}
       {mode === 'duel' ? (
         <DuelRoad participants={participants} targetDistanceKm={targetDistanceKm} />
       ) : (

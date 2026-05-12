@@ -93,11 +93,9 @@ export default function MatchRoomScreen() {
     customDistanceText,
     setCustomDistanceText,
     friendOptions,
-    pendingInvitees,
+    roomUxModel,
     isInvitedOnly,
     hasInviteDraftChanges,
-    isReady,
-    allGuestsReady,
     scheduledStartAt,
     linkedMatchRemainingSeconds,
     showPartyRunLoadingBanner,
@@ -172,22 +170,28 @@ export default function MatchRoomScreen() {
 
           {isInvitedOnly ? (
             <Card style={styles.inviteActionCard}>
-              <Text style={styles.inviteActionTitle}>파티런 초대가 왔어요</Text>
+              <Text style={styles.inviteActionTitle}>{roomUxModel.invite.title}</Text>
               <Text style={styles.helperText}>
-                수락하면 바로 이 대기실 참가자 명단에 들어가고, 거절하면 초대 카드가 사라져요.
+                {roomUxModel.invite.helperText}
               </Text>
               <View style={styles.inviteButtonRow}>
                 <Pressable
-                  style={[styles.declineInviteButton, saving ? styles.actionButtonDisabled : undefined]}
+                  style={[
+                    styles.declineInviteButton,
+                    (saving || !roomUxModel.invite.canDecline) ? styles.actionButtonDisabled : undefined,
+                  ]}
                   onPress={() => { void handleDeclineInvite(); }}
-                  disabled={saving}
+                  disabled={saving || !roomUxModel.invite.canDecline}
                 >
                   <Text style={styles.declineInviteButtonText}>{saving ? '처리 중...' : '거절'}</Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.acceptInviteButton, saving ? styles.actionButtonDisabled : undefined]}
+                  style={[
+                    styles.acceptInviteButton,
+                    (saving || !roomUxModel.invite.canAccept) ? styles.actionButtonDisabled : undefined,
+                  ]}
                   onPress={() => { void handleAcceptInvite(); }}
-                  disabled={saving}
+                  disabled={saving || !roomUxModel.invite.canAccept}
                 >
                   <Text style={styles.acceptInviteButtonText}>{saving ? '처리 중...' : '수락'}</Text>
                 </Pressable>
@@ -198,10 +202,8 @@ export default function MatchRoomScreen() {
             <>
           <PartyRunParticipantListCard
             room={room}
-            pendingInvitees={pendingInvitees}
+            uxModel={roomUxModel}
             saving={saving}
-            isReady={isReady}
-            allGuestsReady={allGuestsReady}
             onToggleReady={() => { void handleToggleReady(); }}
             onStart={() => { void handleStart(); }}
           />

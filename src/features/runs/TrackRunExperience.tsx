@@ -18,7 +18,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '@/components/Screen';
 import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
 import { AuthHeader } from '@/components/ui/AuthHeader';
-import { RunRoutePoint } from '@/domain/types';
 import { LiveMatchContainer } from '@/features/runs/components/LiveMatchContainer';
 import { LiveMatchExitActionCard } from '@/features/runs/components/LiveMatchExitActionCard';
 import type { MatchOptionItem } from '@/features/runs/components/MatchOptionSelector';
@@ -37,6 +36,11 @@ import { useMatchResultController } from '@/features/runs/hooks/useMatchResultCo
 import { useLiveMatchProgress } from '@/features/runs/hooks/useLiveMatchProgress';
 import { useForfeitController } from '@/features/runs/hooks/useForfeitController';
 import { useAndroidLiveMatchDisplayFrame } from '@/features/runs/hooks/useAndroidLiveMatchDisplayFrame';
+import { usePartyRunSync } from '@/features/runs/hooks/usePartyRunSync';
+import { useStableCountdownSeconds } from '@/features/runs/hooks/useStableCountdownSeconds';
+import { useMatchRoomSelectionSync } from '@/features/runs/hooks/useMatchRoomSelectionSync';
+import { useLiveMatchNavigationEffects } from '@/features/runs/hooks/useLiveMatchNavigationEffects';
+import { useMatchProgressSync } from '@/features/runs/hooks/useMatchProgressSync';
 import {
   acknowledgeRunningMatchRoomCountdown,
   cancelRunningMatch,
@@ -53,13 +57,11 @@ import {
   requestGroupMatch,
   startRunningMatchRoom,
   updateRunningMatchRoom,
-  updateRunningMatchProgress,
   updateRunningLiveShare,
 } from '@/lib/api/services';
 import { syncScheduledMatchNotifications } from '@/lib/matchNotifications';
 import {
   findNextStartingMatchedMatch,
-  formatMatchCountdown,
   getMatchStartRemainingSeconds,
   shouldAutoOpenMatchArena,
   shouldShowMatchStartOverlay,
@@ -69,7 +71,6 @@ import {
   type RunningMatchRoom,
   type RunningMatchStatusResponse,
   type UpcomingRunningMatchItem,
-  type UpdateRunningMatchProgressInput,
 } from '@/lib/api/types';
 import {
   getBackgroundRunElapsedSeconds,
@@ -84,16 +85,15 @@ import {
 import {
   buildAveragePace,
   calculateCadenceSpm,
-  calculateElevationGainM,
   formatPaceFromSpeedMps,
 } from '@/features/runs/tracking';
 import {
   buildLiveShareFallbackLabel,
   buildLiveShareLabelFromAddress,
   buildOfficialStartBaseline,
-  buildRouteFromOfficialStart,
   buildRoutePoint,
 } from '@/features/runs/trackingSession';
+import { buildDisplayedTrackingSnapshot } from '@/features/runs/trackingDisplayModel';
 import {
   formatMatchDateKey,
   formatMatchExpiryCountdown,
@@ -121,19 +121,12 @@ import {
   isLiveMatchState,
   type PartyRunLinkedMatchContext,
   resolveActiveMatchId,
-  shouldAutoFocusMatchArena,
-  shouldEnterMatchArenaForLifecycle,
-  shouldKeepMatchArenaForceOpen,
   shouldUseCenteredMatchCountdown,
   shouldUseFullscreenMatchCountdown,
 } from '@/features/runs/matchStateMachine';
+import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 
-type StableCountdownTracker = {
-  key: string;
-  baselineRemainingSeconds: number;
-  baselineNowMs: number;
-};
 const STALE_RENDER_MATCHED_MATCH_MS = 10 * 60 * 1000;
 const STALE_RENDER_ACTIVE_MATCH_MS = 8 * 60 * 60 * 1000;
 const OFFICIAL_START_DISTANCE_NOISE_GRACE_SECONDS = 5;
@@ -143,25 +136,6 @@ const MATCH_ROOM_FAST_POLL_MS = Platform.OS === 'android' ? 1500 : 1000;
 const MATCH_ROOM_IDLE_POLL_MS = 5000;
 const MATCH_STATUS_FAST_POLL_MS = Platform.OS === 'android' ? 2500 : 2000;
 const MATCH_STATUS_IDLE_POLL_MS = 3000;
-
-function parseServerNowMs(serverNow?: string) {
-  const parsedMs = serverNow ? new Date(serverNow).getTime() : NaN;
-  return Number.isFinite(parsedMs) ? parsedMs : null;
-}
-
-function shouldAcceptServerSnapshot(latestServerNowMsRef: { current: number }, serverNow?: string) {
-  const serverNowMs = parseServerNowMs(serverNow);
-  if (serverNowMs === null) {
-    return true;
-  }
-
-  if (serverNowMs < latestServerNowMsRef.current) {
-    return false;
-  }
-
-  latestServerNowMsRef.current = serverNowMs;
-  return true;
-}
 
 function shouldHidePastUpcomingMatch(
   match: Pick<UpcomingRunningMatchItem, 'slotStartAt' | 'status'>,
@@ -182,50 +156,6 @@ function shouldHidePastUpcomingMatch(
   return elapsedMs > STALE_RENDER_MATCHED_MATCH_MS;
 }
 
-function resolveStableCountdownRemainingSeconds(
-  tracker: { current: StableCountdownTracker | null },
-  key: string | null,
-  rawRemainingSeconds: number | null,
-  nowMs: number,
-) {
-  if (!key) {
-    tracker.current = null;
-    return rawRemainingSeconds;
-  }
-
-  const current = tracker.current;
-
-  if (!current || current.key !== key) {
-    if (typeof rawRemainingSeconds !== 'number') {
-      tracker.current = null;
-      return rawRemainingSeconds;
-    }
-    tracker.current = {
-      key,
-      baselineRemainingSeconds: rawRemainingSeconds,
-      baselineNowMs: nowMs,
-    };
-    return rawRemainingSeconds;
-  }
-
-  const elapsedSeconds = Math.max(0, Math.floor((nowMs - current.baselineNowMs) / 1000));
-  const modeledRemainingSeconds = Math.max(0, current.baselineRemainingSeconds - elapsedSeconds);
-
-  if (typeof rawRemainingSeconds !== 'number') {
-    return modeledRemainingSeconds > 0 ? modeledRemainingSeconds : null;
-  }
-
-  if (rawRemainingSeconds < modeledRemainingSeconds) {
-    tracker.current = {
-      key,
-      baselineRemainingSeconds: rawRemainingSeconds,
-      baselineNowMs: nowMs,
-    };
-    return rawRemainingSeconds;
-  }
-
-  return modeledRemainingSeconds;
-}
 type TrackRunMode = 'tab' | 'stack';
 type RoomLinkedMatchContext = PartyRunLinkedMatchContext;
 
@@ -314,17 +244,10 @@ export function TrackRunExperience({
   const roomLinkedMatchContextRef = useRef<RoomLinkedMatchContext | null>(null);
   const focusedDuelMatchIdRef = useRef<string | null>(null);
   const focusedGroupMatchIdRef = useRef<string | null>(null);
-  const countdownReadyRoomAckRef = useRef<string | null>(null);
-  const roomLinkedMatchAutoFocusRef = useRef<string | null>(null);
-  const duelCountdownTrackerRef = useRef<StableCountdownTracker | null>(null);
-  const groupCountdownTrackerRef = useRef<StableCountdownTracker | null>(null);
-  const roomCountdownTrackerRef = useRef<StableCountdownTracker | null>(null);
-  const upcomingCountdownTrackerRef = useRef<StableCountdownTracker | null>(null);
   const latestDuelStatusServerNowMsRef = useRef(0);
   const latestGroupStatusServerNowMsRef = useRef(0);
   const latestUpcomingServerNowMsRef = useRef(0);
   const latestMatchRoomServerNowMsRef = useRef(0);
-  const pushRunningMatchProgressRef = useRef<((input: UpdateRunningMatchProgressInput) => Promise<RunningMatchStatusResponse>) | null>(null);
 
   const {
     matchMode,
@@ -427,8 +350,6 @@ export function TrackRunExperience({
   } = useMatchLifecycle({ focusMatchMode, focusMatchIsTest });
   const pendingForfeitMatchRef = useRef<string | null>(null);
   const pendingCounterpartForfeitResultRef = useRef(false);
-  const countdownAutoOpenMatchIdRef = useRef<string | null>(null);
-  const activeAutoOpenMatchIdRef = useRef<string | null>(null);
   const autoStartedMatchIdRef = useRef<string | null>(null);
   const autoStartingMatchTrackingRef = useRef(false);
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
@@ -472,30 +393,22 @@ export function TrackRunExperience({
     staleActiveMatchMs: STALE_RENDER_ACTIVE_MATCH_MS,
   });
 
-  useEffect(() => {
-    if (!matchRoom) {
-      return;
-    }
-
-    setRoomMatchMode(matchRoom.mode);
-    setRoomStartMode(matchRoom.startMode);
-    setRoomMaxParticipants(String(matchRoom.maxParticipants));
-    setSelectedRoomFriendIds(matchRoom.invitedFriendIds);
-    setRoomInviteTokenInput(matchRoom.inviteToken);
-
-    if (matchRoom.mode === 'duel') {
-      setDuelDistanceText(String(matchRoom.distanceKm));
-      setSelectedDuelSlotStartAt(matchRoom.slotStartAt);
-      setSelectedDuelDateKey(formatMatchDateKey(new Date(matchRoom.slotStartAt)));
-      setSelectedDuelTimeSection(resolveMatchTimeSection(matchRoom.slotStartAt));
-      return;
-    }
-
-    setGroupDistanceText(String(matchRoom.distanceKm));
-    setSelectedGroupSlotStartAt(matchRoom.slotStartAt);
-    setSelectedGroupDateKey(formatMatchDateKey(new Date(matchRoom.slotStartAt)));
-    setSelectedGroupTimeSection(resolveMatchTimeSection(matchRoom.slotStartAt));
-  }, [matchRoom]);
+  useMatchRoomSelectionSync({
+    matchRoom,
+    onRoomModeChange: setRoomMatchMode,
+    onRoomStartModeChange: setRoomStartMode,
+    onRoomMaxParticipantsChange: setRoomMaxParticipants,
+    onSelectedRoomFriendIdsChange: setSelectedRoomFriendIds,
+    onRoomInviteTokenInputChange: setRoomInviteTokenInput,
+    onDuelDistanceTextChange: setDuelDistanceText,
+    onDuelSlotStartAtChange: setSelectedDuelSlotStartAt,
+    onDuelDateKeyChange: setSelectedDuelDateKey,
+    onDuelTimeSectionChange: setSelectedDuelTimeSection,
+    onGroupDistanceTextChange: setGroupDistanceText,
+    onGroupSlotStartAtChange: setSelectedGroupSlotStartAt,
+    onGroupDateKeyChange: setSelectedGroupDateKey,
+    onGroupTimeSectionChange: setSelectedGroupTimeSection,
+  });
 
   const matchOptions = useMemo(
     () => [
@@ -573,28 +486,26 @@ export function TrackRunExperience({
     duelMatchState === 'matched'
       ? getMatchStartRemainingSeconds(duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt, syncedNowMs)
       : null;
-  const duelStartCountdownSeconds = resolveStableCountdownRemainingSeconds(
-    duelCountdownTrackerRef,
-    duelMatchState === 'matched'
+  const duelStartCountdownSeconds = useStableCountdownSeconds({
+    key: duelMatchState === 'matched'
       ? `${duelMatchStatus?.matchId ?? 'duel'}:${duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt}`
       : null,
-    rawDuelStartCountdownSeconds,
+    rawRemainingSeconds: rawDuelStartCountdownSeconds,
     nowMs,
-  );
+  });
   const duelExpiryCountdownLabel = formatMatchExpiryCountdown(duelMatchStatus?.expiresInSeconds);
   const effectiveGroupSlotLabel = groupMatchStatus?.slotLabel ?? groupMatchResult?.slotLabel ?? selectedGroupSlot?.label ?? '시간 미정';
   const rawGroupStartCountdownSeconds =
     groupMatchState === 'matched'
       ? getMatchStartRemainingSeconds(groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt, syncedNowMs)
       : null;
-  const groupStartCountdownSeconds = resolveStableCountdownRemainingSeconds(
-    groupCountdownTrackerRef,
-    groupMatchState === 'matched'
+  const groupStartCountdownSeconds = useStableCountdownSeconds({
+    key: groupMatchState === 'matched'
       ? `${groupMatchStatus?.matchId ?? 'group'}:${groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt}`
       : null,
-    rawGroupStartCountdownSeconds,
+    rawRemainingSeconds: rawGroupStartCountdownSeconds,
     nowMs,
-  );
+  });
   const groupExpiryCountdownLabel = formatMatchExpiryCountdown(groupMatchStatus?.expiresInSeconds);
   const duelNeedsManualRematch = Boolean(duelMatchNotice && duelMatchState === 'idle');
   const groupNeedsManualRematch = Boolean(groupMatchNotice && groupMatchState === 'idle');
@@ -602,27 +513,27 @@ export function TrackRunExperience({
     () => findNextStartingMatchedMatch(visibleUpcomingMatches, syncedNowMs),
     [syncedNowMs, visibleUpcomingMatches],
   );
+  const stableNextStartingMatchKey = useMemo(
+    () => nextStartingMatch
+      ? `${nextStartingMatch.match.matchId}:${nextStartingMatch.match.slotStartAt}`
+      : null,
+    [nextStartingMatch],
+  );
+  const stableNextStartingMatchRemainingSeconds = useStableCountdownSeconds({
+    key: stableNextStartingMatchKey,
+    rawRemainingSeconds: nextStartingMatch?.remainingSeconds ?? null,
+    nowMs,
+  });
   const stableNextStartingMatch = useMemo(() => {
-    if (!nextStartingMatch) {
-      return null;
-    }
-
-    const stableRemainingSeconds = resolveStableCountdownRemainingSeconds(
-      upcomingCountdownTrackerRef,
-      `${nextStartingMatch.match.matchId}:${nextStartingMatch.match.slotStartAt}`,
-      nextStartingMatch.remainingSeconds,
-      nowMs,
-    );
-
-    if (stableRemainingSeconds === null) {
+    if (!nextStartingMatch || stableNextStartingMatchRemainingSeconds === null) {
       return null;
     }
 
     return {
       ...nextStartingMatch,
-      remainingSeconds: stableRemainingSeconds,
+      remainingSeconds: stableNextStartingMatchRemainingSeconds,
     };
-  }, [nextStartingMatch, nowMs]);
+  }, [nextStartingMatch, stableNextStartingMatchRemainingSeconds]);
   const activeUpcomingMatch = useMemo(
     () => visibleUpcomingMatches.find((match) => match.status === 'active') ?? null,
     [visibleUpcomingMatches],
@@ -659,14 +570,13 @@ export function TrackRunExperience({
   const rawRoomCountdownRemainingSeconds = visibleMatchRoom?.linkedMatchSlotStartAt
     ? getMatchStartRemainingSeconds(visibleMatchRoom.linkedMatchSlotStartAt, syncedNowMs)
     : null;
-  const roomCountdownRemainingSeconds = resolveStableCountdownRemainingSeconds(
-    roomCountdownTrackerRef,
-    visibleMatchRoom?.linkedMatchId
+  const roomCountdownRemainingSeconds = useStableCountdownSeconds({
+    key: visibleMatchRoom?.linkedMatchId
       ? `${visibleMatchRoom.linkedMatchId}:${visibleMatchRoom.linkedMatchSlotStartAt ?? visibleMatchRoom.slotStartAt}`
       : null,
-    rawRoomCountdownRemainingSeconds,
+    rawRemainingSeconds: rawRoomCountdownRemainingSeconds,
     nowMs,
-  );
+  });
   const visiblePartyRunFlow = useMemo(() => buildPartyRunFlowSnapshot({
     room: visibleMatchRoom,
     isCountdownReady: currentRoomParticipant?.isCountdownReady,
@@ -1053,88 +963,6 @@ export function TrackRunExperience({
   const backHref: Href = '/my-activity';
   const discardRedirectHref: Href | null = isTabMode ? null : '/my-activity';
 
-  const pushRunningMatchProgress = async (input: UpdateRunningMatchProgressInput) => {
-    const progressAveragePace = buildAveragePace(input.distanceKm, input.elapsedSeconds);
-    const normalizedCurrentPace = normalizeMatchProgressPace(input.currentPace, progressAveragePace);
-    const syncedProgress = {
-      matchId: input.matchId,
-      distanceKm: input.distanceKm,
-      elapsedSeconds: input.elapsedSeconds,
-      currentPace: normalizedCurrentPace,
-      updatedAt: Date.now(),
-    };
-    const nextStatus = await updateRunningMatchProgress({
-      ...input,
-      currentPace: normalizedCurrentPace,
-    });
-    setLastSyncedMatchProgress(syncedProgress);
-
-    if (input.matchId === duelMatchStatus?.matchId) {
-      setDuelMatchStatus(nextStatus);
-    }
-
-    if (input.matchId === groupMatchStatus?.matchId) {
-      setGroupMatchStatus(nextStatus);
-    }
-
-    if (input.matchId === roomLinkedMatchContext?.matchId) {
-      if (roomLinkedMatchContext.mode === 'duel') {
-        setDuelMatchStatus(nextStatus);
-      } else {
-        setGroupMatchStatus(nextStatus);
-      }
-    }
-
-    return nextStatus;
-  };
-
-  const getActiveMatchHeartbeatTarget = () => {
-    if (matchModeRef.current === 'duel' && duelMatchStatusRef.current?.state === 'active' && duelMatchStatusRef.current.matchId) {
-      return {
-        matchId: duelMatchStatusRef.current.matchId,
-      };
-    }
-
-    if (matchModeRef.current === 'group' && groupMatchStatusRef.current?.state === 'active' && groupMatchStatusRef.current.matchId) {
-      return {
-        matchId: groupMatchStatusRef.current.matchId,
-      };
-    }
-
-    const roomLinkedContext = roomLinkedMatchContextRef.current;
-    if (
-      roomLinkedContext
-      && roomLinkedContext.state === 'active'
-      && matchModeRef.current === roomLinkedContext.mode
-    ) {
-      return {
-        matchId: roomLinkedContext.matchId,
-      };
-    }
-
-    return null;
-  };
-
-  const syncMatchLifecycleStatus = async (
-    nextStatus: Extract<UpdateRunningMatchProgressInput['status'], 'running' | 'background'>,
-    snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot(),
-  ) => {
-    const target = getActiveMatchHeartbeatTarget();
-    if (!target || !pushRunningMatchProgressRef.current) {
-      return;
-    }
-
-    const progress = buildDisplayedMatchProgress(snapshot);
-    await pushRunningMatchProgressRef.current({
-      matchId: target.matchId,
-      distanceKm: progress.distanceKm,
-      elapsedSeconds: progress.elapsedSeconds,
-      currentPace: progress.currentPace,
-      status: nextStatus,
-    });
-    matchProgressHeartbeatRef.current = Date.now();
-  };
-
   useEffect(() => {
     liveShareEnabledRef.current = liveShareEnabled;
   }, [liveShareEnabled]);
@@ -1162,10 +990,6 @@ export function TrackRunExperience({
   useEffect(() => {
     roomLinkedMatchContextRef.current = roomLinkedMatchContext;
   }, [roomLinkedMatchContext]);
-
-  useEffect(() => {
-    pushRunningMatchProgressRef.current = pushRunningMatchProgress;
-  }, [pushRunningMatchProgress]);
 
   useEffect(() => {
     if (matchMode !== 'duel') {
@@ -1418,25 +1242,8 @@ export function TrackRunExperience({
     return payload;
   };
 
-  const canOpenRoomLinkedMatch = (room: RunningMatchRoom) => {
-    const participant = room.participants.find((roomParticipant) => (
-      roomParticipant.userId === currentUserId || roomParticipant.tag === currentUserId
-    )) ?? null;
-    const remainingSeconds = getMatchStartRemainingSeconds(
-      room.linkedMatchSlotStartAt ?? room.slotStartAt,
-      getSyncedNowMs(),
-    );
-    const flow = buildPartyRunFlowSnapshot({
-      room,
-      isCountdownReady: participant?.isCountdownReady,
-      remainingSeconds,
-    });
-
-    return flow.canOpenLinkedMatch;
-  };
-
-  const openRoomLinkedMatch = async (room: RunningMatchRoom, options?: { preferArena?: boolean }) => {
-    if (!canOpenRoomLinkedMatch(room)) {
+  const focusRoomLinkedMatch = async (room: RunningMatchRoom, options?: { preferArena?: boolean }) => {
+    if (!room.linkedMatchId) {
       return null;
     }
 
@@ -1570,7 +1377,7 @@ export function TrackRunExperience({
       syncServerClock(payload.serverNow);
       commitMatchRoom(payload.room);
       if (payload.room) {
-        await openRoomLinkedMatch(payload.room);
+        await focusRoomLinkedMatch(payload.room);
       }
     } catch (roomError) {
       setError(roomError instanceof Error ? roomError.message : '방 시작을 반영하지 못했어.');
@@ -1765,8 +1572,6 @@ export function TrackRunExperience({
     matchProgressHeartbeatRef.current = 0;
     preStartWarmupMatchIdRef.current = null;
     autoStartedMatchIdRef.current = null;
-    countdownAutoOpenMatchIdRef.current = null;
-    activeAutoOpenMatchIdRef.current = null;
     roomLinkedMatchContextRef.current = null;
     setForceOpenActiveMatch(false);
     setLiveArenaPage(0);
@@ -1909,182 +1714,63 @@ export function TrackRunExperience({
     };
   }, []);
 
-  useEffect(() => {
-    const needsFastRoomPolling = Boolean(
-      matchRoom?.linkedMatchId || ['arming', 'countdown'].includes(matchRoom?.state ?? ''),
-    );
-    const intervalMs = matchRoom?.state === 'active'
-      ? MATCH_ROOM_IDLE_POLL_MS
-      : needsFastRoomPolling
-        ? MATCH_ROOM_FAST_POLL_MS
-        : MATCH_ROOM_IDLE_POLL_MS;
-    const timer = setInterval(() => {
-      void loadMatchRoom().catch(() => {});
-    }, intervalMs);
-
-    return () => clearInterval(timer);
-  }, [matchRoom?.linkedMatchId, matchRoom?.state]);
-
-  useEffect(() => {
-    if (!matchRoom?.roomId || !matchRoomFlow.canAcknowledgeCountdownReady) {
-      if (!matchRoomFlow.hasLinkedMatch || matchRoomFlow.phase !== 'arming') {
-        countdownReadyRoomAckRef.current = null;
-      }
+  const acknowledgeRoomCountdownReady = async (roomId: string) => {
+    const payload = await acknowledgeRunningMatchRoomCountdown({ roomId });
+    if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
       return;
     }
 
-    const ackKey = `${matchRoom.roomId}:${matchRoom.linkedMatchId}:${currentUserId}`;
-    if (countdownReadyRoomAckRef.current === ackKey) {
-      return;
+    syncServerClock(payload.serverNow);
+    commitMatchRoom(payload.room);
+  };
+
+  const syncRoomLinkedMatchStatus = async (context: RoomLinkedMatchContext) => {
+    if (!context) {
+      return null;
     }
 
-    countdownReadyRoomAckRef.current = ackKey;
-    void acknowledgeRunningMatchRoomCountdown({ roomId: matchRoom.roomId })
-      .then((payload) => {
-        if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
-          return;
-        }
+    return context.mode === 'duel'
+      ? loadDuelMatchStatus(context.slotStartAt, {
+          distanceKm: context.distanceKm,
+          matchId: context.matchId,
+          testMode: false,
+          forceAccept: true,
+        })
+      : loadGroupMatchStatus(context.slotStartAt, {
+          distanceKm: context.distanceKm,
+          matchId: context.matchId,
+          testMode: false,
+          forceAccept: true,
+        });
+  };
 
-        syncServerClock(payload.serverNow);
-        commitMatchRoom(payload.room);
-      })
-      .catch((roomError) => {
-        countdownReadyRoomAckRef.current = null;
-        setError(roomError instanceof Error ? roomError.message : '파티런 카운트다운 준비를 맞추지 못했어.');
-      });
-  }, [
+  usePartyRunSync({
     currentUserId,
-    matchRoom?.linkedMatchId,
-    matchRoom?.roomId,
-    matchRoomFlow.canAcknowledgeCountdownReady,
-    matchRoomFlow.hasLinkedMatch,
-    matchRoomFlow.phase,
-  ]);
-
-  useEffect(() => {
-    if (!matchRoom?.linkedMatchId || !canOpenRoomLinkedMatch(matchRoom)) {
-      roomLinkedMatchAutoFocusRef.current = null;
-      return;
-    }
-
-    const shouldPreferArena = matchRoomFlow.shouldPreferArena;
-
-    const nextKey = [
-      matchRoom.roomId,
-      matchRoom.linkedMatchId,
-      matchRoom.state,
-      matchRoom.linkedMatchSlotStartAt ?? matchRoom.slotStartAt,
-      shouldPreferArena ? 'arena' : 'countdown',
-    ].join(':');
-
-    const currentFocusedMatchId = matchRoom.mode === 'duel'
-      ? duelMatchStatus?.matchId ?? focusedDuelMatchIdRef.current
-      : groupMatchStatus?.matchId ?? focusedGroupMatchIdRef.current;
-    const currentFocusedState = matchRoom.mode === 'duel'
-      ? duelMatchStatus?.state
-      : groupMatchStatus?.state;
-
-    if (
-      roomLinkedMatchAutoFocusRef.current === nextKey
-      && currentFocusedMatchId === matchRoom.linkedMatchId
-      && currentFocusedState === (matchRoom.linkedMatchStatus === 'active' ? 'active' : currentFocusedState)
-    ) {
-      return;
-    }
-
-    roomLinkedMatchAutoFocusRef.current = nextKey;
-    void openRoomLinkedMatch(matchRoom, { preferArena: shouldPreferArena }).catch(() => {
-      roomLinkedMatchAutoFocusRef.current = null;
-    });
-  }, [
-    duelMatchStatus?.matchId,
-    duelMatchStatus?.state,
-    groupMatchStatus?.matchId,
-    groupMatchStatus?.state,
-    matchRoom?.linkedMatchId,
-    matchRoom?.linkedMatchStatus,
-    matchRoom?.linkedMatchSlotStartAt,
-    matchRoom?.mode,
-    matchRoom?.roomId,
-    matchRoom?.slotStartAt,
-    matchRoom?.state,
-    matchRoomFlow.shouldPreferArena,
+    matchRoom,
+    matchRoomFlow,
+    visiblePartyRunFlow,
+    roomLinkedMatchContext,
     roomCountdownRemainingSeconds,
-  ]);
-
-  useEffect(() => {
-    if (!roomLinkedMatchContext) {
-      return;
-    }
-
-    let canceled = false;
-
-    const syncRoomLinkedMatchStatus = async () => {
-      try {
-        const payload = roomLinkedMatchContext.mode === 'duel'
-          ? await loadDuelMatchStatus(roomLinkedMatchContext.slotStartAt, {
-              distanceKm: roomLinkedMatchContext.distanceKm,
-              matchId: roomLinkedMatchContext.matchId,
-              testMode: false,
-              forceAccept: true,
-            })
-          : await loadGroupMatchStatus(roomLinkedMatchContext.slotStartAt, {
-              distanceKm: roomLinkedMatchContext.distanceKm,
-              matchId: roomLinkedMatchContext.matchId,
-              testMode: false,
-              forceAccept: true,
-            });
-
-        if (canceled) {
-          return;
-        }
-
-        setMatchMode(roomLinkedMatchContext.mode);
-
-        const shouldPinArenaPage = shouldAutoOpenMatchArena(
-          getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()),
-        );
-
-        if (payload.state === 'active' || shouldPinArenaPage) {
-          setForceOpenActiveMatch(true);
-
-          if (shouldPinArenaPage) {
-            setLiveArenaPage(0);
-            livePagerRef.current?.scrollTo({ x: 0, animated: false });
-          }
-        }
-      } catch {
-        // The room snapshot still keeps the arena open; retry on the next short poll.
-      }
-    };
-
-    void syncRoomLinkedMatchStatus();
-
-    const intervalMs = visiblePartyRunFlow.phase === 'countdown'
-      || visiblePartyRunFlow.shouldOpenArena
-      ? MATCH_STATUS_FAST_POLL_MS
-      : MATCH_STATUS_IDLE_POLL_MS;
-    const timer = setInterval(() => {
-      void syncRoomLinkedMatchStatus();
-    }, intervalMs);
-
-    return () => {
-      canceled = true;
-      clearInterval(timer);
-    };
-  }, [
-    roomLinkedMatchContext?.distanceKm,
-    roomLinkedMatchContext?.matchId,
-    roomLinkedMatchContext?.mode,
-    roomLinkedMatchContext?.slotStartAt,
-    roomLinkedMatchContext?.state,
-    visiblePartyRunFlow.phase,
-    visiblePartyRunFlow.shouldOpenArena,
-  ]);
-
-  useEffect(() => {
-    void loadUpcomingMatches().catch(() => {});
-  }, [matchRoom?.linkedMatchId, matchRoom?.state]);
+    duelMatchStatus,
+    groupMatchStatus,
+    focusedDuelMatchIdRef,
+    focusedGroupMatchIdRef,
+    livePagerRef,
+    fastRoomPollMs: MATCH_ROOM_FAST_POLL_MS,
+    idleRoomPollMs: MATCH_ROOM_IDLE_POLL_MS,
+    fastMatchStatusPollMs: MATCH_STATUS_FAST_POLL_MS,
+    idleMatchStatusPollMs: MATCH_STATUS_IDLE_POLL_MS,
+    getSyncedNowMs,
+    loadMatchRoom,
+    acknowledgeCountdownReady: acknowledgeRoomCountdownReady,
+    focusRoomLinkedMatch,
+    syncRoomLinkedMatchStatus,
+    loadUpcomingMatches,
+    onMatchModeChange: setMatchMode,
+    onForceOpenActiveMatchChange: setForceOpenActiveMatch,
+    onLiveArenaPageChange: setLiveArenaPage,
+    onError: setError,
+  });
 
   useEffect(() => {
     void refreshStaleMatchArtifacts().catch(() => {});
@@ -2133,101 +1819,28 @@ export function TrackRunExperience({
       });
   }, [roomInviteToken]);
 
-  useEffect(() => {
-    if (isResolvingFocusedMatch) {
-      return;
-    }
-
-    if (!shouldKeepMatchArenaForceOpen({
-      isResolvingFocusedMatch,
-      duelState: duelMatchState,
-      groupState: groupMatchState,
-      duelShouldOpenCountdownArena,
-      groupShouldOpenCountdownArena,
-      roomShouldOpenCountdownArena,
-      forceOpenActiveMatch,
-      shouldKeepRunningMatchArena,
-    })) {
-      setForceOpenActiveMatch(false);
-    }
-  }, [
-    duelMatchState,
-    duelShouldOpenCountdownArena,
-    forceOpenActiveMatch,
-    groupMatchState,
-    groupShouldOpenCountdownArena,
+  useLiveMatchNavigationEffects({
+    livePagerRef,
     isResolvingFocusedMatch,
-    roomShouldOpenCountdownArena,
+    isIdle,
+    forceOpenActiveMatch,
     shouldKeepRunningMatchArena,
-  ]);
-
-  useEffect(() => {
-    if (!shouldEnterMatchArenaForLifecycle({
-      duelState: duelMatchState,
-      groupState: groupMatchState,
-      duelShouldOpenCountdownArena,
-      groupShouldOpenCountdownArena,
-    })) {
-      return;
-    }
-
-    setForceOpenActiveMatch(true);
-    setLiveArenaPage(0);
-    livePagerRef.current?.scrollTo({ x: 0, animated: false });
-  }, [duelMatchState, duelShouldOpenCountdownArena, groupMatchState, groupShouldOpenCountdownArena]);
-
-  useEffect(() => {
-    if (!hasMatchResultPage) {
-      return;
-    }
-
-    setLiveArenaPage(3);
-    livePagerRef.current?.scrollTo({ x: liveArenaPageWidth * 3, animated: true });
-  }, [hasMatchResultPage, liveArenaPageWidth]);
-
-  useEffect(() => {
-    if (!nextStartingMatch || !shouldAutoFocusMatchArena(isIdle, nextStartingMatch.remainingSeconds)) {
-      countdownAutoOpenMatchIdRef.current = null;
-      return;
-    }
-
-    if (countdownAutoOpenMatchIdRef.current === nextStartingMatch.match.matchId) {
-      return;
-    }
-
-    countdownAutoOpenMatchIdRef.current = nextStartingMatch.match.matchId;
-
-    void focusRunningMatch({
-      mode: nextStartingMatch.match.mode,
-      matchId: nextStartingMatch.match.matchId,
-      distanceKm: nextStartingMatch.match.distanceKm,
-      slotStartAt: nextStartingMatch.match.slotStartAt,
-      isTestMatch: nextStartingMatch.match.isTestMatch,
-      preferArena: true,
-    }).catch(() => {});
-  }, [focusRunningMatch, isIdle, nextStartingMatch]);
-
-  useEffect(() => {
-    if (!isIdle || !activeUpcomingMatch) {
-      activeAutoOpenMatchIdRef.current = null;
-      return;
-    }
-
-    if (activeAutoOpenMatchIdRef.current === activeUpcomingMatch.matchId) {
-      return;
-    }
-
-    activeAutoOpenMatchIdRef.current = activeUpcomingMatch.matchId;
-
-    void focusRunningMatch({
-      mode: activeUpcomingMatch.mode,
-      matchId: activeUpcomingMatch.matchId,
-      distanceKm: activeUpcomingMatch.distanceKm,
-      slotStartAt: activeUpcomingMatch.slotStartAt,
-      isTestMatch: activeUpcomingMatch.isTestMatch,
-      preferArena: true,
-    }).catch(() => {});
-  }, [activeUpcomingMatch, focusRunningMatch, isIdle]);
+    showLiveArena,
+    hasMatchResultPage,
+    liveArenaPageWidth,
+    duelState: duelMatchState,
+    groupState: groupMatchState,
+    duelMatchId: duelMatchStatus?.matchId,
+    groupMatchId: groupMatchStatus?.matchId,
+    duelShouldOpenCountdownArena,
+    groupShouldOpenCountdownArena,
+    roomShouldOpenCountdownArena,
+    nextStartingMatch,
+    activeUpcomingMatch,
+    onForceOpenActiveMatchChange: setForceOpenActiveMatch,
+    onLiveArenaPageChange: setLiveArenaPage,
+    focusRunningMatch,
+  });
 
   const shouldShowFullscreenMatchCountdown =
     isIdle
@@ -2284,15 +1897,6 @@ export function TrackRunExperience({
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (!showLiveArena) {
-      return;
-    }
-
-    setLiveArenaPage(0);
-    livePagerRef.current?.scrollTo({ x: 0, animated: false });
-  }, [duelMatchStatus?.matchId, groupMatchStatus?.matchId, showLiveArena]);
 
   useEffect(() => {
     const roomWarmupMatchId =
@@ -2582,46 +2186,14 @@ export function TrackRunExperience({
     snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot(),
   ) => {
     ensureOfficialStartBaseline(snapshot);
-    const rawElapsedSeconds = getBackgroundRunElapsedSeconds(snapshot);
-    const baseline = officialStartBaselineRef.current;
-
-    if (baseline) {
-      const adjustedRoute = buildRouteFromOfficialStart(snapshot, baseline);
-      const adjustedElapsedSeconds = Math.max(0, rawElapsedSeconds - baseline.elapsedSeconds);
-      const adjustedDistanceKm = Number(Math.max(0, snapshot.distanceKm - baseline.distanceKm).toFixed(2));
-      const shouldSuppressStartNoise = adjustedElapsedSeconds <= OFFICIAL_START_DISTANCE_NOISE_GRACE_SECONDS
-        && adjustedDistanceKm <= OFFICIAL_START_DISTANCE_NOISE_GRACE_KM;
-      const displayRoute = shouldSuppressStartNoise ? adjustedRoute.slice(0, 1) : adjustedRoute;
-
-      return {
-        route: displayRoute,
-        distanceKm: shouldSuppressStartNoise ? 0 : adjustedDistanceKm,
-        elevationGainM: shouldSuppressStartNoise ? 0 : calculateElevationGainM(displayRoute),
-        currentPace: snapshot.currentPace,
-        elapsedSeconds: adjustedElapsedSeconds,
-        startedAt: baseline.startedAt,
-      };
-    }
-
-    if (preStartWarmupMatchIdRef.current) {
-      return {
-        route: [] as RunRoutePoint[],
-        distanceKm: 0,
-        elevationGainM: 0,
-        currentPace: snapshot.currentPace,
-        elapsedSeconds: 0,
-        startedAt: snapshot.startedAt,
-      };
-    }
-
-    return {
-      route: snapshot.route,
-      distanceKm: snapshot.distanceKm,
-      elevationGainM: snapshot.elevationGainM,
-      currentPace: snapshot.currentPace,
-      elapsedSeconds: rawElapsedSeconds,
-      startedAt: snapshot.startedAt,
-    };
+    return buildDisplayedTrackingSnapshot({
+      snapshot,
+      rawElapsedSeconds: getBackgroundRunElapsedSeconds(snapshot),
+      officialStartBaseline: officialStartBaselineRef.current,
+      hasPreStartWarmup: Boolean(preStartWarmupMatchIdRef.current),
+      startNoiseGraceSeconds: OFFICIAL_START_DISTANCE_NOISE_GRACE_SECONDS,
+      startNoiseGraceKm: OFFICIAL_START_DISTANCE_NOISE_GRACE_KM,
+    });
   };
 
   const buildDisplayedMatchProgress = (
@@ -2772,6 +2344,22 @@ export function TrackRunExperience({
     return payload;
   };
 
+  const {
+    pushRunningMatchProgress,
+    refreshMatchProgressHeartbeat,
+    syncMatchLifecycleStatus,
+  } = useMatchProgressSync({
+    matchModeRef,
+    duelMatchStatusRef,
+    groupMatchStatusRef,
+    roomLinkedMatchContextRef,
+    matchProgressHeartbeatRef,
+    buildDisplayedMatchProgress,
+    setLastSyncedMatchProgress,
+    setDuelMatchStatus,
+    setGroupMatchStatus,
+  });
+
   const refreshLiveSharingHeartbeat = (snapshot: BackgroundRunTrackingSnapshot) => {
     if (!liveShareEnabledRef.current || snapshot.status !== 'running') {
       return;
@@ -2790,37 +2378,6 @@ export function TrackRunExperience({
       locationLabel: liveShareLabelRef.current,
     }).catch(() => {
       // Keep the run going even if the optional live-share heartbeat fails.
-    });
-  };
-
-  const refreshMatchProgressHeartbeat = (snapshot: BackgroundRunTrackingSnapshot) => {
-    if (snapshot.status !== 'running') {
-      return;
-    }
-
-    const target = getActiveMatchHeartbeatTarget();
-    const pushProgress = pushRunningMatchProgressRef.current;
-
-    if (!target || !pushProgress) {
-      return;
-    }
-
-    const now = Date.now();
-
-    if (now - matchProgressHeartbeatRef.current < 2000) {
-      return;
-    }
-
-    matchProgressHeartbeatRef.current = now;
-    const progress = buildDisplayedMatchProgress(snapshot);
-    void pushProgress({
-      matchId: target.matchId,
-      distanceKm: progress.distanceKm,
-      elapsedSeconds: progress.elapsedSeconds,
-      currentPace: progress.currentPace,
-      status: 'running',
-    }).catch(() => {
-      // Keep the run going even if the optional match heartbeat fails.
     });
   };
 

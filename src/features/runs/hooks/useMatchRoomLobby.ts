@@ -21,56 +21,20 @@ import {
   buildPartyRunFlowSnapshot,
 } from '@/features/runs/matchStateMachine';
 import {
-  areAllMatchRoomGuestsReady,
-  buildMatchRoomInviteAcceptanceState,
+  buildMatchRoomUxModel,
   buildPendingMatchRoomInvitees,
 } from '@/features/runs/matchRoomFlow';
+import {
+  parseServerNowMs,
+  resolveStableServerClockOffset,
+  shouldAcceptServerSnapshot,
+} from '@/features/runs/serverClockSync';
 import { getMatchStartRemainingSeconds } from '@/lib/matchCountdown';
 import { getCurrentUserProfile } from '@/lib/session';
 
 export const MATCH_ROOM_HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 export const MATCH_ROOM_MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => index);
 export const MATCH_ROOM_DISTANCE_OPTIONS = [3, 5, 7, 10, 15, 21.1, 42.2];
-
-const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 3000;
-const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
-const SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR = 0.25;
-
-function parseServerNowMs(serverNow?: string) {
-  const parsedMs = serverNow ? new Date(serverNow).getTime() : NaN;
-  return Number.isFinite(parsedMs) ? parsedMs : null;
-}
-
-function resolveStableServerClockOffset(currentOffsetMs: number, nextOffsetMs: number) {
-  if (Math.abs(nextOffsetMs) < SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS) {
-    return 0;
-  }
-
-  if (currentOffsetMs === 0) {
-    return nextOffsetMs;
-  }
-
-  const offsetDeltaMs = nextOffsetMs - currentOffsetMs;
-  if (Math.abs(offsetDeltaMs) < SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS) {
-    return currentOffsetMs;
-  }
-
-  return Math.round(currentOffsetMs + offsetDeltaMs * SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR);
-}
-
-function shouldAcceptServerSnapshot(latestServerNowMsRef: { current: number }, serverNow?: string) {
-  const serverNowMs = parseServerNowMs(serverNow);
-  if (serverNowMs === null) {
-    return true;
-  }
-
-  if (serverNowMs < latestServerNowMsRef.current) {
-    return false;
-  }
-
-  latestServerNowMsRef.current = serverNowMs;
-  return true;
-}
 
 function buildRoomRenderKey(room: RunningMatchRoom | null) {
   if (!room) {
@@ -350,11 +314,17 @@ export function useMatchRoomLobby() {
     [friendLeaderboard?.ranks, room],
   );
 
-  const inviteAcceptanceState = buildMatchRoomInviteAcceptanceState(room, currentUserTag);
-  const isInvitedOnly = inviteAcceptanceState.isInvitedOnly;
+  const roomUxModel = useMemo(
+    () => buildMatchRoomUxModel({
+      room,
+      currentUserId: currentUserTag,
+      pendingInvitees,
+    }),
+    [currentUserTag, pendingInvitees, room],
+  );
+  const isInvitedOnly = roomUxModel.invite.isInvitedOnly;
   const hasInviteDraftChanges = room ? !areSameIdSet(selectedFriendIds, room.invitedFriendIds) : false;
-  const isReady = Boolean(currentParticipant?.isReady);
-  const allGuestsReady = areAllMatchRoomGuestsReady(room);
+  const isReady = roomUxModel.readyAction.state === 'ready';
   const scheduledStartAt = buildScheduledStartAt(
     meridiem,
     MATCH_ROOM_HOUR_OPTIONS[hourIndex] ?? 12,
@@ -410,7 +380,7 @@ export function useMatchRoomLobby() {
   };
 
   const handleToggleReady = async () => {
-    if (!room || room.isHost) {
+    if (!room || !roomUxModel.readyAction.canToggle) {
       return;
     }
 
@@ -436,7 +406,10 @@ export function useMatchRoomLobby() {
   };
 
   const handleStart = async () => {
-    if (!room?.isHost) {
+    if (!room || !roomUxModel.startAction.canStart) {
+      if (roomUxModel.startAction.visible && roomUxModel.startAction.helperText) {
+        setError(roomUxModel.startAction.helperText);
+      }
       return;
     }
 
@@ -478,7 +451,7 @@ export function useMatchRoomLobby() {
   };
 
   const handleAcceptInvite = async () => {
-    if (!room) {
+    if (!room || !roomUxModel.invite.canAccept) {
       return;
     }
 
@@ -501,7 +474,7 @@ export function useMatchRoomLobby() {
   };
 
   const handleDeclineInvite = async () => {
-    if (!room) {
+    if (!room || !roomUxModel.invite.canDecline) {
       return;
     }
 
@@ -585,11 +558,9 @@ export function useMatchRoomLobby() {
     customDistanceText,
     setCustomDistanceText,
     friendOptions,
-    pendingInvitees,
+    roomUxModel,
     isInvitedOnly,
     hasInviteDraftChanges,
-    isReady,
-    allGuestsReady,
     scheduledStartAt,
     linkedMatchRemainingSeconds,
     partyRunStartPhase,

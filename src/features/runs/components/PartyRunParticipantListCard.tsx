@@ -1,84 +1,84 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import type {
-  RunningMatchRoom,
-  RunningMatchRoomInvitee,
-} from '@/lib/api/types';
+import type { MatchRoomParticipantUxStatus, MatchRoomUxModel } from '@/features/runs/matchRoomFlow';
+import type { RunningMatchRoom } from '@/lib/api/types';
 
 type PartyRunParticipantListCardProps = {
   room: RunningMatchRoom;
-  pendingInvitees: RunningMatchRoomInvitee[];
+  uxModel: MatchRoomUxModel;
   saving: boolean;
-  isReady: boolean;
-  allGuestsReady: boolean;
   onToggleReady: () => void;
   onStart: () => void;
 };
 
+function getParticipantStatusStyle(status: MatchRoomParticipantUxStatus) {
+  switch (status) {
+    case 'host':
+      return styles.hostStatusText;
+    case 'ready':
+    case 'countdown-ready':
+      return styles.readyText;
+    case 'countdown-loading':
+      return styles.loadingText;
+    case 'invite-pending':
+      return styles.invitedStatusText;
+    case 'waiting':
+    default:
+      return styles.pendingText;
+  }
+}
+
 export function PartyRunParticipantListCard({
   room,
-  pendingInvitees,
+  uxModel,
   saving,
-  isReady,
-  allGuestsReady,
   onToggleReady,
   onStart,
 }: PartyRunParticipantListCardProps) {
+  const { readyAction, startAction } = uxModel;
+
   return (
     <Card>
       <Text style={styles.sectionTitle}>참가자 명단</Text>
       <View style={styles.participantList}>
-        {room.participants.map((participant, index) => (
-          <View key={`${participant.userId}-${index}`} style={styles.participantRow}>
+        {uxModel.participants.map((participant) => (
+          <View
+            key={participant.id}
+            style={[styles.participantRow, participant.isInvitee ? styles.invitedParticipantRow : undefined]}
+          >
             <View style={styles.participantIdentity}>
               <Text style={styles.participantName}>{participant.name}</Text>
-              {participant.isHost ? <Text style={styles.hostBadge}>방장</Text> : null}
+              {participant.badgeLabel ? (
+                <Text style={participant.isInvitee ? styles.invitedBadge : styles.hostBadge}>
+                  {participant.badgeLabel}
+                </Text>
+              ) : null}
             </View>
-            <Text style={participant.isHost ? styles.hostStatusText : (participant.isReady ? styles.readyText : styles.pendingText)}>
-              {room.linkedMatchId
-                ? (participant.isCountdownReady ? '로딩 완료' : '로딩 중')
-                : participant.isHost
-                  ? '시작 권한'
-                  : (participant.isReady ? '준비 완료' : '대기 중')}
+            <Text style={getParticipantStatusStyle(participant.status)}>
+              {participant.statusLabel}
             </Text>
           </View>
         ))}
-        {pendingInvitees.map((invitee) => (
-          <View key={`invitee-${invitee.userId}`} style={[styles.participantRow, styles.invitedParticipantRow]}>
-            <View style={styles.participantIdentity}>
-              <Text style={styles.participantName}>{invitee.name}</Text>
-              <Text style={styles.invitedBadge}>초대됨</Text>
-            </View>
-            <Text style={styles.invitedStatusText}>수락 대기중</Text>
-          </View>
-        ))}
       </View>
-      {!room.isHost && !room.linkedMatchId ? (
+      {readyAction.visible ? (
         <PrimaryButton
-          label={saving ? '반영 중...' : isReady ? '준비 취소' : '준비'}
+          label={saving ? '반영 중...' : readyAction.label ?? '준비'}
           onPress={onToggleReady}
-          disabled={saving}
+          disabled={saving || !readyAction.canToggle}
         />
-      ) : room.isHost && room.startMode === 'host' && !room.linkedMatchId ? (
+      ) : startAction.visible ? (
         <PrimaryButton
-          label={saving ? '시작 준비 중...' : '시작'}
+          label={saving ? '시작 준비 중...' : startAction.label ?? '시작'}
           onPress={onStart}
-          disabled={saving || !room.canStart}
+          disabled={saving || !startAction.canStart}
         />
-      ) : room.state === 'arming' ? (
-        <Text style={styles.helperText}>모든 기기가 카운트다운 준비를 마치면 함께 시작 카운트다운이 보여요.</Text>
-      ) : room.linkedMatchId ? (
-        <Text style={styles.helperText}>카운트다운이 시작되면 자동으로 대결 화면으로 이동해요.</Text>
       ) : (
-        <Text style={styles.helperText}>예약 시간 30초 전에 카운트다운이 시작돼요.</Text>
+        <Text style={styles.helperText}>{startAction.helperText}</Text>
       )}
-      {room.isHost && room.startMode === 'host' && !room.canStart ? (
-        <Text style={styles.helperText}>
-          {allGuestsReady
-            ? `최소 ${room.minParticipants}명은 모여야 시작할 수 있어요.`
-            : '모든 참가자가 준비 완료해야 시작할 수 있어요.'}
-        </Text>
+      {readyAction.visible && readyAction.helperText ? <Text style={styles.helperText}>{readyAction.helperText}</Text> : null}
+      {room.isHost && startAction.visible && startAction.helperText ? (
+        <Text style={styles.helperText}>{startAction.helperText}</Text>
       ) : null}
     </Card>
   );
@@ -129,6 +129,11 @@ const styles = StyleSheet.create({
   },
   readyText: {
     color: '#1570EF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  loadingText: {
+    color: '#F79009',
     fontSize: 14,
     fontWeight: '800',
   },
