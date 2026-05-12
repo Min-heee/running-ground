@@ -26,6 +26,11 @@ export function AndroidLiveMatchPerfPanel({ label }: AndroidLiveMatchPerfPanelPr
   const visibleParticipantsLabel = typeof summary.visibleParticipants === 'number'
     ? ` · 표시 ${summary.visibleParticipants}명`
     : '';
+  const diagnosisStyle = summary.diagnosis.level === 'critical'
+    ? styles.diagnosisCritical
+    : summary.diagnosis.level === 'watch'
+      ? styles.diagnosisWatch
+      : styles.diagnosisStable;
 
   return (
     <View style={styles.panel} pointerEvents="none">
@@ -35,6 +40,15 @@ export function AndroidLiveMatchPerfPanel({ label }: AndroidLiveMatchPerfPanelPr
       </Text>
       <Text style={styles.line}>
         렌더 {summary.latestRenders}/5s / 평균 {summary.averageRenders}
+      </Text>
+      <Text style={styles.line}>
+        변화 전체 {summary.latestProgressUpdates} · 표시 {summary.latestVisibleProgressUpdates} · 숨은 {summary.latestHiddenProgressUpdates}
+      </Text>
+      <Text style={styles.line}>
+        정적 {summary.latestStaticRenders} · 레이아웃 {summary.latestLayoutUpdates} · 거리 {summary.latestTargetUpdates}
+      </Text>
+      <Text style={[styles.diagnosis, diagnosisStyle]}>
+        진단 {summary.diagnosis.label}
       </Text>
       <Text style={styles.meta}>
         참가 {summary.participants}명{visibleParticipantsLabel} · {summary.targetDistanceKm.toFixed(1)}km · 샘플 {summary.sampleCount}
@@ -68,5 +82,26 @@ const styles = StyleSheet.create({
     color: '#CBD5E1',
     fontSize: 11,
     fontWeight: '700',
+  },
+  diagnosis: {
+    borderRadius: 999,
+    alignSelf: 'flex-start',
+    overflow: 'hidden',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  diagnosisStable: {
+    backgroundColor: 'rgba(34, 197, 94, 0.18)',
+    color: '#BBF7D0',
+  },
+  diagnosisWatch: {
+    backgroundColor: 'rgba(250, 204, 21, 0.18)',
+    color: '#FEF08A',
+  },
+  diagnosisCritical: {
+    backgroundColor: 'rgba(248, 113, 113, 0.18)',
+    color: '#FECACA',
   },
 });

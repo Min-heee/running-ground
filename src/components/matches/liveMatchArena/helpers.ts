@@ -78,6 +78,21 @@ export function buildAndroidRenderParticipants(participants: ArenaParticipant[])
   });
 }
 
+export function buildParticipantPerfSignature(participants: ArenaParticipant[]) {
+  return participants
+    .map((participant) => [
+      participant.id,
+      getComparableDistanceKm(participant.distanceKm).toFixed(2),
+      participant.paceLabel,
+      participant.liveStatus ?? '',
+      participant.rankLabel ?? '',
+      participant.isCurrentUser ? 'me' : 'runner',
+      participant.emphasis ?? '',
+      participant.showPaceBubble ? 'bubble' : 'no-bubble',
+    ].join(':'))
+    .join('|');
+}
+
 export function sortGroupParticipants(participants: ArenaParticipant[]) {
   return [...participants].sort((left, right) => {
     if (isForfeited(left) !== isForfeited(right)) {

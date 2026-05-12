@@ -8,6 +8,7 @@ import {
   areStringArraysEqual,
   buildAndroidLightParticipants,
   buildAndroidRenderParticipants,
+  buildParticipantPerfSignature,
   sortGroupParticipants,
 } from '@/components/matches/liveMatchArena/helpers';
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
@@ -56,12 +57,23 @@ export const LiveMatchArena = memo(function LiveMatchArena({
     return buildAndroidRenderParticipants(buildAndroidLightParticipants(sortGroupParticipants(participants)));
   }, [mode, participants]);
   const visibleParticipantsCount = mode === 'group' ? visibleGroupParticipants.length : participants.length;
+  const visibleParticipants = mode === 'duel' ? duelParticipants : visibleGroupParticipants;
+  const participantSignature = useMemo(
+    () => buildParticipantPerfSignature(participants),
+    [participants],
+  );
+  const visibleParticipantSignature = useMemo(
+    () => buildParticipantPerfSignature(visibleParticipants),
+    [visibleParticipants],
+  );
 
   useAndroidLiveMatchPerfProbe({
     label: perfLabel,
     mode,
     participants: participants.length,
     visibleParticipants: visibleParticipantsCount,
+    participantSignature,
+    visibleParticipantSignature,
     targetDistanceKm,
   });
 

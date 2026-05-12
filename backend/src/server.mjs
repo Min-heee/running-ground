@@ -65,14 +65,7 @@ import {
   maskPhoneNumber,
   normalizePhoneNumber,
 } from './phoneVerification.mjs';
-import { routeAdminRequest } from './routes/adminRoutes.mjs';
-import { routeAuthRequest } from './routes/authRoutes.mjs';
-import { routeLeagueRequest } from './routes/leagueRoutes.mjs';
-import { routeMarketRequest } from './routes/marketRoutes.mjs';
-import { routeRaceRequest } from './routes/raceRoutes.mjs';
-import { routeRunningMatchRequest } from './routes/runningMatchRoutes.mjs';
-import { routeRunRequest } from './routes/runRoutes.mjs';
-import { routeSocialRequest } from './routes/socialRoutes.mjs';
+import { createApiRouteHandler } from './routes/index.mjs';
 const STARTED_AT = new Date().toISOString();
 const metricsCacheByStore = new WeakMap();
 const SOURCE_LABEL_BY_TYPE = {
@@ -5800,139 +5793,96 @@ function buildOfflineRaceHub(store, user) {
   };
 }
 
-async function routeRequest(request, response) {
-  if (!request.url) {
-    throw new ApiError(400, '요청 주소를 읽을 수 없어.');
-  }
-
-  if (request.method === 'OPTIONS') {
-    response.writeHead(204);
-    response.end();
-    return;
-  }
-
-  const url = new URL(request.url, `http://${request.headers.host ?? 'localhost'}`);
-  const pathname = url.pathname;
-  const method = request.method;
-
-  if (pathname === '/api/health' && method === 'GET') {
-    const healthStatus = buildHealthStatus();
-    sendJson(response, healthStatus.statusCode, healthStatus.payload);
-    return;
-  }
-
-  const routeContext = {
-    method,
-    pathname,
-    request,
-    response,
-    url,
-    ApiError,
-    ENABLE_ADMIN_STATUS,
-    ENABLE_RESET_ENDPOINT,
-    sendJson,
-    parseJsonBody,
-    loadStore,
-    resetStore,
-    getStoreFilePath,
-    requireAdmin,
-    requireUser,
-    getAccessToken,
-    getAdminRepository,
-    getAuthRepository,
-    getMarketRepository,
-    getRaceRepository,
-    getRunsRepository,
-    buildAdminStatus,
-    buildAdminSession,
-    buildRegionCatalog,
-    buildUniversityCatalog,
-    buildProfileReadPayload,
-    buildNotificationSettingsReadPayload,
-    buildUpcomingRunningMatchesReadPayload,
-    buildMyActivityReadPayload,
-    buildIntegrationSourcesReadPayload,
-    buildFriendLeaderboardReadPayload,
-    buildFriendActivityReadPayload,
-    buildFriendRunReadPayload,
-    buildDistrictPersonalReadPayload,
-    buildRegionLeagueReadPayload,
-    buildUniversityLeagueReadPayload,
-    buildMarketOverviewReadPayload,
-    buildOfflineRaceHubReadPayload,
-    buildCurrentRunReadPayload,
-    buildHomeSummaryReadPayload,
-    validateUsername,
-    validateRequiredString,
-    validateDistanceKm,
-    validateRoutePreviewCoordinates,
-    buildRoadAlignedRoutePreview,
-    handleLogin,
-    handleFindUsername,
-    handleResetPassword,
-    handleRequestPhoneVerificationCode,
-    handleVerifyPhoneVerificationCode,
-    handleLogout,
-    handleDeleteMyAccount,
-    handleRegister,
-    handlePatchMyProfile,
-    handlePatchMyRegion,
-    handlePatchMyNotifications,
-    handlePatchMyLiveSharing,
-    handleDeleteAdminUser,
-    handleCreateAdminMarketItem,
-    handleUpdateAdminMarketItem,
-    handleDeleteAdminMarketItem,
-    handleCreateAdminNotice,
-    handleUpdateAdminNotice,
-    handleDeleteAdminNotice,
-    handleUpdateAdminRewardRedemption,
-    handleCreateAdminOfflineRaceEvent,
-    handleUpdateAdminOfflineRaceEvent,
-    handleDeleteAdminOfflineRaceEvent,
-    handleCreateManualRun,
-    handleCreateTrackedRun,
-    handleRequestDuelMatch,
-    handleRequestGroupMatch,
-    handleFetchMatchDemandSummary,
-    handleFetchRunningMatchStatus,
-    handleAcceptRunningMatch,
-    handleCancelRunningMatch,
-    handleLeaveRunningMatch,
-    handleUpdateRunningMatchProgress,
-    handleFetchMyRunningMatchRoom,
-    handleCreateRunningMatchRoom,
-    handleJoinRunningMatchRoom,
-    handleStartRunningMatchRoom,
-    handleUpdateRunningMatchRoom,
-    handleUpdateRunningMatchRoomReady,
-    handleAcknowledgeRunningMatchRoomCountdown,
-    handleLeaveRunningMatchRoom,
-    handleOfflineRaceEntryAction,
-    handleClaimMarketItem,
-    handleFriendRequestCreate,
-    handleFriendRequestAction,
-    handleIntegrationSourceConnection,
-    handleQueueIntegrationImports,
-  };
-
-  for (const handleRoute of [
-    routeAdminRequest,
-    routeAuthRequest,
-    routeRunningMatchRequest,
-    routeRunRequest,
-    routeMarketRequest,
-    routeRaceRequest,
-    routeSocialRequest,
-    routeLeagueRequest,
-  ]) {
-    if (await handleRoute(routeContext)) {
-      return;
-    }
-  }
-
-  throw new ApiError(404, '요청한 API를 찾을 수 없어.');
-}
+const routeRequest = createApiRouteHandler({
+  ApiError,
+  buildHealthStatus,
+  ENABLE_ADMIN_STATUS,
+  ENABLE_RESET_ENDPOINT,
+  sendJson,
+  parseJsonBody,
+  loadStore,
+  resetStore,
+  getStoreFilePath,
+  requireAdmin,
+  requireUser,
+  getAccessToken,
+  getAdminRepository,
+  getAuthRepository,
+  getMarketRepository,
+  getRaceRepository,
+  getRunsRepository,
+  buildAdminStatus,
+  buildAdminSession,
+  buildRegionCatalog,
+  buildUniversityCatalog,
+  buildProfileReadPayload,
+  buildNotificationSettingsReadPayload,
+  buildUpcomingRunningMatchesReadPayload,
+  buildMyActivityReadPayload,
+  buildIntegrationSourcesReadPayload,
+  buildFriendLeaderboardReadPayload,
+  buildFriendActivityReadPayload,
+  buildFriendRunReadPayload,
+  buildDistrictPersonalReadPayload,
+  buildRegionLeagueReadPayload,
+  buildUniversityLeagueReadPayload,
+  buildMarketOverviewReadPayload,
+  buildOfflineRaceHubReadPayload,
+  buildCurrentRunReadPayload,
+  buildHomeSummaryReadPayload,
+  validateUsername,
+  validateRequiredString,
+  validateDistanceKm,
+  validateRoutePreviewCoordinates,
+  buildRoadAlignedRoutePreview,
+  handleLogin,
+  handleFindUsername,
+  handleResetPassword,
+  handleRequestPhoneVerificationCode,
+  handleVerifyPhoneVerificationCode,
+  handleLogout,
+  handleDeleteMyAccount,
+  handleRegister,
+  handlePatchMyProfile,
+  handlePatchMyRegion,
+  handlePatchMyNotifications,
+  handlePatchMyLiveSharing,
+  handleDeleteAdminUser,
+  handleCreateAdminMarketItem,
+  handleUpdateAdminMarketItem,
+  handleDeleteAdminMarketItem,
+  handleCreateAdminNotice,
+  handleUpdateAdminNotice,
+  handleDeleteAdminNotice,
+  handleUpdateAdminRewardRedemption,
+  handleCreateAdminOfflineRaceEvent,
+  handleUpdateAdminOfflineRaceEvent,
+  handleDeleteAdminOfflineRaceEvent,
+  handleCreateManualRun,
+  handleCreateTrackedRun,
+  handleRequestDuelMatch,
+  handleRequestGroupMatch,
+  handleFetchMatchDemandSummary,
+  handleFetchRunningMatchStatus,
+  handleAcceptRunningMatch,
+  handleCancelRunningMatch,
+  handleLeaveRunningMatch,
+  handleUpdateRunningMatchProgress,
+  handleFetchMyRunningMatchRoom,
+  handleCreateRunningMatchRoom,
+  handleJoinRunningMatchRoom,
+  handleStartRunningMatchRoom,
+  handleUpdateRunningMatchRoom,
+  handleUpdateRunningMatchRoomReady,
+  handleAcknowledgeRunningMatchRoomCountdown,
+  handleLeaveRunningMatchRoom,
+  handleOfflineRaceEntryAction,
+  handleClaimMarketItem,
+  handleFriendRequestCreate,
+  handleFriendRequestAction,
+  handleIntegrationSourceConnection,
+  handleQueueIntegrationImports,
+});
 
 const server = createServer(async (request, response) => {
   applyCorsHeaders(request, response);
