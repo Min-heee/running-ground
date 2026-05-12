@@ -8,8 +8,8 @@ import {
 import {
   buildDuelComparisonSnapshot,
   buildGroupLiveStandings,
+  buildMatchProgressModel,
   hasRemoteRunnerProgress,
-  resolveParticipantDisplayDistanceKm,
   type LastSyncedMatchProgress,
 } from '@/features/runs/matchProgress';
 import { type RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
@@ -92,27 +92,29 @@ export function useLiveMatchProgress({
   );
   const officialDuelComparison = duelMatchStatus?.officialComparison ?? null;
   const isDuelOpponentForfeited = effectiveDuelOpponent?.liveStatus === 'forfeited';
+  const duelOpponentProgressModel = useMemo(
+    () => buildMatchProgressModel(effectiveDuelOpponent, duelDistanceKm),
+    [duelDistanceKm, effectiveDuelOpponent],
+  );
   const officialDuelReady = Boolean(
     officialDuelComparison
     && officialDuelComparison.readyParticipantCount >= 2
     && typeof officialDuelComparison.userDistanceKm === 'number'
-    && effectiveDuelOpponent?.officialReady
-    && typeof effectiveDuelOpponent.officialDistanceKm === 'number',
+    && duelOpponentProgressModel.officialProgress?.ready,
   );
   const duelComparisonSnapshot = officialDuelReady
     ? {
         checkpointSeconds: officialDuelComparison?.elapsedSeconds ?? 0,
         currentDistanceKm: officialDuelComparison?.userDistanceKm ?? 0,
-        opponentDistanceKm: effectiveDuelOpponent?.officialDistanceKm ?? 0,
-        gapKm: Number(((officialDuelComparison?.userDistanceKm ?? 0) - (effectiveDuelOpponent?.officialDistanceKm ?? 0)).toFixed(2)),
+        opponentDistanceKm: duelOpponentProgressModel.officialProgress?.distanceKm ?? 0,
+        gapKm: Number(((officialDuelComparison?.userDistanceKm ?? 0) - (duelOpponentProgressModel.officialProgress?.distanceKm ?? 0)).toFixed(2)),
       }
     : fallbackDuelComparisonSnapshot;
-  const rawDuelOpponentDistanceKm = resolveParticipantDisplayDistanceKm(effectiveDuelOpponent, duelDistanceKm);
   const hasDuelOpponentDisplayProgress = Boolean(
-    duelComparisonSnapshot || hasRemoteRunnerProgress(effectiveDuelOpponent),
+    duelComparisonSnapshot || duelOpponentProgressModel.displayProgress.hasProgress || hasRemoteRunnerProgress(effectiveDuelOpponent),
   );
   const syncedDuelDistanceKm = duelComparisonSnapshot?.currentDistanceKm ?? distanceKm;
-  const syncedDuelOpponentDistanceKm = duelComparisonSnapshot?.opponentDistanceKm ?? rawDuelOpponentDistanceKm;
+  const syncedDuelOpponentDistanceKm = duelComparisonSnapshot?.opponentDistanceKm ?? duelOpponentProgressModel.displayProgress.distanceKm;
   const duelLiveGapKm = duelComparisonSnapshot?.gapKm ?? (
     hasDuelOpponentDisplayProgress
       ? Number((syncedDuelDistanceKm - syncedDuelOpponentDistanceKm).toFixed(2))

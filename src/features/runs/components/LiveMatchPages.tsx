@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from 'react';
-import { ScrollView } from 'react-native';
+import { Platform, ScrollView } from 'react-native';
 import {
   LiveMatchArenaPage,
   type LiveMatchArenaPageProps,
@@ -43,6 +43,27 @@ export function LiveMatchPages({
   exitAction,
   onPageChange,
 }: LiveMatchPagesProps) {
+  if (Platform.OS === 'android') {
+    return (
+      <LiveMatchPager
+        scrollRef={scrollRef}
+        page={page}
+        pageWidth={pageWidth}
+        hasResultPage={hasResultPage}
+        arenaPage={page === 0 ? (
+          <>
+            <LiveMatchArenaPage {...arenaProps} />
+            {exitAction}
+          </>
+        ) : null}
+        raceBoardPage={page === 1 ? <LiveMatchRaceBoardPage {...raceBoardProps} /> : null}
+        statsPage={page === 2 ? <LiveMatchTrackingPage {...trackingProps} /> : null}
+        resultPage={hasResultPage && page === 3 ? <LiveMatchResultPage {...resultProps} /> : null}
+        onPageChange={onPageChange}
+      />
+    );
+  }
+
   return (
     <LiveMatchPager
       scrollRef={scrollRef}

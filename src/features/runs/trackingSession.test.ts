@@ -72,6 +72,35 @@ test('buildOfficialStartBaseline interpolates official start inside an existing 
   assert.ok(Math.abs(baseline.distanceKm - 0.5) < 0.02);
 });
 
+test('buildOfficialStartBaseline ignores pre-countdown distance before the official start', () => {
+  const route = [
+    point(37, 0),
+    point(37.009, 60),
+    point(37.018, 120),
+  ];
+  const officialStartAt = new Date(Date.UTC(2026, 4, 12, 0, 1, 0)).toISOString();
+  const baseline = buildOfficialStartBaseline(snapshot(route), 'match-1', officialStartAt);
+
+  assert.equal(baseline.elapsedSeconds, 60);
+  assert.equal(baseline.routeStartIndex, 1);
+  assert.equal(baseline.routeStartPoint?.timestamp, route[1].timestamp);
+  assert.ok(Math.abs(baseline.distanceKm - 1) < 0.03);
+});
+
+test('buildOfficialStartBaseline clamps to last known route when official start is after all points', () => {
+  const route = [
+    point(37, 0),
+    point(37.009, 60),
+  ];
+  const officialStartAt = new Date(Date.UTC(2026, 4, 12, 0, 2, 0)).toISOString();
+  const baseline = buildOfficialStartBaseline(snapshot(route), 'match-1', officialStartAt);
+
+  assert.equal(baseline.routeStartIndex, route.length);
+  assert.equal(baseline.routeStartPoint?.timestamp, officialStartAt);
+  assert.equal(baseline.distanceKm, 1);
+  assert.equal(baseline.elapsedSeconds, 120);
+});
+
 test('buildRouteFromOfficialStart starts route at the interpolated official point', () => {
   const route = [
     point(37, 0),

@@ -23,6 +23,55 @@ export type LastSyncedMatchProgress = {
   updatedAt: number;
 };
 
+type MatchProgressParticipant = {
+  liveDistanceKm?: number;
+  liveElapsedSeconds?: number;
+  livePace?: string;
+  liveUpdatedAt?: string;
+  averagePace?: string;
+  officialReady?: boolean;
+  officialDistanceKm?: number;
+  officialElapsedSeconds?: number;
+  officialAveragePace?: string;
+  officialRank?: number;
+  officialGapAheadKm?: number | null;
+  officialGapLeaderKm?: number;
+  officialComparedAt?: string;
+};
+
+export type RawMatchProgress = {
+  distanceKm: number;
+  elapsedSeconds: number;
+  paceLabel: string;
+  updatedAt?: string;
+  hasProgress: boolean;
+};
+
+export type OfficialMatchProgress = {
+  distanceKm: number;
+  elapsedSeconds: number;
+  paceLabel: string;
+  rank?: number;
+  gapAheadKm?: number | null;
+  gapLeaderKm?: number;
+  comparedAt?: string;
+  ready: boolean;
+};
+
+export type DisplayMatchProgress = {
+  distanceKm: number;
+  elapsedSeconds: number;
+  paceLabel: string;
+  source: 'official' | 'raw' | 'estimated' | 'empty';
+  hasProgress: boolean;
+};
+
+export type MatchProgressModel = {
+  rawProgress: RawMatchProgress;
+  officialProgress: OfficialMatchProgress | null;
+  displayProgress: DisplayMatchProgress;
+};
+
 export type DuelComparisonSnapshot = {
   checkpointSeconds: number;
   currentDistanceKm: number;
@@ -80,44 +129,129 @@ export function buildParticipantAveragePaceLabel(
     return participant!.officialAveragePace!;
   }
 
-  if (!hasRemoteRunnerProgress(participant)) {
+  const progressModel = buildMatchProgressModel(participant, Infinity);
+  if (!progressModel.displayProgress.hasProgress) {
     return '측정 대기';
   }
 
-  const averagePaceLabel = buildAverageArenaPaceLabel(participant?.liveDistanceKm ?? 0, participant?.liveElapsedSeconds ?? 0, true);
-  if (isMeasuredPaceLabel(averagePaceLabel)) {
-    return averagePaceLabel;
+  if (isMeasuredPaceLabel(progressModel.displayProgress.paceLabel)) {
+    return progressModel.displayProgress.paceLabel;
   }
 
   if (isMeasuredPaceLabel(participant?.livePace)) {
     return participant!.livePace!;
   }
 
-  return averagePaceLabel || '측정 대기';
+  return progressModel.displayProgress.paceLabel || '측정 대기';
 }
 
-export function resolveParticipantDisplayDistanceKm(
-  participant: {
-    liveDistanceKm?: number;
-    liveElapsedSeconds?: number;
-    livePace?: string;
-    averagePace?: string;
-    officialAveragePace?: string;
-  } | null | undefined,
-  targetDistanceKm: number,
-) {
-  const safeTargetDistanceKm = Math.max(0, targetDistanceKm);
-  const liveDistanceKm = typeof participant?.liveDistanceKm === 'number' && Number.isFinite(participant.liveDistanceKm)
-    ? Math.max(0, participant.liveDistanceKm)
-    : 0;
+function clampDistanceKm(distanceKm: number, targetDistanceKm: number) {
+  const safeTargetDistanceKm = Number.isFinite(targetDistanceKm)
+    ? Math.max(0, targetDistanceKm)
+    : Number.POSITIVE_INFINITY;
 
-  if (liveDistanceKm > 0) {
-    return Number(Math.min(safeTargetDistanceKm, liveDistanceKm).toFixed(2));
+  return Number(Math.min(safeTargetDistanceKm, Math.max(0, distanceKm)).toFixed(2));
+}
+
+function resolveElapsedSeconds(value?: number) {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, value)
+    : 0;
+}
+
+function resolvePaceLabel(...labels: Array<string | null | undefined>) {
+  return labels.find((label) => isMeasuredPaceLabel(label)) ?? '--:--/km';
+}
+
+export function buildRawMatchProgress(
+  participant: MatchProgressParticipant | null | undefined,
+  targetDistanceKm: number,
+): RawMatchProgress {
+  const liveDistanceKm = typeof participant?.liveDistanceKm === 'number' && Number.isFinite(participant.liveDistanceKm)
+    ? clampDistanceKm(participant.liveDistanceKm, targetDistanceKm)
+    : 0;
+  const elapsedSeconds = resolveElapsedSeconds(participant?.liveElapsedSeconds);
+  const paceLabel = resolvePaceLabel(
+    buildAveragePace(liveDistanceKm, elapsedSeconds),
+    participant?.livePace,
+  );
+  const hasProgress = Boolean(
+    liveDistanceKm > 0
+    || elapsedSeconds > 0
+    || (typeof participant?.liveUpdatedAt === 'string' && participant.liveUpdatedAt.trim()),
+  );
+
+  return {
+    distanceKm: liveDistanceKm,
+    elapsedSeconds,
+    paceLabel,
+    updatedAt: participant?.liveUpdatedAt,
+    hasProgress,
+  };
+}
+
+export function buildOfficialMatchProgress(
+  participant: MatchProgressParticipant | null | undefined,
+  targetDistanceKm: number,
+): OfficialMatchProgress | null {
+  if (!participant?.officialReady || typeof participant.officialDistanceKm !== 'number') {
+    return null;
   }
 
-  const elapsedSeconds = typeof participant?.liveElapsedSeconds === 'number' && Number.isFinite(participant.liveElapsedSeconds)
-    ? Math.max(0, participant.liveElapsedSeconds)
-    : 0;
+  const distanceKm = clampDistanceKm(participant.officialDistanceKm, targetDistanceKm);
+  const elapsedSeconds = resolveElapsedSeconds(participant.officialElapsedSeconds);
+
+  return {
+    distanceKm,
+    elapsedSeconds,
+    paceLabel: resolvePaceLabel(
+      participant.officialAveragePace,
+      buildAveragePace(distanceKm, elapsedSeconds),
+    ),
+    rank: participant.officialRank,
+    gapAheadKm: participant.officialGapAheadKm,
+    gapLeaderKm: participant.officialGapLeaderKm,
+    comparedAt: participant.officialComparedAt,
+    ready: true,
+  };
+}
+
+export function buildMatchProgressModel(
+  participant: MatchProgressParticipant | null | undefined,
+  targetDistanceKm: number,
+): MatchProgressModel {
+  const rawProgress = buildRawMatchProgress(participant, targetDistanceKm);
+  const officialProgress = buildOfficialMatchProgress(participant, targetDistanceKm);
+
+  if (officialProgress) {
+    return {
+      rawProgress,
+      officialProgress,
+      displayProgress: {
+        distanceKm: officialProgress.distanceKm,
+        elapsedSeconds: officialProgress.elapsedSeconds,
+        paceLabel: officialProgress.paceLabel,
+        source: 'official',
+        hasProgress: true,
+      },
+    };
+  }
+
+  if (rawProgress.distanceKm > 0) {
+    return {
+      rawProgress,
+      officialProgress,
+      displayProgress: {
+        distanceKm: rawProgress.distanceKm,
+        elapsedSeconds: rawProgress.elapsedSeconds,
+        paceLabel: rawProgress.paceLabel,
+        source: 'raw',
+        hasProgress: true,
+      },
+    };
+  }
+
+  const elapsedSeconds = rawProgress.elapsedSeconds;
   const paceLabel = [
     participant?.officialAveragePace,
     participant?.livePace,
@@ -125,12 +259,40 @@ export function resolveParticipantDisplayDistanceKm(
   ].find((label) => isMeasuredPaceLabel(label));
 
   if (!elapsedSeconds || !paceLabel) {
-    return Number(Math.min(safeTargetDistanceKm, liveDistanceKm).toFixed(2));
+    return {
+      rawProgress,
+      officialProgress,
+      displayProgress: {
+        distanceKm: rawProgress.distanceKm,
+        elapsedSeconds: rawProgress.elapsedSeconds,
+        paceLabel: rawProgress.paceLabel,
+        source: 'empty',
+        hasProgress: rawProgress.hasProgress,
+      },
+    };
   }
 
   const paceSecondsPerKm = parsePaceSecondsPerKm(paceLabel);
-  const estimatedDistanceKm = elapsedSeconds / Math.max(1, paceSecondsPerKm);
-  return Number(Math.min(safeTargetDistanceKm, Math.max(0, estimatedDistanceKm)).toFixed(2));
+  const estimatedDistanceKm = clampDistanceKm(elapsedSeconds / Math.max(1, paceSecondsPerKm), targetDistanceKm);
+
+  return {
+    rawProgress,
+    officialProgress,
+    displayProgress: {
+      distanceKm: estimatedDistanceKm,
+      elapsedSeconds,
+      paceLabel,
+      source: 'estimated',
+      hasProgress: true,
+    },
+  };
+}
+
+export function resolveParticipantDisplayDistanceKm(
+  participant: MatchProgressParticipant | null | undefined,
+  targetDistanceKm: number,
+) {
+  return buildMatchProgressModel(participant, targetDistanceKm).displayProgress.distanceKm;
 }
 
 export function formatArenaPaceChip(label: string, paceLabel: string) {
@@ -138,17 +300,9 @@ export function formatArenaPaceChip(label: string, paceLabel: string) {
 }
 
 export function hasRemoteRunnerProgress(
-  participant?: Pick<DuelMatchOpponent, 'liveDistanceKm' | 'liveUpdatedAt'> | Pick<GroupMatchParticipant, 'liveDistanceKm' | 'liveUpdatedAt'> | null,
+  participant?: MatchProgressParticipant | null,
 ) {
-  if (!participant) {
-    return false;
-  }
-
-  if (typeof participant.liveUpdatedAt === 'string' && participant.liveUpdatedAt.trim()) {
-    return true;
-  }
-
-  return typeof participant.liveDistanceKm === 'number' && participant.liveDistanceKm > 0;
+  return buildMatchProgressModel(participant, Infinity).displayProgress.hasProgress;
 }
 
 function projectDistanceAtElapsed(distanceKm: number, elapsedSeconds: number, targetElapsedSeconds: number) {
@@ -245,13 +399,15 @@ export function buildGroupLiveStandings(
     return participants
       .map((participant) => {
         const isCurrentUser = participant.seedRank === (mySeedRank ?? 1);
+        const progressModel = buildMatchProgressModel(participant, targetDistanceKm);
+        const officialProgress = progressModel.officialProgress;
         return {
           ...participant,
-          currentDistanceKm: participant.officialReady ? participant.officialDistanceKm ?? 0 : 0,
+          currentDistanceKm: officialProgress?.distanceKm ?? 0,
           isForfeited: participant.liveStatus === 'forfeited',
-          rank: participant.officialRank ?? participants.length,
-          gapAheadKm: participant.officialReady ? participant.officialGapAheadKm ?? null : null,
-          gapLeaderKm: participant.officialReady ? participant.officialGapLeaderKm ?? 0 : 0,
+          rank: officialProgress?.rank ?? participants.length,
+          gapAheadKm: officialProgress?.gapAheadKm ?? null,
+          gapLeaderKm: officialProgress?.gapLeaderKm ?? 0,
           isCurrentUser,
         };
       })
@@ -269,11 +425,11 @@ export function buildGroupLiveStandings(
     .map((participant) => {
       const isCurrentUser = participant.seedRank === currentSeedRank;
       const isForfeited = participant.liveStatus === 'forfeited';
-      const hasParticipantProgress = hasRemoteRunnerProgress(participant);
+      const progressModel = buildMatchProgressModel(participant, targetDistanceKm);
       const estimatedDistanceKm = isCurrentUser
         ? currentDistanceKm
-        : hasParticipantProgress
-          ? resolveParticipantDisplayDistanceKm(participant, targetDistanceKm)
+        : progressModel.displayProgress.hasProgress
+          ? progressModel.displayProgress.distanceKm
           : 0;
 
       return {

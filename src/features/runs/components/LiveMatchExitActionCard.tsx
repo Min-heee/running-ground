@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { buildMatchExitActionState } from '@/features/runs/matchExitAction';
 
 type MatchExitSource = 'duel' | 'group';
 
@@ -31,39 +32,44 @@ export function LiveMatchExitActionCard({
     return null;
   }
 
-  if (isTestMatch) {
+  const actionState = buildMatchExitActionState({
+    source,
+    isTestMatch,
+    isLeaving,
+    isSaving,
+    isRunning,
+    counterpartForfeited,
+  });
+
+  if (actionState.kind === 'hidden') {
+    return null;
+  }
+
+  if (actionState.kind === 'test-exit') {
     return (
       <Card style={styles.testExitCard}>
-        <Text style={styles.title}>테스트 대결을 여기서 끝낼 수 있어요</Text>
-        <Text style={styles.text}>
-          테스트 상대 표시는 정리하고, 지금 러닝 기록은 혼자 계속 이어갈게요.
-        </Text>
+        <Text style={styles.title}>{actionState.title}</Text>
+        <Text style={styles.text}>{actionState.body}</Text>
         <SecondaryButton
-          label={isLeaving ? '정리 중...' : '테스트 대결 그만'}
+          label={actionState.buttonLabel}
           onPress={() => onContinueSolo(source)}
-          disabled={isLeaving}
+          disabled={actionState.disabled}
         />
       </Card>
     );
   }
 
-  if (counterpartForfeited) {
-    const isPreparingResult = isLeaving || isSaving || !isRunning;
-
+  if (actionState.kind === 'counterpart-forfeited') {
     return (
       <Card style={styles.card}>
-        <Text style={styles.title}>상대가 기권했어요</Text>
-        <Text style={styles.text}>
-          내가 승리한 상태예요. 러닝을 종료하면 결과 화면에서 대결 결과를 확인할 수 있어요.
-        </Text>
+        <Text style={styles.title}>{actionState.title}</Text>
+        <Text style={styles.text}>{actionState.body}</Text>
         <Pressable
-          style={[styles.button, isPreparingResult ? styles.buttonDisabled : undefined]}
+          style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]}
           onPress={() => onShowResultAfterCounterpartForfeit(source)}
-          disabled={isPreparingResult}
+          disabled={actionState.disabled}
         >
-          <Text style={styles.buttonText}>
-            {isLeaving || isSaving ? '결과 저장 중...' : !isRunning ? '결과 화면 준비 중...' : '러닝 종료하고 결과보기'}
-          </Text>
+          <Text style={styles.buttonText}>{actionState.buttonLabel}</Text>
         </Pressable>
       </Card>
     );
@@ -71,18 +77,14 @@ export function LiveMatchExitActionCard({
 
   return (
     <Card style={styles.card}>
-      <Text style={styles.title}>대결을 기권할 수 있어요</Text>
-      <Text style={styles.text}>
-        기권하면 내 동그라미가 기권 상태로 표시되고, 지금까지 측정한 기록을 저장한 뒤 나가요.
-      </Text>
+      <Text style={styles.title}>{actionState.title}</Text>
+      <Text style={styles.text}>{actionState.body}</Text>
       <Pressable
-        style={[styles.button, isLeaving ? styles.buttonDisabled : undefined]}
+        style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]}
         onPress={() => onForfeit(source)}
-        disabled={isLeaving}
+        disabled={actionState.disabled}
       >
-        <Text style={styles.buttonText}>
-          {isLeaving ? '기권 처리 중...' : '기권하기'}
-        </Text>
+        <Text style={styles.buttonText}>{actionState.buttonLabel}</Text>
       </Pressable>
     </Card>
   );

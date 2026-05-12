@@ -20,6 +20,11 @@ import type {
 import {
   buildPartyRunFlowSnapshot,
 } from '@/features/runs/matchStateMachine';
+import {
+  areAllMatchRoomGuestsReady,
+  buildMatchRoomInviteAcceptanceState,
+  buildPendingMatchRoomInvitees,
+} from '@/features/runs/matchRoomFlow';
 import { getMatchStartRemainingSeconds } from '@/lib/matchCountdown';
 import { getCurrentUserProfile } from '@/lib/session';
 
@@ -340,42 +345,16 @@ export function useMatchRoomLobby() {
       .slice(0, 12);
   }, [currentUserTag, friendLeaderboard?.ranks, room?.hostUserId, room?.participants]);
 
-  const pendingInvitees = useMemo<RunningMatchRoomInvitee[]>(() => {
-    if (!room) {
-      return [];
-    }
+  const pendingInvitees = useMemo<RunningMatchRoomInvitee[]>(
+    () => buildPendingMatchRoomInvitees(room, friendLeaderboard?.ranks ?? []),
+    [friendLeaderboard?.ranks, room],
+  );
 
-    const joinedIds = new Set(room.participants.map((participant) => participant.userId));
-    const serverInvitees = room.invitedFriends ?? [];
-    const serverInviteeIds = new Set(serverInvitees.map((invitee) => invitee.userId));
-    const fallbackInvitees = room.invitedFriendIds
-      .filter((friendId) => !joinedIds.has(friendId) && !serverInviteeIds.has(friendId))
-      .map((friendId) => {
-        const friend = friendLeaderboard?.ranks.find((rank) => rank.id === friendId);
-
-        return {
-          userId: friendId,
-          name: friend?.name ?? '초대한 친구',
-          tag: friend?.tag,
-          districtName: friend?.liveLocationLabel ?? '친구',
-          averagePace: '페이스 준비 중',
-          levelLabel: '',
-          status: 'pending' as const,
-        };
-      });
-
-    return [
-      ...serverInvitees.filter((invitee) => !joinedIds.has(invitee.userId)),
-      ...fallbackInvitees,
-    ];
-  }, [friendLeaderboard?.ranks, room]);
-
-  const isInvitedOnly = Boolean(room && room.joined === false);
+  const inviteAcceptanceState = buildMatchRoomInviteAcceptanceState(room, currentUserTag);
+  const isInvitedOnly = inviteAcceptanceState.isInvitedOnly;
   const hasInviteDraftChanges = room ? !areSameIdSet(selectedFriendIds, room.invitedFriendIds) : false;
   const isReady = Boolean(currentParticipant?.isReady);
-  const allGuestsReady = room
-    ? room.participants.filter((participant) => !participant.isHost).every((participant) => participant.isReady)
-    : false;
+  const allGuestsReady = areAllMatchRoomGuestsReady(room);
   const scheduledStartAt = buildScheduledStartAt(
     meridiem,
     MATCH_ROOM_HOUR_OPTIONS[hourIndex] ?? 12,

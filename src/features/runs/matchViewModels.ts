@@ -5,8 +5,8 @@ import type {
   RunningMatchRoomParticipant,
 } from '@/lib/api/types';
 import {
+  buildMatchProgressModel,
   buildParticipantAveragePaceLabel,
-  resolveParticipantDisplayDistanceKm,
   type GroupLiveStanding,
 } from '@/features/runs/matchProgress';
 
@@ -42,21 +42,6 @@ function isSameRemoteParticipant(
     || left.tag === right.userId;
 }
 
-function resolveRoomParticipantOfficialDistanceKm(
-  roomParticipant: RunningMatchRoomParticipant,
-  statusParticipant?: Pick<DuelMatchOpponent, 'officialReady' | 'officialDistanceKm'> | null,
-) {
-  if (statusParticipant?.officialReady && typeof statusParticipant.officialDistanceKm === 'number') {
-    return statusParticipant.officialDistanceKm;
-  }
-
-  if (roomParticipant.officialReady && typeof roomParticipant.officialDistanceKm === 'number') {
-    return roomParticipant.officialDistanceKm;
-  }
-
-  return null;
-}
-
 function mergeRoomParticipantProgress<T extends DuelMatchOpponent | GroupMatchParticipant>(
   roomParticipant: RunningMatchRoomParticipant,
   statusParticipant: T | null,
@@ -72,6 +57,13 @@ function mergeRoomParticipantProgress<T extends DuelMatchOpponent | GroupMatchPa
     livePace: statusParticipant.livePace ?? roomParticipant.livePace,
     liveUpdatedAt: statusParticipant.liveUpdatedAt ?? roomParticipant.liveUpdatedAt,
     officialAveragePace: statusParticipant.officialAveragePace ?? roomParticipant.officialAveragePace,
+    officialReady: statusParticipant.officialReady ?? roomParticipant.officialReady,
+    officialDistanceKm: statusParticipant.officialDistanceKm ?? roomParticipant.officialDistanceKm,
+    officialElapsedSeconds: statusParticipant.officialElapsedSeconds ?? roomParticipant.officialElapsedSeconds,
+    officialRank: statusParticipant.officialRank ?? roomParticipant.officialRank,
+    officialGapAheadKm: statusParticipant.officialGapAheadKm ?? roomParticipant.officialGapAheadKm,
+    officialGapLeaderKm: statusParticipant.officialGapLeaderKm ?? roomParticipant.officialGapLeaderKm,
+    officialComparedAt: statusParticipant.officialComparedAt ?? roomParticipant.officialComparedAt,
   };
 }
 
@@ -147,13 +139,12 @@ export function buildRoomLinkedDuelPlaceholderParticipants({
     const statusParticipant = !isCurrentUser && isSameRemoteParticipant(opponent, participant)
       ? opponent
       : null;
+    const mergedParticipant = mergeRoomParticipantProgress(participant, statusParticipant);
     const participantLiveStatus = statusParticipant?.liveStatus ?? participant.liveStatus;
-    const participantOfficialDistanceKm = resolveRoomParticipantOfficialDistanceKm(participant, statusParticipant);
-    const participantLiveDistanceKm = resolveParticipantDisplayDistanceKm(statusParticipant ?? participant, placeholderDistanceKm);
+    const progressModel = buildMatchProgressModel(mergedParticipant, placeholderDistanceKm);
     const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
       ? currentDistanceKm
-      : participantOfficialDistanceKm ?? participantLiveDistanceKm ?? 0;
-    const mergedParticipant = mergeRoomParticipantProgress(participant, statusParticipant);
+      : progressModel.displayProgress.distanceKm;
     const participantPaceLabel = isCurrentUser
       ? currentUserPaceLabel
       : buildParticipantAveragePaceLabel(mergedParticipant, roomLinkedMatchContext?.state === 'active');
@@ -234,14 +225,13 @@ export function buildRoomLinkedGroupPlaceholderParticipants({
     const statusParticipant = effectiveGroupParticipants.find((groupParticipant) => (
       isSameRemoteParticipant(groupParticipant, participant)
     )) ?? null;
+    const mergedParticipant = mergeRoomParticipantProgress(participant, statusParticipant);
     const participantLiveStatus = statusParticipant?.liveStatus ?? participant.liveStatus;
-    const participantOfficialDistanceKm = resolveRoomParticipantOfficialDistanceKm(participant, statusParticipant);
     const placeholderDistanceKm = room.linkedMatchDistanceKm ?? room.distanceKm;
-    const participantLiveDistanceKm = resolveParticipantDisplayDistanceKm(statusParticipant ?? participant, placeholderDistanceKm);
+    const progressModel = buildMatchProgressModel(mergedParticipant, placeholderDistanceKm);
     const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
       ? currentDistanceKm
-      : participantOfficialDistanceKm ?? participantLiveDistanceKm ?? 0;
-    const mergedParticipant = mergeRoomParticipantProgress(participant, statusParticipant);
+      : progressModel.displayProgress.distanceKm;
     const participantPaceLabel = isCurrentUser
       ? currentUserPaceLabel
       : buildParticipantAveragePaceLabel(mergedParticipant, roomLinkedMatchContext?.state === 'active');

@@ -88,8 +88,10 @@ test('countdown visibility separates fullscreen and arena handoff windows', () =
 
 test('arena state machine covers 20-second handoff and active pinning', () => {
   assert.equal(shouldAutoFocusMatchArena(true, 20), true);
+  assert.equal(shouldAutoFocusMatchArena(true, 21), false);
   assert.equal(shouldAutoFocusMatchArena(false, 20), false);
   assert.equal(shouldPreferRoomLinkedArena('matched', 20), true);
+  assert.equal(shouldPreferRoomLinkedArena('matched', 21), false);
   assert.equal(shouldPreferRoomLinkedArena('active', null), true);
   assert.equal(shouldEnterMatchArenaForLifecycle({
     duelState: 'matched',
@@ -236,6 +238,15 @@ test('party run flow snapshot centralizes loading, countdown, arena, and ack dec
     distanceKm: 5,
     state: 'matched',
   });
+
+  const justBeforeHandoff = buildPartyRunFlowSnapshot({
+    room: { ...room, state: 'countdown' },
+    isCountdownReady: true,
+    remainingSeconds: 21,
+  });
+  assert.equal(justBeforeHandoff.phase, 'countdown');
+  assert.equal(justBeforeHandoff.shouldShowCountdown, true);
+  assert.equal(justBeforeHandoff.shouldOpenArena, false);
 
   const active = buildPartyRunFlowSnapshot({
     room: { ...room, state: 'active', linkedMatchStatus: 'active' },

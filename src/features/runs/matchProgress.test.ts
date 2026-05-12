@@ -6,9 +6,12 @@ import type {
 } from '@/lib/api/types';
 import {
   buildAverageArenaPaceLabel,
+  buildDistanceGapLabel,
   buildDuelComparisonSnapshot,
   buildGroupLiveStandings,
+  buildMatchProgressModel,
   buildParticipantAveragePaceLabel,
+  hasRemoteRunnerProgress,
   parsePaceSecondsPerKm,
   resolveParticipantDisplayDistanceKm,
 } from './matchProgress';
@@ -54,6 +57,52 @@ test('resolveParticipantDisplayDistanceKm prefers live distance and estimates fr
   assert.equal(resolveParticipantDisplayDistanceKm({ liveElapsedSeconds: 380 }, 5), 0);
 });
 
+test('buildMatchProgressModel separates official, raw, and display progress', () => {
+  const model = buildMatchProgressModel({
+    liveDistanceKm: 0.5,
+    liveElapsedSeconds: 300,
+    livePace: '10:00/km',
+    officialReady: true,
+    officialDistanceKm: 0.8,
+    officialElapsedSeconds: 480,
+    officialAveragePace: '06:00/km',
+    officialRank: 1,
+    officialGapAheadKm: null,
+    officialGapLeaderKm: 0,
+  }, 5);
+
+  assert.equal(model.rawProgress.distanceKm, 0.5);
+  assert.equal(model.officialProgress?.distanceKm, 0.8);
+  assert.equal(model.officialProgress?.rank, 1);
+  assert.equal(model.displayProgress.source, 'official');
+  assert.equal(model.displayProgress.distanceKm, 0.8);
+  assert.equal(model.displayProgress.paceLabel, '06:00/km');
+});
+
+test('buildMatchProgressModel uses raw measured distance before pace estimate', () => {
+  const model = buildMatchProgressModel({
+    liveDistanceKm: 1.234,
+    liveElapsedSeconds: 400,
+    livePace: '06:20/km',
+  }, 5);
+
+  assert.equal(model.rawProgress.distanceKm, 1.23);
+  assert.equal(model.displayProgress.source, 'raw');
+  assert.equal(model.displayProgress.distanceKm, 1.23);
+});
+
+test('buildMatchProgressModel estimates display progress when only elapsed time and pace exist', () => {
+  const model = buildMatchProgressModel({
+    liveElapsedSeconds: 380,
+    livePace: '06:20/km',
+  }, 5);
+
+  assert.equal(model.rawProgress.distanceKm, 0);
+  assert.equal(model.displayProgress.source, 'estimated');
+  assert.equal(model.displayProgress.distanceKm, 1);
+  assert.equal(hasRemoteRunnerProgress({ liveElapsedSeconds: 380, livePace: '06:20/km' }), true);
+});
+
 test('buildDuelComparisonSnapshot compares both runners at the same 30-second checkpoint', () => {
   const snapshot = buildDuelComparisonSnapshot(
     {
@@ -79,6 +128,14 @@ test('buildDuelComparisonSnapshot compares both runners at the same 30-second ch
     opponentDistanceKm: 0.55,
     gapKm: 0.05,
   });
+  assert.equal(buildDistanceGapLabel(snapshot?.gapKm ?? null), '0.05km 앞섬');
+});
+
+test('distance gap label is symmetric for current runner and opponent advantage', () => {
+  assert.equal(buildDistanceGapLabel(0), '거리차 0.00km');
+  assert.equal(buildDistanceGapLabel(0.12), '0.12km 앞섬');
+  assert.equal(buildDistanceGapLabel(-0.12), '0.12km 뒤짐');
+  assert.equal(buildDistanceGapLabel(null), '서버 공식 판정 준비 중');
 });
 
 test('buildDuelComparisonSnapshot waits until a fair common checkpoint exists', () => {

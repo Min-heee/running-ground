@@ -36,6 +36,7 @@ import {
 import { useMatchResultController } from '@/features/runs/hooks/useMatchResultController';
 import { useLiveMatchProgress } from '@/features/runs/hooks/useLiveMatchProgress';
 import { useForfeitController } from '@/features/runs/hooks/useForfeitController';
+import { useAndroidLiveMatchDisplayFrame } from '@/features/runs/hooks/useAndroidLiveMatchDisplayFrame';
 import {
   acknowledgeRunningMatchRoomCountdown,
   cancelRunningMatch,
@@ -711,6 +712,23 @@ export function TrackRunExperience({
   const roomVisibleSlotOptions = effectiveRoomMode === 'group' ? visibleGroupSlotOptions : visibleDuelSlotOptions;
   const activeRoomSlotStartAt = effectiveRoomMode === 'group' ? activeGroupSlotStartAt : activeDuelSlotStartAt;
   const activeRoomDistanceKm = effectiveRoomMode === 'group' ? groupDistanceKm : duelDistanceKm;
+  const rawLiveMatchDisplayFrame = useMemo(
+    () => ({
+      distanceKm,
+      elapsedSeconds,
+      currentPace,
+      averagePace,
+      cadenceSpm,
+      elevationGainM,
+    }),
+    [averagePace, cadenceSpm, currentPace, distanceKm, elapsedSeconds, elevationGainM],
+  );
+  const liveMatchDisplayFrame = useAndroidLiveMatchDisplayFrame(
+    rawLiveMatchDisplayFrame,
+    isRunning && (matchMode === 'duel' || matchMode === 'group'),
+  );
+  const liveMatchDisplayDistanceKm = liveMatchDisplayFrame.distanceKm;
+  const liveMatchDisplayElapsedSeconds = liveMatchDisplayFrame.elapsedSeconds;
   const {
     groupLiveStandings,
     currentGroupStanding,
@@ -739,8 +757,8 @@ export function TrackRunExperience({
     effectiveGroupParticipants,
     effectiveGroupSeedRank,
     lastSyncedMatchProgress,
-    distanceKm,
-    elapsedSeconds,
+    distanceKm: liveMatchDisplayDistanceKm,
+    elapsedSeconds: liveMatchDisplayElapsedSeconds,
     duelDistanceKm,
     groupDistanceKm,
   });
@@ -800,8 +818,8 @@ export function TrackRunExperience({
   const currentUserArenaPace = isMeasuredPaceLabel(officialCurrentAveragePace)
     ? officialCurrentAveragePace!
     : buildAverageArenaPaceLabel(
-        distanceKm,
-        elapsedSeconds,
+        liveMatchDisplayDistanceKm,
+        liveMatchDisplayElapsedSeconds,
         duelArenaUsesLivePace || groupArenaUsesLivePace,
       );
   const {
@@ -853,16 +871,16 @@ export function TrackRunExperience({
     room: visibleMatchRoom,
     hasRoomLinkedDuelContext,
     currentUserId,
-    currentDistanceKm: distanceKm,
+    currentDistanceKm: liveMatchDisplayDistanceKm,
     currentUserPaceLabel: currentUserArenaPace,
     opponent: effectiveDuelOpponent,
     roomLinkedMatchContext,
   }), [
     currentUserArenaPace,
     currentUserId,
-    distanceKm,
     effectiveDuelOpponent,
     hasRoomLinkedDuelContext,
+    liveMatchDisplayDistanceKm,
     roomLinkedMatchContext,
     visibleMatchRoom,
   ]);
@@ -892,16 +910,16 @@ export function TrackRunExperience({
     room: visibleMatchRoom,
     hasRoomLinkedGroupContext,
     currentUserId,
-    currentDistanceKm: distanceKm,
+    currentDistanceKm: liveMatchDisplayDistanceKm,
     currentUserPaceLabel: currentUserArenaPace,
     effectiveGroupParticipants,
     roomLinkedMatchContext,
   }), [
     currentUserArenaPace,
     currentUserId,
-    distanceKm,
     effectiveGroupParticipants,
     hasRoomLinkedGroupContext,
+    liveMatchDisplayDistanceKm,
     roomLinkedMatchContext,
     visibleMatchRoom,
   ]);
@@ -3303,7 +3321,7 @@ export function TrackRunExperience({
     effectiveDuelOpponent,
     duelDistanceKm,
     groupDistanceKm,
-    distanceKm,
+    distanceKm: liveMatchDisplayDistanceKm,
     duelLiveSummary,
     currentUserArenaPace,
     isDuelOpponentForfeited,
@@ -3340,7 +3358,7 @@ export function TrackRunExperience({
     duelLiveGapKm,
     duelDistanceKm,
     groupDistanceKm,
-    distanceKm,
+    distanceKm: liveMatchDisplayDistanceKm,
     syncedDuelDistanceKm,
     syncedDuelOpponentDistanceKm,
     currentUserDuelLiveStatus,
@@ -3362,7 +3380,7 @@ export function TrackRunExperience({
     duelLiveTitle,
     duelLiveSummary,
     duelStatusAlert,
-    distanceKm,
+    distanceKm: liveMatchDisplayDistanceKm,
     isLeavingDuelMatch,
     effectiveGroupParticipantCount,
     currentGroupStanding,
@@ -3372,11 +3390,11 @@ export function TrackRunExperience({
     isLeavingGroupMatch,
     groupLiveStandings,
     currentGroupLeader,
-    elapsedSeconds,
-    averagePace,
-    currentPace,
-    cadenceSpm,
-    elevationGainM,
+    elapsedSeconds: liveMatchDisplayElapsedSeconds,
+    averagePace: liveMatchDisplayFrame.averagePace,
+    currentPace: liveMatchDisplayFrame.currentPace,
+    cadenceSpm: liveMatchDisplayFrame.cadenceSpm,
+    elevationGainM: liveMatchDisplayFrame.elevationGainM,
     onContinueSoloFromMatch: handleContinueSoloFromMatch,
   };
 

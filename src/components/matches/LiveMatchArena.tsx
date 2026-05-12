@@ -9,6 +9,10 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import {
+  buildLiveMatchRunnerVisualState,
+  isRunnerForfeited,
+} from '@/components/matches/liveMatchArenaVisualState';
 
 type ArenaParticipant = {
   id: string;
@@ -32,15 +36,13 @@ const GROUP_ROW_HEIGHT = 78;
 const SHOULD_ANIMATE_ROAD = Platform.OS !== 'android';
 const DUEL_STRIPE_COUNT = Platform.OS === 'android' ? 6 : 12;
 const GROUP_STRIPE_COUNT = Platform.OS === 'android' ? 7 : 14;
+const ANDROID_GROUP_LIGHT_MODE_THRESHOLD = 12;
 const DUEL_STRIPES = Array.from({ length: DUEL_STRIPE_COUNT });
 const GROUP_STRIPES = Array.from({ length: GROUP_STRIPE_COUNT });
+const LIVE_MATCH_PERF_LOG_ENABLED = __DEV__ && Platform.OS === 'android';
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
-}
-
-function buildBubbleLabel(participant: ArenaParticipant) {
-  return participant.bpmLabel ? `${participant.paceLabel} · ${participant.bpmLabel}` : participant.paceLabel;
 }
 
 function shouldShowRunnerBubble(participant: ArenaParticipant) {
@@ -48,49 +50,72 @@ function shouldShowRunnerBubble(participant: ArenaParticipant) {
 }
 
 function isForfeited(participant: ArenaParticipant) {
-  return participant.liveStatus === 'forfeited';
-}
-
-function buildMarkerLabel(participant: ArenaParticipant, fallbackLabel: string) {
-  return isForfeited(participant) ? '기권' : fallbackLabel;
-}
-
-function buildRunnerBubbleLabel(participant: ArenaParticipant) {
-  if (isForfeited(participant)) {
-    return '기권 처리됨';
-  }
-
-  const paceLabel = buildBubbleLabel(participant).trim();
-  if (!paceLabel) {
-    return '평균 계산 중';
-  }
-
-  if (paceLabel.includes('평균') || paceLabel.includes('측정') || paceLabel.includes('계산')) {
-    return paceLabel;
-  }
-
-  return `평균 ${paceLabel}`;
-}
-
-function buildAveragePaceDisplayLabel(participant: ArenaParticipant) {
-  if (isForfeited(participant)) {
-    return '기권';
-  }
-
-  const paceLabel = participant.paceLabel.trim();
-  if (!paceLabel) {
-    return '평균 계산 중';
-  }
-
-  if (paceLabel.includes('평균') || paceLabel.includes('측정') || paceLabel.includes('계산')) {
-    return paceLabel;
-  }
-
-  return `평균 ${paceLabel}`;
+  return isRunnerForfeited(participant);
 }
 
 function buildRemainingLabel(distanceKm: number, targetDistanceKm: number) {
   return `${Math.max(0, targetDistanceKm - distanceKm).toFixed(2)}km 남음`;
+}
+
+function buildAndroidLightParticipants(participants: ArenaParticipant[]) {
+  if (Platform.OS !== 'android' || participants.length <= ANDROID_GROUP_LIGHT_MODE_THRESHOLD) {
+    return participants;
+  }
+
+  const currentUserIndex = participants.findIndex((participant) => participant.isCurrentUser);
+  const keepIndexes = new Set<number>([0, 1, 2, participants.length - 1]);
+
+  if (currentUserIndex >= 0) {
+    for (let index = currentUserIndex - 3; index <= currentUserIndex + 3; index += 1) {
+      if (index >= 0 && index < participants.length) {
+        keepIndexes.add(index);
+      }
+    }
+  }
+
+  return participants.filter((_, index) => keepIndexes.has(index));
+}
+
+function useAndroidLiveMatchPerfProbe(label: string, detail: string) {
+  const renderCountRef = useRef(0);
+  const detailRef = useRef(detail);
+
+  renderCountRef.current += 1;
+  detailRef.current = detail;
+
+  useEffect(() => {
+    if (!LIVE_MATCH_PERF_LOG_ENABLED) {
+      return undefined;
+    }
+
+    let frameCount = 0;
+    let frameRef = 0;
+    let windowStartedAt = Date.now();
+    let renderCountAtStart = renderCountRef.current;
+
+    const tick = () => {
+      frameCount += 1;
+      const now = Date.now();
+      const elapsedMs = now - windowStartedAt;
+
+      if (elapsedMs >= 5000) {
+        const fps = Math.round((frameCount * 1000) / Math.max(1, elapsedMs));
+        const renders = renderCountRef.current - renderCountAtStart;
+        // eslint-disable-next-line no-console
+        console.debug(`[LiveMatchPerf] ${label} fps=${fps} renders=${renders}/5s ${detailRef.current}`);
+        frameCount = 0;
+        windowStartedAt = now;
+        renderCountAtStart = renderCountRef.current;
+      }
+
+      frameRef = requestAnimationFrame(tick);
+    };
+
+    frameRef = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(frameRef);
+    };
+  }, [label]);
 }
 
 const RoadMotion = memo(function RoadMotion({
@@ -187,33 +212,41 @@ const DuelRoad = memo(function DuelRoad({
   const currentUser = participants.find((participant) => participant.isCurrentUser) ?? participants[0] ?? null;
   const opponent = participants.find((participant) => !participant.isCurrentUser) ?? participants[1] ?? null;
 
+  const { userTop, opponentTop } = useMemo(() => {
+    if (!currentUser || !opponent) {
+      return { userTop: 0, opponentTop: 0 };
+    }
+
+    const safeTargetDistanceKm = Math.max(0.1, targetDistanceKm);
+    const finishTop = 62;
+    const startTop = ROAD_HEIGHT_DUEL - 124;
+    const pathHeight = startTop - finishTop;
+    const currentProgress = clamp(currentUser.distanceKm / safeTargetDistanceKm, 0, 1);
+    const opponentProgress = clamp(opponent.distanceKm / safeTargetDistanceKm, 0, 1);
+    const gapKm = currentUser.distanceKm - opponent.distanceKm;
+    let nextUserTop = startTop - currentProgress * pathHeight;
+    let nextOpponentTop = startTop - opponentProgress * pathHeight;
+
+    if (Math.abs(gapKm) >= 0.005 && Math.abs(nextUserTop - nextOpponentTop) < 22) {
+      const visualLeadOffset = 14;
+      if (gapKm > 0) {
+        nextUserTop -= visualLeadOffset;
+        nextOpponentTop += visualLeadOffset;
+      } else {
+        nextUserTop += visualLeadOffset;
+        nextOpponentTop -= visualLeadOffset;
+      }
+    }
+
+    return {
+      userTop: clamp(nextUserTop, finishTop, startTop),
+      opponentTop: clamp(nextOpponentTop, finishTop, startTop),
+    };
+  }, [currentUser, opponent, targetDistanceKm]);
+
   if (!currentUser || !opponent) {
     return null;
   }
-
-  const safeTargetDistanceKm = Math.max(0.1, targetDistanceKm);
-  const finishTop = 62;
-  const startTop = ROAD_HEIGHT_DUEL - 124;
-  const pathHeight = startTop - finishTop;
-  const currentProgress = clamp(currentUser.distanceKm / safeTargetDistanceKm, 0, 1);
-  const opponentProgress = clamp(opponent.distanceKm / safeTargetDistanceKm, 0, 1);
-  const gapKm = currentUser.distanceKm - opponent.distanceKm;
-  let userTop = startTop - currentProgress * pathHeight;
-  let opponentTop = startTop - opponentProgress * pathHeight;
-
-  if (Math.abs(gapKm) >= 0.005 && Math.abs(userTop - opponentTop) < 22) {
-    const visualLeadOffset = 14;
-    if (gapKm > 0) {
-      userTop -= visualLeadOffset;
-      opponentTop += visualLeadOffset;
-    } else {
-      userTop += visualLeadOffset;
-      opponentTop -= visualLeadOffset;
-    }
-  }
-
-  userTop = clamp(userTop, finishTop, startTop);
-  opponentTop = clamp(opponentTop, finishTop, startTop);
 
   return (
     <View style={[styles.roadCard, { height: ROAD_HEIGHT_DUEL }]}>
@@ -221,13 +254,13 @@ const DuelRoad = memo(function DuelRoad({
       <View style={[styles.duelRunnerWrap, styles.duelRunnerLeft, { top: opponentTop }]}>
         <View style={[styles.runnerMarker, styles.runnerMarkerOpponent, isForfeited(opponent) ? styles.runnerMarkerForfeited : undefined]}>
           <Text style={[styles.runnerMarkerText, isForfeited(opponent) ? styles.runnerMarkerForfeitedText : undefined]}>
-            {buildMarkerLabel(opponent, opponent.name.slice(0, 1))}
+            {buildLiveMatchRunnerVisualState(opponent, opponent.name.slice(0, 1)).markerLabel}
           </Text>
         </View>
         {shouldShowRunnerBubble(opponent) ? (
           <View style={[styles.runnerBubble, isForfeited(opponent) ? styles.runnerBubbleForfeited : undefined]}>
             <Text style={[styles.runnerBubbleText, isForfeited(opponent) ? styles.runnerBubbleForfeitedText : undefined]}>
-              {buildRunnerBubbleLabel(opponent)}
+              {buildLiveMatchRunnerVisualState(opponent, opponent.name.slice(0, 1)).bubbleLabel}
             </Text>
           </View>
         ) : null}
@@ -242,13 +275,13 @@ const DuelRoad = memo(function DuelRoad({
       <View style={[styles.duelRunnerWrap, styles.duelRunnerRight, { top: userTop }]}>
         <View style={[styles.runnerMarker, styles.runnerMarkerCurrent, isForfeited(currentUser) ? styles.runnerMarkerForfeited : undefined]}>
           <Text style={[styles.runnerMarkerText, isForfeited(currentUser) ? styles.runnerMarkerForfeitedText : undefined]}>
-            {buildMarkerLabel(currentUser, '나')}
+            {buildLiveMatchRunnerVisualState(currentUser, '나').markerLabel}
           </Text>
         </View>
         {shouldShowRunnerBubble(currentUser) ? (
           <View style={[styles.runnerBubble, styles.runnerBubbleCurrent, isForfeited(currentUser) ? styles.runnerBubbleForfeited : undefined]}>
             <Text style={[styles.runnerBubbleText, isForfeited(currentUser) ? styles.runnerBubbleForfeitedText : undefined]}>
-              {buildRunnerBubbleLabel(currentUser)}
+              {buildLiveMatchRunnerVisualState(currentUser, '나').bubbleLabel}
             </Text>
           </View>
         ) : null}
@@ -279,6 +312,10 @@ const GroupRoadRow = memo(function GroupRoadRow({
   const participantForfeited = isForfeited(participant);
   const rankLabel = participant.rankLabel ?? `${index + 1}위`;
   const displayName = isCurrentUser ? '나' : participant.name;
+  const visualState = buildLiveMatchRunnerVisualState(
+    participant,
+    isCurrentUser ? '나' : participant.name.slice(0, 1),
+  );
 
   return (
     <View
@@ -299,13 +336,13 @@ const GroupRoadRow = memo(function GroupRoadRow({
           participantForfeited ? styles.runnerMarkerForfeited : undefined,
         ]}>
           <Text style={[styles.groupRunnerMarkerText, participantForfeited ? styles.groupRunnerMarkerForfeitedText : undefined]}>
-            {buildMarkerLabel(participant, isCurrentUser ? '나' : participant.name.slice(0, 1))}
+            {visualState.markerLabel}
           </Text>
         </View>
       </View>
       <View style={styles.groupMetaColumn}>
         <Text style={[styles.groupMetaText, participantForfeited ? styles.groupMetaForfeitedText : undefined]}>
-          {buildAveragePaceDisplayLabel(participant)}
+          {visualState.averagePaceLabel}
         </Text>
         <Text style={styles.groupMetaSubtext}>{buildRemainingLabel(participant.distanceKm, targetDistanceKm)}</Text>
       </View>
@@ -330,11 +367,15 @@ const GroupRoad = memo(function GroupRoad({
     }),
     [participants],
   );
+  const visibleParticipants = useMemo(
+    () => buildAndroidLightParticipants(orderedParticipants),
+    [orderedParticipants],
+  );
   const currentUserIndex = Math.max(
     0,
-    orderedParticipants.findIndex((participant) => participant.isCurrentUser),
+    visibleParticipants.findIndex((participant) => participant.isCurrentUser),
   );
-  const initialScrollIndex = Math.min(currentUserIndex, Math.max(orderedParticipants.length - 1, 0));
+  const initialScrollIndex = Math.min(currentUserIndex, Math.max(visibleParticipants.length - 1, 0));
 
   return (
     <View style={[styles.roadCard, { height: ROAD_HEIGHT_GROUP }]}>
@@ -343,9 +384,9 @@ const GroupRoad = memo(function GroupRoad({
         style={styles.groupScroll}
         contentContainerStyle={[
           styles.groupScrollContent,
-          { minHeight: Math.max(ROAD_HEIGHT_GROUP + GROUP_ROW_HEIGHT, orderedParticipants.length * GROUP_ROW_HEIGHT + 32) },
+          { minHeight: Math.max(ROAD_HEIGHT_GROUP + GROUP_ROW_HEIGHT, visibleParticipants.length * GROUP_ROW_HEIGHT + 32) },
         ]}
-        data={orderedParticipants}
+        data={visibleParticipants}
         renderItem={({ item, index }) => (
           <GroupRoadRow participant={item} index={index} targetDistanceKm={targetDistanceKm} />
         )}
@@ -355,7 +396,7 @@ const GroupRoad = memo(function GroupRoad({
           offset: GROUP_ROW_HEIGHT * index,
           index,
         })}
-        initialScrollIndex={orderedParticipants.length ? initialScrollIndex : undefined}
+        initialScrollIndex={visibleParticipants.length ? initialScrollIndex : undefined}
         initialNumToRender={Platform.OS === 'android' ? 7 : 12}
         maxToRenderPerBatch={Platform.OS === 'android' ? 5 : 10}
         windowSize={Platform.OS === 'android' ? 5 : 9}
@@ -394,6 +435,10 @@ export const LiveMatchArena = memo(function LiveMatchArena({
 }) {
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = Math.max(300, windowWidth - 32);
+  useAndroidLiveMatchPerfProbe(
+    mode === 'duel' ? 'duel-arena' : 'group-arena',
+    `participants=${participants.length} target=${targetDistanceKm}`,
+  );
 
   return (
     <View style={[styles.card, { width: cardWidth }]}>
