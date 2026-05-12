@@ -1,4 +1,4 @@
-import { ConnectedSource, DistrictBattleRank, DistrictPersonalRank, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceEvent, OfflineRaceHub, OfflineRaceParticipantPreview, RegionDrilldownNode, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
+import { ConnectedSource, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceEvent, OfflineRaceHub, OfflineRaceParticipantPreview, RegionDrilldownNode, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
 import { addressCatalog, type AddressRegionNode } from '@/features/location/addressCatalog';
 
 export const myProfile: UserProfile = {
@@ -182,22 +182,6 @@ export const friendRequests: FriendRequest[] = [
   { id: 'r1', name: '박도윤', tag: '#DY2M8', status: 'pending' },
   { id: 'r2', name: '한예린', tag: '#YR4P6', status: 'received' },
   { id: 'r3', name: '김관우', tag: '#KW8M4', status: 'accepted' },
-];
-
-export const districtPersonalRanks: DistrictPersonalRank[] = [
-  { id: '1', rank: 1, name: '김관우', distanceKm: 89, points: 98 },
-  { id: '2', rank: 2, name: '박지훈', distanceKm: 86, points: 95 },
-  { id: '3', rank: 3, name: '최민준', distanceKm: 81, points: 91 },
-  { id: '4', rank: 4, name: '민병희', distanceKm: 42.4, points: 98, isMe: true },
-  { id: '5', rank: 5, name: '이서윤', distanceKm: 41.1, points: 85 },
-];
-
-export const districtBattleRanks: DistrictBattleRank[] = [
-  { rank: 1, districtName: '송파구', averageDistanceKm: 28.4, participationRate: 68, participants: 142 },
-  { rank: 2, districtName: '서초구', averageDistanceKm: 26.1, participationRate: 64, participants: 131 },
-  { rank: 3, districtName: '강남구', averageDistanceKm: 24.7, participationRate: 62, participants: 128 },
-  { rank: 4, districtName: '마포구', averageDistanceKm: 23.9, participationRate: 58, participants: 119 },
-  { rank: 5, districtName: '성동구', averageDistanceKm: 22.8, participationRate: 55, participants: 111 },
 ];
 
 export const universityLeagueRanks: UniversityLeagueRank[] = [

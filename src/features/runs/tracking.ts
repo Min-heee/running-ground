@@ -60,20 +60,6 @@ export function calculateDistanceBetweenPoints(start: MapCoordinate, end: MapCoo
   return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(haversine));
 }
 
-export function calculateRouteDistanceKm(route: RunRoutePoint[]) {
-  if (route.length < 2) {
-    return 0;
-  }
-
-  let totalDistanceMeters = 0;
-
-  for (let index = 1; index < route.length; index += 1) {
-    totalDistanceMeters += calculateDistanceBetweenPoints(route[index - 1], route[index]);
-  }
-
-  return Number((totalDistanceMeters / 1000).toFixed(2));
-}
-
 export function calculateElevationGainM(route: RunRoutePoint[]) {
   if (route.length < 2) {
     return 0;

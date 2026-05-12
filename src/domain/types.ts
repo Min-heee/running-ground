@@ -95,14 +95,6 @@ export type AppNotice = {
   updatedAt: string;
 };
 
-export type DistrictBattleRank = {
-  rank: number;
-  districtName: string;
-  averageDistanceKm: number;
-  participationRate: number;
-  participants: number;
-};
-
 export type RegionDrilldownNode = {
   id: string;
   name: string;
