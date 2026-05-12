@@ -2,7 +2,11 @@ import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import { recordLiveMatchPerfSample } from '@/components/matches/liveMatchPerfQaLog';
 
-export const LIVE_MATCH_PERF_QA_ENABLED = __DEV__ && Platform.OS === 'android';
+export const LIVE_MATCH_PERF_QA_ENABLED = (
+  __DEV__
+  && Platform.OS === 'android'
+  && process.env.EXPO_PUBLIC_ENABLE_ANDROID_MATCH_PERF === '1'
+);
 
 type LiveMatchPerfProbeInput = {
   label: string;
@@ -64,66 +68,68 @@ export function useAndroidLiveMatchPerfProbe({
   const previousRenderDetailRef = useRef<RenderDetails | null>(null);
   const renderReasonCountsRef = useRef<RenderReasonCounts>(createRenderReasonCounts());
 
-  renderCountRef.current += 1;
+  if (LIVE_MATCH_PERF_QA_ENABLED) {
+    renderCountRef.current += 1;
 
-  const nextDetails = {
-    mode,
-    participants,
-    visibleParticipants,
-    participantSignature,
-    visibleParticipantSignature,
-    targetDistanceKm,
-  };
-  const previousDetails = previousRenderDetailRef.current;
+    const nextDetails = {
+      mode,
+      participants,
+      visibleParticipants,
+      participantSignature,
+      visibleParticipantSignature,
+      targetDistanceKm,
+    };
+    const previousDetails = previousRenderDetailRef.current;
 
-  if (previousDetails) {
-    let explainedByChange = false;
-    const participantSignatureChanged = previousDetails.participantSignature !== participantSignature;
-    const visibleParticipantSignatureChanged =
-      previousDetails.visibleParticipantSignature !== visibleParticipantSignature;
+    if (previousDetails) {
+      let explainedByChange = false;
+      const participantSignatureChanged = previousDetails.participantSignature !== participantSignature;
+      const visibleParticipantSignatureChanged =
+        previousDetails.visibleParticipantSignature !== visibleParticipantSignature;
 
-    if (participantSignatureChanged) {
-      renderReasonCountsRef.current.progressUpdates += 1;
-      explainedByChange = true;
+      if (participantSignatureChanged) {
+        renderReasonCountsRef.current.progressUpdates += 1;
+        explainedByChange = true;
+      }
+
+      if (visibleParticipantSignatureChanged) {
+        renderReasonCountsRef.current.visibleProgressUpdates += 1;
+        explainedByChange = true;
+      }
+
+      if (participantSignatureChanged && !visibleParticipantSignatureChanged) {
+        renderReasonCountsRef.current.hiddenProgressUpdates += 1;
+      }
+
+      if (
+        previousDetails.mode !== mode
+        || previousDetails.participants !== participants
+        || previousDetails.visibleParticipants !== visibleParticipants
+      ) {
+        renderReasonCountsRef.current.layoutUpdates += 1;
+        explainedByChange = true;
+      }
+
+      if (previousDetails.targetDistanceKm !== targetDistanceKm) {
+        renderReasonCountsRef.current.targetUpdates += 1;
+        explainedByChange = true;
+      }
+
+      if (!explainedByChange) {
+        renderReasonCountsRef.current.staticRenders += 1;
+      }
     }
 
-    if (visibleParticipantSignatureChanged) {
-      renderReasonCountsRef.current.visibleProgressUpdates += 1;
-      explainedByChange = true;
-    }
-
-    if (participantSignatureChanged && !visibleParticipantSignatureChanged) {
-      renderReasonCountsRef.current.hiddenProgressUpdates += 1;
-    }
-
-    if (
-      previousDetails.mode !== mode
-      || previousDetails.participants !== participants
-      || previousDetails.visibleParticipants !== visibleParticipants
-    ) {
-      renderReasonCountsRef.current.layoutUpdates += 1;
-      explainedByChange = true;
-    }
-
-    if (previousDetails.targetDistanceKm !== targetDistanceKm) {
-      renderReasonCountsRef.current.targetUpdates += 1;
-      explainedByChange = true;
-    }
-
-    if (!explainedByChange) {
-      renderReasonCountsRef.current.staticRenders += 1;
-    }
+    previousRenderDetailRef.current = nextDetails;
+    detailRef.current = {
+      mode,
+      participants,
+      visibleParticipants,
+      participantSignature,
+      visibleParticipantSignature,
+      targetDistanceKm,
+    };
   }
-
-  previousRenderDetailRef.current = nextDetails;
-  detailRef.current = {
-    mode,
-    participants,
-    visibleParticipants,
-    participantSignature,
-    visibleParticipantSignature,
-    targetDistanceKm,
-  };
 
   useEffect(() => {
     if (!LIVE_MATCH_PERF_QA_ENABLED) {
@@ -163,7 +169,6 @@ export function useAndroidLiveMatchPerfProbe({
           capturedAt: now,
         });
 
-        // eslint-disable-next-line no-console
         console.debug(
           `[LiveMatchPerf] ${label} fps=${fps} renders=${renders}/5s `
           + `participants=${details.participants}`

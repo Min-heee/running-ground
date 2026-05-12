@@ -364,8 +364,8 @@ export function useRunTrackingFlow({
 
   const syncFromBackgroundTracking = (snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot()) => {
     const displayedSnapshot = getDisplayedTrackingSnapshot(snapshot);
+    // Route points are needed for saving, but rendering the growing array every tick is expensive on Android.
     routeRef.current = displayedSnapshot.route;
-    setRoute(displayedSnapshot.route);
     setDistanceKm(displayedSnapshot.distanceKm);
     setElevationGainM(displayedSnapshot.elevationGainM);
     setCurrentPace(displayedSnapshot.currentPace);

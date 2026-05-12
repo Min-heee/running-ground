@@ -12,6 +12,15 @@ export type LiveMatchDisplayFrame = {
   elevationGainM: number;
 };
 
+function areLiveMatchDisplayFramesEqual(left: LiveMatchDisplayFrame, right: LiveMatchDisplayFrame) {
+  return left.distanceKm === right.distanceKm
+    && left.elapsedSeconds === right.elapsedSeconds
+    && left.currentPace === right.currentPace
+    && left.averagePace === right.averagePace
+    && left.cadenceSpm === right.cadenceSpm
+    && left.elevationGainM === right.elevationGainM;
+}
+
 export function useAndroidLiveMatchDisplayFrame(
   frame: LiveMatchDisplayFrame,
   enabled: boolean,
@@ -45,7 +54,11 @@ export function useAndroidLiveMatchDisplayFrame(
     const flush = () => {
       timerRef.current = null;
       lastFlushMsRef.current = Date.now();
-      setDisplayFrame(latestFrameRef.current);
+      setDisplayFrame((currentFrame) => (
+        areLiveMatchDisplayFramesEqual(currentFrame, latestFrameRef.current)
+          ? currentFrame
+          : latestFrameRef.current
+      ));
     };
 
     const nowMs = Date.now();

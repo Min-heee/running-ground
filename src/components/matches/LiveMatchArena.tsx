@@ -13,7 +13,10 @@ import {
 } from '@/components/matches/liveMatchArena/helpers';
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
 import type { ArenaParticipant } from '@/components/matches/liveMatchArena/types';
-import { useAndroidLiveMatchPerfProbe } from '@/components/matches/useAndroidLiveMatchPerfProbe';
+import {
+  LIVE_MATCH_PERF_QA_ENABLED,
+  useAndroidLiveMatchPerfProbe,
+} from '@/components/matches/useAndroidLiveMatchPerfProbe';
 
 type LiveMatchArenaProps = {
   mode: 'duel' | 'group';
@@ -59,11 +62,11 @@ export const LiveMatchArena = memo(function LiveMatchArena({
   const visibleParticipantsCount = mode === 'group' ? visibleGroupParticipants.length : participants.length;
   const visibleParticipants = mode === 'duel' ? duelParticipants : visibleGroupParticipants;
   const participantSignature = useMemo(
-    () => buildParticipantPerfSignature(participants),
+    () => (LIVE_MATCH_PERF_QA_ENABLED ? buildParticipantPerfSignature(participants) : ''),
     [participants],
   );
   const visibleParticipantSignature = useMemo(
-    () => buildParticipantPerfSignature(visibleParticipants),
+    () => (LIVE_MATCH_PERF_QA_ENABLED ? buildParticipantPerfSignature(visibleParticipants) : ''),
     [visibleParticipants],
   );
 
@@ -78,7 +81,7 @@ export const LiveMatchArena = memo(function LiveMatchArena({
   });
 
   const perfPanel = useMemo(
-    () => <AndroidLiveMatchPerfPanel label={perfLabel} />,
+    () => (LIVE_MATCH_PERF_QA_ENABLED ? <AndroidLiveMatchPerfPanel label={perfLabel} /> : null),
     [perfLabel],
   );
 

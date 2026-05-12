@@ -172,7 +172,6 @@ export function TrackRunExperience({
     setStatus,
     soloStartCountdownSeconds,
     setSoloStartCountdownSeconds,
-    route,
     setRoute,
     distanceKm,
     setDistanceKm,
