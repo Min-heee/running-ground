@@ -3,13 +3,14 @@ import {
   GROUP_ROW_HEIGHT,
   ROAD_STRIPE_HEIGHT,
   ROAD_STRIPE_SPACING,
+  USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI,
 } from '@/components/matches/liveMatchArena/helpers';
 
 export const liveMatchArenaStyles = StyleSheet.create({
   card: {
     gap: 10,
     borderRadius: 28,
-    borderWidth: 1,
+    borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 0 : 1,
     borderColor: '#1F2A44',
     backgroundColor: '#0F172A',
     padding: 16,
@@ -37,7 +38,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
   },
   summaryChip: {
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#2A3347' : 'rgba(255,255,255,0.12)',
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
@@ -50,7 +51,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
     borderRadius: 28,
-    borderWidth: 1,
+    borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 0 : 1,
     borderColor: '#312E81',
     backgroundColor: '#091122',
   },
@@ -72,7 +73,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     bottom: 0,
     left: '48%',
     width: '4%',
-    backgroundColor: 'rgba(44, 67, 160, 0.38)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#1D2F67' : 'rgba(44, 67, 160, 0.38)',
   },
   duelLaneBase: {
     position: 'absolute',
@@ -80,7 +81,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     bottom: 0,
     width: '47%',
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.02)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#0C1324' : 'rgba(255,255,255,0.02)',
   },
   duelLaneLeft: {
     left: '1%',
@@ -105,7 +106,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     width: 10,
     height: ROAD_STRIPE_HEIGHT,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#374158' : 'rgba(255,255,255,0.18)',
   },
   groupRoadBase: {
     position: 'absolute',
@@ -115,7 +116,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     right: 0,
     borderRadius: 28,
     backgroundColor: '#101A31',
-    borderWidth: 1,
+    borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 0 : 1,
     borderColor: 'rgba(199,210,254,0.14)',
   },
   groupCenterMarkingsWrap: {
@@ -129,7 +130,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     height: ROAD_STRIPE_HEIGHT,
     marginBottom: ROAD_STRIPE_SPACING - ROAD_STRIPE_HEIGHT,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#3A435A' : 'rgba(255,255,255,0.16)',
   },
   finishRibbon: {
     position: 'absolute',
@@ -137,8 +138,8 @@ export const liveMatchArenaStyles = StyleSheet.create({
     left: 10,
     right: 10,
     borderRadius: 999,
-    backgroundColor: 'rgba(109,94,247,0.24)',
-    borderWidth: 1,
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#2E2A67' : 'rgba(109,94,247,0.24)',
+    borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 0 : 1,
     borderColor: 'rgba(224,231,255,0.18)',
     paddingVertical: 8,
     alignItems: 'center',
@@ -167,12 +168,12 @@ export const liveMatchArenaStyles = StyleSheet.create({
   runnerBubble: {
     marginTop: 7,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#30394C' : 'rgba(255,255,255,0.14)',
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   runnerBubbleCurrent: {
-    backgroundColor: 'rgba(129, 140, 248, 0.32)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#353474' : 'rgba(129, 140, 248, 0.32)',
   },
   runnerBubbleText: {
     color: '#FFFFFF',
@@ -188,7 +189,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 1 : 2,
   },
   runnerMarkerCurrent: {
     backgroundColor: '#6D5EF7',
@@ -225,7 +226,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     color: '#FECACA',
   },
   runnerBubbleForfeited: {
-    backgroundColor: 'rgba(220,38,38,0.36)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#7F1D1D' : 'rgba(220,38,38,0.36)',
   },
   runnerMeta: {
     marginTop: 2,
@@ -257,10 +258,10 @@ export const liveMatchArenaStyles = StyleSheet.create({
     gap: 6,
   },
   groupRowCurrent: {
-    backgroundColor: 'rgba(109,94,247,0.14)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#1D1D4F' : 'rgba(109,94,247,0.14)',
   },
   groupRowForfeited: {
-    backgroundColor: 'rgba(220,38,38,0.12)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#321321' : 'rgba(220,38,38,0.12)',
   },
   groupRankColumn: {
     width: '16%',
@@ -287,7 +288,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 1 : 2,
   },
   groupRunnerMarkerText: {
     color: '#FFFFFF',

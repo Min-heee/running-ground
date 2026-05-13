@@ -8,6 +8,7 @@ export const ROAD_STRIPE_HEIGHT = 34;
 export const ROAD_STRIPE_SPACING = 88;
 export const GROUP_ROW_HEIGHT = 78;
 export const SHOULD_ANIMATE_ROAD = Platform.OS !== 'android';
+export const USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI = Platform.OS === 'android';
 export const DUEL_STRIPE_COUNT = Platform.OS === 'android' ? 6 : 12;
 export const GROUP_STRIPE_COUNT = Platform.OS === 'android' ? 7 : 14;
 export const ANDROID_GROUP_LIGHT_MODE_THRESHOLD = 12;
