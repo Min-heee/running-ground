@@ -7,8 +7,23 @@
 ## 실행 방법
 
 ```bash
-npm run performance:smells
+npm run perf:smells
 ```
+
+`perf:smells`는 `scripts/check-performance-smells.mjs`를 실행하는 코드 품질 루틴용 짧은 별칭입니다. 기존 `performance:smells`도 같은 스크립트를 실행하지만, 출시 전 체크리스트에서는 `perf:smells`를 표준 명령어로 사용합니다.
+
+출시 전 전체 품질 게이트에서는 다음 순서로 실행합니다.
+
+```bash
+npm run typecheck
+npm run lint
+npm run test
+npm run perf:smells
+npm run backend:smoke
+npm run release:gate:preview
+```
+
+이 스크립트는 위험 후보를 문서로 정리할 뿐, 코드를 자동 수정하지 않습니다.
 
 ## 점검 기준
 

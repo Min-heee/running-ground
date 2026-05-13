@@ -61,6 +61,7 @@
     "android": "expo run:android",
     "web": "expo start --web",
     "lint": "eslint .",
+    "perf:smells": "node ./scripts/check-performance-smells.mjs",
     "performance:smells": "node ./scripts/check-performance-smells.mjs",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
