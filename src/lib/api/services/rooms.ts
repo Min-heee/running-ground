@@ -18,6 +18,7 @@ import {
   CreateRunningMatchRoomInput,
   JoinRunningMatchRoomInput,
   LeaveRunningMatchRoomInput,
+  RunningMatchRoomCleanupResponse,
   RunningMatchRoomResponse,
   StartRunningMatchRoomInput,
   UpdateRunningMatchRoomReadyInput,
@@ -55,6 +56,52 @@ export async function fetchRunningMatchRoom(): Promise<RunningMatchRoomResponse>
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
       return sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)));
+    }
+
+    throw error;
+  }
+}
+
+export async function cleanupStaleRunningMatchRoomState(): Promise<RunningMatchRoomCleanupResponse> {
+  if (USE_MOCK_API) {
+    const hasRoom = Boolean(mockApiState.runningMatchRoom);
+    return {
+      success: true,
+      cleaned: false,
+      cleanedItems: [],
+      ...(hasRoom ? { blocker: 'activeRoom' as const } : {}),
+      room: hasRoom
+        ? sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom))).room
+        : null,
+    };
+  }
+
+  try {
+    const payload = await apiPost<RunningMatchRoomCleanupResponse>(
+      '/running/rooms/cleanup-stale',
+      {},
+      {
+        accessToken: await requireAccessToken(),
+        fallbackMessage: '이전 방 상태를 정리하지 못했어.',
+      },
+    );
+
+    return {
+      ...payload,
+      room: sanitizeRunningMatchRoomResponse({
+        success: payload.success,
+        serverNow: payload.serverNow,
+        room: payload.room,
+      }).room,
+    };
+  } catch (error) {
+    if (shouldFallbackToLocalRunningRoomApi(error)) {
+      return {
+        success: true,
+        cleaned: false,
+        cleanedItems: [],
+        room: sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom))).room,
+      };
     }
 
     throw error;

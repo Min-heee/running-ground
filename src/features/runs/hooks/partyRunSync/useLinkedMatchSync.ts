@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { buildPartyRunFlowSnapshot } from '@/features/runs/matchStateMachine';
+import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 import type { LinkedMatchSyncInput } from './types';
 
 export function canOpenPartyRunLinkedMatch({
@@ -95,9 +96,20 @@ export function useLinkedMatchSync({
     }
 
     roomLinkedMatchAutoFocusRef.current = nextKey;
-    void callbacksRef.current.focusRoomLinkedMatch(matchRoom, { preferArena: shouldPreferArena }).catch(() => {
-      roomLinkedMatchAutoFocusRef.current = null;
+    const endNavigationTrace = rgPerfMeasureStart('live match navigation', {
+      matchId: matchRoom.linkedMatchId,
+      mode: matchRoom.mode,
+      preferArena: shouldPreferArena,
+      roomId: matchRoom.roomId,
     });
+    void callbacksRef.current.focusRoomLinkedMatch(matchRoom, { preferArena: shouldPreferArena })
+      .then(() => {
+        endNavigationTrace({ success: true });
+      })
+      .catch(() => {
+        endNavigationTrace({ success: false });
+        roomLinkedMatchAutoFocusRef.current = null;
+      });
   }, [
     callbacksRef,
     currentUserId,
@@ -167,12 +179,23 @@ export function useLinkedMatchSync({
       || visiblePartyRunFlow.shouldOpenArena
       ? fastMatchStatusPollMs
       : idleMatchStatusPollMs;
+    rgPerfMark('match polling start', {
+      intervalMs,
+      matchId: roomLinkedMatchContext.matchId,
+      source: 'linked match status',
+    });
+    const stopPollingTrace = rgPerfTrackResource('polling', 'linked match status polling', {
+      intervalMs,
+      matchId: roomLinkedMatchContext.matchId,
+      mode: roomLinkedMatchContext.mode,
+    });
     const timer = setInterval(() => {
       void syncRoomLinkedMatch();
     }, intervalMs);
 
     return () => {
       canceled = true;
+      stopPollingTrace();
       clearInterval(timer);
     };
   }, [

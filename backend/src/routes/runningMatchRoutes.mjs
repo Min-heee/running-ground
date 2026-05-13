@@ -21,6 +21,7 @@ export async function routeRunningMatchRequest({
   handleAcknowledgeRunningMatchRoomCountdown,
   handleStartRunningMatchRoom,
   handleLeaveRunningMatchRoom,
+  handleCleanupStaleRunningMatchRoomState,
 }) {
   if (pathname === '/api/running/matches/duel' && method === 'POST') {
     await handleRequestDuelMatch(request, response);
@@ -104,6 +105,11 @@ export async function routeRunningMatchRequest({
 
   if (pathname === '/api/running/rooms/leave' && method === 'POST') {
     await handleLeaveRunningMatchRoom(request, response);
+    return true;
+  }
+
+  if (pathname === '/api/running/rooms/cleanup-stale' && method === 'POST') {
+    await handleCleanupStaleRunningMatchRoomState(request, response);
     return true;
   }
 

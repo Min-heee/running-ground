@@ -77,6 +77,16 @@ export type RunningMatchRoomResponse = {
   room: RunningMatchRoom | null;
 };
 
+export type RunningMatchRoomCleanupResponse = {
+  success: boolean;
+  serverNow?: string;
+  cleaned: boolean;
+  cleanedItems: string[];
+  blocker?: 'activeRoom' | 'matchSession' | 'matchQueue';
+  message?: string;
+  room: RunningMatchRoom | null;
+};
+
 export type CreateRunningMatchRoomInput = {
   mode: RunningMatchRoomMode;
   distanceKm: number;

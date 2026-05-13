@@ -148,9 +148,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     version,
     orientation: 'portrait',
     userInterfaceStyle: 'light',
-    runtimeVersion: {
-      policy: 'appVersion',
-    },
+    runtimeVersion: version,
     updates: {
       ...(baseConfig.updates ?? {}),
       url: process.env.EXPO_UPDATES_URL?.trim() || DEFAULT_EAS_UPDATE_URL,

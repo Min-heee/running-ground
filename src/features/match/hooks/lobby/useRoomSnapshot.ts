@@ -10,6 +10,7 @@ import {
   shouldAcceptServerSnapshot,
 } from '@/features/runs/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
+import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 
 function buildRoomRenderKey(room: RunningMatchRoom | null) {
   if (!room) {
@@ -77,8 +78,16 @@ export function useRoomSnapshot() {
       return null;
     }
 
+    const endActiveRoomCheckTrace = rgPerfMeasureStart('active room check', {
+      source: 'match-room snapshot',
+    });
+
     try {
       const payload = await fetchRunningMatchRoom();
+      endActiveRoomCheckTrace({
+        roomId: payload.room?.roomId ?? null,
+        success: true,
+      });
       if (pollingPausedRef.current) {
         return null;
       }
@@ -88,11 +97,31 @@ export function useRoomSnapshot() {
       }
 
       syncServerClock(payload.serverNow);
-      const nextRoom = isMatchRoomExiting(payload.room?.roomId) ? null : payload.room;
+      if (payload.room) {
+        rgPerfMark('already joined room detected', {
+          roomId: payload.room.roomId,
+          source: 'match-room snapshot',
+          state: payload.room.state,
+        });
+      }
+
+      if (isMatchRoomExiting(payload.room?.roomId)) {
+        const endStaleCleanupTrace = rgPerfMeasureStart('stale room cleanup', {
+          roomId: payload.room?.roomId ?? null,
+          source: 'match-room exit guard',
+        });
+        commitRoom(null);
+        endStaleCleanupTrace({ success: true });
+        setError(null);
+        return null;
+      }
+
+      const nextRoom = payload.room;
       commitRoom(nextRoom);
       setError(null);
       return nextRoom;
     } catch (roomError) {
+      endActiveRoomCheckTrace({ success: false });
       if (pollingPausedRef.current) {
         return null;
       }
@@ -137,12 +166,21 @@ export function useRoomSnapshot() {
 
     void hydrate();
     const intervalMs = room?.linkedMatchId ? 750 : 1500;
+    rgPerfMark('match polling start', {
+      intervalMs,
+      source: 'match-room snapshot',
+    });
+    const stopPollingTrace = rgPerfTrackResource('polling', 'match-room snapshot polling', {
+      intervalMs,
+      linkedMatchId: room?.linkedMatchId ?? null,
+    });
     const intervalId = setInterval(() => {
       void loadRoom();
     }, intervalMs);
 
     return () => {
       cancelled = true;
+      stopPollingTrace();
       clearInterval(intervalId);
     };
   }, [loadRoom, pollingPaused, room?.linkedMatchId]);

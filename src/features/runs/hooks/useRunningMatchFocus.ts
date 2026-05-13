@@ -14,6 +14,7 @@ import {
   type MatchTimeSection,
 } from '@/features/runs/matchScheduling';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
+import { rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type FocusRunningMatchInput = {
   mode: Extract<RunMatchMode, 'duel' | 'group'>;
@@ -84,6 +85,14 @@ export function useRunningMatchFocus({
     isTestMatch,
     preferArena = false,
   }: FocusRunningMatchInput) => {
+    const endNavigationTrace = rgPerfMeasureStart('live match navigation', {
+      matchId: matchId ?? null,
+      mode,
+      preferArena,
+      source: 'running match focus',
+    });
+    let navigationTraceSucceeded = false;
+
     setLiveArenaPage(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
     setForceOpenActiveMatch(Boolean(preferArena));
@@ -111,10 +120,11 @@ export function useRunningMatchFocus({
         setForceOpenActiveMatch(
           payload.state === 'active'
             || (payload.state === 'matched' && (
-              preferArena
+          preferArena
               || shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
             )),
         );
+        navigationTraceSucceeded = true;
         return payload;
       }
 
@@ -142,8 +152,10 @@ export function useRunningMatchFocus({
           || shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
         )),
       );
+      navigationTraceSucceeded = true;
       return payload;
     } finally {
+      endNavigationTrace({ success: navigationTraceSucceeded });
       setIsResolvingFocusedMatch(false);
     }
   }, [

@@ -1278,7 +1278,7 @@ function getMatchRoomMinParticipants(mode) {
 function isMatchRoomVisibleToUser(room, userId) {
   return room.hostUserId === userId
     || room.participants.some((participant) => participant.userId === userId)
-    || room.invitedFriendIds.includes(userId);
+    || (Array.isArray(room.invitedFriendIds) && room.invitedFriendIds.includes(userId));
 }
 
 function buildMatchRoomInviteLink(inviteToken) {
@@ -1933,6 +1933,226 @@ function leaveRunningMatchRoom(store, currentUser, { roomId }) {
   }
 
   return buildRunningMatchRoomResponse(store, currentUser, room);
+}
+
+function countUserRoomRefs(store, userId) {
+  return ensureMatchRooms(store).filter((room) => isMatchRoomVisibleToUser(room, userId)).length;
+}
+
+function countUserSessionRefs(store, userId) {
+  return ensureMatchSessions(store).filter((session) => (
+    Array.isArray(session.participants)
+    && session.participants.some((participant) => participant.userId === userId)
+  )).length;
+}
+
+function countUserQueueRefs(store, userId) {
+  const queues = ensureMatchQueues(store);
+  return ['duel', 'group'].reduce((count, mode) => (
+    count + queues[mode].filter((entry) => entry.userId === userId).length
+  ), 0);
+}
+
+function clearUserStaleReferenceFields(store, currentUser) {
+  const cleanedItems = [];
+  const roomIdFields = ['activeRoomId', 'activeMatchRoomId', 'currentRoomId', 'partyRunRoomId'];
+  const matchIdFields = ['activeMatchId', 'currentMatchId', 'activeDuelMatchId', 'activeGroupMatchId'];
+
+  for (const field of roomIdFields) {
+    const value = currentUser[field];
+    if (typeof value === 'string' && value && !ensureMatchRooms(store).some((room) => room.id === value)) {
+      delete currentUser[field];
+      cleanedItems.push(`user.${field}`);
+    }
+  }
+
+  for (const field of matchIdFields) {
+    const value = currentUser[field];
+    if (typeof value === 'string' && value && !ensureMatchSessions(store).some((session) => session.id === value)) {
+      delete currentUser[field];
+      cleanedItems.push(`user.${field}`);
+    }
+  }
+
+  return cleanedItems;
+}
+
+function shouldClearLiveRunShareEntry(entry, now = new Date()) {
+  if (!entry || typeof entry !== 'object') {
+    return false;
+  }
+
+  const status = String(entry.status ?? 'idle');
+  const updatedAtMs = new Date(entry.updatedAt ?? entry.lastUpdatedAt ?? entry.createdAt ?? 0).getTime();
+  const isPotentiallyActive = ['running', 'background'].includes(status);
+
+  if (!isPotentiallyActive) {
+    return true;
+  }
+
+  return !Number.isFinite(updatedAtMs) || updatedAtMs + MATCH_PARTICIPANT_BACKGROUND_STALE_MS <= now.getTime();
+}
+
+function clearUserLiveRunShare(store, userId, now = new Date()) {
+  if (Array.isArray(store.liveRunShares)) {
+    const beforeCount = store.liveRunShares.length;
+    store.liveRunShares = store.liveRunShares.filter((entry) => (
+      entry?.userId !== userId || !shouldClearLiveRunShareEntry(entry, now)
+    ));
+    return store.liveRunShares.length !== beforeCount;
+  }
+
+  if (store.liveRunShares && typeof store.liveRunShares === 'object') {
+    const entry = store.liveRunShares[userId];
+    if (Object.prototype.hasOwnProperty.call(store.liveRunShares, userId) && shouldClearLiveRunShareEntry(entry, now)) {
+      delete store.liveRunShares[userId];
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function detachUserFromStaleMatchRoom(store, room, userId) {
+  const rooms = ensureMatchRooms(store);
+  const roomIndex = rooms.findIndex((entry) => entry.id === room.id);
+
+  if (roomIndex === -1) {
+    return false;
+  }
+
+  const nextParticipants = room.participants.filter((participant) => participant.userId !== userId);
+  const beforeInviteCount = Array.isArray(room.invitedFriendIds) ? room.invitedFriendIds.length : 0;
+  room.invitedFriendIds = Array.isArray(room.invitedFriendIds)
+    ? room.invitedFriendIds.filter((invitedUserId) => invitedUserId !== userId)
+    : [];
+  const removedParticipant = nextParticipants.length !== room.participants.length;
+  const removedInvite = room.invitedFriendIds.length !== beforeInviteCount;
+
+  if (!removedParticipant && !removedInvite) {
+    return false;
+  }
+
+  if (nextParticipants.length === 0) {
+    store.matchRooms = rooms.filter((entry) => entry.id !== room.id);
+    return true;
+  }
+
+  const removedHost = room.hostUserId === userId || room.participants.some((participant) => participant.userId === userId && participant.isHost);
+  room.participants = nextParticipants;
+
+  if (removedHost) {
+    room.hostUserId = room.participants[0].userId;
+    room.participants = room.participants.map((participant, index) => ({
+      ...participant,
+      isHost: index === 0,
+    }));
+  }
+
+  room.updatedAt = new Date().toISOString();
+  return true;
+}
+
+function cleanupStaleRunningMatchRoomState(store, currentUser, now = new Date()) {
+  const cleanedItems = [];
+  const beforeRoomRefs = countUserRoomRefs(store, currentUser.id);
+  const beforeSessionRefs = countUserSessionRefs(store, currentUser.id);
+  const beforeQueueRefs = countUserQueueRefs(store, currentUser.id);
+
+  pruneMatchQueues(store, now);
+  pruneMatchSessions(store, now);
+  pruneMatchRooms(store, now);
+
+  const afterPruneRoomRefs = countUserRoomRefs(store, currentUser.id);
+  const afterPruneSessionRefs = countUserSessionRefs(store, currentUser.id);
+  const afterPruneQueueRefs = countUserQueueRefs(store, currentUser.id);
+
+  if (afterPruneRoomRefs < beforeRoomRefs) {
+    cleanedItems.push('matchRooms.pruned');
+  }
+
+  if (afterPruneSessionRefs < beforeSessionRefs) {
+    cleanedItems.push('matchSessions.pruned');
+  }
+
+  if (afterPruneQueueRefs < beforeQueueRefs) {
+    cleanedItems.push('matchQueues.pruned');
+  }
+
+  cleanedItems.push(...clearUserStaleReferenceFields(store, currentUser));
+
+  const existingRoom = findRunningMatchRoomForUser(store, currentUser.id, now);
+
+  if (existingRoom) {
+    const linkedSession = getMatchRoomLinkedSession(existingRoom, store);
+    const linkedParticipant = linkedSession?.participants?.find((participant) => participant.userId === currentUser.id) ?? null;
+    const roomPayload = buildRunningMatchRoomResponse(store, currentUser, existingRoom, now);
+    const shouldDetachStaleRoomParticipant = Boolean(
+      !roomPayload.room
+      || (linkedParticipant && isParticipantDoneWithMatch(linkedParticipant, now))
+      || (existingRoom.linkedMatchId && !linkedSession),
+    );
+
+    if (!shouldDetachStaleRoomParticipant) {
+      return {
+        success: true,
+        serverNow: now.toISOString(),
+        cleaned: cleanedItems.length > 0,
+        cleanedItems,
+        blocker: 'activeRoom',
+        message: buildMatchRoomLockMessage(existingRoom, store, currentUser.id),
+        room: roomPayload.room,
+      };
+    }
+
+    if (detachUserFromStaleMatchRoom(store, existingRoom, currentUser.id)) {
+      cleanedItems.push('matchRooms.detachedDoneParticipant');
+    }
+
+    pruneMatchRooms(store, now);
+  }
+
+  const existingSession = findAnyReservedMatchSessionForUser(store, currentUser.id, now);
+
+  if (existingSession) {
+    return {
+      success: true,
+      serverNow: now.toISOString(),
+      cleaned: cleanedItems.length > 0,
+      cleanedItems,
+      blocker: 'matchSession',
+      message: buildSingleMatchLockMessage(existingSession.session.mode, existingSession.session.slotStartAt, existingSession.state),
+      room: null,
+    };
+  }
+
+  const existingQueue = findAnyQueuedMatchEntryForUser(store, currentUser.id);
+
+  if (existingQueue) {
+    return {
+      success: true,
+      serverNow: now.toISOString(),
+      cleaned: cleanedItems.length > 0,
+      cleanedItems,
+      blocker: 'matchQueue',
+      message: buildSingleMatchLockMessage(existingQueue.mode, existingQueue.entry.slotStartAt, 'waiting'),
+      room: null,
+    };
+  }
+
+  if (clearUserLiveRunShare(store, currentUser.id, now)) {
+    cleanedItems.push('liveRunShares.currentUser');
+  }
+
+  const nextRoom = findRunningMatchRoomForUser(store, currentUser.id, now);
+
+  return {
+    success: true,
+    serverNow: now.toISOString(),
+    cleaned: cleanedItems.length > 0,
+    cleanedItems,
+    room: nextRoom ? buildRunningMatchRoomResponse(store, currentUser, nextRoom, now).room : null,
+  };
 }
 
 function resolveParticipantLiveStatus(participant, now = new Date()) {
@@ -5680,6 +5900,15 @@ async function handleLeaveRunningMatchRoom(request, response) {
   sendJson(response, 200, payload);
 }
 
+async function handleCleanupStaleRunningMatchRoomState(request, response) {
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return cleanupStaleRunningMatchRoomState(store, currentUser);
+  });
+
+  sendJson(response, 200, payload);
+}
+
 function handleIntegrationSourceConnection(request, response, sourceType, nextConnected) {
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
@@ -5880,6 +6109,7 @@ const routeRequest = createApiRouteHandler({
   handleUpdateRunningMatchRoomReady,
   handleAcknowledgeRunningMatchRoomCountdown,
   handleLeaveRunningMatchRoom,
+  handleCleanupStaleRunningMatchRoomState,
   handleOfflineRaceEntryAction,
   handleClaimMarketItem,
   handleFriendRequestCreate,

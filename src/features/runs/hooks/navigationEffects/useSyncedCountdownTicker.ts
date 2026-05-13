@@ -3,13 +3,19 @@ import { useEffect } from 'react';
 type UseSyncedCountdownTickerInput = {
   serverClockOffsetMsRef: { current: number };
   onNowMsChange: (nowMs: number) => void;
+  enabled?: boolean;
 };
 
 export function useSyncedCountdownTicker({
   serverClockOffsetMsRef,
   onNowMsChange,
+  enabled = true,
 }: UseSyncedCountdownTickerInput) {
   useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
     let timer: ReturnType<typeof setTimeout> | null = null;
 
     const scheduleNextTick = () => {
@@ -27,5 +33,5 @@ export function useSyncedCountdownTicker({
         clearTimeout(timer);
       }
     };
-  }, [onNowMsChange, serverClockOffsetMsRef]);
+  }, [enabled, onNowMsChange, serverClockOffsetMsRef]);
 }

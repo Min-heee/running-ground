@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { LiveMatchRaceBoard } from '@/components/matches/LiveMatchRaceBoard';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import {
@@ -8,6 +8,7 @@ import {
 } from '@/features/runs/matchProgress';
 import type { ArenaParticipantViewModel } from '@/features/runs/matchViewModels';
 import type { DuelMatchOpponent, RunningMatchRoom } from '@/lib/api/types';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type RaceBoardRow = {
@@ -80,6 +81,18 @@ export const LiveMatchRaceBoardPage = memo(function LiveMatchRaceBoardPage({
   groupArenaUsesLivePace,
 }: LiveMatchRaceBoardPageProps) {
   useDevRenderCounter(`LiveMatchRaceBoardPage:${matchMode}`);
+  useEffect(() => {
+    rgPerfMark('race board mount', {
+      matchMode,
+    });
+
+    return () => {
+      rgPerfMark('race board unmount', {
+        matchMode,
+      });
+    };
+  }, [matchMode]);
+
   const liveDuelRows = useMemo(() => {
     if (matchMode !== 'duel' || !effectiveDuelOpponent) {
       return null;

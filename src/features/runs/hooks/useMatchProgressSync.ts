@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import {
   updateRunningMatchProgress as updateRunningMatchProgressService,
@@ -19,6 +19,7 @@ import {
   resolveActiveMatchProgressTarget,
   shouldSendMatchProgressHeartbeat,
 } from '@/features/runs/matchProgressSync';
+import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 
 type DisplayedMatchProgress = {
   distanceKm: number;
@@ -53,6 +54,7 @@ export function useMatchProgressSync({
   updateRunningMatchProgress = updateRunningMatchProgressService,
   heartbeatEnabled = true,
 }: UseMatchProgressSyncInput) {
+  const firstLiveProgressReceivedRef = useRef(false);
   const callbackRef = useRef({
     buildDisplayedMatchProgress,
     setLastSyncedMatchProgress,
@@ -81,13 +83,42 @@ export function useMatchProgressSync({
     roomLinkedMatchContextRef,
   ]);
 
+  useEffect(() => {
+    if (!heartbeatEnabled || !getActiveMatchProgressTarget()) {
+      return undefined;
+    }
+
+    return rgPerfTrackResource('heartbeat', 'match progress heartbeat', {
+      cadence: 'on tracking tick',
+    });
+  }, [getActiveMatchProgressTarget, heartbeatEnabled]);
+
   const pushRunningMatchProgress = useCallback(async (input: UpdateRunningMatchProgressInput) => {
     const syncedProgress = buildSyncedMatchProgressSnapshot(input);
-    const nextStatus = await callbackRef.current.updateRunningMatchProgress({
-      ...input,
-      currentPace: syncedProgress.currentPace,
+    const endHeartbeatApiTrace = rgPerfMeasureStart('progress heartbeat API', {
+      matchId: input.matchId,
+      status: input.status,
     });
+    let nextStatus: RunningMatchStatusResponse;
+    try {
+      nextStatus = await callbackRef.current.updateRunningMatchProgress({
+        ...input,
+        currentPace: syncedProgress.currentPace,
+      });
+      endHeartbeatApiTrace({ success: true });
+    } catch (progressError) {
+      endHeartbeatApiTrace({ success: false });
+      throw progressError;
+    }
     callbackRef.current.setLastSyncedMatchProgress(syncedProgress);
+
+    if (!firstLiveProgressReceivedRef.current) {
+      firstLiveProgressReceivedRef.current = true;
+      rgPerfMark('first live progress received', {
+        matchId: input.matchId,
+        state: nextStatus.state,
+      });
+    }
 
     if (input.matchId === duelMatchStatusRef.current?.matchId) {
       callbackRef.current.setDuelMatchStatus(nextStatus);
@@ -154,6 +185,10 @@ export function useMatchProgressSync({
 
     matchProgressHeartbeatRef.current = now;
     const progress = callbackRef.current.buildDisplayedMatchProgress(snapshot);
+    rgPerfMark('progress heartbeat start', {
+      matchId: target.matchId,
+      status: 'running',
+    });
     void pushRunningMatchProgress({
       matchId: target.matchId,
       distanceKm: progress.distanceKm,

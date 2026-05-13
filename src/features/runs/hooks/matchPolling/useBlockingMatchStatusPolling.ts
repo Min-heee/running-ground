@@ -6,6 +6,7 @@ import {
   getMatchStartRemainingSeconds,
   shouldShowMatchStartOverlay,
 } from '@/lib/matchCountdown';
+import { rgPerfMark, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 
 type UseBlockingMatchStatusPollingInput = {
   matchMode: RunMatchMode;
@@ -73,11 +74,22 @@ export function useBlockingMatchStatusPolling({
     }
 
     const intervalMs = shouldFastPollDuelMatchStatus ? fastPollMs : idlePollMs;
+    rgPerfMark('match polling start', {
+      intervalMs,
+      matchId: duelMatchId ?? null,
+      mode: 'duel',
+      source: 'blocking match status',
+    });
+    const stopPollingTrace = rgPerfTrackResource('polling', 'blocking duel match status polling', {
+      intervalMs,
+      matchId: duelMatchId ?? null,
+    });
     const timer = setInterval(() => {
       void callbackRef.current.loadDuelMatchStatus().catch(() => {});
     }, intervalMs);
 
     return () => {
+      stopPollingTrace();
       clearInterval(timer);
     };
   }, [
@@ -97,11 +109,22 @@ export function useBlockingMatchStatusPolling({
     }
 
     const intervalMs = shouldFastPollGroupMatchStatus ? fastPollMs : idlePollMs;
+    rgPerfMark('match polling start', {
+      intervalMs,
+      matchId: groupMatchId ?? null,
+      mode: 'group',
+      source: 'blocking match status',
+    });
+    const stopPollingTrace = rgPerfTrackResource('polling', 'blocking group match status polling', {
+      intervalMs,
+      matchId: groupMatchId ?? null,
+    });
     const timer = setInterval(() => {
       void callbackRef.current.loadGroupMatchStatus().catch(() => {});
     }, intervalMs);
 
     return () => {
+      stopPollingTrace();
       clearInterval(timer);
     };
   }, [

@@ -42,6 +42,7 @@ import type {
   SaveTrackingOptions,
   TrackerStatus,
 } from '@/features/runs/hooks/useRunTracking';
+import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type DisplayedTrackingSnapshot = {
   route: RunRoutePoint[];
@@ -361,6 +362,11 @@ export function useRunSaveFlow({
       return;
     }
 
+    const endForfeitApiTrace = rgPerfMeasureStart('forfeit match API', {
+      matchId,
+      source,
+    });
+    let forfeitApiTraceCompleted = false;
     setMatchLeaving(source, true);
 
     try {
@@ -370,11 +376,15 @@ export function useRunSaveFlow({
         setDuelMatchStatus((currentStatus) => markDuelStatusForfeited(currentStatus, matchId));
         setDuelMatchNotice('기권 처리됐어요. 기록을 저장하고 대결 화면에서 나갈게요.');
         await leaveRunningMatch({ matchId });
+        forfeitApiTraceCompleted = true;
+        endForfeitApiTrace({ success: true });
         matchProgressHeartbeatRef.current = Date.now();
       } else {
         setGroupMatchStatus((currentStatus) => markGroupStatusForfeited(currentStatus, matchId));
         setGroupMatchNotice('기권 처리됐어요. 기록을 저장하고 대결 화면에서 나갈게요.');
         await leaveRunningMatch({ matchId });
+        forfeitApiTraceCompleted = true;
+        endForfeitApiTrace({ success: true });
         matchProgressHeartbeatRef.current = Date.now();
       }
 
@@ -389,6 +399,9 @@ export function useRunSaveFlow({
         setGroupMatchStatus(previousGroupStatus);
         setGroupMatchNotice(previousGroupNotice);
       }
+      if (!forfeitApiTraceCompleted) {
+        endForfeitApiTrace({ success: false });
+      }
       setError(getApiErrorMessage(matchError, '기권 처리에 실패했어.'));
     } finally {
       if (pendingForfeitMatchRef.current === matchId) {
@@ -399,6 +412,7 @@ export function useRunSaveFlow({
   };
 
   const handleForfeitMatch = (source: MatchExitSource) => {
+    rgPerfMark('forfeit action dispatch', { source });
     void forfeitMatchAndKeepRunning(source);
   };
 
@@ -407,6 +421,7 @@ export function useRunSaveFlow({
       return;
     }
 
+    rgPerfMark('counterpart forfeit result action dispatch', { source });
     pendingCounterpartForfeitResultRef.current = true;
     setMatchLeaving(source, true);
 

@@ -1,10 +1,11 @@
 import { useEffect, useRef, type MutableRefObject, type RefObject } from 'react';
 import { type Href, router } from 'expo-router';
 import type { ScrollView } from 'react-native';
-import { getApiErrorMessage, joinRunningMatchRoom } from '@/services';
+import { cleanupStaleRunningMatchRoomState, getApiErrorMessage, joinRunningMatchRoom } from '@/services';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
+import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type FocusRunningMatchInput = {
   mode: Extract<RunMatchMode, 'duel' | 'group'>;
@@ -103,9 +104,58 @@ export function useMatchEntryEffects({
 
     handledRoomInviteTokenRef.current = roomInviteToken;
     onRoomInviteTokenInputChange(roomInviteToken);
+    rgPerfMark('invite code input submit', {
+      hasToken: true,
+      source: 'room invite token effect',
+    });
 
-    void joinRunningMatchRoom({ inviteToken: roomInviteToken })
+    const endJoinApiTrace = rgPerfMeasureStart('room join API', {
+      inviteTokenLength: roomInviteToken.length,
+      source: 'room invite token effect',
+    });
+
+    void cleanupStaleRunningMatchRoomState()
+      .catch(() => null)
+      .then((cleanupPayload) => {
+        if (cleanupPayload?.cleaned) {
+          commitMatchRoom(cleanupPayload.room);
+        }
+
+        if (
+          cleanupPayload?.room
+          && cleanupPayload.room.joined !== false
+          && cleanupPayload.room.inviteToken.toUpperCase() === roomInviteToken.toUpperCase()
+        ) {
+          const endNavigationTrace = rgPerfMeasureStart('navigation to lobby', {
+            roomId: cleanupPayload.room.roomId,
+            source: 'room invite token existing room',
+          });
+          router.push('/match-room' as Href);
+          endNavigationTrace({ success: true });
+          return null;
+        }
+
+        if (
+          cleanupPayload?.room
+          && cleanupPayload.room.joined !== false
+          && cleanupPayload.room.inviteToken.toUpperCase() !== roomInviteToken.toUpperCase()
+        ) {
+          onError(cleanupPayload.message ?? '이미 참여 중인 방이 있어요. 기존 방을 먼저 나간 뒤 다시 시도해주세요.');
+          return null;
+        }
+
+        return joinRunningMatchRoom({ inviteToken: roomInviteToken });
+      })
       .then((payload) => {
+        if (!payload) {
+          endJoinApiTrace({ skipped: true, success: true });
+          return;
+        }
+
+        endJoinApiTrace({
+          roomId: payload.room?.roomId ?? null,
+          success: true,
+        });
         if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
           return;
         }
@@ -114,10 +164,19 @@ export function useMatchEntryEffects({
         commitMatchRoom(payload.room);
 
         if (payload.room) {
+          const endNavigationTrace = rgPerfMeasureStart('navigation to lobby', {
+            roomId: payload.room.roomId,
+            source: 'room invite token effect',
+          });
           router.push('/match-room' as Href);
+          endNavigationTrace({ success: true });
         }
       })
       .catch((roomError) => {
+        endJoinApiTrace({ success: false });
+        rgPerfMark('room join API error', {
+          source: 'room invite token effect',
+        });
         onError(getApiErrorMessage(roomError, '초대 링크로 방에 들어가지 못했어.'));
       });
   }, [

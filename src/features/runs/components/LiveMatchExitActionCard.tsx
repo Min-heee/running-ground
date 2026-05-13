@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { buildMatchExitActionState } from '@/features/runs/matchExitAction';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type MatchExitSource = 'duel' | 'group';
@@ -68,7 +69,10 @@ export function LiveMatchExitActionCard({
         <Text style={styles.text}>{actionState.body}</Text>
         <Pressable
           style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]}
-          onPress={() => onShowResultAfterCounterpartForfeit(source)}
+          onPress={() => {
+            rgPerfMark('counterpart forfeit result button press', { source });
+            onShowResultAfterCounterpartForfeit(source);
+          }}
           disabled={actionState.disabled}
         >
           <Text style={styles.buttonText}>{actionState.buttonLabel}</Text>
@@ -83,7 +87,10 @@ export function LiveMatchExitActionCard({
       <Text style={styles.text}>{actionState.body}</Text>
       <Pressable
         style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]}
-        onPress={() => onForfeit(source)}
+        onPress={() => {
+          rgPerfMark('forfeit button press', { source });
+          onForfeit(source);
+        }}
         disabled={actionState.disabled}
       >
         <Text style={styles.buttonText}>{actionState.buttonLabel}</Text>

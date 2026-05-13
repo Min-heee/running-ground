@@ -37,6 +37,7 @@ import type {
 } from '@/features/runs/types/runTrackingFlow';
 import { shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { getApiErrorMessage } from '@/services/apiError';
+import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 export function useRunTrackingFlow({
   pedometerSubscriptionRef,
@@ -101,6 +102,13 @@ export function useRunTrackingFlow({
   };
 
   const finishSoloStartCountdown = (completed: boolean) => {
+    if (soloStartCountdownResolveRef.current) {
+      rgPerfMark('countdown end', {
+        completed,
+        source: 'solo',
+      });
+    }
+
     if (soloStartCountdownTimerRef.current) {
       clearInterval(soloStartCountdownTimerRef.current);
       soloStartCountdownTimerRef.current = null;
@@ -116,6 +124,10 @@ export function useRunTrackingFlow({
 
     soloStartCountdownResolveRef.current = resolve;
     let remainingSeconds = soloStartCountdownSeconds;
+    rgPerfMark('countdown begin', {
+      remainingSeconds,
+      source: 'solo',
+    });
     setSoloStartCountdownSeconds(remainingSeconds);
     setStatus('starting');
 
@@ -372,6 +384,11 @@ export function useRunTrackingFlow({
       return;
     }
 
+    const endGpsStartTrace = rgPerfMeasureStart('GPS tracking start', {
+      allowCountdownWarmup: Boolean(options?.allowCountdownWarmup),
+      matchMode,
+    });
+
     try {
       setError(null);
       const shouldUseSoloStartCountdown = matchMode === 'solo' && !options?.allowCountdownWarmup;
@@ -394,12 +411,14 @@ export function useRunTrackingFlow({
         const countdownCompleted = await runSoloStartCountdown();
 
         if (!countdownCompleted) {
+          endGpsStartTrace({ canceled: true, success: false });
           return;
         }
       }
 
       await startBackgroundRunTracking(undefined, { appState: appStateRef.current });
       syncFromBackgroundTracking();
+      endGpsStartTrace({ success: true, status: 'running' });
 
       try {
         if (liveShareEnabledRef.current) {
@@ -419,6 +438,7 @@ export function useRunTrackingFlow({
         setError('러닝은 시작됐지만 위치 공유 상태를 반영하지 못했어요.');
       }
     } catch (trackingError) {
+      endGpsStartTrace({ success: false });
       finishSoloStartCountdown(false);
       setError(getApiErrorMessage(trackingError, '러닝 측정을 시작하지 못했어.'));
       stopForegroundTrackingHelpers();

@@ -22,6 +22,7 @@ import {
   stopLocationTaskIfNeeded,
 } from '@/features/runs/tracking/background/subscriptions';
 import { resolveLocationTimestampMs } from '@/features/runs/tracking/background/locationDistance';
+import { rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 export type {
   BackgroundRunTrackingSnapshot,
@@ -80,6 +81,20 @@ function resetAbandonedTrackingIfNeeded(nowMs = Date.now()) {
   return true;
 }
 
+async function startLocationTaskWithTrace(options?: StartBackgroundRunTrackingOptions) {
+  const endBackgroundTaskStartTrace = rgPerfMeasureStart('background task start', {
+    appState: options?.appState ?? null,
+  });
+
+  try {
+    await startLocationTask({ appState: options?.appState });
+    endBackgroundTaskStartTrace({ success: true });
+  } catch (taskError) {
+    endBackgroundTaskStartTrace({ success: false });
+    throw taskError;
+  }
+}
+
 export function getBackgroundRunTrackingSnapshot(options?: SnapshotCloneOptions) {
   resetAbandonedTrackingIfNeeded();
   return buildSnapshotClone(getSnapshotState(), options);
@@ -122,7 +137,7 @@ export async function startBackgroundRunTracking(
     pausedAt: null,
   });
   emitSnapshot();
-  await startLocationTask({ appState: options?.appState });
+  await startLocationTaskWithTrace(options);
 }
 
 export async function pauseBackgroundRunTracking() {
@@ -159,7 +174,7 @@ export async function resumeBackgroundRunTracking(options?: StartBackgroundRunTr
     accumulatedPausedMs: snapshotState.accumulatedPausedMs + additionalPausedMs,
   });
   emitSnapshot();
-  await startLocationTask({ appState: options?.appState });
+  await startLocationTaskWithTrace(options);
 }
 
 export async function resetBackgroundRunTracking() {
@@ -173,5 +188,5 @@ export async function syncBackgroundRunTrackingAppState(appState: AppStateStatus
     return;
   }
 
-  await startLocationTask({ appState });
+  await startLocationTaskWithTrace({ appState });
 }

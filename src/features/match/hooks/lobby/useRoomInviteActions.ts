@@ -11,6 +11,7 @@ import type { RunningMatchRoom } from '@/lib/api/types';
 import type { MatchRoomUxModel } from '@/features/runs/matchRoomFlow';
 import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
 import type { UpdateRoomSettingsInput } from '@/features/runs/types/matchRoom';
+import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type UseRoomInviteActionsInput = {
   room: RunningMatchRoom | null;
@@ -36,6 +37,12 @@ export function useRoomInviteActions({
   saveRoomSettings,
 }: UseRoomInviteActionsInput) {
   const handleAcceptInvite = async () => {
+    rgPerfMark('invite code input submit', {
+      hasToken: Boolean(room?.inviteToken),
+      roomId: room?.roomId ?? null,
+      source: 'match-room invite accept',
+    });
+
     if (!room || !roomUxModel.invite.canAccept) {
       return;
     }
@@ -43,8 +50,17 @@ export function useRoomInviteActions({
     setSaving(true);
     setError(null);
 
+    const endJoinApiTrace = rgPerfMeasureStart('room join API', {
+      roomId: room.roomId,
+      source: 'match-room invite accept',
+    });
+
     try {
       const payload = await joinRunningMatchRoom({ inviteToken: room.inviteToken });
+      endJoinApiTrace({
+        roomId: payload.room?.roomId ?? room.roomId,
+        success: true,
+      });
       if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
         return;
       }
@@ -52,13 +68,25 @@ export function useRoomInviteActions({
       syncServerClock(payload.serverNow);
       commitRoom(payload.room);
     } catch (roomError) {
-      setError(getApiErrorMessage(roomError, '초대를 수락하지 못했어.'));
+      endJoinApiTrace({ success: false });
+      const message = getApiErrorMessage(roomError, '초대를 수락하지 못했어.');
+      rgPerfMark('room join API error', {
+        message,
+        roomId: room.roomId,
+        source: 'match-room invite accept',
+      });
+      setError(message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeclineInvite = async () => {
+    rgPerfMark('room leave button press', {
+      roomId: room?.roomId ?? null,
+      source: 'match-room invite decline',
+    });
+
     if (!room || !roomUxModel.invite.canDecline) {
       return;
     }
@@ -66,17 +94,37 @@ export function useRoomInviteActions({
     setSaving(true);
     setError(null);
 
+    const endLeaveApiTrace = rgPerfMeasureStart('room leave API', {
+      roomId: room.roomId,
+      source: 'match-room invite decline',
+    });
+
     try {
       const payload = await leaveRunningMatchRoom({ roomId: room.roomId });
+      endLeaveApiTrace({
+        roomId: room.roomId,
+        success: true,
+      });
       if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
         return;
       }
 
       syncServerClock(payload.serverNow);
       commitRoom(payload.room);
+      rgPerfMark('local room state cleared', {
+        roomId: room.roomId,
+        source: 'match-room invite decline',
+      });
       router.replace('/(tabs)/running');
     } catch (roomError) {
-      setError(getApiErrorMessage(roomError, '초대를 거절하지 못했어.'));
+      endLeaveApiTrace({ success: false });
+      const message = getApiErrorMessage(roomError, '초대를 거절하지 못했어.');
+      rgPerfMark('room leave API error', {
+        message,
+        roomId: room.roomId,
+        source: 'match-room invite decline',
+      });
+      setError(message);
     } finally {
       setSaving(false);
     }

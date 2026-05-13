@@ -9,6 +9,7 @@ import {
 } from '@/components/matches/liveMatchArena/helpers';
 import { USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI } from '@/components/matches/liveMatchArena/config';
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type RoadMotionWrapComponent = typeof Animated.View | typeof View;
@@ -100,6 +101,19 @@ export const RoadMotion = memo(function RoadMotion({
   laneMode: 'duel' | 'group';
 }) {
   useDevRenderCounter(`RoadMotion:${laneMode}`);
+  useEffect(() => {
+    rgPerfMark('RoadMotion mount', {
+      animated: SHOULD_ANIMATE_ROAD,
+      laneMode,
+      lightweight: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI,
+    });
+
+    return () => {
+      rgPerfMark('RoadMotion unmount', {
+        laneMode,
+      });
+    };
+  }, [laneMode]);
 
   if (!SHOULD_ANIMATE_ROAD) {
     return <StaticRoadMotion laneMode={laneMode} />;

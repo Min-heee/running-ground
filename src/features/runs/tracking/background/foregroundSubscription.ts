@@ -1,7 +1,9 @@
 import * as Location from 'expo-location';
 import { appendTrackedLocation } from '@/features/runs/tracking/background/routeAccumulator';
+import { rgPerfTrackResource } from '@/utils/rgPerfTrace';
 
 let foregroundLocationSubscription: { remove: () => void } | null = null;
+let stopForegroundLocationTrace: (() => void) | null = null;
 
 function buildForegroundLocationOptions(): Location.LocationOptions {
   return {
@@ -19,6 +21,8 @@ export function hasForegroundLocationWatch() {
 export function stopForegroundLocationWatch() {
   foregroundLocationSubscription?.remove();
   foregroundLocationSubscription = null;
+  stopForegroundLocationTrace?.();
+  stopForegroundLocationTrace = null;
 }
 
 export async function startForegroundLocationWatch() {
@@ -31,7 +35,13 @@ export async function startForegroundLocationWatch() {
       buildForegroundLocationOptions(),
       appendTrackedLocation,
     );
+    stopForegroundLocationTrace = rgPerfTrackResource('watcher', 'foreground location watch', {
+      distanceInterval: 4,
+      timeInterval: 2000,
+    });
   } catch {
     foregroundLocationSubscription = null;
+    stopForegroundLocationTrace?.();
+    stopForegroundLocationTrace = null;
   }
 }

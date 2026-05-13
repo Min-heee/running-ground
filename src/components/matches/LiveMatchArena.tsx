@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { Text, useWindowDimensions, View } from 'react-native';
 import { AndroidLiveMatchPerfPanel } from '@/components/matches/AndroidLiveMatchPerfPanel';
 import { DuelRoad } from '@/components/matches/liveMatchArena/DuelRoad';
@@ -17,6 +17,7 @@ import {
   LIVE_MATCH_PERF_QA_ENABLED,
   useAndroidLiveMatchPerfProbe,
 } from '@/components/matches/useAndroidLiveMatchPerfProbe';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type LiveMatchArenaProps = {
@@ -92,6 +93,20 @@ export const LiveMatchArena = memo(function LiveMatchArena({
   deferHeavyContent = false,
 }: LiveMatchArenaProps) {
   useDevRenderCounter(`LiveMatchArena:${mode}`);
+  useEffect(() => {
+    rgPerfMark('live match screen mount', {
+      deferHeavyContent,
+      mode,
+      participants: participants.length,
+    });
+
+    return () => {
+      rgPerfMark('live match screen unmount', {
+        mode,
+      });
+    };
+  }, [deferHeavyContent, mode, participants.length]);
+
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = Math.max(300, windowWidth - 32);
   const perfLabel = mode === 'duel' ? 'duel-arena' : 'group-arena';

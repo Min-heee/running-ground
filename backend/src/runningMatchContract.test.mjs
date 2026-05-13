@@ -301,6 +301,111 @@ await runTest('party run room start creates a linked match and accepts countdown
   });
 });
 
+await runTest('stale room cleanup detaches finished participant before new room creation', async () => {
+  const store = createBaseStore();
+  const slotStartAt = iso(-60 * 1000);
+  const hostUser = store.users.find((user) => user.id === 'host-user');
+  hostUser.activeRoomId = 'missing-room';
+  store.liveRunShares = [
+    {
+      userId: 'host-user',
+      enabled: true,
+      status: 'idle',
+      updatedAt: iso(-30 * 1000),
+    },
+  ];
+  store.matchSessions.push({
+    id: 'linked-active-duel',
+    mode: 'duel',
+    isTestMatch: false,
+    distanceKm: 5,
+    slotStartAt,
+    startedAt: iso(-60 * 1000),
+    createdAt: iso(-120 * 1000),
+    matchedAt: iso(-120 * 1000),
+    participants: [
+      {
+        userId: 'host-user',
+        seedRank: 1,
+        acceptedAt: null,
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1800,
+        livePace: '06:00/km',
+        liveUpdatedAt: iso(-20 * 1000),
+        finishedAt: iso(-10 * 1000),
+      },
+      {
+        userId: 'guest-user',
+        seedRank: 2,
+        acceptedAt: null,
+        liveStatus: 'running',
+        liveDistanceKm: 3,
+        liveElapsedSeconds: 1200,
+        livePace: '06:40/km',
+        liveUpdatedAt: iso(-10 * 1000),
+        finishedAt: null,
+      },
+    ],
+  });
+  store.matchRooms.push({
+    id: 'stale-linked-room',
+    inviteToken: 'STALE1',
+    hostUserId: 'host-user',
+    mode: 'duel',
+    startMode: 'host',
+    distanceKm: 5,
+    slotStartAt,
+    maxParticipants: 2,
+    minParticipants: 2,
+    invitedFriendIds: [],
+    participants: [
+      {
+        userId: 'host-user',
+        isHost: true,
+        isReady: false,
+        isCountdownReady: true,
+        invited: false,
+        joinedAt: iso(-120 * 1000),
+      },
+      {
+        userId: 'guest-user',
+        isHost: false,
+        isReady: true,
+        isCountdownReady: true,
+        invited: false,
+        joinedAt: iso(-110 * 1000),
+      },
+    ],
+    createdAt: iso(-120 * 1000),
+    linkedMatchId: 'linked-active-duel',
+  });
+
+  await withBackend(store, async ({ request }) => {
+    const cleanup = await request('host-token', 'POST', '/api/running/rooms/cleanup-stale', {});
+    assert.equal(cleanup.success, true);
+    assert.equal(cleanup.cleaned, true);
+    assert.equal(cleanup.room, null);
+    assert.equal(cleanup.cleanedItems.includes('matchRooms.detachedDoneParticipant'), true);
+    assert.equal(cleanup.cleanedItems.includes('user.activeRoomId'), true);
+    assert.equal(cleanup.cleanedItems.includes('liveRunShares.currentUser'), true);
+
+    const created = await request('host-token', 'POST', '/api/running/rooms', {
+      mode: 'duel',
+      distanceKm: 5,
+      startMode: 'host',
+      maxParticipants: 2,
+    });
+    assert.equal(created.success, true);
+    assert.equal(created.room.mode, 'duel');
+    assert.equal(created.room.hostUserId, 'host-user');
+
+    const guestRoom = await request('guest-token', 'GET', '/api/running/rooms/my');
+    assert.equal(guestRoom.room.roomId, 'stale-linked-room');
+    assert.equal(guestRoom.room.hostUserId, 'guest-user');
+  });
+});
+
 await runTest('match progress uploads feed official comparison and forfeit state', async () => {
   const { store, slotStartAt } = createActiveDuelStore();
 

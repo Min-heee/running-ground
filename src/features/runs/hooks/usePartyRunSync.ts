@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { ScrollView } from 'react-native';
 import type {
@@ -16,6 +16,7 @@ import {
   useLinkedMatchSync,
 } from '@/features/runs/hooks/partyRunSync/useLinkedMatchSync';
 import { useRoomPolling } from '@/features/runs/hooks/partyRunSync/useRoomPolling';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 type UsePartyRunSyncInput = {
   currentUserId: string;
@@ -81,6 +82,7 @@ export function usePartyRunSync({
   onLiveArenaPageChange,
   onError,
 }: UsePartyRunSyncInput) {
+  const countdownTraceActiveRef = useRef(false);
   const callbackRef = useRef({
     getSyncedNowMs,
     loadMatchRoom,
@@ -106,6 +108,41 @@ export function usePartyRunSync({
     onLiveArenaPageChange,
     onError,
   };
+
+  useEffect(() => {
+    const isCountdownActive = visiblePartyRunFlow.phase === 'countdown'
+      || roomCountdownRemainingSeconds !== null;
+
+    if (isCountdownActive && !countdownTraceActiveRef.current) {
+      countdownTraceActiveRef.current = true;
+      rgPerfMark('countdown begin', {
+        remainingSeconds: roomCountdownRemainingSeconds ?? null,
+        roomId: matchRoom?.roomId ?? null,
+        source: 'party-run',
+      });
+      return;
+    }
+
+    if (!isCountdownActive && countdownTraceActiveRef.current) {
+      countdownTraceActiveRef.current = false;
+      rgPerfMark('countdown end', {
+        phase: visiblePartyRunFlow.phase,
+        roomId: matchRoom?.roomId ?? null,
+        source: 'party-run',
+      });
+    }
+  }, [matchRoom?.roomId, roomCountdownRemainingSeconds, visiblePartyRunFlow.phase]);
+
+  useEffect(() => () => {
+    if (countdownTraceActiveRef.current) {
+      countdownTraceActiveRef.current = false;
+      rgPerfMark('countdown end', {
+        reason: 'unmount',
+        roomId: matchRoom?.roomId ?? null,
+        source: 'party-run',
+      });
+    }
+  }, [matchRoom?.roomId]);
 
   useRoomPolling({
     matchRoom,

@@ -12,6 +12,7 @@ export {
 
 export {
   acknowledgeRunningMatchRoomCountdown,
+  cleanupStaleRunningMatchRoomState,
   createRunningMatchRoom,
   fetchRunningMatchRoom,
   joinRunningMatchRoom,

@@ -3,6 +3,7 @@ import {
   type FriendLeaderboardResponse,
   type RunningMatchRoom,
 } from '@/lib/api/types';
+import { rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 export type RoomStartMode = 'scheduled' | 'host';
 
@@ -112,7 +113,12 @@ export function usePartyRunRoom({
 
   useEffect(() => {
     if (matchRoom && !visibleMatchRoom) {
+      const endStaleCleanupTrace = rgPerfMeasureStart('stale room cleanup', {
+        roomId: matchRoom.roomId,
+        source: 'party run room visible ttl',
+      });
       commitMatchRoom(null);
+      endStaleCleanupTrace({ success: true });
     }
   }, [matchRoom, visibleMatchRoom]);
 

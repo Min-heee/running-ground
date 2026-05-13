@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   type DuelMatchOpponent,
   type GroupMatchParticipant,
@@ -13,6 +13,7 @@ import {
   type LastSyncedMatchProgress,
 } from '@/features/runs/matchProgress';
 import { type RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 type UseLiveMatchProgressInput = {
   matchMode: RunMatchMode;
@@ -45,6 +46,7 @@ export function useLiveMatchProgress({
   groupDistanceKm,
   deferRankingCalculations = false,
 }: UseLiveMatchProgressInput) {
+  const firstRemoteProgressReceivedRef = useRef(false);
   const groupLiveStandings = useMemo(
     () => (
       deferRankingCalculations && matchMode === 'group'
@@ -135,6 +137,24 @@ export function useLiveMatchProgress({
   const hasDuelOpponentDisplayProgress = Boolean(
     duelComparisonSnapshot || duelOpponentProgressModel.displayProgress.hasProgress || hasRemoteRunnerProgress(effectiveDuelOpponent),
   );
+  const hasAnyRemoteDisplayProgress = useMemo(() => (
+    matchMode === 'duel'
+      ? hasDuelOpponentDisplayProgress
+      : effectiveGroupParticipants.some((participant) => hasRemoteRunnerProgress(participant))
+  ), [effectiveGroupParticipants, hasDuelOpponentDisplayProgress, matchMode]);
+
+  useEffect(() => {
+    if (firstRemoteProgressReceivedRef.current || !hasAnyRemoteDisplayProgress) {
+      return;
+    }
+
+    firstRemoteProgressReceivedRef.current = true;
+    rgPerfMark('first live progress received', {
+      matchMode,
+      source: 'remote display progress',
+    });
+  }, [hasAnyRemoteDisplayProgress, matchMode]);
+
   const syncedDuelDistanceKm = duelComparisonSnapshot?.currentDistanceKm ?? distanceKm;
   const syncedDuelOpponentDistanceKm = duelComparisonSnapshot?.opponentDistanceKm ?? duelOpponentProgressModel.displayProgress.distanceKm;
   const duelLiveGapKm = duelComparisonSnapshot?.gapKm ?? (

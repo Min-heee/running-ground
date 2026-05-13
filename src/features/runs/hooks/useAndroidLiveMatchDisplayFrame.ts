@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import { LIVE_MATCH_UI_DISPLAY_INTERVAL_MS } from '@/features/runs/liveMatchCadence';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 const ANDROID_LIVE_MATCH_UI_INTERVAL_MS = LIVE_MATCH_UI_DISPLAY_INTERVAL_MS;
 
@@ -35,6 +36,16 @@ export function useAndroidLiveMatchDisplayFrame(
   const [displayFrame, setDisplayFrame] = useState(frame);
 
   latestFrameRef.current = frame;
+
+  useEffect(() => {
+    if (!shouldThrottle) {
+      return;
+    }
+
+    rgPerfMark('android live match display throttle enabled', {
+      intervalMs,
+    });
+  }, [intervalMs, shouldThrottle]);
 
   useEffect(() => {
     if (!shouldThrottle) {

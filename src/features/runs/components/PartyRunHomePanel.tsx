@@ -7,6 +7,7 @@ import type {
   RunningMatchRoom,
   RunningMatchRoomMode,
 } from '@/lib/api/types';
+import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type PartyRunHomePanelProps = {
   visibleRoom: RunningMatchRoom | null;
@@ -45,8 +46,13 @@ export function PartyRunHomePanel({
   onJoinRoom,
 }: PartyRunHomePanelProps) {
   const handleOpenMatchRoom = useCallback(() => {
+    const endNavigationTrace = rgPerfMeasureStart('navigation to lobby', {
+      roomId: visibleRoom?.roomId ?? currentRoom?.roomId ?? null,
+      source: 'party room entry button',
+    });
     router.push('/match-room' as Href);
-  }, []);
+    endNavigationTrace({ success: true });
+  }, [currentRoom?.roomId, visibleRoom?.roomId]);
 
   const roomModeChips = useMemo(() => (
     ROOM_MODE_OPTIONS.map((option) => {
@@ -106,7 +112,13 @@ export function PartyRunHomePanel({
                 />
                 <SecondaryButton
                   label={isJoining ? '입장 중...' : '방 입장'}
-                  onPress={onJoinRoom}
+                  onPress={() => {
+                    rgPerfMark('invite code input submit', {
+                      hasToken: inviteTokenInput.trim().length > 0,
+                      source: 'party run home panel',
+                    });
+                    onJoinRoom();
+                  }}
                   disabled={isJoining}
                 />
               </View>
