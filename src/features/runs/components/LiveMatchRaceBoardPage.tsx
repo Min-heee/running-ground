@@ -8,6 +8,7 @@ import {
 } from '@/features/runs/matchProgress';
 import type { ArenaParticipantViewModel } from '@/features/runs/matchViewModels';
 import type { DuelMatchOpponent, RunningMatchRoom } from '@/lib/api/types';
+import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type RaceBoardRow = {
   id: string;
@@ -78,6 +79,7 @@ export const LiveMatchRaceBoardPage = memo(function LiveMatchRaceBoardPage({
   currentUserArenaPace,
   groupArenaUsesLivePace,
 }: LiveMatchRaceBoardPageProps) {
+  useDevRenderCounter(`LiveMatchRaceBoardPage:${matchMode}`);
   const liveDuelRows = useMemo(() => {
     if (matchMode !== 'duel' || !effectiveDuelOpponent) {
       return null;

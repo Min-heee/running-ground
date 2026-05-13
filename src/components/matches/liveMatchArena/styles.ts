@@ -1,9 +1,9 @@
 import { StyleSheet } from 'react-native';
+import { USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI } from '@/components/matches/liveMatchArena/config';
 import {
   GROUP_ROW_HEIGHT,
   ROAD_STRIPE_HEIGHT,
   ROAD_STRIPE_SPACING,
-  USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI,
 } from '@/components/matches/liveMatchArena/helpers';
 
 export const liveMatchArenaStyles = StyleSheet.create({

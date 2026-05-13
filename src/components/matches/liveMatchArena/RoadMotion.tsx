@@ -7,6 +7,7 @@ import {
   ROAD_STRIPE_SPACING,
   SHOULD_ANIMATE_ROAD,
 } from '@/components/matches/liveMatchArena/helpers';
+import { USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI } from '@/components/matches/liveMatchArena/config';
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
@@ -14,6 +15,15 @@ type RoadMotionWrapComponent = typeof Animated.View | typeof View;
 type RoadMotionTransformStyle = { transform: { translateY: Animated.AnimatedInterpolation<string | number> }[] };
 
 const DuelRoadBaseLayer = memo(function DuelRoadBaseLayer() {
+  if (USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI) {
+    return (
+      <>
+        <View style={styles.duelRoadBase} />
+        <View style={styles.duelCenterDivider} />
+      </>
+    );
+  }
+
   return (
     <>
       <View style={styles.duelRoadBase} />
@@ -90,16 +100,61 @@ export const RoadMotion = memo(function RoadMotion({
   laneMode: 'duel' | 'group';
 }) {
   useDevRenderCounter(`RoadMotion:${laneMode}`);
+
+  if (!SHOULD_ANIMATE_ROAD) {
+    return <StaticRoadMotion laneMode={laneMode} />;
+  }
+
+  return <AnimatedRoadMotion laneMode={laneMode} />;
+});
+
+const StaticRoadMotion = memo(function StaticRoadMotion({
+  laneMode,
+}: {
+  laneMode: 'duel' | 'group';
+}) {
+  const duelStripeItems = useMemo(() => DUEL_STRIPES.map((_, index) => (
+    <View key={`duel-stripe-${index}`} style={styles.duelStripeRow}>
+      <View style={styles.duelStripe} />
+      <View style={styles.duelStripe} />
+    </View>
+  )), []);
+  const groupStripeItems = useMemo(() => GROUP_STRIPES.map((_, index) => (
+    <View key={`group-stripe-${index}`} style={styles.groupStripe} />
+  )), []);
+
+  return (
+    <View style={styles.roadBackground}>
+      {laneMode === 'duel' ? (
+        <>
+          <DuelRoadBaseLayer />
+          <DuelRoadMarkings
+            MotionWrap={View}
+            stripeItems={duelStripeItems}
+          />
+        </>
+      ) : (
+        <>
+          <GroupRoadBaseLayer />
+          <GroupRoadMarkings
+            MotionWrap={View}
+            stripeItems={groupStripeItems}
+          />
+        </>
+      )}
+      <FinishRibbon laneMode={laneMode} />
+    </View>
+  );
+});
+
+const AnimatedRoadMotion = memo(function AnimatedRoadMotion({
+  laneMode,
+}: {
+  laneMode: 'duel' | 'group';
+}) {
   const shift = useRef(new Animated.Value(0)).current;
-  const MotionWrap = SHOULD_ANIMATE_ROAD ? Animated.View : View;
 
   useEffect(() => {
-    if (!SHOULD_ANIMATE_ROAD) {
-      shift.stopAnimation();
-      shift.setValue(0);
-      return undefined;
-    }
-
     const loop = Animated.loop(
       Animated.timing(shift, {
         toValue: 1,
@@ -138,8 +193,8 @@ export const RoadMotion = memo(function RoadMotion({
         <>
           <DuelRoadBaseLayer />
           <DuelRoadMarkings
-            MotionWrap={MotionWrap}
-            roadMotionStyle={SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined}
+            MotionWrap={Animated.View}
+            roadMotionStyle={roadMotionStyle}
             stripeItems={duelStripeItems}
           />
         </>
@@ -147,8 +202,8 @@ export const RoadMotion = memo(function RoadMotion({
         <>
           <GroupRoadBaseLayer />
           <GroupRoadMarkings
-            MotionWrap={MotionWrap}
-            roadMotionStyle={SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined}
+            MotionWrap={Animated.View}
+            roadMotionStyle={roadMotionStyle}
             stripeItems={groupStripeItems}
           />
         </>

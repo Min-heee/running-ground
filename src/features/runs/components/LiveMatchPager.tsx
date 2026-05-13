@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -101,6 +101,16 @@ const PagerPageSlot = memo(function PagerPageSlot({
       {shouldRender ? renderPage() : null}
     </View>
   );
+}, (prevProps, nextProps) => {
+  if (!prevProps.shouldRender && !nextProps.shouldRender) {
+    return prevProps.pageStyle === nextProps.pageStyle;
+  }
+
+  return (
+    prevProps.shouldRender === nextProps.shouldRender
+    && prevProps.pageStyle === nextProps.pageStyle
+    && prevProps.renderPage === nextProps.renderPage
+  );
 });
 
 export const LiveMatchPager = memo(function LiveMatchPager({
@@ -116,37 +126,25 @@ export const LiveMatchPager = memo(function LiveMatchPager({
 }: LiveMatchPagerProps) {
   useDevRenderCounter(`LiveMatchPager:page-${page}`);
   const pageStyle = useMemo(() => [styles.page, { width: pageWidth }], [pageWidth]);
-  const previousPageRef = useRef(page);
-  const previousPage = previousPageRef.current;
-
-  useEffect(() => {
-    previousPageRef.current = page;
-  }, [page]);
 
   const shouldRenderScrollPage = useCallback((index: number) => {
-    if (index === 2) {
-      return page === 2;
-    }
-
     if (index === 3) {
       return hasResultPage && page === 3;
     }
 
-    return index === previousPage || Math.abs(page - index) <= 1;
-  }, [hasResultPage, page, previousPage]);
+    return page === index;
+  }, [hasResultPage, page]);
 
-  const activePage = useMemo(() => {
-    const renderPage = resolvePageRenderer({
+  const activePageRenderer = useMemo(() => (
+    resolvePageRenderer({
       page,
       hasResultPage,
       renderArenaPage,
       renderRaceBoardPage,
       renderStatsPage,
       renderResultPage,
-    });
-
-    return renderPage();
-  }, [
+    })
+  ), [
     hasResultPage,
     page,
     renderArenaPage,
@@ -204,7 +202,7 @@ export const LiveMatchPager = memo(function LiveMatchPager({
       <View style={styles.shell}>
         {tabRow}
         <View style={styles.androidPage}>
-          {activePage}
+          {activePageRenderer()}
         </View>
         <Text style={styles.hint}>위 탭을 누르면 순위와 기록 화면을 볼 수 있어요.</Text>
       </View>
