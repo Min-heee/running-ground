@@ -25,6 +25,9 @@ const STATIONARY_SPEED_MPS = 0.9;
 const POOR_ACCURACY_METERS = 25;
 const MIN_REASONABLE_PACE_SECONDS_PER_KM = 150;
 const MAX_REASONABLE_PACE_SECONDS_PER_KM = 1200;
+const ABANDONED_TRACKING_MAX_ELAPSED_MS = 8 * 60 * 60 * 1000;
+const ABANDONED_LOW_DISTANCE_MAX_ELAPSED_MS = 2 * 60 * 60 * 1000;
+const ABANDONED_LOW_DISTANCE_KM = 1;
 
 type BackgroundTrackingStatus = 'idle' | 'running' | 'paused';
 type SnapshotCloneOptions = {
@@ -65,6 +68,7 @@ let accumulatedDistanceMeters = 0;
 let accumulatedElevationGainMeters = 0;
 let smoothedCurrentPaceSecondsPerKm: number | null = null;
 let smoothedPaceUpdatedAtMs: number | null = null;
+let abandonedTrackingStopRequested = false;
 
 function cloneRoute(route: RunRoutePoint[]) {
   return route.map((point) => ({ ...point }));
@@ -84,6 +88,71 @@ function emitSnapshot() {
   listeners.forEach((subscription) => {
     subscription.listener(buildSnapshotClone(snapshotState, subscription.options));
   });
+}
+
+function resolveSnapshotElapsedMs(snapshot: BackgroundRunTrackingSnapshot, nowMs = Date.now()) {
+  if (!snapshot.startedAt) {
+    return 0;
+  }
+
+  const startedAtMs = new Date(snapshot.startedAt).getTime();
+  if (Number.isNaN(startedAtMs)) {
+    return 0;
+  }
+
+  const referenceMs = snapshot.status === 'paused' && snapshot.pausedAt
+    ? new Date(snapshot.pausedAt).getTime()
+    : nowMs;
+
+  if (Number.isNaN(referenceMs)) {
+    return 0;
+  }
+
+  return Math.max(0, referenceMs - startedAtMs - snapshot.accumulatedPausedMs);
+}
+
+function shouldResetAbandonedTracking(snapshot: BackgroundRunTrackingSnapshot, nowMs = Date.now()) {
+  if (snapshot.status === 'idle') {
+    return false;
+  }
+
+  const elapsedMs = resolveSnapshotElapsedMs(snapshot, nowMs);
+  if (elapsedMs >= ABANDONED_TRACKING_MAX_ELAPSED_MS) {
+    return true;
+  }
+
+  return elapsedMs >= ABANDONED_LOW_DISTANCE_MAX_ELAPSED_MS
+    && snapshot.distanceKm <= ABANDONED_LOW_DISTANCE_KM;
+}
+
+function resetTrackingStateOnly() {
+  accumulatedDistanceMeters = 0;
+  accumulatedElevationGainMeters = 0;
+  smoothedCurrentPaceSecondsPerKm = null;
+  smoothedPaceUpdatedAtMs = null;
+  snapshotState = { ...INITIAL_SNAPSHOT };
+}
+
+function stopAbandonedLocationTasksBestEffort() {
+  if (abandonedTrackingStopRequested) {
+    return;
+  }
+
+  abandonedTrackingStopRequested = true;
+  void stopLocationTaskIfNeeded().finally(() => {
+    abandonedTrackingStopRequested = false;
+  });
+}
+
+function resetAbandonedTrackingIfNeeded(nowMs = Date.now()) {
+  if (!shouldResetAbandonedTracking(snapshotState, nowMs)) {
+    return false;
+  }
+
+  resetTrackingStateOnly();
+  stopAbandonedLocationTasksBestEffort();
+  emitSnapshot();
+  return true;
 }
 
 function normalizeAccuracyMeters(value?: number | null) {
@@ -447,29 +516,12 @@ if (Platform.OS !== 'web') {
 }
 
 export function getBackgroundRunTrackingSnapshot(options?: SnapshotCloneOptions) {
+  resetAbandonedTrackingIfNeeded();
   return buildSnapshotClone(snapshotState, options);
 }
 
 export function getBackgroundRunElapsedSeconds(snapshot = snapshotState, nowMs = Date.now()) {
-  if (!snapshot.startedAt) {
-    return 0;
-  }
-
-  const startedAtMs = new Date(snapshot.startedAt).getTime();
-
-  if (Number.isNaN(startedAtMs)) {
-    return 0;
-  }
-
-  const referenceMs = snapshot.status === 'paused' && snapshot.pausedAt
-    ? new Date(snapshot.pausedAt).getTime()
-    : nowMs;
-
-  if (Number.isNaN(referenceMs)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.floor((referenceMs - startedAtMs - snapshot.accumulatedPausedMs) / 1000));
+  return Math.floor(resolveSnapshotElapsedMs(snapshot, nowMs) / 1000);
 }
 
 export function subscribeBackgroundRunTracking(
@@ -590,10 +642,6 @@ export async function resumeBackgroundRunTracking() {
 
 export async function resetBackgroundRunTracking() {
   await stopLocationTaskIfNeeded();
-  accumulatedDistanceMeters = 0;
-  accumulatedElevationGainMeters = 0;
-  smoothedCurrentPaceSecondsPerKm = null;
-  smoothedPaceUpdatedAtMs = null;
-  snapshotState = { ...INITIAL_SNAPSHOT };
+  resetTrackingStateOnly();
   emitSnapshot();
 }
