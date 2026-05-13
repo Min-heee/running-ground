@@ -113,6 +113,40 @@ test('duel result records normal finish by compared distance', () => {
   assert.equal(result?.matchResult.gapKm, 0.15);
 });
 
+test('duel result records near-equal distances as draw', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      liveDistanceKm: 1.02,
+      liveElapsedSeconds: 600,
+      livePace: '09:48/km',
+      liveUpdatedAt: '2026-05-12T00:10:00.000Z',
+      liveStatus: 'running',
+    }),
+    currentDistanceKm: 1,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 600,
+    currentPaceLabel: '10:00/km',
+    currentUserLiveStatus: 'finished',
+  });
+
+  assert.equal(result?.matchResult.resultTone, 'draw');
+  assert.equal(result?.matchResult.badgeLabel, '무승부');
+  assert.deepEqual(result?.rows.map((row) => row.resultLabel), ['DRAW', 'DRAW']);
+});
+
+test('duel result returns null when opponent data is missing', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: null,
+    currentDistanceKm: 0,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 0,
+    currentPaceLabel: '--:--/km',
+    currentUserLiveStatus: null,
+  });
+
+  assert.equal(result, null);
+});
+
 test('group result records current rank and keeps updated standings order', () => {
   const standings = [
     standing({ id: 'leader', name: '1등', rank: 1, currentDistanceKm: 2.2, gapAheadKm: null, gapLeaderKm: 0 }),
@@ -171,4 +205,24 @@ test('group result records current user forfeit with forfeit badge and bottom ra
   assert.equal(result?.matchResult.badgeLabel, '기권');
   assert.equal(result?.matchResult.rank, 2);
   assert.match(result?.matchResult.title ?? '', /기권/);
+});
+
+test('group result returns null for missing current standing or empty participants', () => {
+  assert.equal(buildGroupMatchFinishModel({
+    currentStanding: null,
+    participantCount: 2,
+    standings: [],
+    currentPaceLabel: '--:--/km',
+    currentElapsedSeconds: 0,
+    targetDistanceKm: 5,
+  }), null);
+
+  assert.equal(buildGroupMatchFinishModel({
+    currentStanding: standing(),
+    participantCount: 0,
+    standings: [standing()],
+    currentPaceLabel: '--:--/km',
+    currentElapsedSeconds: 0,
+    targetDistanceKm: 5,
+  }), null);
 });

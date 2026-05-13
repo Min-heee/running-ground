@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import {
   updateRunningMatchProgress as updateRunningMatchProgressService,
-} from '@/lib/api/services';
+} from '@/services';
 import type {
   RunningMatchStatusResponse,
   UpdateRunningMatchProgressInput,
@@ -112,7 +112,7 @@ export function useMatchProgressSync({
 
   const syncMatchLifecycleStatus = useCallback(async (
     nextStatus: Extract<UpdateRunningMatchProgressInput['status'], 'running' | 'background'>,
-    snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot(),
+    snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false }),
   ) => {
     const target = getActiveMatchProgressTarget();
     if (!target) {

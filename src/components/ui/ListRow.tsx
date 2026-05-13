@@ -1,13 +1,15 @@
 import { Text, StyleSheet } from 'react-native';
 
+import { colors, fontWeights, spacing } from '@/theme/tokens';
+
 export function ListRow({ children }: { children: string }) {
   return <Text style={styles.row}>{children}</Text>;
 }
 
 const styles = StyleSheet.create({
   row: {
-    color: '#344054',
-    paddingVertical: 8,
-    fontWeight: '600',
+    color: colors.textStrongMuted,
+    paddingVertical: spacing.xxl,
+    fontWeight: fontWeights.semibold,
   },
 });

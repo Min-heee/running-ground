@@ -2,7 +2,7 @@ import type {
   AppNotice,
   UserProfile,
   WeeklySummary,
-} from '@/domain/types';
+} from '@/domain';
 import type { AddressRegionNode } from '@/features/location/addressCatalog';
 
 export type HomeSummaryResponse = WeeklySummary;

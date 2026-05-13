@@ -1,5 +1,5 @@
 import { myProfile, myRunRecords, weeklySummary } from '@/data/mock';
-import type { RunMatchResult } from '@/domain/types';
+import type { RunMatchResult } from '@/domain';
 import { getCurrentUserProfile } from '@/lib/session';
 import type {
   FetchMatchDemandSummaryInput,

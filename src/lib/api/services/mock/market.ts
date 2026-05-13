@@ -1,4 +1,4 @@
-import type { MarketOverview, MarketRewardItem } from '@/domain/types';
+import type { MarketOverview, MarketRewardItem } from '@/domain';
 import { mockApiState, mockMarketCatalog } from './state';
 
 export function buildMockMarketOverview(): MarketOverview {

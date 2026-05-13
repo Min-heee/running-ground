@@ -1,7 +1,7 @@
 import { type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { Alert } from 'react-native';
 import { type Href, router } from 'expo-router';
-import { RunMatchResult, RunRoutePoint } from '@/domain/types';
+import { RunMatchResult, RunRoutePoint } from '@/domain';
 import {
   getBackgroundRunTrackingSnapshot,
   pauseBackgroundRunTracking,
@@ -26,7 +26,7 @@ import { resolveActiveMatchId } from '@/features/runs/matchStateMachine';
 import {
   createTrackedRun,
   leaveRunningMatch,
-} from '@/lib/api/services';
+} from '@/services';
 import { buildRunDetailRedirect } from '@/features/runs/runSaveNavigation';
 import type {
   RequestDuelMatchResponse,

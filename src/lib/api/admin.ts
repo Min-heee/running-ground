@@ -1,4 +1,4 @@
-import { API_CONFIG } from './config';
+import { apiRequest } from '@/services/apiClient';
 import {
   AdminNoticeActionResponse,
   AdminNoticeInput,
@@ -23,57 +23,17 @@ type AdminRequestOptions = {
   fallbackMessage?: string;
 };
 
-async function readAdminErrorMessage(response: Response, fallbackMessage: string) {
-  try {
-    const payload = await response.json();
-
-    if (typeof payload?.message === 'string') {
-      return payload.message;
-    }
-  } catch {
-    return fallbackMessage;
-  }
-
-  return fallbackMessage;
-}
-
 async function adminRequest<T>(
   path: string,
   init: RequestInit,
   { adminToken, fallbackMessage = '관리자 요청에 실패했어.' }: AdminRequestOptions,
 ): Promise<T> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), API_CONFIG.timeoutMs);
-  const headers = new Headers(init.headers ?? {});
-
-  headers.set('Accept', 'application/json');
-  headers.set('X-Admin-Token', adminToken.trim());
-
-  if (init.body && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-
-  try {
-    const response = await fetch(`${API_CONFIG.baseUrl}${path}`, {
-      ...init,
-      headers,
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(await readAdminErrorMessage(response, fallbackMessage));
-    }
-
-    return (await response.json()) as T;
-  } catch (error) {
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('관리자 요청 시간이 초과됐어. 백엔드 주소와 네트워크를 확인해줘.');
-    }
-
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
+  return apiRequest<T>(path, init, {
+    fallbackMessage,
+    headers: {
+      'X-Admin-Token': adminToken.trim(),
+    },
+  });
 }
 
 function requireAdminToken(adminToken: string) {

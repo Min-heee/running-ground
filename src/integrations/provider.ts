@@ -1,5 +1,5 @@
-import { RunSourceType } from '@/domain/types';
-import { queueIntegrationImports } from '@/lib/api/services';
+import { RunSourceType } from '@/domain';
+import { queueIntegrationImports } from '@/services';
 import { QueueIntegrationImportResponse } from '@/lib/api/types';
 
 export type ImportableRunSourceType = Exclude<RunSourceType, 'manual'>;

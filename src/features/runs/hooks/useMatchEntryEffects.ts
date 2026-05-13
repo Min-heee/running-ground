@@ -1,7 +1,7 @@
 import { useEffect, useRef, type MutableRefObject, type RefObject } from 'react';
 import { type Href, router } from 'expo-router';
 import type { ScrollView } from 'react-native';
-import { joinRunningMatchRoom } from '@/lib/api/services';
+import { joinRunningMatchRoom } from '@/services';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';

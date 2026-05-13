@@ -1,5 +1,5 @@
 import { myProfile } from '@/data/mock';
-import type { OfflineRaceEvent, OfflineRaceStatus } from '@/domain/types';
+import type { OfflineRaceEvent, OfflineRaceStatus } from '@/domain';
 import { getCurrentUserProfile } from '@/lib/session';
 import type {
   OfflineRaceEntryActionResponse,
@@ -80,7 +80,7 @@ export function mutateMockOfflineRaceRegistration(
   action: 'join' | 'cancel',
 ): OfflineRaceEntryActionResponse {
   const profile = getCurrentUserProfile() ?? myProfile;
-  const eventGroups: Array<{ type: 'featured' | 'upcoming'; event: MockOfflineRaceEventState; index?: number }> = [
+  const eventGroups: { type: 'featured' | 'upcoming'; event: MockOfflineRaceEventState; index?: number }[] = [
     { type: 'featured', event: mockApiState.offlineRaceHubState.featuredEvent },
     ...mockApiState.offlineRaceHubState.upcomingEvents.map((event, index) => ({ type: 'upcoming' as const, event, index })),
   ];

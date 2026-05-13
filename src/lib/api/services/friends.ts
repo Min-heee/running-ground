@@ -1,8 +1,4 @@
-import {
-  friendRanks,
-  friendRequests,
-  friendRunRecords,
-} from '@/data/mock';
+import { friendRunRecords } from '@/data/mock';
 
 import {
   apiGet,

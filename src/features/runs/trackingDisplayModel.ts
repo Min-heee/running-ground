@@ -1,4 +1,4 @@
-import type { RunRoutePoint } from '@/domain/types';
+import type { RunRoutePoint } from '@/domain';
 import type { BackgroundRunTrackingSnapshot } from '@/features/runs/backgroundTracking';
 import {
   buildRouteFromOfficialStart,

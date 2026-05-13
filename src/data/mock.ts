@@ -1,4 +1,4 @@
-import { ConnectedSource, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceEvent, OfflineRaceHub, OfflineRaceParticipantPreview, RegionDrilldownNode, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain/types';
+import { ConnectedSource, FriendRank, FriendRequest, FriendRunRecord, MarketOverview, MyRunRecord, OfflineRaceEvent, OfflineRaceHub, OfflineRaceParticipantPreview, RegionDrilldownNode, UniversityLeagueRank, UserProfile, WeeklySummary } from '@/domain';
 import { addressCatalog, type AddressRegionNode } from '@/features/location/addressCatalog';
 
 export const myProfile: UserProfile = {

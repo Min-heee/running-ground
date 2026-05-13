@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { RunRoutePoint } from '@/domain/types';
+import { RunRoutePoint } from '@/domain';
 import { buildAveragePace } from '@/features/runs/tracking';
 import { type LastSyncedMatchProgress } from '@/features/runs/matchProgress';
 import { type OfficialStartBaseline } from '@/features/runs/trackingSession';

@@ -2,7 +2,7 @@ import type {
   FriendRank,
   FriendRequest,
   FriendRunRecord,
-} from '@/domain/types';
+} from '@/domain';
 
 export type FriendLeaderboardResponse = {
   ranks: FriendRank[];

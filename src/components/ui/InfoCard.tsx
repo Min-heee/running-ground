@@ -1,6 +1,7 @@
 import { PropsWithChildren } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
+import { colors, fontSizes, fontWeights, spacing } from '@/theme/tokens';
 
 export function InfoCard({ title, children }: PropsWithChildren<{ title: string }>) {
   return (
@@ -13,13 +14,13 @@ export function InfoCard({ title, children }: PropsWithChildren<{ title: string 
 
 const styles = StyleSheet.create({
   title: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#111827',
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.extraBold,
+    color: colors.textPrimary,
   },
   body: {
-    color: '#475467',
+    color: colors.textMuted,
     lineHeight: 21,
-    marginTop: 6,
+    marginTop: spacing.lg,
   },
 });

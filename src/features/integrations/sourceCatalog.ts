@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { ConnectedSource, RunSourceType } from '@/domain/types';
+import { ConnectedSource, RunSourceType } from '@/domain';
 
 export type DevicePlatform = 'ios' | 'android' | 'all';
 

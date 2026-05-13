@@ -168,18 +168,6 @@ export function useAndroidLiveMatchPerfProbe({
           targetDistanceKm: details.targetDistanceKm,
           capturedAt: now,
         });
-
-        console.debug(
-          `[LiveMatchPerf] ${label} fps=${fps} renders=${renders}/5s `
-          + `participants=${details.participants}`
-          + (typeof details.visibleParticipants === 'number' ? ` visible=${details.visibleParticipants}` : '')
-          + ` target=${details.targetDistanceKm}`
-          + ` progress=${renderReasonCounts.progressUpdates}`
-          + ` visibleProgress=${renderReasonCounts.visibleProgressUpdates}`
-          + ` hiddenProgress=${renderReasonCounts.hiddenProgressUpdates}`
-          + ` static=${renderReasonCounts.staticRenders}`
-          + ` layout=${renderReasonCounts.layoutUpdates}`,
-        );
         frameCount = 0;
         windowStartedAt = now;
         renderCountAtStart = renderCountRef.current;

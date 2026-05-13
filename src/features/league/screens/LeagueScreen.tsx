@@ -1,0 +1,123 @@
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, ScrollView } from 'react-native';
+
+import { Screen } from '@/components/Screen';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { StateMessageCard } from '@/components/ui/StateMessageCard';
+import { DistrictMemberRankingCard } from '@/features/league/components/DistrictMemberRankingCard';
+import { LeagueComingSoonCard } from '@/features/league/components/LeagueComingSoonCard';
+import { LeagueHeroCard } from '@/features/league/components/LeagueHeroCard';
+import { LeagueModeSwitch } from '@/features/league/components/LeagueModeSwitch';
+import { LeagueRegionSelectorCard } from '@/features/league/components/LeagueRegionSelectorCard';
+import { useRegionLeagueState } from '@/features/league/hooks/useRegionLeagueState';
+import { colors } from '@/theme/tokens';
+
+export default function LeagueScreen() {
+  const scrollRef = useRef<ScrollView | null>(null);
+  const [memberRankCardY, setMemberRankCardY] = useState(0);
+  const [myRankRowY, setMyRankRowY] = useState<number | null>(null);
+  const {
+    leagueMode,
+    setLeagueMode,
+    currentNode,
+    breadcrumbNodes,
+    visibleChildren,
+    isUniversityView,
+    isLeafRegion,
+    loading,
+    error,
+    regionMembers,
+    regionMembersLoading,
+    regionMembersError,
+    loadLeague,
+    loadRegionMembers,
+    isCurrentUserRegionNode,
+  } = useRegionLeagueState();
+
+  useEffect(() => {
+    setMyRankRowY(null);
+  }, [currentNode?.id]);
+
+  const scrollToMyRank = () => {
+    if (myRankRowY === null) {
+      return;
+    }
+
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, memberRankCardY + myRankRowY - 180),
+      animated: true,
+    });
+  };
+
+  return (
+    <Screen scrollRef={scrollRef}>
+      <PageHeader title="리그" />
+
+      <LeagueModeSwitch mode={leagueMode} onChange={setLeagueMode} />
+
+      {isUniversityView ? (
+        <LeagueComingSoonCard />
+      ) : (
+        <>
+          {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
+
+          {!loading && error ? (
+            <StateMessageCard
+              title="지역 리그를 아직 못 불러왔어"
+              message={error}
+              tone="danger"
+              actionLabel="다시 불러오기"
+              onAction={() => loadLeague(currentNode?.id)}
+            />
+          ) : null}
+
+          {!loading && !error && !currentNode ? (
+            <StateMessageCard
+              title="지역 리그 데이터가 아직 없어"
+              message="백엔드 응답이 연결되면 지역별 순위를 바로 탐색할 수 있어."
+              actionLabel="다시 불러오기"
+              onAction={() => loadLeague()}
+            />
+          ) : null}
+
+          {currentNode ? (
+            <>
+              <LeagueHeroCard node={currentNode} isMyRegion={isCurrentUserRegionNode(currentNode)} />
+              <LeagueRegionSelectorCard
+                breadcrumbNodes={breadcrumbNodes}
+                visibleChildren={visibleChildren}
+                isMyRegionNode={isCurrentUserRegionNode}
+                onSelectRegion={loadLeague}
+              />
+
+              {isLeafRegion ? (
+                <>
+                  {regionMembersLoading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
+
+                  {!regionMembersLoading && regionMembersError ? (
+                    <StateMessageCard
+                      title="회원 순위를 아직 못 불러왔어"
+                      message={regionMembersError}
+                      tone="danger"
+                      actionLabel="다시 불러오기"
+                      onAction={() => currentNode && loadRegionMembers(currentNode.id)}
+                    />
+                  ) : null}
+
+                  {!regionMembersLoading && !regionMembersError && regionMembers ? (
+                    <DistrictMemberRankingCard
+                      regionMembers={regionMembers}
+                      onCardLayout={(event) => setMemberRankCardY(event.nativeEvent.layout.y)}
+                      onMyRankLayout={(event) => setMyRankRowY(event.nativeEvent.layout.y)}
+                      onScrollToMyRank={scrollToMyRank}
+                    />
+                  ) : null}
+                </>
+              ) : null}
+            </>
+          ) : null}
+        </>
+      )}
+    </Screen>
+  );
+}

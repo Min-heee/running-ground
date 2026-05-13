@@ -10,13 +10,13 @@ import type {
   MarketRewardItem,
   OfflineRaceEvent,
   OfflineRaceHub,
-} from '@/domain/types';
+} from '@/domain';
 import type {
   RunningMatchRoom,
   RunningMatchStatusResponse,
 } from '../../types';
 
-export const mockMarketCatalog: Array<Omit<MarketRewardItem, 'claimState'>> = marketOverview.items.map(({ claimState, ...item }) => ({ ...item }));
+export const mockMarketCatalog: Omit<MarketRewardItem, 'claimState'>[] = marketOverview.items.map(({ claimState, ...item }) => ({ ...item }));
 
 export type MockOfflineRaceEventState = Omit<OfflineRaceEvent, 'registered' | 'status'> & {
   registeredUserTags: string[];

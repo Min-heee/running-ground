@@ -4,7 +4,7 @@ import type {
   RunMatchResult,
   RunRoutePoint,
   RunSourceType,
-} from '@/domain/types';
+} from '@/domain';
 
 export type CreateManualRunInput = {
   date: string;

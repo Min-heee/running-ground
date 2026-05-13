@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Button } from '@/components/ui/Button';
 
 export function PrimaryButton({
   label,
@@ -9,26 +9,5 @@ export function PrimaryButton({
   onPress?: () => void;
   disabled?: boolean;
 }) {
-  return (
-    <Pressable style={[styles.button, disabled ? styles.buttonDisabled : undefined]} onPress={disabled ? undefined : onPress}>
-      <Text style={styles.text}>{label}</Text>
-    </Pressable>
-  );
+  return <Button label={label} onPress={onPress} disabled={disabled} variant="primary" />;
 }
-
-const styles = StyleSheet.create({
-  button: {
-    backgroundColor: '#6D5EF7',
-    borderRadius: 18,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.55,
-  },
-  text: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-});

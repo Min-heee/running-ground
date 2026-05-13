@@ -1,4 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { memo, useCallback } from 'react';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
+import type { ListRenderItem } from 'react-native';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import type { MatchRoomParticipantUxStatus, MatchRoomUxModel } from '@/features/runs/matchRoomFlow';
@@ -11,6 +13,8 @@ type PartyRunParticipantListCardProps = {
   onToggleReady: () => void;
   onStart: () => void;
 };
+
+type PartyRunParticipant = MatchRoomUxModel['participants'][number];
 
 function getParticipantStatusStyle(status: MatchRoomParticipantUxStatus) {
   switch (status) {
@@ -29,6 +33,30 @@ function getParticipantStatusStyle(status: MatchRoomParticipantUxStatus) {
   }
 }
 
+const PartyRunParticipantRow = memo(function PartyRunParticipantRow({
+  participant,
+}: {
+  participant: PartyRunParticipant;
+}) {
+  return (
+    <View
+      style={[styles.participantRow, participant.isInvitee ? styles.invitedParticipantRow : undefined]}
+    >
+      <View style={styles.participantIdentity}>
+        <Text style={styles.participantName}>{participant.name}</Text>
+        {participant.badgeLabel ? (
+          <Text style={participant.isInvitee ? styles.invitedBadge : styles.hostBadge}>
+            {participant.badgeLabel}
+          </Text>
+        ) : null}
+      </View>
+      <Text style={getParticipantStatusStyle(participant.status)}>
+        {participant.statusLabel}
+      </Text>
+    </View>
+  );
+});
+
 export function PartyRunParticipantListCard({
   room,
   uxModel,
@@ -37,30 +65,23 @@ export function PartyRunParticipantListCard({
   onStart,
 }: PartyRunParticipantListCardProps) {
   const { readyAction, startAction } = uxModel;
+  const keyExtractor = useCallback((participant: PartyRunParticipant) => participant.id, []);
+  const renderParticipant = useCallback<ListRenderItem<PartyRunParticipant>>(({ item }) => (
+    <PartyRunParticipantRow participant={item} />
+  ), []);
 
   return (
     <Card>
       <Text style={styles.sectionTitle}>참가자 명단</Text>
-      <View style={styles.participantList}>
-        {uxModel.participants.map((participant) => (
-          <View
-            key={participant.id}
-            style={[styles.participantRow, participant.isInvitee ? styles.invitedParticipantRow : undefined]}
-          >
-            <View style={styles.participantIdentity}>
-              <Text style={styles.participantName}>{participant.name}</Text>
-              {participant.badgeLabel ? (
-                <Text style={participant.isInvitee ? styles.invitedBadge : styles.hostBadge}>
-                  {participant.badgeLabel}
-                </Text>
-              ) : null}
-            </View>
-            <Text style={getParticipantStatusStyle(participant.status)}>
-              {participant.statusLabel}
-            </Text>
-          </View>
-        ))}
-      </View>
+      <FlatList
+        data={uxModel.participants}
+        keyExtractor={keyExtractor}
+        renderItem={renderParticipant}
+        contentContainerStyle={styles.participantList}
+        scrollEnabled={false}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+      />
       {readyAction.visible ? (
         <PrimaryButton
           label={saving ? '반영 중...' : readyAction.label ?? '준비'}

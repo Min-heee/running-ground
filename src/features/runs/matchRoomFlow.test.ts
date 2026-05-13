@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { FriendRank } from '@/domain/types';
+import type { FriendRank } from '@/domain';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import {
   areAllMatchRoomGuestsReady,

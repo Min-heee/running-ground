@@ -1,4 +1,4 @@
-import type { UserProfile } from '@/domain/types';
+import type { UserProfile } from '@/domain';
 
 export type SignInInput = {
   username: string;

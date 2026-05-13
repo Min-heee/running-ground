@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { LiveMatchArena } from '@/components/matches/LiveMatchArena';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import {
@@ -48,7 +49,7 @@ export type LiveMatchArenaPageProps = {
   currentUserGroupLiveStatus: DuelMatchOpponent['liveStatus'] | null;
 };
 
-export function LiveMatchArenaPage({
+export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
   matchMode,
   effectiveDuelOpponent,
   duelDistanceKm,
@@ -277,4 +278,4 @@ export function LiveMatchArenaPage({
   }
 
   return null;
-}
+});

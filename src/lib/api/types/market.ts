@@ -2,7 +2,7 @@ import type {
   MarketOverview,
   OfflineRaceEvent,
   OfflineRaceHub,
-} from '@/domain/types';
+} from '@/domain';
 
 export type MarketOverviewResponse = MarketOverview;
 export type OfflineRaceHubResponse = OfflineRaceHub;

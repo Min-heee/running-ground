@@ -159,7 +159,7 @@ function resolveElapsedSeconds(value?: number) {
     : 0;
 }
 
-function resolvePaceLabel(...labels: Array<string | null | undefined>) {
+function resolvePaceLabel(...labels: (string | null | undefined)[]) {
   return labels.find((label) => isMeasuredPaceLabel(label)) ?? '--:--/km';
 }
 

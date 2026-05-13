@@ -1,5 +1,5 @@
-import type { UserProfile } from '@/domain/types';
-import { apiGet } from '@/lib/api/client';
+import type { UserProfile } from '@/domain';
+import { apiGet } from '@/services/apiClient';
 import type { AuthResponse, MyProfileResponse } from '@/lib/api/types';
 import type { BackendSessionState, SessionSnapshot } from '@/lib/session/types';
 

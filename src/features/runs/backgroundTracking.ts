@@ -1,10 +1,9 @@
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import { RunRoutePoint } from '@/domain/types';
+import { RunRoutePoint } from '@/domain';
 import {
   calculateDistanceBetweenPoints,
-  calculateElevationGainM,
   formatPaceFromSecondsPerKm,
 } from '@/features/runs/tracking';
 
@@ -28,6 +27,9 @@ const MIN_REASONABLE_PACE_SECONDS_PER_KM = 150;
 const MAX_REASONABLE_PACE_SECONDS_PER_KM = 1200;
 
 type BackgroundTrackingStatus = 'idle' | 'running' | 'paused';
+type SnapshotCloneOptions = {
+  cloneRoute?: boolean;
+};
 
 export type BackgroundRunTrackingSnapshot = {
   status: BackgroundTrackingStatus;
@@ -51,10 +53,16 @@ const INITIAL_SNAPSHOT: BackgroundRunTrackingSnapshot = {
   accumulatedPausedMs: 0,
 };
 
-const listeners = new Set<(snapshot: BackgroundRunTrackingSnapshot) => void>();
+type BackgroundTrackingListener = {
+  listener: (snapshot: BackgroundRunTrackingSnapshot) => void;
+  options?: SnapshotCloneOptions;
+};
+
+const listeners = new Set<BackgroundTrackingListener>();
 let snapshotState: BackgroundRunTrackingSnapshot = { ...INITIAL_SNAPSHOT };
 let foregroundLocationSubscription: { remove: () => void } | null = null;
 let accumulatedDistanceMeters = 0;
+let accumulatedElevationGainMeters = 0;
 let smoothedCurrentPaceSecondsPerKm: number | null = null;
 let smoothedPaceUpdatedAtMs: number | null = null;
 
@@ -62,16 +70,20 @@ function cloneRoute(route: RunRoutePoint[]) {
   return route.map((point) => ({ ...point }));
 }
 
-function buildSnapshotClone(snapshot: BackgroundRunTrackingSnapshot): BackgroundRunTrackingSnapshot {
+function buildSnapshotClone(
+  snapshot: BackgroundRunTrackingSnapshot,
+  options?: SnapshotCloneOptions,
+): BackgroundRunTrackingSnapshot {
   return {
     ...snapshot,
-    route: cloneRoute(snapshot.route),
+    route: options?.cloneRoute === false ? snapshot.route : cloneRoute(snapshot.route),
   };
 }
 
 function emitSnapshot() {
-  const nextSnapshot = buildSnapshotClone(snapshotState);
-  listeners.forEach((listener) => listener(nextSnapshot));
+  listeners.forEach((subscription) => {
+    subscription.listener(buildSnapshotClone(snapshotState, subscription.options));
+  });
 }
 
 function normalizeAccuracyMeters(value?: number | null) {
@@ -121,6 +133,19 @@ function buildRoutePoint(location: Location.LocationObject): RunRoutePoint {
     ...(accuracyM !== null ? { accuracyM } : {}),
     timestamp: new Date(location.timestamp).toISOString(),
   };
+}
+
+function calculateElevationGainForSegment(previousPoint: RunRoutePoint | null, nextPoint: RunRoutePoint) {
+  if (!previousPoint) {
+    return 0;
+  }
+
+  if (typeof previousPoint.altitude !== 'number' || typeof nextPoint.altitude !== 'number') {
+    return 0;
+  }
+
+  const altitudeDelta = nextPoint.altitude - previousPoint.altitude;
+  return altitudeDelta > 0.8 ? altitudeDelta : 0;
 }
 
 function resolveRoutePointTimestampMs(point: RunRoutePoint) {
@@ -357,12 +382,13 @@ function appendTrackedLocation(location: Location.LocationObject) {
 
   const nextRoute = [...snapshotState.route, nextPoint];
   accumulatedDistanceMeters = nextAccumulatedDistanceMeters;
+  accumulatedElevationGainMeters += calculateElevationGainForSegment(previousPoint, nextPoint);
   snapshotState = {
     ...snapshotState,
     route: nextRoute,
     startedAt: snapshotState.startedAt ?? nextPoint.timestamp,
     distanceKm: Number((accumulatedDistanceMeters / 1000).toFixed(2)),
-    elevationGainM: calculateElevationGainM(nextRoute),
+    elevationGainM: Math.round(accumulatedElevationGainMeters),
     currentPace: buildSmoothedCurrentPace(nextRoute, reliableSpeedMps, locationTimestampMs),
   };
   emitSnapshot();
@@ -420,8 +446,8 @@ if (Platform.OS !== 'web') {
   defineBackgroundRunTask(LEGACY_BACKGROUND_RUN_TASK_NAME);
 }
 
-export function getBackgroundRunTrackingSnapshot() {
-  return buildSnapshotClone(snapshotState);
+export function getBackgroundRunTrackingSnapshot(options?: SnapshotCloneOptions) {
+  return buildSnapshotClone(snapshotState, options);
 }
 
 export function getBackgroundRunElapsedSeconds(snapshot = snapshotState, nowMs = Date.now()) {
@@ -446,12 +472,16 @@ export function getBackgroundRunElapsedSeconds(snapshot = snapshotState, nowMs =
   return Math.max(0, Math.floor((referenceMs - startedAtMs - snapshot.accumulatedPausedMs) / 1000));
 }
 
-export function subscribeBackgroundRunTracking(listener: (snapshot: BackgroundRunTrackingSnapshot) => void) {
-  listeners.add(listener);
-  listener(getBackgroundRunTrackingSnapshot());
+export function subscribeBackgroundRunTracking(
+  listener: (snapshot: BackgroundRunTrackingSnapshot) => void,
+  options?: SnapshotCloneOptions,
+) {
+  const subscription = { listener, options };
+  listeners.add(subscription);
+  listener(getBackgroundRunTrackingSnapshot(options));
 
   return () => {
-    listeners.delete(listener);
+    listeners.delete(subscription);
   };
 }
 
@@ -497,6 +527,7 @@ async function startLocationTask() {
 
 export async function startBackgroundRunTracking(initialLocation?: Location.LocationObject | null) {
   accumulatedDistanceMeters = 0;
+  accumulatedElevationGainMeters = 0;
   smoothedCurrentPaceSecondsPerKm = null;
   smoothedPaceUpdatedAtMs = null;
   const initialTimestampMs = initialLocation ? resolveLocationTimestampMs(initialLocation) : null;
@@ -560,6 +591,7 @@ export async function resumeBackgroundRunTracking() {
 export async function resetBackgroundRunTracking() {
   await stopLocationTaskIfNeeded();
   accumulatedDistanceMeters = 0;
+  accumulatedElevationGainMeters = 0;
   smoothedCurrentPaceSecondsPerKm = null;
   smoothedPaceUpdatedAtMs = null;
   snapshotState = { ...INITIAL_SNAPSHOT };

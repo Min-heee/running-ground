@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { Card } from '@/components/Card';
-import { MyRunRecord, WeeklySummary } from '@/domain/types';
+import { MyRunRecord, WeeklySummary } from '@/domain';
 import { buildWeeklyPointOverview } from '@/features/points/pointSystem';
 
 export function HomeOverview({

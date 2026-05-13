@@ -2,7 +2,7 @@ import type {
   DistrictPersonalRank,
   RegionDrilldownNode,
   UniversityLeagueRank,
-} from '@/domain/types';
+} from '@/domain';
 
 export type DistrictPersonalResponse = {
   districtName: string;

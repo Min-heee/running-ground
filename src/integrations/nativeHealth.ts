@@ -1,7 +1,7 @@
 import Constants, { AppOwnership } from 'expo-constants';
 import { NativeModules, Platform } from 'react-native';
-import { ConnectedSource, RunSourceType } from '@/domain/types';
-import { syncIntegrationSources } from '@/lib/api/services';
+import { ConnectedSource, RunSourceType } from '@/domain';
+import { syncIntegrationSources } from '@/services';
 import { IntegrationSyncResponse } from '@/lib/api/types';
 import { ImportableRunSourceType, NormalizedProviderRun, submitProviderRuns } from './provider';
 

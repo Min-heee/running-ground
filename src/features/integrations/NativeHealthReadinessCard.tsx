@@ -1,7 +1,7 @@
 import { PropsWithChildren } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
-import { ConnectedSource } from '@/domain/types';
+import { ConnectedSource } from '@/domain';
 import { getRecommendedNativeHealthReadiness } from '@/integrations/nativeHealth';
 
 export function NativeHealthReadinessCard({

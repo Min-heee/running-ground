@@ -1,4 +1,4 @@
-import { RunRoutePoint } from '@/domain/types';
+import { RunRoutePoint } from '@/domain';
 
 export type MapCoordinate = Pick<RunRoutePoint, 'latitude' | 'longitude'>;
 

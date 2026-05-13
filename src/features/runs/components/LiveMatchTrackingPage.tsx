@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { RunningMetricGrid } from '@/features/runs/components/RunningMetricGrid';
@@ -51,7 +52,7 @@ export type LiveMatchTrackingPageProps = {
   onContinueSoloFromMatch: (source: MatchExitSource) => void;
 };
 
-export function LiveMatchTrackingPage({
+export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
   includeMatchCards,
   matchMode,
   liveMatchTitle,
@@ -125,9 +126,9 @@ export function LiveMatchTrackingPage({
       />
     </>
   );
-}
+});
 
-function DuelTrackingSummaryCard({
+const DuelTrackingSummaryCard = memo(function DuelTrackingSummaryCard({
   opponent,
   duelDistanceKm,
   duelLiveTitle,
@@ -184,9 +185,34 @@ function DuelTrackingSummaryCard({
       ) : null}
     </View>
   );
-}
+});
 
-function GroupTrackingSummaryCard({
+const GroupLiveStandingRow = memo(function GroupLiveStandingRow({
+  participant,
+}: {
+  participant: GroupLiveStanding;
+}) {
+  return (
+    <View
+      style={[styles.groupLiveRow, participant.isCurrentUser ? styles.groupLiveRowCurrent : undefined]}
+    >
+      <Text style={styles.groupLiveRank}>{participant.rank}</Text>
+      <View style={styles.groupLiveCopy}>
+        <Text style={styles.groupLiveName}>
+          {participant.name}
+          {participant.isCurrentUser ? ' (나)' : ''}
+        </Text>
+        <Text style={styles.groupLiveMeta}>
+          {participant.averagePace} · {participant.levelLabel} · {participant.seedSummary}
+          {participant.liveStatus ? ` · ${buildMatchParticipantStatusLabel(participant.liveStatus)}` : ''}
+        </Text>
+      </View>
+      <Text style={styles.groupLiveDistance}>{participant.currentDistanceKm.toFixed(2)}km</Text>
+    </View>
+  );
+});
+
+const GroupTrackingSummaryCard = memo(function GroupTrackingSummaryCard({
   effectiveGroupParticipantCount,
   currentGroupStanding,
   groupAheadParticipant,
@@ -207,6 +233,8 @@ function GroupTrackingSummaryCard({
   currentGroupLeader: GroupLiveStanding | null;
   onContinueSoloFromMatch: (source: MatchExitSource) => void;
 }) {
+  const topStandings = useMemo(() => groupLiveStandings.slice(0, 5), [groupLiveStandings]);
+
   return (
     <View style={styles.groupLiveCard}>
       <View style={styles.groupLiveHeader}>
@@ -258,24 +286,8 @@ function GroupTrackingSummaryCard({
         />
       ) : null}
       <View style={styles.groupLiveTopList}>
-        {groupLiveStandings.slice(0, 5).map((participant) => (
-          <View
-            key={participant.id}
-            style={[styles.groupLiveRow, participant.isCurrentUser ? styles.groupLiveRowCurrent : undefined]}
-          >
-            <Text style={styles.groupLiveRank}>{participant.rank}</Text>
-            <View style={styles.groupLiveCopy}>
-              <Text style={styles.groupLiveName}>
-                {participant.name}
-                {participant.isCurrentUser ? ' (나)' : ''}
-              </Text>
-              <Text style={styles.groupLiveMeta}>
-                {participant.averagePace} · {participant.levelLabel} · {participant.seedSummary}
-                {participant.liveStatus ? ` · ${buildMatchParticipantStatusLabel(participant.liveStatus)}` : ''}
-              </Text>
-            </View>
-            <Text style={styles.groupLiveDistance}>{participant.currentDistanceKm.toFixed(2)}km</Text>
-          </View>
+        {topStandings.map((participant) => (
+          <GroupLiveStandingRow key={participant.id} participant={participant} />
         ))}
       </View>
       {currentGroupStanding.rank > 5 ? (
@@ -302,9 +314,9 @@ function GroupTrackingSummaryCard({
       )}
     </View>
   );
-}
+});
 
-function MatchStatusBanner({
+const MatchStatusBanner = memo(function MatchStatusBanner({
   alert,
   actionLabel,
   disabled,
@@ -339,7 +351,7 @@ function MatchStatusBanner({
       ) : null}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   mapCard: {

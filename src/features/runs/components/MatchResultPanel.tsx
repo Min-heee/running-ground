@@ -1,4 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { memo, useCallback } from 'react';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
+import type { ListRenderItem } from 'react-native';
 import { Card } from '@/components/Card';
 
 export type DuelMatchResultRow = {
@@ -27,6 +29,51 @@ type MatchResultPanelProps = {
   groupStatusLabel?: string | null;
 };
 
+const DuelResultRow = memo(function DuelResultRow({ row }: { row: DuelMatchResultRow }) {
+  return (
+    <View
+      style={[
+        styles.duelRow,
+        row.resultLabel === 'WIN'
+          ? styles.duelRowWin
+          : row.resultLabel === 'LOSER'
+            ? styles.duelRowLose
+            : styles.duelRowDraw,
+      ]}
+    >
+      <View style={styles.duelLabelColumn}>
+        <Text style={styles.duelLabel}>{row.resultLabel}</Text>
+      </View>
+      <View style={styles.rowCopy}>
+        <Text style={styles.duelName}>
+          {row.name}
+          {row.isCurrentUser ? ' (나)' : ''}
+        </Text>
+        <Text style={styles.meta}>
+          페이스 {row.paceLabel} · 시간 {row.durationLabel}
+        </Text>
+      </View>
+    </View>
+  );
+});
+
+const GroupResultRow = memo(function GroupResultRow({ row }: { row: GroupMatchResultRow }) {
+  return (
+    <View style={[styles.groupRow, row.isCurrentUser ? styles.groupRowCurrent : undefined]}>
+      <Text style={styles.groupRank}>{row.rank}등</Text>
+      <View style={styles.groupCopy}>
+        <Text style={styles.groupName}>
+          {row.name}
+          {row.isCurrentUser ? ' (나)' : ''}
+        </Text>
+        <Text style={styles.groupMeta}>
+          페이스 {row.paceLabel} · 시간 {row.durationLabel}
+        </Text>
+      </View>
+    </View>
+  );
+});
+
 export function MatchResultPanel({
   mode,
   estimatedBonusPoints,
@@ -34,6 +81,14 @@ export function MatchResultPanel({
   groupRows,
   groupStatusLabel,
 }: MatchResultPanelProps) {
+  const keyExtractor = useCallback((row: DuelMatchResultRow | GroupMatchResultRow) => row.id, []);
+  const renderDuelRow = useCallback<ListRenderItem<DuelMatchResultRow>>(({ item }) => (
+    <DuelResultRow row={item} />
+  ), []);
+  const renderGroupRow = useCallback<ListRenderItem<GroupMatchResultRow>>(({ item }) => (
+    <GroupResultRow row={item} />
+  ), []);
+
   if (mode === 'duel' && duelRows.length) {
     return (
       <Card style={styles.card}>
@@ -45,34 +100,13 @@ export function MatchResultPanel({
           </View>
           <PointPill points={estimatedBonusPoints} />
         </View>
-        <View style={styles.list}>
-          {duelRows.map((row) => (
-            <View
-              key={row.id}
-              style={[
-                styles.duelRow,
-                row.resultLabel === 'WIN'
-                  ? styles.duelRowWin
-                  : row.resultLabel === 'LOSER'
-                    ? styles.duelRowLose
-                    : styles.duelRowDraw,
-              ]}
-            >
-              <View style={styles.duelLabelColumn}>
-                <Text style={styles.duelLabel}>{row.resultLabel}</Text>
-              </View>
-              <View style={styles.rowCopy}>
-                <Text style={styles.duelName}>
-                  {row.name}
-                  {row.isCurrentUser ? ' (나)' : ''}
-                </Text>
-                <Text style={styles.meta}>
-                  페이스 {row.paceLabel} · 시간 {row.durationLabel}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </View>
+        <FlatList
+          data={duelRows}
+          keyExtractor={keyExtractor}
+          renderItem={renderDuelRow}
+          contentContainerStyle={styles.list}
+          scrollEnabled={false}
+        />
       </Card>
     );
   }
@@ -88,25 +122,15 @@ export function MatchResultPanel({
           </View>
           <PointPill points={estimatedBonusPoints} />
         </View>
-        <View style={styles.list}>
-          {groupRows.map((row) => (
-            <View
-              key={row.id}
-              style={[styles.groupRow, row.isCurrentUser ? styles.groupRowCurrent : undefined]}
-            >
-              <Text style={styles.groupRank}>{row.rank}등</Text>
-              <View style={styles.groupCopy}>
-                <Text style={styles.groupName}>
-                  {row.name}
-                  {row.isCurrentUser ? ' (나)' : ''}
-                </Text>
-                <Text style={styles.groupMeta}>
-                  페이스 {row.paceLabel} · 시간 {row.durationLabel}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </View>
+        <FlatList
+          data={groupRows}
+          keyExtractor={keyExtractor}
+          renderItem={renderGroupRow}
+          contentContainerStyle={styles.list}
+          scrollEnabled={false}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+        />
         {groupStatusLabel ? (
           <View style={styles.statusPill}>
             <Text style={styles.statusText}>{groupStatusLabel}</Text>

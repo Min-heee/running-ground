@@ -1,4 +1,4 @@
-import { MyRunRecord } from '@/domain/types';
+import { MyRunRecord } from '@/domain';
 
 function normalizeSourceText(value?: string) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';

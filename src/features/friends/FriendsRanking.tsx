@@ -1,15 +1,62 @@
-import { useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Link } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { ListRenderItem } from 'react-native';
 import { Card } from '@/components/Card';
-import { FriendRank } from '@/domain/types';
+import { FriendRank } from '@/domain';
 
 type FriendsRankingProps = {
   ranks: FriendRank[];
   highlightTag?: string;
 };
 
-export function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
+type FriendRankRowProps = {
+  runner: FriendRank;
+  isMine: boolean;
+};
+
+const FriendRankRow = memo(function FriendRankRow({ runner, isMine }: FriendRankRowProps) {
+  return (
+    <Link href={{ pathname: '/friend-detail', params: { friendId: runner.id } }} asChild>
+      <Pressable style={[styles.rankCard, isMine ? styles.myCard : null]}>
+        <View style={styles.rankRow}>
+          <View style={styles.rankBadge}>
+            <Text style={styles.rankBadgeText}>{runner.rank}위</Text>
+          </View>
+
+          <View style={styles.runnerMeta}>
+            <View style={styles.nameRow}>
+              <Text numberOfLines={1} style={styles.runnerName}>
+                {runner.name}
+              </Text>
+              {isMine ? (
+                <View style={styles.selfBadge}>
+                  <Text style={styles.selfBadgeText}>나</Text>
+                </View>
+              ) : null}
+              {runner.isRunningNow ? (
+                <View style={styles.livePill}>
+                  <View style={styles.livePillDot} />
+                  <Text style={styles.livePillText}>러닝 중</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={styles.metricInline}>
+            <Text style={styles.metricInlineValue}>{runner.distanceKm}km</Text>
+          </View>
+
+          <View style={styles.metricInline}>
+            <Text style={styles.metricInlineValue}>{runner.points}P</Text>
+          </View>
+        </View>
+      </Pressable>
+    </Link>
+  );
+});
+
+export const FriendsRanking = memo(function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
   const [rankingWindow, setRankingWindow] = useState<'today' | 'week' | 'month'>('week');
   const sortedRanks = useMemo(() => [...ranks].sort((left, right) => left.rank - right.rank), [ranks]);
   const displayedRanks = useMemo(() => {
@@ -52,6 +99,13 @@ export function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
   }, [rankingWindow, sortedRanks]);
   const myRank = highlightTag ? displayedRanks.find((runner) => runner.tag === highlightTag) : null;
   const rankingWindowLabel = rankingWindow === 'today' ? '오늘' : rankingWindow === 'month' ? '이번 달' : '이번 주';
+  const keyExtractor = useCallback((runner: FriendRank) => runner.id, []);
+  const renderRankItem = useCallback<ListRenderItem<FriendRank>>(({ item }) => (
+    <FriendRankRow
+      runner={item}
+      isMine={item.tag === highlightTag}
+    />
+  ), [highlightTag]);
 
   if (ranks.length === 0) {
     return null;
@@ -104,53 +158,18 @@ export function FriendsRanking({ ranks, highlightTag }: FriendsRankingProps) {
         </View>
       ) : null}
 
-      <View style={styles.rankList}>
-        {displayedRanks.map((runner) => {
-          const isMine = runner.tag === highlightTag;
-
-          return (
-            <Link key={runner.id} href={{ pathname: '/friend-detail', params: { friendId: runner.id } }} asChild>
-              <Pressable style={[styles.rankCard, isMine ? styles.myCard : null]}>
-                <View style={styles.rankRow}>
-                  <View style={styles.rankBadge}>
-                    <Text style={styles.rankBadgeText}>{runner.rank}위</Text>
-                  </View>
-
-                  <View style={styles.runnerMeta}>
-                    <View style={styles.nameRow}>
-                      <Text numberOfLines={1} style={styles.runnerName}>
-                        {runner.name}
-                      </Text>
-                      {isMine ? (
-                        <View style={styles.selfBadge}>
-                          <Text style={styles.selfBadgeText}>나</Text>
-                        </View>
-                      ) : null}
-                      {runner.isRunningNow ? (
-                        <View style={styles.livePill}>
-                          <View style={styles.livePillDot} />
-                          <Text style={styles.livePillText}>러닝 중</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                  </View>
-
-                  <View style={styles.metricInline}>
-                    <Text style={styles.metricInlineValue}>{runner.distanceKm}km</Text>
-                  </View>
-
-                  <View style={styles.metricInline}>
-                    <Text style={styles.metricInlineValue}>{runner.points}P</Text>
-                  </View>
-                </View>
-              </Pressable>
-            </Link>
-          );
-        })}
-      </View>
+      <FlatList
+        data={displayedRanks}
+        keyExtractor={keyExtractor}
+        renderItem={renderRankItem}
+        contentContainerStyle={styles.rankList}
+        scrollEnabled={false}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+      />
     </Card>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

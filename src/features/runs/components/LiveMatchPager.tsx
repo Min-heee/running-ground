@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -25,7 +26,32 @@ const BASE_TABS: PagerTab[] = [
 ];
 const RESULT_TAB: PagerTab = { index: 3, label: '결과 보기' };
 
-export function LiveMatchPager({
+const PagerTabButton = memo(function PagerTabButton({
+  tab,
+  selected,
+  onPress,
+}: {
+  tab: PagerTab;
+  selected: boolean;
+  onPress: (index: number) => void;
+}) {
+  const handlePress = useCallback(() => {
+    onPress(tab.index);
+  }, [onPress, tab.index]);
+
+  return (
+    <Pressable
+      style={[styles.tab, selected ? styles.tabSelected : undefined]}
+      onPress={handlePress}
+    >
+      <Text style={[styles.tabText, selected ? styles.tabTextSelected : undefined]}>
+        {tab.label}
+      </Text>
+    </Pressable>
+  );
+});
+
+export const LiveMatchPager = memo(function LiveMatchPager({
   scrollRef,
   page,
   pageWidth,
@@ -36,49 +62,47 @@ export function LiveMatchPager({
   resultPage,
   onPageChange,
 }: LiveMatchPagerProps) {
-  const tabs = hasResultPage ? [...BASE_TABS, RESULT_TAB] : BASE_TABS;
-  const pages = [arenaPage, raceBoardPage, statsPage, ...(hasResultPage ? [resultPage] : [])];
+  const tabs = useMemo(() => (hasResultPage ? [...BASE_TABS, RESULT_TAB] : BASE_TABS), [hasResultPage]);
+  const pages = useMemo(
+    () => [arenaPage, raceBoardPage, statsPage, ...(hasResultPage ? [resultPage] : [])],
+    [arenaPage, hasResultPage, raceBoardPage, resultPage, statsPage],
+  );
   const activePage = pages[page] ?? pages[0];
 
-  const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const handleMomentumEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (pageWidth <= 0) {
       return;
     }
     onPageChange(Math.round(event.nativeEvent.contentOffset.x / pageWidth));
-  };
+  }, [onPageChange, pageWidth]);
 
-  const renderTabRow = () => (
+  const handleTabPress = useCallback((index: number) => {
+    if (Platform.OS === 'android') {
+      onPageChange(index);
+      return;
+    }
+
+    scrollRef.current?.scrollTo({ x: pageWidth * index, animated: true });
+    onPageChange(index);
+  }, [onPageChange, pageWidth, scrollRef]);
+
+  const tabRow = (
     <View style={styles.tabRow}>
-      {tabs.map((tab) => {
-        const isSelected = page === tab.index;
-
-        return (
-          <Pressable
-            key={tab.index}
-            style={[styles.tab, isSelected ? styles.tabSelected : undefined]}
-            onPress={() => {
-              if (Platform.OS === 'android') {
-                onPageChange(tab.index);
-                return;
-              }
-
-              scrollRef.current?.scrollTo({ x: pageWidth * tab.index, animated: true });
-              onPageChange(tab.index);
-            }}
-          >
-            <Text style={[styles.tabText, isSelected ? styles.tabTextSelected : undefined]}>
-              {tab.label}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {tabs.map((tab) => (
+        <PagerTabButton
+          key={tab.index}
+          tab={tab}
+          selected={page === tab.index}
+          onPress={handleTabPress}
+        />
+      ))}
     </View>
   );
 
   if (Platform.OS === 'android') {
     return (
       <View style={styles.shell}>
-        {renderTabRow()}
+        {tabRow}
         <View style={styles.androidPage}>
           {activePage}
         </View>
@@ -89,7 +113,7 @@ export function LiveMatchPager({
 
   return (
     <View style={styles.shell}>
-      {renderTabRow()}
+      {tabRow}
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -124,7 +148,7 @@ export function LiveMatchPager({
       </Text>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   shell: {

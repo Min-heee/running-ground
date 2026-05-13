@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { type Href, router } from 'expo-router';
 import {
   fetchFriendLeaderboard,
+} from '@/services/friendsService';
+import {
   fetchRunningMatchRoom,
   acknowledgeRunningMatchRoomCountdown,
   joinRunningMatchRoom,
@@ -11,12 +13,11 @@ import {
   startRunningMatchRoom,
   updateRunningMatchRoom,
   updateRunningMatchRoomReady,
-} from '@/lib/api/services';
+} from '@/services/matchService';
 import type {
   FriendLeaderboardResponse,
   RunningMatchRoom,
   RunningMatchRoomInvitee,
-  RunningMatchRoomStartMode,
 } from '@/lib/api/types';
 import {
   buildPartyRunFlowSnapshot,
@@ -30,12 +31,15 @@ import {
   resolveStableServerClockOffset,
   shouldAcceptServerSnapshot,
 } from '@/features/runs/serverClockSync';
+import type { MatchRoomMeridiem, UpdateRoomSettingsInput } from '@/features/runs/types/matchRoom';
+import {
+  MATCH_ROOM_HOUR_OPTIONS,
+  MATCH_ROOM_MINUTE_OPTIONS,
+  buildScheduledStartAt,
+  to12HourParts,
+} from '@/features/runs/utils/matchRoomScheduling';
 import { getMatchStartRemainingSeconds } from '@/lib/matchCountdown';
 import { getCurrentUserProfile } from '@/lib/session';
-
-export const MATCH_ROOM_HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
-export const MATCH_ROOM_MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => index);
-export const MATCH_ROOM_DISTANCE_OPTIONS = [3, 5, 7, 10, 15, 21.1, 42.2];
 
 function buildRoomRenderKey(room: RunningMatchRoom | null) {
   if (!room) {
@@ -73,51 +77,6 @@ function areSameIdSet(left: string[], right: string[]) {
   return right.every((id) => leftSet.has(id));
 }
 
-export function formatRoomDateLabel(value: string) {
-  const date = new Date(value);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  const weekday = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
-  const hour = date.getHours();
-  const minute = `${date.getMinutes()}`.padStart(2, '0');
-
-  return `${month}.${day} (${weekday}) ${hour}:${minute}`;
-}
-
-function to12HourParts(value: string) {
-  const date = new Date(value);
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  const meridiem = hours >= 12 ? '오후' : '오전';
-  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
-
-  return { meridiem, hour12, minute: minutes };
-}
-
-export function buildScheduledStartAt(meridiem: '오전' | '오후', hour12: number, minute: number) {
-  const now = new Date();
-  const candidate = new Date(now);
-  const hour24 = meridiem === '오전'
-    ? (hour12 === 12 ? 0 : hour12)
-    : (hour12 === 12 ? 12 : hour12 + 12);
-  candidate.setSeconds(0, 0);
-  candidate.setHours(hour24, minute, 0, 0);
-
-  while (candidate.getTime() <= Date.now() + 30 * 60 * 1000) {
-    candidate.setDate(candidate.getDate() + 1);
-  }
-
-  return candidate.toISOString();
-}
-
-type UpdateRoomSettingsInput = Partial<{
-  distanceKm: number;
-  startMode: RunningMatchRoomStartMode;
-  slotStartAt: string;
-  maxParticipants: number;
-  invitedFriendIds: string[];
-}>;
-
 export function useMatchRoomLobby() {
   const currentUser = getCurrentUserProfile();
   const currentUserTag = currentUser?.publicTag ?? 'mock-current-user';
@@ -131,14 +90,14 @@ export function useMatchRoomLobby() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [meridiem, setMeridiem] = useState<'오전' | '오후'>('오전');
+  const [meridiem, setMeridiem] = useState<MatchRoomMeridiem>('오전');
   const [hourIndex, setHourIndex] = useState(0);
   const [minuteIndex, setMinuteIndex] = useState(0);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
   const [customDistanceText, setCustomDistanceText] = useState('5');
   const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0);
 
-  const syncServerClock = (serverNow?: string) => {
+  const syncServerClock = useCallback((serverNow?: string) => {
     const serverNowMs = parseServerNowMs(serverNow);
     if (serverNowMs === null) {
       return;
@@ -146,9 +105,9 @@ export function useMatchRoomLobby() {
 
     const nextOffsetMs = serverNowMs - Date.now();
     setServerClockOffsetMs((currentOffsetMs) => resolveStableServerClockOffset(currentOffsetMs, nextOffsetMs));
-  };
+  }, []);
 
-  const commitRoom = (nextRoom: RunningMatchRoom | null) => {
+  const commitRoom = useCallback((nextRoom: RunningMatchRoom | null) => {
     const nextKey = buildRoomRenderKey(nextRoom);
     if (roomRenderKeyRef.current === nextKey) {
       return;
@@ -156,9 +115,9 @@ export function useMatchRoomLobby() {
 
     roomRenderKeyRef.current = nextKey;
     setRoom(nextRoom);
-  };
+  }, []);
 
-  const openLinkedMatchInRunning = (nextRoom: RunningMatchRoom) => {
+  const openLinkedMatchInRunning = useCallback((nextRoom: RunningMatchRoom) => {
     if (!nextRoom.linkedMatchId) {
       return;
     }
@@ -206,9 +165,9 @@ export function useMatchRoomLobby() {
         focusMatchNonce: `room-${Date.now()}`,
       },
     } as Href);
-  };
+  }, [currentUserTag, serverClockOffsetMs]);
 
-  const loadRoom = async () => {
+  const loadRoom = useCallback(async () => {
     try {
       const payload = await fetchRunningMatchRoom();
       if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
@@ -223,7 +182,7 @@ export function useMatchRoomLobby() {
       setError(roomError instanceof Error ? roomError.message : '대기실을 불러오지 못했어.');
       return null;
     }
-  };
+  }, [commitRoom, syncServerClock]);
 
   useEffect(() => {
     let cancelled = false;
@@ -245,7 +204,7 @@ export function useMatchRoomLobby() {
 
       if (nextRoom) {
         const nextParts = to12HourParts(nextRoom.slotStartAt);
-        setMeridiem(nextParts.meridiem as '오전' | '오후');
+        setMeridiem(nextParts.meridiem);
         setHourIndex(Math.max(0, MATCH_ROOM_HOUR_OPTIONS.findIndex((value) => value === nextParts.hour12)));
         setMinuteIndex(nextParts.minute);
         setSelectedFriendIds(nextRoom.invitedFriendIds);
@@ -265,7 +224,7 @@ export function useMatchRoomLobby() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [room?.linkedMatchId]);
+  }, [loadRoom, room?.linkedMatchId]);
 
   const currentParticipant = room?.participants.find((participant) => (
     participant.userId === currentUserTag || participant.tag === currentUserTag
@@ -284,6 +243,8 @@ export function useMatchRoomLobby() {
 
     return () => clearInterval(timer);
   }, [
+    openLinkedMatchInRunning,
+    room,
     room?.linkedMatchId,
     room?.linkedMatchSlotStartAt,
     room?.linkedMatchStatus,
@@ -294,18 +255,23 @@ export function useMatchRoomLobby() {
     serverClockOffsetMs,
   ]);
 
+  const roomSlotStartAt = room?.slotStartAt;
+  const roomInvitedFriendIds = room?.invitedFriendIds;
+  const roomDistanceKm = room?.distanceKm;
+  const roomId = room?.roomId;
+
   useEffect(() => {
-    if (!room) {
+    if (!roomSlotStartAt || !roomInvitedFriendIds || roomDistanceKm === undefined) {
       return;
     }
 
-    const nextParts = to12HourParts(room.slotStartAt);
-    setMeridiem(nextParts.meridiem as '오전' | '오후');
+    const nextParts = to12HourParts(roomSlotStartAt);
+    setMeridiem(nextParts.meridiem);
     setHourIndex(Math.max(0, MATCH_ROOM_HOUR_OPTIONS.findIndex((value) => value === nextParts.hour12)));
     setMinuteIndex(nextParts.minute);
-    setSelectedFriendIds(room.invitedFriendIds);
-    setCustomDistanceText(String(room.distanceKm));
-  }, [room?.slotStartAt, room?.invitedFriendIds, room?.roomId]);
+    setSelectedFriendIds(roomInvitedFriendIds);
+    setCustomDistanceText(String(roomDistanceKm));
+  }, [roomDistanceKm, roomId, roomInvitedFriendIds, roomSlotStartAt]);
 
   const friendOptions = useMemo(() => {
     const excludedIds = new Set<string>([currentUserTag]);
@@ -391,12 +357,14 @@ export function useMatchRoomLobby() {
         setError(roomError instanceof Error ? roomError.message : '파티런 카운트다운 준비를 맞추지 못했어.');
       });
   }, [
+    commitRoom,
     currentUserTag,
     partyRunFlow.canAcknowledgeCountdownReady,
     partyRunFlow.hasLinkedMatch,
     partyRunFlow.phase,
     room?.linkedMatchId,
     room?.roomId,
+    syncServerClock,
   ]);
 
   const saveRoomSettings = async (overrides: UpdateRoomSettingsInput = {}) => {

@@ -1,10 +1,6 @@
 import {
-  connectedSources,
-} from '@/data/mock';
-
-import {
   RunSourceType,
-} from '@/domain/types';
+} from '@/domain';
 
 import {
   apiGet,
@@ -169,7 +165,7 @@ export async function disconnectIntegrationSource(sourceType: RunSourceType): Pr
 
 export async function queueIntegrationImports(
   sourceType: Exclude<RunSourceType, 'manual'>,
-  runs: Array<{
+  runs: {
     externalId?: string;
     sourceLabel?: string;
     date: string;
@@ -178,7 +174,7 @@ export async function queueIntegrationImports(
     startedAt?: string;
     endedAt?: string;
     durationSeconds?: number;
-  }>,
+  }[],
 ): Promise<QueueIntegrationImportResponse> {
   if (USE_MOCK_API) {
     const source = mockApiState.connectedSources.find((entry) => entry.sourceType === sourceType);

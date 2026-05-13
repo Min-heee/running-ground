@@ -1,0 +1,299 @@
+import { memo, useCallback } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { ListRenderItem } from 'react-native';
+
+import { Card } from '@/components/Card';
+import { SectionTitle } from '@/components/SectionTitle';
+import type { RegionDrilldownNode } from '@/domain';
+import type { RegionBreadcrumbItem } from '@/lib/api/types';
+import { PodiumBadge } from '@/features/league/components/LeagueRankBadges';
+import { getPodiumTheme } from '@/features/league/utils/leagueRanking';
+import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { formatDistanceKm, formatPeopleCount } from '@/utils/formatUnits';
+
+type LeagueRegionSelectorCardProps = {
+  breadcrumbNodes: RegionBreadcrumbItem[];
+  visibleChildren: RegionDrilldownNode[];
+  isMyRegionNode: (node: Pick<RegionDrilldownNode, 'level' | 'name'>) => boolean;
+  onSelectRegion: (nodeId?: string) => void;
+};
+
+type RegionNodeIdentity = Pick<RegionDrilldownNode, 'level' | 'name'>;
+
+export const LeagueRegionSelectorCard = memo(function LeagueRegionSelectorCard({
+  breadcrumbNodes,
+  visibleChildren,
+  isMyRegionNode,
+  onSelectRegion,
+}: LeagueRegionSelectorCardProps) {
+  return (
+    <Card>
+      <SectionTitle>지역 선택</SectionTitle>
+      <View style={styles.selectorWrap}>
+        <LeagueBreadcrumbPath
+          breadcrumbNodes={breadcrumbNodes}
+          isMyRegionNode={isMyRegionNode}
+          onSelectRegion={onSelectRegion}
+        />
+        <LeagueRegionGrid
+          nodes={visibleChildren}
+          isMyRegionNode={isMyRegionNode}
+          onSelectRegion={onSelectRegion}
+        />
+      </View>
+    </Card>
+  );
+});
+
+function LeagueBreadcrumbPath({
+  breadcrumbNodes,
+  isMyRegionNode,
+  onSelectRegion,
+}: {
+  breadcrumbNodes: RegionBreadcrumbItem[];
+  isMyRegionNode: (node: RegionNodeIdentity) => boolean;
+  onSelectRegion: (nodeId?: string) => void;
+}) {
+  return (
+    <View style={styles.pathBlock}>
+      <Text style={styles.pathLabel}>현재 경로</Text>
+      <View style={styles.pathRow}>
+        {breadcrumbNodes.length > 0 ? breadcrumbNodes.map((node, index) => {
+          const isCurrentPath = index === breadcrumbNodes.length - 1;
+          const isRootPath = node.level === 'country';
+
+          return (
+            <View key={node.id} style={styles.pathItemWrap}>
+              <Pressable
+                style={[styles.pathChip, isCurrentPath && styles.pathChipActive]}
+                onPress={() => !isCurrentPath && onSelectRegion(isRootPath ? undefined : node.id)}
+                disabled={isCurrentPath}
+              >
+                <View style={styles.pathChipInner}>
+                  <Text style={[styles.pathChipText, isCurrentPath && styles.pathChipTextActive]}>{node.name}</Text>
+                  <MyRegionBadge active={isCurrentPath} visible={isMyRegionNode(node)} />
+                </View>
+              </Pressable>
+              {!isCurrentPath ? <Text style={styles.pathArrow}>-&gt;</Text> : null}
+            </View>
+          );
+        }) : <Text style={styles.pathRootText}>대한민국</Text>}
+      </View>
+    </View>
+  );
+}
+
+const LeagueRegionGrid = memo(function LeagueRegionGrid({
+  nodes,
+  isMyRegionNode,
+  onSelectRegion,
+}: {
+  nodes: RegionDrilldownNode[];
+  isMyRegionNode: (node: RegionNodeIdentity) => boolean;
+  onSelectRegion: (nodeId: string) => void;
+}) {
+  const keyExtractor = useCallback((node: RegionDrilldownNode) => node.id, []);
+  const renderRegionCard = useCallback<ListRenderItem<RegionDrilldownNode>>(({ item }) => (
+    <LeagueRegionCard
+      node={item}
+      isMyRegion={isMyRegionNode(item)}
+      onSelectRegion={onSelectRegion}
+    />
+  ), [isMyRegionNode, onSelectRegion]);
+
+  if (nodes.length === 0) {
+    return null;
+  }
+
+  return (
+    <FlatList
+      data={nodes}
+      keyExtractor={keyExtractor}
+      renderItem={renderRegionCard}
+      numColumns={2}
+      scrollEnabled={false}
+      contentContainerStyle={styles.regionGrid}
+      columnWrapperStyle={styles.regionGridRow}
+      initialNumToRender={12}
+      maxToRenderPerBatch={12}
+    />
+  );
+});
+
+const LeagueRegionCard = memo(function LeagueRegionCard({
+  node,
+  isMyRegion,
+  onSelectRegion,
+}: {
+  node: RegionDrilldownNode;
+  isMyRegion: boolean;
+  onSelectRegion: (nodeId: string) => void;
+}) {
+  const handleSelect = useCallback(() => {
+    onSelectRegion(node.id);
+  }, [node.id, onSelectRegion]);
+
+  return (
+    <Pressable style={[styles.regionCard, isMyRegion && styles.regionCardMy]} onPress={handleSelect}>
+      {getPodiumTheme(node.rank) ? (
+        <PodiumBadge rank={node.rank} compact />
+      ) : (
+        <View style={styles.rankBadge}>
+          <Text style={styles.rankBadgeText}>{node.rank}등</Text>
+        </View>
+      )}
+      {isMyRegion ? (
+        <View style={styles.regionMyBadge}>
+          <Text style={styles.regionMyBadgeText}>내 지역</Text>
+        </View>
+      ) : null}
+      <Text style={styles.regionName}>{node.name}</Text>
+      <Text style={styles.regionMeta}>총거리 {formatDistanceKm(node.totalDistanceKm)}</Text>
+      <Text style={styles.regionMeta}>회원수 {formatPeopleCount(node.participants)}</Text>
+    </Pressable>
+  );
+});
+
+function MyRegionBadge({ active, visible }: { active: boolean; visible: boolean }) {
+  if (!visible) {
+    return null;
+  }
+
+  return (
+    <View style={[styles.myRegionBadge, active && styles.myRegionBadgeActive]}>
+      <Text style={[styles.myRegionBadgeText, active && styles.myRegionBadgeTextActive]}>내 지역</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  selectorWrap: {
+    gap: spacing.s12,
+  },
+  pathBlock: {
+    gap: spacing.xxl,
+  },
+  pathLabel: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+  },
+  pathRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.xxl,
+  },
+  pathItemWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxl,
+  },
+  pathChip: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
+  },
+  pathChipInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.lg,
+  },
+  pathChipActive: {
+    backgroundColor: colors.dark,
+  },
+  pathChipText: {
+    color: colors.textMuted,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  pathChipTextActive: {
+    color: colors.white,
+  },
+  pathArrow: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  pathRootText: {
+    color: colors.textPrimary,
+    fontWeight: fontWeights.extraBold,
+  },
+  myRegionBadge: {
+    backgroundColor: colors.successSoft,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xs,
+  },
+  myRegionBadgeActive: {
+    backgroundColor: colors.translucentWhite18,
+  },
+  myRegionBadgeText: {
+    color: colors.successText,
+    fontSize: fontSizes.xxs,
+    fontWeight: fontWeights.extraBold,
+  },
+  myRegionBadgeTextActive: {
+    color: colors.white,
+  },
+  regionGrid: {
+    gap: spacing.s10,
+  },
+  regionGridRow: {
+    gap: spacing.s10,
+  },
+  regionCard: {
+    width: '47%',
+    backgroundColor: colors.brandSoft,
+    borderRadius: radii.md,
+    padding: spacing.s12,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.brandSoftBorder,
+    minHeight: 92,
+    position: 'relative',
+  },
+  regionCardMy: {
+    backgroundColor: colors.successCardSoft,
+    borderColor: colors.successCardBorder,
+  },
+  rankBadge: {
+    position: 'absolute',
+    top: spacing.s10,
+    left: spacing.s10,
+    backgroundColor: colors.brand,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.xxl,
+    paddingVertical: spacing.sm,
+  },
+  rankBadgeText: {
+    color: colors.white,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
+  },
+  regionMyBadge: {
+    position: 'absolute',
+    top: spacing.s10,
+    right: spacing.s10,
+    backgroundColor: colors.success,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.xxl,
+    paddingVertical: spacing.sm,
+  },
+  regionMyBadgeText: {
+    color: colors.white,
+    fontSize: fontSizes.xxs,
+    fontWeight: fontWeights.extraBold,
+  },
+  regionName: {
+    color: colors.textPrimary,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.base,
+    marginTop: 26,
+  },
+  regionMeta: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+  },
+});

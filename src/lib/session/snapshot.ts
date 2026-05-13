@@ -1,4 +1,4 @@
-import type { UserProfile } from '@/domain/types';
+import type { UserProfile } from '@/domain';
 import type { SessionSnapshot } from '@/lib/session/types';
 
 function isRecord(value: unknown): value is Record<string, unknown> {

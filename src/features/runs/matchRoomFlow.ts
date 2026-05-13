@@ -1,4 +1,4 @@
-import type { FriendRank } from '@/domain/types';
+import type { FriendRank } from '@/domain';
 import type {
   RunningMatchRoom,
   RunningMatchRoomInvitee,

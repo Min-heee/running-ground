@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { RunRoutePoint } from '@/domain/types';
+import type { RunRoutePoint } from '@/domain';
 import type { BackgroundRunTrackingSnapshot } from './backgroundTracking';
 import {
   buildOfficialStartBaseline,

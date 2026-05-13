@@ -1,5 +1,6 @@
 import { FlatList, Platform, StyleSheet, Text, View } from 'react-native';
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
+import type { ListRenderItem } from 'react-native';
 
 type RaceBoardRow = {
   id: string;
@@ -92,7 +93,7 @@ const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: RaceBoar
   );
 });
 
-export function LiveMatchRaceBoard({
+export const LiveMatchRaceBoard = memo(function LiveMatchRaceBoard({
   title,
   subtitle,
   rows,
@@ -101,6 +102,16 @@ export function LiveMatchRaceBoard({
   subtitle: string;
   rows: RaceBoardRow[];
 }) {
+  const renderRaceBoardRow = useCallback<ListRenderItem<RaceBoardRow>>(({ item }) => (
+    <RaceBoardListRow row={item} />
+  ), []);
+  const keyExtractor = useCallback((row: RaceBoardRow) => row.id, []);
+  const getItemLayout = useCallback((_: ArrayLike<RaceBoardRow> | null | undefined, index: number) => ({
+    length: RACE_BOARD_ROW_HEIGHT + 14,
+    offset: (RACE_BOARD_ROW_HEIGHT + 14) * index,
+    index,
+  }), []);
+
   return (
     <View style={styles.card}>
       <Text style={styles.eyebrow}>RACE BOARD</Text>
@@ -110,13 +121,9 @@ export function LiveMatchRaceBoard({
         style={styles.rowsScroller}
         contentContainerStyle={styles.rows}
         data={rows}
-        renderItem={({ item }) => <RaceBoardListRow row={item} />}
-        keyExtractor={(row) => row.id}
-        getItemLayout={(_, index) => ({
-          length: RACE_BOARD_ROW_HEIGHT + 14,
-          offset: (RACE_BOARD_ROW_HEIGHT + 14) * index,
-          index,
-        })}
+        renderItem={renderRaceBoardRow}
+        keyExtractor={keyExtractor}
+        getItemLayout={getItemLayout}
         initialNumToRender={Platform.OS === 'android' ? 5 : 8}
         maxToRenderPerBatch={Platform.OS === 'android' ? 5 : 8}
         windowSize={Platform.OS === 'android' ? 5 : 9}
@@ -126,7 +133,7 @@ export function LiveMatchRaceBoard({
       />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {

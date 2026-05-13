@@ -1,4 +1,4 @@
-import type { RunMatchResult } from '@/domain/types';
+import type { RunMatchResult } from '@/domain';
 import {
   buildParticipantAveragePaceLabel,
   hasRemoteRunnerProgress,

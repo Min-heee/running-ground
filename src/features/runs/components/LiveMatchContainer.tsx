@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { ComponentProps, ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -19,7 +20,7 @@ type LiveMatchContainerProps = {
   onDiscardTracking: () => void;
 };
 
-export function LiveMatchContainer({
+export const LiveMatchContainer = memo(function LiveMatchContainer({
   showLiveArena,
   livePagesProps,
   trackingPageProps,
@@ -63,7 +64,7 @@ export function LiveMatchContainer({
       ) : null}
     </>
   );
-}
+});
 
 const styles = StyleSheet.create({
   actionColumn: {

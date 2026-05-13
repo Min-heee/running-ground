@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { ConnectedSource, RunSourceType } from '@/domain/types';
+import { ConnectedSource, RunSourceType } from '@/domain';
 import {
   DevicePlatform,
   getCurrentDevicePlatform,

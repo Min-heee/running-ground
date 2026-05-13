@@ -1,7 +1,6 @@
 import { myProfile } from '@/data/mock';
-import { UserProfile } from '@/domain/types';
-import { apiDelete, apiGet, apiPost } from '@/lib/api/client';
-import { USE_MOCK_API } from '@/lib/api/config';
+import { UserProfile } from '@/domain';
+import { apiDelete, apiGet, apiPost, USE_MOCK_API } from '@/services/apiClient';
 import {
   AuthResponse,
   DeleteMyAccountResponse,

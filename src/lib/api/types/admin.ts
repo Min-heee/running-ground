@@ -1,4 +1,4 @@
-import type { AppNotice } from '@/domain/types';
+import type { AppNotice } from '@/domain';
 
 export type AdminOverviewResponse = {
   environment: string;

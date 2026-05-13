@@ -1,5 +1,4 @@
 import {
-  friendRanks,
   friendRunRecords,
   myRunRecords,
   weeklySummary,

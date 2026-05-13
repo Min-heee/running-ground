@@ -8,6 +8,7 @@ import {
   buildAverageArenaPaceLabel,
   buildDistanceGapLabel,
   buildDuelComparisonSnapshot,
+  buildEstimatedCompetitiveDistanceKm,
   buildGroupLiveStandings,
   buildMatchProgressModel,
   buildParticipantAveragePaceLabel,
@@ -196,4 +197,33 @@ test('buildGroupLiveStandings trusts official server ranks when available', () =
     ['me', 1, 1.1],
     ['other', 2, 1],
   ]);
+});
+
+test('buildGroupLiveStandings returns empty standings for empty participant input', () => {
+  assert.deepEqual(buildGroupLiveStandings([], 1, 0, 0, 5), []);
+});
+
+test('buildGroupLiveStandings breaks distance ties by faster average pace', () => {
+  const standings = buildGroupLiveStandings(
+    [
+      participant({ id: 'slower', name: '느린 러너', seedRank: 1, averagePace: '06:30/km', liveDistanceKm: 1, liveUpdatedAt: '2026-05-12T00:02:00.000Z' }),
+      participant({ id: 'faster', name: '빠른 러너', seedRank: 2, averagePace: '06:00/km', liveDistanceKm: 1, liveUpdatedAt: '2026-05-12T00:02:00.000Z' }),
+    ],
+    1,
+    1,
+    360,
+    5,
+  );
+
+  assert.deepEqual(standings.map((standing) => [standing.id, standing.rank]), [
+    ['faster', 1],
+    ['slower', 2],
+  ]);
+});
+
+test('estimated competitive distance handles zero and malformed pace inputs safely', () => {
+  assert.equal(buildEstimatedCompetitiveDistanceKm('06:20/km', 380), 1);
+  assert.equal(buildEstimatedCompetitiveDistanceKm('bad-pace', 330), 1);
+  assert.equal(buildEstimatedCompetitiveDistanceKm('06:20/km', 0), 0);
+  assert.equal(buildEstimatedCompetitiveDistanceKm('06:20/km', -10), 0);
 });

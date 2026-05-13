@@ -1,8 +1,7 @@
-import { useEffect, useRef, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
-import { AppState, Platform, type AppStateStatus } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { AppState, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { Pedometer } from 'expo-sensors';
-import type { RunRoutePoint } from '@/domain/types';
 import {
   getBackgroundRunElapsedSeconds,
   getBackgroundRunTrackingSnapshot,
@@ -21,101 +20,27 @@ import {
   buildLiveShareFallbackLabel,
   buildLiveShareLabelFromAddress,
   buildOfficialStartBaseline,
-  type OfficialStartBaseline,
 } from '@/features/runs/trackingSession';
 import { buildDisplayedTrackingSnapshot } from '@/features/runs/trackingDisplayModel';
 import {
   normalizeMatchProgressPace,
-  type LastSyncedMatchProgress,
 } from '@/features/runs/matchProgress';
 import {
   isLiveMatchState,
   resolveActiveMatchId,
-  type PartyRunLinkedMatchContext,
 } from '@/features/runs/matchStateMachine';
 import { useMatchProgressSync } from '@/features/runs/hooks/useMatchProgressSync';
-import { shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
-import { updateRunningLiveShare } from '@/lib/api/services';
 import type {
-  RunningMatchState,
-  RunningMatchStatusResponse,
+  DisplayedMatchProgress,
+  DisplayedTrackingSnapshot,
+  SyncLiveSharingInput,
+  UseRunTrackingFlowInput,
+} from '@/features/runs/types/runTrackingFlow';
+import { shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
+import { updateRunningLiveShare } from '@/services/runningService';
+import type {
   UpdateRunningMatchProgressInput,
 } from '@/lib/api/types';
-import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
-
-type DisplayedTrackingSnapshot = {
-  route: RunRoutePoint[];
-  distanceKm: number;
-  elevationGainM: number;
-  currentPace: string;
-  elapsedSeconds: number;
-  startedAt?: string | null;
-};
-
-type DisplayedMatchProgress = Pick<UpdateRunningMatchProgressInput, 'distanceKm' | 'elapsedSeconds' | 'currentPace'>;
-
-type SyncLiveSharingInput = {
-  enabled: boolean;
-  status: 'idle' | 'paused' | 'running';
-  locationLabel?: string | null;
-};
-
-type UseRunTrackingFlowInput = {
-  pedometerSubscriptionRef: MutableRefObject<{ remove: () => void } | null>;
-  timerRef: MutableRefObject<ReturnType<typeof setInterval> | null>;
-  soloStartCountdownTimerRef: MutableRefObject<ReturnType<typeof setInterval> | null>;
-  soloStartCountdownResolveRef: MutableRefObject<((completed: boolean) => void) | null>;
-  routeRef: MutableRefObject<RunRoutePoint[]>;
-  elapsedSecondsRef: MutableRefObject<number>;
-  totalStepsRef: MutableRefObject<number>;
-  pedometerStepOffsetRef: MutableRefObject<number>;
-  liveShareEnabledRef: MutableRefObject<boolean>;
-  liveShareLabelRef: MutableRefObject<string | null>;
-  liveShareHeartbeatRef: MutableRefObject<number>;
-  matchProgressHeartbeatRef: MutableRefObject<number>;
-  appStateRef: MutableRefObject<AppStateStatus>;
-  trackerStatusRef: MutableRefObject<TrackerStatus>;
-  officialStartBaselineRef: MutableRefObject<OfficialStartBaseline | null>;
-  matchModeRef: MutableRefObject<RunMatchMode>;
-  roomLinkedMatchContextRef: MutableRefObject<PartyRunLinkedMatchContext | null>;
-  duelMatchStatusRef: MutableRefObject<RunningMatchStatusResponse | null>;
-  groupMatchStatusRef: MutableRefObject<RunningMatchStatusResponse | null>;
-  autoStartingMatchTrackingRef: MutableRefObject<boolean>;
-  autoStartedMatchIdRef: MutableRefObject<string | null>;
-  preStartWarmupMatchIdRef: MutableRefObject<string | null>;
-  matchMode: RunMatchMode;
-  duelMatchState: RunningMatchState;
-  groupMatchState: RunningMatchState;
-  duelMatchStatus: RunningMatchStatusResponse | null;
-  groupMatchStatus: RunningMatchStatusResponse | null;
-  roomLinkedMatchContext: PartyRunLinkedMatchContext | null;
-  status: TrackerStatus;
-  visiblePartyRunShouldOpenArena: boolean;
-  duelStartCountdownSeconds: number | null;
-  groupStartCountdownSeconds: number | null;
-  setStatus: Dispatch<SetStateAction<TrackerStatus>>;
-  setSoloStartCountdownSeconds: Dispatch<SetStateAction<number | null>>;
-  setRoute: Dispatch<SetStateAction<RunRoutePoint[]>>;
-  setDistanceKm: Dispatch<SetStateAction<number>>;
-  setElapsedSeconds: Dispatch<SetStateAction<number>>;
-  setCurrentPace: Dispatch<SetStateAction<string>>;
-  setLastSyncedMatchProgress: Dispatch<SetStateAction<LastSyncedMatchProgress | null>>;
-  setDuelMatchStatus: Dispatch<SetStateAction<RunningMatchStatusResponse | null>>;
-  setGroupMatchStatus: Dispatch<SetStateAction<RunningMatchStatusResponse | null>>;
-  setElevationGainM: Dispatch<SetStateAction<number>>;
-  setCadenceSpm: Dispatch<SetStateAction<number | null>>;
-  setLocationPermissionGranted: Dispatch<SetStateAction<boolean | null>>;
-  setBackgroundLocationPermissionGranted: Dispatch<SetStateAction<boolean | null>>;
-  setMotionPermissionGranted: Dispatch<SetStateAction<boolean | null>>;
-  setLiveShareLabel: Dispatch<SetStateAction<string | null>>;
-  setError: Dispatch<SetStateAction<string | null>>;
-  officialStartDistanceNoiseGraceSeconds: number;
-  officialStartDistanceNoiseGraceKm: number;
-  soloStartCountdownSeconds: number;
-  getSyncedNowMs: () => number;
-  refreshStaleMatchArtifacts: () => Promise<unknown>;
-};
 
 export function useRunTrackingFlow({
   pedometerSubscriptionRef,
@@ -315,7 +240,7 @@ export function useRunTrackingFlow({
   };
 
   const getDisplayedTrackingSnapshot = (
-    snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot(),
+    snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false }),
   ): DisplayedTrackingSnapshot => {
     ensureOfficialStartBaseline(snapshot);
     return buildDisplayedTrackingSnapshot({
@@ -329,7 +254,7 @@ export function useRunTrackingFlow({
   };
 
   const buildDisplayedMatchProgress = (
-    snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot(),
+    snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false }),
   ): DisplayedMatchProgress => {
     const displayedSnapshot = getDisplayedTrackingSnapshot(snapshot);
     const displayedAveragePace = buildAveragePace(displayedSnapshot.distanceKm, displayedSnapshot.elapsedSeconds);
@@ -362,7 +287,9 @@ export function useRunTrackingFlow({
     syncMatchLifecycleStatus,
   };
 
-  const syncFromBackgroundTracking = (snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot()) => {
+  const syncFromBackgroundTracking = (
+    snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false }),
+  ) => {
     const displayedSnapshot = getDisplayedTrackingSnapshot(snapshot);
     // Route points are needed for saving, but rendering the growing array every tick is expensive on Android.
     routeRef.current = displayedSnapshot.route;
@@ -394,13 +321,17 @@ export function useRunTrackingFlow({
     void handleStartTracking(options)
       .finally(() => {
         autoStartingMatchTrackingRef.current = false;
-        if (getBackgroundRunTrackingSnapshot().status !== 'running') {
+        if (getBackgroundRunTrackingSnapshot({ cloneRoute: false }).status !== 'running') {
           autoStartedMatchIdRef.current = null;
         }
       });
   };
 
   const startPedometerUpdates = async () => {
+    if (pedometerSubscriptionRef.current) {
+      return;
+    }
+
     try {
       const isAvailable = await Pedometer.isAvailableAsync();
 
@@ -414,6 +345,10 @@ export function useRunTrackingFlow({
       setMotionPermissionGranted(granted);
 
       if (!granted) {
+        return;
+      }
+
+      if (trackerStatusRef.current !== 'running' || pedometerSubscriptionRef.current) {
         return;
       }
 
@@ -662,7 +597,7 @@ export function useRunTrackingFlow({
       syncFromBackgroundTracking();
 
       if (liveShareEnabledRef.current) {
-        const currentSnapshot = getBackgroundRunTrackingSnapshot();
+        const currentSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
         const latestTrackedPoint = currentSnapshot.route[currentSnapshot.route.length - 1];
         const nextLocationLabel = liveShareLabelRef.current ?? await resolveLiveShareLabel(
           latestTrackedPoint
@@ -684,7 +619,7 @@ export function useRunTrackingFlow({
       });
 
       if (activeMatchId) {
-        const currentSnapshot = getBackgroundRunTrackingSnapshot();
+        const currentSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
         const progress = buildDisplayedMatchProgress(currentSnapshot);
         await pushRunningMatchProgress({
           matchId: activeMatchId,
@@ -782,7 +717,7 @@ export function useRunTrackingFlow({
       && status === 'running'
       && !officialStartBaselineRef.current
     ) {
-      const currentSnapshot = getBackgroundRunTrackingSnapshot();
+      const currentSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
       officialStartBaselineRef.current = buildOfficialStartBaseline(
         currentSnapshot,
         activeMatchId,
@@ -815,23 +750,26 @@ export function useRunTrackingFlow({
   ]);
 
   useEffect(() => {
-    const unsubscribe = subscribeBackgroundRunTracking((snapshot) => {
-      syncFromBackgroundTracking(snapshot);
-      refreshLiveSharingHeartbeat(snapshot);
-      callbackRef.current.refreshMatchProgressHeartbeat(snapshot);
+    const unsubscribe = subscribeBackgroundRunTracking(
+      (snapshot) => {
+        syncFromBackgroundTracking(snapshot);
+        refreshLiveSharingHeartbeat(snapshot);
+        callbackRef.current.refreshMatchProgressHeartbeat(snapshot);
 
-      if (snapshot.status === 'running') {
-        startElapsedTicker();
-      } else {
-        clearElapsedTicker();
-      }
-    });
+        if (snapshot.status === 'running') {
+          startElapsedTicker();
+        } else {
+          clearElapsedTicker();
+        }
+      },
+      { cloneRoute: false },
+    );
     const appStateSubscription = AppState.addEventListener('change', (nextState) => {
       const previousState = appStateRef.current;
       appStateRef.current = nextState;
 
       if (nextState === 'active') {
-        const snapshot = getBackgroundRunTrackingSnapshot();
+        const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
         syncFromBackgroundTracking(snapshot);
         void callbackRef.current.refreshStaleMatchArtifacts().catch(() => {});
 

@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
-import { ConnectedSource } from '@/domain/types';
+import { ConnectedSource } from '@/domain';
 import { getPrimarySourceForPlatform, sortSourcesByPriority, splitSourcesByStatus } from './sourceCatalog';
 
 export function IntegrationStatus({ sources }: { sources: ConnectedSource[] }) {

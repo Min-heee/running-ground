@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { ReactNode, RefObject } from 'react';
 import { Platform, ScrollView } from 'react-native';
 import {
@@ -31,7 +32,7 @@ type LiveMatchPagesProps = {
   onPageChange: (page: number) => void;
 };
 
-export function LiveMatchPages({
+export const LiveMatchPages = memo(function LiveMatchPages({
   scrollRef,
   page,
   pageWidth,
@@ -82,4 +83,4 @@ export function LiveMatchPages({
       onPageChange={onPageChange}
     />
   );
-}
+});

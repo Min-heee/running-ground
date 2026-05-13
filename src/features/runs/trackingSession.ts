@@ -1,5 +1,5 @@
 import type * as Location from 'expo-location';
-import type { RunRoutePoint } from '@/domain/types';
+import type { RunRoutePoint } from '@/domain';
 import type { BackgroundRunTrackingSnapshot } from '@/features/runs/backgroundTracking';
 import { calculateDistanceBetweenPoints } from '@/features/runs/tracking';
 

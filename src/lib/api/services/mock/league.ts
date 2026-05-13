@@ -8,7 +8,7 @@ import type {
   DistrictPersonalRank,
   RegionDrilldownNode,
   UniversityLeagueRank,
-} from '@/domain/types';
+} from '@/domain';
 import { getCurrentUserProfile } from '@/lib/session';
 import type { DistrictPersonalResponse } from '../../types';
 
