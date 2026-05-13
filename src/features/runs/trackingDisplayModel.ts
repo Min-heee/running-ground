@@ -1,5 +1,5 @@
 import type { RunRoutePoint } from '@/domain';
-import type { BackgroundRunTrackingSnapshot } from '@/features/runs/backgroundTracking';
+import type { BackgroundRunTrackingSnapshot } from '@/features/runs/tracking/background';
 import {
   buildRouteFromOfficialStart,
   type OfficialStartBaseline,

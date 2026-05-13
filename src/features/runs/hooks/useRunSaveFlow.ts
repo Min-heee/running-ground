@@ -7,7 +7,7 @@ import {
   pauseBackgroundRunTracking,
   resetBackgroundRunTracking,
   type BackgroundRunTrackingSnapshot,
-} from '@/features/runs/backgroundTracking';
+} from '@/features/runs/tracking/background';
 import {
   buildAveragePace,
   buildRunDateFromTimestamp,

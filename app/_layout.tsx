@@ -1,7 +1,7 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect, Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import '@/features/runs/backgroundTracking';
+import '@/features/runs/tracking/background';
 import { useConfigureNotificationHandler } from '@/navigation/notificationHandler';
 import { useRootAuthGate } from '@/navigation/rootAuthGate';
 

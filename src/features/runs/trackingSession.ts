@@ -1,6 +1,6 @@
 import type * as Location from 'expo-location';
 import type { RunRoutePoint } from '@/domain';
-import type { BackgroundRunTrackingSnapshot } from '@/features/runs/backgroundTracking';
+import type { BackgroundRunTrackingSnapshot } from '@/features/runs/tracking/background';
 import { calculateDistanceBetweenPoints } from '@/features/runs/tracking';
 
 export type OfficialStartBaseline = {

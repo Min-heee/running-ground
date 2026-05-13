@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { BackgroundRunTrackingSnapshot } from '@/features/runs/backgroundTracking';
+import type { BackgroundRunTrackingSnapshot } from '@/features/runs/tracking/background';
 import { buildDisplayedTrackingSnapshot } from './trackingDisplayModel';
 
 const baseSnapshot: BackgroundRunTrackingSnapshot = {

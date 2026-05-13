@@ -6,7 +6,7 @@ import {
   getBackgroundRunTrackingSnapshot,
   subscribeBackgroundRunTracking,
   type BackgroundRunTrackingSnapshot,
-} from '@/features/runs/backgroundTracking';
+} from '@/features/runs/tracking/background';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
 

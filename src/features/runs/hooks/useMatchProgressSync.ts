@@ -7,10 +7,10 @@ import type {
   RunningMatchStatusResponse,
   UpdateRunningMatchProgressInput,
 } from '@/lib/api/types';
-import type { BackgroundRunTrackingSnapshot } from '@/features/runs/backgroundTracking';
+import type { BackgroundRunTrackingSnapshot } from '@/features/runs/tracking/background';
 import {
   getBackgroundRunTrackingSnapshot,
-} from '@/features/runs/backgroundTracking';
+} from '@/features/runs/tracking/background';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/matchStateMachine';
 import type { LastSyncedMatchProgress } from '@/features/runs/matchProgress';

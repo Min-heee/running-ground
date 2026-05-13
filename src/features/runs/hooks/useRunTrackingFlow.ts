@@ -8,7 +8,7 @@ import {
   resumeBackgroundRunTracking,
   startBackgroundRunTracking,
   type BackgroundRunTrackingSnapshot,
-} from '@/features/runs/backgroundTracking';
+} from '@/features/runs/tracking/background';
 import {
   buildAveragePace,
   calculateCadenceSpm,

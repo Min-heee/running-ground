@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import type { BackgroundRunTrackingSnapshot } from '@/features/runs/backgroundTracking';
+import type { BackgroundRunTrackingSnapshot } from '@/features/runs/tracking/background';
 import type { SyncLiveSharingInput } from '@/features/runs/types/runTrackingFlow';
 import { updateRunningLiveShare } from '@/services/runningService';
 
