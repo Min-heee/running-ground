@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { router } from 'expo-router';
 import type { AppNotice, UserProfile, WeeklySummary } from '@/domain';
 import { shouldHidePastUpcomingMatch } from '@/features/home/utils/homeUpcomingMatches';
 import {
@@ -18,6 +18,7 @@ import {
   fetchUpcomingRunningMatches,
   getApiErrorMessage,
 } from '@/services';
+import { useAndroidDeferredFocusEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
 export function useHomeScreenModel() {
   const [summary, setSummary] = useState<WeeklySummary | null>(null);
@@ -30,12 +31,15 @@ export function useHomeScreenModel() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const loadHome = useCallback(() => {
     let active = true;
 
     const load = async () => {
-      setLoading(true);
+      if (!hasLoadedRef.current) {
+        setLoading(true);
+      }
       setError(null);
 
       const [
@@ -77,6 +81,7 @@ export function useHomeScreenModel() {
       if (summaryResult.status === 'rejected') {
         setSummary(null);
         setError('홈 정보를 불러오지 못했어.');
+        hasLoadedRef.current = true;
         setLoading(false);
         return;
       }
@@ -96,6 +101,7 @@ export function useHomeScreenModel() {
         setActivity(null);
       }
 
+      hasLoadedRef.current = true;
       setLoading(false);
     };
 
@@ -106,7 +112,7 @@ export function useHomeScreenModel() {
     };
   }, []);
 
-  useFocusEffect(loadHome);
+  useAndroidDeferredFocusEffect(loadHome, [loadHome]);
 
   useEffect(() => {
     void syncScheduledMatchNotifications(upcomingMatches, matchRemindersEnabled);

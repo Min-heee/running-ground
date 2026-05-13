@@ -1,5 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import * as Clipboard from 'expo-clipboard';
 import type { FriendRequest } from '@/domain';
 import type { FriendLeaderboardResponse, MyProfileResponse } from '@/lib/api/types';
@@ -11,6 +10,7 @@ import {
   getApiErrorMessage,
   rejectFriendRequest,
 } from '@/services';
+import { useAndroidDeferredFocusEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
 export function useFriendsScreen() {
   const [leaderboard, setLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
@@ -22,6 +22,7 @@ export function useFriendsScreen() {
   const [requestActionId, setRequestActionId] = useState<string | null>(null);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [expandedLiveFriendId, setExpandedLiveFriendId] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
   const syncFriends = useCallback(async () => {
     const [leaderboardData, profileData] = await Promise.all([fetchFriendLeaderboard(), fetchMyProfile()]);
@@ -43,15 +44,20 @@ export function useFriendsScreen() {
   }, []);
 
   const loadFriends = useCallback(() => {
-    setLoading(true);
+    if (!hasLoadedRef.current) {
+      setLoading(true);
+    }
     setError(null);
 
     syncFriends()
       .catch((loadError) => setError(getApiErrorMessage(loadError, '친구 정보를 불러오지 못했어.')))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        hasLoadedRef.current = true;
+        setLoading(false);
+      });
   }, [syncFriends]);
 
-  useFocusEffect(useCallback(() => {
+  useAndroidDeferredFocusEffect(() => {
     void loadFriends();
 
     const refreshInterval = setInterval(() => {
@@ -59,7 +65,7 @@ export function useFriendsScreen() {
     }, 20000);
 
     return () => clearInterval(refreshInterval);
-  }, [loadFriends, syncFriends]));
+  }, [loadFriends, syncFriends]);
 
   const pending = useMemo(() => requests.filter((request) => request.status === 'pending'), [requests]);
   const received = useMemo(() => requests.filter((request) => request.status === 'received'), [requests]);

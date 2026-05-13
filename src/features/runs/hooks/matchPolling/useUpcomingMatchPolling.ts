@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import type {
   RunningMatchState,
   UpcomingRunningMatchItem,
 } from '@/lib/api/types';
+import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
 type UseUpcomingMatchPollingInput = {
   duelMatchId?: string | null;
@@ -31,7 +32,7 @@ export function useUpcomingMatchPolling({
     onUpcomingMatchesFallback,
   };
 
-  useEffect(() => {
+  useAndroidDeferredEffect(() => {
     let canceled = false;
 
     void callbackRef.current.loadUpcomingMatches().catch(() => {

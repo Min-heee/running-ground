@@ -93,6 +93,7 @@ import { isMatchRoomExiting } from '@/features/runs/matchRoomExitGuard';
 import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
+import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
 const STALE_RENDER_MATCHED_MATCH_MS = 10 * 60 * 1000;
 const STALE_RENDER_ACTIVE_MATCH_MS = 8 * 60 * 60 * 1000;
@@ -855,7 +856,7 @@ export function TrackRunExperience({
     roomLinkedMatchContextRef.current = roomLinkedMatchContext;
   }, [roomLinkedMatchContext]);
 
-  useEffect(() => {
+  useAndroidDeferredEffect(() => {
     if (matchMode !== 'duel') {
       return;
     }
@@ -887,7 +888,7 @@ export function TrackRunExperience({
     setDuelMatchNotice(null);
   }, [duelDistanceKm, matchMode, selectedDuelSlot, selectedDuelSlotStartAt]);
 
-  useEffect(() => {
+  useAndroidDeferredEffect(() => {
     if (matchMode !== 'group') {
       return;
     }
@@ -919,7 +920,7 @@ export function TrackRunExperience({
     setGroupMatchNotice(null);
   }, [groupDistanceKm, matchMode, selectedGroupSlot, selectedGroupSlotStartAt]);
 
-  useEffect(() => {
+  useAndroidDeferredEffect(() => {
     if (matchMode !== 'duel') {
       return;
     }
@@ -953,7 +954,7 @@ export function TrackRunExperience({
     };
   }, [matchMode, duelDistanceKm, selectedDuelSlot, selectedDuelSlotStartAt]);
 
-  useEffect(() => {
+  useAndroidDeferredEffect(() => {
     if (matchMode !== 'group') {
       return;
     }
@@ -1382,7 +1383,7 @@ export function TrackRunExperience({
     onUpcomingMatchesFallback: setUpcomingMatches,
   });
 
-  useEffect(() => {
+  useAndroidDeferredEffect(() => {
     let canceled = false;
 
     void loadMatchRoom().catch(() => {

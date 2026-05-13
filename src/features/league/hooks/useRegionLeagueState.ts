@@ -6,6 +6,7 @@ import type { DistrictPersonalResponse, RegionLeagueResponse } from '@/lib/api/t
 import { getCurrentUserProfile } from '@/lib/session';
 import type { LeagueMode, LeagueRegionNodeIdentity } from '@/features/league/types/league';
 import { isMyRegionNode, sortRegionChildrenByRank } from '@/features/league/utils/leagueRanking';
+import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
 const EMPTY_REGION_CHILDREN: NonNullable<RegionLeagueResponse['children']> = [];
 
@@ -53,7 +54,7 @@ export function useRegionLeagueState() {
     [profile],
   );
 
-  useEffect(() => {
+  useAndroidDeferredEffect(() => {
     loadLeague();
   }, [loadLeague]);
 

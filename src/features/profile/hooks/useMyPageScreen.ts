@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import type { IntegrationStatusResponse, MyActivityResponse, MyProfileResponse } from '@/lib/api/types';
 import { deleteAccount, signOut } from '@/lib/session';
 import { fetchIntegrationStatus, fetchMyActivity, fetchMyProfile, getApiErrorMessage } from '@/services';
+import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
 export function useMyPageScreen() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
@@ -15,17 +16,41 @@ export function useMyPageScreen() {
   const [logoutSubmitting, setLogoutSubmitting] = useState(false);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasLoadedRef = useRef(false);
 
-  useEffect(() => {
+  useAndroidDeferredEffect(() => {
+    let canceled = false;
+
     setError(null);
+    if (!hasLoadedRef.current) {
+      setLoading(true);
+    }
+
     Promise.all([fetchMyProfile(), fetchIntegrationStatus(), fetchMyActivity()])
       .then(([profileData, integrationData, activityData]) => {
+        if (canceled) {
+          return;
+        }
+
         setProfile(profileData);
         setIntegrationStatus(integrationData);
         setActivity(activityData);
       })
-      .catch((loadError) => setError(getApiErrorMessage(loadError, '마이페이지 정보를 불러오지 못했어요.')))
-      .finally(() => setLoading(false));
+      .catch((loadError) => {
+        if (!canceled) {
+          setError(getApiErrorMessage(loadError, '마이페이지 정보를 불러오지 못했어요.'));
+        }
+      })
+      .finally(() => {
+        if (!canceled) {
+          hasLoadedRef.current = true;
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
   }, []);
 
   const matchSummary = useMemo(() => {
