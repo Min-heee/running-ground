@@ -36,13 +36,17 @@ import { useMatchEntryEffects } from '@/features/runs/hooks/useMatchEntryEffects
 import { useMatchCountdownModel } from '@/features/runs/hooks/useMatchCountdownModel';
 import { useRunTrackingFlow } from '@/features/runs/hooks/useRunTrackingFlow';
 import { useRunningMatchFocus } from '@/features/runs/hooks/useRunningMatchFocus';
+import { useBlockingMatchStatusPolling } from '@/features/runs/hooks/matchPolling/useBlockingMatchStatusPolling';
+import { useStaleMatchCleanup } from '@/features/runs/hooks/matchPolling/useStaleMatchCleanup';
+import { useUpcomingMatchPolling } from '@/features/runs/hooks/matchPolling/useUpcomingMatchPolling';
+import { useSyncedCountdownTicker } from '@/features/runs/hooks/navigationEffects/useSyncedCountdownTicker';
+import { useTrackRunNotificationSync } from '@/features/runs/hooks/useTrackRunNotificationSync';
 import {
   acknowledgeRunningMatchRoomCountdown,
   cancelRunningMatch,
   createRunningMatchRoom,
   fetchFriendLeaderboard,
   fetchMatchDemandSummary,
-  fetchNotificationSettings,
   fetchRunningMatchRoom,
   fetchUpcomingRunningMatches,
   fetchRunningMatchStatus,
@@ -52,11 +56,8 @@ import {
   requestDuelMatch,
   requestGroupMatch,
 } from '@/services';
-import { syncScheduledMatchNotifications } from '@/lib/matchNotifications';
 import {
-  getMatchStartRemainingSeconds,
   shouldAutoOpenMatchArena,
-  shouldShowMatchStartOverlay,
 } from '@/lib/matchCountdown';
 import {
   type RunningMatchStatusResponse,
@@ -78,7 +79,6 @@ import {
 } from '@/features/runs/matchViewModels';
 import {
   buildMatchTransitionNotice,
-  isBlockingMatchState,
   isLiveMatchState,
   type PartyRunLinkedMatchContext,
   shouldUseCenteredMatchCountdown,
@@ -1278,18 +1278,14 @@ export function TrackRunExperience({
     };
   }, [matchMode, groupDistanceKm, activeGroupSlotStartAt, focusRequestedGroupTest, isGroupTestFlow, roomLinkedMatchContext?.mode]);
 
-  useEffect(() => {
-    let canceled = false;
-    void loadUpcomingMatches().catch(() => {
-      if (!canceled) {
-        setUpcomingMatches([]);
-      }
-    });
-
-    return () => {
-      canceled = true;
-    };
-  }, [duelMatchStatus?.matchId, duelMatchStatus?.state, groupMatchStatus?.matchId, groupMatchStatus?.state]);
+  useUpcomingMatchPolling({
+    duelMatchId: duelMatchStatus?.matchId,
+    duelMatchState: duelMatchStatus?.state,
+    groupMatchId: groupMatchStatus?.matchId,
+    groupMatchState: groupMatchStatus?.state,
+    loadUpcomingMatches,
+    onUpcomingMatchesFallback: setUpcomingMatches,
+  });
 
   useEffect(() => {
     let canceled = false;
@@ -1369,9 +1365,7 @@ export function TrackRunExperience({
     onError: setError,
   });
 
-  useEffect(() => {
-    void refreshStaleMatchArtifacts().catch(() => {});
-  }, []);
+  useStaleMatchCleanup({ refreshStaleMatchArtifacts });
 
   useMatchEntryEffects({
     focusMatchNonce,
@@ -1429,100 +1423,27 @@ export function TrackRunExperience({
     hasRoomCountdownEntry: Boolean(roomCountdownEntry),
   });
 
-  useEffect(() => {
-    let canceled = false;
-    void fetchNotificationSettings()
-      .then((settings) => {
-        if (!canceled) {
-          setMatchRemindersEnabled(settings.matchReminders);
-        }
-      })
-      .catch(() => {
-        if (!canceled) {
-          setMatchRemindersEnabled(true);
-        }
-      });
+  useTrackRunNotificationSync({
+    upcomingMatches,
+    matchRemindersEnabled,
+    onMatchRemindersEnabledChange: setMatchRemindersEnabled,
+  });
 
-    return () => {
-      canceled = true;
-    };
-  }, []);
+  useSyncedCountdownTicker({
+    serverClockOffsetMsRef,
+    onNowMsChange: setNowMs,
+  });
 
-  useEffect(() => {
-    void syncScheduledMatchNotifications(upcomingMatches, matchRemindersEnabled);
-  }, [matchRemindersEnabled, upcomingMatches]);
-
-  const duelPollSlotStartAt = duelMatchStatus?.slotStartAt;
-  const duelPollState = duelMatchStatus?.state;
-  const shouldFastPollDuelMatchStatus = useMemo(() => {
-    if (!duelPollSlotStartAt || !duelPollState) {
-      return false;
-    }
-
-    const remainingSeconds = getMatchStartRemainingSeconds(duelPollSlotStartAt, syncedNowMs);
-    return duelPollState === 'active' || shouldShowMatchStartOverlay(remainingSeconds);
-  }, [duelPollSlotStartAt, duelPollState, syncedNowMs]);
-
-  const groupPollSlotStartAt = groupMatchStatus?.slotStartAt;
-  const groupPollState = groupMatchStatus?.state;
-  const shouldFastPollGroupMatchStatus = useMemo(() => {
-    if (!groupPollSlotStartAt || !groupPollState) {
-      return false;
-    }
-
-    const remainingSeconds = getMatchStartRemainingSeconds(groupPollSlotStartAt, syncedNowMs);
-    return groupPollState === 'active' || shouldShowMatchStartOverlay(remainingSeconds);
-  }, [groupPollSlotStartAt, groupPollState, syncedNowMs]);
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-
-    const scheduleNextTick = () => {
-      const currentNowMs = Date.now();
-      setNowMs(currentNowMs);
-      const syncedTickMs = currentNowMs + serverClockOffsetMsRef.current;
-      const msUntilNextSecond = 1000 - (syncedTickMs % 1000);
-      timer = setTimeout(scheduleNextTick, Math.max(120, Math.min(msUntilNextSecond + 20, 1000)));
-    };
-
-    timer = setTimeout(scheduleNextTick, 120);
-
-    return () => {
-      if (timer) {
-        clearTimeout(timer);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (matchMode !== 'duel' || !duelMatchStatus || !isBlockingMatchState(duelMatchStatus.state)) {
-      return;
-    }
-
-    const intervalMs = shouldFastPollDuelMatchStatus ? MATCH_STATUS_FAST_POLL_MS : 15000;
-    const timer = setInterval(() => {
-      void loadDuelMatchStatus().catch(() => {});
-    }, intervalMs);
-
-    return () => {
-      clearInterval(timer);
-    };
-  }, [duelMatchStatus?.matchId, duelMatchStatus?.slotStartAt, duelMatchStatus?.state, matchMode, shouldFastPollDuelMatchStatus]);
-
-  useEffect(() => {
-    if (matchMode !== 'group' || !groupMatchStatus || !isBlockingMatchState(groupMatchStatus.state)) {
-      return;
-    }
-
-    const intervalMs = shouldFastPollGroupMatchStatus ? MATCH_STATUS_FAST_POLL_MS : 15000;
-    const timer = setInterval(() => {
-      void loadGroupMatchStatus().catch(() => {});
-    }, intervalMs);
-
-    return () => {
-      clearInterval(timer);
-    };
-  }, [groupMatchStatus?.matchId, groupMatchStatus?.slotStartAt, groupMatchStatus?.state, matchMode, shouldFastPollGroupMatchStatus]);
+  useBlockingMatchStatusPolling({
+    matchMode,
+    duelMatchStatus,
+    groupMatchStatus,
+    syncedNowMs,
+    fastPollMs: MATCH_STATUS_FAST_POLL_MS,
+    idlePollMs: 15000,
+    loadDuelMatchStatus,
+    loadGroupMatchStatus,
+  });
 
   const {
     pushRunningMatchProgress,
