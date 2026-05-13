@@ -56,6 +56,41 @@ const DuelRunnerMarker = memo(function DuelRunnerMarker({
   && areParticipantsEqual(prevProps.participant, nextProps.participant)
 ));
 
+const DuelRunnerName = memo(function DuelRunnerName({
+  displayName,
+  forfeited,
+}: {
+  displayName: string;
+  forfeited: boolean;
+}) {
+  return (
+    <Text style={[styles.runnerName, forfeited ? styles.runnerNameForfeited : undefined]}>
+      {displayName}
+    </Text>
+  );
+});
+
+const DuelRunnerDistanceMeta = memo(function DuelRunnerDistanceMeta({
+  distanceKm,
+  targetDistanceKm,
+  forfeited,
+}: {
+  distanceKm: number;
+  targetDistanceKm: number;
+  forfeited: boolean;
+}) {
+  return (
+    <>
+      <Text style={[styles.runnerMeta, forfeited ? styles.runnerMetaForfeited : undefined]}>
+        {forfeited ? '기권' : `${distanceKm.toFixed(2)}km`}
+      </Text>
+      <Text style={styles.runnerMetaMuted}>
+        {forfeited ? '대결 중단' : buildRemainingLabel(distanceKm, targetDistanceKm)}
+      </Text>
+    </>
+  );
+});
+
 const DuelRunner = memo(function DuelRunner({
   participant,
   top,
@@ -71,25 +106,28 @@ const DuelRunner = memo(function DuelRunner({
   const isCurrentUser = Boolean(participant.isCurrentUser);
   const displayName = isCurrentUser ? '나' : participant.name;
   const fallbackLabel = isCurrentUser ? '나' : participant.name.slice(0, 1);
-
-  return (
-    <View style={[
+  const runnerStyle = useMemo(
+    () => [
       styles.duelRunnerWrap,
       side === 'left' ? styles.duelRunnerLeft : styles.duelRunnerRight,
       { top },
-    ]}>
+    ],
+    [side, top],
+  );
+
+  return (
+    <View style={runnerStyle}>
       <DuelRunnerMarker
         participant={participant}
         fallbackLabel={fallbackLabel}
         isCurrentUser={isCurrentUser}
       />
-      <Text style={[styles.runnerName, participantForfeited ? styles.runnerNameForfeited : undefined]}>{displayName}</Text>
-      <Text style={[styles.runnerMeta, participantForfeited ? styles.runnerMetaForfeited : undefined]}>
-        {participantForfeited ? '기권' : `${participant.distanceKm.toFixed(2)}km`}
-      </Text>
-      <Text style={styles.runnerMetaMuted}>
-        {participantForfeited ? '대결 중단' : buildRemainingLabel(participant.distanceKm, targetDistanceKm)}
-      </Text>
+      <DuelRunnerName displayName={displayName} forfeited={participantForfeited} />
+      <DuelRunnerDistanceMeta
+        distanceKm={participant.distanceKm}
+        targetDistanceKm={targetDistanceKm}
+        forfeited={participantForfeited}
+      />
     </View>
   );
 }, (prevProps, nextProps) => (

@@ -8,6 +8,33 @@ import {
 } from '@/components/matches/liveMatchArena/helpers';
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
 
+const DuelRoadBaseLayer = memo(function DuelRoadBaseLayer() {
+  return (
+    <>
+      <View style={styles.duelRoadBase} />
+      <View style={styles.duelCenterDivider} />
+      <View style={[styles.duelLaneBase, styles.duelLaneLeft]} />
+      <View style={[styles.duelLaneBase, styles.duelLaneRight]} />
+    </>
+  );
+});
+
+const GroupRoadBaseLayer = memo(function GroupRoadBaseLayer() {
+  return <View style={styles.groupRoadBase} />;
+});
+
+const FinishRibbon = memo(function FinishRibbon({
+  laneMode,
+}: {
+  laneMode: 'duel' | 'group';
+}) {
+  return (
+    <View style={[styles.finishRibbon, laneMode === 'group' ? styles.finishRibbonGroup : undefined]}>
+      <Text style={styles.finishRibbonText}>FINISH</Text>
+    </View>
+  );
+});
+
 export const RoadMotion = memo(function RoadMotion({
   laneMode,
 }: {
@@ -59,10 +86,7 @@ export const RoadMotion = memo(function RoadMotion({
     <View style={styles.roadBackground}>
       {laneMode === 'duel' ? (
         <>
-          <View style={styles.duelRoadBase} />
-          <View style={styles.duelCenterDivider} />
-          <View style={[styles.duelLaneBase, styles.duelLaneLeft]} />
-          <View style={[styles.duelLaneBase, styles.duelLaneRight]} />
+          <DuelRoadBaseLayer />
           <MotionWrap
             pointerEvents="none"
             style={[
@@ -75,7 +99,7 @@ export const RoadMotion = memo(function RoadMotion({
         </>
       ) : (
         <>
-          <View style={styles.groupRoadBase} />
+          <GroupRoadBaseLayer />
           <MotionWrap
             pointerEvents="none"
             style={[
@@ -87,9 +111,7 @@ export const RoadMotion = memo(function RoadMotion({
           </MotionWrap>
         </>
       )}
-      <View style={[styles.finishRibbon, laneMode === 'group' ? styles.finishRibbonGroup : undefined]}>
-        <Text style={styles.finishRibbonText}>FINISH</Text>
-      </View>
+      <FinishRibbon laneMode={laneMode} />
     </View>
   );
 });

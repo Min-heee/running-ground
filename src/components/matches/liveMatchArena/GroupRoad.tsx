@@ -19,6 +19,79 @@ type GroupRoadRowProps = {
   targetDistanceKm: number;
 };
 
+const GroupRankColumn = memo(function GroupRankColumn({
+  rankLabel,
+  displayName,
+}: {
+  rankLabel: string;
+  displayName: string;
+}) {
+  return (
+    <View style={styles.groupRankColumn}>
+      <Text style={styles.groupRankText}>{rankLabel}</Text>
+      <Text style={styles.groupNameText}>{displayName}</Text>
+    </View>
+  );
+});
+
+const GroupRunnerMarker = memo(function GroupRunnerMarker({
+  markerLabel,
+  isCurrentUser,
+  isLeader,
+  forfeited,
+}: {
+  markerLabel: string;
+  isCurrentUser: boolean;
+  isLeader: boolean;
+  forfeited: boolean;
+}) {
+  return (
+    <View style={styles.groupRoadLane}>
+      <View
+        style={[
+          styles.groupRunnerMarker,
+          isCurrentUser
+            ? styles.runnerMarkerCurrent
+            : isLeader
+              ? styles.runnerMarkerLeader
+              : styles.runnerMarkerOpponent,
+          forfeited ? styles.runnerMarkerForfeited : undefined,
+        ]}
+      >
+        <Text
+          style={[
+            styles.groupRunnerMarkerText,
+            forfeited ? styles.groupRunnerMarkerForfeitedText : undefined,
+          ]}
+        >
+          {markerLabel}
+        </Text>
+      </View>
+    </View>
+  );
+});
+
+const GroupRunnerMeta = memo(function GroupRunnerMeta({
+  averagePaceLabel,
+  distanceKm,
+  targetDistanceKm,
+  forfeited,
+}: {
+  averagePaceLabel: string;
+  distanceKm: number;
+  targetDistanceKm: number;
+  forfeited: boolean;
+}) {
+  return (
+    <View style={styles.groupMetaColumn}>
+      <Text style={[styles.groupMetaText, forfeited ? styles.groupMetaForfeitedText : undefined]}>
+        {averagePaceLabel}
+      </Text>
+      <Text style={styles.groupMetaSubtext}>{buildRemainingLabel(distanceKm, targetDistanceKm)}</Text>
+    </View>
+  );
+});
+
 const GroupRoadRow = memo(function GroupRoadRow({
   participant,
   index,
@@ -32,47 +105,30 @@ const GroupRoadRow = memo(function GroupRoadRow({
     participant,
     isCurrentUser ? '나' : participant.name.slice(0, 1),
   );
+  const rowStyle = useMemo(
+    () => [
+      styles.groupRow,
+      isCurrentUser ? styles.groupRowCurrent : undefined,
+      participantForfeited ? styles.groupRowForfeited : undefined,
+    ],
+    [isCurrentUser, participantForfeited],
+  );
 
   return (
-    <View
-      style={[
-        styles.groupRow,
-        isCurrentUser ? styles.groupRowCurrent : undefined,
-        participantForfeited ? styles.groupRowForfeited : undefined,
-      ]}
-    >
-      <View style={styles.groupRankColumn}>
-        <Text style={styles.groupRankText}>{rankLabel}</Text>
-        <Text style={styles.groupNameText}>{displayName}</Text>
-      </View>
-      <View style={styles.groupRoadLane}>
-        <View
-          style={[
-            styles.groupRunnerMarker,
-            isCurrentUser
-              ? styles.runnerMarkerCurrent
-              : participant.isLeader
-                ? styles.runnerMarkerLeader
-                : styles.runnerMarkerOpponent,
-            participantForfeited ? styles.runnerMarkerForfeited : undefined,
-          ]}
-        >
-          <Text
-            style={[
-              styles.groupRunnerMarkerText,
-              participantForfeited ? styles.groupRunnerMarkerForfeitedText : undefined,
-            ]}
-          >
-            {visualState.markerLabel}
-          </Text>
-        </View>
-      </View>
-      <View style={styles.groupMetaColumn}>
-        <Text style={[styles.groupMetaText, participantForfeited ? styles.groupMetaForfeitedText : undefined]}>
-          {visualState.averagePaceLabel}
-        </Text>
-        <Text style={styles.groupMetaSubtext}>{buildRemainingLabel(participant.distanceKm, targetDistanceKm)}</Text>
-      </View>
+    <View style={rowStyle}>
+      <GroupRankColumn rankLabel={rankLabel} displayName={displayName} />
+      <GroupRunnerMarker
+        markerLabel={visualState.markerLabel}
+        isCurrentUser={isCurrentUser}
+        isLeader={Boolean(participant.isLeader)}
+        forfeited={participantForfeited}
+      />
+      <GroupRunnerMeta
+        averagePaceLabel={visualState.averagePaceLabel}
+        distanceKm={participant.distanceKm}
+        targetDistanceKm={targetDistanceKm}
+        forfeited={participantForfeited}
+      />
     </View>
   );
 }, (prevProps, nextProps) => (

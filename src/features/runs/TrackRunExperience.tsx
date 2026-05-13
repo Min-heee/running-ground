@@ -565,19 +565,33 @@ export function TrackRunExperience({
     roomLinkedMatchContext,
     visibleMatchRoom,
   ]);
-  const roomLinkedDuelCurrentParticipant = roomLinkedDuelPlaceholderParticipants.find((participant) => participant.isCurrentUser) ?? null;
-  const roomLinkedDuelOpponentParticipant = roomLinkedDuelPlaceholderParticipants.find((participant) => !participant.isCurrentUser) ?? null;
-  const roomLinkedDuelGapKm = roomLinkedDuelCurrentParticipant && roomLinkedDuelOpponentParticipant
-    ? Number((roomLinkedDuelCurrentParticipant.distanceKm - roomLinkedDuelOpponentParticipant.distanceKm).toFixed(2))
-    : null;
-  const hasRoomLinkedDuelLiveProgress = Boolean(
-    roomLinkedDuelCurrentParticipant
-    && roomLinkedDuelOpponentParticipant
-    && (
-      roomLinkedDuelCurrentParticipant.distanceKm > 0
-      || roomLinkedDuelOpponentParticipant.distanceKm > 0
-    ),
-  );
+  const {
+    roomLinkedDuelCurrentParticipant,
+    roomLinkedDuelOpponentParticipant,
+    roomLinkedDuelGapKm,
+    hasRoomLinkedDuelLiveProgress,
+  } = useMemo(() => {
+    const currentParticipant = roomLinkedDuelPlaceholderParticipants.find((participant) => participant.isCurrentUser) ?? null;
+    const opponentParticipant = roomLinkedDuelPlaceholderParticipants.find((participant) => !participant.isCurrentUser) ?? null;
+    const gapKm = currentParticipant && opponentParticipant
+      ? Number((currentParticipant.distanceKm - opponentParticipant.distanceKm).toFixed(2))
+      : null;
+    const hasLiveProgress = Boolean(
+      currentParticipant
+      && opponentParticipant
+      && (
+        currentParticipant.distanceKm > 0
+        || opponentParticipant.distanceKm > 0
+      ),
+    );
+
+    return {
+      roomLinkedDuelCurrentParticipant: currentParticipant,
+      roomLinkedDuelOpponentParticipant: opponentParticipant,
+      roomLinkedDuelGapKm: gapKm,
+      hasRoomLinkedDuelLiveProgress: hasLiveProgress,
+    };
+  }, [roomLinkedDuelPlaceholderParticipants]);
   const groupArenaParticipants = useMemo(
     () => buildGroupArenaParticipants({
       standings: groupLiveStandings,
@@ -1756,9 +1770,12 @@ export function TrackRunExperience({
     onForfeit: handleForfeitMatch,
     onShowResultAfterCounterpartForfeit: handleShowResultAfterCounterpartForfeit,
   });
-  const liveArenaExitAction = <LiveMatchExitActionCard {...liveArenaExitActionProps} />;
+  const liveArenaExitAction = useMemo(
+    () => <LiveMatchExitActionCard {...liveArenaExitActionProps} />,
+    [liveArenaExitActionProps],
+  );
 
-  const liveArenaPageProps = {
+  const liveArenaPageProps = useMemo(() => ({
     matchMode,
     effectiveDuelOpponent,
     duelDistanceKm,
@@ -1792,9 +1809,43 @@ export function TrackRunExperience({
     shouldKeepRunningMatchArena,
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
-  };
+  }), [
+    currentGroupLeader,
+    currentGroupStanding,
+    currentUserArenaPace,
+    currentUserDuelLiveStatus,
+    currentUserGroupLiveStatus,
+    duelArenaParticipants,
+    duelArenaUsesLivePace,
+    duelComparisonSnapshot,
+    duelDistanceKm,
+    duelLiveGapKm,
+    duelLiveSummary,
+    effectiveDuelOpponent,
+    effectiveDuelOpponentArenaPace,
+    effectiveGroupParticipantCount,
+    groupAheadParticipant,
+    groupArenaParticipants,
+    groupBehindParticipant,
+    groupDistanceKm,
+    hasRoomLinkedDuelLiveProgress,
+    isDuelOpponentForfeited,
+    liveMatchDisplayDistanceKm,
+    matchMode,
+    officialDuelReady,
+    roomCountdownRemainingSeconds,
+    roomLinkedDuelCurrentParticipant,
+    roomLinkedDuelGapKm,
+    roomLinkedDuelOpponentParticipant,
+    roomLinkedDuelPlaceholderParticipants,
+    roomLinkedGroupPlaceholderParticipants,
+    shouldKeepRunningMatchArena,
+    syncedDuelDistanceKm,
+    syncedDuelOpponentDistanceKm,
+    visibleMatchRoom,
+  ]);
 
-  const liveRaceBoardPageProps = {
+  const liveRaceBoardPageProps = useMemo(() => ({
     matchMode,
     effectiveDuelOpponent,
     duelLiveGapKm,
@@ -1811,9 +1862,26 @@ export function TrackRunExperience({
     groupLiveStandings,
     currentUserArenaPace,
     groupArenaUsesLivePace,
-  };
+  }), [
+    currentUserArenaPace,
+    currentUserDuelLiveStatus,
+    currentUserGroupLiveStatus,
+    duelDistanceKm,
+    duelLiveGapKm,
+    effectiveDuelOpponent,
+    groupArenaUsesLivePace,
+    groupDistanceKm,
+    groupLiveStandings,
+    liveMatchDisplayDistanceKm,
+    matchMode,
+    roomLinkedDuelPlaceholderParticipants,
+    roomLinkedGroupPlaceholderParticipants,
+    syncedDuelDistanceKm,
+    syncedDuelOpponentDistanceKm,
+    visibleMatchRoom,
+  ]);
 
-  const liveTrackingPageBaseProps = {
+  const liveTrackingPageBaseProps = useMemo(() => ({
     matchMode,
     liveMatchTitle,
     liveMatchText,
@@ -1838,15 +1906,46 @@ export function TrackRunExperience({
     cadenceSpm: liveMatchDisplayFrame.cadenceSpm,
     elevationGainM: liveMatchDisplayFrame.elevationGainM,
     onContinueSoloFromMatch: handleContinueSoloFromMatch,
-  };
+  }), [
+    currentGroupLeader,
+    currentGroupStanding,
+    duelDistanceKm,
+    duelLiveSummary,
+    duelLiveTitle,
+    duelStatusAlert,
+    effectiveDuelOpponent,
+    effectiveGroupParticipantCount,
+    groupAheadParticipant,
+    groupBehindParticipant,
+    groupLiveStandings,
+    groupStatusAlert,
+    handleContinueSoloFromMatch,
+    isLeavingDuelMatch,
+    isLeavingGroupMatch,
+    liveMatchDisplayDistanceKm,
+    liveMatchDisplayElapsedSeconds,
+    liveMatchDisplayFrame.averagePace,
+    liveMatchDisplayFrame.cadenceSpm,
+    liveMatchDisplayFrame.currentPace,
+    liveMatchDisplayFrame.elevationGainM,
+    liveMatchText,
+    liveMatchTitle,
+    matchMode,
+  ]);
 
-  const liveResultPageProps = {
+  const liveResultPageProps = useMemo(() => ({
     matchMode,
     estimatedBonusPoints: estimatedMatchBonusPoints,
     duelRows: duelResultRows,
     groupRows: groupResultRows,
     groupStatusLabel: groupResultStatusLabel,
-  };
+  }), [
+    duelResultRows,
+    estimatedMatchBonusPoints,
+    groupResultRows,
+    groupResultStatusLabel,
+    matchMode,
+  ]);
 
   const readyUpcomingMatchesProps = {
     matches: visibleUpcomingMatches,
@@ -1982,7 +2081,7 @@ export function TrackRunExperience({
       }
     : null;
 
-  const livePagesProps = {
+  const livePagesProps = useMemo(() => ({
     scrollRef: livePagerRef,
     page: liveArenaPage,
     pageWidth: liveArenaPageWidth,
@@ -1992,7 +2091,16 @@ export function TrackRunExperience({
     trackingProps: { ...liveTrackingPageBaseProps, includeMatchCards: false },
     resultProps: liveResultPageProps,
     onPageChange: setLiveArenaPage,
-  };
+  }), [
+    hasMatchResultPage,
+    liveArenaPage,
+    liveArenaPageProps,
+    liveArenaPageWidth,
+    liveRaceBoardPageProps,
+    liveResultPageProps,
+    liveTrackingPageBaseProps,
+    setLiveArenaPage,
+  ]);
 
   return (
     <View style={styles.root}>

@@ -79,57 +79,199 @@ export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
   elevationGainM,
   onContinueSoloFromMatch,
 }: LiveMatchTrackingPageProps) {
+  return (
+    <>
+      <LiveMatchCardsSection
+        includeMatchCards={includeMatchCards}
+        matchMode={matchMode}
+        liveMatchTitle={liveMatchTitle}
+        liveMatchText={liveMatchText}
+        effectiveDuelOpponent={effectiveDuelOpponent}
+        duelDistanceKm={duelDistanceKm}
+        duelLiveTitle={duelLiveTitle}
+        duelLiveSummary={duelLiveSummary}
+        duelStatusAlert={duelStatusAlert}
+        distanceKm={distanceKm}
+        isLeavingDuelMatch={isLeavingDuelMatch}
+        effectiveGroupParticipantCount={effectiveGroupParticipantCount}
+        currentGroupStanding={currentGroupStanding}
+        groupAheadParticipant={groupAheadParticipant}
+        groupBehindParticipant={groupBehindParticipant}
+        groupStatusAlert={groupStatusAlert}
+        isLeavingGroupMatch={isLeavingGroupMatch}
+        groupLiveStandings={groupLiveStandings}
+        currentGroupLeader={currentGroupLeader}
+        onContinueSoloFromMatch={onContinueSoloFromMatch}
+      />
+      <TrackingMetricGridSection
+        elapsedSeconds={elapsedSeconds}
+        distanceKm={distanceKm}
+        averagePace={averagePace}
+        currentPace={currentPace}
+        cadenceSpm={cadenceSpm}
+        elevationGainM={elevationGainM}
+      />
+    </>
+  );
+});
+
+const TrackingMetricGridSection = memo(function TrackingMetricGridSection({
+  elapsedSeconds,
+  distanceKm,
+  averagePace,
+  currentPace,
+  cadenceSpm,
+  elevationGainM,
+}: Pick<LiveMatchTrackingPageProps,
+  'elapsedSeconds'
+  | 'distanceKm'
+  | 'averagePace'
+  | 'currentPace'
+  | 'cadenceSpm'
+  | 'elevationGainM'
+>) {
   const elapsedLabel = useMemo(() => formatDuration(elapsedSeconds), [elapsedSeconds]);
   const distanceLabel = useMemo(() => formatMetricDistance(distanceKm), [distanceKm]);
   const cadenceLabel = useMemo(() => formatCadence(cadenceSpm), [cadenceSpm]);
   const elevationLabel = useMemo(() => formatElevation(elevationGainM), [elevationGainM]);
 
   return (
-    <>
-      {includeMatchCards && matchMode !== 'solo' ? (
-        <Card style={styles.mapCard}>
-          <View style={styles.liveMatchCard}>
-            <Text style={styles.liveMatchEyebrow}>MATCH MODE</Text>
-            <Text style={styles.liveMatchTitle}>{liveMatchTitle}</Text>
-            <Text style={styles.liveMatchText}>{liveMatchText}</Text>
-          </View>
-          {matchMode === 'duel' && effectiveDuelOpponent ? (
-            <DuelTrackingSummaryCard
-              opponent={effectiveDuelOpponent}
-              duelDistanceKm={duelDistanceKm}
-              duelLiveTitle={duelLiveTitle}
-              duelLiveSummary={duelLiveSummary}
-              duelStatusAlert={duelStatusAlert}
-              distanceKm={distanceKm}
-              isLeavingDuelMatch={isLeavingDuelMatch}
-              onContinueSoloFromMatch={onContinueSoloFromMatch}
-            />
-          ) : null}
-          {matchMode === 'group' && effectiveGroupParticipantCount > 0 && currentGroupStanding ? (
-            <GroupTrackingSummaryCard
-              effectiveGroupParticipantCount={effectiveGroupParticipantCount}
-              currentGroupStanding={currentGroupStanding}
-              groupAheadParticipant={groupAheadParticipant}
-              groupBehindParticipant={groupBehindParticipant}
-              groupStatusAlert={groupStatusAlert}
-              isLeavingGroupMatch={isLeavingGroupMatch}
-              groupLiveStandings={groupLiveStandings}
-              currentGroupLeader={currentGroupLeader}
-              onContinueSoloFromMatch={onContinueSoloFromMatch}
-            />
-          ) : null}
-        </Card>
-      ) : null}
+    <RunningMetricGrid
+      elapsedLabel={elapsedLabel}
+      distanceLabel={distanceLabel}
+      averagePaceLabel={averagePace}
+      currentPaceLabel={currentPace}
+      cadenceLabel={cadenceLabel}
+      elevationLabel={elevationLabel}
+    />
+  );
+});
 
-      <RunningMetricGrid
-        elapsedLabel={elapsedLabel}
-        distanceLabel={distanceLabel}
-        averagePaceLabel={averagePace}
-        currentPaceLabel={currentPace}
-        cadenceLabel={cadenceLabel}
-        elevationLabel={elevationLabel}
-      />
-    </>
+const LiveMatchCardsSection = memo(function LiveMatchCardsSection({
+  includeMatchCards,
+  matchMode,
+  liveMatchTitle,
+  liveMatchText,
+  effectiveDuelOpponent,
+  duelDistanceKm,
+  duelLiveTitle,
+  duelLiveSummary,
+  duelStatusAlert,
+  distanceKm,
+  isLeavingDuelMatch,
+  effectiveGroupParticipantCount,
+  currentGroupStanding,
+  groupAheadParticipant,
+  groupBehindParticipant,
+  groupStatusAlert,
+  isLeavingGroupMatch,
+  groupLiveStandings,
+  currentGroupLeader,
+  onContinueSoloFromMatch,
+}: Omit<LiveMatchTrackingPageProps,
+  'elapsedSeconds'
+  | 'averagePace'
+  | 'currentPace'
+  | 'cadenceSpm'
+  | 'elevationGainM'
+>) {
+  if (!includeMatchCards || matchMode === 'solo') {
+    return null;
+  }
+
+  return (
+    <Card style={styles.mapCard}>
+      <LiveMatchIntroCard title={liveMatchTitle} text={liveMatchText} />
+      {matchMode === 'duel' && effectiveDuelOpponent ? (
+        <DuelTrackingSummaryCard
+          opponent={effectiveDuelOpponent}
+          duelDistanceKm={duelDistanceKm}
+          duelLiveTitle={duelLiveTitle}
+          duelLiveSummary={duelLiveSummary}
+          duelStatusAlert={duelStatusAlert}
+          distanceKm={distanceKm}
+          isLeavingDuelMatch={isLeavingDuelMatch}
+          onContinueSoloFromMatch={onContinueSoloFromMatch}
+        />
+      ) : null}
+      {matchMode === 'group' && effectiveGroupParticipantCount > 0 && currentGroupStanding ? (
+        <GroupTrackingSummaryCard
+          effectiveGroupParticipantCount={effectiveGroupParticipantCount}
+          currentGroupStanding={currentGroupStanding}
+          groupAheadParticipant={groupAheadParticipant}
+          groupBehindParticipant={groupBehindParticipant}
+          groupStatusAlert={groupStatusAlert}
+          isLeavingGroupMatch={isLeavingGroupMatch}
+          groupLiveStandings={groupLiveStandings}
+          currentGroupLeader={currentGroupLeader}
+          onContinueSoloFromMatch={onContinueSoloFromMatch}
+        />
+      ) : null}
+    </Card>
+  );
+});
+
+const LiveMatchIntroCard = memo(function LiveMatchIntroCard({
+  title,
+  text,
+}: {
+  title: string;
+  text: string;
+}) {
+  return (
+    <View style={styles.liveMatchCard}>
+      <Text style={styles.liveMatchEyebrow}>MATCH MODE</Text>
+      <Text style={styles.liveMatchTitle}>{title}</Text>
+      <Text style={styles.liveMatchText}>{text}</Text>
+    </View>
+  );
+});
+
+const DuelTrackingHeader = memo(function DuelTrackingHeader({
+  title,
+  summary,
+}: {
+  title: string;
+  summary: string;
+}) {
+  return (
+    <View style={styles.duelLiveHeader}>
+      <View style={styles.groupLiveHeaderCopy}>
+        <Text style={styles.liveMatchEyebrow}>LIVE GAP</Text>
+        <Text style={styles.groupLiveTitle}>{title}</Text>
+        <Text style={styles.groupLiveSummary}>{summary}</Text>
+      </View>
+      <View style={styles.duelLiveBadge}>
+        <Text style={styles.duelLiveBadgeText}>1대1</Text>
+      </View>
+    </View>
+  );
+});
+
+const DuelDistanceGapRow = memo(function DuelDistanceGapRow({
+  opponent,
+  duelDistanceKm,
+  distanceKm,
+}: {
+  opponent: DuelMatchOpponent;
+  duelDistanceKm: number;
+  distanceKm: number;
+}) {
+  const opponentDistanceLabel = hasRemoteRunnerProgress(opponent)
+    ? `${resolveParticipantDisplayDistanceKm(opponent, duelDistanceKm).toFixed(2)}km`
+    : '동기화 중';
+
+  return (
+    <View style={styles.groupLiveGapRow}>
+      <View style={styles.groupLiveGapChip}>
+        <Text style={styles.groupLiveGapEyebrow}>나</Text>
+        <Text style={styles.groupLiveGapText}>{distanceKm.toFixed(2)}km</Text>
+      </View>
+      <View style={styles.groupLiveGapChip}>
+        <Text style={styles.groupLiveGapEyebrow}>상대</Text>
+        <Text style={styles.groupLiveGapText}>{opponentDistanceLabel}</Text>
+      </View>
+    </View>
   );
 });
 
@@ -158,30 +300,12 @@ const DuelTrackingSummaryCard = memo(function DuelTrackingSummaryCard({
 
   return (
     <View style={styles.duelLiveCard}>
-      <View style={styles.duelLiveHeader}>
-        <View style={styles.groupLiveHeaderCopy}>
-          <Text style={styles.liveMatchEyebrow}>LIVE GAP</Text>
-          <Text style={styles.groupLiveTitle}>{duelLiveTitle}</Text>
-          <Text style={styles.groupLiveSummary}>{duelLiveSummary}</Text>
-        </View>
-        <View style={styles.duelLiveBadge}>
-          <Text style={styles.duelLiveBadgeText}>1대1</Text>
-        </View>
-      </View>
-      <View style={styles.groupLiveGapRow}>
-        <View style={styles.groupLiveGapChip}>
-          <Text style={styles.groupLiveGapEyebrow}>나</Text>
-          <Text style={styles.groupLiveGapText}>{distanceKm.toFixed(2)}km</Text>
-        </View>
-        <View style={styles.groupLiveGapChip}>
-          <Text style={styles.groupLiveGapEyebrow}>상대</Text>
-          <Text style={styles.groupLiveGapText}>
-            {hasRemoteRunnerProgress(opponent)
-              ? `${resolveParticipantDisplayDistanceKm(opponent, duelDistanceKm).toFixed(2)}km`
-              : '동기화 중'}
-          </Text>
-        </View>
-      </View>
+      <DuelTrackingHeader title={duelLiveTitle} summary={duelLiveSummary} />
+      <DuelDistanceGapRow
+        opponent={opponent}
+        duelDistanceKm={duelDistanceKm}
+        distanceKm={distanceKm}
+      />
       {duelStatusAlert ? (
         <MatchStatusBanner
           alert={duelStatusAlert}
@@ -193,6 +317,18 @@ const DuelTrackingSummaryCard = memo(function DuelTrackingSummaryCard({
     </View>
   );
 });
+
+function areGroupLiveStandingsEqual(left: GroupLiveStanding, right: GroupLiveStanding) {
+  return left.id === right.id
+    && left.rank === right.rank
+    && left.name === right.name
+    && left.isCurrentUser === right.isCurrentUser
+    && left.averagePace === right.averagePace
+    && left.levelLabel === right.levelLabel
+    && left.seedSummary === right.seedSummary
+    && left.liveStatus === right.liveStatus
+    && left.currentDistanceKm === right.currentDistanceKm;
+}
 
 const GroupLiveStandingRow = memo(function GroupLiveStandingRow({
   participant,
@@ -217,7 +353,30 @@ const GroupLiveStandingRow = memo(function GroupLiveStandingRow({
       <Text style={styles.groupLiveDistance}>{participant.currentDistanceKm.toFixed(2)}km</Text>
     </View>
   );
-});
+}, (prevProps, nextProps) => areGroupLiveStandingsEqual(prevProps.participant, nextProps.participant));
+
+const CurrentGroupStandingRow = memo(function CurrentGroupStandingRow({
+  participant,
+}: {
+  participant: GroupLiveStanding;
+}) {
+  return (
+    <View style={[styles.groupLiveRow, styles.groupLiveRowCurrent]}>
+      <Text style={styles.groupLiveRank}>{participant.rank}</Text>
+      <View style={styles.groupLiveCopy}>
+        <Text style={styles.groupLiveName}>{participant.name} (나)</Text>
+        <Text style={styles.groupLiveMeta}>
+          {participant.averagePace} · {participant.levelLabel}
+          {participant.liveStatus ? ` · ${buildMatchParticipantStatusLabel(participant.liveStatus)}` : ''}
+          {' · '}
+          앞 사람과 {participant.gapAheadKm?.toFixed(2) ?? '0.00'}km
+        </Text>
+      </View>
+      <Text style={styles.groupLiveDistance}>{participant.currentDistanceKm.toFixed(2)}km</Text>
+    </View>
+  );
+}, (prevProps, nextProps) => areGroupLiveStandingsEqual(prevProps.participant, nextProps.participant)
+  && prevProps.participant.gapAheadKm === nextProps.participant.gapAheadKm);
 
 const GroupTrackingSummaryCard = memo(function GroupTrackingSummaryCard({
   effectiveGroupParticipantCount,
@@ -299,19 +458,7 @@ const GroupTrackingSummaryCard = memo(function GroupTrackingSummaryCard({
         {topStandingRows}
       </View>
       {currentGroupStanding.rank > 5 ? (
-        <View style={[styles.groupLiveRow, styles.groupLiveRowCurrent]}>
-          <Text style={styles.groupLiveRank}>{currentGroupStanding.rank}</Text>
-          <View style={styles.groupLiveCopy}>
-            <Text style={styles.groupLiveName}>{currentGroupStanding.name} (나)</Text>
-            <Text style={styles.groupLiveMeta}>
-              {currentGroupStanding.averagePace} · {currentGroupStanding.levelLabel}
-              {currentGroupStanding.liveStatus ? ` · ${buildMatchParticipantStatusLabel(currentGroupStanding.liveStatus)}` : ''}
-              {' · '}
-              앞 사람과 {currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km
-            </Text>
-          </View>
-          <Text style={styles.groupLiveDistance}>{currentGroupStanding.currentDistanceKm.toFixed(2)}km</Text>
-        </View>
+        <CurrentGroupStandingRow participant={currentGroupStanding} />
       ) : null}
       {currentGroupLeader && currentGroupStanding.rank !== 1 ? (
         <Text style={styles.groupLiveFooter}>

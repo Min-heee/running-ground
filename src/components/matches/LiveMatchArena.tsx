@@ -36,6 +36,41 @@ const SummaryChip = memo(function SummaryChip({ label }: { label: string }) {
   );
 });
 
+const ArenaHeader = memo(function ArenaHeader({
+  mode,
+  title,
+  subtitle,
+}: {
+  mode: 'duel' | 'group';
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <>
+      <Text style={styles.eyebrow}>{mode === 'duel' ? 'DUEL ROAD' : 'GROUP ROAD'}</Text>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.subtitle}>{subtitle}</Text>
+    </>
+  );
+});
+
+const SummaryChipRow = memo(function SummaryChipRow({
+  chips,
+}: {
+  chips: string[];
+}) {
+  const summaryChipItems = useMemo(
+    () => chips.map((chip) => <SummaryChip key={chip} label={chip} />),
+    [chips],
+  );
+
+  return (
+    <View style={styles.summaryChipRow}>
+      {summaryChipItems}
+    </View>
+  );
+}, (prevProps, nextProps) => areStringArraysEqual(prevProps.chips, nextProps.chips));
+
 export const LiveMatchArena = memo(function LiveMatchArena({
   mode,
   targetDistanceKm,
@@ -85,19 +120,11 @@ export const LiveMatchArena = memo(function LiveMatchArena({
     () => (LIVE_MATCH_PERF_QA_ENABLED ? <AndroidLiveMatchPerfPanel label={perfLabel} /> : null),
     [perfLabel],
   );
-  const summaryChipItems = useMemo(
-    () => summaryChips.map((chip) => <SummaryChip key={chip} label={chip} />),
-    [summaryChips],
-  );
 
   return (
     <View style={cardStyle}>
-      <Text style={styles.eyebrow}>{mode === 'duel' ? 'DUEL ROAD' : 'GROUP ROAD'}</Text>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
-      <View style={styles.summaryChipRow}>
-        {summaryChipItems}
-      </View>
+      <ArenaHeader mode={mode} title={title} subtitle={subtitle} />
+      <SummaryChipRow chips={summaryChips} />
       {perfPanel}
       {mode === 'duel' ? (
         <DuelRoad participants={duelParticipants} targetDistanceKm={targetDistanceKm} />
