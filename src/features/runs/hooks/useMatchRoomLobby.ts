@@ -29,6 +29,7 @@ export function useMatchRoomLobby() {
     serverClockOffsetMs,
     latestRoomServerNowMsRef,
     commitRoom,
+    pauseRoomPolling,
     syncServerClock,
   } = useRoomSnapshot();
   const settings = useRoomSettings({
@@ -214,6 +215,7 @@ export function useMatchRoomLobby() {
     latestRoomServerNowMsRef,
     commitRoom,
     syncServerClock,
+    pauseRoomPolling,
     setError,
     setSaving,
   });
@@ -254,6 +256,7 @@ export function useMatchRoomLobby() {
     showPartyRunLoadingBanner,
     showPartyRunCountdownBanner,
     saveRoomSettings: settings.saveRoomSettings,
+    roomExitState: startActions.roomExitState,
     handleToggleReady: startActions.handleToggleReady,
     handleStart: startActions.handleStart,
     handleLeave: startActions.handleLeave,

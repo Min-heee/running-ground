@@ -89,6 +89,7 @@ import {
   shouldUseCenteredMatchCountdown,
   shouldUseFullscreenMatchCountdown,
 } from '@/features/runs/matchStateMachine';
+import { isMatchRoomExiting } from '@/features/runs/matchRoomExitGuard';
 import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
@@ -1092,7 +1093,9 @@ export function TrackRunExperience({
     }
 
     syncServerClock(payload.serverNow);
-    const nextRoom = payload.room?.linkedMatchId && forfeitedMatchIdsRef.current.has(payload.room.linkedMatchId)
+    const nextRoom = isMatchRoomExiting(payload.room?.roomId)
+      ? null
+      : payload.room?.linkedMatchId && forfeitedMatchIdsRef.current.has(payload.room.linkedMatchId)
       ? null
       : payload.room;
     commitMatchRoom(nextRoom);

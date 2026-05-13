@@ -3,6 +3,7 @@ import { fetchFriendLeaderboard } from '@/services/friendsService';
 import { getApiErrorMessage } from '@/services/apiError';
 import { fetchRunningMatchRoom } from '@/services/matchService';
 import type { FriendLeaderboardResponse, RunningMatchRoom } from '@/lib/api/types';
+import { isMatchRoomExiting } from '@/features/runs/matchRoomExitGuard';
 import {
   parseServerNowMs,
   resolveStableServerClockOffset,
@@ -42,11 +43,13 @@ export function useRoomSnapshot() {
   const currentUserTag = currentUser?.publicTag ?? 'mock-current-user';
   const latestRoomServerNowMsRef = useRef(0);
   const roomRenderKeyRef = useRef<string | null>(null);
+  const pollingPausedRef = useRef(false);
 
   const [room, setRoom] = useState<RunningMatchRoom | null>(null);
   const [friendLeaderboard, setFriendLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pollingPaused, setPollingPaused] = useState(false);
   const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0);
 
   const syncServerClock = useCallback((serverNow?: string) => {
@@ -70,23 +73,47 @@ export function useRoomSnapshot() {
   }, []);
 
   const loadRoom = useCallback(async () => {
+    if (pollingPausedRef.current) {
+      return null;
+    }
+
     try {
       const payload = await fetchRunningMatchRoom();
+      if (pollingPausedRef.current) {
+        return null;
+      }
+
       if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
         return null;
       }
 
       syncServerClock(payload.serverNow);
-      commitRoom(payload.room);
+      const nextRoom = isMatchRoomExiting(payload.room?.roomId) ? null : payload.room;
+      commitRoom(nextRoom);
       setError(null);
-      return payload.room;
+      return nextRoom;
     } catch (roomError) {
+      if (pollingPausedRef.current) {
+        return null;
+      }
+
       setError(getApiErrorMessage(roomError, '대기실을 불러오지 못했어.'));
       return null;
     }
   }, [commitRoom, syncServerClock]);
 
+  const pauseRoomPolling = useCallback(() => {
+    pollingPausedRef.current = true;
+    setPollingPaused(true);
+    setLoading(false);
+  }, []);
+
   useEffect(() => {
+    if (pollingPaused) {
+      setLoading(false);
+      return undefined;
+    }
+
     let cancelled = false;
 
     const hydrate = async () => {
@@ -118,7 +145,7 @@ export function useRoomSnapshot() {
       cancelled = true;
       clearInterval(intervalId);
     };
-  }, [loadRoom, room?.linkedMatchId]);
+  }, [loadRoom, pollingPaused, room?.linkedMatchId]);
 
   return {
     room,
@@ -130,6 +157,7 @@ export function useRoomSnapshot() {
     serverClockOffsetMs,
     latestRoomServerNowMsRef,
     commitRoom,
+    pauseRoomPolling,
     syncServerClock,
   };
 }

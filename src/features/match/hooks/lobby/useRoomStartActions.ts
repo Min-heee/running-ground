@@ -1,4 +1,6 @@
+import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
+import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import {
   leaveRunningMatchRoom,
@@ -8,7 +10,23 @@ import {
 import { getApiErrorMessage } from '@/services/apiError';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import type { MatchRoomUxModel } from '@/features/runs/matchRoomFlow';
+import {
+  clearMatchRoomExitGuard,
+  markMatchRoomExiting,
+} from '@/features/runs/matchRoomExitGuard';
 import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
+
+type RoomExitState = 'idle' | 'leaving' | 'deleting';
+
+function navigateAwayFromRoom() {
+  const navigationRouter = router as typeof router & { canGoBack?: () => boolean };
+  if (navigationRouter.canGoBack?.()) {
+    router.back();
+    return;
+  }
+
+  router.replace('/(tabs)/running');
+}
 
 type UseRoomStartActionsInput = {
   room: RunningMatchRoom | null;
@@ -17,6 +35,7 @@ type UseRoomStartActionsInput = {
   latestRoomServerNowMsRef: MutableRefObject<number>;
   commitRoom: (room: RunningMatchRoom | null) => void;
   syncServerClock: (serverNow?: string) => void;
+  pauseRoomPolling: () => void;
   setError: Dispatch<SetStateAction<string | null>>;
   setSaving: Dispatch<SetStateAction<boolean>>;
 };
@@ -28,9 +47,18 @@ export function useRoomStartActions({
   latestRoomServerNowMsRef,
   commitRoom,
   syncServerClock,
+  pauseRoomPolling,
   setError,
   setSaving,
 }: UseRoomStartActionsInput) {
+  const isMountedRef = useRef(true);
+  const roomExitInFlightRef = useRef(false);
+  const [roomExitState, setRoomExitState] = useState<RoomExitState>('idle');
+
+  useEffect(() => () => {
+    isMountedRef.current = false;
+  }, []);
+
   const handleToggleReady = async () => {
     if (!room || !roomUxModel.readyAction.canToggle) {
       return;
@@ -83,26 +111,55 @@ export function useRoomStartActions({
     }
   };
 
-  const handleLeave = async () => {
+  const handleLeave = () => {
     if (!room) {
-      router.back();
+      navigateAwayFromRoom();
       return;
     }
 
-    setSaving(true);
-    setError(null);
-
-    try {
-      await leaveRunningMatchRoom({ roomId: room.roomId });
-      router.back();
-    } catch (roomError) {
-      setError(getApiErrorMessage(roomError, '방에서 나가지 못했어.'));
-    } finally {
-      setSaving(false);
+    if (roomExitInFlightRef.current) {
+      return;
     }
+
+    const exitRoom = room;
+    const nextExitState: RoomExitState = exitRoom.isHost ? 'deleting' : 'leaving';
+    const failureTitle = exitRoom.isHost ? '방 삭제 실패' : '방 나가기 실패';
+    const failureMessage = exitRoom.isHost
+      ? '방을 삭제하지 못했어.'
+      : '방에서 나가지 못했어.';
+
+    roomExitInFlightRef.current = true;
+    markMatchRoomExiting(exitRoom.roomId);
+    setSaving(true);
+    setRoomExitState(nextExitState);
+    setError(null);
+    pauseRoomPolling();
+    commitRoom(null);
+    navigateAwayFromRoom();
+
+    void leaveRunningMatchRoom({ roomId: exitRoom.roomId })
+      .then(() => {
+        clearMatchRoomExitGuard(exitRoom.roomId);
+      })
+      .catch((roomError) => {
+        clearMatchRoomExitGuard(exitRoom.roomId);
+        const message = getApiErrorMessage(roomError, failureMessage);
+        if (isMountedRef.current) {
+          setError(message);
+        }
+        Alert.alert(failureTitle, message);
+      })
+      .finally(() => {
+        roomExitInFlightRef.current = false;
+        if (isMountedRef.current) {
+          setSaving(false);
+          setRoomExitState('idle');
+        }
+      });
   };
 
   return {
+    roomExitState,
     handleToggleReady,
     handleStart,
     handleLeave,

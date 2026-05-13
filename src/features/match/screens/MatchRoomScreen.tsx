@@ -36,6 +36,7 @@ export default function MatchRoomScreen() {
     linkedMatchRemainingSeconds,
     showPartyRunLoadingBanner,
     showPartyRunCountdownBanner,
+    roomExitState,
     saveRoomSettings,
     handleToggleReady,
     handleStart,
@@ -47,6 +48,8 @@ export default function MatchRoomScreen() {
     handleInviteFriends,
     handleApplyCustomDistance,
   } = useMatchRoomLobby();
+  const isRoomExiting = roomExitState !== 'idle';
+  const roomExitLabel = roomExitState === 'deleting' ? '방 삭제 중...' : '방 나가기 중...';
 
   return (
     <Screen>
@@ -145,9 +148,9 @@ export default function MatchRoomScreen() {
               ) : null}
 
               <SecondaryButton
-                label={saving ? '반영 중...' : (room.isHost ? '방 삭제' : '방 나가기')}
+                label={isRoomExiting ? roomExitLabel : (saving ? '반영 중...' : (room.isHost ? '방 삭제' : '방 나가기'))}
                 onPress={() => { void handleLeave(); }}
-                disabled={saving}
+                disabled={saving || isRoomExiting}
               />
             </>
           )}
