@@ -2,6 +2,8 @@
 
 생성 기준: `npm run perf:smells` 최신 결과
 
+구현 상태: Android 위치 source 정책을 분리한 뒤 `npm run perf:smells` 기준 High 항목은 0개로 내려갔습니다. 이 문서는 원인 분석과 후속 QA 기준을 함께 남깁니다.
+
 ## 요약
 
 - 최신 감지 결과: High 1개, Medium 40개, Low 1개
@@ -199,4 +201,3 @@ export * from '@/features/runs/tracking/background';
 - 앱을 background로 보낸 뒤 거리 측정이 유지되는지 확인
 - 앱을 foreground로 복귀했을 때 watcher가 추가로 쌓이지 않는지 확인
 - 기권/종료/저장 후 background task가 정리되는지 확인
-

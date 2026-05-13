@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+import type { AppStateStatus } from 'react-native';
 import '@/features/runs/tracking/background/locationTask';
 import {
   appendTrackedLocation,
@@ -27,6 +28,10 @@ export type {
   BackgroundTrackingStatus,
   SnapshotCloneOptions,
 } from '@/features/runs/tracking/background/snapshotStore';
+
+export type StartBackgroundRunTrackingOptions = {
+  appState?: AppStateStatus;
+};
 
 const ABANDONED_TRACKING_MAX_ELAPSED_MS = 8 * 60 * 60 * 1000;
 const ABANDONED_LOW_DISTANCE_MAX_ELAPSED_MS = 2 * 60 * 60 * 1000;
@@ -93,7 +98,10 @@ export function subscribeBackgroundRunTracking(
   return unsubscribe;
 }
 
-export async function startBackgroundRunTracking(initialLocation?: Location.LocationObject | null) {
+export async function startBackgroundRunTracking(
+  initialLocation?: Location.LocationObject | null,
+  options?: StartBackgroundRunTrackingOptions,
+) {
   resetRouteAccumulator();
   const initialTimestampMs = initialLocation ? resolveLocationTimestampMs(initialLocation) : null;
   setSnapshotState({
@@ -114,7 +122,7 @@ export async function startBackgroundRunTracking(initialLocation?: Location.Loca
     pausedAt: null,
   });
   emitSnapshot();
-  await startLocationTask();
+  await startLocationTask({ appState: options?.appState });
 }
 
 export async function pauseBackgroundRunTracking() {
@@ -134,7 +142,7 @@ export async function pauseBackgroundRunTracking() {
   await stopLocationTaskIfNeeded();
 }
 
-export async function resumeBackgroundRunTracking() {
+export async function resumeBackgroundRunTracking(options?: StartBackgroundRunTrackingOptions) {
   const snapshotState = getSnapshotState();
   if (snapshotState.status !== 'paused') {
     return;
@@ -151,11 +159,19 @@ export async function resumeBackgroundRunTracking() {
     accumulatedPausedMs: snapshotState.accumulatedPausedMs + additionalPausedMs,
   });
   emitSnapshot();
-  await startLocationTask();
+  await startLocationTask({ appState: options?.appState });
 }
 
 export async function resetBackgroundRunTracking() {
   await stopLocationTaskIfNeeded();
   resetTrackingStateOnly();
   emitSnapshot();
+}
+
+export async function syncBackgroundRunTrackingAppState(appState: AppStateStatus) {
+  if (getSnapshotState().status !== 'running') {
+    return;
+  }
+
+  await startLocationTask({ appState });
 }

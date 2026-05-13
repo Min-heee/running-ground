@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   formatMatchCountdown,
@@ -15,6 +16,76 @@ type UpcomingMatchListProps = {
   onCancelMatch: (match: UpcomingRunningMatchItem) => void;
 };
 
+const UpcomingMatchRow = memo(function UpcomingMatchRow({
+  match,
+  nowMs,
+  cancelingMatchId,
+  onOpenMatch,
+  onCancelMatch,
+}: {
+  match: UpcomingRunningMatchItem;
+  nowMs: number;
+  cancelingMatchId: string | null;
+  onOpenMatch: (match: UpcomingRunningMatchItem) => void;
+  onCancelMatch: (match: UpcomingRunningMatchItem) => void;
+}) {
+  const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
+  const canOpenArena = match.status === 'active'
+    || (match.status === 'matched' && shouldAutoOpenMatchArena(remainingSeconds));
+
+  const handleOpenMatch = useCallback(() => {
+    if (!canOpenArena) {
+      return;
+    }
+
+    onOpenMatch(match);
+  }, [canOpenArena, match, onOpenMatch]);
+
+  const handleCancelMatch = useCallback(() => {
+    onCancelMatch(match);
+  }, [match, onCancelMatch]);
+
+  return (
+    <Pressable
+      style={styles.row}
+      disabled={!canOpenArena}
+      onPress={handleOpenMatch}
+    >
+      <View style={styles.copy}>
+        <Text style={styles.title}>
+          {match.isTestMatch ? '테스트 ' : ''}{match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
+        </Text>
+        <Text style={styles.meta}>{match.counterpartLabel}</Text>
+        {shouldShowMatchCardCountdown(remainingSeconds) ? (
+          <View style={styles.countdownPill}>
+            <Text style={styles.countdownText}>시작까지 {formatMatchCountdown(remainingSeconds!)}</Text>
+          </View>
+        ) : null}
+        {match.status === 'matched' ? (
+          match.canCancel ? (
+            <Pressable
+              style={styles.cancelButton}
+              onPress={handleCancelMatch}
+            >
+              <Text style={styles.cancelText}>
+                {cancelingMatchId === match.matchId ? '취소 중...' : '예약 취소'}
+              </Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.helperText}>출발 1시간 전부터는 취소할 수 없어요.</Text>
+          )
+        ) : null}
+        {canOpenArena ? (
+          <Text style={styles.helperText}>누르면 바로 대결 보기로 이동해요.</Text>
+        ) : null}
+      </View>
+      <Text style={styles.state}>
+        {match.status === 'active' ? '진행 중' : canOpenArena ? '곧 시작' : '예약됨'}
+      </Text>
+    </Pressable>
+  );
+});
+
 export function UpcomingMatchList({
   matches,
   nowMs,
@@ -22,6 +93,19 @@ export function UpcomingMatchList({
   onOpenMatch,
   onCancelMatch,
 }: UpcomingMatchListProps) {
+  const visibleMatchRows = useMemo(() => (
+    matches.slice(0, 2).map((match) => (
+      <UpcomingMatchRow
+        key={match.matchId}
+        match={match}
+        nowMs={nowMs}
+        cancelingMatchId={cancelingMatchId}
+        onOpenMatch={onOpenMatch}
+        onCancelMatch={onCancelMatch}
+      />
+    ))
+  ), [cancelingMatchId, matches, nowMs, onCancelMatch, onOpenMatch]);
+
   if (!matches.length) {
     return null;
   }
@@ -29,60 +113,7 @@ export function UpcomingMatchList({
   return (
     <View style={styles.card}>
       <Text style={styles.eyebrow}>다가오는 매치</Text>
-      {matches.slice(0, 2).map((match) => {
-        const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
-        const canOpenArena = match.status === 'active'
-          || (match.status === 'matched' && shouldAutoOpenMatchArena(remainingSeconds));
-
-        return (
-          <Pressable
-            key={match.matchId}
-            style={styles.row}
-            disabled={!canOpenArena}
-            onPress={() => {
-              if (!canOpenArena) {
-                return;
-              }
-
-              onOpenMatch(match);
-            }}
-          >
-            <View style={styles.copy}>
-              <Text style={styles.title}>
-                {match.isTestMatch ? '테스트 ' : ''}{match.mode === 'duel' ? '1대1 대결' : '그룹 대결'} · {match.summary}
-              </Text>
-              <Text style={styles.meta}>{match.counterpartLabel}</Text>
-              {shouldShowMatchCardCountdown(remainingSeconds) ? (
-                <View style={styles.countdownPill}>
-                  <Text style={styles.countdownText}>시작까지 {formatMatchCountdown(remainingSeconds!)}</Text>
-                </View>
-              ) : null}
-              {match.status === 'matched' ? (
-                match.canCancel ? (
-                  <Pressable
-                    style={styles.cancelButton}
-                    onPress={() => {
-                      onCancelMatch(match);
-                    }}
-                  >
-                    <Text style={styles.cancelText}>
-                      {cancelingMatchId === match.matchId ? '취소 중...' : '예약 취소'}
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <Text style={styles.helperText}>출발 1시간 전부터는 취소할 수 없어요.</Text>
-                )
-              ) : null}
-              {canOpenArena ? (
-                <Text style={styles.helperText}>누르면 바로 대결 보기로 이동해요.</Text>
-              ) : null}
-            </View>
-            <Text style={styles.state}>
-              {match.status === 'active' ? '진행 중' : canOpenArena ? '곧 시작' : '예약됨'}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {visibleMatchRows}
     </View>
   );
 }

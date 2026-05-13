@@ -2,9 +2,15 @@ import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import { appendTrackedLocation } from '@/features/runs/tracking/background/routeAccumulator';
+import {
+  BACKGROUND_RUN_TASK_NAME,
+  LEGACY_BACKGROUND_RUN_TASK_NAME,
+} from '@/features/runs/tracking/background/locationTaskNames';
 
-export const BACKGROUND_RUN_TASK_NAME = 'runningground-background-run-location';
-export const LEGACY_BACKGROUND_RUN_TASK_NAME = 'runnigapp-background-run-location';
+export {
+  BACKGROUND_RUN_TASK_NAME,
+  LEGACY_BACKGROUND_RUN_TASK_NAME,
+} from '@/features/runs/tracking/background/locationTaskNames';
 
 export function buildLocationTaskOptions(): Location.LocationTaskOptions {
   return {

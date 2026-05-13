@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { type Href, router } from 'expo-router';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
@@ -23,6 +24,11 @@ type PartyRunHomePanelProps = {
   onJoinRoom: () => void;
 };
 
+const ROOM_MODE_OPTIONS = [
+  { key: 'duel' as const, label: '1대1 대결' },
+  { key: 'group' as const, label: '그룹 대결' },
+];
+
 export function PartyRunHomePanel({
   visibleRoom,
   currentRoom,
@@ -38,6 +44,28 @@ export function PartyRunHomePanel({
   onDeclineInvite,
   onJoinRoom,
 }: PartyRunHomePanelProps) {
+  const handleOpenMatchRoom = useCallback(() => {
+    router.push('/match-room' as Href);
+  }, []);
+
+  const roomModeChips = useMemo(() => (
+    ROOM_MODE_OPTIONS.map((option) => {
+      const optionIsSelected = roomMode === option.key;
+
+      return (
+        <Pressable
+          key={option.key}
+          style={[styles.roomModeChip, optionIsSelected ? styles.roomModeChipSelected : undefined]}
+          onPress={() => onRoomModeChange(option.key)}
+        >
+          <Text style={[styles.roomModeChipText, optionIsSelected ? styles.roomModeChipTextSelected : undefined]}>
+            {option.label}
+          </Text>
+        </Pressable>
+      );
+    })
+  ), [onRoomModeChange, roomMode]);
+
   return (
     <>
       {visibleRoom ? (
@@ -52,9 +80,7 @@ export function PartyRunHomePanel({
         ) : (
           <Pressable
             style={styles.partyRoomEntryButton}
-            onPress={() => {
-              router.push('/match-room' as Href);
-            }}
+            onPress={handleOpenMatchRoom}
           >
             <Text style={styles.partyRoomEntryButtonText}>파티런 대기실로 가기</Text>
           </Pressable>
@@ -66,24 +92,7 @@ export function PartyRunHomePanel({
           {!currentRoom ? (
             <>
               <View style={styles.roomModeRow}>
-                {([
-                  { key: 'duel' as const, label: '1대1 대결' },
-                  { key: 'group' as const, label: '그룹 대결' },
-                ]).map((option) => {
-                  const optionIsSelected = roomMode === option.key;
-
-                  return (
-                    <Pressable
-                      key={option.key}
-                      style={[styles.roomModeChip, optionIsSelected ? styles.roomModeChipSelected : undefined]}
-                      onPress={() => onRoomModeChange(option.key)}
-                    >
-                      <Text style={[styles.roomModeChipText, optionIsSelected ? styles.roomModeChipTextSelected : undefined]}>
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+                {roomModeChips}
               </View>
               <View style={styles.roomJoinBox}>
                 <Text style={styles.roomPickerTitle}>초대 코드로 입장</Text>

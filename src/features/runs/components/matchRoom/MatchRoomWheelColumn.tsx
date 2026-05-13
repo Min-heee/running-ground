@@ -1,26 +1,84 @@
-import { useEffect, useRef } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { memo, type ElementRef, useCallback, useEffect, useMemo, useRef } from 'react';
+import {
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 const ITEM_HEIGHT = 48;
 const VISIBLE_WHEEL_ROWS = 5;
 const WHEEL_PADDING = ITEM_HEIGHT * 2;
+const defaultFormatLabel = (value: string | number) => String(value);
+
+type WheelOption = string | number;
 
 type MatchRoomWheelColumnProps = {
-  options: (string | number)[];
+  options: WheelOption[];
   selectedIndex: number;
   onChange: (index: number) => void;
-  formatLabel?: (value: string | number) => string;
+  formatLabel?: (value: WheelOption) => string;
   width: number;
 };
+
+const MatchRoomWheelItem = memo(function MatchRoomWheelItem({
+  option,
+  index,
+  isSelected,
+  onChange,
+  formatLabel,
+}: {
+  option: WheelOption;
+  index: number;
+  isSelected: boolean;
+  onChange: (index: number) => void;
+  formatLabel: (value: WheelOption) => string;
+}) {
+  const handlePress = useCallback(() => {
+    onChange(index);
+  }, [index, onChange]);
+
+  return (
+    <Pressable
+      style={styles.wheelItem}
+      onPress={handlePress}
+    >
+      <Text style={[styles.wheelItemText, isSelected ? styles.wheelItemTextSelected : undefined]}>
+        {formatLabel(option)}
+      </Text>
+    </Pressable>
+  );
+});
 
 export function MatchRoomWheelColumn({
   options,
   selectedIndex,
   onChange,
-  formatLabel = (value) => String(value),
+  formatLabel = defaultFormatLabel,
   width,
 }: MatchRoomWheelColumnProps) {
-  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollRef = useRef<ElementRef<typeof ScrollView> | null>(null);
+
+  const handleMomentumScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const nextIndex = Math.round(event.nativeEvent.contentOffset.y / ITEM_HEIGHT);
+    onChange(Math.max(0, Math.min(options.length - 1, nextIndex)));
+  }, [onChange, options.length]);
+
+  const wheelItems = useMemo(() => (
+    options.map((option, index) => (
+      <MatchRoomWheelItem
+        key={`${option}-${index}`}
+        option={option}
+        index={index}
+        isSelected={index === selectedIndex}
+        onChange={onChange}
+        formatLabel={formatLabel}
+      />
+    ))
+  ), [formatLabel, onChange, options, selectedIndex]);
 
   useEffect(() => {
     const frameId = requestAnimationFrame(() => {
@@ -39,25 +97,9 @@ export function MatchRoomWheelColumn({
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
         contentContainerStyle={styles.wheelContent}
-        onMomentumScrollEnd={(event) => {
-          const nextIndex = Math.round(event.nativeEvent.contentOffset.y / ITEM_HEIGHT);
-          onChange(Math.max(0, Math.min(options.length - 1, nextIndex)));
-        }}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
       >
-        {options.map((option, index) => {
-          const isSelected = index === selectedIndex;
-          return (
-            <Pressable
-              key={`${option}-${index}`}
-              style={styles.wheelItem}
-              onPress={() => onChange(index)}
-            >
-              <Text style={[styles.wheelItemText, isSelected ? styles.wheelItemTextSelected : undefined]}>
-                {formatLabel(option)}
-              </Text>
-            </Pressable>
-          );
-        })}
+        {wheelItems}
       </ScrollView>
     </View>
   );

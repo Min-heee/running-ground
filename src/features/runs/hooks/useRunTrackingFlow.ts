@@ -396,7 +396,7 @@ export function useRunTrackingFlow({
         }
       }
 
-      await startBackgroundRunTracking();
+      await startBackgroundRunTracking(undefined, { appState: appStateRef.current });
       syncFromBackgroundTracking();
 
       try {
@@ -471,7 +471,7 @@ export function useRunTrackingFlow({
     try {
       setError(null);
       await ensureBackgroundLocationPermission();
-      await resumeBackgroundRunTracking();
+      await resumeBackgroundRunTracking({ appState: appStateRef.current });
       syncFromBackgroundTracking();
 
       if (liveShareEnabledRef.current) {

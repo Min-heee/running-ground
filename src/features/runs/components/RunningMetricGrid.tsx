@@ -1,5 +1,11 @@
+import { memo, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
+
+type RunningMetric = {
+  label: string;
+  value: string;
+};
 
 type RunningMetricGridProps = {
   elapsedLabel: string;
@@ -10,6 +16,15 @@ type RunningMetricGridProps = {
   elevationLabel: string;
 };
 
+const RunningMetricCard = memo(function RunningMetricCard({ metric }: { metric: RunningMetric }) {
+  return (
+    <Card style={styles.card}>
+      <Text style={styles.label}>{metric.label}</Text>
+      <Text style={styles.value}>{metric.value}</Text>
+    </Card>
+  );
+});
+
 export function RunningMetricGrid({
   elapsedLabel,
   distanceLabel,
@@ -18,23 +33,31 @@ export function RunningMetricGrid({
   cadenceLabel,
   elevationLabel,
 }: RunningMetricGridProps) {
-  const metrics = [
+  const metrics = useMemo<RunningMetric[]>(() => [
     { label: '시간', value: elapsedLabel },
     { label: '거리', value: distanceLabel },
     { label: '평균 페이스', value: averagePaceLabel },
     { label: '현재 페이스', value: currentPaceLabel },
     { label: '케이던스', value: cadenceLabel },
     { label: '고도 상승', value: elevationLabel },
-  ];
+  ], [
+    averagePaceLabel,
+    cadenceLabel,
+    currentPaceLabel,
+    distanceLabel,
+    elapsedLabel,
+    elevationLabel,
+  ]);
+
+  const metricCards = useMemo(() => (
+    metrics.map((metric) => (
+      <RunningMetricCard key={metric.label} metric={metric} />
+    ))
+  ), [metrics]);
 
   return (
     <View style={styles.grid}>
-      {metrics.map((metric) => (
-        <Card key={metric.label} style={styles.card}>
-          <Text style={styles.label}>{metric.label}</Text>
-          <Text style={styles.value}>{metric.value}</Text>
-        </Card>
-      ))}
+      {metricCards}
     </View>
   );
 }

@@ -1,10 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import { AppState } from 'react-native';
 import type { AppStateStatus } from 'react-native';
 import {
   getBackgroundRunTrackingSnapshot,
   subscribeBackgroundRunTracking,
+  syncBackgroundRunTrackingAppState,
   type BackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
@@ -64,48 +65,56 @@ export function useTrackingAppStateSync({
     syncMatchLifecycleStatus,
   };
 
-  useEffect(() => {
-    const unsubscribe = subscribeBackgroundRunTracking(
-      (snapshot) => {
-        callbackRef.current.syncFromBackgroundTracking(snapshot);
-        callbackRef.current.refreshLiveSharingHeartbeat(snapshot);
-        callbackRef.current.refreshMatchProgressHeartbeat(snapshot);
+  const handleBackgroundTrackingSnapshot = useCallback((snapshot: BackgroundRunTrackingSnapshot) => {
+    callbackRef.current.syncFromBackgroundTracking(snapshot);
+    callbackRef.current.refreshLiveSharingHeartbeat(snapshot);
+    callbackRef.current.refreshMatchProgressHeartbeat(snapshot);
 
-        if (snapshot.status === 'running') {
-          callbackRef.current.startElapsedTicker();
-        } else {
-          callbackRef.current.clearElapsedTicker();
-        }
-      },
-      { cloneRoute: false },
-    );
-    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
-      const previousState = appStateRef.current;
-      appStateRef.current = nextState;
+    if (snapshot.status === 'running') {
+      callbackRef.current.startElapsedTicker();
+    } else {
+      callbackRef.current.clearElapsedTicker();
+    }
+  }, []);
 
-      if (nextState === 'active') {
-        const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
-        callbackRef.current.syncFromBackgroundTracking(snapshot);
-        void callbackRef.current.refreshStaleMatchArtifacts().catch(() => {});
+  const handleAppStateChange = useCallback((nextState: AppStateStatus) => {
+    const previousState = appStateRef.current;
+    appStateRef.current = nextState;
 
-        if (trackerStatusRef.current === 'running') {
-          void callbackRef.current.syncMatchLifecycleStatus('running', snapshot).catch(() => {
-            // Keep the run going even if the optional lifecycle heartbeat fails.
-          });
-        }
-        return;
+    if (nextState === 'active') {
+      const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
+      callbackRef.current.syncFromBackgroundTracking(snapshot);
+      if (trackerStatusRef.current === 'running') {
+        void syncBackgroundRunTrackingAppState('active').catch(() => {});
       }
+      void callbackRef.current.refreshStaleMatchArtifacts().catch(() => {});
 
-      if (
-        previousState === 'active'
-        && (nextState === 'inactive' || nextState === 'background')
-        && trackerStatusRef.current === 'running'
-      ) {
-        void callbackRef.current.syncMatchLifecycleStatus('background').catch(() => {
+      if (trackerStatusRef.current === 'running') {
+        void callbackRef.current.syncMatchLifecycleStatus('running', snapshot).catch(() => {
           // Keep the run going even if the optional lifecycle heartbeat fails.
         });
       }
-    });
+      return;
+    }
+
+    if (
+      previousState === 'active'
+      && (nextState === 'inactive' || nextState === 'background')
+      && trackerStatusRef.current === 'running'
+    ) {
+      void syncBackgroundRunTrackingAppState(nextState).catch(() => {});
+      void callbackRef.current.syncMatchLifecycleStatus('background').catch(() => {
+        // Keep the run going even if the optional lifecycle heartbeat fails.
+      });
+    }
+  }, [appStateRef, trackerStatusRef]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeBackgroundRunTracking(
+      handleBackgroundTrackingSnapshot,
+      { cloneRoute: false },
+    );
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 
     return () => {
       unsubscribe();
@@ -113,5 +122,5 @@ export function useTrackingAppStateSync({
       callbackRef.current.finishSoloStartCountdown(false);
       callbackRef.current.stopForegroundTrackingHelpers();
     };
-  }, [appStateRef, trackerStatusRef]);
+  }, [handleAppStateChange, handleBackgroundTrackingSnapshot]);
 }
