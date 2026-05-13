@@ -1236,6 +1236,16 @@ export function TrackRunExperience({
         }
       }
 
+      if (payload.blocker && !payload.room) {
+        rgPerfMark('already joined room detected', {
+          blocker: payload.blocker,
+          blockerSource: payload.blockerSource ?? payload.blocker,
+          source,
+        });
+        setError(payload.message ?? '이미 진행 중인 매칭 상태가 있어요. 기존 상태를 먼저 정리한 뒤 다시 시도해주세요.');
+        return false;
+      }
+
       if (!payload.room) {
         return true;
       }
@@ -1373,8 +1383,15 @@ export function TrackRunExperience({
         source: 'track-run invite code input',
       });
       const payload = await joinRunningMatchRoom({ inviteToken });
+      if (!payload.room?.roomId) {
+        endJoinApiTrace({
+          reason: 'missing roomId',
+          success: false,
+        });
+        throw new Error('참여할 방 정보를 확인하지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.');
+      }
       endJoinApiTrace({
-        roomId: payload.room?.roomId ?? null,
+        roomId: payload.room.roomId,
         success: true,
       });
       if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
@@ -1384,9 +1401,7 @@ export function TrackRunExperience({
       syncServerClock(payload.serverNow);
       commitMatchRoom(payload.room);
       setRoomInviteTokenInput('');
-      if (payload.room) {
-        navigateToMatchRoomWithTrace('invite code join', payload.room.roomId);
-      }
+      navigateToMatchRoomWithTrace('invite code join', payload.room.roomId);
     } catch (roomError) {
       endJoinApiTrace?.({ success: false });
       const message = getApiErrorMessage(roomError, '방에 들어가지 못했어.');
@@ -1429,8 +1444,15 @@ export function TrackRunExperience({
         source: 'track-run invite card accept',
       });
       const payload = await joinRunningMatchRoom({ inviteToken: visibleMatchRoom.inviteToken });
+      if (!payload.room?.roomId) {
+        endJoinApiTrace({
+          reason: 'missing roomId',
+          success: false,
+        });
+        throw new Error('참여할 방 정보를 확인하지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.');
+      }
       endJoinApiTrace({
-        roomId: payload.room?.roomId ?? visibleMatchRoom.roomId,
+        roomId: payload.room.roomId,
         success: true,
       });
       if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
@@ -1439,9 +1461,7 @@ export function TrackRunExperience({
 
       syncServerClock(payload.serverNow);
       commitMatchRoom(payload.room);
-      if (payload.room) {
-        navigateToMatchRoomWithTrace('invite card accept', payload.room.roomId);
-      }
+      navigateToMatchRoomWithTrace('invite card accept', payload.room.roomId);
     } catch (roomError) {
       endJoinApiTrace?.({ success: false });
       const message = getApiErrorMessage(roomError, '초대를 수락하지 못했어.');

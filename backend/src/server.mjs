@@ -108,9 +108,10 @@ const MATCH_PROGRESS_MAX_SPEED_MPS = 12;
 const MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND = MATCH_PROGRESS_MAX_SPEED_MPS / 1000;
 
 class ApiError extends Error {
-  constructor(statusCode, message) {
+  constructor(statusCode, message, details = null) {
     super(message);
     this.statusCode = statusCode;
+    this.details = details && typeof details === 'object' ? details : null;
   }
 }
 
@@ -133,6 +134,15 @@ function logBackendError(label, error, extra = {}) {
     label,
     message: getErrorMessage(error),
     stack: error instanceof Error ? error.stack : undefined,
+    ...extra,
+  }));
+}
+
+function logBackendInfo(label, extra = {}) {
+  console.log(JSON.stringify({
+    level: 'info',
+    service: 'runningground-backend',
+    label,
     ...extra,
   }));
 }
@@ -192,7 +202,10 @@ function sendError(response, error) {
   }
 
   if (error instanceof ApiError) {
-    sendJson(response, error.statusCode, { message: error.message });
+    sendJson(response, error.statusCode, {
+      message: error.message,
+      ...(error.details ? { details: error.details } : {}),
+    });
     return;
   }
 
@@ -1643,6 +1656,124 @@ function buildMatchRoomLockMessage(room, store, currentUserId) {
   return `이미 예약된 ${modeLabel}이 있어요. 기존 방을 먼저 정리해야 다른 매칭을 신청할 수 있어요.`;
 }
 
+function buildLiveRunShareLockMessage() {
+  return '이미 진행 중인 러닝 공유가 있어요. 현재 러닝을 먼저 끝내야 새 매칭을 신청할 수 있어요.';
+}
+
+function getLiveRunShareEntryForUser(store, userId) {
+  if (Array.isArray(store.liveRunShares)) {
+    return store.liveRunShares.find((entry) => entry?.userId === userId) ?? null;
+  }
+
+  if (store.liveRunShares && typeof store.liveRunShares === 'object') {
+    return store.liveRunShares[userId] ?? null;
+  }
+
+  return null;
+}
+
+function buildRunningMatchRequestBlocker(store, currentUser, now = new Date()) {
+  const existingSession = findAnyReservedMatchSessionForUser(store, currentUser.id, now);
+
+  if (existingSession) {
+    return {
+      legacyBlocker: 'matchSession',
+      source: 'matchSessions.activeParticipant',
+      message: buildSingleMatchLockMessage(existingSession.session.mode, existingSession.session.slotStartAt, existingSession.state),
+      details: {
+        source: 'matchSessions.activeParticipant',
+        sessionId: existingSession.session.id,
+        mode: existingSession.session.mode,
+        state: existingSession.state,
+        slotStartAt: existingSession.session.slotStartAt,
+      },
+    };
+  }
+
+  const existingQueue = findAnyQueuedMatchEntryForUser(store, currentUser.id);
+
+  if (existingQueue) {
+    return {
+      legacyBlocker: 'matchQueue',
+      source: `matchQueues.${existingQueue.mode}`,
+      message: buildSingleMatchLockMessage(existingQueue.mode, existingQueue.entry.slotStartAt, 'waiting'),
+      details: {
+        source: `matchQueues.${existingQueue.mode}`,
+        queueId: existingQueue.entry.id,
+        mode: existingQueue.mode,
+        state: 'waiting',
+        slotStartAt: existingQueue.entry.slotStartAt,
+      },
+    };
+  }
+
+  const existingRoom = findRunningMatchRoomForUser(store, currentUser.id, now);
+
+  if (existingRoom) {
+    const participant = existingRoom.participants.find((entry) => entry.userId === currentUser.id) ?? null;
+    const isInvited = Array.isArray(existingRoom.invitedFriendIds) && existingRoom.invitedFriendIds.includes(currentUser.id);
+    const roomState = getRunningMatchRoomState(existingRoom, store, now);
+    const source = participant ? 'matchRooms.participant' : 'matchRooms.invited';
+
+    return {
+      legacyBlocker: 'activeRoom',
+      source,
+      message: buildMatchRoomLockMessage(existingRoom, store, currentUser.id),
+      room: existingRoom,
+      details: {
+        source,
+        roomId: existingRoom.id,
+        mode: existingRoom.mode,
+        state: roomState,
+        startMode: existingRoom.startMode,
+        slotStartAt: existingRoom.slotStartAt,
+        linkedMatchId: existingRoom.linkedMatchId ?? null,
+        isHost: existingRoom.hostUserId === currentUser.id,
+        isParticipant: Boolean(participant),
+        isInvited,
+      },
+    };
+  }
+
+  const liveRunShare = getLiveRunShareEntryForUser(store, currentUser.id);
+
+  if (liveRunShare && !shouldClearLiveRunShareEntry(liveRunShare, now)) {
+    return {
+      legacyBlocker: 'liveRunShare',
+      source: 'liveRunShares.active',
+      message: buildLiveRunShareLockMessage(),
+      details: {
+        source: 'liveRunShares.active',
+        state: String(liveRunShare.status ?? 'running'),
+        updatedAt: liveRunShare.updatedAt ?? liveRunShare.lastUpdatedAt ?? liveRunShare.createdAt ?? null,
+      },
+    };
+  }
+
+  return null;
+}
+
+function logRunningMatchRequestBlocker(label, currentUser, blocker) {
+  if (!blocker) {
+    return;
+  }
+
+  logBackendInfo(label, {
+    userId: currentUser.id,
+    blocker: blocker.legacyBlocker,
+    blockerSource: blocker.source,
+    blockerDetails: blocker.details,
+  });
+}
+
+function buildRunningMatchBlockerApiDetails(blocker) {
+  return {
+    blocker: blocker.legacyBlocker,
+    blockerSource: blocker.source,
+    blockerDetails: blocker.details ?? null,
+  };
+}
+
 function createRunningMatchRoom(store, currentUser, {
   mode,
   distanceKm,
@@ -1696,32 +1827,38 @@ function createRunningMatchRoom(store, currentUser, {
   return buildRunningMatchRoomResponse(store, currentUser, room);
 }
 
+function requireJoinedRunningMatchRoomResponse(payload) {
+  if (payload?.room?.roomId) {
+    return payload;
+  }
+
+  throw new ApiError(
+    404,
+    '참여할 방 정보를 확인하지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.',
+  );
+}
+
 function joinRunningMatchRoom(store, currentUser, { inviteToken }) {
   const room = findRunningMatchRoomByInviteToken(store, inviteToken);
 
   if (!room) {
-    throw new ApiError(404, '참여할 방을 찾지 못했어.');
+    throw new ApiError(404, '참여할 방을 찾지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.');
   }
 
-  const existingSession = findAnyReservedMatchSessionForUser(store, currentUser.id);
-  if (existingSession) {
-    throw new ApiError(
-      400,
-      buildSingleMatchLockMessage(existingSession.session.mode, existingSession.session.slotStartAt, existingSession.state),
-    );
-  }
+  const cleanup = cleanupStaleRunningMatchRoomState(store, currentUser);
+  const blockerRoomId = cleanup.blockerDetails?.roomId;
+  const blocksDifferentRoom = cleanup.blocker && (
+    cleanup.blocker !== 'activeRoom' || !blockerRoomId || blockerRoomId !== room.id
+  );
 
-  const existingQueue = findAnyQueuedMatchEntryForUser(store, currentUser.id);
-  if (existingQueue) {
-    throw new ApiError(
-      400,
-      buildSingleMatchLockMessage(existingQueue.mode, existingQueue.entry.slotStartAt, 'waiting'),
-    );
-  }
-
-  const existingRoom = findRunningMatchRoomForUser(store, currentUser.id);
-  if (existingRoom && existingRoom.id !== room.id) {
-    throw new ApiError(400, buildMatchRoomLockMessage(existingRoom, store, currentUser.id));
+  if (blocksDifferentRoom) {
+    const blocker = {
+      legacyBlocker: cleanup.blocker,
+      source: cleanup.blockerSource ?? cleanup.blocker,
+      details: cleanup.blockerDetails ?? null,
+    };
+    logRunningMatchRequestBlocker('running_match_join_blocked', currentUser, blocker);
+    throw new ApiError(400, cleanup.message ?? '이미 진행 중인 매칭 상태가 있어요.', buildRunningMatchBlockerApiDetails(blocker));
   }
 
   if (room.linkedMatchId) {
@@ -1729,7 +1866,7 @@ function joinRunningMatchRoom(store, currentUser, { inviteToken }) {
   }
 
   if (room.participants.some((participant) => participant.userId === currentUser.id)) {
-    return buildRunningMatchRoomResponse(store, currentUser, room);
+    return requireJoinedRunningMatchRoomResponse(buildRunningMatchRoomResponse(store, currentUser, room));
   }
 
   if (room.participants.length >= room.maxParticipants) {
@@ -1746,7 +1883,7 @@ function joinRunningMatchRoom(store, currentUser, { inviteToken }) {
   });
 
   syncMatchRooms(store);
-  return buildRunningMatchRoomResponse(store, currentUser, room);
+  return requireJoinedRunningMatchRoomResponse(buildRunningMatchRoomResponse(store, currentUser, room));
 }
 
 function startRunningMatchRoom(store, currentUser, { roomId }) {
@@ -1955,12 +2092,31 @@ function countUserQueueRefs(store, userId) {
 
 function clearUserStaleReferenceFields(store, currentUser) {
   const cleanedItems = [];
-  const roomIdFields = ['activeRoomId', 'activeMatchRoomId', 'currentRoomId', 'partyRunRoomId'];
-  const matchIdFields = ['activeMatchId', 'currentMatchId', 'activeDuelMatchId', 'activeGroupMatchId'];
+  const now = new Date();
+  const roomIdFields = [
+    'activeRoomId',
+    'activeMatchRoomId',
+    'activeRunningMatchRoomId',
+    'currentRoomId',
+    'currentMatchRoomId',
+    'partyRunRoomId',
+  ];
+  const matchIdFields = [
+    'activeMatchId',
+    'activeSessionId',
+    'runningMatchId',
+    'currentMatchId',
+    'activeDuelMatchId',
+    'activeGroupMatchId',
+  ];
 
   for (const field of roomIdFields) {
     const value = currentUser[field];
-    if (typeof value === 'string' && value && !ensureMatchRooms(store).some((room) => room.id === value)) {
+    const hasCurrentUserRoomReference = ensureMatchRooms(store).some((room) => (
+      room.id === value && isMatchRoomVisibleToUser(room, currentUser.id)
+    ));
+
+    if (typeof value === 'string' && value && !hasCurrentUserRoomReference) {
       delete currentUser[field];
       cleanedItems.push(`user.${field}`);
     }
@@ -1968,7 +2124,15 @@ function clearUserStaleReferenceFields(store, currentUser) {
 
   for (const field of matchIdFields) {
     const value = currentUser[field];
-    if (typeof value === 'string' && value && !ensureMatchSessions(store).some((session) => session.id === value)) {
+    const hasCurrentUserSessionReference = ensureMatchSessions(store).some((session) => (
+      session.id === value
+      && ['matched', 'active'].includes(hydrateMatchSessionState(session, now))
+      && session.participants.some((participant) => (
+        participant.userId === currentUser.id && !isParticipantDoneWithMatch(participant, now)
+      ))
+    ));
+
+    if (typeof value === 'string' && value && !hasCurrentUserSessionReference) {
       delete currentUser[field];
       cleanedItems.push(`user.${field}`);
     }
@@ -2094,13 +2258,22 @@ function cleanupStaleRunningMatchRoomState(store, currentUser, now = new Date())
     );
 
     if (!shouldDetachStaleRoomParticipant) {
+      const blocker = buildRunningMatchRequestBlocker(store, currentUser, now);
+      logRunningMatchRequestBlocker('running_match_cleanup_blocked', currentUser, blocker);
       return {
         success: true,
         serverNow: now.toISOString(),
         cleaned: cleanedItems.length > 0,
         cleanedItems,
-        blocker: 'activeRoom',
-        message: buildMatchRoomLockMessage(existingRoom, store, currentUser.id),
+        blocker: blocker?.legacyBlocker ?? 'activeRoom',
+        blockerSource: blocker?.source ?? 'matchRooms.participant',
+        blockerDetails: blocker?.details ?? {
+          source: 'matchRooms.participant',
+          roomId: existingRoom.id,
+          mode: existingRoom.mode,
+          state: getRunningMatchRoomState(existingRoom, store, now),
+        },
+        message: blocker?.message ?? buildMatchRoomLockMessage(existingRoom, store, currentUser.id),
         room: roomPayload.room,
       };
     }
@@ -2112,36 +2285,25 @@ function cleanupStaleRunningMatchRoomState(store, currentUser, now = new Date())
     pruneMatchRooms(store, now);
   }
 
-  const existingSession = findAnyReservedMatchSessionForUser(store, currentUser.id, now);
-
-  if (existingSession) {
-    return {
-      success: true,
-      serverNow: now.toISOString(),
-      cleaned: cleanedItems.length > 0,
-      cleanedItems,
-      blocker: 'matchSession',
-      message: buildSingleMatchLockMessage(existingSession.session.mode, existingSession.session.slotStartAt, existingSession.state),
-      room: null,
-    };
-  }
-
-  const existingQueue = findAnyQueuedMatchEntryForUser(store, currentUser.id);
-
-  if (existingQueue) {
-    return {
-      success: true,
-      serverNow: now.toISOString(),
-      cleaned: cleanedItems.length > 0,
-      cleanedItems,
-      blocker: 'matchQueue',
-      message: buildSingleMatchLockMessage(existingQueue.mode, existingQueue.entry.slotStartAt, 'waiting'),
-      room: null,
-    };
-  }
-
   if (clearUserLiveRunShare(store, currentUser.id, now)) {
     cleanedItems.push('liveRunShares.currentUser');
+  }
+
+  const blocker = buildRunningMatchRequestBlocker(store, currentUser, now);
+
+  if (blocker) {
+    logRunningMatchRequestBlocker('running_match_cleanup_blocked', currentUser, blocker);
+    return {
+      success: true,
+      serverNow: now.toISOString(),
+      cleaned: cleanedItems.length > 0,
+      cleanedItems,
+      blocker: blocker.legacyBlocker,
+      blockerSource: blocker.source,
+      blockerDetails: blocker.details,
+      message: blocker.message,
+      room: blocker.room ? buildRunningMatchRoomResponse(store, currentUser, blocker.room, now).room : null,
+    };
   }
 
   const nextRoom = findRunningMatchRoomForUser(store, currentUser.id, now);
@@ -2622,28 +2784,19 @@ function buildSingleMatchLockMessage(mode, slotStartAt, state = 'waiting') {
 
 function assertUserCanRequestAnotherMatch(store, currentUser) {
   const now = new Date();
-  const existingSession = findAnyReservedMatchSessionForUser(store, currentUser.id, now);
+  const cleanup = cleanupStaleRunningMatchRoomState(store, currentUser, now);
 
-  if (existingSession) {
-    throw new ApiError(
-      400,
-      buildSingleMatchLockMessage(existingSession.session.mode, existingSession.session.slotStartAt, existingSession.state),
-    );
-  }
-
-  const existingQueue = findAnyQueuedMatchEntryForUser(store, currentUser.id);
-
-  if (existingQueue) {
-    throw new ApiError(
-      400,
-      buildSingleMatchLockMessage(existingQueue.mode, existingQueue.entry.slotStartAt, 'waiting'),
-    );
-  }
-
-  const existingRoom = findRunningMatchRoomForUser(store, currentUser.id, now);
-
-  if (existingRoom) {
-    throw new ApiError(400, buildMatchRoomLockMessage(existingRoom, store, currentUser.id));
+  if (cleanup.blocker) {
+    logRunningMatchRequestBlocker('running_match_request_blocked', currentUser, {
+      legacyBlocker: cleanup.blocker,
+      source: cleanup.blockerSource ?? cleanup.blocker,
+      details: cleanup.blockerDetails ?? null,
+    });
+    throw new ApiError(400, cleanup.message ?? '이미 진행 중인 매칭 상태가 있어요.', buildRunningMatchBlockerApiDetails({
+      legacyBlocker: cleanup.blocker,
+      source: cleanup.blockerSource ?? cleanup.blocker,
+      details: cleanup.blockerDetails ?? null,
+    }));
   }
 }
 

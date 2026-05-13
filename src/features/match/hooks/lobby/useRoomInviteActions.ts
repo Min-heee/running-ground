@@ -57,8 +57,15 @@ export function useRoomInviteActions({
 
     try {
       const payload = await joinRunningMatchRoom({ inviteToken: room.inviteToken });
+      if (!payload.room?.roomId) {
+        endJoinApiTrace({
+          reason: 'missing roomId',
+          success: false,
+        });
+        throw new Error('참여할 방 정보를 확인하지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.');
+      }
       endJoinApiTrace({
-        roomId: payload.room?.roomId ?? room.roomId,
+        roomId: payload.room.roomId,
         success: true,
       });
       if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {

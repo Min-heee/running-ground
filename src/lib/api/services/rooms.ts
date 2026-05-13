@@ -31,6 +31,7 @@ import {
   formatDuelSlotLabel,
   requireAccessToken,
   buildMockRunningMatchRoomResponse,
+  ensureJoinedRunningMatchRoomResponse,
   shouldFallbackToLocalRunningRoomApi,
   recalculateMockRunningMatchRoomCanStart,
   decorateMockRunningMatchRoom,
@@ -140,11 +141,11 @@ export async function createRunningMatchRoom(input: CreateRunningMatchRoomInput)
 
 export async function joinRunningMatchRoom(input: JoinRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
-    return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom));
+    return ensureJoinedRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)));
   }
 
   try {
-    return await apiPost<RunningMatchRoomResponse>(
+    const payload = await apiPost<RunningMatchRoomResponse>(
       '/running/rooms/join',
       input,
       {
@@ -152,9 +153,11 @@ export async function joinRunningMatchRoom(input: JoinRunningMatchRoomInput): Pr
         fallbackMessage: '방에 들어가지 못했어.',
       },
     );
+
+    return ensureJoinedRunningMatchRoomResponse(payload);
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
-      return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom));
+      return ensureJoinedRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)));
     }
 
     throw error;

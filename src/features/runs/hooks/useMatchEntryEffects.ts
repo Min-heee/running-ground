@@ -121,6 +121,11 @@ export function useMatchEntryEffects({
           commitMatchRoom(cleanupPayload.room);
         }
 
+        if (cleanupPayload?.blocker && !cleanupPayload.room) {
+          onError(cleanupPayload.message ?? '이미 진행 중인 매칭 상태가 있어요. 기존 상태를 먼저 정리한 뒤 다시 시도해주세요.');
+          return null;
+        }
+
         if (
           cleanupPayload?.room
           && cleanupPayload.room.joined !== false
@@ -152,8 +157,16 @@ export function useMatchEntryEffects({
           return;
         }
 
+        if (!payload.room?.roomId) {
+          endJoinApiTrace({
+            reason: 'missing roomId',
+            success: false,
+          });
+          throw new Error('참여할 방 정보를 확인하지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.');
+        }
+
         endJoinApiTrace({
-          roomId: payload.room?.roomId ?? null,
+          roomId: payload.room.roomId,
           success: true,
         });
         if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
@@ -163,14 +176,12 @@ export function useMatchEntryEffects({
         syncServerClock(payload.serverNow);
         commitMatchRoom(payload.room);
 
-        if (payload.room) {
-          const endNavigationTrace = rgPerfMeasureStart('navigation to lobby', {
-            roomId: payload.room.roomId,
-            source: 'room invite token effect',
-          });
-          router.push('/match-room' as Href);
-          endNavigationTrace({ success: true });
-        }
+        const endNavigationTrace = rgPerfMeasureStart('navigation to lobby', {
+          roomId: payload.room.roomId,
+          source: 'room invite token effect',
+        });
+        router.push('/match-room' as Href);
+        endNavigationTrace({ success: true });
       })
       .catch((roomError) => {
         endJoinApiTrace({ success: false });

@@ -77,12 +77,38 @@ export type RunningMatchRoomResponse = {
   room: RunningMatchRoom | null;
 };
 
+export type RunningMatchRoomBlockerSource =
+  | 'matchRooms.participant'
+  | 'matchRooms.invited'
+  | 'matchSessions.activeParticipant'
+  | 'matchQueues.duel'
+  | 'matchQueues.group'
+  | 'liveRunShares.active';
+
+export type RunningMatchRoomBlockerDetails = {
+  source: RunningMatchRoomBlockerSource;
+  roomId?: string;
+  sessionId?: string;
+  queueId?: string;
+  mode?: RunningMatchRoomMode;
+  state?: string;
+  startMode?: RunningMatchRoomStartMode;
+  slotStartAt?: string;
+  linkedMatchId?: string | null;
+  isHost?: boolean;
+  isParticipant?: boolean;
+  isInvited?: boolean;
+  updatedAt?: string | null;
+};
+
 export type RunningMatchRoomCleanupResponse = {
   success: boolean;
   serverNow?: string;
   cleaned: boolean;
   cleanedItems: string[];
-  blocker?: 'activeRoom' | 'matchSession' | 'matchQueue';
+  blocker?: 'activeRoom' | 'matchSession' | 'matchQueue' | 'liveRunShare';
+  blockerSource?: RunningMatchRoomBlockerSource;
+  blockerDetails?: RunningMatchRoomBlockerDetails;
   message?: string;
   room: RunningMatchRoom | null;
 };
