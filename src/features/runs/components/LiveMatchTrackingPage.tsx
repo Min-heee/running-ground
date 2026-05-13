@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { RunningMetricGrid } from '@/features/runs/components/RunningMetricGrid';
@@ -79,6 +79,11 @@ export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
   elevationGainM,
   onContinueSoloFromMatch,
 }: LiveMatchTrackingPageProps) {
+  const elapsedLabel = useMemo(() => formatDuration(elapsedSeconds), [elapsedSeconds]);
+  const distanceLabel = useMemo(() => formatMetricDistance(distanceKm), [distanceKm]);
+  const cadenceLabel = useMemo(() => formatCadence(cadenceSpm), [cadenceSpm]);
+  const elevationLabel = useMemo(() => formatElevation(elevationGainM), [elevationGainM]);
+
   return (
     <>
       {includeMatchCards && matchMode !== 'solo' ? (
@@ -117,12 +122,12 @@ export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
       ) : null}
 
       <RunningMetricGrid
-        elapsedLabel={formatDuration(elapsedSeconds)}
-        distanceLabel={formatMetricDistance(distanceKm)}
+        elapsedLabel={elapsedLabel}
+        distanceLabel={distanceLabel}
         averagePaceLabel={averagePace}
         currentPaceLabel={currentPace}
-        cadenceLabel={formatCadence(cadenceSpm)}
-        elevationLabel={formatElevation(elevationGainM)}
+        cadenceLabel={cadenceLabel}
+        elevationLabel={elevationLabel}
       />
     </>
   );
@@ -147,6 +152,10 @@ const DuelTrackingSummaryCard = memo(function DuelTrackingSummaryCard({
   isLeavingDuelMatch: boolean;
   onContinueSoloFromMatch: (source: MatchExitSource) => void;
 }) {
+  const handleContinueSolo = useCallback(() => {
+    onContinueSoloFromMatch('duel');
+  }, [onContinueSoloFromMatch]);
+
   return (
     <View style={styles.duelLiveCard}>
       <View style={styles.duelLiveHeader}>
@@ -178,9 +187,7 @@ const DuelTrackingSummaryCard = memo(function DuelTrackingSummaryCard({
           alert={duelStatusAlert}
           actionLabel={isLeavingDuelMatch ? '전환 중...' : '혼자 계속 달릴게요'}
           disabled={isLeavingDuelMatch}
-          onPress={() => {
-            onContinueSoloFromMatch('duel');
-          }}
+          onPress={handleContinueSolo}
         />
       ) : null}
     </View>
@@ -234,6 +241,13 @@ const GroupTrackingSummaryCard = memo(function GroupTrackingSummaryCard({
   onContinueSoloFromMatch: (source: MatchExitSource) => void;
 }) {
   const topStandings = useMemo(() => groupLiveStandings.slice(0, 5), [groupLiveStandings]);
+  const topStandingRows = useMemo(() => topStandings.map((participant) => (
+    <GroupLiveStandingRow key={participant.id} participant={participant} />
+  )), [topStandings]);
+  const handleContinueSolo = useCallback(() => {
+    onContinueSoloFromMatch('group');
+  }, [onContinueSoloFromMatch]);
+  const statusActionPress = groupStatusAlert?.tone === 'danger' ? handleContinueSolo : undefined;
 
   return (
     <View style={styles.groupLiveCard}>
@@ -278,17 +292,11 @@ const GroupTrackingSummaryCard = memo(function GroupTrackingSummaryCard({
           alert={groupStatusAlert}
           actionLabel={isLeavingGroupMatch ? '전환 중...' : '혼자 계속 달릴게요'}
           disabled={isLeavingGroupMatch}
-          onPress={groupStatusAlert.tone === 'danger'
-            ? () => {
-                onContinueSoloFromMatch('group');
-              }
-            : undefined}
+          onPress={statusActionPress}
         />
       ) : null}
       <View style={styles.groupLiveTopList}>
-        {topStandings.map((participant) => (
-          <GroupLiveStandingRow key={participant.id} participant={participant} />
-        ))}
+        {topStandingRows}
       </View>
       {currentGroupStanding.rank > 5 ? (
         <View style={[styles.groupLiveRow, styles.groupLiveRowCurrent]}>

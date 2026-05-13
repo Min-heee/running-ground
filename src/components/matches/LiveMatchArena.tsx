@@ -48,6 +48,7 @@ export const LiveMatchArena = memo(function LiveMatchArena({
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = Math.max(300, windowWidth - 32);
   const perfLabel = mode === 'duel' ? 'duel-arena' : 'group-arena';
+  const cardStyle = useMemo(() => [styles.card, { width: cardWidth }], [cardWidth]);
   const duelParticipants = useMemo(
     () => (mode === 'duel' ? buildAndroidRenderParticipants(participants) : []),
     [mode, participants],
@@ -84,16 +85,18 @@ export const LiveMatchArena = memo(function LiveMatchArena({
     () => (LIVE_MATCH_PERF_QA_ENABLED ? <AndroidLiveMatchPerfPanel label={perfLabel} /> : null),
     [perfLabel],
   );
+  const summaryChipItems = useMemo(
+    () => summaryChips.map((chip) => <SummaryChip key={chip} label={chip} />),
+    [summaryChips],
+  );
 
   return (
-    <View style={[styles.card, { width: cardWidth }]}>
+    <View style={cardStyle}>
       <Text style={styles.eyebrow}>{mode === 'duel' ? 'DUEL ROAD' : 'GROUP ROAD'}</Text>
       <Text style={styles.title}>{title}</Text>
       <Text style={styles.subtitle}>{subtitle}</Text>
       <View style={styles.summaryChipRow}>
-        {summaryChips.map((chip) => (
-          <SummaryChip key={chip} label={chip} />
-        ))}
+        {summaryChipItems}
       </View>
       {perfPanel}
       {mode === 'duel' ? (

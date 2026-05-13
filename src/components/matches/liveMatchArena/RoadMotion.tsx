@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Text, View } from 'react-native';
 import {
   DUEL_STRIPES,
@@ -14,6 +14,7 @@ export const RoadMotion = memo(function RoadMotion({
   laneMode: 'duel' | 'group';
 }) {
   const shift = useRef(new Animated.Value(0)).current;
+  const MotionWrap = SHOULD_ANIMATE_ROAD ? Animated.View : View;
 
   useEffect(() => {
     if (!SHOULD_ANIMATE_ROAD) {
@@ -39,12 +40,20 @@ export const RoadMotion = memo(function RoadMotion({
     };
   }, [shift]);
 
-  const translateY = shift.interpolate({
+  const translateY = useMemo(() => shift.interpolate({
     inputRange: [0, 1],
     outputRange: [0, ROAD_STRIPE_SPACING],
-  });
-  const roadMotionStyle = { transform: [{ translateY }] };
-  const MotionWrap = SHOULD_ANIMATE_ROAD ? Animated.View : View;
+  }), [shift]);
+  const roadMotionStyle = useMemo(() => ({ transform: [{ translateY }] }), [translateY]);
+  const duelStripeItems = useMemo(() => DUEL_STRIPES.map((_, index) => (
+    <View key={`duel-stripe-${index}`} style={styles.duelStripeRow}>
+      <View style={styles.duelStripe} />
+      <View style={styles.duelStripe} />
+    </View>
+  )), []);
+  const groupStripeItems = useMemo(() => GROUP_STRIPES.map((_, index) => (
+    <View key={`group-stripe-${index}`} style={styles.groupStripe} />
+  )), []);
 
   return (
     <View style={styles.roadBackground}>
@@ -61,12 +70,7 @@ export const RoadMotion = memo(function RoadMotion({
               SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined,
             ]}
           >
-            {DUEL_STRIPES.map((_, index) => (
-              <View key={`duel-stripe-${index}`} style={styles.duelStripeRow}>
-                <View style={styles.duelStripe} />
-                <View style={styles.duelStripe} />
-              </View>
-            ))}
+            {duelStripeItems}
           </MotionWrap>
         </>
       ) : (
@@ -79,9 +83,7 @@ export const RoadMotion = memo(function RoadMotion({
               SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined,
             ]}
           >
-            {GROUP_STRIPES.map((_, index) => (
-              <View key={`group-stripe-${index}`} style={styles.groupStripe} />
-            ))}
+            {groupStripeItems}
           </MotionWrap>
         </>
       )}

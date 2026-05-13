@@ -62,12 +62,12 @@ export const LiveMatchPager = memo(function LiveMatchPager({
   resultPage,
   onPageChange,
 }: LiveMatchPagerProps) {
-  const tabs = useMemo(() => (hasResultPage ? [...BASE_TABS, RESULT_TAB] : BASE_TABS), [hasResultPage]);
   const pages = useMemo(
     () => [arenaPage, raceBoardPage, statsPage, ...(hasResultPage ? [resultPage] : [])],
     [arenaPage, hasResultPage, raceBoardPage, resultPage, statsPage],
   );
   const activePage = pages[page] ?? pages[0];
+  const pageStyle = useMemo(() => [styles.page, { width: pageWidth }], [pageWidth]);
 
   const handleMomentumEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (pageWidth <= 0) {
@@ -86,18 +86,32 @@ export const LiveMatchPager = memo(function LiveMatchPager({
     onPageChange(index);
   }, [onPageChange, pageWidth, scrollRef]);
 
-  const tabRow = (
+  const tabRow = useMemo(() => (
     <View style={styles.tabRow}>
-      {tabs.map((tab) => (
+      <PagerTabButton
+        tab={BASE_TABS[0]}
+        selected={page === BASE_TABS[0].index}
+        onPress={handleTabPress}
+      />
+      <PagerTabButton
+        tab={BASE_TABS[1]}
+        selected={page === BASE_TABS[1].index}
+        onPress={handleTabPress}
+      />
+      <PagerTabButton
+        tab={BASE_TABS[2]}
+        selected={page === BASE_TABS[2].index}
+        onPress={handleTabPress}
+      />
+      {hasResultPage ? (
         <PagerTabButton
-          key={tab.index}
-          tab={tab}
-          selected={page === tab.index}
+          tab={RESULT_TAB}
+          selected={page === RESULT_TAB.index}
           onPress={handleTabPress}
         />
-      ))}
+      ) : null}
     </View>
-  );
+  ), [handleTabPress, hasResultPage, page]);
 
   if (Platform.OS === 'android') {
     return (
@@ -126,17 +140,17 @@ export const LiveMatchPager = memo(function LiveMatchPager({
         scrollEventThrottle={32}
         onMomentumScrollEnd={handleMomentumEnd}
       >
-        <View style={[styles.page, { width: pageWidth }]}>
+        <View style={pageStyle}>
           {arenaPage}
         </View>
-        <View style={[styles.page, { width: pageWidth }]}>
+        <View style={pageStyle}>
           {raceBoardPage}
         </View>
-        <View style={[styles.page, { width: pageWidth }]}>
+        <View style={pageStyle}>
           {statsPage}
         </View>
         {hasResultPage ? (
-          <View style={[styles.page, { width: pageWidth }]}>
+          <View style={pageStyle}>
             {resultPage}
           </View>
         ) : null}

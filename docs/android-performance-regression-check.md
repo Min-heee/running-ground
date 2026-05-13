@@ -1,29 +1,14 @@
 # Android 성능 회귀 방지 체크
 
-생성 시각: 2026-05-13T10:09:56.036Z
+생성 시각: 2026-05-13T12:46:03.177Z
 
 이 문서는 `scripts/check-performance-smells.mjs`가 앱 코드의 성능 회귀 후보를 정적으로 점검한 결과입니다. 자동 수정은 하지 않고, Android 실기기 QA 전에 확인할 위험 후보만 모읍니다.
 
 ## 실행 방법
 
 ```bash
-npm run perf:smells
+npm run performance:smells
 ```
-
-`perf:smells`는 `scripts/check-performance-smells.mjs`를 실행하는 코드 품질 루틴용 짧은 별칭입니다. 기존 `performance:smells`도 같은 스크립트를 실행하지만, 출시 전 체크리스트에서는 `perf:smells`를 표준 명령어로 사용합니다.
-
-출시 전 전체 품질 게이트에서는 다음 순서로 실행합니다.
-
-```bash
-npm run typecheck
-npm run lint
-npm run test
-npm run perf:smells
-npm run backend:smoke
-npm run release:gate:preview
-```
-
-이 스크립트는 위험 후보를 문서로 정리할 뿐, 코드를 자동 수정하지 않습니다.
 
 ## 점검 기준
 
@@ -36,33 +21,28 @@ npm run release:gate:preview
 
 ## 요약
 
-- 전체 감지 항목: 58개
-- High: 3개
-- Medium: 55개
-- Low: 0개
+- 전체 감지 항목: 42개
+- High: 1개
+- Medium: 40개
+- Low: 1개
 
 | 항목 | 개수 |
 | --- | --- |
-| 렌더 중 sort/filter/map 계산 | 47 |
-| 위치/센서 watcher 중복 후보 | 2 |
-| react-native-maps 업데이트 후보 | 4 |
-| ScrollView + map 리스트 | 5 |
+| 렌더 중 sort/filter/map 계산 | 37 |
+| 위치/센서 watcher 중복 후보 | 1 |
+| react-native-maps 사용 파일 | 1 |
+| ScrollView + map 리스트 | 3 |
 
 ## High
 
 | 우선순위 | 항목 | 위치 | 이유 | 권장 확인 |
 | --- | --- | --- | --- | --- |
-| High | 위치/센서 watcher 중복 후보 | src/features/runs/backgroundTracking.ts:531 | 한 파일에서 watcher 후보가 3개 감지됐어요. 조건 없이 동시에 등록되면 Android에서 병목이 커질 수 있습니다. | 화면 focus 상태, match 상태, tracker 상태에 따라 단 하나만 활성화되는지 확인하세요. |
-| High | 위치/센서 watcher 중복 후보 | src/features/runs/hooks/useRunTrackingFlow.ts:356 | 한 파일에서 watcher 후보가 2개 감지됐어요. 조건 없이 동시에 등록되면 Android에서 병목이 커질 수 있습니다. | 화면 focus 상태, match 상태, tracker 상태에 따라 단 하나만 활성화되는지 확인하세요. |
-| High | ScrollView + map 리스트 | src/features/settings/screens/AdminScreen.tsx:372 | ScrollView 내부에서 5개의 map 렌더링이 감지됐어요. 데이터가 늘면 Android에서 프레임 드랍 위험이 커집니다. | 긴 목록 가능성이 있으면 FlatList/SectionList로 바꾸고 keyExtractor/renderItem/useMemo를 사용하세요. |
+| High | 위치/센서 watcher 중복 후보 | src/features/runs/tracking/background/subscriptions.ts:46 | 한 파일에서 watcher 후보가 2개 감지됐어요. 조건 없이 동시에 등록되면 Android에서 병목이 커질 수 있습니다. | 화면 focus 상태, match 상태, tracker 상태에 따라 단 하나만 활성화되는지 확인하세요. |
 
 ## Medium
 
 | 우선순위 | 항목 | 위치 | 이유 | 권장 확인 |
 | --- | --- | --- | --- | --- |
-| Medium | 렌더 중 sort/filter/map 계산 | src/components/matches/LiveMatchArena.tsx:94 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/components/matches/liveMatchArena/RoadMotion.tsx:64 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/components/matches/liveMatchArena/RoadMotion.tsx:82 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
 | Medium | 렌더 중 sort/filter/map 계산 | src/features/auth/screens/UniversityVerificationScreen.tsx:65 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
 | Medium | 렌더 중 sort/filter/map 계산 | src/features/auth/screens/UniversityVerificationScreen.tsx:101 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
 | Medium | 렌더 중 sort/filter/map 계산 | src/features/auth/screens/UniversityVerificationScreen.tsx:190 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
@@ -86,9 +66,6 @@ npm run release:gate:preview
 | Medium | 렌더 중 sort/filter/map 계산 | src/features/location/RegionSelection.tsx:50 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
 | Medium | 렌더 중 sort/filter/map 계산 | src/features/match/screens/MatchRecordScreen.tsx:28 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
 | Medium | 렌더 중 sort/filter/map 계산 | src/features/profile/components/ProfileSummaryCard.tsx:29 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | ScrollView + map 리스트 | src/features/runs/components/LiveMatchPager.tsx:91 | ScrollView 내부에서 1개의 map 렌더링이 감지됐어요. 데이터가 늘면 Android에서 프레임 드랍 위험이 커집니다. | 긴 목록 가능성이 있으면 FlatList/SectionList로 바꾸고 keyExtractor/renderItem/useMemo를 사용하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/runs/components/LiveMatchPager.tsx:91 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/runs/components/LiveMatchTrackingPage.tsx:289 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
 | Medium | 렌더 중 sort/filter/map 계산 | src/features/runs/components/MatchOptionSelector.tsx:23 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
 | Medium | 렌더 중 sort/filter/map 계산 | src/features/runs/components/matchRoom/MatchRoomDistanceSettingsCard.tsx:27 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
 | Medium | 렌더 중 sort/filter/map 계산 | src/features/runs/components/matchRoom/MatchRoomFriendInviteCard.tsx:32 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
@@ -106,19 +83,12 @@ npm run release:gate:preview
 | Medium | 렌더 중 sort/filter/map 계산 | src/features/runs/components/PartyRunHomePanel.tsx:72 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
 | Medium | 렌더 중 sort/filter/map 계산 | src/features/runs/components/RunningMetricGrid.tsx:32 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
 | Medium | 렌더 중 sort/filter/map 계산 | src/features/runs/components/UpcomingMatchList.tsx:32 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | react-native-maps 업데이트 후보 | src/features/runs/RunRouteMap.native.tsx:30 | 지도/마커/폴리라인 props가 렌더마다 새 객체/배열로 만들어질 가능성이 있습니다. | coordinates/region/marker props는 useMemo로 안정화하고, 위치 업데이트 주기를 과하게 짧게 잡지 마세요. |
-| Medium | react-native-maps 업데이트 후보 | src/features/runs/RunRouteMap.native.tsx:35 | 지도/마커/폴리라인 props가 렌더마다 새 객체/배열로 만들어질 가능성이 있습니다. | coordinates/region/marker props는 useMemo로 안정화하고, 위치 업데이트 주기를 과하게 짧게 잡지 마세요. |
-| Medium | react-native-maps 업데이트 후보 | src/features/runs/RunRouteMap.native.tsx:39 | 지도/마커/폴리라인 props가 렌더마다 새 객체/배열로 만들어질 가능성이 있습니다. | coordinates/region/marker props는 useMemo로 안정화하고, 위치 업데이트 주기를 과하게 짧게 잡지 마세요. |
-| Medium | react-native-maps 업데이트 후보 | src/features/runs/RunRouteMap.native.tsx:47 | 지도/마커/폴리라인 props가 렌더마다 새 객체/배열로 만들어질 가능성이 있습니다. | coordinates/region/marker props는 useMemo로 안정화하고, 위치 업데이트 주기를 과하게 짧게 잡지 마세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/settings/screens/AdminScreen.tsx:372 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/settings/screens/AdminScreen.tsx:404 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/settings/screens/AdminScreen.tsx:487 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/settings/screens/AdminScreen.tsx:530 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/settings/screens/AdminScreen.tsx:626 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
 
 ## Low
 
-현재 휴리스틱 기준으로 감지된 항목이 없습니다.
+| 우선순위 | 항목 | 위치 | 이유 | 권장 확인 |
+| --- | --- | --- | --- | --- |
+| Low | react-native-maps 사용 파일 | src/features/runs/RunRouteMap.native.tsx:1 | 지도 사용 파일입니다. Android에서 위치 업데이트와 함께 렌더 비용이 커질 수 있어 QA 관찰 대상입니다. | 실기기에서 지도 이동, 마커 갱신, 폴리라인 갱신 시 FPS와 입력 지연을 확인하세요. |
 
 ## 해석 규칙
 
