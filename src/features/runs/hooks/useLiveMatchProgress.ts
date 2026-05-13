@@ -47,7 +47,10 @@ export function useLiveMatchProgress({
     () => buildGroupLiveStandings(effectiveGroupParticipants, effectiveGroupSeedRank, distanceKm, elapsedSeconds, groupDistanceKm),
     [distanceKm, elapsedSeconds, effectiveGroupParticipants, effectiveGroupSeedRank, groupDistanceKm],
   );
-  const currentGroupStanding = groupLiveStandings.find((participant) => participant.isCurrentUser) ?? null;
+  const currentGroupStanding = useMemo(
+    () => groupLiveStandings.find((participant) => participant.isCurrentUser) ?? null,
+    [groupLiveStandings],
+  );
   const currentUserDuelLiveStatus = duelMatchStatus?.currentUserLiveStatus ?? null;
   const currentUserGroupLiveStatus = groupMatchStatus?.currentUserLiveStatus ?? currentGroupStanding?.liveStatus ?? null;
   const currentUserHasForfeitedActiveMatch = (
@@ -57,13 +60,15 @@ export function useLiveMatchProgress({
         ? currentUserGroupLiveStatus === 'forfeited'
         : false
   );
-  const currentGroupLeader = groupLiveStandings[0] ?? null;
-  const groupAheadParticipant = currentGroupStanding
-    ? groupLiveStandings.find((participant) => participant.rank === currentGroupStanding.rank - 1) ?? null
-    : null;
-  const groupBehindParticipant = currentGroupStanding
-    ? groupLiveStandings.find((participant) => participant.rank === currentGroupStanding.rank + 1) ?? null
-    : null;
+  const currentGroupLeader = useMemo(() => groupLiveStandings[0] ?? null, [groupLiveStandings]);
+  const { groupAheadParticipant, groupBehindParticipant } = useMemo(() => ({
+    groupAheadParticipant: currentGroupStanding
+      ? groupLiveStandings.find((participant) => participant.rank === currentGroupStanding.rank - 1) ?? null
+      : null,
+    groupBehindParticipant: currentGroupStanding
+      ? groupLiveStandings.find((participant) => participant.rank === currentGroupStanding.rank + 1) ?? null
+      : null,
+  }), [currentGroupStanding, groupLiveStandings]);
   const featuredGroupArenaParticipantIds = useMemo(() => {
     const ids = new Set<string>();
     groupLiveStandings.slice(0, 3).forEach((participant) => ids.add(participant.id));
@@ -90,7 +95,10 @@ export function useLiveMatchProgress({
     () => buildDuelComparisonSnapshot(syncedDuelProgress, effectiveDuelOpponent, duelDistanceKm),
     [duelDistanceKm, effectiveDuelOpponent, syncedDuelProgress],
   );
-  const officialDuelComparison = duelMatchStatus?.officialComparison ?? null;
+  const officialDuelComparison = useMemo(
+    () => duelMatchStatus?.officialComparison ?? null,
+    [duelMatchStatus?.officialComparison],
+  );
   const isDuelOpponentForfeited = effectiveDuelOpponent?.liveStatus === 'forfeited';
   const duelOpponentProgressModel = useMemo(
     () => buildMatchProgressModel(effectiveDuelOpponent, duelDistanceKm),
@@ -102,14 +110,22 @@ export function useLiveMatchProgress({
     && typeof officialDuelComparison.userDistanceKm === 'number'
     && duelOpponentProgressModel.officialProgress?.ready,
   );
-  const duelComparisonSnapshot = officialDuelReady
-    ? {
-        checkpointSeconds: officialDuelComparison?.elapsedSeconds ?? 0,
-        currentDistanceKm: officialDuelComparison?.userDistanceKm ?? 0,
-        opponentDistanceKm: duelOpponentProgressModel.officialProgress?.distanceKm ?? 0,
-        gapKm: Number(((officialDuelComparison?.userDistanceKm ?? 0) - (duelOpponentProgressModel.officialProgress?.distanceKm ?? 0)).toFixed(2)),
-      }
-    : fallbackDuelComparisonSnapshot;
+  const duelComparisonSnapshot = useMemo(() => (
+    officialDuelReady
+      ? {
+          checkpointSeconds: officialDuelComparison?.elapsedSeconds ?? 0,
+          currentDistanceKm: officialDuelComparison?.userDistanceKm ?? 0,
+          opponentDistanceKm: duelOpponentProgressModel.officialProgress?.distanceKm ?? 0,
+          gapKm: Number(((officialDuelComparison?.userDistanceKm ?? 0) - (duelOpponentProgressModel.officialProgress?.distanceKm ?? 0)).toFixed(2)),
+        }
+      : fallbackDuelComparisonSnapshot
+  ), [
+    duelOpponentProgressModel.officialProgress?.distanceKm,
+    fallbackDuelComparisonSnapshot,
+    officialDuelComparison?.elapsedSeconds,
+    officialDuelComparison?.userDistanceKm,
+    officialDuelReady,
+  ]);
   const hasDuelOpponentDisplayProgress = Boolean(
     duelComparisonSnapshot || duelOpponentProgressModel.displayProgress.hasProgress || hasRemoteRunnerProgress(effectiveDuelOpponent),
   );

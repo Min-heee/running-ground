@@ -90,5 +90,10 @@ test('progress heartbeat only sends while running and after the interval', () =>
     trackingStatus: 'running',
     lastHeartbeatAt: 1000,
     nowMs: 3000,
+  }), false);
+  assert.equal(shouldSendMatchProgressHeartbeat({
+    trackingStatus: 'running',
+    lastHeartbeatAt: 1000,
+    nowMs: 3500,
   }), true);
 });

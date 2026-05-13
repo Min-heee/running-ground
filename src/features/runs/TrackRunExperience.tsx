@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -72,6 +71,11 @@ import {
   isMeasuredPaceLabel,
 } from '@/features/runs/matchProgress';
 import {
+  LIVE_MATCH_ROOM_IDLE_POLL_MS,
+  LIVE_MATCH_SERVER_SYNC_INTERVAL_MS,
+  LIVE_MATCH_STATUS_IDLE_POLL_MS,
+} from '@/features/runs/liveMatchCadence';
+import {
   buildDuelArenaParticipants,
   buildGroupArenaParticipants,
   buildRoomLinkedDuelPlaceholderParticipants,
@@ -92,10 +96,10 @@ const STALE_RENDER_ACTIVE_MATCH_MS = 8 * 60 * 60 * 1000;
 const OFFICIAL_START_DISTANCE_NOISE_GRACE_SECONDS = 5;
 const OFFICIAL_START_DISTANCE_NOISE_GRACE_KM = 0.05;
 const SOLO_START_COUNTDOWN_SECONDS = 5;
-const MATCH_ROOM_FAST_POLL_MS = Platform.OS === 'android' ? 1500 : 1000;
-const MATCH_ROOM_IDLE_POLL_MS = 5000;
-const MATCH_STATUS_FAST_POLL_MS = Platform.OS === 'android' ? 2500 : 2000;
-const MATCH_STATUS_IDLE_POLL_MS = 3000;
+const MATCH_ROOM_FAST_POLL_MS = LIVE_MATCH_SERVER_SYNC_INTERVAL_MS;
+const MATCH_ROOM_IDLE_POLL_MS = LIVE_MATCH_ROOM_IDLE_POLL_MS;
+const MATCH_STATUS_FAST_POLL_MS = LIVE_MATCH_SERVER_SYNC_INTERVAL_MS;
+const MATCH_STATUS_IDLE_POLL_MS = LIVE_MATCH_STATUS_IDLE_POLL_MS;
 
 function shouldHidePastUpcomingMatch(
   match: Pick<UpcomingRunningMatchItem, 'slotStartAt' | 'status'>,
@@ -490,18 +494,32 @@ export function TrackRunExperience({
       || (roomLinkedMatchContext?.mode === 'group' && roomLinkedMatchContext.state === 'active')
     ),
   );
-  const officialCurrentAveragePace = matchMode === 'duel'
-    ? duelMatchStatus?.officialComparison?.userAveragePace
-    : matchMode === 'group'
-      ? groupMatchStatus?.officialComparison?.userAveragePace
-      : null;
-  const currentUserArenaPace = isMeasuredPaceLabel(officialCurrentAveragePace)
-    ? officialCurrentAveragePace!
-    : buildAverageArenaPaceLabel(
-        liveMatchDisplayDistanceKm,
-        liveMatchDisplayElapsedSeconds,
-        duelArenaUsesLivePace || groupArenaUsesLivePace,
-      );
+  const officialCurrentAveragePace = useMemo(() => (
+    matchMode === 'duel'
+      ? duelMatchStatus?.officialComparison?.userAveragePace
+      : matchMode === 'group'
+        ? groupMatchStatus?.officialComparison?.userAveragePace
+        : null
+  ), [
+    duelMatchStatus?.officialComparison?.userAveragePace,
+    groupMatchStatus?.officialComparison?.userAveragePace,
+    matchMode,
+  ]);
+  const currentUserArenaPace = useMemo(() => (
+    isMeasuredPaceLabel(officialCurrentAveragePace)
+      ? officialCurrentAveragePace!
+      : buildAverageArenaPaceLabel(
+          liveMatchDisplayDistanceKm,
+          liveMatchDisplayElapsedSeconds,
+          duelArenaUsesLivePace || groupArenaUsesLivePace,
+        )
+  ), [
+    duelArenaUsesLivePace,
+    groupArenaUsesLivePace,
+    liveMatchDisplayDistanceKm,
+    liveMatchDisplayElapsedSeconds,
+    officialCurrentAveragePace,
+  ]);
   const {
     trackedMatchResult,
     estimatedMatchBonusPoints,
@@ -522,12 +540,22 @@ export function TrackRunExperience({
     elapsedSeconds,
   });
   const hasMatchResultPage = isPaused && matchMode !== 'solo' && Boolean(trackedMatchResult);
-  const effectiveDuelOpponentArenaPace = buildParticipantAveragePaceLabel(effectiveDuelOpponent, duelArenaUsesLivePace);
-  const duelLiveSummary = effectiveDuelOpponent
-    ? isDuelOpponentForfeited
-      ? `${effectiveDuelOpponent.name}님 · 기권`
-      : `${effectiveDuelOpponent.name}님${effectiveDuelOpponentArenaPace ? ` · ${effectiveDuelOpponentArenaPace}` : ''}${effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}`
-    : '상대 러너 정보를 불러오는 중이에요.';
+  const effectiveDuelOpponentArenaPace = useMemo(
+    () => buildParticipantAveragePaceLabel(effectiveDuelOpponent, duelArenaUsesLivePace),
+    [duelArenaUsesLivePace, effectiveDuelOpponent],
+  );
+  const duelLiveSummary = useMemo(() => (
+    effectiveDuelOpponent
+      ? isDuelOpponentForfeited
+        ? `${effectiveDuelOpponent.name}님 · 기권`
+        : `${effectiveDuelOpponent.name}님${effectiveDuelOpponentArenaPace ? ` · ${effectiveDuelOpponentArenaPace}` : ''}${effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}`
+      : '상대 러너 정보를 불러오는 중이에요.'
+  ), [
+    effectiveDuelOpponent,
+    effectiveDuelOpponentArenaPace,
+    effectiveDuelOpponentStatusLabel,
+    isDuelOpponentForfeited,
+  ]);
   const duelArenaParticipants = useMemo(
     () => buildDuelArenaParticipants({
       currentUserPaceLabel: currentUserArenaPace,

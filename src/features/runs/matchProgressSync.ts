@@ -7,9 +7,10 @@ import {
   normalizeMatchProgressPace,
   type LastSyncedMatchProgress,
 } from '@/features/runs/matchProgress';
+import { LIVE_MATCH_SERVER_SYNC_INTERVAL_MS } from '@/features/runs/liveMatchCadence';
 import { buildAveragePace } from '@/features/runs/tracking';
 
-export const MATCH_PROGRESS_HEARTBEAT_INTERVAL_MS = 2000;
+export const MATCH_PROGRESS_HEARTBEAT_INTERVAL_MS = LIVE_MATCH_SERVER_SYNC_INTERVAL_MS;
 
 export type MatchProgressRoomContext = {
   mode: 'duel' | 'group';

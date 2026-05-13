@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
+import { LIVE_MATCH_UI_DISPLAY_INTERVAL_MS } from '@/features/runs/liveMatchCadence';
 
-const ANDROID_LIVE_MATCH_UI_INTERVAL_MS = 1000;
+const ANDROID_LIVE_MATCH_UI_INTERVAL_MS = LIVE_MATCH_UI_DISPLAY_INTERVAL_MS;
 
 export type LiveMatchDisplayFrame = {
   distanceKm: number;
