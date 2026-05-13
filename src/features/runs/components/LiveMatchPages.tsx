@@ -1,6 +1,6 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { Platform, ScrollView } from 'react-native';
+import { ScrollView } from 'react-native';
 import {
   LiveMatchArenaPage,
   type LiveMatchArenaPageProps,
@@ -44,26 +44,24 @@ export const LiveMatchPages = memo(function LiveMatchPages({
   exitAction,
   onPageChange,
 }: LiveMatchPagesProps) {
-  if (Platform.OS === 'android') {
-    return (
-      <LiveMatchPager
-        scrollRef={scrollRef}
-        page={page}
-        pageWidth={pageWidth}
-        hasResultPage={hasResultPage}
-        arenaPage={page === 0 ? (
-          <>
-            <LiveMatchArenaPage {...arenaProps} />
-            {exitAction}
-          </>
-        ) : null}
-        raceBoardPage={page === 1 ? <LiveMatchRaceBoardPage {...raceBoardProps} /> : null}
-        statsPage={page === 2 ? <LiveMatchTrackingPage {...trackingProps} /> : null}
-        resultPage={hasResultPage && page === 3 ? <LiveMatchResultPage {...resultProps} /> : null}
-        onPageChange={onPageChange}
-      />
-    );
-  }
+  const renderArenaPage = useCallback(() => (
+    <>
+      <LiveMatchArenaPage {...arenaProps} />
+      {exitAction}
+    </>
+  ), [arenaProps, exitAction]);
+
+  const renderRaceBoardPage = useCallback(() => (
+    <LiveMatchRaceBoardPage {...raceBoardProps} />
+  ), [raceBoardProps]);
+
+  const renderTrackingPage = useCallback(() => (
+    <LiveMatchTrackingPage {...trackingProps} />
+  ), [trackingProps]);
+
+  const renderResultPage = useCallback(() => (
+    <LiveMatchResultPage {...resultProps} />
+  ), [resultProps]);
 
   return (
     <LiveMatchPager
@@ -71,15 +69,10 @@ export const LiveMatchPages = memo(function LiveMatchPages({
       page={page}
       pageWidth={pageWidth}
       hasResultPage={hasResultPage}
-      arenaPage={(
-        <>
-          <LiveMatchArenaPage {...arenaProps} />
-          {exitAction}
-        </>
-      )}
-      raceBoardPage={<LiveMatchRaceBoardPage {...raceBoardProps} />}
-      statsPage={<LiveMatchTrackingPage {...trackingProps} />}
-      resultPage={<LiveMatchResultPage {...resultProps} />}
+      renderArenaPage={renderArenaPage}
+      renderRaceBoardPage={renderRaceBoardPage}
+      renderStatsPage={renderTrackingPage}
+      renderResultPage={renderResultPage}
       onPageChange={onPageChange}
     />
   );

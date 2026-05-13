@@ -17,6 +17,7 @@ import {
   formatMetricDistance,
 } from '@/features/runs/trackingSession';
 import type { DuelMatchOpponent } from '@/lib/api/types';
+import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type MatchStatusAlert = {
   tone: 'danger' | 'warning' | 'neutral';
@@ -79,6 +80,7 @@ export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
   elevationGainM,
   onContinueSoloFromMatch,
 }: LiveMatchTrackingPageProps) {
+  useDevRenderCounter(`LiveMatchTrackingPage:${matchMode}`);
   return (
     <>
       <LiveMatchCardsSection

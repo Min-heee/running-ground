@@ -5,6 +5,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { LiveMatchPages } from '@/features/runs/components/LiveMatchPages';
 import { LiveMatchTrackingPage } from '@/features/runs/components/LiveMatchTrackingPage';
+import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type LiveMatchContainerProps = {
   showLiveArena: boolean;
@@ -33,6 +34,7 @@ export const LiveMatchContainer = memo(function LiveMatchContainer({
   onResumeTracking,
   onDiscardTracking,
 }: LiveMatchContainerProps) {
+  useDevRenderCounter(showLiveArena ? 'LiveMatchContainer:arena' : 'LiveMatchContainer:tracking');
   return (
     <>
       {showLiveArena ? (

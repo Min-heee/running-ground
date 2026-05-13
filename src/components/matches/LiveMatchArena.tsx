@@ -17,6 +17,7 @@ import {
   LIVE_MATCH_PERF_QA_ENABLED,
   useAndroidLiveMatchPerfProbe,
 } from '@/components/matches/useAndroidLiveMatchPerfProbe';
+import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type LiveMatchArenaProps = {
   mode: 'duel' | 'group';
@@ -80,6 +81,7 @@ export const LiveMatchArena = memo(function LiveMatchArena({
   participants,
   footer,
 }: LiveMatchArenaProps) {
+  useDevRenderCounter(`LiveMatchArena:${mode}`);
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = Math.max(300, windowWidth - 32);
   const perfLabel = mode === 'duel' ? 'duel-arena' : 'group-arena';

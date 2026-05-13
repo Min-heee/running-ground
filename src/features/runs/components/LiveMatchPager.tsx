@@ -1,16 +1,20 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode, RefObject } from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { NativeScrollEvent, NativeSyntheticEvent, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
+
+type LiveMatchPageRenderer = () => ReactNode;
 
 type LiveMatchPagerProps = {
   scrollRef: RefObject<ScrollView | null>;
   page: number;
   pageWidth: number;
   hasResultPage: boolean;
-  arenaPage: ReactNode;
-  raceBoardPage: ReactNode;
-  statsPage: ReactNode;
-  resultPage?: ReactNode;
+  renderArenaPage: LiveMatchPageRenderer;
+  renderRaceBoardPage: LiveMatchPageRenderer;
+  renderStatsPage: LiveMatchPageRenderer;
+  renderResultPage?: LiveMatchPageRenderer;
   onPageChange: (page: number) => void;
 };
 
@@ -25,6 +29,38 @@ const BASE_TABS: PagerTab[] = [
   { index: 2, label: '기록 보기' },
 ];
 const RESULT_TAB: PagerTab = { index: 3, label: '결과 보기' };
+
+const EMPTY_PAGE_RENDERER: LiveMatchPageRenderer = () => null;
+
+function resolvePageRenderer({
+  page,
+  hasResultPage,
+  renderArenaPage,
+  renderRaceBoardPage,
+  renderStatsPage,
+  renderResultPage,
+}: {
+  page: number;
+  hasResultPage: boolean;
+  renderArenaPage: LiveMatchPageRenderer;
+  renderRaceBoardPage: LiveMatchPageRenderer;
+  renderStatsPage: LiveMatchPageRenderer;
+  renderResultPage?: LiveMatchPageRenderer;
+}) {
+  if (page === 1) {
+    return renderRaceBoardPage;
+  }
+
+  if (page === 2) {
+    return renderStatsPage;
+  }
+
+  if (page === 3 && hasResultPage) {
+    return renderResultPage ?? EMPTY_PAGE_RENDERER;
+  }
+
+  return renderArenaPage;
+}
 
 const PagerTabButton = memo(function PagerTabButton({
   tab,
@@ -51,23 +87,73 @@ const PagerTabButton = memo(function PagerTabButton({
   );
 });
 
+const PagerPageSlot = memo(function PagerPageSlot({
+  shouldRender,
+  pageStyle,
+  renderPage,
+}: {
+  shouldRender: boolean;
+  pageStyle: StyleProp<ViewStyle>;
+  renderPage: LiveMatchPageRenderer;
+}) {
+  return (
+    <View style={pageStyle}>
+      {shouldRender ? renderPage() : null}
+    </View>
+  );
+});
+
 export const LiveMatchPager = memo(function LiveMatchPager({
   scrollRef,
   page,
   pageWidth,
   hasResultPage,
-  arenaPage,
-  raceBoardPage,
-  statsPage,
-  resultPage,
+  renderArenaPage,
+  renderRaceBoardPage,
+  renderStatsPage,
+  renderResultPage,
   onPageChange,
 }: LiveMatchPagerProps) {
-  const pages = useMemo(
-    () => [arenaPage, raceBoardPage, statsPage, ...(hasResultPage ? [resultPage] : [])],
-    [arenaPage, hasResultPage, raceBoardPage, resultPage, statsPage],
-  );
-  const activePage = pages[page] ?? pages[0];
+  useDevRenderCounter(`LiveMatchPager:page-${page}`);
   const pageStyle = useMemo(() => [styles.page, { width: pageWidth }], [pageWidth]);
+  const previousPageRef = useRef(page);
+  const previousPage = previousPageRef.current;
+
+  useEffect(() => {
+    previousPageRef.current = page;
+  }, [page]);
+
+  const shouldRenderScrollPage = useCallback((index: number) => {
+    if (index === 2) {
+      return page === 2;
+    }
+
+    if (index === 3) {
+      return hasResultPage && page === 3;
+    }
+
+    return index === previousPage || Math.abs(page - index) <= 1;
+  }, [hasResultPage, page, previousPage]);
+
+  const activePage = useMemo(() => {
+    const renderPage = resolvePageRenderer({
+      page,
+      hasResultPage,
+      renderArenaPage,
+      renderRaceBoardPage,
+      renderStatsPage,
+      renderResultPage,
+    });
+
+    return renderPage();
+  }, [
+    hasResultPage,
+    page,
+    renderArenaPage,
+    renderRaceBoardPage,
+    renderResultPage,
+    renderStatsPage,
+  ]);
 
   const handleMomentumEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (pageWidth <= 0) {
@@ -140,19 +226,27 @@ export const LiveMatchPager = memo(function LiveMatchPager({
         scrollEventThrottle={32}
         onMomentumScrollEnd={handleMomentumEnd}
       >
-        <View style={pageStyle}>
-          {arenaPage}
-        </View>
-        <View style={pageStyle}>
-          {raceBoardPage}
-        </View>
-        <View style={pageStyle}>
-          {statsPage}
-        </View>
+        <PagerPageSlot
+          shouldRender={shouldRenderScrollPage(0)}
+          pageStyle={pageStyle}
+          renderPage={renderArenaPage}
+        />
+        <PagerPageSlot
+          shouldRender={shouldRenderScrollPage(1)}
+          pageStyle={pageStyle}
+          renderPage={renderRaceBoardPage}
+        />
+        <PagerPageSlot
+          shouldRender={shouldRenderScrollPage(2)}
+          pageStyle={pageStyle}
+          renderPage={renderStatsPage}
+        />
         {hasResultPage ? (
-          <View style={pageStyle}>
-            {resultPage}
-          </View>
+          <PagerPageSlot
+            shouldRender={shouldRenderScrollPage(3)}
+            pageStyle={pageStyle}
+            renderPage={renderResultPage ?? EMPTY_PAGE_RENDERER}
+          />
         ) : null}
       </ScrollView>
       <Text style={styles.hint}>

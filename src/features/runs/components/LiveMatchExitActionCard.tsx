@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { buildMatchExitActionState } from '@/features/runs/matchExitAction';
+import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type MatchExitSource = 'duel' | 'group';
 
@@ -28,6 +29,7 @@ export function LiveMatchExitActionCard({
   onForfeit,
   onShowResultAfterCounterpartForfeit,
 }: LiveMatchExitActionCardProps) {
+  useDevRenderCounter(`LiveMatchExitActionCard:${source ?? 'hidden'}`);
   if (!source) {
     return null;
   }

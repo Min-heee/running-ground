@@ -14,7 +14,19 @@ import {
 } from '@/components/matches/liveMatchArena/helpers';
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
 
-const DuelRunnerMarker = memo(function DuelRunnerMarker({
+function areDuelTokenVisualPropsEqual(
+  left: ArenaParticipant,
+  right: ArenaParticipant,
+) {
+  return left.name === right.name
+    && left.paceLabel === right.paceLabel
+    && left.bpmLabel === right.bpmLabel
+    && left.isCurrentUser === right.isCurrentUser
+    && left.liveStatus === right.liveStatus
+    && left.showPaceBubble === right.showPaceBubble;
+}
+
+const DuelRunnerToken = memo(function DuelRunnerToken({
   participant,
   fallbackLabel,
   isCurrentUser,
@@ -53,7 +65,7 @@ const DuelRunnerMarker = memo(function DuelRunnerMarker({
 }, (prevProps, nextProps) => (
   prevProps.fallbackLabel === nextProps.fallbackLabel
   && prevProps.isCurrentUser === nextProps.isCurrentUser
-  && areParticipantsEqual(prevProps.participant, nextProps.participant)
+  && areDuelTokenVisualPropsEqual(prevProps.participant, nextProps.participant)
 ));
 
 const DuelRunnerName = memo(function DuelRunnerName({
@@ -91,6 +103,29 @@ const DuelRunnerDistanceMeta = memo(function DuelRunnerDistanceMeta({
   );
 });
 
+const DuelRunnerTextStack = memo(function DuelRunnerTextStack({
+  displayName,
+  distanceKm,
+  targetDistanceKm,
+  forfeited,
+}: {
+  displayName: string;
+  distanceKm: number;
+  targetDistanceKm: number;
+  forfeited: boolean;
+}) {
+  return (
+    <>
+      <DuelRunnerName displayName={displayName} forfeited={forfeited} />
+      <DuelRunnerDistanceMeta
+        distanceKm={distanceKm}
+        targetDistanceKm={targetDistanceKm}
+        forfeited={forfeited}
+      />
+    </>
+  );
+});
+
 const DuelRunner = memo(function DuelRunner({
   participant,
   top,
@@ -117,13 +152,13 @@ const DuelRunner = memo(function DuelRunner({
 
   return (
     <View style={runnerStyle}>
-      <DuelRunnerMarker
+      <DuelRunnerToken
         participant={participant}
         fallbackLabel={fallbackLabel}
         isCurrentUser={isCurrentUser}
       />
-      <DuelRunnerName displayName={displayName} forfeited={participantForfeited} />
-      <DuelRunnerDistanceMeta
+      <DuelRunnerTextStack
+        displayName={displayName}
         distanceKm={participant.distanceKm}
         targetDistanceKm={targetDistanceKm}
         forfeited={participantForfeited}
@@ -144,6 +179,10 @@ export const DuelRoad = memo(function DuelRoad({
   participants: ArenaParticipant[];
   targetDistanceKm: number;
 }) {
+  const roadCardStyle = useMemo(
+    () => [styles.roadCard, { height: ROAD_HEIGHT_DUEL }],
+    [],
+  );
   const { currentUser, opponent } = useMemo(() => ({
     currentUser: participants.find((participant) => participant.isCurrentUser) ?? participants[0] ?? null,
     opponent: participants.find((participant) => !participant.isCurrentUser) ?? participants[1] ?? null,
@@ -186,7 +225,7 @@ export const DuelRoad = memo(function DuelRoad({
   }
 
   return (
-    <View style={[styles.roadCard, { height: ROAD_HEIGHT_DUEL }]}>
+    <View style={roadCardStyle}>
       <RoadMotion laneMode="duel" />
       <DuelRunner participant={opponent} top={opponentTop} targetDistanceKm={targetDistanceKm} side="left" />
       <DuelRunner participant={currentUser} top={userTop} targetDistanceKm={targetDistanceKm} side="right" />

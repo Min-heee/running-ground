@@ -5,6 +5,7 @@ import NativeMapView, {
 } from 'react-native-maps';
 import { StyleSheet } from 'react-native';
 import type { RunMapRegion } from './tracking';
+import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type Coordinate = {
   latitude: number;
@@ -29,6 +30,7 @@ export const RunRouteMap = memo(function RunRouteMap({
   initialRegion,
   live = false,
 }: RunRouteMapProps) {
+  useDevRenderCounter(`RunRouteMap.native:${live ? 'live' : 'static'}`);
   const actualRouteCoordinates = useMemo(() => actualCoordinates, [actualCoordinates]);
   const plannedRouteCoordinates = useMemo(() => plannedCoordinates, [plannedCoordinates]);
   const markerCoordinate = useMemo(() => latestCoordinate ?? null, [latestCoordinate]);

@@ -101,9 +101,25 @@ const GroupRoadRow = memo(function GroupRoadRow({
   const participantForfeited = isForfeited(participant);
   const rankLabel = participant.rankLabel ?? `${index + 1}위`;
   const displayName = isCurrentUser ? '나' : participant.name;
-  const visualState = buildLiveMatchRunnerVisualState(
-    participant,
-    isCurrentUser ? '나' : participant.name.slice(0, 1),
+  const fallbackMarkerLabel = isCurrentUser ? '나' : participant.name.slice(0, 1);
+  const visualState = useMemo(
+    () => buildLiveMatchRunnerVisualState({
+      name: participant.name,
+      paceLabel: participant.paceLabel,
+      bpmLabel: participant.bpmLabel,
+      isCurrentUser: participant.isCurrentUser,
+      isLeader: participant.isLeader,
+      liveStatus: participant.liveStatus,
+    }, fallbackMarkerLabel),
+    [
+      fallbackMarkerLabel,
+      participant.bpmLabel,
+      participant.isCurrentUser,
+      participant.isLeader,
+      participant.liveStatus,
+      participant.name,
+      participant.paceLabel,
+    ],
   );
   const rowStyle = useMemo(
     () => [
@@ -144,6 +160,10 @@ export const GroupRoad = memo(function GroupRoad({
   participants: ArenaParticipant[];
   targetDistanceKm: number;
 }) {
+  const roadCardStyle = useMemo(
+    () => [styles.roadCard, { height: ROAD_HEIGHT_GROUP }],
+    [],
+  );
   const currentUserIndex = useMemo(
     () => Math.max(
       0,
@@ -173,7 +193,7 @@ export const GroupRoad = memo(function GroupRoad({
   }), []);
 
   return (
-    <View style={[styles.roadCard, { height: ROAD_HEIGHT_GROUP }]}>
+    <View style={roadCardStyle}>
       <RoadMotion laneMode="group" />
       <FlatList
         style={styles.groupScroll}

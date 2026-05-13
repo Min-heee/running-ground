@@ -90,6 +90,7 @@ import {
 } from '@/features/runs/matchStateMachine';
 import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
+import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 const STALE_RENDER_MATCHED_MATCH_MS = 10 * 60 * 1000;
 const STALE_RENDER_ACTIVE_MATCH_MS = 8 * 60 * 60 * 1000;
@@ -144,6 +145,7 @@ export function TrackRunExperience({
   forceMatchArena?: boolean;
   roomInviteToken?: string;
 }) {
+  useDevRenderCounter('TrackRunExperience');
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
   const currentUser = getCurrentUserProfile();

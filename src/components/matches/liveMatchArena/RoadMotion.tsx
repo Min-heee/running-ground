@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { Animated, Easing, Text, View } from 'react-native';
 import {
   DUEL_STRIPES,
@@ -7,6 +8,10 @@ import {
   SHOULD_ANIMATE_ROAD,
 } from '@/components/matches/liveMatchArena/helpers';
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
+import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
+
+type RoadMotionWrapComponent = typeof Animated.View | typeof View;
+type RoadMotionTransformStyle = { transform: { translateY: Animated.AnimatedInterpolation<string | number> }[] };
 
 const DuelRoadBaseLayer = memo(function DuelRoadBaseLayer() {
   return (
@@ -35,11 +40,56 @@ const FinishRibbon = memo(function FinishRibbon({
   );
 });
 
+const DuelRoadMarkings = memo(function DuelRoadMarkings({
+  MotionWrap,
+  roadMotionStyle,
+  stripeItems,
+}: {
+  MotionWrap: RoadMotionWrapComponent;
+  roadMotionStyle?: RoadMotionTransformStyle;
+  stripeItems: ReactNode;
+}) {
+  return (
+    <MotionWrap
+      pointerEvents="none"
+      style={[
+        styles.duelCenterMarkingsWrap,
+        SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined,
+      ]}
+    >
+      {stripeItems}
+    </MotionWrap>
+  );
+});
+
+const GroupRoadMarkings = memo(function GroupRoadMarkings({
+  MotionWrap,
+  roadMotionStyle,
+  stripeItems,
+}: {
+  MotionWrap: RoadMotionWrapComponent;
+  roadMotionStyle?: RoadMotionTransformStyle;
+  stripeItems: ReactNode;
+}) {
+  return (
+    <MotionWrap
+      pointerEvents="none"
+      style={[
+        styles.groupCenterMarkingsWrap,
+        SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined,
+      ]}
+    >
+      {stripeItems}
+    </MotionWrap>
+  );
+});
+
 export const RoadMotion = memo(function RoadMotion({
   laneMode,
 }: {
   laneMode: 'duel' | 'group';
 }) {
+  useDevRenderCounter(`RoadMotion:${laneMode}`);
   const shift = useRef(new Animated.Value(0)).current;
   const MotionWrap = SHOULD_ANIMATE_ROAD ? Animated.View : View;
 
@@ -87,28 +137,20 @@ export const RoadMotion = memo(function RoadMotion({
       {laneMode === 'duel' ? (
         <>
           <DuelRoadBaseLayer />
-          <MotionWrap
-            pointerEvents="none"
-            style={[
-              styles.duelCenterMarkingsWrap,
-              SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined,
-            ]}
-          >
-            {duelStripeItems}
-          </MotionWrap>
+          <DuelRoadMarkings
+            MotionWrap={MotionWrap}
+            roadMotionStyle={SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined}
+            stripeItems={duelStripeItems}
+          />
         </>
       ) : (
         <>
           <GroupRoadBaseLayer />
-          <MotionWrap
-            pointerEvents="none"
-            style={[
-              styles.groupCenterMarkingsWrap,
-              SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined,
-            ]}
-          >
-            {groupStripeItems}
-          </MotionWrap>
+          <GroupRoadMarkings
+            MotionWrap={MotionWrap}
+            roadMotionStyle={SHOULD_ANIMATE_ROAD ? roadMotionStyle : undefined}
+            stripeItems={groupStripeItems}
+          />
         </>
       )}
       <FinishRibbon laneMode={laneMode} />
