@@ -113,6 +113,31 @@ test('duel result records normal finish by compared distance', () => {
   assert.equal(result?.matchResult.gapKm, 0.15);
 });
 
+test('duel result records normal loss when opponent distance is ahead', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      officialReady: true,
+      officialDistanceKm: 1.4,
+      officialElapsedSeconds: 600,
+      officialAveragePace: '07:09/km',
+      officialRank: 1,
+      liveStatus: 'running',
+    }),
+    currentDistanceKm: 1.1,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 600,
+    currentPaceLabel: '09:05/km',
+    currentUserLiveStatus: 'finished',
+  });
+
+  assert.equal(result?.matchResult.resultTone, 'lose');
+  assert.equal(result?.matchResult.badgeLabel, '패배');
+  assert.equal(result?.rows[0].isCurrentUser, false);
+  assert.equal(result?.rows[0].resultLabel, 'WIN');
+  assert.equal(result?.rows[1].isCurrentUser, true);
+  assert.equal(result?.rows[1].resultLabel, 'LOSER');
+});
+
 test('duel result records near-equal distances as draw', () => {
   const result = buildDuelMatchFinishModel({
     opponent: opponent({

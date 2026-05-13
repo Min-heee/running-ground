@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { router } from 'expo-router';
 import { createManualRun, getApiErrorMessage } from '@/services';
+import { validateManualRunInput } from '@/features/running/utils/runRecordValidation';
 
 export function getTodayDateValue() {
   const now = new Date();
@@ -16,23 +17,16 @@ export function useAddRunForm() {
   const [pace, setPace] = useState('06:00/km');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const trimmedDistance = useMemo(() => distanceKm.replace(',', '.').trim(), [distanceKm]);
 
   const handleSubmit = async () => {
-    const parsedDistanceKm = Number(trimmedDistance);
+    const validation = validateManualRunInput({
+      date,
+      distanceKmText: distanceKm,
+      pace,
+    });
 
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      setError('날짜는 YYYY-MM-DD 형식으로 입력해줘.');
-      return;
-    }
-
-    if (!Number.isFinite(parsedDistanceKm) || parsedDistanceKm <= 0) {
-      setError('거리는 0보다 큰 숫자로 입력해줘.');
-      return;
-    }
-
-    if (!/^\d{1,2}:\d{2}\/km$/i.test(pace.trim())) {
-      setError('페이스는 00:00/km 형식으로 입력해줘.');
+    if (!validation.valid) {
+      setError(validation.message);
       return;
     }
 
@@ -41,9 +35,9 @@ export function useAddRunForm() {
 
     try {
       const createdRun = await createManualRun({
-        date,
-        distanceKm: parsedDistanceKm,
-        pace: pace.trim(),
+        date: validation.value.date,
+        distanceKm: validation.value.distanceKm,
+        pace: validation.value.pace,
       });
 
       router.replace({

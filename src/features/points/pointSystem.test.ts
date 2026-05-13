@@ -108,4 +108,28 @@ test('point reward helpers keep streak thresholds and progress math stable', () 
     achieved: true,
     progressPercent: 100,
   });
+
+  assert.deepEqual(buildPointTrack({
+    id: 'distance',
+    label: '거리',
+    scope: 'lifetime',
+    currentValue: 0,
+    targetValue: 0,
+    unit: 'km',
+    rewardPoints: 10,
+    helperText: '테스트',
+    statusText: '완료',
+  }), {
+    id: 'distance',
+    label: '거리',
+    scope: 'lifetime',
+    currentValue: 0,
+    targetValue: 0,
+    unit: 'km',
+    rewardPoints: 10,
+    helperText: '테스트',
+    statusText: '완료',
+    achieved: true,
+    progressPercent: 0,
+  });
 });

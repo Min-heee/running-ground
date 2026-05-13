@@ -16,6 +16,7 @@ import {
   buildMockMarketOverview,
   requireAccessToken,
 } from './_shared';
+import { checkMarketRedemptionEligibility } from '@/utils/marketRedemption';
 
 export async function fetchMarketOverview(): Promise<MarketOverviewResponse> {
   if (USE_MOCK_API) {
@@ -36,15 +37,20 @@ export async function claimMarketItem(itemId: string): Promise<MarketClaimRespon
       throw new Error('교환할 리워드를 찾지 못했어.');
     }
 
-    if (!item.repeatable && mockApiState.claimedMarketItemIds.has(item.id)) {
-      throw new Error('이미 교환한 리워드야.');
+    const eligibility = checkMarketRedemptionEligibility(
+      {
+        ...item,
+        claimState: mockApiState.claimedMarketItemIds.has(item.id) ? 'claimed' : 'claimable',
+      },
+      mockApiState.marketPoints,
+      mockApiState.claimedMarketItemIds,
+    );
+
+    if (!eligibility.canRedeem) {
+      throw new Error(eligibility.message);
     }
 
-    if (mockApiState.marketPoints < item.costPoints) {
-      throw new Error('포인트가 부족해서 아직 교환할 수 없어.');
-    }
-
-    mockApiState.marketPoints -= item.costPoints;
+    mockApiState.marketPoints = eligibility.remainingPoints;
     mockApiState.claimedMarketItemIds.add(item.id);
 
     return {

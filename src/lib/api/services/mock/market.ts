@@ -1,14 +1,18 @@
 import type { MarketOverview, MarketRewardItem } from '@/domain';
+import { resolveMarketClaimState } from '@/utils/marketRedemption';
 import { mockApiState, mockMarketCatalog } from './state';
 
 export function buildMockMarketOverview(): MarketOverview {
   const items: MarketRewardItem[] = mockMarketCatalog.map((item) => ({
     ...item,
-    claimState: mockApiState.claimedMarketItemIds.has(item.id)
-      ? 'claimed'
-      : mockApiState.marketPoints >= item.costPoints
-        ? 'claimable'
-        : 'locked',
+    claimState: resolveMarketClaimState(
+      {
+        ...item,
+        claimState: mockApiState.claimedMarketItemIds.has(item.id) ? 'claimed' : 'claimable',
+      },
+      mockApiState.marketPoints,
+      mockApiState.claimedMarketItemIds,
+    ),
   }));
 
   return {

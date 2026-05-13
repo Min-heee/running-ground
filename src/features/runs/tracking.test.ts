@@ -28,6 +28,7 @@ test('running format helpers handle normal and zero values', () => {
   assert.equal(formatDuration(3661), '01:01:01');
   assert.equal(formatDuration(-5), '00:00');
   assert.equal(formatPaceFromSecondsPerKm(380), '06:20/km');
+  assert.equal(formatPaceFromSecondsPerKm(379.6), '06:20/km');
   assert.equal(formatPaceFromSecondsPerKm(0), '--:--/km');
   assert.equal(formatPaceFromSpeedMps(1000 / 380), '06:20/km');
   assert.equal(formatPaceFromSpeedMps(0.3), '--:--/km');
@@ -49,6 +50,8 @@ test('running calculations return safe values for zero or invalid inputs', () =>
   assert.equal(calculateDistanceBetweenPoints({ latitude: 37, longitude: 127 }, { latitude: 37, longitude: 127 }), 0);
   assert.equal(buildAveragePace(0, 760), '--:--/km');
   assert.equal(buildAveragePace(Number.NaN, 760), '--:--/km');
+  assert.equal(buildAveragePace(5, Number.POSITIVE_INFINITY), '--:--/km');
+  assert.equal(formatPaceFromSpeedMps(Number.POSITIVE_INFINITY), '--:--/km');
   assert.equal(calculateCadenceSpm(Number.NaN, 300), null);
   assert.equal(calculateCadenceSpm(100, 0), null);
   assert.equal(getMapRegion([]), null);
