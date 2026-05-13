@@ -27,6 +27,7 @@ import { useMatchResultController } from '@/features/runs/hooks/useMatchResultCo
 import { useLiveMatchProgress } from '@/features/runs/hooks/useLiveMatchProgress';
 import { useForfeitController } from '@/features/runs/hooks/useForfeitController';
 import { useAndroidLiveMatchDisplayFrame } from '@/features/runs/hooks/useAndroidLiveMatchDisplayFrame';
+import { useAndroidLiveMatchStartupGate } from '@/features/runs/hooks/useAndroidLiveMatchStartupGate';
 import { usePartyRunSync } from '@/features/runs/hooks/usePartyRunSync';
 import { useMatchRoomSelectionSync } from '@/features/runs/hooks/useMatchRoomSelectionSync';
 import { useLiveMatchNavigationEffects } from '@/features/runs/hooks/useLiveMatchNavigationEffects';
@@ -427,6 +428,53 @@ export function TrackRunExperience({
     matchRoom,
     currentRoomParticipantIsCountdownReady: currentRoomParticipant?.isCountdownReady,
   });
+  const roomLinkedMatchContext = visiblePartyRunFlow.linkedMatchContext;
+  const liveMatchStartupIdentity = useMemo(() => {
+    if (matchMode === 'duel') {
+      return duelMatchStatus?.matchId
+        ?? (roomLinkedMatchContext?.mode === 'duel' ? roomLinkedMatchContext.matchId : null)
+        ?? null;
+    }
+
+    if (matchMode === 'group') {
+      return groupMatchStatus?.matchId
+        ?? (roomLinkedMatchContext?.mode === 'group' ? roomLinkedMatchContext.matchId : null)
+        ?? null;
+    }
+
+    return null;
+  }, [
+    duelMatchStatus?.matchId,
+    groupMatchStatus?.matchId,
+    matchMode,
+    roomLinkedMatchContext?.matchId,
+    roomLinkedMatchContext?.mode,
+  ]);
+  const shouldStageAndroidLiveMatchStartup = Boolean(
+    liveMatchStartupIdentity
+    && matchMode !== 'solo'
+    && matchMode !== 'room'
+    && (
+      isRunning
+      || forceOpenActiveMatch
+      || visiblePartyRunFlow.shouldOpenArena
+      || (matchMode === 'duel' && (
+        duelMatchState === 'active'
+        || shouldAutoOpenMatchArena(duelStartCountdownSeconds)
+        || roomLinkedMatchContext?.mode === 'duel'
+      ))
+      || (matchMode === 'group' && (
+        groupMatchState === 'active'
+        || shouldAutoOpenMatchArena(groupStartCountdownSeconds)
+        || roomLinkedMatchContext?.mode === 'group'
+      ))
+    ),
+  );
+  const androidLiveMatchStartup = useAndroidLiveMatchStartupGate({
+    active: shouldStageAndroidLiveMatchStartup,
+    identity: liveMatchStartupIdentity,
+  });
+  const liveMatchHeavyWorkReady = androidLiveMatchStartup.ready;
   const rawLiveMatchDisplayFrame = useMemo(
     () => ({
       distanceKm,
@@ -476,10 +524,10 @@ export function TrackRunExperience({
     elapsedSeconds: liveMatchDisplayElapsedSeconds,
     duelDistanceKm,
     groupDistanceKm,
+    deferRankingCalculations: !liveMatchHeavyWorkReady,
   });
   const isTabMode = mode === 'tab';
   const liveArenaPageWidth = Math.max(windowWidth - 32, 280);
-  const roomLinkedMatchContext = visiblePartyRunFlow.linkedMatchContext;
   const hasRoomLinkedDuelContext = roomLinkedMatchContext?.mode === 'duel';
   const hasRoomLinkedGroupContext = roomLinkedMatchContext?.mode === 'group';
   const duelArenaUsesLivePace = Boolean(
@@ -1397,6 +1445,7 @@ export function TrackRunExperience({
     idleRoomPollMs: MATCH_ROOM_IDLE_POLL_MS,
     fastMatchStatusPollMs: MATCH_STATUS_FAST_POLL_MS,
     idleMatchStatusPollMs: MATCH_STATUS_IDLE_POLL_MS,
+    linkedMatchSyncEnabled: liveMatchHeavyWorkReady,
     getSyncedNowMs,
     loadMatchRoom,
     acknowledgeCountdownReady: acknowledgeRoomCountdownReady,
@@ -1487,6 +1536,7 @@ export function TrackRunExperience({
     idlePollMs: 15000,
     loadDuelMatchStatus,
     loadGroupMatchStatus,
+    enabled: liveMatchHeavyWorkReady,
   });
 
   const {
@@ -1555,6 +1605,7 @@ export function TrackRunExperience({
     soloStartCountdownSeconds: SOLO_START_COUNTDOWN_SECONDS,
     getSyncedNowMs,
     refreshStaleMatchArtifacts,
+    matchProgressHeartbeatEnabled: liveMatchHeavyWorkReady,
   });
 
   const handleRequestDuelMatch = async (
@@ -1839,6 +1890,7 @@ export function TrackRunExperience({
     shouldKeepRunningMatchArena,
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
+    deferHeavyContent: !liveMatchHeavyWorkReady,
   }), [
     currentGroupLeader,
     currentGroupStanding,
@@ -1860,6 +1912,7 @@ export function TrackRunExperience({
     groupDistanceKm,
     hasRoomLinkedDuelLiveProgress,
     isDuelOpponentForfeited,
+    liveMatchHeavyWorkReady,
     liveMatchDisplayDistanceKm,
     matchMode,
     officialDuelReady,

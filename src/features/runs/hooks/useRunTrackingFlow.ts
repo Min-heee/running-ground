@@ -92,6 +92,7 @@ export function useRunTrackingFlow({
   soloStartCountdownSeconds,
   getSyncedNowMs,
   refreshStaleMatchArtifacts,
+  matchProgressHeartbeatEnabled = true,
 }: UseRunTrackingFlowInput) {
   const syncElapsedSeconds = (nextElapsedSeconds: number) => {
     elapsedSecondsRef.current = nextElapsedSeconds;
@@ -233,6 +234,7 @@ export function useRunTrackingFlow({
     setLastSyncedMatchProgress,
     setDuelMatchStatus,
     setGroupMatchStatus,
+    heartbeatEnabled: matchProgressHeartbeatEnabled,
   });
 
   const syncFromBackgroundTracking = (

@@ -27,6 +27,7 @@ type LiveMatchArenaProps = {
   summaryChips: string[];
   participants: ArenaParticipant[];
   footer?: string;
+  deferHeavyContent?: boolean;
 };
 
 const SummaryChip = memo(function SummaryChip({ label }: { label: string }) {
@@ -72,6 +73,14 @@ const SummaryChipRow = memo(function SummaryChipRow({
   );
 }, (prevProps, nextProps) => areStringArraysEqual(prevProps.chips, nextProps.chips));
 
+const LiveMatchStartupRoad = memo(function LiveMatchStartupRoad() {
+  return (
+    <View style={styles.startupRoadShell}>
+      <Text style={styles.startupRoadText}>대결 화면 준비 중...</Text>
+    </View>
+  );
+});
+
 export const LiveMatchArena = memo(function LiveMatchArena({
   mode,
   targetDistanceKm,
@@ -80,6 +89,7 @@ export const LiveMatchArena = memo(function LiveMatchArena({
   summaryChips,
   participants,
   footer,
+  deferHeavyContent = false,
 }: LiveMatchArenaProps) {
   useDevRenderCounter(`LiveMatchArena:${mode}`);
   const { width: windowWidth } = useWindowDimensions();
@@ -128,7 +138,9 @@ export const LiveMatchArena = memo(function LiveMatchArena({
       <ArenaHeader mode={mode} title={title} subtitle={subtitle} />
       <SummaryChipRow chips={summaryChips} />
       {perfPanel}
-      {mode === 'duel' ? (
+      {deferHeavyContent ? (
+        <LiveMatchStartupRoad />
+      ) : mode === 'duel' ? (
         <DuelRoad participants={duelParticipants} targetDistanceKm={targetDistanceKm} />
       ) : (
         <GroupRoad participants={visibleGroupParticipants} targetDistanceKm={targetDistanceKm} />
@@ -142,6 +154,7 @@ export const LiveMatchArena = memo(function LiveMatchArena({
   && prevProps.title === nextProps.title
   && prevProps.subtitle === nextProps.subtitle
   && prevProps.footer === nextProps.footer
+  && prevProps.deferHeavyContent === nextProps.deferHeavyContent
   && areStringArraysEqual(prevProps.summaryChips, nextProps.summaryChips)
   && areParticipantArraysEqual(prevProps.participants, nextProps.participants)
 ));

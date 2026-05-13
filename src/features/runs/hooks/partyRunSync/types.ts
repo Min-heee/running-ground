@@ -45,4 +45,5 @@ export type LinkedMatchSyncInput = {
   fastMatchStatusPollMs: number;
   idleMatchStatusPollMs: number;
   callbacksRef: PartyRunSyncCallbackRef;
+  enabled?: boolean;
 };

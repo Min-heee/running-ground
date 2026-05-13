@@ -58,13 +58,15 @@ export function useLinkedMatchSync({
   fastMatchStatusPollMs,
   idleMatchStatusPollMs,
   callbacksRef,
+  enabled = true,
 }: LinkedMatchSyncInput) {
   const roomLinkedMatchAutoFocusRef = useRef<string | null>(null);
   const roomLinkedArenaPinRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (
-      !matchRoom?.linkedMatchId
+      !enabled
+      || !matchRoom?.linkedMatchId
       || !canOpenPartyRunLinkedMatch({
         room: matchRoom,
         currentUserId,
@@ -101,6 +103,7 @@ export function useLinkedMatchSync({
     currentUserId,
     duelMatchStatus?.matchId,
     duelMatchStatus?.state,
+    enabled,
     focusedDuelMatchIdRef,
     focusedGroupMatchIdRef,
     groupMatchStatus?.matchId,
@@ -117,7 +120,7 @@ export function useLinkedMatchSync({
   ]);
 
   useEffect(() => {
-    if (!roomLinkedMatchContext) {
+    if (!enabled || !roomLinkedMatchContext) {
       roomLinkedArenaPinRef.current = null;
       return undefined;
     }
@@ -174,6 +177,7 @@ export function useLinkedMatchSync({
     };
   }, [
     callbacksRef,
+    enabled,
     fastMatchStatusPollMs,
     idleMatchStatusPollMs,
     livePagerRef,
@@ -187,6 +191,10 @@ export function useLinkedMatchSync({
   ]);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     void callbacksRef.current.loadUpcomingMatches().catch(() => {});
-  }, [callbacksRef, matchRoom?.linkedMatchId, matchRoom?.state]);
+  }, [callbacksRef, enabled, matchRoom?.linkedMatchId, matchRoom?.state]);
 }

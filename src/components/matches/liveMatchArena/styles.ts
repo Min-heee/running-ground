@@ -55,6 +55,18 @@ export const liveMatchArenaStyles = StyleSheet.create({
     borderColor: '#312E81',
     backgroundColor: '#091122',
   },
+  startupRoadShell: {
+    minHeight: 220,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#091122',
+  },
+  startupRoadText: {
+    color: '#C7D2FE',
+    fontSize: 13,
+    fontWeight: '800',
+  },
   roadBackground: {
     ...StyleSheet.absoluteFillObject,
   },

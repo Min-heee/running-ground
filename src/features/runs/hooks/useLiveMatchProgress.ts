@@ -27,6 +27,7 @@ type UseLiveMatchProgressInput = {
   elapsedSeconds: number;
   duelDistanceKm: number;
   groupDistanceKm: number;
+  deferRankingCalculations?: boolean;
 };
 
 export function useLiveMatchProgress({
@@ -42,10 +43,15 @@ export function useLiveMatchProgress({
   elapsedSeconds,
   duelDistanceKm,
   groupDistanceKm,
+  deferRankingCalculations = false,
 }: UseLiveMatchProgressInput) {
   const groupLiveStandings = useMemo(
-    () => buildGroupLiveStandings(effectiveGroupParticipants, effectiveGroupSeedRank, distanceKm, elapsedSeconds, groupDistanceKm),
-    [distanceKm, elapsedSeconds, effectiveGroupParticipants, effectiveGroupSeedRank, groupDistanceKm],
+    () => (
+      deferRankingCalculations && matchMode === 'group'
+        ? []
+        : buildGroupLiveStandings(effectiveGroupParticipants, effectiveGroupSeedRank, distanceKm, elapsedSeconds, groupDistanceKm)
+    ),
+    [deferRankingCalculations, distanceKm, elapsedSeconds, effectiveGroupParticipants, effectiveGroupSeedRank, groupDistanceKm, matchMode],
   );
   const currentGroupStanding = useMemo(
     () => groupLiveStandings.find((participant) => participant.isCurrentUser) ?? null,

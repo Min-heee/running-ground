@@ -16,6 +16,7 @@ type UseBlockingMatchStatusPollingInput = {
   idlePollMs: number;
   loadDuelMatchStatus: () => Promise<unknown>;
   loadGroupMatchStatus: () => Promise<unknown>;
+  enabled?: boolean;
 };
 
 function shouldUseFastMatchStatusPolling(
@@ -39,6 +40,7 @@ export function useBlockingMatchStatusPolling({
   idlePollMs,
   loadDuelMatchStatus,
   loadGroupMatchStatus,
+  enabled = true,
 }: UseBlockingMatchStatusPollingInput) {
   const callbackRef = useRef({
     loadDuelMatchStatus,
@@ -66,7 +68,7 @@ export function useBlockingMatchStatusPolling({
   const groupMatchState = groupMatchStatus?.state;
 
   useEffect(() => {
-    if (matchMode !== 'duel' || !isBlockingMatchState(duelMatchState)) {
+    if (!enabled || matchMode !== 'duel' || !isBlockingMatchState(duelMatchState)) {
       return;
     }
 
@@ -82,6 +84,7 @@ export function useBlockingMatchStatusPolling({
     duelMatchId,
     duelMatchSlotStartAt,
     duelMatchState,
+    enabled,
     fastPollMs,
     idlePollMs,
     matchMode,
@@ -89,7 +92,7 @@ export function useBlockingMatchStatusPolling({
   ]);
 
   useEffect(() => {
-    if (matchMode !== 'group' || !isBlockingMatchState(groupMatchState)) {
+    if (!enabled || matchMode !== 'group' || !isBlockingMatchState(groupMatchState)) {
       return;
     }
 
@@ -103,6 +106,7 @@ export function useBlockingMatchStatusPolling({
     };
   }, [
     fastPollMs,
+    enabled,
     groupMatchId,
     groupMatchSlotStartAt,
     groupMatchState,

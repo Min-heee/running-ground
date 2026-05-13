@@ -47,6 +47,7 @@ export type LiveMatchArenaPageProps = {
   shouldKeepRunningMatchArena: boolean;
   currentUserDuelLiveStatus: DuelMatchOpponent['liveStatus'] | null;
   currentUserGroupLiveStatus: DuelMatchOpponent['liveStatus'] | null;
+  deferHeavyContent?: boolean;
 };
 
 export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
@@ -83,6 +84,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
   shouldKeepRunningMatchArena,
   currentUserDuelLiveStatus,
   currentUserGroupLiveStatus,
+  deferHeavyContent = false,
 }: LiveMatchArenaPageProps) {
   if (matchMode === 'duel' && effectiveDuelOpponent) {
     return (
@@ -104,6 +106,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
               ? `실시간 수신 ${buildDistanceGapLabel(duelLiveGapKm)}`
               : buildDistanceGapLabel(null),
         ]}
+        deferHeavyContent={deferHeavyContent}
         participants={duelArenaParticipants}
         footer={
           isDuelOpponentForfeited
@@ -135,6 +138,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
               ? `실시간 수신 ${buildDistanceGapLabel(roomLinkedDuelGapKm)}`
               : buildDistanceGapLabel(null),
         ]}
+        deferHeavyContent={deferHeavyContent}
         participants={roomLinkedDuelPlaceholderParticipants}
         footer={
           hasRoomLinkedDuelLiveProgress && roomLinkedDuelCurrentParticipant && roomLinkedDuelOpponentParticipant
@@ -161,6 +165,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
           `현재 ${currentGroupStanding.rank}/${effectiveGroupParticipantCount}위`,
           currentGroupLeader ? `선두 ${currentGroupLeader.name} · ${currentGroupLeader.currentDistanceKm.toFixed(2)}km` : '선두 동기화 중',
         ]}
+        deferHeavyContent={deferHeavyContent}
         participants={groupArenaParticipants}
         footer={
           groupAheadParticipant
@@ -189,6 +194,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
             ? `시작까지 ${formatMatchCountdown(roomCountdownRemainingSeconds)}`
             : '곧 시작',
         ]}
+        deferHeavyContent={deferHeavyContent}
         participants={roomLinkedGroupPlaceholderParticipants}
         footer="참가자와 같은 대결방에 연결됐어요. 카운트다운이 끝나면 순위 비교가 시작돼요."
       />
@@ -215,6 +221,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
           formatArenaPaceChip('상대 페이스', opponentPaceLabel),
           '대결 화면 유지 중',
         ]}
+        deferHeavyContent={deferHeavyContent}
         participants={[
           {
             id: 'duel-fallback-opponent',
@@ -271,6 +278,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
           `${fallbackGroupParticipants.length}명 연결 확인 중`,
           '대결 화면 유지 중',
         ]}
+        deferHeavyContent={deferHeavyContent}
         participants={fallbackGroupParticipants}
         footer="서버 응답이 잠깐 흔들려도 측정 화면으로 빠지지 않고 대결 화면을 유지해요."
       />

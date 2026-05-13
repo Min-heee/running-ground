@@ -33,6 +33,7 @@ type UsePartyRunSyncInput = {
   idleRoomPollMs: number;
   fastMatchStatusPollMs: number;
   idleMatchStatusPollMs: number;
+  linkedMatchSyncEnabled?: boolean;
   getSyncedNowMs: () => number;
   loadMatchRoom: () => Promise<RunningMatchRoom | null>;
   acknowledgeCountdownReady: (roomId: string) => Promise<void>;
@@ -68,6 +69,7 @@ export function usePartyRunSync({
   idleRoomPollMs,
   fastMatchStatusPollMs,
   idleMatchStatusPollMs,
+  linkedMatchSyncEnabled = true,
   getSyncedNowMs,
   loadMatchRoom,
   acknowledgeCountdownReady,
@@ -131,6 +133,7 @@ export function usePartyRunSync({
     livePagerRef,
     fastMatchStatusPollMs,
     idleMatchStatusPollMs,
+    enabled: linkedMatchSyncEnabled,
     callbacksRef: callbackRef,
   });
 }

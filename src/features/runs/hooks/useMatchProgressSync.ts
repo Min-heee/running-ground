@@ -37,6 +37,7 @@ type UseMatchProgressSyncInput = {
   setDuelMatchStatus: (status: RunningMatchStatusResponse | null) => void;
   setGroupMatchStatus: (status: RunningMatchStatusResponse | null) => void;
   updateRunningMatchProgress?: typeof updateRunningMatchProgressService;
+  heartbeatEnabled?: boolean;
 };
 
 export function useMatchProgressSync({
@@ -50,6 +51,7 @@ export function useMatchProgressSync({
   setDuelMatchStatus,
   setGroupMatchStatus,
   updateRunningMatchProgress = updateRunningMatchProgressService,
+  heartbeatEnabled = true,
 }: UseMatchProgressSyncInput) {
   const callbackRef = useRef({
     buildDisplayedMatchProgress,
@@ -132,6 +134,11 @@ export function useMatchProgressSync({
 
   const refreshMatchProgressHeartbeat = useCallback((snapshot: BackgroundRunTrackingSnapshot) => {
     const now = Date.now();
+    if (!heartbeatEnabled) {
+      matchProgressHeartbeatRef.current = now;
+      return;
+    }
+
     if (!shouldSendMatchProgressHeartbeat({
       trackingStatus: snapshot.status,
       lastHeartbeatAt: matchProgressHeartbeatRef.current,
@@ -156,7 +163,7 @@ export function useMatchProgressSync({
     }).catch(() => {
       // Keep the run going even if the optional match heartbeat fails.
     });
-  }, [getActiveMatchProgressTarget, matchProgressHeartbeatRef, pushRunningMatchProgress]);
+  }, [getActiveMatchProgressTarget, heartbeatEnabled, matchProgressHeartbeatRef, pushRunningMatchProgress]);
 
   return {
     getActiveMatchProgressTarget,
