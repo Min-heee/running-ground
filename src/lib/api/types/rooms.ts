@@ -77,6 +77,11 @@ export type RunningMatchRoomResponse = {
   room: RunningMatchRoom | null;
 };
 
+export type JoinedRunningMatchRoomResponse = Omit<RunningMatchRoomResponse, 'success' | 'room'> & {
+  success: true;
+  room: RunningMatchRoom;
+};
+
 export type RunningMatchRoomBlockerSource =
   | 'matchRooms.participant'
   | 'matchRooms.invited'

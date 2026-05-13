@@ -3,6 +3,7 @@ import test from 'node:test';
 import { ApiError } from '@/services/apiError';
 import {
   ensureJoinedRunningMatchRoomResponse,
+  MISSING_JOINED_ROOM_MESSAGE,
   shouldFallbackToLocalRunningRoomApi,
 } from './runningRoomResponseGuards';
 
@@ -31,6 +32,42 @@ test('joined room response requires a concrete room id', () => {
       serverNow: new Date().toISOString(),
       room: null,
     }),
-    /참여할 방 정보를 확인하지 못했어/,
+    new RegExp(MISSING_JOINED_ROOM_MESSAGE),
+  );
+});
+
+test('joined room response treats success without roomId as a failed response', () => {
+  assert.throws(
+    () => ensureJoinedRunningMatchRoomResponse({
+      success: true,
+      serverNow: new Date().toISOString(),
+      room: {
+        roomId: null,
+        inviteToken: 'ABC123',
+        inviteLink: 'runningground://running?roomInviteToken=ABC123',
+        mode: 'duel',
+        state: 'waiting',
+        startMode: 'host',
+        distanceKm: 5,
+        slotStartAt: new Date().toISOString(),
+        slotLabel: '지금',
+        maxParticipants: 2,
+        minParticipants: 2,
+        canStart: false,
+        isHost: false,
+        joined: true,
+        hostUserId: 'host-user',
+        hostName: '테스트',
+        participants: [],
+        invitedFriendIds: [],
+      } as unknown as NonNullable<Parameters<typeof ensureJoinedRunningMatchRoomResponse>[0]['room']>,
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiError);
+      assert.equal(error.userMessage, MISSING_JOINED_ROOM_MESSAGE);
+      assert.equal((error.details as { success?: boolean; invalidReason?: string }).success, false);
+      assert.equal((error.details as { success?: boolean; invalidReason?: string }).invalidReason, 'missingRoomId');
+      return true;
+    },
   );
 });

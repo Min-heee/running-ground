@@ -1834,7 +1834,7 @@ function requireJoinedRunningMatchRoomResponse(payload) {
 
   throw new ApiError(
     404,
-    '참여할 방 정보를 확인하지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.',
+    '방 정보를 불러오지 못했습니다. 다시 시도해주세요.',
   );
 }
 

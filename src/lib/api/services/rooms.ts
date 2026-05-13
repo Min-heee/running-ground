@@ -17,6 +17,7 @@ import {
   AcknowledgeRunningMatchRoomCountdownInput,
   CreateRunningMatchRoomInput,
   JoinRunningMatchRoomInput,
+  JoinedRunningMatchRoomResponse,
   LeaveRunningMatchRoomInput,
   RunningMatchRoomCleanupResponse,
   RunningMatchRoomResponse,
@@ -139,7 +140,7 @@ export async function createRunningMatchRoom(input: CreateRunningMatchRoomInput)
   }
 }
 
-export async function joinRunningMatchRoom(input: JoinRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
+export async function joinRunningMatchRoom(input: JoinRunningMatchRoomInput): Promise<JoinedRunningMatchRoomResponse> {
   if (USE_MOCK_API) {
     return ensureJoinedRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)));
   }

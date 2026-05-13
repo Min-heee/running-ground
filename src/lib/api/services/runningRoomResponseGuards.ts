@@ -1,5 +1,7 @@
 import { ApiError, isApiError } from '@/services/apiError';
-import type { RunningMatchRoomResponse } from '../types';
+import type { JoinedRunningMatchRoomResponse, RunningMatchRoomResponse } from '../types';
+
+export const MISSING_JOINED_ROOM_MESSAGE = '방 정보를 불러오지 못했습니다. 다시 시도해주세요.';
 
 export function shouldFallbackToLocalRunningRoomApi(error: unknown) {
   if (isApiError(error)) {
@@ -20,17 +22,21 @@ export function shouldFallbackToLocalRunningRoomApi(error: unknown) {
     );
 }
 
-export function ensureJoinedRunningMatchRoomResponse(payload: RunningMatchRoomResponse): RunningMatchRoomResponse {
+export function ensureJoinedRunningMatchRoomResponse(payload: RunningMatchRoomResponse): JoinedRunningMatchRoomResponse {
   if (payload.success && payload.room?.roomId) {
-    return payload;
+    return payload as JoinedRunningMatchRoomResponse;
   }
 
   throw new ApiError(
     'request',
-    '참여할 방 정보를 확인하지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.',
+    MISSING_JOINED_ROOM_MESSAGE,
     {
-      details: payload,
-      userMessage: '참여할 방 정보를 확인하지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.',
+      details: {
+        ...payload,
+        success: false,
+        invalidReason: payload.room ? 'missingRoomId' : 'missingRoom',
+      },
+      userMessage: MISSING_JOINED_ROOM_MESSAGE,
     },
   );
 }
