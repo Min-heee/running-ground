@@ -369,6 +369,10 @@ function shouldIgnoreNoisySegment({
 }
 
 function appendTrackedLocation(location: Location.LocationObject) {
+  if (snapshotState.status !== 'running') {
+    return;
+  }
+
   const locationTimestampMs = resolveLocationTimestampMs(location);
 
   if (locationTimestampMs === null) {
