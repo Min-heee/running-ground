@@ -4,12 +4,22 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 
-export function ProfileSettingsCard() {
+type ProfileSettingsCardProps = {
+  onDebugUnlockPress?: () => void;
+};
+
+export function ProfileSettingsCard({ onDebugUnlockPress }: ProfileSettingsCardProps) {
   return (
     <Card style={styles.settingsCard}>
       <View style={styles.sectionHeaderRow}>
         <SectionTitle>설정</SectionTitle>
-        <Text style={styles.sectionLink}>3개</Text>
+        <Pressable
+          accessibilityLabel="설정 항목 수"
+          hitSlop={8}
+          onPress={onDebugUnlockPress}
+        >
+          <Text style={styles.sectionLink}>3개</Text>
+        </Pressable>
       </View>
       <Link href="/region-settings" asChild>
         <Pressable style={styles.settingRow}>

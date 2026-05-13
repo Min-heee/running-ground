@@ -1,3 +1,4 @@
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { type Href } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -5,14 +6,19 @@ import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { AccountActionsCard } from '@/features/profile/components/AccountActionsCard';
 import { MatchRecordSummaryCard } from '@/features/profile/components/MatchRecordSummaryCard';
+import { ProfileEnvironmentDebugCard } from '@/features/profile/components/ProfileEnvironmentDebugCard';
 import { ProfileSettingsCard } from '@/features/profile/components/ProfileSettingsCard';
 import { ProfileSummaryCard } from '@/features/profile/components/ProfileSummaryCard';
 import { UniversityVerificationCard } from '@/features/profile/components/UniversityVerificationCard';
 import { useMyPageScreen } from '@/features/profile/hooks/useMyPageScreen';
+import { shouldShowRgEnvironmentDebugByDefault } from '@/utils/rgEnvTrace';
 
 export default function MyPageScreen() {
   const universityVerificationHref = '/university-verification' as Href;
   const matchRecordHref = '/match-record' as Href;
+  const showDebugByDefault = useMemo(() => shouldShowRgEnvironmentDebugByDefault(), []);
+  const [showEnvironmentDebug, setShowEnvironmentDebug] = useState(showDebugByDefault);
+  const [, setEnvironmentDebugTapCount] = useState(0);
   const {
     connectedSourceCount,
     deleteConfirm,
@@ -29,6 +35,21 @@ export default function MyPageScreen() {
     profile,
     tagShared,
   } = useMyPageScreen();
+  const handleEnvironmentDebugUnlock = useCallback(() => {
+    if (showEnvironmentDebug) {
+      return;
+    }
+
+    setEnvironmentDebugTapCount((currentCount) => {
+      const nextCount = currentCount + 1;
+
+      if (nextCount >= 5) {
+        setShowEnvironmentDebug(true);
+      }
+
+      return nextCount;
+    });
+  }, [showEnvironmentDebug]);
 
   return (
     <Screen>
@@ -57,7 +78,9 @@ export default function MyPageScreen() {
             groupCount={matchSummary.groupCount}
           />
 
-          <ProfileSettingsCard />
+          <ProfileSettingsCard onDebugUnlockPress={handleEnvironmentDebugUnlock} />
+
+          {showEnvironmentDebug ? <ProfileEnvironmentDebugCard profile={profile} /> : null}
 
           <AccountActionsCard
             logoutConfirm={logoutConfirm}

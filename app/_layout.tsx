@@ -1,13 +1,25 @@
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect, Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '@/features/runs/tracking/background';
 import { useConfigureNotificationHandler } from '@/navigation/notificationHandler';
 import { useRootAuthGate } from '@/navigation/rootAuthGate';
+import { logRgEnvironmentOnce } from '@/utils/rgEnvTrace';
 
 export default function RootLayout() {
   const { ready, redirectHref } = useRootAuthGate();
+  const didLogEnvironmentRef = useRef(false);
   useConfigureNotificationHandler();
+
+  useEffect(() => {
+    if (!ready || didLogEnvironmentRef.current) {
+      return;
+    }
+
+    didLogEnvironmentRef.current = true;
+    logRgEnvironmentOnce();
+  }, [ready]);
 
   if (!ready) {
     return (
