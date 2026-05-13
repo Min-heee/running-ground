@@ -1,25 +1,6 @@
 import { Tabs } from 'expo-router';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const TAB_TITLES = {
-  league: '\uB9AC\uADF8',
-  friends: '\uCE5C\uAD6C',
-  home: '\uD648',
-  running: '\uB7F0\uB2DD',
-  race: '\uB808\uC774\uC2A4',
-  market: '\uB9C8\uCF13',
-  mypage: '\uB9C8\uC774',
-} as const;
-
-const TAB_ICONS = {
-  league: 'award',
-  friends: 'users',
-  home: 'home',
-  race: 'flag',
-  market: 'shopping-bag',
-  mypage: 'user',
-} as const;
+import { getTabScreenOptions } from '@/navigation/tabConfig';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
@@ -54,55 +35,13 @@ export default function TabsLayout() {
         },
       }}
     >
-      <Tabs.Screen
-        name="league"
-        options={{
-          title: TAB_TITLES.league,
-          tabBarIcon: ({ color, size }) => <Feather name={TAB_ICONS.league} size={size ?? 18} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="friends"
-        options={{
-          title: TAB_TITLES.friends,
-          tabBarIcon: ({ color, size }) => <Feather name={TAB_ICONS.friends} size={size ?? 18} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="running"
-        options={{
-          title: TAB_TITLES.running,
-          tabBarIcon: ({ color, size }) => <MaterialCommunityIcons name="run" size={(size ?? 18) + 1} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="home"
-        options={{
-          title: TAB_TITLES.home,
-          tabBarIcon: ({ color, size }) => <Feather name={TAB_ICONS.home} size={size ?? 18} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="race"
-        options={{
-          title: TAB_TITLES.race,
-          tabBarIcon: ({ color, size }) => <Feather name={TAB_ICONS.race} size={size ?? 18} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="market"
-        options={{
-          title: TAB_TITLES.market,
-          tabBarIcon: ({ color, size }) => <Feather name={TAB_ICONS.market} size={size ?? 18} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="mypage"
-        options={{
-          title: TAB_TITLES.mypage,
-          tabBarIcon: ({ color, size }) => <Feather name={TAB_ICONS.mypage} size={size ?? 18} color={color} />,
-        }}
-      />
+      <Tabs.Screen name="league" options={getTabScreenOptions('league')} />
+      <Tabs.Screen name="friends" options={getTabScreenOptions('friends')} />
+      <Tabs.Screen name="running" options={getTabScreenOptions('running')} />
+      <Tabs.Screen name="home" options={getTabScreenOptions('home')} />
+      <Tabs.Screen name="race" options={getTabScreenOptions('race')} />
+      <Tabs.Screen name="market" options={getTabScreenOptions('market')} />
+      <Tabs.Screen name="mypage" options={getTabScreenOptions('mypage')} />
       <Tabs.Screen name="integrations" options={{ href: null }} />
     </Tabs>
   );

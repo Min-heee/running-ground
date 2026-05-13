@@ -1,72 +1,27 @@
-import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, TextInput, Pressable, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
-import { createFriendRequest, fetchFriendLeaderboard, fetchMyProfile } from '@/services';
-import { FriendLeaderboardResponse, MyProfileResponse } from '@/lib/api/types';
+import { useAddFriendScreen } from '@/features/friends/hooks/useAddFriendScreen';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 
 export default function AddFriendScreen() {
-  const [friendTag, setFriendTag] = useState('');
-  const [copied, setCopied] = useState(false);
-  const [added, setAdded] = useState(false);
-  const [profile, setProfile] = useState<MyProfileResponse | null>(null);
-  const [leaderboard, setLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    Promise.all([fetchMyProfile(), fetchFriendLeaderboard()])
-      .then(([profileData, leaderboardData]) => {
-        setProfile(profileData);
-        setLeaderboard(leaderboardData);
-      })
-      .catch((loadError) => {
-        setError(loadError instanceof Error ? loadError.message : '친구 추가 정보를 불러오지 못했어.');
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  const handleCopy = () => {
-    if (!profile) {
-      return;
-    }
-
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  };
-
-  const handleAddFriend = async () => {
-    if (!friendTag.trim()) {
-      setError('친구 태그를 입력해줘.');
-      return;
-    }
-
-    setError(null);
-    setSubmitting(true);
-
-    try {
-      await createFriendRequest(friendTag);
-      setAdded(true);
-      setFriendTag('');
-      setTimeout(() => setAdded(false), 2000);
-
-      const refreshedLeaderboard = await fetchFriendLeaderboard();
-      setLeaderboard(refreshedLeaderboard);
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : '친구 요청 전송에 실패했어.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const pendingCount = leaderboard?.requests.filter((request) => request.status === 'pending').length ?? 0;
-  const receivedCount = leaderboard?.requests.filter((request) => request.status === 'received').length ?? 0;
+  const {
+    added,
+    copied,
+    error,
+    friendTag,
+    handleAddFriend,
+    handleCopy,
+    handleFriendTagChange,
+    loading,
+    profile,
+    requestCounts,
+    submitting,
+  } = useAddFriendScreen();
 
   return (
     <Screen>
@@ -94,7 +49,7 @@ export default function AddFriendScreen() {
 
       <Card>
         <Text style={styles.sectionTitle}>친구 요청 현황</Text>
-        <Text style={styles.statusText}>보낸 요청 {pendingCount}건 · 받은 요청 {receivedCount}건</Text>
+        <Text style={styles.statusText}>보낸 요청 {requestCounts.pendingCount}건 · 받은 요청 {requestCounts.receivedCount}건</Text>
       </Card>
 
       <Card>
@@ -106,7 +61,7 @@ export default function AddFriendScreen() {
             style={styles.input}
             autoCapitalize="characters"
             value={friendTag}
-            onChangeText={(value) => setFriendTag(value.toUpperCase())}
+            onChangeText={handleFriendTagChange}
             editable={!submitting}
           />
           <PrimaryButton label={submitting ? '친구 요청 보내는 중...' : '친구 요청 보내기'} onPress={handleAddFriend} />

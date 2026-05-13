@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -11,254 +10,17 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Card } from '@/components/Card';
+import { useAdminDashboard } from '@/features/settings/admin/hooks/useAdminDashboard';
 import {
-  createAdminNotice,
-  createAdminMarketItem,
-  createAdminOfflineRaceEvent,
-  deleteAdminNotice,
-  deleteAdminMarketItem,
-  deleteAdminOfflineRaceEvent,
-  deleteAdminUser,
-  fetchAdminMarketItems,
-  fetchAdminNotices,
-  fetchAdminOfflineRaceEvents,
-  fetchAdminOverview,
-  fetchAdminRewardRedemptions,
-  fetchAdminSession,
-  fetchAdminUsers,
-  updateAdminNotice,
-  updateAdminMarketItem,
-  updateAdminOfflineRaceEvent,
-  updateAdminRewardRedemption,
-} from '@/services/adminService';
-import { API_CONFIG } from '@/services/apiClient';
-import {
-  AdminNotice,
-  AdminMarketItem,
-  AdminOfflineRaceEvent,
-  AdminOverviewResponse,
-  AdminRewardRedemption,
-  AdminSessionResponse,
-  AdminUserSummary,
-} from '@/lib/api/types';
-
-const ADMIN_TOKEN_STORAGE_KEY = 'runningground-admin-token';
-const LEGACY_ADMIN_TOKEN_STORAGE_KEY = 'runnigapp-admin-token';
-
-type MarketFormState = {
-  title: string;
-  category: string;
-  description: string;
-  costPoints: string;
-  partnerName: string;
-  repeatable: boolean;
-  isActive: boolean;
-  inventoryCount: string;
-};
-
-type NoticeFormState = {
-  title: string;
-  message: string;
-  priority: string;
-  isActive: boolean;
-};
-
-type RaceFormState = {
-  title: string;
-  subtitle: string;
-  distanceKm: string;
-  startsAt: string;
-  registrationClosesAt: string;
-  participationMode: string;
-  proofMethod: string;
-  runWindowMinutes: string;
-  hostLabel: string;
-  capacity: string;
-  entryFeePoints: string;
-  operationNote: string;
-};
-
-function createEmptyMarketForm(): MarketFormState {
-  return {
-    title: '',
-    category: '',
-    description: '',
-    costPoints: '',
-    partnerName: '',
-    repeatable: false,
-    isActive: true,
-    inventoryCount: '',
-  };
-}
-
-function createEmptyNoticeForm(): NoticeFormState {
-  return {
-    title: '',
-    message: '',
-    priority: '0',
-    isActive: true,
-  };
-}
-
-function createEmptyRaceForm(): RaceFormState {
-  return {
-    title: '',
-    subtitle: '',
-    distanceKm: '',
-    startsAt: '',
-    registrationClosesAt: '',
-    participationMode: '각자 러닝 후 기록 인증',
-    proofMethod: '앱 연동 기록 또는 수동 인증',
-    runWindowMinutes: '180',
-    hostLabel: 'RunningGround',
-    capacity: '80',
-    entryFeePoints: '0',
-    operationNote: '정해진 시간 안에 각자 출발하고 기록이 자동 집계돼요.',
-  };
-}
-
-function readStoredAdminToken() {
-  if (Platform.OS !== 'web') {
-    return '';
-  }
-
-  try {
-    const currentValue = globalThis.localStorage?.getItem(ADMIN_TOKEN_STORAGE_KEY) ?? '';
-
-    if (currentValue) {
-      return currentValue;
-    }
-
-    const legacyValue = globalThis.localStorage?.getItem(LEGACY_ADMIN_TOKEN_STORAGE_KEY) ?? '';
-
-    if (legacyValue) {
-      globalThis.localStorage?.setItem(ADMIN_TOKEN_STORAGE_KEY, legacyValue);
-      globalThis.localStorage?.removeItem(LEGACY_ADMIN_TOKEN_STORAGE_KEY);
-    }
-
-    return legacyValue;
-  } catch {
-    return '';
-  }
-}
-
-function writeStoredAdminToken(adminToken: string) {
-  if (Platform.OS !== 'web') {
-    return;
-  }
-
-  try {
-    globalThis.localStorage?.setItem(ADMIN_TOKEN_STORAGE_KEY, adminToken);
-    globalThis.localStorage?.removeItem(LEGACY_ADMIN_TOKEN_STORAGE_KEY);
-  } catch {
-    // Ignore storage failures in private mode or restricted browsers.
-  }
-}
-
-function clearStoredAdminToken() {
-  if (Platform.OS !== 'web') {
-    return;
-  }
-
-  try {
-    globalThis.localStorage?.removeItem(ADMIN_TOKEN_STORAGE_KEY);
-    globalThis.localStorage?.removeItem(LEGACY_ADMIN_TOKEN_STORAGE_KEY);
-  } catch {
-    // Ignore storage failures in restricted browsers.
-  }
-}
-
-function confirmAction(message: string) {
-  if (typeof globalThis.confirm === 'function') {
-    return globalThis.confirm(message);
-  }
-
-  return true;
-}
-
-function formatDateTime(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  }).format(date);
-}
-
-function toDateTimeLocalValue(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-
-  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
-}
-
-function toMarketForm(item: AdminMarketItem): MarketFormState {
-  return {
-    title: item.title,
-    category: item.category,
-    description: item.description,
-    costPoints: String(item.costPoints),
-    partnerName: item.partnerName ?? '',
-    repeatable: item.repeatable,
-    isActive: item.isActive,
-    inventoryCount: item.inventoryCount === null ? '' : String(item.inventoryCount),
-  };
-}
-
-function toRaceForm(event: AdminOfflineRaceEvent): RaceFormState {
-  return {
-    title: event.title,
-    subtitle: event.subtitle,
-    distanceKm: String(event.distanceKm),
-    startsAt: toDateTimeLocalValue(event.startsAt),
-    registrationClosesAt: toDateTimeLocalValue(event.registrationClosesAt),
-    participationMode: event.participationMode,
-    proofMethod: event.proofMethod,
-    runWindowMinutes: String(event.runWindowMinutes),
-    hostLabel: event.hostLabel,
-    capacity: String(event.capacity),
-    entryFeePoints: String(event.entryFeePoints),
-    operationNote: event.operationNote,
-  };
-}
-
-function toNoticeForm(notice: AdminNotice): NoticeFormState {
-  return {
-    title: notice.title,
-    message: notice.message,
-    priority: String(notice.priority),
-    isActive: notice.isActive,
-  };
-}
-
-function buildRedemptionNoteDrafts(items: AdminRewardRedemption[]) {
-  return items.reduce<Record<string, string>>((map, item) => {
-    map[item.id] = item.adminNote ?? '';
-    return map;
-  }, {});
-}
-
-function getRewardStatusLabel(status: AdminRewardRedemption['status']) {
-  switch (status) {
-    case 'fulfilled':
-      return '처리 완료';
-    case 'cancelled':
-      return '취소';
-    case 'requested':
-    default:
-      return '요청됨';
-  }
-}
+  createEmptyMarketForm,
+  createEmptyNoticeForm,
+  createEmptyRaceForm,
+  formatDateTime,
+  getRewardStatusLabel,
+  toMarketForm,
+  toNoticeForm,
+  toRaceForm,
+} from '@/features/settings/admin/utils/adminDashboardUtils';
 
 function ToggleChip({
   label,
@@ -374,409 +136,76 @@ function SearchInput({
   );
 }
 
-function normalizeSearchValue(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function matchesSearch(query: string, ...values: Array<string | number | undefined | null>) {
-  if (!query) {
-    return true;
-  }
-
-  return values.some((value) => String(value ?? '').toLowerCase().includes(query));
-}
-
 export default function AdminScreen() {
   const { width } = useWindowDimensions();
   const isWide = width >= 1100;
   const isMedium = width >= 720;
-  const [adminToken, setAdminToken] = useState('');
-  const [adminTokenInput, setAdminTokenInput] = useState('');
-  const [adminSession, setAdminSession] = useState<AdminSessionResponse | null>(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [overview, setOverview] = useState<AdminOverviewResponse | null>(null);
-  const [users, setUsers] = useState<AdminUserSummary[]>([]);
-  const [notices, setNotices] = useState<AdminNotice[]>([]);
-  const [noticeForm, setNoticeForm] = useState<NoticeFormState>(createEmptyNoticeForm);
-  const [editingNoticeId, setEditingNoticeId] = useState<string | null>(null);
-  const [noticeQuery, setNoticeQuery] = useState('');
-  const [noticeFilter, setNoticeFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [marketItems, setMarketItems] = useState<AdminMarketItem[]>([]);
-  const [marketQuery, setMarketQuery] = useState('');
-  const [marketFilter, setMarketFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [rewardRedemptions, setRewardRedemptions] = useState<AdminRewardRedemption[]>([]);
-  const [redemptionNotesById, setRedemptionNotesById] = useState<Record<string, string>>({});
-  const [redemptionQuery, setRedemptionQuery] = useState('');
-  const [redemptionFilter, setRedemptionFilter] = useState<'all' | 'requested' | 'fulfilled' | 'cancelled'>('all');
-  const [raceEvents, setRaceEvents] = useState<AdminOfflineRaceEvent[]>([]);
-  const [raceQuery, setRaceQuery] = useState('');
-  const [raceFilter, setRaceFilter] = useState<'all' | 'active' | 'finished'>('all');
-  const [userQuery, setUserQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [marketForm, setMarketForm] = useState<MarketFormState>(createEmptyMarketForm);
-  const [editingMarketItemId, setEditingMarketItemId] = useState<string | null>(null);
-  const [raceForm, setRaceForm] = useState<RaceFormState>(createEmptyRaceForm);
-  const [editingRaceEventId, setEditingRaceEventId] = useState<string | null>(null);
-
-  const refreshOverview = async (nextToken: string) => {
-    const nextOverview = await fetchAdminOverview(nextToken);
-    setOverview(nextOverview);
-  };
-
-  const loadDashboardData = async (nextToken: string) => {
-    const [nextOverview, nextUsers, nextNotices, nextMarketItems, nextRewardRedemptions, nextRaceEvents] = await Promise.all([
-      fetchAdminOverview(nextToken),
-      fetchAdminUsers(nextToken),
-      fetchAdminNotices(nextToken),
-      fetchAdminMarketItems(nextToken),
-      fetchAdminRewardRedemptions(nextToken),
-      fetchAdminOfflineRaceEvents(nextToken),
-    ]);
-
-    setOverview(nextOverview);
-    setUsers(nextUsers.users);
-    setNotices(nextNotices.items);
-    setMarketItems(nextMarketItems.items);
-    setRewardRedemptions(nextRewardRedemptions.items);
-    setRedemptionNotesById(buildRedemptionNoteDrafts(nextRewardRedemptions.items));
-    setRaceEvents(nextRaceEvents.events);
-  };
-
-  const loadDashboard = async (nextToken = adminToken) => {
-    const trimmedToken = nextToken.trim();
-
-    if (!trimmedToken) {
-      setError('관리자 토큰을 입력해줘.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setMessage(null);
-
-    try {
-      const nextSession = await fetchAdminSession(trimmedToken);
-      setAdminSession(nextSession);
-      await loadDashboardData(trimmedToken);
-      writeStoredAdminToken(trimmedToken);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '관리자 정보를 불러오지 못했어.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const resetAdminDashboard = () => {
-    setOverview(null);
-    setUsers([]);
-    setNotices([]);
-    setMarketItems([]);
-    setRewardRedemptions([]);
-    setRedemptionNotesById({});
-    setRaceEvents([]);
-  };
-
-  const handleAdminLogin = async (nextToken = adminTokenInput) => {
-    const trimmedToken = nextToken.trim();
-
-    if (!trimmedToken) {
-      setError('관리자 토큰을 입력해줘.');
-      setAuthReady(true);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setMessage(null);
-
-    try {
-      const nextSession = await fetchAdminSession(trimmedToken);
-      setAdminToken(trimmedToken);
-      setAdminTokenInput(trimmedToken);
-      setAdminSession(nextSession);
-      await loadDashboardData(trimmedToken);
-      writeStoredAdminToken(trimmedToken);
-    } catch (loginError) {
-      clearStoredAdminToken();
-      resetAdminDashboard();
-      setAdminToken('');
-      setAdminSession(null);
-      setError(loginError instanceof Error ? loginError.message : '관리자 로그인에 실패했어.');
-    } finally {
-      setLoading(false);
-      setAuthReady(true);
-    }
-  };
-
-  const handleAdminLogout = () => {
-    clearStoredAdminToken();
-    resetAdminDashboard();
-    setAdminToken('');
-    setAdminTokenInput('');
-    setAdminSession(null);
-    setError(null);
-    setMessage('관리자 로그아웃을 완료했어요.');
-    setAuthReady(true);
-  };
-
-  useEffect(() => {
-    const storedAdminToken = readStoredAdminToken();
-    setAdminTokenInput(storedAdminToken);
-
-    if (!storedAdminToken) {
-      setAuthReady(true);
-      return;
-    }
-
-    void handleAdminLogin(storedAdminToken);
-  }, []);
-
-  const withSubmission = async (task: () => Promise<void>) => {
-    setSubmitting(true);
-    setError(null);
-    setMessage(null);
-
-    try {
-      await task();
-    } catch (taskError) {
-      setError(taskError instanceof Error ? taskError.message : '관리자 작업 중 문제가 생겼어.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDeleteUser = (user: AdminUserSummary) => {
-    if (!confirmAction(`${user.name} 회원을 삭제할까요? 이 작업은 되돌릴 수 없어요.`)) {
-      return;
-    }
-
-    void withSubmission(async () => {
-      const result = await deleteAdminUser(adminToken, user.id);
-      setUsers(result.users);
-      await refreshOverview(adminToken);
-      setMessage(`${user.name} 회원을 삭제했어요.`);
-    });
-  };
-
-  const handleSubmitNotice = () => {
-    void withSubmission(async () => {
-      const payload = {
-        title: noticeForm.title,
-        message: noticeForm.message,
-        priority: Number(noticeForm.priority),
-        isActive: noticeForm.isActive,
-      };
-
-      const result = editingNoticeId
-        ? await updateAdminNotice(adminToken, editingNoticeId, payload)
-        : await createAdminNotice(adminToken, payload);
-
-      setNotices(result.items);
-      setEditingNoticeId(null);
-      setNoticeForm(createEmptyNoticeForm());
-      await refreshOverview(adminToken);
-      setMessage(editingNoticeId ? '공지를 수정했어요.' : '공지를 추가했어요.');
-    });
-  };
-
-  const handleDeleteNotice = (notice: AdminNotice) => {
-    if (!confirmAction(`${notice.title} 공지를 삭제할까요?`)) {
-      return;
-    }
-
-    void withSubmission(async () => {
-      const result = await deleteAdminNotice(adminToken, notice.id);
-      setNotices(result.items);
-      if (editingNoticeId === notice.id) {
-        setEditingNoticeId(null);
-        setNoticeForm(createEmptyNoticeForm());
-      }
-      await refreshOverview(adminToken);
-      setMessage(`${notice.title} 공지를 삭제했어요.`);
-    });
-  };
-
-  const handleUpdateRedemption = (item: AdminRewardRedemption, status: AdminRewardRedemption['status']) => {
-    void withSubmission(async () => {
-      const result = await updateAdminRewardRedemption(adminToken, item.id, {
-        status,
-        adminNote: redemptionNotesById[item.id] ?? '',
-      });
-
-      setRewardRedemptions(result.items);
-      setRedemptionNotesById(buildRedemptionNoteDrafts(result.items));
-      await refreshOverview(adminToken);
-      setMessage(`${item.userName}님의 교환 상태를 ${getRewardStatusLabel(status)}로 바꿨어요.`);
-    });
-  };
-
-  const handleSubmitMarket = () => {
-    void withSubmission(async () => {
-      const payload = {
-        title: marketForm.title,
-        category: marketForm.category,
-        description: marketForm.description,
-        costPoints: Number(marketForm.costPoints),
-        partnerName: marketForm.partnerName.trim() || undefined,
-        repeatable: marketForm.repeatable,
-        isActive: marketForm.isActive,
-        inventoryCount: marketForm.inventoryCount.trim() ? Number(marketForm.inventoryCount) : null,
-      };
-
-      const result = editingMarketItemId
-        ? await updateAdminMarketItem(adminToken, editingMarketItemId, payload)
-        : await createAdminMarketItem(adminToken, payload);
-
-      setMarketItems(result.items);
-      setEditingMarketItemId(null);
-      setMarketForm(createEmptyMarketForm());
-      await refreshOverview(adminToken);
-      setMessage(editingMarketItemId ? '마켓 상품을 수정했어요.' : '마켓 상품을 추가했어요.');
-    });
-  };
-
-  const handleDeleteMarket = (item: AdminMarketItem) => {
-    if (!confirmAction(`${item.title} 상품을 삭제할까요?`)) {
-      return;
-    }
-
-    void withSubmission(async () => {
-      const result = await deleteAdminMarketItem(adminToken, item.id);
-      setMarketItems(result.items);
-      if (editingMarketItemId === item.id) {
-        setEditingMarketItemId(null);
-        setMarketForm(createEmptyMarketForm());
-      }
-      await refreshOverview(adminToken);
-      setMessage(`${item.title} 상품을 삭제했어요.`);
-    });
-  };
-
-  const handleSubmitRace = () => {
-    void withSubmission(async () => {
-      const payload = {
-        title: raceForm.title,
-        subtitle: raceForm.subtitle,
-        distanceKm: Number(raceForm.distanceKm),
-        startsAt: raceForm.startsAt,
-        registrationClosesAt: raceForm.registrationClosesAt,
-        participationMode: raceForm.participationMode,
-        proofMethod: raceForm.proofMethod,
-        runWindowMinutes: Number(raceForm.runWindowMinutes),
-        hostLabel: raceForm.hostLabel,
-        capacity: Number(raceForm.capacity),
-        entryFeePoints: Number(raceForm.entryFeePoints),
-        operationNote: raceForm.operationNote,
-      };
-
-      const result = editingRaceEventId
-        ? await updateAdminOfflineRaceEvent(adminToken, editingRaceEventId, payload)
-        : await createAdminOfflineRaceEvent(adminToken, payload);
-
-      setRaceEvents(result.events);
-      setEditingRaceEventId(null);
-      setRaceForm(createEmptyRaceForm());
-      await refreshOverview(adminToken);
-      setMessage(editingRaceEventId ? '레이스를 수정했어요.' : '새 레이스를 추가했어요.');
-    });
-  };
-
-  const handleDeleteRace = (event: AdminOfflineRaceEvent) => {
-    if (!confirmAction(`${event.title} 레이스를 삭제할까요?`)) {
-      return;
-    }
-
-    void withSubmission(async () => {
-      const result = await deleteAdminOfflineRaceEvent(adminToken, event.id);
-      setRaceEvents(result.events);
-      if (editingRaceEventId === event.id) {
-        setEditingRaceEventId(null);
-        setRaceForm(createEmptyRaceForm());
-      }
-      await refreshOverview(adminToken);
-      setMessage(`${event.title} 레이스를 삭제했어요.`);
-    });
-  };
-
-  const filteredNotices = useMemo(() => {
-    const query = normalizeSearchValue(noticeQuery);
-
-    return notices.filter((notice) => {
-      if (noticeFilter === 'active' && !notice.isActive) {
-        return false;
-      }
-
-      if (noticeFilter === 'inactive' && notice.isActive) {
-        return false;
-      }
-
-      return matchesSearch(query, notice.title, notice.message, notice.priority);
-    });
-  }, [noticeFilter, noticeQuery, notices]);
-
-  const filteredUsers = useMemo(() => {
-    const query = normalizeSearchValue(userQuery);
-
-    return users.filter((user) => matchesSearch(
-      query,
-      user.name,
-      user.username,
-      user.publicTag,
-      user.districtName,
-      user.universityName,
-      user.provinceName,
-      user.cityName,
-    ));
-  }, [userQuery, users]);
-
-  const filteredMarketItems = useMemo(() => {
-    const query = normalizeSearchValue(marketQuery);
-
-    return marketItems.filter((item) => {
-      if (marketFilter === 'active' && !item.isActive) {
-        return false;
-      }
-
-      if (marketFilter === 'inactive' && item.isActive) {
-        return false;
-      }
-
-      return matchesSearch(query, item.title, item.category, item.partnerName, item.description);
-    });
-  }, [marketFilter, marketItems, marketQuery]);
-
-  const filteredRewardRedemptions = useMemo(() => {
-    const query = normalizeSearchValue(redemptionQuery);
-
-    return rewardRedemptions.filter((item) => {
-      if (redemptionFilter !== 'all' && item.status !== redemptionFilter) {
-        return false;
-      }
-
-      return matchesSearch(query, item.userName, item.userTag, item.itemTitle, item.costPoints, item.adminNote);
-    });
-  }, [redemptionFilter, redemptionQuery, rewardRedemptions]);
-
-  const filteredRaceEvents = useMemo(() => {
-    const query = normalizeSearchValue(raceQuery);
-
-    return raceEvents.filter((event) => {
-      if (raceFilter === 'active' && event.status === 'finished') {
-        return false;
-      }
-
-      if (raceFilter === 'finished' && event.status !== 'finished') {
-        return false;
-      }
-
-      return matchesSearch(query, event.title, event.subtitle, event.hostLabel, event.participationMode, event.proofMethod);
-    });
-  }, [raceEvents, raceFilter, raceQuery]);
-
-  const isAuthenticated = Boolean(adminSession);
+  const {
+    adminSession,
+    adminTokenInput,
+    apiBaseUrl,
+    authReady,
+    editingMarketItemId,
+    editingNoticeId,
+    editingRaceEventId,
+    error,
+    filteredMarketItems,
+    filteredNotices,
+    filteredRaceEvents,
+    filteredRewardRedemptions,
+    filteredUsers,
+    handleAdminLogin,
+    handleAdminLogout,
+    handleDeleteMarket,
+    handleDeleteNotice,
+    handleDeleteRace,
+    handleDeleteUser,
+    handleSubmitMarket,
+    handleSubmitNotice,
+    handleSubmitRace,
+    handleUpdateRedemption,
+    isAuthenticated,
+    loadDashboard,
+    loading,
+    marketFilter,
+    marketForm,
+    marketItems,
+    marketQuery,
+    message,
+    noticeFilter,
+    noticeForm,
+    noticeQuery,
+    notices,
+    overview,
+    raceEvents,
+    raceFilter,
+    raceForm,
+    raceQuery,
+    redemptionFilter,
+    redemptionNotesById,
+    redemptionQuery,
+    rewardRedemptions,
+    setAdminTokenInput,
+    setEditingMarketItemId,
+    setEditingNoticeId,
+    setEditingRaceEventId,
+    setMarketFilter,
+    setMarketForm,
+    setMarketQuery,
+    setNoticeFilter,
+    setNoticeForm,
+    setNoticeQuery,
+    setRaceFilter,
+    setRaceForm,
+    setRaceQuery,
+    setRedemptionFilter,
+    setRedemptionNotesById,
+    setRedemptionQuery,
+    setUserQuery,
+    submitting,
+    userQuery,
+    users,
+  } = useAdminDashboard();
 
   return (
     <View style={styles.safe}>
@@ -790,7 +219,7 @@ export default function AdminScreen() {
             <Text style={styles.heroSubtitle}>
               회원 관리, 레이스 운영, 마켓 상품과 재고를 한 곳에서 바로 관리할 수 있게 묶었어요.
             </Text>
-            <Text style={styles.heroMeta}>현재 API 주소 · {API_CONFIG.baseUrl}</Text>
+            <Text style={styles.heroMeta}>현재 API 주소 · {apiBaseUrl}</Text>
             {Platform.OS !== 'web' ? (
               <Text style={styles.platformHint}>이 화면은 웹에서 가장 편하게 쓰도록 맞춰뒀어요.</Text>
             ) : null}

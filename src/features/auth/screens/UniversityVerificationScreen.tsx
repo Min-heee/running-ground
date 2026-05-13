@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -7,126 +6,31 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { ListRow } from '@/components/ui/ListRow';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { fetchMyProfile, fetchUniversityCatalog } from '@/services';
-import { MyProfileResponse } from '@/lib/api/types';
-
-type VerificationMethodId = 'certificate' | 'everytime';
-
-type VerificationMethod = {
-  id: VerificationMethodId;
-  title: string;
-  summary: string;
-  steps: string[];
-  checklist: string[];
-};
-
-const VERIFICATION_METHODS: VerificationMethod[] = [
-  {
-    id: 'certificate',
-    title: '재학증명서 인증',
-    summary: '학교가 발급한 재학증명서를 올려서 인증하는 방식이에요. 출시 초기에 가장 안정적으로 붙이기 좋은 경로예요.',
-    steps: [
-      '학교 포털이나 증명서 발급 서비스에서 최신 재학증명서를 준비해요.',
-      '학교명과 함께 파일을 올리면 운영 검토 후 인증을 반영해요.',
-      '인증이 끝나면 대학 리그와 프로필에 자동으로 연결돼요.',
-    ],
-    checklist: [
-      '최근 발급한 재학증명서 준비',
-      '학교명 확인',
-      '가려야 하는 개인정보 범위 확인',
-    ],
-  },
-  {
-    id: 'everytime',
-    title: '에브리타임 방식 인증',
-    summary: '에브리타임처럼 학교 이메일이나 학교 인증 완료 상태를 확인하는 간편 인증 방식도 같이 준비할 예정이에요.',
-    steps: [
-      '지원 학교와 인증 조건이 정리되면 학교 이메일 또는 서비스 인증으로 진행해요.',
-      '인증이 끝나면 대학명이 프로필과 대학 리그에 안전하게 반영돼요.',
-      '인증 전까지는 임의 입력 없이 비인증 상태를 유지해요.',
-    ],
-    checklist: [
-      '학교 이메일 확인',
-      '지원 학교 여부 확인',
-      '서비스 연동 또는 확인 코드 입력 준비',
-    ],
-  },
-];
+import { useUniversityVerification } from '@/features/auth/hooks/useUniversityVerification';
+import { VERIFICATION_METHODS } from '@/features/auth/utils/universityVerification';
 
 export default function UniversityVerificationScreen() {
-  const [profile, setProfile] = useState<MyProfileResponse | null>(null);
-  const [universities, setUniversities] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedMethodId, setSelectedMethodId] = useState<VerificationMethodId>('certificate');
-  const [universityQuery, setUniversityQuery] = useState('');
-  const [studentEmail, setStudentEmail] = useState('');
-  const [certificatePrepared, setCertificatePrepared] = useState(false);
-  const [identityChecked, setIdentityChecked] = useState(false);
-  const [draftCreated, setDraftCreated] = useState(false);
-  const [draftError, setDraftError] = useState<string | null>(null);
-
-  useEffect(() => {
-    Promise.all([fetchMyProfile(), fetchUniversityCatalog()])
-      .then(([nextProfile, universityCatalog]) => {
-        setProfile(nextProfile);
-        setUniversities(universityCatalog.universities);
-        setUniversityQuery(nextProfile.universityName ?? '');
-      })
-      .catch((loadError) => {
-        setError(loadError instanceof Error ? loadError.message : '대학교 인증 정보를 불러오지 못했어요.');
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  const selectedMethod = useMemo(
-    () => VERIFICATION_METHODS.find((method) => method.id === selectedMethodId) ?? VERIFICATION_METHODS[0],
-    [selectedMethodId],
-  );
-  const filteredUniversities = useMemo(() => {
-    const query = universityQuery.trim();
-
-    if (!query) {
-      return universities.slice(0, 8);
-    }
-
-    return universities
-      .filter((university) => university.includes(query))
-      .slice(0, 8);
-  }, [universityQuery, universities]);
-  const readinessCount = [identityChecked, selectedMethodId === 'certificate' ? certificatePrepared : Boolean(studentEmail.trim())]
-    .filter(Boolean)
-    .length;
-
-  const handleCreateDraft = () => {
-    setDraftError(null);
-
-    if (!universityQuery.trim()) {
-      setDraftCreated(false);
-      setDraftError('학교명을 먼저 적어주세요.');
-      return;
-    }
-
-    if (!identityChecked) {
-      setDraftCreated(false);
-      setDraftError('인증 전 확인 사항을 체크해주세요.');
-      return;
-    }
-
-    if (selectedMethodId === 'certificate' && !certificatePrepared) {
-      setDraftCreated(false);
-      setDraftError('재학증명서 준비 여부를 체크해주세요.');
-      return;
-    }
-
-    if (selectedMethodId === 'everytime' && !studentEmail.trim()) {
-      setDraftCreated(false);
-      setDraftError('학교 이메일을 입력해주세요.');
-      return;
-    }
-
-    setDraftCreated(true);
-  };
+  const {
+    certificatePrepared,
+    draftCreated,
+    draftError,
+    error,
+    filteredUniversities,
+    handleCreateDraft,
+    handleSelectMethod,
+    handleStudentEmailChange,
+    handleUniversityQueryChange,
+    identityChecked,
+    loading,
+    profile,
+    readinessCount,
+    selectedMethod,
+    selectedMethodId,
+    studentEmail,
+    toggleCertificatePrepared,
+    toggleIdentityChecked,
+    universityQuery,
+  } = useUniversityVerification();
 
   return (
     <Screen>
@@ -165,11 +69,7 @@ export default function UniversityVerificationScreen() {
                   <Pressable
                     key={method.id}
                     style={[styles.methodPickerButton, selected ? styles.methodPickerButtonSelected : null]}
-                    onPress={() => {
-                      setSelectedMethodId(method.id);
-                      setDraftCreated(false);
-                      setDraftError(null);
-                    }}
+                    onPress={() => handleSelectMethod(method.id)}
                   >
                     <Text style={[styles.methodPickerButtonTitle, selected ? styles.methodPickerButtonTitleSelected : null]}>
                       {method.title}
@@ -191,11 +91,7 @@ export default function UniversityVerificationScreen() {
               <Text style={styles.inputLabel}>학교명</Text>
               <TextInput
                 value={universityQuery}
-                onChangeText={(nextValue) => {
-                  setUniversityQuery(nextValue);
-                  setDraftCreated(false);
-                  setDraftError(null);
-                }}
+                onChangeText={handleUniversityQueryChange}
                 placeholder="예: 서울대학교"
                 placeholderTextColor="#98A2B3"
                 style={styles.input}
@@ -209,11 +105,7 @@ export default function UniversityVerificationScreen() {
                       <Pressable
                         key={university}
                         style={[styles.suggestionChip, selected ? styles.suggestionChipSelected : null]}
-                        onPress={() => {
-                          setUniversityQuery(university);
-                          setDraftCreated(false);
-                          setDraftError(null);
-                        }}
+                        onPress={() => handleUniversityQueryChange(university)}
                       >
                         <Text style={[styles.suggestionChipText, selected ? styles.suggestionChipTextSelected : null]}>
                           {university}
@@ -230,11 +122,7 @@ export default function UniversityVerificationScreen() {
                 <Text style={styles.inputLabel}>학교 이메일</Text>
                 <TextInput
                   value={studentEmail}
-                  onChangeText={(nextValue) => {
-                    setStudentEmail(nextValue);
-                    setDraftCreated(false);
-                    setDraftError(null);
-                  }}
+                  onChangeText={handleStudentEmailChange}
                   placeholder="예: running@university.ac.kr"
                   placeholderTextColor="#98A2B3"
                   autoCapitalize="none"
@@ -248,11 +136,7 @@ export default function UniversityVerificationScreen() {
             <View style={styles.checkRowWrap}>
               <Pressable
                 style={[styles.checkRow, identityChecked ? styles.checkRowSelected : null]}
-                onPress={() => {
-                  setIdentityChecked((current) => !current);
-                  setDraftCreated(false);
-                  setDraftError(null);
-                }}
+                onPress={toggleIdentityChecked}
               >
                 <View style={[styles.checkMark, identityChecked ? styles.checkMarkSelected : null]} />
                 <Text style={styles.checkText}>학교명과 본인 정보를 확인했어요.</Text>
@@ -261,11 +145,7 @@ export default function UniversityVerificationScreen() {
               {selectedMethodId === 'certificate' ? (
                 <Pressable
                   style={[styles.checkRow, certificatePrepared ? styles.checkRowSelected : null]}
-                  onPress={() => {
-                    setCertificatePrepared((current) => !current);
-                    setDraftCreated(false);
-                    setDraftError(null);
-                  }}
+                  onPress={toggleCertificatePrepared}
                 >
                   <View style={[styles.checkMark, certificatePrepared ? styles.checkMarkSelected : null]} />
                   <Text style={styles.checkText}>재학증명서를 준비했어요.</Text>

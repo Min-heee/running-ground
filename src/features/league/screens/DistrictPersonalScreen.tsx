@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from 'react';
+import { memo, useCallback } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
 import type { ListRenderItem } from 'react-native';
 import { router } from 'expo-router';
@@ -7,10 +7,7 @@ import { Card } from '@/components/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { fetchDistrictPersonal } from '@/services';
-import { DistrictPersonalResponse } from '@/lib/api/types';
-
-type DistrictPersonalRank = DistrictPersonalResponse['ranks'][number];
+import { type DistrictPersonalRank, useDistrictPersonal } from '@/features/league/hooks/useDistrictPersonal';
 
 const DistrictPersonalRankRow = memo(function DistrictPersonalRankRow({ runner }: { runner: DistrictPersonalRank }) {
   return (
@@ -25,24 +22,7 @@ const DistrictPersonalRankRow = memo(function DistrictPersonalRankRow({ runner }
 });
 
 export default function DistrictPersonalScreen() {
-  const [competition, setCompetition] = useState<DistrictPersonalResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadCompetition = useCallback(() => {
-    setLoading(true);
-    setError(null);
-
-    fetchDistrictPersonal()
-      .then((data) => setCompetition(data))
-      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '구 내 개인 경쟁 정보를 불러오지 못했어.'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    loadCompetition();
-  }, [loadCompetition]);
-
+  const { competition, error, loadCompetition, loading } = useDistrictPersonal();
   const keyExtractor = useCallback((runner: DistrictPersonalRank) => runner.id, []);
   const renderRankItem = useCallback<ListRenderItem<DistrictPersonalRank>>(({ item }) => (
     <DistrictPersonalRankRow runner={item} />

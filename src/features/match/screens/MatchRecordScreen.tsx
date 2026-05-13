@@ -1,15 +1,13 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ListRenderItem } from 'react-native';
-import { Link, useFocusEffect } from 'expo-router';
+import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
-import { fetchMyActivity } from '@/services';
-import { MyActivityResponse } from '@/lib/api/types';
+import { useMatchRecords } from '@/features/match/hooks/useMatchRecords';
+import { MatchRecordRun } from '@/features/match/utils/matchRecordStats';
 import { formatDuration } from '@/features/runs/tracking';
-
-type MatchRecordRun = MyActivityResponse['runs'][number];
 
 const MatchRecordRow = memo(function MatchRecordRow({ run }: { run: MatchRecordRun }) {
   const result = run.matchResult;
@@ -56,52 +54,7 @@ const MatchRecordRow = memo(function MatchRecordRow({ run }: { run: MatchRecordR
 });
 
 export default function MatchRecordScreen() {
-  const [activity, setActivity] = useState<MyActivityResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadActivity = useCallback(() => {
-    setLoading(true);
-    setError(null);
-
-    fetchMyActivity()
-      .then((data) => setActivity(data))
-      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '전적을 불러오지 못했어요.'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useFocusEffect(useCallback(() => {
-    loadActivity();
-  }, [loadActivity]));
-
-  const matchRuns = useMemo(
-    () => (activity?.runs ?? []).filter((run) => run.matchResult),
-    [activity],
-  );
-  const duelRuns = useMemo(
-    () => matchRuns.filter((run) => run.matchResult?.mode === 'duel'),
-    [matchRuns],
-  );
-  const groupRuns = useMemo(
-    () => matchRuns.filter((run) => run.matchResult?.mode === 'group'),
-    [matchRuns],
-  );
-  const duelWins = useMemo(
-    () => duelRuns.filter((run) => run.matchResult?.resultTone === 'win').length,
-    [duelRuns],
-  );
-  const duelLosses = useMemo(
-    () => duelRuns.filter((run) => run.matchResult?.resultTone === 'lose').length,
-    [duelRuns],
-  );
-  const duelDraws = useMemo(
-    () => duelRuns.filter((run) => run.matchResult?.resultTone === 'draw').length,
-    [duelRuns],
-  );
-  const groupPodiumCount = useMemo(() => groupRuns.filter((run) => {
-    const rank = run.matchResult?.rank;
-    return typeof rank === 'number' && rank <= 3;
-  }).length, [groupRuns]);
+  const { activity, error, loading, stats } = useMatchRecords();
   const keyExtractor = useCallback((run: MatchRecordRun) => run.id, []);
   const renderMatchRecord = useCallback<ListRenderItem<MatchRecordRun>>(({ item }) => (
     <MatchRecordRow run={item} />
@@ -124,24 +77,24 @@ export default function MatchRecordScreen() {
           <View style={styles.summaryRow}>
             <Card style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>총 대결 수</Text>
-              <Text style={styles.summaryValue}>{matchRuns.length}전</Text>
+              <Text style={styles.summaryValue}>{stats.matchRuns.length}전</Text>
             </Card>
             <Card style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>1대1 전적</Text>
-              <Text style={styles.summaryValueSmall}>{duelWins}승 {duelLosses}패 {duelDraws}무</Text>
+              <Text style={styles.summaryValueSmall}>{stats.duelWins}승 {stats.duelLosses}패 {stats.duelDraws}무</Text>
             </Card>
           </View>
 
           <Card style={styles.summaryWideCard}>
             <Text style={styles.summaryLabel}>그룹 대결</Text>
-            <Text style={styles.summaryValueSmall}>총 {groupRuns.length}전 · 3위 안 {groupPodiumCount}번</Text>
+            <Text style={styles.summaryValueSmall}>총 {stats.groupRuns.length}전 · 3위 안 {stats.groupPodiumCount}번</Text>
           </Card>
 
           <Card style={styles.historyCard}>
             <Text style={styles.sectionTitle}>최근 전적</Text>
-            {matchRuns.length ? (
+            {stats.matchRuns.length ? (
               <FlatList
-                data={matchRuns}
+                data={stats.matchRuns}
                 keyExtractor={keyExtractor}
                 renderItem={renderMatchRecord}
                 scrollEnabled={false}

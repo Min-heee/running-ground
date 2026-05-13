@@ -1,6 +1,5 @@
-import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -8,71 +7,33 @@ import { InfoCard } from '@/components/ui/InfoCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { IntegrationJourneyCard } from '@/features/integrations/IntegrationJourneyCard';
-import { connectIntegrationSource, fetchIntegrationStatus } from '@/services';
-import { IntegrationStatusResponse } from '@/lib/api/types';
-import { RunSourceType } from '@/domain';
+import { useIntegrationActions } from '@/features/integrations/hooks/useIntegrationActions';
 import {
   getCurrentDevicePlatform,
-  getConnectedExclusiveSources,
   getPlatformLabel,
   getRecommendedSources,
   getRecommendationCopy,
-  isExclusiveIntegrationSourceType,
   getSourceMetadata,
 } from '@/features/integrations/sourceCatalog';
 
 export default function ConnectSourcesScreen() {
-  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [actionSourceType, setActionSourceType] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  const loadIntegrationStatus = useCallback(() => {
-    setLoading(true);
-    setError(null);
-
-    fetchIntegrationStatus()
-      .then((data) => setIntegrationStatus(data))
-      .catch(() => setError('추천 연동 목록을 불러오지 못했어.'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useFocusEffect(useCallback(() => {
-    loadIntegrationStatus();
-  }, [loadIntegrationStatus]));
-
+  const {
+    actionError,
+    actionMessage,
+    actionSourceType,
+    error,
+    handleConnect,
+    integrationStatus,
+    loading,
+    sources,
+  } = useIntegrationActions({
+    loadErrorMessage: '추천 연동 목록을 불러오지 못했어.',
+    connectErrorMessage: '연동 연결에 실패했어.',
+    preferConfiguredLoadError: true,
+  });
   const platform = getCurrentDevicePlatform();
-  const sources = integrationStatus?.sources ?? [];
   const recommended = integrationStatus ? getRecommendedSources(sources, platform) : [];
   const connectedCount = sources.filter((source) => source.connected).length;
-  const connectedExclusiveSources = getConnectedExclusiveSources(sources);
-
-  const handleConnect = async (sourceType: RunSourceType) => {
-    setActionSourceType(sourceType);
-    setActionMessage(null);
-    setActionError(null);
-
-    try {
-      const result = await connectIntegrationSource(sourceType);
-      setIntegrationStatus({ sources: result.sources });
-      if (isExclusiveIntegrationSourceType(sourceType)) {
-        const replacedSource = connectedExclusiveSources.find((source) => source.sourceType !== sourceType);
-        setActionMessage(
-          replacedSource
-            ? `${result.source.displayName}로 기록 연동을 바꿨어. ${replacedSource.displayName}는 자동으로 해제돼.`
-            : `${result.source.displayName} 연결 준비가 끝났어. 자동 기록 소스는 한 번에 1개만 연결돼.`,
-        );
-      } else {
-        setActionMessage(`${result.source.displayName} 연결 준비가 끝났어.`);
-      }
-    } catch (connectError) {
-      setActionError(connectError instanceof Error ? connectError.message : '연동 연결에 실패했어.');
-    } finally {
-      setActionSourceType(null);
-    }
-  };
 
   const handleContinue = () => {
     router.replace('/(tabs)/home');

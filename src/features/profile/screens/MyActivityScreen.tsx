@@ -1,17 +1,14 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ListRenderItem } from 'react-native';
-import { Link, router, useFocusEffect } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { MyActivityResponse } from '@/lib/api/types';
-import { fetchMyActivity } from '@/services';
+import { ActivityRun, useMyActivity } from '@/features/profile/hooks/useMyActivity';
 import { getRunSourceLabel } from '@/features/runs/sourceLabel';
-
-type ActivityRun = MyActivityResponse['runs'][number];
 
 const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun }) {
   return (
@@ -28,25 +25,7 @@ const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun 
 });
 
 export default function MyActivityScreen() {
-  const [activity, setActivity] = useState<MyActivityResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadActivity = useCallback(() => {
-    setLoading(true);
-    setError(null);
-
-    fetchMyActivity()
-      .then((data) => setActivity(data))
-      .catch(() => setError('내 활동 정보를 불러오지 못했어.'))
-      .finally(() => setLoading(false));
-  }, []);
-
-  useFocusEffect(useCallback(() => {
-    loadActivity();
-  }, [loadActivity]));
-
-  const activityRuns = useMemo(() => activity?.runs ?? [], [activity?.runs]);
+  const { activity, activityRuns, error, loading } = useMyActivity();
   const keyExtractor = useCallback((run: ActivityRun) => run.id, []);
   const renderRunItem = useCallback<ListRenderItem<ActivityRun>>(({ item }) => (
     <ActivityRunRow run={item} />

@@ -1,276 +1,66 @@
-import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, Pressable, TextInput, ActivityIndicator } from 'react-native';
-import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
-import { AddressRegionNode } from '@/features/location/addressCatalog';
-import { buildRegionSelectionState, RegionChipSection } from '@/features/location/RegionSelection';
-import { fetchRegionCatalog } from '@/services';
-import {
-  PASSWORD_RULE_DESCRIPTION,
-  USERNAME_RULE_DESCRIPTION,
-  checkUsernameAvailability,
-  getPasswordValidationError,
-  getUsernameValidationError,
-  normalizeUsername,
-  registerAccount,
-} from '@/lib/session';
-
-type UsernameCheckState = {
-  status: 'idle' | 'checking' | 'available' | 'unavailable' | 'error';
-  message: string | null;
-  checkedUsername: string;
-};
-
-type DisplayNamePreference = 'nickname' | 'realName';
-function formatPhoneInput(value: string) {
-  const digits = value.replace(/\D/g, '').slice(0, 11);
-
-  if (digits.length <= 3) {
-    return digits;
-  }
-
-  if (digits.length <= 7) {
-    return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  }
-
-  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
-}
-
-function formatBirthDateInput(value: string) {
-  const digits = value.replace(/\D/g, '').slice(0, 8);
-
-  if (digits.length <= 4) {
-    return digits;
-  }
-
-  if (digits.length <= 6) {
-    return `${digits.slice(0, 4)}-${digits.slice(4)}`;
-  }
-
-  return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
-}
+import { RegionChipSection } from '@/features/location/RegionSelection';
+import { PASSWORD_RULE_DESCRIPTION, USERNAME_RULE_DESCRIPTION } from '@/lib/session';
+import { useSignupForm } from '@/features/auth/hooks/useSignupForm';
 
 export default function SignupFormScreen() {
-  const [nickname, setNickname] = useState('');
-  const [realName, setRealName] = useState('');
-  const [displayNamePreference, setDisplayNamePreference] = useState<DisplayNamePreference>('nickname');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [passwordConfirm, setPasswordConfirm] = useState('');
-  const [passwordVisible, setPasswordVisible] = useState(false);
-  const [phone, setPhone] = useState('');
-  const [provinceName, setProvinceName] = useState('');
-  const [secondaryRegionName, setSecondaryRegionName] = useState('');
-  const [tertiaryRegionName, setTertiaryRegionName] = useState('');
-  const [regions, setRegions] = useState<AddressRegionNode[]>([]);
-  const [addressDetail, setAddressDetail] = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [openRegionStep, setOpenRegionStep] = useState<'province' | 'secondary' | 'tertiary' | 'detail'>('province');
-  const [catalogLoading, setCatalogLoading] = useState(true);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [usernameCheck, setUsernameCheck] = useState<UsernameCheckState>({
-    status: 'idle',
-    message: null,
-    checkedUsername: '',
-  });
-  const normalizedUsername = useMemo(() => normalizeUsername(username), [username]);
-  const usernameValidationMessage = useMemo(() => (
-    username ? getUsernameValidationError(username) : null
-  ), [username]);
-  const passwordValidationMessage = useMemo(() => (
-    password ? getPasswordValidationError(password) : null
-  ), [password]);
-  const passwordConfirmMessage = useMemo(() => {
-    if (!passwordConfirm) {
-      return null;
-    }
-
-    return password === passwordConfirm ? null : '비밀번호가 서로 달라요.';
-  }, [password, passwordConfirm]);
-  const passwordReady = Boolean(password && passwordConfirm && !passwordValidationMessage && !passwordConfirmMessage);
-  const publicDisplayName = useMemo(
-    () => (displayNamePreference === 'realName' ? realName.trim() : nickname.trim()),
-    [displayNamePreference, nickname, realName],
-  );
-
-  useEffect(() => {
-    fetchRegionCatalog()
-      .then((regionCatalog) => {
-        setRegions(regionCatalog.regions);
-      })
-      .catch((loadError) => {
-        setCatalogError(loadError instanceof Error ? loadError.message : '회원가입에 필요한 목록을 불러오지 못했어요.');
-      })
-      .finally(() => setCatalogLoading(false));
-  }, []);
-
   const {
-    selectedProvince,
-    secondaryOptions,
-    selectedSecondary,
-    tertiaryOptions,
+    addressDetail,
+    birthDate,
+    catalogError,
+    catalogLoading,
+    checkingUsername,
+    displayNamePreference,
+    error,
     finalRegion,
-    finalCityName,
-    finalDistrictName,
+    handleBirthDateChange,
+    handleCheckUsername,
+    handlePhoneChange,
+    handleSelectProvince,
+    handleSelectSecondary,
+    handleSelectTertiary,
+    handleSignup,
+    handleUsernameChange,
+    nickname,
+    normalizedPhone,
+    openRegionStep,
+    password,
+    passwordConfirm,
+    passwordConfirmMessage,
+    passwordReady,
+    passwordValidationMessage,
+    passwordVisible,
+    phone,
+    provinceName,
+    publicDisplayName,
+    realName,
+    regions,
+    requiredProfileReady,
+    secondaryOptions,
+    secondaryRegionName,
+    selectedProvince,
+    selectedSecondary,
     selectedAddressLabel,
-  } = useMemo(
-    () => buildRegionSelectionState(regions, provinceName, secondaryRegionName, tertiaryRegionName),
-    [regions, provinceName, secondaryRegionName, tertiaryRegionName],
-  );
-  const checkingUsername = usernameCheck.status === 'checking';
-  const usernameReady = usernameCheck.status === 'available' && usernameCheck.checkedUsername === normalizedUsername;
-  const normalizedPhone = useMemo(() => phone.replace(/\D/g, ''), [phone]);
-  const requiredProfileReady = Boolean(
-    publicDisplayName
-    && realName.trim()
-    && normalizedUsername
-    && !usernameValidationMessage
-    && normalizedPhone.length >= 10
-    && selectedAddressLabel
-    && addressDetail.trim()
-    && /^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim()),
-  );
-  const signupReady = requiredProfileReady && usernameReady && passwordReady;
-
-  useEffect(() => {
-    if (!selectedProvince) {
-      setOpenRegionStep('province');
-      return;
-    }
-
-    if (!selectedSecondary) {
-      setOpenRegionStep('secondary');
-      return;
-    }
-
-    if (tertiaryOptions.length > 0 && !finalRegion) {
-      setOpenRegionStep('tertiary');
-      return;
-    }
-
-    setOpenRegionStep('detail');
-  }, [finalRegion, selectedProvince, selectedSecondary, tertiaryOptions.length]);
-
-  const handleUsernameChange = (value: string) => {
-    const nextUsername = value.trim().toLowerCase();
-    setUsername(nextUsername);
-    setError(null);
-
-    const nextNormalizedUsername = normalizeUsername(nextUsername);
-
-    setUsernameCheck((currentState) => (
-      currentState.checkedUsername === nextNormalizedUsername
-        ? currentState
-        : {
-            status: 'idle',
-            message: null,
-            checkedUsername: '',
-          }
-    ));
-  };
-
-  const handlePhoneChange = (nextValue: string) => {
-    const nextFormattedPhone = formatPhoneInput(nextValue);
-    setPhone(nextFormattedPhone);
-  };
-
-  const handleCheckUsername = async () => {
-    const usernameValidationError = getUsernameValidationError(normalizedUsername);
-
-    if (usernameValidationError) {
-      setUsernameCheck({
-        status: 'error',
-        message: usernameValidationError,
-        checkedUsername: '',
-      });
-      return false;
-    }
-
-    setUsernameCheck({
-      status: 'checking',
-      message: '아이디를 확인하고 있어요.',
-      checkedUsername: normalizedUsername,
-    });
-
-    try {
-      const result = await checkUsernameAvailability(normalizedUsername);
-
-      setUsernameCheck({
-        status: result.available ? 'available' : 'unavailable',
-        message: result.message,
-        checkedUsername: result.username,
-      });
-
-      return result.available;
-    } catch (usernameError) {
-      setUsernameCheck({
-        status: 'error',
-        message: usernameError instanceof Error ? usernameError.message : '아이디 중복 확인에 실패했어요.',
-        checkedUsername: normalizedUsername,
-      });
-      return false;
-    }
-  };
-
-  const handleSignup = async () => {
-    setError(null);
-    setSubmitting(true);
-
-    try {
-      const passwordError = getPasswordValidationError(password);
-
-      if (passwordError) {
-        throw new Error(passwordError);
-      }
-
-      if (password !== passwordConfirm) {
-        throw new Error('비밀번호 확인이 일치하지 않아요.');
-      }
-
-      const usernameReady = usernameCheck.status === 'available' && usernameCheck.checkedUsername === normalizedUsername;
-
-      if (!usernameReady) {
-        const available = await handleCheckUsername();
-
-        if (!available) {
-          throw new Error('사용 가능한 아이디인지 먼저 확인해주세요.');
-        }
-      }
-
-      await registerAccount({
-        nickname,
-        realName,
-        displayNamePreference,
-        username,
-        password,
-        phone,
-        provinceName,
-        cityName: finalCityName,
-        districtName: finalDistrictName,
-        addressDetail,
-        birthDate,
-      });
-      router.replace('/(tabs)/home');
-    } catch (signupError) {
-      const message = signupError instanceof Error ? signupError.message : '회원가입에 실패했어요.';
-
-      if (message.includes('이미 사용 중인 아이디')) {
-        setUsernameCheck({
-          status: 'unavailable',
-          message,
-          checkedUsername: normalizedUsername,
-        });
-      }
-
-      setError(message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    setAddressDetail,
+    setDisplayNamePreference,
+    setNickname,
+    setOpenRegionStep,
+    setPassword,
+    setPasswordConfirm,
+    setPasswordVisible,
+    setRealName,
+    signupReady,
+    submitting,
+    tertiaryOptions,
+    tertiaryRegionName,
+    username,
+    usernameCheck,
+    usernameReady,
+    usernameValidationMessage,
+  } = useSignupForm();
 
   return (
     <Screen>
@@ -472,13 +262,7 @@ export default function SignupFormScreen() {
                 options={regions}
                 selectedName={provinceName}
                 disabled={submitting || catalogLoading}
-                onSelect={(nextProvince) => {
-                  setProvinceName(nextProvince.name);
-                  setSecondaryRegionName('');
-                  setTertiaryRegionName('');
-                  setAddressDetail('');
-                  setOpenRegionStep('secondary');
-                }}
+                onSelect={handleSelectProvince}
               />
             </RegionPickerCard>
 
@@ -495,12 +279,7 @@ export default function SignupFormScreen() {
                   options={secondaryOptions}
                   selectedName={secondaryRegionName}
                   disabled={submitting || catalogLoading}
-                  onSelect={(nextSecondary) => {
-                    setSecondaryRegionName(nextSecondary.name);
-                    setTertiaryRegionName('');
-                    setAddressDetail('');
-                    setOpenRegionStep(nextSecondary.children?.length ? 'tertiary' : 'detail');
-                  }}
+                  onSelect={handleSelectSecondary}
                 />
               </RegionPickerCard>
             ) : null}
@@ -518,11 +297,7 @@ export default function SignupFormScreen() {
                   options={tertiaryOptions}
                   selectedName={tertiaryRegionName}
                   disabled={submitting || catalogLoading}
-                  onSelect={(nextTertiary) => {
-                    setTertiaryRegionName(nextTertiary.name);
-                    setAddressDetail('');
-                    setOpenRegionStep('detail');
-                  }}
+                  onSelect={handleSelectTertiary}
                 />
               </RegionPickerCard>
             ) : null}
@@ -557,7 +332,7 @@ export default function SignupFormScreen() {
             helperText="비공개 정보예요. YYYY-MM-DD 형식으로 저장돼요."
             placeholder="예: 1990-01-01"
             value={birthDate}
-            onChangeText={(nextValue) => setBirthDate(formatBirthDateInput(nextValue))}
+            onChangeText={handleBirthDateChange}
             editable={!submitting}
           />
 

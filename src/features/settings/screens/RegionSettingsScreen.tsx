@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -6,73 +5,32 @@ import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { fetchMyProfile, fetchRegionCatalog, updateMyRegion } from '@/services';
-import { AddressRegionNode } from '@/features/location/addressCatalog';
-import { buildRegionSelectionState, RegionChipSection } from '@/features/location/RegionSelection';
+import { RegionChipSection } from '@/features/location/RegionSelection';
+import { useRegionSettings } from '@/features/settings/hooks/useRegionSettings';
 
 export default function RegionSettingsScreen() {
-  const [regions, setRegions] = useState<AddressRegionNode[]>([]);
-  const [provinceName, setProvinceName] = useState('');
-  const [secondaryRegionName, setSecondaryRegionName] = useState('');
-  const [tertiaryRegionName, setTertiaryRegionName] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
+  const {
+    error,
+    handleSave,
+    handleSelectProvince,
+    handleSelectSecondary,
+    handleSelectTertiary,
+    loading,
+    provinceName,
+    regions,
+    saved,
+    saving,
+    secondaryRegionName,
+    selection,
+    tertiaryRegionName,
+  } = useRegionSettings();
   const {
     selectedProvince,
     secondaryOptions,
     selectedSecondary,
     tertiaryOptions,
-    finalCityName,
-    finalDistrictName,
     selectedAddressLabel,
-  } = useMemo(
-    () => buildRegionSelectionState(regions, provinceName, secondaryRegionName, tertiaryRegionName),
-    [regions, provinceName, secondaryRegionName, tertiaryRegionName],
-  );
-
-  useEffect(() => {
-    Promise.all([fetchMyProfile(), fetchRegionCatalog()])
-      .then(([profile, regionCatalog]) => {
-        setRegions(regionCatalog.regions);
-        setProvinceName(profile.provinceName ?? '');
-        setSecondaryRegionName(profile.cityName || profile.districtName);
-        setTertiaryRegionName(profile.cityName && profile.cityName !== profile.districtName ? profile.districtName : '');
-      })
-      .catch((loadError) => {
-        setError(loadError instanceof Error ? loadError.message : '지역 정보를 불러오지 못했어.');
-      })
-      .finally(() => setLoading(false));
-  }, []);
-
-  const handleSave = async () => {
-    if (!provinceName || !finalDistrictName) {
-      setError('시/도와 최종 지역을 먼저 선택해줘.');
-      return;
-    }
-
-    setError(null);
-    setSaving(true);
-
-    try {
-      const nextProfile = await updateMyRegion({
-        provinceName,
-        cityName: finalCityName,
-        districtName: finalDistrictName,
-      });
-      setProvinceName(nextProfile.provinceName ?? '');
-      setSecondaryRegionName(nextProfile.cityName || nextProfile.districtName);
-      setTertiaryRegionName(nextProfile.cityName && nextProfile.cityName !== nextProfile.districtName ? nextProfile.districtName : '');
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : '지역 저장에 실패했어.');
-    } finally {
-      setSaving(false);
-    }
-  };
+  } = selection;
 
   return (
     <Screen>
@@ -94,11 +52,7 @@ export default function RegionSettingsScreen() {
                 options={regions}
                 selectedName={provinceName}
                 disabled={saving}
-                onSelect={(nextProvince) => {
-                  setProvinceName(nextProvince.name);
-                  setSecondaryRegionName('');
-                  setTertiaryRegionName('');
-                }}
+                onSelect={handleSelectProvince}
               />
 
               {selectedProvince ? (
@@ -107,10 +61,7 @@ export default function RegionSettingsScreen() {
                   options={secondaryOptions}
                   selectedName={secondaryRegionName}
                   disabled={saving}
-                  onSelect={(nextSecondary) => {
-                    setSecondaryRegionName(nextSecondary.name);
-                    setTertiaryRegionName('');
-                  }}
+                  onSelect={handleSelectSecondary}
                 />
               ) : null}
 
@@ -120,7 +71,7 @@ export default function RegionSettingsScreen() {
                   options={tertiaryOptions}
                   selectedName={tertiaryRegionName}
                   disabled={saving}
-                  onSelect={(nextTertiary) => setTertiaryRegionName(nextTertiary.name)}
+                  onSelect={handleSelectTertiary}
                 />
               ) : null}
 

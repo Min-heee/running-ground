@@ -1,48 +1,13 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, StyleSheet, View } from 'react-native';
-import { Redirect, Stack, usePathname } from 'expo-router';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { Redirect, Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '@/features/runs/backgroundTracking';
-import { getIsSignedIn, hydrateSession } from '@/lib/session';
-
-const PUBLIC_ROUTES = new Set([
-  '/',
-  '/onboarding',
-  '/login',
-  '/account-recovery',
-  '/signup',
-  '/signup-form',
-  '/admin',
-]);
+import { useConfigureNotificationHandler } from '@/navigation/notificationHandler';
+import { useRootAuthGate } from '@/navigation/rootAuthGate';
 
 export default function RootLayout() {
-  const pathname = usePathname();
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    hydrateSession().finally(() => setReady(true));
-  }, []);
-
-  useEffect(() => {
-    if (Platform.OS === 'ios') {
-      return;
-    }
-
-    void import('expo-notifications')
-      .then((Notifications) => {
-        Notifications.setNotificationHandler({
-          handleNotification: async () => ({
-            shouldShowBanner: true,
-            shouldShowList: true,
-            shouldPlaySound: true,
-            shouldSetBadge: false,
-          }),
-        });
-      })
-      .catch(() => {
-        // Older binaries may not have the native notification module yet.
-      });
-  }, []);
+  const { ready, redirectHref } = useRootAuthGate();
+  useConfigureNotificationHandler();
 
   if (!ready) {
     return (
@@ -54,15 +19,8 @@ export default function RootLayout() {
     );
   }
 
-  const signedIn = getIsSignedIn();
-  const isPublicRoute = PUBLIC_ROUTES.has(pathname);
-
-  if (!signedIn && !isPublicRoute) {
-    return <Redirect href="/onboarding" />;
-  }
-
-  if (signedIn && isPublicRoute && pathname !== '/' && pathname !== '/admin') {
-    return <Redirect href="/(tabs)/home" />;
+  if (redirectHref) {
+    return <Redirect href={redirectHref} />;
   }
 
   return (

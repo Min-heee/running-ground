@@ -1,31 +1,16 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ListRenderItem } from 'react-native';
-import { Link, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Link, router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { fetchFriendActivity } from '@/services';
-import { FriendActivityResponse } from '@/lib/api/types';
-
-type FriendActivityRun = FriendActivityResponse['runs'][number];
-
-function formatRefreshTime(timestamp: string | null) {
-  if (!timestamp) {
-    return '방금 갱신 대기 중';
-  }
-
-  const date = new Date(timestamp);
-
-  if (Number.isNaN(date.getTime())) {
-    return '방금 갱신';
-  }
-
-  const hours = `${date.getHours()}`.padStart(2, '0');
-  const minutes = `${date.getMinutes()}`.padStart(2, '0');
-  return `${hours}:${minutes} 기준`;
-}
+import {
+  type FriendActivityRun,
+  formatFriendActivityRefreshTime,
+  useFriendDetail,
+} from '@/features/friends/hooks/useFriendDetail';
 
 const FriendActivityRunRow = memo(function FriendActivityRunRow({
   run,
@@ -52,46 +37,7 @@ const FriendActivityRunRow = memo(function FriendActivityRunRow({
 
 export default function FriendDetailScreen() {
   const { friendId } = useLocalSearchParams<{ friendId?: string }>();
-  const [activity, setActivity] = useState<FriendActivityResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
-
-  const loadActivity = useCallback(async (showLoading = true) => {
-    if (showLoading) {
-      setLoading(true);
-      setError(null);
-    }
-
-    try {
-      const data = await fetchFriendActivity(friendId);
-      setActivity(data);
-      setLastRefreshedAt(new Date().toISOString());
-      if (showLoading) {
-        setError(null);
-      }
-    } catch (loadError) {
-      if (showLoading) {
-        setError(loadError instanceof Error ? loadError.message : '친구 활동 정보를 불러오지 못했어.');
-      }
-    } finally {
-      if (showLoading) {
-        setLoading(false);
-      }
-    }
-  }, [friendId]);
-
-  useFocusEffect(useCallback(() => {
-    void loadActivity(true);
-
-    const refreshInterval = setInterval(() => {
-      void loadActivity(false);
-    }, 20000);
-
-    return () => clearInterval(refreshInterval);
-  }, [loadActivity]));
-
-  const activityRuns = useMemo(() => activity?.runs ?? [], [activity?.runs]);
+  const { activity, activityRuns, error, lastRefreshedAt, loading } = useFriendDetail(friendId);
   const keyExtractor = useCallback((run: FriendActivityRun) => run.id, []);
   const renderRunItem = useCallback<ListRenderItem<FriendActivityRun>>(({ item }) => (
     <FriendActivityRunRow run={item} friendId={activity?.friend.id ?? ''} />
@@ -126,7 +72,7 @@ export default function FriendDetailScreen() {
                   <View style={styles.liveDot} />
                   <Text style={styles.liveBadgeText}>러닝 중</Text>
                 </View>
-                <Text style={styles.liveRefreshText}>{formatRefreshTime(lastRefreshedAt)}</Text>
+                <Text style={styles.liveRefreshText}>{formatFriendActivityRefreshTime(lastRefreshedAt)}</Text>
               </View>
               <Text style={styles.liveLocation}>{activity.friend.liveLocationLabel ?? '현재 위치 근처'}</Text>
               <Text style={styles.liveHint}>
