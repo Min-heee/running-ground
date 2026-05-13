@@ -5,6 +5,7 @@ import { type Href, router } from 'expo-router';
 import {
   fetchFriendLeaderboard,
 } from '@/services/friendsService';
+import { getApiErrorMessage } from '@/services/apiError';
 import {
   fetchRunningMatchRoom,
   acknowledgeRunningMatchRoomCountdown,
@@ -179,7 +180,7 @@ export function useMatchRoomLobby() {
       setError(null);
       return payload.room;
     } catch (roomError) {
-      setError(roomError instanceof Error ? roomError.message : '대기실을 불러오지 못했어.');
+      setError(getApiErrorMessage(roomError, '대기실을 불러오지 못했어.'));
       return null;
     }
   }, [commitRoom, syncServerClock]);
@@ -354,7 +355,7 @@ export function useMatchRoomLobby() {
       })
       .catch((roomError) => {
         countdownReadyRoomAckRef.current = null;
-        setError(roomError instanceof Error ? roomError.message : '파티런 카운트다운 준비를 맞추지 못했어.');
+        setError(getApiErrorMessage(roomError, '파티런 카운트다운 준비를 맞추지 못했어.'));
       });
   }, [
     commitRoom,
@@ -395,7 +396,7 @@ export function useMatchRoomLobby() {
       syncServerClock(payload.serverNow);
       commitRoom(payload.room);
     } catch (roomError) {
-      setError(roomError instanceof Error ? roomError.message : '대기실 설정을 저장하지 못했어.');
+      setError(getApiErrorMessage(roomError, '대기실 설정을 저장하지 못했어.'));
     } finally {
       setSaving(false);
     }
@@ -421,7 +422,7 @@ export function useMatchRoomLobby() {
       syncServerClock(payload.serverNow);
       commitRoom(payload.room);
     } catch (roomError) {
-      setError(roomError instanceof Error ? roomError.message : '준비 상태를 바꾸지 못했어.');
+      setError(getApiErrorMessage(roomError, '준비 상태를 바꾸지 못했어.'));
     } finally {
       setSaving(false);
     }
@@ -447,7 +448,7 @@ export function useMatchRoomLobby() {
       syncServerClock(payload.serverNow);
       commitRoom(payload.room);
     } catch (roomError) {
-      setError(roomError instanceof Error ? roomError.message : '방을 시작하지 못했어.');
+      setError(getApiErrorMessage(roomError, '방을 시작하지 못했어.'));
     } finally {
       setSaving(false);
     }
@@ -466,7 +467,7 @@ export function useMatchRoomLobby() {
       await leaveRunningMatchRoom({ roomId: room.roomId });
       router.back();
     } catch (roomError) {
-      setError(roomError instanceof Error ? roomError.message : '방에서 나가지 못했어.');
+      setError(getApiErrorMessage(roomError, '방에서 나가지 못했어.'));
     } finally {
       setSaving(false);
     }
@@ -489,7 +490,7 @@ export function useMatchRoomLobby() {
       syncServerClock(payload.serverNow);
       commitRoom(payload.room);
     } catch (roomError) {
-      setError(roomError instanceof Error ? roomError.message : '초대를 수락하지 못했어.');
+      setError(getApiErrorMessage(roomError, '초대를 수락하지 못했어.'));
     } finally {
       setSaving(false);
     }
@@ -513,7 +514,7 @@ export function useMatchRoomLobby() {
       commitRoom(payload.room);
       router.replace('/(tabs)/running');
     } catch (roomError) {
-      setError(roomError instanceof Error ? roomError.message : '초대를 거절하지 못했어.');
+      setError(getApiErrorMessage(roomError, '초대를 거절하지 못했어.'));
     } finally {
       setSaving(false);
     }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Href } from 'expo-router';
 import type { RunDetailResponse } from '@/lib/api/types';
-import { fetchRunDetail } from '@/services';
+import { fetchRunDetail, getApiErrorMessage } from '@/services';
 import { getRunSourceLabel } from '@/features/runs/sourceLabel';
 import { getRunMapRegion } from '@/features/runs/tracking';
 
@@ -19,7 +19,7 @@ export function useRunDetail({ friendId, origin, runId }: UseRunDetailParams) {
   useEffect(() => {
     fetchRunDetail({ runId, friendId })
       .then((data) => setRunDetail(data))
-      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '기록 상세 정보를 불러오지 못했어.'))
+      .catch((loadError) => setError(getApiErrorMessage(loadError, '기록 상세 정보를 불러오지 못했어.')))
       .finally(() => setLoading(false));
   }, [friendId, runId]);
 

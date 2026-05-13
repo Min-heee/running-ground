@@ -16,6 +16,7 @@ import {
   fetchMyProfile,
   fetchNotificationSettings,
   fetchUpcomingRunningMatches,
+  getApiErrorMessage,
 } from '@/services';
 
 export function useHomeScreenModel() {
@@ -139,7 +140,7 @@ export function useHomeScreenModel() {
       const payload = await fetchUpcomingRunningMatches();
       setUpcomingMatches(payload.items);
     } catch (cancelError) {
-      setError(cancelError instanceof Error ? cancelError.message : '예약을 취소하지 못했어.');
+      setError(getApiErrorMessage(cancelError, '예약을 취소하지 못했어.'));
     } finally {
       setCancelingMatchId(null);
     }

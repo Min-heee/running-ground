@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import type { AddressRegionNode } from '@/features/location/addressCatalog';
 import { buildRegionSelectionState } from '@/features/location/RegionSelection';
-import { fetchRegionCatalog } from '@/services';
+import { fetchRegionCatalog, getApiErrorMessage } from '@/services';
 import {
   checkUsernameAvailability,
   getPasswordValidationError,
@@ -68,7 +68,7 @@ export function useSignupForm() {
         setRegions(regionCatalog.regions);
       })
       .catch((loadError) => {
-        setCatalogError(loadError instanceof Error ? loadError.message : '회원가입에 필요한 목록을 불러오지 못했어요.');
+        setCatalogError(getApiErrorMessage(loadError, '회원가입에 필요한 목록을 불러오지 못했어요.'));
       })
       .finally(() => setCatalogLoading(false));
   }, []);
@@ -199,7 +199,7 @@ export function useSignupForm() {
     } catch (usernameError) {
       setUsernameCheck({
         status: 'error',
-        message: usernameError instanceof Error ? usernameError.message : '아이디 중복 확인에 실패했어요.',
+        message: getApiErrorMessage(usernameError, '아이디 중복 확인에 실패했어요.'),
         checkedUsername: normalizedUsername,
       });
       return false;
@@ -246,7 +246,7 @@ export function useSignupForm() {
       });
       router.replace('/(tabs)/home');
     } catch (signupError) {
-      const message = signupError instanceof Error ? signupError.message : '회원가입에 실패했어요.';
+      const message = getApiErrorMessage(signupError, '회원가입에 실패했어요.');
 
       if (message.includes('이미 사용 중인 아이디')) {
         setUsernameCheck({

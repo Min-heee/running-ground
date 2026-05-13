@@ -12,6 +12,7 @@ import {
   type PartyRunLinkedMatchContext,
 } from '@/features/runs/matchStateMachine';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
+import { getApiErrorMessage } from '@/services/apiError';
 
 type UsePartyRunSyncInput = {
   currentUserId: string;
@@ -174,9 +175,7 @@ export function usePartyRunSync({
     void callbackRef.current.acknowledgeCountdownReady(matchRoom.roomId)
       .catch((roomError) => {
         countdownReadyRoomAckRef.current = null;
-        callbackRef.current.onError(
-          roomError instanceof Error ? roomError.message : '파티런 카운트다운 준비를 맞추지 못했어.',
-        );
+        callbackRef.current.onError(getApiErrorMessage(roomError, '파티런 카운트다운 준비를 맞추지 못했어.'));
       });
   }, [
     currentUserId,

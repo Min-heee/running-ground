@@ -1,5 +1,6 @@
 import { myProfile, weeklySummary } from '@/data/mock';
 import { getCurrentUserProfile } from '@/lib/session';
+import { isApiError } from '@/services/apiError';
 import type {
   CreateRunningMatchRoomInput,
   RunningMatchRoom,
@@ -20,15 +21,16 @@ export function buildMockRunningMatchRoomResponse(room: RunningMatchRoom | null)
 }
 
 export function shouldFallbackToLocalRunningRoomApi(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
+  if (isApiError(error) && error.kind === 'request' && error.status === 404) {
+    return true;
   }
 
-  return (
-    error.message.includes('요청한 API를 찾을 수 없어')
-    || error.message.includes('찾을 수 없어')
-    || error.message.includes('공개 터널 또는 프록시 응답 오류')
-  );
+  return error instanceof Error
+    && (
+      error.message.includes('요청한 API를 찾을 수 없어')
+      || error.message.includes('찾을 수 없어')
+      || error.message.includes('공개 터널 또는 프록시 응답 오류')
+    );
 }
 
 export function recalculateMockRunningMatchRoomCanStart(room: RunningMatchRoom | null) {

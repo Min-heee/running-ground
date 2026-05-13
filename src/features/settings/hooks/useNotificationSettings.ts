@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ensureMatchReminderPermissions, syncScheduledMatchNotifications } from '@/lib/matchNotifications';
-import { fetchNotificationSettings, fetchUpcomingRunningMatches, updateNotificationSettings } from '@/services';
+import { fetchNotificationSettings, fetchUpcomingRunningMatches, getApiErrorMessage, updateNotificationSettings } from '@/services';
 
 export function useNotificationSettings() {
   const [friendAlerts, setFriendAlerts] = useState(true);
@@ -21,7 +21,7 @@ export function useNotificationSettings() {
         setMatchReminders(settings.matchReminders);
       })
       .catch((loadError) => {
-        setError(loadError instanceof Error ? loadError.message : '알림 설정을 불러오지 못했어.');
+        setError(getApiErrorMessage(loadError, '알림 설정을 불러오지 못했어.'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -55,7 +55,7 @@ export function useNotificationSettings() {
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : '알림 설정 저장에 실패했어.');
+      setError(getApiErrorMessage(saveError, '알림 설정 저장에 실패했어.'));
     } finally {
       setSaving(false);
     }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import type { IntegrationStatusResponse, MyActivityResponse, MyProfileResponse } from '@/lib/api/types';
 import { deleteAccount, signOut } from '@/lib/session';
-import { fetchIntegrationStatus, fetchMyActivity, fetchMyProfile } from '@/services';
+import { fetchIntegrationStatus, fetchMyActivity, fetchMyProfile, getApiErrorMessage } from '@/services';
 
 export function useMyPageScreen() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
@@ -24,7 +24,7 @@ export function useMyPageScreen() {
         setIntegrationStatus(integrationData);
         setActivity(activityData);
       })
-      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '마이페이지 정보를 불러오지 못했어요.'))
+      .catch((loadError) => setError(getApiErrorMessage(loadError, '마이페이지 정보를 불러오지 못했어요.')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -64,7 +64,7 @@ export function useMyPageScreen() {
       await signOut();
       router.replace('/onboarding');
     } catch (logoutError) {
-      setError(logoutError instanceof Error ? logoutError.message : '로그아웃 처리에 실패했어요.');
+      setError(getApiErrorMessage(logoutError, '로그아웃 처리에 실패했어요.'));
     } finally {
       setLogoutSubmitting(false);
     }
@@ -84,7 +84,7 @@ export function useMyPageScreen() {
       await deleteAccount();
       router.replace('/onboarding');
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : '회원 탈퇴 처리에 실패했어요.');
+      setError(getApiErrorMessage(deleteError, '회원 탈퇴 처리에 실패했어요.'));
     } finally {
       setDeleteSubmitting(false);
     }

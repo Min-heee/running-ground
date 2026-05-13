@@ -10,6 +10,7 @@ import {
   normalizeUsername,
   resetPasswordByIdentity,
 } from '@/lib/session';
+import { getApiErrorMessage } from '@/services';
 
 function formatPhoneInput(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -79,7 +80,7 @@ export default function AccountRecoveryScreen() {
       setResetPhone(findPhone);
       setResetBirthDate(findBirthDate);
     } catch (error) {
-      setFindMessage(error instanceof Error ? error.message : '아이디를 찾지 못했어요.');
+      setFindMessage(getApiErrorMessage(error, '아이디를 찾지 못했어요.'));
     } finally {
       setFinding(false);
     }
@@ -112,7 +113,7 @@ export default function AccountRecoveryScreen() {
       setResetPassword('');
       setResetPasswordConfirm('');
     } catch (error) {
-      setResetMessage(error instanceof Error ? error.message : '비밀번호를 재설정하지 못했어요.');
+      setResetMessage(getApiErrorMessage(error, '비밀번호를 재설정하지 못했어요.'));
     } finally {
       setResetting(false);
     }

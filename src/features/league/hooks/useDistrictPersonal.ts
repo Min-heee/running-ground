@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { DistrictPersonalResponse } from '@/lib/api/types';
-import { fetchDistrictPersonal } from '@/services';
+import { fetchDistrictPersonal, getApiErrorMessage } from '@/services';
 
 export type DistrictPersonalRank = DistrictPersonalResponse['ranks'][number];
 
@@ -15,7 +15,7 @@ export function useDistrictPersonal() {
 
     fetchDistrictPersonal()
       .then((data) => setCompetition(data))
-      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '구 내 개인 경쟁 정보를 불러오지 못했어.'))
+      .catch((loadError) => setError(getApiErrorMessage(loadError, '구 내 개인 경쟁 정보를 불러오지 못했어.')))
       .finally(() => setLoading(false));
   }, []);
 

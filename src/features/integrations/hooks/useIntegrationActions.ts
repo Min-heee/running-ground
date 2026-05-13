@@ -10,6 +10,7 @@ import {
   connectIntegrationSource,
   disconnectIntegrationSource,
   fetchIntegrationStatus,
+  getApiErrorMessage,
   syncIntegrationSources,
 } from '@/services';
 import {
@@ -92,7 +93,7 @@ export function useIntegrationActions({
       .catch((loadError) => setError(
         preferConfiguredLoadError
           ? loadErrorMessage
-          : loadError instanceof Error ? loadError.message : loadErrorMessage,
+          : getApiErrorMessage(loadError, loadErrorMessage),
       ))
       .finally(() => setLoading(false));
   }, [loadErrorMessage, preferConfiguredLoadError]);
@@ -123,7 +124,7 @@ export function useIntegrationActions({
         setActionMessage(`${result.source.displayName} 연결 준비가 끝났어.`);
       }
     } catch (connectError) {
-      setActionError(connectError instanceof Error ? connectError.message : connectErrorMessage);
+      setActionError(getApiErrorMessage(connectError, connectErrorMessage));
     } finally {
       setActionSourceType(null);
     }
@@ -141,7 +142,7 @@ export function useIntegrationActions({
       setIntegrationStatus({ sources: result.sources });
       setActionMessage(`${result.source.displayName} 연결을 해제했어.`);
     } catch (disconnectError) {
-      setActionError(disconnectError instanceof Error ? disconnectError.message : disconnectErrorMessage);
+      setActionError(getApiErrorMessage(disconnectError, disconnectErrorMessage));
     } finally {
       setActionSourceType(null);
     }
@@ -162,9 +163,10 @@ export function useIntegrationActions({
       const refreshedStatus = await fetchIntegrationStatus();
       setIntegrationStatus(refreshedStatus);
     } catch (syncLoadError) {
-      setSyncError(syncLoadError instanceof Error ? syncLoadError.message : syncErrorMessage);
+      const message = getApiErrorMessage(syncLoadError, syncErrorMessage);
+      setSyncError(message);
       if (mirrorSyncErrorToActionError) {
-        setActionError(syncLoadError instanceof Error ? syncLoadError.message : syncErrorMessage);
+        setActionError(message);
       }
     } finally {
       setSyncing(false);
@@ -194,7 +196,7 @@ export function useIntegrationActions({
       setIntegrationStatus(refreshedStatus);
       setActionMessage(formatDeviceImportMessage(result));
     } catch (deviceImportError) {
-      setActionError(deviceImportError instanceof Error ? deviceImportError.message : deviceImportErrorMessage);
+      setActionError(getApiErrorMessage(deviceImportError, deviceImportErrorMessage));
     } finally {
       setDeviceImporting(false);
     }

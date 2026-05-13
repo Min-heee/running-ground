@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FriendLeaderboardResponse, MyProfileResponse } from '@/lib/api/types';
-import { createFriendRequest, fetchFriendLeaderboard, fetchMyProfile } from '@/services';
+import { createFriendRequest, fetchFriendLeaderboard, fetchMyProfile, getApiErrorMessage } from '@/services';
 
 export function useAddFriendScreen() {
   const [friendTag, setFriendTag] = useState('');
@@ -19,7 +19,7 @@ export function useAddFriendScreen() {
         setLeaderboard(leaderboardData);
       })
       .catch((loadError) => {
-        setError(loadError instanceof Error ? loadError.message : '친구 추가 정보를 불러오지 못했어.');
+        setError(getApiErrorMessage(loadError, '친구 추가 정보를 불러오지 못했어.'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -51,7 +51,7 @@ export function useAddFriendScreen() {
       const refreshedLeaderboard = await fetchFriendLeaderboard();
       setLeaderboard(refreshedLeaderboard);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : '친구 요청 전송에 실패했어.');
+      setError(getApiErrorMessage(requestError, '친구 요청 전송에 실패했어.'));
     } finally {
       setSubmitting(false);
     }

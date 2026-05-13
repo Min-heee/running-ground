@@ -25,6 +25,7 @@ import {
 import { resolveActiveMatchId } from '@/features/runs/matchStateMachine';
 import {
   createTrackedRun,
+  getApiErrorMessage,
   leaveRunningMatch,
 } from '@/services';
 import { buildRunDetailRedirect } from '@/features/runs/runSaveNavigation';
@@ -280,7 +281,7 @@ export function useRunSaveFlow({
       }
 
       setStatus('paused');
-      setError(saveError instanceof Error ? saveError.message : '러닝 기록 저장에 실패했어.');
+      setError(getApiErrorMessage(saveError, '러닝 기록 저장에 실패했어.'));
       return false;
     }
   };
@@ -319,7 +320,7 @@ export function useRunSaveFlow({
       await loadUpcomingMatches().catch(() => {});
       setMatchMode('solo');
     } catch (matchError) {
-      setError(matchError instanceof Error ? matchError.message : options?.errorMessage ?? '혼자 계속 달리기 전환에 실패했어.');
+      setError(getApiErrorMessage(matchError, options?.errorMessage ?? '혼자 계속 달리기 전환에 실패했어.'));
     } finally {
       setMatchLeaving(source, false);
     }
@@ -388,7 +389,7 @@ export function useRunSaveFlow({
         setGroupMatchStatus(previousGroupStatus);
         setGroupMatchNotice(previousGroupNotice);
       }
-      setError(matchError instanceof Error ? matchError.message : '기권 처리에 실패했어.');
+      setError(getApiErrorMessage(matchError, '기권 처리에 실패했어.'));
     } finally {
       if (pendingForfeitMatchRef.current === matchId) {
         pendingForfeitMatchRef.current = null;

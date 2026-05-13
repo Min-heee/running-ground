@@ -46,6 +46,7 @@ import {
   fetchRunningMatchRoom,
   fetchUpcomingRunningMatches,
   fetchRunningMatchStatus,
+  getApiErrorMessage,
   joinRunningMatchRoom,
   leaveRunningMatchRoom,
   requestDuelMatch,
@@ -1063,7 +1064,7 @@ export function TrackRunExperience({
         router.push('/match-room' as Href);
       }
     } catch (roomError) {
-      setError(roomError instanceof Error ? roomError.message : '방을 만들지 못했어.');
+      setError(getApiErrorMessage(roomError, '방을 만들지 못했어.'));
     } finally {
       setIsCreatingMatchRoom(false);
     }
@@ -1093,7 +1094,7 @@ export function TrackRunExperience({
         router.push('/match-room' as Href);
       }
     } catch (roomError) {
-      setError(roomError instanceof Error ? roomError.message : '방에 들어가지 못했어.');
+      setError(getApiErrorMessage(roomError, '방에 들어가지 못했어.'));
     } finally {
       setIsJoiningMatchRoom(false);
     }
@@ -1119,7 +1120,7 @@ export function TrackRunExperience({
         router.push('/match-room' as Href);
       }
     } catch (roomError) {
-      setError(roomError instanceof Error ? roomError.message : '초대를 수락하지 못했어.');
+      setError(getApiErrorMessage(roomError, '초대를 수락하지 못했어.'));
     } finally {
       setIsJoiningMatchRoom(false);
     }
@@ -1143,7 +1144,7 @@ export function TrackRunExperience({
       commitMatchRoom(payload.room);
       setSelectedRoomFriendIds([]);
     } catch (roomError) {
-      setError(roomError instanceof Error ? roomError.message : '초대를 거절하지 못했어.');
+      setError(getApiErrorMessage(roomError, '초대를 거절하지 못했어.'));
     } finally {
       setIsLeavingMatchRoom(false);
     }
@@ -1622,7 +1623,7 @@ export function TrackRunExperience({
         setDuelDemandSummary(nextSummary);
       }
     } catch (matchError) {
-      setError(matchError instanceof Error ? matchError.message : '1대1 매칭을 찾지 못했어.');
+      setError(getApiErrorMessage(matchError, '1대1 매칭을 찾지 못했어.'));
     } finally {
       setIsRequestingDuelMatch(false);
     }
@@ -1659,7 +1660,7 @@ export function TrackRunExperience({
         setGroupDemandSummary(nextSummary);
       }
     } catch (matchError) {
-      setError(matchError instanceof Error ? matchError.message : '그룹 매칭을 찾지 못했어.');
+      setError(getApiErrorMessage(matchError, '그룹 매칭을 찾지 못했어.'));
     } finally {
       setIsRequestingGroupMatch(false);
     }
@@ -1698,7 +1699,7 @@ export function TrackRunExperience({
         setDuelMatchStatus(null);
       }
     } catch (matchError) {
-      setError(matchError instanceof Error ? matchError.message : '1대1 매치를 취소하지 못했어.');
+      setError(getApiErrorMessage(matchError, '1대1 매치를 취소하지 못했어.'));
     } finally {
       setIsCancelingDuelMatch(false);
     }
@@ -1737,7 +1738,7 @@ export function TrackRunExperience({
         setGroupMatchStatus(null);
       }
     } catch (matchError) {
-      setError(matchError instanceof Error ? matchError.message : '그룹 매치를 취소하지 못했어.');
+      setError(getApiErrorMessage(matchError, '그룹 매치를 취소하지 못했어.'));
     } finally {
       setIsCancelingGroupMatch(false);
     }
@@ -1767,7 +1768,7 @@ export function TrackRunExperience({
         setGroupMatchStatus(null);
       }
     } catch (cancelError) {
-      setError(cancelError instanceof Error ? cancelError.message : '예약을 취소하지 못했어.');
+      setError(getApiErrorMessage(cancelError, '예약을 취소하지 못했어.'));
     } finally {
       setCancelingUpcomingMatchId(null);
     }

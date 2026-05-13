@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { router } from 'expo-router';
-import { API_CONFIG, checkApiHealth, normalizeUsername, signIn } from '@/services/authService';
+import { API_CONFIG } from '@/services/apiClient';
+import { getApiErrorMessage } from '@/services/apiError';
+import { checkApiHealth, normalizeUsername, signIn } from '@/services/authService';
 
 type ServerCheckState = {
   status: 'idle' | 'checking' | 'ok' | 'error';
@@ -40,9 +42,7 @@ export function useLoginScreen() {
     } catch (checkError) {
       setServerCheck({
         status: 'error',
-        message: checkError instanceof Error
-          ? `서버 연결 실패 · ${checkError.message} · API: ${API_CONFIG.baseUrl}`
-          : `서버 연결 실패 · API: ${API_CONFIG.baseUrl}`,
+        message: `서버 연결 실패 · ${getApiErrorMessage(checkError, '서버 상태를 확인하지 못했어요.')} · API: ${API_CONFIG.baseUrl}`,
       });
     }
   };
@@ -64,7 +64,7 @@ export function useLoginScreen() {
       await signIn({ username, password });
       router.replace('/(tabs)/home');
     } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : '로그인에 실패했어요.');
+      setError(getApiErrorMessage(loginError, '로그인에 실패했어요.'));
     } finally {
       setSubmitting(false);
     }

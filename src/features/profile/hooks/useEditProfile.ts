@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { MyProfileResponse } from '@/lib/api/types';
-import { fetchMyProfile, updateMyProfile } from '@/services';
+import { fetchMyProfile, getApiErrorMessage, updateMyProfile } from '@/services';
 
 export function useEditProfile() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
@@ -17,7 +17,7 @@ export function useEditProfile() {
         setDisplayName(nextProfile.name);
       })
       .catch((loadError) => {
-        setError(loadError instanceof Error ? loadError.message : '프로필을 불러오지 못했어.');
+        setError(getApiErrorMessage(loadError, '프로필을 불러오지 못했어.'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -38,7 +38,7 @@ export function useEditProfile() {
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : '프로필 저장에 실패했어.');
+      setError(getApiErrorMessage(saveError, '프로필 저장에 실패했어.'));
     } finally {
       setSaving(false);
     }

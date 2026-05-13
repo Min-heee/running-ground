@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { router } from 'expo-router';
-import { createManualRun } from '@/services';
+import { createManualRun, getApiErrorMessage } from '@/services';
 
 export function getTodayDateValue() {
   const now = new Date();
@@ -53,7 +53,7 @@ export function useAddRunForm() {
         },
       });
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : '러닝 기록 저장에 실패했어.');
+      setError(getApiErrorMessage(submitError, '러닝 기록 저장에 실패했어.'));
     } finally {
       setSubmitting(false);
     }

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import type { MyActivityResponse } from '@/lib/api/types';
-import { fetchMyActivity } from '@/services';
+import { fetchMyActivity, getApiErrorMessage } from '@/services';
 
 export type ActivityRun = MyActivityResponse['runs'][number];
 
@@ -16,7 +16,7 @@ export function useMyActivity() {
 
     fetchMyActivity()
       .then((data) => setActivity(data))
-      .catch(() => setError('내 활동 정보를 불러오지 못했어.'))
+      .catch((loadError) => setError(getApiErrorMessage(loadError, '내 활동 정보를 불러오지 못했어.')))
       .finally(() => setLoading(false));
   }, []);
 

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import type { FriendActivityResponse } from '@/lib/api/types';
-import { fetchFriendActivity } from '@/services';
+import { fetchFriendActivity, getApiErrorMessage } from '@/services';
 
 export type FriendActivityRun = FriendActivityResponse['runs'][number];
 
@@ -42,7 +42,7 @@ export function useFriendDetail(friendId?: string) {
       }
     } catch (loadError) {
       if (showLoading) {
-        setError(loadError instanceof Error ? loadError.message : '친구 활동 정보를 불러오지 못했어.');
+        setError(getApiErrorMessage(loadError, '친구 활동 정보를 불러오지 못했어.'));
       }
     } finally {
       if (showLoading) {

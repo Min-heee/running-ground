@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import type { MyActivityResponse } from '@/lib/api/types';
-import { fetchMyActivity } from '@/services';
+import { fetchMyActivity, getApiErrorMessage } from '@/services';
 import { buildMatchRecordStats } from '@/features/match/utils/matchRecordStats';
 
 export function useMatchRecords() {
@@ -15,7 +15,7 @@ export function useMatchRecords() {
 
     fetchMyActivity()
       .then((data) => setActivity(data))
-      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '전적을 불러오지 못했어요.'))
+      .catch((loadError) => setError(getApiErrorMessage(loadError, '전적을 불러오지 못했어요.')))
       .finally(() => setLoading(false));
   }, []);
 

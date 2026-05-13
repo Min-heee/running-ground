@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { getApiErrorMessage } from '@/services/apiError';
 import { fetchDistrictPersonal, fetchRegionLeague } from '@/services/leagueService';
 import type { DistrictPersonalResponse, RegionLeagueResponse } from '@/lib/api/types';
 import { getCurrentUserProfile } from '@/lib/session';
@@ -33,7 +34,7 @@ export function useRegionLeagueState() {
       .then((response) => {
         setLeague(response);
       })
-      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '지역 리그 정보를 불러오지 못했어.'))
+      .catch((loadError) => setError(getApiErrorMessage(loadError, '지역 리그 정보를 불러오지 못했어.')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -43,7 +44,7 @@ export function useRegionLeagueState() {
 
     fetchDistrictPersonal(nodeId)
       .then((response) => setRegionMembers(response))
-      .catch((loadError) => setRegionMembersError(loadError instanceof Error ? loadError.message : '이 지역 회원 순위를 불러오지 못했어.'))
+      .catch((loadError) => setRegionMembersError(getApiErrorMessage(loadError, '이 지역 회원 순위를 불러오지 못했어.')))
       .finally(() => setRegionMembersLoading(false));
   }, []);
 

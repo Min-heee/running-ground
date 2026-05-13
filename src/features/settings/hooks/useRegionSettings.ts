@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AddressRegionNode } from '@/features/location/addressCatalog';
 import { buildRegionSelectionState } from '@/features/location/RegionSelection';
-import { fetchMyProfile, fetchRegionCatalog, updateMyRegion } from '@/services';
+import { fetchMyProfile, fetchRegionCatalog, getApiErrorMessage, updateMyRegion } from '@/services';
 
 export function useRegionSettings() {
   const [regions, setRegions] = useState<AddressRegionNode[]>([]);
@@ -27,7 +27,7 @@ export function useRegionSettings() {
         setTertiaryRegionName(profile.cityName && profile.cityName !== profile.districtName ? profile.districtName : '');
       })
       .catch((loadError) => {
-        setError(loadError instanceof Error ? loadError.message : '지역 정보를 불러오지 못했어.');
+        setError(getApiErrorMessage(loadError, '지역 정보를 불러오지 못했어.'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -66,7 +66,7 @@ export function useRegionSettings() {
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : '지역 저장에 실패했어.');
+      setError(getApiErrorMessage(saveError, '지역 저장에 실패했어.'));
     } finally {
       setSaving(false);
     }

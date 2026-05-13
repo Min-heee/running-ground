@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchMyProfile, fetchUniversityCatalog } from '@/services';
+import { fetchMyProfile, fetchUniversityCatalog, getApiErrorMessage } from '@/services';
 import type { MyProfileResponse } from '@/lib/api/types';
 import {
   filterUniversitySuggestions,
@@ -28,7 +28,7 @@ export function useUniversityVerification() {
         setUniversityQuery(nextProfile.universityName ?? '');
       })
       .catch((loadError) => {
-        setError(loadError instanceof Error ? loadError.message : '대학교 인증 정보를 불러오지 못했어요.');
+        setError(getApiErrorMessage(loadError, '대학교 인증 정보를 불러오지 못했어요.'));
       })
       .finally(() => setLoading(false));
   }, []);

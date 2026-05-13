@@ -1,7 +1,7 @@
 import { useEffect, useRef, type MutableRefObject, type RefObject } from 'react';
 import { type Href, router } from 'expo-router';
 import type { ScrollView } from 'react-native';
-import { joinRunningMatchRoom } from '@/services';
+import { getApiErrorMessage, joinRunningMatchRoom } from '@/services';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
@@ -118,7 +118,7 @@ export function useMatchEntryEffects({
         }
       })
       .catch((roomError) => {
-        onError(roomError instanceof Error ? roomError.message : '초대 링크로 방에 들어가지 못했어.');
+        onError(getApiErrorMessage(roomError, '초대 링크로 방에 들어가지 못했어.'));
       });
   }, [
     commitMatchRoom,

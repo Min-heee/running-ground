@@ -8,3 +8,14 @@ export * from './matchService';
 export * from './pointsService';
 export * from './profileService';
 export * from './runningService';
+export {
+  ApiError,
+  apiDelete,
+  apiGet,
+  apiPatch,
+  apiPost,
+  apiRequest,
+  getApiErrorMessage,
+  isApiError,
+} from './apiClient';
+export type { ApiErrorKind } from './apiClient';

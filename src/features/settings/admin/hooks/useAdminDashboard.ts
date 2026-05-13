@@ -20,6 +20,7 @@ import {
   updateAdminRewardRedemption,
 } from '@/services/adminService';
 import { API_CONFIG } from '@/services/apiClient';
+import { getApiErrorMessage } from '@/services/apiError';
 import type {
   AdminNotice,
   AdminMarketItem,
@@ -131,7 +132,7 @@ export function useAdminDashboard() {
       await loadDashboardData(trimmedToken);
       writeStoredAdminToken(trimmedToken);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '관리자 정보를 불러오지 못했어.');
+      setError(getApiErrorMessage(loadError, '관리자 정보를 불러오지 못했어.'));
     } finally {
       setLoading(false);
     }
@@ -162,7 +163,7 @@ export function useAdminDashboard() {
       resetAdminDashboard();
       setAdminToken('');
       setAdminSession(null);
-      setError(loginError instanceof Error ? loginError.message : '관리자 로그인에 실패했어.');
+      setError(getApiErrorMessage(loginError, '관리자 로그인에 실패했어.'));
     } finally {
       setLoading(false);
       setAuthReady(true);
@@ -202,7 +203,7 @@ export function useAdminDashboard() {
     try {
       await task();
     } catch (taskError) {
-      setError(taskError instanceof Error ? taskError.message : '관리자 작업 중 문제가 생겼어.');
+      setError(getApiErrorMessage(taskError, '관리자 작업 중 문제가 생겼어.'));
     } finally {
       setSubmitting(false);
     }

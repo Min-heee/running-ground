@@ -8,6 +8,7 @@ import {
   cancelFriendRequest,
   fetchFriendLeaderboard,
   fetchMyProfile,
+  getApiErrorMessage,
   rejectFriendRequest,
 } from '@/services';
 
@@ -46,7 +47,7 @@ export function useFriendsScreen() {
     setError(null);
 
     syncFriends()
-      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '친구 정보를 불러오지 못했어.'))
+      .catch((loadError) => setError(getApiErrorMessage(loadError, '친구 정보를 불러오지 못했어.')))
       .finally(() => setLoading(false));
   }, [syncFriends]);
 
@@ -82,7 +83,7 @@ export function useFriendsScreen() {
       await action(requestId);
       await syncFriends();
     } catch (requestError) {
-      setActionError(requestError instanceof Error ? requestError.message : fallbackMessage);
+      setActionError(getApiErrorMessage(requestError, fallbackMessage));
     } finally {
       setRequestActionId(null);
     }

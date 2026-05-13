@@ -1,4 +1,5 @@
 import type { RunMatchResult } from '@/domain';
+import { getApiErrorMessage } from '@/services/apiError';
 
 export type MatchTimeSection = 'am' | 'pm';
 
@@ -198,7 +199,7 @@ export function getEstimatedMatchBonusPoints(matchResult?: RunMatchResult) {
 }
 
 export function isUnsavableShortRunError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? '');
+  const message = getApiErrorMessage(error, String(error ?? ''));
 
   return [
     '저장하려면 실제로 이동한 러닝 경로가 조금 더 필요해.',

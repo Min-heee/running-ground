@@ -37,6 +37,7 @@ import type {
   UseRunTrackingFlowInput,
 } from '@/features/runs/types/runTrackingFlow';
 import { shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
+import { getApiErrorMessage } from '@/services/apiError';
 import { updateRunningLiveShare } from '@/services/runningService';
 import type {
   UpdateRunningMatchProgressInput,
@@ -540,7 +541,7 @@ export function useRunTrackingFlow({
       }
     } catch (trackingError) {
       finishSoloStartCountdown(false);
-      setError(trackingError instanceof Error ? trackingError.message : '러닝 측정을 시작하지 못했어.');
+      setError(getApiErrorMessage(trackingError, '러닝 측정을 시작하지 못했어.'));
       stopForegroundTrackingHelpers();
       await resetBackgroundRunTracking();
       void syncLiveSharing({
@@ -630,7 +631,7 @@ export function useRunTrackingFlow({
         });
       }
     } catch (resumeError) {
-      setError(resumeError instanceof Error ? resumeError.message : '러닝 측정을 다시 시작하지 못했어.');
+      setError(getApiErrorMessage(resumeError, '러닝 측정을 다시 시작하지 못했어.'));
       stopForegroundTrackingHelpers();
       setStatus('paused');
     }
