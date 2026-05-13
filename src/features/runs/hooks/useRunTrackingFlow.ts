@@ -1,7 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { AppState, Platform } from 'react-native';
-import * as Location from 'expo-location';
-import { Pedometer } from 'expo-sensors';
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import {
   getBackgroundRunElapsedSeconds,
   getBackgroundRunTrackingSnapshot,
@@ -9,7 +7,6 @@ import {
   resetBackgroundRunTracking,
   resumeBackgroundRunTracking,
   startBackgroundRunTracking,
-  subscribeBackgroundRunTracking,
   type BackgroundRunTrackingSnapshot,
 } from '@/features/runs/backgroundTracking';
 import {
@@ -17,8 +14,6 @@ import {
   calculateCadenceSpm,
 } from '@/features/runs/tracking';
 import {
-  buildLiveShareFallbackLabel,
-  buildLiveShareLabelFromAddress,
   buildOfficialStartBaseline,
 } from '@/features/runs/trackingSession';
 import { buildDisplayedTrackingSnapshot } from '@/features/runs/trackingDisplayModel';
@@ -29,19 +24,19 @@ import {
   isLiveMatchState,
   resolveActiveMatchId,
 } from '@/features/runs/matchStateMachine';
-import { useMatchProgressSync } from '@/features/runs/hooks/useMatchProgressSync';
+import { useElapsedTicker } from '@/features/runs/tracking/useElapsedTicker';
+import { useLiveShareHeartbeat } from '@/features/runs/tracking/useLiveShareHeartbeat';
+import { useLocationTracking } from '@/features/runs/tracking/useLocationTracking';
+import { useMatchProgressHeartbeat } from '@/features/runs/tracking/useMatchProgressHeartbeat';
+import { usePedometerTracking } from '@/features/runs/tracking/usePedometerTracking';
+import { useTrackingAppStateSync } from '@/features/runs/tracking/useTrackingAppStateSync';
 import type {
   DisplayedMatchProgress,
   DisplayedTrackingSnapshot,
-  SyncLiveSharingInput,
   UseRunTrackingFlowInput,
 } from '@/features/runs/types/runTrackingFlow';
 import { shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { getApiErrorMessage } from '@/services/apiError';
-import { updateRunningLiveShare } from '@/services/runningService';
-import type {
-  UpdateRunningMatchProgressInput,
-} from '@/lib/api/types';
 
 export function useRunTrackingFlow({
   pedometerSubscriptionRef,
@@ -98,26 +93,10 @@ export function useRunTrackingFlow({
   getSyncedNowMs,
   refreshStaleMatchArtifacts,
 }: UseRunTrackingFlowInput) {
-  const callbackRef = useRef({
-    refreshStaleMatchArtifacts,
-    refreshMatchProgressHeartbeat: (_snapshot: BackgroundRunTrackingSnapshot) => {},
-    syncMatchLifecycleStatus: async (
-      _nextStatus: Extract<UpdateRunningMatchProgressInput['status'], 'running' | 'background'>,
-      _snapshot?: BackgroundRunTrackingSnapshot,
-    ) => {},
-  });
-
   const syncElapsedSeconds = (nextElapsedSeconds: number) => {
     elapsedSecondsRef.current = nextElapsedSeconds;
     setElapsedSeconds(nextElapsedSeconds);
     setCadenceSpm(calculateCadenceSpm(totalStepsRef.current, nextElapsedSeconds));
-  };
-
-  const clearElapsedTicker = () => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
   };
 
   const finishSoloStartCountdown = (completed: boolean) => {
@@ -150,32 +129,6 @@ export function useRunTrackingFlow({
       setSoloStartCountdownSeconds(remainingSeconds);
     }, 1000);
   });
-
-  const stopPedometerSubscription = () => {
-    pedometerSubscriptionRef.current?.remove();
-    pedometerSubscriptionRef.current = null;
-  };
-
-  const stopForegroundTrackingHelpers = () => {
-    stopPedometerSubscription();
-    clearElapsedTicker();
-  };
-
-  const resetForegroundTrackingState = () => {
-    stopForegroundTrackingHelpers();
-    finishSoloStartCountdown(false);
-    elapsedSecondsRef.current = 0;
-    totalStepsRef.current = 0;
-    pedometerStepOffsetRef.current = 0;
-    routeRef.current = [];
-    setRoute([]);
-    setDistanceKm(0);
-    setElapsedSeconds(0);
-    setCurrentPace('--:--/km');
-    setLastSyncedMatchProgress(null);
-    setElevationGainM(0);
-    setCadenceSpm(null);
-  };
 
   const resolveWarmupOfficialStartTarget = () => {
     const warmupMatchId = preStartWarmupMatchIdRef.current;
@@ -270,7 +223,7 @@ export function useRunTrackingFlow({
     pushRunningMatchProgress,
     refreshMatchProgressHeartbeat,
     syncMatchLifecycleStatus,
-  } = useMatchProgressSync({
+  } = useMatchProgressHeartbeat({
     matchModeRef,
     duelMatchStatusRef,
     groupMatchStatusRef,
@@ -281,12 +234,6 @@ export function useRunTrackingFlow({
     setDuelMatchStatus,
     setGroupMatchStatus,
   });
-
-  callbackRef.current = {
-    refreshStaleMatchArtifacts,
-    refreshMatchProgressHeartbeat,
-    syncMatchLifecycleStatus,
-  };
 
   const syncFromBackgroundTracking = (
     snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false }),
@@ -301,11 +248,64 @@ export function useRunTrackingFlow({
     syncElapsedSeconds(displayedSnapshot.elapsedSeconds);
   };
 
-  const startElapsedTicker = () => {
+  const {
+    clearElapsedTicker,
+    startElapsedTicker,
+  } = useElapsedTicker({
+    timerRef,
+    syncFromBackgroundTracking,
+  });
+
+  const { stopPedometerSubscription } = usePedometerTracking({
+    status,
+    trackerStatusRef,
+    pedometerSubscriptionRef,
+    pedometerStepOffsetRef,
+    elapsedSecondsRef,
+    totalStepsRef,
+    setMotionPermissionGranted,
+    setCadenceSpm,
+  });
+
+  const {
+    ensureBackgroundLocationPermission,
+    ensureLocationPermission,
+    resolveLiveShareLabel,
+  } = useLocationTracking({
+    setBackgroundLocationPermissionGranted,
+    setLiveShareLabel,
+    setLocationPermissionGranted,
+  });
+
+  const {
+    refreshLiveSharingHeartbeat,
+    syncLiveSharing,
+  } = useLiveShareHeartbeat({
+    liveShareEnabledRef,
+    liveShareLabelRef,
+    liveShareHeartbeatRef,
+    setLiveShareLabel,
+  });
+
+  const stopForegroundTrackingHelpers = () => {
+    stopPedometerSubscription();
     clearElapsedTicker();
-    timerRef.current = setInterval(() => {
-      syncFromBackgroundTracking();
-    }, 1000);
+  };
+
+  const resetForegroundTrackingState = () => {
+    stopForegroundTrackingHelpers();
+    finishSoloStartCountdown(false);
+    elapsedSecondsRef.current = 0;
+    totalStepsRef.current = 0;
+    pedometerStepOffsetRef.current = 0;
+    routeRef.current = [];
+    setRoute([]);
+    setDistanceKm(0);
+    setElapsedSeconds(0);
+    setCurrentPace('--:--/km');
+    setLastSyncedMatchProgress(null);
+    setElevationGainM(0);
+    setCadenceSpm(null);
   };
 
   const startMatchTrackingAutomatically = (
@@ -326,129 +326,6 @@ export function useRunTrackingFlow({
           autoStartedMatchIdRef.current = null;
         }
       });
-  };
-
-  const startPedometerUpdates = async () => {
-    if (pedometerSubscriptionRef.current) {
-      return;
-    }
-
-    try {
-      const isAvailable = await Pedometer.isAvailableAsync();
-
-      if (!isAvailable) {
-        setMotionPermissionGranted(false);
-        return;
-      }
-
-      const permission = await Pedometer.requestPermissionsAsync();
-      const granted = permission.granted || permission.status === 'granted';
-      setMotionPermissionGranted(granted);
-
-      if (!granted) {
-        return;
-      }
-
-      if (trackerStatusRef.current !== 'running' || pedometerSubscriptionRef.current) {
-        return;
-      }
-
-      pedometerSubscriptionRef.current = Pedometer.watchStepCount((result) => {
-        const totalSteps = pedometerStepOffsetRef.current + result.steps;
-        totalStepsRef.current = totalSteps;
-        setCadenceSpm(calculateCadenceSpm(totalSteps, elapsedSecondsRef.current));
-      });
-    } catch {
-      setMotionPermissionGranted(false);
-    }
-  };
-
-  const ensureLocationPermission = async () => {
-    const foregroundPermission = await Location.requestForegroundPermissionsAsync();
-    const granted = foregroundPermission.granted || foregroundPermission.status === 'granted';
-    setLocationPermissionGranted(granted);
-
-    if (!granted) {
-      throw new Error('위치 권한을 허용해야 지도와 거리 측정이 가능해.');
-    }
-  };
-
-  const ensureBackgroundLocationPermission = async (options?: { required?: boolean }) => {
-    const currentBackgroundPermission = await Location.getBackgroundPermissionsAsync();
-    let granted = currentBackgroundPermission.granted || currentBackgroundPermission.status === 'granted';
-
-    if (!granted && options?.required) {
-      const requestedBackgroundPermission = await Location.requestBackgroundPermissionsAsync();
-      granted = requestedBackgroundPermission.granted || requestedBackgroundPermission.status === 'granted';
-    }
-
-    setBackgroundLocationPermissionGranted(granted);
-
-    if (!granted && options?.required) {
-      throw new Error(
-        Platform.OS === 'ios'
-          ? '백그라운드에서도 계속 측정하려면 설정 > RunningGround > 위치에서 `항상 허용`을 켜주세요.'
-          : '백그라운드에서도 계속 측정하려면 RunningGround 위치 권한을 `항상 허용`으로 바꿔주세요.',
-      );
-    }
-
-    return granted;
-  };
-
-  const resolveLiveShareLabel = async (coordinate?: { latitude: number; longitude: number }) => {
-    if (!coordinate) {
-      const fallbackLabel = buildLiveShareFallbackLabel();
-      setLiveShareLabel(fallbackLabel);
-      return fallbackLabel;
-    }
-
-    try {
-      const [address] = await Location.reverseGeocodeAsync(coordinate);
-      const nextLabel = buildLiveShareLabelFromAddress(address) || buildLiveShareFallbackLabel();
-      setLiveShareLabel(nextLabel);
-      return nextLabel;
-    } catch {
-      const fallbackLabel = buildLiveShareFallbackLabel();
-      setLiveShareLabel(fallbackLabel);
-      return fallbackLabel;
-    }
-  };
-
-  const syncLiveSharing = async ({
-    enabled,
-    status: nextStatus,
-    locationLabel,
-  }: SyncLiveSharingInput) => {
-    const payload = await updateRunningLiveShare({
-      enabled,
-      status: nextStatus,
-      ...(locationLabel ? { locationLabel } : {}),
-    });
-
-    setLiveShareLabel(payload.locationLabel ?? null);
-    liveShareHeartbeatRef.current = payload.isRunningNow ? Date.now() : 0;
-    return payload;
-  };
-
-  const refreshLiveSharingHeartbeat = (snapshot: BackgroundRunTrackingSnapshot) => {
-    if (!liveShareEnabledRef.current || snapshot.status !== 'running') {
-      return;
-    }
-
-    const now = Date.now();
-
-    if (now - liveShareHeartbeatRef.current < 25000) {
-      return;
-    }
-
-    liveShareHeartbeatRef.current = now;
-    void syncLiveSharing({
-      enabled: true,
-      status: 'running',
-      locationLabel: liveShareLabelRef.current,
-    }).catch(() => {
-      // Keep the run going even if the optional live-share heartbeat fails.
-    });
   };
 
   const handleStartTracking = async (options?: { allowCountdownWarmup?: boolean }) => {
@@ -750,69 +627,19 @@ export function useRunTrackingFlow({
     status,
   ]);
 
-  useEffect(() => {
-    const unsubscribe = subscribeBackgroundRunTracking(
-      (snapshot) => {
-        syncFromBackgroundTracking(snapshot);
-        refreshLiveSharingHeartbeat(snapshot);
-        callbackRef.current.refreshMatchProgressHeartbeat(snapshot);
-
-        if (snapshot.status === 'running') {
-          startElapsedTicker();
-        } else {
-          clearElapsedTicker();
-        }
-      },
-      { cloneRoute: false },
-    );
-    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
-      const previousState = appStateRef.current;
-      appStateRef.current = nextState;
-
-      if (nextState === 'active') {
-        const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
-        syncFromBackgroundTracking(snapshot);
-        void callbackRef.current.refreshStaleMatchArtifacts().catch(() => {});
-
-        if (trackerStatusRef.current === 'running') {
-          void callbackRef.current.syncMatchLifecycleStatus('running', snapshot).catch(() => {
-            // Keep the run going even if the optional lifecycle heartbeat fails.
-          });
-        }
-        return;
-      }
-
-      if (
-        previousState === 'active'
-        && (nextState === 'inactive' || nextState === 'background')
-        && trackerStatusRef.current === 'running'
-      ) {
-        void callbackRef.current.syncMatchLifecycleStatus('background').catch(() => {
-          // Keep the run going even if the optional lifecycle heartbeat fails.
-        });
-      }
-    });
-
-    return () => {
-      unsubscribe();
-      appStateSubscription.remove();
-      finishSoloStartCountdown(false);
-      stopForegroundTrackingHelpers();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (status !== 'running') {
-      stopPedometerSubscription();
-      return;
-    }
-
-    void startPedometerUpdates();
-
-    return () => {
-      stopPedometerSubscription();
-    };
-  }, [status]);
+  useTrackingAppStateSync({
+    appStateRef,
+    trackerStatusRef,
+    syncFromBackgroundTracking,
+    refreshLiveSharingHeartbeat,
+    refreshMatchProgressHeartbeat,
+    refreshStaleMatchArtifacts,
+    syncMatchLifecycleStatus,
+    startElapsedTicker,
+    clearElapsedTicker,
+    finishSoloStartCountdown,
+    stopForegroundTrackingHelpers,
+  });
 
   return {
     buildDisplayedMatchProgress,
