@@ -29,6 +29,7 @@ type FocusRunningMatchInput = {
   slotStartAt?: string;
   isTestMatch?: boolean;
   preferArena?: boolean;
+  roomState?: RunningMatchRoom['state'];
   source?: string;
 };
 
@@ -76,6 +77,28 @@ type CompletedLiveMatchNavigation = {
   result: LiveMatchNavigationResult;
 };
 
+type LiveMatchNavigationStatus =
+  | 'idle'
+  | 'navigating'
+  | 'mounted'
+  | 'failed'
+  | 'suppressed';
+
+type LiveMatchNavigationRecord = {
+  failedCount: number;
+  key: string;
+  mode: Extract<RunMatchMode, 'duel' | 'group'>;
+  nextRetryAtMs?: number;
+  owner: string;
+  preferArena: boolean;
+  requestId?: string;
+  result?: LiveMatchNavigationResult;
+  status: LiveMatchNavigationStatus;
+  updatedAtMs: number;
+};
+
+const LIVE_MATCH_NAVIGATION_FAILED_BACKOFF_MS = 10_000;
+
 export function useRunningMatchFocus({
   livePagerRef,
   activeDuelSlotStartAt,
@@ -100,6 +123,7 @@ export function useRunningMatchFocus({
 }: UseRunningMatchFocusInput) {
   const activeNavigationRef = useRef<ActiveLiveMatchNavigation | null>(null);
   const completedNavigationRef = useRef<CompletedLiveMatchNavigation | null>(null);
+  const navigationRecordRef = useRef<LiveMatchNavigationRecord | null>(null);
   const navigationSequenceRef = useRef(0);
 
   const promoteLiveArena = useCallback(() => {
@@ -115,8 +139,10 @@ export function useRunningMatchFocus({
     slotStartAt,
     isTestMatch,
     preferArena = false,
+    roomState,
     source = 'running match focus',
   }: FocusRunningMatchInput) => {
+    const requestedPreferArena = Boolean(roomState === 'active' || preferArena);
     const navigationKey = buildLiveMatchNavigationKey({
       distanceKm,
       isTestMatch,
@@ -125,23 +151,85 @@ export function useRunningMatchFocus({
       slotStartAt,
     });
     const activeNavigation = activeNavigationRef.current;
+    const currentRecord = navigationRecordRef.current;
 
     if (activeNavigation?.key === navigationKey) {
-      if (preferArena && !activeNavigation.preferArena) {
+      if (requestedPreferArena && !activeNavigation.preferArena) {
         activeNavigation.preferArena = true;
+        if (currentRecord?.key === navigationKey) {
+          currentRecord.preferArena = true;
+          currentRecord.updatedAtMs = Date.now();
+        }
         promoteLiveArena();
+        rgPerfMark('live match navigation upgraded preferArena', {
+          matchId: matchId ?? null,
+          mode,
+          navigationKey,
+          owner: currentRecord?.owner ?? null,
+          requestId: activeNavigation.requestId,
+          source,
+        });
       }
 
-      rgPerfMark('live match navigation reuse', {
+      rgPerfMark('live match navigation skipped duplicate', {
         matchId: matchId ?? null,
         mode,
         navigationKey,
-        preferArena,
+        owner: currentRecord?.owner ?? null,
+        preferArena: requestedPreferArena,
+        reason: 'navigating',
         requestId: activeNavigation.requestId,
         source,
       });
 
       return activeNavigation.promise;
+    }
+
+    if (currentRecord?.key === navigationKey) {
+      if (currentRecord.status === 'mounted') {
+        if (requestedPreferArena && !currentRecord.preferArena) {
+          currentRecord.preferArena = true;
+          currentRecord.updatedAtMs = Date.now();
+          promoteLiveArena();
+          rgPerfMark('live match navigation upgraded preferArena', {
+            matchId: matchId ?? null,
+            mode,
+            navigationKey,
+            owner: currentRecord.owner,
+            source,
+          });
+        }
+
+        rgPerfMark('live match navigation suppressed because mounted', {
+          matchId: matchId ?? null,
+          mode,
+          navigationKey,
+          owner: currentRecord.owner,
+          preferArena: requestedPreferArena,
+          source,
+        });
+        return currentRecord.result ?? null;
+      }
+
+      if (
+        (currentRecord.status === 'failed' || currentRecord.status === 'suppressed')
+        && typeof currentRecord.nextRetryAtMs === 'number'
+        && Date.now() < currentRecord.nextRetryAtMs
+      ) {
+        currentRecord.status = 'suppressed';
+        currentRecord.updatedAtMs = Date.now();
+        rgPerfMark('live match navigation skipped duplicate', {
+          matchId: matchId ?? null,
+          mode,
+          navigationKey,
+          nextRetryInMs: currentRecord.nextRetryAtMs - Date.now(),
+          owner: currentRecord.owner,
+          preferArena: requestedPreferArena,
+          reason: 'failed-backoff',
+          source,
+        });
+        return currentRecord.result ?? null;
+      }
     }
 
     const completedNavigation = completedNavigationRef.current;
@@ -155,7 +243,7 @@ export function useRunningMatchFocus({
       const shouldPromoteArena = shouldPromoteLiveMatchArena({
         currentPreferArena: completedNavigation?.preferArena,
         matchState: completedNavigation?.result?.state,
-        requestedPreferArena: preferArena,
+        requestedPreferArena,
       });
 
       if (shouldPromoteArena) {
@@ -165,11 +253,24 @@ export function useRunningMatchFocus({
         }
       }
 
-      rgPerfMark('live match navigation skipped', {
+      if (completedNavigation) {
+        navigationRecordRef.current = {
+          failedCount: 0,
+          key: navigationKey,
+          mode,
+          owner: source,
+          preferArena: completedNavigation.preferArena,
+          result: completedNavigation.result,
+          status: 'mounted',
+          updatedAtMs: nowMs,
+        };
+      }
+
+      rgPerfMark('live match navigation suppressed because mounted', {
         matchId: matchId ?? null,
         mode,
         navigationKey,
-        preferArena,
+        preferArena: requestedPreferArena,
         reason: 'recent-complete',
         source,
       });
@@ -179,11 +280,30 @@ export function useRunningMatchFocus({
 
     navigationSequenceRef.current += 1;
     const requestId = `live-nav-${navigationSequenceRef.current}`;
+    const previousFailedCount = currentRecord?.key === navigationKey ? currentRecord.failedCount : 0;
+    navigationRecordRef.current = {
+      failedCount: previousFailedCount,
+      key: navigationKey,
+      mode,
+      owner: source,
+      preferArena: requestedPreferArena,
+      requestId,
+      status: 'navigating',
+      updatedAtMs: nowMs,
+    };
+    rgPerfMark('live match navigation owner selected', {
+      matchId: matchId ?? null,
+      mode,
+      navigationKey,
+      owner: source,
+      preferArena: requestedPreferArena,
+      requestId,
+    });
     const endNavigationTrace = rgPerfMeasureStart('live match navigation', {
       matchId: matchId ?? null,
       mode,
       navigationKey,
-      preferArena,
+      preferArena: requestedPreferArena,
       requestId,
       source,
     });
@@ -191,12 +311,12 @@ export function useRunningMatchFocus({
     const navigationPromise = (async (): Promise<LiveMatchNavigationResult> => {
       let navigationTraceSucceeded = false;
       let navigationResult: LiveMatchNavigationResult = null;
-      let effectivePreferArena = Boolean(preferArena);
+      let effectivePreferArena = requestedPreferArena;
       let navigationState: string | null = null;
 
       setLiveArenaPage(0);
       livePagerRef.current?.scrollTo({ x: 0, animated: false });
-      setForceOpenActiveMatch(Boolean(preferArena));
+      setForceOpenActiveMatch(requestedPreferArena);
       setIsResolvingFocusedMatch(true);
 
       try {
@@ -224,7 +344,7 @@ export function useRunningMatchFocus({
               ? activeNavigationRef.current.preferArena
               : false,
             matchState: payload.state,
-            requestedPreferArena: preferArena || (
+            requestedPreferArena: requestedPreferArena || (
               payload.state === 'matched'
               && shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
             ),
@@ -258,7 +378,7 @@ export function useRunningMatchFocus({
             ? activeNavigationRef.current.preferArena
             : false,
           matchState: payload.state,
-          requestedPreferArena: preferArena || (
+          requestedPreferArena: requestedPreferArena || (
             payload.state === 'matched'
             && shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
           ),
@@ -268,12 +388,38 @@ export function useRunningMatchFocus({
         navigationResult = payload;
         return payload;
       } finally {
-        if (navigationTraceSucceeded) {
+        const isCurrentRequest = navigationRecordRef.current?.requestId === requestId;
+        if (navigationTraceSucceeded && isCurrentRequest) {
           completedNavigationRef.current = {
             completedAtMs: Date.now(),
             key: navigationKey,
             preferArena: effectivePreferArena,
             result: navigationResult,
+          };
+          navigationRecordRef.current = {
+            failedCount: 0,
+            key: navigationKey,
+            mode,
+            owner: source,
+            preferArena: effectivePreferArena,
+            requestId,
+            result: navigationResult,
+            status: 'mounted',
+            updatedAtMs: Date.now(),
+          };
+        } else if (navigationRecordRef.current?.requestId === requestId) {
+          const failedCount = previousFailedCount + 1;
+          navigationRecordRef.current = {
+            failedCount,
+            key: navigationKey,
+            mode,
+            nextRetryAtMs: Date.now() + LIVE_MATCH_NAVIGATION_FAILED_BACKOFF_MS * failedCount,
+            owner: source,
+            preferArena: effectivePreferArena,
+            requestId,
+            result: navigationResult,
+            status: 'failed',
+            updatedAtMs: Date.now(),
           };
         }
 
@@ -292,7 +438,7 @@ export function useRunningMatchFocus({
 
     activeNavigationRef.current = {
       key: navigationKey,
-      preferArena: Boolean(preferArena),
+      preferArena: requestedPreferArena,
       promise: navigationPromise,
       requestId,
     };
@@ -334,6 +480,7 @@ export function useRunningMatchFocus({
       slotStartAt: room.linkedMatchSlotStartAt ?? room.slotStartAt,
       isTestMatch: false,
       preferArena: Boolean(options?.preferArena),
+      roomState: room.state,
       source: options?.source ?? 'room linked match sync',
     });
   }, [focusRunningMatch]);
