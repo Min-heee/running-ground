@@ -60,6 +60,27 @@ test('shouldPromoteLiveMatchArena keeps active match in arena even when request 
   }), true);
 });
 
+test('same matchId navigation remains one key while arena preference is upgraded', () => {
+  const navigationKey = buildLiveMatchNavigationKey({
+    matchId: 'match-upgrade',
+    mode: 'duel',
+  });
+  const upgradedKey = buildLiveMatchNavigationKey({
+    distanceKm: 10,
+    isTestMatch: true,
+    matchId: 'match-upgrade',
+    mode: 'duel',
+    slotStartAt: '2026-05-14T11:00:00.000Z',
+  });
+
+  assert.equal(navigationKey, upgradedKey);
+  assert.equal(shouldPromoteLiveMatchArena({
+    currentPreferArena: false,
+    matchState: 'active',
+    requestedPreferArena: false,
+  }), true);
+});
+
 test('shouldReuseRecentLiveMatchNavigation only reuses the same key inside window', () => {
   assert.equal(
     shouldReuseRecentLiveMatchNavigation({

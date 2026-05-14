@@ -176,3 +176,28 @@ test('location task manager cleanup allows the same match tracking key to start 
   assert.equal(state.stops, 1);
   assert.deepEqual(state.starts, ['background', 'background']);
 });
+
+test('location task manager single-flights detached active GPS start for the same match', async () => {
+  const { adapter, startDeferred, state } = createFakeManagerAdapter();
+  const manager = createLocationTaskManager(adapter);
+
+  await manager.startManagedLocationTask({
+    appState: 'active',
+    detachLocationTask: true,
+    trackingKey: 'duel:match-1',
+  });
+  await manager.startManagedLocationTask({
+    appState: 'active',
+    detachLocationTask: true,
+    trackingKey: 'duel:match-1',
+  });
+
+  assert.equal(state.starts.length, 1);
+  assert.ok(state.marks.includes('GPS tracking start detached from navigation'));
+  assert.ok(state.marks.includes('background task start skipped already starting'));
+
+  startDeferred.resolve();
+  await new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+});

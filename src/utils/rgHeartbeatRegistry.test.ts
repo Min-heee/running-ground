@@ -66,3 +66,16 @@ test('heartbeat single-flight reuses in-flight API requests by key', async () =>
   assert.equal(await duplicate.promise, 'ok');
   assert.equal(getInFlightRgHeartbeatRequestCount(), 0);
 });
+
+test('heartbeat cleanup after room exit releases the active match owner', () => {
+  const heartbeat = acquireRgHeartbeatSlot('match-progress:room-exit-match', 'match progress heartbeat');
+  assert.equal(heartbeat.acquired, true);
+  assert.equal(getActiveRgHeartbeatSlotCount(), 1);
+
+  heartbeat.release();
+
+  assert.equal(getActiveRgHeartbeatSlotCount(), 0);
+  const restarted = acquireRgHeartbeatSlot('match-progress:room-exit-match', 'match progress heartbeat');
+  assert.equal(restarted.acquired, true);
+  restarted.release();
+});

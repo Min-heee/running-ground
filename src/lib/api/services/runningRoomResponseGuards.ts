@@ -38,6 +38,7 @@ type RoomResponseGuardOptions = {
 };
 
 type InvalidRoomResponseReason =
+  | 'missingPayload'
   | 'missingRoom'
   | 'missingRoomId'
   | 'missingInviteToken'
@@ -48,6 +49,10 @@ type InvalidRoomResponseReason =
   | 'missingHostUserId'
   | 'missingHostName'
   | 'missingParticipants'
+  | 'missingParticipantUserId'
+  | 'missingParticipantName'
+  | 'missingInviteeUserId'
+  | 'missingInviteeName'
   | 'missingDistanceKm'
   | 'missingSlotStartAt'
   | 'missingRequiredRoom'
@@ -55,6 +60,10 @@ type InvalidRoomResponseReason =
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 function getInvalidRoomReason(room: RunningMatchRoom | null | undefined, {
@@ -108,6 +117,40 @@ function getInvalidRoomReason(room: RunningMatchRoom | null | undefined, {
     return 'missingParticipants';
   }
 
+  const hasInvalidParticipant = room.participants.some((participant) => (
+    !isNonEmptyString(participant.userId)
+  ));
+
+  if (hasInvalidParticipant) {
+    return 'missingParticipantUserId';
+  }
+
+  const hasInvalidParticipantName = room.participants.some((participant) => (
+    !isNonEmptyString(participant.name)
+  ));
+
+  if (hasInvalidParticipantName) {
+    return 'missingParticipantName';
+  }
+
+  if (room.invitedFriends) {
+    const hasInvalidInvitee = room.invitedFriends.some((invitee) => (
+      !isNonEmptyString(invitee.userId)
+    ));
+
+    if (hasInvalidInvitee) {
+      return 'missingInviteeUserId';
+    }
+
+    const hasInvalidInviteeName = room.invitedFriends.some((invitee) => (
+      !isNonEmptyString(invitee.name)
+    ));
+
+    if (hasInvalidInviteeName) {
+      return 'missingInviteeName';
+    }
+  }
+
   return null;
 }
 
@@ -137,6 +180,10 @@ export function ensureRunningMatchRoomResponse(
   payload: RunningMatchRoomResponse,
   options: RoomResponseGuardOptions,
 ): RunningMatchRoomResponse {
+  if (!isRecord(payload)) {
+    throw buildInvalidRoomResponseError(payload, 'missingPayload', options);
+  }
+
   if (!payload.success) {
     throw buildInvalidRoomResponseError(payload, 'failedResponse', options);
   }
@@ -178,6 +225,22 @@ export function ensureJoinedRunningMatchRoomResponse(payload: RunningMatchRoomRe
 export function ensureRunningMatchRoomCleanupResponse(
   payload: RunningMatchRoomCleanupResponse,
 ): RunningMatchRoomCleanupResponse {
+  if (!isRecord(payload)) {
+    throw new ApiError(
+      'request',
+      'Invalid running match room cleanup response: missingPayload',
+      {
+        details: {
+          code: 'invalid_room_response' satisfies RunningMatchRoomErrorCode,
+          action: 'cleanup-stale',
+          invalidReason: 'missingPayload',
+          payload,
+        },
+        userMessage: INVALID_CLEANUP_RESPONSE_MESSAGE,
+      },
+    );
+  }
+
   if (!payload.success) {
     throw new ApiError(
       'request',

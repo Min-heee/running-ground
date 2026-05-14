@@ -5,6 +5,7 @@ import { ApiError } from '@/services/apiError';
 import {
   getRunningMatchBlockerFromError,
   runStaleRoomCleanupWithTimeout,
+  shouldRunBlockingStaleRoomCleanupForError,
 } from './staleRoomCleanup';
 
 const emptyCleanup: RunningMatchRoomCleanupResponse = {
@@ -39,6 +40,24 @@ test('non-blocker API errors do not trigger stale cleanup retry', () => {
   });
 
   assert.equal(getRunningMatchBlockerFromError(error), null);
+});
+
+test('blocking stale cleanup is only selected for blocker errors', () => {
+  const blockerError = new ApiError('request', '이미 참여 중인 방이 있어요.', {
+    details: {
+      blocker: 'activeRoom',
+      blockerSource: 'matchSessions.activeParticipant',
+      code: 'already_joined',
+    },
+  });
+  const validationError = new ApiError('request', '초대 코드를 확인해줘.', {
+    details: {
+      code: 'invalid_invite_token',
+    },
+  });
+
+  assert.equal(shouldRunBlockingStaleRoomCleanupForError(blockerError), true);
+  assert.equal(shouldRunBlockingStaleRoomCleanupForError(validationError), false);
 });
 
 test('stale room cleanup timeout returns without waiting forever', async () => {

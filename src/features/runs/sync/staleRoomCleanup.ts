@@ -35,6 +35,10 @@ export function getRunningMatchBlockerFromError(error: unknown) {
   };
 }
 
+export function shouldRunBlockingStaleRoomCleanupForError(error: unknown) {
+  return getRunningMatchBlockerFromError(error) !== null;
+}
+
 export async function runStaleRoomCleanupWithTimeout({
   cleanup,
   source,

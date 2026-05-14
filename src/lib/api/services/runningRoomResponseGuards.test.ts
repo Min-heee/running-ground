@@ -123,6 +123,88 @@ test('created room response requires room id and invite token', () => {
   );
 });
 
+test('room response requires participant and invitee user ids', () => {
+  const validRoom = {
+    roomId: 'room-1',
+    inviteToken: 'ABC123',
+    inviteLink: 'runningground://running?roomInviteToken=ABC123',
+    mode: 'duel',
+    state: 'waiting',
+    startMode: 'host',
+    distanceKm: 5,
+    slotStartAt: new Date().toISOString(),
+    slotLabel: '지금',
+    maxParticipants: 2,
+    minParticipants: 2,
+    canStart: false,
+    isHost: true,
+    joined: true,
+    hostUserId: 'host-user',
+    hostName: '테스트',
+    participants: [{
+      averagePace: '5:30/km',
+      districtName: '일산서구',
+      invited: false,
+      isHost: true,
+      joinedAt: new Date().toISOString(),
+      levelLabel: 'Lv.1',
+      name: '방장',
+      userId: 'host-user',
+    }],
+    invitedFriendIds: ['guest-user'],
+    invitedFriends: [{
+      averagePace: '5:40/km',
+      districtName: '일산서구',
+      levelLabel: 'Lv.1',
+      name: '게스트',
+      status: 'pending',
+      userId: 'guest-user',
+    }],
+  } as const;
+
+  assert.throws(
+    () => ensureRunningMatchRoomResponse({
+      success: true,
+      room: {
+        ...validRoom,
+        participants: [{
+          ...validRoom.participants[0],
+          userId: '',
+        }],
+      },
+    } as unknown as Parameters<typeof ensureRunningMatchRoomResponse>[0], {
+      action: 'fetch-active-room',
+      requireRoom: true,
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiError);
+      assert.equal((error.details as { invalidReason?: string }).invalidReason, 'missingParticipantUserId');
+      return true;
+    },
+  );
+
+  assert.throws(
+    () => ensureRunningMatchRoomResponse({
+      success: true,
+      room: {
+        ...validRoom,
+        invitedFriends: [{
+          ...validRoom.invitedFriends[0],
+          userId: '',
+        }],
+      },
+    } as unknown as Parameters<typeof ensureRunningMatchRoomResponse>[0], {
+      action: 'fetch-active-room',
+      requireRoom: true,
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiError);
+      assert.equal((error.details as { invalidReason?: string }).invalidReason, 'missingInviteeUserId');
+      return true;
+    },
+  );
+});
+
 test('leave room response allows null room but still requires success true', () => {
   assert.deepEqual(
     ensureRunningMatchRoomResponse({

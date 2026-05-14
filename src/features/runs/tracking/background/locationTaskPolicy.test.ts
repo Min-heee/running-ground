@@ -112,6 +112,19 @@ test('pause stop removes foreground watcher and stops background task', async ()
   assert.deepEqual(state.operations.slice(-2), ['stop-foreground', 'stop-background']);
 });
 
+test('android background state does not start the same background task twice', async () => {
+  const { adapter, state } = createFakeLocationAdapter('android');
+  const controller = createLocationTaskController(adapter);
+
+  await controller.startLocationTask({ appState: 'background' });
+  await controller.startLocationTask({ appState: 'background' });
+
+  assert.equal(state.backgroundStarted, true);
+  assert.equal(state.foregroundStarted, false);
+  assert.equal(state.backgroundStarts, 1);
+  assert.equal(state.foregroundStarts, 0);
+});
+
 test('reset cleanup includes the current and legacy background task names', () => {
   assert.deepEqual(BACKGROUND_LOCATION_TASK_NAMES, [
     BACKGROUND_RUN_TASK_NAME,

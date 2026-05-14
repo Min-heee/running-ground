@@ -34,6 +34,10 @@ import {
 } from './_shared';
 
 import { fetchMyProfile } from './profile';
+import {
+  ensureRunDetailResponse,
+  ensureRunSaveResponse,
+} from './runningRunResponseGuards';
 
 export async function fetchMyActivity(): Promise<MyActivityResponse> {
   if (USE_MOCK_API) {
@@ -55,7 +59,7 @@ export async function createManualRun(input: CreateManualRunInput): Promise<Crea
     const distanceKm = Number(input.distanceKm.toFixed(1));
     const pointBreakdown = buildMockPointBreakdown(distanceKm >= 0.1 ? 10 : 0);
 
-    return {
+    return ensureRunSaveResponse({
       run: {
         id: `mock-run-${Date.now()}`,
         date: input.date,
@@ -67,7 +71,7 @@ export async function createManualRun(input: CreateManualRunInput): Promise<Crea
       estimatedMinutes: Math.round(distanceKm * 5.5),
       earnedPoint: pointBreakdown.totalPoints,
       pointBreakdown,
-    };
+    }, { action: 'create-manual-run' });
   }
 
   const createdRun = await apiPost<CreateManualRunResponse>(
@@ -84,7 +88,7 @@ export async function createManualRun(input: CreateManualRunInput): Promise<Crea
   );
 
   await fetchMyProfile();
-  return createdRun;
+  return ensureRunSaveResponse(createdRun, { action: 'create-manual-run' });
 }
 
 export async function createTrackedRun(input: CreateTrackedRunInput): Promise<CreateTrackedRunResponse> {
@@ -109,13 +113,13 @@ export async function createTrackedRun(input: CreateTrackedRunInput): Promise<Cr
 
     myRunRecords.unshift(trackedRun);
 
-    return {
+    return ensureRunSaveResponse({
       run: trackedRun,
       weeklyDistanceKm: distanceKm,
       estimatedMinutes: Math.round(input.durationSeconds / 60),
       earnedPoint: pointBreakdown.totalPoints,
       pointBreakdown,
-    };
+    }, { action: 'create-tracked-run' });
   }
 
   const createdRun = await apiPost<CreateTrackedRunResponse>(
@@ -139,7 +143,7 @@ export async function createTrackedRun(input: CreateTrackedRunInput): Promise<Cr
   );
 
   await fetchMyProfile();
-  return createdRun;
+  return ensureRunSaveResponse(createdRun, { action: 'create-tracked-run' });
 }
 
 export async function createRunningRoutePreview(
@@ -213,7 +217,7 @@ export async function fetchRunDetail(input?: { runId?: string; friendId?: string
         : friendRunRecords[0];
       const pointBreakdown = buildMockPointBreakdown(Math.round(run.distanceKm * 2.4));
 
-      return {
+      return ensureRunDetailResponse({
         run: {
           ...run,
           source: '친구 기록',
@@ -222,7 +226,7 @@ export async function fetchRunDetail(input?: { runId?: string; friendId?: string
         estimatedMinutes: Math.round(run.distanceKm * 5.5),
         earnedPoint: pointBreakdown.totalPoints,
         pointBreakdown,
-      };
+      }, { action: 'fetch-run-detail' });
     }
 
     const run = input?.runId
@@ -230,31 +234,37 @@ export async function fetchRunDetail(input?: { runId?: string; friendId?: string
       : myRunRecords[0];
     const pointBreakdown = buildMockPointBreakdown(Math.round(run.distanceKm * 2.4), run.matchResult);
 
-    return {
+    return ensureRunDetailResponse({
       run,
       weeklyDistanceKm: weeklySummary.totalDistanceKm,
       estimatedMinutes: Math.round(run.distanceKm * 5.5),
       earnedPoint: pointBreakdown.totalPoints,
       pointBreakdown,
-    };
+    }, { action: 'fetch-run-detail' });
   }
 
   if (input?.friendId && input?.runId) {
-    return apiGet<RunDetailResponse>(`/friends/${input.friendId}/runs/${input.runId}`, {
+    const payload = await apiGet<RunDetailResponse>(`/friends/${input.friendId}/runs/${input.runId}`, {
       accessToken: await requireAccessToken(),
       fallbackMessage: '친구 러닝 상세를 불러오지 못했어.',
     });
+
+    return ensureRunDetailResponse(payload, { action: 'fetch-friend-run-detail' });
   }
 
   if (input?.runId) {
-    return apiGet<RunDetailResponse>(`/runs/${input.runId}`, {
+    const payload = await apiGet<RunDetailResponse>(`/runs/${input.runId}`, {
       accessToken: await requireAccessToken(),
       fallbackMessage: '러닝 상세를 불러오지 못했어.',
     });
+
+    return ensureRunDetailResponse(payload, { action: 'fetch-run-detail' });
   }
 
-  return apiGet<RunDetailResponse>('/runs/latest', {
+  const payload = await apiGet<RunDetailResponse>('/runs/latest', {
     accessToken: await requireAccessToken(),
     fallbackMessage: '러닝 상세를 불러오지 못했어.',
   });
+
+  return ensureRunDetailResponse(payload, { action: 'fetch-latest-run' });
 }

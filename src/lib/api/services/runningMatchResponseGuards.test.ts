@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiError } from '@/services/apiError';
 import {
+  ensureRunningMatchProgressResponse,
   ensureRunningMatchStatusResponse,
+  INVALID_MATCH_PROGRESS_RESPONSE_MESSAGE,
   INVALID_MATCH_STATUS_RESPONSE_MESSAGE,
 } from './runningMatchResponseGuards';
 
@@ -69,5 +71,79 @@ test('match status guard accepts valid status payloads', () => {
       expectedMatchId: 'match-1',
     }).matchId,
     'match-1',
+  );
+});
+
+test('duel match status requires opponent user id when opponent is present', () => {
+  assert.throws(
+    () => ensureRunningMatchStatusResponse({
+      ...baseStatus,
+      opponent: {
+        accepted: true,
+        averagePace: '5:30/km',
+        compatibilitySummary: '테스트',
+        districtName: '일산서구',
+        id: '',
+        levelLabel: 'Lv.1',
+        lifetimeDistanceKm: 100,
+        name: '상대',
+        weeklyDistanceKm: 10,
+      },
+    }, {
+      action: 'fetch-match-status',
+      expectedMatchId: 'match-1',
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiError);
+      assert.equal((error.details as { invalidReason?: string }).invalidReason, 'missingOpponentUserId');
+      return true;
+    },
+  );
+});
+
+test('group match status requires participant user ids', () => {
+  assert.throws(
+    () => ensureRunningMatchStatusResponse({
+      ...baseStatus,
+      mode: 'group',
+      participants: [{
+        accepted: true,
+        averagePace: '5:30/km',
+        districtName: '일산서구',
+        id: '',
+        lifetimeDistanceKm: 100,
+        levelLabel: 'Lv.1',
+        name: '참가자',
+        seedRank: 1,
+        seedSummary: '1번',
+        weeklyDistanceKm: 10,
+      }],
+    }, {
+      action: 'fetch-match-status',
+      expectedMatchId: 'match-1',
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiError);
+      assert.equal((error.details as { invalidReason?: string }).invalidReason, 'missingParticipantUserId');
+      return true;
+    },
+  );
+});
+
+test('progress heartbeat response requires match id and uses progress user message', () => {
+  assert.throws(
+    () => ensureRunningMatchProgressResponse({
+      ...baseStatus,
+      matchId: undefined,
+    }, {
+      action: 'update-match-progress',
+      expectedMatchId: 'match-1',
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiError);
+      assert.equal(error.userMessage, INVALID_MATCH_PROGRESS_RESPONSE_MESSAGE);
+      assert.equal((error.details as { invalidReason?: string }).invalidReason, 'missingMatchId');
+      return true;
+    },
   );
 });

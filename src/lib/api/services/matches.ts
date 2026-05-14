@@ -43,7 +43,10 @@ import {
 import type {
   MockMatchLiveStatus,
 } from './_shared';
-import { ensureRunningMatchStatusResponse } from './runningMatchResponseGuards';
+import {
+  ensureRunningMatchProgressResponse,
+  ensureRunningMatchStatusResponse,
+} from './runningMatchResponseGuards';
 
 export async function requestDuelMatch(input: RequestDuelMatchInput): Promise<RequestDuelMatchResponse> {
   if (USE_MOCK_API) {
@@ -350,12 +353,11 @@ export async function updateRunningMatchProgress(
         },
       };
       mockApiState.runningMatchSessions.duel = nextSession;
-      return ensureRunningMatchStatusResponse(
+      return ensureRunningMatchProgressResponse(
         hydrateMockRunningMatchSessionStatuses(nextSession),
         {
           action: 'update-match-progress',
           expectedMatchId: input.matchId,
-          requireMatchId: true,
         },
       );
     }
@@ -381,22 +383,20 @@ export async function updateRunningMatchProgress(
         participants: nextParticipants,
       };
       mockApiState.runningMatchSessions.group = nextSession;
-      return ensureRunningMatchStatusResponse(
+      return ensureRunningMatchProgressResponse(
         hydrateMockRunningMatchSessionStatuses(nextSession),
         {
           action: 'update-match-progress',
           expectedMatchId: input.matchId,
-          requireMatchId: true,
         },
       );
     }
 
-    return ensureRunningMatchStatusResponse(
+    return ensureRunningMatchProgressResponse(
       hydrateMockRunningMatchSessionStatuses(currentSession),
       {
         action: 'update-match-progress',
         expectedMatchId: input.matchId,
-        requireMatchId: true,
       },
     );
   }
@@ -414,9 +414,8 @@ export async function updateRunningMatchProgress(
     },
   );
 
-  return ensureRunningMatchStatusResponse(payload, {
+  return ensureRunningMatchProgressResponse(payload, {
     action: 'update-match-progress',
     expectedMatchId: input.matchId,
-    requireMatchId: true,
   });
 }

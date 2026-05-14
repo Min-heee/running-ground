@@ -75,6 +75,19 @@ test('active progress target falls back to active linked party room match', () =
   }), { matchId: 'room-linked-1' });
 });
 
+test('active progress target ignores waiting and countdown linked matches', () => {
+  assert.equal(resolveActiveMatchProgressTarget({
+    matchMode: 'duel',
+    duelMatchStatus: status({ state: 'matched', matchId: 'duel-countdown' }),
+    groupMatchStatus: null,
+    roomLinkedMatchContext: {
+      mode: 'duel',
+      matchId: 'room-linked-countdown',
+      state: 'matched',
+    },
+  }), null);
+});
+
 test('progress heartbeat only sends while running and after the interval', () => {
   assert.equal(shouldSendMatchProgressHeartbeat({
     trackingStatus: 'paused',
