@@ -58,6 +58,10 @@ import {
 } from '@/services';
 import { runActiveRoomCheck } from '@/features/runs/activeRoomCheck';
 import {
+  buildActiveRoomResultLogDetail,
+  buildActiveRoomSnapshotKey,
+} from '@/features/runs/activeRoomResult';
+import {
   shouldAutoOpenMatchArena,
 } from '@/lib/matchCountdown';
 import {
@@ -332,6 +336,7 @@ export function TrackRunExperience({
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
   const forfeitedMatchIdsRef = useRef<Set<string>>(new Set());
   const joinMatchRoomInFlightRef = useRef(false);
+  const lastHandledActiveRoomSnapshotKeyRef = useRef<string | null>(null);
 
   useEffect(() => () => {
     isMountedRef.current = false;
@@ -1122,20 +1127,19 @@ export function TrackRunExperience({
         source: 'track-run experience',
       });
       if (!isMountedRef.current) {
+        rgPerfMark('active room result skipped duplicate', {
+          reason: 'unmounted',
+          source: 'track-run experience',
+        });
         return matchRoom;
       }
 
       if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
-        return matchRoom;
-      }
-
-      syncServerClock(payload.serverNow);
-      if (payload.room) {
-        rgPerfMark('already joined room detected', {
-          roomId: payload.room.roomId,
+        rgPerfMark('active room result skipped duplicate', {
+          reason: 'stale result',
           source: 'track-run experience',
-          state: payload.room.state,
         });
+        return matchRoom;
       }
 
       if (isMatchRoomExiting(payload.room?.roomId)) {
@@ -1157,6 +1161,36 @@ export function TrackRunExperience({
         commitMatchRoom(null);
         endStaleCleanupTrace({ success: true });
         return null;
+      }
+
+      const snapshotKey = buildActiveRoomSnapshotKey({
+        room: payload.room,
+        userId: currentUserId,
+      });
+      if (lastHandledActiveRoomSnapshotKeyRef.current === snapshotKey) {
+        rgPerfMark('active room result skipped duplicate', buildActiveRoomResultLogDetail({
+          reason: 'same room snapshot',
+          room: payload.room,
+          snapshotKey,
+          source: 'track-run experience',
+        }));
+        return matchRoom;
+      }
+
+      lastHandledActiveRoomSnapshotKeyRef.current = snapshotKey;
+      rgPerfMark('active room result handled', buildActiveRoomResultLogDetail({
+        room: payload.room,
+        snapshotKey,
+        source: 'track-run experience',
+      }));
+
+      syncServerClock(payload.serverNow);
+      if (payload.room) {
+        rgPerfMark('already joined room detected', {
+          roomId: payload.room.roomId,
+          source: 'track-run experience',
+          state: payload.room.state,
+        });
       }
 
       const nextRoom = payload.room;

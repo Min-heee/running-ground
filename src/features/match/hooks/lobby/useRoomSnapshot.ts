@@ -6,6 +6,10 @@ import type { FriendLeaderboardResponse, RunningMatchRoom } from '@/lib/api/type
 import { isMatchRoomExiting } from '@/features/runs/matchRoomExitGuard';
 import { runActiveRoomCheck } from '@/features/runs/activeRoomCheck';
 import {
+  buildActiveRoomResultLogDetail,
+  buildActiveRoomSnapshotKey,
+} from '@/features/runs/activeRoomResult';
+import {
   parseServerNowMs,
   resolveStableServerClockOffset,
   shouldAcceptServerSnapshot,
@@ -45,7 +49,9 @@ export function useRoomSnapshot() {
   const currentUser = getCurrentUserProfile();
   const currentUserTag = currentUser?.publicTag ?? 'mock-current-user';
   const latestRoomServerNowMsRef = useRef(0);
+  const lastHandledActiveRoomSnapshotKeyRef = useRef<string | null>(null);
   const roomRenderKeyRef = useRef<string | null>(null);
+  const roomRef = useRef<RunningMatchRoom | null>(null);
   const pollingPausedRef = useRef(false);
   const screenFocusedRef = useRef(false);
   const mountedRef = useRef(true);
@@ -75,6 +81,7 @@ export function useRoomSnapshot() {
     }
 
     roomRenderKeyRef.current = nextKey;
+    roomRef.current = nextRoom;
     setRoom(nextRoom);
   }, []);
 
@@ -88,20 +95,19 @@ export function useRoomSnapshot() {
         source: 'match-room snapshot',
       });
       if (!mountedRef.current || pollingPausedRef.current) {
+        rgPerfMark('active room result skipped duplicate', {
+          reason: !mountedRef.current ? 'unmounted' : 'already navigating',
+          source: 'match-room snapshot',
+        });
         return null;
       }
 
       if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
-        return null;
-      }
-
-      syncServerClock(payload.serverNow);
-      if (payload.room) {
-        rgPerfMark('already joined room detected', {
-          roomId: payload.room.roomId,
+        rgPerfMark('active room result skipped duplicate', {
+          reason: 'stale result',
           source: 'match-room snapshot',
-          state: payload.room.state,
         });
+        return null;
       }
 
       if (isMatchRoomExiting(payload.room?.roomId)) {
@@ -113,6 +119,36 @@ export function useRoomSnapshot() {
         endStaleCleanupTrace({ success: true });
         setError(null);
         return null;
+      }
+
+      const snapshotKey = buildActiveRoomSnapshotKey({
+        room: payload.room,
+        userId: currentUserTag,
+      });
+      if (lastHandledActiveRoomSnapshotKeyRef.current === snapshotKey) {
+        rgPerfMark('active room result skipped duplicate', buildActiveRoomResultLogDetail({
+          reason: 'same room snapshot',
+          room: payload.room,
+          snapshotKey,
+          source: 'match-room snapshot',
+        }));
+        return roomRef.current;
+      }
+
+      lastHandledActiveRoomSnapshotKeyRef.current = snapshotKey;
+      rgPerfMark('active room result handled', buildActiveRoomResultLogDetail({
+        room: payload.room,
+        snapshotKey,
+        source: 'match-room snapshot',
+      }));
+
+      syncServerClock(payload.serverNow);
+      if (payload.room) {
+        rgPerfMark('already joined room detected', {
+          roomId: payload.room.roomId,
+          source: 'match-room snapshot',
+          state: payload.room.state,
+        });
       }
 
       const nextRoom = payload.room;
@@ -127,7 +163,7 @@ export function useRoomSnapshot() {
       setError(getApiErrorMessage(roomError, '대기실을 불러오지 못했어.'));
       return null;
     }
-  }, [commitRoom, syncServerClock]);
+  }, [commitRoom, currentUserTag, syncServerClock]);
 
   useEffect(() => () => {
     mountedRef.current = false;
