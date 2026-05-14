@@ -96,6 +96,71 @@ test('lifecycle controller keeps waiting party room passive for side effects', (
   assert.equal(controller.effects.shouldRunHeartbeat, false);
 });
 
+test('waiting direct match does not start GPS or heartbeat', () => {
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'idle',
+    isRunning: false,
+    duelMatchState: 'idle',
+    duelMatchStatus: status({
+      state: 'idle',
+      matchId: 'duel-waiting',
+    }),
+  }));
+
+  assert.equal(controller.stage, 'waiting');
+  assert.equal(controller.effects.shouldStartGpsWarmup, false);
+  assert.equal(controller.effects.shouldStartGpsActive, false);
+  assert.equal(controller.effects.shouldRunHeartbeat, false);
+});
+
+test('arming direct match polls status without starting GPS or heartbeat', () => {
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'idle',
+    isRunning: false,
+    duelMatchState: 'matched',
+    duelStartCountdownSeconds: 45,
+    duelMatchStatus: status({
+      state: 'matched',
+      matchId: 'duel-arming',
+      slotStartAt: '2026-05-14T12:00:45.000Z',
+    }),
+  }));
+
+  assert.equal(controller.stage, 'arming');
+  assert.equal(controller.effects.shouldPollDirectMatchStatus, true);
+  assert.equal(controller.effects.shouldPollLinkedMatch, false);
+  assert.equal(controller.effects.shouldStartGpsWarmup, false);
+  assert.equal(controller.effects.shouldStartGpsActive, false);
+  assert.equal(controller.effects.shouldRunHeartbeat, false);
+});
+
+test('countdown warmup starts GPS warmup but not active heartbeat', () => {
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'idle',
+    isRunning: false,
+    duelMatchState: 'matched',
+    duelStartCountdownSeconds: 20,
+    duelMatchStatus: status({
+      state: 'matched',
+      matchId: 'duel-countdown',
+      slotStartAt: '2026-05-14T12:00:20.000Z',
+    }),
+  }));
+
+  assert.equal(controller.stage, 'countdown');
+  assert.deepEqual(controller.gps.warmupMatch, {
+    matchId: 'duel-countdown',
+    mode: 'duel',
+    slotStartAt: '2026-05-14T12:00:20.000Z',
+  });
+  assert.equal(controller.effects.shouldStartGpsWarmup, true);
+  assert.equal(controller.effects.shouldStartGpsActive, false);
+  assert.equal(controller.effects.shouldRunHeartbeat, false);
+});
+
 test('lifecycle controller centralizes party run countdown navigation and polling decisions', () => {
   const linkedRoom = room({
     state: 'countdown',
@@ -125,6 +190,33 @@ test('lifecycle controller centralizes party run countdown navigation and pollin
   assert.equal(controller.effects.shouldStartGpsWarmup, true);
 });
 
+test('linked party room countdown uses linked polling owner and suppresses direct room polling', () => {
+  const linkedRoom = room({
+    state: 'countdown',
+    linkedMatchId: 'match-linked',
+    linkedMatchStatus: 'matched',
+    linkedMatchSlotStartAt: '2026-05-14T12:00:20.000Z',
+  });
+  const flow = buildPartyRunFlowSnapshot({
+    room: linkedRoom,
+    isCountdownReady: true,
+    remainingSeconds: 20,
+  });
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    matchRoom: linkedRoom,
+    visibleMatchRoom: linkedRoom,
+    visiblePartyRunFlow: flow,
+    matchRoomFlow: flow,
+    roomLinkedMatchContext: flow.linkedMatchContext,
+  }));
+
+  assert.equal(controller.source, 'party-room');
+  assert.equal(controller.effects.shouldPollRoom, false);
+  assert.equal(controller.effects.shouldPollDirectMatchStatus, false);
+  assert.equal(controller.effects.shouldPollLinkedMatch, true);
+});
+
 test('lifecycle controller starts heartbeat only for active running match', () => {
   const controller = buildMatchLifecycleController(baseInput({
     matchMode: 'duel',
@@ -141,6 +233,24 @@ test('lifecycle controller starts heartbeat only for active running match', () =
   assert.equal(controller.stage, 'active');
   assert.equal(controller.effects.shouldStartGpsActive, false);
   assert.equal(controller.effects.shouldRunHeartbeat, true);
+});
+
+test('active match suppresses heartbeat after current user forfeits', () => {
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'running',
+    isRunning: true,
+    isCurrentUserForfeited: true,
+    duelMatchState: 'active',
+    duelMatchStatus: status({
+      state: 'active',
+      matchId: 'duel-active',
+      readyToStart: true,
+    }),
+  }));
+
+  assert.equal(controller.stage, 'active');
+  assert.equal(controller.effects.shouldRunHeartbeat, false);
 });
 
 test('lifecycle controller starts active GPS from idle before heartbeat', () => {

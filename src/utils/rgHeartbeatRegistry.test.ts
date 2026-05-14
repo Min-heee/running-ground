@@ -26,6 +26,21 @@ test('heartbeat registry blocks duplicate active match slots', () => {
   assert.equal(getActiveRgHeartbeatSlotCount(), 0);
 });
 
+test('heartbeat registry allows same matchId only after cleanup release', () => {
+  const first = acquireRgHeartbeatSlot('match-progress:match-cleanup', 'match progress heartbeat');
+  assert.equal(first.acquired, true);
+
+  const duplicateBeforeCleanup = acquireRgHeartbeatSlot('match-progress:match-cleanup', 'match progress heartbeat');
+  assert.equal(duplicateBeforeCleanup.acquired, false);
+
+  first.release();
+  const nextAfterCleanup = acquireRgHeartbeatSlot('match-progress:match-cleanup', 'match progress heartbeat');
+  assert.equal(nextAfterCleanup.acquired, true);
+
+  nextAfterCleanup.release();
+  assert.equal(getActiveRgHeartbeatSlotCount(), 0);
+});
+
 test('heartbeat single-flight reuses in-flight API requests by key', async () => {
   let callCount = 0;
   let resolveRequest: ((value: string) => void) | null = null;

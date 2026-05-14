@@ -18,6 +18,25 @@ test('buildLiveMatchNavigationKey prefers stable matchId key', () => {
   );
 });
 
+test('buildLiveMatchNavigationKey dedupes the same matchId across changing request details', () => {
+  const firstKey = buildLiveMatchNavigationKey({
+    distanceKm: 5,
+    isTestMatch: false,
+    matchId: 'match-1',
+    mode: 'duel',
+    slotStartAt: '2026-05-14T10:00:00.000Z',
+  });
+  const duplicateKey = buildLiveMatchNavigationKey({
+    distanceKm: 10,
+    isTestMatch: true,
+    matchId: 'match-1',
+    mode: 'duel',
+    slotStartAt: '2026-05-14T11:00:00.000Z',
+  });
+
+  assert.equal(firstKey, duplicateKey);
+});
+
 test('buildLiveMatchNavigationKey falls back to schedule inputs without matchId', () => {
   assert.equal(
     buildLiveMatchNavigationKey({
@@ -34,6 +53,11 @@ test('shouldPromoteLiveMatchArena keeps active match in arena even when request 
   assert.equal(shouldPromoteLiveMatchArena({ requestedPreferArena: false, matchState: 'active' }), true);
   assert.equal(shouldPromoteLiveMatchArena({ requestedPreferArena: false, matchState: 'matched' }), false);
   assert.equal(shouldPromoteLiveMatchArena({ requestedPreferArena: true, matchState: 'matched' }), true);
+  assert.equal(shouldPromoteLiveMatchArena({
+    currentPreferArena: true,
+    requestedPreferArena: false,
+    matchState: 'matched',
+  }), true);
 });
 
 test('shouldReuseRecentLiveMatchNavigation only reuses the same key inside window', () => {

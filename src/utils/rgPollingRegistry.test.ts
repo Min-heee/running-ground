@@ -33,3 +33,17 @@ test('polling registry allows different sources for the same room when keys diff
   snapshot.release();
   assert.equal(getActiveRgPollingSlotCount(), 0);
 });
+
+test('polling cleanup after room leave releases room and linked match owners', () => {
+  const roomPolling = acquireRgPollingSlot('room:cleanup:match-room-snapshot', 'match-room snapshot polling');
+  const linkedPolling = acquireRgPollingSlot('match:cleanup:linked-match-status', 'linked match status polling');
+
+  assert.equal(roomPolling.acquired, true);
+  assert.equal(linkedPolling.acquired, true);
+  assert.equal(getActiveRgPollingSlotCount(), 2);
+
+  roomPolling.release();
+  linkedPolling.release();
+
+  assert.equal(getActiveRgPollingSlotCount(), 0);
+});

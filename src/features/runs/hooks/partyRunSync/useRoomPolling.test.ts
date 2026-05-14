@@ -69,3 +69,34 @@ test('party room polling defers linked room sync to linked match status owner', 
   assert.equal(policy.enabled, false);
   assert.equal(policy.reason, 'linked-match-status-owner');
 });
+
+test('party room polling keeps transitional room states owned by lifecycle handoff', () => {
+  for (const state of ['arming', 'countdown', 'active'] as const) {
+    const nextRoom = room({ state });
+    const policy = resolvePartyRoomPollingPolicy({
+      fastRoomPollMs: 2500,
+      idleRoomPollMs: 5000,
+      linkedMatchId: nextRoom.linkedMatchId,
+      roomId: nextRoom.roomId,
+      state: nextRoom.state,
+    });
+
+    assert.equal(policy.enabled, false);
+    assert.equal(policy.intervalMs, 2500);
+    assert.equal(policy.reason, `${state}-linked-transition-owner`);
+  }
+});
+
+test('party room polling is disabled when room id is missing', () => {
+  const policy = resolvePartyRoomPollingPolicy({
+    fastRoomPollMs: 2500,
+    idleRoomPollMs: 5000,
+    linkedMatchId: null,
+    roomId: null,
+    state: null,
+  });
+
+  assert.equal(policy.enabled, false);
+  assert.equal(policy.intervalMs, 5000);
+  assert.equal(policy.reason, 'no-room');
+});

@@ -60,6 +60,20 @@ test('location task manager reuses same tracking key while start is in flight', 
   await Promise.all([firstStart, secondStart]);
 });
 
+test('location task manager skips same tracking key after task is already started', async () => {
+  const { adapter, startDeferred, state } = createFakeManagerAdapter();
+  const manager = createLocationTaskManager(adapter);
+
+  const firstStart = manager.startManagedLocationTask({ appState: 'background', trackingKey: 'match-1' });
+  startDeferred.resolve();
+  await firstStart;
+
+  await manager.startManagedLocationTask({ appState: 'background', trackingKey: 'match-1' });
+
+  assert.equal(state.starts.length, 1);
+  assert.ok(state.marks.includes('background task start skipped already started'));
+});
+
 test('location task manager debounces app state sync to the latest state', async () => {
   const { adapter, startDeferred, state } = createFakeManagerAdapter();
   const manager = createLocationTaskManager(adapter);
@@ -134,4 +148,31 @@ test('location task manager ignores a late start result after stop', async () =>
 
   assert.equal(state.stops, 1);
   assert.deepEqual(state.starts, ['active', 'active']);
+});
+
+test('location task manager cleanup allows the same match tracking key to start again', async () => {
+  const state = {
+    starts: [] as AppStateStatus[],
+    stops: 0,
+  };
+  const adapter: LocationTaskManagerAdapter = {
+    startLocationTask: async (policy: LocationTaskPolicy) => {
+      state.starts.push(policy.appState ?? 'active');
+    },
+    stopLocationTaskIfNeeded: async () => {
+      state.stops += 1;
+    },
+    mark: () => {},
+    measureStart: () => () => 0,
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+  };
+  const manager = createLocationTaskManager(adapter);
+
+  await manager.startManagedLocationTask({ appState: 'background', trackingKey: 'match-1' });
+  await manager.stopManagedLocationTask();
+  await manager.startManagedLocationTask({ appState: 'background', trackingKey: 'match-1' });
+
+  assert.equal(state.stops, 1);
+  assert.deepEqual(state.starts, ['background', 'background']);
 });
