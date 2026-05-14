@@ -172,6 +172,7 @@ export type RunningMatchStatusResponse = {
 
 export type UpcomingRunningMatchItem = {
   matchId: string;
+  roomId?: string;
   mode: 'duel' | 'group';
   isTestMatch?: boolean;
   distanceKm: number;

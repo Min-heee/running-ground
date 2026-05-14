@@ -3294,6 +3294,7 @@ function buildMatchDemandSummaryResponse(store, currentUser, { mode, distanceKm,
 
 function buildUpcomingRunningMatchesResponse(store, currentUser) {
   const now = new Date();
+  const rooms = syncMatchRooms(store, now);
   const sessions = pruneMatchSessions(store)
     .filter((session) => session.participants.some((participant) => (
       participant.userId === currentUser.id
@@ -3306,15 +3307,21 @@ function buildUpcomingRunningMatchesResponse(store, currentUser) {
         return null;
       }
 
+      const linkedRoom = rooms.find((room) => (
+        room.linkedMatchId === session.id
+        && room.participants.some((participant) => participant.userId === currentUser.id)
+      ));
+
       if (session.mode === 'duel') {
-      const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now);
-      const isTestMatch = isTestMatchSession(session);
-      const cancelableUntilAt = buildMatchCancellationDeadline(session.slotStartAt, { isTestMatch }).toISOString();
-      return {
-        matchId: session.id,
-        mode: 'duel',
-        ...(isTestMatch ? { isTestMatch: true } : {}),
-        distanceKm: session.distanceKm,
+        const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now);
+        const isTestMatch = isTestMatchSession(session);
+        const cancelableUntilAt = buildMatchCancellationDeadline(session.slotStartAt, { isTestMatch }).toISOString();
+        return {
+          matchId: session.id,
+          ...(linkedRoom ? { roomId: linkedRoom.id } : {}),
+          mode: 'duel',
+          ...(isTestMatch ? { isTestMatch: true } : {}),
+          distanceKm: session.distanceKm,
           slotStartAt: session.slotStartAt,
           slotLabel: formatDuelSlotLabel(session.slotStartAt),
           status: state,
@@ -3331,6 +3338,7 @@ function buildUpcomingRunningMatchesResponse(store, currentUser) {
       const cancelableUntilAt = buildMatchCancellationDeadline(session.slotStartAt, { isTestMatch }).toISOString();
       return {
         matchId: session.id,
+        ...(linkedRoom ? { roomId: linkedRoom.id } : {}),
         mode: 'group',
         ...(isTestMatch ? { isTestMatch: true } : {}),
         distanceKm: session.distanceKm,

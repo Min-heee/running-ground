@@ -126,6 +126,7 @@ export async function syncScheduledMatchNotifications(matches: UpcomingRunningMa
             kind: MATCH_REMINDER_KIND,
             matchId: match.matchId,
             mode: match.mode,
+            roomId: match.roomId,
             slotStartAt: match.slotStartAt,
             minutesBefore,
           },
