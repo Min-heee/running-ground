@@ -1845,13 +1845,27 @@ function joinRunningMatchRoom(store, currentUser, { inviteToken }) {
     throw new ApiError(404, '참여할 방을 찾지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.');
   }
 
-  const cleanup = cleanupStaleRunningMatchRoomState(store, currentUser);
-  const blockerRoomId = cleanup.blockerDetails?.roomId;
-  const blocksDifferentRoom = cleanup.blocker && (
-    cleanup.blocker !== 'activeRoom' || !blockerRoomId || blockerRoomId !== room.id
+  if (room.participants.some((participant) => participant.userId === currentUser.id)) {
+    return requireJoinedRunningMatchRoomResponse(buildRunningMatchRoomResponse(store, currentUser, room));
+  }
+
+  const initialBlocker = buildRunningMatchRequestBlocker(store, currentUser);
+  const initialBlockerRoomId = initialBlocker?.details?.roomId;
+  const blocksDifferentRoom = initialBlocker && (
+    initialBlocker.legacyBlocker !== 'activeRoom' || !initialBlockerRoomId || initialBlockerRoomId !== room.id
   );
 
   if (blocksDifferentRoom) {
+    const cleanup = cleanupStaleRunningMatchRoomState(store, currentUser);
+    const blockerRoomId = cleanup.blockerDetails?.roomId;
+    const stillBlocksDifferentRoom = cleanup.blocker && (
+      cleanup.blocker !== 'activeRoom' || !blockerRoomId || blockerRoomId !== room.id
+    );
+
+    if (!stillBlocksDifferentRoom) {
+      return joinRunningMatchRoom(store, currentUser, { inviteToken });
+    }
+
     const blocker = {
       legacyBlocker: cleanup.blocker,
       source: cleanup.blockerSource ?? cleanup.blocker,
@@ -1863,10 +1877,6 @@ function joinRunningMatchRoom(store, currentUser, { inviteToken }) {
 
   if (room.linkedMatchId) {
     throw new ApiError(400, '이미 시작 준비에 들어간 방이라 지금은 참여할 수 없어.');
-  }
-
-  if (room.participants.some((participant) => participant.userId === currentUser.id)) {
-    return requireJoinedRunningMatchRoomResponse(buildRunningMatchRoomResponse(store, currentUser, room));
   }
 
   if (room.participants.length >= room.maxParticipants) {

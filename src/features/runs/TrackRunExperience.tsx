@@ -44,7 +44,6 @@ import { useTrackRunNotificationSync } from '@/features/runs/hooks/useTrackRunNo
 import {
   acknowledgeRunningMatchRoomCountdown,
   cancelRunningMatch,
-  cleanupStaleRunningMatchRoomState,
   createRunningMatchRoom,
   fetchFriendLeaderboard,
   fetchMatchDemandSummary,
@@ -56,6 +55,10 @@ import {
   requestDuelMatch,
   requestGroupMatch,
 } from '@/services';
+import {
+  getRunningMatchBlockerFromError,
+  runStaleRoomCleanupWithTimeout,
+} from '@/features/runs/staleRoomCleanup';
 import { runActiveRoomCheck } from '@/features/runs/activeRoomCheck';
 import {
   buildActiveRoomResultLogDetail,
@@ -1243,81 +1246,82 @@ export function TrackRunExperience({
   };
 
   const prepareMatchRoomMutation = async ({
+    forceCleanup = false,
     inviteToken,
     source,
   }: {
+    forceCleanup?: boolean;
     inviteToken?: string;
     source: string;
   }) => {
-    const endStaleCleanupTrace = rgPerfMeasureStart('stale room cleanup', {
-      source,
-    });
-
-    try {
-      const payload = await cleanupStaleRunningMatchRoomState();
-      endStaleCleanupTrace({
-        blocker: payload.blocker ?? null,
-        cleaned: payload.cleaned,
-        roomId: payload.room?.roomId ?? null,
-        success: true,
-      });
-
-      if (payload.cleaned) {
-        rgPerfMark('local room state cleared', {
-          cleanedItems: payload.cleanedItems.join(','),
-          source,
-        });
-        commitMatchRoom(payload.room);
-        if (!payload.room) {
-          setSelectedRoomFriendIds([]);
-        }
-      }
-
-      if (payload.blocker && !payload.room) {
-        rgPerfMark('already joined room detected', {
-          blocker: payload.blocker,
-          blockerSource: payload.blockerSource ?? payload.blocker,
-          source,
-        });
-        setError(payload.message ?? '이미 진행 중인 매칭 상태가 있어요. 기존 상태를 먼저 정리한 뒤 다시 시도해주세요.');
-        return false;
-      }
-
-      if (!payload.room) {
-        return true;
-      }
-
-      rgPerfMark('already joined room detected', {
-        blocker: payload.blocker ?? 'activeRoom',
-        roomId: payload.room.roomId,
-        source,
-        state: payload.room.state,
-      });
-      commitMatchRoom(payload.room);
-
-      if (
-        inviteToken
-        && payload.room.joined !== false
-        && payload.room.inviteToken.toUpperCase() === inviteToken.toUpperCase()
-      ) {
-        navigateToMatchRoomWithTrace(`${source} existing room`, payload.room.roomId);
-        return false;
-      }
-
-      if (inviteToken && payload.room.joined === false && payload.room.inviteToken.toUpperCase() === inviteToken.toUpperCase()) {
-        return true;
-      }
-
-      setError(payload.message ?? '이미 참여 중인 방이 있어요. 기존 방을 먼저 나간 뒤 다시 시도해주세요.');
-      return false;
-    } catch (cleanupError) {
-      endStaleCleanupTrace({ success: false });
-      rgPerfMark('stale room cleanup error', {
-        message: getApiErrorMessage(cleanupError, '이전 방 상태를 정리하지 못했어.'),
+    const hasKnownActiveRoom = Boolean(matchRoom?.roomId || visibleMatchRoom?.roomId);
+    if (!forceCleanup && !hasKnownActiveRoom) {
+      rgPerfMark('stale cleanup skipped no blocker', {
+        hasInviteToken: Boolean(inviteToken),
         source,
       });
       return true;
     }
+
+    const cleanupOutcome = await runStaleRoomCleanupWithTimeout({ source });
+    if (cleanupOutcome.status === 'timeout') {
+      return !forceCleanup;
+    }
+
+    if (cleanupOutcome.status === 'error') {
+      return !forceCleanup;
+    }
+
+    const { payload } = cleanupOutcome;
+
+    if (payload.cleaned) {
+      rgPerfMark('local room state cleared', {
+        cleanedItems: payload.cleanedItems.join(','),
+        source,
+      });
+      commitMatchRoom(payload.room);
+      if (!payload.room) {
+        setSelectedRoomFriendIds([]);
+      }
+    }
+
+    if (payload.blocker && !payload.room) {
+      rgPerfMark('already joined room detected', {
+        blocker: payload.blocker,
+        blockerSource: payload.blockerSource ?? payload.blocker,
+        source,
+      });
+      setError(payload.message ?? '이미 진행 중인 매칭 상태가 있어요. 기존 상태를 먼저 정리한 뒤 다시 시도해주세요.');
+      return false;
+    }
+
+    if (!payload.room) {
+      return true;
+    }
+
+    rgPerfMark('already joined room detected', {
+      blocker: payload.blocker ?? 'activeRoom',
+      roomId: payload.room.roomId,
+      source,
+      state: payload.room.state,
+    });
+    commitMatchRoom(payload.room);
+
+    if (
+      inviteToken
+      && payload.room.joined !== false
+      && payload.room.inviteToken.toUpperCase() === inviteToken.toUpperCase()
+    ) {
+      navigateToMatchRoomWithTrace(`${source} existing room`, payload.room.roomId);
+      return false;
+    }
+
+    if (inviteToken && payload.room.joined === false && payload.room.inviteToken.toUpperCase() === inviteToken.toUpperCase()) {
+      return true;
+    }
+
+    setError(payload.message ?? '이미 참여 중인 방이 있어요. 기존 방을 먼저 나간 뒤 다시 시도해주세요.');
+    return false;
   };
 
   const handleCreateMatchRoom = async () => {
@@ -1333,9 +1337,14 @@ export function TrackRunExperience({
     setIsCreatingMatchRoom(true);
     setError(null);
 
-    let endCreateApiTrace: ReturnType<typeof rgPerfMeasureStart> | null = null;
-
     try {
+      if (!matchRoom?.roomId && !visibleMatchRoom?.roomId) {
+        rgPerfMark('stale cleanup skipped no blocker', {
+          mode: nextRoomMode,
+          source: 'room create preflight',
+        });
+      }
+
       const canProceed = await prepareMatchRoomMutation({
         source: 'room create preflight',
       });
@@ -1343,24 +1352,57 @@ export function TrackRunExperience({
         return;
       }
 
-      endCreateApiTrace = rgPerfMeasureStart('room create API', {
-        distanceKm: nextDistanceKm,
-        mode: nextRoomMode,
-        source: 'track-run ready action',
-      });
-      const payload = await createRunningMatchRoom({
-        mode: nextRoomMode,
-        distanceKm: nextDistanceKm,
-        startMode: roomStartMode,
-        ...(roomStartMode === 'scheduled'
-          ? { slotStartAt: nextRoomMode === 'duel' ? activeDuelSlotStartAt : activeGroupSlotStartAt }
-          : {}),
-        ...(nextRoomMode === 'group' ? { maxParticipants: Number(roomMaxParticipants) || 10 } : {}),
-      });
-      endCreateApiTrace({
-        roomId: payload.room?.roomId ?? null,
-        success: true,
-      });
+      const createRoom = async (source: string) => {
+        const endCreateApiTrace = rgPerfMeasureStart('room create API', {
+          distanceKm: nextDistanceKm,
+          mode: nextRoomMode,
+          source,
+        });
+        try {
+          const payload = await createRunningMatchRoom({
+            mode: nextRoomMode,
+            distanceKm: nextDistanceKm,
+            startMode: roomStartMode,
+            ...(roomStartMode === 'scheduled'
+              ? { slotStartAt: nextRoomMode === 'duel' ? activeDuelSlotStartAt : activeGroupSlotStartAt }
+              : {}),
+            ...(nextRoomMode === 'group' ? { maxParticipants: Number(roomMaxParticipants) || 10 } : {}),
+          });
+          endCreateApiTrace({
+            roomId: payload.room?.roomId ?? null,
+            success: true,
+          });
+          return payload;
+        } catch (error) {
+          endCreateApiTrace({ success: false });
+          throw error;
+        }
+      };
+
+      let payload: Awaited<ReturnType<typeof createRunningMatchRoom>>;
+      try {
+        payload = await createRoom('track-run ready action');
+      } catch (createError) {
+        const blocker = getRunningMatchBlockerFromError(createError);
+        if (!blocker) {
+          throw createError;
+        }
+
+        rgPerfMark('stale cleanup retry after blocker', {
+          blocker: blocker.blocker ?? null,
+          blockerSource: blocker.blockerSource ?? null,
+          source: 'track-run ready action',
+        });
+        const canRetry = await prepareMatchRoomMutation({
+          forceCleanup: true,
+          source: 'room create retry after blocker',
+        });
+        if (!canRetry) {
+          throw createError;
+        }
+        payload = await createRoom('track-run ready action retry');
+      }
+
       if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
         return;
       }
@@ -1371,7 +1413,6 @@ export function TrackRunExperience({
         navigateToMatchRoomWithTrace('room create', payload.room.roomId);
       }
     } catch (roomError) {
-      endCreateApiTrace?.({ success: false });
       const message = getApiErrorMessage(roomError, '방을 만들지 못했어.');
       rgPerfMark('room create API error', {
         message,
@@ -1409,9 +1450,14 @@ export function TrackRunExperience({
     setIsJoiningMatchRoom(true);
     setError(null);
 
-    let endJoinApiTrace: ReturnType<typeof rgPerfMeasureStart> | null = null;
-
     try {
+      if (!matchRoom?.roomId && !visibleMatchRoom?.roomId) {
+        rgPerfMark('stale cleanup deferred', {
+          reason: 'join-first-no-local-blocker',
+          source: 'invite code join preflight',
+        });
+      }
+
       const canProceed = await prepareMatchRoomMutation({
         inviteToken,
         source: 'invite code join preflight',
@@ -1420,22 +1466,60 @@ export function TrackRunExperience({
         return;
       }
 
-      endJoinApiTrace = rgPerfMeasureStart('room join API', {
-        inviteTokenLength: inviteToken.length,
-        source: 'track-run invite code input',
-      });
-      const payload = await joinRunningMatchRoom({ inviteToken });
-      if (!payload.room?.roomId) {
-        endJoinApiTrace({
-          reason: 'missing roomId',
-          success: false,
+      const joinRoom = async (source: string) => {
+        const endJoinApiTrace = rgPerfMeasureStart('room join API', {
+          inviteTokenLength: inviteToken.length,
+          source,
         });
-        throw new Error('방 정보를 불러오지 못했습니다. 다시 시도해주세요.');
+        let traceClosed = false;
+        try {
+          const payload = await joinRunningMatchRoom({ inviteToken });
+          if (!payload.room?.roomId) {
+            endJoinApiTrace({
+              reason: 'missing roomId',
+              success: false,
+            });
+            traceClosed = true;
+            throw new Error('방 정보를 불러오지 못했습니다. 다시 시도해주세요.');
+          }
+          endJoinApiTrace({
+            roomId: payload.room.roomId,
+            success: true,
+          });
+          return payload;
+        } catch (error) {
+          if (!traceClosed) {
+            endJoinApiTrace({ success: false });
+          }
+          throw error;
+        }
+      };
+
+      let payload: Awaited<ReturnType<typeof joinRunningMatchRoom>>;
+      try {
+        payload = await joinRoom('track-run invite code input');
+      } catch (joinError) {
+        const blocker = getRunningMatchBlockerFromError(joinError);
+        if (!blocker) {
+          throw joinError;
+        }
+
+        rgPerfMark('stale cleanup retry after blocker', {
+          blocker: blocker.blocker ?? null,
+          blockerSource: blocker.blockerSource ?? null,
+          source: 'track-run invite code input',
+        });
+        const canRetry = await prepareMatchRoomMutation({
+          forceCleanup: true,
+          inviteToken,
+          source: 'invite code join retry after blocker',
+        });
+        if (!canRetry) {
+          throw joinError;
+        }
+        payload = await joinRoom('track-run invite code retry');
       }
-      endJoinApiTrace({
-        roomId: payload.room.roomId,
-        success: true,
-      });
+
       if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
         return;
       }
@@ -1445,7 +1529,6 @@ export function TrackRunExperience({
       setRoomInviteTokenInput('');
       navigateToMatchRoomWithTrace('invite code join', payload.room.roomId);
     } catch (roomError) {
-      endJoinApiTrace?.({ success: false });
       const message = getApiErrorMessage(roomError, '방에 들어가지 못했어.');
       rgPerfMark('room join API error', {
         message,
