@@ -46,6 +46,7 @@ test('active room check reuses an in-flight request for duplicate callers', asyn
   const firstPromise = runActiveRoomCheck({ fetcher, source: 'track-run experience' });
   const secondPromise = runActiveRoomCheck({ fetcher, source: 'match-room snapshot' });
 
+  await Promise.resolve();
   assert.equal(fetchCount, 1);
   assert.ok(resolveFetch);
   const resolveActiveFetch = resolveFetch as (value: RunningMatchRoomResponse) => void;

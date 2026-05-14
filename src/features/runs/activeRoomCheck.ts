@@ -23,14 +23,14 @@ type InFlightActiveRoomCheck = {
 };
 
 type LastActiveRoomCheck = {
+  completedAtMs: number;
   payload: RunningMatchRoomResponse;
   requestId: string;
-  startedAtMs: number;
 };
 
 const ACTIVE_ROOM_CHECK_KEY = 'current-user-active-room';
 const DEFAULT_THROTTLE_MS_BY_SOURCE: Record<ActiveRoomCheckSource, number> = {
-  'track-run experience': 4_000,
+  'track-run experience': 5_000,
   'match-room snapshot': 700,
 };
 const SUPPRESSED_LOG_INTERVAL_MS = 2_000;
@@ -87,10 +87,10 @@ export async function runActiveRoomCheck({
   const nowMs = getNowMs();
   const lastCheck = lastChecksBySource.get(source);
 
-  if (lastCheck && nowMs - lastCheck.startedAtMs < throttleMs) {
+  if (lastCheck && nowMs - lastCheck.completedAtMs < throttleMs) {
     if (shouldLogSuppressedEvent(`skipped:${source}:${lastCheck.requestId}`, nowMs)) {
       rgPerfMark('active room check skipped', {
-        ageMs: nowMs - lastCheck.startedAtMs,
+        ageMs: nowMs - lastCheck.completedAtMs,
         reason: 'throttle',
         requestId: lastCheck.requestId,
         source,
@@ -111,9 +111,12 @@ export async function runActiveRoomCheck({
     requestId,
     source,
   });
-  const activeFetcher = fetcher ?? (await import('@/services/matchService')).fetchRunningMatchRoom;
 
-  const promise = activeFetcher()
+  const promise = Promise.resolve()
+    .then(async () => {
+      const activeFetcher = fetcher ?? (await import('@/services/matchService')).fetchRunningMatchRoom;
+      return activeFetcher();
+    })
     .then((payload) => {
       endActiveRoomCheckTrace({
         requestId,
@@ -121,9 +124,9 @@ export async function runActiveRoomCheck({
         success: true,
       });
       lastChecksBySource.set(source, {
+        completedAtMs: getNowMs(),
         payload,
         requestId,
-        startedAtMs: nowMs,
       });
       return payload;
     })
@@ -141,6 +144,7 @@ export async function runActiveRoomCheck({
       }
     });
 
+  // Register before dynamic imports or network work start so concurrent callers share this request.
   inFlightChecks.set(ACTIVE_ROOM_CHECK_KEY, {
     promise,
     requestId,
