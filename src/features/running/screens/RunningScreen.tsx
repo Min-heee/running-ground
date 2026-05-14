@@ -10,6 +10,7 @@ export default function RunningTabScreen() {
     focusMatchIsTest?: string;
     focusMatchNonce?: string;
     forceMatchArena?: string;
+    focusRoomId?: string;
     roomInviteToken?: string;
   }>();
 
@@ -29,6 +30,7 @@ export default function RunningTabScreen() {
       focusMatchIsTest={params.focusMatchIsTest === '1'}
       focusMatchNonce={typeof params.focusMatchNonce === 'string' ? params.focusMatchNonce : undefined}
       forceMatchArena={params.forceMatchArena === '1'}
+      focusRoomId={typeof params.focusRoomId === 'string' ? params.focusRoomId : undefined}
       roomInviteToken={typeof params.roomInviteToken === 'string' ? params.roomInviteToken : undefined}
     />
   );

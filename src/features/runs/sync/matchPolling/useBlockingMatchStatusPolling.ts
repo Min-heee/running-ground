@@ -18,6 +18,7 @@ type UseBlockingMatchStatusPollingInput = {
   loadDuelMatchStatus: () => Promise<unknown>;
   loadGroupMatchStatus: () => Promise<unknown>;
   enabled?: boolean;
+  recoveryMatchId?: string | null;
 };
 
 function shouldUseFastMatchStatusPolling(
@@ -42,6 +43,7 @@ export function useBlockingMatchStatusPolling({
   loadDuelMatchStatus,
   loadGroupMatchStatus,
   enabled = true,
+  recoveryMatchId = null,
 }: UseBlockingMatchStatusPollingInput) {
   const callbackRef = useRef({
     loadDuelMatchStatus,
@@ -62,27 +64,38 @@ export function useBlockingMatchStatusPolling({
     [groupMatchStatus, syncedNowMs],
   );
   const duelMatchId = duelMatchStatus?.matchId;
+  const effectiveDuelMatchId = duelMatchId ?? (matchMode === 'duel' ? recoveryMatchId : null);
   const duelMatchSlotStartAt = duelMatchStatus?.slotStartAt;
   const duelMatchState = duelMatchStatus?.state;
   const groupMatchId = groupMatchStatus?.matchId;
+  const effectiveGroupMatchId = groupMatchId ?? (matchMode === 'group' ? recoveryMatchId : null);
   const groupMatchSlotStartAt = groupMatchStatus?.slotStartAt;
   const groupMatchState = groupMatchStatus?.state;
 
   useEffect(() => {
-    if (!enabled || matchMode !== 'duel' || !isBlockingMatchState(duelMatchState)) {
+    const isRecoveryPolling = Boolean(effectiveDuelMatchId && !duelMatchId);
+    if (!enabled || matchMode !== 'duel' || (!isBlockingMatchState(duelMatchState) && !isRecoveryPolling)) {
       return;
     }
 
     const intervalMs = shouldFastPollDuelMatchStatus ? fastPollMs : idlePollMs;
+    if (isRecoveryPolling) {
+      rgPerfMark('live match recovery polling started', {
+        intervalMs,
+        matchId: effectiveDuelMatchId,
+        mode: 'duel',
+        source: 'blocking match status',
+      });
+    }
     rgPerfMark('match polling start', {
       intervalMs,
-      matchId: duelMatchId ?? null,
+      matchId: effectiveDuelMatchId ?? null,
       mode: 'duel',
       source: 'blocking match status',
     });
     const stopPollingTrace = rgPerfTrackResource('polling', 'blocking duel match status polling', {
       intervalMs,
-      matchId: duelMatchId ?? null,
+      matchId: effectiveDuelMatchId ?? null,
     });
     const timer = setInterval(() => {
       void callbackRef.current.loadDuelMatchStatus().catch(() => {});
@@ -97,6 +110,7 @@ export function useBlockingMatchStatusPolling({
     duelMatchSlotStartAt,
     duelMatchState,
     enabled,
+    effectiveDuelMatchId,
     fastPollMs,
     idlePollMs,
     matchMode,
@@ -104,20 +118,29 @@ export function useBlockingMatchStatusPolling({
   ]);
 
   useEffect(() => {
-    if (!enabled || matchMode !== 'group' || !isBlockingMatchState(groupMatchState)) {
+    const isRecoveryPolling = Boolean(effectiveGroupMatchId && !groupMatchId);
+    if (!enabled || matchMode !== 'group' || (!isBlockingMatchState(groupMatchState) && !isRecoveryPolling)) {
       return;
     }
 
     const intervalMs = shouldFastPollGroupMatchStatus ? fastPollMs : idlePollMs;
+    if (isRecoveryPolling) {
+      rgPerfMark('live match recovery polling started', {
+        intervalMs,
+        matchId: effectiveGroupMatchId,
+        mode: 'group',
+        source: 'blocking match status',
+      });
+    }
     rgPerfMark('match polling start', {
       intervalMs,
-      matchId: groupMatchId ?? null,
+      matchId: effectiveGroupMatchId ?? null,
       mode: 'group',
       source: 'blocking match status',
     });
     const stopPollingTrace = rgPerfTrackResource('polling', 'blocking group match status polling', {
       intervalMs,
-      matchId: groupMatchId ?? null,
+      matchId: effectiveGroupMatchId ?? null,
     });
     const timer = setInterval(() => {
       void callbackRef.current.loadGroupMatchStatus().catch(() => {});
@@ -129,6 +152,7 @@ export function useBlockingMatchStatusPolling({
     };
   }, [
     fastPollMs,
+    effectiveGroupMatchId,
     enabled,
     groupMatchId,
     groupMatchSlotStartAt,

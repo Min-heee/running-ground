@@ -142,6 +142,7 @@ export function TrackRunExperience({
   focusMatchIsTest,
   focusMatchNonce,
   forceMatchArena,
+  focusRoomId,
   roomInviteToken,
 }: {
   mode: TrackRunMode;
@@ -152,6 +153,7 @@ export function TrackRunExperience({
   focusMatchIsTest?: boolean;
   focusMatchNonce?: string;
   forceMatchArena?: boolean;
+  focusRoomId?: string;
   roomInviteToken?: string;
 }) {
   useDevRenderCounter('TrackRunExperience');
@@ -159,6 +161,7 @@ export function TrackRunExperience({
     rgPerfMark('TrackRunExperience mount', {
       focusMatchId: focusMatchId ?? null,
       focusMatchMode: focusMatchMode ?? null,
+      focusRoomId: focusRoomId ?? null,
       mode,
     });
 
@@ -167,7 +170,7 @@ export function TrackRunExperience({
         mode,
       });
     };
-  }, [focusMatchId, focusMatchMode, mode]);
+  }, [focusMatchId, focusMatchMode, focusRoomId, mode]);
 
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -232,6 +235,7 @@ export function TrackRunExperience({
   const latestGroupStatusServerNowMsRef = useRef(0);
   const latestUpcomingServerNowMsRef = useRef(0);
   const latestMatchRoomServerNowMsRef = useRef(0);
+  const lastRouteKeyCorrectionRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
 
   const {
@@ -463,18 +467,22 @@ export function TrackRunExperience({
     if (matchMode === 'duel') {
       return duelMatchStatus?.matchId
         ?? (roomLinkedMatchContext?.mode === 'duel' ? roomLinkedMatchContext.matchId : null)
+        ?? (focusMatchMode === 'duel' ? focusMatchId ?? null : null)
         ?? null;
     }
 
     if (matchMode === 'group') {
       return groupMatchStatus?.matchId
         ?? (roomLinkedMatchContext?.mode === 'group' ? roomLinkedMatchContext.matchId : null)
+        ?? (focusMatchMode === 'group' ? focusMatchId ?? null : null)
         ?? null;
     }
 
     return null;
   }, [
     duelMatchStatus?.matchId,
+    focusMatchId,
+    focusMatchMode,
     groupMatchStatus?.matchId,
     matchMode,
     roomLinkedMatchContext?.matchId,
@@ -737,11 +745,13 @@ export function TrackRunExperience({
   const runningMatchIdentity = matchMode === 'duel'
     ? duelMatchStatus?.matchId
       ?? (roomLinkedMatchContext?.mode === 'duel' ? roomLinkedMatchContext.matchId : null)
+      ?? (focusMatchMode === 'duel' ? focusMatchId ?? null : null)
       ?? lastSyncedMatchProgress?.matchId
       ?? null
     : matchMode === 'group'
       ? groupMatchStatus?.matchId
         ?? (roomLinkedMatchContext?.mode === 'group' ? roomLinkedMatchContext.matchId : null)
+        ?? (focusMatchMode === 'group' ? focusMatchId ?? null : null)
         ?? lastSyncedMatchProgress?.matchId
         ?? null
       : null;
@@ -1088,13 +1098,39 @@ export function TrackRunExperience({
     return payload.items;
   };
 
-  const buildTrackRunActiveRoomCheckRouteKey = () => [
-    'track-run',
-    matchMode,
-    matchRoom?.roomId ?? visibleMatchRoom?.roomId ?? 'no-room',
-    focusedDuelMatchIdRef.current ?? focusedGroupMatchIdRef.current ?? roomLinkedMatchContext?.matchId ?? 'no-match',
-    forceOpenActiveMatch ? 'arena' : `page-${liveArenaPage}`,
-  ].join(':');
+  const buildTrackRunActiveRoomCheckRouteKey = () => {
+    const routeRoomId = matchRoom?.roomId ?? visibleMatchRoom?.roomId ?? focusRoomId ?? null;
+    const routeMatchId = focusedDuelMatchIdRef.current
+      ?? focusedGroupMatchIdRef.current
+      ?? roomLinkedMatchContext?.matchId
+      ?? focusMatchId
+      ?? null;
+    const routeKey = [
+      'track-run',
+      matchMode,
+      routeRoomId ?? 'no-room',
+      routeMatchId ?? 'no-match',
+      forceOpenActiveMatch ? 'arena' : `page-${liveArenaPage}`,
+    ].join(':');
+    const correctedByRouteParams = Boolean(
+      (!matchRoom?.roomId && !visibleMatchRoom?.roomId && focusRoomId && routeRoomId === focusRoomId)
+      || (!focusedDuelMatchIdRef.current && !focusedGroupMatchIdRef.current && !roomLinkedMatchContext?.matchId && focusMatchId && routeMatchId === focusMatchId),
+    );
+
+    if (correctedByRouteParams && lastRouteKeyCorrectionRef.current !== routeKey) {
+      lastRouteKeyCorrectionRef.current = routeKey;
+      rgPerfMark('live match route key corrected', {
+        focusMatchId: focusMatchId ?? null,
+        focusRoomId: focusRoomId ?? null,
+        matchId: routeMatchId,
+        roomId: routeRoomId,
+        routeKey,
+        source: 'track-run experience',
+      });
+    }
+
+    return routeKey;
+  };
 
   const getCurrentLiveMatchId = () => (
     liveMatchMountedRef.current?.matchId
@@ -1985,6 +2021,7 @@ export function TrackRunExperience({
     loadDuelMatchStatus,
     loadGroupMatchStatus,
     enabled: liveMatchHeavyWorkReady && matchLifecycleController.effects.shouldPollDirectMatchStatus,
+    recoveryMatchId: matchLifecycleController.source === 'party-room' ? null : matchLifecycleController.matchId,
   });
 
   const {

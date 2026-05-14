@@ -114,6 +114,25 @@ test('waiting direct match does not start GPS or heartbeat', () => {
   assert.equal(controller.effects.shouldRunHeartbeat, false);
 });
 
+test('focused route match id keeps recovery polling active before status arrives', () => {
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'idle',
+    isRunning: false,
+    duelMatchState: 'idle',
+    duelMatchStatus: null,
+    fallbackMatchId: 'duel-route-match',
+  }));
+
+  assert.equal(controller.stage, 'waiting');
+  assert.equal(controller.matchId, 'duel-route-match');
+  assert.equal(controller.effects.shouldPollDirectMatchStatus, true);
+  assert.equal(controller.effects.shouldPollLinkedMatch, false);
+  assert.equal(controller.effects.shouldStartGpsWarmup, false);
+  assert.equal(controller.effects.shouldStartGpsActive, false);
+  assert.equal(controller.effects.shouldRunHeartbeat, false);
+});
+
 test('arming direct match polls status without starting GPS or heartbeat', () => {
   const controller = buildMatchLifecycleController(baseInput({
     matchMode: 'duel',

@@ -118,6 +118,14 @@ export function useRoomStartActions({
 
       syncServerClock(payload.serverNow);
       commitRoom(payload.room);
+      if (payload.room?.linkedMatchId) {
+        rgPerfMark('live match route state hydrated', {
+          matchId: payload.room.linkedMatchId,
+          roomId: payload.room.roomId,
+          source: 'room start API',
+          state: payload.room.state,
+        });
+      }
     } catch (roomError) {
       endStartApiTrace({ success: false });
       setError(getApiErrorMessage(roomError, '방을 시작하지 못했어.'));

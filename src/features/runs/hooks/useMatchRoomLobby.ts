@@ -14,6 +14,7 @@ import { useRoomInviteActions } from '@/features/match/hooks/lobby/useRoomInvite
 import { useRoomSettings } from '@/features/match/hooks/lobby/useRoomSettings';
 import { useRoomSnapshot } from '@/features/match/hooks/lobby/useRoomSnapshot';
 import { useRoomStartActions } from '@/features/match/hooks/lobby/useRoomStartActions';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 export function useMatchRoomLobby() {
   const openedLinkedMatchKeyRef = useRef<string | null>(null);
@@ -79,6 +80,12 @@ export function useMatchRoomLobby() {
     }
 
     openedLinkedMatchKeyRef.current = nextKey;
+    rgPerfMark('live match route state hydrated', {
+      matchId: nextRoom.linkedMatchId,
+      roomId: nextRoom.roomId,
+      source: 'match-room linked match route',
+      state: nextRoom.state,
+    });
 
     router.replace({
       pathname: '/(tabs)/running',
@@ -87,6 +94,7 @@ export function useMatchRoomLobby() {
         focusMatchId: nextRoom.linkedMatchId,
         focusMatchDistanceKm: String(nextRoom.linkedMatchDistanceKm ?? nextRoom.distanceKm),
         focusMatchSlotStartAt: nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
+        focusRoomId: nextRoom.roomId,
         ...(flow.shouldOpenArena ? { forceMatchArena: '1' } : {}),
         focusMatchNonce: `room-${Date.now()}`,
       },
