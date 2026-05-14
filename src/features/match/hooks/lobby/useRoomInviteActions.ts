@@ -12,6 +12,7 @@ import { ensureRunningMatchRoomFriendInviteRecords } from '@/lib/api/services/ru
 import type { MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { UpdateRoomSettingsInput } from '@/features/runs/types/matchRoom';
+import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type UseRoomInviteActionsInput = {
@@ -146,6 +147,12 @@ export function useRoomInviteActions({
     const existingInviteIds = new Set(room.invitedFriendIds);
     const newInviteIds = selectedFriendIds.filter((friendId) => !existingInviteIds.has(friendId));
     const invitedUserIdLog = selectedFriendIds.join(',');
+    const inputTrace = beginRgInputTrace('friend invite button press', {
+      invitedUserId: invitedUserIdLog || null,
+      newInviteCount: newInviteIds.length,
+      roomId: room.roomId,
+      selectedInviteCount: selectedFriendIds.length,
+    });
 
     rgPerfMark('friend invite button press', {
       invitedUserId: invitedUserIdLog || null,
@@ -168,6 +175,7 @@ export function useRoomInviteActions({
       newInviteCount: newInviteIds.length,
       roomId: room.roomId,
     });
+    inputTrace.markFeedback('friend invite API begin');
 
     try {
       const nextRoom = await saveRoomSettings({ invitedFriendIds: selectedFriendIds });

@@ -21,6 +21,7 @@ import { useForfeitController } from '@/features/runs/hooks/useForfeitController
 import { useAndroidLiveMatchDisplayFrame } from '@/features/runs/viewModels/useAndroidLiveMatchDisplayFrame';
 import { useAndroidLiveMatchStartupGate } from '@/features/runs/lifecycle/hooks/useAndroidLiveMatchStartupGate';
 import { useLiveMatchViewModel } from '@/features/runs/viewModels/useLiveMatchViewModel';
+import { useTrackRunIdleViewModel } from '@/features/runs/viewModels/useTrackRunIdleViewModel';
 import { useMatchRuntimeState } from '@/features/runs/hooks/useMatchRuntimeState';
 import { usePartyRunSync } from '@/features/runs/sync/usePartyRunSync';
 import { useRunActionHandlers } from '@/features/runs/hooks/useRunActionHandlers';
@@ -106,6 +107,7 @@ import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
@@ -497,6 +499,26 @@ export function TrackRunExperience({
     visiblePartyRunFlow,
   }), [matchRoom, matchRoomFlow, visibleMatchRoom, visiblePartyRunFlow]);
   const roomLinkedMatchContext = partyRunRuntimeSource.linkedMatchContext;
+  const trackRunIdleViewModel = useTrackRunIdleViewModel({
+    mode,
+    matchMode,
+    trackingStatus: status,
+    hydratedFocusMatchId,
+    hydratedFocusRoomId,
+    roomInviteToken,
+    matchRoom,
+    visibleMatchRoom,
+    roomLinkedMatchContext,
+    duelMatchStatus,
+    groupMatchStatus,
+    lastSyncedMatchProgress,
+    forceOpenActiveMatch,
+    isCreatingMatchRoom,
+    isJoiningMatchRoom,
+    isLeavingMatchRoom,
+    isRequestingDuelMatch,
+    isRequestingGroupMatch,
+  });
   const liveMatchStartupIdentity = useMemo(() => {
     if (matchMode === 'duel') {
       return duelMatchStatus?.matchId
@@ -596,7 +618,7 @@ export function TrackRunExperience({
     elapsedSeconds: liveMatchDisplayElapsedSeconds,
     duelDistanceKm,
     groupDistanceKm,
-    deferRankingCalculations: !liveMatchHeavyWorkReady,
+    deferRankingCalculations: trackRunIdleViewModel.disableHeavySubscriptions || !liveMatchHeavyWorkReady,
   });
   const isTabMode = mode === 'tab';
   const liveArenaPageWidth = Math.max(windowWidth - 32, 280);
@@ -1421,6 +1443,11 @@ export function TrackRunExperience({
   const handleCreateMatchRoom = async () => {
     const nextRoomMode = roomMatchMode;
     const nextDistanceKm = nextRoomMode === 'duel' ? duelDistanceKm : groupDistanceKm;
+    const inputTrace = beginRgInputTrace('room create button press', {
+      distanceKm: nextDistanceKm,
+      mode: nextRoomMode,
+      source: 'track-run ready action',
+    });
 
     rgPerfMark('room create button press', {
       distanceKm: nextDistanceKm,
@@ -1430,6 +1457,10 @@ export function TrackRunExperience({
 
     setIsCreatingMatchRoom(true);
     setError(null);
+    inputTrace.markFeedback('loading state set', {
+      disabled: true,
+      loading: true,
+    });
 
     try {
       if (!matchRoom?.roomId && !visibleMatchRoom?.roomId) {
@@ -1525,6 +1556,10 @@ export function TrackRunExperience({
     }
 
     const inviteToken = roomInviteTokenInput.trim();
+    const inputTrace = beginRgInputTrace('invite code input submit', {
+      hasToken: inviteToken.length > 0,
+      source: 'track-run invite code input',
+    });
 
     rgPerfMark('invite code input submit', {
       hasToken: inviteToken.length > 0,
@@ -1543,6 +1578,10 @@ export function TrackRunExperience({
     joinMatchRoomInFlightRef.current = true;
     setIsJoiningMatchRoom(true);
     setError(null);
+    inputTrace.markFeedback('loading state set', {
+      disabled: true,
+      loading: true,
+    });
 
     try {
       if (!matchRoom?.roomId && !visibleMatchRoom?.roomId) {
@@ -1884,11 +1923,19 @@ export function TrackRunExperience({
   useAndroidDeferredEffect(() => {
     let canceled = false;
 
-    void loadMatchRoom().catch(() => {
-      if (!canceled) {
-        commitMatchRoom(null);
-      }
-    });
+    if (trackRunIdleViewModel.shouldRunActiveRoomCheck) {
+      void loadMatchRoom().catch(() => {
+        if (!canceled) {
+          commitMatchRoom(null);
+        }
+      });
+    } else {
+      rgPerfMark('track run heavy hooks skipped idle', {
+        hook: 'active room check',
+        reason: trackRunIdleViewModel.idleReason,
+        source: 'track-run initial load',
+      });
+    }
 
     void loadFriendLeaderboardData().catch(() => {
       if (!canceled) {
@@ -1899,7 +1946,7 @@ export function TrackRunExperience({
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [trackRunIdleViewModel.idleReason, trackRunIdleViewModel.shouldRunActiveRoomCheck]);
 
   const acknowledgeRoomCountdownReady = async (roomId: string) => {
     const payload = await acknowledgeRunningMatchRoomCountdown({ roomId });
@@ -1932,6 +1979,7 @@ export function TrackRunExperience({
   };
 
   usePartyRunSync({
+    enabled: trackRunIdleViewModel.shouldRunPartyRunSync,
     currentUserId,
     matchRoom,
     matchRoomFlow,
@@ -2029,7 +2077,7 @@ export function TrackRunExperience({
   useSyncedCountdownTicker({
     serverClockOffsetMsRef,
     onNowMsChange: setNowMs,
-    enabled: Boolean(
+    enabled: trackRunIdleViewModel.shouldRunCountdownTicker && Boolean(
       isStarting
       || isRunning
       || hydratedFocusMatchId
@@ -2055,7 +2103,9 @@ export function TrackRunExperience({
     idlePollMs: 15000,
     loadDuelMatchStatus,
     loadGroupMatchStatus,
-    enabled: liveMatchHeavyWorkReady && matchLifecycleController.effects.shouldPollDirectMatchStatus,
+    enabled: !trackRunIdleViewModel.disableHeavySubscriptions
+      && liveMatchHeavyWorkReady
+      && matchLifecycleController.effects.shouldPollDirectMatchStatus,
     recoveryMatchId: matchLifecycleController.source === 'party-room' ? null : matchLifecycleController.matchId,
   });
 
@@ -2125,8 +2175,9 @@ export function TrackRunExperience({
     soloStartCountdownSeconds: SOLO_START_COUNTDOWN_SECONDS,
     getSyncedNowMs,
     refreshStaleMatchArtifacts,
-    matchProgressHeartbeatEnabled: shouldEnableMatchProgressHeartbeat,
+    matchProgressHeartbeatEnabled: trackRunIdleViewModel.shouldRunLiveMatchProgress && shouldEnableMatchProgressHeartbeat,
     matchLifecycleController,
+    trackingSubscriptionsEnabled: trackRunIdleViewModel.shouldRunTrackingSubscriptions,
   });
 
   const handleRequestDuelMatch = async (

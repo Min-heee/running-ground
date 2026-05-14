@@ -6,6 +6,7 @@ import type {
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
 type UseUpcomingMatchPollingInput = {
+  enabled?: boolean;
   duelMatchId?: string | null;
   duelMatchState?: RunningMatchState | null;
   groupMatchId?: string | null;
@@ -15,6 +16,7 @@ type UseUpcomingMatchPollingInput = {
 };
 
 export function useUpcomingMatchPolling({
+  enabled = true,
   duelMatchId,
   duelMatchState,
   groupMatchId,
@@ -33,6 +35,10 @@ export function useUpcomingMatchPolling({
   };
 
   useAndroidDeferredEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
     let canceled = false;
 
     void callbackRef.current.loadUpcomingMatches().catch(() => {
@@ -44,5 +50,5 @@ export function useUpcomingMatchPolling({
     return () => {
       canceled = true;
     };
-  }, [duelMatchId, duelMatchState, groupMatchId, groupMatchState]);
+  }, [duelMatchId, duelMatchState, enabled, groupMatchId, groupMatchState]);
 }

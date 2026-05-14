@@ -87,4 +87,5 @@ export type UseRunTrackingFlowInput = {
   refreshStaleMatchArtifacts: () => Promise<unknown>;
   matchProgressHeartbeatEnabled?: boolean;
   matchLifecycleController?: MatchLifecycleController;
+  trackingSubscriptionsEnabled?: boolean;
 };

@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { beginRgInputTrace } from '@/utils/rgInputTrace';
 
 export type MatchOptionMode = 'solo' | 'duel' | 'group' | 'room';
 
@@ -27,7 +28,14 @@ export function MatchOptionSelector({
           <Pressable
             key={option.mode}
             style={[styles.option, isSelected ? styles.optionSelected : styles.optionIdle]}
-            onPress={() => onSelect(option)}
+            onPress={() => {
+              const trace = beginRgInputTrace('run mode select', {
+                mode: option.mode,
+                selectedMode,
+              });
+              onSelect(option);
+              trace.markFeedback('mode state dispatch');
+            }}
           >
             <Text style={[styles.optionTitle, isSelected ? styles.optionTitleSelected : undefined]}>
               {option.title}

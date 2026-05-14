@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { RunningMatchRoom } from '@/lib/api/types';
+import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 type StartTrackingOptions = {
@@ -70,16 +71,30 @@ export function useRunActionHandlers({
   const handleReadyAction = useCallback(() => {
     if (matchMode === 'room') {
       if (matchRoom) {
+        const inputTrace = beginRgInputTrace('room lobby button press', {
+          roomId: matchRoom.roomId,
+          source: 'ready action existing room',
+          state: matchRoom.state,
+        });
         rgPerfMark('already joined room detected', {
           roomId: matchRoom.roomId,
           source: 'ready action existing room',
           state: matchRoom.state,
         });
+        inputTrace.markFeedback('navigation begin');
         latestHandlersRef.current.navigateToMatchRoomWithTrace('ready action existing room', matchRoom.roomId);
         return;
       }
       void latestHandlersRef.current.handleCreateMatchRoom();
       return;
+    }
+
+    if (matchMode === 'solo') {
+      const inputTrace = beginRgInputTrace('start solo run button press', {
+        mode: matchMode,
+        source: 'ready action',
+      });
+      inputTrace.markFeedback('tracking start dispatch');
     }
 
     void latestHandlersRef.current.handleStartTracking();

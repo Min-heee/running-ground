@@ -4,12 +4,14 @@ import { fetchNotificationSettings } from '@/services';
 import { syncScheduledMatchNotifications } from '@/lib/matchNotifications';
 
 type UseTrackRunNotificationSyncInput = {
+  enabled?: boolean;
   upcomingMatches: UpcomingRunningMatchItem[];
   matchRemindersEnabled: boolean;
   onMatchRemindersEnabledChange: (enabled: boolean) => void;
 };
 
 export function useTrackRunNotificationSync({
+  enabled = true,
   upcomingMatches,
   matchRemindersEnabled,
   onMatchRemindersEnabledChange,
@@ -18,6 +20,10 @@ export function useTrackRunNotificationSync({
   onMatchRemindersEnabledChangeRef.current = onMatchRemindersEnabledChange;
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
     let canceled = false;
 
     void fetchNotificationSettings()
@@ -35,9 +41,13 @@ export function useTrackRunNotificationSync({
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     void syncScheduledMatchNotifications(upcomingMatches, matchRemindersEnabled);
-  }, [matchRemindersEnabled, upcomingMatches]);
+  }, [enabled, matchRemindersEnabled, upcomingMatches]);
 }

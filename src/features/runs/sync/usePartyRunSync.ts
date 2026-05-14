@@ -20,6 +20,7 @@ import { useRoomPolling } from '@/features/runs/sync/partyRunSync/useRoomPolling
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 type UsePartyRunSyncInput = {
+  enabled?: boolean;
   currentUserId: string;
   matchRoom: RunningMatchRoom | null;
   matchRoomFlow: PartyRunFlowSnapshot;
@@ -57,6 +58,7 @@ type UsePartyRunSyncInput = {
 export { canOpenPartyRunLinkedMatch };
 
 export function usePartyRunSync({
+  enabled = true,
   currentUserId,
   matchRoom,
   matchRoomFlow,
@@ -113,6 +115,10 @@ export function usePartyRunSync({
   };
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     const isCountdownActive = visiblePartyRunFlow.phase === 'countdown'
       || roomCountdownRemainingSeconds !== null;
 
@@ -134,7 +140,7 @@ export function usePartyRunSync({
         source: 'party-run',
       });
     }
-  }, [matchRoom?.roomId, roomCountdownRemainingSeconds, visiblePartyRunFlow.phase]);
+  }, [enabled, matchRoom?.roomId, roomCountdownRemainingSeconds, visiblePartyRunFlow.phase]);
 
   useEffect(() => () => {
     if (countdownTraceActiveRef.current) {
@@ -151,14 +157,14 @@ export function usePartyRunSync({
     matchRoom,
     fastRoomPollMs,
     idleRoomPollMs,
-    enabled: lifecycleController?.effects.shouldPollRoom ?? true,
+    enabled: enabled && (lifecycleController?.effects.shouldPollRoom ?? true),
     callbacksRef: callbackRef,
   });
   useCountdownReadyAck({
     currentUserId,
     matchRoom,
     matchRoomFlow,
-    enabled: lifecycleController?.effects.shouldAcknowledgeCountdownReady ?? true,
+    enabled: enabled && (lifecycleController?.effects.shouldAcknowledgeCountdownReady ?? true),
     callbacksRef: callbackRef,
   });
   useLinkedMatchSync({
@@ -175,10 +181,10 @@ export function usePartyRunSync({
     livePagerRef,
     fastMatchStatusPollMs,
     idleMatchStatusPollMs,
-    enabled: linkedMatchSyncEnabled,
-    navigationEnabled: lifecycleController?.effects.shouldNavigateLinkedMatch ?? true,
-    pollingEnabled: lifecycleController?.effects.shouldPollLinkedMatch ?? true,
-    upcomingRefreshEnabled: lifecycleController?.effects.shouldRefreshUpcomingMatches ?? true,
+    enabled: enabled && linkedMatchSyncEnabled,
+    navigationEnabled: enabled && (lifecycleController?.effects.shouldNavigateLinkedMatch ?? true),
+    pollingEnabled: enabled && (lifecycleController?.effects.shouldPollLinkedMatch ?? true),
+    upcomingRefreshEnabled: enabled && (lifecycleController?.effects.shouldRefreshUpcomingMatches ?? true),
     callbacksRef: callbackRef,
   });
 }

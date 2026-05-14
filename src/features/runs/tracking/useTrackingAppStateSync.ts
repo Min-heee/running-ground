@@ -12,6 +12,7 @@ import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
 
 type UseTrackingAppStateSyncInput = {
+  enabled?: boolean;
   appStateRef: MutableRefObject<AppStateStatus>;
   trackerStatusRef: MutableRefObject<TrackerStatus>;
   syncFromBackgroundTracking: (snapshot?: BackgroundRunTrackingSnapshot) => void;
@@ -29,6 +30,7 @@ type UseTrackingAppStateSyncInput = {
 };
 
 export function useTrackingAppStateSync({
+  enabled = true,
   appStateRef,
   trackerStatusRef,
   syncFromBackgroundTracking,
@@ -134,6 +136,10 @@ export function useTrackingAppStateSync({
   }, [appStateRef, scheduleLocationTaskAppStateSync, trackerStatusRef]);
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
     const unsubscribe = subscribeBackgroundRunTracking(
       handleBackgroundTrackingSnapshot,
       { cloneRoute: false },
@@ -150,5 +156,5 @@ export function useTrackingAppStateSync({
       callbackRef.current.finishSoloStartCountdown(false);
       callbackRef.current.stopForegroundTrackingHelpers();
     };
-  }, [handleAppStateChange, handleBackgroundTrackingSnapshot]);
+  }, [enabled, handleAppStateChange, handleBackgroundTrackingSnapshot]);
 }

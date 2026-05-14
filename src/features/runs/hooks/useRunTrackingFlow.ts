@@ -130,6 +130,7 @@ export function useRunTrackingFlow({
   refreshStaleMatchArtifacts,
   matchProgressHeartbeatEnabled = true,
   matchLifecycleController,
+  trackingSubscriptionsEnabled = true,
 }: UseRunTrackingFlowInput) {
   const gpsTrackingStartKeyRef = useRef<string | null>(null);
   const gpsTrackingStartPromiseRef = useRef<Promise<void> | null>(null);
@@ -640,6 +641,10 @@ export function useRunTrackingFlow({
   };
 
   useEffect(() => {
+    if (!trackingSubscriptionsEnabled) {
+      return;
+    }
+
     const roomWarmupMatchId = !hasLifecycleController
       && roomLinkedMatchContext
       && roomLinkedMatchContext.mode === matchMode
@@ -686,10 +691,15 @@ export function useRunTrackingFlow({
     matchMode,
     roomLinkedMatchContext,
     status,
+    trackingSubscriptionsEnabled,
     visiblePartyRunShouldOpenArena,
   ]);
 
   useEffect(() => {
+    if (!trackingSubscriptionsEnabled) {
+      return;
+    }
+
     const roomActiveMatch =
       !hasLifecycleController
       && roomLinkedMatchContext
@@ -763,9 +773,11 @@ export function useRunTrackingFlow({
     matchMode,
     roomLinkedMatchContext,
     status,
+    trackingSubscriptionsEnabled,
   ]);
 
   useTrackingAppStateSync({
+    enabled: trackingSubscriptionsEnabled,
     appStateRef,
     trackerStatusRef,
     syncFromBackgroundTracking,

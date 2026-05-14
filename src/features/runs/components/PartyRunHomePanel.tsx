@@ -7,6 +7,7 @@ import type {
   RunningMatchRoom,
   RunningMatchRoomMode,
 } from '@/lib/api/types';
+import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type PartyRunHomePanelProps = {
@@ -46,13 +47,27 @@ export function PartyRunHomePanel({
   onJoinRoom,
 }: PartyRunHomePanelProps) {
   const handleOpenMatchRoom = useCallback(() => {
+    const inputTrace = beginRgInputTrace('room lobby button press', {
+      roomId: visibleRoom?.roomId ?? currentRoom?.roomId ?? null,
+      source: 'party room entry button',
+    });
     const endNavigationTrace = rgPerfMeasureStart('navigation to lobby', {
       roomId: visibleRoom?.roomId ?? currentRoom?.roomId ?? null,
       source: 'party room entry button',
     });
+    inputTrace.markFeedback('navigation begin');
     router.push('/match-room' as Href);
     endNavigationTrace({ success: true });
   }, [currentRoom?.roomId, visibleRoom?.roomId]);
+
+  const handleJoinRoomPress = useCallback(() => {
+    const trace = beginRgInputTrace('invite code input submit', {
+      hasToken: inviteTokenInput.trim().length > 0,
+      source: 'party run home panel',
+    });
+    onJoinRoom();
+    trace.markFeedback('join handler dispatch');
+  }, [inviteTokenInput, onJoinRoom]);
 
   const roomModeChips = useMemo(() => (
     ROOM_MODE_OPTIONS.map((option) => {
@@ -62,7 +77,14 @@ export function PartyRunHomePanel({
         <Pressable
           key={option.key}
           style={[styles.roomModeChip, optionIsSelected ? styles.roomModeChipSelected : undefined]}
-          onPress={() => onRoomModeChange(option.key)}
+          onPress={() => {
+            const trace = beginRgInputTrace('run mode select', {
+              mode: option.key,
+              source: 'party run room mode',
+            });
+            onRoomModeChange(option.key);
+            trace.markFeedback('mode state dispatch');
+          }}
         >
           <Text style={[styles.roomModeChipText, optionIsSelected ? styles.roomModeChipTextSelected : undefined]}>
             {option.label}
@@ -108,11 +130,17 @@ export function PartyRunHomePanel({
                   placeholder="예: AB12CD"
                   placeholderTextColor="#98A2B3"
                   autoCapitalize="characters"
+                  onFocus={() => {
+                    beginRgInputTrace('invite code input focus', {
+                      hasToken: inviteTokenInput.trim().length > 0,
+                      source: 'party run home panel',
+                    }).markFeedback('input focused');
+                  }}
                   style={styles.roomInput}
                 />
                 <SecondaryButton
                   label={isJoining ? '입장 중...' : '방 입장'}
-                  onPress={onJoinRoom}
+                  onPress={handleJoinRoomPress}
                   disabled={isJoining}
                 />
               </View>
