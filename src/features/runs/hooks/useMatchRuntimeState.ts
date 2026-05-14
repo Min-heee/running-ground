@@ -3,13 +3,13 @@ import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import {
   buildMatchLifecycleController,
   type MatchLifecycleTrackingStatus,
-} from '@/features/runs/matchLifecycleController';
-import type { ArenaParticipantViewModel } from '@/features/runs/matchViewModels';
+} from '@/features/runs/lifecycle/matchLifecycleController';
+import type { ArenaParticipantViewModel } from '@/features/runs/viewModels/matchViewModels';
 import {
   isLiveMatchState,
   type PartyRunFlowSnapshot,
   type PartyRunLinkedMatchContext,
-} from '@/features/runs/matchStateMachine';
+} from '@/features/runs/lifecycle/matchStateMachine';
 import type {
   RunningMatchRoom,
   RunningMatchState,

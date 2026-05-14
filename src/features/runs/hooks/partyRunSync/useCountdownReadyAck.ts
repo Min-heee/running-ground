@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
-import type { PartyRunFlowSnapshot } from '@/features/runs/matchStateMachine';
+import type { PartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
 import { getApiErrorMessage } from '@/services/apiError';
 import type { PartyRunSyncCallbackRef } from './types';
 

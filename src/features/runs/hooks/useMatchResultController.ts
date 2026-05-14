@@ -2,12 +2,12 @@ import { useMemo } from 'react';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import {
   type GroupLiveStanding,
-} from '@/features/runs/matchProgress';
+} from '@/features/runs/viewModels/matchProgress';
 import {
   buildDuelMatchFinishModel,
   buildGroupMatchFinishModel,
-} from '@/features/runs/matchResultModel';
-import { getEstimatedMatchBonusPoints } from '@/features/runs/matchScheduling';
+} from '@/features/runs/viewModels/matchResultModel';
+import { getEstimatedMatchBonusPoints } from '@/features/runs/utils/matchScheduling';
 import type {
   DuelMatchOpponent,
   RunningMatchLiveStatus,

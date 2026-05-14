@@ -3,7 +3,7 @@ import type { BackgroundRunTrackingSnapshot } from '@/features/runs/tracking/bac
 import {
   buildRouteFromOfficialStart,
   type OfficialStartBaseline,
-} from '@/features/runs/trackingSession';
+} from '@/features/runs/tracking/trackingSession';
 import { calculateElevationGainM } from '@/features/runs/tracking';
 
 export type DisplayedTrackingSnapshot = {

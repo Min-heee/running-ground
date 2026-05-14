@@ -3,7 +3,7 @@ import { FlatList, StyleSheet, Text, View } from 'react-native';
 import type { ListRenderItem } from 'react-native';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import type { MatchRoomParticipantUxStatus, MatchRoomUxModel } from '@/features/runs/matchRoomFlow';
+import type { MatchRoomParticipantUxStatus, MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
 import type { RunningMatchRoom } from '@/lib/api/types';
 
 type PartyRunParticipantListCardProps = {

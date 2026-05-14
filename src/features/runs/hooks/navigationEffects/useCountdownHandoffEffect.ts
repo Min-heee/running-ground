@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import { shouldAutoFocusMatchArena } from '@/features/runs/matchStateMachine';
+import { shouldAutoFocusMatchArena } from '@/features/runs/lifecycle/matchStateMachine';
 
 type FocusRunningMatchInput = {
   mode: Extract<RunMatchMode, 'duel' | 'group'>;

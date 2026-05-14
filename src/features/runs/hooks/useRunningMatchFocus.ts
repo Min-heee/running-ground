@@ -12,14 +12,14 @@ import {
   formatMatchDateKey,
   resolveMatchTimeSection,
   type MatchTimeSection,
-} from '@/features/runs/matchScheduling';
+} from '@/features/runs/utils/matchScheduling';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import {
   buildLiveMatchNavigationKey,
   shouldPromoteLiveMatchArena,
   shouldReuseRecentLiveMatchNavigation,
   type LiveMatchNavigationResult,
-} from '@/features/runs/liveMatchNavigationGate';
+} from '@/features/runs/lifecycle/liveMatchNavigationGate';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type FocusRunningMatchInput = {

@@ -6,8 +6,8 @@ import {
   type DuelComparisonSnapshot,
   type GroupLiveStanding,
   resolveParticipantDisplayDistanceKm,
-} from '@/features/runs/matchProgress';
-import type { ArenaParticipantViewModel } from '@/features/runs/matchViewModels';
+} from '@/features/runs/viewModels/matchProgress';
+import type { ArenaParticipantViewModel } from '@/features/runs/viewModels/matchViewModels';
 import { formatDuration } from '@/features/runs/tracking';
 import type { DuelMatchOpponent, RunningMatchRoom } from '@/lib/api/types';
 import { formatMatchCountdown } from '@/lib/matchCountdown';

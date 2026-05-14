@@ -1,6 +1,6 @@
 import { ActivityIndicator, Text, View } from 'react-native';
-import { buildMatchSlotDateLabel } from '@/features/runs/matchScheduling';
-import { buildMatchParticipantStatusLabel } from '@/features/runs/matchStateMachine';
+import { buildMatchSlotDateLabel } from '@/features/runs/utils/matchScheduling';
+import { buildMatchParticipantStatusLabel } from '@/features/runs/lifecycle/matchStateMachine';
 import { formatMatchCountdown, shouldShowMatchCardCountdown } from '@/lib/matchCountdown';
 import {
   MatchActionButtons,

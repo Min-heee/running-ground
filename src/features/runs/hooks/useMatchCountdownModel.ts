@@ -12,7 +12,7 @@ import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { useStableCountdownSeconds } from '@/features/runs/hooks/useStableCountdownSeconds';
 import {
   buildPartyRunFlowSnapshot,
-} from '@/features/runs/matchStateMachine';
+} from '@/features/runs/lifecycle/matchStateMachine';
 
 type CountdownEntry = {
   title: string;

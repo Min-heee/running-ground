@@ -22,15 +22,15 @@ import {
   formatCadence,
   formatElevation,
   formatMetricDistance,
-} from '@/features/runs/trackingSession';
+} from '@/features/runs/tracking/trackingSession';
 import {
   buildLiveMatchArenaViewModel,
   type LiveMatchArenaViewModelInput,
-} from '@/features/runs/liveMatchArenaViewModel';
+} from '@/features/runs/viewModels/liveMatchArenaViewModel';
 import {
   buildLiveMatchRaceBoardViewModel,
   type LiveMatchRaceBoardViewModelInput,
-} from '@/features/runs/liveMatchRaceBoardViewModel';
+} from '@/features/runs/viewModels/liveMatchRaceBoardViewModel';
 
 type LiveMatchTrackingInputProps = Omit<LiveMatchTrackingPageProps, 'includeMatchCards' | 'metricLabels'>;
 type LiveMatchTrackingViewProps = Omit<LiveMatchTrackingPageProps, 'includeMatchCards'>;

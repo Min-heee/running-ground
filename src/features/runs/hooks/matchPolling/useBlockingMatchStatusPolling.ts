@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { RunningMatchStatusResponse } from '@/lib/api/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import { isBlockingMatchState } from '@/features/runs/matchStateMachine';
+import { isBlockingMatchState } from '@/features/runs/lifecycle/matchStateMachine';
 import {
   getMatchStartRemainingSeconds,
   shouldShowMatchStartOverlay,

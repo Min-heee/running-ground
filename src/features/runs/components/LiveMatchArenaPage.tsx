@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { LiveMatchArena } from '@/components/matches/LiveMatchArena';
-import type { LiveMatchArenaViewModel } from '@/features/runs/liveMatchArenaViewModel';
+import type { LiveMatchArenaViewModel } from '@/features/runs/viewModels/liveMatchArenaViewModel';
 
 export type LiveMatchArenaPageProps = {
   viewModel: LiveMatchArenaViewModel | null;

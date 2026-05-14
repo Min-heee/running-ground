@@ -6,8 +6,8 @@ import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import {
   normalizeMatchProgressPace,
   type LastSyncedMatchProgress,
-} from '@/features/runs/matchProgress';
-import { LIVE_MATCH_SERVER_SYNC_INTERVAL_MS } from '@/features/runs/liveMatchCadence';
+} from '@/features/runs/viewModels/matchProgress';
+import { LIVE_MATCH_SERVER_SYNC_INTERVAL_MS } from '@/features/runs/sync/liveMatchCadence';
 import { buildAveragePace } from '@/features/runs/tracking';
 
 export const MATCH_PROGRESS_HEARTBEAT_INTERVAL_MS = LIVE_MATCH_SERVER_SYNC_INTERVAL_MS;

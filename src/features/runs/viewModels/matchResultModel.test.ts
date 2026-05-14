@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { DuelMatchOpponent } from '@/lib/api/types';
-import type { GroupLiveStanding } from '@/features/runs/matchProgress';
+import type { GroupLiveStanding } from '@/features/runs/viewModels/matchProgress';
 import {
   buildDuelMatchFinishModel,
   buildGroupMatchFinishModel,

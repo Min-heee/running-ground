@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import type { ComponentProps } from 'react';
 import { LiveMatchExitActionCard } from '@/features/runs/components/LiveMatchExitActionCard';
-import { buildMatchExitActionState } from '@/features/runs/matchExitAction';
-import type { MatchExitSource } from '@/features/runs/matchExitFlow';
+import { buildMatchExitActionState } from '@/features/runs/lifecycle/matchExitAction';
+import type { MatchExitSource } from '@/features/runs/lifecycle/matchExitFlow';
 
 type UseForfeitControllerInput = {
   source: MatchExitSource | null;

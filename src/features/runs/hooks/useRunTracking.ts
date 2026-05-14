@@ -2,8 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { RunRoutePoint } from '@/domain';
 import { buildAveragePace } from '@/features/runs/tracking';
-import { type LastSyncedMatchProgress } from '@/features/runs/matchProgress';
-import { type OfficialStartBaseline } from '@/features/runs/trackingSession';
+import { type LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
+import { type OfficialStartBaseline } from '@/features/runs/tracking/trackingSession';
 
 export type TrackerStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving';
 

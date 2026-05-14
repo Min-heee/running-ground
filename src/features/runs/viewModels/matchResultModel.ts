@@ -4,7 +4,7 @@ import {
   hasRemoteRunnerProgress,
   resolveParticipantDisplayDistanceKm,
   type GroupLiveStanding,
-} from '@/features/runs/matchProgress';
+} from '@/features/runs/viewModels/matchProgress';
 import { formatDuration } from '@/features/runs/tracking';
 import type { DuelMatchOpponent, RunningMatchLiveStatus } from '@/lib/api/types';
 

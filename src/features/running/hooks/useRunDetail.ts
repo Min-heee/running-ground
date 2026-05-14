@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Href } from 'expo-router';
 import type { RunDetailResponse } from '@/lib/api/types';
 import { fetchRunDetail, getApiErrorMessage } from '@/services';
-import { getRunSourceLabel } from '@/features/runs/sourceLabel';
+import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
 import { getRunMapRegion } from '@/features/runs/tracking';
 
 type UseRunDetailParams = {

@@ -3,12 +3,12 @@ import { type Href, router } from 'expo-router';
 import { acknowledgeRunningMatchRoomCountdown } from '@/services/matchService';
 import { getApiErrorMessage } from '@/services/apiError';
 import type { RunningMatchRoomInvitee } from '@/lib/api/types';
-import { buildPartyRunFlowSnapshot } from '@/features/runs/matchStateMachine';
+import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
 import {
   buildMatchRoomUxModel,
   buildPendingMatchRoomInvitees,
-} from '@/features/runs/matchRoomFlow';
-import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
+} from '@/features/runs/lifecycle/matchRoomFlow';
+import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getMatchStartRemainingSeconds } from '@/lib/matchCountdown';
 import { useRoomInviteActions } from '@/features/match/hooks/lobby/useRoomInviteActions';
 import { useRoomSettings } from '@/features/match/hooks/lobby/useRoomSettings';

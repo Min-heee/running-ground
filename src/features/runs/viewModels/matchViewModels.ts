@@ -8,7 +8,7 @@ import {
   buildMatchProgressModel,
   buildParticipantAveragePaceLabel,
   type GroupLiveStanding,
-} from '@/features/runs/matchProgress';
+} from '@/features/runs/viewModels/matchProgress';
 
 type MatchLiveStatus = NonNullable<DuelMatchOpponent['liveStatus']>;
 

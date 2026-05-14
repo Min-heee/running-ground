@@ -5,7 +5,7 @@ import type { RunningMatchState } from '@/lib/api/types';
 import {
   shouldEnterMatchArenaForLifecycle,
   shouldKeepMatchArenaForceOpen,
-} from '@/features/runs/matchStateMachine';
+} from '@/features/runs/lifecycle/matchStateMachine';
 
 type UseActiveArenaPinEffectInput = {
   livePagerRef: RefObject<ScrollView | null>;

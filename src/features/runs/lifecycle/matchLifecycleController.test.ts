@@ -4,11 +4,11 @@ import type {
   RunningMatchRoom,
   RunningMatchStatusResponse,
 } from '@/lib/api/types';
-import { buildPartyRunFlowSnapshot } from '@/features/runs/matchStateMachine';
+import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
 import {
   buildMatchLifecycleController,
   type MatchLifecycleControllerInput,
-} from '@/features/runs/matchLifecycleController';
+} from '@/features/runs/lifecycle/matchLifecycleController';
 
 function status(overrides: Partial<RunningMatchStatusResponse>): RunningMatchStatusResponse {
   return {

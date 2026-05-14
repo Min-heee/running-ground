@@ -5,7 +5,7 @@ import {
   parseDuelMatchDistanceKm,
   resolveMatchTimeSection,
   type MatchTimeSection,
-} from '@/features/runs/matchScheduling';
+} from '@/features/runs/utils/matchScheduling';
 import type {
   RequestDuelMatchResponse,
   RunningMatchStatusResponse,

@@ -4,7 +4,7 @@ import {
   markDuelStatusForfeited,
   markGroupStatusForfeited,
   resolveMatchExitId,
-} from '@/features/runs/matchExitFlow';
+} from '@/features/runs/lifecycle/matchExitFlow';
 import type { RunningMatchStatusResponse } from '@/lib/api/types';
 
 function buildStatus(overrides: Partial<RunningMatchStatusResponse> = {}): RunningMatchStatusResponse {

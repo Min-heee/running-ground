@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
-import { buildPartyRunFlowSnapshot } from '@/features/runs/matchStateMachine';
+import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
 import { rgPerfMark, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';
 import type { LinkedMatchSyncInput } from './types';

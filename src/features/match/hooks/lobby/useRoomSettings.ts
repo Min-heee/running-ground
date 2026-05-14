@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useState, type Dispatch, type MutableRefObjec
 import { updateRunningMatchRoom } from '@/services/matchService';
 import { getApiErrorMessage } from '@/services/apiError';
 import type { RunningMatchRoom } from '@/lib/api/types';
-import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
+import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { MatchRoomMeridiem, UpdateRoomSettingsInput } from '@/features/runs/types/matchRoom';
 import {
   MATCH_ROOM_HOUR_OPTIONS,

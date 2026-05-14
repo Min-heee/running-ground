@@ -12,7 +12,7 @@ import {
   formatPaceFromSecondsPerKm,
   formatPaceFromSpeedMps,
   getMapRegion,
-} from './tracking';
+} from './index';
 
 function routePoint(latitude: number, altitude: number | null): RunRoutePoint {
   return {

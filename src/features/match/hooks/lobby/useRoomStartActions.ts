@@ -9,12 +9,12 @@ import {
 } from '@/services/matchService';
 import { getApiErrorMessage } from '@/services/apiError';
 import type { RunningMatchRoom } from '@/lib/api/types';
-import type { MatchRoomUxModel } from '@/features/runs/matchRoomFlow';
+import type { MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
 import {
   clearMatchRoomExitGuard,
   markMatchRoomExiting,
-} from '@/features/runs/matchRoomExitGuard';
-import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
+} from '@/features/runs/lifecycle/matchRoomExitGuard';
+import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type RoomExitState = 'idle' | 'leaving' | 'deleting';

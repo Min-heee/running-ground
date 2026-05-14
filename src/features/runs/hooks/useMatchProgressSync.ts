@@ -12,13 +12,13 @@ import {
   getBackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import type { PartyRunLinkedMatchContext } from '@/features/runs/matchStateMachine';
-import type { LastSyncedMatchProgress } from '@/features/runs/matchProgress';
+import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
+import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
 import {
   buildSyncedMatchProgressSnapshot,
   resolveActiveMatchProgressTarget,
   shouldSendMatchProgressHeartbeat,
-} from '@/features/runs/matchProgressSync';
+} from '@/features/runs/sync/matchProgressSync';
 import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 import {
   acquireRgHeartbeatSlot,

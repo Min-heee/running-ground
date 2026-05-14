@@ -2,10 +2,10 @@ import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type {
   PartyRunFlowSnapshot,
   PartyRunLinkedMatchContext,
-} from '@/features/runs/matchStateMachine';
+} from '@/features/runs/lifecycle/matchStateMachine';
 import {
   shouldPreferRoomLinkedArena,
-} from '@/features/runs/matchStateMachine';
+} from '@/features/runs/lifecycle/matchStateMachine';
 import { shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import type {
   RunningMatchRoom,

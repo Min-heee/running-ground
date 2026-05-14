@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
-import { LIVE_MATCH_UI_DISPLAY_INTERVAL_MS } from '@/features/runs/liveMatchCadence';
+import { LIVE_MATCH_UI_DISPLAY_INTERVAL_MS } from '@/features/runs/sync/liveMatchCadence';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 const ANDROID_LIVE_MATCH_UI_INTERVAL_MS = LIVE_MATCH_UI_DISPLAY_INTERVAL_MS;

@@ -3,17 +3,17 @@ import { useFocusEffect } from 'expo-router';
 import { fetchFriendLeaderboard } from '@/services/friendsService';
 import { getApiErrorMessage } from '@/services/apiError';
 import type { FriendLeaderboardResponse, RunningMatchRoom } from '@/lib/api/types';
-import { isMatchRoomExiting } from '@/features/runs/matchRoomExitGuard';
-import { runActiveRoomCheck } from '@/features/runs/activeRoomCheck';
+import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard';
+import { runActiveRoomCheck } from '@/features/runs/sync/activeRoomCheck';
 import {
   buildActiveRoomResultLogDetail,
   buildActiveRoomSnapshotKey,
-} from '@/features/runs/activeRoomResult';
+} from '@/features/runs/sync/activeRoomResult';
 import {
   parseServerNowMs,
   resolveStableServerClockOffset,
   shouldAcceptServerSnapshot,
-} from '@/features/runs/serverClockSync';
+} from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';

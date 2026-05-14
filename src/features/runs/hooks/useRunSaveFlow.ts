@@ -16,20 +16,20 @@ import {
 } from '@/features/runs/tracking';
 import {
   isUnsavableShortRunError,
-} from '@/features/runs/matchScheduling';
+} from '@/features/runs/utils/matchScheduling';
 import {
   markDuelStatusForfeited,
   markGroupStatusForfeited,
   resolveMatchExitId,
   type MatchExitSource,
-} from '@/features/runs/matchExitFlow';
-import { resolveActiveMatchId } from '@/features/runs/matchStateMachine';
+} from '@/features/runs/lifecycle/matchExitFlow';
+import { resolveActiveMatchId } from '@/features/runs/lifecycle/matchStateMachine';
 import {
   createTrackedRun,
   getApiErrorMessage,
   leaveRunningMatch,
 } from '@/services';
-import { buildRunDetailRedirect } from '@/features/runs/runSaveNavigation';
+import { buildRunDetailRedirect } from '@/features/runs/lifecycle/runSaveNavigation';
 import type {
   RequestDuelMatchResponse,
   RequestGroupMatchResponse,

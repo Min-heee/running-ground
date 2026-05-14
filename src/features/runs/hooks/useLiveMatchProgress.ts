@@ -11,7 +11,7 @@ import {
   buildMatchProgressModel,
   hasRemoteRunnerProgress,
   type LastSyncedMatchProgress,
-} from '@/features/runs/matchProgress';
+} from '@/features/runs/viewModels/matchProgress';
 import { type RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 

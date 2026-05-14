@@ -8,8 +8,8 @@ import type {
 import type {
   PartyRunFlowSnapshot,
   PartyRunLinkedMatchContext,
-} from '@/features/runs/matchStateMachine';
-import type { MatchLifecycleController } from '@/features/runs/matchLifecycleController';
+} from '@/features/runs/lifecycle/matchStateMachine';
+import type { MatchLifecycleController } from '@/features/runs/lifecycle/matchLifecycleController';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { useCountdownReadyAck } from '@/features/runs/hooks/partyRunSync/useCountdownReadyAck';
 import {

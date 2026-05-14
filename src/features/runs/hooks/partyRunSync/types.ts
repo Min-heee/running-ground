@@ -7,7 +7,7 @@ import type {
 import type {
   PartyRunFlowSnapshot,
   PartyRunLinkedMatchContext,
-} from '@/features/runs/matchStateMachine';
+} from '@/features/runs/lifecycle/matchStateMachine';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 
 export type PartyRunSyncCallbacks = {

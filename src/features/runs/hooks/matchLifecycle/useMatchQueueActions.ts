@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { buildWeeklyHourlySlots } from '@/features/runs/matchScheduling';
-import { parseServerNowMs, resolveStableServerClockOffset } from '@/features/runs/serverClockSync';
+import { buildWeeklyHourlySlots } from '@/features/runs/utils/matchScheduling';
+import { parseServerNowMs, resolveStableServerClockOffset } from '@/features/runs/sync/serverClockSync';
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
 
 export function useMatchQueueActions() {

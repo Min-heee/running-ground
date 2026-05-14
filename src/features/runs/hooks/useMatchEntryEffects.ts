@@ -4,11 +4,11 @@ import type { ScrollView } from 'react-native';
 import { getApiErrorMessage, joinRunningMatchRoom } from '@/services';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
+import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import {
   getRunningMatchBlockerFromError,
   runStaleRoomCleanupWithTimeout,
-} from '@/features/runs/staleRoomCleanup';
+} from '@/features/runs/sync/staleRoomCleanup';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type FocusRunningMatchInput = {

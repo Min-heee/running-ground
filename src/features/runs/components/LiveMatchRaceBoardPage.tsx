@@ -1,7 +1,7 @@
 import { memo, useEffect } from 'react';
 import { LiveMatchRaceBoard } from '@/components/matches/LiveMatchRaceBoard';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import type { LiveMatchRaceBoardViewModel } from '@/features/runs/liveMatchRaceBoardViewModel';
+import type { LiveMatchRaceBoardViewModel } from '@/features/runs/viewModels/liveMatchRaceBoardViewModel';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 

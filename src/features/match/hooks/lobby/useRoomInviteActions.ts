@@ -8,8 +8,8 @@ import {
 } from '@/services/matchService';
 import { getApiErrorMessage } from '@/services/apiError';
 import type { RunningMatchRoom } from '@/lib/api/types';
-import type { MatchRoomUxModel } from '@/features/runs/matchRoomFlow';
-import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
+import type { MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
+import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { UpdateRoomSettingsInput } from '@/features/runs/types/matchRoom';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 

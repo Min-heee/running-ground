@@ -5,7 +5,7 @@ import * as Location from 'expo-location';
 import {
   buildLiveShareFallbackLabel,
   buildLiveShareLabelFromAddress,
-} from '@/features/runs/trackingSession';
+} from '@/features/runs/tracking/trackingSession';
 
 type Coordinate = {
   latitude: number;

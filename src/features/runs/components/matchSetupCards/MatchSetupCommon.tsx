@@ -5,7 +5,7 @@ import {
   RECOMMENDED_MATCH_DISTANCES,
   findNearestRecommendedDistance,
   isRecommendedMatchDistance,
-} from '@/features/runs/matchScheduling';
+} from '@/features/runs/utils/matchScheduling';
 import type { RunningMatchState } from '@/lib/api/types';
 import type {
   DistanceSelectorProps,

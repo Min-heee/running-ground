@@ -2,8 +2,8 @@ import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import type { MatchExitActionState } from '@/features/runs/matchExitAction';
-import type { MatchExitSource } from '@/features/runs/matchExitFlow';
+import type { MatchExitActionState } from '@/features/runs/lifecycle/matchExitAction';
+import type { MatchExitSource } from '@/features/runs/lifecycle/matchExitFlow';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 

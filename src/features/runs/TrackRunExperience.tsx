@@ -61,12 +61,12 @@ import {
 import {
   getRunningMatchBlockerFromError,
   runStaleRoomCleanupWithTimeout,
-} from '@/features/runs/staleRoomCleanup';
-import { runActiveRoomCheck } from '@/features/runs/activeRoomCheck';
+} from '@/features/runs/sync/staleRoomCleanup';
+import { runActiveRoomCheck } from '@/features/runs/sync/activeRoomCheck';
 import {
   buildActiveRoomResultLogDetail,
   buildActiveRoomSnapshotKey,
-} from '@/features/runs/activeRoomResult';
+} from '@/features/runs/sync/activeRoomResult';
 import {
   shouldAutoOpenMatchArena,
 } from '@/lib/matchCountdown';
@@ -76,31 +76,31 @@ import {
 } from '@/lib/api/types';
 import {
   formatMatchExpiryCountdown,
-} from '@/features/runs/matchScheduling';
+} from '@/features/runs/utils/matchScheduling';
 import {
   buildAverageArenaPaceLabel,
   buildParticipantAveragePaceLabel,
   isMeasuredPaceLabel,
-} from '@/features/runs/matchProgress';
+} from '@/features/runs/viewModels/matchProgress';
 import {
   LIVE_MATCH_ROOM_IDLE_POLL_MS,
   LIVE_MATCH_SERVER_SYNC_INTERVAL_MS,
   LIVE_MATCH_STATUS_IDLE_POLL_MS,
-} from '@/features/runs/liveMatchCadence';
+} from '@/features/runs/sync/liveMatchCadence';
 import {
   buildDuelArenaParticipants,
   buildGroupArenaParticipants,
   buildRoomLinkedDuelPlaceholderParticipants,
   buildRoomLinkedGroupPlaceholderParticipants,
-} from '@/features/runs/matchViewModels';
+} from '@/features/runs/viewModels/matchViewModels';
 import {
   buildMatchTransitionNotice,
   type PartyRunLinkedMatchContext,
   shouldUseCenteredMatchCountdown,
   shouldUseFullscreenMatchCountdown,
-} from '@/features/runs/matchStateMachine';
-import { isMatchRoomExiting } from '@/features/runs/matchRoomExitGuard';
-import { shouldAcceptServerSnapshot } from '@/features/runs/serverClockSync';
+} from '@/features/runs/lifecycle/matchStateMachine';
+import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard';
+import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';

@@ -7,9 +7,9 @@ import {
   hasRemoteRunnerProgress,
   resolveParticipantDisplayDistanceKm,
   type GroupLiveStanding,
-} from '@/features/runs/matchProgress';
-import { type MatchExitSource } from '@/features/runs/matchExitFlow';
-import { buildMatchParticipantStatusLabel } from '@/features/runs/matchStateMachine';
+} from '@/features/runs/viewModels/matchProgress';
+import { type MatchExitSource } from '@/features/runs/lifecycle/matchExitFlow';
+import { buildMatchParticipantStatusLabel } from '@/features/runs/lifecycle/matchStateMachine';
 import type { DuelMatchOpponent } from '@/lib/api/types';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 

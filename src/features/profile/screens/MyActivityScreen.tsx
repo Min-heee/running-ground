@@ -8,7 +8,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { ActivityRun, useMyActivity } from '@/features/profile/hooks/useMyActivity';
-import { getRunSourceLabel } from '@/features/runs/sourceLabel';
+import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
 
 const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun }) {
   return (

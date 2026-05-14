@@ -2,12 +2,12 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { AppStateStatus } from 'react-native';
 
 import type { RunRoutePoint } from '@/domain';
-import type { LastSyncedMatchProgress } from '@/features/runs/matchProgress';
-import type { MatchLifecycleController } from '@/features/runs/matchLifecycleController';
-import type { PartyRunLinkedMatchContext } from '@/features/runs/matchStateMachine';
+import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
+import type { MatchLifecycleController } from '@/features/runs/lifecycle/matchLifecycleController';
+import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
-import type { OfficialStartBaseline } from '@/features/runs/trackingSession';
+import type { OfficialStartBaseline } from '@/features/runs/tracking/trackingSession';
 import type {
   RunningMatchState,
   RunningMatchStatusResponse,

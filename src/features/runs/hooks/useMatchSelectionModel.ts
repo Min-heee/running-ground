@@ -2,12 +2,12 @@ import { useMemo } from 'react';
 import type { MatchOptionItem } from '@/features/runs/components/MatchOptionSelector';
 import type { RoomStartMode } from '@/features/runs/hooks/usePartyRunRoom';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import { formatMatchTargetDistance } from '@/features/runs/matchScheduling';
+import { formatMatchTargetDistance } from '@/features/runs/utils/matchScheduling';
 import {
   buildMatchParticipantStatusLabel,
   isBlockingMatchState,
   isLiveMatchState,
-} from '@/features/runs/matchStateMachine';
+} from '@/features/runs/lifecycle/matchStateMachine';
 import type {
   RequestDuelMatchResponse,
   RequestGroupMatchResponse,

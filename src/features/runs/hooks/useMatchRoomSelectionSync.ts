@@ -3,7 +3,7 @@ import {
   formatMatchDateKey,
   resolveMatchTimeSection,
   type MatchTimeSection,
-} from '@/features/runs/matchScheduling';
+} from '@/features/runs/utils/matchScheduling';
 import type { RunningMatchRoom } from '@/lib/api/types';
 
 type UseMatchRoomSelectionSyncInput = {

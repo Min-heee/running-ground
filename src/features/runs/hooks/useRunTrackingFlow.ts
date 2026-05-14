@@ -15,15 +15,15 @@ import {
 } from '@/features/runs/tracking';
 import {
   buildOfficialStartBaseline,
-} from '@/features/runs/trackingSession';
-import { buildDisplayedTrackingSnapshot } from '@/features/runs/trackingDisplayModel';
+} from '@/features/runs/tracking/trackingSession';
+import { buildDisplayedTrackingSnapshot } from '@/features/runs/viewModels/trackingDisplayModel';
 import {
   normalizeMatchProgressPace,
-} from '@/features/runs/matchProgress';
+} from '@/features/runs/viewModels/matchProgress';
 import {
   isLiveMatchState,
   resolveActiveMatchId,
-} from '@/features/runs/matchStateMachine';
+} from '@/features/runs/lifecycle/matchStateMachine';
 import { useElapsedTicker } from '@/features/runs/tracking/useElapsedTicker';
 import { useLiveShareHeartbeat } from '@/features/runs/tracking/useLiveShareHeartbeat';
 import { useLocationTracking } from '@/features/runs/tracking/useLocationTracking';

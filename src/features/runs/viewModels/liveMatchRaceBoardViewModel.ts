@@ -4,8 +4,8 @@ import {
   buildParticipantAveragePaceLabel,
   resolveParticipantDisplayDistanceKm,
   type GroupLiveStanding,
-} from '@/features/runs/matchProgress';
-import type { ArenaParticipantViewModel } from '@/features/runs/matchViewModels';
+} from '@/features/runs/viewModels/matchProgress';
+import type { ArenaParticipantViewModel } from '@/features/runs/viewModels/matchViewModels';
 import type { DuelMatchOpponent, RunningMatchRoom } from '@/lib/api/types';
 
 export type LiveMatchRaceBoardViewModel = {

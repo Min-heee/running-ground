@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
-import type { MatchRoomUxModel } from '@/features/runs/matchRoomFlow';
+import type { MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
 
 type MatchRoomInviteActionCardProps = {
   invite: MatchRoomUxModel['invite'];
