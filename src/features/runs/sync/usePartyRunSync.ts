@@ -11,12 +11,12 @@ import type {
 } from '@/features/runs/lifecycle/matchStateMachine';
 import type { MatchLifecycleController } from '@/features/runs/lifecycle/matchLifecycleController';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import { useCountdownReadyAck } from '@/features/runs/hooks/partyRunSync/useCountdownReadyAck';
+import { useCountdownReadyAck } from '@/features/runs/sync/partyRunSync/useCountdownReadyAck';
 import {
   canOpenPartyRunLinkedMatch,
   useLinkedMatchSync,
-} from '@/features/runs/hooks/partyRunSync/useLinkedMatchSync';
-import { useRoomPolling } from '@/features/runs/hooks/partyRunSync/useRoomPolling';
+} from '@/features/runs/sync/partyRunSync/useLinkedMatchSync';
+import { useRoomPolling } from '@/features/runs/sync/partyRunSync/useRoomPolling';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 type UsePartyRunSyncInput = {

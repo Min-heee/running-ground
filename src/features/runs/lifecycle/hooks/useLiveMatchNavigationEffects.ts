@@ -6,8 +6,8 @@ import type {
   UpcomingRunningMatchItem,
 } from '@/lib/api/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import { useActiveArenaPinEffect } from '@/features/runs/hooks/navigationEffects/useActiveArenaPinEffect';
-import { useCountdownHandoffEffect } from '@/features/runs/hooks/navigationEffects/useCountdownHandoffEffect';
+import { useActiveArenaPinEffect } from '@/features/runs/lifecycle/hooks/useActiveArenaPinEffect';
+import { useCountdownHandoffEffect } from '@/features/runs/lifecycle/hooks/useCountdownHandoffEffect';
 
 type FocusRunningMatchInput = {
   mode: Extract<RunMatchMode, 'duel' | 'group'>;

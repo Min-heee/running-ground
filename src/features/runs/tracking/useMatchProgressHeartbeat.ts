@@ -1,4 +1,4 @@
-import { useMatchProgressSync } from '@/features/runs/hooks/useMatchProgressSync';
+import { useMatchProgressSync } from '@/features/runs/sync/useMatchProgressSync';
 
 type UseMatchProgressHeartbeatInput = Parameters<typeof useMatchProgressSync>[0];
 

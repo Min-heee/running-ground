@@ -16,25 +16,25 @@ import {
   type RunMatchMode,
 } from '@/features/runs/hooks/useMatchLifecycle';
 import { useMatchResultController } from '@/features/runs/hooks/useMatchResultController';
-import { useLiveMatchProgress } from '@/features/runs/hooks/useLiveMatchProgress';
+import { useLiveMatchProgress } from '@/features/runs/viewModels/useLiveMatchProgress';
 import { useForfeitController } from '@/features/runs/hooks/useForfeitController';
-import { useAndroidLiveMatchDisplayFrame } from '@/features/runs/hooks/useAndroidLiveMatchDisplayFrame';
-import { useAndroidLiveMatchStartupGate } from '@/features/runs/hooks/useAndroidLiveMatchStartupGate';
-import { useLiveMatchViewModel } from '@/features/runs/hooks/useLiveMatchViewModel';
+import { useAndroidLiveMatchDisplayFrame } from '@/features/runs/viewModels/useAndroidLiveMatchDisplayFrame';
+import { useAndroidLiveMatchStartupGate } from '@/features/runs/lifecycle/hooks/useAndroidLiveMatchStartupGate';
+import { useLiveMatchViewModel } from '@/features/runs/viewModels/useLiveMatchViewModel';
 import { useMatchRuntimeState } from '@/features/runs/hooks/useMatchRuntimeState';
-import { usePartyRunSync } from '@/features/runs/hooks/usePartyRunSync';
+import { usePartyRunSync } from '@/features/runs/sync/usePartyRunSync';
 import { useRunActionHandlers } from '@/features/runs/hooks/useRunActionHandlers';
 import { useMatchRoomSelectionSync } from '@/features/runs/hooks/useMatchRoomSelectionSync';
-import { useLiveMatchNavigationEffects } from '@/features/runs/hooks/useLiveMatchNavigationEffects';
+import { useLiveMatchNavigationEffects } from '@/features/runs/lifecycle/hooks/useLiveMatchNavigationEffects';
 import { useMatchSelectionModel } from '@/features/runs/hooks/useMatchSelectionModel';
-import { useMatchEntryEffects } from '@/features/runs/hooks/useMatchEntryEffects';
-import { useMatchCountdownModel } from '@/features/runs/hooks/useMatchCountdownModel';
+import { useMatchEntryEffects } from '@/features/runs/lifecycle/hooks/useMatchEntryEffects';
+import { useMatchCountdownModel } from '@/features/runs/lifecycle/hooks/useMatchCountdownModel';
 import { useRunTrackingFlow } from '@/features/runs/hooks/useRunTrackingFlow';
-import { useRunningMatchFocus } from '@/features/runs/hooks/useRunningMatchFocus';
-import { useBlockingMatchStatusPolling } from '@/features/runs/hooks/matchPolling/useBlockingMatchStatusPolling';
-import { useStaleMatchCleanup } from '@/features/runs/hooks/matchPolling/useStaleMatchCleanup';
-import { useUpcomingMatchPolling } from '@/features/runs/hooks/matchPolling/useUpcomingMatchPolling';
-import { useSyncedCountdownTicker } from '@/features/runs/hooks/navigationEffects/useSyncedCountdownTicker';
+import { useRunningMatchFocus } from '@/features/runs/lifecycle/hooks/useRunningMatchFocus';
+import { useBlockingMatchStatusPolling } from '@/features/runs/sync/matchPolling/useBlockingMatchStatusPolling';
+import { useStaleMatchCleanup } from '@/features/runs/sync/matchPolling/useStaleMatchCleanup';
+import { useUpcomingMatchPolling } from '@/features/runs/sync/matchPolling/useUpcomingMatchPolling';
+import { useSyncedCountdownTicker } from '@/features/runs/lifecycle/hooks/useSyncedCountdownTicker';
 import { useTrackRunNotificationSync } from '@/features/runs/hooks/useTrackRunNotificationSync';
 import {
   acknowledgeRunningMatchRoomCountdown,

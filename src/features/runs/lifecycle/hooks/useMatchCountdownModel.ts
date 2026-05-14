@@ -9,7 +9,7 @@ import {
   getMatchStartRemainingSeconds,
 } from '@/lib/matchCountdown';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import { useStableCountdownSeconds } from '@/features/runs/hooks/useStableCountdownSeconds';
+import { useStableCountdownSeconds } from '@/features/runs/lifecycle/hooks/useStableCountdownSeconds';
 import {
   buildPartyRunFlowSnapshot,
 } from '@/features/runs/lifecycle/matchStateMachine';
