@@ -1,81 +1,83 @@
 # Android Live Match Performance Budget
 
-Android 실시간 대결 화면은 iOS보다 JS thread와 native location task 병목에 민감합니다. 이 문서는 파티런/1대1 대결 관련 새 기능을 추가하거나 리팩토링할 때 지켜야 할 성능 예산입니다.
+이 문서는 Android 실기기에서 파티런/1대1 대결 화면이 먹통처럼 느려지지 않도록 지켜야 할 성능 기준입니다. 새 기능을 넣을 때는 아래 예산을 넘기지 않는지 `[RG perf]` 로그로 먼저 확인합니다.
 
 ## 목표 시간
 
-| 구간 | 목표 | 초과 시 확인할 것 |
-| --- | --- | --- |
-| 대결방 입장 | 버튼 입력 후 1초 이내 대기실 UI 반응 | active room check 중복, stale cleanup blocking, room snapshot polling 중복 |
-| 초대코드 입장 | 코드 제출 후 1.5초 이내 성공/실패 피드백 | join API 중복 호출, cleanup-stale 선행 blocking, roomId 없는 성공 응답 |
-| 방장 시작 후 로딩 진입 | 시작 버튼 후 500ms 이내 로딩/카운트다운 상태 표시 | start API 중복, active room result 반복 처리 |
-| 대결 화면 진입 | official start 전후 1초 이내 live match 최소 UI mount | live match navigation 중복, RoadMotion mount/unmount 반복 |
-| 기권/나가기 버튼 반응 | 탭 후 300ms 이내 버튼 상태 변화 또는 화면 이동 | save/forfeit 중복 요청, cleanup을 navigation보다 먼저 기다리는 흐름 |
+| 구간 | 목표 | 경고 기준 | 실패 기준 |
+| --- | ---: | ---: | ---: |
+| 방 생성 버튼 터치 -> 대기실 이동 | 1.5초 이내 | 3초 초과 | 5초 초과 |
+| 초대코드 입력 -> 대기실 이동 | 1.5초 이내 | 3초 초과 | 5초 초과 |
+| 방장 시작 -> 로딩/카운트다운 표시 | 1초 이내 | 2초 초과 | 4초 초과 |
+| 대결 시작 -> live match 화면 mount | 1.5초 이내 | 3초 초과 | 5초 초과 |
+| 기권/나가기 버튼 터치 -> 화면 반응 | 300ms 이내 | 800ms 초과 | 2초 초과 |
 
-## GPS/Tracking 규칙
+## UI Block 금지 규칙
 
-- GPS 원본 수집 정확도는 유지하되, `GPS tracking start`와 `background task start`는 UI navigation을 block하면 안 됩니다.
-- 대결 화면은 먼저 mount하고, foreground watcher/background task 시작은 비동기 detached 작업으로 처리합니다.
-- `background task start`가 3~5초 이상 걸리면 warning 로그만 남기고 UI thread를 기다리게 만들지 않습니다.
-- app state가 `active/background/inactive` 사이에서 짧게 흔들릴 때 watcher/task start-stop을 반복하지 않도록 debounce를 유지합니다.
-- 같은 `matchId` 또는 task name으로 tracking start가 이미 진행 중이면 새 start를 만들지 않습니다.
+- GPS tracking start, foreground watcher start, background task start는 화면 navigation을 기다리게 만들면 안 됩니다.
+- live match 화면은 먼저 mount되어야 하고, GPS/background task는 뒤에서 비동기로 시작되어야 합니다.
+- background task start가 3초를 넘으면 warning 로그만 남기고 UI 흐름은 계속 진행해야 합니다.
+- GPS/background task 완료 여부로 live match navigation success/failure를 판단하면 안 됩니다.
+- appState active/background가 짧게 흔들릴 때 watcher/task start/stop을 반복하면 안 됩니다.
 
-## 동시 실행 허용 개수
+## Runtime Resource Budget
 
-| 리소스 | 허용 예산 | 비고 |
-| --- | --- | --- |
-| party room polling | 동일 `roomId` 기준 1개 | match-room snapshot과 역할이 겹치면 한쪽만 owner |
-| linked match status polling | 동일 `matchId` 기준 1개 | arming/countdown/active 상태 감지용 |
-| 전체 polling | 일반적으로 1~2개 이하 | 상태 전환 순간에도 3개 이상이 오래 유지되면 문제 |
-| match progress heartbeat | 동일 `matchId` 기준 1개 | active + running 상태에서만 허용 |
-| foreground location watcher | 0~1개 | active foreground에서 우선 |
-| background location task | task name 기준 0~1개 | background 전환 시에만 보장 |
-| live share heartbeat | 러닝 공유가 켜진 경우 1개 | idle 상태에서는 0개 |
+| 리소스 | 정상 기준 | 경고 기준 | 실패 기준 |
+| --- | ---: | ---: | ---: |
+| polling activeKindCount | 1개 | 2개 | 3개 이상 |
+| heartbeat activeKindCount | 1개 | 1개 초과 | 2개 이상 |
+| watcher activeKindCount | 0~1개 | 2개 순간 발생 | 2개 이상 지속 |
+| 같은 roomId party room polling | 1개 이하 | 2개 | 2개 이상 지속 |
+| 같은 matchId linked status polling | 1개 이하 | 2개 | 2개 이상 지속 |
+| 같은 matchId progress heartbeat | 1개 이하 | 2개 | 2개 이상 지속 |
 
 ## 10초 Render Count 기준
 
-`[RG perf]` render counter로 10초 단위 샘플을 볼 때 아래 기준을 목표로 합니다.
+| 컴포넌트 | 정상 기준 | 경고 기준 | 실패 기준 |
+| --- | ---: | ---: | ---: |
+| `TrackRunExperience` | 10회 이하 | 20회 초과 | 30회 초과 |
+| `LiveMatchContainer:arena` | 10회 이하 | 15회 초과 | 25회 초과 |
+| `LiveMatchPager:page-0` | 10회 이하 | 15회 초과 | 25회 초과 |
+| `LiveMatchExitActionCard` | 3회 이하 | 10회 초과 | 20회 초과 |
+| `LiveMatchArena` | 10회 이하 | 15회 초과 | 25회 초과 |
+| `RoadMotion` | 1~3회 | 5회 초과 | 10회 초과 |
+| `RunRouteMap.native` | 기록 보기 탭에서만 mount | 비선택 탭에서 render | 대결 보기 중 지속 render |
 
-| 컴포넌트 | 목표 render count / 10s | 위험 신호 |
-| --- | --- | --- |
-| `TrackRunExperience` | 10회 이하 | idle인데 20회 이상이면 상위 state/effect 확인 |
-| `LiveMatchPager` | 선택 탭 기준 10회 이하 | 선택 안 된 탭까지 렌더되면 lazy render 점검 |
-| `LiveMatchContainer:arena` | 10회 이하 | distance update가 전체 arena를 다시 그리면 props 안정화 |
-| `LiveMatchExitActionCard` | 3회 이하 | visible/action state 변화 없이 반복되면 memo comparator 확인 |
-| `LiveMatchArena` | 10회 이하 | 참가자 token만 바뀌는데 road/card가 같이 리렌더되면 분리 |
-| `RoadMotion` | 1~3회 이하 | mount/unmount 반복 또는 정적 road UI 리렌더링 확인 |
-| `RunRouteMap.native` | 기록 보기 탭 진입 시에만 mount | 대결 보기에서 mount되면 지도 lazy mount 실패 |
+## Live Match Navigation 실패 허용 기준
 
-## 금지 규칙
+- 같은 `matchId`에 대한 `live match navigation begin`은 1회가 정상입니다.
+- 같은 `matchId`가 이미 `navigating` 또는 `mounted`이면 추가 navigation은 `skipped duplicate` 또는 `suppressed because mounted`로 끝나야 합니다.
+- `live match screen mount` 또는 `RoadMotion mount`가 확인된 뒤에는 navigation을 success로 간주해야 합니다.
+- `success:false`는 네트워크/API 실패처럼 실제 화면 진입이 안 된 경우에만 허용합니다.
+- 같은 `matchId`에서 `success:false`가 2회 이상 반복되면 실패 기준입니다.
+- `preferArena:false`와 `preferArena:true`가 충돌할 때는 active 상태의 `preferArena:true`가 우선이며, 중복 navigation 대신 upgrade/defer로 처리해야 합니다.
 
-- render 중에 긴 `sort/filter/map` 계산을 직접 돌리지 않습니다.
-- live match 화면에서 선택되지 않은 탭의 무거운 컴포넌트를 mount하지 않습니다.
-- `useEffect` 재실행만으로 polling, heartbeat, watcher를 새로 만들지 않습니다.
-- `roomId`, `matchId`, `source`가 null인 상태에서 대결 관련 interval을 시작하지 않습니다.
-- `success:true` 응답이라도 `roomId`, `matchId`, `inviteToken` 같은 필수 필드가 없으면 성공으로 처리하지 않습니다.
-- 방 나가기/삭제/기권 화면 이동을 서버 cleanup 완료까지 block하지 않습니다.
-- Android 최적화를 위해 GPS 기록 정확도, 승패 판정, 저장 포맷을 바꾸지 않습니다.
-- 운영/preview release에 dev-only perf 로그가 노출되면 안 됩니다.
+## 새 기능 추가 시 금지 패턴
 
-## 성능 로그 체크리스트
+- 화면 render 또는 `useEffect` 재실행만으로 active room check를 새로 시작하지 않습니다.
+- polling, heartbeat, watcher는 registry/single-flight 없이 직접 `setInterval` 또는 start 함수를 만들지 않습니다.
+- GPS/background task start를 navigation promise와 직렬로 묶지 않습니다.
+- `ScrollView + map`으로 긴 live list를 렌더링하지 않습니다.
+- live match 대결 보기 탭이 아닌데 `RoadMotion`, ranking 계산, 지도 polyline 계산을 계속 돌리지 않습니다.
+- 같은 room/match 상태 snapshot을 이미 처리했는데 `setState`, navigation, polling restart를 반복하지 않습니다.
+- `success:true`인데 `roomId`, `matchId`, `inviteToken`, `userId` 같은 필수 필드가 없는 API 응답을 성공으로 처리하지 않습니다.
+- dev trace 로그를 production release에서 켜지 않도록 유지합니다.
 
-Android 실기기 QA에서 `[RG perf]` 로그를 복사해 아래 항목을 확인합니다.
+## 성능 로그 확인 체크리스트
 
-- `active room check begin`이 같은 `requestId` 없이 연속 폭주하지 않는가?
-- `active room check reuse/skipped`가 찍히고, 같은 room snapshot은 중복 처리되지 않는가?
-- `live match navigation begin`이 같은 `matchId`로 반복되지 않는가?
-- live screen이 mount된 뒤 `navigation end success:false`가 늦게 찍히지 않는가?
-- `polling activeKindCount`가 일반적으로 1~2 이하인가?
-- `heartbeat activeKindCount`가 같은 `matchId`에서 1을 넘지 않는가?
-- `watcher count`가 foreground/background 합산 0~1 수준으로 유지되는가?
-- `GPS tracking start end`가 길어져도 탭/기권/나가기 버튼이 즉시 반응하는가?
-- `RoadMotion mount`가 대결 중 반복되지 않는가?
-- 기록 보기 탭이 아닐 때 `RunRouteMap.native` render 로그가 찍히지 않는가?
+1. Android dev build에서 파티런 1대1 방을 생성합니다.
+2. Metro 로그에서 `[RG env]`로 API 서버와 계정이 의도한 값인지 확인합니다.
+3. 방 생성, 초대코드 입장, 방장 시작, live match 화면 진입 로그를 복사합니다.
+4. `300ms` 이상 warning 로그가 어느 구간에 집중되는지 확인합니다.
+5. 10초 resource summary를 최소 3개 이상 확인합니다.
+6. `polling`, `heartbeat`, `watcher` activeKindCount가 예산 안에 있는지 확인합니다.
+7. render counter에서 `TrackRunExperience`, `LiveMatchContainer`, `LiveMatchPager`, `RoadMotion` 횟수를 확인합니다.
+8. 같은 `matchId`의 live match navigation이 반복 begin/end 되는지 확인합니다.
+9. 기권/나가기 버튼을 눌렀을 때 300ms 안에 화면 반응이 있는지 확인합니다.
+10. 필요하면 로그 파일을 저장한 뒤 `npm run perf:trace-analyze -- <log-file>`로 위험 패턴을 요약합니다.
 
-## 출시 전 기준
+## 출시 전 판정
 
-Android preview 또는 dev build로 파티런 1대1을 2대 기기에서 확인합니다.
-
-- 방 생성, 초대, 코드 입장, 방장 시작, 카운트다운, 대결 화면 진입, 기록 반영, 기권, 결과 저장을 한 흐름으로 테스트합니다.
-- 위 예산을 크게 초과하는 로그가 있으면 OTA/빌드 전에 원인 분석 문서에 남기고 수정합니다.
-- 성능 최적화 후에는 `npm run typecheck`, `npm run lint`, `npm run test`, `npm run perf:smells`를 실행합니다.
+- 실패 기준이 하나라도 나오면 Android preview 배포 전에 원인을 먼저 줄입니다.
+- 경고 기준만 나온 경우에는 같은 시나리오를 2회 이상 반복해 재현성을 확인합니다.
+- iOS가 정상이어도 Android 기준을 따로 통과해야 합니다.

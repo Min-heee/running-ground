@@ -85,10 +85,12 @@ node ./scripts/analyze-android-perf-trace.mjs ./logs/android-party-run.txt
 | --- | --- |
 | `active room check` 지연 | `durationMs >= 5000` |
 | `live match navigation` 실패 | `success:false` |
+| `GPS tracking start` 지연 | `durationMs >= 5000` |
 | polling 과다 | `activeKindCount >= 3` 또는 `10s resource summary.polling >= 3` |
 | heartbeat 중복 | `activeKindCount >= 2` 또는 `10s resource summary.heartbeat >= 2` |
 | watcher 중복 | `activeKindCount >= 2` 또는 `10s resource summary.watcher >= 2` |
 | `LiveMatchContainer` 과다 렌더 | `[RG render/10s] LiveMatchContainer:*: 20 renders` 이상 |
+| `TrackRunExperience` 과다 렌더 | `[RG render/10s] TrackRunExperience: 25 renders` 이상 |
 | `background task start` 지연 | `durationMs >= 5000` |
 
 출력은 Markdown 표 형태입니다. `Summary`는 패턴별 개수와 최대값을 보여주고, `Findings`는 실제 라인 번호와 예시 로그를 보여줍니다.

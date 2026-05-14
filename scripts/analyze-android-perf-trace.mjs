@@ -6,9 +6,11 @@ import { basename, resolve } from 'node:path';
 const THRESHOLDS = {
   activeRoomCheckDurationMs: 5000,
   backgroundTaskStartDurationMs: 5000,
+  gpsTrackingStartDurationMs: 5000,
   heartbeatActiveKindCount: 2,
   liveMatchContainerRendersPer10s: 20,
   pollingActiveKindCount: 3,
+  trackRunExperienceRendersPer10s: 25,
   watcherActiveKindCount: 2,
 };
 
@@ -22,6 +24,11 @@ const RULES = {
     metric: 'durationMs',
     name: 'background task start slow',
     threshold: `>= ${THRESHOLDS.backgroundTaskStartDurationMs}ms`,
+  },
+  gpsTrackingStartSlow: {
+    metric: 'durationMs',
+    name: 'GPS tracking start slow',
+    threshold: `>= ${THRESHOLDS.gpsTrackingStartDurationMs}ms`,
   },
   heartbeatCountHigh: {
     metric: 'activeKindCount',
@@ -42,6 +49,11 @@ const RULES = {
     metric: 'activeKindCount',
     name: 'polling activeKindCount high',
     threshold: `>= ${THRESHOLDS.pollingActiveKindCount}`,
+  },
+  trackRunExperienceRenderHigh: {
+    metric: 'renders/10s',
+    name: 'TrackRunExperience render count high',
+    threshold: `>= ${THRESHOLDS.trackRunExperienceRendersPer10s}`,
   },
   watcherCountHigh: {
     metric: 'activeKindCount',
@@ -164,6 +176,20 @@ function analyzeLine(line, lineNo, findings) {
     }
 
     if (
+      perfLabel.includes('GPS tracking start')
+      && durationMs !== null
+      && durationMs >= THRESHOLDS.gpsTrackingStartDurationMs
+    ) {
+      pushFinding(findings, {
+        detail: payload.matchId ? `matchId=${payload.matchId}` : '',
+        line,
+        lineNo,
+        rule: 'gpsTrackingStartSlow',
+        value: durationMs,
+      });
+    }
+
+    if (
       perfLabel.includes('live match navigation')
       && (payload.success === false || /success["']?\s*[:=]\s*false/i.test(line))
     ) {
@@ -270,6 +296,20 @@ function analyzeLine(line, lineNo, findings) {
         value: renderCount,
       });
     }
+
+    if (
+      componentName.includes('TrackRunExperience')
+      && renderCount !== null
+      && renderCount >= THRESHOLDS.trackRunExperienceRendersPer10s
+    ) {
+      pushFinding(findings, {
+        detail: componentName,
+        line,
+        lineNo,
+        rule: 'trackRunExperienceRenderHigh',
+        value: renderCount,
+      });
+    }
   }
 
   const renderLine = parseRenderLine(line);
@@ -282,6 +322,19 @@ function analyzeLine(line, lineNo, findings) {
       line,
       lineNo,
       rule: 'liveMatchContainerRenderHigh',
+      value: renderLine.renders,
+    });
+  }
+
+  if (
+    renderLine?.component.includes('TrackRunExperience')
+    && renderLine.renders >= THRESHOLDS.trackRunExperienceRendersPer10s
+  ) {
+    pushFinding(findings, {
+      detail: renderLine.component,
+      line,
+      lineNo,
+      rule: 'trackRunExperienceRenderHigh',
       value: renderLine.renders,
     });
   }
