@@ -20,6 +20,11 @@ import {
   shouldSendMatchProgressHeartbeat,
 } from '@/features/runs/matchProgressSync';
 import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
+import {
+  acquireRgHeartbeatSlot,
+  canUseRgHeartbeatSlot,
+  runRgHeartbeatSingleFlight,
+} from '@/utils/rgHeartbeatRegistry';
 
 type DisplayedMatchProgress = {
   distanceKm: number;
@@ -55,6 +60,7 @@ export function useMatchProgressSync({
   heartbeatEnabled = true,
 }: UseMatchProgressSyncInput) {
   const firstLiveProgressReceivedRef = useRef(false);
+  const heartbeatSlotOwnerRef = useRef<{ key: string; ownerId: number } | null>(null);
   const callbackRef = useRef({
     buildDisplayedMatchProgress,
     setLastSyncedMatchProgress,
@@ -82,34 +88,94 @@ export function useMatchProgressSync({
     matchModeRef,
     roomLinkedMatchContextRef,
   ]);
+  const activeHeartbeatTarget = heartbeatEnabled ? getActiveMatchProgressTarget() : null;
+  const activeHeartbeatMatchId = activeHeartbeatTarget?.matchId ?? null;
 
   useEffect(() => {
-    if (!heartbeatEnabled || !getActiveMatchProgressTarget()) {
+    if (!heartbeatEnabled || !activeHeartbeatMatchId) {
       return undefined;
     }
 
-    return rgPerfTrackResource('heartbeat', 'match progress heartbeat', {
+    const heartbeatKey = `match-progress:${activeHeartbeatMatchId}`;
+    const heartbeatSlot = acquireRgHeartbeatSlot(heartbeatKey, 'match progress heartbeat', {
       cadence: 'on tracking tick',
+      heartbeatKey,
+      matchId: activeHeartbeatMatchId,
     });
-  }, [getActiveMatchProgressTarget, heartbeatEnabled]);
+
+    if (!heartbeatSlot.acquired) {
+      return undefined;
+    }
+
+    heartbeatSlotOwnerRef.current = {
+      key: heartbeatKey,
+      ownerId: heartbeatSlot.ownerId,
+    };
+
+    const stopHeartbeatTrace = rgPerfTrackResource('heartbeat', 'match progress heartbeat', {
+      cadence: 'on tracking tick',
+      heartbeatKey,
+      matchId: activeHeartbeatMatchId,
+    });
+
+    return () => {
+      stopHeartbeatTrace();
+      heartbeatSlot.release();
+      if (heartbeatSlotOwnerRef.current?.ownerId === heartbeatSlot.ownerId) {
+        heartbeatSlotOwnerRef.current = null;
+      }
+    };
+  }, [activeHeartbeatMatchId, heartbeatEnabled]);
+
+  const canSendMatchProgressHeartbeat = useCallback((matchId: string) => {
+    const heartbeatKey = `match-progress:${matchId}`;
+    const owner = heartbeatSlotOwnerRef.current;
+    const canSend = canUseRgHeartbeatSlot(
+      heartbeatKey,
+      owner?.key === heartbeatKey ? owner.ownerId : undefined,
+    );
+
+    if (!canSend) {
+      rgPerfMark('progress heartbeat skipped', {
+        heartbeatKey,
+        matchId,
+        reason: 'duplicate-heartbeat-owner',
+      });
+    }
+
+    return canSend;
+  }, []);
 
   const pushRunningMatchProgress = useCallback(async (input: UpdateRunningMatchProgressInput) => {
     const syncedProgress = buildSyncedMatchProgressSnapshot(input);
-    const endHeartbeatApiTrace = rgPerfMeasureStart('progress heartbeat API', {
+    const heartbeatKey = `match-progress:${input.matchId}`;
+    const heartbeatRequest = runRgHeartbeatSingleFlight(heartbeatKey, async () => {
+      const endHeartbeatApiTrace = rgPerfMeasureStart('progress heartbeat API', {
+        heartbeatKey,
+        matchId: input.matchId,
+        status: input.status,
+      });
+      try {
+        const nextStatus = await callbackRef.current.updateRunningMatchProgress({
+          ...input,
+          currentPace: syncedProgress.currentPace,
+        });
+        endHeartbeatApiTrace({ success: true });
+        return nextStatus;
+      } catch (progressError) {
+        endHeartbeatApiTrace({ success: false });
+        throw progressError;
+      }
+    }, {
       matchId: input.matchId,
       status: input.status,
     });
-    let nextStatus: RunningMatchStatusResponse;
-    try {
-      nextStatus = await callbackRef.current.updateRunningMatchProgress({
-        ...input,
-        currentPace: syncedProgress.currentPace,
-      });
-      endHeartbeatApiTrace({ success: true });
-    } catch (progressError) {
-      endHeartbeatApiTrace({ success: false });
-      throw progressError;
+
+    if (!heartbeatRequest.started) {
+      return heartbeatRequest.promise;
     }
+
+    const nextStatus = await heartbeatRequest.promise;
     callbackRef.current.setLastSyncedMatchProgress(syncedProgress);
 
     if (!firstLiveProgressReceivedRef.current) {
@@ -152,6 +218,10 @@ export function useMatchProgressSync({
       return;
     }
 
+    if (!canSendMatchProgressHeartbeat(target.matchId)) {
+      return;
+    }
+
     const progress = callbackRef.current.buildDisplayedMatchProgress(snapshot);
     await pushRunningMatchProgress({
       matchId: target.matchId,
@@ -161,7 +231,7 @@ export function useMatchProgressSync({
       status: nextStatus,
     });
     matchProgressHeartbeatRef.current = Date.now();
-  }, [getActiveMatchProgressTarget, matchProgressHeartbeatRef, pushRunningMatchProgress]);
+  }, [canSendMatchProgressHeartbeat, getActiveMatchProgressTarget, matchProgressHeartbeatRef, pushRunningMatchProgress]);
 
   const refreshMatchProgressHeartbeat = useCallback((snapshot: BackgroundRunTrackingSnapshot) => {
     const now = Date.now();
@@ -183,6 +253,10 @@ export function useMatchProgressSync({
       return;
     }
 
+    if (!canSendMatchProgressHeartbeat(target.matchId)) {
+      return;
+    }
+
     matchProgressHeartbeatRef.current = now;
     const progress = callbackRef.current.buildDisplayedMatchProgress(snapshot);
     rgPerfMark('progress heartbeat start', {
@@ -198,7 +272,7 @@ export function useMatchProgressSync({
     }).catch(() => {
       // Keep the run going even if the optional match heartbeat fails.
     });
-  }, [getActiveMatchProgressTarget, heartbeatEnabled, matchProgressHeartbeatRef, pushRunningMatchProgress]);
+  }, [canSendMatchProgressHeartbeat, getActiveMatchProgressTarget, heartbeatEnabled, matchProgressHeartbeatRef, pushRunningMatchProgress]);
 
   return {
     getActiveMatchProgressTarget,
