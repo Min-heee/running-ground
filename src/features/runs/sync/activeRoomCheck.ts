@@ -5,30 +5,66 @@ export type ActiveRoomCheckSource = 'track-run experience' | 'match-room snapsho
 
 type ActiveRoomCheckOptions = {
   fetcher?: () => Promise<RunningMatchRoomResponse>;
+  hardTimeoutMs?: number;
+  routeKey?: string | null;
+  staleResultMs?: number;
   source: ActiveRoomCheckSource;
   throttleMs?: number;
+  uiTimeoutMs?: number;
 };
 
 type ActiveRoomCheckResult = {
-  payload: RunningMatchRoomResponse;
+  completedAtMs: number | null;
+  generation: number;
+  payload: RunningMatchRoomResponse | null;
   requestId: string;
+  routeKey: string | null;
   reused: boolean;
   skipped: boolean;
+  stale: boolean;
+  startedAtMs: number;
+  timedOut: boolean;
 };
 
 type InFlightActiveRoomCheck = {
-  promise: Promise<RunningMatchRoomResponse>;
+  generation: number;
+  promise: Promise<CompletedActiveRoomCheck>;
   requestId: string;
+  routeKey: string | null;
   source: ActiveRoomCheckSource;
+  startedAtMs: number;
 };
 
 type LastActiveRoomCheck = {
   completedAtMs: number;
+  generation: number;
   payload: RunningMatchRoomResponse;
   requestId: string;
+  routeKey: string | null;
+  startedAtMs: number;
 };
 
+type CompletedActiveRoomCheck = {
+  completedAtMs: number;
+  durationMs: number;
+  generation: number;
+  payload: RunningMatchRoomResponse;
+  requestId: string;
+  routeKey: string | null;
+  source: ActiveRoomCheckSource;
+  startedAtMs: number;
+  stale: boolean;
+};
+
+export type ActiveRoomCheckResultSkipReason =
+  | 'timed-out'
+  | 'stale-generation'
+  | 'route-changed'
+  | 'live-match-mounted';
+
 const ACTIVE_ROOM_CHECK_KEY = 'current-user-active-room';
+const ACTIVE_ROOM_CHECK_UI_TIMEOUT_MS = 3_000;
+const ACTIVE_ROOM_CHECK_STALE_RESULT_MS = 5_000;
 const DEFAULT_THROTTLE_MS_BY_SOURCE: Record<ActiveRoomCheckSource, number> = {
   'track-run experience': 5_000,
   'match-room snapshot': 700,
@@ -36,6 +72,7 @@ const DEFAULT_THROTTLE_MS_BY_SOURCE: Record<ActiveRoomCheckSource, number> = {
 const SUPPRESSED_LOG_INTERVAL_MS = 2_000;
 
 let nextRequestSequence = 0;
+let nextGeneration = 0;
 const inFlightChecks = new Map<string, InFlightActiveRoomCheck>();
 const lastChecksBySource = new Map<ActiveRoomCheckSource, LastActiveRoomCheck>();
 const suppressedLogTimes = new Map<string, number>();
@@ -59,10 +96,156 @@ function shouldLogSuppressedEvent(key: string, nowMs: number) {
   return true;
 }
 
+function buildTimedOutResult({
+  generation,
+  requestId,
+  routeKey,
+  source,
+  startedAtMs,
+}: {
+  generation: number;
+  requestId: string;
+  routeKey: string | null;
+  source: ActiveRoomCheckSource;
+  startedAtMs: number;
+}): ActiveRoomCheckResult {
+  rgPerfMark('active room check timed out', {
+    generation,
+    requestId,
+    routeKey,
+    source,
+  });
+
+  return {
+    completedAtMs: null,
+    generation,
+    payload: null,
+    requestId,
+    routeKey,
+    reused: false,
+    skipped: false,
+    stale: true,
+    startedAtMs,
+    timedOut: true,
+  };
+}
+
+function toResultForCaller(
+  completed: CompletedActiveRoomCheck,
+  {
+    routeKey,
+    reused,
+    skipped,
+    uiTimeoutMs,
+  }: {
+    routeKey?: string | null;
+    reused: boolean;
+    skipped: boolean;
+    uiTimeoutMs: number;
+  },
+): ActiveRoomCheckResult {
+  return {
+    completedAtMs: completed.completedAtMs,
+    generation: completed.generation,
+    payload: completed.payload,
+    requestId: completed.requestId,
+    routeKey: routeKey ?? completed.routeKey,
+    reused,
+    skipped,
+    stale: completed.stale || completed.durationMs >= uiTimeoutMs,
+    startedAtMs: completed.startedAtMs,
+    timedOut: false,
+  };
+}
+
+function raceActiveRoomCheckWithTimeout({
+  check,
+  hardTimeoutMs,
+  routeKey,
+  reused,
+  skipped,
+  uiTimeoutMs,
+}: {
+  check: InFlightActiveRoomCheck;
+  hardTimeoutMs: number;
+  routeKey?: string | null;
+  reused: boolean;
+  skipped: boolean;
+  uiTimeoutMs: number;
+}): Promise<ActiveRoomCheckResult> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutTask = new Promise<ActiveRoomCheckResult>((resolve) => {
+    timeoutId = setTimeout(() => {
+      resolve(buildTimedOutResult({
+        generation: check.generation,
+        requestId: check.requestId,
+        routeKey: routeKey ?? check.routeKey,
+        source: check.source,
+        startedAtMs: check.startedAtMs,
+      }));
+    }, hardTimeoutMs);
+  });
+
+  return Promise.race([
+    check.promise.then((completed) => toResultForCaller(completed, {
+      routeKey,
+      reused,
+      skipped,
+      uiTimeoutMs,
+    })),
+    timeoutTask,
+  ]).finally(() => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+  });
+}
+
+export function getActiveRoomCheckResultSkipReason({
+  currentMatchId,
+  currentRouteKey,
+  isLiveMatchMounted,
+  result,
+}: {
+  currentMatchId?: string | null;
+  currentRouteKey?: string | null;
+  isLiveMatchMounted?: boolean;
+  result: ActiveRoomCheckResult;
+}): ActiveRoomCheckResultSkipReason | null {
+  if (result.timedOut) {
+    return 'timed-out';
+  }
+
+  if (result.stale) {
+    return 'stale-generation';
+  }
+
+  if (currentRouteKey && result.routeKey && currentRouteKey !== result.routeKey) {
+    return 'route-changed';
+  }
+
+  if (isLiveMatchMounted) {
+    const room = result.payload?.room ?? null;
+    if (!room || room.state === 'waiting' || room.state === 'arming' || room.state === 'countdown') {
+      return 'live-match-mounted';
+    }
+
+    if (currentMatchId && room.linkedMatchId && room.linkedMatchId !== currentMatchId) {
+      return 'live-match-mounted';
+    }
+  }
+
+  return null;
+}
+
 export async function runActiveRoomCheck({
   fetcher,
+  hardTimeoutMs = ACTIVE_ROOM_CHECK_UI_TIMEOUT_MS,
+  routeKey = null,
+  staleResultMs = ACTIVE_ROOM_CHECK_STALE_RESULT_MS,
   source,
   throttleMs = DEFAULT_THROTTLE_MS_BY_SOURCE[source],
+  uiTimeoutMs = ACTIVE_ROOM_CHECK_UI_TIMEOUT_MS,
 }: ActiveRoomCheckOptions): Promise<ActiveRoomCheckResult> {
   const existingCheck = inFlightChecks.get(ACTIVE_ROOM_CHECK_KEY);
 
@@ -77,10 +260,15 @@ export async function runActiveRoomCheck({
     }
 
     return {
-      payload: await existingCheck.promise,
-      requestId: existingCheck.requestId,
+      ...await raceActiveRoomCheckWithTimeout({
+        check: existingCheck,
+        hardTimeoutMs,
+        routeKey,
+        reused: true,
+        skipped: false,
+        uiTimeoutMs,
+      }),
       reused: true,
-      skipped: false,
     };
   }
 
@@ -99,16 +287,27 @@ export async function runActiveRoomCheck({
     }
 
     return {
+      completedAtMs: lastCheck.completedAtMs,
+      generation: lastCheck.generation,
       payload: lastCheck.payload,
       requestId: lastCheck.requestId,
+      routeKey,
       reused: false,
       skipped: true,
+      stale: false,
+      startedAtMs: lastCheck.startedAtMs,
+      timedOut: false,
     };
   }
 
   const requestId = createRequestId(source);
+  nextGeneration += 1;
+  const generation = nextGeneration;
+  const startedAtMs = getNowMs();
   const endActiveRoomCheckTrace = rgPerfMeasureStart('active room check', {
+    generation,
     requestId,
+    routeKey,
     source,
   });
 
@@ -118,21 +317,52 @@ export async function runActiveRoomCheck({
       return activeFetcher();
     })
     .then((payload) => {
+      const completedAtMs = getNowMs();
+      const durationMs = completedAtMs - startedAtMs;
+      const stale = durationMs >= staleResultMs;
       endActiveRoomCheckTrace({
+        generation,
         requestId,
+        routeKey,
         roomId: payload.room?.roomId ?? null,
+        stale,
         success: true,
       });
-      lastChecksBySource.set(source, {
-        completedAtMs: getNowMs(),
+      if (stale) {
+        rgPerfMark('active room result skipped stale generation', {
+          durationMs,
+          generation,
+          requestId,
+          routeKey,
+          source,
+        });
+      } else {
+        lastChecksBySource.set(source, {
+          completedAtMs,
+          generation,
+          payload,
+          requestId,
+          routeKey,
+          startedAtMs,
+        });
+      }
+      return {
+        completedAtMs,
+        durationMs,
+        generation,
         payload,
         requestId,
-      });
-      return payload;
+        routeKey,
+        source,
+        startedAtMs,
+        stale,
+      };
     })
     .catch((error: unknown) => {
       endActiveRoomCheckTrace({
+        generation,
         requestId,
+        routeKey,
         success: false,
       });
       throw error;
@@ -146,21 +376,34 @@ export async function runActiveRoomCheck({
 
   // Register before dynamic imports or network work start so concurrent callers share this request.
   inFlightChecks.set(ACTIVE_ROOM_CHECK_KEY, {
+    generation,
     promise,
     requestId,
+    routeKey,
     source,
+    startedAtMs,
   });
 
-  return {
-    payload: await promise,
-    requestId,
+  return raceActiveRoomCheckWithTimeout({
+    check: {
+      generation,
+      promise,
+      requestId,
+      routeKey,
+      source,
+      startedAtMs,
+    },
+    hardTimeoutMs,
+    routeKey,
     reused: false,
     skipped: false,
-  };
+    uiTimeoutMs,
+  });
 }
 
 export function resetActiveRoomCheckForTest() {
   nextRequestSequence = 0;
+  nextGeneration = 0;
   inFlightChecks.clear();
   lastChecksBySource.clear();
   suppressedLogTimes.clear();

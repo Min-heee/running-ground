@@ -95,6 +95,18 @@ test('android active starts foreground once and clears any background task on re
   assert.equal(state.backgroundStops, 1);
 });
 
+test('android active state never calls native background task start from a clean foreground run', async () => {
+  const { adapter, state } = createFakeLocationAdapter('android');
+  const controller = createLocationTaskController(adapter);
+
+  await controller.startLocationTask({ appState: 'active' });
+
+  assert.equal(state.foregroundStarted, true);
+  assert.equal(state.backgroundStarted, false);
+  assert.equal(state.backgroundStarts, 0);
+  assert.equal(state.operations.includes('start-background'), false);
+});
+
 test('pause stop removes foreground watcher and stops background task', async () => {
   const { adapter, state } = createFakeLocationAdapter('ios');
   const controller = createLocationTaskController(adapter);

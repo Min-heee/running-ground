@@ -4,7 +4,10 @@ import { fetchFriendLeaderboard } from '@/services/friendsService';
 import { getApiErrorMessage } from '@/services/apiError';
 import type { FriendLeaderboardResponse, RunningMatchRoom } from '@/lib/api/types';
 import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard';
-import { runActiveRoomCheck } from '@/features/runs/sync/activeRoomCheck';
+import {
+  getActiveRoomCheckResultSkipReason,
+  runActiveRoomCheck,
+} from '@/features/runs/sync/activeRoomCheck';
 import {
   buildActiveRoomResultLogDetail,
   buildActiveRoomSnapshotKey,
@@ -118,15 +121,55 @@ export function useRoomSnapshot() {
     setRoom(nextRoom);
   }, []);
 
+  const buildMatchRoomActiveRoomCheckRouteKey = useCallback(() => [
+    'match-room',
+    screenFocusedRef.current ? 'focused' : 'blurred',
+    pollingPausedRef.current ? 'paused' : 'polling',
+    roomRef.current?.roomId ?? 'no-room',
+    roomRef.current?.linkedMatchId ?? 'no-match',
+  ].join(':'), []);
+
   const loadRoom = useCallback(async () => {
     if (pollingPausedRef.current || !screenFocusedRef.current) {
       return null;
     }
 
     try {
-      const { payload } = await runActiveRoomCheck({
+      const routeKey = buildMatchRoomActiveRoomCheckRouteKey();
+      const activeRoomCheckResult = await runActiveRoomCheck({
+        routeKey,
         source: 'match-room snapshot',
       });
+      const currentRouteKey = buildMatchRoomActiveRoomCheckRouteKey();
+      const skipReason = getActiveRoomCheckResultSkipReason({
+        currentMatchId: roomRef.current?.linkedMatchId ?? null,
+        currentRouteKey,
+        result: activeRoomCheckResult,
+      });
+
+      if (skipReason) {
+        const logDetail = {
+          currentRouteKey,
+          generation: activeRoomCheckResult.generation,
+          reason: skipReason,
+          requestId: activeRoomCheckResult.requestId,
+          routeKey: activeRoomCheckResult.routeKey,
+          source: 'match-room snapshot',
+        };
+
+        if (skipReason === 'stale-generation') {
+          rgPerfMark('active room result skipped stale generation', logDetail);
+        } else {
+          rgPerfMark('active room result skipped duplicate', logDetail);
+        }
+        return null;
+      }
+
+      const payload = activeRoomCheckResult.payload;
+      if (!payload) {
+        return null;
+      }
+
       if (!mountedRef.current || pollingPausedRef.current) {
         rgPerfMark('active room result skipped duplicate', {
           reason: !mountedRef.current ? 'unmounted' : 'already navigating',
@@ -196,7 +239,7 @@ export function useRoomSnapshot() {
       setError(getApiErrorMessage(roomError, '대기실을 불러오지 못했어.'));
       return null;
     }
-  }, [commitRoom, currentUserTag, syncServerClock]);
+  }, [buildMatchRoomActiveRoomCheckRouteKey, commitRoom, currentUserTag, syncServerClock]);
 
   useEffect(() => () => {
     mountedRef.current = false;

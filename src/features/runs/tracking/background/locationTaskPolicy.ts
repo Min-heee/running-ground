@@ -72,7 +72,7 @@ export function createLocationTaskController(adapter: LocationTaskControllerAdap
       const useBackgroundLocationTask = shouldUseBackgroundLocationTask(adapter.platform, appState);
 
       if (adapter.platform === 'android' && useForegroundLocationWatch && !useBackgroundLocationTask) {
-        rgPerfMark('background task start deferred because foreground active', {
+        rgPerfMark('background task start blocked foreground', {
           appState,
         });
       }

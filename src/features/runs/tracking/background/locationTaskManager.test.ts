@@ -19,6 +19,7 @@ function createDeferred() {
 function createFakeManagerAdapter() {
   const state = {
     marks: [] as string[],
+    measures: [] as string[],
     starts: [] as AppStateStatus[],
     stops: 0,
   };
@@ -34,7 +35,10 @@ function createFakeManagerAdapter() {
     mark: (label) => {
       state.marks.push(label);
     },
-    measureStart: () => () => 0,
+    measureStart: (label) => {
+      state.measures.push(label);
+      return () => 0;
+    },
     setTimeout: globalThis.setTimeout,
     clearTimeout: globalThis.clearTimeout,
   };
@@ -95,6 +99,55 @@ test('location task manager debounces app state sync to the latest state', async
   await secondSync;
 
   assert.deepEqual(state.starts, ['active']);
+});
+
+test('location task manager traces active starts as foreground GPS and blocks background native start', async () => {
+  const { adapter, startDeferred, state } = createFakeManagerAdapter();
+  const manager = createLocationTaskManager(adapter);
+
+  const start = manager.startManagedLocationTask({ appState: 'active', trackingKey: 'match-1' });
+
+  assert.deepEqual(state.measures, ['GPS tracking start']);
+  assert.ok(state.marks.includes('background task start blocked foreground'));
+
+  startDeferred.resolve();
+  await start;
+});
+
+test('location task manager cancels detached active run without a tracking key before native call', async () => {
+  const { adapter, state } = createFakeManagerAdapter();
+  const manager = createLocationTaskManager(adapter);
+
+  await manager.startManagedLocationTask({
+    appState: 'active',
+    detachLocationTask: true,
+    trackingKey: null,
+  });
+
+  assert.equal(state.starts.length, 0);
+  assert.ok(state.marks.includes('GPS tracking start detached from navigation'));
+  assert.ok(state.marks.includes('background task start canceled before native call'));
+});
+
+test('location task manager ignores late background start after timeout', async () => {
+  const { adapter, startDeferred, state } = createFakeManagerAdapter();
+  const immediateTimeoutAdapter: LocationTaskManagerAdapter = {
+    ...adapter,
+    setTimeout: ((callback: () => void) => globalThis.setTimeout(callback, 0)) as typeof globalThis.setTimeout,
+  };
+  const manager = createLocationTaskManager(immediateTimeoutAdapter);
+
+  await manager.startManagedLocationTask({ appState: 'background', trackingKey: 'match-1' });
+
+  assert.ok(state.marks.includes('background task start timed out detached'));
+  assert.deepEqual(state.starts, ['background']);
+
+  startDeferred.resolve();
+  await new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+
+  assert.ok(state.marks.includes('background task start ignored stale appState'));
 });
 
 test('location task manager stop clears pending location source state', async () => {

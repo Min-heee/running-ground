@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   ScrollView,
   useWindowDimensions,
@@ -54,7 +54,10 @@ import {
   getRunningMatchBlockerFromError,
   runStaleRoomCleanupWithTimeout,
 } from '@/features/runs/sync/staleRoomCleanup';
-import { runActiveRoomCheck } from '@/features/runs/sync/activeRoomCheck';
+import {
+  getActiveRoomCheckResultSkipReason,
+  runActiveRoomCheck,
+} from '@/features/runs/sync/activeRoomCheck';
 import {
   buildActiveRoomResultLogDetail,
   buildActiveRoomSnapshotKey,
@@ -334,6 +337,7 @@ export function TrackRunExperience({
   const forfeitedMatchIdsRef = useRef<Set<string>>(new Set());
   const joinMatchRoomInFlightRef = useRef(false);
   const lastHandledActiveRoomSnapshotKeyRef = useRef<string | null>(null);
+  const liveMatchMountedRef = useRef<{ matchId: string | null; mode: 'duel' | 'group'; mountedAtMs: number } | null>(null);
 
   useEffect(() => () => {
     isMountedRef.current = false;
@@ -1084,11 +1088,62 @@ export function TrackRunExperience({
     return payload.items;
   };
 
+  const buildTrackRunActiveRoomCheckRouteKey = () => [
+    'track-run',
+    matchMode,
+    matchRoom?.roomId ?? visibleMatchRoom?.roomId ?? 'no-room',
+    focusedDuelMatchIdRef.current ?? focusedGroupMatchIdRef.current ?? roomLinkedMatchContext?.matchId ?? 'no-match',
+    forceOpenActiveMatch ? 'arena' : `page-${liveArenaPage}`,
+  ].join(':');
+
+  const getCurrentLiveMatchId = () => (
+    liveMatchMountedRef.current?.matchId
+    ?? focusedDuelMatchIdRef.current
+    ?? focusedGroupMatchIdRef.current
+    ?? roomLinkedMatchContext?.matchId
+    ?? null
+  );
+
   const loadMatchRoom = async () => {
     try {
-      const { payload } = await runActiveRoomCheck({
+      const routeKey = buildTrackRunActiveRoomCheckRouteKey();
+      const activeRoomCheckResult = await runActiveRoomCheck({
+        routeKey,
         source: 'track-run experience',
       });
+      const currentRouteKey = buildTrackRunActiveRoomCheckRouteKey();
+      const skipReason = getActiveRoomCheckResultSkipReason({
+        currentMatchId: getCurrentLiveMatchId(),
+        currentRouteKey,
+        isLiveMatchMounted: Boolean(liveMatchMountedRef.current),
+        result: activeRoomCheckResult,
+      });
+
+      if (skipReason) {
+        const logDetail = {
+          currentRouteKey,
+          generation: activeRoomCheckResult.generation,
+          reason: skipReason,
+          requestId: activeRoomCheckResult.requestId,
+          routeKey: activeRoomCheckResult.routeKey,
+          source: 'track-run experience',
+        };
+
+        if (skipReason === 'stale-generation') {
+          rgPerfMark('active room result skipped stale generation', logDetail);
+        } else if (skipReason === 'live-match-mounted') {
+          rgPerfMark('active room result ignored after live match mounted', logDetail);
+        } else {
+          rgPerfMark('active room result skipped duplicate', logDetail);
+        }
+        return matchRoom;
+      }
+
+      const payload = activeRoomCheckResult.payload;
+      if (!payload) {
+        return matchRoom;
+      }
+
       if (!isMountedRef.current) {
         rgPerfMark('active room result skipped duplicate', {
           reason: 'unmounted',
@@ -1196,6 +1251,14 @@ export function TrackRunExperience({
     loadDuelMatchStatus,
     loadGroupMatchStatus,
   });
+  const handleLiveMatchMounted = useCallback((input: { matchId?: string | null; mode: 'duel' | 'group'; source: string }) => {
+    liveMatchMountedRef.current = {
+      matchId: input.matchId ?? null,
+      mode: input.mode,
+      mountedAtMs: Date.now(),
+    };
+    markLiveMatchMounted(input);
+  }, [markLiveMatchMounted]);
 
   const navigateToMatchRoomWithTrace = (source: string, roomId?: string | null) => {
     const endNavigationTrace = rgPerfMeasureStart('navigation to lobby', {
@@ -2303,7 +2366,7 @@ export function TrackRunExperience({
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
     deferHeavyContent: !liveMatchHeavyWorkReady,
-    onLiveMatchMounted: markLiveMatchMounted,
+    onLiveMatchMounted: handleLiveMatchMounted,
     groupLiveStandings,
     groupArenaUsesLivePace,
     liveMatchTitle,

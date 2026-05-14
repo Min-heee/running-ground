@@ -22,12 +22,21 @@ type PendingAppStateSync = {
 };
 
 const APP_STATE_LOCATION_TASK_DEBOUNCE_MS = 500;
+const LOCATION_TASK_START_TIMEOUT_MS = 3_000;
 
 function buildManagedLocationTaskKey(options?: ManagedLocationTaskOptions) {
   return [
     options?.trackingKey ?? 'run',
     options?.appState ?? 'active',
   ].join(':');
+}
+
+function resolveManagedAppState(options?: ManagedLocationTaskOptions) {
+  return options?.appState ?? 'active';
+}
+
+function isForegroundActiveTask(options?: ManagedLocationTaskOptions) {
+  return resolveManagedAppState(options) === 'active';
 }
 
 export function createLocationTaskManager(adapter: LocationTaskManagerAdapter) {
@@ -38,10 +47,21 @@ export function createLocationTaskManager(adapter: LocationTaskManagerAdapter) {
 
   const startLocationTaskWithTrace = async (options?: ManagedLocationTaskOptions) => {
     const taskKey = buildManagedLocationTaskKey(options);
+    const appState = resolveManagedAppState(options);
+    const isForegroundActive = isForegroundActiveTask(options);
+
+    if (isForegroundActive && options?.detachLocationTask && !options.trackingKey) {
+      adapter.mark('background task start canceled before native call', {
+        appState,
+        taskKey,
+        trackingKey: null,
+      });
+      return;
+    }
 
     if (locationTaskStartRequest?.key === taskKey) {
       adapter.mark('background task start skipped already starting', {
-        appState: options?.appState ?? null,
+        appState,
         taskKey,
         trackingKey: options?.trackingKey ?? null,
       });
@@ -50,36 +70,89 @@ export function createLocationTaskManager(adapter: LocationTaskManagerAdapter) {
 
     if (activeLocationTaskKey === taskKey) {
       adapter.mark('background task start skipped already started', {
-        appState: options?.appState ?? null,
+        appState,
         taskKey,
         trackingKey: options?.trackingKey ?? null,
       });
       return;
     }
 
-    const endBackgroundTaskStartTrace = adapter.measureStart('background task start', {
-      appState: options?.appState ?? null,
+    if (isForegroundActive) {
+      adapter.mark('background task start blocked foreground', {
+        appState,
+        taskKey,
+        trackingKey: options?.trackingKey ?? null,
+      });
+    }
+
+    const traceLabel = isForegroundActive ? 'GPS tracking start' : 'background task start';
+    const endLocationTaskStartTrace = adapter.measureStart(traceLabel, {
+      appState,
       detached: Boolean(options?.detachLocationTask),
       taskKey,
       trackingKey: options?.trackingKey ?? null,
     });
     const startGeneration = locationTaskGeneration;
+    let traceEnded = false;
+    let timedOut = false;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
-    const startPromise = adapter.startLocationTask({ appState: options?.appState })
+    const finishTrace = (detail: Record<string, string | number | boolean | null>) => {
+      if (traceEnded) {
+        return;
+      }
+
+      traceEnded = true;
+      if (timeoutId) {
+        adapter.clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      endLocationTaskStartTrace(detail);
+    };
+
+    const markIgnoredLateResult = (reason: string) => {
+      adapter.mark('background task start ignored stale appState', {
+        appState,
+        reason,
+        taskKey,
+        trackingKey: options?.trackingKey ?? null,
+      });
+    };
+
+    const nativeStartPromise = adapter.startLocationTask({ appState })
       .then(() => {
+        if (timedOut) {
+          markIgnoredLateResult('timed out');
+          return;
+        }
+
         if (
           locationTaskGeneration === startGeneration
           && locationTaskStartRequest?.key === taskKey
         ) {
           activeLocationTaskKey = taskKey;
+          finishTrace({ success: true });
+          return;
         }
-        endBackgroundTaskStartTrace({ success: true });
+
+        markIgnoredLateResult('generation changed');
+        finishTrace({ success: false, stale: true });
       })
       .catch((taskError) => {
-        endBackgroundTaskStartTrace({ success: false });
+        if (timedOut) {
+          markIgnoredLateResult('timed out error');
+          return;
+        }
+
+        finishTrace({ success: false });
         throw taskError;
       })
       .finally(() => {
+        if (timeoutId) {
+          adapter.clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+
         if (
           locationTaskGeneration === startGeneration
           && locationTaskStartRequest?.key === taskKey
@@ -87,6 +160,25 @@ export function createLocationTaskManager(adapter: LocationTaskManagerAdapter) {
           locationTaskStartRequest = null;
         }
       });
+
+    const startPromise = isForegroundActive
+      ? nativeStartPromise
+      : Promise.race([
+        nativeStartPromise,
+        new Promise<void>((resolve) => {
+          timeoutId = adapter.setTimeout(() => {
+            timedOut = true;
+            adapter.mark('background task start timed out detached', {
+              appState,
+              taskKey,
+              timeoutMs: LOCATION_TASK_START_TIMEOUT_MS,
+              trackingKey: options?.trackingKey ?? null,
+            });
+            finishTrace({ success: false, timedOut: true });
+            resolve();
+          }, LOCATION_TASK_START_TIMEOUT_MS);
+        }),
+      ]);
 
     locationTaskStartRequest = { key: taskKey, promise: startPromise };
     return startPromise;

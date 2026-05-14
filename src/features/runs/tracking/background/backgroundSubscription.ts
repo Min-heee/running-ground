@@ -10,8 +10,9 @@ let stopBackgroundLocationTaskTrace: (() => void) | null = null;
 let backgroundLocationTaskStartPromise: Promise<boolean> | null = null;
 let backgroundLocationTaskKnownStarted = false;
 let shouldKeepBackgroundLocationTask = false;
+let backgroundLocationTaskGeneration = 0;
 
-const BACKGROUND_TASK_START_TIMEOUT_MS = 4_000;
+const BACKGROUND_TASK_START_TIMEOUT_MS = 3_000;
 
 async function stopBackgroundLocationTaskByName(taskName: string) {
   const started = await Location.hasStartedLocationUpdatesAsync(taskName);
@@ -21,8 +22,31 @@ async function stopBackgroundLocationTaskByName(taskName: string) {
   }
 }
 
-async function runBackgroundLocationTaskStart() {
+function isStaleBackgroundTaskStart(startGeneration: number) {
+  return backgroundLocationTaskGeneration !== startGeneration || !shouldKeepBackgroundLocationTask;
+}
+
+function markStaleBackgroundTaskStart(reason: string) {
+  rgPerfMark('background task start ignored stale appState', {
+    reason,
+    taskName: BACKGROUND_RUN_TASK_NAME,
+  });
+}
+
+async function runBackgroundLocationTaskStart(startGeneration: number) {
+  if (isStaleBackgroundTaskStart(startGeneration)) {
+    rgPerfMark('background task start canceled before native call', {
+      taskName: BACKGROUND_RUN_TASK_NAME,
+    });
+    return false;
+  }
+
   const started = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_RUN_TASK_NAME);
+
+  if (isStaleBackgroundTaskStart(startGeneration)) {
+    markStaleBackgroundTaskStart('generation changed before native start');
+    return false;
+  }
 
   if (started) {
     if (!stopBackgroundLocationTaskTrace) {
@@ -36,7 +60,8 @@ async function runBackgroundLocationTaskStart() {
   try {
     await Location.startLocationUpdatesAsync(BACKGROUND_RUN_TASK_NAME, buildLocationTaskOptions());
 
-    if (!shouldKeepBackgroundLocationTask) {
+    if (isStaleBackgroundTaskStart(startGeneration)) {
+      markStaleBackgroundTaskStart('generation changed after native start');
       await stopBackgroundLocationTaskByName(BACKGROUND_RUN_TASK_NAME);
       return false;
     }
@@ -54,7 +79,7 @@ async function runBackgroundLocationTaskStart() {
 function withBackgroundStartTimeout(startPromise: Promise<boolean>) {
   return new Promise<boolean>((resolve) => {
     const timeoutId = setTimeout(() => {
-      rgPerfMark('background task start deferred because timeout', {
+      rgPerfMark('background task start timed out detached', {
         taskName: BACKGROUND_RUN_TASK_NAME,
         timeoutMs: BACKGROUND_TASK_START_TIMEOUT_MS,
       });
@@ -74,7 +99,14 @@ function withBackgroundStartTimeout(startPromise: Promise<boolean>) {
 }
 
 export async function stopBackgroundLocationTasksIfNeeded() {
+  if (backgroundLocationTaskStartPromise) {
+    rgPerfMark('background task start canceled before native call', {
+      taskName: BACKGROUND_RUN_TASK_NAME,
+    });
+  }
+
   shouldKeepBackgroundLocationTask = false;
+  backgroundLocationTaskGeneration += 1;
 
   for (const taskName of BACKGROUND_LOCATION_TASK_NAMES) {
     await stopBackgroundLocationTaskByName(taskName);
@@ -102,9 +134,13 @@ export async function startBackgroundLocationTaskIfNeeded() {
     return withBackgroundStartTimeout(backgroundLocationTaskStartPromise);
   }
 
-  backgroundLocationTaskStartPromise = runBackgroundLocationTaskStart()
+  const startGeneration = backgroundLocationTaskGeneration;
+
+  backgroundLocationTaskStartPromise = runBackgroundLocationTaskStart(startGeneration)
     .then((started) => {
-      backgroundLocationTaskKnownStarted = started;
+      if (backgroundLocationTaskGeneration === startGeneration) {
+        backgroundLocationTaskKnownStarted = started;
+      }
       return started;
     })
     .finally(() => {
