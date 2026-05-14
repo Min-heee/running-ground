@@ -1,4 +1,5 @@
 import type { AppStateStatus } from 'react-native';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 export type LocationTaskPlatform = 'android' | 'ios' | 'web' | string;
 
@@ -69,6 +70,12 @@ export function createLocationTaskController(adapter: LocationTaskControllerAdap
       const appState = policy.appState ?? 'active';
       const useForegroundLocationWatch = shouldUseForegroundLocationWatch(adapter.platform, appState);
       const useBackgroundLocationTask = shouldUseBackgroundLocationTask(adapter.platform, appState);
+
+      if (adapter.platform === 'android' && useForegroundLocationWatch && !useBackgroundLocationTask) {
+        rgPerfMark('background task start deferred because foreground active', {
+          appState,
+        });
+      }
 
       if (useForegroundLocationWatch && useBackgroundLocationTask) {
         await adapter.startForegroundLocationWatch();

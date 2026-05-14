@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import {
   getBackgroundRunElapsedSeconds,
@@ -95,6 +95,9 @@ export function useRunTrackingFlow({
   refreshStaleMatchArtifacts,
   matchProgressHeartbeatEnabled = true,
 }: UseRunTrackingFlowInput) {
+  const gpsTrackingStartKeyRef = useRef<string | null>(null);
+  const gpsTrackingStartPromiseRef = useRef<Promise<void> | null>(null);
+
   const syncElapsedSeconds = (nextElapsedSeconds: number) => {
     elapsedSecondsRef.current = nextElapsedSeconds;
     setElapsedSeconds(nextElapsedSeconds);
@@ -333,7 +336,7 @@ export function useRunTrackingFlow({
     autoStartingMatchTrackingRef.current = true;
     autoStartedMatchIdRef.current = matchId;
 
-    void handleStartTracking(options)
+    void handleStartTracking({ ...options, matchId })
       .finally(() => {
         autoStartingMatchTrackingRef.current = false;
         if (getBackgroundRunTrackingSnapshot({ cloneRoute: false }).status !== 'running') {
@@ -342,7 +345,7 @@ export function useRunTrackingFlow({
       });
   };
 
-  const handleStartTracking = async (options?: { allowCountdownWarmup?: boolean }) => {
+  const handleStartTrackingInternal = async (options?: { allowCountdownWarmup?: boolean; matchId?: string }) => {
     if (Platform.OS === 'web') {
       setError('실시간 러닝 측정은 iPhone이나 Android 앱에서 사용할 수 있어.');
       return;
@@ -416,9 +419,17 @@ export function useRunTrackingFlow({
         }
       }
 
-      await startBackgroundRunTracking(undefined, { appState: appStateRef.current });
+      const shouldDetachLocationTask = Platform.OS === 'android' && matchMode !== 'solo';
+      await startBackgroundRunTracking(undefined, {
+        appState: appStateRef.current,
+        detachLocationTask: shouldDetachLocationTask,
+      });
       syncFromBackgroundTracking();
-      endGpsStartTrace({ success: true, status: 'running' });
+      endGpsStartTrace({
+        detachedLocationTask: shouldDetachLocationTask,
+        success: true,
+        status: 'running',
+      });
 
       try {
         if (liveShareEnabledRef.current) {
@@ -449,6 +460,29 @@ export function useRunTrackingFlow({
       }).catch(() => {});
       setStatus('idle');
     }
+  };
+
+  const handleStartTracking = (options?: { allowCountdownWarmup?: boolean; matchId?: string }) => {
+    const trackingStartKey = options?.matchId ?? (matchMode === 'solo' ? 'solo' : `${matchMode}:manual`);
+
+    if (gpsTrackingStartKeyRef.current === trackingStartKey && gpsTrackingStartPromiseRef.current) {
+      rgPerfMark('GPS tracking start skipped duplicate', {
+        matchId: options?.matchId ?? null,
+        trackingStartKey,
+      });
+      return gpsTrackingStartPromiseRef.current;
+    }
+
+    const startPromise = handleStartTrackingInternal(options).finally(() => {
+      if (gpsTrackingStartKeyRef.current === trackingStartKey) {
+        gpsTrackingStartKeyRef.current = null;
+        gpsTrackingStartPromiseRef.current = null;
+      }
+    });
+
+    gpsTrackingStartKeyRef.current = trackingStartKey;
+    gpsTrackingStartPromiseRef.current = startPromise;
+    return startPromise;
   };
 
   const handlePauseTracking = async () => {

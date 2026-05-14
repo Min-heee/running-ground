@@ -22,7 +22,7 @@ import {
   stopLocationTaskIfNeeded,
 } from '@/features/runs/tracking/background/subscriptions';
 import { resolveLocationTimestampMs } from '@/features/runs/tracking/background/locationDistance';
-import { rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 export type {
   BackgroundRunTrackingSnapshot,
@@ -32,6 +32,7 @@ export type {
 
 export type StartBackgroundRunTrackingOptions = {
   appState?: AppStateStatus;
+  detachLocationTask?: boolean;
 };
 
 const ABANDONED_TRACKING_MAX_ELAPSED_MS = 8 * 60 * 60 * 1000;
@@ -84,6 +85,7 @@ function resetAbandonedTrackingIfNeeded(nowMs = Date.now()) {
 async function startLocationTaskWithTrace(options?: StartBackgroundRunTrackingOptions) {
   const endBackgroundTaskStartTrace = rgPerfMeasureStart('background task start', {
     appState: options?.appState ?? null,
+    detached: Boolean(options?.detachLocationTask),
   });
 
   try {
@@ -93,6 +95,15 @@ async function startLocationTaskWithTrace(options?: StartBackgroundRunTrackingOp
     endBackgroundTaskStartTrace({ success: false });
     throw taskError;
   }
+}
+
+function startLocationTaskDetached(options?: StartBackgroundRunTrackingOptions) {
+  rgPerfMark('GPS tracking start detached from navigation', {
+    appState: options?.appState ?? null,
+  });
+  void startLocationTaskWithTrace(options).catch(() => {
+    // Location task startup is best-effort after the UI has already become interactive.
+  });
 }
 
 export function getBackgroundRunTrackingSnapshot(options?: SnapshotCloneOptions) {
@@ -137,6 +148,11 @@ export async function startBackgroundRunTracking(
     pausedAt: null,
   });
   emitSnapshot();
+  if (options?.detachLocationTask) {
+    startLocationTaskDetached(options);
+    return;
+  }
+
   await startLocationTaskWithTrace(options);
 }
 
@@ -174,6 +190,11 @@ export async function resumeBackgroundRunTracking(options?: StartBackgroundRunTr
     accumulatedPausedMs: snapshotState.accumulatedPausedMs + additionalPausedMs,
   });
   emitSnapshot();
+  if (options?.detachLocationTask) {
+    startLocationTaskDetached(options);
+    return;
+  }
+
   await startLocationTaskWithTrace(options);
 }
 

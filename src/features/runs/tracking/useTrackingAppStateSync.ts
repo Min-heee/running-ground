@@ -41,6 +41,8 @@ export function useTrackingAppStateSync({
   finishSoloStartCountdown,
   stopForegroundTrackingHelpers,
 }: UseTrackingAppStateSyncInput) {
+  const appStateLocationSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastLocationTaskAppStateRef = useRef<AppStateStatus | null>(null);
   const callbackRef = useRef({
     clearElapsedTicker,
     finishSoloStartCountdown,
@@ -65,6 +67,28 @@ export function useTrackingAppStateSync({
     syncMatchLifecycleStatus,
   };
 
+  const scheduleLocationTaskAppStateSync = useCallback((nextState: AppStateStatus, delayMs: number) => {
+    if (appStateLocationSyncTimerRef.current) {
+      clearTimeout(appStateLocationSyncTimerRef.current);
+      appStateLocationSyncTimerRef.current = null;
+    }
+
+    if (lastLocationTaskAppStateRef.current === nextState) {
+      return;
+    }
+
+    appStateLocationSyncTimerRef.current = setTimeout(() => {
+      appStateLocationSyncTimerRef.current = null;
+
+      if (trackerStatusRef.current !== 'running') {
+        return;
+      }
+
+      lastLocationTaskAppStateRef.current = nextState;
+      void syncBackgroundRunTrackingAppState(nextState).catch(() => {});
+    }, delayMs);
+  }, [trackerStatusRef]);
+
   const handleBackgroundTrackingSnapshot = useCallback((snapshot: BackgroundRunTrackingSnapshot) => {
     callbackRef.current.syncFromBackgroundTracking(snapshot);
     callbackRef.current.refreshLiveSharingHeartbeat(snapshot);
@@ -85,7 +109,7 @@ export function useTrackingAppStateSync({
       const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
       callbackRef.current.syncFromBackgroundTracking(snapshot);
       if (trackerStatusRef.current === 'running') {
-        void syncBackgroundRunTrackingAppState('active').catch(() => {});
+        scheduleLocationTaskAppStateSync('active', 0);
       }
       void callbackRef.current.refreshStaleMatchArtifacts().catch(() => {});
 
@@ -102,12 +126,12 @@ export function useTrackingAppStateSync({
       && (nextState === 'inactive' || nextState === 'background')
       && trackerStatusRef.current === 'running'
     ) {
-      void syncBackgroundRunTrackingAppState(nextState).catch(() => {});
+      scheduleLocationTaskAppStateSync(nextState, 400);
       void callbackRef.current.syncMatchLifecycleStatus('background').catch(() => {
         // Keep the run going even if the optional lifecycle heartbeat fails.
       });
     }
-  }, [appStateRef, trackerStatusRef]);
+  }, [appStateRef, scheduleLocationTaskAppStateSync, trackerStatusRef]);
 
   useEffect(() => {
     const unsubscribe = subscribeBackgroundRunTracking(
@@ -119,6 +143,10 @@ export function useTrackingAppStateSync({
     return () => {
       unsubscribe();
       appStateSubscription.remove();
+      if (appStateLocationSyncTimerRef.current) {
+        clearTimeout(appStateLocationSyncTimerRef.current);
+        appStateLocationSyncTimerRef.current = null;
+      }
       callbackRef.current.finishSoloStartCountdown(false);
       callbackRef.current.stopForegroundTrackingHelpers();
     };
