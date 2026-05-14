@@ -94,6 +94,11 @@ import {
   shouldUseCenteredMatchCountdown,
   shouldUseFullscreenMatchCountdown,
 } from '@/features/runs/lifecycle/matchStateMachine';
+import {
+  filterUpcomingMatchesForRuntime,
+  isLinkedRoomRuntimeState,
+} from '@/features/runs/lifecycle/matchRuntimeStateSelector';
+import { buildTrackRunRuntimeRouteKey } from '@/features/runs/lifecycle/trackRunRouteState';
 import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
@@ -392,9 +397,18 @@ export function TrackRunExperience({
     onGroupTimeSectionChange: setSelectedGroupTimeSection,
   });
 
+  const linkedRuntimeRoom = isLinkedRoomRuntimeState(visibleMatchRoom)
+    ? visibleMatchRoom
+    : isLinkedRoomRuntimeState(matchRoom)
+      ? matchRoom
+      : null;
+  const hasLinkedRuntimeRoom = Boolean(linkedRuntimeRoom);
   const visibleUpcomingMatches = useMemo(
-    () => upcomingMatches.filter((match) => !shouldHidePastUpcomingMatch(match, syncedNowMs)),
-    [syncedNowMs, upcomingMatches],
+    () => filterUpcomingMatchesForRuntime(
+      upcomingMatches.filter((match) => !shouldHidePastUpcomingMatch(match, syncedNowMs)),
+      linkedRuntimeRoom,
+    ),
+    [linkedRuntimeRoom, syncedNowMs, upcomingMatches],
   );
   const {
     matchOptions,
@@ -1099,37 +1113,32 @@ export function TrackRunExperience({
   };
 
   const buildTrackRunActiveRoomCheckRouteKey = () => {
-    const routeRoomId = matchRoom?.roomId ?? visibleMatchRoom?.roomId ?? focusRoomId ?? null;
-    const routeMatchId = focusedDuelMatchIdRef.current
-      ?? focusedGroupMatchIdRef.current
-      ?? roomLinkedMatchContext?.matchId
-      ?? focusMatchId
-      ?? null;
-    const routeKey = [
-      'track-run',
+    const routeState = buildTrackRunRuntimeRouteKey({
+      focusMatchId,
+      focusRoomId,
+      focusedDuelMatchId: focusedDuelMatchIdRef.current,
+      focusedGroupMatchId: focusedGroupMatchIdRef.current,
+      forceOpenActiveMatch,
+      liveArenaPage,
       matchMode,
-      routeRoomId ?? 'no-room',
-      routeMatchId ?? 'no-match',
-      forceOpenActiveMatch ? 'arena' : `page-${liveArenaPage}`,
-    ].join(':');
-    const correctedByRouteParams = Boolean(
-      (!matchRoom?.roomId && !visibleMatchRoom?.roomId && focusRoomId && routeRoomId === focusRoomId)
-      || (!focusedDuelMatchIdRef.current && !focusedGroupMatchIdRef.current && !roomLinkedMatchContext?.matchId && focusMatchId && routeMatchId === focusMatchId),
-    );
+      matchRoomId: matchRoom?.roomId,
+      roomLinkedMatchId: roomLinkedMatchContext?.matchId,
+      visibleMatchRoomId: visibleMatchRoom?.roomId,
+    });
 
-    if (correctedByRouteParams && lastRouteKeyCorrectionRef.current !== routeKey) {
-      lastRouteKeyCorrectionRef.current = routeKey;
+    if (routeState.correctedByRouteParams && lastRouteKeyCorrectionRef.current !== routeState.routeKey) {
+      lastRouteKeyCorrectionRef.current = routeState.routeKey;
       rgPerfMark('live match route key corrected', {
         focusMatchId: focusMatchId ?? null,
         focusRoomId: focusRoomId ?? null,
-        matchId: routeMatchId,
-        roomId: routeRoomId,
-        routeKey,
+        matchId: routeState.matchId,
+        roomId: routeState.roomId,
+        routeKey: routeState.routeKey,
         source: 'track-run experience',
       });
     }
 
-    return routeKey;
+    return routeState.routeKey;
   };
 
   const getCurrentLiveMatchId = () => (
@@ -2607,7 +2616,7 @@ export function TrackRunExperience({
         readyActionDisabled: matchMode === 'room' ? isCreatingMatchRoom : false,
         onReadyAction: handleReadyAction,
       }}
-      shouldShowReadyScreen={isIdle && !showLiveArena}
+      shouldShowReadyScreen={isIdle && !showLiveArena && !hasLinkedRuntimeRoom}
       shouldShowRoomArmingOverlay={shouldShowRoomArmingOverlay}
       soloStartCountdownSeconds={
         isStarting && typeof soloStartCountdownSeconds === 'number'

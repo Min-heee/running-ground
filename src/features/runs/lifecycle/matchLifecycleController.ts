@@ -6,6 +6,7 @@ import type {
 import {
   shouldPreferRoomLinkedArena,
 } from '@/features/runs/lifecycle/matchStateMachine';
+import { selectPartyRunRuntimeSource } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
 import { shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import type {
   RunningMatchRoom,
@@ -184,13 +185,26 @@ function resolveActiveMatch(input: MatchLifecycleControllerInput): MatchLifecycl
 }
 
 export function buildMatchLifecycleController(input: MatchLifecycleControllerInput): MatchLifecycleController {
-  const partyRoom = input.visibleMatchRoom ?? input.matchRoom;
-  const roomLinkedContext = input.visiblePartyRunFlow.linkedMatchContext ?? input.roomLinkedMatchContext;
-  const warmupMatch = resolveWarmupMatch(input);
-  const activeMatch = resolveActiveMatch(input);
+  const partyRuntime = selectPartyRunRuntimeSource({
+    explicitLinkedMatchContext: input.roomLinkedMatchContext,
+    matchRoom: input.matchRoom,
+    matchRoomFlow: input.matchRoomFlow,
+    visibleMatchRoom: input.visibleMatchRoom,
+    visiblePartyRunFlow: input.visiblePartyRunFlow,
+  });
+  const partyRoom = partyRuntime.room;
+  const partyFlow = partyRuntime.flow;
+  const roomLinkedContext = partyRuntime.linkedMatchContext;
+  const runtimeInput = {
+    ...input,
+    roomLinkedMatchContext: roomLinkedContext,
+    visiblePartyRunFlow: partyFlow,
+  };
+  const warmupMatch = resolveWarmupMatch(runtimeInput);
+  const activeMatch = resolveActiveMatch(runtimeInput);
   const roomId = partyRoom?.roomId ?? null;
   const partyStage = partyRoom?.linkedMatchId
-    ? normalizeStageFromPartyRunPhase(input.visiblePartyRunFlow.phase)
+    ? normalizeStageFromPartyRunPhase(partyFlow.phase)
     : null;
   const directDuelStage = input.matchMode === 'duel'
     ? normalizeStageFromMatchState(input.duelMatchState, input.duelStartCountdownSeconds, input.duelMatchStatus)
@@ -217,10 +231,10 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
     ?? input.fallbackMatchId
     ?? null;
   const isCompetitiveMode = mode === 'duel' || mode === 'group';
-  const shouldPollLinkedMatch = Boolean(roomLinkedContext && (stage === 'countdown' || stage === 'active'));
+  const shouldPollLinkedMatch = Boolean(roomLinkedContext && (stage === 'arming' || stage === 'countdown' || stage === 'active'));
   const shouldNavigateLinkedMatch = Boolean(
     partyRoom
-    && input.visiblePartyRunFlow.canOpenLinkedMatch
+    && partyFlow.canOpenLinkedMatch
     && roomLinkedContext,
   );
   const shouldRunHeartbeat = Boolean(
@@ -239,7 +253,7 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
     roomId,
     matchId,
     shouldPreferArena: Boolean(
-      input.visiblePartyRunFlow.shouldPreferArena
+      partyFlow.shouldPreferArena
       || shouldPreferRoomLinkedArena(partyRoom?.linkedMatchStatus, null)
       || activeMatch
     ),
@@ -253,7 +267,7 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
       ),
       shouldPollLinkedMatch,
       shouldRefreshUpcomingMatches: Boolean(input.liveMatchHeavyWorkReady && matchId),
-      shouldAcknowledgeCountdownReady: input.matchRoomFlow.canAcknowledgeCountdownReady,
+      shouldAcknowledgeCountdownReady: partyFlow.canAcknowledgeCountdownReady,
       shouldNavigateLinkedMatch,
       shouldStartGpsWarmup: Boolean(input.trackingStatus === 'idle' && warmupMatch),
       shouldStartGpsActive: Boolean(input.trackingStatus === 'idle' && activeMatch),

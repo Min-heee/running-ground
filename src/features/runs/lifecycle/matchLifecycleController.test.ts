@@ -236,6 +236,36 @@ test('linked party room countdown uses linked polling owner and suppresses direc
   assert.equal(controller.effects.shouldPollLinkedMatch, true);
 });
 
+test('linked party room arming keeps linked recovery polling instead of falling back to upcoming', () => {
+  const linkedRoom = room({
+    state: 'arming',
+    linkedMatchId: 'match-linked',
+    linkedMatchStatus: 'matched',
+    linkedMatchSlotStartAt: '2026-05-14T12:00:20.000Z',
+  });
+  const flow = buildPartyRunFlowSnapshot({
+    room: linkedRoom,
+    isCountdownReady: false,
+    remainingSeconds: 45,
+  });
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    matchRoom: linkedRoom,
+    visibleMatchRoom: null,
+    visiblePartyRunFlow: buildPartyRunFlowSnapshot({ room: null }),
+    matchRoomFlow: flow,
+    roomLinkedMatchContext: null,
+  }));
+
+  assert.equal(controller.stage, 'arming');
+  assert.equal(controller.source, 'party-room');
+  assert.equal(controller.matchId, 'match-linked');
+  assert.equal(controller.effects.shouldPollRoom, false);
+  assert.equal(controller.effects.shouldPollDirectMatchStatus, false);
+  assert.equal(controller.effects.shouldPollLinkedMatch, true);
+  assert.equal(controller.effects.shouldNavigateLinkedMatch, false);
+});
+
 test('lifecycle controller starts heartbeat only for active running match', () => {
   const controller = buildMatchLifecycleController(baseInput({
     matchMode: 'duel',

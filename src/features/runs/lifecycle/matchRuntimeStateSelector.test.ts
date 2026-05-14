@@ -1,0 +1,114 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import type { RunningMatchRoom, UpcomingRunningMatchItem } from '@/lib/api/types';
+import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
+import {
+  filterUpcomingMatchesForRuntime,
+  isLinkedRoomRuntimeState,
+  selectPartyRunRuntimeSource,
+} from '@/features/runs/lifecycle/matchRuntimeStateSelector';
+import { buildTrackRunRuntimeRouteKey } from '@/features/runs/lifecycle/trackRunRouteState';
+
+function room(overrides: Partial<RunningMatchRoom> = {}): RunningMatchRoom {
+  return {
+    roomId: 'room-1',
+    inviteToken: 'ABC123',
+    inviteLink: 'https://example.com/ABC123',
+    mode: 'duel',
+    state: 'waiting',
+    startMode: 'host',
+    distanceKm: 5,
+    slotStartAt: '2026-05-14T12:00:00.000Z',
+    slotLabel: '테스트',
+    maxParticipants: 2,
+    minParticipants: 2,
+    canStart: false,
+    isHost: true,
+    hostUserId: 'user-1',
+    hostName: '나',
+    participants: [],
+    invitedFriendIds: [],
+    ...overrides,
+  };
+}
+
+function upcoming(overrides: Partial<UpcomingRunningMatchItem> = {}): UpcomingRunningMatchItem {
+  return {
+    matchId: 'match-1',
+    mode: 'duel',
+    status: 'matched',
+    distanceKm: 5,
+    slotStartAt: '2026-05-14T12:00:00.000Z',
+    slotLabel: '테스트',
+    summary: '5.0km',
+    counterpartLabel: '상대',
+    participantCount: 2,
+    canCancel: true,
+    cancelableUntilAt: '2026-05-14T11:00:00.000Z',
+    isTestMatch: false,
+    ...overrides,
+  };
+}
+
+test('linked runtime state identifies arming, countdown, and active linked rooms', () => {
+  assert.equal(isLinkedRoomRuntimeState(room({ linkedMatchId: 'match-1', state: 'waiting' })), false);
+  assert.equal(isLinkedRoomRuntimeState(room({ linkedMatchId: 'match-1', state: 'arming' })), true);
+  assert.equal(isLinkedRoomRuntimeState(room({ linkedMatchId: 'match-1', state: 'countdown' })), true);
+  assert.equal(isLinkedRoomRuntimeState(room({ linkedMatchId: 'match-1', state: 'active' })), true);
+});
+
+test('runtime selector prefers linked matchRoom flow when visible room snapshot is missing linked state', () => {
+  const visibleRoom = room({ state: 'waiting' });
+  const linkedRoom = room({
+    state: 'countdown',
+    linkedMatchId: 'match-1',
+    linkedMatchStatus: 'matched',
+    linkedMatchSlotStartAt: '2026-05-14T12:00:20.000Z',
+  });
+  const visibleFlow = buildPartyRunFlowSnapshot({ room: visibleRoom });
+  const linkedFlow = buildPartyRunFlowSnapshot({
+    room: linkedRoom,
+    isCountdownReady: true,
+    remainingSeconds: 20,
+  });
+
+  const runtime = selectPartyRunRuntimeSource({
+    matchRoom: linkedRoom,
+    matchRoomFlow: linkedFlow,
+    visibleMatchRoom: visibleRoom,
+    visiblePartyRunFlow: visibleFlow,
+  });
+
+  assert.equal(runtime.room?.roomId, 'room-1');
+  assert.equal(runtime.flow.phase, 'arenaHandoff');
+  assert.equal(runtime.linkedMatchContext?.matchId, 'match-1');
+});
+
+test('upcoming reserved list hides the active linked room match', () => {
+  const linkedRoom = room({
+    state: 'countdown',
+    linkedMatchId: 'match-1',
+    linkedMatchStatus: 'matched',
+  });
+  const visible = filterUpcomingMatchesForRuntime([
+    upcoming({ matchId: 'match-1', status: 'matched' }),
+    upcoming({ matchId: 'match-2', status: 'matched' }),
+  ], linkedRoom);
+
+  assert.deepEqual(visible.map((match) => match.matchId), ['match-2']);
+});
+
+test('track-run route key includes room and match ids immediately after route hydration', () => {
+  const routeState = buildTrackRunRuntimeRouteKey({
+    focusMatchId: 'duel-match-a973c5ed',
+    focusRoomId: 'room-a973c5ed',
+    forceOpenActiveMatch: true,
+    liveArenaPage: 0,
+    matchMode: 'duel',
+  });
+
+  assert.equal(routeState.routeKey, 'track-run:duel:room-a973c5ed:duel-match-a973c5ed:arena');
+  assert.equal(routeState.routeKey.includes('no-room'), false);
+  assert.equal(routeState.routeKey.includes('no-match'), false);
+  assert.equal(routeState.correctedByRouteParams, true);
+});
