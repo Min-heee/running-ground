@@ -3,6 +3,7 @@ import type { RunningMatchRoom } from '@/lib/api/types';
 import { getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { buildPartyRunFlowSnapshot } from '@/features/runs/matchStateMachine';
 import { rgPerfMark, rgPerfTrackResource } from '@/utils/rgPerfTrace';
+import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';
 import type { LinkedMatchSyncInput } from './types';
 
 export function canOpenPartyRunLinkedMatch({
@@ -178,15 +179,31 @@ export function useLinkedMatchSync({
       || visiblePartyRunFlow.shouldOpenArena
       ? fastMatchStatusPollMs
       : idleMatchStatusPollMs;
+    const pollingKey = `match:${roomLinkedMatchContext.matchId}:linked-match-status`;
+    const pollingSlot = acquireRgPollingSlot(pollingKey, 'linked match status polling', {
+      intervalMs,
+      matchId: roomLinkedMatchContext.matchId,
+      mode: roomLinkedMatchContext.mode,
+      source: 'linked match status',
+    });
+
+    if (!pollingSlot.acquired) {
+      return () => {
+        canceled = true;
+      };
+    }
+
     rgPerfMark('match polling start', {
       intervalMs,
       matchId: roomLinkedMatchContext.matchId,
+      pollingKey,
       source: 'linked match status',
     });
     const stopPollingTrace = rgPerfTrackResource('polling', 'linked match status polling', {
       intervalMs,
       matchId: roomLinkedMatchContext.matchId,
       mode: roomLinkedMatchContext.mode,
+      pollingKey,
     });
     const timer = setInterval(() => {
       void syncRoomLinkedMatch();
@@ -194,8 +211,9 @@ export function useLinkedMatchSync({
 
     return () => {
       canceled = true;
-      stopPollingTrace();
       clearInterval(timer);
+      stopPollingTrace();
+      pollingSlot.release();
     };
   }, [
     callbacksRef,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { fetchFriendLeaderboard } from '@/services/friendsService';
 import { getApiErrorMessage } from '@/services/apiError';
 import type { FriendLeaderboardResponse, RunningMatchRoom } from '@/lib/api/types';
@@ -11,6 +12,7 @@ import {
 } from '@/features/runs/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
+import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';
 
 function buildRoomRenderKey(room: RunningMatchRoom | null) {
   if (!room) {
@@ -45,6 +47,7 @@ export function useRoomSnapshot() {
   const latestRoomServerNowMsRef = useRef(0);
   const roomRenderKeyRef = useRef<string | null>(null);
   const pollingPausedRef = useRef(false);
+  const screenFocusedRef = useRef(false);
   const mountedRef = useRef(true);
 
   const [room, setRoom] = useState<RunningMatchRoom | null>(null);
@@ -52,6 +55,7 @@ export function useRoomSnapshot() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [pollingPaused, setPollingPaused] = useState(false);
+  const [screenFocused, setScreenFocused] = useState(false);
   const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0);
 
   const syncServerClock = useCallback((serverNow?: string) => {
@@ -75,7 +79,7 @@ export function useRoomSnapshot() {
   }, []);
 
   const loadRoom = useCallback(async () => {
-    if (pollingPausedRef.current) {
+    if (pollingPausedRef.current || !screenFocusedRef.current) {
       return null;
     }
 
@@ -129,6 +133,16 @@ export function useRoomSnapshot() {
     mountedRef.current = false;
   }, []);
 
+  useFocusEffect(useCallback(() => {
+    screenFocusedRef.current = true;
+    setScreenFocused(true);
+
+    return () => {
+      screenFocusedRef.current = false;
+      setScreenFocused(false);
+    };
+  }, []));
+
   const pauseRoomPolling = useCallback(() => {
     pollingPausedRef.current = true;
     setPollingPaused(true);
@@ -136,7 +150,7 @@ export function useRoomSnapshot() {
   }, []);
 
   useEffect(() => {
-    if (pollingPaused) {
+    if (pollingPaused || !screenFocused) {
       setLoading(false);
       return undefined;
     }
@@ -164,13 +178,33 @@ export function useRoomSnapshot() {
 
     void hydrate();
     const intervalMs = room?.linkedMatchId ? 750 : 1500;
+    const pollingKey = room?.roomId
+      ? `room:${room.roomId}:match-room-snapshot`
+      : `active-room:${currentUserTag}:match-room-snapshot`;
+    const pollingSlot = acquireRgPollingSlot(pollingKey, 'match-room snapshot polling', {
+      intervalMs,
+      linkedMatchId: room?.linkedMatchId ?? null,
+      roomId: room?.roomId ?? null,
+      source: 'match-room snapshot',
+    });
+
+    if (!pollingSlot.acquired) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
     rgPerfMark('match polling start', {
       intervalMs,
+      pollingKey,
+      roomId: room?.roomId ?? null,
       source: 'match-room snapshot',
     });
     const stopPollingTrace = rgPerfTrackResource('polling', 'match-room snapshot polling', {
       intervalMs,
       linkedMatchId: room?.linkedMatchId ?? null,
+      pollingKey,
+      roomId: room?.roomId ?? null,
     });
     const intervalId = setInterval(() => {
       void loadRoom();
@@ -178,10 +212,11 @@ export function useRoomSnapshot() {
 
     return () => {
       cancelled = true;
-      stopPollingTrace();
       clearInterval(intervalId);
+      stopPollingTrace();
+      pollingSlot.release();
     };
-  }, [loadRoom, pollingPaused, room?.linkedMatchId]);
+  }, [currentUserTag, loadRoom, pollingPaused, room?.linkedMatchId, room?.roomId, screenFocused]);
 
   return {
     room,
