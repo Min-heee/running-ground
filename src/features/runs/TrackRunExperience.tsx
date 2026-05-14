@@ -107,7 +107,7 @@ import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
-import { beginRgInputTrace } from '@/utils/rgInputTrace';
+import { beginRgInputTrace, isRgInputInteractionRecent } from '@/utils/rgInputTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
@@ -1196,13 +1196,53 @@ export function TrackRunExperience({
     ?? null
   );
 
-  const loadMatchRoom = async () => {
+  const loadMatchRoom = async (options?: {
+    ignoreDuringInteraction?: boolean;
+    priority?: 'normal' | 'low-priority';
+  }) => {
     try {
       const routeKey = buildTrackRunActiveRoomCheckRouteKey();
+      const priority = options?.priority ?? 'normal';
+
+      if (options?.ignoreDuringInteraction && isRgInputInteractionRecent()) {
+        rgPerfMark('active room check skipped during interaction', {
+          priority,
+          routeKey,
+          source: 'track-run experience',
+        });
+        return matchRoom;
+      }
+
+      if (priority === 'low-priority') {
+        rgPerfMark('active room check low priority idle', {
+          routeKey,
+          source: 'track-run experience',
+        });
+      }
+
       const activeRoomCheckResult = await runActiveRoomCheck({
+        ...(priority === 'low-priority'
+          ? {
+              hardTimeoutMs: 1_500,
+              throttleMs: 60_000,
+              uiTimeoutMs: 1_200,
+            }
+          : {}),
         routeKey,
         source: 'track-run experience',
       });
+
+      if (options?.ignoreDuringInteraction && isRgInputInteractionRecent()) {
+        rgPerfMark('active room check skipped during interaction', {
+          priority,
+          reason: 'result-after-input',
+          requestId: activeRoomCheckResult.requestId,
+          routeKey,
+          source: 'track-run experience',
+        });
+        return matchRoom;
+      }
+
       const currentRouteKey = buildTrackRunActiveRoomCheckRouteKey();
       const skipReason = getActiveRoomCheckResultSkipReason({
         currentMatchId: getCurrentLiveMatchId(),
@@ -1922,13 +1962,34 @@ export function TrackRunExperience({
 
   useAndroidDeferredEffect(() => {
     let canceled = false;
+    let activeRoomCheckDelay: ReturnType<typeof setTimeout> | null = null;
 
     if (trackRunIdleViewModel.shouldRunActiveRoomCheck) {
-      void loadMatchRoom().catch(() => {
-        if (!canceled) {
-          commitMatchRoom(null);
+      const runDeferredActiveRoomCheck = () => {
+        if (canceled) {
+          return;
         }
-      });
+
+        void loadMatchRoom({
+          ignoreDuringInteraction: trackRunIdleViewModel.activeRoomCheckPriority === 'low-priority',
+          priority: trackRunIdleViewModel.activeRoomCheckPriority,
+        }).catch(() => {
+          if (!canceled) {
+            commitMatchRoom(null);
+          }
+        });
+      };
+
+      if (trackRunIdleViewModel.activeRoomCheckPriority === 'low-priority') {
+        rgPerfMark('active room check deferred idle', {
+          delayMs: 900,
+          reason: trackRunIdleViewModel.idleReason,
+          source: 'track-run experience',
+        });
+        activeRoomCheckDelay = setTimeout(runDeferredActiveRoomCheck, 900);
+      } else {
+        runDeferredActiveRoomCheck();
+      }
     } else {
       rgPerfMark('track run heavy hooks skipped idle', {
         hook: 'active room check',
@@ -1945,8 +2006,15 @@ export function TrackRunExperience({
 
     return () => {
       canceled = true;
+      if (activeRoomCheckDelay) {
+        clearTimeout(activeRoomCheckDelay);
+      }
     };
-  }, [trackRunIdleViewModel.idleReason, trackRunIdleViewModel.shouldRunActiveRoomCheck]);
+  }, [
+    trackRunIdleViewModel.activeRoomCheckPriority,
+    trackRunIdleViewModel.idleReason,
+    trackRunIdleViewModel.shouldRunActiveRoomCheck,
+  ]);
 
   const acknowledgeRoomCountdownReady = async (roomId: string) => {
     const payload = await acknowledgeRunningMatchRoomCountdown({ roomId });

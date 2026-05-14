@@ -4,6 +4,9 @@ type RgInputDetailValue = string | number | boolean | null | undefined;
 type RgInputDetail = Record<string, RgInputDetailValue>;
 
 const SLOW_INPUT_FEEDBACK_THRESHOLD_MS = 300;
+const DEFAULT_RECENT_INPUT_WINDOW_MS = 1_200;
+
+let lastInputInteractionAtMs = 0;
 
 function getNowMs() {
   return typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now();
@@ -86,6 +89,9 @@ function scheduleFrameDelayTrace(label: string, startedAtMs: number, detail?: Rg
 }
 
 export function beginRgInputTrace(label: string, detail?: RgInputDetail) {
+  const startedAtMs = getNowMs();
+  lastInputInteractionAtMs = startedAtMs;
+
   if (!isRgPerfTraceEnabled()) {
     return {
       markFeedback: () => 0,
@@ -93,7 +99,6 @@ export function beginRgInputTrace(label: string, detail?: RgInputDetail) {
     };
   }
 
-  const startedAtMs = getNowMs();
   logRgInput('log', 'press event received', {
     label,
     t: Math.round(startedAtMs),
@@ -129,4 +134,12 @@ export function beginRgInputTrace(label: string, detail?: RgInputDetail) {
       });
     },
   };
+}
+
+export function isRgInputInteractionRecent(windowMs = DEFAULT_RECENT_INPUT_WINDOW_MS) {
+  if (!lastInputInteractionAtMs) {
+    return false;
+  }
+
+  return getNowMs() - lastInputInteractionAtMs < windowMs;
 }

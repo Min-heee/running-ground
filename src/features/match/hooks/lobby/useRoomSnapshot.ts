@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
+import { AppState, Platform } from 'react-native';
+import type { AppStateStatus } from 'react-native';
 import { fetchFriendLeaderboard } from '@/services/friendsService';
 import { getApiErrorMessage } from '@/services/apiError';
 import type { FriendLeaderboardResponse, RunningMatchRoom } from '@/lib/api/types';
@@ -24,6 +26,23 @@ import {
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';
+
+const INVITE_INBOX_ANDROID_FOCUSED_POLL_MS = 4_000;
+const INVITE_INBOX_DEFAULT_FOCUSED_POLL_MS = 1_500;
+const INVITE_INBOX_ANDROID_DEBOUNCE_MS = 2_500;
+const INVITE_INBOX_DEFAULT_DEBOUNCE_MS = 800;
+
+function getFocusedInviteInboxPollMs() {
+  return Platform.OS === 'android'
+    ? INVITE_INBOX_ANDROID_FOCUSED_POLL_MS
+    : INVITE_INBOX_DEFAULT_FOCUSED_POLL_MS;
+}
+
+function getInviteInboxDebounceMs() {
+  return Platform.OS === 'android'
+    ? INVITE_INBOX_ANDROID_DEBOUNCE_MS
+    : INVITE_INBOX_DEFAULT_DEBOUNCE_MS;
+}
 
 function buildRoomRenderKey(room: RunningMatchRoom | null) {
   if (!room) {
@@ -79,7 +98,7 @@ function resolveMatchRoomSnapshotPollingPolicy({
 
   return {
     enabled: true,
-    intervalMs: 1500,
+    intervalMs: getFocusedInviteInboxPollMs(),
     owner: 'match-room snapshot',
     reason: 'waiting-room-sync',
   };
@@ -93,6 +112,8 @@ export function useRoomSnapshot() {
   const lastDisplayedInviteKeyRef = useRef<string | null>(null);
   const roomRenderKeyRef = useRef<string | null>(null);
   const roomRef = useRef<RunningMatchRoom | null>(null);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const lastInviteInboxPollStartedAtRef = useRef(0);
   const pollingPausedRef = useRef(false);
   const screenFocusedRef = useRef(false);
   const mountedRef = useRef(true);
@@ -136,10 +157,30 @@ export function useRoomSnapshot() {
 
   const loadRoom = useCallback(async () => {
     if (pollingPausedRef.current || !screenFocusedRef.current) {
+      rgPerfMark('invite inbox polling skipped idle', {
+        paused: pollingPausedRef.current,
+        source: 'match-room snapshot',
+        focused: screenFocusedRef.current,
+      });
       return null;
     }
 
     const routeKey = buildMatchRoomActiveRoomCheckRouteKey();
+    const nowMs = Date.now();
+    const debounceMs = getInviteInboxDebounceMs();
+    const elapsedSinceLastPollMs = nowMs - lastInviteInboxPollStartedAtRef.current;
+
+    if (lastInviteInboxPollStartedAtRef.current && elapsedSinceLastPollMs < debounceMs) {
+      rgPerfMark('invite inbox polling debounced', {
+        debounceMs,
+        elapsedMs: elapsedSinceLastPollMs,
+        routeKey,
+        source: 'match-room snapshot',
+      });
+      return roomRef.current;
+    }
+
+    lastInviteInboxPollStartedAtRef.current = nowMs;
     const endInviteInboxPollingTrace = rgPerfMeasureStart('invite inbox polling', {
       routeKey,
       source: 'match-room snapshot',
@@ -293,12 +334,41 @@ export function useRoomSnapshot() {
   useFocusEffect(useCallback(() => {
     screenFocusedRef.current = true;
     setScreenFocused(true);
+    rgPerfMark('invite inbox polling focused only', {
+      focused: true,
+      intervalMs: getFocusedInviteInboxPollMs(),
+      source: 'match-room snapshot',
+    });
 
     return () => {
       screenFocusedRef.current = false;
       setScreenFocused(false);
     };
   }, []));
+
+  useEffect(() => {
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (
+        previousState !== 'active'
+        && nextState === 'active'
+        && screenFocusedRef.current
+        && !pollingPausedRef.current
+      ) {
+        rgPerfMark('invite inbox polling focused only', {
+          reason: 'foreground-once',
+          source: 'match-room snapshot',
+        });
+        void loadRoom();
+      }
+    });
+
+    return () => {
+      appStateSubscription.remove();
+    };
+  }, [loadRoom]);
 
   const pauseRoomPolling = useCallback(() => {
     pollingPausedRef.current = true;
@@ -308,6 +378,11 @@ export function useRoomSnapshot() {
 
   useEffect(() => {
     if (pollingPaused || !screenFocused) {
+      rgPerfMark('invite inbox polling skipped idle', {
+        paused: pollingPaused,
+        source: 'match-room snapshot',
+        focused: screenFocused,
+      });
       setLoading(false);
       return undefined;
     }
@@ -375,6 +450,15 @@ export function useRoomSnapshot() {
     }
 
     rgPerfMark('match polling start', {
+      intervalMs,
+      owner: policy.owner,
+      pollingKey,
+      reason: policy.reason,
+      roomId: pollingRoomId,
+      source: 'match-room snapshot',
+      state: pollingRoomState,
+    });
+    rgPerfMark('invite inbox polling focused only', {
       intervalMs,
       owner: policy.owner,
       pollingKey,
