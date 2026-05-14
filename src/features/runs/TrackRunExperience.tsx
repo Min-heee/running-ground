@@ -373,6 +373,15 @@ export function TrackRunExperience({
   const leaveMatchRoomInFlightRef = useRef(false);
   const lastHandledActiveRoomSnapshotKeyRef = useRef<string | null>(null);
   const liveMatchMountedRef = useRef<{ matchId: string | null; mode: 'duel' | 'group'; mountedAtMs: number } | null>(null);
+  const liveMatchViewConfirmationRef = useRef<{
+    matchId: string | null;
+    mode: 'duel' | 'group' | null;
+    showLiveArena: boolean;
+  }>({
+    matchId: null,
+    mode: null,
+    showLiveArena: false,
+  });
 
   useEffect(() => () => {
     isMountedRef.current = false;
@@ -1204,14 +1213,33 @@ export function TrackRunExperience({
 
   const loadMatchRoom = async (options?: {
     ignoreDuringInteraction?: boolean;
+    localActiveMatchId?: string | null;
+    localActiveRoomId?: string | null;
     priority?: 'normal' | 'low-priority';
+    requireLocalActiveHint?: boolean;
   }) => {
     try {
       const routeKey = buildTrackRunActiveRoomCheckRouteKey();
       const priority = options?.priority ?? 'normal';
+      const localActiveMatchId = options?.localActiveMatchId ?? null;
+      const localActiveRoomId = options?.localActiveRoomId ?? null;
+
+      if (options?.requireLocalActiveHint && !localActiveRoomId && !localActiveMatchId) {
+        rgPerfMark('active room check skipped no local active hint', {
+          priority,
+          routeKey,
+          source: 'track-run experience',
+        });
+        return matchRoom;
+      }
 
       if (options?.ignoreDuringInteraction && isRgInputInteractionRecent()) {
         rgPerfMark('active room check skipped during interaction', {
+          priority,
+          routeKey,
+          source: 'track-run experience',
+        });
+        rgPerfMark('active room check suppressed by user interaction', {
           priority,
           routeKey,
           source: 'track-run experience',
@@ -1240,6 +1268,13 @@ export function TrackRunExperience({
 
       if (options?.ignoreDuringInteraction && isRgInputInteractionRecent()) {
         rgPerfMark('active room check skipped during interaction', {
+          priority,
+          reason: 'result-after-input',
+          requestId: activeRoomCheckResult.requestId,
+          routeKey,
+          source: 'track-run experience',
+        });
+        rgPerfMark('active room check suppressed by user interaction', {
           priority,
           reason: 'result-after-input',
           requestId: activeRoomCheckResult.requestId,
@@ -1347,6 +1382,14 @@ export function TrackRunExperience({
           source: 'track-run experience',
           state: payload.room.state,
         });
+        if (payload.room.linkedMatchId) {
+          rgPerfMark('track-run live state accepted hydration', {
+            matchId: payload.room.linkedMatchId,
+            roomId: payload.room.roomId,
+            source: 'track-run experience',
+            state: payload.room.state,
+          });
+        }
       }
 
       const nextRoom = payload.room;
@@ -1362,6 +1405,20 @@ export function TrackRunExperience({
     setFriendLeaderboard(payload);
     return payload;
   };
+
+  const isLiveMatchViewConfirmed = useCallback((input: { matchId: string; mode: 'duel' | 'group' }) => {
+    const mountedMatch = liveMatchMountedRef.current;
+    if (mountedMatch?.matchId === input.matchId && mountedMatch.mode === input.mode) {
+      return true;
+    }
+
+    const visibleLiveMatch = liveMatchViewConfirmationRef.current;
+    return Boolean(
+      visibleLiveMatch.showLiveArena
+      && visibleLiveMatch.matchId === input.matchId
+      && visibleLiveMatch.mode === input.mode,
+    );
+  }, []);
 
   const {
     focusRoomLinkedMatch,
@@ -1386,6 +1443,7 @@ export function TrackRunExperience({
     setForceOpenActiveMatch,
     setIsResolvingFocusedMatch,
     getSyncedNowMs,
+    isLiveMatchViewConfirmed,
     loadDuelMatchStatus,
     loadGroupMatchStatus,
   });
@@ -1930,8 +1988,15 @@ export function TrackRunExperience({
   };
 
   const refreshStaleMatchArtifacts = async () => {
+    const isLowPriorityActiveRoomCheck = trackRunIdleViewModel.activeRoomCheckPriority === 'low-priority';
     const [roomPayload, upcomingItems, duelStatusPayload, groupStatusPayload] = await Promise.all([
-      loadMatchRoom().catch(() => matchRoom),
+      loadMatchRoom({
+        ignoreDuringInteraction: isLowPriorityActiveRoomCheck,
+        localActiveMatchId: trackRunIdleViewModel.activeMatchId,
+        localActiveRoomId: trackRunIdleViewModel.activeRoomId,
+        priority: trackRunIdleViewModel.activeRoomCheckPriority,
+        requireLocalActiveHint: isLowPriorityActiveRoomCheck,
+      }).catch(() => matchRoom),
       loadUpcomingMatches().catch(() => upcomingMatches),
       (isDuelTestFlow || duelMatchStatus || duelMatchResult)
         ? loadDuelMatchStatus(activeDuelSlotStartAt, { testMode: isDuelTestFlow || Boolean(duelMatchStatus?.isTestMatch || duelMatchResult?.isTestMatch) }).catch(() => null)
@@ -2030,6 +2095,7 @@ export function TrackRunExperience({
   useAndroidDeferredEffect(() => {
     let canceled = false;
     let activeRoomCheckDelay: ReturnType<typeof setTimeout> | null = null;
+    const isLowPriorityActiveRoomCheck = trackRunIdleViewModel.activeRoomCheckPriority === 'low-priority';
 
     if (trackRunIdleViewModel.shouldRunActiveRoomCheck) {
       const runDeferredActiveRoomCheck = () => {
@@ -2038,8 +2104,11 @@ export function TrackRunExperience({
         }
 
         void loadMatchRoom({
-          ignoreDuringInteraction: trackRunIdleViewModel.activeRoomCheckPriority === 'low-priority',
+          ignoreDuringInteraction: isLowPriorityActiveRoomCheck,
+          localActiveMatchId: trackRunIdleViewModel.activeMatchId,
+          localActiveRoomId: trackRunIdleViewModel.activeRoomId,
           priority: trackRunIdleViewModel.activeRoomCheckPriority,
+          requireLocalActiveHint: isLowPriorityActiveRoomCheck,
         }).catch(() => {
           if (!canceled) {
             commitMatchRoom(null);
@@ -2047,22 +2116,42 @@ export function TrackRunExperience({
         });
       };
 
-      if (trackRunIdleViewModel.activeRoomCheckPriority === 'low-priority') {
+      if (isLowPriorityActiveRoomCheck) {
+        const delayMs = 4_000;
         rgPerfMark('active room check deferred idle', {
-          delayMs: 900,
+          delayMs,
+          hasLocalActiveHint: trackRunIdleViewModel.hasLocalActiveHint,
           reason: trackRunIdleViewModel.idleReason,
           source: 'track-run experience',
         });
-        activeRoomCheckDelay = setTimeout(runDeferredActiveRoomCheck, 900);
+        rgPerfMark('active room check foreground debounce', {
+          delayMs,
+          hasLocalActiveHint: trackRunIdleViewModel.hasLocalActiveHint,
+          reason: trackRunIdleViewModel.idleReason,
+          source: 'track-run experience',
+        });
+        activeRoomCheckDelay = setTimeout(runDeferredActiveRoomCheck, delayMs);
       } else {
         runDeferredActiveRoomCheck();
       }
     } else {
-      rgPerfMark('track run heavy hooks skipped idle', {
-        hook: 'active room check',
-        reason: trackRunIdleViewModel.idleReason,
-        source: 'track-run initial load',
-      });
+      if (trackRunIdleViewModel.isUserActionPending || isRgInputInteractionRecent()) {
+        rgPerfMark('active room check suppressed by user interaction', {
+          reason: trackRunIdleViewModel.idleReason,
+          source: 'track-run initial load',
+        });
+      } else if (!trackRunIdleViewModel.hasLocalActiveHint) {
+        rgPerfMark('active room check skipped no local active hint', {
+          reason: trackRunIdleViewModel.idleReason,
+          source: 'track-run initial load',
+        });
+      } else {
+        rgPerfMark('track run heavy hooks skipped idle', {
+          hook: 'active room check',
+          reason: trackRunIdleViewModel.idleReason,
+          source: 'track-run initial load',
+        });
+      }
     }
 
     void loadFriendLeaderboardData().catch(() => {
@@ -2078,8 +2167,12 @@ export function TrackRunExperience({
       }
     };
   }, [
+    trackRunIdleViewModel.activeMatchId,
     trackRunIdleViewModel.activeRoomCheckPriority,
+    trackRunIdleViewModel.activeRoomId,
+    trackRunIdleViewModel.hasLocalActiveHint,
     trackRunIdleViewModel.idleReason,
+    trackRunIdleViewModel.isUserActionPending,
     trackRunIdleViewModel.shouldRunActiveRoomCheck,
   ]);
 
@@ -2144,7 +2237,10 @@ export function TrackRunExperience({
     onError: setError,
   });
 
-  useStaleMatchCleanup({ refreshStaleMatchArtifacts });
+  useStaleMatchCleanup({
+    enabled: trackRunIdleViewModel.shouldRunActiveRoomCheck || !trackRunIdleViewModel.disableHeavySubscriptions,
+    refreshStaleMatchArtifacts,
+  });
 
   useMatchEntryEffects({
     focusMatchNonce: hydratedFocusMatchNonce,
@@ -2166,6 +2262,15 @@ export function TrackRunExperience({
     onError: setError,
     focusRunningMatch,
   });
+  liveMatchViewConfirmationRef.current = {
+    matchId: liveMatchStartupIdentity,
+    mode: matchMode === 'duel' || matchMode === 'group'
+      ? matchMode
+      : roomLinkedMatchContext?.mode ?? (hydratedFocusMatchMode === 'duel' || hydratedFocusMatchMode === 'group'
+        ? hydratedFocusMatchMode
+        : null),
+    showLiveArena,
+  };
 
   useLiveMatchNavigationEffects({
     livePagerRef,

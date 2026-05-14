@@ -26,11 +26,13 @@ import {
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';
+import { isRgInputInteractionRecent } from '@/utils/rgInputTrace';
 
 const INVITE_INBOX_ANDROID_FOCUSED_POLL_MS = 4_000;
 const INVITE_INBOX_DEFAULT_FOCUSED_POLL_MS = 1_500;
 const INVITE_INBOX_ANDROID_DEBOUNCE_MS = 2_500;
 const INVITE_INBOX_DEFAULT_DEBOUNCE_MS = 800;
+const ACTIVE_ROOM_FOREGROUND_DEBOUNCE_MS = 4_000;
 
 function getFocusedInviteInboxPollMs() {
   return Platform.OS === 'android'
@@ -78,21 +80,12 @@ function resolveMatchRoomSnapshotPollingPolicy({
   linkedMatchId?: string | null;
   state?: RunningMatchRoom['state'] | null;
 }) {
-  if (linkedMatchId && state === 'active') {
+  if (linkedMatchId) {
     return {
       enabled: false,
       intervalMs: 5000,
       owner: 'linked match status',
-      reason: 'active-live-match-owner',
-    };
-  }
-
-  if (linkedMatchId) {
-    return {
-      enabled: true,
-      intervalMs: 5000,
-      owner: 'match-room snapshot',
-      reason: `${state ?? 'linked'}-minimal-room-sync`,
+      reason: `${state ?? 'linked'}-live-match-handoff`,
     };
   }
 
@@ -112,11 +105,13 @@ export function useRoomSnapshot() {
   const lastDisplayedInviteKeyRef = useRef<string | null>(null);
   const roomRenderKeyRef = useRef<string | null>(null);
   const roomRef = useRef<RunningMatchRoom | null>(null);
+  const liveMatchHandoffRef = useRef<{ matchId: string; roomId: string } | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const lastInviteInboxPollStartedAtRef = useRef(0);
   const pollingPausedRef = useRef(false);
   const screenFocusedRef = useRef(false);
   const mountedRef = useRef(true);
+  const foregroundDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [room, setRoom] = useState<RunningMatchRoom | null>(null);
   const [friendLeaderboard, setFriendLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
@@ -147,6 +142,37 @@ export function useRoomSnapshot() {
     setRoom(nextRoom);
   }, []);
 
+  const markLiveMatchHandoff = useCallback((nextRoom: RunningMatchRoom, source: string) => {
+    if (!nextRoom.linkedMatchId) {
+      return;
+    }
+
+    const currentHandoff = liveMatchHandoffRef.current;
+    if (currentHandoff?.roomId === nextRoom.roomId && currentHandoff.matchId === nextRoom.linkedMatchId) {
+      return;
+    }
+
+    liveMatchHandoffRef.current = {
+      matchId: nextRoom.linkedMatchId,
+      roomId: nextRoom.roomId,
+    };
+    pollingPausedRef.current = true;
+    setPollingPaused(true);
+    setLoading(false);
+    rgPerfMark('match lifecycle owner handoff to live match', {
+      matchId: nextRoom.linkedMatchId,
+      roomId: nextRoom.roomId,
+      source,
+      state: nextRoom.state,
+    });
+    rgPerfMark('match-room polling stopped after handoff', {
+      matchId: nextRoom.linkedMatchId,
+      roomId: nextRoom.roomId,
+      source,
+      state: nextRoom.state,
+    });
+  }, []);
+
   const buildMatchRoomActiveRoomCheckRouteKey = useCallback(() => [
     'match-room',
     screenFocusedRef.current ? 'focused' : 'blurred',
@@ -166,6 +192,14 @@ export function useRoomSnapshot() {
     }
 
     const routeKey = buildMatchRoomActiveRoomCheckRouteKey();
+    if (isRgInputInteractionRecent()) {
+      rgPerfMark('active room check suppressed by user interaction', {
+        routeKey,
+        source: 'match-room snapshot',
+      });
+      return roomRef.current;
+    }
+
     const nowMs = Date.now();
     const debounceMs = getInviteInboxDebounceMs();
     const elapsedSinceLastPollMs = nowMs - lastInviteInboxPollStartedAtRef.current;
@@ -223,6 +257,19 @@ export function useRoomSnapshot() {
       const payload = activeRoomCheckResult.payload;
       if (!payload) {
         return null;
+      }
+
+      const handoff = liveMatchHandoffRef.current;
+      if (handoff && (!payload.room || payload.room.roomId === handoff.roomId)) {
+        rgPerfMark('match-room state ignored after handoff', {
+          incomingLinkedMatchId: payload.room?.linkedMatchId ?? null,
+          incomingRoomId: payload.room?.roomId ?? null,
+          incomingState: payload.room?.state ?? null,
+          matchId: handoff.matchId,
+          roomId: handoff.roomId,
+          source: 'match-room snapshot',
+        });
+        return roomRef.current;
       }
 
       if (!mountedRef.current || pollingPausedRef.current) {
@@ -312,6 +359,9 @@ export function useRoomSnapshot() {
         }
       }
       commitRoom(nextRoom);
+      if (nextRoom?.linkedMatchId) {
+        markLiveMatchHandoff(nextRoom, 'match-room snapshot');
+      }
       setError(null);
       return nextRoom;
     } catch (roomError) {
@@ -325,10 +375,20 @@ export function useRoomSnapshot() {
       setError(getApiErrorMessage(roomError, '대기실을 불러오지 못했어.'));
       return null;
     }
-  }, [buildMatchRoomActiveRoomCheckRouteKey, commitRoom, currentUserTag, syncServerClock]);
+  }, [
+    buildMatchRoomActiveRoomCheckRouteKey,
+    commitRoom,
+    currentUserTag,
+    markLiveMatchHandoff,
+    syncServerClock,
+  ]);
 
   useEffect(() => () => {
     mountedRef.current = false;
+    if (foregroundDebounceTimerRef.current) {
+      clearTimeout(foregroundDebounceTimerRef.current);
+      foregroundDebounceTimerRef.current = null;
+    }
   }, []);
 
   useFocusEffect(useCallback(() => {
@@ -357,15 +417,33 @@ export function useRoomSnapshot() {
         && screenFocusedRef.current
         && !pollingPausedRef.current
       ) {
+        if (foregroundDebounceTimerRef.current) {
+          clearTimeout(foregroundDebounceTimerRef.current);
+        }
+        rgPerfMark('active room check foreground debounce', {
+          delayMs: ACTIVE_ROOM_FOREGROUND_DEBOUNCE_MS,
+          source: 'match-room snapshot',
+        });
         rgPerfMark('invite inbox polling focused only', {
+          debounceMs: ACTIVE_ROOM_FOREGROUND_DEBOUNCE_MS,
           reason: 'foreground-once',
           source: 'match-room snapshot',
         });
-        void loadRoom();
+        foregroundDebounceTimerRef.current = setTimeout(() => {
+          foregroundDebounceTimerRef.current = null;
+          if (!mountedRef.current || !screenFocusedRef.current || pollingPausedRef.current) {
+            return;
+          }
+          void loadRoom();
+        }, ACTIVE_ROOM_FOREGROUND_DEBOUNCE_MS);
       }
     });
 
     return () => {
+      if (foregroundDebounceTimerRef.current) {
+        clearTimeout(foregroundDebounceTimerRef.current);
+        foregroundDebounceTimerRef.current = null;
+      }
       appStateSubscription.remove();
     };
   }, [loadRoom]);
@@ -392,6 +470,32 @@ export function useRoomSnapshot() {
     const pollingLinkedMatchId = room?.linkedMatchId ?? null;
     const pollingRoomState = room?.state ?? null;
 
+    const policy = resolveMatchRoomSnapshotPollingPolicy({
+      linkedMatchId: pollingLinkedMatchId,
+      state: pollingRoomState,
+    });
+    if (!policy.enabled) {
+      rgPerfMark('match polling skipped', {
+        linkedMatchId: pollingLinkedMatchId,
+        owner: 'match-room snapshot',
+        reason: policy.reason,
+        roomId: pollingRoomId,
+        state: pollingRoomState,
+      });
+      rgPerfMark('match-room polling stopped after handoff', {
+        linkedMatchId: pollingLinkedMatchId,
+        owner: policy.owner,
+        reason: policy.reason,
+        roomId: pollingRoomId,
+        source: 'match-room snapshot',
+        state: pollingRoomState,
+      });
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const hydrate = async () => {
       setLoading(true);
       const [nextRoom, friends] = await Promise.all([
@@ -412,22 +516,6 @@ export function useRoomSnapshot() {
     };
 
     void hydrate();
-    const policy = resolveMatchRoomSnapshotPollingPolicy({
-      linkedMatchId: pollingLinkedMatchId,
-      state: pollingRoomState,
-    });
-    if (!policy.enabled) {
-      rgPerfMark('match polling skipped', {
-        linkedMatchId: pollingLinkedMatchId,
-        owner: 'match-room snapshot',
-        reason: policy.reason,
-        roomId: pollingRoomId,
-        state: pollingRoomState,
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
 
     const intervalMs = policy.intervalMs;
     const pollingKey = pollingRoomId

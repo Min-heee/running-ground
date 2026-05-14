@@ -6,6 +6,7 @@ import {
   getMatchStartRemainingSeconds,
   shouldShowMatchStartOverlay,
 } from '@/lib/matchCountdown';
+import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';
 import { rgPerfMark, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 
 type UseBlockingMatchStatusPollingInput = {
@@ -31,6 +32,10 @@ function shouldUseFastMatchStatusPolling(
 
   const remainingSeconds = getMatchStartRemainingSeconds(status.slotStartAt, syncedNowMs);
   return status.state === 'active' || shouldShowMatchStartOverlay(remainingSeconds);
+}
+
+export function buildBlockingMatchStatusPollingKey(matchId: string) {
+  return `blocking-match-status:${matchId}`;
 }
 
 export function useBlockingMatchStatusPolling({
@@ -77,13 +82,41 @@ export function useBlockingMatchStatusPolling({
     if (!enabled || matchMode !== 'duel' || (!isBlockingMatchState(duelMatchState) && !isRecoveryPolling)) {
       return;
     }
+    if (!effectiveDuelMatchId) {
+      return;
+    }
 
     const intervalMs = shouldFastPollDuelMatchStatus ? fastPollMs : idlePollMs;
+    const pollingKey = buildBlockingMatchStatusPollingKey(effectiveDuelMatchId);
+    const pollingSlot = acquireRgPollingSlot(pollingKey, 'blocking match status polling', {
+      intervalMs,
+      matchId: effectiveDuelMatchId,
+      mode: 'duel',
+      source: 'blocking match status',
+    });
+    if (!pollingSlot.acquired) {
+      rgPerfMark('live match recovery polling skipped duplicate', {
+        matchId: effectiveDuelMatchId,
+        mode: 'duel',
+        pollingKey,
+        source: 'blocking match status',
+      });
+      rgPerfMark('live match recovery polling singleton reused', {
+        matchId: effectiveDuelMatchId,
+        mode: 'duel',
+        ownerId: pollingSlot.ownerId,
+        pollingKey,
+        source: 'blocking match status',
+      });
+      return;
+    }
+
     if (isRecoveryPolling) {
       rgPerfMark('live match recovery polling started', {
         intervalMs,
         matchId: effectiveDuelMatchId,
         mode: 'duel',
+        pollingKey,
         source: 'blocking match status',
       });
     }
@@ -91,11 +124,14 @@ export function useBlockingMatchStatusPolling({
       intervalMs,
       matchId: effectiveDuelMatchId ?? null,
       mode: 'duel',
+      pollingKey,
       source: 'blocking match status',
     });
-    const stopPollingTrace = rgPerfTrackResource('polling', 'blocking duel match status polling', {
+    const stopPollingTrace = rgPerfTrackResource('polling', 'blocking match status polling', {
       intervalMs,
       matchId: effectiveDuelMatchId ?? null,
+      mode: 'duel',
+      pollingKey,
     });
     const timer = setInterval(() => {
       void callbackRef.current.loadDuelMatchStatus().catch(() => {});
@@ -104,6 +140,15 @@ export function useBlockingMatchStatusPolling({
     return () => {
       stopPollingTrace();
       clearInterval(timer);
+      pollingSlot.release();
+      if (isRecoveryPolling) {
+        rgPerfMark('live match recovery polling stopped after mounted', {
+          matchId: effectiveDuelMatchId,
+          mode: 'duel',
+          pollingKey,
+          source: 'blocking match status',
+        });
+      }
     };
   }, [
     duelMatchId,
@@ -122,13 +167,41 @@ export function useBlockingMatchStatusPolling({
     if (!enabled || matchMode !== 'group' || (!isBlockingMatchState(groupMatchState) && !isRecoveryPolling)) {
       return;
     }
+    if (!effectiveGroupMatchId) {
+      return;
+    }
 
     const intervalMs = shouldFastPollGroupMatchStatus ? fastPollMs : idlePollMs;
+    const pollingKey = buildBlockingMatchStatusPollingKey(effectiveGroupMatchId);
+    const pollingSlot = acquireRgPollingSlot(pollingKey, 'blocking match status polling', {
+      intervalMs,
+      matchId: effectiveGroupMatchId,
+      mode: 'group',
+      source: 'blocking match status',
+    });
+    if (!pollingSlot.acquired) {
+      rgPerfMark('live match recovery polling skipped duplicate', {
+        matchId: effectiveGroupMatchId,
+        mode: 'group',
+        pollingKey,
+        source: 'blocking match status',
+      });
+      rgPerfMark('live match recovery polling singleton reused', {
+        matchId: effectiveGroupMatchId,
+        mode: 'group',
+        ownerId: pollingSlot.ownerId,
+        pollingKey,
+        source: 'blocking match status',
+      });
+      return;
+    }
+
     if (isRecoveryPolling) {
       rgPerfMark('live match recovery polling started', {
         intervalMs,
         matchId: effectiveGroupMatchId,
         mode: 'group',
+        pollingKey,
         source: 'blocking match status',
       });
     }
@@ -136,11 +209,14 @@ export function useBlockingMatchStatusPolling({
       intervalMs,
       matchId: effectiveGroupMatchId ?? null,
       mode: 'group',
+      pollingKey,
       source: 'blocking match status',
     });
-    const stopPollingTrace = rgPerfTrackResource('polling', 'blocking group match status polling', {
+    const stopPollingTrace = rgPerfTrackResource('polling', 'blocking match status polling', {
       intervalMs,
       matchId: effectiveGroupMatchId ?? null,
+      mode: 'group',
+      pollingKey,
     });
     const timer = setInterval(() => {
       void callbackRef.current.loadGroupMatchStatus().catch(() => {});
@@ -149,6 +225,15 @@ export function useBlockingMatchStatusPolling({
     return () => {
       stopPollingTrace();
       clearInterval(timer);
+      pollingSlot.release();
+      if (isRecoveryPolling) {
+        rgPerfMark('live match recovery polling stopped after mounted', {
+          matchId: effectiveGroupMatchId,
+          mode: 'group',
+          pollingKey,
+          source: 'blocking match status',
+        });
+      }
     };
   }, [
     fastPollMs,

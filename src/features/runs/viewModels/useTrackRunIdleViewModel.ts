@@ -73,14 +73,18 @@ export function useTrackRunIdleViewModel({
     || isRequestingGroupMatch
   );
   const hasInviteToken = Boolean(normalizeId(roomInviteToken));
-  const isIdleTabRuntime = Boolean(
+  const hasLocalActiveHint = Boolean(activeRoomId || activeMatchId);
+  const shouldUseIdleCheckCadence = Boolean(
     mode === 'tab'
     && trackingStatus === 'idle'
-    && !activeRoomId
-    && !activeMatchId
     && !forceOpenActiveMatch
     && !hasInviteToken
     && !hasPendingAction
+  );
+  const isIdleTabRuntime = Boolean(
+    shouldUseIdleCheckCadence
+    && !hasLocalActiveHint
+    && !forceOpenActiveMatch
   );
   const idleReason = isIdleTabRuntime
     ? 'tab-idle-no-room-no-match'
@@ -104,10 +108,12 @@ export function useTrackRunIdleViewModel({
     activeMatchId,
     activeRoomId,
     disableHeavySubscriptions: isIdleTabRuntime,
+    hasLocalActiveHint,
     idleReason,
     isIdleTabRuntime,
-    activeRoomCheckPriority: isIdleTabRuntime ? 'low-priority' as const : 'normal' as const,
-    shouldRunActiveRoomCheck: true,
+    isUserActionPending: hasPendingAction,
+    activeRoomCheckPriority: shouldUseIdleCheckCadence ? 'low-priority' as const : 'normal' as const,
+    shouldRunActiveRoomCheck: !hasPendingAction && (!shouldUseIdleCheckCadence || hasLocalActiveHint),
     shouldRunCountdownTicker: !isIdleTabRuntime,
     shouldRunLiveMatchProgress: !isIdleTabRuntime,
     shouldRunPartyRunSync: !isIdleTabRuntime,
@@ -115,8 +121,11 @@ export function useTrackRunIdleViewModel({
   }), [
     activeMatchId,
     activeRoomId,
+    hasLocalActiveHint,
+    hasPendingAction,
     idleReason,
     isIdleTabRuntime,
+    shouldUseIdleCheckCadence,
   ]);
 
   useEffect(() => {

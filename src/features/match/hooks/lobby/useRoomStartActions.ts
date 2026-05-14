@@ -181,6 +181,19 @@ export function useRoomStartActions({
       syncServerClock(payload.serverNow);
       commitRoom(payload.room);
       if (payload.room?.linkedMatchId) {
+        pauseRoomPolling();
+        rgPerfMark('match lifecycle owner handoff to live match', {
+          matchId: payload.room.linkedMatchId,
+          roomId: payload.room.roomId,
+          source: 'room start API',
+          state: payload.room.state,
+        });
+        rgPerfMark('match-room polling stopped after handoff', {
+          matchId: payload.room.linkedMatchId,
+          roomId: payload.room.roomId,
+          source: 'room start API',
+          state: payload.room.state,
+        });
         hydrateLiveMatchRouteState({
           distanceKm: payload.room.linkedMatchDistanceKm ?? payload.room.distanceKm,
           matchId: payload.room.linkedMatchId,

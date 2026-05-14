@@ -81,6 +81,19 @@ export function useMatchRoomLobby() {
     }
 
     openedLinkedMatchKeyRef.current = nextKey;
+    pauseRoomPolling();
+    rgPerfMark('match lifecycle owner handoff to live match', {
+      matchId: nextRoom.linkedMatchId,
+      roomId: nextRoom.roomId,
+      source: 'match-room linked match route',
+      state: nextRoom.state,
+    });
+    rgPerfMark('match-room polling stopped after handoff', {
+      matchId: nextRoom.linkedMatchId,
+      roomId: nextRoom.roomId,
+      source: 'match-room linked match route',
+      state: nextRoom.state,
+    });
     hydrateLiveMatchRouteState({
       distanceKm: nextRoom.linkedMatchDistanceKm ?? nextRoom.distanceKm,
       matchId: nextRoom.linkedMatchId,
@@ -109,7 +122,7 @@ export function useMatchRoomLobby() {
         focusMatchNonce: `room-${Date.now()}`,
       },
     } as Href);
-  }, [currentUserTag, serverClockOffsetMs]);
+  }, [currentUserTag, pauseRoomPolling, serverClockOffsetMs]);
 
   useEffect(() => {
     if (!room?.linkedMatchId) {
