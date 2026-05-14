@@ -19,7 +19,7 @@ import {
   type LiveMatchTrackingPageProps,
 } from '@/features/runs/components/LiveMatchTrackingPage';
 
-type LiveMatchPagesProps = {
+export type LiveMatchPagesProps = {
   scrollRef: RefObject<ScrollView | null>;
   page: number;
   pageWidth: number;

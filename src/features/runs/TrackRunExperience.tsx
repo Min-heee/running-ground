@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -28,7 +28,10 @@ import { useLiveMatchProgress } from '@/features/runs/hooks/useLiveMatchProgress
 import { useForfeitController } from '@/features/runs/hooks/useForfeitController';
 import { useAndroidLiveMatchDisplayFrame } from '@/features/runs/hooks/useAndroidLiveMatchDisplayFrame';
 import { useAndroidLiveMatchStartupGate } from '@/features/runs/hooks/useAndroidLiveMatchStartupGate';
+import { useLiveMatchViewModel } from '@/features/runs/hooks/useLiveMatchViewModel';
+import { useMatchRuntimeState } from '@/features/runs/hooks/useMatchRuntimeState';
 import { usePartyRunSync } from '@/features/runs/hooks/usePartyRunSync';
+import { useRunActionHandlers } from '@/features/runs/hooks/useRunActionHandlers';
 import { useMatchRoomSelectionSync } from '@/features/runs/hooks/useMatchRoomSelectionSync';
 import { useLiveMatchNavigationEffects } from '@/features/runs/hooks/useLiveMatchNavigationEffects';
 import { useMatchSelectionModel } from '@/features/runs/hooks/useMatchSelectionModel';
@@ -91,11 +94,7 @@ import {
   buildRoomLinkedGroupPlaceholderParticipants,
 } from '@/features/runs/matchViewModels';
 import {
-  buildMatchLifecycleController,
-} from '@/features/runs/matchLifecycleController';
-import {
   buildMatchTransitionNotice,
-  isLiveMatchState,
   type PartyRunLinkedMatchContext,
   shouldUseCenteredMatchCountdown,
   shouldUseFullscreenMatchCountdown,
@@ -750,7 +749,16 @@ export function TrackRunExperience({
         ?? lastSyncedMatchProgress?.matchId
         ?? null
       : null;
-  const matchLifecycleController = useMemo(() => buildMatchLifecycleController({
+  const {
+    activeMatchExitCounterpartForfeited,
+    activeMatchExitIsLeaving,
+    activeMatchExitIsTest,
+    activeMatchExitSource,
+    matchLifecycleController,
+    shouldEnableMatchProgressHeartbeat,
+    shouldKeepRunningMatchArena,
+    showLiveArena,
+  } = useMatchRuntimeState({
     matchMode,
     trackingStatus: status,
     isRunning,
@@ -768,101 +776,25 @@ export function TrackRunExperience({
     duelStartCountdownSeconds,
     groupStartCountdownSeconds,
     fallbackMatchId: runningMatchIdentity,
-  }), [
-    currentUserHasForfeitedActiveMatch,
-    duelMatchState,
-    duelMatchStatus,
-    duelStartCountdownSeconds,
-    groupMatchState,
-    groupMatchStatus,
-    groupStartCountdownSeconds,
-    isRunning,
-    liveMatchHeavyWorkReady,
-    matchMode,
-    matchRoom,
-    matchRoomFlow,
-    roomLinkedMatchContext,
-    runningMatchIdentity,
-    status,
-    visibleMatchRoom,
-    visiblePartyRunFlow,
-  ]);
-  const canRenderLiveArena =
-    (matchMode === 'duel'
-      && isLiveMatchState(duelMatchState)
-      && duelArenaParticipants.length === 2
-      && (duelMatchState === 'active' || duelShouldOpenCountdownArena || duelShouldHoldArenaDuringActivation))
-    || (matchMode === 'duel'
-      && hasRoomLinkedDuelContext
-      && roomLinkedDuelPlaceholderParticipants.length === 2
-      && roomShouldOpenCountdownArena)
-    || (matchMode === 'group'
-      && isLiveMatchState(groupMatchState)
-      && groupArenaParticipants.length > 0
-      && (groupMatchState === 'active' || groupShouldOpenCountdownArena || groupShouldHoldArenaDuringActivation))
-    || (matchMode === 'group'
-      && hasRoomLinkedGroupContext
-      && roomLinkedGroupPlaceholderParticipants.length > 0
-      && roomShouldOpenCountdownArena);
-  const shouldKeepRunningMatchArena = Boolean(
-    isRunning
-    && runningMatchIdentity
-    && matchMode !== 'solo'
-    && matchMode !== 'room'
-    && !currentUserHasForfeitedActiveMatch,
-  );
-  const showLiveArena =
-    (canRenderLiveArena || shouldKeepRunningMatchArena)
-    && !currentUserHasForfeitedActiveMatch
-    && (
-      isRunning
-      || hasMatchResultPage
-      || forceOpenActiveMatch
-      || (status === 'idle' && (
-        duelShouldOpenCountdownArena
-        || groupShouldOpenCountdownArena
-        || roomShouldOpenCountdownArena
-        || (matchMode === 'duel' && isDuelTestFlow)
-        || (matchMode === 'group' && isGroupTestFlow)
-      ))
-    );
-  const shouldEnableMatchProgressHeartbeat = Boolean(
-    matchLifecycleController.effects.shouldRunHeartbeat,
-  );
-  const activeMatchExitSource =
-    currentUserHasForfeitedActiveMatch
-      ? null
-      : isRunning && matchMode === 'duel'
-      ? (
-          (duelMatchStatus?.matchId && isLiveMatchState(duelMatchState))
-          || roomLinkedMatchContext?.mode === 'duel'
-            ? 'duel'
-            : null
-        )
-      : isRunning && matchMode === 'group'
-        ? (
-            (groupMatchStatus?.matchId && isLiveMatchState(groupMatchState))
-            || roomLinkedMatchContext?.mode === 'group'
-              ? 'group'
-              : null
-          )
-        : null;
-  const activeMatchExitIsTest = activeMatchExitSource === 'duel'
-    ? isDuelTestFlow
-    : activeMatchExitSource === 'group'
-      ? isGroupTestFlow
-      : false;
-  const activeMatchExitIsLeaving = activeMatchExitSource === 'duel'
-    ? isLeavingDuelMatch
-    : activeMatchExitSource === 'group'
-      ? isLeavingGroupMatch
-      : false;
-  const activeMatchExitCounterpartForfeited = activeMatchExitSource === 'duel'
-    ? Boolean(
-        isDuelOpponentForfeited
-        || roomLinkedDuelPlaceholderParticipants.some((participant) => !participant.isCurrentUser && participant.liveStatus === 'forfeited'),
-      )
-    : false;
+    duelArenaParticipants,
+    roomLinkedDuelPlaceholderParticipants,
+    groupArenaParticipants,
+    roomLinkedGroupPlaceholderParticipants,
+    hasRoomLinkedDuelContext,
+    hasRoomLinkedGroupContext,
+    duelShouldOpenCountdownArena,
+    groupShouldOpenCountdownArena,
+    roomShouldOpenCountdownArena,
+    duelShouldHoldArenaDuringActivation,
+    groupShouldHoldArenaDuringActivation,
+    hasMatchResultPage,
+    forceOpenActiveMatch,
+    isDuelTestFlow,
+    isGroupTestFlow,
+    isDuelOpponentForfeited,
+    isLeavingDuelMatch,
+    isLeavingGroupMatch,
+  });
   const duelCompatibleCount = duelMatchStatus?.competitiveParticipantsCount ?? 0;
   const duelWaitingHasOtherApplicants = (duelMatchStatus?.participantCount ?? 0) > 1;
   const duelWaitingTitle = isDuelTestFlow
@@ -2317,48 +2249,33 @@ export function TrackRunExperience({
     () => <LiveMatchExitActionCard {...liveArenaExitActionProps} />,
     [liveArenaExitActionProps],
   );
-  const liveActionHandlersRef = useRef({
+  const {
+    handleDiscardTrackingPress,
+    handlePauseTrackingPress,
+    handleReadyAction,
+    handleResumeTrackingPress,
+    handleSaveTrackingPress,
+  } = useRunActionHandlers({
+    matchMode,
+    matchRoom,
     handleSaveTracking,
     handlePauseTracking,
     handleResumeTracking,
     handleDiscardTracking,
+    handleCreateMatchRoom,
+    handleStartTracking,
+    navigateToMatchRoomWithTrace,
   });
-  liveActionHandlersRef.current = {
-    handleSaveTracking,
-    handlePauseTracking,
-    handleResumeTracking,
-    handleDiscardTracking,
-  };
-  const handleSaveTrackingPress = useCallback(() => {
-    void liveActionHandlersRef.current.handleSaveTracking();
-  }, []);
-  const handlePauseTrackingPress = useCallback(() => {
-    void liveActionHandlersRef.current.handlePauseTracking();
-  }, []);
-  const handleResumeTrackingPress = useCallback(() => {
-    void liveActionHandlersRef.current.handleResumeTracking();
-  }, []);
-  const handleDiscardTrackingPress = useCallback(() => {
-    liveActionHandlersRef.current.handleDiscardTracking();
-  }, []);
-  const handleReadyAction = () => {
-    if (matchMode === 'room') {
-      if (matchRoom) {
-        rgPerfMark('already joined room detected', {
-          roomId: matchRoom.roomId,
-          source: 'ready action existing room',
-          state: matchRoom.state,
-        });
-        navigateToMatchRoomWithTrace('ready action existing room', matchRoom.roomId);
-        return;
-      }
-      void handleCreateMatchRoom();
-      return;
-    }
-    void handleStartTracking();
-  };
 
-  const liveArenaPageProps = useMemo(() => ({
+  const {
+    livePagesProps,
+    trackingPageProps: liveTrackingPageBaseProps,
+  } = useLiveMatchViewModel({
+    scrollRef: livePagerRef,
+    page: liveArenaPage,
+    pageWidth: liveArenaPageWidth,
+    hasResultPage: hasMatchResultPage,
+    onPageChange: setLiveArenaPage,
     activeMatchId: liveMatchStartupIdentity,
     matchMode,
     effectiveDuelOpponent,
@@ -2395,152 +2312,26 @@ export function TrackRunExperience({
     currentUserGroupLiveStatus,
     deferHeavyContent: !liveMatchHeavyWorkReady,
     onLiveMatchMounted: markLiveMatchMounted,
-  }), [
-    liveMatchStartupIdentity,
-    currentGroupLeader,
-    currentGroupStanding,
-    currentUserArenaPace,
-    currentUserDuelLiveStatus,
-    currentUserGroupLiveStatus,
-    duelArenaParticipants,
-    duelArenaUsesLivePace,
-    duelComparisonSnapshot,
-    duelDistanceKm,
-    duelLiveGapKm,
-    duelLiveSummary,
-    effectiveDuelOpponent,
-    effectiveDuelOpponentArenaPace,
-    effectiveGroupParticipantCount,
-    groupAheadParticipant,
-    groupArenaParticipants,
-    groupBehindParticipant,
-    groupDistanceKm,
-    hasRoomLinkedDuelLiveProgress,
-    isDuelOpponentForfeited,
-    liveMatchHeavyWorkReady,
-    liveMatchDisplayDistanceKm,
-    matchMode,
-    markLiveMatchMounted,
-    officialDuelReady,
-    roomCountdownRemainingSeconds,
-    roomLinkedDuelCurrentParticipant,
-    roomLinkedDuelGapKm,
-    roomLinkedDuelOpponentParticipant,
-    roomLinkedDuelPlaceholderParticipants,
-    roomLinkedGroupPlaceholderParticipants,
-    shouldKeepRunningMatchArena,
-    syncedDuelDistanceKm,
-    syncedDuelOpponentDistanceKm,
-    visibleMatchRoom,
-  ]);
-
-  const liveRaceBoardPageProps = useMemo(() => ({
-    matchMode,
-    effectiveDuelOpponent,
-    duelLiveGapKm,
-    duelDistanceKm,
-    groupDistanceKm,
-    distanceKm: liveMatchDisplayDistanceKm,
-    syncedDuelDistanceKm,
-    syncedDuelOpponentDistanceKm,
-    currentUserDuelLiveStatus,
-    currentUserGroupLiveStatus,
-    roomLinkedDuelPlaceholderParticipants,
-    roomLinkedGroupPlaceholderParticipants,
-    visibleMatchRoom,
     groupLiveStandings,
-    currentUserArenaPace,
     groupArenaUsesLivePace,
-  }), [
-    currentUserArenaPace,
-    currentUserDuelLiveStatus,
-    currentUserGroupLiveStatus,
-    duelDistanceKm,
-    duelLiveGapKm,
-    effectiveDuelOpponent,
-    groupArenaUsesLivePace,
-    groupDistanceKm,
-    groupLiveStandings,
-    liveMatchDisplayDistanceKm,
-    matchMode,
-    roomLinkedDuelPlaceholderParticipants,
-    roomLinkedGroupPlaceholderParticipants,
-    syncedDuelDistanceKm,
-    syncedDuelOpponentDistanceKm,
-    visibleMatchRoom,
-  ]);
-
-  const liveTrackingPageBaseProps = useMemo(() => ({
-    matchMode,
     liveMatchTitle,
     liveMatchText,
-    effectiveDuelOpponent,
-    duelDistanceKm,
     duelLiveTitle,
-    duelLiveSummary,
     duelStatusAlert,
-    distanceKm: liveMatchDisplayDistanceKm,
     isLeavingDuelMatch,
-    effectiveGroupParticipantCount,
-    currentGroupStanding,
-    groupAheadParticipant,
-    groupBehindParticipant,
     groupStatusAlert,
     isLeavingGroupMatch,
-    groupLiveStandings,
-    currentGroupLeader,
     elapsedSeconds: liveMatchDisplayElapsedSeconds,
     averagePace: liveMatchDisplayFrame.averagePace,
     currentPace: liveMatchDisplayFrame.currentPace,
     cadenceSpm: liveMatchDisplayFrame.cadenceSpm,
     elevationGainM: liveMatchDisplayFrame.elevationGainM,
     onContinueSoloFromMatch: handleContinueSoloFromMatch,
-  }), [
-    currentGroupLeader,
-    currentGroupStanding,
-    duelDistanceKm,
-    duelLiveSummary,
-    duelLiveTitle,
-    duelStatusAlert,
-    effectiveDuelOpponent,
-    effectiveGroupParticipantCount,
-    groupAheadParticipant,
-    groupBehindParticipant,
-    groupLiveStandings,
-    groupStatusAlert,
-    handleContinueSoloFromMatch,
-    isLeavingDuelMatch,
-    isLeavingGroupMatch,
-    liveMatchDisplayDistanceKm,
-    liveMatchDisplayElapsedSeconds,
-    liveMatchDisplayFrame.averagePace,
-    liveMatchDisplayFrame.cadenceSpm,
-    liveMatchDisplayFrame.currentPace,
-    liveMatchDisplayFrame.elevationGainM,
-    liveMatchText,
-    liveMatchTitle,
-    matchMode,
-  ]);
-
-  const liveResultPageProps = useMemo(() => ({
-    matchMode,
     estimatedBonusPoints: estimatedMatchBonusPoints,
     duelRows: duelResultRows,
     groupRows: groupResultRows,
     groupStatusLabel: groupResultStatusLabel,
-  }), [
-    duelResultRows,
-    estimatedMatchBonusPoints,
-    groupResultRows,
-    groupResultStatusLabel,
-    matchMode,
-  ]);
-  const livePagesRaceBoardProps = liveArenaPage === 1 ? liveRaceBoardPageProps : null;
-  const livePagesTrackingProps = useMemo(
-    () => (liveArenaPage === 2 ? { ...liveTrackingPageBaseProps, includeMatchCards: false } : null),
-    [liveArenaPage, liveTrackingPageBaseProps],
-  );
-  const livePagesResultProps = liveArenaPage === 3 ? liveResultPageProps : null;
+  });
 
   const readyUpcomingMatchesProps = {
     matches: visibleUpcomingMatches,
@@ -2680,27 +2471,6 @@ export function TrackRunExperience({
         onRequestRematch: () => { void handleRequestGroupMatch(activeGroupSlotStartAt); },
       }
     : null;
-
-  const livePagesProps = useMemo(() => ({
-    scrollRef: livePagerRef,
-    page: liveArenaPage,
-    pageWidth: liveArenaPageWidth,
-    hasResultPage: hasMatchResultPage,
-    arenaProps: liveArenaPageProps,
-    raceBoardProps: livePagesRaceBoardProps,
-    trackingProps: livePagesTrackingProps,
-    resultProps: livePagesResultProps,
-    onPageChange: setLiveArenaPage,
-  }), [
-    hasMatchResultPage,
-    liveArenaPage,
-    liveArenaPageProps,
-    liveArenaPageWidth,
-    livePagesRaceBoardProps,
-    livePagesResultProps,
-    livePagesTrackingProps,
-    setLiveArenaPage,
-  ]);
 
   return (
     <View style={styles.root}>
