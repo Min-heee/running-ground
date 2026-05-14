@@ -2317,9 +2317,30 @@ export function TrackRunExperience({
     () => <LiveMatchExitActionCard {...liveArenaExitActionProps} />,
     [liveArenaExitActionProps],
   );
+  const liveActionHandlersRef = useRef({
+    handleSaveTracking,
+    handlePauseTracking,
+    handleResumeTracking,
+    handleDiscardTracking,
+  });
+  liveActionHandlersRef.current = {
+    handleSaveTracking,
+    handlePauseTracking,
+    handleResumeTracking,
+    handleDiscardTracking,
+  };
   const handleSaveTrackingPress = useCallback(() => {
-    void handleSaveTracking();
-  }, [handleSaveTracking]);
+    void liveActionHandlersRef.current.handleSaveTracking();
+  }, []);
+  const handlePauseTrackingPress = useCallback(() => {
+    void liveActionHandlersRef.current.handlePauseTracking();
+  }, []);
+  const handleResumeTrackingPress = useCallback(() => {
+    void liveActionHandlersRef.current.handleResumeTracking();
+  }, []);
+  const handleDiscardTrackingPress = useCallback(() => {
+    liveActionHandlersRef.current.handleDiscardTracking();
+  }, []);
   const handleReadyAction = () => {
     if (matchMode === 'room') {
       if (matchRoom) {
@@ -2715,9 +2736,9 @@ export function TrackRunExperience({
           isRunningSolo={isRunning && matchMode === 'solo'}
           isPaused={isPaused}
           onSaveTracking={handleSaveTrackingPress}
-          onPauseTracking={handlePauseTracking}
-          onResumeTracking={handleResumeTracking}
-          onDiscardTracking={handleDiscardTracking}
+          onPauseTracking={handlePauseTrackingPress}
+          onResumeTracking={handleResumeTrackingPress}
+          onDiscardTracking={handleDiscardTrackingPress}
         />
       )}
 

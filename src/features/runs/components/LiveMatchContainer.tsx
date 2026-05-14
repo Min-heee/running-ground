@@ -43,28 +43,91 @@ export const LiveMatchContainer = memo(function LiveMatchContainer({
         <LiveMatchTrackingPage {...trackingPageProps} includeMatchCards />
       )}
 
-      {isSaving ? <ActivityIndicator size="small" color="#6D5EF7" /> : null}
+      <LiveMatchSavingIndicator isSaving={isSaving} />
 
       {isRunningSolo ? (
-        <View style={styles.actionColumn}>
-          <PrimaryButton
-            label="러닝 종료하고 저장"
-            onPress={onSaveTracking}
-          />
-          <SecondaryButton label="일시정지" onPress={onPauseTracking} />
-        </View>
+        <LiveMatchSoloActions
+          onSaveTracking={onSaveTracking}
+          onPauseTracking={onPauseTracking}
+        />
       ) : null}
 
       {isPaused ? (
-        <View style={styles.actionColumn}>
-          <PrimaryButton label="이 기록 저장하기" onPress={onSaveTracking} />
-          <SecondaryButton label="측정 다시 시작" onPress={onResumeTracking} />
-          <Pressable style={styles.discardButton} onPress={onDiscardTracking}>
-            <Text style={styles.discardButtonText}>이 기록 버리기</Text>
-          </Pressable>
-        </View>
+        <LiveMatchPausedActions
+          onSaveTracking={onSaveTracking}
+          onResumeTracking={onResumeTracking}
+          onDiscardTracking={onDiscardTracking}
+        />
       ) : null}
     </>
+  );
+}, (prevProps, nextProps) => {
+  if (
+    prevProps.showLiveArena !== nextProps.showLiveArena
+    || prevProps.isSaving !== nextProps.isSaving
+    || prevProps.isRunningSolo !== nextProps.isRunningSolo
+    || prevProps.isPaused !== nextProps.isPaused
+    || prevProps.onSaveTracking !== nextProps.onSaveTracking
+    || prevProps.onPauseTracking !== nextProps.onPauseTracking
+    || prevProps.onResumeTracking !== nextProps.onResumeTracking
+    || prevProps.onDiscardTracking !== nextProps.onDiscardTracking
+  ) {
+    return false;
+  }
+
+  if (nextProps.showLiveArena) {
+    return (
+      prevProps.livePagesProps === nextProps.livePagesProps
+      && prevProps.exitAction === nextProps.exitAction
+    );
+  }
+
+  return prevProps.trackingPageProps === nextProps.trackingPageProps;
+});
+
+const LiveMatchSavingIndicator = memo(function LiveMatchSavingIndicator({
+  isSaving,
+}: {
+  isSaving: boolean;
+}) {
+  return isSaving ? <ActivityIndicator size="small" color="#6D5EF7" /> : null;
+});
+
+const LiveMatchSoloActions = memo(function LiveMatchSoloActions({
+  onSaveTracking,
+  onPauseTracking,
+}: {
+  onSaveTracking: () => void;
+  onPauseTracking: () => void;
+}) {
+  return (
+    <View style={styles.actionColumn}>
+      <PrimaryButton
+        label="러닝 종료하고 저장"
+        onPress={onSaveTracking}
+      />
+      <SecondaryButton label="일시정지" onPress={onPauseTracking} />
+    </View>
+  );
+});
+
+const LiveMatchPausedActions = memo(function LiveMatchPausedActions({
+  onSaveTracking,
+  onResumeTracking,
+  onDiscardTracking,
+}: {
+  onSaveTracking: () => void;
+  onResumeTracking: () => void;
+  onDiscardTracking: () => void;
+}) {
+  return (
+    <View style={styles.actionColumn}>
+      <PrimaryButton label="이 기록 저장하기" onPress={onSaveTracking} />
+      <SecondaryButton label="측정 다시 시작" onPress={onResumeTracking} />
+      <Pressable style={styles.discardButton} onPress={onDiscardTracking}>
+        <Text style={styles.discardButtonText}>이 기록 버리기</Text>
+      </Pressable>
+    </View>
   );
 });
 

@@ -76,4 +76,29 @@ export const LiveMatchPages = memo(function LiveMatchPages({
       onPageChange={onPageChange}
     />
   );
+}, (prevProps, nextProps) => {
+  if (
+    prevProps.scrollRef !== nextProps.scrollRef
+    || prevProps.page !== nextProps.page
+    || prevProps.pageWidth !== nextProps.pageWidth
+    || prevProps.hasResultPage !== nextProps.hasResultPage
+    || prevProps.onPageChange !== nextProps.onPageChange
+    || prevProps.exitAction !== nextProps.exitAction
+  ) {
+    return false;
+  }
+
+  if (nextProps.page === 1) {
+    return prevProps.raceBoardProps === nextProps.raceBoardProps;
+  }
+
+  if (nextProps.page === 2) {
+    return prevProps.trackingProps === nextProps.trackingProps;
+  }
+
+  if (nextProps.page === 3) {
+    return prevProps.resultProps === nextProps.resultProps;
+  }
+
+  return prevProps.arenaProps === nextProps.arenaProps;
 });

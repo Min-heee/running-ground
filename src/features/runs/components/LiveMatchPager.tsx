@@ -254,6 +254,30 @@ export const LiveMatchPager = memo(function LiveMatchPager({
       </Text>
     </View>
   );
+}, (prevProps, nextProps) => {
+  if (
+    prevProps.scrollRef !== nextProps.scrollRef
+    || prevProps.page !== nextProps.page
+    || prevProps.pageWidth !== nextProps.pageWidth
+    || prevProps.hasResultPage !== nextProps.hasResultPage
+    || prevProps.onPageChange !== nextProps.onPageChange
+  ) {
+    return false;
+  }
+
+  if (nextProps.page === 1) {
+    return prevProps.renderRaceBoardPage === nextProps.renderRaceBoardPage;
+  }
+
+  if (nextProps.page === 2) {
+    return prevProps.renderStatsPage === nextProps.renderStatsPage;
+  }
+
+  if (nextProps.page === 3) {
+    return prevProps.renderResultPage === nextProps.renderResultPage;
+  }
+
+  return prevProps.renderArenaPage === nextProps.renderArenaPage;
 });
 
 const styles = StyleSheet.create({
