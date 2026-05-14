@@ -1,4 +1,4 @@
-import { useCallback, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react';
+import { useCallback, useRef, type Dispatch, type MutableRefObject, type RefObject, type SetStateAction } from 'react';
 import type { ScrollView } from 'react-native';
 import {
   getMatchStartRemainingSeconds,
@@ -14,7 +14,13 @@ import {
   type MatchTimeSection,
 } from '@/features/runs/matchScheduling';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import { rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+import {
+  buildLiveMatchNavigationKey,
+  shouldPromoteLiveMatchArena,
+  shouldReuseRecentLiveMatchNavigation,
+  type LiveMatchNavigationResult,
+} from '@/features/runs/liveMatchNavigationGate';
+import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type FocusRunningMatchInput = {
   mode: Extract<RunMatchMode, 'duel' | 'group'>;
@@ -23,6 +29,7 @@ type FocusRunningMatchInput = {
   slotStartAt?: string;
   isTestMatch?: boolean;
   preferArena?: boolean;
+  source?: string;
 };
 
 type LoadMatchStatusOptions = {
@@ -55,6 +62,20 @@ type UseRunningMatchFocusInput = {
   loadGroupMatchStatus: (slotStartAt?: string, options?: LoadMatchStatusOptions) => Promise<RunningMatchStatusResponse>;
 };
 
+type ActiveLiveMatchNavigation = {
+  key: string;
+  preferArena: boolean;
+  promise: Promise<LiveMatchNavigationResult>;
+  requestId: string;
+};
+
+type CompletedLiveMatchNavigation = {
+  completedAtMs: number;
+  key: string;
+  preferArena: boolean;
+  result: LiveMatchNavigationResult;
+};
+
 export function useRunningMatchFocus({
   livePagerRef,
   activeDuelSlotStartAt,
@@ -77,6 +98,16 @@ export function useRunningMatchFocus({
   loadDuelMatchStatus,
   loadGroupMatchStatus,
 }: UseRunningMatchFocusInput) {
+  const activeNavigationRef = useRef<ActiveLiveMatchNavigation | null>(null);
+  const completedNavigationRef = useRef<CompletedLiveMatchNavigation | null>(null);
+  const navigationSequenceRef = useRef(0);
+
+  const promoteLiveArena = useCallback(() => {
+    setForceOpenActiveMatch(true);
+    setLiveArenaPage(0);
+    livePagerRef.current?.scrollTo({ x: 0, animated: false });
+  }, [livePagerRef, setForceOpenActiveMatch, setLiveArenaPage]);
+
   const focusRunningMatch = useCallback(async ({
     mode,
     matchId,
@@ -84,80 +115,189 @@ export function useRunningMatchFocus({
     slotStartAt,
     isTestMatch,
     preferArena = false,
+    source = 'running match focus',
   }: FocusRunningMatchInput) => {
+    const navigationKey = buildLiveMatchNavigationKey({
+      distanceKm,
+      isTestMatch,
+      matchId,
+      mode,
+      slotStartAt,
+    });
+    const activeNavigation = activeNavigationRef.current;
+
+    if (activeNavigation?.key === navigationKey) {
+      if (preferArena && !activeNavigation.preferArena) {
+        activeNavigation.preferArena = true;
+        promoteLiveArena();
+      }
+
+      rgPerfMark('live match navigation reuse', {
+        matchId: matchId ?? null,
+        mode,
+        navigationKey,
+        preferArena,
+        requestId: activeNavigation.requestId,
+        source,
+      });
+
+      return activeNavigation.promise;
+    }
+
+    const completedNavigation = completedNavigationRef.current;
+    const nowMs = Date.now();
+    if (shouldReuseRecentLiveMatchNavigation({
+      completedAtMs: completedNavigation?.completedAtMs,
+      lastKey: completedNavigation?.key,
+      nextKey: navigationKey,
+      nowMs,
+    })) {
+      const shouldPromoteArena = shouldPromoteLiveMatchArena({
+        currentPreferArena: completedNavigation?.preferArena,
+        matchState: completedNavigation?.result?.state,
+        requestedPreferArena: preferArena,
+      });
+
+      if (shouldPromoteArena) {
+        promoteLiveArena();
+        if (completedNavigation) {
+          completedNavigation.preferArena = true;
+        }
+      }
+
+      rgPerfMark('live match navigation skipped', {
+        matchId: matchId ?? null,
+        mode,
+        navigationKey,
+        preferArena,
+        reason: 'recent-complete',
+        source,
+      });
+
+      return completedNavigation?.result ?? null;
+    }
+
+    navigationSequenceRef.current += 1;
+    const requestId = `live-nav-${navigationSequenceRef.current}`;
     const endNavigationTrace = rgPerfMeasureStart('live match navigation', {
       matchId: matchId ?? null,
       mode,
+      navigationKey,
       preferArena,
-      source: 'running match focus',
+      requestId,
+      source,
     });
-    let navigationTraceSucceeded = false;
 
-    setLiveArenaPage(0);
-    livePagerRef.current?.scrollTo({ x: 0, animated: false });
-    setForceOpenActiveMatch(Boolean(preferArena));
-    setIsResolvingFocusedMatch(true);
+    const navigationPromise = (async (): Promise<LiveMatchNavigationResult> => {
+      let navigationTraceSucceeded = false;
+      let navigationResult: LiveMatchNavigationResult = null;
+      let effectivePreferArena = Boolean(preferArena);
+      let navigationState: string | null = null;
 
-    try {
-      if (mode === 'duel') {
-        setMatchMode('duel');
+      setLiveArenaPage(0);
+      livePagerRef.current?.scrollTo({ x: 0, animated: false });
+      setForceOpenActiveMatch(Boolean(preferArena));
+      setIsResolvingFocusedMatch(true);
+
+      try {
+        if (mode === 'duel') {
+          setMatchMode('duel');
+          if (typeof distanceKm === 'number' && Number.isFinite(distanceKm)) {
+            setDuelDistanceText(String(distanceKm));
+          }
+
+          if (slotStartAt) {
+            setSelectedDuelSlotStartAt(slotStartAt);
+            setSelectedDuelDateKey(formatMatchDateKey(new Date(slotStartAt)));
+            setSelectedDuelTimeSection(resolveMatchTimeSection(slotStartAt));
+          }
+          focusedDuelMatchIdRef.current = matchId ?? focusedDuelMatchIdRef.current;
+
+          const payload = await loadDuelMatchStatus(slotStartAt ?? activeDuelSlotStartAt, {
+            distanceKm,
+            testMode: isTestMatch,
+            matchId,
+          });
+          navigationState = payload.state;
+          effectivePreferArena = shouldPromoteLiveMatchArena({
+            currentPreferArena: activeNavigationRef.current?.key === navigationKey
+              ? activeNavigationRef.current.preferArena
+              : false,
+            matchState: payload.state,
+            requestedPreferArena: preferArena || (
+              payload.state === 'matched'
+              && shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
+            ),
+          });
+          setForceOpenActiveMatch(effectivePreferArena);
+          navigationTraceSucceeded = true;
+          navigationResult = payload;
+          return payload;
+        }
+
+        setMatchMode('group');
         if (typeof distanceKm === 'number' && Number.isFinite(distanceKm)) {
-          setDuelDistanceText(String(distanceKm));
+          setGroupDistanceText(String(distanceKm));
         }
 
         if (slotStartAt) {
-          setSelectedDuelSlotStartAt(slotStartAt);
-          setSelectedDuelDateKey(formatMatchDateKey(new Date(slotStartAt)));
-          setSelectedDuelTimeSection(resolveMatchTimeSection(slotStartAt));
+          setSelectedGroupSlotStartAt(slotStartAt);
+          setSelectedGroupDateKey(formatMatchDateKey(new Date(slotStartAt)));
+          setSelectedGroupTimeSection(resolveMatchTimeSection(slotStartAt));
         }
-        focusedDuelMatchIdRef.current = matchId ?? focusedDuelMatchIdRef.current;
+        focusedGroupMatchIdRef.current = matchId ?? focusedGroupMatchIdRef.current;
 
-        const payload = await loadDuelMatchStatus(slotStartAt ?? activeDuelSlotStartAt, {
+        const payload = await loadGroupMatchStatus(slotStartAt ?? activeGroupSlotStartAt, {
           distanceKm,
           testMode: isTestMatch,
           matchId,
         });
-        setForceOpenActiveMatch(
-          payload.state === 'active'
-            || (payload.state === 'matched' && (
-          preferArena
-              || shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
-            )),
-        );
+        navigationState = payload.state;
+        effectivePreferArena = shouldPromoteLiveMatchArena({
+          currentPreferArena: activeNavigationRef.current?.key === navigationKey
+            ? activeNavigationRef.current.preferArena
+            : false,
+          matchState: payload.state,
+          requestedPreferArena: preferArena || (
+            payload.state === 'matched'
+            && shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
+          ),
+        });
+        setForceOpenActiveMatch(effectivePreferArena);
         navigationTraceSucceeded = true;
+        navigationResult = payload;
         return payload;
-      }
+      } finally {
+        if (navigationTraceSucceeded) {
+          completedNavigationRef.current = {
+            completedAtMs: Date.now(),
+            key: navigationKey,
+            preferArena: effectivePreferArena,
+            result: navigationResult,
+          };
+        }
 
-      setMatchMode('group');
-      if (typeof distanceKm === 'number' && Number.isFinite(distanceKm)) {
-        setGroupDistanceText(String(distanceKm));
-      }
+        endNavigationTrace({
+          effectivePreferArena,
+          state: navigationState,
+          success: navigationTraceSucceeded,
+        });
 
-      if (slotStartAt) {
-        setSelectedGroupSlotStartAt(slotStartAt);
-        setSelectedGroupDateKey(formatMatchDateKey(new Date(slotStartAt)));
-        setSelectedGroupTimeSection(resolveMatchTimeSection(slotStartAt));
+        if (activeNavigationRef.current?.requestId === requestId) {
+          activeNavigationRef.current = null;
+          setIsResolvingFocusedMatch(false);
+        }
       }
-      focusedGroupMatchIdRef.current = matchId ?? focusedGroupMatchIdRef.current;
+    })();
 
-      const payload = await loadGroupMatchStatus(slotStartAt ?? activeGroupSlotStartAt, {
-        distanceKm,
-        testMode: isTestMatch,
-        matchId,
-      });
-      setForceOpenActiveMatch(
-        payload.state === 'active'
-        || (payload.state === 'matched' && (
-          preferArena
-          || shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
-        )),
-      );
-      navigationTraceSucceeded = true;
-      return payload;
-    } finally {
-      endNavigationTrace({ success: navigationTraceSucceeded });
-      setIsResolvingFocusedMatch(false);
-    }
+    activeNavigationRef.current = {
+      key: navigationKey,
+      preferArena: Boolean(preferArena),
+      promise: navigationPromise,
+      requestId,
+    };
+
+    return navigationPromise;
   }, [
     activeDuelSlotStartAt,
     activeGroupSlotStartAt,
@@ -179,9 +319,10 @@ export function useRunningMatchFocus({
     setSelectedGroupDateKey,
     setSelectedGroupSlotStartAt,
     setSelectedGroupTimeSection,
+    promoteLiveArena,
   ]);
 
-  const focusRoomLinkedMatch = useCallback(async (room: RunningMatchRoom, options?: { preferArena?: boolean }) => {
+  const focusRoomLinkedMatch = useCallback(async (room: RunningMatchRoom, options?: { preferArena?: boolean; source?: string }) => {
     if (!room.linkedMatchId) {
       return null;
     }
@@ -193,6 +334,7 @@ export function useRunningMatchFocus({
       slotStartAt: room.linkedMatchSlotStartAt ?? room.slotStartAt,
       isTestMatch: false,
       preferArena: Boolean(options?.preferArena),
+      source: options?.source ?? 'room linked match sync',
     });
   }, [focusRunningMatch]);
 

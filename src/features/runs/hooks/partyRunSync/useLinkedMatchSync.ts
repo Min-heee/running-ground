@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { buildPartyRunFlowSnapshot } from '@/features/runs/matchStateMachine';
-import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
+import { rgPerfMark, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 import type { LinkedMatchSyncInput } from './types';
 
 export function canOpenPartyRunLinkedMatch({
@@ -34,13 +34,12 @@ export function canOpenPartyRunLinkedMatch({
   return flow.canOpenLinkedMatch;
 }
 
-function buildRoomLinkedMatchFocusKey(room: RunningMatchRoom, preferArena: boolean) {
+function buildRoomLinkedMatchFocusKey(room: RunningMatchRoom) {
   return [
     room.roomId,
     room.linkedMatchId,
     room.state,
     room.linkedMatchSlotStartAt ?? room.slotStartAt,
-    preferArena ? 'arena' : 'countdown',
   ].join(':');
 }
 
@@ -79,7 +78,7 @@ export function useLinkedMatchSync({
     }
 
     const shouldPreferArena = matchRoomFlow.shouldPreferArena;
-    const nextKey = buildRoomLinkedMatchFocusKey(matchRoom, shouldPreferArena);
+    const nextKey = buildRoomLinkedMatchFocusKey(matchRoom);
     const currentFocusedMatchId = matchRoom.mode === 'duel'
       ? duelMatchStatus?.matchId ?? focusedDuelMatchIdRef.current
       : groupMatchStatus?.matchId ?? focusedGroupMatchIdRef.current;
@@ -96,18 +95,18 @@ export function useLinkedMatchSync({
     }
 
     roomLinkedMatchAutoFocusRef.current = nextKey;
-    const endNavigationTrace = rgPerfMeasureStart('live match navigation', {
+    rgPerfMark('live match navigation request', {
       matchId: matchRoom.linkedMatchId,
       mode: matchRoom.mode,
       preferArena: shouldPreferArena,
       roomId: matchRoom.roomId,
+      source: 'room linked match sync',
     });
-    void callbacksRef.current.focusRoomLinkedMatch(matchRoom, { preferArena: shouldPreferArena })
-      .then(() => {
-        endNavigationTrace({ success: true });
-      })
+    void callbacksRef.current.focusRoomLinkedMatch(matchRoom, {
+      preferArena: shouldPreferArena,
+      source: 'room linked match sync',
+    })
       .catch(() => {
-        endNavigationTrace({ success: false });
         roomLinkedMatchAutoFocusRef.current = null;
       });
   }, [

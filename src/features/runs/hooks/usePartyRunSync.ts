@@ -40,7 +40,7 @@ type UsePartyRunSyncInput = {
   acknowledgeCountdownReady: (roomId: string) => Promise<void>;
   focusRoomLinkedMatch: (
     room: RunningMatchRoom,
-    options?: { preferArena?: boolean },
+    options?: { preferArena?: boolean; source?: string },
   ) => Promise<RunningMatchStatusResponse | null>;
   syncRoomLinkedMatchStatus: (
     context: PartyRunLinkedMatchContext,
