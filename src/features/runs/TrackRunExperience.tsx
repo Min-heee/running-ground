@@ -107,7 +107,11 @@ import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
-import { beginRgInputTrace, isRgInputInteractionRecent } from '@/utils/rgInputTrace';
+import {
+  beginRgInputTrace,
+  isRgInputInteractionRecent,
+  waitForRgInputFeedbackFrame,
+} from '@/utils/rgInputTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
@@ -364,7 +368,9 @@ export function TrackRunExperience({
   const autoStartingMatchTrackingRef = useRef(false);
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
   const forfeitedMatchIdsRef = useRef<Set<string>>(new Set());
+  const createMatchRoomInFlightRef = useRef(false);
   const joinMatchRoomInFlightRef = useRef(false);
+  const leaveMatchRoomInFlightRef = useRef(false);
   const lastHandledActiveRoomSnapshotKeyRef = useRef<string | null>(null);
   const liveMatchMountedRef = useRef<{ matchId: string | null; mode: 'duel' | 'group'; mountedAtMs: number } | null>(null);
 
@@ -1481,6 +1487,10 @@ export function TrackRunExperience({
   };
 
   const handleCreateMatchRoom = async () => {
+    if (createMatchRoomInFlightRef.current || isCreatingMatchRoom) {
+      return;
+    }
+
     const nextRoomMode = roomMatchMode;
     const nextDistanceKm = nextRoomMode === 'duel' ? duelDistanceKm : groupDistanceKm;
     const inputTrace = beginRgInputTrace('room create button press', {
@@ -1495,11 +1505,20 @@ export function TrackRunExperience({
       source: 'track-run ready action',
     });
 
+    createMatchRoomInFlightRef.current = true;
     setIsCreatingMatchRoom(true);
     setError(null);
     inputTrace.markFeedback('loading state set', {
       disabled: true,
       loading: true,
+    });
+    inputTrace.markFeedbackCommitted({
+      disabled: true,
+      loading: true,
+    });
+    await waitForRgInputFeedbackFrame();
+    inputTrace.markApiStarted({
+      source: 'room create preflight',
     });
 
     try {
@@ -1586,6 +1605,7 @@ export function TrackRunExperience({
       });
       setError(message);
     } finally {
+      createMatchRoomInFlightRef.current = false;
       setIsCreatingMatchRoom(false);
     }
   };
@@ -1621,6 +1641,14 @@ export function TrackRunExperience({
     inputTrace.markFeedback('loading state set', {
       disabled: true,
       loading: true,
+    });
+    inputTrace.markFeedbackCommitted({
+      disabled: true,
+      loading: true,
+    });
+    await waitForRgInputFeedbackFrame();
+    inputTrace.markApiStarted({
+      source: 'invite code join preflight',
     });
 
     try {
@@ -1719,8 +1747,23 @@ export function TrackRunExperience({
       return;
     }
 
+    if (joinMatchRoomInFlightRef.current || isJoiningMatchRoom) {
+      return;
+    }
+
+    const inputTrace = beginRgInputTrace('invite code input submit', {
+      hasToken: Boolean(visibleMatchRoom.inviteToken),
+      roomId: visibleMatchRoom.roomId,
+      source: 'track-run invite card accept',
+    });
+
+    joinMatchRoomInFlightRef.current = true;
     setIsJoiningMatchRoom(true);
     setError(null);
+    inputTrace.markFeedbackCommitted({
+      disabled: true,
+      loading: true,
+    });
 
     rgPerfMark('invite code input submit', {
       hasToken: Boolean(visibleMatchRoom.inviteToken),
@@ -1728,6 +1771,10 @@ export function TrackRunExperience({
       source: 'track-run invite card accept',
     });
     let endJoinApiTrace: ReturnType<typeof rgPerfMeasureStart> | null = null;
+    await waitForRgInputFeedbackFrame();
+    inputTrace.markApiStarted({
+      source: 'invite card accept preflight',
+    });
 
     try {
       const canProceed = await prepareMatchRoomMutation({
@@ -1771,6 +1818,7 @@ export function TrackRunExperience({
       });
       setError(message);
     } finally {
+      joinMatchRoomInFlightRef.current = false;
       setIsJoiningMatchRoom(false);
     }
   };
@@ -1780,11 +1828,29 @@ export function TrackRunExperience({
       return;
     }
 
+    if (leaveMatchRoomInFlightRef.current || isLeavingMatchRoom) {
+      return;
+    }
+
+    const inputTrace = beginRgInputTrace('room leave button press', {
+      roomId: visibleMatchRoom.roomId,
+      source: 'track-run invite card decline',
+    });
+
+    leaveMatchRoomInFlightRef.current = true;
     setIsLeavingMatchRoom(true);
     setError(null);
+    inputTrace.markFeedbackCommitted({
+      disabled: true,
+      loading: true,
+    });
 
     rgPerfMark('room leave button press', {
       roomId: visibleMatchRoom.roomId,
+      source: 'track-run invite card decline',
+    });
+    await waitForRgInputFeedbackFrame();
+    inputTrace.markApiStarted({
       source: 'track-run invite card decline',
     });
     const endLeaveApiTrace = rgPerfMeasureStart('room leave API', {
@@ -1819,6 +1885,7 @@ export function TrackRunExperience({
       });
       setError(message);
     } finally {
+      leaveMatchRoomInFlightRef.current = false;
       setIsLeavingMatchRoom(false);
     }
   };

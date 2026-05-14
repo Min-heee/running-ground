@@ -95,6 +95,8 @@ export function beginRgInputTrace(label: string, detail?: RgInputDetail) {
   if (!isRgPerfTraceEnabled()) {
     return {
       markFeedback: () => 0,
+      markFeedbackCommitted: () => 0,
+      markApiStarted: () => 0,
       mark: () => {},
     };
   }
@@ -125,6 +127,29 @@ export function beginRgInputTrace(label: string, detail?: RgInputDetail) {
       );
       return durationMs;
     },
+    markFeedbackCommitted: (feedbackDetail?: RgInputDetail) => {
+      const delayMs = Number((getNowMs() - startedAtMs).toFixed(1));
+      const logLevel = delayMs >= SLOW_INPUT_FEEDBACK_THRESHOLD_MS ? 'warn' : 'log';
+      const traceDetail = {
+        delayMs,
+        label,
+        ...detail,
+        ...feedbackDetail,
+      };
+      logRgInput(logLevel, 'button feedback committed', traceDetail);
+      logRgInput(logLevel, 'button feedback delayMs', traceDetail);
+      return delayMs;
+    },
+    markApiStarted: (apiDetail?: RgInputDetail) => {
+      const delayMs = Number((getNowMs() - startedAtMs).toFixed(1));
+      logRgInput('log', 'API started after feedback', {
+        delayMs,
+        label,
+        ...detail,
+        ...apiDetail,
+      });
+      return delayMs;
+    },
     mark: (phase: string, markDetail?: RgInputDetail) => {
       logRgInput('log', phase, {
         durationMs: Number((getNowMs() - startedAtMs).toFixed(1)),
@@ -134,6 +159,19 @@ export function beginRgInputTrace(label: string, detail?: RgInputDetail) {
       });
     },
   };
+}
+
+export function waitForRgInputFeedbackFrame() {
+  return new Promise<void>((resolve) => {
+    if (typeof globalThis.requestAnimationFrame === 'function') {
+      globalThis.requestAnimationFrame(() => {
+        resolve();
+      });
+      return;
+    }
+
+    setTimeout(resolve, 0);
+  });
 }
 
 export function isRgInputInteractionRecent(windowMs = DEFAULT_RECENT_INPUT_WINDOW_MS) {

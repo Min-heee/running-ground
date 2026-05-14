@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -12,7 +13,7 @@ import { ensureRunningMatchRoomFriendInviteRecords } from '@/lib/api/services/ru
 import type { MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { UpdateRoomSettingsInput } from '@/features/runs/types/matchRoom';
-import { beginRgInputTrace } from '@/utils/rgInputTrace';
+import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type UseRoomInviteActionsInput = {
@@ -38,6 +39,10 @@ export function useRoomInviteActions({
   setSaving,
   saveRoomSettings,
 }: UseRoomInviteActionsInput) {
+  const acceptInviteInFlightRef = useRef(false);
+  const declineInviteInFlightRef = useRef(false);
+  const sendFriendInvitesInFlightRef = useRef(false);
+
   const handleAcceptInvite = async () => {
     rgPerfMark('invite code input submit', {
       hasToken: Boolean(room?.inviteToken),
@@ -49,8 +54,27 @@ export function useRoomInviteActions({
       return;
     }
 
+    if (acceptInviteInFlightRef.current) {
+      return;
+    }
+
+    const inputTrace = beginRgInputTrace('invite code input submit', {
+      hasToken: Boolean(room.inviteToken),
+      roomId: room.roomId,
+      source: 'match-room invite accept',
+    });
+
+    acceptInviteInFlightRef.current = true;
     setSaving(true);
     setError(null);
+    inputTrace.markFeedbackCommitted({
+      disabled: true,
+      loading: true,
+    });
+    await waitForRgInputFeedbackFrame();
+    inputTrace.markApiStarted({
+      source: 'match-room invite accept',
+    });
 
     const endJoinApiTrace = rgPerfMeasureStart('room join API', {
       roomId: room.roomId,
@@ -86,6 +110,7 @@ export function useRoomInviteActions({
       });
       setError(message);
     } finally {
+      acceptInviteInFlightRef.current = false;
       setSaving(false);
     }
   };
@@ -100,8 +125,26 @@ export function useRoomInviteActions({
       return;
     }
 
+    if (declineInviteInFlightRef.current) {
+      return;
+    }
+
+    const inputTrace = beginRgInputTrace('room leave button press', {
+      roomId: room.roomId,
+      source: 'match-room invite decline',
+    });
+
+    declineInviteInFlightRef.current = true;
     setSaving(true);
     setError(null);
+    inputTrace.markFeedbackCommitted({
+      disabled: true,
+      loading: true,
+    });
+    await waitForRgInputFeedbackFrame();
+    inputTrace.markApiStarted({
+      source: 'match-room invite decline',
+    });
 
     const endLeaveApiTrace = rgPerfMeasureStart('room leave API', {
       roomId: room.roomId,
@@ -135,12 +178,17 @@ export function useRoomInviteActions({
       });
       setError(message);
     } finally {
+      declineInviteInFlightRef.current = false;
       setSaving(false);
     }
   };
 
   const handleSendFriendInvites = async () => {
     if (!room?.isHost || room.linkedMatchId) {
+      return;
+    }
+
+    if (sendFriendInvitesInFlightRef.current) {
       return;
     }
 
@@ -168,6 +216,18 @@ export function useRoomInviteActions({
       });
     });
 
+    sendFriendInvitesInFlightRef.current = true;
+    setSaving(true);
+    setError(null);
+    inputTrace.markFeedbackCommitted({
+      disabled: true,
+      loading: true,
+    });
+    await waitForRgInputFeedbackFrame();
+    inputTrace.markApiStarted({
+      source: 'match-room friend invite',
+    });
+
     const endInviteApiTrace = rgPerfMeasureStart('friend invite API', {
       hasInviteToken: Boolean(room.inviteToken),
       hasRoomId: Boolean(room.roomId),
@@ -175,7 +235,6 @@ export function useRoomInviteActions({
       newInviteCount: newInviteIds.length,
       roomId: room.roomId,
     });
-    inputTrace.markFeedback('friend invite API begin');
 
     try {
       const nextRoom = await saveRoomSettings({ invitedFriendIds: selectedFriendIds });
@@ -219,6 +278,9 @@ export function useRoomInviteActions({
         roomId: room.roomId,
       });
       setError(message);
+    } finally {
+      sendFriendInvitesInFlightRef.current = false;
+      setSaving(false);
     }
   };
 

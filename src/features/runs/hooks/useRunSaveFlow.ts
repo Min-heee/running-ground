@@ -43,6 +43,7 @@ import type {
   SaveTrackingOptions,
   TrackerStatus,
 } from '@/features/runs/hooks/useRunTracking';
+import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type DisplayedTrackingSnapshot = {
@@ -173,6 +174,7 @@ export function useRunSaveFlow({
   clearLocalForfeitedMatchState,
 }: UseRunSaveFlowInput) {
   const isSaving = status === 'saving';
+  const continueSoloInFlightRef = useRef<Set<MatchExitSource>>(new Set());
 
   const setMatchLeaving = (source: MatchExitSource, isLeaving: boolean) => {
     if (source === 'duel') {
@@ -303,6 +305,10 @@ export function useRunSaveFlow({
     source: MatchExitSource,
     options?: ContinueSoloOptions,
   ) => {
+    if (continueSoloInFlightRef.current.has(source)) {
+      return;
+    }
+
     setError(null);
     const matchId = resolveMatchExitId({
       source,
@@ -311,7 +317,21 @@ export function useRunSaveFlow({
       roomLinkedMatchContext,
     });
 
+    const inputTrace = beginRgInputTrace('match leave button press', {
+      matchId: matchId ?? null,
+      source,
+    });
+
+    continueSoloInFlightRef.current.add(source);
     setMatchLeaving(source, true);
+    inputTrace.markFeedbackCommitted({
+      disabled: true,
+      loading: true,
+    });
+    await waitForRgInputFeedbackFrame();
+    inputTrace.markApiStarted({
+      source: 'continue solo from match',
+    });
 
     try {
       if (matchId) {
@@ -335,6 +355,7 @@ export function useRunSaveFlow({
     } catch (matchError) {
       setError(getApiErrorMessage(matchError, options?.errorMessage ?? '혼자 계속 달리기 전환에 실패했어.'));
     } finally {
+      continueSoloInFlightRef.current.delete(source);
       setMatchLeaving(source, false);
     }
   };
@@ -374,16 +395,29 @@ export function useRunSaveFlow({
       return;
     }
 
+    const inputTrace = beginRgInputTrace('forfeit button press', {
+      matchId,
+      source,
+    });
+
+    pendingForfeitMatchRef.current = matchId;
+    setMatchLeaving(source, true);
+    inputTrace.markFeedbackCommitted({
+      disabled: true,
+      loading: true,
+    });
+    await waitForRgInputFeedbackFrame();
+    inputTrace.markApiStarted({
+      source: 'match forfeit',
+    });
+
     const endForfeitApiTrace = rgPerfMeasureStart('forfeit match API', {
       matchId,
       source,
     });
     let forfeitApiTraceCompleted = false;
-    setMatchLeaving(source, true);
 
     try {
-      pendingForfeitMatchRef.current = matchId;
-
       if (source === 'duel') {
         setDuelMatchStatus((currentStatus) => markDuelStatusForfeited(currentStatus, matchId));
         setDuelMatchNotice('기권 처리됐어요. 기록을 저장하고 대결 화면에서 나갈게요.');

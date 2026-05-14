@@ -16,6 +16,7 @@ import {
 } from '@/features/runs/lifecycle/matchRoomExitGuard';
 import { hydrateLiveMatchRouteState } from '@/features/runs/lifecycle/liveMatchRouteHydration';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
+import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type RoomExitState = 'idle' | 'leaving' | 'deleting';
@@ -74,6 +75,8 @@ export function useRoomStartActions({
 }: UseRoomStartActionsInput) {
   const isMountedRef = useRef(true);
   const roomExitInFlightRef = useRef(false);
+  const roomReadyInFlightRef = useRef(false);
+  const roomStartInFlightRef = useRef(false);
   const [roomExitState, setRoomExitState] = useState<RoomExitState>('idle');
 
   useEffect(() => () => {
@@ -85,8 +88,27 @@ export function useRoomStartActions({
       return;
     }
 
+    if (roomReadyInFlightRef.current) {
+      return;
+    }
+
+    const inputTrace = beginRgInputTrace('room ready toggle button press', {
+      nextReady: !isReady,
+      roomId: room.roomId,
+      source: 'match-room ready action',
+    });
+
+    roomReadyInFlightRef.current = true;
     setSaving(true);
     setError(null);
+    inputTrace.markFeedbackCommitted({
+      disabled: true,
+      loading: true,
+    });
+    await waitForRgInputFeedbackFrame();
+    inputTrace.markApiStarted({
+      source: 'match-room ready action',
+    });
 
     try {
       const payload = await updateRunningMatchRoomReady({
@@ -102,11 +124,18 @@ export function useRoomStartActions({
     } catch (roomError) {
       setError(getApiErrorMessage(roomError, '준비 상태를 바꾸지 못했어.'));
     } finally {
+      roomReadyInFlightRef.current = false;
       setSaving(false);
     }
   };
 
   const handleStart = async () => {
+    const inputTrace = beginRgInputTrace('room start button press', {
+      canStart: roomUxModel.startAction.canStart,
+      roomId: room?.roomId ?? null,
+      source: 'match-room start action',
+    });
+
     rgPerfMark('room start button press', {
       canStart: roomUxModel.startAction.canStart,
       roomId: room?.roomId ?? null,
@@ -119,8 +148,21 @@ export function useRoomStartActions({
       return;
     }
 
+    if (roomStartInFlightRef.current) {
+      return;
+    }
+
+    roomStartInFlightRef.current = true;
     setSaving(true);
     setError(null);
+    inputTrace.markFeedbackCommitted({
+      disabled: true,
+      loading: true,
+    });
+    await waitForRgInputFeedbackFrame();
+    inputTrace.markApiStarted({
+      source: 'match-room start action',
+    });
 
     const endStartApiTrace = rgPerfMeasureStart('room start API', {
       roomId: room.roomId,
@@ -160,6 +202,7 @@ export function useRoomStartActions({
       endStartApiTrace({ success: false });
       setError(getApiErrorMessage(roomError, '방을 시작하지 못했어.'));
     } finally {
+      roomStartInFlightRef.current = false;
       setSaving(false);
     }
   };
@@ -185,12 +228,23 @@ export function useRoomStartActions({
     rgPerfMark(exitRoom.isHost ? 'room delete button press' : 'room leave button press', {
       roomId: exitRoom.roomId,
     });
+    const inputTrace = beginRgInputTrace(
+      exitRoom.isHost ? 'room delete button press' : 'room leave button press',
+      {
+        roomId: exitRoom.roomId,
+        source: 'match-room exit',
+      },
+    );
 
     roomExitInFlightRef.current = true;
     markMatchRoomExiting(exitRoom.roomId);
     setSaving(true);
     setRoomExitState(nextExitState);
     setError(null);
+    inputTrace.markFeedbackCommitted({
+      disabled: true,
+      loading: true,
+    });
     pauseRoomPolling();
     commitRoom(null);
     rgPerfMark('local room state cleared', {
@@ -200,28 +254,32 @@ export function useRoomStartActions({
     });
     navigateAwayFromRoom();
 
-    const endExitApiTrace = rgPerfMeasureStart(exitTraceLabel, {
-      roomId: exitRoom.roomId,
-    });
-
-    void leaveRunningMatchRoom({ roomId: exitRoom.roomId })
-      .then(() => {
-        endExitApiTrace({ success: true });
-        clearMatchRoomExitGuard(exitRoom.roomId);
-      })
-      .catch((roomError) => {
-        endExitApiTrace({ success: false });
-        const message = getApiErrorMessage(roomError, failureMessage);
-        rgPerfMark(exitRoom.isHost ? 'room delete API error' : 'room leave API error', {
-          message,
-          roomId: exitRoom.roomId,
+    void waitForRgInputFeedbackFrame()
+      .then(async () => {
+        inputTrace.markApiStarted({
           source: 'match-room exit',
         });
-        clearMatchRoomExitGuard(exitRoom.roomId);
-        if (isMountedRef.current) {
-          setError(message);
+        const endExitApiTrace = rgPerfMeasureStart(exitTraceLabel, {
+          roomId: exitRoom.roomId,
+        });
+        try {
+          await leaveRunningMatchRoom({ roomId: exitRoom.roomId });
+          endExitApiTrace({ success: true });
+          clearMatchRoomExitGuard(exitRoom.roomId);
+        } catch (roomError) {
+          endExitApiTrace({ success: false });
+          const message = getApiErrorMessage(roomError, failureMessage);
+          rgPerfMark(exitRoom.isHost ? 'room delete API error' : 'room leave API error', {
+            message,
+            roomId: exitRoom.roomId,
+            source: 'match-room exit',
+          });
+          clearMatchRoomExitGuard(exitRoom.roomId);
+          if (isMountedRef.current) {
+            setError(message);
+          }
+          Alert.alert(failureTitle, message);
         }
-        Alert.alert(failureTitle, message);
       })
       .finally(() => {
         roomExitInFlightRef.current = false;
