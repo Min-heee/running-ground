@@ -4,6 +4,7 @@ import { acknowledgeRunningMatchRoomCountdown } from '@/services/matchService';
 import { getApiErrorMessage } from '@/services/apiError';
 import type { RunningMatchRoomInvitee } from '@/lib/api/types';
 import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
+import { hydrateLiveMatchRouteState } from '@/features/runs/lifecycle/liveMatchRouteHydration';
 import {
   buildMatchRoomUxModel,
   buildPendingMatchRoomInvitees,
@@ -80,6 +81,15 @@ export function useMatchRoomLobby() {
     }
 
     openedLinkedMatchKeyRef.current = nextKey;
+    hydrateLiveMatchRouteState({
+      distanceKm: nextRoom.linkedMatchDistanceKm ?? nextRoom.distanceKm,
+      matchId: nextRoom.linkedMatchId,
+      mode: nextRoom.mode,
+      preferArena: flow.shouldOpenArena,
+      roomId: nextRoom.roomId,
+      slotStartAt: nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
+      source: 'match-room linked match route',
+    });
     rgPerfMark('live match route state hydrated', {
       matchId: nextRoom.linkedMatchId,
       roomId: nextRoom.roomId,

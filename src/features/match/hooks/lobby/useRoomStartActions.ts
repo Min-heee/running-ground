@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { Alert } from 'react-native';
-import { router } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import {
   leaveRunningMatchRoom,
   startRunningMatchRoom,
@@ -14,6 +14,7 @@ import {
   clearMatchRoomExitGuard,
   markMatchRoomExiting,
 } from '@/features/runs/lifecycle/matchRoomExitGuard';
+import { hydrateLiveMatchRouteState } from '@/features/runs/lifecycle/liveMatchRouteHydration';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
@@ -27,6 +28,25 @@ function navigateAwayFromRoom() {
   }
 
   router.replace('/(tabs)/running');
+}
+
+function navigateToStartedRoomMatch(room: RunningMatchRoom) {
+  if (!room.linkedMatchId) {
+    return;
+  }
+
+  router.replace({
+    pathname: '/(tabs)/running',
+    params: {
+      focusMatchMode: room.mode,
+      focusMatchId: room.linkedMatchId,
+      focusMatchDistanceKm: String(room.linkedMatchDistanceKm ?? room.distanceKm),
+      focusMatchSlotStartAt: room.linkedMatchSlotStartAt ?? room.slotStartAt,
+      focusRoomId: room.roomId,
+      ...(room.state === 'active' ? { forceMatchArena: '1' } : {}),
+      focusMatchNonce: `room-start-${Date.now()}`,
+    },
+  } as Href);
 }
 
 type UseRoomStartActionsInput = {
@@ -119,12 +139,22 @@ export function useRoomStartActions({
       syncServerClock(payload.serverNow);
       commitRoom(payload.room);
       if (payload.room?.linkedMatchId) {
+        hydrateLiveMatchRouteState({
+          distanceKm: payload.room.linkedMatchDistanceKm ?? payload.room.distanceKm,
+          matchId: payload.room.linkedMatchId,
+          mode: payload.room.mode,
+          preferArena: payload.room.state === 'active',
+          roomId: payload.room.roomId,
+          slotStartAt: payload.room.linkedMatchSlotStartAt ?? payload.room.slotStartAt,
+          source: 'room start API',
+        });
         rgPerfMark('live match route state hydrated', {
           matchId: payload.room.linkedMatchId,
           roomId: payload.room.roomId,
           source: 'room start API',
           state: payload.room.state,
         });
+        navigateToStartedRoomMatch(payload.room);
       }
     } catch (roomError) {
       endStartApiTrace({ success: false });

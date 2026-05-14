@@ -18,6 +18,7 @@ type FocusRunningMatchInput = {
   slotStartAt?: string;
   isTestMatch?: boolean;
   preferArena?: boolean;
+  roomId?: string;
 };
 
 type UseMatchEntryEffectsInput = {
@@ -27,6 +28,7 @@ type UseMatchEntryEffectsInput = {
   focusMatchDistanceKm?: number;
   focusMatchSlotStartAt?: string;
   focusMatchIsTest?: boolean;
+  focusRoomId?: string;
   forceMatchArena?: boolean;
   roomInviteToken?: string;
   livePagerRef: RefObject<ScrollView | null>;
@@ -47,6 +49,7 @@ export function useMatchEntryEffects({
   focusMatchDistanceKm,
   focusMatchSlotStartAt,
   focusMatchIsTest,
+  focusRoomId,
   forceMatchArena,
   roomInviteToken,
   livePagerRef,
@@ -86,6 +89,7 @@ export function useMatchEntryEffects({
       slotStartAt: focusMatchSlotStartAt,
       isTestMatch: focusMatchIsTest,
       preferArena: Boolean(forceMatchArena),
+      roomId: focusRoomId,
     }).catch(() => {});
   }, [
     focusMatchDistanceKm,
@@ -93,6 +97,7 @@ export function useMatchEntryEffects({
     focusMatchIsTest,
     focusMatchMode,
     focusMatchNonce,
+    focusRoomId,
     focusMatchSlotStartAt,
     focusRunningMatch,
     forceMatchArena,

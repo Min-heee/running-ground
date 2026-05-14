@@ -205,6 +205,14 @@ export function useLinkedMatchSync({
       };
     }
 
+    rgPerfMark('live match recovery polling started', {
+      matchId: roomLinkedMatchContext.matchId,
+      mode: roomLinkedMatchContext.mode,
+      pollingKey,
+      reason: transitionReason,
+      source: 'linked match status',
+      state: roomLinkedMatchContext.state ?? null,
+    });
     rgPerfMark('match polling start', {
       intervalMs,
       matchId: roomLinkedMatchContext.matchId,

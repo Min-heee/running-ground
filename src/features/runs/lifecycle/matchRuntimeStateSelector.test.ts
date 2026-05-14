@@ -7,6 +7,11 @@ import {
   isLinkedRoomRuntimeState,
   selectPartyRunRuntimeSource,
 } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
+import {
+  clearLiveMatchRouteHydration,
+  getLiveMatchRouteHydration,
+  hydrateLiveMatchRouteState,
+} from '@/features/runs/lifecycle/liveMatchRouteHydration';
 import { buildTrackRunRuntimeRouteKey } from '@/features/runs/lifecycle/trackRunRouteState';
 
 function room(overrides: Partial<RunningMatchRoom> = {}): RunningMatchRoom {
@@ -111,4 +116,35 @@ test('track-run route key includes room and match ids immediately after route hy
   assert.equal(routeState.routeKey.includes('no-room'), false);
   assert.equal(routeState.routeKey.includes('no-match'), false);
   assert.equal(routeState.correctedByRouteParams, true);
+});
+
+test('track-run route key falls back to hydrated linked match route state', () => {
+  clearLiveMatchRouteHydration();
+  const hydrated = hydrateLiveMatchRouteState({
+    distanceKm: 5,
+    matchId: 'duel-match-a973c5ed',
+    mode: 'duel',
+    preferArena: true,
+    roomId: 'room-a973c5ed',
+    slotStartAt: '2026-05-14T12:00:00.000Z',
+    source: 'room start API',
+  });
+  assert.equal(hydrated?.matchId, 'duel-match-a973c5ed');
+
+  const stored = getLiveMatchRouteHydration();
+  const routeState = buildTrackRunRuntimeRouteKey({
+    forceOpenActiveMatch: Boolean(stored?.preferArena),
+    hydratedMatchId: stored?.matchId,
+    hydratedMatchMode: stored?.mode,
+    hydratedRoomId: stored?.roomId,
+    liveArenaPage: 0,
+    matchMode: 'solo',
+  });
+
+  assert.equal(routeState.routeKey, 'track-run:duel:room-a973c5ed:duel-match-a973c5ed:arena');
+  assert.equal(routeState.matchMode, 'duel');
+  assert.equal(routeState.routeKey.includes('no-room'), false);
+  assert.equal(routeState.routeKey.includes('no-match'), false);
+  assert.equal(routeState.correctedByRouteParams, true);
+  clearLiveMatchRouteHydration();
 });

@@ -20,6 +20,7 @@ import {
   shouldReuseRecentLiveMatchNavigation,
   type LiveMatchNavigationResult,
 } from '@/features/runs/lifecycle/liveMatchNavigationGate';
+import { hydrateLiveMatchRouteState } from '@/features/runs/lifecycle/liveMatchRouteHydration';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type FocusRunningMatchInput = {
@@ -29,6 +30,7 @@ type FocusRunningMatchInput = {
   slotStartAt?: string;
   isTestMatch?: boolean;
   preferArena?: boolean;
+  roomId?: string;
   roomState?: RunningMatchRoom['state'];
   source?: string;
 };
@@ -227,6 +229,7 @@ export function useRunningMatchFocus({
     slotStartAt,
     isTestMatch,
     preferArena = false,
+    roomId,
     roomState,
     source = 'running match focus',
   }: FocusRunningMatchInput) => {
@@ -409,12 +412,22 @@ export function useRunningMatchFocus({
         }
 
         routeStateHydrated = true;
+        hydrateLiveMatchRouteState({
+          distanceKm,
+          matchId,
+          mode,
+          preferArena: requestedPreferArena,
+          roomId,
+          slotStartAt,
+          source,
+        });
         rgPerfMark('live match route state hydrated', {
           matchId,
           mode,
           navigationKey,
           preferArena: requestedPreferArena,
           requestId,
+          roomId: roomId ?? null,
           source,
         });
       };
@@ -622,6 +635,7 @@ export function useRunningMatchFocus({
       slotStartAt: room.linkedMatchSlotStartAt ?? room.slotStartAt,
       isTestMatch: false,
       preferArena: Boolean(options?.preferArena),
+      roomId: room.roomId,
       roomState: room.state,
       source: options?.source ?? 'room linked match sync',
     });

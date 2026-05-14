@@ -10,6 +10,7 @@ type FocusRunningMatchInput = {
   slotStartAt?: string;
   isTestMatch?: boolean;
   preferArena?: boolean;
+  roomId?: string;
 };
 
 type NextStartingMatch = {

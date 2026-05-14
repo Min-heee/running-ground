@@ -98,6 +98,7 @@ import {
   filterUpcomingMatchesForRuntime,
   isLinkedRoomRuntimeState,
 } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
+import { getLiveMatchRouteHydration } from '@/features/runs/lifecycle/liveMatchRouteHydration';
 import { buildTrackRunRuntimeRouteKey } from '@/features/runs/lifecycle/trackRunRouteState';
 import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
@@ -162,8 +163,23 @@ export function TrackRunExperience({
   roomInviteToken?: string;
 }) {
   useDevRenderCounter('TrackRunExperience');
+  const liveMatchRouteHydration = getLiveMatchRouteHydration();
+  const hydratedFocusMatchMode = focusMatchMode ?? liveMatchRouteHydration?.mode;
+  const hydratedFocusMatchId = focusMatchId ?? (
+    liveMatchRouteHydration?.mode === hydratedFocusMatchMode
+      ? liveMatchRouteHydration?.matchId
+      : undefined
+  );
+  const hydratedFocusRoomId = focusRoomId ?? liveMatchRouteHydration?.roomId ?? undefined;
+  const hydratedFocusMatchDistanceKm = focusMatchDistanceKm ?? liveMatchRouteHydration?.distanceKm;
+  const hydratedFocusMatchSlotStartAt = focusMatchSlotStartAt ?? liveMatchRouteHydration?.slotStartAt;
+  const hydratedForceMatchArena = forceMatchArena ?? liveMatchRouteHydration?.preferArena;
+  const hydratedFocusMatchNonce = focusMatchNonce ?? liveMatchRouteHydration?.nonce;
+
   useEffect(() => {
     rgPerfMark('TrackRunExperience mount', {
+      hydratedMatchId: liveMatchRouteHydration?.matchId ?? null,
+      hydratedRoomId: liveMatchRouteHydration?.roomId ?? null,
       focusMatchId: focusMatchId ?? null,
       focusMatchMode: focusMatchMode ?? null,
       focusRoomId: focusRoomId ?? null,
@@ -175,7 +191,7 @@ export function TrackRunExperience({
         mode,
       });
     };
-  }, [focusMatchId, focusMatchMode, focusRoomId, mode]);
+  }, [focusMatchId, focusMatchMode, focusRoomId, liveMatchRouteHydration?.matchId, liveMatchRouteHydration?.roomId, mode]);
 
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -337,7 +353,7 @@ export function TrackRunExperience({
     selectNextGroupSlotForDate,
     selectDuelTimeSection,
     selectGroupTimeSection,
-  } = useMatchLifecycle({ focusMatchMode, focusMatchIsTest });
+  } = useMatchLifecycle({ focusMatchMode: hydratedFocusMatchMode, focusMatchIsTest });
   const pendingForfeitMatchRef = useRef<string | null>(null);
   const pendingCounterpartForfeitResultRef = useRef(false);
   const autoStartedMatchIdRef = useRef<string | null>(null);
@@ -481,23 +497,23 @@ export function TrackRunExperience({
     if (matchMode === 'duel') {
       return duelMatchStatus?.matchId
         ?? (roomLinkedMatchContext?.mode === 'duel' ? roomLinkedMatchContext.matchId : null)
-        ?? (focusMatchMode === 'duel' ? focusMatchId ?? null : null)
+        ?? (hydratedFocusMatchMode === 'duel' ? hydratedFocusMatchId ?? null : null)
         ?? null;
     }
 
     if (matchMode === 'group') {
       return groupMatchStatus?.matchId
         ?? (roomLinkedMatchContext?.mode === 'group' ? roomLinkedMatchContext.matchId : null)
-        ?? (focusMatchMode === 'group' ? focusMatchId ?? null : null)
+        ?? (hydratedFocusMatchMode === 'group' ? hydratedFocusMatchId ?? null : null)
         ?? null;
     }
 
     return null;
   }, [
     duelMatchStatus?.matchId,
-    focusMatchId,
-    focusMatchMode,
     groupMatchStatus?.matchId,
+    hydratedFocusMatchId,
+    hydratedFocusMatchMode,
     matchMode,
     roomLinkedMatchContext?.matchId,
     roomLinkedMatchContext?.mode,
@@ -759,16 +775,16 @@ export function TrackRunExperience({
   const runningMatchIdentity = matchMode === 'duel'
     ? duelMatchStatus?.matchId
       ?? (roomLinkedMatchContext?.mode === 'duel' ? roomLinkedMatchContext.matchId : null)
-      ?? (focusMatchMode === 'duel' ? focusMatchId ?? null : null)
+      ?? (hydratedFocusMatchMode === 'duel' ? hydratedFocusMatchId ?? null : null)
       ?? lastSyncedMatchProgress?.matchId
       ?? null
     : matchMode === 'group'
       ? groupMatchStatus?.matchId
         ?? (roomLinkedMatchContext?.mode === 'group' ? roomLinkedMatchContext.matchId : null)
-        ?? (focusMatchMode === 'group' ? focusMatchId ?? null : null)
+        ?? (hydratedFocusMatchMode === 'group' ? hydratedFocusMatchId ?? null : null)
         ?? lastSyncedMatchProgress?.matchId
         ?? null
-      : null;
+      : liveMatchRouteHydration?.matchId ?? null;
   const {
     activeMatchExitCounterpartForfeited,
     activeMatchExitIsLeaving,
@@ -1119,6 +1135,9 @@ export function TrackRunExperience({
       focusedDuelMatchId: focusedDuelMatchIdRef.current,
       focusedGroupMatchId: focusedGroupMatchIdRef.current,
       forceOpenActiveMatch,
+      hydratedMatchId: liveMatchRouteHydration?.matchId,
+      hydratedMatchMode: liveMatchRouteHydration?.mode,
+      hydratedRoomId: liveMatchRouteHydration?.roomId,
       liveArenaPage,
       matchMode,
       matchRoomId: matchRoom?.roomId,
@@ -1131,6 +1150,8 @@ export function TrackRunExperience({
       rgPerfMark('live match route key corrected', {
         focusMatchId: focusMatchId ?? null,
         focusRoomId: focusRoomId ?? null,
+        hydratedMatchId: liveMatchRouteHydration?.matchId ?? null,
+        hydratedRoomId: liveMatchRouteHydration?.roomId ?? null,
         matchId: routeState.matchId,
         roomId: routeState.roomId,
         routeKey: routeState.routeKey,
@@ -1939,13 +1960,14 @@ export function TrackRunExperience({
   useStaleMatchCleanup({ refreshStaleMatchArtifacts });
 
   useMatchEntryEffects({
-    focusMatchNonce,
-    focusMatchMode,
-    focusMatchId,
-    focusMatchDistanceKm,
-    focusMatchSlotStartAt,
+    focusMatchNonce: hydratedFocusMatchNonce,
+    focusMatchMode: hydratedFocusMatchMode,
+    focusMatchId: hydratedFocusMatchId,
+    focusMatchDistanceKm: hydratedFocusMatchDistanceKm,
+    focusMatchSlotStartAt: hydratedFocusMatchSlotStartAt,
     focusMatchIsTest,
-    forceMatchArena,
+    focusRoomId: hydratedFocusRoomId,
+    forceMatchArena: hydratedForceMatchArena,
     roomInviteToken,
     livePagerRef,
     latestMatchRoomServerNowMsRef,
@@ -2006,7 +2028,7 @@ export function TrackRunExperience({
     enabled: Boolean(
       isStarting
       || isRunning
-      || focusMatchId
+      || hydratedFocusMatchId
       || visibleCountdownEntry
       || roomCountdownEntry
       || nextStartingMatch
