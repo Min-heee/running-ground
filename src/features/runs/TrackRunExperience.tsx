@@ -48,7 +48,6 @@ import {
   createRunningMatchRoom,
   fetchFriendLeaderboard,
   fetchMatchDemandSummary,
-  fetchRunningMatchRoom,
   fetchUpcomingRunningMatches,
   fetchRunningMatchStatus,
   getApiErrorMessage,
@@ -57,6 +56,7 @@ import {
   requestDuelMatch,
   requestGroupMatch,
 } from '@/services';
+import { runActiveRoomCheck } from '@/features/runs/activeRoomCheck';
 import {
   shouldAutoOpenMatchArena,
 } from '@/lib/matchCountdown';
@@ -228,6 +228,7 @@ export function TrackRunExperience({
   const latestGroupStatusServerNowMsRef = useRef(0);
   const latestUpcomingServerNowMsRef = useRef(0);
   const latestMatchRoomServerNowMsRef = useRef(0);
+  const isMountedRef = useRef(true);
 
   const {
     matchMode,
@@ -331,6 +332,10 @@ export function TrackRunExperience({
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
   const forfeitedMatchIdsRef = useRef<Set<string>>(new Set());
   const joinMatchRoomInFlightRef = useRef(false);
+
+  useEffect(() => () => {
+    isMountedRef.current = false;
+  }, []);
 
   const {
     matchRoom,
@@ -1112,16 +1117,14 @@ export function TrackRunExperience({
   };
 
   const loadMatchRoom = async () => {
-    const endActiveRoomCheckTrace = rgPerfMeasureStart('active room check', {
-      source: 'track-run experience',
-    });
-
     try {
-      const payload = await fetchRunningMatchRoom();
-      endActiveRoomCheckTrace({
-        roomId: payload.room?.roomId ?? null,
-        success: true,
+      const { payload } = await runActiveRoomCheck({
+        source: 'track-run experience',
       });
+      if (!isMountedRef.current) {
+        return matchRoom;
+      }
+
       if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
         return matchRoom;
       }
@@ -1160,7 +1163,6 @@ export function TrackRunExperience({
       commitMatchRoom(nextRoom);
       return nextRoom;
     } catch (roomError) {
-      endActiveRoomCheckTrace({ success: false });
       throw roomError;
     }
   };

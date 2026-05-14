@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchFriendLeaderboard } from '@/services/friendsService';
 import { getApiErrorMessage } from '@/services/apiError';
-import { fetchRunningMatchRoom } from '@/services/matchService';
 import type { FriendLeaderboardResponse, RunningMatchRoom } from '@/lib/api/types';
 import { isMatchRoomExiting } from '@/features/runs/matchRoomExitGuard';
+import { runActiveRoomCheck } from '@/features/runs/activeRoomCheck';
 import {
   parseServerNowMs,
   resolveStableServerClockOffset,
@@ -45,6 +45,7 @@ export function useRoomSnapshot() {
   const latestRoomServerNowMsRef = useRef(0);
   const roomRenderKeyRef = useRef<string | null>(null);
   const pollingPausedRef = useRef(false);
+  const mountedRef = useRef(true);
 
   const [room, setRoom] = useState<RunningMatchRoom | null>(null);
   const [friendLeaderboard, setFriendLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
@@ -78,17 +79,11 @@ export function useRoomSnapshot() {
       return null;
     }
 
-    const endActiveRoomCheckTrace = rgPerfMeasureStart('active room check', {
-      source: 'match-room snapshot',
-    });
-
     try {
-      const payload = await fetchRunningMatchRoom();
-      endActiveRoomCheckTrace({
-        roomId: payload.room?.roomId ?? null,
-        success: true,
+      const { payload } = await runActiveRoomCheck({
+        source: 'match-room snapshot',
       });
-      if (pollingPausedRef.current) {
+      if (!mountedRef.current || pollingPausedRef.current) {
         return null;
       }
 
@@ -121,8 +116,7 @@ export function useRoomSnapshot() {
       setError(null);
       return nextRoom;
     } catch (roomError) {
-      endActiveRoomCheckTrace({ success: false });
-      if (pollingPausedRef.current) {
+      if (!mountedRef.current || pollingPausedRef.current) {
         return null;
       }
 
@@ -130,6 +124,10 @@ export function useRoomSnapshot() {
       return null;
     }
   }, [commitRoom, syncServerClock]);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
 
   const pauseRoomPolling = useCallback(() => {
     pollingPausedRef.current = true;
