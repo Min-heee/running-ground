@@ -25,9 +25,9 @@ type LiveMatchPagesProps = {
   pageWidth: number;
   hasResultPage: boolean;
   arenaProps: LiveMatchArenaPageProps;
-  raceBoardProps: LiveMatchRaceBoardPageProps;
-  trackingProps: LiveMatchTrackingPageProps;
-  resultProps: LiveMatchResultPageProps;
+  raceBoardProps: LiveMatchRaceBoardPageProps | null;
+  trackingProps: LiveMatchTrackingPageProps | null;
+  resultProps: LiveMatchResultPageProps | null;
   exitAction: ReactNode;
   onPageChange: (page: number) => void;
 };
@@ -52,15 +52,15 @@ export const LiveMatchPages = memo(function LiveMatchPages({
   ), [arenaProps, exitAction]);
 
   const renderRaceBoardPage = useCallback(() => (
-    <LiveMatchRaceBoardPage {...raceBoardProps} />
+    raceBoardProps ? <LiveMatchRaceBoardPage {...raceBoardProps} /> : null
   ), [raceBoardProps]);
 
   const renderTrackingPage = useCallback(() => (
-    <LiveMatchTrackingPage {...trackingProps} />
+    trackingProps ? <LiveMatchTrackingPage {...trackingProps} /> : null
   ), [trackingProps]);
 
   const renderResultPage = useCallback(() => (
-    <LiveMatchResultPage {...resultProps} />
+    resultProps ? <LiveMatchResultPage {...resultProps} /> : null
   ), [resultProps]);
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -2279,6 +2279,25 @@ export function TrackRunExperience({
     () => <LiveMatchExitActionCard {...liveArenaExitActionProps} />,
     [liveArenaExitActionProps],
   );
+  const handleSaveTrackingPress = useCallback(() => {
+    void handleSaveTracking();
+  }, [handleSaveTracking]);
+  const handleReadyAction = () => {
+    if (matchMode === 'room') {
+      if (matchRoom) {
+        rgPerfMark('already joined room detected', {
+          roomId: matchRoom.roomId,
+          source: 'ready action existing room',
+          state: matchRoom.state,
+        });
+        navigateToMatchRoomWithTrace('ready action existing room', matchRoom.roomId);
+        return;
+      }
+      void handleCreateMatchRoom();
+      return;
+    }
+    void handleStartTracking();
+  };
 
   const liveArenaPageProps = useMemo(() => ({
     activeMatchId: liveMatchStartupIdentity,
@@ -2457,6 +2476,12 @@ export function TrackRunExperience({
     groupResultStatusLabel,
     matchMode,
   ]);
+  const livePagesRaceBoardProps = liveArenaPage === 1 ? liveRaceBoardPageProps : null;
+  const livePagesTrackingProps = useMemo(
+    () => (liveArenaPage === 2 ? { ...liveTrackingPageBaseProps, includeMatchCards: false } : null),
+    [liveArenaPage, liveTrackingPageBaseProps],
+  );
+  const livePagesResultProps = liveArenaPage === 3 ? liveResultPageProps : null;
 
   const readyUpcomingMatchesProps = {
     matches: visibleUpcomingMatches,
@@ -2603,18 +2628,18 @@ export function TrackRunExperience({
     pageWidth: liveArenaPageWidth,
     hasResultPage: hasMatchResultPage,
     arenaProps: liveArenaPageProps,
-    raceBoardProps: liveRaceBoardPageProps,
-    trackingProps: { ...liveTrackingPageBaseProps, includeMatchCards: false },
-    resultProps: liveResultPageProps,
+    raceBoardProps: livePagesRaceBoardProps,
+    trackingProps: livePagesTrackingProps,
+    resultProps: livePagesResultProps,
     onPageChange: setLiveArenaPage,
   }), [
     hasMatchResultPage,
     liveArenaPage,
     liveArenaPageProps,
     liveArenaPageWidth,
-    liveRaceBoardPageProps,
-    liveResultPageProps,
-    liveTrackingPageBaseProps,
+    livePagesRaceBoardProps,
+    livePagesResultProps,
+    livePagesTrackingProps,
     setLiveArenaPage,
   ]);
 
@@ -2640,22 +2665,7 @@ export function TrackRunExperience({
           readyActionLabel={readyActionLabel}
           readyActionLoadingLabel={matchMode === 'room' && isCreatingMatchRoom ? '방 만드는 중...' : undefined}
           readyActionDisabled={matchMode === 'room' ? isCreatingMatchRoom : false}
-          onReadyAction={() => {
-            if (matchMode === 'room') {
-              if (matchRoom) {
-                rgPerfMark('already joined room detected', {
-                  roomId: matchRoom.roomId,
-                  source: 'ready action existing room',
-                  state: matchRoom.state,
-                });
-                navigateToMatchRoomWithTrace('ready action existing room', matchRoom.roomId);
-                return;
-              }
-              void handleCreateMatchRoom();
-              return;
-            }
-            void handleStartTracking();
-          }}
+          onReadyAction={handleReadyAction}
         />
       ) : (
         <LiveMatchContainer
@@ -2666,7 +2676,7 @@ export function TrackRunExperience({
           isSaving={isSaving}
           isRunningSolo={isRunning && matchMode === 'solo'}
           isPaused={isPaused}
-          onSaveTracking={() => { void handleSaveTracking(); }}
+          onSaveTracking={handleSaveTrackingPress}
           onPauseTracking={handlePauseTracking}
           onResumeTracking={handleResumeTracking}
           onDiscardTracking={handleDiscardTracking}

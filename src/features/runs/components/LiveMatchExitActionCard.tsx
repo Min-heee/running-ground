@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
@@ -19,7 +20,7 @@ type LiveMatchExitActionCardProps = {
   onShowResultAfterCounterpartForfeit: (source: MatchExitSource) => void;
 };
 
-export function LiveMatchExitActionCard({
+export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
   source,
   isTestMatch,
   isLeaving,
@@ -31,20 +32,44 @@ export function LiveMatchExitActionCard({
   onShowResultAfterCounterpartForfeit,
 }: LiveMatchExitActionCardProps) {
   useDevRenderCounter(`LiveMatchExitActionCard:${source ?? 'hidden'}`);
-  if (!source) {
-    return null;
-  }
 
-  const actionState = buildMatchExitActionState({
-    source,
+  const actionState = useMemo(() => buildMatchExitActionState({
+    source: source ?? 'duel',
     isTestMatch,
     isLeaving,
     isSaving,
     isRunning,
     counterpartForfeited,
-  });
+  }), [
+    counterpartForfeited,
+    isLeaving,
+    isRunning,
+    isSaving,
+    isTestMatch,
+    source,
+  ]);
+  const handleContinueSoloPress = useCallback(() => {
+    if (!source) {
+      return;
+    }
+    onContinueSolo(source);
+  }, [onContinueSolo, source]);
+  const handleForfeitPress = useCallback(() => {
+    if (!source) {
+      return;
+    }
+    rgPerfMark('forfeit button press', { source });
+    onForfeit(source);
+  }, [onForfeit, source]);
+  const handleShowResultPress = useCallback(() => {
+    if (!source) {
+      return;
+    }
+    rgPerfMark('counterpart forfeit result button press', { source });
+    onShowResultAfterCounterpartForfeit(source);
+  }, [onShowResultAfterCounterpartForfeit, source]);
 
-  if (actionState.kind === 'hidden') {
+  if (!source || actionState.kind === 'hidden') {
     return null;
   }
 
@@ -55,7 +80,7 @@ export function LiveMatchExitActionCard({
         <Text style={styles.text}>{actionState.body}</Text>
         <SecondaryButton
           label={actionState.buttonLabel}
-          onPress={() => onContinueSolo(source)}
+          onPress={handleContinueSoloPress}
           disabled={actionState.disabled}
         />
       </Card>
@@ -69,10 +94,7 @@ export function LiveMatchExitActionCard({
         <Text style={styles.text}>{actionState.body}</Text>
         <Pressable
           style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]}
-          onPress={() => {
-            rgPerfMark('counterpart forfeit result button press', { source });
-            onShowResultAfterCounterpartForfeit(source);
-          }}
+          onPress={handleShowResultPress}
           disabled={actionState.disabled}
         >
           <Text style={styles.buttonText}>{actionState.buttonLabel}</Text>
@@ -87,17 +109,24 @@ export function LiveMatchExitActionCard({
       <Text style={styles.text}>{actionState.body}</Text>
       <Pressable
         style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]}
-        onPress={() => {
-          rgPerfMark('forfeit button press', { source });
-          onForfeit(source);
-        }}
+        onPress={handleForfeitPress}
         disabled={actionState.disabled}
       >
         <Text style={styles.buttonText}>{actionState.buttonLabel}</Text>
       </Pressable>
     </Card>
   );
-}
+}, (prevProps, nextProps) => (
+  prevProps.source === nextProps.source
+  && prevProps.isTestMatch === nextProps.isTestMatch
+  && prevProps.isLeaving === nextProps.isLeaving
+  && prevProps.isSaving === nextProps.isSaving
+  && prevProps.isRunning === nextProps.isRunning
+  && prevProps.counterpartForfeited === nextProps.counterpartForfeited
+  && prevProps.onContinueSolo === nextProps.onContinueSolo
+  && prevProps.onForfeit === nextProps.onForfeit
+  && prevProps.onShowResultAfterCounterpartForfeit === nextProps.onShowResultAfterCounterpartForfeit
+));
 
 const styles = StyleSheet.create({
   testExitCard: {

@@ -1,4 +1,5 @@
 import { type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useMemo, useRef } from 'react';
 import { Alert } from 'react-native';
 import { type Href, router } from 'expo-router';
 import { RunMatchResult, RunRoutePoint } from '@/domain';
@@ -115,6 +116,17 @@ type UseRunSaveFlowInput = {
   syncLiveSharing: (input: SyncLiveSharingInput) => Promise<unknown>;
   loadUpcomingMatches: () => Promise<unknown>;
   clearLocalForfeitedMatchState: (source: MatchExitSource, matchId: string) => void;
+};
+
+type RunSaveFlowActions = {
+  discardCurrentTracking: () => Promise<void>;
+  handleDiscardTracking: () => void;
+  handleSaveTracking: (options?: SaveTrackingOptions) => Promise<boolean>;
+  leaveMatchAndContinueSolo: (source: MatchExitSource, options?: ContinueSoloOptions) => Promise<void>;
+  handleContinueSoloFromMatch: (source: MatchExitSource) => void;
+  forfeitMatchAndKeepRunning: (source: MatchExitSource) => Promise<void>;
+  handleForfeitMatch: (source: MatchExitSource) => void;
+  handleShowResultAfterCounterpartForfeit: (source: MatchExitSource) => Promise<void>;
 };
 
 export function useRunSaveFlow({
@@ -446,7 +458,7 @@ export function useRunSaveFlow({
     ]);
   };
 
-  return {
+  const actions: RunSaveFlowActions = {
     discardCurrentTracking,
     handleDiscardTracking,
     handleSaveTracking,
@@ -456,4 +468,17 @@ export function useRunSaveFlow({
     handleForfeitMatch,
     handleShowResultAfterCounterpartForfeit,
   };
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
+
+  return useMemo<RunSaveFlowActions>(() => ({
+    discardCurrentTracking: () => actionsRef.current.discardCurrentTracking(),
+    handleDiscardTracking: () => actionsRef.current.handleDiscardTracking(),
+    handleSaveTracking: (options) => actionsRef.current.handleSaveTracking(options),
+    leaveMatchAndContinueSolo: (source, options) => actionsRef.current.leaveMatchAndContinueSolo(source, options),
+    handleContinueSoloFromMatch: (source) => actionsRef.current.handleContinueSoloFromMatch(source),
+    forfeitMatchAndKeepRunning: (source) => actionsRef.current.forfeitMatchAndKeepRunning(source),
+    handleForfeitMatch: (source) => actionsRef.current.handleForfeitMatch(source),
+    handleShowResultAfterCounterpartForfeit: (source) => actionsRef.current.handleShowResultAfterCounterpartForfeit(source),
+  }), []);
 }
