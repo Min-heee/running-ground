@@ -65,6 +65,42 @@ Android에서 대결 화면 진입 직후 버튼 반응이 30초~1분 늦어지�
 4. 카운트다운 30초, 대결 화면 진입, 첫 거리/페이스 표시, 기권 버튼 반응까지 기록합니다.
 5. 10초 resource summary에서 polling/heartbeat/watcher 수가 과하게 유지되는지 확인합니다.
 
+## 로그 파일 자동 분석
+
+Metro 또는 Logcat 로그를 텍스트 파일로 저장한 뒤 아래 명령어로 Android live match 위험 패턴을 표로 확인할 수 있습니다.
+
+```bash
+npm run perf:trace-analyze -- ./logs/android-party-run.txt
+```
+
+직접 실행해도 됩니다.
+
+```bash
+node ./scripts/analyze-android-perf-trace.mjs ./logs/android-party-run.txt
+```
+
+분석 스크립트는 아래 패턴을 감지합니다.
+
+| 패턴 | 기준 |
+| --- | --- |
+| `active room check` 지연 | `durationMs >= 5000` |
+| `live match navigation` 실패 | `success:false` |
+| polling 과다 | `activeKindCount >= 3` 또는 `10s resource summary.polling >= 3` |
+| heartbeat 중복 | `activeKindCount >= 2` 또는 `10s resource summary.heartbeat >= 2` |
+| watcher 중복 | `activeKindCount >= 2` 또는 `10s resource summary.watcher >= 2` |
+| `LiveMatchContainer` 과다 렌더 | `[RG render/10s] LiveMatchContainer:*: 20 renders` 이상 |
+| `background task start` 지연 | `durationMs >= 5000` |
+
+출력은 Markdown 표 형태입니다. `Summary`는 패턴별 개수와 최대값을 보여주고, `Findings`는 실제 라인 번호와 예시 로그를 보여줍니다.
+
+```text
+# Android Perf Trace Analysis: android-party-run.txt
+
+| Pattern | Count | Metric | Max value | Threshold | First line |
+| --- | --- | --- | --- | --- | --- |
+| active room check slow | 2 | durationMs | 181000 | >= 5000ms | 42 |
+```
+
 ## 로그 복사 템플릿
 
 아래 템플릿을 그대로 복사해서 테스트마다 채우면, Android 먹통 구간과 `[RG perf]` 로그를 같이 비교하기 쉽습니다.
