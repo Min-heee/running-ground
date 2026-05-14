@@ -63,6 +63,10 @@ export function buildMockRunningMatchRoomInvitees(room: RunningMatchRoom): Runni
       const friend = mockApiState.friendRanks.find((rank) => rank.id === friendId);
 
       return {
+        inviteId: `${room.roomId}:${friendId}`,
+        roomId: room.roomId,
+        inviteToken: room.inviteToken,
+        invitedUserId: friendId,
         userId: friendId,
         name: friend?.name ?? '초대한 친구',
         tag: friend?.tag,

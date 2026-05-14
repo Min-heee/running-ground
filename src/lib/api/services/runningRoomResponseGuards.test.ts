@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiError } from '@/services/apiError';
+import type { RunningMatchRoom } from '../types';
 import {
+  ensureRunningMatchRoomFriendInviteRecords,
   ensureRunningMatchRoomCleanupResponse,
   ensureRunningMatchRoomResponse,
   ensureJoinedRunningMatchRoomResponse,
+  INVALID_FRIEND_INVITE_RESPONSE_MESSAGE,
   INVALID_CLEANUP_RESPONSE_MESSAGE,
   INVALID_ROOM_RESPONSE_MESSAGE,
   MISSING_JOINED_ROOM_MESSAGE,
@@ -101,7 +104,7 @@ test('created room response requires room id and invite token', () => {
     hostName: '테스트',
     participants: [],
     invitedFriendIds: [],
-  } as const;
+  } as NonNullable<Parameters<typeof ensureRunningMatchRoomFriendInviteRecords>[0]>;
 
   assert.throws(
     () => ensureRunningMatchRoomResponse({
@@ -160,7 +163,7 @@ test('room response requires participant and invitee user ids', () => {
       status: 'pending',
       userId: 'guest-user',
     }],
-  } as const;
+  } as NonNullable<Parameters<typeof ensureRunningMatchRoomFriendInviteRecords>[0]>;
 
   assert.throws(
     () => ensureRunningMatchRoomResponse({
@@ -189,7 +192,7 @@ test('room response requires participant and invitee user ids', () => {
       room: {
         ...validRoom,
         invitedFriends: [{
-          ...validRoom.invitedFriends[0],
+          ...validRoom.invitedFriends![0],
           userId: '',
         }],
       },
@@ -200,6 +203,81 @@ test('room response requires participant and invitee user ids', () => {
     (error: unknown) => {
       assert.ok(error instanceof ApiError);
       assert.equal((error.details as { invalidReason?: string }).invalidReason, 'missingInviteeUserId');
+      return true;
+    },
+  );
+});
+
+test('friend invite guard returns required invite fields on success', () => {
+  const room: RunningMatchRoom = {
+    roomId: 'room-1',
+    inviteToken: 'ABC123',
+    inviteLink: 'runningground://running?roomInviteToken=ABC123',
+    mode: 'duel',
+    state: 'waiting',
+    startMode: 'host',
+    distanceKm: 5,
+    slotStartAt: new Date().toISOString(),
+    slotLabel: '지금',
+    maxParticipants: 2,
+    minParticipants: 2,
+    canStart: false,
+    isHost: true,
+    joined: true,
+    hostUserId: 'host-user',
+    hostName: '테스트',
+    participants: [],
+    invitedFriendIds: ['guest-user'],
+    invitedFriends: [{
+      averagePace: '5:40/km',
+      districtName: '일산서구',
+      inviteId: 'invite-1',
+      invitedUserId: 'guest-user',
+      inviteToken: 'ABC123',
+      levelLabel: 'Lv.1',
+      name: '게스트',
+      roomId: 'room-1',
+      status: 'pending',
+      userId: 'guest-user',
+    }],
+  };
+
+  assert.deepEqual(ensureRunningMatchRoomFriendInviteRecords(room, ['guest-user']), [{
+    inviteId: 'invite-1',
+    roomId: 'room-1',
+    inviteToken: 'ABC123',
+    invitedUserId: 'guest-user',
+  }]);
+});
+
+test('friend invite guard fails when a selected friend is missing from room response', () => {
+  const room: RunningMatchRoom = {
+    roomId: 'room-1',
+    inviteToken: 'ABC123',
+    inviteLink: 'runningground://running?roomInviteToken=ABC123',
+    mode: 'duel',
+    state: 'waiting',
+    startMode: 'host',
+    distanceKm: 5,
+    slotStartAt: new Date().toISOString(),
+    slotLabel: '지금',
+    maxParticipants: 2,
+    minParticipants: 2,
+    canStart: false,
+    isHost: true,
+    joined: true,
+    hostUserId: 'host-user',
+    hostName: '테스트',
+    participants: [],
+    invitedFriendIds: [],
+  };
+
+  assert.throws(
+    () => ensureRunningMatchRoomFriendInviteRecords(room, ['guest-user']),
+    (error: unknown) => {
+      assert.ok(error instanceof ApiError);
+      assert.equal(error.userMessage, INVALID_FRIEND_INVITE_RESPONSE_MESSAGE);
+      assert.equal((error.details as { invalidReason?: string }).invalidReason, 'missingFriendInvite');
       return true;
     },
   );

@@ -70,7 +70,7 @@ export function useRoomSettings({
 
   const saveRoomSettings = async (overrides: UpdateRoomSettingsInput = {}) => {
     if (!room || !room.isHost || room.linkedMatchId) {
-      return;
+      return null;
     }
 
     setSaving(true);
@@ -90,13 +90,15 @@ export function useRoomSettings({
         invitedFriendIds: overrides.invitedFriendIds ?? selectedFriendIds,
       });
       if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
-        return;
+        return null;
       }
 
       syncServerClock(payload.serverNow);
       commitRoom(payload.room);
+      return payload.room;
     } catch (roomError) {
       setError(getApiErrorMessage(roomError, '대기실 설정을 저장하지 못했어.'));
+      return null;
     } finally {
       setSaving(false);
     }

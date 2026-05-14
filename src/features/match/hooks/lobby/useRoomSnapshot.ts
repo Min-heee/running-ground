@@ -13,6 +13,10 @@ import {
   buildActiveRoomSnapshotKey,
 } from '@/features/runs/sync/activeRoomResult';
 import {
+  buildRoomInviteInboxEvent,
+  shouldDisplayRoomInviteCard,
+} from '@/features/runs/sync/roomInviteInbox';
+import {
   parseServerNowMs,
   resolveStableServerClockOffset,
   shouldAcceptServerSnapshot,
@@ -86,6 +90,7 @@ export function useRoomSnapshot() {
   const currentUserTag = currentUser?.publicTag ?? 'mock-current-user';
   const latestRoomServerNowMsRef = useRef(0);
   const lastHandledActiveRoomSnapshotKeyRef = useRef<string | null>(null);
+  const lastDisplayedInviteKeyRef = useRef<string | null>(null);
   const roomRenderKeyRef = useRef<string | null>(null);
   const roomRef = useRef<RunningMatchRoom | null>(null);
   const pollingPausedRef = useRef(false);
@@ -134,11 +139,20 @@ export function useRoomSnapshot() {
       return null;
     }
 
+    const routeKey = buildMatchRoomActiveRoomCheckRouteKey();
+    const endInviteInboxPollingTrace = rgPerfMeasureStart('invite inbox polling', {
+      routeKey,
+      source: 'match-room snapshot',
+    });
+
     try {
-      const routeKey = buildMatchRoomActiveRoomCheckRouteKey();
       const activeRoomCheckResult = await runActiveRoomCheck({
         routeKey,
         source: 'match-room snapshot',
+      });
+      endInviteInboxPollingTrace({
+        requestId: activeRoomCheckResult.requestId,
+        success: true,
       });
       const currentRouteKey = buildMatchRoomActiveRoomCheckRouteKey();
       const skipReason = getActiveRoomCheckResultSkipReason({
@@ -228,10 +242,41 @@ export function useRoomSnapshot() {
       }
 
       const nextRoom = payload.room;
+      const inviteInboxEvent = buildRoomInviteInboxEvent(nextRoom, currentUserTag);
+      if (inviteInboxEvent) {
+        if (shouldDisplayRoomInviteCard(lastDisplayedInviteKeyRef.current, inviteInboxEvent)) {
+          lastDisplayedInviteKeyRef.current = inviteInboxEvent.key;
+          rgPerfMark('invite received', {
+            inviteId: inviteInboxEvent.inviteId,
+            invitedUserId: inviteInboxEvent.invitedUserId,
+            roomId: inviteInboxEvent.roomId,
+            source: 'invite inbox polling',
+            state: inviteInboxEvent.roomState,
+          });
+          rgPerfMark('invite card displayed', {
+            inviteId: inviteInboxEvent.inviteId,
+            invitedUserId: inviteInboxEvent.invitedUserId,
+            roomId: inviteInboxEvent.roomId,
+            source: 'invite inbox polling',
+            state: inviteInboxEvent.roomState,
+          });
+        } else {
+          rgPerfMark('invite card display skipped duplicate', {
+            inviteId: inviteInboxEvent.inviteId,
+            invitedUserId: inviteInboxEvent.invitedUserId,
+            roomId: inviteInboxEvent.roomId,
+            source: 'invite inbox polling',
+            state: inviteInboxEvent.roomState,
+          });
+        }
+      }
       commitRoom(nextRoom);
       setError(null);
       return nextRoom;
     } catch (roomError) {
+      endInviteInboxPollingTrace({
+        success: false,
+      });
       if (!mountedRef.current || pollingPausedRef.current) {
         return null;
       }

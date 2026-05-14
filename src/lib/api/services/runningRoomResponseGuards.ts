@@ -10,6 +10,14 @@ import type {
 export const MISSING_JOINED_ROOM_MESSAGE = '방 정보를 불러오지 못했습니다. 다시 시도해주세요.';
 export const INVALID_ROOM_RESPONSE_MESSAGE = '방 정보를 불러오지 못했습니다. 다시 시도해주세요.';
 export const INVALID_CLEANUP_RESPONSE_MESSAGE = '이전 방 상태를 확인하지 못했습니다. 다시 시도해주세요.';
+export const INVALID_FRIEND_INVITE_RESPONSE_MESSAGE = '친구 초대 정보를 확인하지 못했습니다. 다시 시도해주세요.';
+
+export type RunningMatchRoomFriendInviteRecord = {
+  inviteId: string;
+  roomId: string;
+  inviteToken: string;
+  invitedUserId: string;
+};
 
 export function shouldFallbackToLocalRunningRoomApi(error: unknown) {
   if (isApiError(error)) {
@@ -55,6 +63,8 @@ type InvalidRoomResponseReason =
   | 'missingInviteeName'
   | 'missingDistanceKm'
   | 'missingSlotStartAt'
+  | 'missingInvitedUserId'
+  | 'missingFriendInvite'
   | 'missingRequiredRoom'
   | 'failedResponse';
 
@@ -202,6 +212,59 @@ export function ensureRunningMatchRoomResponse(
   }
 
   return payload;
+}
+
+export function ensureRunningMatchRoomFriendInviteRecords(
+  room: RunningMatchRoom | null | undefined,
+  invitedUserIds: string[],
+): RunningMatchRoomFriendInviteRecord[] {
+  const invalidRoomReason = getInvalidRoomReason(room, { requireInviteToken: true });
+  if (invalidRoomReason || !room) {
+    throw buildInvalidRoomResponseError(room, invalidRoomReason ?? 'missingRoom', {
+      action: 'friend-invite',
+      requireRoom: true,
+      userMessage: INVALID_FRIEND_INVITE_RESPONSE_MESSAGE,
+    });
+  }
+
+  const normalizedInvitedUserIds = [...new Set(invitedUserIds
+    .map((userId) => userId.trim())
+    .filter(Boolean))];
+  const invitedFriendIdSet = new Set(room.invitedFriendIds);
+  const invitedFriendByUserId = new Map((room.invitedFriends ?? []).map((invitee) => [invitee.userId, invitee]));
+
+  return normalizedInvitedUserIds.map((invitedUserId) => {
+    if (!isNonEmptyString(invitedUserId)) {
+      throw buildInvalidRoomResponseError(room, 'missingInvitedUserId', {
+        action: 'friend-invite',
+        requireRoom: true,
+        userMessage: INVALID_FRIEND_INVITE_RESPONSE_MESSAGE,
+      });
+    }
+
+    const invitee = invitedFriendByUserId.get(invitedUserId);
+    const isInvited = invitedFriendIdSet.has(invitedUserId) || Boolean(invitee);
+    if (!isInvited) {
+      throw buildInvalidRoomResponseError(room, 'missingFriendInvite', {
+        action: 'friend-invite',
+        requireRoom: true,
+        userMessage: INVALID_FRIEND_INVITE_RESPONSE_MESSAGE,
+      });
+    }
+
+    return {
+      inviteId: invitee?.inviteId && isNonEmptyString(invitee.inviteId)
+        ? invitee.inviteId
+        : `${room.roomId}:${invitedUserId}`,
+      roomId: invitee?.roomId && isNonEmptyString(invitee.roomId) ? invitee.roomId : room.roomId,
+      inviteToken: invitee?.inviteToken && isNonEmptyString(invitee.inviteToken)
+        ? invitee.inviteToken
+        : room.inviteToken,
+      invitedUserId: invitee?.invitedUserId && isNonEmptyString(invitee.invitedUserId)
+        ? invitee.invitedUserId
+        : invitedUserId,
+    };
+  });
 }
 
 export function ensureJoinedRunningMatchRoomResponse(payload: RunningMatchRoomResponse): JoinedRunningMatchRoomResponse {

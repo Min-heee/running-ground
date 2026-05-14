@@ -8,6 +8,7 @@ import {
 } from '@/services/matchService';
 import { getApiErrorMessage } from '@/services/apiError';
 import type { RunningMatchRoom } from '@/lib/api/types';
+import { ensureRunningMatchRoomFriendInviteRecords } from '@/lib/api/services/runningRoomResponseGuards';
 import type { MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { UpdateRoomSettingsInput } from '@/features/runs/types/matchRoom';
@@ -22,7 +23,7 @@ type UseRoomInviteActionsInput = {
   syncServerClock: (serverNow?: string) => void;
   setError: Dispatch<SetStateAction<string | null>>;
   setSaving: Dispatch<SetStateAction<boolean>>;
-  saveRoomSettings: (overrides?: UpdateRoomSettingsInput) => Promise<void>;
+  saveRoomSettings: (overrides?: UpdateRoomSettingsInput) => Promise<RunningMatchRoom | null>;
 };
 
 export function useRoomInviteActions({
@@ -142,7 +143,75 @@ export function useRoomInviteActions({
       return;
     }
 
-    await saveRoomSettings({ invitedFriendIds: selectedFriendIds });
+    const existingInviteIds = new Set(room.invitedFriendIds);
+    const newInviteIds = selectedFriendIds.filter((friendId) => !existingInviteIds.has(friendId));
+    const invitedUserIdLog = selectedFriendIds.join(',');
+
+    rgPerfMark('friend invite button press', {
+      invitedUserId: invitedUserIdLog || null,
+      newInviteCount: newInviteIds.length,
+      roomId: room.roomId,
+      selectedInviteCount: selectedFriendIds.length,
+    });
+    selectedFriendIds.forEach((invitedUserId) => {
+      rgPerfMark('friend invite button press', {
+        invitedUserId,
+        isNewInvite: !existingInviteIds.has(invitedUserId),
+        roomId: room.roomId,
+      });
+    });
+
+    const endInviteApiTrace = rgPerfMeasureStart('friend invite API', {
+      hasInviteToken: Boolean(room.inviteToken),
+      hasRoomId: Boolean(room.roomId),
+      invitedUserId: invitedUserIdLog || null,
+      newInviteCount: newInviteIds.length,
+      roomId: room.roomId,
+    });
+
+    try {
+      const nextRoom = await saveRoomSettings({ invitedFriendIds: selectedFriendIds });
+      if (!nextRoom) {
+        endInviteApiTrace({
+          reason: 'missing room response',
+          success: false,
+        });
+        rgPerfMark('friend invite API error', {
+          invitedUserId: invitedUserIdLog || null,
+          reason: 'missing room response',
+          roomId: room.roomId,
+        });
+        setError('친구 초대 정보를 확인하지 못했습니다. 다시 시도해주세요.');
+        return;
+      }
+
+      const inviteRecords = ensureRunningMatchRoomFriendInviteRecords(nextRoom, selectedFriendIds);
+      inviteRecords.forEach((record) => {
+        rgPerfMark('friend invite API end', {
+          inviteId: record.inviteId,
+          inviteTokenGenerated: Boolean(record.inviteToken),
+          invitedUserId: record.invitedUserId,
+          roomId: record.roomId,
+          success: true,
+        });
+      });
+      endInviteApiTrace({
+        inviteCount: inviteRecords.length,
+        success: true,
+      });
+    } catch (inviteError) {
+      const message = getApiErrorMessage(inviteError, '친구 초대를 보내지 못했어.');
+      endInviteApiTrace({
+        message,
+        success: false,
+      });
+      rgPerfMark('friend invite API error', {
+        invitedUserId: invitedUserIdLog || null,
+        message,
+        roomId: room.roomId,
+      });
+      setError(message);
+    }
   };
 
   const handleCopyCode = async () => {

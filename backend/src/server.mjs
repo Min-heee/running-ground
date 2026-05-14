@@ -1474,11 +1474,15 @@ function buildRunningMatchRoomParticipantPayload(store, participant, linkedParti
   };
 }
 
-function buildRunningMatchRoomInviteePayload(store, userId, invitedAt) {
+function buildRunningMatchRoomInviteePayload(store, room, userId, invitedAt) {
   const user = findUserById(store, userId);
   const runner = buildMatchRunnerProfile(store, user);
 
   return {
+    inviteId: `${room.id}:${runner.id}`,
+    roomId: room.id,
+    inviteToken: room.inviteToken,
+    invitedUserId: runner.id,
     userId: runner.id,
     name: runner.name,
     tag: runner.tag,
@@ -1627,7 +1631,7 @@ function buildRunningMatchRoomResponse(store, currentUser, room, now = new Date(
           return new Date(left.joinedAt).getTime() - new Date(right.joinedAt).getTime();
         }),
       invitedFriendIds: room.invitedFriendIds,
-      invitedFriends: pendingInvitedFriendIds.map((userId) => buildRunningMatchRoomInviteePayload(store, userId, room.updatedAt ?? room.createdAt)),
+      invitedFriends: pendingInvitedFriendIds.map((userId) => buildRunningMatchRoomInviteePayload(store, room, userId, room.updatedAt ?? room.createdAt)),
       countdownReadyCount: room.participants.filter((participant) => participant.isCountdownReady).length,
       countdownReadyRequiredCount: room.participants.length,
       ...(linkedSession ? {

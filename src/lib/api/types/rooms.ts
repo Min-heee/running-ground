@@ -33,6 +33,10 @@ export type RunningMatchRoomParticipant = {
 };
 
 export type RunningMatchRoomInvitee = {
+  inviteId?: string;
+  roomId?: string;
+  inviteToken?: string;
+  invitedUserId?: string;
   userId: string;
   name: string;
   tag?: string;
