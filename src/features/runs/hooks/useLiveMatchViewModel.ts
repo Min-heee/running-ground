@@ -14,15 +14,31 @@ import type {
   LiveMatchResultPageProps,
 } from '@/features/runs/components/LiveMatchResultPage';
 import type {
+  LiveMatchMetricLabels,
   LiveMatchTrackingPageProps,
 } from '@/features/runs/components/LiveMatchTrackingPage';
+import { formatDuration } from '@/features/runs/tracking';
+import {
+  formatCadence,
+  formatElevation,
+  formatMetricDistance,
+} from '@/features/runs/trackingSession';
+import {
+  buildLiveMatchArenaViewModel,
+  type LiveMatchArenaViewModelInput,
+} from '@/features/runs/liveMatchArenaViewModel';
+import {
+  buildLiveMatchRaceBoardViewModel,
+  type LiveMatchRaceBoardViewModelInput,
+} from '@/features/runs/liveMatchRaceBoardViewModel';
 
-type LiveMatchTrackingBaseProps = Omit<LiveMatchTrackingPageProps, 'includeMatchCards'>;
+type LiveMatchTrackingInputProps = Omit<LiveMatchTrackingPageProps, 'includeMatchCards' | 'metricLabels'>;
+type LiveMatchTrackingViewProps = Omit<LiveMatchTrackingPageProps, 'includeMatchCards'>;
 
 type UseLiveMatchViewModelInput =
-  LiveMatchArenaPageProps
-  & LiveMatchRaceBoardPageProps
-  & LiveMatchTrackingBaseProps
+  LiveMatchArenaViewModelInput
+  & LiveMatchRaceBoardViewModelInput
+  & LiveMatchTrackingInputProps
   & LiveMatchResultPageProps
   & {
     scrollRef: RefObject<ScrollView | null>;
@@ -30,6 +46,7 @@ type UseLiveMatchViewModelInput =
     pageWidth: number;
     hasResultPage: boolean;
     onPageChange: (page: number) => void;
+    onLiveMatchMounted?: (input: { matchId?: string | null; mode: 'duel' | 'group'; source: string }) => void;
   };
 
 export function useLiveMatchViewModel({
@@ -94,7 +111,7 @@ export function useLiveMatchViewModel({
   groupRows,
   groupStatusLabel,
 }: UseLiveMatchViewModelInput) {
-  const arenaProps = useMemo<LiveMatchArenaPageProps>(() => ({
+  const arenaViewModel = useMemo(() => buildLiveMatchArenaViewModel({
     activeMatchId,
     matchMode,
     effectiveDuelOpponent,
@@ -130,7 +147,6 @@ export function useLiveMatchViewModel({
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
     deferHeavyContent,
-    onLiveMatchMounted,
   }), [
     activeMatchId,
     currentGroupLeader,
@@ -157,7 +173,6 @@ export function useLiveMatchViewModel({
     isDuelOpponentForfeited,
     matchMode,
     officialDuelReady,
-    onLiveMatchMounted,
     roomCountdownRemainingSeconds,
     roomLinkedDuelCurrentParticipant,
     roomLinkedDuelGapKm,
@@ -165,6 +180,47 @@ export function useLiveMatchViewModel({
     roomLinkedDuelPlaceholderParticipants,
     roomLinkedGroupPlaceholderParticipants,
     shouldKeepRunningMatchArena,
+    syncedDuelDistanceKm,
+    syncedDuelOpponentDistanceKm,
+    visibleMatchRoom,
+  ]);
+
+  const arenaProps = useMemo<LiveMatchArenaPageProps>(() => ({
+    viewModel: arenaViewModel,
+    onLiveMatchMounted,
+  }), [arenaViewModel, onLiveMatchMounted]);
+
+  const raceBoardViewModel = useMemo(() => buildLiveMatchRaceBoardViewModel({
+    matchMode,
+    effectiveDuelOpponent,
+    duelLiveGapKm,
+    duelDistanceKm,
+    groupDistanceKm,
+    distanceKm,
+    syncedDuelDistanceKm,
+    syncedDuelOpponentDistanceKm,
+    currentUserDuelLiveStatus,
+    currentUserGroupLiveStatus,
+    roomLinkedDuelPlaceholderParticipants,
+    roomLinkedGroupPlaceholderParticipants,
+    visibleMatchRoom,
+    groupLiveStandings,
+    currentUserArenaPace,
+    groupArenaUsesLivePace,
+  }), [
+    currentUserArenaPace,
+    currentUserDuelLiveStatus,
+    currentUserGroupLiveStatus,
+    distanceKm,
+    duelDistanceKm,
+    duelLiveGapKm,
+    effectiveDuelOpponent,
+    groupArenaUsesLivePace,
+    groupDistanceKm,
+    groupLiveStandings,
+    matchMode,
+    roomLinkedDuelPlaceholderParticipants,
+    roomLinkedGroupPlaceholderParticipants,
     syncedDuelDistanceKm,
     syncedDuelOpponentDistanceKm,
     visibleMatchRoom,
@@ -172,41 +228,26 @@ export function useLiveMatchViewModel({
 
   const raceBoardProps = useMemo<LiveMatchRaceBoardPageProps>(() => ({
     matchMode,
-    effectiveDuelOpponent,
-    duelLiveGapKm,
-    duelDistanceKm,
-    groupDistanceKm,
-    distanceKm,
-    syncedDuelDistanceKm,
-    syncedDuelOpponentDistanceKm,
-    currentUserDuelLiveStatus,
-    currentUserGroupLiveStatus,
-    roomLinkedDuelPlaceholderParticipants,
-    roomLinkedGroupPlaceholderParticipants,
-    visibleMatchRoom,
-    groupLiveStandings,
-    currentUserArenaPace,
-    groupArenaUsesLivePace,
+    viewModel: raceBoardViewModel,
+  }), [matchMode, raceBoardViewModel]);
+
+  const metricLabels = useMemo<LiveMatchMetricLabels>(() => ({
+    elapsedLabel: formatDuration(elapsedSeconds),
+    distanceLabel: formatMetricDistance(distanceKm),
+    averagePaceLabel: averagePace,
+    currentPaceLabel: currentPace,
+    cadenceLabel: formatCadence(cadenceSpm),
+    elevationLabel: formatElevation(elevationGainM),
   }), [
-    currentUserArenaPace,
-    currentUserDuelLiveStatus,
-    currentUserGroupLiveStatus,
+    averagePace,
+    cadenceSpm,
+    currentPace,
     distanceKm,
-    duelDistanceKm,
-    duelLiveGapKm,
-    effectiveDuelOpponent,
-    groupArenaUsesLivePace,
-    groupDistanceKm,
-    groupLiveStandings,
-    matchMode,
-    roomLinkedDuelPlaceholderParticipants,
-    roomLinkedGroupPlaceholderParticipants,
-    syncedDuelDistanceKm,
-    syncedDuelOpponentDistanceKm,
-    visibleMatchRoom,
+    elapsedSeconds,
+    elevationGainM,
   ]);
 
-  const trackingPageProps = useMemo<LiveMatchTrackingBaseProps>(() => ({
+  const trackingPageProps = useMemo<LiveMatchTrackingViewProps>(() => ({
     matchMode,
     liveMatchTitle,
     liveMatchText,
@@ -230,6 +271,7 @@ export function useLiveMatchViewModel({
     currentPace,
     cadenceSpm,
     elevationGainM,
+    metricLabels,
     onContinueSoloFromMatch,
   }), [
     averagePace,
@@ -255,6 +297,7 @@ export function useLiveMatchViewModel({
     liveMatchText,
     liveMatchTitle,
     matchMode,
+    metricLabels,
     onContinueSoloFromMatch,
   ]);
 

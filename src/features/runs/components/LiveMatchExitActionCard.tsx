@@ -1,20 +1,15 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { buildMatchExitActionState } from '@/features/runs/matchExitAction';
+import type { MatchExitActionState } from '@/features/runs/matchExitAction';
+import type { MatchExitSource } from '@/features/runs/matchExitFlow';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
-type MatchExitSource = 'duel' | 'group';
-
-type LiveMatchExitActionCardProps = {
+export type LiveMatchExitActionCardProps = {
   source: MatchExitSource | null;
-  isTestMatch: boolean;
-  isLeaving: boolean;
-  isSaving: boolean;
-  isRunning: boolean;
-  counterpartForfeited: boolean;
+  actionState: MatchExitActionState;
   onContinueSolo: (source: MatchExitSource) => void;
   onForfeit: (source: MatchExitSource) => void;
   onShowResultAfterCounterpartForfeit: (source: MatchExitSource) => void;
@@ -22,32 +17,13 @@ type LiveMatchExitActionCardProps = {
 
 export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
   source,
-  isTestMatch,
-  isLeaving,
-  isSaving,
-  isRunning,
-  counterpartForfeited,
+  actionState,
   onContinueSolo,
   onForfeit,
   onShowResultAfterCounterpartForfeit,
 }: LiveMatchExitActionCardProps) {
   useDevRenderCounter(`LiveMatchExitActionCard:${source ?? 'hidden'}`);
 
-  const actionState = useMemo(() => buildMatchExitActionState({
-    source: source ?? 'duel',
-    isTestMatch,
-    isLeaving,
-    isSaving,
-    isRunning,
-    counterpartForfeited,
-  }), [
-    counterpartForfeited,
-    isLeaving,
-    isRunning,
-    isSaving,
-    isTestMatch,
-    source,
-  ]);
   const handleContinueSoloPress = useCallback(() => {
     if (!source) {
       return;
@@ -118,15 +94,29 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
   );
 }, (prevProps, nextProps) => (
   prevProps.source === nextProps.source
-  && prevProps.isTestMatch === nextProps.isTestMatch
-  && prevProps.isLeaving === nextProps.isLeaving
-  && prevProps.isSaving === nextProps.isSaving
-  && prevProps.isRunning === nextProps.isRunning
-  && prevProps.counterpartForfeited === nextProps.counterpartForfeited
+  && areMatchExitActionStatesEqual(prevProps.actionState, nextProps.actionState)
   && prevProps.onContinueSolo === nextProps.onContinueSolo
   && prevProps.onForfeit === nextProps.onForfeit
   && prevProps.onShowResultAfterCounterpartForfeit === nextProps.onShowResultAfterCounterpartForfeit
 ));
+
+function areMatchExitActionStatesEqual(
+  left: MatchExitActionState,
+  right: MatchExitActionState,
+) {
+  if (left.kind !== right.kind) {
+    return false;
+  }
+
+  if (left.kind === 'hidden' || right.kind === 'hidden') {
+    return true;
+  }
+
+  return left.title === right.title
+    && left.body === right.body
+    && left.buttonLabel === right.buttonLabel
+    && left.disabled === right.disabled;
+}
 
 const styles = StyleSheet.create({
   testExitCard: {

@@ -20,7 +20,7 @@ import {
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
-type LiveMatchArenaProps = {
+export type LiveMatchArenaProps = {
   mode: 'duel' | 'group';
   matchId?: string | null;
   targetDistanceKm: number;

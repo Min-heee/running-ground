@@ -2,7 +2,7 @@ import { FlatList, Platform, StyleSheet, Text, View } from 'react-native';
 import { memo, useCallback } from 'react';
 import type { ListRenderItem } from 'react-native';
 
-type RaceBoardRow = {
+export type LiveMatchRaceBoardRow = {
   id: string;
   rank: number;
   name: string;
@@ -20,7 +20,7 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
-const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: RaceBoardRow }) {
+const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: LiveMatchRaceBoardRow }) {
   const isForfeited = row.liveStatus === 'forfeited';
   const rawProgress = clamp(row.progress, 0, 1);
   const lineProgressPercent = `${rawProgress * 100}%` as const;
@@ -100,13 +100,13 @@ export const LiveMatchRaceBoard = memo(function LiveMatchRaceBoard({
 }: {
   title: string;
   subtitle: string;
-  rows: RaceBoardRow[];
+  rows: LiveMatchRaceBoardRow[];
 }) {
-  const renderRaceBoardRow = useCallback<ListRenderItem<RaceBoardRow>>(({ item }) => (
+  const renderRaceBoardRow = useCallback<ListRenderItem<LiveMatchRaceBoardRow>>(({ item }) => (
     <RaceBoardListRow row={item} />
   ), []);
-  const keyExtractor = useCallback((row: RaceBoardRow) => row.id, []);
-  const getItemLayout = useCallback((_: ArrayLike<RaceBoardRow> | null | undefined, index: number) => ({
+  const keyExtractor = useCallback((row: LiveMatchRaceBoardRow) => row.id, []);
+  const getItemLayout = useCallback((_: ArrayLike<LiveMatchRaceBoardRow> | null | undefined, index: number) => ({
     length: RACE_BOARD_ROW_HEIGHT + 14,
     offset: (RACE_BOARD_ROW_HEIGHT + 14) * index,
     index,

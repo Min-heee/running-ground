@@ -10,12 +10,6 @@ import {
 } from '@/features/runs/matchProgress';
 import { type MatchExitSource } from '@/features/runs/matchExitFlow';
 import { buildMatchParticipantStatusLabel } from '@/features/runs/matchStateMachine';
-import { formatDuration } from '@/features/runs/tracking';
-import {
-  formatCadence,
-  formatElevation,
-  formatMetricDistance,
-} from '@/features/runs/trackingSession';
 import type { DuelMatchOpponent } from '@/lib/api/types';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
@@ -23,6 +17,15 @@ type MatchStatusAlert = {
   tone: 'danger' | 'warning' | 'neutral';
   title: string;
   summary: string;
+};
+
+export type LiveMatchMetricLabels = {
+  elapsedLabel: string;
+  distanceLabel: string;
+  averagePaceLabel: string;
+  currentPaceLabel: string;
+  cadenceLabel: string;
+  elevationLabel: string;
 };
 
 export type LiveMatchTrackingPageProps = {
@@ -50,6 +53,7 @@ export type LiveMatchTrackingPageProps = {
   currentPace: string;
   cadenceSpm: number | null;
   elevationGainM: number;
+  metricLabels: LiveMatchMetricLabels;
   onContinueSoloFromMatch: (source: MatchExitSource) => void;
 };
 
@@ -73,11 +77,7 @@ export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
   isLeavingGroupMatch,
   groupLiveStandings,
   currentGroupLeader,
-  elapsedSeconds,
-  averagePace,
-  currentPace,
-  cadenceSpm,
-  elevationGainM,
+  metricLabels,
   onContinueSoloFromMatch,
 }: LiveMatchTrackingPageProps) {
   useDevRenderCounter(`LiveMatchTrackingPage:${matchMode}`);
@@ -106,45 +106,25 @@ export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
         onContinueSoloFromMatch={onContinueSoloFromMatch}
       />
       <TrackingMetricGridSection
-        elapsedSeconds={elapsedSeconds}
-        distanceKm={distanceKm}
-        averagePace={averagePace}
-        currentPace={currentPace}
-        cadenceSpm={cadenceSpm}
-        elevationGainM={elevationGainM}
+        metricLabels={metricLabels}
       />
     </>
   );
 });
 
 const TrackingMetricGridSection = memo(function TrackingMetricGridSection({
-  elapsedSeconds,
-  distanceKm,
-  averagePace,
-  currentPace,
-  cadenceSpm,
-  elevationGainM,
-}: Pick<LiveMatchTrackingPageProps,
-  'elapsedSeconds'
-  | 'distanceKm'
-  | 'averagePace'
-  | 'currentPace'
-  | 'cadenceSpm'
-  | 'elevationGainM'
->) {
-  const elapsedLabel = useMemo(() => formatDuration(elapsedSeconds), [elapsedSeconds]);
-  const distanceLabel = useMemo(() => formatMetricDistance(distanceKm), [distanceKm]);
-  const cadenceLabel = useMemo(() => formatCadence(cadenceSpm), [cadenceSpm]);
-  const elevationLabel = useMemo(() => formatElevation(elevationGainM), [elevationGainM]);
-
+  metricLabels,
+}: {
+  metricLabels: LiveMatchMetricLabels;
+}) {
   return (
     <RunningMetricGrid
-      elapsedLabel={elapsedLabel}
-      distanceLabel={distanceLabel}
-      averagePaceLabel={averagePace}
-      currentPaceLabel={currentPace}
-      cadenceLabel={cadenceLabel}
-      elevationLabel={elevationLabel}
+      elapsedLabel={metricLabels.elapsedLabel}
+      distanceLabel={metricLabels.distanceLabel}
+      averagePaceLabel={metricLabels.averagePaceLabel}
+      currentPaceLabel={metricLabels.currentPaceLabel}
+      cadenceLabel={metricLabels.cadenceLabel}
+      elevationLabel={metricLabels.elevationLabel}
     />
   );
 });
@@ -176,6 +156,7 @@ const LiveMatchCardsSection = memo(function LiveMatchCardsSection({
   | 'currentPace'
   | 'cadenceSpm'
   | 'elevationGainM'
+  | 'metricLabels'
 >) {
   if (!includeMatchCards || matchMode === 'solo') {
     return null;

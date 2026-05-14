@@ -1,12 +1,18 @@
 import { useMemo } from 'react';
 import type { ComponentProps } from 'react';
 import { LiveMatchExitActionCard } from '@/features/runs/components/LiveMatchExitActionCard';
+import { buildMatchExitActionState } from '@/features/runs/matchExitAction';
 import type { MatchExitSource } from '@/features/runs/matchExitFlow';
 
-type UseForfeitControllerInput = Omit<
-  ComponentProps<typeof LiveMatchExitActionCard>,
-  'onShowResultAfterCounterpartForfeit'
-> & {
+type UseForfeitControllerInput = {
+  source: MatchExitSource | null;
+  isTestMatch: boolean;
+  isLeaving: boolean;
+  isSaving: boolean;
+  isRunning: boolean;
+  counterpartForfeited: boolean;
+  onContinueSolo: (source: MatchExitSource) => void;
+  onForfeit: (source: MatchExitSource) => void;
   onShowResultAfterCounterpartForfeit: (source: MatchExitSource) => Promise<void> | void;
 };
 
@@ -21,24 +27,32 @@ export function useForfeitController({
   onForfeit,
   onShowResultAfterCounterpartForfeit,
 }: UseForfeitControllerInput) {
-  return useMemo<ComponentProps<typeof LiveMatchExitActionCard>>(() => ({
+  const actionState = useMemo(() => buildMatchExitActionState({
     source,
     isTestMatch,
     isLeaving,
     isSaving,
     isRunning,
     counterpartForfeited,
-    onContinueSolo,
-    onForfeit,
-    onShowResultAfterCounterpartForfeit: (nextSource) => {
-      void onShowResultAfterCounterpartForfeit(nextSource);
-    },
   }), [
     counterpartForfeited,
     isLeaving,
     isRunning,
     isSaving,
     isTestMatch,
+    source,
+  ]);
+
+  return useMemo<ComponentProps<typeof LiveMatchExitActionCard>>(() => ({
+    source,
+    actionState,
+    onContinueSolo,
+    onForfeit,
+    onShowResultAfterCounterpartForfeit: (nextSource) => {
+      void onShowResultAfterCounterpartForfeit(nextSource);
+    },
+  }), [
+    actionState,
     onContinueSolo,
     onForfeit,
     onShowResultAfterCounterpartForfeit,
