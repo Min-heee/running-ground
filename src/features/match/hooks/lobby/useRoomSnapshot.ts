@@ -45,6 +45,39 @@ function buildRoomRenderKey(room: RunningMatchRoom | null) {
   ].join('::');
 }
 
+function resolveMatchRoomSnapshotPollingPolicy({
+  linkedMatchId,
+  state,
+}: {
+  linkedMatchId?: string | null;
+  state?: RunningMatchRoom['state'] | null;
+}) {
+  if (linkedMatchId && state === 'active') {
+    return {
+      enabled: false,
+      intervalMs: 5000,
+      owner: 'linked match status',
+      reason: 'active-live-match-owner',
+    };
+  }
+
+  if (linkedMatchId) {
+    return {
+      enabled: true,
+      intervalMs: 5000,
+      owner: 'match-room snapshot',
+      reason: `${state ?? 'linked'}-minimal-room-sync`,
+    };
+  }
+
+  return {
+    enabled: true,
+    intervalMs: 1500,
+    owner: 'match-room snapshot',
+    reason: 'waiting-room-sync',
+  };
+}
+
 export function useRoomSnapshot() {
   const currentUser = getCurrentUserProfile();
   const currentUserTag = currentUser?.publicTag ?? 'mock-current-user';
@@ -192,6 +225,9 @@ export function useRoomSnapshot() {
     }
 
     let cancelled = false;
+    const pollingRoomId = room?.roomId ?? null;
+    const pollingLinkedMatchId = room?.linkedMatchId ?? null;
+    const pollingRoomState = room?.state ?? null;
 
     const hydrate = async () => {
       setLoading(true);
@@ -213,15 +249,35 @@ export function useRoomSnapshot() {
     };
 
     void hydrate();
-    const intervalMs = room?.linkedMatchId ? 750 : 1500;
-    const pollingKey = room?.roomId
-      ? `room:${room.roomId}:match-room-snapshot`
+    const policy = resolveMatchRoomSnapshotPollingPolicy({
+      linkedMatchId: pollingLinkedMatchId,
+      state: pollingRoomState,
+    });
+    if (!policy.enabled) {
+      rgPerfMark('match polling skipped', {
+        linkedMatchId: pollingLinkedMatchId,
+        owner: 'match-room snapshot',
+        reason: policy.reason,
+        roomId: pollingRoomId,
+        state: pollingRoomState,
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const intervalMs = policy.intervalMs;
+    const pollingKey = pollingRoomId
+      ? `room:${pollingRoomId}:match-room-snapshot`
       : `active-room:${currentUserTag}:match-room-snapshot`;
     const pollingSlot = acquireRgPollingSlot(pollingKey, 'match-room snapshot polling', {
       intervalMs,
-      linkedMatchId: room?.linkedMatchId ?? null,
-      roomId: room?.roomId ?? null,
+      linkedMatchId: pollingLinkedMatchId,
+      owner: policy.owner,
+      reason: policy.reason,
+      roomId: pollingRoomId,
       source: 'match-room snapshot',
+      state: pollingRoomState,
     });
 
     if (!pollingSlot.acquired) {
@@ -232,15 +288,21 @@ export function useRoomSnapshot() {
 
     rgPerfMark('match polling start', {
       intervalMs,
+      owner: policy.owner,
       pollingKey,
-      roomId: room?.roomId ?? null,
+      reason: policy.reason,
+      roomId: pollingRoomId,
       source: 'match-room snapshot',
+      state: pollingRoomState,
     });
     const stopPollingTrace = rgPerfTrackResource('polling', 'match-room snapshot polling', {
       intervalMs,
-      linkedMatchId: room?.linkedMatchId ?? null,
+      linkedMatchId: pollingLinkedMatchId,
+      owner: policy.owner,
       pollingKey,
-      roomId: room?.roomId ?? null,
+      reason: policy.reason,
+      roomId: pollingRoomId,
+      state: pollingRoomState,
     });
     const intervalId = setInterval(() => {
       void loadRoom();
@@ -252,7 +314,7 @@ export function useRoomSnapshot() {
       stopPollingTrace();
       pollingSlot.release();
     };
-  }, [currentUserTag, loadRoom, pollingPaused, room?.linkedMatchId, room?.roomId, screenFocused]);
+  }, [currentUserTag, loadRoom, pollingPaused, room?.linkedMatchId, room?.roomId, room?.state, screenFocused]);
 
   return {
     room,

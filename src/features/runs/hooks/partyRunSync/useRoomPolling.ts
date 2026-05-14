@@ -11,31 +11,97 @@ type UseRoomPollingInput = {
   callbacksRef: PartyRunSyncCallbackRef;
 };
 
+export function resolvePartyRoomPollingPolicy({
+  fastRoomPollMs,
+  idleRoomPollMs,
+  linkedMatchId,
+  roomId,
+  state,
+}: {
+  fastRoomPollMs: number;
+  idleRoomPollMs: number;
+  linkedMatchId?: string | null;
+  roomId?: string | null;
+  state?: RunningMatchRoom['state'] | null;
+}) {
+  if (!roomId) {
+    return {
+      enabled: false,
+      intervalMs: idleRoomPollMs,
+      reason: 'no-room',
+    };
+  }
+
+  if (linkedMatchId) {
+    return {
+      enabled: false,
+      intervalMs: idleRoomPollMs,
+      reason: 'linked-match-status-owner',
+    };
+  }
+
+  if (state === 'waiting') {
+    return {
+      enabled: false,
+      intervalMs: idleRoomPollMs,
+      reason: 'match-room-snapshot-owner',
+    };
+  }
+
+  if (state === 'arming' || state === 'countdown' || state === 'active') {
+    return {
+      enabled: false,
+      intervalMs: fastRoomPollMs,
+      reason: `${state}-linked-transition-owner`,
+    };
+  }
+
+  return {
+    enabled: true,
+    intervalMs: idleRoomPollMs,
+    reason: 'party-room-owner',
+  };
+}
+
 export function useRoomPolling({
   matchRoom,
   fastRoomPollMs,
   idleRoomPollMs,
   callbacksRef,
 }: UseRoomPollingInput) {
+  const roomId = matchRoom?.roomId ?? null;
+  const linkedMatchId = matchRoom?.linkedMatchId ?? null;
+  const roomState = matchRoom?.state ?? null;
+
   useEffect(() => {
-    if (!matchRoom?.roomId) {
+    const policy = resolvePartyRoomPollingPolicy({
+      fastRoomPollMs,
+      idleRoomPollMs,
+      linkedMatchId,
+      roomId,
+      state: roomState,
+    });
+
+    if (!roomId || !policy.enabled) {
+      rgPerfMark('match polling skipped', {
+        owner: 'party room',
+        pollingKey: roomId ? `room:${roomId}:party-room` : null,
+        reason: policy.reason,
+        roomId,
+        state: roomState,
+      });
       return undefined;
     }
 
-    const needsFastRoomPolling = Boolean(
-      matchRoom?.linkedMatchId || ['arming', 'countdown'].includes(matchRoom?.state ?? ''),
-    );
-    const intervalMs = matchRoom?.state === 'active'
-      ? idleRoomPollMs
-      : needsFastRoomPolling
-        ? fastRoomPollMs
-        : idleRoomPollMs;
-    const pollingKey = `room:${matchRoom.roomId}:party-room`;
+    const intervalMs = policy.intervalMs;
+    const pollingKey = `room:${roomId}:party-room`;
     const pollingSlot = acquireRgPollingSlot(pollingKey, 'party room polling', {
       intervalMs,
-      roomId: matchRoom.roomId,
+      owner: 'party room',
+      reason: policy.reason,
+      roomId,
       source: 'party room',
-      state: matchRoom.state ?? null,
+      state: roomState,
     });
 
     if (!pollingSlot.acquired) {
@@ -45,15 +111,19 @@ export function useRoomPolling({
     rgPerfMark('match polling start', {
       intervalMs,
       pollingKey,
-      roomId: matchRoom?.roomId ?? null,
+      pollingOwner: 'party room',
+      reason: policy.reason,
+      roomId,
       source: 'party room',
-      state: matchRoom?.state ?? null,
+      state: roomState,
     });
     const stopPollingTrace = rgPerfTrackResource('polling', 'party room polling', {
       intervalMs,
       pollingKey,
-      roomId: matchRoom?.roomId ?? null,
-      state: matchRoom?.state ?? null,
+      pollingOwner: 'party room',
+      reason: policy.reason,
+      roomId,
+      state: roomState,
     });
     const timer = setInterval(() => {
       void callbacksRef.current.loadMatchRoom().catch(() => {});
@@ -64,5 +134,5 @@ export function useRoomPolling({
       stopPollingTrace();
       pollingSlot.release();
     };
-  }, [callbacksRef, fastRoomPollMs, idleRoomPollMs, matchRoom?.linkedMatchId, matchRoom?.roomId, matchRoom?.state]);
+  }, [callbacksRef, fastRoomPollMs, idleRoomPollMs, linkedMatchId, roomId, roomState]);
 }

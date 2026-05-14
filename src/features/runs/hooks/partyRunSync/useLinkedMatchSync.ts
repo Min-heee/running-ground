@@ -175,16 +175,23 @@ export function useLinkedMatchSync({
 
     void syncRoomLinkedMatch();
 
-    const intervalMs = visiblePartyRunFlow.phase === 'countdown'
-      || visiblePartyRunFlow.shouldOpenArena
+    const shouldUseFastLinkedMatchPolling = visiblePartyRunFlow.phase === 'countdown'
+      || visiblePartyRunFlow.shouldOpenArena;
+    const intervalMs = shouldUseFastLinkedMatchPolling
       ? fastMatchStatusPollMs
       : idleMatchStatusPollMs;
+    const transitionReason = shouldUseFastLinkedMatchPolling
+      ? `${visiblePartyRunFlow.phase}-handoff`
+      : `${roomLinkedMatchContext.state ?? 'linked'}-idle-sync`;
     const pollingKey = `match:${roomLinkedMatchContext.matchId}:linked-match-status`;
     const pollingSlot = acquireRgPollingSlot(pollingKey, 'linked match status polling', {
       intervalMs,
       matchId: roomLinkedMatchContext.matchId,
       mode: roomLinkedMatchContext.mode,
+      owner: 'linked match status',
+      reason: transitionReason,
       source: 'linked match status',
+      state: roomLinkedMatchContext.state ?? null,
     });
 
     if (!pollingSlot.acquired) {
@@ -196,14 +203,20 @@ export function useLinkedMatchSync({
     rgPerfMark('match polling start', {
       intervalMs,
       matchId: roomLinkedMatchContext.matchId,
+      owner: 'linked match status',
       pollingKey,
+      reason: transitionReason,
       source: 'linked match status',
+      state: roomLinkedMatchContext.state ?? null,
     });
     const stopPollingTrace = rgPerfTrackResource('polling', 'linked match status polling', {
       intervalMs,
       matchId: roomLinkedMatchContext.matchId,
       mode: roomLinkedMatchContext.mode,
+      owner: 'linked match status',
       pollingKey,
+      reason: transitionReason,
+      state: roomLinkedMatchContext.state ?? null,
     });
     const timer = setInterval(() => {
       void syncRoomLinkedMatch();
