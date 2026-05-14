@@ -330,6 +330,7 @@ export function TrackRunExperience({
   const autoStartingMatchTrackingRef = useRef(false);
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
   const forfeitedMatchIdsRef = useRef<Set<string>>(new Set());
+  const joinMatchRoomInFlightRef = useRef(false);
 
   const {
     matchRoom,
@@ -1348,6 +1349,10 @@ export function TrackRunExperience({
   };
 
   const handleJoinMatchRoom = async () => {
+    if (joinMatchRoomInFlightRef.current || isJoiningMatchRoom) {
+      return;
+    }
+
     const inviteToken = roomInviteTokenInput.trim();
 
     rgPerfMark('invite code input submit', {
@@ -1364,6 +1369,7 @@ export function TrackRunExperience({
       return;
     }
 
+    joinMatchRoomInFlightRef.current = true;
     setIsJoiningMatchRoom(true);
     setError(null);
 
@@ -1411,6 +1417,7 @@ export function TrackRunExperience({
       });
       setError(message);
     } finally {
+      joinMatchRoomInFlightRef.current = false;
       setIsJoiningMatchRoom(false);
     }
   };

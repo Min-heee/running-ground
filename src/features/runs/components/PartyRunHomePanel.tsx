@@ -7,7 +7,7 @@ import type {
   RunningMatchRoom,
   RunningMatchRoomMode,
 } from '@/lib/api/types';
-import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+import { rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type PartyRunHomePanelProps = {
   visibleRoom: RunningMatchRoom | null;
@@ -112,13 +112,7 @@ export function PartyRunHomePanel({
                 />
                 <SecondaryButton
                   label={isJoining ? '입장 중...' : '방 입장'}
-                  onPress={() => {
-                    rgPerfMark('invite code input submit', {
-                      hasToken: inviteTokenInput.trim().length > 0,
-                      source: 'party run home panel',
-                    });
-                    onJoinRoom();
-                  }}
+                  onPress={onJoinRoom}
                   disabled={isJoining}
                 />
               </View>
