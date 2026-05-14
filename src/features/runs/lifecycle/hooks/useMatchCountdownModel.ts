@@ -13,6 +13,7 @@ import { useStableCountdownSeconds } from '@/features/runs/lifecycle/hooks/useSt
 import {
   buildPartyRunFlowSnapshot,
 } from '@/features/runs/lifecycle/matchStateMachine';
+import { selectLinkedRuntimeRoom } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
 
 type CountdownEntry = {
   title: string;
@@ -129,41 +130,58 @@ export function useMatchCountdownModel({
     groupStartCountdownSeconds,
     matchMode,
   ]);
-  const rawRoomCountdownRemainingSeconds = visibleMatchRoom?.linkedMatchSlotStartAt
+  const rawVisibleRoomCountdownRemainingSeconds = visibleMatchRoom?.linkedMatchSlotStartAt
     ? getMatchStartRemainingSeconds(visibleMatchRoom.linkedMatchSlotStartAt, syncedNowMs)
     : null;
-  const roomCountdownRemainingSeconds = useStableCountdownSeconds({
+  const visibleRoomCountdownRemainingSeconds = useStableCountdownSeconds({
     key: visibleMatchRoom?.linkedMatchId
       ? `${visibleMatchRoom.linkedMatchId}:${visibleMatchRoom.linkedMatchSlotStartAt ?? visibleMatchRoom.slotStartAt}`
       : null,
-    rawRemainingSeconds: rawRoomCountdownRemainingSeconds,
+    rawRemainingSeconds: rawVisibleRoomCountdownRemainingSeconds,
     nowMs,
   });
+  const rawMatchRoomCountdownRemainingSeconds = matchRoom?.linkedMatchSlotStartAt
+    ? getMatchStartRemainingSeconds(matchRoom.linkedMatchSlotStartAt, syncedNowMs)
+    : null;
+  const matchRoomCountdownRemainingSeconds = useStableCountdownSeconds({
+    key: matchRoom?.linkedMatchId
+      ? `${matchRoom.linkedMatchId}:${matchRoom.linkedMatchSlotStartAt ?? matchRoom.slotStartAt}`
+      : null,
+    rawRemainingSeconds: rawMatchRoomCountdownRemainingSeconds,
+    nowMs,
+  });
+  const runtimeRoom = useMemo(
+    () => selectLinkedRuntimeRoom({ matchRoom, visibleMatchRoom }),
+    [matchRoom, visibleMatchRoom],
+  );
+  const roomCountdownRemainingSeconds = runtimeRoom === matchRoom
+    ? matchRoomCountdownRemainingSeconds
+    : visibleRoomCountdownRemainingSeconds;
   const visiblePartyRunFlow = useMemo(() => buildPartyRunFlowSnapshot({
     room: visibleMatchRoom,
     isCountdownReady: currentRoomParticipantIsCountdownReady ?? undefined,
-    remainingSeconds: roomCountdownRemainingSeconds,
-  }), [currentRoomParticipantIsCountdownReady, roomCountdownRemainingSeconds, visibleMatchRoom]);
+    remainingSeconds: visibleRoomCountdownRemainingSeconds,
+  }), [currentRoomParticipantIsCountdownReady, visibleRoomCountdownRemainingSeconds, visibleMatchRoom]);
   const matchRoomFlow = useMemo(() => buildPartyRunFlowSnapshot({
     room: matchRoom,
     isCountdownReady: currentRoomParticipantIsCountdownReady ?? undefined,
-    remainingSeconds: roomCountdownRemainingSeconds,
-  }), [currentRoomParticipantIsCountdownReady, matchRoom, roomCountdownRemainingSeconds]);
+    remainingSeconds: matchRoomCountdownRemainingSeconds,
+  }), [currentRoomParticipantIsCountdownReady, matchRoom, matchRoomCountdownRemainingSeconds]);
   const roomCountdownEntry = useMemo<CountdownEntry | null>(() => {
     if (
-      !visibleMatchRoom?.linkedMatchId
+      !runtimeRoom?.linkedMatchId
       || typeof roomCountdownRemainingSeconds !== 'number'
-      || !['arming', 'countdown', 'active'].includes(visibleMatchRoom.state)
+      || !['arming', 'countdown', 'active'].includes(runtimeRoom.state)
     ) {
       return null;
     }
 
     return {
-      title: visibleMatchRoom.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',
-      subtitle: `${visibleMatchRoom.hostName}님 방 · ${(visibleMatchRoom.linkedMatchDistanceKm ?? visibleMatchRoom.distanceKm).toFixed(1)}km`,
+      title: runtimeRoom.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',
+      subtitle: `${runtimeRoom.hostName}님 방 · ${(runtimeRoom.linkedMatchDistanceKm ?? runtimeRoom.distanceKm).toFixed(1)}km`,
       remainingSeconds: roomCountdownRemainingSeconds,
     };
-  }, [roomCountdownRemainingSeconds, visibleMatchRoom]);
+  }, [roomCountdownRemainingSeconds, runtimeRoom]);
   const visibleCountdownEntry = roomCountdownEntry ?? (stableNextStartingMatch
     ? {
         title: stableNextStartingMatch.match.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',

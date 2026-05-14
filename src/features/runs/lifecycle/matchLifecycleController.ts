@@ -108,9 +108,8 @@ function normalizeStageFromMatchState(
 
 function buildRoomLinkedTarget(
   context: PartyRunLinkedMatchContext | null,
-  matchMode: RunMatchMode,
 ): MatchLifecycleMatchTarget | null {
-  if (!context || context.mode !== matchMode) {
+  if (!context) {
     return null;
   }
 
@@ -136,17 +135,44 @@ function buildStatusTarget(
   };
 }
 
+function promoteLinkedContextWithStatus(
+  context: PartyRunLinkedMatchContext | null,
+  duelMatchStatus: RunningMatchStatusResponse | null,
+  groupMatchStatus: RunningMatchStatusResponse | null,
+): PartyRunLinkedMatchContext | null {
+  if (!context) {
+    return null;
+  }
+
+  const linkedStatus = context.mode === 'duel' ? duelMatchStatus : groupMatchStatus;
+
+  if (linkedStatus?.matchId !== context.matchId || linkedStatus.state !== 'active') {
+    return context;
+  }
+
+  return {
+    ...context,
+    distanceKm: linkedStatus.distanceKm,
+    slotStartAt: linkedStatus.slotStartAt,
+    state: 'active',
+  };
+}
+
 function resolveWarmupMatch(input: MatchLifecycleControllerInput): MatchLifecycleMatchTarget | null {
   const roomTarget = input.roomLinkedMatchContext?.state === 'matched' && input.visiblePartyRunFlow.shouldOpenArena
-    ? buildRoomLinkedTarget(input.roomLinkedMatchContext, input.matchMode)
+    ? buildRoomLinkedTarget(input.roomLinkedMatchContext)
     : null;
+
+  if (roomTarget) {
+    return roomTarget;
+  }
 
   if (input.matchMode === 'duel') {
     if (input.duelMatchState === 'matched' && shouldAutoOpenMatchArena(input.duelStartCountdownSeconds)) {
       return buildStatusTarget('duel', input.duelMatchStatus) ?? roomTarget;
     }
 
-    return roomTarget?.mode === 'duel' ? roomTarget : null;
+    return null;
   }
 
   if (input.matchMode === 'group') {
@@ -154,34 +180,34 @@ function resolveWarmupMatch(input: MatchLifecycleControllerInput): MatchLifecycl
       return buildStatusTarget('group', input.groupMatchStatus) ?? roomTarget;
     }
 
-    return roomTarget?.mode === 'group' ? roomTarget : null;
+    return null;
   }
 
-  return roomTarget;
+  return null;
 }
 
 function resolveActiveMatch(input: MatchLifecycleControllerInput): MatchLifecycleMatchTarget | null {
   const roomTarget = input.roomLinkedMatchContext?.state === 'active'
-    ? buildRoomLinkedTarget(input.roomLinkedMatchContext, input.matchMode)
+    ? buildRoomLinkedTarget(input.roomLinkedMatchContext)
     : null;
+
+  if (roomTarget) {
+    return roomTarget;
+  }
 
   if (input.matchMode === 'duel') {
     return input.duelMatchStatus?.state === 'active'
-      ? buildStatusTarget('duel', input.duelMatchStatus) ?? roomTarget
-      : roomTarget?.mode === 'duel'
-        ? roomTarget
-        : null;
+      ? buildStatusTarget('duel', input.duelMatchStatus)
+      : null;
   }
 
   if (input.matchMode === 'group') {
     return input.groupMatchStatus?.state === 'active'
-      ? buildStatusTarget('group', input.groupMatchStatus) ?? roomTarget
-      : roomTarget?.mode === 'group'
-        ? roomTarget
-        : null;
+      ? buildStatusTarget('group', input.groupMatchStatus)
+      : null;
   }
 
-  return roomTarget;
+  return null;
 }
 
 export function buildMatchLifecycleController(input: MatchLifecycleControllerInput): MatchLifecycleController {
@@ -194,7 +220,11 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
   });
   const partyRoom = partyRuntime.room;
   const partyFlow = partyRuntime.flow;
-  const roomLinkedContext = partyRuntime.linkedMatchContext;
+  const roomLinkedContext = promoteLinkedContextWithStatus(
+    partyRuntime.linkedMatchContext,
+    input.duelMatchStatus,
+    input.groupMatchStatus,
+  );
   const runtimeInput = {
     ...input,
     roomLinkedMatchContext: roomLinkedContext,
@@ -204,7 +234,9 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
   const activeMatch = resolveActiveMatch(runtimeInput);
   const roomId = partyRoom?.roomId ?? null;
   const partyStage = partyRoom?.linkedMatchId
-    ? normalizeStageFromPartyRunPhase(partyFlow.phase)
+    ? roomLinkedContext?.state === 'active'
+      ? 'active'
+      : normalizeStageFromPartyRunPhase(partyFlow.phase)
     : null;
   const directDuelStage = input.matchMode === 'duel'
     ? normalizeStageFromMatchState(input.duelMatchState, input.duelStartCountdownSeconds, input.duelMatchStatus)

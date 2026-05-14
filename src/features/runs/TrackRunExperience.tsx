@@ -97,6 +97,8 @@ import {
 import {
   filterUpcomingMatchesForRuntime,
   isLinkedRoomRuntimeState,
+  selectLinkedRuntimeRoom,
+  selectPartyRunRuntimeSource,
 } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
 import { getLiveMatchRouteHydration } from '@/features/runs/lifecycle/liveMatchRouteHydration';
 import { buildTrackRunRuntimeRouteKey } from '@/features/runs/lifecycle/trackRunRouteState';
@@ -413,12 +415,8 @@ export function TrackRunExperience({
     onGroupTimeSectionChange: setSelectedGroupTimeSection,
   });
 
-  const linkedRuntimeRoom = isLinkedRoomRuntimeState(visibleMatchRoom)
-    ? visibleMatchRoom
-    : isLinkedRoomRuntimeState(matchRoom)
-      ? matchRoom
-      : null;
-  const hasLinkedRuntimeRoom = Boolean(linkedRuntimeRoom);
+  const linkedRuntimeRoom = selectLinkedRuntimeRoom({ matchRoom, visibleMatchRoom });
+  const hasLinkedRuntimeRoom = isLinkedRoomRuntimeState(linkedRuntimeRoom);
   const visibleUpcomingMatches = useMemo(
     () => filterUpcomingMatchesForRuntime(
       upcomingMatches.filter((match) => !shouldHidePastUpcomingMatch(match, syncedNowMs)),
@@ -492,7 +490,13 @@ export function TrackRunExperience({
     matchRoom,
     currentRoomParticipantIsCountdownReady: currentRoomParticipant?.isCountdownReady,
   });
-  const roomLinkedMatchContext = visiblePartyRunFlow.linkedMatchContext;
+  const partyRunRuntimeSource = useMemo(() => selectPartyRunRuntimeSource({
+    matchRoom,
+    matchRoomFlow,
+    visibleMatchRoom,
+    visiblePartyRunFlow,
+  }), [matchRoom, matchRoomFlow, visibleMatchRoom, visiblePartyRunFlow]);
+  const roomLinkedMatchContext = partyRunRuntimeSource.linkedMatchContext;
   const liveMatchStartupIdentity = useMemo(() => {
     if (matchMode === 'duel') {
       return duelMatchStatus?.matchId
@@ -525,7 +529,7 @@ export function TrackRunExperience({
     && (
       isRunning
       || forceOpenActiveMatch
-      || visiblePartyRunFlow.shouldOpenArena
+      || partyRunRuntimeSource.flow.shouldOpenArena
       || (matchMode === 'duel' && (
         duelMatchState === 'active'
         || shouldAutoOpenMatchArena(duelStartCountdownSeconds)
@@ -695,7 +699,7 @@ export function TrackRunExperience({
     ],
   );
   const roomLinkedDuelPlaceholderParticipants = useMemo(() => buildRoomLinkedDuelPlaceholderParticipants({
-    room: visibleMatchRoom,
+    room: linkedRuntimeRoom,
     hasRoomLinkedDuelContext,
     currentUserId,
     currentDistanceKm: liveMatchDisplayDistanceKm,
@@ -708,8 +712,8 @@ export function TrackRunExperience({
     effectiveDuelOpponent,
     hasRoomLinkedDuelContext,
     liveMatchDisplayDistanceKm,
+    linkedRuntimeRoom,
     roomLinkedMatchContext,
-    visibleMatchRoom,
   ]);
   const {
     roomLinkedDuelCurrentParticipant,
@@ -748,7 +752,7 @@ export function TrackRunExperience({
     [currentUserArenaPace, featuredGroupArenaParticipantIds, groupArenaUsesLivePace, groupLiveStandings],
   );
   const roomLinkedGroupPlaceholderParticipants = useMemo(() => buildRoomLinkedGroupPlaceholderParticipants({
-    room: visibleMatchRoom,
+    room: linkedRuntimeRoom,
     hasRoomLinkedGroupContext,
     currentUserId,
     currentDistanceKm: liveMatchDisplayDistanceKm,
@@ -760,15 +764,15 @@ export function TrackRunExperience({
     currentUserId,
     effectiveGroupParticipants,
     hasRoomLinkedGroupContext,
+    linkedRuntimeRoom,
     liveMatchDisplayDistanceKm,
     roomLinkedMatchContext,
-    visibleMatchRoom,
   ]);
   const duelShouldOpenCountdownArena = duelMatchState === 'matched' && shouldAutoOpenMatchArena(duelStartCountdownSeconds);
   const groupShouldOpenCountdownArena = groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds);
   const roomShouldOpenCountdownArena = Boolean(
-    visibleMatchRoom?.linkedMatchId
-    && (visiblePartyRunFlow.shouldOpenArena || forceOpenActiveMatch),
+    partyRunRuntimeSource.room?.linkedMatchId
+    && (partyRunRuntimeSource.flow.shouldOpenArena || forceOpenActiveMatch),
   );
   const duelShouldHoldArenaDuringActivation = duelMatchState === 'matched' && forceOpenActiveMatch;
   const groupShouldHoldArenaDuringActivation = groupMatchState === 'matched' && forceOpenActiveMatch;

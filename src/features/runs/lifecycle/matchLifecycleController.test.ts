@@ -266,6 +266,47 @@ test('linked party room arming keeps linked recovery polling instead of falling 
   assert.equal(controller.effects.shouldNavigateLinkedMatch, false);
 });
 
+test('linked match active status promotes party runtime after navigation fallback', () => {
+  const linkedRoom = room({
+    state: 'arming',
+    linkedMatchId: 'match-linked',
+    linkedMatchStatus: 'matched',
+    linkedMatchSlotStartAt: '2026-05-14T12:00:20.000Z',
+  });
+  const flow = buildPartyRunFlowSnapshot({
+    room: linkedRoom,
+    isCountdownReady: false,
+    remainingSeconds: 45,
+  });
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'idle',
+    matchRoom: linkedRoom,
+    visibleMatchRoom: linkedRoom,
+    visiblePartyRunFlow: flow,
+    matchRoomFlow: flow,
+    roomLinkedMatchContext: flow.linkedMatchContext,
+    duelMatchState: 'active',
+    duelMatchStatus: status({
+      state: 'active',
+      matchId: 'match-linked',
+      slotStartAt: '2026-05-14T12:00:20.000Z',
+    }),
+    fallbackMatchId: 'match-linked',
+  }));
+
+  assert.equal(controller.stage, 'active');
+  assert.equal(controller.source, 'party-room');
+  assert.equal(controller.matchId, 'match-linked');
+  assert.equal(controller.effects.shouldPollLinkedMatch, true);
+  assert.equal(controller.effects.shouldPollDirectMatchStatus, false);
+  assert.deepEqual(controller.gps.activeMatch, {
+    matchId: 'match-linked',
+    mode: 'duel',
+    slotStartAt: '2026-05-14T12:00:20.000Z',
+  });
+});
+
 test('lifecycle controller starts heartbeat only for active running match', () => {
   const controller = buildMatchLifecycleController(baseInput({
     matchMode: 'duel',

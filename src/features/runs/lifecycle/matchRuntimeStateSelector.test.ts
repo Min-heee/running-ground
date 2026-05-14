@@ -5,6 +5,7 @@ import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateM
 import {
   filterUpcomingMatchesForRuntime,
   isLinkedRoomRuntimeState,
+  selectLinkedRuntimeRoom,
   selectPartyRunRuntimeSource,
 } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
 import {
@@ -89,6 +90,42 @@ test('runtime selector prefers linked matchRoom flow when visible room snapshot 
   assert.equal(runtime.linkedMatchContext?.matchId, 'match-1');
 });
 
+test('runtime selector prefers the highest linked room lifecycle state', () => {
+  const visibleRoom = room({
+    state: 'countdown',
+    linkedMatchId: 'match-1',
+    linkedMatchStatus: 'matched',
+  });
+  const activeRoom = room({
+    state: 'active',
+    linkedMatchId: 'match-1',
+    linkedMatchStatus: 'active',
+  });
+  const visibleFlow = buildPartyRunFlowSnapshot({
+    room: visibleRoom,
+    isCountdownReady: true,
+    remainingSeconds: 20,
+  });
+  const activeFlow = buildPartyRunFlowSnapshot({
+    room: activeRoom,
+    isCountdownReady: true,
+    remainingSeconds: null,
+  });
+
+  assert.equal(selectLinkedRuntimeRoom({ matchRoom: activeRoom, visibleMatchRoom: visibleRoom })?.state, 'active');
+
+  const runtime = selectPartyRunRuntimeSource({
+    matchRoom: activeRoom,
+    matchRoomFlow: activeFlow,
+    visibleMatchRoom: visibleRoom,
+    visiblePartyRunFlow: visibleFlow,
+  });
+
+  assert.equal(runtime.room?.state, 'active');
+  assert.equal(runtime.flow.phase, 'active');
+  assert.equal(runtime.linkedMatchContext?.state, 'active');
+});
+
 test('upcoming reserved list hides the active linked room match', () => {
   const linkedRoom = room({
     state: 'countdown',
@@ -99,6 +136,23 @@ test('upcoming reserved list hides the active linked room match', () => {
     upcoming({ matchId: 'match-1', status: 'matched' }),
     upcoming({ matchId: 'match-2', status: 'matched' }),
   ], linkedRoom);
+
+  assert.deepEqual(visible.map((match) => match.matchId), ['match-2']);
+});
+
+test('countdown linked match is not shown as an upcoming reserved match', () => {
+  const runtimeRoom = selectLinkedRuntimeRoom({
+    matchRoom: room({
+      state: 'countdown',
+      linkedMatchId: 'match-1',
+      linkedMatchStatus: 'matched',
+    }),
+    visibleMatchRoom: room({ state: 'waiting' }),
+  });
+  const visible = filterUpcomingMatchesForRuntime([
+    upcoming({ matchId: 'match-1', status: 'matched' }),
+    upcoming({ matchId: 'match-2', status: 'matched' }),
+  ], runtimeRoom);
 
   assert.deepEqual(visible.map((match) => match.matchId), ['match-2']);
 });
