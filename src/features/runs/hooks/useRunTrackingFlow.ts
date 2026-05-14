@@ -30,6 +30,7 @@ import { useLocationTracking } from '@/features/runs/tracking/useLocationTrackin
 import { useMatchProgressHeartbeat } from '@/features/runs/tracking/useMatchProgressHeartbeat';
 import { usePedometerTracking } from '@/features/runs/tracking/usePedometerTracking';
 import { useTrackingAppStateSync } from '@/features/runs/tracking/useTrackingAppStateSync';
+import { LIVE_MATCH_UI_DISPLAY_INTERVAL_MS } from '@/features/runs/sync/liveMatchCadence';
 import type {
   DisplayedMatchProgress,
   DisplayedTrackingSnapshot,
@@ -38,6 +39,40 @@ import type {
 import { shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { getApiErrorMessage } from '@/services/apiError';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+
+type TrackingUiFrame = {
+  currentPace: string;
+  distanceKm: number;
+  elapsedSeconds: number;
+  elevationGainM: number;
+  status: BackgroundRunTrackingSnapshot['status'];
+};
+
+function buildTrackingUiFrame(
+  snapshot: BackgroundRunTrackingSnapshot,
+  displayedSnapshot: DisplayedTrackingSnapshot,
+): TrackingUiFrame {
+  return {
+    currentPace: displayedSnapshot.currentPace,
+    distanceKm: displayedSnapshot.distanceKm,
+    elapsedSeconds: displayedSnapshot.elapsedSeconds,
+    elevationGainM: displayedSnapshot.elevationGainM,
+    status: snapshot.status,
+  };
+}
+
+function hasCriticalTrackingUiChange(
+  previousFrame: TrackingUiFrame | null,
+  nextFrame: TrackingUiFrame,
+) {
+  if (!previousFrame) {
+    return true;
+  }
+
+  return previousFrame.status !== nextFrame.status
+    || nextFrame.elapsedSeconds < previousFrame.elapsedSeconds
+    || nextFrame.distanceKm < previousFrame.distanceKm;
+}
 
 export function useRunTrackingFlow({
   pedometerSubscriptionRef,
@@ -98,15 +133,21 @@ export function useRunTrackingFlow({
 }: UseRunTrackingFlowInput) {
   const gpsTrackingStartKeyRef = useRef<string | null>(null);
   const gpsTrackingStartPromiseRef = useRef<Promise<void> | null>(null);
+  const lastTrackingUiFlushMsRef = useRef(0);
+  const lastTrackingUiFrameRef = useRef<TrackingUiFrame | null>(null);
   const lifecycleWarmupMatchId = matchLifecycleController?.gps.warmupMatch?.matchId ?? null;
   const lifecycleActiveMatchId = matchLifecycleController?.gps.activeMatch?.matchId ?? null;
   const lifecycleActiveMatchSlotStartAt = matchLifecycleController?.gps.activeMatch?.slotStartAt ?? null;
   const hasLifecycleController = Boolean(matchLifecycleController);
 
-  const syncElapsedSeconds = (nextElapsedSeconds: number) => {
+  const syncElapsedSeconds = (nextElapsedSeconds: number, options?: { commitState?: boolean }) => {
+    const commitState = options?.commitState ?? true;
     elapsedSecondsRef.current = nextElapsedSeconds;
-    setElapsedSeconds(nextElapsedSeconds);
-    setCadenceSpm(calculateCadenceSpm(totalStepsRef.current, nextElapsedSeconds));
+
+    if (commitState) {
+      setElapsedSeconds(nextElapsedSeconds);
+      setCadenceSpm(calculateCadenceSpm(totalStepsRef.current, nextElapsedSeconds));
+    }
   };
 
   const finishSoloStartCountdown = (completed: boolean) => {
@@ -263,6 +304,23 @@ export function useRunTrackingFlow({
     const displayedSnapshot = getDisplayedTrackingSnapshot(snapshot);
     // Route points are needed for saving, but rendering the growing array every tick is expensive on Android.
     routeRef.current = displayedSnapshot.route;
+
+    const nextUiFrame = buildTrackingUiFrame(snapshot, displayedSnapshot);
+    const shouldThrottleLiveMatchUi = Platform.OS === 'android'
+      && matchModeRef.current !== 'solo'
+      && snapshot.status === 'running';
+    const nowMs = Date.now();
+    const shouldCommitUiState = !shouldThrottleLiveMatchUi
+      || hasCriticalTrackingUiChange(lastTrackingUiFrameRef.current, nextUiFrame)
+      || nowMs - lastTrackingUiFlushMsRef.current >= LIVE_MATCH_UI_DISPLAY_INTERVAL_MS;
+
+    if (!shouldCommitUiState) {
+      syncElapsedSeconds(displayedSnapshot.elapsedSeconds, { commitState: false });
+      return;
+    }
+
+    lastTrackingUiFlushMsRef.current = nowMs;
+    lastTrackingUiFrameRef.current = nextUiFrame;
     setDistanceKm(displayedSnapshot.distanceKm);
     setElevationGainM(displayedSnapshot.elevationGainM);
     setCurrentPace(displayedSnapshot.currentPace);
