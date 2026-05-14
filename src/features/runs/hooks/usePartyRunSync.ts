@@ -9,6 +9,7 @@ import type {
   PartyRunFlowSnapshot,
   PartyRunLinkedMatchContext,
 } from '@/features/runs/matchStateMachine';
+import type { MatchLifecycleController } from '@/features/runs/matchLifecycleController';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { useCountdownReadyAck } from '@/features/runs/hooks/partyRunSync/useCountdownReadyAck';
 import {
@@ -35,6 +36,7 @@ type UsePartyRunSyncInput = {
   fastMatchStatusPollMs: number;
   idleMatchStatusPollMs: number;
   linkedMatchSyncEnabled?: boolean;
+  lifecycleController?: MatchLifecycleController;
   getSyncedNowMs: () => number;
   loadMatchRoom: () => Promise<RunningMatchRoom | null>;
   acknowledgeCountdownReady: (roomId: string) => Promise<void>;
@@ -71,6 +73,7 @@ export function usePartyRunSync({
   fastMatchStatusPollMs,
   idleMatchStatusPollMs,
   linkedMatchSyncEnabled = true,
+  lifecycleController,
   getSyncedNowMs,
   loadMatchRoom,
   acknowledgeCountdownReady,
@@ -148,12 +151,14 @@ export function usePartyRunSync({
     matchRoom,
     fastRoomPollMs,
     idleRoomPollMs,
+    enabled: lifecycleController?.effects.shouldPollRoom ?? true,
     callbacksRef: callbackRef,
   });
   useCountdownReadyAck({
     currentUserId,
     matchRoom,
     matchRoomFlow,
+    enabled: lifecycleController?.effects.shouldAcknowledgeCountdownReady ?? true,
     callbacksRef: callbackRef,
   });
   useLinkedMatchSync({
@@ -171,6 +176,9 @@ export function usePartyRunSync({
     fastMatchStatusPollMs,
     idleMatchStatusPollMs,
     enabled: linkedMatchSyncEnabled,
+    navigationEnabled: lifecycleController?.effects.shouldNavigateLinkedMatch ?? true,
+    pollingEnabled: lifecycleController?.effects.shouldPollLinkedMatch ?? true,
+    upcomingRefreshEnabled: lifecycleController?.effects.shouldRefreshUpcomingMatches ?? true,
     callbacksRef: callbackRef,
   });
 }

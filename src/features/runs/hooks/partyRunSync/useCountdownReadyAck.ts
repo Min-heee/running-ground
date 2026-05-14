@@ -8,6 +8,7 @@ type UseCountdownReadyAckInput = {
   currentUserId: string;
   matchRoom: RunningMatchRoom | null;
   matchRoomFlow: PartyRunFlowSnapshot;
+  enabled?: boolean;
   callbacksRef: PartyRunSyncCallbackRef;
 };
 
@@ -15,12 +16,13 @@ export function useCountdownReadyAck({
   currentUserId,
   matchRoom,
   matchRoomFlow,
+  enabled = true,
   callbacksRef,
 }: UseCountdownReadyAckInput) {
   const countdownReadyRoomAckRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!matchRoom?.roomId || !matchRoomFlow.canAcknowledgeCountdownReady) {
+    if (!enabled || !matchRoom?.roomId || !matchRoomFlow.canAcknowledgeCountdownReady) {
       if (!matchRoomFlow.hasLinkedMatch || matchRoomFlow.phase !== 'arming') {
         countdownReadyRoomAckRef.current = null;
       }
@@ -41,6 +43,7 @@ export function useCountdownReadyAck({
   }, [
     callbacksRef,
     currentUserId,
+    enabled,
     matchRoom?.linkedMatchId,
     matchRoom?.roomId,
     matchRoomFlow.canAcknowledgeCountdownReady,

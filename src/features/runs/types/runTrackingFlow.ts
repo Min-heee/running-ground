@@ -3,6 +3,7 @@ import type { AppStateStatus } from 'react-native';
 
 import type { RunRoutePoint } from '@/domain';
 import type { LastSyncedMatchProgress } from '@/features/runs/matchProgress';
+import type { MatchLifecycleController } from '@/features/runs/matchLifecycleController';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/matchStateMachine';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
@@ -85,4 +86,5 @@ export type UseRunTrackingFlowInput = {
   getSyncedNowMs: () => number;
   refreshStaleMatchArtifacts: () => Promise<unknown>;
   matchProgressHeartbeatEnabled?: boolean;
+  matchLifecycleController?: MatchLifecycleController;
 };

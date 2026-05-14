@@ -91,6 +91,9 @@ import {
   buildRoomLinkedGroupPlaceholderParticipants,
 } from '@/features/runs/matchViewModels';
 import {
+  buildMatchLifecycleController,
+} from '@/features/runs/matchLifecycleController';
+import {
   buildMatchTransitionNotice,
   isLiveMatchState,
   type PartyRunLinkedMatchContext,
@@ -747,6 +750,43 @@ export function TrackRunExperience({
         ?? lastSyncedMatchProgress?.matchId
         ?? null
       : null;
+  const matchLifecycleController = useMemo(() => buildMatchLifecycleController({
+    matchMode,
+    trackingStatus: status,
+    isRunning,
+    isCurrentUserForfeited: currentUserHasForfeitedActiveMatch,
+    liveMatchHeavyWorkReady,
+    visiblePartyRunFlow,
+    matchRoomFlow,
+    matchRoom,
+    visibleMatchRoom,
+    roomLinkedMatchContext,
+    duelMatchState,
+    groupMatchState,
+    duelMatchStatus,
+    groupMatchStatus,
+    duelStartCountdownSeconds,
+    groupStartCountdownSeconds,
+    fallbackMatchId: runningMatchIdentity,
+  }), [
+    currentUserHasForfeitedActiveMatch,
+    duelMatchState,
+    duelMatchStatus,
+    duelStartCountdownSeconds,
+    groupMatchState,
+    groupMatchStatus,
+    groupStartCountdownSeconds,
+    isRunning,
+    liveMatchHeavyWorkReady,
+    matchMode,
+    matchRoom,
+    matchRoomFlow,
+    roomLinkedMatchContext,
+    runningMatchIdentity,
+    status,
+    visibleMatchRoom,
+    visiblePartyRunFlow,
+  ]);
   const canRenderLiveArena =
     (matchMode === 'duel'
       && isLiveMatchState(duelMatchState)
@@ -787,11 +827,7 @@ export function TrackRunExperience({
       ))
     );
   const shouldEnableMatchProgressHeartbeat = Boolean(
-    liveMatchHeavyWorkReady
-    && isRunning
-    && runningMatchIdentity
-    && (matchMode === 'duel' || matchMode === 'group')
-    && !currentUserHasForfeitedActiveMatch,
+    matchLifecycleController.effects.shouldRunHeartbeat,
   );
   const activeMatchExitSource =
     currentUserHasForfeitedActiveMatch
@@ -1855,6 +1891,7 @@ export function TrackRunExperience({
     fastMatchStatusPollMs: MATCH_STATUS_FAST_POLL_MS,
     idleMatchStatusPollMs: MATCH_STATUS_IDLE_POLL_MS,
     linkedMatchSyncEnabled: liveMatchHeavyWorkReady,
+    lifecycleController: matchLifecycleController,
     getSyncedNowMs,
     loadMatchRoom,
     acknowledgeCountdownReady: acknowledgeRoomCountdownReady,
@@ -1960,7 +1997,7 @@ export function TrackRunExperience({
     idlePollMs: 15000,
     loadDuelMatchStatus,
     loadGroupMatchStatus,
-    enabled: liveMatchHeavyWorkReady,
+    enabled: liveMatchHeavyWorkReady && matchLifecycleController.effects.shouldPollDirectMatchStatus,
   });
 
   const {
@@ -2030,6 +2067,7 @@ export function TrackRunExperience({
     getSyncedNowMs,
     refreshStaleMatchArtifacts,
     matchProgressHeartbeatEnabled: shouldEnableMatchProgressHeartbeat,
+    matchLifecycleController,
   });
 
   const handleRequestDuelMatch = async (

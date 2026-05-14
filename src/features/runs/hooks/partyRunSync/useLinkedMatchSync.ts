@@ -60,6 +60,9 @@ export function useLinkedMatchSync({
   idleMatchStatusPollMs,
   callbacksRef,
   enabled = true,
+  navigationEnabled = true,
+  pollingEnabled = true,
+  upcomingRefreshEnabled = true,
 }: LinkedMatchSyncInput) {
   const roomLinkedMatchAutoFocusRef = useRef<string | null>(null);
   const roomLinkedArenaPinRef = useRef<string | null>(null);
@@ -67,6 +70,7 @@ export function useLinkedMatchSync({
   useEffect(() => {
     if (
       !enabled
+      || !navigationEnabled
       || !matchRoom?.linkedMatchId
       || !canOpenPartyRunLinkedMatch({
         room: matchRoom,
@@ -128,11 +132,12 @@ export function useLinkedMatchSync({
     matchRoom?.slotStartAt,
     matchRoom?.state,
     matchRoomFlow.shouldPreferArena,
+    navigationEnabled,
     roomCountdownRemainingSeconds,
   ]);
 
   useEffect(() => {
-    if (!enabled || !roomLinkedMatchContext) {
+    if (!enabled || !pollingEnabled || !roomLinkedMatchContext) {
       roomLinkedArenaPinRef.current = null;
       return undefined;
     }
@@ -234,6 +239,7 @@ export function useLinkedMatchSync({
     fastMatchStatusPollMs,
     idleMatchStatusPollMs,
     livePagerRef,
+    pollingEnabled,
     roomLinkedMatchContext?.distanceKm,
     roomLinkedMatchContext?.matchId,
     roomLinkedMatchContext?.mode,
@@ -244,10 +250,10 @@ export function useLinkedMatchSync({
   ]);
 
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || !upcomingRefreshEnabled) {
       return;
     }
 
     void callbacksRef.current.loadUpcomingMatches().catch(() => {});
-  }, [callbacksRef, enabled, matchRoom?.linkedMatchId, matchRoom?.state]);
+  }, [callbacksRef, enabled, matchRoom?.linkedMatchId, matchRoom?.state, upcomingRefreshEnabled]);
 }

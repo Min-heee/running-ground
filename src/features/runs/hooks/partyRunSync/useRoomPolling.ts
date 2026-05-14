@@ -8,6 +8,7 @@ type UseRoomPollingInput = {
   matchRoom: RunningMatchRoom | null;
   fastRoomPollMs: number;
   idleRoomPollMs: number;
+  enabled?: boolean;
   callbacksRef: PartyRunSyncCallbackRef;
 };
 
@@ -67,6 +68,7 @@ export function useRoomPolling({
   matchRoom,
   fastRoomPollMs,
   idleRoomPollMs,
+  enabled = true,
   callbacksRef,
 }: UseRoomPollingInput) {
   const roomId = matchRoom?.roomId ?? null;
@@ -82,11 +84,12 @@ export function useRoomPolling({
       state: roomState,
     });
 
-    if (!roomId || !policy.enabled) {
+    if (!enabled || !roomId || !policy.enabled) {
       rgPerfMark('match polling skipped', {
+        enabled,
         owner: 'party room',
         pollingKey: roomId ? `room:${roomId}:party-room` : null,
-        reason: policy.reason,
+        reason: enabled ? policy.reason : 'lifecycle-controller-disabled',
         roomId,
         state: roomState,
       });
@@ -134,5 +137,5 @@ export function useRoomPolling({
       stopPollingTrace();
       pollingSlot.release();
     };
-  }, [callbacksRef, fastRoomPollMs, idleRoomPollMs, linkedMatchId, roomId, roomState]);
+  }, [callbacksRef, enabled, fastRoomPollMs, idleRoomPollMs, linkedMatchId, roomId, roomState]);
 }

@@ -94,9 +94,14 @@ export function useRunTrackingFlow({
   getSyncedNowMs,
   refreshStaleMatchArtifacts,
   matchProgressHeartbeatEnabled = true,
+  matchLifecycleController,
 }: UseRunTrackingFlowInput) {
   const gpsTrackingStartKeyRef = useRef<string | null>(null);
   const gpsTrackingStartPromiseRef = useRef<Promise<void> | null>(null);
+  const lifecycleWarmupMatchId = matchLifecycleController?.gps.warmupMatch?.matchId ?? null;
+  const lifecycleActiveMatchId = matchLifecycleController?.gps.activeMatch?.matchId ?? null;
+  const lifecycleActiveMatchSlotStartAt = matchLifecycleController?.gps.activeMatch?.slotStartAt ?? null;
+  const hasLifecycleController = Boolean(matchLifecycleController);
 
   const syncElapsedSeconds = (nextElapsedSeconds: number) => {
     elapsedSecondsRef.current = nextElapsedSeconds;
@@ -571,22 +576,23 @@ export function useRunTrackingFlow({
   };
 
   useEffect(() => {
-    const roomWarmupMatchId =
-      roomLinkedMatchContext
+    const roomWarmupMatchId = !hasLifecycleController
+      && roomLinkedMatchContext
       && roomLinkedMatchContext.mode === matchMode
       && roomLinkedMatchContext.state === 'matched'
       && visiblePartyRunShouldOpenArena
         ? roomLinkedMatchContext.matchId
         : null;
-    const warmupMatchId = matchMode === 'duel'
-      ? duelMatchState === 'matched' && shouldAutoOpenMatchArena(duelStartCountdownSeconds)
-        ? duelMatchStatus?.matchId ?? roomWarmupMatchId
-        : roomWarmupMatchId
-      : matchMode === 'group'
-        ? groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds)
-          ? groupMatchStatus?.matchId ?? roomWarmupMatchId
+    const warmupMatchId = lifecycleWarmupMatchId
+      ?? (matchMode === 'duel'
+        ? duelMatchState === 'matched' && shouldAutoOpenMatchArena(duelStartCountdownSeconds)
+          ? duelMatchStatus?.matchId ?? roomWarmupMatchId
           : roomWarmupMatchId
-        : roomWarmupMatchId;
+        : matchMode === 'group'
+          ? groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds)
+            ? groupMatchStatus?.matchId ?? roomWarmupMatchId
+            : roomWarmupMatchId
+          : roomWarmupMatchId);
 
     if (!warmupMatchId) {
       if (!officialStartBaselineRef.current) {
@@ -611,6 +617,8 @@ export function useRunTrackingFlow({
     groupMatchState,
     groupMatchStatus?.matchId,
     groupStartCountdownSeconds,
+    hasLifecycleController,
+    lifecycleWarmupMatchId,
     matchMode,
     roomLinkedMatchContext,
     status,
@@ -619,7 +627,8 @@ export function useRunTrackingFlow({
 
   useEffect(() => {
     const roomActiveMatch =
-      roomLinkedMatchContext
+      !hasLifecycleController
+      && roomLinkedMatchContext
       && roomLinkedMatchContext.mode === matchMode
       && roomLinkedMatchContext.state === 'active'
         ? {
@@ -627,7 +636,7 @@ export function useRunTrackingFlow({
             slotStartAt: roomLinkedMatchContext.slotStartAt,
           }
         : null;
-    const activeMatch = matchMode === 'duel'
+    const fallbackActiveMatch = matchMode === 'duel'
       ? duelMatchStatus?.state === 'active' && duelMatchStatus.matchId
         ? { matchId: duelMatchStatus.matchId, slotStartAt: duelMatchStatus.slotStartAt }
         : roomActiveMatch
@@ -636,6 +645,12 @@ export function useRunTrackingFlow({
           ? { matchId: groupMatchStatus.matchId, slotStartAt: groupMatchStatus.slotStartAt }
           : roomActiveMatch
         : roomActiveMatch;
+    const activeMatch = lifecycleActiveMatchId && lifecycleActiveMatchSlotStartAt
+      ? {
+          matchId: lifecycleActiveMatchId,
+          slotStartAt: lifecycleActiveMatchSlotStartAt,
+        }
+      : fallbackActiveMatch;
     const activeMatchId = activeMatch?.matchId ?? null;
 
     if (!activeMatchId) {
@@ -678,6 +693,9 @@ export function useRunTrackingFlow({
     groupMatchStatus?.matchId,
     groupMatchStatus?.state,
     groupMatchStatus?.slotStartAt,
+    hasLifecycleController,
+    lifecycleActiveMatchId,
+    lifecycleActiveMatchSlotStartAt,
     matchMode,
     roomLinkedMatchContext,
     status,
