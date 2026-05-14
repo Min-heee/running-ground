@@ -396,6 +396,7 @@ export function useRunTrackingFlow({
       allowCountdownWarmup: Boolean(options?.allowCountdownWarmup),
       matchMode,
     });
+    const trackingStartKey = options?.matchId ?? (matchMode === 'solo' ? 'solo' : `${matchMode}:manual`);
 
     try {
       setError(null);
@@ -428,6 +429,7 @@ export function useRunTrackingFlow({
       await startBackgroundRunTracking(undefined, {
         appState: appStateRef.current,
         detachLocationTask: shouldDetachLocationTask,
+        trackingKey: trackingStartKey,
       });
       syncFromBackgroundTracking();
       endGpsStartTrace({
@@ -531,8 +533,17 @@ export function useRunTrackingFlow({
   const handleResumeTracking = async () => {
     try {
       setError(null);
+      const resumeMatchId = resolveActiveMatchId({
+        matchMode,
+        duelMatchId: duelMatchStatus?.matchId,
+        groupMatchId: groupMatchStatus?.matchId,
+        roomLinkedMatchContext,
+      });
       await ensureBackgroundLocationPermission();
-      await resumeBackgroundRunTracking({ appState: appStateRef.current });
+      await resumeBackgroundRunTracking({
+        appState: appStateRef.current,
+        trackingKey: resumeMatchId ?? (matchMode === 'solo' ? 'solo' : `${matchMode}:resume`),
+      });
       syncFromBackgroundTracking();
 
       if (liveShareEnabledRef.current) {
@@ -550,12 +561,7 @@ export function useRunTrackingFlow({
         });
       }
 
-      const activeMatchId = resolveActiveMatchId({
-        matchMode,
-        duelMatchId: duelMatchStatus?.matchId,
-        groupMatchId: groupMatchStatus?.matchId,
-        roomLinkedMatchContext,
-      });
+      const activeMatchId = resumeMatchId;
 
       if (activeMatchId) {
         const currentSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });

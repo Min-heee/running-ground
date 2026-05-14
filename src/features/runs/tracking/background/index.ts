@@ -18,11 +18,11 @@ import {
   type SnapshotCloneOptions,
 } from '@/features/runs/tracking/background/snapshotStore';
 import {
-  startLocationTask,
-  stopLocationTaskIfNeeded,
-} from '@/features/runs/tracking/background/subscriptions';
+  startManagedLocationTask,
+  stopManagedLocationTask,
+  syncManagedLocationTaskAppState,
+} from '@/features/runs/tracking/background/locationTaskManager';
 import { resolveLocationTimestampMs } from '@/features/runs/tracking/background/locationDistance';
-import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 export type {
   BackgroundRunTrackingSnapshot,
@@ -33,6 +33,7 @@ export type {
 export type StartBackgroundRunTrackingOptions = {
   appState?: AppStateStatus;
   detachLocationTask?: boolean;
+  trackingKey?: string | null;
 };
 
 const ABANDONED_TRACKING_MAX_ELAPSED_MS = 8 * 60 * 60 * 1000;
@@ -66,7 +67,7 @@ function stopAbandonedLocationTasksBestEffort() {
   }
 
   abandonedTrackingStopRequested = true;
-  void stopLocationTaskIfNeeded().finally(() => {
+  void stopManagedLocationTask().finally(() => {
     abandonedTrackingStopRequested = false;
   });
 }
@@ -80,30 +81,6 @@ function resetAbandonedTrackingIfNeeded(nowMs = Date.now()) {
   stopAbandonedLocationTasksBestEffort();
   emitSnapshot();
   return true;
-}
-
-async function startLocationTaskWithTrace(options?: StartBackgroundRunTrackingOptions) {
-  const endBackgroundTaskStartTrace = rgPerfMeasureStart('background task start', {
-    appState: options?.appState ?? null,
-    detached: Boolean(options?.detachLocationTask),
-  });
-
-  try {
-    await startLocationTask({ appState: options?.appState });
-    endBackgroundTaskStartTrace({ success: true });
-  } catch (taskError) {
-    endBackgroundTaskStartTrace({ success: false });
-    throw taskError;
-  }
-}
-
-function startLocationTaskDetached(options?: StartBackgroundRunTrackingOptions) {
-  rgPerfMark('GPS tracking start detached from navigation', {
-    appState: options?.appState ?? null,
-  });
-  void startLocationTaskWithTrace(options).catch(() => {
-    // Location task startup is best-effort after the UI has already become interactive.
-  });
 }
 
 export function getBackgroundRunTrackingSnapshot(options?: SnapshotCloneOptions) {
@@ -148,12 +125,7 @@ export async function startBackgroundRunTracking(
     pausedAt: null,
   });
   emitSnapshot();
-  if (options?.detachLocationTask) {
-    startLocationTaskDetached(options);
-    return;
-  }
-
-  await startLocationTaskWithTrace(options);
+  await startManagedLocationTask(options);
 }
 
 export async function pauseBackgroundRunTracking() {
@@ -170,7 +142,7 @@ export async function pauseBackgroundRunTracking() {
   });
   resetPaceSmoothing();
   emitSnapshot();
-  await stopLocationTaskIfNeeded();
+  await stopManagedLocationTask();
 }
 
 export async function resumeBackgroundRunTracking(options?: StartBackgroundRunTrackingOptions) {
@@ -190,16 +162,11 @@ export async function resumeBackgroundRunTracking(options?: StartBackgroundRunTr
     accumulatedPausedMs: snapshotState.accumulatedPausedMs + additionalPausedMs,
   });
   emitSnapshot();
-  if (options?.detachLocationTask) {
-    startLocationTaskDetached(options);
-    return;
-  }
-
-  await startLocationTaskWithTrace(options);
+  await startManagedLocationTask(options);
 }
 
 export async function resetBackgroundRunTracking() {
-  await stopLocationTaskIfNeeded();
+  await stopManagedLocationTask();
   resetTrackingStateOnly();
   emitSnapshot();
 }
@@ -209,5 +176,5 @@ export async function syncBackgroundRunTrackingAppState(appState: AppStateStatus
     return;
   }
 
-  await startLocationTaskWithTrace({ appState });
+  await syncManagedLocationTaskAppState(appState);
 }
