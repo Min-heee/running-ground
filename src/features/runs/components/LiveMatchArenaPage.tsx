@@ -14,6 +14,7 @@ import { formatMatchCountdown } from '@/lib/matchCountdown';
 import type { DuelMatchOpponent, RunningMatchRoom } from '@/lib/api/types';
 
 export type LiveMatchArenaPageProps = {
+  activeMatchId?: string | null;
   matchMode: RunMatchMode;
   effectiveDuelOpponent: DuelMatchOpponent | null;
   duelDistanceKm: number;
@@ -48,9 +49,11 @@ export type LiveMatchArenaPageProps = {
   currentUserDuelLiveStatus: DuelMatchOpponent['liveStatus'] | null;
   currentUserGroupLiveStatus: DuelMatchOpponent['liveStatus'] | null;
   deferHeavyContent?: boolean;
+  onLiveMatchMounted?: (input: { matchId?: string | null; mode: 'duel' | 'group'; source: string }) => void;
 };
 
 export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
+  activeMatchId,
   matchMode,
   effectiveDuelOpponent,
   duelDistanceKm,
@@ -85,11 +88,13 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
   currentUserDuelLiveStatus,
   currentUserGroupLiveStatus,
   deferHeavyContent = false,
+  onLiveMatchMounted,
 }: LiveMatchArenaPageProps) {
   if (matchMode === 'duel' && effectiveDuelOpponent) {
     return (
       <LiveMatchArena
         mode="duel"
+        matchId={activeMatchId}
         targetDistanceKm={duelDistanceKm}
         title={`${effectiveDuelOpponent.name}님과 1대1 대결`}
         subtitle={duelLiveSummary}
@@ -107,6 +112,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
               : buildDistanceGapLabel(null),
         ]}
         deferHeavyContent={deferHeavyContent}
+        onMounted={onLiveMatchMounted}
         participants={duelArenaParticipants}
         footer={
           isDuelOpponentForfeited
@@ -126,6 +132,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
     return (
       <LiveMatchArena
         mode="duel"
+        matchId={activeMatchId}
         targetDistanceKm={placeholderDistanceKm}
         title={`${placeholderOpponent?.name ?? '상대'}님과 1대1 대결`}
         subtitle="대결 정보를 맞추는 중이에요."
@@ -139,6 +146,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
               : buildDistanceGapLabel(null),
         ]}
         deferHeavyContent={deferHeavyContent}
+        onMounted={onLiveMatchMounted}
         participants={roomLinkedDuelPlaceholderParticipants}
         footer={
           hasRoomLinkedDuelLiveProgress && roomLinkedDuelCurrentParticipant && roomLinkedDuelOpponentParticipant
@@ -153,6 +161,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
     return (
       <LiveMatchArena
         mode="group"
+        matchId={activeMatchId}
         targetDistanceKm={groupDistanceKm}
         title={`${effectiveGroupParticipantCount}명 그룹 대결`}
         subtitle={
@@ -166,6 +175,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
           currentGroupLeader ? `선두 ${currentGroupLeader.name} · ${currentGroupLeader.currentDistanceKm.toFixed(2)}km` : '선두 동기화 중',
         ]}
         deferHeavyContent={deferHeavyContent}
+        onMounted={onLiveMatchMounted}
         participants={groupArenaParticipants}
         footer={
           groupAheadParticipant
@@ -184,6 +194,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
     return (
       <LiveMatchArena
         mode="group"
+        matchId={activeMatchId}
         targetDistanceKm={placeholderDistanceKm}
         title={`${roomLinkedGroupPlaceholderParticipants.length}명 그룹 대결`}
         subtitle="그룹 대결 정보를 맞추는 중이에요."
@@ -195,6 +206,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
             : '곧 시작',
         ]}
         deferHeavyContent={deferHeavyContent}
+        onMounted={onLiveMatchMounted}
         participants={roomLinkedGroupPlaceholderParticipants}
         footer="참가자와 같은 대결방에 연결됐어요. 카운트다운이 끝나면 순위 비교가 시작돼요."
       />
@@ -213,6 +225,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
     return (
       <LiveMatchArena
         mode="duel"
+        matchId={activeMatchId}
         targetDistanceKm={placeholderDistanceKm}
         title={`${opponentName}님과 1대1 대결`}
         subtitle="대결 화면을 유지하면서 기록 연결을 다시 맞추는 중이에요."
@@ -222,6 +235,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
           '대결 화면 유지 중',
         ]}
         deferHeavyContent={deferHeavyContent}
+        onMounted={onLiveMatchMounted}
         participants={[
           {
             id: 'duel-fallback-opponent',
@@ -270,6 +284,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
     return (
       <LiveMatchArena
         mode="group"
+        matchId={activeMatchId}
         targetDistanceKm={placeholderDistanceKm}
         title="그룹 대결"
         subtitle="그룹 대결 화면을 유지하면서 참가자 기록을 다시 맞추는 중이에요."
@@ -279,6 +294,7 @@ export const LiveMatchArenaPage = memo(function LiveMatchArenaPage({
           '대결 화면 유지 중',
         ]}
         deferHeavyContent={deferHeavyContent}
+        onMounted={onLiveMatchMounted}
         participants={fallbackGroupParticipants}
         footer="서버 응답이 잠깐 흔들려도 측정 화면으로 빠지지 않고 대결 화면을 유지해요."
       />

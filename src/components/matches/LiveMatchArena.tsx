@@ -22,6 +22,7 @@ import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type LiveMatchArenaProps = {
   mode: 'duel' | 'group';
+  matchId?: string | null;
   targetDistanceKm: number;
   title: string;
   subtitle: string;
@@ -29,6 +30,7 @@ type LiveMatchArenaProps = {
   participants: ArenaParticipant[];
   footer?: string;
   deferHeavyContent?: boolean;
+  onMounted?: (input: { matchId?: string | null; mode: 'duel' | 'group'; source: string }) => void;
 };
 
 const SummaryChip = memo(function SummaryChip({ label }: { label: string }) {
@@ -84,6 +86,7 @@ const LiveMatchStartupRoad = memo(function LiveMatchStartupRoad() {
 
 export const LiveMatchArena = memo(function LiveMatchArena({
   mode,
+  matchId,
   targetDistanceKm,
   title,
   subtitle,
@@ -91,21 +94,29 @@ export const LiveMatchArena = memo(function LiveMatchArena({
   participants,
   footer,
   deferHeavyContent = false,
+  onMounted,
 }: LiveMatchArenaProps) {
   useDevRenderCounter(`LiveMatchArena:${mode}`);
   useEffect(() => {
+    onMounted?.({
+      matchId,
+      mode,
+      source: 'LiveMatchArena',
+    });
     rgPerfMark('live match screen mount', {
       deferHeavyContent,
+      matchId: matchId ?? null,
       mode,
       participants: participants.length,
     });
 
     return () => {
       rgPerfMark('live match screen unmount', {
+        matchId: matchId ?? null,
         mode,
       });
     };
-  }, [deferHeavyContent, mode, participants.length]);
+  }, [deferHeavyContent, matchId, mode, onMounted, participants.length]);
 
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = Math.max(300, windowWidth - 32);
@@ -165,11 +176,13 @@ export const LiveMatchArena = memo(function LiveMatchArena({
   );
 }, (prevProps, nextProps) => (
   prevProps.mode === nextProps.mode
+  && prevProps.matchId === nextProps.matchId
   && prevProps.targetDistanceKm === nextProps.targetDistanceKm
   && prevProps.title === nextProps.title
   && prevProps.subtitle === nextProps.subtitle
   && prevProps.footer === nextProps.footer
   && prevProps.deferHeavyContent === nextProps.deferHeavyContent
+  && prevProps.onMounted === nextProps.onMounted
   && areStringArraysEqual(prevProps.summaryChips, nextProps.summaryChips)
   && areParticipantArraysEqual(prevProps.participants, nextProps.participants)
 ));

@@ -33,6 +33,12 @@ type FocusRunningMatchInput = {
   source?: string;
 };
 
+type MarkLiveMatchMountedInput = {
+  mode: Extract<RunMatchMode, 'duel' | 'group'>;
+  matchId?: string | null;
+  source?: string;
+};
+
 type LoadMatchStatusOptions = {
   testMode?: boolean;
   distanceKm?: number;
@@ -131,6 +137,88 @@ export function useRunningMatchFocus({
     setLiveArenaPage(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
   }, [livePagerRef, setForceOpenActiveMatch, setLiveArenaPage]);
+
+  const markLiveMatchMounted = useCallback(({
+    mode,
+    matchId,
+    source = 'live match screen mount',
+  }: MarkLiveMatchMountedInput) => {
+    if (!matchId) {
+      return;
+    }
+
+    const navigationKey = buildLiveMatchNavigationKey({ matchId, mode });
+    const activeNavigation = activeNavigationRef.current;
+    const currentRecord = navigationRecordRef.current;
+    const matchedRecord = currentRecord?.key === navigationKey ? currentRecord : null;
+    const matchedActiveNavigation = activeNavigation?.key === navigationKey ? activeNavigation : null;
+
+    if (!matchedRecord && !matchedActiveNavigation) {
+      return;
+    }
+
+    if (matchedRecord?.status === 'mounted') {
+      rgPerfMark('live match navigation suppressed because mounted', {
+        matchId,
+        mode,
+        navigationKey,
+        owner: matchedRecord.owner,
+        reason: 'screen-mount-duplicate',
+        source,
+      });
+      return;
+    }
+
+    const preferArena = matchedRecord?.preferArena ?? matchedActiveNavigation?.preferArena ?? true;
+    const owner = matchedRecord?.owner ?? source;
+    const requestId = matchedRecord?.requestId ?? matchedActiveNavigation?.requestId;
+
+    completedNavigationRef.current = {
+      completedAtMs: Date.now(),
+      key: navigationKey,
+      preferArena,
+      result: matchedRecord?.result ?? null,
+    };
+    navigationRecordRef.current = {
+      failedCount: 0,
+      key: navigationKey,
+      mode,
+      owner,
+      preferArena,
+      requestId,
+      result: matchedRecord?.result ?? null,
+      status: 'mounted',
+      updatedAtMs: Date.now(),
+    };
+
+    if (matchedActiveNavigation) {
+      activeNavigationRef.current = null;
+      setIsResolvingFocusedMatch(false);
+    }
+
+    rgPerfMark('live match navigation marked mounted by screen mount', {
+      matchId,
+      mode,
+      navigationKey,
+      owner,
+      requestId,
+      source,
+    });
+    rgPerfMark('live match navigation completed by mount signal', {
+      matchId,
+      mode,
+      navigationKey,
+      owner,
+      requestId,
+      source,
+    });
+    rgPerfMark('live match navigation success detached from gps start', {
+      matchId,
+      mode,
+      navigationKey,
+      source,
+    });
+  }, [setIsResolvingFocusedMatch]);
 
   const focusRunningMatch = useCallback(async ({
     mode,
@@ -389,21 +477,31 @@ export function useRunningMatchFocus({
         return payload;
       } finally {
         const isCurrentRequest = navigationRecordRef.current?.requestId === requestId;
-        if (navigationTraceSucceeded && isCurrentRequest) {
+        const wasMountedBySignal = navigationRecordRef.current?.key === navigationKey
+          && navigationRecordRef.current.status === 'mounted';
+        const navigationSucceeded = navigationTraceSucceeded || wasMountedBySignal;
+
+        if (navigationSucceeded && (isCurrentRequest || wasMountedBySignal)) {
+          const existingRecord = navigationRecordRef.current?.key === navigationKey
+            ? navigationRecordRef.current
+            : null;
+          const finalPreferArena = effectivePreferArena || existingRecord?.preferArena || false;
+          const finalResult = navigationResult ?? existingRecord?.result ?? null;
+
           completedNavigationRef.current = {
             completedAtMs: Date.now(),
             key: navigationKey,
-            preferArena: effectivePreferArena,
-            result: navigationResult,
+            preferArena: finalPreferArena,
+            result: finalResult,
           };
           navigationRecordRef.current = {
             failedCount: 0,
             key: navigationKey,
             mode,
-            owner: source,
-            preferArena: effectivePreferArena,
+            owner: existingRecord?.owner ?? source,
+            preferArena: finalPreferArena,
             requestId,
-            result: navigationResult,
+            result: finalResult,
             status: 'mounted',
             updatedAtMs: Date.now(),
           };
@@ -424,9 +522,10 @@ export function useRunningMatchFocus({
         }
 
         endNavigationTrace({
-          effectivePreferArena,
+          completedByMountSignal: wasMountedBySignal,
+          effectivePreferArena: effectivePreferArena || navigationRecordRef.current?.preferArena || false,
           state: navigationState,
-          success: navigationTraceSucceeded,
+          success: navigationSucceeded,
         });
 
         if (activeNavigationRef.current?.requestId === requestId) {
@@ -488,5 +587,6 @@ export function useRunningMatchFocus({
   return {
     focusRoomLinkedMatch,
     focusRunningMatch,
+    markLiveMatchMounted,
   };
 }

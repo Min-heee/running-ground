@@ -1213,6 +1213,7 @@ export function TrackRunExperience({
   const {
     focusRoomLinkedMatch,
     focusRunningMatch,
+    markLiveMatchMounted,
   } = useRunningMatchFocus({
     livePagerRef,
     activeDuelSlotStartAt,
@@ -2280,6 +2281,7 @@ export function TrackRunExperience({
   );
 
   const liveArenaPageProps = useMemo(() => ({
+    activeMatchId: liveMatchStartupIdentity,
     matchMode,
     effectiveDuelOpponent,
     duelDistanceKm,
@@ -2314,7 +2316,9 @@ export function TrackRunExperience({
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
     deferHeavyContent: !liveMatchHeavyWorkReady,
+    onLiveMatchMounted: markLiveMatchMounted,
   }), [
+    liveMatchStartupIdentity,
     currentGroupLeader,
     currentGroupStanding,
     currentUserArenaPace,
@@ -2338,6 +2342,7 @@ export function TrackRunExperience({
     liveMatchHeavyWorkReady,
     liveMatchDisplayDistanceKm,
     matchMode,
+    markLiveMatchMounted,
     officialDuelReady,
     roomCountdownRemainingSeconds,
     roomLinkedDuelCurrentParticipant,
