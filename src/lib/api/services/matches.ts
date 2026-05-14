@@ -43,6 +43,7 @@ import {
 import type {
   MockMatchLiveStatus,
 } from './_shared';
+import { ensureRunningMatchStatusResponse } from './runningMatchResponseGuards';
 
 export async function requestDuelMatch(input: RequestDuelMatchInput): Promise<RequestDuelMatchResponse> {
   if (USE_MOCK_API) {
@@ -118,19 +119,33 @@ export async function fetchRunningMatchStatus(input: FetchRunningMatchStatusInpu
         || (!input.testMode && currentSession.slotStartAt === input.slotStartAt)
       )
     ) {
-      return {
-        ...currentSession,
-        serverNow: new Date().toISOString(),
-      };
+      return ensureRunningMatchStatusResponse(
+        {
+          ...currentSession,
+          serverNow: new Date().toISOString(),
+        },
+        {
+          action: 'fetch-match-status',
+          expectedMatchId: input.matchId,
+          requireMatchId: Boolean(input.matchId),
+        },
+      );
     }
 
-    return {
-      ...buildMockWaitingMatchStatus(input),
-      serverNow: new Date().toISOString(),
-    };
+    return ensureRunningMatchStatusResponse(
+      {
+        ...buildMockWaitingMatchStatus(input),
+        serverNow: new Date().toISOString(),
+      },
+      {
+        action: 'fetch-match-status',
+        expectedMatchId: input.matchId,
+        requireMatchId: Boolean(input.matchId),
+      },
+    );
   }
 
-  return apiPost<RunningMatchStatusResponse>(
+  const payload = await apiPost<RunningMatchStatusResponse>(
     '/running/matches/status',
     {
       mode: input.mode,
@@ -144,6 +159,12 @@ export async function fetchRunningMatchStatus(input: FetchRunningMatchStatusInpu
       fallbackMessage: '매칭 상태를 불러오지 못했어.',
     },
   );
+
+  return ensureRunningMatchStatusResponse(payload, {
+    action: 'fetch-match-status',
+    expectedMatchId: input.matchId,
+    requireMatchId: Boolean(input.matchId),
+  });
 }
 
 export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatchesResponse> {
@@ -213,10 +234,14 @@ export async function acceptRunningMatch(input: AcceptRunningMatchInput): Promis
       throw new Error('수락할 매치를 찾지 못했어.');
     }
 
-    return currentSession;
+    return ensureRunningMatchStatusResponse(currentSession, {
+      action: 'accept-match',
+      expectedMatchId: input.matchId,
+      requireMatchId: true,
+    });
   }
 
-  return apiPost<RunningMatchStatusResponse>(
+  const payload = await apiPost<RunningMatchStatusResponse>(
     '/running/matches/accept',
     input,
     {
@@ -224,6 +249,12 @@ export async function acceptRunningMatch(input: AcceptRunningMatchInput): Promis
       fallbackMessage: '매치 수락을 반영하지 못했어.',
     },
   );
+
+  return ensureRunningMatchStatusResponse(payload, {
+    action: 'accept-match',
+    expectedMatchId: input.matchId,
+    requireMatchId: true,
+  });
 }
 
 export async function cancelRunningMatch(input: CancelRunningMatchInput): Promise<CancelRunningMatchResponse> {
@@ -319,7 +350,14 @@ export async function updateRunningMatchProgress(
         },
       };
       mockApiState.runningMatchSessions.duel = nextSession;
-      return hydrateMockRunningMatchSessionStatuses(nextSession);
+      return ensureRunningMatchStatusResponse(
+        hydrateMockRunningMatchSessionStatuses(nextSession),
+        {
+          action: 'update-match-progress',
+          expectedMatchId: input.matchId,
+          requireMatchId: true,
+        },
+      );
     }
 
     if (currentSession.mode === 'group' && currentSession.participants) {
@@ -343,13 +381,27 @@ export async function updateRunningMatchProgress(
         participants: nextParticipants,
       };
       mockApiState.runningMatchSessions.group = nextSession;
-      return hydrateMockRunningMatchSessionStatuses(nextSession);
+      return ensureRunningMatchStatusResponse(
+        hydrateMockRunningMatchSessionStatuses(nextSession),
+        {
+          action: 'update-match-progress',
+          expectedMatchId: input.matchId,
+          requireMatchId: true,
+        },
+      );
     }
 
-    return hydrateMockRunningMatchSessionStatuses(currentSession);
+    return ensureRunningMatchStatusResponse(
+      hydrateMockRunningMatchSessionStatuses(currentSession),
+      {
+        action: 'update-match-progress',
+        expectedMatchId: input.matchId,
+        requireMatchId: true,
+      },
+    );
   }
 
-  return apiPost<UpdateRunningMatchProgressResponse>(
+  const payload = await apiPost<UpdateRunningMatchProgressResponse>(
     '/running/matches/progress',
     {
       ...input,
@@ -361,4 +413,10 @@ export async function updateRunningMatchProgress(
       fallbackMessage: '실시간 경쟁 상태를 업데이트하지 못했어.',
     },
   );
+
+  return ensureRunningMatchStatusResponse(payload, {
+    action: 'update-match-progress',
+    expectedMatchId: input.matchId,
+    requireMatchId: true,
+  });
 }

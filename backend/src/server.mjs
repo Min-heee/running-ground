@@ -1771,6 +1771,7 @@ function buildRunningMatchBlockerApiDetails(blocker) {
     blocker: blocker.legacyBlocker,
     blockerSource: blocker.source,
     blockerDetails: blocker.details ?? null,
+    code: blocker.legacyBlocker === 'activeRoom' ? 'active_room_blocked' : 'stale_room_blocked',
   };
 }
 
@@ -1835,6 +1836,7 @@ function requireJoinedRunningMatchRoomResponse(payload) {
   throw new ApiError(
     404,
     '방 정보를 불러오지 못했습니다. 다시 시도해주세요.',
+    { code: 'invalid_room_response' },
   );
 }
 
@@ -1842,7 +1844,9 @@ function joinRunningMatchRoom(store, currentUser, { inviteToken }) {
   const room = findRunningMatchRoomByInviteToken(store, inviteToken);
 
   if (!room) {
-    throw new ApiError(404, '참여할 방을 찾지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.');
+    throw new ApiError(404, '참여할 방을 찾지 못했어. 초대 코드가 잘못됐거나 방이 삭제됐을 수 있어.', {
+      code: 'room_not_found',
+    });
   }
 
   if (room.participants.some((participant) => participant.userId === currentUser.id)) {
@@ -1900,7 +1904,7 @@ function startRunningMatchRoom(store, currentUser, { roomId }) {
   const room = findRunningMatchRoomById(store, roomId);
 
   if (!room) {
-    throw new ApiError(404, '시작할 방을 찾지 못했어.');
+    throw new ApiError(404, '시작할 방을 찾지 못했어.', { code: 'room_not_found' });
   }
 
   if (room.hostUserId !== currentUser.id) {
@@ -1951,7 +1955,7 @@ function updateRunningMatchRoomReady(store, currentUser, {
   const room = findRunningMatchRoomById(store, roomId);
 
   if (!room) {
-    throw new ApiError(404, '준비 상태를 바꿀 방을 찾지 못했어.');
+    throw new ApiError(404, '준비 상태를 바꿀 방을 찾지 못했어.', { code: 'room_not_found' });
   }
 
   if (room.linkedMatchId) {
@@ -1977,7 +1981,7 @@ function acknowledgeRunningMatchRoomCountdown(store, currentUser, { roomId }) {
   const room = findRunningMatchRoomById(store, roomId);
 
   if (!room) {
-    throw new ApiError(404, '카운트다운 준비 상태를 반영할 방을 찾지 못했어.');
+    throw new ApiError(404, '카운트다운 준비 상태를 반영할 방을 찾지 못했어.', { code: 'room_not_found' });
   }
 
   if (!room.linkedMatchId) {
@@ -2006,7 +2010,7 @@ function updateRunningMatchRoom(store, currentUser, {
   const room = findRunningMatchRoomById(store, roomId);
 
   if (!room) {
-    throw new ApiError(404, '설정할 방을 찾지 못했어.');
+    throw new ApiError(404, '설정할 방을 찾지 못했어.', { code: 'room_not_found' });
   }
 
   if (room.hostUserId !== currentUser.id) {
@@ -2273,6 +2277,7 @@ function cleanupStaleRunningMatchRoomState(store, currentUser, now = new Date())
       return {
         success: true,
         serverNow: now.toISOString(),
+        code: 'active_room_blocked',
         cleaned: cleanedItems.length > 0,
         cleanedItems,
         blocker: blocker?.legacyBlocker ?? 'activeRoom',
@@ -2306,6 +2311,7 @@ function cleanupStaleRunningMatchRoomState(store, currentUser, now = new Date())
     return {
       success: true,
       serverNow: now.toISOString(),
+      code: blocker.legacyBlocker === 'activeRoom' ? 'active_room_blocked' : 'stale_room_blocked',
       cleaned: cleanedItems.length > 0,
       cleanedItems,
       blocker: blocker.legacyBlocker,

@@ -90,6 +90,13 @@ export type RunningMatchRoomBlockerSource =
   | 'matchQueues.group'
   | 'liveRunShares.active';
 
+export type RunningMatchRoomErrorCode =
+  | 'active_room_blocked'
+  | 'already_joined'
+  | 'room_not_found'
+  | 'stale_room_blocked'
+  | 'invalid_room_response';
+
 export type RunningMatchRoomBlockerDetails = {
   source: RunningMatchRoomBlockerSource;
   roomId?: string;
@@ -109,6 +116,7 @@ export type RunningMatchRoomBlockerDetails = {
 export type RunningMatchRoomCleanupResponse = {
   success: boolean;
   serverNow?: string;
+  code?: RunningMatchRoomErrorCode;
   cleaned: boolean;
   cleanedItems: string[];
   blocker?: 'activeRoom' | 'matchSession' | 'matchQueue' | 'liveRunShare';

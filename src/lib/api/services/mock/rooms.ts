@@ -12,6 +12,8 @@ import { buildLevelLabel, formatDuelSlotLabel } from './matches';
 import { mockApiState } from './state';
 export {
   ensureJoinedRunningMatchRoomResponse,
+  ensureRunningMatchRoomCleanupResponse,
+  ensureRunningMatchRoomResponse,
   shouldFallbackToLocalRunningRoomApi,
 } from '../runningRoomResponseGuards';
 

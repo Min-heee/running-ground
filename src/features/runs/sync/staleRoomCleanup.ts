@@ -17,6 +17,7 @@ export function getRunningMatchBlockerFromError(error: unknown) {
   const details = error.details as {
     blocker?: unknown;
     blockerSource?: unknown;
+    code?: unknown;
     message?: unknown;
   };
   const blocker = typeof details.blocker === 'string' ? details.blocker : null;
@@ -29,6 +30,7 @@ export function getRunningMatchBlockerFromError(error: unknown) {
   return {
     blocker,
     blockerSource,
+    code: typeof details.code === 'string' ? details.code : null,
     message: typeof details.message === 'string' ? details.message : error.userMessage,
   };
 }

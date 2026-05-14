@@ -26,6 +26,7 @@ test('running match blocker details are detected from API errors', () => {
   assert.deepEqual(getRunningMatchBlockerFromError(error), {
     blocker: 'activeRoom',
     blockerSource: 'matchRooms.participant',
+    code: null,
     message: '이미 참여 중인 방이 있어요.',
   });
 });

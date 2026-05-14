@@ -33,6 +33,8 @@ import {
   requireAccessToken,
   buildMockRunningMatchRoomResponse,
   ensureJoinedRunningMatchRoomResponse,
+  ensureRunningMatchRoomCleanupResponse,
+  ensureRunningMatchRoomResponse,
   shouldFallbackToLocalRunningRoomApi,
   recalculateMockRunningMatchRoomCanStart,
   decorateMockRunningMatchRoom,
@@ -42,7 +44,10 @@ import {
 
 export async function fetchRunningMatchRoom(): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
-    return sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)));
+    return ensureRunningMatchRoomResponse(
+      sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom))),
+      { action: 'fetch-active-room' },
+    );
   }
 
   try {
@@ -54,10 +59,16 @@ export async function fetchRunningMatchRoom(): Promise<RunningMatchRoomResponse>
       },
     );
 
-    return sanitizeRunningMatchRoomResponse(payload);
+    return ensureRunningMatchRoomResponse(
+      sanitizeRunningMatchRoomResponse(payload),
+      { action: 'fetch-active-room' },
+    );
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
-      return sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)));
+      return ensureRunningMatchRoomResponse(
+        sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom))),
+        { action: 'fetch-active-room' },
+      );
     }
 
     throw error;
@@ -67,7 +78,7 @@ export async function fetchRunningMatchRoom(): Promise<RunningMatchRoomResponse>
 export async function cleanupStaleRunningMatchRoomState(): Promise<RunningMatchRoomCleanupResponse> {
   if (USE_MOCK_API) {
     const hasRoom = Boolean(mockApiState.runningMatchRoom);
-    return {
+    return ensureRunningMatchRoomCleanupResponse({
       success: true,
       cleaned: false,
       cleanedItems: [],
@@ -75,7 +86,7 @@ export async function cleanupStaleRunningMatchRoomState(): Promise<RunningMatchR
       room: hasRoom
         ? sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom))).room
         : null,
-    };
+    });
   }
 
   try {
@@ -88,22 +99,22 @@ export async function cleanupStaleRunningMatchRoomState(): Promise<RunningMatchR
       },
     );
 
-    return {
+    return ensureRunningMatchRoomCleanupResponse({
       ...payload,
       room: sanitizeRunningMatchRoomResponse({
         success: payload.success,
         serverNow: payload.serverNow,
         room: payload.room,
       }).room,
-    };
+    });
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
-      return {
+      return ensureRunningMatchRoomCleanupResponse({
         success: true,
         cleaned: false,
         cleanedItems: [],
         room: sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom))).room,
-      };
+      });
     }
 
     throw error;
@@ -113,11 +124,14 @@ export async function cleanupStaleRunningMatchRoomState(): Promise<RunningMatchR
 export async function createRunningMatchRoom(input: CreateRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
     createMockRunningMatchRoomState(input);
-    return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom));
+    return ensureRunningMatchRoomResponse(
+      buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)),
+      { action: 'create-room', requireRoom: true },
+    );
   }
 
   try {
-    return await apiPost<RunningMatchRoomResponse>(
+    const payload = await apiPost<RunningMatchRoomResponse>(
       '/running/rooms',
       {
         ...input,
@@ -130,10 +144,15 @@ export async function createRunningMatchRoom(input: CreateRunningMatchRoomInput)
         fallbackMessage: '방을 만들지 못했어.',
       },
     );
+
+    return ensureRunningMatchRoomResponse(payload, { action: 'create-room', requireRoom: true });
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
       createMockRunningMatchRoomState(input);
-      return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom));
+      return ensureRunningMatchRoomResponse(
+        buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)),
+        { action: 'create-room', requireRoom: true },
+      );
     }
 
     throw error;
@@ -168,11 +187,14 @@ export async function joinRunningMatchRoom(input: JoinRunningMatchRoomInput): Pr
 export async function updateRunningMatchRoom(input: UpdateRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
     applyMockRunningMatchRoomUpdate(input);
-    return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom));
+    return ensureRunningMatchRoomResponse(
+      buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)),
+      { action: 'update-room', requireRoom: true },
+    );
   }
 
   try {
-    return await apiPost<RunningMatchRoomResponse>(
+    const payload = await apiPost<RunningMatchRoomResponse>(
       '/running/rooms/update',
       {
         ...input,
@@ -185,10 +207,15 @@ export async function updateRunningMatchRoom(input: UpdateRunningMatchRoomInput)
         fallbackMessage: '방 설정을 저장하지 못했어.',
       },
     );
+
+    return ensureRunningMatchRoomResponse(payload, { action: 'update-room', requireRoom: true });
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
       applyMockRunningMatchRoomUpdate(input);
-      return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom));
+      return ensureRunningMatchRoomResponse(
+        buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)),
+        { action: 'update-room', requireRoom: true },
+      );
     }
 
     throw error;
@@ -216,11 +243,14 @@ export async function startRunningMatchRoom(input: StartRunningMatchRoomInput): 
       };
     }
 
-    return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom));
+    return ensureRunningMatchRoomResponse(
+      buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)),
+      { action: 'start-room', requireRoom: true },
+    );
   }
 
   try {
-    return await apiPost<RunningMatchRoomResponse>(
+    const payload = await apiPost<RunningMatchRoomResponse>(
       '/running/rooms/start',
       input,
       {
@@ -228,6 +258,8 @@ export async function startRunningMatchRoom(input: StartRunningMatchRoomInput): 
         fallbackMessage: '방 시작을 반영하지 못했어.',
       },
     );
+
+    return ensureRunningMatchRoomResponse(payload, { action: 'start-room', requireRoom: true });
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
       if (mockApiState.runningMatchRoom) {
@@ -249,7 +281,10 @@ export async function startRunningMatchRoom(input: StartRunningMatchRoomInput): 
         };
       }
 
-      return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom));
+      return ensureRunningMatchRoomResponse(
+        buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)),
+        { action: 'start-room', requireRoom: true },
+      );
     }
 
     throw error;
@@ -259,11 +294,11 @@ export async function startRunningMatchRoom(input: StartRunningMatchRoomInput): 
 export async function leaveRunningMatchRoom(input: LeaveRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
     mockApiState.runningMatchRoom = null;
-    return buildMockRunningMatchRoomResponse(null);
+    return ensureRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(null), { action: 'leave-room' });
   }
 
   try {
-    return await apiPost<RunningMatchRoomResponse>(
+    const payload = await apiPost<RunningMatchRoomResponse>(
       '/running/rooms/leave',
       input,
       {
@@ -271,10 +306,12 @@ export async function leaveRunningMatchRoom(input: LeaveRunningMatchRoomInput): 
         fallbackMessage: '방에서 나가지 못했어.',
       },
     );
+
+    return ensureRunningMatchRoomResponse(payload, { action: 'leave-room' });
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
       mockApiState.runningMatchRoom = null;
-      return buildMockRunningMatchRoomResponse(null);
+      return ensureRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(null), { action: 'leave-room' });
     }
 
     throw error;
@@ -287,7 +324,10 @@ export async function updateRunningMatchRoomReady(input: UpdateRunningMatchRoomR
 
   const applyLocalReadyState = () => {
     if (!mockApiState.runningMatchRoom || mockApiState.runningMatchRoom.roomId !== input.roomId) {
-      return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom));
+      return ensureRunningMatchRoomResponse(
+        buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)),
+        { action: 'update-ready', requireRoom: true },
+      );
     }
 
     mockApiState.runningMatchRoom = {
@@ -304,11 +344,11 @@ export async function updateRunningMatchRoomReady(input: UpdateRunningMatchRoomR
   };
 
   if (USE_MOCK_API) {
-    return applyLocalReadyState();
+    return ensureRunningMatchRoomResponse(applyLocalReadyState(), { action: 'update-ready', requireRoom: true });
   }
 
   try {
-    return await apiPost<RunningMatchRoomResponse>(
+    const payload = await apiPost<RunningMatchRoomResponse>(
       '/running/rooms/ready',
       input,
       {
@@ -316,9 +356,11 @@ export async function updateRunningMatchRoomReady(input: UpdateRunningMatchRoomR
         fallbackMessage: '준비 상태를 바꾸지 못했어.',
       },
     );
+
+    return ensureRunningMatchRoomResponse(payload, { action: 'update-ready', requireRoom: true });
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
-      return applyLocalReadyState();
+      return ensureRunningMatchRoomResponse(applyLocalReadyState(), { action: 'update-ready', requireRoom: true });
     }
 
     throw error;
@@ -333,7 +375,10 @@ export async function acknowledgeRunningMatchRoomCountdown(
 
   const applyLocalCountdownReady = () => {
     if (!mockApiState.runningMatchRoom || mockApiState.runningMatchRoom.roomId !== input.roomId) {
-      return buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom));
+      return ensureRunningMatchRoomResponse(
+        buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom)),
+        { action: 'countdown-ready', requireRoom: true },
+      );
     }
 
     mockApiState.runningMatchRoom = {
@@ -360,11 +405,11 @@ export async function acknowledgeRunningMatchRoomCountdown(
   };
 
   if (USE_MOCK_API) {
-    return applyLocalCountdownReady();
+    return ensureRunningMatchRoomResponse(applyLocalCountdownReady(), { action: 'countdown-ready', requireRoom: true });
   }
 
   try {
-    return await apiPost<RunningMatchRoomResponse>(
+    const payload = await apiPost<RunningMatchRoomResponse>(
       '/running/rooms/countdown-ready',
       input,
       {
@@ -372,9 +417,11 @@ export async function acknowledgeRunningMatchRoomCountdown(
         fallbackMessage: '카운트다운 준비 상태를 반영하지 못했어.',
       },
     );
+
+    return ensureRunningMatchRoomResponse(payload, { action: 'countdown-ready', requireRoom: true });
   } catch (error) {
     if (shouldFallbackToLocalRunningRoomApi(error)) {
-      return applyLocalCountdownReady();
+      return ensureRunningMatchRoomResponse(applyLocalCountdownReady(), { action: 'countdown-ready', requireRoom: true });
     }
 
     throw error;
