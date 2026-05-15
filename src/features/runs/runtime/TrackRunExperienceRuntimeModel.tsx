@@ -1743,7 +1743,7 @@ export function TrackRunExperienceRuntime({
   });
 
   const handleJoinRoomPress = useStableCallback(() => {
-    void handleJoinMatchRoom();
+    return handleJoinMatchRoom();
   });
 
   const handleSelectDuelDate = useStableCallback((dateKey: string) => {

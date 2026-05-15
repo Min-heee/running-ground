@@ -1,4 +1,4 @@
-import type { RunningMatchRoom } from '@/lib/api/types';
+import type { RunningMatchRoom, RunningMatchRoomInvitee } from '@/lib/api/types';
 
 export type RoomInviteInboxEvent = {
   inviteId: string;
@@ -21,6 +21,11 @@ export type RecipientRoomInviteInboxResult = {
   skippedReason: RoomInviteCardDisplaySkipReason | null;
 };
 
+export type RoomInviteInboxRecipientMatchType =
+  | 'internal-id'
+  | 'invited-friend-id'
+  | 'public-tag';
+
 export type RecipientInviteInboxFetchSkipReason =
   | 'active-match'
   | 'joined-room'
@@ -38,6 +43,7 @@ export type RecipientInviteInboxStaleReason =
   | 'room-changed';
 
 export const RECIPIENT_INVITE_INBOX_FETCH_THROTTLE_MS = 5000;
+export const RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS = 1000;
 
 export type RoomInviteInboxQueryIdentity = {
   currentUserId: string;
@@ -48,6 +54,11 @@ export type RoomInviteInboxRawPendingIds = {
   invitedFriendIds: string[];
   invitedUserIds: string[];
   inviteeTags: string[];
+};
+
+export type RoomInviteInboxRecipientMatch = {
+  invitee: RunningMatchRoomInvitee | null;
+  matchType: RoomInviteInboxRecipientMatchType | null;
 };
 
 function normalizeIdentityValues(...values: (string | null | undefined)[]) {
@@ -78,13 +89,65 @@ function getInviteeForUser(room: RunningMatchRoom, identity: RoomInviteInboxQuer
   )) ?? null;
 }
 
+export function resolveRoomInviteInboxRecipientMatch(
+  room: RunningMatchRoom | null | undefined,
+  identity: RoomInviteInboxQueryIdentity,
+): RoomInviteInboxRecipientMatch {
+  if (!room) {
+    return {
+      invitee: null,
+      matchType: null,
+    };
+  }
+
+  const aliases = getInviteIdentityAliases(identity);
+  const invitee = getInviteeForUser(room, identity);
+
+  if (invitee?.tag && aliases.includes(invitee.tag)) {
+    return {
+      invitee,
+      matchType: 'public-tag',
+    };
+  }
+
+  if (
+    (invitee?.userId && aliases.includes(invitee.userId))
+    || (invitee?.invitedUserId && aliases.includes(invitee.invitedUserId))
+  ) {
+    return {
+      invitee,
+      matchType: 'internal-id',
+    };
+  }
+
+  if (room.invitedFriendIds.some((userId) => aliases.includes(userId))) {
+    return {
+      invitee,
+      matchType: 'invited-friend-id',
+    };
+  }
+
+  return {
+    invitee: null,
+    matchType: null,
+  };
+}
+
 function isPendingInviteForUser(room: RunningMatchRoom, identity: RoomInviteInboxQueryIdentity) {
   const aliases = getInviteIdentityAliases(identity);
+  return Boolean(resolveRoomInviteInboxRecipientMatch(room, identity).matchType
+    || room.invitedFriendIds.some((userId) => aliases.includes(userId)));
+}
 
-  return Boolean(
-    getInviteeForUser(room, identity)
-    || room.invitedFriendIds.some((userId) => aliases.includes(userId)),
-  );
+export function getRoomInviteInboxRecipientMatchType(
+  room: RunningMatchRoom | null | undefined,
+  identity: RoomInviteInboxQueryIdentity,
+): RoomInviteInboxRecipientMatchType | null {
+  if (!room) {
+    return null;
+  }
+
+  return resolveRoomInviteInboxRecipientMatch(room, identity).matchType;
 }
 
 export function hasRoomInviteInboxRecipientIdMismatch({
@@ -109,11 +172,13 @@ export function hasRoomInviteInboxRecipientIdMismatch({
 export function getRecipientInviteInboxFetchSkipReason({
   currentRoom,
   lastCompletedAtMs,
+  lastTimedOutAtMs = 0,
   nowMs,
   throttleMs = RECIPIENT_INVITE_INBOX_FETCH_THROTTLE_MS,
 }: {
   currentRoom?: RunningMatchRoom | null;
   lastCompletedAtMs: number;
+  lastTimedOutAtMs?: number;
   nowMs: number;
   throttleMs?: number;
 }): RecipientInviteInboxFetchSkipReason | null {
@@ -125,11 +190,34 @@ export function getRecipientInviteInboxFetchSkipReason({
     return 'joined-room';
   }
 
-  if (lastCompletedAtMs > 0 && nowMs - lastCompletedAtMs < throttleMs) {
+  const hasNewerTimeout = lastTimedOutAtMs > lastCompletedAtMs;
+  if (!hasNewerTimeout && lastCompletedAtMs > 0 && nowMs - lastCompletedAtMs < throttleMs) {
     return 'throttled';
   }
 
   return null;
+}
+
+export function shouldScheduleRecipientInviteInboxTimeoutRetry({
+  activeRoomId,
+  currentRoom,
+  isLiveMatchMounted,
+  linkedMatchId,
+  liveMatchKey,
+}: {
+  activeRoomId?: string | null;
+  currentRoom?: RunningMatchRoom | null;
+  isLiveMatchMounted?: boolean;
+  linkedMatchId?: string | null;
+  liveMatchKey?: string | null;
+}) {
+  return getRecipientInviteInboxFocusBlockReason({
+    activeRoomId,
+    currentRoom,
+    isLiveMatchMounted,
+    linkedMatchId,
+    liveMatchKey,
+  }) === null;
 }
 
 export function getRecipientInviteInboxFocusBlockReason({

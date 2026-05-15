@@ -5,6 +5,8 @@ import type { LiveMatchTrackingViewProps } from '@/features/runs/viewModels/live
 import {
   buildLiveMatchPageViewModels,
   buildLiveMatchRaceBoardViewModelForPage,
+  buildLiveMatchResultPagePropsForPage,
+  buildLiveMatchStatsPageProps,
 } from './liveMatchPagesViewModel';
 import type { LiveMatchRaceBoardViewModelInput } from './liveMatchRaceBoardViewModel';
 
@@ -83,7 +85,50 @@ test('race board view model is only built for the ranking page', () => {
   })?.title, '1대1 레이스 보드');
 });
 
+test('tracking and result page props are only built for selected heavy pages', () => {
+  assert.equal(buildLiveMatchStatsPageProps({
+    page: 0,
+    trackingPageProps,
+  }), null);
+  assert.equal(buildLiveMatchStatsPageProps({
+    page: 1,
+    trackingPageProps,
+  }), null);
+  assert.equal(buildLiveMatchStatsPageProps({
+    page: 2,
+    trackingPageProps,
+  })?.includeMatchCards, false);
+  assert.equal(buildLiveMatchResultPagePropsForPage({
+    page: 0,
+    resultPageProps,
+  }), null);
+  assert.equal(buildLiveMatchResultPagePropsForPage({
+    page: 3,
+    resultPageProps,
+  })?.estimatedBonusPoints, 10);
+});
+
 test('page view model builder gates heavy page props by selected page', () => {
+  const pageZeroModels = buildLiveMatchPageViewModels({
+    scrollRef: { current: null },
+    page: 0,
+    pageWidth: 360,
+    hasResultPage: true,
+    activeMatchId: 'match-1',
+    arenaViewModel: null,
+    onLiveMatchMounted: undefined,
+    matchMode: 'duel',
+    raceBoardViewModel: null,
+    trackingPageProps,
+    resultPageProps,
+    onPageChange: noop,
+  });
+
+  assert.equal(pageZeroModels.livePagesProps.raceBoardProps, null);
+  assert.equal(pageZeroModels.livePagesProps.trackingProps, null);
+  assert.equal(pageZeroModels.livePagesProps.resultProps, null);
+  assert.equal(pageZeroModels.livePagesProps.arenaProps.stableMatchId, 'match-1');
+
   const pageTwoModels = buildLiveMatchPageViewModels({
     scrollRef: { current: null },
     page: 2,

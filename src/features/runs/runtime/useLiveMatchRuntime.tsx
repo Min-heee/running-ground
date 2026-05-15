@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { ComponentProps } from 'react';
 import { LiveMatchExitActionCard } from '@/features/runs/components/LiveMatchExitActionCard';
 import { LiveMatchContainer } from '@/features/runs/components/LiveMatchContainer';
@@ -58,11 +58,15 @@ export function useLiveMatchRuntime({
     livePagesProps,
     trackingPageProps: liveTrackingPageBaseProps,
   } = useLiveMatchViewModel(viewModelInput);
+  const hiddenTrackingPagePropsRef = useRef(liveTrackingPageBaseProps);
+  const containerTrackingPageProps = showLiveArena
+    ? hiddenTrackingPagePropsRef.current
+    : liveTrackingPageBaseProps;
 
   return useMemo(() => ({
     showLiveArena,
     livePagesProps,
-    trackingPageProps: liveTrackingPageBaseProps,
+    trackingPageProps: containerTrackingPageProps,
     exitAction: liveArenaExitAction,
     isSaving,
     isRunningSolo: isRunning && matchMode === 'solo',
@@ -81,7 +85,7 @@ export function useLiveMatchRuntime({
     isSaving,
     liveArenaExitAction,
     livePagesProps,
-    liveTrackingPageBaseProps,
+    containerTrackingPageProps,
     matchMode,
     showLiveArena,
   ]);

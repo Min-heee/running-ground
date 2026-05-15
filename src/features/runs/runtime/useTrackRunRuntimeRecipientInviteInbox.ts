@@ -3,11 +3,14 @@ import type { MutableRefObject } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   buildRecipientRoomInviteInboxResult,
+  RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS,
   getRecipientInviteInboxFocusBlockReason,
   getRecipientInviteInboxFetchSkipReason,
   getRoomInviteInboxRawPendingIds,
+  getRoomInviteInboxRecipientMatchType,
   getRecipientInviteInboxStaleResultReason,
   hasRoomInviteInboxRecipientIdMismatch,
+  shouldScheduleRecipientInviteInboxTimeoutRetry,
 } from '@/features/runs/sync/roomInviteInbox';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { RunningMatchRoom } from '@/lib/api/types';
@@ -18,6 +21,7 @@ import {
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 const INVITE_INBOX_FETCH_TIMEOUT_MS = 5000;
+const INVITE_INBOX_RECEIVER_POLL_MS = 5000;
 
 type UseTrackRunRuntimeRecipientInviteInboxInput = {
   activeRoomId?: string | null;
@@ -37,13 +41,27 @@ type UseTrackRunRuntimeRecipientInviteInboxInput = {
 };
 
 async function fetchInviteInboxWithTimeout() {
+  const controller = new AbortController();
   let timeoutId: ReturnType<typeof setTimeout> | null = null;
   const timeoutPromise = new Promise<{ timedOut: true }>((resolve) => {
-    timeoutId = setTimeout(() => resolve({ timedOut: true }), INVITE_INBOX_FETCH_TIMEOUT_MS);
+    timeoutId = setTimeout(() => {
+      controller.abort();
+      resolve({ timedOut: true });
+    }, INVITE_INBOX_FETCH_TIMEOUT_MS);
   });
 
+  const requestPromise = fetchRunningMatchRoomInviteInbox({ signal: controller.signal })
+    .then((payload) => ({ payload, timedOut: false as const }))
+    .catch((error) => {
+      if (controller.signal.aborted) {
+        return { timedOut: true as const };
+      }
+
+      throw error;
+    });
+
   const result = await Promise.race([
-    fetchRunningMatchRoomInviteInbox().then((payload) => ({ payload, timedOut: false as const })),
+    requestPromise,
     timeoutPromise,
   ]);
 
@@ -77,10 +95,13 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     linkedMatchId: linkedMatchId ?? currentRoom?.linkedMatchId ?? null,
     liveMatchKey: liveMatchKey ?? null,
   });
+  const fetchRecipientInviteInboxRef = useRef<((source: string) => Promise<void | undefined>) | null>(null);
   const inFlightFetchRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
   const fetchGenerationRef = useRef(0);
   const lastAlreadyJoinedSkipKeyRef = useRef<string | null>(null);
   const lastCompletedFetchAtRef = useRef(0);
+  const lastTimedOutFetchAtRef = useRef(0);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFocusPauseKeyRef = useRef<string | null>(null);
   const lastLiveFocusDisabledKeyRef = useRef<string | null>(null);
   currentRoomRef.current = currentRoom ?? null;
@@ -104,6 +125,10 @@ export function useTrackRunRuntimeRecipientInviteInbox({
       return;
     }
 
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
     fetchGenerationRef.current += 1;
     inFlightFetchRef.current = null;
     recipientInviteFetchInFlightRef.current = false;
@@ -116,6 +141,46 @@ export function useTrackRunRuntimeRecipientInviteInbox({
       userId: currentUserId,
     });
   }, [currentUserId, recipientInviteFetchInFlightRef]);
+
+  const scheduleTimeoutRetry = useCallback((source: string) => {
+    if (retryTimeoutRef.current) {
+      return;
+    }
+
+    const runtimeState = runtimeStateRef.current;
+    if (!shouldScheduleRecipientInviteInboxTimeoutRetry({
+      activeRoomId: runtimeState.activeRoomId,
+      currentRoom: currentRoomRef.current,
+      isLiveMatchMounted: runtimeState.isLiveMatchMounted,
+      linkedMatchId: runtimeState.linkedMatchId,
+      liveMatchKey: runtimeState.liveMatchKey,
+    })) {
+      return;
+    }
+
+    rgPerfMark('invite inbox receiver retry scheduled', {
+      delayMs: RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS,
+      source,
+    });
+    retryTimeoutRef.current = setTimeout(() => {
+      retryTimeoutRef.current = null;
+      const latestRuntimeState = runtimeStateRef.current;
+      if (!shouldScheduleRecipientInviteInboxTimeoutRetry({
+        activeRoomId: latestRuntimeState.activeRoomId,
+        currentRoom: currentRoomRef.current,
+        isLiveMatchMounted: latestRuntimeState.isLiveMatchMounted,
+        linkedMatchId: latestRuntimeState.linkedMatchId,
+        liveMatchKey: latestRuntimeState.liveMatchKey,
+      })) {
+        return;
+      }
+
+      rgPerfMark('invite inbox receiver fetch timeout retry', {
+        source,
+      });
+      void fetchRecipientInviteInboxRef.current?.(`${source} retry`);
+    }, RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS);
+  }, []);
 
   const fetchRecipientInviteInbox = useCallback(async (source: string) => {
     const roomAtStart = currentRoomRef.current;
@@ -145,7 +210,6 @@ export function useTrackRunRuntimeRecipientInviteInbox({
         rgPerfMark('invite inbox focus disabled while live once', {
           liveMatchKey: runtimeStateAtStart.liveMatchKey,
           source,
-          userId: currentUserId,
         });
         return;
       }
@@ -161,7 +225,6 @@ export function useTrackRunRuntimeRecipientInviteInbox({
         rgPerfMark('invite inbox focus disabled while live once', {
           liveMatchKey: runtimeStateAtStart.liveMatchKey,
           source,
-          userId: currentUserId,
         });
         return;
       }
@@ -191,6 +254,7 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     const skipReason = getRecipientInviteInboxFetchSkipReason({
       currentRoom: roomAtStart,
       lastCompletedAtMs: lastCompletedFetchAtRef.current,
+      lastTimedOutAtMs: lastTimedOutFetchAtRef.current,
       nowMs: Date.now(),
     });
 
@@ -269,58 +333,74 @@ export function useTrackRunRuntimeRecipientInviteInbox({
       source,
       userId: currentUserId,
     });
-
-    const requestPromise = (async () => {
-    try {
-      const fetchResult = await fetchInviteInboxWithTimeout();
-      if (fetchGenerationRef.current !== requestGeneration) {
-        rgPerfMark('invite inbox fetch stale ignored', {
-          reason: 'invalidated-generation',
-          source,
-          userId: currentUserId,
-        });
-        return;
-      }
-
-      if (fetchResult.timedOut) {
-        endRecipientInviteFetchTrace({
-          reason: 'timeout',
-          success: false,
-        });
-        rgPerfMark('invite inbox fetch stale ignored', {
-          reason: 'timeout',
-          source,
-          timeoutMs: INVITE_INBOX_FETCH_TIMEOUT_MS,
-          userId: currentUserId,
-        });
-        return;
-      }
-
-      const { payload } = fetchResult;
-      const latestRuntimeState = runtimeStateRef.current;
-      const latestBlockReason = getRecipientInviteInboxFocusBlockReason({
-        activeRoomId: latestRuntimeState.activeRoomId,
-        currentRoom: currentRoomRef.current,
-        isLiveMatchMounted: latestRuntimeState.isLiveMatchMounted,
-        linkedMatchId: latestRuntimeState.linkedMatchId,
-        liveMatchKey: latestRuntimeState.liveMatchKey,
+    if (lastTimedOutFetchAtRef.current > lastCompletedFetchAtRef.current) {
+      rgPerfMark('invite inbox receiver fetch retry after timeout', {
+        elapsedMs: Date.now() - lastTimedOutFetchAtRef.current,
+        retryAfterMs: INVITE_INBOX_RECEIVER_POLL_MS,
+        source,
       });
-      if (latestBlockReason) {
-        endRecipientInviteFetchTrace({
-          reason: latestBlockReason,
-          roomId: payload.room?.roomId ?? null,
-          success: false,
+    }
+
+    let didTimeout = false;
+    const requestPromise = (async () => {
+      try {
+        const fetchResult = await fetchInviteInboxWithTimeout();
+        if (fetchGenerationRef.current !== requestGeneration) {
+          rgPerfMark('invite inbox fetch stale ignored', {
+            reason: 'invalidated-generation',
+            source,
+            userId: currentUserId,
+          });
+          return;
+        }
+
+        if (fetchResult.timedOut) {
+          didTimeout = true;
+          lastTimedOutFetchAtRef.current = Date.now();
+          endRecipientInviteFetchTrace({
+            reason: 'timeout',
+            success: false,
+          });
+          rgPerfMark('invite inbox fetch stale ignored', {
+            reason: 'timeout',
+            source,
+            timeoutMs: INVITE_INBOX_FETCH_TIMEOUT_MS,
+            userId: currentUserId,
+          });
+          rgPerfMark('invite inbox receiver timeout will retry', {
+            retryAfterMs: RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS,
+            source,
+            timeoutMs: INVITE_INBOX_FETCH_TIMEOUT_MS,
+          });
+          scheduleTimeoutRetry(source);
+          return;
+        }
+
+        const { payload } = fetchResult;
+        const latestRuntimeState = runtimeStateRef.current;
+        const latestBlockReason = getRecipientInviteInboxFocusBlockReason({
+          activeRoomId: latestRuntimeState.activeRoomId,
+          currentRoom: currentRoomRef.current,
+          isLiveMatchMounted: latestRuntimeState.isLiveMatchMounted,
+          linkedMatchId: latestRuntimeState.linkedMatchId,
+          liveMatchKey: latestRuntimeState.liveMatchKey,
         });
-        rgPerfMark('invite inbox fetch stale ignored', {
-          currentLinkedMatchId: latestRuntimeState.linkedMatchId,
-          currentRoomId: currentRoomRef.current?.roomId ?? latestRuntimeState.activeRoomId,
-          reason: latestBlockReason,
-          roomId: payload.room?.roomId ?? null,
-          source,
-          userId: currentUserId,
-        });
-        return;
-      }
+        if (latestBlockReason) {
+          endRecipientInviteFetchTrace({
+            reason: latestBlockReason,
+            roomId: payload.room?.roomId ?? null,
+            success: false,
+          });
+          rgPerfMark('invite inbox fetch stale ignored', {
+            currentLinkedMatchId: latestRuntimeState.linkedMatchId,
+            currentRoomId: currentRoomRef.current?.roomId ?? latestRuntimeState.activeRoomId,
+            reason: latestBlockReason,
+            roomId: payload.room?.roomId ?? null,
+            source,
+            userId: currentUserId,
+          });
+          return;
+        }
 
       const staleReason = getRecipientInviteInboxStaleResultReason({
         currentRoom: currentRoomRef.current,
@@ -386,6 +466,22 @@ export function useTrackRunRuntimeRecipientInviteInbox({
         previousInviteKey: lastDisplayedRecipientInviteKeyRef.current,
         room: payload.room,
       });
+      const recipientMatchType = getRoomInviteInboxRecipientMatchType(payload.room, {
+        currentUserId,
+        currentUserTag: currentUserId,
+      });
+      if (recipientMatchType === 'public-tag') {
+        rgPerfMark('invite inbox receiver matched by tag', {
+          roomId: payload.room?.roomId ?? null,
+          source,
+        });
+      } else if (recipientMatchType === 'internal-id' || recipientMatchType === 'invited-friend-id') {
+        rgPerfMark('invite inbox receiver matched by internal id', {
+          matchType: recipientMatchType,
+          roomId: payload.room?.roomId ?? null,
+          source,
+        });
+      }
       if (hasRoomInviteInboxRecipientIdMismatch({
         currentUserId,
         currentUserTag: currentUserId,
@@ -407,6 +503,13 @@ export function useTrackRunRuntimeRecipientInviteInbox({
         source,
         userId: currentUserId,
       });
+      if (inviteResult.pendingCount > 0) {
+        rgPerfMark('invite inbox receiver pending invite found', {
+          pendingCount: inviteResult.pendingCount,
+          roomId: inviteResult.event?.roomId ?? payload.room?.roomId ?? null,
+          source,
+        });
+      }
 
       if (!inviteResult.event) {
         if (inviteResult.skippedReason === 'already-joined') {
@@ -471,6 +574,13 @@ export function useTrackRunRuntimeRecipientInviteInbox({
         source: 'recipient invite inbox fetch',
         state: inviteResult.event.roomState,
       });
+      rgPerfMark('invite card displayed from receiver fallback', {
+        inviteId: inviteResult.event.inviteId,
+        invitedUserId: inviteResult.event.invitedUserId,
+        roomId: inviteResult.event.roomId,
+        source: 'recipient invite inbox fetch',
+        state: inviteResult.event.roomState,
+      });
     } catch (inviteError) {
       endRecipientInviteFetchTrace({ success: false });
       rgPerfMark('invite inbox fetch for recipient end', {
@@ -482,7 +592,9 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     } finally {
       if (fetchGenerationRef.current === requestGeneration) {
         recipientInviteFetchInFlightRef.current = false;
-        lastCompletedFetchAtRef.current = Date.now();
+        if (!didTimeout) {
+          lastCompletedFetchAtRef.current = Date.now();
+        }
       }
       if (fetchGenerationRef.current === requestGeneration && inFlightFetchRef.current?.key === fetchKey) {
         inFlightFetchRef.current = null;
@@ -508,11 +620,14 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     lastAlreadyJoinedSkipKeyRef,
     lastDisplayedRecipientInviteKeyRef,
     lastCompletedFetchAtRef,
+    lastTimedOutFetchAtRef,
     latestMatchRoomServerNowMsRef,
     recipientInviteFetchInFlightRef,
     runtimeStateRef,
+    scheduleTimeoutRetry,
     syncServerClock,
   ]);
+  fetchRecipientInviteInboxRef.current = fetchRecipientInviteInbox;
 
   const focusBlockReason = getRecipientInviteInboxFocusBlockReason({
     activeRoomId: activeRoomId ?? currentRoom?.roomId ?? null,
@@ -533,6 +648,10 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     const source = 'track-run recipient inbox focus';
     if (focusBlockReason && focusBlockKey) {
       const runtimeState = runtimeStateRef.current;
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
       invalidateNoRoomInFlight({
         reason: focusBlockReason,
         runtimeState,
@@ -546,7 +665,6 @@ export function useTrackRunRuntimeRecipientInviteInbox({
           liveMatchKey: runtimeState.liveMatchKey,
           reason: focusBlockReason,
           source,
-          userId: currentUserId,
         });
       }
 
@@ -559,7 +677,6 @@ export function useTrackRunRuntimeRecipientInviteInbox({
           liveMatchKey: runtimeState.liveMatchKey,
           reason: focusBlockReason,
           source,
-          userId: currentUserId,
         });
       }
 
@@ -571,16 +688,28 @@ export function useTrackRunRuntimeRecipientInviteInbox({
       rgPerfMark('invite inbox focus effect resumed idle', {
         previousPauseKey: lastFocusPauseKeyRef.current,
         source,
-        userId: currentUserId,
       });
       lastFocusPauseKeyRef.current = null;
       lastLiveFocusDisabledKeyRef.current = null;
     }
 
-    void fetchRecipientInviteInbox('track-run recipient inbox focus');
-    return undefined;
+    rgPerfMark('invite inbox receiver polling active', {
+      intervalMs: INVITE_INBOX_RECEIVER_POLL_MS,
+      source,
+    });
+    void fetchRecipientInviteInbox(source);
+    const intervalId = setInterval(() => {
+      void fetchRecipientInviteInbox(source);
+    }, INVITE_INBOX_RECEIVER_POLL_MS);
+
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+      clearInterval(intervalId);
+    };
   }, [
-    currentUserId,
     fetchRecipientInviteInbox,
     focusBlockKey,
     focusBlockReason,

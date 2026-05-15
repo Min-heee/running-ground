@@ -24,10 +24,13 @@ const GroupLiveStandingRow = memo(function GroupLiveStandingRow({
 }: {
   participant: GroupLiveStanding;
 }) {
+  const rowStyle = useMemo(
+    () => [styles.groupLiveRow, participant.isCurrentUser ? styles.groupLiveRowCurrent : undefined],
+    [participant.isCurrentUser],
+  );
+
   return (
-    <View
-      style={[styles.groupLiveRow, participant.isCurrentUser ? styles.groupLiveRowCurrent : undefined]}
-    >
+    <View style={rowStyle}>
       <Text style={styles.groupLiveRank}>{participant.rank}</Text>
       <View style={styles.groupLiveCopy}>
         <Text style={styles.groupLiveName}>
@@ -49,8 +52,13 @@ const CurrentGroupStandingRow = memo(function CurrentGroupStandingRow({
 }: {
   participant: GroupLiveStanding;
 }) {
+  const rowStyle = useMemo(
+    () => [styles.groupLiveRow, styles.groupLiveRowCurrent],
+    [],
+  );
+
   return (
-    <View style={[styles.groupLiveRow, styles.groupLiveRowCurrent]}>
+    <View style={rowStyle}>
       <Text style={styles.groupLiveRank}>{participant.rank}</Text>
       <View style={styles.groupLiveCopy}>
         <Text style={styles.groupLiveName}>{participant.name} (나)</Text>

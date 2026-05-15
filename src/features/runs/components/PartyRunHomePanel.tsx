@@ -24,7 +24,7 @@ type PartyRunHomePanelProps = {
   onInviteTokenChange: (value: string) => void;
   onAcceptInvite: () => void;
   onDeclineInvite: () => void;
-  onJoinRoom: () => void;
+  onJoinRoom: () => Promise<void> | void;
 };
 
 const ROOM_MODE_OPTIONS = [
@@ -65,15 +65,6 @@ export function PartyRunHomePanel({
     router.push('/match-room' as Href);
     endNavigationTrace({ success: true });
   }, [currentRoom, visibleRoom]);
-
-  const handleJoinRoomPress = useCallback(() => {
-    const trace = beginRgInputTrace('invite code input submit', {
-      hasToken: inviteTokenInput.trim().length > 0,
-      source: 'party run home panel',
-    });
-    onJoinRoom();
-    trace.markFeedback('join handler dispatch');
-  }, [inviteTokenInput, onJoinRoom]);
 
   const roomModeChips = useMemo(() => (
     ROOM_MODE_OPTIONS.map((option) => {
@@ -146,7 +137,7 @@ export function PartyRunHomePanel({
                 />
                 <SecondaryButton
                   label={isJoining ? '입장 중...' : '방 입장'}
-                  onPress={handleJoinRoomPress}
+                  onPress={onJoinRoom}
                   disabled={isJoining}
                 />
               </View>

@@ -61,6 +61,7 @@ export const LiveMatchPager = memo(function LiveMatchPager({
     renderResultPage,
     renderStatsPage,
   ]);
+  const activePageContent = useMemo(() => activePageRenderer(), [activePageRenderer]);
 
   const handleMomentumEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (pageWidth <= 0) {
@@ -88,7 +89,7 @@ export const LiveMatchPager = memo(function LiveMatchPager({
           onTabPress={handleTabPress}
         />
         <View style={styles.androidPage}>
-          {activePageRenderer()}
+          {activePageContent}
         </View>
         <Text style={styles.hint}>위 탭을 누르면 순위와 기록 화면을 볼 수 있어요.</Text>
       </View>

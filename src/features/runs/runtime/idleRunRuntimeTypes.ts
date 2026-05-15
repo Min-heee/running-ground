@@ -81,7 +81,7 @@ export type UseIdleRunRuntimeModelInput = {
   onDeclineRoomInvite: () => void;
   onDistanceTextChangeDuel: DuelSetupProps['onDistanceTextChange'];
   onDistanceTextChangeGroup: GroupSetupProps['onDistanceTextChange'];
-  onJoinRoom: () => void;
+  onJoinRoom: () => Promise<void> | void;
   onOpenUpcomingMatch: (match: UpcomingRunningMatchItem) => void;
   onReadyAction: () => void;
   onRequestDuelMatch: () => void;

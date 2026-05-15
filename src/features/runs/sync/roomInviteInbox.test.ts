@@ -4,9 +4,13 @@ import type { RunningMatchRoom } from '@/lib/api/types';
 import {
   buildRecipientRoomInviteInboxResult,
   buildRoomInviteInboxEvent,
+  RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS,
   getRecipientInviteInboxFocusBlockReason,
   getRecipientInviteInboxFetchSkipReason,
   getRecipientInviteInboxStaleResultReason,
+  getRoomInviteInboxRecipientMatchType,
+  resolveRoomInviteInboxRecipientMatch,
+  shouldScheduleRecipientInviteInboxTimeoutRetry,
   shouldDisplayRoomInviteCard,
 } from './roomInviteInbox';
 
@@ -127,6 +131,45 @@ test('recipient pending invite fetch matches the current user public tag when ba
   assert.equal(result.event?.invitedUserId, 'guest-user');
 });
 
+test('recipient invite inbox reports public tag match type', () => {
+  assert.equal(getRoomInviteInboxRecipientMatchType(room(), {
+    currentUserId: '#GUEST',
+    currentUserTag: '#GUEST',
+  }), 'public-tag');
+});
+
+test('recipient matcher connects public tag alias to pending invite', () => {
+  const match = resolveRoomInviteInboxRecipientMatch(room(), {
+    currentUserId: '#GUEST',
+    currentUserTag: '#GUEST',
+  });
+
+  assert.equal(match.matchType, 'public-tag');
+  assert.equal(match.invitee?.invitedUserId, 'guest-user');
+});
+
+test('recipient invite inbox reports internal id match type', () => {
+  assert.equal(getRoomInviteInboxRecipientMatchType(room(), {
+    currentUserId: 'guest-user',
+  }), 'internal-id');
+});
+
+test('recipient matcher reports internal user id and friend id fallback separately', () => {
+  assert.equal(resolveRoomInviteInboxRecipientMatch(room(), {
+    currentUserId: 'guest-user',
+  }).matchType, 'internal-id');
+
+  assert.equal(resolveRoomInviteInboxRecipientMatch(room({ invitedFriends: [] }), {
+    currentUserId: 'guest-user',
+  }).matchType, 'invited-friend-id');
+});
+
+test('recipient invite inbox reports invitedFriendIds fallback match type', () => {
+  assert.equal(getRoomInviteInboxRecipientMatchType(room({ invitedFriends: [] }), {
+    currentUserId: 'guest-user',
+  }), 'invited-friend-id');
+});
+
 test('recipient pending invite fetch keeps duplicate pending invite without redisplaying', () => {
   const firstResult = buildRecipientRoomInviteInboxResult({
     currentUserId: 'guest-user',
@@ -229,6 +272,33 @@ test('recipient invite inbox fetch throttles repeated no-room checks', () => {
     nowMs: 10_000,
     throttleMs: 5000,
   }), null);
+});
+
+test('recipient invite inbox fetch retries promptly after timeout', () => {
+  assert.equal(getRecipientInviteInboxFetchSkipReason({
+    currentRoom: null,
+    lastCompletedAtMs: 9000,
+    lastTimedOutAtMs: 9500,
+    nowMs: 10_000,
+    throttleMs: 5000,
+  }), null);
+});
+
+test('recipient invite inbox timeout retry is scheduled only before lobby/live join', () => {
+  assert.equal(RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS, 1000);
+  assert.equal(shouldScheduleRecipientInviteInboxTimeoutRetry({
+    currentRoom: null,
+  }), true);
+  assert.equal(shouldScheduleRecipientInviteInboxTimeoutRetry({
+    currentRoom: room({ joined: true }),
+  }), false);
+  assert.equal(shouldScheduleRecipientInviteInboxTimeoutRetry({
+    currentRoom: room({ joined: false, linkedMatchId: 'duel-match-1' }),
+  }), false);
+  assert.equal(shouldScheduleRecipientInviteInboxTimeoutRetry({
+    currentRoom: null,
+    isLiveMatchMounted: true,
+  }), false);
 });
 
 test('recipient invite inbox stale result is ignored after joining or live handoff', () => {

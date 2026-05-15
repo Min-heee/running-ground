@@ -7,8 +7,12 @@ import {
   type LiveMatchArenaViewModelInput,
 } from '@/features/runs/viewModels/liveMatchArenaViewModel';
 import {
-  buildLiveMatchPageViewModels,
+  buildLiveMatchArenaPageProps,
+  buildLiveMatchPagesProps,
+  buildLiveMatchRaceBoardPageProps,
   buildLiveMatchRaceBoardViewModelForPage,
+  buildLiveMatchResultPagePropsForPage,
+  buildLiveMatchStatsPageProps,
 } from '@/features/runs/viewModels/liveMatchPagesViewModel';
 import type { LiveMatchRaceBoardViewModelInput } from '@/features/runs/viewModels/liveMatchRaceBoardViewModel';
 import {
@@ -235,41 +239,79 @@ export function useLiveMatchViewModel({
     onContinueSoloFromMatch,
   });
 
-  const { livePagesProps } = useMemo(() => buildLiveMatchPageViewModels({
-    scrollRef,
-    page,
-    pageWidth,
-    hasResultPage,
+  const arenaProps = useMemo(() => buildLiveMatchArenaPageProps({
     activeMatchId,
     arenaViewModel,
     onLiveMatchMounted,
+  }), [
+    activeMatchId,
+    arenaViewModel,
+    onLiveMatchMounted,
+  ]);
+
+  const raceBoardProps = useMemo(() => buildLiveMatchRaceBoardPageProps({
     matchMode,
     raceBoardViewModel,
-    trackingPageProps,
-    resultPageProps: {
+  }), [
+    matchMode,
+    raceBoardViewModel,
+  ]);
+
+  const trackingStatsSourceProps = page === 2 ? trackingPageProps : null;
+  const trackingStatsPageProps = useMemo(() => buildLiveMatchStatsPageProps({
+    page,
+    trackingPageProps: trackingStatsSourceProps,
+  }), [
+    page,
+    trackingStatsSourceProps,
+  ]);
+
+  const resultPageInput = useMemo(() => (
+    page === 3
+      ? {
       matchMode,
       estimatedBonusPoints,
       duelRows,
       groupRows,
       groupStatusLabel,
-    },
-    onPageChange,
-  }), [
-    activeMatchId,
-    arenaViewModel,
+    }
+      : null
+  ), [
     duelRows,
     estimatedBonusPoints,
     groupRows,
     groupStatusLabel,
-    hasResultPage,
     matchMode,
-    onLiveMatchMounted,
+    page,
+  ]);
+  const resultPagePropsForPager = useMemo(() => buildLiveMatchResultPagePropsForPage({
+    page,
+    resultPageProps: resultPageInput,
+  }), [
+    page,
+    resultPageInput,
+  ]);
+
+  const livePagesProps = useMemo(() => buildLiveMatchPagesProps({
+    scrollRef,
+    page,
+    pageWidth,
+    hasResultPage,
+    arenaProps,
+    raceBoardProps,
+    trackingStatsPageProps,
+    resultProps: resultPagePropsForPager,
+    onPageChange,
+  }), [
+    arenaProps,
+    hasResultPage,
     onPageChange,
     page,
     pageWidth,
-    raceBoardViewModel,
+    raceBoardProps,
+    resultPagePropsForPager,
     scrollRef,
-    trackingPageProps,
+    trackingStatsPageProps,
   ]);
 
   return {

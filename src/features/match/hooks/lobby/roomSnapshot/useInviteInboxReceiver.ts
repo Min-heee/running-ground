@@ -4,6 +4,7 @@ import type { RunningMatchRoom } from '@/lib/api/types';
 import {
   buildRecipientRoomInviteInboxResult,
   getRoomInviteInboxRawPendingIds,
+  getRoomInviteInboxRecipientMatchType,
   hasRoomInviteInboxRecipientIdMismatch,
 } from '@/features/runs/sync/roomInviteInbox';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
@@ -39,6 +40,22 @@ export function useInviteInboxReceiver({
       previousInviteKey: lastDisplayedInviteKeyRef.current,
       room,
     });
+    const recipientMatchType = getRoomInviteInboxRecipientMatchType(room, {
+      currentUserId: currentUserTag,
+      currentUserTag,
+    });
+    if (recipientMatchType === 'public-tag') {
+      rgPerfMark('invite inbox receiver matched by tag', {
+        roomId: room?.roomId ?? null,
+        source,
+      });
+    } else if (recipientMatchType === 'internal-id' || recipientMatchType === 'invited-friend-id') {
+      rgPerfMark('invite inbox receiver matched by internal id', {
+        matchType: recipientMatchType,
+        roomId: room?.roomId ?? null,
+        source,
+      });
+    }
     if (hasRoomInviteInboxRecipientIdMismatch({
       currentUserId: currentUserTag,
       currentUserTag,
@@ -61,6 +78,13 @@ export function useInviteInboxReceiver({
       source,
       userId: currentUserTag,
     });
+    if (inviteInboxResult.pendingCount > 0) {
+      rgPerfMark('invite inbox receiver pending invite found', {
+        pendingCount: inviteInboxResult.pendingCount,
+        roomId: inviteInboxResult.event?.roomId ?? room?.roomId ?? null,
+        source,
+      });
+    }
 
     if (!inviteInboxResult.event) {
       if (inviteInboxResult.skippedReason === 'already-joined') {
@@ -89,6 +113,13 @@ export function useInviteInboxReceiver({
         state: inviteInboxResult.event.roomState,
       });
       rgPerfMark('invite card displayed', {
+        inviteId: inviteInboxResult.event.inviteId,
+        invitedUserId: inviteInboxResult.event.invitedUserId,
+        roomId: inviteInboxResult.event.roomId,
+        source,
+        state: inviteInboxResult.event.roomState,
+      });
+      rgPerfMark('invite card displayed from receiver fallback', {
         inviteId: inviteInboxResult.event.inviteId,
         invitedUserId: inviteInboxResult.event.invitedUserId,
         roomId: inviteInboxResult.event.roomId,

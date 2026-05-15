@@ -75,6 +75,14 @@ const INFORMATIONAL_EVENTS = {
     label: 'active room check owner cleaned up',
     name: 'active room check owner cleaned up',
   },
+  activeRoomCheckStaleGeneration: {
+    label: 'active room result skipped stale generation',
+    name: 'active room check stale generation ignored',
+  },
+  activeRoomCheckStaleSuccessfulEnd: {
+    label: 'active room check end',
+    name: 'active room check stale successful end',
+  },
 };
 
 function printUsage() {
@@ -122,6 +130,9 @@ function recordInformationalEvent(summary, key, payload, lineNo) {
 function recordActiveRoomCheckInformationalEvent(perfLabel, payload, lineNo, informationalSummary) {
   Object.entries(INFORMATIONAL_EVENTS).forEach(([key, event]) => {
     if (perfLabel === event.label) {
+      if (key === 'activeRoomCheckStaleSuccessfulEnd' && payload.stale !== true) {
+        return;
+      }
       recordInformationalEvent(informationalSummary, key, payload, lineNo);
     }
   });
@@ -130,6 +141,7 @@ function recordActiveRoomCheckInformationalEvent(perfLabel, payload, lineNo, inf
 function isSlowSuccessfulActiveRoomCheckEnd(perfLabel, payload, durationMs) {
   return perfLabel === 'active room check end'
     && payload.success === true
+    && payload.stale !== true
     && durationMs !== null
     && durationMs >= THRESHOLDS.activeRoomCheckDurationMs;
 }

@@ -71,4 +71,17 @@ export const TrackRunShellRouter = memo(function TrackRunShellRouter({
   }
 
   return <IdleRunShell readyScreenProps={readyScreenProps} />;
+}, (prevProps, nextProps) => {
+  if (
+    prevProps.shellKind !== nextProps.shellKind
+    || prevProps.liveMatchKey !== nextProps.liveMatchKey
+  ) {
+    return false;
+  }
+
+  if (nextProps.shellKind === 'live') {
+    return prevProps.liveContainerProps === nextProps.liveContainerProps;
+  }
+
+  return prevProps.readyScreenProps === nextProps.readyScreenProps;
 });

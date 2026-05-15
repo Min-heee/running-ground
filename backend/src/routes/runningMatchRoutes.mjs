@@ -14,6 +14,7 @@ export async function routeRunningMatchRequest({
   handleLeaveRunningMatch,
   handleUpdateRunningMatchProgress,
   handleFetchMyRunningMatchRoom,
+  handleFetchRunningMatchRoomInviteInbox,
   handleCreateRunningMatchRoom,
   handleJoinRunningMatchRoom,
   handleUpdateRunningMatchRoom,
@@ -70,6 +71,11 @@ export async function routeRunningMatchRequest({
 
   if (pathname === '/api/running/rooms/my' && method === 'GET') {
     handleFetchMyRunningMatchRoom(request, response);
+    return true;
+  }
+
+  if (pathname === '/api/running/rooms/invite-inbox' && method === 'GET') {
+    handleFetchRunningMatchRoomInviteInbox(request, response);
     return true;
   }
 

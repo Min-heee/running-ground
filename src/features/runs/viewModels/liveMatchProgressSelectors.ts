@@ -1,6 +1,10 @@
 import type { MatchStatusAlert } from '@/features/runs/components/liveMatchTracking/types';
-import type { GroupLiveStanding } from '@/features/runs/viewModels/matchProgress';
-import type { DuelMatchOpponent } from '@/lib/api/types';
+import type { RunMatchMode } from '@/features/runs/hooks/matchLifecycle/types';
+import {
+  buildGroupLiveStandings,
+  type GroupLiveStanding,
+} from '@/features/runs/viewModels/matchProgress';
+import type { DuelMatchOpponent, GroupMatchParticipant } from '@/lib/api/types';
 
 export type GroupProgressSnapshot = {
   currentGroupStanding: GroupLiveStanding | null;
@@ -9,6 +13,10 @@ export type GroupProgressSnapshot = {
   groupBehindParticipant: GroupLiveStanding | null;
   featuredGroupArenaParticipantIds: Set<string>;
   groupStatusAlert: MatchStatusAlert | null;
+};
+
+export type GroupLiveProgressModel = GroupProgressSnapshot & {
+  groupLiveStandings: GroupLiveStanding[];
 };
 
 export function buildGroupStatusAlert(groupLiveStandings: GroupLiveStanding[]): MatchStatusAlert | null {
@@ -90,6 +98,33 @@ export function buildGroupProgressSnapshot(groupLiveStandings: GroupLiveStanding
     groupBehindParticipant,
     featuredGroupArenaParticipantIds,
     groupStatusAlert: buildGroupStatusAlert(groupLiveStandings),
+  };
+}
+
+export function buildGroupLiveProgressModel({
+  deferRankingCalculations,
+  matchMode,
+  participants,
+  seedRank,
+  distanceKm,
+  elapsedSeconds,
+  targetDistanceKm,
+}: {
+  deferRankingCalculations: boolean;
+  matchMode: RunMatchMode;
+  participants: GroupMatchParticipant[];
+  seedRank?: number;
+  distanceKm: number;
+  elapsedSeconds: number;
+  targetDistanceKm: number;
+}): GroupLiveProgressModel {
+  const groupLiveStandings = deferRankingCalculations && matchMode === 'group'
+    ? []
+    : buildGroupLiveStandings(participants, seedRank, distanceKm, elapsedSeconds, targetDistanceKm);
+
+  return {
+    groupLiveStandings,
+    ...buildGroupProgressSnapshot(groupLiveStandings),
   };
 }
 

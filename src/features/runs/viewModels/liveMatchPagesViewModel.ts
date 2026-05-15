@@ -63,9 +63,9 @@ export function buildLiveMatchStatsPageProps({
   trackingPageProps,
 }: {
   page: number;
-  trackingPageProps: Omit<LiveMatchTrackingPageProps, 'includeMatchCards'>;
+  trackingPageProps: Omit<LiveMatchTrackingPageProps, 'includeMatchCards'> | null;
 }): LiveMatchTrackingPageProps | null {
-  return page === 2 ? { ...trackingPageProps, includeMatchCards: false } : null;
+  return page === 2 && trackingPageProps ? { ...trackingPageProps, includeMatchCards: false } : null;
 }
 
 export function buildLiveMatchPagesProps({
@@ -86,7 +86,7 @@ export function buildLiveMatchPagesProps({
   arenaProps: LiveMatchArenaPageProps;
   raceBoardProps: LiveMatchRaceBoardPageProps;
   trackingStatsPageProps: LiveMatchTrackingPageProps | null;
-  resultProps: LiveMatchResultPageProps;
+  resultProps: LiveMatchResultPageProps | null;
   onPageChange: (page: number) => void;
 }): Omit<LiveMatchPagesProps, 'exitAction'> {
   return {
@@ -110,6 +110,16 @@ export function buildLiveMatchRaceBoardViewModelForPage({
   input: LiveMatchRaceBoardViewModelInput;
 }) {
   return page === 1 ? buildLiveMatchRaceBoardViewModel(input) : null;
+}
+
+export function buildLiveMatchResultPagePropsForPage({
+  page,
+  resultPageProps,
+}: {
+  page: number;
+  resultPageProps: LiveMatchResultPageProps | null;
+}) {
+  return page === 3 && resultPageProps ? buildLiveMatchResultPageProps(resultPageProps) : null;
 }
 
 export function buildLiveMatchPageViewModels({
@@ -152,7 +162,10 @@ export function buildLiveMatchPageViewModels({
     page,
     trackingPageProps,
   });
-  const resultProps = buildLiveMatchResultPageProps(resultPageProps);
+  const resultProps = buildLiveMatchResultPagePropsForPage({
+    page,
+    resultPageProps,
+  });
 
   return {
     arenaProps,

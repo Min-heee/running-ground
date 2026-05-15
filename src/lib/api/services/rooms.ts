@@ -80,8 +80,32 @@ export async function fetchRunningMatchRoom(options: FetchRunningMatchRoomOption
   }
 }
 
-export async function fetchRunningMatchRoomInviteInbox(): Promise<RunningMatchRoomResponse> {
-  return fetchRunningMatchRoom();
+export async function fetchRunningMatchRoomInviteInbox(options: FetchRunningMatchRoomOptions = {}): Promise<RunningMatchRoomResponse> {
+  if (USE_MOCK_API) {
+    return fetchRunningMatchRoom(options);
+  }
+
+  try {
+    const payload = await apiGet<RunningMatchRoomResponse>(
+      '/running/rooms/invite-inbox',
+      {
+        accessToken: await requireAccessToken(),
+        fallbackMessage: '초대함을 불러오지 못했어.',
+        signal: options.signal,
+      },
+    );
+
+    return ensureRunningMatchRoomResponse(
+      sanitizeRunningMatchRoomResponse(payload),
+      { action: 'fetch-invite-inbox' },
+    );
+  } catch (error) {
+    if (shouldFallbackToLocalRunningRoomApi(error)) {
+      return fetchRunningMatchRoom(options);
+    }
+
+    throw error;
+  }
 }
 
 export async function cleanupStaleRunningMatchRoomState(): Promise<RunningMatchRoomCleanupResponse> {

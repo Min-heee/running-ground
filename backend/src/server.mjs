@@ -1387,6 +1387,22 @@ function findRunningMatchRoomForUser(store, userId, now = new Date()) {
   return rooms[0] ?? null;
 }
 
+function findRunningMatchRoomInviteInboxForUser(store, currentUser, now = new Date()) {
+  const identityAliases = new Set([
+    currentUser?.id,
+    currentUser?.publicTag,
+  ].map((value) => String(value ?? '').trim()).filter(Boolean));
+  const rooms = syncMatchRooms(store, now)
+    .filter((room) => (
+      !room.participants.some((participant) => identityAliases.has(participant.userId))
+      && Array.isArray(room.invitedFriendIds)
+      && room.invitedFriendIds.some((invitedUserId) => identityAliases.has(String(invitedUserId ?? '').trim()))
+    ))
+    .sort((left, right) => new Date(right.updatedAt ?? right.createdAt).getTime() - new Date(left.updatedAt ?? left.createdAt).getTime());
+
+  return rooms[0] ?? null;
+}
+
 function buildRunningMatchRoomParticipantPayload(store, participant, linkedParticipantFieldsByUserId = null) {
   const user = findUserById(store, participant.userId);
   const runner = buildMatchRunnerProfile(store, user);
@@ -5736,6 +5752,16 @@ function handleFetchMyRunningMatchRoom(request, response) {
   sendJson(response, 200, payload);
 }
 
+function handleFetchRunningMatchRoomInviteInbox(request, response) {
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    const room = findRunningMatchRoomInviteInboxForUser(store, currentUser);
+    return buildRunningMatchRoomResponse(store, currentUser, room);
+  });
+
+  sendJson(response, 200, payload);
+}
+
 async function handleCreateRunningMatchRoom(request, response) {
   const body = await parseJsonBody(request);
   const payload = mutateStore((store) => {
@@ -6055,6 +6081,7 @@ const routeRequest = createApiRouteHandler({
   handleLeaveRunningMatch,
   handleUpdateRunningMatchProgress,
   handleFetchMyRunningMatchRoom,
+  handleFetchRunningMatchRoomInviteInbox,
   handleCreateRunningMatchRoom,
   handleJoinRunningMatchRoom,
   handleStartRunningMatchRoom,

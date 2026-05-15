@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { liveMatchPagerStyles as styles } from '@/features/runs/components/liveMatchPager/styles';
 import type { PagerTab } from '@/features/runs/components/liveMatchPager/types';
@@ -22,13 +22,21 @@ const PagerTabButton = memo(function PagerTabButton({
   const handlePress = useCallback(() => {
     onPress(tab.index);
   }, [onPress, tab.index]);
+  const tabStyle = useMemo(
+    () => [styles.tab, selected ? styles.tabSelected : undefined],
+    [selected],
+  );
+  const tabTextStyle = useMemo(
+    () => [styles.tabText, selected ? styles.tabTextSelected : undefined],
+    [selected],
+  );
 
   return (
     <Pressable
-      style={[styles.tab, selected ? styles.tabSelected : undefined]}
+      style={tabStyle}
       onPress={handlePress}
     >
-      <Text style={[styles.tabText, selected ? styles.tabTextSelected : undefined]}>
+      <Text style={tabTextStyle}>
         {tab.label}
       </Text>
     </Pressable>

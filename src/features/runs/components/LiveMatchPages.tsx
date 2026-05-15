@@ -83,7 +83,6 @@ export const LiveMatchPages = memo(function LiveMatchPages({
     || prevProps.pageWidth !== nextProps.pageWidth
     || prevProps.hasResultPage !== nextProps.hasResultPage
     || prevProps.onPageChange !== nextProps.onPageChange
-    || prevProps.exitAction !== nextProps.exitAction
   ) {
     return false;
   }
@@ -100,5 +99,8 @@ export const LiveMatchPages = memo(function LiveMatchPages({
     return prevProps.resultProps === nextProps.resultProps;
   }
 
-  return prevProps.arenaProps === nextProps.arenaProps;
+  return (
+    prevProps.arenaProps === nextProps.arenaProps
+    && prevProps.exitAction === nextProps.exitAction
+  );
 });

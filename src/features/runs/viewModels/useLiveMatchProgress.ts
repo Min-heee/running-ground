@@ -5,14 +5,11 @@ import {
   type RunningMatchRoom,
   type RunningMatchStatusResponse,
 } from '@/lib/api/types';
-import {
-  buildGroupLiveStandings,
-  type LastSyncedMatchProgress,
-} from '@/features/runs/viewModels/matchProgress';
+import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
 import {
   buildDuelLiveTitle,
   buildDuelStatusAlert,
-  buildGroupProgressSnapshot,
+  buildGroupLiveProgressModel,
 } from '@/features/runs/viewModels/liveMatchProgressSelectors';
 import {
   buildCurrentUserLiveStatusModel,
@@ -56,19 +53,25 @@ export function useLiveMatchProgress({
   deferRankingCalculations = false,
 }: UseLiveMatchProgressInput) {
   const firstRemoteProgressReceivedRef = useRef(false);
-  const groupLiveStandings = useMemo(
-    () => (
-      deferRankingCalculations && matchMode === 'group'
-        ? []
-        : buildGroupLiveStandings(effectiveGroupParticipants, effectiveGroupSeedRank, distanceKm, elapsedSeconds, groupDistanceKm)
-    ),
-    [deferRankingCalculations, distanceKm, elapsedSeconds, effectiveGroupParticipants, effectiveGroupSeedRank, groupDistanceKm, matchMode],
-  );
-  const groupProgressSnapshot = useMemo(
-    () => buildGroupProgressSnapshot(groupLiveStandings),
-    [groupLiveStandings],
-  );
+  const groupProgressSnapshot = useMemo(() => buildGroupLiveProgressModel({
+    deferRankingCalculations,
+    matchMode,
+    participants: effectiveGroupParticipants,
+    seedRank: effectiveGroupSeedRank,
+    distanceKm,
+    elapsedSeconds,
+    targetDistanceKm: groupDistanceKm,
+  }), [
+    deferRankingCalculations,
+    distanceKm,
+    effectiveGroupParticipants,
+    effectiveGroupSeedRank,
+    elapsedSeconds,
+    groupDistanceKm,
+    matchMode,
+  ]);
   const {
+    groupLiveStandings,
     currentGroupStanding,
     currentGroupLeader,
     groupAheadParticipant,
