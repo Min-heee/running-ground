@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import {
+  buildRecipientRoomInviteInboxResult,
   buildRoomInviteInboxEvent,
   shouldDisplayRoomInviteCard,
 } from './roomInviteInbox';
@@ -71,4 +72,35 @@ test('invite inbox ignores rooms that are already joined', () => {
   const event = buildRoomInviteInboxEvent(room({ joined: true }), 'guest-user');
 
   assert.equal(event, null);
+});
+
+test('recipient pending invite fetch result displays a pending invite card', () => {
+  const result = buildRecipientRoomInviteInboxResult({
+    currentUserId: 'guest-user',
+    previousInviteKey: null,
+    room: room(),
+  });
+
+  assert.equal(result.pendingCount, 1);
+  assert.equal(result.shouldDisplay, true);
+  assert.equal(result.skippedReason, null);
+  assert.equal(result.event?.inviteId, 'invite-1');
+});
+
+test('recipient pending invite fetch keeps duplicate pending invite without redisplaying', () => {
+  const firstResult = buildRecipientRoomInviteInboxResult({
+    currentUserId: 'guest-user',
+    previousInviteKey: null,
+    room: room(),
+  });
+  const duplicateResult = buildRecipientRoomInviteInboxResult({
+    currentUserId: 'guest-user',
+    previousInviteKey: firstResult.event?.key ?? null,
+    room: room(),
+  });
+
+  assert.equal(duplicateResult.pendingCount, 1);
+  assert.equal(duplicateResult.shouldDisplay, false);
+  assert.equal(duplicateResult.skippedReason, 'duplicate-invite');
+  assert.equal(duplicateResult.event?.inviteId, 'invite-1');
 });

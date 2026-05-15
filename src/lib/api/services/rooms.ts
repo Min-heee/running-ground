@@ -75,6 +75,10 @@ export async function fetchRunningMatchRoom(): Promise<RunningMatchRoomResponse>
   }
 }
 
+export async function fetchRunningMatchRoomInviteInbox(): Promise<RunningMatchRoomResponse> {
+  return fetchRunningMatchRoom();
+}
+
 export async function cleanupStaleRunningMatchRoomState(): Promise<RunningMatchRoomCleanupResponse> {
   if (USE_MOCK_API) {
     const hasRoom = Boolean(mockApiState.runningMatchRoom);

@@ -186,9 +186,10 @@ export function useLiveMatchViewModel({
   ]);
 
   const arenaProps = useMemo<LiveMatchArenaPageProps>(() => ({
+    stableMatchId: activeMatchId,
     viewModel: arenaViewModel,
     onLiveMatchMounted,
-  }), [arenaViewModel, onLiveMatchMounted]);
+  }), [activeMatchId, arenaViewModel, onLiveMatchMounted]);
 
   const raceBoardViewModel = useMemo(() => buildLiveMatchRaceBoardViewModel({
     matchMode,

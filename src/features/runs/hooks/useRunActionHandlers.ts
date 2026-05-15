@@ -18,7 +18,7 @@ type UseRunActionHandlersInput = {
   handleDiscardTracking: () => void;
   handleCreateMatchRoom: () => Promise<unknown> | void;
   handleStartTracking: (options?: StartTrackingOptions) => Promise<unknown> | void;
-  navigateToMatchRoomWithTrace: (source: string, roomId: string) => void;
+  navigateToMatchRoomWithTrace: (source: string, room: RunningMatchRoom) => void;
 };
 
 export function useRunActionHandlers({
@@ -82,7 +82,7 @@ export function useRunActionHandlers({
           state: matchRoom.state,
         });
         inputTrace.markFeedback('navigation begin');
-        latestHandlersRef.current.navigateToMatchRoomWithTrace('ready action existing room', matchRoom.roomId);
+        latestHandlersRef.current.navigateToMatchRoomWithTrace('ready action existing room', matchRoom);
         return;
       }
       void latestHandlersRef.current.handleCreateMatchRoom();

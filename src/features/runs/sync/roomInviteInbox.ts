@@ -9,6 +9,17 @@ export type RoomInviteInboxEvent = {
   roomState: RunningMatchRoom['state'];
 };
 
+export type RoomInviteCardDisplaySkipReason =
+  | 'duplicate-invite'
+  | 'no-pending-invite';
+
+export type RecipientRoomInviteInboxResult = {
+  event: RoomInviteInboxEvent | null;
+  pendingCount: number;
+  shouldDisplay: boolean;
+  skippedReason: RoomInviteCardDisplaySkipReason | null;
+};
+
 function getInviteeForUser(room: RunningMatchRoom, userId: string) {
   return room.invitedFriends?.find((invitee) => (
     invitee.userId === userId || invitee.invitedUserId === userId
@@ -54,4 +65,34 @@ export function shouldDisplayRoomInviteCard(
   nextInvite: RoomInviteInboxEvent | null,
 ) {
   return Boolean(nextInvite && previousInviteKey !== nextInvite.key);
+}
+
+export function buildRecipientRoomInviteInboxResult({
+  currentUserId,
+  previousInviteKey,
+  room,
+}: {
+  currentUserId: string;
+  previousInviteKey: string | null;
+  room: RunningMatchRoom | null | undefined;
+}): RecipientRoomInviteInboxResult {
+  const event = buildRoomInviteInboxEvent(room, currentUserId);
+  const pendingCount = event ? 1 : 0;
+
+  if (!event) {
+    return {
+      event: null,
+      pendingCount,
+      shouldDisplay: false,
+      skippedReason: 'no-pending-invite',
+    };
+  }
+
+  const shouldDisplay = shouldDisplayRoomInviteCard(previousInviteKey, event);
+  return {
+    event,
+    pendingCount,
+    shouldDisplay,
+    skippedReason: shouldDisplay ? null : 'duplicate-invite',
+  };
 }

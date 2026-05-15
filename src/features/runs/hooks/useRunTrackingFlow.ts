@@ -48,6 +48,8 @@ type TrackingUiFrame = {
   status: BackgroundRunTrackingSnapshot['status'];
 };
 
+const ANDROID_LIVE_MATCH_GPS_START_DELAY_MS = 1_500;
+
 function buildTrackingUiFrame(
   snapshot: BackgroundRunTrackingSnapshot,
   displayedSnapshot: DisplayedTrackingSnapshot,
@@ -134,6 +136,9 @@ export function useRunTrackingFlow({
 }: UseRunTrackingFlowInput) {
   const gpsTrackingStartKeyRef = useRef<string | null>(null);
   const gpsTrackingStartPromiseRef = useRef<Promise<void> | null>(null);
+  const delayedGpsStartKeyRef = useRef<string | null>(null);
+  const delayedGpsStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const skippedAndroidWarmupMatchIdRef = useRef<string | null>(null);
   const lastTrackingUiFlushMsRef = useRef(0);
   const lastTrackingUiFrameRef = useRef<TrackingUiFrame | null>(null);
   const lifecycleWarmupMatchId = matchLifecycleController?.gps.warmupMatch?.matchId ?? null;
@@ -389,6 +394,14 @@ export function useRunTrackingFlow({
     setCadenceSpm(null);
   };
 
+  const clearDelayedGpsStart = () => {
+    if (delayedGpsStartTimerRef.current) {
+      clearTimeout(delayedGpsStartTimerRef.current);
+      delayedGpsStartTimerRef.current = null;
+    }
+    delayedGpsStartKeyRef.current = null;
+  };
+
   const startMatchTrackingAutomatically = (
     matchId: string,
     options?: { allowCountdownWarmup?: boolean },
@@ -397,8 +410,86 @@ export function useRunTrackingFlow({
       return;
     }
 
+    const isAndroidLiveMatchAutoStart = Platform.OS === 'android' && matchMode !== 'solo';
+    if (isAndroidLiveMatchAutoStart && options?.allowCountdownWarmup) {
+      preStartWarmupMatchIdRef.current = matchId;
+      skippedAndroidWarmupMatchIdRef.current = matchId;
+      rgPerfMark('GPS tracking start delayed after mount', {
+        delayMs: ANDROID_LIVE_MATCH_GPS_START_DELAY_MS,
+        matchId,
+        matchMode,
+        reason: 'android-countdown-warmup-disabled',
+        source: 'match auto warmup',
+      });
+      rgPerfMark('GPS tracking start UI detached', {
+        matchId,
+        matchMode,
+        reason: 'countdown warmup disabled on android',
+        source: 'match auto warmup',
+      });
+      return;
+    }
+
     autoStartingMatchTrackingRef.current = true;
     autoStartedMatchIdRef.current = matchId;
+
+    if (isAndroidLiveMatchAutoStart) {
+      const delayedKey = `${matchMode}:${matchId}:active`;
+      if (delayedGpsStartKeyRef.current === delayedKey && delayedGpsStartTimerRef.current) {
+        rgPerfMark('GPS tracking start skipped duplicate', {
+          delayed: true,
+          matchId,
+          trackingStartKey: delayedKey,
+        });
+        return;
+      }
+
+      clearDelayedGpsStart();
+      delayedGpsStartKeyRef.current = delayedKey;
+      rgPerfMark('GPS tracking start delayed after mount', {
+        delayMs: ANDROID_LIVE_MATCH_GPS_START_DELAY_MS,
+        matchId,
+        matchMode,
+        source: 'match auto start',
+      });
+      delayedGpsStartTimerRef.current = setTimeout(() => {
+        delayedGpsStartTimerRef.current = null;
+        if (delayedGpsStartKeyRef.current !== delayedKey) {
+          rgPerfMark('GPS result ignored without screen change', {
+            matchId,
+            matchMode,
+            reason: 'stale delayed start',
+            source: 'match auto start',
+          });
+          return;
+        }
+
+        rgPerfMark('GPS tracking start UI detached', {
+          matchId,
+          matchMode,
+          source: 'match auto start',
+        });
+        void handleStartTracking({ ...options, matchId })
+          .catch(() => {
+            rgPerfMark('GPS result ignored without screen change', {
+              matchId,
+              matchMode,
+              reason: 'detached start failed',
+              source: 'match auto start',
+            });
+          })
+          .finally(() => {
+            if (delayedGpsStartKeyRef.current === delayedKey) {
+              delayedGpsStartKeyRef.current = null;
+            }
+            autoStartingMatchTrackingRef.current = false;
+            if (getBackgroundRunTrackingSnapshot({ cloneRoute: false }).status !== 'running') {
+              autoStartedMatchIdRef.current = null;
+            }
+          });
+      }, ANDROID_LIVE_MATCH_GPS_START_DELAY_MS);
+      return;
+    }
 
     void handleStartTracking({ ...options, matchId })
       .finally(() => {
@@ -485,6 +576,14 @@ export function useRunTrackingFlow({
       }
 
       const shouldDetachLocationTask = Platform.OS === 'android' && matchMode !== 'solo';
+      if (shouldDetachLocationTask) {
+        rgPerfMark('GPS tracking start UI detached', {
+          allowCountdownWarmup: Boolean(options?.allowCountdownWarmup),
+          matchId: options?.matchId ?? null,
+          matchMode,
+          source: 'handleStartTrackingInternal',
+        });
+      }
       await startBackgroundRunTracking(undefined, {
         appState: appStateRef.current,
         detachLocationTask: shouldDetachLocationTask,
@@ -550,6 +649,10 @@ export function useRunTrackingFlow({
     gpsTrackingStartPromiseRef.current = startPromise;
     return startPromise;
   };
+
+  useEffect(() => () => {
+    clearDelayedGpsStart();
+  }, []);
 
   const handlePauseTracking = async () => {
     await pauseBackgroundRunTracking();
@@ -678,6 +781,10 @@ export function useRunTrackingFlow({
       return;
     }
 
+    if (skippedAndroidWarmupMatchIdRef.current === warmupMatchId) {
+      return;
+    }
+
     startMatchTrackingAutomatically(warmupMatchId, { allowCountdownWarmup: true });
   }, [
     duelMatchState,
@@ -729,10 +836,15 @@ export function useRunTrackingFlow({
 
     if (!activeMatchId) {
       autoStartedMatchIdRef.current = null;
+      skippedAndroidWarmupMatchIdRef.current = null;
       if (!preStartWarmupMatchIdRef.current) {
         officialStartBaselineRef.current = null;
       }
       return;
+    }
+
+    if (skippedAndroidWarmupMatchIdRef.current === activeMatchId) {
+      skippedAndroidWarmupMatchIdRef.current = null;
     }
 
     if (

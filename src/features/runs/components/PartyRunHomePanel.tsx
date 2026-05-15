@@ -7,6 +7,7 @@ import type {
   RunningMatchRoom,
   RunningMatchRoomMode,
 } from '@/lib/api/types';
+import { hydrateOptimisticMatchRoom } from '@/features/match/hooks/lobby/optimisticRoomHydration';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
@@ -47,18 +48,23 @@ export function PartyRunHomePanel({
   onJoinRoom,
 }: PartyRunHomePanelProps) {
   const handleOpenMatchRoom = useCallback(() => {
+    const roomForHydration = visibleRoom ?? currentRoom;
     const inputTrace = beginRgInputTrace('room lobby button press', {
-      roomId: visibleRoom?.roomId ?? currentRoom?.roomId ?? null,
+      roomId: roomForHydration?.roomId ?? null,
       source: 'party room entry button',
     });
     const endNavigationTrace = rgPerfMeasureStart('navigation to lobby', {
-      roomId: visibleRoom?.roomId ?? currentRoom?.roomId ?? null,
+      roomId: roomForHydration?.roomId ?? null,
+      source: 'party room entry button',
+    });
+    hydrateOptimisticMatchRoom({
+      room: roomForHydration,
       source: 'party room entry button',
     });
     inputTrace.markFeedback('navigation begin');
     router.push('/match-room' as Href);
     endNavigationTrace({ success: true });
-  }, [currentRoom?.roomId, visibleRoom?.roomId]);
+  }, [currentRoom, visibleRoom]);
 
   const handleJoinRoomPress = useCallback(() => {
     const trace = beginRgInputTrace('invite code input submit', {

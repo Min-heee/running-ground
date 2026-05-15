@@ -9,6 +9,7 @@ import {
   getRunningMatchBlockerFromError,
   runStaleRoomCleanupWithTimeout,
 } from '@/features/runs/sync/staleRoomCleanup';
+import { hydrateOptimisticMatchRoom } from '@/features/match/hooks/lobby/optimisticRoomHydration';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type FocusRunningMatchInput = {
@@ -198,6 +199,11 @@ export function useMatchEntryEffects({
               roomId: cleanupPayload.room.roomId,
               source: 'room invite token existing room',
             });
+            hydrateOptimisticMatchRoom({
+              room: cleanupPayload.room,
+              serverNow: cleanupPayload.serverNow,
+              source: 'room invite token existing room',
+            });
             router.push('/match-room' as Href);
             endNavigationTrace({ success: true });
             return;
@@ -228,6 +234,11 @@ export function useMatchEntryEffects({
 
         const endNavigationTrace = rgPerfMeasureStart('navigation to lobby', {
           roomId: payload.room.roomId,
+          source: 'room invite token effect',
+        });
+        hydrateOptimisticMatchRoom({
+          room: payload.room,
+          serverNow: payload.serverNow,
           source: 'room invite token effect',
         });
         router.push('/match-room' as Href);

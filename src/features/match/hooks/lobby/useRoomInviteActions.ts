@@ -15,6 +15,7 @@ import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync
 import type { UpdateRoomSettingsInput } from '@/features/runs/types/matchRoom';
 import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+import { buildFriendInviteSelectionState } from './roomInviteSelection';
 
 type UseRoomInviteActionsInput = {
   room: RunningMatchRoom | null;
@@ -192,23 +193,39 @@ export function useRoomInviteActions({
       return;
     }
 
+    const inviteSelection = buildFriendInviteSelectionState({
+      existingInviteIds: room.invitedFriendIds,
+      selectedFriendIds,
+    });
+    const invitedUserIdLog = inviteSelection.invitedUserIdLog;
+    const newInviteIds = inviteSelection.newInviteIds;
+
+    if (!inviteSelection.shouldSend) {
+      rgPerfMark('friend invite skipped no selected user', {
+        invitedUserId: invitedUserIdLog,
+        newInviteCount: newInviteIds.length,
+        reason: inviteSelection.skippedReason,
+        roomId: room.roomId,
+        selectedInviteCount: inviteSelection.selectedInviteCount,
+      });
+      return;
+    }
+
     const existingInviteIds = new Set(room.invitedFriendIds);
-    const newInviteIds = selectedFriendIds.filter((friendId) => !existingInviteIds.has(friendId));
-    const invitedUserIdLog = selectedFriendIds.join(',');
     const inputTrace = beginRgInputTrace('friend invite button press', {
-      invitedUserId: invitedUserIdLog || null,
+      invitedUserId: invitedUserIdLog,
       newInviteCount: newInviteIds.length,
       roomId: room.roomId,
-      selectedInviteCount: selectedFriendIds.length,
+      selectedInviteCount: inviteSelection.selectedInviteCount,
     });
 
     rgPerfMark('friend invite button press', {
-      invitedUserId: invitedUserIdLog || null,
+      invitedUserId: invitedUserIdLog,
       newInviteCount: newInviteIds.length,
       roomId: room.roomId,
-      selectedInviteCount: selectedFriendIds.length,
+      selectedInviteCount: inviteSelection.selectedInviteCount,
     });
-    selectedFriendIds.forEach((invitedUserId) => {
+    inviteSelection.normalizedSelectedFriendIds.forEach((invitedUserId) => {
       rgPerfMark('friend invite button press', {
         invitedUserId,
         isNewInvite: !existingInviteIds.has(invitedUserId),
@@ -231,20 +248,20 @@ export function useRoomInviteActions({
     const endInviteApiTrace = rgPerfMeasureStart('friend invite API', {
       hasInviteToken: Boolean(room.inviteToken),
       hasRoomId: Boolean(room.roomId),
-      invitedUserId: invitedUserIdLog || null,
+      invitedUserId: invitedUserIdLog,
       newInviteCount: newInviteIds.length,
       roomId: room.roomId,
     });
 
     try {
-      const nextRoom = await saveRoomSettings({ invitedFriendIds: selectedFriendIds });
+      const nextRoom = await saveRoomSettings({ invitedFriendIds: inviteSelection.normalizedSelectedFriendIds });
       if (!nextRoom) {
         endInviteApiTrace({
           reason: 'missing room response',
           success: false,
         });
         rgPerfMark('friend invite API error', {
-          invitedUserId: invitedUserIdLog || null,
+          invitedUserId: invitedUserIdLog,
           reason: 'missing room response',
           roomId: room.roomId,
         });
@@ -252,7 +269,7 @@ export function useRoomInviteActions({
         return;
       }
 
-      const inviteRecords = ensureRunningMatchRoomFriendInviteRecords(nextRoom, selectedFriendIds);
+      const inviteRecords = ensureRunningMatchRoomFriendInviteRecords(nextRoom, inviteSelection.normalizedSelectedFriendIds);
       inviteRecords.forEach((record) => {
         rgPerfMark('friend invite API end', {
           inviteId: record.inviteId,
@@ -273,7 +290,7 @@ export function useRoomInviteActions({
         success: false,
       });
       rgPerfMark('friend invite API error', {
-        invitedUserId: invitedUserIdLog || null,
+        invitedUserId: invitedUserIdLog,
         message,
         roomId: room.roomId,
       });

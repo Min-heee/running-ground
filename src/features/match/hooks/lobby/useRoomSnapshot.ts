@@ -15,9 +15,11 @@ import {
   buildActiveRoomSnapshotKey,
 } from '@/features/runs/sync/activeRoomResult';
 import {
-  buildRoomInviteInboxEvent,
-  shouldDisplayRoomInviteCard,
+  buildRecipientRoomInviteInboxResult,
 } from '@/features/runs/sync/roomInviteInbox';
+import {
+  consumeOptimisticMatchRoomHydration,
+} from '@/features/match/hooks/lobby/optimisticRoomHydration';
 import {
   parseServerNowMs,
   resolveStableServerClockOffset,
@@ -100,11 +102,16 @@ function resolveMatchRoomSnapshotPollingPolicy({
 export function useRoomSnapshot() {
   const currentUser = getCurrentUserProfile();
   const currentUserTag = currentUser?.publicTag ?? 'mock-current-user';
-  const latestRoomServerNowMsRef = useRef(0);
+  const [optimisticRoomHydration] = useState(() => consumeOptimisticMatchRoomHydration());
+  const initialOptimisticRoom = optimisticRoomHydration?.room ?? null;
+  const initialOptimisticServerNowMs = parseServerNowMs(optimisticRoomHydration?.serverNow) ?? 0;
+  const latestRoomServerNowMsRef = useRef(initialOptimisticServerNowMs);
   const lastHandledActiveRoomSnapshotKeyRef = useRef<string | null>(null);
   const lastDisplayedInviteKeyRef = useRef<string | null>(null);
-  const roomRenderKeyRef = useRef<string | null>(null);
-  const roomRef = useRef<RunningMatchRoom | null>(null);
+  const roomRenderKeyRef = useRef<string | null>(
+    initialOptimisticRoom ? buildRoomRenderKey(initialOptimisticRoom) : null,
+  );
+  const roomRef = useRef<RunningMatchRoom | null>(initialOptimisticRoom);
   const liveMatchHandoffRef = useRef<{ matchId: string; roomId: string } | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const lastInviteInboxPollStartedAtRef = useRef(0);
@@ -112,14 +119,17 @@ export function useRoomSnapshot() {
   const screenFocusedRef = useRef(false);
   const mountedRef = useRef(true);
   const foregroundDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const optimisticRouteKeyLoggedRef = useRef(false);
 
-  const [room, setRoom] = useState<RunningMatchRoom | null>(null);
+  const [room, setRoom] = useState<RunningMatchRoom | null>(initialOptimisticRoom);
   const [friendLeaderboard, setFriendLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialOptimisticRoom);
   const [pollingPaused, setPollingPaused] = useState(false);
   const [screenFocused, setScreenFocused] = useState(false);
-  const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0);
+  const [serverClockOffsetMs, setServerClockOffsetMs] = useState(
+    initialOptimisticServerNowMs ? initialOptimisticServerNowMs - Date.now() : 0,
+  );
 
   const syncServerClock = useCallback((serverNow?: string) => {
     const serverNowMs = parseServerNowMs(serverNow);
@@ -173,13 +183,31 @@ export function useRoomSnapshot() {
     });
   }, []);
 
-  const buildMatchRoomActiveRoomCheckRouteKey = useCallback(() => [
-    'match-room',
-    screenFocusedRef.current ? 'focused' : 'blurred',
-    pollingPausedRef.current ? 'paused' : 'polling',
-    roomRef.current?.roomId ?? 'no-room',
-    roomRef.current?.linkedMatchId ?? 'no-match',
-  ].join(':'), []);
+  const buildMatchRoomActiveRoomCheckRouteKey = useCallback(() => {
+    const routeKey = [
+      'match-room',
+      screenFocusedRef.current ? 'focused' : 'blurred',
+      pollingPausedRef.current ? 'paused' : 'polling',
+      roomRef.current?.roomId ?? 'no-room',
+      roomRef.current?.linkedMatchId ?? 'no-match',
+    ].join(':');
+
+    if (
+      optimisticRoomHydration
+      && roomRef.current?.roomId
+      && !optimisticRouteKeyLoggedRef.current
+    ) {
+      optimisticRouteKeyLoggedRef.current = true;
+      rgPerfMark('lobby route key hydrated from created room', {
+        roomId: roomRef.current.roomId,
+        routeKey,
+        source: optimisticRoomHydration.source,
+        state: roomRef.current.state,
+      });
+    }
+
+    return routeKey;
+  }, [optimisticRoomHydration]);
 
   const loadRoom = useCallback(async () => {
     if (pollingPausedRef.current || !screenFocusedRef.current) {
@@ -330,31 +358,43 @@ export function useRoomSnapshot() {
       }
 
       const nextRoom = payload.room;
-      const inviteInboxEvent = buildRoomInviteInboxEvent(nextRoom, currentUserTag);
-      if (inviteInboxEvent) {
-        if (shouldDisplayRoomInviteCard(lastDisplayedInviteKeyRef.current, inviteInboxEvent)) {
-          lastDisplayedInviteKeyRef.current = inviteInboxEvent.key;
+      const inviteInboxResult = buildRecipientRoomInviteInboxResult({
+        currentUserId: currentUserTag,
+        previousInviteKey: lastDisplayedInviteKeyRef.current,
+        room: nextRoom,
+      });
+      if (inviteInboxResult.event) {
+        if (inviteInboxResult.shouldDisplay) {
+          lastDisplayedInviteKeyRef.current = inviteInboxResult.event.key;
           rgPerfMark('invite received', {
-            inviteId: inviteInboxEvent.inviteId,
-            invitedUserId: inviteInboxEvent.invitedUserId,
-            roomId: inviteInboxEvent.roomId,
+            inviteId: inviteInboxResult.event.inviteId,
+            invitedUserId: inviteInboxResult.event.invitedUserId,
+            roomId: inviteInboxResult.event.roomId,
             source: 'invite inbox polling',
-            state: inviteInboxEvent.roomState,
+            state: inviteInboxResult.event.roomState,
           });
           rgPerfMark('invite card displayed', {
-            inviteId: inviteInboxEvent.inviteId,
-            invitedUserId: inviteInboxEvent.invitedUserId,
-            roomId: inviteInboxEvent.roomId,
+            inviteId: inviteInboxResult.event.inviteId,
+            invitedUserId: inviteInboxResult.event.invitedUserId,
+            roomId: inviteInboxResult.event.roomId,
             source: 'invite inbox polling',
-            state: inviteInboxEvent.roomState,
+            state: inviteInboxResult.event.roomState,
           });
         } else {
           rgPerfMark('invite card display skipped duplicate', {
-            inviteId: inviteInboxEvent.inviteId,
-            invitedUserId: inviteInboxEvent.invitedUserId,
-            roomId: inviteInboxEvent.roomId,
+            inviteId: inviteInboxResult.event.inviteId,
+            invitedUserId: inviteInboxResult.event.invitedUserId,
+            roomId: inviteInboxResult.event.roomId,
             source: 'invite inbox polling',
-            state: inviteInboxEvent.roomState,
+            state: inviteInboxResult.event.roomState,
+          });
+          rgPerfMark('invite card display skipped reason', {
+            inviteId: inviteInboxResult.event.inviteId,
+            invitedUserId: inviteInboxResult.event.invitedUserId,
+            reason: inviteInboxResult.skippedReason,
+            roomId: inviteInboxResult.event.roomId,
+            source: 'invite inbox polling',
+            state: inviteInboxResult.event.roomState,
           });
         }
       }
@@ -382,6 +422,18 @@ export function useRoomSnapshot() {
     markLiveMatchHandoff,
     syncServerClock,
   ]);
+
+  useEffect(() => {
+    if (!optimisticRoomHydration?.room) {
+      return;
+    }
+
+    rgPerfMark('lobby no-room state suppressed during hydration', {
+      roomId: optimisticRoomHydration.room.roomId,
+      source: optimisticRoomHydration.source,
+      state: optimisticRoomHydration.room.state,
+    });
+  }, [optimisticRoomHydration]);
 
   useEffect(() => () => {
     mountedRef.current = false;

@@ -117,6 +117,14 @@ export function createLocationTaskManager(adapter: LocationTaskManagerAdapter) {
         taskKey,
         trackingKey: options?.trackingKey ?? null,
       });
+      if (isForegroundActive) {
+        adapter.mark('GPS result ignored without screen change', {
+          appState,
+          reason,
+          taskKey,
+          trackingKey: options?.trackingKey ?? null,
+        });
+      }
     };
 
     const nativeStartPromise = adapter.startLocationTask({ appState })
@@ -161,24 +169,34 @@ export function createLocationTaskManager(adapter: LocationTaskManagerAdapter) {
         }
       });
 
-    const startPromise = isForegroundActive
-      ? nativeStartPromise
-      : Promise.race([
+    const shouldUseNonBlockingTimeout = !isForegroundActive || Boolean(options?.detachLocationTask);
+    const startPromise = shouldUseNonBlockingTimeout
+      ? Promise.race([
         nativeStartPromise,
         new Promise<void>((resolve) => {
           timeoutId = adapter.setTimeout(() => {
             timedOut = true;
-            adapter.mark('background task start timed out detached', {
-              appState,
-              taskKey,
-              timeoutMs: LOCATION_TASK_START_TIMEOUT_MS,
-              trackingKey: options?.trackingKey ?? null,
-            });
+            if (isForegroundActive) {
+              adapter.mark('GPS tracking start timed out non-blocking', {
+                appState,
+                taskKey,
+                timeoutMs: LOCATION_TASK_START_TIMEOUT_MS,
+                trackingKey: options?.trackingKey ?? null,
+              });
+            } else {
+              adapter.mark('background task start timed out detached', {
+                appState,
+                taskKey,
+                timeoutMs: LOCATION_TASK_START_TIMEOUT_MS,
+                trackingKey: options?.trackingKey ?? null,
+              });
+            }
             finishTrace({ success: false, timedOut: true });
             resolve();
           }, LOCATION_TASK_START_TIMEOUT_MS);
         }),
-      ]);
+      ])
+      : nativeStartPromise;
 
     locationTaskStartRequest = { key: taskKey, promise: startPromise };
     return startPromise;
