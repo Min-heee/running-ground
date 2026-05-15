@@ -61,6 +61,7 @@
     "android": "expo run:android",
     "web": "expo start --web",
     "lint": "eslint .",
+    "code:quality": "node ./scripts/analyze-code-quality.mjs",
     "perf:trace-analyze": "node ./scripts/analyze-android-perf-trace.mjs",
     "perf:smells": "node ./scripts/check-performance-smells.mjs",
     "performance:smells": "node ./scripts/check-performance-smells.mjs",
