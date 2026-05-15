@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
@@ -21,39 +22,63 @@ export function ConnectedSourcesCard({
   actionSourceType,
   onDisconnectSource,
 }: ConnectedSourcesCardProps) {
+  const sourceRows = useMemo(() => sources.map((source) => (
+    <ConnectedSourceRow
+      key={source.sourceType}
+      source={source}
+      platform={platform}
+      actionSourceType={actionSourceType}
+      onDisconnectSource={onDisconnectSource}
+    />
+  )), [actionSourceType, onDisconnectSource, platform, sources]);
+
   return (
     <Card>
       <Text style={styles.sectionTitle}>지금 연결된 소스</Text>
       <Text style={styles.helperText}>자동 기록 소스는 한 번에 1개만 연결돼. 새로 연결하면 이전 자동 연동은 자동으로 해제돼.</Text>
-      {sources.map((source) => {
-        const metadata = getSourceMetadata(source.sourceType, platform);
-
-        return (
-          <View key={source.sourceType} style={styles.row}>
-            <View style={styles.meta}>
-              <Text style={styles.name}>{source.displayName}</Text>
-              <Text style={styles.detail}>마지막 동기화 {source.lastSyncedAt ?? '아직 없음'}</Text>
-              {source.pendingImportCount ? <Text style={styles.pendingText}>대기 중인 가져오기 {source.pendingImportCount}개</Text> : null}
-              <Text style={styles.platform}>{metadata.shortDescription}</Text>
-            </View>
-            <Pressable
-              style={[styles.actionButton, styles.connectedBadge, actionSourceType === source.sourceType && styles.actionButtonDisabled]}
-              disabled={actionSourceType === source.sourceType}
-              onPress={() => {
-                void onDisconnectSource(source.sourceType);
-              }}
-            >
-              <Text style={styles.connectedBadgeText}>
-                {actionSourceType === source.sourceType ? '처리 중...' : '해제'}
-              </Text>
-            </Pressable>
-          </View>
-        );
-      })}
+      {sourceRows}
       {sources.length === 0 ? <Text style={styles.emptyText}>아직 연결된 기록 소스가 없어.</Text> : null}
     </Card>
   );
 }
+
+const ConnectedSourceRow = memo(function ConnectedSourceRow({
+  actionSourceType,
+  onDisconnectSource,
+  platform,
+  source,
+}: {
+  actionSourceType: string | null;
+  onDisconnectSource: (sourceType: RunSourceType) => Promise<void> | void;
+  platform: DevicePlatform;
+  source: IntegrationSource;
+}) {
+  const metadata = useMemo(() => getSourceMetadata(source.sourceType, platform), [platform, source.sourceType]);
+  const isBusy = actionSourceType === source.sourceType;
+  const handleDisconnect = useCallback(() => {
+    void onDisconnectSource(source.sourceType);
+  }, [onDisconnectSource, source.sourceType]);
+
+  return (
+    <View style={styles.row}>
+      <View style={styles.meta}>
+        <Text style={styles.name}>{source.displayName}</Text>
+        <Text style={styles.detail}>마지막 동기화 {source.lastSyncedAt ?? '아직 없음'}</Text>
+        {source.pendingImportCount ? <Text style={styles.pendingText}>대기 중인 가져오기 {source.pendingImportCount}개</Text> : null}
+        <Text style={styles.platform}>{metadata.shortDescription}</Text>
+      </View>
+      <Pressable
+        style={[styles.actionButton, styles.connectedBadge, isBusy && styles.actionButtonDisabled]}
+        disabled={isBusy}
+        onPress={handleDisconnect}
+      >
+        <Text style={styles.connectedBadgeText}>
+          {isBusy ? '처리 중...' : '해제'}
+        </Text>
+      </Pressable>
+    </View>
+  );
+});
 
 type AvailableSourcesCardProps = {
   sources: IntegrationSource[];
@@ -68,37 +93,61 @@ export function AvailableSourcesCard({
   actionSourceType,
   onConnectSource,
 }: AvailableSourcesCardProps) {
+  const sourceRows = useMemo(() => sources.map((source) => (
+    <AvailableSourceRow
+      key={source.sourceType}
+      source={source}
+      platform={platform}
+      actionSourceType={actionSourceType}
+      onConnectSource={onConnectSource}
+    />
+  )), [actionSourceType, onConnectSource, platform, sources]);
+
   return (
     <Card>
       <Text style={styles.sectionTitle}>추가로 붙일 수 있는 소스</Text>
-      {sources.map((source) => {
-        const metadata = getSourceMetadata(source.sourceType, platform);
-
-        return (
-          <View key={source.sourceType} style={styles.row}>
-            <View style={styles.meta}>
-              <Text style={styles.name}>{source.displayName}</Text>
-              <Text style={styles.detail}>{metadata.shortDescription}</Text>
-              <Text style={styles.platform}>{metadata.setupHint}</Text>
-            </View>
-            <Pressable
-              style={[styles.actionButton, styles.plannedBadge, actionSourceType === source.sourceType && styles.actionButtonDisabled]}
-              disabled={actionSourceType === source.sourceType}
-              onPress={() => {
-                void onConnectSource(source.sourceType);
-              }}
-            >
-              <Text style={styles.plannedBadgeText}>
-                {actionSourceType === source.sourceType ? '연결 중...' : '연결하기'}
-              </Text>
-            </Pressable>
-          </View>
-        );
-      })}
+      {sourceRows}
       {sources.length === 0 ? <Text style={styles.emptyText}>지금 바로 추가로 붙일 확장 소스가 없어.</Text> : null}
     </Card>
   );
 }
+
+const AvailableSourceRow = memo(function AvailableSourceRow({
+  actionSourceType,
+  onConnectSource,
+  platform,
+  source,
+}: {
+  actionSourceType: string | null;
+  onConnectSource: (sourceType: RunSourceType) => Promise<void> | void;
+  platform: DevicePlatform;
+  source: IntegrationSource;
+}) {
+  const metadata = useMemo(() => getSourceMetadata(source.sourceType, platform), [platform, source.sourceType]);
+  const isBusy = actionSourceType === source.sourceType;
+  const handleConnect = useCallback(() => {
+    void onConnectSource(source.sourceType);
+  }, [onConnectSource, source.sourceType]);
+
+  return (
+    <View style={styles.row}>
+      <View style={styles.meta}>
+        <Text style={styles.name}>{source.displayName}</Text>
+        <Text style={styles.detail}>{metadata.shortDescription}</Text>
+        <Text style={styles.platform}>{metadata.setupHint}</Text>
+      </View>
+      <Pressable
+        style={[styles.actionButton, styles.plannedBadge, isBusy && styles.actionButtonDisabled]}
+        disabled={isBusy}
+        onPress={handleConnect}
+      >
+        <Text style={styles.plannedBadgeText}>
+          {isBusy ? '연결 중...' : '연결하기'}
+        </Text>
+      </Pressable>
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   sectionTitle: {

@@ -26,6 +26,13 @@ function getInviteeForUser(room: RunningMatchRoom, userId: string) {
   )) ?? null;
 }
 
+function isPendingInviteForUser(room: RunningMatchRoom, userId: string) {
+  return Boolean(
+    getInviteeForUser(room, userId)
+    || room.invitedFriendIds.includes(userId),
+  );
+}
+
 export function buildRoomInviteInboxEvent(
   room: RunningMatchRoom | null | undefined,
   currentUserId: string,
@@ -34,9 +41,8 @@ export function buildRoomInviteInboxEvent(
     return null;
   }
 
-  const invitee = getInviteeForUser(room, currentUserId)
-    ?? (room.invitedFriends?.length === 1 ? room.invitedFriends[0] : null);
-  const isCurrentUserInvited = room.joined === false || room.invitedFriendIds.includes(currentUserId) || Boolean(invitee);
+  const invitee = getInviteeForUser(room, currentUserId);
+  const isCurrentUserInvited = isPendingInviteForUser(room, currentUserId);
   if (!isCurrentUserInvited || !room.roomId || !room.inviteToken) {
     return null;
   }

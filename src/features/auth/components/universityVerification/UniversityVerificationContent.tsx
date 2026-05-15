@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { router } from 'expo-router';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { Card } from '@/components/Card';
@@ -7,8 +8,17 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { VERIFICATION_METHODS } from '@/features/auth/utils/universityVerification';
 import { universityVerificationStyles as styles } from './universityVerificationStyles';
 import type { UniversityVerificationModel } from './types';
+import {
+  UniversitySuggestionChip,
+  VerificationMethodButton,
+  VerificationStepRow,
+} from './UniversityVerificationRows';
 
 export function UniversityVerificationContent({ model }: { model: UniversityVerificationModel }) {
+  const handleBackToMyPage = useCallback(() => {
+    router.replace('/(tabs)/mypage');
+  }, []);
+
   if (!model.profile) {
     return null;
   }
@@ -29,7 +39,7 @@ export function UniversityVerificationContent({ model }: { model: UniversityVeri
         steps={model.selectedMethod.steps}
       />
       <VerificationBenefitsCard />
-      <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} />
+      <SecondaryButton label="마이페이지로 돌아가기" onPress={handleBackToMyPage} />
     </>
   );
 }
@@ -58,34 +68,35 @@ function VerificationMethodPicker({
   onSelectMethod: UniversityVerificationModel['handleSelectMethod'];
   selectedMethodId: UniversityVerificationModel['selectedMethodId'];
 }) {
+  const methodButtons = useMemo(() => VERIFICATION_METHODS.map((method) => (
+    <VerificationMethodButton
+      key={method.id}
+      method={method}
+      selected={method.id === selectedMethodId}
+      onSelectMethod={onSelectMethod}
+    />
+  )), [onSelectMethod, selectedMethodId]);
+
   return (
     <Card style={styles.methodPickerCard}>
       <Text style={styles.sectionTitle}>인증 방식 선택</Text>
       <View style={styles.methodPickerRow}>
-        {VERIFICATION_METHODS.map((method) => {
-          const selected = method.id === selectedMethodId;
-
-          return (
-            <Pressable
-              key={method.id}
-              style={[styles.methodPickerButton, selected ? styles.methodPickerButtonSelected : null]}
-              onPress={() => onSelectMethod(method.id)}
-            >
-              <Text style={[styles.methodPickerButtonTitle, selected ? styles.methodPickerButtonTitleSelected : null]}>
-                {method.title}
-              </Text>
-              <Text style={[styles.methodPickerButtonSummary, selected ? styles.methodPickerButtonSummarySelected : null]}>
-                {method.id === 'certificate' ? '운영 검토형' : '간편 인증형'}
-              </Text>
-            </Pressable>
-          );
-        })}
+        {methodButtons}
       </View>
     </Card>
   );
 }
 
 function VerificationDraftForm({ model }: { model: UniversityVerificationModel }) {
+  const universitySuggestions = useMemo(() => model.filteredUniversities.map((university) => (
+    <UniversitySuggestionChip
+      key={university}
+      university={university}
+      selected={university === model.universityQuery}
+      onSelectUniversity={model.handleUniversityQueryChange}
+    />
+  )), [model.filteredUniversities, model.handleUniversityQueryChange, model.universityQuery]);
+
   return (
     <Card style={styles.formCard}>
       <Text style={styles.sectionTitle}>인증 신청 초안</Text>
@@ -102,21 +113,7 @@ function VerificationDraftForm({ model }: { model: UniversityVerificationModel }
         />
         {model.filteredUniversities.length > 0 ? (
           <View style={styles.suggestionWrap}>
-            {model.filteredUniversities.map((university) => {
-              const selected = university === model.universityQuery;
-
-              return (
-                <Pressable
-                  key={university}
-                  style={[styles.suggestionChip, selected ? styles.suggestionChipSelected : null]}
-                  onPress={() => model.handleUniversityQueryChange(university)}
-                >
-                  <Text style={[styles.suggestionChipText, selected ? styles.suggestionChipTextSelected : null]}>
-                    {university}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {universitySuggestions}
           </View>
         ) : null}
       </View>
@@ -214,27 +211,29 @@ function VerificationMethodGuide({
   checklist: string[];
   steps: string[];
 }) {
+  const stepRows = useMemo(() => steps.map((step, index) => (
+    <VerificationStepRow
+      key={step}
+      index={index}
+      step={step}
+    />
+  )), [steps]);
+  const checklistRows = useMemo(() => checklist.map((item) => (
+    <ListRow key={item}>{item}</ListRow>
+  )), [checklist]);
+
   return (
     <>
       <Card style={styles.methodCard}>
         <Text style={styles.sectionTitle}>이 방식으로 진행할 예정이에요</Text>
         <View style={styles.stepList}>
-          {steps.map((step, index) => (
-            <View key={step} style={styles.stepRow}>
-              <View style={styles.stepDot}>
-                <Text style={styles.stepDotText}>{index + 1}</Text>
-              </View>
-              <Text style={styles.stepText}>{step}</Text>
-            </View>
-          ))}
+          {stepRows}
         </View>
       </Card>
 
       <Card>
         <Text style={styles.sectionTitle}>체크해둘 준비물</Text>
-        {checklist.map((item) => (
-          <ListRow key={item}>{item}</ListRow>
-        ))}
+        {checklistRows}
       </Card>
     </>
   );

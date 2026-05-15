@@ -1,0 +1,132 @@
+import {
+  getBackgroundRunTrackingSnapshot,
+  pauseBackgroundRunTracking,
+} from '@/features/runs/tracking/background';
+import { isUnsavableShortRunError } from '@/features/runs/utils/matchScheduling';
+import { resolveActiveMatchId } from '@/features/runs/lifecycle/matchStateMachine';
+import { createTrackedRun, getApiErrorMessage } from '@/services';
+import type { SaveTrackingOptions } from '@/features/runs/hooks/useRunTracking';
+import { buildRunSaveResultSnapshot } from './runSaveResultMapper';
+import { runCleanupAfterSave } from './runCleanupAfterSave';
+import { runPointRankingPostProcessor } from './runPointRankingPostProcessor';
+import type { UseRunSaveFlowInput } from './types';
+
+export function useRunSaveCommand({
+  autoStartedMatchIdRef,
+  buildDisplayedMatchProgress,
+  discardCurrentTracking,
+  duelMatchStatus,
+  getDisplayedTrackingSnapshot,
+  groupMatchStatus,
+  isTabMode,
+  matchMode,
+  officialStartBaselineRef,
+  preStartWarmupMatchIdRef,
+  pushRunningMatchProgress,
+  resetForegroundTrackingState,
+  roomLinkedMatchContext,
+  setError,
+  setStatus,
+  status,
+  stopForegroundTrackingHelpers,
+  syncElapsedSeconds,
+  syncFromBackgroundTracking,
+  syncLiveSharing,
+  totalStepsRef,
+  trackedMatchResult,
+}: Pick<
+  UseRunSaveFlowInput,
+  | 'autoStartedMatchIdRef'
+  | 'buildDisplayedMatchProgress'
+  | 'duelMatchStatus'
+  | 'getDisplayedTrackingSnapshot'
+  | 'groupMatchStatus'
+  | 'isTabMode'
+  | 'matchMode'
+  | 'officialStartBaselineRef'
+  | 'preStartWarmupMatchIdRef'
+  | 'pushRunningMatchProgress'
+  | 'resetForegroundTrackingState'
+  | 'roomLinkedMatchContext'
+  | 'setError'
+  | 'setStatus'
+  | 'status'
+  | 'stopForegroundTrackingHelpers'
+  | 'syncElapsedSeconds'
+  | 'syncFromBackgroundTracking'
+  | 'syncLiveSharing'
+  | 'totalStepsRef'
+  | 'trackedMatchResult'
+> & {
+  discardCurrentTracking: () => Promise<void>;
+}) {
+  return async (options: SaveTrackingOptions = {}) => {
+    try {
+      setError(null);
+
+      if (status === 'running') {
+        await pauseBackgroundRunTracking();
+        stopForegroundTrackingHelpers();
+      }
+
+      const trackingSnapshot = getBackgroundRunTrackingSnapshot();
+      const displayedSnapshot = getDisplayedTrackingSnapshot(trackingSnapshot);
+      syncFromBackgroundTracking(trackingSnapshot);
+      const saveSnapshot = buildRunSaveResultSnapshot({
+        displayedSnapshot,
+        totalSteps: totalStepsRef.current,
+        trackedMatchResult,
+      });
+      syncElapsedSeconds(saveSnapshot.finalElapsedSeconds);
+
+      const activeMatchId = resolveActiveMatchId({
+        matchMode,
+        duelMatchId: duelMatchStatus?.matchId,
+        groupMatchId: groupMatchStatus?.matchId,
+        roomLinkedMatchContext,
+      });
+
+      if (activeMatchId) {
+        try {
+          const progress = buildDisplayedMatchProgress(trackingSnapshot);
+          await pushRunningMatchProgress({
+            matchId: activeMatchId,
+            distanceKm: progress.distanceKm,
+            elapsedSeconds: progress.elapsedSeconds,
+            currentPace: progress.currentPace,
+            status: 'finished',
+          });
+        } catch {
+          setError('러닝 결과는 계산됐지만 경쟁 상태를 마지막으로 반영하지 못했어요.');
+        }
+      }
+
+      setStatus('saving');
+      const savedRun = await createTrackedRun(saveSnapshot.createRunInput);
+      await runCleanupAfterSave({
+        autoStartedMatchIdRef,
+        officialStartBaselineRef,
+        options,
+        preStartWarmupMatchIdRef,
+        resetForegroundTrackingState,
+        setStatus,
+        syncLiveSharing,
+      });
+
+      runPointRankingPostProcessor({
+        isTabMode,
+        runId: savedRun.run.id,
+      });
+      return true;
+    } catch (saveError) {
+      if (options.exitIfUnsavable && isUnsavableShortRunError(saveError)) {
+        await discardCurrentTracking();
+        return false;
+      }
+
+      setStatus('paused');
+      setError(getApiErrorMessage(saveError, '러닝 기록 저장에 실패했어.'));
+      return false;
+    }
+  };
+}

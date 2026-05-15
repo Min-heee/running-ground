@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import type { FriendRank } from '@/domain';
@@ -24,33 +25,31 @@ export function MatchRoomFriendInviteCard({
   onSelectedFriendIdsChange,
   onSendFriendInvites,
 }: MatchRoomFriendInviteCardProps) {
+  const selectedFriendIdSet = useMemo(() => new Set(selectedFriendIds), [selectedFriendIds]);
+  const handleToggleFriend = useCallback((friendId: string, isSelected: boolean) => {
+    const nextIds = isSelected
+      ? selectedFriendIds.filter((id) => id !== friendId)
+      : mode === 'duel'
+        ? [friendId]
+        : [...selectedFriendIds, friendId].slice(0, maxParticipants - 1);
+    onSelectedFriendIdsChange(nextIds);
+  }, [maxParticipants, mode, onSelectedFriendIdsChange, selectedFriendIds]);
+  const friendChips = useMemo(() => friendOptions.map((friend) => (
+    <FriendInviteChip
+      key={friend.id}
+      friend={friend}
+      isSelected={selectedFriendIdSet.has(friend.id)}
+      saving={saving}
+      onToggleFriend={handleToggleFriend}
+    />
+  )), [friendOptions, handleToggleFriend, saving, selectedFriendIdSet]);
+
   return (
     <Card>
       <Text style={styles.sectionTitle}>친구 초대</Text>
       {friendOptions.length ? (
         <View style={styles.friendWrap}>
-          {friendOptions.map((friend) => {
-            const isSelected = selectedFriendIds.includes(friend.id);
-            return (
-              <Pressable
-                key={friend.id}
-                style={[styles.friendChip, isSelected ? styles.friendChipSelected : undefined]}
-                onPress={() => {
-                  const nextIds = isSelected
-                    ? selectedFriendIds.filter((id) => id !== friend.id)
-                    : mode === 'duel'
-                      ? [friend.id]
-                      : [...selectedFriendIds, friend.id].slice(0, maxParticipants - 1);
-                  onSelectedFriendIdsChange(nextIds);
-                }}
-                disabled={saving}
-              >
-                <Text style={[styles.friendChipText, isSelected ? styles.friendChipTextSelected : undefined]}>
-                  {friend.name}
-                </Text>
-              </Pressable>
-            );
-          })}
+          {friendChips}
         </View>
       ) : (
         <Text style={styles.helperText}>친구 목록이 아직 없으면 링크 공유로 초대하면 돼요.</Text>
@@ -77,6 +76,34 @@ export function MatchRoomFriendInviteCard({
     </Card>
   );
 }
+
+const FriendInviteChip = memo(function FriendInviteChip({
+  friend,
+  isSelected,
+  onToggleFriend,
+  saving,
+}: {
+  friend: FriendRank;
+  isSelected: boolean;
+  onToggleFriend: (friendId: string, isSelected: boolean) => void;
+  saving: boolean;
+}) {
+  const handlePress = useCallback(() => {
+    onToggleFriend(friend.id, isSelected);
+  }, [friend.id, isSelected, onToggleFriend]);
+
+  return (
+    <Pressable
+      style={[styles.friendChip, isSelected ? styles.friendChipSelected : undefined]}
+      onPress={handlePress}
+      disabled={saving}
+    >
+      <Text style={[styles.friendChipText, isSelected ? styles.friendChipTextSelected : undefined]}>
+        {friend.name}
+      </Text>
+    </Pressable>
+  );
+});
 
 const styles = StyleSheet.create({
   sectionTitle: {

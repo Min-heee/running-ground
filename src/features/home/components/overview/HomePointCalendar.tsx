@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StreakCalendarCell, WeeklyPointTrack } from '@/features/points/pointSystem';
 
@@ -18,6 +19,17 @@ export function HomePointCalendar({
   onCurrentMonth,
   onNextMonth,
 }: HomePointCalendarProps) {
+  const weekdayLabels = useMemo(() => calendar.weekdayLabels.map((label) => (
+    <Text key={label} style={styles.calendarWeekday}>{label}</Text>
+  )), [calendar.weekdayLabels]);
+  const calendarRowNodes = useMemo(() => calendarRows.map((row, rowIndex) => (
+    <CalendarWeekRow
+      key={`calendar-row-${rowIndex}`}
+      row={row}
+      rowIndex={rowIndex}
+    />
+  )), [calendarRows]);
+
   return (
     <View style={styles.calendarWrap}>
       <View style={styles.calendarHeader}>
@@ -47,46 +59,64 @@ export function HomePointCalendar({
       </View>
 
       <View style={styles.calendarWeekHeader}>
-        {calendar.weekdayLabels.map((label) => (
-          <Text key={label} style={styles.calendarWeekday}>{label}</Text>
-        ))}
+        {weekdayLabels}
       </View>
 
       <View style={styles.calendarGrid}>
-        {calendarRows.map((row, rowIndex) => (
-          <View key={`calendar-row-${rowIndex}`} style={styles.calendarRow}>
-            {row.map((cell) => (
-              <View
-                key={cell.key}
-                style={[
-                  styles.calendarCell,
-                  cell.isPlaceholder && styles.calendarCellPlaceholder,
-                  cell.didRun && styles.calendarCellActive,
-                ]}
-              >
-                {!cell.isPlaceholder ? (
-                  <>
-                    <Text
-                      style={[
-                        styles.calendarDay,
-                        cell.didRun && styles.calendarDayActive,
-                      ]}
-                    >
-                      {cell.dayNumber}
-                    </Text>
-                    {cell.earnedPoints > 0 ? (
-                      <Text style={styles.calendarReward}>+{cell.earnedPoints}</Text>
-                    ) : null}
-                  </>
-                ) : null}
-              </View>
-            ))}
-          </View>
-        ))}
+        {calendarRowNodes}
       </View>
     </View>
   );
 }
+
+const CalendarWeekRow = memo(function CalendarWeekRow({
+  row,
+}: {
+  row: StreakCalendarCell[];
+  rowIndex: number;
+}) {
+  const cellNodes = useMemo(() => row.map((cell) => (
+    <CalendarDayCell key={cell.key} cell={cell} />
+  )), [row]);
+
+  return (
+    <View style={styles.calendarRow}>
+      {cellNodes}
+    </View>
+  );
+});
+
+const CalendarDayCell = memo(function CalendarDayCell({
+  cell,
+}: {
+  cell: StreakCalendarCell;
+}) {
+  return (
+    <View
+      style={[
+        styles.calendarCell,
+        cell.isPlaceholder && styles.calendarCellPlaceholder,
+        cell.didRun && styles.calendarCellActive,
+      ]}
+    >
+      {!cell.isPlaceholder ? (
+        <>
+          <Text
+            style={[
+              styles.calendarDay,
+              cell.didRun && styles.calendarDayActive,
+            ]}
+          >
+            {cell.dayNumber}
+          </Text>
+          {cell.earnedPoints > 0 ? (
+            <Text style={styles.calendarReward}>+{cell.earnedPoints}</Text>
+          ) : null}
+        </>
+      ) : null}
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   calendarWrap: {

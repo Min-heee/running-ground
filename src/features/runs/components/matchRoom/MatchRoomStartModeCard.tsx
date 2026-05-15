@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import type { RunningMatchRoomStartMode } from '@/lib/api/types';
@@ -9,6 +10,16 @@ import {
   buildScheduledStartAt,
   formatRoomDateLabel,
 } from '@/features/runs/utils/matchRoomScheduling';
+
+const START_MODE_OPTIONS = [
+  { key: 'host' as const, label: '방장 시작' },
+  { key: 'scheduled' as const, label: '예약 시작' },
+];
+const MERIDIEM_OPTIONS: MatchRoomMeridiem[] = ['오전', '오후'];
+
+function formatMinuteWheelLabel(value: number | string) {
+  return `${value}`.padStart(2, '0');
+}
 
 type MatchRoomStartModeCardProps = {
   startMode: RunningMatchRoomStartMode;
@@ -35,28 +46,55 @@ export function MatchRoomStartModeCard({
   onMinuteIndexChange,
   onSaveStartMode,
 }: MatchRoomStartModeCardProps) {
+  const handleMeridiemChange = useCallback((index: number) => {
+    const nextMeridiem = index === 0 ? '오전' : '오후';
+    onMeridiemChange(nextMeridiem);
+    onSaveStartMode({
+      startMode: 'scheduled',
+      slotStartAt: buildScheduledStartAt(
+        nextMeridiem,
+        MATCH_ROOM_HOUR_OPTIONS[hourIndex] ?? 12,
+        MATCH_ROOM_MINUTE_OPTIONS[minuteIndex] ?? 0,
+      ),
+    });
+  }, [hourIndex, minuteIndex, onMeridiemChange, onSaveStartMode]);
+  const handleHourChange = useCallback((index: number) => {
+    onHourIndexChange(index);
+    onSaveStartMode({
+      startMode: 'scheduled',
+      slotStartAt: buildScheduledStartAt(
+        meridiem,
+        MATCH_ROOM_HOUR_OPTIONS[index] ?? 12,
+        MATCH_ROOM_MINUTE_OPTIONS[minuteIndex] ?? 0,
+      ),
+    });
+  }, [meridiem, minuteIndex, onHourIndexChange, onSaveStartMode]);
+  const handleMinuteChange = useCallback((index: number) => {
+    onMinuteIndexChange(index);
+    onSaveStartMode({
+      startMode: 'scheduled',
+      slotStartAt: buildScheduledStartAt(
+        meridiem,
+        MATCH_ROOM_HOUR_OPTIONS[hourIndex] ?? 12,
+        MATCH_ROOM_MINUTE_OPTIONS[index] ?? 0,
+      ),
+    });
+  }, [hourIndex, meridiem, onMinuteIndexChange, onSaveStartMode]);
+  const startModeChips = useMemo(() => START_MODE_OPTIONS.map((option) => (
+    <StartModeChip
+      key={option.key}
+      option={option}
+      selected={startMode === option.key}
+      saving={saving}
+      onSaveStartMode={onSaveStartMode}
+    />
+  )), [onSaveStartMode, saving, startMode]);
+
   return (
     <Card>
       <Text style={styles.sectionTitle}>시작 방식</Text>
       <View style={styles.modeRow}>
-        {([
-          { key: 'host' as const, label: '방장 시작' },
-          { key: 'scheduled' as const, label: '예약 시작' },
-        ]).map((option) => {
-          const isSelected = startMode === option.key;
-          return (
-            <Pressable
-              key={option.key}
-              style={[styles.modeChip, isSelected ? styles.modeChipSelected : undefined]}
-              onPress={() => onSaveStartMode({ startMode: option.key })}
-              disabled={saving}
-            >
-              <Text style={[styles.modeChipText, isSelected ? styles.modeChipTextSelected : undefined]}>
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
+        {startModeChips}
       </View>
 
       {startMode === 'scheduled' ? (
@@ -64,54 +102,23 @@ export function MatchRoomStartModeCard({
           <Text style={styles.scheduleTitle}>시작할 시간을 선택해주세요</Text>
           <View style={styles.wheelRow}>
             <MatchRoomWheelColumn
-              options={['오전', '오후']}
+              options={MERIDIEM_OPTIONS}
               selectedIndex={meridiem === '오전' ? 0 : 1}
-              onChange={(index) => {
-                const nextMeridiem = index === 0 ? '오전' : '오후';
-                onMeridiemChange(nextMeridiem);
-                onSaveStartMode({
-                  startMode: 'scheduled',
-                  slotStartAt: buildScheduledStartAt(
-                    nextMeridiem,
-                    MATCH_ROOM_HOUR_OPTIONS[hourIndex] ?? 12,
-                    MATCH_ROOM_MINUTE_OPTIONS[minuteIndex] ?? 0,
-                  ),
-                });
-              }}
+              onChange={handleMeridiemChange}
               width={96}
             />
             <MatchRoomWheelColumn
               options={MATCH_ROOM_HOUR_OPTIONS}
               selectedIndex={hourIndex}
-              onChange={(index) => {
-                onHourIndexChange(index);
-                onSaveStartMode({
-                  startMode: 'scheduled',
-                  slotStartAt: buildScheduledStartAt(
-                    meridiem,
-                    MATCH_ROOM_HOUR_OPTIONS[index] ?? 12,
-                    MATCH_ROOM_MINUTE_OPTIONS[minuteIndex] ?? 0,
-                  ),
-                });
-              }}
+              onChange={handleHourChange}
               width={84}
             />
             <MatchRoomWheelColumn
               options={MATCH_ROOM_MINUTE_OPTIONS}
               selectedIndex={minuteIndex}
-              onChange={(index) => {
-                onMinuteIndexChange(index);
-                onSaveStartMode({
-                  startMode: 'scheduled',
-                  slotStartAt: buildScheduledStartAt(
-                    meridiem,
-                    MATCH_ROOM_HOUR_OPTIONS[hourIndex] ?? 12,
-                    MATCH_ROOM_MINUTE_OPTIONS[index] ?? 0,
-                  ),
-                });
-              }}
+              onChange={handleMinuteChange}
               width={84}
-              formatLabel={(value) => `${value}`.padStart(2, '0')}
+              formatLabel={formatMinuteWheelLabel}
             />
           </View>
           <Text style={styles.helperText}>선택한 시간은 {formatRoomDateLabel(scheduledStartAt)} 기준으로 저장돼요.</Text>
@@ -120,6 +127,34 @@ export function MatchRoomStartModeCard({
     </Card>
   );
 }
+
+const StartModeChip = memo(function StartModeChip({
+  onSaveStartMode,
+  option,
+  saving,
+  selected,
+}: {
+  onSaveStartMode: MatchRoomStartModeCardProps['onSaveStartMode'];
+  option: typeof START_MODE_OPTIONS[number];
+  saving: boolean;
+  selected: boolean;
+}) {
+  const handlePress = useCallback(() => {
+    onSaveStartMode({ startMode: option.key });
+  }, [onSaveStartMode, option.key]);
+
+  return (
+    <Pressable
+      style={[styles.modeChip, selected ? styles.modeChipSelected : undefined]}
+      onPress={handlePress}
+      disabled={saving}
+    >
+      <Text style={[styles.modeChipText, selected ? styles.modeChipTextSelected : undefined]}>
+        {option.label}
+      </Text>
+    </Pressable>
+  );
+});
 
 const styles = StyleSheet.create({
   sectionTitle: {

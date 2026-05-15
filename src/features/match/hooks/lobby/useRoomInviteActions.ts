@@ -1,5 +1,4 @@
 import { useRef } from 'react';
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { Alert, Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
@@ -8,26 +7,11 @@ import {
   leaveRunningMatchRoom,
 } from '@/services/matchService';
 import { getApiErrorMessage } from '@/services/apiError';
-import type { RunningMatchRoom } from '@/lib/api/types';
-import { ensureRunningMatchRoomFriendInviteRecords } from '@/lib/api/services/runningRoomResponseGuards';
-import type { MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
-import type { UpdateRoomSettingsInput } from '@/features/runs/types/matchRoom';
 import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
-import { buildFriendInviteSelectionState } from './roomInviteSelection';
-
-type UseRoomInviteActionsInput = {
-  room: RunningMatchRoom | null;
-  roomUxModel: MatchRoomUxModel;
-  selectedFriendIds: string[];
-  latestRoomServerNowMsRef: MutableRefObject<number>;
-  commitRoom: (room: RunningMatchRoom | null) => void;
-  syncServerClock: (serverNow?: string) => void;
-  setError: Dispatch<SetStateAction<string | null>>;
-  setSaving: Dispatch<SetStateAction<boolean>>;
-  saveRoomSettings: (overrides?: UpdateRoomSettingsInput) => Promise<RunningMatchRoom | null>;
-};
+import { useFriendInviteSend } from './inviteActions/useFriendInviteSend';
+import type { RoomInviteActionSharedInput } from './inviteActions/types';
 
 export function useRoomInviteActions({
   room,
@@ -39,10 +23,18 @@ export function useRoomInviteActions({
   setError,
   setSaving,
   saveRoomSettings,
-}: UseRoomInviteActionsInput) {
+}: RoomInviteActionSharedInput) {
   const acceptInviteInFlightRef = useRef(false);
   const declineInviteInFlightRef = useRef(false);
-  const sendFriendInvitesInFlightRef = useRef(false);
+  const {
+    handleSendFriendInvites,
+  } = useFriendInviteSend({
+    room,
+    selectedFriendIds,
+    setError,
+    setSaving,
+    saveRoomSettings,
+  });
 
   const handleAcceptInvite = async () => {
     rgPerfMark('invite code input submit', {
@@ -180,123 +172,6 @@ export function useRoomInviteActions({
       setError(message);
     } finally {
       declineInviteInFlightRef.current = false;
-      setSaving(false);
-    }
-  };
-
-  const handleSendFriendInvites = async () => {
-    if (!room?.isHost || room.linkedMatchId) {
-      return;
-    }
-
-    if (sendFriendInvitesInFlightRef.current) {
-      return;
-    }
-
-    const inviteSelection = buildFriendInviteSelectionState({
-      existingInviteIds: room.invitedFriendIds,
-      selectedFriendIds,
-    });
-    const invitedUserIdLog = inviteSelection.invitedUserIdLog;
-    const newInviteIds = inviteSelection.newInviteIds;
-
-    if (!inviteSelection.shouldSend) {
-      rgPerfMark('friend invite skipped no selected user', {
-        invitedUserId: invitedUserIdLog,
-        newInviteCount: newInviteIds.length,
-        reason: inviteSelection.skippedReason,
-        roomId: room.roomId,
-        selectedInviteCount: inviteSelection.selectedInviteCount,
-      });
-      return;
-    }
-
-    const existingInviteIds = new Set(room.invitedFriendIds);
-    const inputTrace = beginRgInputTrace('friend invite button press', {
-      invitedUserId: invitedUserIdLog,
-      newInviteCount: newInviteIds.length,
-      roomId: room.roomId,
-      selectedInviteCount: inviteSelection.selectedInviteCount,
-    });
-
-    rgPerfMark('friend invite button press', {
-      invitedUserId: invitedUserIdLog,
-      newInviteCount: newInviteIds.length,
-      roomId: room.roomId,
-      selectedInviteCount: inviteSelection.selectedInviteCount,
-    });
-    inviteSelection.normalizedSelectedFriendIds.forEach((invitedUserId) => {
-      rgPerfMark('friend invite button press', {
-        invitedUserId,
-        isNewInvite: !existingInviteIds.has(invitedUserId),
-        roomId: room.roomId,
-      });
-    });
-
-    sendFriendInvitesInFlightRef.current = true;
-    setSaving(true);
-    setError(null);
-    inputTrace.markFeedbackCommitted({
-      disabled: true,
-      loading: true,
-    });
-    await waitForRgInputFeedbackFrame();
-    inputTrace.markApiStarted({
-      source: 'match-room friend invite',
-    });
-
-    const endInviteApiTrace = rgPerfMeasureStart('friend invite API', {
-      hasInviteToken: Boolean(room.inviteToken),
-      hasRoomId: Boolean(room.roomId),
-      invitedUserId: invitedUserIdLog,
-      newInviteCount: newInviteIds.length,
-      roomId: room.roomId,
-    });
-
-    try {
-      const nextRoom = await saveRoomSettings({ invitedFriendIds: inviteSelection.normalizedSelectedFriendIds });
-      if (!nextRoom) {
-        endInviteApiTrace({
-          reason: 'missing room response',
-          success: false,
-        });
-        rgPerfMark('friend invite API error', {
-          invitedUserId: invitedUserIdLog,
-          reason: 'missing room response',
-          roomId: room.roomId,
-        });
-        setError('친구 초대 정보를 확인하지 못했습니다. 다시 시도해주세요.');
-        return;
-      }
-
-      const inviteRecords = ensureRunningMatchRoomFriendInviteRecords(nextRoom, inviteSelection.normalizedSelectedFriendIds);
-      inviteRecords.forEach((record) => {
-        rgPerfMark('friend invite API end', {
-          inviteId: record.inviteId,
-          inviteTokenGenerated: Boolean(record.inviteToken),
-          invitedUserId: record.invitedUserId,
-          roomId: record.roomId,
-          success: true,
-        });
-      });
-      endInviteApiTrace({
-        inviteCount: inviteRecords.length,
-        success: true,
-      });
-    } catch (inviteError) {
-      const message = getApiErrorMessage(inviteError, '친구 초대를 보내지 못했어.');
-      endInviteApiTrace({
-        message,
-        success: false,
-      });
-      rgPerfMark('friend invite API error', {
-        invitedUserId: invitedUserIdLog,
-        message,
-        roomId: room.roomId,
-      });
-      setError(message);
-    } finally {
-      sendFriendInvitesInFlightRef.current = false;
       setSaving(false);
     }
   };

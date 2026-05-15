@@ -104,3 +104,29 @@ test('recipient pending invite fetch keeps duplicate pending invite without redi
   assert.equal(duplicateResult.skippedReason, 'duplicate-invite');
   assert.equal(duplicateResult.event?.inviteId, 'invite-1');
 });
+
+test('recipient pending invite fetch ignores invites for a different user', () => {
+  const result = buildRecipientRoomInviteInboxResult({
+    currentUserId: 'other-user',
+    previousInviteKey: null,
+    room: room(),
+  });
+
+  assert.equal(result.pendingCount, 0);
+  assert.equal(result.shouldDisplay, false);
+  assert.equal(result.skippedReason, 'no-pending-invite');
+  assert.equal(result.event, null);
+});
+
+test('recipient pending invite fetch falls back to invitedFriendIds for current user', () => {
+  const result = buildRecipientRoomInviteInboxResult({
+    currentUserId: 'guest-user',
+    previousInviteKey: null,
+    room: room({ invitedFriends: [] }),
+  });
+
+  assert.equal(result.pendingCount, 1);
+  assert.equal(result.shouldDisplay, true);
+  assert.equal(result.event?.inviteId, 'room-1:guest-user');
+  assert.equal(result.event?.invitedUserId, 'guest-user');
+});

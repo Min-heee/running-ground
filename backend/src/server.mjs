@@ -16,8 +16,6 @@ import { createJsonRunsRepository, ensureIntegrationImports, getPendingImportCou
 import {
   ADMIN_TOKEN,
   APP_ENV,
-  CORS_ALLOW_ANY_ORIGIN,
-  CORS_ORIGINS,
   ENABLE_ADMIN_STATUS,
   ENABLE_RESET_ENDPOINT,
   HOST,
@@ -66,6 +64,15 @@ import {
   normalizePhoneNumber,
 } from './phoneVerification.mjs';
 import { createApiRouteHandler } from './routes/index.mjs';
+import {
+  ApiError,
+  applyCorsHeaders,
+  getErrorMessage,
+  logBackendError,
+  logBackendInfo,
+  sendError,
+  sendJson,
+} from './response/httpResponse.mjs';
 const STARTED_AT = new Date().toISOString();
 const metricsCacheByStore = new WeakMap();
 const SOURCE_LABEL_BY_TYPE = {
@@ -107,110 +114,12 @@ const MATCH_ROOM_INVITE_LINK_BASE = 'runningground://running';
 const MATCH_PROGRESS_MAX_SPEED_MPS = 12;
 const MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND = MATCH_PROGRESS_MAX_SPEED_MPS / 1000;
 
-class ApiError extends Error {
-  constructor(statusCode, message, details = null) {
-    super(message);
-    this.statusCode = statusCode;
-    this.details = details && typeof details === 'object' ? details : null;
-  }
-}
-
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
 function isExclusiveIntegrationSourceType(sourceType) {
   return EXCLUSIVE_INTEGRATION_SOURCE_TYPES.has(sourceType);
-}
-
-function getErrorMessage(error) {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function logBackendError(label, error, extra = {}) {
-  console.error(JSON.stringify({
-    level: 'error',
-    service: 'runningground-backend',
-    label,
-    message: getErrorMessage(error),
-    stack: error instanceof Error ? error.stack : undefined,
-    ...extra,
-  }));
-}
-
-function logBackendInfo(label, extra = {}) {
-  console.log(JSON.stringify({
-    level: 'info',
-    service: 'runningground-backend',
-    label,
-    ...extra,
-  }));
-}
-
-function resolveCorsOrigin(request) {
-  const requestOrigin = typeof request.headers.origin === 'string' ? request.headers.origin.trim() : '';
-
-  if (CORS_ALLOW_ANY_ORIGIN) {
-    return '*';
-  }
-
-  if (!requestOrigin) {
-    return '';
-  }
-
-  return CORS_ORIGINS.includes(requestOrigin) ? requestOrigin : '';
-}
-
-function buildCorsHeaders(request) {
-  const resolvedOrigin = resolveCorsOrigin(request);
-  const headers = {
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token',
-    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-    'Access-Control-Max-Age': '86400',
-    Vary: 'Origin',
-  };
-
-  if (resolvedOrigin) {
-    headers['Access-Control-Allow-Origin'] = resolvedOrigin;
-  }
-
-  return headers;
-}
-
-function applyCorsHeaders(request, response) {
-  const headers = buildCorsHeaders(request);
-
-  for (const [key, value] of Object.entries(headers)) {
-    response.setHeader(key, value);
-  }
-}
-
-function sendJson(response, statusCode, payload) {
-  if (response.writableEnded || response.destroyed) {
-    return;
-  }
-
-  response.writeHead(statusCode, {
-    'Content-Type': 'application/json; charset=utf-8',
-  });
-  response.end(JSON.stringify(payload));
-}
-
-function sendError(response, error) {
-  if (response.writableEnded || response.destroyed) {
-    return;
-  }
-
-  if (error instanceof ApiError) {
-    sendJson(response, error.statusCode, {
-      message: error.message,
-      ...(error.details ? { details: error.details } : {}),
-    });
-    return;
-  }
-
-  logBackendError('request_failed', error);
-  sendJson(response, 500, { message: '서버에서 요청 처리 중 문제가 생겼어요.' });
 }
 
 async function parseJsonBody(request) {

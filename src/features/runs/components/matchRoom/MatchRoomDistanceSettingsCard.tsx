@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
@@ -20,25 +21,21 @@ export function MatchRoomDistanceSettingsCard({
   onCustomDistanceTextChange,
   onApplyCustomDistance,
 }: MatchRoomDistanceSettingsCardProps) {
+  const distanceChips = useMemo(() => MATCH_ROOM_DISTANCE_OPTIONS.map((optionKm) => (
+    <DistanceOptionChip
+      key={`room-distance-${optionKm}`}
+      optionKm={optionKm}
+      selected={Math.abs(distanceKm - optionKm) < 0.15}
+      saving={saving}
+      onDistanceChange={onDistanceChange}
+    />
+  )), [distanceKm, onDistanceChange, saving]);
+
   return (
     <Card>
       <Text style={styles.sectionTitle}>거리 설정</Text>
       <View style={styles.distanceWrap}>
-        {MATCH_ROOM_DISTANCE_OPTIONS.map((optionKm) => {
-          const isSelected = Math.abs(distanceKm - optionKm) < 0.15;
-          return (
-            <Pressable
-              key={`room-distance-${optionKm}`}
-              style={[styles.distanceChip, isSelected ? styles.distanceChipSelected : undefined]}
-              onPress={() => onDistanceChange(optionKm)}
-              disabled={saving}
-            >
-              <Text style={[styles.distanceChipText, isSelected ? styles.distanceChipTextSelected : undefined]}>
-                {optionKm}km
-              </Text>
-            </Pressable>
-          );
-        })}
+        {distanceChips}
       </View>
       <View style={styles.customDistanceRow}>
         <TextInput
@@ -55,6 +52,34 @@ export function MatchRoomDistanceSettingsCard({
     </Card>
   );
 }
+
+const DistanceOptionChip = memo(function DistanceOptionChip({
+  onDistanceChange,
+  optionKm,
+  saving,
+  selected,
+}: {
+  onDistanceChange: (distanceKm: number) => void;
+  optionKm: number;
+  saving: boolean;
+  selected: boolean;
+}) {
+  const handlePress = useCallback(() => {
+    onDistanceChange(optionKm);
+  }, [onDistanceChange, optionKm]);
+
+  return (
+    <Pressable
+      style={[styles.distanceChip, selected ? styles.distanceChipSelected : undefined]}
+      onPress={handlePress}
+      disabled={saving}
+    >
+      <Text style={[styles.distanceChipText, selected ? styles.distanceChipTextSelected : undefined]}>
+        {optionKm}km
+      </Text>
+    </Pressable>
+  );
+});
 
 const styles = StyleSheet.create({
   sectionTitle: {
