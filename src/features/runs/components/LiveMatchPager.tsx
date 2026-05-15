@@ -6,7 +6,6 @@ import {
   LiveMatchPagerPageSlot,
 } from '@/features/runs/components/liveMatchPager/LiveMatchPagerPageSlot';
 import {
-  resolveLiveMatchPageRenderer,
   shouldRenderLiveMatchScrollPage,
 } from '@/features/runs/components/liveMatchPager/liveMatchPagerContentAdapter';
 import { liveMatchPagerStyles as styles } from '@/features/runs/components/liveMatchPager/styles';
@@ -44,23 +43,13 @@ export const LiveMatchPager = memo(function LiveMatchPager({
     return shouldRenderLiveMatchScrollPage({ index, page, hasResultPage });
   }, [hasResultPage, page]);
 
-  const activePageRenderer = useMemo(() => (
-    resolveLiveMatchPageRenderer({
-      page,
-      hasResultPage,
-      renderArenaPage,
-      renderRaceBoardPage,
-      renderStatsPage,
-      renderResultPage,
-    })
-  ), [
-    hasResultPage,
-    page,
-    renderArenaPage,
-    renderRaceBoardPage,
-    renderResultPage,
-    renderStatsPage,
-  ]);
+  const activePageRenderer = page === 1
+    ? renderRaceBoardPage
+    : page === 2
+      ? renderStatsPage
+      : page === 3 && hasResultPage
+        ? renderResultPage ?? EMPTY_PAGE_RENDERER
+        : renderArenaPage;
   const activePageContent = useMemo(() => activePageRenderer(), [activePageRenderer]);
 
   const handleMomentumEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {

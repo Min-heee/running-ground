@@ -2,6 +2,8 @@ export type ManualInviteJoinDuplicateReason =
   | 'in-flight'
   | 'same-token';
 
+export const MANUAL_INVITE_CODE_JOIN_SOURCE = 'manual invite code submit';
+
 export type ManualInviteJoinSingleFlightState = {
   key: string;
   promise: Promise<void>;

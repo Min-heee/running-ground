@@ -39,6 +39,19 @@ type RaceBoardSourceRow = Omit<LiveMatchRaceBoardRow, 'rank'> & {
   rank?: number;
 };
 
+type DuelParticipantRaceBoardSeed = {
+  id: string;
+  isCurrentUser: boolean;
+  name: string;
+  participant: RunningMatchRoomParticipant;
+};
+
+type DuelParticipantProgressMergeResult = {
+  missingProgress: boolean;
+  opponentFallback: boolean;
+  row: RaceBoardSourceRow;
+};
+
 function sortRaceRows(rows: RaceBoardSourceRow[]): LiveMatchRaceBoardRow[] {
   return [...rows]
     .sort((left, right) => {
@@ -123,6 +136,72 @@ function resolveDuelParticipantDisplayName({
     || '상대';
 }
 
+function buildDuelParticipantRaceBoardSeeds({
+  effectiveDuelOpponent,
+  room,
+}: {
+  effectiveDuelOpponent: DuelMatchOpponent | null;
+  room: RunningMatchRoom;
+}): DuelParticipantRaceBoardSeed[] {
+  const currentUserId = resolveCurrentRoomParticipantUserId(room);
+
+  return room.participants.slice(0, 2).map((participant, index) => {
+    const isCurrentUser = currentUserId
+      ? participant.userId === currentUserId
+      : index === 0;
+
+    return {
+      id: participant.userId || `duel-room-participant-${index + 1}`,
+      isCurrentUser,
+      name: resolveDuelParticipantDisplayName({
+        effectiveDuelOpponent,
+        isCurrentUser,
+        participant,
+      }),
+      participant,
+    };
+  });
+}
+
+function mergeDuelParticipantProgress({
+  currentBoardDistanceKm,
+  currentUserDuelLiveStatus,
+  effectiveDuelOpponent,
+  effectiveOpponentDistanceKm,
+  seed,
+  targetDistanceKm,
+}: {
+  currentBoardDistanceKm: number;
+  currentUserDuelLiveStatus: DuelMatchOpponent['liveStatus'] | null;
+  effectiveDuelOpponent: DuelMatchOpponent | null;
+  effectiveOpponentDistanceKm: number;
+  seed: DuelParticipantRaceBoardSeed;
+  targetDistanceKm: number;
+}): DuelParticipantProgressMergeResult {
+  const progressModel = buildMatchProgressModel(seed.participant, targetDistanceKm);
+  const displayProgress = progressModel.displayProgress;
+  const participantProgressDistanceKm = displayProgress.distanceKm;
+  const participantDistanceKm = seed.isCurrentUser
+    ? Math.max(currentBoardDistanceKm, participantProgressDistanceKm)
+    : Math.max(effectiveOpponentDistanceKm, participantProgressDistanceKm);
+
+  return {
+    missingProgress: !displayProgress.hasProgress,
+    opponentFallback: !seed.isCurrentUser && participantDistanceKm <= 0,
+    row: {
+      id: seed.id,
+      name: seed.name,
+      distanceKm: participantDistanceKm,
+      remainingKm: Math.max(0, targetDistanceKm - participantDistanceKm),
+      progress: targetDistanceKm > 0 ? participantDistanceKm / targetDistanceKm : 0,
+      isCurrentUser: seed.isCurrentUser,
+      liveStatus: seed.isCurrentUser
+        ? currentUserDuelLiveStatus ?? seed.participant.liveStatus
+        : effectiveDuelOpponent?.liveStatus ?? seed.participant.liveStatus,
+    },
+  };
+}
+
 function buildDuelParticipantFirstRows({
   currentUserDuelLiveStatus,
   distanceKm,
@@ -142,7 +221,6 @@ function buildDuelParticipantFirstRows({
   syncedDuelOpponentDistanceKm: number;
   targetDistanceKm: number;
 }): LiveMatchRaceBoardRow[] {
-  const currentUserId = resolveCurrentRoomParticipantUserId(room);
   const currentBoardDistanceKm = duelLiveGapKm === null ? distanceKm : syncedDuelDistanceKm;
   const effectiveOpponentDistanceKm = effectiveDuelOpponent
     ? (duelLiveGapKm === null
@@ -151,41 +229,28 @@ function buildDuelParticipantFirstRows({
     : 0;
   let missingProgressCount = 0;
   let opponentFallbackCount = 0;
+  const seedRows = buildDuelParticipantRaceBoardSeeds({
+    effectiveDuelOpponent,
+    room,
+  });
+  const rows = sortRaceRows(seedRows.map((seed) => {
+    const mergeResult = mergeDuelParticipantProgress({
+      currentBoardDistanceKm,
+      currentUserDuelLiveStatus,
+      effectiveDuelOpponent,
+      effectiveOpponentDistanceKm,
+      seed,
+      targetDistanceKm,
+    });
 
-  const rows = sortRaceRows(room.participants.slice(0, 2).map((participant, index) => {
-    const isCurrentUser = currentUserId
-      ? participant.userId === currentUserId
-      : index === 0;
-    const progressModel = buildMatchProgressModel(participant, targetDistanceKm);
-    const displayProgress = progressModel.displayProgress;
-    if (!displayProgress.hasProgress) {
+    if (mergeResult.missingProgress) {
       missingProgressCount += 1;
     }
-
-    const participantProgressDistanceKm = displayProgress.distanceKm;
-    const participantDistanceKm = isCurrentUser
-      ? Math.max(currentBoardDistanceKm, participantProgressDistanceKm)
-      : Math.max(effectiveOpponentDistanceKm, participantProgressDistanceKm);
-
-    if (!isCurrentUser && participantDistanceKm <= 0) {
+    if (mergeResult.opponentFallback) {
       opponentFallbackCount += 1;
     }
 
-    return {
-      id: participant.userId || `duel-room-participant-${index + 1}`,
-      name: resolveDuelParticipantDisplayName({
-        effectiveDuelOpponent,
-        isCurrentUser,
-        participant,
-      }),
-      distanceKm: participantDistanceKm,
-      remainingKm: Math.max(0, targetDistanceKm - participantDistanceKm),
-      progress: targetDistanceKm > 0 ? participantDistanceKm / targetDistanceKm : 0,
-      isCurrentUser,
-      liveStatus: isCurrentUser
-        ? currentUserDuelLiveStatus ?? participant.liveStatus
-        : effectiveDuelOpponent?.liveStatus ?? participant.liveStatus,
-    };
+    return mergeResult.row;
   }));
 
   if (missingProgressCount > 0) {

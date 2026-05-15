@@ -8,6 +8,7 @@ import {
   getRecipientInviteInboxFocusBlockReason,
   getRecipientInviteInboxFetchSkipReason,
   getRecipientInviteInboxStaleResultReason,
+  getRecipientInviteInboxTimeoutRetryDelayMs,
   getRoomInviteInboxRecipientMatchType,
   resolveRoomInviteInboxRecipientMatch,
   shouldScheduleRecipientInviteInboxTimeoutRetry,
@@ -146,6 +147,36 @@ test('recipient matcher connects public tag alias to pending invite', () => {
 
   assert.equal(match.matchType, 'public-tag');
   assert.equal(match.invitee?.invitedUserId, 'guest-user');
+});
+
+test('recipient matcher treats public tag aliases as case-insensitive', () => {
+  const result = buildRecipientRoomInviteInboxResult({
+    currentUserId: '#guest',
+    currentUserTag: '#guest',
+    previousInviteKey: null,
+    room: room({
+      invitedFriends: [{
+        averagePace: '06:20/km',
+        districtName: '일산서구',
+        inviteId: 'invite-1',
+        invitedUserId: 'guest-user',
+        inviteToken: 'ABC123',
+        levelLabel: 'Lv.1',
+        name: '초대친구',
+        roomId: 'room-1',
+        status: 'pending',
+        tag: '#GUEST',
+        userId: 'guest-user',
+      }],
+    }),
+  });
+
+  assert.equal(result.pendingCount, 1);
+  assert.equal(result.shouldDisplay, true);
+  assert.equal(getRoomInviteInboxRecipientMatchType(room(), {
+    currentUserId: '#guest',
+    currentUserTag: '#guest',
+  }), 'public-tag');
 });
 
 test('recipient invite inbox reports internal id match type', () => {
@@ -299,6 +330,26 @@ test('recipient invite inbox timeout retry is scheduled only before lobby/live j
     currentRoom: null,
     isLiveMatchMounted: true,
   }), false);
+});
+
+test('recipient invite inbox timeout retry delay is available only for idle or pre-lobby receiver state', () => {
+  assert.equal(getRecipientInviteInboxTimeoutRetryDelayMs({
+    currentRoom: null,
+  }), RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS);
+  assert.equal(getRecipientInviteInboxTimeoutRetryDelayMs({
+    currentRoom: null,
+    retryMs: 250,
+  }), 250);
+  assert.equal(getRecipientInviteInboxTimeoutRetryDelayMs({
+    currentRoom: room({ joined: true }),
+  }), null);
+  assert.equal(getRecipientInviteInboxTimeoutRetryDelayMs({
+    currentRoom: room({ joined: false, linkedMatchId: 'duel-match-1' }),
+  }), null);
+  assert.equal(getRecipientInviteInboxTimeoutRetryDelayMs({
+    currentRoom: null,
+    liveMatchKey: 'duel:match:duel-match-1',
+  }), null);
 });
 
 test('recipient invite inbox stale result is ignored after joining or live handoff', () => {

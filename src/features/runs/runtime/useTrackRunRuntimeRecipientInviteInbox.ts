@@ -6,6 +6,7 @@ import {
   RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS,
   getRecipientInviteInboxFocusBlockReason,
   getRecipientInviteInboxFetchSkipReason,
+  getRecipientInviteInboxTimeoutRetryDelayMs,
   getRoomInviteInboxRawPendingIds,
   getRoomInviteInboxRecipientMatchType,
   getRecipientInviteInboxStaleResultReason,
@@ -148,18 +149,19 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     }
 
     const runtimeState = runtimeStateRef.current;
-    if (!shouldScheduleRecipientInviteInboxTimeoutRetry({
+    const retryDelayMs = getRecipientInviteInboxTimeoutRetryDelayMs({
       activeRoomId: runtimeState.activeRoomId,
       currentRoom: currentRoomRef.current,
       isLiveMatchMounted: runtimeState.isLiveMatchMounted,
       linkedMatchId: runtimeState.linkedMatchId,
       liveMatchKey: runtimeState.liveMatchKey,
-    })) {
+    });
+    if (retryDelayMs === null) {
       return;
     }
 
     rgPerfMark('invite inbox receiver retry scheduled', {
-      delayMs: RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS,
+      delayMs: retryDelayMs,
       source,
     });
     retryTimeoutRef.current = setTimeout(() => {
@@ -179,7 +181,7 @@ export function useTrackRunRuntimeRecipientInviteInbox({
         source,
       });
       void fetchRecipientInviteInboxRef.current?.(`${source} retry`);
-    }, RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS);
+    }, retryDelayMs);
   }, []);
 
   const fetchRecipientInviteInbox = useCallback(async (source: string) => {

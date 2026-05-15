@@ -5,6 +5,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { LiveMatchPages } from '@/features/runs/components/LiveMatchPages';
 import { LiveMatchTrackingPage } from '@/features/runs/components/LiveMatchTrackingPage';
+import { areLiveMatchContainerPropsEqual } from '@/features/runs/components/liveMatchPager/liveMatchPagePropsComparator';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type LiveMatchContainerProps = {
@@ -61,29 +62,7 @@ export const LiveMatchContainer = memo(function LiveMatchContainer({
       ) : null}
     </>
   );
-}, (prevProps, nextProps) => {
-  if (
-    prevProps.showLiveArena !== nextProps.showLiveArena
-    || prevProps.isSaving !== nextProps.isSaving
-    || prevProps.isRunningSolo !== nextProps.isRunningSolo
-    || prevProps.isPaused !== nextProps.isPaused
-    || prevProps.onSaveTracking !== nextProps.onSaveTracking
-    || prevProps.onPauseTracking !== nextProps.onPauseTracking
-    || prevProps.onResumeTracking !== nextProps.onResumeTracking
-    || prevProps.onDiscardTracking !== nextProps.onDiscardTracking
-  ) {
-    return false;
-  }
-
-  if (nextProps.showLiveArena) {
-    return (
-      prevProps.livePagesProps === nextProps.livePagesProps
-      && prevProps.exitAction === nextProps.exitAction
-    );
-  }
-
-  return prevProps.trackingPageProps === nextProps.trackingPageProps;
-});
+}, areLiveMatchContainerPropsEqual);
 
 const LiveMatchSavingIndicator = memo(function LiveMatchSavingIndicator({
   isSaving,

@@ -3,12 +3,17 @@ import test from 'node:test';
 import {
   buildManualInviteJoinKey,
   getManualInviteJoinDuplicateReason,
+  MANUAL_INVITE_CODE_JOIN_SOURCE,
   startManualInviteJoinSingleFlight,
   type ManualInviteJoinSingleFlightState,
 } from './manualInviteJoin';
 
 test('manual invite join key normalizes invite tokens for single-flight reuse', () => {
   assert.equal(buildManualInviteJoinKey(' ab12cd '), 'AB12CD');
+});
+
+test('manual invite join uses one canonical submit owner label', () => {
+  assert.equal(MANUAL_INVITE_CODE_JOIN_SOURCE, 'manual invite code submit');
 });
 
 test('manual invite join duplicate guard reuses the same token request', () => {

@@ -4,7 +4,10 @@ import { ActivityIndicator, InteractionManager, StyleSheet, Text, View } from 'r
 import type {
   TrackRunExperienceRuntimeProps,
 } from '@/features/runs/runtime/TrackRunExperienceRuntimeModel';
-import { shouldDeferRunningTabRuntimeInitialMount } from '@/features/runs/runtime/runningTabInitialLoadPolicy';
+import {
+  getRunningTabRuntimeInitialMountDelayMs,
+  shouldDeferRunningTabRuntimeInitialMount,
+} from '@/features/runs/runtime/runningTabInitialLoadPolicy';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { Screen } from '@/components/Screen';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
@@ -38,6 +41,7 @@ export type { TrackRunExperienceRuntimeProps };
 export function TrackRunExperienceRuntime(props: TrackRunExperienceRuntimeProps) {
   const [Runtime, setRuntime] = useState<RuntimeComponent | null>(() => loadedRuntimeComponent);
   const shouldDeferRuntime = shouldDeferRunningTabRuntimeInitialMount(props);
+  const runtimeDeferDelayMs = getRunningTabRuntimeInitialMountDelayMs(props);
 
   useEffect(() => {
     if (Runtime) {
@@ -62,11 +66,12 @@ export function TrackRunExperienceRuntime(props: TrackRunExperienceRuntimeProps)
 
     if (shouldDeferRuntime) {
       rgPerfMark('running tab heavy runtime deferred', {
+        delayMs: runtimeDeferDelayMs,
         routeShellHint: props.routeShellHint ?? null,
         source: 'track-run runtime loader',
       });
       const interactionTask = InteractionManager.runAfterInteractions(() => {
-        timeoutId = setTimeout(loadRuntime, 50);
+        timeoutId = setTimeout(loadRuntime, runtimeDeferDelayMs);
       });
 
       return () => {
@@ -83,7 +88,7 @@ export function TrackRunExperienceRuntime(props: TrackRunExperienceRuntimeProps)
     return () => {
       canceled = true;
     };
-  }, [Runtime, props.routeShellHint, shouldDeferRuntime]);
+  }, [Runtime, props.routeShellHint, runtimeDeferDelayMs, shouldDeferRuntime]);
 
   if (!Runtime) {
     return (
@@ -105,6 +110,17 @@ function RunningTabInitialShell({
     rgPerfMark('running tab initial shell mounted', {
       source: 'track-run runtime loader',
     });
+
+    const readyTimeoutId = setTimeout(() => {
+      rgPerfMark('running tab first mount ready', {
+        phase: 'initial-shell',
+        source: 'track-run runtime loader',
+      });
+    }, 0);
+
+    return () => {
+      clearTimeout(readyTimeoutId);
+    };
   }, []);
 
   return (

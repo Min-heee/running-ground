@@ -2,6 +2,7 @@ import { useCallback, useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { PrepareMatchRoomMutation } from '@/features/runs/runtime/useTrackRunRuntimeStateBridge';
 import {
+  MANUAL_INVITE_CODE_JOIN_SOURCE,
   startManualInviteJoinSingleFlight,
   type ManualInviteJoinSingleFlightState,
 } from '@/features/runs/sync/manualInviteJoin';
@@ -60,7 +61,7 @@ export function useTrackRunRoomJoinAction({
     if (!inviteToken) {
       rgPerfMark('room join API error', {
         reason: 'missing invite token',
-        source: 'track-run invite code input',
+        source: MANUAL_INVITE_CODE_JOIN_SOURCE,
       });
       setError('방 초대 코드를 입력해줘.');
       return Promise.resolve();
@@ -72,12 +73,12 @@ export function useTrackRunRoomJoinAction({
       run: async () => {
         const inputTrace = beginRgInputTrace('invite code input submit', {
           hasToken: true,
-          source: 'track-run invite code input',
+          source: MANUAL_INVITE_CODE_JOIN_SOURCE,
         });
 
         rgPerfMark('invite code input submit', {
           hasToken: true,
-          source: 'track-run invite code input',
+          source: MANUAL_INVITE_CODE_JOIN_SOURCE,
         });
 
         joinMatchRoomInFlightRef.current = true;
@@ -167,7 +168,7 @@ export function useTrackRunRoomJoinAction({
 
           let payload: Awaited<ReturnType<typeof joinRunningMatchRoom>>;
           try {
-            payload = await joinRoom('track-run invite code input');
+            payload = await joinRoom(MANUAL_INVITE_CODE_JOIN_SOURCE);
           } catch (joinError) {
             const blocker = getRunningMatchBlockerFromError(joinError);
             if (!blocker) {
@@ -177,7 +178,7 @@ export function useTrackRunRoomJoinAction({
             rgPerfMark('stale cleanup retry after blocker', {
               blocker: blocker.blocker ?? null,
               blockerSource: blocker.blockerSource ?? null,
-              source: 'track-run invite code input',
+              source: MANUAL_INVITE_CODE_JOIN_SOURCE,
             });
             const retryPreflightStartedAt = Date.now();
             const canRetry = await prepareMatchRoomMutation({
@@ -194,7 +195,7 @@ export function useTrackRunRoomJoinAction({
             if (!canRetry) {
               throw joinError;
             }
-            payload = await joinRoom('track-run invite code retry');
+            payload = await joinRoom('manual invite code retry');
           }
 
           if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
@@ -204,7 +205,7 @@ export function useTrackRunRoomJoinAction({
           rgPerfMark('room join hydration begin', {
             inviteTokenLength: inviteToken.length,
             roomId: payload.room.roomId,
-            source: 'track-run invite code input',
+            source: MANUAL_INVITE_CODE_JOIN_SOURCE,
           });
           syncServerClock(payload.serverNow);
           commitMatchRoom(payload.room);
@@ -213,13 +214,13 @@ export function useTrackRunRoomJoinAction({
           rgPerfMark('room join hydration end', {
             inviteTokenLength: inviteToken.length,
             roomId: payload.room.roomId,
-            source: 'track-run invite code input',
+            source: MANUAL_INVITE_CODE_JOIN_SOURCE,
           });
         } catch (roomError) {
           const message = getApiErrorMessage(roomError, '방에 들어가지 못했어.');
           rgPerfMark('room join API error', {
             message,
-            source: 'track-run invite code input',
+            source: MANUAL_INVITE_CODE_JOIN_SOURCE,
           });
           setError(message);
         } finally {
@@ -234,13 +235,13 @@ export function useTrackRunRoomJoinAction({
         hasToken: true,
         inviteTokenLength: inviteToken.length,
         reason: joinStart.reason,
-        source: 'track-run invite code input',
+        source: MANUAL_INVITE_CODE_JOIN_SOURCE,
       });
 
       if (joinStart.status === 'reused') {
         rgPerfMark('room join single-flight reused', {
           inviteTokenLength: inviteToken.length,
-          source: 'track-run invite code input',
+          source: MANUAL_INVITE_CODE_JOIN_SOURCE,
         });
       }
     }

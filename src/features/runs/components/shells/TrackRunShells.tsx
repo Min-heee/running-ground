@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import type { ComponentProps } from 'react';
 import { LiveMatchContainer } from '@/features/runs/components/LiveMatchContainer';
+import { areLiveMatchContainerPropsEqual } from '@/features/runs/components/liveMatchPager/liveMatchPagePropsComparator';
 import { RunningReadyScreen } from '@/features/runs/components/RunningReadyScreen';
 import type { TrackRunShellKind } from '@/features/runs/components/shells/TrackRunShellTypes';
 import { useLiveMatchShellMountTrace } from '@/features/runs/components/shells/useLiveMatchShellMountTrace';
@@ -48,7 +49,10 @@ export const LiveMatchShell = memo(function LiveMatchShell({
   useLiveMatchShellMountTrace(liveMatchKey);
 
   return <LiveMatchContainer {...liveContainerProps} />;
-});
+}, (prevProps, nextProps) => (
+  prevProps.liveMatchKey === nextProps.liveMatchKey
+  && areLiveMatchContainerPropsEqual(prevProps.liveContainerProps, nextProps.liveContainerProps)
+));
 
 export const TrackRunShellRouter = memo(function TrackRunShellRouter({
   liveContainerProps,
@@ -80,7 +84,7 @@ export const TrackRunShellRouter = memo(function TrackRunShellRouter({
   }
 
   if (nextProps.shellKind === 'live') {
-    return prevProps.liveContainerProps === nextProps.liveContainerProps;
+    return areLiveMatchContainerPropsEqual(prevProps.liveContainerProps, nextProps.liveContainerProps);
   }
 
   return prevProps.readyScreenProps === nextProps.readyScreenProps;

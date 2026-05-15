@@ -63,12 +63,22 @@ export type RoomInviteInboxRecipientMatch = {
 
 function normalizeIdentityValues(...values: (string | null | undefined)[]) {
   return [...new Set(values
-    .map((value) => value?.trim())
-    .filter((value): value is string => Boolean(value)))];
+    .flatMap((value) => {
+      const trimmed = value?.trim();
+      if (!trimmed) {
+        return [];
+      }
+
+      return [trimmed, trimmed.toLowerCase(), trimmed.toUpperCase()];
+    }))];
 }
 
 function getInviteIdentityAliases({ currentUserId, currentUserTag }: RoomInviteInboxQueryIdentity) {
   return normalizeIdentityValues(currentUserId, currentUserTag);
+}
+
+function matchesInviteIdentityAlias(value: string | null | undefined, aliases: string[]) {
+  return normalizeIdentityValues(value).some((alias) => aliases.includes(alias));
 }
 
 export function getRoomInviteInboxRawPendingIds(room: RunningMatchRoom | null | undefined): RoomInviteInboxRawPendingIds {
@@ -83,9 +93,9 @@ function getInviteeForUser(room: RunningMatchRoom, identity: RoomInviteInboxQuer
   const aliases = getInviteIdentityAliases(identity);
 
   return room.invitedFriends?.find((invitee) => (
-    aliases.includes(invitee.userId)
-    || (invitee.invitedUserId ? aliases.includes(invitee.invitedUserId) : false)
-    || (invitee.tag ? aliases.includes(invitee.tag) : false)
+    matchesInviteIdentityAlias(invitee.userId, aliases)
+    || matchesInviteIdentityAlias(invitee.invitedUserId, aliases)
+    || matchesInviteIdentityAlias(invitee.tag, aliases)
   )) ?? null;
 }
 
@@ -103,7 +113,7 @@ export function resolveRoomInviteInboxRecipientMatch(
   const aliases = getInviteIdentityAliases(identity);
   const invitee = getInviteeForUser(room, identity);
 
-  if (invitee?.tag && aliases.includes(invitee.tag)) {
+  if (matchesInviteIdentityAlias(invitee?.tag, aliases)) {
     return {
       invitee,
       matchType: 'public-tag',
@@ -111,8 +121,8 @@ export function resolveRoomInviteInboxRecipientMatch(
   }
 
   if (
-    (invitee?.userId && aliases.includes(invitee.userId))
-    || (invitee?.invitedUserId && aliases.includes(invitee.invitedUserId))
+    matchesInviteIdentityAlias(invitee?.userId, aliases)
+    || matchesInviteIdentityAlias(invitee?.invitedUserId, aliases)
   ) {
     return {
       invitee,
@@ -120,7 +130,7 @@ export function resolveRoomInviteInboxRecipientMatch(
     };
   }
 
-  if (room.invitedFriendIds.some((userId) => aliases.includes(userId))) {
+  if (room.invitedFriendIds.some((userId) => matchesInviteIdentityAlias(userId, aliases))) {
     return {
       invitee,
       matchType: 'invited-friend-id',
@@ -136,7 +146,7 @@ export function resolveRoomInviteInboxRecipientMatch(
 function isPendingInviteForUser(room: RunningMatchRoom, identity: RoomInviteInboxQueryIdentity) {
   const aliases = getInviteIdentityAliases(identity);
   return Boolean(resolveRoomInviteInboxRecipientMatch(room, identity).matchType
-    || room.invitedFriendIds.some((userId) => aliases.includes(userId)));
+    || room.invitedFriendIds.some((userId) => matchesInviteIdentityAlias(userId, aliases)));
 }
 
 export function getRoomInviteInboxRecipientMatchType(
@@ -218,6 +228,15 @@ export function shouldScheduleRecipientInviteInboxTimeoutRetry({
     linkedMatchId,
     liveMatchKey,
   }) === null;
+}
+
+export function getRecipientInviteInboxTimeoutRetryDelayMs({
+  retryMs = RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS,
+  ...input
+}: Parameters<typeof shouldScheduleRecipientInviteInboxTimeoutRetry>[0] & {
+  retryMs?: number;
+}) {
+  return shouldScheduleRecipientInviteInboxTimeoutRetry(input) ? retryMs : null;
 }
 
 export function getRecipientInviteInboxFocusBlockReason({

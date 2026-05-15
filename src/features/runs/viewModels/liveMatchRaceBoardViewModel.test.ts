@@ -118,6 +118,32 @@ test('duel race board shows opponent row even when opponent progress is missing'
   assert.equal(opponentRow?.distanceKm, 0);
 });
 
+test('duel race board merges participant progress after participant rows are created', () => {
+  const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
+    visibleMatchRoom: duelRoom({
+      participants: [
+        participant({
+          userId: 'host-user',
+          name: '호스트',
+          tag: '#HOST',
+          isHost: true,
+          liveDistanceKm: 0.4,
+        }),
+        participant({
+          userId: 'guest-user',
+          name: '게스트',
+          tag: '#GUEST',
+          liveDistanceKm: 0.2,
+        }),
+      ],
+    }),
+  }));
+
+  assert.equal(viewModel?.rows.length, 2);
+  assert.equal(viewModel?.rows.find((row) => row.id === 'host-user')?.distanceKm, 0.4);
+  assert.equal(viewModel?.rows.find((row) => row.id === 'guest-user')?.distanceKm, 0.2);
+});
+
 test('duel race board builds participant rows before opponent progress arrives', () => {
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
     effectiveDuelOpponent: {

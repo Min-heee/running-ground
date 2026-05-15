@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { shouldDeferRunningTabRuntimeInitialMount } from './runningTabInitialLoadPolicy';
+import {
+  RUNNING_TAB_IDLE_RUNTIME_DEFER_MS,
+  getRunningTabRuntimeInitialMountDelayMs,
+  shouldDeferRunningTabRuntimeInitialMount,
+} from './runningTabInitialLoadPolicy';
 
 test('running tab initial mount defers runtime only for plain idle tab entry', () => {
   assert.equal(shouldDeferRunningTabRuntimeInitialMount({
@@ -32,4 +36,24 @@ test('stack running screen does not defer runtime mount', () => {
     mode: 'stack',
     routeShellHint: 'idle',
   }), false);
+});
+
+test('running tab idle runtime delay gives the initial shell a first-frame window', () => {
+  assert.equal(getRunningTabRuntimeInitialMountDelayMs({
+    mode: 'tab',
+    routeShellHint: 'idle',
+  }), RUNNING_TAB_IDLE_RUNTIME_DEFER_MS);
+});
+
+test('running tab live and lobby routes do not delay runtime import', () => {
+  assert.equal(getRunningTabRuntimeInitialMountDelayMs({
+    mode: 'tab',
+    routeShellHint: 'live',
+    focusMatchId: 'duel-match-1',
+  }), 0);
+  assert.equal(getRunningTabRuntimeInitialMountDelayMs({
+    mode: 'tab',
+    routeShellHint: 'lobby',
+    focusRoomId: 'duel-room-1',
+  }), 0);
 });
