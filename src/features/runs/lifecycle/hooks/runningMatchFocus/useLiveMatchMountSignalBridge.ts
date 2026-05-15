@@ -42,6 +42,14 @@ export function useLiveMatchMountSignalBridge({
     }
 
     if (matchedRecord?.status === 'mounted') {
+      rgPerfMark('live match navigation skipped already mounted', {
+        matchId,
+        mode,
+        navigationKey,
+        owner: matchedRecord.owner,
+        reason: 'screen-mount-duplicate',
+        source,
+      });
       rgPerfMark('live match navigation suppressed because mounted', {
         matchId,
         mode,
@@ -56,6 +64,7 @@ export function useLiveMatchMountSignalBridge({
     const preferArena = matchedRecord?.preferArena ?? matchedActiveNavigation?.preferArena ?? true;
     const owner = matchedRecord?.owner ?? source;
     const requestId = matchedRecord?.requestId ?? matchedActiveNavigation?.requestId;
+    const wasRecovering = matchedRecord?.status === 'recovering' || Boolean((matchedRecord?.failedCount ?? 0) > 0);
 
     completedNavigationRef.current = {
       completedAtMs: Date.now(),
@@ -78,6 +87,26 @@ export function useLiveMatchMountSignalBridge({
     if (matchedActiveNavigation) {
       activeNavigationRef.current = null;
       setIsResolvingFocusedMatch(false);
+      rgPerfMark('live match navigation owner cleaned up after mount', {
+        matchId,
+        mode,
+        navigationKey,
+        owner,
+        requestId,
+        source,
+      });
+    }
+
+    if (wasRecovering) {
+      rgPerfMark('live match navigation recovered by retry', {
+        failedCount: matchedRecord?.failedCount ?? 0,
+        matchId,
+        mode,
+        navigationKey,
+        owner,
+        requestId,
+        source,
+      });
     }
 
     rgPerfMark('live match navigation marked mounted by screen mount', {

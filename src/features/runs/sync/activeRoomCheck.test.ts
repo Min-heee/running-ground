@@ -35,7 +35,7 @@ function response(roomId: string | null): RunningMatchRoomResponse {
   };
 }
 
-test('active room check reuses an in-flight request for duplicate callers', async () => {
+test('active room check reuses an in-flight request for duplicate callers from the same owner', async () => {
   resetActiveRoomCheckForTest();
 
   let resolveFetch: ((value: RunningMatchRoomResponse) => void) | null = null;
@@ -48,7 +48,7 @@ test('active room check reuses an in-flight request for duplicate callers', asyn
   };
 
   const firstPromise = runActiveRoomCheck({ fetcher, source: 'track-run experience' });
-  const secondPromise = runActiveRoomCheck({ fetcher, source: 'match-room snapshot' });
+  const secondPromise = runActiveRoomCheck({ fetcher, source: 'track-run experience' });
 
   await Promise.resolve();
   assert.equal(fetchCount, 1);
@@ -65,6 +65,34 @@ test('active room check reuses an in-flight request for duplicate callers', asyn
   assert.equal(first.reused, false);
   assert.equal(second.reused, true);
   assert.equal(first.requestId, second.requestId);
+});
+
+test('active room check keeps track-run and snapshot owners separate', async () => {
+  resetActiveRoomCheckForTest();
+
+  const resolvers: ((value: RunningMatchRoomResponse) => void)[] = [];
+  let fetchCount = 0;
+  const fetcher = () => {
+    fetchCount += 1;
+    return new Promise<RunningMatchRoomResponse>((resolve) => {
+      resolvers.push(resolve);
+    });
+  };
+
+  const trackRunPromise = runActiveRoomCheck({ fetcher, source: 'track-run experience' });
+  const snapshotPromise = runActiveRoomCheck({ fetcher, source: 'match-room snapshot' });
+
+  await Promise.resolve();
+  assert.equal(fetchCount, 2);
+  assert.equal(resolvers.length, 2);
+  resolvers[0]?.(response('track-run-room'));
+  resolvers[1]?.(response('snapshot-room'));
+
+  const [trackRunResult, snapshotResult] = await Promise.all([trackRunPromise, snapshotPromise]);
+
+  assert.notEqual(trackRunResult.requestId, snapshotResult.requestId);
+  assert.equal(trackRunResult.payload?.room?.roomId, 'track-run-room');
+  assert.equal(snapshotResult.payload?.room?.roomId, 'snapshot-room');
 });
 
 test('active room check throttles repeated source calls after a completed request', async () => {
@@ -99,9 +127,13 @@ test('active room check hard timeout returns no payload for UI state updates', a
   resetActiveRoomCheckForTest();
 
   let fetchCount = 0;
+  const signals: AbortSignal[] = [];
   const result = await runActiveRoomCheck({
-    fetcher: () => {
+    fetcher: (signal) => {
       fetchCount += 1;
+      if (signal) {
+        signals.push(signal);
+      }
       return new Promise<RunningMatchRoomResponse>((resolve) => {
         setTimeout(() => resolve(response('late-room')), 20);
       });
@@ -112,6 +144,7 @@ test('active room check hard timeout returns no payload for UI state updates', a
   });
 
   assert.equal(fetchCount, 1);
+  assert.equal(signals[0]?.aborted, true);
   assert.equal(result.payload, null);
   assert.equal(result.timedOut, true);
   assert.equal(result.stale, true);
@@ -124,6 +157,52 @@ test('active room check hard timeout returns no payload for UI state updates', a
   await new Promise((resolve) => {
     setTimeout(resolve, 25);
   });
+});
+
+test('active room check timeout aborts and releases the owner for retry', async () => {
+  resetActiveRoomCheckForTest();
+
+  const lateFetchResolvers: ((value: RunningMatchRoomResponse) => void)[] = [];
+  const signals: AbortSignal[] = [];
+  let fetchCount = 0;
+
+  const first = await runActiveRoomCheck({
+    fetcher: (signal) => {
+      fetchCount += 1;
+      if (signal) {
+        signals.push(signal);
+      }
+      return new Promise<RunningMatchRoomResponse>((resolve) => {
+        lateFetchResolvers.push(resolve);
+      });
+    },
+    hardTimeoutMs: 1,
+    source: 'track-run experience',
+    throttleMs: 10_000,
+  });
+
+  assert.equal(first.timedOut, true);
+  assert.equal(signals[0]?.aborted, true);
+
+  const second = await runActiveRoomCheck({
+    fetcher: (signal) => {
+      fetchCount += 1;
+      if (signal) {
+        signals.push(signal);
+      }
+      return Promise.resolve(response('fresh-room'));
+    },
+    source: 'track-run experience',
+    throttleMs: 10_000,
+  });
+
+  assert.equal(fetchCount, 2);
+  assert.equal(second.timedOut, false);
+  assert.equal(second.payload?.room?.roomId, 'fresh-room');
+  assert.notEqual(first.requestId, second.requestId);
+
+  lateFetchResolvers[0]?.(response('late-room'));
+  await Promise.resolve();
 });
 
 test('active room check marks slow completed results as stale generation', async () => {

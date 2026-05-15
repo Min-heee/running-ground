@@ -157,7 +157,7 @@ export async function handleMatchRoomActiveRoomResult({
       userId: currentUserTag,
     });
   } else if (nextRoom?.roomId && nextRoom.joined === true) {
-    rgPerfMark('invite card skipped already joined', {
+    rgPerfMark('invite inbox already joined check suppressed', {
       roomId: nextRoom.roomId,
       source: 'match-room snapshot',
       userId: currentUserTag,

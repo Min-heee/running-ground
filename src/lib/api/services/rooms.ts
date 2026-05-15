@@ -42,7 +42,11 @@ import {
   applyMockRunningMatchRoomUpdate,
 } from './_shared';
 
-export async function fetchRunningMatchRoom(): Promise<RunningMatchRoomResponse> {
+type FetchRunningMatchRoomOptions = {
+  signal?: AbortSignal;
+};
+
+export async function fetchRunningMatchRoom(options: FetchRunningMatchRoomOptions = {}): Promise<RunningMatchRoomResponse> {
   if (USE_MOCK_API) {
     return ensureRunningMatchRoomResponse(
       sanitizeRunningMatchRoomResponse(buildMockRunningMatchRoomResponse(decorateMockRunningMatchRoom(mockApiState.runningMatchRoom))),
@@ -56,6 +60,7 @@ export async function fetchRunningMatchRoom(): Promise<RunningMatchRoomResponse>
       {
         accessToken: await requireAccessToken(),
         fallbackMessage: '내 방 상태를 불러오지 못했어.',
+        signal: options.signal,
       },
     );
 

@@ -121,6 +121,14 @@ export function resolveExistingNavigationRecord({
       });
     }
 
+    rgPerfMark('live match navigation skipped already mounted', {
+      matchId: matchId ?? null,
+      mode,
+      navigationKey,
+      owner: currentRecord.owner,
+      preferArena: requestedPreferArena,
+      source,
+    });
     rgPerfMark('live match navigation suppressed because mounted', {
       matchId: matchId ?? null,
       mode,
@@ -219,6 +227,15 @@ export function resolveExistingNavigationRecord({
     mode,
     navigationKey,
     owner: currentRecord.owner,
+    source,
+  });
+  rgPerfMark('live match navigation failure finalized', {
+    failedCount: currentRecord.failedCount,
+    matchId: matchId ?? null,
+    mode,
+    navigationKey,
+    owner: currentRecord.owner,
+    reason: 'recovery-failed-no-mount',
     source,
   });
   return {

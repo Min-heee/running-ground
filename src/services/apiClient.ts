@@ -7,6 +7,7 @@ type ApiRequestOptions = {
   accessToken?: string | null;
   fallbackMessage?: string;
   headers?: HeadersInit;
+  signal?: AbortSignal;
 };
 
 type ApiHealthResponse = {
@@ -133,11 +134,26 @@ async function readErrorPayload(response: Response, fallbackMessage: string) {
 export async function apiRequest<T>(
   path: string,
   init: RequestInit,
-  { accessToken, fallbackMessage = '요청 처리에 실패했어.', headers: optionHeaders }: ApiRequestOptions = {},
+  { accessToken, fallbackMessage = '요청 처리에 실패했어.', headers: optionHeaders, signal }: ApiRequestOptions = {},
 ): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), API_CONFIG.timeoutMs);
   const headers = new Headers(init.headers ?? {});
+  let removeExternalAbortListener: (() => void) | null = null;
+
+  if (signal) {
+    if (signal.aborted) {
+      controller.abort();
+    } else {
+      const abortFromExternalSignal = () => {
+        controller.abort();
+      };
+      signal.addEventListener('abort', abortFromExternalSignal, { once: true });
+      removeExternalAbortListener = () => {
+        signal.removeEventListener('abort', abortFromExternalSignal);
+      };
+    }
+  }
 
   if (optionHeaders) {
     new Headers(optionHeaders).forEach((value, key) => {
@@ -223,6 +239,7 @@ export async function apiRequest<T>(
     throw error;
   } finally {
     clearTimeout(timeout);
+    removeExternalAbortListener?.();
   }
 }
 

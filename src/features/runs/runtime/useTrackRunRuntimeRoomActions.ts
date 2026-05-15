@@ -9,15 +9,19 @@ import type { RunningMatchRoom } from '@/lib/api/types';
 import { fetchFriendLeaderboard } from '@/services';
 
 type UseTrackRunRuntimeRoomActionsInput = {
+  activeRoomId?: string | null;
   commitMatchRoom: (room: RunningMatchRoom | null) => void;
   currentUserId: string;
   isCreatingMatchRoom: boolean;
   isJoiningMatchRoom: boolean;
   isLeavingMatchRoom: boolean;
+  isLiveMatchMounted?: boolean;
   joinMatchRoomInFlightRef: MutableRefObject<boolean>;
   lastDisplayedRecipientInviteKeyRef: MutableRefObject<string | null>;
   latestMatchRoomServerNowMsRef: MutableRefObject<number>;
   leaveMatchRoomInFlightRef: MutableRefObject<boolean>;
+  linkedMatchId?: string | null;
+  liveMatchKey?: string | null;
   matchRoom: RunningMatchRoom | null;
   recipientInviteFetchInFlightRef: MutableRefObject<boolean>;
   roomCreateActionInput: Parameters<typeof useTrackRunRoomCreateAction>[0];
@@ -33,15 +37,19 @@ type UseTrackRunRuntimeRoomActionsInput = {
 };
 
 export function useTrackRunRuntimeRoomActions({
+  activeRoomId,
   commitMatchRoom,
   currentUserId,
   isCreatingMatchRoom,
   isJoiningMatchRoom,
   isLeavingMatchRoom,
+  isLiveMatchMounted,
   joinMatchRoomInFlightRef,
   lastDisplayedRecipientInviteKeyRef,
   latestMatchRoomServerNowMsRef,
   leaveMatchRoomInFlightRef,
+  linkedMatchId,
+  liveMatchKey,
   matchRoom,
   recipientInviteFetchInFlightRef,
   roomCreateActionInput,
@@ -66,14 +74,18 @@ export function useTrackRunRuntimeRoomActions({
   }, [setFriendLeaderboard]);
 
   const fetchRecipientInviteInbox = useTrackRunRuntimeRecipientInviteInbox({
+    activeRoomId,
     commitMatchRoom,
     currentRoom: visibleMatchRoom ?? matchRoom,
     currentUserId,
     isCreatingMatchRoom,
     isJoiningMatchRoom,
     isLeavingMatchRoom,
+    isLiveMatchMounted,
     lastDisplayedRecipientInviteKeyRef,
     latestMatchRoomServerNowMsRef,
+    linkedMatchId,
+    liveMatchKey,
     recipientInviteFetchInFlightRef,
     syncServerClock,
   });

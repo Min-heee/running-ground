@@ -7,6 +7,38 @@ export const LIVE_MATCH_NAVIGATION_FAILED_BACKOFF_MS = 10_000;
 export const LIVE_MATCH_NAVIGATION_MOUNT_WAIT_MS = 3_000;
 export const LIVE_MATCH_NAVIGATION_MAX_ROUTE_STATE_RETRIES = 1;
 
+export function shouldKeepRouteStateNavigationPendingRecovery({
+  confirmedByLiveMatchView,
+  isCurrentRequest,
+  matchId,
+  routeStateHydrated,
+  wasMountedBySignal,
+}: {
+  confirmedByLiveMatchView: boolean;
+  isCurrentRequest: boolean;
+  matchId?: string | null;
+  routeStateHydrated: boolean;
+  wasMountedBySignal: boolean;
+}) {
+  return Boolean(
+    routeStateHydrated
+    && matchId
+    && isCurrentRequest
+    && !wasMountedBySignal
+    && !confirmedByLiveMatchView
+  );
+}
+
+export function getLiveMatchNavigationTraceSuccess({
+  navigationSucceeded,
+  routeStateOnly,
+}: {
+  navigationSucceeded: boolean;
+  routeStateOnly: boolean;
+}) {
+  return navigationSucceeded || routeStateOnly;
+}
+
 export function shouldSuppressRouteStateRecoveryRetry(record: LiveMatchNavigationRecord | null) {
   return Boolean(
     record

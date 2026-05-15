@@ -27,9 +27,6 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 27,
   },
-  rowsScroller: {
-    maxHeight: 420,
-  },
   rows: {
     gap: 14,
     paddingBottom: 2,

@@ -26,6 +26,12 @@ export type RecipientInviteInboxFetchSkipReason =
   | 'joined-room'
   | 'throttled';
 
+export type RecipientInviteInboxFocusBlockReason =
+  | 'active-match'
+  | 'active-room'
+  | 'joined-room'
+  | 'live-match-mounted';
+
 export type RecipientInviteInboxStaleReason =
   | 'active-match'
   | 'joined-room'
@@ -121,6 +127,38 @@ export function getRecipientInviteInboxFetchSkipReason({
 
   if (lastCompletedAtMs > 0 && nowMs - lastCompletedAtMs < throttleMs) {
     return 'throttled';
+  }
+
+  return null;
+}
+
+export function getRecipientInviteInboxFocusBlockReason({
+  activeRoomId,
+  currentRoom,
+  isLiveMatchMounted,
+  linkedMatchId,
+  liveMatchKey,
+}: {
+  activeRoomId?: string | null;
+  currentRoom?: RunningMatchRoom | null;
+  isLiveMatchMounted?: boolean;
+  linkedMatchId?: string | null;
+  liveMatchKey?: string | null;
+}): RecipientInviteInboxFocusBlockReason | null {
+  if (isLiveMatchMounted) {
+    return 'live-match-mounted';
+  }
+
+  if (currentRoom?.linkedMatchId || linkedMatchId || liveMatchKey) {
+    return 'active-match';
+  }
+
+  if (currentRoom?.roomId && currentRoom.joined === true) {
+    return 'joined-room';
+  }
+
+  if (!currentRoom?.roomId && activeRoomId) {
+    return 'active-room';
   }
 
   return null;

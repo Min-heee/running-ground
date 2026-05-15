@@ -1152,15 +1152,24 @@ export function TrackRunExperienceRuntime({
     loadFriendLeaderboardData,
     loadMatchRoom,
   } = useTrackRunRuntimeRoomActions({
+    activeRoomId: visibleMatchRoom?.roomId ?? matchRoom?.roomId ?? hydratedFocusRoomId ?? null,
     commitMatchRoom,
     currentUserId,
     isCreatingMatchRoom,
     isJoiningMatchRoom,
     isLeavingMatchRoom,
+    isLiveMatchMounted: Boolean(liveMatchMountedRef.current),
     joinMatchRoomInFlightRef,
     lastDisplayedRecipientInviteKeyRef,
     latestMatchRoomServerNowMsRef,
     leaveMatchRoomInFlightRef,
+    linkedMatchId: visibleMatchRoom?.linkedMatchId
+      ?? matchRoom?.linkedMatchId
+      ?? roomLinkedMatchContext?.matchId
+      ?? liveMatchRenderIdentity
+      ?? hydratedFocusMatchId
+      ?? null,
+    liveMatchKey: liveMatchShellPreservation.key,
     matchRoom,
     recipientInviteFetchInFlightRef,
     roomCreateActionInput: {

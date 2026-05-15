@@ -25,7 +25,11 @@ import type {
 import type { RunningMatchStatusResponse } from '@/lib/api/types';
 import type { MatchTimeSection } from '@/features/runs/utils/matchScheduling';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import { LIVE_MATCH_NAVIGATION_MOUNT_WAIT_MS } from './useLiveMatchRecoveryPolicy';
+import {
+  getLiveMatchNavigationTraceSuccess,
+  LIVE_MATCH_NAVIGATION_MOUNT_WAIT_MS,
+  shouldKeepRouteStateNavigationPendingRecovery,
+} from './useLiveMatchRecoveryPolicy';
 
 type HydrateMatchFocusRoute = (input: Pick<
   FocusRunningMatchInput,
@@ -234,13 +238,13 @@ export function useLiveMatchNavigationExecutor({
         matchId
         && isLiveMatchViewConfirmed?.({ matchId, mode }),
       );
-      const routeStateOnly = Boolean(
-        routeStateHydrated
-        && matchId
-        && isCurrentRequest
-        && !wasMountedBySignal
-        && !confirmedByLiveMatchView
-      );
+      const routeStateOnly = shouldKeepRouteStateNavigationPendingRecovery({
+        confirmedByLiveMatchView,
+        isCurrentRequest,
+        matchId,
+        routeStateHydrated,
+        wasMountedBySignal,
+      });
       const navigationSucceeded = wasMountedBySignal || confirmedByLiveMatchView;
 
       if (navigationSucceeded && (isCurrentRequest || wasMountedBySignal)) {
@@ -325,6 +329,14 @@ export function useLiveMatchNavigationExecutor({
           requestId,
           source,
         });
+        rgPerfMark('live match navigation pending recovery', {
+          matchId,
+          mode,
+          navigationKey,
+          recoveryCount,
+          requestId,
+          source,
+        });
       } else if (navigationRecordRef.current?.requestId === requestId) {
         const failedCount = previousFailedCount + 1;
         rgPerfMark('live match mount signal missing reason', {
@@ -349,6 +361,14 @@ export function useLiveMatchNavigationExecutor({
           status: 'failed',
           updatedAtMs: Date.now(),
         };
+        rgPerfMark('live match navigation failure finalized', {
+          failedCount,
+          matchId: matchId ?? null,
+          mode,
+          navigationKey,
+          requestId,
+          source,
+        });
       }
 
       endNavigationTrace({
@@ -356,8 +376,12 @@ export function useLiveMatchNavigationExecutor({
         completedByLiveMatchView: confirmedByLiveMatchView,
         routeStateOnly,
         effectivePreferArena: effectivePreferArena || navigationRecordRef.current?.preferArena || false,
+        pendingRecovery: routeStateOnly,
         state: navigationState,
-        success: navigationSucceeded,
+        success: getLiveMatchNavigationTraceSuccess({
+          navigationSucceeded,
+          routeStateOnly,
+        }),
       });
 
       if (activeNavigationRef.current?.requestId === requestId) {

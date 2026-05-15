@@ -4,6 +4,7 @@ import type { RunningMatchRoom } from '@/lib/api/types';
 import {
   buildRecipientRoomInviteInboxResult,
   buildRoomInviteInboxEvent,
+  getRecipientInviteInboxFocusBlockReason,
   getRecipientInviteInboxFetchSkipReason,
   getRecipientInviteInboxStaleResultReason,
   shouldDisplayRoomInviteCard,
@@ -182,6 +183,36 @@ test('recipient invite inbox fetch skips joined rooms and active linked rooms', 
     lastCompletedAtMs: 0,
     nowMs: 10_000,
   }), 'active-match');
+});
+
+test('recipient invite inbox focus blocks no-room key when room or live state is active', () => {
+  assert.equal(getRecipientInviteInboxFocusBlockReason({
+    currentRoom: null,
+    isLiveMatchMounted: true,
+  }), 'live-match-mounted');
+
+  assert.equal(getRecipientInviteInboxFocusBlockReason({
+    currentRoom: null,
+    liveMatchKey: 'duel:match:duel-match-1',
+  }), 'active-match');
+
+  assert.equal(getRecipientInviteInboxFocusBlockReason({
+    currentRoom: null,
+    linkedMatchId: 'duel-match-1',
+  }), 'active-match');
+
+  assert.equal(getRecipientInviteInboxFocusBlockReason({
+    activeRoomId: 'room-1',
+    currentRoom: null,
+  }), 'active-room');
+
+  assert.equal(getRecipientInviteInboxFocusBlockReason({
+    currentRoom: room({ joined: true }),
+  }), 'joined-room');
+
+  assert.equal(getRecipientInviteInboxFocusBlockReason({
+    currentRoom: null,
+  }), null);
 });
 
 test('recipient invite inbox fetch throttles repeated no-room checks', () => {

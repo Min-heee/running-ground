@@ -13,6 +13,7 @@ import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { isRgInputInteractionRecent } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+import { getTrackRunActiveRoomCheckLiveSkipReason } from './trackRunActiveRoomCheckPolicy';
 
 type LiveMatchMountedRef = MutableRefObject<{
   matchId: string | null;
@@ -73,6 +74,24 @@ export function useTrackRunRoomLoader({
     const priority = options?.priority ?? 'normal';
     const localActiveMatchId = options?.localActiveMatchId ?? null;
     const localActiveRoomId = options?.localActiveRoomId ?? null;
+    const liveSkipReason = getTrackRunActiveRoomCheckLiveSkipReason({
+      linkedMatchId: matchRoom?.linkedMatchId ?? null,
+      liveMatchKey: liveMatchShellPreservation.key,
+      liveMatchMounted: Boolean(liveMatchMountedRef.current),
+    });
+
+    if (liveSkipReason) {
+      rgPerfMark('active room check skipped live match mounted', {
+        linkedMatchId: matchRoom?.linkedMatchId ?? null,
+        liveMatchKey: liveMatchShellPreservation.key,
+        matchId: liveMatchRenderIdentity,
+        priority,
+        reason: liveSkipReason,
+        routeKey,
+        source: 'track-run experience',
+      });
+      return matchRoom;
+    }
 
     if (options?.requireLocalActiveHint && !localActiveRoomId && !localActiveMatchId) {
       rgPerfMark('active room check skipped no local active hint', {

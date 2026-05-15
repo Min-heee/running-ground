@@ -41,6 +41,18 @@ export function useRoomSnapshotFetcher({
     }
 
     const routeKey = buildRouteKey();
+    const currentRoom = roomRef.current;
+    if (currentRoom?.linkedMatchId) {
+      rgPerfMark('active room check skipped live match mounted', {
+        linkedMatchId: currentRoom.linkedMatchId,
+        reason: 'linked-match',
+        roomId: currentRoom.roomId,
+        routeKey,
+        source: 'match-room snapshot',
+      });
+      return currentRoom;
+    }
+
     if (isRgInputInteractionRecent()) {
       rgPerfMark('active room check suppressed by user interaction', {
         routeKey,
