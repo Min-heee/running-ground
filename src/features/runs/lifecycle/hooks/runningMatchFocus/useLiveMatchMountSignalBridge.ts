@@ -3,6 +3,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import {
   buildLiveMatchNavigationKey,
 } from '@/features/runs/lifecycle/liveMatchNavigationGate';
+import { markLiveMatchMounted } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import type {
   ActiveLiveMatchNavigation,
@@ -32,6 +33,17 @@ export function useLiveMatchMountSignalBridge({
     }
 
     const navigationKey = buildLiveMatchNavigationKey({ matchId, mode });
+    const mountedRecord = markLiveMatchMounted({ matchId, mode, source });
+    if (!mountedRecord.alreadyMounted) {
+      rgPerfMark('live match recovery owner finalized after mount', {
+        matchId,
+        mode,
+        mountedKey: mountedRecord.key,
+        navigationKey,
+        source,
+      });
+    }
+
     const activeNavigation = activeNavigationRef.current;
     const currentRecord = navigationRecordRef.current;
     const matchedRecord = currentRecord?.key === navigationKey ? currentRecord : null;

@@ -81,6 +81,8 @@ export function useTrackRunRuntimeRecipientInviteInbox({
   const fetchGenerationRef = useRef(0);
   const lastAlreadyJoinedSkipKeyRef = useRef<string | null>(null);
   const lastCompletedFetchAtRef = useRef(0);
+  const lastFocusPauseKeyRef = useRef<string | null>(null);
+  const lastLiveFocusDisabledKeyRef = useRef<string | null>(null);
   currentRoomRef.current = currentRoom ?? null;
   runtimeStateRef.current = {
     activeRoomId: activeRoomId ?? currentRoom?.roomId ?? null,
@@ -88,6 +90,32 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     linkedMatchId: linkedMatchId ?? currentRoom?.linkedMatchId ?? null,
     liveMatchKey: liveMatchKey ?? null,
   };
+
+  const invalidateNoRoomInFlight = useCallback(({
+    reason,
+    runtimeState,
+    source,
+  }: {
+    reason: string;
+    runtimeState: typeof runtimeStateRef.current;
+    source: string;
+  }) => {
+    if (!inFlightFetchRef.current?.key.includes(':no-room:')) {
+      return;
+    }
+
+    fetchGenerationRef.current += 1;
+    inFlightFetchRef.current = null;
+    recipientInviteFetchInFlightRef.current = false;
+    rgPerfMark('invite inbox no-room in-flight aborted after join', {
+      activeRoomId: runtimeState.activeRoomId,
+      linkedMatchId: runtimeState.linkedMatchId,
+      liveMatchKey: runtimeState.liveMatchKey,
+      reason,
+      source,
+      userId: currentUserId,
+    });
+  }, [currentUserId, recipientInviteFetchInFlightRef]);
 
   const fetchRecipientInviteInbox = useCallback(async (source: string) => {
     const roomAtStart = currentRoomRef.current;
@@ -101,19 +129,11 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     });
 
     if (blockReason) {
-      if (inFlightFetchRef.current?.key.includes(':no-room:')) {
-        fetchGenerationRef.current += 1;
-        inFlightFetchRef.current = null;
-        recipientInviteFetchInFlightRef.current = false;
-        rgPerfMark('invite inbox no-room in-flight aborted after join', {
-          activeRoomId: runtimeStateAtStart.activeRoomId,
-          linkedMatchId: runtimeStateAtStart.linkedMatchId,
-          liveMatchKey: runtimeStateAtStart.liveMatchKey,
-          reason: blockReason,
-          source,
-          userId: currentUserId,
-        });
-      }
+      invalidateNoRoomInFlight({
+        reason: blockReason,
+        runtimeState: runtimeStateAtStart,
+        source,
+      });
 
       if (blockReason === 'live-match-mounted') {
         rgPerfMark('invite inbox fetch skipped live match mounted', {
@@ -122,7 +142,7 @@ export function useTrackRunRuntimeRecipientInviteInbox({
           source,
           userId: currentUserId,
         });
-        rgPerfMark('invite inbox focus disabled while live', {
+        rgPerfMark('invite inbox focus disabled while live once', {
           liveMatchKey: runtimeStateAtStart.liveMatchKey,
           source,
           userId: currentUserId,
@@ -138,7 +158,7 @@ export function useTrackRunRuntimeRecipientInviteInbox({
           source,
           userId: currentUserId,
         });
-        rgPerfMark('invite inbox focus disabled while live', {
+        rgPerfMark('invite inbox focus disabled while live once', {
           liveMatchKey: runtimeStateAtStart.liveMatchKey,
           source,
           userId: currentUserId,
@@ -480,6 +500,7 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     currentUserId,
     currentRoomRef,
     fetchGenerationRef,
+    invalidateNoRoomInFlight,
     isCreatingMatchRoom,
     isJoiningMatchRoom,
     isLeavingMatchRoom,
@@ -493,9 +514,78 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     syncServerClock,
   ]);
 
+  const focusBlockReason = getRecipientInviteInboxFocusBlockReason({
+    activeRoomId: activeRoomId ?? currentRoom?.roomId ?? null,
+    currentRoom,
+    isLiveMatchMounted: Boolean(isLiveMatchMounted),
+    linkedMatchId: linkedMatchId ?? currentRoom?.linkedMatchId ?? null,
+    liveMatchKey,
+  });
+  const focusBlockKey = focusBlockReason
+    ? [
+      focusBlockReason,
+      activeRoomId ?? currentRoom?.roomId ?? 'no-room',
+      linkedMatchId ?? currentRoom?.linkedMatchId ?? liveMatchKey ?? 'no-match',
+    ].join(':')
+    : null;
+
   useFocusEffect(useCallback(() => {
+    const source = 'track-run recipient inbox focus';
+    if (focusBlockReason && focusBlockKey) {
+      const runtimeState = runtimeStateRef.current;
+      invalidateNoRoomInFlight({
+        reason: focusBlockReason,
+        runtimeState,
+        source,
+      });
+
+      if (lastFocusPauseKeyRef.current !== focusBlockKey) {
+        rgPerfMark('invite inbox focus effect paused', {
+          activeRoomId: runtimeState.activeRoomId,
+          linkedMatchId: runtimeState.linkedMatchId,
+          liveMatchKey: runtimeState.liveMatchKey,
+          reason: focusBlockReason,
+          source,
+          userId: currentUserId,
+        });
+      }
+
+      if (
+        (focusBlockReason === 'live-match-mounted' || focusBlockReason === 'active-match')
+        && lastLiveFocusDisabledKeyRef.current !== focusBlockKey
+      ) {
+        lastLiveFocusDisabledKeyRef.current = focusBlockKey;
+        rgPerfMark('invite inbox focus disabled while live once', {
+          liveMatchKey: runtimeState.liveMatchKey,
+          reason: focusBlockReason,
+          source,
+          userId: currentUserId,
+        });
+      }
+
+      lastFocusPauseKeyRef.current = focusBlockKey;
+      return undefined;
+    }
+
+    if (lastFocusPauseKeyRef.current) {
+      rgPerfMark('invite inbox focus effect resumed idle', {
+        previousPauseKey: lastFocusPauseKeyRef.current,
+        source,
+        userId: currentUserId,
+      });
+      lastFocusPauseKeyRef.current = null;
+      lastLiveFocusDisabledKeyRef.current = null;
+    }
+
     void fetchRecipientInviteInbox('track-run recipient inbox focus');
-  }, [fetchRecipientInviteInbox]));
+    return undefined;
+  }, [
+    currentUserId,
+    fetchRecipientInviteInbox,
+    focusBlockKey,
+    focusBlockReason,
+    invalidateNoRoomInFlight,
+  ]));
 
   return fetchRecipientInviteInbox;
 }

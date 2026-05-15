@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-15T11:47:14.730Z
+생성 시각: 2026-05-15T12:31:35.712Z
 
 ## 실행 방법
 
@@ -14,12 +14,12 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 745 |
-| 코드 파일 | 699 |
+| 분석 파일 | 746 |
+| 코드 파일 | 700 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 64 |
-| 500줄 이상 파일 | 16 |
-| 50줄 이상 함수 후보 | 252 |
+| 300줄 이상 파일 | 65 |
+| 500줄 이상 파일 | 17 |
+| 50줄 이상 함수 후보 | 253 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
 ## 감지 항목 요약
@@ -32,7 +32,7 @@ npm run code:quality
 | useMemo/useCallback 없이 props를 많이 만드는 후보 | 9 | 0 | 9 | 0 |
 | services 밖 fetch/api 호출 후보 | 0 | 0 | 0 | 0 |
 | utils/domain 밖 계산 로직 후보 | 43 | 6 | 37 | 0 |
-| types 밖 타입 선언 후보 | 56 | 1 | 55 | 0 |
+| types 밖 타입 선언 후보 | 57 | 1 | 56 | 0 |
 | setInterval/setTimeout/subscription cleanup 의심 후보 | 15 | 0 | 15 | 0 |
 | Location/watchPosition/background task 사용 후보 | 18 | 5 | 13 | 0 |
 
@@ -50,12 +50,13 @@ npm run code:quality
 | backend/src/repositories/postgresRunsRepository.mjs | 640 | imports 3, sort/filter/map 9 |
 | docs/backend-api-contract.md | 636 | imports 2 |
 | backend/src/repositories/postgresAuthRepository.test.mjs | 617 | imports 4, sort/filter/map 20 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 592 | imports 8, focusEffects 1, timers 1 |
 | src/lib/session.ts | 562 | imports 10 |
 | scripts/run-release-gate.mjs | 553 | imports 5, sort/filter/map 10 |
 | backend/src/seed.mjs | 528 | imports 3, sort/filter/map 5 |
+| scripts/analyze-android-perf-trace.mjs | 517 | imports 2, sort/filter/map 7 |
 | backend/src/repositories/postgresRunsRepository.test.mjs | 515 | imports 3, sort/filter/map 8 |
 | backend/src/repositories/postgresAuthRepository.mjs | 504 | imports 2, sort/filter/map 1 |
-| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 502 | imports 8, focusEffects 1, timers 1 |
 | src/features/runs/sync/activeRoomCheck.ts | 490 | imports 5, timers 1 |
 | backend/src/store.mjs | 484 | imports 5, sort/filter/map 9 |
 | scripts/check-preview-public-api.mjs | 482 | imports 4 |
@@ -67,7 +68,6 @@ npm run code:quality
 | backend/src/repositories/postgresLeagueRepository.mjs | 441 | sort/filter/map 14 |
 | src/features/runs/lifecycle/matchLifecycleController.test.ts | 439 | imports 5 |
 | src/lib/api/services/rooms.ts | 439 | imports 6, sort/filter/map 4 |
-| scripts/analyze-android-perf-trace.mjs | 433 | imports 2, sort/filter/map 4 |
 | scripts/deploy-public-backend.mjs | 432 | imports 7, timers 1 |
 | src/lib/api/services/matches.ts | 422 | imports 6, sort/filter/map 6 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationExecutor.ts | 420 | imports 13 |
@@ -99,6 +99,7 @@ npm run code:quality
 | backend/src/repositories/friendsRepository.test.mjs | 314 | imports 2, sort/filter/map 3 |
 | docs/testflight-real-device-qa.md | 314 |  |
 | src/features/match/hooks/lobby/useRoomStartActions.ts | 313 | imports 13, effects 1 |
+| src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 305 | imports 9, effects 2 |
 | backend/src/bridges/sessionRunsBridge.mjs | 305 | imports 2, sort/filter/map 3 |
 | src/features/runs/components/matchSetupCards/styles.ts | 303 | imports 1 |
 | src/features/runs/runtime/useTrackRunRoomLoader.ts | 303 | imports 10 |
@@ -119,26 +120,27 @@ npm run code:quality
 | backend/src/repositories/postgresRunsRepository.mjs | 640 | imports 3, sort/filter/map 9 |
 | docs/backend-api-contract.md | 636 | imports 2 |
 | backend/src/repositories/postgresAuthRepository.test.mjs | 617 | imports 4, sort/filter/map 20 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 592 | imports 8, focusEffects 1, timers 1 |
 | src/lib/session.ts | 562 | imports 10 |
 | scripts/run-release-gate.mjs | 553 | imports 5, sort/filter/map 10 |
 | backend/src/seed.mjs | 528 | imports 3, sort/filter/map 5 |
+| scripts/analyze-android-perf-trace.mjs | 517 | imports 2, sort/filter/map 7 |
 | backend/src/repositories/postgresRunsRepository.test.mjs | 515 | imports 3, sort/filter/map 8 |
 | backend/src/repositories/postgresAuthRepository.mjs | 504 | imports 2, sort/filter/map 1 |
-| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 502 | imports 8, focusEffects 1, timers 1 |
 
 ## 50줄 이상 함수 후보
 
 
 
-> 252개 중 상위 80개만 표시합니다.
+> 253개 중 상위 80개만 표시합니다.
 
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
 | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 146 | TrackRunExperienceRuntime | 1786 |
-| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 57 | useTrackRunRuntimeRecipientInviteInbox | 445 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 57 | useTrackRunRuntimeRecipientInviteInbox | 535 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
-| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 92 | callback@useCallback | 387 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 120 | callback@useCallback | 379 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
 | backend/src/repositories/postgresRunsRepository.mjs | 369 | createPostgresRunsRepository | 271 |
 | backend/src/repositories/postgresAuthRepository.mjs | 246 | createPostgresAuthRepository | 258 |
@@ -149,8 +151,10 @@ npm run code:quality
 | src/features/runs/sync/useMatchProgressSync.ts | 50 | useMatchProgressSync | 235 |
 | backend/src/bridges/friendsLeagueBridge.mjs | 22 | createFriendsLeagueBridge | 232 |
 | src/features/runs/runtime/useRuntimeHydrationEffects.ts | 8 | useRuntimeHydrationEffects | 232 |
+| src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 80 | useBlockingMatchStatusPolling | 225 |
+| src/features/runs/runtime/useTrackRunRuntimeRoomInviteActions.ts | 36 | useTrackRunRuntimeRoomInviteActions | 222 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 42 | createLocationTaskManager | 220 |
-| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 253 | requestPromise | 219 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 273 | requestPromise | 219 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationOwner.ts | 27 | useLiveMatchNavigationOwner | 217 |
 | src/features/runs/lifecycle/hooks/useMatchEntryEffects.ts | 46 | useMatchEntryEffects | 216 |
 | backend/src/repositories/postgresFriendsRepository.mjs | 503 | createPostgresFriendsRepository | 213 |
@@ -158,14 +162,12 @@ npm run code:quality
 | src/features/runs/sync/partyRunSync/useLinkedMatchSync.ts | 47 | useLinkedMatchSync | 212 |
 | scripts/check-preview-public-api.mjs | 259 | main | 211 |
 | backend/src/server.mjs | 2813 | buildRunningMatchStatusResponse | 210 |
-| scripts/analyze-android-perf-trace.mjs | 142 | analyzeLine | 200 |
-| src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 42 | useBlockingMatchStatusPolling | 199 |
+| scripts/analyze-android-perf-trace.mjs | 206 | analyzeLine | 197 |
 | src/features/match/hooks/lobby/useRoomInviteActions.ts | 16 | useRoomInviteActions | 194 |
 | src/features/runs/hooks/useMatchRuntimeState.ts | 57 | useMatchRuntimeState | 193 |
 | backend/src/repositories/authRepository.mjs | 127 | createJsonAuthRepository | 191 |
 | src/features/runs/runtime/useTrackRunRuntimeMatchRequestActions.ts | 11 | useTrackRunRuntimeMatchRequestActions | 191 |
 | src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 83 | useTrackingSessionSnapshots | 190 |
-| src/features/runs/runtime/useTrackRunRuntimeRoomInviteActions.ts | 35 | useTrackRunRuntimeRoomInviteActions | 190 |
 | src/features/match/screens/MatchRoomScreen.tsx | 16 | MatchRoomScreen | 181 |
 | src/features/runs/tracking/lifecycle/useMatchAutoTrackingEffects.ts | 42 | useMatchAutoTrackingEffects | 179 |
 | src/features/runs/lifecycle/hooks/useMatchCountdownModel.ts | 40 | useMatchCountdownModel | 171 |
@@ -181,6 +183,7 @@ npm run code:quality
 | src/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyEffects.ts | 27 | useMatchRoomLobbyEffects | 157 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 48 | startLocationTaskWithTrace | 156 |
 | backend/src/bridges/friendsLeagueBridge.test.mjs | 11 | createHarness | 154 |
+| src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchMountSignalBridge.ts | 15 | useLiveMatchMountSignalBridge | 146 |
 | src/features/runs/components/matchSetupCards/DuelMatchSetupCard.tsx | 13 | DuelMatchSetupCard | 145 |
 | src/features/runs/runtime/useTrackRunRuntimeMatchMaintenanceActions.ts | 6 | useTrackRunRuntimeMatchMaintenanceActions | 144 |
 | src/features/runs/hooks/runSaveFlow/useRunFinishCommand.ts | 44 | useRunFinishCommand | 141 |
@@ -188,12 +191,12 @@ npm run code:quality
 | src/features/runs/hooks/useMatchSelectionModel.ts | 55 | useMatchSelectionModel | 138 |
 | src/components/matches/useAndroidLiveMatchPerfProbe.ts | 50 | useAndroidLiveMatchPerfProbe | 136 |
 | src/features/runs/tracking/useTrackingAppStateSync.ts | 33 | useTrackingAppStateSync | 135 |
-| src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchMountSignalBridge.ts | 14 | useLiveMatchMountSignalBridge | 135 |
 | src/features/friends/hooks/useFriendsScreen.ts | 15 | useFriendsScreen | 134 |
 | src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 37 | useRunForfeitCommand | 133 |
 | src/features/runs/viewModels/useTrackRunIdleViewModel.ts | 75 | useTrackRunIdleViewModel | 132 |
 | src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 51 | callback@useCallback | 131 |
 | src/features/runs/sync/usePartyRunSync.ts | 60 | usePartyRunSync | 131 |
+| src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchMountSignalBridge.ts | 26 | callback@useCallback | 129 |
 | src/features/profile/hooks/useMyPageScreen.ts | 8 | useMyPageScreen | 127 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationOwner.ts | 104 | callback@useCallback | 126 |
 | src/features/runs/viewModels/useLiveMatchProgress.ts | 43 | useLiveMatchProgress | 126 |
@@ -213,7 +216,6 @@ npm run code:quality
 | src/features/match/hooks/lobby/inviteActions/useFriendInviteSend.ts | 10 | useFriendInviteSend | 119 |
 | backend/src/seed.mjs | 378 | createRegionTree | 118 |
 | backend/src/repositories/runsRepository.mjs | 325 | createJsonRunsRepository | 118 |
-| src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchMountSignalBridge.ts | 25 | callback@useCallback | 118 |
 | src/features/runs/hooks/matchLifecycle/useDuelMatchLifecycle.ts | 17 | useDuelMatchLifecycle | 117 |
 
 ## React component inline object/array/style 후보
@@ -406,6 +408,7 @@ npm run code:quality
 | Medium | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationExecutor.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/lifecycle/hooks/useCountdownHandoffEffect.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/lifecycle/hooks/useLiveMatchNavigationEffects.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
+| Medium | src/features/runs/lifecycle/liveMatchMountedRegistry.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/lifecycle/liveMatchNavigationGate.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/lifecycle/trackRunShellSelection.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |

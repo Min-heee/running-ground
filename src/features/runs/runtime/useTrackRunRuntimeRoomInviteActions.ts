@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { useTrackRunRoomCreateAction } from '@/features/runs/runtime/useTrackRunRoomCreateAction';
 import { useTrackRunRoomJoinAction } from '@/features/runs/runtime/useTrackRunRoomJoinAction';
+import { getRunningMatchBlockerFromError } from '@/features/runs/sync/staleRoomCleanup';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import {
@@ -76,21 +77,29 @@ export function useTrackRunRuntimeRoomInviteActions({
       roomId: visibleMatchRoom.roomId,
       source: 'track-run invite card accept',
     });
+    rgPerfMark('invite card accept fast join', {
+      hasRoomId: Boolean(visibleMatchRoom.roomId),
+      hasToken: Boolean(visibleMatchRoom.inviteToken),
+      roomId: visibleMatchRoom.roomId,
+      source: 'track-run invite card accept',
+    });
+    rgPerfMark('stale cleanup deferred for invite accept', {
+      reason: 'join-first-room-id-present',
+      roomId: visibleMatchRoom.roomId,
+      source: 'track-run invite card accept',
+    });
     let endJoinApiTrace: ReturnType<typeof rgPerfMeasureStart> | null = null;
     await waitForRgInputFeedbackFrame();
-    inputTrace.markApiStarted({
-      source: 'invite card accept preflight',
+    const joinStartDelayMs = inputTrace.markApiStarted({
+      source: 'track-run invite card accept',
     });
 
     try {
-      const canProceed = await prepareMatchRoomMutation({
-        inviteToken: visibleMatchRoom.inviteToken,
-        source: 'invite card accept preflight',
+      rgPerfMark('room join API started without cleanup wait', {
+        delayMs: joinStartDelayMs,
+        roomId: visibleMatchRoom.roomId,
+        source: 'track-run invite card accept',
       });
-      if (!canProceed) {
-        return;
-      }
-
       endJoinApiTrace = rgPerfMeasureStart('room join API', {
         roomId: visibleMatchRoom.roomId,
         source: 'track-run invite card accept',
@@ -116,6 +125,26 @@ export function useTrackRunRuntimeRoomInviteActions({
       navigateToMatchRoomWithTrace('invite card accept', payload.room, payload.serverNow);
     } catch (roomError) {
       endJoinApiTrace?.({ success: false });
+      const blocker = getRunningMatchBlockerFromError(roomError);
+      if (blocker) {
+        rgPerfMark('stale cleanup deferred for invite accept', {
+          blocker: blocker.blocker ?? null,
+          blockerSource: blocker.blockerSource ?? null,
+          reason: 'join-blocker',
+          roomId: visibleMatchRoom.roomId,
+          source: 'track-run invite card accept',
+        });
+        void prepareMatchRoomMutation({
+          forceCleanup: true,
+          inviteToken: visibleMatchRoom.inviteToken,
+          source: 'invite card accept deferred cleanup',
+        }).catch((cleanupError: unknown) => {
+          rgPerfMark('stale room cleanup error', {
+            message: getApiErrorMessage(cleanupError, '이전 방 상태를 정리하지 못했어.'),
+            source: 'invite card accept deferred cleanup',
+          });
+        });
+      }
       const message = getApiErrorMessage(roomError, '초대를 수락하지 못했어.');
       rgPerfMark('room join API error', {
         message,
@@ -126,6 +155,10 @@ export function useTrackRunRuntimeRoomInviteActions({
     } finally {
       joinMatchRoomInFlightRef.current = false;
       setIsJoiningMatchRoom(false);
+      rgPerfMark('invite accept pending action released', {
+        roomId: visibleMatchRoom.roomId,
+        source: 'track-run invite card accept',
+      });
     }
   }, [
     commitMatchRoom,

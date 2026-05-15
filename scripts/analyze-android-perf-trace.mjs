@@ -62,12 +62,76 @@ const RULES = {
   },
 };
 
+const INFORMATIONAL_EVENTS = {
+  activeRoomCheckAbortedTimeout: {
+    label: 'active room check aborted timeout',
+    name: 'active room check aborted timeout',
+  },
+  activeRoomCheckIgnoredAfterAbort: {
+    label: 'active room check result ignored after abort',
+    name: 'active room check ignored after abort',
+  },
+  activeRoomCheckOwnerCleanedUp: {
+    label: 'active room check owner cleaned up',
+    name: 'active room check owner cleaned up',
+  },
+};
+
 function printUsage() {
   console.log(`Usage: npm run perf:trace-analyze -- <metro-log.txt>
 
 Examples:
   npm run perf:trace-analyze -- ./logs/android-party-run.txt
   node ./scripts/analyze-android-perf-trace.mjs ./logs/android-party-run.txt`);
+}
+
+function createInformationalSummary() {
+  return Object.fromEntries(
+    Object.entries(INFORMATIONAL_EVENTS).map(([key, event]) => [key, {
+      count: 0,
+      event: event.name,
+      firstLine: null,
+      maxDurationMs: null,
+      sources: new Set(),
+    }]),
+  );
+}
+
+function recordInformationalEvent(summary, key, payload, lineNo) {
+  const current = summary[key];
+
+  if (!current) {
+    return;
+  }
+
+  const durationMs = toNumber(payload.durationMs);
+  current.count += 1;
+  current.firstLine = current.firstLine === null ? lineNo : Math.min(current.firstLine, lineNo);
+
+  if (durationMs !== null) {
+    current.maxDurationMs = current.maxDurationMs === null
+      ? durationMs
+      : Math.max(current.maxDurationMs, durationMs);
+  }
+
+  if (payload.source) {
+    current.sources.add(String(payload.source));
+  }
+}
+
+function recordActiveRoomCheckInformationalEvent(perfLabel, payload, lineNo, informationalSummary) {
+  Object.entries(INFORMATIONAL_EVENTS).forEach(([key, event]) => {
+    if (perfLabel === event.label) {
+      recordInformationalEvent(informationalSummary, key, payload, lineNo);
+    }
+  });
+}
+
+function isSlowSuccessfulActiveRoomCheckEnd(perfLabel, payload, durationMs) {
+  return perfLabel === 'active room check end'
+    && payload.success === true
+    && durationMs !== null
+    && durationMs >= THRESHOLDS.activeRoomCheckDurationMs;
 }
 
 function parseJsonPayload(line) {
@@ -139,19 +203,16 @@ function pushFinding(findings, {
   });
 }
 
-function analyzeLine(line, lineNo, findings) {
+function analyzeLine(line, lineNo, findings, informationalSummary) {
   const perfLabel = parsePerfLabel(line);
   const payload = parseJsonPayload(line);
 
   if (perfLabel && payload) {
     const durationMs = toNumber(payload.durationMs);
     const activeKindCount = toNumber(payload.activeKindCount);
+    recordActiveRoomCheckInformationalEvent(perfLabel, payload, lineNo, informationalSummary);
 
-    if (
-      perfLabel.includes('active room check')
-      && durationMs !== null
-      && durationMs >= THRESHOLDS.activeRoomCheckDurationMs
-    ) {
+    if (isSlowSuccessfulActiveRoomCheckEnd(perfLabel, payload, durationMs)) {
       pushFinding(findings, {
         detail: payload.source ? `source=${payload.source}` : '',
         line,
@@ -340,6 +401,18 @@ function analyzeLine(line, lineNo, findings) {
   }
 }
 
+function getInformationalRows(informationalSummary) {
+  return Object.values(informationalSummary)
+    .filter((event) => event.count > 0)
+    .map((event) => [
+      event.event,
+      event.count,
+      formatValue(event.maxDurationMs),
+      event.firstLine ?? '',
+      Array.from(event.sources).join(', '),
+    ]);
+}
+
 function summarizeFindings(findings) {
   return findings.reduce((acc, finding) => {
     const current = acc.get(finding.rule) ?? {
@@ -385,9 +458,10 @@ function main() {
   const content = readFileSync(resolvedPath, 'utf8');
   const lines = content.split(/\r?\n/);
   const findings = [];
+  const informationalSummary = createInformationalSummary();
 
   lines.forEach((line, index) => {
-    analyzeLine(line, index + 1, findings);
+    analyzeLine(line, index + 1, findings, informationalSummary);
   });
 
   console.log(`# Android Perf Trace Analysis: ${basename(resolvedPath)}`);
@@ -395,6 +469,16 @@ function main() {
   console.log(`- Lines scanned: ${lines.length}`);
   console.log(`- Findings: ${findings.length}`);
   console.log('');
+
+  const informationalRows = getInformationalRows(informationalSummary);
+  if (informationalRows.length > 0) {
+    console.log('## Informational Summary');
+    printTable(
+      ['Event', 'Count', 'Max durationMs', 'First line', 'Sources'],
+      informationalRows,
+    );
+    console.log('');
+  }
 
   if (findings.length === 0) {
     console.log('No configured high-risk Android live match patterns were detected.');

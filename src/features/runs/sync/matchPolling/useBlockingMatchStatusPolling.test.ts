@@ -6,7 +6,14 @@ import {
   resetRgPollingRegistryForTest,
   startRgPollingInterval,
 } from '@/utils/rgPollingRegistry';
-import { buildBlockingMatchStatusPollingKey } from './useBlockingMatchStatusPolling';
+import {
+  markLiveMatchMounted,
+  resetLiveMatchMountedRegistryForTest,
+} from '@/features/runs/lifecycle/liveMatchMountedRegistry';
+import {
+  buildBlockingMatchStatusPollingKey,
+  shouldSkipBlockingMatchStatusPollingForMountedMatch,
+} from './useBlockingMatchStatusPolling';
 
 test('blocking match status recovery polling stays singleton for the same matchId', () => {
   resetRgPollingRegistryForTest();
@@ -106,4 +113,61 @@ test('blocking match status interval keeps one active polling owner per matchId'
   assert.equal(getActiveRgPollingSlotCount(), 1);
   restarted.stop();
   assert.equal(getActiveRgPollingSlotCount(), 0);
+});
+
+test('blocking match status polling skips already mounted live match ids', () => {
+  resetLiveMatchMountedRegistryForTest();
+
+  assert.equal(
+    shouldSkipBlockingMatchStatusPollingForMountedMatch({
+      matchId: 'duel-match-mounted',
+      mode: 'duel',
+    }),
+    false,
+  );
+
+  const mounted = markLiveMatchMounted({
+    matchId: 'duel-match-mounted',
+    mode: 'duel',
+    source: 'test mount signal',
+  });
+
+  assert.equal(mounted.alreadyMounted, false);
+  assert.equal(
+    shouldSkipBlockingMatchStatusPollingForMountedMatch({
+      matchId: 'duel-match-mounted',
+      mode: 'duel',
+    }),
+    true,
+  );
+  assert.equal(
+    shouldSkipBlockingMatchStatusPollingForMountedMatch({
+      matchId: 'duel-match-other',
+      mode: 'duel',
+    }),
+    false,
+  );
+  assert.equal(
+    shouldSkipBlockingMatchStatusPollingForMountedMatch({
+      matchId: 'duel-match-mounted',
+      mode: 'group',
+    }),
+    false,
+  );
+
+  const duplicate = markLiveMatchMounted({
+    matchId: 'duel-match-mounted',
+    mode: 'duel',
+    source: 'duplicate mount signal',
+  });
+  assert.equal(duplicate.alreadyMounted, true);
+
+  resetLiveMatchMountedRegistryForTest();
+  assert.equal(
+    shouldSkipBlockingMatchStatusPollingForMountedMatch({
+      matchId: 'duel-match-mounted',
+      mode: 'duel',
+    }),
+    false,
+  );
 });

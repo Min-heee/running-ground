@@ -1,0 +1,78 @@
+type LiveMatchMountedMode = 'duel' | 'group';
+
+type LiveMatchMountedRegistryInput = {
+  matchId?: string | null;
+  mode: LiveMatchMountedMode;
+  source?: string | null;
+};
+
+type LiveMatchMountedRecord = {
+  key: string;
+  matchId: string;
+  mode: LiveMatchMountedMode;
+  mountedAtMs: number;
+  source?: string | null;
+};
+
+const mountedMatches = new Map<string, LiveMatchMountedRecord>();
+
+export function buildLiveMatchMountedRegistryKey({
+  matchId,
+  mode,
+}: Pick<LiveMatchMountedRegistryInput, 'matchId' | 'mode'>) {
+  if (!matchId) {
+    return null;
+  }
+  return `${mode}:${matchId}`;
+}
+
+export function markLiveMatchMounted({
+  matchId,
+  mode,
+  source = null,
+}: LiveMatchMountedRegistryInput) {
+  const key = buildLiveMatchMountedRegistryKey({ matchId, mode });
+  if (!key || !matchId) {
+    return {
+      alreadyMounted: false,
+      key,
+      record: null,
+    };
+  }
+
+  const existingRecord = mountedMatches.get(key);
+  if (existingRecord) {
+    return {
+      alreadyMounted: true,
+      key,
+      record: existingRecord,
+    };
+  }
+
+  const record: LiveMatchMountedRecord = {
+    key,
+    matchId,
+    mode,
+    mountedAtMs: Date.now(),
+    source,
+  };
+  mountedMatches.set(key, record);
+
+  return {
+    alreadyMounted: false,
+    key,
+    record,
+  };
+}
+
+export function isLiveMatchMarkedMounted({
+  matchId,
+  mode,
+}: Pick<LiveMatchMountedRegistryInput, 'matchId' | 'mode'>) {
+  const key = buildLiveMatchMountedRegistryKey({ matchId, mode });
+  return Boolean(key && mountedMatches.has(key));
+}
+
+export function resetLiveMatchMountedRegistryForTest() {
+  mountedMatches.clear();
+}
