@@ -46,6 +46,17 @@ export function useMatchFocusHydration() {
       roomId: roomId ?? null,
       source,
     });
+    rgPerfMark('live match route target resolved', {
+      matchId,
+      mode,
+      navigationKey,
+      preferArena,
+      requestId,
+      roomId: roomId ?? null,
+      source,
+      targetRoute: 'track-run',
+      targetShell: 'live',
+    });
 
     return true;
   }, []);

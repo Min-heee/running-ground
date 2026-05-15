@@ -18,6 +18,7 @@ type UseTrackRunRuntimeRoomActionsInput = {
   lastDisplayedRecipientInviteKeyRef: MutableRefObject<string | null>;
   latestMatchRoomServerNowMsRef: MutableRefObject<number>;
   leaveMatchRoomInFlightRef: MutableRefObject<boolean>;
+  matchRoom: RunningMatchRoom | null;
   recipientInviteFetchInFlightRef: MutableRefObject<boolean>;
   roomCreateActionInput: Parameters<typeof useTrackRunRoomCreateAction>[0];
   roomJoinActionInput: Parameters<typeof useTrackRunRoomJoinAction>[0];
@@ -41,6 +42,7 @@ export function useTrackRunRuntimeRoomActions({
   lastDisplayedRecipientInviteKeyRef,
   latestMatchRoomServerNowMsRef,
   leaveMatchRoomInFlightRef,
+  matchRoom,
   recipientInviteFetchInFlightRef,
   roomCreateActionInput,
   roomJoinActionInput,
@@ -65,6 +67,7 @@ export function useTrackRunRuntimeRoomActions({
 
   const fetchRecipientInviteInbox = useTrackRunRuntimeRecipientInviteInbox({
     commitMatchRoom,
+    currentRoom: visibleMatchRoom ?? matchRoom,
     currentUserId,
     isCreatingMatchRoom,
     isJoiningMatchRoom,

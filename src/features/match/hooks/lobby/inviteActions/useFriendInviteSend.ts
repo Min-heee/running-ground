@@ -86,6 +86,12 @@ export function useFriendInviteSend({
 
       const inviteRecords = ensureFriendInvitePayload(nextRoom, inviteSelection.normalizedSelectedFriendIds);
       inviteRecords.forEach((record) => {
+        rgPerfMark('friend invite created payload', {
+          inviteId: record.inviteId,
+          inviteTokenGenerated: Boolean(record.inviteToken),
+          invitedUserId: record.invitedUserId,
+          roomId: record.roomId,
+        });
         rgPerfMark('friend invite API end', {
           inviteId: record.inviteId,
           inviteTokenGenerated: Boolean(record.inviteToken),

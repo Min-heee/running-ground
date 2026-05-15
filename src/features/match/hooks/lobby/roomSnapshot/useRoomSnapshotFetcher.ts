@@ -68,6 +68,12 @@ export function useRoomSnapshotFetcher({
       routeKey,
       source: 'match-room snapshot',
     });
+    rgPerfMark('invite inbox query key', {
+      queryUserId: recipientUserId,
+      queryUserTag: recipientUserId,
+      routeKey,
+      source: 'match-room snapshot',
+    });
     rgPerfMark('invite inbox fetch for recipient begin', {
       routeKey,
       source: 'match-room snapshot',

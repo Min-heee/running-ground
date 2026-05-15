@@ -68,6 +68,11 @@ export function useTrackRunNavigationAdapter({
     mode: Extract<RunMatchMode, 'duel' | 'group'>;
     source: string;
   }) => {
+    rgPerfMark('live match screen mount signal received', {
+      matchId: input.matchId ?? null,
+      mode: input.mode,
+      source: input.source,
+    });
     liveMatchMountedRef.current = {
       matchId: input.matchId ?? null,
       mode: input.mode,

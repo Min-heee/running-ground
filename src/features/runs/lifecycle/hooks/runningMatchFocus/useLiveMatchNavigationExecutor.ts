@@ -276,6 +276,15 @@ export function useLiveMatchNavigationExecutor({
             source,
           });
         }
+        if (wasMountedBySignal) {
+          rgPerfMark('live match navigation confirmed by screen mount', {
+            matchId,
+            mode,
+            navigationKey,
+            requestId,
+            source,
+          });
+        }
       } else if (routeStateOnly && navigationRecordRef.current?.requestId === requestId) {
         const recoveryCount = previousFailedCount + 1;
         navigationRecordRef.current = {
@@ -298,6 +307,15 @@ export function useLiveMatchNavigationExecutor({
           requestId,
           source,
         });
+        rgPerfMark('live match mount signal missing reason', {
+          matchId,
+          mode,
+          navigationKey,
+          reason: 'route-state-only-waiting-for-shell-mount',
+          recoveryCount,
+          requestId,
+          source,
+        });
         rgPerfMark('live match navigation waiting for mount signal', {
           matchId,
           mode,
@@ -309,6 +327,16 @@ export function useLiveMatchNavigationExecutor({
         });
       } else if (navigationRecordRef.current?.requestId === requestId) {
         const failedCount = previousFailedCount + 1;
+        rgPerfMark('live match mount signal missing reason', {
+          matchId: matchId ?? null,
+          mode,
+          navigationKey,
+          reason: routeStateHydrated
+            ? 'navigation-failed-after-route-hydration'
+            : 'target-route-not-hydrated',
+          requestId,
+          source,
+        });
         navigationRecordRef.current = {
           failedCount,
           key: navigationKey,

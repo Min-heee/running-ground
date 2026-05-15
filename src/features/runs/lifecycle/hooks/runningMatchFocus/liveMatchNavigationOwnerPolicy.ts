@@ -170,6 +170,16 @@ export function resolveExistingNavigationRecord({
       preferArena: requestedPreferArena,
       source,
     });
+    rgPerfMark('live match recovery navigation skipped duplicate', {
+      matchId: matchId ?? null,
+      mode,
+      navigationKey,
+      nextRetryInMs: nextRetryAtMs - Date.now(),
+      owner: currentRecord.owner,
+      preferArena: requestedPreferArena,
+      reason: 'waiting-for-mount-signal',
+      source,
+    });
     return {
       handled: true,
       value: currentRecord.result ?? null,
@@ -177,6 +187,15 @@ export function resolveExistingNavigationRecord({
   }
 
   if (!shouldSuppressRecoveryRetry(currentRecord)) {
+    rgPerfMark('live match recovery navigation retry', {
+      failedCount: currentRecord.failedCount,
+      matchId: matchId ?? null,
+      mode,
+      navigationKey,
+      owner: currentRecord.owner,
+      preferArena: requestedPreferArena,
+      source,
+    });
     return { handled: false };
   }
 
@@ -185,6 +204,15 @@ export function resolveExistingNavigationRecord({
     status: 'suppressed',
     updatedAtMs: Date.now(),
   };
+  rgPerfMark('live match mount signal missing reason', {
+    failedCount: currentRecord.failedCount,
+    matchId: matchId ?? null,
+    mode,
+    navigationKey,
+    owner: currentRecord.owner,
+    reason: 'route-state-only-retry-exhausted',
+    source,
+  });
   rgPerfMark('live match navigation recovery failed no mount', {
     failedCount: currentRecord.failedCount,
     matchId: matchId ?? null,

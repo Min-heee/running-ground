@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-15T10:10:45.910Z
+생성 시각: 2026-05-15T11:10:42.053Z
 
 ## 실행 방법
 
@@ -14,12 +14,12 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 739 |
-| 코드 파일 | 693 |
+| 분석 파일 | 743 |
+| 코드 파일 | 697 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 61 |
+| 300줄 이상 파일 | 63 |
 | 500줄 이상 파일 | 15 |
-| 50줄 이상 함수 후보 | 251 |
+| 50줄 이상 함수 후보 | 252 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
 ## 감지 항목 요약
@@ -31,7 +31,7 @@ npm run code:quality
 | useEffect가 많은 파일 | 0 | 0 | 0 | 0 |
 | useMemo/useCallback 없이 props를 많이 만드는 후보 | 9 | 0 | 9 | 0 |
 | services 밖 fetch/api 호출 후보 | 0 | 0 | 0 | 0 |
-| utils/domain 밖 계산 로직 후보 | 42 | 6 | 36 | 0 |
+| utils/domain 밖 계산 로직 후보 | 43 | 6 | 37 | 0 |
 | types 밖 타입 선언 후보 | 56 | 0 | 56 | 0 |
 | setInterval/setTimeout/subscription cleanup 의심 후보 | 15 | 0 | 15 | 0 |
 | Location/watchPosition/background task 사용 후보 | 18 | 5 | 13 | 0 |
@@ -41,7 +41,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/server.mjs | 6164 | imports 26, sort/filter/map 154, timers 1 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1888 | imports 47, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1923 | imports 49, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -71,15 +71,16 @@ npm run code:quality
 | backend/src/repositories/authRepository.test.mjs | 414 | imports 4, sort/filter/map 1 |
 | src/features/runs/sync/activeRoomCheck.ts | 403 | imports 5, timers 1 |
 | src/features/runs/lifecycle/matchRoomFlow.ts | 401 | imports 2, sort/filter/map 8 |
+| src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationExecutor.ts | 396 | imports 13 |
 | src/features/runs/viewModels/matchProgress.ts | 396 | imports 4, sort/filter/map 2 |
 | src/features/runs/tracking/background/locationTaskManager.test.ts | 389 | imports 6, timers 8 |
 | src/integrations/nativeHealth.ts | 379 | imports 8, sort/filter/map 1 |
 | backend/src/repositories/friendsRepository.mjs | 373 | sort/filter/map 9 |
-| src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationExecutor.ts | 368 | imports 13 |
 | docs/server-backend-architecture.md | 367 | imports 1 |
 | src/lib/api/services/mock/matchScheduling.ts | 358 | imports 4, sort/filter/map 8 |
 | docs/refactor-roadmap.md | 358 |  |
 | src/lib/api/services/runningRoomResponseGuards.ts | 356 | imports 2, sort/filter/map 4 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 350 | imports 8, focusEffects 1, timers 1 |
 | scripts/generate-testflight-qa-report.mjs | 349 | imports 5, sort/filter/map 1 |
 | src/features/runs/lifecycle/matchStateMachine.ts | 345 | imports 3 |
 | src/components/matches/liveMatchArena/styles.ts | 338 | imports 3 |
@@ -101,13 +102,14 @@ npm run code:quality
 | src/features/runs/components/matchSetupCards/styles.ts | 303 | imports 1 |
 | src/features/runs/viewModels/matchProgress.test.ts | 302 | imports 5, sort/filter/map 6 |
 | docs/backend-server-refactor-plan.md | 302 | imports 2 |
+| src/features/runs/lifecycle/hooks/runningMatchFocus/liveMatchNavigationOwnerPolicy.ts | 300 | imports 5 |
 
 ## 500줄 이상 파일
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/server.mjs | 6164 | imports 26, sort/filter/map 154, timers 1 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1888 | imports 47, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1923 | imports 49, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -126,15 +128,17 @@ npm run code:quality
 
 
 
-> 251개 중 상위 80개만 표시합니다.
+> 252개 중 상위 80개만 표시합니다.
 
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 144 | TrackRunExperienceRuntime | 1744 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 146 | TrackRunExperienceRuntime | 1777 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 52 | useTrackRunRuntimeRecipientInviteInbox | 298 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
 | backend/src/repositories/postgresRunsRepository.mjs | 369 | createPostgresRunsRepository | 271 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 69 | callback@useCallback | 261 |
 | backend/src/repositories/postgresAuthRepository.mjs | 246 | createPostgresAuthRepository | 258 |
 | src/features/settings/screens/AdminScreen.tsx | 19 | AdminScreen | 254 |
 | src/features/match/hooks/lobby/useRoomStartActions.ts | 65 | useRoomStartActions | 248 |
@@ -164,6 +168,7 @@ npm run code:quality
 | src/features/runs/lifecycle/hooks/useMatchCountdownModel.ts | 40 | useMatchCountdownModel | 171 |
 | backend/src/bridges/sessionRunsBridge.mjs | 136 | createSessionRunsBridge | 169 |
 | src/features/auth/screens/AccountRecoveryScreen.tsx | 43 | AccountRecoveryScreen | 168 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 156 | requestPromise | 167 |
 | src/features/integrations/hooks/useIntegrationActions.ts | 61 | useIntegrationActions | 165 |
 | src/features/runs/components/matchSetupCards/GroupMatchSetupCard.tsx | 41 | GroupMatchSetupCard | 165 |
 | backend/src/repositories/marketRepository.mjs | 5 | createJsonMarketRepository | 165 |
@@ -174,7 +179,6 @@ npm run code:quality
 | src/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyEffects.ts | 27 | useMatchRoomLobbyEffects | 157 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 48 | startLocationTaskWithTrace | 156 |
 | backend/src/bridges/friendsLeagueBridge.test.mjs | 11 | createHarness | 154 |
-| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 25 | useTrackRunRuntimeRecipientInviteInbox | 149 |
 | src/features/runs/components/matchSetupCards/DuelMatchSetupCard.tsx | 13 | DuelMatchSetupCard | 145 |
 | src/features/runs/runtime/useTrackRunRuntimeMatchMaintenanceActions.ts | 6 | useTrackRunRuntimeMatchMaintenanceActions | 144 |
 | src/features/runs/hooks/runSaveFlow/useRunFinishCommand.ts | 44 | useRunFinishCommand | 141 |
@@ -198,19 +202,17 @@ npm run code:quality
 | src/features/runs/hooks/matchLifecycle/useGroupMatchLifecycle.ts | 18 | useGroupMatchLifecycle | 123 |
 | src/features/runs/hooks/useRunTrackingFlow.ts | 11 | useRunTrackingFlow | 122 |
 | backend/src/routes/authRoutes.mjs | 1 | routeAuthRequest | 122 |
-| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 36 | callback@useCallback | 121 |
 | src/features/auth/hooks/useUniversityVerification.ts | 10 | useUniversityVerification | 121 |
 | backend/src/repositories/raceRepository.mjs | 1 | createJsonRaceRepository | 121 |
 | src/features/runs/hooks/useMatchLifecycle.ts | 17 | useMatchLifecycle | 120 |
 | src/features/runs/runtime/useIdleRunModeModel.ts | 91 | useIdleRunModeModel | 119 |
 | src/features/runs/components/LiveMatchPager.tsx | 29 | LiveMatchPager | 119 |
+| src/features/match/hooks/lobby/inviteActions/useFriendInviteSend.ts | 10 | useFriendInviteSend | 119 |
 | backend/src/seed.mjs | 378 | createRegionTree | 118 |
 | backend/src/repositories/runsRepository.mjs | 325 | createJsonRunsRepository | 118 |
 | src/features/runs/hooks/matchLifecycle/useDuelMatchLifecycle.ts | 17 | useDuelMatchLifecycle | 117 |
 | backend/src/routes/runningMatchRoutes.mjs | 1 | routeRunningMatchRequest | 117 |
 | backend/src/repositories/runsRepository.mjs | 208 | importPendingRunsForUser | 116 |
-| src/features/settings/admin/components/MarketAdminSection.tsx | 81 | MarketAdminSection | 115 |
-| backend/src/repositories/adminRepository.mjs | 5 | createJsonAdminRepository | 115 |
 
 ## React component inline object/array/style 후보
 
@@ -352,6 +354,7 @@ npm run code:quality
 | Medium | src/lib/api/services/friends.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=3, sort/filter/map=4 |
 | Medium | src/components/matches/liveMatchArena/RoadMotion.tsx |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=2, sort/filter/map=4 |
 | Medium | src/features/location/addressCatalog.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=0, sort/filter/map=6 |
+| Medium | src/features/runs/sync/roomInviteInbox.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=0, sort/filter/map=6 |
 | Medium | src/lib/api/services/mock/races.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=0, sort/filter/map=6 |
 | Medium | backend/src/auth.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=0 |
 | Medium | src/components/matches/liveMatchRaceBoard/RaceBoardListRow.tsx |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=0 |
@@ -371,6 +374,7 @@ npm run code:quality
 | Medium | src/features/runs/lifecycle/matchRoomFlow.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
 | Medium | src/features/runs/runtime/trace/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
 | Medium | src/features/runs/sync/activeRoomCheck.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
+| Medium | src/features/runs/sync/roomInviteInbox.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
 | Medium | src/features/runs/lifecycle/matchLifecycleController.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=6 |
 | Medium | src/integrations/nativeHealth.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=6 |
 | Medium | src/lib/session/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=6 |
@@ -408,7 +412,6 @@ npm run code:quality
 | Medium | src/features/runs/runtime/useTrackRunRuntimeScreenState.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/runtime/useTrackRunRuntimeStateBridge.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/sync/partyRunSync/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
-| Medium | src/features/runs/sync/roomInviteInbox.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/tracking/background/locationTaskManagerCore.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/tracking/background/locationTaskPolicy.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/utils/matchScheduling.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |

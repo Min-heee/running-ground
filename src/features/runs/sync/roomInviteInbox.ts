@@ -11,6 +11,7 @@ export type RoomInviteInboxEvent = {
 
 export type RoomInviteCardDisplaySkipReason =
   | 'duplicate-invite'
+  | 'already-joined'
   | 'no-pending-invite';
 
 export type RecipientRoomInviteInboxResult = {
@@ -20,29 +21,145 @@ export type RecipientRoomInviteInboxResult = {
   skippedReason: RoomInviteCardDisplaySkipReason | null;
 };
 
-function getInviteeForUser(room: RunningMatchRoom, userId: string) {
+export type RecipientInviteInboxFetchSkipReason =
+  | 'active-match'
+  | 'joined-room'
+  | 'throttled';
+
+export type RecipientInviteInboxStaleReason =
+  | 'active-match'
+  | 'joined-room'
+  | 'room-changed';
+
+export const RECIPIENT_INVITE_INBOX_FETCH_THROTTLE_MS = 5000;
+
+export type RoomInviteInboxQueryIdentity = {
+  currentUserId: string;
+  currentUserTag?: string | null;
+};
+
+export type RoomInviteInboxRawPendingIds = {
+  invitedFriendIds: string[];
+  invitedUserIds: string[];
+  inviteeTags: string[];
+};
+
+function normalizeIdentityValues(...values: (string | null | undefined)[]) {
+  return [...new Set(values
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value)))];
+}
+
+function getInviteIdentityAliases({ currentUserId, currentUserTag }: RoomInviteInboxQueryIdentity) {
+  return normalizeIdentityValues(currentUserId, currentUserTag);
+}
+
+export function getRoomInviteInboxRawPendingIds(room: RunningMatchRoom | null | undefined): RoomInviteInboxRawPendingIds {
+  return {
+    invitedFriendIds: room?.invitedFriendIds ?? [],
+    invitedUserIds: room?.invitedFriends?.map((invitee) => invitee.invitedUserId ?? invitee.userId).filter(Boolean) ?? [],
+    inviteeTags: room?.invitedFriends?.map((invitee) => invitee.tag).filter((tag): tag is string => Boolean(tag)) ?? [],
+  };
+}
+
+function getInviteeForUser(room: RunningMatchRoom, identity: RoomInviteInboxQueryIdentity) {
+  const aliases = getInviteIdentityAliases(identity);
+
   return room.invitedFriends?.find((invitee) => (
-    invitee.userId === userId || invitee.invitedUserId === userId
+    aliases.includes(invitee.userId)
+    || (invitee.invitedUserId ? aliases.includes(invitee.invitedUserId) : false)
+    || (invitee.tag ? aliases.includes(invitee.tag) : false)
   )) ?? null;
 }
 
-function isPendingInviteForUser(room: RunningMatchRoom, userId: string) {
+function isPendingInviteForUser(room: RunningMatchRoom, identity: RoomInviteInboxQueryIdentity) {
+  const aliases = getInviteIdentityAliases(identity);
+
   return Boolean(
-    getInviteeForUser(room, userId)
-    || room.invitedFriendIds.includes(userId),
+    getInviteeForUser(room, identity)
+    || room.invitedFriendIds.some((userId) => aliases.includes(userId)),
   );
+}
+
+export function hasRoomInviteInboxRecipientIdMismatch({
+  currentUserId,
+  currentUserTag,
+  room,
+}: RoomInviteInboxQueryIdentity & {
+  room: RunningMatchRoom | null | undefined;
+}) {
+  if (!room || room.joined !== false) {
+    return false;
+  }
+
+  const rawPendingIds = getRoomInviteInboxRawPendingIds(room);
+  const hasPendingInvite = rawPendingIds.invitedFriendIds.length > 0
+    || rawPendingIds.invitedUserIds.length > 0
+    || rawPendingIds.inviteeTags.length > 0;
+
+  return hasPendingInvite && !isPendingInviteForUser(room, { currentUserId, currentUserTag });
+}
+
+export function getRecipientInviteInboxFetchSkipReason({
+  currentRoom,
+  lastCompletedAtMs,
+  nowMs,
+  throttleMs = RECIPIENT_INVITE_INBOX_FETCH_THROTTLE_MS,
+}: {
+  currentRoom?: RunningMatchRoom | null;
+  lastCompletedAtMs: number;
+  nowMs: number;
+  throttleMs?: number;
+}): RecipientInviteInboxFetchSkipReason | null {
+  if (currentRoom?.linkedMatchId) {
+    return 'active-match';
+  }
+
+  if (currentRoom?.roomId && currentRoom.joined === true) {
+    return 'joined-room';
+  }
+
+  if (lastCompletedAtMs > 0 && nowMs - lastCompletedAtMs < throttleMs) {
+    return 'throttled';
+  }
+
+  return null;
+}
+
+export function getRecipientInviteInboxStaleResultReason({
+  currentRoom,
+  startedRoomId,
+}: {
+  currentRoom?: RunningMatchRoom | null;
+  startedRoomId?: string | null;
+}): RecipientInviteInboxStaleReason | null {
+  if (currentRoom?.linkedMatchId) {
+    return 'active-match';
+  }
+
+  if (currentRoom?.roomId && currentRoom.joined === true) {
+    return 'joined-room';
+  }
+
+  if (startedRoomId && currentRoom?.roomId && startedRoomId !== currentRoom.roomId) {
+    return 'room-changed';
+  }
+
+  return null;
 }
 
 export function buildRoomInviteInboxEvent(
   room: RunningMatchRoom | null | undefined,
   currentUserId: string,
+  currentUserTag?: string | null,
 ): RoomInviteInboxEvent | null {
   if (!room || room.joined !== false || !currentUserId) {
     return null;
   }
 
-  const invitee = getInviteeForUser(room, currentUserId);
-  const isCurrentUserInvited = isPendingInviteForUser(room, currentUserId);
+  const identity = { currentUserId, currentUserTag };
+  const invitee = getInviteeForUser(room, identity);
+  const isCurrentUserInvited = isPendingInviteForUser(room, identity);
   if (!isCurrentUserInvited || !room.roomId || !room.inviteToken) {
     return null;
   }
@@ -75,14 +192,16 @@ export function shouldDisplayRoomInviteCard(
 
 export function buildRecipientRoomInviteInboxResult({
   currentUserId,
+  currentUserTag,
   previousInviteKey,
   room,
 }: {
   currentUserId: string;
+  currentUserTag?: string | null;
   previousInviteKey: string | null;
   room: RunningMatchRoom | null | undefined;
 }): RecipientRoomInviteInboxResult {
-  const event = buildRoomInviteInboxEvent(room, currentUserId);
+  const event = buildRoomInviteInboxEvent(room, currentUserId, currentUserTag);
   const pendingCount = event ? 1 : 0;
 
   if (!event) {
@@ -90,7 +209,7 @@ export function buildRecipientRoomInviteInboxResult({
       event: null,
       pendingCount,
       shouldDisplay: false,
-      skippedReason: 'no-pending-invite',
+      skippedReason: room?.joined === true ? 'already-joined' : 'no-pending-invite',
     };
   }
 

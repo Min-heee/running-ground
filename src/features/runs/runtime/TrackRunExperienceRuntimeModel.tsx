@@ -68,12 +68,14 @@ import {
   resolveLiveMatchShellPreservation,
   type PreservedLiveMatchShell,
 } from '@/features/runs/lifecycle/liveMatchShellPreservation';
+import { resolveTrackRunLiveShellGate } from '@/features/runs/lifecycle/trackRunLiveShellGate';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 import { useTrackRunNavigationAdapter } from '@/features/runs/runtime/useTrackRunNavigationAdapter';
 import { useTrackRunRuntimeTrace } from '@/features/runs/runtime/useTrackRunRuntimeTrace';
+import { useTrackRunLiveShellGateTrace } from '@/features/runs/runtime/useTrackRunLiveShellGateTrace';
 import { useTrackRunRuntimeEffects } from '@/features/runs/runtime/useTrackRunRuntimeEffects';
 import { useIdleRunRuntimeModel } from '@/features/runs/runtime/useIdleRunRuntimeModel';
 import { useMatchLobbyRuntimeModel } from '@/features/runs/runtime/useMatchLobbyRuntimeModel';
@@ -857,17 +859,33 @@ export function TrackRunExperienceRuntime({
     ?? liveMatchRouteHydration?.matchId
     ?? liveMatchMountedRef.current?.matchId
     ?? null;
+  const shouldForceLiveArenaFromRoute = Boolean(
+    hydratedFocusMatchId
+    && (
+      hydratedForceMatchArena
+      || liveMatchRouteHydration?.preferArena
+      || (
+        routeShellHint === 'live'
+        && (
+          matchLifecycleController.stage === 'arming'
+          || matchLifecycleController.stage === 'countdown'
+          || matchLifecycleController.stage === 'active'
+        )
+      )
+    ),
+  );
   const previousPreservedLiveMatchShell = preservedLiveMatchShellRef.current;
   const liveMatchShellPreservation = resolveLiveMatchShellPreservation({
     currentMatchId: liveMatchRenderIdentity,
     currentMode: liveMatchRenderMode,
     isCurrentUserForfeited: currentUserHasForfeitedActiveMatch,
     previous: previousPreservedLiveMatchShell,
-    requestedShowLiveArena: showLiveArena,
+    requestedShowLiveArena: showLiveArena || shouldForceLiveArenaFromRoute,
     stage: matchLifecycleController.stage,
   });
   preservedLiveMatchShellRef.current = liveMatchShellPreservation.next;
   const effectiveShowLiveArena = liveMatchShellPreservation.shouldRenderLiveArena;
+  const shouldRenderLiveArena = effectiveShowLiveArena || shouldForceLiveArenaFromRoute;
 
   useTrackRunRuntimeTrace({
     currentTrackerStatus: status,
@@ -895,7 +913,7 @@ export function TrackRunExperienceRuntime({
     roomLinkedMatchContext,
     roomLinkedMatchContextRef,
     routeShellHint,
-    showLiveArena,
+    showLiveArena: shouldRenderLiveArena,
     trackerStatusRef,
   });
   const backHref: Href = '/my-activity';
@@ -1143,6 +1161,7 @@ export function TrackRunExperienceRuntime({
     lastDisplayedRecipientInviteKeyRef,
     latestMatchRoomServerNowMsRef,
     leaveMatchRoomInFlightRef,
+    matchRoom,
     recipientInviteFetchInFlightRef,
     roomCreateActionInput: {
       activeDuelSlotStartAt,
@@ -1291,11 +1310,11 @@ export function TrackRunExperienceRuntime({
     shouldShowCenteredMatchCountdown,
     shouldShowFullscreenMatchCountdown,
   } = useTrackRunRuntimeScreenState({
-    effectiveShowLiveArena,
+    effectiveShowLiveArena: shouldRenderLiveArena,
     isIdle,
     isStarting,
     liveMatchRenderMode,
-    liveMatchStartupIdentity,
+    liveMatchStartupIdentity: liveMatchRenderIdentity,
     liveMatchViewConfirmationRef,
     roomCountdownEntry,
     soloStartCountdownSeconds,
@@ -1405,7 +1424,7 @@ export function TrackRunExperienceRuntime({
       isIdle,
       forceOpenActiveMatch,
       shouldKeepRunningMatchArena,
-      showLiveArena: effectiveShowLiveArena,
+      showLiveArena: shouldRenderLiveArena,
       hasMatchResultPage,
       liveArenaPageWidth,
       duelState: duelMatchState,
@@ -1614,14 +1633,14 @@ export function TrackRunExperienceRuntime({
     isRunning,
     isSaving,
     matchMode,
-    showLiveArena: effectiveShowLiveArena,
+    showLiveArena: shouldRenderLiveArena,
     viewModelInput: {
       scrollRef: livePagerRef,
       page: liveArenaPage,
       pageWidth: liveArenaPageWidth,
       hasResultPage: hasMatchResultPage,
       onPageChange: setLiveArenaPage,
-      activeMatchId: liveMatchStartupIdentity,
+      activeMatchId: liveMatchRenderIdentity,
       matchMode,
       effectiveDuelOpponent,
       duelDistanceKm,
@@ -1652,7 +1671,7 @@ export function TrackRunExperienceRuntime({
       groupArenaParticipants,
       groupAheadParticipant,
       groupBehindParticipant,
-      shouldKeepRunningMatchArena,
+      shouldKeepRunningMatchArena: shouldKeepRunningMatchArena || shouldForceLiveArenaFromRoute,
       currentUserDuelLiveStatus,
       currentUserGroupLiveStatus,
       deferHeavyContent: !liveMatchHeavyWorkReady,
@@ -1760,7 +1779,7 @@ export function TrackRunExperienceRuntime({
     void handleRequestGroupMatch(activeGroupSlotStartAt);
   });
 
-  const shouldShowReadyScreen = isIdle && !effectiveShowLiveArena && !hasLinkedRuntimeRoom;
+  const shouldShowReadyScreen = isIdle && !shouldRenderLiveArena && !hasLinkedRuntimeRoom;
   const {
     readyScreenProps,
     trackRunShellKind,
@@ -1864,6 +1883,22 @@ export function TrackRunExperienceRuntime({
     visibleUpcomingMatches,
     visibleUpcomingMatchesNowMs: visibleUpcomingMatches.length > 0 ? syncedNowMs : 0,
   });
+  const liveShellGateDecision = resolveTrackRunLiveShellGate({
+    focusMatchId: hydratedFocusMatchId,
+    forceMatchArena: hydratedForceMatchArena,
+    hydratedMatchId: liveMatchRouteHydration?.matchId,
+    matchLifecycleStage: matchLifecycleController.stage,
+    requestedShell: trackRunShellKind,
+    requestedShouldShowReadyScreen: shouldShowReadyScreen,
+    routePreferArena: liveMatchRouteHydration?.preferArena,
+    routeShellHint,
+    showLiveArena: shouldRenderLiveArena,
+  });
+  useTrackRunLiveShellGateTrace({
+    decision: liveShellGateDecision,
+    requestedShell: trackRunShellKind,
+    routeShellHint,
+  });
   const trackRunViewProps = useTrackRunRuntimePropsComposer({
     backHref,
     centeredCountdownEntry: shouldShowCenteredMatchCountdown && visibleCountdownEntry
@@ -1877,8 +1912,8 @@ export function TrackRunExperienceRuntime({
     liveContainerProps,
     liveMatchKey: liveMatchShellPreservation.key,
     readyScreenProps,
-    shellKind: trackRunShellKind,
-    shouldShowReadyScreen,
+    shellKind: liveShellGateDecision.shellKind,
+    shouldShowReadyScreen: liveShellGateDecision.shouldShowReadyScreen,
     shouldShowRoomArmingOverlay,
     soloStartCountdownSeconds: runtimeSoloStartCountdownSeconds,
   });

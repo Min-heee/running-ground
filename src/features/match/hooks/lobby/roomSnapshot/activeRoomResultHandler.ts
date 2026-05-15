@@ -149,7 +149,22 @@ export async function handleMatchRoomActiveRoomResult({
   }
 
   const nextRoom = payload.room;
-  handleRecipientInviteInbox(nextRoom, 'match-room snapshot');
+  if (nextRoom?.linkedMatchId) {
+    rgPerfMark('invite inbox fetch skipped active match', {
+      linkedMatchId: nextRoom.linkedMatchId,
+      roomId: nextRoom.roomId,
+      source: 'match-room snapshot',
+      userId: currentUserTag,
+    });
+  } else if (nextRoom?.roomId && nextRoom.joined === true) {
+    rgPerfMark('invite card skipped already joined', {
+      roomId: nextRoom.roomId,
+      source: 'match-room snapshot',
+      userId: currentUserTag,
+    });
+  } else {
+    handleRecipientInviteInbox(nextRoom, 'match-room snapshot');
+  }
   commitRoom(nextRoom);
   if (nextRoom?.linkedMatchId) {
     markLiveMatchHandoff(nextRoom, 'match-room snapshot');
