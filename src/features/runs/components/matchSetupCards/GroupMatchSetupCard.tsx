@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { buildMatchSlotDateLabel } from '@/features/runs/utils/matchScheduling';
 import { buildMatchParticipantStatusLabel } from '@/features/runs/lifecycle/matchStateMachine';
@@ -10,6 +11,32 @@ import {
 } from '@/features/runs/components/matchSetupCards/MatchSetupCommon';
 import type { GroupMatchSetupCardProps } from '@/features/runs/components/matchSetupCards/types';
 import { matchSetupCardStyles as styles } from '@/features/runs/components/matchSetupCards/styles';
+
+type GroupParticipant = GroupMatchSetupCardProps['participants'][number];
+
+const GroupParticipantPreviewRow = memo(function GroupParticipantPreviewRow({
+  effectiveSeedRank,
+  participant,
+}: {
+  effectiveSeedRank: number | undefined;
+  participant: GroupParticipant;
+}) {
+  return (
+    <View style={styles.groupParticipantRow}>
+      <Text style={styles.groupParticipantRank}>{participant.seedRank}</Text>
+      <View style={styles.groupParticipantCopy}>
+        <Text style={styles.groupParticipantName}>
+          {participant.name}
+          {participant.seedRank === (effectiveSeedRank ?? 1) ? ' (나)' : ''}
+        </Text>
+        <Text style={styles.groupParticipantMeta}>
+          {participant.averagePace} · {participant.levelLabel}
+          {participant.liveStatus ? ` · ${buildMatchParticipantStatusLabel(participant.liveStatus)}` : ''}
+        </Text>
+      </View>
+    </View>
+  );
+});
 
 export function GroupMatchSetupCard({
   distanceKm,
@@ -49,6 +76,14 @@ export function GroupMatchSetupCard({
   onRequestTestMatch,
   onRequestRematch,
 }: GroupMatchSetupCardProps) {
+  const participantPreviewRows = useMemo(() => participants.slice(0, 3).map((participant) => (
+    <GroupParticipantPreviewRow
+      key={participant.id}
+      effectiveSeedRank={effectiveSeedRank ?? undefined}
+      participant={participant}
+    />
+  )), [effectiveSeedRank, participants]);
+
   return (
     <View style={styles.duelSetupCard}>
       <MatchDistanceSelector
@@ -136,21 +171,7 @@ export function GroupMatchSetupCard({
             </Text>
           ) : null}
           <View style={styles.groupParticipantList}>
-            {participants.slice(0, 3).map((participant) => (
-              <View key={participant.id} style={styles.groupParticipantRow}>
-                <Text style={styles.groupParticipantRank}>{participant.seedRank}</Text>
-                <View style={styles.groupParticipantCopy}>
-                  <Text style={styles.groupParticipantName}>
-                    {participant.name}
-                    {participant.seedRank === (effectiveSeedRank ?? 1) ? ' (나)' : ''}
-                  </Text>
-                  <Text style={styles.groupParticipantMeta}>
-                    {participant.averagePace} · {participant.levelLabel}
-                    {participant.liveStatus ? ` · ${buildMatchParticipantStatusLabel(participant.liveStatus)}` : ''}
-                  </Text>
-                </View>
-              </View>
-            ))}
+            {participantPreviewRows}
           </View>
           {effectiveParticipantCount > 3 ? (
             <Text style={styles.duelResultMeta}>외 {effectiveParticipantCount - 3}명</Text>

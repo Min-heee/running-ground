@@ -1,26 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { type Href, router } from 'expo-router';
-import { acknowledgeRunningMatchRoomCountdown } from '@/services/matchService';
-import { getApiErrorMessage } from '@/services/apiError';
-import type { RunningMatchRoomInvitee } from '@/lib/api/types';
-import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
-import { hydrateLiveMatchRouteState } from '@/features/runs/lifecycle/liveMatchRouteHydration';
-import {
-  buildMatchRoomUxModel,
-  buildPendingMatchRoomInvitees,
-} from '@/features/runs/lifecycle/matchRoomFlow';
-import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
-import { getMatchStartRemainingSeconds } from '@/lib/matchCountdown';
-import { useRoomInviteActions } from '@/features/match/hooks/lobby/useRoomInviteActions';
-import { useRoomSettings } from '@/features/match/hooks/lobby/useRoomSettings';
-import { useRoomSnapshot } from '@/features/match/hooks/lobby/useRoomSnapshot';
-import { useRoomStartActions } from '@/features/match/hooks/lobby/useRoomStartActions';
-import { rgPerfMark } from '@/utils/rgPerfTrace';
+import { useMatchRoomLobbyActions } from '@/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyActions';
+import { useMatchRoomLobbyEffects } from '@/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyEffects';
+import { useMatchRoomLobbyState } from '@/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyState';
+import { useMatchRoomLobbyViewModel } from '@/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyViewModel';
 
 export function useMatchRoomLobby() {
-  const openedLinkedMatchKeyRef = useRef<string | null>(null);
-  const countdownReadyRoomAckRef = useRef<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const {
     room,
     friendLeaderboard,
@@ -33,233 +16,40 @@ export function useMatchRoomLobby() {
     commitRoom,
     pauseRoomPolling,
     syncServerClock,
-  } = useRoomSnapshot();
-  const settings = useRoomSettings({
-    room,
-    latestRoomServerNowMsRef,
-    commitRoom,
-    syncServerClock,
-    setError,
+    saving,
     setSaving,
-  });
-
-  const currentParticipant = room?.participants.find((participant) => (
-    participant.userId === currentUserTag || participant.tag === currentUserTag
-  )) ?? null;
-
-  const openLinkedMatchInRunning = useCallback((nextRoom: NonNullable<typeof room>) => {
-    if (!nextRoom.linkedMatchId) {
-      return;
-    }
-
-    const nextParticipant = nextRoom.participants.find((participant) => (
-      participant.userId === currentUserTag || participant.tag === currentUserTag
-    )) ?? null;
-    const remainingSeconds = getMatchStartRemainingSeconds(
-      nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
-      Date.now() + serverClockOffsetMs,
-    );
-    const flow = buildPartyRunFlowSnapshot({
-      room: nextRoom,
-      isCountdownReady: nextParticipant?.isCountdownReady,
-      remainingSeconds,
-    });
-
-    if (!flow.canOpenLinkedMatch) {
-      return;
-    }
-
-    const nextKey = [
-      nextRoom.roomId,
-      nextRoom.linkedMatchId,
-      nextRoom.state,
-      nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
-    ].join(':');
-
-    if (openedLinkedMatchKeyRef.current === nextKey) {
-      return;
-    }
-
-    openedLinkedMatchKeyRef.current = nextKey;
-    pauseRoomPolling();
-    rgPerfMark('match lifecycle owner handoff to live match', {
-      matchId: nextRoom.linkedMatchId,
-      roomId: nextRoom.roomId,
-      source: 'match-room linked match route',
-      state: nextRoom.state,
-    });
-    rgPerfMark('match-room polling stopped after handoff', {
-      matchId: nextRoom.linkedMatchId,
-      roomId: nextRoom.roomId,
-      source: 'match-room linked match route',
-      state: nextRoom.state,
-    });
-    hydrateLiveMatchRouteState({
-      distanceKm: nextRoom.linkedMatchDistanceKm ?? nextRoom.distanceKm,
-      matchId: nextRoom.linkedMatchId,
-      mode: nextRoom.mode,
-      preferArena: flow.shouldOpenArena,
-      roomId: nextRoom.roomId,
-      slotStartAt: nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
-      source: 'match-room linked match route',
-    });
-    rgPerfMark('live match route state hydrated', {
-      matchId: nextRoom.linkedMatchId,
-      roomId: nextRoom.roomId,
-      source: 'match-room linked match route',
-      state: nextRoom.state,
-    });
-
-    router.replace({
-      pathname: '/(tabs)/running',
-      params: {
-        focusMatchMode: nextRoom.mode,
-        focusMatchId: nextRoom.linkedMatchId,
-        focusMatchDistanceKm: String(nextRoom.linkedMatchDistanceKm ?? nextRoom.distanceKm),
-        focusMatchSlotStartAt: nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
-        focusRoomId: nextRoom.roomId,
-        ...(flow.shouldOpenArena ? { forceMatchArena: '1' } : {}),
-        focusMatchNonce: `room-${Date.now()}`,
-      },
-    } as Href);
-  }, [currentUserTag, pauseRoomPolling, serverClockOffsetMs]);
-
-  useEffect(() => {
-    if (!room?.linkedMatchId) {
-      return undefined;
-    }
-
-    openLinkedMatchInRunning(room);
-
-    const timer = setInterval(() => {
-      openLinkedMatchInRunning(room);
-    }, 500);
-
-    return () => clearInterval(timer);
-  }, [
-    openLinkedMatchInRunning,
+    settings,
+  } = useMatchRoomLobbyState();
+  const viewModel = useMatchRoomLobbyViewModel({
+    currentUserTag,
+    friendLeaderboard,
     room,
-    room?.linkedMatchId,
-    room?.linkedMatchSlotStartAt,
-    room?.linkedMatchStatus,
-    room?.mode,
-    room?.roomId,
-    room?.slotStartAt,
-    room?.state,
     serverClockOffsetMs,
-  ]);
-
-  const friendOptions = useMemo(() => {
-    const excludedIds = new Set<string>([currentUserTag]);
-
-    if (room?.hostUserId) {
-      excludedIds.add(room.hostUserId);
-    }
-
-    room?.participants.forEach((participant) => {
-      excludedIds.add(participant.userId);
-      if (participant.tag) {
-        excludedIds.add(participant.tag);
-      }
-    });
-
-    return (friendLeaderboard?.ranks ?? [])
-      .filter((friend) => !excludedIds.has(friend.id) && (!friend.tag || !excludedIds.has(friend.tag)))
-      .slice(0, 12);
-  }, [currentUserTag, friendLeaderboard?.ranks, room?.hostUserId, room?.participants]);
-
-  const pendingInvitees = useMemo<RunningMatchRoomInvitee[]>(
-    () => buildPendingMatchRoomInvitees(room, friendLeaderboard?.ranks ?? []),
-    [friendLeaderboard?.ranks, room],
-  );
-
-  const roomUxModel = useMemo(
-    () => buildMatchRoomUxModel({
-      room,
-      currentUserId: currentUserTag,
-      pendingInvitees,
-    }),
-    [currentUserTag, pendingInvitees, room],
-  );
-  const isInvitedOnly = roomUxModel.invite.isInvitedOnly;
-  const isReady = roomUxModel.readyAction.state === 'ready';
-  const linkedMatchRemainingSeconds = room?.linkedMatchSlotStartAt
-    ? getMatchStartRemainingSeconds(room.linkedMatchSlotStartAt, Date.now() + serverClockOffsetMs)
-    : null;
-  const partyRunFlow = buildPartyRunFlowSnapshot({
-    room,
-    isCountdownReady: currentParticipant?.isCountdownReady,
-    remainingSeconds: linkedMatchRemainingSeconds,
   });
-  const partyRunStartPhase = partyRunFlow.phase;
-  const showPartyRunLoadingBanner = partyRunFlow.shouldShowLoading;
-  const showPartyRunCountdownBanner = Boolean(
-    partyRunFlow.shouldShowCountdown
-    && linkedMatchRemainingSeconds !== null,
-  );
 
-  useEffect(() => {
-    if (!room?.roomId || !partyRunFlow.canAcknowledgeCountdownReady) {
-      if (!partyRunFlow.hasLinkedMatch || partyRunFlow.phase !== 'arming') {
-        countdownReadyRoomAckRef.current = null;
-      }
-      return;
-    }
-
-    const ackKey = `${room.roomId}:${room.linkedMatchId}:${currentUserTag}`;
-    if (countdownReadyRoomAckRef.current === ackKey) {
-      return;
-    }
-
-    countdownReadyRoomAckRef.current = ackKey;
-    void acknowledgeRunningMatchRoomCountdown({ roomId: room.roomId })
-      .then((payload) => {
-        if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
-          return;
-        }
-
-        syncServerClock(payload.serverNow);
-        commitRoom(payload.room);
-        setError(null);
-      })
-      .catch((roomError) => {
-        countdownReadyRoomAckRef.current = null;
-        setError(getApiErrorMessage(roomError, '파티런 카운트다운 준비를 맞추지 못했어.'));
-      });
-  }, [
+  useMatchRoomLobbyEffects({
     commitRoom,
     currentUserTag,
     latestRoomServerNowMsRef,
-    partyRunFlow.canAcknowledgeCountdownReady,
-    partyRunFlow.hasLinkedMatch,
-    partyRunFlow.phase,
-    room?.linkedMatchId,
-    room?.roomId,
-    setError,
-    syncServerClock,
-  ]);
-
-  const startActions = useRoomStartActions({
-    room,
-    roomUxModel,
-    isReady,
-    latestRoomServerNowMsRef,
-    commitRoom,
-    syncServerClock,
+    partyRunFlow: viewModel.partyRunFlow,
     pauseRoomPolling,
-    setError,
-    setSaving,
-  });
-  const inviteActions = useRoomInviteActions({
     room,
-    roomUxModel,
-    selectedFriendIds: settings.selectedFriendIds,
-    latestRoomServerNowMsRef,
-    commitRoom,
+    serverClockOffsetMs,
+    setError,
     syncServerClock,
+  });
+
+  const actions = useMatchRoomLobbyActions({
+    commitRoom,
+    isReady: viewModel.isReady,
+    latestRoomServerNowMsRef,
+    pauseRoomPolling,
+    room,
+    roomUxModel: viewModel.roomUxModel,
     setError,
     setSaving,
-    saveRoomSettings: settings.saveRoomSettings,
+    settings,
+    syncServerClock,
   });
 
   return {
@@ -277,25 +67,25 @@ export function useMatchRoomLobby() {
     setSelectedFriendIds: settings.setSelectedFriendIds,
     customDistanceText: settings.customDistanceText,
     setCustomDistanceText: settings.setCustomDistanceText,
-    friendOptions,
-    roomUxModel,
-    isInvitedOnly,
+    friendOptions: viewModel.friendOptions,
+    roomUxModel: viewModel.roomUxModel,
+    isInvitedOnly: viewModel.isInvitedOnly,
     hasInviteDraftChanges: settings.hasInviteDraftChanges,
     scheduledStartAt: settings.scheduledStartAt,
-    linkedMatchRemainingSeconds,
-    partyRunStartPhase,
-    showPartyRunLoadingBanner,
-    showPartyRunCountdownBanner,
+    linkedMatchRemainingSeconds: viewModel.linkedMatchRemainingSeconds,
+    partyRunStartPhase: viewModel.partyRunStartPhase,
+    showPartyRunLoadingBanner: viewModel.showPartyRunLoadingBanner,
+    showPartyRunCountdownBanner: viewModel.showPartyRunCountdownBanner,
     saveRoomSettings: settings.saveRoomSettings,
-    roomExitState: startActions.roomExitState,
-    handleToggleReady: startActions.handleToggleReady,
-    handleStart: startActions.handleStart,
-    handleLeave: startActions.handleLeave,
-    handleAcceptInvite: inviteActions.handleAcceptInvite,
-    handleDeclineInvite: inviteActions.handleDeclineInvite,
-    handleSendFriendInvites: inviteActions.handleSendFriendInvites,
-    handleCopyCode: inviteActions.handleCopyCode,
-    handleInviteFriends: inviteActions.handleInviteFriends,
+    roomExitState: actions.roomExitState,
+    handleToggleReady: actions.handleToggleReady,
+    handleStart: actions.handleStart,
+    handleLeave: actions.handleLeave,
+    handleAcceptInvite: actions.handleAcceptInvite,
+    handleDeclineInvite: actions.handleDeclineInvite,
+    handleSendFriendInvites: actions.handleSendFriendInvites,
+    handleCopyCode: actions.handleCopyCode,
+    handleInviteFriends: actions.handleInviteFriends,
     handleApplyCustomDistance: settings.handleApplyCustomDistance,
   };
 }

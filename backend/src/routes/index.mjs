@@ -1,3 +1,4 @@
+import { routeHealthRequest } from './healthRoutes.mjs';
 import { routeAdminRequest } from './adminRoutes.mjs';
 import { routeAuthRequest } from './authRoutes.mjs';
 import { routeLeagueRequest } from './leagueRoutes.mjs';
@@ -8,6 +9,7 @@ import { routeRunRequest } from './runRoutes.mjs';
 import { routeSocialRequest } from './socialRoutes.mjs';
 
 const ROUTE_HANDLERS = [
+  routeHealthRequest,
   routeAdminRequest,
   routeAuthRequest,
   routeRunningMatchRequest,
@@ -20,7 +22,6 @@ const ROUTE_HANDLERS = [
 
 export function createApiRouteHandler({
   ApiError,
-  buildHealthStatus,
   sendJson,
   ...routeDependencies
 }) {
@@ -38,12 +39,6 @@ export function createApiRouteHandler({
     const url = new URL(request.url, `http://${request.headers.host ?? 'localhost'}`);
     const pathname = url.pathname;
     const method = request.method;
-
-    if (pathname === '/api/health' && method === 'GET') {
-      const healthStatus = buildHealthStatus();
-      sendJson(response, healthStatus.statusCode, healthStatus.payload);
-      return;
-    }
 
     const routeContext = {
       ...routeDependencies,

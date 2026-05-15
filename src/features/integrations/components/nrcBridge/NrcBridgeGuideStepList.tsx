@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { nrcBridgeGuideDetailStyles as styles } from './NrcBridgeGuideSection.styles';
 import type { GuideStep } from './types';
@@ -7,16 +8,18 @@ type NrcBridgeGuideStepListProps = {
 };
 
 export function NrcBridgeGuideStepList({ steps }: NrcBridgeGuideStepListProps) {
+  const stepRows = useMemo(() => steps.map((step, index) => (
+    <NrcBridgeGuideStepRow key={step.title} index={index} step={step} />
+  )), [steps]);
+
   return (
     <View style={styles.steps}>
-      {steps.map((step, index) => (
-        <NrcBridgeGuideStepRow key={step.title} index={index} step={step} />
-      ))}
+      {stepRows}
     </View>
   );
 }
 
-function NrcBridgeGuideStepRow({
+const NrcBridgeGuideStepRow = memo(function NrcBridgeGuideStepRow({
   index,
   step,
 }: {
@@ -34,4 +37,4 @@ function NrcBridgeGuideStepRow({
       </View>
     </View>
   );
-}
+});

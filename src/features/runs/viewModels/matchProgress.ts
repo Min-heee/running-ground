@@ -3,6 +3,11 @@ import type {
   GroupMatchParticipant,
 } from '@/lib/api/types';
 import { buildAveragePace } from '@/features/runs/tracking';
+import {
+  appendGroupLiveStandingGaps,
+  sortEstimatedGroupLiveStandings,
+  sortOfficialGroupLiveStandings,
+} from '@/features/runs/viewModels/matchProgressRanking';
 
 const MATCH_COMPARISON_INTERVAL_SECONDS = 30;
 
@@ -396,11 +401,12 @@ export function buildGroupLiveStandings(
   }
 
   if (participants.some((participant) => participant.officialReady && typeof participant.officialRank === 'number')) {
-    return participants
-      .map((participant) => {
+    return sortOfficialGroupLiveStandings(
+      participants.map((participant) => {
         const isCurrentUser = participant.seedRank === (mySeedRank ?? 1);
         const progressModel = buildMatchProgressModel(participant, targetDistanceKm);
         const officialProgress = progressModel.officialProgress;
+
         return {
           ...participant,
           currentDistanceKm: officialProgress?.distanceKm ?? 0,
@@ -410,58 +416,33 @@ export function buildGroupLiveStandings(
           gapLeaderKm: officialProgress?.gapLeaderKm ?? 0,
           isCurrentUser,
         };
-      })
-      .sort((left, right) => {
-        if (left.isForfeited !== right.isForfeited) {
-          return left.isForfeited ? 1 : -1;
-        }
-
-        return left.rank - right.rank;
-      });
+      }),
+    );
   }
 
   const currentSeedRank = mySeedRank ?? 1;
-  return participants
-    .map((participant) => {
-      const isCurrentUser = participant.seedRank === currentSeedRank;
-      const isForfeited = participant.liveStatus === 'forfeited';
-      const progressModel = buildMatchProgressModel(participant, targetDistanceKm);
-      const estimatedDistanceKm = isCurrentUser
-        ? currentDistanceKm
-        : progressModel.displayProgress.hasProgress
-          ? progressModel.displayProgress.distanceKm
-          : 0;
+  return appendGroupLiveStandingGaps(
+    sortEstimatedGroupLiveStandings(
+      participants.map((participant) => {
+        const isCurrentUser = participant.seedRank === currentSeedRank;
+        const isForfeited = participant.liveStatus === 'forfeited';
+        const progressModel = buildMatchProgressModel(participant, targetDistanceKm);
+        const estimatedDistanceKm = isCurrentUser
+          ? currentDistanceKm
+          : progressModel.displayProgress.hasProgress
+            ? progressModel.displayProgress.distanceKm
+            : 0;
 
-      return {
-        ...participant,
-        currentDistanceKm: estimatedDistanceKm,
-        isForfeited,
-        rank: 0,
-        gapAheadKm: null,
-        gapLeaderKm: 0,
-        isCurrentUser,
-      };
-    })
-    .sort((left, right) => {
-      if (left.isForfeited !== right.isForfeited) {
-        return left.isForfeited ? 1 : -1;
-      }
-
-      if (right.currentDistanceKm !== left.currentDistanceKm) {
-        return right.currentDistanceKm - left.currentDistanceKm;
-      }
-
-      return parsePaceSecondsPerKm(left.averagePace) - parsePaceSecondsPerKm(right.averagePace);
-    })
-    .map((participant, index, array) => {
-      const leaderDistance = array[0]?.currentDistanceKm ?? participant.currentDistanceKm;
-      const aheadRunner = index > 0 ? array[index - 1] : null;
-
-      return {
-        ...participant,
-        rank: index + 1,
-        gapLeaderKm: Number(Math.max(0, leaderDistance - participant.currentDistanceKm).toFixed(2)),
-        gapAheadKm: aheadRunner ? Number(Math.max(0, aheadRunner.currentDistanceKm - participant.currentDistanceKm).toFixed(2)) : null,
-      };
-    });
+        return {
+          ...participant,
+          currentDistanceKm: estimatedDistanceKm,
+          isForfeited,
+          rank: 0,
+          gapAheadKm: null,
+          gapLeaderKm: 0,
+          isCurrentUser,
+        };
+      }),
+    ),
+  );
 }

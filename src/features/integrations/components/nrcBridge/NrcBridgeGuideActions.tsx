@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import type { NrcBridgeGuideActionProps } from './types';
@@ -144,7 +144,7 @@ function buildActionButtons(input: NrcBridgeGuideActionProps) {
     );
   }
 
-  return buttons.map((button, index) => <Fragment key={`garmin-action-${index}`}>{button}</Fragment>);
+  return buttons;
 }
 
 function appendBridgeActions(

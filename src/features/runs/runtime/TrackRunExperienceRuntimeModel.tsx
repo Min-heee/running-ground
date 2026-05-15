@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import {
   ScrollView,
   useWindowDimensions,
@@ -23,18 +23,10 @@ import { useAndroidLiveMatchDisplayFrame } from '@/features/runs/viewModels/useA
 import { useAndroidLiveMatchStartupGate } from '@/features/runs/lifecycle/hooks/useAndroidLiveMatchStartupGate';
 import { useTrackRunIdleViewModel } from '@/features/runs/viewModels/useTrackRunIdleViewModel';
 import { useMatchRuntimeState } from '@/features/runs/hooks/useMatchRuntimeState';
-import { usePartyRunSync } from '@/features/runs/sync/usePartyRunSync';
 import { useMatchRoomSelectionSync } from '@/features/runs/hooks/useMatchRoomSelectionSync';
-import { useLiveMatchNavigationEffects } from '@/features/runs/lifecycle/hooks/useLiveMatchNavigationEffects';
 import { useMatchSelectionModel } from '@/features/runs/hooks/useMatchSelectionModel';
-import { useMatchEntryEffects } from '@/features/runs/lifecycle/hooks/useMatchEntryEffects';
 import { useMatchCountdownModel } from '@/features/runs/lifecycle/hooks/useMatchCountdownModel';
 import { useRunTrackingFlow } from '@/features/runs/hooks/useRunTrackingFlow';
-import { useBlockingMatchStatusPolling } from '@/features/runs/sync/matchPolling/useBlockingMatchStatusPolling';
-import { useStaleMatchCleanup } from '@/features/runs/sync/matchPolling/useStaleMatchCleanup';
-import { useUpcomingMatchPolling } from '@/features/runs/sync/matchPolling/useUpcomingMatchPolling';
-import { useSyncedCountdownTicker } from '@/features/runs/lifecycle/hooks/useSyncedCountdownTicker';
-import { useTrackRunNotificationSync } from '@/features/runs/hooks/useTrackRunNotificationSync';
 import {
   acknowledgeRunningMatchRoomCountdown,
   cancelRunningMatch,
@@ -72,9 +64,6 @@ import {
   type RunningMatchStatusResponse,
   type UpcomingRunningMatchItem,
 } from '@/lib/api/types';
-import {
-  formatMatchExpiryCountdown,
-} from '@/features/runs/utils/matchScheduling';
 import {
   buildAverageArenaPaceLabel,
   buildParticipantAveragePaceLabel,
@@ -119,11 +108,15 @@ import {
   waitForRgInputFeedbackFrame,
 } from '@/utils/rgInputTrace';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
-import { useTrackRunActionsAdapter } from '@/features/runs/runtime/useTrackRunActionsAdapter';
 import { useTrackRunNavigationAdapter } from '@/features/runs/runtime/useTrackRunNavigationAdapter';
-import { useLiveMatchRuntime } from '@/features/runs/runtime/useLiveMatchRuntime';
 import { useTrackRunIdleRuntime } from '@/features/runs/runtime/useTrackRunIdleRuntime';
 import { useMatchLobbyRuntime } from '@/features/runs/runtime/useMatchLobbyRuntime';
+import { useTrackRunRuntimeTrace } from '@/features/runs/runtime/useTrackRunRuntimeTrace';
+import { useTrackRunRuntimeEffects } from '@/features/runs/runtime/useTrackRunRuntimeEffects';
+import { useIdleRunRuntimeModel } from '@/features/runs/runtime/useIdleRunRuntimeModel';
+import { useMatchLobbyRuntimeModel } from '@/features/runs/runtime/useMatchLobbyRuntimeModel';
+import { useTrackRunRuntimeActions } from '@/features/runs/runtime/useTrackRunRuntimeActions';
+import { useLiveMatchRuntimeModel } from '@/features/runs/runtime/useLiveMatchRuntimeModel';
 
 const STALE_RENDER_MATCHED_MATCH_MS = 10 * 60 * 1000;
 const STALE_RENDER_ACTIVE_MATCH_MS = 8 * 60 * 60 * 1000;
@@ -205,25 +198,6 @@ export function TrackRunExperienceRuntime({
   const hydratedFocusMatchSlotStartAt = focusMatchSlotStartAt ?? liveMatchRouteHydration?.slotStartAt;
   const hydratedForceMatchArena = forceMatchArena ?? liveMatchRouteHydration?.preferArena;
   const hydratedFocusMatchNonce = focusMatchNonce ?? liveMatchRouteHydration?.nonce;
-
-  useEffect(() => {
-    rgPerfMark('TrackRunExperience mount', {
-      hydratedMatchId: liveMatchRouteHydration?.matchId ?? null,
-      hydratedRoomId: liveMatchRouteHydration?.roomId ?? null,
-      focusMatchId: focusMatchId ?? null,
-      focusMatchMode: focusMatchMode ?? null,
-      focusRoomId: focusRoomId ?? null,
-      mode,
-      routeShellHint: routeShellHint ?? null,
-    });
-
-    return () => {
-      rgPerfMark('TrackRunExperience unmount', {
-        mode,
-        routeShellHint: routeShellHint ?? null,
-      });
-    };
-  }, [focusMatchId, focusMatchMode, focusRoomId, liveMatchRouteHydration?.matchId, liveMatchRouteHydration?.roomId, mode, routeShellHint]);
 
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -410,10 +384,6 @@ export function TrackRunExperienceRuntime({
     showLiveArena: false,
   });
 
-  useEffect(() => () => {
-    isMountedRef.current = false;
-  }, []);
-
   const {
     matchRoom,
     commitMatchRoom,
@@ -505,8 +475,17 @@ export function TrackRunExperienceRuntime({
     effectiveGroupParticipantCount,
     effectiveGroupSeedRank,
   });
-  const duelExpiryCountdownLabel = formatMatchExpiryCountdown(duelMatchStatus?.expiresInSeconds);
-  const groupExpiryCountdownLabel = formatMatchExpiryCountdown(groupMatchStatus?.expiresInSeconds);
+  const {
+    duelExpiryCountdownLabel,
+    groupExpiryCountdownLabel,
+    duelWaitingHint,
+    duelWaitingMeta,
+    duelWaitingTitle,
+  } = useMatchLobbyRuntimeModel({
+    duelMatchStatus,
+    groupMatchStatus,
+    isDuelTestFlow,
+  });
   const visibleMatchRoomIsInviteOnly = Boolean(visibleMatchRoom?.joined === false);
   const {
     duelStartCountdownSeconds,
@@ -922,108 +901,37 @@ export function TrackRunExperienceRuntime({
   preservedLiveMatchShellRef.current = liveMatchShellPreservation.next;
   const effectiveShowLiveArena = liveMatchShellPreservation.shouldRenderLiveArena;
 
-  useEffect(() => {
-    if (liveMatchShellPreservation.key) {
-      rgPerfMark('live match key stable', {
-        key: liveMatchShellPreservation.key,
-        matchId: liveMatchRenderIdentity,
-        mode: liveMatchRenderMode,
-        source: 'track-run experience',
-      });
-    }
-
-    if (liveMatchShellPreservation.preserved) {
-      rgPerfMark('live match unmount prevented same match', {
-        key: liveMatchShellPreservation.key,
-        matchId: previousPreservedLiveMatchShell?.matchId ?? liveMatchRenderIdentity,
-        mode: previousPreservedLiveMatchShell?.mode ?? liveMatchRenderMode,
-        source: 'track-run experience',
-        stage: matchLifecycleController.stage,
-      });
-      rgPerfMark('live match preserved through tracking transition', {
-        key: liveMatchShellPreservation.key,
-        matchId: previousPreservedLiveMatchShell?.matchId ?? liveMatchRenderIdentity,
-        mode: previousPreservedLiveMatchShell?.mode ?? liveMatchRenderMode,
-        requestedShowLiveArena: showLiveArena,
-        source: 'track-run experience',
-        stage: matchLifecycleController.stage,
-      });
-    }
-  }, [
+  useTrackRunRuntimeTrace({
+    currentTrackerStatus: status,
+    duelMatchStatus,
+    duelMatchStatusRef,
+    focusMatchId,
+    focusMatchMode,
+    focusRoomId,
+    groupMatchStatus,
+    groupMatchStatusRef,
+    isMountedRef,
     liveMatchRenderIdentity,
     liveMatchRenderMode,
-    liveMatchShellPreservation.key,
-    liveMatchShellPreservation.preserved,
-    matchLifecycleController.stage,
-    previousPreservedLiveMatchShell?.matchId,
-    previousPreservedLiveMatchShell?.mode,
+    liveMatchRouteHydration,
+    liveMatchShellPreservation,
+    liveShareEnabled,
+    liveShareEnabledRef,
+    liveShareLabel,
+    liveShareLabelRef,
+    matchLifecycleStage: matchLifecycleController.stage,
+    matchMode,
+    matchModeRef,
+    mode,
+    previousPreservedLiveMatchShell,
+    roomLinkedMatchContext,
+    roomLinkedMatchContextRef,
+    routeShellHint,
     showLiveArena,
-  ]);
-  const duelCompatibleCount = duelMatchStatus?.competitiveParticipantsCount ?? 0;
-  const duelWaitingHasOtherApplicants = (duelMatchStatus?.participantCount ?? 0) > 1;
-  const duelWaitingTitle = isDuelTestFlow
-    ? duelWaitingHasOtherApplicants
-      ? duelCompatibleCount >= 2
-        ? '테스트 상대를 정리하는 중이에요'
-        : '테스트 신청은 들어왔지만 아직 세션을 만드는 중이에요'
-      : '테스트 상대를 기다리는 중이에요'
-    : duelWaitingHasOtherApplicants
-    ? duelCompatibleCount >= 2
-      ? '지금 바로 붙을 상대를 정리하는 중이에요'
-      : '신청은 들어왔지만 아직 바로 붙이진 않았어요'
-    : '비슷한 상대를 찾는 중이에요';
-  const duelWaitingMeta = isDuelTestFlow
-    ? duelWaitingHasOtherApplicants
-      ? duelCompatibleCount >= 2
-        ? `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 바로 붙을 수 있는 테스트 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
-        : `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 지금 바로 붙을 수 있는 테스트 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
-      : '다른 러너가 테스트 매칭을 누르면 바로 30초 카운트다운이 시작돼요.'
-    : duelWaitingHasOtherApplicants
-    ? duelCompatibleCount >= 2
-      ? `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 바로 붙을 수 있는 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
-      : `실제 신청 ${duelMatchStatus?.participantCount ?? 0}/${duelMatchStatus?.capacity ?? 2}명 · 지금 바로 붙을 수 있는 상대 ${duelCompatibleCount}/${duelMatchStatus?.capacity ?? 2}명`
-    : '같은 거리와 시간대에서 먼저 찾기한 러너들 중 페이스와 레벨이 잘 맞는 상대를 찾고 있어요.';
-  const duelWaitingHint = isDuelTestFlow
-    ? duelWaitingHasOtherApplicants
-      ? duelCompatibleCount >= 2
-        ? '테스트 상대 세션이 정리되면 바로 30초 카운트다운이 시작돼요.'
-        : '테스트 상대 세션을 만들고 있어요. 잠시만 기다리면 자동으로 30초 카운트다운이 시작돼요.'
-      : '지금은 테스트 대기열에 들어간 상태예요. 다른 러너가 들어오면 자동으로 30초 카운트다운이 시작돼요.'
-    : duelWaitingHasOtherApplicants
-    ? duelCompatibleCount >= 2
-      ? '잘 맞는 상대가 먼저 잡히면 바로 예약된 1대1로 바뀌어요.'
-      : '페이스와 레벨이 실제로 잘 맞는 상대가 잡히면 자동으로 매치가 확정돼요.'
-    : '지금은 먼저 대기열에 들어간 상태예요. 잘 맞는 상대가 잡히면 자동으로 매치가 확정돼요.';
+    trackerStatusRef,
+  });
   const backHref: Href = '/my-activity';
   const discardRedirectHref: Href | null = isTabMode ? null : '/my-activity';
-
-  useEffect(() => {
-    liveShareEnabledRef.current = liveShareEnabled;
-  }, [liveShareEnabled]);
-
-  useEffect(() => {
-    liveShareLabelRef.current = liveShareLabel;
-  }, [liveShareLabel]);
-
-  useEffect(() => {
-    trackerStatusRef.current = status;
-  }, [status]);
-
-  useEffect(() => {
-    matchModeRef.current = matchMode;
-  }, [matchMode]);
-
-  useEffect(() => {
-    duelMatchStatusRef.current = duelMatchStatus;
-  }, [duelMatchStatus]);
-
-  useEffect(() => {
-    groupMatchStatusRef.current = groupMatchStatus;
-  }, [groupMatchStatus]);
-
-  useEffect(() => {
-    roomLinkedMatchContextRef.current = roomLinkedMatchContext;
-  }, [roomLinkedMatchContext]);
 
   useAndroidDeferredEffect(() => {
     if (matchMode !== 'duel') {
@@ -1088,74 +996,6 @@ export function TrackRunExperienceRuntime({
     });
     setGroupMatchNotice(null);
   }, [groupDistanceKm, matchMode, selectedGroupSlot, selectedGroupSlotStartAt]);
-
-  useAndroidDeferredEffect(() => {
-    if (matchMode !== 'duel') {
-      return;
-    }
-
-    let canceled = false;
-    setIsLoadingDuelDemandSummary(true);
-
-    void fetchMatchDemandSummary({
-      mode: 'duel',
-      distanceKm: duelDistanceKm,
-      slotStartAt: selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt,
-    })
-      .then((payload) => {
-        if (!canceled) {
-          setDuelDemandSummary(payload);
-        }
-      })
-      .catch(() => {
-        if (!canceled) {
-          setDuelDemandSummary(null);
-        }
-      })
-      .finally(() => {
-        if (!canceled) {
-          setIsLoadingDuelDemandSummary(false);
-        }
-      });
-
-    return () => {
-      canceled = true;
-    };
-  }, [matchMode, duelDistanceKm, selectedDuelSlot, selectedDuelSlotStartAt]);
-
-  useAndroidDeferredEffect(() => {
-    if (matchMode !== 'group') {
-      return;
-    }
-
-    let canceled = false;
-    setIsLoadingGroupDemandSummary(true);
-
-    void fetchMatchDemandSummary({
-      mode: 'group',
-      distanceKm: groupDistanceKm,
-      slotStartAt: selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt,
-    })
-      .then((payload) => {
-        if (!canceled) {
-          setGroupDemandSummary(payload);
-        }
-      })
-      .catch(() => {
-        if (!canceled) {
-          setGroupDemandSummary(null);
-        }
-      })
-      .finally(() => {
-        if (!canceled) {
-          setIsLoadingGroupDemandSummary(false);
-        }
-      });
-
-    return () => {
-      canceled = true;
-    };
-  }, [matchMode, groupDistanceKm, selectedGroupSlot, selectedGroupSlotStartAt]);
 
   const loadDuelMatchStatus = async (
     slotStartAt = activeDuelSlotStartAt,
@@ -2245,145 +2085,6 @@ export function TrackRunExperienceRuntime({
     }
   };
 
-  useEffect(() => {
-    if (matchMode !== 'duel') {
-      return;
-    }
-
-    if (roomLinkedMatchContext?.mode === 'duel') {
-      return;
-    }
-
-    let canceled = false;
-    void loadDuelMatchStatus(activeDuelSlotStartAt, {
-      testMode: focusRequestedDuelTest || isDuelTestFlow,
-    }).catch(() => {
-      if (!canceled) {
-        setDuelMatchStatus(null);
-      }
-    });
-
-    return () => {
-      canceled = true;
-    };
-  }, [matchMode, duelDistanceKm, activeDuelSlotStartAt, focusRequestedDuelTest, isDuelTestFlow, roomLinkedMatchContext?.mode]);
-
-  useEffect(() => {
-    if (matchMode !== 'group') {
-      return;
-    }
-
-    if (roomLinkedMatchContext?.mode === 'group') {
-      return;
-    }
-
-    let canceled = false;
-    void loadGroupMatchStatus(activeGroupSlotStartAt, {
-      testMode: focusRequestedGroupTest || isGroupTestFlow,
-    }).catch(() => {
-      if (!canceled) {
-        setGroupMatchStatus(null);
-      }
-    });
-
-    return () => {
-      canceled = true;
-    };
-  }, [matchMode, groupDistanceKm, activeGroupSlotStartAt, focusRequestedGroupTest, isGroupTestFlow, roomLinkedMatchContext?.mode]);
-
-  useUpcomingMatchPolling({
-    duelMatchId: duelMatchStatus?.matchId,
-    duelMatchState: duelMatchStatus?.state,
-    groupMatchId: groupMatchStatus?.matchId,
-    groupMatchState: groupMatchStatus?.state,
-    loadUpcomingMatches,
-    onUpcomingMatchesFallback: setUpcomingMatches,
-  });
-
-  useAndroidDeferredEffect(() => {
-    let canceled = false;
-    let activeRoomCheckDelay: ReturnType<typeof setTimeout> | null = null;
-    const isLowPriorityActiveRoomCheck = trackRunIdleViewModel.activeRoomCheckPriority === 'low-priority';
-
-    if (trackRunIdleViewModel.shouldRunActiveRoomCheck) {
-      const runDeferredActiveRoomCheck = () => {
-        if (canceled) {
-          return;
-        }
-
-        void loadMatchRoom({
-          ignoreDuringInteraction: isLowPriorityActiveRoomCheck,
-          localActiveMatchId: trackRunIdleViewModel.activeMatchId,
-          localActiveRoomId: trackRunIdleViewModel.activeRoomId,
-          priority: trackRunIdleViewModel.activeRoomCheckPriority,
-          requireLocalActiveHint: isLowPriorityActiveRoomCheck,
-        }).catch(() => {
-          if (!canceled) {
-            commitMatchRoom(null);
-          }
-        });
-      };
-
-      if (isLowPriorityActiveRoomCheck) {
-        const delayMs = 4_000;
-        rgPerfMark('active room check deferred idle', {
-          delayMs,
-          hasLocalActiveHint: trackRunIdleViewModel.hasLocalActiveHint,
-          reason: trackRunIdleViewModel.idleReason,
-          source: 'track-run experience',
-        });
-        rgPerfMark('active room check foreground debounce', {
-          delayMs,
-          hasLocalActiveHint: trackRunIdleViewModel.hasLocalActiveHint,
-          reason: trackRunIdleViewModel.idleReason,
-          source: 'track-run experience',
-        });
-        activeRoomCheckDelay = setTimeout(runDeferredActiveRoomCheck, delayMs);
-      } else {
-        runDeferredActiveRoomCheck();
-      }
-    } else {
-      if (trackRunIdleViewModel.isUserActionPending || isRgInputInteractionRecent()) {
-        rgPerfMark('active room check suppressed by user interaction', {
-          reason: trackRunIdleViewModel.idleReason,
-          source: 'track-run initial load',
-        });
-      } else if (!trackRunIdleViewModel.hasLocalActiveHint) {
-        rgPerfMark('active room check skipped no local active hint', {
-          reason: trackRunIdleViewModel.idleReason,
-          source: 'track-run initial load',
-        });
-      } else {
-        rgPerfMark('track run heavy hooks skipped idle', {
-          hook: 'active room check',
-          reason: trackRunIdleViewModel.idleReason,
-          source: 'track-run initial load',
-        });
-      }
-    }
-
-    void loadFriendLeaderboardData().catch(() => {
-      if (!canceled) {
-        setFriendLeaderboard(null);
-      }
-    });
-
-    return () => {
-      canceled = true;
-      if (activeRoomCheckDelay) {
-        clearTimeout(activeRoomCheckDelay);
-      }
-    };
-  }, [
-    trackRunIdleViewModel.activeMatchId,
-    trackRunIdleViewModel.activeRoomCheckPriority,
-    trackRunIdleViewModel.activeRoomId,
-    trackRunIdleViewModel.hasLocalActiveHint,
-    trackRunIdleViewModel.idleReason,
-    trackRunIdleViewModel.isUserActionPending,
-    trackRunIdleViewModel.shouldRunActiveRoomCheck,
-  ]);
-
   const acknowledgeRoomCountdownReady = async (roomId: string) => {
     const payload = await acknowledgeRunningMatchRoomCountdown({ roomId });
     if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
@@ -2414,90 +2115,11 @@ export function TrackRunExperienceRuntime({
         });
   };
 
-  usePartyRunSync({
-    enabled: trackRunIdleViewModel.shouldRunPartyRunSync,
-    currentUserId,
-    matchRoom,
-    matchRoomFlow,
-    visiblePartyRunFlow,
-    roomLinkedMatchContext,
-    roomCountdownRemainingSeconds,
-    duelMatchStatus,
-    groupMatchStatus,
-    focusedDuelMatchIdRef,
-    focusedGroupMatchIdRef,
-    livePagerRef,
-    fastRoomPollMs: MATCH_ROOM_FAST_POLL_MS,
-    idleRoomPollMs: MATCH_ROOM_IDLE_POLL_MS,
-    fastMatchStatusPollMs: MATCH_STATUS_FAST_POLL_MS,
-    idleMatchStatusPollMs: MATCH_STATUS_IDLE_POLL_MS,
-    linkedMatchSyncEnabled: liveMatchHeavyWorkReady,
-    lifecycleController: matchLifecycleController,
-    getSyncedNowMs,
-    loadMatchRoom,
-    acknowledgeCountdownReady: acknowledgeRoomCountdownReady,
-    focusRoomLinkedMatch,
-    syncRoomLinkedMatchStatus,
-    loadUpcomingMatches,
-    onMatchModeChange: setMatchMode,
-    onForceOpenActiveMatchChange: setForceOpenActiveMatch,
-    onLiveArenaPageChange: setLiveArenaPage,
-    onError: setError,
-  });
-
-  useStaleMatchCleanup({
-    enabled: trackRunIdleViewModel.shouldRunActiveRoomCheck || !trackRunIdleViewModel.disableHeavySubscriptions,
-    refreshStaleMatchArtifacts,
-  });
-
-  useMatchEntryEffects({
-    focusMatchNonce: hydratedFocusMatchNonce,
-    focusMatchMode: hydratedFocusMatchMode,
-    focusMatchId: hydratedFocusMatchId,
-    focusMatchDistanceKm: hydratedFocusMatchDistanceKm,
-    focusMatchSlotStartAt: hydratedFocusMatchSlotStartAt,
-    focusMatchIsTest,
-    focusRoomId: hydratedFocusRoomId,
-    forceMatchArena: hydratedForceMatchArena,
-    roomInviteToken,
-    livePagerRef,
-    latestMatchRoomServerNowMsRef,
-    onForceOpenActiveMatchChange: setForceOpenActiveMatch,
-    onLiveArenaPageChange: setLiveArenaPage,
-    onRoomInviteTokenInputChange: setRoomInviteTokenInput,
-    syncServerClock,
-    commitMatchRoom,
-    onError: setError,
-    focusRunningMatch,
-  });
   liveMatchViewConfirmationRef.current = {
     matchId: liveMatchStartupIdentity,
     mode: liveMatchRenderMode,
     showLiveArena: effectiveShowLiveArena,
   };
-
-  useLiveMatchNavigationEffects({
-    livePagerRef,
-    isResolvingFocusedMatch,
-    isIdle,
-    forceOpenActiveMatch,
-    shouldKeepRunningMatchArena,
-    showLiveArena: effectiveShowLiveArena,
-    hasMatchResultPage,
-    liveArenaPageWidth,
-    duelState: duelMatchState,
-    groupState: groupMatchState,
-    duelMatchId: duelMatchStatus?.matchId,
-    groupMatchId: groupMatchStatus?.matchId,
-    duelShouldOpenCountdownArena,
-    groupShouldOpenCountdownArena,
-    roomShouldOpenCountdownArena,
-    nextStartingMatch,
-    activeUpcomingMatch,
-    onForceOpenActiveMatchChange: setForceOpenActiveMatch,
-    onLiveArenaPageChange: setLiveArenaPage,
-    focusRunningMatch,
-  });
 
   const shouldShowFullscreenMatchCountdown =
     isIdle
@@ -2512,45 +2134,163 @@ export function TrackRunExperienceRuntime({
     hasRoomCountdownEntry: Boolean(roomCountdownEntry),
   });
 
-  useTrackRunNotificationSync({
-    upcomingMatches,
-    matchRemindersEnabled,
-    onMatchRemindersEnabledChange: setMatchRemindersEnabled,
-  });
-
-  useSyncedCountdownTicker({
-    serverClockOffsetMsRef,
-    onNowMsChange: setNowMs,
-    enabled: trackRunIdleViewModel.shouldRunCountdownTicker && Boolean(
-      isStarting
-      || isRunning
-      || hydratedFocusMatchId
-      || visibleCountdownEntry
-      || roomCountdownEntry
-      || nextStartingMatch
-      || activeUpcomingMatch
-      || visibleUpcomingMatches.length > 0
-      || duelMatchState === 'matched'
-      || groupMatchState === 'matched'
-      || matchRoom?.linkedMatchId
-      || matchRoom?.state === 'arming'
-      || matchRoom?.state === 'countdown'
-    ),
-  });
-
-  useBlockingMatchStatusPolling({
-    matchMode,
-    duelMatchStatus,
-    groupMatchStatus,
-    syncedNowMs,
-    fastPollMs: MATCH_STATUS_FAST_POLL_MS,
-    idlePollMs: 15000,
-    loadDuelMatchStatus,
-    loadGroupMatchStatus,
-    enabled: !trackRunIdleViewModel.disableHeavySubscriptions
-      && liveMatchHeavyWorkReady
-      && matchLifecycleController.effects.shouldPollDirectMatchStatus,
-    recoveryMatchId: matchLifecycleController.source === 'party-room' ? null : matchLifecycleController.matchId,
+  useTrackRunRuntimeEffects({
+    demandSummaryEffects: {
+      duelDistanceKm,
+      duelSlotStartAt: selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt,
+      groupDistanceKm,
+      groupSlotStartAt: selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt,
+      matchMode,
+      setDuelDemandSummary,
+      setGroupDemandSummary,
+      setIsLoadingDuelDemandSummary,
+      setIsLoadingGroupDemandSummary,
+    },
+    directStatusEffects: {
+      activeDuelSlotStartAt,
+      activeGroupSlotStartAt,
+      duelDistanceKm,
+      focusRequestedDuelTest,
+      focusRequestedGroupTest,
+      groupDistanceKm,
+      isDuelTestFlow,
+      isGroupTestFlow,
+      loadDuelMatchStatus,
+      loadGroupMatchStatus,
+      matchMode,
+      roomLinkedMatchMode: roomLinkedMatchContext?.mode ?? null,
+      setDuelMatchStatus,
+      setGroupMatchStatus,
+    },
+    upcomingMatchPolling: {
+      duelMatchId: duelMatchStatus?.matchId,
+      duelMatchState: duelMatchStatus?.state,
+      groupMatchId: groupMatchStatus?.matchId,
+      groupMatchState: groupMatchStatus?.state,
+      loadUpcomingMatches,
+      onUpcomingMatchesFallback: setUpcomingMatches,
+    },
+    initialLoadEffects: {
+      commitMatchRoom,
+      loadFriendLeaderboardData,
+      loadMatchRoom,
+      setFriendLeaderboard,
+      trackRunIdleViewModel,
+    },
+    partyRunSync: {
+      enabled: trackRunIdleViewModel.shouldRunPartyRunSync,
+      currentUserId,
+      matchRoom,
+      matchRoomFlow,
+      visiblePartyRunFlow,
+      roomLinkedMatchContext,
+      roomCountdownRemainingSeconds,
+      duelMatchStatus,
+      groupMatchStatus,
+      focusedDuelMatchIdRef,
+      focusedGroupMatchIdRef,
+      livePagerRef,
+      fastRoomPollMs: MATCH_ROOM_FAST_POLL_MS,
+      idleRoomPollMs: MATCH_ROOM_IDLE_POLL_MS,
+      fastMatchStatusPollMs: MATCH_STATUS_FAST_POLL_MS,
+      idleMatchStatusPollMs: MATCH_STATUS_IDLE_POLL_MS,
+      linkedMatchSyncEnabled: liveMatchHeavyWorkReady,
+      lifecycleController: matchLifecycleController,
+      getSyncedNowMs,
+      loadMatchRoom,
+      acknowledgeCountdownReady: acknowledgeRoomCountdownReady,
+      focusRoomLinkedMatch,
+      syncRoomLinkedMatchStatus,
+      loadUpcomingMatches,
+      onMatchModeChange: setMatchMode,
+      onForceOpenActiveMatchChange: setForceOpenActiveMatch,
+      onLiveArenaPageChange: setLiveArenaPage,
+      onError: setError,
+    },
+    staleMatchCleanup: {
+      enabled: trackRunIdleViewModel.shouldRunActiveRoomCheck || !trackRunIdleViewModel.disableHeavySubscriptions,
+      refreshStaleMatchArtifacts,
+    },
+    matchEntryEffects: {
+      focusMatchNonce: hydratedFocusMatchNonce,
+      focusMatchMode: hydratedFocusMatchMode,
+      focusMatchId: hydratedFocusMatchId,
+      focusMatchDistanceKm: hydratedFocusMatchDistanceKm,
+      focusMatchSlotStartAt: hydratedFocusMatchSlotStartAt,
+      focusMatchIsTest,
+      focusRoomId: hydratedFocusRoomId,
+      forceMatchArena: hydratedForceMatchArena,
+      roomInviteToken,
+      livePagerRef,
+      latestMatchRoomServerNowMsRef,
+      onForceOpenActiveMatchChange: setForceOpenActiveMatch,
+      onLiveArenaPageChange: setLiveArenaPage,
+      onRoomInviteTokenInputChange: setRoomInviteTokenInput,
+      syncServerClock,
+      commitMatchRoom,
+      onError: setError,
+      focusRunningMatch,
+    },
+    liveMatchNavigationEffects: {
+      livePagerRef,
+      isResolvingFocusedMatch,
+      isIdle,
+      forceOpenActiveMatch,
+      shouldKeepRunningMatchArena,
+      showLiveArena: effectiveShowLiveArena,
+      hasMatchResultPage,
+      liveArenaPageWidth,
+      duelState: duelMatchState,
+      groupState: groupMatchState,
+      duelMatchId: duelMatchStatus?.matchId,
+      groupMatchId: groupMatchStatus?.matchId,
+      duelShouldOpenCountdownArena,
+      groupShouldOpenCountdownArena,
+      roomShouldOpenCountdownArena,
+      nextStartingMatch,
+      activeUpcomingMatch,
+      onForceOpenActiveMatchChange: setForceOpenActiveMatch,
+      onLiveArenaPageChange: setLiveArenaPage,
+      focusRunningMatch,
+    },
+    notificationSync: {
+      upcomingMatches,
+      matchRemindersEnabled,
+      onMatchRemindersEnabledChange: setMatchRemindersEnabled,
+    },
+    countdownTicker: {
+      serverClockOffsetMsRef,
+      onNowMsChange: setNowMs,
+      enabled: trackRunIdleViewModel.shouldRunCountdownTicker && Boolean(
+        isStarting
+        || isRunning
+        || hydratedFocusMatchId
+        || visibleCountdownEntry
+        || roomCountdownEntry
+        || nextStartingMatch
+        || activeUpcomingMatch
+        || visibleUpcomingMatches.length > 0
+        || duelMatchState === 'matched'
+        || groupMatchState === 'matched'
+        || matchRoom?.linkedMatchId
+        || matchRoom?.state === 'arming'
+        || matchRoom?.state === 'countdown'
+      ),
+    },
+    blockingMatchStatusPolling: {
+      matchMode,
+      duelMatchStatus,
+      groupMatchStatus,
+      syncedNowMs,
+      fastPollMs: MATCH_STATUS_FAST_POLL_MS,
+      idlePollMs: 15000,
+      loadDuelMatchStatus,
+      loadGroupMatchStatus,
+      enabled: !trackRunIdleViewModel.disableHeavySubscriptions
+        && liveMatchHeavyWorkReady
+        && matchLifecycleController.effects.shouldPollDirectMatchStatus,
+      recoveryMatchId: matchLifecycleController.source === 'party-room' ? null : matchLifecycleController.matchId,
+    },
   });
 
   const {
@@ -2856,7 +2596,7 @@ export function TrackRunExperienceRuntime({
     clearLocalForfeitedMatchState,
   });
 
-  const trackRunActionHandlers = useTrackRunActionsAdapter({
+  const trackRunActionHandlers = useTrackRunRuntimeActions({
     matchMode,
     matchRoom,
     handleSaveTracking,
@@ -2871,7 +2611,7 @@ export function TrackRunExperienceRuntime({
     handleReadyAction,
   } = trackRunActionHandlers;
 
-  const liveContainerProps = useLiveMatchRuntime({
+  const liveContainerProps = useLiveMatchRuntimeModel({
     actionHandlers: trackRunActionHandlers,
     forfeitControllerInput: {
       source: activeMatchExitSource,
@@ -3034,100 +2774,18 @@ export function TrackRunExperienceRuntime({
     void handleRequestGroupMatch(activeGroupSlotStartAt);
   });
 
-  const readyUpcomingMatchesNowMs = visibleUpcomingMatches.length > 0 ? syncedNowMs : 0;
-  const readyUpcomingMatchesProps = useMemo(() => ({
-    matches: visibleUpcomingMatches,
-    nowMs: readyUpcomingMatchesNowMs,
-    cancelingMatchId: cancelingUpcomingMatchId,
-    onOpenMatch: handleOpenUpcomingMatch,
-    onCancelMatch: handleCancelUpcomingMatchPress,
-  }), [
-    cancelingUpcomingMatchId,
-    handleCancelUpcomingMatchPress,
-    handleOpenUpcomingMatch,
-    readyUpcomingMatchesNowMs,
-    visibleUpcomingMatches,
-  ]);
-
-  const readyMatchOptionProps = useMemo(() => ({
-    options: matchOptions,
-    selectedMode: matchMode,
-    onSelect: handleSelectMatchOption,
-  }), [handleSelectMatchOption, matchMode, matchOptions]);
-
-  const readyPartyRunProps = useMemo(() => ({
-    visibleRoom: visibleMatchRoom,
-    currentRoom: matchRoom,
-    isSelected: matchMode === 'room',
-    isInviteOnly: visibleMatchRoomIsInviteOnly,
-    isJoining: isJoiningMatchRoom,
-    isLeaving: isLeavingMatchRoom,
-    roomMode: roomMatchMode,
-    inviteTokenInput: roomInviteTokenInput,
-    onRoomModeChange: setRoomMatchMode,
-    onInviteTokenChange: setRoomInviteTokenInput,
-    onAcceptInvite: handleAcceptRoomInvitePress,
-    onDeclineInvite: handleDeclineRoomInvitePress,
-    onJoinRoom: handleJoinRoomPress,
-  }), [
-    handleAcceptRoomInvitePress,
-    handleDeclineRoomInvitePress,
-    handleJoinRoomPress,
-    isJoiningMatchRoom,
-    isLeavingMatchRoom,
-    matchMode,
-    matchRoom,
-    roomInviteTokenInput,
-    roomMatchMode,
-    setRoomInviteTokenInput,
-    setRoomMatchMode,
-    visibleMatchRoom,
-    visibleMatchRoomIsInviteOnly,
-  ]);
-
-  const readyDuelSetupProps = useMemo(() => (matchMode === 'duel'
-    ? {
-        distanceKm: duelDistanceKm,
-        distanceText: duelDistanceText,
-        showCustomDistanceInput: showDuelCustomDistanceInput,
-        dateOptions: duelDateOptions,
-        selectedDateKey: selectedDuelDateKey,
-        selectedTimeSection: selectedDuelTimeSection,
-        slotOptions: visibleDuelSlotOptions,
-        selectedSlotStartAt: selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt,
-        isRequesting: isRequestingDuelMatch,
-        matchState: duelMatchState,
-        matchStatus: duelMatchStatus,
-        activeSlotStartAt: activeDuelSlotStartAt,
-        effectiveSlotLabel: effectiveDuelSlotLabel,
-        startCountdownSeconds: duelStartCountdownSeconds,
-        matchNotice: duelMatchNotice,
-        needsManualRematch: duelNeedsManualRematch,
-        isCancelingMatch: isCancelingDuelMatch,
-        reservationLocked: duelReservationLocked,
-        canCreateMatch: canCreateDuelMatch,
-        blockingMatchHelperText,
-        expiryCountdownLabel: duelExpiryCountdownLabel,
-        opponent: effectiveDuelOpponent,
-        waitingTitle: duelWaitingTitle,
-        waitingMeta: duelWaitingMeta,
-        waitingHint: duelWaitingHint,
-        opponentStatusLabel: effectiveDuelOpponentStatusLabel,
-        liveGapKm: duelLiveGapKm,
-        onDistanceTextChange: setDuelDistanceText,
-        onShowCustomDistanceInputChange: setShowDuelCustomDistanceInput,
-        onSelectDate: handleSelectDuelDate,
-        onSelectTimeSection: selectDuelTimeSection,
-        onSelectSlot: setSelectedDuelSlotStartAt,
-        onCancelMatch: handleCancelDuelMatchPress,
-        onRequestMatch: handleRequestDuelMatchPress,
-        onRequestTestMatch: handleRequestDuelTestMatchPress,
-        onRequestRematch: handleRequestDuelRematchPress,
-      }
-    : null), [
+  const shouldShowReadyScreen = isIdle && !effectiveShowLiveArena && !hasLinkedRuntimeRoom;
+  const {
+    readyScreenProps,
+    trackRunShellKind,
+  } = useIdleRunRuntimeModel({
     activeDuelSlotStartAt,
+    activeGroupSlotStartAt,
     blockingMatchHelperText,
+    bottomInset: insets.bottom,
     canCreateDuelMatch,
+    canCreateGroupMatch,
+    cancelingUpcomingMatchId,
     duelDateOptions,
     duelDistanceKm,
     duelDistanceText,
@@ -3138,6 +2796,7 @@ export function TrackRunExperienceRuntime({
     duelMatchStatus,
     duelNeedsManualRematch,
     duelReservationLocked,
+    duelSelectedSlotStartAt: selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt,
     duelStartCountdownSeconds,
     duelWaitingHint,
     duelWaitingMeta,
@@ -3145,72 +2804,9 @@ export function TrackRunExperienceRuntime({
     effectiveDuelOpponent,
     effectiveDuelOpponentStatusLabel,
     effectiveDuelSlotLabel,
-    handleCancelDuelMatchPress,
-    handleRequestDuelMatchPress,
-    handleRequestDuelRematchPress,
-    handleRequestDuelTestMatchPress,
-    handleSelectDuelDate,
-    isCancelingDuelMatch,
-    isRequestingDuelMatch,
-    matchMode,
-    selectDuelTimeSection,
-    selectedDuelDateKey,
-    selectedDuelSlot?.startsAt,
-    selectedDuelSlotStartAt,
-    selectedDuelTimeSection,
-    setDuelDistanceText,
-    setSelectedDuelSlotStartAt,
-    setShowDuelCustomDistanceInput,
-    showDuelCustomDistanceInput,
-    visibleDuelSlotOptions,
-  ]);
-
-  const readyGroupSetupProps = useMemo(() => (matchMode === 'group'
-    ? {
-        distanceKm: groupDistanceKm,
-        distanceText: groupDistanceText,
-        showCustomDistanceInput: showGroupCustomDistanceInput,
-        dateOptions: groupDateOptions,
-        selectedDateKey: selectedGroupDateKey,
-        selectedTimeSection: selectedGroupTimeSection,
-        slotOptions: visibleGroupSlotOptions,
-        selectedSlotStartAt: selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt,
-        isRequesting: isRequestingGroupMatch,
-        matchState: groupMatchState,
-        matchStatus: groupMatchStatus,
-        activeSlotStartAt: activeGroupSlotStartAt,
-        effectiveSlotLabel: effectiveGroupSlotLabel,
-        startCountdownSeconds: groupStartCountdownSeconds,
-        matchNotice: groupMatchNotice,
-        needsManualRematch: groupNeedsManualRematch,
-        isCancelingMatch: isCancelingGroupMatch,
-        reservationLocked: groupReservationLocked,
-        canCreateMatch: canCreateGroupMatch,
-        blockingMatchHelperText,
-        expiryCountdownLabel: groupExpiryCountdownLabel,
-        isTestFlow: isGroupTestFlow,
-        isLoadingDemandSummary: isLoadingGroupDemandSummary,
-        demandSummary: groupDemandSummary,
-        effectiveParticipantCount: effectiveGroupParticipantCount,
-        effectiveSeedRank: effectiveGroupSeedRank ?? null,
-        participants: effectiveGroupParticipants,
-        onDistanceTextChange: setGroupDistanceText,
-        onShowCustomDistanceInputChange: setShowGroupCustomDistanceInput,
-        onSelectDate: handleSelectGroupDate,
-        onSelectTimeSection: selectGroupTimeSection,
-        onSelectSlot: setSelectedGroupSlotStartAt,
-        onCancelMatch: handleCancelGroupMatchPress,
-        onRequestMatch: handleRequestGroupMatchPress,
-        onRequestTestMatch: handleRequestGroupTestMatchPress,
-        onRequestRematch: handleRequestGroupRematchPress,
-      }
-    : null), [
-    activeGroupSlotStartAt,
-    blockingMatchHelperText,
-    canCreateGroupMatch,
     effectiveGroupParticipantCount,
     effectiveGroupParticipants,
-    effectiveGroupSeedRank,
+    effectiveGroupSeedRank: effectiveGroupSeedRank ?? null,
     effectiveGroupSlotLabel,
     groupDateOptions,
     groupDemandSummary,
@@ -3222,94 +2818,66 @@ export function TrackRunExperienceRuntime({
     groupMatchStatus,
     groupNeedsManualRematch,
     groupReservationLocked,
+    groupSelectedSlotStartAt: selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt,
     groupStartCountdownSeconds,
-    handleCancelGroupMatchPress,
-    handleRequestGroupMatchPress,
-    handleRequestGroupRematchPress,
-    handleRequestGroupTestMatchPress,
-    handleSelectGroupDate,
+    hasLinkedRuntimeRoom,
+    isCancelingDuelMatch,
     isCancelingGroupMatch,
-    isGroupTestFlow,
-    isLoadingGroupDemandSummary,
-    isRequestingGroupMatch,
-    matchMode,
-    selectGroupTimeSection,
-    selectedGroupDateKey,
-    selectedGroupSlot?.startsAt,
-    selectedGroupSlotStartAt,
-    selectedGroupTimeSection,
-    setGroupDistanceText,
-    setSelectedGroupSlotStartAt,
-    setShowGroupCustomDistanceInput,
-    showGroupCustomDistanceInput,
-    visibleGroupSlotOptions,
-  ]);
-
-  const readyActionLoadingLabel = matchMode === 'room' && isCreatingMatchRoom ? '방 만드는 중...' : undefined;
-  const readyActionDisabled = matchMode === 'room' ? isCreatingMatchRoom : false;
-  const readyScreenProps = useMemo(() => ({
-    bottomInset: insets.bottom,
-    upcomingMatchesProps: readyUpcomingMatchesProps,
-    matchSetupProps: {
-      matchOptionProps: readyMatchOptionProps,
-      partyRunProps: readyPartyRunProps,
-      duelSetupProps: readyDuelSetupProps,
-      groupSetupProps: readyGroupSetupProps,
-    },
-    readyActionLabel,
-    readyActionLoadingLabel,
-    readyActionDisabled,
-    onReadyAction: handleReadyAction,
-  }), [
-    handleReadyAction,
-    insets.bottom,
-    readyActionDisabled,
-    readyActionLabel,
-    readyActionLoadingLabel,
-    readyDuelSetupProps,
-    readyGroupSetupProps,
-    readyMatchOptionProps,
-    readyPartyRunProps,
-    readyUpcomingMatchesProps,
-  ]);
-
-  const shouldShowReadyScreen = isIdle && !effectiveShowLiveArena && !hasLinkedRuntimeRoom;
-  const trackRunShellKind = useMemo<TrackRunShellKind>(() => {
-    if (!shouldShowReadyScreen) {
-      return 'live';
-    }
-
-    const hasLobbyState = Boolean(
-      matchMode === 'room'
-      || visibleMatchRoom
-      || matchRoom
-      || duelMatchStatus
-      || groupMatchStatus
-      || visibleUpcomingMatches.length > 0
-      || roomInviteTokenInput.trim()
-      || isCreatingMatchRoom
-      || isJoiningMatchRoom
-      || isLeavingMatchRoom
-      || isRequestingDuelMatch
-      || isRequestingGroupMatch
-    );
-
-    return hasLobbyState ? 'lobby' : 'idle';
-  }, [
-    duelMatchStatus,
-    groupMatchStatus,
     isCreatingMatchRoom,
+    isGroupTestFlow,
+    isIdle,
     isJoiningMatchRoom,
     isLeavingMatchRoom,
+    isLoadingGroupDemandSummary,
     isRequestingDuelMatch,
     isRequestingGroupMatch,
     matchMode,
+    matchOptions,
     matchRoom,
+    onAcceptRoomInvite: handleAcceptRoomInvitePress,
+    onCancelDuelMatch: handleCancelDuelMatchPress,
+    onCancelGroupMatch: handleCancelGroupMatchPress,
+    onCancelUpcomingMatch: handleCancelUpcomingMatchPress,
+    onDeclineRoomInvite: handleDeclineRoomInvitePress,
+    onDistanceTextChangeDuel: setDuelDistanceText,
+    onDistanceTextChangeGroup: setGroupDistanceText,
+    onJoinRoom: handleJoinRoomPress,
+    onOpenUpcomingMatch: handleOpenUpcomingMatch,
+    onReadyAction: handleReadyAction,
+    onRequestDuelMatch: handleRequestDuelMatchPress,
+    onRequestDuelRematch: handleRequestDuelRematchPress,
+    onRequestDuelTestMatch: handleRequestDuelTestMatchPress,
+    onRequestGroupMatch: handleRequestGroupMatchPress,
+    onRequestGroupRematch: handleRequestGroupRematchPress,
+    onRequestGroupTestMatch: handleRequestGroupTestMatchPress,
+    onSelectDuelDate: handleSelectDuelDate,
+    onSelectDuelSlot: setSelectedDuelSlotStartAt,
+    onSelectDuelTimeSection: selectDuelTimeSection,
+    onSelectGroupDate: handleSelectGroupDate,
+    onSelectGroupSlot: setSelectedGroupSlotStartAt,
+    onSelectGroupTimeSection: selectGroupTimeSection,
+    onSelectMatchOption: handleSelectMatchOption,
+    onShowCustomDistanceInputChangeDuel: setShowDuelCustomDistanceInput,
+    onShowCustomDistanceInputChangeGroup: setShowGroupCustomDistanceInput,
+    readyActionLabel,
     roomInviteTokenInput,
+    roomMatchMode,
+    selectedDuelDateKey,
+    selectedDuelTimeSection,
+    selectedGroupDateKey,
+    selectedGroupTimeSection,
+    setRoomInviteTokenInput,
+    setRoomMatchMode,
     shouldShowReadyScreen,
+    showDuelCustomDistanceInput,
+    showGroupCustomDistanceInput,
+    visibleDuelSlotOptions,
+    visibleGroupSlotOptions,
     visibleMatchRoom,
-    visibleUpcomingMatches.length,
-  ]);
+    visibleMatchRoomIsInviteOnly,
+    visibleUpcomingMatches,
+    visibleUpcomingMatchesNowMs: visibleUpcomingMatches.length > 0 ? syncedNowMs : 0,
+  });
   const idleRuntime = useTrackRunIdleRuntime({
     active: trackRunShellKind === 'idle',
     readyScreenProps,

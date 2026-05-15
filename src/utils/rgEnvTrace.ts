@@ -87,5 +87,5 @@ export function logRgEnvironmentOnce() {
   }
 
   // Dev-only environment trace. Keep this gated so preview/production builds stay quiet by default.
-  console.log('[RG env]', getRgEnvironmentInfo());
+  globalThis['console'].log('[RG env]', getRgEnvironmentInfo());
 }

@@ -1,8 +1,13 @@
-import type { ReactElement } from 'react';
+import { memo, useCallback, useMemo } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { styles } from './adminStyles';
 
-export function ToggleChip({
+function AdminListSeparator() {
+  return <View style={styles.listSeparator} />;
+}
+
+export const ToggleChip = memo(function ToggleChip({
   label,
   active,
   onPress,
@@ -11,14 +16,23 @@ export function ToggleChip({
   active: boolean;
   onPress: () => void;
 }) {
+  const chipStyle = useMemo(() => [
+    styles.toggleChip,
+    active ? styles.toggleChipActive : null,
+  ], [active]);
+  const textStyle = useMemo(() => [
+    styles.toggleChipText,
+    active ? styles.toggleChipTextActive : null,
+  ], [active]);
+
   return (
-    <Pressable style={[styles.toggleChip, active ? styles.toggleChipActive : null]} onPress={onPress}>
-      <Text style={[styles.toggleChipText, active ? styles.toggleChipTextActive : null]}>{label}</Text>
+    <Pressable style={chipStyle} onPress={onPress}>
+      <Text style={textStyle}>{label}</Text>
     </Pressable>
   );
-}
+});
 
-export function ActionButton({
+export const ActionButton = memo(function ActionButton({
   label,
   onPress,
   variant = 'primary',
@@ -29,30 +43,29 @@ export function ActionButton({
   variant?: 'primary' | 'secondary' | 'danger';
   disabled?: boolean;
 }) {
+  const buttonStyle = useMemo(() => [
+    styles.actionButton,
+    variant === 'secondary' ? styles.actionButtonSecondary : null,
+    variant === 'danger' ? styles.actionButtonDanger : null,
+    disabled ? styles.actionButtonDisabled : null,
+  ], [disabled, variant]);
+  const textStyle = useMemo(() => [
+    styles.actionButtonText,
+    variant === 'secondary' ? styles.actionButtonTextSecondary : null,
+  ], [variant]);
+
   return (
     <Pressable
-      style={[
-        styles.actionButton,
-        variant === 'secondary' ? styles.actionButtonSecondary : null,
-        variant === 'danger' ? styles.actionButtonDanger : null,
-        disabled ? styles.actionButtonDisabled : null,
-      ]}
+      style={buttonStyle}
       onPress={onPress}
       disabled={disabled}
     >
-      <Text
-        style={[
-          styles.actionButtonText,
-          variant === 'secondary' ? styles.actionButtonTextSecondary : null,
-        ]}
-      >
-        {label}
-      </Text>
+      <Text style={textStyle}>{label}</Text>
     </Pressable>
   );
-}
+});
 
-export function MetricCard({
+export const MetricCard = memo(function MetricCard({
   label,
   value,
 }: {
@@ -65,9 +78,9 @@ export function MetricCard({
       <Text style={styles.metricValue}>{value}</Text>
     </View>
   );
-}
+});
 
-export function Field({
+export const Field = memo(function Field({
   label,
   value,
   onChangeText,
@@ -80,11 +93,16 @@ export function Field({
   placeholder?: string;
   multiline?: boolean;
 }) {
+  const inputStyle = useMemo(() => [
+    styles.input,
+    multiline ? styles.textArea : null,
+  ], [multiline]);
+
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
-        style={[styles.input, multiline ? styles.textArea : null]}
+        style={inputStyle}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -94,9 +112,9 @@ export function Field({
       />
     </View>
   );
-}
+});
 
-export function SearchInput({
+export const SearchInput = memo(function SearchInput({
   value,
   onChangeText,
   placeholder,
@@ -114,7 +132,47 @@ export function SearchInput({
       placeholderTextColor="#98A2B3"
     />
   );
-}
+});
+
+export const FormGrid = memo(function FormGrid({
+  children,
+  isMedium = false,
+}: {
+  children: ReactNode;
+  isMedium?: boolean;
+}) {
+  const formGridStyle = useMemo(() => [
+    styles.formGrid,
+    isMedium ? styles.formGridTwoColumns : null,
+  ], [isMedium]);
+
+  return <View style={formGridStyle}>{children}</View>;
+});
+
+export const StatusBadge = memo(function StatusBadge({
+  label,
+  tone = 'neutral',
+}: {
+  label: string;
+  tone?: 'neutral' | 'success' | 'muted';
+}) {
+  const badgeStyle = useMemo(() => [
+    styles.statusBadge,
+    tone === 'success' ? styles.statusBadgeSuccess : null,
+    tone === 'muted' ? styles.statusBadgeMuted : null,
+  ], [tone]);
+  const textStyle = useMemo(() => [
+    styles.statusBadgeText,
+    tone === 'success' ? styles.statusBadgeTextSuccess : null,
+    tone === 'muted' ? styles.statusBadgeTextMuted : null,
+  ], [tone]);
+
+  return (
+    <View style={badgeStyle}>
+      <Text style={textStyle}>{label}</Text>
+    </View>
+  );
+});
 
 export function AdminList<T>({
   data,
@@ -127,6 +185,8 @@ export function AdminList<T>({
   keyExtractor: (item: T) => string;
   renderItem: (item: T) => ReactElement;
 }) {
+  const renderListItem = useCallback(({ item }: { item: T }) => renderItem(item), [renderItem]);
+
   if (data.length === 0) {
     return (
       <View style={styles.listStack}>
@@ -139,10 +199,10 @@ export function AdminList<T>({
     <FlatList
       data={data}
       keyExtractor={keyExtractor}
-      renderItem={({ item }) => renderItem(item)}
+      renderItem={renderListItem}
       scrollEnabled={false}
       contentContainerStyle={styles.listStack}
-      ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
+      ItemSeparatorComponent={AdminListSeparator}
     />
   );
 }

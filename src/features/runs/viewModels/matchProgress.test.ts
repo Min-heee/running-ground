@@ -16,6 +16,11 @@ import {
   parsePaceSecondsPerKm,
   resolveParticipantDisplayDistanceKm,
 } from './matchProgress';
+import {
+  appendGroupLiveStandingGaps,
+  sortEstimatedGroupLiveStandings,
+  sortOfficialGroupLiveStandings,
+} from './matchProgressRanking';
 
 const baseOpponent: DuelMatchOpponent = {
   id: 'opponent',
@@ -226,4 +231,71 @@ test('estimated competitive distance handles zero and malformed pace inputs safe
   assert.equal(buildEstimatedCompetitiveDistanceKm('bad-pace', 330), 1);
   assert.equal(buildEstimatedCompetitiveDistanceKm('06:20/km', 0), 0);
   assert.equal(buildEstimatedCompetitiveDistanceKm('06:20/km', -10), 0);
+});
+
+test('group standing ranking helpers sort without mutating source standings', () => {
+  const source = [
+    {
+      ...participant({ id: 'slower', averagePace: '06:30/km' }),
+      rank: 0,
+      currentDistanceKm: 1,
+      gapAheadKm: null,
+      gapLeaderKm: 0,
+      isForfeited: false,
+      isCurrentUser: false,
+    },
+    {
+      ...participant({ id: 'faster', averagePace: '06:00/km' }),
+      rank: 0,
+      currentDistanceKm: 1,
+      gapAheadKm: null,
+      gapLeaderKm: 0,
+      isForfeited: false,
+      isCurrentUser: true,
+    },
+    {
+      ...participant({ id: 'forfeited', averagePace: '05:00/km' }),
+      rank: 0,
+      currentDistanceKm: 2,
+      gapAheadKm: null,
+      gapLeaderKm: 0,
+      isForfeited: true,
+      isCurrentUser: false,
+    },
+  ];
+
+  const sorted = appendGroupLiveStandingGaps(sortEstimatedGroupLiveStandings(source));
+
+  assert.deepEqual(source.map((standing) => standing.id), ['slower', 'faster', 'forfeited']);
+  assert.deepEqual(sorted.map((standing) => [standing.id, standing.rank]), [
+    ['faster', 1],
+    ['slower', 2],
+    ['forfeited', 3],
+  ]);
+  assert.equal(sorted[1].gapAheadKm, 0);
+});
+
+test('official group standing ranking helper keeps forfeited runners behind official ranks', () => {
+  const sorted = sortOfficialGroupLiveStandings([
+    {
+      ...participant({ id: 'forfeited' }),
+      rank: 1,
+      currentDistanceKm: 2,
+      gapAheadKm: null,
+      gapLeaderKm: 0,
+      isForfeited: true,
+      isCurrentUser: false,
+    },
+    {
+      ...participant({ id: 'active' }),
+      rank: 2,
+      currentDistanceKm: 1,
+      gapAheadKm: 1,
+      gapLeaderKm: 1,
+      isForfeited: false,
+      isCurrentUser: true,
+    },
+  ]);
+
+  assert.deepEqual(sorted.map((standing) => standing.id), ['active', 'forfeited']);
 });

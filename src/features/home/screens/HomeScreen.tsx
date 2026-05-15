@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
 import { Screen } from '@/components/Screen';
@@ -23,24 +24,26 @@ export default function HomeScreen() {
     summary,
     visibleUpcomingMatches,
   } = useHomeScreenModel();
+  const noticeCards = useMemo(() => notices.map((notice) => (
+    <HomeNoticeCard key={notice.id} notice={notice} />
+  )), [notices]);
+  const handleCancelMatch = useCallback((match: Parameters<typeof handleCancelUpcomingMatch>[0]) => {
+    void handleCancelUpcomingMatch(match);
+  }, [handleCancelUpcomingMatch]);
 
   return (
     <View style={styles.root}>
       <Screen>
-        <View style={styles.contentWrap}>
+          <View style={styles.contentWrap}>
           <HomeHeader />
-          {notices.map((notice) => (
-            <HomeNoticeCard key={notice.id} notice={notice} />
-          ))}
+          {noticeCards}
           {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
           {error ? <Text>{error}</Text> : null}
           <HomeUpcomingMatchesCard
             matches={visibleUpcomingMatches}
             nowMs={nowMs}
             cancelingMatchId={cancelingMatchId}
-            onCancelMatch={(match) => {
-              void handleCancelUpcomingMatch(match);
-            }}
+            onCancelMatch={handleCancelMatch}
             onOpenMatch={handleOpenRunningMatch}
           />
           {summary ? (

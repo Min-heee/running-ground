@@ -7,7 +7,11 @@ import type { LiveMatchResultPageProps } from '@/features/runs/components/LiveMa
 import type { LiveMatchTrackingPageProps } from '@/features/runs/components/LiveMatchTrackingPage';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { LiveMatchArenaViewModel } from '@/features/runs/viewModels/liveMatchArenaViewModel';
-import type { LiveMatchRaceBoardViewModel } from '@/features/runs/viewModels/liveMatchRaceBoardViewModel';
+import {
+  buildLiveMatchRaceBoardViewModel,
+  type LiveMatchRaceBoardViewModel,
+  type LiveMatchRaceBoardViewModelInput,
+} from '@/features/runs/viewModels/liveMatchRaceBoardViewModel';
 
 export function buildLiveMatchArenaPageProps({
   activeMatchId,
@@ -95,5 +99,76 @@ export function buildLiveMatchPagesProps({
     trackingProps: trackingStatsPageProps,
     resultProps: page === 3 ? resultProps : null,
     onPageChange,
+  };
+}
+
+export function buildLiveMatchRaceBoardViewModelForPage({
+  page,
+  input,
+}: {
+  page: number;
+  input: LiveMatchRaceBoardViewModelInput;
+}) {
+  return page === 1 ? buildLiveMatchRaceBoardViewModel(input) : null;
+}
+
+export function buildLiveMatchPageViewModels({
+  scrollRef,
+  page,
+  pageWidth,
+  hasResultPage,
+  activeMatchId,
+  arenaViewModel,
+  onLiveMatchMounted,
+  matchMode,
+  raceBoardViewModel,
+  trackingPageProps,
+  resultPageProps,
+  onPageChange,
+}: {
+  scrollRef: RefObject<ScrollView | null>;
+  page: number;
+  pageWidth: number;
+  hasResultPage: boolean;
+  activeMatchId?: string | null;
+  arenaViewModel: LiveMatchArenaViewModel | null;
+  onLiveMatchMounted?: LiveMatchArenaPageProps['onLiveMatchMounted'];
+  matchMode: RunMatchMode;
+  raceBoardViewModel: LiveMatchRaceBoardViewModel | null;
+  trackingPageProps: Omit<LiveMatchTrackingPageProps, 'includeMatchCards'>;
+  resultPageProps: LiveMatchResultPageProps;
+  onPageChange: (page: number) => void;
+}) {
+  const arenaProps = buildLiveMatchArenaPageProps({
+    activeMatchId,
+    arenaViewModel,
+    onLiveMatchMounted,
+  });
+  const raceBoardProps = buildLiveMatchRaceBoardPageProps({
+    matchMode,
+    raceBoardViewModel,
+  });
+  const trackingStatsPageProps = buildLiveMatchStatsPageProps({
+    page,
+    trackingPageProps,
+  });
+  const resultProps = buildLiveMatchResultPageProps(resultPageProps);
+
+  return {
+    arenaProps,
+    raceBoardProps,
+    trackingStatsPageProps,
+    resultProps,
+    livePagesProps: buildLiveMatchPagesProps({
+      scrollRef,
+      page,
+      pageWidth,
+      hasResultPage,
+      arenaProps,
+      raceBoardProps,
+      trackingStatsPageProps,
+      resultProps,
+      onPageChange,
+    }),
   };
 }

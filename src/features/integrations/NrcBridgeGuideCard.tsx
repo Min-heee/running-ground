@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import type { ConnectedSource, RunSourceType } from '@/domain';
 import { NrcBridgeGuideActions } from './components/nrcBridge/NrcBridgeGuideActions';
@@ -17,6 +17,17 @@ import {
   getSourceByType,
 } from './sourceCatalog';
 
+type NrcBridgeGuideStatus = {
+  appleHealthConnected: boolean;
+  appleHealthReady: boolean;
+  garminConnected: boolean;
+  healthConnectConnected: boolean;
+  healthConnectReady: boolean;
+  mynbConnected: boolean;
+  nrcConnected: boolean;
+  stravaConnected: boolean;
+};
+
 type NrcBridgeGuideCardProps = {
   sources: ConnectedSource[];
   platform?: DevicePlatform;
@@ -28,6 +39,66 @@ type NrcBridgeGuideCardProps = {
   onImportDevice?: () => void;
   onSync?: () => void;
 };
+
+const NrcBridgeGuideSectionRow = memo(function NrcBridgeGuideSectionRow({
+  actionSourceType,
+  expanded,
+  importing,
+  onConnectSource,
+  onImportDevice,
+  onSync,
+  onToggleSection,
+  platform,
+  section,
+  status,
+  syncing,
+}: {
+  actionSourceType?: string | null;
+  expanded: boolean;
+  importing: boolean;
+  onConnectSource?: (sourceType: RunSourceType) => void;
+  onImportDevice?: () => void;
+  onSync?: () => void;
+  onToggleSection: (sectionId: GuideSectionId) => void;
+  platform: DevicePlatform;
+  section: ReturnType<typeof buildIosSections>[number];
+  status: NrcBridgeGuideStatus;
+  syncing: boolean;
+}) {
+  const handleToggle = useCallback(() => onToggleSection(section.id), [onToggleSection, section.id]);
+  const actionContent = useMemo(() => (
+    <NrcBridgeGuideActions
+      sectionId={section.id}
+      platform={platform}
+      actionSourceType={actionSourceType}
+      importing={importing}
+      syncing={syncing}
+      {...status}
+      onConnectSource={onConnectSource}
+      onImportDevice={onImportDevice}
+      onSync={onSync}
+    />
+  ), [
+    actionSourceType,
+    importing,
+    onConnectSource,
+    onImportDevice,
+    onSync,
+    platform,
+    section.id,
+    status,
+    syncing,
+  ]);
+
+  return (
+    <NrcBridgeGuideSection
+      section={section}
+      expanded={expanded}
+      onToggle={handleToggle}
+      actionContent={actionContent}
+    />
+  );
+});
 
 export function NrcBridgeGuideCard({
   sources,
@@ -49,7 +120,7 @@ export function NrcBridgeGuideCard({
   const garminSource = getSourceByType(sources, 'garmin');
   const appleHealthReady = Boolean(appleHealthSource?.connected) && nativeHealthReady;
   const healthConnectReady = Boolean(healthConnectSource?.connected) && nativeHealthReady;
-  const status = {
+  const status = useMemo<NrcBridgeGuideStatus>(() => ({
     appleHealthConnected: Boolean(appleHealthSource?.connected),
     appleHealthReady,
     garminConnected: Boolean(garminSource?.connected),
@@ -58,12 +129,52 @@ export function NrcBridgeGuideCard({
     mynbConnected: Boolean(mynbSource?.connected),
     nrcConnected: Boolean(nrcSource?.connected),
     stravaConnected: Boolean(stravaSource?.connected),
-  };
-  const sections = platform === 'ios'
+  }), [
+    appleHealthReady,
+    appleHealthSource?.connected,
+    garminSource?.connected,
+    healthConnectReady,
+    healthConnectSource?.connected,
+    mynbSource?.connected,
+    nrcSource?.connected,
+    stravaSource?.connected,
+  ]);
+  const sections = useMemo(() => (platform === 'ios'
     ? buildIosSections(status)
     : platform === 'android'
       ? buildAndroidSections(status)
-      : [];
+      : []), [platform, status]);
+  const handleToggleSection = useCallback((sectionId: GuideSectionId) => {
+    setOpenSectionId((current) => (current === sectionId ? null : sectionId));
+  }, []);
+  const sectionRows = useMemo(() => sections.map((section) => (
+    <NrcBridgeGuideSectionRow
+      key={section.id}
+      section={section}
+      expanded={openSectionId === section.id}
+      onToggleSection={handleToggleSection}
+      platform={platform}
+      actionSourceType={actionSourceType}
+      importing={importing}
+      syncing={syncing}
+      status={status}
+      onConnectSource={onConnectSource}
+      onImportDevice={onImportDevice}
+      onSync={onSync}
+    />
+  )), [
+    actionSourceType,
+    handleToggleSection,
+    importing,
+    onConnectSource,
+    onImportDevice,
+    onSync,
+    openSectionId,
+    platform,
+    sections,
+    status,
+    syncing,
+  ]);
 
   if (sections.length === 0) {
     return null;
@@ -71,31 +182,7 @@ export function NrcBridgeGuideCard({
 
   return (
     <View style={styles.group}>
-      {sections.map((section) => {
-        const expanded = openSectionId === section.id;
-
-        return (
-          <NrcBridgeGuideSection
-            key={section.id}
-            section={section}
-            expanded={expanded}
-            onToggle={() => setOpenSectionId((current) => (current === section.id ? null : section.id))}
-            actionContent={(
-              <NrcBridgeGuideActions
-                sectionId={section.id}
-                platform={platform}
-                actionSourceType={actionSourceType}
-                importing={importing}
-                syncing={syncing}
-                {...status}
-                onConnectSource={onConnectSource}
-                onImportDevice={onImportDevice}
-                onSync={onSync}
-              />
-            )}
-          />
-        );
-      })}
+      {sectionRows}
     </View>
   );
 }

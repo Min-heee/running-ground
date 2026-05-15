@@ -7,16 +7,10 @@ import {
   type LiveMatchArenaViewModelInput,
 } from '@/features/runs/viewModels/liveMatchArenaViewModel';
 import {
-  buildLiveMatchArenaPageProps,
-  buildLiveMatchPagesProps,
-  buildLiveMatchRaceBoardPageProps,
-  buildLiveMatchResultPageProps,
-  buildLiveMatchStatsPageProps,
+  buildLiveMatchPageViewModels,
+  buildLiveMatchRaceBoardViewModelForPage,
 } from '@/features/runs/viewModels/liveMatchPagesViewModel';
-import {
-  buildLiveMatchRaceBoardViewModel,
-  type LiveMatchRaceBoardViewModelInput,
-} from '@/features/runs/viewModels/liveMatchRaceBoardViewModel';
+import type { LiveMatchRaceBoardViewModelInput } from '@/features/runs/viewModels/liveMatchRaceBoardViewModel';
 import {
   type LiveMatchTrackingInputProps,
   useLiveMatchTrackingViewProps,
@@ -172,36 +166,29 @@ export function useLiveMatchViewModel({
     visibleMatchRoom,
   ]);
 
-  const arenaProps = useMemo(() => buildLiveMatchArenaPageProps({
-    activeMatchId,
-    arenaViewModel,
-    onLiveMatchMounted,
-  }), [activeMatchId, arenaViewModel, onLiveMatchMounted]);
-
-  const raceBoardViewModel = useMemo(() => {
-    if (page !== 1) {
-      return null;
-    }
-
-    return buildLiveMatchRaceBoardViewModel({
-      matchMode,
-      effectiveDuelOpponent,
-      duelLiveGapKm,
-      duelDistanceKm,
-      groupDistanceKm,
-      distanceKm,
-      syncedDuelDistanceKm,
-      syncedDuelOpponentDistanceKm,
-      currentUserDuelLiveStatus,
-      currentUserGroupLiveStatus,
-      roomLinkedDuelPlaceholderParticipants,
-      roomLinkedGroupPlaceholderParticipants,
-      visibleMatchRoom,
-      groupLiveStandings,
-      currentUserArenaPace,
-      groupArenaUsesLivePace,
-    });
-  }, [
+  const raceBoardViewModel = useMemo(() => (
+    buildLiveMatchRaceBoardViewModelForPage({
+      page,
+      input: {
+        matchMode,
+        effectiveDuelOpponent,
+        duelLiveGapKm,
+        duelDistanceKm,
+        groupDistanceKm,
+        distanceKm,
+        syncedDuelDistanceKm,
+        syncedDuelOpponentDistanceKm,
+        currentUserDuelLiveStatus,
+        currentUserGroupLiveStatus,
+        roomLinkedDuelPlaceholderParticipants,
+        roomLinkedGroupPlaceholderParticipants,
+        visibleMatchRoom,
+        groupLiveStandings,
+        currentUserArenaPace,
+        groupArenaUsesLivePace,
+      },
+    })
+  ), [
     currentUserArenaPace,
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
@@ -220,11 +207,6 @@ export function useLiveMatchViewModel({
     syncedDuelOpponentDistanceKm,
     visibleMatchRoom,
   ]);
-
-  const raceBoardProps = useMemo(() => buildLiveMatchRaceBoardPageProps({
-    matchMode,
-    raceBoardViewModel,
-  }), [matchMode, raceBoardViewModel]);
 
   const trackingPageProps = useLiveMatchTrackingViewProps({
     matchMode,
@@ -253,45 +235,41 @@ export function useLiveMatchViewModel({
     onContinueSoloFromMatch,
   });
 
-  const resultProps = useMemo(() => buildLiveMatchResultPageProps({
-    matchMode,
-    estimatedBonusPoints,
-    duelRows,
-    groupRows,
-    groupStatusLabel,
-  }), [
-    duelRows,
-    estimatedBonusPoints,
-    groupRows,
-    groupStatusLabel,
-    matchMode,
-  ]);
-
-  const trackingStatsPageProps = useMemo(() => buildLiveMatchStatsPageProps({
+  const { livePagesProps } = useMemo(() => buildLiveMatchPageViewModels({
+    scrollRef,
     page,
+    pageWidth,
+    hasResultPage,
+    activeMatchId,
+    arenaViewModel,
+    onLiveMatchMounted,
+    matchMode,
+    raceBoardViewModel,
     trackingPageProps,
-  }), [page, trackingPageProps]);
-
-  const livePagesProps = useMemo(() => buildLiveMatchPagesProps({
-    scrollRef,
-    page,
-    pageWidth,
-    hasResultPage,
-    arenaProps,
-    raceBoardProps,
-    trackingStatsPageProps,
-    resultProps,
+    resultPageProps: {
+      matchMode,
+      estimatedBonusPoints,
+      duelRows,
+      groupRows,
+      groupStatusLabel,
+    },
     onPageChange,
   }), [
-    arenaProps,
+    activeMatchId,
+    arenaViewModel,
+    duelRows,
+    estimatedBonusPoints,
+    groupRows,
+    groupStatusLabel,
     hasResultPage,
+    matchMode,
+    onLiveMatchMounted,
     onPageChange,
     page,
     pageWidth,
-    raceBoardProps,
-    resultProps,
+    raceBoardViewModel,
     scrollRef,
-    trackingStatsPageProps,
+    trackingPageProps,
   ]);
 
   return {

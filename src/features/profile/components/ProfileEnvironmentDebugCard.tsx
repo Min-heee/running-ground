@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
@@ -9,9 +10,26 @@ type ProfileEnvironmentDebugCardProps = {
   profile: MyProfileResponse | null;
 };
 
+type EnvironmentDebugRow = readonly [string, string];
+
+const ProfileEnvironmentDebugRow = memo(function ProfileEnvironmentDebugRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.label}>{label}</Text>
+      <Text selectable style={styles.value}>{value}</Text>
+    </View>
+  );
+});
+
 export function ProfileEnvironmentDebugCard({ profile }: ProfileEnvironmentDebugCardProps) {
-  const environmentInfo = getRgEnvironmentInfo(profile);
-  const rows = [
+  const environmentInfo = useMemo(() => getRgEnvironmentInfo(profile), [profile]);
+  const rows = useMemo<EnvironmentDebugRow[]>(() => [
     ['EXPO_PUBLIC_API_BASE_URL', environmentInfo.apiBaseUrl],
     ['EXPO_PUBLIC_USE_MOCK_API', environmentInfo.mockApi],
     ['appVariant', environmentInfo.appVariant],
@@ -19,7 +37,10 @@ export function ProfileEnvironmentDebugCard({ profile }: ProfileEnvironmentDebug
     ['platform', environmentInfo.platform],
     ['userId', environmentInfo.userId],
     ['nickname', environmentInfo.userNickname],
-  ] as const;
+  ], [environmentInfo]);
+  const rowElements = useMemo(() => rows.map(([label, value]) => (
+    <ProfileEnvironmentDebugRow key={label} label={label} value={value} />
+  )), [rows]);
 
   return (
     <Card style={styles.card}>
@@ -31,12 +52,7 @@ export function ProfileEnvironmentDebugCard({ profile }: ProfileEnvironmentDebug
         TestFlight와 Android dev 앱이 같은 API를 보는지 확인하는 숨김 정보예요.
       </Text>
       <View style={styles.rows}>
-        {rows.map(([label, value]) => (
-          <View key={label} style={styles.row}>
-            <Text style={styles.label}>{label}</Text>
-            <Text selectable style={styles.value}>{value}</Text>
-          </View>
-        ))}
+        {rowElements}
       </View>
     </Card>
   );

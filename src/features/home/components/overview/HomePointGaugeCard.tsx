@@ -1,4 +1,6 @@
+import { memo, useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
+import type { DimensionValue, StyleProp, ViewStyle } from 'react-native';
 import { Card } from '@/components/Card';
 import { HomePointCalendar } from '@/features/home/components/overview/HomePointCalendar';
 import type { StreakCalendarCell, WeeklyPointTrack, WeeklyPointTrackId } from '@/features/points/pointSystem';
@@ -15,6 +17,35 @@ type HomePointGaugeCardProps = {
   onNextMonth: () => void;
 };
 
+const PointTrackTab = memo(function PointTrackTab({
+  active,
+  onSelectTrack,
+  track,
+}: {
+  active: boolean;
+  onSelectTrack: (trackId: WeeklyPointTrackId) => void;
+  track: WeeklyPointTrack;
+}) {
+  const tabStyle = useMemo(() => [
+    styles.pointTab,
+    active && styles.pointTabActive,
+  ], [active]);
+  const textStyle = useMemo(() => [
+    styles.pointTabText,
+    active && styles.pointTabTextActive,
+  ], [active]);
+  const handlePress = useCallback(() => onSelectTrack(track.id), [onSelectTrack, track.id]);
+
+  return (
+    <Pressable
+      style={tabStyle}
+      onPress={handlePress}
+    >
+      <Text style={textStyle}>{track.label}</Text>
+    </Pressable>
+  );
+});
+
 export function HomePointGaugeCard({
   tracks,
   selectedTrack,
@@ -26,6 +57,19 @@ export function HomePointGaugeCard({
   onCurrentMonth,
   onNextMonth,
 }: HomePointGaugeCardProps) {
+  const pointTrackTabs = useMemo(() => tracks.map((track) => (
+    <PointTrackTab
+      key={track.id}
+      active={track.id === selectedTrack.id}
+      onSelectTrack={onSelectTrack}
+      track={track}
+    />
+  )), [onSelectTrack, selectedTrack.id, tracks]);
+  const pointFillStyle = useMemo<StyleProp<ViewStyle>>(() => [
+    styles.pointFill,
+    { width: `${selectedTrack.progressPercent}%` as DimensionValue },
+  ], [selectedTrack.progressPercent]);
+
   return (
     <Card style={styles.pointCard}>
       <View style={styles.pointHeader}>
@@ -34,19 +78,7 @@ export function HomePointGaugeCard({
       </View>
 
       <View style={styles.pointTabRow}>
-        {tracks.map((track) => {
-          const active = track.id === selectedTrack.id;
-
-          return (
-            <Pressable
-              key={track.id}
-              style={[styles.pointTab, active && styles.pointTabActive]}
-              onPress={() => onSelectTrack(track.id)}
-            >
-              <Text style={[styles.pointTabText, active && styles.pointTabTextActive]}>{track.label}</Text>
-            </Pressable>
-          );
-        })}
+        {pointTrackTabs}
       </View>
 
       <View style={styles.pointValueRow}>
@@ -66,7 +98,7 @@ export function HomePointGaugeCard({
       </View>
 
       <View style={styles.pointTrack}>
-        <View style={[styles.pointFill, { width: `${selectedTrack.progressPercent}%` }]} />
+        <View style={pointFillStyle} />
       </View>
 
       {selectedTrack.id === 'streak' && selectedTrack.calendar ? (

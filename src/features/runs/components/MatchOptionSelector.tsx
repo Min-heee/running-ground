@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 
@@ -14,35 +15,62 @@ type MatchOptionSelectorProps = {
   onSelect: (option: MatchOptionItem) => void;
 };
 
+const MatchOptionButton = memo(function MatchOptionButton({
+  isSelected,
+  onSelect,
+  option,
+  selectedMode,
+}: {
+  isSelected: boolean;
+  onSelect: (option: MatchOptionItem) => void;
+  option: MatchOptionItem;
+  selectedMode: MatchOptionMode;
+}) {
+  const optionStyle = useMemo(() => [
+    styles.option,
+    isSelected ? styles.optionSelected : styles.optionIdle,
+  ], [isSelected]);
+  const titleStyle = useMemo(() => [
+    styles.optionTitle,
+    isSelected ? styles.optionTitleSelected : undefined,
+  ], [isSelected]);
+  const handlePress = useCallback(() => {
+    const trace = beginRgInputTrace('run mode select', {
+      mode: option.mode,
+      selectedMode,
+    });
+    onSelect(option);
+    trace.markFeedback('mode state dispatch');
+  }, [onSelect, option, selectedMode]);
+
+  return (
+    <Pressable
+      style={optionStyle}
+      onPress={handlePress}
+    >
+      <Text style={titleStyle}>{option.title}</Text>
+    </Pressable>
+  );
+});
+
 export function MatchOptionSelector({
   options,
   selectedMode,
   onSelect,
 }: MatchOptionSelectorProps) {
+  const optionButtons = useMemo(() => options.map((option) => (
+    <MatchOptionButton
+      key={option.mode}
+      isSelected={option.mode === selectedMode}
+      onSelect={onSelect}
+      option={option}
+      selectedMode={selectedMode}
+    />
+  )), [onSelect, options, selectedMode]);
+
   return (
     <View style={styles.row}>
-      {options.map((option) => {
-        const isSelected = option.mode === selectedMode;
-
-        return (
-          <Pressable
-            key={option.mode}
-            style={[styles.option, isSelected ? styles.optionSelected : styles.optionIdle]}
-            onPress={() => {
-              const trace = beginRgInputTrace('run mode select', {
-                mode: option.mode,
-                selectedMode,
-              });
-              onSelect(option);
-              trace.markFeedback('mode state dispatch');
-            }}
-          >
-            <Text style={[styles.optionTitle, isSelected ? styles.optionTitleSelected : undefined]}>
-              {option.title}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {optionButtons}
     </View>
   );
 }

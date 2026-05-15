@@ -44,11 +44,13 @@ function logRgInput(level: 'log' | 'warn', label: string, detail?: RgInputDetail
   }
 
   const message = `[RG input] ${label}${formatDetail(detail)}`;
+  const logger = globalThis['console'];
+
   if (level === 'warn') {
-    globalThis.console.warn(message);
+    logger.warn(message);
     return;
   }
-  globalThis.console.log(message);
+  logger.log(message);
 }
 
 function scheduleFrameDelayTrace(label: string, startedAtMs: number, detail?: RgInputDetail) {
