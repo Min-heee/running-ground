@@ -30,7 +30,6 @@ import { useRunTrackingFlow } from '@/features/runs/hooks/useRunTrackingFlow';
 import {
   acknowledgeRunningMatchRoomCountdown,
   cancelRunningMatch,
-  createRunningMatchRoom,
   fetchFriendLeaderboard,
   fetchRunningMatchRoomInviteInbox,
   fetchMatchDemandSummary,
@@ -42,18 +41,6 @@ import {
   requestDuelMatch,
   requestGroupMatch,
 } from '@/services';
-import {
-  getRunningMatchBlockerFromError,
-  runStaleRoomCleanupWithTimeout,
-} from '@/features/runs/sync/staleRoomCleanup';
-import {
-  getActiveRoomCheckResultSkipReason,
-  runActiveRoomCheck,
-} from '@/features/runs/sync/activeRoomCheck';
-import {
-  buildActiveRoomResultLogDetail,
-  buildActiveRoomSnapshotKey,
-} from '@/features/runs/sync/activeRoomResult';
 import {
   buildRecipientRoomInviteInboxResult,
 } from '@/features/runs/sync/roomInviteInbox';
@@ -93,30 +80,30 @@ import {
   selectPartyRunRuntimeSource,
 } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
 import { getLiveMatchRouteHydration } from '@/features/runs/lifecycle/liveMatchRouteHydration';
-import { buildTrackRunRuntimeRouteKey } from '@/features/runs/lifecycle/trackRunRouteState';
 import {
   resolveLiveMatchShellPreservation,
   type PreservedLiveMatchShell,
 } from '@/features/runs/lifecycle/liveMatchShellPreservation';
-import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import {
   beginRgInputTrace,
-  isRgInputInteractionRecent,
   waitForRgInputFeedbackFrame,
 } from '@/utils/rgInputTrace';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 import { useTrackRunNavigationAdapter } from '@/features/runs/runtime/useTrackRunNavigationAdapter';
-import { useTrackRunIdleRuntime } from '@/features/runs/runtime/useTrackRunIdleRuntime';
-import { useMatchLobbyRuntime } from '@/features/runs/runtime/useMatchLobbyRuntime';
 import { useTrackRunRuntimeTrace } from '@/features/runs/runtime/useTrackRunRuntimeTrace';
 import { useTrackRunRuntimeEffects } from '@/features/runs/runtime/useTrackRunRuntimeEffects';
 import { useIdleRunRuntimeModel } from '@/features/runs/runtime/useIdleRunRuntimeModel';
 import { useMatchLobbyRuntimeModel } from '@/features/runs/runtime/useMatchLobbyRuntimeModel';
 import { useTrackRunRuntimeActions } from '@/features/runs/runtime/useTrackRunRuntimeActions';
 import { useLiveMatchRuntimeModel } from '@/features/runs/runtime/useLiveMatchRuntimeModel';
+import { useTrackRunRuntimeStateBridge } from '@/features/runs/runtime/useTrackRunRuntimeStateBridge';
+import { useTrackRunRoomLoader } from '@/features/runs/runtime/useTrackRunRoomLoader';
+import { useTrackRunRoomCreateAction } from '@/features/runs/runtime/useTrackRunRoomCreateAction';
+import { useTrackRunRoomJoinAction } from '@/features/runs/runtime/useTrackRunRoomJoinAction';
+import { useTrackRunRuntimeModelBuilder } from '@/features/runs/runtime/useTrackRunRuntimeModelBuilder';
 
 const STALE_RENDER_MATCHED_MATCH_MS = 10 * 60 * 1000;
 const STALE_RENDER_ACTIVE_MATCH_MS = 8 * 60 * 60 * 1000;
@@ -1096,253 +1083,13 @@ export function TrackRunExperienceRuntime({
     return payload.items;
   };
 
-  const buildTrackRunActiveRoomCheckRouteKey = () => {
-    const routeState = buildTrackRunRuntimeRouteKey({
-      focusMatchId,
-      focusRoomId,
-      focusedDuelMatchId: focusedDuelMatchIdRef.current,
-      focusedGroupMatchId: focusedGroupMatchIdRef.current,
-      forceOpenActiveMatch,
-      hydratedMatchId: liveMatchRouteHydration?.matchId,
-      hydratedMatchMode: liveMatchRouteHydration?.mode,
-      hydratedRoomId: liveMatchRouteHydration?.roomId,
-      liveArenaPage,
-      matchMode,
-      matchRoomId: matchRoom?.roomId,
-      roomLinkedMatchId: roomLinkedMatchContext?.matchId,
-      visibleMatchRoomId: visibleMatchRoom?.roomId,
-    });
-
-    if (routeState.correctedByRouteParams && lastRouteKeyCorrectionRef.current !== routeState.routeKey) {
-      lastRouteKeyCorrectionRef.current = routeState.routeKey;
-      rgPerfMark('live match route key corrected', {
-        focusMatchId: focusMatchId ?? null,
-        focusRoomId: focusRoomId ?? null,
-        hydratedMatchId: liveMatchRouteHydration?.matchId ?? null,
-        hydratedRoomId: liveMatchRouteHydration?.roomId ?? null,
-        matchId: routeState.matchId,
-        roomId: routeState.roomId,
-        routeKey: routeState.routeKey,
-        source: 'track-run experience',
-      });
-    }
-
-    return routeState.routeKey;
-  };
-
-  const getCurrentLiveMatchId = () => (
+  const getCurrentLiveMatchId = useCallback(() => (
     liveMatchMountedRef.current?.matchId
     ?? focusedDuelMatchIdRef.current
     ?? focusedGroupMatchIdRef.current
     ?? roomLinkedMatchContext?.matchId
     ?? null
-  );
-
-  const loadMatchRoom = async (options?: {
-    ignoreDuringInteraction?: boolean;
-    localActiveMatchId?: string | null;
-    localActiveRoomId?: string | null;
-    priority?: 'normal' | 'low-priority';
-    requireLocalActiveHint?: boolean;
-  }) => {
-    try {
-      const routeKey = buildTrackRunActiveRoomCheckRouteKey();
-      const priority = options?.priority ?? 'normal';
-      const localActiveMatchId = options?.localActiveMatchId ?? null;
-      const localActiveRoomId = options?.localActiveRoomId ?? null;
-
-      if (options?.requireLocalActiveHint && !localActiveRoomId && !localActiveMatchId) {
-        rgPerfMark('active room check skipped no local active hint', {
-          priority,
-          routeKey,
-          source: 'track-run experience',
-        });
-        return matchRoom;
-      }
-
-      if (options?.ignoreDuringInteraction && isRgInputInteractionRecent()) {
-        rgPerfMark('active room check skipped during interaction', {
-          priority,
-          routeKey,
-          source: 'track-run experience',
-        });
-        rgPerfMark('active room check suppressed by user interaction', {
-          priority,
-          routeKey,
-          source: 'track-run experience',
-        });
-        return matchRoom;
-      }
-
-      if (priority === 'low-priority') {
-        rgPerfMark('active room check low priority idle', {
-          routeKey,
-          source: 'track-run experience',
-        });
-      }
-
-      const activeRoomCheckResult = await runActiveRoomCheck({
-        ...(priority === 'low-priority'
-          ? {
-              hardTimeoutMs: 1_500,
-              throttleMs: 60_000,
-              uiTimeoutMs: 1_200,
-            }
-          : {}),
-        routeKey,
-        source: 'track-run experience',
-      });
-
-      if (options?.ignoreDuringInteraction && isRgInputInteractionRecent()) {
-        rgPerfMark('active room check skipped during interaction', {
-          priority,
-          reason: 'result-after-input',
-          requestId: activeRoomCheckResult.requestId,
-          routeKey,
-          source: 'track-run experience',
-        });
-        rgPerfMark('active room check suppressed by user interaction', {
-          priority,
-          reason: 'result-after-input',
-          requestId: activeRoomCheckResult.requestId,
-          routeKey,
-          source: 'track-run experience',
-        });
-        return matchRoom;
-      }
-
-      const currentRouteKey = buildTrackRunActiveRoomCheckRouteKey();
-      const skipReason = getActiveRoomCheckResultSkipReason({
-        currentMatchId: getCurrentLiveMatchId(),
-        currentRouteKey,
-        isLiveMatchMounted: Boolean(liveMatchMountedRef.current),
-        result: activeRoomCheckResult,
-      });
-
-      if (skipReason) {
-        const logDetail = {
-          currentRouteKey,
-          generation: activeRoomCheckResult.generation,
-          reason: skipReason,
-          requestId: activeRoomCheckResult.requestId,
-          routeKey: activeRoomCheckResult.routeKey,
-          source: 'track-run experience',
-        };
-
-        if (skipReason === 'stale-generation') {
-          rgPerfMark('active room result skipped stale generation', logDetail);
-        } else if (skipReason === 'live-match-mounted') {
-          rgPerfMark('active room result ignored after live match mounted', logDetail);
-        } else {
-          rgPerfMark('active room result skipped duplicate', logDetail);
-        }
-        if (liveMatchShellPreservation.shouldRenderLiveArena) {
-          rgPerfMark('stale result ignored without unmount', {
-            ...logDetail,
-            liveMatchKey: liveMatchShellPreservation.key,
-            matchId: liveMatchRenderIdentity,
-            mode: liveMatchRenderMode,
-          });
-        }
-        return matchRoom;
-      }
-
-      const payload = activeRoomCheckResult.payload;
-      if (!payload) {
-        return matchRoom;
-      }
-
-      if (!isMountedRef.current) {
-        rgPerfMark('active room result skipped duplicate', {
-          reason: 'unmounted',
-          source: 'track-run experience',
-        });
-        return matchRoom;
-      }
-
-      if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
-        rgPerfMark('active room result skipped duplicate', {
-          reason: 'stale result',
-          source: 'track-run experience',
-        });
-        if (liveMatchShellPreservation.shouldRenderLiveArena) {
-          rgPerfMark('stale result ignored without unmount', {
-            liveMatchKey: liveMatchShellPreservation.key,
-            matchId: liveMatchRenderIdentity,
-            mode: liveMatchRenderMode,
-            reason: 'stale result',
-            source: 'track-run experience',
-          });
-        }
-        return matchRoom;
-      }
-
-      if (isMatchRoomExiting(payload.room?.roomId)) {
-        const endStaleCleanupTrace = rgPerfMeasureStart('stale room cleanup', {
-          roomId: payload.room?.roomId ?? null,
-          source: 'track-run exit guard',
-        });
-        commitMatchRoom(null);
-        endStaleCleanupTrace({ success: true });
-        return null;
-      }
-
-      if (payload.room?.linkedMatchId && forfeitedMatchIdsRef.current.has(payload.room.linkedMatchId)) {
-        const endStaleCleanupTrace = rgPerfMeasureStart('stale room cleanup', {
-          linkedMatchId: payload.room.linkedMatchId,
-          roomId: payload.room.roomId,
-          source: 'track-run forfeited match guard',
-        });
-        commitMatchRoom(null);
-        endStaleCleanupTrace({ success: true });
-        return null;
-      }
-
-      const snapshotKey = buildActiveRoomSnapshotKey({
-        room: payload.room,
-        userId: currentUserId,
-      });
-      if (lastHandledActiveRoomSnapshotKeyRef.current === snapshotKey) {
-        rgPerfMark('active room result skipped duplicate', buildActiveRoomResultLogDetail({
-          reason: 'same room snapshot',
-          room: payload.room,
-          snapshotKey,
-          source: 'track-run experience',
-        }));
-        return matchRoom;
-      }
-
-      lastHandledActiveRoomSnapshotKeyRef.current = snapshotKey;
-      rgPerfMark('active room result handled', buildActiveRoomResultLogDetail({
-        room: payload.room,
-        snapshotKey,
-        source: 'track-run experience',
-      }));
-
-      syncServerClock(payload.serverNow);
-      if (payload.room) {
-        rgPerfMark('already joined room detected', {
-          roomId: payload.room.roomId,
-          source: 'track-run experience',
-          state: payload.room.state,
-        });
-        if (payload.room.linkedMatchId) {
-          rgPerfMark('track-run live state accepted hydration', {
-            matchId: payload.room.linkedMatchId,
-            roomId: payload.room.roomId,
-            source: 'track-run experience',
-            state: payload.room.state,
-          });
-        }
-      }
-
-      const nextRoom = payload.room;
-      commitMatchRoom(nextRoom);
-      return nextRoom;
-    } catch (roomError) {
-      throw roomError;
-    }
-  };
+  ), [roomLinkedMatchContext?.matchId]);
 
   const loadFriendLeaderboardData = async () => {
     const payload = await fetchFriendLeaderboard();
@@ -1513,340 +1260,82 @@ export function TrackRunExperienceRuntime({
     liveMatchViewConfirmationRef,
   });
 
-  const prepareMatchRoomMutation = async ({
-    forceCleanup = false,
-    inviteToken,
-    source,
-  }: {
-    forceCleanup?: boolean;
-    inviteToken?: string;
-    source: string;
-  }) => {
-    const hasKnownActiveRoom = Boolean(matchRoom?.roomId || visibleMatchRoom?.roomId);
-    if (!forceCleanup && !hasKnownActiveRoom) {
-      rgPerfMark('stale cleanup skipped no blocker', {
-        hasInviteToken: Boolean(inviteToken),
-        source,
-      });
-      return true;
-    }
-
-    const cleanupOutcome = await runStaleRoomCleanupWithTimeout({ source });
-    if (cleanupOutcome.status === 'timeout') {
-      return !forceCleanup;
-    }
-
-    if (cleanupOutcome.status === 'error') {
-      return !forceCleanup;
-    }
-
-    const { payload } = cleanupOutcome;
-
-    if (payload.cleaned) {
-      rgPerfMark('local room state cleared', {
-        cleanedItems: payload.cleanedItems.join(','),
-        source,
-      });
-      commitMatchRoom(payload.room);
-      if (!payload.room) {
-        setSelectedRoomFriendIds([]);
-      }
-    }
-
-    if (payload.blocker && !payload.room) {
-      rgPerfMark('already joined room detected', {
-        blocker: payload.blocker,
-        blockerSource: payload.blockerSource ?? payload.blocker,
-        source,
-      });
-      setError(payload.message ?? '이미 진행 중인 매칭 상태가 있어요. 기존 상태를 먼저 정리한 뒤 다시 시도해주세요.');
-      return false;
-    }
-
-    if (!payload.room) {
-      return true;
-    }
-
-    rgPerfMark('already joined room detected', {
-      blocker: payload.blocker ?? 'activeRoom',
-      roomId: payload.room.roomId,
-      source,
-      state: payload.room.state,
-    });
-    commitMatchRoom(payload.room);
-
-    if (
-      inviteToken
-      && payload.room.joined !== false
-      && payload.room.inviteToken.toUpperCase() === inviteToken.toUpperCase()
-    ) {
-      navigateToMatchRoomWithTrace(`${source} existing room`, payload.room, payload.serverNow);
-      return false;
-    }
-
-    if (inviteToken && payload.room.joined === false && payload.room.inviteToken.toUpperCase() === inviteToken.toUpperCase()) {
-      return true;
-    }
-
-    setError(payload.message ?? '이미 참여 중인 방이 있어요. 기존 방을 먼저 나간 뒤 다시 시도해주세요.');
-    return false;
-  };
-
-  const handleCreateMatchRoom = async () => {
-    if (createMatchRoomInFlightRef.current || isCreatingMatchRoom) {
-      return;
-    }
-
-    const nextRoomMode = roomMatchMode;
-    const nextDistanceKm = nextRoomMode === 'duel' ? duelDistanceKm : groupDistanceKm;
-    const inputTrace = beginRgInputTrace('room create button press', {
-      distanceKm: nextDistanceKm,
-      mode: nextRoomMode,
-      source: 'track-run ready action',
-    });
-
-    rgPerfMark('room create button press', {
-      distanceKm: nextDistanceKm,
-      mode: nextRoomMode,
-      source: 'track-run ready action',
-    });
-
-    createMatchRoomInFlightRef.current = true;
-    setIsCreatingMatchRoom(true);
-    setError(null);
-    inputTrace.markFeedback('loading state set', {
-      disabled: true,
-      loading: true,
-    });
-    inputTrace.markFeedbackCommitted({
-      disabled: true,
-      loading: true,
-    });
-    await waitForRgInputFeedbackFrame();
-    inputTrace.markApiStarted({
-      source: 'room create preflight',
-    });
-
-    try {
-      if (!matchRoom?.roomId && !visibleMatchRoom?.roomId) {
-        rgPerfMark('stale cleanup skipped no blocker', {
-          mode: nextRoomMode,
-          source: 'room create preflight',
-        });
-      }
-
-      const canProceed = await prepareMatchRoomMutation({
-        source: 'room create preflight',
-      });
-      if (!canProceed) {
-        return;
-      }
-
-      const createRoom = async (source: string) => {
-        const endCreateApiTrace = rgPerfMeasureStart('room create API', {
-          distanceKm: nextDistanceKm,
-          mode: nextRoomMode,
-          source,
-        });
-        try {
-          const payload = await createRunningMatchRoom({
-            mode: nextRoomMode,
-            distanceKm: nextDistanceKm,
-            startMode: roomStartMode,
-            ...(roomStartMode === 'scheduled'
-              ? { slotStartAt: nextRoomMode === 'duel' ? activeDuelSlotStartAt : activeGroupSlotStartAt }
-              : {}),
-            ...(nextRoomMode === 'group' ? { maxParticipants: Number(roomMaxParticipants) || 10 } : {}),
-          });
-          endCreateApiTrace({
-            roomId: payload.room?.roomId ?? null,
-            success: true,
-          });
-          return payload;
-        } catch (error) {
-          endCreateApiTrace({ success: false });
-          throw error;
-        }
-      };
-
-      let payload: Awaited<ReturnType<typeof createRunningMatchRoom>>;
-      try {
-        payload = await createRoom('track-run ready action');
-      } catch (createError) {
-        const blocker = getRunningMatchBlockerFromError(createError);
-        if (!blocker) {
-          throw createError;
-        }
-
-        rgPerfMark('stale cleanup retry after blocker', {
-          blocker: blocker.blocker ?? null,
-          blockerSource: blocker.blockerSource ?? null,
-          source: 'track-run ready action',
-        });
-        const canRetry = await prepareMatchRoomMutation({
-          forceCleanup: true,
-          source: 'room create retry after blocker',
-        });
-        if (!canRetry) {
-          throw createError;
-        }
-        payload = await createRoom('track-run ready action retry');
-      }
-
-      if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
-        return;
-      }
-
-      syncServerClock(payload.serverNow);
-      commitMatchRoom(payload.room);
-      if (payload.room) {
-        navigateToMatchRoomWithTrace('room create', payload.room, payload.serverNow);
-      }
-    } catch (roomError) {
-      const message = getApiErrorMessage(roomError, '방을 만들지 못했어.');
-      rgPerfMark('room create API error', {
-        message,
-        mode: nextRoomMode,
-        source: 'track-run ready action',
-      });
-      setError(message);
-    } finally {
-      createMatchRoomInFlightRef.current = false;
-      setIsCreatingMatchRoom(false);
-    }
-  };
-
-  const handleJoinMatchRoom = async () => {
-    if (joinMatchRoomInFlightRef.current || isJoiningMatchRoom) {
-      return;
-    }
-
-    const inviteToken = roomInviteTokenInput.trim();
-    const inputTrace = beginRgInputTrace('invite code input submit', {
-      hasToken: inviteToken.length > 0,
-      source: 'track-run invite code input',
-    });
-
-    rgPerfMark('invite code input submit', {
-      hasToken: inviteToken.length > 0,
-      source: 'track-run invite code input',
-    });
-
-    if (!inviteToken) {
-      rgPerfMark('room join API error', {
-        reason: 'missing invite token',
-        source: 'track-run invite code input',
-      });
-      setError('방 초대 코드를 입력해줘.');
-      return;
-    }
-
-    joinMatchRoomInFlightRef.current = true;
-    setIsJoiningMatchRoom(true);
-    setError(null);
-    inputTrace.markFeedback('loading state set', {
-      disabled: true,
-      loading: true,
-    });
-    inputTrace.markFeedbackCommitted({
-      disabled: true,
-      loading: true,
-    });
-    await waitForRgInputFeedbackFrame();
-    inputTrace.markApiStarted({
-      source: 'invite code join preflight',
-    });
-
-    try {
-      if (!matchRoom?.roomId && !visibleMatchRoom?.roomId) {
-        rgPerfMark('stale cleanup deferred', {
-          reason: 'join-first-no-local-blocker',
-          source: 'invite code join preflight',
-        });
-      }
-
-      const canProceed = await prepareMatchRoomMutation({
-        inviteToken,
-        source: 'invite code join preflight',
-      });
-      if (!canProceed) {
-        return;
-      }
-
-      const joinRoom = async (source: string) => {
-        const endJoinApiTrace = rgPerfMeasureStart('room join API', {
-          inviteTokenLength: inviteToken.length,
-          source,
-        });
-        let traceClosed = false;
-        try {
-          const payload = await joinRunningMatchRoom({ inviteToken });
-          if (!payload.room?.roomId) {
-            endJoinApiTrace({
-              reason: 'missing roomId',
-              success: false,
-            });
-            traceClosed = true;
-            throw new Error('방 정보를 불러오지 못했습니다. 다시 시도해주세요.');
-          }
-          endJoinApiTrace({
-            roomId: payload.room.roomId,
-            success: true,
-          });
-          return payload;
-        } catch (error) {
-          if (!traceClosed) {
-            endJoinApiTrace({ success: false });
-          }
-          throw error;
-        }
-      };
-
-      let payload: Awaited<ReturnType<typeof joinRunningMatchRoom>>;
-      try {
-        payload = await joinRoom('track-run invite code input');
-      } catch (joinError) {
-        const blocker = getRunningMatchBlockerFromError(joinError);
-        if (!blocker) {
-          throw joinError;
-        }
-
-        rgPerfMark('stale cleanup retry after blocker', {
-          blocker: blocker.blocker ?? null,
-          blockerSource: blocker.blockerSource ?? null,
-          source: 'track-run invite code input',
-        });
-        const canRetry = await prepareMatchRoomMutation({
-          forceCleanup: true,
-          inviteToken,
-          source: 'invite code join retry after blocker',
-        });
-        if (!canRetry) {
-          throw joinError;
-        }
-        payload = await joinRoom('track-run invite code retry');
-      }
-
-      if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
-        return;
-      }
-
-      syncServerClock(payload.serverNow);
-      commitMatchRoom(payload.room);
-      setRoomInviteTokenInput('');
-      navigateToMatchRoomWithTrace('invite code join', payload.room, payload.serverNow);
-    } catch (roomError) {
-      const message = getApiErrorMessage(roomError, '방에 들어가지 못했어.');
-      rgPerfMark('room join API error', {
-        message,
-        source: 'track-run invite code input',
-      });
-      setError(message);
-    } finally {
-      joinMatchRoomInFlightRef.current = false;
-      setIsJoiningMatchRoom(false);
-    }
-  };
+  const {
+    buildTrackRunActiveRoomCheckRouteKey,
+    isExitingRoom,
+    prepareMatchRoomMutation,
+  } = useTrackRunRuntimeStateBridge({
+    commitMatchRoom,
+    focusMatchId,
+    focusRoomId,
+    focusedDuelMatchIdRef,
+    focusedGroupMatchIdRef,
+    forceOpenActiveMatch,
+    hydratedMatchId: liveMatchRouteHydration?.matchId,
+    hydratedMatchMode: liveMatchRouteHydration?.mode,
+    hydratedRoomId: liveMatchRouteHydration?.roomId,
+    lastRouteKeyCorrectionRef,
+    liveArenaPage,
+    matchMode,
+    matchRoom,
+    navigateToMatchRoomWithTrace,
+    roomLinkedMatchContext,
+    setError,
+    setSelectedRoomFriendIds,
+    visibleMatchRoom,
+  });
+  const loadMatchRoom = useTrackRunRoomLoader({
+    buildTrackRunActiveRoomCheckRouteKey,
+    commitMatchRoom,
+    currentUserId,
+    forfeitedMatchIdsRef,
+    getCurrentLiveMatchId,
+    isExitingRoom,
+    isMountedRef,
+    lastHandledActiveRoomSnapshotKeyRef,
+    latestMatchRoomServerNowMsRef,
+    liveMatchMountedRef,
+    liveMatchRenderIdentity,
+    liveMatchRenderMode,
+    liveMatchShellPreservation,
+    matchRoom,
+    syncServerClock,
+  });
+  const handleCreateMatchRoom = useTrackRunRoomCreateAction({
+    activeDuelSlotStartAt,
+    activeGroupSlotStartAt,
+    commitMatchRoom,
+    createMatchRoomInFlightRef,
+    duelDistanceKm,
+    groupDistanceKm,
+    isCreatingMatchRoom,
+    latestMatchRoomServerNowMsRef,
+    matchRoom,
+    navigateToMatchRoomWithTrace,
+    prepareMatchRoomMutation,
+    roomMatchMode,
+    roomMaxParticipants,
+    roomStartMode,
+    setError,
+    setIsCreatingMatchRoom,
+    syncServerClock,
+    visibleMatchRoom,
+  });
+  const handleJoinMatchRoom = useTrackRunRoomJoinAction({
+    commitMatchRoom,
+    isJoiningMatchRoom,
+    joinMatchRoomInFlightRef,
+    latestMatchRoomServerNowMsRef,
+    matchRoom,
+    navigateToMatchRoomWithTrace,
+    prepareMatchRoomMutation,
+    roomInviteTokenInput,
+    setError,
+    setIsJoiningMatchRoom,
+    setRoomInviteTokenInput,
+    syncServerClock,
+    visibleMatchRoom,
+  });
 
   const handleAcceptRoomInviteFromRunning = async () => {
     if (!visibleMatchRoom) {
@@ -2878,17 +2367,12 @@ export function TrackRunExperienceRuntime({
     visibleUpcomingMatches,
     visibleUpcomingMatchesNowMs: visibleUpcomingMatches.length > 0 ? syncedNowMs : 0,
   });
-  const idleRuntime = useTrackRunIdleRuntime({
-    active: trackRunShellKind === 'idle',
+  const {
+    runtimeReadyScreenProps,
+  } = useTrackRunRuntimeModelBuilder({
     readyScreenProps,
+    trackRunShellKind,
   });
-  const lobbyRuntime = useMatchLobbyRuntime({
-    active: trackRunShellKind === 'lobby',
-    readyScreenProps,
-  });
-  const runtimeReadyScreenProps = trackRunShellKind === 'idle'
-    ? idleRuntime.readyScreenProps
-    : lobbyRuntime.readyScreenProps;
 
   return (
     <TrackRunExperienceView

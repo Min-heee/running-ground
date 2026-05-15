@@ -1,6 +1,6 @@
 # Android 성능 회귀 방지 체크
 
-생성 시각: 2026-05-15T08:08:40.568Z
+생성 시각: 2026-05-15T09:11:51.145Z
 
 이 문서는 `scripts/check-performance-smells.mjs`가 앱 코드의 성능 회귀 후보를 정적으로 점검한 결과입니다. 자동 수정은 하지 않고, Android 실기기 QA 전에 확인할 위험 후보만 모읍니다.
 
@@ -21,14 +21,13 @@ npm run performance:smells
 
 ## 요약
 
-- 전체 감지 항목: 9개
+- 전체 감지 항목: 1개
 - High: 0개
-- Medium: 8개
+- Medium: 0개
 - Low: 1개
 
 | 항목 | 개수 |
 | --- | --- |
-| 렌더 중 sort/filter/map 계산 | 8 |
 | react-native-maps 사용 파일 | 1 |
 
 ## High
@@ -37,16 +36,7 @@ npm run performance:smells
 
 ## Medium
 
-| 우선순위 | 항목 | 위치 | 이유 | 권장 확인 |
-| --- | --- | --- | --- | --- |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/integrations/IntegrationJourneyCard.tsx:132 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/integrations/NativeHealthReadinessCard.tsx:31 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/integrations/screens/ConnectSourcesScreen.tsx:36 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/integrations/screens/ConnectSourcesScreen.tsx:73 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/league/components/LeagueRegionSelectorCard.tsx:61 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/location/RegionSelection.tsx:50 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/match/screens/MatchRecordScreen.tsx:28 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
-| Medium | 렌더 중 sort/filter/map 계산 | src/features/profile/components/ProfileSummaryCard.tsx:29 | 렌더링 경로 근처에서 반복 계산이 감지됐어요. 데이터가 많아질수록 Android에서 매 렌더 비용이 커질 수 있습니다. | 정렬/필터링 결과는 useMemo로 빼고, renderItem은 useCallback으로 고정하세요. |
+현재 휴리스틱 기준으로 감지된 항목이 없습니다.
 
 ## Low
 

@@ -1,4 +1,4 @@
-import { PropsWithChildren } from 'react';
+import { memo, PropsWithChildren, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { ConnectedSource } from '@/domain';
@@ -8,7 +8,7 @@ export function NativeHealthReadinessCard({
   sources,
   children,
 }: PropsWithChildren<{ sources: ConnectedSource[] }>) {
-  const readiness = getRecommendedNativeHealthReadiness(sources);
+  const readiness = useMemo(() => getRecommendedNativeHealthReadiness(sources), [sources]);
 
   if (!readiness) {
     return null;
@@ -27,16 +27,20 @@ export function NativeHealthReadinessCard({
         </View>
       </View>
 
-      <View style={styles.steps}>
-        {readiness.steps.map((step) => (
-          <Text key={step} style={styles.stepText}>• {step}</Text>
-        ))}
-      </View>
+      <NativeHealthStepList steps={readiness.steps} />
 
       {children ? <View style={styles.footer}>{children}</View> : null}
     </Card>
   );
 }
+
+const NativeHealthStepList = memo(function NativeHealthStepList({ steps }: { steps: string[] }) {
+  const stepItems = useMemo(() => steps.map((step) => (
+    <Text key={step} style={styles.stepText}>• {step}</Text>
+  )), [steps]);
+
+  return <View style={styles.steps}>{stepItems}</View>;
+});
 
 const styles = StyleSheet.create({
   header: {

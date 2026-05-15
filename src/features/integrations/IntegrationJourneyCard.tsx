@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -45,11 +46,14 @@ export function IntegrationJourneyCard({
   onAddManualRun,
 }: IntegrationJourneyCardProps) {
   const platformLabel = getPlatformLabel(platform);
-  const primarySource = getPrimarySourceForPlatform(sources, platform);
-  const manualSource = getSourceByType(sources, 'manual');
-  const connectedCount = sources.filter((source) => source.connected).length;
-  const syncedCount = sources.filter((source) => Boolean(source.lastSyncedAt)).length;
-  const pendingImportCount = sources.reduce((total, source) => total + (source.pendingImportCount ?? 0), 0);
+  const primarySource = useMemo(() => getPrimarySourceForPlatform(sources, platform), [platform, sources]);
+  const manualSource = useMemo(() => getSourceByType(sources, 'manual'), [sources]);
+  const connectedCount = useMemo(() => sources.filter((source) => source.connected).length, [sources]);
+  const syncedCount = useMemo(() => sources.filter((source) => Boolean(source.lastSyncedAt)).length, [sources]);
+  const pendingImportCount = useMemo(
+    () => sources.reduce((total, source) => total + (source.pendingImportCount ?? 0), 0),
+    [sources],
+  );
   const primaryConnected = Boolean(primarySource?.connected);
   const manualConnected = Boolean(manualSource?.connected);
   const deviceImportCompleted = syncedCount > 0 || pendingImportCount > 0;
@@ -71,7 +75,7 @@ export function IntegrationJourneyCard({
         ? '기록이 자동으로 안 들어오는 날도 직접 입력만 하면 포인트와 순위가 바로 반영돼.'
         : '자동 연동과 별개로 수동 입력 경로를 열어 두면 초반 사용자 이탈을 많이 줄일 수 있어.';
 
-  const steps: JourneyStep[] = [
+  const steps = useMemo<JourneyStep[]>(() => [
     {
       id: 'primary',
       title: `${primarySource?.displayName ?? '기본 건강 허브'} 연결`,
@@ -98,7 +102,33 @@ export function IntegrationJourneyCard({
         : '자동 연동과 별개로 수동 입력 경로를 열어 두면 초기 운영이 훨씬 안정적이야.',
       complete: manualConnected,
     },
-  ];
+  ], [
+    canImportFromDevice,
+    deviceImportCompleted,
+    manualConnected,
+    platformLabel,
+    primaryConnected,
+    primarySource?.displayName,
+  ]);
+  const stepRows = useMemo(() => steps.map((step, index) => (
+    <JourneyStepRow
+      key={step.id}
+      index={index}
+      isLast={index === steps.length - 1}
+      step={step}
+    />
+  )), [steps]);
+
+  const handleConnectPrimary = useCallback(() => {
+    if (primarySource) {
+      onConnectSource?.(primarySource.sourceType);
+    }
+  }, [onConnectSource, primarySource]);
+  const handleConnectManual = useCallback(() => {
+    if (manualSource) {
+      onConnectSource?.(manualSource.sourceType);
+    }
+  }, [manualSource, onConnectSource]);
 
   return (
     <Card style={styles.card}>
@@ -129,26 +159,14 @@ export function IntegrationJourneyCard({
       </View>
 
       <View style={styles.steps}>
-        {steps.map((step, index) => (
-          <View key={step.id} style={[styles.stepRow, index === steps.length - 1 && styles.stepRowLast]}>
-            <View style={[styles.stepMarker, step.complete ? styles.stepMarkerDone : styles.stepMarkerPending]}>
-              <Text style={[styles.stepMarkerText, step.complete ? styles.stepMarkerTextDone : styles.stepMarkerTextPending]}>
-                {step.complete ? '완료' : String(index + 1)}
-              </Text>
-            </View>
-            <View style={styles.stepCopy}>
-              <Text style={styles.stepTitle}>{step.title}</Text>
-              <Text style={styles.stepDescription}>{step.description}</Text>
-            </View>
-          </View>
-        ))}
+        {stepRows}
       </View>
 
       <View style={styles.actions}>
         {!primaryConnected && primarySource && onConnectSource ? (
           <PrimaryButton
             label={actionSourceType === primarySource.sourceType ? '기본 소스 연결 중...' : `${primarySource.displayName} 연결하기`}
-            onPress={() => onConnectSource(primarySource.sourceType)}
+            onPress={handleConnectPrimary}
           />
         ) : null}
 
@@ -162,7 +180,7 @@ export function IntegrationJourneyCard({
         {!manualConnected && manualSource && onConnectSource ? (
           <SecondaryButton
             label={actionSourceType === 'manual' ? '수동 입력 준비 중...' : '수동 입력 경로 열기'}
-            onPress={() => onConnectSource(manualSource.sourceType)}
+            onPress={handleConnectManual}
           />
         ) : null}
 
@@ -172,6 +190,30 @@ export function IntegrationJourneyCard({
     </Card>
   );
 }
+
+const JourneyStepRow = memo(function JourneyStepRow({
+  index,
+  isLast,
+  step,
+}: {
+  index: number;
+  isLast: boolean;
+  step: JourneyStep;
+}) {
+  return (
+    <View style={[styles.stepRow, isLast && styles.stepRowLast]}>
+      <View style={[styles.stepMarker, step.complete ? styles.stepMarkerDone : styles.stepMarkerPending]}>
+        <Text style={[styles.stepMarkerText, step.complete ? styles.stepMarkerTextDone : styles.stepMarkerTextPending]}>
+          {step.complete ? '완료' : String(index + 1)}
+        </Text>
+      </View>
+      <View style={styles.stepCopy}>
+        <Text style={styles.stepTitle}>{step.title}</Text>
+        <Text style={styles.stepDescription}>{step.description}</Text>
+      </View>
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   card: {

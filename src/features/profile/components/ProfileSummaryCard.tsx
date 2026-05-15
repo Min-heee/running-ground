@@ -1,4 +1,5 @@
 import { Link } from 'expo-router';
+import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
@@ -17,6 +18,11 @@ export function ProfileSummaryCard({
   tagShared,
   onShareTag,
 }: ProfileSummaryCardProps) {
+  const profileSubline = useMemo(
+    () => [profile.districtName, profile.universityName].filter(Boolean).join(' · ') || '대학교 인증 전',
+    [profile.districtName, profile.universityName],
+  );
+
   return (
     <Card style={styles.profileCard}>
       <View style={styles.profileRow}>
@@ -25,9 +31,7 @@ export function ProfileSummaryCard({
         </View>
         <View style={styles.profileMeta}>
           <Text style={styles.name}>{profile.name}</Text>
-          <Text style={styles.subline}>
-            {[profile.districtName, profile.universityName].filter(Boolean).join(' · ') || '대학교 인증 전'}
-          </Text>
+          <Text style={styles.subline}>{profileSubline}</Text>
         </View>
       </View>
       <View style={styles.profileTagRow}>

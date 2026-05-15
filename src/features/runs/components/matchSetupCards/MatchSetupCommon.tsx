@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import {
@@ -17,6 +17,7 @@ const TIME_SECTIONS = [
   { key: 'am' as const, label: '오전' },
   { key: 'pm' as const, label: '오후' },
 ];
+type TimeSectionKey = (typeof TIME_SECTIONS)[number]['key'];
 
 export function MatchDistanceSelector({
   distanceKm,
@@ -30,26 +31,15 @@ export function MatchDistanceSelector({
     onShowCustomDistanceInputChange(!showCustomDistanceInput);
   }, [onShowCustomDistanceInputChange, showCustomDistanceInput]);
 
-  const distanceChips = useMemo(() => (
-    RECOMMENDED_MATCH_DISTANCES.map((recommendedDistanceKm) => {
-      const isSelected = Math.abs(distanceKm - recommendedDistanceKm) < 0.15;
-
-      return (
-        <Pressable
-          key={`${chipKeyPrefix}-${recommendedDistanceKm}`}
-          style={[styles.matchDistanceChip, isSelected ? styles.matchDistanceChipSelected : undefined]}
-          onPress={() => {
-            onDistanceTextChange(String(recommendedDistanceKm));
-            onShowCustomDistanceInputChange(false);
-          }}
-        >
-          <Text style={[styles.matchDistanceChipText, isSelected ? styles.matchDistanceChipTextSelected : undefined]}>
-            {recommendedDistanceKm}km
-          </Text>
-        </Pressable>
-      );
-    })
-  ), [chipKeyPrefix, distanceKm, onDistanceTextChange, onShowCustomDistanceInputChange]);
+  const distanceChips = useMemo(() => RECOMMENDED_MATCH_DISTANCES.map((recommendedDistanceKm) => (
+    <MatchDistanceChip
+      key={`${chipKeyPrefix}-${recommendedDistanceKm}`}
+      distanceKm={recommendedDistanceKm}
+      onDistanceTextChange={onDistanceTextChange}
+      onShowCustomDistanceInputChange={onShowCustomDistanceInputChange}
+      selected={Math.abs(distanceKm - recommendedDistanceKm) < 0.15}
+    />
+  )), [chipKeyPrefix, distanceKm, onDistanceTextChange, onShowCustomDistanceInputChange]);
 
   return (
     <View style={styles.duelSection}>
@@ -86,6 +76,34 @@ export function MatchDistanceSelector({
   );
 }
 
+const MatchDistanceChip = memo(function MatchDistanceChip({
+  distanceKm,
+  onDistanceTextChange,
+  onShowCustomDistanceInputChange,
+  selected,
+}: {
+  distanceKm: number;
+  onDistanceTextChange: (value: string) => void;
+  onShowCustomDistanceInputChange: (value: boolean) => void;
+  selected: boolean;
+}) {
+  const handlePress = useCallback(() => {
+    onDistanceTextChange(String(distanceKm));
+    onShowCustomDistanceInputChange(false);
+  }, [distanceKm, onDistanceTextChange, onShowCustomDistanceInputChange]);
+
+  return (
+    <Pressable
+      style={[styles.matchDistanceChip, selected ? styles.matchDistanceChipSelected : undefined]}
+      onPress={handlePress}
+    >
+      <Text style={[styles.matchDistanceChipText, selected ? styles.matchDistanceChipTextSelected : undefined]}>
+        {distanceKm}km
+      </Text>
+    </Pressable>
+  );
+});
+
 export function MatchTimeSlotSelector({
   dateKeyPrefix,
   sectionKeyPrefix,
@@ -98,72 +116,32 @@ export function MatchTimeSlotSelector({
   onSelectTimeSection,
   onSelectSlot,
 }: TimeSlotSelectorProps) {
-  const dateChips = useMemo(() => (
-    dateOptions.map((dateOption) => {
-      const isSelected = dateOption.key === selectedDateKey;
+  const dateChips = useMemo(() => dateOptions.map((dateOption) => (
+    <MatchDateChip
+      key={`${dateKeyPrefix}-${dateOption.key}`}
+      dateOption={dateOption}
+      onSelectDate={onSelectDate}
+      selected={dateOption.key === selectedDateKey}
+    />
+  )), [dateKeyPrefix, dateOptions, onSelectDate, selectedDateKey]);
 
-      return (
-        <Pressable
-          key={`${dateKeyPrefix}-${dateOption.key}`}
-          style={[styles.slotDateChip, isSelected ? styles.slotDateChipSelected : undefined]}
-          onPress={() => onSelectDate(dateOption.key)}
-        >
-          <Text style={[styles.slotDateChipLabel, isSelected ? styles.slotDateChipLabelSelected : undefined]}>
-            {dateOption.label}
-          </Text>
-          <Text style={[styles.slotDateChipMeta, isSelected ? styles.slotDateChipMetaSelected : undefined]}>
-            {dateOption.subtitle}
-          </Text>
-        </Pressable>
-      );
-    })
-  ), [dateKeyPrefix, dateOptions, onSelectDate, selectedDateKey]);
+  const sectionChips = useMemo(() => TIME_SECTIONS.map((section) => (
+    <TimeSectionChip
+      key={`${sectionKeyPrefix}-${section.key}`}
+      onSelectTimeSection={onSelectTimeSection}
+      section={section}
+      selected={selectedTimeSection === section.key}
+    />
+  )), [onSelectTimeSection, sectionKeyPrefix, selectedTimeSection]);
 
-  const sectionChips = useMemo(() => (
-    TIME_SECTIONS.map((section) => {
-      const isSelected = selectedTimeSection === section.key;
-
-      return (
-        <Pressable
-          key={`${sectionKeyPrefix}-${section.key}`}
-          style={[styles.slotSectionChip, isSelected ? styles.slotSectionChipSelected : undefined]}
-          onPress={() => onSelectTimeSection(section.key)}
-        >
-          <Text style={[styles.slotSectionChipText, isSelected ? styles.slotSectionChipTextSelected : undefined]}>
-            {section.label}
-          </Text>
-        </Pressable>
-      );
-    })
-  ), [onSelectTimeSection, sectionKeyPrefix, selectedTimeSection]);
-
-  const slotChips = useMemo(() => (
-    slotOptions.map((slot) => {
-      const isSelected = slot.startsAt === selectedSlotStartAt;
-
-      return (
-        <Pressable
-          key={slot.startsAt}
-          disabled={slot.isClosed}
-          style={[
-            styles.duelSlotChip,
-            isSelected ? styles.duelSlotChipSelected : undefined,
-            slot.isClosed ? styles.duelSlotChipDisabled : undefined,
-          ]}
-          onPress={() => {
-            if (!slot.isClosed) {
-              onSelectSlot(slot.startsAt);
-            }
-          }}
-        >
-          <Text style={[styles.duelSlotLabel, isSelected ? styles.duelSlotLabelSelected : undefined]}>
-            {slot.label}
-          </Text>
-          {slot.isClosed ? <Text style={styles.duelSlotClosedText}>마감</Text> : null}
-        </Pressable>
-      );
-    })
-  ), [onSelectSlot, selectedSlotStartAt, slotOptions]);
+  const slotChips = useMemo(() => slotOptions.map((slot) => (
+    <MatchSlotChip
+      key={slot.startsAt}
+      onSelectSlot={onSelectSlot}
+      selected={slot.startsAt === selectedSlotStartAt}
+      slot={slot}
+    />
+  )), [onSelectSlot, selectedSlotStartAt, slotOptions]);
 
   return (
     <View style={styles.duelSection}>
@@ -187,6 +165,92 @@ export function MatchTimeSlotSelector({
     </View>
   );
 }
+
+const MatchDateChip = memo(function MatchDateChip({
+  dateOption,
+  onSelectDate,
+  selected,
+}: {
+  dateOption: TimeSlotSelectorProps['dateOptions'][number];
+  onSelectDate: (dateKey: string) => void;
+  selected: boolean;
+}) {
+  const handlePress = useCallback(() => {
+    onSelectDate(dateOption.key);
+  }, [dateOption.key, onSelectDate]);
+
+  return (
+    <Pressable
+      style={[styles.slotDateChip, selected ? styles.slotDateChipSelected : undefined]}
+      onPress={handlePress}
+    >
+      <Text style={[styles.slotDateChipLabel, selected ? styles.slotDateChipLabelSelected : undefined]}>
+        {dateOption.label}
+      </Text>
+      <Text style={[styles.slotDateChipMeta, selected ? styles.slotDateChipMetaSelected : undefined]}>
+        {dateOption.subtitle}
+      </Text>
+    </Pressable>
+  );
+});
+
+const TimeSectionChip = memo(function TimeSectionChip({
+  onSelectTimeSection,
+  section,
+  selected,
+}: {
+  onSelectTimeSection: (sectionKey: TimeSectionKey) => void;
+  section: { key: TimeSectionKey; label: string };
+  selected: boolean;
+}) {
+  const handlePress = useCallback(() => {
+    onSelectTimeSection(section.key);
+  }, [onSelectTimeSection, section.key]);
+
+  return (
+    <Pressable
+      style={[styles.slotSectionChip, selected ? styles.slotSectionChipSelected : undefined]}
+      onPress={handlePress}
+    >
+      <Text style={[styles.slotSectionChipText, selected ? styles.slotSectionChipTextSelected : undefined]}>
+        {section.label}
+      </Text>
+    </Pressable>
+  );
+});
+
+const MatchSlotChip = memo(function MatchSlotChip({
+  onSelectSlot,
+  selected,
+  slot,
+}: {
+  onSelectSlot: (slotStartAt: string) => void;
+  selected: boolean;
+  slot: TimeSlotSelectorProps['slotOptions'][number];
+}) {
+  const handlePress = useCallback(() => {
+    if (!slot.isClosed) {
+      onSelectSlot(slot.startsAt);
+    }
+  }, [onSelectSlot, slot.isClosed, slot.startsAt]);
+
+  return (
+    <Pressable
+      disabled={slot.isClosed}
+      style={[
+        styles.duelSlotChip,
+        selected ? styles.duelSlotChipSelected : undefined,
+        slot.isClosed ? styles.duelSlotChipDisabled : undefined,
+      ]}
+      onPress={handlePress}
+    >
+      <Text style={[styles.duelSlotLabel, selected ? styles.duelSlotLabelSelected : undefined]}>
+        {slot.label}
+      </Text>
+      {slot.isClosed ? <Text style={styles.duelSlotClosedText}>마감</Text> : null}
+    </Pressable>
+  );
+});
 
 export function MatchNotice({
   notice,

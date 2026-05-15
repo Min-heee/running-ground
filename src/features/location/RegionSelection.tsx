@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AddressRegionNode } from './addressCatalog';
 
@@ -43,28 +44,51 @@ export function RegionChipSection({
   disabled?: boolean;
   onSelect: (option: AddressRegionNode) => void;
 }) {
+  const chips = useMemo(() => options.map((option) => (
+    <RegionChip
+      key={option.name}
+      disabled={disabled}
+      onSelect={onSelect}
+      option={option}
+      selected={option.name === selectedName}
+    />
+  )), [disabled, onSelect, options, selectedName]);
+
   return (
     <View style={styles.selectionSection}>
       <Text style={styles.selectionTitle}>{title}</Text>
       <View style={styles.selectionList}>
-        {options.map((option) => {
-          const selected = option.name === selectedName;
-
-          return (
-            <Pressable
-              key={option.name}
-              style={[styles.selectionChip, selected && styles.selectionChipSelected, disabled && styles.disabledButton]}
-              onPress={() => onSelect(option)}
-              disabled={disabled}
-            >
-              <Text style={[styles.selectionChipText, selected && styles.selectionChipTextSelected]}>{option.name}</Text>
-            </Pressable>
-          );
-        })}
+        {chips}
       </View>
     </View>
   );
 }
+
+const RegionChip = memo(function RegionChip({
+  disabled,
+  onSelect,
+  option,
+  selected,
+}: {
+  disabled?: boolean;
+  onSelect: (option: AddressRegionNode) => void;
+  option: AddressRegionNode;
+  selected: boolean;
+}) {
+  const handleSelect = useCallback(() => {
+    onSelect(option);
+  }, [onSelect, option]);
+
+  return (
+    <Pressable
+      style={[styles.selectionChip, selected && styles.selectionChipSelected, disabled && styles.disabledButton]}
+      onPress={handleSelect}
+      disabled={disabled}
+    >
+      <Text style={[styles.selectionChipText, selected && styles.selectionChipTextSelected]}>{option.name}</Text>
+    </Pressable>
+  );
+});
 
 const styles = StyleSheet.create({
   selectionSection: {

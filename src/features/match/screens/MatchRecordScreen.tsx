@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ListRenderItem } from 'react-native';
 import { Link } from 'expo-router';
@@ -11,6 +11,10 @@ import { formatDuration } from '@/features/runs/tracking';
 
 const MatchRecordRow = memo(function MatchRecordRow({ run }: { run: MatchRecordRun }) {
   const result = run.matchResult;
+  const detail = useMemo(
+    () => (result ? buildMatchRecordDetail(run.durationSeconds, result.gapKm) : ''),
+    [result, run.durationSeconds],
+  );
 
   if (!result) {
     return null;
@@ -22,11 +26,6 @@ const MatchRecordRow = memo(function MatchRecordRow({ run }: { run: MatchRecordR
   const meta = result.mode === 'duel'
     ? `${result.opponentName ?? '상대'} · 페이스 ${run.pace}`
     : `${typeof result.participantCount === 'number' ? `${result.participantCount}명` : '그룹'} · 페이스 ${run.pace}`;
-  const detail = [
-    typeof run.durationSeconds === 'number' ? `시간 ${formatDuration(run.durationSeconds)}` : null,
-    typeof result.gapKm === 'number' ? `거리 차이 ${result.gapKm.toFixed(2)}km` : null,
-  ].filter(Boolean).join(' · ');
-
   return (
     <Link href={{ pathname: '/run-detail', params: { runId: run.id } }} asChild>
       <Pressable style={styles.recordRow}>
@@ -52,6 +51,20 @@ const MatchRecordRow = memo(function MatchRecordRow({ run }: { run: MatchRecordR
     </Link>
   );
 });
+
+function buildMatchRecordDetail(durationSeconds: number | null | undefined, gapKm: number | null | undefined) {
+  const detailParts: string[] = [];
+
+  if (typeof durationSeconds === 'number') {
+    detailParts.push(`시간 ${formatDuration(durationSeconds)}`);
+  }
+
+  if (typeof gapKm === 'number') {
+    detailParts.push(`거리 차이 ${gapKm.toFixed(2)}km`);
+  }
+
+  return detailParts.join(' · ');
+}
 
 export default function MatchRecordScreen() {
   const { activity, error, loading, stats } = useMatchRecords();

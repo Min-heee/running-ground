@@ -1,49 +1,34 @@
-export async function routeAdminRequest({
-  method,
-  pathname,
-  request,
-  response,
-  requireAdmin,
-  sendJson,
-  loadStore,
-  resetStore,
-  getStoreFilePath,
-  buildAdminStatus,
-  buildAdminSession,
-  getAdminRepository,
-  getMarketRepository,
-  getRaceRepository,
-  handleDeleteAdminUser,
-  handleCreateAdminMarketItem,
-  handleUpdateAdminMarketItem,
-  handleDeleteAdminMarketItem,
-  handleCreateAdminNotice,
-  handleUpdateAdminNotice,
-  handleDeleteAdminNotice,
-  handleUpdateAdminRewardRedemption,
-  handleCreateAdminOfflineRaceEvent,
-  handleUpdateAdminOfflineRaceEvent,
-  handleDeleteAdminOfflineRaceEvent,
-  ENABLE_ADMIN_STATUS,
-  ENABLE_RESET_ENDPOINT,
-  ApiError,
-}) {
-  if (pathname === '/api/admin/status' && method === 'GET') {
-    if (!ENABLE_ADMIN_STATUS) {
-      throw new ApiError(404, '관리자 상태 확인 기능이 비활성화되어 있어.');
-    }
+import { routeAdminReadRequest } from './adminReadRoutes.mjs';
 
-    requireAdmin(request);
-    const store = loadStore();
-    sendJson(response, 200, buildAdminStatus(store));
+export async function routeAdminRequest(routeContext) {
+  if (await routeAdminReadRequest(routeContext)) {
     return true;
   }
 
-  if (pathname === '/api/admin/session' && method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, buildAdminSession());
-    return true;
-  }
+  const {
+    method,
+    pathname,
+    request,
+    response,
+    requireAdmin,
+    sendJson,
+    resetStore,
+    getStoreFilePath,
+    buildAdminStatus,
+    handleDeleteAdminUser,
+    handleCreateAdminMarketItem,
+    handleUpdateAdminMarketItem,
+    handleDeleteAdminMarketItem,
+    handleCreateAdminNotice,
+    handleUpdateAdminNotice,
+    handleDeleteAdminNotice,
+    handleUpdateAdminRewardRedemption,
+    handleCreateAdminOfflineRaceEvent,
+    handleUpdateAdminOfflineRaceEvent,
+    handleDeleteAdminOfflineRaceEvent,
+    ENABLE_RESET_ENDPOINT,
+    ApiError,
+  } = routeContext;
 
   if (pathname === '/api/admin/reset' && method === 'POST') {
     if (!ENABLE_RESET_ENDPOINT) {
@@ -61,41 +46,11 @@ export async function routeAdminRequest({
     return true;
   }
 
-  if (pathname === '/api/admin/overview' && method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, getAdminRepository().getOverview());
-    return true;
-  }
-
-  if (pathname === '/api/admin/users' && method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, getAdminRepository().getUsers());
-    return true;
-  }
-
   const adminUserMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)$/);
 
   if (adminUserMatch && method === 'DELETE') {
     requireAdmin(request);
     handleDeleteAdminUser(response, adminUserMatch[1]);
-    return true;
-  }
-
-  if (pathname === '/api/admin/market/items' && method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, getMarketRepository().getAdminCatalog());
-    return true;
-  }
-
-  if (pathname === '/api/admin/notices' && method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, getAdminRepository().getNotices());
-    return true;
-  }
-
-  if (pathname === '/api/admin/reward-redemptions' && method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, getMarketRepository().getAdminRewardRedemptions());
     return true;
   }
 
@@ -144,12 +99,6 @@ export async function routeAdminRequest({
   if (adminRewardRedemptionMatch && method === 'PATCH') {
     requireAdmin(request);
     await handleUpdateAdminRewardRedemption(request, response, adminRewardRedemptionMatch[1]);
-    return true;
-  }
-
-  if (pathname === '/api/admin/offline-races/events' && method === 'GET') {
-    requireAdmin(request);
-    sendJson(response, 200, getRaceRepository().getAdminEvents());
     return true;
   }
 

@@ -64,6 +64,7 @@ import {
   normalizePhoneNumber,
 } from './phoneVerification.mjs';
 import { createApiRouteHandler } from './routes/index.mjs';
+import { createAdminReadService } from './services/adminReadService.mjs';
 import { createBackendStatusService } from './services/backendStatusService.mjs';
 import {
   ApiError,
@@ -173,6 +174,7 @@ const phoneVerificationService = createPhoneVerificationService({
 
 let authRepository = null;
 let adminRepository = null;
+let adminReadService = null;
 let friendsRepository = null;
 let friendsLeagueBridge = null;
 let leagueRepository = null;
@@ -232,8 +234,29 @@ function getAuthRepository() {
   return authRepository;
 }
 
+function getAdminReadService() {
+  if (!adminReadService) {
+    adminReadService = createAdminReadService({
+      APP_ENV,
+      PUBLIC_BASE_URL,
+      ensureMarketCatalogStore,
+      ensureNoticeStore,
+      ensureOfflineRaceStore,
+      ensureUserConnectedSources,
+      getOfflineRaceStatus,
+      getRunsForUser,
+      getUserMetrics,
+      normalizeOptionalString,
+    });
+  }
+
+  return adminReadService;
+}
+
 function getAdminRepository() {
   if (!adminRepository) {
+    const adminRead = getAdminReadService();
+
     adminRepository = createJsonAdminRepository({
       loadStore,
       mutateStore,
@@ -241,8 +264,8 @@ function getAdminRepository() {
       ensureOfflineRaceStore,
       ensureIntegrationImports,
       findUserById,
-      buildAdminOverview,
-      buildAdminUsers,
+      buildAdminOverview: adminRead.buildAdminOverview,
+      buildAdminUsers: adminRead.buildAdminUsers,
       buildAdminNotices,
       buildActiveNotices,
       buildNoticeEntry,
@@ -4090,73 +4113,6 @@ function buildUniversityLeague(store) {
     }));
 
   return { ranks };
-}
-
-function buildAdminOverview(store) {
-  ensureNoticeStore(store);
-  ensureMarketCatalogStore(store);
-  ensureOfflineRaceStore(store);
-  const now = new Date();
-  const activeOfflineRaceEvents = store.offlineRaceEvents.filter((event) => getOfflineRaceStatus(event, now) !== 'finished');
-
-  return {
-    environment: APP_ENV,
-    publicBaseUrl: PUBLIC_BASE_URL || undefined,
-    counts: {
-      users: store.users.length,
-      runs: store.runs.length,
-      marketItems: store.marketCatalog.length,
-      activeMarketItems: store.marketCatalog.filter((item) => item.isActive !== false).length,
-      offlineRaceEvents: store.offlineRaceEvents.length,
-      activeOfflineRaceEvents: activeOfflineRaceEvents.length,
-      notices: store.notices.length,
-      activeNotices: store.notices.filter((notice) => notice.isActive !== false).length,
-      rewardRedemptions: (store.rewardRedemptions ?? []).length,
-      sessions: store.sessions.length,
-    },
-  };
-}
-
-function buildAdminUserSummary(store, user) {
-  const metrics = getUserMetrics(store, user.id);
-  const runs = getRunsForUser(store, user.id);
-
-  return {
-    id: user.id,
-    username: user.username,
-    name: user.name,
-    ...(normalizeOptionalString(user.realName) ? { realName: user.realName } : {}),
-    ...(normalizeOptionalString(user.phone) ? { phone: user.phone } : {}),
-    ...(normalizeOptionalString(user.birthDate) ? { birthDate: user.birthDate } : {}),
-    publicTag: user.publicTag,
-    ...(normalizeOptionalString(user.provinceName) ? { provinceName: user.provinceName } : {}),
-    ...(normalizeOptionalString(user.cityName) ? { cityName: user.cityName } : {}),
-    districtName: user.districtName,
-    ...(normalizeOptionalString(user.universityName) ? { universityName: user.universityName } : {}),
-    ...(normalizeOptionalString(user.createdAt) ? { createdAt: user.createdAt } : {}),
-    lifetimeDistanceKm: metrics.lifetimeDistanceKm,
-    currentWeekDistanceKm: metrics.currentWeekDistanceKm,
-    currentWeekPoints: metrics.currentWeekPoints,
-    totalRuns: runs.length,
-    connectedSourceCount: ensureUserConnectedSources(user).filter((source) => source.connected).length,
-  };
-}
-
-function buildAdminUsers(store) {
-  return {
-    users: [...store.users]
-      .sort((left, right) => {
-        const leftCreatedAt = normalizeOptionalString(left.createdAt);
-        const rightCreatedAt = normalizeOptionalString(right.createdAt);
-
-        if (leftCreatedAt !== rightCreatedAt) {
-          return rightCreatedAt.localeCompare(leftCreatedAt);
-        }
-
-        return left.name.localeCompare(right.name, 'ko');
-      })
-      .map((user) => buildAdminUserSummary(store, user)),
-  };
 }
 
 function buildAdminMarketItem(store, item) {

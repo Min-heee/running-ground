@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -8,6 +9,10 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { IntegrationJourneyCard } from '@/features/integrations/IntegrationJourneyCard';
 import { useIntegrationActions } from '@/features/integrations/hooks/useIntegrationActions';
+import {
+  type ConnectedSource,
+  type RunSourceType,
+} from '@/domain';
 import {
   getCurrentDevicePlatform,
   getPlatformLabel,
@@ -31,13 +36,30 @@ export default function ConnectSourcesScreen() {
     connectErrorMessage: '연동 연결에 실패했어.',
     preferConfiguredLoadError: true,
   });
-  const platform = getCurrentDevicePlatform();
-  const recommended = integrationStatus ? getRecommendedSources(sources, platform) : [];
-  const connectedCount = sources.filter((source) => source.connected).length;
+  const platform = useMemo(() => getCurrentDevicePlatform(), []);
+  const recommended = useMemo(
+    () => (integrationStatus ? getRecommendedSources(sources, platform) : []),
+    [integrationStatus, platform, sources],
+  );
+  const connectedCount = useMemo(() => sources.filter((source) => source.connected).length, [sources]);
 
-  const handleContinue = () => {
+  const handleContinue = useCallback(() => {
     router.replace('/(tabs)/home');
-  };
+  }, []);
+  const handleAddManualRun = useCallback(() => {
+    router.push('/add-run');
+  }, []);
+  const handleOpenIntegrationSettings = useCallback(() => {
+    router.push({ pathname: '/integration-management', params: { returnTo: 'connect-sources' } });
+  }, []);
+  const sourceRows = useMemo(() => recommended.map((source) => (
+    <RecommendedSourceRow
+      key={source.sourceType}
+      actionSourceType={actionSourceType}
+      onConnect={handleConnect}
+      source={source}
+    />
+  )), [actionSourceType, handleConnect, recommended]);
 
   return (
     <Screen>
@@ -55,7 +77,7 @@ export default function ConnectSourcesScreen() {
           sources={sources}
           actionSourceType={actionSourceType}
           onConnectSource={handleConnect}
-          onAddManualRun={() => router.push('/add-run')}
+          onAddManualRun={handleAddManualRun}
         />
       ) : null}
 
@@ -70,28 +92,7 @@ export default function ConnectSourcesScreen() {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <View style={styles.list}>
-          {recommended.map((source) => {
-            const metadata = getSourceMetadata(source.sourceType);
-
-            return (
-              <View key={source.sourceType} style={styles.sourceRow}>
-                <View style={styles.sourceMeta}>
-                  <Text style={styles.sourceName}>{source.displayName}</Text>
-                  <Text style={styles.sourceDetail}>{metadata.shortDescription}</Text>
-                  <Text style={styles.sourceHint}>{metadata.setupHint}</Text>
-                </View>
-                <Pressable
-                  style={[source.connected ? styles.badgeConnected : styles.badge, actionSourceType === source.sourceType && styles.badgeDisabled]}
-                  disabled={source.connected || actionSourceType === source.sourceType}
-                  onPress={() => handleConnect(source.sourceType)}
-                >
-                  <Text style={source.connected ? styles.badgeConnectedText : styles.badgeText}>
-                    {source.connected ? '연결됨' : actionSourceType === source.sourceType ? '연결 중...' : '지금 연결'}
-                  </Text>
-                </Pressable>
-              </View>
-            );
-          })}
+          {sourceRows}
         </View>
         {actionMessage ? <Text style={styles.successText}>{actionMessage}</Text> : null}
         {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
@@ -102,14 +103,49 @@ export default function ConnectSourcesScreen() {
       <View style={styles.actions}>
         <SecondaryButton
           label="연동 설정 자세히 보기"
-          onPress={() => router.push({ pathname: '/integration-management', params: { returnTo: 'connect-sources' } })}
+          onPress={handleOpenIntegrationSettings}
         />
         <PrimaryButton label={connectedCount > 0 ? '홈으로 돌아가기' : '지금은 홈 먼저 보기'} onPress={handleContinue} />
-        <SecondaryButton label="수동 기록부터 추가하기" onPress={() => router.push('/add-run')} />
+        <SecondaryButton label="수동 기록부터 추가하기" onPress={handleAddManualRun} />
       </View>
     </Screen>
   );
 }
+
+const RecommendedSourceRow = memo(function RecommendedSourceRow({
+  actionSourceType,
+  onConnect,
+  source,
+}: {
+  actionSourceType?: string | null;
+  onConnect: (sourceType: RunSourceType) => void;
+  source: ConnectedSource;
+}) {
+  const metadata = useMemo(() => getSourceMetadata(source.sourceType), [source.sourceType]);
+  const connecting = actionSourceType === source.sourceType;
+  const handlePress = useCallback(() => {
+    onConnect(source.sourceType);
+  }, [onConnect, source.sourceType]);
+
+  return (
+    <View style={styles.sourceRow}>
+      <View style={styles.sourceMeta}>
+        <Text style={styles.sourceName}>{source.displayName}</Text>
+        <Text style={styles.sourceDetail}>{metadata.shortDescription}</Text>
+        <Text style={styles.sourceHint}>{metadata.setupHint}</Text>
+      </View>
+      <Pressable
+        style={[source.connected ? styles.badgeConnected : styles.badge, connecting && styles.badgeDisabled]}
+        disabled={source.connected || connecting}
+        onPress={handlePress}
+      >
+        <Text style={source.connected ? styles.badgeConnectedText : styles.badgeText}>
+          {source.connected ? '연결됨' : connecting ? '연결 중...' : '지금 연결'}
+        </Text>
+      </Pressable>
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },

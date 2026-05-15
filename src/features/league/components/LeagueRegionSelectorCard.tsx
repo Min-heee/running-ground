@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ListRenderItem } from 'react-native';
 
@@ -54,34 +54,60 @@ function LeagueBreadcrumbPath({
   isMyRegionNode: (node: RegionNodeIdentity) => boolean;
   onSelectRegion: (nodeId?: string) => void;
 }) {
+  const breadcrumbItems = useMemo(() => breadcrumbNodes.map((node, index) => (
+    <LeagueBreadcrumbItem
+      key={node.id}
+      isCurrentPath={index === breadcrumbNodes.length - 1}
+      isMyRegion={isMyRegionNode(node)}
+      node={node}
+      onSelectRegion={onSelectRegion}
+    />
+  )), [breadcrumbNodes, isMyRegionNode, onSelectRegion]);
+
   return (
     <View style={styles.pathBlock}>
       <Text style={styles.pathLabel}>현재 경로</Text>
       <View style={styles.pathRow}>
-        {breadcrumbNodes.length > 0 ? breadcrumbNodes.map((node, index) => {
-          const isCurrentPath = index === breadcrumbNodes.length - 1;
-          const isRootPath = node.level === 'country';
-
-          return (
-            <View key={node.id} style={styles.pathItemWrap}>
-              <Pressable
-                style={[styles.pathChip, isCurrentPath && styles.pathChipActive]}
-                onPress={() => !isCurrentPath && onSelectRegion(isRootPath ? undefined : node.id)}
-                disabled={isCurrentPath}
-              >
-                <View style={styles.pathChipInner}>
-                  <Text style={[styles.pathChipText, isCurrentPath && styles.pathChipTextActive]}>{node.name}</Text>
-                  <MyRegionBadge active={isCurrentPath} visible={isMyRegionNode(node)} />
-                </View>
-              </Pressable>
-              {!isCurrentPath ? <Text style={styles.pathArrow}>-&gt;</Text> : null}
-            </View>
-          );
-        }) : <Text style={styles.pathRootText}>대한민국</Text>}
+        {breadcrumbNodes.length > 0 ? breadcrumbItems : <Text style={styles.pathRootText}>대한민국</Text>}
       </View>
     </View>
   );
 }
+
+const LeagueBreadcrumbItem = memo(function LeagueBreadcrumbItem({
+  isCurrentPath,
+  isMyRegion,
+  node,
+  onSelectRegion,
+}: {
+  isCurrentPath: boolean;
+  isMyRegion: boolean;
+  node: RegionBreadcrumbItem;
+  onSelectRegion: (nodeId?: string) => void;
+}) {
+  const isRootPath = node.level === 'country';
+  const handleSelect = useCallback(() => {
+    if (!isCurrentPath) {
+      onSelectRegion(isRootPath ? undefined : node.id);
+    }
+  }, [isCurrentPath, isRootPath, node.id, onSelectRegion]);
+
+  return (
+    <View style={styles.pathItemWrap}>
+      <Pressable
+        style={[styles.pathChip, isCurrentPath && styles.pathChipActive]}
+        onPress={handleSelect}
+        disabled={isCurrentPath}
+      >
+        <View style={styles.pathChipInner}>
+          <Text style={[styles.pathChipText, isCurrentPath && styles.pathChipTextActive]}>{node.name}</Text>
+          <MyRegionBadge active={isCurrentPath} visible={isMyRegion} />
+        </View>
+      </Pressable>
+      {!isCurrentPath ? <Text style={styles.pathArrow}>-&gt;</Text> : null}
+    </View>
+  );
+});
 
 const LeagueRegionGrid = memo(function LeagueRegionGrid({
   nodes,
