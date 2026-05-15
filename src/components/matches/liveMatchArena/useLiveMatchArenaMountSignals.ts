@@ -1,25 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { rgPerfMark } from '@/utils/rgPerfTrace';
-
-type LiveMatchArenaMode = 'duel' | 'group';
+import { useMemo } from 'react';
+import { buildLiveMatchScreenIdentity } from '@/components/matches/liveMatchArena/liveMatchArenaMountIdentity';
+import type {
+  LiveMatchArenaMode,
+  LiveMatchArenaMountSignal,
+} from '@/components/matches/liveMatchArena/liveMatchArenaMountTypes';
+import { useLiveMatchArenaHeavyHydration } from '@/components/matches/liveMatchArena/useLiveMatchArenaHeavyHydration';
+import { useLiveMatchArenaMountRefs } from '@/components/matches/liveMatchArena/useLiveMatchArenaMountRefs';
+import { useLiveMatchArenaMountTrace } from '@/components/matches/liveMatchArena/useLiveMatchArenaMountTrace';
+import { useLiveMatchArenaPreservationTrace } from '@/components/matches/liveMatchArena/useLiveMatchArenaPreservationTrace';
 
 type UseLiveMatchArenaMountSignalsInput = {
   matchId?: string | null;
   mode: LiveMatchArenaMode;
   participantsCount: number;
   deferHeavyContent: boolean;
-  onMounted?: (input: { matchId?: string | null; mode: LiveMatchArenaMode; source: string }) => void;
+  onMounted?: (input: LiveMatchArenaMountSignal) => void;
 };
-
-function buildLiveMatchScreenIdentity({
-  matchId,
-  mode,
-}: {
-  matchId?: string | null;
-  mode: LiveMatchArenaMode;
-}) {
-  return `${mode}:${matchId ?? 'pending'}`;
-}
 
 export function useLiveMatchArenaMountSignals({
   matchId,
@@ -32,103 +28,35 @@ export function useLiveMatchArenaMountSignals({
     () => buildLiveMatchScreenIdentity({ matchId, mode }),
     [matchId, mode],
   );
-  const onMountedRef = useRef(onMounted);
-  const mountedSignalIdentityRef = useRef<string | null>(null);
-  const lastDeferHeavyContentRef = useRef(deferHeavyContent);
-  const hydrationLoggedIdentityRef = useRef<string | null>(null);
-  const preservedRoadMotionIdentityRef = useRef<string | null>(null);
-  const mountDetailRef = useRef({
-    deferHeavyContent: false,
-    participants: 0,
+  const {
+    isHeavyContentHydrated,
+    shouldDeferHeavyContent,
+  } = useLiveMatchArenaHeavyHydration({
+    arenaIdentity,
+    deferHeavyContent,
+    matchId,
+    mode,
   });
-  const [hydratedHeavyContentIdentity, setHydratedHeavyContentIdentity] = useState<string | null>(null);
-  const isHeavyContentHydrated = hydratedHeavyContentIdentity === arenaIdentity;
-  const shouldDeferHeavyContent = deferHeavyContent && !isHeavyContentHydrated;
+  const { mountDetailRef, onMountedRef } = useLiveMatchArenaMountRefs({
+    onMounted,
+    participantsCount,
+    shouldDeferHeavyContent,
+  });
 
-  useEffect(() => {
-    onMountedRef.current = onMounted;
-  }, [onMounted]);
-
-  useEffect(() => {
-    mountDetailRef.current = {
-      deferHeavyContent: shouldDeferHeavyContent,
-      participants: participantsCount,
-    };
-  }, [participantsCount, shouldDeferHeavyContent]);
-
-  useEffect(() => {
-    if (!deferHeavyContent && !isHeavyContentHydrated) {
-      setHydratedHeavyContentIdentity(arenaIdentity);
-
-      if (hydrationLoggedIdentityRef.current !== arenaIdentity) {
-        hydrationLoggedIdentityRef.current = arenaIdentity;
-        rgPerfMark('heavy content hydrated without remount', {
-          matchId: matchId ?? null,
-          mode,
-        });
-      }
-    }
-  }, [arenaIdentity, deferHeavyContent, isHeavyContentHydrated, matchId, mode]);
-
-  useEffect(() => {
-    if (mountedSignalIdentityRef.current === arenaIdentity) {
-      rgPerfMark('live match remount prevented same match', {
-        matchId: matchId ?? null,
-        mode,
-        reason: 'duplicate mount signal',
-      });
-      return undefined;
-    }
-
-    mountedSignalIdentityRef.current = arenaIdentity;
-    onMountedRef.current?.({
-      matchId,
-      mode,
-      source: 'LiveMatchArena',
-    });
-    rgPerfMark('live match screen mount', {
-      deferHeavyContent: mountDetailRef.current.deferHeavyContent,
-      matchId: matchId ?? null,
-      mode,
-      participants: mountDetailRef.current.participants,
-    });
-
-    return () => {
-      rgPerfMark('live match screen unmount', {
-        matchId: matchId ?? null,
-        mode,
-      });
-      if (mountedSignalIdentityRef.current === arenaIdentity) {
-        mountedSignalIdentityRef.current = null;
-      }
-    };
-  }, [arenaIdentity, matchId, mode]);
-
-  useEffect(() => {
-    if (lastDeferHeavyContentRef.current !== deferHeavyContent) {
-      rgPerfMark('live match remount prevented same match', {
-        deferHeavyContent,
-        matchId: matchId ?? null,
-        mode,
-        reason: 'defer state changed',
-      });
-      lastDeferHeavyContentRef.current = deferHeavyContent;
-    }
-  }, [deferHeavyContent, matchId, mode]);
-
-  useEffect(() => {
-    if (
-      deferHeavyContent
-      && isHeavyContentHydrated
-      && preservedRoadMotionIdentityRef.current !== arenaIdentity
-    ) {
-      preservedRoadMotionIdentityRef.current = arenaIdentity;
-      rgPerfMark('RoadMotion preserved same match', {
-        matchId: matchId ?? null,
-        mode,
-      });
-    }
-  }, [arenaIdentity, deferHeavyContent, isHeavyContentHydrated, matchId, mode]);
+  useLiveMatchArenaMountTrace({
+    arenaIdentity,
+    matchId,
+    mode,
+    mountDetailRef,
+    onMountedRef,
+  });
+  useLiveMatchArenaPreservationTrace({
+    arenaIdentity,
+    deferHeavyContent,
+    isHeavyContentHydrated,
+    matchId,
+    mode,
+  });
 
   return {
     shouldDeferHeavyContent,

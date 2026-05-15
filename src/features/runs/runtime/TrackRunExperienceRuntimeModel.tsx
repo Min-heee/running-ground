@@ -3,7 +3,7 @@ import {
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
-import { type Href, useFocusEffect } from 'expo-router';
+import { type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MatchOptionItem } from '@/features/runs/components/MatchOptionSelector';
 import {
@@ -26,24 +26,10 @@ import { useMatchRuntimeState } from '@/features/runs/hooks/useMatchRuntimeState
 import { useMatchRoomSelectionSync } from '@/features/runs/hooks/useMatchRoomSelectionSync';
 import { useMatchSelectionModel } from '@/features/runs/hooks/useMatchSelectionModel';
 import { useMatchCountdownModel } from '@/features/runs/lifecycle/hooks/useMatchCountdownModel';
-import { useRunTrackingFlow } from '@/features/runs/hooks/useRunTrackingFlow';
 import {
-  acknowledgeRunningMatchRoomCountdown,
-  cancelRunningMatch,
-  fetchFriendLeaderboard,
-  fetchRunningMatchRoomInviteInbox,
-  fetchMatchDemandSummary,
-  fetchUpcomingRunningMatches,
   fetchRunningMatchStatus,
-  getApiErrorMessage,
-  joinRunningMatchRoom,
-  leaveRunningMatchRoom,
-  requestDuelMatch,
-  requestGroupMatch,
+  fetchUpcomingRunningMatches,
 } from '@/services';
-import {
-  buildRecipientRoomInviteInboxResult,
-} from '@/features/runs/sync/roomInviteInbox';
 import {
   shouldAutoOpenMatchArena,
 } from '@/lib/matchCountdown';
@@ -70,8 +56,6 @@ import {
 import {
   buildMatchTransitionNotice,
   type PartyRunLinkedMatchContext,
-  shouldUseCenteredMatchCountdown,
-  shouldUseFullscreenMatchCountdown,
 } from '@/features/runs/lifecycle/matchStateMachine';
 import {
   filterUpcomingMatchesForRuntime,
@@ -86,11 +70,7 @@ import {
 } from '@/features/runs/lifecycle/liveMatchShellPreservation';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
-import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
-import {
-  beginRgInputTrace,
-  waitForRgInputFeedbackFrame,
-} from '@/utils/rgInputTrace';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 import { useTrackRunNavigationAdapter } from '@/features/runs/runtime/useTrackRunNavigationAdapter';
 import { useTrackRunRuntimeTrace } from '@/features/runs/runtime/useTrackRunRuntimeTrace';
@@ -100,10 +80,11 @@ import { useMatchLobbyRuntimeModel } from '@/features/runs/runtime/useMatchLobby
 import { useTrackRunRuntimeActions } from '@/features/runs/runtime/useTrackRunRuntimeActions';
 import { useLiveMatchRuntimeModel } from '@/features/runs/runtime/useLiveMatchRuntimeModel';
 import { useTrackRunRuntimeStateBridge } from '@/features/runs/runtime/useTrackRunRuntimeStateBridge';
-import { useTrackRunRoomLoader } from '@/features/runs/runtime/useTrackRunRoomLoader';
-import { useTrackRunRoomCreateAction } from '@/features/runs/runtime/useTrackRunRoomCreateAction';
-import { useTrackRunRoomJoinAction } from '@/features/runs/runtime/useTrackRunRoomJoinAction';
-import { useTrackRunRuntimeModelBuilder } from '@/features/runs/runtime/useTrackRunRuntimeModelBuilder';
+import { useTrackRunRuntimeRoomActions } from '@/features/runs/runtime/useTrackRunRuntimeRoomActions';
+import { useTrackRunRuntimeMatchActions } from '@/features/runs/runtime/useTrackRunRuntimeMatchActions';
+import { useTrackRunRuntimeShareState } from '@/features/runs/runtime/useTrackRunRuntimeShareState';
+import { useTrackRunRuntimeScreenState } from '@/features/runs/runtime/useTrackRunRuntimeScreenState';
+import { useTrackRunRuntimePropsComposer } from '@/features/runs/runtime/useTrackRunRuntimePropsComposer';
 
 const STALE_RENDER_MATCHED_MATCH_MS = 10 * 60 * 1000;
 const STALE_RENDER_ACTIVE_MATCH_MS = 8 * 60 * 60 * 1000;
@@ -1091,145 +1072,6 @@ export function TrackRunExperienceRuntime({
     ?? null
   ), [roomLinkedMatchContext?.matchId]);
 
-  const loadFriendLeaderboardData = async () => {
-    const payload = await fetchFriendLeaderboard();
-    setFriendLeaderboard(payload);
-    return payload;
-  };
-
-  const fetchRecipientInviteInbox = useCallback(async (source: string) => {
-    if (recipientInviteFetchInFlightRef.current) {
-      rgPerfMark('invite inbox fetch for recipient begin', {
-        skipped: true,
-        reason: 'in-flight',
-        source,
-        userId: currentUserId,
-      });
-      return;
-    }
-
-    if (isCreatingMatchRoom || isJoiningMatchRoom || isLeavingMatchRoom) {
-      rgPerfMark('invite inbox fetch for recipient begin', {
-        skipped: true,
-        reason: 'room-action-pending',
-        source,
-        userId: currentUserId,
-      });
-      return;
-    }
-
-    recipientInviteFetchInFlightRef.current = true;
-    const endRecipientInviteFetchTrace = rgPerfMeasureStart('invite inbox fetch for recipient', {
-      source,
-      userId: currentUserId,
-    });
-    rgPerfMark('invite inbox fetch for recipient begin', {
-      source,
-      userId: currentUserId,
-    });
-
-    try {
-      const payload = await fetchRunningMatchRoomInviteInbox();
-      endRecipientInviteFetchTrace({
-        roomId: payload.room?.roomId ?? null,
-        success: true,
-      });
-      rgPerfMark('invite inbox fetch for recipient end', {
-        joined: payload.room?.joined ?? null,
-        roomId: payload.room?.roomId ?? null,
-        source,
-        success: true,
-        userId: currentUserId,
-      });
-
-      if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
-        rgPerfMark('invite card display skipped reason', {
-          reason: 'stale-result',
-          roomId: payload.room?.roomId ?? null,
-          source,
-          userId: currentUserId,
-        });
-        return;
-      }
-
-      const inviteResult = buildRecipientRoomInviteInboxResult({
-        currentUserId,
-        previousInviteKey: lastDisplayedRecipientInviteKeyRef.current,
-        room: payload.room,
-      });
-      rgPerfMark('invite inbox pending count', {
-        pendingCount: inviteResult.pendingCount,
-        roomId: inviteResult.event?.roomId ?? payload.room?.roomId ?? null,
-        source,
-        userId: currentUserId,
-      });
-
-      if (!inviteResult.event) {
-        rgPerfMark('invite card display skipped reason', {
-          reason: inviteResult.skippedReason,
-          roomId: payload.room?.roomId ?? null,
-          source,
-          userId: currentUserId,
-        });
-        return;
-      }
-
-      if (payload.room) {
-        syncServerClock(payload.serverNow);
-        commitMatchRoom(payload.room);
-      }
-
-      if (!inviteResult.shouldDisplay) {
-        rgPerfMark('invite card display skipped reason', {
-          inviteId: inviteResult.event.inviteId,
-          invitedUserId: inviteResult.event.invitedUserId,
-          reason: inviteResult.skippedReason,
-          roomId: inviteResult.event.roomId,
-          source,
-          userId: currentUserId,
-        });
-        return;
-      }
-
-      lastDisplayedRecipientInviteKeyRef.current = inviteResult.event.key;
-      rgPerfMark('invite received', {
-        inviteId: inviteResult.event.inviteId,
-        invitedUserId: inviteResult.event.invitedUserId,
-        roomId: inviteResult.event.roomId,
-        source: 'recipient invite inbox fetch',
-        state: inviteResult.event.roomState,
-      });
-      rgPerfMark('invite card displayed', {
-        inviteId: inviteResult.event.inviteId,
-        invitedUserId: inviteResult.event.invitedUserId,
-        roomId: inviteResult.event.roomId,
-        source: 'recipient invite inbox fetch',
-        state: inviteResult.event.roomState,
-      });
-    } catch (inviteError) {
-      endRecipientInviteFetchTrace({ success: false });
-      rgPerfMark('invite inbox fetch for recipient end', {
-        message: getApiErrorMessage(inviteError, '초대함을 불러오지 못했어.'),
-        source,
-        success: false,
-        userId: currentUserId,
-      });
-    } finally {
-      recipientInviteFetchInFlightRef.current = false;
-    }
-  }, [
-    commitMatchRoom,
-    currentUserId,
-    isCreatingMatchRoom,
-    isJoiningMatchRoom,
-    isLeavingMatchRoom,
-    syncServerClock,
-  ]);
-
-  useFocusEffect(useCallback(() => {
-    void fetchRecipientInviteInbox('track-run recipient inbox focus');
-  }, [fetchRecipientInviteInbox]));
-
   const {
     focusRoomLinkedMatch,
     focusRunningMatch,
@@ -1284,206 +1126,84 @@ export function TrackRunExperienceRuntime({
     setSelectedRoomFriendIds,
     visibleMatchRoom,
   });
-  const loadMatchRoom = useTrackRunRoomLoader({
-    buildTrackRunActiveRoomCheckRouteKey,
+  const {
+    handleAcceptRoomInviteFromRunning,
+    handleCreateMatchRoom,
+    handleDeclineRoomInviteFromRunning,
+    handleJoinMatchRoom,
+    loadFriendLeaderboardData,
+    loadMatchRoom,
+  } = useTrackRunRuntimeRoomActions({
     commitMatchRoom,
     currentUserId,
-    forfeitedMatchIdsRef,
-    getCurrentLiveMatchId,
-    isExitingRoom,
-    isMountedRef,
-    lastHandledActiveRoomSnapshotKeyRef,
-    latestMatchRoomServerNowMsRef,
-    liveMatchMountedRef,
-    liveMatchRenderIdentity,
-    liveMatchRenderMode,
-    liveMatchShellPreservation,
-    matchRoom,
-    syncServerClock,
-  });
-  const handleCreateMatchRoom = useTrackRunRoomCreateAction({
-    activeDuelSlotStartAt,
-    activeGroupSlotStartAt,
-    commitMatchRoom,
-    createMatchRoomInFlightRef,
-    duelDistanceKm,
-    groupDistanceKm,
     isCreatingMatchRoom,
-    latestMatchRoomServerNowMsRef,
-    matchRoom,
-    navigateToMatchRoomWithTrace,
-    prepareMatchRoomMutation,
-    roomMatchMode,
-    roomMaxParticipants,
-    roomStartMode,
-    setError,
-    setIsCreatingMatchRoom,
-    syncServerClock,
-    visibleMatchRoom,
-  });
-  const handleJoinMatchRoom = useTrackRunRoomJoinAction({
-    commitMatchRoom,
     isJoiningMatchRoom,
+    isLeavingMatchRoom,
     joinMatchRoomInFlightRef,
+    lastDisplayedRecipientInviteKeyRef,
     latestMatchRoomServerNowMsRef,
-    matchRoom,
-    navigateToMatchRoomWithTrace,
-    prepareMatchRoomMutation,
-    roomInviteTokenInput,
+    leaveMatchRoomInFlightRef,
+    recipientInviteFetchInFlightRef,
+    roomCreateActionInput: {
+      activeDuelSlotStartAt,
+      activeGroupSlotStartAt,
+      commitMatchRoom,
+      createMatchRoomInFlightRef,
+      duelDistanceKm,
+      groupDistanceKm,
+      isCreatingMatchRoom,
+      latestMatchRoomServerNowMsRef,
+      matchRoom,
+      navigateToMatchRoomWithTrace,
+      prepareMatchRoomMutation,
+      roomMatchMode,
+      roomMaxParticipants,
+      roomStartMode,
+      setError,
+      setIsCreatingMatchRoom,
+      syncServerClock,
+      visibleMatchRoom,
+    },
+    roomJoinActionInput: {
+      commitMatchRoom,
+      isJoiningMatchRoom,
+      joinMatchRoomInFlightRef,
+      latestMatchRoomServerNowMsRef,
+      matchRoom,
+      navigateToMatchRoomWithTrace,
+      prepareMatchRoomMutation,
+      roomInviteTokenInput,
+      setError,
+      setIsJoiningMatchRoom,
+      setRoomInviteTokenInput,
+      syncServerClock,
+      visibleMatchRoom,
+    },
+    roomLoaderInput: {
+      buildTrackRunActiveRoomCheckRouteKey,
+      commitMatchRoom,
+      currentUserId,
+      forfeitedMatchIdsRef,
+      getCurrentLiveMatchId,
+      isExitingRoom,
+      isMountedRef,
+      lastHandledActiveRoomSnapshotKeyRef,
+      latestMatchRoomServerNowMsRef,
+      liveMatchMountedRef,
+      liveMatchRenderIdentity,
+      liveMatchRenderMode,
+      liveMatchShellPreservation,
+      matchRoom,
+      syncServerClock,
+    },
     setError,
+    setFriendLeaderboard,
     setIsJoiningMatchRoom,
-    setRoomInviteTokenInput,
+    setIsLeavingMatchRoom,
+    setSelectedRoomFriendIds,
     syncServerClock,
     visibleMatchRoom,
   });
-
-  const handleAcceptRoomInviteFromRunning = async () => {
-    if (!visibleMatchRoom) {
-      return;
-    }
-
-    if (joinMatchRoomInFlightRef.current || isJoiningMatchRoom) {
-      return;
-    }
-
-    const inputTrace = beginRgInputTrace('invite code input submit', {
-      hasToken: Boolean(visibleMatchRoom.inviteToken),
-      roomId: visibleMatchRoom.roomId,
-      source: 'track-run invite card accept',
-    });
-
-    joinMatchRoomInFlightRef.current = true;
-    setIsJoiningMatchRoom(true);
-    setError(null);
-    inputTrace.markFeedbackCommitted({
-      disabled: true,
-      loading: true,
-    });
-
-    rgPerfMark('invite code input submit', {
-      hasToken: Boolean(visibleMatchRoom.inviteToken),
-      roomId: visibleMatchRoom.roomId,
-      source: 'track-run invite card accept',
-    });
-    let endJoinApiTrace: ReturnType<typeof rgPerfMeasureStart> | null = null;
-    await waitForRgInputFeedbackFrame();
-    inputTrace.markApiStarted({
-      source: 'invite card accept preflight',
-    });
-
-    try {
-      const canProceed = await prepareMatchRoomMutation({
-        inviteToken: visibleMatchRoom.inviteToken,
-        source: 'invite card accept preflight',
-      });
-      if (!canProceed) {
-        return;
-      }
-
-      endJoinApiTrace = rgPerfMeasureStart('room join API', {
-        roomId: visibleMatchRoom.roomId,
-        source: 'track-run invite card accept',
-      });
-      const payload = await joinRunningMatchRoom({ inviteToken: visibleMatchRoom.inviteToken });
-      if (!payload.room?.roomId) {
-        endJoinApiTrace({
-          reason: 'missing roomId',
-          success: false,
-        });
-        throw new Error('방 정보를 불러오지 못했습니다. 다시 시도해주세요.');
-      }
-      endJoinApiTrace({
-        roomId: payload.room.roomId,
-        success: true,
-      });
-      if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
-        return;
-      }
-
-      syncServerClock(payload.serverNow);
-      commitMatchRoom(payload.room);
-      navigateToMatchRoomWithTrace('invite card accept', payload.room, payload.serverNow);
-    } catch (roomError) {
-      endJoinApiTrace?.({ success: false });
-      const message = getApiErrorMessage(roomError, '초대를 수락하지 못했어.');
-      rgPerfMark('room join API error', {
-        message,
-        roomId: visibleMatchRoom.roomId,
-        source: 'track-run invite card accept',
-      });
-      setError(message);
-    } finally {
-      joinMatchRoomInFlightRef.current = false;
-      setIsJoiningMatchRoom(false);
-    }
-  };
-
-  const handleDeclineRoomInviteFromRunning = async () => {
-    if (!visibleMatchRoom) {
-      return;
-    }
-
-    if (leaveMatchRoomInFlightRef.current || isLeavingMatchRoom) {
-      return;
-    }
-
-    const inputTrace = beginRgInputTrace('room leave button press', {
-      roomId: visibleMatchRoom.roomId,
-      source: 'track-run invite card decline',
-    });
-
-    leaveMatchRoomInFlightRef.current = true;
-    setIsLeavingMatchRoom(true);
-    setError(null);
-    inputTrace.markFeedbackCommitted({
-      disabled: true,
-      loading: true,
-    });
-
-    rgPerfMark('room leave button press', {
-      roomId: visibleMatchRoom.roomId,
-      source: 'track-run invite card decline',
-    });
-    await waitForRgInputFeedbackFrame();
-    inputTrace.markApiStarted({
-      source: 'track-run invite card decline',
-    });
-    const endLeaveApiTrace = rgPerfMeasureStart('room leave API', {
-      roomId: visibleMatchRoom.roomId,
-      source: 'track-run invite card decline',
-    });
-
-    try {
-      const payload = await leaveRunningMatchRoom({ roomId: visibleMatchRoom.roomId });
-      endLeaveApiTrace({
-        roomId: visibleMatchRoom.roomId,
-        success: true,
-      });
-      if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
-        return;
-      }
-
-      syncServerClock(payload.serverNow);
-      commitMatchRoom(payload.room);
-      rgPerfMark('local room state cleared', {
-        roomId: visibleMatchRoom.roomId,
-        source: 'track-run invite card decline',
-      });
-      setSelectedRoomFriendIds([]);
-    } catch (roomError) {
-      endLeaveApiTrace({ success: false });
-      const message = getApiErrorMessage(roomError, '초대를 거절하지 못했어.');
-      rgPerfMark('room leave API error', {
-        message,
-        roomId: visibleMatchRoom.roomId,
-        source: 'track-run invite card decline',
-      });
-      setError(message);
-    } finally {
-      leaveMatchRoomInFlightRef.current = false;
-      setIsLeavingMatchRoom(false);
-    }
-  };
 
   const clearLocalDuelMatchState = (notice?: string | null) => {
     focusedDuelMatchIdRef.current = null;
@@ -1499,128 +1219,87 @@ export function TrackRunExperienceRuntime({
     setGroupMatchNotice(notice ?? null);
   };
 
-  const clearLocalForfeitedMatchState = (source: 'duel' | 'group', matchId: string) => {
-    forfeitedMatchIdsRef.current.add(matchId);
-    matchProgressHeartbeatRef.current = 0;
-    preStartWarmupMatchIdRef.current = null;
-    autoStartedMatchIdRef.current = null;
-    roomLinkedMatchContextRef.current = null;
-    setForceOpenActiveMatch(false);
-    setLiveArenaPage(0);
-    setLastSyncedMatchProgress(null);
-    setUpcomingMatches((currentItems) => currentItems.filter((match) => match.matchId !== matchId));
+  const {
+    acknowledgeRoomCountdownReady,
+    clearLocalForfeitedMatchState,
+    handleCancelDuelMatch,
+    handleCancelGroupMatch,
+    handleCancelUpcomingMatch,
+    handleRequestDuelMatch,
+    handleRequestGroupMatch,
+    refreshStaleMatchArtifacts,
+    syncRoomLinkedMatchStatus,
+  } = useTrackRunRuntimeMatchActions({
+    activeDuelSlotStartAt,
+    activeGroupSlotStartAt,
+    autoStartedMatchIdRef,
+    clearLocalDuelMatchState,
+    clearLocalGroupMatchState,
+    commitMatchRoom,
+    duelDistanceKm,
+    duelMatchResult,
+    duelMatchState,
+    duelMatchStatus,
+    forfeitedMatchIdsRef,
+    groupDistanceKm,
+    groupMatchResult,
+    groupMatchState,
+    groupMatchStatus,
+    isDuelTestFlow,
+    isGroupTestFlow,
+    latestMatchRoomServerNowMsRef,
+    livePagerRef,
+    loadDuelMatchStatus,
+    loadGroupMatchStatus,
+    loadMatchRoom,
+    loadUpcomingMatches,
+    matchProgressHeartbeatRef,
+    matchRoom,
+    preStartWarmupMatchIdRef,
+    roomLinkedMatchContextRef,
+    selectedDuelSlot,
+    selectedDuelSlotStartAt,
+    selectedGroupSlot,
+    selectedGroupSlotStartAt,
+    setCancelingUpcomingMatchId,
+    setDuelDemandSummary,
+    setDuelMatchNotice,
+    setDuelMatchResult,
+    setDuelMatchStatus,
+    setError,
+    setForceOpenActiveMatch,
+    setGroupDemandSummary,
+    setGroupMatchNotice,
+    setGroupMatchResult,
+    setGroupMatchStatus,
+    setIsCancelingDuelMatch,
+    setIsCancelingGroupMatch,
+    setIsRequestingDuelMatch,
+    setIsRequestingGroupMatch,
+    setLastSyncedMatchProgress,
+    setLiveArenaPage,
+    setMatchMode,
+    setUpcomingMatches,
+    status,
+    syncServerClock,
+    trackRunIdleViewModel,
+    upcomingMatches,
+  });
 
-    if (matchRoom?.linkedMatchId === matchId) {
-      commitMatchRoom(null);
-    }
-
-    if (source === 'duel') {
-      clearLocalDuelMatchState(null);
-    } else {
-      clearLocalGroupMatchState(null);
-    }
-
-    setMatchMode('solo');
-    livePagerRef.current?.scrollTo({ x: 0, animated: false });
-  };
-
-  const refreshStaleMatchArtifacts = async () => {
-    const isLowPriorityActiveRoomCheck = trackRunIdleViewModel.activeRoomCheckPriority === 'low-priority';
-    const [roomPayload, upcomingItems, duelStatusPayload, groupStatusPayload] = await Promise.all([
-      loadMatchRoom({
-        ignoreDuringInteraction: isLowPriorityActiveRoomCheck,
-        localActiveMatchId: trackRunIdleViewModel.activeMatchId,
-        localActiveRoomId: trackRunIdleViewModel.activeRoomId,
-        priority: trackRunIdleViewModel.activeRoomCheckPriority,
-        requireLocalActiveHint: isLowPriorityActiveRoomCheck,
-      }).catch(() => matchRoom),
-      loadUpcomingMatches().catch(() => upcomingMatches),
-      (isDuelTestFlow || duelMatchStatus || duelMatchResult)
-        ? loadDuelMatchStatus(activeDuelSlotStartAt, { testMode: isDuelTestFlow || Boolean(duelMatchStatus?.isTestMatch || duelMatchResult?.isTestMatch) }).catch(() => null)
-        : Promise.resolve(null),
-      (isGroupTestFlow || groupMatchStatus || groupMatchResult)
-        ? loadGroupMatchStatus(activeGroupSlotStartAt, { testMode: isGroupTestFlow || Boolean(groupMatchStatus?.isTestMatch || groupMatchResult?.isTestMatch) }).catch(() => null)
-        : Promise.resolve(null),
-    ]);
-
-    const hasUpcomingDuel = upcomingItems.some((match) => match.mode === 'duel');
-    const hasUpcomingGroup = upcomingItems.some((match) => match.mode === 'group');
-    const hasLinkedRoomMatch = Boolean(roomPayload?.linkedMatchId || roomPayload?.linkedMatchSlotStartAt);
-
-    if (duelStatusPayload?.state === 'idle' && !hasUpcomingDuel && (isDuelTestFlow || duelMatchStatus || duelMatchResult)) {
-      const shouldKeepTestArtifacts = isDuelTestFlow || duelMatchStatus?.isTestMatch || duelMatchResult?.isTestMatch;
-      clearLocalDuelMatchState(
-        shouldKeepTestArtifacts ? '이전 테스트 1대1 대결은 이미 정리됐어요. 새로 시작할 수 있어요.' : null,
-      );
-    }
-
-    if (groupStatusPayload?.state === 'idle' && !hasUpcomingGroup && (isGroupTestFlow || groupMatchStatus || groupMatchResult)) {
-      const shouldKeepTestArtifacts = isGroupTestFlow || groupMatchStatus?.isTestMatch || groupMatchResult?.isTestMatch;
-      clearLocalGroupMatchState(
-        shouldKeepTestArtifacts ? '이전 테스트 그룹 대결은 이미 정리됐어요. 새로 시작할 수 있어요.' : null,
-      );
-    }
-
-    if (status !== 'idle' || hasLinkedRoomMatch) {
-      return;
-    }
-
-    if (!hasUpcomingDuel && duelMatchStatus?.state !== 'active' && !duelMatchStatus?.isTestMatch) {
-      clearLocalDuelMatchState();
-    }
-
-    if (!hasUpcomingGroup && groupMatchStatus?.state !== 'active' && !groupMatchStatus?.isTestMatch) {
-      clearLocalGroupMatchState();
-    }
-  };
-
-  const acknowledgeRoomCountdownReady = async (roomId: string) => {
-    const payload = await acknowledgeRunningMatchRoomCountdown({ roomId });
-    if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
-      return;
-    }
-
-    syncServerClock(payload.serverNow);
-    commitMatchRoom(payload.room);
-  };
-
-  const syncRoomLinkedMatchStatus = async (context: RoomLinkedMatchContext) => {
-    if (!context) {
-      return null;
-    }
-
-    return context.mode === 'duel'
-      ? loadDuelMatchStatus(context.slotStartAt, {
-          distanceKm: context.distanceKm,
-          matchId: context.matchId,
-          testMode: false,
-          forceAccept: true,
-        })
-      : loadGroupMatchStatus(context.slotStartAt, {
-          distanceKm: context.distanceKm,
-          matchId: context.matchId,
-          testMode: false,
-          forceAccept: true,
-        });
-  };
-
-  liveMatchViewConfirmationRef.current = {
-    matchId: liveMatchStartupIdentity,
-    mode: liveMatchRenderMode,
-    showLiveArena: effectiveShowLiveArena,
-  };
-
-  const shouldShowFullscreenMatchCountdown =
-    isIdle
-    && shouldUseFullscreenMatchCountdown({
-      hasCountdownEntry: Boolean(visibleCountdownEntry),
-      remainingSeconds: visibleCountdownEntry?.remainingSeconds ?? null,
-    });
-  const shouldShowCenteredMatchCountdown = shouldUseCenteredMatchCountdown({
-    hasCountdownEntry: Boolean(visibleCountdownEntry),
-    remainingSeconds: visibleCountdownEntry?.remainingSeconds ?? null,
-    showLiveArena: effectiveShowLiveArena,
-    hasRoomCountdownEntry: Boolean(roomCountdownEntry),
+  const {
+    runtimeSoloStartCountdownSeconds,
+    shouldShowCenteredMatchCountdown,
+    shouldShowFullscreenMatchCountdown,
+  } = useTrackRunRuntimeScreenState({
+    effectiveShowLiveArena,
+    isIdle,
+    isStarting,
+    liveMatchRenderMode,
+    liveMatchStartupIdentity,
+    liveMatchViewConfirmationRef,
+    roomCountdownEntry,
+    soloStartCountdownSeconds,
+    visibleCountdownEntry,
   });
 
   useTrackRunRuntimeEffects({
@@ -1794,7 +1473,7 @@ export function TrackRunExperienceRuntime({
     syncElapsedSeconds,
     syncFromBackgroundTracking,
     syncLiveSharing,
-  } = useRunTrackingFlow({
+  } = useTrackRunRuntimeShareState({
     pedometerSubscriptionRef,
     timerRef,
     soloStartCountdownTimerRef,
@@ -1852,188 +1531,6 @@ export function TrackRunExperienceRuntime({
     matchLifecycleController,
     trackingSubscriptionsEnabled: trackRunIdleViewModel.shouldRunTrackingSubscriptions,
   });
-
-  const handleRequestDuelMatch = async (
-    slotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt,
-    options?: { testMode?: boolean },
-  ) => {
-    try {
-      setError(null);
-      setDuelMatchNotice(null);
-      setIsRequestingDuelMatch(true);
-
-      const payload = await requestDuelMatch({
-        distanceKm: duelDistanceKm,
-        slotStartAt,
-        testMode: options?.testMode,
-      });
-
-      setDuelMatchResult(payload);
-      if (payload.isTestMatch) {
-        setDuelDemandSummary(null);
-        await loadDuelMatchStatus(slotStartAt, { testMode: true });
-      } else {
-        const [nextSummary] = await Promise.all([
-          fetchMatchDemandSummary({
-            mode: 'duel',
-            distanceKm: duelDistanceKm,
-            slotStartAt,
-          }),
-          loadDuelMatchStatus(slotStartAt),
-        ]);
-        setDuelDemandSummary(nextSummary);
-      }
-    } catch (matchError) {
-      setError(getApiErrorMessage(matchError, '1대1 매칭을 찾지 못했어.'));
-    } finally {
-      setIsRequestingDuelMatch(false);
-    }
-  };
-
-  const handleRequestGroupMatch = async (
-    slotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt,
-    options?: { testMode?: boolean },
-  ) => {
-    try {
-      setError(null);
-      setGroupMatchNotice(null);
-      setIsRequestingGroupMatch(true);
-
-      const payload = await requestGroupMatch({
-        distanceKm: groupDistanceKm,
-        slotStartAt,
-        testMode: options?.testMode,
-      });
-
-      setGroupMatchResult(payload);
-      if (payload.isTestMatch) {
-        setGroupDemandSummary(null);
-        await loadGroupMatchStatus(slotStartAt, { testMode: true });
-      } else {
-        const [nextSummary] = await Promise.all([
-          fetchMatchDemandSummary({
-            mode: 'group',
-            distanceKm: groupDistanceKm,
-            slotStartAt,
-          }),
-          loadGroupMatchStatus(slotStartAt),
-        ]);
-        setGroupDemandSummary(nextSummary);
-      }
-    } catch (matchError) {
-      setError(getApiErrorMessage(matchError, '그룹 매칭을 찾지 못했어.'));
-    } finally {
-      setIsRequestingGroupMatch(false);
-    }
-  };
-
-  const handleCancelDuelMatch = async () => {
-    try {
-      if (duelMatchState === 'matched' && duelMatchStatus?.canCancel === false) {
-        throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어.');
-      }
-
-      const wasTestMatch = isDuelTestFlow;
-      setError(null);
-      setDuelMatchNotice(null);
-      setIsCancelingDuelMatch(true);
-      await cancelRunningMatch({
-        mode: 'duel',
-        distanceKm: duelDistanceKm,
-        slotStartAt: activeDuelSlotStartAt,
-        testMode: wasTestMatch,
-        ...(duelMatchStatus?.matchId ? { matchId: duelMatchStatus.matchId } : {}),
-      });
-      setDuelMatchResult(null);
-      const nextStatus = await loadDuelMatchStatus(activeDuelSlotStartAt, { testMode: wasTestMatch });
-      if (wasTestMatch) {
-        setDuelDemandSummary(null);
-      } else {
-        const nextSummary = await fetchMatchDemandSummary({
-          mode: 'duel',
-          distanceKm: duelDistanceKm,
-          slotStartAt: activeDuelSlotStartAt,
-        });
-        setDuelDemandSummary(nextSummary);
-      }
-      if (nextStatus.state === 'idle') {
-        setDuelMatchStatus(null);
-      }
-    } catch (matchError) {
-      setError(getApiErrorMessage(matchError, '1대1 매치를 취소하지 못했어.'));
-    } finally {
-      setIsCancelingDuelMatch(false);
-    }
-  };
-
-  const handleCancelGroupMatch = async () => {
-    try {
-      if (groupMatchState === 'matched' && groupMatchStatus?.canCancel === false) {
-        throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어.');
-      }
-
-      const wasTestMatch = isGroupTestFlow;
-      setError(null);
-      setGroupMatchNotice(null);
-      setIsCancelingGroupMatch(true);
-      await cancelRunningMatch({
-        mode: 'group',
-        distanceKm: groupDistanceKm,
-        slotStartAt: activeGroupSlotStartAt,
-        testMode: wasTestMatch,
-        ...(groupMatchStatus?.matchId ? { matchId: groupMatchStatus.matchId } : {}),
-      });
-      setGroupMatchResult(null);
-      const nextStatus = await loadGroupMatchStatus(activeGroupSlotStartAt, { testMode: wasTestMatch });
-      if (wasTestMatch) {
-        setGroupDemandSummary(null);
-      } else {
-        const nextSummary = await fetchMatchDemandSummary({
-          mode: 'group',
-          distanceKm: groupDistanceKm,
-          slotStartAt: activeGroupSlotStartAt,
-        });
-        setGroupDemandSummary(nextSummary);
-      }
-      if (nextStatus.state === 'idle') {
-        setGroupMatchStatus(null);
-      }
-    } catch (matchError) {
-      setError(getApiErrorMessage(matchError, '그룹 매치를 취소하지 못했어.'));
-    } finally {
-      setIsCancelingGroupMatch(false);
-    }
-  };
-
-  const handleCancelUpcomingMatch = async (match: UpcomingRunningMatchItem) => {
-    try {
-      if (!match.canCancel) {
-        throw new Error('출발 1시간 전부터는 예약을 취소할 수 없어.');
-      }
-
-      setError(null);
-      setCancelingUpcomingMatchId(match.matchId);
-      await cancelRunningMatch({
-        mode: match.mode,
-        distanceKm: match.distanceKm,
-        slotStartAt: match.slotStartAt,
-        matchId: match.matchId,
-      });
-      await loadUpcomingMatches();
-      if (match.mode === 'duel' && duelMatchStatus?.matchId === match.matchId) {
-        setDuelMatchResult(null);
-        setDuelMatchStatus(null);
-      }
-      if (match.mode === 'group' && groupMatchStatus?.matchId === match.matchId) {
-        setGroupMatchResult(null);
-        setGroupMatchStatus(null);
-      }
-    } catch (cancelError) {
-      setError(getApiErrorMessage(cancelError, '예약을 취소하지 못했어.'));
-    } finally {
-      setCancelingUpcomingMatchId(null);
-    }
-  };
 
   const {
     handleContinueSoloFromMatch,
@@ -2367,39 +1864,24 @@ export function TrackRunExperienceRuntime({
     visibleUpcomingMatches,
     visibleUpcomingMatchesNowMs: visibleUpcomingMatches.length > 0 ? syncedNowMs : 0,
   });
-  const {
-    runtimeReadyScreenProps,
-  } = useTrackRunRuntimeModelBuilder({
+  const trackRunViewProps = useTrackRunRuntimePropsComposer({
+    backHref,
+    centeredCountdownEntry: shouldShowCenteredMatchCountdown && visibleCountdownEntry
+      ? visibleCountdownEntry
+      : null,
+    error,
+    fullscreenCountdownEntry: shouldShowFullscreenMatchCountdown && visibleCountdownEntry
+      ? visibleCountdownEntry
+      : null,
+    isTabMode,
+    liveContainerProps,
+    liveMatchKey: liveMatchShellPreservation.key,
     readyScreenProps,
-    trackRunShellKind,
+    shellKind: trackRunShellKind,
+    shouldShowReadyScreen,
+    shouldShowRoomArmingOverlay,
+    soloStartCountdownSeconds: runtimeSoloStartCountdownSeconds,
   });
 
-  return (
-    <TrackRunExperienceView
-      backHref={backHref}
-      centeredCountdownEntry={
-        shouldShowCenteredMatchCountdown && visibleCountdownEntry
-          ? visibleCountdownEntry
-          : null
-      }
-      error={error}
-      fullscreenCountdownEntry={
-        shouldShowFullscreenMatchCountdown && visibleCountdownEntry
-          ? visibleCountdownEntry
-          : null
-      }
-      isTabMode={isTabMode}
-      liveContainerProps={liveContainerProps}
-      liveMatchKey={liveMatchShellPreservation.key}
-      readyScreenProps={runtimeReadyScreenProps}
-      shellKind={trackRunShellKind}
-      shouldShowReadyScreen={shouldShowReadyScreen}
-      shouldShowRoomArmingOverlay={shouldShowRoomArmingOverlay}
-      soloStartCountdownSeconds={
-        isStarting && typeof soloStartCountdownSeconds === 'number'
-          ? soloStartCountdownSeconds
-          : null
-      }
-    />
-  );
+  return <TrackRunExperienceView {...trackRunViewProps} />;
 }

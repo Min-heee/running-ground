@@ -204,3 +204,5 @@ export function useTrackRunIdleViewModel({
 
   return model;
 }
+
+export type TrackRunIdleViewModel = ReturnType<typeof useTrackRunIdleViewModel>;

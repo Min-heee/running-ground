@@ -66,6 +66,7 @@ import {
 import { createApiRouteHandler } from './routes/index.mjs';
 import { createAdminReadService } from './services/adminReadService.mjs';
 import { createBackendStatusService } from './services/backendStatusService.mjs';
+import { createLeagueReadService } from './services/leagueReadService.mjs';
 import {
   ApiError,
   applyCorsHeaders,
@@ -4446,34 +4447,6 @@ async function buildFriendRunReadPayload(request, friendId, runId) {
   return payload;
 }
 
-async function buildDistrictPersonalReadPayload(request) {
-  const { payload } = await getFriendsLeagueBridge().getDistrictPersonal({
-    store: loadStore(),
-    token: getAccessToken(request),
-  });
-
-  return payload;
-}
-
-async function buildRegionLeagueReadPayload(request, nodeId) {
-  const { payload } = await getFriendsLeagueBridge().getRegions({
-    store: loadStore(),
-    token: getAccessToken(request),
-    nodeId,
-  });
-
-  return payload;
-}
-
-async function buildUniversityLeagueReadPayload(request) {
-  const { payload } = await getFriendsLeagueBridge().getUniversities({
-    store: loadStore(),
-    token: getAccessToken(request),
-  });
-
-  return payload;
-}
-
 async function buildMarketOverviewReadPayload(request) {
   const { store, user, metrics } = await loadCurrentUserReadContext(request, {
     includeMetrics: true,
@@ -6000,6 +5973,11 @@ const backendStatusService = createBackendStatusService({
   getStoreFilePath,
   loadStore,
 });
+const leagueReadService = createLeagueReadService({
+  getAccessToken,
+  getFriendsLeagueBridge,
+  loadStore,
+});
 
 const routeRequest = createApiRouteHandler({
   ApiError,
@@ -6031,9 +6009,9 @@ const routeRequest = createApiRouteHandler({
   buildFriendLeaderboardReadPayload,
   buildFriendActivityReadPayload,
   buildFriendRunReadPayload,
-  buildDistrictPersonalReadPayload,
-  buildRegionLeagueReadPayload,
-  buildUniversityLeagueReadPayload,
+  buildDistrictPersonalReadPayload: leagueReadService.buildDistrictPersonalReadPayload,
+  buildRegionLeagueReadPayload: leagueReadService.buildRegionLeagueReadPayload,
+  buildUniversityLeagueReadPayload: leagueReadService.buildUniversityLeagueReadPayload,
   buildMarketOverviewReadPayload,
   buildOfflineRaceHubReadPayload,
   buildCurrentRunReadPayload,

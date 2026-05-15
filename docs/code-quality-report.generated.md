@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-15T09:23:55.512Z
+생성 시각: 2026-05-15T10:10:45.910Z
 
 ## 실행 방법
 
@@ -14,12 +14,12 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 702 |
-| 코드 파일 | 656 |
+| 분석 파일 | 739 |
+| 코드 파일 | 693 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 63 |
+| 300줄 이상 파일 | 61 |
 | 500줄 이상 파일 | 15 |
-| 50줄 이상 함수 후보 | 247 |
+| 50줄 이상 함수 후보 | 251 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
 ## 감지 항목 요약
@@ -28,11 +28,11 @@ npm run code:quality
 | --- | --- | --- | --- | --- |
 | React component inline object/array/style 후보 | 70 | 0 | 15 | 55 |
 | 렌더 중 sort/filter/map 후보 | 0 | 0 | 0 | 0 |
-| useEffect가 많은 파일 | 2 | 0 | 2 | 0 |
+| useEffect가 많은 파일 | 0 | 0 | 0 | 0 |
 | useMemo/useCallback 없이 props를 많이 만드는 후보 | 9 | 0 | 9 | 0 |
 | services 밖 fetch/api 호출 후보 | 0 | 0 | 0 | 0 |
 | utils/domain 밖 계산 로직 후보 | 42 | 6 | 36 | 0 |
-| types 밖 타입 선언 후보 | 58 | 5 | 53 | 0 |
+| types 밖 타입 선언 후보 | 56 | 0 | 56 | 0 |
 | setInterval/setTimeout/subscription cleanup 의심 후보 | 15 | 0 | 15 | 0 |
 | Location/watchPosition/background task 사용 후보 | 18 | 5 | 13 | 0 |
 
@@ -40,8 +40,8 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| backend/src/server.mjs | 6186 | imports 25, sort/filter/map 154, timers 1 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2406 | imports 49, focusEffects 1, sort/filter/map 2 |
+| backend/src/server.mjs | 6164 | imports 26, sort/filter/map 154, timers 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1888 | imports 47, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -55,18 +55,15 @@ npm run code:quality
 | backend/src/seed.mjs | 528 | imports 3, sort/filter/map 5 |
 | backend/src/repositories/postgresRunsRepository.test.mjs | 515 | imports 3, sort/filter/map 8 |
 | backend/src/repositories/postgresAuthRepository.mjs | 504 | imports 2, sort/filter/map 1 |
-| src/features/runs/runtime/useIdleRunRuntimeModel.tsx | 497 | imports 9 |
 | backend/src/store.mjs | 484 | imports 5, sort/filter/map 9 |
 | scripts/check-preview-public-api.mjs | 482 | imports 4 |
 | scripts/check-performance-smells.mjs | 477 | imports 3, sort/filter/map 22, subs 8 |
 | backend/src/repositories/postgresFriendsRepository.test.mjs | 456 | imports 3, sort/filter/map 12 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 451 | imports 7, effects 1 |
 | src/lib/api/services/mock/matchSessions.ts | 451 | imports 6, sort/filter/map 12 |
-| src/features/runs/viewModels/matchProgress.ts | 449 | imports 3, sort/filter/map 2 |
 | backend/src/repositories/runsRepository.mjs | 443 | imports 2, sort/filter/map 11 |
 | backend/src/repositories/postgresLeagueRepository.mjs | 441 | sort/filter/map 14 |
 | src/features/runs/lifecycle/matchLifecycleController.test.ts | 439 | imports 5 |
-| src/features/runs/lifecycle/matchStateMachine.ts | 437 | imports 2 |
 | src/lib/api/services/rooms.ts | 434 | imports 6, sort/filter/map 4 |
 | scripts/analyze-android-perf-trace.mjs | 433 | imports 2, sort/filter/map 4 |
 | scripts/deploy-public-backend.mjs | 432 | imports 7, timers 1 |
@@ -74,6 +71,7 @@ npm run code:quality
 | backend/src/repositories/authRepository.test.mjs | 414 | imports 4, sort/filter/map 1 |
 | src/features/runs/sync/activeRoomCheck.ts | 403 | imports 5, timers 1 |
 | src/features/runs/lifecycle/matchRoomFlow.ts | 401 | imports 2, sort/filter/map 8 |
+| src/features/runs/viewModels/matchProgress.ts | 396 | imports 4, sort/filter/map 2 |
 | src/features/runs/tracking/background/locationTaskManager.test.ts | 389 | imports 6, timers 8 |
 | src/integrations/nativeHealth.ts | 379 | imports 8, sort/filter/map 1 |
 | backend/src/repositories/friendsRepository.mjs | 373 | sort/filter/map 9 |
@@ -82,8 +80,8 @@ npm run code:quality
 | src/lib/api/services/mock/matchScheduling.ts | 358 | imports 4, sort/filter/map 8 |
 | docs/refactor-roadmap.md | 358 |  |
 | src/lib/api/services/runningRoomResponseGuards.ts | 356 | imports 2, sort/filter/map 4 |
-| src/features/runs/runtime/useTrackRunRuntimeEffects.ts | 349 | imports 16, effects 2, timers 1 |
 | scripts/generate-testflight-qa-report.mjs | 349 | imports 5, sort/filter/map 1 |
+| src/features/runs/lifecycle/matchStateMachine.ts | 345 | imports 3 |
 | src/components/matches/liveMatchArena/styles.ts | 338 | imports 3 |
 | docs/code-quality-audit.md | 335 | imports 13 |
 | src/features/integrations/IntegrationJourneyCard.tsx | 333 | imports 9, sort/filter/map 3 |
@@ -108,8 +106,8 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| backend/src/server.mjs | 6186 | imports 25, sort/filter/map 154, timers 1 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2406 | imports 49, focusEffects 1, sort/filter/map 2 |
+| backend/src/server.mjs | 6164 | imports 26, sort/filter/map 154, timers 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1888 | imports 47, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -128,23 +126,22 @@ npm run code:quality
 
 
 
-> 247개 중 상위 80개만 표시합니다.
+> 251개 중 상위 80개만 표시합니다.
 
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 163 | TrackRunExperienceRuntime | 2243 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 144 | TrackRunExperienceRuntime | 1744 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
-| src/features/runs/runtime/useIdleRunRuntimeModel.tsx | 123 | useIdleRunRuntimeModel | 374 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
 | backend/src/repositories/postgresRunsRepository.mjs | 369 | createPostgresRunsRepository | 271 |
 | backend/src/repositories/postgresAuthRepository.mjs | 246 | createPostgresAuthRepository | 258 |
 | src/features/settings/screens/AdminScreen.tsx | 19 | AdminScreen | 254 |
-| src/features/runs/runtime/useTrackRunRuntimeEffects.ts | 99 | useTrackRunRuntimeEffects | 250 |
 | src/features/match/hooks/lobby/useRoomStartActions.ts | 65 | useRoomStartActions | 248 |
 | src/features/runs/viewModels/useLiveMatchViewModel.ts | 33 | useLiveMatchViewModel | 247 |
 | src/features/runs/sync/useMatchProgressSync.ts | 50 | useMatchProgressSync | 235 |
 | backend/src/bridges/friendsLeagueBridge.mjs | 22 | createFriendsLeagueBridge | 232 |
+| src/features/runs/runtime/useRuntimeHydrationEffects.ts | 8 | useRuntimeHydrationEffects | 232 |
 | src/features/runs/runtime/useTrackRunRoomLoader.ts | 54 | useTrackRunRoomLoader | 230 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 42 | createLocationTaskManager | 220 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationOwner.ts | 27 | useLiveMatchNavigationOwner | 217 |
@@ -152,14 +149,16 @@ npm run code:quality
 | backend/src/repositories/postgresFriendsRepository.mjs | 503 | createPostgresFriendsRepository | 213 |
 | src/features/runs/sync/partyRunSync/useLinkedMatchSync.ts | 47 | useLinkedMatchSync | 212 |
 | scripts/check-preview-public-api.mjs | 259 | main | 211 |
-| backend/src/server.mjs | 2812 | buildRunningMatchStatusResponse | 210 |
+| backend/src/server.mjs | 2813 | buildRunningMatchStatusResponse | 210 |
 | scripts/analyze-android-perf-trace.mjs | 142 | analyzeLine | 200 |
 | src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 42 | useBlockingMatchStatusPolling | 199 |
 | src/features/runs/runtime/useTrackRunRoomLoader.ts | 71 | callback@useCallback | 195 |
 | src/features/match/hooks/lobby/useRoomInviteActions.ts | 16 | useRoomInviteActions | 194 |
 | src/features/runs/hooks/useMatchRuntimeState.ts | 57 | useMatchRuntimeState | 193 |
 | backend/src/repositories/authRepository.mjs | 127 | createJsonAuthRepository | 191 |
+| src/features/runs/runtime/useTrackRunRuntimeMatchRequestActions.ts | 11 | useTrackRunRuntimeMatchRequestActions | 191 |
 | src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 83 | useTrackingSessionSnapshots | 190 |
+| src/features/runs/runtime/useTrackRunRuntimeRoomInviteActions.ts | 35 | useTrackRunRuntimeRoomInviteActions | 190 |
 | src/features/match/screens/MatchRoomScreen.tsx | 16 | MatchRoomScreen | 181 |
 | src/features/runs/tracking/lifecycle/useMatchAutoTrackingEffects.ts | 42 | useMatchAutoTrackingEffects | 179 |
 | src/features/runs/lifecycle/hooks/useMatchCountdownModel.ts | 40 | useMatchCountdownModel | 171 |
@@ -175,7 +174,9 @@ npm run code:quality
 | src/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyEffects.ts | 27 | useMatchRoomLobbyEffects | 157 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 48 | startLocationTaskWithTrace | 156 |
 | backend/src/bridges/friendsLeagueBridge.test.mjs | 11 | createHarness | 154 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 25 | useTrackRunRuntimeRecipientInviteInbox | 149 |
 | src/features/runs/components/matchSetupCards/DuelMatchSetupCard.tsx | 13 | DuelMatchSetupCard | 145 |
+| src/features/runs/runtime/useTrackRunRuntimeMatchMaintenanceActions.ts | 6 | useTrackRunRuntimeMatchMaintenanceActions | 144 |
 | src/features/runs/hooks/runSaveFlow/useRunFinishCommand.ts | 44 | useRunFinishCommand | 141 |
 | src/features/integrations/components/nrcBridge/NrcBridgeGuideActions.tsx | 10 | buildActionButtons | 139 |
 | src/features/runs/hooks/useMatchSelectionModel.ts | 55 | useMatchSelectionModel | 138 |
@@ -197,10 +198,11 @@ npm run code:quality
 | src/features/runs/hooks/matchLifecycle/useGroupMatchLifecycle.ts | 18 | useGroupMatchLifecycle | 123 |
 | src/features/runs/hooks/useRunTrackingFlow.ts | 11 | useRunTrackingFlow | 122 |
 | backend/src/routes/authRoutes.mjs | 1 | routeAuthRequest | 122 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1100 | callback@useCallback | 121 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 36 | callback@useCallback | 121 |
 | src/features/auth/hooks/useUniversityVerification.ts | 10 | useUniversityVerification | 121 |
 | backend/src/repositories/raceRepository.mjs | 1 | createJsonRaceRepository | 121 |
 | src/features/runs/hooks/useMatchLifecycle.ts | 17 | useMatchLifecycle | 120 |
+| src/features/runs/runtime/useIdleRunModeModel.ts | 91 | useIdleRunModeModel | 119 |
 | src/features/runs/components/LiveMatchPager.tsx | 29 | LiveMatchPager | 119 |
 | backend/src/seed.mjs | 378 | createRegionTree | 118 |
 | backend/src/repositories/runsRepository.mjs | 325 | createJsonRunsRepository | 118 |
@@ -209,10 +211,6 @@ npm run code:quality
 | backend/src/repositories/runsRepository.mjs | 208 | importPendingRunsForUser | 116 |
 | src/features/settings/admin/components/MarketAdminSection.tsx | 81 | MarketAdminSection | 115 |
 | backend/src/repositories/adminRepository.mjs | 5 | createJsonAdminRepository | 115 |
-| src/features/auth/components/signup/SignupCredentialsSection.tsx | 30 | SignupCredentialsSection | 113 |
-| src/components/matches/liveMatchArena/useLiveMatchArenaMountSignals.ts | 24 | useLiveMatchArenaMountSignals | 113 |
-| src/features/match/hooks/lobby/inviteActions/useFriendInviteSend.ts | 10 | useFriendInviteSend | 113 |
-| src/lib/session.ts | 291 | registerAccount | 112 |
 
 ## React component inline object/array/style 후보
 
@@ -296,10 +294,8 @@ npm run code:quality
 
 ## useEffect가 많은 파일
 
-| 우선순위 | 파일 | 줄 | 이유 | 권장 조치 | 근거 |
-| --- | --- | --- | --- | --- | --- |
-| Medium | src/components/matches/liveMatchArena/useLiveMatchArenaMountSignals.ts |  | effect가 많아 dependency 변경과 cleanup 회귀 위험이 높다. | effect를 책임별 hook으로 분리하고, dependency/result dedupe 테스트를 추가한다. | useEffect=6, useFocusEffect=0 |
-| Medium | src/features/runs/components/shells/TrackRunShells.tsx |  | effect가 많아 dependency 변경과 cleanup 회귀 위험이 높다. | effect를 책임별 hook으로 분리하고, dependency/result dedupe 테스트를 추가한다. | useEffect=4, useFocusEffect=0 |
+없음
+
 
 ## useMemo/useCallback 없이 props를 많이 만드는 후보
 
@@ -371,30 +367,25 @@ npm run code:quality
 
 | 우선순위 | 파일 | 줄 | 이유 | 권장 조치 | 근거 |
 | --- | --- | --- | --- | --- | --- |
-| High | src/features/runs/lifecycle/matchStateMachine.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=16 |
-| High | src/features/runs/tracking/actions/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=10 |
-| High | src/features/runs/components/matchSetupCards/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=8 |
-| High | src/features/runs/lifecycle/hooks/runningMatchFocus/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=8 |
-| High | src/features/runs/viewModels/matchProgress.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=8 |
 | Medium | src/features/runs/hooks/runSaveFlow/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
 | Medium | src/features/runs/lifecycle/matchRoomFlow.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
 | Medium | src/features/runs/runtime/trace/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
-| Medium | src/features/runs/runtime/useTrackRunRuntimeEffects.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
 | Medium | src/features/runs/sync/activeRoomCheck.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
 | Medium | src/features/runs/lifecycle/matchLifecycleController.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=6 |
 | Medium | src/integrations/nativeHealth.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=6 |
 | Medium | src/lib/session/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=6 |
 | Medium | src/features/runs/hooks/matchLifecycle/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=5 |
+| Medium | src/features/runs/runtime/idleRunRuntimeTypes.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=5 |
 | Medium | src/components/matches/liveMatchPerfQaLog.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=4 |
 | Medium | src/features/integrations/components/IntegrationSourcesCards.tsx |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=4 |
 | Medium | src/features/integrations/components/nrcBridge/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=4 |
-| Medium | src/features/runs/runtime/useIdleRunRuntimeModel.tsx |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=4 |
 | Medium | src/features/runs/runtime/useTrackRunRoomLoader.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=4 |
 | Medium | src/features/runs/tracking/background/snapshotStore.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=4 |
 | Medium | src/features/runs/viewModels/matchResultModel.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=4 |
 | Medium | src/features/settings/admin/components/MarketAdminSection.tsx |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=4 |
 | Medium | src/features/settings/admin/components/NoticeAdminSection.tsx |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=4 |
 | Medium | src/utils/rgPerfTrace.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=4 |
+| Medium | src/components/matches/liveMatchArena/liveMatchArenaMountTypes.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/components/matches/useAndroidLiveMatchPerfProbe.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/friends/components/FriendListCard.tsx |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/league/utils/leagueScore.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
@@ -412,7 +403,9 @@ npm run code:quality
 | Medium | src/features/runs/lifecycle/liveMatchNavigationGate.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/lifecycle/trackRunShellSelection.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
+| Medium | src/features/runs/runtime/trackRunRuntimeMatchActionTypes.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/runtime/useTrackRunNavigationAdapter.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
+| Medium | src/features/runs/runtime/useTrackRunRuntimeScreenState.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/runtime/useTrackRunRuntimeStateBridge.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/sync/partyRunSync/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/sync/roomInviteInbox.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
@@ -422,6 +415,7 @@ npm run code:quality
 | Medium | src/features/runs/viewModels/liveMatchProgressModel.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/viewModels/liveMatchRaceBoardViewModel.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/viewModels/matchViewModels.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
+| Medium | src/features/runs/viewModels/useTrackRunIdleViewModel.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/settings/admin/components/RaceAdminSection.tsx |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/settings/admin/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/integrations/provider.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
@@ -477,10 +471,10 @@ npm run code:quality
 
 | 우선순위 | 파일 | 줄 | 이유 | 권장 조치 | 근거 |
 | --- | --- | --- | --- | --- | --- |
-| High | Card 계열 |  | Card 계열 파일이 42개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/integrations/IntegrationJourneyCard.tsx, src/features/league/components/LeagueRegionSelectorCard.tsx, src/… |
+| High | Card 계열 |  | Card 계열 파일이 43개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/integrations/IntegrationJourneyCard.tsx, src/features/league/components/LeagueRegionSelectorCard.tsx, src/… |
 | High | Repository 계열 |  | Repository 계열 파일이 22개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/repositories/postgresFriendsRepository.mjs, backend/src/repositories/postgresRunsRepository.mjs, backend/sr… |
 | Medium | Route 계열 |  | Route 계열 파일이 17개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/runs/tracking/background/routeAccumulator.ts, backend/src/routes/adminRoutes.mjs, src/features/runs/RunRou… |
-| Medium | Service 계열 |  | Service 계열 파일이 13개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/services/backendStatusService.mjs, backend/src/services/adminReadService.mjs, src/services/matchService.ts,… |
+| Medium | Service 계열 |  | Service 계열 파일이 14개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/services/backendStatusService.mjs, backend/src/services/adminReadService.mjs, backend/src/services/leagueRe… |
 | Medium | Ranking 계열 |  | Ranking 계열 파일이 11개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/friends/components/friendsRankingStyles.ts, src/features/runs/components/liveMatchTracking/LiveMatchRankin… |
 | Medium | league |  | 같은 basename을 가진 파일 6개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/mock/league.ts, src/lib/api/services/league.ts, src/domain/league.ts, src/lib/api/types/league.ts,… |
 | Medium | friends |  | 같은 basename을 가진 파일 5개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/friends.ts, src/lib/api/services/mock/friends.ts, src/lib/api/types/friends.ts, src/domain/friends… |
@@ -489,14 +483,16 @@ npm run code:quality
 | Medium | admin |  | 같은 basename을 가진 파일 3개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/admin.ts, src/lib/api/types/admin.ts, app/admin.tsx |
 | Medium | config |  | 같은 basename을 가진 파일 3개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | backend/src/config.mjs, src/components/matches/liveMatchArena/config.ts, src/lib/api/config.ts |
 | Medium | matches |  | 같은 basename을 가진 파일 3개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/matches.ts, src/lib/api/types/matches.ts, src/lib/api/services/mock/matches.ts |
+| Medium | matchprogress |  | 같은 basename을 가진 파일 3개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/features/runs/viewModels/matchProgress.ts, src/features/runs/types/matchProgress.ts, src/lib/api/services/mock/matc… |
 | Medium | rooms |  | 같은 basename을 가진 파일 3개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/rooms.ts, src/lib/api/types/rooms.ts, src/lib/api/services/mock/rooms.ts |
 | Medium | _layout |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | app/_layout.tsx, app/(tabs)/_layout.tsx |
 | Medium | addresscatalog |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/features/location/addressCatalog.ts, backend/src/addressCatalog.mjs |
 | Medium | auth |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | backend/src/auth.mjs, src/lib/api/services/mock/auth.ts |
 | Medium | home |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/home.ts, app/(tabs)/home.tsx |
 | Medium | homeoverview |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/features/home/HomeOverview.tsx, src/features/home/utils/homeOverview.ts |
-| Medium | matchprogress |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/features/runs/viewModels/matchProgress.ts, src/lib/api/services/mock/matchProgress.ts |
 | Medium | matchscheduling |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/mock/matchScheduling.ts, src/features/runs/utils/matchScheduling.ts |
+| Medium | matchsetupcards |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/features/runs/types/matchSetupCards.ts, src/features/runs/components/MatchSetupCards.tsx |
+| Medium | matchstatemachine |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/features/runs/lifecycle/matchStateMachine.ts, src/features/runs/types/matchStateMachine.ts |
 | Medium | phoneverification |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | backend/src/phoneVerification.mjs, src/lib/session/phoneVerification.ts |
 | Medium | points |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | backend/src/points.mjs, src/domain/points.ts |
 | Medium | pointsystem |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/features/points/pointSystem.ts, src/features/points/types/pointSystem.ts |

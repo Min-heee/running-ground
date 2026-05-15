@@ -1,11 +1,12 @@
-import { memo, useEffect } from 'react';
+import { memo } from 'react';
 import type { ComponentProps } from 'react';
 import { LiveMatchContainer } from '@/features/runs/components/LiveMatchContainer';
 import { RunningReadyScreen } from '@/features/runs/components/RunningReadyScreen';
-import { rgPerfMark } from '@/utils/rgPerfTrace';
-import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
-
-export type TrackRunShellKind = 'idle' | 'lobby' | 'live';
+import type { TrackRunShellKind } from '@/features/runs/components/shells/TrackRunShellTypes';
+import { useLiveMatchShellMountTrace } from '@/features/runs/components/shells/useLiveMatchShellMountTrace';
+import { useReadyRunShellMountTrace } from '@/features/runs/components/shells/useReadyRunShellMountTrace';
+import { useTrackRunShellDiagnostics } from '@/features/runs/components/shells/useTrackRunShellDiagnostics';
+export type { TrackRunShellKind } from '@/features/runs/components/shells/TrackRunShellTypes';
 
 type TrackRunShellRouterProps = {
   liveContainerProps: ComponentProps<typeof LiveMatchContainer>;
@@ -14,40 +15,13 @@ type TrackRunShellRouterProps = {
   shellKind: TrackRunShellKind;
 };
 
-function useTrackRunShellDiagnostics(shellKind: TrackRunShellKind) {
-  useDevRenderCounter(
-    shellKind === 'idle'
-      ? 'IdleRunShell'
-      : shellKind === 'lobby'
-        ? 'MatchLobbyShell'
-        : 'LiveMatchShell',
-  );
-
-  useEffect(() => {
-    rgPerfMark('track run shell selected', {
-      shell: shellKind,
-      source: 'track-run view',
-    });
-  }, [shellKind]);
-}
-
 export const IdleRunShell = memo(function IdleRunShell({
   readyScreenProps,
 }: {
   readyScreenProps: ComponentProps<typeof RunningReadyScreen>;
 }) {
   useTrackRunShellDiagnostics('idle');
-
-  useEffect(() => {
-    rgPerfMark('idle shell mounted', {
-      source: 'track-run shell',
-    });
-    rgPerfMark('track run shell prevented cross-state subscription', {
-      prevented: 'lobby/live',
-      shell: 'idle',
-      source: 'track-run shell',
-    });
-  }, []);
+  useReadyRunShellMountTrace('idle');
 
   return <RunningReadyScreen {...readyScreenProps} />;
 });
@@ -58,17 +32,7 @@ export const MatchLobbyShell = memo(function MatchLobbyShell({
   readyScreenProps: ComponentProps<typeof RunningReadyScreen>;
 }) {
   useTrackRunShellDiagnostics('lobby');
-
-  useEffect(() => {
-    rgPerfMark('lobby shell mounted', {
-      source: 'track-run shell',
-    });
-    rgPerfMark('track run shell prevented cross-state subscription', {
-      prevented: 'live',
-      shell: 'lobby',
-      source: 'track-run shell',
-    });
-  }, []);
+  useReadyRunShellMountTrace('lobby');
 
   return <RunningReadyScreen {...readyScreenProps} />;
 });
@@ -81,29 +45,7 @@ export const LiveMatchShell = memo(function LiveMatchShell({
   liveMatchKey: string | null;
 }) {
   useTrackRunShellDiagnostics('live');
-
-  useEffect(() => {
-    rgPerfMark('live shell mounted', {
-      key: liveMatchKey,
-      source: 'track-run shell',
-    });
-    rgPerfMark('track run shell prevented cross-state subscription', {
-      prevented: 'idle/lobby',
-      shell: 'live',
-      source: 'track-run shell',
-    });
-    rgPerfMark('live match key stable', {
-      key: liveMatchKey,
-      source: 'track-run shell',
-    });
-
-    return () => {
-      rgPerfMark('live match screen unmount', {
-        key: liveMatchKey,
-        source: 'track-run shell',
-      });
-    };
-  }, [liveMatchKey]);
+  useLiveMatchShellMountTrace(liveMatchKey);
 
   return <LiveMatchContainer {...liveContainerProps} />;
 });

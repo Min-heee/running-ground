@@ -2,6 +2,16 @@ import type {
   DuelMatchOpponent,
   GroupMatchParticipant,
 } from '@/lib/api/types';
+import type {
+  DuelComparisonSnapshot,
+  GroupLiveStanding,
+  LastSyncedMatchProgress,
+  MatchProgressModel,
+  MatchProgressParticipant,
+  OfficialMatchProgress,
+  ParticipantAveragePaceInput,
+  RawMatchProgress,
+} from '@/features/runs/types/matchProgress';
 import { buildAveragePace } from '@/features/runs/tracking';
 import {
   appendGroupLiveStandingGaps,
@@ -11,78 +21,15 @@ import {
 
 const MATCH_COMPARISON_INTERVAL_SECONDS = 30;
 
-export type GroupLiveStanding = GroupMatchParticipant & {
-  rank: number;
-  currentDistanceKm: number;
-  gapAheadKm: number | null;
-  gapLeaderKm: number;
-  isForfeited: boolean;
-  isCurrentUser: boolean;
-};
-
-export type LastSyncedMatchProgress = {
-  matchId: string;
-  distanceKm: number;
-  elapsedSeconds: number;
-  currentPace: string;
-  updatedAt: number;
-};
-
-type MatchProgressParticipant = {
-  liveDistanceKm?: number;
-  liveElapsedSeconds?: number;
-  livePace?: string;
-  liveUpdatedAt?: string;
-  averagePace?: string;
-  officialReady?: boolean;
-  officialDistanceKm?: number;
-  officialElapsedSeconds?: number;
-  officialAveragePace?: string;
-  officialRank?: number;
-  officialGapAheadKm?: number | null;
-  officialGapLeaderKm?: number;
-  officialComparedAt?: string;
-};
-
-export type RawMatchProgress = {
-  distanceKm: number;
-  elapsedSeconds: number;
-  paceLabel: string;
-  updatedAt?: string;
-  hasProgress: boolean;
-};
-
-export type OfficialMatchProgress = {
-  distanceKm: number;
-  elapsedSeconds: number;
-  paceLabel: string;
-  rank?: number;
-  gapAheadKm?: number | null;
-  gapLeaderKm?: number;
-  comparedAt?: string;
-  ready: boolean;
-};
-
-export type DisplayMatchProgress = {
-  distanceKm: number;
-  elapsedSeconds: number;
-  paceLabel: string;
-  source: 'official' | 'raw' | 'estimated' | 'empty';
-  hasProgress: boolean;
-};
-
-export type MatchProgressModel = {
-  rawProgress: RawMatchProgress;
-  officialProgress: OfficialMatchProgress | null;
-  displayProgress: DisplayMatchProgress;
-};
-
-export type DuelComparisonSnapshot = {
-  checkpointSeconds: number;
-  currentDistanceKm: number;
-  opponentDistanceKm: number;
-  gapKm: number;
-};
+export type {
+  DisplayMatchProgress,
+  DuelComparisonSnapshot,
+  GroupLiveStanding,
+  LastSyncedMatchProgress,
+  MatchProgressModel,
+  OfficialMatchProgress,
+  RawMatchProgress,
+} from '@/features/runs/types/matchProgress';
 
 export function parsePaceSecondsPerKm(paceLabel: string) {
   const matched = String(paceLabel).trim().match(/^(\d{1,2}):(\d{2})\/km$/i);
@@ -123,7 +70,7 @@ export function buildAverageArenaPaceLabel(distanceKm: number, elapsedSeconds: n
 }
 
 export function buildParticipantAveragePaceLabel(
-  participant: Pick<DuelMatchOpponent, 'liveDistanceKm' | 'liveElapsedSeconds' | 'livePace' | 'liveUpdatedAt' | 'officialAveragePace'> | null | undefined,
+  participant: ParticipantAveragePaceInput | null | undefined,
   hasOfficialStart: boolean,
 ) {
   if (!hasOfficialStart) {
