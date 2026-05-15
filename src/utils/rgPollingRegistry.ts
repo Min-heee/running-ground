@@ -1,64 +1,26 @@
 import { rgPerfMark } from '@/utils/rgPerfTrace';
+import {
+  createKeyedSlotRegistry,
+  type RgRegistryDetailValue,
+} from '@/utils/rgKeyedRegistry';
 
-type RgPollingDetailValue = string | number | boolean | null | undefined;
-type RgPollingDetail = Record<string, RgPollingDetailValue>;
+type RgPollingDetail = Record<string, RgRegistryDetailValue>;
 
-type ActivePollingSlot = {
-  detail?: RgPollingDetail;
-  key: string;
-  label: string;
-  ownerId: number;
-  startedAtMs: number;
-};
-
-let nextPollingOwnerId = 0;
-const activePollingSlots = new Map<string, ActivePollingSlot>();
-
-function getNowMs() {
-  return typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now();
-}
-
-export function acquireRgPollingSlot(key: string, label: string, detail?: RgPollingDetail) {
-  const activeSlot = activePollingSlots.get(key);
-  if (activeSlot) {
+const pollingSlotRegistry = createKeyedSlotRegistry<RgPollingDetail>({
+  onDuplicate: ({ activeSlot, detail, key, label }) => {
     rgPerfMark('polling duplicate blocked', {
       activeOwnerId: activeSlot.ownerId,
       label,
       pollingKey: key,
       source: detail?.source,
     });
+  },
+});
 
-    return {
-      acquired: false,
-      ownerId: activeSlot.ownerId,
-      release: () => {},
-    };
-  }
-
-  nextPollingOwnerId += 1;
-  const ownerId = nextPollingOwnerId;
-  activePollingSlots.set(key, {
-    detail,
-    key,
-    label,
-    ownerId,
-    startedAtMs: getNowMs(),
-  });
-
-  return {
-    acquired: true,
-    ownerId,
-    release: () => {
-      const currentSlot = activePollingSlots.get(key);
-      if (currentSlot?.ownerId !== ownerId) {
-        return;
-      }
-
-      activePollingSlots.delete(key);
-    },
-  };
+export function acquireRgPollingSlot(key: string, label: string, detail?: RgPollingDetail) {
+  return pollingSlotRegistry.acquire(key, label, detail);
 }
 
 export function getActiveRgPollingSlotCount() {
-  return activePollingSlots.size;
+  return pollingSlotRegistry.getActiveCount();
 }

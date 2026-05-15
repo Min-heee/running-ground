@@ -6,6 +6,7 @@ import {
   getMatchStartRemainingSeconds,
   shouldShowMatchStartOverlay,
 } from '@/lib/matchCountdown';
+import { buildBlockingMatchStatusRegistryKey } from '@/features/runs/sync/registryKeys';
 import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';
 import { rgPerfMark, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 
@@ -35,7 +36,7 @@ function shouldUseFastMatchStatusPolling(
 }
 
 export function buildBlockingMatchStatusPollingKey(matchId: string) {
-  return `blocking-match-status:${matchId}`;
+  return buildBlockingMatchStatusRegistryKey(matchId);
 }
 
 export function useBlockingMatchStatusPolling({

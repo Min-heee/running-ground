@@ -1,117 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { AppState, Platform } from 'react-native';
+import { AppState } from 'react-native';
 import type { AppStateStatus } from 'react-native';
-import { fetchFriendLeaderboard } from '@/services/friendsService';
-import { getApiErrorMessage } from '@/services/apiError';
 import type { FriendLeaderboardResponse, RunningMatchRoom } from '@/lib/api/types';
-import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard';
-import {
-  getActiveRoomCheckResultSkipReason,
-  runActiveRoomCheck,
-} from '@/features/runs/sync/activeRoomCheck';
-import {
-  buildActiveRoomResultLogDetail,
-  buildActiveRoomSnapshotKey,
-} from '@/features/runs/sync/activeRoomResult';
-import {
-  buildRecipientRoomInviteInboxResult,
-} from '@/features/runs/sync/roomInviteInbox';
-import {
-  consumeOptimisticMatchRoomHydration,
-} from '@/features/match/hooks/lobby/optimisticRoomHydration';
-import {
-  parseServerNowMs,
-  resolveStableServerClockOffset,
-  shouldAcceptServerSnapshot,
-} from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
-import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
-import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';
-import { isRgInputInteractionRecent } from '@/utils/rgInputTrace';
-
-const INVITE_INBOX_ANDROID_FOCUSED_POLL_MS = 4_000;
-const INVITE_INBOX_DEFAULT_FOCUSED_POLL_MS = 1_500;
-const INVITE_INBOX_ANDROID_DEBOUNCE_MS = 2_500;
-const INVITE_INBOX_DEFAULT_DEBOUNCE_MS = 800;
-const ACTIVE_ROOM_FOREGROUND_DEBOUNCE_MS = 4_000;
-
-function getFocusedInviteInboxPollMs() {
-  return Platform.OS === 'android'
-    ? INVITE_INBOX_ANDROID_FOCUSED_POLL_MS
-    : INVITE_INBOX_DEFAULT_FOCUSED_POLL_MS;
-}
-
-function getInviteInboxDebounceMs() {
-  return Platform.OS === 'android'
-    ? INVITE_INBOX_ANDROID_DEBOUNCE_MS
-    : INVITE_INBOX_DEFAULT_DEBOUNCE_MS;
-}
-
-function buildRoomRenderKey(room: RunningMatchRoom | null) {
-  if (!room) {
-    return 'empty';
-  }
-
-  return [
-    room.roomId,
-    room.state,
-    room.startMode,
-    room.distanceKm,
-    room.slotStartAt,
-    room.maxParticipants,
-    room.canStart ? 'can-start' : 'cannot-start',
-    room.linkedMatchId ?? 'no-match',
-    room.linkedMatchStatus ?? 'no-status',
-    room.linkedMatchSlotStartAt ?? 'no-linked-slot',
-    room.joined === false ? 'invited-only' : 'joined',
-    room.invitedFriendIds.join('|'),
-    room.invitedFriends?.map((friend) => [friend.userId, friend.name, friend.status].join(':')).join('|') ?? 'no-invites',
-    room.participants.map((participant) => [
-      participant.userId,
-      participant.isReady ? 'ready' : 'waiting',
-      participant.isCountdownReady ? 'loaded' : 'loading',
-    ].join(':')).join('|'),
-  ].join('::');
-}
-
-function resolveMatchRoomSnapshotPollingPolicy({
-  linkedMatchId,
-  state,
-}: {
-  linkedMatchId?: string | null;
-  state?: RunningMatchRoom['state'] | null;
-}) {
-  if (linkedMatchId) {
-    return {
-      enabled: false,
-      intervalMs: 5000,
-      owner: 'linked match status',
-      reason: `${state ?? 'linked'}-live-match-handoff`,
-    };
-  }
-
-  return {
-    enabled: true,
-    intervalMs: getFocusedInviteInboxPollMs(),
-    owner: 'match-room snapshot',
-    reason: 'waiting-room-sync',
-  };
-}
+import { rgPerfMark } from '@/utils/rgPerfTrace';
+import {
+  ACTIVE_ROOM_FOREGROUND_DEBOUNCE_MS,
+  getFocusedInviteInboxPollMs,
+} from './roomSnapshot/roomSnapshotPollingPolicy';
+import { useLobbyHydrationState } from './roomSnapshot/useLobbyHydrationState';
+import { useRoomSnapshotFetcher } from './roomSnapshot/useRoomSnapshotFetcher';
+import { useRoomSnapshotPolling } from './roomSnapshot/useRoomSnapshotPolling';
 
 export function useRoomSnapshot() {
   const currentUser = getCurrentUserProfile();
   const currentUserTag = currentUser?.publicTag ?? 'mock-current-user';
-  const [optimisticRoomHydration] = useState(() => consumeOptimisticMatchRoomHydration());
-  const initialOptimisticRoom = optimisticRoomHydration?.room ?? null;
-  const initialOptimisticServerNowMs = parseServerNowMs(optimisticRoomHydration?.serverNow) ?? 0;
-  const latestRoomServerNowMsRef = useRef(initialOptimisticServerNowMs);
+  const {
+    commitRoom,
+    latestRoomServerNowMsRef,
+    loading,
+    optimisticRoomHydration,
+    optimisticRouteKeyLoggedRef,
+    room,
+    roomRef,
+    serverClockOffsetMs,
+    setLoading,
+    syncServerClock,
+  } = useLobbyHydrationState();
   const lastHandledActiveRoomSnapshotKeyRef = useRef<string | null>(null);
   const lastDisplayedInviteKeyRef = useRef<string | null>(null);
-  const roomRenderKeyRef = useRef<string | null>(
-    initialOptimisticRoom ? buildRoomRenderKey(initialOptimisticRoom) : null,
-  );
-  const roomRef = useRef<RunningMatchRoom | null>(initialOptimisticRoom);
   const liveMatchHandoffRef = useRef<{ matchId: string; roomId: string } | null>(null);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const lastInviteInboxPollStartedAtRef = useRef(0);
@@ -119,38 +37,11 @@ export function useRoomSnapshot() {
   const screenFocusedRef = useRef(false);
   const mountedRef = useRef(true);
   const foregroundDebounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const optimisticRouteKeyLoggedRef = useRef(false);
 
-  const [room, setRoom] = useState<RunningMatchRoom | null>(initialOptimisticRoom);
   const [friendLeaderboard, setFriendLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(!initialOptimisticRoom);
   const [pollingPaused, setPollingPaused] = useState(false);
   const [screenFocused, setScreenFocused] = useState(false);
-  const [serverClockOffsetMs, setServerClockOffsetMs] = useState(
-    initialOptimisticServerNowMs ? initialOptimisticServerNowMs - Date.now() : 0,
-  );
-
-  const syncServerClock = useCallback((serverNow?: string) => {
-    const serverNowMs = parseServerNowMs(serverNow);
-    if (serverNowMs === null) {
-      return;
-    }
-
-    const nextOffsetMs = serverNowMs - Date.now();
-    setServerClockOffsetMs((currentOffsetMs) => resolveStableServerClockOffset(currentOffsetMs, nextOffsetMs));
-  }, []);
-
-  const commitRoom = useCallback((nextRoom: RunningMatchRoom | null) => {
-    const nextKey = buildRoomRenderKey(nextRoom);
-    if (roomRenderKeyRef.current === nextKey) {
-      return;
-    }
-
-    roomRenderKeyRef.current = nextKey;
-    roomRef.current = nextRoom;
-    setRoom(nextRoom);
-  }, []);
 
   const markLiveMatchHandoff = useCallback((nextRoom: RunningMatchRoom, source: string) => {
     if (!nextRoom.linkedMatchId) {
@@ -181,7 +72,7 @@ export function useRoomSnapshot() {
       source,
       state: nextRoom.state,
     });
-  }, []);
+  }, [setLoading]);
 
   const buildMatchRoomActiveRoomCheckRouteKey = useCallback(() => {
     const routeKey = [
@@ -207,221 +98,25 @@ export function useRoomSnapshot() {
     }
 
     return routeKey;
-  }, [optimisticRoomHydration]);
+  }, [optimisticRoomHydration, optimisticRouteKeyLoggedRef, roomRef]);
 
-  const loadRoom = useCallback(async () => {
-    if (pollingPausedRef.current || !screenFocusedRef.current) {
-      rgPerfMark('invite inbox polling skipped idle', {
-        paused: pollingPausedRef.current,
-        source: 'match-room snapshot',
-        focused: screenFocusedRef.current,
-      });
-      return null;
-    }
-
-    const routeKey = buildMatchRoomActiveRoomCheckRouteKey();
-    if (isRgInputInteractionRecent()) {
-      rgPerfMark('active room check suppressed by user interaction', {
-        routeKey,
-        source: 'match-room snapshot',
-      });
-      return roomRef.current;
-    }
-
-    const nowMs = Date.now();
-    const debounceMs = getInviteInboxDebounceMs();
-    const elapsedSinceLastPollMs = nowMs - lastInviteInboxPollStartedAtRef.current;
-
-    if (lastInviteInboxPollStartedAtRef.current && elapsedSinceLastPollMs < debounceMs) {
-      rgPerfMark('invite inbox polling debounced', {
-        debounceMs,
-        elapsedMs: elapsedSinceLastPollMs,
-        routeKey,
-        source: 'match-room snapshot',
-      });
-      return roomRef.current;
-    }
-
-    lastInviteInboxPollStartedAtRef.current = nowMs;
-    const endInviteInboxPollingTrace = rgPerfMeasureStart('invite inbox polling', {
-      routeKey,
-      source: 'match-room snapshot',
-    });
-
-    try {
-      const activeRoomCheckResult = await runActiveRoomCheck({
-        routeKey,
-        source: 'match-room snapshot',
-      });
-      endInviteInboxPollingTrace({
-        requestId: activeRoomCheckResult.requestId,
-        success: true,
-      });
-      const currentRouteKey = buildMatchRoomActiveRoomCheckRouteKey();
-      const skipReason = getActiveRoomCheckResultSkipReason({
-        currentMatchId: roomRef.current?.linkedMatchId ?? null,
-        currentRouteKey,
-        result: activeRoomCheckResult,
-      });
-
-      if (skipReason) {
-        const logDetail = {
-          currentRouteKey,
-          generation: activeRoomCheckResult.generation,
-          reason: skipReason,
-          requestId: activeRoomCheckResult.requestId,
-          routeKey: activeRoomCheckResult.routeKey,
-          source: 'match-room snapshot',
-        };
-
-        if (skipReason === 'stale-generation') {
-          rgPerfMark('active room result skipped stale generation', logDetail);
-        } else {
-          rgPerfMark('active room result skipped duplicate', logDetail);
-        }
-        return null;
-      }
-
-      const payload = activeRoomCheckResult.payload;
-      if (!payload) {
-        return null;
-      }
-
-      const handoff = liveMatchHandoffRef.current;
-      if (handoff && (!payload.room || payload.room.roomId === handoff.roomId)) {
-        rgPerfMark('match-room state ignored after handoff', {
-          incomingLinkedMatchId: payload.room?.linkedMatchId ?? null,
-          incomingRoomId: payload.room?.roomId ?? null,
-          incomingState: payload.room?.state ?? null,
-          matchId: handoff.matchId,
-          roomId: handoff.roomId,
-          source: 'match-room snapshot',
-        });
-        return roomRef.current;
-      }
-
-      if (!mountedRef.current || pollingPausedRef.current) {
-        rgPerfMark('active room result skipped duplicate', {
-          reason: !mountedRef.current ? 'unmounted' : 'already navigating',
-          source: 'match-room snapshot',
-        });
-        return null;
-      }
-
-      if (!shouldAcceptServerSnapshot(latestRoomServerNowMsRef, payload.serverNow)) {
-        rgPerfMark('active room result skipped duplicate', {
-          reason: 'stale result',
-          source: 'match-room snapshot',
-        });
-        return null;
-      }
-
-      if (isMatchRoomExiting(payload.room?.roomId)) {
-        const endStaleCleanupTrace = rgPerfMeasureStart('stale room cleanup', {
-          roomId: payload.room?.roomId ?? null,
-          source: 'match-room exit guard',
-        });
-        commitRoom(null);
-        endStaleCleanupTrace({ success: true });
-        setError(null);
-        return null;
-      }
-
-      const snapshotKey = buildActiveRoomSnapshotKey({
-        room: payload.room,
-        userId: currentUserTag,
-      });
-      if (lastHandledActiveRoomSnapshotKeyRef.current === snapshotKey) {
-        rgPerfMark('active room result skipped duplicate', buildActiveRoomResultLogDetail({
-          reason: 'same room snapshot',
-          room: payload.room,
-          snapshotKey,
-          source: 'match-room snapshot',
-        }));
-        return roomRef.current;
-      }
-
-      lastHandledActiveRoomSnapshotKeyRef.current = snapshotKey;
-      rgPerfMark('active room result handled', buildActiveRoomResultLogDetail({
-        room: payload.room,
-        snapshotKey,
-        source: 'match-room snapshot',
-      }));
-
-      syncServerClock(payload.serverNow);
-      if (payload.room) {
-        rgPerfMark('already joined room detected', {
-          roomId: payload.room.roomId,
-          source: 'match-room snapshot',
-          state: payload.room.state,
-        });
-      }
-
-      const nextRoom = payload.room;
-      const inviteInboxResult = buildRecipientRoomInviteInboxResult({
-        currentUserId: currentUserTag,
-        previousInviteKey: lastDisplayedInviteKeyRef.current,
-        room: nextRoom,
-      });
-      if (inviteInboxResult.event) {
-        if (inviteInboxResult.shouldDisplay) {
-          lastDisplayedInviteKeyRef.current = inviteInboxResult.event.key;
-          rgPerfMark('invite received', {
-            inviteId: inviteInboxResult.event.inviteId,
-            invitedUserId: inviteInboxResult.event.invitedUserId,
-            roomId: inviteInboxResult.event.roomId,
-            source: 'invite inbox polling',
-            state: inviteInboxResult.event.roomState,
-          });
-          rgPerfMark('invite card displayed', {
-            inviteId: inviteInboxResult.event.inviteId,
-            invitedUserId: inviteInboxResult.event.invitedUserId,
-            roomId: inviteInboxResult.event.roomId,
-            source: 'invite inbox polling',
-            state: inviteInboxResult.event.roomState,
-          });
-        } else {
-          rgPerfMark('invite card display skipped duplicate', {
-            inviteId: inviteInboxResult.event.inviteId,
-            invitedUserId: inviteInboxResult.event.invitedUserId,
-            roomId: inviteInboxResult.event.roomId,
-            source: 'invite inbox polling',
-            state: inviteInboxResult.event.roomState,
-          });
-          rgPerfMark('invite card display skipped reason', {
-            inviteId: inviteInboxResult.event.inviteId,
-            invitedUserId: inviteInboxResult.event.invitedUserId,
-            reason: inviteInboxResult.skippedReason,
-            roomId: inviteInboxResult.event.roomId,
-            source: 'invite inbox polling',
-            state: inviteInboxResult.event.roomState,
-          });
-        }
-      }
-      commitRoom(nextRoom);
-      if (nextRoom?.linkedMatchId) {
-        markLiveMatchHandoff(nextRoom, 'match-room snapshot');
-      }
-      setError(null);
-      return nextRoom;
-    } catch (roomError) {
-      endInviteInboxPollingTrace({
-        success: false,
-      });
-      if (!mountedRef.current || pollingPausedRef.current) {
-        return null;
-      }
-
-      setError(getApiErrorMessage(roomError, '대기실을 불러오지 못했어.'));
-      return null;
-    }
-  }, [
-    buildMatchRoomActiveRoomCheckRouteKey,
+  const loadRoom = useRoomSnapshotFetcher({
+    buildRouteKey: buildMatchRoomActiveRoomCheckRouteKey,
     commitRoom,
     currentUserTag,
+    lastDisplayedInviteKeyRef,
+    lastHandledActiveRoomSnapshotKeyRef,
+    lastInviteInboxPollStartedAtRef,
+    latestRoomServerNowMsRef,
+    liveMatchHandoffRef,
     markLiveMatchHandoff,
+    mountedRef,
+    pollingPausedRef,
+    roomRef,
+    screenFocusedRef,
+    setError,
     syncServerClock,
-  ]);
+  });
 
   useEffect(() => {
     if (!optimisticRoomHydration?.room) {
@@ -504,129 +199,17 @@ export function useRoomSnapshot() {
     pollingPausedRef.current = true;
     setPollingPaused(true);
     setLoading(false);
-  }, []);
+  }, [setLoading]);
 
-  useEffect(() => {
-    if (pollingPaused || !screenFocused) {
-      rgPerfMark('invite inbox polling skipped idle', {
-        paused: pollingPaused,
-        source: 'match-room snapshot',
-        focused: screenFocused,
-      });
-      setLoading(false);
-      return undefined;
-    }
-
-    let cancelled = false;
-    const pollingRoomId = room?.roomId ?? null;
-    const pollingLinkedMatchId = room?.linkedMatchId ?? null;
-    const pollingRoomState = room?.state ?? null;
-
-    const policy = resolveMatchRoomSnapshotPollingPolicy({
-      linkedMatchId: pollingLinkedMatchId,
-      state: pollingRoomState,
-    });
-    if (!policy.enabled) {
-      rgPerfMark('match polling skipped', {
-        linkedMatchId: pollingLinkedMatchId,
-        owner: 'match-room snapshot',
-        reason: policy.reason,
-        roomId: pollingRoomId,
-        state: pollingRoomState,
-      });
-      rgPerfMark('match-room polling stopped after handoff', {
-        linkedMatchId: pollingLinkedMatchId,
-        owner: policy.owner,
-        reason: policy.reason,
-        roomId: pollingRoomId,
-        source: 'match-room snapshot',
-        state: pollingRoomState,
-      });
-      setLoading(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const hydrate = async () => {
-      setLoading(true);
-      const [nextRoom, friends] = await Promise.all([
-        loadRoom(),
-        fetchFriendLeaderboard().catch(() => null),
-      ]);
-
-      if (cancelled) {
-        return;
-      }
-
-      if (friends) {
-        setFriendLeaderboard(friends);
-      }
-
-      setLoading(false);
-      return nextRoom;
-    };
-
-    void hydrate();
-
-    const intervalMs = policy.intervalMs;
-    const pollingKey = pollingRoomId
-      ? `room:${pollingRoomId}:match-room-snapshot`
-      : `active-room:${currentUserTag}:match-room-snapshot`;
-    const pollingSlot = acquireRgPollingSlot(pollingKey, 'match-room snapshot polling', {
-      intervalMs,
-      linkedMatchId: pollingLinkedMatchId,
-      owner: policy.owner,
-      reason: policy.reason,
-      roomId: pollingRoomId,
-      source: 'match-room snapshot',
-      state: pollingRoomState,
-    });
-
-    if (!pollingSlot.acquired) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    rgPerfMark('match polling start', {
-      intervalMs,
-      owner: policy.owner,
-      pollingKey,
-      reason: policy.reason,
-      roomId: pollingRoomId,
-      source: 'match-room snapshot',
-      state: pollingRoomState,
-    });
-    rgPerfMark('invite inbox polling focused only', {
-      intervalMs,
-      owner: policy.owner,
-      pollingKey,
-      reason: policy.reason,
-      roomId: pollingRoomId,
-      source: 'match-room snapshot',
-      state: pollingRoomState,
-    });
-    const stopPollingTrace = rgPerfTrackResource('polling', 'match-room snapshot polling', {
-      intervalMs,
-      linkedMatchId: pollingLinkedMatchId,
-      owner: policy.owner,
-      pollingKey,
-      reason: policy.reason,
-      roomId: pollingRoomId,
-      state: pollingRoomState,
-    });
-    const intervalId = setInterval(() => {
-      void loadRoom();
-    }, intervalMs);
-
-    return () => {
-      cancelled = true;
-      clearInterval(intervalId);
-      stopPollingTrace();
-      pollingSlot.release();
-    };
-  }, [currentUserTag, loadRoom, pollingPaused, room?.linkedMatchId, room?.roomId, room?.state, screenFocused]);
+  useRoomSnapshotPolling({
+    currentUserTag,
+    loadRoom,
+    pollingPaused,
+    room,
+    screenFocused,
+    setFriendLeaderboard,
+    setLoading,
+  });
 
   return {
     room,

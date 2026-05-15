@@ -19,6 +19,7 @@ import {
   resolveActiveMatchProgressTarget,
   shouldSendMatchProgressHeartbeat,
 } from '@/features/runs/sync/matchProgressSync';
+import { buildMatchProgressRegistryKey } from '@/features/runs/sync/registryKeys';
 import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 import {
   acquireRgHeartbeatSlot,
@@ -96,7 +97,7 @@ export function useMatchProgressSync({
       return undefined;
     }
 
-    const heartbeatKey = `match-progress:${activeHeartbeatMatchId}`;
+    const heartbeatKey = buildMatchProgressRegistryKey(activeHeartbeatMatchId);
     const heartbeatSlot = acquireRgHeartbeatSlot(heartbeatKey, 'match progress heartbeat', {
       cadence: 'on tracking tick',
       heartbeatKey,
@@ -128,7 +129,7 @@ export function useMatchProgressSync({
   }, [activeHeartbeatMatchId, heartbeatEnabled]);
 
   const canSendMatchProgressHeartbeat = useCallback((matchId: string) => {
-    const heartbeatKey = `match-progress:${matchId}`;
+    const heartbeatKey = buildMatchProgressRegistryKey(matchId);
     const owner = heartbeatSlotOwnerRef.current;
     const canSend = canUseRgHeartbeatSlot(
       heartbeatKey,
@@ -148,7 +149,7 @@ export function useMatchProgressSync({
 
   const pushRunningMatchProgress = useCallback(async (input: UpdateRunningMatchProgressInput) => {
     const syncedProgress = buildSyncedMatchProgressSnapshot(input);
-    const heartbeatKey = `match-progress:${input.matchId}`;
+    const heartbeatKey = buildMatchProgressRegistryKey(input.matchId);
     const heartbeatRequest = runRgHeartbeatSingleFlight(heartbeatKey, async () => {
       const endHeartbeatApiTrace = rgPerfMeasureStart('progress heartbeat API', {
         heartbeatKey,

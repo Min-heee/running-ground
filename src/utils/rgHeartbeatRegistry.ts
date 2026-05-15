@@ -1,57 +1,34 @@
 import { rgPerfMark } from '@/utils/rgPerfTrace';
+import {
+  createKeyedSingleFlightRegistry,
+  createKeyedSlotRegistry,
+  type RgRegistryDetailValue,
+} from '@/utils/rgKeyedRegistry';
 
-type RgHeartbeatDetailValue = string | number | boolean | null | undefined;
-type RgHeartbeatDetail = Record<string, RgHeartbeatDetailValue>;
+type RgHeartbeatDetail = Record<string, RgRegistryDetailValue>;
 
-type ActiveHeartbeatSlot = {
-  detail?: RgHeartbeatDetail;
-  key: string;
-  label: string;
-  ownerId: number;
-};
-
-let nextHeartbeatOwnerId = 0;
-const activeHeartbeatSlots = new Map<string, ActiveHeartbeatSlot>();
-const inFlightHeartbeatRequests = new Map<string, Promise<unknown>>();
-
-export function acquireRgHeartbeatSlot(key: string, label: string, detail?: RgHeartbeatDetail) {
-  const activeSlot = activeHeartbeatSlots.get(key);
-  if (activeSlot) {
+const heartbeatSlotRegistry = createKeyedSlotRegistry<RgHeartbeatDetail>({
+  onDuplicate: ({ activeSlot, detail, key, label }) => {
     rgPerfMark('heartbeat duplicate blocked', {
       activeOwnerId: activeSlot.ownerId,
       heartbeatKey: key,
       label,
       matchId: detail?.matchId,
     });
+  },
+});
 
-    return {
-      acquired: false,
-      ownerId: activeSlot.ownerId,
-      release: () => {},
-    };
-  }
+const heartbeatSingleFlightRegistry = createKeyedSingleFlightRegistry<RgHeartbeatDetail>({
+  onDuplicate: ({ detail, key }) => {
+    rgPerfMark('heartbeat API duplicate blocked', {
+      heartbeatKey: key,
+      matchId: detail?.matchId,
+    });
+  },
+});
 
-  nextHeartbeatOwnerId += 1;
-  const ownerId = nextHeartbeatOwnerId;
-  activeHeartbeatSlots.set(key, {
-    detail,
-    key,
-    label,
-    ownerId,
-  });
-
-  return {
-    acquired: true,
-    ownerId,
-    release: () => {
-      const currentSlot = activeHeartbeatSlots.get(key);
-      if (currentSlot?.ownerId !== ownerId) {
-        return;
-      }
-
-      activeHeartbeatSlots.delete(key);
-    },
-  };
+export function acquireRgHeartbeatSlot(key: string, label: string, detail?: RgHeartbeatDetail) {
+  return heartbeatSlotRegistry.acquire(key, label, detail);
 }
 
 export function runRgHeartbeatSingleFlight<T>(
@@ -59,41 +36,18 @@ export function runRgHeartbeatSingleFlight<T>(
   task: () => Promise<T>,
   detail?: RgHeartbeatDetail,
 ): { promise: Promise<T>; started: boolean } {
-  const inFlightRequest = inFlightHeartbeatRequests.get(key) as Promise<T> | undefined;
-  if (inFlightRequest) {
-    rgPerfMark('heartbeat API duplicate blocked', {
-      heartbeatKey: key,
-      matchId: detail?.matchId,
-    });
-
-    return {
-      promise: inFlightRequest,
-      started: false,
-    };
-  }
-
-  const promise = task().finally(() => {
-    if (inFlightHeartbeatRequests.get(key) === promise) {
-      inFlightHeartbeatRequests.delete(key);
-    }
-  });
-  inFlightHeartbeatRequests.set(key, promise);
-
-  return {
-    promise,
-    started: true,
-  };
+  return heartbeatSingleFlightRegistry.run(key, task, detail);
 }
 
 export function getActiveRgHeartbeatSlotCount() {
-  return activeHeartbeatSlots.size;
+  return heartbeatSlotRegistry.getActiveCount();
 }
 
 export function getInFlightRgHeartbeatRequestCount() {
-  return inFlightHeartbeatRequests.size;
+  return heartbeatSingleFlightRegistry.getInFlightCount();
 }
 
 export function canUseRgHeartbeatSlot(key: string, ownerId?: number) {
-  const activeSlot = activeHeartbeatSlots.get(key);
-  return !activeSlot || activeSlot.ownerId === ownerId;
+  const activeOwnerId = heartbeatSlotRegistry.getOwnerId(key);
+  return activeOwnerId === null || activeOwnerId === ownerId;
 }
