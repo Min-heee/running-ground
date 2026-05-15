@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
-import { rgPerfMark, rgPerfTrackResource } from '@/utils/rgPerfTrace';
-import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
+import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
 import type { PartyRunSyncCallbackRef } from './types';
 
 type UseRoomPollingInput = {
@@ -98,16 +98,22 @@ export function useRoomPolling({
 
     const intervalMs = policy.intervalMs;
     const pollingKey = `room:${roomId}:party-room`;
-    const pollingSlot = acquireRgPollingSlot(pollingKey, 'party room polling', {
+    const polling = startRgPollingInterval({
       intervalMs,
-      owner: 'party room',
-      reason: policy.reason,
-      roomId,
-      source: 'party room',
-      state: roomState,
+      key: pollingKey,
+      label: 'party room polling',
+      onTick: () => callbacksRef.current.loadMatchRoom(),
+      detail: {
+        intervalMs,
+        owner: 'party room',
+        reason: policy.reason,
+        roomId,
+        source: 'party room',
+        state: roomState,
+      },
     });
 
-    if (!pollingSlot.acquired) {
+    if (!polling.acquired) {
       return undefined;
     }
 
@@ -120,22 +126,8 @@ export function useRoomPolling({
       source: 'party room',
       state: roomState,
     });
-    const stopPollingTrace = rgPerfTrackResource('polling', 'party room polling', {
-      intervalMs,
-      pollingKey,
-      pollingOwner: 'party room',
-      reason: policy.reason,
-      roomId,
-      state: roomState,
-    });
-    const timer = setInterval(() => {
-      void callbacksRef.current.loadMatchRoom().catch(() => {});
-    }, intervalMs);
-
     return () => {
-      clearInterval(timer);
-      stopPollingTrace();
-      pollingSlot.release();
+      polling.stop();
     };
   }, [callbacksRef, enabled, fastRoomPollMs, idleRoomPollMs, linkedMatchId, roomId, roomState]);
 }

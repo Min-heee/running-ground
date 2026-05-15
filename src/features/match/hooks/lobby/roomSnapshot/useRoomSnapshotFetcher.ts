@@ -6,40 +6,29 @@ import { runActiveRoomCheck } from '@/features/runs/sync/activeRoomCheck';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import { isRgInputInteractionRecent } from '@/utils/rgInputTrace';
 import { getInviteInboxDebounceMs } from './roomSnapshotPollingPolicy';
-import { handleMatchRoomActiveRoomResult } from './activeRoomResultHandler';
+
+type ActiveRoomCheckResult = Awaited<ReturnType<typeof runActiveRoomCheck>>;
 
 export function useRoomSnapshotFetcher({
   buildRouteKey,
-  commitRoom,
-  currentUserTag,
-  lastDisplayedInviteKeyRef,
-  lastHandledActiveRoomSnapshotKeyRef,
+  handleActiveRoomSnapshotResult,
   lastInviteInboxPollStartedAtRef,
-  latestRoomServerNowMsRef,
-  liveMatchHandoffRef,
-  markLiveMatchHandoff,
   mountedRef,
   pollingPausedRef,
+  recipientUserId,
   roomRef,
   screenFocusedRef,
   setError,
-  syncServerClock,
 }: {
   buildRouteKey: () => string;
-  commitRoom: (nextRoom: RunningMatchRoom | null) => void;
-  currentUserTag: string;
-  lastDisplayedInviteKeyRef: MutableRefObject<string | null>;
-  lastHandledActiveRoomSnapshotKeyRef: MutableRefObject<string | null>;
+  handleActiveRoomSnapshotResult: (activeRoomCheckResult: ActiveRoomCheckResult) => Promise<RunningMatchRoom | null>;
   lastInviteInboxPollStartedAtRef: MutableRefObject<number>;
-  latestRoomServerNowMsRef: MutableRefObject<number>;
-  liveMatchHandoffRef: MutableRefObject<{ matchId: string; roomId: string } | null>;
-  markLiveMatchHandoff: (nextRoom: RunningMatchRoom, source: string) => void;
   mountedRef: MutableRefObject<boolean>;
   pollingPausedRef: MutableRefObject<boolean>;
+  recipientUserId: string;
   roomRef: MutableRefObject<RunningMatchRoom | null>;
   screenFocusedRef: MutableRefObject<boolean>;
   setError: Dispatch<SetStateAction<string | null>>;
-  syncServerClock: (serverNow?: string) => void;
 }) {
   return useCallback(async () => {
     if (pollingPausedRef.current || !screenFocusedRef.current) {
@@ -79,6 +68,11 @@ export function useRoomSnapshotFetcher({
       routeKey,
       source: 'match-room snapshot',
     });
+    rgPerfMark('invite inbox fetch for recipient begin', {
+      routeKey,
+      source: 'match-room snapshot',
+      userId: recipientUserId,
+    });
 
     try {
       const activeRoomCheckResult = await runActiveRoomCheck({
@@ -89,26 +83,26 @@ export function useRoomSnapshotFetcher({
         requestId: activeRoomCheckResult.requestId,
         success: true,
       });
-
-      return handleMatchRoomActiveRoomResult({
-        activeRoomCheckResult,
-        buildRouteKey,
-        commitRoom,
-        currentUserTag,
-        lastDisplayedInviteKeyRef,
-        lastHandledActiveRoomSnapshotKeyRef,
-        latestRoomServerNowMsRef,
-        liveMatchHandoffRef,
-        markLiveMatchHandoff,
-        mountedRef,
-        pollingPausedRef,
-        roomRef,
-        setError,
-        syncServerClock,
+      rgPerfMark('invite inbox fetch for recipient end', {
+        requestId: activeRoomCheckResult.requestId,
+        roomId: activeRoomCheckResult.payload?.room?.roomId ?? null,
+        routeKey,
+        source: 'match-room snapshot',
+        success: true,
+        userId: recipientUserId,
       });
+
+      return handleActiveRoomSnapshotResult(activeRoomCheckResult);
     } catch (roomError) {
       endInviteInboxPollingTrace({
         success: false,
+      });
+      rgPerfMark('invite inbox fetch for recipient end', {
+        message: getApiErrorMessage(roomError, '대기실을 불러오지 못했어.'),
+        routeKey,
+        source: 'match-room snapshot',
+        success: false,
+        userId: recipientUserId,
       });
       if (!mountedRef.current || pollingPausedRef.current) {
         return null;
@@ -119,19 +113,13 @@ export function useRoomSnapshotFetcher({
     }
   }, [
     buildRouteKey,
-    commitRoom,
-    currentUserTag,
-    lastDisplayedInviteKeyRef,
-    lastHandledActiveRoomSnapshotKeyRef,
+    handleActiveRoomSnapshotResult,
     lastInviteInboxPollStartedAtRef,
-    latestRoomServerNowMsRef,
-    liveMatchHandoffRef,
-    markLiveMatchHandoff,
     mountedRef,
     pollingPausedRef,
+    recipientUserId,
     roomRef,
     screenFocusedRef,
     setError,
-    syncServerClock,
   ]);
 }

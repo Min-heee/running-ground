@@ -1,8 +1,7 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useMemo } from 'react';
 import { Text, useWindowDimensions, View } from 'react-native';
 import { AndroidLiveMatchPerfPanel } from '@/components/matches/AndroidLiveMatchPerfPanel';
-import { DuelRoad } from '@/components/matches/liveMatchArena/DuelRoad';
-import { GroupRoad } from '@/components/matches/liveMatchArena/GroupRoad';
+import { ArenaRoadContent } from '@/components/matches/liveMatchArena/ArenaRoadContent';
 import {
   areParticipantArraysEqual,
   areStringArraysEqual,
@@ -17,7 +16,7 @@ import {
   LIVE_MATCH_PERF_QA_ENABLED,
   useAndroidLiveMatchPerfProbe,
 } from '@/components/matches/useAndroidLiveMatchPerfProbe';
-import { rgPerfMark } from '@/utils/rgPerfTrace';
+import { useLiveMatchArenaMountSignals } from '@/components/matches/liveMatchArena/useLiveMatchArenaMountSignals';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 export type LiveMatchArenaProps = {
@@ -76,24 +75,6 @@ const SummaryChipRow = memo(function SummaryChipRow({
   );
 }, (prevProps, nextProps) => areStringArraysEqual(prevProps.chips, nextProps.chips));
 
-const LiveMatchStartupRoad = memo(function LiveMatchStartupRoad() {
-  return (
-    <View style={styles.startupRoadShell}>
-      <Text style={styles.startupRoadText}>대결 화면 준비 중...</Text>
-    </View>
-  );
-});
-
-function buildLiveMatchScreenIdentity({
-  matchId,
-  mode,
-}: {
-  matchId?: string | null;
-  mode: 'duel' | 'group';
-}) {
-  return `${mode}:${matchId ?? 'pending'}`;
-}
-
 export const LiveMatchArena = memo(function LiveMatchArena({
   mode,
   matchId,
@@ -107,107 +88,13 @@ export const LiveMatchArena = memo(function LiveMatchArena({
   onMounted,
 }: LiveMatchArenaProps) {
   useDevRenderCounter(`LiveMatchArena:${mode}`);
-  const arenaIdentity = useMemo(
-    () => buildLiveMatchScreenIdentity({ matchId, mode }),
-    [matchId, mode],
-  );
-  const onMountedRef = useRef(onMounted);
-  const mountedSignalIdentityRef = useRef<string | null>(null);
-  const lastDeferHeavyContentRef = useRef(deferHeavyContent);
-  const hydrationLoggedIdentityRef = useRef<string | null>(null);
-  const preservedRoadMotionIdentityRef = useRef<string | null>(null);
-  const mountDetailRef = useRef({
-    deferHeavyContent: false,
-    participants: 0,
+  const { shouldDeferHeavyContent } = useLiveMatchArenaMountSignals({
+    matchId,
+    mode,
+    participantsCount: participants.length,
+    deferHeavyContent,
+    onMounted,
   });
-  const [hydratedHeavyContentIdentity, setHydratedHeavyContentIdentity] = useState<string | null>(null);
-  const isHeavyContentHydrated = hydratedHeavyContentIdentity === arenaIdentity;
-  const shouldDeferHeavyContent = deferHeavyContent && !isHeavyContentHydrated;
-
-  useEffect(() => {
-    onMountedRef.current = onMounted;
-  }, [onMounted]);
-
-  useEffect(() => {
-    mountDetailRef.current = {
-      deferHeavyContent: shouldDeferHeavyContent,
-      participants: participants.length,
-    };
-  }, [participants.length, shouldDeferHeavyContent]);
-
-  useEffect(() => {
-    if (!deferHeavyContent && !isHeavyContentHydrated) {
-      setHydratedHeavyContentIdentity(arenaIdentity);
-
-      if (hydrationLoggedIdentityRef.current !== arenaIdentity) {
-        hydrationLoggedIdentityRef.current = arenaIdentity;
-        rgPerfMark('heavy content hydrated without remount', {
-          matchId: matchId ?? null,
-          mode,
-        });
-      }
-    }
-  }, [arenaIdentity, deferHeavyContent, isHeavyContentHydrated, matchId, mode]);
-
-  useEffect(() => {
-    if (mountedSignalIdentityRef.current === arenaIdentity) {
-      rgPerfMark('live match remount prevented same match', {
-        matchId: matchId ?? null,
-        mode,
-        reason: 'duplicate mount signal',
-      });
-      return undefined;
-    }
-
-    mountedSignalIdentityRef.current = arenaIdentity;
-    onMountedRef.current?.({
-      matchId,
-      mode,
-      source: 'LiveMatchArena',
-    });
-    rgPerfMark('live match screen mount', {
-      deferHeavyContent: mountDetailRef.current.deferHeavyContent,
-      matchId: matchId ?? null,
-      mode,
-      participants: mountDetailRef.current.participants,
-    });
-
-    return () => {
-      rgPerfMark('live match screen unmount', {
-        matchId: matchId ?? null,
-        mode,
-      });
-      if (mountedSignalIdentityRef.current === arenaIdentity) {
-        mountedSignalIdentityRef.current = null;
-      }
-    };
-  }, [arenaIdentity, matchId, mode]);
-
-  useEffect(() => {
-    if (lastDeferHeavyContentRef.current !== deferHeavyContent) {
-      rgPerfMark('live match remount prevented same match', {
-        deferHeavyContent,
-        matchId: matchId ?? null,
-        mode,
-        reason: 'defer state changed',
-      });
-      lastDeferHeavyContentRef.current = deferHeavyContent;
-    }
-  }, [deferHeavyContent, matchId, mode]);
-
-  useEffect(() => {
-    if (
-      deferHeavyContent
-      && isHeavyContentHydrated
-      && preservedRoadMotionIdentityRef.current !== arenaIdentity
-    ) {
-      preservedRoadMotionIdentityRef.current = arenaIdentity;
-      rgPerfMark('RoadMotion preserved same match', {
-        matchId: matchId ?? null,
-        mode,
-      });
-    }
-  }, [arenaIdentity, deferHeavyContent, isHeavyContentHydrated, matchId, mode]);
 
   const { width: windowWidth } = useWindowDimensions();
   const cardWidth = Math.max(300, windowWidth - 32);
@@ -224,8 +111,11 @@ export const LiveMatchArena = memo(function LiveMatchArena({
 
     return buildAndroidRenderParticipants(buildAndroidLightParticipants(sortGroupParticipants(participants)));
   }, [mode, participants]);
-  const visibleParticipantsCount = mode === 'group' ? visibleGroupParticipants.length : participants.length;
-  const visibleParticipants = mode === 'duel' ? duelParticipants : visibleGroupParticipants;
+  const visibleParticipants = useMemo(
+    () => (mode === 'duel' ? duelParticipants : visibleGroupParticipants),
+    [duelParticipants, mode, visibleGroupParticipants],
+  );
+  const visibleParticipantsCount = visibleParticipants.length;
   const participantSignature = useMemo(
     () => (LIVE_MATCH_PERF_QA_ENABLED ? buildParticipantPerfSignature(participants) : ''),
     [participants],
@@ -255,13 +145,13 @@ export const LiveMatchArena = memo(function LiveMatchArena({
       <ArenaHeader mode={mode} title={title} subtitle={subtitle} />
       <SummaryChipRow chips={summaryChips} />
       {perfPanel}
-      {shouldDeferHeavyContent ? (
-        <LiveMatchStartupRoad />
-      ) : mode === 'duel' ? (
-        <DuelRoad participants={duelParticipants} targetDistanceKm={targetDistanceKm} />
-      ) : (
-        <GroupRoad participants={visibleGroupParticipants} targetDistanceKm={targetDistanceKm} />
-      )}
+      <ArenaRoadContent
+        mode={mode}
+        shouldDeferHeavyContent={shouldDeferHeavyContent}
+        duelParticipants={duelParticipants}
+        visibleGroupParticipants={visibleGroupParticipants}
+        targetDistanceKm={targetDistanceKm}
+      />
       {footer ? <Text style={styles.footer}>{footer}</Text> : null}
     </View>
   );

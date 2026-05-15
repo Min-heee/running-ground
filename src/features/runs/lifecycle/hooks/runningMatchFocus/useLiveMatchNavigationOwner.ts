@@ -1,17 +1,6 @@
 import { useCallback, useRef } from 'react';
 import {
-  getMatchStartRemainingSeconds,
-  shouldAutoOpenMatchArena,
-} from '@/lib/matchCountdown';
-import {
-  formatMatchDateKey,
-  resolveMatchTimeSection,
-} from '@/features/runs/utils/matchScheduling';
-import {
   buildLiveMatchNavigationKey,
-  shouldPromoteLiveMatchArena,
-  shouldReuseRecentLiveMatchNavigation,
-  type LiveMatchNavigationResult,
 } from '@/features/runs/lifecycle/liveMatchNavigationGate';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import {
@@ -19,14 +8,19 @@ import {
   type CompletedLiveMatchNavigation,
   type FocusRunningMatchInput,
   type LiveMatchNavigationRecord,
-  type MarkLiveMatchMountedInput,
   type UseRunningMatchFocusInput,
 } from '@/features/runs/lifecycle/hooks/runningMatchFocus/types';
 import { useMatchFocusHydration } from '@/features/runs/lifecycle/hooks/runningMatchFocus/useMatchFocusHydration';
 import {
-  LIVE_MATCH_NAVIGATION_MOUNT_WAIT_MS,
   useLiveMatchRecoveryPolicy,
 } from '@/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchRecoveryPolicy';
+import { useLiveMatchMountSignalBridge } from '@/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchMountSignalBridge';
+import { useLiveMatchNavigationExecutor } from '@/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationExecutor';
+import {
+  resolveActiveNavigationDuplicate,
+  resolveExistingNavigationRecord,
+  resolveRecentCompletedNavigation,
+} from '@/features/runs/lifecycle/hooks/runningMatchFocus/liveMatchNavigationOwnerPolicy';
 
 type UseLiveMatchNavigationOwnerInput = UseRunningMatchFocusInput;
 
@@ -72,95 +66,40 @@ export function useLiveMatchNavigationOwner({
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
   }, [livePagerRef, setForceOpenActiveMatch, setLiveArenaPage]);
 
-  const markLiveMatchMounted = useCallback(({
-    mode,
-    matchId,
-    source = 'live match screen mount',
-  }: MarkLiveMatchMountedInput) => {
-    if (!matchId) {
-      return;
-    }
+  const markLiveMatchMounted = useLiveMatchMountSignalBridge({
+    activeNavigationRef,
+    completedNavigationRef,
+    navigationRecordRef,
+    setIsResolvingFocusedMatch,
+  });
 
-    const navigationKey = buildLiveMatchNavigationKey({ matchId, mode });
-    const activeNavigation = activeNavigationRef.current;
-    const currentRecord = navigationRecordRef.current;
-    const matchedRecord = currentRecord?.key === navigationKey ? currentRecord : null;
-    const matchedActiveNavigation = activeNavigation?.key === navigationKey ? activeNavigation : null;
-
-    if (!matchedRecord && !matchedActiveNavigation) {
-      return;
-    }
-
-    if (matchedRecord?.status === 'mounted') {
-      rgPerfMark('live match navigation suppressed because mounted', {
-        matchId,
-        mode,
-        navigationKey,
-        owner: matchedRecord.owner,
-        reason: 'screen-mount-duplicate',
-        source,
-      });
-      return;
-    }
-
-    const preferArena = matchedRecord?.preferArena ?? matchedActiveNavigation?.preferArena ?? true;
-    const owner = matchedRecord?.owner ?? source;
-    const requestId = matchedRecord?.requestId ?? matchedActiveNavigation?.requestId;
-
-    completedNavigationRef.current = {
-      completedAtMs: Date.now(),
-      key: navigationKey,
-      preferArena,
-      result: matchedRecord?.result ?? null,
-    };
-    navigationRecordRef.current = {
-      failedCount: 0,
-      key: navigationKey,
-      mode,
-      owner,
-      preferArena,
-      requestId,
-      result: matchedRecord?.result ?? null,
-      status: 'mounted',
-      updatedAtMs: Date.now(),
-    };
-
-    if (matchedActiveNavigation) {
-      activeNavigationRef.current = null;
-      setIsResolvingFocusedMatch(false);
-    }
-
-    rgPerfMark('live match navigation marked mounted by screen mount', {
-      matchId,
-      mode,
-      navigationKey,
-      owner,
-      requestId,
-      source,
-    });
-    rgPerfMark('live match navigation confirmed by screen mount', {
-      matchId,
-      mode,
-      navigationKey,
-      owner,
-      requestId,
-      source,
-    });
-    rgPerfMark('live match navigation completed by mount signal', {
-      matchId,
-      mode,
-      navigationKey,
-      owner,
-      requestId,
-      source,
-    });
-    rgPerfMark('live match navigation success detached from gps start', {
-      matchId,
-      mode,
-      navigationKey,
-      source,
-    });
-  }, [setIsResolvingFocusedMatch]);
+  const runLiveMatchNavigation = useLiveMatchNavigationExecutor({
+    activeDuelSlotStartAt,
+    activeGroupSlotStartAt,
+    activeNavigationRef,
+    completedNavigationRef,
+    focusedDuelMatchIdRef,
+    focusedGroupMatchIdRef,
+    getSyncedNowMs,
+    hydrateMatchFocusRoute,
+    isLiveMatchViewConfirmed,
+    livePagerRef,
+    loadDuelMatchStatus,
+    loadGroupMatchStatus,
+    navigationRecordRef,
+    setDuelDistanceText,
+    setForceOpenActiveMatch,
+    setGroupDistanceText,
+    setIsResolvingFocusedMatch,
+    setLiveArenaPage,
+    setMatchMode,
+    setSelectedDuelDateKey,
+    setSelectedDuelSlotStartAt,
+    setSelectedDuelTimeSection,
+    setSelectedGroupDateKey,
+    setSelectedGroupSlotStartAt,
+    setSelectedGroupTimeSection,
+  });
 
   const focusRunningMatch = useCallback(async ({
     mode,
@@ -184,159 +123,52 @@ export function useLiveMatchNavigationOwner({
     const activeNavigation = activeNavigationRef.current;
     const currentRecord = navigationRecordRef.current;
 
-    if (activeNavigation?.key === navigationKey) {
-      if (requestedPreferArena && !activeNavigation.preferArena) {
-        activeNavigation.preferArena = true;
-        if (currentRecord?.key === navigationKey) {
-          currentRecord.preferArena = true;
-          currentRecord.updatedAtMs = Date.now();
-        }
-        promoteLiveArena();
-        rgPerfMark('live match navigation upgraded preferArena', {
-          matchId: matchId ?? null,
-          mode,
-          navigationKey,
-          owner: currentRecord?.owner ?? null,
-          requestId: activeNavigation.requestId,
-          source,
-        });
-      }
-
-      rgPerfMark('live match navigation skipped duplicate', {
-        matchId: matchId ?? null,
-        mode,
-        navigationKey,
-        owner: currentRecord?.owner ?? null,
-        preferArena: requestedPreferArena,
-        reason: 'navigating',
-        requestId: activeNavigation.requestId,
-        source,
-      });
-
-      return activeNavigation.promise;
+    const activeDuplicateResult = resolveActiveNavigationDuplicate({
+      activeNavigation,
+      currentRecord,
+      matchId,
+      mode,
+      navigationKey,
+      promoteLiveArena,
+      requestedPreferArena,
+      source,
+    });
+    if (activeDuplicateResult.handled) {
+      return activeDuplicateResult.value;
     }
 
-    if (currentRecord?.key === navigationKey) {
-      if (currentRecord.status === 'mounted') {
-        if (requestedPreferArena && !currentRecord.preferArena) {
-          currentRecord.preferArena = true;
-          currentRecord.updatedAtMs = Date.now();
-          promoteLiveArena();
-          rgPerfMark('live match navigation upgraded preferArena', {
-            matchId: matchId ?? null,
-            mode,
-            navigationKey,
-            owner: currentRecord.owner,
-            source,
-          });
-        }
-
-        rgPerfMark('live match navigation suppressed because mounted', {
-          matchId: matchId ?? null,
-          mode,
-          navigationKey,
-          owner: currentRecord.owner,
-          preferArena: requestedPreferArena,
-          source,
-        });
-        return currentRecord.result ?? null;
-      }
-
-      if (isInFailedBackoff(currentRecord)) {
-        const nextRetryAtMs = currentRecord.nextRetryAtMs ?? Date.now();
-        currentRecord.status = 'suppressed';
-        currentRecord.updatedAtMs = Date.now();
-        rgPerfMark('live match navigation skipped duplicate', {
-          matchId: matchId ?? null,
-          mode,
-          navigationKey,
-          nextRetryInMs: nextRetryAtMs - Date.now(),
-          owner: currentRecord.owner,
-          preferArena: requestedPreferArena,
-          reason: 'failed-backoff',
-          source,
-        });
-        return currentRecord.result ?? null;
-      }
-
-      if (currentRecord.status === 'recovering') {
-        const nextRetryAtMs = currentRecord.nextRetryAtMs ?? 0;
-        if (isWaitingForMountSignal(currentRecord)) {
-          rgPerfMark('live match navigation waiting for mount signal', {
-            matchId: matchId ?? null,
-            mode,
-            navigationKey,
-            nextRetryInMs: nextRetryAtMs - Date.now(),
-            owner: currentRecord.owner,
-            preferArena: requestedPreferArena,
-            source,
-          });
-          return currentRecord.result ?? null;
-        }
-
-        if (shouldSuppressRecoveryRetry(currentRecord)) {
-          navigationRecordRef.current = {
-            ...currentRecord,
-            status: 'suppressed',
-            updatedAtMs: Date.now(),
-          };
-          rgPerfMark('live match navigation recovery failed no mount', {
-            failedCount: currentRecord.failedCount,
-            matchId: matchId ?? null,
-            mode,
-            navigationKey,
-            owner: currentRecord.owner,
-            source,
-          });
-          return currentRecord.result ?? null;
-        }
-      }
+    const existingRecordResult = resolveExistingNavigationRecord({
+      currentRecord,
+      isInFailedBackoff,
+      isWaitingForMountSignal,
+      matchId,
+      mode,
+      navigationKey,
+      navigationRecordRef,
+      promoteLiveArena,
+      requestedPreferArena,
+      shouldSuppressRecoveryRetry,
+      source,
+    });
+    if (existingRecordResult.handled) {
+      return existingRecordResult.value;
     }
 
     const completedNavigation = completedNavigationRef.current;
     const nowMs = Date.now();
-    if (shouldReuseRecentLiveMatchNavigation({
-      completedAtMs: completedNavigation?.completedAtMs,
-      lastKey: completedNavigation?.key,
-      nextKey: navigationKey,
+    const recentCompletedResult = resolveRecentCompletedNavigation({
+      completedNavigation,
+      matchId,
+      mode,
+      navigationKey,
+      navigationRecordRef,
       nowMs,
-    })) {
-      const shouldPromoteArena = shouldPromoteLiveMatchArena({
-        currentPreferArena: completedNavigation?.preferArena,
-        matchState: completedNavigation?.result?.state,
-        requestedPreferArena,
-      });
-
-      if (shouldPromoteArena) {
-        promoteLiveArena();
-        if (completedNavigation) {
-          completedNavigation.preferArena = true;
-        }
-      }
-
-      if (completedNavigation) {
-        navigationRecordRef.current = {
-          failedCount: 0,
-          key: navigationKey,
-          mode,
-          owner: source,
-          preferArena: completedNavigation.preferArena,
-          result: completedNavigation.result,
-          status: 'mounted',
-          updatedAtMs: nowMs,
-        };
-      }
-
-      rgPerfMark('live match navigation suppressed because mounted', {
-        matchId: matchId ?? null,
-        mode,
-        navigationKey,
-        preferArena: requestedPreferArena,
-        reason: 'recent-complete',
-        source,
-      });
-
-      return completedNavigation?.result ?? null;
+      promoteLiveArena,
+      requestedPreferArena,
+      source,
+    });
+    if (recentCompletedResult.handled) {
+      return recentCompletedResult.value;
     }
 
     navigationSequenceRef.current += 1;
@@ -369,228 +201,22 @@ export function useLiveMatchNavigationOwner({
       source,
     });
 
-    const navigationPromise = (async (): Promise<LiveMatchNavigationResult> => {
-      let navigationResult: LiveMatchNavigationResult = null;
-      let effectivePreferArena = requestedPreferArena;
-      let navigationState: string | null = null;
-      let routeStateHydrated = false;
-
-      const markRouteStateHydrated = () => {
-        if (routeStateHydrated) {
-          return;
-        }
-
-        routeStateHydrated = hydrateMatchFocusRoute({
-          distanceKm,
-          matchId,
-          mode,
-          navigationKey,
-          preferArena: requestedPreferArena,
-          requestId,
-          roomId,
-          slotStartAt,
-          source,
-        });
-      };
-
-      setLiveArenaPage(0);
-      livePagerRef.current?.scrollTo({ x: 0, animated: false });
-      setForceOpenActiveMatch(requestedPreferArena);
-      setIsResolvingFocusedMatch(true);
-
-      try {
-        if (mode === 'duel') {
-          setMatchMode('duel');
-          if (typeof distanceKm === 'number' && Number.isFinite(distanceKm)) {
-            setDuelDistanceText(String(distanceKm));
-          }
-
-          if (slotStartAt) {
-            setSelectedDuelSlotStartAt(slotStartAt);
-            setSelectedDuelDateKey(formatMatchDateKey(new Date(slotStartAt)));
-            setSelectedDuelTimeSection(resolveMatchTimeSection(slotStartAt));
-          }
-          focusedDuelMatchIdRef.current = matchId ?? focusedDuelMatchIdRef.current;
-          markRouteStateHydrated();
-
-          const payload = await loadDuelMatchStatus(slotStartAt ?? activeDuelSlotStartAt, {
-            distanceKm,
-            testMode: isTestMatch,
-            matchId,
-          });
-          navigationState = payload.state;
-          effectivePreferArena = shouldPromoteLiveMatchArena({
-            currentPreferArena: activeNavigationRef.current?.key === navigationKey
-              ? activeNavigationRef.current.preferArena
-              : false,
-            matchState: payload.state,
-            requestedPreferArena: requestedPreferArena || (
-              payload.state === 'matched'
-              && shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
-            ),
-          });
-          setForceOpenActiveMatch(effectivePreferArena);
-          navigationResult = payload;
-          return payload;
-        }
-
-        setMatchMode('group');
-        if (typeof distanceKm === 'number' && Number.isFinite(distanceKm)) {
-          setGroupDistanceText(String(distanceKm));
-        }
-
-        if (slotStartAt) {
-          setSelectedGroupSlotStartAt(slotStartAt);
-          setSelectedGroupDateKey(formatMatchDateKey(new Date(slotStartAt)));
-          setSelectedGroupTimeSection(resolveMatchTimeSection(slotStartAt));
-        }
-        focusedGroupMatchIdRef.current = matchId ?? focusedGroupMatchIdRef.current;
-        markRouteStateHydrated();
-
-        const payload = await loadGroupMatchStatus(slotStartAt ?? activeGroupSlotStartAt, {
-          distanceKm,
-          testMode: isTestMatch,
-          matchId,
-        });
-        navigationState = payload.state;
-        effectivePreferArena = shouldPromoteLiveMatchArena({
-          currentPreferArena: activeNavigationRef.current?.key === navigationKey
-            ? activeNavigationRef.current.preferArena
-            : false,
-          matchState: payload.state,
-          requestedPreferArena: requestedPreferArena || (
-            payload.state === 'matched'
-            && shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
-          ),
-        });
-        setForceOpenActiveMatch(effectivePreferArena);
-        navigationResult = payload;
-        return payload;
-      } catch (navigationError) {
-        if (routeStateHydrated && matchId) {
-          rgPerfMark('live match navigation route state only', {
-            matchId,
-            mode,
-            navigationKey,
-            requestId,
-            source,
-          });
-          return null;
-        }
-
-        throw navigationError;
-      } finally {
-        const isCurrentRequest = navigationRecordRef.current?.requestId === requestId;
-        const wasMountedBySignal = navigationRecordRef.current?.key === navigationKey
-          && navigationRecordRef.current.status === 'mounted';
-        const confirmedByLiveMatchView = Boolean(
-          matchId
-          && isLiveMatchViewConfirmed?.({ matchId, mode }),
-        );
-        const routeStateOnly = Boolean(
-          routeStateHydrated
-          && matchId
-          && isCurrentRequest
-          && !wasMountedBySignal
-          && !confirmedByLiveMatchView
-        );
-        const navigationSucceeded = wasMountedBySignal || confirmedByLiveMatchView;
-
-        if (navigationSucceeded && (isCurrentRequest || wasMountedBySignal)) {
-          const existingRecord = navigationRecordRef.current?.key === navigationKey
-            ? navigationRecordRef.current
-            : null;
-          const finalPreferArena = effectivePreferArena || existingRecord?.preferArena || false;
-          const finalResult = navigationResult ?? existingRecord?.result ?? null;
-
-          completedNavigationRef.current = {
-            completedAtMs: Date.now(),
-            key: navigationKey,
-            preferArena: finalPreferArena,
-            result: finalResult,
-          };
-          navigationRecordRef.current = {
-            failedCount: 0,
-            key: navigationKey,
-            mode,
-            owner: existingRecord?.owner ?? source,
-            preferArena: finalPreferArena,
-            requestId,
-            result: finalResult,
-            status: 'mounted',
-            updatedAtMs: Date.now(),
-          };
-          if (confirmedByLiveMatchView && !wasMountedBySignal) {
-            rgPerfMark('live match navigation fallback mounted', {
-              matchId,
-              mode,
-              navigationKey,
-              requestId,
-              source,
-            });
-          }
-        } else if (routeStateOnly && navigationRecordRef.current?.requestId === requestId) {
-          const recoveryCount = previousFailedCount + 1;
-          navigationRecordRef.current = {
-            failedCount: recoveryCount,
-            key: navigationKey,
-            mode,
-            nextRetryAtMs: getMountWaitRetryAtMs(),
-            owner: source,
-            preferArena: effectivePreferArena,
-            requestId,
-            result: navigationResult,
-            status: 'recovering',
-            updatedAtMs: Date.now(),
-          };
-          rgPerfMark('live match navigation route state only', {
-            matchId,
-            mode,
-            navigationKey,
-            recoveryCount,
-            requestId,
-            source,
-          });
-          rgPerfMark('live match navigation waiting for mount signal', {
-            matchId,
-            mode,
-            navigationKey,
-            recoveryCount,
-            retryInMs: LIVE_MATCH_NAVIGATION_MOUNT_WAIT_MS,
-            requestId,
-            source,
-          });
-        } else if (navigationRecordRef.current?.requestId === requestId) {
-          const failedCount = previousFailedCount + 1;
-          navigationRecordRef.current = {
-            failedCount,
-            key: navigationKey,
-            mode,
-            nextRetryAtMs: getFailedRetryAtMs(failedCount),
-            owner: source,
-            preferArena: effectivePreferArena,
-            requestId,
-            result: navigationResult,
-            status: 'failed',
-            updatedAtMs: Date.now(),
-          };
-        }
-
-        endNavigationTrace({
-          completedByMountSignal: wasMountedBySignal,
-          completedByLiveMatchView: confirmedByLiveMatchView,
-          routeStateOnly,
-          effectivePreferArena: effectivePreferArena || navigationRecordRef.current?.preferArena || false,
-          state: navigationState,
-          success: navigationSucceeded,
-        });
-
-        if (activeNavigationRef.current?.requestId === requestId) {
-          activeNavigationRef.current = null;
-          setIsResolvingFocusedMatch(false);
-        }
-      }
-    })();
+    const navigationPromise = runLiveMatchNavigation({
+      distanceKm,
+      endNavigationTrace,
+      getFailedRetryAtMs,
+      getMountWaitRetryAtMs,
+      isTestMatch,
+      matchId,
+      mode,
+      navigationKey,
+      previousFailedCount,
+      requestId,
+      requestedPreferArena,
+      roomId,
+      slotStartAt,
+      source,
+    });
 
     activeNavigationRef.current = {
       key: navigationKey,
@@ -601,34 +227,13 @@ export function useLiveMatchNavigationOwner({
 
     return navigationPromise;
   }, [
-    activeDuelSlotStartAt,
-    activeGroupSlotStartAt,
-    focusedDuelMatchIdRef,
-    focusedGroupMatchIdRef,
     getFailedRetryAtMs,
     getMountWaitRetryAtMs,
-    getSyncedNowMs,
     isInFailedBackoff,
-    isLiveMatchViewConfirmed,
     isWaitingForMountSignal,
-    livePagerRef,
-    loadDuelMatchStatus,
-    hydrateMatchFocusRoute,
-    loadGroupMatchStatus,
-    setDuelDistanceText,
-    setForceOpenActiveMatch,
-    setGroupDistanceText,
-    setIsResolvingFocusedMatch,
-    setLiveArenaPage,
-    setMatchMode,
-    setSelectedDuelDateKey,
-    setSelectedDuelSlotStartAt,
-    setSelectedDuelTimeSection,
-    setSelectedGroupDateKey,
-    setSelectedGroupSlotStartAt,
-    setSelectedGroupTimeSection,
     shouldSuppressRecoveryRetry,
     promoteLiveArena,
+    runLiveMatchNavigation,
   ]);
 
   return {

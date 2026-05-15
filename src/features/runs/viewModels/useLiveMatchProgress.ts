@@ -31,6 +31,56 @@ type UseLiveMatchProgressInput = {
   deferRankingCalculations?: boolean;
 };
 
+function buildGroupStatusAlert(groupLiveStandings: ReturnType<typeof buildGroupLiveStandings>) {
+  let forfeitedCount = 0;
+  let disconnectedCount = 0;
+  let backgroundCount = 0;
+  let pausedCount = 0;
+
+  for (const participant of groupLiveStandings) {
+    if (participant.isCurrentUser) {
+      continue;
+    }
+
+    if (participant.liveStatus === 'forfeited') {
+      forfeitedCount += 1;
+    } else if (participant.liveStatus === 'disconnected') {
+      disconnectedCount += 1;
+    } else if (participant.liveStatus === 'background') {
+      backgroundCount += 1;
+    } else if (participant.liveStatus === 'paused') {
+      pausedCount += 1;
+    }
+  }
+
+  if (!forfeitedCount && !disconnectedCount && !backgroundCount && !pausedCount) {
+    return null;
+  }
+
+  if (forfeitedCount > 0 || disconnectedCount > 0) {
+    const titleParts = [];
+    if (forfeitedCount > 0) {
+      titleParts.push(`포기 ${forfeitedCount}명`);
+    }
+    if (disconnectedCount > 0) {
+      titleParts.push(`연결 끊김 ${disconnectedCount}명`);
+    }
+    return {
+      tone: 'danger' as const,
+      title: titleParts.join(' · '),
+      summary: forfeitedCount > 0
+        ? '남은 러너 기준으로 순위가 다시 정리되고 있어요.'
+        : '잠시 뒤 자동 정리되거나 순위 구성이 다시 달라질 수 있어요.',
+    };
+  }
+
+  return {
+    tone: 'warning' as const,
+    title: `백그라운드 ${backgroundCount}명 · 일시정지 ${pausedCount}명`,
+    summary: '앱으로 돌아오거나 다시 달리면 실시간 순위가 계속 갱신돼요.',
+  };
+}
+
 export function useLiveMatchProgress({
   matchMode,
   duelMatchStatus,
@@ -212,40 +262,10 @@ export function useLiveMatchProgress({
       summary: '곧 최신 상태로 반영될 거예요.',
     };
   }, [effectiveDuelOpponent?.liveStatus]);
-  const groupStatusAlert = useMemo(() => {
-    const others = groupLiveStandings.filter((participant) => !participant.isCurrentUser);
-    const forfeitedCount = others.filter((participant) => participant.liveStatus === 'forfeited').length;
-    const disconnectedCount = others.filter((participant) => participant.liveStatus === 'disconnected').length;
-    const backgroundCount = others.filter((participant) => participant.liveStatus === 'background').length;
-    const pausedCount = others.filter((participant) => participant.liveStatus === 'paused').length;
-
-    if (!forfeitedCount && !disconnectedCount && !backgroundCount && !pausedCount) {
-      return null;
-    }
-
-    if (forfeitedCount > 0 || disconnectedCount > 0) {
-      const titleParts = [];
-      if (forfeitedCount > 0) {
-        titleParts.push(`포기 ${forfeitedCount}명`);
-      }
-      if (disconnectedCount > 0) {
-        titleParts.push(`연결 끊김 ${disconnectedCount}명`);
-      }
-      return {
-        tone: 'danger' as const,
-        title: titleParts.join(' · '),
-        summary: forfeitedCount > 0
-          ? '남은 러너 기준으로 순위가 다시 정리되고 있어요.'
-          : '잠시 뒤 자동 정리되거나 순위 구성이 다시 달라질 수 있어요.',
-      };
-    }
-
-    return {
-      tone: 'warning' as const,
-      title: `백그라운드 ${backgroundCount}명 · 일시정지 ${pausedCount}명`,
-      summary: '앱으로 돌아오거나 다시 달리면 실시간 순위가 계속 갱신돼요.',
-    };
-  }, [groupLiveStandings]);
+  const groupStatusAlert = useMemo(
+    () => buildGroupStatusAlert(groupLiveStandings),
+    [groupLiveStandings],
+  );
 
   return {
     groupLiveStandings,

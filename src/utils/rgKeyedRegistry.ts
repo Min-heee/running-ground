@@ -134,6 +134,47 @@ export function createKeyedSingleFlightRegistry<TDetail extends RgRegistryDetail
   };
 }
 
+export function createKeyedRequestRegistry<TRequest>() {
+  const activeRequests = new Map<string, TRequest>();
+
+  return {
+    clear() {
+      activeRequests.clear();
+    },
+    deleteIf(key: string, predicate: (value: TRequest) => boolean) {
+      const currentRequest = activeRequests.get(key);
+      if (!currentRequest || !predicate(currentRequest)) {
+        return false;
+      }
+
+      activeRequests.delete(key);
+      return true;
+    },
+    get(key: string) {
+      return activeRequests.get(key);
+    },
+    getActiveCount() {
+      return activeRequests.size;
+    },
+    start(key: string, createRequest: () => TRequest): { request: TRequest; started: boolean } {
+      const activeRequest = activeRequests.get(key);
+      if (activeRequest) {
+        return {
+          request: activeRequest,
+          started: false,
+        };
+      }
+
+      const request = createRequest();
+      activeRequests.set(key, request);
+      return {
+        request,
+        started: true,
+      };
+    },
+  };
+}
+
 export function createKeyedValueRegistry<TValue>() {
   const values = new Map<string, TValue>();
 

@@ -7,8 +7,8 @@ import {
   shouldShowMatchStartOverlay,
 } from '@/lib/matchCountdown';
 import { buildBlockingMatchStatusRegistryKey } from '@/features/runs/sync/registryKeys';
-import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';
-import { rgPerfMark, rgPerfTrackResource } from '@/utils/rgPerfTrace';
+import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 type UseBlockingMatchStatusPollingInput = {
   matchMode: RunMatchMode;
@@ -89,13 +89,19 @@ export function useBlockingMatchStatusPolling({
 
     const intervalMs = shouldFastPollDuelMatchStatus ? fastPollMs : idlePollMs;
     const pollingKey = buildBlockingMatchStatusPollingKey(effectiveDuelMatchId);
-    const pollingSlot = acquireRgPollingSlot(pollingKey, 'blocking match status polling', {
+    const polling = startRgPollingInterval({
+      intervalMs,
+      key: pollingKey,
+      label: 'blocking match status polling',
+      onTick: () => callbackRef.current.loadDuelMatchStatus(),
+      detail: {
       intervalMs,
       matchId: effectiveDuelMatchId,
       mode: 'duel',
       source: 'blocking match status',
+      },
     });
-    if (!pollingSlot.acquired) {
+    if (!polling.acquired) {
       rgPerfMark('live match recovery polling skipped duplicate', {
         matchId: effectiveDuelMatchId,
         mode: 'duel',
@@ -105,7 +111,7 @@ export function useBlockingMatchStatusPolling({
       rgPerfMark('live match recovery polling singleton reused', {
         matchId: effectiveDuelMatchId,
         mode: 'duel',
-        ownerId: pollingSlot.ownerId,
+        ownerId: polling.ownerId,
         pollingKey,
         source: 'blocking match status',
       });
@@ -128,20 +134,9 @@ export function useBlockingMatchStatusPolling({
       pollingKey,
       source: 'blocking match status',
     });
-    const stopPollingTrace = rgPerfTrackResource('polling', 'blocking match status polling', {
-      intervalMs,
-      matchId: effectiveDuelMatchId ?? null,
-      mode: 'duel',
-      pollingKey,
-    });
-    const timer = setInterval(() => {
-      void callbackRef.current.loadDuelMatchStatus().catch(() => {});
-    }, intervalMs);
 
     return () => {
-      stopPollingTrace();
-      clearInterval(timer);
-      pollingSlot.release();
+      polling.stop();
       if (isRecoveryPolling) {
         rgPerfMark('live match recovery polling stopped after mounted', {
           matchId: effectiveDuelMatchId,
@@ -174,13 +169,19 @@ export function useBlockingMatchStatusPolling({
 
     const intervalMs = shouldFastPollGroupMatchStatus ? fastPollMs : idlePollMs;
     const pollingKey = buildBlockingMatchStatusPollingKey(effectiveGroupMatchId);
-    const pollingSlot = acquireRgPollingSlot(pollingKey, 'blocking match status polling', {
+    const polling = startRgPollingInterval({
+      intervalMs,
+      key: pollingKey,
+      label: 'blocking match status polling',
+      onTick: () => callbackRef.current.loadGroupMatchStatus(),
+      detail: {
       intervalMs,
       matchId: effectiveGroupMatchId,
       mode: 'group',
       source: 'blocking match status',
+      },
     });
-    if (!pollingSlot.acquired) {
+    if (!polling.acquired) {
       rgPerfMark('live match recovery polling skipped duplicate', {
         matchId: effectiveGroupMatchId,
         mode: 'group',
@@ -190,7 +191,7 @@ export function useBlockingMatchStatusPolling({
       rgPerfMark('live match recovery polling singleton reused', {
         matchId: effectiveGroupMatchId,
         mode: 'group',
-        ownerId: pollingSlot.ownerId,
+        ownerId: polling.ownerId,
         pollingKey,
         source: 'blocking match status',
       });
@@ -213,20 +214,9 @@ export function useBlockingMatchStatusPolling({
       pollingKey,
       source: 'blocking match status',
     });
-    const stopPollingTrace = rgPerfTrackResource('polling', 'blocking match status polling', {
-      intervalMs,
-      matchId: effectiveGroupMatchId ?? null,
-      mode: 'group',
-      pollingKey,
-    });
-    const timer = setInterval(() => {
-      void callbackRef.current.loadGroupMatchStatus().catch(() => {});
-    }, intervalMs);
 
     return () => {
-      stopPollingTrace();
-      clearInterval(timer);
-      pollingSlot.release();
+      polling.stop();
       if (isRecoveryPolling) {
         rgPerfMark('live match recovery polling stopped after mounted', {
           matchId: effectiveGroupMatchId,

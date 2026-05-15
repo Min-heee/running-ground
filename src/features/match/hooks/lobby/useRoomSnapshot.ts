@@ -12,6 +12,7 @@ import {
 import { useLobbyHydrationState } from './roomSnapshot/useLobbyHydrationState';
 import { useRoomSnapshotFetcher } from './roomSnapshot/useRoomSnapshotFetcher';
 import { useRoomSnapshotPolling } from './roomSnapshot/useRoomSnapshotPolling';
+import { useActiveRoomSnapshotHandler } from './roomSnapshot/useActiveRoomSnapshotHandler';
 
 export function useRoomSnapshot() {
   const currentUser = getCurrentUserProfile();
@@ -100,22 +101,32 @@ export function useRoomSnapshot() {
     return routeKey;
   }, [optimisticRoomHydration, optimisticRouteKeyLoggedRef, roomRef]);
 
-  const loadRoom = useRoomSnapshotFetcher({
+  const handleActiveRoomSnapshotResult = useActiveRoomSnapshotHandler({
     buildRouteKey: buildMatchRoomActiveRoomCheckRouteKey,
     commitRoom,
     currentUserTag,
     lastDisplayedInviteKeyRef,
     lastHandledActiveRoomSnapshotKeyRef,
-    lastInviteInboxPollStartedAtRef,
     latestRoomServerNowMsRef,
     liveMatchHandoffRef,
     markLiveMatchHandoff,
     mountedRef,
     pollingPausedRef,
     roomRef,
-    screenFocusedRef,
     setError,
     syncServerClock,
+  });
+
+  const loadRoom = useRoomSnapshotFetcher({
+    buildRouteKey: buildMatchRoomActiveRoomCheckRouteKey,
+    handleActiveRoomSnapshotResult,
+    lastInviteInboxPollStartedAtRef,
+    mountedRef,
+    pollingPausedRef,
+    recipientUserId: currentUserTag,
+    roomRef,
+    screenFocusedRef,
+    setError,
   });
 
   useEffect(() => {

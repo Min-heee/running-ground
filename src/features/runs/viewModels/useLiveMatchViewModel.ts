@@ -1,28 +1,11 @@
 import { useMemo } from 'react';
 import type { RefObject } from 'react';
 import type { ScrollView } from 'react-native';
-import type {
-  LiveMatchArenaPageProps,
-} from '@/features/runs/components/LiveMatchArenaPage';
-import type {
-  LiveMatchPagesProps,
-} from '@/features/runs/components/LiveMatchPages';
-import type {
-  LiveMatchRaceBoardPageProps,
-} from '@/features/runs/components/LiveMatchRaceBoardPage';
-import type {
-  LiveMatchResultPageProps,
-} from '@/features/runs/components/LiveMatchResultPage';
-import type {
-  LiveMatchMetricLabels,
-  LiveMatchTrackingPageProps,
-} from '@/features/runs/components/LiveMatchTrackingPage';
-import { formatDuration } from '@/features/runs/tracking';
-import {
-  formatCadence,
-  formatElevation,
-  formatMetricDistance,
-} from '@/features/runs/tracking/trackingSession';
+import type { LiveMatchArenaPageProps } from '@/features/runs/components/LiveMatchArenaPage';
+import type { LiveMatchPagesProps } from '@/features/runs/components/LiveMatchPages';
+import type { LiveMatchRaceBoardPageProps } from '@/features/runs/components/LiveMatchRaceBoardPage';
+import type { LiveMatchResultPageProps } from '@/features/runs/components/LiveMatchResultPage';
+import type { LiveMatchTrackingPageProps } from '@/features/runs/components/LiveMatchTrackingPage';
 import {
   buildLiveMatchArenaViewModel,
   type LiveMatchArenaViewModelInput,
@@ -31,9 +14,10 @@ import {
   buildLiveMatchRaceBoardViewModel,
   type LiveMatchRaceBoardViewModelInput,
 } from '@/features/runs/viewModels/liveMatchRaceBoardViewModel';
-
-type LiveMatchTrackingInputProps = Omit<LiveMatchTrackingPageProps, 'includeMatchCards' | 'metricLabels'>;
-type LiveMatchTrackingViewProps = Omit<LiveMatchTrackingPageProps, 'includeMatchCards'>;
+import {
+  type LiveMatchTrackingInputProps,
+  useLiveMatchTrackingViewProps,
+} from '@/features/runs/viewModels/useLiveMatchTrackingViewProps';
 
 type UseLiveMatchViewModelInput =
   LiveMatchArenaViewModelInput
@@ -191,27 +175,33 @@ export function useLiveMatchViewModel({
     onLiveMatchMounted,
   }), [activeMatchId, arenaViewModel, onLiveMatchMounted]);
 
-  const raceBoardViewModel = useMemo(() => buildLiveMatchRaceBoardViewModel({
-    matchMode,
-    effectiveDuelOpponent,
-    duelLiveGapKm,
-    duelDistanceKm,
-    groupDistanceKm,
-    distanceKm,
-    syncedDuelDistanceKm,
-    syncedDuelOpponentDistanceKm,
+  const raceBoardViewModel = useMemo(() => {
+    if (page !== 1) {
+      return null;
+    }
+
+    return buildLiveMatchRaceBoardViewModel({
+      matchMode,
+      effectiveDuelOpponent,
+      duelLiveGapKm,
+      duelDistanceKm,
+      groupDistanceKm,
+      distanceKm,
+      syncedDuelDistanceKm,
+      syncedDuelOpponentDistanceKm,
+      currentUserDuelLiveStatus,
+      currentUserGroupLiveStatus,
+      roomLinkedDuelPlaceholderParticipants,
+      roomLinkedGroupPlaceholderParticipants,
+      visibleMatchRoom,
+      groupLiveStandings,
+      currentUserArenaPace,
+      groupArenaUsesLivePace,
+    });
+  }, [
+    currentUserArenaPace,
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
-    roomLinkedDuelPlaceholderParticipants,
-    roomLinkedGroupPlaceholderParticipants,
-    visibleMatchRoom,
-    groupLiveStandings,
-    currentUserArenaPace,
-    groupArenaUsesLivePace,
-  }), [
-    currentUserArenaPace,
-    currentUserDuelLiveStatus,
-    currentUserGroupLiveStatus,
     distanceKm,
     duelDistanceKm,
     duelLiveGapKm,
@@ -220,6 +210,7 @@ export function useLiveMatchViewModel({
     groupDistanceKm,
     groupLiveStandings,
     matchMode,
+    page,
     roomLinkedDuelPlaceholderParticipants,
     roomLinkedGroupPlaceholderParticipants,
     syncedDuelDistanceKm,
@@ -232,23 +223,7 @@ export function useLiveMatchViewModel({
     viewModel: raceBoardViewModel,
   }), [matchMode, raceBoardViewModel]);
 
-  const metricLabels = useMemo<LiveMatchMetricLabels>(() => ({
-    elapsedLabel: formatDuration(elapsedSeconds),
-    distanceLabel: formatMetricDistance(distanceKm),
-    averagePaceLabel: averagePace,
-    currentPaceLabel: currentPace,
-    cadenceLabel: formatCadence(cadenceSpm),
-    elevationLabel: formatElevation(elevationGainM),
-  }), [
-    averagePace,
-    cadenceSpm,
-    currentPace,
-    distanceKm,
-    elapsedSeconds,
-    elevationGainM,
-  ]);
-
-  const trackingPageProps = useMemo<LiveMatchTrackingViewProps>(() => ({
+  const trackingPageProps = useLiveMatchTrackingViewProps({
     matchMode,
     liveMatchTitle,
     liveMatchText,
@@ -272,35 +247,8 @@ export function useLiveMatchViewModel({
     currentPace,
     cadenceSpm,
     elevationGainM,
-    metricLabels,
     onContinueSoloFromMatch,
-  }), [
-    averagePace,
-    cadenceSpm,
-    currentGroupLeader,
-    currentGroupStanding,
-    currentPace,
-    distanceKm,
-    duelDistanceKm,
-    duelLiveSummary,
-    duelLiveTitle,
-    duelStatusAlert,
-    effectiveDuelOpponent,
-    effectiveGroupParticipantCount,
-    elapsedSeconds,
-    elevationGainM,
-    groupAheadParticipant,
-    groupBehindParticipant,
-    groupLiveStandings,
-    groupStatusAlert,
-    isLeavingDuelMatch,
-    isLeavingGroupMatch,
-    liveMatchText,
-    liveMatchTitle,
-    matchMode,
-    metricLabels,
-    onContinueSoloFromMatch,
-  ]);
+  });
 
   const resultProps = useMemo<LiveMatchResultPageProps>(() => ({
     matchMode,
@@ -316,6 +264,10 @@ export function useLiveMatchViewModel({
     matchMode,
   ]);
 
+  const trackingStatsPageProps = useMemo<LiveMatchTrackingPageProps | null>(() => (
+    page === 2 ? { ...trackingPageProps, includeMatchCards: false } : null
+  ), [page, trackingPageProps]);
+
   const livePagesProps = useMemo<Omit<LiveMatchPagesProps, 'exitAction'>>(() => ({
     scrollRef,
     page,
@@ -323,7 +275,7 @@ export function useLiveMatchViewModel({
     hasResultPage,
     arenaProps,
     raceBoardProps: page === 1 ? raceBoardProps : null,
-    trackingProps: page === 2 ? { ...trackingPageProps, includeMatchCards: false } : null,
+    trackingProps: trackingStatsPageProps,
     resultProps: page === 3 ? resultProps : null,
     onPageChange,
   }), [
@@ -335,7 +287,7 @@ export function useLiveMatchViewModel({
     raceBoardProps,
     resultProps,
     scrollRef,
-    trackingPageProps,
+    trackingStatsPageProps,
   ]);
 
   return {

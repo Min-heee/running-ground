@@ -2,9 +2,10 @@ import { useEffect } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { fetchFriendLeaderboard } from '@/services/friendsService';
 import type { FriendLeaderboardResponse, RunningMatchRoom } from '@/lib/api/types';
-import { rgPerfMark, rgPerfTrackResource } from '@/utils/rgPerfTrace';
-import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';
-import { resolveMatchRoomSnapshotPollingPolicy } from './roomSnapshotPollingPolicy';
+import { buildActiveRoomRegistryKey } from '@/features/runs/sync/registryKeys';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
+import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
+import { useRoomPollingOwnerPolicy } from './useRoomPollingOwnerPolicy';
 
 export function useRoomSnapshotPolling({
   currentUserTag,
@@ -23,6 +24,14 @@ export function useRoomSnapshotPolling({
   setFriendLeaderboard: Dispatch<SetStateAction<FriendLeaderboardResponse | null>>;
   setLoading: Dispatch<SetStateAction<boolean>>;
 }) {
+  const pollingRoomId = room?.roomId ?? null;
+  const pollingLinkedMatchId = room?.linkedMatchId ?? null;
+  const pollingRoomState = room?.state ?? null;
+  const policy = useRoomPollingOwnerPolicy({
+    linkedMatchId: pollingLinkedMatchId,
+    state: pollingRoomState,
+  });
+
   useEffect(() => {
     if (pollingPaused || !screenFocused) {
       rgPerfMark('invite inbox polling skipped idle', {
@@ -35,14 +44,6 @@ export function useRoomSnapshotPolling({
     }
 
     let cancelled = false;
-    const pollingRoomId = room?.roomId ?? null;
-    const pollingLinkedMatchId = room?.linkedMatchId ?? null;
-    const pollingRoomState = room?.state ?? null;
-
-    const policy = resolveMatchRoomSnapshotPollingPolicy({
-      linkedMatchId: pollingLinkedMatchId,
-      state: pollingRoomState,
-    });
     if (!policy.enabled) {
       rgPerfMark('match polling skipped', {
         linkedMatchId: pollingLinkedMatchId,
@@ -89,18 +90,24 @@ export function useRoomSnapshotPolling({
     const intervalMs = policy.intervalMs;
     const pollingKey = pollingRoomId
       ? `room:${pollingRoomId}:match-room-snapshot`
-      : `active-room:${currentUserTag}:match-room-snapshot`;
-    const pollingSlot = acquireRgPollingSlot(pollingKey, 'match-room snapshot polling', {
+      : buildActiveRoomRegistryKey(currentUserTag, 'match-room-snapshot');
+    const polling = startRgPollingInterval({
       intervalMs,
-      linkedMatchId: pollingLinkedMatchId,
-      owner: policy.owner,
-      reason: policy.reason,
-      roomId: pollingRoomId,
-      source: 'match-room snapshot',
-      state: pollingRoomState,
+      key: pollingKey,
+      label: 'match-room snapshot polling',
+      onTick: loadRoom,
+      detail: {
+        intervalMs,
+        linkedMatchId: pollingLinkedMatchId,
+        owner: policy.owner,
+        reason: policy.reason,
+        roomId: pollingRoomId,
+        source: 'match-room snapshot',
+        state: pollingRoomState,
+      },
     });
 
-    if (!pollingSlot.acquired) {
+    if (!polling.acquired) {
       return () => {
         cancelled = true;
       };
@@ -124,32 +131,18 @@ export function useRoomSnapshotPolling({
       source: 'match-room snapshot',
       state: pollingRoomState,
     });
-    const stopPollingTrace = rgPerfTrackResource('polling', 'match-room snapshot polling', {
-      intervalMs,
-      linkedMatchId: pollingLinkedMatchId,
-      owner: policy.owner,
-      pollingKey,
-      reason: policy.reason,
-      roomId: pollingRoomId,
-      state: pollingRoomState,
-    });
-    const intervalId = setInterval(() => {
-      void loadRoom();
-    }, intervalMs);
-
     return () => {
       cancelled = true;
-      clearInterval(intervalId);
-      stopPollingTrace();
-      pollingSlot.release();
+      polling.stop();
     };
   }, [
     currentUserTag,
     loadRoom,
+    policy,
+    pollingLinkedMatchId,
     pollingPaused,
-    room?.linkedMatchId,
-    room?.roomId,
-    room?.state,
+    pollingRoomId,
+    pollingRoomState,
     screenFocused,
     setFriendLeaderboard,
     setLoading,

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  createKeyedRequestRegistry,
   createKeyedSingleFlightRegistry,
   createKeyedSlotRegistry,
   createKeyedValueRegistry,
@@ -66,6 +67,31 @@ test('keyed single-flight cleans up rejected work', async () => {
   const retried = registry.run('match-progress:fail', () => Promise.resolve('ok'));
   assert.equal(retried.started, true);
   assert.equal(await retried.promise, 'ok');
+});
+
+test('keyed request registry reuses active request and ignores stale cleanup', () => {
+  const registry = createKeyedRequestRegistry<{ generation: number; requestId: string }>();
+  const first = registry.start('active-room:current-user/shared', () => ({
+    generation: 1,
+    requestId: 'first',
+  }));
+  const duplicate = registry.start('active-room:current-user/shared', () => ({
+    generation: 2,
+    requestId: 'second',
+  }));
+
+  assert.equal(first.started, true);
+  assert.equal(duplicate.started, false);
+  assert.deepEqual(duplicate.request, first.request);
+  assert.equal(registry.getActiveCount(), 1);
+
+  const staleDeleted = registry.deleteIf('active-room:current-user/shared', (request) => request.generation === 2);
+  assert.equal(staleDeleted, false);
+  assert.equal(registry.get('active-room:current-user/shared')?.requestId, 'first');
+
+  const currentDeleted = registry.deleteIf('active-room:current-user/shared', (request) => request.generation === 1);
+  assert.equal(currentDeleted, true);
+  assert.equal(registry.getActiveCount(), 0);
 });
 
 test('keyed value registry ignores stale cleanup predicates', () => {

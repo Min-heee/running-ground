@@ -13,7 +13,7 @@ import {
   shouldAcceptServerSnapshot,
 } from '@/features/runs/sync/serverClockSync';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
-import { applyRecipientInviteInboxSideEffect } from './inviteInboxSideEffect';
+import type { InviteInboxReceiver } from './useInviteInboxReceiver';
 
 type ActiveRoomCheckResult = Awaited<ReturnType<typeof runActiveRoomCheck>>;
 
@@ -22,7 +22,7 @@ export async function handleMatchRoomActiveRoomResult({
   buildRouteKey,
   commitRoom,
   currentUserTag,
-  lastDisplayedInviteKeyRef,
+  handleRecipientInviteInbox,
   lastHandledActiveRoomSnapshotKeyRef,
   latestRoomServerNowMsRef,
   liveMatchHandoffRef,
@@ -37,7 +37,7 @@ export async function handleMatchRoomActiveRoomResult({
   buildRouteKey: () => string;
   commitRoom: (nextRoom: RunningMatchRoom | null) => void;
   currentUserTag: string;
-  lastDisplayedInviteKeyRef: MutableRefObject<string | null>;
+  handleRecipientInviteInbox: InviteInboxReceiver;
   lastHandledActiveRoomSnapshotKeyRef: MutableRefObject<string | null>;
   latestRoomServerNowMsRef: MutableRefObject<number>;
   liveMatchHandoffRef: MutableRefObject<{ matchId: string; roomId: string } | null>;
@@ -149,11 +149,7 @@ export async function handleMatchRoomActiveRoomResult({
   }
 
   const nextRoom = payload.room;
-  applyRecipientInviteInboxSideEffect({
-    currentUserTag,
-    lastDisplayedInviteKeyRef,
-    room: nextRoom,
-  });
+  handleRecipientInviteInbox(nextRoom, 'match-room snapshot');
   commitRoom(nextRoom);
   if (nextRoom?.linkedMatchId) {
     markLiveMatchHandoff(nextRoom, 'match-room snapshot');

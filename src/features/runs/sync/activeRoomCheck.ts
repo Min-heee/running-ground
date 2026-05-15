@@ -1,6 +1,6 @@
 import type { RunningMatchRoomResponse } from '@/lib/api/types';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
-import { createKeyedValueRegistry } from '@/utils/rgKeyedRegistry';
+import { createKeyedRequestRegistry } from '@/utils/rgKeyedRegistry';
 import { buildActiveRoomRegistryKey } from '@/features/runs/sync/registryKeys';
 
 export type ActiveRoomCheckSource = 'track-run experience' | 'match-room snapshot';
@@ -64,7 +64,7 @@ export type ActiveRoomCheckResultSkipReason =
   | 'route-changed'
   | 'live-match-mounted';
 
-const ACTIVE_ROOM_CHECK_KEY = buildActiveRoomRegistryKey('current-user');
+const ACTIVE_ROOM_CHECK_KEY = buildActiveRoomRegistryKey('current-user', 'shared');
 const ACTIVE_ROOM_CHECK_UI_TIMEOUT_MS = 3_000;
 const ACTIVE_ROOM_CHECK_STALE_RESULT_MS = 5_000;
 const DEFAULT_THROTTLE_MS_BY_SOURCE: Record<ActiveRoomCheckSource, number> = {
@@ -75,7 +75,7 @@ const SUPPRESSED_LOG_INTERVAL_MS = 2_000;
 
 let nextRequestSequence = 0;
 let nextGeneration = 0;
-const inFlightChecks = createKeyedValueRegistry<InFlightActiveRoomCheck>();
+const inFlightChecks = createKeyedRequestRegistry<InFlightActiveRoomCheck>();
 const lastChecksBySource = new Map<ActiveRoomCheckSource, LastActiveRoomCheck>();
 const suppressedLogTimes = new Map<string, number>();
 
@@ -374,24 +374,17 @@ export async function runActiveRoomCheck({
     });
 
   // Register before dynamic imports or network work start so concurrent callers share this request.
-  inFlightChecks.set(ACTIVE_ROOM_CHECK_KEY, {
+  const { request: activeCheck } = inFlightChecks.start(ACTIVE_ROOM_CHECK_KEY, () => ({
     generation,
     promise,
     requestId,
     routeKey,
     source,
     startedAtMs,
-  });
+  }));
 
   return raceActiveRoomCheckWithTimeout({
-    check: {
-      generation,
-      promise,
-      requestId,
-      routeKey,
-      source,
-      startedAtMs,
-    },
+    check: activeCheck,
     hardTimeoutMs,
     routeKey,
     reused: false,

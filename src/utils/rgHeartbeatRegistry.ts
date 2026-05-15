@@ -51,3 +51,8 @@ export function canUseRgHeartbeatSlot(key: string, ownerId?: number) {
   const activeOwnerId = heartbeatSlotRegistry.getOwnerId(key);
   return activeOwnerId === null || activeOwnerId === ownerId;
 }
+
+export function resetRgHeartbeatRegistryForTest() {
+  heartbeatSlotRegistry.clearForTest();
+  heartbeatSingleFlightRegistry.clearForTest();
+}

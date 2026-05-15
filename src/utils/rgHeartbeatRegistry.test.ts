@@ -5,10 +5,12 @@ import {
   canUseRgHeartbeatSlot,
   getActiveRgHeartbeatSlotCount,
   getInFlightRgHeartbeatRequestCount,
+  resetRgHeartbeatRegistryForTest,
   runRgHeartbeatSingleFlight,
 } from './rgHeartbeatRegistry';
 
 test('heartbeat registry blocks duplicate active match slots', () => {
+  resetRgHeartbeatRegistryForTest();
   const first = acquireRgHeartbeatSlot('match-progress:match-1', 'match progress heartbeat');
   assert.equal(first.acquired, true);
   assert.equal(getActiveRgHeartbeatSlotCount(), 1);
@@ -27,6 +29,7 @@ test('heartbeat registry blocks duplicate active match slots', () => {
 });
 
 test('heartbeat registry allows same matchId only after cleanup release', () => {
+  resetRgHeartbeatRegistryForTest();
   const first = acquireRgHeartbeatSlot('match-progress:match-cleanup', 'match progress heartbeat');
   assert.equal(first.acquired, true);
 
@@ -42,6 +45,7 @@ test('heartbeat registry allows same matchId only after cleanup release', () => 
 });
 
 test('heartbeat single-flight reuses in-flight API requests by key', async () => {
+  resetRgHeartbeatRegistryForTest();
   let callCount = 0;
   let resolveRequest: ((value: string) => void) | null = null;
   const task = () => {
@@ -68,6 +72,7 @@ test('heartbeat single-flight reuses in-flight API requests by key', async () =>
 });
 
 test('heartbeat cleanup after room exit releases the active match owner', () => {
+  resetRgHeartbeatRegistryForTest();
   const heartbeat = acquireRgHeartbeatSlot('match-progress:room-exit-match', 'match progress heartbeat');
   assert.equal(heartbeat.acquired, true);
   assert.equal(getActiveRgHeartbeatSlotCount(), 1);

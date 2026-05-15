@@ -1,0 +1,46 @@
+import { useTrackingSessionSnapshots } from '@/features/runs/tracking/session/useTrackingSessionSnapshots';
+import type { UseRunTrackingFlowInput } from '@/features/runs/types/runTrackingFlow';
+
+export function useTrackingSnapshotBuilder({
+  routeRef,
+  elapsedSecondsRef,
+  totalStepsRef,
+  preStartWarmupMatchIdRef,
+  officialStartBaselineRef,
+  roomLinkedMatchContextRef,
+  duelMatchStatusRef,
+  groupMatchStatusRef,
+  matchModeRef,
+  setStatus,
+  setRoute,
+  setDistanceKm,
+  setElapsedSeconds,
+  setCurrentPace,
+  setElevationGainM,
+  setCadenceSpm,
+  officialStartDistanceNoiseGraceSeconds,
+  officialStartDistanceNoiseGraceKm,
+  getSyncedNowMs,
+}: UseRunTrackingFlowInput) {
+  return useTrackingSessionSnapshots({
+    routeRef,
+    elapsedSecondsRef,
+    totalStepsRef,
+    preStartWarmupMatchIdRef,
+    officialStartBaselineRef,
+    roomLinkedMatchContextRef,
+    duelMatchStatusRef,
+    groupMatchStatusRef,
+    matchModeRef,
+    setStatus,
+    setRoute,
+    setDistanceKm,
+    setElapsedSeconds,
+    setCurrentPace,
+    setElevationGainM,
+    setCadenceSpm,
+    officialStartDistanceNoiseGraceSeconds,
+    officialStartDistanceNoiseGraceKm,
+    getSyncedNowMs,
+  });
+}

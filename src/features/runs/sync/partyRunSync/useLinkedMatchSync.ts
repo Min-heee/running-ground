@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
-import { rgPerfMark, rgPerfTrackResource } from '@/utils/rgPerfTrace';
-import { acquireRgPollingSlot } from '@/utils/rgPollingRegistry';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
+import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
 import type { LinkedMatchSyncInput } from './types';
 
 export function canOpenPartyRunLinkedMatch({
@@ -189,17 +189,23 @@ export function useLinkedMatchSync({
       ? `${visiblePartyRunFlow.phase}-handoff`
       : `${roomLinkedMatchContext.state ?? 'linked'}-idle-sync`;
     const pollingKey = `match:${roomLinkedMatchContext.matchId}:linked-match-status`;
-    const pollingSlot = acquireRgPollingSlot(pollingKey, 'linked match status polling', {
+    const polling = startRgPollingInterval({
       intervalMs,
-      matchId: roomLinkedMatchContext.matchId,
-      mode: roomLinkedMatchContext.mode,
-      owner: 'linked match status',
-      reason: transitionReason,
-      source: 'linked match status',
-      state: roomLinkedMatchContext.state ?? null,
+      key: pollingKey,
+      label: 'linked match status polling',
+      onTick: syncRoomLinkedMatch,
+      detail: {
+        intervalMs,
+        matchId: roomLinkedMatchContext.matchId,
+        mode: roomLinkedMatchContext.mode,
+        owner: 'linked match status',
+        reason: transitionReason,
+        source: 'linked match status',
+        state: roomLinkedMatchContext.state ?? null,
+      },
     });
 
-    if (!pollingSlot.acquired) {
+    if (!polling.acquired) {
       return () => {
         canceled = true;
       };
@@ -222,24 +228,9 @@ export function useLinkedMatchSync({
       source: 'linked match status',
       state: roomLinkedMatchContext.state ?? null,
     });
-    const stopPollingTrace = rgPerfTrackResource('polling', 'linked match status polling', {
-      intervalMs,
-      matchId: roomLinkedMatchContext.matchId,
-      mode: roomLinkedMatchContext.mode,
-      owner: 'linked match status',
-      pollingKey,
-      reason: transitionReason,
-      state: roomLinkedMatchContext.state ?? null,
-    });
-    const timer = setInterval(() => {
-      void syncRoomLinkedMatch();
-    }, intervalMs);
-
     return () => {
       canceled = true;
-      clearInterval(timer);
-      stopPollingTrace();
-      pollingSlot.release();
+      polling.stop();
     };
   }, [
     callbacksRef,
