@@ -175,3 +175,36 @@ test('active room check result is ignored after route changes or live match moun
     result: waitingResult,
   }), 'live-match-mounted');
 });
+
+test('stale active room result is not cached for throttled callers', async () => {
+  resetActiveRoomCheckForTest();
+
+  let fetchCount = 0;
+  const first = await runActiveRoomCheck({
+    fetcher: () => new Promise<RunningMatchRoomResponse>((resolve) => {
+      fetchCount += 1;
+      setTimeout(() => resolve(response('stale-room')), 8);
+    }),
+    hardTimeoutMs: 50,
+    source: 'track-run experience',
+    staleResultMs: 1,
+    throttleMs: 10_000,
+  });
+
+  assert.equal(first.stale, true);
+  assert.equal(first.payload?.room?.roomId, 'stale-room');
+
+  const second = await runActiveRoomCheck({
+    fetcher: async () => {
+      fetchCount += 1;
+      return response('fresh-room');
+    },
+    source: 'track-run experience',
+    throttleMs: 10_000,
+  });
+
+  assert.equal(fetchCount, 2);
+  assert.equal(second.skipped, false);
+  assert.equal(second.stale, false);
+  assert.equal(second.payload?.room?.roomId, 'fresh-room');
+});

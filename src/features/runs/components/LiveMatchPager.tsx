@@ -5,6 +5,10 @@ import {
   EMPTY_PAGE_RENDERER,
   LiveMatchPagerPageSlot,
 } from '@/features/runs/components/liveMatchPager/LiveMatchPagerPageSlot';
+import {
+  resolveLiveMatchPageRenderer,
+  shouldRenderLiveMatchScrollPage,
+} from '@/features/runs/components/liveMatchPager/liveMatchPagerContentAdapter';
 import { liveMatchPagerStyles as styles } from '@/features/runs/components/liveMatchPager/styles';
 import { LiveMatchPagerTabs } from '@/features/runs/components/liveMatchPager/LiveMatchPagerTabs';
 import type { LiveMatchPageRenderer } from '@/features/runs/components/liveMatchPager/types';
@@ -22,36 +26,6 @@ type LiveMatchPagerProps = {
   onPageChange: (page: number) => void;
 };
 
-function resolvePageRenderer({
-  page,
-  hasResultPage,
-  renderArenaPage,
-  renderRaceBoardPage,
-  renderStatsPage,
-  renderResultPage,
-}: {
-  page: number;
-  hasResultPage: boolean;
-  renderArenaPage: LiveMatchPageRenderer;
-  renderRaceBoardPage: LiveMatchPageRenderer;
-  renderStatsPage: LiveMatchPageRenderer;
-  renderResultPage?: LiveMatchPageRenderer;
-}) {
-  if (page === 1) {
-    return renderRaceBoardPage;
-  }
-
-  if (page === 2) {
-    return renderStatsPage;
-  }
-
-  if (page === 3 && hasResultPage) {
-    return renderResultPage ?? EMPTY_PAGE_RENDERER;
-  }
-
-  return renderArenaPage;
-}
-
 export const LiveMatchPager = memo(function LiveMatchPager({
   scrollRef,
   page,
@@ -67,15 +41,11 @@ export const LiveMatchPager = memo(function LiveMatchPager({
   const pageStyle = useMemo(() => [styles.page, { width: pageWidth }], [pageWidth]);
 
   const shouldRenderScrollPage = useCallback((index: number) => {
-    if (index === 3) {
-      return hasResultPage && page === 3;
-    }
-
-    return page === index;
+    return shouldRenderLiveMatchScrollPage({ index, page, hasResultPage });
   }, [hasResultPage, page]);
 
   const activePageRenderer = useMemo(() => (
-    resolvePageRenderer({
+    resolveLiveMatchPageRenderer({
       page,
       hasResultPage,
       renderArenaPage,

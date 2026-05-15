@@ -1,6 +1,5 @@
 import { ActivityIndicator, Text, View } from 'react-native';
-import { SignupCredentialsSection } from './SignupCredentialsSection';
-import { SignupProfileSection } from './SignupProfileSection';
+import { SignupInputSection } from './SignupInputSection';
 import { SignupRegionSection } from './SignupRegionSection';
 import { SignupSubmitSection } from './SignupSubmitSection';
 import { signupFormStyles as styles } from './signupFormStyles';
@@ -12,22 +11,13 @@ export function SignupFormContent({ form }: { form: SignupFormModel }) {
       {form.catalogLoading ? <ActivityIndicator size="small" color="#6D5EF7" /> : null}
       {form.catalogError ? <Text style={styles.errorText}>{form.catalogError}</Text> : null}
 
-      <SignupProfileSection
-        displayNamePreference={form.displayNamePreference}
-        nickname={form.nickname}
-        publicDisplayName={form.publicDisplayName}
-        realName={form.realName}
-        setDisplayNamePreference={form.setDisplayNamePreference}
-        setNickname={form.setNickname}
-        setRealName={form.setRealName}
-        submitting={form.submitting}
-      />
-
-      <SignupCredentialsSection
+      <SignupInputSection
         checkingUsername={form.checkingUsername}
+        displayNamePreference={form.displayNamePreference}
         handleCheckUsername={form.handleCheckUsername}
         handlePhoneChange={form.handlePhoneChange}
         handleUsernameChange={form.handleUsernameChange}
+        nickname={form.nickname}
         password={form.password}
         passwordConfirm={form.passwordConfirm}
         passwordConfirmMessage={form.passwordConfirmMessage}
@@ -35,9 +25,14 @@ export function SignupFormContent({ form }: { form: SignupFormModel }) {
         passwordValidationMessage={form.passwordValidationMessage}
         passwordVisible={form.passwordVisible}
         phone={form.phone}
+        publicDisplayName={form.publicDisplayName}
+        realName={form.realName}
+        setDisplayNamePreference={form.setDisplayNamePreference}
+        setNickname={form.setNickname}
         setPassword={form.setPassword}
         setPasswordConfirm={form.setPasswordConfirm}
         setPasswordVisible={form.setPasswordVisible}
+        setRealName={form.setRealName}
         submitting={form.submitting}
         username={form.username}
         usernameCheck={form.usernameCheck}

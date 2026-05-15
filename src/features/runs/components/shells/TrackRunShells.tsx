@@ -31,7 +31,7 @@ function useTrackRunShellDiagnostics(shellKind: TrackRunShellKind) {
   }, [shellKind]);
 }
 
-const IdleRunShell = memo(function IdleRunShell({
+export const IdleRunShell = memo(function IdleRunShell({
   readyScreenProps,
 }: {
   readyScreenProps: ComponentProps<typeof RunningReadyScreen>;
@@ -52,7 +52,7 @@ const IdleRunShell = memo(function IdleRunShell({
   return <RunningReadyScreen {...readyScreenProps} />;
 });
 
-const MatchLobbyShell = memo(function MatchLobbyShell({
+export const MatchLobbyShell = memo(function MatchLobbyShell({
   readyScreenProps,
 }: {
   readyScreenProps: ComponentProps<typeof RunningReadyScreen>;
@@ -73,7 +73,7 @@ const MatchLobbyShell = memo(function MatchLobbyShell({
   return <RunningReadyScreen {...readyScreenProps} />;
 });
 
-const LiveMatchShell = memo(function LiveMatchShell({
+export const LiveMatchShell = memo(function LiveMatchShell({
   liveContainerProps,
   liveMatchKey,
 }: {

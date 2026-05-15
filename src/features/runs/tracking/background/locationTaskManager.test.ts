@@ -5,6 +5,10 @@ import {
   createLocationTaskManager,
   type LocationTaskManagerAdapter,
 } from '@/features/runs/tracking/background/locationTaskManagerCore';
+import {
+  createLocationTaskController,
+  type LocationTaskControllerAdapter,
+} from '@/features/runs/tracking/background/locationTaskPolicy';
 import type { LocationTaskPolicy } from '@/features/runs/tracking/background/subscriptions';
 
 function createDeferred() {
@@ -114,6 +118,43 @@ test('location task manager traces active starts as foreground GPS and blocks ba
   await start;
 });
 
+test('location task manager active state delegates to foreground policy without background native start', async () => {
+  const operations: string[] = [];
+  const locationAdapter: LocationTaskControllerAdapter = {
+    platform: 'android',
+    startForegroundLocationWatch: async () => {
+      operations.push('start-foreground');
+    },
+    stopForegroundLocationWatch: () => {
+      operations.push('stop-foreground');
+    },
+    startBackgroundLocationTaskIfNeeded: async () => {
+      operations.push('start-background');
+      return true;
+    },
+    stopBackgroundLocationTasksIfNeeded: async () => {
+      operations.push('stop-background');
+    },
+  };
+  const controller = createLocationTaskController(locationAdapter);
+  const manager = createLocationTaskManager({
+    startLocationTask: controller.startLocationTask,
+    stopLocationTaskIfNeeded: controller.stopLocationTaskIfNeeded,
+    mark: () => {},
+    measureStart: () => () => 0,
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+  });
+
+  await manager.startManagedLocationTask({
+    appState: 'active',
+    trackingKey: 'duel:match-foreground',
+  });
+
+  assert.equal(operations.includes('start-background'), false);
+  assert.deepEqual(operations, ['start-foreground', 'stop-background']);
+});
+
 test('location task manager cancels detached active run without a tracking key before native call', async () => {
   const { adapter, state } = createFakeManagerAdapter();
   const manager = createLocationTaskManager(adapter);
@@ -176,6 +217,69 @@ test('location task manager times out detached foreground GPS without blocking U
   });
 
   assert.ok(state.marks.includes('GPS result ignored without screen change'));
+});
+
+test('location task manager detached active GPS start returns before native start resolves', async () => {
+  const { adapter, startDeferred, state } = createFakeManagerAdapter();
+  const manager = createLocationTaskManager(adapter);
+
+  await manager.startManagedLocationTask({
+    appState: 'active',
+    detachLocationTask: true,
+    trackingKey: 'duel:match-detached-ui',
+  });
+
+  assert.deepEqual(state.starts, ['active']);
+  assert.ok(state.marks.includes('GPS tracking start detached from navigation'));
+
+  startDeferred.resolve();
+  await new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+});
+
+test('location task manager ignores stale background start after active foreground transition', async () => {
+  const state = {
+    marks: [] as string[],
+    starts: [] as AppStateStatus[],
+  };
+  const backgroundStart = createDeferred();
+  const activeStart = createDeferred();
+  const adapter: LocationTaskManagerAdapter = {
+    startLocationTask: async (policy: LocationTaskPolicy) => {
+      const appState = policy.appState ?? 'active';
+      state.starts.push(appState);
+      await (appState === 'background' ? backgroundStart.promise : activeStart.promise);
+    },
+    stopLocationTaskIfNeeded: async () => {},
+    mark: (label) => {
+      state.marks.push(label);
+    },
+    measureStart: () => () => 0,
+    setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout,
+  };
+  const manager = createLocationTaskManager(adapter);
+
+  const pendingBackgroundStart = manager.startManagedLocationTask({
+    appState: 'background',
+    trackingKey: 'duel:match-app-state',
+  });
+  await Promise.resolve();
+  const foregroundStart = manager.startManagedLocationTask({
+    appState: 'active',
+    trackingKey: 'duel:match-app-state',
+  });
+  await Promise.resolve();
+
+  assert.deepEqual(state.starts, ['background', 'active']);
+
+  activeStart.resolve();
+  await foregroundStart;
+  backgroundStart.resolve();
+  await pendingBackgroundStart;
+
+  assert.ok(state.marks.includes('background task start ignored stale appState'));
 });
 
 test('location task manager stop clears pending location source state', async () => {

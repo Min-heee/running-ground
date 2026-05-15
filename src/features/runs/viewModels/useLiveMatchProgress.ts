@@ -12,6 +12,11 @@ import {
   hasRemoteRunnerProgress,
   type LastSyncedMatchProgress,
 } from '@/features/runs/viewModels/matchProgress';
+import {
+  buildDuelLiveTitle,
+  buildDuelStatusAlert,
+  buildGroupProgressSnapshot,
+} from '@/features/runs/viewModels/liveMatchProgressSelectors';
 import { type RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 
@@ -30,56 +35,6 @@ type UseLiveMatchProgressInput = {
   groupDistanceKm: number;
   deferRankingCalculations?: boolean;
 };
-
-function buildGroupStatusAlert(groupLiveStandings: ReturnType<typeof buildGroupLiveStandings>) {
-  let forfeitedCount = 0;
-  let disconnectedCount = 0;
-  let backgroundCount = 0;
-  let pausedCount = 0;
-
-  for (const participant of groupLiveStandings) {
-    if (participant.isCurrentUser) {
-      continue;
-    }
-
-    if (participant.liveStatus === 'forfeited') {
-      forfeitedCount += 1;
-    } else if (participant.liveStatus === 'disconnected') {
-      disconnectedCount += 1;
-    } else if (participant.liveStatus === 'background') {
-      backgroundCount += 1;
-    } else if (participant.liveStatus === 'paused') {
-      pausedCount += 1;
-    }
-  }
-
-  if (!forfeitedCount && !disconnectedCount && !backgroundCount && !pausedCount) {
-    return null;
-  }
-
-  if (forfeitedCount > 0 || disconnectedCount > 0) {
-    const titleParts = [];
-    if (forfeitedCount > 0) {
-      titleParts.push(`포기 ${forfeitedCount}명`);
-    }
-    if (disconnectedCount > 0) {
-      titleParts.push(`연결 끊김 ${disconnectedCount}명`);
-    }
-    return {
-      tone: 'danger' as const,
-      title: titleParts.join(' · '),
-      summary: forfeitedCount > 0
-        ? '남은 러너 기준으로 순위가 다시 정리되고 있어요.'
-        : '잠시 뒤 자동 정리되거나 순위 구성이 다시 달라질 수 있어요.',
-    };
-  }
-
-  return {
-    tone: 'warning' as const,
-    title: `백그라운드 ${backgroundCount}명 · 일시정지 ${pausedCount}명`,
-    summary: '앱으로 돌아오거나 다시 달리면 실시간 순위가 계속 갱신돼요.',
-  };
-}
 
 export function useLiveMatchProgress({
   matchMode,
@@ -105,10 +60,18 @@ export function useLiveMatchProgress({
     ),
     [deferRankingCalculations, distanceKm, elapsedSeconds, effectiveGroupParticipants, effectiveGroupSeedRank, groupDistanceKm, matchMode],
   );
-  const currentGroupStanding = useMemo(
-    () => groupLiveStandings.find((participant) => participant.isCurrentUser) ?? null,
+  const groupProgressSnapshot = useMemo(
+    () => buildGroupProgressSnapshot(groupLiveStandings),
     [groupLiveStandings],
   );
+  const {
+    currentGroupStanding,
+    currentGroupLeader,
+    groupAheadParticipant,
+    groupBehindParticipant,
+    featuredGroupArenaParticipantIds,
+    groupStatusAlert,
+  } = groupProgressSnapshot;
   const currentUserDuelLiveStatus = duelMatchStatus?.currentUserLiveStatus ?? null;
   const currentUserGroupLiveStatus = groupMatchStatus?.currentUserLiveStatus ?? currentGroupStanding?.liveStatus ?? null;
   const currentUserHasForfeitedActiveMatch = (
@@ -118,30 +81,6 @@ export function useLiveMatchProgress({
         ? currentUserGroupLiveStatus === 'forfeited'
         : false
   );
-  const currentGroupLeader = useMemo(() => groupLiveStandings[0] ?? null, [groupLiveStandings]);
-  const { groupAheadParticipant, groupBehindParticipant } = useMemo(() => ({
-    groupAheadParticipant: currentGroupStanding
-      ? groupLiveStandings.find((participant) => participant.rank === currentGroupStanding.rank - 1) ?? null
-      : null,
-    groupBehindParticipant: currentGroupStanding
-      ? groupLiveStandings.find((participant) => participant.rank === currentGroupStanding.rank + 1) ?? null
-      : null,
-  }), [currentGroupStanding, groupLiveStandings]);
-  const featuredGroupArenaParticipantIds = useMemo(() => {
-    const ids = new Set<string>();
-    groupLiveStandings.slice(0, 3).forEach((participant) => ids.add(participant.id));
-    if (currentGroupStanding) {
-      ids.add(currentGroupStanding.id);
-    }
-    if (groupAheadParticipant) {
-      ids.add(groupAheadParticipant.id);
-    }
-    if (groupBehindParticipant) {
-      ids.add(groupBehindParticipant.id);
-    }
-    return ids;
-  }, [currentGroupStanding, groupAheadParticipant, groupBehindParticipant, groupLiveStandings]);
-
   const activeDuelArenaMatchId = matchMode === 'duel'
     ? duelMatchStatus?.matchId
       ?? (visibleMatchRoom?.mode === 'duel' ? visibleMatchRoom.linkedMatchId ?? null : null)
@@ -212,59 +151,13 @@ export function useLiveMatchProgress({
       ? Number((syncedDuelDistanceKm - syncedDuelOpponentDistanceKm).toFixed(2))
       : null
   );
-  const duelLiveTitle = isDuelOpponentForfeited
-    ? '상대가 기권했어요'
-    : duelLiveGapKm === null
-    ? '서버 공식 판정 준비 중'
-    : duelLiveGapKm >= 0
-      ? `${duelLiveGapKm.toFixed(2)}km 앞서고 있어요`
-      : `${Math.abs(duelLiveGapKm).toFixed(2)}km 따라가는 중이에요`;
-  const duelStatusAlert = useMemo(() => {
-    if (!effectiveDuelOpponent?.liveStatus || ['running', 'finished'].includes(effectiveDuelOpponent.liveStatus)) {
-      return null;
-    }
-
-    if (effectiveDuelOpponent.liveStatus === 'forfeited') {
-      return {
-        tone: 'danger' as const,
-        title: '상대가 매치를 포기했어요',
-        summary: '이제 혼자 이어서 달리거나 바로 결과를 정리할 수 있어요.',
-      };
-    }
-
-    if (effectiveDuelOpponent.liveStatus === 'disconnected') {
-      return {
-        tone: 'danger' as const,
-        title: '상대 연결이 끊겼어요',
-        summary: '잠시 뒤 자동 정리되거나 다시 찾기 흐름으로 넘어갈 수 있어요.',
-      };
-    }
-
-    if (effectiveDuelOpponent.liveStatus === 'background') {
-      return {
-        tone: 'warning' as const,
-        title: '상대가 백그라운드 상태예요',
-        summary: '앱으로 돌아오면 진행 상태가 다시 이어서 반영돼요.',
-      };
-    }
-
-    if (effectiveDuelOpponent.liveStatus === 'paused') {
-      return {
-        tone: 'warning' as const,
-        title: '상대가 잠시 멈췄어요',
-        summary: '다시 움직이기 시작하면 거리 차이도 이어서 갱신돼요.',
-      };
-    }
-
-    return {
-      tone: 'neutral' as const,
-      title: '상대 상태를 다시 확인 중이에요',
-      summary: '곧 최신 상태로 반영될 거예요.',
-    };
-  }, [effectiveDuelOpponent?.liveStatus]);
-  const groupStatusAlert = useMemo(
-    () => buildGroupStatusAlert(groupLiveStandings),
-    [groupLiveStandings],
+  const duelLiveTitle = useMemo(
+    () => buildDuelLiveTitle({ isDuelOpponentForfeited, duelLiveGapKm }),
+    [duelLiveGapKm, isDuelOpponentForfeited],
+  );
+  const duelStatusAlert = useMemo(
+    () => buildDuelStatusAlert(effectiveDuelOpponent),
+    [effectiveDuelOpponent],
   );
 
   return {

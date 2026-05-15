@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-15T05:38:34.811Z
+생성 시각: 2026-05-15T06:05:34.898Z
 
 ## 실행 방법
 
@@ -14,12 +14,12 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 611 |
-| 코드 파일 | 565 |
+| 분석 파일 | 633 |
+| 코드 파일 | 587 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 61 |
+| 300줄 이상 파일 | 63 |
 | 500줄 이상 파일 | 17 |
-| 50줄 이상 함수 후보 | 233 |
+| 50줄 이상 함수 후보 | 231 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
 ## 감지 항목 요약
@@ -32,7 +32,7 @@ npm run code:quality
 | useMemo/useCallback 없이 props를 많이 만드는 후보 | 19 | 5 | 14 | 0 |
 | services 밖 fetch/api 호출 후보 | 0 | 0 | 0 | 0 |
 | utils/domain 밖 계산 로직 후보 | 42 | 6 | 36 | 0 |
-| types 밖 타입 선언 후보 | 47 | 4 | 43 | 0 |
+| types 밖 타입 선언 후보 | 48 | 4 | 44 | 0 |
 | setInterval/setTimeout/subscription cleanup 의심 후보 | 14 | 0 | 14 | 0 |
 | Location/watchPosition/background task 사용 후보 | 18 | 5 | 13 | 0 |
 
@@ -41,7 +41,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/server.mjs | 6392 | imports 22, sort/filter/map 160, timers 1 |
-| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 3412 | imports 57, effects 12, focusEffects 1, sort/filter/map 2, timers 1 |
+| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 3416 | imports 57, effects 12, focusEffects 1, sort/filter/map 2, timers 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -75,6 +75,7 @@ npm run code:quality
 | backend/src/repositories/authRepository.test.mjs | 414 | imports 4, sort/filter/map 1 |
 | src/features/runs/sync/activeRoomCheck.ts | 403 | imports 5, timers 1 |
 | src/features/runs/lifecycle/matchRoomFlow.ts | 401 | imports 2, sort/filter/map 8 |
+| src/features/runs/tracking/background/locationTaskManager.test.ts | 389 | imports 6, timers 8 |
 | src/integrations/nativeHealth.ts | 379 | imports 8, sort/filter/map 1 |
 | backend/src/repositories/friendsRepository.mjs | 373 | sort/filter/map 9 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationExecutor.ts | 368 | imports 13 |
@@ -99,6 +100,7 @@ npm run code:quality
 | backend/src/bridges/sessionRunsBridge.mjs | 305 | imports 2, sort/filter/map 3 |
 | src/features/runs/components/matchSetupCards/styles.ts | 303 | imports 1 |
 | src/features/runs/hooks/useMatchRoomLobby.ts | 302 | imports 15, effects 2, sort/filter/map 1, timers 1 |
+| src/features/runs/viewModels/useLiveMatchViewModel.ts | 302 | imports 8 |
 | docs/backend-server-refactor-plan.md | 302 | imports 2 |
 | src/features/league/components/LeagueRegionSelectorCard.tsx | 300 | imports 11, sort/filter/map 1 |
 
@@ -107,7 +109,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/server.mjs | 6392 | imports 22, sort/filter/map 160, timers 1 |
-| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 3412 | imports 57, effects 12, focusEffects 1, sort/filter/map 2, timers 1 |
+| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 3416 | imports 57, effects 12, focusEffects 1, sort/filter/map 2, timers 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -128,12 +130,12 @@ npm run code:quality
 
 
 
-> 233개 중 상위 80개만 표시합니다.
+> 231개 중 상위 80개만 표시합니다.
 
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 184 | TrackRunExperienceRuntime | 3228 |
+| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 185 | TrackRunExperienceRuntime | 3231 |
 | src/features/runs/tracking/actions/useRunTrackingActions.ts | 66 | useRunTrackingActions | 452 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
 | src/features/runs/hooks/useRunSaveFlow.ts | 133 | useRunSaveFlow | 386 |
@@ -141,7 +143,7 @@ npm run code:quality
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
 | src/features/runs/hooks/useMatchRoomLobby.ts | 20 | useMatchRoomLobby | 282 |
 | backend/src/repositories/postgresRunsRepository.mjs | 369 | createPostgresRunsRepository | 271 |
-| src/features/runs/viewModels/useLiveMatchViewModel.ts | 36 | useLiveMatchViewModel | 262 |
+| src/features/runs/viewModels/useLiveMatchViewModel.ts | 39 | useLiveMatchViewModel | 263 |
 | backend/src/repositories/postgresAuthRepository.mjs | 246 | createPostgresAuthRepository | 258 |
 | src/features/settings/screens/AdminScreen.tsx | 19 | AdminScreen | 254 |
 | src/features/match/hooks/lobby/useRoomStartActions.ts | 65 | useRoomStartActions | 248 |
@@ -155,8 +157,7 @@ npm run code:quality
 | src/features/runs/sync/partyRunSync/useLinkedMatchSync.ts | 47 | useLinkedMatchSync | 212 |
 | scripts/check-preview-public-api.mjs | 259 | main | 211 |
 | backend/src/server.mjs | 2879 | buildRunningMatchStatusResponse | 210 |
-| src/features/runs/viewModels/useLiveMatchProgress.ts | 84 | useLiveMatchProgress | 207 |
-| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 1299 | loadMatchRoom | 205 |
+| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 1303 | loadMatchRoom | 205 |
 | scripts/analyze-android-perf-trace.mjs | 142 | analyzeLine | 200 |
 | src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 42 | useBlockingMatchStatusPolling | 199 |
 | src/features/runs/hooks/useMatchRuntimeState.ts | 57 | useMatchRuntimeState | 193 |
@@ -174,30 +175,31 @@ npm run code:quality
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 48 | startLocationTaskWithTrace | 156 |
 | backend/src/bridges/friendsLeagueBridge.test.mjs | 11 | createHarness | 154 |
 | src/features/match/screens/MatchRoomScreen.tsx | 15 | MatchRoomScreen | 147 |
+| src/features/runs/viewModels/useLiveMatchProgress.ts | 39 | useLiveMatchProgress | 145 |
 | src/features/runs/components/matchSetupCards/DuelMatchSetupCard.tsx | 13 | DuelMatchSetupCard | 145 |
 | src/features/integrations/components/nrcBridge/NrcBridgeGuideActions.tsx | 10 | buildActionButtons | 139 |
 | src/features/runs/hooks/useMatchSelectionModel.ts | 55 | useMatchSelectionModel | 138 |
 | src/components/matches/useAndroidLiveMatchPerfProbe.ts | 50 | useAndroidLiveMatchPerfProbe | 136 |
-| src/features/runs/viewModels/useTrackRunIdleViewModel.ts | 37 | useTrackRunIdleViewModel | 134 |
+| src/features/runs/tracking/useTrackingAppStateSync.ts | 33 | useTrackingAppStateSync | 135 |
 | src/features/friends/hooks/useFriendsScreen.ts | 15 | useFriendsScreen | 134 |
-| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 1919 | handleJoinMatchRoom | 131 |
+| src/features/runs/viewModels/useTrackRunIdleViewModel.ts | 75 | useTrackRunIdleViewModel | 132 |
+| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 1923 | handleJoinMatchRoom | 131 |
 | src/features/runs/sync/usePartyRunSync.ts | 60 | usePartyRunSync | 131 |
-| src/features/runs/tracking/useTrackingAppStateSync.ts | 32 | useTrackingAppStateSync | 129 |
 | src/features/profile/hooks/useMyPageScreen.ts | 8 | useMyPageScreen | 127 |
 | src/features/runs/tracking/actions/useRunTrackingActions.ts | 109 | callback@useCallback | 126 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationOwner.ts | 104 | callback@useCallback | 126 |
 | src/features/runs/components/PartyRunHomePanel.tsx | 35 | PartyRunHomePanel | 125 |
 | src/features/runs/hooks/usePartyRunRoom.ts | 57 | usePartyRunRoom | 124 |
-| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 1795 | handleCreateMatchRoom | 123 |
+| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 1799 | handleCreateMatchRoom | 123 |
 | scripts/deploy-public-backend.mjs | 304 | main | 123 |
-| src/features/runs/components/LiveMatchPager.tsx | 55 | LiveMatchPager | 123 |
 | src/features/runs/hooks/matchLifecycle/useGroupMatchLifecycle.ts | 18 | useGroupMatchLifecycle | 123 |
 | src/features/runs/hooks/useRunTrackingFlow.ts | 11 | useRunTrackingFlow | 122 |
 | backend/src/routes/authRoutes.mjs | 1 | routeAuthRequest | 122 |
-| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 1511 | callback@useCallback | 121 |
+| src/features/runs/containers/TrackRunExperienceRuntime.tsx | 1515 | callback@useCallback | 121 |
 | src/features/auth/hooks/useUniversityVerification.ts | 10 | useUniversityVerification | 121 |
 | backend/src/repositories/raceRepository.mjs | 1 | createJsonRaceRepository | 121 |
 | src/features/runs/hooks/useMatchLifecycle.ts | 17 | useMatchLifecycle | 120 |
+| src/features/runs/components/LiveMatchPager.tsx | 29 | LiveMatchPager | 119 |
 | backend/src/seed.mjs | 378 | createRegionTree | 118 |
 | backend/src/repositories/runsRepository.mjs | 325 | createJsonRunsRepository | 118 |
 | src/features/runs/hooks/matchLifecycle/useDuelMatchLifecycle.ts | 17 | useDuelMatchLifecycle | 117 |
@@ -284,7 +286,7 @@ npm run code:quality
 | Low | src/components/matches/AndroidLiveMatchPerfPanel.tsx | 50 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Text style={[styles.diagnosis, diagnosisStyle]}> |
 | Low | src/components/matches/MatchStartCountdownOverlay.tsx | 15 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[styles.overlay, variant === 'centered' ? styles.overlayCentered : null]} pointerEvents="none"> |
 | Low | src/components/ranking/RankingItemRow.tsx | 28 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.row, friend && styles.friendRow, highlighted && styles.highlightedRow]} |
-| Low | src/features/auth/components/signup/SignupSubmitSection.tsx | 63 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.primaryButton, (submitting \|\| catalogLoading \|\| Boolean(catalogError) \|\| !signupReady) ? styles.disabled… |
+| Low | src/features/auth/components/signup/SignupActionFooter.tsx | 28 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.primaryButton, disabled ? styles.disabledButton : null]} |
 | Low | src/features/friends/screens/AddFriendScreen.tsx | 75 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SecondaryButton label="친구 화면으로 돌아가기" onPress={() => router.replace('/(tabs)/friends')} /> |
 | Low | src/features/home/screens/HomeScreen.tsx | 41 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onCancelMatch={(match) => { |
 | Low | src/features/integrations/NrcBridgeGuideCard.tsx | 82 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onToggle={() => setOpenSectionId((current) => (current === section.id ? null : section.id))} |
@@ -316,7 +318,7 @@ npm run code:quality
 | Medium | src/features/integrations/components/IntegrationSourcesCards.tsx | 28 | 렌더링 경로 근처에서 반복 계산이 감지됐다. | 결과를 useMemo로 분리하고, 리스트 렌더는 renderItem/useCallback 경계를 확인한다. | {sources.map((source) => { |
 | Medium | src/features/integrations/components/IntegrationSourcesCards.tsx | 74 | 렌더링 경로 근처에서 반복 계산이 감지됐다. | 결과를 useMemo로 분리하고, 리스트 렌더는 renderItem/useCallback 경계를 확인한다. | {sources.map((source) => { |
 | Medium | src/features/integrations/components/nrcBridge/NrcBridgeGuideActions.tsx | 147 | 렌더링 경로 근처에서 반복 계산이 감지됐다. | 결과를 useMemo로 분리하고, 리스트 렌더는 renderItem/useCallback 경계를 확인한다. | return buttons.map((button, index) => <Fragment key={`garmin-action-${index}`}>{button}</Fragment>); |
-| Medium | src/features/integrations/components/nrcBridge/NrcBridgeGuideSection.tsx | 46 | 렌더링 경로 근처에서 반복 계산이 감지됐다. | 결과를 useMemo로 분리하고, 리스트 렌더는 renderItem/useCallback 경계를 확인한다. | {section.steps.map((step, index) => ( |
+| Medium | src/features/integrations/components/nrcBridge/NrcBridgeGuideStepList.tsx | 12 | 렌더링 경로 근처에서 반복 계산이 감지됐다. | 결과를 useMemo로 분리하고, 리스트 렌더는 renderItem/useCallback 경계를 확인한다. | {steps.map((step, index) => ( |
 | Medium | src/features/integrations/IntegrationJourneyCard.tsx | 132 | 렌더링 경로 근처에서 반복 계산이 감지됐다. | 결과를 useMemo로 분리하고, 리스트 렌더는 renderItem/useCallback 경계를 확인한다. | {steps.map((step, index) => ( |
 | Medium | src/features/integrations/IntegrationStatus.tsx | 18 | 렌더링 경로 근처에서 반복 계산이 감지됐다. | 결과를 useMemo로 분리하고, 리스트 렌더는 renderItem/useCallback 경계를 확인한다. | {connectedSources.map((source) => { |
 | Medium | src/features/integrations/NativeHealthReadinessCard.tsx | 31 | 렌더링 경로 근처에서 반복 계산이 감지됐다. | 결과를 useMemo로 분리하고, 리스트 렌더는 renderItem/useCallback 경계를 확인한다. | {readiness.steps.map((step) => ( |
@@ -457,6 +459,7 @@ npm run code:quality
 | Medium | src/features/runs/lifecycle/hooks/useCountdownHandoffEffect.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/lifecycle/hooks/useLiveMatchNavigationEffects.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/lifecycle/liveMatchNavigationGate.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
+| Medium | src/features/runs/lifecycle/trackRunShellSelection.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/sync/partyRunSync/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/sync/roomInviteInbox.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/features/runs/tracking/actions/useRunTrackingActions.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
@@ -502,7 +505,7 @@ npm run code:quality
 | High | src/features/runs/hooks/useRunTracking.ts | 2 | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | import { AppState } from 'react-native'; |
 | Medium | src/features/runs/tracking/background/backgroundSubscription.ts | 18 | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | const started = await Location.hasStartedLocationUpdatesAsync(taskName); |
 | Medium | src/features/runs/tracking/background/locationTask.ts | 3 | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | import * as TaskManager from 'expo-task-manager'; |
-| Medium | src/features/runs/tracking/background/locationTaskManager.test.ts |  | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | signals=7 |
+| Medium | src/features/runs/tracking/background/locationTaskManager.test.ts |  | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | signals=8 |
 | Medium | src/features/runs/tracking/background/locationTaskManagerCore.ts |  | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | signals=7 |
 | Medium | src/features/runs/tracking/background/locationTaskPolicy.test.ts |  | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | signals=6 |
 | Medium | src/features/runs/tracking/background/foregroundSubscription.ts | 8 | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | function buildForegroundLocationOptions(): Location.LocationOptions { |
@@ -520,7 +523,7 @@ npm run code:quality
 | --- | --- | --- | --- | --- | --- |
 | High | Card 계열 |  | Card 계열 파일이 42개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/league/components/LeagueRegionSelectorCard.tsx, src/features/integrations/IntegrationJourneyCard.tsx, src/… |
 | High | Repository 계열 |  | Repository 계열 파일이 22개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/repositories/postgresFriendsRepository.mjs, backend/src/repositories/postgresRunsRepository.mjs, backend/sr… |
-| Medium | Route 계열 |  | Route 계열 파일이 13개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/runs/tracking/background/routeAccumulator.ts, backend/src/routes/adminRoutes.mjs, src/features/runs/RunRou… |
+| Medium | Route 계열 |  | Route 계열 파일이 14개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/runs/tracking/background/routeAccumulator.ts, backend/src/routes/adminRoutes.mjs, src/features/runs/RunRou… |
 | Medium | Service 계열 |  | Service 계열 파일이 11개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/services/matchService.ts, src/services/authService.ts, src/services/runningService.ts, src/services/friendsService.… |
 | Medium | Ranking 계열 |  | Ranking 계열 파일이 9개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/friends/components/friendsRankingStyles.ts, src/features/runs/components/liveMatchTracking/LiveMatchRankin… |
 | Medium | league |  | 같은 basename을 가진 파일 6개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/mock/league.ts, src/lib/api/services/league.ts, src/domain/league.ts, src/lib/api/types/league.ts,… |

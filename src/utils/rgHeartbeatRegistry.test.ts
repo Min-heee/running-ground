@@ -84,3 +84,33 @@ test('heartbeat cleanup after room exit releases the active match owner', () => 
   assert.equal(restarted.acquired, true);
   restarted.release();
 });
+
+test('heartbeat single-flight cleans up rejected API requests for retry', async () => {
+  resetRgHeartbeatRegistryForTest();
+  let callCount = 0;
+  const failing = runRgHeartbeatSingleFlight('match-progress:match-retry', async () => {
+    callCount += 1;
+    throw new Error('network failed');
+  });
+  const duplicate = runRgHeartbeatSingleFlight('match-progress:match-retry', async () => {
+    callCount += 1;
+    return 'duplicate';
+  });
+
+  assert.equal(failing.started, true);
+  assert.equal(duplicate.started, false);
+  assert.equal(getInFlightRgHeartbeatRequestCount(), 1);
+  await assert.rejects(failing.promise, /network failed/);
+  await assert.rejects(duplicate.promise, /network failed/);
+  assert.equal(getInFlightRgHeartbeatRequestCount(), 0);
+
+  const retry = runRgHeartbeatSingleFlight('match-progress:match-retry', async () => {
+    callCount += 1;
+    return 'ok';
+  });
+
+  assert.equal(retry.started, true);
+  assert.equal(await retry.promise, 'ok');
+  assert.equal(callCount, 2);
+  assert.equal(getInFlightRgHeartbeatRequestCount(), 0);
+});

@@ -1,17 +1,15 @@
 import { useMemo } from 'react';
-import type {
-  LiveMatchMetricLabels,
-  LiveMatchTrackingPageProps,
-} from '@/features/runs/components/LiveMatchTrackingPage';
-import { formatDuration } from '@/features/runs/tracking';
 import {
-  formatCadence,
-  formatElevation,
-  formatMetricDistance,
-} from '@/features/runs/tracking/trackingSession';
+  buildLiveMatchMetricLabels,
+  buildLiveMatchTrackingViewProps,
+  type LiveMatchTrackingInputProps,
+  type LiveMatchTrackingViewProps,
+} from '@/features/runs/viewModels/liveMatchTrackingViewModel';
 
-export type LiveMatchTrackingInputProps = Omit<LiveMatchTrackingPageProps, 'includeMatchCards' | 'metricLabels'>;
-export type LiveMatchTrackingViewProps = Omit<LiveMatchTrackingPageProps, 'includeMatchCards'>;
+export type {
+  LiveMatchTrackingInputProps,
+  LiveMatchTrackingViewProps,
+};
 
 export function useLiveMatchTrackingViewProps({
   elapsedSeconds,
@@ -39,13 +37,13 @@ export function useLiveMatchTrackingViewProps({
   currentGroupLeader,
   onContinueSoloFromMatch,
 }: LiveMatchTrackingInputProps) {
-  const metricLabels = useMemo<LiveMatchMetricLabels>(() => ({
-    elapsedLabel: formatDuration(elapsedSeconds),
-    distanceLabel: formatMetricDistance(distanceKm),
-    averagePaceLabel: averagePace,
-    currentPaceLabel: currentPace,
-    cadenceLabel: formatCadence(cadenceSpm),
-    elevationLabel: formatElevation(elevationGainM),
+  const metricLabels = useMemo(() => buildLiveMatchMetricLabels({
+    elapsedSeconds,
+    distanceKm,
+    averagePace,
+    currentPace,
+    cadenceSpm,
+    elevationGainM,
   }), [
     averagePace,
     cadenceSpm,
@@ -55,7 +53,7 @@ export function useLiveMatchTrackingViewProps({
     elevationGainM,
   ]);
 
-  return useMemo<LiveMatchTrackingViewProps>(() => ({
+  const input = useMemo<LiveMatchTrackingInputProps>(() => ({
     matchMode,
     liveMatchTitle,
     liveMatchText,
@@ -79,7 +77,6 @@ export function useLiveMatchTrackingViewProps({
     currentPace,
     cadenceSpm,
     elevationGainM,
-    metricLabels,
     onContinueSoloFromMatch,
   }), [
     averagePace,
@@ -105,7 +102,10 @@ export function useLiveMatchTrackingViewProps({
     liveMatchText,
     liveMatchTitle,
     matchMode,
-    metricLabels,
     onContinueSoloFromMatch,
   ]);
+
+  return useMemo<LiveMatchTrackingViewProps>(() => (
+    buildLiveMatchTrackingViewProps({ metricLabels, input })
+  ), [input, metricLabels]);
 }

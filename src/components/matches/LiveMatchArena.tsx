@@ -1,7 +1,6 @@
 import { memo, useMemo } from 'react';
 import { Text, useWindowDimensions, View } from 'react-native';
 import { AndroidLiveMatchPerfPanel } from '@/components/matches/AndroidLiveMatchPerfPanel';
-import { ArenaRoadContent } from '@/components/matches/liveMatchArena/ArenaRoadContent';
 import {
   areParticipantArraysEqual,
   areStringArraysEqual,
@@ -10,6 +9,9 @@ import {
   buildParticipantPerfSignature,
   sortGroupParticipants,
 } from '@/components/matches/liveMatchArena/helpers';
+import { LiveMatchArenaHeader } from '@/components/matches/liveMatchArena/LiveMatchArenaHeader';
+import { LiveMatchArenaRoadSection } from '@/components/matches/liveMatchArena/LiveMatchArenaRoadSection';
+import { LiveMatchArenaSummaryChips } from '@/components/matches/liveMatchArena/LiveMatchArenaSummaryChips';
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
 import type { ArenaParticipant } from '@/components/matches/liveMatchArena/types';
 import {
@@ -31,49 +33,6 @@ export type LiveMatchArenaProps = {
   deferHeavyContent?: boolean;
   onMounted?: (input: { matchId?: string | null; mode: 'duel' | 'group'; source: string }) => void;
 };
-
-const SummaryChip = memo(function SummaryChip({ label }: { label: string }) {
-  return (
-    <View style={styles.summaryChip}>
-      <Text style={styles.summaryChipText}>{label}</Text>
-    </View>
-  );
-});
-
-const ArenaHeader = memo(function ArenaHeader({
-  mode,
-  title,
-  subtitle,
-}: {
-  mode: 'duel' | 'group';
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <>
-      <Text style={styles.eyebrow}>{mode === 'duel' ? 'DUEL ROAD' : 'GROUP ROAD'}</Text>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
-    </>
-  );
-});
-
-const SummaryChipRow = memo(function SummaryChipRow({
-  chips,
-}: {
-  chips: string[];
-}) {
-  const summaryChipItems = useMemo(
-    () => chips.map((chip) => <SummaryChip key={chip} label={chip} />),
-    [chips],
-  );
-
-  return (
-    <View style={styles.summaryChipRow}>
-      {summaryChipItems}
-    </View>
-  );
-}, (prevProps, nextProps) => areStringArraysEqual(prevProps.chips, nextProps.chips));
 
 export const LiveMatchArena = memo(function LiveMatchArena({
   mode,
@@ -142,10 +101,10 @@ export const LiveMatchArena = memo(function LiveMatchArena({
 
   return (
     <View style={cardStyle}>
-      <ArenaHeader mode={mode} title={title} subtitle={subtitle} />
-      <SummaryChipRow chips={summaryChips} />
+      <LiveMatchArenaHeader mode={mode} title={title} subtitle={subtitle} />
+      <LiveMatchArenaSummaryChips chips={summaryChips} />
       {perfPanel}
-      <ArenaRoadContent
+      <LiveMatchArenaRoadSection
         mode={mode}
         shouldDeferHeavyContent={shouldDeferHeavyContent}
         duelParticipants={duelParticipants}

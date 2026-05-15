@@ -30,8 +30,46 @@ type UseTrackRunIdleViewModelInput = {
   isRequestingGroupMatch: boolean;
 };
 
+type TrackRunIdleActiveRoomCheckPolicyInput = {
+  forceOpenActiveMatch: boolean;
+  hasInviteToken: boolean;
+  hasLocalActiveHint: boolean;
+  hasPendingAction: boolean;
+  mode: 'tab' | 'stack';
+  trackingStatus: TrackerStatus;
+};
+
 function normalizeId(value?: string | null) {
   return value && value.trim().length > 0 ? value : null;
+}
+
+export function resolveTrackRunIdleActiveRoomCheckPolicy({
+  forceOpenActiveMatch,
+  hasInviteToken,
+  hasLocalActiveHint,
+  hasPendingAction,
+  mode,
+  trackingStatus,
+}: TrackRunIdleActiveRoomCheckPolicyInput) {
+  const shouldUseIdleCheckCadence = Boolean(
+    mode === 'tab'
+    && trackingStatus === 'idle'
+    && !forceOpenActiveMatch
+    && !hasInviteToken
+    && !hasPendingAction
+  );
+  const isIdleTabRuntime = Boolean(
+    shouldUseIdleCheckCadence
+    && !hasLocalActiveHint
+    && !forceOpenActiveMatch
+  );
+
+  return {
+    activeRoomCheckPriority: shouldUseIdleCheckCadence ? 'low-priority' as const : 'normal' as const,
+    isIdleTabRuntime,
+    shouldRunActiveRoomCheck: !hasPendingAction && (!shouldUseIdleCheckCadence || hasLocalActiveHint),
+    shouldUseIdleCheckCadence,
+  };
 }
 
 export function useTrackRunIdleViewModel({
@@ -74,18 +112,15 @@ export function useTrackRunIdleViewModel({
   );
   const hasInviteToken = Boolean(normalizeId(roomInviteToken));
   const hasLocalActiveHint = Boolean(activeRoomId || activeMatchId);
-  const shouldUseIdleCheckCadence = Boolean(
-    mode === 'tab'
-    && trackingStatus === 'idle'
-    && !forceOpenActiveMatch
-    && !hasInviteToken
-    && !hasPendingAction
-  );
-  const isIdleTabRuntime = Boolean(
-    shouldUseIdleCheckCadence
-    && !hasLocalActiveHint
-    && !forceOpenActiveMatch
-  );
+  const activeRoomCheckPolicy = resolveTrackRunIdleActiveRoomCheckPolicy({
+    forceOpenActiveMatch,
+    hasInviteToken,
+    hasLocalActiveHint,
+    hasPendingAction,
+    mode,
+    trackingStatus,
+  });
+  const { isIdleTabRuntime } = activeRoomCheckPolicy;
   const idleReason = isIdleTabRuntime
     ? 'tab-idle-no-room-no-match'
     : activeMatchId
@@ -112,8 +147,8 @@ export function useTrackRunIdleViewModel({
     idleReason,
     isIdleTabRuntime,
     isUserActionPending: hasPendingAction,
-    activeRoomCheckPriority: shouldUseIdleCheckCadence ? 'low-priority' as const : 'normal' as const,
-    shouldRunActiveRoomCheck: !hasPendingAction && (!shouldUseIdleCheckCadence || hasLocalActiveHint),
+    activeRoomCheckPriority: activeRoomCheckPolicy.activeRoomCheckPriority,
+    shouldRunActiveRoomCheck: activeRoomCheckPolicy.shouldRunActiveRoomCheck,
     shouldRunCountdownTicker: !isIdleTabRuntime,
     shouldRunLiveMatchProgress: !isIdleTabRuntime,
     shouldRunPartyRunSync: !isIdleTabRuntime,
@@ -125,7 +160,8 @@ export function useTrackRunIdleViewModel({
     hasPendingAction,
     idleReason,
     isIdleTabRuntime,
-    shouldUseIdleCheckCadence,
+    activeRoomCheckPolicy.activeRoomCheckPriority,
+    activeRoomCheckPolicy.shouldRunActiveRoomCheck,
   ]);
 
   useEffect(() => {

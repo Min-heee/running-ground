@@ -10,6 +10,7 @@ import {
 } from '@/features/runs/tracking/background';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
+import { resolveTrackingAppStateSyncPlan } from '@/features/runs/tracking/trackingAppStatePolicy';
 
 type UseTrackingAppStateSyncInput = {
   enabled?: boolean;
@@ -106,30 +107,36 @@ export function useTrackingAppStateSync({
   const handleAppStateChange = useCallback((nextState: AppStateStatus) => {
     const previousState = appStateRef.current;
     appStateRef.current = nextState;
+    const plan = resolveTrackingAppStateSyncPlan({
+      nextState,
+      previousState,
+      trackerStatus: trackerStatusRef.current,
+    });
 
-    if (nextState === 'active') {
+    if (plan.shouldSyncBackgroundSnapshot) {
       const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
       callbackRef.current.syncFromBackgroundTracking(snapshot);
-      if (trackerStatusRef.current === 'running') {
-        scheduleLocationTaskAppStateSync('active', 0);
+      if (plan.locationTaskAppState && plan.locationTaskDelayMs !== null) {
+        scheduleLocationTaskAppStateSync(plan.locationTaskAppState, plan.locationTaskDelayMs);
       }
-      void callbackRef.current.refreshStaleMatchArtifacts().catch(() => {});
+      if (plan.shouldRefreshStaleArtifacts) {
+        void callbackRef.current.refreshStaleMatchArtifacts().catch(() => {});
+      }
 
-      if (trackerStatusRef.current === 'running') {
-        void callbackRef.current.syncMatchLifecycleStatus('running', snapshot).catch(() => {
+      if (plan.lifecycleStatus) {
+        void callbackRef.current.syncMatchLifecycleStatus(plan.lifecycleStatus, snapshot).catch(() => {
           // Keep the run going even if the optional lifecycle heartbeat fails.
         });
       }
       return;
     }
 
-    if (
-      previousState === 'active'
-      && (nextState === 'inactive' || nextState === 'background')
-      && trackerStatusRef.current === 'running'
-    ) {
-      scheduleLocationTaskAppStateSync(nextState, 400);
-      void callbackRef.current.syncMatchLifecycleStatus('background').catch(() => {
+    if (plan.locationTaskAppState && plan.locationTaskDelayMs !== null) {
+      scheduleLocationTaskAppStateSync(plan.locationTaskAppState, plan.locationTaskDelayMs);
+    }
+
+    if (plan.lifecycleStatus) {
+      void callbackRef.current.syncMatchLifecycleStatus(plan.lifecycleStatus).catch(() => {
         // Keep the run going even if the optional lifecycle heartbeat fails.
       });
     }

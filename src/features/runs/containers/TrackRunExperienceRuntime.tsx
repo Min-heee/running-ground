@@ -179,6 +179,7 @@ export type TrackRunExperienceRuntimeProps = {
   forceMatchArena?: boolean;
   focusRoomId?: string;
   roomInviteToken?: string;
+  routeShellHint?: TrackRunShellKind;
 };
 
 export function TrackRunExperienceRuntime({
@@ -192,6 +193,7 @@ export function TrackRunExperienceRuntime({
   forceMatchArena,
   focusRoomId,
   roomInviteToken,
+  routeShellHint,
 }: TrackRunExperienceRuntimeProps) {
   const liveMatchRouteHydration = getLiveMatchRouteHydration();
   const hydratedFocusMatchMode = focusMatchMode ?? liveMatchRouteHydration?.mode;
@@ -214,14 +216,16 @@ export function TrackRunExperienceRuntime({
       focusMatchMode: focusMatchMode ?? null,
       focusRoomId: focusRoomId ?? null,
       mode,
+      routeShellHint: routeShellHint ?? null,
     });
 
     return () => {
       rgPerfMark('TrackRunExperience unmount', {
         mode,
+        routeShellHint: routeShellHint ?? null,
       });
     };
-  }, [focusMatchId, focusMatchMode, focusRoomId, liveMatchRouteHydration?.matchId, liveMatchRouteHydration?.roomId, mode]);
+  }, [focusMatchId, focusMatchMode, focusRoomId, liveMatchRouteHydration?.matchId, liveMatchRouteHydration?.roomId, mode, routeShellHint]);
 
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();

@@ -1,15 +1,18 @@
 import { useMemo } from 'react';
 import type { RefObject } from 'react';
 import type { ScrollView } from 'react-native';
-import type { LiveMatchArenaPageProps } from '@/features/runs/components/LiveMatchArenaPage';
-import type { LiveMatchPagesProps } from '@/features/runs/components/LiveMatchPages';
-import type { LiveMatchRaceBoardPageProps } from '@/features/runs/components/LiveMatchRaceBoardPage';
 import type { LiveMatchResultPageProps } from '@/features/runs/components/LiveMatchResultPage';
-import type { LiveMatchTrackingPageProps } from '@/features/runs/components/LiveMatchTrackingPage';
 import {
   buildLiveMatchArenaViewModel,
   type LiveMatchArenaViewModelInput,
 } from '@/features/runs/viewModels/liveMatchArenaViewModel';
+import {
+  buildLiveMatchArenaPageProps,
+  buildLiveMatchPagesProps,
+  buildLiveMatchRaceBoardPageProps,
+  buildLiveMatchResultPageProps,
+  buildLiveMatchStatsPageProps,
+} from '@/features/runs/viewModels/liveMatchPagesViewModel';
 import {
   buildLiveMatchRaceBoardViewModel,
   type LiveMatchRaceBoardViewModelInput,
@@ -169,9 +172,9 @@ export function useLiveMatchViewModel({
     visibleMatchRoom,
   ]);
 
-  const arenaProps = useMemo<LiveMatchArenaPageProps>(() => ({
-    stableMatchId: activeMatchId,
-    viewModel: arenaViewModel,
+  const arenaProps = useMemo(() => buildLiveMatchArenaPageProps({
+    activeMatchId,
+    arenaViewModel,
     onLiveMatchMounted,
   }), [activeMatchId, arenaViewModel, onLiveMatchMounted]);
 
@@ -218,9 +221,9 @@ export function useLiveMatchViewModel({
     visibleMatchRoom,
   ]);
 
-  const raceBoardProps = useMemo<LiveMatchRaceBoardPageProps>(() => ({
+  const raceBoardProps = useMemo(() => buildLiveMatchRaceBoardPageProps({
     matchMode,
-    viewModel: raceBoardViewModel,
+    raceBoardViewModel,
   }), [matchMode, raceBoardViewModel]);
 
   const trackingPageProps = useLiveMatchTrackingViewProps({
@@ -250,7 +253,7 @@ export function useLiveMatchViewModel({
     onContinueSoloFromMatch,
   });
 
-  const resultProps = useMemo<LiveMatchResultPageProps>(() => ({
+  const resultProps = useMemo(() => buildLiveMatchResultPageProps({
     matchMode,
     estimatedBonusPoints,
     duelRows,
@@ -264,19 +267,20 @@ export function useLiveMatchViewModel({
     matchMode,
   ]);
 
-  const trackingStatsPageProps = useMemo<LiveMatchTrackingPageProps | null>(() => (
-    page === 2 ? { ...trackingPageProps, includeMatchCards: false } : null
-  ), [page, trackingPageProps]);
+  const trackingStatsPageProps = useMemo(() => buildLiveMatchStatsPageProps({
+    page,
+    trackingPageProps,
+  }), [page, trackingPageProps]);
 
-  const livePagesProps = useMemo<Omit<LiveMatchPagesProps, 'exitAction'>>(() => ({
+  const livePagesProps = useMemo(() => buildLiveMatchPagesProps({
     scrollRef,
     page,
     pageWidth,
     hasResultPage,
     arenaProps,
-    raceBoardProps: page === 1 ? raceBoardProps : null,
-    trackingProps: trackingStatsPageProps,
-    resultProps: page === 3 ? resultProps : null,
+    raceBoardProps,
+    trackingStatsPageProps,
+    resultProps,
     onPageChange,
   }), [
     arenaProps,
