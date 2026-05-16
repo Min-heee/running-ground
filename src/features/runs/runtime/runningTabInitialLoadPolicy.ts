@@ -8,6 +8,7 @@ export type RunningTabInitialLoadPolicyInput = {
   focusRoomId?: string;
   forceMatchArena?: boolean;
   mode: 'stack' | 'tab';
+  platform?: 'android' | 'ios' | 'web' | string;
   roomInviteToken?: string;
   routeShellHint?: TrackRunShellKind;
 };
@@ -18,10 +19,12 @@ export function shouldDeferRunningTabRuntimeInitialMount({
   focusRoomId,
   forceMatchArena,
   mode,
+  platform = 'android',
   roomInviteToken,
   routeShellHint,
 }: RunningTabInitialLoadPolicyInput) {
-  return mode === 'tab'
+  return platform === 'android'
+    && mode === 'tab'
     && routeShellHint === 'idle'
     && !focusMatchId
     && !focusMatchMode

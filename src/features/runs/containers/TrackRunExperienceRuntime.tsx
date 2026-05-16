@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
-import { ActivityIndicator, InteractionManager, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, InteractionManager, Platform, StyleSheet, Text, View } from 'react-native';
 import type {
   TrackRunExperienceRuntimeProps,
 } from '@/features/runs/runtime/TrackRunExperienceRuntimeModel';
@@ -17,9 +17,41 @@ type RuntimeComponent = ComponentType<TrackRunExperienceRuntimeProps>;
 let loadedRuntimeComponent: RuntimeComponent | null = null;
 let runtimeLoadPromise: Promise<RuntimeComponent> | null = null;
 
+function loadRuntimeComponentSynchronously() {
+  if (loadedRuntimeComponent) {
+    return loadedRuntimeComponent;
+  }
+
+  try {
+    // iOS TestFlight loads this synchronously to avoid Expo Updates error recovery
+    // treating a production dynamic import rejection as a launch-time fatal error.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const runtimeModule = require('../runtime/TrackRunExperienceRuntimeModel') as typeof import('@/features/runs/runtime/TrackRunExperienceRuntimeModel');
+    loadedRuntimeComponent = runtimeModule.TrackRunExperienceRuntime;
+    rgPerfMark('running tab live runtime lazy loaded', {
+      platform: Platform.OS,
+      source: 'track-run runtime loader',
+      strategy: 'sync-require',
+    });
+    return loadedRuntimeComponent;
+  } catch (error) {
+    rgPerfMark('running tab runtime load failed', {
+      message: error instanceof Error ? error.message : 'unknown',
+      platform: Platform.OS,
+      source: 'track-run runtime loader',
+      strategy: 'sync-require',
+    });
+    throw error;
+  }
+}
+
 function loadRuntimeComponent() {
   if (loadedRuntimeComponent) {
     return Promise.resolve(loadedRuntimeComponent);
+  }
+
+  if (Platform.OS === 'ios') {
+    return Promise.resolve(loadRuntimeComponentSynchronously());
   }
 
   if (!runtimeLoadPromise) {
@@ -27,7 +59,9 @@ function loadRuntimeComponent() {
       .then((module) => {
         loadedRuntimeComponent = module.TrackRunExperienceRuntime;
         rgPerfMark('running tab live runtime lazy loaded', {
+          platform: Platform.OS,
           source: 'track-run runtime loader',
+          strategy: 'dynamic-import',
         });
         return loadedRuntimeComponent;
       });
@@ -39,9 +73,21 @@ function loadRuntimeComponent() {
 export type { TrackRunExperienceRuntimeProps };
 
 export function TrackRunExperienceRuntime(props: TrackRunExperienceRuntimeProps) {
-  const [Runtime, setRuntime] = useState<RuntimeComponent | null>(() => loadedRuntimeComponent);
-  const shouldDeferRuntime = shouldDeferRunningTabRuntimeInitialMount(props);
-  const runtimeDeferDelayMs = getRunningTabRuntimeInitialMountDelayMs(props);
+  const [Runtime, setRuntime] = useState<RuntimeComponent | null>(() => (
+    Platform.OS === 'ios' ? loadRuntimeComponentSynchronously() : loadedRuntimeComponent
+  ));
+  const runtimePolicyInput = {
+    focusMatchId: props.focusMatchId,
+    focusMatchMode: props.focusMatchMode,
+    focusRoomId: props.focusRoomId,
+    forceMatchArena: props.forceMatchArena,
+    mode: props.mode,
+    platform: Platform.OS,
+    roomInviteToken: props.roomInviteToken,
+    routeShellHint: props.routeShellHint,
+  };
+  const shouldDeferRuntime = shouldDeferRunningTabRuntimeInitialMount(runtimePolicyInput);
+  const runtimeDeferDelayMs = getRunningTabRuntimeInitialMountDelayMs(runtimePolicyInput);
 
   useEffect(() => {
     if (Runtime) {

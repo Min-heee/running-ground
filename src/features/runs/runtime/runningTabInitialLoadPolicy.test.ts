@@ -41,19 +41,27 @@ test('stack running screen does not defer runtime mount', () => {
 test('running tab idle runtime delay gives the initial shell a first-frame window', () => {
   assert.equal(getRunningTabRuntimeInitialMountDelayMs({
     mode: 'tab',
+    platform: 'android',
     routeShellHint: 'idle',
   }), RUNNING_TAB_IDLE_RUNTIME_DEFER_MS);
 });
 
-test('running tab live and lobby routes do not delay runtime import', () => {
+test('running tab live, lobby, and iOS routes do not delay runtime import', () => {
   assert.equal(getRunningTabRuntimeInitialMountDelayMs({
     mode: 'tab',
+    platform: 'android',
     routeShellHint: 'live',
     focusMatchId: 'duel-match-1',
   }), 0);
   assert.equal(getRunningTabRuntimeInitialMountDelayMs({
     mode: 'tab',
+    platform: 'android',
     routeShellHint: 'lobby',
     focusRoomId: 'duel-room-1',
+  }), 0);
+  assert.equal(getRunningTabRuntimeInitialMountDelayMs({
+    mode: 'tab',
+    platform: 'ios',
+    routeShellHint: 'idle',
   }), 0);
 });

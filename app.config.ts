@@ -80,6 +80,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const appVariant = normalizeAppVariant(process.env.APP_VARIANT) as AppVariant;
   const isDevelopmentVariant = appVariant === 'development';
   const version = process.env.APP_VERSION?.trim() || packageJson.version || '0.1.0';
+  const runtimeVersion = process.env.EXPO_RUNTIME_VERSION?.trim() || version;
   const baseDisplayName = baseConfig.name || 'RunningGround';
   const baseBundleIdentifier = baseConfig.ios?.bundleIdentifier;
   const iosApplicationQueriesSchemes = Array.from(
@@ -148,7 +149,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     version,
     orientation: 'portrait',
     userInterfaceStyle: 'light',
-    runtimeVersion: version,
+    runtimeVersion,
     updates: {
       ...(baseConfig.updates ?? {}),
       url: process.env.EXPO_UPDATES_URL?.trim() || DEFAULT_EAS_UPDATE_URL,

@@ -6,6 +6,7 @@ import '@/features/runs/tracking/background';
 import { useConfigureNotificationHandler } from '@/navigation/notificationHandler';
 import { useRootAuthGate } from '@/navigation/rootAuthGate';
 import { logRgEnvironmentOnce } from '@/utils/rgEnvTrace';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 export default function RootLayout() {
   const { ready, redirectHref } = useRootAuthGate();
@@ -13,11 +14,20 @@ export default function RootLayout() {
   useConfigureNotificationHandler();
 
   useEffect(() => {
+    rgPerfMark('app root layout mounted', {
+      source: 'root layout',
+    });
+  }, []);
+
+  useEffect(() => {
     if (!ready || didLogEnvironmentRef.current) {
       return;
     }
 
     didLogEnvironmentRef.current = true;
+    rgPerfMark('app root layout ready', {
+      source: 'root layout',
+    });
     logRgEnvironmentOnce();
   }, [ready]);
 
