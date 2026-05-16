@@ -1,8 +1,10 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
+import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 
 export default function MarketScreen() {
+  useTabWarmupTrace('market');
   return (
     <Screen>
       <View style={styles.headerRow}>

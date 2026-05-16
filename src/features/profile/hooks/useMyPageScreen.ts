@@ -5,6 +5,8 @@ import { deleteAccount, signOut } from '@/lib/session';
 import { fetchIntegrationStatus, fetchMyActivity, fetchMyProfile, getApiErrorMessage } from '@/services';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
+const MYPAGE_INITIAL_FETCH_DEFER_MS = 120;
+
 export function useMyPageScreen() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
@@ -51,7 +53,13 @@ export function useMyPageScreen() {
     return () => {
       canceled = true;
     };
-  }, []);
+  }, [], {
+    delayMs: MYPAGE_INITIAL_FETCH_DEFER_MS,
+    source: 'mypage screen model',
+    tab: 'mypage',
+    traceInitialFetch: true,
+    work: 'mypage data fetch',
+  });
 
   const matchSummary = useMemo(() => {
     const matchRuns = activity?.runs.filter((run) => run.matchResult) ?? [];

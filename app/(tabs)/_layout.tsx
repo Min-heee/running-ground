@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTabScreenOptions } from '@/navigation/tabConfig';
@@ -16,43 +17,63 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const tabBarBottomPadding = Math.max(insets.bottom, 12);
   const tabBarHeight = 58 + tabBarBottomPadding + 8;
+  const screenOptions = useMemo(() => ({
+    headerShown: false,
+    tabBarActiveTintColor: '#111827',
+    tabBarInactiveTintColor: '#98A2B3',
+    tabBarStyle: {
+      height: tabBarHeight,
+      paddingTop: 8,
+      paddingBottom: tabBarBottomPadding,
+      backgroundColor: '#FFFFFF',
+      borderTopWidth: 1,
+      borderTopColor: '#EAECF0',
+      elevation: 10,
+    },
+    tabBarLabelStyle: {
+      fontSize: 10,
+      fontWeight: '700' as const,
+      marginTop: 2,
+    },
+    tabBarItemStyle: {
+      paddingHorizontal: 0,
+    },
+    tabBarIconStyle: {
+      marginTop: 2,
+    },
+  }), [tabBarBottomPadding, tabBarHeight]);
+  const tabListeners = useMemo(() => ({
+    friends: buildTabInputListeners('friends'),
+    home: buildTabInputListeners('home'),
+    league: buildTabInputListeners('league'),
+    market: buildTabInputListeners('market'),
+    mypage: buildTabInputListeners('mypage'),
+    race: buildTabInputListeners('race'),
+    running: buildTabInputListeners('running'),
+  }), []);
+  const tabOptions = useMemo(() => ({
+    friends: getTabScreenOptions('friends'),
+    home: getTabScreenOptions('home'),
+    league: getTabScreenOptions('league'),
+    market: getTabScreenOptions('market'),
+    mypage: getTabScreenOptions('mypage'),
+    race: getTabScreenOptions('race'),
+    running: getTabScreenOptions('running'),
+  }), []);
+  const hiddenTabOptions = useMemo(() => ({ href: null }), []);
 
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: '#111827',
-        tabBarInactiveTintColor: '#98A2B3',
-        tabBarStyle: {
-          height: tabBarHeight,
-          paddingTop: 8,
-          paddingBottom: tabBarBottomPadding,
-          backgroundColor: '#FFFFFF',
-          borderTopWidth: 1,
-          borderTopColor: '#EAECF0',
-          elevation: 10,
-        },
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '700',
-          marginTop: 2,
-        },
-        tabBarItemStyle: {
-          paddingHorizontal: 0,
-        },
-        tabBarIconStyle: {
-          marginTop: 2,
-        },
-      }}
+      screenOptions={screenOptions}
     >
-      <Tabs.Screen name="league" options={getTabScreenOptions('league')} listeners={buildTabInputListeners('league')} />
-      <Tabs.Screen name="friends" options={getTabScreenOptions('friends')} listeners={buildTabInputListeners('friends')} />
-      <Tabs.Screen name="running" options={getTabScreenOptions('running')} listeners={buildTabInputListeners('running')} />
-      <Tabs.Screen name="home" options={getTabScreenOptions('home')} listeners={buildTabInputListeners('home')} />
-      <Tabs.Screen name="race" options={getTabScreenOptions('race')} listeners={buildTabInputListeners('race')} />
-      <Tabs.Screen name="market" options={getTabScreenOptions('market')} listeners={buildTabInputListeners('market')} />
-      <Tabs.Screen name="mypage" options={getTabScreenOptions('mypage')} listeners={buildTabInputListeners('mypage')} />
-      <Tabs.Screen name="integrations" options={{ href: null }} />
+      <Tabs.Screen name="league" options={tabOptions.league} listeners={tabListeners.league} />
+      <Tabs.Screen name="friends" options={tabOptions.friends} listeners={tabListeners.friends} />
+      <Tabs.Screen name="running" options={tabOptions.running} listeners={tabListeners.running} />
+      <Tabs.Screen name="home" options={tabOptions.home} listeners={tabListeners.home} />
+      <Tabs.Screen name="race" options={tabOptions.race} listeners={tabListeners.race} />
+      <Tabs.Screen name="market" options={tabOptions.market} listeners={tabListeners.market} />
+      <Tabs.Screen name="mypage" options={tabOptions.mypage} listeners={tabListeners.mypage} />
+      <Tabs.Screen name="integrations" options={hiddenTabOptions} />
     </Tabs>
   );
 }

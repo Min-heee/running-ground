@@ -9,8 +9,10 @@ import { useFriendsScreen } from '@/features/friends/hooks/useFriendsScreen';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 
 export default function FriendsScreen() {
+  useTabWarmupTrace('friends');
   const { scrollToTop } = useLocalSearchParams<{ scrollToTop?: string }>();
   const {
     actionError,

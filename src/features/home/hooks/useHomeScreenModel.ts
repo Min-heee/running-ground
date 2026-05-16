@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import type { AppNotice, UserProfile, WeeklySummary } from '@/domain';
 import { shouldHidePastUpcomingMatch } from '@/features/home/utils/homeUpcomingMatches';
@@ -18,7 +18,14 @@ import {
   fetchUpcomingRunningMatches,
   getApiErrorMessage,
 } from '@/services';
-import { useAndroidDeferredFocusEffect } from '@/utils/useAndroidDeferredInteractionEffect';
+import {
+  useAndroidDeferredEffect,
+  useAndroidDeferredFocusEffect,
+} from '@/utils/useAndroidDeferredInteractionEffect';
+
+const HOME_INITIAL_FETCH_DEFER_MS = 120;
+const HOME_NOTIFICATION_SYNC_DEFER_MS = 250;
+const HOME_TIMER_DEFER_MS = 120;
 
 export function useHomeScreenModel() {
   const [summary, setSummary] = useState<WeeklySummary | null>(null);
@@ -112,16 +119,36 @@ export function useHomeScreenModel() {
     };
   }, []);
 
-  useAndroidDeferredFocusEffect(loadHome, [loadHome]);
+  useAndroidDeferredFocusEffect(loadHome, [loadHome], {
+    delayMs: HOME_INITIAL_FETCH_DEFER_MS,
+    source: 'home screen model',
+    tab: 'home',
+    traceInitialFetch: true,
+    work: 'home data fetch',
+  });
 
-  useEffect(() => {
+  useAndroidDeferredEffect(() => {
+    if (!hasLoadedRef.current && upcomingMatches.length === 0) {
+      return undefined;
+    }
+
     void syncScheduledMatchNotifications(upcomingMatches, matchRemindersEnabled);
-  }, [matchRemindersEnabled, upcomingMatches]);
+  }, [matchRemindersEnabled, upcomingMatches], {
+    delayMs: HOME_NOTIFICATION_SYNC_DEFER_MS,
+    source: 'home screen model',
+    tab: 'home',
+    work: 'match notification sync',
+  });
 
-  useEffect(() => {
+  useAndroidDeferredEffect(() => {
     const timer = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [], {
+    delayMs: HOME_TIMER_DEFER_MS,
+    source: 'home screen model',
+    tab: 'home',
+    work: 'countdown clock',
+  });
 
   const visibleUpcomingMatches = useMemo(
     () => upcomingMatches.filter((match) => !shouldHidePastUpcomingMatch(match, nowMs)),

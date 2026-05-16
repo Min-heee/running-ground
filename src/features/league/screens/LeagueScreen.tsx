@@ -11,8 +11,10 @@ import { LeagueModeSwitch } from '@/features/league/components/LeagueModeSwitch'
 import { LeagueRegionSelectorCard } from '@/features/league/components/LeagueRegionSelectorCard';
 import { useRegionLeagueState } from '@/features/league/hooks/useRegionLeagueState';
 import { colors } from '@/theme/tokens';
+import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 
 export default function LeagueScreen() {
+  useTabWarmupTrace('league');
   const scrollRef = useRef<ScrollView | null>(null);
   const [memberRankCardY, setMemberRankCardY] = useState(0);
   const [myRankRowY, setMyRankRowY] = useState<number | null>(null);

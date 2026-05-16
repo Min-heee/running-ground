@@ -12,8 +12,10 @@ import { ProfileSummaryCard } from '@/features/profile/components/ProfileSummary
 import { UniversityVerificationCard } from '@/features/profile/components/UniversityVerificationCard';
 import { useMyPageScreen } from '@/features/profile/hooks/useMyPageScreen';
 import { shouldShowRgEnvironmentDebugByDefault } from '@/utils/rgEnvTrace';
+import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 
 export default function MyPageScreen() {
+  useTabWarmupTrace('mypage');
   const universityVerificationHref = '/university-verification' as Href;
   const matchRecordHref = '/match-record' as Href;
   const showDebugByDefault = useMemo(() => shouldShowRgEnvironmentDebugByDefault(), []);

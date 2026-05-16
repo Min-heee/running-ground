@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { getApiErrorMessage } from '@/services/apiError';
 import { fetchDistrictPersonal, fetchRegionLeague } from '@/services/leagueService';
@@ -9,6 +9,8 @@ import { isMyRegionNode, sortRegionChildrenByRank } from '@/features/league/util
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
 const EMPTY_REGION_CHILDREN: NonNullable<RegionLeagueResponse['children']> = [];
+const LEAGUE_INITIAL_FETCH_DEFER_MS = 120;
+const LEAGUE_MEMBER_FETCH_DEFER_MS = 160;
 
 export function useRegionLeagueState() {
   const [leagueMode, setLeagueMode] = useState<LeagueMode>('region');
@@ -56,9 +58,15 @@ export function useRegionLeagueState() {
 
   useAndroidDeferredEffect(() => {
     loadLeague();
-  }, [loadLeague]);
+  }, [loadLeague], {
+    delayMs: LEAGUE_INITIAL_FETCH_DEFER_MS,
+    source: 'league screen model',
+    tab: 'league',
+    traceInitialFetch: true,
+    work: 'region league fetch',
+  });
 
-  useEffect(() => {
+  useAndroidDeferredEffect(() => {
     if (!isLeafRegion || !currentNode) {
       setRegionMembers(null);
       setRegionMembersError(null);
@@ -67,7 +75,13 @@ export function useRegionLeagueState() {
     }
 
     loadRegionMembers(currentNode.id);
-  }, [currentNode, isLeafRegion, loadRegionMembers]);
+  }, [currentNode, isLeafRegion, loadRegionMembers], {
+    delayMs: LEAGUE_MEMBER_FETCH_DEFER_MS,
+    source: 'league screen model',
+    tab: 'league',
+    traceInitialFetch: true,
+    work: 'district member ranking fetch',
+  });
 
   return {
     leagueMode,

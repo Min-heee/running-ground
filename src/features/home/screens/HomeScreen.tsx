@@ -8,8 +8,10 @@ import { HomeUpcomingMatchesCard } from '@/features/home/components/HomeUpcoming
 import { useHomeScreenModel } from '@/features/home/hooks/useHomeScreenModel';
 import { HomeOverview } from '@/features/home/HomeOverview';
 import { shouldShowMatchStartOverlay } from '@/lib/matchCountdown';
+import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 
 export default function HomeScreen() {
+  useTabWarmupTrace('home');
   const {
     activity,
     cancelingMatchId,

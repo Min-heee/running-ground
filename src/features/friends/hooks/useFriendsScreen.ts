@@ -12,6 +12,8 @@ import {
 } from '@/services';
 import { useAndroidDeferredFocusEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
+const FRIENDS_INITIAL_FETCH_DEFER_MS = 120;
+
 export function useFriendsScreen() {
   const [leaderboard, setLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
@@ -65,7 +67,13 @@ export function useFriendsScreen() {
     }, 20000);
 
     return () => clearInterval(refreshInterval);
-  }, [loadFriends, syncFriends]);
+  }, [loadFriends, syncFriends], {
+    delayMs: FRIENDS_INITIAL_FETCH_DEFER_MS,
+    source: 'friends screen model',
+    tab: 'friends',
+    traceInitialFetch: true,
+    work: 'friends data fetch',
+  });
 
   const pending = useMemo(() => requests.filter((request) => request.status === 'pending'), [requests]);
   const received = useMemo(() => requests.filter((request) => request.status === 'received'), [requests]);

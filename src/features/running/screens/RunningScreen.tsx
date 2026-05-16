@@ -1,7 +1,9 @@
 import { useLocalSearchParams } from 'expo-router';
 import { TrackRunExperience } from '@/features/runs/TrackRunExperience';
+import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 
 export default function RunningTabScreen() {
+  useTabWarmupTrace('running');
   const params = useLocalSearchParams<{
     focusMatchMode?: string;
     focusMatchId?: string;
