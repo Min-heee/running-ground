@@ -14,6 +14,10 @@ import {
   clearMatchRoomExitGuard,
   markMatchRoomExiting,
 } from '@/features/runs/lifecycle/matchRoomExitGuard';
+import {
+  clearMatchRoomDeletedTombstone,
+  markMatchRoomDeleted,
+} from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { hydrateLiveMatchRouteState } from '@/features/runs/lifecycle/liveMatchRouteHydration';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
@@ -251,6 +255,9 @@ export function useRoomStartActions({
 
     roomExitInFlightRef.current = true;
     markMatchRoomExiting(exitRoom.roomId);
+    if (exitRoom.isHost) {
+      markMatchRoomDeleted(exitRoom.roomId, 'match-room delete button press');
+    }
     setSaving(true);
     setRoomExitState(nextExitState);
     setError(null);
@@ -265,6 +272,12 @@ export function useRoomStartActions({
       roomId: exitRoom.roomId,
       source: 'match-room exit',
     });
+    if (exitRoom.isHost) {
+      rgPerfMark('room delete local state fully cleared', {
+        roomId: exitRoom.roomId,
+        source: 'match-room exit',
+      });
+    }
     navigateAwayFromRoom();
 
     void waitForRgInputFeedbackFrame()
@@ -288,6 +301,9 @@ export function useRoomStartActions({
             source: 'match-room exit',
           });
           clearMatchRoomExitGuard(exitRoom.roomId);
+          if (exitRoom.isHost) {
+            clearMatchRoomDeletedTombstone(exitRoom.roomId, 'room delete failure');
+          }
           if (isMountedRef.current) {
             setError(message);
           }

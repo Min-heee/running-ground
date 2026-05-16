@@ -1,4 +1,5 @@
 import type { RunningMatchRoom } from '@/lib/api/types';
+import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 const OPTIMISTIC_ROOM_HYDRATION_TTL_MS = 30_000;
@@ -24,6 +25,15 @@ export function hydrateOptimisticMatchRoom({
   source: string;
 }) {
   if (!room?.roomId) {
+    return;
+  }
+
+  if (isMatchRoomDeleted(room.roomId, nowMs)) {
+    rgPerfMark('room hydrate skipped deleted room', {
+      roomId: room.roomId,
+      source,
+      state: room.state,
+    });
     return;
   }
 
@@ -53,6 +63,14 @@ export function consumeOptimisticMatchRoomHydration(nowMs = Date.now()) {
     return null;
   }
 
+  if (isMatchRoomDeleted(hydration.room.roomId, nowMs)) {
+    rgPerfMark('room hydrate skipped deleted room', {
+      roomId: hydration.room.roomId,
+      source: hydration.source,
+      state: hydration.room.state,
+    });
+    return null;
+  }
+
   return hydration;
 }
-

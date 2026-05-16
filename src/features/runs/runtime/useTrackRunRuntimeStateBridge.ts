@@ -3,6 +3,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard';
+import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { buildTrackRunRuntimeRouteKey } from '@/features/runs/lifecycle/trackRunRouteState';
 import { runStaleRoomCleanupWithTimeout } from '@/features/runs/sync/staleRoomCleanup';
 import type { RunningMatchRoom } from '@/lib/api/types';
@@ -62,20 +63,24 @@ export function useTrackRunRuntimeStateBridge({
   visibleMatchRoom,
 }: UseTrackRunRuntimeStateBridgeInput) {
   const buildTrackRunActiveRoomCheckRouteKey = useCallback(() => {
+    const safeFocusRoomId = isMatchRoomDeleted(focusRoomId) ? undefined : focusRoomId;
+    const safeHydratedRoomId = isMatchRoomDeleted(hydratedRoomId) ? undefined : hydratedRoomId;
+    const safeMatchRoomId = isMatchRoomDeleted(matchRoom?.roomId) ? undefined : matchRoom?.roomId;
+    const safeVisibleMatchRoomId = isMatchRoomDeleted(visibleMatchRoom?.roomId) ? undefined : visibleMatchRoom?.roomId;
     const routeState = buildTrackRunRuntimeRouteKey({
       focusMatchId,
-      focusRoomId,
+      focusRoomId: safeFocusRoomId,
       focusedDuelMatchId: focusedDuelMatchIdRef.current,
       focusedGroupMatchId: focusedGroupMatchIdRef.current,
       forceOpenActiveMatch,
       hydratedMatchId,
       hydratedMatchMode,
-      hydratedRoomId,
+      hydratedRoomId: safeHydratedRoomId,
       liveArenaPage,
       matchMode,
-      matchRoomId: matchRoom?.roomId,
+      matchRoomId: safeMatchRoomId,
       roomLinkedMatchId: roomLinkedMatchContext?.matchId,
-      visibleMatchRoomId: visibleMatchRoom?.roomId,
+      visibleMatchRoomId: safeVisibleMatchRoomId,
     });
 
     if (routeState.correctedByRouteParams && lastRouteKeyCorrectionRef.current !== routeState.routeKey) {
@@ -160,6 +165,17 @@ export function useTrackRunRuntimeStateBridge({
       return true;
     }
 
+    if (isMatchRoomDeleted(payload.room.roomId)) {
+      rgPerfMark('room hydrate skipped deleted room', {
+        roomId: payload.room.roomId,
+        source,
+        state: payload.room.state,
+      });
+      commitMatchRoom(null);
+      setSelectedRoomFriendIds([]);
+      return true;
+    }
+
     rgPerfMark('already joined room detected', {
       blocker: payload.blocker ?? 'activeRoom',
       roomId: payload.room.roomId,
@@ -192,7 +208,9 @@ export function useTrackRunRuntimeStateBridge({
     visibleMatchRoom?.roomId,
   ]);
 
-  const isExitingRoom = useCallback((roomId?: string | null) => isMatchRoomExiting(roomId), []);
+  const isExitingRoom = useCallback((roomId?: string | null) => (
+    isMatchRoomExiting(roomId) || isMatchRoomDeleted(roomId)
+  ), []);
 
   return {
     buildTrackRunActiveRoomCheckRouteKey,

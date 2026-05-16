@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
+import { clearMatchRoomDeletedTombstone } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { useTrackRunRoomCreateAction } from '@/features/runs/runtime/useTrackRunRoomCreateAction';
 import { useTrackRunRoomJoinAction } from '@/features/runs/runtime/useTrackRunRoomJoinAction';
 import { getRunningMatchBlockerFromError } from '@/features/runs/sync/staleRoomCleanup';
@@ -121,6 +122,7 @@ export function useTrackRunRuntimeRoomInviteActions({
       }
 
       syncServerClock(payload.serverNow);
+      clearMatchRoomDeletedTombstone(payload.room.roomId, 'invite card accept');
       commitMatchRoom(payload.room);
       navigateToMatchRoomWithTrace('invite card accept', payload.room, payload.serverNow);
     } catch (roomError) {

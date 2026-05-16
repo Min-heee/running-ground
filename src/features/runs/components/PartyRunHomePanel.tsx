@@ -8,8 +8,9 @@ import type {
   RunningMatchRoomMode,
 } from '@/lib/api/types';
 import { hydrateOptimisticMatchRoom } from '@/features/match/hooks/lobby/optimisticRoomHydration';
+import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
-import { rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type PartyRunHomePanelProps = {
   visibleRoom: RunningMatchRoom | null;
@@ -49,6 +50,14 @@ export function PartyRunHomePanel({
 }: PartyRunHomePanelProps) {
   const handleOpenMatchRoom = useCallback(() => {
     const roomForHydration = visibleRoom ?? currentRoom;
+    if (isMatchRoomDeleted(roomForHydration?.roomId)) {
+      rgPerfMark('room entry skipped deleted room', {
+        roomId: roomForHydration?.roomId ?? null,
+        source: 'party room entry button',
+      });
+      return;
+    }
+
     const inputTrace = beginRgInputTrace('room lobby button press', {
       roomId: roomForHydration?.roomId ?? null,
       source: 'party room entry button',

@@ -6,6 +6,7 @@ import type { UseRunningMatchFocusInput } from '@/features/runs/lifecycle/hooks/
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { hydrateOptimisticMatchRoom } from '@/features/match/hooks/lobby/optimisticRoomHydration';
+import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type LiveMatchMountedRef = MutableRefObject<{
@@ -87,6 +88,19 @@ export function useTrackRunNavigationAdapter({
     serverNow?: string,
   ) => {
     const roomId = room?.roomId ?? null;
+    if (isMatchRoomDeleted(roomId)) {
+      rgPerfMark('room entry skipped deleted room', {
+        roomId,
+        source,
+      });
+      rgPerfMark('room hydrate skipped deleted room', {
+        roomId,
+        source,
+        state: room?.state ?? null,
+      });
+      return;
+    }
+
     if (room) {
       hydrateOptimisticMatchRoom({
         room,

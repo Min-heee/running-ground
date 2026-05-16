@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { PrepareMatchRoomMutation } from '@/features/runs/runtime/useTrackRunRuntimeStateBridge';
+import { clearMatchRoomDeletedTombstone } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import {
   MANUAL_INVITE_CODE_JOIN_SOURCE,
   startManualInviteJoinSingleFlight,
@@ -208,6 +209,7 @@ export function useTrackRunRoomJoinAction({
             source: MANUAL_INVITE_CODE_JOIN_SOURCE,
           });
           syncServerClock(payload.serverNow);
+          clearMatchRoomDeletedTombstone(payload.room.roomId, 'room join');
           commitMatchRoom(payload.room);
           setRoomInviteTokenInput('');
           navigateToMatchRoomWithTrace('invite code join', payload.room, payload.serverNow);

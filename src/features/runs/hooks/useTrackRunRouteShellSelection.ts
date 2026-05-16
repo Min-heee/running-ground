@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { getLiveMatchRouteHydration } from '@/features/runs/lifecycle/liveMatchRouteHydration';
+import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import {
   selectTrackRunShellFromRoute,
   type TrackRunShellSelection,
@@ -17,23 +18,27 @@ export function useTrackRunRouteShellSelection(input: TrackRunShellSelectionInpu
     roomInviteToken,
   } = input;
   const hydration = getLiveMatchRouteHydration();
+  const safeFocusRoomId = isMatchRoomDeleted(focusRoomId) ? undefined : focusRoomId;
+  const safeHydration = hydration?.roomId && isMatchRoomDeleted(hydration.roomId)
+    ? null
+    : hydration;
   const selectionInput = useMemo(() => ({
     focusMatchId,
     focusMatchMode,
-    focusRoomId,
+    focusRoomId: safeFocusRoomId,
     forceMatchArena,
     mode,
     roomInviteToken,
   }), [
     focusMatchId,
     focusMatchMode,
-    focusRoomId,
+    safeFocusRoomId,
     forceMatchArena,
     mode,
     roomInviteToken,
   ]);
-  const selection = useMemo(() => selectTrackRunShellFromRoute(selectionInput, hydration), [
-    hydration,
+  const selection = useMemo(() => selectTrackRunShellFromRoute(selectionInput, safeHydration), [
+    safeHydration,
     selectionInput,
   ]);
 

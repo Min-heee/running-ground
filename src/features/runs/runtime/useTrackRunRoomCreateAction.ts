@@ -3,6 +3,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { RoomStartMode } from '@/features/runs/hooks/usePartyRunRoom';
 import type { PrepareMatchRoomMutation } from '@/features/runs/runtime/useTrackRunRuntimeStateBridge';
+import { clearMatchRoomDeletedTombstone } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { getRunningMatchBlockerFromError } from '@/features/runs/sync/staleRoomCleanup';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { RunningMatchRoom } from '@/lib/api/types';
@@ -166,6 +167,7 @@ export function useTrackRunRoomCreateAction({
       }
 
       syncServerClock(payload.serverNow);
+      clearMatchRoomDeletedTombstone(payload.room?.roomId, 'room create');
       commitMatchRoom(payload.room);
       if (payload.room) {
         navigateToMatchRoomWithTrace('room create', payload.room, payload.serverNow);

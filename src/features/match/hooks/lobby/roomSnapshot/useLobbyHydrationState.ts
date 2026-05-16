@@ -3,11 +3,13 @@ import type { RunningMatchRoom } from '@/lib/api/types';
 import {
   consumeOptimisticMatchRoomHydration,
 } from '@/features/match/hooks/lobby/optimisticRoomHydration';
+import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import {
   parseServerNowMs,
   resolveStableServerClockOffset,
 } from '@/features/runs/sync/serverClockSync';
 import { buildRoomRenderKey } from '@/features/match/hooks/lobby/roomSnapshot/roomSnapshotKeys';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 export function useLobbyHydrationState() {
   const [optimisticRoomHydration] = useState(() => consumeOptimisticMatchRoomHydration());
@@ -37,14 +39,23 @@ export function useLobbyHydrationState() {
   }, []);
 
   const commitRoom = useCallback((nextRoom: RunningMatchRoom | null) => {
-    const nextKey = buildRoomRenderKey(nextRoom);
+    const committedRoom = isMatchRoomDeleted(nextRoom?.roomId) ? null : nextRoom;
+    if (nextRoom?.roomId && !committedRoom) {
+      rgPerfMark('room hydrate skipped deleted room', {
+        roomId: nextRoom.roomId,
+        source: 'match-room lobby commit',
+        state: nextRoom.state,
+      });
+    }
+
+    const nextKey = buildRoomRenderKey(committedRoom);
     if (roomRenderKeyRef.current === nextKey) {
       return;
     }
 
     roomRenderKeyRef.current = nextKey;
-    roomRef.current = nextRoom;
-    setRoom(nextRoom);
+    roomRef.current = committedRoom;
+    setRoom(committedRoom);
   }, []);
 
   return {

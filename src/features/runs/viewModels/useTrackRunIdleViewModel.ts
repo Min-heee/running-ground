@@ -7,6 +7,7 @@ import type {
   RunningMatchRoom,
   RunningMatchStatusResponse,
 } from '@/lib/api/types';
+import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 type UseTrackRunIdleViewModelInput = {
@@ -41,6 +42,17 @@ type TrackRunIdleActiveRoomCheckPolicyInput = {
 
 function normalizeId(value?: string | null) {
   return value && value.trim().length > 0 ? value : null;
+}
+
+export function resolveNonDeletedActiveRoomId(...roomIds: (string | null | undefined)[]) {
+  for (const roomId of roomIds) {
+    const normalizedRoomId = normalizeId(roomId);
+    if (normalizedRoomId && !isMatchRoomDeleted(normalizedRoomId)) {
+      return normalizedRoomId;
+    }
+  }
+
+  return null;
 }
 
 export function resolveTrackRunIdleActiveRoomCheckPolicy({
@@ -93,10 +105,11 @@ export function useTrackRunIdleViewModel({
   isRequestingGroupMatch,
 }: UseTrackRunIdleViewModelInput) {
   const lastLoggedIdleKeyRef = useRef<string | null>(null);
-  const activeRoomId = normalizeId(hydratedFocusRoomId)
-    ?? normalizeId(matchRoom?.roomId)
-    ?? normalizeId(visibleMatchRoom?.roomId)
-    ?? null;
+  const activeRoomId = resolveNonDeletedActiveRoomId(
+    hydratedFocusRoomId,
+    matchRoom?.roomId,
+    visibleMatchRoom?.roomId,
+  );
   const activeMatchId = normalizeId(hydratedFocusMatchId)
     ?? normalizeId(roomLinkedMatchContext?.matchId)
     ?? normalizeId(duelMatchStatus?.matchId)

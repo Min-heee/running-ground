@@ -5,6 +5,10 @@ import {
   consumeOptimisticMatchRoomHydration,
   hydrateOptimisticMatchRoom,
 } from '@/features/match/hooks/lobby/optimisticRoomHydration';
+import {
+  markMatchRoomDeleted,
+  resetMatchRoomDeletionTombstonesForTest,
+} from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 
 function createRoom(roomId: string): RunningMatchRoom {
   return {
@@ -29,6 +33,7 @@ function createRoom(roomId: string): RunningMatchRoom {
 }
 
 test('optimistic room hydration is consumed once for lobby first render', () => {
+  resetMatchRoomDeletionTombstonesForTest();
   hydrateOptimisticMatchRoom({
     nowMs: 1000,
     room: createRoom('room-1'),
@@ -42,6 +47,7 @@ test('optimistic room hydration is consumed once for lobby first render', () => 
 });
 
 test('optimistic room hydration ignores expired room state', () => {
+  resetMatchRoomDeletionTombstonesForTest();
   hydrateOptimisticMatchRoom({
     nowMs: 1000,
     room: createRoom('room-expired'),
@@ -51,3 +57,28 @@ test('optimistic room hydration ignores expired room state', () => {
   assert.equal(consumeOptimisticMatchRoomHydration(32_000), null);
 });
 
+test('optimistic room hydration skips a deleted room tombstone', () => {
+  resetMatchRoomDeletionTombstonesForTest();
+  markMatchRoomDeleted('room-deleted', 'test delete', 1_000);
+
+  hydrateOptimisticMatchRoom({
+    nowMs: 1_100,
+    room: createRoom('room-deleted'),
+    source: 'party room entry button',
+  });
+
+  assert.equal(consumeOptimisticMatchRoomHydration(1_200), null);
+});
+
+test('optimistic room hydration still accepts a different new room after delete', () => {
+  resetMatchRoomDeletionTombstonesForTest();
+  markMatchRoomDeleted('room-deleted', 'test delete', 1_000);
+
+  hydrateOptimisticMatchRoom({
+    nowMs: 1_100,
+    room: createRoom('room-new'),
+    source: 'room create',
+  });
+
+  assert.equal(consumeOptimisticMatchRoomHydration(1_200)?.room.roomId, 'room-new');
+});

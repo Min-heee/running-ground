@@ -57,6 +57,7 @@ import {
   buildMatchTransitionNotice,
   type PartyRunLinkedMatchContext,
 } from '@/features/runs/lifecycle/matchStateMachine';
+import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import {
   filterUpcomingMatchesForRuntime,
   isLinkedRoomRuntimeState,
@@ -163,7 +164,10 @@ export function TrackRunExperienceRuntime({
       ? liveMatchRouteHydration?.matchId
       : undefined
   );
-  const hydratedFocusRoomId = focusRoomId ?? liveMatchRouteHydration?.roomId ?? undefined;
+  const rawHydratedFocusRoomId = focusRoomId ?? liveMatchRouteHydration?.roomId ?? undefined;
+  const hydratedFocusRoomId = isMatchRoomDeleted(rawHydratedFocusRoomId)
+    ? undefined
+    : rawHydratedFocusRoomId;
   const hydratedFocusMatchDistanceKm = focusMatchDistanceKm ?? liveMatchRouteHydration?.distanceKm;
   const hydratedFocusMatchSlotStartAt = focusMatchSlotStartAt ?? liveMatchRouteHydration?.slotStartAt;
   const hydratedForceMatchArena = forceMatchArena ?? liveMatchRouteHydration?.preferArena;
@@ -1722,6 +1726,15 @@ export function TrackRunExperienceRuntime({
 
   const handleSelectMatchOption = useStableCallback((option: MatchOptionItem) => {
     if (option.mode === 'room' && visibleMatchRoom) {
+      if (isMatchRoomDeleted(visibleMatchRoom.roomId)) {
+        rgPerfMark('room entry skipped deleted room', {
+          roomId: visibleMatchRoom.roomId,
+          source: 'ready option existing room',
+          state: visibleMatchRoom.state,
+        });
+        return;
+      }
+
       rgPerfMark('already joined room detected', {
         roomId: visibleMatchRoom.roomId,
         source: 'ready option select',

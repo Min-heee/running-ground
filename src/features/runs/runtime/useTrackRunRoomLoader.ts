@@ -5,6 +5,7 @@ import {
   getActiveRoomCheckResultSkipReason,
   runActiveRoomCheck,
 } from '@/features/runs/sync/activeRoomCheck';
+import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import {
   buildActiveRoomResultLogDetail,
   buildActiveRoomSnapshotKey,
@@ -217,6 +218,16 @@ export function useTrackRunRoomLoader({
         });
       }
       return matchRoom;
+    }
+
+    if (isMatchRoomDeleted(payload.room?.roomId)) {
+      rgPerfMark('active room result ignored deleted room', {
+        roomId: payload.room?.roomId ?? null,
+        source: 'track-run experience',
+        state: payload.room?.state ?? null,
+      });
+      commitMatchRoom(null);
+      return null;
     }
 
     if (isExitingRoom(payload.room?.roomId)) {

@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
+import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
@@ -71,6 +72,15 @@ export function useRunActionHandlers({
   const handleReadyAction = useCallback(() => {
     if (matchMode === 'room') {
       if (matchRoom) {
+        if (isMatchRoomDeleted(matchRoom.roomId)) {
+          rgPerfMark('room entry skipped deleted room', {
+            roomId: matchRoom.roomId,
+            source: 'ready action existing room',
+            state: matchRoom.state,
+          });
+          return;
+        }
+
         const inputTrace = beginRgInputTrace('room lobby button press', {
           roomId: matchRoom.roomId,
           source: 'ready action existing room',

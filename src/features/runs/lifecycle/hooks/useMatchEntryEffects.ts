@@ -10,6 +10,7 @@ import {
   runStaleRoomCleanupWithTimeout,
 } from '@/features/runs/sync/staleRoomCleanup';
 import { hydrateOptimisticMatchRoom } from '@/features/match/hooks/lobby/optimisticRoomHydration';
+import { clearMatchRoomDeletedTombstone } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type FocusRunningMatchInput = {
@@ -230,6 +231,7 @@ export function useMatchEntryEffects({
         }
 
         syncServerClock(payload.serverNow);
+        clearMatchRoomDeletedTombstone(payload.room.roomId, 'room invite token effect');
         commitMatchRoom(payload.room);
 
         const endNavigationTrace = rgPerfMeasureStart('navigation to lobby', {

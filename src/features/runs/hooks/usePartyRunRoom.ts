@@ -3,7 +3,8 @@ import {
   type FriendLeaderboardResponse,
   type RunningMatchRoom,
 } from '@/lib/api/types';
-import { rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
+import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 export type RoomStartMode = 'scheduled' | 'host';
 
@@ -76,13 +77,22 @@ export function usePartyRunRoom({
   const [isLeavingMatchRoom, setIsLeavingMatchRoom] = useState(false);
 
   const commitMatchRoom = (nextRoom: RunningMatchRoom | null) => {
-    const nextKey = buildRoomRenderKey(nextRoom);
+    const committedRoom = isMatchRoomDeleted(nextRoom?.roomId) ? null : nextRoom;
+    if (nextRoom?.roomId && !committedRoom) {
+      rgPerfMark('room hydrate skipped deleted room', {
+        roomId: nextRoom.roomId,
+        source: 'party run room commit',
+        state: nextRoom.state,
+      });
+    }
+
+    const nextKey = buildRoomRenderKey(committedRoom);
     if (matchRoomRenderKeyRef.current === nextKey) {
       return;
     }
 
     matchRoomRenderKeyRef.current = nextKey;
-    setMatchRoom(nextRoom);
+    setMatchRoom(committedRoom);
   };
 
   const visibleMatchRoom = useMemo(() => {
