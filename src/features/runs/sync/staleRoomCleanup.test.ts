@@ -19,6 +19,9 @@ test('running match blocker details are detected from API errors', () => {
   const error = new ApiError('request', '이미 참여 중인 방이 있어요.', {
     details: {
       blocker: 'activeRoom',
+      blockerDetails: {
+        roomId: 'duel-room-deleted',
+      },
       blockerSource: 'matchRooms.participant',
       message: '이미 참여 중인 방이 있어요.',
     },
@@ -29,6 +32,7 @@ test('running match blocker details are detected from API errors', () => {
     blockerSource: 'matchRooms.participant',
     code: null,
     message: '이미 참여 중인 방이 있어요.',
+    roomId: 'duel-room-deleted',
   });
 });
 

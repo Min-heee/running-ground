@@ -7,7 +7,10 @@ import type {
   RunningMatchRoom,
   RunningMatchStatusResponse,
 } from '@/lib/api/types';
-import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
+import {
+  findDeletedMatchRoomId,
+  isMatchRoomDeleted,
+} from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 
 type UseTrackRunIdleViewModelInput = {
@@ -105,6 +108,11 @@ export function useTrackRunIdleViewModel({
   isRequestingGroupMatch,
 }: UseTrackRunIdleViewModelInput) {
   const lastLoggedIdleKeyRef = useRef<string | null>(null);
+  const deletedLocalActiveRoomId = findDeletedMatchRoomId([
+    hydratedFocusRoomId,
+    matchRoom?.roomId,
+    visibleMatchRoom?.roomId,
+  ]);
   const activeRoomId = resolveNonDeletedActiveRoomId(
     hydratedFocusRoomId,
     matchRoom?.roomId,
@@ -176,6 +184,17 @@ export function useTrackRunIdleViewModel({
     activeRoomCheckPolicy.activeRoomCheckPriority,
     activeRoomCheckPolicy.shouldRunActiveRoomCheck,
   ]);
+
+  useEffect(() => {
+    if (!deletedLocalActiveRoomId) {
+      return;
+    }
+
+    rgPerfMark('local active room hint cleared deleted room', {
+      roomId: deletedLocalActiveRoomId,
+      source: 'track-run idle view model',
+    });
+  }, [deletedLocalActiveRoomId]);
 
   useEffect(() => {
     if (!model.disableHeavySubscriptions) {

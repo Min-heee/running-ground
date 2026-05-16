@@ -45,6 +45,11 @@ export function isMatchRoomDeleted(roomId: string | null | undefined, nowMs = Da
   return deletedRoomIds.has(roomId);
 }
 
+export function findDeletedMatchRoomId(roomIds: (string | null | undefined)[], nowMs = Date.now()) {
+  cleanupExpiredDeletedRooms(nowMs);
+  return roomIds.find((roomId) => Boolean(roomId && deletedRoomIds.has(roomId))) ?? null;
+}
+
 export function resetMatchRoomDeletionTombstonesForTest() {
   deletedRoomIds.clear();
 }

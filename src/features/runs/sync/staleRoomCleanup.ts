@@ -16,12 +16,22 @@ export function getRunningMatchBlockerFromError(error: unknown) {
 
   const details = error.details as {
     blocker?: unknown;
+    blockerDetails?: unknown;
     blockerSource?: unknown;
     code?: unknown;
     message?: unknown;
+    roomId?: unknown;
   };
   const blocker = typeof details.blocker === 'string' ? details.blocker : null;
   const blockerSource = typeof details.blockerSource === 'string' ? details.blockerSource : null;
+  const blockerDetails = details.blockerDetails && typeof details.blockerDetails === 'object'
+    ? details.blockerDetails as { roomId?: unknown }
+    : null;
+  const roomId = typeof details.roomId === 'string'
+    ? details.roomId
+    : typeof blockerDetails?.roomId === 'string'
+      ? blockerDetails.roomId
+      : null;
 
   if (!blocker && !blockerSource) {
     return null;
@@ -32,6 +42,7 @@ export function getRunningMatchBlockerFromError(error: unknown) {
     blockerSource,
     code: typeof details.code === 'string' ? details.code : null,
     message: typeof details.message === 'string' ? details.message : error.userMessage,
+    roomId,
   };
 }
 

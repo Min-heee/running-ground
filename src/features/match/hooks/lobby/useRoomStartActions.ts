@@ -3,6 +3,7 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import { Alert } from 'react-native';
 import { type Href, router } from 'expo-router';
 import {
+  fetchRunningMatchRoom,
   leaveRunningMatchRoom,
   startRunningMatchRoom,
   updateRunningMatchRoomReady,
@@ -19,6 +20,7 @@ import {
   markMatchRoomDeleted,
 } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { hydrateLiveMatchRouteState } from '@/features/runs/lifecycle/liveMatchRouteHydration';
+import { runStaleRoomCleanupWithTimeout } from '@/features/runs/sync/staleRoomCleanup';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
@@ -52,6 +54,56 @@ function navigateToStartedRoomMatch(room: RunningMatchRoom) {
       focusMatchNonce: `room-start-${Date.now()}`,
     },
   } as Href);
+}
+
+async function verifyDeletedRoomServerMembership(roomId: string) {
+  rgPerfMark('room delete verification begin', {
+    roomId,
+    source: 'match-room delete',
+  });
+
+  try {
+    const payload = await fetchRunningMatchRoom();
+    const activeRoomId = payload.room?.roomId ?? null;
+    const stillActive = activeRoomId === roomId;
+    rgPerfMark('room delete verification end', {
+      activeRoomId,
+      roomId,
+      source: 'match-room delete',
+      stillActive,
+      success: true,
+    });
+
+    if (!stillActive) {
+      return;
+    }
+
+    rgPerfMark('room delete server membership still active', {
+      activeRoomId,
+      roomId,
+      source: 'match-room delete',
+    });
+    rgPerfMark('room delete active blocker cleanup begin', {
+      roomId,
+      source: 'match-room delete verification',
+    });
+    const cleanupOutcome = await runStaleRoomCleanupWithTimeout({
+      source: 'room delete verification cleanup',
+    });
+    rgPerfMark('room delete active blocker cleanup end', {
+      cleaned: cleanupOutcome.status === 'completed' ? cleanupOutcome.payload.cleaned : null,
+      roomId,
+      status: cleanupOutcome.status,
+      source: 'match-room delete verification',
+    });
+  } catch (error) {
+    rgPerfMark('room delete verification end', {
+      message: getApiErrorMessage(error, '삭제 후 방 상태 확인에 실패했어.'),
+      roomId,
+      source: 'match-room delete',
+      success: false,
+    });
+  }
 }
 
 type UseRoomStartActionsInput = {
@@ -291,6 +343,9 @@ export function useRoomStartActions({
         try {
           await leaveRunningMatchRoom({ roomId: exitRoom.roomId });
           endExitApiTrace({ success: true });
+          if (exitRoom.isHost) {
+            await verifyDeletedRoomServerMembership(exitRoom.roomId);
+          }
           clearMatchRoomExitGuard(exitRoom.roomId);
         } catch (roomError) {
           endExitApiTrace({ success: false });

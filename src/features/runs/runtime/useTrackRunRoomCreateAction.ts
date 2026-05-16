@@ -3,8 +3,14 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { RoomStartMode } from '@/features/runs/hooks/usePartyRunRoom';
 import type { PrepareMatchRoomMutation } from '@/features/runs/runtime/useTrackRunRuntimeStateBridge';
-import { clearMatchRoomDeletedTombstone } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
-import { getRunningMatchBlockerFromError } from '@/features/runs/sync/staleRoomCleanup';
+import {
+  clearMatchRoomDeletedTombstone,
+  isMatchRoomDeleted,
+} from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
+import {
+  getRunningMatchBlockerFromError,
+  runStaleRoomCleanupWithTimeout,
+} from '@/features/runs/sync/staleRoomCleanup';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { createRunningMatchRoom, getApiErrorMessage } from '@/services';
@@ -147,19 +153,58 @@ export function useTrackRunRoomCreateAction({
           throw createError;
         }
 
-        rgPerfMark('stale cleanup retry after blocker', {
+        rgPerfMark('room create blocker detected', {
           blocker: blocker.blocker ?? null,
+          blockerRoomId: blocker.roomId ?? null,
           blockerSource: blocker.blockerSource ?? null,
           source: 'track-run ready action',
         });
-        const canRetry = await prepareMatchRoomMutation({
-          forceCleanup: true,
-          source: 'room create retry after blocker',
-        });
-        if (!canRetry) {
-          throw createError;
+        if (isMatchRoomDeleted(blocker.roomId)) {
+          rgPerfMark('room create blocker ignored deleted room', {
+            blocker: blocker.blocker ?? null,
+            blockerRoomId: blocker.roomId ?? null,
+            blockerSource: blocker.blockerSource ?? null,
+            source: 'track-run ready action',
+          });
+          rgPerfMark('room delete active blocker cleanup begin', {
+            blocker: blocker.blocker ?? null,
+            blockerRoomId: blocker.roomId ?? null,
+            blockerSource: blocker.blockerSource ?? null,
+            source: 'room create deleted blocker recovery',
+          });
+          const cleanupOutcome = await runStaleRoomCleanupWithTimeout({
+            source: 'room create deleted blocker recovery',
+          });
+          rgPerfMark('room delete active blocker cleanup end', {
+            blockerRoomId: blocker.roomId ?? null,
+            cleaned: cleanupOutcome.status === 'completed' ? cleanupOutcome.payload.cleaned : null,
+            status: cleanupOutcome.status,
+            source: 'room create deleted blocker recovery',
+          });
+          if (cleanupOutcome.status !== 'completed') {
+            throw createError;
+          }
+
+          rgPerfMark('room create retry after deleted blocker cleanup', {
+            blockerRoomId: blocker.roomId ?? null,
+            source: 'track-run ready action',
+          });
+          payload = await createRoom('track-run ready action deleted blocker retry');
+        } else {
+          rgPerfMark('stale cleanup retry after blocker', {
+            blocker: blocker.blocker ?? null,
+            blockerSource: blocker.blockerSource ?? null,
+            source: 'track-run ready action',
+          });
+          const canRetry = await prepareMatchRoomMutation({
+            forceCleanup: true,
+            source: 'room create retry after blocker',
+          });
+          if (!canRetry) {
+            throw createError;
+          }
+          payload = await createRoom('track-run ready action retry');
         }
-        payload = await createRoom('track-run ready action retry');
       }
 
       if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {

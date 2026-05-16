@@ -3,9 +3,16 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard';
-import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
+import {
+  findDeletedMatchRoomId,
+  isMatchRoomDeleted,
+} from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { buildTrackRunRuntimeRouteKey } from '@/features/runs/lifecycle/trackRunRouteState';
 import { runStaleRoomCleanupWithTimeout } from '@/features/runs/sync/staleRoomCleanup';
+import {
+  getCleanupBlockerRoomId,
+  getDeletedCleanupBlockerRoomId,
+} from '@/features/runs/runtime/deletedRoomBlockerPolicy';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 
@@ -20,6 +27,10 @@ type NavigateToMatchRoomWithTrace = (
   room?: RunningMatchRoom | null,
   serverNow?: string,
 ) => void;
+
+function isRoomCreateSource(source: string) {
+  return source.includes('room create') || source.includes('track-run ready');
+}
 
 type UseTrackRunRuntimeStateBridgeInput = {
   commitMatchRoom: (room: RunningMatchRoom | null) => void;
@@ -120,7 +131,20 @@ export function useTrackRunRuntimeStateBridge({
     inviteToken,
     source,
   }) => {
-    const hasKnownActiveRoom = Boolean(matchRoom?.roomId || visibleMatchRoom?.roomId);
+    const deletedKnownRoomId = findDeletedMatchRoomId([matchRoom?.roomId, visibleMatchRoom?.roomId]);
+    if (deletedKnownRoomId) {
+      rgPerfMark('local active room hint cleared deleted room', {
+        roomId: deletedKnownRoomId,
+        source,
+      });
+      commitMatchRoom(null);
+      setSelectedRoomFriendIds([]);
+    }
+
+    const hasKnownActiveRoom = Boolean(
+      (matchRoom?.roomId && !isMatchRoomDeleted(matchRoom.roomId))
+      || (visibleMatchRoom?.roomId && !isMatchRoomDeleted(visibleMatchRoom.roomId)),
+    );
     if (!forceCleanup && !hasKnownActiveRoom) {
       rgPerfMark('stale cleanup skipped no blocker', {
         hasInviteToken: Boolean(inviteToken),
@@ -139,6 +163,29 @@ export function useTrackRunRuntimeStateBridge({
     }
 
     const { payload } = cleanupOutcome;
+    const blockerRoomId = getCleanupBlockerRoomId(payload);
+    const shouldLogCreateBlocker = isRoomCreateSource(source) && Boolean(payload.blocker || blockerRoomId);
+    if (shouldLogCreateBlocker) {
+      rgPerfMark('room create blocker detected', {
+        blocker: payload.blocker ?? null,
+        blockerRoomId,
+        blockerSource: payload.blockerSource ?? null,
+        source,
+      });
+    }
+
+    const deletedBlockerRoomId = getDeletedCleanupBlockerRoomId(payload);
+    if (deletedBlockerRoomId) {
+      rgPerfMark('room create blocker ignored deleted room', {
+        blocker: payload.blocker ?? null,
+        blockerRoomId: deletedBlockerRoomId,
+        blockerSource: payload.blockerSource ?? null,
+        source,
+      });
+      commitMatchRoom(null);
+      setSelectedRoomFriendIds([]);
+      return true;
+    }
 
     if (payload.cleaned) {
       rgPerfMark('local room state cleared', {
