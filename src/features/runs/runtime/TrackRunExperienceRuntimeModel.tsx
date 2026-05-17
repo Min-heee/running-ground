@@ -1483,7 +1483,13 @@ export function TrackRunExperienceRuntime({
       groupMatchStatus,
       syncedNowMs,
       fastPollMs: MATCH_STATUS_FAST_POLL_MS,
-      idlePollMs: 15000,
+      // Was 15000 — the guest could sit ~7.5s on the lobby/main tab waiting
+      // for the next status poll to deliver `matched`, which is the main
+      // visible delay before the host's start API result reaches them.
+      // 5000ms keeps the worst-case under ~2.5s without a meaningful
+      // increase in load (we only poll while heavy work is ready and the
+      // lifecycle controller asks for direct status polling).
+      idlePollMs: 5000,
       loadDuelMatchStatus,
       loadGroupMatchStatus,
       enabled: !trackRunIdleViewModel.disableHeavySubscriptions
