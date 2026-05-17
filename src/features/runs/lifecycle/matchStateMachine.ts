@@ -88,12 +88,35 @@ export function derivePartyRunStartPhase({
   linkedMatchStatus,
   isCountdownReady = false,
   remainingSeconds = null,
+  linkedMatchId = null,
+  linkedMatchSlotStartAt = null,
 }: PartyRunStartPhaseInput): PartyRunStartPhase {
   if (roomState === 'active' || linkedMatchStatus === 'active') {
     return 'active';
   }
 
-  if (linkedMatchStatus === 'matched' || roomState === 'countdown') {
+  // Two-phone testing showed host/guest divergence: the guest's polling
+  // delivers `linkedMatchStatus = 'matched'` before the host's
+  // /running/rooms/start response does. Result: one phone enters countdown
+  // while the other is still on the loading banner.
+  //
+  // If the room already has a linked match scheduled and we're inside the
+  // countdown overlay window, treat that as "matched-equivalent". The slot
+  // time is a server-authoritative absolute timestamp, so two clients
+  // reaching this branch agree on which countdown second to show. Once the
+  // real 'matched' status arrives we still enter the same branch, so the
+  // fallback doesn't introduce a separate transition path.
+  const hasInferredMatchedFromSlot = Boolean(
+    linkedMatchId
+    && linkedMatchSlotStartAt
+    && shouldShowMatchStartOverlay(remainingSeconds),
+  );
+
+  if (
+    linkedMatchStatus === 'matched'
+    || roomState === 'countdown'
+    || hasInferredMatchedFromSlot
+  ) {
     if (shouldAutoOpenMatchArena(remainingSeconds)) {
       return 'arenaHandoff';
     }
