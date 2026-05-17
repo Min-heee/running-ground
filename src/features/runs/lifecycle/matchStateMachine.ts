@@ -83,6 +83,14 @@ export function resolveRunTrackingState(currentState: RunTrackingState, event: R
   return RUN_TRACKING_TRANSITIONS[currentState][event] ?? currentState;
 }
 
+// Once the slot has just elapsed and we still have a linkedMatchId on the
+// room, assume the match is `active` until the server explicitly says
+// otherwise. Without this grace window the phase flips back to 'arming'
+// the moment `remainingSeconds` hits 0 because `shouldShowMatchStartOverlay`
+// turns false there — which yanks users out of the match arena and back
+// to the running tab while waiting for the server's 'active' push.
+const ACTIVE_INFERENCE_GRACE_SECONDS = 60;
+
 export function derivePartyRunStartPhase({
   roomState,
   linkedMatchStatus,
@@ -111,6 +119,22 @@ export function derivePartyRunStartPhase({
     && linkedMatchSlotStartAt
     && shouldShowMatchStartOverlay(remainingSeconds),
   );
+
+  // Just after the slot fires, `remainingSeconds` is 0 or slightly negative
+  // and neither `shouldShowMatchStartOverlay` nor `shouldAutoOpenMatchArena`
+  // returns true. If the room still has a linked match (i.e. nothing
+  // cancelled it), infer 'active' for a short grace window so the match
+  // arena stays mounted while the server's status push is in flight.
+  const hasInferredActiveFromSlotElapsed = Boolean(
+    linkedMatchId
+    && linkedMatchSlotStartAt
+    && typeof remainingSeconds === 'number'
+    && remainingSeconds <= 0
+    && remainingSeconds > -ACTIVE_INFERENCE_GRACE_SECONDS,
+  );
+  if (hasInferredActiveFromSlotElapsed) {
+    return 'active';
+  }
 
   if (
     linkedMatchStatus === 'matched'

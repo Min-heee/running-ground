@@ -229,6 +229,35 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
     linkedMatchId: 'room-match-1',
     linkedMatchSlotStartAt: '2026-05-12T00:02:00.000Z',
   }), 'arming');
+
+  // Slot has just fired but the server's 'active' status push hasn't
+  // landed yet. Within the grace window the phase stays 'active' so the
+  // match arena doesn't unmount and drop the user back to the running tab.
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'countdown',
+    linkedMatchStatus: 'matched',
+    isCountdownReady: true,
+    remainingSeconds: 0,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-12T00:00:00.000Z',
+  }), 'active');
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: -15,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-11T23:59:45.000Z',
+  }), 'active');
+  // Outside the 60s grace window we stop inferring (treat it as stale).
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: -90,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-11T23:58:30.000Z',
+  }), 'arming');
 });
 
 test('party run flow snapshot centralizes loading, countdown, arena, and ack decisions', () => {
