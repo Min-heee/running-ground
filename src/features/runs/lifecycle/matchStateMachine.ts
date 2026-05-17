@@ -263,16 +263,18 @@ export function buildPartyRunFlowSnapshot({
   isCountdownReady = false,
   remainingSeconds = null,
 }: PartyRunFlowSnapshotInput): PartyRunFlowSnapshot {
+  const linkedMatchSlotStartAt = room?.linkedMatchSlotStartAt ?? room?.slotStartAt;
+  const linkedMatchDistanceKm = room?.linkedMatchDistanceKm ?? room?.distanceKm;
   const phase = derivePartyRunStartPhase({
     roomState: room?.state,
     linkedMatchStatus: room?.linkedMatchStatus,
     isCountdownReady,
     remainingSeconds,
+    linkedMatchId: room?.linkedMatchId,
+    linkedMatchSlotStartAt,
   });
   const hasLinkedMatch = Boolean(room?.linkedMatchId);
   const shouldOpenArena = hasLinkedMatch && shouldOpenPartyRunArena(phase);
-  const linkedMatchSlotStartAt = room?.linkedMatchSlotStartAt ?? room?.slotStartAt;
-  const linkedMatchDistanceKm = room?.linkedMatchDistanceKm ?? room?.distanceKm;
   const isLinkedRoomLifecycle = Boolean(
     hasLinkedMatch
     && room

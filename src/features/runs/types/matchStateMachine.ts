@@ -37,6 +37,13 @@ export type PartyRunStartPhaseInput = {
   linkedMatchStatus?: 'matched' | 'active' | null;
   isCountdownReady?: boolean;
   remainingSeconds?: number | null;
+  // When the room has a linked match scheduled but the server has not yet
+  // confirmed `linkedMatchStatus = 'matched'`, these let the phase deriver
+  // infer countdown phase from the slot time alone — so host vs guest don't
+  // diverge while one waits for the start API response and the other waits
+  // for status polling. Optional to keep callers backward-compatible.
+  linkedMatchId?: string | null;
+  linkedMatchSlotStartAt?: string | null;
 };
 
 export type PartyRunStartEvent =
