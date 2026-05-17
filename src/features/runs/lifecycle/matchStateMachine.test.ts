@@ -220,14 +220,26 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
     linkedMatchId: null,
     linkedMatchSlotStartAt: null,
   }), 'arming');
-  // Outside the 30s overlay window the fallback also must NOT trigger.
+  // Inside the inferred matched window (60s) but outside the visible
+  // overlay window (30s) — phase should still infer 'arming' / 'readyAcked',
+  // not 'waiting', so the host phone gets out of the 'no linked match'
+  // branch and is ready to flip into 'countdown' the moment overlay opens.
   assert.equal(derivePartyRunStartPhase({
     roomState: 'arming',
     linkedMatchStatus: null,
     isCountdownReady: false,
-    remainingSeconds: 120,
+    remainingSeconds: 55,
     linkedMatchId: 'room-match-1',
-    linkedMatchSlotStartAt: '2026-05-12T00:02:00.000Z',
+    linkedMatchSlotStartAt: '2026-05-12T00:00:55.000Z',
+  }), 'arming');
+  // Outside the 60s matched window the fallback also must NOT trigger.
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: 180,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-12T00:03:00.000Z',
   }), 'arming');
 
   // Slot has just fired but the server's 'active' status push hasn't
@@ -249,7 +261,8 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
     linkedMatchId: 'room-match-1',
     linkedMatchSlotStartAt: '2026-05-11T23:59:45.000Z',
   }), 'active');
-  // Outside the 60s grace window we stop inferring (treat it as stale).
+  // Within the 120s grace window we keep inferring 'active' even when the
+  // slot has been elapsed for a while (covers slow start API responses).
   assert.equal(derivePartyRunStartPhase({
     roomState: 'arming',
     linkedMatchStatus: null,
@@ -257,6 +270,15 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
     remainingSeconds: -90,
     linkedMatchId: 'room-match-1',
     linkedMatchSlotStartAt: '2026-05-11T23:58:30.000Z',
+  }), 'active');
+  // Outside the 120s grace window we stop inferring (treat it as stale).
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: -180,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-11T23:57:00.000Z',
   }), 'arming');
 });
 

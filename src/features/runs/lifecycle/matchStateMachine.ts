@@ -89,7 +89,18 @@ export function resolveRunTrackingState(currentState: RunTrackingState, event: R
 // the moment `remainingSeconds` hits 0 because `shouldShowMatchStartOverlay`
 // turns false there — which yanks users out of the match arena and back
 // to the running tab while waiting for the server's 'active' push.
-const ACTIVE_INFERENCE_GRACE_SECONDS = 60;
+//
+// 120s rather than 60s — two-phone tests on Wide 6 showed the host's start
+// API response sometimes lags by tens of seconds, so a longer grace covers
+// the realistic worst case without letting the inference rot indefinitely.
+const ACTIVE_INFERENCE_GRACE_SECONDS = 120;
+
+// We treat slot-time-derived state as "matched-equivalent" further out
+// than the visible overlay window, because the host phone's start API
+// response can land while remainingSeconds is still well above 30. Without
+// extending here, the host stays on 'arming' (loading banner) for the
+// first ~30s of the matched lifetime even though the slot is locked in.
+const INFERRED_MATCHED_WINDOW_SECONDS = 60;
 
 export function derivePartyRunStartPhase({
   roomState,
@@ -108,16 +119,18 @@ export function derivePartyRunStartPhase({
   // /running/rooms/start response does. Result: one phone enters countdown
   // while the other is still on the loading banner.
   //
-  // If the room already has a linked match scheduled and we're inside the
-  // countdown overlay window, treat that as "matched-equivalent". The slot
+  // If the room already has a linked match scheduled and the slot is within
+  // a generous matched-equivalent window, treat that as "matched". The slot
   // time is a server-authoritative absolute timestamp, so two clients
-  // reaching this branch agree on which countdown second to show. Once the
-  // real 'matched' status arrives we still enter the same branch, so the
+  // reaching this branch agree on the countdown second. Once the real
+  // 'matched' status arrives we still take the same branch, so the
   // fallback doesn't introduce a separate transition path.
   const hasInferredMatchedFromSlot = Boolean(
     linkedMatchId
     && linkedMatchSlotStartAt
-    && shouldShowMatchStartOverlay(remainingSeconds),
+    && typeof remainingSeconds === 'number'
+    && remainingSeconds > 0
+    && remainingSeconds <= INFERRED_MATCHED_WINDOW_SECONDS,
   );
 
   // Just after the slot fires, `remainingSeconds` is 0 or slightly negative
