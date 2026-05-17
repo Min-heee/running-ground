@@ -37,3 +37,13 @@ test('deleted room tombstone expires after the safety window', () => {
 
   assert.equal(isMatchRoomDeleted('room-expired', 1_000 + 10 * 60 * 1000 + 1), false);
 });
+
+test('deleted room tombstone is cleared for delete failure fallback', () => {
+  resetMatchRoomDeletionTombstonesForTest();
+
+  markMatchRoomDeleted('room-delete-failed', 'delete button', 1_000);
+  assert.equal(isMatchRoomDeleted('room-delete-failed', 1_100), true);
+
+  clearMatchRoomDeletedTombstone('room-delete-failed', 'room delete failure');
+  assert.equal(isMatchRoomDeleted('room-delete-failed', 1_200), false);
+});

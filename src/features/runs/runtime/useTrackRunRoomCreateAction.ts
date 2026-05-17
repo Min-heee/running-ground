@@ -5,8 +5,8 @@ import type { RoomStartMode } from '@/features/runs/hooks/usePartyRunRoom';
 import type { PrepareMatchRoomMutation } from '@/features/runs/runtime/useTrackRunRuntimeStateBridge';
 import {
   clearMatchRoomDeletedTombstone,
-  isMatchRoomDeleted,
 } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
+import { recoverDeletedRoomCreateBlocker } from '@/features/runs/runtime/deletedRoomBlockerPolicy';
 import {
   getRunningMatchBlockerFromError,
   runStaleRoomCleanupWithTimeout,
@@ -159,34 +159,17 @@ export function useTrackRunRoomCreateAction({
           blockerSource: blocker.blockerSource ?? null,
           source: 'track-run ready action',
         });
-        if (isMatchRoomDeleted(blocker.roomId)) {
-          rgPerfMark('room create blocker ignored deleted room', {
-            blocker: blocker.blocker ?? null,
-            blockerRoomId: blocker.roomId ?? null,
-            blockerSource: blocker.blockerSource ?? null,
-            source: 'track-run ready action',
-          });
-          rgPerfMark('room delete active blocker cleanup begin', {
-            blocker: blocker.blocker ?? null,
-            blockerRoomId: blocker.roomId ?? null,
-            blockerSource: blocker.blockerSource ?? null,
-            source: 'room create deleted blocker recovery',
-          });
-          const cleanupOutcome = await runStaleRoomCleanupWithTimeout({
-            source: 'room create deleted blocker recovery',
-          });
-          rgPerfMark('room delete active blocker cleanup end', {
-            blockerRoomId: blocker.roomId ?? null,
-            cleaned: cleanupOutcome.status === 'completed' ? cleanupOutcome.payload.cleaned : null,
-            status: cleanupOutcome.status,
-            source: 'room create deleted blocker recovery',
-          });
-          if (cleanupOutcome.status !== 'completed') {
+        const deletedBlockerRecovery = await recoverDeletedRoomCreateBlocker({
+          blocker,
+          cleanup: runStaleRoomCleanupWithTimeout,
+        });
+        if (deletedBlockerRecovery.handled) {
+          if (!deletedBlockerRecovery.shouldRetry) {
             throw createError;
           }
 
           rgPerfMark('room create retry after deleted blocker cleanup', {
-            blockerRoomId: blocker.roomId ?? null,
+            blockerRoomId: deletedBlockerRecovery.blockerRoomId,
             source: 'track-run ready action',
           });
           payload = await createRoom('track-run ready action deleted blocker retry');
