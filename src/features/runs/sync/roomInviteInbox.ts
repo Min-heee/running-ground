@@ -1,4 +1,29 @@
-import type { RunningMatchRoom, RunningMatchRoomInvitee } from '@/lib/api/types';
+import type { RunningMatchRoom } from '@/lib/api/types';
+import {
+  getRoomInviteInboxInviteeForUser,
+  getRoomInviteInboxRawPendingIds,
+  getRoomInviteInboxRecipientMatchType,
+  hasPendingRoomInviteForUser,
+  hasRoomInviteInboxRecipientIdMismatch,
+  resolveRoomInviteInboxRecipientMatch,
+  type RoomInviteInboxQueryIdentity,
+  type RoomInviteInboxRawPendingIds,
+  type RoomInviteInboxRecipientMatch,
+  type RoomInviteInboxRecipientMatchType,
+} from '@/features/runs/sync/roomInviteInboxRecipientMatcher';
+
+export {
+  getRoomInviteInboxRawPendingIds,
+  getRoomInviteInboxRecipientMatchType,
+  hasRoomInviteInboxRecipientIdMismatch,
+  resolveRoomInviteInboxRecipientMatch,
+};
+export type {
+  RoomInviteInboxQueryIdentity,
+  RoomInviteInboxRawPendingIds,
+  RoomInviteInboxRecipientMatch,
+  RoomInviteInboxRecipientMatchType,
+};
 
 export type RoomInviteInboxEvent = {
   inviteId: string;
@@ -21,11 +46,6 @@ export type RecipientRoomInviteInboxResult = {
   skippedReason: RoomInviteCardDisplaySkipReason | null;
 };
 
-export type RoomInviteInboxRecipientMatchType =
-  | 'internal-id'
-  | 'invited-friend-id'
-  | 'public-tag';
-
 export type RecipientInviteInboxFetchSkipReason =
   | 'active-match'
   | 'joined-room'
@@ -42,142 +62,20 @@ export type RecipientInviteInboxStaleReason =
   | 'joined-room'
   | 'room-changed';
 
+export type RecipientInviteInboxOwnerMode =
+  | 'paused'
+  | 'receiver-idle'
+  | 'receiver-pre-lobby';
+
+export type RecipientInviteInboxOwnerState = {
+  blockReason: RecipientInviteInboxFocusBlockReason | null;
+  isActive: boolean;
+  key: string | null;
+  mode: RecipientInviteInboxOwnerMode;
+};
+
 export const RECIPIENT_INVITE_INBOX_FETCH_THROTTLE_MS = 5000;
 export const RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS = 1000;
-
-export type RoomInviteInboxQueryIdentity = {
-  currentUserId: string;
-  currentUserTag?: string | null;
-};
-
-export type RoomInviteInboxRawPendingIds = {
-  invitedFriendIds: string[];
-  invitedUserIds: string[];
-  inviteeTags: string[];
-};
-
-export type RoomInviteInboxRecipientMatch = {
-  invitee: RunningMatchRoomInvitee | null;
-  matchType: RoomInviteInboxRecipientMatchType | null;
-};
-
-function normalizeIdentityValues(...values: (string | null | undefined)[]) {
-  return [...new Set(values
-    .flatMap((value) => {
-      const trimmed = value?.trim();
-      if (!trimmed) {
-        return [];
-      }
-
-      return [trimmed, trimmed.toLowerCase(), trimmed.toUpperCase()];
-    }))];
-}
-
-function getInviteIdentityAliases({ currentUserId, currentUserTag }: RoomInviteInboxQueryIdentity) {
-  return normalizeIdentityValues(currentUserId, currentUserTag);
-}
-
-function matchesInviteIdentityAlias(value: string | null | undefined, aliases: string[]) {
-  return normalizeIdentityValues(value).some((alias) => aliases.includes(alias));
-}
-
-export function getRoomInviteInboxRawPendingIds(room: RunningMatchRoom | null | undefined): RoomInviteInboxRawPendingIds {
-  return {
-    invitedFriendIds: room?.invitedFriendIds ?? [],
-    invitedUserIds: room?.invitedFriends?.map((invitee) => invitee.invitedUserId ?? invitee.userId).filter(Boolean) ?? [],
-    inviteeTags: room?.invitedFriends?.map((invitee) => invitee.tag).filter((tag): tag is string => Boolean(tag)) ?? [],
-  };
-}
-
-function getInviteeForUser(room: RunningMatchRoom, identity: RoomInviteInboxQueryIdentity) {
-  const aliases = getInviteIdentityAliases(identity);
-
-  return room.invitedFriends?.find((invitee) => (
-    matchesInviteIdentityAlias(invitee.userId, aliases)
-    || matchesInviteIdentityAlias(invitee.invitedUserId, aliases)
-    || matchesInviteIdentityAlias(invitee.tag, aliases)
-  )) ?? null;
-}
-
-export function resolveRoomInviteInboxRecipientMatch(
-  room: RunningMatchRoom | null | undefined,
-  identity: RoomInviteInboxQueryIdentity,
-): RoomInviteInboxRecipientMatch {
-  if (!room) {
-    return {
-      invitee: null,
-      matchType: null,
-    };
-  }
-
-  const aliases = getInviteIdentityAliases(identity);
-  const invitee = getInviteeForUser(room, identity);
-
-  if (matchesInviteIdentityAlias(invitee?.tag, aliases)) {
-    return {
-      invitee,
-      matchType: 'public-tag',
-    };
-  }
-
-  if (
-    matchesInviteIdentityAlias(invitee?.userId, aliases)
-    || matchesInviteIdentityAlias(invitee?.invitedUserId, aliases)
-  ) {
-    return {
-      invitee,
-      matchType: 'internal-id',
-    };
-  }
-
-  if (room.invitedFriendIds.some((userId) => matchesInviteIdentityAlias(userId, aliases))) {
-    return {
-      invitee,
-      matchType: 'invited-friend-id',
-    };
-  }
-
-  return {
-    invitee: null,
-    matchType: null,
-  };
-}
-
-function isPendingInviteForUser(room: RunningMatchRoom, identity: RoomInviteInboxQueryIdentity) {
-  const aliases = getInviteIdentityAliases(identity);
-  return Boolean(resolveRoomInviteInboxRecipientMatch(room, identity).matchType
-    || room.invitedFriendIds.some((userId) => matchesInviteIdentityAlias(userId, aliases)));
-}
-
-export function getRoomInviteInboxRecipientMatchType(
-  room: RunningMatchRoom | null | undefined,
-  identity: RoomInviteInboxQueryIdentity,
-): RoomInviteInboxRecipientMatchType | null {
-  if (!room) {
-    return null;
-  }
-
-  return resolveRoomInviteInboxRecipientMatch(room, identity).matchType;
-}
-
-export function hasRoomInviteInboxRecipientIdMismatch({
-  currentUserId,
-  currentUserTag,
-  room,
-}: RoomInviteInboxQueryIdentity & {
-  room: RunningMatchRoom | null | undefined;
-}) {
-  if (!room || room.joined !== false) {
-    return false;
-  }
-
-  const rawPendingIds = getRoomInviteInboxRawPendingIds(room);
-  const hasPendingInvite = rawPendingIds.invitedFriendIds.length > 0
-    || rawPendingIds.invitedUserIds.length > 0
-    || rawPendingIds.inviteeTags.length > 0;
-
-  return hasPendingInvite && !isPendingInviteForUser(room, { currentUserId, currentUserTag });
-}
 
 export function getRecipientInviteInboxFetchSkipReason({
   currentRoom,
@@ -271,6 +169,51 @@ export function getRecipientInviteInboxFocusBlockReason({
   return null;
 }
 
+export function getRecipientInviteInboxOwnerState(input: Parameters<typeof getRecipientInviteInboxFocusBlockReason>[0]): RecipientInviteInboxOwnerState {
+  const blockReason = getRecipientInviteInboxFocusBlockReason(input);
+  if (blockReason) {
+    return {
+      blockReason,
+      isActive: false,
+      key: null,
+      mode: 'paused',
+    };
+  }
+
+  const roomId = input.currentRoom?.roomId ?? null;
+  if (roomId && input.currentRoom?.joined === false) {
+    return {
+      blockReason: null,
+      isActive: true,
+      key: `receiver-pre-lobby:${roomId}`,
+      mode: 'receiver-pre-lobby',
+    };
+  }
+
+  return {
+    blockReason: null,
+    isActive: true,
+    key: 'receiver-idle:no-room',
+    mode: 'receiver-idle',
+  };
+}
+
+export function buildRecipientInviteInboxFetchKey({
+  currentUserId,
+  ownerKey,
+  source,
+}: {
+  currentUserId: string;
+  ownerKey: string;
+  source: string;
+}) {
+  return [
+    currentUserId,
+    ownerKey,
+    source,
+  ].join(':');
+}
+
 export function getRecipientInviteInboxStaleResultReason({
   currentRoom,
   startedRoomId,
@@ -303,8 +246,8 @@ export function buildRoomInviteInboxEvent(
   }
 
   const identity = { currentUserId, currentUserTag };
-  const invitee = getInviteeForUser(room, identity);
-  const isCurrentUserInvited = isPendingInviteForUser(room, identity);
+  const invitee = getRoomInviteInboxInviteeForUser(room, identity);
+  const isCurrentUserInvited = hasPendingRoomInviteForUser(room, identity);
   if (!isCurrentUserInvited || !room.roomId || !room.inviteToken) {
     return null;
   }
