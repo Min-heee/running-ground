@@ -69,7 +69,6 @@ import {
   resolveLiveMatchShellPreservation,
   type PreservedLiveMatchShell,
 } from '@/features/runs/lifecycle/liveMatchShellPreservation';
-import { getLatestLiveMatchMountedRecord } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
 import { resolveTrackRunLiveShellGate } from '@/features/runs/lifecycle/trackRunLiveShellGate';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
@@ -1912,26 +1911,11 @@ export function TrackRunExperienceRuntime({
     visibleUpcomingMatches,
     visibleUpcomingMatchesNowMs: visibleUpcomingMatches.length > 0 ? syncedNowMs : 0,
   });
-  const latestMountedLiveMatchRecord = getLatestLiveMatchMountedRecord();
-  const rawMountedLiveMatchId = liveMatchMountedRef.current?.matchId
-    ?? latestMountedLiveMatchRecord?.matchId
-    ?? null;
-  const rawMountedLiveMatchMode = liveMatchMountedRef.current?.mode
-    ?? latestMountedLiveMatchRecord?.mode
-    ?? null;
-  const mountedLiveMatchId = (
-    rawMountedLiveMatchId
-    && (!matchLifecycleController.matchId || rawMountedLiveMatchId === matchLifecycleController.matchId)
-    && (!matchLifecycleController.mode || !rawMountedLiveMatchMode || rawMountedLiveMatchMode === matchLifecycleController.mode)
-  )
-    ? rawMountedLiveMatchId
-    : null;
   const liveShellGateDecision = resolveTrackRunLiveShellGate({
     focusMatchId: hydratedFocusMatchId,
     forceMatchArena: hydratedForceMatchArena,
     hydratedMatchId: liveMatchRouteHydration?.matchId,
     matchLifecycleStage: matchLifecycleController.stage,
-    mountedLiveMatchId,
     requestedShell: trackRunShellKind,
     requestedShouldShowReadyScreen: shouldShowReadyScreen,
     routePreferArena: liveMatchRouteHydration?.preferArena,
