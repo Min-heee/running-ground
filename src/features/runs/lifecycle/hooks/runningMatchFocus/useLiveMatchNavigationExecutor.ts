@@ -26,6 +26,7 @@ import type { RunningMatchStatusResponse } from '@/lib/api/types';
 import type { MatchTimeSection } from '@/features/runs/utils/matchScheduling';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import {
+  getLiveMatchNavigationTraceOutcome,
   getLiveMatchNavigationTraceSuccess,
   LIVE_MATCH_NAVIGATION_MOUNT_WAIT_MS,
   shouldKeepRouteStateNavigationPendingRecovery,
@@ -238,6 +239,13 @@ export function useLiveMatchNavigationExecutor({
         matchId
         && isLiveMatchViewConfirmed?.({ matchId, mode }),
       );
+      const existingRecord = navigationRecordRef.current?.key === navigationKey
+        ? navigationRecordRef.current
+        : null;
+      const wasRecoveringNavigation = Boolean(
+        existingRecord?.status === 'recovering'
+        || previousFailedCount > 0
+      );
       const routeStateOnly = shouldKeepRouteStateNavigationPendingRecovery({
         confirmedByLiveMatchView,
         isCurrentRequest,
@@ -246,11 +254,13 @@ export function useLiveMatchNavigationExecutor({
         wasMountedBySignal,
       });
       const navigationSucceeded = wasMountedBySignal || confirmedByLiveMatchView;
+      const navigationTraceOutcome = getLiveMatchNavigationTraceOutcome({
+        navigationSucceeded,
+        recovered: wasRecoveringNavigation,
+        routeStateOnly,
+      });
 
       if (navigationSucceeded && (isCurrentRequest || wasMountedBySignal)) {
-        const existingRecord = navigationRecordRef.current?.key === navigationKey
-          ? navigationRecordRef.current
-          : null;
         const finalPreferArena = effectivePreferArena || existingRecord?.preferArena || false;
         const finalResult = navigationResult ?? existingRecord?.result ?? null;
 
@@ -282,6 +292,16 @@ export function useLiveMatchNavigationExecutor({
         }
         if (wasMountedBySignal) {
           rgPerfMark('live match navigation confirmed by screen mount', {
+            matchId,
+            mode,
+            navigationKey,
+            requestId,
+            source,
+          });
+        }
+        if (navigationTraceOutcome === 'recovered' && !wasMountedBySignal) {
+          rgPerfMark('live match navigation recovered by retry', {
+            failedCount: previousFailedCount,
             matchId,
             mode,
             navigationKey,
@@ -376,10 +396,13 @@ export function useLiveMatchNavigationExecutor({
         completedByLiveMatchView: confirmedByLiveMatchView,
         routeStateOnly,
         effectivePreferArena: effectivePreferArena || navigationRecordRef.current?.preferArena || false,
+        navigationRecoveryState: navigationTraceOutcome,
         pendingRecovery: routeStateOnly,
+        recovered: navigationTraceOutcome === 'recovered',
         state: navigationState,
         success: getLiveMatchNavigationTraceSuccess({
           navigationSucceeded,
+          recoveryOutcome: navigationTraceOutcome,
           routeStateOnly,
         }),
       });

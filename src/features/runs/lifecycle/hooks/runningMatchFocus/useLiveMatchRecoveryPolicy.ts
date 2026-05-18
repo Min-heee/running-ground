@@ -7,6 +7,12 @@ export const LIVE_MATCH_NAVIGATION_FAILED_BACKOFF_MS = 10_000;
 export const LIVE_MATCH_NAVIGATION_MOUNT_WAIT_MS = 3_000;
 export const LIVE_MATCH_NAVIGATION_MAX_ROUTE_STATE_RETRIES = 1;
 
+export type LiveMatchNavigationTraceOutcome =
+  | 'mounted'
+  | 'recovered'
+  | 'recovering'
+  | 'finalized-failure';
+
 export function shouldKeepRouteStateNavigationPendingRecovery({
   confirmedByLiveMatchView,
   isCurrentRequest,
@@ -29,13 +35,39 @@ export function shouldKeepRouteStateNavigationPendingRecovery({
   );
 }
 
-export function getLiveMatchNavigationTraceSuccess({
+export function getLiveMatchNavigationTraceOutcome({
   navigationSucceeded,
+  recovered,
   routeStateOnly,
 }: {
   navigationSucceeded: boolean;
+  recovered: boolean;
+  routeStateOnly: boolean;
+}): LiveMatchNavigationTraceOutcome {
+  if (navigationSucceeded) {
+    return recovered ? 'recovered' : 'mounted';
+  }
+
+  if (routeStateOnly) {
+    return 'recovering';
+  }
+
+  return 'finalized-failure';
+}
+
+export function getLiveMatchNavigationTraceSuccess({
+  recoveryOutcome,
+  navigationSucceeded,
+  routeStateOnly,
+}: {
+  recoveryOutcome?: LiveMatchNavigationTraceOutcome;
+  navigationSucceeded: boolean;
   routeStateOnly: boolean;
 }) {
+  if (recoveryOutcome === 'finalized-failure') {
+    return false;
+  }
+
   return navigationSucceeded || routeStateOnly;
 }
 

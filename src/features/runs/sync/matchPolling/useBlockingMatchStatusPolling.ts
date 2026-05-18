@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { RunningMatchStatusResponse } from '@/lib/api/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { isBlockingMatchState } from '@/features/runs/lifecycle/matchStateMachine';
-import { isLiveMatchMarkedMounted } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
+import {
+  isLiveMatchMarkedMounted,
+  subscribeLiveMatchMounted,
+} from '@/features/runs/lifecycle/liveMatchMountedRegistry';
 import {
   getMatchStartRemainingSeconds,
   shouldShowMatchStartOverlay,
@@ -93,11 +96,16 @@ export function useBlockingMatchStatusPolling({
     loadDuelMatchStatus,
     loadGroupMatchStatus,
   });
+  const [mountedSignalVersion, setMountedSignalVersion] = useState(0);
 
   callbackRef.current = {
     loadDuelMatchStatus,
     loadGroupMatchStatus,
   };
+
+  useEffect(() => subscribeLiveMatchMounted(() => {
+    setMountedSignalVersion((version) => version + 1);
+  }), []);
 
   const shouldFastPollDuelMatchStatus = useMemo(
     () => shouldUseFastMatchStatusPolling(duelMatchStatus, syncedNowMs),
@@ -127,10 +135,11 @@ export function useBlockingMatchStatusPolling({
 
     const intervalMs = shouldFastPollDuelMatchStatus ? fastPollMs : idlePollMs;
     const pollingKey = buildBlockingMatchStatusPollingKey(effectiveDuelMatchId);
-    if (shouldSkipBlockingMatchStatusPollingForMountedMatch({
+    const isMountedMatch = shouldSkipBlockingMatchStatusPollingForMountedMatch({
       matchId: effectiveDuelMatchId,
       mode: 'duel',
-    })) {
+    });
+    if (isMountedMatch) {
       logMountedMatchPollingSkip({
         isRecoveryPolling,
         matchId: effectiveDuelMatchId,
@@ -187,8 +196,12 @@ export function useBlockingMatchStatusPolling({
     });
 
     return () => {
+      const stoppedAfterMounted = shouldSkipBlockingMatchStatusPollingForMountedMatch({
+        matchId: effectiveDuelMatchId,
+        mode: 'duel',
+      });
       polling.stop();
-      if (isRecoveryPolling) {
+      if (isRecoveryPolling && stoppedAfterMounted) {
         rgPerfMark('live match recovery polling stopped after mounted', {
           matchId: effectiveDuelMatchId,
           mode: 'duel',
@@ -206,6 +219,7 @@ export function useBlockingMatchStatusPolling({
     fastPollMs,
     idlePollMs,
     matchMode,
+    mountedSignalVersion,
     shouldFastPollDuelMatchStatus,
   ]);
 
@@ -220,10 +234,11 @@ export function useBlockingMatchStatusPolling({
 
     const intervalMs = shouldFastPollGroupMatchStatus ? fastPollMs : idlePollMs;
     const pollingKey = buildBlockingMatchStatusPollingKey(effectiveGroupMatchId);
-    if (shouldSkipBlockingMatchStatusPollingForMountedMatch({
+    const isMountedMatch = shouldSkipBlockingMatchStatusPollingForMountedMatch({
       matchId: effectiveGroupMatchId,
       mode: 'group',
-    })) {
+    });
+    if (isMountedMatch) {
       logMountedMatchPollingSkip({
         isRecoveryPolling,
         matchId: effectiveGroupMatchId,
@@ -280,8 +295,12 @@ export function useBlockingMatchStatusPolling({
     });
 
     return () => {
+      const stoppedAfterMounted = shouldSkipBlockingMatchStatusPollingForMountedMatch({
+        matchId: effectiveGroupMatchId,
+        mode: 'group',
+      });
       polling.stop();
-      if (isRecoveryPolling) {
+      if (isRecoveryPolling && stoppedAfterMounted) {
         rgPerfMark('live match recovery polling stopped after mounted', {
           matchId: effectiveGroupMatchId,
           mode: 'group',
@@ -299,6 +318,7 @@ export function useBlockingMatchStatusPolling({
     groupMatchState,
     idlePollMs,
     matchMode,
+    mountedSignalVersion,
     shouldFastPollGroupMatchStatus,
   ]);
 }

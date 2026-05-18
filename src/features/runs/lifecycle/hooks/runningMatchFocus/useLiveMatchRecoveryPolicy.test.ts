@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  getLiveMatchNavigationTraceOutcome,
   getLiveMatchNavigationTraceSuccess,
   LIVE_MATCH_NAVIGATION_MAX_ROUTE_STATE_RETRIES,
   shouldKeepRouteStateNavigationPendingRecovery,
@@ -57,13 +58,41 @@ test('keeps route-state-only navigation pending instead of failed while waiting 
 });
 
 test('route-state-only navigation trace is not counted as a failure before recovery is finalized', () => {
-  assert.equal(getLiveMatchNavigationTraceSuccess({
+  assert.equal(getLiveMatchNavigationTraceOutcome({
     navigationSucceeded: false,
+    recovered: false,
     routeStateOnly: true,
-  }), true);
+  }), 'recovering');
 
   assert.equal(getLiveMatchNavigationTraceSuccess({
     navigationSucceeded: false,
+    recoveryOutcome: 'recovering',
+    routeStateOnly: true,
+  }), true);
+
+  assert.equal(getLiveMatchNavigationTraceOutcome({
+    navigationSucceeded: false,
+    recovered: false,
+    routeStateOnly: false,
+  }), 'finalized-failure');
+
+  assert.equal(getLiveMatchNavigationTraceSuccess({
+    navigationSucceeded: false,
+    recoveryOutcome: 'finalized-failure',
     routeStateOnly: false,
   }), false);
+});
+
+test('recovery success is traced separately from normal mount success', () => {
+  assert.equal(getLiveMatchNavigationTraceOutcome({
+    navigationSucceeded: true,
+    recovered: true,
+    routeStateOnly: false,
+  }), 'recovered');
+
+  assert.equal(getLiveMatchNavigationTraceSuccess({
+    navigationSucceeded: true,
+    recoveryOutcome: 'recovered',
+    routeStateOnly: false,
+  }), true);
 });

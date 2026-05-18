@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-18T03:28:32.654Z
+생성 시각: 2026-05-18T05:17:55.853Z
 
 ## 실행 방법
 
@@ -14,11 +14,11 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 773 |
-| 코드 파일 | 724 |
+| 분석 파일 | 779 |
+| 코드 파일 | 726 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 70 |
-| 500줄 이상 파일 | 17 |
+| 300줄 이상 파일 | 71 |
+| 500줄 이상 파일 | 18 |
 | 50줄 이상 함수 후보 | 256 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
@@ -57,6 +57,7 @@ npm run code:quality
 | backend/src/seed.mjs | 528 | imports 3, sort/filter/map 5 |
 | backend/src/repositories/postgresRunsRepository.test.mjs | 515 | imports 3, sort/filter/map 8 |
 | backend/src/repositories/postgresAuthRepository.mjs | 504 | imports 2, sort/filter/map 1 |
+| docs/handoff/codex-pr-execution-plan.md | 502 |  |
 | backend/src/store.mjs | 484 | imports 5, sort/filter/map 9 |
 | scripts/check-preview-public-api.mjs | 482 | imports 4 |
 | scripts/check-performance-smells.mjs | 477 | imports 3, sort/filter/map 22, subs 8 |
@@ -65,13 +66,13 @@ npm run code:quality
 | backend/src/repositories/postgresFriendsRepository.test.mjs | 456 | imports 3, sort/filter/map 12 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 451 | imports 7, effects 1 |
 | src/lib/api/services/mock/matchSessions.ts | 451 | imports 6, sort/filter/map 12 |
+| src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationExecutor.ts | 443 | imports 13 |
 | backend/src/repositories/runsRepository.mjs | 443 | imports 2, sort/filter/map 11 |
 | backend/src/repositories/postgresLeagueRepository.mjs | 441 | sort/filter/map 14 |
 | src/features/runs/lifecycle/matchLifecycleController.test.ts | 439 | imports 5 |
 | scripts/deploy-public-backend.mjs | 432 | imports 7, timers 1 |
 | src/features/runs/sync/roomInviteInbox.test.ts | 424 | imports 4 |
 | src/lib/api/services/matches.ts | 422 | imports 6, sort/filter/map 6 |
-| src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationExecutor.ts | 420 | imports 13 |
 | backend/src/repositories/authRepository.test.mjs | 414 | imports 4, sort/filter/map 1 |
 | src/features/runs/lifecycle/matchStateMachine.ts | 407 | imports 3 |
 | src/features/runs/lifecycle/matchRoomFlow.ts | 401 | imports 2, sort/filter/map 8 |
@@ -91,21 +92,21 @@ npm run code:quality
 | src/features/integrations/IntegrationJourneyCard.tsx | 333 | imports 9, sort/filter/map 3 |
 | src/features/runs/runtime/useTrackRunRoomLoader.ts | 333 | imports 11 |
 | src/features/runs/components/matchSetupCards/MatchSetupCommon.tsx | 332 | imports 7, sort/filter/map 4 |
+| src/features/runs/lifecycle/hooks/runningMatchFocus/liveMatchNavigationOwnerPolicy.ts | 331 | imports 5 |
 | src/features/league/components/LeagueRegionSelectorCard.tsx | 326 | imports 11, sort/filter/map 1 |
 | src/features/settings/admin/components/adminStyles.ts | 326 | imports 1 |
+| src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 325 | imports 9, effects 3 |
 | src/lib/api/services/runningRoomResponseGuards.test.ts | 323 | imports 5 |
 | src/features/runs/viewModels/useLiveMatchViewModel.ts | 322 | imports 8 |
 | src/features/auth/hooks/useSignupForm.ts | 320 | imports 7, effects 2 |
 | backend/src/repositories/runsRepository.test.mjs | 320 | imports 3, sort/filter/map 1 |
 | backend/src/repositories/authRepository.mjs | 318 | imports 1, sort/filter/map 10 |
-| src/features/runs/lifecycle/hooks/runningMatchFocus/liveMatchNavigationOwnerPolicy.ts | 317 | imports 5 |
 | backend/src/points.mjs | 316 | sort/filter/map 5 |
 | src/features/runs/lifecycle/matchLifecycleController.ts | 314 | imports 6 |
 | backend/src/repositories/friendsRepository.test.mjs | 314 | imports 2, sort/filter/map 3 |
 | docs/testflight-real-device-qa.md | 314 |  |
 | src/features/runs/sync/roomInviteInbox.ts | 312 | imports 2 |
 | src/features/runs/sync/activeRoomCheck.ts | 310 | imports 6, timers 1 |
-| src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 305 | imports 9, effects 2 |
 | backend/src/bridges/sessionRunsBridge.mjs | 305 | imports 2, sort/filter/map 3 |
 | src/features/runs/components/matchSetupCards/styles.ts | 303 | imports 1 |
 | src/features/runs/viewModels/matchProgress.test.ts | 302 | imports 5, sort/filter/map 6 |
@@ -132,6 +133,7 @@ npm run code:quality
 | backend/src/seed.mjs | 528 | imports 3, sort/filter/map 5 |
 | backend/src/repositories/postgresRunsRepository.test.mjs | 515 | imports 3, sort/filter/map 8 |
 | backend/src/repositories/postgresAuthRepository.mjs | 504 | imports 2, sort/filter/map 1 |
+| docs/handoff/codex-pr-execution-plan.md | 502 |  |
 
 ## 50줄 이상 함수 후보
 
@@ -154,11 +156,11 @@ npm run code:quality
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 350 | requestPromise | 259 |
 | backend/src/repositories/postgresAuthRepository.mjs | 246 | createPostgresAuthRepository | 258 |
 | src/features/settings/screens/AdminScreen.tsx | 19 | AdminScreen | 254 |
+| src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 83 | useBlockingMatchStatusPolling | 242 |
 | src/features/runs/runtime/useTrackRunRoomLoader.ts | 77 | callback@useCallback | 238 |
 | src/features/runs/sync/useMatchProgressSync.ts | 50 | useMatchProgressSync | 235 |
 | backend/src/bridges/friendsLeagueBridge.mjs | 22 | createFriendsLeagueBridge | 232 |
 | src/features/runs/runtime/useRuntimeHydrationEffects.ts | 8 | useRuntimeHydrationEffects | 232 |
-| src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 80 | useBlockingMatchStatusPolling | 225 |
 | src/features/runs/runtime/useTrackRunRuntimeRoomInviteActions.ts | 37 | useTrackRunRuntimeRoomInviteActions | 223 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 42 | createLocationTaskManager | 220 |
 | src/features/runs/lifecycle/hooks/useMatchEntryEffects.ts | 47 | useMatchEntryEffects | 217 |
