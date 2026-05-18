@@ -7,6 +7,11 @@ import {
   startManualInviteJoinSingleFlight,
   type ManualInviteJoinSingleFlightState,
 } from '@/features/runs/sync/manualInviteJoin';
+import {
+  MANUAL_INVITE_JOIN_PREFLIGHT_SOURCE,
+  runManualInviteJoinPreflight,
+  runManualInviteJoinRetryPreflight,
+} from '@/features/runs/sync/invitePreflightPolicy';
 import { getRunningMatchBlockerFromError } from '@/features/runs/sync/staleRoomCleanup';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { RunningMatchRoom } from '@/lib/api/types';
@@ -55,6 +60,8 @@ export function useTrackRunRoomJoinAction({
   visibleMatchRoom,
 }: UseTrackRunRoomJoinActionInput) {
   const joinSingleFlightRef = useRef<ManualInviteJoinSingleFlightState>(null);
+  const matchRoomId = matchRoom?.roomId ?? null;
+  const visibleMatchRoomId = visibleMatchRoom?.roomId ?? null;
 
   return useCallback(() => {
     const inviteToken = roomInviteTokenInput.trim();
@@ -95,29 +102,17 @@ export function useTrackRunRoomJoinAction({
         });
         await waitForRgInputFeedbackFrame();
         inputTrace.markApiStarted({
-          source: 'invite code join preflight',
+          source: MANUAL_INVITE_JOIN_PREFLIGHT_SOURCE,
         });
 
         try {
-          if (!matchRoom?.roomId && !visibleMatchRoom?.roomId) {
-            rgPerfMark('stale cleanup deferred', {
-              reason: 'join-first-no-local-blocker',
-              source: 'invite code join preflight',
-            });
-          }
-
-          const preflightStartedAt = Date.now();
-          const canProceed = await prepareMatchRoomMutation({
+          const preflightResult = await runManualInviteJoinPreflight({
             inviteToken,
-            source: 'invite code join preflight',
+            matchRoom: matchRoomId ? { roomId: matchRoomId } : null,
+            prepareMatchRoomMutation,
+            visibleMatchRoom: visibleMatchRoomId ? { roomId: visibleMatchRoomId } : null,
           });
-          rgPerfMark('room join preflight duration', {
-            canProceed,
-            durationMs: Date.now() - preflightStartedAt,
-            inviteTokenLength: inviteToken.length,
-            source: 'invite code join preflight',
-          });
-          if (!canProceed) {
+          if (!preflightResult.canProceed) {
             return;
           }
 
@@ -181,19 +176,11 @@ export function useTrackRunRoomJoinAction({
               blockerSource: blocker.blockerSource ?? null,
               source: MANUAL_INVITE_CODE_JOIN_SOURCE,
             });
-            const retryPreflightStartedAt = Date.now();
-            const canRetry = await prepareMatchRoomMutation({
-              forceCleanup: true,
+            const retryPreflightResult = await runManualInviteJoinRetryPreflight({
               inviteToken,
-              source: 'invite code join retry after blocker',
+              prepareMatchRoomMutation,
             });
-            rgPerfMark('room join preflight duration', {
-              canProceed: canRetry,
-              durationMs: Date.now() - retryPreflightStartedAt,
-              inviteTokenLength: inviteToken.length,
-              source: 'invite code join retry after blocker',
-            });
-            if (!canRetry) {
+            if (!retryPreflightResult.canRetry) {
               throw joinError;
             }
             payload = await joinRoom('manual invite code retry');
@@ -254,7 +241,7 @@ export function useTrackRunRoomJoinAction({
     isJoiningMatchRoom,
     joinMatchRoomInFlightRef,
     latestMatchRoomServerNowMsRef,
-    matchRoom?.roomId,
+    matchRoomId,
     navigateToMatchRoomWithTrace,
     prepareMatchRoomMutation,
     roomInviteTokenInput,
@@ -262,6 +249,6 @@ export function useTrackRunRoomJoinAction({
     setIsJoiningMatchRoom,
     setRoomInviteTokenInput,
     syncServerClock,
-    visibleMatchRoom?.roomId,
+    visibleMatchRoomId,
   ]);
 }
