@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  getLatestLiveMatchMountedRecord,
   markLiveMatchMounted,
   resetLiveMatchMountedRegistryForTest,
   subscribeLiveMatchMounted,
@@ -34,5 +35,31 @@ test('live match mounted registry notifies cleanup subscribers once per match mo
   });
 
   assert.deepEqual(mountedKeys, ['duel:duel-match-mounted']);
+  resetLiveMatchMountedRegistryForTest();
+});
+
+test('live match mounted registry exposes the latest mounted match for shell gate fallback', () => {
+  resetLiveMatchMountedRegistryForTest();
+
+  assert.equal(getLatestLiveMatchMountedRecord(), null);
+
+  markLiveMatchMounted({
+    matchId: 'duel-match-mounted',
+    mode: 'duel',
+    source: 'first mount',
+  });
+  const first = getLatestLiveMatchMountedRecord();
+  assert.equal(first?.matchId, 'duel-match-mounted');
+  assert.equal(first?.mode, 'duel');
+
+  markLiveMatchMounted({
+    matchId: 'group-match-mounted',
+    mode: 'group',
+    source: 'second mount',
+  });
+  const latest = getLatestLiveMatchMountedRecord();
+  assert.equal(latest?.matchId, 'group-match-mounted');
+  assert.equal(latest?.mode, 'group');
+
   resetLiveMatchMountedRegistryForTest();
 });
