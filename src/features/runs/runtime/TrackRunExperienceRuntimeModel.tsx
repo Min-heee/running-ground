@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import {
   ScrollView,
   useWindowDimensions,
@@ -69,15 +69,10 @@ import {
   resolveLiveMatchShellPreservation,
   type PreservedLiveMatchShell,
 } from '@/features/runs/lifecycle/liveMatchShellPreservation';
-import { getLatestLiveMatchMountedRecord } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
 import { resolveTrackRunLiveShellGate } from '@/features/runs/lifecycle/trackRunLiveShellGate';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
-import {
-  createMatchArenaDiagnosticsThrottle,
-  reportMatchArenaDiagnostics,
-} from '@/utils/matchArenaDiagnostics';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 import { useTrackRunNavigationAdapter } from '@/features/runs/runtime/useTrackRunNavigationAdapter';
 import { useTrackRunRuntimeTrace } from '@/features/runs/runtime/useTrackRunRuntimeTrace';
@@ -352,8 +347,6 @@ export function TrackRunExperienceRuntime({
   const lastDisplayedRecipientInviteKeyRef = useRef<string | null>(null);
   const recipientInviteFetchInFlightRef = useRef(false);
   const liveMatchMountedRef = useRef<{ matchId: string | null; mode: 'duel' | 'group'; mountedAtMs: number } | null>(null);
-  const matchArenaDiagnosticsInstanceIdRef = useRef(`${mode}-${Math.random().toString(36).slice(2, 8)}`);
-  const matchArenaDiagnosticsThrottleRef = useRef(createMatchArenaDiagnosticsThrottle());
   const preservedLiveMatchShellRef = useRef<PreservedLiveMatchShell | null>(null);
   const liveMatchViewConfirmationRef = useRef<{
     matchId: string | null;
@@ -796,7 +789,7 @@ export function TrackRunExperienceRuntime({
   const groupShouldOpenCountdownArena = groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds);
   const roomShouldOpenCountdownArena = Boolean(
     partyRunRuntimeSource.room?.linkedMatchId
-    && (partyRunRuntimeSource.flow.shouldOpenCountdownArena || forceOpenActiveMatch),
+    && (partyRunRuntimeSource.flow.shouldOpenArena || forceOpenActiveMatch),
   );
   const duelShouldHoldArenaDuringActivation = duelMatchState === 'matched' && forceOpenActiveMatch;
   const groupShouldHoldArenaDuringActivation = groupMatchState === 'matched' && forceOpenActiveMatch;
@@ -818,7 +811,6 @@ export function TrackRunExperienceRuntime({
     activeMatchExitIsLeaving,
     activeMatchExitIsTest,
     activeMatchExitSource,
-    canRenderLiveArena,
     matchLifecycleController,
     shouldEnableMatchProgressHeartbeat,
     shouldKeepRunningMatchArena,
@@ -860,56 +852,6 @@ export function TrackRunExperienceRuntime({
     isLeavingDuelMatch,
     isLeavingGroupMatch,
   });
-  useEffect(() => {
-    reportMatchArenaDiagnostics({
-      instanceId: matchArenaDiagnosticsInstanceIdRef.current,
-      mode,
-      showLiveArena,
-      canRenderLiveArena,
-      shouldKeepRunningMatchArena,
-      isCurrentUserForfeited: currentUserHasForfeitedActiveMatch,
-      isRunning,
-      hasMatchResultPage,
-      forceOpenActiveMatch,
-      trackingStatus: status,
-      matchMode,
-      duelMatchState,
-      duelArenaParticipantsLength: duelArenaParticipants.length,
-      duelShouldOpenCountdownArena,
-      duelShouldHoldArenaDuringActivation,
-      hasRoomLinkedDuelContext,
-      roomLinkedDuelPlaceholderParticipantsLength: roomLinkedDuelPlaceholderParticipants.length,
-      roomShouldOpenCountdownArena,
-      partyRunPhase: partyRunRuntimeSource.flow.phase,
-      remainingSeconds: roomCountdownRemainingSeconds,
-      roomState: partyRunRuntimeSource.room?.state ?? null,
-      linkedMatchStatus: partyRunRuntimeSource.room?.linkedMatchStatus ?? null,
-      linkedMatchId: partyRunRuntimeSource.room?.linkedMatchId ?? null,
-    }, matchArenaDiagnosticsThrottleRef.current);
-  }, [
-    canRenderLiveArena,
-    currentUserHasForfeitedActiveMatch,
-    duelArenaParticipants.length,
-    duelMatchState,
-    duelShouldHoldArenaDuringActivation,
-    duelShouldOpenCountdownArena,
-    forceOpenActiveMatch,
-    hasMatchResultPage,
-    hasRoomLinkedDuelContext,
-    isRunning,
-    matchMode,
-    mode,
-    partyRunRuntimeSource.flow.phase,
-    partyRunRuntimeSource.room?.linkedMatchId,
-    partyRunRuntimeSource.room?.linkedMatchStatus,
-    partyRunRuntimeSource.room?.state,
-    roomCountdownRemainingSeconds,
-    roomLinkedDuelPlaceholderParticipants.length,
-    roomShouldOpenCountdownArena,
-    shouldKeepRunningMatchArena,
-    showLiveArena,
-    status,
-  ]);
   const liveMatchRenderMode = matchMode === 'duel' || matchMode === 'group'
     ? matchMode
     : roomLinkedMatchContext?.mode ?? (
@@ -1969,27 +1911,11 @@ export function TrackRunExperienceRuntime({
     visibleUpcomingMatches,
     visibleUpcomingMatchesNowMs: visibleUpcomingMatches.length > 0 ? syncedNowMs : 0,
   });
-  const latestMountedLiveMatchRecord = getLatestLiveMatchMountedRecord();
-  const rawMountedLiveMatchId = liveMatchMountedRef.current?.matchId
-    ?? latestMountedLiveMatchRecord?.matchId
-    ?? null;
-  const rawMountedLiveMatchMode = liveMatchMountedRef.current?.mode
-    ?? latestMountedLiveMatchRecord?.mode
-    ?? null;
-  const mountedLiveMatchId = (
-    rawMountedLiveMatchId
-    && (!matchLifecycleController.matchId || rawMountedLiveMatchId === matchLifecycleController.matchId)
-    && (!matchLifecycleController.mode || !rawMountedLiveMatchMode || rawMountedLiveMatchMode === matchLifecycleController.mode)
-  )
-    ? rawMountedLiveMatchId
-    : null;
   const liveShellGateDecision = resolveTrackRunLiveShellGate({
     focusMatchId: hydratedFocusMatchId,
     forceMatchArena: hydratedForceMatchArena,
     hydratedMatchId: liveMatchRouteHydration?.matchId,
-    linkedMatchContext: roomLinkedMatchContext,
     matchLifecycleStage: matchLifecycleController.stage,
-    mountedLiveMatchId,
     requestedShell: trackRunShellKind,
     requestedShouldShowReadyScreen: shouldShowReadyScreen,
     routePreferArena: liveMatchRouteHydration?.preferArena,

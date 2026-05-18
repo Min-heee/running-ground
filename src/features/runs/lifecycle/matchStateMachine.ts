@@ -101,23 +101,6 @@ const ACTIVE_INFERENCE_GRACE_SECONDS = 120;
 // extending here, the host stays on 'arming' (loading banner) for the
 // first ~30s of the matched lifetime even though the slot is locked in.
 const INFERRED_MATCHED_WINDOW_SECONDS = 60;
-const PARTY_RUN_START_PHASE_ORDER: Record<PartyRunStartPhase, number> = {
-  waiting: 0,
-  arming: 1,
-  readyAcked: 2,
-  countdown: 3,
-  arenaHandoff: 4,
-  active: 5,
-};
-
-function maxPartyRunStartPhase(
-  currentPhase: PartyRunStartPhase,
-  minimumPhase: PartyRunStartPhase,
-): PartyRunStartPhase {
-  return PARTY_RUN_START_PHASE_ORDER[currentPhase] >= PARTY_RUN_START_PHASE_ORDER[minimumPhase]
-    ? currentPhase
-    : minimumPhase;
-}
 
 export function derivePartyRunStartPhase({
   roomState,
@@ -195,9 +178,9 @@ export function resolvePartyRunStartPhase(
 ): PartyRunStartPhase {
   switch (event.type) {
     case 'hostStartRequested':
-      return maxPartyRunStartPhase(currentPhase, 'arming');
+      return currentPhase === 'active' ? 'active' : 'arming';
     case 'countdownReadyAcked':
-      return maxPartyRunStartPhase(currentPhase, 'readyAcked');
+      return currentPhase === 'active' ? 'active' : 'readyAcked';
     case 'serverSnapshot':
       return derivePartyRunStartPhase(event.payload);
     case 'reset':
@@ -213,10 +196,6 @@ export function shouldShowPartyRunLoading(phase: PartyRunStartPhase) {
 
 export function shouldOpenPartyRunArena(phase: PartyRunStartPhase) {
   return phase === 'arenaHandoff' || phase === 'active';
-}
-
-export function shouldOpenPartyRunCountdownArena(phase: PartyRunStartPhase) {
-  return phase === 'countdown' || shouldOpenPartyRunArena(phase);
 }
 
 export function buildMatchParticipantStatusLabel(status?: MatchParticipantLiveStatus) {
@@ -356,7 +335,6 @@ export function buildPartyRunFlowSnapshot({
   });
   const hasLinkedMatch = Boolean(room?.linkedMatchId);
   const shouldOpenArena = hasLinkedMatch && shouldOpenPartyRunArena(phase);
-  const shouldOpenCountdownArena = hasLinkedMatch && shouldOpenPartyRunCountdownArena(phase);
   const isLinkedRoomLifecycle = Boolean(
     hasLinkedMatch
     && room
@@ -399,7 +377,6 @@ export function buildPartyRunFlowSnapshot({
       && typeof remainingSeconds === 'number',
     ),
     shouldOpenArena,
-    shouldOpenCountdownArena,
     shouldPreferArena: hasLinkedMatch && shouldPreferRoomLinkedArena(room?.linkedMatchStatus, remainingSeconds),
     linkedMatchContext,
   };

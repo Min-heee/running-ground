@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { memo, useCallback } from 'react';
 import { Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { LiveMatchActionSection } from '@/features/runs/components/liveMatchTracking/LiveMatchActionSection';
@@ -10,10 +10,6 @@ import {
   resolveParticipantDisplayDistanceKm,
 } from '@/features/runs/viewModels/matchProgress';
 import type { DuelMatchOpponent } from '@/lib/api/types';
-import {
-  createMatchArenaDiagnosticsThrottle,
-  reportComponentMountDiagnostics,
-} from '@/utils/matchArenaDiagnostics';
 
 const LiveMatchIntroCard = memo(function LiveMatchIntroCard({
   title,
@@ -146,57 +142,6 @@ export const LiveMatchProgressSection = memo(function LiveMatchProgressSection({
   currentGroupLeader,
   onContinueSoloFromMatch,
 }: LiveMatchProgressSectionProps) {
-  const diagnosticsInstanceIdRef = useRef(`progress-section-${Math.random().toString(36).slice(2, 8)}`);
-  const diagnosticsThrottleRef = useRef(createMatchArenaDiagnosticsThrottle());
-  const hasReportedDiagnosticsMountRef = useRef(false);
-  const hasEffectiveDuelOpponent = effectiveDuelOpponent !== null;
-  const hasDuelStatusAlert = duelStatusAlert !== null;
-  const hasCurrentGroupStanding = currentGroupStanding !== null;
-  const hasGroupStatusAlert = groupStatusAlert !== null;
-  const hasCurrentGroupLeader = currentGroupLeader !== null;
-  const groupLiveStandingsCount = groupLiveStandings.length;
-
-  useEffect(() => {
-    const mountPhase = hasReportedDiagnosticsMountRef.current ? 'update' : 'mount';
-    hasReportedDiagnosticsMountRef.current = true;
-    reportComponentMountDiagnostics({
-      componentName: 'LiveMatchProgressSection',
-      instanceId: diagnosticsInstanceIdRef.current,
-      mountPhase,
-      payload: {
-        includeMatchCards,
-        matchMode,
-        liveMatchTitle,
-        liveMatchText,
-        hasEffectiveDuelOpponent,
-        duelDistanceKm,
-        duelLiveTitle,
-        hasDuelStatusAlert,
-        distanceKm,
-        effectiveGroupParticipantCount,
-        hasCurrentGroupStanding,
-        hasGroupStatusAlert,
-        groupLiveStandingsCount,
-        hasCurrentGroupLeader,
-      },
-    }, diagnosticsThrottleRef.current);
-  }, [
-    distanceKm,
-    duelDistanceKm,
-    duelLiveTitle,
-    effectiveGroupParticipantCount,
-    hasCurrentGroupLeader,
-    groupLiveStandingsCount,
-    hasCurrentGroupStanding,
-    hasDuelStatusAlert,
-    hasEffectiveDuelOpponent,
-    hasGroupStatusAlert,
-    includeMatchCards,
-    liveMatchText,
-    liveMatchTitle,
-    matchMode,
-  ]);
-
   if (!includeMatchCards || matchMode === 'solo') {
     return null;
   }

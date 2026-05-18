@@ -7,15 +7,6 @@ import {
   isMatchRoomDeleted,
   subscribeMatchRoomDeletedTombstone,
 } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
-import {
-  getMatchRoom,
-  setMatchRoom as setMatchRoomStore,
-  useMatchRoomStore,
-} from '@/features/runs/state/matchRoomStore';
-import {
-  createMatchArenaDiagnosticsThrottle,
-  reportComponentMountDiagnostics,
-} from '@/utils/matchArenaDiagnostics';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 export type RoomStartMode = 'scheduled' | 'host';
@@ -92,11 +83,7 @@ export function usePartyRunRoom({
   staleActiveMatchMs,
 }: UsePartyRunRoomInput) {
   const matchRoomRenderKeyRef = useRef<string | null>(null);
-  const diagnosticsInstanceIdRef = useRef(`party-run-room-${Math.random().toString(36).slice(2, 8)}`);
-  const diagnosticsThrottleRef = useRef(createMatchArenaDiagnosticsThrottle());
-  const hasReportedDiagnosticsMountRef = useRef(false);
-  const matchRoom = useMatchRoomStore();
-  const setMatchRoom = setMatchRoomStore;
+  const [matchRoom, setMatchRoom] = useState<RunningMatchRoom | null>(null);
   const [roomMatchMode, setRoomMatchMode] = useState<'duel' | 'group'>('duel');
   const [roomStartMode, setRoomStartMode] = useState<RoomStartMode>('host');
   const [roomMaxParticipants, setRoomMaxParticipants] = useState('10');
@@ -126,31 +113,32 @@ export function usePartyRunRoom({
     }
 
     matchRoomRenderKeyRef.current = nextKey;
-    setMatchRoomStore(committedRoom);
+    setMatchRoom(committedRoom);
   };
 
   useEffect(() => subscribeMatchRoomDeletedTombstone(({ roomId, source }) => {
-    const currentRoom = getMatchRoom();
-    if (!shouldClearPartyRunRoomForDeletedTombstone({
-      deletedRoomId: roomId,
-      matchRoom: currentRoom,
-    })) {
-      return;
-    }
+    setMatchRoom((currentRoom) => {
+      if (!shouldClearPartyRunRoomForDeletedTombstone({
+        deletedRoomId: roomId,
+        matchRoom: currentRoom,
+      })) {
+        return currentRoom;
+      }
 
-    matchRoomRenderKeyRef.current = buildRoomRenderKey(null);
-    setSelectedRoomFriendIds([]);
-    rgPerfMark('local active room hint cleared deleted room', {
-      roomId,
-      source: 'party run room tombstone subscriber',
-      tombstoneSource: source,
+      matchRoomRenderKeyRef.current = buildRoomRenderKey(null);
+      setSelectedRoomFriendIds([]);
+      rgPerfMark('local active room hint cleared deleted room', {
+        roomId,
+        source: 'party run room tombstone subscriber',
+        tombstoneSource: source,
+      });
+      rgPerfMark('room delete local state fully cleared', {
+        roomId,
+        source: 'party run room tombstone subscriber',
+        tombstoneSource: source,
+      });
+      return null;
     });
-    rgPerfMark('room delete local state fully cleared', {
-      roomId,
-      source: 'party run room tombstone subscriber',
-      tombstoneSource: source,
-    });
-    setMatchRoomStore(null);
   }), []);
 
   const visibleMatchRoom = useMemo(() => {
@@ -178,32 +166,6 @@ export function usePartyRunRoom({
 
     return elapsedMs > staleThresholdMs ? null : matchRoom;
   }, [matchRoom, staleActiveMatchMs, staleMatchedMatchMs, syncedNowMs]);
-
-  useEffect(() => {
-    const mountPhase = hasReportedDiagnosticsMountRef.current ? 'update' : 'mount';
-    hasReportedDiagnosticsMountRef.current = true;
-    reportComponentMountDiagnostics({
-      componentName: 'usePartyRunRoom',
-      instanceId: diagnosticsInstanceIdRef.current,
-      mountPhase,
-      payload: {
-        hasMatchRoom: matchRoom !== null,
-        roomId: matchRoom?.roomId ?? null,
-        roomState: matchRoom?.state ?? null,
-        startMode: matchRoom?.startMode ?? null,
-        linkedMatchId: matchRoom?.linkedMatchId ?? null,
-        linkedMatchStatus: matchRoom?.linkedMatchStatus ?? null,
-        participantCount: matchRoom?.participants.length ?? 0,
-        inviteeCount: matchRoom?.invitedFriendIds.length ?? 0,
-        isHost: matchRoom?.isHost ?? null,
-        hasVisibleMatchRoom: visibleMatchRoom !== null,
-        visibleRoomId: visibleMatchRoom?.roomId ?? null,
-      },
-    }, diagnosticsThrottleRef.current);
-  }, [
-    matchRoom,
-    visibleMatchRoom,
-  ]);
 
   useEffect(() => {
     if (matchRoom && !visibleMatchRoom) {

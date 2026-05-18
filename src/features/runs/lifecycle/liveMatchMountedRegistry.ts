@@ -81,18 +81,6 @@ export function isLiveMatchMarkedMounted({
   return Boolean(key && mountedMatches.has(key));
 }
 
-export function getLatestLiveMatchMountedRecord(): LiveMatchMountedRecord | null {
-  let latestRecord: LiveMatchMountedRecord | null = null;
-
-  for (const record of mountedMatches.values()) {
-    if (!latestRecord || record.mountedAtMs >= latestRecord.mountedAtMs) {
-      latestRecord = record;
-    }
-  }
-
-  return latestRecord;
-}
-
 export function resetLiveMatchMountedRegistryForTest() {
   mountedMatches.clear();
   mountedMatchListeners.clear();
