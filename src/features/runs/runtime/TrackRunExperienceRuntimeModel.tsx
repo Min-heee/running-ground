@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   ScrollView,
   useWindowDimensions,
@@ -74,6 +74,7 @@ import { resolveTrackRunLiveShellGate } from '@/features/runs/lifecycle/trackRun
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
+import { reportMatchArenaDiagnostics } from '@/utils/matchArenaDiagnostics';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 import { useTrackRunNavigationAdapter } from '@/features/runs/runtime/useTrackRunNavigationAdapter';
 import { useTrackRunRuntimeTrace } from '@/features/runs/runtime/useTrackRunRuntimeTrace';
@@ -812,6 +813,7 @@ export function TrackRunExperienceRuntime({
     activeMatchExitIsLeaving,
     activeMatchExitIsTest,
     activeMatchExitSource,
+    canRenderLiveArena,
     matchLifecycleController,
     shouldEnableMatchProgressHeartbeat,
     shouldKeepRunningMatchArena,
@@ -853,6 +855,53 @@ export function TrackRunExperienceRuntime({
     isLeavingDuelMatch,
     isLeavingGroupMatch,
   });
+  useEffect(() => {
+    reportMatchArenaDiagnostics({
+      showLiveArena,
+      canRenderLiveArena,
+      shouldKeepRunningMatchArena,
+      isCurrentUserForfeited: currentUserHasForfeitedActiveMatch,
+      isRunning,
+      hasMatchResultPage,
+      forceOpenActiveMatch,
+      trackingStatus: status,
+      matchMode,
+      duelMatchState,
+      duelArenaParticipantsLength: duelArenaParticipants.length,
+      duelShouldOpenCountdownArena,
+      duelShouldHoldArenaDuringActivation,
+      hasRoomLinkedDuelContext,
+      roomLinkedDuelPlaceholderParticipantsLength: roomLinkedDuelPlaceholderParticipants.length,
+      roomShouldOpenCountdownArena,
+      partyRunPhase: partyRunRuntimeSource.flow.phase,
+      remainingSeconds: roomCountdownRemainingSeconds,
+      roomState: partyRunRuntimeSource.room?.state ?? null,
+      linkedMatchStatus: partyRunRuntimeSource.room?.linkedMatchStatus ?? null,
+      linkedMatchId: partyRunRuntimeSource.room?.linkedMatchId ?? null,
+    });
+  }, [
+    canRenderLiveArena,
+    currentUserHasForfeitedActiveMatch,
+    duelArenaParticipants.length,
+    duelMatchState,
+    duelShouldHoldArenaDuringActivation,
+    duelShouldOpenCountdownArena,
+    forceOpenActiveMatch,
+    hasMatchResultPage,
+    hasRoomLinkedDuelContext,
+    isRunning,
+    matchMode,
+    partyRunRuntimeSource.flow.phase,
+    partyRunRuntimeSource.room?.linkedMatchId,
+    partyRunRuntimeSource.room?.linkedMatchStatus,
+    partyRunRuntimeSource.room?.state,
+    roomCountdownRemainingSeconds,
+    roomLinkedDuelPlaceholderParticipants.length,
+    roomShouldOpenCountdownArena,
+    shouldKeepRunningMatchArena,
+    showLiveArena,
+    status,
+  ]);
   const liveMatchRenderMode = matchMode === 'duel' || matchMode === 'group'
     ? matchMode
     : roomLinkedMatchContext?.mode ?? (
