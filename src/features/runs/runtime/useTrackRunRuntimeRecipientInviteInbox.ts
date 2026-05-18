@@ -2,10 +2,12 @@ import { useCallback, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
+  buildRecipientInviteInboxFetchKey,
   buildRecipientRoomInviteInboxResult,
   RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS,
   getRecipientInviteInboxFocusBlockReason,
   getRecipientInviteInboxFetchSkipReason,
+  getRecipientInviteInboxOwnerState,
   getRecipientInviteInboxTimeoutRetryDelayMs,
   getRoomInviteInboxRawPendingIds,
   getRoomInviteInboxRecipientMatchType,
@@ -187,15 +189,16 @@ export function useTrackRunRuntimeRecipientInviteInbox({
   const fetchRecipientInviteInbox = useCallback(async (source: string) => {
     const roomAtStart = currentRoomRef.current;
     const runtimeStateAtStart = runtimeStateRef.current;
-    const blockReason = getRecipientInviteInboxFocusBlockReason({
+    const ownerStateAtStart = getRecipientInviteInboxOwnerState({
       activeRoomId: runtimeStateAtStart.activeRoomId,
       currentRoom: roomAtStart,
       isLiveMatchMounted: runtimeStateAtStart.isLiveMatchMounted,
       linkedMatchId: runtimeStateAtStart.linkedMatchId,
       liveMatchKey: runtimeStateAtStart.liveMatchKey,
     });
+    const blockReason = ownerStateAtStart.blockReason;
 
-    if (blockReason) {
+    if (!ownerStateAtStart.isActive && blockReason) {
       invalidateNoRoomInFlight({
         reason: blockReason,
         runtimeState: runtimeStateAtStart,
@@ -248,11 +251,11 @@ export function useTrackRunRuntimeRecipientInviteInbox({
       return;
     }
 
-    const fetchKey = [
+    const fetchKey = buildRecipientInviteInboxFetchKey({
       currentUserId,
-      roomAtStart?.roomId ?? 'no-room',
+      ownerKey: ownerStateAtStart.key ?? 'receiver-paused',
       source,
-    ].join(':');
+    });
     const skipReason = getRecipientInviteInboxFetchSkipReason({
       currentRoom: roomAtStart,
       lastCompletedAtMs: lastCompletedFetchAtRef.current,
@@ -631,13 +634,14 @@ export function useTrackRunRuntimeRecipientInviteInbox({
   ]);
   fetchRecipientInviteInboxRef.current = fetchRecipientInviteInbox;
 
-  const focusBlockReason = getRecipientInviteInboxFocusBlockReason({
+  const focusOwnerState = getRecipientInviteInboxOwnerState({
     activeRoomId: activeRoomId ?? currentRoom?.roomId ?? null,
     currentRoom,
     isLiveMatchMounted: Boolean(isLiveMatchMounted),
     linkedMatchId: linkedMatchId ?? currentRoom?.linkedMatchId ?? null,
     liveMatchKey,
   });
+  const focusBlockReason = focusOwnerState.blockReason;
   const focusBlockKey = focusBlockReason
     ? [
       focusBlockReason,
@@ -697,6 +701,8 @@ export function useTrackRunRuntimeRecipientInviteInbox({
 
     rgPerfMark('invite inbox receiver polling active', {
       intervalMs: INVITE_INBOX_RECEIVER_POLL_MS,
+      ownerKey: focusOwnerState.key,
+      ownerMode: focusOwnerState.mode,
       source,
     });
     void fetchRecipientInviteInbox(source);
@@ -715,6 +721,8 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     fetchRecipientInviteInbox,
     focusBlockKey,
     focusBlockReason,
+    focusOwnerState.key,
+    focusOwnerState.mode,
     invalidateNoRoomInFlight,
   ]));
 

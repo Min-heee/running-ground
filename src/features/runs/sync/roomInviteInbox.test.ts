@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import {
+  buildRecipientInviteInboxFetchKey,
   buildRecipientRoomInviteInboxResult,
   buildRoomInviteInboxEvent,
   RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS,
   getRecipientInviteInboxFocusBlockReason,
   getRecipientInviteInboxFetchSkipReason,
+  getRecipientInviteInboxOwnerState,
   getRecipientInviteInboxStaleResultReason,
   getRecipientInviteInboxTimeoutRetryDelayMs,
   getRoomInviteInboxRecipientMatchType,
@@ -287,6 +289,57 @@ test('recipient invite inbox focus blocks no-room key when room or live state is
   assert.equal(getRecipientInviteInboxFocusBlockReason({
     currentRoom: null,
   }), null);
+});
+
+test('recipient invite inbox owner is active only for idle and pre-lobby receiver states', () => {
+  assert.deepEqual(getRecipientInviteInboxOwnerState({
+    currentRoom: null,
+  }), {
+    blockReason: null,
+    isActive: true,
+    key: 'receiver-idle:no-room',
+    mode: 'receiver-idle',
+  });
+
+  assert.deepEqual(getRecipientInviteInboxOwnerState({
+    currentRoom: room({ joined: false }),
+  }), {
+    blockReason: null,
+    isActive: true,
+    key: 'receiver-pre-lobby:room-1',
+    mode: 'receiver-pre-lobby',
+  });
+
+  assert.deepEqual(getRecipientInviteInboxOwnerState({
+    currentRoom: room({ joined: true }),
+  }), {
+    blockReason: 'joined-room',
+    isActive: false,
+    key: null,
+    mode: 'paused',
+  });
+  assert.deepEqual(getRecipientInviteInboxOwnerState({
+    currentRoom: null,
+    liveMatchKey: 'duel:match:duel-match-1',
+  }), {
+    blockReason: 'active-match',
+    isActive: false,
+    key: null,
+    mode: 'paused',
+  });
+});
+
+test('recipient invite inbox fetch key uses explicit receiver owner key', () => {
+  assert.equal(buildRecipientInviteInboxFetchKey({
+    currentUserId: '#GUEST',
+    ownerKey: 'receiver-idle:no-room',
+    source: 'track-run recipient inbox focus',
+  }), '#GUEST:receiver-idle:no-room:track-run recipient inbox focus');
+  assert.equal(buildRecipientInviteInboxFetchKey({
+    currentUserId: '#GUEST',
+    ownerKey: 'receiver-pre-lobby:room-1',
+    source: 'match-room invite inbox focus',
+  }), '#GUEST:receiver-pre-lobby:room-1:match-room invite inbox focus');
 });
 
 test('recipient invite inbox fetch throttles repeated no-room checks', () => {
