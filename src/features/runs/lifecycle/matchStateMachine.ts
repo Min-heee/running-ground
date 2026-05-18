@@ -83,17 +83,77 @@ export function resolveRunTrackingState(currentState: RunTrackingState, event: R
   return RUN_TRACKING_TRANSITIONS[currentState][event] ?? currentState;
 }
 
+// Once the slot has just elapsed and we still have a linkedMatchId on the
+// room, assume the match is `active` until the server explicitly says
+// otherwise. Without this grace window the phase flips back to 'arming'
+// the moment `remainingSeconds` hits 0 because `shouldShowMatchStartOverlay`
+// turns false there — which yanks users out of the match arena and back
+// to the running tab while waiting for the server's 'active' push.
+//
+// 120s rather than 60s — two-phone tests on Wide 6 showed the host's start
+// API response sometimes lags by tens of seconds, so a longer grace covers
+// the realistic worst case without letting the inference rot indefinitely.
+const ACTIVE_INFERENCE_GRACE_SECONDS = 120;
+
+// We treat slot-time-derived state as "matched-equivalent" further out
+// than the visible overlay window, because the host phone's start API
+// response can land while remainingSeconds is still well above 30. Without
+// extending here, the host stays on 'arming' (loading banner) for the
+// first ~30s of the matched lifetime even though the slot is locked in.
+const INFERRED_MATCHED_WINDOW_SECONDS = 60;
+
 export function derivePartyRunStartPhase({
   roomState,
   linkedMatchStatus,
   isCountdownReady = false,
   remainingSeconds = null,
+  linkedMatchId = null,
+  linkedMatchSlotStartAt = null,
 }: PartyRunStartPhaseInput): PartyRunStartPhase {
   if (roomState === 'active' || linkedMatchStatus === 'active') {
     return 'active';
   }
 
-  if (linkedMatchStatus === 'matched' || roomState === 'countdown') {
+  // Two-phone testing showed host/guest divergence: the guest's polling
+  // delivers `linkedMatchStatus = 'matched'` before the host's
+  // /running/rooms/start response does. Result: one phone enters countdown
+  // while the other is still on the loading banner.
+  //
+  // If the room already has a linked match scheduled and the slot is within
+  // a generous matched-equivalent window, treat that as "matched". The slot
+  // time is a server-authoritative absolute timestamp, so two clients
+  // reaching this branch agree on the countdown second. Once the real
+  // 'matched' status arrives we still take the same branch, so the
+  // fallback doesn't introduce a separate transition path.
+  const hasInferredMatchedFromSlot = Boolean(
+    linkedMatchId
+    && linkedMatchSlotStartAt
+    && typeof remainingSeconds === 'number'
+    && remainingSeconds > 0
+    && remainingSeconds <= INFERRED_MATCHED_WINDOW_SECONDS,
+  );
+
+  // Just after the slot fires, `remainingSeconds` is 0 or slightly negative
+  // and neither `shouldShowMatchStartOverlay` nor `shouldAutoOpenMatchArena`
+  // returns true. If the room still has a linked match (i.e. nothing
+  // cancelled it), infer 'active' for a short grace window so the match
+  // arena stays mounted while the server's status push is in flight.
+  const hasInferredActiveFromSlotElapsed = Boolean(
+    linkedMatchId
+    && linkedMatchSlotStartAt
+    && typeof remainingSeconds === 'number'
+    && remainingSeconds <= 0
+    && remainingSeconds > -ACTIVE_INFERENCE_GRACE_SECONDS,
+  );
+  if (hasInferredActiveFromSlotElapsed) {
+    return 'active';
+  }
+
+  if (
+    linkedMatchStatus === 'matched'
+    || roomState === 'countdown'
+    || hasInferredMatchedFromSlot
+  ) {
     if (shouldAutoOpenMatchArena(remainingSeconds)) {
       return 'arenaHandoff';
     }
@@ -263,16 +323,18 @@ export function buildPartyRunFlowSnapshot({
   isCountdownReady = false,
   remainingSeconds = null,
 }: PartyRunFlowSnapshotInput): PartyRunFlowSnapshot {
+  const linkedMatchSlotStartAt = room?.linkedMatchSlotStartAt ?? room?.slotStartAt;
+  const linkedMatchDistanceKm = room?.linkedMatchDistanceKm ?? room?.distanceKm;
   const phase = derivePartyRunStartPhase({
     roomState: room?.state,
     linkedMatchStatus: room?.linkedMatchStatus,
     isCountdownReady,
     remainingSeconds,
+    linkedMatchId: room?.linkedMatchId,
+    linkedMatchSlotStartAt,
   });
   const hasLinkedMatch = Boolean(room?.linkedMatchId);
   const shouldOpenArena = hasLinkedMatch && shouldOpenPartyRunArena(phase);
-  const linkedMatchSlotStartAt = room?.linkedMatchSlotStartAt ?? room?.slotStartAt;
-  const linkedMatchDistanceKm = room?.linkedMatchDistanceKm ?? room?.distanceKm;
   const isLinkedRoomLifecycle = Boolean(
     hasLinkedMatch
     && room
