@@ -31,12 +31,6 @@ export type ComponentMountDiagnosticsInput = {
   payload: Record<string, unknown>;
 };
 
-export type HostStartDiagnosticsInput = {
-  phase: 'invoke' | 'success' | 'error';
-  roomId: string;
-  payload: Record<string, unknown>;
-};
-
 export type MatchArenaDiagnosticsThrottleRef = {
   current: { lastKey: string | null; lastAt: number };
 };
@@ -99,20 +93,6 @@ export function reportComponentMountDiagnostics(
 
   // Intentionally uses warn so release logcat keeps this temporary diagnosis.
   console.warn('[arena-mount]', key);
-}
-
-export function reportHostStartDiagnostics(
-  input: HostStartDiagnosticsInput,
-  throttle?: MatchArenaDiagnosticsThrottleRef['current'],
-): void {
-  const key = JSON.stringify(input);
-
-  if (throttle && shouldSkipDiagnosticsLog(key, throttle)) {
-    return;
-  }
-
-  // Intentionally uses warn so release logcat keeps this temporary diagnosis.
-  console.warn('[host-start]', key);
 }
 
 export function resetMatchArenaDiagnosticsForTest(): void {

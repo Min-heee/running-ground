@@ -3,7 +3,6 @@ import test from 'node:test';
 import {
   createMatchArenaDiagnosticsThrottle,
   reportComponentMountDiagnostics,
-  reportHostStartDiagnostics,
   reportMatchArenaDiagnostics,
   resetMatchArenaDiagnosticsForTest,
 } from '@/utils/matchArenaDiagnostics';
@@ -239,59 +238,4 @@ test('component mount diagnostics isolates throttles per mounted component insta
   }
 
   assert.equal(warnings.length, 2);
-});
-
-test('host start diagnostics logs release-safe mutation phase warning with prefix', () => {
-  resetMatchArenaDiagnosticsForTest();
-  const originalWarn = console.warn;
-  const warnings: unknown[][] = [];
-  console.warn = (...args: unknown[]) => warnings.push(args);
-
-  try {
-    reportHostStartDiagnostics({
-      phase: 'invoke',
-      roomId: 'duel-room-test',
-      payload: {
-        isHost: true,
-        state: 'waiting',
-        participantCount: 2,
-      },
-    });
-  } finally {
-    console.warn = originalWarn;
-    resetMatchArenaDiagnosticsForTest();
-  }
-
-  assert.equal(warnings.length, 1);
-  assert.equal(warnings[0][0], '[host-start]');
-  assert.match(String(warnings[0][1]), /"phase":"invoke"/);
-});
-
-test('host start diagnostics throttles identical mutation phase per injected instance throttle', () => {
-  resetMatchArenaDiagnosticsForTest();
-  const originalWarn = console.warn;
-  const originalNow = Date.now;
-  const throttle = createMatchArenaDiagnosticsThrottle();
-  const warnings: unknown[][] = [];
-  let nowMs = 1000;
-  console.warn = (...args: unknown[]) => warnings.push(args);
-  Date.now = () => nowMs;
-
-  const input = {
-    phase: 'success' as const,
-    roomId: 'duel-room-test',
-    payload: { responseLinkedMatchId: 'duel-match-test', responseState: 'countdown' },
-  };
-
-  try {
-    reportHostStartDiagnostics(input, throttle);
-    nowMs += 500;
-    reportHostStartDiagnostics(input, throttle);
-  } finally {
-    console.warn = originalWarn;
-    Date.now = originalNow;
-    resetMatchArenaDiagnosticsForTest();
-  }
-
-  assert.equal(warnings.length, 1);
 });

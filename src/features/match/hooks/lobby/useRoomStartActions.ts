@@ -22,10 +22,6 @@ import {
 import { hydrateLiveMatchRouteState } from '@/features/runs/lifecycle/liveMatchRouteHydration';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
-import {
-  createMatchArenaDiagnosticsThrottle,
-  reportHostStartDiagnostics,
-} from '@/utils/matchArenaDiagnostics';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type RoomExitState = 'idle' | 'leaving' | 'deleting';
@@ -86,7 +82,6 @@ export function useRoomStartActions({
   const roomExitInFlightRef = useRef(false);
   const roomReadyInFlightRef = useRef(false);
   const roomStartInFlightRef = useRef(false);
-  const hostStartDiagnosticsThrottleRef = useRef(createMatchArenaDiagnosticsThrottle());
   const [roomExitState, setRoomExitState] = useState<RoomExitState>('idle');
 
   useEffect(() => () => {
@@ -178,31 +173,8 @@ export function useRoomStartActions({
       roomId: room.roomId,
     });
 
-    reportHostStartDiagnostics({
-      phase: 'invoke',
-      roomId: room.roomId,
-      payload: {
-        isHost: room.isHost,
-        state: room.state,
-        startMode: room.startMode,
-        participantCount: room.participants.length,
-        linkedMatchId: room.linkedMatchId ?? null,
-      },
-    }, hostStartDiagnosticsThrottleRef.current);
-
     try {
       const payload = await startRunningMatchRoom({ roomId: room.roomId });
-      reportHostStartDiagnostics({
-        phase: 'success',
-        roomId: room.roomId,
-        payload: {
-          responseRoomId: payload.room?.roomId ?? null,
-          responseLinkedMatchId: payload.room?.linkedMatchId ?? null,
-          responseState: payload.room?.state ?? null,
-          responseLinkedMatchStatus: payload.room?.linkedMatchStatus ?? null,
-          responseSlotStartAt: payload.room?.slotStartAt ?? null,
-        },
-      }, hostStartDiagnosticsThrottleRef.current);
       endStartApiTrace({
         linkedMatchId: payload.room?.linkedMatchId ?? null,
         success: true,
@@ -245,17 +217,6 @@ export function useRoomStartActions({
         navigateToStartedRoomMatch(payload.room);
       }
     } catch (roomError) {
-      const errorDetails = roomError as { code?: unknown; status?: unknown };
-      reportHostStartDiagnostics({
-        phase: 'error',
-        roomId: room.roomId,
-        payload: {
-          errorName: roomError instanceof Error ? roomError.name : 'unknown',
-          errorMessage: roomError instanceof Error ? roomError.message : String(roomError),
-          errorCode: errorDetails.code ?? null,
-          errorStatus: errorDetails.status ?? null,
-        },
-      }, hostStartDiagnosticsThrottleRef.current);
       endStartApiTrace({ success: false });
       setError(getApiErrorMessage(roomError, '방을 시작하지 못했어.'));
     } finally {
