@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-18T08:34:15.063Z
+생성 시각: 2026-05-18T09:04:29.295Z
 
 ## 실행 방법
 
@@ -41,7 +41,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/server.mjs | 6191 | imports 26, sort/filter/map 158, timers 1 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1967 | imports 51, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1968 | imports 51, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -117,7 +117,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/server.mjs | 6191 | imports 26, sort/filter/map 158, timers 1 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1967 | imports 51, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1968 | imports 51, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -144,7 +144,7 @@ npm run code:quality
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 148 | TrackRunExperienceRuntime | 1819 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 148 | TrackRunExperienceRuntime | 1820 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 78 | useTrackRunRuntimeRecipientInviteInbox | 653 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 189 | callback@useCallback | 427 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
