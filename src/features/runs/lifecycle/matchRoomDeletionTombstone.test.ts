@@ -9,6 +9,7 @@ import {
   markMatchRoomHostTransferObserved,
   markMatchRoomDeleted,
   resetMatchRoomDeletionTombstonesForTest,
+  subscribeMatchRoomDeletedTombstone,
 } from './matchRoomDeletionTombstone';
 
 test('deleted room tombstone blocks the same room id until cleared', () => {
@@ -49,6 +50,21 @@ test('deleted room tombstone is cleared for delete failure fallback', () => {
 
   clearMatchRoomDeletedTombstone('room-delete-failed', 'room delete failure');
   assert.equal(isMatchRoomDeleted('room-delete-failed', 1_200), false);
+});
+
+test('deleted room tombstone notifies active room state subscribers', () => {
+  resetMatchRoomDeletionTombstonesForTest();
+  const events: string[] = [];
+
+  const unsubscribe = subscribeMatchRoomDeletedTombstone((event) => {
+    events.push(`${event.roomId}:${event.source}:${event.expiresAtMs}`);
+  });
+
+  markMatchRoomDeleted('room-deleted', 'test subscriber', 1_000);
+  unsubscribe();
+  markMatchRoomDeleted('room-other', 'test subscriber', 1_100);
+
+  assert.deepEqual(events, ['room-deleted:test subscriber:601000']);
 });
 
 test('host transfer is detected for the same room id only', () => {

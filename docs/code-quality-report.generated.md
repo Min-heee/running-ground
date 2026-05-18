@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-18T02:24:45.644Z
+생성 시각: 2026-05-18T02:42:51.068Z
 
 ## 실행 방법
 
@@ -14,8 +14,8 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 770 |
-| 코드 파일 | 721 |
+| 분석 파일 | 771 |
+| 코드 파일 | 722 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 70 |
 | 500줄 이상 파일 | 17 |
@@ -186,6 +186,7 @@ npm run code:quality
 | src/features/integrations/hooks/useIntegrationActions.ts | 61 | useIntegrationActions | 165 |
 | src/features/runs/components/matchSetupCards/GroupMatchSetupCard.tsx | 41 | GroupMatchSetupCard | 165 |
 | backend/src/repositories/marketRepository.mjs | 5 | createJsonMarketRepository | 165 |
+| src/features/runs/hooks/usePartyRunRoom.ts | 79 | usePartyRunRoom | 158 |
 | src/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyEffects.ts | 27 | useMatchRoomLobbyEffects | 157 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 48 | startLocationTaskWithTrace | 156 |
 | backend/src/bridges/friendsLeagueBridge.test.mjs | 11 | createHarness | 154 |
@@ -200,7 +201,6 @@ npm run code:quality
 | src/features/runs/hooks/useMatchSelectionModel.ts | 55 | useMatchSelectionModel | 138 |
 | src/components/matches/useAndroidLiveMatchPerfProbe.ts | 50 | useAndroidLiveMatchPerfProbe | 136 |
 | src/features/runs/tracking/useTrackingAppStateSync.ts | 33 | useTrackingAppStateSync | 135 |
-| src/features/runs/hooks/usePartyRunRoom.ts | 61 | usePartyRunRoom | 133 |
 | src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 37 | useRunForfeitCommand | 133 |
 | src/features/profile/hooks/useMyPageScreen.ts | 10 | useMyPageScreen | 133 |
 | src/features/runs/viewModels/useLiveMatchProgress.ts | 40 | useLiveMatchProgress | 132 |
