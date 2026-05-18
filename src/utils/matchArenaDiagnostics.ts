@@ -24,13 +24,6 @@ type MatchArenaDiagnosticsInput = {
   linkedMatchId: string | null | undefined;
 };
 
-export type ComponentMountDiagnosticsInput = {
-  componentName: string;
-  instanceId: string;
-  mountPhase: 'mount' | 'update';
-  payload: Record<string, unknown>;
-};
-
 export type MatchArenaDiagnosticsThrottleRef = {
   current: { lastKey: string | null; lastAt: number };
 };
@@ -43,32 +36,21 @@ export function createMatchArenaDiagnosticsThrottle(): MatchArenaDiagnosticsThro
   return { lastKey: null, lastAt: 0 };
 }
 
-function shouldSkipDiagnosticsLog(
-  key: string,
-  throttle: MatchArenaDiagnosticsThrottleRef['current'],
-) {
-  const now = Date.now();
-  if (key === throttle.lastKey && now - throttle.lastAt < THROTTLE_MS) {
-    return true;
-  }
-
-  throttle.lastKey = key;
-  throttle.lastAt = now;
-  return false;
-}
-
 export function reportMatchArenaDiagnostics(
   input: MatchArenaDiagnosticsInput,
   throttle?: MatchArenaDiagnosticsThrottleRef['current'],
 ): void {
   const key = JSON.stringify(input);
+  const now = Date.now();
 
   if (throttle) {
-    if (shouldSkipDiagnosticsLog(key, throttle)) {
+    if (key === throttle.lastKey && now - throttle.lastAt < THROTTLE_MS) {
       return;
     }
+
+    throttle.lastKey = key;
+    throttle.lastAt = now;
   } else {
-    const now = Date.now();
     if (key === lastLoggedKey && now - lastLoggedAt < THROTTLE_MS) {
       return;
     }
@@ -79,20 +61,6 @@ export function reportMatchArenaDiagnostics(
 
   // Intentionally uses warn so release logcat keeps this temporary diagnosis.
   console.warn('[arena-diag]', key);
-}
-
-export function reportComponentMountDiagnostics(
-  input: ComponentMountDiagnosticsInput,
-  throttle?: MatchArenaDiagnosticsThrottleRef['current'],
-): void {
-  const key = JSON.stringify(input);
-
-  if (throttle && shouldSkipDiagnosticsLog(key, throttle)) {
-    return;
-  }
-
-  // Intentionally uses warn so release logcat keeps this temporary diagnosis.
-  console.warn('[arena-mount]', key);
 }
 
 export function resetMatchArenaDiagnosticsForTest(): void {

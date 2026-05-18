@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-18T11:56:18.906Z
+생성 시각: 2026-05-18T10:58:40.636Z
 
 ## 실행 방법
 
@@ -19,7 +19,7 @@ npm run code:quality
 | package scripts | 63 |
 | 300줄 이상 파일 | 71 |
 | 500줄 이상 파일 | 18 |
-| 50줄 이상 함수 후보 | 257 |
+| 50줄 이상 함수 후보 | 256 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
 ## 감지 항목 요약
@@ -32,7 +32,7 @@ npm run code:quality
 | useMemo/useCallback 없이 props를 많이 만드는 후보 | 9 | 0 | 9 | 0 |
 | services 밖 fetch/api 호출 후보 | 0 | 0 | 0 | 0 |
 | utils/domain 밖 계산 로직 후보 | 43 | 6 | 37 | 0 |
-| types 밖 타입 선언 후보 | 61 | 1 | 60 | 0 |
+| types 밖 타입 선언 후보 | 60 | 1 | 59 | 0 |
 | setInterval/setTimeout/subscription cleanup 의심 후보 | 15 | 0 | 15 | 0 |
 | Location/watchPosition/background task 사용 후보 | 18 | 5 | 13 | 0 |
 
@@ -139,7 +139,7 @@ npm run code:quality
 
 
 
-> 257개 중 상위 80개만 표시합니다.
+> 256개 중 상위 80개만 표시합니다.
 
 
 | 파일 | 줄 | 함수 | 길이 |
@@ -177,7 +177,6 @@ npm run code:quality
 | backend/src/repositories/authRepository.mjs | 127 | createJsonAuthRepository | 191 |
 | src/features/runs/runtime/useTrackRunRuntimeMatchRequestActions.ts | 11 | useTrackRunRuntimeMatchRequestActions | 191 |
 | src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 83 | useTrackingSessionSnapshots | 190 |
-| src/features/runs/hooks/usePartyRunRoom.ts | 83 | usePartyRunRoom | 187 |
 | src/features/runs/runtime/useTrackRunRoomCreateAction.ts | 50 | useTrackRunRoomCreateAction | 186 |
 | src/features/match/screens/MatchRoomScreen.tsx | 16 | MatchRoomScreen | 181 |
 | src/features/home/hooks/useHomeScreenModel.ts | 30 | useHomeScreenModel | 181 |
@@ -189,6 +188,7 @@ npm run code:quality
 | src/features/integrations/hooks/useIntegrationActions.ts | 61 | useIntegrationActions | 165 |
 | src/features/runs/components/matchSetupCards/GroupMatchSetupCard.tsx | 41 | GroupMatchSetupCard | 165 |
 | backend/src/repositories/marketRepository.mjs | 5 | createJsonMarketRepository | 165 |
+| src/features/runs/hooks/usePartyRunRoom.ts | 79 | usePartyRunRoom | 158 |
 | src/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyEffects.ts | 27 | useMatchRoomLobbyEffects | 157 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 48 | startLocationTaskWithTrace | 156 |
 | backend/src/bridges/friendsLeagueBridge.test.mjs | 11 | createHarness | 154 |
@@ -354,10 +354,10 @@ npm run code:quality
 | Medium | src/lib/api/services/integrations.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=4, sort/filter/map=5 |
 | Medium | src/lib/api/services/rooms.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=4 |
 | Medium | backend/src/routing.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=7, sort/filter/map=1 |
-| Medium | src/features/runs/hooks/usePartyRunRoom.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=6, sort/filter/map=2 |
 | Medium | src/lib/api/services/runningRoomResponseGuards.test.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=8, sort/filter/map=0 |
 | Medium | backend/src/services/adminReadService.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=1, sort/filter/map=6 |
 | Medium | src/components/matches/liveMatchArena/helpers.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=3, sort/filter/map=4 |
+| Medium | src/features/runs/hooks/usePartyRunRoom.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=2 |
 | Medium | src/lib/api/services/friends.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=3, sort/filter/map=4 |
 | Medium | src/components/matches/liveMatchArena/RoadMotion.tsx |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=2, sort/filter/map=4 |
 | Medium | src/features/location/addressCatalog.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=0, sort/filter/map=6 |
@@ -437,7 +437,6 @@ npm run code:quality
 | Medium | src/lib/api/services/runningRunResponseGuards.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/navigation/matchReminderNotificationRouting.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 | Medium | src/utils/marketRedemption.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
-| Medium | src/utils/matchArenaDiagnostics.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=3 |
 
 ## setInterval/setTimeout/subscription cleanup 의심 후보
 

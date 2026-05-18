@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo } from 'react';
 import type { ComponentProps, ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -6,10 +6,6 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { LiveMatchPages } from '@/features/runs/components/LiveMatchPages';
 import { LiveMatchTrackingPage } from '@/features/runs/components/LiveMatchTrackingPage';
 import { areLiveMatchContainerPropsEqual } from '@/features/runs/components/liveMatchPager/liveMatchPagePropsComparator';
-import {
-  createMatchArenaDiagnosticsThrottle,
-  reportComponentMountDiagnostics,
-} from '@/utils/matchArenaDiagnostics';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type LiveMatchContainerProps = {
@@ -40,50 +36,6 @@ export const LiveMatchContainer = memo(function LiveMatchContainer({
   onDiscardTracking,
 }: LiveMatchContainerProps) {
   useDevRenderCounter(showLiveArena ? 'LiveMatchContainer:arena' : 'LiveMatchContainer:tracking');
-  const diagnosticsInstanceIdRef = useRef(`live-container-${Math.random().toString(36).slice(2, 8)}`);
-  const diagnosticsThrottleRef = useRef(createMatchArenaDiagnosticsThrottle());
-  const hasReportedDiagnosticsMountRef = useRef(false);
-  const renderedChild = showLiveArena ? 'LiveMatchPages' : 'LiveMatchTrackingPage';
-  const hasRaceBoardProps = livePagesProps.raceBoardProps !== null;
-  const hasLiveTrackingProps = livePagesProps.trackingProps !== null;
-  const hasResultProps = livePagesProps.resultProps !== null;
-  const trackingMatchMode = trackingPageProps.matchMode;
-
-  useEffect(() => {
-    const mountPhase = hasReportedDiagnosticsMountRef.current ? 'update' : 'mount';
-    hasReportedDiagnosticsMountRef.current = true;
-    reportComponentMountDiagnostics({
-      componentName: 'LiveMatchContainer',
-      instanceId: diagnosticsInstanceIdRef.current,
-      mountPhase,
-      payload: {
-        showLiveArena,
-        renderedChild,
-        page: livePagesProps.page,
-        hasResultPage: livePagesProps.hasResultPage,
-        hasRaceBoardProps,
-        hasLiveTrackingProps,
-        hasResultProps,
-        trackingMatchMode,
-        isSaving,
-        isRunningSolo,
-        isPaused,
-      },
-    }, diagnosticsThrottleRef.current);
-  }, [
-    hasLiveTrackingProps,
-    hasRaceBoardProps,
-    hasResultProps,
-    isPaused,
-    isRunningSolo,
-    isSaving,
-    livePagesProps.hasResultPage,
-    livePagesProps.page,
-    renderedChild,
-    showLiveArena,
-    trackingMatchMode,
-  ]);
-
   return (
     <>
       {showLiveArena ? (

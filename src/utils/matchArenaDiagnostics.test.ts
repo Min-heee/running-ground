@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   createMatchArenaDiagnosticsThrottle,
-  reportComponentMountDiagnostics,
   reportMatchArenaDiagnostics,
   resetMatchArenaDiagnosticsForTest,
 } from '@/utils/matchArenaDiagnostics';
@@ -138,99 +137,6 @@ test('match arena diagnostics logs changed input without waiting for throttle wi
       roomLinkedDuelPlaceholderParticipantsLength: 2,
       roomShouldOpenCountdownArena: true,
     });
-  } finally {
-    console.warn = originalWarn;
-    Date.now = originalNow;
-    resetMatchArenaDiagnosticsForTest();
-  }
-
-  assert.equal(warnings.length, 2);
-});
-
-test('component mount diagnostics logs release-safe mount warning with prefix', () => {
-  resetMatchArenaDiagnosticsForTest();
-  const originalWarn = console.warn;
-  const warnings: unknown[][] = [];
-  console.warn = (...args: unknown[]) => warnings.push(args);
-
-  try {
-    reportComponentMountDiagnostics({
-      componentName: 'LiveMatchTrackingPage',
-      instanceId: 'tracking-page-test',
-      mountPhase: 'mount',
-      payload: {
-        matchMode: 'duel',
-        includeMatchCards: true,
-      },
-    });
-  } finally {
-    console.warn = originalWarn;
-    resetMatchArenaDiagnosticsForTest();
-  }
-
-  assert.equal(warnings.length, 1);
-  assert.equal(warnings[0][0], '[arena-mount]');
-  assert.match(String(warnings[0][1]), /"componentName":"LiveMatchTrackingPage"/);
-});
-
-test('component mount diagnostics throttles identical input per injected instance throttle', () => {
-  resetMatchArenaDiagnosticsForTest();
-  const originalWarn = console.warn;
-  const originalNow = Date.now;
-  const throttle = createMatchArenaDiagnosticsThrottle();
-  const warnings: unknown[][] = [];
-  let nowMs = 1000;
-  console.warn = (...args: unknown[]) => warnings.push(args);
-  Date.now = () => nowMs;
-
-  const input = {
-    componentName: 'LiveMatchContainer',
-    instanceId: 'container-test',
-    mountPhase: 'update' as const,
-    payload: {
-      showLiveArena: false,
-      renderedChild: 'LiveMatchTrackingPage',
-    },
-  };
-
-  try {
-    reportComponentMountDiagnostics(input, throttle);
-    nowMs += 500;
-    reportComponentMountDiagnostics(input, throttle);
-  } finally {
-    console.warn = originalWarn;
-    Date.now = originalNow;
-    resetMatchArenaDiagnosticsForTest();
-  }
-
-  assert.equal(warnings.length, 1);
-});
-
-test('component mount diagnostics isolates throttles per mounted component instance', () => {
-  resetMatchArenaDiagnosticsForTest();
-  const originalWarn = console.warn;
-  const originalNow = Date.now;
-  const firstThrottle = createMatchArenaDiagnosticsThrottle();
-  const secondThrottle = createMatchArenaDiagnosticsThrottle();
-  const warnings: unknown[][] = [];
-  let nowMs = 1000;
-  console.warn = (...args: unknown[]) => warnings.push(args);
-  Date.now = () => nowMs;
-
-  const input = {
-    componentName: 'LiveMatchProgressSection',
-    instanceId: 'progress-test',
-    mountPhase: 'update' as const,
-    payload: {
-      matchMode: 'duel',
-      includeMatchCards: true,
-    },
-  };
-
-  try {
-    reportComponentMountDiagnostics(input, firstThrottle);
-    nowMs += 100;
-    reportComponentMountDiagnostics(input, secondThrottle);
   } finally {
     console.warn = originalWarn;
     Date.now = originalNow;
