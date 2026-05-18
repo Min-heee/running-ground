@@ -124,6 +124,7 @@ export type PartyRunFlowSnapshot = {
   shouldShowLoading: boolean;
   shouldShowCountdown: boolean;
   shouldOpenArena: boolean;
+  shouldOpenCountdownArena: boolean;
   shouldPreferArena: boolean;
   linkedMatchContext: PartyRunLinkedMatchContext | null;
 };

@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-18T09:04:29.295Z
+생성 시각: 2026-05-18T09:31:52.172Z
 
 ## 실행 방법
 
@@ -71,7 +71,7 @@ npm run code:quality
 | backend/src/repositories/postgresLeagueRepository.mjs | 441 | sort/filter/map 14 |
 | src/features/runs/lifecycle/matchLifecycleController.test.ts | 439 | imports 5 |
 | scripts/deploy-public-backend.mjs | 432 | imports 7, timers 1 |
-| src/features/runs/lifecycle/matchStateMachine.ts | 424 | imports 3 |
+| src/features/runs/lifecycle/matchStateMachine.ts | 430 | imports 3 |
 | src/features/runs/sync/roomInviteInbox.test.ts | 424 | imports 4 |
 | src/lib/api/services/matches.ts | 422 | imports 6, sort/filter/map 6 |
 | backend/src/repositories/authRepository.test.mjs | 414 | imports 4, sort/filter/map 1 |
@@ -80,8 +80,8 @@ npm run code:quality
 | src/features/runs/tracking/background/locationTaskManager.test.ts | 389 | imports 6, timers 8 |
 | src/integrations/nativeHealth.ts | 379 | imports 8, sort/filter/map 1 |
 | backend/src/repositories/friendsRepository.mjs | 373 | sort/filter/map 9 |
+| src/features/runs/lifecycle/matchStateMachine.test.ts | 368 | imports 3 |
 | docs/server-backend-architecture.md | 367 | imports 1 |
-| src/features/runs/lifecycle/matchStateMachine.test.ts | 358 | imports 3 |
 | src/lib/api/services/mock/matchScheduling.ts | 358 | imports 4, sort/filter/map 8 |
 | docs/refactor-roadmap.md | 358 |  |
 | src/lib/api/services/runningRoomResponseGuards.ts | 356 | imports 2, sort/filter/map 4 |

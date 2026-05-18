@@ -215,6 +215,10 @@ export function shouldOpenPartyRunArena(phase: PartyRunStartPhase) {
   return phase === 'arenaHandoff' || phase === 'active';
 }
 
+export function shouldOpenPartyRunCountdownArena(phase: PartyRunStartPhase) {
+  return phase === 'countdown' || shouldOpenPartyRunArena(phase);
+}
+
 export function buildMatchParticipantStatusLabel(status?: MatchParticipantLiveStatus) {
   switch (status) {
     case 'running':
@@ -352,6 +356,7 @@ export function buildPartyRunFlowSnapshot({
   });
   const hasLinkedMatch = Boolean(room?.linkedMatchId);
   const shouldOpenArena = hasLinkedMatch && shouldOpenPartyRunArena(phase);
+  const shouldOpenCountdownArena = hasLinkedMatch && shouldOpenPartyRunCountdownArena(phase);
   const isLinkedRoomLifecycle = Boolean(
     hasLinkedMatch
     && room
@@ -394,6 +399,7 @@ export function buildPartyRunFlowSnapshot({
       && typeof remainingSeconds === 'number',
     ),
     shouldOpenArena,
+    shouldOpenCountdownArena,
     shouldPreferArena: hasLinkedMatch && shouldPreferRoomLinkedArena(room?.linkedMatchStatus, remainingSeconds),
     linkedMatchContext,
   };
