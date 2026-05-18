@@ -1930,7 +1930,6 @@ export function TrackRunExperienceRuntime({
     focusMatchId: hydratedFocusMatchId,
     forceMatchArena: hydratedForceMatchArena,
     hydratedMatchId: liveMatchRouteHydration?.matchId,
-    linkedMatchContext: roomLinkedMatchContext,
     matchLifecycleStage: matchLifecycleController.stage,
     mountedLiveMatchId,
     requestedShell: trackRunShellKind,

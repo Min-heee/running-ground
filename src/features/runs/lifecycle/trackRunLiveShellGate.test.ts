@@ -65,73 +65,6 @@ test('mounted live match fallback prevents idle shell from blocking active arena
   assert.equal(decision.blockedReason, 'idle-shell-would-block-live-route');
 });
 
-test('active linked match fallback forces first live shell mount before registry exists', () => {
-  const decision = resolveTrackRunLiveShellGate({
-    linkedMatchContext: { matchId: 'duel-match-linked', state: 'active' },
-    matchLifecycleStage: 'active',
-    requestedShell: 'idle',
-    requestedShouldShowReadyScreen: true,
-    routeShellHint: 'live',
-    showLiveArena: false,
-  });
-
-  assert.equal(decision.routeMatchId, 'duel-match-linked');
-  assert.equal(decision.shellKind, 'live');
-  assert.equal(decision.shouldForceLiveShell, true);
-  assert.equal(decision.shouldForceLiveArena, true);
-  assert.equal(decision.shouldShowReadyScreen, false);
-  assert.equal(decision.blockedReason, 'idle-shell-would-block-live-route');
-});
-
-test('matched linked match fallback can force live shell during arming lifecycle', () => {
-  const decision = resolveTrackRunLiveShellGate({
-    linkedMatchContext: { matchId: 'duel-match-linked', state: 'matched' },
-    matchLifecycleStage: 'arming',
-    requestedShell: 'lobby',
-    requestedShouldShowReadyScreen: true,
-    routeShellHint: 'live',
-    showLiveArena: false,
-  });
-
-  assert.equal(decision.routeMatchId, 'duel-match-linked');
-  assert.equal(decision.shellKind, 'live');
-  assert.equal(decision.shouldForceLiveShell, true);
-  assert.equal(decision.shouldForceLiveArena, true);
-  assert.equal(decision.blockedReason, 'lobby-shell-would-block-live-route');
-});
-
-test('linked match fallback is ignored outside live lifecycle stages', () => {
-  const decision = resolveTrackRunLiveShellGate({
-    linkedMatchContext: { matchId: 'duel-match-linked', state: 'matched' },
-    matchLifecycleStage: 'waiting',
-    requestedShell: 'idle',
-    requestedShouldShowReadyScreen: true,
-    routeShellHint: 'live',
-    showLiveArena: false,
-  });
-
-  assert.equal(decision.routeMatchId, null);
-  assert.equal(decision.shellKind, 'idle');
-  assert.equal(decision.shouldForceLiveShell, false);
-  assert.equal(decision.shouldForceLiveArena, false);
-});
-
-test('linked match fallback does not replace mounted live match priority', () => {
-  const decision = resolveTrackRunLiveShellGate({
-    linkedMatchContext: { matchId: 'duel-match-linked', state: 'active' },
-    matchLifecycleStage: 'active',
-    mountedLiveMatchId: 'duel-match-mounted',
-    requestedShell: 'idle',
-    requestedShouldShowReadyScreen: true,
-    routeShellHint: 'live',
-    showLiveArena: false,
-  });
-
-  assert.equal(decision.routeMatchId, 'duel-match-mounted');
-  assert.equal(decision.shellKind, 'live');
-  assert.equal(decision.shouldForceLiveArena, true);
-});
-
 test('mounted live match fallback is ignored outside live lifecycle stages', () => {
   const finishedDecision = resolveTrackRunLiveShellGate({
     matchLifecycleStage: 'finished',
@@ -163,7 +96,6 @@ test('mounted live match fallback is ignored outside live lifecycle stages', () 
 test('explicit route match id keeps priority over mounted live match fallback', () => {
   const decision = resolveTrackRunLiveShellGate({
     hydratedMatchId: 'duel-match-route',
-    linkedMatchContext: { matchId: 'duel-match-linked', state: 'active' },
     matchLifecycleStage: 'active',
     mountedLiveMatchId: 'duel-match-mounted',
     requestedShell: 'lobby',
