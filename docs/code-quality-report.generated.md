@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-18T10:37:15.239Z
+생성 시각: 2026-05-18T10:58:40.636Z
 
 ## 실행 방법
 
@@ -14,7 +14,7 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 783 |
+| 분석 파일 | 784 |
 | 코드 파일 | 728 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 71 |
@@ -41,7 +41,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/server.mjs | 6191 | imports 26, sort/filter/map 158, timers 1 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2017 | imports 52, effects 1, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2025 | imports 52, effects 1, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -117,7 +117,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/server.mjs | 6191 | imports 26, sort/filter/map 158, timers 1 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2017 | imports 52, effects 1, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2025 | imports 52, effects 1, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -144,7 +144,7 @@ npm run code:quality
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 149 | TrackRunExperienceRuntime | 1868 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 152 | TrackRunExperienceRuntime | 1873 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 78 | useTrackRunRuntimeRecipientInviteInbox | 653 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 189 | callback@useCallback | 427 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
