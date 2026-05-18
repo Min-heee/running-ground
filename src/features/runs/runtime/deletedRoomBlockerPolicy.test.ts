@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import {
+  markMatchRoomDeletedFromMissingActiveRoom,
+  markMatchRoomHostTransferObserved,
   markMatchRoomDeleted,
   resetMatchRoomDeletionTombstonesForTest,
 } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
@@ -75,6 +77,25 @@ test('create blocker policy identifies deleted tombstone blocker ids only', () =
     blockerSource: 'matchRooms.participant',
     roomId: 'room-other',
   }), null);
+});
+
+test('blocker policy treats transferred-then-deleted room as stale', () => {
+  resetMatchRoomDeletionTombstonesForTest();
+  markMatchRoomHostTransferObserved({
+    currentRoom: { roomId: 'room-transfer', hostUserId: 'host-a', isHost: false },
+    nextRoom: { roomId: 'room-transfer', hostUserId: 'host-b', isHost: true },
+    source: 'test host transfer',
+  });
+  markMatchRoomDeletedFromMissingActiveRoom({
+    room: { roomId: 'room-transfer', hostUserId: 'host-b', isHost: true },
+    source: 'test transferred delete',
+  });
+
+  assert.equal(getDeletedCreateBlockerRoomId({
+    blocker: 'activeRoom',
+    blockerSource: 'matchRooms.participant',
+    roomId: 'room-transfer',
+  }), 'room-transfer');
 });
 
 test('deleted room blocker cleanup allows create retry after recovery cleanup', async () => {

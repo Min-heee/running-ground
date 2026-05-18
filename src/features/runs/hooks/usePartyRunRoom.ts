@@ -15,6 +15,7 @@ function buildRoomRenderKey(room: RunningMatchRoom | null) {
 
   const participantKey = room.participants.map((participant) => [
     participant.userId,
+    participant.isHost ? 'host' : 'guest',
     participant.isReady ? 'ready' : 'waiting',
     participant.isCountdownReady ? 'loaded' : 'loading',
     participant.liveStatus ?? 'no-live-status',
@@ -35,6 +36,8 @@ function buildRoomRenderKey(room: RunningMatchRoom | null) {
 
   return [
     room.roomId,
+    room.hostUserId,
+    room.isHost ? 'host' : 'guest',
     room.state,
     room.startMode,
     room.distanceKm,

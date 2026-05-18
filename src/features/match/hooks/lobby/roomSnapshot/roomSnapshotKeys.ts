@@ -7,6 +7,8 @@ export function buildRoomRenderKey(room: RunningMatchRoom | null) {
 
   return [
     room.roomId,
+    room.hostUserId,
+    room.isHost ? 'host' : 'guest',
     room.state,
     room.startMode,
     room.distanceKm,
@@ -21,6 +23,7 @@ export function buildRoomRenderKey(room: RunningMatchRoom | null) {
     room.invitedFriends?.map((friend) => [friend.userId, friend.name, friend.status].join(':')).join('|') ?? 'no-invites',
     room.participants.map((participant) => [
       participant.userId,
+      participant.isHost ? 'host' : 'guest',
       participant.isReady ? 'ready' : 'waiting',
       participant.isCountdownReady ? 'loaded' : 'loading',
     ].join(':')).join('|'),
