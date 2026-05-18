@@ -162,7 +162,14 @@ test('active match identity prefers explicit match status and falls back to acti
 
 test('party run start phase normalizes host loading, countdown, arena handoff, and active states', () => {
   assert.equal(resolvePartyRunStartPhase('waiting', { type: 'hostStartRequested' }), 'arming');
+  assert.equal(resolvePartyRunStartPhase('arming', { type: 'hostStartRequested' }), 'arming');
+  assert.equal(resolvePartyRunStartPhase('readyAcked', { type: 'hostStartRequested' }), 'readyAcked');
+  assert.equal(resolvePartyRunStartPhase('countdown', { type: 'hostStartRequested' }), 'countdown');
+  assert.equal(resolvePartyRunStartPhase('arenaHandoff', { type: 'hostStartRequested' }), 'arenaHandoff');
+  assert.equal(resolvePartyRunStartPhase('active', { type: 'hostStartRequested' }), 'active');
   assert.equal(resolvePartyRunStartPhase('arming', { type: 'countdownReadyAcked' }), 'readyAcked');
+  assert.equal(resolvePartyRunStartPhase('countdown', { type: 'countdownReadyAcked' }), 'countdown');
+  assert.equal(resolvePartyRunStartPhase('arenaHandoff', { type: 'countdownReadyAcked' }), 'arenaHandoff');
   assert.equal(resolvePartyRunStartPhase('readyAcked', {
     type: 'serverSnapshot',
     payload: { roomState: 'arming', isCountdownReady: true },
