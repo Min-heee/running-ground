@@ -80,6 +80,34 @@ test('active room snapshot key changes for readiness updates inside the same sta
   assert.notEqual(waiting, ready);
 });
 
+test('active room snapshot key changes for host transfer updates inside the same room', () => {
+  const beforeTransfer = buildActiveRoomSnapshotKey({ room: room(), userId: 'runner' });
+  const afterTransfer = buildActiveRoomSnapshotKey({
+    room: room({
+      hostUserId: 'runner',
+      isHost: true,
+      participants: [
+        {
+          averagePace: '06:00/km',
+          districtName: '테스트구',
+          invited: false,
+          isCountdownReady: false,
+          isHost: true,
+          isReady: false,
+          joinedAt: '2026-05-14T00:00:00.000Z',
+          levelLabel: 'Lv.1',
+          name: '러너',
+          tag: 'runner',
+          userId: 'runner',
+        },
+      ],
+    }),
+    userId: 'runner',
+  });
+
+  assert.notEqual(beforeTransfer, afterTransfer);
+});
+
 test('active room snapshot key ignores live distance-only updates', () => {
   const base = buildActiveRoomSnapshotKey({
     room: room({

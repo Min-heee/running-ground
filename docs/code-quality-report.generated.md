@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-18T01:52:47.998Z
+생성 시각: 2026-05-18T02:24:45.644Z
 
 ## 실행 방법
 
@@ -19,7 +19,7 @@ npm run code:quality
 | package scripts | 63 |
 | 300줄 이상 파일 | 70 |
 | 500줄 이상 파일 | 17 |
-| 50줄 이상 함수 후보 | 255 |
+| 50줄 이상 함수 후보 | 256 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
 ## 감지 항목 요약
@@ -89,6 +89,7 @@ npm run code:quality
 | src/features/match/hooks/lobby/useRoomStartActions.ts | 335 | imports 15, effects 1 |
 | docs/code-quality-audit.md | 335 | imports 13 |
 | src/features/integrations/IntegrationJourneyCard.tsx | 333 | imports 9, sort/filter/map 3 |
+| src/features/runs/runtime/useTrackRunRoomLoader.ts | 333 | imports 11 |
 | src/features/runs/components/matchSetupCards/MatchSetupCommon.tsx | 332 | imports 7, sort/filter/map 4 |
 | src/features/league/components/LeagueRegionSelectorCard.tsx | 326 | imports 11, sort/filter/map 1 |
 | src/features/settings/admin/components/adminStyles.ts | 326 | imports 1 |
@@ -100,7 +101,6 @@ npm run code:quality
 | src/features/runs/lifecycle/hooks/runningMatchFocus/liveMatchNavigationOwnerPolicy.ts | 317 | imports 5 |
 | backend/src/points.mjs | 316 | sort/filter/map 5 |
 | src/features/runs/lifecycle/matchLifecycleController.ts | 314 | imports 6 |
-| src/features/runs/runtime/useTrackRunRoomLoader.ts | 314 | imports 11 |
 | backend/src/repositories/friendsRepository.test.mjs | 314 | imports 2, sort/filter/map 3 |
 | docs/testflight-real-device-qa.md | 314 |  |
 | src/features/runs/sync/roomInviteInbox.ts | 312 | imports 2 |
@@ -137,7 +137,7 @@ npm run code:quality
 
 
 
-> 255개 중 상위 80개만 표시합니다.
+> 256개 중 상위 80개만 표시합니다.
 
 
 | 파일 | 줄 | 함수 | 길이 |
@@ -148,18 +148,18 @@ npm run code:quality
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
 | src/features/runs/viewModels/useLiveMatchViewModel.ts | 37 | useLiveMatchViewModel | 285 |
+| src/features/runs/runtime/useTrackRunRoomLoader.ts | 60 | useTrackRunRoomLoader | 273 |
 | backend/src/repositories/postgresRunsRepository.mjs | 369 | createPostgresRunsRepository | 271 |
 | src/features/match/hooks/lobby/useRoomStartActions.ts | 70 | useRoomStartActions | 265 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 350 | requestPromise | 259 |
 | backend/src/repositories/postgresAuthRepository.mjs | 246 | createPostgresAuthRepository | 258 |
-| src/features/runs/runtime/useTrackRunRoomLoader.ts | 56 | useTrackRunRoomLoader | 258 |
 | src/features/settings/screens/AdminScreen.tsx | 19 | AdminScreen | 254 |
+| src/features/runs/runtime/useTrackRunRoomLoader.ts | 77 | callback@useCallback | 238 |
 | src/features/runs/sync/useMatchProgressSync.ts | 50 | useMatchProgressSync | 235 |
 | backend/src/bridges/friendsLeagueBridge.mjs | 22 | createFriendsLeagueBridge | 232 |
 | src/features/runs/runtime/useRuntimeHydrationEffects.ts | 8 | useRuntimeHydrationEffects | 232 |
 | src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 42 | useTrackRunRoomJoinAction | 226 |
 | src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 80 | useBlockingMatchStatusPolling | 225 |
-| src/features/runs/runtime/useTrackRunRoomLoader.ts | 73 | callback@useCallback | 223 |
 | src/features/runs/runtime/useTrackRunRuntimeRoomInviteActions.ts | 37 | useTrackRunRuntimeRoomInviteActions | 223 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 42 | createLocationTaskManager | 220 |
 | src/features/runs/lifecycle/hooks/useMatchEntryEffects.ts | 47 | useMatchEntryEffects | 217 |
@@ -200,7 +200,7 @@ npm run code:quality
 | src/features/runs/hooks/useMatchSelectionModel.ts | 55 | useMatchSelectionModel | 138 |
 | src/components/matches/useAndroidLiveMatchPerfProbe.ts | 50 | useAndroidLiveMatchPerfProbe | 136 |
 | src/features/runs/tracking/useTrackingAppStateSync.ts | 33 | useTrackingAppStateSync | 135 |
-| src/features/runs/hooks/usePartyRunRoom.ts | 58 | usePartyRunRoom | 133 |
+| src/features/runs/hooks/usePartyRunRoom.ts | 61 | usePartyRunRoom | 133 |
 | src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 37 | useRunForfeitCommand | 133 |
 | src/features/profile/hooks/useMyPageScreen.ts | 10 | useMyPageScreen | 133 |
 | src/features/runs/viewModels/useLiveMatchProgress.ts | 40 | useLiveMatchProgress | 132 |

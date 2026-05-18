@@ -2,7 +2,11 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import type { runActiveRoomCheck } from '@/features/runs/sync/activeRoomCheck';
 import { isMatchRoomExiting } from '@/features/runs/lifecycle/matchRoomExitGuard';
-import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
+import {
+  isMatchRoomDeleted,
+  markMatchRoomDeletedFromMissingActiveRoom,
+  markMatchRoomHostTransferObserved,
+} from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import {
   getActiveRoomCheckResultSkipReason,
 } from '@/features/runs/sync/activeRoomCheck';
@@ -107,6 +111,22 @@ export async function handleMatchRoomActiveRoomResult({
     });
     return null;
   }
+
+  if (!payload.room) {
+    markMatchRoomDeletedFromMissingActiveRoom({
+      room: roomRef.current,
+      source: 'match-room snapshot no-active-room',
+    });
+    commitRoom(null);
+    setError(null);
+    return null;
+  }
+
+  markMatchRoomHostTransferObserved({
+    currentRoom: roomRef.current,
+    nextRoom: payload.room,
+    source: 'match-room snapshot',
+  });
 
   if (isMatchRoomDeleted(payload.room?.roomId)) {
     rgPerfMark('active room result ignored deleted room', {

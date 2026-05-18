@@ -5,7 +5,11 @@ import {
   getActiveRoomCheckResultSkipReason,
   runActiveRoomCheck,
 } from '@/features/runs/sync/activeRoomCheck';
-import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
+import {
+  isMatchRoomDeleted,
+  markMatchRoomDeletedFromMissingActiveRoom,
+  markMatchRoomHostTransferObserved,
+} from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import {
   buildActiveRoomResultLogDetail,
   buildActiveRoomSnapshotKey,
@@ -219,6 +223,21 @@ export function useTrackRunRoomLoader({
       }
       return matchRoom;
     }
+
+    if (!payload.room) {
+      markMatchRoomDeletedFromMissingActiveRoom({
+        room: matchRoom,
+        source: 'track-run active room no-active-room',
+      });
+      commitMatchRoom(null);
+      return null;
+    }
+
+    markMatchRoomHostTransferObserved({
+      currentRoom: matchRoom,
+      nextRoom: payload.room,
+      source: 'track-run experience',
+    });
 
     if (isMatchRoomDeleted(payload.room?.roomId)) {
       rgPerfMark('active room result ignored deleted room', {

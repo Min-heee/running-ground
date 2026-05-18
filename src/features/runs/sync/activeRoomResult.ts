@@ -24,6 +24,7 @@ export function buildActiveRoomSnapshotKey({
   const participantKey = room.participants
     .map((participant) => [
       participant.userId,
+      participant.isHost ? 'host' : 'guest',
       participant.isReady ? 'ready' : 'waiting',
       participant.isCountdownReady ? 'countdown-ready' : 'countdown-waiting',
       participant.liveStatus ?? 'no-live-status',
@@ -40,6 +41,8 @@ export function buildActiveRoomSnapshotKey({
   return [
     userId,
     room.roomId,
+    room.hostUserId,
+    room.isHost ? 'host' : 'guest',
     room.state,
     room.startMode,
     room.distanceKm,
