@@ -4,11 +4,18 @@ const DELETE_TOMBSTONE_TTL_MS = 10 * 60 * 1000;
 
 const deletedRoomIds = new Map<string, number>();
 const hostTransferredRoomIds = new Map<string, number>();
+const deletedRoomListeners = new Set<(event: MatchRoomDeletedEvent) => void>();
 
 type TombstoneRoomSnapshot = {
   hostUserId?: string | null;
   isHost?: boolean | null;
   roomId?: string | null;
+};
+
+export type MatchRoomDeletedEvent = {
+  expiresAtMs: number;
+  roomId: string;
+  source: string;
 };
 
 function cleanupExpiredDeletedRooms(nowMs = Date.now()) {
@@ -24,10 +31,22 @@ function cleanupExpiredDeletedRooms(nowMs = Date.now()) {
   });
 }
 
+function notifyMatchRoomDeleted(event: MatchRoomDeletedEvent) {
+  deletedRoomListeners.forEach((listener) => {
+    listener(event);
+  });
+}
+
 export function markMatchRoomDeleted(roomId: string, source = 'match-room delete', nowMs = Date.now()) {
   cleanupExpiredDeletedRooms(nowMs);
-  deletedRoomIds.set(roomId, nowMs + DELETE_TOMBSTONE_TTL_MS);
+  const expiresAtMs = nowMs + DELETE_TOMBSTONE_TTL_MS;
+  deletedRoomIds.set(roomId, expiresAtMs);
   rgPerfMark('room delete tombstone added', {
+    roomId,
+    source,
+  });
+  notifyMatchRoomDeleted({
+    expiresAtMs,
     roomId,
     source,
   });
@@ -61,6 +80,13 @@ export function isMatchRoomDeleted(roomId: string | null | undefined, nowMs = Da
 export function findDeletedMatchRoomId(roomIds: (string | null | undefined)[], nowMs = Date.now()) {
   cleanupExpiredDeletedRooms(nowMs);
   return roomIds.find((roomId) => Boolean(roomId && deletedRoomIds.has(roomId))) ?? null;
+}
+
+export function subscribeMatchRoomDeletedTombstone(listener: (event: MatchRoomDeletedEvent) => void) {
+  deletedRoomListeners.add(listener);
+  return () => {
+    deletedRoomListeners.delete(listener);
+  };
 }
 
 export function hasMatchRoomHostTransferred({
@@ -133,4 +159,5 @@ export function markMatchRoomDeletedFromMissingActiveRoom({
 export function resetMatchRoomDeletionTombstonesForTest() {
   deletedRoomIds.clear();
   hostTransferredRoomIds.clear();
+  deletedRoomListeners.clear();
 }

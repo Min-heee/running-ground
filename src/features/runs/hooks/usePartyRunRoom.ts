@@ -3,10 +3,28 @@ import {
   type FriendLeaderboardResponse,
   type RunningMatchRoom,
 } from '@/lib/api/types';
-import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
+import {
+  isMatchRoomDeleted,
+  subscribeMatchRoomDeletedTombstone,
+} from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 export type RoomStartMode = 'scheduled' | 'host';
+
+export function shouldClearPartyRunRoomForDeletedTombstone({
+  deletedRoomId,
+  matchRoom,
+}: {
+  deletedRoomId?: string | null;
+  matchRoom: RunningMatchRoom | null;
+}) {
+  return Boolean(
+    deletedRoomId
+    && matchRoom?.roomId
+    && matchRoom.roomId === deletedRoomId
+    && isMatchRoomDeleted(deletedRoomId)
+  );
+}
 
 function buildRoomRenderKey(room: RunningMatchRoom | null) {
   if (!room) {
@@ -97,6 +115,31 @@ export function usePartyRunRoom({
     matchRoomRenderKeyRef.current = nextKey;
     setMatchRoom(committedRoom);
   };
+
+  useEffect(() => subscribeMatchRoomDeletedTombstone(({ roomId, source }) => {
+    setMatchRoom((currentRoom) => {
+      if (!shouldClearPartyRunRoomForDeletedTombstone({
+        deletedRoomId: roomId,
+        matchRoom: currentRoom,
+      })) {
+        return currentRoom;
+      }
+
+      matchRoomRenderKeyRef.current = buildRoomRenderKey(null);
+      setSelectedRoomFriendIds([]);
+      rgPerfMark('local active room hint cleared deleted room', {
+        roomId,
+        source: 'party run room tombstone subscriber',
+        tombstoneSource: source,
+      });
+      rgPerfMark('room delete local state fully cleared', {
+        roomId,
+        source: 'party run room tombstone subscriber',
+        tombstoneSource: source,
+      });
+      return null;
+    });
+  }), []);
 
   const visibleMatchRoom = useMemo(() => {
     if (!matchRoom) {
