@@ -19,6 +19,12 @@ export default function TabsLayout() {
   const tabBarHeight = 58 + tabBarBottomPadding + 8;
   const screenOptions = useMemo(() => ({
     headerShown: false,
+    // `lazy` defers mounting a tab's screen until first focus, so initial app
+    // entry only pays for the home tab; `freezeOnBlur` parks inactive tabs
+    // (react-native-screens) so their JS work doesn't compete with the active
+    // tab. Both target the "탭 전환 처음에 로딩이 꽤 걸림" symptom on Wide 6.
+    lazy: true,
+    freezeOnBlur: true,
     tabBarActiveTintColor: '#111827',
     tabBarInactiveTintColor: '#98A2B3',
     tabBarStyle: {
@@ -28,7 +34,9 @@ export default function TabsLayout() {
       backgroundColor: '#FFFFFF',
       borderTopWidth: 1,
       borderTopColor: '#EAECF0',
-      elevation: 10,
+      // Lower than 10 — Android elevation contributes to per-frame overdraw,
+      // and the tab bar visual was nearly identical at 6 in our PR comparison.
+      elevation: 6,
     },
     tabBarLabelStyle: {
       fontSize: 10,

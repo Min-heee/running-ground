@@ -1,4 +1,10 @@
-const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 3000;
+// Sub-second offsets matter for cross-device countdown sync (two phones
+// drifting by ~1s caused "한쪽은 카운팅 끝났는데 한쪽은 아직" mismatch).
+// 500ms keeps us above typical NTP jitter (~100ms) while still applying
+// small-but-meaningful clock differences between devices.
+const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 500;
+// Once a stable offset is in place, ignore small fluctuations from network
+// round-trip jitter so the countdown digit doesn't visibly twitch.
 const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
 const SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR = 0.25;
 

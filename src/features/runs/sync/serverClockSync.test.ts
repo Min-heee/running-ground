@@ -13,8 +13,13 @@ test('server clock parser ignores invalid timestamps', () => {
 });
 
 test('server clock offset smoothing ignores small local jitter and smooths large jumps', () => {
-  assert.equal(resolveStableServerClockOffset(0, 1200), 0);
+  // Below 500ms apply threshold → treated as no offset (NTP jitter range).
+  assert.equal(resolveStableServerClockOffset(0, 200), 0);
+  // 1200ms is above the 500ms threshold and applies immediately, so cross-device
+  // countdown sync benefits from sub-second offset corrections (Step 1 fix).
+  assert.equal(resolveStableServerClockOffset(0, 1200), 1200);
   assert.equal(resolveStableServerClockOffset(0, 4000), 4000);
+  // Once a stable offset is applied, small deltas within jitter tolerance are kept.
   assert.equal(resolveStableServerClockOffset(4000, 4300), 4000);
   assert.equal(resolveStableServerClockOffset(4000, 8000), 5000);
 });

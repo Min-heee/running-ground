@@ -188,6 +188,98 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
   assert.equal(shouldShowPartyRunLoading('countdown'), false);
   assert.equal(shouldOpenPartyRunArena('arenaHandoff'), true);
   assert.equal(shouldOpenPartyRunArena('countdown'), false);
+
+  // Host/guest sync fallback: server 'matched' hasn't arrived yet but the
+  // linked match identity is known and the slot is inside the overlay
+  // window. Both clients should reach 'countdown' / 'arenaHandoff' off the
+  // slot alone, so neither sits on the loading banner while the other
+  // counts down (two-phone bug from the perf review).
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: 25,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-12T00:00:25.000Z',
+  }), 'countdown');
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: 15,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-12T00:00:15.000Z',
+  }), 'arenaHandoff');
+  // Without a linked match the fallback must NOT trigger — pre-match lobbies
+  // should still show the waiting state.
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: 25,
+    linkedMatchId: null,
+    linkedMatchSlotStartAt: null,
+  }), 'arming');
+  // Inside the inferred matched window (60s) but outside the visible
+  // overlay window (30s) — phase should still infer 'arming' / 'readyAcked',
+  // not 'waiting', so the host phone gets out of the 'no linked match'
+  // branch and is ready to flip into 'countdown' the moment overlay opens.
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: 55,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-12T00:00:55.000Z',
+  }), 'arming');
+  // Outside the 60s matched window the fallback also must NOT trigger.
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: 180,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-12T00:03:00.000Z',
+  }), 'arming');
+
+  // Slot has just fired but the server's 'active' status push hasn't
+  // landed yet. Within the grace window the phase stays 'active' so the
+  // match arena doesn't unmount and drop the user back to the running tab.
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'countdown',
+    linkedMatchStatus: 'matched',
+    isCountdownReady: true,
+    remainingSeconds: 0,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-12T00:00:00.000Z',
+  }), 'active');
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: -15,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-11T23:59:45.000Z',
+  }), 'active');
+  // Within the 120s grace window we keep inferring 'active' even when the
+  // slot has been elapsed for a while (covers slow start API responses).
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: -90,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-11T23:58:30.000Z',
+  }), 'active');
+  // Outside the 120s grace window we stop inferring (treat it as stale).
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: -180,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-11T23:57:00.000Z',
+  }), 'arming');
 });
 
 test('party run flow snapshot centralizes loading, countdown, arena, and ack decisions', () => {

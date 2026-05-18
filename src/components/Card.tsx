@@ -1,5 +1,5 @@
 import { PropsWithChildren } from 'react';
-import { StyleProp, StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
+import { Platform, StyleProp, StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
 
 import { colors, radii, spacing } from '@/theme/tokens';
 
@@ -12,11 +12,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radii.xl,
     padding: spacing.s16,
-    shadowColor: colors.black,
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
     gap: spacing.xxl,
+    // Split shadow vs elevation per platform — RN applies elevation on Android
+    // even when shadow* are set, paying overdraw cost twice. Cards appear on
+    // every screen, so this lands across the whole app.
+    ...Platform.select({
+      ios: {
+        shadowColor: colors.black,
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
 });
