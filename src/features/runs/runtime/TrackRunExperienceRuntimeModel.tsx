@@ -790,7 +790,7 @@ export function TrackRunExperienceRuntime({
   const groupShouldOpenCountdownArena = groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds);
   const roomShouldOpenCountdownArena = Boolean(
     partyRunRuntimeSource.room?.linkedMatchId
-    && (partyRunRuntimeSource.flow.shouldOpenCountdownArena || forceOpenActiveMatch),
+    && (partyRunRuntimeSource.flow.shouldOpenArena || forceOpenActiveMatch),
   );
   const duelShouldHoldArenaDuringActivation = duelMatchState === 'matched' && forceOpenActiveMatch;
   const groupShouldHoldArenaDuringActivation = groupMatchState === 'matched' && forceOpenActiveMatch;

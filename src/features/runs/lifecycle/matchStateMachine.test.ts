@@ -16,7 +16,6 @@ import {
   shouldAutoFocusMatchArena,
   shouldEnterMatchArenaForLifecycle,
   shouldKeepMatchArenaForceOpen,
-  shouldOpenPartyRunCountdownArena,
   shouldOpenPartyRunArena,
   shouldPreferRoomLinkedArena,
   shouldShowPartyRunLoading,
@@ -196,12 +195,6 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
   assert.equal(shouldShowPartyRunLoading('countdown'), false);
   assert.equal(shouldOpenPartyRunArena('arenaHandoff'), true);
   assert.equal(shouldOpenPartyRunArena('countdown'), false);
-  assert.equal(shouldOpenPartyRunCountdownArena('waiting'), false);
-  assert.equal(shouldOpenPartyRunCountdownArena('arming'), false);
-  assert.equal(shouldOpenPartyRunCountdownArena('readyAcked'), false);
-  assert.equal(shouldOpenPartyRunCountdownArena('countdown'), true);
-  assert.equal(shouldOpenPartyRunCountdownArena('arenaHandoff'), true);
-  assert.equal(shouldOpenPartyRunCountdownArena('active'), true);
 
   // Host/guest sync fallback: server 'matched' hasn't arrived yet but the
   // linked match identity is known and the slot is inside the overlay
@@ -328,7 +321,6 @@ test('party run flow snapshot centralizes loading, countdown, arena, and ack dec
   assert.equal(countdown.shouldShowCountdown, true);
   assert.equal(countdown.canOpenLinkedMatch, true);
   assert.equal(countdown.shouldOpenArena, false);
-  assert.equal(countdown.shouldOpenCountdownArena, true);
 
   const handoff = buildPartyRunFlowSnapshot({
     room: { ...room, state: 'countdown' },
@@ -337,7 +329,6 @@ test('party run flow snapshot centralizes loading, countdown, arena, and ack dec
   });
   assert.equal(handoff.phase, 'arenaHandoff');
   assert.equal(handoff.shouldOpenArena, true);
-  assert.equal(handoff.shouldOpenCountdownArena, true);
   assert.equal(handoff.shouldPreferArena, true);
   assert.deepEqual(handoff.linkedMatchContext, {
     mode: 'duel',
@@ -355,7 +346,6 @@ test('party run flow snapshot centralizes loading, countdown, arena, and ack dec
   assert.equal(justBeforeHandoff.phase, 'countdown');
   assert.equal(justBeforeHandoff.shouldShowCountdown, true);
   assert.equal(justBeforeHandoff.shouldOpenArena, false);
-  assert.equal(justBeforeHandoff.shouldOpenCountdownArena, true);
 
   const active = buildPartyRunFlowSnapshot({
     room: { ...room, state: 'active', linkedMatchStatus: 'active' },
