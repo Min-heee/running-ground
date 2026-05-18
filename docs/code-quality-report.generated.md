@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-18T03:13:10.338Z
+생성 시각: 2026-05-18T05:17:55.853Z
 
 ## 실행 방법
 
@@ -14,11 +14,11 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 773 |
-| 코드 파일 | 724 |
+| 분석 파일 | 779 |
+| 코드 파일 | 726 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 70 |
-| 500줄 이상 파일 | 17 |
+| 300줄 이상 파일 | 71 |
+| 500줄 이상 파일 | 18 |
 | 50줄 이상 함수 후보 | 256 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
@@ -57,6 +57,7 @@ npm run code:quality
 | backend/src/seed.mjs | 528 | imports 3, sort/filter/map 5 |
 | backend/src/repositories/postgresRunsRepository.test.mjs | 515 | imports 3, sort/filter/map 8 |
 | backend/src/repositories/postgresAuthRepository.mjs | 504 | imports 2, sort/filter/map 1 |
+| docs/handoff/codex-pr-execution-plan.md | 502 |  |
 | backend/src/store.mjs | 484 | imports 5, sort/filter/map 9 |
 | scripts/check-preview-public-api.mjs | 482 | imports 4 |
 | scripts/check-performance-smells.mjs | 477 | imports 3, sort/filter/map 22, subs 8 |
@@ -132,6 +133,7 @@ npm run code:quality
 | backend/src/seed.mjs | 528 | imports 3, sort/filter/map 5 |
 | backend/src/repositories/postgresRunsRepository.test.mjs | 515 | imports 3, sort/filter/map 8 |
 | backend/src/repositories/postgresAuthRepository.mjs | 504 | imports 2, sort/filter/map 1 |
+| docs/handoff/codex-pr-execution-plan.md | 502 |  |
 
 ## 50줄 이상 함수 후보
 
@@ -159,7 +161,6 @@ npm run code:quality
 | src/features/runs/sync/useMatchProgressSync.ts | 50 | useMatchProgressSync | 235 |
 | backend/src/bridges/friendsLeagueBridge.mjs | 22 | createFriendsLeagueBridge | 232 |
 | src/features/runs/runtime/useRuntimeHydrationEffects.ts | 8 | useRuntimeHydrationEffects | 232 |
-| src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 42 | useTrackRunRoomJoinAction | 226 |
 | src/features/runs/runtime/useTrackRunRuntimeRoomInviteActions.ts | 37 | useTrackRunRuntimeRoomInviteActions | 223 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 42 | createLocationTaskManager | 220 |
 | src/features/runs/lifecycle/hooks/useMatchEntryEffects.ts | 47 | useMatchEntryEffects | 217 |
@@ -169,8 +170,8 @@ npm run code:quality
 | src/features/runs/sync/partyRunSync/useLinkedMatchSync.ts | 47 | useLinkedMatchSync | 212 |
 | scripts/check-preview-public-api.mjs | 259 | main | 211 |
 | backend/src/server.mjs | 2829 | buildRunningMatchStatusResponse | 210 |
+| src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 47 | useTrackRunRoomJoinAction | 208 |
 | scripts/analyze-android-perf-trace.mjs | 218 | analyzeLine | 197 |
-| src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 59 | callback@useCallback | 194 |
 | src/features/match/hooks/lobby/useRoomInviteActions.ts | 16 | useRoomInviteActions | 194 |
 | src/features/runs/hooks/useMatchRuntimeState.ts | 57 | useMatchRuntimeState | 193 |
 | backend/src/repositories/authRepository.mjs | 127 | createJsonAuthRepository | 191 |
@@ -180,6 +181,7 @@ npm run code:quality
 | src/features/match/screens/MatchRoomScreen.tsx | 16 | MatchRoomScreen | 181 |
 | src/features/home/hooks/useHomeScreenModel.ts | 30 | useHomeScreenModel | 181 |
 | src/features/runs/tracking/lifecycle/useMatchAutoTrackingEffects.ts | 42 | useMatchAutoTrackingEffects | 179 |
+| src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 66 | callback@useCallback | 174 |
 | src/features/runs/lifecycle/hooks/useMatchCountdownModel.ts | 40 | useMatchCountdownModel | 171 |
 | backend/src/bridges/sessionRunsBridge.mjs | 136 | createSessionRunsBridge | 169 |
 | src/features/auth/screens/AccountRecoveryScreen.tsx | 43 | AccountRecoveryScreen | 168 |
