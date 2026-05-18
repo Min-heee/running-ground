@@ -5,6 +5,10 @@ type TrackRunLiveShellGateInput = {
   focusMatchId?: string | null;
   forceMatchArena?: boolean | null;
   hydratedMatchId?: string | null;
+  linkedMatchContext?: {
+    matchId: string;
+    state: 'matched' | 'active';
+  } | null;
   matchLifecycleStage?: MatchLifecycleStage | null;
   mountedLiveMatchId?: string | null;
   requestedShell: TrackRunShellKind;
@@ -31,6 +35,7 @@ export function resolveTrackRunLiveShellGate({
   focusMatchId,
   forceMatchArena,
   hydratedMatchId,
+  linkedMatchContext,
   matchLifecycleStage,
   mountedLiveMatchId,
   requestedShell,
@@ -42,7 +47,16 @@ export function resolveTrackRunLiveShellGate({
   const safeMountedLiveMatchId = isLiveLifecycleStage(matchLifecycleStage)
     ? mountedLiveMatchId
     : null;
-  const routeMatchId = focusMatchId ?? hydratedMatchId ?? safeMountedLiveMatchId ?? null;
+  const isLinkedLiveMatch = linkedMatchContext?.state === 'matched'
+    || linkedMatchContext?.state === 'active';
+  const safeLinkedMatchId = isLiveLifecycleStage(matchLifecycleStage) && isLinkedLiveMatch
+    ? linkedMatchContext?.matchId ?? null
+    : null;
+  const routeMatchId = focusMatchId
+    ?? hydratedMatchId
+    ?? safeMountedLiveMatchId
+    ?? safeLinkedMatchId
+    ?? null;
   const shouldForceLiveShell = Boolean(routeMatchId && routeShellHint === 'live');
   const shouldForceLiveArena = Boolean(
     routeMatchId
