@@ -1,6 +1,6 @@
 # Android 성능 회귀 방지 체크
 
-생성 시각: 2026-05-18T11:56:18.582Z
+생성 시각: 2026-05-18T12:15:09.484Z
 
 이 문서는 `scripts/check-performance-smells.mjs`가 앱 코드의 성능 회귀 후보를 정적으로 점검한 결과입니다. 자동 수정은 하지 않고, Android 실기기 QA 전에 확인할 위험 후보만 모읍니다.
 
@@ -21,14 +21,14 @@ npm run performance:smells
 
 ## 요약
 
-- 전체 감지 항목: 3개
+- 전체 감지 항목: 4개
 - High: 0개
 - Medium: 0개
-- Low: 3개
+- Low: 4개
 
 | 항목 | 개수 |
 | --- | --- |
-| 개발 로그 | 2 |
+| 개발 로그 | 3 |
 | react-native-maps 사용 파일 | 1 |
 
 ## High
@@ -44,8 +44,9 @@ npm run performance:smells
 | 우선순위 | 항목 | 위치 | 이유 | 권장 확인 |
 | --- | --- | --- | --- | --- |
 | Low | react-native-maps 사용 파일 | src/features/runs/RunRouteMap.native.tsx:1 | 지도 사용 파일입니다. Android에서 위치 업데이트와 함께 렌더 비용이 커질 수 있어 QA 관찰 대상입니다. | 실기기에서 지도 이동, 마커 갱신, 폴리라인 갱신 시 FPS와 입력 지연을 확인하세요. |
-| Low | 개발 로그 | src/utils/matchArenaDiagnostics.ts:81 | 런타임 로그가 감지됐어요. 반복 렌더/위치 업데이트 구간이면 Android 성능과 로그 노이즈에 영향을 줄 수 있습니다. | 출시 코드에서는 제거하거나 __DEV__ 조건/QA 전용 logger로 감싸세요. |
-| Low | 개발 로그 | src/utils/matchArenaDiagnostics.ts:95 | 런타임 로그가 감지됐어요. 반복 렌더/위치 업데이트 구간이면 Android 성능과 로그 노이즈에 영향을 줄 수 있습니다. | 출시 코드에서는 제거하거나 __DEV__ 조건/QA 전용 logger로 감싸세요. |
+| Low | 개발 로그 | src/utils/matchArenaDiagnostics.ts:87 | 런타임 로그가 감지됐어요. 반복 렌더/위치 업데이트 구간이면 Android 성능과 로그 노이즈에 영향을 줄 수 있습니다. | 출시 코드에서는 제거하거나 __DEV__ 조건/QA 전용 logger로 감싸세요. |
+| Low | 개발 로그 | src/utils/matchArenaDiagnostics.ts:101 | 런타임 로그가 감지됐어요. 반복 렌더/위치 업데이트 구간이면 Android 성능과 로그 노이즈에 영향을 줄 수 있습니다. | 출시 코드에서는 제거하거나 __DEV__ 조건/QA 전용 logger로 감싸세요. |
+| Low | 개발 로그 | src/utils/matchArenaDiagnostics.ts:115 | 런타임 로그가 감지됐어요. 반복 렌더/위치 업데이트 구간이면 Android 성능과 로그 노이즈에 영향을 줄 수 있습니다. | 출시 코드에서는 제거하거나 __DEV__ 조건/QA 전용 logger로 감싸세요. |
 
 ## 해석 규칙
 
