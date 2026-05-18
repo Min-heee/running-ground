@@ -169,6 +169,20 @@ export function resolveExistingNavigationRecord({
 
   const nextRetryAtMs = currentRecord.nextRetryAtMs ?? 0;
   if (isWaitingForMountSignal(currentRecord)) {
+    if (requestedPreferArena) {
+      currentRecord.preferArena = true;
+      currentRecord.updatedAtMs = Date.now();
+      promoteLiveArena();
+      rgPerfMark('live match navigation upgraded preferArena', {
+        matchId: matchId ?? null,
+        mode,
+        navigationKey,
+        owner: currentRecord.owner,
+        reason: 'recovering-card-press',
+        source,
+      });
+    }
+
     rgPerfMark('live match navigation waiting for mount signal', {
       matchId: matchId ?? null,
       mode,
@@ -209,7 +223,7 @@ export function resolveExistingNavigationRecord({
 
   navigationRecordRef.current = {
     ...currentRecord,
-    status: 'suppressed',
+    status: 'failed',
     updatedAtMs: Date.now(),
   };
   rgPerfMark('live match mount signal missing reason', {

@@ -6,7 +6,7 @@ type LiveMatchMountedRegistryInput = {
   source?: string | null;
 };
 
-type LiveMatchMountedRecord = {
+export type LiveMatchMountedRecord = {
   key: string;
   matchId: string;
   mode: LiveMatchMountedMode;
@@ -15,6 +15,13 @@ type LiveMatchMountedRecord = {
 };
 
 const mountedMatches = new Map<string, LiveMatchMountedRecord>();
+const mountedMatchListeners = new Set<(record: LiveMatchMountedRecord) => void>();
+
+function notifyLiveMatchMounted(record: LiveMatchMountedRecord) {
+  mountedMatchListeners.forEach((listener) => {
+    listener(record);
+  });
+}
 
 export function buildLiveMatchMountedRegistryKey({
   matchId,
@@ -57,6 +64,7 @@ export function markLiveMatchMounted({
     source,
   };
   mountedMatches.set(key, record);
+  notifyLiveMatchMounted(record);
 
   return {
     alreadyMounted: false,
@@ -75,4 +83,15 @@ export function isLiveMatchMarkedMounted({
 
 export function resetLiveMatchMountedRegistryForTest() {
   mountedMatches.clear();
+  mountedMatchListeners.clear();
+}
+
+export function subscribeLiveMatchMounted(
+  listener: (record: LiveMatchMountedRecord) => void,
+) {
+  mountedMatchListeners.add(listener);
+
+  return () => {
+    mountedMatchListeners.delete(listener);
+  };
 }
