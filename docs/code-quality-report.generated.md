@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-18T01:31:14.042Z
+생성 시각: 2026-05-18T01:52:47.998Z
 
 ## 실행 방법
 
@@ -14,8 +14,8 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 766 |
-| 코드 파일 | 717 |
+| 분석 파일 | 770 |
+| 코드 파일 | 721 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 70 |
 | 500줄 이상 파일 | 17 |
@@ -57,7 +57,6 @@ npm run code:quality
 | backend/src/seed.mjs | 528 | imports 3, sort/filter/map 5 |
 | backend/src/repositories/postgresRunsRepository.test.mjs | 515 | imports 3, sort/filter/map 8 |
 | backend/src/repositories/postgresAuthRepository.mjs | 504 | imports 2, sort/filter/map 1 |
-| src/features/runs/sync/activeRoomCheck.ts | 490 | imports 5, timers 1 |
 | backend/src/store.mjs | 484 | imports 5, sort/filter/map 9 |
 | scripts/check-preview-public-api.mjs | 482 | imports 4 |
 | scripts/check-performance-smells.mjs | 477 | imports 3, sort/filter/map 22, subs 8 |
@@ -105,6 +104,7 @@ npm run code:quality
 | backend/src/repositories/friendsRepository.test.mjs | 314 | imports 2, sort/filter/map 3 |
 | docs/testflight-real-device-qa.md | 314 |  |
 | src/features/runs/sync/roomInviteInbox.ts | 312 | imports 2 |
+| src/features/runs/sync/activeRoomCheck.ts | 310 | imports 6, timers 1 |
 | src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 305 | imports 9, effects 2 |
 | backend/src/bridges/sessionRunsBridge.mjs | 305 | imports 2, sort/filter/map 3 |
 | src/features/runs/components/matchSetupCards/styles.ts | 303 | imports 1 |
@@ -379,7 +379,7 @@ npm run code:quality
 | Medium | src/features/runs/hooks/runSaveFlow/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
 | Medium | src/features/runs/lifecycle/matchRoomFlow.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
 | Medium | src/features/runs/runtime/trace/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
-| Medium | src/features/runs/sync/activeRoomCheck.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
+| Medium | src/features/runs/sync/activeRoomCheckTypes.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=7 |
 | Medium | src/features/runs/lifecycle/matchLifecycleController.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=6 |
 | Medium | src/integrations/nativeHealth.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=6 |
 | Medium | src/lib/session/types.ts |  | 여러 타입/interface 선언이 types/domain 경계 밖에 있다. | 공유 타입이면 feature types 또는 domain/api types로 이동하고, local-only 타입이면 파일 하단에 좁게 유지한다. | type/interface declarations=6 |
