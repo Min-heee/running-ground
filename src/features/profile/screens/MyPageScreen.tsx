@@ -13,6 +13,7 @@ import { UniversityVerificationCard } from '@/features/profile/components/Univer
 import { useMyPageScreen } from '@/features/profile/hooks/useMyPageScreen';
 import { shouldShowRgEnvironmentDebugByDefault } from '@/utils/rgEnvTrace';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
+import { colors } from '@/theme/tokens';
 
 export default function MyPageScreen() {
   useTabWarmupTrace('mypage');
@@ -57,7 +58,7 @@ export default function MyPageScreen() {
     <Screen>
       <PageHeader title="마이페이지" />
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       {profile && integrationStatus ? (
@@ -100,7 +101,7 @@ export default function MyPageScreen() {
 
 const styles = StyleSheet.create({
   errorText: {
-    color: '#D92D20',
+    color: colors.dangerBright,
     fontWeight: '600',
     lineHeight: 20,
   },

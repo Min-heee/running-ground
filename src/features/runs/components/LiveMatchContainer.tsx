@@ -7,6 +7,7 @@ import { LiveMatchPages } from '@/features/runs/components/LiveMatchPages';
 import { LiveMatchTrackingPage } from '@/features/runs/components/LiveMatchTrackingPage';
 import { areLiveMatchContainerPropsEqual } from '@/features/runs/components/liveMatchPager/liveMatchPagePropsComparator';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
+import { colors } from '@/theme/tokens';
 
 type LiveMatchContainerProps = {
   showLiveArena: boolean;
@@ -69,7 +70,7 @@ const LiveMatchSavingIndicator = memo(function LiveMatchSavingIndicator({
 }: {
   isSaving: boolean;
 }) {
-  return isSaving ? <ActivityIndicator size="small" color="#6D5EF7" /> : null;
+  return isSaving ? <ActivityIndicator size="small" color={colors.brand} /> : null;
 });
 
 const LiveMatchSoloActions = memo(function LiveMatchSoloActions({
@@ -119,7 +120,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   discardButtonText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
   },
 });

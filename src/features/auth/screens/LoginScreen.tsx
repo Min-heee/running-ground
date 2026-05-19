@@ -4,6 +4,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { useLoginScreen } from '@/features/auth/hooks/useLoginScreen';
+import { colors } from '@/theme/tokens';
 
 export default function LoginScreen() {
   const {
@@ -30,7 +31,7 @@ export default function LoginScreen() {
         <View style={styles.form}>
           <TextInput
             placeholder="아이디"
-            placeholderTextColor="#98A2B3"
+            placeholderTextColor={colors.textTertiary}
             style={styles.input}
             autoCapitalize="none"
             autoCorrect={false}
@@ -41,7 +42,7 @@ export default function LoginScreen() {
           <View style={styles.passwordRow}>
             <TextInput
               placeholder="비밀번호"
-              placeholderTextColor="#98A2B3"
+              placeholderTextColor={colors.textTertiary}
               style={[styles.input, styles.passwordInput]}
               secureTextEntry={!passwordVisible}
               value={password}
@@ -56,7 +57,7 @@ export default function LoginScreen() {
           </View>
           <Text style={styles.helperText}>아이디는 소문자로 저장돼요. 공백 없이 입력해주세요.</Text>
           <Pressable style={[styles.accountButton, (!loginReady || submitting) ? styles.disabledButton : null]} onPress={handleLogin} disabled={!loginReady || submitting}>
-            {submitting ? <ActivityIndicator color="#111827" /> : <Text style={styles.accountButtonText}>로그인하고 시작</Text>}
+            {submitting ? <ActivityIndicator color={colors.textPrimary} /> : <Text style={styles.accountButtonText}>로그인하고 시작</Text>}
           </Pressable>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
@@ -105,20 +106,20 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: colors.textPrimary },
   form: { gap: 12, marginTop: 8 },
   helperText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 19,
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.borderMuted,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: '#111827',
+    color: colors.textPrimary,
   },
   passwordRow: {
     position: 'relative',
@@ -133,25 +134,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     borderRadius: 999,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.borderMuted,
   },
   passwordToggleText: {
-    color: '#344054',
+    color: colors.textStrongMuted,
     fontWeight: '800',
     fontSize: 12,
   },
   accountButton: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandWash,
     borderWidth: 1,
-    borderColor: '#C7D2FE',
+    borderColor: colors.brandLighter,
     borderRadius: 16,
     paddingVertical: 15,
     alignItems: 'center',
   },
   accountButtonText: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
     fontSize: 15,
   },
@@ -162,26 +163,26 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   serverTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
     fontSize: 15,
   },
   serverAction: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontWeight: '800',
     fontSize: 13,
   },
   serverText: {
     marginTop: 8,
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 19,
     fontSize: 12,
   },
   serverTextOk: {
-    color: '#067647',
+    color: colors.successText,
   },
   serverTextError: {
-    color: '#B42318',
+    color: colors.danger,
   },
   disabledButton: {
     opacity: 0.6,
@@ -193,14 +194,14 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   footerText: {
-    color: '#667085',
+    color: colors.textSecondary,
   },
   footerLink: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontWeight: '700',
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     lineHeight: 20,
   },

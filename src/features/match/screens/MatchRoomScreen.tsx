@@ -12,6 +12,7 @@ import { MatchRoomStartModeCard } from '@/features/runs/components/matchRoom/Mat
 import { MatchRoomSummaryCard } from '@/features/runs/components/matchRoom/MatchRoomSummaryCard';
 import { PartyRunParticipantListCard } from '@/features/runs/components/PartyRunParticipantListCard';
 import { useMatchRoomLobby } from '@/features/runs/hooks/useMatchRoomLobby';
+import { colors } from '@/theme/tokens';
 
 export default function MatchRoomScreen() {
   const {
@@ -238,28 +239,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   backText: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontWeight: '900',
     fontSize: 24,
     lineHeight: 24,
   },
   pageTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 28,
     fontWeight: '900',
   },
   helperText: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
   emptyTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '800',
   },
   errorText: {
-    color: '#D92D20',
+    color: colors.dangerBright,
     fontSize: 14,
     fontWeight: '700',
   },

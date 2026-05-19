@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AddressRegionNode } from './addressCatalog';
+import { colors } from '@/theme/tokens';
 
 export function buildRegionSelectionState(
   regions: AddressRegionNode[],
@@ -95,7 +96,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   selectionTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
     fontSize: 15,
   },
@@ -109,19 +110,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.border,
+    backgroundColor: colors.white,
   },
   selectionChipSelected: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
+    backgroundColor: colors.textPrimary,
+    borderColor: colors.textPrimary,
   },
   selectionChipText: {
-    color: '#475467',
+    color: colors.textMuted,
     fontWeight: '700',
   },
   selectionChipTextSelected: {
-    color: '#FFFFFF',
+    color: colors.white,
   },
   disabledButton: {
     opacity: 0.6,

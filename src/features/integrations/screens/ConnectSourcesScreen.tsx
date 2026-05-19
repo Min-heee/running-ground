@@ -9,6 +9,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { IntegrationJourneyCard } from '@/features/integrations/IntegrationJourneyCard';
 import { useIntegrationActions } from '@/features/integrations/hooks/useIntegrationActions';
+import { colors } from '@/theme/tokens';
 import {
   type ConnectedSource,
   type RunSourceType,
@@ -88,7 +89,7 @@ export default function ConnectSourcesScreen() {
           현재 연결된 소스는 {connectedCount}개야. 자동 기록 소스는 한 번에 1개만 연결되고, 새로 연결하면 이전 자동 연동은 자동으로 해제돼.
         </Text>
 
-        {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+        {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <View style={styles.list}>
@@ -148,9 +149,9 @@ const RecommendedSourceRow = memo(function RecommendedSourceRow({
 });
 
 const styles = StyleSheet.create({
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
-  sectionBody: { color: '#475467', lineHeight: 21, marginTop: 6 },
-  helperText: { color: '#667085', lineHeight: 20, marginTop: 8 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: colors.textPrimary },
+  sectionBody: { color: colors.textMuted, lineHeight: 21, marginTop: 6 },
+  helperText: { color: colors.textSecondary, lineHeight: 20, marginTop: 8 },
   list: { gap: 12, marginTop: 12 },
   sourceRow: {
     flexDirection: 'row',
@@ -162,17 +163,17 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
-  sourceName: { color: '#101828', fontWeight: '700' },
-  sourceDetail: { color: '#667085', marginTop: 2 },
-  sourceHint: { color: '#6D5EF7', fontSize: 12, lineHeight: 18, marginTop: 2 },
+  sourceName: { color: colors.textHeading, fontWeight: '700' },
+  sourceDetail: { color: colors.textSecondary, marginTop: 2 },
+  sourceHint: { color: colors.brand, fontSize: 12, lineHeight: 18, marginTop: 2 },
   badge: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandWash,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   badgeConnected: {
-    backgroundColor: '#ECFDF3',
+    backgroundColor: colors.successCard,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -181,14 +182,14 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   badgeText: {
-    color: '#4F46E5',
+    color: colors.brandStrong,
     fontWeight: '700',
   },
   badgeConnectedText: {
-    color: '#067647',
+    color: colors.successText,
     fontWeight: '700',
   },
   actions: { gap: 10 },
-  successText: { color: '#067647', marginTop: 10, fontWeight: '700', lineHeight: 20 },
-  errorText: { color: '#B42318', marginTop: 8 },
+  successText: { color: colors.successText, marginTop: 10, fontWeight: '700', lineHeight: 20 },
+  errorText: { color: colors.danger, marginTop: 8 },
 });

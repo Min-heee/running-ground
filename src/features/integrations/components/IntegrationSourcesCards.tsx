@@ -5,6 +5,7 @@ import { Card } from '@/components/Card';
 import { getCurrentDevicePlatform, getSourceMetadata } from '@/features/integrations/sourceCatalog';
 import type { RunSourceType } from '@/domain';
 import type { IntegrationStatusResponse } from '@/lib/api/types';
+import { colors } from '@/theme/tokens';
 
 type IntegrationSource = IntegrationStatusResponse['sources'][number];
 type DevicePlatform = ReturnType<typeof getCurrentDevicePlatform>;
@@ -153,10 +154,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   helperText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
     marginTop: 8,
   },
@@ -167,33 +168,33 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSoft,
   },
   meta: {
     flex: 1,
     gap: 2,
   },
   name: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   detail: {
-    color: '#667085',
+    color: colors.textSecondary,
   },
   platform: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontWeight: '700',
     fontSize: 12,
     lineHeight: 18,
   },
   pendingText: {
-    color: '#C2410C',
+    color: colors.orangeText,
     fontWeight: '700',
     fontSize: 12,
     lineHeight: 18,
   },
   connectedBadge: {
-    backgroundColor: '#ECFDF3',
+    backgroundColor: colors.successCard,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -206,21 +207,21 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   connectedBadgeText: {
-    color: '#067647',
+    color: colors.successText,
     fontWeight: '800',
   },
   plannedBadge: {
-    backgroundColor: '#FFF7ED',
+    backgroundColor: colors.orangeWash,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   plannedBadgeText: {
-    color: '#C2410C',
+    color: colors.orangeText,
     fontWeight: '800',
   },
   emptyText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
 });

@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RunningMatchRoom } from '@/lib/api/types';
+import { colors } from '@/theme/tokens';
 
 type PartyRunInviteCardProps = {
   room: RunningMatchRoom;
@@ -56,8 +57,8 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#818CF8',
-    backgroundColor: '#EEF2FF',
+    borderColor: colors.brandLight,
+    backgroundColor: colors.brandWash,
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 12,
@@ -69,13 +70,13 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   eyebrow: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontSize: 12,
     fontWeight: '900',
   },
   title: {
     marginTop: 4,
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 17,
     fontWeight: '900',
     lineHeight: 23,
@@ -83,15 +84,15 @@ const styles = StyleSheet.create({
   code: {
     overflow: 'hidden',
     borderRadius: 999,
-    backgroundColor: '#1E1B4B',
-    color: '#EEF2FF',
+    backgroundColor: colors.indigoInk,
+    color: colors.brandWash,
     fontSize: 12,
     fontWeight: '900',
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
   meta: {
-    color: '#475467',
+    color: colors.textMuted,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -104,27 +105,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.borderCool,
+    backgroundColor: colors.white,
     paddingVertical: 13,
   },
   acceptButton: {
     flex: 1,
     alignItems: 'center',
     borderRadius: 16,
-    backgroundColor: '#6D5EF7',
+    backgroundColor: colors.brand,
     paddingVertical: 13,
   },
   buttonDisabled: {
     opacity: 0.45,
   },
   declineText: {
-    color: '#334155',
+    color: colors.slateMuted,
     fontSize: 15,
     fontWeight: '900',
   },
   acceptText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 15,
     fontWeight: '900',
   },

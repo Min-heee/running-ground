@@ -15,6 +15,7 @@ import { RedemptionAdminSection } from '@/features/settings/admin/components/Red
 import { UserAdminSection } from '@/features/settings/admin/components/UserAdminSection';
 import { styles } from '@/features/settings/admin/components/adminStyles';
 import { useAdminDashboard } from '@/features/settings/admin/hooks/useAdminDashboard';
+import { colors } from '@/theme/tokens';
 
 export default function AdminScreen() {
   const { width } = useWindowDimensions();
@@ -109,7 +110,7 @@ export default function AdminScreen() {
             <Card>
               <Text style={styles.sectionTitle}>관리자 로그인 확인</Text>
               <View style={styles.loadingRow}>
-                <ActivityIndicator color="#111827" />
+                <ActivityIndicator color={colors.textPrimary} />
                 <Text style={styles.loadingText}>저장된 관리자 로그인 상태를 확인하는 중이에요.</Text>
               </View>
             </Card>
@@ -134,7 +135,7 @@ export default function AdminScreen() {
               </View>
               {loading ? (
                 <View style={styles.loadingRow}>
-                  <ActivityIndicator color="#111827" />
+                  <ActivityIndicator color={colors.textPrimary} />
                   <Text style={styles.loadingText}>관리자 로그인 확인 중이에요.</Text>
                 </View>
               ) : null}
@@ -158,7 +159,7 @@ export default function AdminScreen() {
                 </View>
                 {loading ? (
                   <View style={styles.loadingRow}>
-                    <ActivityIndicator color="#111827" />
+                    <ActivityIndicator color={colors.textPrimary} />
                     <Text style={styles.loadingText}>관리자 데이터를 불러오는 중이에요.</Text>
                   </View>
                 ) : null}

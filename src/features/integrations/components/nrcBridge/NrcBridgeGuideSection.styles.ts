@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { colors } from '@/theme/tokens';
 
 export const nrcBridgeGuideSectionStyles = StyleSheet.create({
   group: {
@@ -25,29 +26,29 @@ export const nrcBridgeGuideDetailStyles = StyleSheet.create({
     gap: 4,
   },
   kicker: {
-    color: '#6B7280',
+    color: colors.textNeutral,
     fontWeight: '700',
     fontSize: 12,
   },
   title: {
-    color: '#101828',
+    color: colors.textHeading,
     fontWeight: '800',
     fontSize: 20,
     lineHeight: 28,
   },
   toggleText: {
-    color: '#6B7280',
+    color: colors.textNeutral,
     fontSize: 12,
     fontWeight: '800',
   },
   badge: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandWash,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   badgeText: {
-    color: '#4F46E5',
+    color: colors.brandStrong,
     fontWeight: '800',
     fontSize: 12,
   },
@@ -57,7 +58,7 @@ export const nrcBridgeGuideDetailStyles = StyleSheet.create({
     gap: 8,
   },
   statusChip: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSoft,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 10,
@@ -67,12 +68,12 @@ export const nrcBridgeGuideDetailStyles = StyleSheet.create({
   statusLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#667085',
+    color: colors.textSecondary,
   },
   statusValue: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#101828',
+    color: colors.textHeading,
   },
   steps: {
     gap: 10,
@@ -86,13 +87,13 @@ export const nrcBridgeGuideDetailStyles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandWash,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
   },
   stepMarkerText: {
-    color: '#4F46E5',
+    color: colors.brandStrong,
     fontWeight: '800',
     fontSize: 12,
   },
@@ -101,18 +102,18 @@ export const nrcBridgeGuideDetailStyles = StyleSheet.create({
     gap: 2,
   },
   stepTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   stepDescription: {
-    color: '#475467',
+    color: colors.textMuted,
     lineHeight: 20,
   },
   actions: {
     gap: 10,
   },
   footnote: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 18,
   },

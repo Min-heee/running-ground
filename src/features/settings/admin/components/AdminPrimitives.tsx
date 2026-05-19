@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
 import { styles } from './adminStyles';
+import { colors } from '@/theme/tokens';
 
 function AdminListSeparator() {
   return <View style={styles.listSeparator} />;
@@ -106,7 +107,7 @@ export const Field = memo(function Field({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor="#98A2B3"
+        placeholderTextColor={colors.textTertiary}
         multiline={multiline}
         textAlignVertical={multiline ? 'top' : 'center'}
       />
@@ -129,7 +130,7 @@ export const SearchInput = memo(function SearchInput({
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
-      placeholderTextColor="#98A2B3"
+      placeholderTextColor={colors.textTertiary}
     />
   );
 });

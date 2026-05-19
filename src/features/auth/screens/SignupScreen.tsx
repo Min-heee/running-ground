@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { colors } from '@/theme/tokens';
 
 export default function SignupScreen() {
   return (
@@ -32,21 +33,21 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   helperText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
     marginBottom: 12,
   },
   accountButton: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandWash,
     borderWidth: 1,
-    borderColor: '#C7D2FE',
+    borderColor: colors.brandLighter,
     borderRadius: 18,
     paddingVertical: 16,
     paddingHorizontal: 16,
     alignItems: 'center',
   },
   darkButtonText: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
     fontSize: 16,
   },
@@ -57,10 +58,10 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   footerText: {
-    color: '#667085',
+    color: colors.textSecondary,
   },
   footerLink: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontWeight: '700',
   },
 });

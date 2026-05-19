@@ -4,11 +4,12 @@ import { SignupRegionSection } from './SignupRegionSection';
 import { SignupSubmitSection } from './SignupSubmitSection';
 import { signupFormStyles as styles } from './signupFormStyles';
 import type { SignupFormModel } from './types';
+import { colors } from '@/theme/tokens';
 
 export function SignupFormContent({ form }: { form: SignupFormModel }) {
   return (
     <View style={styles.form}>
-      {form.catalogLoading ? <ActivityIndicator size="small" color="#6D5EF7" /> : null}
+      {form.catalogLoading ? <ActivityIndicator size="small" color={colors.brand} /> : null}
       {form.catalogError ? <Text style={styles.errorText}>{form.catalogError}</Text> : null}
 
       <SignupInputSection

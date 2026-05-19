@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { colors } from '@/theme/tokens';
 
 export function MatchStartCountdownOverlay({
   secondsRemaining,
@@ -50,7 +51,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 24,
     fontWeight: '800',
     textAlign: 'center',
@@ -64,7 +65,7 @@ const styles = StyleSheet.create({
   },
   countdown: {
     marginTop: 10,
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 96,
     fontWeight: '900',
     lineHeight: 108,

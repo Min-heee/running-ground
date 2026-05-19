@@ -20,6 +20,7 @@ import {
 } from '@/features/integrations/sourceCatalog';
 import { buildSyncSummary } from '@/features/integrations/utils/integrationMessages';
 import { getRecommendedNativeHealthReadiness } from '@/integrations/nativeHealth';
+import { colors } from '@/theme/tokens';
 
 export default function IntegrationManagementScreen() {
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
@@ -69,7 +70,7 @@ export default function IntegrationManagementScreen() {
         backLabel={backLabel}
       />
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {!loading && error ? (
         <Card>
           <Text style={styles.stateTitle}>연동 정보를 아직 못 불러왔어</Text>
@@ -127,10 +128,10 @@ const styles = StyleSheet.create({
   stateTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     marginTop: 10,
     lineHeight: 20,

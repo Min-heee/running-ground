@@ -7,6 +7,7 @@ import { InfoCard } from '@/components/ui/InfoCard';
 import { useAddFriendScreen } from '@/features/friends/hooks/useAddFriendScreen';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { colors } from '@/theme/tokens';
 
 export default function AddFriendScreen() {
   const {
@@ -32,7 +33,7 @@ export default function AddFriendScreen() {
         backHref="/(tabs)/friends"
       />
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
 
       {!loading && profile ? (
         <Card>
@@ -57,7 +58,7 @@ export default function AddFriendScreen() {
         <View style={styles.form}>
           <TextInput
             placeholder="예: #AB7K2"
-            placeholderTextColor="#98A2B3"
+            placeholderTextColor={colors.textTertiary}
             style={styles.input}
             autoCapitalize="characters"
             value={friendTag}
@@ -81,10 +82,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   tagBox: {
-    backgroundColor: '#F5F3FF',
+    backgroundColor: colors.purpleRow,
     borderRadius: 18,
     padding: 16,
     gap: 8,
@@ -93,27 +94,27 @@ const styles = StyleSheet.create({
   tag: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#6D5EF7',
+    color: colors.brand,
   },
   tagHint: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   copyButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#DDD6FE',
+    borderColor: colors.purpleBorder,
   },
   copyButtonText: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontWeight: '800',
   },
   statusText: {
-    color: '#475467',
+    color: colors.textMuted,
     lineHeight: 21,
     marginTop: 8,
   },
@@ -122,25 +123,25 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.borderMuted,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: '#111827',
+    color: colors.textPrimary,
   },
   helperText: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   successText: {
-    color: '#067647',
+    color: colors.successText,
     fontWeight: '700',
     lineHeight: 20,
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     lineHeight: 20,
   },

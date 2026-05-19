@@ -11,6 +11,7 @@ import {
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { Screen } from '@/components/Screen';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
+import { colors } from '@/theme/tokens';
 
 type RuntimeComponent = ComponentType<TrackRunExperienceRuntimeProps>;
 
@@ -177,7 +178,7 @@ function RunningTabInitialShell({
         backHref="/"
       />
       <View style={styles.initialCard}>
-        <ActivityIndicator size="small" color="#6D5EF7" />
+        <ActivityIndicator size="small" color={colors.brand} />
         <Text style={styles.initialText}>러닝 화면을 준비 중이에요.</Text>
       </View>
     </Screen>
@@ -187,14 +188,14 @@ function RunningTabInitialShell({
 const styles = StyleSheet.create({
   initialCard: {
     alignItems: 'center',
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     borderRadius: 24,
     gap: 10,
     paddingHorizontal: 20,
     paddingVertical: 28,
   },
   initialText: {
-    color: '#D6D9F9',
+    color: colors.lavenderSoft,
     fontSize: 14,
     fontWeight: '700',
   },

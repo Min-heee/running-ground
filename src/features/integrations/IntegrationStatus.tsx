@@ -4,6 +4,7 @@ import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { ConnectedSource } from '@/domain';
 import { getPrimarySourceForPlatform, sortSourcesByPriority, splitSourcesByStatus } from './sourceCatalog';
+import { colors } from '@/theme/tokens';
 
 const ConnectedSourceRow = memo(function ConnectedSourceRow({
   isPrimary,
@@ -59,7 +60,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   countText: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -67,7 +68,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     gap: 2,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#EAECF0',
+    borderTopColor: colors.borderSoft,
   },
   nameRow: {
     flexDirection: 'row',
@@ -76,12 +77,12 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   name: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   primaryBadge: {
-    color: '#344054',
-    backgroundColor: '#F2F4F7',
+    color: colors.textStrongMuted,
+    backgroundColor: colors.surfaceMuted,
     borderRadius: 999,
     overflow: 'hidden',
     paddingHorizontal: 7,
@@ -90,18 +91,18 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   detail: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 18,
     fontSize: 12,
   },
   pending: {
-    color: '#B54708',
+    color: colors.warningText,
     fontWeight: '700',
     lineHeight: 18,
     fontSize: 12,
   },
   empty: {
-    color: '#667085',
+    color: colors.textSecondary,
     paddingVertical: 8,
   },
 });

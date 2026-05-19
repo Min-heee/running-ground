@@ -6,6 +6,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { colors } from '@/theme/tokens';
 import {
   type FriendActivityRun,
   formatFriendActivityRefreshTime,
@@ -45,7 +46,7 @@ export default function FriendDetailScreen() {
 
   return (
     <Screen>
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {error ? <Text>{error}</Text> : null}
 
       {activity ? (
@@ -113,25 +114,25 @@ export default function FriendDetailScreen() {
 
 const styles = StyleSheet.create({
   heroCard: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     gap: 8,
   },
   heroLabel: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 12,
     fontWeight: '700',
   },
   heroTitle: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 28,
     fontWeight: '800',
   },
   heroTag: {
-    color: '#98A2B3',
+    color: colors.textTertiary,
     fontWeight: '700',
   },
   liveCard: {
-    backgroundColor: '#ECFDF3',
+    backgroundColor: colors.successCard,
     gap: 10,
   },
   liveHeader: {
@@ -144,7 +145,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#D1FADF',
+    backgroundColor: colors.successSoft,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -153,28 +154,28 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 999,
-    backgroundColor: '#12B76A',
+    backgroundColor: colors.success,
   },
   liveBadgeText: {
-    color: '#067647',
+    color: colors.successText,
     fontSize: 12,
     fontWeight: '800',
     includeFontPadding: false,
   },
   liveRefreshText: {
-    color: '#027A48',
+    color: colors.successStrong,
     fontSize: 12,
     fontWeight: '700',
     includeFontPadding: false,
   },
   liveLocation: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: '800',
     includeFontPadding: false,
   },
   liveHint: {
-    color: '#027A48',
+    color: colors.successStrong,
     lineHeight: 20,
   },
   summaryRow: {
@@ -185,23 +186,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   summaryLabel: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontWeight: '700',
   },
   summaryValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: '800',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   recordRow: {
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSoft,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -212,14 +213,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   recordDate: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   recordDetail: {
-    color: '#667085',
+    color: colors.textSecondary,
   },
   recordLink: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontWeight: '800',
   },
 });

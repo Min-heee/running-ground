@@ -8,6 +8,7 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { VERIFICATION_METHODS } from '@/features/auth/utils/universityVerification';
 import { universityVerificationStyles as styles } from './universityVerificationStyles';
 import type { UniversityVerificationModel } from './types';
+import { colors } from '@/theme/tokens';
 import {
   UniversitySuggestionChip,
   VerificationMethodButton,
@@ -108,7 +109,7 @@ function VerificationDraftForm({ model }: { model: UniversityVerificationModel }
           value={model.universityQuery}
           onChangeText={model.handleUniversityQueryChange}
           placeholder="예: 서울대학교"
-          placeholderTextColor="#98A2B3"
+          placeholderTextColor={colors.textTertiary}
           style={styles.input}
         />
         {model.filteredUniversities.length > 0 ? (
@@ -125,7 +126,7 @@ function VerificationDraftForm({ model }: { model: UniversityVerificationModel }
             value={model.studentEmail}
             onChangeText={model.handleStudentEmailChange}
             placeholder="예: running@university.ac.kr"
-            placeholderTextColor="#98A2B3"
+            placeholderTextColor={colors.textTertiary}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="email-address"

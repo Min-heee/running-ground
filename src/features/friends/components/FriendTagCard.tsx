@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { MyProfileResponse } from '@/lib/api/types';
+import { colors } from '@/theme/tokens';
 
 type FriendTagCardProps = {
   profile: MyProfileResponse;
@@ -42,33 +43,33 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tagTitle: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
   },
   tagValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: '900',
     includeFontPadding: false,
   },
   tagDescription: {
-    color: '#475467',
+    color: colors.textMuted,
     lineHeight: 20,
   },
   copyButton: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
   copyButtonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontWeight: '800',
     includeFontPadding: false,
   },
   copyMessage: {
-    color: '#067647',
+    color: colors.successText,
     fontWeight: '700',
     lineHeight: 20,
   },

@@ -4,6 +4,7 @@ import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { MatchSetupSection } from '@/features/runs/components/MatchSetupSection';
 import { UpcomingMatchList } from '@/features/runs/components/UpcomingMatchList';
+import { colors } from '@/theme/tokens';
 
 type RunningReadyScreenProps = {
   bottomInset: number;
@@ -47,7 +48,7 @@ export function RunningReadyScreen({
 const styles = StyleSheet.create({
   readyCard: {
     gap: 16,
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     paddingTop: 18,
     paddingBottom: 18,
   },

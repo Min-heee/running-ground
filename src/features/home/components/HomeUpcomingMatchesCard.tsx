@@ -9,6 +9,7 @@ import {
   shouldShowMatchCardCountdown,
 } from '@/lib/matchCountdown';
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
+import { colors } from '@/theme/tokens';
 
 type HomeUpcomingMatchesCardProps = {
   matches: UpcomingRunningMatchItem[];
@@ -110,11 +111,11 @@ export function HomeUpcomingMatchesCard({
 
 const styles = StyleSheet.create({
   upcomingCard: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     gap: 10,
   },
   upcomingLabel: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.4,
@@ -133,16 +134,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   upcomingTitle: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 15,
     fontWeight: '800',
   },
   upcomingMeta: {
-    color: '#D0D5DD',
+    color: colors.border,
     lineHeight: 19,
   },
   upcomingLinkText: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 12,
     lineHeight: 18,
     marginTop: 4,
@@ -158,7 +159,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(199, 210, 254, 0.32)',
   },
   upcomingCountdownText: {
-    color: '#E0E7FF',
+    color: colors.brandWashStrong,
     fontSize: 12,
     fontWeight: '800',
   },
@@ -168,23 +169,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#1F2937',
+    backgroundColor: colors.darkMuted,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
   },
   upcomingCancelText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 12,
     fontWeight: '800',
   },
   upcomingHelperText: {
-    color: '#A5B4FC',
+    color: colors.brandTint,
     fontSize: 12,
     lineHeight: 18,
     marginTop: 4,
   },
   upcomingState: {
-    color: '#A5B4FC',
+    color: colors.brandTint,
     fontSize: 12,
     fontWeight: '800',
   },

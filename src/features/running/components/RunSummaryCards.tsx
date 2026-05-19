@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { formatDuration } from '@/features/runs/tracking';
+import { colors } from '@/theme/tokens';
 
 type RunHeroCardProps = {
   distanceKm: number;
@@ -72,21 +73,21 @@ export function RunExtraMetricsRow({ cadenceSpm, elevationGainM }: RunExtraMetri
 
 const styles = StyleSheet.create({
   heroCard: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     gap: 8,
   },
   heroLabel: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 12,
     fontWeight: '700',
   },
   heroTitle: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 28,
     fontWeight: '800',
   },
   heroSub: {
-    color: '#98A2B3',
+    color: colors.textTertiary,
     fontWeight: '700',
   },
   summaryRow: {
@@ -97,16 +98,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   summaryLabel: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontWeight: '700',
   },
   summaryValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: '800',
   },
   summaryValueSmall: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 20,
     fontWeight: '800',
   },

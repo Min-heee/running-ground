@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { type Href, router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { colors } from '@/theme/tokens';
 
 export function AuthHeader({
   title,
@@ -38,7 +39,7 @@ export function AuthHeader({
     <View style={styles.header}>
       {showBack ? (
         <Pressable onPress={handleBack} style={styles.backButton}>
-          <Feather name="chevron-left" size={16} color="#111827" />
+          <Feather name="chevron-left" size={16} color={colors.textPrimary} />
           <Text style={styles.backButtonText}>{backLabel}</Text>
         </Pressable>
       ) : null}
@@ -53,7 +54,7 @@ const styles = StyleSheet.create({
   header: { gap: 8, paddingTop: 10 },
   backButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -62,12 +63,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   backButtonText: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
     fontSize: 13,
     includeFontPadding: false,
   },
-  logo: { color: '#6D5EF7', fontWeight: '800', fontSize: 13 },
-  title: { fontSize: 32, fontWeight: '800', color: '#101828' },
-  subtitle: { color: '#475467', lineHeight: 22 },
+  logo: { color: colors.brand, fontWeight: '800', fontSize: 13 },
+  title: { fontSize: 32, fontWeight: '800', color: colors.textHeading },
+  subtitle: { color: colors.textMuted, lineHeight: 22 },
 });

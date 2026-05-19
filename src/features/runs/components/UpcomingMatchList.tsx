@@ -7,6 +7,7 @@ import {
   shouldShowMatchCardCountdown,
 } from '@/lib/matchCountdown';
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
+import { colors } from '@/theme/tokens';
 
 type UpcomingMatchListProps = {
   matches: UpcomingRunningMatchItem[];
@@ -124,11 +125,11 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#374151',
-    backgroundColor: '#1F2937',
+    borderColor: colors.darkSoft,
+    backgroundColor: colors.darkMuted,
   },
   eyebrow: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.4,
@@ -147,12 +148,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 14,
     fontWeight: '800',
   },
   meta: {
-    color: '#D0D5DD',
+    color: colors.border,
     lineHeight: 18,
   },
   countdownPill: {
@@ -166,7 +167,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   countdownText: {
-    color: '#E0E7FF',
+    color: colors.brandWashStrong,
     fontSize: 12,
     fontWeight: '800',
   },
@@ -176,23 +177,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
   },
   cancelText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 12,
     fontWeight: '800',
   },
   helperText: {
-    color: '#A5B4FC',
+    color: colors.brandTint,
     fontSize: 12,
     lineHeight: 18,
     marginTop: 4,
   },
   state: {
-    color: '#A5B4FC',
+    color: colors.brandTint,
     fontSize: 12,
     fontWeight: '800',
   },

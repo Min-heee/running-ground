@@ -1,5 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI } from '@/components/matches/liveMatchArena/config';
+import { colors } from '@/theme/tokens';
 import {
   GROUP_ROW_HEIGHT,
   ROAD_STRIPE_HEIGHT,
@@ -11,23 +12,23 @@ export const liveMatchArenaStyles = StyleSheet.create({
     gap: 10,
     borderRadius: 28,
     borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 0 : 1,
-    borderColor: '#1F2A44',
-    backgroundColor: '#0F172A',
+    borderColor: colors.navyBorder,
+    backgroundColor: colors.slateDark,
     padding: 16,
   },
   eyebrow: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.8,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 24,
     fontWeight: '800',
   },
   subtitle: {
-    color: '#D0D5DD',
+    color: colors.border,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -38,12 +39,12 @@ export const liveMatchArenaStyles = StyleSheet.create({
   },
   summaryChip: {
     borderRadius: 999,
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#2A3347' : 'rgba(255,255,255,0.12)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.slatePanel : 'rgba(255,255,255,0.12)',
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
   summaryChipText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 12,
     fontWeight: '800',
   },
@@ -52,18 +53,18 @@ export const liveMatchArenaStyles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 28,
     borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 0 : 1,
-    borderColor: '#312E81',
-    backgroundColor: '#091122',
+    borderColor: colors.indigoDeep,
+    backgroundColor: colors.navyInk,
   },
   startupRoadShell: {
     minHeight: 220,
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#091122',
+    backgroundColor: colors.navyInk,
   },
   startupRoadText: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 13,
     fontWeight: '800',
   },
@@ -77,7 +78,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     left: '1%',
     width: '98%',
     borderRadius: 24,
-    backgroundColor: '#0B1020',
+    backgroundColor: colors.night,
   },
   duelCenterDivider: {
     position: 'absolute',
@@ -85,7 +86,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     bottom: 0,
     left: '48%',
     width: '4%',
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#1D2F67' : 'rgba(44, 67, 160, 0.38)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.navyStrong : 'rgba(44, 67, 160, 0.38)',
   },
   duelLaneBase: {
     position: 'absolute',
@@ -93,7 +94,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     bottom: 0,
     width: '47%',
     borderRadius: 22,
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#0C1324' : 'rgba(255,255,255,0.02)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.midnight : 'rgba(255,255,255,0.02)',
   },
   duelLaneLeft: {
     left: '1%',
@@ -118,7 +119,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     width: 10,
     height: ROAD_STRIPE_HEIGHT,
     borderRadius: 999,
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#374158' : 'rgba(255,255,255,0.18)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.slateSoft : 'rgba(255,255,255,0.18)',
   },
   groupRoadBase: {
     position: 'absolute',
@@ -127,7 +128,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     left: 0,
     right: 0,
     borderRadius: 28,
-    backgroundColor: '#101A31',
+    backgroundColor: colors.navySurface,
     borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 0 : 1,
     borderColor: 'rgba(199,210,254,0.14)',
   },
@@ -142,7 +143,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     height: ROAD_STRIPE_HEIGHT,
     marginBottom: ROAD_STRIPE_SPACING - ROAD_STRIPE_HEIGHT,
     borderRadius: 999,
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#3A435A' : 'rgba(255,255,255,0.16)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.slateMutedDeep : 'rgba(255,255,255,0.16)',
   },
   finishRibbon: {
     position: 'absolute',
@@ -150,7 +151,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     left: 10,
     right: 10,
     borderRadius: 999,
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#2E2A67' : 'rgba(109,94,247,0.24)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.purpleDeep : 'rgba(109,94,247,0.24)',
     borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 0 : 1,
     borderColor: 'rgba(224,231,255,0.18)',
     paddingVertical: 8,
@@ -160,7 +161,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     top: 10,
   },
   finishRibbonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1.4,
@@ -180,20 +181,20 @@ export const liveMatchArenaStyles = StyleSheet.create({
   runnerBubble: {
     marginTop: 7,
     borderRadius: 999,
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#30394C' : 'rgba(255,255,255,0.14)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.slateDeep : 'rgba(255,255,255,0.14)',
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
   runnerBubbleCurrent: {
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#353474' : 'rgba(129, 140, 248, 0.32)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.indigoMuted : 'rgba(129, 140, 248, 0.32)',
   },
   runnerBubbleText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 11,
     fontWeight: '800',
   },
   runnerBubbleForfeitedText: {
-    color: '#FEE2E2',
+    color: colors.dangerWash,
   },
   runnerMarker: {
     width: 56,
@@ -204,23 +205,23 @@ export const liveMatchArenaStyles = StyleSheet.create({
     borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 1 : 2,
   },
   runnerMarkerCurrent: {
-    backgroundColor: '#6D5EF7',
-    borderColor: '#E0E7FF',
+    backgroundColor: colors.brand,
+    borderColor: colors.brandWashStrong,
   },
   runnerMarkerOpponent: {
-    backgroundColor: '#1F2937',
-    borderColor: '#94A3B8',
+    backgroundColor: colors.darkMuted,
+    borderColor: colors.podiumSilver,
   },
   runnerMarkerLeader: {
-    backgroundColor: '#F59E0B',
-    borderColor: '#FEF3C7',
+    backgroundColor: colors.podiumGold,
+    borderColor: colors.warningSoft,
   },
   runnerMarkerForfeited: {
-    backgroundColor: '#DC2626',
-    borderColor: '#FECACA',
+    backgroundColor: colors.dangerVivid,
+    borderColor: colors.dangerBorder,
   },
   runnerMarkerText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 18,
     fontWeight: '800',
   },
@@ -230,28 +231,28 @@ export const liveMatchArenaStyles = StyleSheet.create({
   },
   runnerName: {
     marginTop: 8,
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 12,
     fontWeight: '800',
   },
   runnerNameForfeited: {
-    color: '#FECACA',
+    color: colors.dangerBorder,
   },
   runnerBubbleForfeited: {
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#7F1D1D' : 'rgba(220,38,38,0.36)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.dangerDeep : 'rgba(220,38,38,0.36)',
   },
   runnerMeta: {
     marginTop: 2,
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 11,
     fontWeight: '700',
   },
   runnerMetaForfeited: {
-    color: '#FCA5A5',
+    color: colors.dangerLight,
   },
   runnerMetaMuted: {
     marginTop: 2,
-    color: '#98A2B3',
+    color: colors.textTertiary,
     fontSize: 10,
     fontWeight: '700',
   },
@@ -270,22 +271,22 @@ export const liveMatchArenaStyles = StyleSheet.create({
     gap: 6,
   },
   groupRowCurrent: {
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#1D1D4F' : 'rgba(109,94,247,0.14)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.lightweightMatchBlue : 'rgba(109,94,247,0.14)',
   },
   groupRowForfeited: {
-    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? '#321321' : 'rgba(220,38,38,0.12)',
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.lightweightMatchRed : 'rgba(220,38,38,0.12)',
   },
   groupRankColumn: {
     width: '16%',
     gap: 2,
   },
   groupRankText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 12,
     fontWeight: '800',
   },
   groupNameText: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -303,7 +304,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 1 : 2,
   },
   groupRunnerMarkerText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 11,
     fontWeight: '800',
   },
@@ -317,20 +318,20 @@ export const liveMatchArenaStyles = StyleSheet.create({
     gap: 2,
   },
   groupMetaText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 11,
     fontWeight: '800',
   },
   groupMetaForfeitedText: {
-    color: '#FECACA',
+    color: colors.dangerBorder,
   },
   groupMetaSubtext: {
-    color: '#98A2B3',
+    color: colors.textTertiary,
     fontSize: 10,
     fontWeight: '700',
   },
   footer: {
-    color: '#98A2B3',
+    color: colors.textTertiary,
     fontSize: 12,
     lineHeight: 18,
   },

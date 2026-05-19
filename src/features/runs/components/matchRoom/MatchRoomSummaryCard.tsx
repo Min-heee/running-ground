@@ -4,6 +4,7 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { formatMatchCountdown } from '@/lib/matchCountdown';
 import { formatRoomDateLabel } from '@/features/runs/utils/matchRoomScheduling';
+import { colors } from '@/theme/tokens';
 
 type MatchRoomSummaryCardProps = {
   room: RunningMatchRoom;
@@ -74,23 +75,23 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   roomModeTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: '900',
   },
   roomMeta: {
-    color: '#475467',
+    color: colors.textMuted,
     fontSize: 14,
     fontWeight: '600',
   },
   codePill: {
     borderRadius: 999,
-    backgroundColor: '#1E1B4B',
+    backgroundColor: colors.indigoInk,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   codePillText: {
-    color: '#E0E7FF',
+    color: colors.brandWashStrong,
     fontSize: 13,
     fontWeight: '800',
   },
@@ -99,18 +100,18 @@ const styles = StyleSheet.create({
   },
   countdownBanner: {
     borderRadius: 18,
-    backgroundColor: '#1E1B4B',
+    backgroundColor: colors.indigoInk,
     paddingHorizontal: 14,
     paddingVertical: 14,
     gap: 4,
   },
   countdownBannerTitle: {
-    color: '#EEF2FF',
+    color: colors.brandWash,
     fontSize: 18,
     fontWeight: '900',
   },
   countdownBannerText: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 13,
     fontWeight: '600',
   },

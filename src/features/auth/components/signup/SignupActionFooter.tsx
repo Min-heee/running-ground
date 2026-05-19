@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, Text } from 'react-native';
 import { signupFormStyles as styles } from './signupFormStyles';
 import type { SignupFormModel } from './types';
+import { colors } from '@/theme/tokens';
 
 type SignupActionFooterProps = Pick<
   SignupFormModel,
@@ -30,7 +31,7 @@ export function SignupActionFooter({
         disabled={disabled}
       >
         {submitting ? (
-          <ActivityIndicator color="#FFFFFF" />
+          <ActivityIndicator color={colors.white} />
         ) : (
           <Text style={styles.primaryButtonText}>{signupReady ? '회원가입하고 시작' : '필수 정보 확인 필요'}</Text>
         )}

@@ -9,6 +9,7 @@ import {
 } from '@/features/runs/components/matchSetupCards/MatchSetupCommon';
 import type { DuelMatchSetupCardProps } from '@/features/runs/components/matchSetupCards/types';
 import { matchSetupCardStyles as styles } from '@/features/runs/components/matchSetupCards/styles';
+import { colors } from '@/theme/tokens';
 
 export function DuelMatchSetupCard({
   distanceKm,
@@ -71,7 +72,7 @@ export function DuelMatchSetupCard({
         onSelectSlot={onSelectSlot}
       />
 
-      {isRequesting ? <ActivityIndicator size="small" color="#818CF8" /> : null}
+      {isRequesting ? <ActivityIndicator size="small" color={colors.brandLight} /> : null}
 
       {matchState === 'waiting' ? (
         <View style={styles.duelResultCard}>

@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import type { MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
+import { colors } from '@/theme/tokens';
 
 type MatchRoomInviteActionCardProps = {
   invite: MatchRoomUxModel['invite'];
@@ -53,7 +54,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   inviteActionTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 22,
     fontWeight: '900',
   },
@@ -65,11 +66,11 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     borderRadius: 18,
-    backgroundColor: '#6D5EF7',
+    backgroundColor: colors.brand,
     paddingVertical: 15,
   },
   acceptInviteButtonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 16,
     fontWeight: '900',
   },
@@ -78,12 +79,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.border,
+    backgroundColor: colors.white,
     paddingVertical: 15,
   },
   declineInviteButtonText: {
-    color: '#344054',
+    color: colors.textStrongMuted,
     fontSize: 16,
     fontWeight: '900',
   },
@@ -91,12 +92,12 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   helperText: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },
   errorText: {
-    color: '#D92D20',
+    color: colors.dangerBright,
     fontSize: 14,
     fontWeight: '700',
   },

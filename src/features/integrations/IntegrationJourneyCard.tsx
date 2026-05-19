@@ -5,6 +5,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { ConnectedSource, RunSourceType } from '@/domain';
 import { NativeHealthReadiness } from '@/integrations/nativeHealth';
+import { colors } from '@/theme/tokens';
 import {
   DevicePlatform,
   getCurrentDevicePlatform,
@@ -230,28 +231,28 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   kicker: {
-    color: '#6B7280',
+    color: colors.textNeutral,
     fontWeight: '700',
     fontSize: 12,
   },
   title: {
-    color: '#101828',
+    color: colors.textHeading,
     fontWeight: '800',
     fontSize: 20,
     lineHeight: 28,
   },
   description: {
-    color: '#475467',
+    color: colors.textMuted,
     lineHeight: 21,
   },
   badge: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandWash,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   badgeText: {
-    color: '#4F46E5',
+    color: colors.brandStrong,
     fontWeight: '800',
     fontSize: 12,
   },
@@ -261,19 +262,19 @@ const styles = StyleSheet.create({
   },
   statusChip: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSoft,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 2,
   },
   statusLabel: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
   },
   statusValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
   },
   steps: {
@@ -284,7 +285,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingBottom: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSoft,
   },
   stepRowLast: {
     paddingBottom: 0,
@@ -298,20 +299,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   stepMarkerDone: {
-    backgroundColor: '#ECFDF3',
+    backgroundColor: colors.successCard,
   },
   stepMarkerPending: {
-    backgroundColor: '#F4F3FF',
+    backgroundColor: colors.purpleRowSoft,
   },
   stepMarkerText: {
     fontSize: 12,
     fontWeight: '800',
   },
   stepMarkerTextDone: {
-    color: '#067647',
+    color: colors.successText,
   },
   stepMarkerTextPending: {
-    color: '#4F46E5',
+    color: colors.brandStrong,
   },
   stepCopy: {
     flex: 1,
@@ -319,11 +320,11 @@ const styles = StyleSheet.create({
     paddingTop: 2,
   },
   stepTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   stepDescription: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   actions: {

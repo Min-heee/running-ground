@@ -6,6 +6,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { useNotificationSettings } from '@/features/settings/hooks/useNotificationSettings';
+import { colors } from '@/theme/tokens';
 
 export default function NotificationSettingsScreen() {
   const {
@@ -33,7 +34,7 @@ export default function NotificationSettingsScreen() {
         backHref="/(tabs)/mypage"
       />
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
 
       {!loading ? (
         <>
@@ -83,9 +84,9 @@ function ToggleRow({
 const styles = StyleSheet.create({
   list: { gap: 10 },
   row: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.borderMuted,
     borderRadius: 16,
     padding: 14,
     flexDirection: 'row',
@@ -94,46 +95,46 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowActive: {
-    backgroundColor: '#F5F3FF',
-    borderColor: '#C7D2FE',
+    backgroundColor: colors.purpleRow,
+    borderColor: colors.brandLighter,
   },
   rowDisabled: {
     opacity: 0.7,
   },
   rowMeta: { flex: 1, gap: 4 },
   rowLabel: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   rowStatus: {
-    color: '#667085',
+    color: colors.textSecondary,
   },
   toggle: {
     width: 48,
     height: 28,
     borderRadius: 99,
-    backgroundColor: '#D0D5DD',
+    backgroundColor: colors.border,
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
   toggleActive: {
-    backgroundColor: '#6D5EF7',
+    backgroundColor: colors.brand,
   },
   knob: {
     width: 20,
     height: 20,
     borderRadius: 99,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
   knobActive: {
     marginLeft: 20,
   },
   savedText: {
-    color: '#067647',
+    color: colors.successText,
     fontWeight: '700',
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     lineHeight: 20,
   },

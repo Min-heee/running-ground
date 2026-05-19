@@ -10,6 +10,7 @@ import { RunPointBreakdownCard } from '@/features/running/components/RunPointBre
 import { RunExtraMetricsRow, RunHeroCard, RunSummaryMetricRow } from '@/features/running/components/RunSummaryCards';
 import { useRunDetail } from '@/features/running/hooks/useRunDetail';
 import { RunRouteMap } from '@/features/runs/RunRouteMap';
+import { colors } from '@/theme/tokens';
 
 export default function RunDetailScreen() {
   const { runId, friendId, origin } = useLocalSearchParams<{ runId?: string; friendId?: string; origin?: string }>();
@@ -29,7 +30,7 @@ export default function RunDetailScreen() {
 
   return (
     <Screen>
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {error ? <Text>{error}</Text> : null}
 
       {runDetail ? (
@@ -91,7 +92,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   mapCard: {
     gap: 12,
@@ -100,6 +101,6 @@ const styles = StyleSheet.create({
     height: 240,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.borderMuted,
   },
 });

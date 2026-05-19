@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { type Href, router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { colors } from '@/theme/tokens';
 
 export function PageHeader({
   title,
@@ -38,7 +39,7 @@ export function PageHeader({
     <View style={styles.header}>
       {showBack ? (
         <Pressable onPress={handleBack} style={styles.backButton}>
-          <Feather name="chevron-left" size={16} color="#111827" />
+          <Feather name="chevron-left" size={16} color={colors.textPrimary} />
           <Text style={styles.backButtonText}>{backLabel}</Text>
         </Pressable>
       ) : null}
@@ -54,7 +55,7 @@ const styles = StyleSheet.create({
   },
   backButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -64,7 +65,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   backButtonText: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
     fontSize: 13,
     includeFontPadding: false,
@@ -72,10 +73,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#101828',
+    color: colors.textHeading,
   },
   subtitle: {
-    color: '#475467',
+    color: colors.textMuted,
     lineHeight: 21,
   },
 });

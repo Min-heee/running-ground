@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { RunDetailResponse } from '@/lib/api/types';
+import { colors } from '@/theme/tokens';
 
 type RunRecord = RunDetailResponse['run'];
 type MatchResult = NonNullable<RunRecord['matchResult']>;
@@ -61,9 +62,9 @@ export function RunMatchResultCard({ matchResult, matchBonusPoints }: RunMatchRe
 
 const styles = StyleSheet.create({
   matchResultCard: {
-    backgroundColor: '#F8F7FF',
+    backgroundColor: colors.brandSoft,
     borderWidth: 1,
-    borderColor: '#D9D6FE',
+    borderColor: colors.purpleSoft,
     gap: 10,
   },
   matchResultHeader: {
@@ -72,12 +73,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   matchResultLabel: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontSize: 12,
     fontWeight: '800',
   },
   matchResultTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '800',
     marginTop: 4,
@@ -89,24 +90,24 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
   },
   matchResultBadgeWin: {
-    backgroundColor: '#0F9D58',
+    backgroundColor: colors.successGoogle,
   },
   matchResultBadgeLose: {
-    backgroundColor: '#F97316',
+    backgroundColor: colors.orange,
   },
   matchResultBadgeDraw: {
-    backgroundColor: '#6B7280',
+    backgroundColor: colors.textNeutral,
   },
   matchResultBadgeText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 12,
     fontWeight: '800',
   },
   matchResultSummary: {
-    color: '#344054',
+    color: colors.textStrongMuted,
     fontWeight: '700',
     lineHeight: 20,
   },
@@ -115,10 +116,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandWash,
   },
   matchResultPointPillText: {
-    color: '#4338CA',
+    color: colors.brandDeep,
     fontSize: 12,
     fontWeight: '800',
   },
@@ -128,7 +129,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   matchResultMeta: {
-    color: '#475467',
+    color: colors.textMuted,
     fontSize: 13,
     fontWeight: '700',
   },

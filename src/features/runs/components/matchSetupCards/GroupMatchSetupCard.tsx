@@ -11,6 +11,7 @@ import {
 } from '@/features/runs/components/matchSetupCards/MatchSetupCommon';
 import type { GroupMatchSetupCardProps } from '@/features/runs/components/matchSetupCards/types';
 import { matchSetupCardStyles as styles } from '@/features/runs/components/matchSetupCards/styles';
+import { colors } from '@/theme/tokens';
 
 type GroupParticipant = GroupMatchSetupCardProps['participants'][number];
 
@@ -111,7 +112,7 @@ export function GroupMatchSetupCard({
         <View style={styles.matchDemandCard}>
           <View style={styles.matchDemandHeader}>
             <Text style={styles.matchDemandTitle}>현재 신청 현황</Text>
-            {isLoadingDemandSummary ? <ActivityIndicator size="small" color="#818CF8" /> : null}
+            {isLoadingDemandSummary ? <ActivityIndicator size="small" color={colors.brandLight} /> : null}
           </View>
           <Text style={styles.matchDemandHeadline}>
             {demandSummary
@@ -124,7 +125,7 @@ export function GroupMatchSetupCard({
         </View>
       ) : null}
 
-      {isRequesting ? <ActivityIndicator size="small" color="#818CF8" /> : null}
+      {isRequesting ? <ActivityIndicator size="small" color={colors.brandLight} /> : null}
 
       {matchState === 'waiting' ? (
         <View style={styles.duelResultCard}>

@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { buildImportDiagnosisHint } from '@/features/integrations/utils/integrationMessages';
 import type { NativeHealthImportResult } from '@/integrations/nativeHealth';
+import { colors } from '@/theme/tokens';
 
 type NativeImportDiagnosticCardProps = {
   result: NativeHealthImportResult | null;
@@ -47,10 +48,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   helperText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
     marginTop: 8,
   },
@@ -63,19 +64,19 @@ const styles = StyleSheet.create({
   diagnosticChip: {
     minWidth: '47%',
     flexGrow: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSoft,
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 4,
   },
   diagnosticLabel: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
   },
   diagnosticValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 14,
     fontWeight: '800',
   },

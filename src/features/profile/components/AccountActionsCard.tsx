@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
+import { colors } from '@/theme/tokens';
 
 type AccountActionsCardProps = {
   logoutConfirm: boolean;
@@ -68,7 +69,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionLink: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -80,29 +81,29 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   logoutButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: colors.border,
     borderRadius: 16,
     paddingVertical: 12,
     alignItems: 'center',
     flex: 1,
   },
   logoutButtonText: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
   },
   deleteButton: {
-    backgroundColor: '#FFF1F3',
+    backgroundColor: colors.roseWash,
     borderWidth: 1,
-    borderColor: '#FDA29B',
+    borderColor: colors.dangerSalmon,
     borderRadius: 16,
     paddingVertical: 12,
     alignItems: 'center',
     flex: 1,
   },
   deleteButtonText: {
-    color: '#D92D20',
+    color: colors.dangerBright,
     fontWeight: '800',
   },
   disabledButton: {

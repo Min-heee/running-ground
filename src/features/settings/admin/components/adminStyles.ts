@@ -1,9 +1,10 @@
 import { StyleSheet } from 'react-native';
+import { colors } from '@/theme/tokens';
 
 export const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F3F5F9',
+    backgroundColor: colors.adminSurface,
   },
   scrollContent: {
     paddingBottom: 48,
@@ -20,51 +21,51 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   hero: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     borderRadius: 28,
     padding: 24,
     gap: 10,
   },
   heroBadge: {
     alignSelf: 'flex-start',
-    backgroundColor: '#1F2937',
+    backgroundColor: colors.darkMuted,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
   heroBadgeText: {
-    color: '#E5E7EB',
+    color: colors.borderMuted,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.6,
   },
   heroTitle: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 32,
     fontWeight: '900',
   },
   heroSubtitle: {
-    color: '#D0D5DD',
+    color: colors.border,
     fontSize: 15,
     lineHeight: 22,
   },
   heroMeta: {
-    color: '#98A2B3',
+    color: colors.textTertiary,
     fontSize: 13,
     fontWeight: '600',
   },
   platformHint: {
-    color: '#EDE9FE',
+    color: colors.purpleTextSoft,
     fontSize: 13,
     fontWeight: '600',
   },
   sectionTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 22,
     fontWeight: '900',
   },
   sectionDescription: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 21,
   },
   row: {
@@ -87,16 +88,16 @@ export const styles = StyleSheet.create({
     gap: 8,
   },
   loadingText: {
-    color: '#475467',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     lineHeight: 21,
   },
   successText: {
-    color: '#027A48',
+    color: colors.successStrong,
     fontWeight: '700',
     lineHeight: 21,
   },
@@ -111,25 +112,25 @@ export const styles = StyleSheet.create({
   metricCard: {
     flexGrow: 1,
     minWidth: 140,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSoft,
     borderRadius: 18,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.borderMuted,
     gap: 8,
   },
   metricLabel: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontWeight: '700',
     fontSize: 13,
   },
   metricValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '900',
     fontSize: 28,
   },
   overviewMeta: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   dashboardGrid: {
@@ -152,18 +153,18 @@ export const styles = StyleSheet.create({
     minWidth: 220,
   },
   fieldLabel: {
-    color: '#344054',
+    color: colors.textStrongMuted,
     fontWeight: '800',
     fontSize: 13,
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: colors.border,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: '#111827',
+    color: colors.textPrimary,
   },
   textArea: {
     minHeight: 100,
@@ -182,16 +183,16 @@ export const styles = StyleSheet.create({
     gap: 10,
   },
   searchInput: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: colors.border,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 13,
-    color: '#111827',
+    color: colors.textPrimary,
   },
   filterSummary: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -204,20 +205,20 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.borderMuted,
   },
   toggleChipActive: {
-    backgroundColor: '#111827',
-    borderColor: '#111827',
+    backgroundColor: colors.textPrimary,
+    borderColor: colors.textPrimary,
   },
   toggleChipText: {
-    color: '#344054',
+    color: colors.textStrongMuted,
     fontWeight: '700',
   },
   toggleChipTextActive: {
-    color: '#FFFFFF',
+    color: colors.white,
   },
   actionRow: {
     flexDirection: 'row',
@@ -225,7 +226,7 @@ export const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   actionButton: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -234,34 +235,34 @@ export const styles = StyleSheet.create({
     minWidth: 110,
   },
   actionButtonSecondary: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: colors.border,
   },
   actionButtonDanger: {
-    backgroundColor: '#B42318',
+    backgroundColor: colors.danger,
   },
   actionButtonDisabled: {
     opacity: 0.45,
   },
   actionButtonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontWeight: '800',
     fontSize: 14,
   },
   actionButtonTextSecondary: {
-    color: '#111827',
+    color: colors.textPrimary,
   },
   listStack: {
     gap: 12,
   },
   listCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSoft,
     borderRadius: 18,
     padding: 14,
     gap: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.borderMuted,
   },
   listSeparator: {
     height: 12,
@@ -277,16 +278,16 @@ export const styles = StyleSheet.create({
     gap: 4,
   },
   listTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 17,
     fontWeight: '900',
   },
   listMeta: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontWeight: '700',
   },
   listInfo: {
-    color: '#475467',
+    color: colors.textMuted,
     lineHeight: 20,
   },
   inlineActions: {
@@ -295,31 +296,31 @@ export const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   statusBadge: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandWash,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
     alignSelf: 'flex-start',
   },
   statusBadgeSuccess: {
-    backgroundColor: '#ECFDF3',
+    backgroundColor: colors.successCard,
   },
   statusBadgeMuted: {
-    backgroundColor: '#F2F4F7',
+    backgroundColor: colors.surfaceMuted,
   },
   statusBadgeText: {
-    color: '#4338CA',
+    color: colors.brandDeep,
     fontWeight: '800',
     fontSize: 12,
   },
   statusBadgeTextSuccess: {
-    color: '#027A48',
+    color: colors.successStrong,
   },
   statusBadgeTextMuted: {
-    color: '#475467',
+    color: colors.textMuted,
   },
   emptyText: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontWeight: '700',
   },
 });

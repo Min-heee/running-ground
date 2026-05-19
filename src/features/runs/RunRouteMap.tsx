@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { RunMapRegion } from './tracking';
+import { colors } from '@/theme/tokens';
 
 type Coordinate = {
   latitude: number;
@@ -33,15 +34,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
     gap: 8,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.borderMuted,
   },
   emptyTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
     textAlign: 'center',
   },
   emptyText: {
-    color: '#667085',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },

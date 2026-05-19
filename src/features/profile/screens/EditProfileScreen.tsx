@@ -6,6 +6,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { useEditProfile } from '@/features/profile/hooks/useEditProfile';
+import { colors } from '@/theme/tokens';
 
 export default function EditProfileScreen() {
   const universityVerificationHref = '/university-verification' as Href;
@@ -29,7 +30,7 @@ export default function EditProfileScreen() {
         backHref="/(tabs)/mypage"
       />
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
 
       {!loading && profile ? (
         <Card>
@@ -81,7 +82,7 @@ function Input({
         editable={editable}
         onChangeText={onChangeText}
         style={[styles.input, !editable && styles.disabledInput]}
-        placeholderTextColor="#98A2B3"
+        placeholderTextColor={colors.textTertiary}
       />
     </View>
   );
@@ -94,57 +95,57 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: 14,
     borderRadius: 16,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.indigoBorder,
   },
   noticeTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
   },
   helperText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   inlineLinkButton: {
     alignSelf: 'flex-start',
     marginTop: 4,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: colors.border,
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   inlineLinkButtonText: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
     fontSize: 13,
   },
   label: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
     fontSize: 15,
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.borderMuted,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: '#111827',
+    color: colors.textPrimary,
   },
   disabledInput: {
-    color: '#98A2B3',
-    backgroundColor: '#F2F4F7',
+    color: colors.textTertiary,
+    backgroundColor: colors.surfaceMuted,
   },
   savedText: {
-    color: '#067647',
+    color: colors.successText,
     fontWeight: '700',
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     lineHeight: 20,
   },

@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { MatchOptionSelector } from '@/features/runs/components/MatchOptionSelector';
 import { PartyRunHomePanel } from '@/features/runs/components/PartyRunHomePanel';
+import { colors } from '@/theme/tokens';
 import {
   DuelMatchSetupCard,
   GroupMatchSetupCard,
@@ -36,7 +37,7 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#374151',
-    backgroundColor: '#1F2937',
+    borderColor: colors.darkSoft,
+    backgroundColor: colors.darkMuted,
   },
 });

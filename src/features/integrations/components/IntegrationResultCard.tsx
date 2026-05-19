@@ -3,6 +3,7 @@ import { StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { buildSyncSummary } from '@/features/integrations/utils/integrationMessages';
 import type { IntegrationSyncResponse } from '@/lib/api/types';
+import { colors } from '@/theme/tokens';
 
 type IntegrationResultCardProps = {
   actionMessage: string | null;
@@ -36,16 +37,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   successText: {
-    color: '#067647',
+    color: colors.successText,
     fontWeight: '700',
     marginTop: 10,
     lineHeight: 20,
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     marginTop: 10,
     lineHeight: 20,

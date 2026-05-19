@@ -4,6 +4,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { UniversityVerificationContent } from '@/features/auth/components/universityVerification/UniversityVerificationContent';
 import { universityVerificationStyles as styles } from '@/features/auth/components/universityVerification/universityVerificationStyles';
 import { useUniversityVerification } from '@/features/auth/hooks/useUniversityVerification';
+import { colors } from '@/theme/tokens';
 
 export default function UniversityVerificationScreen() {
   const model = useUniversityVerification();
@@ -17,7 +18,7 @@ export default function UniversityVerificationScreen() {
         backHref="/(tabs)/mypage"
       />
 
-      {model.loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {model.loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {model.error ? <Text style={styles.errorText}>{model.error}</Text> : null}
       {!model.loading ? <UniversityVerificationContent model={model} /> : null}
     </Screen>
