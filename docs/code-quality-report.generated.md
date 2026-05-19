@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-19T15:40:02.570Z
+생성 시각: 2026-05-19T16:15:59.488Z
 
 ## 실행 방법
 
@@ -14,8 +14,8 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 839 |
-| 코드 파일 | 783 |
+| 분석 파일 | 841 |
+| 코드 파일 | 785 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 75 |
 | 500줄 이상 파일 | 20 |
@@ -41,7 +41,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/lib/runningMatchStoreHelpers.mjs | 2575 | imports 10, sort/filter/map 85 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1844 | imports 52, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1865 | imports 53, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | backend/src/server.mjs | 867 | imports 40, sort/filter/map 1, timers 1 |
@@ -121,7 +121,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/lib/runningMatchStoreHelpers.mjs | 2575 | imports 10, sort/filter/map 85 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1844 | imports 52, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1865 | imports 53, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | backend/src/server.mjs | 867 | imports 40, sort/filter/map 1, timers 1 |
@@ -150,7 +150,7 @@ npm run code:quality
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 117 | TrackRunExperienceRuntime | 1727 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 121 | TrackRunExperienceRuntime | 1744 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 59 | useTrackRunRuntimeRecipientInviteInbox | 433 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
 | backend/src/routes/runningMatchRoutes.mjs | 1 | routeRunningMatchRequest | 312 |
