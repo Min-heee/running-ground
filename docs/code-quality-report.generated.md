@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-19T16:42:15.026Z
+생성 시각: 2026-05-19T17:03:14.586Z
 
 ## 실행 방법
 
@@ -14,10 +14,10 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 843 |
+| 분석 파일 | 844 |
 | 코드 파일 | 787 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 75 |
+| 300줄 이상 파일 | 76 |
 | 500줄 이상 파일 | 20 |
 | 50줄 이상 함수 후보 | 264 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
@@ -103,6 +103,7 @@ npm run code:quality
 | src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 325 | imports 9, effects 3 |
 | src/lib/api/services/runningRoomResponseGuards.test.ts | 323 | imports 5 |
 | src/features/runs/viewModels/useLiveMatchViewModel.ts | 322 | imports 8 |
+| docs/handoff/codex-quality-audit-2026-05-20.md | 321 | imports 4, subs 1 |
 | src/features/auth/hooks/useSignupForm.ts | 320 | imports 7, effects 2 |
 | backend/src/repositories/runsRepository.test.mjs | 320 | imports 3, sort/filter/map 1 |
 | backend/src/repositories/authRepository.mjs | 318 | imports 1, sort/filter/map 10 |
