@@ -9,6 +9,7 @@ import { useHomeScreenModel } from '@/features/home/hooks/useHomeScreenModel';
 import { HomeOverview } from '@/features/home/HomeOverview';
 import { shouldShowMatchStartOverlay } from '@/lib/matchCountdown';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
+import { colors } from '@/theme/tokens';
 
 export default function HomeScreen() {
   useTabWarmupTrace('home');
@@ -39,7 +40,7 @@ export default function HomeScreen() {
           <View style={styles.contentWrap}>
           <HomeHeader />
           {noticeCards}
-          {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+          {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
           {error ? <Text>{error}</Text> : null}
           <HomeUpcomingMatchesCard
             matches={visibleUpcomingMatches}

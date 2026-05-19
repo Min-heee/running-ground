@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { signupFormStyles as styles } from './signupFormStyles';
+import { colors } from '@/theme/tokens';
 
 type InputProps = {
   label: string;
@@ -31,7 +32,7 @@ export function SignupInput({
       {helperText ? <Text style={styles.helperText}>{helperText}</Text> : null}
       <TextInput
         placeholder={placeholder}
-        placeholderTextColor="#98A2B3"
+        placeholderTextColor={colors.textTertiary}
         style={[styles.input, !editable && styles.inputDisabled]}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType ?? 'default'}

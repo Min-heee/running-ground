@@ -6,6 +6,7 @@ import {
   subscribeLiveMatchPerfSamples,
 } from '@/components/matches/liveMatchPerfQaLog';
 import { LIVE_MATCH_PERF_QA_ENABLED } from '@/components/matches/useAndroidLiveMatchPerfProbe';
+import { colors } from '@/theme/tokens';
 
 type AndroidLiveMatchPerfPanelProps = {
   label: string;
@@ -71,23 +72,23 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   eyebrow: {
-    color: '#A5B4FC',
+    color: colors.brandTint,
     fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.8,
   },
   line: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 12,
     fontWeight: '800',
   },
   meta: {
-    color: '#CBD5E1',
+    color: colors.borderCool,
     fontSize: 11,
     fontWeight: '700',
   },
   hint: {
-    color: '#E0E7FF',
+    color: colors.brandWashStrong,
     fontSize: 11,
     fontWeight: '700',
     lineHeight: 15,
@@ -103,14 +104,14 @@ const styles = StyleSheet.create({
   },
   diagnosisStable: {
     backgroundColor: 'rgba(34, 197, 94, 0.18)',
-    color: '#BBF7D0',
+    color: colors.successWash,
   },
   diagnosisWatch: {
     backgroundColor: 'rgba(250, 204, 21, 0.18)',
-    color: '#FEF08A',
+    color: colors.warningBright,
   },
   diagnosisCritical: {
     backgroundColor: 'rgba(248, 113, 113, 0.18)',
-    color: '#FECACA',
+    color: colors.dangerBorder,
   },
 });

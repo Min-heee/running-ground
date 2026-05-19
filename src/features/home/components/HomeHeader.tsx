@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { colors } from '@/theme/tokens';
 
 export function HomeHeader() {
   return (
@@ -15,12 +16,12 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   headerLabel: {
-    color: '#101828',
+    color: colors.textHeading,
     fontSize: 28,
     fontWeight: '800',
   },
   headerBrand: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 0.4,

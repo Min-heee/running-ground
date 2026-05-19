@@ -4,6 +4,7 @@ import type { DimensionValue, StyleProp, ViewStyle } from 'react-native';
 import { Card } from '@/components/Card';
 import { HomePointCalendar } from '@/features/home/components/overview/HomePointCalendar';
 import type { StreakCalendarCell, WeeklyPointTrack, WeeklyPointTrackId } from '@/features/points/pointSystem';
+import { colors } from '@/theme/tokens';
 
 type HomePointGaugeCardProps = {
   tracks: WeeklyPointTrack[];
@@ -119,7 +120,7 @@ export function HomePointGaugeCard({
 
 const styles = StyleSheet.create({
   sectionEyebrow: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -133,7 +134,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   pointTarget: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -143,45 +144,45 @@ const styles = StyleSheet.create({
   },
   pointTab: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
     borderRadius: 999,
     paddingVertical: 9,
     alignItems: 'center',
   },
   pointTabActive: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
   },
   pointTabText: {
-    color: '#475467',
+    color: colors.textMuted,
     fontSize: 12,
     fontWeight: '800',
     includeFontPadding: false,
   },
   pointTabTextActive: {
-    color: '#FFFFFF',
+    color: colors.white,
   },
   pointValueRow: {
     gap: 6,
   },
   pointValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 28,
     fontWeight: '800',
   },
   pointUnit: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 15,
     fontWeight: '700',
   },
   pointSub: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '700',
   },
   pointBadge: {
     alignSelf: 'flex-start',
-    color: '#111827',
-    backgroundColor: '#F3F4F6',
+    color: colors.textPrimary,
+    backgroundColor: colors.surfaceSubtle,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -192,16 +193,16 @@ const styles = StyleSheet.create({
   pointTrack: {
     height: 10,
     borderRadius: 999,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.borderMuted,
     overflow: 'hidden',
   },
   pointFill: {
     height: '100%',
     borderRadius: 999,
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
   },
   pointHelper: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
 });

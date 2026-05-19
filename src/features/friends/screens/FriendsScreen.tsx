@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
+import { colors } from '@/theme/tokens';
 
 export default function FriendsScreen() {
   useTabWarmupTrace('friends');
@@ -40,7 +41,7 @@ export default function FriendsScreen() {
         <PageHeader title="친구 랭킹" />
       </View>
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {error ? (
         <Card>
           <Text style={styles.errorTitle}>친구 정보를 아직 못 불러왔어</Text>
@@ -98,23 +99,23 @@ export default function FriendsScreen() {
 const styles = StyleSheet.create({
   headerWrap: { gap: 12 },
   addButton: {
-    backgroundColor: '#6D5EF7',
+    backgroundColor: colors.brand,
     borderRadius: 16,
     paddingVertical: 14,
     alignItems: 'center',
   },
   addButtonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontWeight: '800',
     fontSize: 15,
   },
   errorTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
     fontSize: 18,
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     lineHeight: 20,
   },

@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { colors } from '@/theme/tokens';
 
 export const signupFormStyles = StyleSheet.create({
   form: { gap: 14 },
@@ -7,25 +8,25 @@ export const signupFormStyles = StyleSheet.create({
     gap: 5,
     padding: 14,
     borderRadius: 18,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.indigoBorder,
   },
   privacyTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
   },
   privacyText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   displayNameCard: {
     gap: 10,
     padding: 14,
     borderRadius: 18,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.indigoBorder,
   },
   displayNameOptionRow: {
     gap: 10,
@@ -33,45 +34,45 @@ export const signupFormStyles = StyleSheet.create({
   displayNameOption: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.border,
+    backgroundColor: colors.white,
     padding: 14,
     gap: 4,
   },
   displayNameOptionSelected: {
-    borderColor: '#6D5EF7',
-    backgroundColor: '#EEF2FF',
+    borderColor: colors.brand,
+    backgroundColor: colors.brandWash,
   },
   displayNameOptionTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
     fontSize: 15,
   },
   displayNameOptionTitleSelected: {
-    color: '#4338CA',
+    color: colors.brandDeep,
   },
   displayNameOptionDescription: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 19,
   },
   displayNameOptionDescriptionSelected: {
-    color: '#5B4FCF',
+    color: colors.brandMuted,
   },
   displayNamePreviewCard: {
     gap: 4,
     padding: 14,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.borderMuted,
   },
   displayNamePreviewLabel: {
-    color: '#475467',
+    color: colors.textMuted,
     fontWeight: '700',
     fontSize: 12,
   },
   displayNamePreviewValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
     fontSize: 18,
   },
@@ -81,7 +82,7 @@ export const signupFormStyles = StyleSheet.create({
     gap: 10,
   },
   label: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
     fontSize: 15,
   },
@@ -92,21 +93,21 @@ export const signupFormStyles = StyleSheet.create({
     gap: 12,
   },
   inlineToggleText: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontWeight: '800',
   },
   helperText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.borderMuted,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: '#111827',
+    color: colors.textPrimary,
   },
   inputDisabled: {
     opacity: 0.7,
@@ -115,9 +116,9 @@ export const signupFormStyles = StyleSheet.create({
     flex: 1,
   },
   secondaryActionButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: colors.border,
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -125,7 +126,7 @@ export const signupFormStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   secondaryActionButtonText: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
     fontSize: 14,
   },
@@ -134,13 +135,13 @@ export const signupFormStyles = StyleSheet.create({
     lineHeight: 20,
   },
   statusTextSuccess: {
-    color: '#067647',
+    color: colors.successText,
   },
   statusTextNeutral: {
-    color: '#475467',
+    color: colors.textMuted,
   },
   statusTextError: {
-    color: '#B42318',
+    color: colors.danger,
   },
   validationList: {
     gap: 7,
@@ -156,31 +157,31 @@ export const signupFormStyles = StyleSheet.create({
     borderRadius: 999,
   },
   validationDotComplete: {
-    backgroundColor: '#12B76A',
+    backgroundColor: colors.success,
   },
   validationDotPending: {
-    backgroundColor: '#D0D5DD',
+    backgroundColor: colors.border,
   },
   validationText: {
     fontWeight: '700',
     lineHeight: 19,
   },
   validationTextComplete: {
-    color: '#067647',
+    color: colors.successText,
   },
   validationTextPending: {
-    color: '#667085',
+    color: colors.textSecondary,
   },
   readyCard: {
     gap: 8,
     padding: 14,
     borderRadius: 18,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
-    borderColor: '#EAECF0',
+    borderColor: colors.borderSoft,
   },
   readyTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
   },
   addressGroup: {
@@ -189,8 +190,8 @@ export const signupFormStyles = StyleSheet.create({
   regionPickerCard: {
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
+    borderColor: colors.indigoBorder,
+    backgroundColor: colors.surfaceSoft,
     overflow: 'hidden',
   },
   regionPickerHeader: {
@@ -206,17 +207,17 @@ export const signupFormStyles = StyleSheet.create({
     gap: 4,
   },
   regionPickerTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
     fontSize: 14,
   },
   regionPickerValue: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 13,
     fontWeight: '600',
   },
   regionPickerToggle: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontSize: 13,
     fontWeight: '800',
   },
@@ -225,31 +226,31 @@ export const signupFormStyles = StyleSheet.create({
     paddingBottom: 14,
   },
   selectedAddressCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.indigoBorder,
     borderRadius: 16,
     padding: 14,
     gap: 4,
   },
   selectedAddressLabel: {
-    color: '#475467',
+    color: colors.textMuted,
     fontWeight: '700',
     fontSize: 12,
   },
   selectedAddressValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
   },
   primaryButton: {
-    backgroundColor: '#6D5EF7',
+    backgroundColor: colors.brand,
     borderRadius: 18,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 8,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontWeight: '800',
     fontSize: 16,
   },
@@ -257,7 +258,7 @@ export const signupFormStyles = StyleSheet.create({
     opacity: 0.6,
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     lineHeight: 20,
   },

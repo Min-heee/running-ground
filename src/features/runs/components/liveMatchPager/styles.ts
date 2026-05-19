@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { colors } from '@/theme/tokens';
 
 export const liveMatchPagerStyles = StyleSheet.create({
   shell: {
@@ -13,22 +14,22 @@ export const liveMatchPagerStyles = StyleSheet.create({
     minHeight: 44,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
   tabSelected: {
-    borderColor: '#6D5EF7',
-    backgroundColor: '#EEF2FF',
+    borderColor: colors.brand,
+    backgroundColor: colors.brandWash,
   },
   tabText: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: '800',
   },
   tabTextSelected: {
-    color: '#4F46E5',
+    color: colors.brandStrong,
   },
   page: {
     gap: 14,
@@ -38,7 +39,7 @@ export const liveMatchPagerStyles = StyleSheet.create({
     gap: 14,
   },
   hint: {
-    color: '#98A2B3',
+    color: colors.textTertiary,
     fontSize: 13,
     textAlign: 'center',
     fontWeight: '700',

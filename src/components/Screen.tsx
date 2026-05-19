@@ -1,6 +1,7 @@
 import { MutableRefObject, PropsWithChildren, useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors } from '@/theme/tokens';
 
 export function Screen({
   children,
@@ -42,7 +43,7 @@ export function Screen({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F5F7FB',
+    backgroundColor: colors.surfaceApp,
   },
   content: {
     paddingBottom: 136,

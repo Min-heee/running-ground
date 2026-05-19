@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { colors } from '@/theme/tokens';
 
 export default function OnboardingScreen() {
   return (
@@ -32,15 +33,15 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   hero: {
-    backgroundColor: '#6D5EF7',
+    backgroundColor: colors.brand,
     borderRadius: 28,
     padding: 24,
     gap: 12,
     minHeight: 220,
     justifyContent: 'center',
   },
-  logo: { color: '#E9E7FF', fontWeight: '800', fontSize: 13 },
-  title: { color: '#FFFFFF', fontSize: 32, fontWeight: '800', lineHeight: 40 },
-  subtitle: { color: '#F4F3FF', lineHeight: 22, fontSize: 15 },
+  logo: { color: colors.brandSoftBorder, fontWeight: '800', fontSize: 13 },
+  title: { color: colors.white, fontSize: 32, fontWeight: '800', lineHeight: 40 },
+  subtitle: { color: colors.purpleRowSoft, lineHeight: 22, fontSize: 15 },
   actions: { gap: 10 },
 });

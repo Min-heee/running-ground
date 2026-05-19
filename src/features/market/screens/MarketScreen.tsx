@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
+import { colors } from '@/theme/tokens';
 
 export default function MarketScreen() {
   useTabWarmupTrace('market');
@@ -28,25 +29,25 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   screenTitle: {
-    color: '#11161B',
+    color: colors.nearBlack,
     fontSize: 30,
     fontWeight: '800',
   },
   statusEyebrow: {
-    color: '#8E7BFF',
+    color: colors.brandAccent,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 1.4,
     marginBottom: 10,
   },
   statusTitle: {
-    color: '#11161B',
+    color: colors.nearBlack,
     fontSize: 28,
     fontWeight: '800',
     marginBottom: 12,
   },
   statusDescription: {
-    color: '#4A556F',
+    color: colors.slateLabel,
     fontSize: 15,
     fontWeight: '600',
     lineHeight: 24,

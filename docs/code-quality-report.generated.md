@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-19T10:07:55.458Z
+생성 시각: 2026-05-19T10:21:21.985Z
 
 ## 실행 방법
 
@@ -86,15 +86,15 @@ npm run code:quality
 | src/lib/api/services/runningRoomResponseGuards.ts | 356 | imports 2, sort/filter/map 4 |
 | src/features/runs/lifecycle/matchStateMachine.test.ts | 351 | imports 3 |
 | scripts/generate-testflight-qa-report.mjs | 349 | imports 5, sort/filter/map 1 |
-| src/components/matches/liveMatchArena/styles.ts | 338 | imports 3 |
+| src/components/matches/liveMatchArena/styles.ts | 339 | imports 4 |
 | src/features/match/hooks/lobby/useRoomStartActions.ts | 335 | imports 15, effects 1 |
 | docs/code-quality-audit.md | 335 | imports 13 |
-| src/features/integrations/IntegrationJourneyCard.tsx | 333 | imports 9, sort/filter/map 3 |
+| src/features/integrations/IntegrationJourneyCard.tsx | 334 | imports 10, sort/filter/map 3 |
+| src/features/runs/components/matchSetupCards/MatchSetupCommon.tsx | 333 | imports 8, sort/filter/map 4 |
 | src/features/runs/runtime/useTrackRunRoomLoader.ts | 333 | imports 11 |
-| src/features/runs/components/matchSetupCards/MatchSetupCommon.tsx | 332 | imports 7, sort/filter/map 4 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/liveMatchNavigationOwnerPolicy.ts | 331 | imports 5 |
+| src/features/settings/admin/components/adminStyles.ts | 327 | imports 2 |
 | src/features/league/components/LeagueRegionSelectorCard.tsx | 326 | imports 11, sort/filter/map 1 |
-| src/features/settings/admin/components/adminStyles.ts | 326 | imports 1 |
 | src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 325 | imports 9, effects 3 |
 | src/lib/api/services/runningRoomResponseGuards.test.ts | 323 | imports 5 |
 | src/features/runs/viewModels/useLiveMatchViewModel.ts | 322 | imports 8 |
@@ -107,7 +107,7 @@ npm run code:quality
 | docs/testflight-real-device-qa.md | 314 |  |
 | src/features/runs/sync/activeRoomCheck.ts | 310 | imports 6, timers 1 |
 | backend/src/bridges/sessionRunsBridge.mjs | 305 | imports 2, sort/filter/map 3 |
-| src/features/runs/components/matchSetupCards/styles.ts | 303 | imports 1 |
+| src/features/runs/components/matchSetupCards/styles.ts | 304 | imports 2 |
 | src/features/runs/viewModels/matchProgress.test.ts | 302 | imports 5, sort/filter/map 6 |
 | docs/backend-server-refactor-plan.md | 302 | imports 2 |
 
@@ -155,7 +155,7 @@ npm run code:quality
 | src/features/match/hooks/lobby/useRoomStartActions.ts | 70 | useRoomStartActions | 265 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 350 | requestPromise | 259 |
 | backend/src/repositories/postgresAuthRepository.mjs | 246 | createPostgresAuthRepository | 258 |
-| src/features/settings/screens/AdminScreen.tsx | 19 | AdminScreen | 254 |
+| src/features/settings/screens/AdminScreen.tsx | 20 | AdminScreen | 254 |
 | src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 83 | useBlockingMatchStatusPolling | 242 |
 | src/features/runs/runtime/useTrackRunRoomLoader.ts | 77 | callback@useCallback | 238 |
 | src/features/runs/sync/useMatchProgressSync.ts | 50 | useMatchProgressSync | 235 |
@@ -177,15 +177,15 @@ npm run code:quality
 | src/features/runs/runtime/useTrackRunRuntimeMatchRequestActions.ts | 11 | useTrackRunRuntimeMatchRequestActions | 191 |
 | src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 84 | useTrackingSessionSnapshots | 190 |
 | src/features/runs/runtime/useTrackRunRoomCreateAction.ts | 50 | useTrackRunRoomCreateAction | 186 |
-| src/features/match/screens/MatchRoomScreen.tsx | 16 | MatchRoomScreen | 181 |
+| src/features/match/screens/MatchRoomScreen.tsx | 17 | MatchRoomScreen | 181 |
 | src/features/home/hooks/useHomeScreenModel.ts | 30 | useHomeScreenModel | 181 |
 | src/features/runs/tracking/lifecycle/useMatchAutoTrackingEffects.ts | 42 | useMatchAutoTrackingEffects | 179 |
 | src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 66 | callback@useCallback | 174 |
 | src/features/runs/lifecycle/hooks/useMatchCountdownModel.ts | 40 | useMatchCountdownModel | 171 |
 | backend/src/bridges/sessionRunsBridge.mjs | 136 | createSessionRunsBridge | 169 |
-| src/features/auth/screens/AccountRecoveryScreen.tsx | 43 | AccountRecoveryScreen | 168 |
+| src/features/auth/screens/AccountRecoveryScreen.tsx | 44 | AccountRecoveryScreen | 168 |
 | src/features/integrations/hooks/useIntegrationActions.ts | 61 | useIntegrationActions | 165 |
-| src/features/runs/components/matchSetupCards/GroupMatchSetupCard.tsx | 41 | GroupMatchSetupCard | 165 |
+| src/features/runs/components/matchSetupCards/GroupMatchSetupCard.tsx | 42 | GroupMatchSetupCard | 165 |
 | backend/src/repositories/marketRepository.mjs | 5 | createJsonMarketRepository | 165 |
 | src/features/runs/hooks/usePartyRunRoom.ts | 79 | usePartyRunRoom | 158 |
 | src/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyEffects.ts | 27 | useMatchRoomLobbyEffects | 157 |
@@ -194,7 +194,7 @@ npm run code:quality
 | src/features/runs/viewModels/useTrackRunIdleViewModel.ts | 90 | useTrackRunIdleViewModel | 149 |
 | src/features/runs/runtime/useTrackRunRoomCreateAction.ts | 70 | callback@useCallback | 146 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchMountSignalBridge.ts | 15 | useLiveMatchMountSignalBridge | 146 |
-| src/features/runs/components/matchSetupCards/DuelMatchSetupCard.tsx | 13 | DuelMatchSetupCard | 145 |
+| src/features/runs/components/matchSetupCards/DuelMatchSetupCard.tsx | 14 | DuelMatchSetupCard | 145 |
 | src/features/runs/runtime/useTrackRunRuntimeMatchMaintenanceActions.ts | 6 | useTrackRunRuntimeMatchMaintenanceActions | 144 |
 | src/features/runs/hooks/runSaveFlow/useRunFinishCommand.ts | 44 | useRunFinishCommand | 141 |
 | src/features/friends/hooks/useFriendsScreen.ts | 17 | useFriendsScreen | 140 |
@@ -209,7 +209,7 @@ npm run code:quality
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchMountSignalBridge.ts | 26 | callback@useCallback | 129 |
 | src/features/match/hooks/lobby/roomSnapshot/useInviteInboxReceiver.ts | 21 | callback@useCallback | 127 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationOwner.ts | 104 | callback@useCallback | 126 |
-| src/features/runs/components/PartyRunHomePanel.tsx | 36 | PartyRunHomePanel | 124 |
+| src/features/runs/components/PartyRunHomePanel.tsx | 37 | PartyRunHomePanel | 124 |
 | backend/src/routes/adminRoutes.mjs | 3 | routeAdminRequest | 124 |
 | scripts/deploy-public-backend.mjs | 304 | main | 123 |
 | src/features/runs/hooks/matchLifecycle/useGroupMatchLifecycle.ts | 18 | useGroupMatchLifecycle | 123 |
@@ -228,15 +228,15 @@ npm run code:quality
 
 | 우선순위 | 파일 | 줄 | 이유 | 권장 조치 | 근거 |
 | --- | --- | --- | --- | --- | --- |
-| Medium | src/features/auth/components/signup/SignupCredentialsSection.tsx | 60 | inline style/object/array/function prop 9개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.input, styles.inlineInput, !submitting && !checkingUsername ? null : styles.inputDisabled]} |
-| Medium | src/features/runs/components/matchSetupCards/MatchSetupCommon.tsx | 97 | inline style/object/array/function prop 9개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.matchDistanceChip, selected ? styles.matchDistanceChipSelected : undefined]} |
-| Medium | src/features/settings/screens/NotificationSettingsScreen.tsx | 42 | inline style/object/array/function prop 8개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <ToggleRow label="친구 요청 및 수락 알림" active={friendAlerts} disabled={saving} onPress={() => setFriendAlerts((prev) => !prev… |
-| Medium | src/features/auth/screens/AccountRecoveryScreen.tsx | 138 | inline style/object/array/function prop 7개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onChangeText={(nextValue) => setFindPhone(formatPhoneInput(nextValue))} |
-| Medium | src/features/friends/screens/FriendsScreen.tsx | 56 | inline style/object/array/function prop 7개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}> |
+| Medium | src/features/auth/components/signup/SignupCredentialsSection.tsx | 61 | inline style/object/array/function prop 9개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.input, styles.inlineInput, !submitting && !checkingUsername ? null : styles.inputDisabled]} |
+| Medium | src/features/runs/components/matchSetupCards/MatchSetupCommon.tsx | 98 | inline style/object/array/function prop 9개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.matchDistanceChip, selected ? styles.matchDistanceChipSelected : undefined]} |
+| Medium | src/features/settings/screens/NotificationSettingsScreen.tsx | 43 | inline style/object/array/function prop 8개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <ToggleRow label="친구 요청 및 수락 알림" active={friendAlerts} disabled={saving} onPress={() => setFriendAlerts((prev) => !prev… |
+| Medium | src/features/auth/screens/AccountRecoveryScreen.tsx | 139 | inline style/object/array/function prop 7개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onChangeText={(nextValue) => setFindPhone(formatPhoneInput(nextValue))} |
+| Medium | src/features/friends/screens/FriendsScreen.tsx | 57 | inline style/object/array/function prop 7개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}> |
 | Medium | src/components/matches/liveMatchArena/DuelRoad.tsx | 43 | inline style/object/array/function prop 6개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[ |
 | Medium | src/features/integrations/components/nrcBridge/NrcBridgeGuideActions.tsx | 37 | inline style/object/array/function prop 6개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onPress={() => onConnectSource('nrc')} |
 | Medium | src/features/league/components/LeagueModeSwitch.tsx | 18 | inline style/object/array/function prop 6개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Pressable style={[styles.modeButton, !isTodayView && styles.modeButtonActive]} onPress={() => onChange('region')}> |
-| Medium | src/features/settings/screens/AdminScreen.tsx | 93 | inline style/object/array/function prop 6개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[styles.container, isWide ? styles.containerWide : null]}> |
+| Medium | src/features/settings/screens/AdminScreen.tsx | 94 | inline style/object/array/function prop 6개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[styles.container, isWide ? styles.containerWide : null]}> |
 | Medium | src/components/matches/liveMatchArena/RoadMotion.tsx | 32 | inline style/object/array/function prop 5개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[styles.duelLaneBase, styles.duelLaneLeft]} /> |
 | Medium | src/features/auth/components/signup/SignupProfileSection.tsx | 55 | inline style/object/array/function prop 5개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onPress={() => setDisplayNamePreference('nickname')} |
 | Medium | src/features/auth/components/universityVerification/UniversityVerificationRows.tsx | 22 | inline style/object/array/function prop 5개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.methodPickerButton, selected ? styles.methodPickerButtonSelected : null]} |
@@ -244,57 +244,57 @@ npm run code:quality
 | Medium | src/features/league/components/LeagueRegionSelectorCard.tsx | 98 | inline style/object/array/function prop 5개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.pathChip, isCurrentPath && styles.pathChipActive]} |
 | Medium | src/features/league/screens/LeagueScreen.tsx | 72 | inline style/object/array/function prop 5개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onAction={() => loadLeague(currentNode?.id)} |
 | Low | src/components/matches/liveMatchArena/GroupRoad.tsx | 51 | inline style/object/array/function prop 4개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
-| Low | src/features/auth/components/signup/SignupFormPrimitives.tsx | 35 | inline style/object/array/function prop 4개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.input, !editable && styles.inputDisabled]} |
-| Low | src/features/auth/screens/LoginScreen.tsx | 45 | inline style/object/array/function prop 4개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.input, styles.passwordInput]} |
-| Low | src/features/home/components/overview/HomePointCalendar.tsx | 41 | inline style/object/array/function prop 4개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.calendarNavButton, calendarMonthOffset === 0 && styles.calendarNavButtonCurrent]} |
+| Low | src/features/auth/components/signup/SignupFormPrimitives.tsx | 36 | inline style/object/array/function prop 4개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.input, !editable && styles.inputDisabled]} |
+| Low | src/features/auth/screens/LoginScreen.tsx | 46 | inline style/object/array/function prop 4개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.input, styles.passwordInput]} |
+| Low | src/features/home/components/overview/HomePointCalendar.tsx | 42 | inline style/object/array/function prop 4개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.calendarNavButton, calendarMonthOffset === 0 && styles.calendarNavButtonCurrent]} |
 | Low | src/features/league/components/LeagueRankBadges.tsx | 16 | inline style/object/array/function prop 4개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
-| Low | src/features/profile/screens/MyActivityScreen.tsx | 15 | inline style/object/array/function prop 4개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Link href={{ pathname: '/run-detail', params: { runId: run.id } }} asChild> |
-| Low | src/features/runs/components/PartyRunHomePanel.tsx | 85 | inline style/object/array/function prop 4개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.roomModeChip, optionIsSelected ? styles.roomModeChipSelected : undefined]} |
+| Low | src/features/profile/screens/MyActivityScreen.tsx | 16 | inline style/object/array/function prop 4개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Link href={{ pathname: '/run-detail', params: { runId: run.id } }} asChild> |
+| Low | src/features/runs/components/PartyRunHomePanel.tsx | 86 | inline style/object/array/function prop 4개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.roomModeChip, optionIsSelected ? styles.roomModeChipSelected : undefined]} |
 | Low | src/features/auth/components/signup/SignupRegionSection.tsx | 61 | inline style/object/array/function prop 3개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onPress={() => setOpenRegionStep('province')} |
-| Low | src/features/friends/components/FriendRequestsCard.tsx | 48 | inline style/object/array/function prop 3개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.ghostButton, isActing && styles.disabledButton]} |
+| Low | src/features/friends/components/FriendRequestsCard.tsx | 49 | inline style/object/array/function prop 3개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.ghostButton, isActing && styles.disabledButton]} |
 | Low | src/features/home/HomeOverview.tsx | 63 | inline style/object/array/function prop 3개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onPreviousMonth={() => setCalendarMonthOffset((current) => current - 1)} |
-| Low | src/features/integrations/IntegrationJourneyCard.tsx | 204 | inline style/object/array/function prop 3개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[styles.stepRow, isLast && styles.stepRowLast]}> |
+| Low | src/features/integrations/IntegrationJourneyCard.tsx | 205 | inline style/object/array/function prop 3개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[styles.stepRow, isLast && styles.stepRowLast]}> |
 | Low | src/features/league/components/TodayRankingCard.tsx | 34 | inline style/object/array/function prop 3개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | accessibilityState={{ selected: active }} |
-| Low | src/features/league/screens/DistrictPersonalScreen.tsx | 14 | inline style/object/array/function prop 3개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[styles.rankRow, runner.isMe && styles.meRow]}> |
-| Low | src/features/runs/components/matchRoom/MatchRoomFriendInviteCard.tsx | 63 | inline style/object/array/function prop 3개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
+| Low | src/features/league/screens/DistrictPersonalScreen.tsx | 15 | inline style/object/array/function prop 3개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[styles.rankRow, runner.isMe && styles.meRow]}> |
+| Low | src/features/runs/components/matchRoom/MatchRoomFriendInviteCard.tsx | 64 | inline style/object/array/function prop 3개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
 | Low | src/features/settings/admin/components/UserAdminSection.tsx | 40 | inline style/object/array/function prop 3개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | keyExtractor={(user) => user.id} |
-| Low | src/components/Screen.tsx | 30 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SafeAreaView style={styles.safe} edges={['top']}> |
+| Low | src/components/Screen.tsx | 31 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SafeAreaView style={styles.safe} edges={['top']}> |
 | Low | src/components/ui/Button.tsx | 19 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
-| Low | src/features/auth/components/universityVerification/UniversityVerificationContent.tsx | 179 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.checkRow, selected ? styles.checkRowSelected : null]} |
-| Low | src/features/auth/screens/OnboardingScreen.tsx | 18 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <PrimaryButton label="회원가입하고 시작" onPress={() => router.push('/signup')} /> |
-| Low | src/features/friends/components/FriendListCard.tsx | 56 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
+| Low | src/features/auth/components/universityVerification/UniversityVerificationContent.tsx | 180 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.checkRow, selected ? styles.checkRowSelected : null]} |
+| Low | src/features/auth/screens/OnboardingScreen.tsx | 19 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <PrimaryButton label="회원가입하고 시작" onPress={() => router.push('/signup')} /> |
+| Low | src/features/friends/components/FriendListCard.tsx | 57 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
 | Low | src/features/friends/components/FriendRankRow.tsx | 14 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Link href={{ pathname: '/friend-detail', params: { friendId: runner.id } }} asChild> |
-| Low | src/features/friends/screens/FriendDetailScreen.tsx | 24 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | href={{ pathname: '/run-detail', params: { runId: run.id, friendId } }} |
-| Low | src/features/integrations/components/IntegrationSourcesCards.tsx | 71 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.actionButton, styles.connectedBadge, isBusy && styles.actionButtonDisabled]} |
-| Low | src/features/integrations/NativeHealthReadinessCard.tsx | 25 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[styles.badge, badgeStyles[readiness.state]]}> |
-| Low | src/features/location/RegionSelection.tsx | 84 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.selectionChip, selected && styles.selectionChipSelected, disabled && styles.disabledButton]} |
-| Low | src/features/match/screens/MatchRecordScreen.tsx | 30 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Link href={{ pathname: '/run-detail', params: { runId: run.id } }} asChild> |
-| Low | src/features/profile/components/AccountActionsCard.tsx | 32 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
-| Low | src/features/profile/screens/EditProfileScreen.tsx | 53 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} /> |
-| Low | src/features/runs/components/LiveMatchExitActionCard.tsx | 72 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]} |
-| Low | src/features/runs/components/MatchResultPanel.tsx | 35 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
-| Low | src/features/runs/components/matchRoom/MatchRoomDistanceSettingsCard.tsx | 73 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.distanceChip, selected ? styles.distanceChipSelected : undefined]} |
-| Low | src/features/runs/components/matchRoom/MatchRoomInviteActionCard.tsx | 26 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
-| Low | src/features/runs/components/matchRoom/MatchRoomStartModeCard.tsx | 148 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.modeChip, selected ? styles.modeChipSelected : undefined]} |
-| Low | src/features/runs/components/matchRoom/MatchRoomWheelColumn.tsx | 49 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Text style={[styles.wheelItemText, isSelected ? styles.wheelItemTextSelected : undefined]}> |
-| Low | src/features/runs/components/PartyRunInviteCard.tsx | 37 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.declineButton, isBusy ? styles.buttonDisabled : undefined]} |
+| Low | src/features/friends/screens/FriendDetailScreen.tsx | 25 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | href={{ pathname: '/run-detail', params: { runId: run.id, friendId } }} |
+| Low | src/features/integrations/components/IntegrationSourcesCards.tsx | 72 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.actionButton, styles.connectedBadge, isBusy && styles.actionButtonDisabled]} |
+| Low | src/features/integrations/NativeHealthReadinessCard.tsx | 26 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[styles.badge, badgeStyles[readiness.state]]}> |
+| Low | src/features/location/RegionSelection.tsx | 85 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.selectionChip, selected && styles.selectionChipSelected, disabled && styles.disabledButton]} |
+| Low | src/features/match/screens/MatchRecordScreen.tsx | 31 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Link href={{ pathname: '/run-detail', params: { runId: run.id } }} asChild> |
+| Low | src/features/profile/components/AccountActionsCard.tsx | 33 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
+| Low | src/features/profile/screens/EditProfileScreen.tsx | 54 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} /> |
+| Low | src/features/runs/components/LiveMatchExitActionCard.tsx | 73 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]} |
+| Low | src/features/runs/components/MatchResultPanel.tsx | 36 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
+| Low | src/features/runs/components/matchRoom/MatchRoomDistanceSettingsCard.tsx | 74 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.distanceChip, selected ? styles.distanceChipSelected : undefined]} |
+| Low | src/features/runs/components/matchRoom/MatchRoomInviteActionCard.tsx | 27 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
+| Low | src/features/runs/components/matchRoom/MatchRoomStartModeCard.tsx | 149 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.modeChip, selected ? styles.modeChipSelected : undefined]} |
+| Low | src/features/runs/components/matchRoom/MatchRoomWheelColumn.tsx | 50 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Text style={[styles.wheelItemText, isSelected ? styles.wheelItemTextSelected : undefined]}> |
+| Low | src/features/runs/components/PartyRunInviteCard.tsx | 38 | inline style/object/array/function prop 2개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.declineButton, isBusy ? styles.buttonDisabled : undefined]} |
 | Low | app/_layout.tsx | 50 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Stack screenOptions={{ headerShown: false }}> |
 | Low | src/components/Card.tsx | 7 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | return <View style={[styles.card, style]} {...rest}>{children}</View>; |
-| Low | src/components/matches/AndroidLiveMatchPerfPanel.tsx | 50 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Text style={[styles.diagnosis, diagnosisStyle]}> |
-| Low | src/components/matches/MatchStartCountdownOverlay.tsx | 15 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[styles.overlay, variant === 'centered' ? styles.overlayCentered : null]} pointerEvents="none"> |
+| Low | src/components/matches/AndroidLiveMatchPerfPanel.tsx | 51 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Text style={[styles.diagnosis, diagnosisStyle]}> |
+| Low | src/components/matches/MatchStartCountdownOverlay.tsx | 16 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <View style={[styles.overlay, variant === 'centered' ? styles.overlayCentered : null]} pointerEvents="none"> |
 | Low | src/components/ranking/RankingItemRow.tsx | 28 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.row, friend && styles.friendRow, highlighted && styles.highlightedRow]} |
-| Low | src/features/auth/components/signup/SignupActionFooter.tsx | 28 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.primaryButton, disabled ? styles.disabledButton : null]} |
-| Low | src/features/friends/screens/AddFriendScreen.tsx | 75 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SecondaryButton label="친구 화면으로 돌아가기" onPress={() => router.replace('/(tabs)/friends')} /> |
-| Low | src/features/integrations/screens/ConnectSourcesScreen.tsx | 138 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[source.connected ? styles.badgeConnected : styles.badge, connecting && styles.badgeDisabled]} |
-| Low | src/features/integrations/screens/IntegrationManagementScreen.tsx | 119 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SecondaryButton label={backLabel} onPress={() => router.replace(backHref)} /> |
-| Low | src/features/integrations/screens/IntegrationsScreen.tsx | 102 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onAddManualRun={() => router.push('/add-run')} |
-| Low | src/features/running/components/RunMatchResultCard.tsx | 25 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
-| Low | src/features/running/components/RunPointBreakdownCard.tsx | 50 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Text style={[styles.pointBreakdownValue, highlight ? styles.pointBreakdownValueHighlight : null]}> |
-| Low | src/features/running/screens/AddRunScreen.tsx | 94 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SecondaryButton label="내 활동으로 돌아가기" onPress={() => router.replace('/my-activity')} /> |
-| Low | src/features/running/screens/RunDetailScreen.tsx | 82 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onPress={() => router.replace(backHref)} |
-| Low | src/features/runs/components/PartyRunParticipantListCard.tsx | 43 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.participantRow, participant.isInvitee ? styles.invitedParticipantRow : undefined]} |
-| Low | src/features/runs/components/RunningReadyScreen.tsx | 32 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Card style={[styles.readyCard, readyCardStyle]}> |
-| Low | src/features/settings/screens/RegionSettingsScreen.tsx | 88 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} /> |
+| Low | src/features/auth/components/signup/SignupActionFooter.tsx | 29 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.primaryButton, disabled ? styles.disabledButton : null]} |
+| Low | src/features/friends/screens/AddFriendScreen.tsx | 76 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SecondaryButton label="친구 화면으로 돌아가기" onPress={() => router.replace('/(tabs)/friends')} /> |
+| Low | src/features/integrations/screens/ConnectSourcesScreen.tsx | 139 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[source.connected ? styles.badgeConnected : styles.badge, connecting && styles.badgeDisabled]} |
+| Low | src/features/integrations/screens/IntegrationManagementScreen.tsx | 120 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SecondaryButton label={backLabel} onPress={() => router.replace(backHref)} /> |
+| Low | src/features/integrations/screens/IntegrationsScreen.tsx | 103 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onAddManualRun={() => router.push('/add-run')} |
+| Low | src/features/running/components/RunMatchResultCard.tsx | 26 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[ |
+| Low | src/features/running/components/RunPointBreakdownCard.tsx | 51 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Text style={[styles.pointBreakdownValue, highlight ? styles.pointBreakdownValueHighlight : null]}> |
+| Low | src/features/running/screens/AddRunScreen.tsx | 95 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SecondaryButton label="내 활동으로 돌아가기" onPress={() => router.replace('/my-activity')} /> |
+| Low | src/features/running/screens/RunDetailScreen.tsx | 83 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | onPress={() => router.replace(backHref)} |
+| Low | src/features/runs/components/PartyRunParticipantListCard.tsx | 44 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | style={[styles.participantRow, participant.isInvitee ? styles.invitedParticipantRow : undefined]} |
+| Low | src/features/runs/components/RunningReadyScreen.tsx | 33 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <Card style={[styles.readyCard, readyCardStyle]}> |
+| Low | src/features/settings/screens/RegionSettingsScreen.tsx | 89 | inline style/object/array/function prop 1개가 감지됐다. | 반복 렌더 경로라면 StyleSheet, 상수, useMemo/useCallback 또는 memoized row 컴포넌트로 분리한다. | <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} /> |
 
 ## 렌더 중 sort/filter/map 후보
 

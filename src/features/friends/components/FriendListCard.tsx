@@ -4,6 +4,7 @@ import type { ListRenderItem } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { FriendLeaderboardResponse } from '@/lib/api/types';
+import { colors } from '@/theme/tokens';
 
 type FriendRankItem = FriendLeaderboardResponse['ranks'][number];
 
@@ -126,7 +127,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   compareRow: {
     flexDirection: 'row',
@@ -137,7 +138,7 @@ const styles = StyleSheet.create({
   },
   friendItem: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSoft,
   },
   friendPrimaryAction: {
     flex: 1,
@@ -162,24 +163,24 @@ const styles = StyleSheet.create({
     width: 9,
     height: 9,
     borderRadius: 999,
-    backgroundColor: '#12B76A',
-    shadowColor: '#12B76A',
+    backgroundColor: colors.success,
+    shadowColor: colors.success,
     shadowOpacity: 0.28,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 0 },
   },
   friendLiveLabel: {
-    color: '#067647',
+    color: colors.successText,
     fontSize: 12,
     fontWeight: '700',
     includeFontPadding: false,
   },
   requestName: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   requestDetail: {
-    color: '#667085',
+    color: colors.textSecondary,
   },
   locationButton: {
     flexDirection: 'row',
@@ -187,36 +188,36 @@ const styles = StyleSheet.create({
     gap: 6,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: colors.border,
     paddingHorizontal: 12,
     paddingVertical: 9,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
   },
   locationButtonActive: {
-    borderColor: '#ABEFC6',
-    backgroundColor: '#ECFDF3',
+    borderColor: colors.successCardBorder,
+    backgroundColor: colors.successCard,
   },
   locationButtonDot: {
     width: 7,
     height: 7,
     borderRadius: 999,
-    backgroundColor: '#12B76A',
+    backgroundColor: colors.success,
   },
   locationButtonText: {
-    color: '#344054',
+    color: colors.textStrongMuted,
     fontSize: 12,
     fontWeight: '700',
     includeFontPadding: false,
   },
   locationButtonTextActive: {
-    color: '#067647',
+    color: colors.successText,
   },
   friendDetailButton: {
     paddingHorizontal: 4,
     paddingVertical: 8,
   },
   compareLink: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontWeight: '800',
   },
   liveLocationPanel: {
@@ -224,9 +225,9 @@ const styles = StyleSheet.create({
     marginTop: -2,
     marginLeft: 2,
     borderRadius: 16,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.indigoBorder,
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 5,
@@ -240,20 +241,20 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 999,
-    backgroundColor: '#12B76A',
+    backgroundColor: colors.success,
   },
   liveLocationTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '700',
     includeFontPadding: false,
   },
   liveLocationText: {
-    color: '#475467',
+    color: colors.textMuted,
     lineHeight: 20,
   },
   emptyText: {
-    color: '#667085',
+    color: colors.textSecondary,
     marginTop: 10,
   },
 });

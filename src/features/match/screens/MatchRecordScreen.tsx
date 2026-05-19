@@ -8,6 +8,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { useMatchRecords } from '@/features/match/hooks/useMatchRecords';
 import { MatchRecordRun } from '@/features/match/utils/matchRecordStats';
 import { formatDuration } from '@/features/runs/tracking';
+import { colors } from '@/theme/tokens';
 
 const MatchRecordRow = memo(function MatchRecordRow({ run }: { run: MatchRecordRun }) {
   const result = run.matchResult;
@@ -82,7 +83,7 @@ export default function MatchRecordScreen() {
         backHref="/(tabs)/mypage"
       />
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       {activity ? (
@@ -139,16 +140,16 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   summaryLabel: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontWeight: '700',
   },
   summaryValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: '800',
   },
   summaryValueSmall: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '800',
     lineHeight: 24,
@@ -159,7 +160,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   recordRow: {
     flexDirection: 'row',
@@ -168,28 +169,28 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSoft,
   },
   recordCopy: {
     flex: 1,
     gap: 3,
   },
   recordDate: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontSize: 12,
     fontWeight: '800',
   },
   recordTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '800',
   },
   recordMeta: {
-    color: '#475467',
+    color: colors.textMuted,
     lineHeight: 20,
   },
   recordSubMeta: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 18,
   },
@@ -198,33 +199,33 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 11,
     fontWeight: '800',
   },
   recordBadgeWin: {
-    backgroundColor: '#16A34A',
+    backgroundColor: colors.green,
   },
   recordBadgeLose: {
-    backgroundColor: '#DC2626',
+    backgroundColor: colors.dangerVivid,
   },
   recordBadgeNeutral: {
-    backgroundColor: '#475467',
+    backgroundColor: colors.textMuted,
   },
   emptyState: {
     paddingTop: 6,
     gap: 6,
   },
   emptyTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
   },
   emptyText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
   },
 });

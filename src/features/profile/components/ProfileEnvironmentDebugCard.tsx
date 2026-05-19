@@ -5,6 +5,7 @@ import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import type { MyProfileResponse } from '@/lib/api/types';
 import { getRgEnvironmentInfo } from '@/utils/rgEnvTrace';
+import { colors } from '@/theme/tokens';
 
 type ProfileEnvironmentDebugCardProps = {
   profile: MyProfileResponse | null;
@@ -61,8 +62,8 @@ export function ProfileEnvironmentDebugCard({ profile }: ProfileEnvironmentDebug
 const styles = StyleSheet.create({
   badge: {
     borderRadius: 999,
-    backgroundColor: '#EEF2FF',
-    color: '#4F46E5',
+    backgroundColor: colors.brandWash,
+    color: colors.brandStrong,
     fontSize: 11,
     fontWeight: '800',
     overflow: 'hidden',
@@ -79,13 +80,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   helper: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '600',
     lineHeight: 18,
   },
   label: {
-    color: '#667085',
+    color: colors.textSecondary,
     flexShrink: 0,
     fontSize: 11,
     fontWeight: '800',
@@ -94,7 +95,7 @@ const styles = StyleSheet.create({
   },
   row: {
     alignItems: 'flex-start',
-    borderTopColor: '#EAECF0',
+    borderTopColor: colors.borderSoft,
     borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     gap: 10,
@@ -104,7 +105,7 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   value: {
-    color: '#111827',
+    color: colors.textPrimary,
     flex: 1,
     fontSize: 12,
     fontWeight: '700',

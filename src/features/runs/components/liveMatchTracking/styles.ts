@@ -1,31 +1,32 @@
 import { StyleSheet } from 'react-native';
+import { colors } from '@/theme/tokens';
 
 export const liveMatchTrackingStyles = StyleSheet.create({
   mapCard: {
     gap: 14,
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
   },
   liveMatchCard: {
     gap: 5,
     padding: 14,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#374151',
-    backgroundColor: '#1F2937',
+    borderColor: colors.darkSoft,
+    backgroundColor: colors.darkMuted,
   },
   liveMatchEyebrow: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.4,
   },
   liveMatchTitle: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 18,
     fontWeight: '800',
   },
   liveMatchText: {
-    color: '#D0D5DD',
+    color: colors.border,
     lineHeight: 20,
   },
   groupLiveCard: {
@@ -33,16 +34,16 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     padding: 14,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#312E81',
-    backgroundColor: '#111827',
+    borderColor: colors.indigoDeep,
+    backgroundColor: colors.textPrimary,
   },
   duelLiveCard: {
     gap: 12,
     padding: 14,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#1D4ED8',
-    backgroundColor: '#0F172A',
+    borderColor: colors.blueStrong,
+    backgroundColor: colors.slateDark,
   },
   duelLiveHeader: {
     flexDirection: 'row',
@@ -52,12 +53,12 @@ export const liveMatchTrackingStyles = StyleSheet.create({
   },
   duelLiveBadge: {
     borderRadius: 999,
-    backgroundColor: '#172554',
+    backgroundColor: colors.blueInk,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
   duelLiveBadgeText: {
-    color: '#DBEAFE',
+    color: colors.blueWash,
     fontSize: 11,
     fontWeight: '800',
   },
@@ -81,12 +82,12 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     borderColor: 'rgba(239, 68, 68, 0.22)',
   },
   matchStatusBannerTitle: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 13,
     fontWeight: '800',
   },
   matchStatusBannerText: {
-    color: '#D0D5DD',
+    color: colors.border,
     fontSize: 12,
     lineHeight: 18,
   },
@@ -101,7 +102,7 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.16)',
   },
   matchStatusBannerActionText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 12,
     fontWeight: '800',
   },
@@ -116,12 +117,12 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     gap: 4,
   },
   groupLiveTitle: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 20,
     fontWeight: '800',
   },
   groupLiveSummary: {
-    color: '#D0D5DD',
+    color: colors.border,
     lineHeight: 20,
   },
   groupLiveGapRow: {
@@ -142,23 +143,23 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     borderColor: 'rgba(129, 140, 248, 0.22)',
   },
   groupLiveGapEyebrow: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 10,
     fontWeight: '800',
   },
   groupLiveGapText: {
-    color: '#F9FAFB',
+    color: colors.surfaceSubtleAlt,
     fontSize: 12,
     fontWeight: '800',
   },
   groupLiveBadge: {
     borderRadius: 999,
-    backgroundColor: '#3730A3',
+    backgroundColor: colors.indigoStrong,
     paddingHorizontal: 10,
     paddingVertical: 7,
   },
   groupLiveBadgeText: {
-    color: '#EEF2FF',
+    color: colors.brandWash,
     fontSize: 11,
     fontWeight: '800',
   },
@@ -180,7 +181,7 @@ export const liveMatchTrackingStyles = StyleSheet.create({
   },
   groupLiveRank: {
     width: 24,
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontWeight: '800',
   },
   groupLiveCopy: {
@@ -188,20 +189,20 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     gap: 2,
   },
   groupLiveName: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontWeight: '800',
   },
   groupLiveMeta: {
-    color: '#D0D5DD',
+    color: colors.border,
     fontSize: 12,
     lineHeight: 17,
   },
   groupLiveDistance: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontWeight: '800',
   },
   groupLiveFooter: {
-    color: '#D0D5DD',
+    color: colors.border,
     lineHeight: 20,
   },
 });

@@ -6,6 +6,7 @@ import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCount
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { LiveMatchContainer } from '@/features/runs/components/LiveMatchContainer';
 import { RunningReadyScreen } from '@/features/runs/components/RunningReadyScreen';
+import { colors } from '@/theme/tokens';
 import {
   TrackRunShellRouter,
   type TrackRunShellKind,
@@ -73,7 +74,7 @@ export function TrackRunExperienceView({
       ) : null}
       {shouldShowRoomArmingOverlay ? (
         <View style={styles.roomArmingOverlay}>
-          <ActivityIndicator size="large" color="#FFFFFF" />
+          <ActivityIndicator size="large" color={colors.white} />
           <Text style={styles.roomArmingOverlayTitle}>로딩중...</Text>
           <Text style={styles.roomArmingOverlayText}>
             대결 화면을 맞추는 중이에요. 잠시 뒤 모든 참가자에게 같은 카운트다운이 보여요.
@@ -107,7 +108,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     marginTop: 12,
   },
@@ -121,12 +122,12 @@ const styles = StyleSheet.create({
     zIndex: 30,
   },
   roomArmingOverlayTitle: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 30,
     fontWeight: '800',
   },
   roomArmingOverlayText: {
-    color: '#D6D9F9',
+    color: colors.lavenderSoft,
     fontSize: 15,
     fontWeight: '600',
     textAlign: 'center',
@@ -150,33 +151,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 34,
     paddingHorizontal: 26,
-    shadowColor: '#111827',
+    shadowColor: colors.textPrimary,
     shadowOpacity: 0.22,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 16 },
     elevation: 8,
   },
   soloStartCountdownEyebrow: {
-    color: '#8D84FF',
+    color: colors.brandLavender,
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 1.6,
   },
   soloStartCountdownTitle: {
     marginTop: 8,
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 24,
     fontWeight: '900',
   },
   soloStartCountdownNumber: {
     marginTop: 10,
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 120,
     fontWeight: '900',
     lineHeight: 128,
   },
   soloStartCountdownText: {
-    color: '#D6D9F9',
+    color: colors.lavenderSoft,
     fontSize: 14,
     fontWeight: '700',
     textAlign: 'center',

@@ -4,6 +4,7 @@ import { Card } from '@/components/Card';
 import type { RunningMatchRoomStartMode } from '@/lib/api/types';
 import { MatchRoomWheelColumn } from '@/features/runs/components/matchRoom/MatchRoomWheelColumn';
 import type { MatchRoomMeridiem } from '@/features/runs/types/matchRoom';
+import { colors } from '@/theme/tokens';
 import {
   MATCH_ROOM_HOUR_OPTIONS,
   MATCH_ROOM_MINUTE_OPTIONS,
@@ -158,7 +159,7 @@ const StartModeChip = memo(function StartModeChip({
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '800',
   },
@@ -171,26 +172,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: colors.border,
     paddingVertical: 12,
   },
   modeChipSelected: {
-    borderColor: '#818CF8',
-    backgroundColor: '#EEF2FF',
+    borderColor: colors.brandLight,
+    backgroundColor: colors.brandWash,
   },
   modeChipText: {
-    color: '#344054',
+    color: colors.textStrongMuted,
     fontWeight: '700',
   },
   modeChipTextSelected: {
-    color: '#4338CA',
+    color: colors.brandDeep,
   },
   scheduleBox: {
     gap: 12,
     marginTop: 12,
   },
   scheduleTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '800',
   },
@@ -201,7 +202,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   helperText: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },

@@ -15,6 +15,7 @@ import {
 } from '@/features/integrations/sourceCatalog';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { getRecommendedNativeHealthReadiness } from '@/integrations/nativeHealth';
+import { colors } from '@/theme/tokens';
 
 export default function IntegrationsScreen() {
   const {
@@ -64,7 +65,7 @@ export default function IntegrationsScreen() {
         {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
       </Card>
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {!loading && error ? (
         <Card>
           <Text style={styles.errorTitle}>연동 상태를 아직 못 불러왔어</Text>
@@ -110,14 +111,14 @@ export default function IntegrationsScreen() {
 
 const styles = StyleSheet.create({
   header: { gap: 6 },
-  title: { fontSize: 28, fontWeight: '800', color: '#101828' },
-  subtitle: { color: '#475467', lineHeight: 21 },
-  tipTitle: { fontSize: 16, fontWeight: '800', color: '#111827' },
-  tipBody: { color: '#475467', lineHeight: 21, marginTop: 6 },
-  policyText: { color: '#667085', lineHeight: 20, marginTop: 8 },
-  coverageText: { color: '#6D5EF7', fontWeight: '700', marginTop: 8 },
-  syncText: { color: '#475467', lineHeight: 20, marginTop: 8 },
-  successText: { color: '#067647', fontWeight: '700', marginTop: 8, lineHeight: 20 },
-  errorTitle: { color: '#111827', fontWeight: '800', fontSize: 18 },
-  errorText: { color: '#B42318', fontWeight: '700', lineHeight: 20, marginTop: 10 },
+  title: { fontSize: 28, fontWeight: '800', color: colors.textHeading },
+  subtitle: { color: colors.textMuted, lineHeight: 21 },
+  tipTitle: { fontSize: 16, fontWeight: '800', color: colors.textPrimary },
+  tipBody: { color: colors.textMuted, lineHeight: 21, marginTop: 6 },
+  policyText: { color: colors.textSecondary, lineHeight: 20, marginTop: 8 },
+  coverageText: { color: colors.brand, fontWeight: '700', marginTop: 8 },
+  syncText: { color: colors.textMuted, lineHeight: 20, marginTop: 8 },
+  successText: { color: colors.successText, fontWeight: '700', marginTop: 8, lineHeight: 20 },
+  errorTitle: { color: colors.textPrimary, fontWeight: '800', fontSize: 18 },
+  errorText: { color: colors.danger, fontWeight: '700', lineHeight: 20, marginTop: 10 },
 });

@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { formatDuration } from '@/features/runs/tracking';
 import type { RunDetailResponse } from '@/lib/api/types';
+import { colors } from '@/theme/tokens';
 
 type RunRecord = RunDetailResponse['run'];
 
@@ -48,7 +49,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   detailRow: {
     flexDirection: 'row',
@@ -56,14 +57,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSoft,
   },
   detailLabel: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontWeight: '700',
   },
   detailValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
 });

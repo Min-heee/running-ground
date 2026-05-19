@@ -5,6 +5,7 @@ import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import type { MatchRoomParticipantUxStatus, MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
 import type { RunningMatchRoom } from '@/lib/api/types';
+import { colors } from '@/theme/tokens';
 
 type PartyRunParticipantListCardProps = {
   room: RunningMatchRoom;
@@ -107,7 +108,7 @@ export function PartyRunParticipantListCard({
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '800',
   },
@@ -119,14 +120,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderRadius: 16,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSoft,
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
   invitedParticipantRow: {
     borderWidth: 1,
-    borderColor: '#C7D2FE',
-    backgroundColor: '#EEF2FF',
+    borderColor: colors.brandLighter,
+    backgroundColor: colors.brandWash,
   },
   participantIdentity: {
     flexDirection: 'row',
@@ -134,47 +135,47 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   participantName: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 16,
     fontWeight: '800',
   },
   hostBadge: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontSize: 12,
     fontWeight: '800',
   },
   invitedBadge: {
-    color: '#4338CA',
+    color: colors.brandDeep,
     fontSize: 12,
     fontWeight: '800',
   },
   readyText: {
-    color: '#1570EF',
+    color: colors.blueAccent,
     fontSize: 14,
     fontWeight: '800',
   },
   loadingText: {
-    color: '#F79009',
+    color: colors.warning,
     fontSize: 14,
     fontWeight: '800',
   },
   hostStatusText: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontSize: 14,
     fontWeight: '800',
   },
   pendingText: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: '700',
   },
   invitedStatusText: {
-    color: '#4338CA',
+    color: colors.brandDeep,
     fontSize: 14,
     fontWeight: '900',
   },
   helperText: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 20,
   },

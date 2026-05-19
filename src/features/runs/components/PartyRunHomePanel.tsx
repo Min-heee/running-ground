@@ -11,6 +11,7 @@ import { hydrateOptimisticMatchRoom } from '@/features/match/hooks/lobby/optimis
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+import { colors } from '@/theme/tokens';
 
 type PartyRunHomePanelProps = {
   visibleRoom: RunningMatchRoom | null;
@@ -134,7 +135,7 @@ export function PartyRunHomePanel({
                   value={inviteTokenInput}
                   onChangeText={onInviteTokenChange}
                   placeholder="예: AB12CD"
-                  placeholderTextColor="#98A2B3"
+                  placeholderTextColor={colors.textTertiary}
                   autoCapitalize="characters"
                   onFocus={() => {
                     beginRgInputTrace('invite code input focus', {
@@ -163,12 +164,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#818CF8',
-    backgroundColor: '#EEF2FF',
+    borderColor: colors.brandLight,
+    backgroundColor: colors.brandWash,
     paddingVertical: 14,
   },
   partyRoomEntryButtonText: {
-    color: '#4338CA',
+    color: colors.brandDeep,
     fontSize: 16,
     fontWeight: '900',
   },
@@ -184,38 +185,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#111827',
+    borderColor: colors.slateMuted,
+    backgroundColor: colors.textPrimary,
     paddingVertical: 14,
   },
   roomModeChipSelected: {
-    borderColor: '#818CF8',
-    backgroundColor: '#282061',
+    borderColor: colors.brandLight,
+    backgroundColor: colors.purpleInk,
   },
   roomModeChipText: {
-    color: '#E5E7EB',
+    color: colors.borderMuted,
     fontSize: 15,
     fontWeight: '900',
   },
   roomModeChipTextSelected: {
-    color: '#FFFFFF',
+    color: colors.white,
   },
   roomJoinBox: {
     gap: 10,
   },
   roomPickerTitle: {
-    color: '#E5E7EB',
+    color: colors.borderMuted,
     fontSize: 14,
     fontWeight: '800',
   },
   roomInput: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#334155',
-    backgroundColor: '#0F172A',
+    borderColor: colors.slateMuted,
+    backgroundColor: colors.slateDark,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 15,
     fontWeight: '800',
   },

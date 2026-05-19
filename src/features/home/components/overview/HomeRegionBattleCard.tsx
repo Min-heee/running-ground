@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
+import { colors } from '@/theme/tokens';
 
 type HomeRegionBattleCardProps = {
   districtName: string;
@@ -32,16 +33,16 @@ export function HomeRegionBattleCard({
 
 const styles = StyleSheet.create({
   regionCard: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     gap: 10,
   },
   darkEyebrow: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontWeight: '700',
     fontSize: 12,
   },
   regionTitle: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 30,
     fontWeight: '800',
   },
@@ -51,17 +52,17 @@ const styles = StyleSheet.create({
   },
   regionMetricBox: {
     flex: 1,
-    backgroundColor: '#1F2937',
+    backgroundColor: colors.darkMuted,
     borderRadius: 16,
     padding: 14,
     gap: 4,
   },
   regionMetricLabel: {
-    color: '#D0D5DD',
+    color: colors.border,
     fontSize: 12,
   },
   regionMetricValue: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 22,
     fontWeight: '800',
   },

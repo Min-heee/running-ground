@@ -9,6 +9,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { ActivityRun, useMyActivity } from '@/features/profile/hooks/useMyActivity';
 import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
+import { colors } from '@/theme/tokens';
 
 const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun }) {
   return (
@@ -40,7 +41,7 @@ export default function MyActivityScreen() {
         backHref="/(tabs)/mypage"
       />
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {error ? <Text>{error}</Text> : null}
 
       {activity ? (
@@ -99,23 +100,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   summaryLabel: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontWeight: '700',
   },
   summaryValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: '800',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   recordRow: {
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSoft,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -126,14 +127,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   recordDate: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   recordDetail: {
-    color: '#667085',
+    color: colors.textSecondary,
   },
   recordLink: {
-    color: '#6D5EF7',
+    color: colors.brand,
     fontWeight: '800',
   },
   emptyState: {
@@ -141,11 +142,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   emptyTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
   },
   emptyText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
 });

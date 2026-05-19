@@ -11,6 +11,7 @@ import {
   resetPasswordByIdentity,
 } from '@/lib/session';
 import { getApiErrorMessage } from '@/services';
+import { colors } from '@/theme/tokens';
 
 function formatPhoneInput(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -146,7 +147,7 @@ export default function AccountRecoveryScreen() {
             placeholder="1990-01-01"
           />
           <Pressable style={[styles.primaryButton, finding ? styles.disabledButton : null]} onPress={handleFindUsername} disabled={finding}>
-            {finding ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>아이디 찾기</Text>}
+            {finding ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>아이디 찾기</Text>}
           </Pressable>
           {foundUsername ? <Text style={styles.resultText}>가입된 아이디: {foundUsername}</Text> : null}
           {findMessage ? <Text style={styles.helperText}>{findMessage}</Text> : null}
@@ -200,7 +201,7 @@ export default function AccountRecoveryScreen() {
           {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
           {passwordConfirmError ? <Text style={styles.errorText}>{passwordConfirmError}</Text> : null}
           <Pressable style={[styles.primaryButton, resetting ? styles.disabledButton : null]} onPress={handleResetPassword} disabled={resetting}>
-            {resetting ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.primaryButtonText}>비밀번호 바꾸기</Text>}
+            {resetting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>비밀번호 바꾸기</Text>}
           </Pressable>
           {resetMessage ? <Text style={styles.helperText}>{resetMessage}</Text> : null}
         </View>
@@ -229,7 +230,7 @@ function Field({
       <Text style={styles.label}>{label}</Text>
       {helperText ? <Text style={styles.helperText}>{helperText}</Text> : null}
       <TextInput
-        placeholderTextColor="#98A2B3"
+        placeholderTextColor={colors.textTertiary}
         style={styles.input}
         {...props}
       />
@@ -241,7 +242,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   form: {
     gap: 12,
@@ -253,30 +254,30 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   helperText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 19,
     fontSize: 13,
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.borderMuted,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: '#111827',
+    color: colors.textPrimary,
   },
   primaryButton: {
-    backgroundColor: '#6D5EF7',
+    backgroundColor: colors.brand,
     borderRadius: 16,
     paddingVertical: 15,
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontWeight: '800',
     fontSize: 15,
   },
@@ -284,12 +285,12 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   resultText: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 15,
     fontWeight: '800',
   },
   errorText: {
-    color: '#D92D20',
+    color: colors.dangerBright,
     lineHeight: 19,
     fontSize: 13,
   },

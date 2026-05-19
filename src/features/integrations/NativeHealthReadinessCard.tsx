@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { ConnectedSource } from '@/domain';
 import { getRecommendedNativeHealthReadiness } from '@/integrations/nativeHealth';
+import { colors } from '@/theme/tokens';
 
 export function NativeHealthReadinessCard({
   sources,
@@ -54,17 +55,17 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   sectionTitle: {
-    color: '#6B7280',
+    color: colors.textNeutral,
     fontWeight: '700',
     fontSize: 12,
   },
   title: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '800',
   },
   description: {
-    color: '#475467',
+    color: colors.textMuted,
     lineHeight: 21,
   },
   badge: {
@@ -85,43 +86,43 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   stepText: {
-    color: '#344054',
+    color: colors.textStrongMuted,
     lineHeight: 20,
   },
 });
 
 const badgeStyles = StyleSheet.create({
   mobile_required: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
   },
   connect_source_first: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.warningSoft,
   },
   wrong_platform: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
   },
   needs_custom_build: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.warningSoft,
   },
   config_ready: {
-    backgroundColor: '#ECFDF3',
+    backgroundColor: colors.successCard,
   },
 });
 
 const badgeTextStyles = StyleSheet.create({
   mobile_required: {
-    color: '#374151',
+    color: colors.darkSoft,
   },
   connect_source_first: {
-    color: '#92400E',
+    color: colors.podiumBronzeText,
   },
   wrong_platform: {
-    color: '#374151',
+    color: colors.darkSoft,
   },
   needs_custom_build: {
-    color: '#92400E',
+    color: colors.podiumBronzeText,
   },
   config_ready: {
-    color: '#067647',
+    color: colors.successText,
   },
 });

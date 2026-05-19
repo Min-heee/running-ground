@@ -7,6 +7,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RegionChipSection } from '@/features/location/RegionSelection';
 import { useRegionSettings } from '@/features/settings/hooks/useRegionSettings';
+import { colors } from '@/theme/tokens';
 
 export default function RegionSettingsScreen() {
   const {
@@ -41,7 +42,7 @@ export default function RegionSettingsScreen() {
         backHref="/(tabs)/mypage"
       />
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
 
       {!loading ? (
         <>
@@ -97,28 +98,28 @@ export default function RegionSettingsScreen() {
 const styles = StyleSheet.create({
   list: { gap: 10 },
   selectedCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.indigoBorder,
     borderRadius: 16,
     padding: 14,
     gap: 4,
   },
   selectedLabel: {
-    color: '#475467',
+    color: colors.textMuted,
     fontWeight: '700',
     fontSize: 12,
   },
   selectedValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
   },
   savedText: {
-    color: '#067647',
+    color: colors.successText,
     fontWeight: '700',
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     lineHeight: 20,
   },

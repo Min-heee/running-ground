@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { MyProfileResponse } from '@/lib/api/types';
+import { colors } from '@/theme/tokens';
 
 type ProfileSummaryCardProps = {
   profile: MyProfileResponse;
@@ -68,12 +69,12 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 99,
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatarText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 24,
     fontWeight: '800',
   },
@@ -84,27 +85,27 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#101828',
+    color: colors.textHeading,
   },
   subline: {
-    color: '#667085',
+    color: colors.textSecondary,
   },
   profileTagRow: {
     gap: 4,
   },
   tagLabel: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
   },
   tag: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
     fontSize: 16,
   },
   profileHint: {
     fontSize: 12,
-    color: '#667085',
+    color: colors.textSecondary,
     fontWeight: '700',
   },
   inlineActions: {
@@ -113,16 +114,16 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   inlineActionButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: colors.border,
   },
   inlineActionText: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
     fontSize: 12,
   },

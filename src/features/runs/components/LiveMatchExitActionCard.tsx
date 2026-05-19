@@ -6,6 +6,7 @@ import type { MatchExitActionState } from '@/features/runs/lifecycle/matchExitAc
 import type { MatchExitSource } from '@/features/runs/lifecycle/matchExitFlow';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
+import { colors } from '@/theme/tokens';
 
 export type LiveMatchExitActionCardProps = {
   source: MatchExitSource | null;
@@ -121,23 +122,23 @@ function areMatchExitActionStatesEqual(
 const styles = StyleSheet.create({
   testExitCard: {
     gap: 10,
-    borderColor: '#818CF8',
+    borderColor: colors.brandLight,
     borderWidth: 1,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandWash,
   },
   card: {
     gap: 10,
-    borderColor: '#FECACA',
+    borderColor: colors.dangerBorder,
     borderWidth: 1,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colors.dangerSurface,
   },
   title: {
-    color: '#7F1D1D',
+    color: colors.dangerDeep,
     fontSize: 16,
     fontWeight: '900',
   },
   text: {
-    color: '#B42318',
+    color: colors.danger,
     fontSize: 13,
     fontWeight: '700',
     lineHeight: 20,
@@ -146,7 +147,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     minHeight: 50,
     borderRadius: 16,
-    backgroundColor: '#D92D20',
+    backgroundColor: colors.dangerBright,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
@@ -155,7 +156,7 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   buttonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 15,
     fontWeight: '900',
   },

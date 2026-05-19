@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StreakCalendarCell, WeeklyPointTrack } from '@/features/points/pointSystem';
+import { colors } from '@/theme/tokens';
 
 type HomePointCalendarProps = {
   calendar: NonNullable<WeeklyPointTrack['calendar']>;
@@ -134,30 +135,30 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   calendarNavButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 5,
   },
   calendarNavButtonText: {
-    color: '#344054',
+    color: colors.textStrongMuted,
     fontSize: 11,
     fontWeight: '800',
     includeFontPadding: false,
   },
   calendarNavButtonCurrent: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
   },
   calendarNavButtonCurrentText: {
-    color: '#FFFFFF',
+    color: colors.white,
   },
   calendarMonth: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 13,
     fontWeight: '800',
   },
   calendarMeta: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -167,7 +168,7 @@ const styles = StyleSheet.create({
   calendarWeekday: {
     flex: 1,
     textAlign: 'center',
-    color: '#98A2B3',
+    color: colors.textTertiary,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -182,7 +183,7 @@ const styles = StyleSheet.create({
     flex: 1,
     aspectRatio: 1.12,
     borderRadius: 10,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
     alignItems: 'flex-start',
     justifyContent: 'flex-start',
     padding: 4,
@@ -192,18 +193,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   calendarCellActive: {
-    backgroundColor: '#E8F0FF',
+    backgroundColor: colors.bluePale,
   },
   calendarDay: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 11,
     fontWeight: '700',
   },
   calendarDayActive: {
-    color: '#1D4ED8',
+    color: colors.blueStrong,
   },
   calendarReward: {
-    color: '#1D4ED8',
+    color: colors.blueStrong,
     fontSize: 9,
     fontWeight: '800',
     includeFontPadding: false,

@@ -4,6 +4,7 @@ import type { ListRenderItem } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { FriendRequest } from '@/domain';
+import { colors } from '@/theme/tokens';
 
 type FriendRequestsCardProps = {
   received: FriendRequest[];
@@ -148,7 +149,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   requestRow: {
     flexDirection: 'row',
@@ -157,7 +158,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSoft,
   },
   requestMeta: {
     flex: 1,
@@ -169,54 +170,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   requestName: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   requestDetail: {
-    color: '#667085',
+    color: colors.textSecondary,
   },
   acceptButton: {
-    backgroundColor: '#6D5EF7',
+    backgroundColor: colors.brand,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   ghostButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
+    borderColor: colors.border,
   },
   acceptButtonText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontWeight: '800',
   },
   ghostButtonText: {
-    color: '#344054',
+    color: colors.textStrongMuted,
     fontWeight: '800',
   },
   pendingBadge: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandWash,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   pendingBadgeText: {
-    color: '#4F46E5',
+    color: colors.brandStrong,
     fontWeight: '800',
   },
   disabledButton: {
     opacity: 0.6,
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     lineHeight: 20,
   },
   emptyText: {
-    color: '#667085',
+    color: colors.textSecondary,
     marginTop: 10,
   },
 });

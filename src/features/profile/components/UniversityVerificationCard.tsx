@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import type { MyProfileResponse } from '@/lib/api/types';
+import { colors } from '@/theme/tokens';
 
 type UniversityVerificationCardProps = {
   profile: MyProfileResponse;
@@ -37,7 +38,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionLink: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -45,12 +46,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   universityVerificationStatusValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 17,
     fontWeight: '800',
   },
   universityVerificationHint: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 18,
     fontSize: 12,
   },

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { MATCH_ROOM_DISTANCE_OPTIONS } from '@/features/runs/utils/matchRoomScheduling';
+import { colors } from '@/theme/tokens';
 
 type MatchRoomDistanceSettingsCardProps = {
   distanceKm: number;
@@ -44,7 +45,7 @@ export function MatchRoomDistanceSettingsCard({
           onEndEditing={onApplyCustomDistance}
           keyboardType="decimal-pad"
           placeholder="직접 입력 예: 12.5"
-          placeholderTextColor="#98A2B3"
+          placeholderTextColor={colors.textTertiary}
           style={styles.distanceInput}
         />
         <SecondaryButton label="적용" onPress={onApplyCustomDistance} disabled={saving} />
@@ -83,7 +84,7 @@ const DistanceOptionChip = memo(function DistanceOptionChip({
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '800',
   },
@@ -102,30 +103,30 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
-    backgroundColor: '#F8FAFC',
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceSoft,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   distanceChip: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.border,
+    backgroundColor: colors.white,
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
   distanceChipSelected: {
-    borderColor: '#818CF8',
-    backgroundColor: '#EEF2FF',
+    borderColor: colors.brandLight,
+    backgroundColor: colors.brandWash,
   },
   distanceChipText: {
-    color: '#344054',
+    color: colors.textStrongMuted,
     fontWeight: '700',
   },
   distanceChipTextSelected: {
-    color: '#4338CA',
+    color: colors.brandDeep,
   },
 });

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
+import { colors } from '@/theme/tokens';
 
 type ProfileSettingsCardProps = {
   onDebugUnlockPress?: () => void;
@@ -51,7 +52,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   sectionLink: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -64,14 +65,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#EAECF0',
+    borderTopColor: colors.borderSoft,
   },
   settingLabel: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   settingValue: {
-    color: '#667085',
+    color: colors.textSecondary,
     fontWeight: '700',
   },
 });

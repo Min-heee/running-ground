@@ -6,6 +6,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { useAddRunForm } from '@/features/running/hooks/useAddRunForm';
+import { colors } from '@/theme/tokens';
 
 export default function AddRunScreen() {
   const {
@@ -41,7 +42,7 @@ export default function AddRunScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             placeholder="2026-04-15"
-            placeholderTextColor="#98A2B3"
+            placeholderTextColor={colors.textTertiary}
             style={styles.input}
             editable={!submitting}
           />
@@ -54,7 +55,7 @@ export default function AddRunScreen() {
             onChangeText={setDistanceKm}
             keyboardType="decimal-pad"
             placeholder="예: 5.2"
-            placeholderTextColor="#98A2B3"
+            placeholderTextColor={colors.textTertiary}
             style={styles.input}
             editable={!submitting}
           />
@@ -68,7 +69,7 @@ export default function AddRunScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             placeholder="예: 05:45/km"
-            placeholderTextColor="#98A2B3"
+            placeholderTextColor={colors.textTertiary}
             style={styles.input}
             editable={!submitting}
           />
@@ -83,7 +84,7 @@ export default function AddRunScreen() {
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        {submitting ? <ActivityIndicator size="small" color="#6D5EF7" /> : null}
+        {submitting ? <ActivityIndicator size="small" color={colors.brand} /> : null}
         <PrimaryButton label={submitting ? '기록 저장 중...' : '기록 저장하기'} onPress={handleSubmit} />
       </Card>
 
@@ -101,7 +102,7 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   sectionTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '800',
   },
@@ -109,34 +110,34 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   fieldLabel: {
-    color: '#344054',
+    color: colors.textStrongMuted,
     fontWeight: '700',
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: colors.borderMuted,
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: '#111827',
+    color: colors.textPrimary,
   },
   tipBox: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: colors.surfaceSubtle,
     borderRadius: 18,
     padding: 14,
     gap: 6,
   },
   tipTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
   },
   tipText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     lineHeight: 20,
   },
@@ -146,7 +147,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   todayButtonText: {
-    color: '#475467',
+    color: colors.textMuted,
     fontWeight: '700',
   },
 });

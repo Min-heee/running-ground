@@ -1,29 +1,30 @@
 import { StyleSheet } from 'react-native';
+import { colors } from '@/theme/tokens';
 
 export const liveMatchRaceBoardStyles = StyleSheet.create({
   card: {
     gap: 18,
     borderRadius: 30,
     borderWidth: 1,
-    borderColor: '#1F2A44',
-    backgroundColor: '#0F172A',
+    borderColor: colors.navyBorder,
+    backgroundColor: colors.slateDark,
     paddingHorizontal: 16,
     paddingVertical: 22,
   },
   eyebrow: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 3,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 29,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
   subtitle: {
-    color: '#E5E7EB',
+    color: colors.borderMuted,
     fontSize: 17,
     lineHeight: 27,
   },
@@ -56,24 +57,24 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     gap: 4,
   },
   rankText: {
-    color: '#A5B4FC',
+    color: colors.brandTint,
     fontSize: 16,
     fontWeight: '800',
   },
   rankTextForfeited: {
-    color: '#FCA5A5',
+    color: colors.dangerLight,
   },
   nameText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 19,
     fontWeight: '800',
     lineHeight: 23,
   },
   nameTextCurrent: {
-    color: '#E0E7FF',
+    color: colors.brandWashStrong,
   },
   nameTextForfeited: {
-    color: '#FECACA',
+    color: colors.dangerBorder,
   },
   trackColumn: {
     flex: 1,
@@ -114,33 +115,33 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 999,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.white,
     borderWidth: 6,
-    borderColor: '#6D5EF7',
+    borderColor: colors.brand,
     alignItems: 'center',
     justifyContent: 'center',
   },
   trackDotCurrent: {
-    borderColor: '#7C6DFF',
+    borderColor: colors.brandAccentLight,
   },
   trackDotForfeited: {
     width: 38,
     height: 38,
     marginTop: -19,
     marginLeft: -19,
-    backgroundColor: '#EF4444',
+    backgroundColor: colors.dangerAccent,
     borderWidth: 2,
-    borderColor: '#FECACA',
+    borderColor: colors.dangerBorder,
   },
   trackDotForfeitedText: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 10,
     fontWeight: '900',
   },
   distanceText: {
     position: 'absolute',
     top: 28,
-    color: '#E0E7FF',
+    color: colors.brandWashStrong,
     fontSize: 18,
     fontWeight: '800',
   },
@@ -159,12 +160,12 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     justifyContent: 'center',
   },
   metaRemaining: {
-    color: '#CBD5E1',
+    color: colors.borderCool,
     fontSize: 17,
     fontWeight: '800',
     textAlign: 'right',
   },
   metaRemainingForfeited: {
-    color: '#FCA5A5',
+    color: colors.dangerLight,
   },
 });

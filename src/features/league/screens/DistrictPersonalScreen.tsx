@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { type DistrictPersonalRank, useDistrictPersonal } from '@/features/league/hooks/useDistrictPersonal';
+import { colors } from '@/theme/tokens';
 
 const DistrictPersonalRankRow = memo(function DistrictPersonalRankRow({ runner }: { runner: DistrictPersonalRank }) {
   return (
@@ -37,7 +38,7 @@ export default function DistrictPersonalScreen() {
         backHref="/(tabs)/league"
       />
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
 
       {!loading && error ? (
         <Card>
@@ -109,16 +110,16 @@ export default function DistrictPersonalScreen() {
 
 const styles = StyleSheet.create({
   heroCard: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     gap: 10,
   },
   heroLabel: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontWeight: '700',
     fontSize: 12,
   },
   heroTitle: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 30,
     fontWeight: '800',
   },
@@ -128,26 +129,26 @@ const styles = StyleSheet.create({
   },
   heroMetricBox: {
     flex: 1,
-    backgroundColor: '#1F2937',
+    backgroundColor: colors.darkMuted,
     borderRadius: 16,
     padding: 14,
     gap: 4,
   },
   heroMetricValue: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 22,
     fontWeight: '800',
   },
   heroMetricLabel: {
-    color: '#D0D5DD',
+    color: colors.border,
   },
   heroFootnote: {
-    color: '#98A2B3',
+    color: colors.textTertiary,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   rankRow: {
     flexDirection: 'row',
@@ -155,41 +156,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSoft,
   },
   meRow: {
-    backgroundColor: '#F5F3FF',
+    backgroundColor: colors.purpleRow,
     borderRadius: 14,
     paddingHorizontal: 10,
   },
   rankNumber: {
     width: 24,
     fontWeight: '800',
-    color: '#344054',
+    color: colors.textStrongMuted,
   },
   rankMeta: {
     flex: 1,
     gap: 2,
   },
   rankName: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   rankDetail: {
-    color: '#667085',
+    color: colors.textSecondary,
   },
   stateTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 18,
     fontWeight: '800',
   },
   errorText: {
-    color: '#B42318',
+    color: colors.danger,
     fontWeight: '700',
     lineHeight: 20,
   },
   emptyText: {
-    color: '#667085',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
 });

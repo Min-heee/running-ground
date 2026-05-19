@@ -2,6 +2,7 @@ import { StyleSheet, Text } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { AppNotice } from '@/domain';
+import { colors } from '@/theme/tokens';
 
 type HomeNoticeCardProps = {
   notice: AppNotice;
@@ -19,22 +20,22 @@ export function HomeNoticeCard({ notice }: HomeNoticeCardProps) {
 
 const styles = StyleSheet.create({
   noticeCard: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.textPrimary,
     gap: 6,
   },
   noticeLabel: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.4,
   },
   noticeTitle: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 18,
     fontWeight: '900',
   },
   noticeMessage: {
-    color: '#D0D5DD',
+    color: colors.border,
     lineHeight: 21,
   },
 });

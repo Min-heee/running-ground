@@ -6,6 +6,7 @@ import NativeMapView, {
 import { StyleSheet } from 'react-native';
 import type { RunMapRegion } from './tracking';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
+import { colors } from '@/theme/tokens';
 
 type Coordinate = {
   latitude: number;
@@ -41,12 +42,12 @@ export const RunRouteMap = memo(function RunRouteMap({
   );
   const plannedRoute = useMemo(() => (
     plannedRouteCoordinates.length > 1
-      ? <NativePolyline coordinates={plannedRouteCoordinates} strokeColor="#CBD5E1" strokeWidth={4} lineDashPattern={PLANNED_ROUTE_DASH_PATTERN} />
+      ? <NativePolyline coordinates={plannedRouteCoordinates} strokeColor={colors.borderCool} strokeWidth={4} lineDashPattern={PLANNED_ROUTE_DASH_PATTERN} />
       : null
   ), [plannedRouteCoordinates]);
   const actualRoute = useMemo(() => (
     actualRouteCoordinates.length > 1
-      ? <NativePolyline coordinates={actualRouteCoordinates} strokeColor="#6D5EF7" strokeWidth={5} />
+      ? <NativePolyline coordinates={actualRouteCoordinates} strokeColor={colors.brand} strokeWidth={5} />
       : null
   ), [actualRouteCoordinates]);
   const latestMarker = useMemo(() => (

@@ -3,6 +3,7 @@ import { PASSWORD_RULE_DESCRIPTION, USERNAME_RULE_DESCRIPTION } from '@/lib/sess
 import { SignupInput, ValidationItem } from './SignupFormPrimitives';
 import { signupFormStyles as styles } from './signupFormStyles';
 import type { SignupFormModel } from './types';
+import { colors } from '@/theme/tokens';
 
 type SignupCredentialsSectionProps = Pick<
   SignupFormModel,
@@ -56,7 +57,7 @@ export function SignupCredentialsSection({
         <View style={styles.inlineInputRow}>
           <TextInput
             placeholder="아이디를 입력하세요"
-            placeholderTextColor="#98A2B3"
+            placeholderTextColor={colors.textTertiary}
             style={[styles.input, styles.inlineInput, !submitting && !checkingUsername ? null : styles.inputDisabled]}
             value={username}
             onChangeText={handleUsernameChange}
@@ -99,7 +100,7 @@ export function SignupCredentialsSection({
         <Text style={styles.helperText}>{PASSWORD_RULE_DESCRIPTION}</Text>
         <TextInput
           placeholder="비밀번호를 입력하세요"
-          placeholderTextColor="#98A2B3"
+          placeholderTextColor={colors.textTertiary}
           style={[styles.input, submitting && styles.inputDisabled]}
           secureTextEntry={!passwordVisible}
           value={password}
@@ -110,7 +111,7 @@ export function SignupCredentialsSection({
         />
         <TextInput
           placeholder="비밀번호를 한 번 더 입력하세요"
-          placeholderTextColor="#98A2B3"
+          placeholderTextColor={colors.textTertiary}
           style={[styles.input, submitting && styles.inputDisabled]}
           secureTextEntry={!passwordVisible}
           value={passwordConfirm}

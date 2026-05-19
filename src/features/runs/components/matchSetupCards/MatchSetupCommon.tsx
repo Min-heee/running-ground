@@ -12,6 +12,7 @@ import type {
   TimeSlotSelectorProps,
 } from '@/features/runs/components/matchSetupCards/types';
 import { matchSetupCardStyles as styles } from '@/features/runs/components/matchSetupCards/styles';
+import { colors } from '@/theme/tokens';
 
 const TIME_SECTIONS = [
   { key: 'am' as const, label: '오전' },
@@ -62,7 +63,7 @@ export function MatchDistanceSelector({
           value={distanceText}
           onChangeText={onDistanceTextChange}
           placeholder="예: 5, 10, 21.1"
-          placeholderTextColor="#98A2B3"
+          placeholderTextColor={colors.textTertiary}
           keyboardType="decimal-pad"
           style={styles.duelDistanceInput}
         />

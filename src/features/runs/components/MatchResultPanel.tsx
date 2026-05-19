@@ -2,6 +2,7 @@ import { memo, useCallback } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import type { ListRenderItem } from 'react-native';
 import { Card } from '@/components/Card';
+import { colors } from '@/theme/tokens';
 
 export type DuelMatchResultRow = {
   id: string;
@@ -162,8 +163,8 @@ const styles = StyleSheet.create({
     padding: 18,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: '#312E81',
-    backgroundColor: '#111827',
+    borderColor: colors.indigoDeep,
+    backgroundColor: colors.textPrimary,
   },
   header: {
     gap: 12,
@@ -172,18 +173,18 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   eyebrow: {
-    color: '#C7D2FE',
+    color: colors.brandLighter,
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.4,
   },
   title: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 22,
     fontWeight: '800',
   },
   subtitle: {
-    color: '#D0D5DD',
+    color: colors.border,
     lineHeight: 20,
   },
   list: {
@@ -214,7 +215,7 @@ const styles = StyleSheet.create({
     minWidth: 54,
   },
   duelLabel: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.4,
@@ -224,12 +225,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   duelName: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 18,
     fontWeight: '800',
   },
   meta: {
-    color: '#E5E7EB',
+    color: colors.borderMuted,
     lineHeight: 19,
   },
   groupRow: {
@@ -239,7 +240,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.slateDark,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
   },
@@ -249,7 +250,7 @@ const styles = StyleSheet.create({
   },
   groupRank: {
     width: 34,
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 15,
     fontWeight: '900',
   },
@@ -258,23 +259,23 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   groupName: {
-    color: '#FFFFFF',
+    color: colors.white,
     fontSize: 16,
     fontWeight: '800',
   },
   groupMeta: {
-    color: '#D0D5DD',
+    color: colors.border,
     lineHeight: 19,
   },
   pointPill: {
     alignSelf: 'flex-start',
     borderRadius: 999,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandWash,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   pointPillText: {
-    color: '#4F46E5',
+    color: colors.brandStrong,
     fontSize: 12,
     fontWeight: '900',
   },
@@ -288,7 +289,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   statusText: {
-    color: '#E0E7FF',
+    color: colors.brandWashStrong,
     fontSize: 12,
     fontWeight: '800',
   },
