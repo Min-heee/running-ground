@@ -37,7 +37,7 @@ export function useRegionLeagueState() {
       .then((response) => {
         setLeague(response);
       })
-      .catch((loadError) => setError(getApiErrorMessage(loadError, '지역 리그 정보를 불러오지 못했어.')))
+      .catch((loadError) => setError(getApiErrorMessage(loadError, '지역 랭킹 정보를 불러오지 못했어.')))
       .finally(() => setLoading(false));
   }, []);
 

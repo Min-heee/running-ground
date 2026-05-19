@@ -1,7 +1,7 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
 const TAB_TITLES = {
-  league: '\uB9AC\uADF8',
+  league: '랭킹',
   friends: '\uCE5C\uAD6C',
   home: '\uD648',
   running: '\uB7F0\uB2DD',

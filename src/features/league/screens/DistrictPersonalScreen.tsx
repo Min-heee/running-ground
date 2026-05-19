@@ -91,7 +91,7 @@ export default function DistrictPersonalScreen() {
             ) : <Text style={styles.emptyText}>아직 이 지역 개인 랭킹이 없어.</Text>}
           </Card>
 
-          <SecondaryButton label="리그로 돌아가기" onPress={() => router.replace('/(tabs)/league')} />
+          <SecondaryButton label="랭킹으로 돌아가기" onPress={() => router.replace('/(tabs)/league')} />
         </>
       ) : null}
 
@@ -100,7 +100,7 @@ export default function DistrictPersonalScreen() {
           <Text style={styles.stateTitle}>구 내 개인 경쟁 데이터가 아직 없어</Text>
           <Text style={styles.emptyText}>실백엔드에서 응답이 오면 내 순위와 주변 경쟁자를 바로 보여줄 수 있어.</Text>
           <PrimaryButton label="다시 확인하기" onPress={loadCompetition} />
-          <SecondaryButton label="리그로 돌아가기" onPress={() => router.replace('/(tabs)/league')} />
+          <SecondaryButton label="랭킹으로 돌아가기" onPress={() => router.replace('/(tabs)/league')} />
         </Card>
       ) : null}
     </Screen>
