@@ -12,20 +12,18 @@ export async function routeAdminRequest(routeContext) {
     response,
     requireAdmin,
     sendJson,
+    parseJsonBody,
     resetStore,
     getStoreFilePath,
     buildAdminStatus,
-    handleDeleteAdminUser,
-    handleCreateAdminMarketItem,
-    handleUpdateAdminMarketItem,
-    handleDeleteAdminMarketItem,
-    handleCreateAdminNotice,
-    handleUpdateAdminNotice,
-    handleDeleteAdminNotice,
-    handleUpdateAdminRewardRedemption,
-    handleCreateAdminOfflineRaceEvent,
-    handleUpdateAdminOfflineRaceEvent,
-    handleDeleteAdminOfflineRaceEvent,
+    getAdminRepository,
+    getMarketRepository,
+    getRaceRepository,
+    normalizeAdminMarketItemInput,
+    normalizeAdminNoticeInput,
+    normalizeAdminOfflineRaceEventInput,
+    normalizeOptionalString,
+    validateRewardRedemptionStatus,
     ENABLE_RESET_ENDPOINT,
     ApiError,
   } = routeContext;
@@ -50,19 +48,38 @@ export async function routeAdminRequest(routeContext) {
 
   if (adminUserMatch && method === 'DELETE') {
     requireAdmin(request);
-    handleDeleteAdminUser(response, adminUserMatch[1]);
+    handleDeleteAdminUser({
+      getAdminRepository,
+      response,
+      sendJson,
+      userId: adminUserMatch[1],
+    });
     return true;
   }
 
   if (pathname === '/api/admin/market/items' && method === 'POST') {
     requireAdmin(request);
-    await handleCreateAdminMarketItem(request, response);
+    await handleCreateAdminMarketItem({
+      getMarketRepository,
+      normalizeAdminMarketItemInput,
+      parseJsonBody,
+      request,
+      response,
+      sendJson,
+    });
     return true;
   }
 
   if (pathname === '/api/admin/notices' && method === 'POST') {
     requireAdmin(request);
-    await handleCreateAdminNotice(request, response);
+    await handleCreateAdminNotice({
+      getAdminRepository,
+      normalizeAdminNoticeInput,
+      parseJsonBody,
+      request,
+      response,
+      sendJson,
+    });
     return true;
   }
 
@@ -70,13 +87,26 @@ export async function routeAdminRequest(routeContext) {
 
   if (adminMarketItemMatch && method === 'PATCH') {
     requireAdmin(request);
-    await handleUpdateAdminMarketItem(request, response, adminMarketItemMatch[1]);
+    await handleUpdateAdminMarketItem({
+      getMarketRepository,
+      itemId: adminMarketItemMatch[1],
+      normalizeAdminMarketItemInput,
+      parseJsonBody,
+      request,
+      response,
+      sendJson,
+    });
     return true;
   }
 
   if (adminMarketItemMatch && method === 'DELETE') {
     requireAdmin(request);
-    handleDeleteAdminMarketItem(response, adminMarketItemMatch[1]);
+    handleDeleteAdminMarketItem({
+      getMarketRepository,
+      itemId: adminMarketItemMatch[1],
+      response,
+      sendJson,
+    });
     return true;
   }
 
@@ -84,13 +114,26 @@ export async function routeAdminRequest(routeContext) {
 
   if (adminNoticeMatch && method === 'PATCH') {
     requireAdmin(request);
-    await handleUpdateAdminNotice(request, response, adminNoticeMatch[1]);
+    await handleUpdateAdminNotice({
+      getAdminRepository,
+      normalizeAdminNoticeInput,
+      noticeId: adminNoticeMatch[1],
+      parseJsonBody,
+      request,
+      response,
+      sendJson,
+    });
     return true;
   }
 
   if (adminNoticeMatch && method === 'DELETE') {
     requireAdmin(request);
-    handleDeleteAdminNotice(response, adminNoticeMatch[1]);
+    handleDeleteAdminNotice({
+      getAdminRepository,
+      noticeId: adminNoticeMatch[1],
+      response,
+      sendJson,
+    });
     return true;
   }
 
@@ -98,13 +141,29 @@ export async function routeAdminRequest(routeContext) {
 
   if (adminRewardRedemptionMatch && method === 'PATCH') {
     requireAdmin(request);
-    await handleUpdateAdminRewardRedemption(request, response, adminRewardRedemptionMatch[1]);
+    await handleUpdateAdminRewardRedemption({
+      getMarketRepository,
+      normalizeOptionalString,
+      parseJsonBody,
+      redemptionId: adminRewardRedemptionMatch[1],
+      request,
+      response,
+      sendJson,
+      validateRewardRedemptionStatus,
+    });
     return true;
   }
 
   if (pathname === '/api/admin/offline-races/events' && method === 'POST') {
     requireAdmin(request);
-    await handleCreateAdminOfflineRaceEvent(request, response);
+    await handleCreateAdminOfflineRaceEvent({
+      getRaceRepository,
+      normalizeAdminOfflineRaceEventInput,
+      parseJsonBody,
+      request,
+      response,
+      sendJson,
+    });
     return true;
   }
 
@@ -112,15 +171,202 @@ export async function routeAdminRequest(routeContext) {
 
   if (adminOfflineRaceEventMatch && method === 'PATCH') {
     requireAdmin(request);
-    await handleUpdateAdminOfflineRaceEvent(request, response, adminOfflineRaceEventMatch[1]);
+    await handleUpdateAdminOfflineRaceEvent({
+      eventId: adminOfflineRaceEventMatch[1],
+      getRaceRepository,
+      normalizeAdminOfflineRaceEventInput,
+      parseJsonBody,
+      request,
+      response,
+      sendJson,
+    });
     return true;
   }
 
   if (adminOfflineRaceEventMatch && method === 'DELETE') {
     requireAdmin(request);
-    handleDeleteAdminOfflineRaceEvent(response, adminOfflineRaceEventMatch[1]);
+    handleDeleteAdminOfflineRaceEvent({
+      eventId: adminOfflineRaceEventMatch[1],
+      getRaceRepository,
+      response,
+      sendJson,
+    });
     return true;
   }
 
   return false;
+}
+
+function handleDeleteAdminUser({
+  getAdminRepository,
+  response,
+  sendJson,
+  userId,
+}) {
+  const payload = getAdminRepository().deleteUser({
+    userId,
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleCreateAdminMarketItem({
+  getMarketRepository,
+  normalizeAdminMarketItemInput,
+  parseJsonBody,
+  request,
+  response,
+  sendJson,
+}) {
+  const body = await parseJsonBody(request);
+  const payload = getMarketRepository().createAdminItem({
+    input: normalizeAdminMarketItemInput(body),
+  });
+
+  sendJson(response, 201, payload);
+}
+
+async function handleUpdateAdminMarketItem({
+  getMarketRepository,
+  itemId,
+  normalizeAdminMarketItemInput,
+  parseJsonBody,
+  request,
+  response,
+  sendJson,
+}) {
+  const body = await parseJsonBody(request);
+  const payload = getMarketRepository().updateAdminItem({
+    itemId,
+    input: normalizeAdminMarketItemInput(body),
+  });
+
+  sendJson(response, 200, payload);
+}
+
+function handleDeleteAdminMarketItem({
+  getMarketRepository,
+  itemId,
+  response,
+  sendJson,
+}) {
+  const payload = getMarketRepository().deleteAdminItem({
+    itemId,
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleCreateAdminNotice({
+  getAdminRepository,
+  normalizeAdminNoticeInput,
+  parseJsonBody,
+  request,
+  response,
+  sendJson,
+}) {
+  const body = await parseJsonBody(request);
+  const payload = getAdminRepository().createNotice({
+    input: normalizeAdminNoticeInput(body),
+  });
+
+  sendJson(response, 201, payload);
+}
+
+async function handleUpdateAdminNotice({
+  getAdminRepository,
+  normalizeAdminNoticeInput,
+  noticeId,
+  parseJsonBody,
+  request,
+  response,
+  sendJson,
+}) {
+  const body = await parseJsonBody(request);
+  const payload = getAdminRepository().updateNotice({
+    noticeId,
+    input: normalizeAdminNoticeInput(body),
+  });
+
+  sendJson(response, 200, payload);
+}
+
+function handleDeleteAdminNotice({
+  getAdminRepository,
+  noticeId,
+  response,
+  sendJson,
+}) {
+  const payload = getAdminRepository().deleteNotice({
+    noticeId,
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleUpdateAdminRewardRedemption({
+  getMarketRepository,
+  normalizeOptionalString,
+  parseJsonBody,
+  redemptionId,
+  request,
+  response,
+  sendJson,
+  validateRewardRedemptionStatus,
+}) {
+  const body = await parseJsonBody(request);
+  const payload = getMarketRepository().updateAdminRewardRedemption({
+    redemptionId,
+    status: validateRewardRedemptionStatus(body.status),
+    adminNote: normalizeOptionalString(body.adminNote),
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleCreateAdminOfflineRaceEvent({
+  getRaceRepository,
+  normalizeAdminOfflineRaceEventInput,
+  parseJsonBody,
+  request,
+  response,
+  sendJson,
+}) {
+  const body = await parseJsonBody(request);
+  const payload = getRaceRepository().createAdminEvent({
+    input: normalizeAdminOfflineRaceEventInput(body),
+  });
+
+  sendJson(response, 201, payload);
+}
+
+async function handleUpdateAdminOfflineRaceEvent({
+  eventId,
+  getRaceRepository,
+  normalizeAdminOfflineRaceEventInput,
+  parseJsonBody,
+  request,
+  response,
+  sendJson,
+}) {
+  const body = await parseJsonBody(request);
+  const payload = getRaceRepository().updateAdminEvent({
+    eventId,
+    input: normalizeAdminOfflineRaceEventInput(body),
+  });
+
+  sendJson(response, 200, payload);
+}
+
+function handleDeleteAdminOfflineRaceEvent({
+  eventId,
+  getRaceRepository,
+  response,
+  sendJson,
+}) {
+  const payload = getRaceRepository().deleteAdminEvent({
+    eventId,
+  });
+
+  sendJson(response, 200, payload);
 }

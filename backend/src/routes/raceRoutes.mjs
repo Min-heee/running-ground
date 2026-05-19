@@ -5,7 +5,8 @@ export async function routeRaceRequest({
   response,
   sendJson,
   buildOfflineRaceHubReadPayload,
-  handleOfflineRaceEntryAction,
+  getAccessToken,
+  getRaceRepository,
 }) {
   if (pathname === '/api/offline-races/hub' && method === 'GET') {
     sendJson(response, 200, await buildOfflineRaceHubReadPayload(request));
@@ -15,9 +16,35 @@ export async function routeRaceRequest({
   const offlineRaceActionMatch = pathname.match(/^\/api\/offline-races\/([^/]+)\/(join|cancel)$/);
 
   if (offlineRaceActionMatch && method === 'POST') {
-    handleOfflineRaceEntryAction(request, response, offlineRaceActionMatch[1], offlineRaceActionMatch[2]);
+    handleOfflineRaceEntryAction({
+      action: offlineRaceActionMatch[2],
+      eventId: offlineRaceActionMatch[1],
+      getAccessToken,
+      getRaceRepository,
+      request,
+      response,
+      sendJson,
+    });
     return true;
   }
 
   return false;
+}
+
+function handleOfflineRaceEntryAction({
+  action,
+  eventId,
+  getAccessToken,
+  getRaceRepository,
+  request,
+  response,
+  sendJson,
+}) {
+  const payload = getRaceRepository().applyEntryAction({
+    token: getAccessToken(request),
+    eventId,
+    action,
+  });
+
+  sendJson(response, 200, payload);
 }
