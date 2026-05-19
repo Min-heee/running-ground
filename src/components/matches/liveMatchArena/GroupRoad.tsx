@@ -22,13 +22,26 @@ type GroupRoadRowProps = {
 const GroupRankColumn = memo(function GroupRankColumn({
   rankLabel,
   displayName,
+  highlight,
 }: {
   rankLabel: string;
   displayName: string;
+  highlight: boolean;
 }) {
+  const rankColumnStyle = useMemo(
+    () => [styles.groupRankColumn, highlight ? styles.groupRankColumnCurrentFinished : undefined],
+    [highlight],
+  );
+  const rankTextStyle = useMemo(
+    () => [styles.groupRankText, highlight ? styles.groupRankTextCurrentFinished : undefined],
+    [highlight],
+  );
+
   return (
-    <View style={styles.groupRankColumn}>
-      <Text style={styles.groupRankText}>{rankLabel}</Text>
+    <View style={rankColumnStyle}>
+      <Text style={rankTextStyle}>
+        {rankLabel}
+      </Text>
       <Text style={styles.groupNameText}>{displayName}</Text>
     </View>
   );
@@ -99,6 +112,7 @@ const GroupRoadRow = memo(function GroupRoadRow({
 }: GroupRoadRowProps) {
   const isCurrentUser = Boolean(participant.isCurrentUser);
   const participantForfeited = isForfeited(participant);
+  const currentUserFinished = isCurrentUser && participant.liveStatus === 'finished';
   const rankLabel = participant.rankLabel ?? `${index + 1}위`;
   const displayName = isCurrentUser ? '나' : participant.name;
   const fallbackMarkerLabel = isCurrentUser ? '나' : participant.name.slice(0, 1);
@@ -132,7 +146,11 @@ const GroupRoadRow = memo(function GroupRoadRow({
 
   return (
     <View style={rowStyle}>
-      <GroupRankColumn rankLabel={rankLabel} displayName={displayName} />
+      <GroupRankColumn
+        rankLabel={rankLabel}
+        displayName={displayName}
+        highlight={currentUserFinished}
+      />
       <GroupRunnerMarker
         markerLabel={visualState.markerLabel}
         isCurrentUser={isCurrentUser}

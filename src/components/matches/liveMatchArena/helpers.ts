@@ -87,6 +87,8 @@ export function buildParticipantPerfSignature(participants: ArenaParticipant[]) 
       participant.paceLabel,
       participant.liveStatus ?? '',
       participant.rankLabel ?? '',
+      participant.resultLabel ?? '',
+      participant.finishedAt ?? '',
       participant.isCurrentUser ? 'me' : 'runner',
       participant.emphasis ?? '',
       participant.showPaceBubble ? 'bubble' : 'no-bubble',
@@ -112,6 +114,8 @@ export function areParticipantsEqual(left: ArenaParticipant, right: ArenaPartici
     && left.bpmLabel === right.bpmLabel
     && getComparableDistanceKm(left.distanceKm) === getComparableDistanceKm(right.distanceKm)
     && left.rankLabel === right.rankLabel
+    && left.resultLabel === right.resultLabel
+    && left.finishedAt === right.finishedAt
     && left.isCurrentUser === right.isCurrentUser
     && left.isLeader === right.isLeader
     && left.liveStatus === right.liveStatus
