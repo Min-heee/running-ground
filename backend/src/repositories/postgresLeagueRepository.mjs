@@ -1,3 +1,8 @@
+import {
+  buildTodayRanking,
+  isTodayRankingCategory,
+} from '../services/todayRankingBuilder.mjs';
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -141,6 +146,18 @@ async function loadUsersWithUniversity(database) {
       select *
       from users
       where coalesce(university_name, '') <> ''
+    `,
+    [],
+  );
+
+  return result.rows.map(mapUserRow);
+}
+
+async function loadAllUsers(database) {
+  const result = await database.query(
+    `
+      select *
+      from users
     `,
     [],
   );
@@ -374,6 +391,14 @@ function buildUniversityLeague(users, metricsByUserId) {
   return { ranks };
 }
 
+function requireTodayRankingCategory(category, createError) {
+  if (!isTodayRankingCategory(category)) {
+    throw createError(400, '오늘의 랭킹 카테고리가 올바르지 않아.');
+  }
+
+  return category;
+}
+
 export function createPostgresLeagueRepository({
   database,
   buildUserMetrics,
@@ -433,6 +458,31 @@ export function createPostgresLeagueRepository({
     async getUniversities({ token }) {
       const currentUser = await requireUserByToken(database, token, createError);
       return this.getUniversitiesByUserId({
+        currentUserId: currentUser.id,
+      });
+    },
+
+    async getTodayRankingsByUserId({ currentUserId, category }) {
+      await findUserById(database, currentUserId, createError);
+      const safeCategory = requireTodayRankingCategory(category, createError);
+      const users = await loadAllUsers(database);
+      const userIds = users.map((user) => user.id);
+      const runsByUserId = await loadRunsByUserIds(database, userIds);
+      const metricsByUserId = buildMetricsByUserId(runsByUserId, userIds, buildUserMetrics);
+
+      return buildTodayRanking({
+        category: safeCategory,
+        currentUserId,
+        getMetricsForUser: (userId) => metricsByUserId.get(userId),
+        runsByUserId,
+        users,
+      });
+    },
+
+    async getTodayRankings({ token, category }) {
+      const currentUser = await requireUserByToken(database, token, createError);
+      return this.getTodayRankingsByUserId({
+        category,
         currentUserId: currentUser.id,
       });
     },

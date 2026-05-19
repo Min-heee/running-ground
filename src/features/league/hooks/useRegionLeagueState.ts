@@ -26,8 +26,8 @@ export function useRegionLeagueState() {
   const children = league?.children ?? EMPTY_REGION_CHILDREN;
   const breadcrumbNodes = useMemo(() => league?.breadcrumb ?? [], [league]);
   const visibleChildren = useMemo(() => sortRegionChildrenByRank(children), [children]);
-  const isUniversityView = leagueMode === 'university';
-  const isLeafRegion = !isUniversityView && Boolean(currentNode) && children.length === 0;
+  const isTodayView = leagueMode === 'today';
+  const isLeafRegion = !isTodayView && Boolean(currentNode) && children.length === 0;
 
   const loadLeague = useCallback((nodeId?: string) => {
     setLoading(true);
@@ -90,7 +90,7 @@ export function useRegionLeagueState() {
     children,
     breadcrumbNodes,
     visibleChildren,
-    isUniversityView,
+    isTodayView,
     isLeafRegion,
     loading,
     error,

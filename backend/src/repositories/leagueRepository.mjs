@@ -1,5 +1,22 @@
+import {
+  buildTodayRanking,
+  isTodayRankingCategory,
+} from '../services/todayRankingBuilder.mjs';
+
 function normalizeOptionalString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function buildRunsByUserId(store, users) {
+  const runsByUserId = new Map(users.map((user) => [user.id, []]));
+
+  for (const run of store.runs ?? []) {
+    if (runsByUserId.has(run.userId)) {
+      runsByUserId.set(run.userId, [...(runsByUserId.get(run.userId) ?? []), run]);
+    }
+  }
+
+  return runsByUserId;
 }
 
 function buildUserRegionKey(user) {
@@ -178,6 +195,14 @@ function buildUniversityLeague(store, getUserMetrics) {
   return { ranks };
 }
 
+function requireTodayRankingCategory(category, createError) {
+  if (!isTodayRankingCategory(category)) {
+    throw createError(400, '오늘의 랭킹 카테고리가 올바르지 않아.');
+  }
+
+  return category;
+}
+
 export function createJsonLeagueRepository({
   loadStore,
   requireUserByToken,
@@ -201,6 +226,22 @@ export function createJsonLeagueRepository({
       const store = loadStore();
       requireUserByToken(store, token);
       return buildUniversityLeague(store, getUserMetrics);
+    },
+
+    getTodayRankings({ token, category }) {
+      const store = loadStore();
+      const user = requireUserByToken(store, token);
+      const safeCategory = requireTodayRankingCategory(category, createError);
+      const users = store.users ?? [];
+      const runsByUserId = buildRunsByUserId(store, users);
+
+      return buildTodayRanking({
+        category: safeCategory,
+        currentUserId: user.id,
+        getMetricsForUser: (userId) => getUserMetrics(store, userId),
+        runsByUserId,
+        users,
+      });
     },
   };
 }

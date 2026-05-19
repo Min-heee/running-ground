@@ -1,6 +1,6 @@
 import type { RegionDrilldownNode, UserProfile } from '@/domain';
 
-export type LeagueMode = 'region' | 'university';
+export type LeagueMode = 'region' | 'today';
 
 export type LeagueRegionNodeIdentity = Pick<RegionDrilldownNode, 'level' | 'name'>;
 
