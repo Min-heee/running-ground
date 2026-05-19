@@ -1,9 +1,19 @@
 import { Platform } from 'react-native';
 import { ConnectedSource, RunSourceType } from '@/domain';
+import {
+  getConnectedExclusiveSourcesFromCatalog,
+  getCoverageSummaryForPlatform,
+  getPrimarySourceForCatalogPlatform,
+  getPrimarySourceTypeForPlatform,
+  getRecommendedSourcesForPlatform,
+  getSourceByTypeFromCatalog,
+  sortSourcesByPriorityWithMetadata,
+  splitSourcesByStatus as splitSourcesByStatusQuery,
+} from './sourceCatalogQueries';
 
 export type DevicePlatform = 'ios' | 'android' | 'all';
 
-type SourceMetadata = {
+export type SourceMetadata = {
   shortDescription: string;
   capabilities: string[];
   setupHint: string;
@@ -129,7 +139,7 @@ export function getSourceMetadata(
 }
 
 export function getSourceByType(sources: ConnectedSource[], sourceType: RunSourceType) {
-  return sources.find((source) => source.sourceType === sourceType) ?? null;
+  return getSourceByTypeFromCatalog(sources, sourceType);
 }
 
 export function isExclusiveIntegrationSourceType(sourceType: RunSourceType) {
@@ -137,32 +147,18 @@ export function isExclusiveIntegrationSourceType(sourceType: RunSourceType) {
 }
 
 export function getConnectedExclusiveSources(sources: ConnectedSource[]) {
-  return sources.filter((source) => source.connected && isExclusiveIntegrationSourceType(source.sourceType));
+  return getConnectedExclusiveSourcesFromCatalog(sources);
 }
 
 export function getPrimarySourceType(platform = getCurrentDevicePlatform()): RunSourceType | null {
-  if (platform === 'ios') {
-    return 'apple_health';
-  }
-
-  if (platform === 'android') {
-    return 'health_connect';
-  }
-
-  return null;
+  return getPrimarySourceTypeForPlatform(platform);
 }
 
 export function getPrimarySourceForPlatform(
   sources: ConnectedSource[],
   platform = getCurrentDevicePlatform(),
 ) {
-  const primarySourceType = getPrimarySourceType(platform);
-
-  if (!primarySourceType) {
-    return null;
-  }
-
-  return getSourceByType(sources, primarySourceType);
+  return getPrimarySourceForCatalogPlatform(sources, platform);
 }
 
 export function getPlatformLabel(platform: DevicePlatform): string {
@@ -190,47 +186,17 @@ export function getRecommendationCopy(platform: DevicePlatform): string {
 }
 
 export function getRecommendedSources(sources: ConnectedSource[], platform = getCurrentDevicePlatform()): ConnectedSource[] {
-  return sortSourcesByPriority(
-    sources.filter((source) => {
-      if (source.sourceType === 'manual') {
-        return true;
-      }
-
-      return source.recommendedPlatform === platform || source.recommendedPlatform === 'all';
-    }),
-  )
-    .slice(0, 3);
+  return getRecommendedSourcesForPlatform(sources, platform, SOURCE_METADATA);
 }
 
 export function sortSourcesByPriority(sources: ConnectedSource[]): ConnectedSource[] {
-  return [...sources]
-    .filter((source) => {
-      return Boolean(SOURCE_METADATA[source.sourceType]);
-    })
-    .sort((left, right) => {
-      const leftScore = SOURCE_METADATA[left.sourceType].priority + (left.connected ? 5 : 0);
-      const rightScore = SOURCE_METADATA[right.sourceType].priority + (right.connected ? 5 : 0);
-
-      return rightScore - leftScore;
-    });
+  return sortSourcesByPriorityWithMetadata(sources, SOURCE_METADATA);
 }
 
 export function splitSourcesByStatus(sources: ConnectedSource[]) {
-  return {
-    connected: sources.filter((source) => source.connected),
-    available: sources.filter((source) => !source.connected),
-  };
+  return splitSourcesByStatusQuery(sources);
 }
 
 export function getCoverageSummary(sources: ConnectedSource[], platform = getCurrentDevicePlatform()) {
-  const connectedCount = sources.filter((source) => source.connected).length;
-  const recommended = getRecommendedSources(sources, platform);
-  const connectedRecommendedCount = recommended.filter((source) => source.connected).length;
-
-  return {
-    connectedCount,
-    recommendedCount: recommended.length,
-    connectedRecommendedCount,
-    needsPrimarySource: connectedRecommendedCount === 0,
-  };
+  return getCoverageSummaryForPlatform(sources, platform, SOURCE_METADATA);
 }
