@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { RunningMatchRoom, RunningMatchRoomParticipant } from '@/lib/api/types';
-import {
-  buildLiveMatchRaceBoardViewModel,
-  type LiveMatchRaceBoardViewModelInput,
-} from './liveMatchRaceBoardViewModel';
+import type { GroupLiveStanding } from '@/features/runs/viewModels/matchProgress';
+import { buildLiveMatchRaceBoardViewModel, type LiveMatchRaceBoardViewModelInput } from './liveMatchRaceBoardViewModel';
 
 function participant(overrides: Partial<RunningMatchRoomParticipant>): RunningMatchRoomParticipant {
   return {
@@ -83,16 +81,38 @@ function buildInput(overrides: Partial<LiveMatchRaceBoardViewModelInput> = {}): 
   };
 }
 
-test('duel race board keeps both room participants when both progress values are zero', () => {
+function groupStanding(overrides: Partial<GroupLiveStanding> = {}): GroupLiveStanding {
+  return {
+    id: 'group-runner',
+    name: '그룹 러너',
+    districtName: '일산서구',
+    averagePace: '06:00/km',
+    levelLabel: 'Lv.10',
+    weeklyDistanceKm: 10,
+    lifetimeDistanceKm: 100,
+    seedRank: 1,
+    seedSummary: '1번 시드',
+    rank: 1,
+    currentDistanceKm: 1,
+    gapAheadKm: null,
+    gapLeaderKm: 0,
+    isForfeited: false,
+    isCurrentUser: false,
+    liveStatus: 'running',
+    ...overrides,
+  };
+}
+
+test('duel race board hides other running participants while current user is still running', () => {
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput());
 
-  assert.equal(viewModel?.rows.length, 2);
+  assert.equal(viewModel?.rows.length, 1);
   assert.equal(viewModel?.rows.filter((row) => row.isCurrentUser).length, 1);
-  assert.equal(viewModel?.rows.filter((row) => !row.isCurrentUser).length, 1);
-  assert.deepEqual(viewModel?.rows.map((row) => row.distanceKm), [0, 0]);
+  assert.equal(viewModel?.rows.filter((row) => !row.isCurrentUser).length, 0);
+  assert.match(viewModel?.subtitle ?? '', /완주한 러너만/);
 });
 
-test('duel race board shows opponent row even when opponent progress is missing', () => {
+test('duel race board shows finished opponent while current user is still running', () => {
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
     distanceKm: 0.42,
     visibleMatchRoom: duelRoom({
@@ -107,6 +127,7 @@ test('duel race board shows opponent row even when opponent progress is missing'
           userId: 'guest-user',
           name: '게스트',
           tag: '#GUEST',
+          liveStatus: 'finished',
         }),
       ],
     }),
@@ -118,8 +139,10 @@ test('duel race board shows opponent row even when opponent progress is missing'
   assert.equal(opponentRow?.distanceKm, 0);
 });
 
-test('duel race board merges participant progress after participant rows are created', () => {
+test('duel race board shows unfinished opponents as placeholders after current user finishes', () => {
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
+    currentUserDuelLiveStatus: 'finished',
+    distanceKm: 5,
     visibleMatchRoom: duelRoom({
       participants: [
         participant({
@@ -140,23 +163,14 @@ test('duel race board merges participant progress after participant rows are cre
   }));
 
   assert.equal(viewModel?.rows.length, 2);
-  assert.equal(viewModel?.rows.find((row) => row.id === 'host-user')?.distanceKm, 0.4);
+  assert.equal(viewModel?.rows.find((row) => row.id === 'host-user')?.distanceKm, 5);
   assert.equal(viewModel?.rows.find((row) => row.id === 'guest-user')?.distanceKm, 0.2);
+  assert.equal(viewModel?.rows.find((row) => row.id === 'guest-user')?.isProgressivePlaceholder, true);
 });
 
-test('duel race board builds participant rows before opponent progress arrives', () => {
+test('duel race board shows all finished participants without placeholders', () => {
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
-    effectiveDuelOpponent: {
-      id: 'guest-user',
-      name: '게스트',
-      tag: '#GUEST',
-      districtName: '일산서구',
-      averagePace: '06:00/km',
-      levelLabel: 'Lv.10',
-      weeklyDistanceKm: 0,
-      lifetimeDistanceKm: 0,
-      compatibilitySummary: '',
-    },
+    currentUserDuelLiveStatus: 'finished',
     visibleMatchRoom: duelRoom({
       participants: [
         participant({
@@ -169,6 +183,7 @@ test('duel race board builds participant rows before opponent progress arrives',
           userId: 'guest-user',
           name: '게스트',
           tag: '#GUEST',
+          liveStatus: 'finished',
         }),
       ],
     }),
@@ -177,12 +192,36 @@ test('duel race board builds participant rows before opponent progress arrives',
   assert.equal(viewModel?.rows.length, 2);
   assert.equal(viewModel?.rows.filter((row) => row.isCurrentUser).length, 1);
   assert.equal(viewModel?.rows.filter((row) => !row.isCurrentUser).length, 1);
-  assert.equal(viewModel?.rows.find((row) => !row.isCurrentUser)?.id, 'guest-user');
-  assert.equal(viewModel?.rows.find((row) => !row.isCurrentUser)?.distanceKm, 0);
+  assert.equal(viewModel?.rows.some((row) => row.isProgressivePlaceholder), false);
 });
 
-test('duel race board does not filter room participant rows down to the current user', () => {
+test('duel race board shows forfeited opponent regardless of current user finish state', () => {
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
+    visibleMatchRoom: duelRoom({
+      participants: [
+        participant({
+          userId: 'host-user',
+          name: '호스트',
+          tag: '#HOST',
+          isHost: true,
+        }),
+        participant({
+          userId: 'guest-user',
+          name: '게스트',
+          tag: '#GUEST',
+          liveStatus: 'forfeited',
+        }),
+      ],
+    }),
+  }));
+
+  assert.equal(viewModel?.rows.length, 2);
+  assert.equal(viewModel?.rows.find((row) => !row.isCurrentUser)?.liveStatus, 'forfeited');
+});
+
+test('duel race board keeps opponent label fallback when current user has finished', () => {
+  const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
+    currentUserDuelLiveStatus: 'finished',
     visibleMatchRoom: duelRoom({
       isHost: false,
       participants: [
@@ -206,8 +245,9 @@ test('duel race board does not filter room participant rows down to the current 
   assert.equal(viewModel?.rows.find((row) => !row.isCurrentUser)?.name, '#HOST');
 });
 
-test('duel race board applies safe opponent label fallback without nickname or user tag', () => {
+test('duel race board applies safe opponent label fallback without nickname or user tag after finish', () => {
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
+    currentUserDuelLiveStatus: 'finished',
     visibleMatchRoom: duelRoom({
       isHost: false,
       participants: [
@@ -228,4 +268,31 @@ test('duel race board applies safe opponent label fallback without nickname or u
 
   assert.equal(viewModel?.rows.length, 2);
   assert.equal(viewModel?.rows.find((row) => !row.isCurrentUser)?.name, '상대');
+});
+
+test('group race board hides running rivals but keeps finished runners before current user finishes', () => {
+  const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
+    matchMode: 'group',
+    groupLiveStandings: [
+      groupStanding({ id: 'me', name: '나', isCurrentUser: true, liveStatus: 'running', rank: 2 }),
+      groupStanding({ id: 'finished', name: '완주자', liveStatus: 'finished', rank: 1 }),
+      groupStanding({ id: 'running', name: '진행자', liveStatus: 'running', rank: 3 }),
+    ],
+  }));
+
+  assert.deepEqual(viewModel?.rows.map((row) => row.id), ['me', 'finished']);
+  assert.match(viewModel?.subtitle ?? '', /완주한 러너만/);
+});
+
+test('group race board shows running rivals as placeholders after current user finishes', () => {
+  const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
+    matchMode: 'group',
+    groupLiveStandings: [
+      groupStanding({ id: 'me', name: '나', isCurrentUser: true, liveStatus: 'finished', rank: 1 }),
+      groupStanding({ id: 'running', name: '진행자', liveStatus: 'running', rank: 2 }),
+    ],
+  }));
+
+  assert.equal(viewModel?.rows.length, 2);
+  assert.equal(viewModel?.rows.find((row) => row.id === 'running')?.isProgressivePlaceholder, true);
 });

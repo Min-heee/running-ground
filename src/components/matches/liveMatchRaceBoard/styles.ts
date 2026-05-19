@@ -52,6 +52,10 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     borderColor: 'rgba(248,113,113,0.5)',
     backgroundColor: 'rgba(127,29,29,0.22)',
   },
+  rowProgressivePlaceholder: {
+    borderColor: 'rgba(148,163,184,0.32)',
+    backgroundColor: 'rgba(15,23,42,0.56)',
+  },
   nameColumn: {
     width: 64,
     gap: spacing.sm,
@@ -64,6 +68,9 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   rankTextForfeited: {
     color: colors.dangerLight,
   },
+  rankTextProgressivePlaceholder: {
+    color: colors.textTertiary,
+  },
   nameText: {
     color: colors.white,
     fontSize: 19,
@@ -75,6 +82,9 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   },
   nameTextForfeited: {
     color: colors.dangerBorder,
+  },
+  nameTextProgressivePlaceholder: {
+    color: colors.borderMuted,
   },
   trackColumn: {
     flex: 1,
@@ -107,6 +117,9 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   trackProgressForfeited: {
     backgroundColor: 'rgba(248,113,113,0.42)',
   },
+  trackProgressProgressivePlaceholder: {
+    backgroundColor: 'rgba(148,163,184,0.34)',
+  },
   trackDot: {
     position: 'absolute',
     top: '50%',
@@ -132,6 +145,9 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     backgroundColor: colors.dangerAccent,
     borderWidth: 2,
     borderColor: colors.dangerBorder,
+  },
+  trackDotProgressivePlaceholder: {
+    borderColor: colors.textTertiary,
   },
   trackDotForfeitedText: {
     color: colors.white,
@@ -167,5 +183,8 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   },
   metaRemainingForfeited: {
     color: colors.dangerLight,
+  },
+  metaRemainingProgressivePlaceholder: {
+    color: colors.textTertiary,
   },
 });

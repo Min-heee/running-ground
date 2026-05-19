@@ -7,5 +7,6 @@ export type LiveMatchRaceBoardRow = {
   remainingKm: number;
   progress: number;
   isCurrentUser?: boolean;
+  isProgressivePlaceholder?: boolean;
   liveStatus?: 'ready' | 'running' | 'background' | 'paused' | 'disconnected' | 'forfeited' | 'finished';
 };

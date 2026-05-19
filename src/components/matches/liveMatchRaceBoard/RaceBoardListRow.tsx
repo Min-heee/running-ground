@@ -16,11 +16,13 @@ function areRaceBoardRowsEqual(left: LiveMatchRaceBoardRow, right: LiveMatchRace
     && left.remainingKm === right.remainingKm
     && left.progress === right.progress
     && left.isCurrentUser === right.isCurrentUser
+    && left.isProgressivePlaceholder === right.isProgressivePlaceholder
     && left.liveStatus === right.liveStatus;
 }
 
 export const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: LiveMatchRaceBoardRow }) {
   const isForfeited = row.liveStatus === 'forfeited';
+  const isProgressivePlaceholder = Boolean(row.isProgressivePlaceholder);
   const rawProgress = clamp(row.progress, 0, 1);
   const lineProgressPercent = `${rawProgress * 100}%` as const;
   const dotProgressPercent = `${clamp(rawProgress, 0.04, 0.96) * 100}%` as const;
@@ -33,28 +35,33 @@ export const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: L
     styles.row,
     row.isCurrentUser ? styles.rowCurrent : undefined,
     isForfeited ? styles.rowForfeited : undefined,
-  ], [isForfeited, row.isCurrentUser]);
+    isProgressivePlaceholder ? styles.rowProgressivePlaceholder : undefined,
+  ], [isForfeited, isProgressivePlaceholder, row.isCurrentUser]);
   const rankTextStyle = useMemo(() => [
     styles.rankText,
     isForfeited ? styles.rankTextForfeited : undefined,
-  ], [isForfeited]);
+    isProgressivePlaceholder ? styles.rankTextProgressivePlaceholder : undefined,
+  ], [isForfeited, isProgressivePlaceholder]);
   const nameTextStyle = useMemo(() => [
     styles.nameText,
     row.isCurrentUser ? styles.nameTextCurrent : undefined,
     isForfeited ? styles.nameTextForfeited : undefined,
-  ], [isForfeited, row.isCurrentUser]);
+    isProgressivePlaceholder ? styles.nameTextProgressivePlaceholder : undefined,
+  ], [isForfeited, isProgressivePlaceholder, row.isCurrentUser]);
   const trackProgressStyle = useMemo(() => [
     styles.trackProgress,
     row.isCurrentUser ? styles.trackProgressCurrent : undefined,
     isForfeited ? styles.trackProgressForfeited : undefined,
+    isProgressivePlaceholder ? styles.trackProgressProgressivePlaceholder : undefined,
     { width: lineProgressPercent },
-  ], [isForfeited, lineProgressPercent, row.isCurrentUser]);
+  ], [isForfeited, isProgressivePlaceholder, lineProgressPercent, row.isCurrentUser]);
   const trackDotStyle = useMemo(() => [
     styles.trackDot,
     row.isCurrentUser ? styles.trackDotCurrent : undefined,
     isForfeited ? styles.trackDotForfeited : undefined,
+    isProgressivePlaceholder ? styles.trackDotProgressivePlaceholder : undefined,
     { left: dotProgressPercent },
-  ], [dotProgressPercent, isForfeited, row.isCurrentUser]);
+  ], [dotProgressPercent, isForfeited, isProgressivePlaceholder, row.isCurrentUser]);
   const distanceTextStyle = useMemo(() => [
     styles.distanceText,
     distanceOffsetStyle,
@@ -63,7 +70,13 @@ export const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: L
   const metaRemainingStyle = useMemo(() => [
     styles.metaRemaining,
     isForfeited ? styles.metaRemainingForfeited : undefined,
-  ], [isForfeited]);
+    isProgressivePlaceholder ? styles.metaRemainingProgressivePlaceholder : undefined,
+  ], [isForfeited, isProgressivePlaceholder]);
+  const remainingLabel = isForfeited
+    ? '기권'
+    : isProgressivePlaceholder
+      ? '진행 중'
+      : `${row.remainingKm.toFixed(2)}km 남음`;
 
   return (
     <View style={rowStyle}>
@@ -96,7 +109,7 @@ export const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: L
           minimumFontScale={0.82}
           style={metaRemainingStyle}
         >
-          {isForfeited ? '기권' : `${row.remainingKm.toFixed(2)}km 남음`}
+          {remainingLabel}
         </Text>
       </View>
     </View>
