@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-19T12:47:23.673Z
+생성 시각: 2026-05-19T13:13:14.612Z
 
 ## 실행 방법
 
@@ -14,11 +14,11 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 818 |
-| 코드 파일 | 762 |
+| 분석 파일 | 822 |
+| 코드 파일 | 766 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 73 |
-| 500줄 이상 파일 | 19 |
+| 300줄 이상 파일 | 74 |
+| 500줄 이상 파일 | 20 |
 | 50줄 이상 함수 후보 | 262 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
@@ -31,7 +31,7 @@ npm run code:quality
 | useEffect가 많은 파일 | 0 | 0 | 0 | 0 |
 | useMemo/useCallback 없이 props를 많이 만드는 후보 | 9 | 0 | 9 | 0 |
 | services 밖 fetch/api 호출 후보 | 0 | 0 | 0 | 0 |
-| utils/domain 밖 계산 로직 후보 | 48 | 6 | 42 | 0 |
+| utils/domain 밖 계산 로직 후보 | 51 | 8 | 43 | 0 |
 | types 밖 타입 선언 후보 | 61 | 1 | 60 | 0 |
 | setInterval/setTimeout/subscription cleanup 의심 후보 | 15 | 0 | 15 | 0 |
 | Location/watchPosition/background task 사용 후보 | 18 | 5 | 13 | 0 |
@@ -40,7 +40,8 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| backend/src/server.mjs | 4922 | imports 33, sort/filter/map 145, timers 1 |
+| backend/src/lib/runningMatchStoreHelpers.mjs | 2575 | imports 10, sort/filter/map 85 |
+| backend/src/server.mjs | 2240 | imports 33, sort/filter/map 46, timers 1 |
 | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1844 | imports 52, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
@@ -118,7 +119,8 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| backend/src/server.mjs | 4922 | imports 33, sort/filter/map 145, timers 1 |
+| backend/src/lib/runningMatchStoreHelpers.mjs | 2575 | imports 10, sort/filter/map 85 |
+| backend/src/server.mjs | 2240 | imports 33, sort/filter/map 46, timers 1 |
 | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1844 | imports 52, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
@@ -173,7 +175,7 @@ npm run code:quality
 | src/features/runs/runtime/useTrackRunRuntimeStateBridge.ts | 56 | useTrackRunRuntimeStateBridge | 212 |
 | src/features/runs/sync/partyRunSync/useLinkedMatchSync.ts | 47 | useLinkedMatchSync | 212 |
 | scripts/check-preview-public-api.mjs | 259 | main | 211 |
-| backend/src/server.mjs | 2521 | buildRunningMatchStatusResponse | 210 |
+| backend/src/lib/runningMatchStoreHelpers.mjs | 1904 | buildRunningMatchStatusResponse | 210 |
 | src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 47 | useTrackRunRoomJoinAction | 208 |
 | scripts/analyze-android-perf-trace.mjs | 218 | analyzeLine | 197 |
 | backend/src/routes/adminRoutes.mjs | 3 | routeAdminRequest | 196 |
@@ -333,10 +335,12 @@ npm run code:quality
 
 | 우선순위 | 파일 | 줄 | 이유 | 권장 조치 | 근거 |
 | --- | --- | --- | --- | --- | --- |
-| High | backend/src/server.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=143, sort/filter/map=145 |
+| High | backend/src/lib/runningMatchStoreHelpers.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=82, sort/filter/map=85 |
+| High | backend/src/server.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=58, sort/filter/map=46 |
 | High | src/lib/api/services/mock/matchSessions.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=23, sort/filter/map=12 |
 | High | src/lib/api/services/mock/matchScheduling.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=22, sort/filter/map=8 |
 | High | backend/src/store.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=7, sort/filter/map=9 |
+| High | backend/src/lib/userStoreHelpers.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=2, sort/filter/map=10 |
 | High | src/features/integrations/sourceCatalogQueries.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=1, sort/filter/map=8 |
 | High | src/lib/api/services/mock/state.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=0, sort/filter/map=9 |
 | Medium | src/data/mock.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=46, sort/filter/map=2 |
@@ -372,6 +376,7 @@ npm run code:quality
 | Medium | src/features/runs/sync/roomInviteInboxRecipientMatcher.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=2, sort/filter/map=4 |
 | Medium | src/lib/api/services/mock/races.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=0, sort/filter/map=6 |
 | Medium | backend/src/auth.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=0 |
+| Medium | backend/src/lib/socialStoreHelpers.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=1, sort/filter/map=4 |
 | Medium | src/components/matches/liveMatchRaceBoard/RaceBoardListRow.tsx |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=0 |
 | Medium | src/features/match/screens/MatchRecordScreen.tsx |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=0 |
 | Medium | src/features/running/hooks/useAddRunForm.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=0 |
