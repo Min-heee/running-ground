@@ -76,6 +76,72 @@ import {
   sendError,
   sendJson,
 } from './response/httpResponse.mjs';
+import {
+  buildExpirySnapshot,
+  buildMatchSlotDateLabel,
+  formatDuelSlotLabel,
+  formatTimestamp,
+} from './lib/dateTimeFormatting.mjs';
+import {
+  DUEL_MIN_COMPATIBILITY_SCORE,
+  GROUP_MIN_COMPATIBILITY_SCORE,
+  GROUP_MIN_PARTICIPANTS,
+  MATCH_BOOKING_CUTOFF_MS,
+  MATCH_BOOKING_WINDOW_DAYS,
+  MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND,
+  MATCH_ROOM_HOST_LOADING_SECONDS,
+  MATCH_ROOM_HOST_START_DELAY_SECONDS,
+  MATCH_ROOM_IDLE_TTL_MS,
+  MATCH_SESSION_ACTIVE_TTL_MS,
+  MATCH_SESSION_UNSTARTED_ACTIVE_GRACE_MS,
+  MATCH_TEST_GROUP_MIN_PARTICIPANTS,
+} from './lib/matchConstants.mjs';
+import {
+  buildLevelLabel,
+  buildLiveRunShareLockMessage,
+  buildPaceBandLabel,
+  buildProgressAveragePaceLabel,
+  buildSingleMatchLockMessage,
+  formatPaceMinutesLabel,
+} from './lib/matchFormatting.mjs';
+import {
+  areAllRunningMatchRoomGuestsReady,
+  areAllRunningMatchRoomParticipantsCountdownReady,
+  buildDistanceRecommendationHint,
+  buildMatchRoomInviteLink,
+  buildOfficialComparisonSummary,
+  buildOfficialStandingFields,
+  buildQueuedParticipants,
+  calculateMatchCompatibilityScore,
+  getMatchRoomMinParticipants,
+  isMatchRoomVisibleToUser,
+  isParticipantDoneWithMatch,
+  normalizeMatchQueueDistance,
+  normalizeMatchRoomMaxParticipants,
+  projectOfficialDistanceKm,
+  resolveParticipantLiveStatus,
+  shouldClearLiveRunShareEntry,
+} from './lib/matchPureHelpers.mjs';
+import {
+  buildMatchCancellationDeadline,
+  buildTestMatchQueueExpiresAt,
+  buildTestMatchStartAt,
+  getMatchQueueEntryExpiresAt,
+  isMatchSlotClosed,
+  isTestMatchSession,
+} from './lib/matchScheduleHelpers.mjs';
+import {
+  buildNoticeEntry,
+  buildUserRegionKey,
+  isActiveRewardRedemption,
+  normalizeOptionalString,
+  normalizeRewardRedemptionStatus,
+} from './lib/adminNormalizers.mjs';
+import {
+  findRegionPath,
+  findRegionPathForUser,
+  normalizeRegionChildren,
+} from './lib/regionTreeHelpers.mjs';
 const STARTED_AT = new Date().toISOString();
 const metricsCacheByStore = new WeakMap();
 const SOURCE_LABEL_BY_TYPE = {
@@ -95,28 +161,6 @@ const DEFAULT_OFFLINE_RACE_GUIDE_STEPS = [
   '실제 운영 일정이 준비되면 시간대와 거리 선택이 함께 열릴 예정이에요.',
 ];
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{3,19}$/;
-const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.2];
-const DUEL_MIN_COMPATIBILITY_SCORE = 72;
-const GROUP_MIN_COMPATIBILITY_SCORE = 68;
-const GROUP_MIN_PARTICIPANTS = 5;
-const MATCH_BOOKING_WINDOW_DAYS = 7;
-const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
-const MATCH_PACE_BAND_OFFSET_MINUTES = 10 / 60;
-const MATCH_CANCELLATION_CUTOFF_MS = 60 * 60 * 1000;
-const MATCH_SESSION_ACTIVE_TTL_MS = 4 * 60 * 60 * 1000;
-const MATCH_SESSION_UNSTARTED_ACTIVE_GRACE_MS = 10 * 60 * 1000;
-const MATCH_PARTICIPANT_RUNNING_STALE_MS = 90 * 1000;
-const MATCH_PARTICIPANT_BACKGROUND_STALE_MS = 20 * 60 * 1000;
-const MATCH_TEST_COUNTDOWN_SECONDS = 30;
-const MATCH_TEST_MAX_WAIT_MS = 30 * 60 * 1000;
-const MATCH_TEST_GROUP_MIN_PARTICIPANTS = 2;
-const MATCH_ROOM_HOST_START_DELAY_SECONDS = 30;
-const MATCH_ROOM_HOST_LOADING_SECONDS = 10;
-const MATCH_ROOM_GROUP_MIN_PARTICIPANTS = 2;
-const MATCH_ROOM_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
-const MATCH_ROOM_INVITE_LINK_BASE = 'runningground://running';
-const MATCH_PROGRESS_MAX_SPEED_MPS = 12;
-const MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND = MATCH_PROGRESS_MAX_SPEED_MPS / 1000;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -469,16 +513,6 @@ function getFriendsLeagueBridge() {
   return friendsLeagueBridge;
 }
 
-function formatTimestamp(date = new Date()) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  const hours = String(date.getHours()).padStart(2, '0');
-  const minutes = String(date.getMinutes()).padStart(2, '0');
-
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
-}
-
 function getAccessToken(request) {
   const authorization = request.headers.authorization;
 
@@ -638,80 +672,6 @@ function buildProfileWithMetrics(user, metrics) {
   };
 }
 
-function formatDuelSlotLabel(slotStartAt) {
-  const slotStart = new Date(slotStartAt);
-
-  if (Number.isNaN(slotStart.getTime())) {
-    return '시간대 미정';
-  }
-
-  const startHours = String(slotStart.getHours()).padStart(2, '0');
-  const startMinutes = String(slotStart.getMinutes()).padStart(2, '0');
-  return `${startHours}:${startMinutes}`;
-}
-
-function buildMatchSlotDateLabel(slotStartAt) {
-  const slotStart = new Date(slotStartAt);
-
-  if (Number.isNaN(slotStart.getTime())) {
-    return '날짜 미정';
-  }
-
-  return slotStart.toLocaleDateString('ko-KR', {
-    month: 'numeric',
-    day: 'numeric',
-    weekday: 'short',
-  });
-}
-
-function buildTestMatchStartAt(now = new Date()) {
-  return new Date(now.getTime() + MATCH_TEST_COUNTDOWN_SECONDS * 1000).toISOString();
-}
-
-function buildTestMatchQueueExpiresAt(now = new Date()) {
-  return new Date(now.getTime() + MATCH_TEST_MAX_WAIT_MS).toISOString();
-}
-
-function getMatchQueueEntryExpiresAt(entry) {
-  if (entry?.testMode) {
-    return entry.expiresAt || new Date(new Date(entry.requestedAt).getTime() + MATCH_TEST_MAX_WAIT_MS).toISOString();
-  }
-
-  return getMatchBookingClosesAt(entry?.slotStartAt);
-}
-
-function isTestMatchSession(session) {
-  return session?.isTestMatch === true || session?.participants?.some((participant) => participant.profileSnapshot);
-}
-
-function buildMatchCancellationDeadline(slotStartAt, { isTestMatch = false } = {}) {
-  return new Date(
-    isTestMatch
-      ? slotStartAt
-      : new Date(slotStartAt).getTime() - MATCH_CANCELLATION_CUTOFF_MS,
-  );
-}
-
-function getMatchBookingClosesAt(slotStartAt) {
-  const slotStartAtMs = new Date(slotStartAt).getTime();
-
-  if (!Number.isFinite(slotStartAtMs)) {
-    return null;
-  }
-
-  return new Date(slotStartAtMs - MATCH_BOOKING_CUTOFF_MS).toISOString();
-}
-
-function isMatchSlotClosed(slotStartAt, now = new Date()) {
-  const closesAt = getMatchBookingClosesAt(slotStartAt);
-
-  if (!closesAt) {
-    return true;
-  }
-
-  return new Date(closesAt).getTime() <= now.getTime();
-}
-
 function validateMatchSlotStartAt(slotStartAt, now = new Date()) {
   const slotStart = new Date(slotStartAt);
 
@@ -734,23 +694,6 @@ function validateMatchSlotStartAt(slotStartAt, now = new Date()) {
   }
 
   return slotStart.toISOString();
-}
-
-function formatPaceMinutesLabel(paceMinutes) {
-  const totalSeconds = Math.max(0, Math.round(paceMinutes * 60));
-  const minutesPart = Math.floor(totalSeconds / 60);
-  const secondsPart = String(totalSeconds % 60).padStart(2, '0');
-  return `${minutesPart}:${secondsPart}/km`;
-}
-
-function buildPaceBandLabel(paceMinutes) {
-  const lowerPaceMinutes = Math.max(0, paceMinutes - MATCH_PACE_BAND_OFFSET_MINUTES);
-  const upperPaceMinutes = paceMinutes + MATCH_PACE_BAND_OFFSET_MINUTES;
-  return `${formatPaceMinutesLabel(lowerPaceMinutes)} ~ ${formatPaceMinutesLabel(upperPaceMinutes)}`;
-}
-
-function buildLevelLabel(distanceLevel) {
-  return `Lv.${distanceLevel}`;
 }
 
 function buildMatchRunnerProfile(store, user) {
@@ -956,43 +899,6 @@ function buildTestGroupMatchResponse(store, currentUser, { distanceKm }) {
     mySeedRank,
     participants: responseParticipants,
   };
-}
-
-function calculateMatchCompatibilityScore(currentRunner, candidate, distanceKm, mode) {
-  const paceGapSeconds = Math.abs(candidate.averagePaceMinutes - currentRunner.averagePaceMinutes) * 60;
-  const levelGap = Math.abs(candidate.distanceLevel - currentRunner.distanceLevel);
-  const distanceGap = Math.abs(candidate.latestDistanceKm - distanceKm);
-  const weeklyGap = Math.abs(candidate.weeklyDistanceKm - currentRunner.weeklyDistanceKm);
-  const penalty = paceGapSeconds * (mode === 'duel' ? 0.22 : 0.16)
-    + levelGap * (mode === 'duel' ? 8 : 6.5)
-    + distanceGap * (mode === 'duel' ? 2.8 : 2.2)
-    + weeklyGap * (mode === 'duel' ? 0.8 : 0.55);
-
-  return Math.max(0, Math.min(100, Number((100 - penalty).toFixed(1))));
-}
-
-function isRecommendedMatchDistance(distanceKm) {
-  return RECOMMENDED_MATCH_DISTANCES.some((recommendedDistanceKm) => Math.abs(recommendedDistanceKm - distanceKm) < 0.15);
-}
-
-function findNearestRecommendedDistance(distanceKm) {
-  return RECOMMENDED_MATCH_DISTANCES.reduce((closestDistanceKm, candidateDistanceKm) => (
-    Math.abs(candidateDistanceKm - distanceKm) < Math.abs(closestDistanceKm - distanceKm)
-      ? candidateDistanceKm
-      : closestDistanceKm
-  ));
-}
-
-function buildDistanceRecommendationHint(distanceKm) {
-  if (isRecommendedMatchDistance(distanceKm)) {
-    return '';
-  }
-
-  return `추천 거리 ${findNearestRecommendedDistance(distanceKm)}km로 바꾸면 더 빨리 비슷한 러너가 모일 수 있어요.`;
-}
-
-function normalizeMatchQueueDistance(distanceKm) {
-  return Number(distanceKm.toFixed(1));
 }
 
 function ensureMatchQueues(store) {
@@ -1207,34 +1113,6 @@ function createMatchRoomInviteToken(store) {
   return nextId('room-invite').replace(/[^A-Z0-9]/gi, '').slice(-8).toUpperCase();
 }
 
-function normalizeMatchRoomMaxParticipants(mode, value) {
-  if (mode === 'duel') {
-    return 2;
-  }
-
-  const parsedValue = typeof value === 'number' ? value : Number(value);
-
-  if (!Number.isFinite(parsedValue)) {
-    return 10;
-  }
-
-  return Math.max(2, Math.min(30, Math.round(parsedValue)));
-}
-
-function getMatchRoomMinParticipants(mode) {
-  return mode === 'duel' ? 2 : MATCH_ROOM_GROUP_MIN_PARTICIPANTS;
-}
-
-function isMatchRoomVisibleToUser(room, userId) {
-  return room.hostUserId === userId
-    || room.participants.some((participant) => participant.userId === userId)
-    || (Array.isArray(room.invitedFriendIds) && room.invitedFriendIds.includes(userId));
-}
-
-function buildMatchRoomInviteLink(inviteToken) {
-  return `${MATCH_ROOM_INVITE_LINK_BASE}?roomInviteToken=${inviteToken}`;
-}
-
 function pruneMatchRooms(store, now = new Date()) {
   const rooms = ensureMatchRooms(store);
   const activeUserIds = new Set(store.users.map((user) => user.id));
@@ -1447,31 +1325,6 @@ function buildRunningMatchRoomInviteePayload(store, room, userId, invitedAt) {
   };
 }
 
-function areAllRunningMatchRoomGuestsReady(room) {
-  if (!room) {
-    return false;
-  }
-
-  const guests = room.participants.filter((participant) => !participant.isHost);
-  if (!guests.length) {
-    return false;
-  }
-
-  return guests.every((participant) => participant.isReady);
-}
-
-function areAllRunningMatchRoomParticipantsCountdownReady(room) {
-  if (!room) {
-    return false;
-  }
-
-  if (!room.participants.length) {
-    return false;
-  }
-
-  return room.participants.every((participant) => participant.isCountdownReady);
-}
-
 function armRunningMatchRoomCountdown(store, room, now = new Date()) {
   if (!room?.linkedMatchId) {
     return room;
@@ -1611,10 +1464,6 @@ function buildMatchRoomLockMessage(room, store, currentUserId) {
   }
 
   return `이미 예약된 ${modeLabel}이 있어요. 기존 방을 먼저 정리해야 다른 매칭을 신청할 수 있어요.`;
-}
-
-function buildLiveRunShareLockMessage() {
-  return '이미 진행 중인 러닝 공유가 있어요. 현재 러닝을 먼저 끝내야 새 매칭을 신청할 수 있어요.';
 }
 
 function getLiveRunShareEntryForUser(store, userId) {
@@ -2112,22 +1961,6 @@ function clearUserStaleReferenceFields(store, currentUser) {
   return cleanedItems;
 }
 
-function shouldClearLiveRunShareEntry(entry, now = new Date()) {
-  if (!entry || typeof entry !== 'object') {
-    return false;
-  }
-
-  const status = String(entry.status ?? 'idle');
-  const updatedAtMs = new Date(entry.updatedAt ?? entry.lastUpdatedAt ?? entry.createdAt ?? 0).getTime();
-  const isPotentiallyActive = ['running', 'background'].includes(status);
-
-  if (!isPotentiallyActive) {
-    return true;
-  }
-
-  return !Number.isFinite(updatedAtMs) || updatedAtMs + MATCH_PARTICIPANT_BACKGROUND_STALE_MS <= now.getTime();
-}
-
 function clearUserLiveRunShare(store, userId, now = new Date()) {
   if (Array.isArray(store.liveRunShares)) {
     const beforeCount = store.liveRunShares.length;
@@ -2290,40 +2123,6 @@ function cleanupStaleRunningMatchRoomState(store, currentUser, now = new Date())
   };
 }
 
-function resolveParticipantLiveStatus(participant, now = new Date()) {
-  if (typeof participant.finishedAt === 'string' && participant.finishedAt) {
-    return 'finished';
-  }
-
-  const storedStatus = typeof participant.liveStatus === 'string' && participant.liveStatus
-    ? participant.liveStatus
-    : 'ready';
-
-  if (!participant.liveUpdatedAt || ['ready', 'finished', 'forfeited'].includes(storedStatus)) {
-    return storedStatus;
-  }
-
-  const liveUpdatedAtMs = new Date(participant.liveUpdatedAt).getTime();
-  if (!Number.isFinite(liveUpdatedAtMs)) {
-    return storedStatus;
-  }
-
-  const ageMs = now.getTime() - liveUpdatedAtMs;
-  if (storedStatus === 'running' && ageMs > MATCH_PARTICIPANT_RUNNING_STALE_MS) {
-    return 'disconnected';
-  }
-
-  if (['background', 'paused'].includes(storedStatus) && ageMs > MATCH_PARTICIPANT_BACKGROUND_STALE_MS) {
-    return 'disconnected';
-  }
-
-  return storedStatus;
-}
-
-function isParticipantDoneWithMatch(participant, now = new Date()) {
-  return ['finished', 'forfeited'].includes(resolveParticipantLiveStatus(participant, now));
-}
-
 function buildSyntheticParticipantLiveSnapshot(session, participant, now = new Date()) {
   if (!participant?.profileSnapshot || hydrateMatchSessionState(session, now) !== 'active') {
     return null;
@@ -2393,24 +2192,6 @@ function buildParticipantLiveSnapshot(session, participant, now = new Date()) {
         ? { finishedAt: participant.finishedAt }
       : {}),
   };
-}
-
-function buildProgressAveragePaceLabel(distanceKm, elapsedSeconds) {
-  if (!Number.isFinite(distanceKm) || distanceKm <= 0 || !Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) {
-    return '--:--/km';
-  }
-
-  return formatPaceMinutesLabel(elapsedSeconds / distanceKm / 60);
-}
-
-function projectOfficialDistanceKm(distanceKm, elapsedSeconds, officialElapsedSeconds, targetDistanceKm) {
-  if (!Number.isFinite(distanceKm) || !Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) {
-    return 0;
-  }
-
-  const safeOfficialElapsedSeconds = Math.max(0, Math.min(officialElapsedSeconds, elapsedSeconds));
-  const projectedDistanceKm = (distanceKm * safeOfficialElapsedSeconds) / elapsedSeconds;
-  return Number(Math.max(0, Math.min(targetDistanceKm, projectedDistanceKm)).toFixed(2));
 }
 
 function buildOfficialSessionStandings(store, session, now = new Date()) {
@@ -2493,61 +2274,6 @@ function buildOfficialSessionStandings(store, session, now = new Date()) {
         : null,
     };
   });
-}
-
-function buildOfficialStandingFields(standing) {
-  if (!standing) {
-    return {};
-  }
-
-  return {
-    officialDistanceKm: standing.officialDistanceKm,
-    officialElapsedSeconds: standing.officialElapsedSeconds,
-    officialAveragePace: standing.officialAveragePace,
-    officialRank: standing.officialRank,
-    officialGapAheadKm: standing.officialGapAheadKm,
-    officialGapLeaderKm: standing.officialGapLeaderKm,
-    officialComparedAt: standing.officialComparedAt,
-    officialReady: standing.officialReady,
-  };
-}
-
-function buildOfficialComparisonSummary(standings, currentUserId) {
-  const currentStanding = standings.find((standing) => standing.userId === currentUserId);
-  const leader = standings[0] ?? null;
-
-  if (!currentStanding || !leader) {
-    return null;
-  }
-
-  return {
-    comparedAt: currentStanding.officialComparedAt,
-    elapsedSeconds: currentStanding.officialElapsedSeconds,
-    participantCount: standings.length,
-    readyParticipantCount: standings.filter((standing) => standing.officialReady).length,
-    userRank: currentStanding.officialReady ? currentStanding.officialRank : undefined,
-    userDistanceKm: currentStanding.officialReady ? currentStanding.officialDistanceKm : undefined,
-    userAveragePace: currentStanding.officialReady ? currentStanding.officialAveragePace : undefined,
-    leaderUserId: leader.officialReady ? leader.userId : undefined,
-    leaderName: leader.officialReady ? leader.name : undefined,
-    leaderDistanceKm: leader.officialReady ? leader.officialDistanceKm : undefined,
-    leaderAveragePace: leader.officialReady ? leader.officialAveragePace : undefined,
-    gapAheadKm: currentStanding.officialReady ? currentStanding.officialGapAheadKm : undefined,
-    gapLeaderKm: currentStanding.officialReady ? currentStanding.officialGapLeaderKm : undefined,
-  };
-}
-
-function buildExpirySnapshot(expiresAt, now = new Date()) {
-  const expiresAtMs = new Date(expiresAt).getTime();
-
-  if (!Number.isFinite(expiresAtMs)) {
-    return {};
-  }
-
-  return {
-    expiresAt,
-    expiresInSeconds: Math.max(0, Math.ceil((expiresAtMs - now.getTime()) / 1000)),
-  };
 }
 
 function findMatchSessionForUser(store, mode, userId, { distanceKm, slotStartAt, testMode = false, matchId } = {}) {
@@ -2740,21 +2466,6 @@ function findAnyReservedMatchSessionForUser(store, userId, now = new Date()) {
   return null;
 }
 
-function buildSingleMatchLockMessage(mode, slotStartAt, state = 'waiting') {
-  const modeLabel = mode === 'duel' ? '1대1 대결' : '그룹 대결';
-  const slotSummary = `${buildMatchSlotDateLabel(slotStartAt)} ${formatDuelSlotLabel(slotStartAt)}`;
-
-  if (state === 'active') {
-    return `이미 진행 중인 ${modeLabel}이 있어요. ${slotSummary} 매치를 먼저 끝내야 새 매칭을 신청할 수 있어요.`;
-  }
-
-  if (state === 'matched') {
-    return `이미 예약된 ${modeLabel}이 있어요. ${slotSummary} 매치를 먼저 취소하거나 끝내야 다른 매칭을 신청할 수 있어요.`;
-  }
-
-  return `이미 신청한 ${modeLabel}이 있어요. ${slotSummary} 매치를 먼저 취소하거나 끝내야 다른 매칭을 신청할 수 있어요.`;
-}
-
 function assertUserCanRequestAnotherMatch(store, currentUser) {
   const now = new Date();
   const cleanup = cleanupStaleRunningMatchRoomState(store, currentUser, now);
@@ -2805,28 +2516,6 @@ function buildQueuedMatchRunnerEntries(store, mode, currentRunner, { distanceKm,
       score,
     };
   });
-}
-
-function buildQueuedParticipants(entries) {
-  return entries
-    .map((entry) => entry.runner)
-    .sort((left, right) => {
-      const leftSeed = left.averagePaceMinutes * 60 * 0.7 - left.weeklyDistanceKm * 1.8 - left.lifetimeDistanceKm * 0.03;
-      const rightSeed = right.averagePaceMinutes * 60 * 0.7 - right.weeklyDistanceKm * 1.8 - right.lifetimeDistanceKm * 0.03;
-      return leftSeed - rightSeed;
-    })
-    .map((participant, index) => ({
-      id: participant.id,
-      name: participant.name,
-      tag: participant.tag,
-      districtName: participant.districtName,
-      averagePace: participant.averagePace,
-      levelLabel: participant.levelLabel,
-      weeklyDistanceKm: participant.weeklyDistanceKm,
-      lifetimeDistanceKm: participant.lifetimeDistanceKm,
-      seedRank: index + 1,
-      seedSummary: `${index + 1}번 시드 · 이번 주 ${participant.weeklyDistanceKm.toFixed(1)}km`,
-    }));
 }
 
 function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm, slotStartAt, testMode = false, matchId } = {}) {
@@ -3508,10 +3197,6 @@ function buildNotificationSettings(user) {
   });
 }
 
-function normalizeOptionalString(value) {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
 function ensureUserConnectedSources(user) {
   const defaultSources = createDefaultConnectedSources();
   const currentSources = Array.isArray(user.connectedSources) ? user.connectedSources : [];
@@ -3544,15 +3229,6 @@ function ensureUserConnectedSources(user) {
   return user.connectedSources;
 }
 
-function normalizeRewardRedemptionStatus(value) {
-  const normalizedValue = normalizeOptionalString(value);
-  return normalizedValue === 'fulfilled' || normalizedValue === 'cancelled' ? normalizedValue : 'requested';
-}
-
-function isActiveRewardRedemption(entry) {
-  return normalizeRewardRedemptionStatus(entry?.status) !== 'cancelled';
-}
-
 function decorateIntegrationSource(store, user, source) {
   const pendingImportCount = getPendingImportCount(store, user.id, source.sourceType);
   return {
@@ -3566,29 +3242,9 @@ function buildIntegrationSources(store, user) {
   return ensureUserConnectedSources(user).map((source) => decorateIntegrationSource(store, user, source));
 }
 
-function buildUserRegionKey(user) {
-  return [
-    normalizeOptionalString(user.provinceName),
-    normalizeOptionalString(user.cityName),
-    normalizeOptionalString(user.districtName),
-  ].filter(Boolean).join(' > ');
-}
-
 function buildRegionCatalog() {
   return {
     regions: clone(addressCatalog),
-  };
-}
-
-function buildNoticeEntry(notice) {
-  return {
-    id: notice.id,
-    title: notice.title,
-    message: notice.message,
-    priority: notice.priority,
-    isActive: notice.isActive !== false,
-    createdAt: notice.createdAt,
-    updatedAt: notice.updatedAt,
   };
 }
 
@@ -3855,67 +3511,6 @@ function getActionableRequests(store, currentUserId) {
     .sort((left, right) => left.name.localeCompare(right.name, 'ko'));
 }
 
-function normalizeRegionChildren(children) {
-  return [...children]
-    .sort((left, right) => {
-      if (right.averageDistanceKm !== left.averageDistanceKm) {
-        return right.averageDistanceKm - left.averageDistanceKm;
-      }
-
-      if (right.totalDistanceKm !== left.totalDistanceKm) {
-        return right.totalDistanceKm - left.totalDistanceKm;
-      }
-
-      if (right.participants !== left.participants) {
-        return right.participants - left.participants;
-      }
-
-      return left.name.localeCompare(right.name, 'ko');
-    })
-    .map((child, index) => ({
-      ...child,
-      rank: index + 1,
-    }));
-}
-
-function findRegionPathForUser(node, user) {
-  const provinceName = typeof user.provinceName === 'string' ? user.provinceName.trim() : '';
-  const cityName = typeof user.cityName === 'string' ? user.cityName.trim() : '';
-  const districtName = typeof user.districtName === 'string' ? user.districtName.trim() : '';
-
-  if (!provinceName) {
-    return [node];
-  }
-
-  const provinceNode = (node.children ?? []).find((entry) => entry.name === provinceName);
-
-  if (!provinceNode) {
-    return [node];
-  }
-
-  const path = [node, provinceNode];
-  let currentNode = provinceNode;
-
-  if (cityName) {
-    const cityNode = (currentNode.children ?? []).find((entry) => entry.name === cityName);
-
-    if (cityNode) {
-      path.push(cityNode);
-      currentNode = cityNode;
-    }
-  }
-
-  if (districtName && currentNode.children?.length) {
-    const districtNode = currentNode.children.find((entry) => entry.name === districtName);
-
-    if (districtNode) {
-      path.push(districtNode);
-    }
-  }
-
-  return path;
-}
-
 function getDistrictBattle(store, user) {
   const path = findRegionPathForUser(store.regionTree, user);
   const rawNode = path[path.length - 1] ?? null;
@@ -4044,22 +3639,6 @@ function buildDistrictPersonal(store, user) {
     focusRanks,
     ranks: districtUsers,
   };
-}
-
-function findRegionPath(node, targetId) {
-  if (node.id === targetId) {
-    return [node];
-  }
-
-  for (const child of node.children ?? []) {
-    const childPath = findRegionPath(child, targetId);
-
-    if (childPath) {
-      return [node, ...childPath];
-    }
-  }
-
-  return null;
 }
 
 function buildRegionLeague(store, nodeId) {
