@@ -53,7 +53,7 @@ export default function LeagueScreen() {
 
   return (
     <Screen scrollRef={scrollRef}>
-      <PageHeader title="리그" />
+      <PageHeader title="랭킹" />
 
       <LeagueModeSwitch mode={leagueMode} onChange={setLeagueMode} />
 
@@ -65,7 +65,7 @@ export default function LeagueScreen() {
 
           {!loading && error ? (
             <StateMessageCard
-              title="지역 리그를 아직 못 불러왔어"
+              title="지역 랭킹을 아직 못 불러왔어"
               message={error}
               tone="danger"
               actionLabel="다시 불러오기"
@@ -75,7 +75,7 @@ export default function LeagueScreen() {
 
           {!loading && !error && !currentNode ? (
             <StateMessageCard
-              title="지역 리그 데이터가 아직 없어"
+              title="지역 랭킹 데이터가 아직 없어"
               message="백엔드 응답이 연결되면 지역별 순위를 바로 탐색할 수 있어."
               actionLabel="다시 불러오기"
               onAction={() => loadLeague()}

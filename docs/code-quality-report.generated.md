@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-18T05:17:55.853Z
+생성 시각: 2026-05-19T04:10:51.074Z
 
 ## 실행 방법
 
@@ -14,7 +14,7 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 779 |
+| 분석 파일 | 782 |
 | 코드 파일 | 726 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 71 |
@@ -40,7 +40,7 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| backend/src/server.mjs | 6191 | imports 26, sort/filter/map 158, timers 1 |
+| backend/src/server.mjs | 6194 | imports 26, sort/filter/map 158, timers 1 |
 | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1951 | imports 50, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
@@ -116,7 +116,7 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| backend/src/server.mjs | 6191 | imports 26, sort/filter/map 158, timers 1 |
+| backend/src/server.mjs | 6194 | imports 26, sort/filter/map 158, timers 1 |
 | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1951 | imports 50, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
@@ -169,7 +169,7 @@ npm run code:quality
 | src/features/runs/runtime/useTrackRunRuntimeStateBridge.ts | 56 | useTrackRunRuntimeStateBridge | 212 |
 | src/features/runs/sync/partyRunSync/useLinkedMatchSync.ts | 47 | useLinkedMatchSync | 212 |
 | scripts/check-preview-public-api.mjs | 259 | main | 211 |
-| backend/src/server.mjs | 2829 | buildRunningMatchStatusResponse | 210 |
+| backend/src/server.mjs | 2832 | buildRunningMatchStatusResponse | 210 |
 | src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 47 | useTrackRunRoomJoinAction | 208 |
 | scripts/analyze-android-perf-trace.mjs | 218 | analyzeLine | 197 |
 | src/features/match/hooks/lobby/useRoomInviteActions.ts | 16 | useRoomInviteActions | 194 |

@@ -101,6 +101,7 @@ const GROUP_MIN_COMPATIBILITY_SCORE = 68;
 const GROUP_MIN_PARTICIPANTS = 5;
 const MATCH_BOOKING_WINDOW_DAYS = 7;
 const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
+const MATCH_PACE_BAND_OFFSET_MINUTES = 10 / 60;
 const MATCH_CANCELLATION_CUTOFF_MS = 60 * 60 * 1000;
 const MATCH_SESSION_ACTIVE_TTL_MS = 4 * 60 * 60 * 1000;
 const MATCH_SESSION_UNSTARTED_ACTIVE_GRACE_MS = 10 * 60 * 1000;
@@ -743,7 +744,9 @@ function formatPaceMinutesLabel(paceMinutes) {
 }
 
 function buildPaceBandLabel(paceMinutes) {
-  return `${formatPaceMinutesLabel(Math.max(0, paceMinutes - 0.25))} ~ ${formatPaceMinutesLabel(paceMinutes + 0.25)}`;
+  const lowerPaceMinutes = Math.max(0, paceMinutes - MATCH_PACE_BAND_OFFSET_MINUTES);
+  const upperPaceMinutes = paceMinutes + MATCH_PACE_BAND_OFFSET_MINUTES;
+  return `${formatPaceMinutesLabel(lowerPaceMinutes)} ~ ${formatPaceMinutesLabel(upperPaceMinutes)}`;
 }
 
 function buildLevelLabel(distanceLevel) {
