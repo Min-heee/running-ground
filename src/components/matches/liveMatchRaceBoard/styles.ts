@@ -4,7 +4,7 @@ import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 export const liveMatchRaceBoardStyles = StyleSheet.create({
   card: {
     gap: spacing.s18,
-    borderRadius: 30,
+    borderRadius: radii.heroLg,
     borderWidth: 1,
     borderColor: colors.navyBorder,
     backgroundColor: colors.slateDark,
@@ -19,13 +19,13 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   },
   title: {
     color: colors.white,
-    fontSize: 29,
+    fontSize: fontSizes.metricLarge,
     fontWeight: fontWeights.extraBold,
     letterSpacing: -0.5,
   },
   subtitle: {
     color: colors.borderMuted,
-    fontSize: 17,
+    fontSize: fontSizes.large,
     lineHeight: 27,
   },
   rows: {
@@ -37,24 +37,24 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.xxl,
     minHeight: 104,
-    borderRadius: 24,
+    borderRadius: radii.cardLarge,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(15,23,42,0.82)',
+    borderColor: colors.raceBoardRowBorder,
+    backgroundColor: colors.raceBoardRowBg,
     paddingHorizontal: spacing.s12,
     paddingVertical: spacing.s18,
   },
   rowCurrent: {
-    borderColor: 'rgba(129,140,248,0.82)',
-    backgroundColor: 'rgba(79,70,229,0.22)',
+    borderColor: colors.raceBoardCurrentBorder,
+    backgroundColor: colors.raceBoardCurrentBg,
   },
   rowForfeited: {
-    borderColor: 'rgba(248,113,113,0.5)',
-    backgroundColor: 'rgba(127,29,29,0.22)',
+    borderColor: colors.raceBoardForfeitedBorder,
+    backgroundColor: colors.raceBoardForfeitedBg,
   },
   rowProgressivePlaceholder: {
-    borderColor: 'rgba(148,163,184,0.32)',
-    backgroundColor: 'rgba(15,23,42,0.56)',
+    borderColor: colors.raceBoardPlaceholderBorder,
+    backgroundColor: colors.raceBoardPlaceholderBg,
   },
   nameColumn: {
     width: 64,
@@ -73,7 +73,7 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   },
   nameText: {
     color: colors.white,
-    fontSize: 19,
+    fontSize: fontSizes.display,
     fontWeight: fontWeights.extraBold,
     lineHeight: 23,
   },
@@ -100,7 +100,7 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     position: 'relative',
     height: 8,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(148,163,184,0.28)',
+    backgroundColor: colors.raceBoardTrackLineBg,
     overflow: 'visible',
   },
   trackProgress: {
@@ -109,16 +109,16 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     left: 0,
     bottom: 0,
     borderRadius: radii.pill,
-    backgroundColor: 'rgba(109,94,247,0.46)',
+    backgroundColor: colors.raceBoardTrackProgressBg,
   },
   trackProgressCurrent: {
-    backgroundColor: 'rgba(129,140,248,0.58)',
+    backgroundColor: colors.raceBoardTrackProgressCurrentBg,
   },
   trackProgressForfeited: {
-    backgroundColor: 'rgba(248,113,113,0.42)',
+    backgroundColor: colors.raceBoardTrackProgressForfeitedBg,
   },
   trackProgressProgressivePlaceholder: {
-    backgroundColor: 'rgba(148,163,184,0.34)',
+    backgroundColor: colors.raceBoardTrackProgressPlaceholderBg,
   },
   trackDot: {
     position: 'absolute',
@@ -177,7 +177,7 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   },
   metaRemaining: {
     color: colors.borderCool,
-    fontSize: 17,
+    fontSize: fontSizes.large,
     fontWeight: fontWeights.extraBold,
     textAlign: 'right',
   },
