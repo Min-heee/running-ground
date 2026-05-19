@@ -99,7 +99,7 @@ test('duel result records normal finish by compared distance', () => {
       officialElapsedSeconds: 600,
       officialAveragePace: '09:05/km',
       officialRank: 2,
-      liveStatus: 'running',
+      liveStatus: 'finished',
     }),
     currentDistanceKm: 1.25,
     targetDistanceKm: 5,
@@ -111,6 +111,7 @@ test('duel result records normal finish by compared distance', () => {
   assert.equal(result?.matchResult.resultTone, 'win');
   assert.equal(result?.matchResult.comparedDistanceKm, 1.1);
   assert.equal(result?.matchResult.gapKm, 0.15);
+  assert.equal(result?.rows.some((row) => row.isInProgress), false);
 });
 
 test('duel result records normal loss when opponent distance is ahead', () => {
@@ -121,7 +122,7 @@ test('duel result records normal loss when opponent distance is ahead', () => {
       officialElapsedSeconds: 600,
       officialAveragePace: '07:09/km',
       officialRank: 1,
-      liveStatus: 'running',
+      liveStatus: 'finished',
     }),
     currentDistanceKm: 1.1,
     targetDistanceKm: 5,
@@ -145,7 +146,7 @@ test('duel result records near-equal distances as draw', () => {
       liveElapsedSeconds: 600,
       livePace: '09:48/km',
       liveUpdatedAt: '2026-05-12T00:10:00.000Z',
-      liveStatus: 'running',
+      liveStatus: 'finished',
     }),
     currentDistanceKm: 1,
     targetDistanceKm: 5,
@@ -174,7 +175,7 @@ test('duel result returns null when opponent data is missing', () => {
 
 test('group result records current rank and keeps updated standings order', () => {
   const standings = [
-    standing({ id: 'leader', name: '1등', rank: 1, currentDistanceKm: 2.2, gapAheadKm: null, gapLeaderKm: 0 }),
+    standing({ id: 'leader', name: '1등', rank: 1, currentDistanceKm: 2.2, gapAheadKm: null, gapLeaderKm: 0, liveStatus: 'finished' }),
     standing({
       id: 'me',
       name: '나',
@@ -183,8 +184,9 @@ test('group result records current rank and keeps updated standings order', () =
       gapAheadKm: 0.2,
       gapLeaderKm: 0.2,
       isCurrentUser: true,
+      liveStatus: 'finished',
     }),
-    standing({ id: 'third', name: '3등', rank: 3, currentDistanceKm: 1.7, gapAheadKm: 0.3, gapLeaderKm: 0.5 }),
+    standing({ id: 'third', name: '3등', rank: 3, currentDistanceKm: 1.7, gapAheadKm: 0.3, gapLeaderKm: 0.5, liveStatus: 'finished' }),
   ];
 
   const result = buildGroupMatchFinishModel({
@@ -200,6 +202,7 @@ test('group result records current rank and keeps updated standings order', () =
   assert.equal(result?.matchResult.rank, 2);
   assert.equal(result?.matchResult.participantCount, 3);
   assert.deepEqual(result?.rows.map((row) => row.id), ['leader', 'me', 'third']);
+  assert.equal(result?.rows.some((row) => row.isInProgress), false);
 });
 
 test('group result records current user forfeit with forfeit badge and bottom rank', () => {
