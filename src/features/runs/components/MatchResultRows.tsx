@@ -105,20 +105,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   duelRowWin: {
-    borderColor: 'rgba(129, 140, 248, 0.42)',
-    backgroundColor: 'rgba(67, 56, 202, 0.24)',
+    borderColor: colors.matchResultWinBorder,
+    backgroundColor: colors.matchResultWinBg,
   },
   duelRowLose: {
-    borderColor: 'rgba(244, 114, 182, 0.28)',
-    backgroundColor: 'rgba(136, 19, 55, 0.22)',
+    borderColor: colors.matchResultLoseBorder,
+    backgroundColor: colors.matchResultLoseBg,
   },
   duelRowDraw: {
-    borderColor: 'rgba(148, 163, 184, 0.32)',
-    backgroundColor: 'rgba(30, 41, 59, 0.72)',
+    borderColor: colors.matchResultDrawBorder,
+    backgroundColor: colors.matchResultDrawBg,
   },
   duelRowInProgress: {
-    borderColor: 'rgba(148, 163, 184, 0.32)',
-    backgroundColor: 'rgba(15, 23, 42, 0.52)',
+    borderColor: colors.matchResultDrawBorder,
+    backgroundColor: colors.matchResultInProgressBg,
   },
   duelLabelColumn: {
     minWidth: 54,
@@ -160,20 +160,20 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.s12,
     backgroundColor: colors.slateDark,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: colors.groupResultRowBorder,
   },
   groupRowCurrent: {
-    borderColor: 'rgba(129, 140, 248, 0.48)',
-    backgroundColor: 'rgba(67, 56, 202, 0.18)',
+    borderColor: colors.groupResultRowCurrentBorder,
+    backgroundColor: colors.groupResultRowCurrentBg,
   },
   groupRowInProgress: {
-    borderColor: 'rgba(148, 163, 184, 0.24)',
-    backgroundColor: 'rgba(15, 23, 42, 0.42)',
+    borderColor: colors.groupResultRowInProgressBorder,
+    backgroundColor: colors.groupResultRowInProgressBg,
   },
   groupRank: {
     width: 52,
     color: colors.white,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.black,
   },
   groupRankInProgress: {
