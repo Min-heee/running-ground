@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const rootDir = process.cwd();
 const outputPath = path.join(rootDir, 'docs', 'code-quality-report.generated.md');
@@ -447,11 +448,23 @@ function findServiceBoundaryIssues(metrics) {
 }
 
 function isUtilityBoundary(relativePath) {
+  const fileName = relativePath.split('/').pop() ?? '';
+
   return /\/(?:utils|domain|viewModels|lifecycle|tracking)\//.test(relativePath)
     || relativePath.startsWith('src/domain/')
+    || relativePath.startsWith('src/lib/api/services/')
     || relativePath.startsWith('backend/src/repositories/')
     || relativePath.startsWith('backend/src/bridges/')
-    || relativePath.startsWith('scripts/');
+    || relativePath.startsWith('backend/src/services/')
+    || relativePath.startsWith('backend/src/lib/')
+    || relativePath.startsWith('scripts/')
+    || relativePath === 'backend/src/store.mjs'
+    || /Queries\.(?:mjs|tsx?)$/i.test(fileName)
+    || /Policy\.(?:mjs|tsx?)$/i.test(fileName)
+    || /Helpers?\.(?:mjs|tsx?)$/i.test(fileName)
+    || /Builders?\.(?:mjs|tsx?)$/i.test(fileName)
+    || /Store\.(?:mjs|tsx?)$/i.test(fileName)
+    || /Repository\.(?:mjs|tsx?)$/i.test(fileName);
 }
 
 function findCalculationPlacementIssues(metrics) {
@@ -478,6 +491,8 @@ function isTypeBoundary(relativePath) {
   return /\/types\//.test(relativePath)
     || relativePath.startsWith('src/domain/')
     || relativePath.startsWith('src/lib/api/types/')
+    || /\.types\.tsx?$/.test(relativePath)
+    || /Types\.tsx?$/.test(relativePath)
     || relativePath.endsWith('.test.ts')
     || relativePath.endsWith('.test.tsx')
     || relativePath.endsWith('.test.mjs');
@@ -548,16 +563,26 @@ function findLocationIssues(metrics) {
     return [];
   }
 
+  if (metrics.relativePath.startsWith('scripts/')) {
+    return [];
+  }
+
   const firstLineIndex = metrics.lines.findIndex((line) => (
     /\b(?:Location\.|watchPositionAsync|startLocationUpdatesAsync|TaskManager|AppState)\b/.test(line)
   ));
+  const hasLocationRuntimeSignal = metrics.lines.some((line) => (
+    /\b(?:Location\.|watchPositionAsync|startLocationUpdatesAsync|stopLocationUpdatesAsync|TaskManager|background task|Background)\b/.test(line)
+  ));
+  const priority = metrics.relativePath.includes('tracking') || !hasLocationRuntimeSignal
+    ? 'Medium'
+    : 'High';
 
   return [createIssue({
     category: 'Location/watch/background task 사용 후보',
     evidence: firstLineIndex === -1 ? `signals=${metrics.locationSignalCount}` : metrics.lines[firstLineIndex],
     file: metrics.relativePath,
     line: firstLineIndex === -1 ? '' : getLineNumber(firstLineIndex),
-    priority: metrics.relativePath.includes('tracking') ? 'Medium' : 'High',
+    priority,
     reason: '위치 watcher/background task/AppState 관련 코드가 감지됐다.',
     recommendation: 'single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다.',
     score: metrics.locationSignalCount * 10,
@@ -834,4 +859,14 @@ function main() {
   ]);
 }
 
-main();
+export {
+  findCalculationPlacementIssues,
+  findLocationIssues,
+  findTypePlacementIssues,
+  isTypeBoundary,
+  isUtilityBoundary,
+};
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}
