@@ -1,33 +1,21 @@
-import type { ArenaParticipant } from '@/components/matches/liveMatchArena/types';
+import type {
+  DuelResultLabel,
+  MatchResultDisplayMode,
+  ParticipantArenaLabel,
+  ParticipantLiveStatus,
+  ParticipantViewState,
+  ParticipantViewStateInput,
+  ProgressiveParticipant,
+} from '@/features/runs/types/matchResult';
 
-export type ParticipantViewState =
-  | 'running'
-  | 'finished-self'
-  | 'finished-other-visible'
-  | 'finished-other-hidden';
-
-export type MatchResultDisplayMode = 'duel' | 'group';
-
-export type DuelResultLabel = 'WIN' | 'LOSE' | 'DRAW';
-
-type ParticipantLiveStatus = ArenaParticipant['liveStatus'];
-
-export type ProgressiveParticipant = {
-  isCurrentUser?: boolean;
-  liveStatus?: ParticipantLiveStatus;
-  rankLabel?: string;
-  finishedAt?: string | null;
-};
-
-export type ParticipantViewStateInput = {
-  participant: ProgressiveParticipant;
-  isCurrentUserFinished: boolean;
-};
-
-export type ParticipantArenaLabel = {
-  kind: 'rank' | 'result' | 'none';
-  text: string;
-};
+export type {
+  DuelResultLabel,
+  MatchResultDisplayMode,
+  ParticipantArenaLabel,
+  ParticipantViewState,
+  ParticipantViewStateInput,
+  ProgressiveParticipant,
+} from '@/features/runs/types/matchResult';
 
 function isTerminalStatus(status: ParticipantLiveStatus | undefined) {
   return status === 'finished' || status === 'forfeited';
