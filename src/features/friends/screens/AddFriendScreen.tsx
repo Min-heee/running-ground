@@ -7,7 +7,7 @@ import { InfoCard } from '@/components/ui/InfoCard';
 import { useAddFriendScreen } from '@/features/friends/hooks/useAddFriendScreen';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function AddFriendScreen() {
   const {
@@ -80,20 +80,20 @@ export default function AddFriendScreen() {
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   tagBox: {
     backgroundColor: colors.purpleRow,
-    borderRadius: 18,
-    padding: 16,
-    gap: 8,
-    marginTop: 8,
+    borderRadius: radii.lg,
+    padding: spacing.s16,
+    gap: spacing.xxl,
+    marginTop: spacing.xxl,
   },
   tag: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: fontSizes.pageTitle,
+    fontWeight: fontWeights.extraBold,
     color: colors.brand,
   },
   tagHint: {
@@ -103,46 +103,46 @@ const styles = StyleSheet.create({
   copyButton: {
     alignSelf: 'flex-start',
     backgroundColor: colors.white,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s10,
     borderWidth: 1,
     borderColor: colors.purpleBorder,
   },
   copyButtonText: {
     color: colors.brand,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   statusText: {
     color: colors.textMuted,
     lineHeight: 21,
-    marginTop: 8,
+    marginTop: spacing.xxl,
   },
   form: {
-    gap: 12,
-    marginTop: 8,
+    gap: spacing.s12,
+    marginTop: spacing.xxl,
   },
   input: {
     backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
     borderColor: colors.borderMuted,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s14,
     color: colors.textPrimary,
   },
   helperText: {
     color: colors.textSecondary,
-    fontWeight: '600',
+    fontWeight: fontWeights.semibold,
   },
   successText: {
     color: colors.successText,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
 });

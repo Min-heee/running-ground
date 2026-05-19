@@ -11,7 +11,7 @@ import { hydrateOptimisticMatchRoom } from '@/features/match/hooks/lobby/optimis
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type PartyRunHomePanelProps = {
   visibleRoom: RunningMatchRoom | null;
@@ -162,32 +162,32 @@ export function PartyRunHomePanel({
 const styles = StyleSheet.create({
   partyRoomEntryButton: {
     alignItems: 'center',
-    borderRadius: 18,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.brandLight,
     backgroundColor: colors.brandWash,
-    paddingVertical: 14,
+    paddingVertical: spacing.s14,
   },
   partyRoomEntryButtonText: {
     color: colors.brandDeep,
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.black,
   },
   roomCard: {
-    gap: 14,
+    gap: spacing.s14,
   },
   roomModeRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
   },
   roomModeChip: {
     flex: 1,
     alignItems: 'center',
-    borderRadius: 18,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.slateMuted,
     backgroundColor: colors.textPrimary,
-    paddingVertical: 14,
+    paddingVertical: spacing.s14,
   },
   roomModeChipSelected: {
     borderColor: colors.brandLight,
@@ -196,28 +196,28 @@ const styles = StyleSheet.create({
   roomModeChipText: {
     color: colors.borderMuted,
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
   },
   roomModeChipTextSelected: {
     color: colors.white,
   },
   roomJoinBox: {
-    gap: 10,
+    gap: spacing.s10,
   },
   roomPickerTitle: {
     color: colors.borderMuted,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.extraBold,
   },
   roomInput: {
-    borderRadius: 16,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.slateMuted,
     backgroundColor: colors.slateDark,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s12,
     color: colors.white,
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
 });

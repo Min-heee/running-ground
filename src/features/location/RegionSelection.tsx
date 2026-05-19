@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AddressRegionNode } from './addressCatalog';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontWeights, radii } from '@/theme/tokens';
 
 export function buildRegionSelectionState(
   regions: AddressRegionNode[],
@@ -93,22 +93,22 @@ const RegionChip = memo(function RegionChip({
 
 const styles = StyleSheet.create({
   selectionSection: {
-    gap: 10,
+    gap: spacing.s10,
   },
   selectionTitle: {
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     fontSize: 15,
   },
   selectionList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.xxl,
   },
   selectionChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s10,
+    borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.white,
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   },
   selectionChipText: {
     color: colors.textMuted,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   selectionChipTextSelected: {
     color: colors.white,

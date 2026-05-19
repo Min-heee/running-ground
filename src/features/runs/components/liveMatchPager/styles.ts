@@ -1,18 +1,18 @@
 import { StyleSheet } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export const liveMatchPagerStyles = StyleSheet.create({
   shell: {
-    gap: 12,
+    gap: spacing.s12,
   },
   tabRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.xxl,
   },
   tab: {
     flex: 1,
     minHeight: 44,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.border,
     alignItems: 'center',
@@ -25,23 +25,23 @@ export const liveMatchPagerStyles = StyleSheet.create({
   },
   tabText: {
     color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.extraBold,
   },
   tabTextSelected: {
     color: colors.brandStrong,
   },
   page: {
-    gap: 14,
+    gap: spacing.s14,
     paddingRight: 0,
   },
   androidPage: {
-    gap: 14,
+    gap: spacing.s14,
   },
   hint: {
     color: colors.textTertiary,
-    fontSize: 13,
+    fontSize: fontSizes.md,
     textAlign: 'center',
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
 });

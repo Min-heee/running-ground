@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type HomeWeeklyStatusCardProps = {
   totalDistanceKm: number;
@@ -38,22 +38,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 0,
-    paddingVertical: 14,
+    paddingVertical: spacing.s14,
   },
   statusMetric: {
     flex: 1,
-    gap: 4,
+    gap: spacing.sm,
     alignItems: 'center',
   },
   statusLabel: {
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
   },
   statusValue: {
     color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: fontSizes.metric,
+    fontWeight: fontWeights.extraBold,
   },
   statusDivider: {
     width: 1,

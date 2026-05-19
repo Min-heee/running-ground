@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { MyProfileResponse } from '@/lib/api/types';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type ProfileSummaryCardProps = {
   profile: MyProfileResponse;
@@ -56,14 +56,14 @@ export function ProfileSummaryCard({
 
 const styles = StyleSheet.create({
   profileCard: {
-    gap: 12,
-    paddingTop: 16,
-    paddingBottom: 16,
+    gap: spacing.s12,
+    paddingTop: spacing.s16,
+    paddingBottom: spacing.s16,
   },
   profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: spacing.s14,
   },
   avatar: {
     width: 54,
@@ -76,55 +76,55 @@ const styles = StyleSheet.create({
   avatarText: {
     color: colors.white,
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   profileMeta: {
     flex: 1,
-    gap: 4,
+    gap: spacing.sm,
   },
   name: {
     fontSize: 26,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     color: colors.textHeading,
   },
   subline: {
     color: colors.textSecondary,
   },
   profileTagRow: {
-    gap: 4,
+    gap: spacing.sm,
   },
   tagLabel: {
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   tag: {
     color: colors.textPrimary,
-    fontWeight: '800',
-    fontSize: 16,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.button,
   },
   profileHint: {
-    fontSize: 12,
+    fontSize: fontSizes.sm,
     color: colors.textSecondary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   inlineActions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.xxl,
   },
   inlineActionButton: {
     backgroundColor: colors.white,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s10,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
   },
   inlineActionText: {
     color: colors.textPrimary,
-    fontWeight: '700',
-    fontSize: 12,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.sm,
   },
 });

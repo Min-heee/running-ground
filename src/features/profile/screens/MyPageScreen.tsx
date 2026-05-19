@@ -13,7 +13,7 @@ import { UniversityVerificationCard } from '@/features/profile/components/Univer
 import { useMyPageScreen } from '@/features/profile/hooks/useMyPageScreen';
 import { shouldShowRgEnvironmentDebugByDefault } from '@/utils/rgEnvTrace';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
-import { colors } from '@/theme/tokens';
+import { colors, fontWeights } from '@/theme/tokens';
 
 export default function MyPageScreen() {
   useTabWarmupTrace('mypage');
@@ -102,7 +102,7 @@ export default function MyPageScreen() {
 const styles = StyleSheet.create({
   errorText: {
     color: colors.dangerBright,
-    fontWeight: '600',
+    fontWeight: fontWeights.semibold,
     lineHeight: 20,
   },
 });

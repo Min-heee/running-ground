@@ -4,7 +4,7 @@ import { Card } from '@/components/Card';
 import type { RunningMatchRoomStartMode } from '@/lib/api/types';
 import { MatchRoomWheelColumn } from '@/features/runs/components/matchRoom/MatchRoomWheelColumn';
 import type { MatchRoomMeridiem } from '@/features/runs/types/matchRoom';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import {
   MATCH_ROOM_HOUR_OPTIONS,
   MATCH_ROOM_MINUTE_OPTIONS,
@@ -160,20 +160,20 @@ const StartModeChip = memo(function StartModeChip({
 const styles = StyleSheet.create({
   sectionTitle: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
   },
   modeRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
   },
   modeChip: {
     flex: 1,
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: 12,
+    paddingVertical: spacing.s12,
   },
   modeChipSelected: {
     borderColor: colors.brandLight,
@@ -181,29 +181,29 @@ const styles = StyleSheet.create({
   },
   modeChipText: {
     color: colors.textStrongMuted,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   modeChipTextSelected: {
     color: colors.brandDeep,
   },
   scheduleBox: {
-    gap: 12,
-    marginTop: 12,
+    gap: spacing.s12,
+    marginTop: spacing.s12,
   },
   scheduleTitle: {
     color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.extraBold,
   },
   wheelRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 4,
+    gap: spacing.xxl,
+    paddingVertical: spacing.sm,
   },
   helperText: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: fontSizes.base,
     lineHeight: 20,
   },
 });

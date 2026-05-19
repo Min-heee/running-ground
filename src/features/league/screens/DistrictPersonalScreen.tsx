@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { type DistrictPersonalRank, useDistrictPersonal } from '@/features/league/hooks/useDistrictPersonal';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 const DistrictPersonalRankRow = memo(function DistrictPersonalRankRow({ runner }: { runner: DistrictPersonalRank }) {
   return (
@@ -111,33 +111,33 @@ export default function DistrictPersonalScreen() {
 const styles = StyleSheet.create({
   heroCard: {
     backgroundColor: colors.textPrimary,
-    gap: 10,
+    gap: spacing.s10,
   },
   heroLabel: {
     color: colors.brandLighter,
-    fontWeight: '700',
-    fontSize: 12,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.sm,
   },
   heroTitle: {
     color: colors.white,
-    fontSize: 30,
-    fontWeight: '800',
+    fontSize: fontSizes.hero,
+    fontWeight: fontWeights.extraBold,
   },
   heroMetrics: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
   },
   heroMetricBox: {
     flex: 1,
     backgroundColor: colors.darkMuted,
-    borderRadius: 16,
-    padding: 14,
-    gap: 4,
+    borderRadius: radii.md,
+    padding: spacing.s14,
+    gap: spacing.sm,
   },
   heroMetricValue: {
     color: colors.white,
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: fontSizes.comingSoon,
+    fontWeight: fontWeights.extraBold,
   },
   heroMetricLabel: {
     color: colors.border,
@@ -146,47 +146,47 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   rankRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.s12,
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: spacing.s12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderSoft,
   },
   meRow: {
     backgroundColor: colors.purpleRow,
-    borderRadius: 14,
-    paddingHorizontal: 10,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.s10,
   },
   rankNumber: {
     width: 24,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     color: colors.textStrongMuted,
   },
   rankMeta: {
     flex: 1,
-    gap: 2,
+    gap: spacing.xxs,
   },
   rankName: {
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   rankDetail: {
     color: colors.textSecondary,
   },
   stateTitle: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
   emptyText: {

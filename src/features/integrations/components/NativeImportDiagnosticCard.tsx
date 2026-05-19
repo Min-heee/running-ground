@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { buildImportDiagnosisHint } from '@/features/integrations/utils/integrationMessages';
 import type { NativeHealthImportResult } from '@/integrations/nativeHealth';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type NativeImportDiagnosticCardProps = {
   result: NativeHealthImportResult | null;
@@ -46,38 +46,38 @@ function DiagnosticChip({ label, value }: DiagnosticChipProps) {
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   helperText: {
     color: colors.textSecondary,
     lineHeight: 20,
-    marginTop: 8,
+    marginTop: spacing.xxl,
   },
   diagnosticGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 12,
+    gap: spacing.s10,
+    marginTop: spacing.s12,
   },
   diagnosticChip: {
     minWidth: '47%',
     flexGrow: 1,
     backgroundColor: colors.surfaceSoft,
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 4,
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.s10,
+    gap: spacing.sm,
   },
   diagnosticLabel: {
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   diagnosticValue: {
     color: colors.textPrimary,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.extraBold,
   },
 });

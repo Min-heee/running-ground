@@ -9,7 +9,7 @@ import { useHomeScreenModel } from '@/features/home/hooks/useHomeScreenModel';
 import { HomeOverview } from '@/features/home/HomeOverview';
 import { shouldShowMatchStartOverlay } from '@/lib/matchCountdown';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
-import { colors } from '@/theme/tokens';
+import { colors, spacing } from '@/theme/tokens';
 
 export default function HomeScreen() {
   useTabWarmupTrace('home');
@@ -74,6 +74,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentWrap: {
-    gap: 16,
+    gap: spacing.s16,
   },
 });

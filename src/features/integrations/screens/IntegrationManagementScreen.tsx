@@ -20,7 +20,7 @@ import {
 } from '@/features/integrations/sourceCatalog';
 import { buildSyncSummary } from '@/features/integrations/utils/integrationMessages';
 import { getRecommendedNativeHealthReadiness } from '@/integrations/nativeHealth';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 export default function IntegrationManagementScreen() {
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
@@ -126,14 +126,14 @@ export default function IntegrationManagementScreen() {
 
 const styles = StyleSheet.create({
   stateTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
-    marginTop: 10,
+    fontWeight: fontWeights.bold,
+    marginTop: spacing.s10,
     lineHeight: 20,
   },
 });

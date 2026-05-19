@@ -4,7 +4,7 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { formatMatchCountdown } from '@/lib/matchCountdown';
 import { formatRoomDateLabel } from '@/features/runs/utils/matchRoomScheduling';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type MatchRoomSummaryCardProps = {
   room: RunningMatchRoom;
@@ -66,53 +66,53 @@ export function MatchRoomSummaryCard({
 
 const styles = StyleSheet.create({
   lobbyCard: {
-    gap: 14,
+    gap: spacing.s14,
   },
   roomTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: spacing.s12,
   },
   roomModeTitle: {
     color: colors.textPrimary,
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
   },
   roomMeta: {
     color: colors.textMuted,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.semibold,
   },
   codePill: {
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.indigoInk,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
   },
   codePillText: {
     color: colors.brandWashStrong,
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extraBold,
   },
   actionGrid: {
-    gap: 10,
+    gap: spacing.s10,
   },
   countdownBanner: {
-    borderRadius: 18,
+    borderRadius: radii.lg,
     backgroundColor: colors.indigoInk,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 4,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s14,
+    gap: spacing.sm,
   },
   countdownBannerTitle: {
     color: colors.brandWash,
-    fontSize: 18,
-    fontWeight: '900',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.black,
   },
   countdownBannerText: {
     color: colors.brandLighter,
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
   },
 });

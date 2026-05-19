@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import type { FriendRank } from '@/domain';
 import type { RunningMatchRoomMode } from '@/lib/api/types';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type MatchRoomFriendInviteCardProps = {
   mode: RunningMatchRoomMode;
@@ -109,20 +109,20 @@ const FriendInviteChip = memo(function FriendInviteChip({
 const styles = StyleSheet.create({
   sectionTitle: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
   },
   friendWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: spacing.s10,
   },
   friendChip: {
-    borderRadius: 999,
+    borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s10,
     backgroundColor: colors.white,
   },
   friendChipSelected: {
@@ -131,32 +131,32 @@ const styles = StyleSheet.create({
   },
   friendChipText: {
     color: colors.textStrongMuted,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   friendChipTextSelected: {
     color: colors.brandDeep,
   },
   inviteSubmitBox: {
-    gap: 10,
-    marginTop: 14,
+    gap: spacing.s10,
+    marginTop: spacing.s14,
   },
   sendInviteButton: {
     alignItems: 'center',
-    borderRadius: 18,
+    borderRadius: radii.lg,
     backgroundColor: colors.brand,
     paddingVertical: 15,
   },
   sendInviteButtonText: {
     color: colors.white,
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.black,
   },
   actionButtonDisabled: {
     opacity: 0.45,
   },
   helperText: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: fontSizes.base,
     lineHeight: 20,
   },
 });

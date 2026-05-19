@@ -8,7 +8,7 @@ import type { RegionDrilldownNode } from '@/domain';
 import type { RegionBreadcrumbItem } from '@/lib/api/types';
 import { PodiumBadge } from '@/features/league/components/LeagueRankBadges';
 import { getPodiumTheme } from '@/features/league/utils/leagueRanking';
-import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import { formatDistanceKm, formatPeopleCount } from '@/utils/formatUnits';
 
 type LeagueRegionSelectorCardProps = {

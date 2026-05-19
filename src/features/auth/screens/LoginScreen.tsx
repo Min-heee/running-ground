@@ -4,7 +4,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { useLoginScreen } from '@/features/auth/hooks/useLoginScreen';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function LoginScreen() {
   const {
@@ -106,8 +106,8 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: colors.textPrimary },
-  form: { gap: 12, marginTop: 8 },
+  sectionTitle: { fontSize: fontSizes.title, fontWeight: fontWeights.extraBold, color: colors.textPrimary },
+  form: { gap: spacing.s12, marginTop: 8 },
   helperText: {
     color: colors.textSecondary,
     lineHeight: 19,
@@ -116,9 +116,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
     borderColor: colors.borderMuted,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s14,
     color: colors.textPrimary,
   },
   passwordRow: {
@@ -129,54 +129,54 @@ const styles = StyleSheet.create({
   },
   passwordToggle: {
     position: 'absolute',
-    right: 10,
+    right: spacing.s10,
     top: 9,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 999,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.xl,
+    borderRadius: radii.pill,
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.borderMuted,
   },
   passwordToggleText: {
     color: colors.textStrongMuted,
-    fontWeight: '800',
-    fontSize: 12,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.sm,
   },
   accountButton: {
     backgroundColor: colors.brandWash,
     borderWidth: 1,
     borderColor: colors.brandLighter,
-    borderRadius: 16,
+    borderRadius: radii.md,
     paddingVertical: 15,
     alignItems: 'center',
   },
   accountButtonText: {
     color: colors.textPrimary,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     fontSize: 15,
   },
   serverCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: spacing.s12,
   },
   serverTitle: {
     color: colors.textPrimary,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     fontSize: 15,
   },
   serverAction: {
     color: colors.brand,
-    fontWeight: '800',
-    fontSize: 13,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.md,
   },
   serverText: {
-    marginTop: 8,
+    marginTop: spacing.xxl,
     color: colors.textSecondary,
     lineHeight: 19,
-    fontSize: 12,
+    fontSize: fontSizes.sm,
   },
   serverTextOk: {
     color: colors.successText,
@@ -190,19 +190,19 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 6,
-    paddingTop: 8,
+    gap: spacing.lg,
+    paddingTop: spacing.xxl,
   },
   footerText: {
     color: colors.textSecondary,
   },
   footerLink: {
     color: colors.brand,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
 });

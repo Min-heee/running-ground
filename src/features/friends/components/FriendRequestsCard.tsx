@@ -4,7 +4,7 @@ import type { ListRenderItem } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { FriendRequest } from '@/domain';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type FriendRequestsCardProps = {
   received: FriendRequest[];
@@ -147,31 +147,31 @@ export function FriendRequestsCard({
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   requestRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
-    gap: 12,
+    paddingVertical: spacing.s12,
+    gap: spacing.s12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderSoft,
   },
   requestMeta: {
     flex: 1,
-    gap: 2,
+    gap: spacing.xxs,
   },
   requestActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.xxl,
     alignItems: 'center',
   },
   requestName: {
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   requestDetail: {
     color: colors.textSecondary,
@@ -179,45 +179,45 @@ const styles = StyleSheet.create({
   acceptButton: {
     backgroundColor: colors.brand,
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.xxl,
   },
   ghostButton: {
     backgroundColor: colors.white,
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.xxl,
     borderWidth: 1,
     borderColor: colors.border,
   },
   acceptButtonText: {
     color: colors.white,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   ghostButtonText: {
     color: colors.textStrongMuted,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   pendingBadge: {
     backgroundColor: colors.brandWash,
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.xxl,
   },
   pendingBadgeText: {
     color: colors.brandStrong,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   disabledButton: {
     opacity: 0.6,
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
   emptyText: {
     color: colors.textSecondary,
-    marginTop: 10,
+    marginTop: spacing.s10,
   },
 });

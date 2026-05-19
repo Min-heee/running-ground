@@ -7,7 +7,7 @@ import {
   shouldShowMatchCardCountdown,
 } from '@/lib/matchCountdown';
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type UpcomingMatchListProps = {
   matches: UpcomingRunningMatchItem[];
@@ -121,36 +121,36 @@ export function UpcomingMatchList({
 
 const styles = StyleSheet.create({
   card: {
-    gap: 10,
-    padding: 14,
-    borderRadius: 20,
+    gap: spacing.s10,
+    padding: spacing.s14,
+    borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.darkSoft,
     backgroundColor: colors.darkMuted,
   },
   eyebrow: {
     color: colors.brandLighter,
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
     letterSpacing: 0.4,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: spacing.s12,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.08)',
-    paddingTop: 10,
+    paddingTop: spacing.s10,
   },
   copy: {
     flex: 1,
-    gap: 4,
+    gap: spacing.sm,
   },
   title: {
     color: colors.white,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.extraBold,
   },
   meta: {
     color: colors.border,
@@ -158,43 +158,43 @@ const styles = StyleSheet.create({
   },
   countdownPill: {
     alignSelf: 'flex-start',
-    marginTop: 4,
-    borderRadius: 999,
+    marginTop: spacing.sm,
+    borderRadius: radii.pill,
     backgroundColor: 'rgba(129, 140, 248, 0.16)',
     borderWidth: 1,
     borderColor: 'rgba(129, 140, 248, 0.32)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.lg,
   },
   countdownText: {
     color: colors.brandWashStrong,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   cancelButton: {
     alignSelf: 'flex-start',
-    marginTop: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.lg,
+    borderRadius: radii.pill,
     backgroundColor: colors.textPrimary,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
   },
   cancelText: {
     color: colors.white,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   helperText: {
     color: colors.brandTint,
-    fontSize: 12,
+    fontSize: fontSizes.sm,
     lineHeight: 18,
-    marginTop: 4,
+    marginTop: spacing.sm,
   },
   state: {
     color: colors.brandTint,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
 });

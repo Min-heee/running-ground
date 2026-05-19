@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { StreakCalendarCell, WeeklyPointTrack } from '@/features/points/pointSystem';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type HomePointCalendarProps = {
   calendar: NonNullable<WeeklyPointTrack['calendar']>;
@@ -121,29 +121,29 @@ const CalendarDayCell = memo(function CalendarDayCell({
 
 const styles = StyleSheet.create({
   calendarWrap: {
-    gap: 10,
+    gap: spacing.s10,
   },
   calendarHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.s12,
   },
   calendarNav: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xxl,
   },
   calendarNavButton: {
     backgroundColor: colors.surfaceSubtle,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.xxl,
+    paddingVertical: spacing.md,
   },
   calendarNavButtonText: {
     color: colors.textStrongMuted,
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
   calendarNavButtonCurrent: {
@@ -154,13 +154,13 @@ const styles = StyleSheet.create({
   },
   calendarMonth: {
     color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extraBold,
   },
   calendarMeta: {
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   calendarWeekHeader: {
     flexDirection: 'row',
@@ -169,15 +169,15 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     color: colors.textTertiary,
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
   },
   calendarGrid: {
-    gap: 6,
+    gap: spacing.lg,
   },
   calendarRow: {
     flexDirection: 'row',
-    gap: 6,
+    gap: spacing.lg,
   },
   calendarCell: {
     flex: 1,
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSubtle,
     alignItems: 'flex-start',
     justifyContent: 'flex-start',
-    padding: 4,
+    padding: spacing.sm,
     position: 'relative',
   },
   calendarCellPlaceholder: {
@@ -197,8 +197,8 @@ const styles = StyleSheet.create({
   },
   calendarDay: {
     color: colors.textSecondary,
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
   },
   calendarDayActive: {
     color: colors.blueStrong,
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
   calendarReward: {
     color: colors.blueStrong,
     fontSize: 9,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
     position: 'absolute',
     top: '50%',

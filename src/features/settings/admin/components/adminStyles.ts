@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export const styles = StyleSheet.create({
   safe: {
@@ -13,36 +13,36 @@ export const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 1320,
     alignSelf: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    gap: 16,
+    paddingHorizontal: spacing.s16,
+    paddingTop: spacing.s18,
+    gap: spacing.s16,
   },
   containerWide: {
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.s24,
   },
   hero: {
     backgroundColor: colors.textPrimary,
     borderRadius: 28,
-    padding: 24,
-    gap: 10,
+    padding: spacing.s24,
+    gap: spacing.s10,
   },
   heroBadge: {
     alignSelf: 'flex-start',
     backgroundColor: colors.darkMuted,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.lg,
   },
   heroBadgeText: {
     color: colors.borderMuted,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
     letterSpacing: 0.6,
   },
   heroTitle: {
     color: colors.white,
-    fontSize: 32,
-    fontWeight: '900',
+    fontSize: fontSizes.authTitle,
+    fontWeight: fontWeights.black,
   },
   heroSubtitle: {
     color: colors.border,
@@ -51,25 +51,25 @@ export const styles = StyleSheet.create({
   },
   heroMeta: {
     color: colors.textTertiary,
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
   },
   platformHint: {
     color: colors.purpleTextSoft,
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
   },
   sectionTitle: {
     color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '900',
+    fontSize: fontSizes.comingSoon,
+    fontWeight: fontWeights.black,
   },
   sectionDescription: {
     color: colors.textSecondary,
     lineHeight: 21,
   },
   row: {
-    gap: 12,
+    gap: spacing.s12,
   },
   rowInline: {
     flexDirection: 'row',
@@ -80,61 +80,61 @@ export const styles = StyleSheet.create({
   },
   tokenActions: {
     minWidth: 220,
-    gap: 10,
+    gap: spacing.s10,
   },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xxl,
   },
   loadingText: {
     color: colors.textMuted,
-    fontWeight: '600',
+    fontWeight: fontWeights.semibold,
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 21,
   },
   successText: {
     color: colors.successStrong,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 21,
   },
   metricGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: spacing.s12,
   },
   metricGridWide: {
-    gap: 14,
+    gap: spacing.s14,
   },
   metricCard: {
     flexGrow: 1,
     minWidth: 140,
     backgroundColor: colors.surfaceSoft,
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: radii.lg,
+    padding: spacing.s16,
     borderWidth: 1,
     borderColor: colors.borderMuted,
-    gap: 8,
+    gap: spacing.xxl,
   },
   metricLabel: {
     color: colors.textSecondary,
-    fontWeight: '700',
-    fontSize: 13,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.md,
   },
   metricValue: {
     color: colors.textPrimary,
-    fontWeight: '900',
-    fontSize: 28,
+    fontWeight: fontWeights.black,
+    fontSize: fontSizes.pageTitle,
   },
   overviewMeta: {
     color: colors.textSecondary,
-    fontWeight: '600',
+    fontWeight: fontWeights.semibold,
   },
   dashboardGrid: {
-    gap: 16,
+    gap: spacing.s16,
   },
   dashboardGridWide: {
     flexDirection: 'row',
@@ -142,35 +142,35 @@ export const styles = StyleSheet.create({
   },
   primaryColumn: {
     flex: 1.2,
-    gap: 16,
+    gap: spacing.s16,
   },
   secondaryColumn: {
     flex: 1,
-    gap: 16,
+    gap: spacing.s16,
   },
   field: {
-    gap: 8,
+    gap: spacing.xxl,
     minWidth: 220,
   },
   fieldLabel: {
     color: colors.textStrongMuted,
-    fontWeight: '800',
-    fontSize: 13,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.md,
   },
   input: {
     backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s14,
     color: colors.textPrimary,
   },
   textArea: {
     minHeight: 100,
   },
   formGrid: {
-    gap: 12,
+    gap: spacing.s12,
   },
   formGridTwoColumns: {
     flexDirection: 'row',
@@ -180,31 +180,31 @@ export const styles = StyleSheet.create({
     width: '100%',
   },
   listControls: {
-    gap: 10,
+    gap: spacing.s10,
   },
   searchInput: {
     backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 16,
-    paddingHorizontal: 14,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s14,
     paddingVertical: 13,
     color: colors.textPrimary,
   },
   filterSummary: {
     color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
   },
   toggleRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
     flexWrap: 'wrap',
   },
   toggleChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s10,
+    borderRadius: radii.pill,
     backgroundColor: colors.surfaceSubtle,
     borderWidth: 1,
     borderColor: colors.borderMuted,
@@ -215,21 +215,21 @@ export const styles = StyleSheet.create({
   },
   toggleChipText: {
     color: colors.textStrongMuted,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   toggleChipTextActive: {
     color: colors.white,
   },
   actionRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
     flexWrap: 'wrap',
   },
   actionButton: {
     backgroundColor: colors.textPrimary,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s16,
+    paddingVertical: spacing.s14,
     alignItems: 'center',
     justifyContent: 'center',
     minWidth: 110,
@@ -247,20 +247,20 @@ export const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: colors.white,
-    fontWeight: '800',
-    fontSize: 14,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.base,
   },
   actionButtonTextSecondary: {
     color: colors.textPrimary,
   },
   listStack: {
-    gap: 12,
+    gap: spacing.s12,
   },
   listCard: {
     backgroundColor: colors.surfaceSoft,
-    borderRadius: 18,
-    padding: 14,
-    gap: 8,
+    borderRadius: radii.lg,
+    padding: spacing.s14,
+    gap: spacing.xxl,
     borderWidth: 1,
     borderColor: colors.borderMuted,
   },
@@ -271,20 +271,20 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: spacing.s12,
   },
   listHeaderTextWrap: {
     flex: 1,
-    gap: 4,
+    gap: spacing.sm,
   },
   listTitle: {
     color: colors.textPrimary,
     fontSize: 17,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
   },
   listMeta: {
     color: colors.textSecondary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   listInfo: {
     color: colors.textMuted,
@@ -292,14 +292,14 @@ export const styles = StyleSheet.create({
   },
   inlineActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.xxl,
     flexWrap: 'wrap',
   },
   statusBadge: {
     backgroundColor: colors.brandWash,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.lg,
     alignSelf: 'flex-start',
   },
   statusBadgeSuccess: {
@@ -310,8 +310,8 @@ export const styles = StyleSheet.create({
   },
   statusBadgeText: {
     color: colors.brandDeep,
-    fontWeight: '800',
-    fontSize: 12,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.sm,
   },
   statusBadgeTextSuccess: {
     color: colors.successStrong,
@@ -321,6 +321,6 @@ export const styles = StyleSheet.create({
   },
   emptyText: {
     color: colors.textSecondary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
 });

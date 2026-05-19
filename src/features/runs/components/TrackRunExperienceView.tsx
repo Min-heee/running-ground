@@ -6,7 +6,7 @@ import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCount
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { LiveMatchContainer } from '@/features/runs/components/LiveMatchContainer';
 import { RunningReadyScreen } from '@/features/runs/components/RunningReadyScreen';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 import {
   TrackRunShellRouter,
   type TrackRunShellKind,
@@ -109,27 +109,27 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
-    marginTop: 12,
+    fontWeight: fontWeights.bold,
+    marginTop: spacing.s12,
   },
   roomArmingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(17, 24, 39, 0.92)',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
+    gap: spacing.s10,
     paddingHorizontal: 28,
     zIndex: 30,
   },
   roomArmingOverlayTitle: {
     color: colors.white,
-    fontSize: 30,
-    fontWeight: '800',
+    fontSize: fontSizes.hero,
+    fontWeight: fontWeights.extraBold,
   },
   roomArmingOverlayText: {
     color: colors.lavenderSoft,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: fontWeights.semibold,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -159,27 +159,27 @@ const styles = StyleSheet.create({
   },
   soloStartCountdownEyebrow: {
     color: colors.brandLavender,
-    fontSize: 12,
-    fontWeight: '900',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.black,
     letterSpacing: 1.6,
   },
   soloStartCountdownTitle: {
-    marginTop: 8,
+    marginTop: spacing.xxl,
     color: colors.white,
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
   },
   soloStartCountdownNumber: {
-    marginTop: 10,
+    marginTop: spacing.s10,
     color: colors.white,
     fontSize: 120,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
     lineHeight: 128,
   },
   soloStartCountdownText: {
     color: colors.lavenderSoft,
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.bold,
     textAlign: 'center',
   },
 });

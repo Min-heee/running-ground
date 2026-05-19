@@ -6,7 +6,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { useNotificationSettings } from '@/features/settings/hooks/useNotificationSettings';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontWeights, radii } from '@/theme/tokens';
 
 export default function NotificationSettingsScreen() {
   const {
@@ -87,12 +87,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.borderMuted,
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: radii.md,
+    padding: spacing.s14,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.s12,
   },
   rowActive: {
     backgroundColor: colors.purpleRow,
@@ -104,7 +104,7 @@ const styles = StyleSheet.create({
   rowMeta: { flex: 1, gap: 4 },
   rowLabel: {
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   rowStatus: {
     color: colors.textSecondary,
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     borderRadius: 99,
     backgroundColor: colors.border,
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: spacing.sm,
   },
   toggleActive: {
     backgroundColor: colors.brand,
@@ -127,15 +127,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   knobActive: {
-    marginLeft: 20,
+    marginLeft: spacing.s20,
   },
   savedText: {
     color: colors.successText,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
 });

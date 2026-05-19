@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { RunDetailResponse } from '@/lib/api/types';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type RunRecord = RunDetailResponse['run'];
 type MatchResult = NonNullable<RunRecord['matchResult']>;
@@ -65,31 +65,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSoft,
     borderWidth: 1,
     borderColor: colors.purpleSoft,
-    gap: 10,
+    gap: spacing.s10,
   },
   matchResultHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: spacing.s12,
   },
   matchResultLabel: {
     color: colors.brand,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   matchResultTitle: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '800',
-    marginTop: 4,
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
+    marginTop: spacing.sm,
   },
   matchResultBadge: {
     minWidth: 70,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s10,
     backgroundColor: colors.textPrimary,
   },
   matchResultBadgeWin: {
@@ -103,34 +103,34 @@ const styles = StyleSheet.create({
   },
   matchResultBadgeText: {
     color: colors.white,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   matchResultSummary: {
     color: colors.textStrongMuted,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
   matchResultPointPill: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
+    borderRadius: radii.pill,
     backgroundColor: colors.brandWash,
   },
   matchResultPointPillText: {
     color: colors.brandDeep,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   matchResultMetaRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.xxl,
   },
   matchResultMeta: {
     color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
   },
 });

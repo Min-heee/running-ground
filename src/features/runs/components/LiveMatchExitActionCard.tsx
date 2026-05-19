@@ -6,7 +6,7 @@ import type { MatchExitActionState } from '@/features/runs/lifecycle/matchExitAc
 import type { MatchExitSource } from '@/features/runs/lifecycle/matchExitFlow';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export type LiveMatchExitActionCardProps = {
   source: MatchExitSource | null;
@@ -121,36 +121,36 @@ function areMatchExitActionStatesEqual(
 
 const styles = StyleSheet.create({
   testExitCard: {
-    gap: 10,
+    gap: spacing.s10,
     borderColor: colors.brandLight,
     borderWidth: 1,
     backgroundColor: colors.brandWash,
   },
   card: {
-    gap: 10,
+    gap: spacing.s10,
     borderColor: colors.dangerBorder,
     borderWidth: 1,
     backgroundColor: colors.dangerSurface,
   },
   title: {
     color: colors.dangerDeep,
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.black,
   },
   text: {
     color: colors.danger,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
   button: {
-    marginTop: 4,
+    marginTop: spacing.sm,
     minHeight: 50,
-    borderRadius: 16,
+    borderRadius: radii.md,
     backgroundColor: colors.dangerBright,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 14,
+    paddingHorizontal: spacing.s14,
   },
   buttonDisabled: {
     opacity: 0.55,
@@ -158,6 +158,6 @@ const styles = StyleSheet.create({
   buttonText: {
     color: colors.white,
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
   },
 });

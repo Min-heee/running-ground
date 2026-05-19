@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export type MatchOptionMode = 'solo' | 'duel' | 'group' | 'room';
 
@@ -81,15 +81,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 10,
+    gap: spacing.s10,
   },
   option: {
     width: '48%',
-    gap: 4,
-    borderRadius: 18,
+    gap: spacing.sm,
+    borderRadius: radii.lg,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.s12,
     minHeight: 68,
     alignItems: 'center',
     justifyContent: 'center',
@@ -104,8 +104,8 @@ const styles = StyleSheet.create({
   },
   optionTitle: {
     color: colors.white,
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.extraBold,
     textAlign: 'center',
   },
   optionTitleSelected: {

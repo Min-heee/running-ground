@@ -9,7 +9,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { IntegrationJourneyCard } from '@/features/integrations/IntegrationJourneyCard';
 import { useIntegrationActions } from '@/features/integrations/hooks/useIntegrationActions';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import {
   type ConnectedSource,
   type RunSourceType,
@@ -149,47 +149,47 @@ const RecommendedSourceRow = memo(function RecommendedSourceRow({
 });
 
 const styles = StyleSheet.create({
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: colors.textPrimary },
+  sectionTitle: { fontSize: fontSizes.title, fontWeight: fontWeights.extraBold, color: colors.textPrimary },
   sectionBody: { color: colors.textMuted, lineHeight: 21, marginTop: 6 },
   helperText: { color: colors.textSecondary, lineHeight: 20, marginTop: 8 },
-  list: { gap: 12, marginTop: 12 },
+  list: { gap: spacing.s12, marginTop: 12 },
   sourceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: spacing.s12,
   },
   sourceMeta: {
     flex: 1,
-    gap: 2,
+    gap: spacing.xxs,
   },
   sourceName: { color: colors.textHeading, fontWeight: '700' },
   sourceDetail: { color: colors.textSecondary, marginTop: 2 },
-  sourceHint: { color: colors.brand, fontSize: 12, lineHeight: 18, marginTop: 2 },
+  sourceHint: { color: colors.brand, fontSize: fontSizes.sm, lineHeight: 18, marginTop: 2 },
   badge: {
     backgroundColor: colors.brandWash,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.xxl,
   },
   badgeConnected: {
     backgroundColor: colors.successCard,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.xxl,
   },
   badgeDisabled: {
     opacity: 0.7,
   },
   badgeText: {
     color: colors.brandStrong,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   badgeConnectedText: {
     color: colors.successText,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   actions: { gap: 10 },
-  successText: { color: colors.successText, marginTop: 10, fontWeight: '700', lineHeight: 20 },
+  successText: { color: colors.successText, marginTop: spacing.s10, fontWeight: fontWeights.bold, lineHeight: 20 },
   errorText: { color: colors.danger, marginTop: 8 },
 });

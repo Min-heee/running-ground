@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import type { MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type MatchRoomInviteActionCardProps = {
   invite: MatchRoomUxModel['invite'];
@@ -51,33 +51,33 @@ export function MatchRoomInviteActionCard({
 
 const styles = StyleSheet.create({
   inviteActionCard: {
-    gap: 14,
+    gap: spacing.s14,
   },
   inviteActionTitle: {
     color: colors.textPrimary,
-    fontSize: 22,
-    fontWeight: '900',
+    fontSize: fontSizes.comingSoon,
+    fontWeight: fontWeights.black,
   },
   inviteButtonRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
   },
   acceptInviteButton: {
     flex: 1,
     alignItems: 'center',
-    borderRadius: 18,
+    borderRadius: radii.lg,
     backgroundColor: colors.brand,
     paddingVertical: 15,
   },
   acceptInviteButtonText: {
     color: colors.white,
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.black,
   },
   declineInviteButton: {
     flex: 1,
     alignItems: 'center',
-    borderRadius: 18,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.white,
@@ -85,20 +85,20 @@ const styles = StyleSheet.create({
   },
   declineInviteButtonText: {
     color: colors.textStrongMuted,
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.black,
   },
   actionButtonDisabled: {
     opacity: 0.45,
   },
   helperText: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: fontSizes.base,
     lineHeight: 20,
   },
   errorText: {
     color: colors.dangerBright,
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.bold,
   },
 });

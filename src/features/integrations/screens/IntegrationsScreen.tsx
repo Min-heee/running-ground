@@ -15,7 +15,7 @@ import {
 } from '@/features/integrations/sourceCatalog';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { getRecommendedNativeHealthReadiness } from '@/integrations/nativeHealth';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 export default function IntegrationsScreen() {
   const {
@@ -111,14 +111,14 @@ export default function IntegrationsScreen() {
 
 const styles = StyleSheet.create({
   header: { gap: 6 },
-  title: { fontSize: 28, fontWeight: '800', color: colors.textHeading },
+  title: { fontSize: fontSizes.pageTitle, fontWeight: fontWeights.extraBold, color: colors.textHeading },
   subtitle: { color: colors.textMuted, lineHeight: 21 },
-  tipTitle: { fontSize: 16, fontWeight: '800', color: colors.textPrimary },
+  tipTitle: { fontSize: fontSizes.button, fontWeight: fontWeights.extraBold, color: colors.textPrimary },
   tipBody: { color: colors.textMuted, lineHeight: 21, marginTop: 6 },
   policyText: { color: colors.textSecondary, lineHeight: 20, marginTop: 8 },
-  coverageText: { color: colors.brand, fontWeight: '700', marginTop: 8 },
+  coverageText: { color: colors.brand, fontWeight: fontWeights.bold, marginTop: 8 },
   syncText: { color: colors.textMuted, lineHeight: 20, marginTop: 8 },
-  successText: { color: colors.successText, fontWeight: '700', marginTop: 8, lineHeight: 20 },
-  errorTitle: { color: colors.textPrimary, fontWeight: '800', fontSize: 18 },
-  errorText: { color: colors.danger, fontWeight: '700', lineHeight: 20, marginTop: 10 },
+  successText: { color: colors.successText, fontWeight: fontWeights.bold, marginTop: spacing.xxl, lineHeight: 20 },
+  errorTitle: { color: colors.textPrimary, fontWeight: fontWeights.extraBold, fontSize: 18 },
+  errorText: { color: colors.danger, fontWeight: fontWeights.bold, lineHeight: 20, marginTop: 10 },
 });

@@ -1,7 +1,7 @@
 import { PropsWithChildren } from 'react';
 import { StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
-import { colors, fontSizes, fontWeights, spacing } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 export function InfoCard({ title, children }: PropsWithChildren<{ title: string }>) {
   return (

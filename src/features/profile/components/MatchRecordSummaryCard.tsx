@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type MatchRecordSummaryCardProps = {
   href: Href;
@@ -41,20 +41,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.s12,
   },
   sectionLink: {
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   matchRecordCard: {
-    gap: 6,
+    gap: spacing.lg,
   },
   matchRecordHeadline: {
     color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: fontSizes.metric,
+    fontWeight: fontWeights.extraBold,
   },
   matchRecordHint: {
     color: colors.textSecondary,

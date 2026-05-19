@@ -1,5 +1,5 @@
 import { memo, type ElementRef, useCallback, useEffect, useMemo, useRef } from 'react';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -117,10 +117,10 @@ const styles = StyleSheet.create({
   wheelHighlight: {
     position: 'absolute',
     top: ITEM_HEIGHT * 2,
-    left: 8,
-    right: 8,
+    left: spacing.xxl,
+    right: spacing.xxl,
     height: ITEM_HEIGHT,
-    borderRadius: 16,
+    borderRadius: radii.md,
     backgroundColor: 'rgba(109, 94, 247, 0.18)',
     borderWidth: 1,
     borderColor: 'rgba(129, 140, 248, 0.4)',
@@ -136,12 +136,12 @@ const styles = StyleSheet.create({
   },
   wheelItemText: {
     color: colors.textTertiary,
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.bold,
   },
   wheelItemTextSelected: {
     color: colors.white,
-    fontSize: 22,
-    fontWeight: '900',
+    fontSize: fontSizes.comingSoon,
+    fontWeight: fontWeights.black,
   },
 });

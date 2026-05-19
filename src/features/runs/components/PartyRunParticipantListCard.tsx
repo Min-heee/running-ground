@@ -5,7 +5,7 @@ import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import type { MatchRoomParticipantUxStatus, MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
 import type { RunningMatchRoom } from '@/lib/api/types';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type PartyRunParticipantListCardProps = {
   room: RunningMatchRoom;
@@ -109,20 +109,20 @@ export function PartyRunParticipantListCard({
 const styles = StyleSheet.create({
   sectionTitle: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
   },
   participantList: {
-    gap: 10,
+    gap: spacing.s10,
   },
   participantRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: radii.md,
     backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s14,
   },
   invitedParticipantRow: {
     borderWidth: 1,
@@ -132,51 +132,51 @@ const styles = StyleSheet.create({
   participantIdentity: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xxl,
   },
   participantName: {
     color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.extraBold,
   },
   hostBadge: {
     color: colors.brand,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   invitedBadge: {
     color: colors.brandDeep,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   readyText: {
     color: colors.blueAccent,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.extraBold,
   },
   loadingText: {
     color: colors.warning,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.extraBold,
   },
   hostStatusText: {
     color: colors.brand,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.extraBold,
   },
   pendingText: {
     color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.bold,
   },
   invitedStatusText: {
     color: colors.brandDeep,
-    fontSize: 14,
-    fontWeight: '900',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.black,
   },
   helperText: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: fontSizes.base,
     lineHeight: 20,
   },
 });

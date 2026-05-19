@@ -6,7 +6,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { useEditProfile } from '@/features/profile/hooks/useEditProfile';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function EditProfileScreen() {
   const universityVerificationHref = '/university-verification' as Href;
@@ -92,16 +92,16 @@ const styles = StyleSheet.create({
   form: { gap: 14 },
   inputGroup: { gap: 8 },
   noticeCard: {
-    gap: 8,
-    padding: 14,
-    borderRadius: 16,
+    gap: spacing.xxl,
+    padding: spacing.s14,
+    borderRadius: radii.md,
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.indigoBorder,
   },
   noticeTitle: {
     color: colors.textPrimary,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   helperText: {
     color: colors.textSecondary,
@@ -109,31 +109,31 @@ const styles = StyleSheet.create({
   },
   inlineLinkButton: {
     alignSelf: 'flex-start',
-    marginTop: 4,
+    marginTop: spacing.sm,
     backgroundColor: colors.white,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
   },
   inlineLinkButtonText: {
     color: colors.textPrimary,
-    fontWeight: '700',
-    fontSize: 13,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.md,
   },
   label: {
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     fontSize: 15,
   },
   input: {
     backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
     borderColor: colors.borderMuted,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s14,
     color: colors.textPrimary,
   },
   disabledInput: {
@@ -142,11 +142,11 @@ const styles = StyleSheet.create({
   },
   savedText: {
     color: colors.successText,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
 });

@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RunningMatchRoom } from '@/lib/api/types';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type PartyRunInviteCardProps = {
   room: RunningMatchRoom;
@@ -55,55 +55,55 @@ export function PartyRunInviteCard({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 18,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.brandLight,
     backgroundColor: colors.brandWash,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 12,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s14,
+    gap: spacing.s12,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 10,
+    gap: spacing.s10,
   },
   eyebrow: {
     color: colors.brand,
-    fontSize: 12,
-    fontWeight: '900',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.black,
   },
   title: {
-    marginTop: 4,
+    marginTop: spacing.sm,
     color: colors.textPrimary,
     fontSize: 17,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
     lineHeight: 23,
   },
   code: {
     overflow: 'hidden',
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.indigoInk,
     color: colors.brandWash,
-    fontSize: 12,
-    fontWeight: '900',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.black,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.xl,
   },
   meta: {
     color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
   },
   actionRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
   },
   declineButton: {
     flex: 1,
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.borderCool,
     backgroundColor: colors.white,
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
   acceptButton: {
     flex: 1,
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: radii.md,
     backgroundColor: colors.brand,
     paddingVertical: 13,
   },
@@ -122,11 +122,11 @@ const styles = StyleSheet.create({
   declineText: {
     color: colors.slateMuted,
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
   },
   acceptText: {
     color: colors.white,
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
   },
 });

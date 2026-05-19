@@ -2,7 +2,7 @@ import { StyleSheet, Text } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { AppNotice } from '@/domain';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type HomeNoticeCardProps = {
   notice: AppNotice;
@@ -21,18 +21,18 @@ export function HomeNoticeCard({ notice }: HomeNoticeCardProps) {
 const styles = StyleSheet.create({
   noticeCard: {
     backgroundColor: colors.textPrimary,
-    gap: 6,
+    gap: spacing.lg,
   },
   noticeLabel: {
     color: colors.brandLighter,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
     letterSpacing: 0.4,
   },
   noticeTitle: {
     color: colors.white,
-    fontSize: 18,
-    fontWeight: '900',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.black,
   },
   noticeMessage: {
     color: colors.border,

@@ -4,7 +4,7 @@ import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { ConnectedSource } from '@/domain';
 import { getPrimarySourceForPlatform, sortSourcesByPriority, splitSourcesByStatus } from './sourceCatalog';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 const ConnectedSourceRow = memo(function ConnectedSourceRow({
   isPrimary,
@@ -51,58 +51,58 @@ export function IntegrationStatus({ sources }: { sources: ConnectedSource[] }) {
 
 const styles = StyleSheet.create({
   card: {
-    gap: 6,
+    gap: spacing.lg,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.s12,
   },
   countText: {
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   item: {
     paddingVertical: 9,
-    gap: 2,
+    gap: spacing.xxs,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.borderSoft,
   },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xxl,
     flexWrap: 'wrap',
   },
   name: {
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   primaryBadge: {
     color: colors.textStrongMuted,
     backgroundColor: colors.surfaceMuted,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     overflow: 'hidden',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    fontSize: 11,
-    fontWeight: '800',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xs,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
   },
   detail: {
     color: colors.textSecondary,
     lineHeight: 18,
-    fontSize: 12,
+    fontSize: fontSizes.sm,
   },
   pending: {
     color: colors.warningText,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 18,
-    fontSize: 12,
+    fontSize: fontSizes.sm,
   },
   empty: {
     color: colors.textSecondary,
-    paddingVertical: 8,
+    paddingVertical: spacing.xxl,
   },
 });

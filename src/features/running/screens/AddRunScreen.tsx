@@ -6,7 +6,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { useAddRunForm } from '@/features/running/hooks/useAddRunForm';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function AddRunScreen() {
   const {
@@ -99,38 +99,38 @@ export default function AddRunScreen() {
 
 const styles = StyleSheet.create({
   formCard: {
-    gap: 14,
+    gap: spacing.s14,
   },
   sectionTitle: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
   },
   fieldGroup: {
-    gap: 8,
+    gap: spacing.xxl,
   },
   fieldLabel: {
     color: colors.textStrongMuted,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   input: {
     backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
     borderColor: colors.borderMuted,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s14,
     color: colors.textPrimary,
   },
   tipBox: {
     backgroundColor: colors.surfaceSubtle,
-    borderRadius: 18,
-    padding: 14,
-    gap: 6,
+    borderRadius: radii.lg,
+    padding: spacing.s14,
+    gap: spacing.lg,
   },
   tipTitle: {
     color: colors.textPrimary,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   tipText: {
     color: colors.textSecondary,
@@ -138,16 +138,16 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
   todayButton: {
     alignSelf: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.xxl,
   },
   todayButtonText: {
     color: colors.textMuted,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
 });
