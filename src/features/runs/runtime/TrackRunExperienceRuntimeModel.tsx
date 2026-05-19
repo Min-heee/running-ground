@@ -35,11 +35,6 @@ import {
   type UpcomingRunningMatchItem,
 } from '@/lib/api/types';
 import {
-  buildAverageArenaPaceLabel,
-  buildParticipantAveragePaceLabel,
-  isMeasuredPaceLabel,
-} from '@/features/runs/viewModels/matchProgress';
-import {
   buildDuelArenaParticipants,
   buildGroupArenaParticipants,
   buildRoomLinkedDuelPlaceholderParticipants,
@@ -94,6 +89,13 @@ import {
 import { shouldHidePastUpcomingMatch } from './matchVisibility';
 import { useStableCallback } from './useStableCallback';
 import { useMatchModeDerivedState } from './useMatchModeDerivedState';
+import {
+  resolveCurrentUserArenaPace,
+  resolveDuelLiveSummary,
+  resolveDuelOpponentArenaPace,
+  resolveRoomLinkedDuelProgress,
+  resolveTrackRunRuntimeRouteHydration,
+} from './trackRunRuntimeDerivedState';
 
 export type TrackRunMode = 'tab' | 'stack';
 type RoomLinkedMatchContext = PartyRunLinkedMatchContext;
@@ -126,20 +128,24 @@ export function TrackRunExperienceRuntime({
   routeShellHint,
 }: TrackRunExperienceRuntimeProps) {
   const liveMatchRouteHydration = getLiveMatchRouteHydration();
-  const hydratedFocusMatchMode = focusMatchMode ?? liveMatchRouteHydration?.mode;
-  const hydratedFocusMatchId = focusMatchId ?? (
-    liveMatchRouteHydration?.mode === hydratedFocusMatchMode
-      ? liveMatchRouteHydration?.matchId
-      : undefined
-  );
-  const rawHydratedFocusRoomId = focusRoomId ?? liveMatchRouteHydration?.roomId ?? undefined;
-  const hydratedFocusRoomId = isMatchRoomDeleted(rawHydratedFocusRoomId)
-    ? undefined
-    : rawHydratedFocusRoomId;
-  const hydratedFocusMatchDistanceKm = focusMatchDistanceKm ?? liveMatchRouteHydration?.distanceKm;
-  const hydratedFocusMatchSlotStartAt = focusMatchSlotStartAt ?? liveMatchRouteHydration?.slotStartAt;
-  const hydratedForceMatchArena = forceMatchArena ?? liveMatchRouteHydration?.preferArena;
-  const hydratedFocusMatchNonce = focusMatchNonce ?? liveMatchRouteHydration?.nonce;
+  const {
+    hydratedFocusMatchMode,
+    hydratedFocusMatchId,
+    hydratedFocusRoomId,
+    hydratedFocusMatchDistanceKm,
+    hydratedFocusMatchSlotStartAt,
+    hydratedForceMatchArena,
+    hydratedFocusMatchNonce,
+  } = resolveTrackRunRuntimeRouteHydration({
+    focusMatchMode,
+    focusMatchId,
+    focusMatchDistanceKm,
+    focusMatchSlotStartAt,
+    focusMatchNonce,
+    forceMatchArena,
+    focusRoomId,
+    liveMatchRouteHydration,
+  });
 
   const insets = useSafeAreaInsets();
   const { width: windowWidth } = useWindowDimensions();
@@ -572,15 +578,12 @@ export function TrackRunExperienceRuntime({
   });
   const isTabMode = mode === 'tab';
   const liveArenaPageWidth = Math.max(windowWidth - 32, 280);
-  const currentUserArenaPace = useMemo(() => (
-    isMeasuredPaceLabel(officialCurrentAveragePace)
-      ? officialCurrentAveragePace!
-      : buildAverageArenaPaceLabel(
-          liveMatchDisplayDistanceKm,
-          liveMatchDisplayElapsedSeconds,
-          duelArenaUsesLivePace || groupArenaUsesLivePace,
-        )
-  ), [
+  const currentUserArenaPace = useMemo(() => resolveCurrentUserArenaPace({
+    officialCurrentAveragePace,
+    liveMatchDisplayDistanceKm,
+    liveMatchDisplayElapsedSeconds,
+    shouldUseLivePace: duelArenaUsesLivePace || groupArenaUsesLivePace,
+  }), [
     duelArenaUsesLivePace,
     groupArenaUsesLivePace,
     liveMatchDisplayDistanceKm,
@@ -608,16 +611,18 @@ export function TrackRunExperienceRuntime({
   });
   const hasMatchResultPage = isPaused && matchMode !== 'solo' && Boolean(trackedMatchResult);
   const effectiveDuelOpponentArenaPace = useMemo(
-    () => buildParticipantAveragePaceLabel(effectiveDuelOpponent, duelArenaUsesLivePace),
+    () => resolveDuelOpponentArenaPace({
+      opponent: effectiveDuelOpponent,
+      duelArenaUsesLivePace,
+    }),
     [duelArenaUsesLivePace, effectiveDuelOpponent],
   );
-  const duelLiveSummary = useMemo(() => (
-    effectiveDuelOpponent
-      ? isDuelOpponentForfeited
-        ? `${effectiveDuelOpponent.name}님 · 기권`
-        : `${effectiveDuelOpponent.name}님${effectiveDuelOpponentArenaPace ? ` · ${effectiveDuelOpponentArenaPace}` : ''}${effectiveDuelOpponentStatusLabel ? ` · ${effectiveDuelOpponentStatusLabel}` : ''}`
-      : '상대 러너 정보를 불러오는 중이에요.'
-  ), [
+  const duelLiveSummary = useMemo(() => resolveDuelLiveSummary({
+    opponent: effectiveDuelOpponent,
+    opponentArenaPace: effectiveDuelOpponentArenaPace,
+    opponentStatusLabel: effectiveDuelOpponentStatusLabel,
+    isOpponentForfeited: isDuelOpponentForfeited,
+  }), [
     effectiveDuelOpponent,
     effectiveDuelOpponentArenaPace,
     effectiveDuelOpponentStatusLabel,
@@ -665,28 +670,10 @@ export function TrackRunExperienceRuntime({
     roomLinkedDuelOpponentParticipant,
     roomLinkedDuelGapKm,
     hasRoomLinkedDuelLiveProgress,
-  } = useMemo(() => {
-    const currentParticipant = roomLinkedDuelPlaceholderParticipants.find((participant) => participant.isCurrentUser) ?? null;
-    const opponentParticipant = roomLinkedDuelPlaceholderParticipants.find((participant) => !participant.isCurrentUser) ?? null;
-    const gapKm = currentParticipant && opponentParticipant
-      ? Number((currentParticipant.distanceKm - opponentParticipant.distanceKm).toFixed(2))
-      : null;
-    const hasLiveProgress = Boolean(
-      currentParticipant
-      && opponentParticipant
-      && (
-        currentParticipant.distanceKm > 0
-        || opponentParticipant.distanceKm > 0
-      ),
-    );
-
-    return {
-      roomLinkedDuelCurrentParticipant: currentParticipant,
-      roomLinkedDuelOpponentParticipant: opponentParticipant,
-      roomLinkedDuelGapKm: gapKm,
-      hasRoomLinkedDuelLiveProgress: hasLiveProgress,
-    };
-  }, [roomLinkedDuelPlaceholderParticipants]);
+  } = useMemo(
+    () => resolveRoomLinkedDuelProgress(roomLinkedDuelPlaceholderParticipants),
+    [roomLinkedDuelPlaceholderParticipants],
+  );
   const groupArenaParticipants = useMemo(
     () => buildGroupArenaParticipants({
       standings: groupLiveStandings,
