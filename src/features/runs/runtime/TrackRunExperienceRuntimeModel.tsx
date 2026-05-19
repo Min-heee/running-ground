@@ -31,9 +31,6 @@ import {
   fetchUpcomingRunningMatches,
 } from '@/services';
 import {
-  shouldAutoOpenMatchArena,
-} from '@/lib/matchCountdown';
-import {
   type RunningMatchStatusResponse,
   type UpcomingRunningMatchItem,
 } from '@/lib/api/types';
@@ -96,6 +93,7 @@ import {
 } from './trackRunExperienceConstants';
 import { shouldHidePastUpcomingMatch } from './matchVisibility';
 import { useStableCallback } from './useStableCallback';
+import { useMatchModeDerivedState } from './useMatchModeDerivedState';
 
 export type TrackRunMode = 'tab' | 'stack';
 type RoomLinkedMatchContext = PartyRunLinkedMatchContext;
@@ -484,51 +482,38 @@ export function TrackRunExperienceRuntime({
     isRequestingDuelMatch,
     isRequestingGroupMatch,
   });
-  const liveMatchStartupIdentity = useMemo(() => {
-    if (matchMode === 'duel') {
-      return duelMatchStatus?.matchId
-        ?? (roomLinkedMatchContext?.mode === 'duel' ? roomLinkedMatchContext.matchId : null)
-        ?? (hydratedFocusMatchMode === 'duel' ? hydratedFocusMatchId ?? null : null)
-        ?? null;
-    }
-
-    if (matchMode === 'group') {
-      return groupMatchStatus?.matchId
-        ?? (roomLinkedMatchContext?.mode === 'group' ? roomLinkedMatchContext.matchId : null)
-        ?? (hydratedFocusMatchMode === 'group' ? hydratedFocusMatchId ?? null : null)
-        ?? null;
-    }
-
-    return null;
-  }, [
-    duelMatchStatus?.matchId,
-    groupMatchStatus?.matchId,
-    hydratedFocusMatchId,
-    hydratedFocusMatchMode,
+  const {
+    liveMatchStartupIdentity,
+    shouldStageAndroidLiveMatchStartup,
+    hasRoomLinkedDuelContext,
+    hasRoomLinkedGroupContext,
+    duelArenaUsesLivePace,
+    groupArenaUsesLivePace,
+    officialCurrentAveragePace,
+    duelShouldOpenCountdownArena,
+    groupShouldOpenCountdownArena,
+    roomShouldOpenCountdownArena,
+    duelShouldHoldArenaDuringActivation,
+    groupShouldHoldArenaDuringActivation,
+    runningMatchIdentity,
+  } = useMatchModeDerivedState({
     matchMode,
-    roomLinkedMatchContext?.matchId,
-    roomLinkedMatchContext?.mode,
-  ]);
-  const shouldStageAndroidLiveMatchStartup = Boolean(
-    liveMatchStartupIdentity
-    && matchMode !== 'solo'
-    && matchMode !== 'room'
-    && (
-      isRunning
-      || forceOpenActiveMatch
-      || partyRunRuntimeSource.flow.shouldOpenArena
-      || (matchMode === 'duel' && (
-        duelMatchState === 'active'
-        || shouldAutoOpenMatchArena(duelStartCountdownSeconds)
-        || roomLinkedMatchContext?.mode === 'duel'
-      ))
-      || (matchMode === 'group' && (
-        groupMatchState === 'active'
-        || shouldAutoOpenMatchArena(groupStartCountdownSeconds)
-        || roomLinkedMatchContext?.mode === 'group'
-      ))
-    ),
-  );
+    isRunning,
+    forceOpenActiveMatch,
+    duelMatchState,
+    groupMatchState,
+    duelStartCountdownSeconds,
+    groupStartCountdownSeconds,
+    duelMatchStatus,
+    groupMatchStatus,
+    roomLinkedMatchContext,
+    hydratedFocusMatchMode,
+    hydratedFocusMatchId,
+    lastSyncedMatchProgressMatchId: lastSyncedMatchProgress?.matchId,
+    liveMatchRouteHydrationMatchId: liveMatchRouteHydration?.matchId,
+    partyRunLinkedMatchId: partyRunRuntimeSource.room?.linkedMatchId,
+    partyRunShouldOpenArena: partyRunRuntimeSource.flow.shouldOpenArena,
+  });
   const androidLiveMatchStartup = useAndroidLiveMatchStartupGate({
     active: shouldStageAndroidLiveMatchStartup,
     identity: liveMatchStartupIdentity,
@@ -587,33 +572,6 @@ export function TrackRunExperienceRuntime({
   });
   const isTabMode = mode === 'tab';
   const liveArenaPageWidth = Math.max(windowWidth - 32, 280);
-  const hasRoomLinkedDuelContext = roomLinkedMatchContext?.mode === 'duel';
-  const hasRoomLinkedGroupContext = roomLinkedMatchContext?.mode === 'group';
-  const duelArenaUsesLivePace = Boolean(
-    matchMode === 'duel'
-    && (
-      duelMatchState === 'active'
-      || (roomLinkedMatchContext?.mode === 'duel' && roomLinkedMatchContext.state === 'active')
-    ),
-  );
-  const groupArenaUsesLivePace = Boolean(
-    matchMode === 'group'
-    && (
-      groupMatchState === 'active'
-      || (roomLinkedMatchContext?.mode === 'group' && roomLinkedMatchContext.state === 'active')
-    ),
-  );
-  const officialCurrentAveragePace = useMemo(() => (
-    matchMode === 'duel'
-      ? duelMatchStatus?.officialComparison?.userAveragePace
-      : matchMode === 'group'
-        ? groupMatchStatus?.officialComparison?.userAveragePace
-        : null
-  ), [
-    duelMatchStatus?.officialComparison?.userAveragePace,
-    groupMatchStatus?.officialComparison?.userAveragePace,
-    matchMode,
-  ]);
   const currentUserArenaPace = useMemo(() => (
     isMeasuredPaceLabel(officialCurrentAveragePace)
       ? officialCurrentAveragePace!
@@ -755,27 +713,6 @@ export function TrackRunExperienceRuntime({
     liveMatchDisplayDistanceKm,
     roomLinkedMatchContext,
   ]);
-  const duelShouldOpenCountdownArena = duelMatchState === 'matched' && shouldAutoOpenMatchArena(duelStartCountdownSeconds);
-  const groupShouldOpenCountdownArena = groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds);
-  const roomShouldOpenCountdownArena = Boolean(
-    partyRunRuntimeSource.room?.linkedMatchId
-    && (partyRunRuntimeSource.flow.shouldOpenArena || forceOpenActiveMatch),
-  );
-  const duelShouldHoldArenaDuringActivation = duelMatchState === 'matched' && forceOpenActiveMatch;
-  const groupShouldHoldArenaDuringActivation = groupMatchState === 'matched' && forceOpenActiveMatch;
-  const runningMatchIdentity = matchMode === 'duel'
-    ? duelMatchStatus?.matchId
-      ?? (roomLinkedMatchContext?.mode === 'duel' ? roomLinkedMatchContext.matchId : null)
-      ?? (hydratedFocusMatchMode === 'duel' ? hydratedFocusMatchId ?? null : null)
-      ?? lastSyncedMatchProgress?.matchId
-      ?? null
-    : matchMode === 'group'
-      ? groupMatchStatus?.matchId
-        ?? (roomLinkedMatchContext?.mode === 'group' ? roomLinkedMatchContext.matchId : null)
-        ?? (hydratedFocusMatchMode === 'group' ? hydratedFocusMatchId ?? null : null)
-        ?? lastSyncedMatchProgress?.matchId
-        ?? null
-      : liveMatchRouteHydration?.matchId ?? null;
   const {
     activeMatchExitCounterpartForfeited,
     activeMatchExitIsLeaving,
