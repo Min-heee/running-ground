@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
@@ -15,16 +16,38 @@ export function LeagueModeSwitch({ mode, onChange }: LeagueModeSwitchProps) {
   return (
     <Card style={styles.modeCard}>
       <View style={styles.modeSwitch}>
-        <Pressable style={[styles.modeButton, !isTodayView && styles.modeButtonActive]} onPress={() => onChange('region')}>
-          <Text style={[styles.modeButtonText, !isTodayView && styles.modeButtonTextActive]}>지역</Text>
-        </Pressable>
-        <Pressable style={[styles.modeButton, isTodayView && styles.modeButtonActive]} onPress={() => onChange('today')}>
-          <Text style={[styles.modeButtonText, isTodayView && styles.modeButtonTextActive]}>오늘</Text>
-        </Pressable>
+        <ModeButton label="지역" mode="region" active={!isTodayView} onSelect={onChange} />
+        <ModeButton label="오늘" mode="today" active={isTodayView} onSelect={onChange} />
       </View>
     </Card>
   );
 }
+
+type ModeButtonProps = {
+  label: string;
+  active: boolean;
+  mode: LeagueMode;
+  onSelect: (mode: LeagueMode) => void;
+};
+
+const ModeButton = memo(function ModeButton({
+  active,
+  label,
+  mode,
+  onSelect,
+}: ModeButtonProps) {
+  const handlePress = useCallback(() => {
+    onSelect(mode);
+  }, [mode, onSelect]);
+  const modeButtonStyle = useMemo(() => [styles.modeButton, active && styles.modeButtonActive], [active]);
+  const modeButtonTextStyle = useMemo(() => [styles.modeButtonText, active && styles.modeButtonTextActive], [active]);
+
+  return (
+    <Pressable style={modeButtonStyle} onPress={handlePress}>
+      <Text style={modeButtonTextStyle}>{label}</Text>
+    </Pressable>
+  );
+});
 
 const styles = StyleSheet.create({
   modeCard: {

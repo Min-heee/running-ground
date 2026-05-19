@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, ScrollView, type LayoutChangeEvent } from 'react-native';
 
 import { Screen } from '@/components/Screen';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -40,7 +40,9 @@ export default function LeagueScreen() {
     setMyRankRowY(null);
   }, [currentNode?.id]);
 
-  const scrollToMyRank = () => {
+  const currentNodeId = currentNode?.id;
+
+  const scrollToMyRank = useCallback(() => {
     if (myRankRowY === null) {
       return;
     }
@@ -49,7 +51,24 @@ export default function LeagueScreen() {
       y: Math.max(0, memberRankCardY + myRankRowY - 180),
       animated: true,
     });
-  };
+  }, [memberRankCardY, myRankRowY]);
+  const handleRetryLeague = useCallback(() => {
+    loadLeague(currentNodeId);
+  }, [currentNodeId, loadLeague]);
+  const handleRetryInitialLeague = useCallback(() => {
+    loadLeague();
+  }, [loadLeague]);
+  const handleRetryRegionMembers = useCallback(() => {
+    if (currentNodeId) {
+      loadRegionMembers(currentNodeId);
+    }
+  }, [currentNodeId, loadRegionMembers]);
+  const handleMemberRankCardLayout = useCallback((event: LayoutChangeEvent) => {
+    setMemberRankCardY(event.nativeEvent.layout.y);
+  }, []);
+  const handleMyRankLayout = useCallback((event: LayoutChangeEvent) => {
+    setMyRankRowY(event.nativeEvent.layout.y);
+  }, []);
 
   return (
     <Screen scrollRef={scrollRef}>
@@ -69,7 +88,7 @@ export default function LeagueScreen() {
               message={error}
               tone="danger"
               actionLabel="다시 불러오기"
-              onAction={() => loadLeague(currentNode?.id)}
+              onAction={handleRetryLeague}
             />
           ) : null}
 
@@ -78,7 +97,7 @@ export default function LeagueScreen() {
               title="지역 랭킹 데이터가 아직 없어"
               message="백엔드 응답이 연결되면 지역별 순위를 바로 탐색할 수 있어."
               actionLabel="다시 불러오기"
-              onAction={() => loadLeague()}
+              onAction={handleRetryInitialLeague}
             />
           ) : null}
 
@@ -102,15 +121,15 @@ export default function LeagueScreen() {
                       message={regionMembersError}
                       tone="danger"
                       actionLabel="다시 불러오기"
-                      onAction={() => currentNode && loadRegionMembers(currentNode.id)}
+                      onAction={handleRetryRegionMembers}
                     />
                   ) : null}
 
                   {!regionMembersLoading && !regionMembersError && regionMembers ? (
                     <DistrictMemberRankingCard
                       regionMembers={regionMembers}
-                      onCardLayout={(event) => setMemberRankCardY(event.nativeEvent.layout.y)}
-                      onMyRankLayout={(event) => setMyRankRowY(event.nativeEvent.layout.y)}
+                      onCardLayout={handleMemberRankCardLayout}
+                      onMyRankLayout={handleMyRankLayout}
                       onScrollToMyRank={scrollToMyRank}
                     />
                   ) : null}

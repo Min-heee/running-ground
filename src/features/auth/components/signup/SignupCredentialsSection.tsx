@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { PASSWORD_RULE_DESCRIPTION, USERNAME_RULE_DESCRIPTION } from '@/lib/session';
 import { SignupInput, ValidationItem } from './SignupFormPrimitives';
@@ -28,6 +29,8 @@ type SignupCredentialsSectionProps = Pick<
   | 'usernameValidationMessage'
 >;
 
+const ERROR_STATUS_TEXT_STYLE = [styles.statusText, styles.statusTextError];
+
 export function SignupCredentialsSection({
   checkingUsername,
   handleCheckUsername,
@@ -49,6 +52,31 @@ export function SignupCredentialsSection({
   usernameReady,
   usernameValidationMessage,
 }: SignupCredentialsSectionProps) {
+  const usernameInputEditable = !submitting && !checkingUsername;
+  const usernameInputStyle = useMemo(
+    () => [styles.input, styles.inlineInput, usernameInputEditable ? null : styles.inputDisabled],
+    [usernameInputEditable],
+  );
+  const usernameCheckButtonStyle = useMemo(
+    () => [styles.secondaryActionButton, (submitting || checkingUsername) && styles.disabledButton],
+    [checkingUsername, submitting],
+  );
+  const usernameCheckStatusStyle = useMemo(
+    () => [
+      styles.statusText,
+      usernameCheck.status === 'available'
+        ? styles.statusTextSuccess
+        : usernameCheck.status === 'checking'
+          ? styles.statusTextNeutral
+          : styles.statusTextError,
+    ],
+    [usernameCheck.status],
+  );
+  const passwordInputStyle = useMemo(() => [styles.input, submitting && styles.inputDisabled], [submitting]);
+  const handleTogglePasswordVisible = useCallback(() => {
+    setPasswordVisible((current) => !current);
+  }, [setPasswordVisible]);
+
   return (
     <>
       <View style={styles.inputGroup}>
@@ -58,33 +86,24 @@ export function SignupCredentialsSection({
           <TextInput
             placeholder="아이디를 입력하세요"
             placeholderTextColor={colors.textTertiary}
-            style={[styles.input, styles.inlineInput, !submitting && !checkingUsername ? null : styles.inputDisabled]}
+            style={usernameInputStyle}
             value={username}
             onChangeText={handleUsernameChange}
-            editable={!submitting && !checkingUsername}
+            editable={usernameInputEditable}
             autoCapitalize="none"
             autoCorrect={false}
           />
           <Pressable
-            style={[styles.secondaryActionButton, (submitting || checkingUsername) && styles.disabledButton]}
+            style={usernameCheckButtonStyle}
             onPress={handleCheckUsername}
             disabled={submitting || checkingUsername}
           >
             <Text style={styles.secondaryActionButtonText}>{checkingUsername ? '확인 중' : usernameReady ? '사용 가능' : '중복 확인'}</Text>
           </Pressable>
         </View>
-        {usernameValidationMessage ? <Text style={[styles.statusText, styles.statusTextError]}>{usernameValidationMessage}</Text> : null}
+        {usernameValidationMessage ? <Text style={ERROR_STATUS_TEXT_STYLE}>{usernameValidationMessage}</Text> : null}
         {usernameCheck.message ? (
-          <Text
-            style={[
-              styles.statusText,
-              usernameCheck.status === 'available'
-                ? styles.statusTextSuccess
-                : usernameCheck.status === 'checking'
-                  ? styles.statusTextNeutral
-                  : styles.statusTextError,
-            ]}
-          >
+          <Text style={usernameCheckStatusStyle}>
             {usernameCheck.message}
           </Text>
         ) : null}
@@ -93,7 +112,7 @@ export function SignupCredentialsSection({
       <View style={styles.inputGroup}>
         <View style={styles.labelRow}>
           <Text style={styles.label}>비밀번호</Text>
-          <Pressable onPress={() => setPasswordVisible((current) => !current)} disabled={submitting}>
+          <Pressable onPress={handleTogglePasswordVisible} disabled={submitting}>
             <Text style={styles.inlineToggleText}>{passwordVisible ? '숨김' : '보기'}</Text>
           </Pressable>
         </View>
@@ -101,7 +120,7 @@ export function SignupCredentialsSection({
         <TextInput
           placeholder="비밀번호를 입력하세요"
           placeholderTextColor={colors.textTertiary}
-          style={[styles.input, submitting && styles.inputDisabled]}
+          style={passwordInputStyle}
           secureTextEntry={!passwordVisible}
           value={password}
           onChangeText={setPassword}
@@ -112,7 +131,7 @@ export function SignupCredentialsSection({
         <TextInput
           placeholder="비밀번호를 한 번 더 입력하세요"
           placeholderTextColor={colors.textTertiary}
-          style={[styles.input, submitting && styles.inputDisabled]}
+          style={passwordInputStyle}
           secureTextEntry={!passwordVisible}
           value={passwordConfirm}
           onChangeText={setPasswordConfirm}
@@ -125,8 +144,8 @@ export function SignupCredentialsSection({
           <ValidationItem label="영문과 숫자 포함" complete={/[A-Za-z]/.test(password) && /\d/.test(password)} />
           <ValidationItem label="비밀번호 확인 일치" complete={passwordReady} />
         </View>
-        {passwordValidationMessage ? <Text style={[styles.statusText, styles.statusTextError]}>{passwordValidationMessage}</Text> : null}
-        {passwordConfirmMessage ? <Text style={[styles.statusText, styles.statusTextError]}>{passwordConfirmMessage}</Text> : null}
+        {passwordValidationMessage ? <Text style={ERROR_STATUS_TEXT_STYLE}>{passwordValidationMessage}</Text> : null}
+        {passwordConfirmMessage ? <Text style={ERROR_STATUS_TEXT_STYLE}>{passwordConfirmMessage}</Text> : null}
       </View>
 
       <SignupInput
