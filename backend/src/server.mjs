@@ -54,21 +54,18 @@ import { isSessionExpired } from './auth.mjs';
 import {
   buildUserRunMetrics,
   getAvailableRewardPoints,
-  getRunPointBreakdown,
-  getRunPointValue,
-  parsePaceToMinutes,
 } from './points.mjs';
 import { buildRoadAlignedRoutePreview } from './routing.mjs';
 import {
   createPhoneVerificationService,
-  generatePhoneVerificationCode,
   hashPhoneVerificationCode,
-  maskPhoneNumber,
 } from './phoneVerification.mjs';
 import { createApiRouteHandler } from './routes/index.mjs';
 import { createAdminReadService } from './services/adminReadService.mjs';
 import { createBackendStatusService } from './services/backendStatusService.mjs';
 import { createLeagueReadService } from './services/leagueReadService.mjs';
+import { createReadPayloadBuilders } from './services/readPayloads.mjs';
+import { createPhoneVerificationHelpers } from './services/phoneVerificationService.mjs';
 import {
   ApiError,
   applyCorsHeaders,
@@ -80,29 +77,18 @@ import {
 import { formatTimestamp } from './lib/dateTimeFormatting.mjs';
 import {
   buildNoticeEntry,
-  buildUserRegionKey,
   isActiveRewardRedemption,
   normalizeOptionalString,
 } from './lib/adminNormalizers.mjs';
-import {
-  findRegionPath,
-  findRegionPathForUser,
-  normalizeRegionChildren,
-} from './lib/regionTreeHelpers.mjs';
 import { nextId } from './lib/idHelpers.mjs';
 import {
   buildProfile,
-  buildProfileWithMetrics,
   ensureUserConnectedSources,
   findUserById,
   getRedeemedPointCost,
   getRunsForUser,
   getUserMetrics,
 } from './lib/userStoreHelpers.mjs';
-import {
-  getActionableRequests,
-  getFriendIds,
-} from './lib/socialStoreHelpers.mjs';
 import {
   acceptRunningMatch,
   acknowledgeRunningMatchRoomCountdown,
@@ -111,7 +97,6 @@ import {
   buildMatchDemandSummaryResponse,
   buildRunningMatchRoomResponse,
   buildRunningMatchStatusResponse,
-  buildUpcomingRunningMatchesResponse,
   cancelRunningMatch,
   cleanupStaleRunningMatchRoomState,
   createRunningMatchRoom,
@@ -128,7 +113,6 @@ import {
 import { buildNotificationSettings } from './lib/notificationSettings.mjs';
 import {
   buildIntegrationSourceActionResult,
-  buildIntegrationSources,
   decorateIntegrationSource,
   isExclusiveIntegrationSourceType,
   requireConnectedSource,
@@ -189,11 +173,8 @@ import {
   normalizeAdminOfflineRaceEventInput,
   normalizeImportedRun,
 } from './lib/inputNormalizers.mjs';
+import { buildRunDetail } from './lib/runHelpers.mjs';
 const STARTED_AT = new Date().toISOString();
-
-function clone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
 
 async function parseJsonBody(request) {
   const chunks = [];
@@ -629,527 +610,41 @@ function requireAdmin(request) {
   }
 }
 
-function buildFriendRank(store, user, rank) {
-  const metrics = getUserMetrics(store, user.id);
-
-  return {
-    id: user.id,
-    rank,
-    name: user.name,
-    tag: user.publicTag,
-    distanceKm: metrics.currentWeekDistanceKm,
-    points: metrics.currentWeekPoints,
-  };
-}
-
-function buildDistrictRank(store, user, rank, currentUserId) {
-  const metrics = getUserMetrics(store, user.id);
-
-  return {
-    id: user.id,
-    rank,
-    name: user.name,
-    distanceKm: metrics.currentWeekDistanceKm,
-    points: metrics.currentWeekPoints,
-    ...(user.id === currentUserId ? { isMe: true } : {}),
-  };
-}
-
-function compareFriendRank(store, left, right) {
-  const leftMetrics = getUserMetrics(store, left.id);
-  const rightMetrics = getUserMetrics(store, right.id);
-  const leftDistanceKm = leftMetrics.currentWeekDistanceKm;
-  const rightDistanceKm = rightMetrics.currentWeekDistanceKm;
-
-  if (rightDistanceKm !== leftDistanceKm) {
-    return rightDistanceKm - leftDistanceKm;
-  }
-
-  const leftPoints = leftMetrics.currentWeekPoints;
-  const rightPoints = rightMetrics.currentWeekPoints;
-
-  if (rightPoints !== leftPoints) {
-    return rightPoints - leftPoints;
-  }
-
-  return left.name.localeCompare(right.name, 'ko');
-}
-
-function compareDistrictRank(store, left, right) {
-  const leftMetrics = getUserMetrics(store, left.id);
-  const rightMetrics = getUserMetrics(store, right.id);
-  const leftDistanceKm = leftMetrics.currentWeekDistanceKm;
-  const rightDistanceKm = rightMetrics.currentWeekDistanceKm;
-
-  if (rightDistanceKm !== leftDistanceKm) {
-    return rightDistanceKm - leftDistanceKm;
-  }
-
-  const leftPoints = leftMetrics.currentWeekPoints;
-  const rightPoints = rightMetrics.currentWeekPoints;
-
-  if (rightPoints !== leftPoints) {
-    return rightPoints - leftPoints;
-  }
-
-  return left.name.localeCompare(right.name, 'ko');
-}
-
-function getDistrictBattle(store, user) {
-  const path = findRegionPathForUser(store.regionTree, user);
-  const rawNode = path[path.length - 1] ?? null;
-  const parentNode = path[path.length - 2] ?? null;
-
-  if (!rawNode) {
-    return {
-      averageDistancePerMember: 0,
-      totalDistanceKm: 0,
-      participationRate: 0,
-      districtRank: 1,
-      homeDistrictRank: 1,
-    };
-  }
-
-  const normalizedSiblings = parentNode ? normalizeRegionChildren(parentNode.children ?? []) : [rawNode];
-  const currentNode = normalizedSiblings.find((entry) => entry.id === rawNode.id) ?? rawNode;
-
-  return {
-    averageDistancePerMember: currentNode.averageDistanceKm,
-    totalDistanceKm: currentNode.totalDistanceKm,
-    participationRate: currentNode.participationRate,
-    districtRank: currentNode.rank ?? 1,
-    homeDistrictRank: currentNode.rank ?? 1,
-  };
-}
-
-function buildHomeSummary(store, user) {
-  const metrics = getUserMetrics(store, user.id);
-  return buildHomeSummaryWithMetrics(store, user, metrics);
-}
-
-function buildHomeSummaryWithMetrics(store, user, metrics) {
-  const latestRun = metrics.latestRun;
-  const friendUsers = getFriendIds(store, user.id)
-    .map((friendId) => findUserById(store, friendId))
-    .sort((left, right) => compareFriendRank(store, left, right));
-  const closestFriend = friendUsers[0] ?? null;
-  const districtBattle = getDistrictBattle(store, user);
-  const closestFriendMetrics = closestFriend ? getUserMetrics(store, closestFriend.id) : null;
-
-  return {
-    totalDistanceKm: metrics.currentWeekDistanceKm,
-    totalRuns: metrics.currentWeekRunCount,
-    goalAchievementRate: Math.min(100, Math.round((metrics.currentWeekDistanceKm / 50) * 100)),
-    previousWeekDistanceKm: metrics.previousWeekDistanceKm,
-    streakDays: metrics.currentStreakDays,
-    latestRun: latestRun
-      ? {
-        distanceKm: latestRun.distanceKm,
-        source: latestRun.source,
-      }
-      : {
-        distanceKm: 0,
-        source: 'Manual',
-      },
-    friendName: closestFriend?.name ?? '친구를 추가해봐',
-    friendGapKm: closestFriendMetrics ? Number(Math.abs(closestFriendMetrics.currentWeekDistanceKm - metrics.currentWeekDistanceKm).toFixed(1)) : 0,
-    districtName: user.districtName,
-    districtRank: districtBattle.homeDistrictRank,
-    districtPoints: metrics.currentWeekPoints,
-    districtBattle: {
-      myDistrict: user.districtName,
-      averageDistancePerMember: districtBattle.averageDistancePerMember,
-      totalDistanceKm: districtBattle.totalDistanceKm,
-      participationRate: districtBattle.participationRate,
-      districtRank: districtBattle.districtRank,
-    },
-  };
-}
-
-function buildMyActivity(store, user) {
-  return buildMyActivityWithRunsAndMetrics(
-    getRunsForUser(store, user.id),
-    getUserMetrics(store, user.id),
-  );
-}
-
-function buildMyActivityWithRunsAndMetrics(runs, metrics) {
-  return {
-    runs: runs.map((run) => ({
-      id: run.id,
-      date: run.date,
-      distanceKm: run.distanceKm,
-      pace: run.pace,
-      source: run.source,
-      ...(run.sourceType ? { sourceType: run.sourceType } : {}),
-      ...(run.matchResult ? { matchResult: clone(run.matchResult) } : {}),
-    })),
-    monthlyDistanceKm: metrics.currentMonthDistanceKm,
-    monthlyPoints: metrics.currentMonthPoints,
-  };
-}
-
-function buildFriendLeaderboard(store, user) {
-  const relatedUserIds = [...new Set([user.id, ...getFriendIds(store, user.id)])];
-
-  const currentAndFriends = relatedUserIds
-    .map((userId) => findUserById(store, userId))
-    .sort((left, right) => compareFriendRank(store, left, right))
-    .map((entry, index) => buildFriendRank(store, entry, index + 1));
-
-  return {
-    ranks: currentAndFriends,
-    requests: getActionableRequests(store, user.id),
-  };
-}
-
-function buildDistrictPersonal(store, user) {
-  const currentRegionKey = buildUserRegionKey(user);
-  const districtUsers = store.users
-    .filter((entry) => buildUserRegionKey(entry) === currentRegionKey)
-    .sort((left, right) => compareDistrictRank(store, left, right))
-    .map((entry, index) => buildDistrictRank(store, entry, index + 1, user.id));
-
-  const myRank = districtUsers.find((entry) => entry.id === user.id) ?? null;
-  const myRankIndex = myRank ? districtUsers.findIndex((entry) => entry.id === user.id) : -1;
-  const focusStart = Math.max(0, myRankIndex - 1);
-  const focusRanks = myRankIndex >= 0 ? districtUsers.slice(focusStart, focusStart + 4) : districtUsers.slice(0, 4);
-
-  return {
-    districtName: user.districtName,
-    myRank,
-    myPoints: getUserMetrics(store, user.id).currentWeekPoints,
-    weeklyDistanceKm: getUserMetrics(store, user.id).currentWeekDistanceKm,
-    focusRanks,
-    ranks: districtUsers,
-  };
-}
-
-function buildRegionLeague(store, nodeId) {
-  const rootNode = store.regionTree;
-  const path = nodeId ? findRegionPath(rootNode, nodeId) : [rootNode];
-
-  if (!path) {
-    throw new ApiError(404, '선택한 지역 정보를 찾을 수 없어.');
-  }
-
-  const rawCurrentNode = path[path.length - 1];
-  const parentNode = path[path.length - 2] ?? null;
-  const normalizedSiblings = parentNode ? normalizeRegionChildren(parentNode.children ?? []) : [rawCurrentNode];
-  const currentNode = normalizedSiblings.find((child) => child.id === rawCurrentNode.id) ?? rawCurrentNode;
-  const children = normalizeRegionChildren(currentNode.children ?? []);
-
-  return {
-    currentNode,
-    breadcrumb: path.map(({ id, name, level }) => ({ id, name, level })),
-    children,
-  };
-}
-
-function buildUniversityLeague(store) {
-  const universityMap = new Map();
-
-  for (const user of store.users) {
-    const universityName = typeof user.universityName === 'string' ? user.universityName.trim() : '';
-
-    if (!universityName) {
-      continue;
-    }
-
-    const current = universityMap.get(universityName) ?? {
-      universityName,
-      totalDistanceKm: 0,
-      participants: 0,
-    };
-
-    current.totalDistanceKm = Number((current.totalDistanceKm + getUserMetrics(store, user.id).currentWeekDistanceKm).toFixed(1));
-    current.participants += 1;
-    universityMap.set(universityName, current);
-  }
-
-  const ranks = [...universityMap.values()]
-    .map((entry) => ({
-      ...entry,
-      averageDistanceKm: Number((entry.totalDistanceKm / Math.max(entry.participants, 1)).toFixed(1)),
-    }))
-    .sort((left, right) => {
-      if (right.averageDistanceKm !== left.averageDistanceKm) {
-        return right.averageDistanceKm - left.averageDistanceKm;
-      }
-
-      if (right.totalDistanceKm !== left.totalDistanceKm) {
-        return right.totalDistanceKm - left.totalDistanceKm;
-      }
-
-      if (right.participants !== left.participants) {
-        return right.participants - left.participants;
-      }
-
-      return left.universityName.localeCompare(right.universityName, 'ko');
-    })
-    .map((entry, index) => ({
-      rank: index + 1,
-      universityName: entry.universityName,
-      totalDistanceKm: Number(entry.totalDistanceKm.toFixed(1)),
-      participants: entry.participants,
-      averageDistanceKm: entry.averageDistanceKm,
-    }));
-
-  return { ranks };
-}
-
-function buildFriendActivity(store, currentUserId, friendId) {
-  const friend = findUserById(store, friendId);
-  const runs = getRunsForUser(store, friend.id);
-  const friendMetrics = getUserMetrics(store, friend.id);
-  const leaderboard = buildFriendLeaderboard(store, findUserById(store, currentUserId));
-  const rankedFriend = leaderboard.ranks.find((entry) => entry.id === friend.id) ?? buildFriendRank(store, friend, 1);
-
-  return {
-    friend: rankedFriend,
-    runs: runs.map((run) => ({
-      id: run.id,
-      date: run.date,
-      distanceKm: run.distanceKm,
-      pace: run.pace,
-    })),
-    monthlyDistanceKm: friendMetrics.currentMonthDistanceKm,
-    monthlyPoints: friendMetrics.currentMonthPoints,
-  };
-}
-
-function buildRunDetail(run, weeklyDistanceKm, sourceOverride, metrics) {
-  const paceMinutes = parsePaceToMinutes(run.pace);
-
-  return {
-    run: {
-      id: run.id,
-      date: run.date,
-      distanceKm: run.distanceKm,
-      pace: run.pace,
-      source: sourceOverride ?? run.source,
-      ...(run.sourceType ? { sourceType: run.sourceType } : {}),
-      ...(typeof run.durationSeconds === 'number' ? { durationSeconds: run.durationSeconds } : {}),
-      ...(typeof run.cadenceSpm === 'number' ? { cadenceSpm: run.cadenceSpm } : {}),
-      ...(typeof run.elevationGainM === 'number' ? { elevationGainM: run.elevationGainM } : {}),
-      ...(Array.isArray(run.route) ? { route: run.route } : {}),
-      ...(normalizeOptionalString(run.startedAt) ? { startedAt: run.startedAt } : {}),
-      ...(normalizeOptionalString(run.endedAt) ? { endedAt: run.endedAt } : {}),
-      ...(run.matchResult ? { matchResult: clone(run.matchResult) } : {}),
-    },
-    weeklyDistanceKm,
-    estimatedMinutes: Math.round(run.distanceKm * (paceMinutes ?? 5.5)),
-    earnedPoint: getRunPointValue(metrics, run.id),
-    pointBreakdown: getRunPointBreakdown(metrics, run.id),
-  };
-}
-
-function getRunFromList(runs, runId) {
-  if (!runs.length) {
-    throw new ApiError(404, '러닝 기록이 없어.');
-  }
-
-  if (!runId) {
-    return runs[0];
-  }
-
-  const run = runs.find((entry) => entry.id === runId);
-
-  if (!run) {
-    throw new ApiError(404, '러닝 기록을 찾을 수 없어.');
-  }
-
-  return run;
-}
-
-async function buildProfileReadPayload(request) {
-  const { user, metrics } = await loadCurrentUserReadContext(request, {
-    includeMetrics: true,
-  });
-
-  return buildProfileWithMetrics(user, metrics);
-}
-
-async function buildNotificationSettingsReadPayload(request) {
-  const { user } = await loadCurrentUserReadContext(request);
-  return buildNotificationSettings(user);
-}
-
-async function buildHomeSummaryReadPayload(request) {
-  const { store, user, metrics } = await loadCurrentUserReadContext(request, {
-    includeMetrics: true,
-  });
-
-  return buildHomeSummaryWithMetrics(store, user, metrics);
-}
-
-async function buildUpcomingRunningMatchesReadPayload(request) {
-  const { store, user } = await loadCurrentUserReadContext(request);
-  return buildUpcomingRunningMatchesResponse(store, user);
-}
-
-async function buildMyActivityReadPayload(request) {
-  const { runs, metrics } = await loadCurrentUserReadContext(request, {
-    includeRuns: true,
-    includeMetrics: true,
-  });
-
-  return buildMyActivityWithRunsAndMetrics(runs, metrics);
-}
-
-async function buildIntegrationSourcesReadPayload(request) {
-  const { store, user } = await loadCurrentUserReadContext(request);
-  return {
-    sources: buildIntegrationSources(store, user),
-  };
-}
-
-async function buildFriendLeaderboardReadPayload(request) {
-  const { payload } = await getFriendsLeagueBridge().getFriendLeaderboard({
-    store: loadStore(),
-    token: getAccessToken(request),
-  });
-
-  return payload;
-}
-
-async function buildFriendActivityReadPayload(request, friendId) {
-  const { payload } = await getFriendsLeagueBridge().getFriendActivity({
-    store: loadStore(),
-    token: getAccessToken(request),
-    friendId,
-  });
-
-  return payload;
-}
-
-async function buildFriendRunReadPayload(request, friendId, runId) {
-  const { payload } = await getFriendsLeagueBridge().getFriendRun({
-    store: loadStore(),
-    token: getAccessToken(request),
-    friendId,
-    runId,
-  });
-
-  return payload;
-}
-
-async function buildMarketOverviewReadPayload(request) {
-  const { store, user, metrics } = await loadCurrentUserReadContext(request, {
-    includeMetrics: true,
-  });
-
-  return getMarketRepository().getOverviewForUser({ store, user, metrics });
-}
-
-async function buildOfflineRaceHubReadPayload(request) {
-  const { store, user } = await loadCurrentUserReadContext(request);
-  return getRaceRepository().getHubForUser({ store, user });
-}
-
-async function buildCurrentRunReadPayload(request, runId) {
-  const { runs, metrics } = await loadCurrentUserReadContext(request, {
-    includeRuns: true,
-    includeMetrics: true,
-  });
-  const run = getRunFromList(runs, runId);
-
-  return buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics);
-}
-
-function getRunForUser(store, userId, runId) {
-  const runs = getRunsForUser(store, userId);
-
-  if (!runs.length) {
-    throw new ApiError(404, '러닝 기록이 없어.');
-  }
-
-  if (!runId) {
-    return runs[0];
-  }
-
-  const run = runs.find((entry) => entry.id === runId);
-
-  if (!run) {
-    throw new ApiError(404, '러닝 기록을 찾을 수 없어.');
-  }
-
-  return run;
-}
-
-function buildPhoneVerificationPayload(challenge, providerResult = {}) {
-  return {
-    success: true,
-    purpose: challenge.purpose,
-    requestId: challenge.id,
-    maskedPhone: maskPhoneNumber(challenge.phone),
-    expiresAt: challenge.expiresAt,
-    resendAvailableAt: challenge.resendAvailableAt,
-    provider: providerResult.provider ?? PHONE_VERIFICATION_PROVIDER,
-    ...(typeof providerResult.testCode === 'string' ? { testCode: providerResult.testCode } : {}),
-  };
-}
-
-function buildPhoneVerificationSuccessPayload(challenge) {
-  return {
-    success: true,
-    purpose: challenge.purpose,
-    phone: challenge.phone,
-    maskedPhone: maskPhoneNumber(challenge.phone),
-    verifiedAt: challenge.verifiedAt,
-    registrationExpiresAt: challenge.registrationExpiresAt,
-    verifiedToken: challenge.verifiedToken,
-  };
-}
-
-function createPhoneVerificationChallenge({ purpose, phone, now = new Date() }) {
-  const requestId = nextId('phone');
-  const code = generatePhoneVerificationCode();
-  const createdAt = now.toISOString();
-  const expiresAt = new Date(now.getTime() + PHONE_VERIFICATION_CODE_TTL_MS).toISOString();
-  const resendAvailableAt = new Date(now.getTime() + PHONE_VERIFICATION_RESEND_COOLDOWN_MS).toISOString();
-
-  return {
-    challenge: {
-      id: requestId,
-      purpose,
-      phone,
-      codeHash: hashPhoneVerificationCode(requestId, code),
-      attempts: 0,
-      maxAttempts: PHONE_VERIFICATION_MAX_ATTEMPTS,
-      status: 'pending',
-      createdAt,
-      updatedAt: createdAt,
-      expiresAt,
-      resendAvailableAt,
-      verifiedAt: '',
-      registrationExpiresAt: '',
-      verifiedToken: '',
-      consumedAt: '',
-    },
-    code,
-  };
-}
-
-function requireVerifiedPhoneChallenge({
-  phone,
-  verifiedToken,
-}) {
-  const store = loadStore();
-  cleanupPhoneVerificationChallenges(store);
-  const challenge = ensurePhoneVerificationChallenges(store).find((entry) => (
-    entry.purpose === 'signup'
-    && entry.status === 'verified'
-    && entry.verifiedToken === verifiedToken
-    && entry.phone === phone
-  ));
-
-  if (!challenge) {
-    throw new ApiError(400, '휴대폰 인증을 먼저 완료해주세요.');
-  }
-
-  return challenge;
-}
+const {
+  buildPhoneVerificationPayload,
+  buildPhoneVerificationSuccessPayload,
+  createPhoneVerificationChallenge,
+} = createPhoneVerificationHelpers({
+  cleanupPhoneVerificationChallenges,
+  ensurePhoneVerificationChallenges,
+  loadStore,
+  phoneVerificationCodeTtlMs: PHONE_VERIFICATION_CODE_TTL_MS,
+  phoneVerificationMaxAttempts: PHONE_VERIFICATION_MAX_ATTEMPTS,
+  phoneVerificationProvider: PHONE_VERIFICATION_PROVIDER,
+  phoneVerificationResendCooldownMs: PHONE_VERIFICATION_RESEND_COOLDOWN_MS,
+});
+
+const {
+  buildProfileReadPayload,
+  buildNotificationSettingsReadPayload,
+  buildHomeSummaryReadPayload,
+  buildUpcomingRunningMatchesReadPayload,
+  buildMyActivityReadPayload,
+  buildIntegrationSourcesReadPayload,
+  buildFriendLeaderboardReadPayload,
+  buildFriendActivityReadPayload,
+  buildFriendRunReadPayload,
+  buildMarketOverviewReadPayload,
+  buildOfflineRaceHubReadPayload,
+  buildCurrentRunReadPayload,
+} = createReadPayloadBuilders({
+  getAccessToken,
+  getFriendsLeagueBridge,
+  getMarketRepository,
+  getRaceRepository,
+  loadCurrentUserReadContext,
+  loadStore,
+});
 
 const backendStatusService = createBackendStatusService({
   APP_ENV,

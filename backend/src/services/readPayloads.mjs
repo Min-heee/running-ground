@@ -1,0 +1,125 @@
+import { buildNotificationSettings } from '../lib/notificationSettings.mjs';
+import { buildProfileWithMetrics } from '../lib/userStoreHelpers.mjs';
+import { buildUpcomingRunningMatchesResponse } from '../lib/runningMatchStoreHelpers.mjs';
+import { buildIntegrationSources } from '../lib/integrationSources.mjs';
+import { buildHomeSummaryWithMetrics, buildMyActivityWithRunsAndMetrics } from '../lib/homeBuilders.mjs';
+import { buildRunDetail, getRunFromList } from '../lib/runHelpers.mjs';
+
+export function createReadPayloadBuilders({
+  getAccessToken,
+  getFriendsLeagueBridge,
+  getMarketRepository,
+  getRaceRepository,
+  loadCurrentUserReadContext,
+  loadStore,
+}) {
+  async function buildProfileReadPayload(request) {
+    const { user, metrics } = await loadCurrentUserReadContext(request, {
+      includeMetrics: true,
+    });
+
+    return buildProfileWithMetrics(user, metrics);
+  }
+
+  async function buildNotificationSettingsReadPayload(request) {
+    const { user } = await loadCurrentUserReadContext(request);
+    return buildNotificationSettings(user);
+  }
+
+  async function buildHomeSummaryReadPayload(request) {
+    const { store, user, metrics } = await loadCurrentUserReadContext(request, {
+      includeMetrics: true,
+    });
+
+    return buildHomeSummaryWithMetrics(store, user, metrics);
+  }
+
+  async function buildUpcomingRunningMatchesReadPayload(request) {
+    const { store, user } = await loadCurrentUserReadContext(request);
+    return buildUpcomingRunningMatchesResponse(store, user);
+  }
+
+  async function buildMyActivityReadPayload(request) {
+    const { runs, metrics } = await loadCurrentUserReadContext(request, {
+      includeRuns: true,
+      includeMetrics: true,
+    });
+
+    return buildMyActivityWithRunsAndMetrics(runs, metrics);
+  }
+
+  async function buildIntegrationSourcesReadPayload(request) {
+    const { store, user } = await loadCurrentUserReadContext(request);
+    return {
+      sources: buildIntegrationSources(store, user),
+    };
+  }
+
+  async function buildFriendLeaderboardReadPayload(request) {
+    const { payload } = await getFriendsLeagueBridge().getFriendLeaderboard({
+      store: loadStore(),
+      token: getAccessToken(request),
+    });
+
+    return payload;
+  }
+
+  async function buildFriendActivityReadPayload(request, friendId) {
+    const { payload } = await getFriendsLeagueBridge().getFriendActivity({
+      store: loadStore(),
+      token: getAccessToken(request),
+      friendId,
+    });
+
+    return payload;
+  }
+
+  async function buildFriendRunReadPayload(request, friendId, runId) {
+    const { payload } = await getFriendsLeagueBridge().getFriendRun({
+      store: loadStore(),
+      token: getAccessToken(request),
+      friendId,
+      runId,
+    });
+
+    return payload;
+  }
+
+  async function buildMarketOverviewReadPayload(request) {
+    const { store, user, metrics } = await loadCurrentUserReadContext(request, {
+      includeMetrics: true,
+    });
+
+    return getMarketRepository().getOverviewForUser({ store, user, metrics });
+  }
+
+  async function buildOfflineRaceHubReadPayload(request) {
+    const { store, user } = await loadCurrentUserReadContext(request);
+    return getRaceRepository().getHubForUser({ store, user });
+  }
+
+  async function buildCurrentRunReadPayload(request, runId) {
+    const { runs, metrics } = await loadCurrentUserReadContext(request, {
+      includeRuns: true,
+      includeMetrics: true,
+    });
+    const run = getRunFromList(runs, runId);
+
+    return buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics);
+  }
+
+  return {
+    buildProfileReadPayload,
+    buildNotificationSettingsReadPayload,
+    buildHomeSummaryReadPayload,
+    buildUpcomingRunningMatchesReadPayload,
+    buildMyActivityReadPayload,
+    buildIntegrationSourcesReadPayload,
+    buildFriendLeaderboardReadPayload,
+    buildFriendActivityReadPayload,
+    buildFriendRunReadPayload,
+    buildMarketOverviewReadPayload,
+    buildOfflineRaceHubReadPayload,
+    buildCurrentRunReadPayload,
+  };
+}
