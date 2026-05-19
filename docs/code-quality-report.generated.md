@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-19T04:10:51.074Z
+생성 시각: 2026-05-19T04:28:43.392Z
 
 ## 실행 방법
 
@@ -14,8 +14,8 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 782 |
-| 코드 파일 | 726 |
+| 분석 파일 | 786 |
+| 코드 파일 | 730 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 71 |
 | 500줄 이상 파일 | 18 |
@@ -41,7 +41,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/server.mjs | 6194 | imports 26, sort/filter/map 158, timers 1 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1951 | imports 50, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1950 | imports 50, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -117,7 +117,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/server.mjs | 6194 | imports 26, sort/filter/map 158, timers 1 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1951 | imports 50, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1950 | imports 50, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -144,7 +144,7 @@ npm run code:quality
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 147 | TrackRunExperienceRuntime | 1804 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 147 | TrackRunExperienceRuntime | 1803 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 78 | useTrackRunRuntimeRecipientInviteInbox | 653 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 189 | callback@useCallback | 427 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
@@ -176,7 +176,7 @@ npm run code:quality
 | src/features/runs/hooks/useMatchRuntimeState.ts | 57 | useMatchRuntimeState | 193 |
 | backend/src/repositories/authRepository.mjs | 127 | createJsonAuthRepository | 191 |
 | src/features/runs/runtime/useTrackRunRuntimeMatchRequestActions.ts | 11 | useTrackRunRuntimeMatchRequestActions | 191 |
-| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 83 | useTrackingSessionSnapshots | 190 |
+| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 84 | useTrackingSessionSnapshots | 190 |
 | src/features/runs/runtime/useTrackRunRoomCreateAction.ts | 50 | useTrackRunRoomCreateAction | 186 |
 | src/features/match/screens/MatchRoomScreen.tsx | 16 | MatchRoomScreen | 181 |
 | src/features/home/hooks/useHomeScreenModel.ts | 30 | useHomeScreenModel | 181 |
@@ -202,7 +202,7 @@ npm run code:quality
 | src/features/integrations/components/nrcBridge/NrcBridgeGuideActions.tsx | 10 | buildActionButtons | 139 |
 | src/features/runs/hooks/useMatchSelectionModel.ts | 55 | useMatchSelectionModel | 138 |
 | src/components/matches/useAndroidLiveMatchPerfProbe.ts | 50 | useAndroidLiveMatchPerfProbe | 136 |
-| src/features/runs/tracking/useTrackingAppStateSync.ts | 33 | useTrackingAppStateSync | 135 |
+| src/features/runs/tracking/useTrackingAppStateSync.ts | 34 | useTrackingAppStateSync | 135 |
 | src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 37 | useRunForfeitCommand | 133 |
 | src/features/profile/hooks/useMyPageScreen.ts | 10 | useMyPageScreen | 133 |
 | src/features/runs/viewModels/useLiveMatchProgress.ts | 40 | useLiveMatchProgress | 132 |
@@ -215,6 +215,7 @@ npm run code:quality
 | scripts/deploy-public-backend.mjs | 304 | main | 123 |
 | src/features/runs/hooks/matchLifecycle/useGroupMatchLifecycle.ts | 18 | useGroupMatchLifecycle | 123 |
 | backend/src/routes/runningMatchRoutes.mjs | 1 | routeRunningMatchRequest | 123 |
+| src/features/runs/tracking/actions/useStartTrackingAction.ts | 51 | callback@useCallback | 122 |
 | src/features/runs/hooks/useRunTrackingFlow.ts | 11 | useRunTrackingFlow | 122 |
 | backend/src/routes/authRoutes.mjs | 1 | routeAuthRequest | 122 |
 | src/features/auth/hooks/useUniversityVerification.ts | 10 | useUniversityVerification | 121 |
@@ -223,7 +224,6 @@ npm run code:quality
 | src/features/runs/runtime/useIdleRunModeModel.ts | 91 | useIdleRunModeModel | 119 |
 | src/features/match/hooks/lobby/inviteActions/useFriendInviteSend.ts | 10 | useFriendInviteSend | 119 |
 | backend/src/seed.mjs | 378 | createRegionTree | 118 |
-| backend/src/repositories/runsRepository.mjs | 325 | createJsonRunsRepository | 118 |
 
 ## React component inline object/array/style 후보
 
@@ -477,9 +477,9 @@ npm run code:quality
 | Medium | src/features/runs/tracking/background/locationDistance.ts | 44 | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | export function resolveLocationTimestampMs(location: Location.LocationObject) { |
 | Medium | src/features/runs/tracking/trackingSession.ts | 146 | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | export function buildRoutePoint(location: Location.LocationObject): RunRoutePoint { |
 | Medium | src/features/runs/tracking/useTrackingAppStateSync.ts | 3 | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | import { AppState } from 'react-native'; |
-| Medium | src/features/runs/tracking/background/index.ts | 105 | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | initialLocation?: Location.LocationObject \| null, |
+| Medium | src/features/runs/tracking/background/index.ts | 112 | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | initialLocation?: Location.LocationObject \| null, |
 | Medium | src/features/runs/tracking/background/locationTaskPolicy.ts |  | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | signals=1 |
-| Medium | src/features/runs/tracking/background/routeAccumulator.ts | 141 | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | export function appendTrackedLocation(location: Location.LocationObject) { |
+| Medium | src/features/runs/tracking/background/routeAccumulator.ts | 144 | 위치 watcher/background task/AppState 관련 코드가 감지됐다. | single-flight, appState guard, cleanup, timeout이 테스트로 보장되는지 확인한다. | export function appendTrackedLocation(location: Location.LocationObject) { |
 
 ## 동일/유사 역할 파일 후보
 

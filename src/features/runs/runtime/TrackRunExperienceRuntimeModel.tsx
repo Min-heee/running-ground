@@ -1325,7 +1325,6 @@ export function TrackRunExperienceRuntime({
   } = useTrackRunRuntimeScreenState({
     effectiveShowLiveArena: shouldRenderLiveArena,
     isIdle,
-    isStarting,
     liveMatchRenderMode,
     liveMatchStartupIdentity: liveMatchRenderIdentity,
     liveMatchViewConfirmationRef,

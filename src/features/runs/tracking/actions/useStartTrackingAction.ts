@@ -1,11 +1,16 @@
 import { useCallback, useEffect } from 'react';
 import { Platform } from 'react-native';
 import {
+  commitWarmupBaseline,
   resetBackgroundRunTracking,
   startBackgroundRunTracking,
 } from '@/features/runs/tracking/background';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import { getTrackingStartKey, resolveStartBlockedMessage } from './startTrackingGuards';
+import {
+  runSoloStartWarmupFlow,
+  shouldRunSoloGpsWarmupCountdown,
+} from './soloStartWarmupFlow';
 import { useAutoStartMatchTrackingAction } from './useAutoStartMatchTrackingAction';
 import type {
   StartTrackingActionInput,
@@ -75,7 +80,7 @@ export function useStartTrackingAction({
 
     try {
       setError(null);
-      const shouldUseSoloStartCountdown = matchMode === 'solo' && !options?.allowCountdownWarmup;
+      const shouldUseSoloStartCountdown = shouldRunSoloGpsWarmupCountdown(matchMode, options);
       await ensureLocationPermission();
       await ensureBackgroundLocationPermission();
       resetForegroundTrackingState();
@@ -91,16 +96,51 @@ export function useStartTrackingAction({
         preStartWarmupMatchIdRef.current = null;
       }
 
-      if (shouldUseSoloStartCountdown) {
-        const countdownCompleted = await runSoloStartCountdown();
+      const shouldDetachLocationTask = Platform.OS === 'android' && matchMode !== 'solo';
 
-        if (!countdownCompleted) {
-          endGpsStartTrace({ canceled: true, success: false });
+      const syncInitialLiveShareState = async () => {
+        if (liveShareEnabledRef.current) {
+          const initialLabel = await resolveLiveShareLabel();
+          await syncLiveSharing({
+            enabled: true,
+            status: 'running',
+            locationLabel: initialLabel,
+          });
+        } else {
+          await syncLiveSharing({
+            enabled: false,
+            status: 'idle',
+          });
+        }
+      };
+
+      if (shouldUseSoloStartCountdown) {
+        const soloWarmupCompleted = await runSoloStartWarmupFlow({
+          commitWarmupBaseline,
+          endGpsStartTrace,
+          resetWarmupTracking: resetBackgroundRunTracking,
+          runSoloStartCountdown,
+          startGpsWarmup: () => startBackgroundRunTracking(undefined, {
+            appState: appStateRef.current,
+            detachLocationTask: shouldDetachLocationTask,
+            trackingKey: trackingStartKey,
+            warmupMode: true,
+          }),
+          syncFromBackgroundTracking,
+        });
+
+        if (!soloWarmupCompleted) {
           return;
         }
+
+        try {
+          await syncInitialLiveShareState();
+        } catch {
+          setError('러닝은 시작됐지만 위치 공유 상태를 반영하지 못했어요.');
+        }
+        return;
       }
 
-      const shouldDetachLocationTask = Platform.OS === 'android' && matchMode !== 'solo';
       if (shouldDetachLocationTask) {
         rgPerfMark('GPS tracking start UI detached', {
           allowCountdownWarmup: Boolean(options?.allowCountdownWarmup),
@@ -122,19 +162,7 @@ export function useStartTrackingAction({
       });
 
       try {
-        if (liveShareEnabledRef.current) {
-          const initialLabel = await resolveLiveShareLabel();
-          await syncLiveSharing({
-            enabled: true,
-            status: 'running',
-            locationLabel: initialLabel,
-          });
-        } else {
-          await syncLiveSharing({
-            enabled: false,
-            status: 'idle',
-          });
-        }
+        await syncInitialLiveShareState();
       } catch {
         setError('러닝은 시작됐지만 위치 공유 상태를 반영하지 못했어요.');
       }

@@ -4,6 +4,7 @@ import { AppState } from 'react-native';
 import type { AppStateStatus } from 'react-native';
 import {
   getBackgroundRunTrackingSnapshot,
+  isBackgroundRunWarmupSnapshot,
   subscribeBackgroundRunTracking,
   syncBackgroundRunTrackingAppState,
   type BackgroundRunTrackingSnapshot,
@@ -97,7 +98,7 @@ export function useTrackingAppStateSync({
     callbackRef.current.refreshLiveSharingHeartbeat(snapshot);
     callbackRef.current.refreshMatchProgressHeartbeat(snapshot);
 
-    if (snapshot.status === 'running') {
+    if (snapshot.status === 'running' && !isBackgroundRunWarmupSnapshot(snapshot)) {
       callbackRef.current.startElapsedTicker();
     } else {
       callbackRef.current.clearElapsedTicker();
