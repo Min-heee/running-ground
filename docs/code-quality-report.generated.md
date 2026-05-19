@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-19T11:48:23.449Z
+생성 시각: 2026-05-19T12:06:26.367Z
 
 ## 실행 방법
 
@@ -14,8 +14,8 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 808 |
-| 코드 파일 | 752 |
+| 분석 파일 | 810 |
+| 코드 파일 | 754 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 70 |
 | 500줄 이상 파일 | 17 |
@@ -41,7 +41,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/server.mjs | 6195 | imports 26, sort/filter/map 158, timers 1 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1857 | imports 52, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1844 | imports 52, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -116,7 +116,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/server.mjs | 6195 | imports 26, sort/filter/map 158, timers 1 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1857 | imports 52, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1844 | imports 52, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
@@ -142,7 +142,7 @@ npm run code:quality
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 115 | TrackRunExperienceRuntime | 1742 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 117 | TrackRunExperienceRuntime | 1727 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 59 | useTrackRunRuntimeRecipientInviteInbox | 433 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
