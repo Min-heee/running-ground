@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-19T12:29:42.798Z
+생성 시각: 2026-05-19T12:47:23.673Z
 
 ## 실행 방법
 
@@ -17,9 +17,9 @@ npm run code:quality
 | 분석 파일 | 818 |
 | 코드 파일 | 762 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 70 |
-| 500줄 이상 파일 | 17 |
-| 50줄 이상 함수 후보 | 261 |
+| 300줄 이상 파일 | 73 |
+| 500줄 이상 파일 | 19 |
+| 50줄 이상 함수 후보 | 262 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
 ## 감지 항목 요약
@@ -31,7 +31,7 @@ npm run code:quality
 | useEffect가 많은 파일 | 0 | 0 | 0 | 0 |
 | useMemo/useCallback 없이 props를 많이 만드는 후보 | 9 | 0 | 9 | 0 |
 | services 밖 fetch/api 호출 후보 | 0 | 0 | 0 | 0 |
-| utils/domain 밖 계산 로직 후보 | 46 | 6 | 40 | 0 |
+| utils/domain 밖 계산 로직 후보 | 48 | 6 | 42 | 0 |
 | types 밖 타입 선언 후보 | 61 | 1 | 60 | 0 |
 | setInterval/setTimeout/subscription cleanup 의심 후보 | 15 | 0 | 15 | 0 |
 | Location/watchPosition/background task 사용 후보 | 18 | 5 | 13 | 0 |
@@ -40,12 +40,14 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| backend/src/server.mjs | 5774 | imports 33, sort/filter/map 150, timers 1 |
+| backend/src/server.mjs | 4922 | imports 33, sort/filter/map 145, timers 1 |
 | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1844 | imports 52, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
+| backend/src/routes/runningMatchRoutes.mjs | 756 |  |
 | backend/src/repositories/postgresFriendsRepository.mjs | 716 | sort/filter/map 13 |
+| backend/src/routes/authRoutes.mjs | 674 | sort/filter/map 1 |
 | src/data/mock.ts | 648 | imports 2, sort/filter/map 2 |
 | backend/src/repositories/postgresRunsRepository.mjs | 640 | imports 3, sort/filter/map 9 |
 | docs/backend-api-contract.md | 636 | imports 2 |
@@ -80,6 +82,7 @@ npm run code:quality
 | src/features/runs/tracking/background/locationTaskManager.test.ts | 389 | imports 6, timers 8 |
 | src/integrations/nativeHealth.ts | 379 | imports 8, sort/filter/map 1 |
 | backend/src/repositories/friendsRepository.mjs | 373 | sort/filter/map 9 |
+| backend/src/routes/adminRoutes.mjs | 373 | imports 1 |
 | docs/server-backend-architecture.md | 367 | imports 1 |
 | src/lib/api/services/mock/matchScheduling.ts | 358 | imports 4, sort/filter/map 8 |
 | docs/refactor-roadmap.md | 358 |  |
@@ -115,12 +118,14 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| backend/src/server.mjs | 5774 | imports 33, sort/filter/map 150, timers 1 |
+| backend/src/server.mjs | 4922 | imports 33, sort/filter/map 145, timers 1 |
 | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1844 | imports 52, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 838 | imports 4, sort/filter/map 37, subs 14 |
+| backend/src/routes/runningMatchRoutes.mjs | 756 |  |
 | backend/src/repositories/postgresFriendsRepository.mjs | 716 | sort/filter/map 13 |
+| backend/src/routes/authRoutes.mjs | 674 | sort/filter/map 1 |
 | src/data/mock.ts | 648 | imports 2, sort/filter/map 2 |
 | backend/src/repositories/postgresRunsRepository.mjs | 640 | imports 3, sort/filter/map 9 |
 | docs/backend-api-contract.md | 636 | imports 2 |
@@ -137,7 +142,7 @@ npm run code:quality
 
 
 
-> 261개 중 상위 80개만 표시합니다.
+> 262개 중 상위 80개만 표시합니다.
 
 
 | 파일 | 줄 | 함수 | 길이 |
@@ -145,6 +150,7 @@ npm run code:quality
 | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 117 | TrackRunExperienceRuntime | 1727 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 59 | useTrackRunRuntimeRecipientInviteInbox | 433 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
+| backend/src/routes/runningMatchRoutes.mjs | 1 | routeRunningMatchRequest | 312 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 170 | callback@useCallback | 285 |
 | src/features/runs/viewModels/useLiveMatchViewModel.ts | 37 | useLiveMatchViewModel | 285 |
@@ -154,6 +160,7 @@ npm run code:quality
 | src/features/match/hooks/lobby/useRoomStartActions.ts | 70 | useRoomStartActions | 265 |
 | backend/src/repositories/postgresAuthRepository.mjs | 246 | createPostgresAuthRepository | 258 |
 | src/features/settings/screens/AdminScreen.tsx | 20 | AdminScreen | 254 |
+| backend/src/routes/authRoutes.mjs | 1 | routeAuthRequest | 251 |
 | src/features/runs/sync/matchPolling/useBlockingMatchStatusPolling.ts | 83 | useBlockingMatchStatusPolling | 242 |
 | src/features/runs/runtime/useTrackRunRoomLoader.ts | 77 | callback@useCallback | 238 |
 | src/features/runs/sync/useMatchProgressSync.ts | 50 | useMatchProgressSync | 235 |
@@ -169,6 +176,7 @@ npm run code:quality
 | backend/src/server.mjs | 2521 | buildRunningMatchStatusResponse | 210 |
 | src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 47 | useTrackRunRoomJoinAction | 208 |
 | scripts/analyze-android-perf-trace.mjs | 218 | analyzeLine | 197 |
+| backend/src/routes/adminRoutes.mjs | 3 | routeAdminRequest | 196 |
 | src/features/match/hooks/lobby/useRoomInviteActions.ts | 16 | useRoomInviteActions | 194 |
 | src/features/runs/hooks/useMatchRuntimeState.ts | 57 | useMatchRuntimeState | 193 |
 | backend/src/repositories/authRepository.mjs | 127 | createJsonAuthRepository | 191 |
@@ -207,21 +215,18 @@ npm run code:quality
 | src/features/runs/sync/usePartyRunSync.ts | 60 | usePartyRunSync | 131 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchMountSignalBridge.ts | 26 | callback@useCallback | 129 |
 | src/features/match/hooks/lobby/roomSnapshot/useInviteInboxReceiver.ts | 21 | callback@useCallback | 127 |
+| backend/src/routes/socialRoutes.mjs | 1 | routeSocialRequest | 126 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationOwner.ts | 104 | callback@useCallback | 126 |
 | src/features/runs/components/PartyRunHomePanel.tsx | 37 | PartyRunHomePanel | 124 |
-| backend/src/routes/adminRoutes.mjs | 3 | routeAdminRequest | 124 |
 | scripts/deploy-public-backend.mjs | 304 | main | 123 |
 | src/features/runs/hooks/matchLifecycle/useGroupMatchLifecycle.ts | 18 | useGroupMatchLifecycle | 123 |
-| backend/src/routes/runningMatchRoutes.mjs | 1 | routeRunningMatchRequest | 123 |
 | src/features/runs/tracking/actions/useStartTrackingAction.ts | 51 | callback@useCallback | 122 |
 | src/features/runs/hooks/useRunTrackingFlow.ts | 11 | useRunTrackingFlow | 122 |
-| backend/src/routes/authRoutes.mjs | 1 | routeAuthRequest | 122 |
 | src/features/auth/hooks/useUniversityVerification.ts | 10 | useUniversityVerification | 121 |
 | backend/src/repositories/raceRepository.mjs | 1 | createJsonRaceRepository | 121 |
 | src/features/runs/hooks/useMatchLifecycle.ts | 17 | useMatchLifecycle | 120 |
 | src/features/runs/runtime/useIdleRunModeModel.ts | 91 | useIdleRunModeModel | 119 |
 | src/features/match/hooks/lobby/inviteActions/useFriendInviteSend.ts | 10 | useFriendInviteSend | 119 |
-| backend/src/seed.mjs | 378 | createRegionTree | 118 |
 
 ## React component inline object/array/style 후보
 
@@ -328,7 +333,7 @@ npm run code:quality
 
 | 우선순위 | 파일 | 줄 | 이유 | 권장 조치 | 근거 |
 | --- | --- | --- | --- | --- | --- |
-| High | backend/src/server.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=159, sort/filter/map=150 |
+| High | backend/src/server.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=143, sort/filter/map=145 |
 | High | src/lib/api/services/mock/matchSessions.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=23, sort/filter/map=12 |
 | High | src/lib/api/services/mock/matchScheduling.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=22, sort/filter/map=8 |
 | High | backend/src/store.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=7, sort/filter/map=9 |
@@ -348,6 +353,7 @@ npm run code:quality
 | Medium | backend/src/runningMatchContract.test.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=11, sort/filter/map=0 |
 | Medium | src/features/league/leagueRanking.test.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=8, sort/filter/map=3 |
 | Medium | backend/src/lib/matchPureHelpers.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=5 |
+| Medium | backend/src/routes/authRoutes.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=8, sort/filter/map=1 |
 | Medium | src/features/league/components/LeagueRankBadges.tsx |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=9, sort/filter/map=0 |
 | Medium | src/features/points/pointSystem.test.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=8, sort/filter/map=1 |
 | Medium | src/features/points/pointSystem.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=8, sort/filter/map=1 |
@@ -370,6 +376,7 @@ npm run code:quality
 | Medium | src/features/match/screens/MatchRecordScreen.tsx |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=0 |
 | Medium | src/features/running/hooks/useAddRunForm.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=0 |
 | Medium | src/lib/matchCountdown.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=1, sort/filter/map=4 |
+| Medium | backend/src/routes/socialRoutes.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=0, sort/filter/map=4 |
 | Medium | src/features/auth/components/universityVerification/UniversityVerificationContent.tsx |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=0, sort/filter/map=4 |
 | Medium | src/features/profile/hooks/useMyPageScreen.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=0, sort/filter/map=4 |
 | Medium | src/features/runs/components/matchSetupCards/MatchSetupCommon.tsx |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=0, sort/filter/map=4 |
@@ -490,7 +497,7 @@ npm run code:quality
 | --- | --- | --- | --- | --- | --- |
 | High | Card 계열 |  | Card 계열 파일이 43개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/integrations/IntegrationJourneyCard.tsx, src/features/league/components/LeagueRegionSelectorCard.tsx, src/… |
 | High | Repository 계열 |  | Repository 계열 파일이 22개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/repositories/postgresFriendsRepository.mjs, backend/src/repositories/postgresRunsRepository.mjs, backend/sr… |
-| Medium | Route 계열 |  | Route 계열 파일이 17개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/runs/tracking/background/routeAccumulator.ts, backend/src/routes/adminRoutes.mjs, src/features/runs/RunRou… |
+| Medium | Route 계열 |  | Route 계열 파일이 17개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/routes/runningMatchRoutes.mjs, backend/src/routes/authRoutes.mjs, backend/src/routes/adminRoutes.mjs, backe… |
 | Medium | Ranking 계열 |  | Ranking 계열 파일이 16개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/friends/components/friendsRankingStyles.ts, backend/src/services/todayRankingBuilder.mjs, src/features/run… |
 | Medium | Service 계열 |  | Service 계열 파일이 14개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/services/backendStatusService.mjs, backend/src/services/adminReadService.mjs, backend/src/services/leagueRe… |
 | Medium | league |  | 같은 basename을 가진 파일 6개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/mock/league.ts, src/lib/api/services/league.ts, src/domain/league.ts, src/lib/api/types/league.ts,… |
