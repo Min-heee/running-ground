@@ -31,9 +31,20 @@ export function createLeagueReadService({
     return payload;
   }
 
+  async function buildTodayRankingReadPayload(request, category) {
+    const { payload } = await getFriendsLeagueBridge().getTodayRankings({
+      category,
+      store: loadStore(),
+      token: getAccessToken(request),
+    });
+
+    return payload;
+  }
+
   return {
     buildDistrictPersonalReadPayload,
     buildRegionLeagueReadPayload,
+    buildTodayRankingReadPayload,
     buildUniversityLeagueReadPayload,
   };
 }

@@ -5,10 +5,10 @@ import { Screen } from '@/components/Screen';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { StateMessageCard } from '@/components/ui/StateMessageCard';
 import { DistrictMemberRankingCard } from '@/features/league/components/DistrictMemberRankingCard';
-import { LeagueComingSoonCard } from '@/features/league/components/LeagueComingSoonCard';
 import { LeagueHeroCard } from '@/features/league/components/LeagueHeroCard';
 import { LeagueModeSwitch } from '@/features/league/components/LeagueModeSwitch';
 import { LeagueRegionSelectorCard } from '@/features/league/components/LeagueRegionSelectorCard';
+import { TodayRankingCard } from '@/features/league/components/TodayRankingCard';
 import { useRegionLeagueState } from '@/features/league/hooks/useRegionLeagueState';
 import { colors } from '@/theme/tokens';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
@@ -24,7 +24,7 @@ export default function LeagueScreen() {
     currentNode,
     breadcrumbNodes,
     visibleChildren,
-    isUniversityView,
+    isTodayView,
     isLeafRegion,
     loading,
     error,
@@ -57,8 +57,8 @@ export default function LeagueScreen() {
 
       <LeagueModeSwitch mode={leagueMode} onChange={setLeagueMode} />
 
-      {isUniversityView ? (
-        <LeagueComingSoonCard />
+      {isTodayView ? (
+        <TodayRankingCard />
       ) : (
         <>
           {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}

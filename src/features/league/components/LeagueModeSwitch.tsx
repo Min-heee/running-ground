@@ -10,16 +10,16 @@ type LeagueModeSwitchProps = {
 };
 
 export function LeagueModeSwitch({ mode, onChange }: LeagueModeSwitchProps) {
-  const isUniversityView = mode === 'university';
+  const isTodayView = mode === 'today';
 
   return (
     <Card style={styles.modeCard}>
       <View style={styles.modeSwitch}>
-        <Pressable style={[styles.modeButton, !isUniversityView && styles.modeButtonActive]} onPress={() => onChange('region')}>
-          <Text style={[styles.modeButtonText, !isUniversityView && styles.modeButtonTextActive]}>지역</Text>
+        <Pressable style={[styles.modeButton, !isTodayView && styles.modeButtonActive]} onPress={() => onChange('region')}>
+          <Text style={[styles.modeButtonText, !isTodayView && styles.modeButtonTextActive]}>지역</Text>
         </Pressable>
-        <Pressable style={[styles.modeButton, isUniversityView && styles.modeButtonActive]} onPress={() => onChange('university')}>
-          <Text style={[styles.modeButtonText, isUniversityView && styles.modeButtonTextActive]}>대학</Text>
+        <Pressable style={[styles.modeButton, isTodayView && styles.modeButtonActive]} onPress={() => onChange('today')}>
+          <Text style={[styles.modeButtonText, isTodayView && styles.modeButtonTextActive]}>오늘</Text>
         </Pressable>
       </View>
     </Card>

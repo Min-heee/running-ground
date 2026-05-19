@@ -6040,6 +6040,7 @@ const routeRequest = createApiRouteHandler({
   buildFriendRunReadPayload,
   buildDistrictPersonalReadPayload: leagueReadService.buildDistrictPersonalReadPayload,
   buildRegionLeagueReadPayload: leagueReadService.buildRegionLeagueReadPayload,
+  buildTodayRankingReadPayload: leagueReadService.buildTodayRankingReadPayload,
   buildUniversityLeagueReadPayload: leagueReadService.buildUniversityLeagueReadPayload,
   buildMarketOverviewReadPayload,
   buildOfflineRaceHubReadPayload,

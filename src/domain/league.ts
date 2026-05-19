@@ -27,3 +27,22 @@ export type UniversityLeagueRank = {
   participants: number;
   averageDistanceKm: number;
 };
+
+export type TodayRankingCategory = 'pace' | 'distance' | 'streak';
+
+export type TodayRankingEntry = {
+  rank: number;
+  userId: string;
+  name: string;
+  tag: string;
+  value: string;
+  valueNumber: number;
+  isCurrentUser: boolean;
+};
+
+export type TodayRankingResponse = {
+  category: TodayRankingCategory;
+  rankedAt: string;
+  entries: TodayRankingEntry[];
+  totalCount: number;
+};

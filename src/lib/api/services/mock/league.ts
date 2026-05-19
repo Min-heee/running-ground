@@ -7,10 +7,12 @@ import {
 import type {
   DistrictPersonalRank,
   RegionDrilldownNode,
+  TodayRankingCategory,
   UniversityLeagueRank,
 } from '@/domain';
+import { rankMockTodayEntries } from '@/features/league/utils/mockTodayRanking';
 import { getCurrentUserProfile } from '@/lib/session';
-import type { DistrictPersonalResponse } from '../../types';
+import type { DistrictPersonalResponse, TodayRankingResponse } from '../../types';
 
 export function normalizeMockUniversityRanks(ranks: UniversityLeagueRank[]) {
   return [...ranks]
@@ -159,5 +161,17 @@ export function buildMockDistrictPersonalResponse(nodeId?: string): DistrictPers
     weeklyDistanceKm: myRank?.distanceKm ?? 0,
     focusRanks,
     ranks,
+  };
+}
+
+export function buildMockTodayRankingResponse(category: TodayRankingCategory): TodayRankingResponse {
+  const profile = getCurrentUserProfile() ?? myProfile;
+  const entries = rankMockTodayEntries(category, profile.publicTag);
+
+  return {
+    category,
+    rankedAt: new Date().toISOString(),
+    entries,
+    totalCount: entries.length,
   };
 }

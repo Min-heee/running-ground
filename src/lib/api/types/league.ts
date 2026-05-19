@@ -1,6 +1,7 @@
 import type {
   DistrictPersonalRank,
   RegionDrilldownNode,
+  TodayRankingResponse,
   UniversityLeagueRank,
 } from '@/domain';
 
@@ -23,4 +24,8 @@ export type RegionLeagueResponse = {
 
 export type UniversityLeagueResponse = {
   ranks: UniversityLeagueRank[];
+};
+
+export type {
+  TodayRankingResponse,
 };

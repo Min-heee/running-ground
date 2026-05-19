@@ -7,6 +7,7 @@ export async function routeLeagueRequest({
   sendJson,
   buildDistrictPersonalReadPayload,
   buildRegionLeagueReadPayload,
+  buildTodayRankingReadPayload,
   buildUniversityLeagueReadPayload,
 }) {
   if (pathname === '/api/league/district-personal' && method === 'GET') {
@@ -21,6 +22,15 @@ export async function routeLeagueRequest({
 
   if (pathname === '/api/league/universities' && method === 'GET') {
     sendJson(response, 200, await buildUniversityLeagueReadPayload(request));
+    return true;
+  }
+
+  if (pathname === '/api/running/today-rankings' && method === 'GET') {
+    sendJson(
+      response,
+      200,
+      await buildTodayRankingReadPayload(request, url.searchParams.get('category') ?? 'pace'),
+    );
     return true;
   }
 

@@ -5,6 +5,8 @@ import {
   weeklySummary,
 } from '@/data/mock';
 
+import type { TodayRankingCategory } from '@/domain';
+
 import { addressCatalog } from '@/features/location/addressCatalog';
 
 import {
@@ -21,6 +23,7 @@ import {
   DistrictPersonalResponse,
   RegionLeagueResponse,
   RegionCatalogResponse,
+  TodayRankingResponse,
   UniversityCatalogResponse,
   UniversityLeagueResponse,
 } from '../types';
@@ -31,6 +34,7 @@ import {
   requireAccessToken,
   findRegionPath,
   buildMockDistrictPersonalResponse,
+  buildMockTodayRankingResponse,
 } from './_shared';
 
 export async function fetchRegionCatalog(): Promise<RegionCatalogResponse> {
@@ -90,7 +94,7 @@ export async function fetchRegionLeague(nodeId?: string): Promise<RegionLeagueRe
 
   return apiGet<RegionLeagueResponse>(`/league/regions${query}`, {
     accessToken: await requireAccessToken(),
-    fallbackMessage: '지역 리그 정보를 불러오지 못했어.',
+    fallbackMessage: '지역 랭킹 정보를 불러오지 못했어.',
   });
 }
 
@@ -125,5 +129,16 @@ export async function fetchUniversityLeague(): Promise<UniversityLeagueResponse>
   return apiGet<UniversityLeagueResponse>('/league/universities', {
     accessToken: await requireAccessToken(),
     fallbackMessage: '대학 리그 정보를 불러오지 못했어.',
+  });
+}
+
+export async function fetchTodayRanking(category: TodayRankingCategory): Promise<TodayRankingResponse> {
+  if (USE_MOCK_API) {
+    return buildMockTodayRankingResponse(category);
+  }
+
+  return apiGet<TodayRankingResponse>(`/running/today-rankings?category=${encodeURIComponent(category)}`, {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '오늘의 랭킹을 불러오지 못했어.',
   });
 }
