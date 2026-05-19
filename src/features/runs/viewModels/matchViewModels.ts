@@ -9,6 +9,11 @@ import {
   buildParticipantAveragePaceLabel,
   type GroupLiveStanding,
 } from '@/features/runs/viewModels/matchProgress';
+import {
+  getCurrentUserResultLabel,
+  getParticipantArenaLabel,
+  type DuelResultLabel,
+} from '@/features/runs/viewModels/matchResultProgressive';
 
 type MatchLiveStatus = NonNullable<DuelMatchOpponent['liveStatus']>;
 
@@ -18,6 +23,8 @@ export type ArenaParticipantViewModel = {
   paceLabel: string;
   distanceKm: number;
   rankLabel?: string;
+  resultLabel?: DuelResultLabel | null;
+  finishedAt?: string | null;
   isCurrentUser?: boolean;
   isLeader?: boolean;
   liveStatus?: MatchLiveStatus;
@@ -64,12 +71,35 @@ function mergeRoomParticipantProgress<T extends DuelMatchOpponent | GroupMatchPa
     officialGapAheadKm: statusParticipant.officialGapAheadKm ?? roomParticipant.officialGapAheadKm,
     officialGapLeaderKm: statusParticipant.officialGapLeaderKm ?? roomParticipant.officialGapLeaderKm,
     officialComparedAt: statusParticipant.officialComparedAt ?? roomParticipant.officialComparedAt,
+    finishedAt: statusParticipant.finishedAt ?? roomParticipant.finishedAt,
   };
+}
+
+function decorateDuelResultLabels(participants: ArenaParticipantViewModel[]) {
+  const currentUser = participants.find((participant) => participant.isCurrentUser) ?? null;
+  const opponentParticipant = participants.find((participant) => !participant.isCurrentUser) ?? null;
+  const currentUserResultLabel = getCurrentUserResultLabel(currentUser, opponentParticipant, 'duel');
+  const currentUserFinishedAt = currentUser?.finishedAt ?? null;
+
+  return participants.map((participant) => {
+    const arenaLabel = getParticipantArenaLabel(
+      participant,
+      'duel',
+      currentUserFinishedAt,
+      currentUserResultLabel,
+    );
+
+    return {
+      ...participant,
+      resultLabel: arenaLabel?.kind === 'result' ? arenaLabel.text as DuelResultLabel : null,
+    };
+  });
 }
 
 export function buildDuelArenaParticipants({
   currentUserPaceLabel,
   currentUserLiveStatus,
+  currentUserFinishedAt = null,
   currentDistanceKm,
   opponent,
   opponentPaceLabel,
@@ -78,6 +108,7 @@ export function buildDuelArenaParticipants({
 }: {
   currentUserPaceLabel: string;
   currentUserLiveStatus?: MatchLiveStatus;
+  currentUserFinishedAt?: string | null;
   currentDistanceKm: number;
   opponent: DuelMatchOpponent | null;
   opponentPaceLabel: string;
@@ -89,12 +120,13 @@ export function buildDuelArenaParticipants({
   }
 
   const opponentForfeited = opponent.liveStatus === 'forfeited';
-  return [
+  return decorateDuelResultLabels([
     {
       id: 'me',
       name: '나',
       paceLabel: currentUserPaceLabel,
       distanceKm: currentDistanceKm,
+      finishedAt: currentUserFinishedAt,
       isCurrentUser: true,
       isLeader: liveGapKm !== null ? liveGapKm >= 0 : false,
       liveStatus: currentUserLiveStatus,
@@ -105,11 +137,12 @@ export function buildDuelArenaParticipants({
       name: opponent.name,
       paceLabel: opponentForfeited ? '기권' : opponentPaceLabel,
       distanceKm: opponentDistanceKm,
+      finishedAt: opponent.finishedAt ?? null,
       isLeader: liveGapKm !== null ? liveGapKm < 0 : true,
       liveStatus: opponent.liveStatus,
       showPaceBubble: opponentForfeited || Boolean(opponentPaceLabel),
     },
-  ];
+  ]);
 }
 
 export function buildRoomLinkedDuelPlaceholderParticipants({
@@ -141,6 +174,7 @@ export function buildRoomLinkedDuelPlaceholderParticipants({
       : null;
     const mergedParticipant = mergeRoomParticipantProgress(participant, statusParticipant);
     const participantLiveStatus = statusParticipant?.liveStatus ?? participant.liveStatus;
+    const participantFinishedAt = statusParticipant?.finishedAt ?? participant.finishedAt ?? null;
     const progressModel = buildMatchProgressModel(mergedParticipant, placeholderDistanceKm);
     const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
       ? currentDistanceKm
@@ -154,6 +188,7 @@ export function buildRoomLinkedDuelPlaceholderParticipants({
       name: isCurrentUser ? '나' : participant.name,
       paceLabel: participantLiveStatus === 'forfeited' ? '기권' : participantPaceLabel,
       distanceKm: participantDistanceKm,
+      finishedAt: participantFinishedAt,
       isCurrentUser,
       isLeader: false,
       liveStatus: participantLiveStatus,
@@ -162,10 +197,12 @@ export function buildRoomLinkedDuelPlaceholderParticipants({
   });
 
   const leaderDistanceKm = Math.max(...participants.map((participant) => participant.distanceKm));
-  return participants.map((participant) => ({
+  const participantsWithLeader = participants.map((participant) => ({
     ...participant,
     isLeader: participant.distanceKm >= leaderDistanceKm && leaderDistanceKm > 0,
   }));
+
+  return decorateDuelResultLabels(participantsWithLeader);
 }
 
 export function buildGroupArenaParticipants({
@@ -190,6 +227,7 @@ export function buildGroupArenaParticipants({
       paceLabel: participantPaceLabel,
       distanceKm: participant.currentDistanceKm,
       rankLabel: String(participant.rank),
+      finishedAt: participant.finishedAt ?? null,
       isCurrentUser: participant.isCurrentUser,
       isLeader: participant.rank === 1,
       liveStatus: participant.liveStatus,
@@ -227,6 +265,7 @@ export function buildRoomLinkedGroupPlaceholderParticipants({
     )) ?? null;
     const mergedParticipant = mergeRoomParticipantProgress(participant, statusParticipant);
     const participantLiveStatus = statusParticipant?.liveStatus ?? participant.liveStatus;
+    const participantFinishedAt = statusParticipant?.finishedAt ?? participant.finishedAt ?? null;
     const placeholderDistanceKm = room.linkedMatchDistanceKm ?? room.distanceKm;
     const progressModel = buildMatchProgressModel(mergedParticipant, placeholderDistanceKm);
     const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
@@ -242,6 +281,7 @@ export function buildRoomLinkedGroupPlaceholderParticipants({
       paceLabel: participantLiveStatus === 'forfeited' ? '기권' : participantPaceLabel,
       distanceKm: participantDistanceKm,
       rankLabel: String(index + 1),
+      finishedAt: participantFinishedAt,
       isCurrentUser,
       isLeader: index === 0,
       liveStatus: participantLiveStatus,

@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { buildLiveMatchRunnerVisualState } from '@/components/matches/liveMatchArenaVisualState';
 import { RoadMotion } from '@/components/matches/liveMatchArena/RoadMotion';
+import { ResultBadge } from '@/components/matches/liveMatchArena/ResultBadge';
 import type { ArenaParticipant } from '@/components/matches/liveMatchArena/types';
 import {
   ROAD_HEIGHT_DUEL,
@@ -23,6 +24,7 @@ function areDuelTokenVisualPropsEqual(
     && left.bpmLabel === right.bpmLabel
     && left.isCurrentUser === right.isCurrentUser
     && left.liveStatus === right.liveStatus
+    && left.resultLabel === right.resultLabel
     && left.showPaceBubble === right.showPaceBubble;
 }
 
@@ -40,14 +42,21 @@ const DuelRunnerToken = memo(function DuelRunnerToken({
 
   return (
     <>
-      <View style={[
-        styles.runnerMarker,
-        isCurrentUser ? styles.runnerMarkerCurrent : styles.runnerMarkerOpponent,
-        participantForfeited ? styles.runnerMarkerForfeited : undefined,
-      ]}>
-        <Text style={[styles.runnerMarkerText, participantForfeited ? styles.runnerMarkerForfeitedText : undefined]}>
-          {visualState.markerLabel}
-        </Text>
+      <View style={styles.duelRunnerTokenWrap}>
+        <View style={[
+          styles.runnerMarker,
+          isCurrentUser ? styles.runnerMarkerCurrent : styles.runnerMarkerOpponent,
+          participantForfeited ? styles.runnerMarkerForfeited : undefined,
+        ]}>
+          <Text style={[styles.runnerMarkerText, participantForfeited ? styles.runnerMarkerForfeitedText : undefined]}>
+            {visualState.markerLabel}
+          </Text>
+        </View>
+        {participant.resultLabel ? (
+          <View style={styles.duelRunnerResultBadge}>
+            <ResultBadge label={participant.resultLabel} />
+          </View>
+        ) : null}
       </View>
       {shouldShowRunnerBubble(participant) ? (
         <View style={[

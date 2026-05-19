@@ -92,6 +92,59 @@ test('duel arena view model marks forfeited opponent and keeps current runner le
   assert.equal(participants[1].showPaceBubble, true);
 });
 
+test('duel arena view model labels current user as WIN after finishing before opponent', () => {
+  const participants = buildDuelArenaParticipants({
+    currentUserPaceLabel: '완주',
+    currentUserLiveStatus: 'finished',
+    currentUserFinishedAt: '2026-05-12T00:10:00.000Z',
+    currentDistanceKm: 5,
+    opponent: opponent({ liveStatus: 'running' }),
+    opponentPaceLabel: '06:20/km',
+    opponentDistanceKm: 4.2,
+    liveGapKm: 0.8,
+  });
+
+  assert.equal(participants.find((participant) => participant.isCurrentUser)?.resultLabel, 'WIN');
+  assert.equal(participants.find((participant) => !participant.isCurrentUser)?.resultLabel, null);
+});
+
+test('duel arena view model labels opponent as WIN when opponent finishes first', () => {
+  const participants = buildDuelArenaParticipants({
+    currentUserPaceLabel: '06:00/km',
+    currentUserLiveStatus: 'running',
+    currentDistanceKm: 4.2,
+    opponent: opponent({
+      liveStatus: 'finished',
+      finishedAt: '2026-05-12T00:09:30.000Z',
+    }),
+    opponentPaceLabel: '완주',
+    opponentDistanceKm: 5,
+    liveGapKm: -0.8,
+  });
+
+  assert.equal(participants.find((participant) => participant.isCurrentUser)?.resultLabel, null);
+  assert.equal(participants.find((participant) => !participant.isCurrentUser)?.resultLabel, 'WIN');
+});
+
+test('duel arena view model compares both finish times for WIN/LOSE labels', () => {
+  const participants = buildDuelArenaParticipants({
+    currentUserPaceLabel: '완주',
+    currentUserLiveStatus: 'finished',
+    currentUserFinishedAt: '2026-05-12T00:10:30.000Z',
+    currentDistanceKm: 5,
+    opponent: opponent({
+      liveStatus: 'finished',
+      finishedAt: '2026-05-12T00:10:00.000Z',
+    }),
+    opponentPaceLabel: '완주',
+    opponentDistanceKm: 5,
+    liveGapKm: 0,
+  });
+
+  assert.equal(participants.find((participant) => participant.isCurrentUser)?.resultLabel, 'LOSE');
+  assert.equal(participants.find((participant) => !participant.isCurrentUser)?.resultLabel, 'WIN');
+});
+
 test('room linked duel view model uses received remote distance and pace after active start', () => {
   const participants = buildRoomLinkedDuelPlaceholderParticipants({
     room: room(),

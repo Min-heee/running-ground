@@ -204,6 +204,42 @@ export const liveMatchArenaStyles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 1 : 2,
   },
+  duelRunnerTokenWrap: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  duelRunnerResultBadge: {
+    position: 'absolute',
+    top: -spacing.xxl,
+    right: -spacing.s20,
+    zIndex: 2,
+  },
+  resultBadge: {
+    minWidth: 42,
+    borderRadius: radii.pill,
+    borderWidth: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 0 : 1,
+    paddingHorizontal: spacing.xxl,
+    paddingVertical: spacing.xxs,
+    alignItems: 'center',
+  },
+  resultBadgeWin: {
+    backgroundColor: colors.success,
+    borderColor: colors.successWash,
+  },
+  resultBadgeLose: {
+    backgroundColor: colors.dangerVivid,
+    borderColor: colors.dangerBorder,
+  },
+  resultBadgeDraw: {
+    backgroundColor: colors.textNeutral,
+    borderColor: colors.border,
+  },
+  resultBadgeText: {
+    color: colors.white,
+    fontSize: fontSizes.xxs,
+    fontWeight: fontWeights.extraBold,
+    letterSpacing: 0.4,
+  },
   runnerMarkerCurrent: {
     backgroundColor: colors.brand,
     borderColor: colors.brandWashStrong,
@@ -280,10 +316,17 @@ export const liveMatchArenaStyles = StyleSheet.create({
     width: '16%',
     gap: spacing.xxs,
   },
+  groupRankColumnCurrentFinished: {
+    borderRadius: radii.sm,
+    backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.purpleDeep : 'rgba(109,94,247,0.24)',
+  },
   groupRankText: {
     color: colors.white,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
+  },
+  groupRankTextCurrentFinished: {
+    color: colors.warningBright,
   },
   groupNameText: {
     color: colors.brandLighter,
