@@ -19,6 +19,10 @@ import {
 } from '@/features/runs/hooks/useMatchLifecycle';
 import { useMatchResultController } from '@/features/runs/hooks/useMatchResultController';
 import { useLiveMatchProgress } from '@/features/runs/viewModels/useLiveMatchProgress';
+import {
+  resolveCurrentUserFinishedForResultPage,
+  shouldShowMatchResultPageOnCurrentUserFinished,
+} from '@/features/runs/viewModels/matchResultPageVisibility';
 import { useAndroidLiveMatchDisplayFrame } from '@/features/runs/viewModels/useAndroidLiveMatchDisplayFrame';
 import { useAndroidLiveMatchStartupGate } from '@/features/runs/lifecycle/hooks/useAndroidLiveMatchStartupGate';
 import { useTrackRunIdleViewModel } from '@/features/runs/viewModels/useTrackRunIdleViewModel';
@@ -609,7 +613,6 @@ export function TrackRunExperienceRuntime({
     groupDistanceKm,
     elapsedSeconds,
   });
-  const hasMatchResultPage = isPaused && matchMode !== 'solo' && Boolean(trackedMatchResult);
   const effectiveDuelOpponentArenaPace = useMemo(
     () => resolveDuelOpponentArenaPace({
       opponent: effectiveDuelOpponent,
@@ -700,6 +703,24 @@ export function TrackRunExperienceRuntime({
     liveMatchDisplayDistanceKm,
     roomLinkedMatchContext,
   ]);
+  const currentUserFinishedForResultPage = useMemo(() => resolveCurrentUserFinishedForResultPage({
+    matchMode,
+    duelArenaParticipants,
+    roomLinkedDuelPlaceholderParticipants,
+    groupArenaParticipants,
+    roomLinkedGroupPlaceholderParticipants,
+  }), [
+    duelArenaParticipants,
+    groupArenaParticipants,
+    matchMode,
+    roomLinkedDuelPlaceholderParticipants,
+    roomLinkedGroupPlaceholderParticipants,
+  ]);
+  const hasMatchResultPage = shouldShowMatchResultPageOnCurrentUserFinished({
+    matchMode,
+    currentUserFinished: currentUserFinishedForResultPage,
+    hasTrackedMatchResult: Boolean(trackedMatchResult),
+  });
   const {
     activeMatchExitCounterpartForfeited,
     activeMatchExitIsLeaving,
