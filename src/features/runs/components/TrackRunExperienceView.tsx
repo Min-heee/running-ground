@@ -86,7 +86,9 @@ export function TrackRunExperienceView({
             <Text style={styles.soloStartCountdownEyebrow}>READY</Text>
             <Text style={styles.soloStartCountdownTitle}>러닝 시작</Text>
             <Text style={styles.soloStartCountdownNumber}>{soloStartCountdownSeconds}</Text>
-            <Text style={styles.soloStartCountdownText}>카운트가 끝나면 기록 측정을 시작해요.</Text>
+            <Text style={styles.soloStartCountdownText}>
+              GPS를 준비하고 있어요. 카운트가 끝나면 기록 측정을 시작해요.
+            </Text>
           </View>
         </View>
       ) : null}
@@ -133,20 +135,21 @@ const styles = StyleSheet.create({
   soloStartCountdownOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
+    backgroundColor: 'rgba(17, 24, 39, 0.62)',
     justifyContent: 'center',
     paddingHorizontal: 28,
     zIndex: 35,
   },
   soloStartCountdownCard: {
     width: '100%',
-    maxWidth: 280,
-    borderRadius: 30,
+    maxWidth: 340,
+    borderRadius: 34,
     backgroundColor: 'rgba(17, 24, 39, 0.92)',
     borderWidth: 1,
     borderColor: 'rgba(141, 132, 255, 0.45)',
     alignItems: 'center',
-    paddingVertical: 28,
-    paddingHorizontal: 22,
+    paddingVertical: 34,
+    paddingHorizontal: 26,
     shadowColor: '#111827',
     shadowOpacity: 0.22,
     shadowRadius: 24,
@@ -168,9 +171,9 @@ const styles = StyleSheet.create({
   soloStartCountdownNumber: {
     marginTop: 10,
     color: '#FFFFFF',
-    fontSize: 88,
+    fontSize: 120,
     fontWeight: '900',
-    lineHeight: 96,
+    lineHeight: 128,
   },
   soloStartCountdownText: {
     color: '#D6D9F9',

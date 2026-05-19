@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import {
   getBackgroundRunElapsedSeconds,
   getBackgroundRunTrackingSnapshot,
+  isBackgroundRunWarmupSnapshot,
   type BackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background';
 import {
@@ -28,7 +29,7 @@ type TrackingUiFrame = {
   distanceKm: number;
   elapsedSeconds: number;
   elevationGainM: number;
-  status: BackgroundRunTrackingSnapshot['status'];
+  status: BackgroundRunTrackingSnapshot['status'] | 'starting';
 };
 
 type UseTrackingSessionSnapshotsInput = Pick<
@@ -63,7 +64,7 @@ function buildTrackingUiFrame(
     distanceKm: displayedSnapshot.distanceKm,
     elapsedSeconds: displayedSnapshot.elapsedSeconds,
     elevationGainM: displayedSnapshot.elevationGainM,
-    status: snapshot.status,
+    status: isBackgroundRunWarmupSnapshot(snapshot) ? 'starting' : snapshot.status,
   };
 }
 

@@ -23,17 +23,24 @@ import {
   syncManagedLocationTaskAppState,
 } from '@/features/runs/tracking/background/locationTaskManager';
 import { resolveLocationTimestampMs } from '@/features/runs/tracking/background/locationDistance';
+import {
+  buildWarmupBaselineSnapshot,
+} from '@/features/runs/tracking/background/warmupSnapshotPolicy';
 
 export type {
   BackgroundRunTrackingSnapshot,
   BackgroundTrackingStatus,
   SnapshotCloneOptions,
 } from '@/features/runs/tracking/background/snapshotStore';
+export {
+  isBackgroundRunWarmupSnapshot,
+} from '@/features/runs/tracking/background/warmupSnapshotPolicy';
 
 export type StartBackgroundRunTrackingOptions = {
   appState?: AppStateStatus;
   detachLocationTask?: boolean;
   trackingKey?: string | null;
+  warmupMode?: boolean;
 };
 
 const ABANDONED_TRACKING_MAX_ELAPSED_MS = 8 * 60 * 60 * 1000;
@@ -105,15 +112,19 @@ export async function startBackgroundRunTracking(
   initialLocation?: Location.LocationObject | null,
   options?: StartBackgroundRunTrackingOptions,
 ) {
+  const {
+    warmupMode = false,
+    ...locationTaskOptions
+  } = options ?? {};
   resetRouteAccumulator();
   const initialTimestampMs = initialLocation ? resolveLocationTimestampMs(initialLocation) : null;
   setSnapshotState({
     ...INITIAL_SNAPSHOT,
     status: 'running',
-    startedAt: new Date(initialTimestampMs ?? Date.now()).toISOString(),
+    startedAt: warmupMode ? null : new Date(initialTimestampMs ?? Date.now()).toISOString(),
   });
 
-  if (initialLocation) {
+  if (initialLocation && !warmupMode) {
     appendTrackedLocation(initialLocation);
   } else {
     emitSnapshot();
@@ -125,7 +136,22 @@ export async function startBackgroundRunTracking(
     pausedAt: null,
   });
   emitSnapshot();
-  await startManagedLocationTask(options);
+  await startManagedLocationTask(locationTaskOptions);
+}
+
+export function commitWarmupBaseline(nowMs = Date.now()) {
+  const snapshotState = getSnapshotState();
+  const nextSnapshot = buildWarmupBaselineSnapshot(snapshotState, nowMs);
+
+  if (!nextSnapshot) {
+    return false;
+  }
+
+  resetRouteAccumulator();
+  resetPaceSmoothing();
+  setSnapshotState(nextSnapshot);
+  emitSnapshot();
+  return true;
 }
 
 export async function pauseBackgroundRunTracking() {

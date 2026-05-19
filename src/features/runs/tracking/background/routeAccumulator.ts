@@ -27,6 +27,9 @@ import {
   commitSnapshot,
   getSnapshotState,
 } from '@/features/runs/tracking/background/snapshotStore';
+import {
+  buildWarmupLocationSnapshot,
+} from '@/features/runs/tracking/background/warmupSnapshotPolicy';
 
 let accumulatedDistanceMeters = 0;
 let accumulatedElevationGainMeters = 0;
@@ -148,6 +151,12 @@ export function appendTrackedLocation(location: Location.LocationObject) {
   const locationTimestampMs = resolveLocationTimestampMs(location);
 
   if (locationTimestampMs === null) {
+    return;
+  }
+
+  const warmupSnapshot = buildWarmupLocationSnapshot(snapshotState);
+  if (warmupSnapshot) {
+    commitSnapshot(warmupSnapshot);
     return;
   }
 

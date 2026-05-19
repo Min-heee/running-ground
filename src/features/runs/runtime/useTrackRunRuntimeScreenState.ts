@@ -18,7 +18,6 @@ type LiveMatchViewConfirmation = {
 type UseTrackRunRuntimeScreenStateInput = {
   effectiveShowLiveArena: boolean;
   isIdle: boolean;
-  isStarting: boolean;
   liveMatchStartupIdentity: string | null;
   liveMatchRenderMode: Extract<RunMatchMode, 'duel' | 'group'> | null;
   liveMatchViewConfirmationRef: MutableRefObject<LiveMatchViewConfirmation>;
@@ -30,7 +29,6 @@ type UseTrackRunRuntimeScreenStateInput = {
 export function useTrackRunRuntimeScreenState({
   effectiveShowLiveArena,
   isIdle,
-  isStarting,
   liveMatchStartupIdentity,
   liveMatchRenderMode,
   liveMatchViewConfirmationRef,
@@ -58,7 +56,7 @@ export function useTrackRunRuntimeScreenState({
   });
 
   return {
-    runtimeSoloStartCountdownSeconds: isStarting && typeof soloStartCountdownSeconds === 'number'
+    runtimeSoloStartCountdownSeconds: typeof soloStartCountdownSeconds === 'number'
       ? soloStartCountdownSeconds
       : null,
     shouldShowCenteredMatchCountdown,
