@@ -6,6 +6,13 @@ import {
   resolveParticipantDisplayDistanceKm,
   type GroupLiveStanding,
 } from '@/features/runs/viewModels/matchProgress';
+import {
+  buildProgressiveRaceBoardRows,
+  buildRaceBoardSubtitle,
+  sortProgressiveRaceRows,
+  type ProgressiveSortedRaceBoardRowsResult,
+  type RaceBoardSourceRow,
+} from '@/features/runs/viewModels/liveMatchRaceBoardProgressive';
 import type { ArenaParticipantViewModel } from '@/features/runs/viewModels/matchViewModels';
 import type { DuelMatchOpponent, RunningMatchRoom, RunningMatchRoomParticipant } from '@/lib/api/types';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
@@ -35,10 +42,6 @@ export type LiveMatchRaceBoardViewModelInput = {
   groupArenaUsesLivePace: boolean;
 };
 
-type RaceBoardSourceRow = Omit<LiveMatchRaceBoardRow, 'rank'> & {
-  rank?: number;
-};
-
 type DuelParticipantRaceBoardSeed = {
   id: string;
   isCurrentUser: boolean;
@@ -51,28 +54,6 @@ type DuelParticipantProgressMergeResult = {
   opponentFallback: boolean;
   row: RaceBoardSourceRow;
 };
-
-function sortRaceRows(rows: RaceBoardSourceRow[]): LiveMatchRaceBoardRow[] {
-  return [...rows]
-    .sort((left, right) => {
-      const leftForfeited = left.liveStatus === 'forfeited';
-      const rightForfeited = right.liveStatus === 'forfeited';
-
-      if (leftForfeited !== rightForfeited) {
-        return leftForfeited ? 1 : -1;
-      }
-
-      if (right.distanceKm !== left.distanceKm) {
-        return right.distanceKm - left.distanceKm;
-      }
-
-      return left.isCurrentUser ? -1 : 1;
-    })
-    .map((row, index) => ({
-      ...row,
-      rank: index + 1,
-    }));
-}
 
 function traceRaceBoardRows({
   matchMode,
@@ -220,7 +201,7 @@ function buildDuelParticipantFirstRows({
   syncedDuelDistanceKm: number;
   syncedDuelOpponentDistanceKm: number;
   targetDistanceKm: number;
-}): LiveMatchRaceBoardRow[] {
+}): ProgressiveSortedRaceBoardRowsResult {
   const currentBoardDistanceKm = duelLiveGapKm === null ? distanceKm : syncedDuelDistanceKm;
   const effectiveOpponentDistanceKm = effectiveDuelOpponent
     ? (duelLiveGapKm === null
@@ -233,7 +214,7 @@ function buildDuelParticipantFirstRows({
     effectiveDuelOpponent,
     room,
   });
-  const rows = sortRaceRows(seedRows.map((seed) => {
+  const progressiveRows = sortProgressiveRaceRows(seedRows.map((seed) => {
     const mergeResult = mergeDuelParticipantProgress({
       currentBoardDistanceKm,
       currentUserDuelLiveStatus,
@@ -273,12 +254,12 @@ function buildDuelParticipantFirstRows({
       matchMode: 'duel',
       opponentRows: opponentFallbackCount,
       roomId: room.roomId,
-      rowCount: rows.length,
+      rowCount: progressiveRows.rows.length,
       source: 'participant-first rows',
     });
   }
 
-  return rows;
+  return progressiveRows;
 }
 
 export function buildLiveMatchRaceBoardViewModel({
@@ -308,7 +289,7 @@ export function buildLiveMatchRaceBoardViewModel({
 
   if (matchMode === 'duel' && visibleMatchRoom?.mode === 'duel' && visibleMatchRoom.participants.length >= 2) {
     const placeholderDistanceKm = visibleMatchRoom.linkedMatchDistanceKm ?? visibleMatchRoom.distanceKm ?? duelDistanceKm;
-    const rows = buildDuelParticipantFirstRows({
+    const progressiveRows = buildDuelParticipantFirstRows({
       currentUserDuelLiveStatus,
       distanceKm,
       duelLiveGapKm,
@@ -318,13 +299,17 @@ export function buildLiveMatchRaceBoardViewModel({
       syncedDuelOpponentDistanceKm,
       targetDistanceKm: placeholderDistanceKm,
     });
+    const rows = progressiveRows.rows;
     traceRaceBoardRows({ matchMode, rows, source: 'visible room participant-first' });
 
     return {
       title: '1대1 레이스 보드',
-      subtitle: effectiveDuelOpponent
-        ? '누가 더 앞서 있는지, 각각 얼마 남았는지 한눈에 볼 수 있어요.'
-        : '대결 정보를 맞추는 중에도 같은 방의 상대를 함께 표시해요.',
+      subtitle: buildRaceBoardSubtitle({
+        fallback: effectiveDuelOpponent
+          ? '누가 더 앞서 있는지, 각각 얼마 남았는지 한눈에 볼 수 있어요.'
+          : '대결 정보를 맞추는 중에도 같은 방의 상대를 함께 표시해요.',
+        progressiveRows,
+      }),
       rows,
     };
   }
@@ -334,7 +319,7 @@ export function buildLiveMatchRaceBoardViewModel({
     const opponentBoardDistanceKm = duelLiveGapKm === null
       ? resolveParticipantDisplayDistanceKm(effectiveDuelOpponent, duelDistanceKm)
       : syncedDuelOpponentDistanceKm;
-    const rows = sortRaceRows([
+    const progressiveRows = sortProgressiveRaceRows([
       {
         id: 'current-user',
         name: '나',
@@ -354,18 +339,22 @@ export function buildLiveMatchRaceBoardViewModel({
         liveStatus: effectiveDuelOpponent.liveStatus,
       },
     ]);
+    const rows = progressiveRows.rows;
     traceRaceBoardRows({ matchMode, rows, source: 'duel opponent progress' });
 
     return {
       title: '1대1 레이스 보드',
-      subtitle: '누가 더 앞서 있는지, 각각 얼마 남았는지 한눈에 볼 수 있어요.',
+      subtitle: buildRaceBoardSubtitle({
+        fallback: '누가 더 앞서 있는지, 각각 얼마 남았는지 한눈에 볼 수 있어요.',
+        progressiveRows,
+      }),
       rows,
     };
   }
 
   if (matchMode === 'duel' && roomLinkedDuelPlaceholderParticipants.length === 2) {
     const placeholderDistanceKm = visibleMatchRoom?.linkedMatchDistanceKm ?? visibleMatchRoom?.distanceKm ?? duelDistanceKm;
-    const rows = sortRaceRows(roomLinkedDuelPlaceholderParticipants.map((participant) => ({
+    const progressiveRows = sortProgressiveRaceRows(roomLinkedDuelPlaceholderParticipants.map((participant) => ({
       id: participant.id,
       name: participant.name || '상대',
       distanceKm: participant.distanceKm,
@@ -374,50 +363,63 @@ export function buildLiveMatchRaceBoardViewModel({
       isCurrentUser: participant.isCurrentUser,
       liveStatus: participant.liveStatus,
     })));
+    const rows = progressiveRows.rows;
     traceRaceBoardRows({ matchMode, rows, source: 'room linked duel placeholder' });
 
     return {
       title: '1대1 레이스 보드',
-      subtitle: '대결 정보를 맞추는 중에도 내 측정 거리와 상대 대기 상태를 볼 수 있어요.',
+      subtitle: buildRaceBoardSubtitle({
+        fallback: '대결 정보를 맞추는 중에도 내 측정 거리와 상대 대기 상태를 볼 수 있어요.',
+        progressiveRows,
+      }),
       rows,
     };
   }
 
   if (matchMode === 'group' && groupLiveStandings.length > 0) {
+    const progressiveRows = buildProgressiveRaceBoardRows(groupLiveStandings.map((participant) => ({
+      id: participant.id,
+      rank: participant.rank,
+      name: participant.name,
+      paceLabel: participant.isCurrentUser
+        ? currentUserArenaPace
+        : buildParticipantAveragePaceLabel(participant, groupArenaUsesLivePace),
+      distanceKm: participant.currentDistanceKm,
+      remainingKm: Math.max(0, groupDistanceKm - participant.currentDistanceKm),
+      progress: groupDistanceKm > 0 ? participant.currentDistanceKm / groupDistanceKm : 0,
+      isCurrentUser: participant.isCurrentUser,
+      liveStatus: participant.liveStatus,
+    })));
+
     return {
       title: '그룹 레이스 보드',
-      subtitle: '전체 순위 흐름과 각 러너의 남은 거리를 계속 확인할 수 있어요.',
-      rows: groupLiveStandings.map((participant) => ({
-        id: participant.id,
-        rank: participant.rank,
-        name: participant.name,
-        paceLabel: participant.isCurrentUser
-          ? currentUserArenaPace
-          : buildParticipantAveragePaceLabel(participant, groupArenaUsesLivePace),
-        distanceKm: participant.currentDistanceKm,
-        remainingKm: Math.max(0, groupDistanceKm - participant.currentDistanceKm),
-        progress: groupDistanceKm > 0 ? participant.currentDistanceKm / groupDistanceKm : 0,
-        isCurrentUser: participant.isCurrentUser,
-        liveStatus: participant.liveStatus,
-      })),
+      subtitle: buildRaceBoardSubtitle({
+        fallback: '전체 순위 흐름과 각 러너의 남은 거리를 계속 확인할 수 있어요.',
+        progressiveRows,
+      }),
+      rows: progressiveRows.rows,
     };
   }
 
   if (matchMode === 'group' && roomLinkedGroupPlaceholderParticipants.length > 0) {
     const placeholderDistanceKm = visibleMatchRoom?.linkedMatchDistanceKm ?? visibleMatchRoom?.distanceKm ?? groupDistanceKm;
+    const progressiveRows = sortProgressiveRaceRows(roomLinkedGroupPlaceholderParticipants.map((participant) => ({
+      id: participant.id,
+      name: participant.name,
+      distanceKm: participant.distanceKm,
+      remainingKm: Math.max(0, placeholderDistanceKm - participant.distanceKm),
+      progress: placeholderDistanceKm > 0 ? participant.distanceKm / placeholderDistanceKm : 0,
+      isCurrentUser: participant.isCurrentUser,
+      liveStatus: participant.liveStatus,
+    })));
 
     return {
       title: '그룹 레이스 보드',
-      subtitle: '그룹 대결 정보를 맞추는 중에도 참가자 목록과 내 진행 거리를 볼 수 있어요.',
-      rows: sortRaceRows(roomLinkedGroupPlaceholderParticipants.map((participant) => ({
-        id: participant.id,
-        name: participant.name,
-        distanceKm: participant.distanceKm,
-        remainingKm: Math.max(0, placeholderDistanceKm - participant.distanceKm),
-        progress: placeholderDistanceKm > 0 ? participant.distanceKm / placeholderDistanceKm : 0,
-        isCurrentUser: participant.isCurrentUser,
-        liveStatus: participant.liveStatus,
-      }))),
+      subtitle: buildRaceBoardSubtitle({
+        fallback: '그룹 대결 정보를 맞추는 중에도 참가자 목록과 내 진행 거리를 볼 수 있어요.',
+        progressiveRows,
+      }),
+      rows: progressiveRows.rows,
     };
   }
 
