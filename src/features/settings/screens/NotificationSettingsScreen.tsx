@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -25,6 +26,22 @@ export default function NotificationSettingsScreen() {
     setMatchReminders,
   } = useNotificationSettings();
 
+  const handleToggleFriendAlerts = useCallback(() => {
+    setFriendAlerts((prev) => !prev);
+  }, [setFriendAlerts]);
+  const handleToggleDistrictAlerts = useCallback(() => {
+    setDistrictAlerts((prev) => !prev);
+  }, [setDistrictAlerts]);
+  const handleToggleMarketAlerts = useCallback(() => {
+    setMarketAlerts((prev) => !prev);
+  }, [setMarketAlerts]);
+  const handleToggleMatchReminders = useCallback(() => {
+    setMatchReminders((prev) => !prev);
+  }, [setMatchReminders]);
+  const handleGoBackToMyPage = useCallback(() => {
+    router.replace('/(tabs)/mypage');
+  }, []);
+
   return (
     <Screen>
       <AuthHeader
@@ -40,15 +57,15 @@ export default function NotificationSettingsScreen() {
         <>
           <Card>
             <View style={styles.list}>
-              <ToggleRow label="친구 요청 및 수락 알림" active={friendAlerts} disabled={saving} onPress={() => setFriendAlerts((prev) => !prev)} />
-              <ToggleRow label="지역 경쟁 순위 변동 알림" active={districtAlerts} disabled={saving} onPress={() => setDistrictAlerts((prev) => !prev)} />
-              <ToggleRow label="마켓/리워드 소식 알림" active={marketAlerts} disabled={saving} onPress={() => setMarketAlerts((prev) => !prev)} />
-              <ToggleRow label="예약 매치 시작 알림" active={matchReminders} disabled={saving} onPress={() => setMatchReminders((prev) => !prev)} />
+              <ToggleRow label="친구 요청 및 수락 알림" active={friendAlerts} disabled={saving} onPress={handleToggleFriendAlerts} />
+              <ToggleRow label="지역 경쟁 순위 변동 알림" active={districtAlerts} disabled={saving} onPress={handleToggleDistrictAlerts} />
+              <ToggleRow label="마켓/리워드 소식 알림" active={marketAlerts} disabled={saving} onPress={handleToggleMarketAlerts} />
+              <ToggleRow label="예약 매치 시작 알림" active={matchReminders} disabled={saving} onPress={handleToggleMatchReminders} />
             </View>
           </Card>
 
           <PrimaryButton label={saving ? '저장 중...' : '알림 설정 저장'} onPress={handleSave} />
-          <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} />
+          <SecondaryButton label="마이페이지로 돌아가기" onPress={handleGoBackToMyPage} />
           {saved ? <Text style={styles.savedText}>알림 설정이 저장됐어.</Text> : null}
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </>
@@ -57,7 +74,7 @@ export default function NotificationSettingsScreen() {
   );
 }
 
-function ToggleRow({
+const ToggleRow = memo(function ToggleRow({
   label,
   active,
   disabled,
@@ -68,18 +85,22 @@ function ToggleRow({
   disabled?: boolean;
   onPress: () => void;
 }) {
+  const rowStyle = useMemo(() => [styles.row, active && styles.rowActive, disabled && styles.rowDisabled], [active, disabled]);
+  const toggleStyle = useMemo(() => [styles.toggle, active && styles.toggleActive], [active]);
+  const knobStyle = useMemo(() => [styles.knob, active && styles.knobActive], [active]);
+
   return (
-    <Pressable style={[styles.row, active && styles.rowActive, disabled && styles.rowDisabled]} onPress={onPress} disabled={disabled}>
+    <Pressable style={rowStyle} onPress={onPress} disabled={disabled}>
       <View style={styles.rowMeta}>
         <Text style={styles.rowLabel}>{label}</Text>
         <Text style={styles.rowStatus}>{active ? '켜짐' : '꺼짐'}</Text>
       </View>
-      <View style={[styles.toggle, active && styles.toggleActive]}>
-        <View style={[styles.knob, active && styles.knobActive]} />
+      <View style={toggleStyle}>
+        <View style={knobStyle} />
       </View>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   list: { gap: 10 },
