@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { getPodiumTheme } from '@/features/league/utils/leagueRanking';
-import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export function PodiumBadge({ rank, compact = false }: { rank: number; compact?: boolean }) {
   const theme = getPodiumTheme(rank);

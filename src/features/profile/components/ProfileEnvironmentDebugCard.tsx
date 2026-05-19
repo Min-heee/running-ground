@@ -5,7 +5,7 @@ import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import type { MyProfileResponse } from '@/lib/api/types';
 import { getRgEnvironmentInfo } from '@/utils/rgEnvTrace';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type ProfileEnvironmentDebugCardProps = {
   profile: MyProfileResponse | null;
@@ -61,35 +61,35 @@ export function ProfileEnvironmentDebugCard({ profile }: ProfileEnvironmentDebug
 
 const styles = StyleSheet.create({
   badge: {
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.brandWash,
     color: colors.brandStrong,
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
     overflow: 'hidden',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: spacing.xxl,
+    paddingVertical: spacing.sm,
   },
   card: {
-    gap: 12,
+    gap: spacing.s12,
   },
   headerRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.s12,
     justifyContent: 'space-between',
   },
   helper: {
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
     lineHeight: 18,
   },
   label: {
     color: colors.textSecondary,
     flexShrink: 0,
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
     letterSpacing: 0.2,
     width: 145,
   },
@@ -98,8 +98,8 @@ const styles = StyleSheet.create({
     borderTopColor: colors.borderSoft,
     borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
-    gap: 10,
-    paddingVertical: 8,
+    gap: spacing.s10,
+    paddingVertical: spacing.xxl,
   },
   rows: {
     gap: 0,
@@ -107,8 +107,8 @@ const styles = StyleSheet.create({
   value: {
     color: colors.textPrimary,
     flex: 1,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
     lineHeight: 18,
   },
 });

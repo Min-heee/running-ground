@@ -2,7 +2,7 @@ import { memo, useCallback } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import type { ListRenderItem } from 'react-native';
 import { Card } from '@/components/Card';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export type DuelMatchResultRow = {
   id: string;
@@ -159,44 +159,44 @@ function PointPill({ points }: { points: number }) {
 
 const styles = StyleSheet.create({
   card: {
-    gap: 16,
-    padding: 18,
+    gap: spacing.s16,
+    padding: spacing.s18,
     borderRadius: 24,
     borderWidth: 1,
     borderColor: colors.indigoDeep,
     backgroundColor: colors.textPrimary,
   },
   header: {
-    gap: 12,
+    gap: spacing.s12,
   },
   headerCopy: {
-    gap: 4,
+    gap: spacing.sm,
   },
   eyebrow: {
     color: colors.brandLighter,
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
     letterSpacing: 0.4,
   },
   title: {
     color: colors.white,
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: fontSizes.comingSoon,
+    fontWeight: fontWeights.extraBold,
   },
   subtitle: {
     color: colors.border,
     lineHeight: 20,
   },
   list: {
-    gap: 10,
+    gap: spacing.s10,
   },
   duelRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    gap: spacing.s12,
+    borderRadius: radii.xl,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s14,
     borderWidth: 1,
   },
   duelRowWin: {
@@ -216,18 +216,18 @@ const styles = StyleSheet.create({
   },
   duelLabel: {
     color: colors.white,
-    fontSize: 12,
-    fontWeight: '900',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.black,
     letterSpacing: 0.4,
   },
   rowCopy: {
     flex: 1,
-    gap: 2,
+    gap: spacing.xxs,
   },
   duelName: {
     color: colors.white,
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
   },
   meta: {
     color: colors.borderMuted,
@@ -236,10 +236,10 @@ const styles = StyleSheet.create({
   groupRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    gap: spacing.s12,
+    borderRadius: radii.lg,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s12,
     backgroundColor: colors.slateDark,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
@@ -252,16 +252,16 @@ const styles = StyleSheet.create({
     width: 34,
     color: colors.white,
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
   },
   groupCopy: {
     flex: 1,
-    gap: 2,
+    gap: spacing.xxs,
   },
   groupName: {
     color: colors.white,
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.extraBold,
   },
   groupMeta: {
     color: colors.border,
@@ -269,28 +269,28 @@ const styles = StyleSheet.create({
   },
   pointPill: {
     alignSelf: 'flex-start',
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.brandWash,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
   },
   pointPillText: {
     color: colors.brandStrong,
-    fontSize: 12,
-    fontWeight: '900',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.black,
   },
   statusPill: {
     alignSelf: 'flex-start',
-    borderRadius: 999,
+    borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: 'rgba(129, 140, 248, 0.28)',
     backgroundColor: 'rgba(79, 70, 229, 0.18)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
   },
   statusText: {
     color: colors.brandWashStrong,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
 });

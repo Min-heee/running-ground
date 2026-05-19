@@ -5,7 +5,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { ConnectedSource, RunSourceType } from '@/domain';
 import { NativeHealthReadiness } from '@/integrations/nativeHealth';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import {
   DevicePlatform,
   getCurrentDevicePlatform,
@@ -218,27 +218,27 @@ const JourneyStepRow = memo(function JourneyStepRow({
 
 const styles = StyleSheet.create({
   card: {
-    gap: 14,
+    gap: spacing.s14,
   },
   header: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.s12,
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
   copy: {
     flex: 1,
-    gap: 4,
+    gap: spacing.sm,
   },
   kicker: {
     color: colors.textNeutral,
-    fontWeight: '700',
-    fontSize: 12,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.sm,
   },
   title: {
     color: colors.textHeading,
-    fontWeight: '800',
-    fontSize: 20,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.metric,
     lineHeight: 28,
   },
   description: {
@@ -247,43 +247,43 @@ const styles = StyleSheet.create({
   },
   badge: {
     backgroundColor: colors.brandWash,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
   },
   badgeText: {
     color: colors.brandStrong,
-    fontWeight: '800',
-    fontSize: 12,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.sm,
   },
   statusRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.xxl,
   },
   statusChip: {
     flex: 1,
     backgroundColor: colors.surfaceSoft,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 2,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.s10,
+    gap: spacing.xxs,
   },
   statusLabel: {
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   statusValue: {
     color: colors.textPrimary,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   steps: {
-    gap: 10,
+    gap: spacing.s10,
   },
   stepRow: {
     flexDirection: 'row',
-    gap: 10,
-    paddingBottom: 10,
+    gap: spacing.s10,
+    paddingBottom: spacing.s10,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderSoft,
   },
@@ -305,8 +305,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.purpleRowSoft,
   },
   stepMarkerText: {
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   stepMarkerTextDone: {
     color: colors.successText,
@@ -316,18 +316,18 @@ const styles = StyleSheet.create({
   },
   stepCopy: {
     flex: 1,
-    gap: 2,
-    paddingTop: 2,
+    gap: spacing.xxs,
+    paddingTop: spacing.xxs,
   },
   stepTitle: {
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   stepDescription: {
     color: colors.textSecondary,
     lineHeight: 20,
   },
   actions: {
-    gap: 10,
+    gap: spacing.s10,
   },
 });

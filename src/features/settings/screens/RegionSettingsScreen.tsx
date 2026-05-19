@@ -7,7 +7,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RegionChipSection } from '@/features/location/RegionSelection';
 import { useRegionSettings } from '@/features/settings/hooks/useRegionSettings';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function RegionSettingsScreen() {
   const {
@@ -101,26 +101,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.indigoBorder,
-    borderRadius: 16,
-    padding: 14,
-    gap: 4,
+    borderRadius: radii.md,
+    padding: spacing.s14,
+    gap: spacing.sm,
   },
   selectedLabel: {
     color: colors.textMuted,
-    fontWeight: '700',
-    fontSize: 12,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.sm,
   },
   selectedValue: {
     color: colors.textPrimary,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   savedText: {
     color: colors.successText,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
 });

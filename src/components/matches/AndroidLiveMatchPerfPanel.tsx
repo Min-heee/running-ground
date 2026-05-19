@@ -6,7 +6,7 @@ import {
   subscribeLiveMatchPerfSamples,
 } from '@/components/matches/liveMatchPerfQaLog';
 import { LIVE_MATCH_PERF_QA_ENABLED } from '@/components/matches/useAndroidLiveMatchPerfProbe';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type AndroidLiveMatchPerfPanelProps = {
   label: string;
@@ -63,44 +63,44 @@ export function AndroidLiveMatchPerfPanel({ label }: AndroidLiveMatchPerfPanelPr
 
 const styles = StyleSheet.create({
   panel: {
-    borderRadius: 14,
+    borderRadius: radii.sm,
     borderWidth: 1,
     borderColor: 'rgba(129, 140, 248, 0.4)',
     backgroundColor: 'rgba(15, 23, 42, 0.76)',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 2,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.xxl,
+    gap: spacing.xxs,
   },
   eyebrow: {
     color: colors.brandTint,
-    fontSize: 10,
-    fontWeight: '900',
+    fontSize: fontSizes.xxs,
+    fontWeight: fontWeights.black,
     letterSpacing: 0.8,
   },
   line: {
     color: colors.white,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   meta: {
     color: colors.borderCool,
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
   },
   hint: {
     color: colors.brandWashStrong,
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
     lineHeight: 15,
   },
   diagnosis: {
-    borderRadius: 999,
+    borderRadius: radii.pill,
     alignSelf: 'flex-start',
     overflow: 'hidden',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    fontSize: 11,
-    fontWeight: '900',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxs,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.black,
   },
   diagnosisStable: {
     backgroundColor: 'rgba(34, 197, 94, 0.18)',

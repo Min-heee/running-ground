@@ -1,7 +1,7 @@
 import { MutableRefObject, PropsWithChildren, useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors } from '@/theme/tokens';
+import { colors, spacing } from '@/theme/tokens';
 
 export function Screen({
   children,
@@ -49,8 +49,8 @@ const styles = StyleSheet.create({
     paddingBottom: 136,
   },
   inner: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 14,
+    paddingHorizontal: spacing.s16,
+    paddingTop: spacing.s12,
+    gap: spacing.s14,
   },
 });

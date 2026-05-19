@@ -8,7 +8,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { useMatchRecords } from '@/features/match/hooks/useMatchRecords';
 import { MatchRecordRun } from '@/features/match/utils/matchRecordStats';
 import { formatDuration } from '@/features/runs/tracking';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 const MatchRecordRow = memo(function MatchRecordRow({ run }: { run: MatchRecordRun }) {
   const result = run.matchResult;
@@ -131,59 +131,59 @@ export default function MatchRecordScreen() {
 const styles = StyleSheet.create({
   summaryRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
   },
   summaryCard: {
     flex: 1,
   },
   summaryWideCard: {
-    gap: 6,
+    gap: spacing.lg,
   },
   summaryLabel: {
     color: colors.textSecondary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   summaryValue: {
     color: colors.textPrimary,
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   summaryValueSmall: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     lineHeight: 24,
   },
   historyCard: {
-    gap: 10,
+    gap: spacing.s10,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   recordRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 12,
-    paddingVertical: 12,
+    gap: spacing.s12,
+    paddingVertical: spacing.s12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderSoft,
   },
   recordCopy: {
     flex: 1,
-    gap: 3,
+    gap: spacing.xs,
   },
   recordDate: {
     color: colors.brand,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   recordTitle: {
     color: colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.extraBold,
   },
   recordMeta: {
     color: colors.textMuted,
@@ -191,17 +191,17 @@ const styles = StyleSheet.create({
   },
   recordSubMeta: {
     color: colors.textSecondary,
-    fontSize: 12,
+    fontSize: fontSizes.sm,
     lineHeight: 18,
   },
   recordBadge: {
     overflow: 'hidden',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.lg,
     color: colors.white,
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
   },
   recordBadgeWin: {
     backgroundColor: colors.green,
@@ -213,12 +213,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.textMuted,
   },
   emptyState: {
-    paddingTop: 6,
-    gap: 6,
+    paddingTop: spacing.lg,
+    gap: spacing.lg,
   },
   emptyTitle: {
     color: colors.textPrimary,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   emptyText: {
     color: colors.textSecondary,
@@ -226,6 +226,6 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
 });

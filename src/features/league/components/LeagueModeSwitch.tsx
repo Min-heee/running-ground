@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { LeagueMode } from '@/features/league/types/league';
-import { colors, fontWeights, radii, spacing } from '@/theme/tokens';
+import { colors, spacing, fontWeights, radii } from '@/theme/tokens';
 
 type LeagueModeSwitchProps = {
   mode: LeagueMode;

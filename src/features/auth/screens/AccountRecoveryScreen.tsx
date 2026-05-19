@@ -11,7 +11,7 @@ import {
   resetPasswordByIdentity,
 } from '@/lib/session';
 import { getApiErrorMessage } from '@/services';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 function formatPhoneInput(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -240,45 +240,45 @@ function Field({
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   form: {
-    gap: 12,
-    marginTop: 10,
+    gap: spacing.s12,
+    marginTop: spacing.s10,
   },
   fieldGroup: {
-    gap: 6,
+    gap: spacing.lg,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.bold,
     color: colors.textPrimary,
   },
   helperText: {
     color: colors.textSecondary,
     lineHeight: 19,
-    fontSize: 13,
+    fontSize: fontSizes.md,
   },
   input: {
     backgroundColor: colors.surfaceSubtleAlt,
     borderWidth: 1,
     borderColor: colors.borderMuted,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s14,
     color: colors.textPrimary,
   },
   primaryButton: {
     backgroundColor: colors.brand,
-    borderRadius: 16,
+    borderRadius: radii.md,
     paddingVertical: 15,
     alignItems: 'center',
   },
   primaryButtonText: {
     color: colors.white,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     fontSize: 15,
   },
   disabledButton: {
@@ -287,11 +287,11 @@ const styles = StyleSheet.create({
   resultText: {
     color: colors.textPrimary,
     fontSize: 15,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   errorText: {
     color: colors.dangerBright,
     lineHeight: 19,
-    fontSize: 13,
+    fontSize: fontSizes.md,
   },
 });

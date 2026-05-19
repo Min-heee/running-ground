@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import type { MyProfileResponse } from '@/lib/api/types';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type UniversityVerificationCardProps = {
   profile: MyProfileResponse;
@@ -35,24 +35,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.s12,
   },
   sectionLink: {
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   universityCard: {
-    gap: 6,
+    gap: spacing.lg,
   },
   universityVerificationStatusValue: {
     color: colors.textPrimary,
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   universityVerificationHint: {
     color: colors.textSecondary,
     lineHeight: 18,
-    fontSize: 12,
+    fontSize: fontSizes.sm,
   },
 });

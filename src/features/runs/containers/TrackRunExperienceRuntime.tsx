@@ -11,7 +11,7 @@ import {
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { Screen } from '@/components/Screen';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type RuntimeComponent = ComponentType<TrackRunExperienceRuntimeProps>;
 
@@ -190,13 +190,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.textPrimary,
     borderRadius: 24,
-    gap: 10,
-    paddingHorizontal: 20,
+    gap: spacing.s10,
+    paddingHorizontal: spacing.s20,
     paddingVertical: 28,
   },
   initialText: {
     color: colors.lavenderSoft,
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.bold,
   },
 });

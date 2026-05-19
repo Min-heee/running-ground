@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function FriendsScreen() {
   useTabWarmupTrace('friends');
@@ -100,23 +100,23 @@ const styles = StyleSheet.create({
   headerWrap: { gap: 12 },
   addButton: {
     backgroundColor: colors.brand,
-    borderRadius: 16,
-    paddingVertical: 14,
+    borderRadius: radii.md,
+    paddingVertical: spacing.s14,
     alignItems: 'center',
   },
   addButtonText: {
     color: colors.white,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     fontSize: 15,
   },
   errorTitle: {
     color: colors.textPrimary,
-    fontWeight: '800',
-    fontSize: 18,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.title,
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
 });

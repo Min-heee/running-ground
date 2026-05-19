@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import type { LayoutChangeEvent } from 'react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type RankingItemRowProps = {
   leading: ReactNode;

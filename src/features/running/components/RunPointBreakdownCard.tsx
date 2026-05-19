@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { RunDetailResponse } from '@/lib/api/types';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type PointBreakdown = RunDetailResponse['pointBreakdown'];
 
@@ -57,29 +57,29 @@ function PointBreakdownRow({ label, value, highlight = false }: PointBreakdownRo
 
 const styles = StyleSheet.create({
   pointBreakdownCard: {
-    gap: 10,
+    gap: spacing.s10,
   },
   pointBreakdownHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.s12,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   matchBonusPill: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.lg,
     backgroundColor: colors.blueWashSoft,
   },
   matchBonusPillText: {
     color: colors.blueStrong,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   pointBreakdownRow: {
     flexDirection: 'row',
@@ -88,18 +88,18 @@ const styles = StyleSheet.create({
   },
   pointBreakdownLabel: {
     color: colors.textMuted,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   pointBreakdownValue: {
     color: colors.textPrimary,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   pointBreakdownValueHighlight: {
     color: colors.blueStrong,
   },
   pointBreakdownTotalRow: {
-    marginTop: 4,
-    paddingTop: 12,
+    marginTop: spacing.sm,
+    paddingTop: spacing.s12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     flexDirection: 'row',
@@ -108,11 +108,11 @@ const styles = StyleSheet.create({
   },
   pointBreakdownTotalLabel: {
     color: colors.textPrimary,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   pointBreakdownTotalValue: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '900',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.black,
   },
 });

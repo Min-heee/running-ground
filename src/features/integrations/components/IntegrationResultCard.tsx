@@ -3,7 +3,7 @@ import { StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { buildSyncSummary } from '@/features/integrations/utils/integrationMessages';
 import type { IntegrationSyncResponse } from '@/lib/api/types';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type IntegrationResultCardProps = {
   actionMessage: string | null;
@@ -35,20 +35,20 @@ export function IntegrationResultCard({
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   successText: {
     color: colors.successText,
-    fontWeight: '700',
-    marginTop: 10,
+    fontWeight: fontWeights.bold,
+    marginTop: spacing.s10,
     lineHeight: 20,
   },
   errorText: {
     color: colors.danger,
-    fontWeight: '700',
-    marginTop: 10,
+    fontWeight: fontWeights.bold,
+    marginTop: spacing.s10,
     lineHeight: 20,
   },
 });

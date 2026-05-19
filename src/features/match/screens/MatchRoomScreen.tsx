@@ -12,7 +12,7 @@ import { MatchRoomStartModeCard } from '@/features/runs/components/matchRoom/Mat
 import { MatchRoomSummaryCard } from '@/features/runs/components/matchRoom/MatchRoomSummaryCard';
 import { PartyRunParticipantListCard } from '@/features/runs/components/PartyRunParticipantListCard';
 import { useMatchRoomLobby } from '@/features/runs/hooks/useMatchRoomLobby';
-import { colors } from '@/theme/tokens';
+import { colors, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function MatchRoomScreen() {
   const {
@@ -234,34 +234,34 @@ const styles = StyleSheet.create({
   backButton: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: radii.lg,
     alignItems: 'center',
     justifyContent: 'center',
   },
   backText: {
     color: colors.brand,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
     fontSize: 24,
     lineHeight: 24,
   },
   pageTitle: {
     color: colors.textPrimary,
-    fontSize: 28,
-    fontWeight: '900',
+    fontSize: fontSizes.pageTitle,
+    fontWeight: fontWeights.black,
   },
   helperText: {
     color: colors.textSecondary,
-    fontSize: 14,
+    fontSize: fontSizes.base,
     lineHeight: 20,
   },
   emptyTitle: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
   },
   errorText: {
     color: colors.dangerBright,
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.bold,
   },
 });

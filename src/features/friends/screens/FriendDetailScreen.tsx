@@ -6,7 +6,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import {
   type FriendActivityRun,
   formatFriendActivityRefreshTime,
@@ -115,63 +115,63 @@ export default function FriendDetailScreen() {
 const styles = StyleSheet.create({
   heroCard: {
     backgroundColor: colors.textPrimary,
-    gap: 8,
+    gap: spacing.xxl,
   },
   heroLabel: {
     color: colors.brandLighter,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   heroTitle: {
     color: colors.white,
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: fontSizes.pageTitle,
+    fontWeight: fontWeights.extraBold,
   },
   heroTag: {
     color: colors.textTertiary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   liveCard: {
     backgroundColor: colors.successCard,
-    gap: 10,
+    gap: spacing.s10,
   },
   liveHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.s12,
   },
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: spacing.lg,
     backgroundColor: colors.successSoft,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.lg,
   },
   liveDot: {
     width: 8,
     height: 8,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.success,
   },
   liveBadgeText: {
     color: colors.successText,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
   liveRefreshText: {
     color: colors.successStrong,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
     includeFontPadding: false,
   },
   liveLocation: {
     color: colors.textPrimary,
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
   liveHint: {
@@ -180,47 +180,47 @@ const styles = StyleSheet.create({
   },
   summaryRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
   },
   summaryCard: {
     flex: 1,
   },
   summaryLabel: {
     color: colors.textSecondary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   summaryValue: {
     color: colors.textPrimary,
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   recordRow: {
-    paddingVertical: 12,
+    paddingVertical: spacing.s12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderSoft,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.s12,
   },
   recordMeta: {
-    gap: 2,
+    gap: spacing.xxs,
     flex: 1,
   },
   recordDate: {
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   recordDetail: {
     color: colors.textSecondary,
   },
   recordLink: {
     color: colors.brand,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
 });

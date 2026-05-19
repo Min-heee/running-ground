@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { MyProfileResponse } from '@/lib/api/types';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type FriendTagCardProps = {
   profile: MyProfileResponse;
@@ -30,27 +30,27 @@ export function FriendTagCard({ profile, copyMessage, onCopyTag }: FriendTagCard
 
 const styles = StyleSheet.create({
   tagCard: {
-    gap: 10,
+    gap: spacing.s10,
   },
   tagHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.s12,
   },
   tagCopy: {
     flex: 1,
-    gap: 4,
+    gap: spacing.sm,
   },
   tagTitle: {
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   tagValue: {
     color: colors.textPrimary,
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
     includeFontPadding: false,
   },
   tagDescription: {
@@ -59,18 +59,18 @@ const styles = StyleSheet.create({
   },
   copyButton: {
     backgroundColor: colors.textPrimary,
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s16,
+    paddingVertical: spacing.s10,
   },
   copyButtonText: {
     color: colors.white,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
   copyMessage: {
     color: colors.successText,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
 });

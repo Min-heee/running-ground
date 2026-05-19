@@ -1,86 +1,86 @@
 import { StyleSheet } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export const nrcBridgeGuideSectionStyles = StyleSheet.create({
   group: {
-    gap: 12,
+    gap: spacing.s12,
   },
 });
 
 export const nrcBridgeGuideDetailStyles = StyleSheet.create({
   card: {
-    gap: 14,
+    gap: spacing.s14,
   },
   accordionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: spacing.s12,
     alignItems: 'flex-start',
   },
   accordionMeta: {
     alignItems: 'flex-end',
-    gap: 8,
+    gap: spacing.xxl,
   },
   copy: {
     flex: 1,
-    gap: 4,
+    gap: spacing.sm,
   },
   kicker: {
     color: colors.textNeutral,
-    fontWeight: '700',
-    fontSize: 12,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.sm,
   },
   title: {
     color: colors.textHeading,
-    fontWeight: '800',
-    fontSize: 20,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.metric,
     lineHeight: 28,
   },
   toggleText: {
     color: colors.textNeutral,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   badge: {
     backgroundColor: colors.brandWash,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
   },
   badgeText: {
     color: colors.brandStrong,
-    fontWeight: '800',
-    fontSize: 12,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.sm,
   },
   statusRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.xxl,
   },
   statusChip: {
     backgroundColor: colors.surfaceSoft,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.s10,
     minWidth: 96,
-    gap: 2,
+    gap: spacing.xxs,
   },
   statusLabel: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
     color: colors.textSecondary,
   },
   statusValue: {
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extraBold,
     color: colors.textHeading,
   },
   steps: {
-    gap: 10,
+    gap: spacing.s10,
   },
   stepRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
     alignItems: 'flex-start',
   },
   stepMarker: {
@@ -90,31 +90,31 @@ export const nrcBridgeGuideDetailStyles = StyleSheet.create({
     backgroundColor: colors.brandWash,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
+    marginTop: spacing.xxs,
   },
   stepMarkerText: {
     color: colors.brandStrong,
-    fontWeight: '800',
-    fontSize: 12,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.sm,
   },
   stepCopy: {
     flex: 1,
-    gap: 2,
+    gap: spacing.xxs,
   },
   stepTitle: {
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   stepDescription: {
     color: colors.textMuted,
     lineHeight: 20,
   },
   actions: {
-    gap: 10,
+    gap: spacing.s10,
   },
   footnote: {
     color: colors.textSecondary,
-    fontSize: 12,
+    fontSize: fontSizes.sm,
     lineHeight: 18,
   },
 });

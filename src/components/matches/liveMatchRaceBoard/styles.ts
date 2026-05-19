@@ -1,26 +1,26 @@
 import { StyleSheet } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export const liveMatchRaceBoardStyles = StyleSheet.create({
   card: {
-    gap: 18,
+    gap: spacing.s18,
     borderRadius: 30,
     borderWidth: 1,
     borderColor: colors.navyBorder,
     backgroundColor: colors.slateDark,
-    paddingHorizontal: 16,
-    paddingVertical: 22,
+    paddingHorizontal: spacing.s16,
+    paddingVertical: spacing.s22,
   },
   eyebrow: {
     color: colors.brandLighter,
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extraBold,
     letterSpacing: 3,
   },
   title: {
     color: colors.white,
     fontSize: 29,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     letterSpacing: -0.5,
   },
   subtitle: {
@@ -29,20 +29,20 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     lineHeight: 27,
   },
   rows: {
-    gap: 14,
-    paddingBottom: 2,
+    gap: spacing.s14,
+    paddingBottom: spacing.xxs,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xxl,
     minHeight: 104,
     borderRadius: 24,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
     backgroundColor: 'rgba(15,23,42,0.82)',
-    paddingHorizontal: 12,
-    paddingVertical: 18,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.s18,
   },
   rowCurrent: {
     borderColor: 'rgba(129,140,248,0.82)',
@@ -54,12 +54,12 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   },
   nameColumn: {
     width: 64,
-    gap: 4,
+    gap: spacing.sm,
   },
   rankText: {
     color: colors.brandTint,
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.extraBold,
   },
   rankTextForfeited: {
     color: colors.dangerLight,
@@ -67,7 +67,7 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   nameText: {
     color: colors.white,
     fontSize: 19,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     lineHeight: 23,
   },
   nameTextCurrent: {
@@ -84,12 +84,12 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     position: 'relative',
     height: 48,
     justifyContent: 'flex-start',
-    paddingTop: 10,
+    paddingTop: spacing.s10,
   },
   trackLine: {
     position: 'relative',
     height: 8,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: 'rgba(148,163,184,0.28)',
     overflow: 'visible',
   },
@@ -98,7 +98,7 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     top: 0,
     left: 0,
     bottom: 0,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: 'rgba(109,94,247,0.46)',
   },
   trackProgressCurrent: {
@@ -114,7 +114,7 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     marginLeft: -14,
     width: 28,
     height: 28,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.white,
     borderWidth: 6,
     borderColor: colors.brand,
@@ -135,15 +135,15 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   },
   trackDotForfeitedText: {
     color: colors.white,
-    fontSize: 10,
-    fontWeight: '900',
+    fontSize: fontSizes.xxs,
+    fontWeight: fontWeights.black,
   },
   distanceText: {
     position: 'absolute',
     top: 28,
     color: colors.brandWashStrong,
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
   },
   distanceTextCentered: {
     transform: [{ translateX: -34 }],
@@ -162,7 +162,7 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   metaRemaining: {
     color: colors.borderCool,
     fontSize: 17,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     textAlign: 'right',
   },
   metaRemainingForfeited: {

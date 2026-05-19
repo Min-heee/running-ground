@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type RunningMetric = {
   label: string;
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: spacing.s10,
   },
   card: {
     width: '48.5%',
@@ -79,11 +79,11 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.textTertiary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   value: {
     color: colors.white,
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: fontSizes.comingSoon,
+    fontWeight: fontWeights.extraBold,
   },
 });

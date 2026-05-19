@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { formatDuration } from '@/features/runs/tracking';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type RunHeroCardProps = {
   distanceKm: number;
@@ -74,41 +74,41 @@ export function RunExtraMetricsRow({ cadenceSpm, elevationGainM }: RunExtraMetri
 const styles = StyleSheet.create({
   heroCard: {
     backgroundColor: colors.textPrimary,
-    gap: 8,
+    gap: spacing.xxl,
   },
   heroLabel: {
     color: colors.brandLighter,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   heroTitle: {
     color: colors.white,
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: fontSizes.pageTitle,
+    fontWeight: fontWeights.extraBold,
   },
   heroSub: {
     color: colors.textTertiary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   summaryRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
   },
   summaryCard: {
     flex: 1,
   },
   summaryLabel: {
     color: colors.textSecondary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   summaryValue: {
     color: colors.textPrimary,
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   summaryValueSmall: {
     color: colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: fontSizes.metric,
+    fontWeight: fontWeights.extraBold,
   },
 });

@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { type Href, router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export function AuthHeader({
   title,
@@ -51,24 +51,24 @@ export function AuthHeader({
 }
 
 const styles = StyleSheet.create({
-  header: { gap: 8, paddingTop: 10 },
+  header: { gap: spacing.xxl, paddingTop: 10 },
   backButton: {
     alignSelf: 'flex-start',
     backgroundColor: colors.surfaceSubtle,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: spacing.sm,
   },
   backButtonText: {
     color: colors.textPrimary,
-    fontWeight: '700',
-    fontSize: 13,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.md,
     includeFontPadding: false,
   },
-  logo: { color: colors.brand, fontWeight: '800', fontSize: 13 },
-  title: { fontSize: 32, fontWeight: '800', color: colors.textHeading },
+  logo: { color: colors.brand, fontWeight: fontWeights.extraBold, fontSize: 13 },
+  title: { fontSize: fontSizes.authTitle, fontWeight: fontWeights.extraBold, color: colors.textHeading },
   subtitle: { color: colors.textMuted, lineHeight: 22 },
 });

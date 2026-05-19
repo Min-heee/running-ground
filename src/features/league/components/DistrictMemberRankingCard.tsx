@@ -13,7 +13,7 @@ import { Card } from '@/components/Card';
 import { RankingItemRow } from '@/components/ranking/RankingItemRow';
 import { RankMarker } from '@/features/league/components/LeagueRankBadges';
 import type { DistrictPersonalResponse } from '@/lib/api/types';
-import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import { formatDistanceKm, formatPoints } from '@/utils/formatUnits';
 
 type DistrictMemberRankingCardProps = {

@@ -4,7 +4,7 @@ import type { DimensionValue, StyleProp, ViewStyle } from 'react-native';
 import { Card } from '@/components/Card';
 import { HomePointCalendar } from '@/features/home/components/overview/HomePointCalendar';
 import type { StreakCalendarCell, WeeklyPointTrack, WeeklyPointTrackId } from '@/features/points/pointSystem';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type HomePointGaugeCardProps = {
   tracks: WeeklyPointTrack[];
@@ -121,31 +121,31 @@ export function HomePointGaugeCard({
 const styles = StyleSheet.create({
   sectionEyebrow: {
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   pointCard: {
-    gap: 12,
+    gap: spacing.s12,
   },
   pointHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.s12,
   },
   pointTarget: {
     color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   pointTabRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.xxl,
   },
   pointTab: {
     flex: 1,
     backgroundColor: colors.surfaceSubtle,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     paddingVertical: 9,
     alignItems: 'center',
   },
@@ -154,51 +154,51 @@ const styles = StyleSheet.create({
   },
   pointTabText: {
     color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
   pointTabTextActive: {
     color: colors.white,
   },
   pointValueRow: {
-    gap: 6,
+    gap: spacing.lg,
   },
   pointValue: {
     color: colors.textPrimary,
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: fontSizes.pageTitle,
+    fontWeight: fontWeights.extraBold,
   },
   pointUnit: {
     color: colors.textSecondary,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   pointSub: {
     color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
   },
   pointBadge: {
     alignSelf: 'flex-start',
     color: colors.textPrimary,
     backgroundColor: colors.surfaceSubtle,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    fontSize: 11,
-    fontWeight: '800',
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.sm,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
   pointTrack: {
     height: 10,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.borderMuted,
     overflow: 'hidden',
   },
   pointFill: {
     height: '100%',
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.textPrimary,
   },
   pointHelper: {

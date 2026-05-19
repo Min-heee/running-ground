@@ -11,7 +11,7 @@ import {
   todayRankingCategoryLabels,
 } from '@/features/league/utils/todayRanking';
 import type { TodayRankingCategory, TodayRankingEntry } from '@/domain';
-import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type TodayRankingTabProps = {
   active: boolean;

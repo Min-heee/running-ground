@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { MATCH_ROOM_DISTANCE_OPTIONS } from '@/features/runs/utils/matchRoomScheduling';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type MatchRoomDistanceSettingsCardProps = {
   distanceKm: number;
@@ -85,38 +85,38 @@ const DistanceOptionChip = memo(function DistanceOptionChip({
 const styles = StyleSheet.create({
   sectionTitle: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
   },
   distanceWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: spacing.s10,
   },
   customDistanceRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: spacing.s12,
   },
   distanceInput: {
     flex: 1,
-    borderRadius: 16,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s12,
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   distanceChip: {
-    borderRadius: 999,
+    borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.white,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s10,
   },
   distanceChipSelected: {
     borderColor: colors.brandLight,
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   },
   distanceChipText: {
     color: colors.textStrongMuted,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   distanceChipTextSelected: {
     color: colors.brandDeep,

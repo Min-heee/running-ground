@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { type Href, router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export function PageHeader({
   title,
@@ -51,28 +51,28 @@ export function PageHeader({
 
 const styles = StyleSheet.create({
   header: {
-    gap: 6,
+    gap: spacing.lg,
   },
   backButton: {
     alignSelf: 'flex-start',
     backgroundColor: colors.surfaceSubtle,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginBottom: 4,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
+    marginBottom: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: spacing.sm,
   },
   backButtonText: {
     color: colors.textPrimary,
-    fontWeight: '700',
-    fontSize: 13,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.md,
     includeFontPadding: false,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: fontSizes.pageTitle,
+    fontWeight: fontWeights.extraBold,
     color: colors.textHeading,
   },
   subtitle: {

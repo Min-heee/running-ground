@@ -5,7 +5,7 @@ import { Card } from '@/components/Card';
 import { getCurrentDevicePlatform, getSourceMetadata } from '@/features/integrations/sourceCatalog';
 import type { RunSourceType } from '@/domain';
 import type { IntegrationStatusResponse } from '@/lib/api/types';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type IntegrationSource = IntegrationStatusResponse['sources'][number];
 type DevicePlatform = ReturnType<typeof getCurrentDevicePlatform>;
@@ -152,52 +152,52 @@ const AvailableSourceRow = memo(function AvailableSourceRow({
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   helperText: {
     color: colors.textSecondary,
     lineHeight: 20,
-    marginTop: 8,
+    marginTop: spacing.xxl,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 12,
-    paddingVertical: 12,
+    gap: spacing.s12,
+    paddingVertical: spacing.s12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderSoft,
   },
   meta: {
     flex: 1,
-    gap: 2,
+    gap: spacing.xxs,
   },
   name: {
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   detail: {
     color: colors.textSecondary,
   },
   platform: {
     color: colors.brand,
-    fontWeight: '700',
-    fontSize: 12,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.sm,
     lineHeight: 18,
   },
   pendingText: {
     color: colors.orangeText,
-    fontWeight: '700',
-    fontSize: 12,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.sm,
     lineHeight: 18,
   },
   connectedBadge: {
     backgroundColor: colors.successCard,
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.xxl,
   },
   actionButton: {
     minWidth: 84,
@@ -208,17 +208,17 @@ const styles = StyleSheet.create({
   },
   connectedBadgeText: {
     color: colors.successText,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   plannedBadge: {
     backgroundColor: colors.orangeWash,
     borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.xxl,
   },
   plannedBadgeText: {
     color: colors.orangeText,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   emptyText: {
     color: colors.textSecondary,

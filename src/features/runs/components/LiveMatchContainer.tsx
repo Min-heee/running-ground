@@ -7,7 +7,7 @@ import { LiveMatchPages } from '@/features/runs/components/LiveMatchPages';
 import { LiveMatchTrackingPage } from '@/features/runs/components/LiveMatchTrackingPage';
 import { areLiveMatchContainerPropsEqual } from '@/features/runs/components/liveMatchPager/liveMatchPagePropsComparator';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontWeights } from '@/theme/tokens';
 
 type LiveMatchContainerProps = {
   showLiveArena: boolean;
@@ -113,14 +113,14 @@ const LiveMatchPausedActions = memo(function LiveMatchPausedActions({
 
 const styles = StyleSheet.create({
   actionColumn: {
-    gap: 10,
+    gap: spacing.s10,
   },
   discardButton: {
     alignSelf: 'center',
-    paddingVertical: 6,
+    paddingVertical: spacing.lg,
   },
   discardButtonText: {
     color: colors.danger,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
 });

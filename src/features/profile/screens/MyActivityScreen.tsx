@@ -9,7 +9,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { ActivityRun, useMyActivity } from '@/features/profile/hooks/useMyActivity';
 import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun }) {
   return (
@@ -90,60 +90,60 @@ export default function MyActivityScreen() {
 
 const styles = StyleSheet.create({
   actionColumn: {
-    gap: 10,
+    gap: spacing.s10,
   },
   summaryRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: spacing.s10,
   },
   summaryCard: {
     flex: 1,
   },
   summaryLabel: {
     color: colors.textSecondary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   summaryValue: {
     color: colors.textPrimary,
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   recordRow: {
-    paddingVertical: 12,
+    paddingVertical: spacing.s12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.borderSoft,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.s12,
   },
   recordMeta: {
-    gap: 2,
+    gap: spacing.xxs,
     flex: 1,
   },
   recordDate: {
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   recordDetail: {
     color: colors.textSecondary,
   },
   recordLink: {
     color: colors.brand,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   emptyState: {
-    paddingTop: 10,
-    gap: 6,
+    paddingTop: spacing.s10,
+    gap: spacing.lg,
   },
   emptyTitle: {
     color: colors.textPrimary,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   emptyText: {
     color: colors.textSecondary,

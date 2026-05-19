@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 export function HomeHeader() {
   return (
@@ -12,18 +12,18 @@ export function HomeHeader() {
 
 const styles = StyleSheet.create({
   headerWrap: {
-    gap: 4,
-    paddingTop: 4,
+    gap: spacing.sm,
+    paddingTop: spacing.sm,
   },
   headerLabel: {
     color: colors.textHeading,
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: fontSizes.pageTitle,
+    fontWeight: fontWeights.extraBold,
   },
   headerBrand: {
     color: colors.brand,
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extraBold,
     letterSpacing: 0.4,
   },
 });

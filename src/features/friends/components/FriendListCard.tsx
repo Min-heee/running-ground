@@ -4,7 +4,7 @@ import type { ListRenderItem } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { FriendLeaderboardResponse } from '@/lib/api/types';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type FriendRankItem = FriendLeaderboardResponse['ranks'][number];
 
@@ -125,16 +125,16 @@ export function FriendListCard({
 
 const styles = StyleSheet.create({
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
     color: colors.textPrimary,
   },
   compareRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    paddingVertical: 12,
-    gap: 12,
+    paddingVertical: spacing.s12,
+    gap: spacing.s12,
   },
   friendItem: {
     borderBottomWidth: StyleSheet.hairlineWidth,
@@ -146,23 +146,23 @@ const styles = StyleSheet.create({
   friendRowActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xxl,
     alignSelf: 'center',
   },
   requestMeta: {
     flex: 1,
-    gap: 2,
+    gap: spacing.xxs,
   },
   friendRowHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xxl,
     flexWrap: 'wrap',
   },
   friendLiveDot: {
     width: 9,
     height: 9,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.success,
     shadowColor: colors.success,
     shadowOpacity: 0.28,
@@ -171,13 +171,13 @@ const styles = StyleSheet.create({
   },
   friendLiveLabel: {
     color: colors.successText,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
     includeFontPadding: false,
   },
   requestName: {
     color: colors.textPrimary,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
   requestDetail: {
     color: colors.textSecondary,
@@ -185,11 +185,11 @@ const styles = StyleSheet.create({
   locationButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
+    gap: spacing.lg,
+    borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.s12,
     paddingVertical: 9,
     backgroundColor: colors.white,
   },
@@ -200,53 +200,53 @@ const styles = StyleSheet.create({
   locationButtonDot: {
     width: 7,
     height: 7,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.success,
   },
   locationButtonText: {
     color: colors.textStrongMuted,
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
     includeFontPadding: false,
   },
   locationButtonTextActive: {
     color: colors.successText,
   },
   friendDetailButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xxl,
   },
   compareLink: {
     color: colors.brand,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
   },
   liveLocationPanel: {
-    marginBottom: 14,
+    marginBottom: spacing.s14,
     marginTop: -2,
-    marginLeft: 2,
-    borderRadius: 16,
+    marginLeft: spacing.xxs,
+    borderRadius: radii.md,
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.indigoBorder,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 5,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s12,
+    gap: spacing.md,
   },
   liveLocationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.xxl,
   },
   liveLocationDot: {
     width: 8,
     height: 8,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     backgroundColor: colors.success,
   },
   liveLocationTitle: {
     color: colors.textPrimary,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
     includeFontPadding: false,
   },
   liveLocationText: {
@@ -255,6 +255,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     color: colors.textSecondary,
-    marginTop: 10,
+    marginTop: spacing.s10,
   },
 });

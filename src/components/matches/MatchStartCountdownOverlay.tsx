@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 export function MatchStartCountdownOverlay({
   secondsRemaining,
@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(109, 94, 247, 0.96)',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.s24,
     zIndex: 100,
   },
   overlayCentered: {
@@ -42,32 +42,32 @@ const styles = StyleSheet.create({
   },
   content: {
     alignItems: 'center',
-    gap: 10,
+    gap: spacing.s10,
   },
   eyebrow: {
     color: 'rgba(255,255,255,0.82)',
-    fontSize: 12,
-    fontWeight: '800',
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
     letterSpacing: 1,
   },
   title: {
     color: colors.white,
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: fontWeights.extraBold,
     textAlign: 'center',
   },
   subtitle: {
     color: 'rgba(255,255,255,0.9)',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.semibold,
     textAlign: 'center',
     lineHeight: 20,
   },
   countdown: {
-    marginTop: 10,
+    marginTop: spacing.s10,
     color: colors.white,
     fontSize: 96,
-    fontWeight: '900',
+    fontWeight: fontWeights.black,
     lineHeight: 108,
   },
 });

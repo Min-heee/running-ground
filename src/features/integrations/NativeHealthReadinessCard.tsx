@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { ConnectedSource } from '@/domain';
 import { getRecommendedNativeHealthReadiness } from '@/integrations/nativeHealth';
-import { colors } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export function NativeHealthReadinessCard({
   sources,
@@ -46,44 +46,44 @@ const NativeHealthStepList = memo(function NativeHealthStepList({ steps }: { ste
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.s12,
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
   copy: {
     flex: 1,
-    gap: 4,
+    gap: spacing.sm,
   },
   sectionTitle: {
     color: colors.textNeutral,
-    fontWeight: '700',
-    fontSize: 12,
+    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.sm,
   },
   title: {
     color: colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: fontSizes.title,
+    fontWeight: fontWeights.extraBold,
   },
   description: {
     color: colors.textMuted,
     lineHeight: 21,
   },
   badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
+    borderRadius: radii.pill,
   },
   badgeText: {
-    fontWeight: '800',
-    fontSize: 12,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.sm,
   },
   steps: {
-    marginTop: 12,
-    gap: 6,
+    marginTop: spacing.s12,
+    gap: spacing.lg,
   },
   footer: {
-    marginTop: 12,
-    gap: 8,
+    marginTop: spacing.s12,
+    gap: spacing.xxl,
   },
   stepText: {
     color: colors.textStrongMuted,
