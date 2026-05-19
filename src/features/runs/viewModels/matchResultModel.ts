@@ -1,55 +1,37 @@
-import type { RunMatchResult } from '@/domain';
 import {
   buildParticipantAveragePaceLabel,
   hasRemoteRunnerProgress,
   resolveParticipantDisplayDistanceKm,
   type GroupLiveStanding,
 } from '@/features/runs/viewModels/matchProgress';
+import {
+  resolveDuelBadgeLabel,
+  resolveDuelCurrentRowLabel,
+  resolveDuelOpponentRowLabels,
+  resolveDuelResultTone,
+  resolveDuelRowOrder,
+  resolveDuelSummary,
+  resolveDuelTitle,
+  resolveGroupRowLabels,
+  resolveGroupStatusLabel,
+  resolveGroupSummary,
+  resolveGroupTitle,
+} from '@/features/runs/viewModels/matchResultRowsPolicy';
 import { formatDuration } from '@/features/runs/tracking';
 import type { DuelMatchOpponent, RunningMatchLiveStatus } from '@/lib/api/types';
+import type {
+  DuelMatchFinishModel,
+  DuelMatchResultRowModel,
+  GroupMatchFinishModel,
+  GroupMatchResultRowModel,
+} from '@/features/runs/types/matchResult';
 
-export type DuelMatchResultRowModel = {
-  id: string;
-  resultLabel: 'WIN' | 'LOSER' | 'DRAW' | 'ING';
-  name: string;
-  paceLabel: string;
-  durationLabel: string;
-  distanceKm: number;
-  isCurrentUser: boolean;
-  isInProgress?: boolean;
-};
-
-export type GroupMatchResultRowModel = {
-  id: string;
-  rank: number;
-  name: string;
-  paceLabel: string;
-  durationLabel: string;
-  distanceKm: number;
-  isCurrentUser: boolean;
-  liveStatus?: RunningMatchLiveStatus;
-  isInProgress?: boolean;
-};
-
-export type DuelMatchFinishModel = {
-  title: string;
-  summary: string;
-  resultTone: NonNullable<RunMatchResult['resultTone']>;
-  badgeLabel: string;
-  opponentDistanceKm: number;
-  gapKm: number;
-  matchResult: RunMatchResult;
-  rows: DuelMatchResultRowModel[];
-};
-
-export type GroupMatchFinishModel = {
-  title: string;
-  summary: string;
-  podium: GroupLiveStanding[];
-  matchResult: RunMatchResult;
-  rows: GroupMatchResultRowModel[];
-  statusLabel: string | null;
-};
+export type {
+  DuelMatchFinishModel,
+  DuelMatchResultRowModel,
+  GroupMatchFinishModel,
+  GroupMatchResultRowModel,
+} from '@/features/runs/types/matchResult';
 
 export function buildDuelMatchFinishModel({
   opponent,
@@ -81,82 +63,71 @@ export function buildDuelMatchFinishModel({
     : 0;
   const gapKm = Number(Math.abs(currentDistanceKm - opponentDistanceKm).toFixed(2));
   const isDraw = !currentForfeited && !opponentForfeited && !opponentInProgress && gapKm < 0.03;
-  const resultTone: NonNullable<RunMatchResult['resultTone']> = currentForfeited
-    ? 'lose'
-    : opponentForfeited
-      ? 'win'
-      : opponentInProgress
-        ? 'win'
-      : isDraw
-        ? 'draw'
-        : currentDistanceKm > opponentDistanceKm
-          ? 'win'
-          : 'lose';
-  const title = currentForfeited
-    ? '기권으로 대결을 마쳤어요'
-    : opponentForfeited
-      ? `${opponent.name}님이 기권해서 승리했어요`
-      : opponentInProgress
-        ? `${opponent.name}님보다 먼저 완주했어요`
-      : isDraw
-        ? `${opponent.name}님과 비슷한 흐름으로 마쳤어요`
-        : resultTone === 'win'
-          ? `${opponent.name}님을 이겼어요`
-          : `${opponent.name}님에게 졌어요`;
-  const summary = currentForfeited
-    ? `내 기록은 ${currentDistanceKm.toFixed(2)}km로 저장되고, 대결 전적은 기권 패로 남아요.`
-    : opponentForfeited
-      ? `상대가 기권했고 내 기록은 ${currentDistanceKm.toFixed(2)}km로 저장돼요.`
-      : opponentInProgress
-        ? '상대가 완주하면 결과표가 자동으로 업데이트돼요.'
-      : isDraw
-        ? `두 러너 차이가 ${gapKm.toFixed(2)}km 안쪽으로 거의 비슷했어요.`
-        : resultTone === 'win'
-          ? `${gapKm.toFixed(2)}km 차이로 앞서 마무리했어요.`
-          : `${gapKm.toFixed(2)}km 차이로 뒤에서 마무리했어요.`;
-  const badgeLabel = currentForfeited
-    ? '기권 패'
-    : opponentForfeited
-      ? '상대 기권 승'
-      : isDraw
-        ? '무승부'
-        : resultTone === 'win'
-          ? '승리'
-          : '패배';
+  const resultTone = resolveDuelResultTone({
+    currentForfeited,
+    opponentForfeited,
+    opponentInProgress,
+    isDraw,
+    currentDistanceKm,
+    opponentDistanceKm,
+  });
+  const title = resolveDuelTitle({
+    opponentName: opponent.name,
+    currentForfeited,
+    opponentForfeited,
+    opponentInProgress,
+    isDraw,
+    resultTone,
+  });
+  const summary = resolveDuelSummary({
+    currentForfeited,
+    opponentForfeited,
+    opponentInProgress,
+    isDraw,
+    resultTone,
+    currentDistanceKm,
+    gapKm,
+  });
+  const badgeLabel = resolveDuelBadgeLabel({
+    currentForfeited,
+    opponentForfeited,
+    isDraw,
+    resultTone,
+  });
   const opponentElapsedSeconds = opponent.liveElapsedSeconds ?? currentElapsedSeconds;
   const opponentPace = buildParticipantAveragePaceLabel(opponent, true);
-  const currentRow = {
+  const currentRow: DuelMatchResultRowModel = {
     id: 'me',
-    resultLabel: isDraw ? 'DRAW' as const : resultTone === 'win' ? 'WIN' as const : 'LOSER' as const,
+    resultLabel: resolveDuelCurrentRowLabel({ isDraw, resultTone }),
     name: '나',
     paceLabel: currentPaceLabel,
     durationLabel: formatDuration(currentElapsedSeconds),
     distanceKm: currentDistanceKm,
     isCurrentUser: true,
   };
-  const opponentRow = {
+  const opponentRowLabels = resolveDuelOpponentRowLabels({
+    opponentInProgress,
+    isDraw,
+    resultTone,
+    opponentPaceLabel: opponentPace,
+    opponentDurationLabel: formatDuration(opponentElapsedSeconds),
+  });
+  const opponentRow: DuelMatchResultRowModel = {
     id: opponent.id,
-    resultLabel: opponentInProgress
-      ? 'ING' as const
-      : isDraw
-        ? 'DRAW' as const
-        : resultTone === 'win'
-          ? 'LOSER' as const
-          : 'WIN' as const,
+    resultLabel: opponentRowLabels.resultLabel,
     name: opponent.name,
-    paceLabel: opponentInProgress ? '진행 중' : opponentPace,
-    durationLabel: opponentInProgress ? '-' : formatDuration(opponentElapsedSeconds),
+    paceLabel: opponentRowLabels.paceLabel,
+    durationLabel: opponentRowLabels.durationLabel,
     distanceKm: opponentDistanceKm,
     isCurrentUser: false,
     isInProgress: opponentInProgress,
   };
-  const rows = opponentInProgress
-    ? [currentRow, opponentRow]
-    : isDraw
-      ? [currentRow, opponentRow]
-      : currentRow.resultLabel === 'WIN'
-        ? [currentRow, opponentRow]
-        : [opponentRow, currentRow];
+  const rows = resolveDuelRowOrder({
+    currentRow,
+    opponentRow,
+    opponentInProgress,
+    isDraw,
+  });
 
   return {
     title,
@@ -198,36 +169,38 @@ export function buildGroupMatchFinishModel({
   }
 
   const currentForfeited = currentStanding.liveStatus === 'forfeited' || currentStanding.isForfeited;
-  const title = currentForfeited
-    ? '기권으로 그룹 대결을 마쳤어요'
-    : currentStanding.rank === 1
-      ? '1위로 마무리했어요'
-      : `${participantCount}명 중 ${currentStanding.rank}위로 마쳤어요`;
-  const summary = currentForfeited
-    ? `${participantCount}명 중 ${currentStanding.rank}위로 정리되고, 지금까지 측정한 기록은 저장돼요.`
-    : currentStanding.rank === 1
-      ? '마지막까지 페이스를 잘 지켜서 가장 먼저 들어왔어요.'
-      : `앞 사람과 ${currentStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km 차이였어요.`;
+  const title = resolveGroupTitle({
+    currentForfeited,
+    currentRank: currentStanding.rank,
+    participantCount,
+  });
+  const summary = resolveGroupSummary({
+    currentForfeited,
+    currentRank: currentStanding.rank,
+    participantCount,
+    gapAheadKm: currentStanding.gapAheadKm,
+  });
   const podium = standings.slice(0, 3);
-  const rows = standings.map((participant) => {
+  const rows: GroupMatchResultRowModel[] = standings.map((participant) => {
     const isInProgress = participant.liveStatus !== 'finished' && participant.liveStatus !== 'forfeited';
+    const rowLabels = resolveGroupRowLabels({
+      isInProgress,
+      isCurrentUser: participant.isCurrentUser,
+      currentPaceLabel,
+      participantPaceLabel: buildParticipantAveragePaceLabel(participant, true),
+      durationLabel: formatDuration(participant.liveElapsedSeconds ?? currentElapsedSeconds),
+    });
 
     return {
       id: participant.id,
       rank: participant.rank,
       name: participant.isCurrentUser ? '나' : participant.name,
-      paceLabel: isInProgress
-        ? '진행 중'
-        : participant.isCurrentUser
-          ? currentPaceLabel
-          : buildParticipantAveragePaceLabel(participant, true),
-      durationLabel: isInProgress
-        ? '-'
-        : formatDuration(participant.liveElapsedSeconds ?? currentElapsedSeconds),
+      paceLabel: rowLabels.paceLabel,
+      durationLabel: rowLabels.durationLabel,
       distanceKm: participant.currentDistanceKm,
       isCurrentUser: participant.isCurrentUser,
       liveStatus: participant.liveStatus as RunningMatchLiveStatus | undefined,
-      isInProgress,
+      isInProgress: rowLabels.isInProgress,
     };
   });
   const hasOngoingParticipants = rows.some((participant) => participant.isInProgress);
@@ -237,11 +210,10 @@ export function buildGroupMatchFinishModel({
     summary,
     podium,
     rows,
-    statusLabel: rows.length
-      ? hasOngoingParticipants
-        ? '진행중 · 들어오는 대로 순위가 계속 업데이트돼요.'
-        : '결과 확정 · 모든 참가자 기록이 정리됐어요.'
-      : null,
+    statusLabel: resolveGroupStatusLabel({
+      hasRows: rows.length > 0,
+      hasOngoing: hasOngoingParticipants,
+    }),
     matchResult: {
       mode: 'group',
       title,

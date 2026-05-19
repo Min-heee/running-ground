@@ -1,26 +1,12 @@
 import { memo, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import type {
+  DuelMatchResultRow,
+  GroupMatchResultRow,
+} from '@/features/runs/types/matchResult';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
-export type DuelMatchResultRow = {
-  id: string;
-  resultLabel: 'WIN' | 'LOSER' | 'DRAW' | 'ING';
-  name: string;
-  paceLabel: string;
-  durationLabel: string;
-  isCurrentUser: boolean;
-  isInProgress?: boolean;
-};
-
-export type GroupMatchResultRow = {
-  id: string;
-  rank: number;
-  name: string;
-  paceLabel: string;
-  durationLabel: string;
-  isCurrentUser: boolean;
-  isInProgress?: boolean;
-};
+export type { DuelMatchResultRow, GroupMatchResultRow } from '@/features/runs/types/matchResult';
 
 export const DuelResultRow = memo(function DuelResultRow({ row }: { row: DuelMatchResultRow }) {
   const label = row.resultLabel === 'ING' ? '진행 중' : row.resultLabel;
