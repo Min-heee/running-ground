@@ -10,12 +10,13 @@ import type { DuelMatchOpponent, RunningMatchLiveStatus } from '@/lib/api/types'
 
 export type DuelMatchResultRowModel = {
   id: string;
-  resultLabel: 'WIN' | 'LOSER' | 'DRAW';
+  resultLabel: 'WIN' | 'LOSER' | 'DRAW' | 'ING';
   name: string;
   paceLabel: string;
   durationLabel: string;
   distanceKm: number;
   isCurrentUser: boolean;
+  isInProgress?: boolean;
 };
 
 export type GroupMatchResultRowModel = {
@@ -27,6 +28,7 @@ export type GroupMatchResultRowModel = {
   distanceKm: number;
   isCurrentUser: boolean;
   liveStatus?: RunningMatchLiveStatus;
+  isInProgress?: boolean;
 };
 
 export type DuelMatchFinishModel = {
@@ -69,17 +71,22 @@ export function buildDuelMatchFinishModel({
   }
 
   const currentForfeited = currentUserLiveStatus === 'forfeited';
+  const currentFinished = currentUserLiveStatus === 'finished';
   const opponentForfeited = opponent.liveStatus === 'forfeited';
+  const opponentFinished = opponent.liveStatus === 'finished';
+  const opponentInProgress = currentFinished && !opponentForfeited && !opponentFinished;
   const opponentHasProgress = hasRemoteRunnerProgress(opponent);
   const opponentDistanceKm = opponentForfeited || opponentHasProgress
     ? resolveParticipantDisplayDistanceKm(opponent, targetDistanceKm)
     : 0;
   const gapKm = Number(Math.abs(currentDistanceKm - opponentDistanceKm).toFixed(2));
-  const isDraw = !currentForfeited && !opponentForfeited && gapKm < 0.03;
+  const isDraw = !currentForfeited && !opponentForfeited && !opponentInProgress && gapKm < 0.03;
   const resultTone: NonNullable<RunMatchResult['resultTone']> = currentForfeited
     ? 'lose'
     : opponentForfeited
       ? 'win'
+      : opponentInProgress
+        ? 'win'
       : isDraw
         ? 'draw'
         : currentDistanceKm > opponentDistanceKm
@@ -89,6 +96,8 @@ export function buildDuelMatchFinishModel({
     ? '기권으로 대결을 마쳤어요'
     : opponentForfeited
       ? `${opponent.name}님이 기권해서 승리했어요`
+      : opponentInProgress
+        ? `${opponent.name}님보다 먼저 완주했어요`
       : isDraw
         ? `${opponent.name}님과 비슷한 흐름으로 마쳤어요`
         : resultTone === 'win'
@@ -98,6 +107,8 @@ export function buildDuelMatchFinishModel({
     ? `내 기록은 ${currentDistanceKm.toFixed(2)}km로 저장되고, 대결 전적은 기권 패로 남아요.`
     : opponentForfeited
       ? `상대가 기권했고 내 기록은 ${currentDistanceKm.toFixed(2)}km로 저장돼요.`
+      : opponentInProgress
+        ? '상대가 완주하면 결과표가 자동으로 업데이트돼요.'
       : isDraw
         ? `두 러너 차이가 ${gapKm.toFixed(2)}km 안쪽으로 거의 비슷했어요.`
         : resultTone === 'win'
@@ -125,18 +136,27 @@ export function buildDuelMatchFinishModel({
   };
   const opponentRow = {
     id: opponent.id,
-    resultLabel: isDraw ? 'DRAW' as const : resultTone === 'win' ? 'LOSER' as const : 'WIN' as const,
+    resultLabel: opponentInProgress
+      ? 'ING' as const
+      : isDraw
+        ? 'DRAW' as const
+        : resultTone === 'win'
+          ? 'LOSER' as const
+          : 'WIN' as const,
     name: opponent.name,
-    paceLabel: opponentPace,
-    durationLabel: formatDuration(opponentElapsedSeconds),
+    paceLabel: opponentInProgress ? '진행 중' : opponentPace,
+    durationLabel: opponentInProgress ? '-' : formatDuration(opponentElapsedSeconds),
     distanceKm: opponentDistanceKm,
     isCurrentUser: false,
+    isInProgress: opponentInProgress,
   };
-  const rows = isDraw
+  const rows = opponentInProgress
     ? [currentRow, opponentRow]
-    : currentRow.resultLabel === 'WIN'
+    : isDraw
       ? [currentRow, opponentRow]
-      : [opponentRow, currentRow];
+      : currentRow.resultLabel === 'WIN'
+        ? [currentRow, opponentRow]
+        : [opponentRow, currentRow];
 
   return {
     title,
@@ -165,7 +185,6 @@ export function buildGroupMatchFinishModel({
   standings,
   currentPaceLabel,
   currentElapsedSeconds,
-  targetDistanceKm,
 }: {
   currentStanding: GroupLiveStanding | null;
   participantCount: number;
@@ -190,22 +209,28 @@ export function buildGroupMatchFinishModel({
       ? '마지막까지 페이스를 잘 지켜서 가장 먼저 들어왔어요.'
       : `앞 사람과 ${currentStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km 차이였어요.`;
   const podium = standings.slice(0, 3);
-  const rows = standings.map((participant) => ({
-    id: participant.id,
-    rank: participant.rank,
-    name: participant.isCurrentUser ? '나' : participant.name,
-    paceLabel: participant.isCurrentUser
-      ? currentPaceLabel
-      : buildParticipantAveragePaceLabel(participant, true),
-    durationLabel: formatDuration(participant.liveElapsedSeconds ?? currentElapsedSeconds),
-    distanceKm: participant.currentDistanceKm,
-    isCurrentUser: participant.isCurrentUser,
-    liveStatus: participant.liveStatus as RunningMatchLiveStatus | undefined,
-  }));
-  const hasOngoingParticipants = rows.some((participant) => (
-    !['finished', 'forfeited', 'disconnected'].includes(participant.liveStatus ?? '')
-    && participant.distanceKm < Math.max(0, targetDistanceKm - 0.01)
-  ));
+  const rows = standings.map((participant) => {
+    const isInProgress = participant.liveStatus !== 'finished' && participant.liveStatus !== 'forfeited';
+
+    return {
+      id: participant.id,
+      rank: participant.rank,
+      name: participant.isCurrentUser ? '나' : participant.name,
+      paceLabel: isInProgress
+        ? '진행 중'
+        : participant.isCurrentUser
+          ? currentPaceLabel
+          : buildParticipantAveragePaceLabel(participant, true),
+      durationLabel: isInProgress
+        ? '-'
+        : formatDuration(participant.liveElapsedSeconds ?? currentElapsedSeconds),
+      distanceKm: participant.currentDistanceKm,
+      isCurrentUser: participant.isCurrentUser,
+      liveStatus: participant.liveStatus as RunningMatchLiveStatus | undefined,
+      isInProgress,
+    };
+  });
+  const hasOngoingParticipants = rows.some((participant) => participant.isInProgress);
 
   return {
     title,
