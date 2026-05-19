@@ -43,11 +43,6 @@ import {
   isMeasuredPaceLabel,
 } from '@/features/runs/viewModels/matchProgress';
 import {
-  LIVE_MATCH_ROOM_IDLE_POLL_MS,
-  LIVE_MATCH_SERVER_SYNC_INTERVAL_MS,
-  LIVE_MATCH_STATUS_IDLE_POLL_MS,
-} from '@/features/runs/sync/liveMatchCadence';
-import {
   buildDuelArenaParticipants,
   buildGroupArenaParticipants,
   buildRoomLinkedDuelPlaceholderParticipants,
@@ -88,44 +83,19 @@ import { useTrackRunRuntimeMatchActions } from '@/features/runs/runtime/useTrack
 import { useTrackRunRuntimeShareState } from '@/features/runs/runtime/useTrackRunRuntimeShareState';
 import { useTrackRunRuntimeScreenState } from '@/features/runs/runtime/useTrackRunRuntimeScreenState';
 import { useTrackRunRuntimePropsComposer } from '@/features/runs/runtime/useTrackRunRuntimePropsComposer';
-
-const STALE_RENDER_MATCHED_MATCH_MS = 10 * 60 * 1000;
-const STALE_RENDER_ACTIVE_MATCH_MS = 8 * 60 * 60 * 1000;
-const OFFICIAL_START_DISTANCE_NOISE_GRACE_SECONDS = 5;
-const OFFICIAL_START_DISTANCE_NOISE_GRACE_KM = 0.05;
-const SOLO_START_COUNTDOWN_SECONDS = 5;
-const MATCH_ROOM_FAST_POLL_MS = LIVE_MATCH_SERVER_SYNC_INTERVAL_MS;
-const MATCH_ROOM_IDLE_POLL_MS = LIVE_MATCH_ROOM_IDLE_POLL_MS;
-const MATCH_STATUS_FAST_POLL_MS = LIVE_MATCH_SERVER_SYNC_INTERVAL_MS;
-const MATCH_STATUS_IDLE_POLL_MS = LIVE_MATCH_STATUS_IDLE_POLL_MS;
-
-function useStableCallback<TArgs extends unknown[], TResult>(
-  callback: (...args: TArgs) => TResult,
-) {
-  const callbackRef = useRef(callback);
-  callbackRef.current = callback;
-
-  return useCallback((...args: TArgs) => callbackRef.current(...args), []);
-}
-
-function shouldHidePastUpcomingMatch(
-  match: Pick<UpcomingRunningMatchItem, 'slotStartAt' | 'status'>,
-  nowMs: number,
-) {
-  const slotStartMs = new Date(match.slotStartAt).getTime();
-
-  if (!Number.isFinite(slotStartMs)) {
-    return false;
-  }
-
-  const elapsedMs = nowMs - slotStartMs;
-
-  if (match.status === 'active') {
-    return elapsedMs > STALE_RENDER_ACTIVE_MATCH_MS;
-  }
-
-  return elapsedMs > STALE_RENDER_MATCHED_MATCH_MS;
-}
+import {
+  MATCH_ROOM_FAST_POLL_MS,
+  MATCH_ROOM_IDLE_POLL_MS,
+  MATCH_STATUS_FAST_POLL_MS,
+  MATCH_STATUS_IDLE_POLL_MS,
+  OFFICIAL_START_DISTANCE_NOISE_GRACE_KM,
+  OFFICIAL_START_DISTANCE_NOISE_GRACE_SECONDS,
+  SOLO_START_COUNTDOWN_SECONDS,
+  STALE_RENDER_ACTIVE_MATCH_MS,
+  STALE_RENDER_MATCHED_MATCH_MS,
+} from './trackRunExperienceConstants';
+import { shouldHidePastUpcomingMatch } from './matchVisibility';
+import { useStableCallback } from './useStableCallback';
 
 export type TrackRunMode = 'tab' | 'stack';
 type RoomLinkedMatchContext = PartyRunLinkedMatchContext;
