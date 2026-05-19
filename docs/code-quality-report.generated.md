@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-19T17:50:32.528Z
+생성 시각: 2026-05-19T18:05:35.047Z
 
 ## 실행 방법
 
@@ -14,11 +14,11 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 848 |
-| 코드 파일 | 791 |
+| 분석 파일 | 857 |
+| 코드 파일 | 800 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 76 |
-| 500줄 이상 파일 | 20 |
+| 500줄 이상 파일 | 19 |
 | 50줄 이상 함수 후보 | 264 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
@@ -31,7 +31,7 @@ npm run code:quality
 | useEffect가 많은 파일 | 0 | 0 | 0 | 0 |
 | useMemo/useCallback 없이 props를 많이 만드는 후보 | 9 | 0 | 9 | 0 |
 | services 밖 fetch/api 호출 후보 | 0 | 0 | 0 | 0 |
-| utils/domain 밖 계산 로직 후보 | 27 | 0 | 27 | 0 |
+| utils/domain 밖 계산 로직 후보 | 30 | 0 | 30 | 0 |
 | types 밖 타입 선언 후보 | 54 | 0 | 54 | 0 |
 | setInterval/setTimeout/subscription cleanup 의심 후보 | 15 | 0 | 15 | 0 |
 | Location/watchPosition/background task 사용 후보 | 15 | 0 | 15 | 0 |
@@ -49,7 +49,6 @@ npm run code:quality
 | backend/src/routes/runningMatchRoutes.mjs | 756 |  |
 | backend/src/repositories/postgresFriendsRepository.mjs | 716 | sort/filter/map 13 |
 | backend/src/routes/authRoutes.mjs | 674 | sort/filter/map 1 |
-| src/data/mock.ts | 648 | imports 2, sort/filter/map 2 |
 | backend/src/repositories/postgresRunsRepository.mjs | 640 | imports 3, sort/filter/map 9 |
 | docs/backend-api-contract.md | 636 | imports 2 |
 | backend/src/repositories/postgresAuthRepository.test.mjs | 617 | imports 4, sort/filter/map 20 |
@@ -92,6 +91,7 @@ npm run code:quality
 | src/lib/api/services/runningRoomResponseGuards.ts | 356 | imports 2, sort/filter/map 4 |
 | src/features/runs/lifecycle/matchStateMachine.test.ts | 351 | imports 3 |
 | scripts/generate-testflight-qa-report.mjs | 349 | imports 5, sort/filter/map 1 |
+| src/data/mock/offlineRace.ts | 344 | imports 1 |
 | src/features/match/hooks/lobby/useRoomStartActions.ts | 335 | imports 15, effects 1 |
 | docs/code-quality-audit.md | 335 | imports 13 |
 | src/features/integrations/IntegrationJourneyCard.tsx | 334 | imports 10, sort/filter/map 3 |
@@ -130,7 +130,6 @@ npm run code:quality
 | backend/src/routes/runningMatchRoutes.mjs | 756 |  |
 | backend/src/repositories/postgresFriendsRepository.mjs | 716 | sort/filter/map 13 |
 | backend/src/routes/authRoutes.mjs | 674 | sort/filter/map 1 |
-| src/data/mock.ts | 648 | imports 2, sort/filter/map 2 |
 | backend/src/repositories/postgresRunsRepository.mjs | 640 | imports 3, sort/filter/map 9 |
 | docs/backend-api-contract.md | 636 | imports 2 |
 | backend/src/repositories/postgresAuthRepository.test.mjs | 617 | imports 4, sort/filter/map 20 |
@@ -336,12 +335,13 @@ npm run code:quality
 
 | 우선순위 | 파일 | 줄 | 이유 | 권장 조치 | 근거 |
 | --- | --- | --- | --- | --- | --- |
-| Medium | src/data/mock.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=46, sort/filter/map=2 |
 | Medium | backend/src/seed.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=28, sort/filter/map=5 |
 | Medium | backend/src/points.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=23, sort/filter/map=5 |
 | Medium | backend/src/smoke.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=17, sort/filter/map=2 |
 | Medium | src/features/runs/components/liveMatchTracking/LiveMatchRankingSection.tsx |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=17, sort/filter/map=1 |
+| Medium | src/data/mock/regionTree.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=14, sort/filter/map=2 |
 | Medium | src/integrations/nativeHealth.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=13, sort/filter/map=1 |
+| Medium | src/data/mock/friends.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=12, sort/filter/map=0 |
 | Medium | backend/src/runningMatchContract.test.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=11, sort/filter/map=0 |
 | Medium | src/features/league/leagueRanking.test.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=8, sort/filter/map=3 |
 | Medium | backend/src/routes/authRoutes.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=8, sort/filter/map=1 |
@@ -350,6 +350,8 @@ npm run code:quality
 | Medium | src/features/points/pointSystem.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=8, sort/filter/map=1 |
 | Medium | src/features/runs/sync/activeRoomResult.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=4 |
 | Medium | backend/src/routing.mjs |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=7, sort/filter/map=1 |
+| Medium | src/data/mock/league.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=8, sort/filter/map=0 |
+| Medium | src/data/mock/runs.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=8, sort/filter/map=0 |
 | Medium | src/features/runs/hooks/usePartyRunRoom.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=5, sort/filter/map=2 |
 | Medium | src/components/matches/liveMatchArena/RoadMotion.tsx |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=2, sort/filter/map=4 |
 | Medium | src/features/location/addressCatalog.ts |  | 계산/정렬/포맷 로직 신호가 화면, hook, service 등에 남아 있다. | 순수 계산은 feature utils/domain으로 분리하고 테스트를 붙인다. | calculation signals=0, sort/filter/map=6 |
@@ -472,15 +474,17 @@ npm run code:quality
 | Medium | Ranking 계열 |  | Ranking 계열 파일이 17개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/friends/components/friendsRankingStyles.ts, backend/src/services/todayRankingBuilder.mjs, src/features/run… |
 | Medium | Route 계열 |  | Route 계열 파일이 17개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/routes/runningMatchRoutes.mjs, backend/src/routes/authRoutes.mjs, backend/src/routes/adminRoutes.mjs, backe… |
 | Medium | Service 계열 |  | Service 계열 파일이 15개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/services/backendStatusService.mjs, backend/src/services/phoneVerificationService.mjs, backend/src/services/… |
-| Medium | league |  | 같은 basename을 가진 파일 6개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/mock/league.ts, src/lib/api/services/league.ts, src/domain/league.ts, src/lib/api/types/league.ts,… |
-| Medium | friends |  | 같은 basename을 가진 파일 5개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/friends.ts, src/lib/api/services/mock/friends.ts, src/lib/api/types/friends.ts, src/domain/friends… |
-| Medium | market |  | 같은 basename을 가진 파일 5개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/market.ts, src/domain/market.ts, src/lib/api/services/mock/market.ts, src/lib/api/types/market.ts,… |
-| Medium | integrations |  | 같은 basename을 가진 파일 4개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/integrations.ts, src/domain/integrations.ts, src/lib/api/services/mock/integrations.ts, app/(tabs)… |
+| Medium | league |  | 같은 basename을 가진 파일 7개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/mock/league.ts, src/lib/api/services/league.ts, src/domain/league.ts, src/lib/api/types/league.ts,… |
+| Medium | friends |  | 같은 basename을 가진 파일 6개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/friends.ts, src/lib/api/services/mock/friends.ts, src/lib/api/types/friends.ts, src/domain/friends… |
+| Medium | market |  | 같은 basename을 가진 파일 6개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/data/mock/market.ts, src/lib/api/services/market.ts, src/domain/market.ts, src/lib/api/services/mock/market.ts, src… |
+| Medium | integrations |  | 같은 basename을 가진 파일 5개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/integrations.ts, src/domain/integrations.ts, src/data/mock/integrations.ts, src/lib/api/services/m… |
 | Medium | admin |  | 같은 basename을 가진 파일 3개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/admin.ts, src/lib/api/types/admin.ts, app/admin.tsx |
 | Medium | config |  | 같은 basename을 가진 파일 3개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | backend/src/config.mjs, src/components/matches/liveMatchArena/config.ts, src/lib/api/config.ts |
 | Medium | matches |  | 같은 basename을 가진 파일 3개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/matches.ts, src/lib/api/types/matches.ts, src/lib/api/services/mock/matches.ts |
 | Medium | matchprogress |  | 같은 basename을 가진 파일 3개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/features/runs/viewModels/matchProgress.ts, src/features/runs/types/matchProgress.ts, src/lib/api/services/mock/matc… |
+| Medium | profile |  | 같은 basename을 가진 파일 3개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/profile.ts, src/lib/api/types/profile.ts, src/data/mock/profile.ts |
 | Medium | rooms |  | 같은 basename을 가진 파일 3개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/rooms.ts, src/lib/api/types/rooms.ts, src/lib/api/services/mock/rooms.ts |
+| Medium | runs |  | 같은 basename을 가진 파일 3개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/runs.ts, src/lib/api/types/runs.ts, src/data/mock/runs.ts |
 | Medium | _layout |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | app/(tabs)/_layout.tsx, app/_layout.tsx |
 | Medium | addresscatalog |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/features/location/addressCatalog.ts, backend/src/addressCatalog.mjs |
 | Medium | auth |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | backend/src/auth.mjs, src/lib/api/services/mock/auth.ts |
@@ -492,10 +496,8 @@ npm run code:quality
 | Medium | phoneverification |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | backend/src/phoneVerification.mjs, src/lib/session/phoneVerification.ts |
 | Medium | points |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | backend/src/points.mjs, src/domain/points.ts |
 | Medium | pointsystem |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/features/points/pointSystem.ts, src/features/points/types/pointSystem.ts |
-| Medium | profile |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/profile.ts, src/lib/api/types/profile.ts |
 | Medium | races |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/mock/races.ts, src/lib/api/services/races.ts |
 | Medium | running |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/domain/running.ts, app/(tabs)/running.tsx |
-| Medium | runs |  | 같은 basename을 가진 파일 2개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/runs.ts, src/lib/api/types/runs.ts |
 
 ## 해석 규칙
 
