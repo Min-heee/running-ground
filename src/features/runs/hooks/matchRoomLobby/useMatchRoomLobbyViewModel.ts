@@ -60,13 +60,15 @@ export function useMatchRoomLobbyViewModel({
     }),
     [currentUserTag, pendingInvitees, room],
   );
+  const syncedNowMs = Date.now() + serverClockOffsetMs;
   const linkedMatchRemainingSeconds = room?.linkedMatchSlotStartAt
-    ? getMatchStartRemainingSeconds(room.linkedMatchSlotStartAt, Date.now() + serverClockOffsetMs)
+    ? getMatchStartRemainingSeconds(room.linkedMatchSlotStartAt, syncedNowMs)
     : null;
   const partyRunFlow = buildPartyRunFlowSnapshot({
     room,
     isCountdownReady: currentParticipant?.isCountdownReady,
     remainingSeconds: linkedMatchRemainingSeconds,
+    syncedNowMs,
   });
 
   return {

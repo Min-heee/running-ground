@@ -476,6 +476,21 @@ export function TrackRunExperienceRuntime({
     visiblePartyRunFlow,
   }), [matchRoom, matchRoomFlow, visibleMatchRoom, visiblePartyRunFlow]);
   const roomLinkedMatchContext = partyRunRuntimeSource.linkedMatchContext;
+  const roomLinkedSlotStartAtForDiagnostics =
+    roomLinkedMatchContext?.slotStartAt
+    ?? matchRoomFlow.linkedMatchContext?.slotStartAt
+    ?? visiblePartyRunFlow.linkedMatchContext?.slotStartAt
+    ?? matchRoom?.linkedMatchSlotStartAt
+    ?? visibleMatchRoom?.linkedMatchSlotStartAt
+    ?? null;
+  const roomLinkedSlotElapsedMsForDiagnostics = useMemo(() => {
+    if (!roomLinkedSlotStartAtForDiagnostics) {
+      return null;
+    }
+
+    const slotStartMs = Date.parse(roomLinkedSlotStartAtForDiagnostics);
+    return Number.isFinite(slotStartMs) ? syncedNowMs - slotStartMs : null;
+  }, [roomLinkedSlotStartAtForDiagnostics, syncedNowMs]);
   const trackRunIdleViewModel = useTrackRunIdleViewModel({
     mode,
     matchMode,
@@ -894,8 +909,12 @@ export function TrackRunExperienceRuntime({
         fromStage: previousMatchLifecycleStage,
         hasMatchResultPage,
         isRunning,
+        roomCountdownRemainingSeconds,
+        roomLinkedSlotElapsedMs: roomLinkedSlotElapsedMsForDiagnostics,
+        roomLinkedSlotStartAt: roomLinkedSlotStartAtForDiagnostics,
         shouldRenderLiveArena,
         showLiveArena,
+        syncedNowMs,
         toStage: matchLifecycleController.stage,
       });
     }
@@ -910,8 +929,12 @@ export function TrackRunExperienceRuntime({
     hasMatchResultPage,
     isRunning,
     matchLifecycleController.stage,
+    roomCountdownRemainingSeconds,
+    roomLinkedSlotElapsedMsForDiagnostics,
+    roomLinkedSlotStartAtForDiagnostics,
     shouldRenderLiveArena,
     showLiveArena,
+    syncedNowMs,
   ]);
 
   useTrackRunRuntimeTrace({

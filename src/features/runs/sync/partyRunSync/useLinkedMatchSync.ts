@@ -30,6 +30,7 @@ export function canOpenPartyRunLinkedMatch({
     room,
     isCountdownReady: participant?.isCountdownReady,
     remainingSeconds,
+    syncedNowMs: nowMs,
   });
 
   return flow.canOpenLinkedMatch;
