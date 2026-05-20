@@ -1044,7 +1044,7 @@ export function TrackRunExperienceRuntime({
       return payload;
     }
 
-    focusedDuelMatchIdRef.current = payload.state === 'idle' ? null : (payload.matchId ?? focusedDuelMatchIdRef.current);
+    focusedDuelMatchIdRef.current = payload.matchId ?? focusedDuelMatchIdRef.current;
     const transitionNotice = duelMatchStatus
       && duelMatchStatus.slotStartAt === payload.slotStartAt
       && Math.abs(duelMatchStatus.distanceKm - payload.distanceKm) < 0.15
@@ -1097,7 +1097,7 @@ export function TrackRunExperienceRuntime({
       return payload;
     }
 
-    focusedGroupMatchIdRef.current = payload.state === 'idle' ? null : (payload.matchId ?? focusedGroupMatchIdRef.current);
+    focusedGroupMatchIdRef.current = payload.matchId ?? focusedGroupMatchIdRef.current;
     const transitionNotice = groupMatchStatus
       && groupMatchStatus.slotStartAt === payload.slotStartAt
       && Math.abs(groupMatchStatus.distanceKm - payload.distanceKm) < 0.15

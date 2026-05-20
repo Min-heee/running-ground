@@ -42,6 +42,7 @@ type HydrateMatchFocusRoute = (input: Pick<
 }) => boolean;
 
 type EndNavigationTrace = ReturnType<typeof rgPerfMeasureStart>;
+const MATCH_SLOT_HOUR_MS = 60 * 60 * 1000;
 
 type RunLiveMatchNavigationInput = FocusRunningMatchInput & {
   endNavigationTrace: EndNavigationTrace;
@@ -52,6 +53,12 @@ type RunLiveMatchNavigationInput = FocusRunningMatchInput & {
   requestId: string;
   requestedPreferArena: boolean;
 };
+
+export function isOnTheHourSlot(slotStartAt: string): boolean {
+  const slotStartMs = new Date(slotStartAt).getTime();
+
+  return Number.isFinite(slotStartMs) && slotStartMs % MATCH_SLOT_HOUR_MS === 0;
+}
 
 export function useLiveMatchNavigationExecutor({
   activeDuelSlotStartAt,
@@ -157,7 +164,7 @@ export function useLiveMatchNavigationExecutor({
           setDuelDistanceText(String(distanceKm));
         }
 
-        if (slotStartAt) {
+        if (slotStartAt && isOnTheHourSlot(slotStartAt)) {
           setSelectedDuelSlotStartAt(slotStartAt);
           setSelectedDuelDateKey(formatMatchDateKey(new Date(slotStartAt)));
           setSelectedDuelTimeSection(resolveMatchTimeSection(slotStartAt));
@@ -191,7 +198,7 @@ export function useLiveMatchNavigationExecutor({
         setGroupDistanceText(String(distanceKm));
       }
 
-      if (slotStartAt) {
+      if (slotStartAt && isOnTheHourSlot(slotStartAt)) {
         setSelectedGroupSlotStartAt(slotStartAt);
         setSelectedGroupDateKey(formatMatchDateKey(new Date(slotStartAt)));
         setSelectedGroupTimeSection(resolveMatchTimeSection(slotStartAt));
