@@ -3,35 +3,26 @@ import type { MutableRefObject } from 'react';
 import {
   buildRecipientInviteInboxFetchKey,
   RECIPIENT_INVITE_INBOX_TIMEOUT_RETRY_MS,
-  getRecipientInviteInboxFocusBlockReason,
   getRecipientInviteInboxFetchSkipReason,
   getRecipientInviteInboxOwnerState,
-  getRecipientInviteInboxTimeoutRetryDelayMs,
-  getRecipientInviteInboxStaleResultReason,
-  shouldScheduleRecipientInviteInboxTimeoutRetry,
 } from '@/features/runs/sync/roomInviteInbox';
 import {
   buildRecipientInviteInboxAlreadyBusyTraceEvent,
   buildRecipientInviteInboxBlockTraceEvents,
-  buildRecipientInviteInboxDisplayedTraceEvents,
-  buildRecipientInviteInboxDuplicateTraceEvent,
   buildRecipientInviteInboxFetchSkipTraceEvent,
-  buildRecipientInviteInboxNoEventTraceEvents,
-  buildRecipientInviteInboxSuccessTraceEvents,
+  applyRecipientInviteFetchSuccess,
   fetchRecipientInviteInboxWithTimeout,
-  processRecipientInviteResponse,
   RECIPIENT_INVITE_INBOX_FETCH_TIMEOUT_MS,
-  shouldCommitRecipientInviteRoom,
   type RecipientInviteInboxRuntimeState,
   type RecipientInviteInboxTraceEvent,
 } from '@/features/runs/sync/recipientInviteInbox';
-import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import {
   getApiErrorMessage,
 } from '@/services';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import { useRecipientInviteInboxFocusPolling } from './useRecipientInviteInboxFocusPolling';
+import { useRecipientInviteInboxRetryScheduler } from './useRecipientInviteInboxRetryScheduler';
 
 type UseTrackRunRuntimeRecipientInviteInboxInput = {
   activeRoomId?: string | null;
@@ -80,12 +71,9 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     liveMatchKey: liveMatchKey ?? null,
   });
   const fetchRecipientInviteInboxRef = useRef<((source: string) => Promise<void | undefined>) | null>(null);
-  const inFlightFetchRef = useRef<{ key: string; promise: Promise<void> } | null>(null);
-  const fetchGenerationRef = useRef(0);
   const lastAlreadyJoinedSkipKeyRef = useRef<string | null>(null);
   const lastCompletedFetchAtRef = useRef(0);
   const lastTimedOutFetchAtRef = useRef(0);
-  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFocusPauseKeyRef = useRef<string | null>(null);
   const lastLiveFocusDisabledKeyRef = useRef<string | null>(null);
   currentRoomRef.current = currentRoom ?? null;
@@ -95,77 +83,19 @@ export function useTrackRunRuntimeRecipientInviteInbox({
     linkedMatchId: linkedMatchId ?? currentRoom?.linkedMatchId ?? null,
     liveMatchKey: liveMatchKey ?? null,
   };
-
-  const invalidateNoRoomInFlight = useCallback(({
-    reason,
-    runtimeState,
-    source,
-  }: {
-    reason: string;
-    runtimeState: RecipientInviteInboxRuntimeState;
-    source: string;
-  }) => {
-    if (!inFlightFetchRef.current?.key.includes(':no-room:')) {
-      return;
-    }
-
-    if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current);
-      retryTimeoutRef.current = null;
-    }
-    fetchGenerationRef.current += 1;
-    inFlightFetchRef.current = null;
-    recipientInviteFetchInFlightRef.current = false;
-    rgPerfMark('invite inbox no-room in-flight aborted after join', {
-      activeRoomId: runtimeState.activeRoomId,
-      linkedMatchId: runtimeState.linkedMatchId,
-      liveMatchKey: runtimeState.liveMatchKey,
-      reason,
-      source,
-      userId: currentUserId,
-    });
-  }, [currentUserId, recipientInviteFetchInFlightRef]);
-
-  const scheduleTimeoutRetry = useCallback((source: string) => {
-    if (retryTimeoutRef.current) {
-      return;
-    }
-
-    const runtimeState = runtimeStateRef.current;
-    const retryDelayMs = getRecipientInviteInboxTimeoutRetryDelayMs({
-      activeRoomId: runtimeState.activeRoomId,
-      currentRoom: currentRoomRef.current,
-      isLiveMatchMounted: runtimeState.isLiveMatchMounted,
-      linkedMatchId: runtimeState.linkedMatchId,
-      liveMatchKey: runtimeState.liveMatchKey,
-    });
-    if (retryDelayMs === null) {
-      return;
-    }
-
-    rgPerfMark('invite inbox receiver retry scheduled', {
-      delayMs: retryDelayMs,
-      source,
-    });
-    retryTimeoutRef.current = setTimeout(() => {
-      retryTimeoutRef.current = null;
-      const latestRuntimeState = runtimeStateRef.current;
-      if (!shouldScheduleRecipientInviteInboxTimeoutRetry({
-        activeRoomId: latestRuntimeState.activeRoomId,
-        currentRoom: currentRoomRef.current,
-        isLiveMatchMounted: latestRuntimeState.isLiveMatchMounted,
-        linkedMatchId: latestRuntimeState.linkedMatchId,
-        liveMatchKey: latestRuntimeState.liveMatchKey,
-      })) {
-        return;
-      }
-
-      rgPerfMark('invite inbox receiver fetch timeout retry', {
-        source,
-      });
-      void fetchRecipientInviteInboxRef.current?.(`${source} retry`);
-    }, retryDelayMs);
-  }, []);
+  const {
+    fetchGenerationRef,
+    inFlightFetchRef,
+    invalidateNoRoomInFlight,
+    retryTimeoutRef,
+    scheduleTimeoutRetry,
+  } = useRecipientInviteInboxRetryScheduler({
+    currentRoomRef,
+    currentUserId,
+    fetchRecipientInviteInboxRef,
+    recipientInviteFetchInFlightRef,
+    runtimeStateRef,
+  });
 
   const fetchRecipientInviteInbox = useCallback(async (source: string) => {
     const roomAtStart = currentRoomRef.current;
@@ -308,123 +238,20 @@ export function useTrackRunRuntimeRecipientInviteInbox({
         }
 
         const { payload } = fetchResult;
-        const latestRuntimeState = runtimeStateRef.current;
-        const latestBlockReason = getRecipientInviteInboxFocusBlockReason({
-          activeRoomId: latestRuntimeState.activeRoomId,
-          currentRoom: currentRoomRef.current,
-          isLiveMatchMounted: latestRuntimeState.isLiveMatchMounted,
-          linkedMatchId: latestRuntimeState.linkedMatchId,
-          liveMatchKey: latestRuntimeState.liveMatchKey,
-        });
-        if (latestBlockReason) {
-          endRecipientInviteFetchTrace({
-            reason: latestBlockReason,
-            roomId: payload.room?.roomId ?? null,
-            success: false,
-          });
-          rgPerfMark('invite inbox fetch stale ignored', {
-            currentLinkedMatchId: latestRuntimeState.linkedMatchId,
-            currentRoomId: currentRoomRef.current?.roomId ?? latestRuntimeState.activeRoomId,
-            reason: latestBlockReason,
-            roomId: payload.room?.roomId ?? null,
-            source,
-            userId: currentUserId,
-          });
-          return;
-        }
-
-        const staleReason = getRecipientInviteInboxStaleResultReason({
-          currentRoom: currentRoomRef.current,
-          startedRoomId: roomAtStart?.roomId ?? null,
-        });
-        if (staleReason) {
-          endRecipientInviteFetchTrace({
-            reason: staleReason,
-            roomId: payload.room?.roomId ?? null,
-            success: false,
-          });
-          rgPerfMark('invite inbox fetch stale ignored', {
-            currentLinkedMatchId: currentRoomRef.current?.linkedMatchId ?? null,
-            currentRoomId: currentRoomRef.current?.roomId ?? null,
-            reason: staleReason,
-            roomId: payload.room?.roomId ?? null,
-            source,
-            userId: currentUserId,
-          });
-          return;
-        }
-
-        endRecipientInviteFetchTrace({
-          roomId: payload.room?.roomId ?? null,
-          success: true,
-        });
-
-        if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
-          rgPerfMark('invite inbox fetch stale ignored', {
-            reason: 'server-snapshot',
-            roomId: payload.room?.roomId ?? null,
-            source,
-            userId: currentUserId,
-          });
-          rgPerfMark('invite card display skipped reason', {
-            reason: 'stale-result',
-            roomId: payload.room?.roomId ?? null,
-            source,
-            userId: currentUserId,
-          });
-          return;
-        }
-
-        const responseModel = processRecipientInviteResponse({
+        applyRecipientInviteFetchSuccess({
+          commitMatchRoom,
+          currentRoomRef,
           currentUserId,
+          endRecipientInviteFetchTrace,
+          lastAlreadyJoinedSkipKeyRef,
+          lastDisplayedRecipientInviteKeyRef,
+          latestMatchRoomServerNowMsRef,
           payload,
-          previousInviteKey: lastDisplayedRecipientInviteKeyRef.current,
+          roomAtStart,
+          runtimeStateRef,
           source,
+          syncServerClock,
         });
-        markRecipientInviteTraceEvents(buildRecipientInviteInboxSuccessTraceEvents({
-          currentUserId,
-          model: responseModel,
-          payload,
-          source,
-        }));
-
-        if (!responseModel.inviteResult.event) {
-          const isAlreadyJoinedSuppressed = Boolean(
-            responseModel.alreadyJoinedSkipKey
-            && lastAlreadyJoinedSkipKeyRef.current === responseModel.alreadyJoinedSkipKey,
-          );
-          if (responseModel.alreadyJoinedSkipKey && !isAlreadyJoinedSuppressed) {
-            lastAlreadyJoinedSkipKeyRef.current = responseModel.alreadyJoinedSkipKey;
-          }
-          markRecipientInviteTraceEvents(buildRecipientInviteInboxNoEventTraceEvents({
-            currentUserId,
-            isAlreadyJoinedSuppressed,
-            model: responseModel,
-            payload,
-            source,
-          }));
-          return;
-        }
-
-        if (shouldCommitRecipientInviteRoom(responseModel)) {
-          syncServerClock(payload.serverNow);
-          commitMatchRoom(payload.room);
-        }
-
-        if (!responseModel.inviteResult.shouldDisplay) {
-          const duplicateTraceEvent = buildRecipientInviteInboxDuplicateTraceEvent({
-            currentUserId,
-            model: responseModel,
-            source,
-          });
-          if (duplicateTraceEvent) {
-            markRecipientInviteTraceEvents([duplicateTraceEvent]);
-          }
-          return;
-        }
-
-        lastDisplayedRecipientInviteKeyRef.current = responseModel.inviteResult.event.key;
-        markRecipientInviteTraceEvents(buildRecipientInviteInboxDisplayedTraceEvents(responseModel));
       } catch (inviteError) {
         endRecipientInviteFetchTrace({ success: false });
         rgPerfMark('invite inbox fetch for recipient end', {

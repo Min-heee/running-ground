@@ -1,4 +1,7 @@
 export {
+  applyRecipientInviteFetchSuccess,
+} from './applyRecipientInviteFetchSuccess';
+export {
   fetchRecipientInviteInboxWithTimeout,
   RECIPIENT_INVITE_INBOX_FETCH_TIMEOUT_MS,
 } from './fetchWithTimeout';

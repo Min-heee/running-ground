@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-19T18:24:16.487Z
+생성 시각: 2026-05-20T03:06:26.184Z
 
 ## 실행 방법
 
@@ -14,12 +14,12 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 861 |
-| 코드 파일 | 804 |
+| 분석 파일 | 863 |
+| 코드 파일 | 806 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 75 |
 | 500줄 이상 파일 | 19 |
-| 50줄 이상 함수 후보 | 265 |
+| 50줄 이상 함수 후보 | 267 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
 ## 감지 항목 요약
@@ -59,7 +59,6 @@ npm run code:quality
 | backend/src/repositories/postgresRunsRepository.test.mjs | 515 | imports 3, sort/filter/map 8 |
 | backend/src/repositories/postgresAuthRepository.mjs | 504 | imports 2, sort/filter/map 1 |
 | docs/handoff/codex-pr-execution-plan.md | 502 |  |
-| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 492 | imports 9, timers 1 |
 | backend/src/repositories/postgresLeagueRepository.mjs | 491 | imports 1, sort/filter/map 16 |
 | backend/src/store.mjs | 484 | imports 5, sort/filter/map 9 |
 | scripts/check-preview-public-api.mjs | 482 | imports 4 |
@@ -105,6 +104,7 @@ npm run code:quality
 | docs/handoff/codex-quality-audit-2026-05-20.md | 321 | imports 4, subs 1 |
 | src/features/auth/hooks/useSignupForm.ts | 320 | imports 7, effects 2 |
 | backend/src/repositories/runsRepository.test.mjs | 320 | imports 3, sort/filter/map 1 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 319 | imports 9 |
 | backend/src/repositories/authRepository.mjs | 318 | imports 1, sort/filter/map 10 |
 | backend/src/points.mjs | 316 | sort/filter/map 5 |
 | src/features/runs/lifecycle/matchLifecycleController.ts | 314 | imports 6 |
@@ -144,20 +144,19 @@ npm run code:quality
 
 
 
-> 265개 중 상위 80개만 표시합니다.
+> 267개 중 상위 80개만 표시합니다.
 
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
 | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 121 | TrackRunExperienceRuntime | 1744 |
-| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 59 | useTrackRunRuntimeRecipientInviteInbox | 433 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
 | backend/src/routes/runningMatchRoutes.mjs | 1 | routeRunningMatchRequest | 312 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
-| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 170 | callback@useCallback | 285 |
 | src/features/runs/viewModels/useLiveMatchViewModel.ts | 37 | useLiveMatchViewModel | 285 |
 | src/features/runs/runtime/useTrackRunRoomLoader.ts | 60 | useTrackRunRoomLoader | 273 |
 | backend/src/repositories/postgresRunsRepository.mjs | 369 | createPostgresRunsRepository | 271 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 50 | useTrackRunRuntimeRecipientInviteInbox | 269 |
 | backend/src/bridges/friendsLeagueBridge.mjs | 26 | createFriendsLeagueBridge | 267 |
 | src/features/match/hooks/lobby/useRoomStartActions.ts | 70 | useRoomStartActions | 265 |
 | backend/src/repositories/postgresAuthRepository.mjs | 246 | createPostgresAuthRepository | 258 |
@@ -185,11 +184,11 @@ npm run code:quality
 | src/features/runs/runtime/useTrackRunRuntimeMatchRequestActions.ts | 11 | useTrackRunRuntimeMatchRequestActions | 191 |
 | src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 84 | useTrackingSessionSnapshots | 190 |
 | src/features/runs/runtime/useTrackRunRoomCreateAction.ts | 50 | useTrackRunRoomCreateAction | 186 |
+| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 100 | callback@useCallback | 182 |
 | src/features/match/screens/MatchRoomScreen.tsx | 17 | MatchRoomScreen | 181 |
 | src/features/home/hooks/useHomeScreenModel.ts | 30 | useHomeScreenModel | 181 |
 | src/features/runs/tracking/lifecycle/useMatchAutoTrackingEffects.ts | 42 | useMatchAutoTrackingEffects | 179 |
 | src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 66 | callback@useCallback | 174 |
-| src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 276 | requestPromise | 172 |
 | src/features/runs/lifecycle/hooks/useMatchCountdownModel.ts | 40 | useMatchCountdownModel | 171 |
 | backend/src/bridges/sessionRunsBridge.mjs | 136 | createSessionRunsBridge | 169 |
 | src/features/auth/screens/AccountRecoveryScreen.tsx | 44 | AccountRecoveryScreen | 168 |
@@ -213,6 +212,7 @@ npm run code:quality
 | src/features/runs/tracking/useTrackingAppStateSync.ts | 34 | useTrackingAppStateSync | 135 |
 | src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 37 | useRunForfeitCommand | 133 |
 | src/features/profile/hooks/useMyPageScreen.ts | 10 | useMyPageScreen | 133 |
+| src/features/runs/sync/recipientInviteInbox/applyRecipientInviteFetchSuccess.ts | 45 | applyRecipientInviteFetchSuccess | 132 |
 | src/features/runs/viewModels/useLiveMatchProgress.ts | 40 | useLiveMatchProgress | 132 |
 | src/features/runs/sync/usePartyRunSync.ts | 60 | usePartyRunSync | 131 |
 | src/features/auth/components/signup/SignupCredentialsSection.tsx | 34 | SignupCredentialsSection | 129 |
