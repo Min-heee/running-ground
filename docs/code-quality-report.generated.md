@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-20T03:06:26.184Z
+생성 시각: 2026-05-20T03:15:49.684Z
 
 ## 실행 방법
 
@@ -14,11 +14,11 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 863 |
-| 코드 파일 | 806 |
+| 분석 파일 | 867 |
+| 코드 파일 | 810 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 75 |
-| 500줄 이상 파일 | 19 |
+| 300줄 이상 파일 | 74 |
+| 500줄 이상 파일 | 18 |
 | 50줄 이상 함수 후보 | 267 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
@@ -52,7 +52,6 @@ npm run code:quality
 | backend/src/repositories/postgresRunsRepository.mjs | 640 | imports 3, sort/filter/map 9 |
 | docs/backend-api-contract.md | 636 | imports 2 |
 | backend/src/repositories/postgresAuthRepository.test.mjs | 617 | imports 4, sort/filter/map 20 |
-| src/lib/session.ts | 562 | imports 10 |
 | scripts/run-release-gate.mjs | 553 | imports 5, sort/filter/map 10 |
 | scripts/analyze-android-perf-trace.mjs | 529 | imports 2, sort/filter/map 7 |
 | backend/src/seed.mjs | 528 | imports 3, sort/filter/map 5 |
@@ -132,7 +131,6 @@ npm run code:quality
 | backend/src/repositories/postgresRunsRepository.mjs | 640 | imports 3, sort/filter/map 9 |
 | docs/backend-api-contract.md | 636 | imports 2 |
 | backend/src/repositories/postgresAuthRepository.test.mjs | 617 | imports 4, sort/filter/map 20 |
-| src/lib/session.ts | 562 | imports 10 |
 | scripts/run-release-gate.mjs | 553 | imports 5, sort/filter/map 10 |
 | scripts/analyze-android-perf-trace.mjs | 529 | imports 2, sort/filter/map 7 |
 | backend/src/seed.mjs | 528 | imports 3, sort/filter/map 5 |
