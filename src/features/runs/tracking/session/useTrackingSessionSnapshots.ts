@@ -18,6 +18,7 @@ import {
   normalizeMatchProgressPace,
 } from '@/features/runs/viewModels/matchProgress';
 import { LIVE_MATCH_UI_DISPLAY_INTERVAL_MS } from '@/features/runs/sync/liveMatchCadence';
+import { resolveActiveMatchSlotStartAt } from './trackingSessionMatchSlot';
 import type {
   DisplayedMatchProgress,
   DisplayedTrackingSnapshot,
@@ -43,6 +44,9 @@ type UseTrackingSessionSnapshotsInput = Pick<
   | 'duelMatchStatusRef'
   | 'groupMatchStatusRef'
   | 'matchModeRef'
+  | 'partyRoomMatchId'
+  | 'partyRoomMatchMode'
+  | 'partyRoomMatchSlotStartAt'
   | 'setStatus'
   | 'setRoute'
   | 'setDistanceKm'
@@ -82,43 +86,6 @@ function hasCriticalTrackingUiChange(
     || nextFrame.distanceKm < previousFrame.distanceKm;
 }
 
-function resolveActiveMatchSlotStartAt({
-  duelMatchStatus,
-  groupMatchStatus,
-  matchLifecycleController,
-  matchMode,
-  roomLinkedMatchContext,
-}: {
-  duelMatchStatus: UseRunTrackingFlowInput['duelMatchStatus'];
-  groupMatchStatus: UseRunTrackingFlowInput['groupMatchStatus'];
-  matchLifecycleController: UseRunTrackingFlowInput['matchLifecycleController'];
-  matchMode: UseRunTrackingFlowInput['matchMode'];
-  roomLinkedMatchContext: UseRunTrackingFlowInput['roomLinkedMatchContext'];
-}) {
-  if (matchLifecycleController?.stage !== 'active') {
-    return null;
-  }
-
-  if (
-    matchLifecycleController.source === 'party-room'
-    && roomLinkedMatchContext
-    && roomLinkedMatchContext.matchId === matchLifecycleController.matchId
-    && roomLinkedMatchContext.mode === matchLifecycleController.mode
-  ) {
-    return roomLinkedMatchContext.slotStartAt;
-  }
-
-  if (matchMode === 'duel' && duelMatchStatus?.state === 'active') {
-    return duelMatchStatus.slotStartAt;
-  }
-
-  if (matchMode === 'group' && groupMatchStatus?.state === 'active') {
-    return groupMatchStatus.slotStartAt;
-  }
-
-  return null;
-}
-
 export function useTrackingSessionSnapshots({
   routeRef,
   elapsedSecondsRef,
@@ -130,6 +97,9 @@ export function useTrackingSessionSnapshots({
   groupMatchStatusRef,
   matchLifecycleController,
   matchModeRef,
+  partyRoomMatchId,
+  partyRoomMatchMode,
+  partyRoomMatchSlotStartAt,
   setStatus,
   setRoute,
   setDistanceKm,
@@ -242,6 +212,9 @@ export function useTrackingSessionSnapshots({
       groupMatchStatus: groupMatchStatusRef.current,
       matchLifecycleController,
       matchMode: matchModeRef.current,
+      partyRoomMatchId,
+      partyRoomMatchMode,
+      partyRoomMatchSlotStartAt,
       roomLinkedMatchContext: roomLinkedMatchContextRef.current,
     });
     return buildDisplayedTrackingSnapshot({
@@ -267,6 +240,9 @@ export function useTrackingSessionSnapshots({
     officialStartBaselineRef,
     officialStartDistanceNoiseGraceKm,
     officialStartDistanceNoiseGraceSeconds,
+    partyRoomMatchId,
+    partyRoomMatchMode,
+    partyRoomMatchSlotStartAt,
     preStartWarmupMatchIdRef,
     roomLinkedMatchContextRef,
   ]);

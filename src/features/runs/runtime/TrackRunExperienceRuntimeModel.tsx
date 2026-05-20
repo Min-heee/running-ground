@@ -491,6 +491,20 @@ export function TrackRunExperienceRuntime({
     ?? matchRoom?.slotStartAt
     ?? visibleMatchRoom?.slotStartAt
     ?? null;
+  const partyRoomMatchIdForElapsed =
+    roomLinkedMatchContext?.matchId
+    ?? matchRoomFlow.linkedMatchContext?.matchId
+    ?? visiblePartyRunFlow.linkedMatchContext?.matchId
+    ?? matchRoom?.linkedMatchId
+    ?? visibleMatchRoom?.linkedMatchId
+    ?? null;
+  const partyRoomMatchModeForElapsed =
+    roomLinkedMatchContext?.mode
+    ?? matchRoomFlow.linkedMatchContext?.mode
+    ?? visiblePartyRunFlow.linkedMatchContext?.mode
+    ?? matchRoom?.mode
+    ?? visibleMatchRoom?.mode
+    ?? null;
   const roomLinkedSlotElapsedMsForDiagnostics = useMemo(() => {
     if (!roomLinkedSlotStartAtForDiagnostics) {
       return null;
@@ -1645,6 +1659,9 @@ export function TrackRunExperienceRuntime({
     duelMatchStatus,
     groupMatchStatus,
     roomLinkedMatchContext,
+    partyRoomMatchId: partyRoomMatchIdForElapsed,
+    partyRoomMatchMode: partyRoomMatchModeForElapsed,
+    partyRoomMatchSlotStartAt: roomLinkedSlotStartAtForDiagnostics,
     status,
     visiblePartyRunShouldOpenArena: visiblePartyRunFlow.shouldOpenArena,
     duelStartCountdownSeconds,
