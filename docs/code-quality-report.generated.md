@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-20T13:06:52.626Z
+생성 시각: 2026-05-20T14:41:42.820Z
 
 ## 실행 방법
 
@@ -14,12 +14,12 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 876 |
-| 코드 파일 | 819 |
+| 분석 파일 | 878 |
+| 코드 파일 | 821 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 75 |
 | 500줄 이상 파일 | 17 |
-| 50줄 이상 함수 후보 | 270 |
+| 50줄 이상 함수 후보 | 271 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
 ## 감지 항목 요약
@@ -41,7 +41,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/lib/runningMatchStoreHelpers.mjs | 2420 | imports 12, sort/filter/map 79 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2056 | imports 54, effects 3, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2073 | imports 54, effects 3, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 873 | imports 6, sort/filter/map 37, subs 16 |
@@ -88,7 +88,6 @@ npm run code:quality
 | src/lib/api/services/runningRoomResponseGuards.ts | 356 | imports 2, sort/filter/map 4 |
 | scripts/generate-testflight-qa-report.mjs | 349 | imports 5, sort/filter/map 1 |
 | src/data/mock/offlineRace.ts | 344 | imports 1 |
-| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 341 | imports 9 |
 | src/features/match/hooks/lobby/useRoomStartActions.ts | 336 | imports 15, effects 1 |
 | docs/code-quality-audit.md | 335 | imports 13 |
 | src/features/integrations/IntegrationJourneyCard.tsx | 334 | imports 10, sort/filter/map 3 |
@@ -110,6 +109,7 @@ npm run code:quality
 | backend/src/repositories/friendsRepository.test.mjs | 314 | imports 2, sort/filter/map 3 |
 | docs/testflight-real-device-qa.md | 314 |  |
 | src/features/runs/sync/activeRoomCheck.ts | 310 | imports 6, timers 1 |
+| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 308 | imports 10 |
 | backend/src/bridges/sessionRunsBridge.mjs | 305 | imports 2, sort/filter/map 3 |
 | src/features/runs/components/matchSetupCards/styles.ts | 304 | imports 2 |
 | src/features/runs/viewModels/matchProgress.test.ts | 302 | imports 5, sort/filter/map 6 |
@@ -121,7 +121,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/lib/runningMatchStoreHelpers.mjs | 2420 | imports 12, sort/filter/map 79 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2056 | imports 54, effects 3, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2073 | imports 54, effects 3, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 873 | imports 6, sort/filter/map 37, subs 16 |
@@ -142,12 +142,12 @@ npm run code:quality
 
 
 
-> 270개 중 상위 80개만 표시합니다.
+> 271개 중 상위 80개만 표시합니다.
 
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 123 | TrackRunExperienceRuntime | 1933 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 123 | TrackRunExperienceRuntime | 1950 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
 | src/features/runs/viewModels/useLiveMatchViewModel.ts | 37 | useLiveMatchViewModel | 285 |
@@ -165,9 +165,9 @@ npm run code:quality
 | src/features/runs/runtime/useRuntimeHydrationEffects.ts | 8 | useRuntimeHydrationEffects | 232 |
 | src/features/runs/runtime/useTrackRunRuntimeRoomInviteActions.ts | 37 | useTrackRunRuntimeRoomInviteActions | 223 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 42 | createLocationTaskManager | 220 |
+| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 89 | useTrackingSessionSnapshots | 219 |
 | src/features/runs/lifecycle/hooks/useMatchEntryEffects.ts | 47 | useMatchEntryEffects | 217 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationOwner.ts | 27 | useLiveMatchNavigationOwner | 217 |
-| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 126 | useTrackingSessionSnapshots | 215 |
 | backend/src/repositories/postgresFriendsRepository.mjs | 503 | createPostgresFriendsRepository | 213 |
 | src/features/runs/runtime/useTrackRunRuntimeStateBridge.ts | 56 | useTrackRunRuntimeStateBridge | 212 |
 | src/features/runs/sync/partyRunSync/useLinkedMatchSync.ts | 48 | useLinkedMatchSync | 212 |
