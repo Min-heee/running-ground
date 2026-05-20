@@ -1,6 +1,6 @@
 # Android 성능 회귀 방지 체크
 
-생성 시각: 2026-05-20T03:37:45.120Z
+생성 시각: 2026-05-20T11:12:59.458Z
 
 이 문서는 `scripts/check-performance-smells.mjs`가 앱 코드의 성능 회귀 후보를 정적으로 점검한 결과입니다. 자동 수정은 하지 않고, Android 실기기 QA 전에 확인할 위험 후보만 모읍니다.
 
@@ -21,13 +21,14 @@ npm run performance:smells
 
 ## 요약
 
-- 전체 감지 항목: 1개
+- 전체 감지 항목: 2개
 - High: 0개
-- Medium: 0개
+- Medium: 1개
 - Low: 1개
 
 | 항목 | 개수 |
 | --- | --- |
+| 개발 로그 | 1 |
 | react-native-maps 사용 파일 | 1 |
 
 ## High
@@ -36,7 +37,9 @@ npm run performance:smells
 
 ## Medium
 
-현재 휴리스틱 기준으로 감지된 항목이 없습니다.
+| 우선순위 | 항목 | 위치 | 이유 | 권장 확인 |
+| --- | --- | --- | --- | --- |
+| Medium | 개발 로그 | src/utils/rgPerfTrace.ts:85 | 런타임 로그가 감지됐어요. 반복 렌더/위치 업데이트 구간이면 Android 성능과 로그 노이즈에 영향을 줄 수 있습니다. | 출시 코드에서는 제거하거나 __DEV__ 조건/QA 전용 logger로 감싸세요. |
 
 ## Low
 

@@ -102,6 +102,22 @@ const ACTIVE_INFERENCE_GRACE_SECONDS = 120;
 // first ~30s of the matched lifetime even though the slot is locked in.
 const INFERRED_MATCHED_WINDOW_SECONDS = 60;
 
+function getLinkedMatchSlotElapsedMs(
+  linkedMatchSlotStartAt: string | null,
+  syncedNowMs: number | null | undefined,
+) {
+  if (
+    !linkedMatchSlotStartAt
+    || typeof syncedNowMs !== 'number'
+    || !Number.isFinite(syncedNowMs)
+  ) {
+    return null;
+  }
+
+  const slotStartMs = Date.parse(linkedMatchSlotStartAt);
+  return Number.isFinite(slotStartMs) ? syncedNowMs - slotStartMs : null;
+}
+
 export function derivePartyRunStartPhase({
   roomState,
   linkedMatchStatus,
@@ -109,6 +125,7 @@ export function derivePartyRunStartPhase({
   remainingSeconds = null,
   linkedMatchId = null,
   linkedMatchSlotStartAt = null,
+  syncedNowMs = null,
 }: PartyRunStartPhaseInput): PartyRunStartPhase {
   if (roomState === 'active' || linkedMatchStatus === 'active') {
     return 'active';
@@ -135,15 +152,27 @@ export function derivePartyRunStartPhase({
 
   // Just after the slot fires, `remainingSeconds` is 0 or slightly negative
   // and neither `shouldShowMatchStartOverlay` nor `shouldAutoOpenMatchArena`
-  // returns true. If the room still has a linked match (i.e. nothing
-  // cancelled it), infer 'active' for a short grace window so the match
-  // arena stays mounted while the server's status push is in flight.
+  // returns true. Some production devices also report `null` immediately
+  // after the slot elapses; fall back to the absolute slot timestamp in that
+  // gap. If the room still has a linked match (i.e. nothing cancelled it),
+  // infer 'active' for a short grace window so the match arena stays mounted
+  // while the server's status push is in flight.
+  const linkedMatchSlotElapsedMs = getLinkedMatchSlotElapsedMs(linkedMatchSlotStartAt, syncedNowMs);
   const hasInferredActiveFromSlotElapsed = Boolean(
     linkedMatchId
     && linkedMatchSlotStartAt
-    && typeof remainingSeconds === 'number'
-    && remainingSeconds <= 0
-    && remainingSeconds > -ACTIVE_INFERENCE_GRACE_SECONDS,
+    && (
+      (
+        typeof remainingSeconds === 'number'
+        && remainingSeconds <= 0
+        && remainingSeconds > -ACTIVE_INFERENCE_GRACE_SECONDS
+      )
+      || (
+        linkedMatchSlotElapsedMs !== null
+        && linkedMatchSlotElapsedMs >= 0
+        && linkedMatchSlotElapsedMs < ACTIVE_INFERENCE_GRACE_SECONDS * 1000
+      )
+    ),
   );
   if (hasInferredActiveFromSlotElapsed) {
     return 'active';
@@ -322,6 +351,7 @@ export function buildPartyRunFlowSnapshot({
   room,
   isCountdownReady = false,
   remainingSeconds = null,
+  syncedNowMs = null,
 }: PartyRunFlowSnapshotInput): PartyRunFlowSnapshot {
   const linkedMatchSlotStartAt = room?.linkedMatchSlotStartAt ?? room?.slotStartAt;
   const linkedMatchDistanceKm = room?.linkedMatchDistanceKm ?? room?.distanceKm;
@@ -332,6 +362,7 @@ export function buildPartyRunFlowSnapshot({
     remainingSeconds,
     linkedMatchId: room?.linkedMatchId,
     linkedMatchSlotStartAt,
+    syncedNowMs,
   });
   const hasLinkedMatch = Boolean(room?.linkedMatchId);
   const shouldOpenArena = hasLinkedMatch && shouldOpenPartyRunArena(phase);

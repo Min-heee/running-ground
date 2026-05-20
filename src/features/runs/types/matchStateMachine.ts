@@ -44,6 +44,7 @@ export type PartyRunStartPhaseInput = {
   // for status polling. Optional to keep callers backward-compatible.
   linkedMatchId?: string | null;
   linkedMatchSlotStartAt?: string | null;
+  syncedNowMs?: number | null;
 };
 
 export type PartyRunStartEvent =
@@ -106,6 +107,7 @@ export type PartyRunFlowSnapshotInput = {
   room?: PartyRunLinkedRoomInput | null;
   isCountdownReady?: boolean;
   remainingSeconds?: number | null;
+  syncedNowMs?: number | null;
 };
 
 export type PartyRunLinkedMatchContext = {

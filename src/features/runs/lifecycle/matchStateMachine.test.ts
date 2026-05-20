@@ -280,6 +280,27 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
     linkedMatchId: 'room-match-1',
     linkedMatchSlotStartAt: '2026-05-11T23:57:00.000Z',
   }), 'arming');
+  // Some production builds report `null` once the slot has elapsed. The
+  // absolute room-linked slot timestamp should still infer active inside the
+  // same grace window, instead of falling back to 'arming'.
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'countdown',
+    linkedMatchStatus: 'matched',
+    isCountdownReady: true,
+    remainingSeconds: null,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-12T00:00:00.000Z',
+    syncedNowMs: Date.parse('2026-05-12T00:00:15.000Z'),
+  }), 'active');
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'countdown',
+    linkedMatchStatus: 'matched',
+    isCountdownReady: false,
+    remainingSeconds: null,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-12T00:00:00.000Z',
+    syncedNowMs: Date.parse('2026-05-12T00:03:00.000Z'),
+  }), 'arming');
 });
 
 test('party run flow snapshot centralizes loading, countdown, arena, and ack decisions', () => {

@@ -46,14 +46,16 @@ export function useMatchRoomLobbyEffects({
     const nextParticipant = nextRoom.participants.find((participant) => (
       participant.userId === currentUserTag || participant.tag === currentUserTag
     )) ?? null;
+    const syncedNowMs = Date.now() + serverClockOffsetMs;
     const remainingSeconds = getMatchStartRemainingSeconds(
       nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
-      Date.now() + serverClockOffsetMs,
+      syncedNowMs,
     );
     const flow = buildPartyRunFlowSnapshot({
       room: nextRoom,
       isCountdownReady: nextParticipant?.isCountdownReady,
       remainingSeconds,
+      syncedNowMs,
     });
 
     if (!flow.canOpenLinkedMatch) {

@@ -161,12 +161,24 @@ export function useMatchCountdownModel({
     room: visibleMatchRoom,
     isCountdownReady: currentRoomParticipantIsCountdownReady ?? undefined,
     remainingSeconds: visibleRoomCountdownRemainingSeconds,
-  }), [currentRoomParticipantIsCountdownReady, visibleRoomCountdownRemainingSeconds, visibleMatchRoom]);
+    syncedNowMs,
+  }), [
+    currentRoomParticipantIsCountdownReady,
+    syncedNowMs,
+    visibleRoomCountdownRemainingSeconds,
+    visibleMatchRoom,
+  ]);
   const matchRoomFlow = useMemo(() => buildPartyRunFlowSnapshot({
     room: matchRoom,
     isCountdownReady: currentRoomParticipantIsCountdownReady ?? undefined,
     remainingSeconds: matchRoomCountdownRemainingSeconds,
-  }), [currentRoomParticipantIsCountdownReady, matchRoom, matchRoomCountdownRemainingSeconds]);
+    syncedNowMs,
+  }), [
+    currentRoomParticipantIsCountdownReady,
+    matchRoom,
+    matchRoomCountdownRemainingSeconds,
+    syncedNowMs,
+  ]);
   const roomCountdownEntry = useMemo<CountdownEntry | null>(() => {
     if (
       !runtimeRoom?.linkedMatchId
