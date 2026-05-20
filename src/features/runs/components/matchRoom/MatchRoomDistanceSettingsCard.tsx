@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
@@ -22,6 +22,16 @@ export function MatchRoomDistanceSettingsCard({
   onCustomDistanceTextChange,
   onApplyCustomDistance,
 }: MatchRoomDistanceSettingsCardProps) {
+  const isCustomDistance = useMemo(() => !MATCH_ROOM_DISTANCE_OPTIONS.some(
+    (optionKm) => Math.abs(distanceKm - optionKm) < 0.15,
+  ), [distanceKm]);
+  const [showCustomDistanceInput, setShowCustomDistanceInput] = useState(() => isCustomDistance);
+  const handleShowCustomDistanceInput = useCallback(() => {
+    setShowCustomDistanceInput(true);
+  }, []);
+  const handleHideCustomDistanceInput = useCallback(() => {
+    setShowCustomDistanceInput(false);
+  }, []);
   const distanceChips = useMemo(() => MATCH_ROOM_DISTANCE_OPTIONS.map((optionKm) => (
     <DistanceOptionChip
       key={`room-distance-${optionKm}`}
@@ -29,55 +39,134 @@ export function MatchRoomDistanceSettingsCard({
       selected={Math.abs(distanceKm - optionKm) < 0.15}
       saving={saving}
       onDistanceChange={onDistanceChange}
+      onHideCustomDistanceInput={handleHideCustomDistanceInput}
     />
-  )), [distanceKm, onDistanceChange, saving]);
+  )), [distanceKm, handleHideCustomDistanceInput, onDistanceChange, saving]);
 
   return (
     <Card>
       <Text style={styles.sectionTitle}>거리 설정</Text>
       <View style={styles.distanceWrap}>
         {distanceChips}
-      </View>
-      <View style={styles.customDistanceRow}>
-        <TextInput
-          value={customDistanceText}
-          onChangeText={onCustomDistanceTextChange}
-          onEndEditing={onApplyCustomDistance}
-          keyboardType="decimal-pad"
-          placeholder="직접 입력 예: 12.5"
-          placeholderTextColor={colors.textTertiary}
-          style={styles.distanceInput}
+        <CustomDistanceChip
+          selected={showCustomDistanceInput}
+          saving={saving}
+          onPress={handleShowCustomDistanceInput}
         />
-        <SecondaryButton label="적용" onPress={onApplyCustomDistance} disabled={saving} />
       </View>
+      {showCustomDistanceInput ? (
+        <CustomDistanceInputRow
+          customDistanceText={customDistanceText}
+          saving={saving}
+          onApplyCustomDistance={onApplyCustomDistance}
+          onCustomDistanceTextChange={onCustomDistanceTextChange}
+        />
+      ) : null}
     </Card>
   );
 }
 
+const CustomDistanceInputRow = memo(function CustomDistanceInputRow({
+  customDistanceText,
+  onApplyCustomDistance,
+  onCustomDistanceTextChange,
+  saving,
+}: {
+  customDistanceText: string;
+  onApplyCustomDistance: () => void;
+  onCustomDistanceTextChange: (value: string) => void;
+  saving: boolean;
+}) {
+  return (
+    <View style={styles.customDistanceRow}>
+      <TextInput
+        value={customDistanceText}
+        onChangeText={onCustomDistanceTextChange}
+        onEndEditing={onApplyCustomDistance}
+        keyboardType="decimal-pad"
+        placeholder="직접 입력 예: 12.5"
+        placeholderTextColor={colors.textTertiary}
+        style={styles.distanceInput}
+      />
+      <SecondaryButton label="적용" onPress={onApplyCustomDistance} disabled={saving} />
+    </View>
+  );
+});
+
 const DistanceOptionChip = memo(function DistanceOptionChip({
   onDistanceChange,
+  onHideCustomDistanceInput,
   optionKm,
   saving,
   selected,
 }: {
   onDistanceChange: (distanceKm: number) => void;
+  onHideCustomDistanceInput: () => void;
   optionKm: number;
   saving: boolean;
   selected: boolean;
 }) {
   const handlePress = useCallback(() => {
     onDistanceChange(optionKm);
-  }, [onDistanceChange, optionKm]);
+    onHideCustomDistanceInput();
+  }, [onDistanceChange, onHideCustomDistanceInput, optionKm]);
+
+  return (
+    <DistanceChip
+      label={`${optionKm}km`}
+      selected={selected}
+      saving={saving}
+      onPress={handlePress}
+    />
+  );
+});
+
+const CustomDistanceChip = memo(function CustomDistanceChip({
+  onPress,
+  saving,
+  selected,
+}: {
+  onPress: () => void;
+  saving: boolean;
+  selected: boolean;
+}) {
+  return (
+    <DistanceChip
+      label="직접입력"
+      selected={selected}
+      saving={saving}
+      onPress={onPress}
+    />
+  );
+});
+
+const DistanceChip = memo(function DistanceChip({
+  label,
+  onPress,
+  saving,
+  selected,
+}: {
+  label: string;
+  onPress: () => void;
+  saving: boolean;
+  selected: boolean;
+}) {
+  const chipStyle = useMemo(() => [
+    styles.distanceChip,
+    selected ? styles.distanceChipSelected : undefined,
+  ], [selected]);
+  const chipTextStyle = useMemo(() => [
+    styles.distanceChipText,
+    selected ? styles.distanceChipTextSelected : undefined,
+  ], [selected]);
 
   return (
     <Pressable
-      style={[styles.distanceChip, selected ? styles.distanceChipSelected : undefined]}
-      onPress={handlePress}
+      style={chipStyle}
+      onPress={onPress}
       disabled={saving}
     >
-      <Text style={[styles.distanceChipText, selected ? styles.distanceChipTextSelected : undefined]}>
-        {optionKm}km
-      </Text>
+      <Text style={chipTextStyle}>{label}</Text>
     </Pressable>
   );
 });
