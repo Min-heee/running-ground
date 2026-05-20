@@ -15,6 +15,12 @@ import { findMatchSlotByStartAt } from './matchSlotSelection';
 import type { MatchLifecycleSlotParams, MatchModeTestFlowParams } from './types';
 
 type UseDuelMatchLifecycleParams = MatchLifecycleSlotParams & MatchModeTestFlowParams;
+const MATCH_SLOT_HOUR_MS = 60 * 60 * 1000;
+
+function isOffHourSlotStart(slotStartAt: string) {
+  const slotStartMs = Date.parse(slotStartAt);
+  return Number.isFinite(slotStartMs) && slotStartMs % MATCH_SLOT_HOUR_MS !== 0;
+}
 
 export function useDuelMatchLifecycle({
   initialMatchSlot,
@@ -57,7 +63,7 @@ export function useDuelMatchLifecycle({
   );
 
   useEffect(() => {
-    if (matchedDuelSlot || slotOptions.length === 0) {
+    if (matchedDuelSlot || slotOptions.length === 0 || isOffHourSlotStart(selectedDuelSlotStartAt)) {
       return;
     }
 

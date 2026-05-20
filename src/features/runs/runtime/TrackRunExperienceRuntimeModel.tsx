@@ -978,9 +978,15 @@ export function TrackRunExperienceRuntime({
   });
   const backHref: Href = '/my-activity';
   const discardRedirectHref: Href | null = isTabMode ? null : '/my-activity';
+  const shouldSkipDuelSlotDistanceCleanup = matchLifecycleController.source === 'party-room'
+    && roomLinkedMatchContext?.mode === 'duel'
+    && matchLifecycleController.stage !== 'waiting';
+  const shouldSkipGroupSlotDistanceCleanup = matchLifecycleController.source === 'party-room'
+    && roomLinkedMatchContext?.mode === 'group'
+    && matchLifecycleController.stage !== 'waiting';
 
   useAndroidDeferredEffect(() => {
-    if (matchMode !== 'duel') {
+    if (matchMode !== 'duel' || shouldSkipDuelSlotDistanceCleanup) {
       return;
     }
 
@@ -1030,10 +1036,10 @@ export function TrackRunExperienceRuntime({
       return shouldKeepStatus ? current : null;
     });
     setDuelMatchNotice(null);
-  }, [duelDistanceKm, matchMode, selectedDuelSlot, selectedDuelSlotStartAt]);
+  }, [duelDistanceKm, matchMode, selectedDuelSlot, selectedDuelSlotStartAt, shouldSkipDuelSlotDistanceCleanup]);
 
   useAndroidDeferredEffect(() => {
-    if (matchMode !== 'group') {
+    if (matchMode !== 'group' || shouldSkipGroupSlotDistanceCleanup) {
       return;
     }
 
@@ -1070,7 +1076,7 @@ export function TrackRunExperienceRuntime({
       return current.distanceKm === groupDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
     });
     setGroupMatchNotice(null);
-  }, [groupDistanceKm, matchMode, selectedGroupSlot, selectedGroupSlotStartAt]);
+  }, [groupDistanceKm, matchMode, selectedGroupSlot, selectedGroupSlotStartAt, shouldSkipGroupSlotDistanceCleanup]);
 
   const loadDuelMatchStatus = async (
     slotStartAt = activeDuelSlotStartAt,
