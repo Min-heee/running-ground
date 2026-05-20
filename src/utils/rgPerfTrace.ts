@@ -80,6 +80,11 @@ function logRgPerf(level: 'log' | 'warn', label: string, detail?: RgPerfDetail) 
   logger.log(message);
 }
 
+export function rgDiagLog(label: string, detail?: RgPerfDetail) {
+  const message = `[RG diag] ${label}${formatDetail(detail)}`;
+  globalThis.console.log(message);
+}
+
 function getActiveResourceCount(kind: RgPerfResourceKind) {
   let count = 0;
   activeResources.forEach((resource) => {

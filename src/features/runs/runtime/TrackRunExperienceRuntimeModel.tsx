@@ -64,7 +64,7 @@ import {
 import { resolveTrackRunLiveShellGate } from '@/features/runs/lifecycle/trackRunLiveShellGate';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { getCurrentUserProfile } from '@/lib/session';
-import { rgPerfMark } from '@/utils/rgPerfTrace';
+import { rgDiagLog, rgPerfMark } from '@/utils/rgPerfTrace';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 import { useTrackRunNavigationAdapter } from '@/features/runs/runtime/useTrackRunNavigationAdapter';
 import { useTrackRunRuntimeTrace } from '@/features/runs/runtime/useTrackRunRuntimeTrace';
@@ -338,6 +338,7 @@ export function TrackRunExperienceRuntime({
   });
   const previousLiveArenaShellVisibleRef = useRef<boolean | null>(null);
   const previousHasMatchResultPageRef = useRef<boolean | null>(null);
+  const previousMatchLifecycleStageRef = useRef<string | null>(null);
 
   const {
     matchRoom,
@@ -813,7 +814,7 @@ export function TrackRunExperienceRuntime({
   useEffect(() => {
     const previousShouldRenderLiveArena = previousLiveArenaShellVisibleRef.current;
     if (previousShouldRenderLiveArena !== null && previousShouldRenderLiveArena !== shouldRenderLiveArena) {
-      rgPerfMark(shouldRenderLiveArena ? 'live arena shell restored' : 'live arena shell dropped', {
+      rgDiagLog(shouldRenderLiveArena ? 'live arena shell restored' : 'live arena shell dropped', {
         appState: appStateRef.current,
         duelArenaParticipantCount: duelArenaParticipants.length,
         duelMatchId: duelMatchStatus?.matchId ?? null,
@@ -854,7 +855,7 @@ export function TrackRunExperienceRuntime({
   useEffect(() => {
     const previousHasMatchResultPage = previousHasMatchResultPageRef.current;
     if (previousHasMatchResultPage !== null && previousHasMatchResultPage !== hasMatchResultPage) {
-      rgPerfMark('has match result page changed', {
+      rgDiagLog('has match result page changed', {
         currentUserFinished: currentUserFinishedForResultPage,
         duelMatchId: duelMatchStatus?.matchId ?? null,
         duelMatchStateKind: duelMatchState,
@@ -875,6 +876,42 @@ export function TrackRunExperienceRuntime({
     hasTrackedMatchResult,
     isPaused,
     matchMode,
+  ]);
+
+  useEffect(() => {
+    const previousMatchLifecycleStage = previousMatchLifecycleStageRef.current;
+    if (
+      previousMatchLifecycleStage !== null
+      && previousMatchLifecycleStage !== matchLifecycleController.stage
+    ) {
+      rgDiagLog('match lifecycle stage changed', {
+        duelArenaParticipantCount: duelArenaParticipants.length,
+        duelMatchId: duelMatchStatus?.matchId ?? null,
+        duelMatchStateKind: duelMatchState,
+        duelMatchStatusState: duelMatchStatus?.state ?? null,
+        effectiveShowLiveArena,
+        forceOpenActiveMatch,
+        fromStage: previousMatchLifecycleStage,
+        hasMatchResultPage,
+        isRunning,
+        shouldRenderLiveArena,
+        showLiveArena,
+        toStage: matchLifecycleController.stage,
+      });
+    }
+    previousMatchLifecycleStageRef.current = matchLifecycleController.stage;
+  }, [
+    duelArenaParticipants.length,
+    duelMatchState,
+    duelMatchStatus?.matchId,
+    duelMatchStatus?.state,
+    effectiveShowLiveArena,
+    forceOpenActiveMatch,
+    hasMatchResultPage,
+    isRunning,
+    matchLifecycleController.stage,
+    shouldRenderLiveArena,
+    showLiveArena,
   ]);
 
   useTrackRunRuntimeTrace({
@@ -938,7 +975,7 @@ export function TrackRunExperienceRuntime({
       const activeSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
       const shouldKeepStatus = current.distanceKm === duelDistanceKm && current.slotStartAt === activeSlotStartAt;
       if (!shouldKeepStatus) {
-        rgPerfMark('duel match status reset by slot/distance effect', {
+        rgDiagLog('duel match status reset by slot/distance effect', {
           currentDistanceKm: current.distanceKm,
           currentMatchId: current.matchId ?? null,
           currentSlotStartAt: current.slotStartAt ?? null,
@@ -1026,7 +1063,7 @@ export function TrackRunExperienceRuntime({
       setDuelMatchNotice(null);
     }
 
-    rgPerfMark('duel match status set from poll', {
+    rgDiagLog('duel match status set from poll', {
       hasOpponent: Boolean(payload.opponent),
       nextMatchId: payload.matchId ?? null,
       nextState: payload.state ?? null,
@@ -1248,7 +1285,7 @@ export function TrackRunExperienceRuntime({
   const clearLocalDuelMatchState = (notice?: string | null) => {
     focusedDuelMatchIdRef.current = null;
     setDuelMatchResult(null);
-    rgPerfMark('duel match status set local clear', {
+    rgDiagLog('duel match status set local clear', {
       currentMatchId: duelMatchStatus?.matchId ?? null,
       currentState: duelMatchStatus?.state ?? null,
       notice: notice ?? null,
