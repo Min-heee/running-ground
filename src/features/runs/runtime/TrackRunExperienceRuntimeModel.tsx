@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   ScrollView,
   useWindowDimensions,
@@ -46,6 +46,7 @@ import {
 } from '@/features/runs/viewModels/matchViewModels';
 import {
   buildMatchTransitionNotice,
+  isLiveMatchState,
   type PartyRunLinkedMatchContext,
 } from '@/features/runs/lifecycle/matchStateMachine';
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
@@ -335,6 +336,8 @@ export function TrackRunExperienceRuntime({
     mode: null,
     showLiveArena: false,
   });
+  const previousLiveArenaShellVisibleRef = useRef<boolean | null>(null);
+  const previousHasMatchResultPageRef = useRef<boolean | null>(null);
 
   const {
     matchRoom,
@@ -716,10 +719,11 @@ export function TrackRunExperienceRuntime({
     roomLinkedDuelPlaceholderParticipants,
     roomLinkedGroupPlaceholderParticipants,
   ]);
+  const hasTrackedMatchResult = Boolean(trackedMatchResult);
   const hasMatchResultPage = shouldShowMatchResultPageOnCurrentUserFinished({
     matchMode,
     currentUserFinished: currentUserFinishedForResultPage,
-    hasTrackedMatchResult: Boolean(trackedMatchResult),
+    hasTrackedMatchResult,
   });
   const {
     activeMatchExitCounterpartForfeited,
@@ -806,6 +810,73 @@ export function TrackRunExperienceRuntime({
   const effectiveShowLiveArena = liveMatchShellPreservation.shouldRenderLiveArena;
   const shouldRenderLiveArena = effectiveShowLiveArena || shouldForceLiveArenaFromRoute;
 
+  useEffect(() => {
+    const previousShouldRenderLiveArena = previousLiveArenaShellVisibleRef.current;
+    if (previousShouldRenderLiveArena !== null && previousShouldRenderLiveArena !== shouldRenderLiveArena) {
+      rgPerfMark(shouldRenderLiveArena ? 'live arena shell restored' : 'live arena shell dropped', {
+        appState: appStateRef.current,
+        duelArenaParticipantCount: duelArenaParticipants.length,
+        duelMatchId: duelMatchStatus?.matchId ?? null,
+        duelMatchStateKind: duelMatchState,
+        duelMatchStatusState: duelMatchStatus?.state ?? null,
+        effectiveShowLiveArena,
+        forceOpenActiveMatch,
+        hasMatchResultPage,
+        isCurrentUserForfeited: currentUserHasForfeitedActiveMatch,
+        isLiveMatchState: isLiveMatchState(duelMatchState),
+        isRunning,
+        preservationRendered: liveMatchShellPreservation.shouldRenderLiveArena,
+        shouldForceLiveArenaFromRoute,
+        shouldRenderLiveArena,
+        showLiveArena,
+        stage: matchLifecycleController.stage,
+      });
+    }
+    previousLiveArenaShellVisibleRef.current = shouldRenderLiveArena;
+  }, [
+    appStateRef,
+    currentUserHasForfeitedActiveMatch,
+    duelArenaParticipants.length,
+    duelMatchState,
+    duelMatchStatus?.matchId,
+    duelMatchStatus?.state,
+    effectiveShowLiveArena,
+    forceOpenActiveMatch,
+    hasMatchResultPage,
+    isRunning,
+    liveMatchShellPreservation.shouldRenderLiveArena,
+    matchLifecycleController.stage,
+    shouldForceLiveArenaFromRoute,
+    shouldRenderLiveArena,
+    showLiveArena,
+  ]);
+
+  useEffect(() => {
+    const previousHasMatchResultPage = previousHasMatchResultPageRef.current;
+    if (previousHasMatchResultPage !== null && previousHasMatchResultPage !== hasMatchResultPage) {
+      rgPerfMark('has match result page changed', {
+        currentUserFinished: currentUserFinishedForResultPage,
+        duelMatchId: duelMatchStatus?.matchId ?? null,
+        duelMatchStateKind: duelMatchState,
+        duelMatchStatusState: duelMatchStatus?.state ?? null,
+        hasMatchResultPage,
+        hasTrackedMatchResult,
+        isPaused,
+        matchMode,
+      });
+    }
+    previousHasMatchResultPageRef.current = hasMatchResultPage;
+  }, [
+    currentUserFinishedForResultPage,
+    duelMatchState,
+    duelMatchStatus?.matchId,
+    duelMatchStatus?.state,
+    hasMatchResultPage,
+    hasTrackedMatchResult,
+    isPaused,
+    matchMode,
+  ]);
+
   useTrackRunRuntimeTrace({
     currentTrackerStatus: status,
     duelMatchStatus,
@@ -865,7 +936,20 @@ export function TrackRunExperienceRuntime({
       }
 
       const activeSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
-      return current.distanceKm === duelDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
+      const shouldKeepStatus = current.distanceKm === duelDistanceKm && current.slotStartAt === activeSlotStartAt;
+      if (!shouldKeepStatus) {
+        rgPerfMark('duel match status reset by slot/distance effect', {
+          currentDistanceKm: current.distanceKm,
+          currentMatchId: current.matchId ?? null,
+          currentSlotStartAt: current.slotStartAt ?? null,
+          currentState: current.state,
+          isTestMatch: current.isTestMatch,
+          nextDistanceKm: duelDistanceKm,
+          nextSlotStartAt: activeSlotStartAt ?? null,
+          reason: 'slot-or-distance-mismatch',
+        });
+      }
+      return shouldKeepStatus ? current : null;
     });
     setDuelMatchNotice(null);
   }, [duelDistanceKm, matchMode, selectedDuelSlot, selectedDuelSlotStartAt]);
@@ -942,6 +1026,15 @@ export function TrackRunExperienceRuntime({
       setDuelMatchNotice(null);
     }
 
+    rgPerfMark('duel match status set from poll', {
+      hasOpponent: Boolean(payload.opponent),
+      nextMatchId: payload.matchId ?? null,
+      nextState: payload.state ?? null,
+      requestedDistanceKm: options?.distanceKm ?? duelDistanceKm,
+      requestedMatchId: options?.matchId ?? focusedDuelMatchIdRef.current ?? null,
+      requestedSlotStartAt: slotStartAt,
+      source: options?.forceAccept ? 'force-accept' : 'poll',
+    });
     setDuelMatchStatus(payload);
     return payload;
   };
@@ -1155,6 +1248,12 @@ export function TrackRunExperienceRuntime({
   const clearLocalDuelMatchState = (notice?: string | null) => {
     focusedDuelMatchIdRef.current = null;
     setDuelMatchResult(null);
+    rgPerfMark('duel match status set local clear', {
+      currentMatchId: duelMatchStatus?.matchId ?? null,
+      currentState: duelMatchStatus?.state ?? null,
+      notice: notice ?? null,
+      source: 'clearLocalDuelMatchState',
+    });
     setDuelMatchStatus(null);
     setDuelMatchNotice(notice ?? null);
   };
