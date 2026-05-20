@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-20T14:41:42.820Z
+생성 시각: 2026-05-20T15:05:46.956Z
 
 ## 실행 방법
 
@@ -108,8 +108,8 @@ npm run code:quality
 | src/features/runs/lifecycle/matchLifecycleController.ts | 314 | imports 6 |
 | backend/src/repositories/friendsRepository.test.mjs | 314 | imports 2, sort/filter/map 3 |
 | docs/testflight-real-device-qa.md | 314 |  |
+| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 312 | imports 10 |
 | src/features/runs/sync/activeRoomCheck.ts | 310 | imports 6, timers 1 |
-| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 308 | imports 10 |
 | backend/src/bridges/sessionRunsBridge.mjs | 305 | imports 2, sort/filter/map 3 |
 | src/features/runs/components/matchSetupCards/styles.ts | 304 | imports 2 |
 | src/features/runs/viewModels/matchProgress.test.ts | 302 | imports 5, sort/filter/map 6 |
@@ -163,9 +163,9 @@ npm run code:quality
 | src/features/runs/runtime/useTrackRunRoomLoader.ts | 77 | callback@useCallback | 238 |
 | src/features/runs/sync/useMatchProgressSync.ts | 50 | useMatchProgressSync | 235 |
 | src/features/runs/runtime/useRuntimeHydrationEffects.ts | 8 | useRuntimeHydrationEffects | 232 |
+| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 89 | useTrackingSessionSnapshots | 223 |
 | src/features/runs/runtime/useTrackRunRuntimeRoomInviteActions.ts | 37 | useTrackRunRuntimeRoomInviteActions | 223 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 42 | createLocationTaskManager | 220 |
-| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 89 | useTrackingSessionSnapshots | 219 |
 | src/features/runs/lifecycle/hooks/useMatchEntryEffects.ts | 47 | useMatchEntryEffects | 217 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchNavigationOwner.ts | 27 | useLiveMatchNavigationOwner | 217 |
 | backend/src/repositories/postgresFriendsRepository.mjs | 503 | createPostgresFriendsRepository | 213 |
