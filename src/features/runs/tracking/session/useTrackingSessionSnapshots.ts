@@ -113,6 +113,13 @@ export function useTrackingSessionSnapshots({
 }: UseTrackingSessionSnapshotsInput) {
   const lastTrackingUiFlushMsRef = useRef(0);
   const lastTrackingUiFrameRef = useRef<TrackingUiFrame | null>(null);
+  const partyRoomMatchIdRef = useRef(partyRoomMatchId);
+  const partyRoomMatchModeRef = useRef(partyRoomMatchMode);
+  const partyRoomMatchSlotStartAtRef = useRef(partyRoomMatchSlotStartAt);
+
+  partyRoomMatchIdRef.current = partyRoomMatchId;
+  partyRoomMatchModeRef.current = partyRoomMatchMode;
+  partyRoomMatchSlotStartAtRef.current = partyRoomMatchSlotStartAt;
 
   const syncElapsedSeconds = useCallback((nextElapsedSeconds: number, options?: { commitState?: boolean }) => {
     const commitState = options?.commitState ?? true;
@@ -212,9 +219,9 @@ export function useTrackingSessionSnapshots({
       groupMatchStatus: groupMatchStatusRef.current,
       matchLifecycleController,
       matchMode: matchModeRef.current,
-      partyRoomMatchId,
-      partyRoomMatchMode,
-      partyRoomMatchSlotStartAt,
+      partyRoomMatchId: partyRoomMatchIdRef.current,
+      partyRoomMatchMode: partyRoomMatchModeRef.current,
+      partyRoomMatchSlotStartAt: partyRoomMatchSlotStartAtRef.current,
       roomLinkedMatchContext: roomLinkedMatchContextRef.current,
     });
     return buildDisplayedTrackingSnapshot({
@@ -240,9 +247,6 @@ export function useTrackingSessionSnapshots({
     officialStartBaselineRef,
     officialStartDistanceNoiseGraceKm,
     officialStartDistanceNoiseGraceSeconds,
-    partyRoomMatchId,
-    partyRoomMatchMode,
-    partyRoomMatchSlotStartAt,
     preStartWarmupMatchIdRef,
     roomLinkedMatchContextRef,
   ]);
