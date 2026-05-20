@@ -103,13 +103,14 @@ function groupStanding(overrides: Partial<GroupLiveStanding> = {}): GroupLiveSta
   };
 }
 
-test('duel race board hides other running participants while current user is still running', () => {
+test('duel race board shows running opponent while current user is still running', () => {
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput());
 
-  assert.equal(viewModel?.rows.length, 1);
+  assert.equal(viewModel?.rows.length, 2);
   assert.equal(viewModel?.rows.filter((row) => row.isCurrentUser).length, 1);
-  assert.equal(viewModel?.rows.filter((row) => !row.isCurrentUser).length, 0);
-  assert.match(viewModel?.subtitle ?? '', /완주한 러너만/);
+  assert.equal(viewModel?.rows.filter((row) => !row.isCurrentUser).length, 1);
+  assert.equal(viewModel?.rows.find((row) => !row.isCurrentUser)?.id, 'guest-user');
+  assert.doesNotMatch(viewModel?.subtitle ?? '', /완주한 러너만/);
 });
 
 test('duel race board shows finished opponent while current user is still running', () => {

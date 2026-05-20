@@ -82,7 +82,7 @@ export function buildDuelRaceBoardSection({
         isCurrentUser: false,
         liveStatus: effectiveDuelOpponent.liveStatus,
       },
-    ]);
+    ], { hideRunningOthers: false });
     const rows = progressiveRows.rows;
     traceRaceBoardRows({ matchMode: 'duel', rows, source: 'duel opponent progress' });
 
@@ -106,7 +106,7 @@ export function buildDuelRaceBoardSection({
       progress: placeholderDistanceKm > 0 ? participant.distanceKm / placeholderDistanceKm : 0,
       isCurrentUser: participant.isCurrentUser,
       liveStatus: participant.liveStatus,
-    })));
+    })), { hideRunningOthers: false });
     const rows = progressiveRows.rows;
     traceRaceBoardRows({ matchMode: 'duel', rows, source: 'room linked duel placeholder' });
 

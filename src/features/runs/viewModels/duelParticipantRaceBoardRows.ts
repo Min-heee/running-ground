@@ -172,7 +172,7 @@ export function buildDuelParticipantFirstRows({
     }
 
     return mergeResult.row;
-  }));
+  }), { hideRunningOthers: false });
 
   if (missingProgressCount > 0) {
     rgPerfMark('live match race board progress missing', {
