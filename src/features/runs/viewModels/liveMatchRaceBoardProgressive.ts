@@ -19,6 +19,10 @@ export type ProgressiveSortedRaceBoardRowsResult = Omit<ProgressiveRaceBoardRows
   rows: LiveMatchRaceBoardRow[];
 };
 
+export type ProgressiveRaceBoardRowsOptions = {
+  hideRunningOthers?: boolean;
+};
+
 const PARTIAL_RACE_BOARD_SUBTITLE = '완주한 러너만 보여요. 본인도 완주하면 전체 순위가 보여요.';
 
 export function sortRaceRows(rows: RaceBoardSourceRow[]): LiveMatchRaceBoardRow[] {
@@ -45,7 +49,9 @@ export function sortRaceRows(rows: RaceBoardSourceRow[]): LiveMatchRaceBoardRow[
 
 export function buildProgressiveRaceBoardRows<TRow extends RaceBoardSourceRow>(
   rows: TRow[],
+  options: ProgressiveRaceBoardRowsOptions = {},
 ): ProgressiveRaceBoardRowsResult<TRow> {
+  const hideRunningOthers = options.hideRunningOthers ?? true;
   const currentUserFinished = isCurrentUserFinished(rows);
   let hiddenRowCount = 0;
   const visibleRows = rows.reduce<TRow[]>((nextRows, row) => {
@@ -54,7 +60,7 @@ export function buildProgressiveRaceBoardRows<TRow extends RaceBoardSourceRow>(
       isCurrentUserFinished: currentUserFinished,
     });
 
-    if (!shouldShowParticipantInRaceBoard(viewState)) {
+    if (hideRunningOthers && !shouldShowParticipantInRaceBoard(viewState)) {
       hiddenRowCount += 1;
       return nextRows;
     }
@@ -83,8 +89,11 @@ export function buildRaceBoardSubtitle({
   return progressiveRows.hiddenRowCount > 0 ? PARTIAL_RACE_BOARD_SUBTITLE : fallback;
 }
 
-export function sortProgressiveRaceRows(rows: RaceBoardSourceRow[]): ProgressiveSortedRaceBoardRowsResult {
-  const progressiveRows = buildProgressiveRaceBoardRows(rows);
+export function sortProgressiveRaceRows(
+  rows: RaceBoardSourceRow[],
+  options?: ProgressiveRaceBoardRowsOptions,
+): ProgressiveSortedRaceBoardRowsResult {
+  const progressiveRows = buildProgressiveRaceBoardRows(rows, options);
 
   return {
     currentUserFinished: progressiveRows.currentUserFinished,
