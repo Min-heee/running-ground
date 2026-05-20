@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildMatchDateOptions,
   formatMatchDateKey,
@@ -10,6 +10,8 @@ import type {
   RequestDuelMatchResponse,
   RunningMatchStatusResponse,
 } from '@/lib/api/types';
+import { rgDiagLog } from '@/utils/rgPerfTrace';
+import { findMatchSlotByStartAt } from './matchSlotSelection';
 import type { MatchLifecycleSlotParams, MatchModeTestFlowParams } from './types';
 
 type UseDuelMatchLifecycleParams = MatchLifecycleSlotParams & MatchModeTestFlowParams;
@@ -33,10 +35,12 @@ export function useDuelMatchLifecycle({
   const [isCancelingDuelMatch, setIsCancelingDuelMatch] = useState(false);
   const [isLeavingDuelMatch, setIsLeavingDuelMatch] = useState(false);
   const [duelMatchNotice, setDuelMatchNotice] = useState<string | null>(null);
+  const lastDuelSlotFindMissKeyRef = useRef<string | null>(null);
 
   const duelDistanceKm = useMemo(() => parseDuelMatchDistanceKm(duelDistanceText), [duelDistanceText]);
   const duelDateOptions = useMemo(() => buildMatchDateOptions(slotOptions), [slotOptions]);
-  const selectedDuelSlot = slotOptions.find((slot) => slot.startsAt === selectedDuelSlotStartAt) ?? slotOptions[0] ?? null;
+  const matchedDuelSlot = findMatchSlotByStartAt(slotOptions, selectedDuelSlotStartAt);
+  const selectedDuelSlot = matchedDuelSlot ?? slotOptions[0] ?? null;
   const visibleDuelSlotOptions = useMemo(
     () => slotOptions.filter((slot) => (
       slot.dateKey === selectedDuelDateKey &&
@@ -51,6 +55,32 @@ export function useDuelMatchLifecycle({
     || duelMatchResult?.isTestMatch
     || (focusRequestedTest && matchMode === 'duel'),
   );
+
+  useEffect(() => {
+    if (matchedDuelSlot || slotOptions.length === 0) {
+      return;
+    }
+
+    const missKey = [
+      selectedDuelSlotStartAt,
+      slotOptions.length,
+      slotOptions[0]?.startsAt ?? '',
+      slotOptions[slotOptions.length - 1]?.startsAt ?? '',
+    ].join('|');
+
+    if (lastDuelSlotFindMissKeyRef.current === missKey) {
+      return;
+    }
+
+    lastDuelSlotFindMissKeyRef.current = missKey;
+    rgDiagLog('duel slot find miss', {
+      fallbackTo: slotOptions[0]?.startsAt ?? null,
+      firstSlotStartsAt: slotOptions[0]?.startsAt ?? null,
+      lastSlotStartsAt: slotOptions[slotOptions.length - 1]?.startsAt ?? null,
+      selectedDuelSlotStartAt,
+      slotOptionsCount: slotOptions.length,
+    });
+  }, [matchedDuelSlot, selectedDuelSlotStartAt, slotOptions]);
 
   useEffect(() => {
     if (selectedDuelSlot) {

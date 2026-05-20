@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildMatchDateOptions,
   formatMatchDateKey,
@@ -11,6 +11,8 @@ import type {
   RequestGroupMatchResponse,
   RunningMatchStatusResponse,
 } from '@/lib/api/types';
+import { rgDiagLog } from '@/utils/rgPerfTrace';
+import { findMatchSlotByStartAt } from './matchSlotSelection';
 import type { MatchLifecycleSlotParams, MatchModeTestFlowParams } from './types';
 
 type UseGroupMatchLifecycleParams = MatchLifecycleSlotParams & MatchModeTestFlowParams;
@@ -34,10 +36,12 @@ export function useGroupMatchLifecycle({
   const [isCancelingGroupMatch, setIsCancelingGroupMatch] = useState(false);
   const [isLeavingGroupMatch, setIsLeavingGroupMatch] = useState(false);
   const [groupMatchNotice, setGroupMatchNotice] = useState<string | null>(null);
+  const lastGroupSlotFindMissKeyRef = useRef<string | null>(null);
 
   const groupDistanceKm = useMemo(() => parseDuelMatchDistanceKm(groupDistanceText), [groupDistanceText]);
   const groupDateOptions = useMemo(() => buildMatchDateOptions(slotOptions), [slotOptions]);
-  const selectedGroupSlot = slotOptions.find((slot) => slot.startsAt === selectedGroupSlotStartAt) ?? slotOptions[0] ?? null;
+  const matchedGroupSlot = findMatchSlotByStartAt(slotOptions, selectedGroupSlotStartAt);
+  const selectedGroupSlot = matchedGroupSlot ?? slotOptions[0] ?? null;
   const visibleGroupSlotOptions = useMemo(
     () => slotOptions.filter((slot) => (
       slot.dateKey === selectedGroupDateKey &&
@@ -55,6 +59,32 @@ export function useGroupMatchLifecycle({
   const effectiveGroupParticipants = (groupMatchStatus?.participants ?? groupMatchResult?.participants ?? []) as GroupMatchParticipant[];
   const effectiveGroupParticipantCount = groupMatchStatus?.participantCount ?? groupMatchResult?.participantsCount ?? effectiveGroupParticipants.length;
   const effectiveGroupSeedRank = groupMatchStatus?.mySeedRank ?? groupMatchResult?.mySeedRank;
+
+  useEffect(() => {
+    if (matchedGroupSlot || slotOptions.length === 0) {
+      return;
+    }
+
+    const missKey = [
+      selectedGroupSlotStartAt,
+      slotOptions.length,
+      slotOptions[0]?.startsAt ?? '',
+      slotOptions[slotOptions.length - 1]?.startsAt ?? '',
+    ].join('|');
+
+    if (lastGroupSlotFindMissKeyRef.current === missKey) {
+      return;
+    }
+
+    lastGroupSlotFindMissKeyRef.current = missKey;
+    rgDiagLog('group slot find miss', {
+      fallbackTo: slotOptions[0]?.startsAt ?? null,
+      firstSlotStartsAt: slotOptions[0]?.startsAt ?? null,
+      lastSlotStartsAt: slotOptions[slotOptions.length - 1]?.startsAt ?? null,
+      selectedGroupSlotStartAt,
+      slotOptionsCount: slotOptions.length,
+    });
+  }, [matchedGroupSlot, selectedGroupSlotStartAt, slotOptions]);
 
   useEffect(() => {
     if (selectedGroupSlot) {
