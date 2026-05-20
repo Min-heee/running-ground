@@ -15,24 +15,62 @@ export type DisplayedTrackingSnapshot = {
   startedAt: string | null;
 };
 
+function resolveSlotAnchoredElapsedSeconds({
+  matchSlotStartAt,
+  snapshot,
+  syncedNowMs,
+}: {
+  matchSlotStartAt?: string | null;
+  snapshot: BackgroundRunTrackingSnapshot;
+  syncedNowMs?: number | null;
+}) {
+  if (
+    !matchSlotStartAt
+    || typeof syncedNowMs !== 'number'
+    || !Number.isFinite(syncedNowMs)
+  ) {
+    return null;
+  }
+
+  const slotStartMs = Date.parse(matchSlotStartAt);
+  if (!Number.isFinite(slotStartMs)) {
+    return null;
+  }
+
+  const elapsedMs = syncedNowMs - slotStartMs - snapshot.accumulatedPausedMs;
+  return Math.max(0, Math.floor(elapsedMs / 1000));
+}
+
 export function buildDisplayedTrackingSnapshot({
   snapshot,
   rawElapsedSeconds,
   officialStartBaseline,
   hasPreStartWarmup,
+  matchSlotStartAt,
   startNoiseGraceSeconds,
   startNoiseGraceKm,
+  syncedNowMs,
 }: {
   snapshot: BackgroundRunTrackingSnapshot;
   rawElapsedSeconds: number;
   officialStartBaseline: OfficialStartBaseline | null;
   hasPreStartWarmup: boolean;
+  matchSlotStartAt?: string | null;
   startNoiseGraceSeconds: number;
   startNoiseGraceKm: number;
+  syncedNowMs?: number | null;
 }): DisplayedTrackingSnapshot {
+  const slotAnchoredElapsedSeconds = resolveSlotAnchoredElapsedSeconds({
+    matchSlotStartAt,
+    snapshot,
+    syncedNowMs,
+  });
+  const slotAnchoredStartedAt = slotAnchoredElapsedSeconds === null ? null : matchSlotStartAt ?? null;
+
   if (officialStartBaseline) {
     const adjustedRoute = buildRouteFromOfficialStart(snapshot, officialStartBaseline);
-    const adjustedElapsedSeconds = Math.max(0, rawElapsedSeconds - officialStartBaseline.elapsedSeconds);
+    const adjustedElapsedSeconds = slotAnchoredElapsedSeconds
+      ?? Math.max(0, rawElapsedSeconds - officialStartBaseline.elapsedSeconds);
     const adjustedDistanceKm = Number(Math.max(0, snapshot.distanceKm - officialStartBaseline.distanceKm).toFixed(2));
     const shouldSuppressStartNoise = adjustedElapsedSeconds <= startNoiseGraceSeconds
       && adjustedDistanceKm <= startNoiseGraceKm;
@@ -44,7 +82,7 @@ export function buildDisplayedTrackingSnapshot({
       elevationGainM: shouldSuppressStartNoise ? 0 : calculateElevationGainM(displayRoute),
       currentPace: snapshot.currentPace,
       elapsedSeconds: adjustedElapsedSeconds,
-      startedAt: officialStartBaseline.startedAt,
+      startedAt: slotAnchoredStartedAt ?? officialStartBaseline.startedAt,
     };
   }
 
@@ -64,7 +102,7 @@ export function buildDisplayedTrackingSnapshot({
     distanceKm: snapshot.distanceKm,
     elevationGainM: snapshot.elevationGainM,
     currentPace: snapshot.currentPace,
-    elapsedSeconds: rawElapsedSeconds,
-    startedAt: snapshot.startedAt,
+    elapsedSeconds: slotAnchoredElapsedSeconds ?? rawElapsedSeconds,
+    startedAt: slotAnchoredStartedAt ?? snapshot.startedAt,
   };
 }

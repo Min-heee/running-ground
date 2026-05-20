@@ -74,3 +74,39 @@ test('displayed tracking snapshot shows adjusted match distance after noise wind
   assert.equal(displayed.distanceKm, 0.21);
   assert.equal(displayed.elapsedSeconds, 32);
 });
+
+test('displayed tracking snapshot anchors active match elapsed to the server slot start', () => {
+  const matchSlotStartAt = '2026-05-12T00:00:00.000Z';
+  const syncedNowMs = Date.parse('2026-05-12T00:00:30.000Z');
+  const firstPhone = buildDisplayedTrackingSnapshot({
+    snapshot: {
+      ...baseSnapshot,
+      startedAt: '2026-05-12T00:00:05.000Z',
+    },
+    rawElapsedSeconds: 25,
+    officialStartBaseline: null,
+    hasPreStartWarmup: false,
+    matchSlotStartAt,
+    startNoiseGraceSeconds: 5,
+    startNoiseGraceKm: 0.05,
+    syncedNowMs,
+  });
+  const secondPhone = buildDisplayedTrackingSnapshot({
+    snapshot: {
+      ...baseSnapshot,
+      startedAt: '2026-05-12T00:00:29.000Z',
+    },
+    rawElapsedSeconds: 1,
+    officialStartBaseline: null,
+    hasPreStartWarmup: false,
+    matchSlotStartAt,
+    startNoiseGraceSeconds: 5,
+    startNoiseGraceKm: 0.05,
+    syncedNowMs,
+  });
+
+  assert.equal(firstPhone.elapsedSeconds, 30);
+  assert.equal(secondPhone.elapsedSeconds, 30);
+  assert.equal(firstPhone.startedAt, matchSlotStartAt);
+  assert.equal(secondPhone.startedAt, matchSlotStartAt);
+});

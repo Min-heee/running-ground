@@ -53,6 +53,7 @@ type UseTrackingSessionSnapshotsInput = Pick<
   | 'officialStartDistanceNoiseGraceSeconds'
   | 'officialStartDistanceNoiseGraceKm'
   | 'getSyncedNowMs'
+  | 'matchLifecycleController'
 >;
 
 function buildTrackingUiFrame(
@@ -81,6 +82,43 @@ function hasCriticalTrackingUiChange(
     || nextFrame.distanceKm < previousFrame.distanceKm;
 }
 
+function resolveActiveMatchSlotStartAt({
+  duelMatchStatus,
+  groupMatchStatus,
+  matchLifecycleController,
+  matchMode,
+  roomLinkedMatchContext,
+}: {
+  duelMatchStatus: UseRunTrackingFlowInput['duelMatchStatus'];
+  groupMatchStatus: UseRunTrackingFlowInput['groupMatchStatus'];
+  matchLifecycleController: UseRunTrackingFlowInput['matchLifecycleController'];
+  matchMode: UseRunTrackingFlowInput['matchMode'];
+  roomLinkedMatchContext: UseRunTrackingFlowInput['roomLinkedMatchContext'];
+}) {
+  if (matchLifecycleController?.stage !== 'active') {
+    return null;
+  }
+
+  if (
+    matchLifecycleController.source === 'party-room'
+    && roomLinkedMatchContext
+    && roomLinkedMatchContext.matchId === matchLifecycleController.matchId
+    && roomLinkedMatchContext.mode === matchLifecycleController.mode
+  ) {
+    return roomLinkedMatchContext.slotStartAt;
+  }
+
+  if (matchMode === 'duel' && duelMatchStatus?.state === 'active') {
+    return duelMatchStatus.slotStartAt;
+  }
+
+  if (matchMode === 'group' && groupMatchStatus?.state === 'active') {
+    return groupMatchStatus.slotStartAt;
+  }
+
+  return null;
+}
+
 export function useTrackingSessionSnapshots({
   routeRef,
   elapsedSecondsRef,
@@ -90,6 +128,7 @@ export function useTrackingSessionSnapshots({
   roomLinkedMatchContextRef,
   duelMatchStatusRef,
   groupMatchStatusRef,
+  matchLifecycleController,
   matchModeRef,
   setStatus,
   setRoute,
@@ -197,20 +236,39 @@ export function useTrackingSessionSnapshots({
     snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false }),
   ): DisplayedTrackingSnapshot => {
     ensureOfficialStartBaseline(snapshot);
+    const syncedNowMs = getSyncedNowMs();
+    const activeMatchSlotStartAt = resolveActiveMatchSlotStartAt({
+      duelMatchStatus: duelMatchStatusRef.current,
+      groupMatchStatus: groupMatchStatusRef.current,
+      matchLifecycleController,
+      matchMode: matchModeRef.current,
+      roomLinkedMatchContext: roomLinkedMatchContextRef.current,
+    });
     return buildDisplayedTrackingSnapshot({
       snapshot,
-      rawElapsedSeconds: getBackgroundRunElapsedSeconds(snapshot),
+      rawElapsedSeconds: getBackgroundRunElapsedSeconds(
+        snapshot,
+        matchModeRef.current === 'solo' ? Date.now() : syncedNowMs,
+      ),
       officialStartBaseline: officialStartBaselineRef.current,
       hasPreStartWarmup: Boolean(preStartWarmupMatchIdRef.current),
+      matchSlotStartAt: activeMatchSlotStartAt,
       startNoiseGraceSeconds: officialStartDistanceNoiseGraceSeconds,
       startNoiseGraceKm: officialStartDistanceNoiseGraceKm,
+      syncedNowMs,
     });
   }, [
+    duelMatchStatusRef,
     ensureOfficialStartBaseline,
+    getSyncedNowMs,
+    groupMatchStatusRef,
+    matchLifecycleController,
+    matchModeRef,
     officialStartBaselineRef,
     officialStartDistanceNoiseGraceKm,
     officialStartDistanceNoiseGraceSeconds,
     preStartWarmupMatchIdRef,
+    roomLinkedMatchContextRef,
   ]);
 
   const buildDisplayedMatchProgress = useCallback((
