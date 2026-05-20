@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-20T03:15:49.684Z
+생성 시각: 2026-05-20T03:26:13.851Z
 
 ## 실행 방법
 
@@ -14,11 +14,11 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 867 |
-| 코드 파일 | 810 |
+| 분석 파일 | 870 |
+| 코드 파일 | 813 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 74 |
-| 500줄 이상 파일 | 18 |
+| 300줄 이상 파일 | 73 |
+| 500줄 이상 파일 | 17 |
 | 50줄 이상 함수 후보 | 267 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
@@ -46,7 +46,6 @@ npm run code:quality
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 873 | imports 6, sort/filter/map 37, subs 16 |
 | backend/src/server.mjs | 867 | imports 40, sort/filter/map 1, timers 1 |
-| backend/src/routes/runningMatchRoutes.mjs | 756 |  |
 | backend/src/repositories/postgresFriendsRepository.mjs | 716 | sort/filter/map 13 |
 | backend/src/routes/authRoutes.mjs | 674 | sort/filter/map 1 |
 | backend/src/repositories/postgresRunsRepository.mjs | 640 | imports 3, sort/filter/map 9 |
@@ -125,7 +124,6 @@ npm run code:quality
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 873 | imports 6, sort/filter/map 37, subs 16 |
 | backend/src/server.mjs | 867 | imports 40, sort/filter/map 1, timers 1 |
-| backend/src/routes/runningMatchRoutes.mjs | 756 |  |
 | backend/src/repositories/postgresFriendsRepository.mjs | 716 | sort/filter/map 13 |
 | backend/src/routes/authRoutes.mjs | 674 | sort/filter/map 1 |
 | backend/src/repositories/postgresRunsRepository.mjs | 640 | imports 3, sort/filter/map 9 |
@@ -149,7 +147,6 @@ npm run code:quality
 | --- | --- | --- | --- |
 | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 121 | TrackRunExperienceRuntime | 1744 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
-| backend/src/routes/runningMatchRoutes.mjs | 1 | routeRunningMatchRequest | 312 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
 | src/features/runs/viewModels/useLiveMatchViewModel.ts | 37 | useLiveMatchViewModel | 285 |
 | src/features/runs/runtime/useTrackRunRoomLoader.ts | 60 | useTrackRunRoomLoader | 273 |
@@ -227,6 +224,7 @@ npm run code:quality
 | src/features/auth/hooks/useUniversityVerification.ts | 10 | useUniversityVerification | 121 |
 | backend/src/repositories/raceRepository.mjs | 1 | createJsonRaceRepository | 121 |
 | src/features/runs/hooks/useMatchLifecycle.ts | 17 | useMatchLifecycle | 120 |
+| src/features/runs/runtime/useIdleRunModeModel.ts | 91 | useIdleRunModeModel | 119 |
 
 ## React component inline object/array/style 후보
 
@@ -459,8 +457,8 @@ npm run code:quality
 | --- | --- | --- | --- | --- | --- |
 | High | Card 계열 |  | Card 계열 파일이 43개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/integrations/IntegrationJourneyCard.tsx, src/features/league/components/LeagueRegionSelectorCard.tsx, src/… |
 | High | Repository 계열 |  | Repository 계열 파일이 22개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/repositories/postgresFriendsRepository.mjs, backend/src/repositories/postgresRunsRepository.mjs, backend/sr… |
+| High | Route 계열 |  | Route 계열 파일이 20개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/routes/authRoutes.mjs, backend/src/routes/adminRoutes.mjs, backend/src/routes/runningMatch/runningMatchRoom… |
 | Medium | Ranking 계열 |  | Ranking 계열 파일이 17개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | src/features/friends/components/friendsRankingStyles.ts, backend/src/services/todayRankingBuilder.mjs, src/features/run… |
-| Medium | Route 계열 |  | Route 계열 파일이 17개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/routes/runningMatchRoutes.mjs, backend/src/routes/authRoutes.mjs, backend/src/routes/adminRoutes.mjs, backe… |
 | Medium | Service 계열 |  | Service 계열 파일이 15개 있다. | 공통 primitive와 feature-specific wrapper 경계를 다시 확인한다. | backend/src/services/backendStatusService.mjs, backend/src/services/phoneVerificationService.mjs, backend/src/services/… |
 | Medium | league |  | 같은 basename을 가진 파일 7개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/mock/league.ts, src/lib/api/services/league.ts, src/domain/league.ts, src/lib/api/types/league.ts,… |
 | Medium | friends |  | 같은 basename을 가진 파일 6개가 있다. | 역할이 같은지 확인하고, 공통 컴포넌트/유틸로 묶을 수 있는지 검토한다. | src/lib/api/services/friends.ts, src/lib/api/services/mock/friends.ts, src/lib/api/types/friends.ts, src/domain/friends… |
