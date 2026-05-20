@@ -174,11 +174,20 @@ test('track-run route key includes room and match ids immediately after route hy
 
 test('track-run route key falls back to hydrated linked match route state', () => {
   clearLiveMatchRouteHydration();
+  const linkedRoom = room({
+    roomId: 'room-a973c5ed',
+    state: 'arming',
+    linkedMatchId: 'duel-match-a973c5ed',
+    linkedMatchStatus: 'matched',
+    linkedMatchSlotStartAt: '2026-05-14T12:00:00.000Z',
+    linkedMatchDistanceKm: 5,
+  });
   const hydrated = hydrateLiveMatchRouteState({
     distanceKm: 5,
     matchId: 'duel-match-a973c5ed',
     mode: 'duel',
     preferArena: true,
+    room: linkedRoom,
     roomId: 'room-a973c5ed',
     slotStartAt: '2026-05-14T12:00:00.000Z',
     source: 'room start API',
@@ -200,5 +209,11 @@ test('track-run route key falls back to hydrated linked match route state', () =
   assert.equal(routeState.routeKey.includes('no-room'), false);
   assert.equal(routeState.routeKey.includes('no-match'), false);
   assert.equal(routeState.correctedByRouteParams, true);
+  assert.equal(stored?.room?.roomId, 'room-a973c5ed');
+  assert.equal(buildPartyRunFlowSnapshot({
+    room: stored?.room,
+    isCountdownReady: true,
+    remainingSeconds: 20,
+  }).linkedMatchContext?.matchId, 'duel-match-a973c5ed');
   clearLiveMatchRouteHydration();
 });
