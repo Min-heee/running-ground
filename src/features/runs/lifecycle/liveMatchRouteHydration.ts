@@ -1,3 +1,4 @@
+import type { RunningMatchRoom } from '@/lib/api/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 
 export type LiveMatchRouteHydration = {
@@ -7,6 +8,7 @@ export type LiveMatchRouteHydration = {
   mode: Extract<RunMatchMode, 'duel' | 'group'>;
   nonce: string;
   preferArena?: boolean;
+  room?: RunningMatchRoom;
   roomId?: string | null;
   slotStartAt?: string;
   source?: string;
@@ -17,6 +19,7 @@ export type HydrateLiveMatchRouteStateInput = {
   matchId?: string | null;
   mode?: RunMatchMode | null;
   preferArena?: boolean;
+  room?: RunningMatchRoom | null;
   roomId?: string | null;
   slotStartAt?: string | null;
   source?: string;
@@ -35,6 +38,7 @@ export function hydrateLiveMatchRouteState({
   matchId,
   mode,
   preferArena,
+  room,
   roomId,
   slotStartAt,
   source,
@@ -50,6 +54,7 @@ export function hydrateLiveMatchRouteState({
     mode,
     nonce: `hydrated-${Date.now()}`,
     preferArena,
+    room: room ?? undefined,
     roomId: roomId ?? null,
     slotStartAt: slotStartAt ?? undefined,
     source,

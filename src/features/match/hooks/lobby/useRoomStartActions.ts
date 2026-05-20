@@ -204,6 +204,7 @@ export function useRoomStartActions({
           matchId: payload.room.linkedMatchId,
           mode: payload.room.mode,
           preferArena: payload.room.state === 'active',
+          room: payload.room,
           roomId: payload.room.roomId,
           slotStartAt: payload.room.linkedMatchSlotStartAt ?? payload.room.slotStartAt,
           source: 'room start API',

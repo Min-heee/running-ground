@@ -78,6 +78,7 @@ import { useTrackRunRuntimeStateBridge } from '@/features/runs/runtime/useTrackR
 import { useTrackRunRuntimeRoomActions } from '@/features/runs/runtime/useTrackRunRuntimeRoomActions';
 import { useTrackRunRuntimeMatchActions } from '@/features/runs/runtime/useTrackRunRuntimeMatchActions';
 import { useTrackRunRuntimeShareState } from '@/features/runs/runtime/useTrackRunRuntimeShareState';
+import { useRuntimeMatchRoomHydration } from '@/features/runs/runtime/useRuntimeMatchRoomHydration';
 import { useTrackRunRuntimeScreenState } from '@/features/runs/runtime/useTrackRunRuntimeScreenState';
 import { useTrackRunRuntimePropsComposer } from '@/features/runs/runtime/useTrackRunRuntimePropsComposer';
 import {
@@ -385,6 +386,11 @@ export function TrackRunExperienceRuntime({
     onGroupTimeSectionChange: setSelectedGroupTimeSection,
   });
 
+  useRuntimeMatchRoomHydration({
+    commitMatchRoom,
+    liveMatchRouteHydration,
+  });
+
   const linkedRuntimeRoom = selectLinkedRuntimeRoom({ matchRoom, visibleMatchRoom });
   const hasLinkedRuntimeRoom = isLinkedRoomRuntimeState(linkedRuntimeRoom);
   const visibleUpcomingMatches = useMemo(
@@ -482,6 +488,8 @@ export function TrackRunExperienceRuntime({
     ?? visiblePartyRunFlow.linkedMatchContext?.slotStartAt
     ?? matchRoom?.linkedMatchSlotStartAt
     ?? visibleMatchRoom?.linkedMatchSlotStartAt
+    ?? matchRoom?.slotStartAt
+    ?? visibleMatchRoom?.slotStartAt
     ?? null;
   const roomLinkedSlotElapsedMsForDiagnostics = useMemo(() => {
     if (!roomLinkedSlotStartAtForDiagnostics) {
@@ -914,6 +922,7 @@ export function TrackRunExperienceRuntime({
         roomLinkedSlotStartAt: roomLinkedSlotStartAtForDiagnostics,
         shouldRenderLiveArena,
         showLiveArena,
+        source: matchLifecycleController.source,
         syncedNowMs,
         toStage: matchLifecycleController.stage,
       });
@@ -929,6 +938,7 @@ export function TrackRunExperienceRuntime({
     hasMatchResultPage,
     isRunning,
     matchLifecycleController.stage,
+    matchLifecycleController.source,
     roomCountdownRemainingSeconds,
     roomLinkedSlotElapsedMsForDiagnostics,
     roomLinkedSlotStartAtForDiagnostics,

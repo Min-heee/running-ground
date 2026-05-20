@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-20T11:13:03.965Z
+생성 시각: 2026-05-20T12:33:51.265Z
 
 ## 실행 방법
 
@@ -14,8 +14,8 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 875 |
-| 코드 파일 | 818 |
+| 분석 파일 | 876 |
+| 코드 파일 | 819 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 74 |
 | 500줄 이상 파일 | 17 |
@@ -41,7 +41,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/lib/runningMatchStoreHelpers.mjs | 2420 | imports 12, sort/filter/map 79 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2040 | imports 53, effects 3, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2050 | imports 54, effects 3, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 873 | imports 6, sort/filter/map 37, subs 16 |
@@ -88,7 +88,7 @@ npm run code:quality
 | src/lib/api/services/runningRoomResponseGuards.ts | 356 | imports 2, sort/filter/map 4 |
 | scripts/generate-testflight-qa-report.mjs | 349 | imports 5, sort/filter/map 1 |
 | src/data/mock/offlineRace.ts | 344 | imports 1 |
-| src/features/match/hooks/lobby/useRoomStartActions.ts | 335 | imports 15, effects 1 |
+| src/features/match/hooks/lobby/useRoomStartActions.ts | 336 | imports 15, effects 1 |
 | docs/code-quality-audit.md | 335 | imports 13 |
 | src/features/integrations/IntegrationJourneyCard.tsx | 334 | imports 10, sort/filter/map 3 |
 | src/features/runs/components/matchSetupCards/MatchSetupCommon.tsx | 333 | imports 8, sort/filter/map 4 |
@@ -120,7 +120,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/lib/runningMatchStoreHelpers.mjs | 2420 | imports 12, sort/filter/map 79 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2040 | imports 53, effects 3, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2050 | imports 54, effects 3, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 873 | imports 6, sort/filter/map 37, subs 16 |
@@ -146,7 +146,7 @@ npm run code:quality
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 122 | TrackRunExperienceRuntime | 1918 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 123 | TrackRunExperienceRuntime | 1927 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
 | src/features/runs/viewModels/useLiveMatchViewModel.ts | 37 | useLiveMatchViewModel | 285 |
@@ -154,7 +154,7 @@ npm run code:quality
 | backend/src/repositories/postgresRunsRepository.mjs | 369 | createPostgresRunsRepository | 271 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 50 | useTrackRunRuntimeRecipientInviteInbox | 269 |
 | backend/src/bridges/friendsLeagueBridge.mjs | 26 | createFriendsLeagueBridge | 267 |
-| src/features/match/hooks/lobby/useRoomStartActions.ts | 70 | useRoomStartActions | 265 |
+| src/features/match/hooks/lobby/useRoomStartActions.ts | 70 | useRoomStartActions | 266 |
 | backend/src/repositories/postgresAuthRepository.mjs | 246 | createPostgresAuthRepository | 258 |
 | src/features/settings/screens/AdminScreen.tsx | 20 | AdminScreen | 254 |
 | backend/src/routes/authRoutes.mjs | 1 | routeAuthRequest | 251 |
@@ -191,7 +191,7 @@ npm run code:quality
 | src/features/integrations/hooks/useIntegrationActions.ts | 61 | useIntegrationActions | 165 |
 | src/features/runs/components/matchSetupCards/GroupMatchSetupCard.tsx | 42 | GroupMatchSetupCard | 165 |
 | backend/src/repositories/marketRepository.mjs | 5 | createJsonMarketRepository | 165 |
-| src/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyEffects.ts | 27 | useMatchRoomLobbyEffects | 159 |
+| src/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyEffects.ts | 27 | useMatchRoomLobbyEffects | 160 |
 | src/features/runs/hooks/usePartyRunRoom.ts | 79 | usePartyRunRoom | 158 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 48 | startLocationTaskWithTrace | 156 |
 | backend/src/bridges/friendsLeagueBridge.test.mjs | 11 | createHarness | 154 |

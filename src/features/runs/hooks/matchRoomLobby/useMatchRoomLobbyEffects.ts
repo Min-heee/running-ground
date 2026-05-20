@@ -92,6 +92,7 @@ export function useMatchRoomLobbyEffects({
       matchId: nextRoom.linkedMatchId,
       mode: nextRoom.mode,
       preferArena: flow.shouldOpenArena,
+      room: nextRoom,
       roomId: nextRoom.roomId,
       slotStartAt: nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
       source: 'match-room linked match route',
