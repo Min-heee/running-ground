@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-20T03:26:13.851Z
+생성 시각: 2026-05-20T03:37:56.361Z
 
 ## 실행 방법
 
@@ -14,8 +14,8 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 870 |
-| 코드 파일 | 813 |
+| 분석 파일 | 872 |
+| 코드 파일 | 815 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 73 |
 | 500줄 이상 파일 | 17 |
@@ -40,7 +40,7 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| backend/src/lib/runningMatchStoreHelpers.mjs | 2575 | imports 10, sort/filter/map 85 |
+| backend/src/lib/runningMatchStoreHelpers.mjs | 2420 | imports 12, sort/filter/map 79 |
 | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1865 | imports 53, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
@@ -118,7 +118,7 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| backend/src/lib/runningMatchStoreHelpers.mjs | 2575 | imports 10, sort/filter/map 85 |
+| backend/src/lib/runningMatchStoreHelpers.mjs | 2420 | imports 12, sort/filter/map 79 |
 | src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 1865 | imports 53, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
@@ -169,7 +169,7 @@ npm run code:quality
 | src/features/runs/runtime/useTrackRunRuntimeStateBridge.ts | 56 | useTrackRunRuntimeStateBridge | 212 |
 | src/features/runs/sync/partyRunSync/useLinkedMatchSync.ts | 47 | useLinkedMatchSync | 212 |
 | scripts/check-preview-public-api.mjs | 259 | main | 211 |
-| backend/src/lib/runningMatchStoreHelpers.mjs | 1904 | buildRunningMatchStatusResponse | 210 |
+| backend/src/lib/runningMatchStoreHelpers.mjs | 1801 | buildRunningMatchStatusResponse | 210 |
 | src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 47 | useTrackRunRoomJoinAction | 208 |
 | scripts/analyze-android-perf-trace.mjs | 218 | analyzeLine | 197 |
 | backend/src/routes/adminRoutes.mjs | 3 | routeAdminRequest | 196 |

@@ -6,7 +6,6 @@ import {
   GROUP_MIN_PARTICIPANTS,
   MATCH_BOOKING_CUTOFF_MS,
   MATCH_BOOKING_WINDOW_DAYS,
-  MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND,
   MATCH_ROOM_HOST_LOADING_SECONDS,
   MATCH_ROOM_HOST_START_DELAY_SECONDS,
   MATCH_ROOM_IDLE_TTL_MS,
@@ -53,6 +52,16 @@ import {
   isMatchSlotClosed,
   isTestMatchSession,
 } from './matchScheduleHelpers.mjs';
+import {
+  countUserQueueRefs,
+  ensureMatchQueues,
+  findAnyQueuedMatchEntryForUser,
+  getMatchQueueEntries,
+  pruneMatchQueues,
+  removeUsersFromMatchQueue,
+  upsertMatchQueueEntry,
+} from './matchQueueStoreHelpers.mjs';
+import { normalizeRunningMatchProgress } from './matchProgressStoreHelpers.mjs';
 import { nextId } from './idHelpers.mjs';
 import { areFriends } from './socialStoreHelpers.mjs';
 import { findUserById, getRunsForUser, getUserMetrics } from './userStoreHelpers.mjs';
@@ -282,86 +291,6 @@ function buildTestGroupMatchResponse(store, currentUser, { distanceKm }) {
     mySeedRank,
     participants: responseParticipants,
   };
-}
-
-function ensureMatchQueues(store) {
-  if (!store.matchQueues || typeof store.matchQueues !== 'object') {
-    store.matchQueues = {
-      duel: [],
-      group: [],
-    };
-  }
-
-  if (!Array.isArray(store.matchQueues.duel)) {
-    store.matchQueues.duel = [];
-  }
-
-  if (!Array.isArray(store.matchQueues.group)) {
-    store.matchQueues.group = [];
-  }
-
-  return store.matchQueues;
-}
-
-function pruneMatchQueues(store, now = new Date()) {
-  const queues = ensureMatchQueues(store);
-  const nowMs = now.getTime();
-  const activeUserIds = new Set(store.users.map((user) => user.id));
-
-  for (const mode of ['duel', 'group']) {
-    queues[mode] = queues[mode].filter((entry) => {
-      if (!entry || !activeUserIds.has(entry.userId)) {
-        return false;
-      }
-
-      const requestedAtMs = new Date(entry.requestedAt).getTime();
-      const slotStartAtMs = new Date(entry.slotStartAt).getTime();
-      const expiresAtMs = new Date(getMatchQueueEntryExpiresAt(entry)).getTime();
-
-      if (!Number.isFinite(requestedAtMs) || !Number.isFinite(slotStartAtMs) || !Number.isFinite(expiresAtMs)) {
-        return false;
-      }
-
-      if (requestedAtMs > nowMs) {
-        return false;
-      }
-
-      if (entry.testMode) {
-        return expiresAtMs > nowMs;
-      }
-
-      return slotStartAtMs - MATCH_BOOKING_CUTOFF_MS > nowMs;
-    });
-  }
-
-  return queues;
-}
-
-function upsertMatchQueueEntry(store, mode, userId, distanceKm, slotStartAt, options = {}) {
-  const queues = pruneMatchQueues(store);
-  const normalizedDistanceKm = normalizeMatchQueueDistance(distanceKm);
-  queues[mode] = queues[mode].filter((entry) => entry.userId !== userId);
-  const queueEntry = {
-    id: nextId(`${mode}-queue`),
-    userId,
-    distanceKm: normalizedDistanceKm,
-    slotStartAt,
-    requestedAt: new Date().toISOString(),
-    testMode: options.testMode === true,
-    ...(options.expiresAt ? { expiresAt: options.expiresAt } : {}),
-  };
-  queues[mode].push(queueEntry);
-  return queueEntry;
-}
-
-function removeUsersFromMatchQueue(store, mode, userIds) {
-  if (!userIds.length) {
-    return;
-  }
-
-  const queues = ensureMatchQueues(store);
-  const blockedUserIds = new Set(userIds);
-  queues[mode] = queues[mode].filter((entry) => !blockedUserIds.has(entry.userId));
 }
 
 function ensureMatchSessions(store) {
@@ -1286,13 +1215,6 @@ function countUserSessionRefs(store, userId) {
   )).length;
 }
 
-function countUserQueueRefs(store, userId) {
-  const queues = ensureMatchQueues(store);
-  return ['duel', 'group'].reduce((count, mode) => (
-    count + queues[mode].filter((entry) => entry.userId === userId).length
-  ), 0);
-}
-
 function clearUserStaleReferenceFields(store, currentUser) {
   const cleanedItems = [];
   const now = new Date();
@@ -1800,31 +1722,6 @@ function buildSessionDuelOpponent(store, session, currentUserId, now = new Date(
     ...buildParticipantLiveSnapshot(session, opponentEntry, now),
     ...buildOfficialStandingFields(officialByUserId.get(opponentEntry.userId)),
   };
-}
-
-function getMatchQueueEntries(store, mode, distanceKm, slotStartAt, { testMode = false } = {}) {
-  const normalizedDistanceKm = normalizeMatchQueueDistance(distanceKm);
-  const queues = pruneMatchQueues(store);
-
-  return queues[mode].filter((entry) => (
-    Boolean(entry.testMode) === testMode
-    && Math.abs(entry.distanceKm - normalizedDistanceKm) < 0.15
-    && (testMode || entry.slotStartAt === slotStartAt)
-  ));
-}
-
-function findAnyQueuedMatchEntryForUser(store, userId) {
-  const queues = pruneMatchQueues(store);
-
-  for (const mode of ['duel', 'group']) {
-    const entry = queues[mode].find((item) => item.userId === userId);
-
-    if (entry) {
-      return { mode, entry };
-    }
-  }
-
-  return null;
 }
 
 function findAnyReservedMatchSessionForUser(store, userId, now = new Date()) {
@@ -2454,58 +2351,6 @@ export function cancelRunningMatch(store, currentUser, { mode, distanceKm, slotS
   }
 
   return { success: true };
-}
-
-function resolveServerBackedElapsedSeconds(session, participant, now = new Date()) {
-  const nowMs = now.getTime();
-  if (!Number.isFinite(nowMs)) {
-    return 0;
-  }
-
-  const sessionStartMs = new Date(session.startedAt ?? session.slotStartAt).getTime();
-  if (Number.isFinite(sessionStartMs) && sessionStartMs <= nowMs) {
-    return Math.floor((nowMs - sessionStartMs) / 1000);
-  }
-
-  const previousUpdatedAtMs = new Date(participant.liveUpdatedAt ?? '').getTime();
-  const previousElapsedSeconds = Number.isInteger(participant.liveElapsedSeconds) && participant.liveElapsedSeconds >= 0
-    ? participant.liveElapsedSeconds
-    : 0;
-
-  if (Number.isFinite(previousUpdatedAtMs) && previousUpdatedAtMs <= nowMs) {
-    return previousElapsedSeconds + Math.floor((nowMs - previousUpdatedAtMs) / 1000);
-  }
-
-  return previousElapsedSeconds;
-}
-
-function normalizeRunningMatchProgress(session, participant, { distanceKm, elapsedSeconds }, now = new Date()) {
-  const previousDistanceKm = typeof participant.liveDistanceKm === 'number' && Number.isFinite(participant.liveDistanceKm)
-    ? Math.max(0, participant.liveDistanceKm)
-    : 0;
-  const previousElapsedSeconds = Number.isInteger(participant.liveElapsedSeconds) && participant.liveElapsedSeconds >= 0
-    ? participant.liveElapsedSeconds
-    : 0;
-  const inputElapsedSeconds = Number.isInteger(elapsedSeconds) && elapsedSeconds >= 0 ? elapsedSeconds : 0;
-  const nextElapsedSeconds = Math.max(
-    previousElapsedSeconds,
-    inputElapsedSeconds,
-    resolveServerBackedElapsedSeconds(session, participant, now),
-  );
-  const elapsedDeltaSeconds = Math.max(0, nextElapsedSeconds - previousElapsedSeconds);
-  const cappedInputDistanceKm = Math.min(session.distanceKm, Math.max(0, distanceKm));
-  const speedLimitedDistanceKm = elapsedDeltaSeconds > 0
-    ? Math.min(
-      cappedInputDistanceKm,
-      previousDistanceKm + elapsedDeltaSeconds * MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND,
-    )
-    : previousDistanceKm;
-  const nextDistanceKm = Math.max(previousDistanceKm, speedLimitedDistanceKm);
-
-  return {
-    distanceKm: Number(Math.min(session.distanceKm, nextDistanceKm).toFixed(2)),
-    elapsedSeconds: nextElapsedSeconds,
-  };
 }
 
 export function updateRunningMatchProgress(store, currentUser, { matchId, distanceKm, elapsedSeconds, currentPace, status }) {
