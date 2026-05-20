@@ -960,6 +960,10 @@ export function TrackRunExperienceRuntime({
         return current;
       }
 
+      if (current.matched) {
+        return current;
+      }
+
       const activeSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
       return current.distanceKm === duelDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
     });
@@ -969,6 +973,10 @@ export function TrackRunExperienceRuntime({
       }
 
       if (current.isTestMatch) {
+        return current;
+      }
+
+      if (current.matchId) {
         return current;
       }
 
@@ -1005,6 +1013,10 @@ export function TrackRunExperienceRuntime({
         return current;
       }
 
+      if (current.matched) {
+        return current;
+      }
+
       const activeSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
       return current.distanceKm === groupDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
     });
@@ -1014,6 +1026,10 @@ export function TrackRunExperienceRuntime({
       }
 
       if (current.isTestMatch) {
+        return current;
+      }
+
+      if (current.matchId) {
         return current;
       }
 
