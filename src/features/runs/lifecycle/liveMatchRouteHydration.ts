@@ -47,6 +47,9 @@ export function hydrateLiveMatchRouteState({
     return null;
   }
 
+  const preservedRoom = room
+    ?? (hydratedRouteState?.matchId === matchId ? hydratedRouteState.room : undefined);
+
   hydratedRouteState = {
     distanceKm: typeof distanceKm === 'number' && Number.isFinite(distanceKm) ? distanceKm : undefined,
     hydratedAtMs: Date.now(),
@@ -54,7 +57,7 @@ export function hydrateLiveMatchRouteState({
     mode,
     nonce: `hydrated-${Date.now()}`,
     preferArena,
-    room: room ?? undefined,
+    room: preservedRoom,
     roomId: roomId ?? null,
     slotStartAt: slotStartAt ?? undefined,
     source,
