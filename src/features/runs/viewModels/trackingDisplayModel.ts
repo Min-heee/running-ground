@@ -41,6 +41,26 @@ function resolveSlotAnchoredElapsedSeconds({
   return Math.max(0, Math.floor(elapsedMs / 1000));
 }
 
+function resolveDisplayedElapsedSeconds({
+  officialStartBaseline,
+  rawElapsedSeconds,
+  slotAnchoredElapsedSeconds,
+}: {
+  officialStartBaseline: OfficialStartBaseline | null;
+  rawElapsedSeconds: number;
+  slotAnchoredElapsedSeconds: number | null;
+}) {
+  if (slotAnchoredElapsedSeconds !== null) {
+    return slotAnchoredElapsedSeconds;
+  }
+
+  if (officialStartBaseline) {
+    return Math.max(0, rawElapsedSeconds - officialStartBaseline.elapsedSeconds);
+  }
+
+  return rawElapsedSeconds;
+}
+
 export function buildDisplayedTrackingSnapshot({
   snapshot,
   rawElapsedSeconds,
@@ -66,13 +86,16 @@ export function buildDisplayedTrackingSnapshot({
     syncedNowMs,
   });
   const slotAnchoredStartedAt = slotAnchoredElapsedSeconds === null ? null : matchSlotStartAt ?? null;
+  const displayedElapsedSeconds = resolveDisplayedElapsedSeconds({
+    officialStartBaseline,
+    rawElapsedSeconds,
+    slotAnchoredElapsedSeconds,
+  });
 
   if (officialStartBaseline) {
     const adjustedRoute = buildRouteFromOfficialStart(snapshot, officialStartBaseline);
-    const adjustedElapsedSeconds = slotAnchoredElapsedSeconds
-      ?? Math.max(0, rawElapsedSeconds - officialStartBaseline.elapsedSeconds);
     const adjustedDistanceKm = Number(Math.max(0, snapshot.distanceKm - officialStartBaseline.distanceKm).toFixed(2));
-    const shouldSuppressStartNoise = adjustedElapsedSeconds <= startNoiseGraceSeconds
+    const shouldSuppressStartNoise = displayedElapsedSeconds <= startNoiseGraceSeconds
       && adjustedDistanceKm <= startNoiseGraceKm;
     const displayRoute = shouldSuppressStartNoise ? adjustedRoute.slice(0, 1) : adjustedRoute;
 
@@ -81,7 +104,7 @@ export function buildDisplayedTrackingSnapshot({
       distanceKm: shouldSuppressStartNoise ? 0 : adjustedDistanceKm,
       elevationGainM: shouldSuppressStartNoise ? 0 : calculateElevationGainM(displayRoute),
       currentPace: snapshot.currentPace,
-      elapsedSeconds: adjustedElapsedSeconds,
+      elapsedSeconds: displayedElapsedSeconds,
       startedAt: slotAnchoredStartedAt ?? officialStartBaseline.startedAt,
     };
   }
@@ -102,7 +125,7 @@ export function buildDisplayedTrackingSnapshot({
     distanceKm: snapshot.distanceKm,
     elevationGainM: snapshot.elevationGainM,
     currentPace: snapshot.currentPace,
-    elapsedSeconds: slotAnchoredElapsedSeconds ?? rawElapsedSeconds,
+    elapsedSeconds: displayedElapsedSeconds,
     startedAt: slotAnchoredStartedAt ?? snapshot.startedAt,
   };
 }

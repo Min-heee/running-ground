@@ -75,6 +75,31 @@ test('displayed tracking snapshot shows adjusted match distance after noise wind
   assert.equal(displayed.elapsedSeconds, 32);
 });
 
+test('displayed tracking snapshot uses slot elapsed even when official baseline exists', () => {
+  const matchSlotStartAt = '2026-05-12T00:00:00.000Z';
+  const displayed = buildDisplayedTrackingSnapshot({
+    snapshot: { ...baseSnapshot, distanceKm: 0.25 },
+    rawElapsedSeconds: 120,
+    officialStartBaseline: {
+      matchId: 'match-1',
+      distanceKm: 0.04,
+      elapsedSeconds: 80,
+      routeStartIndex: 0,
+      routeStartPoint: baseSnapshot.route[0],
+      startedAt: '2026-05-12T00:00:08.000Z',
+    },
+    hasPreStartWarmup: false,
+    matchSlotStartAt,
+    startNoiseGraceSeconds: 5,
+    startNoiseGraceKm: 0.05,
+    syncedNowMs: Date.parse('2026-05-12T00:00:45.000Z'),
+  });
+
+  assert.equal(displayed.elapsedSeconds, 45);
+  assert.equal(displayed.distanceKm, 0.21);
+  assert.equal(displayed.startedAt, matchSlotStartAt);
+});
+
 test('displayed tracking snapshot anchors active match elapsed to the server slot start', () => {
   const matchSlotStartAt = '2026-05-12T00:00:00.000Z';
   const syncedNowMs = Date.parse('2026-05-12T00:00:30.000Z');
@@ -109,4 +134,40 @@ test('displayed tracking snapshot anchors active match elapsed to the server slo
   assert.equal(secondPhone.elapsedSeconds, 30);
   assert.equal(firstPhone.startedAt, matchSlotStartAt);
   assert.equal(secondPhone.startedAt, matchSlotStartAt);
+});
+
+test('displayed tracking snapshot subtracts paused time from slot anchored elapsed', () => {
+  const matchSlotStartAt = '2026-05-12T00:00:00.000Z';
+  const displayed = buildDisplayedTrackingSnapshot({
+    snapshot: {
+      ...baseSnapshot,
+      accumulatedPausedMs: 10_000,
+    },
+    rawElapsedSeconds: 45,
+    officialStartBaseline: null,
+    hasPreStartWarmup: false,
+    matchSlotStartAt,
+    startNoiseGraceSeconds: 5,
+    startNoiseGraceKm: 0.05,
+    syncedNowMs: Date.parse('2026-05-12T00:00:45.000Z'),
+  });
+
+  assert.equal(displayed.elapsedSeconds, 35);
+  assert.equal(displayed.startedAt, matchSlotStartAt);
+});
+
+test('displayed tracking snapshot keeps raw elapsed when no match slot is available', () => {
+  const displayed = buildDisplayedTrackingSnapshot({
+    snapshot: baseSnapshot,
+    rawElapsedSeconds: 17,
+    officialStartBaseline: null,
+    hasPreStartWarmup: false,
+    matchSlotStartAt: null,
+    startNoiseGraceSeconds: 5,
+    startNoiseGraceKm: 0.05,
+    syncedNowMs: Date.parse('2026-05-12T00:00:45.000Z'),
+  });
+
+  assert.equal(displayed.elapsedSeconds, 17);
+  assert.equal(displayed.startedAt, baseSnapshot.startedAt);
 });
