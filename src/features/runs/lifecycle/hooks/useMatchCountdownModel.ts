@@ -37,6 +37,30 @@ type UseMatchCountdownModelInput = {
   currentRoomParticipantIsCountdownReady?: boolean | null;
 };
 
+export function resolveShouldShowRoomArmingOverlay({
+  linkedMatchId,
+  linkedMatchSlotStartAt,
+  matchMode,
+  shouldShowLoading,
+  syncedNowMs,
+}: {
+  linkedMatchId?: string | null;
+  linkedMatchSlotStartAt?: string | null;
+  matchMode: RunMatchMode;
+  shouldShowLoading: boolean;
+  syncedNowMs: number;
+}) {
+  const linkedSlotStartMs = linkedMatchSlotStartAt ? Date.parse(linkedMatchSlotStartAt) : NaN;
+  const hasLinkedMatchSlotElapsed = Number.isFinite(linkedSlotStartMs) && syncedNowMs >= linkedSlotStartMs;
+
+  return Boolean(
+    linkedMatchId
+    && shouldShowLoading
+    && (matchMode === 'duel' || matchMode === 'group')
+    && !hasLinkedMatchSlotElapsed,
+  );
+}
+
 export function useMatchCountdownModel({
   matchMode,
   nowMs,
@@ -212,11 +236,13 @@ export function useMatchCountdownModel({
     visibleCountdownEntry,
     nextStartingMatch,
     activeUpcomingMatch,
-    shouldShowRoomArmingOverlay: Boolean(
-      matchRoom?.linkedMatchId
-      && matchRoomFlow.shouldShowLoading
-      && (matchMode === 'duel' || matchMode === 'group'),
-    ),
+    shouldShowRoomArmingOverlay: resolveShouldShowRoomArmingOverlay({
+      linkedMatchId: matchRoom?.linkedMatchId,
+      linkedMatchSlotStartAt: matchRoom?.linkedMatchSlotStartAt,
+      matchMode,
+      shouldShowLoading: matchRoomFlow.shouldShowLoading,
+      syncedNowMs,
+    }),
     canOpenRoomArena: visiblePartyRunFlow.shouldOpenArena,
   };
 }

@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-21T03:35:02.205Z
+생성 시각: 2026-05-21T06:19:07.869Z
 
 ## 실행 방법
 
@@ -14,8 +14,8 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 878 |
-| 코드 파일 | 821 |
+| 분석 파일 | 879 |
+| 코드 파일 | 822 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 74 |
 | 500줄 이상 파일 | 17 |
@@ -180,7 +180,7 @@ npm run code:quality
 | backend/src/repositories/authRepository.mjs | 127 | createJsonAuthRepository | 191 |
 | src/features/runs/runtime/useTrackRunRuntimeMatchRequestActions.ts | 11 | useTrackRunRuntimeMatchRequestActions | 191 |
 | src/features/runs/runtime/useTrackRunRoomCreateAction.ts | 50 | useTrackRunRoomCreateAction | 186 |
-| src/features/runs/lifecycle/hooks/useMatchCountdownModel.ts | 40 | useMatchCountdownModel | 183 |
+| src/features/runs/lifecycle/hooks/useMatchCountdownModel.ts | 64 | useMatchCountdownModel | 185 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 100 | callback@useCallback | 182 |
 | src/features/match/screens/MatchRoomScreen.tsx | 17 | MatchRoomScreen | 181 |
 | src/features/home/hooks/useHomeScreenModel.ts | 30 | useHomeScreenModel | 181 |
