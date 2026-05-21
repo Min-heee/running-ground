@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
-import { rgPerfMark } from '@/utils/rgPerfTrace';
+import { rgDiagLog, rgPerfMark } from '@/utils/rgPerfTrace';
 import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
 import type { PartyRunSyncCallbackRef } from './types';
 
@@ -74,6 +74,7 @@ export function useRoomPolling({
   const roomId = matchRoom?.roomId ?? null;
   const linkedMatchId = matchRoom?.linkedMatchId ?? null;
   const roomState = matchRoom?.state ?? null;
+  const lastRoomPollingSkipKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const policy = resolvePartyRoomPollingPolicy({
@@ -85,6 +86,18 @@ export function useRoomPolling({
     });
 
     if (!enabled || !roomId || !policy.enabled) {
+      const skipDetail = {
+        enabled,
+        linkedMatchId,
+        reason: enabled ? policy.reason : 'lifecycle-controller-disabled',
+        roomId,
+        roomState,
+      };
+      const skipKey = JSON.stringify(skipDetail);
+      if (lastRoomPollingSkipKeyRef.current !== skipKey) {
+        lastRoomPollingSkipKeyRef.current = skipKey;
+        rgDiagLog('room polling skipped', skipDetail);
+      }
       rgPerfMark('match polling skipped', {
         enabled,
         owner: 'party room',

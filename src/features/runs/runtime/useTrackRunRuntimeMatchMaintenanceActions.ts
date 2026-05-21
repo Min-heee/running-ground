@@ -2,6 +2,7 @@ import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync
 import { acknowledgeRunningMatchRoomCountdown } from '@/services';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import type { UseTrackRunRuntimeMatchActionsInput } from '@/features/runs/runtime/trackRunRuntimeMatchActionTypes';
+import { rgDiagLog } from '@/utils/rgPerfTrace';
 
 export function useTrackRunRuntimeMatchMaintenanceActions(input: UseTrackRunRuntimeMatchActionsInput) {
   const {
@@ -125,6 +126,13 @@ export function useTrackRunRuntimeMatchMaintenanceActions(input: UseTrackRunRunt
   }
 
   async function syncRoomLinkedMatchStatus(context: PartyRunLinkedMatchContext) {
+    rgDiagLog('linked match status request', {
+      distanceKm: context.distanceKm,
+      matchId: context.matchId,
+      mode: context.mode,
+      slotStartAt: context.slotStartAt,
+    });
+
     return context.mode === 'duel'
       ? loadDuelMatchStatus(context.slotStartAt, {
           distanceKm: context.distanceKm,

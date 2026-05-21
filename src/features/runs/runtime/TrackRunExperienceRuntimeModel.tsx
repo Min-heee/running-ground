@@ -1119,9 +1119,13 @@ export function TrackRunExperienceRuntime({
     }
 
     rgDiagLog('duel match status set from poll', {
+      currentUserId,
       hasOpponent: Boolean(payload.opponent),
       nextMatchId: payload.matchId ?? null,
       nextState: payload.state ?? null,
+      opponentId: payload.opponent?.id ?? null,
+      opponentLiveDistanceKm: payload.opponent?.liveDistanceKm ?? null,
+      opponentLiveUpdatedAt: payload.opponent?.liveUpdatedAt ?? null,
       requestedDistanceKm: options?.distanceKm ?? duelDistanceKm,
       requestedMatchId: options?.matchId ?? focusedDuelMatchIdRef.current ?? null,
       requestedSlotStartAt: slotStartAt,

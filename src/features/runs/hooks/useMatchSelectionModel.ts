@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { MatchOptionItem } from '@/features/runs/components/MatchOptionSelector';
 import type { RoomStartMode } from '@/features/runs/hooks/usePartyRunRoom';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
@@ -8,6 +8,7 @@ import {
   isBlockingMatchState,
   isLiveMatchState,
 } from '@/features/runs/lifecycle/matchStateMachine';
+import { buildMatchProgressModel } from '@/features/runs/viewModels/matchProgress';
 import type {
   RequestDuelMatchResponse,
   RequestGroupMatchResponse,
@@ -16,6 +17,7 @@ import type {
   RunningMatchStatusResponse,
   UpcomingRunningMatchItem,
 } from '@/lib/api/types';
+import { rgDiagLog } from '@/utils/rgPerfTrace';
 
 type SlotOption = {
   startsAt: string;
@@ -73,6 +75,7 @@ export function useMatchSelectionModel({
   effectiveGroupParticipantCount,
   effectiveGroupSeedRank,
 }: UseMatchSelectionModelInput) {
+  const lastDuelOpponentRenderedKeyRef = useRef<string | null>(null);
   const matchOptions = useMemo<MatchSelectionOption[]>(
     () => [
       {
@@ -137,6 +140,26 @@ export function useMatchSelectionModel({
   const effectiveDuelOpponentStatusLabel = effectiveDuelOpponent
     ? buildMatchParticipantStatusLabel(effectiveDuelOpponent.liveStatus)
     : null;
+  useEffect(() => {
+    if (matchMode !== 'duel') {
+      return;
+    }
+
+    const progressModel = buildMatchProgressModel(effectiveDuelOpponent, duelDistanceKm);
+    const detail = {
+      effectiveDuelOpponentId: effectiveDuelOpponent?.id ?? null,
+      hasProgress: progressModel.displayProgress.hasProgress,
+      opponentLiveDistanceKm: effectiveDuelOpponent?.liveDistanceKm ?? null,
+    };
+    const key = JSON.stringify(detail);
+    if (lastDuelOpponentRenderedKeyRef.current === key) {
+      return;
+    }
+
+    lastDuelOpponentRenderedKeyRef.current = key;
+    rgDiagLog('duel opponent rendered', detail);
+  }, [duelDistanceKm, effectiveDuelOpponent, matchMode]);
+
   const effectiveDuelSlotLabel = duelMatchStatus?.slotLabel ?? duelMatchResult?.slotLabel ?? selectedDuelSlot?.label ?? '시간 미정';
   const effectiveGroupSlotLabel = groupMatchStatus?.slotLabel ?? groupMatchResult?.slotLabel ?? selectedGroupSlot?.label ?? '시간 미정';
   const duelNeedsManualRematch = Boolean(duelMatchNotice && duelMatchState === 'idle');
