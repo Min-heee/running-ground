@@ -217,3 +217,73 @@ test('track-run route key falls back to hydrated linked match route state', () =
   }).linkedMatchContext?.matchId, 'duel-match-a973c5ed');
   clearLiveMatchRouteHydration();
 });
+
+test('live match route hydration preserves the room on same-match roomless rehydration', () => {
+  clearLiveMatchRouteHydration();
+  const linkedRoom = room({
+    roomId: 'room-preserved',
+    state: 'arming',
+    linkedMatchId: 'duel-match-preserved',
+    linkedMatchStatus: 'matched',
+    linkedMatchSlotStartAt: '2026-05-14T12:00:00.000Z',
+    linkedMatchDistanceKm: 5,
+  });
+
+  hydrateLiveMatchRouteState({
+    distanceKm: 5,
+    matchId: 'duel-match-preserved',
+    mode: 'duel',
+    preferArena: true,
+    room: linkedRoom,
+    roomId: linkedRoom.roomId,
+    slotStartAt: linkedRoom.linkedMatchSlotStartAt,
+    source: 'match-room linked match route',
+  });
+  const rehydrated = hydrateLiveMatchRouteState({
+    distanceKm: 5,
+    matchId: 'duel-match-preserved',
+    mode: 'duel',
+    preferArena: true,
+    roomId: linkedRoom.roomId,
+    slotStartAt: linkedRoom.linkedMatchSlotStartAt,
+    source: 'focus route hydration',
+  });
+
+  assert.equal(rehydrated?.room?.roomId, 'room-preserved');
+  assert.equal(getLiveMatchRouteHydration()?.room?.linkedMatchId, 'duel-match-preserved');
+  clearLiveMatchRouteHydration();
+});
+
+test('live match route hydration does not preserve stale room for a different match', () => {
+  clearLiveMatchRouteHydration();
+  const linkedRoom = room({
+    roomId: 'room-stale',
+    state: 'arming',
+    linkedMatchId: 'duel-match-stale',
+    linkedMatchStatus: 'matched',
+    linkedMatchSlotStartAt: '2026-05-14T12:00:00.000Z',
+    linkedMatchDistanceKm: 5,
+  });
+
+  hydrateLiveMatchRouteState({
+    distanceKm: 5,
+    matchId: 'duel-match-stale',
+    mode: 'duel',
+    room: linkedRoom,
+    roomId: linkedRoom.roomId,
+    slotStartAt: linkedRoom.linkedMatchSlotStartAt,
+    source: 'match-room linked match route',
+  });
+  const rehydrated = hydrateLiveMatchRouteState({
+    distanceKm: 5,
+    matchId: 'duel-match-next',
+    mode: 'duel',
+    roomId: 'room-next',
+    slotStartAt: '2026-05-14T12:05:00.000Z',
+    source: 'focus route hydration',
+  });
+
+  assert.equal(rehydrated?.room, undefined);
+  assert.equal(getLiveMatchRouteHydration()?.matchId, 'duel-match-next');
+  clearLiveMatchRouteHydration();
+});

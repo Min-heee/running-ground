@@ -65,7 +65,6 @@ export function useMatchRoomLobbyEffects({
     const nextKey = [
       nextRoom.roomId,
       nextRoom.linkedMatchId,
-      nextRoom.state,
       nextRoom.linkedMatchSlotStartAt ?? nextRoom.slotStartAt,
     ].join(':');
 
