@@ -60,9 +60,6 @@ export type UseRunTrackingFlowInput = {
   duelMatchStatus: RunningMatchStatusResponse | null;
   groupMatchStatus: RunningMatchStatusResponse | null;
   roomLinkedMatchContext: PartyRunLinkedMatchContext | null;
-  partyRoomMatchId?: string | null;
-  partyRoomMatchMode?: MatchLifecycleController['mode'];
-  partyRoomMatchSlotStartAt?: string | null;
   status: TrackerStatus;
   visiblePartyRunShouldOpenArena: boolean;
   duelStartCountdownSeconds: number | null;

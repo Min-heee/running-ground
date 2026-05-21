@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-21T03:17:55.294Z
+생성 시각: 2026-05-21T03:35:02.205Z
 
 ## 실행 방법
 
@@ -17,9 +17,9 @@ npm run code:quality
 | 분석 파일 | 878 |
 | 코드 파일 | 821 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 75 |
+| 300줄 이상 파일 | 74 |
 | 500줄 이상 파일 | 17 |
-| 50줄 이상 함수 후보 | 271 |
+| 50줄 이상 함수 후보 | 269 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
 
 ## 감지 항목 요약
@@ -41,7 +41,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/lib/runningMatchStoreHelpers.mjs | 2420 | imports 12, sort/filter/map 79 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2073 | imports 54, effects 3, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2056 | imports 54, effects 3, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 873 | imports 6, sort/filter/map 37, subs 16 |
@@ -108,7 +108,6 @@ npm run code:quality
 | src/features/runs/lifecycle/matchLifecycleController.ts | 314 | imports 6 |
 | backend/src/repositories/friendsRepository.test.mjs | 314 | imports 2, sort/filter/map 3 |
 | docs/testflight-real-device-qa.md | 314 |  |
-| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 312 | imports 10 |
 | src/features/runs/sync/activeRoomCheck.ts | 310 | imports 6, timers 1 |
 | backend/src/bridges/sessionRunsBridge.mjs | 305 | imports 2, sort/filter/map 3 |
 | src/features/runs/components/matchSetupCards/styles.ts | 304 | imports 2 |
@@ -121,7 +120,7 @@ npm run code:quality
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
 | backend/src/lib/runningMatchStoreHelpers.mjs | 2420 | imports 12, sort/filter/map 79 |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2073 | imports 54, effects 3, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2056 | imports 54, effects 3, sort/filter/map 1 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
 | backend/src/runningMatchContract.test.mjs | 899 | imports 8, timers 2 |
 | scripts/analyze-code-quality.mjs | 873 | imports 6, sort/filter/map 37, subs 16 |
@@ -142,12 +141,12 @@ npm run code:quality
 
 
 
-> 271개 중 상위 80개만 표시합니다.
+> 269개 중 상위 80개만 표시합니다.
 
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 123 | TrackRunExperienceRuntime | 1950 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 123 | TrackRunExperienceRuntime | 1933 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
 | src/features/runs/viewModels/useLiveMatchViewModel.ts | 37 | useLiveMatchViewModel | 285 |
@@ -163,7 +162,6 @@ npm run code:quality
 | src/features/runs/runtime/useTrackRunRoomLoader.ts | 77 | callback@useCallback | 238 |
 | src/features/runs/sync/useMatchProgressSync.ts | 50 | useMatchProgressSync | 235 |
 | src/features/runs/runtime/useRuntimeHydrationEffects.ts | 8 | useRuntimeHydrationEffects | 232 |
-| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 89 | useTrackingSessionSnapshots | 223 |
 | src/features/runs/runtime/useTrackRunRuntimeRoomInviteActions.ts | 37 | useTrackRunRuntimeRoomInviteActions | 223 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 42 | createLocationTaskManager | 220 |
 | src/features/runs/lifecycle/hooks/useMatchEntryEffects.ts | 47 | useMatchEntryEffects | 217 |
@@ -174,6 +172,7 @@ npm run code:quality
 | scripts/check-preview-public-api.mjs | 259 | main | 211 |
 | backend/src/lib/runningMatchStoreHelpers.mjs | 1801 | buildRunningMatchStatusResponse | 210 |
 | src/features/runs/runtime/useTrackRunRoomJoinAction.ts | 47 | useTrackRunRoomJoinAction | 208 |
+| src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 86 | useTrackingSessionSnapshots | 200 |
 | scripts/analyze-android-perf-trace.mjs | 218 | analyzeLine | 197 |
 | backend/src/routes/adminRoutes.mjs | 3 | routeAdminRequest | 196 |
 | src/features/match/hooks/lobby/useRoomInviteActions.ts | 16 | useRoomInviteActions | 194 |

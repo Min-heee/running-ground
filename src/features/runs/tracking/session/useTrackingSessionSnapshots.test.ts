@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import type { MatchLifecycleController } from '@/features/runs/lifecycle/matchLifecycleController';
-import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
-import type { RunningMatchStatusResponse } from '@/lib/api/types';
+import type {
+  MatchLifecycleController,
+  MatchLifecycleStage,
+} from '@/features/runs/lifecycle/matchLifecycleController';
 import { resolveActiveMatchSlotStartAt } from './trackingSessionMatchSlot';
 
 function controller(overrides: Partial<MatchLifecycleController> = {}): MatchLifecycleController {
@@ -27,126 +28,50 @@ function controller(overrides: Partial<MatchLifecycleController> = {}): MatchLif
     },
     gps: {
       warmupMatch: null,
-      activeMatch: null,
+      activeMatch: {
+        matchId: 'match-1',
+        mode: 'duel',
+        slotStartAt: '2026-05-20T13:49:58.259Z',
+      },
     },
     ...overrides,
   };
 }
 
-function activeStatus(overrides: Partial<RunningMatchStatusResponse> = {}): RunningMatchStatusResponse {
-  return {
-    success: true,
-    mode: 'duel',
-    state: 'active',
-    matchId: 'match-1',
-    distanceKm: 5,
-    slotStartAt: '2026-05-20T13:00:00.000Z',
-    slotLabel: '테스트',
-    paceBandLabel: '테스트',
-    levelBandLabel: '테스트',
-    criteriaSummary: '테스트',
-    estimatedWaitMinutes: 0,
-    participantCount: 2,
-    acceptedCount: 2,
-    capacity: 2,
-    userAccepted: true,
-    readyToStart: true,
-    ...overrides,
-  };
-}
-
-test('active party-room elapsed uses room slot fallback when linked context is missing', () => {
+test('active match slot resolves from lifecycle controller active GPS target', () => {
   const slotStartAt = '2026-05-20T13:49:58.259Z';
 
-  const resolved = resolveActiveMatchSlotStartAt({
-    duelMatchStatus: null,
-    groupMatchStatus: null,
-    matchLifecycleController: controller(),
-    matchMode: 'duel',
-    partyRoomMatchId: 'match-1',
-    partyRoomMatchMode: 'duel',
-    partyRoomMatchSlotStartAt: slotStartAt,
-    roomLinkedMatchContext: null,
-  });
+  const resolved = resolveActiveMatchSlotStartAt(controller({
+    gps: {
+      warmupMatch: null,
+      activeMatch: {
+        matchId: 'match-1',
+        mode: 'duel',
+        slotStartAt,
+      },
+    },
+  }));
 
   assert.equal(resolved, slotStartAt);
 });
 
-test('active party-room elapsed can recover fallback slot by matching room-linked match id', () => {
-  const slotStartAt = '2026-05-20T13:49:58.259Z';
-
-  const resolved = resolveActiveMatchSlotStartAt({
-    duelMatchStatus: null,
-    groupMatchStatus: null,
-    matchLifecycleController: controller({ source: 'duel-match' }),
-    matchMode: 'duel',
-    partyRoomMatchId: 'match-1',
-    partyRoomMatchMode: 'duel',
-    partyRoomMatchSlotStartAt: slotStartAt,
-    roomLinkedMatchContext: null,
-  });
-
-  assert.equal(resolved, slotStartAt);
-});
-
-test('active party-room elapsed prefers linked context slot when context is available', () => {
-  const roomLinkedMatchContext: PartyRunLinkedMatchContext = {
-    mode: 'duel',
-    matchId: 'match-1',
-    slotStartAt: '2026-05-20T13:49:58.259Z',
-    distanceKm: 5,
-    state: 'active',
-  };
-
-  const resolved = resolveActiveMatchSlotStartAt({
-    duelMatchStatus: null,
-    groupMatchStatus: null,
-    matchLifecycleController: controller(),
-    matchMode: 'duel',
-    partyRoomMatchId: 'match-1',
-    partyRoomMatchMode: 'duel',
-    partyRoomMatchSlotStartAt: '2026-05-20T13:50:00.000Z',
-    roomLinkedMatchContext,
-  });
-
-  assert.equal(resolved, roomLinkedMatchContext.slotStartAt);
-});
-
-test('direct duel elapsed still uses active duel status slot', () => {
-  const duelStatus = activeStatus({
-    slotStartAt: '2026-05-20T14:00:00.000Z',
-  });
-
-  const resolved = resolveActiveMatchSlotStartAt({
-    duelMatchStatus: duelStatus,
-    groupMatchStatus: null,
-    matchLifecycleController: controller({
-      source: 'duel-match',
-      matchId: duelStatus.matchId ?? null,
-    }),
-    matchMode: 'duel',
-    roomLinkedMatchContext: null,
-  });
-
-  assert.equal(resolved, duelStatus.slotStartAt);
-});
-
-test('non-active or solo tracking does not use a match slot', () => {
-  const resolved = resolveActiveMatchSlotStartAt({
-    duelMatchStatus: activeStatus(),
-    groupMatchStatus: null,
-    matchLifecycleController: controller({
-      stage: 'waiting',
-      source: 'none',
-      mode: null,
-      matchId: null,
-    }),
-    matchMode: 'solo',
-    partyRoomMatchId: 'match-1',
-    partyRoomMatchMode: 'duel',
-    partyRoomMatchSlotStartAt: '2026-05-20T13:49:58.259Z',
-    roomLinkedMatchContext: null,
-  });
+test('active match slot returns null when active controller has no active GPS target', () => {
+  const resolved = resolveActiveMatchSlotStartAt(controller({
+    gps: {
+      warmupMatch: null,
+      activeMatch: null,
+    },
+  }));
 
   assert.equal(resolved, null);
+});
+
+test('active match slot returns null before lifecycle reaches active stage', () => {
+  for (const stage of ['arming', 'countdown', 'waiting'] satisfies MatchLifecycleStage[]) {
+    assert.equal(resolveActiveMatchSlotStartAt(controller({ stage })), null);
+  }
+});
+
+test('active match slot returns null without a lifecycle controller', () => {
+  assert.equal(resolveActiveMatchSlotStartAt(undefined), null);
 });

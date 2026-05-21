@@ -44,9 +44,6 @@ type UseTrackingSessionSnapshotsInput = Pick<
   | 'duelMatchStatusRef'
   | 'groupMatchStatusRef'
   | 'matchModeRef'
-  | 'partyRoomMatchId'
-  | 'partyRoomMatchMode'
-  | 'partyRoomMatchSlotStartAt'
   | 'setStatus'
   | 'setRoute'
   | 'setDistanceKm'
@@ -97,9 +94,6 @@ export function useTrackingSessionSnapshots({
   groupMatchStatusRef,
   matchLifecycleController,
   matchModeRef,
-  partyRoomMatchId,
-  partyRoomMatchMode,
-  partyRoomMatchSlotStartAt,
   setStatus,
   setRoute,
   setDistanceKm,
@@ -113,14 +107,6 @@ export function useTrackingSessionSnapshots({
 }: UseTrackingSessionSnapshotsInput) {
   const lastTrackingUiFlushMsRef = useRef(0);
   const lastTrackingUiFrameRef = useRef<TrackingUiFrame | null>(null);
-  const partyRoomMatchIdRef = useRef(partyRoomMatchId);
-  const partyRoomMatchModeRef = useRef(partyRoomMatchMode);
-  const partyRoomMatchSlotStartAtRef = useRef(partyRoomMatchSlotStartAt);
-
-  partyRoomMatchIdRef.current = partyRoomMatchId;
-  partyRoomMatchModeRef.current = partyRoomMatchMode;
-  partyRoomMatchSlotStartAtRef.current = partyRoomMatchSlotStartAt;
-
   const syncElapsedSeconds = useCallback((nextElapsedSeconds: number, options?: { commitState?: boolean }) => {
     const commitState = options?.commitState ?? true;
     elapsedSecondsRef.current = nextElapsedSeconds;
@@ -214,16 +200,7 @@ export function useTrackingSessionSnapshots({
   ): DisplayedTrackingSnapshot => {
     ensureOfficialStartBaseline(snapshot);
     const syncedNowMs = getSyncedNowMs();
-    const activeMatchSlotStartAt = resolveActiveMatchSlotStartAt({
-      duelMatchStatus: duelMatchStatusRef.current,
-      groupMatchStatus: groupMatchStatusRef.current,
-      matchLifecycleController,
-      matchMode: matchModeRef.current,
-      partyRoomMatchId: partyRoomMatchIdRef.current,
-      partyRoomMatchMode: partyRoomMatchModeRef.current,
-      partyRoomMatchSlotStartAt: partyRoomMatchSlotStartAtRef.current,
-      roomLinkedMatchContext: roomLinkedMatchContextRef.current,
-    });
+    const activeMatchSlotStartAt = resolveActiveMatchSlotStartAt(matchLifecycleController);
     return buildDisplayedTrackingSnapshot({
       snapshot,
       rawElapsedSeconds: getBackgroundRunElapsedSeconds(
@@ -238,17 +215,14 @@ export function useTrackingSessionSnapshots({
       syncedNowMs,
     });
   }, [
-    duelMatchStatusRef,
     ensureOfficialStartBaseline,
     getSyncedNowMs,
-    groupMatchStatusRef,
     matchLifecycleController,
     matchModeRef,
     officialStartBaselineRef,
     officialStartDistanceNoiseGraceKm,
     officialStartDistanceNoiseGraceSeconds,
     preStartWarmupMatchIdRef,
-    roomLinkedMatchContextRef,
   ]);
 
   const buildDisplayedMatchProgress = useCallback((
