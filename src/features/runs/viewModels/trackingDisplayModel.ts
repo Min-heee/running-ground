@@ -15,7 +15,7 @@ export type DisplayedTrackingSnapshot = {
   startedAt: string | null;
 };
 
-function resolveSlotAnchoredElapsedSeconds({
+export function resolveSlotAnchoredElapsedSeconds({
   matchSlotStartAt,
   snapshot,
   syncedNowMs,
@@ -109,7 +109,7 @@ export function buildDisplayedTrackingSnapshot({
     };
   }
 
-  if (hasPreStartWarmup) {
+  if (hasPreStartWarmup && slotAnchoredElapsedSeconds === null) {
     return {
       route: [],
       distanceKm: 0,
