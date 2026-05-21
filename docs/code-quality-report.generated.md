@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-20T15:05:46.956Z
+생성 시각: 2026-05-21T03:17:55.294Z
 
 ## 실행 방법
 
@@ -198,6 +198,7 @@ npm run code:quality
 | backend/src/bridges/friendsLeagueBridge.test.mjs | 11 | createHarness | 154 |
 | src/features/runs/hooks/matchLifecycle/useGroupMatchLifecycle.ts | 26 | useGroupMatchLifecycle | 151 |
 | src/features/runs/viewModels/useTrackRunIdleViewModel.ts | 90 | useTrackRunIdleViewModel | 149 |
+| src/features/runs/tracking/useTrackingAppStateSync.ts | 34 | useTrackingAppStateSync | 148 |
 | src/features/runs/runtime/useTrackRunRoomCreateAction.ts | 70 | callback@useCallback | 146 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchMountSignalBridge.ts | 15 | useLiveMatchMountSignalBridge | 146 |
 | src/features/runs/hooks/matchLifecycle/useDuelMatchLifecycle.ts | 25 | useDuelMatchLifecycle | 145 |
@@ -208,7 +209,6 @@ npm run code:quality
 | src/features/integrations/components/nrcBridge/NrcBridgeGuideActions.tsx | 10 | buildActionButtons | 139 |
 | src/features/runs/hooks/useMatchSelectionModel.ts | 55 | useMatchSelectionModel | 138 |
 | src/components/matches/useAndroidLiveMatchPerfProbe.ts | 50 | useAndroidLiveMatchPerfProbe | 136 |
-| src/features/runs/tracking/useTrackingAppStateSync.ts | 34 | useTrackingAppStateSync | 135 |
 | src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 37 | useRunForfeitCommand | 133 |
 | src/features/profile/hooks/useMyPageScreen.ts | 10 | useMyPageScreen | 133 |
 | src/features/runs/sync/recipientInviteInbox/applyRecipientInviteFetchSuccess.ts | 45 | applyRecipientInviteFetchSuccess | 132 |
