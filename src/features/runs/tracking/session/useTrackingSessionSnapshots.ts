@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import {
   getBackgroundRunElapsedSeconds,
@@ -13,11 +13,15 @@ import {
 import {
   buildOfficialStartBaseline,
 } from '@/features/runs/tracking/trackingSession';
-import { buildDisplayedTrackingSnapshot } from '@/features/runs/viewModels/trackingDisplayModel';
+import {
+  buildDisplayedTrackingSnapshot,
+  resolveSlotAnchoredElapsedSeconds,
+} from '@/features/runs/viewModels/trackingDisplayModel';
 import {
   normalizeMatchProgressPace,
 } from '@/features/runs/viewModels/matchProgress';
 import { LIVE_MATCH_UI_DISPLAY_INTERVAL_MS } from '@/features/runs/sync/liveMatchCadence';
+import { rgDiagLog } from '@/utils/rgPerfTrace';
 import { resolveActiveMatchSlotStartAt } from './trackingSessionMatchSlot';
 import type {
   DisplayedMatchProgress,
@@ -107,6 +111,9 @@ export function useTrackingSessionSnapshots({
 }: UseTrackingSessionSnapshotsInput) {
   const lastTrackingUiFlushMsRef = useRef(0);
   const lastTrackingUiFrameRef = useRef<TrackingUiFrame | null>(null);
+  const slotElapsedTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const slotElapsedTickerActiveRef = useRef(false);
+  const activeMatchSlotStartAt = resolveActiveMatchSlotStartAt(matchLifecycleController);
   const syncElapsedSeconds = useCallback((nextElapsedSeconds: number, options?: { commitState?: boolean }) => {
     const commitState = options?.commitState ?? true;
     elapsedSecondsRef.current = nextElapsedSeconds;
@@ -120,6 +127,71 @@ export function useTrackingSessionSnapshots({
     setCadenceSpm,
     setElapsedSeconds,
     totalStepsRef,
+  ]);
+
+  useEffect(() => {
+    if (!activeMatchSlotStartAt) {
+      slotElapsedTickerActiveRef.current = false;
+      return undefined;
+    }
+
+    const slotStartMs = Date.parse(activeMatchSlotStartAt);
+    if (!Number.isFinite(slotStartMs)) {
+      slotElapsedTickerActiveRef.current = false;
+      return undefined;
+    }
+
+    let tickCount = 0;
+    slotElapsedTickerActiveRef.current = true;
+
+    const clearSlotElapsedTicker = (ticker: ReturnType<typeof setInterval>) => {
+      clearInterval(ticker);
+      if (slotElapsedTickerRef.current === ticker) {
+        slotElapsedTickerRef.current = null;
+      }
+      slotElapsedTickerActiveRef.current = false;
+    };
+
+    const commitSlotElapsedSeconds = () => {
+      const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
+      const syncedNowMs = getSyncedNowMs();
+      const slotElapsedSeconds = resolveSlotAnchoredElapsedSeconds({
+        matchSlotStartAt: activeMatchSlotStartAt,
+        snapshot,
+        syncedNowMs,
+      });
+
+      if (slotElapsedSeconds === null) {
+        return;
+      }
+
+      const nextElapsedSeconds = Math.max(elapsedSecondsRef.current, slotElapsedSeconds);
+      syncElapsedSeconds(nextElapsedSeconds);
+
+      if (tickCount === 0 || tickCount % 10 === 0) {
+        rgDiagLog('slot elapsed ticker tick', {
+          accumulatedPausedMs: snapshot.accumulatedPausedMs,
+          elapsedSeconds: nextElapsedSeconds,
+          slotElapsedSeconds,
+          slotStartMs,
+          syncedNowMs,
+        });
+      }
+      tickCount += 1;
+    };
+
+    commitSlotElapsedSeconds();
+    const ticker = setInterval(commitSlotElapsedSeconds, 1000);
+    slotElapsedTickerRef.current = ticker;
+
+    return () => {
+      clearSlotElapsedTicker(ticker);
+    };
+  }, [
+    activeMatchSlotStartAt,
+    elapsedSecondsRef,
+    getSyncedNowMs,
+    syncElapsedSeconds,
   ]);
 
   const resolveWarmupOfficialStartTarget = useCallback(() => {
@@ -200,7 +272,6 @@ export function useTrackingSessionSnapshots({
   ): DisplayedTrackingSnapshot => {
     ensureOfficialStartBaseline(snapshot);
     const syncedNowMs = getSyncedNowMs();
-    const activeMatchSlotStartAt = resolveActiveMatchSlotStartAt(matchLifecycleController);
     return buildDisplayedTrackingSnapshot({
       snapshot,
       rawElapsedSeconds: getBackgroundRunElapsedSeconds(
@@ -215,9 +286,9 @@ export function useTrackingSessionSnapshots({
       syncedNowMs,
     });
   }, [
+    activeMatchSlotStartAt,
     ensureOfficialStartBaseline,
     getSyncedNowMs,
-    matchLifecycleController,
     matchModeRef,
     officialStartBaselineRef,
     officialStartDistanceNoiseGraceKm,
@@ -244,7 +315,11 @@ export function useTrackingSessionSnapshots({
     // Route points are needed for saving, but rendering the growing array every tick is expensive on Android.
     routeRef.current = displayedSnapshot.route;
 
+    const shouldUseSlotElapsedTicker = slotElapsedTickerActiveRef.current;
     const nextUiFrame = buildTrackingUiFrame(snapshot, displayedSnapshot);
+    if (shouldUseSlotElapsedTicker) {
+      nextUiFrame.elapsedSeconds = elapsedSecondsRef.current;
+    }
     const shouldThrottleLiveMatchUi = Platform.OS === 'android'
       && matchModeRef.current !== 'solo'
       && snapshot.status === 'running';
@@ -254,7 +329,9 @@ export function useTrackingSessionSnapshots({
       || nowMs - lastTrackingUiFlushMsRef.current >= LIVE_MATCH_UI_DISPLAY_INTERVAL_MS;
 
     if (!shouldCommitUiState) {
-      syncElapsedSeconds(displayedSnapshot.elapsedSeconds, { commitState: false });
+      if (!shouldUseSlotElapsedTicker) {
+        syncElapsedSeconds(displayedSnapshot.elapsedSeconds, { commitState: false });
+      }
       return;
     }
 
@@ -264,8 +341,11 @@ export function useTrackingSessionSnapshots({
     setElevationGainM(displayedSnapshot.elevationGainM);
     setCurrentPace(displayedSnapshot.currentPace);
     setStatus(snapshot.status);
-    syncElapsedSeconds(displayedSnapshot.elapsedSeconds);
+    if (!shouldUseSlotElapsedTicker) {
+      syncElapsedSeconds(displayedSnapshot.elapsedSeconds);
+    }
   }, [
+    elapsedSecondsRef,
     getDisplayedTrackingSnapshot,
     matchModeRef,
     routeRef,
@@ -276,9 +356,12 @@ export function useTrackingSessionSnapshots({
     syncElapsedSeconds,
   ]);
 
+  const shouldUseBackgroundElapsedTicker = useCallback(() => !slotElapsedTickerActiveRef.current, []);
+
   return {
     buildDisplayedMatchProgress,
     getDisplayedTrackingSnapshot,
+    shouldUseBackgroundElapsedTicker,
     syncElapsedSeconds,
     syncFromBackgroundTracking,
   };

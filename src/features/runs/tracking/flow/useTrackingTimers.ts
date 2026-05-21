@@ -5,9 +5,11 @@ import type { UseRunTrackingFlowInput } from '@/features/runs/types/runTrackingF
 
 export function useTrackingTimers({
   flow,
+  shouldUseBackgroundElapsedTicker,
   syncFromBackgroundTracking,
 }: {
   flow: UseRunTrackingFlowInput;
+  shouldUseBackgroundElapsedTicker: () => boolean;
   syncFromBackgroundTracking: (snapshot?: BackgroundRunTrackingSnapshot) => void;
 }) {
   const {
@@ -28,6 +30,7 @@ export function useTrackingTimers({
   });
 
   const elapsedTicker = useElapsedTicker({
+    shouldRunTick: shouldUseBackgroundElapsedTicker,
     timerRef,
     syncFromBackgroundTracking,
   });

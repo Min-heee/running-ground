@@ -32,6 +32,46 @@ test('displayed tracking snapshot hides pre-start warmup distance', () => {
   assert.deepEqual(displayed.route, []);
 });
 
+test('displayed tracking snapshot keeps slot elapsed when active match warmup snapshot arrives', () => {
+  const matchSlotStartAt = '2026-05-12T00:00:00.000Z';
+  const displayed = buildDisplayedTrackingSnapshot({
+    snapshot: {
+      ...baseSnapshot,
+      route: [],
+      distanceKm: 0,
+      elevationGainM: 0,
+      startedAt: null,
+    },
+    rawElapsedSeconds: 0,
+    officialStartBaseline: null,
+    hasPreStartWarmup: true,
+    matchSlotStartAt,
+    startNoiseGraceSeconds: 5,
+    startNoiseGraceKm: 0.05,
+    syncedNowMs: Date.parse('2026-05-12T00:00:12.000Z'),
+  });
+
+  assert.equal(displayed.elapsedSeconds, 12);
+  assert.equal(displayed.startedAt, matchSlotStartAt);
+});
+
+test('displayed tracking snapshot clamps slot elapsed before the server slot starts', () => {
+  const matchSlotStartAt = '2026-05-12T00:00:10.000Z';
+  const displayed = buildDisplayedTrackingSnapshot({
+    snapshot: baseSnapshot,
+    rawElapsedSeconds: 7,
+    officialStartBaseline: null,
+    hasPreStartWarmup: false,
+    matchSlotStartAt,
+    startNoiseGraceSeconds: 5,
+    startNoiseGraceKm: 0.05,
+    syncedNowMs: Date.parse('2026-05-12T00:00:08.000Z'),
+  });
+
+  assert.equal(displayed.elapsedSeconds, 0);
+  assert.equal(displayed.startedAt, matchSlotStartAt);
+});
+
 test('displayed tracking snapshot suppresses official-start GPS noise briefly', () => {
   const displayed = buildDisplayedTrackingSnapshot({
     snapshot: { ...baseSnapshot, distanceKm: 0.04 },
