@@ -8,6 +8,7 @@ import {
 } from '@/features/runs/lifecycle/matchStateMachine';
 import { selectPartyRunRuntimeSource } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
 import { shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
+import { rgDiagLog } from '@/utils/rgPerfTrace';
 import type {
   RunningMatchRoom,
   RunningMatchState,
@@ -69,6 +70,26 @@ export type MatchLifecycleController = {
     activeMatch: MatchLifecycleMatchTarget | null;
   };
 };
+
+let lastLinkedMatchPollGatingKey: string | null = null;
+
+function logLinkedMatchPollGating(detail: {
+  isHost: boolean | null;
+  linkedMatchId: string | null;
+  roomLinkedContextState: PartyRunLinkedMatchContext['state'] | null;
+  roomState: RunningMatchRoom['state'] | null;
+  shouldPollLinkedMatch: boolean;
+  shouldPollRoom: boolean;
+  stage: MatchLifecycleStage;
+}) {
+  const nextKey = JSON.stringify(detail);
+  if (lastLinkedMatchPollGatingKey === nextKey) {
+    return;
+  }
+
+  lastLinkedMatchPollGatingKey = nextKey;
+  rgDiagLog('linked match poll gating', detail);
+}
 
 function normalizeStageFromPartyRunPhase(phase: PartyRunFlowSnapshot['phase']): MatchLifecycleStage {
   switch (phase) {
@@ -264,6 +285,7 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
     ?? null;
   const isCompetitiveMode = mode === 'duel' || mode === 'group';
   const shouldPollLinkedMatch = Boolean(roomLinkedContext && (stage === 'arming' || stage === 'countdown' || stage === 'active'));
+  const shouldPollRoom = Boolean(partyRoom && !partyRoom.linkedMatchId && stage !== 'waiting');
   const shouldNavigateLinkedMatch = Boolean(
     partyRoom
     && partyFlow.canOpenLinkedMatch
@@ -277,6 +299,15 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
     && !input.isCurrentUserForfeited
     && stage === 'active',
   );
+  logLinkedMatchPollGating({
+    isHost: partyRoom?.isHost ?? null,
+    linkedMatchId: partyRoom?.linkedMatchId ?? null,
+    roomLinkedContextState: roomLinkedContext?.state ?? null,
+    roomState: partyRoom?.state ?? null,
+    shouldPollLinkedMatch,
+    shouldPollRoom,
+    stage,
+  });
 
   return {
     stage,
@@ -290,7 +321,7 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
       || activeMatch
     ),
     effects: {
-      shouldPollRoom: Boolean(partyRoom && !partyRoom.linkedMatchId && stage !== 'waiting'),
+      shouldPollRoom,
       shouldPollDirectMatchStatus: Boolean(
         source !== 'party-room'
         && isCompetitiveMode

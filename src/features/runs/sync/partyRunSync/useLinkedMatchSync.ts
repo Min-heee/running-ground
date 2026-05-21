@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
-import { rgPerfMark } from '@/utils/rgPerfTrace';
+import { rgDiagLog, rgPerfMark } from '@/utils/rgPerfTrace';
 import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
 import type { LinkedMatchSyncInput } from './types';
 
@@ -67,6 +67,7 @@ export function useLinkedMatchSync({
 }: LinkedMatchSyncInput) {
   const roomLinkedMatchAutoFocusRef = useRef<string | null>(null);
   const roomLinkedArenaPinRef = useRef<string | null>(null);
+  const lastLinkedMatchSyncGateKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (
@@ -138,6 +139,18 @@ export function useLinkedMatchSync({
   ]);
 
   useEffect(() => {
+    const gateDetail = {
+      enabled,
+      hasRoomLinkedMatchContext: Boolean(roomLinkedMatchContext),
+      matchId: roomLinkedMatchContext?.matchId ?? null,
+      pollingEnabled,
+    };
+    const gateKey = JSON.stringify(gateDetail);
+    if (lastLinkedMatchSyncGateKeyRef.current !== gateKey) {
+      lastLinkedMatchSyncGateKeyRef.current = gateKey;
+      rgDiagLog('linked match sync gate', gateDetail);
+    }
+
     if (!enabled || !pollingEnabled || !roomLinkedMatchContext) {
       roomLinkedArenaPinRef.current = null;
       return undefined;
