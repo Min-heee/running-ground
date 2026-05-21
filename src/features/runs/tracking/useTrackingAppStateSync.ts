@@ -47,6 +47,7 @@ export function useTrackingAppStateSync({
 }: UseTrackingAppStateSyncInput) {
   const appStateLocationSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLocationTaskAppStateRef = useRef<AppStateStatus | null>(null);
+  const elapsedTickerActiveRef = useRef(false);
   const callbackRef = useRef({
     clearElapsedTicker,
     finishSoloStartCountdown,
@@ -98,10 +99,21 @@ export function useTrackingAppStateSync({
     callbackRef.current.refreshLiveSharingHeartbeat(snapshot);
     callbackRef.current.refreshMatchProgressHeartbeat(snapshot);
 
-    if (snapshot.status === 'running' && !isBackgroundRunWarmupSnapshot(snapshot)) {
+    const shouldRunElapsedTicker = snapshot.status === 'running' && !isBackgroundRunWarmupSnapshot(snapshot);
+
+    if (shouldRunElapsedTicker) {
+      if (elapsedTickerActiveRef.current) {
+        return;
+      }
+
       callbackRef.current.startElapsedTicker();
-    } else {
+      elapsedTickerActiveRef.current = true;
+      return;
+    }
+
+    if (elapsedTickerActiveRef.current) {
       callbackRef.current.clearElapsedTicker();
+      elapsedTickerActiveRef.current = false;
     }
   }, []);
 
@@ -163,6 +175,7 @@ export function useTrackingAppStateSync({
       }
       callbackRef.current.finishSoloStartCountdown(false);
       callbackRef.current.stopForegroundTrackingHelpers();
+      elapsedTickerActiveRef.current = false;
     };
   }, [enabled, handleAppStateChange, handleBackgroundTrackingSnapshot]);
 }

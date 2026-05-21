@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 
 type UseElapsedTickerInput = {
@@ -10,6 +10,9 @@ export function useElapsedTicker({
   timerRef,
   syncFromBackgroundTracking,
 }: UseElapsedTickerInput) {
+  const syncFromBackgroundTrackingRef = useRef(syncFromBackgroundTracking);
+  syncFromBackgroundTrackingRef.current = syncFromBackgroundTracking;
+
   const clearElapsedTicker = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -20,9 +23,9 @@ export function useElapsedTicker({
   const startElapsedTicker = useCallback(() => {
     clearElapsedTicker();
     timerRef.current = setInterval(() => {
-      syncFromBackgroundTracking();
+      syncFromBackgroundTrackingRef.current();
     }, 1000);
-  }, [clearElapsedTicker, syncFromBackgroundTracking, timerRef]);
+  }, [clearElapsedTicker, timerRef]);
 
   return {
     clearElapsedTicker,
