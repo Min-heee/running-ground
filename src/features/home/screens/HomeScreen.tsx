@@ -53,6 +53,7 @@ export default function HomeScreen() {
             <HomeOverview
               summary={summary}
               lifetimeDistanceKm={profile?.lifetimeDistanceKm}
+              rankState={profile?.rankState}
               runs={activity?.runs ?? []}
             />
           ) : null}
