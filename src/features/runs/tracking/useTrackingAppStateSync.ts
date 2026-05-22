@@ -25,7 +25,6 @@ type UseTrackingAppStateSyncInput = {
     nextStatus: Extract<UpdateRunningMatchProgressInput['status'], 'running' | 'background'>,
     snapshot?: BackgroundRunTrackingSnapshot,
   ) => Promise<unknown>;
-  shouldUseBackgroundElapsedTicker: () => boolean;
   startElapsedTicker: () => void;
   clearElapsedTicker: () => void;
   finishSoloStartCountdown: (completed: boolean) => void;
@@ -41,7 +40,6 @@ export function useTrackingAppStateSync({
   refreshMatchProgressHeartbeat,
   refreshStaleMatchArtifacts,
   syncMatchLifecycleStatus,
-  shouldUseBackgroundElapsedTicker,
   startElapsedTicker,
   clearElapsedTicker,
   finishSoloStartCountdown,
@@ -56,7 +54,6 @@ export function useTrackingAppStateSync({
     refreshLiveSharingHeartbeat,
     refreshMatchProgressHeartbeat,
     refreshStaleMatchArtifacts,
-    shouldUseBackgroundElapsedTicker,
     startElapsedTicker,
     stopForegroundTrackingHelpers,
     syncFromBackgroundTracking,
@@ -69,7 +66,6 @@ export function useTrackingAppStateSync({
     refreshLiveSharingHeartbeat,
     refreshMatchProgressHeartbeat,
     refreshStaleMatchArtifacts,
-    shouldUseBackgroundElapsedTicker,
     startElapsedTicker,
     stopForegroundTrackingHelpers,
     syncFromBackgroundTracking,
@@ -104,8 +100,7 @@ export function useTrackingAppStateSync({
     callbackRef.current.refreshMatchProgressHeartbeat(snapshot);
 
     const shouldRunElapsedTicker = snapshot.status === 'running'
-      && !isBackgroundRunWarmupSnapshot(snapshot)
-      && callbackRef.current.shouldUseBackgroundElapsedTicker();
+      && !isBackgroundRunWarmupSnapshot(snapshot);
 
     if (shouldRunElapsedTicker) {
       if (elapsedTickerActiveRef.current) {
