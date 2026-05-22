@@ -1,6 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { buildWeeklyHourlySlots } from '@/features/runs/utils/matchScheduling';
-import { parseServerNowMs, resolveStableServerClockOffset } from '@/features/runs/sync/serverClockSync';
+import {
+  parseServerNowMs,
+  resolveStableServerClockOffset,
+  shouldAcceptServerSnapshot,
+} from '@/features/runs/sync/serverClockSync';
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
 
 export function useMatchQueueActions() {
@@ -8,6 +12,7 @@ export function useMatchQueueActions() {
   const initialMatchSlot = initialMatchSlotOptions.find((slot) => !slot.isClosed) ?? initialMatchSlotOptions[0] ?? null;
   const weeklyMatchSlotOptions = buildWeeklyHourlySlots();
   const serverClockOffsetMsRef = useRef(0);
+  const latestSyncedServerNowMsRef = useRef(0);
 
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingRunningMatchItem[]>([]);
   const [matchRemindersEnabled, setMatchRemindersEnabled] = useState(true);
@@ -25,6 +30,10 @@ export function useMatchQueueActions() {
   }, [serverClockOffsetMs]);
 
   const syncServerClock = (serverNow?: string) => {
+    if (!shouldAcceptServerSnapshot(latestSyncedServerNowMsRef, serverNow)) {
+      return;
+    }
+
     const serverNowMs = parseServerNowMs(serverNow);
     if (serverNowMs === null) {
       return;
@@ -38,7 +47,7 @@ export function useMatchQueueActions() {
     });
   };
 
-  const getSyncedNowMs = () => Date.now() + serverClockOffsetMsRef.current;
+  const getSyncedNowMs = useCallback(() => Date.now() + serverClockOffsetMsRef.current, []);
 
   return {
     initialMatchSlot,
