@@ -745,6 +745,60 @@ await runTest('match progress uploads feed official comparison and forfeit state
   });
 });
 
+await runTest('match progress finishes a participant when they reach the goal distance', async () => {
+  const { store, slotStartAt } = createActiveDuelStore();
+
+  await withBackend(store, async ({ request }) => {
+    const belowGoal = await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 4.8,
+      elapsedSeconds: 1500,
+      currentPace: '05:00/km',
+      status: 'running',
+    });
+    assert.equal(belowGoal.currentUserLiveStatus, 'running');
+
+    const reachedGoal = await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 5.2,
+      elapsedSeconds: 1530,
+      currentPace: '05:02/km',
+      status: 'running',
+    });
+    assert.equal(reachedGoal.currentUserLiveStatus, 'finished');
+
+    const guestView = await request('guest-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(guestView.opponent.liveStatus, 'finished');
+    assert.equal(guestView.opponent.liveDistanceKm, 5);
+    assert.equal(typeof guestView.opponent.finishedAt, 'string');
+    const firstFinishedAt = guestView.opponent.finishedAt;
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 5.4,
+      elapsedSeconds: 1560,
+      currentPace: '05:04/km',
+      status: 'running',
+    });
+
+    const guestViewAfterRepeatHeartbeat = await request('guest-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(guestViewAfterRepeatHeartbeat.opponent.liveStatus, 'finished');
+    assert.equal(guestViewAfterRepeatHeartbeat.opponent.finishedAt, firstFinishedAt);
+  });
+});
+
 await runTest('duel forfeit flow persists both match results and exposes them in activity records', async () => {
   const { store, slotStartAt } = createActiveDuelStore();
 

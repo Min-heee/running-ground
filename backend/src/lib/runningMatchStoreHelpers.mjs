@@ -2456,25 +2456,29 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
     distanceKm,
     elapsedSeconds,
   }, new Date());
+  // Progress is already clamped to the configured goal distance, so reaching
+  // that cap means the participant has completed their match distance.
+  const reachedGoalDistance = normalizedProgress.distanceKm >= session.distanceKm - 1e-6;
+  const effectiveStatus = status === 'finished' || reachedGoalDistance ? 'finished' : status;
 
   currentParticipant.liveDistanceKm = normalizedProgress.distanceKm;
   currentParticipant.liveElapsedSeconds = normalizedProgress.elapsedSeconds;
   currentParticipant.livePace = currentPace;
   currentParticipant.liveUpdatedAt = new Date().toISOString();
-  currentParticipant.liveStatus = status === 'finished' ? 'finished' : status;
+  currentParticipant.liveStatus = effectiveStatus;
   if (!session.startedAt) {
     session.startedAt = currentParticipant.liveUpdatedAt;
   }
 
-  if (status === 'finished') {
-    currentParticipant.finishedAt = currentParticipant.liveUpdatedAt;
+  if (effectiveStatus === 'finished') {
+    currentParticipant.finishedAt = currentParticipant.finishedAt ?? currentParticipant.liveUpdatedAt;
   }
 
-  if (status === 'running') {
+  if (effectiveStatus === 'running') {
     currentParticipant.finishedAt = null;
   }
 
-  if (status === 'background' || status === 'paused') {
+  if (effectiveStatus === 'background' || effectiveStatus === 'paused') {
     currentParticipant.finishedAt = null;
   }
 
@@ -2484,5 +2488,6 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
     mode: session.mode,
     distanceKm: session.distanceKm,
     slotStartAt: session.slotStartAt,
+    matchId: session.id,
   });
 }
