@@ -5,7 +5,10 @@ import type {
   MatchLifecycleController,
   MatchLifecycleStage,
 } from '@/features/runs/lifecycle/matchLifecycleController';
-import { resolveActiveMatchSlotStartAt } from './trackingSessionMatchSlot';
+import {
+  resolveActiveMatchSlotStartAt,
+  shouldRunSlotElapsedTicker,
+} from './trackingSessionMatchSlot';
 
 function controller(overrides: Partial<MatchLifecycleController> = {}): MatchLifecycleController {
   return {
@@ -74,4 +77,23 @@ test('active match slot returns null before lifecycle reaches active stage', () 
 
 test('active match slot returns null without a lifecycle controller', () => {
   assert.equal(resolveActiveMatchSlotStartAt(undefined), null);
+});
+
+test('slot elapsed ticker runs by default when an active match slot exists', () => {
+  assert.equal(shouldRunSlotElapsedTicker({
+    activeMatchSlotStartAt: '2026-05-20T13:49:58.259Z',
+  }), true);
+});
+
+test('slot elapsed ticker does not run when focus gate disables it', () => {
+  assert.equal(shouldRunSlotElapsedTicker({
+    activeMatchSlotStartAt: '2026-05-20T13:49:58.259Z',
+    enabled: false,
+  }), false);
+});
+
+test('slot elapsed ticker does not run without an active match slot', () => {
+  assert.equal(shouldRunSlotElapsedTicker({
+    activeMatchSlotStartAt: null,
+  }), false);
 });

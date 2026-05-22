@@ -22,7 +22,10 @@ import {
 } from '@/features/runs/viewModels/matchProgress';
 import { LIVE_MATCH_UI_DISPLAY_INTERVAL_MS } from '@/features/runs/sync/liveMatchCadence';
 import { rgDiagLog } from '@/utils/rgPerfTrace';
-import { resolveActiveMatchSlotStartAt } from './trackingSessionMatchSlot';
+import {
+  resolveActiveMatchSlotStartAt,
+  shouldRunSlotElapsedTicker,
+} from './trackingSessionMatchSlot';
 import type {
   DisplayedMatchProgress,
   DisplayedTrackingSnapshot,
@@ -59,6 +62,7 @@ type UseTrackingSessionSnapshotsInput = Pick<
   | 'officialStartDistanceNoiseGraceKm'
   | 'getSyncedNowMs'
   | 'matchLifecycleController'
+  | 'slotElapsedTickerEnabled'
 >;
 
 function buildTrackingUiFrame(
@@ -98,6 +102,7 @@ export function useTrackingSessionSnapshots({
   groupMatchStatusRef,
   matchLifecycleController,
   matchModeRef,
+  slotElapsedTickerEnabled = true,
   setStatus,
   setRoute,
   setDistanceKm,
@@ -130,12 +135,16 @@ export function useTrackingSessionSnapshots({
   ]);
 
   useEffect(() => {
-    if (!activeMatchSlotStartAt) {
+    const slotStartAt = activeMatchSlotStartAt;
+    if (!slotStartAt || !shouldRunSlotElapsedTicker({
+      activeMatchSlotStartAt: slotStartAt,
+      enabled: slotElapsedTickerEnabled,
+    })) {
       slotElapsedTickerActiveRef.current = false;
       return undefined;
     }
 
-    const slotStartMs = Date.parse(activeMatchSlotStartAt);
+    const slotStartMs = Date.parse(slotStartAt);
     if (!Number.isFinite(slotStartMs)) {
       slotElapsedTickerActiveRef.current = false;
       return undefined;
@@ -156,7 +165,7 @@ export function useTrackingSessionSnapshots({
       const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
       const syncedNowMs = getSyncedNowMs();
       const slotElapsedSeconds = resolveSlotAnchoredElapsedSeconds({
-        matchSlotStartAt: activeMatchSlotStartAt,
+        matchSlotStartAt: slotStartAt,
         snapshot,
         syncedNowMs,
       });
@@ -191,6 +200,7 @@ export function useTrackingSessionSnapshots({
     activeMatchSlotStartAt,
     elapsedSecondsRef,
     getSyncedNowMs,
+    slotElapsedTickerEnabled,
     syncElapsedSeconds,
   ]);
 
