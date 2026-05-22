@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createJsonAuthRepository } from './authRepository.mjs';
 import { verifyPassword } from '../auth.mjs';
+import { INITIAL_RANK } from '../lib/rankSystem.mjs';
 
 class TestApiError extends Error {
   constructor(statusCode, message) {
@@ -58,6 +59,7 @@ function createRepositoryHarness(initialStore = {}) {
       id: user.id,
       name: user.name,
       publicTag: user.publicTag,
+      rankState: user.rankState,
       lifetimeDistanceKm: store.runs
         .filter((run) => run.userId === user.id)
         .reduce((sum, run) => sum + run.distanceKm, 0),
@@ -170,6 +172,8 @@ await runTest('registers a user, hashes password, and creates a session', () => 
   assert.equal(verifyPassword('Password123', user.passwordHash), true);
   assert.match(user.publicTag, /^#[A-Z2-9]{5}$/);
   assert.equal(user.connectedSources.length, 7);
+  assert.deepEqual(user.rankState, INITIAL_RANK);
+  assert.deepEqual(result.user.rankState, INITIAL_RANK);
   assert.deepEqual(user.notificationSettings, {
     friendAlerts: true,
     districtAlerts: true,

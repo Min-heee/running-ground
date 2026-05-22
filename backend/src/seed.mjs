@@ -1,5 +1,6 @@
 import { addressCatalog } from './addressCatalog.mjs';
 import { hashPassword } from './auth.mjs';
+import { INITIAL_RANK } from './lib/rankSystem.mjs';
 import { buildUserRunMetrics } from './points.mjs';
 
 function createSource({
@@ -363,6 +364,7 @@ function createUser(input) {
     passwordHash: hashPassword(password),
     passwordUpdatedAt: '2026-03-01T09:00:00.000Z',
     rewardPoints: input.rewardPoints ?? 0,
+    rankState: input.rankState ?? { ...INITIAL_RANK },
     notificationSettings: input.notificationSettings ?? createNotificationSettings(),
     createdAt: input.createdAt ?? '2026-03-01T09:00:00.000Z',
   };

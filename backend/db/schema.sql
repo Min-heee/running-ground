@@ -27,6 +27,7 @@ create table if not exists users (
   address_detail text,
   reward_points numeric(10, 1) not null default 0 check (reward_points >= 0),
   streak_days integer not null default 0 check (streak_days >= 0),
+  rank_state jsonb not null default '{"tier":"아이언","division":4,"lp":0}'::jsonb,
   connected_sources jsonb not null default '[]'::jsonb,
   notification_settings jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),

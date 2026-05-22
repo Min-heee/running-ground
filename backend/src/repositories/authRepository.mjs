@@ -1,4 +1,5 @@
 import { buildSessionExpiry, setUserPassword, verifyPassword } from '../auth.mjs';
+import { INITIAL_RANK } from '../lib/rankSystem.mjs';
 
 export function createDefaultConnectedSources() {
   return [
@@ -292,6 +293,7 @@ export function createJsonAuthRepository({
           districtPoints: 0,
           rewardPoints: 0,
           streakDays: 0,
+          rankState: { ...INITIAL_RANK },
           connectedSources: createDefaultConnectedSources(),
           notificationSettings: createDefaultNotificationSettings(),
           createdAt: new Date().toISOString(),

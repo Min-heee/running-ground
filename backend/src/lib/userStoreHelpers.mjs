@@ -2,6 +2,12 @@ import { createDefaultConnectedSources } from '../repositories/authRepository.mj
 import { buildUserRunMetrics } from '../points.mjs';
 import { ApiError } from '../response/httpResponse.mjs';
 import { isActiveRewardRedemption } from './adminNormalizers.mjs';
+import {
+  DIVISIONS_PER_TIER,
+  INITIAL_RANK,
+  LP_PER_DIVISION,
+  RANK_TIERS,
+} from './rankSystem.mjs';
 
 const metricsCacheByStore = new WeakMap();
 
@@ -57,6 +63,7 @@ export function getRedeemedPointCost(store, userId) {
 
 export function buildProfile(store, user) {
   ensureUserConnectedSources(user);
+  ensureUserRankState(user);
   return buildProfileWithMetrics(user, getUserMetrics(store, user.id));
 }
 
@@ -69,8 +76,30 @@ export function buildProfileWithMetrics(user, metrics) {
     ...(typeof user.universityName === 'string' && user.universityName ? { universityName: user.universityName } : {}),
     ...(typeof user.addressDetail === 'string' && user.addressDetail ? { addressDetail: user.addressDetail } : {}),
     publicTag: user.publicTag,
+    rankState: { ...ensureUserRankState(user) },
     lifetimeDistanceKm: metrics.lifetimeDistanceKm,
   };
+}
+
+function isValidRankState(rankState) {
+  return rankState
+    && typeof rankState === 'object'
+    && !Array.isArray(rankState)
+    && RANK_TIERS.includes(rankState.tier)
+    && Number.isInteger(rankState.division)
+    && rankState.division >= 1
+    && rankState.division <= DIVISIONS_PER_TIER
+    && Number.isFinite(rankState.lp)
+    && rankState.lp >= 0
+    && rankState.lp <= LP_PER_DIVISION;
+}
+
+export function ensureUserRankState(user) {
+  if (!isValidRankState(user.rankState)) {
+    user.rankState = { ...INITIAL_RANK };
+  }
+
+  return user.rankState;
 }
 
 export function ensureUserConnectedSources(user) {

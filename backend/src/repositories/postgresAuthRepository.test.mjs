@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { hashPassword, verifyPassword } from '../auth.mjs';
+import { INITIAL_RANK } from '../lib/rankSystem.mjs';
 import { createPostgresAuthRepository } from './postgresAuthRepository.mjs';
 
 class TestApiError extends Error {
@@ -104,10 +105,11 @@ class FakePostgresDatabase {
         address_detail: params[13],
         reward_points: params[14],
         streak_days: params[15],
-        connected_sources: clone(params[16]),
-        notification_settings: clone(params[17]),
-        created_at: params[18],
-        updated_at: params[19],
+        rank_state: clone(params[16]),
+        connected_sources: clone(params[17]),
+        notification_settings: clone(params[18]),
+        created_at: params[19],
+        updated_at: params[20],
       });
 
       return { rows: [] };
@@ -218,6 +220,7 @@ function createRepositoryHarness(initialStore = {}) {
       id: user.id,
       name: user.name,
       publicTag: user.publicTag,
+      rankState: user.rankState,
       lifetimeDistanceKm: store.runs
         .filter((run) => run.userId === user.id)
         .reduce((sum, run) => sum + run.distanceKm, 0),
@@ -328,6 +331,8 @@ await runTest('registers a user, hashes password, and creates a session', async 
   assert.notEqual(user.password_hash, 'Password123');
   assert.equal(verifyPassword('Password123', user.password_hash), true);
   assert.equal(user.public_tag, '#TAG01');
+  assert.deepEqual(user.rank_state, INITIAL_RANK);
+  assert.deepEqual(result.user.rankState, INITIAL_RANK);
   assert.equal(user.connected_sources.length, 7);
   assert.deepEqual(user.notification_settings, {
     friendAlerts: true,
@@ -438,6 +443,7 @@ await runTest('logs in with a valid password and rejects invalid credentials', a
 
   assert.equal(result.accessToken, 'token-1');
   assert.equal(result.user.id, 'user-existing');
+  assert.deepEqual(result.user.rankState, INITIAL_RANK);
   assert.equal(result.user.lifetimeDistanceKm, 5);
   assert.equal(database.sessions.length, 1);
   assert.equal(database.sessions[0].token, 'token-1');

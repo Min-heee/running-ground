@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { INITIAL_RANK } from '../src/lib/rankSystem.mjs';
 
 const backendDirectory = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const defaultStoreFile = resolve(backendDirectory, 'data', 'store.json');
@@ -286,6 +287,7 @@ function buildUserRows(store, issues) {
       address_detail: sqlString(optionalText(user.addressDetail)),
       reward_points: sqlNumber(numberValue(user.rewardPoints, 0)),
       streak_days: sqlInteger(integerValue(user.streakDays, 0)),
+      rank_state: sqlJson(user.rankState ?? INITIAL_RANK),
       connected_sources: sqlJson(asArray(user.connectedSources)),
       notification_settings: sqlJson(user.notificationSettings ?? {}),
       created_at: sqlTimestamp(timestamp(user.createdAt)) === 'null' ? 'now()' : sqlTimestamp(timestamp(user.createdAt)),
@@ -831,14 +833,14 @@ function buildMigrationPlan(store, sourceStoreFile, options = {}) {
       columns: [
         'id', 'username', 'password_hash', 'password_updated_at', 'nickname', 'real_name', 'phone', 'birth_date',
         'public_tag', 'province_name', 'city_name', 'district_name', 'university_name', 'address_detail',
-        'reward_points', 'streak_days', 'connected_sources', 'notification_settings', 'created_at', 'updated_at',
+        'reward_points', 'streak_days', 'rank_state', 'connected_sources', 'notification_settings', 'created_at', 'updated_at',
       ],
       rows: userRows,
       conflictTarget: '(id)',
       updateColumns: [
         'username', 'password_hash', 'password_updated_at', 'nickname', 'real_name', 'phone', 'birth_date',
         'public_tag', 'province_name', 'city_name', 'district_name', 'university_name', 'address_detail',
-        'reward_points', 'streak_days', 'connected_sources', 'notification_settings', 'updated_at',
+        'reward_points', 'streak_days', 'rank_state', 'connected_sources', 'notification_settings', 'updated_at',
       ],
     },
     {
