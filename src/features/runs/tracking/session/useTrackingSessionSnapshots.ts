@@ -356,12 +356,9 @@ export function useTrackingSessionSnapshots({
     syncElapsedSeconds,
   ]);
 
-  const shouldUseBackgroundElapsedTicker = useCallback(() => !slotElapsedTickerActiveRef.current, []);
-
   return {
     buildDisplayedMatchProgress,
     getDisplayedTrackingSnapshot,
-    shouldUseBackgroundElapsedTicker,
     syncElapsedSeconds,
     syncFromBackgroundTracking,
   };

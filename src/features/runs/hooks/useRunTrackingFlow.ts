@@ -28,7 +28,6 @@ export function useRunTrackingFlow(flow: UseRunTrackingFlowInput) {
   const {
     buildDisplayedMatchProgress,
     getDisplayedTrackingSnapshot,
-    shouldUseBackgroundElapsedTicker,
     syncElapsedSeconds,
     syncFromBackgroundTracking,
   } = useTrackingSnapshotBuilder(flow);
@@ -57,7 +56,6 @@ export function useRunTrackingFlow(flow: UseRunTrackingFlowInput) {
     startElapsedTicker,
   } = useTrackingTimers({
     flow,
-    shouldUseBackgroundElapsedTicker,
     syncFromBackgroundTracking,
   });
 
@@ -111,7 +109,6 @@ export function useRunTrackingFlow(flow: UseRunTrackingFlowInput) {
     resetForegroundTrackingState,
     resolveLiveShareLabel,
     runSoloStartCountdown,
-    shouldUseBackgroundElapsedTicker,
     startElapsedTicker,
     stopForegroundTrackingHelpers,
     syncFromBackgroundTracking,

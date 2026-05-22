@@ -24,7 +24,6 @@ export function useTrackingLifecycleActions({
   resetForegroundTrackingState,
   resolveLiveShareLabel,
   runSoloStartCountdown,
-  shouldUseBackgroundElapsedTicker,
   startElapsedTicker,
   stopForegroundTrackingHelpers,
   syncFromBackgroundTracking,
@@ -43,7 +42,6 @@ export function useTrackingLifecycleActions({
   resetForegroundTrackingState: () => void;
   resolveLiveShareLabel: (coordinate?: { latitude: number; longitude: number }) => Promise<string>;
   runSoloStartCountdown: () => Promise<boolean>;
-  shouldUseBackgroundElapsedTicker: () => boolean;
   startElapsedTicker: () => void;
   stopForegroundTrackingHelpers: () => void;
   syncFromBackgroundTracking: (snapshot?: BackgroundRunTrackingSnapshot) => void;
@@ -122,7 +120,6 @@ export function useTrackingLifecycleActions({
     refreshMatchProgressHeartbeat,
     refreshStaleMatchArtifacts: flow.refreshStaleMatchArtifacts,
     syncMatchLifecycleStatus,
-    shouldUseBackgroundElapsedTicker,
     startElapsedTicker,
     clearElapsedTicker,
     finishSoloStartCountdown,

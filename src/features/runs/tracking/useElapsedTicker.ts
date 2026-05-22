@@ -3,20 +3,14 @@ import type { MutableRefObject } from 'react';
 
 type UseElapsedTickerInput = {
   timerRef: MutableRefObject<ReturnType<typeof setInterval> | null>;
-  shouldRunTick?: () => boolean;
   syncFromBackgroundTracking: () => void;
 };
 
-const alwaysRunTick = () => true;
-
 export function useElapsedTicker({
   timerRef,
-  shouldRunTick,
   syncFromBackgroundTracking,
 }: UseElapsedTickerInput) {
-  const shouldRunTickRef = useRef(shouldRunTick ?? alwaysRunTick);
   const syncFromBackgroundTrackingRef = useRef(syncFromBackgroundTracking);
-  shouldRunTickRef.current = shouldRunTick ?? alwaysRunTick;
   syncFromBackgroundTrackingRef.current = syncFromBackgroundTracking;
 
   const clearElapsedTicker = useCallback(() => {
@@ -29,9 +23,6 @@ export function useElapsedTicker({
   const startElapsedTicker = useCallback(() => {
     clearElapsedTicker();
     timerRef.current = setInterval(() => {
-      if (!shouldRunTickRef.current()) {
-        return;
-      }
       syncFromBackgroundTrackingRef.current();
     }, 1000);
   }, [clearElapsedTicker, timerRef]);
