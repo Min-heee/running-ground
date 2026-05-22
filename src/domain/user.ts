@@ -1,3 +1,9 @@
+export type RankState = {
+  tier: string;
+  division: number;
+  lp: number;
+};
+
 export type UserProfile = {
   name: string;
   provinceName?: string;
@@ -6,6 +12,7 @@ export type UserProfile = {
   universityName?: string;
   addressDetail?: string;
   publicTag: string;
+  rankState?: RankState;
   lifetimeDistanceKm?: number;
 };
 

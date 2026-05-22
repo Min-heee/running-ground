@@ -1,5 +1,6 @@
 import type {
   AppNotice,
+  RankState,
   UserProfile,
   WeeklySummary,
 } from '@/domain';
@@ -72,7 +73,9 @@ export type UniversityCatalogResponse = {
   universities: string[];
 };
 
-export type MyProfileResponse = UserProfile;
+export type MyProfileResponse = UserProfile & {
+  rankState: RankState;
+};
 
 export type NotificationSettingsResponse = {
   friendAlerts: boolean;
@@ -86,7 +89,7 @@ export type UpdateMyProfileInput = {
   universityName?: string;
 };
 
-export type UpdateMyProfileResponse = UserProfile;
+export type UpdateMyProfileResponse = MyProfileResponse;
 
 export type UpdateMyRegionInput = {
   provinceName: string;
@@ -94,7 +97,7 @@ export type UpdateMyRegionInput = {
   districtName: string;
 };
 
-export type UpdateMyRegionResponse = UserProfile;
+export type UpdateMyRegionResponse = MyProfileResponse;
 
 export type UpdateNotificationSettingsInput = NotificationSettingsResponse;
 

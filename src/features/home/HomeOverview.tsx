@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import type { MyRunRecord, WeeklySummary } from '@/domain';
+import type { MyRunRecord, RankState, WeeklySummary } from '@/domain';
 import { HomePointGaugeCard } from '@/features/home/components/overview/HomePointGaugeCard';
+import { HomeRankCard } from '@/features/home/components/overview/HomeRankCard';
 import { HomeRegionBattleCard } from '@/features/home/components/overview/HomeRegionBattleCard';
 import { HomeWeeklyStatusCard } from '@/features/home/components/overview/HomeWeeklyStatusCard';
 import {
@@ -12,12 +13,14 @@ import { buildWeeklyPointOverview, type WeeklyPointTrackId } from '@/features/po
 type HomeOverviewProps = {
   summary: WeeklySummary;
   lifetimeDistanceKm?: number;
+  rankState?: RankState;
   runs: MyRunRecord[];
 };
 
 export function HomeOverview({
   summary,
   lifetimeDistanceKm,
+  rankState,
   runs,
 }: HomeOverviewProps) {
   const [calendarMonthOffset, setCalendarMonthOffset] = useState(0);
@@ -48,6 +51,7 @@ export function HomeOverview({
         districtRank={summary.districtBattle.districtRank}
         totalDistanceKm={summary.districtBattle.totalDistanceKm}
       />
+      <HomeRankCard rankState={rankState} />
       <HomeWeeklyStatusCard
         totalDistanceKm={summary.totalDistanceKm}
         totalRuns={summary.totalRuns}

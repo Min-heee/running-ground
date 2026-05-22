@@ -1,6 +1,7 @@
 import {
   myProfile,
 } from '@/data/mock';
+import type { UserProfile } from '@/domain';
 
 import {
   getCurrentUserProfile,
@@ -30,9 +31,22 @@ import {
   requireAccessToken,
 } from './_shared';
 
+const DEFAULT_PROFILE_RANK_STATE = {
+  tier: '아이언',
+  division: 4,
+  lp: 0,
+};
+
+function buildMockProfileResponse(profile: UserProfile): MyProfileResponse {
+  return {
+    ...profile,
+    rankState: profile.rankState ?? { ...DEFAULT_PROFILE_RANK_STATE },
+  };
+}
+
 export async function fetchMyProfile(): Promise<MyProfileResponse> {
   if (USE_MOCK_API) {
-    return getCurrentUserProfile() ?? myProfile;
+    return buildMockProfileResponse(getCurrentUserProfile() ?? myProfile);
   }
 
   const profile = await apiGet<MyProfileResponse>('/me/profile', {
@@ -55,7 +69,7 @@ export async function updateMyProfile(input: UpdateMyProfileInput): Promise<Upda
     };
 
     await setCurrentUserProfile(nextProfile);
-    return nextProfile;
+    return buildMockProfileResponse(nextProfile);
   }
 
   const nextProfile = await apiPatch<UpdateMyProfileResponse>(
@@ -125,7 +139,7 @@ export async function updateMyRegion(input: UpdateMyRegionInput): Promise<Update
     };
 
     await setCurrentUserProfile(nextProfile);
-    return nextProfile;
+    return buildMockProfileResponse(nextProfile);
   }
 
   const nextProfile = await apiPatch<UpdateMyRegionResponse>(
