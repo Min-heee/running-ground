@@ -1,5 +1,11 @@
 import { isSessionExpired } from '../auth.mjs';
 import { buildUserRunMetrics } from '../points.mjs';
+import {
+  DIVISIONS_PER_TIER,
+  INITIAL_RANK,
+  LP_PER_DIVISION,
+  RANK_TIERS,
+} from '../lib/rankSystem.mjs';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -20,6 +26,28 @@ function asObject(value) {
 function asNumber(value, fallback = 0) {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
+function asRankState(value) {
+  const rankState = asObject(value);
+
+  if (
+    !RANK_TIERS.includes(rankState.tier)
+    || !Number.isInteger(rankState.division)
+    || rankState.division < 1
+    || rankState.division > DIVISIONS_PER_TIER
+    || !Number.isFinite(rankState.lp)
+    || rankState.lp < 0
+    || rankState.lp > LP_PER_DIVISION
+  ) {
+    return { ...INITIAL_RANK };
+  }
+
+  return {
+    tier: rankState.tier,
+    division: rankState.division,
+    lp: rankState.lp,
+  };
 }
 
 function hasValue(value) {
@@ -66,6 +94,7 @@ function mapUserRow(row) {
     addressDetail: row.address_detail ?? '',
     rewardPoints: asNumber(row.reward_points),
     streakDays: asNumber(row.streak_days),
+    rankState: asRankState(row.rank_state),
     connectedSources: asArray(row.connected_sources),
     notificationSettings: asObject(row.notification_settings),
     createdAt: toIsoString(row.created_at),

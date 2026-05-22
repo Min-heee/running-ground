@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { INITIAL_RANK } from '../lib/rankSystem.mjs';
 import { createSessionRunsBridge } from './sessionRunsBridge.mjs';
 
 class TestApiError extends Error {
@@ -166,6 +167,7 @@ await runTest('reads the current user from postgres when session bridge is enabl
   assert.equal(result.source, 'postgres');
   assert.equal(result.user.id, 'user-db-1');
   assert.equal(result.user.name, 'DB 러너');
+  assert.deepEqual(result.user.rankState, INITIAL_RANK);
 });
 
 await runTest('falls back to JSON session lookup when postgres has no matching session', async () => {
@@ -286,6 +288,7 @@ await runTest('looks up a user by id with postgres first and JSON fallback', asy
 
   assert.equal(postgresResult.source, 'postgres');
   assert.equal(postgresResult.user.name, 'DB 친구');
+  assert.deepEqual(postgresResult.user.rankState, INITIAL_RANK);
   assert.equal(jsonResult.source, 'json');
   assert.equal(jsonResult.user.name, 'JSON 러너');
 });

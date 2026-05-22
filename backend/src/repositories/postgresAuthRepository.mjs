@@ -1,4 +1,10 @@
 import { buildSessionExpiry, hashPassword, verifyPassword } from '../auth.mjs';
+import {
+  DIVISIONS_PER_TIER,
+  INITIAL_RANK,
+  LP_PER_DIVISION,
+  RANK_TIERS,
+} from '../lib/rankSystem.mjs';
 import { createDefaultConnectedSources, createDefaultNotificationSettings } from './authRepository.mjs';
 
 const PUBLIC_TAG_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -25,6 +31,28 @@ function asObject(value) {
 function asNumber(value, fallback = 0) {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
+function asRankState(value) {
+  const rankState = asObject(value);
+
+  if (
+    !RANK_TIERS.includes(rankState.tier)
+    || !Number.isInteger(rankState.division)
+    || rankState.division < 1
+    || rankState.division > DIVISIONS_PER_TIER
+    || !Number.isFinite(rankState.lp)
+    || rankState.lp < 0
+    || rankState.lp > LP_PER_DIVISION
+  ) {
+    return { ...INITIAL_RANK };
+  }
+
+  return {
+    tier: rankState.tier,
+    division: rankState.division,
+    lp: rankState.lp,
+  };
 }
 
 function toIsoString(value) {
@@ -69,6 +97,7 @@ function mapUserRow(row) {
     addressDetail: row.address_detail ?? '',
     rewardPoints: asNumber(row.reward_points),
     streakDays: asNumber(row.streak_days),
+    rankState: asRankState(row.rank_state),
     connectedSources: asArray(row.connected_sources),
     notificationSettings: asObject(row.notification_settings),
     createdAt: toIsoString(row.created_at),
@@ -431,6 +460,7 @@ export function createPostgresAuthRepository({
           publicTag: await createAvailablePublicTag(client, createPublicTag, createError),
           rewardPoints: 0,
           streakDays: 0,
+          rankState: { ...INITIAL_RANK },
           connectedSources: createDefaultConnectedSources(),
           notificationSettings: createDefaultNotificationSettings(),
           createdAt,
@@ -443,12 +473,12 @@ export function createPostgresAuthRepository({
               insert into users (
                 id, username, password_hash, password_updated_at, nickname, real_name, phone, birth_date,
                 public_tag, province_name, city_name, district_name, university_name, address_detail,
-                reward_points, streak_days, connected_sources, notification_settings, created_at, updated_at
+                reward_points, streak_days, rank_state, connected_sources, notification_settings, created_at, updated_at
               )
               values (
                 $1, $2, $3, $4, $5, $6, $7, $8,
                 $9, $10, $11, $12, $13, $14,
-                $15, $16, $17, $18, $19, $20
+                $15, $16, $17, $18, $19, $20, $21
               )
             `,
             [
@@ -468,6 +498,7 @@ export function createPostgresAuthRepository({
               user.addressDetail,
               user.rewardPoints,
               user.streakDays,
+              user.rankState,
               user.connectedSources,
               user.notificationSettings,
               user.createdAt,
