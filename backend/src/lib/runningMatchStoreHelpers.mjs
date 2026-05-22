@@ -62,9 +62,14 @@ import {
   upsertMatchQueueEntry,
 } from './matchQueueStoreHelpers.mjs';
 import { normalizeRunningMatchProgress } from './matchProgressStoreHelpers.mjs';
+import {
+  applyLpDelta,
+  resolveDuelMatchLpDeltas,
+  resolveGroupMatchLpDelta,
+} from './rankSystem.mjs';
 import { nextId } from './idHelpers.mjs';
 import { areFriends } from './socialStoreHelpers.mjs';
-import { findUserById, getRunsForUser, getUserMetrics } from './userStoreHelpers.mjs';
+import { ensureUserRankState, findUserById, getRunsForUser, getUserMetrics } from './userStoreHelpers.mjs';
 
 export function validateMatchSlotStartAt(slotStartAt, now = new Date()) {
   const slotStart = new Date(slotStartAt);
@@ -1581,6 +1586,66 @@ function buildOfficialSessionStandings(store, session, now = new Date()) {
   });
 }
 
+function applyMatchLpIfComplete(store, session) {
+  if (!session || session.lpApplied) {
+    return;
+  }
+
+  const participants = Array.isArray(session.participants) ? session.participants : [];
+  const now = new Date();
+  if (!participants.length || !participants.every((participant) => isParticipantDoneWithMatch(participant, now))) {
+    return;
+  }
+
+  try {
+    const standings = buildOfficialSessionStandings(store, session, now);
+    const officialByUserId = new Map(standings.map((standing) => [standing.userId, standing]));
+    let updates;
+
+    if (session.mode === 'duel' && participants.length === 2) {
+      const winnerStanding = standings.find((standing) => standing.officialRank === 1);
+      const loserStanding = standings.find((standing) => standing.officialRank === 2);
+
+      if (!winnerStanding || !loserStanding) {
+        return;
+      }
+
+      const winner = findUserById(store, winnerStanding.userId);
+      const loser = findUserById(store, loserStanding.userId);
+      const winnerPaceSecPerKm = buildMatchRunnerProfile(store, winner).averagePaceMinutes * 60;
+      const loserPaceSecPerKm = buildMatchRunnerProfile(store, loser).averagePaceMinutes * 60;
+      const { winnerLpDelta, loserLpDelta } = resolveDuelMatchLpDeltas({
+        winnerPaceSecPerKm,
+        loserPaceSecPerKm,
+      });
+
+      updates = [
+        { user: winner, deltaLp: winnerLpDelta },
+        { user: loser, deltaLp: loserLpDelta },
+      ];
+    } else {
+      updates = participants.map((participant) => {
+        const user = findUserById(store, participant.userId);
+        const placement = officialByUserId.get(participant.userId)?.officialRank;
+        return {
+          user,
+          deltaLp: resolveGroupMatchLpDelta({
+            placement,
+            totalParticipants: participants.length,
+          }),
+        };
+      });
+    }
+
+    for (const { user, deltaLp } of updates) {
+      user.rankState = applyLpDelta(ensureUserRankState(user), deltaLp);
+    }
+    session.lpApplied = true;
+  } catch {
+    // Rank updates must never block match completion responses.
+  }
+}
+
 function findMatchSessionForUser(store, mode, userId, { distanceKm, slotStartAt, testMode = false, matchId } = {}) {
   if (matchId) {
     const directSession = findMatchSessionById(store, matchId);
@@ -1656,6 +1721,8 @@ export function leaveRunningMatch(store, currentUser, { matchId }) {
   currentParticipant.liveStatus = 'forfeited';
   currentParticipant.liveUpdatedAt = forfeitedAt;
   currentParticipant.forfeitedAt = forfeitedAt;
+
+  applyMatchLpIfComplete(store, session);
 
   return { success: true };
 }
@@ -2410,6 +2477,8 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
   if (status === 'background' || status === 'paused') {
     currentParticipant.finishedAt = null;
   }
+
+  applyMatchLpIfComplete(store, session);
 
   return buildRunningMatchStatusResponse(store, currentUser, {
     mode: session.mode,
