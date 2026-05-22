@@ -110,8 +110,8 @@ export function useRoomSettings({
     }
 
     const nextDistanceKm = Number.parseFloat(customDistanceText);
-    if (!Number.isFinite(nextDistanceKm) || nextDistanceKm <= 0) {
-      setError('거리 값을 다시 확인해줘. 1km 이상 숫자로 입력하면 돼.');
+    if (!Number.isFinite(nextDistanceKm) || nextDistanceKm < 0.5) {
+      setError('거리 값을 다시 확인해줘. 0.5km 이상 숫자로 입력하면 돼.');
       return;
     }
 

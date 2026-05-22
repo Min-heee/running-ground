@@ -172,8 +172,8 @@ export function validateDistanceKm(value, message) {
 export function validateDuelMatchDistanceKm(value) {
   const distanceKm = validateDistanceKm(value, '매칭할 거리를 입력해줘.');
 
-  if (distanceKm < 2 || distanceKm > 42.2) {
-    throw new ApiError(400, '매칭 거리는 2km 이상 42.2km 이하로 선택해줘.');
+  if (distanceKm < 0.5 || distanceKm > 42.2) {
+    throw new ApiError(400, '매칭 거리는 0.5km 이상 42.2km 이하로 선택해줘.');
   }
 
   return distanceKm;
