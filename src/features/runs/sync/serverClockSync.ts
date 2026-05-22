@@ -30,6 +30,51 @@ export function resolveStableServerClockOffset(currentOffsetMs: number, nextOffs
   return Math.round(currentOffsetMs + offsetDeltaMs * SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR);
 }
 
+let sharedServerClockOffsetMs = 0;
+let latestAcceptedServerNowMs = 0;
+const sharedServerClockListeners = new Set<(offsetMs: number) => void>();
+
+export function getSharedServerClockOffsetMs() {
+  return sharedServerClockOffsetMs;
+}
+
+export function applySharedServerClock(serverNow?: string) {
+  const serverNowMs = parseServerNowMs(serverNow);
+  if (serverNowMs === null) {
+    return sharedServerClockOffsetMs;
+  }
+
+  if (serverNowMs < latestAcceptedServerNowMs) {
+    return sharedServerClockOffsetMs;
+  }
+
+  latestAcceptedServerNowMs = serverNowMs;
+
+  const nextOffsetMs = serverNowMs - Date.now();
+  const stableOffsetMs = resolveStableServerClockOffset(sharedServerClockOffsetMs, nextOffsetMs);
+  if (stableOffsetMs !== sharedServerClockOffsetMs) {
+    sharedServerClockOffsetMs = stableOffsetMs;
+    sharedServerClockListeners.forEach((listener) => {
+      listener(stableOffsetMs);
+    });
+  }
+
+  return sharedServerClockOffsetMs;
+}
+
+export function subscribeSharedServerClock(listener: (offsetMs: number) => void) {
+  sharedServerClockListeners.add(listener);
+  return () => {
+    sharedServerClockListeners.delete(listener);
+  };
+}
+
+export function resetSharedServerClockForTest() {
+  sharedServerClockOffsetMs = 0;
+  latestAcceptedServerNowMs = 0;
+  sharedServerClockListeners.clear();
+}
+
 export function shouldAcceptServerSnapshot(latestServerNowMsRef: { current: number }, serverNow?: string) {
   const serverNowMs = parseServerNowMs(serverNow);
   if (serverNowMs === null) {
