@@ -4,6 +4,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { type Href } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MatchOptionItem } from '@/features/runs/components/MatchOptionSelector';
 import {
@@ -133,6 +134,7 @@ export function TrackRunExperienceRuntime({
   roomInviteToken,
   routeShellHint,
 }: TrackRunExperienceRuntimeProps) {
+  const isScreenFocused = useIsFocused();
   const liveMatchRouteHydration = getLiveMatchRouteHydration();
   const {
     hydratedFocusMatchMode,
@@ -608,6 +610,11 @@ export function TrackRunExperienceRuntime({
     deferRankingCalculations: trackRunIdleViewModel.disableHeavySubscriptions || !liveMatchHeavyWorkReady,
   });
   const isTabMode = mode === 'tab';
+  const heavyTickersFocusGate = !(
+    isTabMode
+    && trackRunIdleViewModel.hasLocalActiveHint
+    && !isScreenFocused
+  );
   const liveArenaPageWidth = Math.max(windowWidth - 32, 280);
   const currentUserArenaPace = useMemo(() => resolveCurrentUserArenaPace({
     officialCurrentAveragePace,
@@ -1570,21 +1577,23 @@ export function TrackRunExperienceRuntime({
     countdownTicker: {
       serverClockOffsetMsRef,
       onNowMsChange: setNowMs,
-      enabled: trackRunIdleViewModel.shouldRunCountdownTicker && Boolean(
-        isStarting
-        || isRunning
-        || hydratedFocusMatchId
-        || visibleCountdownEntry
-        || roomCountdownEntry
-        || nextStartingMatch
-        || activeUpcomingMatch
-        || visibleUpcomingMatches.length > 0
-        || duelMatchState === 'matched'
-        || groupMatchState === 'matched'
-        || matchRoom?.linkedMatchId
-        || matchRoom?.state === 'arming'
-        || matchRoom?.state === 'countdown'
-      ),
+      enabled: heavyTickersFocusGate
+        && trackRunIdleViewModel.shouldRunCountdownTicker
+        && Boolean(
+          isStarting
+          || isRunning
+          || hydratedFocusMatchId
+          || visibleCountdownEntry
+          || roomCountdownEntry
+          || nextStartingMatch
+          || activeUpcomingMatch
+          || visibleUpcomingMatches.length > 0
+          || duelMatchState === 'matched'
+          || groupMatchState === 'matched'
+          || matchRoom?.linkedMatchId
+          || matchRoom?.state === 'arming'
+          || matchRoom?.state === 'countdown'
+        ),
     },
     blockingMatchStatusPolling: {
       matchMode,
@@ -1674,9 +1683,13 @@ export function TrackRunExperienceRuntime({
     soloStartCountdownSeconds: SOLO_START_COUNTDOWN_SECONDS,
     getSyncedNowMs,
     refreshStaleMatchArtifacts,
-    matchProgressHeartbeatEnabled: trackRunIdleViewModel.shouldRunLiveMatchProgress && shouldEnableMatchProgressHeartbeat,
+    matchProgressHeartbeatEnabled: heavyTickersFocusGate
+      && trackRunIdleViewModel.shouldRunLiveMatchProgress
+      && shouldEnableMatchProgressHeartbeat,
     matchLifecycleController,
-    trackingSubscriptionsEnabled: trackRunIdleViewModel.shouldRunTrackingSubscriptions,
+    slotElapsedTickerEnabled: heavyTickersFocusGate,
+    trackingSubscriptionsEnabled: heavyTickersFocusGate
+      && trackRunIdleViewModel.shouldRunTrackingSubscriptions,
   });
 
   const {
