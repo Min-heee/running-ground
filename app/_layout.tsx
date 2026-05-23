@@ -47,7 +47,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false, freezeOnBlur: true }}>
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="signup" />
         <Stack.Screen name="signup-form" />

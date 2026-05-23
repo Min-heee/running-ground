@@ -24,6 +24,7 @@ export function Button({ label, onPress, disabled = false, variant = 'primary' }
       ]}
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
+      android_ripple={{ color: 'rgba(0, 0, 0, 0.12)' }}
     >
       <Text
         style={[
@@ -43,6 +44,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     paddingVertical: spacing.s16,
     alignItems: 'center',
+    overflow: 'hidden',
   },
   primaryButton: {
     backgroundColor: colors.brand,
