@@ -4,17 +4,20 @@ import { AppState } from 'react-native';
 import type { AppStateStatus } from 'react-native';
 import {
   getBackgroundRunTrackingSnapshot,
-  isBackgroundRunWarmupSnapshot,
   subscribeBackgroundRunTracking,
   syncBackgroundRunTrackingAppState,
   type BackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
-import { resolveTrackingAppStateSyncPlan } from '@/features/runs/tracking/trackingAppStatePolicy';
+import {
+  resolveTrackingAppStateSyncPlan,
+  shouldRunBackgroundElapsedTicker,
+} from '@/features/runs/tracking/trackingAppStatePolicy';
 
 type UseTrackingAppStateSyncInput = {
   enabled?: boolean;
+  elapsedTickerEnabled?: boolean;
   appStateRef: MutableRefObject<AppStateStatus>;
   trackerStatusRef: MutableRefObject<TrackerStatus>;
   syncFromBackgroundTracking: (snapshot?: BackgroundRunTrackingSnapshot) => void;
@@ -33,6 +36,7 @@ type UseTrackingAppStateSyncInput = {
 
 export function useTrackingAppStateSync({
   enabled = true,
+  elapsedTickerEnabled = true,
   appStateRef,
   trackerStatusRef,
   syncFromBackgroundTracking,
@@ -99,8 +103,9 @@ export function useTrackingAppStateSync({
     callbackRef.current.refreshLiveSharingHeartbeat(snapshot);
     callbackRef.current.refreshMatchProgressHeartbeat(snapshot);
 
-    const shouldRunElapsedTicker = snapshot.status === 'running'
-      && !isBackgroundRunWarmupSnapshot(snapshot);
+    const shouldRunElapsedTicker = shouldRunBackgroundElapsedTicker(snapshot, {
+      enabled: elapsedTickerEnabled,
+    });
 
     if (shouldRunElapsedTicker) {
       if (elapsedTickerActiveRef.current) {
@@ -116,7 +121,14 @@ export function useTrackingAppStateSync({
       callbackRef.current.clearElapsedTicker();
       elapsedTickerActiveRef.current = false;
     }
-  }, []);
+  }, [elapsedTickerEnabled]);
+
+  useEffect(() => {
+    if (!elapsedTickerEnabled && elapsedTickerActiveRef.current) {
+      callbackRef.current.clearElapsedTicker();
+      elapsedTickerActiveRef.current = false;
+    }
+  }, [elapsedTickerEnabled]);
 
   const handleAppStateChange = useCallback((nextState: AppStateStatus) => {
     const previousState = appStateRef.current;

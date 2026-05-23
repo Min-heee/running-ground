@@ -1683,6 +1683,7 @@ export function TrackRunExperienceRuntime({
     soloStartCountdownSeconds: SOLO_START_COUNTDOWN_SECONDS,
     getSyncedNowMs,
     refreshStaleMatchArtifacts,
+    elapsedTickerEnabled: heavyTickersFocusGate,
     matchProgressHeartbeatEnabled: heavyTickersFocusGate
       && trackRunIdleViewModel.shouldRunLiveMatchProgress
       && shouldEnableMatchProgressHeartbeat,

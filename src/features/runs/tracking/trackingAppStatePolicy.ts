@@ -1,5 +1,11 @@
 import type { AppStateStatus } from 'react-native';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
+import {
+  isBackgroundRunWarmupSnapshot,
+} from '@/features/runs/tracking/background/warmupSnapshotPolicy';
+import type {
+  BackgroundRunTrackingSnapshot,
+} from '@/features/runs/tracking/background/snapshotStore';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
 
 type TrackingAppStateSyncPlanInput = {
@@ -15,6 +21,15 @@ export type TrackingAppStateSyncPlan = {
   shouldRefreshStaleArtifacts: boolean;
   shouldSyncBackgroundSnapshot: boolean;
 };
+
+export function shouldRunBackgroundElapsedTicker(
+  snapshot: BackgroundRunTrackingSnapshot,
+  options?: { enabled?: boolean },
+) {
+  return snapshot.status === 'running'
+    && !isBackgroundRunWarmupSnapshot(snapshot)
+    && (options?.enabled ?? true);
+}
 
 export function resolveTrackingAppStateSyncPlan({
   nextState,
