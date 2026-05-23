@@ -9,7 +9,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#11161B"
     },
-    "newArchEnabled": false,
+    "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.minheee.runnigapp",
       "supportsTablet": true,
