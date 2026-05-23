@@ -1,6 +1,5 @@
-import { memo, useCallback } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
-import type { ListRenderItem } from 'react-native';
+import { memo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import type { MatchRoomParticipantUxStatus, MatchRoomUxModel } from '@/features/runs/lifecycle/matchRoomFlow';
@@ -66,23 +65,15 @@ export function PartyRunParticipantListCard({
   onStart,
 }: PartyRunParticipantListCardProps) {
   const { readyAction, startAction } = uxModel;
-  const keyExtractor = useCallback((participant: PartyRunParticipant) => participant.id, []);
-  const renderParticipant = useCallback<ListRenderItem<PartyRunParticipant>>(({ item }) => (
-    <PartyRunParticipantRow participant={item} />
-  ), []);
 
   return (
     <Card>
       <Text style={styles.sectionTitle}>참가자 명단</Text>
-      <FlatList
-        data={uxModel.participants}
-        keyExtractor={keyExtractor}
-        renderItem={renderParticipant}
-        contentContainerStyle={styles.participantList}
-        scrollEnabled={false}
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-      />
+      <View style={styles.participantList}>
+        {uxModel.participants.map((participant) => (
+          <PartyRunParticipantRow key={participant.id} participant={participant} />
+        ))}
+      </View>
       {readyAction.visible ? (
         <PrimaryButton
           label={saving ? '반영 중...' : readyAction.label ?? '준비'}

@@ -1,6 +1,5 @@
 import { memo, useCallback, useMemo } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { ListRenderItem } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
@@ -118,31 +117,36 @@ const LeagueRegionGrid = memo(function LeagueRegionGrid({
   isMyRegionNode: (node: RegionNodeIdentity) => boolean;
   onSelectRegion: (nodeId: string) => void;
 }) {
-  const keyExtractor = useCallback((node: RegionDrilldownNode) => node.id, []);
-  const renderRegionCard = useCallback<ListRenderItem<RegionDrilldownNode>>(({ item }) => (
-    <LeagueRegionCard
-      node={item}
-      isMyRegion={isMyRegionNode(item)}
-      onSelectRegion={onSelectRegion}
-    />
-  ), [isMyRegionNode, onSelectRegion]);
-
   if (nodes.length === 0) {
     return null;
   }
 
   return (
-    <FlatList
-      data={nodes}
-      keyExtractor={keyExtractor}
-      renderItem={renderRegionCard}
-      numColumns={2}
-      scrollEnabled={false}
-      contentContainerStyle={styles.regionGrid}
-      columnWrapperStyle={styles.regionGridRow}
-      initialNumToRender={12}
-      maxToRenderPerBatch={12}
-    />
+    <View style={styles.regionGrid}>
+      {nodes.map((node, index) => {
+        if (index % 2 !== 0) {
+          return null;
+        }
+        const nextNode = nodes[index + 1];
+
+        return (
+          <View key={node.id} style={styles.regionGridRow}>
+            <LeagueRegionCard
+              node={node}
+              isMyRegion={isMyRegionNode(node)}
+              onSelectRegion={onSelectRegion}
+            />
+            {nextNode ? (
+              <LeagueRegionCard
+                node={nextNode}
+                isMyRegion={isMyRegionNode(nextNode)}
+                onSelectRegion={onSelectRegion}
+              />
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
   );
 });
 
@@ -267,6 +271,7 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
   },
   regionGridRow: {
+    flexDirection: 'row',
     gap: spacing.s10,
   },
   regionCard: {

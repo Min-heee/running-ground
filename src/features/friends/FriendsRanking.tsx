@@ -1,6 +1,5 @@
-import { memo, useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, Text, View } from 'react-native';
-import type { ListRenderItem } from 'react-native';
+import { memo, useMemo, useState } from 'react';
+import { Pressable, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import type { FriendRank } from '@/domain';
 import { FriendRankRow } from './components/FriendRankRow';
@@ -24,13 +23,6 @@ export const FriendsRanking = memo(function FriendsRanking({ ranks, highlightTag
   );
   const myRank = highlightTag ? displayedRanks.find((runner) => runner.tag === highlightTag) : null;
   const rankingWindowLabel = getFriendRankingWindowLabel(rankingWindow);
-  const keyExtractor = useCallback((runner: FriendRank) => runner.id, []);
-  const renderRankItem = useCallback<ListRenderItem<FriendRank>>(({ item }) => (
-    <FriendRankRow
-      runner={item}
-      isMine={item.tag === highlightTag}
-    />
-  ), [highlightTag]);
 
   if (ranks.length === 0) {
     return null;
@@ -80,15 +72,15 @@ export const FriendsRanking = memo(function FriendsRanking({ ranks, highlightTag
         </View>
       ) : null}
 
-      <FlatList
-        data={displayedRanks}
-        keyExtractor={keyExtractor}
-        renderItem={renderRankItem}
-        contentContainerStyle={styles.rankList}
-        scrollEnabled={false}
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-      />
+      <View style={styles.rankList}>
+        {displayedRanks.map((runner) => (
+          <FriendRankRow
+            key={runner.id}
+            runner={runner}
+            isMine={runner.tag === highlightTag}
+          />
+        ))}
+      </View>
     </Card>
   );
 });

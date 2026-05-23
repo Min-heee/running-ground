@@ -1,6 +1,4 @@
-import { useCallback } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
-import type { ListRenderItem } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import {
   DuelResultRow,
@@ -28,15 +26,8 @@ export function MatchResultPanel({
   groupRows,
   groupStatusLabel,
 }: MatchResultPanelProps) {
-  const keyExtractor = useCallback((row: DuelMatchResultRow | GroupMatchResultRow) => row.id, []);
   const hasDuelInProgressRows = duelRows.some((row) => row.isInProgress);
   const hasGroupInProgressRows = groupRows.some((row) => row.isInProgress);
-  const renderDuelRow = useCallback<ListRenderItem<DuelMatchResultRow>>(({ item }) => (
-    <DuelResultRow row={item} />
-  ), []);
-  const renderGroupRow = useCallback<ListRenderItem<GroupMatchResultRow>>(({ item }) => (
-    <GroupResultRow row={item} />
-  ), []);
 
   if (mode === 'duel' && duelRows.length) {
     return (
@@ -53,13 +44,11 @@ export function MatchResultPanel({
           </View>
           <PointPill points={estimatedBonusPoints} />
         </View>
-        <FlatList
-          data={duelRows}
-          keyExtractor={keyExtractor}
-          renderItem={renderDuelRow}
-          contentContainerStyle={styles.list}
-          scrollEnabled={false}
-        />
+        <View style={styles.list}>
+          {duelRows.map((row) => (
+            <DuelResultRow key={row.id} row={row} />
+          ))}
+        </View>
       </Card>
     );
   }
@@ -79,15 +68,11 @@ export function MatchResultPanel({
           </View>
           <PointPill points={estimatedBonusPoints} />
         </View>
-        <FlatList
-          data={groupRows}
-          keyExtractor={keyExtractor}
-          renderItem={renderGroupRow}
-          contentContainerStyle={styles.list}
-          scrollEnabled={false}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-        />
+        <View style={styles.list}>
+          {groupRows.map((row) => (
+            <GroupResultRow key={row.id} row={row} />
+          ))}
+        </View>
         {groupStatusLabel ? (
           <View style={styles.statusPill}>
             <Text style={styles.statusText}>{groupStatusLabel}</Text>

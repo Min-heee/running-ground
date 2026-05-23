@@ -1,6 +1,5 @@
-import { memo, useCallback } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
-import type { ListRenderItem } from 'react-native';
+import { memo } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
@@ -24,10 +23,6 @@ const DistrictPersonalRankRow = memo(function DistrictPersonalRankRow({ runner }
 
 export default function DistrictPersonalScreen() {
   const { competition, error, loadCompetition, loading } = useDistrictPersonal();
-  const keyExtractor = useCallback((runner: DistrictPersonalRank) => runner.id, []);
-  const renderRankItem = useCallback<ListRenderItem<DistrictPersonalRank>>(({ item }) => (
-    <DistrictPersonalRankRow runner={item} />
-  ), []);
 
   return (
     <Screen>
@@ -69,26 +64,18 @@ export default function DistrictPersonalScreen() {
           <Card>
             <Text style={styles.sectionTitle}>내 앞뒤 경쟁</Text>
             {competition.focusRanks.length > 0 ? (
-              <FlatList
-                data={competition.focusRanks}
-                keyExtractor={keyExtractor}
-                renderItem={renderRankItem}
-                scrollEnabled={false}
-              />
+              competition.focusRanks.map((runner) => (
+                <DistrictPersonalRankRow key={runner.id} runner={runner} />
+              ))
             ) : <Text style={styles.emptyText}>아직 내 앞뒤 경쟁 데이터를 준비하지 못했어.</Text>}
           </Card>
 
           <Card>
             <Text style={styles.sectionTitle}>{competition.districtName} 전체 랭킹</Text>
             {competition.ranks.length > 0 ? (
-              <FlatList
-                data={competition.ranks}
-                keyExtractor={keyExtractor}
-                renderItem={renderRankItem}
-                scrollEnabled={false}
-                initialNumToRender={10}
-                maxToRenderPerBatch={10}
-              />
+              competition.ranks.map((runner) => (
+                <DistrictPersonalRankRow key={runner.id} runner={runner} />
+              ))
             ) : <Text style={styles.emptyText}>아직 이 지역 개인 랭킹이 없어.</Text>}
           </Card>
 

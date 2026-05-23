@@ -1,6 +1,6 @@
-import { memo, useCallback, useMemo } from 'react';
+import { Fragment, memo, useMemo } from 'react';
 import type { ReactElement, ReactNode } from 'react';
-import { FlatList, Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { styles } from './adminStyles';
 import { colors } from '@/theme/tokens';
 
@@ -186,8 +186,6 @@ export function AdminList<T>({
   keyExtractor: (item: T) => string;
   renderItem: (item: T) => ReactElement;
 }) {
-  const renderListItem = useCallback(({ item }: { item: T }) => renderItem(item), [renderItem]);
-
   if (data.length === 0) {
     return (
       <View style={styles.listStack}>
@@ -197,13 +195,13 @@ export function AdminList<T>({
   }
 
   return (
-    <FlatList
-      data={data}
-      keyExtractor={keyExtractor}
-      renderItem={renderListItem}
-      scrollEnabled={false}
-      contentContainerStyle={styles.listStack}
-      ItemSeparatorComponent={AdminListSeparator}
-    />
+    <View style={styles.listStack}>
+      {data.map((item, index) => (
+        <Fragment key={keyExtractor(item)}>
+          {index > 0 ? <AdminListSeparator /> : null}
+          {renderItem(item)}
+        </Fragment>
+      ))}
+    </View>
   );
 }
