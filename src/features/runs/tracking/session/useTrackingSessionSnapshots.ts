@@ -119,8 +119,19 @@ export function useTrackingSessionSnapshots({
   const slotElapsedTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const slotElapsedTickerActiveRef = useRef(false);
   const activeMatchSlotStartAt = resolveActiveMatchSlotStartAt(matchLifecycleController);
-  const syncElapsedSeconds = useCallback((nextElapsedSeconds: number, options?: { commitState?: boolean }) => {
+  const syncElapsedSeconds = useCallback((nextElapsedSeconds: number, options?: {
+    commitState?: boolean;
+    source?: string;
+  }) => {
     const commitState = options?.commitState ?? true;
+    rgDiagLog('elapsed-trace syncElapsedSeconds', {
+      commitState,
+      nowMs: Date.now(),
+      prevRef: elapsedSecondsRef.current,
+      slotActive: slotElapsedTickerActiveRef.current,
+      source: options?.source ?? 'unknown',
+      value: nextElapsedSeconds,
+    });
     elapsedSecondsRef.current = nextElapsedSeconds;
 
     if (commitState) {
@@ -140,17 +151,40 @@ export function useTrackingSessionSnapshots({
       activeMatchSlotStartAt: slotStartAt,
       enabled: slotElapsedTickerEnabled,
     })) {
+      if (slotElapsedTickerActiveRef.current) {
+        rgDiagLog('elapsed-trace slot ticker DISABLE', {
+          enabled: slotElapsedTickerEnabled,
+          nowMs: Date.now(),
+          prevElapsedRef: elapsedSecondsRef.current,
+          reason: !slotStartAt ? 'no-slot-start'
+            : !slotElapsedTickerEnabled ? 'gate-off'
+              : 'helper-false',
+          slotStartAt,
+        });
+      }
       slotElapsedTickerActiveRef.current = false;
       return undefined;
     }
 
     const slotStartMs = Date.parse(slotStartAt);
     if (!Number.isFinite(slotStartMs)) {
+      if (slotElapsedTickerActiveRef.current) {
+        rgDiagLog('elapsed-trace slot ticker DISABLE', {
+          reason: 'invalid-slotStartMs',
+          slotStartAt,
+        });
+      }
       slotElapsedTickerActiveRef.current = false;
       return undefined;
     }
 
     let tickCount = 0;
+    rgDiagLog('elapsed-trace slot ticker ENABLE', {
+      nowMs: Date.now(),
+      prevElapsedRef: elapsedSecondsRef.current,
+      slotStartAt,
+      slotStartMs,
+    });
     slotElapsedTickerActiveRef.current = true;
 
     const clearSlotElapsedTicker = (ticker: ReturnType<typeof setInterval>) => {
@@ -175,17 +209,17 @@ export function useTrackingSessionSnapshots({
       }
 
       const nextElapsedSeconds = Math.max(elapsedSecondsRef.current, slotElapsedSeconds);
-      syncElapsedSeconds(nextElapsedSeconds);
-
-      if (tickCount === 0 || tickCount % 10 === 0) {
-        rgDiagLog('slot elapsed ticker tick', {
-          accumulatedPausedMs: snapshot.accumulatedPausedMs,
-          elapsedSeconds: nextElapsedSeconds,
-          slotElapsedSeconds,
-          slotStartMs,
-          syncedNowMs,
-        });
-      }
+      rgDiagLog('elapsed-trace slot tick', {
+        computedNext: nextElapsedSeconds,
+        prevRef: elapsedSecondsRef.current,
+        slotElapsedSeconds,
+        slotStartMs,
+        snapshotElapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, Date.now()),
+        snapshotStatus: snapshot.status,
+        syncedNowMs,
+        tickCount,
+      });
+      syncElapsedSeconds(nextElapsedSeconds, { source: 'slot-ticker' });
       tickCount += 1;
     };
 
@@ -194,6 +228,11 @@ export function useTrackingSessionSnapshots({
     slotElapsedTickerRef.current = ticker;
 
     return () => {
+      rgDiagLog('elapsed-trace slot ticker CLEANUP', {
+        nowMs: Date.now(),
+        prevElapsedRef: elapsedSecondsRef.current,
+        reason: 'effect-rerun-or-unmount',
+      });
       clearSlotElapsedTicker(ticker);
     };
   }, [
@@ -340,7 +379,15 @@ export function useTrackingSessionSnapshots({
 
     if (!shouldCommitUiState) {
       if (!shouldUseSlotElapsedTicker) {
-        syncElapsedSeconds(displayedSnapshot.elapsedSeconds, { commitState: false });
+        rgDiagLog('elapsed-trace GPS-path ref-only', {
+          displayedElapsed: displayedSnapshot.elapsedSeconds,
+          prevRef: elapsedSecondsRef.current,
+          snapshotStatus: snapshot.status,
+        });
+        syncElapsedSeconds(displayedSnapshot.elapsedSeconds, {
+          commitState: false,
+          source: 'gps-no-commit',
+        });
       }
       return;
     }
@@ -352,7 +399,15 @@ export function useTrackingSessionSnapshots({
     setCurrentPace(displayedSnapshot.currentPace);
     setStatus(snapshot.status);
     if (!shouldUseSlotElapsedTicker) {
-      syncElapsedSeconds(displayedSnapshot.elapsedSeconds);
+      rgDiagLog('elapsed-trace GPS-path commit', {
+        displayedElapsed: displayedSnapshot.elapsedSeconds,
+        nowMs: Date.now(),
+        prevRef: elapsedSecondsRef.current,
+        snapshotElapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, Date.now()),
+        snapshotStartedAt: snapshot.startedAt,
+        snapshotStatus: snapshot.status,
+      });
+      syncElapsedSeconds(displayedSnapshot.elapsedSeconds, { source: 'gps-commit' });
     }
   }, [
     elapsedSecondsRef,
