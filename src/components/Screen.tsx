@@ -33,6 +33,7 @@ export function Screen({
         ref={activeScrollRef}
         contentContainerStyle={[styles.content, { paddingBottom: 120 + Math.max(insets.bottom, 16) }]}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews
       >
         <View style={styles.inner}>{children}</View>
       </ScrollView>

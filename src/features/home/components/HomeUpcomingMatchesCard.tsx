@@ -79,7 +79,7 @@ const HomeUpcomingMatchRow = memo(function HomeUpcomingMatchRow({
   );
 });
 
-export function HomeUpcomingMatchesCard({
+function HomeUpcomingMatchesCardImpl({
   matches,
   nowMs,
   cancelingMatchId,
@@ -108,6 +108,8 @@ export function HomeUpcomingMatchesCard({
     </Card>
   );
 }
+
+export const HomeUpcomingMatchesCard = memo(HomeUpcomingMatchesCardImpl);
 
 const styles = StyleSheet.create({
   upcomingCard: {
