@@ -85,6 +85,7 @@ export type UseRunTrackingFlowInput = {
   soloStartCountdownSeconds: number;
   getSyncedNowMs: () => number;
   refreshStaleMatchArtifacts: () => Promise<unknown>;
+  elapsedTickerEnabled?: boolean;
   matchProgressHeartbeatEnabled?: boolean;
   matchLifecycleController?: MatchLifecycleController;
   slotElapsedTickerEnabled?: boolean;

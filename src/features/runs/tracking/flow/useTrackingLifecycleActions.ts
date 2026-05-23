@@ -51,6 +51,7 @@ export function useTrackingLifecycleActions({
     snapshot?: BackgroundRunTrackingSnapshot,
   ) => Promise<unknown>;
 }) {
+  const elapsedTickerEnabled = flow.elapsedTickerEnabled ?? true;
   const trackingSubscriptionsEnabled = flow.trackingSubscriptionsEnabled ?? true;
   const lifecycleWarmupMatchId = flow.matchLifecycleController?.gps.warmupMatch?.matchId ?? null;
   const lifecycleActiveMatchId = flow.matchLifecycleController?.gps.activeMatch?.matchId ?? null;
@@ -113,6 +114,7 @@ export function useTrackingLifecycleActions({
 
   useTrackingAppStateSync({
     enabled: trackingSubscriptionsEnabled,
+    elapsedTickerEnabled,
     appStateRef: flow.appStateRef,
     trackerStatusRef: flow.trackerStatusRef,
     syncFromBackgroundTracking,
