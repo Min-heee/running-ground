@@ -1,6 +1,5 @@
-import { memo, useCallback, useMemo } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { ListRenderItem } from 'react-native';
+import { memo, useMemo } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
@@ -69,10 +68,6 @@ function buildMatchRecordDetail(durationSeconds: number | null | undefined, gapK
 
 export default function MatchRecordScreen() {
   const { activity, error, loading, stats } = useMatchRecords();
-  const keyExtractor = useCallback((run: MatchRecordRun) => run.id, []);
-  const renderMatchRecord = useCallback<ListRenderItem<MatchRecordRun>>(({ item }) => (
-    <MatchRecordRow run={item} />
-  ), []);
 
   return (
     <Screen>
@@ -107,14 +102,9 @@ export default function MatchRecordScreen() {
           <Card style={styles.historyCard}>
             <Text style={styles.sectionTitle}>최근 전적</Text>
             {stats.matchRuns.length ? (
-              <FlatList
-                data={stats.matchRuns}
-                keyExtractor={keyExtractor}
-                renderItem={renderMatchRecord}
-                scrollEnabled={false}
-                initialNumToRender={10}
-                maxToRenderPerBatch={10}
-              />
+              stats.matchRuns.map((run) => (
+                <MatchRecordRow key={run.id} run={run} />
+              ))
             ) : (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyTitle}>아직 저장된 대결 전적이 없어요.</Text>

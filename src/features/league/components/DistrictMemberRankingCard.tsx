@@ -1,12 +1,10 @@
-import { memo, useCallback } from 'react';
+import { memo } from 'react';
 import {
-  FlatList,
   Pressable,
   StyleSheet,
   Text,
   View,
   type LayoutChangeEvent,
-  type ListRenderItem,
 } from 'react-native';
 
 import { Card } from '@/components/Card';
@@ -51,11 +49,6 @@ export const DistrictMemberRankingCard = memo(function DistrictMemberRankingCard
   onMyRankLayout,
   onScrollToMyRank,
 }: DistrictMemberRankingCardProps) {
-  const keyExtractor = useCallback((runner: DistrictMemberRank) => runner.id, []);
-  const renderRankItem = useCallback<ListRenderItem<DistrictMemberRank>>(({ item }) => (
-    <DistrictMemberRankRow runner={item} onMyRankLayout={onMyRankLayout} />
-  ), [onMyRankLayout]);
-
   return (
     <Card onLayout={onCardLayout}>
       <View style={styles.memberHeader}>
@@ -80,14 +73,13 @@ export const DistrictMemberRankingCard = memo(function DistrictMemberRankingCard
         </View>
       ) : null}
 
-      <FlatList
-        data={regionMembers.ranks}
-        keyExtractor={keyExtractor}
-        renderItem={renderRankItem}
-        scrollEnabled={false}
-        initialNumToRender={12}
-        maxToRenderPerBatch={12}
-      />
+      {regionMembers.ranks.map((runner) => (
+        <DistrictMemberRankRow
+          key={runner.id}
+          runner={runner}
+          onMyRankLayout={onMyRankLayout}
+        />
+      ))}
     </Card>
   );
 });

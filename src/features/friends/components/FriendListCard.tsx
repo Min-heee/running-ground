@@ -1,6 +1,5 @@
 import { memo, useCallback } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { ListRenderItem } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { FriendLeaderboardResponse } from '@/lib/api/types';
@@ -97,27 +96,18 @@ export function FriendListCard({
   onToggleLiveFriend,
   onOpenFriend,
 }: FriendListCardProps) {
-  const keyExtractor = useCallback((friend: FriendRankItem) => friend.id, []);
-  const renderFriend = useCallback<ListRenderItem<FriendRankItem>>(({ item }) => (
-    <FriendListRow
-      friend={item}
-      expanded={expandedLiveFriendId === item.id}
-      onToggleLiveFriend={onToggleLiveFriend}
-      onOpenFriend={onOpenFriend}
-    />
-  ), [expandedLiveFriendId, onOpenFriend, onToggleLiveFriend]);
-
   return (
     <Card>
       <Text style={styles.sectionTitle}>친구 목록</Text>
-      <FlatList
-        data={friends}
-        keyExtractor={keyExtractor}
-        renderItem={renderFriend}
-        scrollEnabled={false}
-        initialNumToRender={10}
-        maxToRenderPerBatch={10}
-      />
+      {friends.map((friend) => (
+        <FriendListRow
+          key={friend.id}
+          friend={friend}
+          expanded={expandedLiveFriendId === friend.id}
+          onToggleLiveFriend={onToggleLiveFriend}
+          onOpenFriend={onOpenFriend}
+        />
+      ))}
       {friends.length === 0 ? <Text style={styles.emptyText}>아직 비교할 친구 기록이 없어.</Text> : null}
     </Card>
   );

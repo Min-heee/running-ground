@@ -1,6 +1,5 @@
-import { memo, useCallback } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { ListRenderItem } from 'react-native';
+import { memo } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
@@ -39,10 +38,7 @@ const FriendActivityRunRow = memo(function FriendActivityRunRow({
 export default function FriendDetailScreen() {
   const { friendId } = useLocalSearchParams<{ friendId?: string }>();
   const { activity, activityRuns, error, lastRefreshedAt, loading } = useFriendDetail(friendId);
-  const keyExtractor = useCallback((run: FriendActivityRun) => run.id, []);
-  const renderRunItem = useCallback<ListRenderItem<FriendActivityRun>>(({ item }) => (
-    <FriendActivityRunRow run={item} friendId={activity?.friend.id ?? ''} />
-  ), [activity?.friend.id]);
+  const activeFriendId = activity?.friend.id ?? '';
 
   return (
     <Screen>
@@ -95,14 +91,9 @@ export default function FriendDetailScreen() {
 
           <Card>
             <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
-            <FlatList
-              data={activityRuns}
-              keyExtractor={keyExtractor}
-              renderItem={renderRunItem}
-              scrollEnabled={false}
-              initialNumToRender={10}
-              maxToRenderPerBatch={10}
-            />
+            {activityRuns.map((run) => (
+              <FriendActivityRunRow key={run.id} run={run} friendId={activeFriendId} />
+            ))}
           </Card>
 
           <SecondaryButton label="친구 화면으로 돌아가기" onPress={() => router.replace('/(tabs)/friends')} />

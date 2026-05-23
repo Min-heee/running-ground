@@ -1,6 +1,5 @@
 import { memo, useCallback } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { ListRenderItem } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { FriendRequest } from '@/domain';
@@ -105,39 +104,27 @@ export function FriendRequestsCard({
   onReject,
   onCancel,
 }: FriendRequestsCardProps) {
-  const keyExtractor = useCallback((request: FriendRequest) => request.id, []);
-  const renderReceivedRequest = useCallback<ListRenderItem<FriendRequest>>(({ item }) => (
-    <ReceivedRequestRow
-      request={item}
-      requestActionId={requestActionId}
-      onAccept={onAccept}
-      onReject={onReject}
-    />
-  ), [onAccept, onReject, requestActionId]);
-  const renderPendingRequest = useCallback<ListRenderItem<FriendRequest>>(({ item }) => (
-    <PendingRequestRow
-      request={item}
-      requestActionId={requestActionId}
-      onCancel={onCancel}
-    />
-  ), [onCancel, requestActionId]);
-
   return (
     <Card>
       <Text style={styles.sectionTitle}>친구 요청 상태</Text>
       {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
-      <FlatList
-        data={received}
-        keyExtractor={keyExtractor}
-        renderItem={renderReceivedRequest}
-        scrollEnabled={false}
-      />
-      <FlatList
-        data={pending}
-        keyExtractor={keyExtractor}
-        renderItem={renderPendingRequest}
-        scrollEnabled={false}
-      />
+      {received.map((request) => (
+        <ReceivedRequestRow
+          key={request.id}
+          request={request}
+          requestActionId={requestActionId}
+          onAccept={onAccept}
+          onReject={onReject}
+        />
+      ))}
+      {pending.map((request) => (
+        <PendingRequestRow
+          key={request.id}
+          request={request}
+          requestActionId={requestActionId}
+          onCancel={onCancel}
+        />
+      ))}
       {received.length === 0 && pending.length === 0 ? (
         <Text style={styles.emptyText}>처리할 친구 요청이 없어.</Text>
       ) : null}

@@ -1,6 +1,5 @@
-import { memo, useCallback } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { ListRenderItem } from 'react-native';
+import { memo } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
@@ -27,10 +26,6 @@ const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun 
 
 export default function MyActivityScreen() {
   const { activity, activityRuns, error, loading } = useMyActivity();
-  const keyExtractor = useCallback((run: ActivityRun) => run.id, []);
-  const renderRunItem = useCallback<ListRenderItem<ActivityRun>>(({ item }) => (
-    <ActivityRunRow run={item} />
-  ), []);
 
   return (
     <Screen>
@@ -65,14 +60,9 @@ export default function MyActivityScreen() {
           <Card>
             <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
             {activityRuns.length > 0 ? (
-              <FlatList
-                data={activityRuns}
-                keyExtractor={keyExtractor}
-                renderItem={renderRunItem}
-                scrollEnabled={false}
-                initialNumToRender={10}
-                maxToRenderPerBatch={10}
-              />
+              activityRuns.map((run) => (
+                <ActivityRunRow key={run.id} run={run} />
+              ))
             ) : (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyTitle}>아직 저장된 러닝 기록이 없어.</Text>
