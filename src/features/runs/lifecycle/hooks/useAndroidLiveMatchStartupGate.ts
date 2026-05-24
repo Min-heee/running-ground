@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 
-export const ANDROID_LIVE_MATCH_STARTUP_DELAY_MS = 600;
+export const ANDROID_LIVE_MATCH_STARTUP_DELAY_MS = 150;
 
 type UseAndroidLiveMatchStartupGateInput = {
   active: boolean;
