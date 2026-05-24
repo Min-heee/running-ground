@@ -43,15 +43,6 @@ export const LiveMatchPager = memo(function LiveMatchPager({
     return shouldRenderLiveMatchScrollPage({ index, page, hasResultPage });
   }, [hasResultPage, page]);
 
-  const activePageRenderer = page === 1
-    ? renderRaceBoardPage
-    : page === 2
-      ? renderStatsPage
-      : page === 3 && hasResultPage
-        ? renderResultPage ?? EMPTY_PAGE_RENDERER
-        : renderArenaPage;
-  const activePageContent = useMemo(() => activePageRenderer(), [activePageRenderer]);
-
   const handleMomentumEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     if (pageWidth <= 0) {
       return;
@@ -78,7 +69,15 @@ export const LiveMatchPager = memo(function LiveMatchPager({
           onTabPress={handleTabPress}
         />
         <View style={styles.androidPage}>
-          {activePageContent}
+          <View style={page === 0 ? styles.androidPageSlot : styles.androidPageHiddenSlot}>
+            {renderArenaPage()}
+          </View>
+          <View style={page === 1 ? styles.androidPageSlot : styles.androidPageHiddenSlot}>
+            {renderRaceBoardPage()}
+          </View>
+          <View style={page === 2 ? styles.androidPageSlot : styles.androidPageHiddenSlot}>
+            {renderStatsPage()}
+          </View>
         </View>
         <Text style={styles.hint}>위 탭을 누르면 순위와 기록 화면을 볼 수 있어요.</Text>
       </View>
