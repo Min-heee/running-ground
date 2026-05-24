@@ -57,13 +57,14 @@ async function handleUpdateRunningMatchProgress({
   sendJson,
   updateRunningMatchProgress,
   validateDistanceKm,
+  validateRunningMatchProgressDistanceKm = validateDistanceKm,
   validateNonNegativeInteger,
   validatePace,
   validateRequiredString,
 }) {
   const body = await parseJsonBody(request);
   const matchId = validateRequiredString(body.matchId, '진행 상태를 반영할 매치 아이디가 필요해.');
-  const distanceKm = validateDistanceKm(body.distanceKm, '러닝 거리를 입력해줘.');
+  const distanceKm = validateRunningMatchProgressDistanceKm(body.distanceKm, '러닝 거리를 입력해줘.');
   const elapsedSeconds = validateNonNegativeInteger(body.elapsedSeconds, '러닝 시간은 0초 이상이어야 해.');
   const currentPace = String(body.currentPace ?? '').trim() === '--:--/km'
     ? '--:--/km'

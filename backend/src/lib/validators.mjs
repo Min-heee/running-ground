@@ -169,6 +169,20 @@ export function validateDistanceKm(value, message) {
   return Number(distanceKm.toFixed(1));
 }
 
+export function validateRunningMatchProgressDistanceKm(value, message) {
+  const distanceKm = typeof value === 'number' ? value : Number(value);
+
+  if (!Number.isFinite(distanceKm) || distanceKm <= 0) {
+    throw new ApiError(400, message);
+  }
+
+  if (distanceKm > 200) {
+    throw new ApiError(400, '거리는 200km 이하로 입력해줘.');
+  }
+
+  return Number(distanceKm.toFixed(3));
+}
+
 export function validateDuelMatchDistanceKm(value) {
   const distanceKm = validateDistanceKm(value, '매칭할 거리를 입력해줘.');
 

@@ -6,6 +6,7 @@ import {
   GROUP_MIN_PARTICIPANTS,
   MATCH_BOOKING_CUTOFF_MS,
   MATCH_BOOKING_WINDOW_DAYS,
+  MATCH_GOAL_DISTANCE_TOLERANCE_KM,
   MATCH_ROOM_HOST_LOADING_SECONDS,
   MATCH_ROOM_HOST_START_DELAY_SECONDS,
   MATCH_ROOM_IDLE_TTL_MS,
@@ -2456,10 +2457,12 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
     distanceKm,
     elapsedSeconds,
   }, new Date());
-  // Progress is already clamped to the configured goal distance, so reaching
-  // that cap means the participant has completed their match distance.
-  const reachedGoalDistance = normalizedProgress.distanceKm >= session.distanceKm - 1e-6;
-  const effectiveStatus = status === 'finished' || reachedGoalDistance ? 'finished' : status;
+  // GPS variance can leave different devices slightly under the configured
+  // goal even after the runner effectively finishes. Use an absolute 30m
+  // tolerance, and make finish irreversible against stale heartbeats.
+  const reachedGoalDistance = normalizedProgress.distanceKm >= session.distanceKm - MATCH_GOAL_DISTANCE_TOLERANCE_KM;
+  const alreadyFinished = currentParticipant.liveStatus === 'finished' || Boolean(currentParticipant.finishedAt);
+  const effectiveStatus = alreadyFinished || status === 'finished' || reachedGoalDistance ? 'finished' : status;
 
   currentParticipant.liveDistanceKm = normalizedProgress.distanceKm;
   currentParticipant.liveElapsedSeconds = normalizedProgress.elapsedSeconds;

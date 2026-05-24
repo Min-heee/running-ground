@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiError } from '../response/httpResponse.mjs';
-import { validateDuelMatchDistanceKm } from './validators.mjs';
+import {
+  validateDuelMatchDistanceKm,
+  validateRunningMatchProgressDistanceKm,
+} from './validators.mjs';
 
 function assertDistanceValidationError(value) {
   assert.throws(
@@ -25,4 +28,13 @@ test('validateDuelMatchDistanceKm rejects distances below 0.5km', () => {
 test('validateDuelMatchDistanceKm keeps the existing marathon upper bound', () => {
   assert.equal(validateDuelMatchDistanceKm(42.2), 42.2);
   assertDistanceValidationError(42.3);
+});
+
+test('validateRunningMatchProgressDistanceKm preserves live progress precision', () => {
+  assert.equal(validateRunningMatchProgressDistanceKm(0.4649, '러닝 거리를 입력해줘.'), 0.465);
+  assert.equal(validateRunningMatchProgressDistanceKm('0.469', '러닝 거리를 입력해줘.'), 0.469);
+  assert.throws(
+    () => validateRunningMatchProgressDistanceKm(0, '러닝 거리를 입력해줘.'),
+    (error) => error instanceof ApiError,
+  );
 });
