@@ -142,6 +142,11 @@ export function useTrackingAppStateSync({
     if (plan.shouldSyncBackgroundSnapshot) {
       const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
       callbackRef.current.syncFromBackgroundTracking(snapshot);
+      // JS can be suspended while the native background task keeps tracking.
+      // Push progress immediately on foreground resume instead of waiting for
+      // the next GPS subscription emit to catch server-side views up.
+      callbackRef.current.refreshLiveSharingHeartbeat(snapshot);
+      callbackRef.current.refreshMatchProgressHeartbeat(snapshot);
       if (plan.locationTaskAppState && plan.locationTaskDelayMs !== null) {
         scheduleLocationTaskAppStateSync(plan.locationTaskAppState, plan.locationTaskDelayMs);
       }
