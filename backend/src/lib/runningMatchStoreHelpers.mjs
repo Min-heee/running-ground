@@ -1639,7 +1639,11 @@ function applyMatchLpIfComplete(store, session) {
     }
 
     for (const { user, deltaLp } of updates) {
-      user.rankState = applyLpDelta(ensureUserRankState(user), deltaLp);
+      const nextRankState = applyLpDelta(ensureUserRankState(user), deltaLp);
+      user.rankState = {
+        tier: nextRankState.tier,
+        lp: nextRankState.lp,
+      };
     }
     session.lpApplied = true;
   } catch {

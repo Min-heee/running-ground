@@ -3,9 +3,7 @@ import { buildUserRunMetrics } from '../points.mjs';
 import { ApiError } from '../response/httpResponse.mjs';
 import { isActiveRewardRedemption } from './adminNormalizers.mjs';
 import {
-  DIVISIONS_PER_TIER,
   INITIAL_RANK,
-  LP_PER_DIVISION,
   RANK_TIERS,
 } from './rankSystem.mjs';
 
@@ -81,22 +79,36 @@ export function buildProfileWithMetrics(user, metrics) {
   };
 }
 
-function isValidRankState(rankState) {
-  return rankState
-    && typeof rankState === 'object'
-    && !Array.isArray(rankState)
-    && RANK_TIERS.includes(rankState.tier)
-    && Number.isInteger(rankState.division)
-    && rankState.division >= 1
-    && rankState.division <= DIVISIONS_PER_TIER
-    && Number.isFinite(rankState.lp)
-    && rankState.lp >= 0
-    && rankState.lp <= LP_PER_DIVISION;
+function normalizeUserRankState(rankState) {
+  if (
+    !rankState
+    || typeof rankState !== 'object'
+    || Array.isArray(rankState)
+    || !RANK_TIERS.includes(rankState.tier)
+    || 'division' in rankState
+    || !Number.isFinite(rankState.lp)
+    || rankState.lp < 0
+  ) {
+    return null;
+  }
+
+  return {
+    tier: rankState.tier,
+    lp: Math.trunc(rankState.lp),
+  };
 }
 
 export function ensureUserRankState(user) {
-  if (!isValidRankState(user.rankState)) {
+  const normalizedRankState = normalizeUserRankState(user.rankState);
+
+  if (!normalizedRankState) {
     user.rankState = { ...INITIAL_RANK };
+  } else if (
+    user.rankState.tier !== normalizedRankState.tier
+    || user.rankState.lp !== normalizedRankState.lp
+    || Object.keys(user.rankState).some((key) => key !== 'tier' && key !== 'lp')
+  ) {
+    user.rankState = normalizedRankState;
   }
 
   return user.rankState;

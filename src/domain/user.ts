@@ -1,6 +1,5 @@
 export type RankState = {
   tier: string;
-  division: number;
   lp: number;
 };
 

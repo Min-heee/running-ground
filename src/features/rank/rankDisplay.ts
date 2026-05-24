@@ -1,17 +1,17 @@
 import type { RankState } from '@/domain';
 import { colors } from '@/theme/tokens';
 
-export const RANK_TIERS = ['아이언', '브론즈', '실버', '골드', '플래티넘', '다이아'] as const;
-export const LP_PER_DIVISION = 100;
-export const DEFAULT_RANK_STATE: RankState = { tier: '아이언', division: 4, lp: 0 };
+export const RANK_TIERS = ['입문', '조거', '러너', '페이서', '레이서', '엘리트'] as const;
+export const LP_PER_TIER = 200;
+export const DEFAULT_RANK_STATE: RankState = { tier: '입문', lp: 0 };
 
 export const RANK_TIER_COLOR: Record<string, string> = {
-  아이언: colors.slateMuted,
-  브론즈: colors.podiumBronze,
-  실버: colors.podiumSilver,
-  골드: colors.podiumGold,
-  플래티넘: colors.indigoAccent,
-  다이아: colors.blueStrong,
+  입문: colors.slateMuted,
+  조거: colors.podiumBronze,
+  러너: colors.podiumSilver,
+  페이서: colors.podiumGold,
+  레이서: colors.indigoAccent,
+  엘리트: colors.blueStrong,
 };
 
 function isRankTier(value: unknown): value is (typeof RANK_TIERS)[number] {
@@ -28,29 +28,24 @@ export function normalizeRankStateForDisplay(rankState: unknown): RankState {
   }
 
   const candidate = rankState as Partial<RankState>;
-  const division = Number(candidate.division);
   const lp = Number(candidate.lp);
 
   if (
     !isRankTier(candidate.tier)
-    || !Number.isInteger(division)
-    || division < 1
-    || division > 4
+    || 'division' in candidate
     || !Number.isFinite(lp)
     || lp < 0
-    || lp > LP_PER_DIVISION
   ) {
     return buildDefaultRankState();
   }
 
   return {
     tier: candidate.tier,
-    division,
     lp: Math.trunc(lp),
   };
 }
 
 export function formatRankLabel(rankState: unknown): string {
   const normalizedRankState = normalizeRankStateForDisplay(rankState);
-  return `${normalizedRankState.tier} ${normalizedRankState.division}`;
+  return normalizedRankState.tier;
 }

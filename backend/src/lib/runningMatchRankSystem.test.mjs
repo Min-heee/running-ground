@@ -10,7 +10,7 @@ function iso(offsetMs = 0) {
   return new Date(Date.now() + offsetMs).toISOString();
 }
 
-function createUser(id, rankState = { tier: '아이언', division: 4, lp: 50 }) {
+function createUser(id, rankState = { tier: '입문', lp: 50 }) {
   return {
     id,
     username: id,

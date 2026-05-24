@@ -29,8 +29,7 @@ test('ensureUserRankState replaces malformed rank state', () => {
 
 test('ensureUserRankState preserves existing valid rank state', () => {
   const rankState = {
-    tier: '실버',
-    division: 2,
+    tier: '러너',
     lp: 45,
   };
   const user = { rankState };

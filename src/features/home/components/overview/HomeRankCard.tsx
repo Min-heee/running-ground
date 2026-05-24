@@ -5,7 +5,7 @@ import { Card } from '@/components/Card';
 import type { RankState } from '@/domain';
 import {
   formatRankLabel,
-  LP_PER_DIVISION,
+  LP_PER_TIER,
   normalizeRankStateForDisplay,
   RANK_TIER_COLOR,
 } from '@/features/rank/rankDisplay';
@@ -19,7 +19,7 @@ export function HomeRankCard({ rankState }: HomeRankCardProps) {
   const normalizedRankState = useMemo(() => normalizeRankStateForDisplay(rankState), [rankState]);
   const rankLabel = useMemo(() => formatRankLabel(normalizedRankState), [normalizedRankState]);
   const accentColor = RANK_TIER_COLOR[normalizedRankState.tier] ?? colors.brand;
-  const progressPercent = Math.max(0, Math.min(100, (normalizedRankState.lp / LP_PER_DIVISION) * 100));
+  const progressPercent = Math.max(0, Math.min(100, (normalizedRankState.lp / LP_PER_TIER) * 100));
   const tierBadgeStyle = useMemo<StyleProp<ViewStyle>>(() => [
     styles.tierBadge,
     { borderColor: accentColor },
@@ -49,7 +49,7 @@ export function HomeRankCard({ rankState }: HomeRankCardProps) {
         </View>
         <Text style={styles.lpText}>
           {normalizedRankState.lp}
-          <Text style={styles.lpUnit}> / {LP_PER_DIVISION} LP</Text>
+          <Text style={styles.lpUnit}> LP</Text>
         </Text>
       </View>
 
