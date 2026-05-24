@@ -2,12 +2,26 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { resolveStableCountdownRemainingSeconds } from './useStableCountdownSeconds';
 
-test('stable countdown follows local time when server value jitters upward', () => {
+test('stable countdown follows local time when server value jitters upward within threshold', () => {
   const tracker = { current: null };
 
   assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 30, 0), 30);
   assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 30, 1000), 29);
-  assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 31, 2000), 28);
+  assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 29, 2000), 28);
+});
+
+test('stable countdown re-baselines upward when raw exceeds modeled by more than threshold', () => {
+  const tracker = { current: null };
+
+  assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 28, 0), 28);
+  assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 30, 1000), 30);
+});
+
+test('stable countdown does not re-baseline upward when raw is within threshold', () => {
+  const tracker = { current: null };
+
+  assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 28, 0), 28);
+  assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 28, 1000), 27);
 });
 
 test('stable countdown accepts lower server value and resets by key', () => {
@@ -24,6 +38,13 @@ test('stable countdown ignores small lower server jitter to avoid visual skips',
   assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 30, 0), 30);
   assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 27, 1000), 29);
   assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 26, 2000), 28);
+});
+
+test('stable countdown still re-baselines downward when server value is far lower', () => {
+  const tracker = { current: null };
+
+  assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 30, 0), 30);
+  assert.equal(resolveStableCountdownRemainingSeconds(tracker, 'match-1', 25, 1000), 25);
 });
 
 test('stable countdown clears itself when no countdown key exists', () => {
