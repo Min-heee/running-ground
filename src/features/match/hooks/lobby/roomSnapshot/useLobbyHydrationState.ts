@@ -1,12 +1,14 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import {
   consumeOptimisticMatchRoomHydration,
 } from '@/features/match/hooks/lobby/optimisticRoomHydration';
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import {
+  applySharedServerClock,
+  getSharedServerClockOffsetMs,
   parseServerNowMs,
-  resolveStableServerClockOffset,
+  subscribeSharedServerClock,
 } from '@/features/runs/sync/serverClockSync';
 import { buildRoomRenderKey } from '@/features/match/hooks/lobby/roomSnapshot/roomSnapshotKeys';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
@@ -24,18 +26,21 @@ export function useLobbyHydrationState() {
 
   const [room, setRoom] = useState<RunningMatchRoom | null>(initialOptimisticRoom);
   const [loading, setLoading] = useState(!initialOptimisticRoom);
-  const [serverClockOffsetMs, setServerClockOffsetMs] = useState(
-    initialOptimisticServerNowMs ? initialOptimisticServerNowMs - Date.now() : 0,
-  );
+  const [serverClockOffsetMs, setServerClockOffsetMs] = useState(() => {
+    if (optimisticRoomHydration?.serverNow) {
+      applySharedServerClock(optimisticRoomHydration.serverNow);
+    }
+    return getSharedServerClockOffsetMs();
+  });
+
+  useEffect(() => {
+    return subscribeSharedServerClock((offsetMs) => {
+      setServerClockOffsetMs(offsetMs);
+    });
+  }, []);
 
   const syncServerClock = useCallback((serverNow?: string) => {
-    const serverNowMs = parseServerNowMs(serverNow);
-    if (serverNowMs === null) {
-      return;
-    }
-
-    const nextOffsetMs = serverNowMs - Date.now();
-    setServerClockOffsetMs((currentOffsetMs) => resolveStableServerClockOffset(currentOffsetMs, nextOffsetMs));
+    applySharedServerClock(serverNow);
   }, []);
 
   const commitRoom = useCallback((nextRoom: RunningMatchRoom | null) => {

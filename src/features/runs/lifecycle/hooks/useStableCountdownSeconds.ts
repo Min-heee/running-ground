@@ -7,6 +7,9 @@ type StableCountdownTracker = {
 };
 
 const LOWER_CORRECTION_THRESHOLD_SECONDS = 3;
+// A late-mounted runtime can lock onto a lower first raw value before the
+// shared server clock arrives; re-baseline when the server value is clearly ahead.
+const UPPER_CORRECTION_THRESHOLD_SECONDS = 1;
 
 export function resolveStableCountdownRemainingSeconds(
   tracker: { current: StableCountdownTracker | null },
@@ -42,6 +45,15 @@ export function resolveStableCountdownRemainingSeconds(
   }
 
   if (rawRemainingSeconds < modeledRemainingSeconds - LOWER_CORRECTION_THRESHOLD_SECONDS) {
+    tracker.current = {
+      key,
+      baselineRemainingSeconds: rawRemainingSeconds,
+      baselineNowMs: nowMs,
+    };
+    return rawRemainingSeconds;
+  }
+
+  if (rawRemainingSeconds > modeledRemainingSeconds + UPPER_CORRECTION_THRESHOLD_SECONDS) {
     tracker.current = {
       key,
       baselineRemainingSeconds: rawRemainingSeconds,
