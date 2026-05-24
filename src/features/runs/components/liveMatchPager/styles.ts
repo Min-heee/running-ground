@@ -38,6 +38,13 @@ export const liveMatchPagerStyles = StyleSheet.create({
   androidPage: {
     gap: spacing.s14,
   },
+  androidPageSlot: {
+    flex: 1,
+  },
+  androidPageHiddenSlot: {
+    flex: 1,
+    display: 'none',
+  },
   hint: {
     color: colors.textTertiary,
     fontSize: fontSizes.md,
