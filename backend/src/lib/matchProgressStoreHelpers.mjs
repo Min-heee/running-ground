@@ -47,7 +47,7 @@ export function normalizeRunningMatchProgress(session, participant, { distanceKm
   const nextDistanceKm = Math.max(previousDistanceKm, speedLimitedDistanceKm);
 
   return {
-    distanceKm: Number(Math.min(session.distanceKm, nextDistanceKm).toFixed(2)),
+    distanceKm: Number(Math.min(session.distanceKm, nextDistanceKm).toFixed(3)),
     elapsedSeconds: nextElapsedSeconds,
   };
 }

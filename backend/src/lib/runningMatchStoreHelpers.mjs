@@ -2457,9 +2457,9 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
     distanceKm,
     elapsedSeconds,
   }, new Date());
-  // GPS variance can leave different devices slightly under the configured
-  // goal even after the runner effectively finishes. Use an absolute 30m
-  // tolerance, and make finish irreversible against stale heartbeats.
+  // The client sends status='finished' when its local distance reaches the
+  // configured goal. The server keeps this strict distance fallback for exact
+  // progress uploads and makes finish irreversible against stale heartbeats.
   const reachedGoalDistance = normalizedProgress.distanceKm >= session.distanceKm - MATCH_GOAL_DISTANCE_TOLERANCE_KM;
   const alreadyFinished = currentParticipant.liveStatus === 'finished' || Boolean(currentParticipant.finishedAt);
   const effectiveStatus = alreadyFinished || status === 'finished' || reachedGoalDistance ? 'finished' : status;

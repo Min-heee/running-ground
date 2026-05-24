@@ -17,6 +17,7 @@ import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchPr
 import {
   buildSyncedMatchProgressSnapshot,
   resolveActiveMatchProgressTarget,
+  resolveMatchProgressHeartbeatStatus,
   shouldSendMatchProgressHeartbeat,
 } from '@/features/runs/sync/matchProgressSync';
 import { buildMatchProgressRegistryKey } from '@/features/runs/sync/registryKeys';
@@ -260,16 +261,20 @@ export function useMatchProgressSync({
 
     matchProgressHeartbeatRef.current = now;
     const progress = callbackRef.current.buildDisplayedMatchProgress(snapshot);
+    const heartbeatStatus = resolveMatchProgressHeartbeatStatus({
+      progressDistanceKm: progress.distanceKm,
+      targetDistanceKm: target.distanceKm,
+    });
     rgPerfMark('progress heartbeat start', {
       matchId: target.matchId,
-      status: 'running',
+      status: heartbeatStatus,
     });
     void pushRunningMatchProgress({
       matchId: target.matchId,
       distanceKm: progress.distanceKm,
       elapsedSeconds: progress.elapsedSeconds,
       currentPace: progress.currentPace,
-      status: 'running',
+      status: heartbeatStatus,
     }).catch(() => {
       // Keep the run going even if the optional match heartbeat fails.
     });
