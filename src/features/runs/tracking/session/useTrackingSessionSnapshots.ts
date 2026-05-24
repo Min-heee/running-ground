@@ -379,15 +379,24 @@ export function useTrackingSessionSnapshots({
 
     if (!shouldCommitUiState) {
       if (!shouldUseSlotElapsedTicker) {
-        rgDiagLog('elapsed-trace GPS-path ref-only', {
-          displayedElapsed: displayedSnapshot.elapsedSeconds,
-          prevRef: elapsedSecondsRef.current,
-          snapshotStatus: snapshot.status,
-        });
-        syncElapsedSeconds(displayedSnapshot.elapsedSeconds, {
-          commitState: false,
-          source: 'gps-no-commit',
-        });
+        const nextElapsedSeconds = displayedSnapshot.elapsedSeconds;
+        if (nextElapsedSeconds >= elapsedSecondsRef.current) {
+          rgDiagLog('elapsed-trace GPS-path ref-only', {
+            displayedElapsed: nextElapsedSeconds,
+            prevRef: elapsedSecondsRef.current,
+            snapshotStatus: snapshot.status,
+          });
+          syncElapsedSeconds(nextElapsedSeconds, {
+            commitState: false,
+            source: 'gps-no-commit',
+          });
+        } else {
+          rgDiagLog('elapsed-trace GPS-path ref-only REJECTED (would regress)', {
+            next: nextElapsedSeconds,
+            prevRef: elapsedSecondsRef.current,
+            snapshotStatus: snapshot.status,
+          });
+        }
       }
       return;
     }
@@ -399,15 +408,24 @@ export function useTrackingSessionSnapshots({
     setCurrentPace(displayedSnapshot.currentPace);
     setStatus(snapshot.status);
     if (!shouldUseSlotElapsedTicker) {
-      rgDiagLog('elapsed-trace GPS-path commit', {
-        displayedElapsed: displayedSnapshot.elapsedSeconds,
-        nowMs: Date.now(),
-        prevRef: elapsedSecondsRef.current,
-        snapshotElapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, Date.now()),
-        snapshotStartedAt: snapshot.startedAt,
-        snapshotStatus: snapshot.status,
-      });
-      syncElapsedSeconds(displayedSnapshot.elapsedSeconds, { source: 'gps-commit' });
+      const nextElapsedSeconds = displayedSnapshot.elapsedSeconds;
+      if (nextElapsedSeconds >= elapsedSecondsRef.current) {
+        rgDiagLog('elapsed-trace GPS-path commit', {
+          displayedElapsed: nextElapsedSeconds,
+          nowMs: Date.now(),
+          prevRef: elapsedSecondsRef.current,
+          snapshotElapsedSeconds: getBackgroundRunElapsedSeconds(snapshot, Date.now()),
+          snapshotStartedAt: snapshot.startedAt,
+          snapshotStatus: snapshot.status,
+        });
+        syncElapsedSeconds(nextElapsedSeconds, { source: 'gps-commit' });
+      } else {
+        rgDiagLog('elapsed-trace GPS-path commit REJECTED (would regress)', {
+          next: nextElapsedSeconds,
+          prevRef: elapsedSecondsRef.current,
+          snapshotStatus: snapshot.status,
+        });
+      }
     }
   }, [
     elapsedSecondsRef,
