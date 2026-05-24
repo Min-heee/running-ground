@@ -1,6 +1,6 @@
 import { memo, useCallback } from 'react';
 import type { ReactNode, RefObject } from 'react';
-import { ScrollView } from 'react-native';
+import { ScrollView, StyleSheet } from 'react-native';
 import {
   LiveMatchArenaPage,
   type LiveMatchArenaPageProps,
@@ -19,6 +19,7 @@ import {
   type LiveMatchTrackingPageProps,
 } from '@/features/runs/components/LiveMatchTrackingPage';
 import { areLiveMatchPagesPropsEqualForActivePage } from '@/features/runs/components/liveMatchPager/liveMatchPagePropsComparator';
+import { spacing } from '@/theme/tokens';
 
 export type LiveMatchPagesProps = {
   scrollRef: RefObject<ScrollView | null>;
@@ -64,12 +65,25 @@ export const LiveMatchPages = memo(function LiveMatchPages({
     resultProps ? <LiveMatchResultPage {...resultProps} /> : null
   ), [resultProps]);
 
+  if (hasResultPage && resultProps) {
+    return (
+      <ScrollView
+        style={styles.standaloneResultScroll}
+        contentContainerStyle={styles.standaloneResult}
+        showsVerticalScrollIndicator={false}
+      >
+        <LiveMatchResultPage {...resultProps} />
+        {exitAction}
+      </ScrollView>
+    );
+  }
+
   return (
     <LiveMatchPager
       scrollRef={scrollRef}
       page={page}
       pageWidth={pageWidth}
-      hasResultPage={hasResultPage}
+      hasResultPage={false}
       renderArenaPage={renderArenaPage}
       renderRaceBoardPage={renderRaceBoardPage}
       renderStatsPage={renderTrackingPage}
@@ -80,8 +94,24 @@ export const LiveMatchPages = memo(function LiveMatchPages({
 }, (prevProps, nextProps) => (
   areLiveMatchPagesPropsEqualForActivePage(prevProps, nextProps)
   && (
-    nextProps.page === 0
-      ? prevProps.exitAction === nextProps.exitAction
-      : true
+    nextProps.hasResultPage
+      ? prevProps.resultProps === nextProps.resultProps && prevProps.exitAction === nextProps.exitAction
+      : (
+        nextProps.page === 0
+          ? prevProps.exitAction === nextProps.exitAction
+          : true
+      )
   )
 ));
+
+const styles = StyleSheet.create({
+  standaloneResultScroll: {
+    flex: 1,
+  },
+  standaloneResult: {
+    flexGrow: 1,
+    gap: spacing.s16,
+    paddingHorizontal: spacing.s16,
+    paddingTop: spacing.s16,
+  },
+});
