@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { INITIAL_RANK } from '../src/lib/rankSystem.mjs';
+import { INITIAL_RANK, RANK_TIERS } from '../src/lib/rankSystem.mjs';
 
 const backendDirectory = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const defaultStoreFile = resolve(backendDirectory, 'data', 'store.json');
@@ -152,6 +152,28 @@ function sqlJson(value) {
   return `${sqlString(JSON.stringify(value ?? null))}::jsonb`;
 }
 
+function normalizeRankState(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return INITIAL_RANK;
+  }
+
+  const lp = Number(value.lp);
+
+  if (
+    !RANK_TIERS.includes(value.tier)
+    || 'division' in value
+    || !Number.isFinite(lp)
+    || lp < 0
+  ) {
+    return INITIAL_RANK;
+  }
+
+  return {
+    tier: value.tier,
+    lp: Math.trunc(lp),
+  };
+}
+
 function sqlDate(value) {
   return value ? `${sqlString(value)}::date` : 'null';
 }
@@ -287,7 +309,7 @@ function buildUserRows(store, issues) {
       address_detail: sqlString(optionalText(user.addressDetail)),
       reward_points: sqlNumber(numberValue(user.rewardPoints, 0)),
       streak_days: sqlInteger(integerValue(user.streakDays, 0)),
-      rank_state: sqlJson(user.rankState ?? INITIAL_RANK),
+      rank_state: sqlJson(normalizeRankState(user.rankState)),
       connected_sources: sqlJson(asArray(user.connectedSources)),
       notification_settings: sqlJson(user.notificationSettings ?? {}),
       created_at: sqlTimestamp(timestamp(user.createdAt)) === 'null' ? 'now()' : sqlTimestamp(timestamp(user.createdAt)),

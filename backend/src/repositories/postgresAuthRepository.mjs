@@ -1,8 +1,6 @@
 import { buildSessionExpiry, hashPassword, verifyPassword } from '../auth.mjs';
 import {
-  DIVISIONS_PER_TIER,
   INITIAL_RANK,
-  LP_PER_DIVISION,
   RANK_TIERS,
 } from '../lib/rankSystem.mjs';
 import { createDefaultConnectedSources, createDefaultNotificationSettings } from './authRepository.mjs';
@@ -38,20 +36,16 @@ function asRankState(value) {
 
   if (
     !RANK_TIERS.includes(rankState.tier)
-    || !Number.isInteger(rankState.division)
-    || rankState.division < 1
-    || rankState.division > DIVISIONS_PER_TIER
+    || 'division' in rankState
     || !Number.isFinite(rankState.lp)
     || rankState.lp < 0
-    || rankState.lp > LP_PER_DIVISION
   ) {
     return { ...INITIAL_RANK };
   }
 
   return {
     tier: rankState.tier,
-    division: rankState.division,
-    lp: rankState.lp,
+    lp: Math.trunc(rankState.lp),
   };
 }
 

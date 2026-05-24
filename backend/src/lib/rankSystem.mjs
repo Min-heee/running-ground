@@ -1,7 +1,6 @@
-export const RANK_TIERS = ['아이언', '브론즈', '실버', '골드', '플래티넘', '다이아'];
-export const DIVISIONS_PER_TIER = 4;
-export const LP_PER_DIVISION = 100;
-export const INITIAL_RANK = { tier: '아이언', division: 4, lp: 0 };
+export const RANK_TIERS = ['입문', '조거', '러너', '페이서', '레이서', '엘리트'];
+export const LP_PER_TIER = 200;
+export const INITIAL_RANK = { tier: '입문', lp: 0 };
 
 export const DUEL_LP = {
   winVsFaster: 28,
@@ -19,90 +18,55 @@ export const GROUP_TOP_RATIO = 0.3;
 export const GROUP_BOTTOM_RATIO = 0.7;
 
 function normalizeRankState(rankState) {
+  if (
+    !rankState
+    || typeof rankState !== 'object'
+    || Array.isArray(rankState)
+    || !RANK_TIERS.includes(rankState.tier)
+    || 'division' in rankState
+  ) {
+    return {
+      tierIndex: RANK_TIERS.indexOf(INITIAL_RANK.tier),
+      lp: INITIAL_RANK.lp,
+    };
+  }
+
   const tierIndex = RANK_TIERS.indexOf(rankState?.tier);
-  const safeTierIndex = tierIndex >= 0 ? tierIndex : RANK_TIERS.indexOf(INITIAL_RANK.tier);
-  const rawDivision = Number(rankState?.division);
-  const safeDivision = Number.isInteger(rawDivision) && rawDivision >= 1 && rawDivision <= DIVISIONS_PER_TIER
-    ? rawDivision
-    : INITIAL_RANK.division;
   const rawLp = Number(rankState?.lp);
-  const safeLp = Number.isFinite(rawLp) ? Math.trunc(rawLp) : INITIAL_RANK.lp;
+  const safeLp = Number.isFinite(rawLp) && rawLp >= 0 ? Math.trunc(rawLp) : INITIAL_RANK.lp;
 
   return {
-    tierIndex: safeTierIndex,
-    division: safeDivision,
+    tierIndex,
     lp: safeLp,
   };
 }
 
-function isAtRankFloor(tierIndex, division) {
-  return tierIndex === 0 && division === DIVISIONS_PER_TIER;
-}
-
-function isAtRankCeiling(tierIndex, division) {
-  return tierIndex === RANK_TIERS.length - 1 && division === 1;
-}
-
-function promoteOneDivision({ tierIndex, division }) {
-  if (isAtRankCeiling(tierIndex, division)) {
-    return { tierIndex, division };
-  }
-
-  if (division > 1) {
-    return { tierIndex, division: division - 1 };
-  }
-
-  return { tierIndex: tierIndex + 1, division: DIVISIONS_PER_TIER };
-}
-
-function demoteOneDivision({ tierIndex, division }) {
-  if (isAtRankFloor(tierIndex, division)) {
-    return { tierIndex, division };
-  }
-
-  if (division < DIVISIONS_PER_TIER) {
-    return { tierIndex, division: division + 1 };
-  }
-
-  return { tierIndex: tierIndex - 1, division: 1 };
-}
-
 export function applyLpDelta(rankState, deltaLp) {
-  let { tierIndex, division, lp } = normalizeRankState(rankState);
+  let { tierIndex, lp } = normalizeRankState(rankState);
   const delta = Number.isFinite(Number(deltaLp)) ? Math.trunc(Number(deltaLp)) : 0;
   let nextLp = lp + delta;
   let promoted = false;
   let demoted = false;
 
-  while (nextLp >= LP_PER_DIVISION) {
-    if (isAtRankCeiling(tierIndex, division)) {
-      nextLp = LP_PER_DIVISION;
-      break;
-    }
-
-    nextLp -= LP_PER_DIVISION;
-    const nextRank = promoteOneDivision({ tierIndex, division });
-    promoted = promoted || nextRank.tierIndex !== tierIndex || nextRank.division !== division;
-    tierIndex = nextRank.tierIndex;
-    division = nextRank.division;
+  while (nextLp >= LP_PER_TIER && tierIndex < RANK_TIERS.length - 1) {
+    nextLp -= LP_PER_TIER;
+    tierIndex += 1;
+    promoted = true;
   }
 
   while (nextLp < 0) {
-    if (isAtRankFloor(tierIndex, division)) {
+    if (tierIndex === 0) {
       nextLp = 0;
       break;
     }
 
-    nextLp += LP_PER_DIVISION;
-    const nextRank = demoteOneDivision({ tierIndex, division });
-    demoted = demoted || nextRank.tierIndex !== tierIndex || nextRank.division !== division;
-    tierIndex = nextRank.tierIndex;
-    division = nextRank.division;
+    nextLp += LP_PER_TIER;
+    tierIndex -= 1;
+    demoted = true;
   }
 
   return {
     tier: RANK_TIERS[tierIndex],
-    division,
     lp: nextLp,
     promoted,
     demoted,

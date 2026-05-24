@@ -32,8 +32,7 @@ import {
 } from './_shared';
 
 const DEFAULT_PROFILE_RANK_STATE = {
-  tier: '아이언',
-  division: 4,
+  tier: '입문',
   lp: 0,
 };
 

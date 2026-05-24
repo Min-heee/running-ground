@@ -9,79 +9,70 @@ import {
   resolveGroupMatchLpDelta,
 } from './rankSystem.mjs';
 
-assert.deepEqual(applyLpDelta({ tier: '아이언', division: 4, lp: 40 }, 20), {
-  tier: '아이언',
-  division: 4,
+assert.deepEqual(applyLpDelta({ tier: '입문', lp: 40 }, 20), {
+  tier: '입문',
   lp: 60,
   promoted: false,
   demoted: false,
 });
 
-assert.deepEqual(applyLpDelta({ tier: '아이언', division: 4, lp: 40 }, -10), {
-  tier: '아이언',
-  division: 4,
+assert.deepEqual(applyLpDelta({ tier: '입문', lp: 40 }, -10), {
+  tier: '입문',
   lp: 30,
   promoted: false,
   demoted: false,
 });
 
-assert.deepEqual(applyLpDelta({ tier: '아이언', division: 4, lp: 90 }, 20), {
-  tier: '아이언',
-  division: 3,
-  lp: 10,
+assert.deepEqual(applyLpDelta({ tier: '입문', lp: 150 }, 50), {
+  tier: '조거',
+  lp: 0,
   promoted: true,
   demoted: false,
-});
-
-assert.deepEqual(applyLpDelta({ tier: '아이언', division: 1, lp: 90 }, 20), {
-  tier: '브론즈',
-  division: 4,
-  lp: 10,
-  promoted: true,
-  demoted: false,
-});
-
-assert.deepEqual(applyLpDelta({ tier: '브론즈', division: 4, lp: 5 }, -20), {
-  tier: '아이언',
-  division: 1,
-  lp: 85,
-  promoted: false,
-  demoted: true,
 });
 
 assert.deepEqual(applyLpDelta(INITIAL_RANK, 250), {
-  tier: '아이언',
-  division: 2,
+  tier: '조거',
   lp: 50,
   promoted: true,
   demoted: false,
 });
 
-assert.deepEqual(applyLpDelta({ tier: '아이언', division: 4, lp: 10 }, -50), {
-  tier: '아이언',
-  division: 4,
+assert.deepEqual(applyLpDelta(INITIAL_RANK, 150), {
+  tier: '입문',
+  lp: 150,
+  promoted: false,
+  demoted: false,
+});
+
+assert.deepEqual(applyLpDelta({ tier: '입문', lp: 100 }, -150), {
+  tier: '입문',
   lp: 0,
   promoted: false,
   demoted: false,
 });
 
-assert.deepEqual(applyLpDelta({ tier: '다이아', division: 1, lp: 95 }, 30), {
-  tier: '다이아',
-  division: 1,
-  lp: 100,
+assert.deepEqual(applyLpDelta({ tier: '조거', lp: 50 }, -100), {
+  tier: '입문',
+  lp: 150,
+  promoted: false,
+  demoted: true,
+});
+
+assert.deepEqual(applyLpDelta({ tier: '엘리트', lp: 1000 }, 200), {
+  tier: '엘리트',
+  lp: 1200,
   promoted: false,
   demoted: false,
 });
 
-const immutableRank = { tier: '실버', division: 2, lp: 50 };
-assert.deepEqual(applyLpDelta(immutableRank, 80), {
-  tier: '실버',
-  division: 1,
+const immutableRank = { tier: '러너', lp: 50 };
+assert.deepEqual(applyLpDelta(immutableRank, 180), {
+  tier: '페이서',
   lp: 30,
   promoted: true,
   demoted: false,
 });
-assert.deepEqual(immutableRank, { tier: '실버', division: 2, lp: 50 });
+assert.deepEqual(immutableRank, { tier: '러너', lp: 50 });
 
 assert.deepEqual(resolveDuelMatchLpDeltas({
   winnerPaceSecPerKm: 330,
