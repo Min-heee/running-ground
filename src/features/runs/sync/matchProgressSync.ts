@@ -15,12 +15,24 @@ export const MATCH_PROGRESS_HEARTBEAT_INTERVAL_MS = LIVE_MATCH_SERVER_SYNC_INTER
 export type MatchProgressRoomContext = {
   mode: 'duel' | 'group';
   matchId: string;
+  distanceKm: number;
   state: 'matched' | 'active';
 } | null;
 
 export type ActiveMatchProgressTarget = {
   matchId: string;
+  distanceKm: number;
 } | null;
+
+export function resolveMatchProgressHeartbeatStatus({
+  progressDistanceKm,
+  targetDistanceKm,
+}: {
+  progressDistanceKm: number;
+  targetDistanceKm: number;
+}): Extract<UpdateRunningMatchProgressInput['status'], 'running' | 'finished'> {
+  return progressDistanceKm >= targetDistanceKm ? 'finished' : 'running';
+}
 
 export function buildSyncedMatchProgressSnapshot(
   input: UpdateRunningMatchProgressInput,
@@ -52,12 +64,14 @@ export function resolveActiveMatchProgressTarget({
   if (matchMode === 'duel' && duelMatchStatus?.state === 'active' && duelMatchStatus.matchId) {
     return {
       matchId: duelMatchStatus.matchId,
+      distanceKm: duelMatchStatus.distanceKm,
     };
   }
 
   if (matchMode === 'group' && groupMatchStatus?.state === 'active' && groupMatchStatus.matchId) {
     return {
       matchId: groupMatchStatus.matchId,
+      distanceKm: groupMatchStatus.distanceKm,
     };
   }
 
@@ -68,6 +82,7 @@ export function resolveActiveMatchProgressTarget({
   ) {
     return {
       matchId: roomLinkedMatchContext.matchId,
+      distanceKm: roomLinkedMatchContext.distanceKm,
     };
   }
 

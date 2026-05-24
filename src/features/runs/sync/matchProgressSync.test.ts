@@ -4,6 +4,7 @@ import type { RunningMatchStatusResponse } from '@/lib/api/types';
 import {
   buildSyncedMatchProgressSnapshot,
   resolveActiveMatchProgressTarget,
+  resolveMatchProgressHeartbeatStatus,
   shouldSendMatchProgressHeartbeat,
 } from './matchProgressSync';
 
@@ -52,14 +53,14 @@ test('active progress target prefers active status for the selected mode', () =>
     duelMatchStatus: status({ state: 'active', matchId: 'duel-1' }),
     groupMatchStatus: status({ mode: 'group', state: 'active', matchId: 'group-1' }),
     roomLinkedMatchContext: null,
-  }), { matchId: 'duel-1' });
+  }), { matchId: 'duel-1', distanceKm: 5 });
 
   assert.deepEqual(resolveActiveMatchProgressTarget({
     matchMode: 'group',
     duelMatchStatus: status({ state: 'active', matchId: 'duel-1' }),
     groupMatchStatus: status({ mode: 'group', state: 'active', matchId: 'group-1' }),
     roomLinkedMatchContext: null,
-  }), { matchId: 'group-1' });
+  }), { matchId: 'group-1', distanceKm: 5 });
 });
 
 test('active progress target falls back to active linked party room match', () => {
@@ -70,9 +71,10 @@ test('active progress target falls back to active linked party room match', () =
     roomLinkedMatchContext: {
       mode: 'duel',
       matchId: 'room-linked-1',
+      distanceKm: 3,
       state: 'active',
     },
-  }), { matchId: 'room-linked-1' });
+  }), { matchId: 'room-linked-1', distanceKm: 3 });
 });
 
 test('active progress target ignores waiting and countdown linked matches', () => {
@@ -83,9 +85,25 @@ test('active progress target ignores waiting and countdown linked matches', () =
     roomLinkedMatchContext: {
       mode: 'duel',
       matchId: 'room-linked-countdown',
+      distanceKm: 3,
       state: 'matched',
     },
   }), null);
+});
+
+test('progress heartbeat status finishes when local progress reaches the target distance', () => {
+  assert.equal(resolveMatchProgressHeartbeatStatus({
+    progressDistanceKm: 6.99,
+    targetDistanceKm: 7,
+  }), 'running');
+  assert.equal(resolveMatchProgressHeartbeatStatus({
+    progressDistanceKm: 7,
+    targetDistanceKm: 7,
+  }), 'finished');
+  assert.equal(resolveMatchProgressHeartbeatStatus({
+    progressDistanceKm: 7.06,
+    targetDistanceKm: 7,
+  }), 'finished');
 });
 
 test('progress heartbeat only sends while running and after the interval', () => {
