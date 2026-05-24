@@ -224,7 +224,7 @@ export function useTrackingSessionSnapshots({
     };
 
     commitSlotElapsedSeconds();
-    const ticker = setInterval(commitSlotElapsedSeconds, 1000);
+    const ticker = setInterval(commitSlotElapsedSeconds, 500);
     slotElapsedTickerRef.current = ticker;
 
     return () => {
