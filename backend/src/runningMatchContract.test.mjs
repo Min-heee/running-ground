@@ -799,6 +799,85 @@ await runTest('match progress finishes a participant when they reach the goal di
   });
 });
 
+await runTest('match progress finishes within tolerance of the goal distance', async () => {
+  const { store, slotStartAt } = createActiveDuelStore();
+  store.matchSessions[0].distanceKm = 0.5;
+
+  await withBackend(store, async ({ request }) => {
+    const belowTolerance = await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 0.46,
+      elapsedSeconds: 1500,
+      currentPace: '05:00/km',
+      status: 'running',
+    });
+    assert.equal(belowTolerance.currentUserLiveStatus, 'running');
+
+    const withinTolerance = await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 0.47,
+      elapsedSeconds: 1530,
+      currentPace: '05:02/km',
+      status: 'running',
+    });
+    assert.equal(withinTolerance.currentUserLiveStatus, 'finished');
+
+    const guestView = await request('guest-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 0.5,
+      slotStartAt,
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(guestView.opponent.liveStatus, 'finished');
+    assert.equal(guestView.opponent.liveDistanceKm, 0.47);
+    assert.equal(typeof guestView.opponent.finishedAt, 'string');
+  });
+});
+
+await runTest('match progress remains finished when a later heartbeat reports lower distance', async () => {
+  const { store, slotStartAt } = createActiveDuelStore();
+  store.matchSessions[0].distanceKm = 0.5;
+
+  await withBackend(store, async ({ request }) => {
+    await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 0.47,
+      elapsedSeconds: 1530,
+      currentPace: '05:02/km',
+      status: 'running',
+    });
+
+    const guestView = await request('guest-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 0.5,
+      slotStartAt,
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(guestView.opponent.liveStatus, 'finished');
+    const firstFinishedAt = guestView.opponent.finishedAt;
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 0.3,
+      elapsedSeconds: 1560,
+      currentPace: '05:04/km',
+      status: 'running',
+    });
+
+    const guestViewAfterStaleHeartbeat = await request('guest-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 0.5,
+      slotStartAt,
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(guestViewAfterStaleHeartbeat.opponent.liveStatus, 'finished');
+    assert.equal(guestViewAfterStaleHeartbeat.opponent.finishedAt, firstFinishedAt);
+    assert.equal(guestViewAfterStaleHeartbeat.opponent.liveDistanceKm, 0.47);
+  });
+});
+
 await runTest('duel forfeit flow persists both match results and exposes them in activity records', async () => {
   const { store, slotStartAt } = createActiveDuelStore();
 

@@ -164,6 +164,7 @@ import {
   validateRewardRedemptionStatus,
   validateRoutePreviewCoordinates,
   validateRunMatchResult,
+  validateRunningMatchProgressDistanceKm,
   validateTrackedRoute,
   validateUsername,
 } from './lib/validators.mjs';
@@ -740,6 +741,7 @@ const routeRequest = createApiRouteHandler({
   validateRewardRedemptionStatus,
   validateRoutePreviewCoordinates,
   validateRunMatchResult,
+  validateRunningMatchProgressDistanceKm,
   validateTrackedRoute,
   buildRoadAlignedRoutePreview,
   normalizeAdminMarketItemInput,
