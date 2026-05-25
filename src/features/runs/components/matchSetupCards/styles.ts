@@ -13,21 +13,14 @@ export const matchSetupCardStyles = StyleSheet.create({
   duelSection: {
     gap: spacing.s10,
   },
-  duelSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  duelSectionTitle: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: fontWeights.extraBold,
-  },
   distanceInputToggle: {
     borderRadius: radii.pill,
     backgroundColor: colors.darkMuted,
     paddingHorizontal: spacing.s10,
     paddingVertical: spacing.lg,
+  },
+  distanceInputToggleStandalone: {
+    alignSelf: 'flex-end',
   },
   distanceInputToggleText: {
     color: colors.brandLighter,

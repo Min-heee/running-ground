@@ -44,17 +44,14 @@ export function MatchDistanceSelector({
 
   return (
     <View style={styles.duelSection}>
-      <View style={styles.duelSectionHeader}>
-        <Text style={styles.duelSectionTitle}>거리</Text>
-        <Pressable
-          style={styles.distanceInputToggle}
-          onPress={handleToggleCustomDistanceInput}
-        >
-          <Text style={styles.distanceInputToggleText}>
-            {showCustomDistanceInput ? '추천 거리' : '직접 입력'}
-          </Text>
-        </Pressable>
-      </View>
+      <Pressable
+        style={[styles.distanceInputToggle, styles.distanceInputToggleStandalone]}
+        onPress={handleToggleCustomDistanceInput}
+      >
+        <Text style={styles.distanceInputToggleText}>
+          {showCustomDistanceInput ? '추천 거리' : '직접 입력'}
+        </Text>
+      </Pressable>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -151,9 +148,6 @@ export function MatchTimeSlotSelector({
 
   return (
     <View style={styles.duelSection}>
-      <View style={styles.duelSectionHeader}>
-        <Text style={styles.duelSectionTitle}>출발 시간대</Text>
-      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
