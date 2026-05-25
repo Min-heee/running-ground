@@ -34,10 +34,12 @@ export const matchSetupCardStyles = StyleSheet.create({
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extraBold,
   },
-  matchDistanceChipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  matchDistanceScroll: {
+    marginHorizontal: -2,
+  },
+  matchDistanceScrollContent: {
     gap: spacing.xxl,
+    paddingHorizontal: spacing.xxs,
   },
   matchDistanceChip: {
     borderRadius: radii.pill,
@@ -138,13 +140,14 @@ export const matchSetupCardStyles = StyleSheet.create({
   slotSectionChipTextSelected: {
     color: colors.white,
   },
-  duelSlotGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  duelSlotScroll: {
+    marginHorizontal: -2,
+  },
+  duelSlotScrollContent: {
     gap: spacing.xxl,
+    paddingHorizontal: spacing.xxs,
   },
   duelSlotChip: {
-    width: '30%',
     minWidth: 76,
     borderRadius: 12,
     borderWidth: 1,

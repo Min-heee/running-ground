@@ -55,9 +55,14 @@ export function MatchDistanceSelector({
           </Text>
         </Pressable>
       </View>
-      <View style={styles.matchDistanceChipRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.matchDistanceScrollContent}
+        style={styles.matchDistanceScroll}
+      >
         {distanceChips}
-      </View>
+      </ScrollView>
       {showCustomDistanceInput ? (
         <TextInput
           value={distanceText}
@@ -160,9 +165,14 @@ export function MatchTimeSlotSelector({
       <View style={styles.slotSectionRow}>
         {sectionChips}
       </View>
-      <View style={styles.duelSlotGrid}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.duelSlotScrollContent}
+        style={styles.duelSlotScroll}
+      >
         {slotChips}
-      </View>
+      </ScrollView>
     </View>
   );
 }
