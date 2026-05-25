@@ -39,7 +39,7 @@ export function HomeRankCard({ rankState }: HomeRankCardProps) {
   return (
     <Card style={styles.rankCard}>
       <View style={styles.rankHeader}>
-        <Text style={styles.sectionEyebrow}>내 랭크 (v2)</Text>
+        <Text style={styles.sectionEyebrow}>내 랭크</Text>
         <Text style={styles.rankHelper}>대결 결과가 LP에 반영돼요</Text>
       </View>
 
