@@ -1,5 +1,6 @@
 import type {
   DistrictPersonalRank,
+  RankLeaderboard,
   RegionDrilldownNode,
   TodayRankingResponse,
   UniversityLeagueRank,
@@ -27,5 +28,6 @@ export type UniversityLeagueResponse = {
 };
 
 export type {
+  RankLeaderboard,
   TodayRankingResponse,
 };

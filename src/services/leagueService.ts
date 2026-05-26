@@ -2,6 +2,7 @@ export {
   fetchDistrictPersonal,
   fetchRegionCatalog,
   fetchRegionLeague,
+  fetchRankLeaderboard,
   fetchTodayRanking,
   fetchUniversityCatalog,
   fetchUniversityLeague,

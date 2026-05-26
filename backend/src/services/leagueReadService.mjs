@@ -1,6 +1,9 @@
+import { buildRankLeaderboardResponse } from './rankLeaderboardBuilder.mjs';
+
 export function createLeagueReadService({
   getAccessToken,
   getFriendsLeagueBridge,
+  loadCurrentUserReadContext,
   loadStore,
 }) {
   async function buildDistrictPersonalReadPayload(request) {
@@ -41,8 +44,14 @@ export function createLeagueReadService({
     return payload;
   }
 
+  async function buildRankLeaderboardReadPayload(request) {
+    const { store, user } = await loadCurrentUserReadContext(request);
+    return buildRankLeaderboardResponse(store, user);
+  }
+
   return {
     buildDistrictPersonalReadPayload,
+    buildRankLeaderboardReadPayload,
     buildRegionLeagueReadPayload,
     buildTodayRankingReadPayload,
     buildUniversityLeagueReadPayload,

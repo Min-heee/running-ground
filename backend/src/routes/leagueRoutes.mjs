@@ -6,6 +6,7 @@ export async function routeLeagueRequest({
   url,
   sendJson,
   buildDistrictPersonalReadPayload,
+  buildRankLeaderboardReadPayload,
   buildRegionLeagueReadPayload,
   buildTodayRankingReadPayload,
   buildUniversityLeagueReadPayload,
@@ -22,6 +23,11 @@ export async function routeLeagueRequest({
 
   if (pathname === '/api/league/universities' && method === 'GET') {
     sendJson(response, 200, await buildUniversityLeagueReadPayload(request));
+    return true;
+  }
+
+  if ((pathname === '/api/league/rank' || pathname === '/api/leagues/rank') && method === 'GET') {
+    sendJson(response, 200, await buildRankLeaderboardReadPayload(request));
     return true;
   }
 

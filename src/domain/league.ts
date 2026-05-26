@@ -46,3 +46,20 @@ export type TodayRankingResponse = {
   entries: TodayRankingEntry[];
   totalCount: number;
 };
+
+export type RankLeaderboardUser = {
+  id: string;
+  name: string;
+  lp: number;
+  rankInTier: number;
+};
+
+export type RankLeaderboardTier = {
+  tier: string;
+  users: RankLeaderboardUser[];
+};
+
+export type RankLeaderboard = {
+  tiers: RankLeaderboardTier[];
+  currentUserId: string;
+};
