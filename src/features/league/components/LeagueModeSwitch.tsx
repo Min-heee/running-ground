@@ -11,13 +11,12 @@ type LeagueModeSwitchProps = {
 };
 
 export function LeagueModeSwitch({ mode, onChange }: LeagueModeSwitchProps) {
-  const isTodayView = mode === 'today';
-
   return (
     <Card style={styles.modeCard}>
       <View style={styles.modeSwitch}>
-        <ModeButton label="지역" mode="region" active={!isTodayView} onSelect={onChange} />
-        <ModeButton label="오늘" mode="today" active={isTodayView} onSelect={onChange} />
+        <ModeButton label="지역" mode="region" active={mode === 'region'} onSelect={onChange} />
+        <ModeButton label="랭크" mode="rank" active={mode === 'rank'} onSelect={onChange} />
+        <ModeButton label="오늘" mode="today" active={mode === 'today'} onSelect={onChange} />
       </View>
     </Card>
   );

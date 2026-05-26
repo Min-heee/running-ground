@@ -8,6 +8,7 @@ import { DistrictMemberRankingCard } from '@/features/league/components/District
 import { LeagueHeroCard } from '@/features/league/components/LeagueHeroCard';
 import { LeagueModeSwitch } from '@/features/league/components/LeagueModeSwitch';
 import { LeagueRegionSelectorCard } from '@/features/league/components/LeagueRegionSelectorCard';
+import { RankLeaderboardCard } from '@/features/league/components/RankLeaderboardCard';
 import { TodayRankingCard } from '@/features/league/components/TodayRankingCard';
 import { useRegionLeagueState } from '@/features/league/hooks/useRegionLeagueState';
 import { colors } from '@/theme/tokens';
@@ -40,6 +41,7 @@ export default function LeagueScreen() {
     setMyRankRowY(null);
   }, [currentNode?.id]);
 
+  const isRankView = leagueMode === 'rank';
   const currentNodeId = currentNode?.id;
 
   const scrollToMyRank = useCallback(() => {
@@ -78,6 +80,8 @@ export default function LeagueScreen() {
 
       {isTodayView ? (
         <TodayRankingCard />
+      ) : isRankView ? (
+        <RankLeaderboardCard />
       ) : (
         <>
           {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}

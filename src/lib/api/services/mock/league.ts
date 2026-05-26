@@ -6,10 +6,12 @@ import {
 } from '@/data/mock';
 import type {
   DistrictPersonalRank,
+  RankLeaderboard,
   RegionDrilldownNode,
   TodayRankingCategory,
   UniversityLeagueRank,
 } from '@/domain';
+import { RANK_TIERS } from '@/features/rank/rankDisplay';
 import { rankMockTodayEntries } from '@/features/league/utils/mockTodayRanking';
 import { getCurrentUserProfile } from '@/lib/session';
 import type { DistrictPersonalResponse, TodayRankingResponse } from '../../types';
@@ -173,5 +175,62 @@ export function buildMockTodayRankingResponse(category: TodayRankingCategory): T
     rankedAt: new Date().toISOString(),
     entries,
     totalCount: entries.length,
+  };
+}
+
+export function buildMockRankLeaderboardResponse(): RankLeaderboard {
+  const profile = getCurrentUserProfile() ?? myProfile;
+  const currentUserId = 'mock-current-user';
+  const usersByTier = new Map(RANK_TIERS.map((tier) => [tier, [] as RankLeaderboard['tiers'][number]['users']]));
+
+  RANK_TIERS.forEach((tier, tierIndex) => {
+    const users = usersByTier.get(tier);
+
+    if (!users) {
+      return;
+    }
+
+    for (let index = 0; index < 5; index += 1) {
+      users.push({
+        id: `mock-rank-${tier}-${index + 1}`,
+        name: `${tier} 러너 ${index + 1}`,
+        lp: Math.max(0, 180 - index * 28 + tierIndex * 4),
+        rankInTier: index + 1,
+      });
+    }
+  });
+
+  const profileTier = profile.rankState?.tier;
+  const runnerTier: (typeof RANK_TIERS)[number] = (
+    profileTier && RANK_TIERS.includes(profileTier as (typeof RANK_TIERS)[number])
+  )
+    ? profileTier as (typeof RANK_TIERS)[number]
+    : '입문';
+  const runnerLp = Number.isFinite(profile.rankState?.lp) ? Math.trunc(profile.rankState?.lp ?? 0) : 0;
+  const currentTierUsers = usersByTier.get(runnerTier) ?? [];
+  currentTierUsers.push({
+    id: currentUserId,
+    name: profile.name,
+    lp: runnerLp,
+    rankInTier: 0,
+  });
+  currentTierUsers
+    .sort((left, right) => {
+      if (right.lp !== left.lp) {
+        return right.lp - left.lp;
+      }
+
+      return left.name.localeCompare(right.name, 'ko');
+    })
+    .forEach((user, index) => {
+      user.rankInTier = index + 1;
+    });
+
+  return {
+    tiers: [...RANK_TIERS].reverse().map((tier) => ({
+      tier,
+      users: usersByTier.get(tier) ?? [],
+    })),
+    currentUserId,
   };
 }

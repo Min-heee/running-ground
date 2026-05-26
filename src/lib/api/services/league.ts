@@ -21,6 +21,7 @@ import { USE_MOCK_API } from '../config';
 
 import {
   DistrictPersonalResponse,
+  RankLeaderboard,
   RegionLeagueResponse,
   RegionCatalogResponse,
   TodayRankingResponse,
@@ -34,6 +35,7 @@ import {
   requireAccessToken,
   findRegionPath,
   buildMockDistrictPersonalResponse,
+  buildMockRankLeaderboardResponse,
   buildMockTodayRankingResponse,
 } from './_shared';
 
@@ -140,5 +142,16 @@ export async function fetchTodayRanking(category: TodayRankingCategory): Promise
   return apiGet<TodayRankingResponse>(`/running/today-rankings?category=${encodeURIComponent(category)}`, {
     accessToken: await requireAccessToken(),
     fallbackMessage: '오늘의 랭킹을 불러오지 못했어.',
+  });
+}
+
+export async function fetchRankLeaderboard(): Promise<RankLeaderboard> {
+  if (USE_MOCK_API) {
+    return buildMockRankLeaderboardResponse();
+  }
+
+  return apiGet<RankLeaderboard>('/leagues/rank', {
+    accessToken: await requireAccessToken(),
+    fallbackMessage: '랭크 랭킹을 불러오지 못했어.',
   });
 }

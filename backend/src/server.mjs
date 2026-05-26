@@ -666,6 +666,7 @@ const backendStatusService = createBackendStatusService({
 const leagueReadService = createLeagueReadService({
   getAccessToken,
   getFriendsLeagueBridge,
+  loadCurrentUserReadContext,
   loadStore,
 });
 
@@ -707,6 +708,7 @@ const routeRequest = createApiRouteHandler({
   buildFriendActivityReadPayload,
   buildFriendRunReadPayload,
   buildDistrictPersonalReadPayload: leagueReadService.buildDistrictPersonalReadPayload,
+  buildRankLeaderboardReadPayload: leagueReadService.buildRankLeaderboardReadPayload,
   buildRegionLeagueReadPayload: leagueReadService.buildRegionLeagueReadPayload,
   buildTodayRankingReadPayload: leagueReadService.buildTodayRankingReadPayload,
   buildUniversityLeagueReadPayload: leagueReadService.buildUniversityLeagueReadPayload,
