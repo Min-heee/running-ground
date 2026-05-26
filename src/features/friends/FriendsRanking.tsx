@@ -32,8 +32,7 @@ export const FriendsRanking = memo(function FriendsRanking({ ranks, highlightTag
     <Card style={styles.card}>
       <View style={styles.headerRow}>
         <View style={styles.headerCopy}>
-          <Text style={styles.title}>친구 경쟁 순위표</Text>
-          <Text style={styles.subtitle}>가장 많이 뛰고, 가장 높은 포인트를 쌓은 친구가 위로 올라갑니다.</Text>
+          <Text style={styles.title}>친구 순위표</Text>
         </View>
         <View style={styles.countBadge}>
           <Text style={styles.countBadgeText}>{displayedRanks.length}명</Text>
