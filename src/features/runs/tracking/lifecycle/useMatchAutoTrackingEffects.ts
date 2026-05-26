@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
+import { Platform } from 'react-native';
 import {
   getBackgroundRunTrackingSnapshot,
+  restorePersistedBackgroundRunTracking,
   type BackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background';
 import {
@@ -13,6 +15,7 @@ import { shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 type UseMatchAutoTrackingEffectsInput = Pick<
   UseRunTrackingFlowInput,
   | 'autoStartedMatchIdRef'
+  | 'appStateRef'
   | 'preStartWarmupMatchIdRef'
   | 'officialStartBaselineRef'
   | 'matchMode'
@@ -41,6 +44,7 @@ type UseMatchAutoTrackingEffectsInput = Pick<
 
 export function useMatchAutoTrackingEffects({
   autoStartedMatchIdRef,
+  appStateRef,
   preStartWarmupMatchIdRef,
   officialStartBaselineRef,
   matchMode,
@@ -62,6 +66,8 @@ export function useMatchAutoTrackingEffects({
   startMatchTrackingAutomatically,
   syncFromBackgroundTracking,
 }: UseMatchAutoTrackingEffectsInput) {
+  const restoringMatchIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!trackingSubscriptionsEnabled) {
       return;
@@ -160,6 +166,7 @@ export function useMatchAutoTrackingEffects({
 
     if (!activeMatchId) {
       autoStartedMatchIdRef.current = null;
+      restoringMatchIdRef.current = null;
       skippedAndroidWarmupMatchIdRef.current = null;
       if (!preStartWarmupMatchIdRef.current) {
         officialStartBaselineRef.current = null;
@@ -195,9 +202,39 @@ export function useMatchAutoTrackingEffects({
       return;
     }
 
-    startMatchTrackingAutomatically(activeMatchId);
+    if (restoringMatchIdRef.current === activeMatchId) {
+      return;
+    }
+
+    restoringMatchIdRef.current = activeMatchId;
+    void restorePersistedBackgroundRunTracking(activeMatchId, {
+      appState: appStateRef.current,
+      detachLocationTask: Platform.OS === 'android' && matchMode !== 'solo',
+      trackingKey: activeMatchId,
+    }).then((restored) => {
+      if (restoringMatchIdRef.current !== activeMatchId) {
+        return;
+      }
+
+      if (restored) {
+        autoStartedMatchIdRef.current = activeMatchId;
+        syncFromBackgroundTracking(getBackgroundRunTrackingSnapshot({ cloneRoute: false }));
+        return;
+      }
+
+      if (getBackgroundRunTrackingSnapshot({ cloneRoute: false }).status !== 'running') {
+        startMatchTrackingAutomatically(activeMatchId);
+      }
+    }).finally(() => {
+      if (restoringMatchIdRef.current === activeMatchId) {
+        restoringMatchIdRef.current = null;
+      }
+    });
+    return;
+
   }, [
     autoStartedMatchIdRef,
+    appStateRef,
     duelMatchStatus?.matchId,
     duelMatchStatus?.state,
     duelMatchStatus?.slotStartAt,
