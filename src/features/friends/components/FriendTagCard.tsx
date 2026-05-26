@@ -22,7 +22,6 @@ export function FriendTagCard({ profile, copyMessage, onCopyTag }: FriendTagCard
           <Text style={styles.copyButtonText}>복사</Text>
         </Pressable>
       </View>
-      <Text style={styles.tagDescription}>친구 추가 화면에서 이 태그로 바로 검색할 수 있어.</Text>
       {copyMessage ? <Text style={styles.copyMessage}>{copyMessage}</Text> : null}
     </Card>
   );
@@ -52,10 +51,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: fontWeights.black,
     includeFontPadding: false,
-  },
-  tagDescription: {
-    color: colors.textMuted,
-    lineHeight: 20,
   },
   copyButton: {
     backgroundColor: colors.textPrimary,

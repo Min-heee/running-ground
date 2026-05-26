@@ -23,11 +23,6 @@ export const friendsRankingStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
-  subtitle: {
-    color: colors.border,
-    lineHeight: 20,
-    includeFontPadding: false,
-  },
   modeSwitch: {
     flexDirection: 'row',
     backgroundColor: colors.darkMuted,
