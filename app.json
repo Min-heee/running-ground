@@ -19,13 +19,15 @@
           "NSAllowsArbitraryLoads": true
         }
       },
-      "buildNumber": "27"
+      "buildNumber": "28"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/adaptive-icon.png",
         "backgroundColor": "#11161B"
-      }
+      },
+      "versionCode": 28,
+      "package": "com.minheee.runnigapp"
     },
     "web": {
       "favicon": "./assets/branding/favicon.png"
@@ -38,6 +40,17 @@
         {
           "configureAndroidBackup": true,
           "faceIDPermission": "Allow $(PRODUCT_NAME) to access your Face ID biometric data."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "RunningGround가 백그라운드에서도 거리를 측정하려면 위치 권한이 필요해요. 화면을 꺼도 GPS를 이어서 받아 대결 기록이 끊기지 않게 해요.",
+          "locationWhenInUsePermission": "러닝 거리와 페이스를 측정하려면 위치 권한이 필요해요.",
+          "locationAlwaysPermission": "RunningGround가 백그라운드에서도 거리를 측정하려면 위치 권한이 필요해요.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ]
     ],

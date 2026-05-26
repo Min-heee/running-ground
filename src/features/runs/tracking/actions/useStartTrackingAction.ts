@@ -81,8 +81,11 @@ export function useStartTrackingAction({
     try {
       setError(null);
       const shouldUseSoloStartCountdown = shouldRunSoloGpsWarmupCountdown(matchMode, options);
+      const shouldRequireBackgroundPermission = matchMode !== 'solo';
       await ensureLocationPermission();
-      await ensureBackgroundLocationPermission();
+      await ensureBackgroundLocationPermission(
+        shouldRequireBackgroundPermission ? { required: true } : undefined,
+      );
       resetForegroundTrackingState();
       await resetBackgroundRunTracking();
 

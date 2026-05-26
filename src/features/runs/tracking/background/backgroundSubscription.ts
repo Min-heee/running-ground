@@ -70,8 +70,12 @@ async function runBackgroundLocationTaskStart(startGeneration: number) {
       taskName: BACKGROUND_RUN_TASK_NAME,
     });
     return true;
-  } catch {
+  } catch (error) {
     // Foreground tracking is enough while the race screen is open; background updates are best-effort.
+    rgPerfMark('background location task start failed', {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      taskName: BACKGROUND_RUN_TASK_NAME,
+    });
     return false;
   }
 }
