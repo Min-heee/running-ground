@@ -799,14 +799,14 @@ await runTest('match progress finishes a participant when they reach the goal di
   });
 });
 
-await runTest('match progress requires exact goal distance before server auto finish', async () => {
+await runTest('match progress finishes within goal distance tolerance before exact target', async () => {
   const { store, slotStartAt } = createActiveDuelStore();
   store.matchSessions[0].distanceKm = 0.5;
 
   await withBackend(store, async ({ request }) => {
     const belowGoal = await request('host-token', 'POST', '/api/running/matches/progress', {
       matchId: 'duel-contract-match',
-      distanceKm: 0.499,
+      distanceKm: 0.479,
       elapsedSeconds: 1500,
       currentPace: '05:00/km',
       status: 'running',
@@ -815,7 +815,7 @@ await runTest('match progress requires exact goal distance before server auto fi
 
     const reachedGoal = await request('host-token', 'POST', '/api/running/matches/progress', {
       matchId: 'duel-contract-match',
-      distanceKm: 0.5,
+      distanceKm: 0.48,
       elapsedSeconds: 1530,
       currentPace: '05:02/km',
       status: 'running',
@@ -829,7 +829,7 @@ await runTest('match progress requires exact goal distance before server auto fi
       matchId: 'duel-contract-match',
     });
     assert.equal(guestView.opponent.liveStatus, 'finished');
-    assert.equal(guestView.opponent.liveDistanceKm, 0.5);
+    assert.equal(guestView.opponent.liveDistanceKm, 0.48);
     assert.equal(typeof guestView.opponent.finishedAt, 'string');
   });
 });
