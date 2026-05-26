@@ -3,8 +3,8 @@ import { Platform } from 'react-native';
 import { recordLiveMatchPerfSample } from '@/components/matches/liveMatchPerfQaLog';
 
 export const LIVE_MATCH_PERF_QA_ENABLED = (
-  __DEV__
-  && Platform.OS === 'android'
+  // Allow preview builds to opt in with an env flag while keeping the panel Android-only.
+  Platform.OS === 'android'
   && process.env.EXPO_PUBLIC_ENABLE_ANDROID_MATCH_PERF === '1'
 );
 
