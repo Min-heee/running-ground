@@ -6,6 +6,8 @@ type UseElapsedTickerInput = {
   syncFromBackgroundTracking: () => void;
 };
 
+const ELAPSED_TICKER_INTERVAL_MS = 2500;
+
 export function useElapsedTicker({
   timerRef,
   syncFromBackgroundTracking,
@@ -22,9 +24,10 @@ export function useElapsedTicker({
 
   const startElapsedTicker = useCallback(() => {
     clearElapsedTicker();
+    // Slot ticker updates elapsed every second; this ticker is only a GPS safety net.
     timerRef.current = setInterval(() => {
       syncFromBackgroundTrackingRef.current();
-    }, 1000);
+    }, ELAPSED_TICKER_INTERVAL_MS);
   }, [clearElapsedTicker, timerRef]);
 
   return {
