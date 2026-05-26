@@ -98,7 +98,16 @@ export function useAndroidLiveMatchDisplayFrame(
   }, []);
 
   return useMemo(
-    () => (shouldThrottle ? displayFrame : frame),
+    () => (
+      shouldThrottle
+        ? {
+            ...displayFrame,
+            // The slot ticker owns elapsed time, so keep it visibly 1Hz while
+            // Android still throttles noisier GPS-derived fields.
+            elapsedSeconds: frame.elapsedSeconds,
+          }
+        : frame
+    ),
     [displayFrame, frame, shouldThrottle],
   );
 }
