@@ -3,6 +3,10 @@ import {
   BACKGROUND_RUN_TASK_NAME,
   BACKGROUND_LOCATION_TASK_NAMES,
 } from '@/features/runs/tracking/background/locationTaskNames';
+import {
+  recordBackgroundTaskFailed,
+  recordBackgroundTaskStarted,
+} from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
 import { buildLocationTaskOptions } from '@/features/runs/tracking/background/locationTask';
 import { rgPerfMark, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 
@@ -54,6 +58,7 @@ async function runBackgroundLocationTaskStart(startGeneration: number) {
         taskName: BACKGROUND_RUN_TASK_NAME,
       });
     }
+    recordBackgroundTaskStarted();
     return true;
   }
 
@@ -69,13 +74,16 @@ async function runBackgroundLocationTaskStart(startGeneration: number) {
     stopBackgroundLocationTaskTrace = rgPerfTrackResource('watcher', 'background location task', {
       taskName: BACKGROUND_RUN_TASK_NAME,
     });
+    recordBackgroundTaskStarted();
     return true;
   } catch (error) {
     // Foreground tracking is enough while the race screen is open; background updates are best-effort.
+    const errorMessage = error instanceof Error ? error.message : String(error);
     rgPerfMark('background location task start failed', {
-      errorMessage: error instanceof Error ? error.message : String(error),
+      errorMessage,
       taskName: BACKGROUND_RUN_TASK_NAME,
     });
+    recordBackgroundTaskFailed(errorMessage);
     return false;
   }
 }
@@ -83,6 +91,7 @@ async function runBackgroundLocationTaskStart(startGeneration: number) {
 function withBackgroundStartTimeout(startPromise: Promise<boolean>) {
   return new Promise<boolean>((resolve) => {
     const timeoutId = setTimeout(() => {
+      recordBackgroundTaskFailed('background task start timed out');
       rgPerfMark('background task start timed out detached', {
         taskName: BACKGROUND_RUN_TASK_NAME,
         timeoutMs: BACKGROUND_TASK_START_TIMEOUT_MS,

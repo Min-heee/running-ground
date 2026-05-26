@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import {
   buildLiveMatchPerfSummary,
@@ -6,11 +6,49 @@ import {
   subscribeLiveMatchPerfSamples,
 } from '@/components/matches/liveMatchPerfQaLog';
 import { LIVE_MATCH_PERF_QA_ENABLED } from '@/components/matches/useAndroidLiveMatchPerfProbe';
+import { useBackgroundSyncDiagnostics } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type AndroidLiveMatchPerfPanelProps = {
   label: string;
 };
+
+function usePanelNowMs(enabled: boolean) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
+    const ticker = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1000);
+
+    return () => {
+      clearInterval(ticker);
+    };
+  }, [enabled]);
+
+  return nowMs;
+}
+
+function formatAgo(ms: number | null, nowMs: number) {
+  if (ms === null) {
+    return '없음';
+  }
+
+  const agoSeconds = Math.max(0, Math.floor((nowMs - ms) / 1000));
+  return `${agoSeconds}s 전`;
+}
+
+function formatFailureReason(reason: string | null) {
+  if (!reason) {
+    return '';
+  }
+
+  return reason.length > 60 ? `${reason.slice(0, 57)}...` : reason;
+}
 
 export function AndroidLiveMatchPerfPanel({ label }: AndroidLiveMatchPerfPanelProps) {
   const samples = useSyncExternalStore(
@@ -18,6 +56,8 @@ export function AndroidLiveMatchPerfPanel({ label }: AndroidLiveMatchPerfPanelPr
     getLiveMatchPerfSamples,
     getLiveMatchPerfSamples,
   );
+  const bgDiagnostics = useBackgroundSyncDiagnostics();
+  const nowMs = usePanelNowMs(LIVE_MATCH_PERF_QA_ENABLED);
   const summary = buildLiveMatchPerfSummary(samples, label);
 
   if (!LIVE_MATCH_PERF_QA_ENABLED || !summary) {
@@ -32,6 +72,7 @@ export function AndroidLiveMatchPerfPanel({ label }: AndroidLiveMatchPerfPanelPr
     : summary.diagnosis.level === 'watch'
       ? styles.diagnosisWatch
       : styles.diagnosisStable;
+  const taskFailureReason = formatFailureReason(bgDiagnostics.taskFailedReason);
 
   return (
     <View style={styles.panel} pointerEvents="none">
@@ -56,6 +97,23 @@ export function AndroidLiveMatchPerfPanel({ label }: AndroidLiveMatchPerfPanelPr
       </Text>
       <Text style={styles.meta}>
         참가 {summary.participants}명{visibleParticipantsLabel} · {summary.targetDistanceKm.toFixed(1)}km · 샘플 {summary.sampleCount}
+      </Text>
+      <View style={styles.sectionSeparator} />
+      <Text style={styles.eyebrow}>BG SYNC</Text>
+      <Text style={styles.line}>
+        task {bgDiagnostics.taskStartedAtMs ? `시작 ${formatAgo(bgDiagnostics.taskStartedAtMs, nowMs)}` : '미시작'}
+      </Text>
+      {taskFailureReason ? (
+        <Text style={styles.warningLine}>실패 {taskFailureReason}</Text>
+      ) : null}
+      <Text style={styles.line}>
+        snapshot {formatAgo(bgDiagnostics.lastSnapshotAtMs, nowMs)}
+      </Text>
+      <Text style={styles.line}>
+        heartbeat {formatAgo(bgDiagnostics.lastHeartbeatAtMs, nowMs)}
+      </Text>
+      <Text style={styles.line}>
+        appState {bgDiagnostics.isAppBackground ? '백그라운드' : '포그라운드'}
       </Text>
     </View>
   );
@@ -92,6 +150,16 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.bold,
     lineHeight: 15,
+  },
+  warningLine: {
+    color: colors.warningBright,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
+  },
+  sectionSeparator: {
+    height: 1,
+    backgroundColor: 'rgba(148, 163, 184, 0.22)',
+    marginVertical: spacing.xxs,
   },
   diagnosis: {
     borderRadius: radii.pill,

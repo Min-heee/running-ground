@@ -11,6 +11,9 @@ import type { BackgroundRunTrackingSnapshot } from '@/features/runs/tracking/bac
 import {
   getBackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background';
+import {
+  recordBackgroundHeartbeatSent,
+} from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
@@ -178,6 +181,7 @@ export function useMatchProgressSync({
     }
 
     const nextStatus = await heartbeatRequest.promise;
+    recordBackgroundHeartbeatSent();
     callbackRef.current.setLastSyncedMatchProgress(syncedProgress);
 
     if (!firstLiveProgressReceivedRef.current) {

@@ -1,4 +1,5 @@
 import type { RunRoutePoint } from '@/domain';
+import { recordBackgroundSnapshotUpdate } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
 
 export type BackgroundTrackingStatus = 'idle' | 'running' | 'paused';
 
@@ -66,6 +67,7 @@ export function emitSnapshot() {
 
 export function commitSnapshot(snapshot: BackgroundRunTrackingSnapshot) {
   setSnapshotState(snapshot);
+  recordBackgroundSnapshotUpdate();
   emitSnapshot();
 }
 
