@@ -3,7 +3,7 @@ import { addressCatalog } from '../addressCatalog.mjs';
 import { isPhoneVerificationPurpose, isValidKoreanMobilePhoneNumber, normalizePhoneNumber } from '../phoneVerification.mjs';
 import { ApiError } from '../response/httpResponse.mjs';
 import { normalizeOptionalString } from './adminNormalizers.mjs';
-import { validateMatchSlotStartAt } from './runningMatchStoreHelpers.mjs';
+import { validateMatchSlotStartAt } from './matchSlotValidation.mjs';
 
 const USERNAME_PATTERN = /^[a-z0-9][a-z0-9_-]{3,19}$/;
 
