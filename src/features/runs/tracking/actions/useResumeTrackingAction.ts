@@ -37,6 +37,7 @@ export function useResumeTrackingAction({
       await ensureBackgroundLocationPermission();
       await resumeBackgroundRunTracking({
         appState: appStateRef.current,
+        persistenceMatchId: resumeMatchId,
         trackingKey: resumeMatchId ?? (matchMode === 'solo' ? 'solo' : `${matchMode}:resume`),
       });
       syncFromBackgroundTracking();

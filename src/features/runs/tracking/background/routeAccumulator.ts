@@ -43,6 +43,22 @@ export function resetRouteAccumulator() {
   smoothedPaceUpdatedAtMs = null;
 }
 
+export function getAccumulatedDistanceMeters() {
+  return accumulatedDistanceMeters;
+}
+
+export function setAccumulatedDistanceMeters(value: number) {
+  accumulatedDistanceMeters = Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+export function getAccumulatedElevationGainMeters() {
+  return accumulatedElevationGainMeters;
+}
+
+export function setAccumulatedElevationGainMeters(value: number) {
+  accumulatedElevationGainMeters = Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
 export function resetPaceSmoothing() {
   smoothedCurrentPaceSecondsPerKm = null;
   smoothedPaceUpdatedAtMs = null;

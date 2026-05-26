@@ -77,6 +77,13 @@ export function useStartTrackingAction({
       matchMode,
     });
     const trackingStartKey = getTrackingStartKey(matchMode, options);
+    const persistenceMatchId = matchMode === 'solo'
+      ? null
+      : options?.matchId ?? (
+        matchMode === 'duel'
+          ? duelMatchStatus?.matchId ?? roomLinkedStartContext?.matchId ?? null
+          : groupMatchStatus?.matchId ?? roomLinkedStartContext?.matchId ?? null
+      );
 
     try {
       setError(null);
@@ -126,6 +133,7 @@ export function useStartTrackingAction({
           startGpsWarmup: () => startBackgroundRunTracking(undefined, {
             appState: appStateRef.current,
             detachLocationTask: shouldDetachLocationTask,
+            persistenceMatchId,
             trackingKey: trackingStartKey,
             warmupMode: true,
           }),
@@ -155,6 +163,7 @@ export function useStartTrackingAction({
       await startBackgroundRunTracking(undefined, {
         appState: appStateRef.current,
         detachLocationTask: shouldDetachLocationTask,
+        persistenceMatchId,
         trackingKey: trackingStartKey,
       });
       syncFromBackgroundTracking();

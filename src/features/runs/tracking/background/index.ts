@@ -7,6 +7,11 @@ import {
   resetRouteAccumulator,
 } from '@/features/runs/tracking/background/routeAccumulator';
 import {
+  clearBackgroundRunSnapshot,
+  persistBackgroundRunSnapshot,
+  restoreBackgroundRunSnapshot,
+} from '@/features/runs/tracking/background/backgroundRunPersistence';
+import {
   buildSnapshotClone,
   emitSnapshot,
   getSnapshotState,
@@ -21,6 +26,7 @@ import {
   startManagedLocationTask,
   stopManagedLocationTask,
   syncManagedLocationTaskAppState,
+  type ManagedLocationTaskOptions,
 } from '@/features/runs/tracking/background/locationTaskManager';
 import { resolveLocationTimestampMs } from '@/features/runs/tracking/background/locationDistance';
 import {
@@ -39,6 +45,7 @@ export {
 export type StartBackgroundRunTrackingOptions = {
   appState?: AppStateStatus;
   detachLocationTask?: boolean;
+  persistenceMatchId?: string | null;
   trackingKey?: string | null;
   warmupMode?: boolean;
 };
@@ -46,8 +53,41 @@ export type StartBackgroundRunTrackingOptions = {
 const ABANDONED_TRACKING_MAX_ELAPSED_MS = 8 * 60 * 60 * 1000;
 const ABANDONED_LOW_DISTANCE_MAX_ELAPSED_MS = 2 * 60 * 60 * 1000;
 const ABANDONED_LOW_DISTANCE_KM = 1;
+const BACKGROUND_RUN_PERSISTENCE_INTERVAL_MS = 5_000;
 
 let abandonedTrackingStopRequested = false;
+let persistenceMatchId: string | null = null;
+let persistenceTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopBackgroundRunPersistence() {
+  const previousMatchId = persistenceMatchId;
+
+  if (persistenceTimer) {
+    clearInterval(persistenceTimer);
+    persistenceTimer = null;
+  }
+
+  persistenceMatchId = null;
+  return previousMatchId;
+}
+
+function startBackgroundRunPersistence(matchId: string | null | undefined) {
+  if (!matchId) {
+    stopBackgroundRunPersistence();
+    return;
+  }
+
+  if (persistenceMatchId === matchId && persistenceTimer) {
+    return;
+  }
+
+  stopBackgroundRunPersistence();
+  persistenceMatchId = matchId;
+  void persistBackgroundRunSnapshot(matchId);
+  persistenceTimer = setInterval(() => {
+    void persistBackgroundRunSnapshot(matchId);
+  }, BACKGROUND_RUN_PERSISTENCE_INTERVAL_MS);
+}
 
 function shouldResetAbandonedTracking(snapshot: BackgroundRunTrackingSnapshot, nowMs = Date.now()) {
   if (snapshot.status === 'idle') {
@@ -64,6 +104,8 @@ function shouldResetAbandonedTracking(snapshot: BackgroundRunTrackingSnapshot, n
 }
 
 function resetTrackingStateOnly() {
+  const previousMatchId = stopBackgroundRunPersistence();
+  void clearBackgroundRunSnapshot(previousMatchId);
   resetRouteAccumulator();
   setSnapshotState({ ...INITIAL_SNAPSHOT });
 }
@@ -113,6 +155,7 @@ export async function startBackgroundRunTracking(
   options?: StartBackgroundRunTrackingOptions,
 ) {
   const {
+    persistenceMatchId,
     warmupMode = false,
     ...locationTaskOptions
   } = options ?? {};
@@ -136,6 +179,7 @@ export async function startBackgroundRunTracking(
     pausedAt: null,
   });
   emitSnapshot();
+  startBackgroundRunPersistence(persistenceMatchId);
   await startManagedLocationTask(locationTaskOptions);
 }
 
@@ -172,6 +216,10 @@ export async function pauseBackgroundRunTracking() {
 }
 
 export async function resumeBackgroundRunTracking(options?: StartBackgroundRunTrackingOptions) {
+  const {
+    persistenceMatchId,
+    ...locationTaskOptions
+  } = options ?? {};
   const snapshotState = getSnapshotState();
   if (snapshotState.status !== 'paused') {
     return;
@@ -188,13 +236,16 @@ export async function resumeBackgroundRunTracking(options?: StartBackgroundRunTr
     accumulatedPausedMs: snapshotState.accumulatedPausedMs + additionalPausedMs,
   });
   emitSnapshot();
-  await startManagedLocationTask(options);
+  startBackgroundRunPersistence(persistenceMatchId);
+  await startManagedLocationTask(locationTaskOptions);
 }
 
 export async function resetBackgroundRunTracking() {
+  const previousMatchId = stopBackgroundRunPersistence();
   await stopManagedLocationTask();
   resetTrackingStateOnly();
   emitSnapshot();
+  await clearBackgroundRunSnapshot(previousMatchId);
 }
 
 export async function syncBackgroundRunTrackingAppState(appState: AppStateStatus) {
@@ -203,4 +254,25 @@ export async function syncBackgroundRunTrackingAppState(appState: AppStateStatus
   }
 
   await syncManagedLocationTaskAppState(appState);
+}
+
+export async function restorePersistedBackgroundRunTracking(
+  matchId: string,
+  options?: ManagedLocationTaskOptions,
+) {
+  const restored = await restoreBackgroundRunSnapshot(matchId);
+  if (!restored) {
+    return false;
+  }
+
+  startBackgroundRunPersistence(matchId);
+  try {
+    await startManagedLocationTask({
+      ...options,
+      trackingKey: options?.trackingKey ?? matchId,
+    });
+  } catch {
+    // Restored distance is still useful even if native GPS re-attach fails briefly.
+  }
+  return true;
 }
