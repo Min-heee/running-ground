@@ -813,6 +813,8 @@ export function TrackRunExperienceRuntime({
     ?? liveMatchRouteHydration?.matchId
     ?? liveMatchMountedRef.current?.matchId
     ?? null;
+  const activeMatchExitSelfFinished = activeMatchExitSource === 'duel'
+    && currentUserDuelLiveStatus === 'finished';
   const shouldForceLiveArenaFromRoute = Boolean(
     hydratedFocusMatchId
     && (
@@ -1767,6 +1769,7 @@ export function TrackRunExperienceRuntime({
       isSaving,
       isRunning,
       counterpartForfeited: activeMatchExitCounterpartForfeited,
+      selfFinished: activeMatchExitSelfFinished,
       onContinueSolo: handleContinueSoloFromMatch,
       onForfeit: handleForfeitMatch,
       onShowResultAfterCounterpartForfeit: handleShowResultAfterCounterpartForfeit,
