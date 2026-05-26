@@ -3,10 +3,9 @@ import { buildMatchSlotDateLabel } from '@/features/runs/utils/matchScheduling';
 import { formatMatchCountdown, shouldShowMatchCardCountdown } from '@/lib/matchCountdown';
 import {
   MatchActionButtons,
-  MatchDistanceSelector,
   MatchNotice,
-  MatchTimeSlotSelector,
 } from '@/features/runs/components/matchSetupCards/MatchSetupCommon';
+import { MatchSetupTabbedSelector } from '@/features/runs/components/matchSetupCards/MatchSetupTabbedSelector';
 import type { DuelMatchSetupCardProps } from '@/features/runs/components/matchSetupCards/types';
 import { matchSetupCardStyles as styles } from '@/features/runs/components/matchSetupCards/styles';
 import { colors } from '@/theme/tokens';
@@ -51,15 +50,13 @@ export function DuelMatchSetupCard({
 }: DuelMatchSetupCardProps) {
   return (
     <View style={styles.duelSetupCard}>
-      <MatchDistanceSelector
+      <MatchSetupTabbedSelector
         chipKeyPrefix="duel"
         distanceKm={distanceKm}
         distanceText={distanceText}
         showCustomDistanceInput={showCustomDistanceInput}
         onDistanceTextChange={onDistanceTextChange}
         onShowCustomDistanceInputChange={onShowCustomDistanceInputChange}
-      />
-      <MatchTimeSlotSelector
         dateKeyPrefix="duel-date"
         sectionKeyPrefix="duel-section"
         dateOptions={dateOptions}

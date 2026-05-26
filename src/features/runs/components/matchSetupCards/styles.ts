@@ -13,14 +13,43 @@ export const matchSetupCardStyles = StyleSheet.create({
   duelSection: {
     gap: spacing.s10,
   },
+  tabBar: {
+    flexDirection: 'row',
+    gap: spacing.xxl,
+    marginBottom: spacing.xxl,
+  },
+  tabPill: {
+    flex: 1,
+    borderRadius: radii.cardLarge,
+    borderWidth: 1,
+    borderColor: colors.darkSoft,
+    backgroundColor: colors.darkMuted,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.s10,
+    alignItems: 'center',
+  },
+  tabPillActive: {
+    borderColor: colors.brandLight,
+    backgroundColor: colors.indigoDeep,
+  },
+  tabPillLabel: {
+    color: colors.borderNeutral,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  tabPillLabelActive: {
+    color: colors.white,
+  },
+  distanceTabHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: spacing.xxl,
+  },
   distanceInputToggle: {
     borderRadius: radii.pill,
     backgroundColor: colors.darkMuted,
     paddingHorizontal: spacing.s10,
     paddingVertical: spacing.lg,
-  },
-  distanceInputToggleStandalone: {
-    alignSelf: 'flex-end',
   },
   distanceInputToggleText: {
     color: colors.brandLighter,
