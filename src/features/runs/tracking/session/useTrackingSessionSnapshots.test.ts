@@ -7,6 +7,7 @@ import type {
 } from '@/features/runs/lifecycle/matchLifecycleController';
 import {
   resolveActiveMatchSlotStartAt,
+  resolveSlotElapsedTickerDelayMs,
   shouldRunSlotElapsedTicker,
 } from './trackingSessionMatchSlot';
 
@@ -96,4 +97,25 @@ test('slot elapsed ticker does not run without an active match slot', () => {
   assert.equal(shouldRunSlotElapsedTicker({
     activeMatchSlotStartAt: null,
   }), false);
+});
+
+test('slot elapsed ticker delay aligns to the next slot-relative second boundary', () => {
+  const slotStartMs = Date.parse('2026-05-20T13:49:58.259Z');
+
+  assert.equal(resolveSlotElapsedTickerDelayMs({
+    slotStartMs,
+    syncedNowMs: slotStartMs,
+  }), 1000);
+  assert.equal(resolveSlotElapsedTickerDelayMs({
+    slotStartMs,
+    syncedNowMs: slotStartMs + 500,
+  }), 500);
+  assert.equal(resolveSlotElapsedTickerDelayMs({
+    slotStartMs,
+    syncedNowMs: slotStartMs - 100,
+  }), 100);
+  assert.equal(resolveSlotElapsedTickerDelayMs({
+    slotStartMs,
+    syncedNowMs: slotStartMs + 999,
+  }), 50);
 });
