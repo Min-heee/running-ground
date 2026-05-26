@@ -18,6 +18,7 @@ export const MATCH_ROOM_HOST_LOADING_SECONDS = 0;
 export const MATCH_ROOM_GROUP_MIN_PARTICIPANTS = 2;
 export const MATCH_ROOM_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
 export const MATCH_ROOM_INVITE_LINK_BASE = 'runningground://running';
-export const MATCH_GOAL_DISTANCE_TOLERANCE_KM = 0;
+// 20m: warmup baseline subtraction + toFixed(2) display rounding boundary margin.
+export const MATCH_GOAL_DISTANCE_TOLERANCE_KM = 0.02;
 export const MATCH_PROGRESS_MAX_SPEED_MPS = 12;
 export const MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND = MATCH_PROGRESS_MAX_SPEED_MPS / 1000;

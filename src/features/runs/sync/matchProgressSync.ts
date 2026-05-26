@@ -11,6 +11,8 @@ import { LIVE_MATCH_SERVER_SYNC_INTERVAL_MS } from '@/features/runs/sync/liveMat
 import { buildAveragePace } from '@/features/runs/tracking';
 
 export const MATCH_PROGRESS_HEARTBEAT_INTERVAL_MS = LIVE_MATCH_SERVER_SYNC_INTERVAL_MS;
+// Keep aligned with backend MATCH_GOAL_DISTANCE_TOLERANCE_KM for boundary rounding margin.
+export const MATCH_GOAL_DISTANCE_TOLERANCE_KM = 0.02;
 
 export type MatchProgressRoomContext = {
   mode: 'duel' | 'group';
@@ -31,7 +33,9 @@ export function resolveMatchProgressHeartbeatStatus({
   progressDistanceKm: number;
   targetDistanceKm: number;
 }): Extract<UpdateRunningMatchProgressInput['status'], 'running' | 'finished'> {
-  return progressDistanceKm >= targetDistanceKm ? 'finished' : 'running';
+  return progressDistanceKm >= targetDistanceKm - MATCH_GOAL_DISTANCE_TOLERANCE_KM
+    ? 'finished'
+    : 'running';
 }
 
 export function buildSyncedMatchProgressSnapshot(

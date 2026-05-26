@@ -93,7 +93,15 @@ test('active progress target ignores waiting and countdown linked matches', () =
 
 test('progress heartbeat status finishes when local progress reaches the target distance', () => {
   assert.equal(resolveMatchProgressHeartbeatStatus({
-    progressDistanceKm: 6.99,
+    progressDistanceKm: 4.97,
+    targetDistanceKm: 5,
+  }), 'running');
+  assert.equal(resolveMatchProgressHeartbeatStatus({
+    progressDistanceKm: 4.99,
+    targetDistanceKm: 5,
+  }), 'finished');
+  assert.equal(resolveMatchProgressHeartbeatStatus({
+    progressDistanceKm: 6.97,
     targetDistanceKm: 7,
   }), 'running');
   assert.equal(resolveMatchProgressHeartbeatStatus({
