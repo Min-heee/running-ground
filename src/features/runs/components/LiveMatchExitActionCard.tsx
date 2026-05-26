@@ -80,6 +80,22 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
     );
   }
 
+  if (actionState.kind === 'self-finished') {
+    return (
+      <Card style={styles.card}>
+        <Text style={styles.title}>{actionState.title}</Text>
+        <Text style={styles.text}>{actionState.body}</Text>
+        <Pressable
+          style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]}
+          onPress={handleShowResultPress}
+          disabled={actionState.disabled}
+        >
+          <Text style={styles.buttonText}>{actionState.buttonLabel}</Text>
+        </Pressable>
+      </Card>
+    );
+  }
+
   return (
     <Card style={styles.card}>
       <Text style={styles.title}>{actionState.title}</Text>
