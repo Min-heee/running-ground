@@ -24,6 +24,7 @@ import { LIVE_MATCH_UI_DISPLAY_INTERVAL_MS } from '@/features/runs/sync/liveMatc
 import { rgDiagLog } from '@/utils/rgPerfTrace';
 import {
   resolveActiveMatchSlotStartAt,
+  resolveSlotElapsedTickerDelayMs,
   shouldRunSlotElapsedTicker,
 } from './trackingSessionMatchSlot';
 import type {
@@ -39,6 +40,8 @@ type TrackingUiFrame = {
   elevationGainM: number;
   status: BackgroundRunTrackingSnapshot['status'] | 'starting';
 };
+
+type SlotElapsedTickerHandle = ReturnType<typeof setTimeout>;
 
 type UseTrackingSessionSnapshotsInput = Pick<
   UseRunTrackingFlowInput,
@@ -116,7 +119,7 @@ export function useTrackingSessionSnapshots({
 }: UseTrackingSessionSnapshotsInput) {
   const lastTrackingUiFlushMsRef = useRef(0);
   const lastTrackingUiFrameRef = useRef<TrackingUiFrame | null>(null);
-  const slotElapsedTickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const slotElapsedTickerRef = useRef<SlotElapsedTickerHandle | null>(null);
   const slotElapsedTickerActiveRef = useRef(false);
   const activeMatchSlotStartAt = resolveActiveMatchSlotStartAt(matchLifecycleController);
   const syncElapsedSeconds = useCallback((nextElapsedSeconds: number, options?: {
@@ -187,8 +190,8 @@ export function useTrackingSessionSnapshots({
     });
     slotElapsedTickerActiveRef.current = true;
 
-    const clearSlotElapsedTicker = (ticker: ReturnType<typeof setInterval>) => {
-      clearInterval(ticker);
+    const clearSlotElapsedTicker = (ticker: SlotElapsedTickerHandle) => {
+      clearTimeout(ticker);
       if (slotElapsedTickerRef.current === ticker) {
         slotElapsedTickerRef.current = null;
       }
@@ -224,16 +227,43 @@ export function useTrackingSessionSnapshots({
     };
 
     commitSlotElapsedSeconds();
-    const ticker = setInterval(commitSlotElapsedSeconds, 500);
-    slotElapsedTickerRef.current = ticker;
+    let ticker: SlotElapsedTickerHandle | null = null;
+    let cancelled = false;
+
+    const scheduleNextSlotElapsedTick = () => {
+      if (cancelled) {
+        return;
+      }
+
+      const delayMs = resolveSlotElapsedTickerDelayMs({
+        slotStartMs,
+        syncedNowMs: getSyncedNowMs(),
+      });
+
+      ticker = setTimeout(() => {
+        if (cancelled) {
+          return;
+        }
+        commitSlotElapsedSeconds();
+        scheduleNextSlotElapsedTick();
+      }, delayMs);
+      slotElapsedTickerRef.current = ticker;
+    };
+
+    scheduleNextSlotElapsedTick();
 
     return () => {
+      cancelled = true;
       rgDiagLog('elapsed-trace slot ticker CLEANUP', {
         nowMs: Date.now(),
         prevElapsedRef: elapsedSecondsRef.current,
         reason: 'effect-rerun-or-unmount',
       });
-      clearSlotElapsedTicker(ticker);
+      if (ticker) {
+        clearSlotElapsedTicker(ticker);
+      } else {
+        slotElapsedTickerActiveRef.current = false;
+      }
     };
   }, [
     activeMatchSlotStartAt,
