@@ -18,7 +18,7 @@ export type MatchDateOption = {
   subtitle: string;
 };
 
-export const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.2];
+export const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.195];
 
 const MATCH_BOOKING_WINDOW_DAYS = 7;
 const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
@@ -28,7 +28,7 @@ export function formatMatchTargetDistance(distanceKm: number) {
 }
 
 export function clampDuelMatchDistanceKm(value: number) {
-  return Math.min(42.2, Math.max(2, Number(value.toFixed(1))));
+  return Math.min(42.195, Math.max(2, Number(value.toFixed(1))));
 }
 
 export function parseDuelMatchDistanceKm(value: string) {
