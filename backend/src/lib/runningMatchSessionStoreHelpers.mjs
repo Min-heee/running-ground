@@ -15,6 +15,7 @@ import {
   resolveParticipantLiveStatus,
 } from './matchPureHelpers.mjs';
 import { nextId } from './idHelpers.mjs';
+import { isTestMatchSession } from './matchScheduleHelpers.mjs';
 import { findUserById, getRunsForUser, getUserMetrics } from './userStoreHelpers.mjs';
 
 export function buildMatchRunnerProfile(store, user) {
@@ -322,6 +323,59 @@ export function findMatchSessionById(store, matchId) {
   }
 
   return pruneMatchSessions(store).find((session) => session.id === matchId) ?? null;
+}
+
+
+export function findMatchSessionForUser(store, mode, userId, { distanceKm, slotStartAt, testMode = false, matchId } = {}) {
+  if (matchId) {
+    const directSession = findMatchSessionById(store, matchId);
+
+    if (!directSession || directSession.mode !== mode) {
+      return null;
+    }
+
+    if (isTestMatchSession(directSession) !== testMode) {
+      return null;
+    }
+
+    if (!directSession.participants.some((participant) => participant.userId === userId)) {
+      return null;
+    }
+
+    return directSession;
+  }
+
+  const normalizedDistanceKm = distanceKm === undefined ? null : normalizeMatchQueueDistance(distanceKm);
+  const sessions = pruneMatchSessions(store);
+
+  for (let index = sessions.length - 1; index >= 0; index -= 1) {
+    const session = sessions[index];
+    if (session.mode !== mode) {
+      continue;
+    }
+
+    if (isTestMatchSession(session) !== testMode) {
+      continue;
+    }
+
+    if (!session.participants.some((participant) => (
+      participant.userId === userId && !isParticipantDoneWithMatch(participant)
+    ))) {
+      continue;
+    }
+
+    if (normalizedDistanceKm !== null && Math.abs(session.distanceKm - normalizedDistanceKm) >= 0.15) {
+      continue;
+    }
+
+    if (!testMode && slotStartAt && session.slotStartAt !== slotStartAt) {
+      continue;
+    }
+
+    return session;
+  }
+
+  return null;
 }
 
 
