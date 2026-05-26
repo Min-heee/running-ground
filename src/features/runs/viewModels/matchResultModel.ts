@@ -98,7 +98,7 @@ export function buildDuelMatchFinishModel({
   const opponentPace = buildParticipantAveragePaceLabel(opponent, true);
   const currentRow: DuelMatchResultRowModel = {
     id: 'me',
-    resultLabel: resolveDuelCurrentRowLabel({ isDraw, resultTone }),
+    resultLabel: resolveDuelCurrentRowLabel({ isDraw, resultTone, currentForfeited }),
     name: '나',
     paceLabel: currentPaceLabel,
     durationLabel: formatDuration(currentElapsedSeconds),
@@ -109,6 +109,7 @@ export function buildDuelMatchFinishModel({
     opponentInProgress,
     isDraw,
     resultTone,
+    opponentForfeited,
     opponentPaceLabel: opponentPace,
     opponentDurationLabel: formatDuration(opponentElapsedSeconds),
   });

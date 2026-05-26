@@ -5,7 +5,7 @@ import type { RunningMatchLiveStatus } from '@/lib/api/types';
 
 export type MatchResultTone = NonNullable<RunMatchResult['resultTone']>;
 
-export type DuelMatchResultRowLabel = 'WIN' | 'LOSER' | 'DRAW' | 'ING';
+export type DuelMatchResultRowLabel = 'WIN' | 'LOSER' | 'DRAW' | 'ING' | 'FORFEIT';
 
 export type DuelMatchResultRowModel = {
   id: string;
