@@ -155,10 +155,29 @@ export function useMatchRuntimeState({
       && matchMode !== 'room'
       && !isCurrentUserForfeited,
     );
+    const hasDuelMatchExitTarget = Boolean(
+      duelMatchStatus?.matchId
+      || roomLinkedMatchContext?.mode === 'duel',
+    );
+    const hasGroupMatchExitTarget = Boolean(
+      groupMatchStatus?.matchId
+      || roomLinkedMatchContext?.mode === 'group',
+    );
+    const selfForfeitedResultSource = (
+      isCurrentUserForfeited
+      && hasMatchResultPage
+      && isRunning
+    )
+      ? matchMode === 'duel' && hasDuelMatchExitTarget
+        ? 'duel' as const
+        : matchMode === 'group' && hasGroupMatchExitTarget
+          ? 'group' as const
+          : null
+      : null;
 
     const showLiveArena =
-      (canRenderLiveArena || shouldKeepRunningMatchArena)
-      && !isCurrentUserForfeited
+      (canRenderLiveArena || shouldKeepRunningMatchArena || Boolean(selfForfeitedResultSource))
+      && (!isCurrentUserForfeited || Boolean(selfForfeitedResultSource))
       && (
         isRunning
         || hasMatchResultPage
@@ -172,8 +191,8 @@ export function useMatchRuntimeState({
         ))
       );
 
-    const activeMatchExitSource =
-      isCurrentUserForfeited
+    const activeMatchExitSource = selfForfeitedResultSource
+      ?? (isCurrentUserForfeited
         ? null
         : isRunning && matchMode === 'duel'
         ? (
@@ -189,7 +208,7 @@ export function useMatchRuntimeState({
                 ? 'group' as const
                 : null
             )
-          : null;
+          : null);
 
     return {
       activeMatchExitCounterpartForfeited: activeMatchExitSource === 'duel'

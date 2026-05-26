@@ -67,7 +67,7 @@ test('duel result records current user forfeit as loss even when distance is ahe
   assert.equal(result?.rows[0].isCurrentUser, false);
   assert.equal(result?.rows[0].resultLabel, 'WIN');
   assert.equal(result?.rows[1].isCurrentUser, true);
-  assert.equal(result?.rows[1].resultLabel, 'LOSER');
+  assert.equal(result?.rows[1].resultLabel, 'FORFEIT');
 });
 
 test('duel result records opponent forfeit as win', () => {
@@ -89,6 +89,8 @@ test('duel result records opponent forfeit as win', () => {
   assert.equal(result?.matchResult.badgeLabel, '상대 기권 승');
   assert.equal(result?.rows[0].isCurrentUser, true);
   assert.equal(result?.rows[0].resultLabel, 'WIN');
+  assert.equal(result?.rows[1].isCurrentUser, false);
+  assert.equal(result?.rows[1].resultLabel, 'FORFEIT');
 });
 
 test('duel result records normal finish by compared distance', () => {

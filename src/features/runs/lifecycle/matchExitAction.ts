@@ -17,6 +17,13 @@ export type MatchExitActionState =
       disabled: boolean;
     }
   | {
+      kind: 'self-forfeited';
+      title: string;
+      body: string;
+      buttonLabel: string;
+      disabled: boolean;
+    }
+  | {
       kind: 'self-finished';
       title: string;
       body: string;
@@ -38,6 +45,7 @@ export function buildMatchExitActionState({
   isSaving,
   isRunning,
   counterpartForfeited,
+  selfForfeited,
   selfFinished,
 }: {
   source: MatchExitActionSource | null;
@@ -46,6 +54,7 @@ export function buildMatchExitActionState({
   isSaving: boolean;
   isRunning: boolean;
   counterpartForfeited: boolean;
+  selfForfeited: boolean;
   selfFinished: boolean;
 }): MatchExitActionState {
   if (!source) {
@@ -59,6 +68,22 @@ export function buildMatchExitActionState({
       body: '테스트 상대 표시는 정리하고, 지금 러닝 기록은 혼자 계속 이어갈게요.',
       buttonLabel: isLeaving ? '정리 중...' : '테스트 대결 그만',
       disabled: isLeaving,
+    };
+  }
+
+  if (selfForfeited) {
+    const disabled = isLeaving || isSaving || !isRunning;
+
+    return {
+      kind: 'self-forfeited',
+      title: '기권 처리됐어요',
+      body: '대결 결과는 기권으로 반영됐어요. 러닝을 종료하면 지금까지 기록을 저장하고 결과 화면으로 이동해요.',
+      buttonLabel: isLeaving || isSaving
+        ? '결과 저장 중...'
+        : !isRunning
+          ? '결과 화면 준비 중...'
+          : '러닝 종료하고 결과보기',
+      disabled,
     };
   }
 
@@ -97,7 +122,7 @@ export function buildMatchExitActionState({
   return {
     kind: 'forfeit',
     title: '대결을 기권할 수 있어요',
-    body: '기권하면 내 동그라미가 기권 상태로 표시되고, 지금까지 측정한 기록을 저장한 뒤 나가요.',
+    body: '기권하면 내 동그라미가 기권 상태로 표시돼요. 결과를 확인한 뒤 직접 기록을 저장할 수 있어요.',
     buttonLabel: isLeaving ? '기권 처리 중...' : '기권하기',
     disabled: isLeaving,
   };

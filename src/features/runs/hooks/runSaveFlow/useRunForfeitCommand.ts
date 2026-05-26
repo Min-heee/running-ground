@@ -12,7 +12,6 @@ import type { UseRunSaveFlowInput } from './types';
 
 type UseRunForfeitCommandInput = Pick<
   UseRunSaveFlowInput,
-  | 'clearLocalForfeitedMatchState'
   | 'duelMatchNotice'
   | 'duelMatchStatus'
   | 'groupMatchNotice'
@@ -35,7 +34,6 @@ type UseRunForfeitCommandInput = Pick<
 };
 
 export function useRunForfeitCommand({
-  clearLocalForfeitedMatchState,
   duelMatchNotice,
   duelMatchStatus,
   groupMatchNotice,
@@ -102,23 +100,22 @@ export function useRunForfeitCommand({
     try {
       if (source === 'duel') {
         setDuelMatchStatus((currentStatus) => markDuelStatusForfeited(currentStatus, matchId));
-        setDuelMatchNotice('기권 처리됐어요. 기록을 저장하고 대결 화면에서 나갈게요.');
+        setDuelMatchNotice('기권 처리됐어요. 결과를 확인한 뒤 기록을 저장할 수 있어요.');
         await leaveRunningMatch({ matchId });
         forfeitApiTraceCompleted = true;
         endForfeitApiTrace({ success: true });
         matchProgressHeartbeatRef.current = Date.now();
       } else {
         setGroupMatchStatus((currentStatus) => markGroupStatusForfeited(currentStatus, matchId));
-        setGroupMatchNotice('기권 처리됐어요. 기록을 저장하고 대결 화면에서 나갈게요.');
+        setGroupMatchNotice('기권 처리됐어요. 결과를 확인한 뒤 기록을 저장할 수 있어요.');
         await leaveRunningMatch({ matchId });
         forfeitApiTraceCompleted = true;
         endForfeitApiTrace({ success: true });
         matchProgressHeartbeatRef.current = Date.now();
       }
 
-      clearLocalForfeitedMatchState(source, matchId);
       void loadUpcomingMatches().catch(() => {});
-      await handleSaveTracking({ exitIfUnsavable: true, resetAfterSave: true });
+      // Stay on the result view. Saving/resetting is now only triggered by the explicit result action.
     } catch (matchError) {
       if (source === 'duel') {
         setDuelMatchStatus(previousDuelStatus);

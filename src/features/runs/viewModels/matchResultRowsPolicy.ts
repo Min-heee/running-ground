@@ -137,10 +137,16 @@ export function resolveDuelBadgeLabel({
 export function resolveDuelCurrentRowLabel({
   isDraw,
   resultTone,
+  currentForfeited,
 }: {
   isDraw: boolean;
   resultTone: MatchResultTone;
+  currentForfeited: boolean;
 }): DuelMatchResultRowLabel {
+  if (currentForfeited) {
+    return 'FORFEIT';
+  }
+
   if (isDraw) {
     return 'DRAW';
   }
@@ -152,12 +158,14 @@ export function resolveDuelOpponentRowLabels({
   opponentInProgress,
   isDraw,
   resultTone,
+  opponentForfeited,
   opponentPaceLabel,
   opponentDurationLabel,
 }: {
   opponentInProgress: boolean;
   isDraw: boolean;
   resultTone: MatchResultTone;
+  opponentForfeited: boolean;
   opponentPaceLabel: string;
   opponentDurationLabel: string;
 }): {
@@ -170,6 +178,14 @@ export function resolveDuelOpponentRowLabels({
       resultLabel: 'ING',
       paceLabel: '진행 중',
       durationLabel: '-',
+    };
+  }
+
+  if (opponentForfeited) {
+    return {
+      resultLabel: 'FORFEIT',
+      paceLabel: opponentPaceLabel,
+      durationLabel: opponentDurationLabel,
     };
   }
 

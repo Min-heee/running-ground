@@ -10,6 +10,7 @@ test('exit action switches from forfeit to result button when counterpart forfei
     isSaving: false,
     isRunning: true,
     counterpartForfeited: false,
+    selfForfeited: false,
     selfFinished: false,
   });
 
@@ -24,6 +25,7 @@ test('exit action switches from forfeit to result button when counterpart forfei
     isSaving: false,
     isRunning: true,
     counterpartForfeited: true,
+    selfForfeited: false,
     selfFinished: false,
   });
 
@@ -40,6 +42,7 @@ test('exit action blocks duplicate saves while counterpart forfeit result is pre
     isSaving: true,
     isRunning: true,
     counterpartForfeited: true,
+    selfForfeited: false,
     selfFinished: false,
   });
 
@@ -56,6 +59,7 @@ test('exit action keeps test match cleanup separate from real forfeits', () => {
     isSaving: false,
     isRunning: true,
     counterpartForfeited: false,
+    selfForfeited: false,
     selfFinished: false,
   });
 
@@ -71,6 +75,7 @@ test('exit action switches from forfeit to result button when current user finis
     isSaving: false,
     isRunning: true,
     counterpartForfeited: false,
+    selfForfeited: false,
     selfFinished: true,
   });
 
@@ -87,7 +92,41 @@ test('exit action keeps test match cleanup ahead of self-finished result action'
     isSaving: false,
     isRunning: true,
     counterpartForfeited: false,
+    selfForfeited: false,
     selfFinished: true,
+  });
+
+  assert.equal(testExit.kind, 'test-exit');
+  assert.equal(testExit.buttonLabel, '테스트 대결 그만');
+});
+
+test('exit action switches from forfeit to result button when current user forfeited', () => {
+  const selfForfeited = buildMatchExitActionState({
+    source: 'duel',
+    isTestMatch: false,
+    isLeaving: false,
+    isSaving: false,
+    isRunning: true,
+    counterpartForfeited: false,
+    selfForfeited: true,
+    selfFinished: false,
+  });
+
+  assert.equal(selfForfeited.kind, 'self-forfeited');
+  assert.equal(selfForfeited.buttonLabel, '러닝 종료하고 결과보기');
+  assert.equal(selfForfeited.disabled, false);
+});
+
+test('exit action keeps test match cleanup ahead of self-forfeited result action', () => {
+  const testExit = buildMatchExitActionState({
+    source: 'duel',
+    isTestMatch: true,
+    isLeaving: false,
+    isSaving: false,
+    isRunning: true,
+    counterpartForfeited: false,
+    selfForfeited: true,
+    selfFinished: false,
   });
 
   assert.equal(testExit.kind, 'test-exit');

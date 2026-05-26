@@ -104,11 +104,21 @@ test('duel policy preserves title, summary, and badge text for progressive resul
 });
 
 test('duel policy preserves row labels and ordering', () => {
-  assert.equal(resolveDuelCurrentRowLabel({ isDraw: true, resultTone: 'draw' }), 'DRAW');
+  assert.equal(resolveDuelCurrentRowLabel({
+    isDraw: true,
+    resultTone: 'draw',
+    currentForfeited: false,
+  }), 'DRAW');
+  assert.equal(resolveDuelCurrentRowLabel({
+    isDraw: false,
+    resultTone: 'lose',
+    currentForfeited: true,
+  }), 'FORFEIT');
   assert.deepEqual(resolveDuelOpponentRowLabels({
     opponentInProgress: true,
     isDraw: false,
     resultTone: 'win',
+    opponentForfeited: false,
     opponentPaceLabel: '06:00/km',
     opponentDurationLabel: '30:00',
   }), {
@@ -120,11 +130,24 @@ test('duel policy preserves row labels and ordering', () => {
     opponentInProgress: false,
     isDraw: false,
     resultTone: 'lose',
+    opponentForfeited: false,
     opponentPaceLabel: '06:00/km',
     opponentDurationLabel: '30:00',
   }), {
     resultLabel: 'WIN',
     paceLabel: '06:00/km',
+    durationLabel: '30:00',
+  });
+  assert.deepEqual(resolveDuelOpponentRowLabels({
+    opponentInProgress: false,
+    isDraw: false,
+    resultTone: 'win',
+    opponentForfeited: true,
+    opponentPaceLabel: '기권',
+    opponentDurationLabel: '30:00',
+  }), {
+    resultLabel: 'FORFEIT',
+    paceLabel: '기권',
     durationLabel: '30:00',
   });
 

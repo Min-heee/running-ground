@@ -9,12 +9,16 @@ import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 export type { DuelMatchResultRow, GroupMatchResultRow } from '@/features/runs/types/matchResult';
 
 export const DuelResultRow = memo(function DuelResultRow({ row }: { row: DuelMatchResultRow }) {
-  const label = row.resultLabel === 'ING' ? '진행 중' : row.resultLabel;
+  const label = row.resultLabel === 'ING'
+    ? '진행 중'
+    : row.resultLabel === 'FORFEIT'
+      ? '기권'
+      : row.resultLabel;
   const rowStyle = useMemo(() => [
     styles.duelRow,
     row.resultLabel === 'WIN'
       ? styles.duelRowWin
-      : row.resultLabel === 'LOSER'
+      : row.resultLabel === 'LOSER' || row.resultLabel === 'FORFEIT'
         ? styles.duelRowLose
         : styles.duelRowDraw,
     row.isInProgress ? styles.duelRowInProgress : undefined,
