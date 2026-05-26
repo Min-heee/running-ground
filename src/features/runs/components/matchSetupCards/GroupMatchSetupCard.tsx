@@ -5,10 +5,9 @@ import { buildMatchParticipantStatusLabel } from '@/features/runs/lifecycle/matc
 import { formatMatchCountdown, shouldShowMatchCardCountdown } from '@/lib/matchCountdown';
 import {
   MatchActionButtons,
-  MatchDistanceSelector,
   MatchNotice,
-  MatchTimeSlotSelector,
 } from '@/features/runs/components/matchSetupCards/MatchSetupCommon';
+import { MatchSetupTabbedSelector } from '@/features/runs/components/matchSetupCards/MatchSetupTabbedSelector';
 import type { GroupMatchSetupCardProps } from '@/features/runs/components/matchSetupCards/types';
 import { matchSetupCardStyles as styles } from '@/features/runs/components/matchSetupCards/styles';
 import { colors } from '@/theme/tokens';
@@ -87,15 +86,13 @@ export function GroupMatchSetupCard({
 
   return (
     <View style={styles.duelSetupCard}>
-      <MatchDistanceSelector
+      <MatchSetupTabbedSelector
         chipKeyPrefix="group"
         distanceKm={distanceKm}
         distanceText={distanceText}
         showCustomDistanceInput={showCustomDistanceInput}
         onDistanceTextChange={onDistanceTextChange}
         onShowCustomDistanceInputChange={onShowCustomDistanceInputChange}
-      />
-      <MatchTimeSlotSelector
         dateKeyPrefix="group-date"
         sectionKeyPrefix="group-section"
         dateOptions={dateOptions}
