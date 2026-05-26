@@ -8,6 +8,9 @@ import {
   syncBackgroundRunTrackingAppState,
   type BackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background';
+import {
+  setAppBackgroundState,
+} from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
 import {
@@ -133,6 +136,7 @@ export function useTrackingAppStateSync({
   const handleAppStateChange = useCallback((nextState: AppStateStatus) => {
     const previousState = appStateRef.current;
     appStateRef.current = nextState;
+    setAppBackgroundState(nextState !== 'active');
     const plan = resolveTrackingAppStateSyncPlan({
       nextState,
       previousState,
@@ -182,6 +186,7 @@ export function useTrackingAppStateSync({
       handleBackgroundTrackingSnapshot,
       { cloneRoute: false },
     );
+    setAppBackgroundState(appStateRef.current !== 'active');
     const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
 
     return () => {
@@ -195,5 +200,5 @@ export function useTrackingAppStateSync({
       callbackRef.current.stopForegroundTrackingHelpers();
       elapsedTickerActiveRef.current = false;
     };
-  }, [enabled, handleAppStateChange, handleBackgroundTrackingSnapshot]);
+  }, [appStateRef, enabled, handleAppStateChange, handleBackgroundTrackingSnapshot]);
 }
