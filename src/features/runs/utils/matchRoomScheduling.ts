@@ -2,7 +2,7 @@ import type { MatchRoomMeridiem } from '@/features/runs/types/matchRoom';
 
 export const MATCH_ROOM_HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
 export const MATCH_ROOM_MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => index);
-export const MATCH_ROOM_DISTANCE_OPTIONS = [3, 5, 7, 10, 15, 21.1, 42.2];
+export const MATCH_ROOM_DISTANCE_OPTIONS = [3, 5, 7, 10, 15, 21.1, 42.195];
 
 export function formatRoomDateLabel(value: string) {
   const date = new Date(value);

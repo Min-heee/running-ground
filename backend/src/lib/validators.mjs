@@ -184,13 +184,14 @@ export function validateRunningMatchProgressDistanceKm(value, message) {
 }
 
 export function validateDuelMatchDistanceKm(value) {
+  const rawDistanceKm = typeof value === 'number' ? value : Number(value);
   const distanceKm = validateDistanceKm(value, '매칭할 거리를 입력해줘.');
 
-  if (distanceKm < 0.5 || distanceKm > 42.2) {
-    throw new ApiError(400, '매칭 거리는 0.5km 이상 42.2km 이하로 선택해줘.');
+  if (rawDistanceKm < 0.5 || rawDistanceKm > 42.195) {
+    throw new ApiError(400, '매칭 거리는 0.5km 이상 42.195km 이하로 선택해줘.');
   }
 
-  return distanceKm;
+  return Math.min(42.195, distanceKm);
 }
 
 export function validateMatchSlotInput(value) {

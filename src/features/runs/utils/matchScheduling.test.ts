@@ -15,7 +15,7 @@ test('parseDuelMatchDistanceKm clamps unsafe custom distances', () => {
   assert.equal(parseDuelMatchDistanceKm('7,5'), 7.5);
   assert.equal(parseDuelMatchDistanceKm('abc'), 5);
   assert.equal(clampDuelMatchDistanceKm(1), 2);
-  assert.equal(clampDuelMatchDistanceKm(99), 42.2);
+  assert.equal(clampDuelMatchDistanceKm(99), 42.195);
 });
 
 test('match slots close 30 minutes before start and expose am/pm sections', () => {

@@ -1,5 +1,5 @@
-import { memo, useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import {
   RECOMMENDED_MATCH_DISTANCES,
   findNearestRecommendedDistance,
@@ -16,6 +16,7 @@ const TIME_SECTIONS = [{ key: 'am' as const, label: '오전' }, { key: 'pm' as c
 type TimeSectionKey = (typeof TIME_SECTIONS)[number]['key'];
 type TabKey = 'distance' | 'date' | 'time';
 type MatchSetupTabbedSelectorProps = DistanceSelectorProps & TimeSlotSelectorProps;
+const TAB_ORDER: TabKey[] = ['date', 'time', 'distance'];
 
 export function MatchSetupTabbedSelector({
   distanceKm,
@@ -35,7 +36,30 @@ export function MatchSetupTabbedSelector({
   onSelectTimeSection,
   onSelectSlot,
 }: MatchSetupTabbedSelectorProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>('distance');
+  const [activeTab, setActiveTab] = useState<TabKey>('date');
+  const [tabBarWidth, setTabBarWidth] = useState(0);
+  const indicatorAnim = useRef(new Animated.Value(0)).current;
+  const tabWidth = tabBarWidth / TAB_ORDER.length;
+  const indicatorTranslateX = useMemo(() => indicatorAnim.interpolate({
+    inputRange: [0, 1, 2],
+    outputRange: [0, tabWidth, tabWidth * 2],
+  }), [indicatorAnim, tabWidth]);
+  const indicatorStyle = useMemo(() => [
+    styles.tabIndicator,
+    {
+      width: tabWidth,
+      transform: [{ translateX: indicatorTranslateX }],
+    },
+  ], [indicatorTranslateX, tabWidth]);
+
+  useEffect(() => {
+    Animated.spring(indicatorAnim, {
+      toValue: TAB_ORDER.indexOf(activeTab),
+      useNativeDriver: true,
+      friction: 8,
+      tension: 80,
+    }).start();
+  }, [activeTab, indicatorAnim]);
 
   const handleSelectDistanceTab = useCallback(() => {
     setActiveTab('distance');
@@ -52,6 +76,10 @@ export function MatchSetupTabbedSelector({
   const handleToggleCustomDistanceInput = useCallback(() => {
     onShowCustomDistanceInputChange(!showCustomDistanceInput);
   }, [onShowCustomDistanceInputChange, showCustomDistanceInput]);
+
+  const handleTabBarLayout = useCallback((event: { nativeEvent: { layout: { width: number } } }) => {
+    setTabBarWidth(event.nativeEvent.layout.width);
+  }, []);
 
   const distanceChips = useMemo(() => RECOMMENDED_MATCH_DISTANCES.map((recommendedDistanceKm) => (
     <MatchDistanceChip
@@ -92,27 +120,32 @@ export function MatchSetupTabbedSelector({
 
   return (
     <View style={styles.duelSection}>
-      <View style={styles.tabBar}>
-        <TabPill label="거리" active={activeTab === 'distance'} onPress={handleSelectDistanceTab} />
-        <TabPill label="날짜" active={activeTab === 'date'} onPress={handleSelectDateTab} />
-        <TabPill label="시간" active={activeTab === 'time'} onPress={handleSelectTimeTab} />
+      <View style={styles.tabBarWrapper} onLayout={handleTabBarLayout}>
+        <View style={styles.tabBar}>
+          <TabPill label="날짜" active={activeTab === 'date'} onPress={handleSelectDateTab} />
+          <TabPill label="시간" active={activeTab === 'time'} onPress={handleSelectTimeTab} />
+          <TabPill label="거리" active={activeTab === 'distance'} onPress={handleSelectDistanceTab} />
+        </View>
+        {tabBarWidth > 0 ? (
+          <Animated.View
+            style={indicatorStyle}
+          />
+        ) : null}
       </View>
 
       {activeTab === 'distance' ? (
         <>
-          <View style={styles.distanceTabHeader}>
-            <Pressable style={styles.distanceInputToggle} onPress={handleToggleCustomDistanceInput}>
-              <Text style={styles.distanceInputToggleText}>
-                {showCustomDistanceInput ? '추천 거리' : '직접 입력'}
-              </Text>
-            </Pressable>
-          </View>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.matchDistanceScrollContent}
             style={styles.matchDistanceScroll}
           >
+            <Pressable style={styles.distanceInputToggleChip} onPress={handleToggleCustomDistanceInput}>
+              <Text style={styles.distanceInputToggleText}>
+                {showCustomDistanceInput ? '추천 거리' : '직접 입력'}
+              </Text>
+            </Pressable>
             {distanceChips}
           </ScrollView>
           {showCustomDistanceInput ? (

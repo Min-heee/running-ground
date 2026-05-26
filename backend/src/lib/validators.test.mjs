@@ -25,9 +25,9 @@ test('validateDuelMatchDistanceKm rejects distances below 0.5km', () => {
   assertDistanceValidationError(-1);
 });
 
-test('validateDuelMatchDistanceKm keeps the existing marathon upper bound', () => {
-  assert.equal(validateDuelMatchDistanceKm(42.2), 42.2);
-  assertDistanceValidationError(42.3);
+test('validateDuelMatchDistanceKm keeps the standard marathon upper bound', () => {
+  assert.equal(validateDuelMatchDistanceKm(42.195), 42.195);
+  assertDistanceValidationError(42.196);
 });
 
 test('validateRunningMatchProgressDistanceKm preserves live progress precision', () => {
