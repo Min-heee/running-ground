@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import {
   type GroupLiveStanding,
@@ -27,6 +27,12 @@ type UseMatchResultControllerInput = {
   elapsedSeconds: number;
 };
 
+type FrozenDuelResultMetrics = {
+  distanceKm: number;
+  elapsedSeconds: number;
+  paceLabel: string;
+};
+
 export function useMatchResultController({
   matchMode,
   effectiveDuelOpponent,
@@ -40,16 +46,63 @@ export function useMatchResultController({
   groupDistanceKm,
   elapsedSeconds,
 }: UseMatchResultControllerInput) {
+  const duelFrozenRef = useRef<FrozenDuelResultMetrics | null>(null);
+  const isCurrentUserDuelFinished = currentUserDuelLiveStatus === 'finished';
+
+  useEffect(() => {
+    if (matchMode !== 'duel' || !isCurrentUserDuelFinished) {
+      duelFrozenRef.current = null;
+      return;
+    }
+
+    if (duelFrozenRef.current) {
+      return;
+    }
+
+    duelFrozenRef.current = {
+      distanceKm,
+      elapsedSeconds,
+      paceLabel: currentUserArenaPace,
+    };
+  }, [
+    currentUserArenaPace,
+    distanceKm,
+    elapsedSeconds,
+    isCurrentUserDuelFinished,
+    matchMode,
+  ]);
+
   const duelFinishSummary = useMemo(
-    () => buildDuelMatchFinishModel({
-      opponent: effectiveDuelOpponent,
-      currentDistanceKm: distanceKm,
-      targetDistanceKm: duelDistanceKm,
-      currentElapsedSeconds: elapsedSeconds,
-      currentPaceLabel: currentUserArenaPace,
-      currentUserLiveStatus: currentUserDuelLiveStatus,
-    }),
-    [currentUserArenaPace, currentUserDuelLiveStatus, distanceKm, duelDistanceKm, effectiveDuelOpponent, elapsedSeconds],
+    () => {
+      const frozen = duelFrozenRef.current;
+      const effectiveDistanceKm = isCurrentUserDuelFinished && frozen
+        ? frozen.distanceKm
+        : distanceKm;
+      const effectiveElapsedSeconds = isCurrentUserDuelFinished && frozen
+        ? frozen.elapsedSeconds
+        : elapsedSeconds;
+      const effectivePaceLabel = isCurrentUserDuelFinished && frozen
+        ? frozen.paceLabel
+        : currentUserArenaPace;
+
+      return buildDuelMatchFinishModel({
+        opponent: effectiveDuelOpponent,
+        currentDistanceKm: effectiveDistanceKm,
+        targetDistanceKm: duelDistanceKm,
+        currentElapsedSeconds: effectiveElapsedSeconds,
+        currentPaceLabel: effectivePaceLabel,
+        currentUserLiveStatus: currentUserDuelLiveStatus,
+      });
+    },
+    [
+      currentUserArenaPace,
+      currentUserDuelLiveStatus,
+      distanceKm,
+      duelDistanceKm,
+      effectiveDuelOpponent,
+      elapsedSeconds,
+      isCurrentUserDuelFinished,
+    ],
   );
 
   const groupFinishSummary = useMemo(
