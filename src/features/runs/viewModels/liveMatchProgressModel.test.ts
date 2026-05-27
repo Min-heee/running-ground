@@ -181,9 +181,35 @@ test('current user live status model keeps group fallback status stable', () => 
     duelMatchStatus: null,
     groupMatchStatus: null,
     currentGroupLiveStatus: 'forfeited',
+    locallyForfeitedMatchIds: new Set(),
+    activeMatchId: null,
   }), {
     currentUserDuelLiveStatus: null,
     currentUserGroupLiveStatus: 'forfeited',
     currentUserHasForfeitedActiveMatch: true,
   });
+});
+
+test('current user live status model treats locally forfeited party-run match as forfeited', () => {
+  assert.deepEqual(buildCurrentUserLiveStatusModel({
+    matchMode: 'duel',
+    duelMatchStatus: null,
+    groupMatchStatus: null,
+    currentGroupLiveStatus: null,
+    locallyForfeitedMatchIds: new Set(['party-duel-match']),
+    activeMatchId: 'party-duel-match',
+  }), {
+    currentUserDuelLiveStatus: null,
+    currentUserGroupLiveStatus: null,
+    currentUserHasForfeitedActiveMatch: true,
+  });
+
+  assert.equal(buildCurrentUserLiveStatusModel({
+    matchMode: 'duel',
+    duelMatchStatus: null,
+    groupMatchStatus: null,
+    currentGroupLiveStatus: null,
+    locallyForfeitedMatchIds: new Set(['other-match']),
+    activeMatchId: 'party-duel-match',
+  }).currentUserHasForfeitedActiveMatch, false);
 });

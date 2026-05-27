@@ -343,6 +343,18 @@ export function TrackRunExperienceRuntime({
   const autoStartingMatchTrackingRef = useRef(false);
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
   const forfeitedMatchIdsRef = useRef<Set<string>>(new Set());
+  const [locallyForfeitedMatchIds, setLocallyForfeitedMatchIds] = useState<ReadonlySet<string>>(() => new Set());
+  const markMatchLocallyForfeited = useCallback((matchId: string) => {
+    setLocallyForfeitedMatchIds((currentIds) => {
+      if (currentIds.has(matchId)) {
+        return currentIds;
+      }
+
+      const nextIds = new Set(currentIds);
+      nextIds.add(matchId);
+      return nextIds;
+    });
+  }, []);
   const createMatchRoomInFlightRef = useRef(false);
   const joinMatchRoomInFlightRef = useRef(false);
   const leaveMatchRoomInFlightRef = useRef(false);
@@ -599,6 +611,25 @@ export function TrackRunExperienceRuntime({
   );
   const liveMatchDisplayDistanceKm = liveMatchDisplayFrame.distanceKm;
   const liveMatchDisplayElapsedSeconds = liveMatchDisplayFrame.elapsedSeconds;
+  const activeLiveMatchProgressMatchId = useMemo(() => {
+    if (matchMode === 'duel') {
+      return duelMatchStatus?.matchId
+        ?? (roomLinkedMatchContext?.mode === 'duel' ? roomLinkedMatchContext.matchId : null);
+    }
+
+    if (matchMode === 'group') {
+      return groupMatchStatus?.matchId
+        ?? (roomLinkedMatchContext?.mode === 'group' ? roomLinkedMatchContext.matchId : null);
+    }
+
+    return null;
+  }, [
+    duelMatchStatus?.matchId,
+    groupMatchStatus?.matchId,
+    matchMode,
+    roomLinkedMatchContext?.matchId,
+    roomLinkedMatchContext?.mode,
+  ]);
   const {
     groupLiveStandings,
     currentGroupStanding,
@@ -631,6 +662,8 @@ export function TrackRunExperienceRuntime({
     elapsedSeconds: liveMatchDisplayElapsedSeconds,
     duelDistanceKm,
     groupDistanceKm,
+    locallyForfeitedMatchIds,
+    activeMatchId: activeLiveMatchProgressMatchId,
     deferRankingCalculations: trackRunIdleViewModel.disableHeavySubscriptions || !liveMatchHeavyWorkReady,
   });
   const isTabMode = mode === 'tab';
@@ -761,7 +794,7 @@ export function TrackRunExperienceRuntime({
     liveMatchDisplayDistanceKm,
     roomLinkedMatchContext,
   ]);
-  const currentUserFinishedForResultPage = useMemo(() => resolveCurrentUserFinishedForResultPage({
+  const currentUserFinishedForResultPageFromParticipants = useMemo(() => resolveCurrentUserFinishedForResultPage({
     matchMode,
     duelArenaParticipants,
     roomLinkedDuelPlaceholderParticipants,
@@ -774,6 +807,7 @@ export function TrackRunExperienceRuntime({
     roomLinkedDuelPlaceholderParticipants,
     roomLinkedGroupPlaceholderParticipants,
   ]);
+  const currentUserFinishedForResultPage = currentUserFinishedForResultPageFromParticipants || currentUserHasForfeitedActiveMatch;
   const hasTrackedMatchResult = Boolean(trackedMatchResult);
   const hasMatchResultPage = shouldShowMatchResultPageOnCurrentUserFinished({
     matchMode,
@@ -837,11 +871,10 @@ export function TrackRunExperienceRuntime({
     ?? liveMatchRouteHydration?.matchId
     ?? liveMatchMountedRef.current?.matchId
     ?? null;
-  const activeMatchExitSelfForfeited = activeMatchExitSource === 'duel'
-    ? currentUserDuelLiveStatus === 'forfeited'
-    : activeMatchExitSource === 'group'
-      ? currentUserGroupLiveStatus === 'forfeited'
-      : false;
+  const activeMatchExitSelfForfeited = Boolean(
+    currentUserHasForfeitedActiveMatch
+    && (activeMatchExitSource === 'duel' || activeMatchExitSource === 'group'),
+  );
   const activeMatchExitSelfFinished = activeMatchExitSource === 'duel'
     && currentUserDuelLiveStatus === 'finished';
   const shouldForceLiveArenaFromRoute = Boolean(
@@ -1828,6 +1861,7 @@ export function TrackRunExperienceRuntime({
     syncLiveSharing,
     loadUpcomingMatches,
     clearLocalForfeitedMatchState,
+    markMatchLocallyForfeited,
   });
 
   const trackRunActionHandlers = useTrackRunRuntimeActions({

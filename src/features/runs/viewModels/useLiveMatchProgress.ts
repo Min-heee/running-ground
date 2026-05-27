@@ -34,6 +34,8 @@ type UseLiveMatchProgressInput = {
   elapsedSeconds: number;
   duelDistanceKm: number;
   groupDistanceKm: number;
+  locallyForfeitedMatchIds: ReadonlySet<string>;
+  activeMatchId: string | null;
   deferRankingCalculations?: boolean;
 };
 
@@ -50,6 +52,8 @@ export function useLiveMatchProgress({
   elapsedSeconds,
   duelDistanceKm,
   groupDistanceKm,
+  locallyForfeitedMatchIds,
+  activeMatchId,
   deferRankingCalculations = false,
 }: UseLiveMatchProgressInput) {
   const firstRemoteProgressReceivedRef = useRef(false);
@@ -88,7 +92,16 @@ export function useLiveMatchProgress({
     duelMatchStatus,
     groupMatchStatus,
     currentGroupLiveStatus: currentGroupStanding?.liveStatus ?? null,
-  }), [currentGroupStanding?.liveStatus, duelMatchStatus, groupMatchStatus, matchMode]);
+    locallyForfeitedMatchIds,
+    activeMatchId,
+  }), [
+    activeMatchId,
+    currentGroupStanding?.liveStatus,
+    duelMatchStatus,
+    groupMatchStatus,
+    locallyForfeitedMatchIds,
+    matchMode,
+  ]);
   const activeDuelArenaMatchId = useMemo(() => resolveActiveDuelArenaMatchId({
     matchMode,
     duelMatchStatus,

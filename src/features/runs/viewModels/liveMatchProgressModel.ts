@@ -36,20 +36,28 @@ export function buildCurrentUserLiveStatusModel({
   duelMatchStatus,
   groupMatchStatus,
   currentGroupLiveStatus,
+  locallyForfeitedMatchIds,
+  activeMatchId,
 }: {
   matchMode: RunMatchMode;
   duelMatchStatus: RunningMatchStatusResponse | null;
   groupMatchStatus: RunningMatchStatusResponse | null;
   currentGroupLiveStatus: DuelMatchOpponent['liveStatus'] | null;
+  locallyForfeitedMatchIds: ReadonlySet<string>;
+  activeMatchId: string | null;
 }): CurrentUserLiveStatusModel {
   const currentUserDuelLiveStatus = duelMatchStatus?.currentUserLiveStatus ?? null;
   const resolvedCurrentUserGroupLiveStatus = groupMatchStatus?.currentUserLiveStatus ?? currentGroupLiveStatus ?? null;
+  const isLocallyForfeited = activeMatchId !== null && locallyForfeitedMatchIds.has(activeMatchId);
   const currentUserHasForfeitedActiveMatch = (
-    matchMode === 'duel'
-      ? currentUserDuelLiveStatus === 'forfeited'
-      : matchMode === 'group'
-        ? resolvedCurrentUserGroupLiveStatus === 'forfeited'
-        : false
+    isLocallyForfeited
+    || (
+      matchMode === 'duel'
+        ? currentUserDuelLiveStatus === 'forfeited'
+        : matchMode === 'group'
+          ? resolvedCurrentUserGroupLiveStatus === 'forfeited'
+          : false
+    )
   );
 
   return {

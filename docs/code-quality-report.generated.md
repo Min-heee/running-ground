@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-27T16:23:20.636Z
+생성 시각: 2026-05-27T17:00:05.656Z
 
 ## 실행 방법
 
@@ -40,7 +40,7 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2177 | imports 56, effects 3, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2211 | imports 56, effects 3, sort/filter/map 1 |
 | backend/src/lib/matchRoomStoreHelpers.mjs | 1209 | imports 11, sort/filter/map 45 |
 | backend/src/runningMatchContract.test.mjs | 1189 | imports 8, timers 4 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
@@ -122,7 +122,7 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2177 | imports 56, effects 3, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2211 | imports 56, effects 3, sort/filter/map 1 |
 | backend/src/lib/matchRoomStoreHelpers.mjs | 1209 | imports 11, sort/filter/map 45 |
 | backend/src/runningMatchContract.test.mjs | 1189 | imports 8, timers 4 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
@@ -147,7 +147,7 @@ npm run code:quality
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 144 | TrackRunExperienceRuntime | 2033 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 144 | TrackRunExperienceRuntime | 2067 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
 | src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 97 | useTrackingSessionSnapshots | 382 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
@@ -180,7 +180,6 @@ npm run code:quality
 | src/features/runs/runtime/useTrackRunRoomCreateAction.ts | 79 | useTrackRunRoomCreateAction | 195 |
 | src/features/match/hooks/lobby/useRoomInviteActions.ts | 16 | useRoomInviteActions | 194 |
 | backend/src/repositories/authRepository.mjs | 128 | createJsonAuthRepository | 192 |
-| src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 41 | useRunForfeitCommand | 191 |
 | src/features/runs/runtime/useTrackRunRuntimeMatchRequestActions.ts | 11 | useTrackRunRuntimeMatchRequestActions | 191 |
 | src/features/runs/lifecycle/hooks/useMatchCountdownModel.ts | 64 | useMatchCountdownModel | 185 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 100 | callback@useCallback | 182 |
@@ -206,15 +205,15 @@ npm run code:quality
 | src/features/runs/components/matchSetupCards/DuelMatchSetupCard.tsx | 13 | DuelMatchSetupCard | 149 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchMountSignalBridge.ts | 15 | useLiveMatchMountSignalBridge | 146 |
 | src/features/runs/hooks/matchLifecycle/useDuelMatchLifecycle.ts | 25 | useDuelMatchLifecycle | 145 |
-| src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 61 | forfeitMatchAndKeepRunning | 142 |
+| src/features/runs/viewModels/useLiveMatchProgress.ts | 42 | useLiveMatchProgress | 143 |
 | src/features/runs/hooks/runSaveFlow/useRunFinishCommand.ts | 44 | useRunFinishCommand | 141 |
 | src/features/friends/hooks/useFriendsScreen.ts | 17 | useFriendsScreen | 140 |
 | src/features/integrations/components/nrcBridge/NrcBridgeGuideActions.tsx | 10 | buildActionButtons | 139 |
 | src/components/matches/useAndroidLiveMatchPerfProbe.ts | 50 | useAndroidLiveMatchPerfProbe | 136 |
 | src/features/runs/tracking/actions/useStartTrackingAction.ts | 51 | callback@useCallback | 134 |
+| src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 37 | useRunForfeitCommand | 134 |
 | src/features/profile/hooks/useMyPageScreen.ts | 10 | useMyPageScreen | 133 |
 | src/features/runs/sync/recipientInviteInbox/applyRecipientInviteFetchSuccess.ts | 45 | applyRecipientInviteFetchSuccess | 132 |
-| src/features/runs/viewModels/useLiveMatchProgress.ts | 40 | useLiveMatchProgress | 132 |
 | src/features/league/screens/LeagueScreen.tsx | 17 | LeagueScreen | 132 |
 | src/features/runs/sync/usePartyRunSync.ts | 60 | usePartyRunSync | 131 |
 | src/features/auth/components/signup/SignupCredentialsSection.tsx | 34 | SignupCredentialsSection | 129 |
@@ -227,6 +226,7 @@ npm run code:quality
 | scripts/deploy-public-backend.mjs | 304 | main | 123 |
 | src/features/runs/hooks/useRunTrackingFlow.ts | 11 | useRunTrackingFlow | 122 |
 | src/features/auth/hooks/useUniversityVerification.ts | 10 | useUniversityVerification | 121 |
+| backend/src/repositories/raceRepository.mjs | 1 | createJsonRaceRepository | 121 |
 
 ## React component inline object/array/style 후보
 
