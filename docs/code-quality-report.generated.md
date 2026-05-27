@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-27T17:00:05.656Z
+생성 시각: 2026-05-27T17:15:11.009Z
 
 ## 실행 방법
 
@@ -194,6 +194,7 @@ npm run code:quality
 | src/features/integrations/hooks/useIntegrationActions.ts | 61 | useIntegrationActions | 165 |
 | src/features/runs/tracking/useTrackingAppStateSync.ts | 40 | useTrackingAppStateSync | 165 |
 | backend/src/repositories/marketRepository.mjs | 5 | createJsonMarketRepository | 165 |
+| src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 42 | useRunForfeitCommand | 160 |
 | src/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyEffects.ts | 27 | useMatchRoomLobbyEffects | 159 |
 | src/features/runs/hooks/usePartyRunRoom.ts | 79 | usePartyRunRoom | 158 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 48 | startLocationTaskWithTrace | 156 |
@@ -211,7 +212,6 @@ npm run code:quality
 | src/features/integrations/components/nrcBridge/NrcBridgeGuideActions.tsx | 10 | buildActionButtons | 139 |
 | src/components/matches/useAndroidLiveMatchPerfProbe.ts | 50 | useAndroidLiveMatchPerfProbe | 136 |
 | src/features/runs/tracking/actions/useStartTrackingAction.ts | 51 | callback@useCallback | 134 |
-| src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 37 | useRunForfeitCommand | 134 |
 | src/features/profile/hooks/useMyPageScreen.ts | 10 | useMyPageScreen | 133 |
 | src/features/runs/sync/recipientInviteInbox/applyRecipientInviteFetchSuccess.ts | 45 | applyRecipientInviteFetchSuccess | 132 |
 | src/features/league/screens/LeagueScreen.tsx | 17 | LeagueScreen | 132 |

@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import {
   markDuelStatusForfeited,
   markGroupStatusForfeited,
@@ -33,6 +34,10 @@ type UseRunForfeitCommandInput = Pick<
   isSaving: boolean;
   setMatchLeaving: (source: MatchExitSource, isLeaving: boolean) => void;
 };
+
+function showForfeitResultButtonDiagnosticAlert(title: string, message: string) {
+  Alert.alert(title, message);
+}
 
 export function useRunForfeitCommand({
   duelMatchNotice,
@@ -146,7 +151,25 @@ export function useRunForfeitCommand({
   };
 
   const handleShowResultAfterCounterpartForfeit = async (source: MatchExitSource) => {
+    showForfeitResultButtonDiagnosticAlert(
+      '진단: 결과보기 버튼 진입',
+      [
+        `source=${source}`,
+        `pendingCounterpartForfeitResultRef.current=${pendingCounterpartForfeitResultRef.current}`,
+        `isSaving=${isSaving}`,
+        `status=${status}`,
+      ].join('\n'),
+    );
+
     if (pendingCounterpartForfeitResultRef.current || isSaving || status !== 'running') {
+      showForfeitResultButtonDiagnosticAlert(
+        '진단: 가드 차단',
+        [
+          `pending=${pendingCounterpartForfeitResultRef.current}`,
+          `isSaving=${isSaving}`,
+          `status=${status}`,
+        ].join('\n'),
+      );
       return;
     }
 
@@ -155,7 +178,15 @@ export function useRunForfeitCommand({
     setMatchLeaving(source, true);
 
     try {
+      showForfeitResultButtonDiagnosticAlert('진단: handleSaveTracking 시작', `source=${source}`);
       await handleSaveTracking({ exitIfUnsavable: true });
+      showForfeitResultButtonDiagnosticAlert('진단: handleSaveTracking 완료', `source=${source}`);
+    } catch (error) {
+      showForfeitResultButtonDiagnosticAlert(
+        '진단: handleSaveTracking 실패',
+        error instanceof Error ? error.message : String(error),
+      );
+      throw error;
     } finally {
       pendingCounterpartForfeitResultRef.current = false;
       setMatchLeaving(source, false);
