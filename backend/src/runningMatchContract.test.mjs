@@ -625,6 +625,137 @@ await runTest('normal active room is not cleaned and create reports blocker sour
   });
 });
 
+await runTest('force reset clears linked room blockers and allows a new room', async () => {
+  const store = createBaseStore();
+  const slotStartAt = createSelectableMatchSlotStartAt();
+  const hostUser = store.users.find((user) => user.id === 'host-user');
+  hostUser.activeRoomId = 'linked-blocked-room';
+  hostUser.activeMatchId = 'linked-blocked-match';
+  store.matchSessions.push({
+    id: 'linked-blocked-match',
+    mode: 'duel',
+    isTestMatch: false,
+    distanceKm: 5,
+    slotStartAt,
+    startedAt: null,
+    createdAt: iso(-60 * 1000),
+    matchedAt: iso(-60 * 1000),
+    participants: [
+      {
+        userId: 'host-user',
+        seedRank: 1,
+        acceptedAt: null,
+        liveStatus: 'ready',
+        liveDistanceKm: 0,
+        liveElapsedSeconds: 0,
+        livePace: '--:--/km',
+        liveUpdatedAt: null,
+        finishedAt: null,
+      },
+      {
+        userId: 'guest-user',
+        seedRank: 2,
+        acceptedAt: null,
+        liveStatus: 'ready',
+        liveDistanceKm: 0,
+        liveElapsedSeconds: 0,
+        livePace: '--:--/km',
+        liveUpdatedAt: null,
+        finishedAt: null,
+      },
+    ],
+  });
+  store.matchRooms.push({
+    id: 'linked-blocked-room',
+    inviteToken: 'BLOCK1',
+    hostUserId: 'host-user',
+    mode: 'duel',
+    startMode: 'host',
+    distanceKm: 5,
+    slotStartAt,
+    maxParticipants: 2,
+    minParticipants: 2,
+    invitedFriendIds: [],
+    participants: [
+      {
+        userId: 'host-user',
+        isHost: true,
+        isReady: false,
+        isCountdownReady: true,
+        invited: false,
+        joinedAt: iso(-60 * 1000),
+      },
+      {
+        userId: 'guest-user',
+        isHost: false,
+        isReady: true,
+        isCountdownReady: true,
+        invited: false,
+        joinedAt: iso(-50 * 1000),
+      },
+    ],
+    createdAt: iso(-60 * 1000),
+    linkedMatchId: 'linked-blocked-match',
+  });
+  store.matchQueues.duel.push({
+    id: 'blocked-queue',
+    userId: 'host-user',
+    distanceKm: 5,
+    slotStartAt,
+    requestedAt: iso(-30 * 1000),
+  });
+  store.liveRunShares = [
+    {
+      userId: 'host-user',
+      status: 'running',
+      updatedAt: iso(0),
+    },
+  ];
+
+  await withBackend(store, async ({ request, requestRaw }) => {
+    const leaveAttempt = await requestRaw('host-token', 'POST', '/api/running/rooms/leave', {
+      roomId: 'linked-blocked-room',
+    });
+    assert.equal(leaveAttempt.response.status, 400);
+
+    const reset = await request('host-token', 'POST', '/api/running/rooms/force-reset', {});
+    assert.equal(reset.success, true);
+    assert.equal(reset.cleaned, true);
+    assert.equal(reset.cleanedItems.includes('matchRooms.hostTransferred:linked-blocked-room'), true);
+    assert.equal(reset.cleanedItems.includes('matchRooms.participantRemoved:linked-blocked-room'), true);
+    assert.equal(reset.cleanedItems.includes('matchSessions.forfeited:linked-blocked-match'), true);
+    assert.equal(reset.cleanedItems.includes('matchQueues.duel.removed'), true);
+    assert.equal(reset.cleanedItems.includes('liveRunShares.currentUser'), true);
+    assert.equal(reset.cleanedItems.includes('user.activeRoomId'), true);
+    assert.equal(reset.cleanedItems.includes('user.activeMatchId'), true);
+
+    const hostRoom = await request('host-token', 'GET', '/api/running/rooms/my');
+    assert.equal(hostRoom.room, null);
+
+    const guestRoom = await request('guest-token', 'GET', '/api/running/rooms/my');
+    assert.equal(guestRoom.room.roomId, 'linked-blocked-room');
+    assert.equal(guestRoom.room.hostUserId, 'guest-user');
+    assert.equal(guestRoom.room.participants.some((participant) => participant.userId === 'host-user'), false);
+
+    const hostStatus = await request('host-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: 'linked-blocked-match',
+    });
+    assert.equal(hostStatus.currentUserLiveStatus, 'forfeited');
+
+    const created = await request('host-token', 'POST', '/api/running/rooms', {
+      mode: 'duel',
+      distanceKm: 5,
+      startMode: 'host',
+      maxParticipants: 2,
+    });
+    assert.equal(created.success, true);
+    assert.equal(created.room.hostUserId, 'host-user');
+  });
+});
+
 await runTest('normal active room blocks joining another room with blocker source', async () => {
   const store = createBaseStore();
   const slotStartAt = createSelectableMatchSlotStartAt();

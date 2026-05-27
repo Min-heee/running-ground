@@ -51,6 +51,11 @@ export async function routeRunningMatchRoomRoutes(deps) {
     return true;
   }
 
+  if (pathname === '/api/running/rooms/force-reset' && method === 'POST') {
+    handleForceResetRunningMatchState(deps);
+    return true;
+  }
+
   return false;
 }
 
@@ -265,6 +270,22 @@ async function handleCleanupStaleRunningMatchRoomState({
   const payload = mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return cleanupStaleRunningMatchRoomState(store, currentUser);
+  });
+
+  sendJson(response, 200, payload);
+}
+
+function handleForceResetRunningMatchState({
+  forceResetRunningMatchStateForUser,
+  mutateStore,
+  request,
+  requireUser,
+  response,
+  sendJson,
+}) {
+  const payload = mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return forceResetRunningMatchStateForUser(store, currentUser);
   });
 
   sendJson(response, 200, payload);

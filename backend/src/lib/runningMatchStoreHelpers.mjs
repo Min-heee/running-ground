@@ -21,6 +21,7 @@ export {
   createRunningMatchRoom,
   findRunningMatchRoomForUser,
   findRunningMatchRoomInviteInboxForUser,
+  forceResetRunningMatchStateForUser,
   joinRunningMatchRoom,
   leaveRunningMatchRoom,
   startRunningMatchRoom,

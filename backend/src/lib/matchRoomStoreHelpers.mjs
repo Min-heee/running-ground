@@ -27,6 +27,7 @@ import {
   countUserQueueRefs,
   findAnyQueuedMatchEntryForUser,
   pruneMatchQueues,
+  removeUsersFromMatchQueue,
 } from './matchQueueStoreHelpers.mjs';
 import {
   buildMatchRunnerProfile,
@@ -927,6 +928,23 @@ function clearUserLiveRunShare(store, userId, now = new Date()) {
   return false;
 }
 
+function forceClearUserLiveRunShare(store, userId) {
+  if (Array.isArray(store.liveRunShares)) {
+    const beforeCount = store.liveRunShares.length;
+    store.liveRunShares = store.liveRunShares.filter((entry) => entry?.userId !== userId);
+    return store.liveRunShares.length !== beforeCount;
+  }
+
+  if (store.liveRunShares && typeof store.liveRunShares === 'object') {
+    if (Object.prototype.hasOwnProperty.call(store.liveRunShares, userId)) {
+      delete store.liveRunShares[userId];
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function detachUserFromStaleMatchRoom(store, room, userId) {
   const rooms = ensureMatchRooms(store);
   const roomIndex = rooms.findIndex((entry) => entry.id === room.id);
@@ -965,6 +983,107 @@ function detachUserFromStaleMatchRoom(store, room, userId) {
 
   room.updatedAt = new Date().toISOString();
   return true;
+}
+
+export function forceResetRunningMatchStateForUser(store, currentUser, now = new Date()) {
+  const cleanedItems = [];
+  const nowIso = now.toISOString();
+  const rooms = ensureMatchRooms(store);
+  const nextRooms = [];
+
+  for (const room of rooms) {
+    const beforeParticipantCount = Array.isArray(room.participants) ? room.participants.length : 0;
+    const beforeInviteCount = Array.isArray(room.invitedFriendIds) ? room.invitedFriendIds.length : 0;
+    const nextParticipants = (room.participants ?? []).filter((participant) => participant.userId !== currentUser.id);
+    const nextInvitedFriendIds = Array.isArray(room.invitedFriendIds)
+      ? room.invitedFriendIds.filter((userId) => userId !== currentUser.id)
+      : [];
+    const removedParticipant = nextParticipants.length !== beforeParticipantCount;
+    const removedInvite = nextInvitedFriendIds.length !== beforeInviteCount;
+
+    if (!removedParticipant && !removedInvite) {
+      nextRooms.push(room);
+      continue;
+    }
+
+    if (!nextParticipants.length) {
+      cleanedItems.push(`matchRooms.deleted:${room.id}`);
+      continue;
+    }
+
+    const removedHost = room.hostUserId === currentUser.id
+      || (room.participants ?? []).some((participant) => participant.userId === currentUser.id && participant.isHost);
+
+    room.participants = nextParticipants;
+    room.invitedFriendIds = nextInvitedFriendIds;
+
+    if (removedHost) {
+      room.hostUserId = nextParticipants[0].userId;
+      room.participants = nextParticipants.map((participant, index) => ({
+        ...participant,
+        isHost: index === 0,
+      }));
+      cleanedItems.push(`matchRooms.hostTransferred:${room.id}`);
+    }
+
+    if (removedParticipant) {
+      cleanedItems.push(`matchRooms.participantRemoved:${room.id}`);
+    }
+
+    if (removedInvite) {
+      cleanedItems.push(`matchRooms.inviteRemoved:${room.id}`);
+    }
+
+    room.updatedAt = nowIso;
+    nextRooms.push(room);
+  }
+
+  store.matchRooms = nextRooms;
+
+  for (const session of ensureMatchSessions(store)) {
+    if (!Array.isArray(session.participants)) {
+      continue;
+    }
+
+    const participant = session.participants.find((entry) => entry.userId === currentUser.id);
+    if (!participant || ['finished', 'forfeited'].includes(participant.liveStatus)) {
+      continue;
+    }
+
+    participant.liveStatus = 'forfeited';
+    participant.liveUpdatedAt = nowIso;
+    participant.forfeitedAt = nowIso;
+    cleanedItems.push(`matchSessions.forfeited:${session.id}`);
+  }
+
+  for (const mode of ['duel', 'group']) {
+    const beforeQueueRefs = countUserQueueRefs(store, currentUser.id);
+    removeUsersFromMatchQueue(store, mode, [currentUser.id]);
+    const afterQueueRefs = countUserQueueRefs(store, currentUser.id);
+
+    if (afterQueueRefs < beforeQueueRefs) {
+      cleanedItems.push(`matchQueues.${mode}.removed`);
+    }
+  }
+
+  if (forceClearUserLiveRunShare(store, currentUser.id)) {
+    cleanedItems.push('liveRunShares.currentUser');
+  }
+
+  cleanedItems.push(...clearUserStaleReferenceFields(store, currentUser));
+  syncMatchRooms(store, now);
+
+  logBackendInfo('running_match_force_reset', {
+    cleanedItems,
+    userId: currentUser.id,
+  });
+
+  return {
+    success: true,
+    serverNow: nowIso,
+    cleaned: cleanedItems.length > 0,
+    cleanedItems,
+  };
 }
 
 export function cleanupStaleRunningMatchRoomState(store, currentUser, now = new Date()) {

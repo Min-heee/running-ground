@@ -16,6 +16,7 @@ export {
   createRunningMatchRoom,
   fetchRunningMatchRoomInviteInbox,
   fetchRunningMatchRoom,
+  forceResetRunningMatchState,
   joinRunningMatchRoom,
   leaveRunningMatchRoom,
   startRunningMatchRoom,

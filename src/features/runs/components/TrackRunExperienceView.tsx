@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Href } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
@@ -26,9 +26,12 @@ type TrackRunExperienceViewProps = {
   isTabMode: boolean;
   liveContainerProps: ComponentProps<typeof LiveMatchContainer>;
   liveMatchKey: string | null;
+  isForceResettingRunningMatch: boolean;
+  onForceResetRunningMatch: () => void;
   readyScreenProps: ComponentProps<typeof RunningReadyScreen>;
   shellKind: TrackRunShellKind;
   shouldShowReadyScreen: boolean;
+  showForceResetAction: boolean;
   shouldShowRoomArmingOverlay: boolean;
   soloStartCountdownSeconds: number | null;
 };
@@ -39,11 +42,14 @@ export function TrackRunExperienceView({
   error,
   fullscreenCountdownEntry,
   isTabMode,
+  isForceResettingRunningMatch,
   liveContainerProps,
   liveMatchKey,
+  onForceResetRunningMatch,
   readyScreenProps,
   shellKind,
   shouldShowReadyScreen,
+  showForceResetAction,
   shouldShowRoomArmingOverlay,
   soloStartCountdownSeconds,
 }: TrackRunExperienceViewProps) {
@@ -63,7 +69,30 @@ export function TrackRunExperienceView({
           shellKind={shouldShowReadyScreen ? shellKind : 'live'}
         />
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        {error ? (
+          <View style={styles.errorBlock}>
+            <Text style={styles.errorText}>{error}</Text>
+            {showForceResetAction ? (
+              <>
+                <Pressable
+                  style={[
+                    styles.forceResetButton,
+                    isForceResettingRunningMatch ? styles.forceResetButtonDisabled : undefined,
+                  ]}
+                  onPress={isForceResettingRunningMatch ? undefined : onForceResetRunningMatch}
+                  disabled={isForceResettingRunningMatch}
+                >
+                  <Text style={styles.forceResetButtonText}>
+                    {isForceResettingRunningMatch ? '초기화 중...' : '매칭 상태 강제 초기화'}
+                  </Text>
+                </Pressable>
+                <Text style={styles.forceResetHelperText}>
+                  진행 중인 모든 방·매치 상태를 정리해요. 진행 중인 대결은 패배 처리될 수 있어요.
+                </Text>
+              </>
+            ) : null}
+          </View>
+        ) : null}
       </Screen>
       {fullscreenCountdownEntry ? (
         <MatchStartCountdownOverlay
@@ -110,7 +139,29 @@ const styles = StyleSheet.create({
   errorText: {
     color: colors.danger,
     fontWeight: fontWeights.bold,
+  },
+  errorBlock: {
+    gap: spacing.xxl,
     marginTop: spacing.s12,
+  },
+  forceResetButton: {
+    alignItems: 'center',
+    backgroundColor: colors.danger,
+    borderRadius: 14,
+    paddingVertical: spacing.s12,
+  },
+  forceResetButtonDisabled: {
+    opacity: 0.55,
+  },
+  forceResetButtonText: {
+    color: colors.white,
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.extraBold,
+  },
+  forceResetHelperText: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
   },
   roomArmingOverlay: {
     ...StyleSheet.absoluteFillObject,
