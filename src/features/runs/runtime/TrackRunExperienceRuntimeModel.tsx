@@ -43,6 +43,7 @@ import {
   type RunningMatchStatusResponse,
   type UpcomingRunningMatchItem,
 } from '@/lib/api/types';
+import type { ForfeitedMatchSnapshot } from '@/features/runs/types/matchForfeit';
 import {
   buildDuelArenaParticipants,
   buildGroupArenaParticipants,
@@ -347,16 +348,16 @@ export function TrackRunExperienceRuntime({
   const autoStartingMatchTrackingRef = useRef(false);
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
   const forfeitedMatchIdsRef = useRef<Set<string>>(new Set());
-  const [locallyForfeitedMatchIds, setLocallyForfeitedMatchIds] = useState<ReadonlySet<string>>(() => new Set());
-  const markMatchLocallyForfeited = useCallback((matchId: string) => {
-    setLocallyForfeitedMatchIds((currentIds) => {
-      if (currentIds.has(matchId)) {
-        return currentIds;
+  const [locallyForfeitedMatches, setLocallyForfeitedMatches] = useState<ReadonlyMap<string, ForfeitedMatchSnapshot>>(() => new Map());
+  const markMatchLocallyForfeited = useCallback((snapshot: ForfeitedMatchSnapshot) => {
+    setLocallyForfeitedMatches((currentSnapshots) => {
+      if (currentSnapshots.has(snapshot.matchId)) {
+        return currentSnapshots;
       }
 
-      const nextIds = new Set(currentIds);
-      nextIds.add(matchId);
-      return nextIds;
+      const nextSnapshots = new Map(currentSnapshots);
+      nextSnapshots.set(snapshot.matchId, snapshot);
+      return nextSnapshots;
     });
   }, []);
   const createMatchRoomInFlightRef = useRef(false);
@@ -666,7 +667,7 @@ export function TrackRunExperienceRuntime({
     elapsedSeconds: liveMatchDisplayElapsedSeconds,
     duelDistanceKm,
     groupDistanceKm,
-    locallyForfeitedMatchIds,
+    locallyForfeitedMatches,
     activeMatchId: activeLiveMatchProgressMatchId,
     deferRankingCalculations: trackRunIdleViewModel.disableHeavySubscriptions || !liveMatchHeavyWorkReady,
   });
@@ -813,17 +814,22 @@ export function TrackRunExperienceRuntime({
   ]);
   const currentUserFinishedForResultPage = currentUserFinishedForResultPageFromParticipants || currentUserHasForfeitedActiveMatch;
   const hasTrackedMatchResult = Boolean(trackedMatchResult);
+  const currentUserForfeitSnapshot = activeLiveMatchProgressMatchId
+    ? locallyForfeitedMatches.get(activeLiveMatchProgressMatchId) ?? null
+    : null;
   const effectiveDuelResultRows = useMemo(() => {
     if (duelResultRows.length || matchMode !== 'duel' || !currentUserHasForfeitedActiveMatch) {
       return duelResultRows;
     }
 
     return buildRoomLinkedDuelForfeitResultRows({
-      elapsedSeconds: liveMatchDisplayElapsedSeconds,
+      currentUserForfeitSnapshot,
+      liveElapsedSeconds: liveMatchDisplayElapsedSeconds,
       participants: roomLinkedDuelPlaceholderParticipants,
     });
   }, [
     currentUserHasForfeitedActiveMatch,
+    currentUserForfeitSnapshot,
     duelResultRows,
     liveMatchDisplayElapsedSeconds,
     matchMode,
@@ -835,11 +841,13 @@ export function TrackRunExperienceRuntime({
     }
 
     return buildRoomLinkedGroupForfeitResultRows({
-      elapsedSeconds: liveMatchDisplayElapsedSeconds,
+      currentUserForfeitSnapshot,
+      liveElapsedSeconds: liveMatchDisplayElapsedSeconds,
       participants: roomLinkedGroupPlaceholderParticipants,
     });
   }, [
     currentUserHasForfeitedActiveMatch,
+    currentUserForfeitSnapshot,
     groupResultRows,
     liveMatchDisplayElapsedSeconds,
     matchMode,

@@ -3,26 +3,60 @@ import type {
   DuelMatchResultRow,
   GroupMatchResultRow,
 } from '@/features/runs/types/matchResult';
+import type { ForfeitedMatchSnapshot } from '@/features/runs/types/matchForfeit';
 import type { ArenaParticipantViewModel } from '@/features/runs/viewModels/matchViewModels';
 
+function resolveForfeitRowMetrics({
+  currentUserForfeitSnapshot,
+  liveElapsedSeconds,
+  participant,
+}: {
+  currentUserForfeitSnapshot: ForfeitedMatchSnapshot | null;
+  liveElapsedSeconds: number;
+  participant: ArenaParticipantViewModel;
+}) {
+  const shouldUseCurrentUserSnapshot = Boolean(participant.isCurrentUser && currentUserForfeitSnapshot);
+  const shouldUseParticipantSnapshot = participant.liveStatus === 'forfeited'
+    && typeof participant.elapsedSeconds === 'number'
+    && participant.elapsedSeconds > 0;
+  const elapsedSeconds = shouldUseCurrentUserSnapshot
+    ? currentUserForfeitSnapshot!.elapsedSeconds
+    : shouldUseParticipantSnapshot
+      ? participant.elapsedSeconds!
+      : liveElapsedSeconds;
+  const paceLabel = shouldUseCurrentUserSnapshot
+    ? currentUserForfeitSnapshot!.paceLabel
+    : ((participant.progressPaceLabel ?? participant.paceLabel) || '--:--/km');
+
+  return {
+    durationLabel: formatDuration(elapsedSeconds),
+    paceLabel,
+  };
+}
+
 export function buildRoomLinkedDuelForfeitResultRows({
-  elapsedSeconds,
+  currentUserForfeitSnapshot,
+  liveElapsedSeconds,
   participants,
 }: {
-  elapsedSeconds: number;
+  currentUserForfeitSnapshot: ForfeitedMatchSnapshot | null;
+  liveElapsedSeconds: number;
   participants: ArenaParticipantViewModel[];
 }): DuelMatchResultRow[] {
-  const durationLabel = formatDuration(elapsedSeconds);
-
   return participants.map((participant) => {
     const isCurrentUser = Boolean(participant.isCurrentUser);
-    const isForfeited = isCurrentUser || participant.liveStatus === 'forfeited';
+    const isForfeited = (isCurrentUser && currentUserForfeitSnapshot !== null) || participant.liveStatus === 'forfeited';
     const isFinished = participant.liveStatus === 'finished';
+    const { durationLabel, paceLabel } = resolveForfeitRowMetrics({
+      currentUserForfeitSnapshot,
+      liveElapsedSeconds,
+      participant,
+    });
     return {
       id: participant.id,
       resultLabel: isForfeited ? 'FORFEIT' : isFinished ? 'WIN' : 'ING',
       name: participant.name,
-      paceLabel: participant.paceLabel || '--:--/km',
+      paceLabel,
       durationLabel,
       isCurrentUser,
       isInProgress: !isForfeited && !isFinished,
@@ -31,24 +65,29 @@ export function buildRoomLinkedDuelForfeitResultRows({
 }
 
 export function buildRoomLinkedGroupForfeitResultRows({
-  elapsedSeconds,
+  currentUserForfeitSnapshot,
+  liveElapsedSeconds,
   participants,
 }: {
-  elapsedSeconds: number;
+  currentUserForfeitSnapshot: ForfeitedMatchSnapshot | null;
+  liveElapsedSeconds: number;
   participants: ArenaParticipantViewModel[];
 }): GroupMatchResultRow[] {
-  const durationLabel = formatDuration(elapsedSeconds);
-
   return participants.map((participant, index) => {
     const isCurrentUser = Boolean(participant.isCurrentUser);
-    const isForfeited = isCurrentUser || participant.liveStatus === 'forfeited';
+    const isForfeited = (isCurrentUser && currentUserForfeitSnapshot !== null) || participant.liveStatus === 'forfeited';
     const isFinished = participant.liveStatus === 'finished';
     const parsedRank = Number(participant.rankLabel);
+    const { durationLabel, paceLabel } = resolveForfeitRowMetrics({
+      currentUserForfeitSnapshot,
+      liveElapsedSeconds,
+      participant,
+    });
     return {
       id: participant.id,
       rank: Number.isFinite(parsedRank) && parsedRank > 0 ? parsedRank : index + 1,
       name: participant.name,
-      paceLabel: participant.paceLabel || '--:--/km',
+      paceLabel,
       durationLabel,
       isCurrentUser,
       isInProgress: !isForfeited && !isFinished,

@@ -21,7 +21,9 @@ export type ArenaParticipantViewModel = {
   id: string;
   name: string;
   paceLabel: string;
+  progressPaceLabel?: string;
   distanceKm: number;
+  elapsedSeconds?: number;
   rankLabel?: string;
   resultLabel?: DuelResultLabel | null;
   finishedAt?: string | null;
@@ -53,8 +55,13 @@ function mergeRoomParticipantProgress<T extends DuelMatchOpponent | GroupMatchPa
   roomParticipant: RunningMatchRoomParticipant,
   statusParticipant: T | null,
 ) {
+  const liveStatus = resolveMergedLiveStatus(roomParticipant.liveStatus, statusParticipant?.liveStatus);
+
   if (!statusParticipant) {
-    return roomParticipant;
+    return {
+      ...roomParticipant,
+      liveStatus,
+    };
   }
 
   return {
@@ -71,9 +78,24 @@ function mergeRoomParticipantProgress<T extends DuelMatchOpponent | GroupMatchPa
     officialGapAheadKm: statusParticipant.officialGapAheadKm ?? roomParticipant.officialGapAheadKm,
     officialGapLeaderKm: statusParticipant.officialGapLeaderKm ?? roomParticipant.officialGapLeaderKm,
     officialComparedAt: statusParticipant.officialComparedAt ?? roomParticipant.officialComparedAt,
-    liveStatus: statusParticipant.liveStatus ?? roomParticipant.liveStatus,
+    liveStatus,
     finishedAt: statusParticipant.finishedAt ?? roomParticipant.finishedAt,
   };
+}
+
+function resolveMergedLiveStatus(
+  roomStatus: MatchLiveStatus | undefined,
+  statusStatus: MatchLiveStatus | undefined,
+): MatchLiveStatus | undefined {
+  if (roomStatus === 'forfeited' || statusStatus === 'forfeited') {
+    return 'forfeited';
+  }
+
+  if (roomStatus === 'finished' || statusStatus === 'finished') {
+    return 'finished';
+  }
+
+  return statusStatus ?? roomStatus;
 }
 
 function decorateDuelResultLabels(participants: ArenaParticipantViewModel[]) {
@@ -188,7 +210,9 @@ export function buildRoomLinkedDuelPlaceholderParticipants({
       id: participant.userId,
       name: isCurrentUser ? '나' : participant.name,
       paceLabel: participantLiveStatus === 'forfeited' ? '기권' : participantPaceLabel,
+      progressPaceLabel: participantPaceLabel,
       distanceKm: participantDistanceKm,
+      elapsedSeconds: progressModel.displayProgress.elapsedSeconds,
       finishedAt: participantFinishedAt,
       isCurrentUser,
       isLeader: false,
@@ -280,7 +304,9 @@ export function buildRoomLinkedGroupPlaceholderParticipants({
       id: participant.userId,
       name: isCurrentUser ? '나' : participant.name,
       paceLabel: participantLiveStatus === 'forfeited' ? '기권' : participantPaceLabel,
+      progressPaceLabel: participantPaceLabel,
       distanceKm: participantDistanceKm,
+      elapsedSeconds: progressModel.displayProgress.elapsedSeconds,
       rankLabel: String(index + 1),
       finishedAt: participantFinishedAt,
       isCurrentUser,

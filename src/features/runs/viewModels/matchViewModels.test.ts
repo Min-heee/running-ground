@@ -194,6 +194,40 @@ test('room linked duel view model marks received remote forfeit status', () => {
   assert.equal(remote.showPaceBubble, true);
 });
 
+test('room linked duel view model keeps room terminal forfeit over stale running status', () => {
+  const participants = buildRoomLinkedDuelPlaceholderParticipants({
+    room: room({
+      participants: [
+        room().participants[0],
+        {
+          ...room().participants[1],
+          liveDistanceKm: 0.5,
+          liveElapsedSeconds: 180,
+          livePace: '06:00/km',
+          liveStatus: 'forfeited',
+        },
+      ],
+    }),
+    hasRoomLinkedDuelContext: true,
+    currentUserId: 'me',
+    currentDistanceKm: 0.72,
+    currentUserPaceLabel: '06:05/km',
+    opponent: opponent({
+      liveDistanceKm: 0.54,
+      liveElapsedSeconds: 210,
+      livePace: '06:28/km',
+      liveStatus: 'running',
+    }),
+    roomLinkedMatchContext: { state: 'active' },
+  });
+
+  const remote = participants.find((participant) => !participant.isCurrentUser)!;
+
+  assert.equal(remote.liveStatus, 'forfeited');
+  assert.equal(remote.paceLabel, '기권');
+  assert.equal(remote.progressPaceLabel, '06:29/km');
+});
+
 test('group arena view model highlights current runner and featured rivals', () => {
   const participants = buildGroupArenaParticipants({
     standings: [
