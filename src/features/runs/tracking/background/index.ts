@@ -1,5 +1,5 @@
 import * as Location from 'expo-location';
-import type { AppStateStatus } from 'react-native';
+import { Platform, type AppStateStatus } from 'react-native';
 import '@/features/runs/tracking/background/locationTask';
 import {
   appendTrackedLocation,
@@ -22,6 +22,9 @@ import {
   type BackgroundRunTrackingSnapshot,
   type SnapshotCloneOptions,
 } from '@/features/runs/tracking/background/snapshotStore';
+import {
+  startBackgroundLocationTaskIfNeeded,
+} from '@/features/runs/tracking/background/backgroundSubscription';
 import {
   startManagedLocationTask,
   stopManagedLocationTask,
@@ -58,6 +61,16 @@ const BACKGROUND_RUN_PERSISTENCE_INTERVAL_MS = 5_000;
 let abandonedTrackingStopRequested = false;
 let persistenceMatchId: string | null = null;
 let persistenceTimer: ReturnType<typeof setInterval> | null = null;
+
+function startAndroidBackgroundLocationTaskEagerly() {
+  if (Platform.OS !== 'android') {
+    return;
+  }
+
+  // Android can miss the AppState transition that used to start this task.
+  // Start it alongside live tracking so screen-off GPS is already armed.
+  void startBackgroundLocationTaskIfNeeded().catch(() => {});
+}
 
 function stopBackgroundRunPersistence() {
   const previousMatchId = persistenceMatchId;
@@ -181,6 +194,7 @@ export async function startBackgroundRunTracking(
   emitSnapshot();
   startBackgroundRunPersistence(persistenceMatchId);
   await startManagedLocationTask(locationTaskOptions);
+  startAndroidBackgroundLocationTaskEagerly();
 }
 
 export function commitWarmupBaseline(nowMs = Date.now()) {
@@ -238,6 +252,7 @@ export async function resumeBackgroundRunTracking(options?: StartBackgroundRunTr
   emitSnapshot();
   startBackgroundRunPersistence(persistenceMatchId);
   await startManagedLocationTask(locationTaskOptions);
+  startAndroidBackgroundLocationTaskEagerly();
 }
 
 export async function resetBackgroundRunTracking() {
@@ -271,6 +286,7 @@ export async function restorePersistedBackgroundRunTracking(
       ...options,
       trackingKey: options?.trackingKey ?? matchId,
     });
+    startAndroidBackgroundLocationTaskEagerly();
   } catch {
     // Restored distance is still useful even if native GPS re-attach fails briefly.
   }
