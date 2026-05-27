@@ -21,10 +21,31 @@ type UseBlockingMatchStatusPollingInput = {
   syncedNowMs: number;
   fastPollMs: number;
   idlePollMs: number;
-  loadDuelMatchStatus: () => Promise<unknown>;
-  loadGroupMatchStatus: () => Promise<unknown>;
+  loadDuelMatchStatus: MatchStatusLoader;
+  loadGroupMatchStatus: MatchStatusLoader;
   enabled?: boolean;
+  linkedMatchContext?: LinkedMatchStatusPollingContext | null;
   recoveryMatchId?: string | null;
+};
+
+type MatchStatusLoadOptions = {
+  distanceKm?: number;
+  forceAccept?: boolean;
+  matchId?: string;
+  testMode?: boolean;
+};
+
+type MatchStatusLoader = (
+  slotStartAt?: string,
+  options?: MatchStatusLoadOptions,
+) => Promise<unknown>;
+
+type LinkedMatchStatusPollingContext = {
+  mode: 'duel' | 'group';
+  matchId: string;
+  slotStartAt: string;
+  distanceKm: number;
+  state: 'matched' | 'active';
 };
 
 function shouldUseFastMatchStatusPolling(
@@ -37,6 +58,30 @@ function shouldUseFastMatchStatusPolling(
 
   const remainingSeconds = getMatchStartRemainingSeconds(status.slotStartAt, syncedNowMs);
   return status.state === 'active' || shouldShowMatchStartOverlay(remainingSeconds);
+}
+
+function shouldUseFastLinkedMatchStatusPolling(
+  context: LinkedMatchStatusPollingContext | null,
+  syncedNowMs: number,
+) {
+  if (!context) {
+    return false;
+  }
+
+  const remainingSeconds = getMatchStartRemainingSeconds(context.slotStartAt, syncedNowMs);
+  return context.state === 'active' || shouldShowMatchStartOverlay(remainingSeconds);
+}
+
+function buildLinkedMatchStatusLoadArgs(context: LinkedMatchStatusPollingContext) {
+  return {
+    slotStartAt: context.slotStartAt,
+    options: {
+      distanceKm: context.distanceKm,
+      forceAccept: true,
+      matchId: context.matchId,
+      testMode: false,
+    } satisfies MatchStatusLoadOptions,
+  };
 }
 
 export function buildBlockingMatchStatusPollingKey(matchId: string) {
@@ -90,6 +135,7 @@ export function useBlockingMatchStatusPolling({
   loadDuelMatchStatus,
   loadGroupMatchStatus,
   enabled = true,
+  linkedMatchContext = null,
   recoveryMatchId = null,
 }: UseBlockingMatchStatusPollingInput) {
   const callbackRef = useRef({
@@ -107,25 +153,49 @@ export function useBlockingMatchStatusPolling({
     setMountedSignalVersion((version) => version + 1);
   }), []);
 
+  const linkedDuelMatchContext = linkedMatchContext?.mode === 'duel' ? linkedMatchContext : null;
+  const linkedGroupMatchContext = linkedMatchContext?.mode === 'group' ? linkedMatchContext : null;
+  const shouldFastPollLinkedDuelMatchStatus = useMemo(
+    () => shouldUseFastLinkedMatchStatusPolling(linkedDuelMatchContext, syncedNowMs),
+    [linkedDuelMatchContext, syncedNowMs],
+  );
+  const shouldFastPollLinkedGroupMatchStatus = useMemo(
+    () => shouldUseFastLinkedMatchStatusPolling(linkedGroupMatchContext, syncedNowMs),
+    [linkedGroupMatchContext, syncedNowMs],
+  );
   const shouldFastPollDuelMatchStatus = useMemo(
-    () => shouldUseFastMatchStatusPolling(duelMatchStatus, syncedNowMs),
-    [duelMatchStatus, syncedNowMs],
+    () => (
+      shouldUseFastMatchStatusPolling(duelMatchStatus, syncedNowMs)
+      || shouldFastPollLinkedDuelMatchStatus
+    ),
+    [duelMatchStatus, shouldFastPollLinkedDuelMatchStatus, syncedNowMs],
   );
   const shouldFastPollGroupMatchStatus = useMemo(
-    () => shouldUseFastMatchStatusPolling(groupMatchStatus, syncedNowMs),
-    [groupMatchStatus, syncedNowMs],
+    () => (
+      shouldUseFastMatchStatusPolling(groupMatchStatus, syncedNowMs)
+      || shouldFastPollLinkedGroupMatchStatus
+    ),
+    [groupMatchStatus, shouldFastPollLinkedGroupMatchStatus, syncedNowMs],
   );
   const duelMatchId = duelMatchStatus?.matchId;
-  const effectiveDuelMatchId = duelMatchId ?? (matchMode === 'duel' ? recoveryMatchId : null);
-  const duelMatchSlotStartAt = duelMatchStatus?.slotStartAt;
-  const duelMatchState = duelMatchStatus?.state;
+  const effectiveDuelMatchId = duelMatchId ?? linkedDuelMatchContext?.matchId ?? (
+    matchMode === 'duel' ? recoveryMatchId : null
+  );
+  const duelMatchSlotStartAt = duelMatchStatus?.slotStartAt ?? linkedDuelMatchContext?.slotStartAt;
+  const duelMatchState = duelMatchStatus?.state ?? linkedDuelMatchContext?.state;
   const groupMatchId = groupMatchStatus?.matchId;
-  const effectiveGroupMatchId = groupMatchId ?? (matchMode === 'group' ? recoveryMatchId : null);
-  const groupMatchSlotStartAt = groupMatchStatus?.slotStartAt;
-  const groupMatchState = groupMatchStatus?.state;
+  const effectiveGroupMatchId = groupMatchId ?? linkedGroupMatchContext?.matchId ?? (
+    matchMode === 'group' ? recoveryMatchId : null
+  );
+  const groupMatchSlotStartAt = groupMatchStatus?.slotStartAt ?? linkedGroupMatchContext?.slotStartAt;
+  const groupMatchState = groupMatchStatus?.state ?? linkedGroupMatchContext?.state;
 
   useEffect(() => {
     const isRecoveryPolling = Boolean(effectiveDuelMatchId && !duelMatchId);
+    const isLinkedMatchPolling = Boolean(
+      linkedDuelMatchContext
+      && effectiveDuelMatchId === linkedDuelMatchContext.matchId,
+    );
     if (!enabled || matchMode !== 'duel' || (!isBlockingMatchState(duelMatchState) && !isRecoveryPolling)) {
       return;
     }
@@ -139,7 +209,7 @@ export function useBlockingMatchStatusPolling({
       matchId: effectiveDuelMatchId,
       mode: 'duel',
     });
-    if (isMountedMatch) {
+    if (isMountedMatch && !isLinkedMatchPolling) {
       logMountedMatchPollingSkip({
         isRecoveryPolling,
         matchId: effectiveDuelMatchId,
@@ -153,12 +223,18 @@ export function useBlockingMatchStatusPolling({
       intervalMs,
       key: pollingKey,
       label: 'blocking match status polling',
-      onTick: () => callbackRef.current.loadDuelMatchStatus(),
+      onTick: () => {
+        if (isLinkedMatchPolling && linkedDuelMatchContext) {
+          const { slotStartAt, options } = buildLinkedMatchStatusLoadArgs(linkedDuelMatchContext);
+          return callbackRef.current.loadDuelMatchStatus(slotStartAt, options);
+        }
+        return callbackRef.current.loadDuelMatchStatus();
+      },
       detail: {
         intervalMs,
         matchId: effectiveDuelMatchId,
         mode: 'duel',
-        source: 'blocking match status',
+        source: isLinkedMatchPolling ? 'linked match via blocking status' : 'blocking match status',
       },
     });
     if (!polling.acquired) {
@@ -218,6 +294,7 @@ export function useBlockingMatchStatusPolling({
     effectiveDuelMatchId,
     fastPollMs,
     idlePollMs,
+    linkedDuelMatchContext,
     matchMode,
     mountedSignalVersion,
     shouldFastPollDuelMatchStatus,
@@ -225,6 +302,10 @@ export function useBlockingMatchStatusPolling({
 
   useEffect(() => {
     const isRecoveryPolling = Boolean(effectiveGroupMatchId && !groupMatchId);
+    const isLinkedMatchPolling = Boolean(
+      linkedGroupMatchContext
+      && effectiveGroupMatchId === linkedGroupMatchContext.matchId,
+    );
     if (!enabled || matchMode !== 'group' || (!isBlockingMatchState(groupMatchState) && !isRecoveryPolling)) {
       return;
     }
@@ -238,7 +319,7 @@ export function useBlockingMatchStatusPolling({
       matchId: effectiveGroupMatchId,
       mode: 'group',
     });
-    if (isMountedMatch) {
+    if (isMountedMatch && !isLinkedMatchPolling) {
       logMountedMatchPollingSkip({
         isRecoveryPolling,
         matchId: effectiveGroupMatchId,
@@ -252,12 +333,18 @@ export function useBlockingMatchStatusPolling({
       intervalMs,
       key: pollingKey,
       label: 'blocking match status polling',
-      onTick: () => callbackRef.current.loadGroupMatchStatus(),
+      onTick: () => {
+        if (isLinkedMatchPolling && linkedGroupMatchContext) {
+          const { slotStartAt, options } = buildLinkedMatchStatusLoadArgs(linkedGroupMatchContext);
+          return callbackRef.current.loadGroupMatchStatus(slotStartAt, options);
+        }
+        return callbackRef.current.loadGroupMatchStatus();
+      },
       detail: {
         intervalMs,
         matchId: effectiveGroupMatchId,
         mode: 'group',
-        source: 'blocking match status',
+        source: isLinkedMatchPolling ? 'linked match via blocking status' : 'blocking match status',
       },
     });
     if (!polling.acquired) {
@@ -317,6 +404,7 @@ export function useBlockingMatchStatusPolling({
     groupMatchSlotStartAt,
     groupMatchState,
     idlePollMs,
+    linkedGroupMatchContext,
     matchMode,
     mountedSignalVersion,
     shouldFastPollGroupMatchStatus,
