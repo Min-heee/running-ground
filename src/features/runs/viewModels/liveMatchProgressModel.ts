@@ -17,6 +17,8 @@ export type CurrentUserLiveStatusModel = {
   currentUserDuelLiveStatus: DuelMatchOpponent['liveStatus'] | null;
   currentUserGroupLiveStatus: DuelMatchOpponent['liveStatus'] | null;
   currentUserHasForfeitedActiveMatch: boolean;
+  currentUserHasFinishedActiveMatch: boolean;
+  currentUserHasDoneActiveMatch: boolean;
 };
 
 export type DuelProgressDisplayModel = {
@@ -51,11 +53,20 @@ export function buildCurrentUserLiveStatusModel({
         ? resolvedCurrentUserGroupLiveStatus === 'forfeited'
         : false
   );
+  const currentUserHasFinishedActiveMatch = (
+    matchMode === 'duel'
+      ? currentUserDuelLiveStatus === 'finished'
+      : matchMode === 'group'
+        ? resolvedCurrentUserGroupLiveStatus === 'finished'
+        : false
+  );
 
   return {
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus: resolvedCurrentUserGroupLiveStatus,
     currentUserHasForfeitedActiveMatch,
+    currentUserHasFinishedActiveMatch,
+    currentUserHasDoneActiveMatch: currentUserHasForfeitedActiveMatch || currentUserHasFinishedActiveMatch,
   };
 }
 
