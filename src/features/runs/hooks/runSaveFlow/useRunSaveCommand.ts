@@ -85,7 +85,6 @@ export function useRunSaveCommand({
         groupMatchId: groupMatchStatus?.matchId,
         roomLinkedMatchContext,
       });
-      const shouldForceResetRunningMatchStateAfterSave = Boolean(activeMatchId);
 
       if (activeMatchId) {
         try {
@@ -106,7 +105,6 @@ export function useRunSaveCommand({
       const savedRun = await createTrackedRun(saveSnapshot.createRunInput);
       await runCleanupAfterSave({
         autoStartedMatchIdRef,
-        forceResetRunningMatchStateAfterSave: shouldForceResetRunningMatchStateAfterSave,
         officialStartBaselineRef,
         options,
         preStartWarmupMatchIdRef,

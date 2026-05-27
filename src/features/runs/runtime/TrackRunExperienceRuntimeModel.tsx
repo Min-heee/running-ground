@@ -605,8 +605,6 @@ export function TrackRunExperienceRuntime({
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
     currentUserHasForfeitedActiveMatch,
-    currentUserHasFinishedActiveMatch,
-    currentUserHasDoneActiveMatch,
     currentGroupLeader,
     groupAheadParticipant,
     groupBehindParticipant,
@@ -782,7 +780,6 @@ export function TrackRunExperienceRuntime({
     currentUserFinished: currentUserFinishedForResultPage,
     hasTrackedMatchResult,
   });
-  const shouldBlockDoneMatchLiveRouting = currentUserHasDoneActiveMatch && !(isRunning && hasMatchResultPage);
   const {
     activeMatchExitCounterpartForfeited,
     activeMatchExitIsLeaving,
@@ -797,7 +794,6 @@ export function TrackRunExperienceRuntime({
     trackingStatus: status,
     isRunning,
     isCurrentUserForfeited: currentUserHasForfeitedActiveMatch,
-    isCurrentUserDoneWithMatch: currentUserHasDoneActiveMatch,
     liveMatchHeavyWorkReady,
     visiblePartyRunFlow,
     matchRoomFlow,
@@ -849,8 +845,7 @@ export function TrackRunExperienceRuntime({
   const activeMatchExitSelfFinished = activeMatchExitSource === 'duel'
     && currentUserDuelLiveStatus === 'finished';
   const shouldForceLiveArenaFromRoute = Boolean(
-    !shouldBlockDoneMatchLiveRouting
-    && hydratedFocusMatchId
+    hydratedFocusMatchId
     && (
       hydratedForceMatchArena
       || liveMatchRouteHydration?.preferArena
@@ -868,15 +863,14 @@ export function TrackRunExperienceRuntime({
   const liveMatchShellPreservation = resolveLiveMatchShellPreservation({
     currentMatchId: liveMatchRenderIdentity,
     currentMode: liveMatchRenderMode,
-    isCurrentUserForfeited: currentUserHasForfeitedActiveMatch || shouldBlockDoneMatchLiveRouting,
+    isCurrentUserForfeited: currentUserHasForfeitedActiveMatch,
     previous: previousPreservedLiveMatchShell,
     requestedShowLiveArena: showLiveArena || shouldForceLiveArenaFromRoute,
     stage: matchLifecycleController.stage,
   });
   preservedLiveMatchShellRef.current = liveMatchShellPreservation.next;
   const effectiveShowLiveArena = liveMatchShellPreservation.shouldRenderLiveArena;
-  const shouldRenderLiveArena = !shouldBlockDoneMatchLiveRouting
-    && (effectiveShowLiveArena || shouldForceLiveArenaFromRoute);
+  const shouldRenderLiveArena = effectiveShowLiveArena || shouldForceLiveArenaFromRoute;
 
   useEffect(() => {
     const previousShouldRenderLiveArena = previousLiveArenaShellVisibleRef.current;
@@ -890,13 +884,10 @@ export function TrackRunExperienceRuntime({
         effectiveShowLiveArena,
         forceOpenActiveMatch,
         hasMatchResultPage,
-        isCurrentUserDoneWithMatch: currentUserHasDoneActiveMatch,
-        isCurrentUserFinished: currentUserHasFinishedActiveMatch,
         isCurrentUserForfeited: currentUserHasForfeitedActiveMatch,
         isLiveMatchState: isLiveMatchState(duelMatchState),
         isRunning,
         preservationRendered: liveMatchShellPreservation.shouldRenderLiveArena,
-        shouldBlockDoneMatchLiveRouting,
         shouldForceLiveArenaFromRoute,
         shouldRenderLiveArena,
         showLiveArena,
@@ -906,9 +897,7 @@ export function TrackRunExperienceRuntime({
     previousLiveArenaShellVisibleRef.current = shouldRenderLiveArena;
   }, [
     appStateRef,
-    currentUserHasDoneActiveMatch,
     currentUserHasForfeitedActiveMatch,
-    currentUserHasFinishedActiveMatch,
     duelArenaParticipants.length,
     duelMatchState,
     duelMatchStatus?.matchId,
@@ -919,7 +908,6 @@ export function TrackRunExperienceRuntime({
     isRunning,
     liveMatchShellPreservation.shouldRenderLiveArena,
     matchLifecycleController.stage,
-    shouldBlockDoneMatchLiveRouting,
     shouldForceLiveArenaFromRoute,
     shouldRenderLiveArena,
     showLiveArena,
@@ -2150,7 +2138,6 @@ export function TrackRunExperienceRuntime({
     focusMatchId: hydratedFocusMatchId,
     forceMatchArena: hydratedForceMatchArena,
     hydratedMatchId: liveMatchRouteHydration?.matchId,
-    isCurrentUserDoneWithMatch: shouldBlockDoneMatchLiveRouting,
     matchLifecycleStage: matchLifecycleController.stage,
     requestedShell: trackRunShellKind,
     requestedShouldShowReadyScreen: shouldShowReadyScreen,

@@ -46,20 +46,3 @@ test('live lifecycle route can force arena while waiting for mount signal', () =
   assert.equal(decision.shouldForceLiveArena, true);
   assert.equal(decision.blockedReason, 'lobby-shell-would-block-live-route');
 });
-
-test('done participant prevents stale live route from forcing live shell', () => {
-  const decision = resolveTrackRunLiveShellGate({
-    hydratedMatchId: 'duel-match-route',
-    isCurrentUserDoneWithMatch: true,
-    matchLifecycleStage: 'active',
-    requestedShell: 'idle',
-    requestedShouldShowReadyScreen: true,
-    routeShellHint: 'live',
-    showLiveArena: false,
-  });
-
-  assert.equal(decision.shellKind, 'idle');
-  assert.equal(decision.shouldForceLiveArena, false);
-  assert.equal(decision.shouldForceLiveShell, false);
-  assert.equal(decision.blockedReason, 'current-user-done-with-match');
-});

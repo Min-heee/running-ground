@@ -26,7 +26,6 @@ export type MatchLifecycleControllerInput = {
   trackingStatus: MatchLifecycleTrackingStatus;
   isRunning: boolean;
   isCurrentUserForfeited: boolean;
-  isCurrentUserDoneWithMatch?: boolean;
   liveMatchHeavyWorkReady: boolean;
   visiblePartyRunFlow: PartyRunFlowSnapshot;
   matchRoomFlow: PartyRunFlowSnapshot;
@@ -233,7 +232,6 @@ function resolveActiveMatch(input: MatchLifecycleControllerInput): MatchLifecycl
 }
 
 export function buildMatchLifecycleController(input: MatchLifecycleControllerInput): MatchLifecycleController {
-  const isCurrentUserDoneWithMatch = Boolean(input.isCurrentUserDoneWithMatch || input.isCurrentUserForfeited);
   const partyRuntime = selectPartyRunRuntimeSource({
     explicitLinkedMatchContext: input.roomLinkedMatchContext,
     matchRoom: input.matchRoom,
@@ -253,8 +251,8 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
     roomLinkedMatchContext: roomLinkedContext,
     visiblePartyRunFlow: partyFlow,
   };
-  const warmupMatch = isCurrentUserDoneWithMatch ? null : resolveWarmupMatch(runtimeInput);
-  const activeMatch = isCurrentUserDoneWithMatch ? null : resolveActiveMatch(runtimeInput);
+  const warmupMatch = resolveWarmupMatch(runtimeInput);
+  const activeMatch = resolveActiveMatch(runtimeInput);
   const roomId = partyRoom?.roomId ?? null;
   const partyStage = partyRoom?.linkedMatchId
     ? roomLinkedContext?.state === 'active'
@@ -276,9 +274,7 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
       : input.matchMode === 'group'
         ? 'group-match'
         : 'none';
-  const stage = isCurrentUserDoneWithMatch
-    ? 'finished'
-    : partyStage ?? directDuelStage ?? directGroupStage ?? 'waiting';
+  const stage = partyStage ?? directDuelStage ?? directGroupStage ?? 'waiting';
   const matchId =
     activeMatch?.matchId
     ?? warmupMatch?.matchId
@@ -301,7 +297,6 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
     && isCompetitiveMode
     && matchId
     && !input.isCurrentUserForfeited
-    && !isCurrentUserDoneWithMatch
     && stage === 'active',
   );
   logLinkedMatchPollGating({
