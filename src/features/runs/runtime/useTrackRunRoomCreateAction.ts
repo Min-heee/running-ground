@@ -13,7 +13,12 @@ import {
 } from '@/features/runs/sync/staleRoomCleanup';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import type { RunningMatchRoom } from '@/lib/api/types';
-import { createRunningMatchRoom, getApiErrorMessage } from '@/services';
+import {
+  createRunningMatchRoom,
+  getApiErrorMessage,
+  leaveRunningMatch,
+  leaveRunningMatchRoom,
+} from '@/services';
 import {
   beginRgInputTrace,
   waitForRgInputFeedbackFrame,
@@ -46,6 +51,30 @@ type UseTrackRunRoomCreateActionInput = {
   syncServerClock: (serverNow?: string) => void;
   visibleMatchRoom: RunningMatchRoom | null;
 };
+
+async function leaveBlockerRoomIfPresent(roomId: string | null) {
+  if (!roomId) {
+    return;
+  }
+
+  try {
+    await leaveRunningMatchRoom({ roomId });
+  } catch {
+    // Best-effort cleanup before retrying room creation.
+  }
+}
+
+async function leaveBlockerMatchIfPresent(matchId: string | null) {
+  if (!matchId) {
+    return;
+  }
+
+  try {
+    await leaveRunningMatch({ matchId });
+  } catch {
+    // Best-effort cleanup before retrying room creation.
+  }
+}
 
 export function useTrackRunRoomCreateAction({
   activeDuelSlotStartAt,
@@ -174,6 +203,15 @@ export function useTrackRunRoomCreateAction({
           });
           payload = await createRoom('track-run ready action deleted blocker retry');
         } else {
+          rgPerfMark('blocker explicit force-leave attempt', {
+            blocker: blocker.blocker ?? null,
+            blockerMatchId: blocker.matchId ?? null,
+            blockerRoomId: blocker.roomId ?? null,
+            blockerSource: blocker.blockerSource ?? null,
+            source: 'track-run ready action',
+          });
+          await leaveBlockerRoomIfPresent(blocker.roomId);
+          await leaveBlockerMatchIfPresent(blocker.matchId);
           rgPerfMark('stale cleanup retry after blocker', {
             blocker: blocker.blocker ?? null,
             blockerSource: blocker.blockerSource ?? null,
