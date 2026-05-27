@@ -20,6 +20,7 @@ import {
 } from '@/features/runs/viewModels/liveMatchProgressModel';
 import { type RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
+import type { ForfeitedMatchSnapshot } from '@/features/runs/types/matchForfeit';
 
 type UseLiveMatchProgressInput = {
   matchMode: RunMatchMode;
@@ -34,7 +35,7 @@ type UseLiveMatchProgressInput = {
   elapsedSeconds: number;
   duelDistanceKm: number;
   groupDistanceKm: number;
-  locallyForfeitedMatchIds: ReadonlySet<string>;
+  locallyForfeitedMatches: ReadonlyMap<string, ForfeitedMatchSnapshot>;
   activeMatchId: string | null;
   deferRankingCalculations?: boolean;
 };
@@ -52,7 +53,7 @@ export function useLiveMatchProgress({
   elapsedSeconds,
   duelDistanceKm,
   groupDistanceKm,
-  locallyForfeitedMatchIds,
+  locallyForfeitedMatches,
   activeMatchId,
   deferRankingCalculations = false,
 }: UseLiveMatchProgressInput) {
@@ -92,14 +93,14 @@ export function useLiveMatchProgress({
     duelMatchStatus,
     groupMatchStatus,
     currentGroupLiveStatus: currentGroupStanding?.liveStatus ?? null,
-    locallyForfeitedMatchIds,
+    locallyForfeitedMatches,
     activeMatchId,
   }), [
     activeMatchId,
     currentGroupStanding?.liveStatus,
     duelMatchStatus,
     groupMatchStatus,
-    locallyForfeitedMatchIds,
+    locallyForfeitedMatches,
     matchMode,
   ]);
   const activeDuelArenaMatchId = useMemo(() => resolveActiveDuelArenaMatchId({

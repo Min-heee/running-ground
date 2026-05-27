@@ -18,6 +18,7 @@ type UseRunForfeitCommandInput = Pick<
   | 'duelMatchStatus'
   | 'groupMatchNotice'
   | 'groupMatchStatus'
+  | 'getDisplayedTrackingSnapshot'
   | 'isTabMode'
   | 'loadUpcomingMatches'
   | 'markMatchLocallyForfeited'
@@ -42,6 +43,7 @@ export function useRunForfeitCommand({
   duelMatchStatus,
   groupMatchNotice,
   groupMatchStatus,
+  getDisplayedTrackingSnapshot,
   handleSaveTracking,
   isTabMode,
   isSaving,
@@ -59,6 +61,17 @@ export function useRunForfeitCommand({
   setMatchLeaving,
   status,
 }: UseRunForfeitCommandInput) {
+  const buildLocalForfeitSnapshot = (matchId: string) => {
+    const snapshot = getDisplayedTrackingSnapshot();
+    return {
+      matchId,
+      forfeitedAt: Date.now(),
+      elapsedSeconds: snapshot.elapsedSeconds,
+      distanceKm: snapshot.distanceKm,
+      paceLabel: snapshot.currentPace,
+    };
+  };
+
   const forfeitMatchAndKeepRunning = async (source: MatchExitSource) => {
     setError(null);
     const previousDuelStatus = duelMatchStatus;
@@ -108,7 +121,7 @@ export function useRunForfeitCommand({
         setDuelMatchStatus((currentStatus) => markDuelStatusForfeited(currentStatus, matchId));
         setDuelMatchNotice('기권 처리됐어요. 결과를 확인한 뒤 기록을 저장할 수 있어요.');
         await leaveRunningMatch({ matchId });
-        markMatchLocallyForfeited(matchId);
+        markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
         forfeitApiTraceCompleted = true;
         endForfeitApiTrace({ success: true });
         matchProgressHeartbeatRef.current = Date.now();
@@ -116,7 +129,7 @@ export function useRunForfeitCommand({
         setGroupMatchStatus((currentStatus) => markGroupStatusForfeited(currentStatus, matchId));
         setGroupMatchNotice('기권 처리됐어요. 결과를 확인한 뒤 기록을 저장할 수 있어요.');
         await leaveRunningMatch({ matchId });
-        markMatchLocallyForfeited(matchId);
+        markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
         forfeitApiTraceCompleted = true;
         endForfeitApiTrace({ success: true });
         matchProgressHeartbeatRef.current = Date.now();

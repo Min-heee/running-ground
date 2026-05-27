@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-27T19:37:30.536Z
+생성 시각: 2026-05-27T20:08:27.811Z
 
 ## 실행 방법
 
@@ -14,10 +14,10 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 914 |
-| 코드 파일 | 857 |
+| 분석 파일 | 915 |
+| 코드 파일 | 858 |
 | package scripts | 63 |
-| 300줄 이상 파일 | 77 |
+| 300줄 이상 파일 | 79 |
 | 500줄 이상 파일 | 15 |
 | 50줄 이상 함수 후보 | 279 |
 | 순환 import 검사 | 별도 정적 graph가 아닌 파일 단위 휴리스틱 |
@@ -40,7 +40,7 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2247 | imports 57, effects 3, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2255 | imports 58, effects 3, sort/filter/map 1 |
 | backend/src/lib/matchRoomStoreHelpers.mjs | 1209 | imports 11, sort/filter/map 45 |
 | backend/src/runningMatchContract.test.mjs | 1189 | imports 8, timers 4 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
@@ -105,10 +105,12 @@ npm run code:quality
 | src/features/runs/viewModels/useLiveMatchViewModel.ts | 322 | imports 8 |
 | docs/handoff/codex-quality-audit-2026-05-20.md | 321 | imports 4, subs 1 |
 | src/features/auth/hooks/useSignupForm.ts | 320 | imports 7, effects 2 |
+| src/features/runs/viewModels/matchViewModels.ts | 320 | imports 3, sort/filter/map 6 |
 | backend/src/repositories/authRepository.mjs | 320 | imports 2, sort/filter/map 10 |
 | backend/src/repositories/runsRepository.test.mjs | 320 | imports 3, sort/filter/map 1 |
 | src/features/runs/runtime/useTrackRunRuntimeRecipientInviteInbox.ts | 319 | imports 9 |
 | backend/src/points.mjs | 316 | sort/filter/map 5 |
+| src/features/runs/viewModels/liveMatchArenaViewModel.ts | 314 | imports 7 |
 | backend/src/repositories/friendsRepository.test.mjs | 314 | imports 2, sort/filter/map 3 |
 | docs/testflight-real-device-qa.md | 314 |  |
 | src/features/runs/sync/activeRoomCheck.ts | 310 | imports 6, timers 1 |
@@ -122,7 +124,7 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2247 | imports 57, effects 3, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2255 | imports 58, effects 3, sort/filter/map 1 |
 | backend/src/lib/matchRoomStoreHelpers.mjs | 1209 | imports 11, sort/filter/map 45 |
 | backend/src/runningMatchContract.test.mjs | 1189 | imports 8, timers 4 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
@@ -147,7 +149,7 @@ npm run code:quality
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 148 | TrackRunExperienceRuntime | 2099 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 149 | TrackRunExperienceRuntime | 2106 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
 | src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 97 | useTrackingSessionSnapshots | 382 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
@@ -194,19 +196,19 @@ npm run code:quality
 | src/features/integrations/hooks/useIntegrationActions.ts | 61 | useIntegrationActions | 165 |
 | src/features/runs/tracking/useTrackingAppStateSync.ts | 40 | useTrackingAppStateSync | 165 |
 | backend/src/repositories/marketRepository.mjs | 5 | createJsonMarketRepository | 165 |
+| src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 41 | useRunForfeitCommand | 163 |
 | src/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyEffects.ts | 27 | useMatchRoomLobbyEffects | 159 |
 | src/features/runs/hooks/usePartyRunRoom.ts | 79 | usePartyRunRoom | 158 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 48 | startLocationTaskWithTrace | 156 |
 | src/features/runs/runtime/useTrackRunRoomCreateAction.ts | 99 | callback@useCallback | 155 |
 | backend/src/bridges/friendsLeagueBridge.test.mjs | 11 | createHarness | 154 |
-| src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 40 | useRunForfeitCommand | 151 |
 | src/features/runs/hooks/matchLifecycle/useGroupMatchLifecycle.ts | 26 | useGroupMatchLifecycle | 151 |
 | src/features/runs/runtime/useTrackRunRuntimeMatchMaintenanceActions.ts | 7 | useTrackRunRuntimeMatchMaintenanceActions | 151 |
 | src/features/runs/viewModels/useTrackRunIdleViewModel.ts | 90 | useTrackRunIdleViewModel | 149 |
 | src/features/runs/components/matchSetupCards/DuelMatchSetupCard.tsx | 13 | DuelMatchSetupCard | 149 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchMountSignalBridge.ts | 15 | useLiveMatchMountSignalBridge | 146 |
 | src/features/runs/hooks/matchLifecycle/useDuelMatchLifecycle.ts | 25 | useDuelMatchLifecycle | 145 |
-| src/features/runs/viewModels/useLiveMatchProgress.ts | 42 | useLiveMatchProgress | 143 |
+| src/features/runs/viewModels/useLiveMatchProgress.ts | 43 | useLiveMatchProgress | 143 |
 | src/features/runs/hooks/runSaveFlow/useRunFinishCommand.ts | 44 | useRunFinishCommand | 141 |
 | src/features/friends/hooks/useFriendsScreen.ts | 17 | useFriendsScreen | 140 |
 | src/features/integrations/components/nrcBridge/NrcBridgeGuideActions.tsx | 10 | buildActionButtons | 139 |

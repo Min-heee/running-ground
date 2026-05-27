@@ -181,7 +181,7 @@ test('current user live status model keeps group fallback status stable', () => 
     duelMatchStatus: null,
     groupMatchStatus: null,
     currentGroupLiveStatus: 'forfeited',
-    locallyForfeitedMatchIds: new Set(),
+    locallyForfeitedMatches: new Map(),
     activeMatchId: null,
   }), {
     currentUserDuelLiveStatus: null,
@@ -196,7 +196,13 @@ test('current user live status model treats locally forfeited party-run match as
     duelMatchStatus: null,
     groupMatchStatus: null,
     currentGroupLiveStatus: null,
-    locallyForfeitedMatchIds: new Set(['party-duel-match']),
+    locallyForfeitedMatches: new Map([['party-duel-match', {
+      matchId: 'party-duel-match',
+      forfeitedAt: 1,
+      elapsedSeconds: 60,
+      distanceKm: 0.2,
+      paceLabel: '05:00/km',
+    }]]),
     activeMatchId: 'party-duel-match',
   }), {
     currentUserDuelLiveStatus: null,
@@ -209,7 +215,13 @@ test('current user live status model treats locally forfeited party-run match as
     duelMatchStatus: null,
     groupMatchStatus: null,
     currentGroupLiveStatus: null,
-    locallyForfeitedMatchIds: new Set(['other-match']),
+    locallyForfeitedMatches: new Map([['other-match', {
+      matchId: 'other-match',
+      forfeitedAt: 1,
+      elapsedSeconds: 60,
+      distanceKm: 0.2,
+      paceLabel: '05:00/km',
+    }]]),
     activeMatchId: 'party-duel-match',
   }).currentUserHasForfeitedActiveMatch, false);
 });

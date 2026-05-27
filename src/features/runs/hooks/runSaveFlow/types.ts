@@ -11,6 +11,7 @@ import type {
 } from '@/lib/api/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { SaveTrackingOptions, TrackerStatus } from '@/features/runs/hooks/useRunTracking';
+import type { ForfeitedMatchSnapshot } from '@/features/runs/types/matchForfeit';
 
 export type DisplayedTrackingSnapshot = {
   route: RunRoutePoint[];
@@ -83,7 +84,7 @@ export type UseRunSaveFlowInput = {
   syncLiveSharing: (input: SyncLiveSharingInput) => Promise<unknown>;
   loadUpcomingMatches: () => Promise<unknown>;
   clearLocalForfeitedMatchState: (source: MatchExitSource, matchId: string) => void;
-  markMatchLocallyForfeited: (matchId: string) => void;
+  markMatchLocallyForfeited: (snapshot: ForfeitedMatchSnapshot) => void;
 };
 
 export type RunSaveFlowActions = {

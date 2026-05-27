@@ -12,6 +12,7 @@ import type {
   RunningMatchRoom,
   RunningMatchStatusResponse,
 } from '@/lib/api/types';
+import type { ForfeitedMatchSnapshot } from '@/features/runs/types/matchForfeit';
 
 export type CurrentUserLiveStatusModel = {
   currentUserDuelLiveStatus: DuelMatchOpponent['liveStatus'] | null;
@@ -36,19 +37,19 @@ export function buildCurrentUserLiveStatusModel({
   duelMatchStatus,
   groupMatchStatus,
   currentGroupLiveStatus,
-  locallyForfeitedMatchIds,
+  locallyForfeitedMatches,
   activeMatchId,
 }: {
   matchMode: RunMatchMode;
   duelMatchStatus: RunningMatchStatusResponse | null;
   groupMatchStatus: RunningMatchStatusResponse | null;
   currentGroupLiveStatus: DuelMatchOpponent['liveStatus'] | null;
-  locallyForfeitedMatchIds: ReadonlySet<string>;
+  locallyForfeitedMatches: ReadonlyMap<string, ForfeitedMatchSnapshot>;
   activeMatchId: string | null;
 }): CurrentUserLiveStatusModel {
   const currentUserDuelLiveStatus = duelMatchStatus?.currentUserLiveStatus ?? null;
   const resolvedCurrentUserGroupLiveStatus = groupMatchStatus?.currentUserLiveStatus ?? currentGroupLiveStatus ?? null;
-  const isLocallyForfeited = activeMatchId !== null && locallyForfeitedMatchIds.has(activeMatchId);
+  const isLocallyForfeited = activeMatchId !== null && locallyForfeitedMatches.has(activeMatchId);
   const currentUserHasForfeitedActiveMatch = (
     isLocallyForfeited
     || (

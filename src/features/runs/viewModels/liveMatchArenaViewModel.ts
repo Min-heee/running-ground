@@ -89,6 +89,37 @@ export function buildLiveMatchArenaViewModel({
   currentUserGroupLiveStatus,
   deferHeavyContent = false,
 }: LiveMatchArenaViewModelInput): LiveMatchArenaViewModel | null {
+  const hasRoomLinkedDuelForfeit = roomLinkedDuelPlaceholderParticipants.some((participant) => (
+    participant.liveStatus === 'forfeited'
+  ));
+
+  if (matchMode === 'duel' && roomLinkedDuelPlaceholderParticipants.length === 2 && hasRoomLinkedDuelForfeit) {
+    const placeholderOpponent = roomLinkedDuelOpponentParticipant;
+    const placeholderDistanceKm = visibleMatchRoom?.linkedMatchDistanceKm ?? visibleMatchRoom?.distanceKm ?? duelDistanceKm;
+
+    return {
+      mode: 'duel',
+      matchId: activeMatchId,
+      targetDistanceKm: placeholderDistanceKm,
+      title: `${placeholderOpponent?.name ?? '상대'}님과 1대1 대결`,
+      subtitle: placeholderOpponent?.liveStatus === 'forfeited' ? '상대가 기권했어요.' : '기권 상태를 정리하고 있어요.',
+      summaryChips: [
+        formatArenaPaceChip('내 페이스', currentUserArenaPace),
+        placeholderOpponent?.liveStatus === 'forfeited'
+          ? '상대 기권'
+          : formatArenaPaceChip('상대 페이스', placeholderOpponent?.paceLabel ?? ''),
+        hasRoomLinkedDuelLiveProgress
+          ? `실시간 수신 ${buildDistanceGapLabel(roomLinkedDuelGapKm)}`
+          : buildDistanceGapLabel(null),
+      ],
+      deferHeavyContent,
+      participants: roomLinkedDuelPlaceholderParticipants,
+      footer: placeholderOpponent?.liveStatus === 'forfeited'
+        ? '상대가 기권했어요. 내 러닝 기록은 계속 저장돼요.'
+        : '기권 상태를 동기화하고 있어요.',
+    };
+  }
+
   if (matchMode === 'duel' && effectiveDuelOpponent) {
     return {
       mode: 'duel',

@@ -57,6 +57,21 @@ function resolveDuelParticipantDisplayName({
     || '상대';
 }
 
+function resolveMergedLiveStatus(
+  roomStatus: DuelMatchOpponent['liveStatus'] | undefined,
+  statusStatus: DuelMatchOpponent['liveStatus'] | null | undefined,
+) {
+  if (roomStatus === 'forfeited' || statusStatus === 'forfeited') {
+    return 'forfeited';
+  }
+
+  if (roomStatus === 'finished' || statusStatus === 'finished') {
+    return 'finished';
+  }
+
+  return statusStatus ?? roomStatus;
+}
+
 function buildDuelParticipantRaceBoardSeeds({
   effectiveDuelOpponent,
   room,
@@ -117,8 +132,8 @@ function mergeDuelParticipantProgress({
       progress: targetDistanceKm > 0 ? participantDistanceKm / targetDistanceKm : 0,
       isCurrentUser: seed.isCurrentUser,
       liveStatus: seed.isCurrentUser
-        ? currentUserDuelLiveStatus ?? seed.participant.liveStatus
-        : effectiveDuelOpponent?.liveStatus ?? seed.participant.liveStatus,
+        ? resolveMergedLiveStatus(seed.participant.liveStatus, currentUserDuelLiveStatus)
+        : resolveMergedLiveStatus(seed.participant.liveStatus, effectiveDuelOpponent?.liveStatus),
     },
   };
 }
