@@ -83,8 +83,6 @@ export function useLiveMatchProgress({
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
     currentUserHasForfeitedActiveMatch,
-    currentUserHasFinishedActiveMatch,
-    currentUserHasDoneActiveMatch,
   } = useMemo(() => buildCurrentUserLiveStatusModel({
     matchMode,
     duelMatchStatus,
@@ -156,8 +154,6 @@ export function useLiveMatchProgress({
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
     currentUserHasForfeitedActiveMatch,
-    currentUserHasFinishedActiveMatch,
-    currentUserHasDoneActiveMatch,
     currentGroupLeader,
     groupAheadParticipant,
     groupBehindParticipant,

@@ -185,22 +185,5 @@ test('current user live status model keeps group fallback status stable', () => 
     currentUserDuelLiveStatus: null,
     currentUserGroupLiveStatus: 'forfeited',
     currentUserHasForfeitedActiveMatch: true,
-    currentUserHasFinishedActiveMatch: false,
-    currentUserHasDoneActiveMatch: true,
-  });
-});
-
-test('current user live status model treats finished as done for active match routing', () => {
-  assert.deepEqual(buildCurrentUserLiveStatusModel({
-    matchMode: 'duel',
-    duelMatchStatus: buildStatus({ currentUserLiveStatus: 'finished' }),
-    groupMatchStatus: null,
-    currentGroupLiveStatus: null,
-  }), {
-    currentUserDuelLiveStatus: 'finished',
-    currentUserGroupLiveStatus: null,
-    currentUserHasForfeitedActiveMatch: false,
-    currentUserHasFinishedActiveMatch: true,
-    currentUserHasDoneActiveMatch: true,
   });
 });
