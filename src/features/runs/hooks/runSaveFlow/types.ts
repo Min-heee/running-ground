@@ -84,7 +84,6 @@ export type UseRunSaveFlowInput = {
   loadUpcomingMatches: () => Promise<unknown>;
   clearLocalForfeitedMatchState: (source: MatchExitSource, matchId: string) => void;
   markMatchLocallyForfeited: (matchId: string) => void;
-  captureForfeitDisplaySnapshot: (matchId: string) => void;
 };
 
 export type RunSaveFlowActions = {

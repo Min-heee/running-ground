@@ -71,6 +71,7 @@ function mergeRoomParticipantProgress<T extends DuelMatchOpponent | GroupMatchPa
     officialGapAheadKm: statusParticipant.officialGapAheadKm ?? roomParticipant.officialGapAheadKm,
     officialGapLeaderKm: statusParticipant.officialGapLeaderKm ?? roomParticipant.officialGapLeaderKm,
     officialComparedAt: statusParticipant.officialComparedAt ?? roomParticipant.officialComparedAt,
+    liveStatus: statusParticipant.liveStatus ?? roomParticipant.liveStatus,
     finishedAt: statusParticipant.finishedAt ?? roomParticipant.finishedAt,
   };
 }
@@ -173,8 +174,8 @@ export function buildRoomLinkedDuelPlaceholderParticipants({
       ? opponent
       : null;
     const mergedParticipant = mergeRoomParticipantProgress(participant, statusParticipant);
-    const participantLiveStatus = statusParticipant?.liveStatus ?? participant.liveStatus;
-    const participantFinishedAt = statusParticipant?.finishedAt ?? participant.finishedAt ?? null;
+    const participantLiveStatus = mergedParticipant.liveStatus;
+    const participantFinishedAt = mergedParticipant.finishedAt ?? null;
     const progressModel = buildMatchProgressModel(mergedParticipant, placeholderDistanceKm);
     const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'
       ? currentDistanceKm
@@ -264,8 +265,8 @@ export function buildRoomLinkedGroupPlaceholderParticipants({
       isSameRemoteParticipant(groupParticipant, participant)
     )) ?? null;
     const mergedParticipant = mergeRoomParticipantProgress(participant, statusParticipant);
-    const participantLiveStatus = statusParticipant?.liveStatus ?? participant.liveStatus;
-    const participantFinishedAt = statusParticipant?.finishedAt ?? participant.finishedAt ?? null;
+    const participantLiveStatus = mergedParticipant.liveStatus;
+    const participantFinishedAt = mergedParticipant.finishedAt ?? null;
     const placeholderDistanceKm = room.linkedMatchDistanceKm ?? room.distanceKm;
     const progressModel = buildMatchProgressModel(mergedParticipant, placeholderDistanceKm);
     const participantDistanceKm = isCurrentUser && roomLinkedMatchContext?.state === 'active'

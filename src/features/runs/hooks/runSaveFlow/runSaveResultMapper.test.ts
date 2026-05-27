@@ -53,6 +53,18 @@ test('run save result mapper rejects unsavable short route', () => {
   }), /실제로 이동한 러닝 경로/);
 });
 
+test('run save result mapper can allow short forfeit distance with a real route', () => {
+  const result = buildRunSaveResultSnapshot({
+    allowShortDistanceSave: true,
+    displayedSnapshot: snapshot({ distanceKm: 0.05, elapsedSeconds: 90 }),
+    totalSteps: 10,
+  });
+
+  assert.equal(result.createRunInput.distanceKm, 0.05);
+  assert.equal(result.createRunInput.durationSeconds, 90);
+  assert.equal(result.createRunInput.pace, '30:00/km');
+});
+
 test('run save result mapper rejects missing pace calculation', () => {
   assert.throws(() => buildRunSaveResultSnapshot({
     displayedSnapshot: snapshot({ elapsedSeconds: 0 }),

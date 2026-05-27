@@ -170,6 +170,30 @@ test('room linked duel view model uses received remote distance and pace after a
   assert.equal(me.isLeader, true);
 });
 
+test('room linked duel view model marks received remote forfeit status', () => {
+  const participants = buildRoomLinkedDuelPlaceholderParticipants({
+    room: room(),
+    hasRoomLinkedDuelContext: true,
+    currentUserId: 'me',
+    currentDistanceKm: 0.72,
+    currentUserPaceLabel: '06:05/km',
+    opponent: opponent({
+      liveDistanceKm: 0.54,
+      liveElapsedSeconds: 210,
+      livePace: '06:28/km',
+      liveStatus: 'forfeited',
+      liveUpdatedAt: '2026-05-12T00:03:30.000Z',
+    }),
+    roomLinkedMatchContext: { state: 'active' },
+  });
+
+  const remote = participants.find((participant) => !participant.isCurrentUser)!;
+
+  assert.equal(remote.liveStatus, 'forfeited');
+  assert.equal(remote.paceLabel, '기권');
+  assert.equal(remote.showPaceBubble, true);
+});
+
 test('group arena view model highlights current runner and featured rivals', () => {
   const participants = buildGroupArenaParticipants({
     standings: [
