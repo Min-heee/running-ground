@@ -8,6 +8,7 @@ import { type OfficialStartBaseline } from '@/features/runs/tracking/trackingSes
 export type TrackerStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving';
 
 export type SaveTrackingOptions = {
+  allowShortDistanceSave?: boolean;
   exitIfUnsavable?: boolean;
   onSavedRun?: (runId: string) => void;
   resetAfterSave?: boolean;

@@ -6,6 +6,7 @@ import { isUnsavableShortRunError } from '@/features/runs/utils/matchScheduling'
 import { resolveActiveMatchId } from '@/features/runs/lifecycle/matchStateMachine';
 import { createTrackedRun, getApiErrorMessage } from '@/services';
 import type { SaveTrackingOptions } from '@/features/runs/hooks/useRunTracking';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { buildRunSaveResultSnapshot } from './runSaveResultMapper';
 import { runCleanupAfterSave } from './runCleanupAfterSave';
 import { runPointRankingPostProcessor } from './runPointRankingPostProcessor';
@@ -73,6 +74,7 @@ export function useRunSaveCommand({
       const displayedSnapshot = getDisplayedTrackingSnapshot(trackingSnapshot);
       syncFromBackgroundTracking(trackingSnapshot);
       const saveSnapshot = buildRunSaveResultSnapshot({
+        allowShortDistanceSave: Boolean(options.allowShortDistanceSave),
         displayedSnapshot,
         totalSteps: totalStepsRef.current,
         trackedMatchResult,
@@ -121,6 +123,10 @@ export function useRunSaveCommand({
       return true;
     } catch (saveError) {
       if (options.exitIfUnsavable && isUnsavableShortRunError(saveError)) {
+        rgPerfMark('run save skipped as unsavable', {
+          allowShortDistanceSave: Boolean(options.allowShortDistanceSave),
+          reason: getApiErrorMessage(saveError, String(saveError ?? 'unknown')),
+        });
         await discardCurrentTracking();
         return false;
       }

@@ -16,10 +16,12 @@ export type RunSaveResultSnapshot = {
 };
 
 export function buildRunSaveResultSnapshot({
+  allowShortDistanceSave = false,
   displayedSnapshot,
   totalSteps,
   trackedMatchResult,
 }: {
+  allowShortDistanceSave?: boolean;
   displayedSnapshot: DisplayedTrackingSnapshot;
   totalSteps: number;
   trackedMatchResult?: RunMatchResult | null;
@@ -34,7 +36,10 @@ export function buildRunSaveResultSnapshot({
   const finalCadenceSpm = calculateCadenceSpm(totalSteps, finalElapsedSeconds);
   const averagePaceLabel = buildAveragePace(finalDistanceKm, finalElapsedSeconds);
 
-  if (displayedSnapshot.route.length < 2 || finalDistanceKm < 0.1) {
+  const hasSavableRoute = displayedSnapshot.route.length >= 2;
+  const hasSavableDistance = allowShortDistanceSave ? finalDistanceKm > 0 : finalDistanceKm >= 0.1;
+
+  if (!hasSavableRoute || !hasSavableDistance) {
     throw new Error('저장하려면 실제로 이동한 러닝 경로가 조금 더 필요해.');
   }
 
