@@ -19,6 +19,7 @@ import {
   JoinRunningMatchRoomInput,
   JoinedRunningMatchRoomResponse,
   LeaveRunningMatchRoomInput,
+  RunningMatchForceResetResponse,
   RunningMatchRoomCleanupResponse,
   RunningMatchRoomResponse,
   StartRunningMatchRoomInput,
@@ -152,6 +153,30 @@ export async function cleanupStaleRunningMatchRoomState(): Promise<RunningMatchR
 
     throw error;
   }
+}
+
+export async function forceResetRunningMatchState(): Promise<RunningMatchForceResetResponse> {
+  if (USE_MOCK_API) {
+    mockApiState.runningMatchRoom = null;
+    mockApiState.runningMatchSessions.duel = null;
+    mockApiState.runningMatchSessions.group = null;
+
+    return {
+      success: true,
+      serverNow: new Date().toISOString(),
+      cleaned: true,
+      cleanedItems: ['mock.runningMatch.forceReset'],
+    };
+  }
+
+  return apiPost<RunningMatchForceResetResponse>(
+    '/running/rooms/force-reset',
+    {},
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '매칭 상태를 강제로 초기화하지 못했어.',
+    },
+  );
 }
 
 export async function createRunningMatchRoom(input: CreateRunningMatchRoomInput): Promise<RunningMatchRoomResponse> {

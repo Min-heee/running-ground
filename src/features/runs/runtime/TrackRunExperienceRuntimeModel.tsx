@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
@@ -35,6 +36,8 @@ import { useMatchCountdownModel } from '@/features/runs/lifecycle/hooks/useMatch
 import {
   fetchRunningMatchStatus,
   fetchUpcomingRunningMatches,
+  forceResetRunningMatchState,
+  getApiErrorMessage,
 } from '@/services';
 import {
   type RunningMatchStatusResponse,
@@ -122,6 +125,22 @@ export type TrackRunExperienceRuntimeProps = {
   routeShellHint?: TrackRunShellKind;
 };
 
+function isRunningMatchForceResetCandidate(message: string | null) {
+  if (!message) {
+    return false;
+  }
+
+  return (
+    message.includes('이미')
+    && (
+      message.includes('방')
+      || message.includes('매치')
+      || message.includes('매칭')
+      || message.includes('대결')
+    )
+  );
+}
+
 export function TrackRunExperienceRuntime({
   mode,
   focusMatchMode,
@@ -208,6 +227,7 @@ export function TrackRunExperienceRuntime({
     isPaused,
     isSaving,
   } = useRunTrackingController();
+  const [isForceResettingRunningMatch, setIsForceResettingRunningMatch] = useState(false);
   const livePagerRef = useRef<ScrollView | null>(null);
   const matchModeRef = useRef<RunMatchMode>('duel');
   const duelMatchStatusRef = useRef<RunningMatchStatusResponse | null>(null);
@@ -1454,6 +1474,54 @@ export function TrackRunExperienceRuntime({
     onSettled: refreshStaleMatchArtifacts,
   });
 
+  const runForceResetRunningMatchState = useStableCallback(async () => {
+    if (isForceResettingRunningMatch) {
+      return;
+    }
+
+    setIsForceResettingRunningMatch(true);
+    try {
+      const payload = await forceResetRunningMatchState();
+      rgPerfMark('running match force reset completed', {
+        cleaned: payload.cleaned,
+        cleanedItems: payload.cleanedItems.join(','),
+        source: 'track-run emergency reset',
+      });
+      commitMatchRoom(null);
+      setSelectedRoomFriendIds([]);
+      clearLocalDuelMatchState(null);
+      clearLocalGroupMatchState(null);
+      setForceOpenActiveMatch(false);
+      setError(null);
+      await refreshStaleMatchArtifacts().catch(() => {});
+      Alert.alert('초기화 완료', '다시 방 만들기 또는 매칭을 눌러주세요.');
+    } catch (resetError) {
+      Alert.alert(
+        '초기화 실패',
+        getApiErrorMessage(resetError, '매칭 상태를 강제로 초기화하지 못했어.'),
+      );
+    } finally {
+      setIsForceResettingRunningMatch(false);
+    }
+  });
+
+  const handleForceResetRunningMatchPress = useStableCallback(() => {
+    Alert.alert(
+      '강제 초기화',
+      '진행 중인 모든 매치/방/대기열을 강제로 정리합니다. 진행 중인 대결은 패배 처리될 수 있어요. 계속할까요?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '초기화',
+          style: 'destructive',
+          onPress: () => {
+            void runForceResetRunningMatchState();
+          },
+        },
+      ],
+    );
+  });
+
   const {
     runtimeSoloStartCountdownSeconds,
     shouldShowCenteredMatchCountdown,
@@ -2091,12 +2159,15 @@ export function TrackRunExperienceRuntime({
     fullscreenCountdownEntry: shouldShowFullscreenMatchCountdown && visibleCountdownEntry
       ? visibleCountdownEntry
       : null,
+    isForceResettingRunningMatch,
     isTabMode,
     liveContainerProps,
     liveMatchKey: liveMatchShellPreservation.key,
+    onForceResetRunningMatch: handleForceResetRunningMatchPress,
     readyScreenProps,
     shellKind: liveShellGateDecision.shellKind,
     shouldShowReadyScreen: liveShellGateDecision.shouldShowReadyScreen,
+    showForceResetAction: isRunningMatchForceResetCandidate(error),
     shouldShowRoomArmingOverlay,
     soloStartCountdownSeconds: runtimeSoloStartCountdownSeconds,
   });

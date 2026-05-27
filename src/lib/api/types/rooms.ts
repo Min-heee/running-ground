@@ -130,6 +130,13 @@ export type RunningMatchRoomCleanupResponse = {
   room: RunningMatchRoom | null;
 };
 
+export type RunningMatchForceResetResponse = {
+  success: boolean;
+  serverNow: string;
+  cleaned: boolean;
+  cleanedItems: string[];
+};
+
 export type CreateRunningMatchRoomInput = {
   mode: RunningMatchRoomMode;
   distanceKm: number;
