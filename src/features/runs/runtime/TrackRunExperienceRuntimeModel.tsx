@@ -45,10 +45,6 @@ import {
 } from '@/lib/api/types';
 import type { ForfeitedMatchSnapshot } from '@/features/runs/types/matchForfeit';
 import {
-  recordLiveMatchForfeitDiagnosticsSnapshot,
-  recordLiveMatchForfeitPoll,
-} from '@/features/runs/debug/liveMatchForfeitDiagnostics';
-import {
   buildDuelArenaParticipants,
   buildGroupArenaParticipants,
   buildRoomLinkedDuelPlaceholderParticipants,
@@ -803,60 +799,6 @@ export function TrackRunExperienceRuntime({
     liveMatchDisplayDistanceKm,
     roomLinkedMatchContext,
   ]);
-  useEffect(() => {
-    const placeholderParticipants = matchMode === 'duel'
-      ? roomLinkedDuelPlaceholderParticipants
-      : matchMode === 'group'
-        ? roomLinkedGroupPlaceholderParticipants
-        : [];
-    const arenaParticipants = matchMode === 'duel'
-      ? duelArenaParticipants
-      : matchMode === 'group'
-        ? groupArenaParticipants
-        : [];
-    const source = matchMode === 'duel'
-      ? duelMatchStatus?.matchId
-        ? 'duelMatchStatus'
-        : roomLinkedMatchContext?.mode === 'duel'
-          ? 'roomLinkedMatchContext'
-          : roomLinkedDuelPlaceholderParticipants.length
-            ? 'roomLinkedPlaceholder'
-            : 'none'
-      : matchMode === 'group'
-        ? groupMatchStatus?.matchId
-          ? 'groupMatchStatus'
-          : roomLinkedMatchContext?.mode === 'group'
-            ? 'roomLinkedMatchContext'
-            : roomLinkedGroupPlaceholderParticipants.length
-              ? 'roomLinkedPlaceholder'
-              : 'none'
-        : 'none';
-
-    recordLiveMatchForfeitDiagnosticsSnapshot({
-      mode: matchMode,
-      matchId: activeLiveMatchProgressMatchId,
-      source,
-      currentUserId,
-      duelMatchStatus,
-      groupMatchStatus,
-      roomLinkedMatchContext,
-      linkedRuntimeRoom,
-      placeholderParticipants,
-      arenaParticipants,
-    });
-  }, [
-    activeLiveMatchProgressMatchId,
-    currentUserId,
-    duelArenaParticipants,
-    duelMatchStatus,
-    groupArenaParticipants,
-    groupMatchStatus,
-    linkedRuntimeRoom,
-    matchMode,
-    roomLinkedDuelPlaceholderParticipants,
-    roomLinkedGroupPlaceholderParticipants,
-    roomLinkedMatchContext,
-  ]);
   const currentUserFinishedForResultPageFromParticipants = useMemo(() => resolveCurrentUserFinishedForResultPage({
     matchMode,
     duelArenaParticipants,
@@ -1262,7 +1204,6 @@ export function TrackRunExperienceRuntime({
       testMode: options?.testMode ?? isDuelTestFlow,
       matchId: options?.matchId ?? focusedDuelMatchIdRef.current ?? undefined,
     });
-    recordLiveMatchForfeitPoll(options?.forceAccept ? 'duel:linked-force' : 'duel:poll');
     if (!options?.forceAccept && !shouldAcceptServerSnapshot(latestDuelStatusServerNowMsRef, payload.serverNow)) {
       return duelMatchStatus ?? payload;
     }
@@ -1320,7 +1261,6 @@ export function TrackRunExperienceRuntime({
       testMode: options?.testMode ?? isGroupTestFlow,
       matchId: options?.matchId ?? focusedGroupMatchIdRef.current ?? undefined,
     });
-    recordLiveMatchForfeitPoll(options?.forceAccept ? 'group:linked-force' : 'group:poll');
     if (!options?.forceAccept && !shouldAcceptServerSnapshot(latestGroupStatusServerNowMsRef, payload.serverNow)) {
       return groupMatchStatus ?? payload;
     }
@@ -1836,7 +1776,13 @@ export function TrackRunExperienceRuntime({
       loadGroupMatchStatus,
       enabled: !trackRunIdleViewModel.disableHeavySubscriptions
         && liveMatchHeavyWorkReady
-        && matchLifecycleController.effects.shouldPollDirectMatchStatus,
+        && (
+          matchLifecycleController.effects.shouldPollDirectMatchStatus
+          || matchLifecycleController.effects.shouldPollLinkedMatch
+        ),
+      linkedMatchContext: matchLifecycleController.effects.shouldPollLinkedMatch
+        ? roomLinkedMatchContext
+        : null,
       recoveryMatchId: matchLifecycleController.source === 'party-room' ? null : matchLifecycleController.matchId,
     },
   });

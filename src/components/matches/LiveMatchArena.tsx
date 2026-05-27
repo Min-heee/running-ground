@@ -1,7 +1,6 @@
 import { memo, useMemo } from 'react';
 import { Text, useWindowDimensions, View } from 'react-native';
 import { AndroidLiveMatchPerfPanel } from '@/components/matches/AndroidLiveMatchPerfPanel';
-import { LiveMatchForfeitDebugPanel } from '@/components/matches/LiveMatchForfeitDebugPanel';
 import {
   areParticipantArraysEqual,
   areStringArraysEqual,
@@ -99,17 +98,12 @@ export const LiveMatchArena = memo(function LiveMatchArena({
     () => (LIVE_MATCH_PERF_QA_ENABLED ? <AndroidLiveMatchPerfPanel label={perfLabel} /> : null),
     [perfLabel],
   );
-  const forfeitDebugPanel = useMemo(
-    () => <LiveMatchForfeitDebugPanel />,
-    [],
-  );
 
   return (
     <View style={cardStyle}>
       <LiveMatchArenaHeader mode={mode} title={title} subtitle={subtitle} />
       <LiveMatchArenaSummaryChips chips={summaryChips} />
       {perfPanel}
-      {forfeitDebugPanel}
       <LiveMatchArenaRoadSection
         mode={mode}
         shouldDeferHeavyContent={shouldDeferHeavyContent}
