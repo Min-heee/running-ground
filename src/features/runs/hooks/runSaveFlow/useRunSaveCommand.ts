@@ -103,6 +103,7 @@ export function useRunSaveCommand({
 
       setStatus('saving');
       const savedRun = await createTrackedRun(saveSnapshot.createRunInput);
+      options.onSavedRun?.(savedRun.run.id);
       await runCleanupAfterSave({
         autoStartedMatchIdRef,
         officialStartBaselineRef,

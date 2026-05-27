@@ -9,6 +9,7 @@ export type TrackerStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving
 
 export type SaveTrackingOptions = {
   exitIfUnsavable?: boolean;
+  onSavedRun?: (runId: string) => void;
   resetAfterSave?: boolean;
 };
 

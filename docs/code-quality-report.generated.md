@@ -2,7 +2,7 @@
 
 > 이 파일은 `npm run code:quality`로 생성됩니다. 수동 수정하지 말고 스크립트를 다시 실행해 갱신하세요.
 
-생성 시각: 2026-05-27T17:15:11.009Z
+생성 시각: 2026-05-27T18:46:35.633Z
 
 ## 실행 방법
 
@@ -14,8 +14,8 @@ npm run code:quality
 
 | 항목 | 값 |
 | --- | --- |
-| 분석 파일 | 912 |
-| 코드 파일 | 855 |
+| 분석 파일 | 914 |
+| 코드 파일 | 857 |
 | package scripts | 63 |
 | 300줄 이상 파일 | 77 |
 | 500줄 이상 파일 | 15 |
@@ -40,7 +40,7 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2211 | imports 56, effects 3, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2247 | imports 57, effects 3, sort/filter/map 1 |
 | backend/src/lib/matchRoomStoreHelpers.mjs | 1209 | imports 11, sort/filter/map 45 |
 | backend/src/runningMatchContract.test.mjs | 1189 | imports 8, timers 4 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
@@ -122,7 +122,7 @@ npm run code:quality
 
 | 파일 | 줄 | 신호 |
 | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2211 | imports 56, effects 3, sort/filter/map 1 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 2247 | imports 57, effects 3, sort/filter/map 1 |
 | backend/src/lib/matchRoomStoreHelpers.mjs | 1209 | imports 11, sort/filter/map 45 |
 | backend/src/runningMatchContract.test.mjs | 1189 | imports 8, timers 4 |
 | backend/src/smoke.mjs | 1014 | imports 16, sort/filter/map 2, timers 2 |
@@ -147,7 +147,7 @@ npm run code:quality
 
 | 파일 | 줄 | 함수 | 길이 |
 | --- | --- | --- | --- |
-| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 144 | TrackRunExperienceRuntime | 2067 |
+| src/features/runs/runtime/TrackRunExperienceRuntimeModel.tsx | 148 | TrackRunExperienceRuntime | 2099 |
 | src/features/settings/admin/hooks/useAdminDashboard.ts | 51 | useAdminDashboard | 400 |
 | src/features/runs/tracking/session/useTrackingSessionSnapshots.ts | 97 | useTrackingSessionSnapshots | 382 |
 | src/features/auth/hooks/useSignupForm.ts | 23 | useSignupForm | 297 |
@@ -194,7 +194,6 @@ npm run code:quality
 | src/features/integrations/hooks/useIntegrationActions.ts | 61 | useIntegrationActions | 165 |
 | src/features/runs/tracking/useTrackingAppStateSync.ts | 40 | useTrackingAppStateSync | 165 |
 | backend/src/repositories/marketRepository.mjs | 5 | createJsonMarketRepository | 165 |
-| src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 42 | useRunForfeitCommand | 160 |
 | src/features/runs/hooks/matchRoomLobby/useMatchRoomLobbyEffects.ts | 27 | useMatchRoomLobbyEffects | 159 |
 | src/features/runs/hooks/usePartyRunRoom.ts | 79 | usePartyRunRoom | 158 |
 | src/features/runs/tracking/background/locationTaskManagerCore.ts | 48 | startLocationTaskWithTrace | 156 |
@@ -204,6 +203,7 @@ npm run code:quality
 | src/features/runs/runtime/useTrackRunRuntimeMatchMaintenanceActions.ts | 7 | useTrackRunRuntimeMatchMaintenanceActions | 151 |
 | src/features/runs/viewModels/useTrackRunIdleViewModel.ts | 90 | useTrackRunIdleViewModel | 149 |
 | src/features/runs/components/matchSetupCards/DuelMatchSetupCard.tsx | 13 | DuelMatchSetupCard | 149 |
+| src/features/runs/hooks/runSaveFlow/useRunForfeitCommand.ts | 40 | useRunForfeitCommand | 146 |
 | src/features/runs/lifecycle/hooks/runningMatchFocus/useLiveMatchMountSignalBridge.ts | 15 | useLiveMatchMountSignalBridge | 146 |
 | src/features/runs/hooks/matchLifecycle/useDuelMatchLifecycle.ts | 25 | useDuelMatchLifecycle | 145 |
 | src/features/runs/viewModels/useLiveMatchProgress.ts | 42 | useLiveMatchProgress | 143 |

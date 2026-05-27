@@ -50,6 +50,10 @@ import {
   buildRoomLinkedGroupPlaceholderParticipants,
 } from '@/features/runs/viewModels/matchViewModels';
 import {
+  buildRoomLinkedDuelForfeitResultRows,
+  buildRoomLinkedGroupForfeitResultRows,
+} from '@/features/runs/viewModels/matchResultFallbackRows';
+import {
   buildMatchTransitionNotice,
   isLiveMatchState,
   type PartyRunLinkedMatchContext,
@@ -809,6 +813,38 @@ export function TrackRunExperienceRuntime({
   ]);
   const currentUserFinishedForResultPage = currentUserFinishedForResultPageFromParticipants || currentUserHasForfeitedActiveMatch;
   const hasTrackedMatchResult = Boolean(trackedMatchResult);
+  const effectiveDuelResultRows = useMemo(() => {
+    if (duelResultRows.length || matchMode !== 'duel' || !currentUserHasForfeitedActiveMatch) {
+      return duelResultRows;
+    }
+
+    return buildRoomLinkedDuelForfeitResultRows({
+      elapsedSeconds: liveMatchDisplayElapsedSeconds,
+      participants: roomLinkedDuelPlaceholderParticipants,
+    });
+  }, [
+    currentUserHasForfeitedActiveMatch,
+    duelResultRows,
+    liveMatchDisplayElapsedSeconds,
+    matchMode,
+    roomLinkedDuelPlaceholderParticipants,
+  ]);
+  const effectiveGroupResultRows = useMemo(() => {
+    if (groupResultRows.length || matchMode !== 'group' || !currentUserHasForfeitedActiveMatch) {
+      return groupResultRows;
+    }
+
+    return buildRoomLinkedGroupForfeitResultRows({
+      elapsedSeconds: liveMatchDisplayElapsedSeconds,
+      participants: roomLinkedGroupPlaceholderParticipants,
+    });
+  }, [
+    currentUserHasForfeitedActiveMatch,
+    groupResultRows,
+    liveMatchDisplayElapsedSeconds,
+    matchMode,
+    roomLinkedGroupPlaceholderParticipants,
+  ]);
   const hasMatchResultPage = shouldShowMatchResultPageOnCurrentUserFinished({
     matchMode,
     currentUserFinished: currentUserFinishedForResultPage,
@@ -1957,8 +1993,8 @@ export function TrackRunExperienceRuntime({
       elevationGainM: liveMatchDisplayFrame.elevationGainM,
       onContinueSoloFromMatch: handleContinueSoloFromMatch,
       estimatedBonusPoints: estimatedMatchBonusPoints,
-      duelRows: duelResultRows,
-      groupRows: groupResultRows,
+      duelRows: effectiveDuelResultRows,
+      groupRows: effectiveGroupResultRows,
       groupStatusLabel: groupResultStatusLabel,
     },
   });
