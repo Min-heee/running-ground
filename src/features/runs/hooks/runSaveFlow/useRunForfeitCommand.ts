@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import {
   markDuelStatusForfeited,
   markGroupStatusForfeited,
@@ -33,6 +34,10 @@ type UseRunForfeitCommandInput = Pick<
   setMatchLeaving: (source: MatchExitSource, isLeaving: boolean) => void;
 };
 
+function showForfeitDiagnosticAlert(title: string, message: string) {
+  Alert.alert(title, message);
+}
+
 export function useRunForfeitCommand({
   duelMatchNotice,
   duelMatchStatus,
@@ -67,13 +72,39 @@ export function useRunForfeitCommand({
     });
 
     if (!matchId) {
+      showForfeitDiagnosticAlert(
+        '진단: matchId 없음',
+        [
+          `source=${source}`,
+          `duelMatchId=${duelMatchStatus?.matchId ?? 'null'}`,
+          `groupMatchId=${groupMatchStatus?.matchId ?? 'null'}`,
+          `roomLinkedMatchContext=${JSON.stringify(roomLinkedMatchContext)}`,
+        ].join('\n'),
+      );
       setError('기권 처리할 대결을 찾지 못했어.');
       return;
     }
 
     if (pendingForfeitMatchRef.current === matchId) {
+      showForfeitDiagnosticAlert(
+        '진단: 중복 기권 요청 차단',
+        `matchId=${matchId}\nsource=${source}`,
+      );
       return;
     }
+
+    showForfeitDiagnosticAlert(
+      '진단: forfeit 시작',
+      [
+        `matchId=${matchId}`,
+        `source=${source}`,
+        `duelMatchStatus.matchId=${duelMatchStatus?.matchId ?? 'null'}`,
+        `groupMatchStatus.matchId=${groupMatchStatus?.matchId ?? 'null'}`,
+        `roomLinkedMatchContext.matchId=${roomLinkedMatchContext?.matchId ?? 'null'}`,
+        `roomLinkedMatchContext.mode=${roomLinkedMatchContext?.mode ?? 'null'}`,
+        `roomLinkedMatchContext.state=${roomLinkedMatchContext?.state ?? 'null'}`,
+      ].join('\n'),
+    );
 
     const inputTrace = beginRgInputTrace('forfeit button press', {
       matchId,
@@ -99,16 +130,40 @@ export function useRunForfeitCommand({
 
     try {
       if (source === 'duel') {
-        setDuelMatchStatus((currentStatus) => markDuelStatusForfeited(currentStatus, matchId));
+        setDuelMatchStatus((currentStatus) => {
+          const nextStatus = markDuelStatusForfeited(currentStatus, matchId);
+          showForfeitDiagnosticAlert(
+            '진단: markDuelStatusForfeited',
+            [
+              `currentStatus.matchId=${currentStatus?.matchId ?? 'null'}`,
+              `request matchId=${matchId}`,
+              `updated=${nextStatus?.currentUserLiveStatus === 'forfeited'}`,
+            ].join('\n'),
+          );
+          return nextStatus;
+        });
         setDuelMatchNotice('기권 처리됐어요. 결과를 확인한 뒤 기록을 저장할 수 있어요.');
         await leaveRunningMatch({ matchId });
+        showForfeitDiagnosticAlert('진단: leaveRunningMatch 성공', `matchId=${matchId}`);
         forfeitApiTraceCompleted = true;
         endForfeitApiTrace({ success: true });
         matchProgressHeartbeatRef.current = Date.now();
       } else {
-        setGroupMatchStatus((currentStatus) => markGroupStatusForfeited(currentStatus, matchId));
+        setGroupMatchStatus((currentStatus) => {
+          const nextStatus = markGroupStatusForfeited(currentStatus, matchId);
+          showForfeitDiagnosticAlert(
+            '진단: markGroupStatusForfeited',
+            [
+              `currentStatus.matchId=${currentStatus?.matchId ?? 'null'}`,
+              `request matchId=${matchId}`,
+              `updated=${nextStatus?.currentUserLiveStatus === 'forfeited'}`,
+            ].join('\n'),
+          );
+          return nextStatus;
+        });
         setGroupMatchNotice('기권 처리됐어요. 결과를 확인한 뒤 기록을 저장할 수 있어요.');
         await leaveRunningMatch({ matchId });
+        showForfeitDiagnosticAlert('진단: leaveRunningMatch 성공', `matchId=${matchId}`);
         forfeitApiTraceCompleted = true;
         endForfeitApiTrace({ success: true });
         matchProgressHeartbeatRef.current = Date.now();
@@ -127,7 +182,17 @@ export function useRunForfeitCommand({
       if (!forfeitApiTraceCompleted) {
         endForfeitApiTrace({ success: false });
       }
-      setError(getApiErrorMessage(matchError, '기권 처리에 실패했어.'));
+      const errorMessage = getApiErrorMessage(matchError, '기권 처리에 실패했어.');
+      showForfeitDiagnosticAlert(
+        '진단: forfeit API 실패',
+        [
+          `matchId=${matchId}`,
+          `source=${source}`,
+          `message=${matchError instanceof Error ? matchError.message : String(matchError)}`,
+          `display=${errorMessage}`,
+        ].join('\n'),
+      );
+      setError(errorMessage);
     } finally {
       if (pendingForfeitMatchRef.current === matchId) {
         pendingForfeitMatchRef.current = null;
