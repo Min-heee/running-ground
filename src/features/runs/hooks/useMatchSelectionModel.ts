@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { MatchOptionItem } from '@/features/runs/components/MatchOptionSelector';
+import type { BlockingMatchReference } from '@/features/runs/components/matchSetupCards/types';
 import type { RoomStartMode } from '@/features/runs/hooks/usePartyRunRoom';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { formatMatchTargetDistance } from '@/features/runs/utils/matchScheduling';
@@ -31,6 +32,23 @@ type MatchSelectionOption = MatchOptionItem & {
   liveTitle: string;
   liveText: string;
 };
+
+function buildBlockingMatchReference(
+  status: RunningMatchStatusResponse | null,
+  upcomingMatch: UpcomingRunningMatchItem | null,
+): BlockingMatchReference | null {
+  const matchId = status?.matchId ?? upcomingMatch?.matchId ?? null;
+  if (!matchId) {
+    return null;
+  }
+
+  return {
+    matchId,
+    distanceKm: status?.distanceKm ?? upcomingMatch?.distanceKm ?? null,
+    slotStartAt: status?.slotStartAt ?? upcomingMatch?.slotStartAt ?? null,
+    testMode: Boolean(status?.isTestMatch ?? upcomingMatch?.isTestMatch),
+  };
+}
 
 type UseMatchSelectionModelInput = {
   matchMode: RunMatchMode;
@@ -123,6 +141,13 @@ export function useMatchSelectionModel({
   const hasBlockingScheduledMatch = visibleUpcomingMatches.some((match) => isLiveMatchState(match.status));
   const hasBlockingDuelMatch = isBlockingMatchState(duelMatchState);
   const hasBlockingGroupMatch = isBlockingMatchState(groupMatchState);
+  const blockingDuelUpcomingMatch = visibleUpcomingMatches.find((match) => match.mode === 'duel' && isLiveMatchState(match.status)) ?? null;
+  const blockingGroupUpcomingMatch = visibleUpcomingMatches.find((match) => match.mode === 'group' && isLiveMatchState(match.status)) ?? null;
+  const blockingRoomId = visibleMatchRoom?.roomId
+    ?? visibleUpcomingMatches.find((match) => match.roomId)?.roomId
+    ?? null;
+  const blockingDuelMatch = buildBlockingMatchReference(duelMatchStatus, blockingDuelUpcomingMatch);
+  const blockingGroupMatch = buildBlockingMatchReference(groupMatchStatus, blockingGroupUpcomingMatch);
   const canCreateDuelMatch = !hasBlockingRoom && !hasBlockingScheduledMatch && !hasBlockingGroupMatch && !hasBlockingDuelMatch;
   const canCreateGroupMatch = !hasBlockingRoom && !hasBlockingScheduledMatch && !hasBlockingDuelMatch && !hasBlockingGroupMatch;
   const blockingMatchHelperText = hasBlockingRoom
@@ -200,6 +225,9 @@ export function useMatchSelectionModel({
     canCreateDuelMatch,
     canCreateGroupMatch,
     blockingMatchHelperText,
+    blockingRoomId,
+    blockingDuelMatch,
+    blockingGroupMatch,
     duelReservationLocked,
     groupReservationLocked,
     effectiveDuelOpponent,
