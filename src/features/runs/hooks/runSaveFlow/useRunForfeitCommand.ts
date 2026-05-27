@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import {
   markDuelStatusForfeited,
@@ -14,6 +15,7 @@ import type { UseRunSaveFlowInput } from './types';
 
 type UseRunForfeitCommandInput = Pick<
   UseRunSaveFlowInput,
+  | 'captureForfeitDisplaySnapshot'
   | 'duelMatchNotice'
   | 'duelMatchStatus'
   | 'groupMatchNotice'
@@ -38,6 +40,7 @@ type UseRunForfeitCommandInput = Pick<
 };
 
 export function useRunForfeitCommand({
+  captureForfeitDisplaySnapshot,
   duelMatchNotice,
   duelMatchStatus,
   groupMatchNotice,
@@ -108,6 +111,7 @@ export function useRunForfeitCommand({
         setDuelMatchStatus((currentStatus) => markDuelStatusForfeited(currentStatus, matchId));
         setDuelMatchNotice('기권 처리됐어요. 결과를 확인한 뒤 기록을 저장할 수 있어요.');
         await leaveRunningMatch({ matchId });
+        captureForfeitDisplaySnapshot(matchId);
         markMatchLocallyForfeited(matchId);
         forfeitApiTraceCompleted = true;
         endForfeitApiTrace({ success: true });
@@ -116,6 +120,7 @@ export function useRunForfeitCommand({
         setGroupMatchStatus((currentStatus) => markGroupStatusForfeited(currentStatus, matchId));
         setGroupMatchNotice('기권 처리됐어요. 결과를 확인한 뒤 기록을 저장할 수 있어요.');
         await leaveRunningMatch({ matchId });
+        captureForfeitDisplaySnapshot(matchId);
         markMatchLocallyForfeited(matchId);
         forfeitApiTraceCompleted = true;
         endForfeitApiTrace({ success: true });
@@ -168,8 +173,22 @@ export function useRunForfeitCommand({
         resetAfterSave: true,
       });
 
+      Alert.alert(
+        '진단: save 결과',
+        [
+          `didSave=${didSave}`,
+          `savedRunId=${savedRunId ?? 'null'}`,
+          `isTabMode=${isTabMode}`,
+        ].join('\n'),
+      );
+
       if (didSave && savedRunId) {
-        router.replace(buildRunDetailRedirect({ runId: savedRunId, isTabMode }));
+        const redirect = buildRunDetailRedirect({ runId: savedRunId, isTabMode });
+        Alert.alert('진단: navigation 시도', JSON.stringify(redirect));
+        router.replace(redirect);
+      } else {
+        Alert.alert('진단: fallback router.back', `didSave=${didSave}, savedRunId=${savedRunId ?? 'null'}`);
+        router.back();
       }
     } finally {
       pendingCounterpartForfeitResultRef.current = false;

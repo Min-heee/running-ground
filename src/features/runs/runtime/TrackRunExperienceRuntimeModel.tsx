@@ -129,6 +129,14 @@ export type TrackRunExperienceRuntimeProps = {
   routeShellHint?: TrackRunShellKind;
 };
 
+type ForfeitDisplaySnapshot = {
+  distanceKm: number;
+  elapsedSeconds: number;
+  currentPace: string;
+  averagePace: string;
+  currentUserArenaPace: string;
+};
+
 function isRunningMatchForceResetCandidate(message: string | null) {
   if (!message) {
     return false;
@@ -348,6 +356,7 @@ export function TrackRunExperienceRuntime({
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
   const forfeitedMatchIdsRef = useRef<Set<string>>(new Set());
   const [locallyForfeitedMatchIds, setLocallyForfeitedMatchIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [forfeitDisplaySnapshots, setForfeitDisplaySnapshots] = useState<ReadonlyMap<string, ForfeitDisplaySnapshot>>(() => new Map());
   const markMatchLocallyForfeited = useCallback((matchId: string) => {
     setLocallyForfeitedMatchIds((currentIds) => {
       if (currentIds.has(matchId)) {
@@ -598,23 +607,6 @@ export function TrackRunExperienceRuntime({
     identity: liveMatchStartupIdentity,
   });
   const liveMatchHeavyWorkReady = androidLiveMatchStartup.ready;
-  const rawLiveMatchDisplayFrame = useMemo(
-    () => ({
-      distanceKm,
-      elapsedSeconds,
-      currentPace,
-      averagePace,
-      cadenceSpm,
-      elevationGainM,
-    }),
-    [averagePace, cadenceSpm, currentPace, distanceKm, elapsedSeconds, elevationGainM],
-  );
-  const liveMatchDisplayFrame = useAndroidLiveMatchDisplayFrame(
-    rawLiveMatchDisplayFrame,
-    isRunning && (matchMode === 'duel' || matchMode === 'group'),
-  );
-  const liveMatchDisplayDistanceKm = liveMatchDisplayFrame.distanceKm;
-  const liveMatchDisplayElapsedSeconds = liveMatchDisplayFrame.elapsedSeconds;
   const activeLiveMatchProgressMatchId = useMemo(() => {
     if (matchMode === 'duel') {
       return duelMatchStatus?.matchId
@@ -634,6 +626,39 @@ export function TrackRunExperienceRuntime({
     roomLinkedMatchContext?.matchId,
     roomLinkedMatchContext?.mode,
   ]);
+  const activeForfeitDisplaySnapshot = activeLiveMatchProgressMatchId
+    ? forfeitDisplaySnapshots.get(activeLiveMatchProgressMatchId) ?? null
+    : null;
+  const rawLiveMatchDisplayFrame = useMemo(
+    () => {
+      if (activeForfeitDisplaySnapshot) {
+        return {
+          distanceKm: activeForfeitDisplaySnapshot.distanceKm,
+          elapsedSeconds: activeForfeitDisplaySnapshot.elapsedSeconds,
+          currentPace: activeForfeitDisplaySnapshot.currentPace,
+          averagePace: activeForfeitDisplaySnapshot.averagePace,
+          cadenceSpm,
+          elevationGainM,
+        };
+      }
+
+      return {
+        distanceKm,
+        elapsedSeconds,
+        currentPace,
+        averagePace,
+        cadenceSpm,
+        elevationGainM,
+      };
+    },
+    [activeForfeitDisplaySnapshot, averagePace, cadenceSpm, currentPace, distanceKm, elapsedSeconds, elevationGainM],
+  );
+  const liveMatchDisplayFrame = useAndroidLiveMatchDisplayFrame(
+    rawLiveMatchDisplayFrame,
+    isRunning && (matchMode === 'duel' || matchMode === 'group'),
+  );
+  const liveMatchDisplayDistanceKm = liveMatchDisplayFrame.distanceKm;
+  const liveMatchDisplayElapsedSeconds = liveMatchDisplayFrame.elapsedSeconds;
   const {
     groupLiveStandings,
     currentGroupStanding,
@@ -677,17 +702,44 @@ export function TrackRunExperienceRuntime({
     && !isScreenFocused
   );
   const liveArenaPageWidth = Math.max(windowWidth - 32, 280);
-  const currentUserArenaPace = useMemo(() => resolveCurrentUserArenaPace({
-    officialCurrentAveragePace,
-    liveMatchDisplayDistanceKm,
-    liveMatchDisplayElapsedSeconds,
-    shouldUseLivePace: duelArenaUsesLivePace || groupArenaUsesLivePace,
-  }), [
+  const currentUserArenaPace = useMemo(() => (
+    activeForfeitDisplaySnapshot?.currentUserArenaPace
+      ?? resolveCurrentUserArenaPace({
+        officialCurrentAveragePace,
+        liveMatchDisplayDistanceKm,
+        liveMatchDisplayElapsedSeconds,
+        shouldUseLivePace: duelArenaUsesLivePace || groupArenaUsesLivePace,
+      })
+  ), [
+    activeForfeitDisplaySnapshot?.currentUserArenaPace,
     duelArenaUsesLivePace,
     groupArenaUsesLivePace,
     liveMatchDisplayDistanceKm,
     liveMatchDisplayElapsedSeconds,
     officialCurrentAveragePace,
+  ]);
+  const captureForfeitDisplaySnapshot = useCallback((matchId: string) => {
+    setForfeitDisplaySnapshots((currentSnapshots) => {
+      if (currentSnapshots.has(matchId)) {
+        return currentSnapshots;
+      }
+
+      const nextSnapshots = new Map(currentSnapshots);
+      nextSnapshots.set(matchId, {
+        distanceKm: liveMatchDisplayDistanceKm,
+        elapsedSeconds: liveMatchDisplayElapsedSeconds,
+        currentPace: liveMatchDisplayFrame.currentPace,
+        averagePace: liveMatchDisplayFrame.averagePace,
+        currentUserArenaPace,
+      });
+      return nextSnapshots;
+    });
+  }, [
+    currentUserArenaPace,
+    liveMatchDisplayDistanceKm,
+    liveMatchDisplayElapsedSeconds,
+    liveMatchDisplayFrame.averagePace,
+    liveMatchDisplayFrame.currentPace,
   ]);
   const {
     trackedMatchResult,
@@ -703,10 +755,10 @@ export function TrackRunExperienceRuntime({
     groupLiveStandings,
     currentUserArenaPace,
     currentUserDuelLiveStatus,
-    distanceKm,
+    distanceKm: activeForfeitDisplaySnapshot?.distanceKm ?? distanceKm,
     duelDistanceKm,
     groupDistanceKm,
-    elapsedSeconds,
+    elapsedSeconds: activeForfeitDisplaySnapshot?.elapsedSeconds ?? elapsedSeconds,
   });
   const effectiveDuelOpponentArenaPace = useMemo(
     () => resolveDuelOpponentArenaPace({
@@ -1898,6 +1950,7 @@ export function TrackRunExperienceRuntime({
     loadUpcomingMatches,
     clearLocalForfeitedMatchState,
     markMatchLocallyForfeited,
+    captureForfeitDisplaySnapshot,
   });
 
   const trackRunActionHandlers = useTrackRunRuntimeActions({
