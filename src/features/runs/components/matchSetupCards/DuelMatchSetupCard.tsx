@@ -31,6 +31,8 @@ export function DuelMatchSetupCard({
   reservationLocked,
   canCreateMatch,
   blockingMatchHelperText,
+  forceLeaveStuckMatchError,
+  isForceLeavingStuckMatch,
   expiryCountdownLabel,
   opponent,
   waitingTitle,
@@ -44,6 +46,7 @@ export function DuelMatchSetupCard({
   onSelectTimeSection,
   onSelectSlot,
   onCancelMatch,
+  onForceLeaveStuckMatch,
   onRequestMatch,
   onRequestTestMatch,
   onRequestRematch,
@@ -146,7 +149,10 @@ export function DuelMatchSetupCard({
         reservationLocked={reservationLocked}
         canCreateMatch={canCreateMatch}
         blockingMatchHelperText={blockingMatchHelperText}
+        forceLeaveStuckMatchError={forceLeaveStuckMatchError}
+        isForceLeavingStuckMatch={isForceLeavingStuckMatch}
         onCancelMatch={onCancelMatch}
+        onForceLeaveStuckMatch={onForceLeaveStuckMatch}
         onRequestMatch={onRequestMatch}
         onRequestTestMatch={onRequestTestMatch}
       />

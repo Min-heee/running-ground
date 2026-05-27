@@ -277,6 +277,9 @@ export const matchSetupCardStyles = StyleSheet.create({
     lineHeight: 16,
     textAlign: 'center',
   },
+  matchForceLeaveBlock: {
+    gap: spacing.xxl,
+  },
   matchActionColumn: {
     gap: spacing.xxl,
   },
