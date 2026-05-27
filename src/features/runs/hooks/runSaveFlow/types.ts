@@ -83,6 +83,7 @@ export type UseRunSaveFlowInput = {
   syncLiveSharing: (input: SyncLiveSharingInput) => Promise<unknown>;
   loadUpcomingMatches: () => Promise<unknown>;
   clearLocalForfeitedMatchState: (source: MatchExitSource, matchId: string) => void;
+  markMatchLocallyForfeited: (matchId: string) => void;
 };
 
 export type RunSaveFlowActions = {
