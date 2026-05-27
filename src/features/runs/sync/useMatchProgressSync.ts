@@ -12,7 +12,7 @@ import {
   getBackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background';
 import {
-  recordBackgroundHeartbeatSent,
+  recordBackgroundHeartbeatAttempt,
 } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
@@ -154,6 +154,7 @@ export function useMatchProgressSync({
   const pushRunningMatchProgress = useCallback(async (input: UpdateRunningMatchProgressInput) => {
     const syncedProgress = buildSyncedMatchProgressSnapshot(input);
     const heartbeatKey = buildMatchProgressRegistryKey(input.matchId);
+    recordBackgroundHeartbeatAttempt();
     const heartbeatRequest = runRgHeartbeatSingleFlight(heartbeatKey, async () => {
       const endHeartbeatApiTrace = rgPerfMeasureStart('progress heartbeat API', {
         heartbeatKey,
@@ -181,7 +182,6 @@ export function useMatchProgressSync({
     }
 
     const nextStatus = await heartbeatRequest.promise;
-    recordBackgroundHeartbeatSent();
     callbackRef.current.setLastSyncedMatchProgress(syncedProgress);
 
     if (!firstLiveProgressReceivedRef.current) {

@@ -50,6 +50,36 @@ function formatFailureReason(reason: string | null) {
   return reason.length > 60 ? `${reason.slice(0, 57)}...` : reason;
 }
 
+function formatTaskStatus({
+  attemptCount,
+  failedReason,
+  inFlight,
+  startedAtMs,
+  nowMs,
+}: {
+  attemptCount: number;
+  failedReason: string | null;
+  inFlight: boolean;
+  startedAtMs: number | null;
+  nowMs: number;
+}) {
+  const attemptLabel = `시도 ${attemptCount}회`;
+
+  if (startedAtMs !== null) {
+    return `시작 ${formatAgo(startedAtMs, nowMs)} (${attemptLabel})`;
+  }
+
+  if (inFlight) {
+    return `시도중 (${attemptLabel})`;
+  }
+
+  if (failedReason) {
+    return `실패 (${attemptLabel})`;
+  }
+
+  return attemptCount > 0 ? `미시작 (${attemptLabel})` : '미시작';
+}
+
 export function AndroidLiveMatchPerfPanel({ label }: AndroidLiveMatchPerfPanelProps) {
   const samples = useSyncExternalStore(
     subscribeLiveMatchPerfSamples,
@@ -73,6 +103,13 @@ export function AndroidLiveMatchPerfPanel({ label }: AndroidLiveMatchPerfPanelPr
       ? styles.diagnosisWatch
       : styles.diagnosisStable;
   const taskFailureReason = formatFailureReason(bgDiagnostics.taskFailedReason);
+  const taskStatus = formatTaskStatus({
+    attemptCount: bgDiagnostics.taskStartAttemptCount,
+    failedReason: bgDiagnostics.taskFailedReason,
+    inFlight: bgDiagnostics.taskStartAttemptInFlight,
+    startedAtMs: bgDiagnostics.taskStartedAtMs,
+    nowMs,
+  });
 
   return (
     <View style={styles.panel} pointerEvents="none">
@@ -101,7 +138,7 @@ export function AndroidLiveMatchPerfPanel({ label }: AndroidLiveMatchPerfPanelPr
       <View style={styles.sectionSeparator} />
       <Text style={styles.eyebrow}>BG SYNC</Text>
       <Text style={styles.line}>
-        task {bgDiagnostics.taskStartedAtMs ? `시작 ${formatAgo(bgDiagnostics.taskStartedAtMs, nowMs)}` : '미시작'}
+        task {taskStatus}
       </Text>
       {taskFailureReason ? (
         <Text style={styles.warningLine}>실패 {taskFailureReason}</Text>
@@ -110,7 +147,7 @@ export function AndroidLiveMatchPerfPanel({ label }: AndroidLiveMatchPerfPanelPr
         snapshot {formatAgo(bgDiagnostics.lastSnapshotAtMs, nowMs)}
       </Text>
       <Text style={styles.line}>
-        heartbeat {formatAgo(bgDiagnostics.lastHeartbeatAtMs, nowMs)}
+        heartbeat {formatAgo(bgDiagnostics.lastHeartbeatAtMs, nowMs)} (총 {bgDiagnostics.heartbeatAttemptCount}회)
       </Text>
       <Text style={styles.line}>
         appState {bgDiagnostics.isAppBackground ? '백그라운드' : '포그라운드'}
