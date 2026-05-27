@@ -21,6 +21,7 @@ type UseMatchRuntimeStateInput = {
   trackingStatus: MatchLifecycleTrackingStatus;
   isRunning: boolean;
   isCurrentUserForfeited: boolean;
+  isCurrentUserDoneWithMatch: boolean;
   liveMatchHeavyWorkReady: boolean;
   visiblePartyRunFlow: PartyRunFlowSnapshot;
   matchRoomFlow: PartyRunFlowSnapshot;
@@ -59,6 +60,7 @@ export function useMatchRuntimeState({
   trackingStatus,
   isRunning,
   isCurrentUserForfeited,
+  isCurrentUserDoneWithMatch,
   liveMatchHeavyWorkReady,
   visiblePartyRunFlow,
   matchRoomFlow,
@@ -96,6 +98,7 @@ export function useMatchRuntimeState({
     trackingStatus,
     isRunning,
     isCurrentUserForfeited,
+    isCurrentUserDoneWithMatch,
     liveMatchHeavyWorkReady,
     visiblePartyRunFlow,
     matchRoomFlow,
@@ -118,6 +121,7 @@ export function useMatchRuntimeState({
     groupMatchStatus,
     groupStartCountdownSeconds,
     isCurrentUserForfeited,
+    isCurrentUserDoneWithMatch,
     isRunning,
     liveMatchHeavyWorkReady,
     matchMode,
@@ -153,7 +157,7 @@ export function useMatchRuntimeState({
       && fallbackMatchId
       && matchMode !== 'solo'
       && matchMode !== 'room'
-      && !isCurrentUserForfeited,
+      && !isCurrentUserDoneWithMatch,
     );
     const hasDuelMatchExitTarget = Boolean(
       duelMatchStatus?.matchId
@@ -163,8 +167,8 @@ export function useMatchRuntimeState({
       groupMatchStatus?.matchId
       || roomLinkedMatchContext?.mode === 'group',
     );
-    const selfForfeitedResultSource = (
-      isCurrentUserForfeited
+    const selfDoneResultSource = (
+      isCurrentUserDoneWithMatch
       && hasMatchResultPage
       && isRunning
     )
@@ -176,8 +180,8 @@ export function useMatchRuntimeState({
       : null;
 
     const showLiveArena =
-      (canRenderLiveArena || shouldKeepRunningMatchArena || Boolean(selfForfeitedResultSource))
-      && (!isCurrentUserForfeited || Boolean(selfForfeitedResultSource))
+      (canRenderLiveArena || shouldKeepRunningMatchArena || Boolean(selfDoneResultSource))
+      && (!isCurrentUserDoneWithMatch || Boolean(selfDoneResultSource))
       && (
         isRunning
         || hasMatchResultPage
@@ -191,8 +195,8 @@ export function useMatchRuntimeState({
         ))
       );
 
-    const activeMatchExitSource = selfForfeitedResultSource
-      ?? (isCurrentUserForfeited
+    const activeMatchExitSource = selfDoneResultSource
+      ?? (isCurrentUserDoneWithMatch
         ? null
         : isRunning && matchMode === 'duel'
         ? (
@@ -250,7 +254,7 @@ export function useMatchRuntimeState({
     hasMatchResultPage,
     hasRoomLinkedDuelContext,
     hasRoomLinkedGroupContext,
-    isCurrentUserForfeited,
+    isCurrentUserDoneWithMatch,
     isDuelOpponentForfeited,
     isDuelTestFlow,
     isGroupTestFlow,

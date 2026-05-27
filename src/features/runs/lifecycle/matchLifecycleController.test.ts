@@ -307,6 +307,43 @@ test('linked match active status promotes party runtime after navigation fallbac
   });
 });
 
+test('done participant blocks linked party room from re-entering active live loop', () => {
+  const linkedRoom = room({
+    state: 'active',
+    linkedMatchId: 'match-linked',
+    linkedMatchStatus: 'active',
+    linkedMatchSlotStartAt: '2026-05-14T12:00:20.000Z',
+  });
+  const flow = buildPartyRunFlowSnapshot({
+    room: linkedRoom,
+    isCountdownReady: true,
+    remainingSeconds: 0,
+  });
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'idle',
+    isCurrentUserDoneWithMatch: true,
+    matchRoom: linkedRoom,
+    visibleMatchRoom: linkedRoom,
+    visiblePartyRunFlow: flow,
+    matchRoomFlow: flow,
+    roomLinkedMatchContext: flow.linkedMatchContext,
+    duelMatchState: 'active',
+    duelMatchStatus: status({
+      state: 'active',
+      matchId: 'match-linked',
+      currentUserLiveStatus: 'finished',
+      slotStartAt: '2026-05-14T12:00:20.000Z',
+    }),
+    fallbackMatchId: 'match-linked',
+  }));
+
+  assert.equal(controller.stage, 'finished');
+  assert.equal(controller.effects.shouldPollLinkedMatch, false);
+  assert.equal(controller.effects.shouldRunHeartbeat, false);
+  assert.equal(controller.gps.activeMatch, null);
+});
+
 test('lifecycle controller starts heartbeat only for active running match', () => {
   const controller = buildMatchLifecycleController(baseInput({
     matchMode: 'duel',
@@ -325,7 +362,7 @@ test('lifecycle controller starts heartbeat only for active running match', () =
   assert.equal(controller.effects.shouldRunHeartbeat, true);
 });
 
-test('active match suppresses heartbeat after current user forfeits', () => {
+test('active match becomes finished for current user after forfeit', () => {
   const controller = buildMatchLifecycleController(baseInput({
     matchMode: 'duel',
     trackingStatus: 'running',
@@ -339,7 +376,8 @@ test('active match suppresses heartbeat after current user forfeits', () => {
     }),
   }));
 
-  assert.equal(controller.stage, 'active');
+  assert.equal(controller.stage, 'finished');
+  assert.equal(controller.gps.activeMatch, null);
   assert.equal(controller.effects.shouldRunHeartbeat, false);
 });
 

@@ -5,6 +5,7 @@ type TrackRunLiveShellGateInput = {
   focusMatchId?: string | null;
   forceMatchArena?: boolean | null;
   hydratedMatchId?: string | null;
+  isCurrentUserDoneWithMatch?: boolean;
   matchLifecycleStage?: MatchLifecycleStage | null;
   requestedShell: TrackRunShellKind;
   requestedShouldShowReadyScreen: boolean;
@@ -30,6 +31,7 @@ export function resolveTrackRunLiveShellGate({
   focusMatchId,
   forceMatchArena,
   hydratedMatchId,
+  isCurrentUserDoneWithMatch = false,
   matchLifecycleStage,
   requestedShell,
   requestedShouldShowReadyScreen,
@@ -38,8 +40,12 @@ export function resolveTrackRunLiveShellGate({
   showLiveArena,
 }: TrackRunLiveShellGateInput): TrackRunLiveShellGateDecision {
   const routeMatchId = focusMatchId ?? hydratedMatchId ?? null;
-  const shouldForceLiveShell = Boolean(routeMatchId && routeShellHint === 'live');
+  const hasLiveRouteHint = Boolean(routeMatchId && routeShellHint === 'live');
+  const shouldBlockDoneLiveRoute = Boolean(isCurrentUserDoneWithMatch && hasLiveRouteHint);
+  const shouldForceLiveShell = Boolean(!isCurrentUserDoneWithMatch && hasLiveRouteHint);
   const shouldForceLiveArena = Boolean(
+    !isCurrentUserDoneWithMatch
+    &&
     routeMatchId
     && (
       showLiveArena
@@ -48,9 +54,11 @@ export function resolveTrackRunLiveShellGate({
       || (shouldForceLiveShell && isLiveLifecycleStage(matchLifecycleStage))
     ),
   );
-  const blockedReason = shouldForceLiveShell && requestedShell !== 'live'
-    ? `${requestedShell}-shell-would-block-live-route`
-    : null;
+  const blockedReason = shouldBlockDoneLiveRoute
+    ? 'current-user-done-with-match'
+    : shouldForceLiveShell && requestedShell !== 'live'
+      ? `${requestedShell}-shell-would-block-live-route`
+      : null;
 
   return {
     blockedReason,
