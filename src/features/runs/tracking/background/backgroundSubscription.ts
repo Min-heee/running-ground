@@ -4,6 +4,7 @@ import {
   BACKGROUND_LOCATION_TASK_NAMES,
 } from '@/features/runs/tracking/background/locationTaskNames';
 import {
+  recordBackgroundTaskAttempt,
   recordBackgroundTaskFailed,
   recordBackgroundTaskStarted,
 } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
@@ -42,13 +43,16 @@ async function runBackgroundLocationTaskStart(startGeneration: number) {
     rgPerfMark('background task start canceled before native call', {
       taskName: BACKGROUND_RUN_TASK_NAME,
     });
+    recordBackgroundTaskFailed('background task start canceled before native call');
     return false;
   }
 
   const started = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_RUN_TASK_NAME);
 
   if (isStaleBackgroundTaskStart(startGeneration)) {
-    markStaleBackgroundTaskStart('generation changed before native start');
+    const reason = 'generation changed before native start';
+    markStaleBackgroundTaskStart(reason);
+    recordBackgroundTaskFailed(reason);
     return false;
   }
 
@@ -66,7 +70,9 @@ async function runBackgroundLocationTaskStart(startGeneration: number) {
     await Location.startLocationUpdatesAsync(BACKGROUND_RUN_TASK_NAME, buildLocationTaskOptions());
 
     if (isStaleBackgroundTaskStart(startGeneration)) {
-      markStaleBackgroundTaskStart('generation changed after native start');
+      const reason = 'generation changed after native start';
+      markStaleBackgroundTaskStart(reason);
+      recordBackgroundTaskFailed(reason);
       await stopBackgroundLocationTaskByName(BACKGROUND_RUN_TASK_NAME);
       return false;
     }
@@ -134,11 +140,18 @@ export async function startBackgroundLocationTaskIfNeeded() {
   shouldKeepBackgroundLocationTask = true;
 
   if (backgroundLocationTaskKnownStarted) {
+    recordBackgroundTaskStarted();
     rgPerfMark('background task start skipped already started', {
       taskName: BACKGROUND_RUN_TASK_NAME,
     });
     return true;
   }
+
+  recordBackgroundTaskAttempt();
+  rgPerfMark('bg task: attempting start', {
+    alreadyStarting: Boolean(backgroundLocationTaskStartPromise),
+    taskName: BACKGROUND_RUN_TASK_NAME,
+  });
 
   if (backgroundLocationTaskStartPromise) {
     rgPerfMark('background task start skipped already starting', {
