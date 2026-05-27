@@ -19,19 +19,34 @@ export function getRunningMatchBlockerFromError(error: unknown) {
     blockerDetails?: unknown;
     blockerSource?: unknown;
     code?: unknown;
+    matchId?: unknown;
     message?: unknown;
     roomId?: unknown;
   };
   const blocker = typeof details.blocker === 'string' ? details.blocker : null;
   const blockerSource = typeof details.blockerSource === 'string' ? details.blockerSource : null;
   const blockerDetails = details.blockerDetails && typeof details.blockerDetails === 'object'
-    ? details.blockerDetails as { roomId?: unknown }
+    ? details.blockerDetails as {
+      linkedMatchId?: unknown;
+      matchId?: unknown;
+      roomId?: unknown;
+      sessionId?: unknown;
+    }
     : null;
   const roomId = typeof details.roomId === 'string'
     ? details.roomId
     : typeof blockerDetails?.roomId === 'string'
       ? blockerDetails.roomId
       : null;
+  const matchId = typeof details.matchId === 'string'
+    ? details.matchId
+    : typeof blockerDetails?.matchId === 'string'
+      ? blockerDetails.matchId
+      : typeof blockerDetails?.linkedMatchId === 'string'
+        ? blockerDetails.linkedMatchId
+        : typeof blockerDetails?.sessionId === 'string'
+          ? blockerDetails.sessionId
+          : null;
 
   if (!blocker && !blockerSource) {
     return null;
@@ -41,6 +56,7 @@ export function getRunningMatchBlockerFromError(error: unknown) {
     blocker,
     blockerSource,
     code: typeof details.code === 'string' ? details.code : null,
+    matchId,
     message: typeof details.message === 'string' ? details.message : error.userMessage,
     roomId,
   };

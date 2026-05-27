@@ -31,9 +31,37 @@ test('running match blocker details are detected from API errors', () => {
     blocker: 'activeRoom',
     blockerSource: 'matchRooms.participant',
     code: null,
+    matchId: null,
     message: '이미 참여 중인 방이 있어요.',
     roomId: 'duel-room-deleted',
   });
+});
+
+test('running match blocker extracts match ids from blocker details', () => {
+  const sessionError = new ApiError('request', '이미 참여 중인 매치가 있어요.', {
+    details: {
+      blocker: 'matchSession',
+      blockerDetails: {
+        sessionId: 'match-session-1',
+      },
+      blockerSource: 'matchSessions.activeParticipant',
+      message: '이미 참여 중인 매치가 있어요.',
+    },
+  });
+  const linkedRoomError = new ApiError('request', '이미 참여 중인 방이 있어요.', {
+    details: {
+      blocker: 'activeRoom',
+      blockerDetails: {
+        linkedMatchId: 'linked-match-1',
+        roomId: 'room-1',
+      },
+      blockerSource: 'matchRooms.participant',
+      message: '이미 참여 중인 방이 있어요.',
+    },
+  });
+
+  assert.equal(getRunningMatchBlockerFromError(sessionError)?.matchId, 'match-session-1');
+  assert.equal(getRunningMatchBlockerFromError(linkedRoomError)?.matchId, 'linked-match-1');
 });
 
 test('non-blocker API errors do not trigger stale cleanup retry', () => {
