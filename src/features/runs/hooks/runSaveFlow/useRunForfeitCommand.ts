@@ -1,10 +1,11 @@
-import { Alert } from 'react-native';
+import { router } from 'expo-router';
 import {
   markDuelStatusForfeited,
   markGroupStatusForfeited,
   resolveMatchExitId,
   type MatchExitSource,
 } from '@/features/runs/lifecycle/matchExitFlow';
+import { buildRunDetailRedirect } from '@/features/runs/lifecycle/runSaveNavigation';
 import { getApiErrorMessage, leaveRunningMatch } from '@/services';
 import type { SaveTrackingOptions } from '@/features/runs/hooks/useRunTracking';
 import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
@@ -17,6 +18,7 @@ type UseRunForfeitCommandInput = Pick<
   | 'duelMatchStatus'
   | 'groupMatchNotice'
   | 'groupMatchStatus'
+  | 'isTabMode'
   | 'loadUpcomingMatches'
   | 'markMatchLocallyForfeited'
   | 'matchProgressHeartbeatRef'
@@ -35,16 +37,13 @@ type UseRunForfeitCommandInput = Pick<
   setMatchLeaving: (source: MatchExitSource, isLeaving: boolean) => void;
 };
 
-function showForfeitResultButtonDiagnosticAlert(title: string, message: string) {
-  Alert.alert(title, message);
-}
-
 export function useRunForfeitCommand({
   duelMatchNotice,
   duelMatchStatus,
   groupMatchNotice,
   groupMatchStatus,
   handleSaveTracking,
+  isTabMode,
   isSaving,
   loadUpcomingMatches,
   markMatchLocallyForfeited,
@@ -151,42 +150,27 @@ export function useRunForfeitCommand({
   };
 
   const handleShowResultAfterCounterpartForfeit = async (source: MatchExitSource) => {
-    showForfeitResultButtonDiagnosticAlert(
-      '진단: 결과보기 버튼 진입',
-      [
-        `source=${source}`,
-        `pendingCounterpartForfeitResultRef.current=${pendingCounterpartForfeitResultRef.current}`,
-        `isSaving=${isSaving}`,
-        `status=${status}`,
-      ].join('\n'),
-    );
-
     if (pendingCounterpartForfeitResultRef.current || isSaving || status !== 'running') {
-      showForfeitResultButtonDiagnosticAlert(
-        '진단: 가드 차단',
-        [
-          `pending=${pendingCounterpartForfeitResultRef.current}`,
-          `isSaving=${isSaving}`,
-          `status=${status}`,
-        ].join('\n'),
-      );
       return;
     }
 
     rgPerfMark('counterpart forfeit result action dispatch', { source });
     pendingCounterpartForfeitResultRef.current = true;
     setMatchLeaving(source, true);
+    let savedRunId: string | null = null;
 
     try {
-      showForfeitResultButtonDiagnosticAlert('진단: handleSaveTracking 시작', `source=${source}`);
-      await handleSaveTracking({ exitIfUnsavable: true });
-      showForfeitResultButtonDiagnosticAlert('진단: handleSaveTracking 완료', `source=${source}`);
-    } catch (error) {
-      showForfeitResultButtonDiagnosticAlert(
-        '진단: handleSaveTracking 실패',
-        error instanceof Error ? error.message : String(error),
-      );
-      throw error;
+      const didSave = await handleSaveTracking({
+        exitIfUnsavable: true,
+        onSavedRun: (runId) => {
+          savedRunId = runId;
+        },
+        resetAfterSave: true,
+      });
+
+      if (didSave && savedRunId) {
+        router.replace(buildRunDetailRedirect({ runId: savedRunId, isTabMode }));
+      }
     } finally {
       pendingCounterpartForfeitResultRef.current = false;
       setMatchLeaving(source, false);
