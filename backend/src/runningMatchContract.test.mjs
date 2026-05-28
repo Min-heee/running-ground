@@ -733,9 +733,7 @@ await runTest('force reset clears linked room blockers and allows a new room', a
     assert.equal(hostRoom.room, null);
 
     const guestRoom = await request('guest-token', 'GET', '/api/running/rooms/my');
-    assert.equal(guestRoom.room.roomId, 'linked-blocked-room');
-    assert.equal(guestRoom.room.hostUserId, 'guest-user');
-    assert.equal(guestRoom.room.participants.some((participant) => participant.userId === 'host-user'), false);
+    assert.equal(guestRoom.room, null);
 
     const hostStatus = await request('host-token', 'POST', '/api/running/matches/status', {
       mode: 'duel',
@@ -743,7 +741,8 @@ await runTest('force reset clears linked room blockers and allows a new room', a
       slotStartAt,
       matchId: 'linked-blocked-match',
     });
-    assert.equal(hostStatus.currentUserLiveStatus, 'forfeited');
+    assert.equal(hostStatus.matchId, undefined);
+    assert.equal(hostStatus.state, 'idle');
 
     const created = await request('host-token', 'POST', '/api/running/rooms', {
       mode: 'duel',
@@ -898,6 +897,27 @@ await runTest('match progress uploads feed official comparison and forfeit state
     });
     assert.equal(afterForfeit.opponent.liveStatus, 'forfeited');
     assert.equal(afterForfeit.currentUserLiveStatus, 'running');
+  });
+});
+
+await runTest('duel forfeit resolves active session when the opponent never started', async () => {
+  const { store } = createActiveDuelStore();
+
+  await withBackend(store, async ({ request }) => {
+    const forfeitResult = await request('guest-token', 'POST', '/api/running/matches/leave', {
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(forfeitResult.success, true);
+
+    const created = await request('host-token', 'POST', '/api/running/rooms', {
+      mode: 'duel',
+      distanceKm: 5,
+      startMode: 'host',
+      maxParticipants: 2,
+    });
+    assert.equal(created.success, true);
+    assert.equal(created.room.mode, 'duel');
+    assert.equal(created.room.hostUserId, 'host-user');
   });
 });
 

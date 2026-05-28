@@ -74,7 +74,31 @@ export function useRunForfeitCommand({
     };
   };
 
-  const forfeitMatchAndKeepRunning = async (source: MatchExitSource) => {
+  const saveForfeitResultAndNavigate = async (source: MatchExitSource, matchId: string | null) => {
+    let savedRunId: string | null = null;
+    const didSave = await handleSaveTracking({
+      // Forfeit can happen before 0.1km; require a real route, but don't block solely on short distance.
+      allowShortDistanceSave: true,
+      exitIfUnsavable: true,
+      onSavedRun: (runId) => {
+        savedRunId = runId;
+      },
+      resetAfterSave: true,
+    });
+
+    if (didSave && matchId) {
+      clearLocalForfeitedMatchState(source, matchId);
+    }
+
+    if (didSave && savedRunId) {
+      const redirect = buildRunDetailRedirect({ runId: savedRunId, isTabMode });
+      router.replace(redirect);
+    } else {
+      router.back();
+    }
+  };
+
+  const forfeitMatchAndEndRun = async (source: MatchExitSource) => {
     setError(null);
     const previousDuelStatus = duelMatchStatus;
     const previousGroupStatus = groupMatchStatus;
@@ -92,7 +116,7 @@ export function useRunForfeitCommand({
       return;
     }
 
-    if (pendingForfeitMatchRef.current === matchId) {
+    if (pendingForfeitMatchRef.current === matchId || isSaving) {
       return;
     }
 
@@ -117,20 +141,23 @@ export function useRunForfeitCommand({
       source,
     });
     let forfeitApiTraceCompleted = false;
+    let didLeaveMatch = false;
 
     try {
       if (source === 'duel') {
         setDuelMatchStatus((currentStatus) => markDuelStatusForfeited(currentStatus, matchId));
-        setDuelMatchNotice('기권 처리됐어요. 결과를 확인한 뒤 기록을 저장할 수 있어요.');
+        setDuelMatchNotice('기권 처리됐어요. 지금까지 기록을 저장하고 결과 화면으로 이동해요.');
         await leaveRunningMatch({ matchId });
+        didLeaveMatch = true;
         markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
         forfeitApiTraceCompleted = true;
         endForfeitApiTrace({ success: true });
         matchProgressHeartbeatRef.current = Date.now();
       } else {
         setGroupMatchStatus((currentStatus) => markGroupStatusForfeited(currentStatus, matchId));
-        setGroupMatchNotice('기권 처리됐어요. 결과를 확인한 뒤 기록을 저장할 수 있어요.');
+        setGroupMatchNotice('기권 처리됐어요. 지금까지 기록을 저장하고 결과 화면으로 이동해요.');
         await leaveRunningMatch({ matchId });
+        didLeaveMatch = true;
         markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
         forfeitApiTraceCompleted = true;
         endForfeitApiTrace({ success: true });
@@ -138,14 +165,16 @@ export function useRunForfeitCommand({
       }
 
       void loadUpcomingMatches().catch(() => {});
-      // Stay on the result view. Saving/resetting is now only triggered by the explicit result action.
+      await saveForfeitResultAndNavigate(source, matchId);
     } catch (matchError) {
-      if (source === 'duel') {
-        setDuelMatchStatus(previousDuelStatus);
-        setDuelMatchNotice(previousDuelNotice);
-      } else {
-        setGroupMatchStatus(previousGroupStatus);
-        setGroupMatchNotice(previousGroupNotice);
+      if (!didLeaveMatch) {
+        if (source === 'duel') {
+          setDuelMatchStatus(previousDuelStatus);
+          setDuelMatchNotice(previousDuelNotice);
+        } else {
+          setGroupMatchStatus(previousGroupStatus);
+          setGroupMatchNotice(previousGroupNotice);
+        }
       }
       if (!forfeitApiTraceCompleted) {
         endForfeitApiTrace({ success: false });
@@ -161,7 +190,7 @@ export function useRunForfeitCommand({
 
   const handleForfeitMatch = (source: MatchExitSource) => {
     rgPerfMark('forfeit action dispatch', { source });
-    void forfeitMatchAndKeepRunning(source);
+    void forfeitMatchAndEndRun(source);
   };
 
   const handleShowResultAfterCounterpartForfeit = async (source: MatchExitSource) => {
@@ -172,7 +201,6 @@ export function useRunForfeitCommand({
     rgPerfMark('counterpart forfeit result action dispatch', { source });
     pendingCounterpartForfeitResultRef.current = true;
     setMatchLeaving(source, true);
-    let savedRunId: string | null = null;
     const matchId = resolveMatchExitId({
       source,
       duelMatchId: duelMatchStatus?.matchId,
@@ -181,26 +209,7 @@ export function useRunForfeitCommand({
     });
 
     try {
-      const didSave = await handleSaveTracking({
-        // Forfeit can happen before 0.1km; require a real route, but don't block solely on short distance.
-        allowShortDistanceSave: true,
-        exitIfUnsavable: true,
-        onSavedRun: (runId) => {
-          savedRunId = runId;
-        },
-        resetAfterSave: true,
-      });
-
-      if (didSave && matchId) {
-        clearLocalForfeitedMatchState(source, matchId);
-      }
-
-      if (didSave && savedRunId) {
-        const redirect = buildRunDetailRedirect({ runId: savedRunId, isTabMode });
-        router.replace(redirect);
-      } else {
-        router.back();
-      }
+      await saveForfeitResultAndNavigate(source, matchId);
     } finally {
       pendingCounterpartForfeitResultRef.current = false;
       setMatchLeaving(source, false);
@@ -208,7 +217,7 @@ export function useRunForfeitCommand({
   };
 
   return {
-    forfeitMatchAndKeepRunning,
+    forfeitMatchAndEndRun,
     handleForfeitMatch,
     handleShowResultAfterCounterpartForfeit,
   };

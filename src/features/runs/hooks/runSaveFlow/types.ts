@@ -93,7 +93,7 @@ export type RunSaveFlowActions = {
   handleSaveTracking: (options?: SaveTrackingOptions) => Promise<boolean>;
   leaveMatchAndContinueSolo: (source: MatchExitSource, options?: ContinueSoloOptions) => Promise<void>;
   handleContinueSoloFromMatch: (source: MatchExitSource) => void;
-  forfeitMatchAndKeepRunning: (source: MatchExitSource) => Promise<void>;
+  forfeitMatchAndEndRun: (source: MatchExitSource) => Promise<void>;
   handleForfeitMatch: (source: MatchExitSource) => void;
   handleShowResultAfterCounterpartForfeit: (source: MatchExitSource) => Promise<void>;
 };
