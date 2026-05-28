@@ -764,7 +764,7 @@ await runTest('force reset clears linked room blockers and allows a new room', a
     },
   ];
 
-  await withBackend(store, async ({ request, requestRaw }) => {
+  await withBackend(store, async ({ request, requestRaw, readStore }) => {
     const leaveAttempt = await requestRaw('host-token', 'POST', '/api/running/rooms/leave', {
       roomId: 'linked-blocked-room',
     });
@@ -781,11 +781,14 @@ await runTest('force reset clears linked room blockers and allows a new room', a
     assert.equal(reset.cleanedItems.includes('user.activeRoomId'), true);
     assert.equal(reset.cleanedItems.includes('user.activeMatchId'), true);
 
+    const persistedAfterReset = readStore();
+    assert.equal(persistedAfterReset.matchSessions.some((session) => session.id === 'linked-blocked-match'), true);
+
     const hostRoom = await request('host-token', 'GET', '/api/running/rooms/my');
     assert.equal(hostRoom.room, null);
 
     const guestRoom = await request('guest-token', 'GET', '/api/running/rooms/my');
-    assert.equal(guestRoom.room, null);
+    assert.equal(guestRoom.room.linkedMatchId, 'linked-blocked-match');
 
     const hostStatus = await request('host-token', 'POST', '/api/running/matches/status', {
       mode: 'duel',
@@ -793,8 +796,19 @@ await runTest('force reset clears linked room blockers and allows a new room', a
       slotStartAt,
       matchId: 'linked-blocked-match',
     });
-    assert.equal(hostStatus.matchId, undefined);
-    assert.equal(hostStatus.state, 'idle');
+    assert.equal(hostStatus.matchId, 'linked-blocked-match');
+    assert.equal(hostStatus.currentUserLiveStatus, 'forfeited');
+    assert.equal(hostStatus.opponent.liveStatus, 'ready');
+
+    const guestStatus = await request('guest-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: 'linked-blocked-match',
+    });
+    assert.equal(guestStatus.matchId, 'linked-blocked-match');
+    assert.equal(guestStatus.currentUserLiveStatus, 'ready');
+    assert.equal(guestStatus.opponent.liveStatus, 'forfeited');
 
     const created = await request('host-token', 'POST', '/api/running/rooms', {
       mode: 'duel',
@@ -952,28 +966,41 @@ await runTest('match progress uploads feed official comparison and forfeit state
   });
 });
 
-await runTest('duel forfeit resolves active session when the opponent never started', async () => {
-  const { store } = createActiveDuelStore();
+await runTest('duel forfeit keeps active session when the opponent never started', async () => {
+  const { store, slotStartAt } = createActiveDuelStore();
 
-  await withBackend(store, async ({ request }) => {
+  await withBackend(store, async ({ request, readStore }) => {
     const forfeitResult = await request('guest-token', 'POST', '/api/running/matches/leave', {
       matchId: 'duel-contract-match',
     });
     assert.equal(forfeitResult.success, true);
 
-    const created = await request('host-token', 'POST', '/api/running/rooms', {
+    const persistedAfterForfeit = readStore();
+    assert.equal(persistedAfterForfeit.matchSessions.some((session) => session.id === 'duel-contract-match'), true);
+
+    const hostStatus = await request('host-token', 'POST', '/api/running/matches/status', {
       mode: 'duel',
       distanceKm: 5,
-      startMode: 'host',
-      maxParticipants: 2,
+      slotStartAt,
+      matchId: 'duel-contract-match',
     });
-    assert.equal(created.success, true);
-    assert.equal(created.room.mode, 'duel');
-    assert.equal(created.room.hostUserId, 'host-user');
+    assert.equal(hostStatus.state, 'active');
+    assert.equal(hostStatus.currentUserLiveStatus, 'ready');
+    assert.equal(hostStatus.opponent.liveStatus, 'forfeited');
+
+    const hostProgress = await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 0.2,
+      elapsedSeconds: 95,
+      currentPace: '06:10/km',
+      status: 'running',
+    });
+    assert.equal(hostProgress.currentUserLiveStatus, 'running');
+    assert.equal(hostProgress.opponent.liveStatus, 'forfeited');
   });
 });
 
-await runTest('duel forfeit removes a linked room when the opponent never started', async () => {
+await runTest('duel forfeit keeps a linked room when the opponent never started', async () => {
   const { store, slotStartAt } = createActiveDuelStore();
   addLinkedDuelRoom(store, { slotStartAt });
 
@@ -984,8 +1011,17 @@ await runTest('duel forfeit removes a linked room when the opponent never starte
     assert.equal(forfeitResult.success, true);
 
     const persisted = readStore();
-    assert.equal(persisted.matchSessions.some((session) => session.id === 'duel-contract-match'), false);
-    assert.equal(persisted.matchRooms.some((room) => room.linkedMatchId === 'duel-contract-match'), false);
+    assert.equal(persisted.matchSessions.some((session) => session.id === 'duel-contract-match'), true);
+    assert.equal(persisted.matchRooms.some((room) => room.linkedMatchId === 'duel-contract-match'), true);
+
+    const hostStatus = await request('host-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(hostStatus.currentUserLiveStatus, 'ready');
+    assert.equal(hostStatus.opponent.liveStatus, 'forfeited');
   });
 });
 
