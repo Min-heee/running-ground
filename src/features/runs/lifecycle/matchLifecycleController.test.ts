@@ -307,6 +307,29 @@ test('linked match active status promotes party runtime after navigation fallbac
   });
 });
 
+test('active linked context keeps polling even when lifecycle stage is still waiting', () => {
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    matchRoom: room({ state: 'waiting' }),
+    visibleMatchRoom: null,
+    visiblePartyRunFlow: buildPartyRunFlowSnapshot({ room: null }),
+    matchRoomFlow: buildPartyRunFlowSnapshot({ room: null }),
+    roomLinkedMatchContext: {
+      mode: 'duel',
+      matchId: 'match-linked',
+      slotStartAt: '2026-05-14T12:00:20.000Z',
+      distanceKm: 5,
+      state: 'active',
+    },
+  }));
+
+  assert.equal(controller.stage, 'waiting');
+  assert.equal(controller.source, 'party-room');
+  assert.equal(controller.matchId, 'match-linked');
+  assert.equal(controller.effects.shouldPollLinkedMatch, true);
+  assert.equal(controller.effects.shouldPollDirectMatchStatus, false);
+});
+
 test('lifecycle controller starts heartbeat only for active running match', () => {
   const controller = buildMatchLifecycleController(baseInput({
     matchMode: 'duel',

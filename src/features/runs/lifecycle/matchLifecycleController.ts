@@ -284,7 +284,16 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
     ?? input.fallbackMatchId
     ?? null;
   const isCompetitiveMode = mode === 'duel' || mode === 'group';
-  const shouldPollLinkedMatch = Boolean(roomLinkedContext && (stage === 'arming' || stage === 'countdown' || stage === 'active'));
+  const shouldPollLinkedMatch = Boolean(
+    roomLinkedContext
+    && (
+      stage === 'arming'
+      || stage === 'countdown'
+      || stage === 'active'
+      || roomLinkedContext.state === 'matched'
+      || roomLinkedContext.state === 'active'
+    ),
+  );
   const shouldPollRoom = Boolean(partyRoom && !partyRoom.linkedMatchId && stage !== 'waiting');
   const shouldNavigateLinkedMatch = Boolean(
     partyRoom
