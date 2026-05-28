@@ -77,7 +77,7 @@ export function useRunSaveCommand({
         allowShortDistanceSave: Boolean(options.allowShortDistanceSave),
         displayedSnapshot,
         totalSteps: totalStepsRef.current,
-        trackedMatchResult,
+        trackedMatchResult: options.matchResultOverride ?? trackedMatchResult,
       });
       syncElapsedSeconds(saveSnapshot.finalElapsedSeconds);
 

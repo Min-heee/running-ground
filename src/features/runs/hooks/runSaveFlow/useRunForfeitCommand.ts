@@ -10,6 +10,7 @@ import { getApiErrorMessage, leaveRunningMatch } from '@/services';
 import type { SaveTrackingOptions } from '@/features/runs/hooks/useRunTracking';
 import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+import { buildCurrentUserForfeitMatchResult } from './runSaveResultMapper';
 import type { UseRunSaveFlowInput } from './types';
 
 type UseRunForfeitCommandInput = Pick<
@@ -33,6 +34,7 @@ type UseRunForfeitCommandInput = Pick<
   | 'setGroupMatchNotice'
   | 'setGroupMatchStatus'
   | 'status'
+  | 'trackedMatchResult'
 > & {
   handleSaveTracking: (options?: SaveTrackingOptions) => Promise<boolean>;
   isSaving: boolean;
@@ -62,6 +64,7 @@ export function useRunForfeitCommand({
   setGroupMatchStatus,
   setMatchLeaving,
   status,
+  trackedMatchResult,
 }: UseRunForfeitCommandInput) {
   const buildForfeitRunDetailRedirect = (
     source: MatchExitSource,
@@ -95,19 +98,31 @@ export function useRunForfeitCommand({
     };
   };
 
-  const saveForfeitResultAndNavigate = async (source: MatchExitSource, matchId: string | null) => {
+  const saveForfeitResultAndNavigate = async (
+    source: MatchExitSource,
+    matchId: string | null,
+    options: { currentUserForfeited?: boolean } = {},
+  ) => {
     let savedRunId: string | null = null;
+    const displayedSnapshot = options.currentUserForfeited ? getDisplayedTrackingSnapshot() : null;
     const didSave = await handleSaveTracking({
       // Forfeit can happen before 0.1km; require a real route, but don't block solely on short distance.
       allowShortDistanceSave: true,
       exitIfUnsavable: true,
+      matchResultOverride: options.currentUserForfeited && displayedSnapshot
+        ? buildCurrentUserForfeitMatchResult({
+            currentDistanceKm: displayedSnapshot.distanceKm,
+            mode: source,
+            trackedMatchResult,
+          })
+        : undefined,
       onSavedRun: (runId) => {
         savedRunId = runId;
       },
       resetAfterSave: true,
     });
 
-    if (didSave && matchId) {
+    if (didSave && matchId && !options.currentUserForfeited) {
       clearLocalForfeitedMatchState(source, matchId);
     }
 
@@ -186,7 +201,7 @@ export function useRunForfeitCommand({
       }
 
       void loadUpcomingMatches().catch(() => {});
-      await saveForfeitResultAndNavigate(source, matchId);
+      await saveForfeitResultAndNavigate(source, matchId, { currentUserForfeited: true });
     } catch (matchError) {
       if (!didLeaveMatch) {
         if (source === 'duel') {

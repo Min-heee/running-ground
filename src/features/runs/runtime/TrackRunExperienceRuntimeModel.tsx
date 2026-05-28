@@ -371,6 +371,7 @@ export function TrackRunExperienceRuntime({
   const forfeitedMatchIdsRef = useRef<Set<string>>(new Set());
   const [locallyForfeitedMatches, setLocallyForfeitedMatches] = useState<ReadonlyMap<string, ForfeitedMatchSnapshot>>(() => new Map());
   const markMatchLocallyForfeited = useCallback((snapshot: ForfeitedMatchSnapshot) => {
+    forfeitedMatchIdsRef.current.add(snapshot.matchId);
     setLocallyForfeitedMatches((currentSnapshots) => {
       if (currentSnapshots.has(snapshot.matchId)) {
         return currentSnapshots;

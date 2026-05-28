@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildRunSaveResultSnapshot } from './runSaveResultMapper';
+import {
+  buildCurrentUserForfeitMatchResult,
+  buildRunSaveResultSnapshot,
+} from './runSaveResultMapper';
 import type { DisplayedTrackingSnapshot } from './types';
 
 function snapshot(overrides?: Partial<DisplayedTrackingSnapshot>): DisplayedTrackingSnapshot {
@@ -63,6 +66,53 @@ test('run save result mapper can allow short forfeit distance with a real route'
   assert.equal(result.createRunInput.distanceKm, 0.05);
   assert.equal(result.createRunInput.durationSeconds, 90);
   assert.equal(result.createRunInput.pace, '30:00/km');
+});
+
+test('current user forfeit match result always stores duel loss even when distance is ahead', () => {
+  const result = buildCurrentUserForfeitMatchResult({
+    currentDistanceKm: 0.08,
+    mode: 'duel',
+    trackedMatchResult: {
+      mode: 'duel',
+      title: '상대를 이겼어요',
+      summary: '0.03km 차이로 앞서 마무리했어요.',
+      badgeLabel: '승리',
+      opponentName: '상대',
+      resultTone: 'win',
+      gapKm: 0.03,
+      comparedDistanceKm: 0.05,
+    },
+  });
+
+  assert.equal(result.mode, 'duel');
+  assert.equal(result.resultTone, 'lose');
+  assert.equal(result.badgeLabel, '기권 패');
+  assert.match(result.title, /기권/);
+  assert.match(result.summary, /기권 패/);
+  assert.equal(result.opponentName, '상대');
+});
+
+test('forfeit override can be persisted through the save payload', () => {
+  const forfeitResult = buildCurrentUserForfeitMatchResult({
+    currentDistanceKm: 0.05,
+    mode: 'duel',
+    trackedMatchResult: {
+      mode: 'duel',
+      title: '상대를 이겼어요',
+      summary: '앞서 있었어요.',
+      badgeLabel: '승리',
+      resultTone: 'win',
+    },
+  });
+  const result = buildRunSaveResultSnapshot({
+    allowShortDistanceSave: true,
+    displayedSnapshot: snapshot({ distanceKm: 0.05, elapsedSeconds: 90 }),
+    totalSteps: 10,
+    trackedMatchResult: forfeitResult,
+  });
+
+  assert.equal(result.createRunInput.matchResult?.resultTone, 'lose');
+  assert.equal(result.createRunInput.matchResult?.badgeLabel, '기권 패');
 });
 
 test('run save result mapper rejects missing pace calculation', () => {

@@ -15,6 +15,42 @@ export type RunSaveResultSnapshot = {
   startedAt: string;
 };
 
+export function buildCurrentUserForfeitMatchResult({
+  currentDistanceKm,
+  mode,
+  trackedMatchResult,
+}: {
+  currentDistanceKm: number;
+  mode: 'duel' | 'group';
+  trackedMatchResult?: RunMatchResult | null;
+}): RunMatchResult {
+  const base = trackedMatchResult?.mode === mode ? trackedMatchResult : null;
+
+  if (mode === 'duel') {
+    return {
+      ...(base ?? {}),
+      mode,
+      title: '기권으로 대결을 마쳤어요',
+      summary: `내 기록은 ${currentDistanceKm.toFixed(2)}km로 저장되고, 대결 전적은 기권 패로 남아요.`,
+      badgeLabel: '기권 패',
+      resultTone: 'lose',
+    };
+  }
+
+  const participantCount = base?.participantCount ?? 1;
+  const rank = base?.rank ?? participantCount;
+
+  return {
+    ...(base ?? {}),
+    mode,
+    title: '기권으로 그룹 대결을 마쳤어요',
+    summary: `${participantCount}명 중 ${rank}위로 정리되고, 지금까지 측정한 기록은 저장돼요.`,
+    badgeLabel: '기권',
+    rank,
+    participantCount,
+  };
+}
+
 export function buildRunSaveResultSnapshot({
   allowShortDistanceSave = false,
   displayedSnapshot,

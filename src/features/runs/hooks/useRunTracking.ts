@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
-import { RunRoutePoint } from '@/domain';
+import type { RunMatchResult, RunRoutePoint } from '@/domain';
 import { buildAveragePace } from '@/features/runs/tracking';
 import { type LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
 import { type OfficialStartBaseline } from '@/features/runs/tracking/trackingSession';
@@ -10,6 +10,7 @@ export type TrackerStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving
 export type SaveTrackingOptions = {
   allowShortDistanceSave?: boolean;
   exitIfUnsavable?: boolean;
+  matchResultOverride?: RunMatchResult | null;
   onSavedRun?: (runId: string) => void;
   resetAfterSave?: boolean;
 };
