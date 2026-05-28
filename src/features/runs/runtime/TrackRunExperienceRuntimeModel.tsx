@@ -150,6 +150,10 @@ function isRunningMatchForceResetCandidate(message: string | null) {
   );
 }
 
+function isTerminalMatchLiveStatus(status: RunningMatchStatusResponse['currentUserLiveStatus'] | null | undefined) {
+  return status === 'forfeited' || status === 'finished';
+}
+
 export function TrackRunExperienceRuntime({
   mode,
   focusMatchMode,
@@ -529,6 +533,28 @@ export function TrackRunExperienceRuntime({
     visiblePartyRunFlow,
   }), [matchRoom, matchRoomFlow, visibleMatchRoom, visiblePartyRunFlow]);
   const roomLinkedMatchContext = partyRunRuntimeSource.linkedMatchContext;
+  const roomLinkedMatchStatus = roomLinkedMatchContext?.mode === 'duel'
+    ? duelMatchStatus
+    : roomLinkedMatchContext?.mode === 'group'
+      ? groupMatchStatus
+      : null;
+  const currentUserDoneWithLinkedMatch = Boolean(
+    roomLinkedMatchContext?.matchId
+    && (
+      locallyForfeitedMatches.has(roomLinkedMatchContext.matchId)
+      || (
+        roomLinkedMatchStatus?.matchId === roomLinkedMatchContext.matchId
+        && isTerminalMatchLiveStatus(roomLinkedMatchStatus.currentUserLiveStatus)
+      )
+    ),
+  );
+  const currentUserDoneWithCurrentMatch = currentUserDoneWithLinkedMatch || (
+    matchMode === 'duel'
+      ? isTerminalMatchLiveStatus(duelMatchStatus?.currentUserLiveStatus)
+      : matchMode === 'group'
+        ? isTerminalMatchLiveStatus(groupMatchStatus?.currentUserLiveStatus)
+        : false
+  );
   const roomLinkedSlotStartAtForDiagnostics =
     roomLinkedMatchContext?.slotStartAt
     ?? matchRoomFlow.linkedMatchContext?.slotStartAt
@@ -597,6 +623,7 @@ export function TrackRunExperienceRuntime({
     liveMatchRouteHydrationMatchId: liveMatchRouteHydration?.matchId,
     partyRunLinkedMatchId: partyRunRuntimeSource.room?.linkedMatchId,
     partyRunShouldOpenArena: partyRunRuntimeSource.flow.shouldOpenArena,
+    currentUserDoneWithLinkedMatch,
   });
   const androidLiveMatchStartup = useAndroidLiveMatchStartupGate({
     active: shouldStageAndroidLiveMatchStartup,
@@ -930,6 +957,7 @@ export function TrackRunExperienceRuntime({
     trackingStatus: status,
     isRunning,
     isCurrentUserForfeited: currentUserHasForfeitedActiveMatch,
+    isCurrentUserDoneWithMatch: currentUserDoneWithCurrentMatch,
     liveMatchHeavyWorkReady,
     visiblePartyRunFlow,
     matchRoomFlow,
@@ -979,8 +1007,10 @@ export function TrackRunExperienceRuntime({
   );
   const activeMatchExitSelfFinished = activeMatchExitSource === 'duel'
     && currentUserDuelLiveStatus === 'finished';
+  const shouldSuppressDoneMatchAutoOpen = currentUserDoneWithCurrentMatch && !isRunning;
   const shouldForceLiveArenaFromRoute = Boolean(
-    hydratedFocusMatchId
+    !shouldSuppressDoneMatchAutoOpen
+    && hydratedFocusMatchId
     && (
       hydratedForceMatchArena
       || liveMatchRouteHydration?.preferArena
@@ -1725,6 +1755,7 @@ export function TrackRunExperienceRuntime({
       visiblePartyRunFlow,
       roomLinkedMatchContext,
       roomCountdownRemainingSeconds,
+      currentUserDoneWithLinkedMatch,
       duelMatchStatus,
       groupMatchStatus,
       focusedDuelMatchIdRef,
@@ -1787,8 +1818,8 @@ export function TrackRunExperienceRuntime({
       duelShouldOpenCountdownArena,
       groupShouldOpenCountdownArena,
       roomShouldOpenCountdownArena,
-      nextStartingMatch,
-      activeUpcomingMatch,
+      nextStartingMatch: currentUserDoneWithCurrentMatch ? null : nextStartingMatch,
+      activeUpcomingMatch: currentUserDoneWithCurrentMatch ? null : activeUpcomingMatch,
       onForceOpenActiveMatchChange: setForceOpenActiveMatch,
       onLiveArenaPageChange: setLiveArenaPage,
       focusRunningMatch,

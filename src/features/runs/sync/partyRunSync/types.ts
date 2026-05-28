@@ -37,6 +37,7 @@ export type LinkedMatchSyncInput = {
   visiblePartyRunFlow: PartyRunFlowSnapshot;
   roomLinkedMatchContext: PartyRunLinkedMatchContext | null;
   roomCountdownRemainingSeconds: number | null;
+  currentUserDoneWithLinkedMatch?: boolean;
   duelMatchStatus: RunningMatchStatusResponse | null;
   groupMatchStatus: RunningMatchStatusResponse | null;
   focusedDuelMatchIdRef: RefObject<string | null>;

@@ -147,3 +147,36 @@ test('resolveArenaOpenState preserves countdown and force-open flags', () => {
     groupShouldHoldArenaDuringActivation: true,
   });
 });
+
+test('done linked match suppresses room arena auto-open without touching direct countdowns', () => {
+  assert.equal(shouldStageLiveMatchStartup({
+    liveMatchStartupIdentity: 'linked-duel',
+    matchMode: 'duel',
+    isRunning: false,
+    forceOpenActiveMatch: true,
+    partyRunShouldOpenArena: true,
+    currentUserDoneWithLinkedMatch: true,
+    duelMatchState: 'active',
+    groupMatchState: 'idle',
+    duelStartCountdownSeconds: null,
+    groupStartCountdownSeconds: null,
+    roomLinkedMatchContext: linkedDuelContext,
+  }), false);
+
+  assert.deepEqual(resolveArenaOpenState({
+    duelMatchState: 'matched',
+    groupMatchState: 'idle',
+    duelStartCountdownSeconds: 5,
+    groupStartCountdownSeconds: null,
+    partyRunLinkedMatchId: 'linked-duel',
+    partyRunShouldOpenArena: true,
+    forceOpenActiveMatch: true,
+    currentUserDoneWithLinkedMatch: true,
+  }), {
+    duelShouldOpenCountdownArena: true,
+    groupShouldOpenCountdownArena: false,
+    roomShouldOpenCountdownArena: false,
+    duelShouldHoldArenaDuringActivation: true,
+    groupShouldHoldArenaDuringActivation: false,
+  });
+});

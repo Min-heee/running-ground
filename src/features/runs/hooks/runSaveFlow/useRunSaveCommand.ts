@@ -4,7 +4,7 @@ import {
 } from '@/features/runs/tracking/background';
 import { isUnsavableShortRunError } from '@/features/runs/utils/matchScheduling';
 import { resolveActiveMatchId } from '@/features/runs/lifecycle/matchStateMachine';
-import { createTrackedRun, getApiErrorMessage } from '@/services';
+import { createTrackedRun, forceResetRunningMatchState, getApiErrorMessage } from '@/services';
 import type { SaveTrackingOptions } from '@/features/runs/hooks/useRunTracking';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { buildRunSaveResultSnapshot } from './runSaveResultMapper';
@@ -115,6 +115,22 @@ export function useRunSaveCommand({
         setStatus,
         syncLiveSharing,
       });
+      if (activeMatchId) {
+        void forceResetRunningMatchState()
+          .then((payload) => {
+            rgPerfMark('running match force reset after save completed', {
+              cleaned: payload.cleaned,
+              cleanedItems: payload.cleanedItems.join(','),
+              matchId: activeMatchId,
+            });
+          })
+          .catch((cleanupError) => {
+            rgPerfMark('running match force reset after save failed', {
+              matchId: activeMatchId,
+              reason: getApiErrorMessage(cleanupError, 'unknown'),
+            });
+          });
+      }
 
       runPointRankingPostProcessor({
         isTabMode,

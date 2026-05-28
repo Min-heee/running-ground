@@ -18,6 +18,7 @@ type UseRunForfeitCommandInput = Pick<
   | 'duelMatchStatus'
   | 'groupMatchNotice'
   | 'groupMatchStatus'
+  | 'clearLocalForfeitedMatchState'
   | 'getDisplayedTrackingSnapshot'
   | 'isTabMode'
   | 'loadUpcomingMatches'
@@ -41,6 +42,7 @@ type UseRunForfeitCommandInput = Pick<
 export function useRunForfeitCommand({
   duelMatchNotice,
   duelMatchStatus,
+  clearLocalForfeitedMatchState,
   groupMatchNotice,
   groupMatchStatus,
   getDisplayedTrackingSnapshot,
@@ -171,6 +173,12 @@ export function useRunForfeitCommand({
     pendingCounterpartForfeitResultRef.current = true;
     setMatchLeaving(source, true);
     let savedRunId: string | null = null;
+    const matchId = resolveMatchExitId({
+      source,
+      duelMatchId: duelMatchStatus?.matchId,
+      groupMatchId: groupMatchStatus?.matchId,
+      roomLinkedMatchContext,
+    });
 
     try {
       const didSave = await handleSaveTracking({
@@ -182,6 +190,10 @@ export function useRunForfeitCommand({
         },
         resetAfterSave: true,
       });
+
+      if (didSave && matchId) {
+        clearLocalForfeitedMatchState(source, matchId);
+      }
 
       if (didSave && savedRunId) {
         const redirect = buildRunDetailRedirect({ runId: savedRunId, isTabMode });

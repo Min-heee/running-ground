@@ -21,6 +21,7 @@ type UseMatchRuntimeStateInput = {
   trackingStatus: MatchLifecycleTrackingStatus;
   isRunning: boolean;
   isCurrentUserForfeited: boolean;
+  isCurrentUserDoneWithMatch: boolean;
   liveMatchHeavyWorkReady: boolean;
   visiblePartyRunFlow: PartyRunFlowSnapshot;
   matchRoomFlow: PartyRunFlowSnapshot;
@@ -59,6 +60,7 @@ export function useMatchRuntimeState({
   trackingStatus,
   isRunning,
   isCurrentUserForfeited,
+  isCurrentUserDoneWithMatch,
   liveMatchHeavyWorkReady,
   visiblePartyRunFlow,
   matchRoomFlow,
@@ -174,21 +176,25 @@ export function useMatchRuntimeState({
           ? 'group' as const
           : null
       : null;
+    const shouldSuppressDoneMatchAutoOpen = isCurrentUserDoneWithMatch && !isRunning;
 
     const showLiveArena =
-      (canRenderLiveArena || shouldKeepRunningMatchArena || Boolean(selfForfeitedResultSource))
-      && (!isCurrentUserForfeited || Boolean(selfForfeitedResultSource))
+      !shouldSuppressDoneMatchAutoOpen
       && (
-        isRunning
-        || hasMatchResultPage
-        || forceOpenActiveMatch
-        || (trackingStatus === 'idle' && (
-          duelShouldOpenCountdownArena
-          || groupShouldOpenCountdownArena
-          || roomShouldOpenCountdownArena
-          || (matchMode === 'duel' && isDuelTestFlow)
-          || (matchMode === 'group' && isGroupTestFlow)
-        ))
+        (canRenderLiveArena || shouldKeepRunningMatchArena || Boolean(selfForfeitedResultSource))
+        && (!isCurrentUserForfeited || Boolean(selfForfeitedResultSource))
+        && (
+          isRunning
+          || hasMatchResultPage
+          || forceOpenActiveMatch
+          || (trackingStatus === 'idle' && (
+            duelShouldOpenCountdownArena
+            || groupShouldOpenCountdownArena
+            || roomShouldOpenCountdownArena
+            || (matchMode === 'duel' && isDuelTestFlow)
+            || (matchMode === 'group' && isGroupTestFlow)
+          ))
+        )
       );
 
     const activeMatchExitSource = selfForfeitedResultSource
@@ -251,6 +257,7 @@ export function useMatchRuntimeState({
     hasRoomLinkedDuelContext,
     hasRoomLinkedGroupContext,
     isCurrentUserForfeited,
+    isCurrentUserDoneWithMatch,
     isDuelOpponentForfeited,
     isDuelTestFlow,
     isGroupTestFlow,
