@@ -77,7 +77,7 @@ export function buildMatchExitActionState({
     return {
       kind: 'self-forfeited',
       title: '기권 처리됐어요',
-      body: '대결 결과는 기권으로 반영됐어요. 러닝을 종료하면 지금까지 기록을 저장하고 결과 화면으로 이동해요.',
+      body: '대결 결과는 기권으로 반영됐어요. 지금까지 기록을 저장하고 결과 화면으로 이동해요.',
       buttonLabel: isLeaving || isSaving
         ? '결과 저장 중...'
         : !isRunning
@@ -122,7 +122,7 @@ export function buildMatchExitActionState({
   return {
     kind: 'forfeit',
     title: '대결을 기권할 수 있어요',
-    body: '기권하면 내 동그라미가 기권 상태로 표시돼요. 결과를 확인한 뒤 직접 기록을 저장할 수 있어요.',
+    body: '기권하면 대결과 측정이 즉시 종료되고 지금까지 기록을 저장해요.',
     buttonLabel: isLeaving ? '기권 처리 중...' : '기권하기',
     disabled: isLeaving,
   };

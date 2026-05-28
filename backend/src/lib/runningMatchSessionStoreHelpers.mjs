@@ -102,6 +102,34 @@ export function hydrateMatchSessionState(session, now = new Date()) {
   return 'matched';
 }
 
+function hasParticipantStartedDuel(sessionParticipant, now = new Date()) {
+  const liveStatus = resolveParticipantLiveStatus(sessionParticipant, now);
+
+  if (['running', 'background', 'paused', 'disconnected', 'finished'].includes(liveStatus)) {
+    return true;
+  }
+
+  const liveDistanceKm = Number(sessionParticipant.liveDistanceKm ?? 0);
+  const liveElapsedSeconds = Number(sessionParticipant.liveElapsedSeconds ?? 0);
+  return liveDistanceKm > 0 || liveElapsedSeconds > 0;
+}
+
+function isUnopposedDuelForfeitResolved(session, now = new Date()) {
+  if (session?.mode !== 'duel' || !Array.isArray(session.participants) || session.participants.length !== 2) {
+    return false;
+  }
+
+  const participantStatuses = session.participants.map((participant) => resolveParticipantLiveStatus(participant, now));
+  if (!participantStatuses.includes('forfeited')) {
+    return false;
+  }
+
+  return session.participants.every((participant, index) => (
+    participantStatuses[index] === 'forfeited'
+    || !hasParticipantStartedDuel(participant, now)
+  ));
+}
+
 export function pruneMatchSessions(store, now = new Date()) {
   const sessions = ensureMatchSessions(store);
   const activeUserIds = new Set(store.users.map((user) => user.id));
@@ -112,6 +140,10 @@ export function pruneMatchSessions(store, now = new Date()) {
     }
 
     if (session.participants.some((participant) => !participant.profileSnapshot && !activeUserIds.has(participant.userId))) {
+      return false;
+    }
+
+    if (isUnopposedDuelForfeitResolved(session, now)) {
       return false;
     }
 

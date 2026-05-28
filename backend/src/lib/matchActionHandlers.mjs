@@ -30,6 +30,7 @@ import {
   findMatchSessionById,
   findMatchSessionForUser,
   hydrateMatchSessionState,
+  pruneMatchSessions,
 } from './runningMatchSessionStoreHelpers.mjs';
 import { buildRunningMatchStatusResponse } from './matchResponseBuilders.mjs';
 
@@ -122,6 +123,7 @@ export function leaveRunningMatch(store, currentUser, { matchId }) {
   currentParticipant.forfeitedAt = forfeitedAt;
 
   applyMatchLpIfComplete(store, session);
+  pruneMatchSessions(store, new Date(forfeitedAt));
 
   return { success: true };
 }
