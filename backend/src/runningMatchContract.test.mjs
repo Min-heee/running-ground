@@ -821,6 +821,31 @@ await runTest('normal active room blocks joining another room with blocker sourc
   });
 });
 
+await runTest('match status accepts sub-hour slot timestamps when matchId is provided', async () => {
+  const { store, slotStartAt } = createActiveDuelStore();
+  const subHourSlotStartAt = new Date(slotStartAt);
+  subHourSlotStartAt.setMinutes(23, 47, 123);
+
+  await withBackend(store, async ({ request, requestRaw }) => {
+    const status = await request('host-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt: subHourSlotStartAt.toISOString(),
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(status.matchId, 'duel-contract-match');
+    assert.equal(status.state, 'active');
+
+    const rejected = await requestRaw('host-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt: subHourSlotStartAt.toISOString(),
+    });
+    assert.equal(rejected.response.status, 400);
+    assert.equal(rejected.payload.message, '매칭 시간은 1시간 단위로만 선택할 수 있어.');
+  });
+});
+
 await runTest('match progress uploads feed official comparison and forfeit state', async () => {
   const { store, slotStartAt } = createActiveDuelStore();
 

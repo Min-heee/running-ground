@@ -1,3 +1,5 @@
+import { parseLenientMatchSlotInput } from '../../lib/matchSlotValidation.mjs';
+
 export async function routeRunningMatchProgressRoutes(deps) {
   const { method, pathname } = deps;
 
@@ -33,7 +35,9 @@ async function handleFetchRunningMatchStatus({
   const matchId = typeof body.matchId === 'string' && body.matchId.trim() ? body.matchId.trim() : undefined;
   const slotStartAt = testMode
     ? (typeof body.slotStartAt === 'string' && body.slotStartAt.trim() ? body.slotStartAt.trim() : new Date().toISOString())
-    : validateMatchSlotInput(body.slotStartAt);
+    : matchId
+      ? parseLenientMatchSlotInput(body.slotStartAt)
+      : validateMatchSlotInput(body.slotStartAt);
   const payload = mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return buildRunningMatchStatusResponse(store, currentUser, {

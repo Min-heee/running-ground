@@ -41,3 +41,14 @@ export function validateMatchSlotInput(value) {
     validateRequiredString(value, '매칭 시간대를 선택해줘.'),
   );
 }
+
+export function parseLenientMatchSlotInput(value) {
+  const slotStartAt = validateRequiredString(value, '매칭 시간대를 선택해줘.');
+  const slotStart = new Date(slotStartAt);
+
+  if (Number.isNaN(slotStart.getTime())) {
+    throw new ApiError(400, '매칭 시작 시간이 올바르지 않아.');
+  }
+
+  return slotStart.toISOString();
+}
