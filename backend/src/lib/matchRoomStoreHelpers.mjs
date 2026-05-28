@@ -67,7 +67,7 @@ function createMatchRoomInviteToken(store) {
   return nextId('room-invite').replace(/[^A-Z0-9]/gi, '').slice(-8).toUpperCase();
 }
 
-function pruneMatchRooms(store, now = new Date()) {
+export function pruneMatchRooms(store, now = new Date()) {
   const rooms = ensureMatchRooms(store);
   const activeUserIds = new Set(store.users.map((user) => user.id));
   const nowMs = now.getTime();

@@ -301,12 +301,12 @@ function buildQueuedMatchRunnerEntries(store, mode, currentRunner, { distanceKm,
   });
 }
 
-export function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm, slotStartAt, testMode = false, matchId } = {}) {
+export function buildRunningMatchStatusResponse(store, currentUser, { mode, distanceKm, slotStartAt, testMode = false, matchId, sessionOverride = null } = {}) {
   const now = new Date();
   const currentRunner = buildMatchRunnerProfile(store, currentUser);
   const paceBandLabel = buildPaceBandLabel(currentRunner.averagePaceMinutes);
   const levelBandLabel = `${buildLevelLabel(currentRunner.distanceLevel)} 전후`;
-  const session = findMatchSessionForUser(store, mode, currentUser.id, {
+  const session = sessionOverride ?? findMatchSessionForUser(store, mode, currentUser.id, {
     distanceKm,
     slotStartAt,
     testMode,

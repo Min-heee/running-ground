@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
@@ -136,6 +136,57 @@ function createActiveDuelStore() {
   return { store, slotStartAt };
 }
 
+function addLinkedDuelRoom(store, {
+  roomId = 'duel-linked-room',
+  matchId = 'duel-contract-match',
+  slotStartAt,
+} = {}) {
+  store.matchRooms.push({
+    id: roomId,
+    inviteToken: 'LINKED1',
+    hostUserId: 'host-user',
+    mode: 'duel',
+    startMode: 'host',
+    distanceKm: 5,
+    slotStartAt,
+    linkedMatchId: matchId,
+    linkedMatchStatus: 'active',
+    linkedMatchDistanceKm: 5,
+    linkedMatchSlotStartAt: slotStartAt,
+    createdAt: iso(-180 * 1000),
+    updatedAt: iso(-120 * 1000),
+    invitedFriendIds: [],
+    participants: [
+      {
+        userId: 'host-user',
+        name: '방장 러너',
+        tag: 'host',
+        districtName: '일산서구',
+        averagePace: '06:12/km',
+        levelLabel: 'Lv.1',
+        isHost: true,
+        isReady: true,
+        isCountdownReady: true,
+        invited: false,
+        joinedAt: iso(-180 * 1000),
+      },
+      {
+        userId: 'guest-user',
+        name: '참가 러너',
+        tag: 'guest',
+        districtName: '일산동구',
+        averagePace: '06:25/km',
+        levelLabel: 'Lv.1',
+        isHost: false,
+        isReady: true,
+        isCountdownReady: true,
+        invited: false,
+        joinedAt: iso(-180 * 1000),
+      },
+    ],
+  });
+}
+
 function createTestStoreFile(store) {
   const directory = mkdtempSync(join(tmpdir(), 'runningground-backend-contract-'));
   const storeFile = join(directory, 'store.json');
@@ -204,6 +255,7 @@ async function withBackend(store, testFn) {
     await testFn({
       request: (token, method, path, body) => apiRequest(baseUrl, token, method, path, body),
       requestRaw: (token, method, path, body) => apiRequestRaw(baseUrl, token, method, path, body),
+      readStore: () => JSON.parse(readFileSync(storeHandle.storeFile, 'utf8')),
     });
   } catch (error) {
     error.message = `${error.message}\nbackend output:\n${output.join('')}`;
@@ -921,6 +973,53 @@ await runTest('duel forfeit resolves active session when the opponent never star
   });
 });
 
+await runTest('duel forfeit removes a linked room when the opponent never started', async () => {
+  const { store, slotStartAt } = createActiveDuelStore();
+  addLinkedDuelRoom(store, { slotStartAt });
+
+  await withBackend(store, async ({ request, readStore }) => {
+    const forfeitResult = await request('guest-token', 'POST', '/api/running/matches/leave', {
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(forfeitResult.success, true);
+
+    const persisted = readStore();
+    assert.equal(persisted.matchSessions.some((session) => session.id === 'duel-contract-match'), false);
+    assert.equal(persisted.matchRooms.some((room) => room.linkedMatchId === 'duel-contract-match'), false);
+  });
+});
+
+await runTest('duel forfeit keeps the linked room while the opponent is still running', async () => {
+  const { store, slotStartAt } = createActiveDuelStore();
+  const hostParticipant = store.matchSessions[0].participants.find((participant) => participant.userId === 'host-user');
+  hostParticipant.liveStatus = 'running';
+  hostParticipant.liveDistanceKm = 1.1;
+  hostParticipant.liveElapsedSeconds = 420;
+  hostParticipant.livePace = '06:22/km';
+  hostParticipant.liveUpdatedAt = iso(-5 * 1000);
+  addLinkedDuelRoom(store, { slotStartAt });
+
+  await withBackend(store, async ({ request, readStore }) => {
+    const forfeitResult = await request('guest-token', 'POST', '/api/running/matches/leave', {
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(forfeitResult.success, true);
+
+    const persisted = readStore();
+    assert.equal(persisted.matchSessions.some((session) => session.id === 'duel-contract-match'), true);
+    assert.equal(persisted.matchRooms.some((room) => room.linkedMatchId === 'duel-contract-match'), true);
+
+    const hostStatus = await request('host-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(hostStatus.currentUserLiveStatus, 'running');
+    assert.equal(hostStatus.opponent.liveStatus, 'forfeited');
+  });
+});
+
 await runTest('match progress finishes a participant when they reach the goal distance', async () => {
   const { store, slotStartAt } = createActiveDuelStore();
 
@@ -972,6 +1071,41 @@ await runTest('match progress finishes a participant when they reach the goal di
     });
     assert.equal(guestViewAfterRepeatHeartbeat.opponent.liveStatus, 'finished');
     assert.equal(guestViewAfterRepeatHeartbeat.opponent.finishedAt, firstFinishedAt);
+  });
+});
+
+await runTest('duel winner finish response survives while resolved linked room is pruned', async () => {
+  const { store, slotStartAt } = createActiveDuelStore();
+  const hostParticipant = store.matchSessions[0].participants.find((participant) => participant.userId === 'host-user');
+  const guestParticipant = store.matchSessions[0].participants.find((participant) => participant.userId === 'guest-user');
+  hostParticipant.liveStatus = 'running';
+  hostParticipant.liveDistanceKm = 4.8;
+  hostParticipant.liveElapsedSeconds = 1500;
+  hostParticipant.livePace = '05:12/km';
+  hostParticipant.liveUpdatedAt = iso(-5 * 1000);
+  guestParticipant.liveStatus = 'forfeited';
+  guestParticipant.liveDistanceKm = 0.6;
+  guestParticipant.liveElapsedSeconds = 240;
+  guestParticipant.livePace = '06:40/km';
+  guestParticipant.liveUpdatedAt = iso(-30 * 1000);
+  guestParticipant.forfeitedAt = iso(-30 * 1000);
+  addLinkedDuelRoom(store, { slotStartAt });
+
+  await withBackend(store, async ({ request, readStore }) => {
+    const finished = await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 5.02,
+      elapsedSeconds: 1530,
+      currentPace: '05:05/km',
+      status: 'running',
+    });
+    assert.equal(finished.currentUserLiveStatus, 'finished');
+    assert.equal(finished.opponent.liveStatus, 'forfeited');
+    assert.equal(finished.matchId, 'duel-contract-match');
+
+    const persisted = readStore();
+    assert.equal(persisted.matchSessions.some((session) => session.id === 'duel-contract-match'), false);
+    assert.equal(persisted.matchRooms.some((room) => room.linkedMatchId === 'duel-contract-match'), false);
   });
 });
 

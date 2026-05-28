@@ -33,6 +33,7 @@ import {
   pruneMatchSessions,
 } from './runningMatchSessionStoreHelpers.mjs';
 import { buildRunningMatchStatusResponse } from './matchResponseBuilders.mjs';
+import { pruneMatchRooms } from './matchRoomStoreHelpers.mjs';
 
 function applyMatchLpIfComplete(store, session) {
   if (!session || session.lpApplied) {
@@ -123,7 +124,9 @@ export function leaveRunningMatch(store, currentUser, { matchId }) {
   currentParticipant.forfeitedAt = forfeitedAt;
 
   applyMatchLpIfComplete(store, session);
-  pruneMatchSessions(store, new Date(forfeitedAt));
+  const resolvedAt = new Date(forfeitedAt);
+  pruneMatchSessions(store, resolvedAt);
+  pruneMatchRooms(store, resolvedAt);
 
   return { success: true };
 }
@@ -263,11 +266,16 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
   }
 
   applyMatchLpIfComplete(store, session);
-
-  return buildRunningMatchStatusResponse(store, currentUser, {
+  const response = buildRunningMatchStatusResponse(store, currentUser, {
     mode: session.mode,
     distanceKm: session.distanceKm,
     slotStartAt: session.slotStartAt,
     matchId: session.id,
+    sessionOverride: session,
   });
+  const resolvedAt = new Date(currentParticipant.liveUpdatedAt);
+  pruneMatchSessions(store, resolvedAt);
+  pruneMatchRooms(store, resolvedAt);
+
+  return response;
 }
