@@ -369,3 +369,48 @@ test('party run flow snapshot centralizes loading, countdown, arena, and ack dec
   assert.equal(active.phase, 'active');
   assert.equal(active.linkedMatchContext?.state, 'active');
 });
+
+test('party run flow snapshot builds linked context when room state lags behind match phase', () => {
+  const waitingRoom = {
+    mode: 'duel' as const,
+    state: 'waiting' as const,
+    distanceKm: 5,
+    slotStartAt: '2026-05-12T00:00:30.000Z',
+    linkedMatchId: 'room-match-1',
+    linkedMatchStatus: 'matched' as const,
+  };
+
+  const handoff = buildPartyRunFlowSnapshot({
+    room: waitingRoom,
+    isCountdownReady: true,
+    remainingSeconds: 20,
+  });
+  assert.equal(handoff.phase, 'arenaHandoff');
+  assert.equal(handoff.shouldOpenArena, true);
+  assert.deepEqual(handoff.linkedMatchContext, {
+    mode: 'duel',
+    matchId: 'room-match-1',
+    slotStartAt: '2026-05-12T00:00:30.000Z',
+    distanceKm: 5,
+    state: 'matched',
+  });
+
+  const active = buildPartyRunFlowSnapshot({
+    room: {
+      ...waitingRoom,
+      linkedMatchStatus: undefined,
+      slotStartAt: '2026-05-12T00:00:00.000Z',
+    },
+    isCountdownReady: false,
+    remainingSeconds: -15,
+    syncedNowMs: Date.parse('2026-05-12T00:00:15.000Z'),
+  });
+  assert.equal(active.phase, 'active');
+  assert.deepEqual(active.linkedMatchContext, {
+    mode: 'duel',
+    matchId: 'room-match-1',
+    slotStartAt: '2026-05-12T00:00:00.000Z',
+    distanceKm: 5,
+    state: 'active',
+  });
+});

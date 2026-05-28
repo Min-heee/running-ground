@@ -366,24 +366,24 @@ export function buildPartyRunFlowSnapshot({
   });
   const hasLinkedMatch = Boolean(room?.linkedMatchId);
   const shouldOpenArena = hasLinkedMatch && shouldOpenPartyRunArena(phase);
-  const isLinkedRoomLifecycle = Boolean(
+  const shouldBuildLinkedMatchContext = Boolean(
     hasLinkedMatch
     && room
-    && ['arming', 'countdown', 'active'].includes(room.state ?? ''),
+    && phase !== 'waiting',
   );
   const hasReachedOfficialStart = typeof remainingSeconds !== 'number';
   const linkedMatchContext = (
     room?.linkedMatchId
     && linkedMatchSlotStartAt
     && typeof linkedMatchDistanceKm === 'number'
-    && isLinkedRoomLifecycle
+    && shouldBuildLinkedMatchContext
   )
     ? {
         mode: room.mode,
         matchId: room.linkedMatchId,
         slotStartAt: linkedMatchSlotStartAt,
         distanceKm: linkedMatchDistanceKm,
-        state: room.linkedMatchStatus === 'active' || room.state === 'active' || hasReachedOfficialStart
+        state: phase === 'active' || room.linkedMatchStatus === 'active' || room.state === 'active' || hasReachedOfficialStart
           ? 'active' as const
           : 'matched' as const,
       }
