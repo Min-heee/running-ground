@@ -9,6 +9,7 @@ export type TrackerStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving
 
 export type SaveTrackingOptions = {
   allowShortDistanceSave?: boolean;
+  allowStationaryForfeitSave?: boolean;
   exitIfUnsavable?: boolean;
   matchResultOverride?: RunMatchResult | null;
   onSavedRun?: (runId: string) => void;

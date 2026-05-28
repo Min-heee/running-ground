@@ -267,7 +267,7 @@ export function useLiveMatchViewModel({
   ]);
 
   const resultPageInput = useMemo(() => (
-    page === 3
+    hasResultPage || page === 3
       ? {
       matchMode,
       estimatedBonusPoints,
@@ -281,13 +281,16 @@ export function useLiveMatchViewModel({
     estimatedBonusPoints,
     groupRows,
     groupStatusLabel,
+    hasResultPage,
     matchMode,
     page,
   ]);
   const resultPagePropsForPager = useMemo(() => buildLiveMatchResultPagePropsForPage({
+    hasResultPage,
     page,
     resultPageProps: resultPageInput,
   }), [
+    hasResultPage,
     page,
     resultPageInput,
   ]);

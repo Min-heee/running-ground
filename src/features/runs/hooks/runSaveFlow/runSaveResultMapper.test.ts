@@ -115,6 +115,22 @@ test('forfeit override can be persisted through the save payload', () => {
   assert.equal(result.createRunInput.matchResult?.badgeLabel, '기권 패');
 });
 
+test('stationary forfeit save allows zero distance when a real GPS route exists', () => {
+  const result = buildRunSaveResultSnapshot({
+    allowStationaryForfeitSave: true,
+    displayedSnapshot: snapshot({ distanceKm: 0, elapsedSeconds: 90 }),
+    totalSteps: 0,
+    trackedMatchResult: buildCurrentUserForfeitMatchResult({
+      currentDistanceKm: 0,
+      mode: 'duel',
+    }),
+  });
+
+  assert.equal(result.createRunInput.distanceKm, 0.001);
+  assert.equal(result.createRunInput.pace, '00:00/km');
+  assert.equal(result.createRunInput.matchResult?.resultTone, 'lose');
+});
+
 test('run save result mapper rejects missing pace calculation', () => {
   assert.throws(() => buildRunSaveResultSnapshot({
     displayedSnapshot: snapshot({ elapsedSeconds: 0 }),

@@ -82,7 +82,7 @@ export function buildMatchExitActionState({
         ? '결과 저장 중...'
         : !isRunning
           ? '결과 화면 준비 중...'
-          : '러닝 종료하고 결과보기',
+          : '결과보기',
       disabled,
     };
   }

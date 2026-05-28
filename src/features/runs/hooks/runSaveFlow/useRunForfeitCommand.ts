@@ -108,6 +108,7 @@ export function useRunForfeitCommand({
     const didSave = await handleSaveTracking({
       // Forfeit can happen before 0.1km; require a real route, but don't block solely on short distance.
       allowShortDistanceSave: true,
+      allowStationaryForfeitSave: Boolean(options.currentUserForfeited),
       exitIfUnsavable: true,
       matchResultOverride: options.currentUserForfeited && displayedSnapshot
         ? buildCurrentUserForfeitMatchResult({
@@ -130,7 +131,7 @@ export function useRunForfeitCommand({
       const redirect = buildForfeitRunDetailRedirect(source, savedRunId, matchId);
       router.replace(redirect);
     } else {
-      router.back();
+      router.replace('/(tabs)/running');
     }
   };
 

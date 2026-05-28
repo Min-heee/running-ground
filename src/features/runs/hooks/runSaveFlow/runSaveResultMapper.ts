@@ -53,11 +53,13 @@ export function buildCurrentUserForfeitMatchResult({
 
 export function buildRunSaveResultSnapshot({
   allowShortDistanceSave = false,
+  allowStationaryForfeitSave = false,
   displayedSnapshot,
   totalSteps,
   trackedMatchResult,
 }: {
   allowShortDistanceSave?: boolean;
+  allowStationaryForfeitSave?: boolean;
   displayedSnapshot: DisplayedTrackingSnapshot;
   totalSteps: number;
   trackedMatchResult?: RunMatchResult | null;
@@ -68,12 +70,17 @@ export function buildRunSaveResultSnapshot({
     ? displayedSnapshot.route[displayedSnapshot.route.length - 1].timestamp
     : new Date().toISOString();
   const finalDistanceKm = displayedSnapshot.distanceKm;
+  const saveDistanceKm = allowStationaryForfeitSave && finalDistanceKm <= 0 ? 0.001 : finalDistanceKm;
   const finalElevationGainM = displayedSnapshot.elevationGainM;
   const finalCadenceSpm = calculateCadenceSpm(totalSteps, finalElapsedSeconds);
-  const averagePaceLabel = buildAveragePace(finalDistanceKm, finalElapsedSeconds);
+  const averagePaceLabel = allowStationaryForfeitSave && finalDistanceKm <= 0
+    ? '00:00/km'
+    : buildAveragePace(finalDistanceKm, finalElapsedSeconds);
 
   const hasSavableRoute = displayedSnapshot.route.length >= 2;
-  const hasSavableDistance = allowShortDistanceSave ? finalDistanceKm > 0 : finalDistanceKm >= 0.1;
+  const hasSavableDistance = allowStationaryForfeitSave
+    ? finalDistanceKm >= 0
+    : allowShortDistanceSave ? finalDistanceKm > 0 : finalDistanceKm >= 0.1;
 
   if (!hasSavableRoute || !hasSavableDistance) {
     throw new Error('저장하려면 실제로 이동한 러닝 경로가 조금 더 필요해.');
@@ -90,7 +97,7 @@ export function buildRunSaveResultSnapshot({
     startedAt,
     createRunInput: {
       date: buildRunDateFromTimestamp(startedAt),
-      distanceKm: finalDistanceKm,
+      distanceKm: saveDistanceKm,
       pace: averagePaceLabel,
       durationSeconds: finalElapsedSeconds,
       cadenceSpm: finalCadenceSpm,

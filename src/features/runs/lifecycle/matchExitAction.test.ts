@@ -113,7 +113,7 @@ test('exit action switches from forfeit to result button when current user forfe
   });
 
   assert.equal(selfForfeited.kind, 'self-forfeited');
-  assert.equal(selfForfeited.buttonLabel, '러닝 종료하고 결과보기');
+  assert.equal(selfForfeited.buttonLabel, '결과보기');
   assert.equal(selfForfeited.disabled, false);
 });
 

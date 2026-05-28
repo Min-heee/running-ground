@@ -97,7 +97,7 @@ export function buildLiveMatchPagesProps({
     arenaProps,
     raceBoardProps: page === 1 ? raceBoardProps : null,
     trackingProps: trackingStatsPageProps,
-    resultProps: page === 3 ? resultProps : null,
+    resultProps: hasResultPage || page === 3 ? resultProps : null,
     onPageChange,
   };
 }
@@ -113,13 +113,15 @@ export function buildLiveMatchRaceBoardViewModelForPage({
 }
 
 export function buildLiveMatchResultPagePropsForPage({
+  hasResultPage = false,
   page,
   resultPageProps,
 }: {
+  hasResultPage?: boolean;
   page: number;
   resultPageProps: LiveMatchResultPageProps | null;
 }) {
-  return page === 3 && resultPageProps ? buildLiveMatchResultPageProps(resultPageProps) : null;
+  return (hasResultPage || page === 3) && resultPageProps ? buildLiveMatchResultPageProps(resultPageProps) : null;
 }
 
 export function buildLiveMatchPageViewModels({
@@ -163,6 +165,7 @@ export function buildLiveMatchPageViewModels({
     trackingPageProps,
   });
   const resultProps = buildLiveMatchResultPagePropsForPage({
+    hasResultPage,
     page,
     resultPageProps,
   });

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -11,6 +11,7 @@ import { RunPointBreakdownCard } from '@/features/running/components/RunPointBre
 import { RunExtraMetricsRow, RunHeroCard, RunSummaryMetricRow } from '@/features/running/components/RunSummaryCards';
 import { useRunDetail } from '@/features/running/hooks/useRunDetail';
 import { RunRouteMap } from '@/features/runs/RunRouteMap';
+import { forceResetRunningMatchState, getApiErrorMessage } from '@/services';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function RunDetailScreen() {
@@ -39,10 +40,10 @@ export default function RunDetailScreen() {
     loading,
     mapRegion,
     matchBonusLabel,
-    matchRecordTransitionReason,
     matchResult,
     routeCoordinates,
     runDetail,
+    showMatchResultExit,
     sourceLabel,
   } = useRunDetail({
     friendId,
@@ -53,21 +54,31 @@ export default function RunDetailScreen() {
     origin,
     runId,
   });
-  const didAutoNavigateToMatchRecordRef = useRef(false);
+  const [isExitingMatchResult, setIsExitingMatchResult] = useState(false);
+  const [exitMatchResultError, setExitMatchResultError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!matchRecordTransitionReason || didAutoNavigateToMatchRecordRef.current) {
+  const handleExitMatchResult = async () => {
+    if (isExitingMatchResult) {
       return;
     }
 
-    didAutoNavigateToMatchRecordRef.current = true;
-    router.replace('/match-record');
-  }, [matchRecordTransitionReason]);
+    setIsExitingMatchResult(true);
+    setExitMatchResultError(null);
+    try {
+      await forceResetRunningMatchState();
+      router.replace('/(tabs)/running');
+    } catch (exitError) {
+      setExitMatchResultError(getApiErrorMessage(exitError, '매칭 상태 정리에 실패했어. 잠시 후 다시 시도해줘.'));
+    } finally {
+      setIsExitingMatchResult(false);
+    }
+  };
 
   return (
     <Screen>
       {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {error ? <Text>{error}</Text> : null}
+      {exitMatchResultError ? <Text>{exitMatchResultError}</Text> : null}
 
       {runDetail ? (
         <>
@@ -114,10 +125,18 @@ export default function RunDetailScreen() {
 
           <RunDetailInfoCard run={runDetail.run} sourceLabel={sourceLabel} weeklyDistanceKm={runDetail.weeklyDistanceKm} />
 
-          <SecondaryButton
-            label={backLabel}
-            onPress={() => router.replace(backHref)}
-          />
+          {showMatchResultExit ? (
+            <SecondaryButton
+              label={isExitingMatchResult ? '정리 중...' : '결과화면 나가기'}
+              disabled={isExitingMatchResult}
+              onPress={handleExitMatchResult}
+            />
+          ) : (
+            <SecondaryButton
+              label={backLabel}
+              onPress={() => router.replace(backHref)}
+            />
+          )}
         </>
       ) : null}
     </Screen>

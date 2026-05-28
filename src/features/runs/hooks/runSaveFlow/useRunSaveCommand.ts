@@ -75,6 +75,7 @@ export function useRunSaveCommand({
       syncFromBackgroundTracking(trackingSnapshot);
       const saveSnapshot = buildRunSaveResultSnapshot({
         allowShortDistanceSave: Boolean(options.allowShortDistanceSave),
+        allowStationaryForfeitSave: Boolean(options.allowStationaryForfeitSave),
         displayedSnapshot,
         totalSteps: totalStepsRef.current,
         trackedMatchResult: options.matchResultOverride ?? trackedMatchResult,
