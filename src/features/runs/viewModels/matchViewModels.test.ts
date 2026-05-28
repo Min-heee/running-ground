@@ -191,6 +191,7 @@ test('room linked duel view model marks received remote forfeit status', () => {
 
   assert.equal(remote.liveStatus, 'forfeited');
   assert.equal(remote.paceLabel, '기권');
+  assert.equal(remote.resultLabel, 'LOSE');
   assert.equal(remote.showPaceBubble, true);
 });
 

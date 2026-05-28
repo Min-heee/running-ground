@@ -171,6 +171,35 @@ test('arena labels expose group ranks and duel opponent result labels without ch
   );
 });
 
+test('arena labels keep duel WIN hidden until current user is terminal while showing opponent forfeit LOSE', () => {
+  assert.deepEqual(
+    getParticipantArenaLabel(
+      participant({ liveStatus: 'forfeited' }),
+      'duel',
+      null,
+    ),
+    { kind: 'result', text: 'LOSE' },
+  );
+  assert.equal(
+    getParticipantArenaLabel(
+      participant({ isCurrentUser: true, liveStatus: 'running' }),
+      'duel',
+      null,
+      'WIN',
+    ),
+    null,
+  );
+  assert.deepEqual(
+    getParticipantArenaLabel(
+      participant({ isCurrentUser: true, liveStatus: 'finished', finishedAt: later }),
+      'duel',
+      later,
+      'WIN',
+    ),
+    { kind: 'result', text: 'WIN' },
+  );
+});
+
 test('disconnected and paused participants stay in running state until terminal status arrives', () => {
   assert.equal(
     resolveParticipantViewState({

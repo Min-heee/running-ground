@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -13,7 +14,23 @@ import { RunRouteMap } from '@/features/runs/RunRouteMap';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function RunDetailScreen() {
-  const { runId, friendId, origin } = useLocalSearchParams<{ runId?: string; friendId?: string; origin?: string }>();
+  const {
+    runId,
+    friendId,
+    origin,
+    matchDistanceKm,
+    matchId,
+    matchMode,
+    matchSlotStartAt,
+  } = useLocalSearchParams<{
+    friendId?: string;
+    matchDistanceKm?: string;
+    matchId?: string;
+    matchMode?: string;
+    matchSlotStartAt?: string;
+    origin?: string;
+    runId?: string;
+  }>();
   const {
     backHref,
     backLabel,
@@ -22,11 +39,30 @@ export default function RunDetailScreen() {
     loading,
     mapRegion,
     matchBonusLabel,
+    matchRecordTransitionReason,
     matchResult,
     routeCoordinates,
     runDetail,
     sourceLabel,
-  } = useRunDetail({ friendId, origin, runId });
+  } = useRunDetail({
+    friendId,
+    matchDistanceKm,
+    matchId,
+    matchMode,
+    matchSlotStartAt,
+    origin,
+    runId,
+  });
+  const didAutoNavigateToMatchRecordRef = useRef(false);
+
+  useEffect(() => {
+    if (!matchRecordTransitionReason || didAutoNavigateToMatchRecordRef.current) {
+      return;
+    }
+
+    didAutoNavigateToMatchRecordRef.current = true;
+    router.replace('/match-record');
+  }, [matchRecordTransitionReason]);
 
   return (
     <Screen>

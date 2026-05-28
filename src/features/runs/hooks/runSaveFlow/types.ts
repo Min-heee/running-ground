@@ -39,6 +39,8 @@ export type ContinueSoloOptions = {
 export type RoomLinkedMatchContext = {
   mode: MatchExitSource;
   matchId: string;
+  distanceKm?: number;
+  slotStartAt?: string;
   state: 'matched' | 'active';
 } | null;
 

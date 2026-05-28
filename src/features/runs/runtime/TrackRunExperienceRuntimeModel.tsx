@@ -77,6 +77,15 @@ import {
 } from '@/features/runs/lifecycle/liveMatchShellPreservation';
 import { resolveTrackRunLiveShellGate } from '@/features/runs/lifecycle/trackRunLiveShellGate';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
+import {
+  advanceMatchStatusVanishState,
+  buildVanishedMatchStatusFallback,
+  isMatchStatusVanishConfirmed,
+  isMatchStatusVanishError,
+  resetMatchStatusVanishState,
+  shouldTeardownVanishedLinkedMatch,
+  type MatchStatusVanishState,
+} from '@/features/runs/sync/matchStatusVanish';
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgDiagLog, rgPerfMark } from '@/utils/rgPerfTrace';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
@@ -254,6 +263,10 @@ export function TrackRunExperienceRuntime({
   const latestMatchRoomServerNowMsRef = useRef(0);
   const lastRouteKeyCorrectionRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
+  const linkedMatchVanishStateRef = useRef<Record<'duel' | 'group', MatchStatusVanishState>>({
+    duel: { count: 0, matchId: null },
+    group: { count: 0, matchId: null },
+  });
 
   const {
     matchMode,
@@ -386,6 +399,7 @@ export function TrackRunExperienceRuntime({
     showLiveArena: false,
   });
   const previousLiveArenaShellVisibleRef = useRef<boolean | null>(null);
+  const hasMatchResultPageRef = useRef(false);
   const previousHasMatchResultPageRef = useRef<boolean | null>(null);
   const previousMatchLifecycleStageRef = useRef<string | null>(null);
 
@@ -943,6 +957,7 @@ export function TrackRunExperienceRuntime({
     currentUserFinished: currentUserFinishedForResultPage,
     hasTrackedMatchResult,
   });
+  hasMatchResultPageRef.current = hasMatchResultPage;
   const {
     activeMatchExitCounterpartForfeited,
     activeMatchExitIsLeaving,
@@ -1281,18 +1296,130 @@ export function TrackRunExperienceRuntime({
     setGroupMatchNotice(null);
   }, [groupDistanceKm, matchMode, selectedGroupSlot, selectedGroupSlotStartAt, shouldSkipGroupSlotDistanceCleanup]);
 
+  const resetLinkedMatchVanishState = (source: 'duel' | 'group', matchId?: string | null) => {
+    linkedMatchVanishStateRef.current[source] = resetMatchStatusVanishState(
+      linkedMatchVanishStateRef.current[source],
+      matchId,
+    );
+  };
+
+  const clearVanishedLinkedMatch = (source: 'duel' | 'group', matchId: string) => {
+    rgPerfMark('linked match vanished confirmed', {
+      matchId,
+      source,
+    });
+
+    if (matchRoom?.linkedMatchId === matchId || visibleMatchRoom?.linkedMatchId === matchId) {
+      commitMatchRoom(null);
+    }
+
+    if (roomLinkedMatchContextRef.current?.matchId === matchId) {
+      roomLinkedMatchContextRef.current = null;
+    }
+
+    setForceOpenActiveMatch(false);
+    setLastSyncedMatchProgress(null);
+    setUpcomingMatches((currentItems) => currentItems.filter((match) => match.matchId !== matchId));
+    if (source === 'duel') {
+      clearLocalDuelMatchState(null);
+    } else {
+      clearLocalGroupMatchState(null);
+    }
+    setMatchMode('solo');
+    setLiveArenaPage(0);
+    livePagerRef.current?.scrollTo({ x: 0, animated: false });
+  };
+
+  const handleLinkedMatchStatusVanishError = ({
+    distanceKm: requestedDistanceKm,
+    error: statusError,
+    matchId,
+    mode: statusMode,
+    previousStatus,
+    slotStartAt,
+  }: {
+    distanceKm: number;
+    error: unknown;
+    matchId?: string | null;
+    mode: 'duel' | 'group';
+    previousStatus: RunningMatchStatusResponse | null;
+    slotStartAt: string;
+  }) => {
+    if (!matchId || !isMatchStatusVanishError(statusError, matchId)) {
+      return null;
+    }
+
+    const nextState = advanceMatchStatusVanishState(linkedMatchVanishStateRef.current[statusMode], matchId);
+    linkedMatchVanishStateRef.current[statusMode] = nextState;
+    rgPerfMark('linked match vanish signal observed', {
+      count: nextState.count,
+      matchId,
+      source: statusMode,
+    });
+
+    const vanishConfirmed = isMatchStatusVanishConfirmed(nextState);
+    if (vanishConfirmed) {
+      if (!shouldTeardownVanishedLinkedMatch({
+        hasMatchResultPage: hasMatchResultPageRef.current,
+        vanishConfirmed,
+      })) {
+        rgPerfMark('linked match vanish teardown skipped for visible result page', {
+          matchId,
+          source: statusMode,
+        });
+        return previousStatus ?? buildVanishedMatchStatusFallback({
+          distanceKm: requestedDistanceKm,
+          mode: statusMode,
+          slotStartAt,
+        });
+      }
+
+      clearVanishedLinkedMatch(statusMode, matchId);
+      return buildVanishedMatchStatusFallback({
+        distanceKm: requestedDistanceKm,
+        mode: statusMode,
+        slotStartAt,
+      });
+    }
+
+    return previousStatus ?? buildVanishedMatchStatusFallback({
+      distanceKm: requestedDistanceKm,
+      mode: statusMode,
+      slotStartAt,
+    });
+  };
+
   const loadDuelMatchStatus = async (
     slotStartAt = activeDuelSlotStartAt,
     options?: { testMode?: boolean; distanceKm?: number; matchId?: string; forceAccept?: boolean },
   ) => {
-    const payload = await fetchRunningMatchStatus({
-      mode: 'duel',
-      distanceKm: options?.distanceKm ?? duelDistanceKm,
-      slotStartAt,
-      testMode: options?.testMode ?? isDuelTestFlow,
-      matchId: options?.matchId ?? focusedDuelMatchIdRef.current ?? undefined,
-    });
+    const requestedDistanceKm = options?.distanceKm ?? duelDistanceKm;
+    const requestedMatchId = options?.matchId ?? focusedDuelMatchIdRef.current ?? undefined;
+    let payload: RunningMatchStatusResponse;
     recordLiveMatchForfeitPoll(options?.forceAccept ? 'duel:linked-force' : 'duel:poll');
+    try {
+      payload = await fetchRunningMatchStatus({
+        mode: 'duel',
+        distanceKm: requestedDistanceKm,
+        slotStartAt,
+        testMode: options?.testMode ?? isDuelTestFlow,
+        matchId: requestedMatchId,
+      });
+      resetLinkedMatchVanishState('duel', requestedMatchId);
+    } catch (statusError) {
+      const vanishedFallback = handleLinkedMatchStatusVanishError({
+        distanceKm: requestedDistanceKm,
+        error: statusError,
+        matchId: requestedMatchId,
+        mode: 'duel',
+        previousStatus: duelMatchStatus,
+        slotStartAt,
+      });
+      if (vanishedFallback) {
+        return vanishedFallback;
+      }
+      throw statusError;
+    }
     if (!options?.forceAccept && !shouldAcceptServerSnapshot(latestDuelStatusServerNowMsRef, payload.serverNow)) {
       return duelMatchStatus ?? payload;
     }
@@ -1343,14 +1470,33 @@ export function TrackRunExperienceRuntime({
     slotStartAt = activeGroupSlotStartAt,
     options?: { testMode?: boolean; distanceKm?: number; matchId?: string; forceAccept?: boolean },
   ) => {
-    const payload = await fetchRunningMatchStatus({
-      mode: 'group',
-      distanceKm: options?.distanceKm ?? groupDistanceKm,
-      slotStartAt,
-      testMode: options?.testMode ?? isGroupTestFlow,
-      matchId: options?.matchId ?? focusedGroupMatchIdRef.current ?? undefined,
-    });
+    const requestedDistanceKm = options?.distanceKm ?? groupDistanceKm;
+    const requestedMatchId = options?.matchId ?? focusedGroupMatchIdRef.current ?? undefined;
+    let payload: RunningMatchStatusResponse;
     recordLiveMatchForfeitPoll(options?.forceAccept ? 'group:linked-force' : 'group:poll');
+    try {
+      payload = await fetchRunningMatchStatus({
+        mode: 'group',
+        distanceKm: requestedDistanceKm,
+        slotStartAt,
+        testMode: options?.testMode ?? isGroupTestFlow,
+        matchId: requestedMatchId,
+      });
+      resetLinkedMatchVanishState('group', requestedMatchId);
+    } catch (statusError) {
+      const vanishedFallback = handleLinkedMatchStatusVanishError({
+        distanceKm: requestedDistanceKm,
+        error: statusError,
+        matchId: requestedMatchId,
+        mode: 'group',
+        previousStatus: groupMatchStatus,
+        slotStartAt,
+      });
+      if (vanishedFallback) {
+        return vanishedFallback;
+      }
+      throw statusError;
+    }
     if (!options?.forceAccept && !shouldAcceptServerSnapshot(latestGroupStatusServerNowMsRef, payload.serverNow)) {
       return groupMatchStatus ?? payload;
     }

@@ -63,6 +63,27 @@ export function useRunForfeitCommand({
   setMatchLeaving,
   status,
 }: UseRunForfeitCommandInput) {
+  const buildForfeitRunDetailRedirect = (
+    source: MatchExitSource,
+    runId: string,
+    matchId: string | null,
+  ) => {
+    const statusContext = source === 'duel' ? duelMatchStatus : groupMatchStatus;
+    const linkedContext = roomLinkedMatchContext?.mode === source
+      && (!matchId || roomLinkedMatchContext.matchId === matchId)
+      ? roomLinkedMatchContext
+      : null;
+
+    return buildRunDetailRedirect({
+      runId,
+      isTabMode,
+      matchId,
+      matchMode: source,
+      matchDistanceKm: statusContext?.distanceKm ?? linkedContext?.distanceKm ?? null,
+      matchSlotStartAt: statusContext?.slotStartAt ?? linkedContext?.slotStartAt ?? null,
+    });
+  };
+
   const buildLocalForfeitSnapshot = (matchId: string) => {
     const snapshot = getDisplayedTrackingSnapshot();
     return {
@@ -91,7 +112,7 @@ export function useRunForfeitCommand({
     }
 
     if (didSave && savedRunId) {
-      const redirect = buildRunDetailRedirect({ runId: savedRunId, isTabMode });
+      const redirect = buildForfeitRunDetailRedirect(source, savedRunId, matchId);
       router.replace(redirect);
     } else {
       router.back();
