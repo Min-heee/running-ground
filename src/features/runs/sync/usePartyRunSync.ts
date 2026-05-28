@@ -27,6 +27,7 @@ type UsePartyRunSyncInput = {
   visiblePartyRunFlow: PartyRunFlowSnapshot;
   roomLinkedMatchContext: PartyRunLinkedMatchContext | null;
   roomCountdownRemainingSeconds: number | null;
+  currentUserDoneWithLinkedMatch?: boolean;
   duelMatchStatus: RunningMatchStatusResponse | null;
   groupMatchStatus: RunningMatchStatusResponse | null;
   focusedDuelMatchIdRef: RefObject<string | null>;
@@ -65,6 +66,7 @@ export function usePartyRunSync({
   visiblePartyRunFlow,
   roomLinkedMatchContext,
   roomCountdownRemainingSeconds,
+  currentUserDoneWithLinkedMatch = false,
   duelMatchStatus,
   groupMatchStatus,
   focusedDuelMatchIdRef,
@@ -174,6 +176,7 @@ export function usePartyRunSync({
     visiblePartyRunFlow,
     roomLinkedMatchContext,
     roomCountdownRemainingSeconds,
+    currentUserDoneWithLinkedMatch,
     duelMatchStatus,
     groupMatchStatus,
     focusedDuelMatchIdRef,
@@ -182,7 +185,7 @@ export function usePartyRunSync({
     fastMatchStatusPollMs,
     idleMatchStatusPollMs,
     enabled: enabled && linkedMatchSyncEnabled,
-    navigationEnabled: enabled && (lifecycleController?.effects.shouldNavigateLinkedMatch ?? true),
+    navigationEnabled: enabled && !currentUserDoneWithLinkedMatch && (lifecycleController?.effects.shouldNavigateLinkedMatch ?? true),
     pollingEnabled: enabled && (lifecycleController?.effects.shouldPollLinkedMatch ?? true),
     upcomingRefreshEnabled: enabled && (lifecycleController?.effects.shouldRefreshUpcomingMatches ?? true),
     callbacksRef: callbackRef,

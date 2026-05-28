@@ -53,6 +53,7 @@ export function shouldStageLiveMatchStartup({
   isRunning,
   forceOpenActiveMatch,
   partyRunShouldOpenArena,
+  currentUserDoneWithLinkedMatch = false,
   duelMatchState,
   groupMatchState,
   duelStartCountdownSeconds,
@@ -64,6 +65,7 @@ export function shouldStageLiveMatchStartup({
   isRunning: boolean;
   forceOpenActiveMatch: boolean;
   partyRunShouldOpenArena: boolean;
+  currentUserDoneWithLinkedMatch?: boolean;
   duelMatchState: RunningMatchState;
   groupMatchState: RunningMatchState;
   duelStartCountdownSeconds: number | null;
@@ -71,6 +73,10 @@ export function shouldStageLiveMatchStartup({
   roomLinkedMatchContext: PartyRunLinkedMatchContext | null;
 }) {
   if (!liveMatchStartupIdentity || matchMode === 'solo' || matchMode === 'room') {
+    return false;
+  }
+
+  if (currentUserDoneWithLinkedMatch) {
     return false;
   }
 
@@ -153,6 +159,7 @@ export function resolveArenaOpenState({
   partyRunLinkedMatchId,
   partyRunShouldOpenArena,
   forceOpenActiveMatch,
+  currentUserDoneWithLinkedMatch = false,
 }: {
   duelMatchState: RunningMatchState;
   groupMatchState: RunningMatchState;
@@ -161,12 +168,14 @@ export function resolveArenaOpenState({
   partyRunLinkedMatchId?: string | null;
   partyRunShouldOpenArena: boolean;
   forceOpenActiveMatch: boolean;
+  currentUserDoneWithLinkedMatch?: boolean;
 }) {
   return {
     duelShouldOpenCountdownArena: duelMatchState === 'matched' && shouldAutoOpenMatchArena(duelStartCountdownSeconds),
     groupShouldOpenCountdownArena: groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds),
     roomShouldOpenCountdownArena: Boolean(
       partyRunLinkedMatchId
+      && !currentUserDoneWithLinkedMatch
       && (partyRunShouldOpenArena || forceOpenActiveMatch),
     ),
     duelShouldHoldArenaDuringActivation: duelMatchState === 'matched' && forceOpenActiveMatch,
@@ -191,6 +200,7 @@ export function useMatchModeDerivedState({
   liveMatchRouteHydrationMatchId,
   partyRunLinkedMatchId,
   partyRunShouldOpenArena,
+  currentUserDoneWithLinkedMatch = false,
 }: {
   matchMode: RunMatchMode;
   isRunning: boolean;
@@ -208,6 +218,7 @@ export function useMatchModeDerivedState({
   liveMatchRouteHydrationMatchId?: string | null;
   partyRunLinkedMatchId?: string | null;
   partyRunShouldOpenArena: boolean;
+  currentUserDoneWithLinkedMatch?: boolean;
 }) {
   const liveMatchStartupIdentity = useMemo(() => resolveMatchModeIdentity({
     matchMode,
@@ -233,6 +244,7 @@ export function useMatchModeDerivedState({
     isRunning,
     forceOpenActiveMatch,
     partyRunShouldOpenArena,
+    currentUserDoneWithLinkedMatch,
     duelMatchState,
     groupMatchState,
     duelStartCountdownSeconds,
@@ -281,6 +293,7 @@ export function useMatchModeDerivedState({
       partyRunLinkedMatchId,
       partyRunShouldOpenArena,
       forceOpenActiveMatch,
+      currentUserDoneWithLinkedMatch,
     }),
     runningMatchIdentity,
   };

@@ -52,6 +52,7 @@ export function useLinkedMatchSync({
   visiblePartyRunFlow,
   roomLinkedMatchContext,
   roomCountdownRemainingSeconds,
+  currentUserDoneWithLinkedMatch = false,
   duelMatchStatus,
   groupMatchStatus,
   focusedDuelMatchIdRef,
@@ -70,9 +71,14 @@ export function useLinkedMatchSync({
   const lastLinkedMatchSyncGateKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (enabled && currentUserDoneWithLinkedMatch) {
+      callbacksRef.current.onForceOpenActiveMatchChange(false);
+    }
+
     if (
       !enabled
       || !navigationEnabled
+      || currentUserDoneWithLinkedMatch
       || !matchRoom?.linkedMatchId
       || !canOpenPartyRunLinkedMatch({
         room: matchRoom,
@@ -119,6 +125,7 @@ export function useLinkedMatchSync({
   }, [
     callbacksRef,
     currentUserId,
+    currentUserDoneWithLinkedMatch,
     duelMatchStatus?.matchId,
     duelMatchStatus?.state,
     enabled,
@@ -172,7 +179,7 @@ export function useLinkedMatchSync({
           getMatchStartRemainingSeconds(payload.slotStartAt, callbacksRef.current.getSyncedNowMs()),
         );
 
-        if (payload.state === 'active' || shouldPinArenaPage) {
+        if (!currentUserDoneWithLinkedMatch && (payload.state === 'active' || shouldPinArenaPage)) {
           callbacksRef.current.onForceOpenActiveMatchChange(true);
 
           const pinKey = [
@@ -248,6 +255,7 @@ export function useLinkedMatchSync({
     };
   }, [
     callbacksRef,
+    currentUserDoneWithLinkedMatch,
     enabled,
     fastMatchStatusPollMs,
     idleMatchStatusPollMs,
