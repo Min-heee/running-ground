@@ -111,11 +111,15 @@ export function useRunForfeitCommand({
     options: { currentUserForfeited?: boolean } = {},
   ) => {
     let savedRunId: string | null = null;
-    const displayedSnapshot = options.currentUserForfeited ? getDisplayedTrackingSnapshot() : null;
+    const shouldAllowStationaryEndSave = Boolean(
+      options.currentUserForfeited
+      || (source === 'duel' && duelMatchStatus?.opponent?.liveStatus === 'forfeited'),
+    );
+    const displayedSnapshot = shouldAllowStationaryEndSave ? getDisplayedTrackingSnapshot() : null;
     const didSave = await handleSaveTracking({
-      // Forfeit can happen before 0.1km or before GPS yields two points.
+      // Duel-ending actions can happen before 0.1km or before GPS yields two points.
       allowShortDistanceSave: true,
-      allowStationaryForfeitSave: Boolean(options.currentUserForfeited),
+      allowStationaryForfeitSave: shouldAllowStationaryEndSave,
       exitIfUnsavable: true,
       matchResultOverride: options.currentUserForfeited && displayedSnapshot
         ? buildCurrentUserForfeitMatchResult({
@@ -137,10 +141,10 @@ export function useRunForfeitCommand({
     if (didSave && savedRunId) {
       const redirect = buildForfeitRunDetailRedirect(source, savedRunId, matchId);
       router.replace(redirect);
-    } else if (!options.currentUserForfeited) {
-      router.replace('/(tabs)/running');
     } else {
-      setError('기권 결과 저장에 실패했어. 잠시 후 결과보기를 다시 눌러줘.');
+      setError(options.currentUserForfeited
+        ? '기권 결과 저장에 실패했어. 잠시 후 결과보기를 다시 눌러줘.'
+        : '대결 결과 저장에 실패했어. 잠시 후 대결종료를 다시 눌러줘.');
     }
   };
 
@@ -254,7 +258,7 @@ export function useRunForfeitCommand({
   };
 
   const handleShowResultAfterCounterpartForfeit = async (source: MatchExitSource) => {
-    if (pendingCounterpartForfeitResultRef.current || isSaving || status !== 'running') {
+    if (pendingCounterpartForfeitResultRef.current || isSaving) {
       return;
     }
 

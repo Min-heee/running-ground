@@ -66,7 +66,7 @@ export default function RunDetailScreen() {
     setExitMatchResultError(null);
     try {
       await forceResetRunningMatchState();
-      router.replace('/(tabs)/running');
+      router.replace('/(tabs)/home');
     } catch (exitError) {
       setExitMatchResultError(getApiErrorMessage(exitError, '매칭 상태 정리에 실패했어. 잠시 후 다시 시도해줘.'));
     } finally {
@@ -127,7 +127,7 @@ export default function RunDetailScreen() {
 
           {showMatchResultExit ? (
             <SecondaryButton
-              label={isExitingMatchResult ? '정리 중...' : '결과화면 나가기'}
+              label={isExitingMatchResult ? '정리 중...' : '나가기'}
               disabled={isExitingMatchResult}
               onPress={handleExitMatchResult}
             />

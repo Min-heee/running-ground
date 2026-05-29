@@ -5,7 +5,10 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { LiveMatchPages } from '@/features/runs/components/LiveMatchPages';
 import { LiveMatchTrackingPage } from '@/features/runs/components/LiveMatchTrackingPage';
-import { areLiveMatchContainerPropsEqual } from '@/features/runs/components/liveMatchPager/liveMatchPagePropsComparator';
+import {
+  areLiveMatchContainerPropsEqual,
+  shouldShowPausedTrackingActions,
+} from '@/features/runs/components/liveMatchPager/liveMatchPagePropsComparator';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 import { colors, spacing, fontWeights } from '@/theme/tokens';
 
@@ -37,6 +40,12 @@ export const LiveMatchContainer = memo(function LiveMatchContainer({
   onDiscardTracking,
 }: LiveMatchContainerProps) {
   useDevRenderCounter(showLiveArena ? 'LiveMatchContainer:arena' : 'LiveMatchContainer:tracking');
+  const showPausedActions = shouldShowPausedTrackingActions({
+    hasResultPage: livePagesProps.hasResultPage,
+    isPaused,
+    showLiveArena,
+  });
+
   return (
     <>
       {showLiveArena ? (
@@ -54,7 +63,7 @@ export const LiveMatchContainer = memo(function LiveMatchContainer({
         />
       ) : null}
 
-      {isPaused ? (
+      {showPausedActions ? (
         <LiveMatchPausedActions
           onSaveTracking={onSaveTracking}
           onResumeTracking={onResumeTracking}

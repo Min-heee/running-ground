@@ -24,6 +24,17 @@ export type LiveMatchContainerComparableProps = {
   trackingPageProps: unknown;
 };
 
+export function shouldShowPausedTrackingActions({
+  isPaused,
+  showLiveArena,
+}: {
+  hasResultPage: boolean;
+  isPaused: boolean;
+  showLiveArena: boolean;
+}) {
+  return isPaused && !showLiveArena;
+}
+
 export function doesLiveMatchPageUseExitAction(page: number): boolean {
   return page === 0;
 }

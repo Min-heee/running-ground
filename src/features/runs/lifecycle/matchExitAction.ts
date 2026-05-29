@@ -102,7 +102,7 @@ export function buildMatchExitActionState({
   }
 
   if (counterpartForfeited) {
-    const disabled = isLeaving || isSaving || !isRunning;
+    const disabled = isLeaving || isSaving;
 
     return {
       kind: 'counterpart-forfeited',
@@ -110,9 +110,7 @@ export function buildMatchExitActionState({
       body: '내가 승리한 상태예요. 러닝을 종료하면 결과 화면에서 대결 결과를 확인할 수 있어요.',
       buttonLabel: isLeaving || isSaving
         ? '결과 저장 중...'
-        : !isRunning
-          ? '결과 화면 준비 중...'
-          : '러닝 종료하고 결과보기',
+        : '대결종료',
       disabled,
     };
   }

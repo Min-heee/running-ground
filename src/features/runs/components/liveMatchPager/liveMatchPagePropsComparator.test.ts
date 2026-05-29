@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   areLiveMatchContainerPropsEqual,
   areLiveMatchPagesPropsEqualForActivePage,
+  shouldShowPausedTrackingActions,
 } from '@/features/runs/components/liveMatchPager/liveMatchPagePropsComparator';
 
 const noop = () => {};
@@ -86,4 +87,24 @@ test('live match container ignores exit action churn away from arena page', () =
       exitAction: { id: 'exit-b' },
     }),
   ), false);
+});
+
+test('paused tracking actions stay hidden while live match arena is visible', () => {
+  assert.equal(shouldShowPausedTrackingActions({
+    hasResultPage: true,
+    isPaused: true,
+    showLiveArena: true,
+  }), false);
+
+  assert.equal(shouldShowPausedTrackingActions({
+    hasResultPage: false,
+    isPaused: true,
+    showLiveArena: true,
+  }), false);
+
+  assert.equal(shouldShowPausedTrackingActions({
+    hasResultPage: false,
+    isPaused: true,
+    showLiveArena: false,
+  }), true);
 });

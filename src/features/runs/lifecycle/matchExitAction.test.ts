@@ -30,7 +30,7 @@ test('exit action switches from forfeit to result button when counterpart forfei
   });
 
   assert.equal(counterpartForfeited.kind, 'counterpart-forfeited');
-  assert.equal(counterpartForfeited.buttonLabel, '러닝 종료하고 결과보기');
+  assert.equal(counterpartForfeited.buttonLabel, '대결종료');
   assert.equal(counterpartForfeited.disabled, false);
 });
 
@@ -49,6 +49,23 @@ test('exit action blocks duplicate saves while counterpart forfeit result is pre
   assert.equal(saving.kind, 'counterpart-forfeited');
   assert.equal(saving.buttonLabel, '결과 저장 중...');
   assert.equal(saving.disabled, true);
+});
+
+test('exit action keeps counterpart-forfeited end button enabled after tracking pauses', () => {
+  const counterpartForfeited = buildMatchExitActionState({
+    source: 'duel',
+    isTestMatch: false,
+    isLeaving: false,
+    isSaving: false,
+    isRunning: false,
+    counterpartForfeited: true,
+    selfForfeited: false,
+    selfFinished: false,
+  });
+
+  assert.equal(counterpartForfeited.kind, 'counterpart-forfeited');
+  assert.equal(counterpartForfeited.buttonLabel, '대결종료');
+  assert.equal(counterpartForfeited.disabled, false);
 });
 
 test('exit action keeps test match cleanup separate from real forfeits', () => {
