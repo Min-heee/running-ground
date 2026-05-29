@@ -12,6 +12,9 @@ import {
   restoreBackgroundRunSnapshot,
 } from '@/features/runs/tracking/background/backgroundRunPersistence';
 import {
+  clearBackgroundMatchProgressContext,
+} from '@/features/runs/tracking/background/backgroundMatchProgressSync';
+import {
   buildSnapshotClone,
   emitSnapshot,
   getSnapshotState,
@@ -118,6 +121,7 @@ function shouldResetAbandonedTracking(snapshot: BackgroundRunTrackingSnapshot, n
 
 function resetTrackingStateOnly() {
   const previousMatchId = stopBackgroundRunPersistence();
+  clearBackgroundMatchProgressContext();
   void clearBackgroundRunSnapshot(previousMatchId);
   resetRouteAccumulator();
   setSnapshotState({ ...INITIAL_SNAPSHOT });

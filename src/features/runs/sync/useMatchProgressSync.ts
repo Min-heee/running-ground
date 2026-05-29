@@ -14,6 +14,10 @@ import {
 import {
   recordBackgroundHeartbeatAttempt,
 } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
+import {
+  clearBackgroundMatchProgressContext,
+  setBackgroundMatchProgressContext,
+} from '@/features/runs/tracking/background/backgroundMatchProgressSync';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
@@ -95,6 +99,56 @@ export function useMatchProgressSync({
   ]);
   const activeHeartbeatTarget = heartbeatEnabled ? getActiveMatchProgressTarget() : null;
   const activeHeartbeatMatchId = activeHeartbeatTarget?.matchId ?? null;
+  const activeHeartbeatDistanceKm = activeHeartbeatTarget?.distanceKm ?? null;
+
+  useEffect(() => {
+    if (!heartbeatEnabled || !activeHeartbeatMatchId || activeHeartbeatDistanceKm === null) {
+      clearBackgroundMatchProgressContext();
+      return undefined;
+    }
+
+    const duelMatchStatus = duelMatchStatusRef.current;
+    const groupMatchStatus = groupMatchStatusRef.current;
+    const roomLinkedMatchContext = roomLinkedMatchContextRef.current;
+    const roomLinkedContextMatches = roomLinkedMatchContext?.matchId === activeHeartbeatMatchId;
+    const duelStatusMatches = duelMatchStatus?.matchId === activeHeartbeatMatchId;
+    const groupStatusMatches = groupMatchStatus?.matchId === activeHeartbeatMatchId;
+    const mode = roomLinkedContextMatches
+      ? roomLinkedMatchContext.mode
+      : duelStatusMatches
+        ? 'duel'
+        : groupStatusMatches
+          ? 'group'
+          : matchModeRef.current === 'group'
+            ? 'group'
+            : 'duel';
+    const slotStartAt = roomLinkedContextMatches
+      ? roomLinkedMatchContext.slotStartAt
+      : duelStatusMatches
+        ? duelMatchStatus.slotStartAt
+        : groupStatusMatches
+          ? groupMatchStatus.slotStartAt
+          : null;
+
+    setBackgroundMatchProgressContext({
+      matchId: activeHeartbeatMatchId,
+      mode,
+      distanceKm: activeHeartbeatDistanceKm,
+      slotStartAt,
+    });
+
+    return () => {
+      clearBackgroundMatchProgressContext(activeHeartbeatMatchId);
+    };
+  }, [
+    activeHeartbeatDistanceKm,
+    activeHeartbeatMatchId,
+    duelMatchStatusRef,
+    groupMatchStatusRef,
+    heartbeatEnabled,
+    matchModeRef,
+    roomLinkedMatchContextRef,
+  ]);
 
   useEffect(() => {
     if (!heartbeatEnabled || !activeHeartbeatMatchId) {

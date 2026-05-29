@@ -1,6 +1,9 @@
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import {
+  flushBackgroundMatchProgressSync,
+} from '@/features/runs/tracking/background/backgroundMatchProgressSync';
 import { appendTrackedLocation } from '@/features/runs/tracking/background/routeAccumulator';
 import {
   BACKGROUND_RUN_TASK_NAME,
@@ -47,6 +50,7 @@ function defineBackgroundRunTask(taskName: string) {
       : [];
 
     locations.forEach(appendTrackedLocation);
+    await flushBackgroundMatchProgressSync().catch(() => false);
   });
 }
 
