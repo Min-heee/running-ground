@@ -4,6 +4,7 @@ import type { RunRoutePoint } from '@/domain';
 import {
   buildFallbackPaceSecondsPerKm,
   buildRoutePoint,
+  buildStableColdStartRouteCandidate,
   calculateElevationGainForSegment,
   calculateRouteWindowDistanceMeters,
   clamp,
@@ -11,6 +12,7 @@ import {
   CURRENT_PACE_MIN_WINDOW_MS,
   CURRENT_PACE_SMOOTHING_WINDOW_MS,
   CURRENT_PACE_STALE_AFTER_MS,
+  findColdStartExcursionAnchorIndex,
   MAX_REASONABLE_PACE_SECONDS_PER_KM,
   MAX_REASONABLE_RUNNING_SPEED_MPS,
   MAX_TRACKING_ACCURACY_METERS,
@@ -22,6 +24,7 @@ import {
   resolveLocationTimestampMs,
   resolveRoutePointTimestampMs,
   shouldIgnoreNoisySegment,
+  trimColdStartFixBuffer,
 } from '@/features/runs/tracking/background/locationDistance';
 import {
   commitSnapshot,
@@ -35,12 +38,14 @@ let accumulatedDistanceMeters = 0;
 let accumulatedElevationGainMeters = 0;
 let smoothedCurrentPaceSecondsPerKm: number | null = null;
 let smoothedPaceUpdatedAtMs: number | null = null;
+let coldStartFixBuffer: RunRoutePoint[] = [];
 
 export function resetRouteAccumulator() {
   accumulatedDistanceMeters = 0;
   accumulatedElevationGainMeters = 0;
   smoothedCurrentPaceSecondsPerKm = null;
   smoothedPaceUpdatedAtMs = null;
+  coldStartFixBuffer = [];
 }
 
 export function getAccumulatedDistanceMeters() {
@@ -157,6 +162,15 @@ function buildSmoothedCurrentPace(
   return formatSmoothedPaceCandidate(secondsPerKm, referenceTimestampMs);
 }
 
+function calculateRouteElevationGainMeters(route: RunRoutePoint[]) {
+  let elevationGainMeters = 0;
+  for (let index = 1; index < route.length; index += 1) {
+    elevationGainMeters += calculateElevationGainForSegment(route[index - 1], route[index]);
+  }
+
+  return elevationGainMeters;
+}
+
 export function appendTrackedLocation(location: Location.LocationObject) {
   const snapshotState = getSnapshotState();
 
@@ -191,11 +205,11 @@ export function appendTrackedLocation(location: Location.LocationObject) {
   const previousPoint = snapshotState.route.length ? snapshotState.route[snapshotState.route.length - 1] : null;
   let nextAccumulatedDistanceMeters = accumulatedDistanceMeters;
 
-  if (previousPoint) {
-    const segmentDistanceMeters = calculateDistanceBetweenPoints(previousPoint, nextPoint);
-    const timeDelta = new Date(nextPoint.timestamp).getTime() - new Date(previousPoint.timestamp).getTime();
+  if (!previousPoint) {
+    coldStartFixBuffer = trimColdStartFixBuffer([...coldStartFixBuffer, nextPoint]);
+    const stableRoute = buildStableColdStartRouteCandidate(coldStartFixBuffer);
 
-    if (timeDelta < MIN_LOCATION_TIME_DELTA_MS) {
+    if (!stableRoute) {
       commitSnapshot({
         ...snapshotState,
         currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
@@ -203,47 +217,91 @@ export function appendTrackedLocation(location: Location.LocationObject) {
       return;
     }
 
-    const segmentSpeedMps = segmentDistanceMeters / (timeDelta / 1000);
-    const previousAccuracyM = normalizeAccuracyMeters(previousPoint.accuracyM);
-    const worstAccuracyM = Math.max(previousAccuracyM ?? 0, accuracyM ?? 0);
+    accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(stableRoute);
+    accumulatedElevationGainMeters = calculateRouteElevationGainMeters(stableRoute);
+    coldStartFixBuffer = [];
 
-    if (
-      segmentDistanceMeters >= MIN_TELEPORT_FILTER_DISTANCE_METERS
-      && segmentSpeedMps > MAX_REASONABLE_RUNNING_SPEED_MPS
-    ) {
-      commitSnapshot({
-        ...snapshotState,
-        currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
-      });
-      return;
-    }
-
-    if (
-      segmentDistanceMeters > Math.max(MIN_TELEPORT_FILTER_DISTANCE_METERS, worstAccuracyM * 1.8)
-      && segmentSpeedMps > 5.8
-    ) {
-      commitSnapshot({
-        ...snapshotState,
-        currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
-      });
-      return;
-    }
-
-    if (shouldIgnoreNoisySegment({
-      segmentDistanceMeters,
-      segmentSpeedMps,
-      worstAccuracyM,
-      reliableSpeedMps,
-    })) {
-      commitSnapshot({
-        ...snapshotState,
-        currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
-      });
-      return;
-    }
-
-    nextAccumulatedDistanceMeters += segmentDistanceMeters;
+    commitSnapshot({
+      ...snapshotState,
+      route: stableRoute,
+      startedAt: snapshotState.startedAt ?? stableRoute[0]?.timestamp ?? nextPoint.timestamp,
+      distanceKm: Number((accumulatedDistanceMeters / 1000).toFixed(2)),
+      elevationGainM: Math.round(accumulatedElevationGainMeters),
+      currentPace: buildSmoothedCurrentPace(stableRoute, reliableSpeedMps, locationTimestampMs),
+    });
+    return;
   }
+
+  coldStartFixBuffer = [];
+
+  const excursionAnchorIndex = findColdStartExcursionAnchorIndex(snapshotState.route, nextPoint);
+  if (excursionAnchorIndex !== null) {
+    const nextRoute = [...snapshotState.route.slice(0, excursionAnchorIndex + 1), nextPoint];
+    accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute);
+    accumulatedElevationGainMeters = calculateRouteElevationGainMeters(nextRoute);
+
+    commitSnapshot({
+      ...snapshotState,
+      route: nextRoute,
+      startedAt: snapshotState.startedAt ?? nextRoute[0]?.timestamp ?? nextPoint.timestamp,
+      distanceKm: Number((accumulatedDistanceMeters / 1000).toFixed(2)),
+      elevationGainM: Math.round(accumulatedElevationGainMeters),
+      currentPace: buildSmoothedCurrentPace(nextRoute, reliableSpeedMps, locationTimestampMs),
+    });
+    return;
+  }
+
+  const segmentDistanceMeters = calculateDistanceBetweenPoints(previousPoint, nextPoint);
+  const timeDelta = new Date(nextPoint.timestamp).getTime() - new Date(previousPoint.timestamp).getTime();
+
+  if (timeDelta < MIN_LOCATION_TIME_DELTA_MS) {
+    commitSnapshot({
+      ...snapshotState,
+      currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
+    });
+    return;
+  }
+
+  const segmentSpeedMps = segmentDistanceMeters / (timeDelta / 1000);
+  const previousAccuracyM = normalizeAccuracyMeters(previousPoint.accuracyM);
+  const worstAccuracyM = Math.max(previousAccuracyM ?? 0, accuracyM ?? 0);
+
+  if (
+    segmentDistanceMeters >= MIN_TELEPORT_FILTER_DISTANCE_METERS
+    && segmentSpeedMps > MAX_REASONABLE_RUNNING_SPEED_MPS
+  ) {
+    commitSnapshot({
+      ...snapshotState,
+      currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
+    });
+    return;
+  }
+
+  if (
+    segmentDistanceMeters > Math.max(MIN_TELEPORT_FILTER_DISTANCE_METERS, worstAccuracyM * 1.8)
+    && segmentSpeedMps > 5.8
+  ) {
+    commitSnapshot({
+      ...snapshotState,
+      currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
+    });
+    return;
+  }
+
+  if (shouldIgnoreNoisySegment({
+    segmentDistanceMeters,
+    segmentSpeedMps,
+    worstAccuracyM,
+    reliableSpeedMps,
+  })) {
+    commitSnapshot({
+      ...snapshotState,
+      currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
+    });
+    return;
+  }
+
+  nextAccumulatedDistanceMeters += segmentDistanceMeters;
 
   const nextRoute = [...snapshotState.route, nextPoint];
   accumulatedDistanceMeters = nextAccumulatedDistanceMeters;

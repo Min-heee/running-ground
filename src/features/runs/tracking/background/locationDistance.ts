@@ -18,6 +18,16 @@ export const STATIONARY_SPEED_MPS = 0.9;
 export const POOR_ACCURACY_METERS = 25;
 export const MIN_REASONABLE_PACE_SECONDS_PER_KM = 150;
 export const MAX_REASONABLE_PACE_SECONDS_PER_KM = 1200;
+export const COLD_START_STABLE_FIX_COUNT = 3;
+export const COLD_START_MAX_STABLE_ACCURACY_METERS = 30;
+export const COLD_START_MAX_STABLE_CLUSTER_RADIUS_METERS = 30;
+export const COLD_START_MAX_STABLE_WINDOW_MS = 10_000;
+export const COLD_START_MAX_BUFFER_FIXES = 8;
+export const COLD_START_EXCURSION_WINDOW_MS = 45_000;
+export const COLD_START_EXCURSION_LOOKBACK_POINTS = 5;
+export const COLD_START_EXCURSION_DIRECT_RADIUS_METERS = 22;
+export const COLD_START_EXCURSION_MIN_PATH_METERS = 55;
+export const COLD_START_EXCURSION_MIN_EXTRA_METERS = 40;
 
 export function normalizeAccuracyMeters(value?: number | null) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
@@ -143,4 +153,94 @@ export function calculateRouteWindowDistanceMeters(route: RunRoutePoint[]) {
   }
 
   return distanceMeters;
+}
+
+function hasStableColdStartAccuracy(point: RunRoutePoint) {
+  const accuracyM = normalizeAccuracyMeters(point.accuracyM);
+  return accuracyM === null || accuracyM <= COLD_START_MAX_STABLE_ACCURACY_METERS;
+}
+
+export function buildStableColdStartRouteCandidate(points: RunRoutePoint[]) {
+  if (points.length < COLD_START_STABLE_FIX_COUNT) {
+    return null;
+  }
+
+  const recentPoints = points.slice(-COLD_START_STABLE_FIX_COUNT);
+  const firstTimestampMs = resolveRoutePointTimestampMs(recentPoints[0]);
+  const lastTimestampMs = resolveRoutePointTimestampMs(recentPoints[recentPoints.length - 1]);
+
+  if (
+    firstTimestampMs === null
+    || lastTimestampMs === null
+    || lastTimestampMs <= firstTimestampMs
+    || lastTimestampMs - firstTimestampMs > COLD_START_MAX_STABLE_WINDOW_MS
+  ) {
+    return null;
+  }
+
+  if (!recentPoints.every(hasStableColdStartAccuracy)) {
+    return null;
+  }
+
+  let maxPairDistanceMeters = 0;
+  for (let leftIndex = 0; leftIndex < recentPoints.length - 1; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < recentPoints.length; rightIndex += 1) {
+      maxPairDistanceMeters = Math.max(
+        maxPairDistanceMeters,
+        calculateDistanceBetweenPoints(recentPoints[leftIndex], recentPoints[rightIndex]),
+      );
+    }
+  }
+
+  return maxPairDistanceMeters <= COLD_START_MAX_STABLE_CLUSTER_RADIUS_METERS
+    ? recentPoints
+    : null;
+}
+
+export function trimColdStartFixBuffer(points: RunRoutePoint[]) {
+  if (points.length <= COLD_START_MAX_BUFFER_FIXES) {
+    return points;
+  }
+
+  return points.slice(-COLD_START_MAX_BUFFER_FIXES);
+}
+
+export function findColdStartExcursionAnchorIndex(route: RunRoutePoint[], nextPoint: RunRoutePoint) {
+  if (route.length < 2) {
+    return null;
+  }
+
+  const firstTimestampMs = resolveRoutePointTimestampMs(route[0]);
+  const nextTimestampMs = resolveRoutePointTimestampMs(nextPoint);
+
+  if (
+    firstTimestampMs === null
+    || nextTimestampMs === null
+    || nextTimestampMs - firstTimestampMs > COLD_START_EXCURSION_WINDOW_MS
+  ) {
+    return null;
+  }
+
+  const minAnchorIndex = Math.max(0, route.length - COLD_START_EXCURSION_LOOKBACK_POINTS);
+
+  for (let anchorIndex = route.length - 2; anchorIndex >= minAnchorIndex; anchorIndex -= 1) {
+    const anchorPoint = route[anchorIndex];
+    const directDistanceMeters = calculateDistanceBetweenPoints(anchorPoint, nextPoint);
+
+    if (directDistanceMeters > COLD_START_EXCURSION_DIRECT_RADIUS_METERS) {
+      continue;
+    }
+
+    const candidatePath = [...route.slice(anchorIndex), nextPoint];
+    const candidatePathDistanceMeters = calculateRouteWindowDistanceMeters(candidatePath);
+
+    if (
+      candidatePathDistanceMeters >= COLD_START_EXCURSION_MIN_PATH_METERS
+      && candidatePathDistanceMeters - directDistanceMeters >= COLD_START_EXCURSION_MIN_EXTRA_METERS
+    ) {
+      return anchorIndex;
+    }
+  }
+
+  return null;
 }
