@@ -30,7 +30,7 @@ import {
   resolveCurrentUserFinishedForResultPage,
   shouldShowMatchResultPageOnCurrentUserFinished,
 } from '@/features/runs/viewModels/matchResultPageVisibility';
-import { useAndroidLiveMatchDisplayFrame } from '@/features/runs/viewModels/useAndroidLiveMatchDisplayFrame';
+import { useAndroidLiveMatchDisplayFrames } from '@/features/runs/viewModels/useAndroidLiveMatchDisplayFrame';
 import { useAndroidLiveMatchStartupGate } from '@/features/runs/lifecycle/hooks/useAndroidLiveMatchStartupGate';
 import { useTrackRunIdleViewModel } from '@/features/runs/viewModels/useTrackRunIdleViewModel';
 import { useMatchRuntimeState } from '@/features/runs/hooks/useMatchRuntimeState';
@@ -707,7 +707,10 @@ export function TrackRunExperienceRuntime({
     }),
     [averagePace, cadenceSpm, currentPace, distanceKm, elapsedSeconds, elevationGainM],
   );
-  const liveMatchDisplayFrame = useAndroidLiveMatchDisplayFrame(
+  const {
+    frame: liveMatchDisplayFrame,
+    metricFrame: liveMatchMetricFrame,
+  } = useAndroidLiveMatchDisplayFrames(
     rawLiveMatchDisplayFrame,
     isRunning && (matchMode === 'duel' || matchMode === 'group'),
   );
@@ -758,14 +761,14 @@ export function TrackRunExperienceRuntime({
   const liveArenaPageWidth = Math.max(windowWidth - 32, 280);
   const currentUserArenaPace = useMemo(() => resolveCurrentUserArenaPace({
     officialCurrentAveragePace,
-    liveMatchDisplayDistanceKm,
-    liveMatchDisplayElapsedSeconds,
+    liveMatchDisplayDistanceKm: liveMatchMetricFrame.distanceKm,
+    liveMatchDisplayElapsedSeconds: liveMatchMetricFrame.elapsedSeconds,
     shouldUseLivePace: duelArenaUsesLivePace || groupArenaUsesLivePace,
   }), [
     duelArenaUsesLivePace,
     groupArenaUsesLivePace,
-    liveMatchDisplayDistanceKm,
-    liveMatchDisplayElapsedSeconds,
+    liveMatchMetricFrame.distanceKm,
+    liveMatchMetricFrame.elapsedSeconds,
     officialCurrentAveragePace,
   ]);
   const {

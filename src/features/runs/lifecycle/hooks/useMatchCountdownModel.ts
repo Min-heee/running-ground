@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type {
   RunningMatchRoom,
   RunningMatchStatusResponse,
@@ -7,6 +7,7 @@ import type {
 import {
   findNextStartingMatchedMatch,
   getMatchStartRemainingSeconds,
+  MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
   MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
 } from '@/lib/matchCountdown';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
@@ -20,6 +21,12 @@ type CountdownEntry = {
   title: string;
   subtitle: string;
   remainingSeconds: number;
+};
+
+type MonotonicCountdownTracker = {
+  key: string;
+  displayedRemainingSeconds: number;
+  displayedAtMs: number;
 };
 
 type UseMatchCountdownModelInput = {
@@ -78,11 +85,130 @@ export function shouldShowRoomCountdownNumbers({
   remainingSeconds: number | null;
   startMode?: RunningMatchRoom['startMode'] | null;
 }) {
+  if (startMode === 'host') {
+    return (
+      typeof remainingSeconds === 'number'
+      && remainingSeconds <= MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS
+    );
+  }
+
   return (
-    startMode !== 'host'
-    || typeof remainingSeconds !== 'number'
-    || remainingSeconds <= MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS
+    typeof remainingSeconds !== 'number'
+    || remainingSeconds <= MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS
   );
+}
+
+export function resolveMonotonicCountdownRemainingSeconds({
+  key,
+  maxStartSeconds,
+  nowMs,
+  rawRemainingSeconds,
+  tracker,
+}: {
+  key: string | null;
+  maxStartSeconds: number;
+  nowMs: number;
+  rawRemainingSeconds: number | null;
+  tracker: { current: MonotonicCountdownTracker | null };
+}) {
+  if (!key || typeof rawRemainingSeconds !== 'number') {
+    tracker.current = null;
+    return rawRemainingSeconds;
+  }
+
+  const rawDisplaySeconds = Math.max(0, Math.min(maxStartSeconds, rawRemainingSeconds));
+  const current = tracker.current;
+
+  if (!current || current.key !== key) {
+    tracker.current = {
+      key,
+      displayedRemainingSeconds: rawDisplaySeconds,
+      displayedAtMs: nowMs,
+    };
+    return rawDisplaySeconds;
+  }
+
+  const elapsedSeconds = Math.max(0, Math.floor((nowMs - current.displayedAtMs) / 1000));
+  const slowestAllowedNext = Math.max(0, current.displayedRemainingSeconds - elapsedSeconds);
+  const nextDisplayedSeconds = Math.min(
+    current.displayedRemainingSeconds,
+    Math.max(rawDisplaySeconds, slowestAllowedNext),
+  );
+
+  if (nextDisplayedSeconds < current.displayedRemainingSeconds) {
+    tracker.current = {
+      key,
+      displayedRemainingSeconds: nextDisplayedSeconds,
+      displayedAtMs: nowMs,
+    };
+  }
+
+  return nextDisplayedSeconds;
+}
+
+function useMonotonicCountdownSeconds({
+  key,
+  maxStartSeconds,
+  nowMs,
+  rawRemainingSeconds,
+}: {
+  key: string | null;
+  maxStartSeconds: number;
+  nowMs: number;
+  rawRemainingSeconds: number | null;
+}) {
+  const trackerRef = useRef<MonotonicCountdownTracker | null>(null);
+
+  return resolveMonotonicCountdownRemainingSeconds({
+    key,
+    maxStartSeconds,
+    nowMs,
+    rawRemainingSeconds,
+    tracker: trackerRef,
+  });
+}
+
+export function normalizePartyRunFlowRemainingSeconds(remainingSeconds: number | null) {
+  if (typeof remainingSeconds !== 'number') {
+    return null;
+  }
+
+  if (remainingSeconds <= 20) {
+    return 20;
+  }
+
+  if (remainingSeconds <= 30) {
+    return 30;
+  }
+
+  if (remainingSeconds <= 60) {
+    return 60;
+  }
+
+  return 61;
+}
+
+export function resolvePartyRunFlowSyncedNowMs({
+  room,
+  remainingSeconds,
+  syncedNowMs,
+}: {
+  room: RunningMatchRoom | null;
+  remainingSeconds: number | null;
+  syncedNowMs: number;
+}) {
+  if (typeof remainingSeconds === 'number') {
+    return null;
+  }
+
+  const linkedSlotStartAt = room?.linkedMatchSlotStartAt ?? room?.slotStartAt;
+  const linkedSlotStartMs = linkedSlotStartAt ? Date.parse(linkedSlotStartAt) : NaN;
+
+  if (!Number.isFinite(linkedSlotStartMs) || syncedNowMs < linkedSlotStartMs) {
+    return null;
+  }
+
+  return linkedSlotStartMs + 1;
 }
 
 export function useMatchCountdownModel({
@@ -205,36 +331,74 @@ export function useMatchCountdownModel({
   const roomCountdownRemainingSeconds = runtimeRoom === matchRoom
     ? matchRoomCountdownRemainingSeconds
     : visibleRoomCountdownRemainingSeconds;
+  const rawRoomCountdownRemainingSeconds = runtimeRoom === matchRoom
+    ? rawMatchRoomCountdownRemainingSeconds
+    : rawVisibleRoomCountdownRemainingSeconds;
   const shouldShowRuntimeRoomCountdownNumbers = shouldShowRoomCountdownNumbers({
-    remainingSeconds: roomCountdownRemainingSeconds,
+    remainingSeconds: rawRoomCountdownRemainingSeconds,
     startMode: runtimeRoom?.startMode,
+  });
+  const shouldUseHostStartCountdownClamp = runtimeRoom?.startMode === 'host';
+  const hostRoomCountdownDisplayRemainingSeconds = useMonotonicCountdownSeconds({
+    key: runtimeRoom?.linkedMatchId && shouldUseHostStartCountdownClamp && shouldShowRuntimeRoomCountdownNumbers
+      ? `${runtimeRoom.linkedMatchId}:host-display`
+      : null,
+    maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+    rawRemainingSeconds: shouldShowRuntimeRoomCountdownNumbers
+      ? rawRoomCountdownRemainingSeconds
+      : null,
+    nowMs,
+  });
+  const stableRoomCountdownDisplayRemainingSeconds = useStableCountdownSeconds({
+    key: runtimeRoom?.linkedMatchId && !shouldUseHostStartCountdownClamp && shouldShowRuntimeRoomCountdownNumbers
+      ? `${runtimeRoom.linkedMatchId}:${runtimeRoom.linkedMatchSlotStartAt ?? runtimeRoom.slotStartAt}:display`
+      : null,
+    rawRemainingSeconds: shouldShowRuntimeRoomCountdownNumbers
+      ? rawRoomCountdownRemainingSeconds
+      : null,
+    nowMs,
+  });
+  const roomCountdownDisplayRemainingSeconds = shouldUseHostStartCountdownClamp
+    ? hostRoomCountdownDisplayRemainingSeconds
+    : stableRoomCountdownDisplayRemainingSeconds;
+  const visiblePartyRunFlowRemainingSeconds = normalizePartyRunFlowRemainingSeconds(visibleRoomCountdownRemainingSeconds);
+  const visiblePartyRunFlowSyncedNowMs = resolvePartyRunFlowSyncedNowMs({
+    room: visibleMatchRoom,
+    remainingSeconds: visibleRoomCountdownRemainingSeconds,
+    syncedNowMs,
+  });
+  const matchRoomFlowRemainingSeconds = normalizePartyRunFlowRemainingSeconds(matchRoomCountdownRemainingSeconds);
+  const matchRoomFlowSyncedNowMs = resolvePartyRunFlowSyncedNowMs({
+    room: matchRoom,
+    remainingSeconds: matchRoomCountdownRemainingSeconds,
+    syncedNowMs,
   });
   const visiblePartyRunFlow = useMemo(() => buildPartyRunFlowSnapshot({
     room: visibleMatchRoom,
     isCountdownReady: currentRoomParticipantIsCountdownReady ?? undefined,
-    remainingSeconds: visibleRoomCountdownRemainingSeconds,
-    syncedNowMs,
+    remainingSeconds: visiblePartyRunFlowRemainingSeconds,
+    syncedNowMs: visiblePartyRunFlowSyncedNowMs,
   }), [
     currentRoomParticipantIsCountdownReady,
-    syncedNowMs,
-    visibleRoomCountdownRemainingSeconds,
+    visiblePartyRunFlowRemainingSeconds,
+    visiblePartyRunFlowSyncedNowMs,
     visibleMatchRoom,
   ]);
   const matchRoomFlow = useMemo(() => buildPartyRunFlowSnapshot({
     room: matchRoom,
     isCountdownReady: currentRoomParticipantIsCountdownReady ?? undefined,
-    remainingSeconds: matchRoomCountdownRemainingSeconds,
-    syncedNowMs,
+    remainingSeconds: matchRoomFlowRemainingSeconds,
+    syncedNowMs: matchRoomFlowSyncedNowMs,
   }), [
     currentRoomParticipantIsCountdownReady,
     matchRoom,
-    matchRoomCountdownRemainingSeconds,
-    syncedNowMs,
+    matchRoomFlowRemainingSeconds,
+    matchRoomFlowSyncedNowMs,
   ]);
   const roomCountdownEntry = useMemo<CountdownEntry | null>(() => {
     if (
       !runtimeRoom?.linkedMatchId
-      || typeof roomCountdownRemainingSeconds !== 'number'
+      || typeof roomCountdownDisplayRemainingSeconds !== 'number'
       || !['arming', 'countdown', 'active'].includes(runtimeRoom.state)
       || !shouldShowRuntimeRoomCountdownNumbers
     ) {
@@ -244,9 +408,9 @@ export function useMatchCountdownModel({
     return {
       title: runtimeRoom.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',
       subtitle: `${runtimeRoom.hostName}님 방 · ${(runtimeRoom.linkedMatchDistanceKm ?? runtimeRoom.distanceKm).toFixed(1)}km`,
-      remainingSeconds: roomCountdownRemainingSeconds,
+      remainingSeconds: roomCountdownDisplayRemainingSeconds,
     };
-  }, [roomCountdownRemainingSeconds, runtimeRoom, shouldShowRuntimeRoomCountdownNumbers]);
+  }, [roomCountdownDisplayRemainingSeconds, runtimeRoom, shouldShowRuntimeRoomCountdownNumbers]);
   const visibleCountdownEntry = shouldShowRuntimeRoomCountdownNumbers
     ? roomCountdownEntry ?? (stableNextStartingMatch
       ? {

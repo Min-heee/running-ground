@@ -3,7 +3,10 @@ import test from 'node:test';
 
 import { MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS } from '@/lib/matchCountdown';
 import {
+  normalizePartyRunFlowRemainingSeconds,
+  resolveMonotonicCountdownRemainingSeconds,
   resolveShouldShowRoomArmingOverlay,
+  resolvePartyRunFlowSyncedNowMs,
   shouldShowRoomCountdownNumbers,
 } from './useMatchCountdownModel';
 
@@ -80,6 +83,60 @@ test('scheduled room countdown numbers keep the existing wider countdown window'
   }), true);
 });
 
+test('host-start monotonic countdown clamps re-anchor drops to one second at a time', () => {
+  const tracker = { current: null };
+  const input = {
+    key: 'match-1:host-display',
+    maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+    tracker,
+  };
+
+  assert.equal(resolveMonotonicCountdownRemainingSeconds({
+    ...input,
+    nowMs: 0,
+    rawRemainingSeconds: 10,
+  }), 10);
+
+  assert.equal(resolveMonotonicCountdownRemainingSeconds({
+    ...input,
+    nowMs: 1000,
+    rawRemainingSeconds: 8,
+  }), 9);
+
+  assert.equal(resolveMonotonicCountdownRemainingSeconds({
+    ...input,
+    nowMs: 2000,
+    rawRemainingSeconds: 7,
+  }), 8);
+
+  assert.equal(resolveMonotonicCountdownRemainingSeconds({
+    ...input,
+    nowMs: 3000,
+    rawRemainingSeconds: 7,
+  }), 7);
+});
+
+test('host-start monotonic countdown never increases after display starts', () => {
+  const tracker = { current: null };
+  const input = {
+    key: 'match-1:host-display',
+    maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+    tracker,
+  };
+
+  assert.equal(resolveMonotonicCountdownRemainingSeconds({
+    ...input,
+    nowMs: 0,
+    rawRemainingSeconds: 8,
+  }), 8);
+
+  assert.equal(resolveMonotonicCountdownRemainingSeconds({
+    ...input,
+    nowMs: 1000,
+    rawRemainingSeconds: 10,
+  }), 8);
+});
+
 test('host-start room arming overlay covers the poll-in buffer before numeric countdown', () => {
   const shouldShow = resolveShouldShowRoomArmingOverlay({
     linkedMatchId: 'match-1',
@@ -92,4 +149,37 @@ test('host-start room arming overlay covers the poll-in buffer before numeric co
   });
 
   assert.equal(shouldShow, true);
+});
+
+test('party run flow remaining seconds are bucketed by lifecycle thresholds', () => {
+  assert.equal(normalizePartyRunFlowRemainingSeconds(59), 60);
+  assert.equal(normalizePartyRunFlowRemainingSeconds(29), 30);
+  assert.equal(normalizePartyRunFlowRemainingSeconds(10), 20);
+  assert.equal(normalizePartyRunFlowRemainingSeconds(90), 61);
+  assert.equal(normalizePartyRunFlowRemainingSeconds(null), null);
+});
+
+test('party run flow synced time only changes when a linked slot has elapsed', () => {
+  const room = {
+    linkedMatchSlotStartAt: '2026-05-20T12:00:00.000Z',
+    slotStartAt: '2026-05-20T12:00:00.000Z',
+  } as Parameters<typeof resolvePartyRunFlowSyncedNowMs>[0]['room'];
+
+  assert.equal(resolvePartyRunFlowSyncedNowMs({
+    room,
+    remainingSeconds: 10,
+    syncedNowMs: Date.parse('2026-05-20T11:59:50.000Z'),
+  }), null);
+
+  assert.equal(resolvePartyRunFlowSyncedNowMs({
+    room,
+    remainingSeconds: null,
+    syncedNowMs: Date.parse('2026-05-20T11:59:59.000Z'),
+  }), null);
+
+  assert.equal(resolvePartyRunFlowSyncedNowMs({
+    room,
+    remainingSeconds: null,
+    syncedNowMs: Date.parse('2026-05-20T12:00:03.000Z'),
+  }), Date.parse('2026-05-20T12:00:00.000Z') + 1);
 });

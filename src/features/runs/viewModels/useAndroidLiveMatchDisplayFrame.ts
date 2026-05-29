@@ -14,6 +14,11 @@ export type LiveMatchDisplayFrame = {
   elevationGainM: number;
 };
 
+export type LiveMatchDisplayFrames = {
+  frame: LiveMatchDisplayFrame;
+  metricFrame: LiveMatchDisplayFrame;
+};
+
 function areLiveMatchDisplayFramesEqual(left: LiveMatchDisplayFrame, right: LiveMatchDisplayFrame) {
   return left.distanceKm === right.distanceKm
     && left.elapsedSeconds === right.elapsedSeconds
@@ -23,11 +28,11 @@ function areLiveMatchDisplayFramesEqual(left: LiveMatchDisplayFrame, right: Live
     && left.elevationGainM === right.elevationGainM;
 }
 
-export function useAndroidLiveMatchDisplayFrame(
+export function useAndroidLiveMatchDisplayFrames(
   frame: LiveMatchDisplayFrame,
   enabled: boolean,
   intervalMs = ANDROID_LIVE_MATCH_UI_INTERVAL_MS,
-) {
+): LiveMatchDisplayFrames {
   const shouldThrottle = Platform.OS === 'android' && enabled;
   const latestFrameRef = useRef(frame);
   const lastFlushMsRef = useRef(0);
@@ -97,17 +102,32 @@ export function useAndroidLiveMatchDisplayFrame(
     }
   }, []);
 
-  return useMemo(
-    () => (
-      shouldThrottle
-        ? {
-            ...displayFrame,
-            // The slot ticker owns elapsed time, so keep it visibly 1Hz while
-            // Android still throttles noisier GPS-derived fields.
-            elapsedSeconds: frame.elapsedSeconds,
-          }
-        : frame
-    ),
-    [displayFrame, frame, shouldThrottle],
-  );
+  return useMemo(() => {
+    if (!shouldThrottle) {
+      return {
+        frame,
+        metricFrame: frame,
+      };
+    }
+
+    return {
+      frame: {
+        ...displayFrame,
+        // The slot ticker owns elapsed time, so keep it visibly 1Hz while
+        // Android still throttles noisier GPS-derived fields.
+        elapsedSeconds: frame.elapsedSeconds,
+      },
+      // Heavy arena/raceboard view models should not churn on the 1Hz elapsed
+      // override; use the throttled metric frame for derived pace labels.
+      metricFrame: displayFrame,
+    };
+  }, [displayFrame, frame, shouldThrottle]);
+}
+
+export function useAndroidLiveMatchDisplayFrame(
+  frame: LiveMatchDisplayFrame,
+  enabled: boolean,
+  intervalMs = ANDROID_LIVE_MATCH_UI_INTERVAL_MS,
+) {
+  return useAndroidLiveMatchDisplayFrames(frame, enabled, intervalMs).frame;
 }
