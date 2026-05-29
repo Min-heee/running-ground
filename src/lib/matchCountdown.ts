@@ -3,6 +3,8 @@ import type { UpcomingRunningMatchItem } from '@/lib/api/types';
 export const MATCH_CARD_COUNTDOWN_WINDOW_SECONDS = 10 * 60;
 export const MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS = 30;
 export const MATCH_ARENA_HANDOFF_COUNTDOWN_WINDOW_SECONDS = 20;
+// Mirrors backend MATCH_ROOM_HOST_START_DELAY_SECONDS: host-start rooms show numeric countdown only for the final 10s.
+export const MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS = 10;
 
 export function getMatchStartRemainingSeconds(slotStartAt: string, nowMs = Date.now()) {
   const slotStartAtMs = new Date(slotStartAt).getTime();

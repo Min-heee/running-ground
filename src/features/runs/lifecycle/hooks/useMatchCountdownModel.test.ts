@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { resolveShouldShowRoomArmingOverlay } from './useMatchCountdownModel';
+import { MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS } from '@/lib/matchCountdown';
+import {
+  resolveShouldShowRoomArmingOverlay,
+  shouldShowRoomCountdownNumbers,
+} from './useMatchCountdownModel';
 
 test('room arming overlay stays hidden after the linked match slot elapsed', () => {
   const shouldShow = resolveShouldShowRoomArmingOverlay({
@@ -55,4 +59,37 @@ test('room arming overlay remains limited to competitive match modes with loadin
     shouldShowLoading: false,
     syncedNowMs: Date.parse('2026-05-20T12:00:00.000Z'),
   }), false);
+});
+
+test('host-start room countdown numbers stay hidden until the final shared 10 seconds', () => {
+  assert.equal(shouldShowRoomCountdownNumbers({
+    remainingSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS + 2,
+    startMode: 'host',
+  }), false);
+
+  assert.equal(shouldShowRoomCountdownNumbers({
+    remainingSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+    startMode: 'host',
+  }), true);
+});
+
+test('scheduled room countdown numbers keep the existing wider countdown window', () => {
+  assert.equal(shouldShowRoomCountdownNumbers({
+    remainingSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS + 20,
+    startMode: 'scheduled',
+  }), true);
+});
+
+test('host-start room arming overlay covers the poll-in buffer before numeric countdown', () => {
+  const shouldShow = resolveShouldShowRoomArmingOverlay({
+    linkedMatchId: 'match-1',
+    linkedMatchSlotStartAt: '2026-05-20T12:00:12.000Z',
+    matchMode: 'duel',
+    remainingSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS + 2,
+    shouldShowLoading: false,
+    startMode: 'host',
+    syncedNowMs: Date.parse('2026-05-20T12:00:00.000Z'),
+  });
+
+  assert.equal(shouldShow, true);
 });

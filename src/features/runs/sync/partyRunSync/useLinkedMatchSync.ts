@@ -2,9 +2,43 @@ import { useEffect, useRef } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
+import type { PartyRunStartPhase } from '@/features/runs/types/matchStateMachine';
 import { rgDiagLog, rgPerfMark } from '@/utils/rgPerfTrace';
 import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
 import type { LinkedMatchSyncInput } from './types';
+
+export const LINKED_MATCH_ARMING_POLL_MS = 1000;
+
+export function resolveLinkedMatchPollingCadence({
+  fastMatchStatusPollMs,
+  idleMatchStatusPollMs,
+  phase,
+  shouldOpenArena,
+}: {
+  fastMatchStatusPollMs: number;
+  idleMatchStatusPollMs: number;
+  phase: PartyRunStartPhase;
+  shouldOpenArena: boolean;
+}) {
+  if (phase === 'arming' || phase === 'readyAcked') {
+    return {
+      intervalMs: Math.min(fastMatchStatusPollMs, LINKED_MATCH_ARMING_POLL_MS),
+      transitionReason: `${phase}-poll-in`,
+    };
+  }
+
+  if (phase === 'countdown' || shouldOpenArena) {
+    return {
+      intervalMs: fastMatchStatusPollMs,
+      transitionReason: `${phase}-handoff`,
+    };
+  }
+
+  return {
+    intervalMs: idleMatchStatusPollMs,
+    transitionReason: 'linked-idle-sync',
+  };
+}
 
 export function canOpenPartyRunLinkedMatch({
   room,
@@ -201,14 +235,12 @@ export function useLinkedMatchSync({
 
     void syncRoomLinkedMatch();
 
-    const shouldUseFastLinkedMatchPolling = visiblePartyRunFlow.phase === 'countdown'
-      || visiblePartyRunFlow.shouldOpenArena;
-    const intervalMs = shouldUseFastLinkedMatchPolling
-      ? fastMatchStatusPollMs
-      : idleMatchStatusPollMs;
-    const transitionReason = shouldUseFastLinkedMatchPolling
-      ? `${visiblePartyRunFlow.phase}-handoff`
-      : `${roomLinkedMatchContext.state ?? 'linked'}-idle-sync`;
+    const { intervalMs, transitionReason } = resolveLinkedMatchPollingCadence({
+      fastMatchStatusPollMs,
+      idleMatchStatusPollMs,
+      phase: visiblePartyRunFlow.phase,
+      shouldOpenArena: visiblePartyRunFlow.shouldOpenArena,
+    });
     const pollingKey = `match:${roomLinkedMatchContext.matchId}:linked-match-status`;
     const polling = startRgPollingInterval({
       intervalMs,

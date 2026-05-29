@@ -1,6 +1,7 @@
 import { ApiError, logBackendInfo } from '../response/httpResponse.mjs';
 import {
   MATCH_ROOM_HOST_LOADING_SECONDS,
+  MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS,
   MATCH_ROOM_HOST_START_DELAY_SECONDS,
   MATCH_ROOM_IDLE_TTL_MS,
   MATCH_SESSION_ACTIVE_TTL_MS,
@@ -123,6 +124,10 @@ function getMatchRoomLinkedSession(room, store) {
   }
 
   return findMatchSessionById(store, room.linkedMatchId);
+}
+
+function buildHostStartedMatchSlotStartAt(now = new Date(), loadingSeconds = MATCH_ROOM_HOST_LOADING_SECONDS) {
+  return new Date(now.getTime() + (loadingSeconds + MATCH_ROOM_HOST_START_DELAY_SECONDS) * 1000).toISOString();
 }
 
 function getRunningMatchRoomState(room, store, now = new Date()) {
@@ -289,7 +294,7 @@ function armRunningMatchRoomCountdown(store, room, now = new Date()) {
     return room;
   }
 
-  const slotStartAt = linkedSession.slotStartAt ?? room.slotStartAt;
+  const slotStartAt = buildHostStartedMatchSlotStartAt(now);
   room.slotStartAt = slotStartAt;
   room.countdownArmedAt = now.toISOString();
   linkedSession.slotStartAt = slotStartAt;
@@ -307,11 +312,12 @@ function syncHostStartedMatchRoomCountdown(room, store, now = new Date()) {
     return room;
   }
 
-  const slotStartAtMs = new Date(linkedSession.slotStartAt ?? room.slotStartAt).getTime();
-  const loadingWindowEnded = Number.isFinite(slotStartAtMs)
-    && now.getTime() >= slotStartAtMs - MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000;
+  const allParticipantsCountdownReady = areAllRunningMatchRoomParticipantsCountdownReady(room);
+  const ceilingSlotStartAtMs = new Date(linkedSession.slotStartAt ?? room.slotStartAt).getTime();
+  const maxLoadingWindowEnded = Number.isFinite(ceilingSlotStartAtMs)
+    && now.getTime() >= ceilingSlotStartAtMs - MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000;
 
-  if (loadingWindowEnded) {
+  if (allParticipantsCountdownReady || maxLoadingWindowEnded) {
     return armRunningMatchRoomCountdown(store, room, now);
   }
 
@@ -687,7 +693,8 @@ export function startRunningMatchRoom(store, currentUser, { roomId }) {
     throw new ApiError(400, '모든 참가자가 준비 완료해야 시작할 수 있어.');
   }
 
-  const slotStartAt = new Date(Date.now() + (MATCH_ROOM_HOST_LOADING_SECONDS + MATCH_ROOM_HOST_START_DELAY_SECONDS) * 1000).toISOString();
+  const now = new Date();
+  const slotStartAt = buildHostStartedMatchSlotStartAt(now, MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS);
   room.slotStartAt = slotStartAt;
   room.participants = room.participants.map((participant) => ({
     ...participant,
@@ -738,7 +745,8 @@ export function updateRunningMatchRoomReady(store, currentUser, {
 }
 
 export function acknowledgeRunningMatchRoomCountdown(store, currentUser, { roomId }) {
-  const room = findRunningMatchRoomById(store, roomId);
+  const now = new Date();
+  const room = findRunningMatchRoomById(store, roomId, now);
 
   if (!room) {
     throw new ApiError(404, '카운트다운 준비 상태를 반영할 방을 찾지 못했어.', { code: 'room_not_found' });
@@ -755,8 +763,11 @@ export function acknowledgeRunningMatchRoomCountdown(store, currentUser, { roomI
   }
 
   participant.isCountdownReady = true;
-  syncMatchRooms(store);
-  return buildRunningMatchRoomResponse(store, currentUser, room);
+  if (!room.countdownArmedAt && areAllRunningMatchRoomParticipantsCountdownReady(room)) {
+    armRunningMatchRoomCountdown(store, room, now);
+  }
+  syncMatchRooms(store, now);
+  return buildRunningMatchRoomResponse(store, currentUser, room, now);
 }
 
 export function updateRunningMatchRoom(store, currentUser, {

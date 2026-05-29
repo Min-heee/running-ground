@@ -5,6 +5,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
 import { createSeedStore } from './seed.mjs';
+import {
+  MATCH_ROOM_HOST_LOADING_SECONDS,
+  MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS,
+  MATCH_ROOM_HOST_START_DELAY_SECONDS,
+} from './lib/matchConstants.mjs';
 
 const TEST_HOST = '127.0.0.1';
 const REQUEST_TIMEOUT_MS = 5000;
@@ -337,8 +342,13 @@ await runTest('party run room start creates a linked match and accepts countdown
     const started = await request('host-token', 'POST', '/api/running/rooms/start', {
       roomId: created.room.roomId,
     });
+    const startedSlotStartAtMs = new Date(started.room.linkedMatchSlotStartAt).getTime();
+    const startedSlotLeadMs = startedSlotStartAtMs - Date.now();
     assert.equal(started.room.linkedMatchId.length > 0, true);
     assert.equal(started.room.linkedMatchSlotStartAt, started.room.slotStartAt);
+    assert.equal(started.room.state, 'arming');
+    assert.ok(startedSlotLeadMs > (MATCH_ROOM_HOST_START_DELAY_SECONDS + MATCH_ROOM_HOST_LOADING_SECONDS) * 1000);
+    assert.ok(startedSlotLeadMs <= (MATCH_ROOM_HOST_START_DELAY_SECONDS + MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS + 1) * 1000);
     assert.equal(started.room.countdownReadyCount, 1);
     assert.equal(started.room.countdownReadyRequiredCount, 2);
     assert.equal(started.room.participants.find((participant) => participant.userId === 'host-user').isCountdownReady, true);
@@ -348,15 +358,21 @@ await runTest('party run room start creates a linked match and accepts countdown
       roomId: created.room.roomId,
     });
     assert.equal(guestReady.room.linkedMatchId, started.room.linkedMatchId);
-    assert.equal(guestReady.room.slotStartAt, started.room.slotStartAt);
-    assert.equal(guestReady.room.linkedMatchSlotStartAt, started.room.linkedMatchSlotStartAt);
+    assert.notEqual(guestReady.room.slotStartAt, started.room.slotStartAt);
+    assert.equal(guestReady.room.linkedMatchSlotStartAt, guestReady.room.slotStartAt);
+    const armedSlotStartAtMs = new Date(guestReady.room.linkedMatchSlotStartAt).getTime();
+    const armedSlotLeadMs = armedSlotStartAtMs - Date.now();
+    assert.ok(armedSlotLeadMs > MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000);
+    assert.ok(armedSlotLeadMs <= (MATCH_ROOM_HOST_START_DELAY_SECONDS + MATCH_ROOM_HOST_LOADING_SECONDS + 1) * 1000);
+    assert.equal(guestReady.room.state, 'arming');
     assert.equal(guestReady.room.countdownReadyCount, 2);
     assert.equal(guestReady.room.participants.every((participant) => participant.isCountdownReady), true);
 
     const hostSynced = await request('host-token', 'GET', '/api/running/rooms/my');
     assert.equal(hostSynced.room.linkedMatchId, started.room.linkedMatchId);
     assert.equal(hostSynced.room.countdownReadyCount, 2);
-    assert.equal(['countdown', 'arming'].includes(hostSynced.room.state), true);
+    assert.equal(hostSynced.room.linkedMatchSlotStartAt, guestReady.room.linkedMatchSlotStartAt);
+    assert.equal(hostSynced.room.state, 'arming');
   });
 });
 

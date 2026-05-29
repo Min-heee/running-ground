@@ -14,8 +14,10 @@ export const MATCH_TEST_COUNTDOWN_SECONDS = 30;
 export const MATCH_TEST_MAX_WAIT_MS = 30 * 60 * 1000;
 export const MATCH_TEST_GROUP_MIN_PARTICIPANTS = 2;
 export const MATCH_ROOM_HOST_START_DELAY_SECONDS = 10;
-// Host-start sync window: clients show the arming/loading phase before the shared countdown.
-export const MATCH_ROOM_HOST_LOADING_SECONDS = 3;
+// All participants ready -> shared countdown poll-in buffer before the visible 10s countdown starts.
+export const MATCH_ROOM_HOST_LOADING_SECONDS = 2;
+// Safety ceiling for host-start loading if a participant never acknowledges countdown readiness.
+export const MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS = 8;
 export const MATCH_ROOM_GROUP_MIN_PARTICIPANTS = 2;
 export const MATCH_ROOM_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
 export const MATCH_ROOM_INVITE_LINK_BASE = 'runningground://running';

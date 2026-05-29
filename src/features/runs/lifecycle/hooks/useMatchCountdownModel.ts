@@ -7,6 +7,7 @@ import type {
 import {
   findNextStartingMatchedMatch,
   getMatchStartRemainingSeconds,
+  MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
 } from '@/lib/matchCountdown';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { useStableCountdownSeconds } from '@/features/runs/lifecycle/hooks/useStableCountdownSeconds';
@@ -41,23 +42,46 @@ export function resolveShouldShowRoomArmingOverlay({
   linkedMatchId,
   linkedMatchSlotStartAt,
   matchMode,
+  remainingSeconds,
   shouldShowLoading,
+  startMode,
   syncedNowMs,
 }: {
   linkedMatchId?: string | null;
   linkedMatchSlotStartAt?: string | null;
   matchMode: RunMatchMode;
+  remainingSeconds?: number | null;
   shouldShowLoading: boolean;
+  startMode?: RunningMatchRoom['startMode'] | null;
   syncedNowMs: number;
 }) {
   const linkedSlotStartMs = linkedMatchSlotStartAt ? Date.parse(linkedMatchSlotStartAt) : NaN;
   const hasLinkedMatchSlotElapsed = Number.isFinite(linkedSlotStartMs) && syncedNowMs >= linkedSlotStartMs;
+  const shouldShowHostStartPollInLoading = Boolean(
+    startMode === 'host'
+    && typeof remainingSeconds === 'number'
+    && remainingSeconds > MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+  );
 
   return Boolean(
     linkedMatchId
-    && shouldShowLoading
+    && (shouldShowLoading || shouldShowHostStartPollInLoading)
     && (matchMode === 'duel' || matchMode === 'group')
     && !hasLinkedMatchSlotElapsed,
+  );
+}
+
+export function shouldShowRoomCountdownNumbers({
+  remainingSeconds,
+  startMode,
+}: {
+  remainingSeconds: number | null;
+  startMode?: RunningMatchRoom['startMode'] | null;
+}) {
+  return (
+    startMode !== 'host'
+    || typeof remainingSeconds !== 'number'
+    || remainingSeconds <= MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS
   );
 }
 
@@ -181,6 +205,10 @@ export function useMatchCountdownModel({
   const roomCountdownRemainingSeconds = runtimeRoom === matchRoom
     ? matchRoomCountdownRemainingSeconds
     : visibleRoomCountdownRemainingSeconds;
+  const shouldShowRuntimeRoomCountdownNumbers = shouldShowRoomCountdownNumbers({
+    remainingSeconds: roomCountdownRemainingSeconds,
+    startMode: runtimeRoom?.startMode,
+  });
   const visiblePartyRunFlow = useMemo(() => buildPartyRunFlowSnapshot({
     room: visibleMatchRoom,
     isCountdownReady: currentRoomParticipantIsCountdownReady ?? undefined,
@@ -208,6 +236,7 @@ export function useMatchCountdownModel({
       !runtimeRoom?.linkedMatchId
       || typeof roomCountdownRemainingSeconds !== 'number'
       || !['arming', 'countdown', 'active'].includes(runtimeRoom.state)
+      || !shouldShowRuntimeRoomCountdownNumbers
     ) {
       return null;
     }
@@ -217,14 +246,16 @@ export function useMatchCountdownModel({
       subtitle: `${runtimeRoom.hostName}님 방 · ${(runtimeRoom.linkedMatchDistanceKm ?? runtimeRoom.distanceKm).toFixed(1)}km`,
       remainingSeconds: roomCountdownRemainingSeconds,
     };
-  }, [roomCountdownRemainingSeconds, runtimeRoom]);
-  const visibleCountdownEntry = roomCountdownEntry ?? (stableNextStartingMatch
-    ? {
-        title: stableNextStartingMatch.match.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',
-        subtitle: `${stableNextStartingMatch.match.counterpartLabel} · ${stableNextStartingMatch.match.summary}`,
-        remainingSeconds: stableNextStartingMatch.remainingSeconds,
-      }
-    : fallbackCountdownEntry);
+  }, [roomCountdownRemainingSeconds, runtimeRoom, shouldShowRuntimeRoomCountdownNumbers]);
+  const visibleCountdownEntry = shouldShowRuntimeRoomCountdownNumbers
+    ? roomCountdownEntry ?? (stableNextStartingMatch
+      ? {
+          title: stableNextStartingMatch.match.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',
+          subtitle: `${stableNextStartingMatch.match.counterpartLabel} · ${stableNextStartingMatch.match.summary}`,
+          remainingSeconds: stableNextStartingMatch.remainingSeconds,
+        }
+      : fallbackCountdownEntry)
+    : null;
 
   return {
     duelStartCountdownSeconds,
@@ -240,7 +271,9 @@ export function useMatchCountdownModel({
       linkedMatchId: matchRoom?.linkedMatchId,
       linkedMatchSlotStartAt: matchRoom?.linkedMatchSlotStartAt,
       matchMode,
+      remainingSeconds: matchRoomCountdownRemainingSeconds,
       shouldShowLoading: matchRoomFlow.shouldShowLoading,
+      startMode: matchRoom?.startMode,
       syncedNowMs,
     }),
     canOpenRoomArena: visiblePartyRunFlow.shouldOpenArena,
