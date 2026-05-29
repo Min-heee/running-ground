@@ -1,9 +1,8 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { LiveMatchActionSection } from '@/features/runs/components/liveMatchTracking/LiveMatchActionSection';
 import { liveMatchTrackingStyles as styles } from '@/features/runs/components/liveMatchTracking/styles';
 import type { MatchStatusAlert } from '@/features/runs/components/liveMatchTracking/types';
-import type { MatchExitSource } from '@/features/runs/lifecycle/matchExitFlow';
 import { buildMatchParticipantStatusLabel } from '@/features/runs/lifecycle/matchStateMachine';
 import type { GroupLiveStanding } from '@/features/runs/viewModels/matchProgress';
 
@@ -81,29 +80,21 @@ export const LiveMatchRankingSection = memo(function LiveMatchRankingSection({
   groupAheadParticipant,
   groupBehindParticipant,
   groupStatusAlert,
-  isLeavingGroupMatch,
   groupLiveStandings,
   currentGroupLeader,
-  onContinueSoloFromMatch,
 }: {
   effectiveGroupParticipantCount: number;
   currentGroupStanding: GroupLiveStanding;
   groupAheadParticipant: GroupLiveStanding | null;
   groupBehindParticipant: GroupLiveStanding | null;
   groupStatusAlert: MatchStatusAlert | null;
-  isLeavingGroupMatch: boolean;
   groupLiveStandings: GroupLiveStanding[];
   currentGroupLeader: GroupLiveStanding | null;
-  onContinueSoloFromMatch: (source: MatchExitSource) => void;
 }) {
   const topStandings = useMemo(() => groupLiveStandings.slice(0, 5), [groupLiveStandings]);
   const topStandingRows = useMemo(() => topStandings.map((participant) => (
     <GroupLiveStandingRow key={participant.id} participant={participant} />
   )), [topStandings]);
-  const handleContinueSolo = useCallback(() => {
-    onContinueSoloFromMatch('group');
-  }, [onContinueSoloFromMatch]);
-  const statusActionPress = groupStatusAlert?.tone === 'danger' ? handleContinueSolo : undefined;
 
   return (
     <View style={styles.groupLiveCard}>
@@ -146,9 +137,6 @@ export const LiveMatchRankingSection = memo(function LiveMatchRankingSection({
       {groupStatusAlert ? (
         <LiveMatchActionSection
           alert={groupStatusAlert}
-          actionLabel={isLeavingGroupMatch ? '전환 중...' : '혼자 계속 달릴게요'}
-          disabled={isLeavingGroupMatch}
-          onPress={statusActionPress}
         />
       ) : null}
       <View style={styles.groupLiveTopList}>

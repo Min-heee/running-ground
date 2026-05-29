@@ -65,7 +65,7 @@ export function buildMatchExitActionState({
     return {
       kind: 'test-exit',
       title: '테스트 대결을 여기서 끝낼 수 있어요',
-      body: '테스트 상대 표시는 정리하고, 지금 러닝 기록은 혼자 계속 이어갈게요.',
+      body: '테스트 상대 표시는 정리하고, 지금 러닝 기록은 그대로 유지할게요.',
       buttonLabel: isLeaving ? '정리 중...' : '테스트 대결 그만',
       disabled: isLeaving,
     };

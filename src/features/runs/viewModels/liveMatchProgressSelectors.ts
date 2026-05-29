@@ -137,7 +137,7 @@ export function buildDuelStatusAlert(opponent: DuelMatchOpponent | null): MatchS
     return {
       tone: 'danger',
       title: '상대가 매치를 포기했어요',
-      summary: '이제 혼자 이어서 달리거나 바로 결과를 정리할 수 있어요.',
+      summary: '대결종료를 눌러 지금까지 기록을 저장하고 결과를 확인하세요.',
     };
   }
 

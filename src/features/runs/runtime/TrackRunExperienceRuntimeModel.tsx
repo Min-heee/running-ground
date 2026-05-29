@@ -22,6 +22,11 @@ import {
 import { useMatchResultController } from '@/features/runs/hooks/useMatchResultController';
 import { useLiveMatchProgress } from '@/features/runs/viewModels/useLiveMatchProgress';
 import {
+  applyDuelOpponentForfeitLatch,
+  resolveDuelOpponentForfeitLatch,
+  type DuelOpponentForfeitLatch,
+} from '@/features/runs/viewModels/liveMatchProgressModel';
+import {
   resolveCurrentUserFinishedForResultPage,
   shouldShowMatchResultPageOnCurrentUserFinished,
 } from '@/features/runs/viewModels/matchResultPageVisibility';
@@ -255,6 +260,7 @@ export function TrackRunExperienceRuntime({
   const duelMatchStatusRef = useRef<RunningMatchStatusResponse | null>(null);
   const groupMatchStatusRef = useRef<RunningMatchStatusResponse | null>(null);
   const roomLinkedMatchContextRef = useRef<RoomLinkedMatchContext | null>(null);
+  const duelOpponentForfeitLatchRef = useRef<DuelOpponentForfeitLatch>(null);
   const focusedDuelMatchIdRef = useRef<string | null>(null);
   const focusedGroupMatchIdRef = useRef<string | null>(null);
   const latestDuelStatusServerNowMsRef = useRef(0);
@@ -664,6 +670,32 @@ export function TrackRunExperienceRuntime({
     roomLinkedMatchContext?.matchId,
     roomLinkedMatchContext?.mode,
   ]);
+  const roomLinkedDuelOpponentForfeited = Boolean(
+    matchMode === 'duel'
+    && linkedRuntimeRoom?.mode === 'duel'
+    && linkedRuntimeRoom.participants.some((participant) => (
+      participant.userId !== currentUserId && participant.liveStatus === 'forfeited'
+    )),
+  );
+  const duelOpponentForLatch = useMemo(() => (
+    roomLinkedDuelOpponentForfeited && effectiveDuelOpponent
+      ? {
+        ...effectiveDuelOpponent,
+        liveStatus: 'forfeited' as const,
+      }
+      : effectiveDuelOpponent
+  ), [effectiveDuelOpponent, roomLinkedDuelOpponentForfeited]);
+  duelOpponentForfeitLatchRef.current = resolveDuelOpponentForfeitLatch({
+    activeMatchId: activeLiveMatchProgressMatchId,
+    matchMode,
+    opponent: duelOpponentForLatch,
+    previousLatch: duelOpponentForfeitLatchRef.current,
+  });
+  const duelOpponentForfeitLatch = duelOpponentForfeitLatchRef.current;
+  const effectiveDuelOpponentForLive = useMemo(
+    () => applyDuelOpponentForfeitLatch(duelOpponentForLatch, duelOpponentForfeitLatch),
+    [duelOpponentForfeitLatch, duelOpponentForLatch],
+  );
   const rawLiveMatchDisplayFrame = useMemo(
     () => ({
       distanceKm,
@@ -705,7 +737,7 @@ export function TrackRunExperienceRuntime({
     duelMatchStatus,
     groupMatchStatus,
     visibleMatchRoom,
-    effectiveDuelOpponent,
+    effectiveDuelOpponent: effectiveDuelOpponentForLive,
     effectiveGroupParticipants,
     effectiveGroupSeedRank,
     lastSyncedMatchProgress,
@@ -744,7 +776,7 @@ export function TrackRunExperienceRuntime({
     groupResultStatusLabel,
   } = useMatchResultController({
     matchMode,
-    effectiveDuelOpponent,
+    effectiveDuelOpponent: effectiveDuelOpponentForLive,
     currentGroupStanding,
     effectiveGroupParticipantCount,
     groupLiveStandings,
@@ -757,18 +789,18 @@ export function TrackRunExperienceRuntime({
   });
   const effectiveDuelOpponentArenaPace = useMemo(
     () => resolveDuelOpponentArenaPace({
-      opponent: effectiveDuelOpponent,
+      opponent: effectiveDuelOpponentForLive,
       duelArenaUsesLivePace,
     }),
-    [duelArenaUsesLivePace, effectiveDuelOpponent],
+    [duelArenaUsesLivePace, effectiveDuelOpponentForLive],
   );
   const duelLiveSummary = useMemo(() => resolveDuelLiveSummary({
-    opponent: effectiveDuelOpponent,
+    opponent: effectiveDuelOpponentForLive,
     opponentArenaPace: effectiveDuelOpponentArenaPace,
     opponentStatusLabel: effectiveDuelOpponentStatusLabel,
     isOpponentForfeited: isDuelOpponentForfeited,
   }), [
-    effectiveDuelOpponent,
+    effectiveDuelOpponentForLive,
     effectiveDuelOpponentArenaPace,
     effectiveDuelOpponentStatusLabel,
     isDuelOpponentForfeited,
@@ -778,7 +810,7 @@ export function TrackRunExperienceRuntime({
       currentUserPaceLabel: currentUserArenaPace,
       currentUserLiveStatus: currentUserDuelLiveStatus ?? undefined,
       currentDistanceKm: syncedDuelDistanceKm,
-      opponent: effectiveDuelOpponent,
+      opponent: effectiveDuelOpponentForLive,
       opponentPaceLabel: effectiveDuelOpponentArenaPace,
       opponentDistanceKm: syncedDuelOpponentDistanceKm,
       liveGapKm: duelLiveGapKm,
@@ -787,7 +819,7 @@ export function TrackRunExperienceRuntime({
       currentUserArenaPace,
       currentUserDuelLiveStatus,
       duelLiveGapKm,
-      effectiveDuelOpponent,
+      effectiveDuelOpponentForLive,
       effectiveDuelOpponentArenaPace,
       syncedDuelDistanceKm,
       syncedDuelOpponentDistanceKm,
@@ -799,12 +831,12 @@ export function TrackRunExperienceRuntime({
     currentUserId,
     currentDistanceKm: liveMatchDisplayDistanceKm,
     currentUserPaceLabel: currentUserArenaPace,
-    opponent: effectiveDuelOpponent,
+    opponent: effectiveDuelOpponentForLive,
     roomLinkedMatchContext,
   }), [
     currentUserArenaPace,
     currentUserId,
-    effectiveDuelOpponent,
+    effectiveDuelOpponentForLive,
     hasRoomLinkedDuelContext,
     liveMatchDisplayDistanceKm,
     linkedRuntimeRoom,
@@ -2197,7 +2229,7 @@ export function TrackRunExperienceRuntime({
       onPageChange: setLiveArenaPage,
       activeMatchId: liveMatchRenderIdentity,
       matchMode,
-      effectiveDuelOpponent,
+      effectiveDuelOpponent: effectiveDuelOpponentForLive,
       duelDistanceKm,
       groupDistanceKm,
       distanceKm: liveMatchDisplayDistanceKm,

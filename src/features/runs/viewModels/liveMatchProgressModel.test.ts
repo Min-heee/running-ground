@@ -7,9 +7,11 @@ import type {
   RunningMatchStatusResponse,
 } from '@/lib/api/types';
 import {
+  applyDuelOpponentForfeitLatch,
   buildCurrentUserLiveStatusModel,
   buildDuelProgressDisplayModel,
   hasAnyLiveMatchRemoteDisplayProgress,
+  resolveDuelOpponentForfeitLatch,
   resolveActiveDuelArenaMatchId,
   selectSyncedDuelProgress,
 } from './liveMatchProgressModel';
@@ -224,4 +226,60 @@ test('current user live status model treats locally forfeited party-run match as
     }]]),
     activeMatchId: 'party-duel-match',
   }).currentUserHasForfeitedActiveMatch, false);
+});
+
+test('duel opponent forfeit latch keeps ready fallback from hiding a received forfeit', () => {
+  const forfeitLatch = resolveDuelOpponentForfeitLatch({
+    activeMatchId: 'match-1',
+    matchMode: 'duel',
+    opponent: {
+      ...baseOpponent,
+      liveStatus: 'forfeited',
+      liveUpdatedAt: '2026-05-15T00:01:00.000Z',
+    },
+    previousLatch: null,
+  });
+
+  assert.equal(forfeitLatch?.opponent.liveStatus, 'forfeited');
+
+  const nextLatch = resolveDuelOpponentForfeitLatch({
+    activeMatchId: 'match-1',
+    matchMode: 'duel',
+    opponent: {
+      ...baseOpponent,
+      liveStatus: 'ready',
+      liveUpdatedAt: '2026-05-15T00:01:05.000Z',
+    },
+    previousLatch: forfeitLatch,
+  });
+  const latchedOpponent = applyDuelOpponentForfeitLatch({
+    ...baseOpponent,
+    liveStatus: 'ready',
+    liveUpdatedAt: '2026-05-15T00:01:05.000Z',
+  }, nextLatch);
+
+  assert.equal(nextLatch, forfeitLatch);
+  assert.equal(latchedOpponent?.liveStatus, 'forfeited');
+});
+
+test('duel opponent forfeit latch resets for a different match', () => {
+  const forfeitLatch = resolveDuelOpponentForfeitLatch({
+    activeMatchId: 'match-1',
+    matchMode: 'duel',
+    opponent: {
+      ...baseOpponent,
+      liveStatus: 'forfeited',
+    },
+    previousLatch: null,
+  });
+
+  assert.equal(resolveDuelOpponentForfeitLatch({
+    activeMatchId: 'match-2',
+    matchMode: 'duel',
+    opponent: {
+      ...baseOpponent,
+      liveStatus: 'ready',
+    },
+    previousLatch: forfeitLatch,
+  }), null);
 });

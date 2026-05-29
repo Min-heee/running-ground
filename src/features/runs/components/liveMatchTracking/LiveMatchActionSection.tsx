@@ -10,8 +10,8 @@ export const LiveMatchActionSection = memo(function LiveMatchActionSection({
   onPress,
 }: {
   alert: MatchStatusAlert;
-  actionLabel: string;
-  disabled: boolean;
+  actionLabel?: string;
+  disabled?: boolean;
   onPress?: () => void;
 }) {
   const bannerStyle = useMemo(
@@ -30,10 +30,10 @@ export const LiveMatchActionSection = memo(function LiveMatchActionSection({
     <View style={bannerStyle}>
       <Text style={styles.matchStatusBannerTitle}>{alert.title}</Text>
       <Text style={styles.matchStatusBannerText}>{alert.summary}</Text>
-      {onPress ? (
+      {onPress && actionLabel ? (
         <Pressable
           style={styles.matchStatusBannerAction}
-          disabled={disabled}
+          disabled={Boolean(disabled)}
           onPress={onPress}
         >
           <Text style={styles.matchStatusBannerActionText}>{actionLabel}</Text>

@@ -165,6 +165,10 @@ export function useMatchRuntimeState({
       groupMatchStatus?.matchId
       || roomLinkedMatchContext?.mode === 'group',
     );
+    const duelCounterpartForfeited = Boolean(
+      isDuelOpponentForfeited
+      || roomLinkedDuelPlaceholderParticipants.some((participant) => !participant.isCurrentUser && participant.liveStatus === 'forfeited'),
+    );
     const selfForfeitedResultSource = (
       isCurrentUserForfeited
       && hasMatchResultPage
@@ -200,7 +204,7 @@ export function useMatchRuntimeState({
     const activeMatchExitSource = selfForfeitedResultSource
       ?? (isCurrentUserForfeited
         ? null
-        : isRunning && matchMode === 'duel'
+        : (isRunning || duelCounterpartForfeited) && matchMode === 'duel'
         ? (
             (duelMatchStatus?.matchId && isLiveMatchState(duelMatchState))
             || roomLinkedMatchContext?.mode === 'duel'
@@ -218,10 +222,7 @@ export function useMatchRuntimeState({
 
     return {
       activeMatchExitCounterpartForfeited: activeMatchExitSource === 'duel'
-        ? Boolean(
-            isDuelOpponentForfeited
-            || roomLinkedDuelPlaceholderParticipants.some((participant) => !participant.isCurrentUser && participant.liveStatus === 'forfeited'),
-          )
+        ? duelCounterpartForfeited
         : false,
       activeMatchExitIsLeaving: activeMatchExitSource === 'duel'
         ? isLeavingDuelMatch

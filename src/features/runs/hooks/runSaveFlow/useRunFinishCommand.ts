@@ -132,17 +132,17 @@ export function useRunFinishCommand({
       if (source === 'duel') {
         setDuelMatchResult(null);
         setDuelMatchStatus(null);
-        setDuelMatchNotice(options?.duelNotice ?? '매치에서는 빠졌고, 지금 러닝은 혼자 계속 이어가요.');
+        setDuelMatchNotice(options?.duelNotice ?? '매치 표시를 정리했어요. 현재 기록은 그대로 유지돼요.');
       } else {
         setGroupMatchResult(null);
         setGroupMatchStatus(null);
-        setGroupMatchNotice(options?.groupNotice ?? '그룹전에서는 빠졌고, 지금 러닝은 혼자 계속 이어가요.');
+        setGroupMatchNotice(options?.groupNotice ?? '그룹전 표시를 정리했어요. 현재 기록은 그대로 유지돼요.');
       }
 
       await loadUpcomingMatches().catch(() => {});
       setMatchMode('solo');
     } catch (matchError) {
-      setError(getApiErrorMessage(matchError, options?.errorMessage ?? '혼자 계속 달리기 전환에 실패했어.'));
+      setError(getApiErrorMessage(matchError, options?.errorMessage ?? '매치 표시 정리에 실패했어.'));
     } finally {
       continueSoloInFlightRef.current.delete(source);
       setMatchLeaving(source, false);
@@ -150,10 +150,10 @@ export function useRunFinishCommand({
   };
 
   const handleContinueSoloFromMatch = (source: MatchExitSource) => {
-    Alert.alert('혼자 계속 달릴까요?', '지금 매치 표시는 정리하고, 러닝 측정은 그대로 이어갈게요.', [
+    Alert.alert('매치 표시를 정리할까요?', '지금 매치 표시는 정리하고, 현재 측정 기록은 그대로 유지할게요.', [
       { text: '계속 볼게요', style: 'cancel' },
       {
-        text: '혼자 계속',
+        text: '표시 정리',
         style: 'destructive',
         onPress: () => {
           void leaveMatchAndContinueSolo(source);

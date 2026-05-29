@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo } from 'react';
 import { Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { LiveMatchActionSection } from '@/features/runs/components/liveMatchTracking/LiveMatchActionSection';
@@ -82,8 +82,6 @@ const DuelTrackingSummaryCard = memo(function DuelTrackingSummaryCard({
   duelLiveSummary,
   duelStatusAlert,
   distanceKm,
-  isLeavingDuelMatch,
-  onContinueSoloFromMatch,
 }: Pick<
   LiveMatchProgressSectionProps,
   | 'duelDistanceKm'
@@ -91,15 +89,9 @@ const DuelTrackingSummaryCard = memo(function DuelTrackingSummaryCard({
   | 'duelLiveSummary'
   | 'duelStatusAlert'
   | 'distanceKm'
-  | 'isLeavingDuelMatch'
-  | 'onContinueSoloFromMatch'
 > & {
   opponent: DuelMatchOpponent;
 }) {
-  const handleContinueSolo = useCallback(() => {
-    onContinueSoloFromMatch('duel');
-  }, [onContinueSoloFromMatch]);
-
   return (
     <View style={styles.duelLiveCard}>
       <DuelTrackingHeader title={duelLiveTitle} summary={duelLiveSummary} />
@@ -111,9 +103,6 @@ const DuelTrackingSummaryCard = memo(function DuelTrackingSummaryCard({
       {duelStatusAlert ? (
         <LiveMatchActionSection
           alert={duelStatusAlert}
-          actionLabel={isLeavingDuelMatch ? '전환 중...' : '혼자 계속 달릴게요'}
-          disabled={isLeavingDuelMatch}
-          onPress={handleContinueSolo}
         />
       ) : null}
     </View>
@@ -131,16 +120,13 @@ export const LiveMatchProgressSection = memo(function LiveMatchProgressSection({
   duelLiveSummary,
   duelStatusAlert,
   distanceKm,
-  isLeavingDuelMatch,
   effectiveGroupParticipantCount,
   currentGroupStanding,
   groupAheadParticipant,
   groupBehindParticipant,
   groupStatusAlert,
-  isLeavingGroupMatch,
   groupLiveStandings,
   currentGroupLeader,
-  onContinueSoloFromMatch,
 }: LiveMatchProgressSectionProps) {
   if (!includeMatchCards || matchMode === 'solo') {
     return null;
@@ -157,8 +143,6 @@ export const LiveMatchProgressSection = memo(function LiveMatchProgressSection({
           duelLiveSummary={duelLiveSummary}
           duelStatusAlert={duelStatusAlert}
           distanceKm={distanceKm}
-          isLeavingDuelMatch={isLeavingDuelMatch}
-          onContinueSoloFromMatch={onContinueSoloFromMatch}
         />
       ) : null}
       {matchMode === 'group' && effectiveGroupParticipantCount > 0 && currentGroupStanding ? (
@@ -168,10 +152,8 @@ export const LiveMatchProgressSection = memo(function LiveMatchProgressSection({
           groupAheadParticipant={groupAheadParticipant}
           groupBehindParticipant={groupBehindParticipant}
           groupStatusAlert={groupStatusAlert}
-          isLeavingGroupMatch={isLeavingGroupMatch}
           groupLiveStandings={groupLiveStandings}
           currentGroupLeader={currentGroupLeader}
-          onContinueSoloFromMatch={onContinueSoloFromMatch}
         />
       ) : null}
     </Card>

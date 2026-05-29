@@ -30,7 +30,57 @@ export type DuelProgressDisplayModel = {
   duelLiveGapKm: number | null;
 };
 
+export type DuelOpponentForfeitLatch = {
+  matchId: string | null;
+  opponent: DuelMatchOpponent;
+} | null;
+
 type OfficialDuelComparison = NonNullable<RunningMatchStatusResponse['officialComparison']>;
+
+export function resolveDuelOpponentForfeitLatch({
+  activeMatchId,
+  matchMode,
+  opponent,
+  previousLatch,
+}: {
+  activeMatchId: string | null;
+  matchMode: RunMatchMode;
+  opponent: DuelMatchOpponent | null;
+  previousLatch: DuelOpponentForfeitLatch;
+}): DuelOpponentForfeitLatch {
+  if (matchMode !== 'duel') {
+    return null;
+  }
+
+  if (previousLatch && previousLatch.matchId !== activeMatchId) {
+    return null;
+  }
+
+  if (opponent?.liveStatus === 'forfeited') {
+    return {
+      matchId: activeMatchId,
+      opponent,
+    };
+  }
+
+  return previousLatch;
+}
+
+export function applyDuelOpponentForfeitLatch(
+  opponent: DuelMatchOpponent | null,
+  latch: DuelOpponentForfeitLatch,
+): DuelMatchOpponent | null {
+  if (!latch) {
+    return opponent;
+  }
+
+  return {
+    ...latch.opponent,
+    ...(opponent ?? {}),
+    liveStatus: 'forfeited',
+    liveUpdatedAt: opponent?.liveUpdatedAt ?? latch.opponent.liveUpdatedAt,
+  };
+}
 
 export function buildCurrentUserLiveStatusModel({
   matchMode,

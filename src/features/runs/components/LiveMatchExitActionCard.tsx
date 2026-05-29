@@ -80,7 +80,7 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
         <Text style={styles.text}>{actionState.body}</Text>
         <Pressable
           style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]}
-          onPress={handleShowSelfForfeitResultPress}
+          onPress={handleShowResultPress}
           disabled={actionState.disabled}
         >
           <Text style={styles.buttonText}>{actionState.buttonLabel}</Text>
@@ -96,7 +96,7 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
         <Text style={styles.text}>{actionState.body}</Text>
         <Pressable
           style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]}
-          onPress={handleShowResultPress}
+          onPress={handleShowSelfForfeitResultPress}
           disabled={actionState.disabled}
         >
           <Text style={styles.buttonText}>{actionState.buttonLabel}</Text>
