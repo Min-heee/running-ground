@@ -1,6 +1,7 @@
 import {
   buildParticipantAveragePaceLabel,
   hasRemoteRunnerProgress,
+  isMeasuredPaceLabel,
   resolveParticipantDisplayDistanceKm,
   type GroupLiveStanding,
 } from '@/features/runs/viewModels/matchProgress';
@@ -94,8 +95,13 @@ export function buildDuelMatchFinishModel({
     isDraw,
     resultTone,
   });
-  const opponentElapsedSeconds = opponent.liveElapsedSeconds ?? currentElapsedSeconds;
-  const opponentPace = buildParticipantAveragePaceLabel(opponent, true);
+  const opponentElapsedSeconds = opponentForfeited
+    ? (opponent.liveElapsedSeconds ?? 0)
+    : (opponent.liveElapsedSeconds ?? currentElapsedSeconds);
+  const resolvedOpponentPace = buildParticipantAveragePaceLabel(opponent, true);
+  const opponentPace = opponentForfeited && !isMeasuredPaceLabel(resolvedOpponentPace)
+    ? '기권'
+    : resolvedOpponentPace;
   const currentRow: DuelMatchResultRowModel = {
     id: 'me',
     resultLabel: resolveDuelCurrentRowLabel({ isDraw, resultTone, currentForfeited }),
@@ -184,12 +190,19 @@ export function buildGroupMatchFinishModel({
   const podium = standings.slice(0, 3);
   const rows: GroupMatchResultRowModel[] = standings.map((participant) => {
     const isInProgress = participant.liveStatus !== 'finished' && participant.liveStatus !== 'forfeited';
+    const participantPaceLabel = buildParticipantAveragePaceLabel(participant, true);
     const rowLabels = resolveGroupRowLabels({
       isInProgress,
       isCurrentUser: participant.isCurrentUser,
       currentPaceLabel,
-      participantPaceLabel: buildParticipantAveragePaceLabel(participant, true),
-      durationLabel: formatDuration(participant.liveElapsedSeconds ?? currentElapsedSeconds),
+      participantPaceLabel: participant.liveStatus === 'forfeited' && !isMeasuredPaceLabel(participantPaceLabel)
+        ? '기권'
+        : participantPaceLabel,
+      durationLabel: formatDuration(
+        participant.liveStatus === 'forfeited'
+          ? (participant.liveElapsedSeconds ?? 0)
+          : (participant.liveElapsedSeconds ?? currentElapsedSeconds),
+      ),
     });
 
     return {

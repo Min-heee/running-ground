@@ -93,3 +93,24 @@ test('room-linked duel fallback freezes remote forfeited rows from participant p
   assert.equal(rows[1].durationLabel, '01:10');
   assert.equal(rows[1].paceLabel, '06:40/km');
 });
+
+test('room-linked duel fallback does not project elapsed for forfeited remote rows without progress', () => {
+  const rows = buildRoomLinkedDuelForfeitResultRows({
+    currentUserForfeitSnapshot: null,
+    liveElapsedSeconds: 240,
+    participants: [
+      participant({ id: 'me', name: '나', isCurrentUser: true }),
+      participant({
+        id: 'opponent',
+        name: '상대',
+        liveStatus: 'forfeited',
+        paceLabel: '기권',
+      }),
+    ],
+  });
+
+  assert.equal(rows[0].durationLabel, '04:00');
+  assert.equal(rows[1].resultLabel, 'FORFEIT');
+  assert.equal(rows[1].durationLabel, '00:00');
+  assert.equal(rows[1].paceLabel, '기권');
+});

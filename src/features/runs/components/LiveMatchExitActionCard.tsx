@@ -14,6 +14,7 @@ export type LiveMatchExitActionCardProps = {
   onContinueSolo: (source: MatchExitSource) => void;
   onForfeit: (source: MatchExitSource) => void;
   onShowResultAfterCounterpartForfeit: (source: MatchExitSource) => void;
+  onShowResultAfterSelfForfeit: (source: MatchExitSource) => void;
 };
 
 export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
@@ -22,6 +23,7 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
   onContinueSolo,
   onForfeit,
   onShowResultAfterCounterpartForfeit,
+  onShowResultAfterSelfForfeit,
 }: LiveMatchExitActionCardProps) {
   useDevRenderCounter(`LiveMatchExitActionCard:${source ?? 'hidden'}`);
 
@@ -45,6 +47,13 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
     rgPerfMark('counterpart forfeit result button press', { source });
     onShowResultAfterCounterpartForfeit(source);
   }, [onShowResultAfterCounterpartForfeit, source]);
+  const handleShowSelfForfeitResultPress = useCallback(() => {
+    if (!source) {
+      return;
+    }
+    rgPerfMark('self forfeit result button press', { source });
+    onShowResultAfterSelfForfeit(source);
+  }, [onShowResultAfterSelfForfeit, source]);
 
   if (!source || actionState.kind === 'hidden') {
     return null;
@@ -71,7 +80,7 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
         <Text style={styles.text}>{actionState.body}</Text>
         <Pressable
           style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]}
-          onPress={handleShowResultPress}
+          onPress={handleShowSelfForfeitResultPress}
           disabled={actionState.disabled}
         >
           <Text style={styles.buttonText}>{actionState.buttonLabel}</Text>
@@ -131,6 +140,7 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
   && prevProps.onContinueSolo === nextProps.onContinueSolo
   && prevProps.onForfeit === nextProps.onForfeit
   && prevProps.onShowResultAfterCounterpartForfeit === nextProps.onShowResultAfterCounterpartForfeit
+  && prevProps.onShowResultAfterSelfForfeit === nextProps.onShowResultAfterSelfForfeit
 ));
 
 function areMatchExitActionStatesEqual(

@@ -1,4 +1,4 @@
-import type { RunMatchResult } from '@/domain';
+import type { RunMatchResult, RunRoutePoint } from '@/domain';
 import {
   buildAveragePace,
   buildRunDateFromTimestamp,
@@ -14,6 +14,41 @@ export type RunSaveResultSnapshot = {
   finalElapsedSeconds: number;
   startedAt: string;
 };
+
+function buildEndedAt(startedAt: string, elapsedSeconds: number) {
+  const startedAtMs = new Date(startedAt).getTime();
+  if (Number.isNaN(startedAtMs)) {
+    return new Date().toISOString();
+  }
+  return new Date(startedAtMs + Math.max(0, elapsedSeconds) * 1000).toISOString();
+}
+
+function buildStationaryForfeitRoute({
+  endedAt,
+  route,
+  startedAt,
+}: {
+  endedAt: string;
+  route: RunRoutePoint[];
+  startedAt: string;
+}) {
+  if (route.length >= 2) {
+    return route;
+  }
+
+  if (route.length === 1) {
+    const [point] = route;
+    return [
+      { ...point, timestamp: startedAt },
+      { ...point, timestamp: endedAt },
+    ];
+  }
+
+  return [
+    { latitude: 0, longitude: 0, timestamp: startedAt },
+    { latitude: 0, longitude: 0, timestamp: endedAt },
+  ];
+}
 
 export function buildCurrentUserForfeitMatchResult({
   currentDistanceKm,
@@ -64,11 +99,13 @@ export function buildRunSaveResultSnapshot({
   totalSteps: number;
   trackedMatchResult?: RunMatchResult | null;
 }): RunSaveResultSnapshot {
-  const finalElapsedSeconds = displayedSnapshot.elapsedSeconds;
-  const startedAt = displayedSnapshot.startedAt ?? new Date().toISOString();
-  const endedAt = displayedSnapshot.route.length
+  const finalElapsedSeconds = allowStationaryForfeitSave
+    ? Math.max(1, displayedSnapshot.elapsedSeconds)
+    : displayedSnapshot.elapsedSeconds;
+  const startedAt = displayedSnapshot.startedAt ?? displayedSnapshot.route[0]?.timestamp ?? new Date().toISOString();
+  const endedAt = displayedSnapshot.route.length >= 2
     ? displayedSnapshot.route[displayedSnapshot.route.length - 1].timestamp
-    : new Date().toISOString();
+    : buildEndedAt(startedAt, finalElapsedSeconds);
   const finalDistanceKm = displayedSnapshot.distanceKm;
   const saveDistanceKm = allowStationaryForfeitSave && finalDistanceKm <= 0 ? 0.001 : finalDistanceKm;
   const finalElevationGainM = displayedSnapshot.elevationGainM;
@@ -77,7 +114,14 @@ export function buildRunSaveResultSnapshot({
     ? '00:00/km'
     : buildAveragePace(finalDistanceKm, finalElapsedSeconds);
 
-  const hasSavableRoute = displayedSnapshot.route.length >= 2;
+  const savableRoute = allowStationaryForfeitSave
+    ? buildStationaryForfeitRoute({
+        endedAt,
+        route: displayedSnapshot.route,
+        startedAt,
+      })
+    : displayedSnapshot.route;
+  const hasSavableRoute = savableRoute.length >= 2;
   const hasSavableDistance = allowStationaryForfeitSave
     ? finalDistanceKm >= 0
     : allowShortDistanceSave ? finalDistanceKm > 0 : finalDistanceKm >= 0.1;
@@ -102,7 +146,7 @@ export function buildRunSaveResultSnapshot({
       durationSeconds: finalElapsedSeconds,
       cadenceSpm: finalCadenceSpm,
       elevationGainM: finalElevationGainM,
-      route: displayedSnapshot.route,
+      route: savableRoute,
       startedAt,
       endedAt,
       ...(trackedMatchResult ? { matchResult: trackedMatchResult } : {}),

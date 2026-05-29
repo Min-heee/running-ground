@@ -98,4 +98,5 @@ export type RunSaveFlowActions = {
   forfeitMatchAndEndRun: (source: MatchExitSource) => Promise<void>;
   handleForfeitMatch: (source: MatchExitSource) => void;
   handleShowResultAfterCounterpartForfeit: (source: MatchExitSource) => Promise<void>;
+  handleShowResultAfterSelfForfeit: (source: MatchExitSource) => Promise<void>;
 };

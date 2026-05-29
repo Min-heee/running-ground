@@ -117,6 +117,23 @@ test('exit action switches from forfeit to result button when current user forfe
   assert.equal(selfForfeited.disabled, false);
 });
 
+test('exit action keeps self-forfeited result button enabled after tracking stops', () => {
+  const selfForfeited = buildMatchExitActionState({
+    source: 'duel',
+    isTestMatch: false,
+    isLeaving: false,
+    isSaving: false,
+    isRunning: false,
+    counterpartForfeited: false,
+    selfForfeited: true,
+    selfFinished: false,
+  });
+
+  assert.equal(selfForfeited.kind, 'self-forfeited');
+  assert.equal(selfForfeited.buttonLabel, '결과보기');
+  assert.equal(selfForfeited.disabled, false);
+});
+
 test('exit action keeps test match cleanup ahead of self-forfeited result action', () => {
   const testExit = buildMatchExitActionState({
     source: 'duel',

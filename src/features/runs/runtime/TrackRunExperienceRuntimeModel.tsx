@@ -2106,6 +2106,7 @@ export function TrackRunExperienceRuntime({
     handleForfeitMatch,
     handleSaveTracking,
     handleShowResultAfterCounterpartForfeit,
+    handleShowResultAfterSelfForfeit,
     handleDiscardTracking,
   } = useRunSaveFlow({
     status,
@@ -2181,6 +2182,7 @@ export function TrackRunExperienceRuntime({
       onContinueSolo: handleContinueSoloFromMatch,
       onForfeit: handleForfeitMatch,
       onShowResultAfterCounterpartForfeit: handleShowResultAfterCounterpartForfeit,
+      onShowResultAfterSelfForfeit: handleShowResultAfterSelfForfeit,
     },
     isPaused,
     isRunning,

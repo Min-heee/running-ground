@@ -131,6 +131,43 @@ test('stationary forfeit save allows zero distance when a real GPS route exists'
   assert.equal(result.createRunInput.matchResult?.resultTone, 'lose');
 });
 
+test('stationary forfeit save synthesizes a tiny stationary route when GPS has not produced points', () => {
+  const result = buildRunSaveResultSnapshot({
+    allowStationaryForfeitSave: true,
+    displayedSnapshot: snapshot({ distanceKm: 0, elapsedSeconds: 0, route: [] }),
+    totalSteps: 0,
+    trackedMatchResult: buildCurrentUserForfeitMatchResult({
+      currentDistanceKm: 0,
+      mode: 'duel',
+    }),
+  });
+
+  assert.equal(result.createRunInput.distanceKm, 0.001);
+  assert.equal(result.createRunInput.durationSeconds, 1);
+  assert.equal(result.createRunInput.route.length, 2);
+  assert.deepEqual(result.createRunInput.route.map((point) => [point.latitude, point.longitude]), [[0, 0], [0, 0]]);
+  assert.equal(result.createRunInput.matchResult?.resultTone, 'lose');
+});
+
+test('stationary forfeit save duplicates a single GPS point into a savable route', () => {
+  const [point] = snapshot().route;
+  const result = buildRunSaveResultSnapshot({
+    allowStationaryForfeitSave: true,
+    displayedSnapshot: snapshot({ distanceKm: 0, elapsedSeconds: 7, route: [point] }),
+    totalSteps: 0,
+    trackedMatchResult: buildCurrentUserForfeitMatchResult({
+      currentDistanceKm: 0,
+      mode: 'duel',
+    }),
+  });
+
+  assert.equal(result.createRunInput.route.length, 2);
+  assert.equal(result.createRunInput.route[0].latitude, point.latitude);
+  assert.equal(result.createRunInput.route[1].latitude, point.latitude);
+  assert.equal(result.createRunInput.route[0].timestamp, '2026-05-15T00:00:00.000Z');
+  assert.equal(result.createRunInput.route[1].timestamp, '2026-05-15T00:00:07.000Z');
+});
+
 test('run save result mapper rejects missing pace calculation', () => {
   assert.throws(() => buildRunSaveResultSnapshot({
     displayedSnapshot: snapshot({ elapsedSeconds: 0 }),

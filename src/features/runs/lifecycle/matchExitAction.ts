@@ -72,7 +72,7 @@ export function buildMatchExitActionState({
   }
 
   if (selfForfeited) {
-    const disabled = isLeaving || isSaving || !isRunning;
+    const disabled = isLeaving || isSaving;
 
     return {
       kind: 'self-forfeited',
@@ -80,9 +80,7 @@ export function buildMatchExitActionState({
       body: '대결 결과는 기권으로 반영됐어요. 지금까지 기록을 저장하고 결과 화면으로 이동해요.',
       buttonLabel: isLeaving || isSaving
         ? '결과 저장 중...'
-        : !isRunning
-          ? '결과 화면 준비 중...'
-          : '결과보기',
+        : '결과보기',
       disabled,
     };
   }

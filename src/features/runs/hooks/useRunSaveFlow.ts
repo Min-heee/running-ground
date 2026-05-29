@@ -35,6 +35,7 @@ export function useRunSaveFlow(input: UseRunSaveFlowInput) {
     forfeitMatchAndEndRun,
     handleForfeitMatch,
     handleShowResultAfterCounterpartForfeit,
+    handleShowResultAfterSelfForfeit,
   } = useRunForfeitCommand({
     ...input,
     handleSaveTracking,
@@ -51,6 +52,7 @@ export function useRunSaveFlow(input: UseRunSaveFlowInput) {
     forfeitMatchAndEndRun,
     handleForfeitMatch,
     handleShowResultAfterCounterpartForfeit,
+    handleShowResultAfterSelfForfeit,
   };
   const actionsRef = useRef(actions);
   actionsRef.current = actions;
@@ -64,5 +66,6 @@ export function useRunSaveFlow(input: UseRunSaveFlowInput) {
     forfeitMatchAndEndRun: (source) => actionsRef.current.forfeitMatchAndEndRun(source),
     handleForfeitMatch: (source) => actionsRef.current.handleForfeitMatch(source),
     handleShowResultAfterCounterpartForfeit: (source) => actionsRef.current.handleShowResultAfterCounterpartForfeit(source),
+    handleShowResultAfterSelfForfeit: (source) => actionsRef.current.handleShowResultAfterSelfForfeit(source),
   }), []);
 }

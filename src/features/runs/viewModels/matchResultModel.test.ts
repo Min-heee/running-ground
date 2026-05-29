@@ -93,6 +93,45 @@ test('duel result records opponent forfeit as win', () => {
   assert.equal(result?.rows[1].resultLabel, 'FORFEIT');
 });
 
+test('duel result freezes forfeited opponent duration instead of projecting current elapsed', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      liveDistanceKm: 0.2,
+      liveStatus: 'forfeited',
+    }),
+    currentDistanceKm: 0.7,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 420,
+    currentPaceLabel: '10:00/km',
+    currentUserLiveStatus: 'running',
+  });
+
+  const opponentRow = result?.rows.find((row) => !row.isCurrentUser);
+  assert.equal(opponentRow?.resultLabel, 'FORFEIT');
+  assert.equal(opponentRow?.durationLabel, '00:00');
+  assert.equal(opponentRow?.paceLabel, '기권');
+});
+
+test('duel result keeps forfeited opponent final duration when both users forfeit', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      liveDistanceKm: 0.2,
+      liveElapsedSeconds: 67,
+      liveStatus: 'forfeited',
+    }),
+    currentDistanceKm: 0.3,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 91,
+    currentPaceLabel: '05:03/km',
+    currentUserLiveStatus: 'forfeited',
+  });
+
+  const opponentRow = result?.rows.find((row) => !row.isCurrentUser);
+  assert.equal(result?.matchResult.resultTone, 'lose');
+  assert.equal(opponentRow?.resultLabel, 'FORFEIT');
+  assert.equal(opponentRow?.durationLabel, '01:07');
+});
+
 test('duel result records normal finish by compared distance', () => {
   const result = buildDuelMatchFinishModel({
     opponent: opponent({

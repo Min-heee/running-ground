@@ -16,6 +16,7 @@ type UseForfeitControllerInput = {
   onContinueSolo: (source: MatchExitSource) => void;
   onForfeit: (source: MatchExitSource) => void;
   onShowResultAfterCounterpartForfeit: (source: MatchExitSource) => Promise<void> | void;
+  onShowResultAfterSelfForfeit: (source: MatchExitSource) => Promise<void> | void;
 };
 
 export function useForfeitController({
@@ -30,6 +31,7 @@ export function useForfeitController({
   onContinueSolo,
   onForfeit,
   onShowResultAfterCounterpartForfeit,
+  onShowResultAfterSelfForfeit,
 }: UseForfeitControllerInput) {
   const actionState = useMemo(() => buildMatchExitActionState({
     source,
@@ -59,11 +61,15 @@ export function useForfeitController({
     onShowResultAfterCounterpartForfeit: (nextSource) => {
       void onShowResultAfterCounterpartForfeit(nextSource);
     },
+    onShowResultAfterSelfForfeit: (nextSource) => {
+      void onShowResultAfterSelfForfeit(nextSource);
+    },
   }), [
     actionState,
     onContinueSolo,
     onForfeit,
     onShowResultAfterCounterpartForfeit,
+    onShowResultAfterSelfForfeit,
     source,
   ]);
 }

@@ -19,11 +19,14 @@ function resolveForfeitRowMetrics({
   const shouldUseParticipantSnapshot = participant.liveStatus === 'forfeited'
     && typeof participant.elapsedSeconds === 'number'
     && participant.elapsedSeconds > 0;
+  const shouldFreezeForfeitedParticipant = participant.liveStatus === 'forfeited';
   const elapsedSeconds = shouldUseCurrentUserSnapshot
     ? currentUserForfeitSnapshot!.elapsedSeconds
     : shouldUseParticipantSnapshot
       ? participant.elapsedSeconds!
-      : liveElapsedSeconds;
+      : shouldFreezeForfeitedParticipant
+        ? 0
+        : liveElapsedSeconds;
   const paceLabel = shouldUseCurrentUserSnapshot
     ? currentUserForfeitSnapshot!.paceLabel
     : ((participant.progressPaceLabel ?? participant.paceLabel) || '--:--/km');

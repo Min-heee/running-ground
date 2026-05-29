@@ -5,6 +5,7 @@ import {
   resolveMatchExitId,
   type MatchExitSource,
 } from '@/features/runs/lifecycle/matchExitFlow';
+import { pauseBackgroundRunTracking } from '@/features/runs/tracking/background';
 import { buildRunDetailRedirect } from '@/features/runs/lifecycle/runSaveNavigation';
 import { getApiErrorMessage, leaveRunningMatch } from '@/services';
 import type { SaveTrackingOptions } from '@/features/runs/hooks/useRunTracking';
@@ -33,7 +34,10 @@ type UseRunForfeitCommandInput = Pick<
   | 'setError'
   | 'setGroupMatchNotice'
   | 'setGroupMatchStatus'
+  | 'setStatus'
   | 'status'
+  | 'stopForegroundTrackingHelpers'
+  | 'syncLiveSharing'
   | 'trackedMatchResult'
 > & {
   handleSaveTracking: (options?: SaveTrackingOptions) => Promise<boolean>;
@@ -63,7 +67,10 @@ export function useRunForfeitCommand({
   setGroupMatchNotice,
   setGroupMatchStatus,
   setMatchLeaving,
+  setStatus,
   status,
+  stopForegroundTrackingHelpers,
+  syncLiveSharing,
   trackedMatchResult,
 }: UseRunForfeitCommandInput) {
   const buildForfeitRunDetailRedirect = (
@@ -106,7 +113,7 @@ export function useRunForfeitCommand({
     let savedRunId: string | null = null;
     const displayedSnapshot = options.currentUserForfeited ? getDisplayedTrackingSnapshot() : null;
     const didSave = await handleSaveTracking({
-      // Forfeit can happen before 0.1km; require a real route, but don't block solely on short distance.
+      // Forfeit can happen before 0.1km or before GPS yields two points.
       allowShortDistanceSave: true,
       allowStationaryForfeitSave: Boolean(options.currentUserForfeited),
       exitIfUnsavable: true,
@@ -130,9 +137,25 @@ export function useRunForfeitCommand({
     if (didSave && savedRunId) {
       const redirect = buildForfeitRunDetailRedirect(source, savedRunId, matchId);
       router.replace(redirect);
-    } else {
+    } else if (!options.currentUserForfeited) {
       router.replace('/(tabs)/running');
+    } else {
+      setError('기권 결과 저장에 실패했어. 잠시 후 결과보기를 다시 눌러줘.');
     }
+  };
+
+  const stopForfeitedTracking = async () => {
+    if (status !== 'running') {
+      return;
+    }
+
+    await pauseBackgroundRunTracking().catch(() => {});
+    stopForegroundTrackingHelpers();
+    setStatus('paused');
+    void syncLiveSharing({
+      enabled: false,
+      status: 'idle',
+    }).catch(() => {});
   };
 
   const forfeitMatchAndEndRun = async (source: MatchExitSource) => {
@@ -183,7 +206,7 @@ export function useRunForfeitCommand({
     try {
       if (source === 'duel') {
         setDuelMatchStatus((currentStatus) => markDuelStatusForfeited(currentStatus, matchId));
-        setDuelMatchNotice('기권 처리됐어요. 지금까지 기록을 저장하고 결과 화면으로 이동해요.');
+        setDuelMatchNotice('기권 처리됐어요. 결과보기를 누르면 기록 상세로 이동해요.');
         await leaveRunningMatch({ matchId });
         didLeaveMatch = true;
         markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
@@ -192,7 +215,7 @@ export function useRunForfeitCommand({
         matchProgressHeartbeatRef.current = Date.now();
       } else {
         setGroupMatchStatus((currentStatus) => markGroupStatusForfeited(currentStatus, matchId));
-        setGroupMatchNotice('기권 처리됐어요. 지금까지 기록을 저장하고 결과 화면으로 이동해요.');
+        setGroupMatchNotice('기권 처리됐어요. 결과보기를 누르면 기록 상세로 이동해요.');
         await leaveRunningMatch({ matchId });
         didLeaveMatch = true;
         markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
@@ -201,8 +224,8 @@ export function useRunForfeitCommand({
         matchProgressHeartbeatRef.current = Date.now();
       }
 
+      await stopForfeitedTracking();
       void loadUpcomingMatches().catch(() => {});
-      await saveForfeitResultAndNavigate(source, matchId, { currentUserForfeited: true });
     } catch (matchError) {
       if (!didLeaveMatch) {
         if (source === 'duel') {
@@ -253,9 +276,33 @@ export function useRunForfeitCommand({
     }
   };
 
+  const handleShowResultAfterSelfForfeit = async (source: MatchExitSource) => {
+    if (pendingCounterpartForfeitResultRef.current || isSaving) {
+      return;
+    }
+
+    rgPerfMark('self forfeit result action dispatch', { source, status });
+    pendingCounterpartForfeitResultRef.current = true;
+    setMatchLeaving(source, true);
+    const matchId = resolveMatchExitId({
+      source,
+      duelMatchId: duelMatchStatus?.matchId,
+      groupMatchId: groupMatchStatus?.matchId,
+      roomLinkedMatchContext,
+    });
+
+    try {
+      await saveForfeitResultAndNavigate(source, matchId, { currentUserForfeited: true });
+    } finally {
+      pendingCounterpartForfeitResultRef.current = false;
+      setMatchLeaving(source, false);
+    }
+  };
+
   return {
     forfeitMatchAndEndRun,
     handleForfeitMatch,
     handleShowResultAfterCounterpartForfeit,
+    handleShowResultAfterSelfForfeit,
   };
 }
