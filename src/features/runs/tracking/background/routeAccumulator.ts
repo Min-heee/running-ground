@@ -13,6 +13,7 @@ import {
   CURRENT_PACE_SMOOTHING_WINDOW_MS,
   CURRENT_PACE_STALE_AFTER_MS,
   findColdStartExcursionAnchorIndex,
+  findMidRunLateralJitterAnchorIndex,
   MAX_REASONABLE_PACE_SECONDS_PER_KM,
   MAX_REASONABLE_RUNNING_SPEED_MPS,
   MAX_TRACKING_ACCURACY_METERS,
@@ -297,6 +298,24 @@ export function appendTrackedLocation(location: Location.LocationObject) {
     commitSnapshot({
       ...snapshotState,
       currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
+    });
+    return;
+  }
+
+  const jitterAnchorIndex = findMidRunLateralJitterAnchorIndex(snapshotState.route, nextPoint);
+  if (jitterAnchorIndex !== null) {
+    // Collapse short side-to-side GPS jitter into the direct road segment instead of adding every wobble.
+    const nextRoute = [...snapshotState.route.slice(0, jitterAnchorIndex + 1), nextPoint];
+    accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute);
+    accumulatedElevationGainMeters = calculateRouteElevationGainMeters(nextRoute);
+
+    commitSnapshot({
+      ...snapshotState,
+      route: nextRoute,
+      startedAt: snapshotState.startedAt ?? nextRoute[0]?.timestamp ?? nextPoint.timestamp,
+      distanceKm: Number((accumulatedDistanceMeters / 1000).toFixed(2)),
+      elevationGainM: Math.round(accumulatedElevationGainMeters),
+      currentPace: buildSmoothedCurrentPace(nextRoute, reliableSpeedMps, locationTimestampMs),
     });
     return;
   }

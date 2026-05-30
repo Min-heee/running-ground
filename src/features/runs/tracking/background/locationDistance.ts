@@ -28,6 +28,13 @@ export const COLD_START_EXCURSION_LOOKBACK_POINTS = 5;
 export const COLD_START_EXCURSION_DIRECT_RADIUS_METERS = 22;
 export const COLD_START_EXCURSION_MIN_PATH_METERS = 55;
 export const COLD_START_EXCURSION_MIN_EXTRA_METERS = 40;
+export const MID_RUN_LATERAL_JITTER_LOOKBACK_POINTS = 5;
+export const MID_RUN_LATERAL_JITTER_MAX_WINDOW_MS = 18_000;
+export const MID_RUN_LATERAL_JITTER_MIN_DIRECT_METERS = 22;
+export const MID_RUN_LATERAL_JITTER_MIN_PATH_METERS = 45;
+export const MID_RUN_LATERAL_JITTER_MIN_EXTRA_METERS = 14;
+export const MID_RUN_LATERAL_JITTER_MIN_EXTRA_RATIO = 0.24;
+export const MID_RUN_LATERAL_JITTER_MIN_SIDE_METERS = 6;
 
 export function normalizeAccuracyMeters(value?: number | null) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
@@ -238,6 +245,140 @@ export function findColdStartExcursionAnchorIndex(route: RunRoutePoint[], nextPo
       candidatePathDistanceMeters >= COLD_START_EXCURSION_MIN_PATH_METERS
       && candidatePathDistanceMeters - directDistanceMeters >= COLD_START_EXCURSION_MIN_EXTRA_METERS
     ) {
+      return anchorIndex;
+    }
+  }
+
+  return null;
+}
+
+function calculateLocalVectorMeters(origin: RunRoutePoint, point: RunRoutePoint) {
+  const averageLatitudeRadians = ((origin.latitude + point.latitude) / 2) * Math.PI / 180;
+  const metersPerLatitudeDegree = 111_320;
+  const metersPerLongitudeDegree = metersPerLatitudeDegree * Math.cos(averageLatitudeRadians);
+
+  return {
+    east: (point.longitude - origin.longitude) * metersPerLongitudeDegree,
+    north: (point.latitude - origin.latitude) * metersPerLatitudeDegree,
+  };
+}
+
+function calculateSignedLateralDistanceMeters(
+  anchorPoint: RunRoutePoint,
+  endPoint: RunRoutePoint,
+  candidatePoint: RunRoutePoint,
+) {
+  const endVector = calculateLocalVectorMeters(anchorPoint, endPoint);
+  const candidateVector = calculateLocalVectorMeters(anchorPoint, candidatePoint);
+  const directMagnitude = Math.hypot(endVector.east, endVector.north);
+
+  if (directMagnitude <= 0) {
+    return 0;
+  }
+
+  return (
+    endVector.east * candidateVector.north
+    - endVector.north * candidateVector.east
+  ) / directMagnitude;
+}
+
+function findOpposingLateralJitterSides(
+  anchorPoint: RunRoutePoint,
+  endPoint: RunRoutePoint,
+  candidatePoints: RunRoutePoint[],
+  lateralThresholdMeters: number,
+) {
+  let hasPositiveSide = false;
+  let hasNegativeSide = false;
+
+  for (const point of candidatePoints) {
+    const signedLateralMeters = calculateSignedLateralDistanceMeters(anchorPoint, endPoint, point);
+
+    if (signedLateralMeters >= lateralThresholdMeters) {
+      hasPositiveSide = true;
+    }
+
+    if (signedLateralMeters <= -lateralThresholdMeters) {
+      hasNegativeSide = true;
+    }
+
+    if (hasPositiveSide && hasNegativeSide) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function resolveRouteWindowMaxAccuracyMeters(points: RunRoutePoint[]) {
+  return points.reduce((maxAccuracyM, point) => {
+    const accuracyM = normalizeAccuracyMeters(point.accuracyM);
+    return Math.max(maxAccuracyM, accuracyM ?? 0);
+  }, 0);
+}
+
+export function findMidRunLateralJitterAnchorIndex(route: RunRoutePoint[], nextPoint: RunRoutePoint) {
+  if (route.length < 3) {
+    return null;
+  }
+
+  const nextTimestampMs = resolveRoutePointTimestampMs(nextPoint);
+
+  if (nextTimestampMs === null) {
+    return null;
+  }
+
+  const minAnchorIndex = Math.max(0, route.length - MID_RUN_LATERAL_JITTER_LOOKBACK_POINTS);
+
+  for (let anchorIndex = route.length - 3; anchorIndex >= minAnchorIndex; anchorIndex -= 1) {
+    const anchorPoint = route[anchorIndex];
+    const anchorTimestampMs = resolveRoutePointTimestampMs(anchorPoint);
+
+    if (
+      anchorTimestampMs === null
+      || nextTimestampMs <= anchorTimestampMs
+      || nextTimestampMs - anchorTimestampMs > MID_RUN_LATERAL_JITTER_MAX_WINDOW_MS
+    ) {
+      continue;
+    }
+
+    const candidatePath = [...route.slice(anchorIndex), nextPoint];
+    const internalPoints = candidatePath.slice(1, -1);
+
+    if (internalPoints.length < 2) {
+      continue;
+    }
+
+    const directDistanceMeters = calculateDistanceBetweenPoints(anchorPoint, nextPoint);
+    const candidatePathDistanceMeters = calculateRouteWindowDistanceMeters(candidatePath);
+
+    if (
+      directDistanceMeters < MID_RUN_LATERAL_JITTER_MIN_DIRECT_METERS
+      || candidatePathDistanceMeters < MID_RUN_LATERAL_JITTER_MIN_PATH_METERS
+    ) {
+      continue;
+    }
+
+    const maxAccuracyM = resolveRouteWindowMaxAccuracyMeters(candidatePath);
+    const extraDistanceMeters = candidatePathDistanceMeters - directDistanceMeters;
+    const minExtraDistanceMeters = Math.max(
+      MID_RUN_LATERAL_JITTER_MIN_EXTRA_METERS,
+      maxAccuracyM * 1.4,
+    );
+
+    if (
+      extraDistanceMeters < minExtraDistanceMeters
+      || extraDistanceMeters / candidatePathDistanceMeters < MID_RUN_LATERAL_JITTER_MIN_EXTRA_RATIO
+    ) {
+      continue;
+    }
+
+    const lateralThresholdMeters = Math.max(
+      MID_RUN_LATERAL_JITTER_MIN_SIDE_METERS,
+      Math.min(14, maxAccuracyM * 0.75),
+    );
+
+    if (findOpposingLateralJitterSides(anchorPoint, nextPoint, internalPoints, lateralThresholdMeters)) {
       return anchorIndex;
     }
   }

@@ -19,20 +19,26 @@ function longitudeOffsetForMeters(meters: number, latitude = BASE_LATITUDE) {
   return meters / (111_320 * Math.cos(latitude * Math.PI / 180));
 }
 
+function latitudeOffsetForMeters(meters: number) {
+  return meters / 111_320;
+}
+
 function locationAt({
   metersEast,
+  metersNorth = 0,
   timestampMs,
   accuracyM = 8,
   speedMps = 2.5,
 }: {
   metersEast: number;
+  metersNorth?: number;
   timestampMs: number;
   accuracyM?: number;
   speedMps?: number;
 }) {
   return {
     coords: {
-      latitude: BASE_LATITUDE,
+      latitude: BASE_LATITUDE + latitudeOffsetForMeters(metersNorth),
       longitude: BASE_LONGITUDE + longitudeOffsetForMeters(metersEast),
       altitude: 15,
       accuracy: accuracyM,
@@ -85,6 +91,44 @@ test('route accumulator keeps normal straight-line movement after cold-start sta
   assert.equal(snapshot.route.length, 4);
   assert.ok(getAccumulatedDistanceMeters() >= 24);
   assert.ok(getAccumulatedDistanceMeters() <= 34);
+});
+
+test('route accumulator collapses mid-run lateral GPS jitter on a straight road', () => {
+  const baseMs = Date.now() - 14_000;
+  resetRunningSnapshot(baseMs);
+
+  appendTrackedLocation(locationAt({ metersEast: 0, timestampMs: baseMs, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 5, timestampMs: baseMs + 1_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 10, timestampMs: baseMs + 2_000, speedMps: 3 }));
+
+  const jitterPoints = [
+    { metersEast: 18, metersNorth: 11 },
+    { metersEast: 26, metersNorth: -11 },
+    { metersEast: 34, metersNorth: 11 },
+    { metersEast: 42, metersNorth: -11 },
+    { metersEast: 50, metersNorth: 11 },
+    { metersEast: 58, metersNorth: -11 },
+    { metersEast: 66, metersNorth: 11 },
+    { metersEast: 74, metersNorth: -11 },
+    { metersEast: 82, metersNorth: 11 },
+    { metersEast: 90, metersNorth: -11 },
+    { metersEast: 98, metersNorth: 11 },
+    { metersEast: 106, metersNorth: -11 },
+  ];
+
+  jitterPoints.forEach((point, index) => {
+    appendTrackedLocation(locationAt({
+      ...point,
+      accuracyM: 8,
+      speedMps: 3,
+      timestampMs: baseMs + 3_000 + index * 1_000,
+    }));
+  });
+
+  const snapshot = getSnapshotState();
+  assert.ok(getAccumulatedDistanceMeters() >= 98);
+  assert.ok(getAccumulatedDistanceMeters() <= 122);
+  assert.ok(snapshot.route.length <= 6);
 });
 
 test('route accumulator trims early out-and-back GPS excursions', () => {
