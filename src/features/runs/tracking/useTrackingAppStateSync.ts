@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import type { AppStateStatus } from 'react-native';
 import {
   getBackgroundRunTrackingSnapshot,
@@ -11,6 +11,10 @@ import {
 import {
   setAppBackgroundState,
 } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
+import {
+  startBackgroundMatchProgressTimer,
+  stopBackgroundMatchProgressTimer,
+} from '@/features/runs/tracking/background/backgroundMatchProgressTimer';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
 import {
@@ -55,6 +59,7 @@ export function useTrackingAppStateSync({
   const appStateLocationSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLocationTaskAppStateRef = useRef<AppStateStatus | null>(null);
   const elapsedTickerActiveRef = useRef(false);
+  const trackerStatus = trackerStatusRef.current;
   const callbackRef = useRef({
     clearElapsedTicker,
     finishSoloStartCountdown,
@@ -176,6 +181,18 @@ export function useTrackingAppStateSync({
       });
     }
   }, [appStateRef, scheduleLocationTaskAppStateSync, trackerStatusRef]);
+
+  useEffect(() => {
+    if (!enabled || trackerStatus !== 'running') {
+      stopBackgroundMatchProgressTimer();
+      return undefined;
+    }
+
+    startBackgroundMatchProgressTimer({ platformOS: Platform.OS });
+    return () => {
+      stopBackgroundMatchProgressTimer();
+    };
+  }, [enabled, trackerStatus]);
 
   useEffect(() => {
     if (!enabled) {
