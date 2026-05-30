@@ -253,6 +253,7 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
       && liveSnapshot.liveUpdatedAt
       && liveElapsedSeconds > 0
       && !['ready', 'forfeited'].includes(liveStatus);
+    const contributesToLiveCheckpoint = hasProgress && ['running', 'background'].includes(liveStatus);
 
     return {
       userId: participant.userId,
@@ -262,14 +263,18 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
       liveElapsedSeconds,
       liveStatus,
       hasProgress,
+      contributesToLiveCheckpoint,
       officialAveragePace: buildProgressAveragePaceLabel(liveDistanceKm, liveElapsedSeconds),
     };
   });
 
   const readySnapshots = snapshots.filter((snapshot) => snapshot.hasProgress);
-  const officialElapsedSeconds = readySnapshots.length >= 2
-    ? Math.max(0, Math.min(...readySnapshots.map((snapshot) => snapshot.liveElapsedSeconds)))
-    : 0;
+  const liveCheckpointSnapshots = readySnapshots.filter((snapshot) => snapshot.contributesToLiveCheckpoint);
+  const officialElapsedSeconds = liveCheckpointSnapshots.length > 0
+    ? Math.max(0, Math.min(...liveCheckpointSnapshots.map((snapshot) => snapshot.liveElapsedSeconds)))
+    : readySnapshots.length > 0
+      ? Math.max(0, Math.max(...readySnapshots.map((snapshot) => snapshot.liveElapsedSeconds)))
+      : 0;
   const comparedAt = now.toISOString();
 
   const rankedSnapshots = snapshots
@@ -309,8 +314,10 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
   return rankedSnapshots.map((snapshot, index, array) => {
     const leaderDistanceKm = array[0]?.officialDistanceKm ?? 0;
     const aheadRunner = index > 0 ? array[index - 1] : null;
+    const publicSnapshot = { ...snapshot };
+    delete publicSnapshot.contributesToLiveCheckpoint;
     return {
-      ...snapshot,
+      ...publicSnapshot,
       officialRank: index + 1,
       officialGapLeaderKm: Number(Math.max(0, leaderDistanceKm - snapshot.officialDistanceKm).toFixed(2)),
       officialGapAheadKm: aheadRunner

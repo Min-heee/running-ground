@@ -164,6 +164,17 @@ function buildOfficialDuelComparisonSnapshot({
   };
 }
 
+function shouldPreferSurvivorLiveDistance(
+  duelMatchStatus: RunningMatchStatusResponse | null,
+  effectiveDuelOpponent: DuelMatchOpponent | null,
+) {
+  return effectiveDuelOpponent?.liveStatus === 'finished'
+    && (
+      duelMatchStatus?.currentUserLiveStatus === 'running'
+      || duelMatchStatus?.currentUserLiveStatus === 'background'
+    );
+}
+
 export function buildDuelProgressDisplayModel({
   duelMatchStatus,
   syncedDuelProgress,
@@ -191,12 +202,24 @@ export function buildDuelProgressDisplayModel({
     && typeof officialDuelComparison.userDistanceKm === 'number'
     && duelOpponentProgressModel.officialProgress?.ready,
   );
-  const duelComparisonSnapshot = officialDuelReady && officialDuelComparison
+  const officialDuelComparisonSnapshot = officialDuelReady && officialDuelComparison
     ? buildOfficialDuelComparisonSnapshot({
         officialDuelComparison,
         officialOpponentDistanceKm: duelOpponentProgressModel.officialProgress?.distanceKm ?? 0,
       })
     : fallbackDuelComparisonSnapshot;
+  const shouldUseLiveSurvivorDistance = shouldPreferSurvivorLiveDistance(duelMatchStatus, effectiveDuelOpponent);
+  const duelComparisonSnapshot = (
+    shouldUseLiveSurvivorDistance
+    && officialDuelComparisonSnapshot
+    && officialDuelComparisonSnapshot.currentDistanceKm < distanceKm
+  )
+    ? {
+        ...officialDuelComparisonSnapshot,
+        currentDistanceKm: distanceKm,
+        gapKm: Number((distanceKm - officialDuelComparisonSnapshot.opponentDistanceKm).toFixed(2)),
+      }
+    : officialDuelComparisonSnapshot;
   const hasDuelOpponentDisplayProgress = Boolean(
     duelComparisonSnapshot
     || duelOpponentProgressModel.displayProgress.hasProgress

@@ -160,6 +160,37 @@ test('buildDuelProgressDisplayModel prefers official comparison when both runner
   assert.equal(model.syncedDuelOpponentDistanceKm, 1.1);
 });
 
+test('buildDuelProgressDisplayModel keeps survivor distance live after opponent finishes', () => {
+  const model = buildDuelProgressDisplayModel({
+    duelMatchStatus: buildStatus({
+      currentUserLiveStatus: 'running',
+      officialComparison: {
+        comparedAt: '2026-05-15T00:01:00.000Z',
+        elapsedSeconds: 900,
+        participantCount: 2,
+        readyParticipantCount: 2,
+        userDistanceKm: 1.4,
+      },
+    }),
+    syncedDuelProgress: null,
+    effectiveDuelOpponent: {
+      ...baseOpponent,
+      liveStatus: 'finished',
+      officialReady: true,
+      officialDistanceKm: 5,
+      officialElapsedSeconds: 900,
+      officialAveragePace: '05:00/km',
+    },
+    duelDistanceKm: 5,
+    distanceKm: 3.2,
+  });
+
+  assert.equal(model.officialDuelReady, true);
+  assert.equal(model.syncedDuelDistanceKm, 3.2);
+  assert.equal(model.syncedDuelOpponentDistanceKm, 5);
+  assert.equal(model.duelComparisonSnapshot?.gapKm, -1.8);
+});
+
 test('remote progress selector separates duel and group progress checks', () => {
   assert.equal(hasAnyLiveMatchRemoteDisplayProgress({
     matchMode: 'duel',

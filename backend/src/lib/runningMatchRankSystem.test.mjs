@@ -6,6 +6,7 @@ import {
   updateRunningMatchProgress,
 } from './runningMatchStoreHelpers.mjs';
 import {
+  buildOfficialSessionStandings,
   buildParticipantLiveSnapshot,
 } from './runningMatchSessionStoreHelpers.mjs';
 
@@ -392,4 +393,93 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
   assert.equal(snapshot.livePace, '08:00/km');
   assert.equal(snapshot.liveStatus, 'running');
   assert.ok(snapshot.liveDistanceKm > 0);
+}
+
+{
+  const survivor = createUser('survivor');
+  const finisher = createUser('finisher');
+  const session = createSession({
+    participants: [
+      createParticipant('survivor', 1, {
+        liveStatus: 'running',
+        liveDistanceKm: 4.2,
+        liveElapsedSeconds: 1800,
+        livePace: '07:08/km',
+      }),
+      createParticipant('finisher', 2, {
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1500,
+        livePace: '05:00/km',
+        finishedAt: iso(-1000),
+      }),
+    ],
+  });
+  session.distanceKm = 5;
+  const store = createStore([survivor, finisher], [createRun('survivor'), createRun('finisher')], session);
+  const standings = buildOfficialSessionStandings(store, session);
+  const survivorStanding = standings.find((standing) => standing.userId === 'survivor');
+  const finisherStanding = standings.find((standing) => standing.userId === 'finisher');
+
+  assert.equal(survivorStanding.officialElapsedSeconds, 1800);
+  assert.equal(survivorStanding.officialDistanceKm, 4.2);
+  assert.equal(finisherStanding.officialDistanceKm, 5);
+  assert.equal(finisherStanding.liveStatus, 'finished');
+}
+
+{
+  const left = createUser('left');
+  const right = createUser('right');
+  const session = createSession({
+    participants: [
+      createParticipant('left', 1, {
+        liveStatus: 'running',
+        liveDistanceKm: 1.6,
+        liveElapsedSeconds: 600,
+        livePace: '06:15/km',
+      }),
+      createParticipant('right', 2, {
+        liveStatus: 'running',
+        liveDistanceKm: 1.5,
+        liveElapsedSeconds: 500,
+        livePace: '05:33/km',
+      }),
+    ],
+  });
+  session.distanceKm = 5;
+  const store = createStore([left, right], [createRun('left'), createRun('right')], session);
+  const standings = buildOfficialSessionStandings(store, session);
+  const leftStanding = standings.find((standing) => standing.userId === 'left');
+
+  assert.equal(leftStanding.officialElapsedSeconds, 500);
+  assert.equal(leftStanding.officialDistanceKm, 1.33);
+}
+
+{
+  const left = createUser('left-finished');
+  const right = createUser('right-finished');
+  const session = createSession({
+    participants: [
+      createParticipant('left-finished', 1, {
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1600,
+        livePace: '05:20/km',
+        finishedAt: iso(-1000),
+      }),
+      createParticipant('right-finished', 2, {
+        liveStatus: 'finished',
+        liveDistanceKm: 4.9,
+        liveElapsedSeconds: 1700,
+        livePace: '05:47/km',
+        finishedAt: iso(-500),
+      }),
+    ],
+  });
+  session.distanceKm = 5;
+  const store = createStore([left, right], [createRun('left-finished'), createRun('right-finished')], session);
+  const standings = buildOfficialSessionStandings(store, session);
+
+  assert.equal(standings.find((standing) => standing.userId === 'left-finished').officialDistanceKm, 5);
+  assert.equal(standings.find((standing) => standing.userId === 'right-finished').officialDistanceKm, 4.9);
 }
