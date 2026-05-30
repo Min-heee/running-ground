@@ -54,6 +54,23 @@ test('pace helpers return stable average pace labels', () => {
   assert.equal(buildAverageArenaPaceLabel(1, 380, true), '06:20/km');
   assert.equal(buildAverageArenaPaceLabel(1, 380, false), '');
   assert.equal(buildParticipantAveragePaceLabel({ ...baseOpponent, officialAveragePace: '06:10/km' }, true), '06:10/km');
+  assert.equal(buildParticipantAveragePaceLabel({
+    ...baseOpponent,
+    liveDistanceKm: 0.31,
+    liveElapsedSeconds: 120,
+    livePace: '06:27/km',
+    liveUpdatedAt: '2026-05-12T00:02:00.000Z',
+  }, false), '06:27/km');
+  assert.equal(buildParticipantAveragePaceLabel({
+    ...baseOpponent,
+    liveElapsedSeconds: 10,
+    livePace: '06:30/km',
+    liveUpdatedAt: '2026-05-12T00:02:00.000Z',
+  }, false), '06:30/km');
+  assert.equal(buildParticipantAveragePaceLabel({
+    ...baseOpponent,
+    liveUpdatedAt: '2026-05-12T00:02:00.000Z',
+  }, false), '동기화 중');
 });
 
 test('resolveParticipantDisplayDistanceKm prefers live distance and estimates from pace only as fallback', () => {

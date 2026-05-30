@@ -168,6 +168,10 @@ function buildSyntheticParticipantLiveSnapshot(session, participant, now = new D
     return null;
   }
 
+  if (typeof participant.liveUpdatedAt === 'string' && participant.liveUpdatedAt.trim()) {
+    return null;
+  }
+
   const storedStatus = typeof participant.liveStatus === 'string' && participant.liveStatus
     ? participant.liveStatus
     : 'ready';

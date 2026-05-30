@@ -5,6 +5,9 @@ import {
   leaveRunningMatch,
   updateRunningMatchProgress,
 } from './runningMatchStoreHelpers.mjs';
+import {
+  buildParticipantLiveSnapshot,
+} from './runningMatchSessionStoreHelpers.mjs';
 
 function iso(offsetMs = 0) {
   return new Date(Date.now() + offsetMs).toISOString();
@@ -92,6 +95,21 @@ function createSession({ id = 'rank-match', mode = 'duel', participants, lpAppli
     matchedAt: iso(-10 * 60 * 1000),
     participants,
     ...(lpApplied ? { lpApplied: true } : {}),
+  };
+}
+
+function createProfileSnapshot(id, averagePace = '08:00/km') {
+  return {
+    id,
+    name: id,
+    tag: id,
+    districtName: '일산서구',
+    averagePaceMinutes: Number(averagePace.slice(0, 2)),
+    averagePace,
+    distanceLevel: 1,
+    levelLabel: '입문',
+    weeklyDistanceKm: 0,
+    lifetimeDistanceKm: 0,
   };
 }
 
@@ -332,4 +350,46 @@ function createSession({ id = 'rank-match', mode = 'duel', participants, lpAppli
 
   assert.equal(winner.rankState.lp, 50);
   assert.equal(session.lpApplied, undefined);
+}
+
+{
+  const session = createSession({
+    participants: [
+      createParticipant('real-runner', 1, {
+        liveDistanceKm: 0.72,
+        liveElapsedSeconds: 280,
+        livePace: '06:29/km',
+        liveUpdatedAt: iso(-1000),
+        profileSnapshot: createProfileSnapshot('real-runner', '08:00/km'),
+      }),
+    ],
+  });
+
+  const snapshot = buildParticipantLiveSnapshot(session, session.participants[0]);
+
+  assert.equal(snapshot.liveDistanceKm, 0.72);
+  assert.equal(snapshot.liveElapsedSeconds, 280);
+  assert.equal(snapshot.livePace, '06:29/km');
+  assert.equal(snapshot.liveStatus, 'running');
+}
+
+{
+  const session = createSession({
+    participants: [
+      createParticipant('bot-runner', 1, {
+        liveStatus: 'ready',
+        liveDistanceKm: 0,
+        liveElapsedSeconds: 0,
+        livePace: '--:--/km',
+        liveUpdatedAt: null,
+        profileSnapshot: createProfileSnapshot('bot-runner', '08:00/km'),
+      }),
+    ],
+  });
+
+  const snapshot = buildParticipantLiveSnapshot(session, session.participants[0]);
+
+  assert.equal(snapshot.livePace, '08:00/km');
+  assert.equal(snapshot.liveStatus, 'running');
+  assert.ok(snapshot.liveDistanceKm > 0);
 }

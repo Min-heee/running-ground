@@ -69,12 +69,44 @@ export function buildAverageArenaPaceLabel(distanceKm: number, elapsedSeconds: n
   return isMeasuredPaceLabel(averagePaceLabel) ? averagePaceLabel : '평균 계산 중';
 }
 
+function hasParticipantLiveProgress(participant: ParticipantAveragePaceInput | null | undefined) {
+  return Boolean(
+    typeof participant?.liveUpdatedAt === 'string' && participant.liveUpdatedAt.trim()
+    || (typeof participant?.liveDistanceKm === 'number' && participant.liveDistanceKm > 0)
+    || (typeof participant?.liveElapsedSeconds === 'number' && participant.liveElapsedSeconds > 0)
+  );
+}
+
+function buildLiveParticipantPaceLabel(participant: ParticipantAveragePaceInput | null | undefined) {
+  if (isMeasuredPaceLabel(participant?.officialAveragePace)) {
+    return participant!.officialAveragePace!;
+  }
+
+  const liveDistanceKm = typeof participant?.liveDistanceKm === 'number' && Number.isFinite(participant.liveDistanceKm)
+    ? Math.max(0, participant.liveDistanceKm)
+    : 0;
+  const liveElapsedSeconds = typeof participant?.liveElapsedSeconds === 'number' && Number.isFinite(participant.liveElapsedSeconds)
+    ? Math.max(0, participant.liveElapsedSeconds)
+    : 0;
+  const liveAveragePaceLabel = buildAveragePace(liveDistanceKm, liveElapsedSeconds);
+
+  if (isMeasuredPaceLabel(liveAveragePaceLabel)) {
+    return liveAveragePaceLabel;
+  }
+
+  if (isMeasuredPaceLabel(participant?.livePace)) {
+    return participant!.livePace!;
+  }
+
+  return hasParticipantLiveProgress(participant) ? '동기화 중' : '측정 대기';
+}
+
 export function buildParticipantAveragePaceLabel(
   participant: ParticipantAveragePaceInput | null | undefined,
   hasOfficialStart: boolean,
 ) {
   if (!hasOfficialStart) {
-    return '';
+    return buildLiveParticipantPaceLabel(participant);
   }
 
   if (isMeasuredPaceLabel(participant?.officialAveragePace)) {
