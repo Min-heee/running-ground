@@ -4,6 +4,7 @@ import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCount
 import { Screen } from '@/components/Screen';
 import { HomeHeader } from '@/features/home/components/HomeHeader';
 import { HomeNoticeCard } from '@/features/home/components/HomeNoticeCard';
+import { HomeRecentRunsCard } from '@/features/home/components/HomeRecentRunsCard';
 import { HomeUpcomingMatchesCard } from '@/features/home/components/HomeUpcomingMatchesCard';
 import { useHomeScreenModel } from '@/features/home/hooks/useHomeScreenModel';
 import { HomeOverview } from '@/features/home/HomeOverview';
@@ -49,6 +50,7 @@ export default function HomeScreen() {
             onCancelMatch={handleCancelMatch}
             onOpenMatch={handleOpenRunningMatch}
           />
+          {activity ? <HomeRecentRunsCard runs={activity.runs} /> : null}
           {summary ? (
             <HomeOverview
               summary={summary}
