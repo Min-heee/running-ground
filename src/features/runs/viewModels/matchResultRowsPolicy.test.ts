@@ -121,6 +121,20 @@ test('duel policy preserves row labels and ordering', () => {
     opponentForfeited: false,
     opponentPaceLabel: '06:00/km',
     opponentDurationLabel: '30:00',
+    opponentHasLiveProgress: true,
+  }), {
+    resultLabel: 'ING',
+    paceLabel: '06:00/km',
+    durationLabel: '30:00',
+  });
+  assert.deepEqual(resolveDuelOpponentRowLabels({
+    opponentInProgress: true,
+    isDraw: false,
+    resultTone: 'win',
+    opponentForfeited: false,
+    opponentPaceLabel: '동기화 중',
+    opponentDurationLabel: '30:00',
+    opponentHasLiveProgress: false,
   }), {
     resultLabel: 'ING',
     paceLabel: '진행 중',
@@ -133,6 +147,7 @@ test('duel policy preserves row labels and ordering', () => {
     opponentForfeited: false,
     opponentPaceLabel: '06:00/km',
     opponentDurationLabel: '30:00',
+    opponentHasLiveProgress: false,
   }), {
     resultLabel: 'WIN',
     paceLabel: '06:00/km',
@@ -145,6 +160,7 @@ test('duel policy preserves row labels and ordering', () => {
     opponentForfeited: true,
     opponentPaceLabel: '기권',
     opponentDurationLabel: '30:00',
+    opponentHasLiveProgress: false,
   }), {
     resultLabel: 'FORFEIT',
     paceLabel: '기권',
@@ -196,6 +212,19 @@ test('group policy preserves title, summary, row placeholders, and status text',
     currentPaceLabel: '05:00/km',
     participantPaceLabel: '06:00/km',
     durationLabel: '30:00',
+    participantHasLiveProgress: true,
+  }), {
+    paceLabel: '06:00/km',
+    durationLabel: '30:00',
+    isInProgress: true,
+  });
+  assert.deepEqual(resolveGroupRowLabels({
+    isInProgress: true,
+    isCurrentUser: false,
+    currentPaceLabel: '05:00/km',
+    participantPaceLabel: '동기화 중',
+    durationLabel: '30:00',
+    participantHasLiveProgress: false,
   }), {
     paceLabel: '진행 중',
     durationLabel: '-',
@@ -207,6 +236,7 @@ test('group policy preserves title, summary, row placeholders, and status text',
     currentPaceLabel: '05:00/km',
     participantPaceLabel: '06:00/km',
     durationLabel: '30:00',
+    participantHasLiveProgress: false,
   }), {
     paceLabel: '05:00/km',
     durationLabel: '30:00',

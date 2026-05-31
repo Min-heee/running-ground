@@ -98,6 +98,9 @@ export function buildDuelMatchFinishModel({
   const opponentElapsedSeconds = opponentForfeited
     ? (opponent.liveElapsedSeconds ?? 0)
     : (opponent.liveElapsedSeconds ?? currentElapsedSeconds);
+  const opponentHasLiveElapsed = typeof opponent.liveElapsedSeconds === 'number'
+    && Number.isFinite(opponent.liveElapsedSeconds)
+    && opponent.liveElapsedSeconds > 0;
   const resolvedOpponentPace = buildParticipantAveragePaceLabel(opponent, true);
   const opponentPace = opponentForfeited && !isMeasuredPaceLabel(resolvedOpponentPace)
     ? '기권'
@@ -118,6 +121,7 @@ export function buildDuelMatchFinishModel({
     opponentForfeited,
     opponentPaceLabel: opponentPace,
     opponentDurationLabel: formatDuration(opponentElapsedSeconds),
+    opponentHasLiveProgress: opponentHasLiveElapsed,
   });
   const opponentRow: DuelMatchResultRowModel = {
     id: opponent.id,
@@ -190,6 +194,9 @@ export function buildGroupMatchFinishModel({
   const podium = standings.slice(0, 3);
   const rows: GroupMatchResultRowModel[] = standings.map((participant) => {
     const isInProgress = participant.liveStatus !== 'finished' && participant.liveStatus !== 'forfeited';
+    const participantHasLiveElapsed = typeof participant.liveElapsedSeconds === 'number'
+      && Number.isFinite(participant.liveElapsedSeconds)
+      && participant.liveElapsedSeconds > 0;
     const participantPaceLabel = buildParticipantAveragePaceLabel(participant, true);
     const rowLabels = resolveGroupRowLabels({
       isInProgress,
@@ -203,6 +210,7 @@ export function buildGroupMatchFinishModel({
           ? (participant.liveElapsedSeconds ?? 0)
           : (participant.liveElapsedSeconds ?? currentElapsedSeconds),
       ),
+      participantHasLiveProgress: participantHasLiveElapsed,
     });
 
     return {

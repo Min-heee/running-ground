@@ -155,6 +155,47 @@ test('duel result records normal finish by compared distance', () => {
   assert.equal(result?.rows.some((row) => row.isInProgress), false);
 });
 
+test('duel result surfaces live opponent pace and duration while opponent keeps running', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      liveDistanceKm: 3.1,
+      liveElapsedSeconds: 1200,
+      livePace: '06:27/km',
+      liveUpdatedAt: '2026-05-12T00:20:00.000Z',
+      liveStatus: 'running',
+    }),
+    currentDistanceKm: 5,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 1500,
+    currentPaceLabel: '05:00/km',
+    currentUserLiveStatus: 'finished',
+  });
+
+  const opponentRow = result?.rows.find((row) => !row.isCurrentUser);
+  assert.equal(opponentRow?.resultLabel, 'ING');
+  assert.equal(opponentRow?.paceLabel, '06:27/km');
+  assert.equal(opponentRow?.durationLabel, '20:00');
+  assert.equal(opponentRow?.isInProgress, true);
+});
+
+test('duel result keeps in-progress opponent placeholders until live elapsed exists', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      liveStatus: 'running',
+    }),
+    currentDistanceKm: 5,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 1500,
+    currentPaceLabel: '05:00/km',
+    currentUserLiveStatus: 'finished',
+  });
+
+  const opponentRow = result?.rows.find((row) => !row.isCurrentUser);
+  assert.equal(opponentRow?.resultLabel, 'ING');
+  assert.equal(opponentRow?.paceLabel, '진행 중');
+  assert.equal(opponentRow?.durationLabel, '-');
+});
+
 test('duel result records normal loss when opponent distance is ahead', () => {
   const result = buildDuelMatchFinishModel({
     opponent: opponent({

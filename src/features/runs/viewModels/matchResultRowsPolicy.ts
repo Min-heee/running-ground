@@ -3,6 +3,7 @@ import type {
   DuelMatchResultRowModel,
   MatchResultTone,
 } from '@/features/runs/types/matchResult';
+import { isMeasuredPaceLabel } from '@/features/runs/viewModels/matchProgress';
 
 export function resolveDuelResultTone({
   currentForfeited,
@@ -161,6 +162,7 @@ export function resolveDuelOpponentRowLabels({
   opponentForfeited,
   opponentPaceLabel,
   opponentDurationLabel,
+  opponentHasLiveProgress,
 }: {
   opponentInProgress: boolean;
   isDraw: boolean;
@@ -168,6 +170,7 @@ export function resolveDuelOpponentRowLabels({
   opponentForfeited: boolean;
   opponentPaceLabel: string;
   opponentDurationLabel: string;
+  opponentHasLiveProgress: boolean;
 }): {
   resultLabel: DuelMatchResultRowLabel;
   paceLabel: string;
@@ -176,8 +179,8 @@ export function resolveDuelOpponentRowLabels({
   if (opponentInProgress) {
     return {
       resultLabel: 'ING',
-      paceLabel: '진행 중',
-      durationLabel: '-',
+      paceLabel: isMeasuredPaceLabel(opponentPaceLabel) ? opponentPaceLabel : '진행 중',
+      durationLabel: opponentHasLiveProgress ? opponentDurationLabel : '-',
     };
   }
 
@@ -262,12 +265,14 @@ export function resolveGroupRowLabels({
   currentPaceLabel,
   participantPaceLabel,
   durationLabel,
+  participantHasLiveProgress,
 }: {
   isInProgress: boolean;
   isCurrentUser: boolean;
   currentPaceLabel: string;
   participantPaceLabel: string;
   durationLabel: string;
+  participantHasLiveProgress: boolean;
 }): {
   paceLabel: string;
   durationLabel: string;
@@ -275,11 +280,11 @@ export function resolveGroupRowLabels({
 } {
   return {
     paceLabel: isInProgress
-      ? '진행 중'
+      ? (isMeasuredPaceLabel(participantPaceLabel) ? participantPaceLabel : '진행 중')
       : isCurrentUser
         ? currentPaceLabel
         : participantPaceLabel,
-    durationLabel: isInProgress ? '-' : durationLabel,
+    durationLabel: isInProgress ? (participantHasLiveProgress ? durationLabel : '-') : durationLabel,
     isInProgress,
   };
 }

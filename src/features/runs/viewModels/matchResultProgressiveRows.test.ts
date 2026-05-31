@@ -47,7 +47,7 @@ function standing(overrides: Partial<GroupLiveStanding> = {}): GroupLiveStanding
   };
 }
 
-test('duel result shows an in-progress opponent placeholder after current user finishes first', () => {
+test('duel result shows live values for an in-progress opponent after current user finishes first', () => {
   const result = buildDuelMatchFinishModel({
     opponent: opponent({
       liveDistanceKm: 1.1,
@@ -68,13 +68,13 @@ test('duel result shows an in-progress opponent placeholder after current user f
   assert.equal(result?.rows[0].resultLabel, 'WIN');
   assert.equal(result?.rows[1].isCurrentUser, false);
   assert.equal(result?.rows[1].resultLabel, 'ING');
-  assert.equal(result?.rows[1].paceLabel, '진행 중');
-  assert.equal(result?.rows[1].durationLabel, '-');
+  assert.equal(result?.rows[1].paceLabel, '09:05/km');
+  assert.equal(result?.rows[1].durationLabel, '10:00');
   assert.equal(result?.rows[1].isInProgress, true);
   assert.match(result?.summary ?? '', /자동으로 업데이트/);
 });
 
-test('group result keeps unfinished runners as in-progress placeholders after current user finishes', () => {
+test('group result keeps unfinished runners live after current user finishes', () => {
   const standings = [
     standing({
       id: 'me',
@@ -91,7 +91,9 @@ test('group result keeps unfinished runners as in-progress placeholders after cu
       rank: 2,
       currentDistanceKm: 3.2,
       liveStatus: 'running',
+      liveDistanceKm: 3.2,
       liveElapsedSeconds: 1200,
+      livePace: '06:15/km',
     }),
   ];
 
@@ -107,8 +109,8 @@ test('group result keeps unfinished runners as in-progress placeholders after cu
   assert.equal(result?.rows.length, 2);
   assert.equal(result?.rows[0].isInProgress, false);
   assert.equal(result?.rows[1].isInProgress, true);
-  assert.equal(result?.rows[1].paceLabel, '진행 중');
-  assert.equal(result?.rows[1].durationLabel, '-');
+  assert.equal(result?.rows[1].paceLabel, '06:15/km');
+  assert.equal(result?.rows[1].durationLabel, '20:00');
   assert.match(result?.statusLabel ?? '', /진행중/);
 });
 
