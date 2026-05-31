@@ -2,6 +2,11 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
 import { HorizontalScrollIndicator } from '@/features/runs/components/matchSetupCards/HorizontalScrollIndicator';
 import {
+  getMatchSetupActiveTab,
+  setMatchSetupActiveTab,
+  type MatchSetupTabKey,
+} from '@/features/runs/components/matchSetupCards/matchSetupTabStore';
+import {
   RECOMMENDED_MATCH_DISTANCES,
   findNearestRecommendedDistance,
   isRecommendedMatchDistance,
@@ -15,7 +20,6 @@ import { colors } from '@/theme/tokens';
 
 const TIME_SECTIONS = [{ key: 'am' as const, label: '오전' }, { key: 'pm' as const, label: '오후' }];
 type TimeSectionKey = (typeof TIME_SECTIONS)[number]['key'];
-type TabKey = 'distance' | 'date' | 'time';
 type MatchSetupTabbedSelectorProps = DistanceSelectorProps & TimeSlotSelectorProps;
 
 function useHorizontalChipScrollMetrics() {
@@ -61,22 +65,26 @@ export function MatchSetupTabbedSelector({
   onSelectTimeSection,
   onSelectSlot,
 }: MatchSetupTabbedSelectorProps) {
-  const [activeTab, setActiveTab] = useState<TabKey>('date');
+  const [activeTab, setActiveTabState] = useState<MatchSetupTabKey>(() => getMatchSetupActiveTab(chipKeyPrefix));
   const distanceScrollMetrics = useHorizontalChipScrollMetrics();
   const dateScrollMetrics = useHorizontalChipScrollMetrics();
   const slotScrollMetrics = useHorizontalChipScrollMetrics();
+  const setActiveTab = useCallback((tab: MatchSetupTabKey) => {
+    setMatchSetupActiveTab(chipKeyPrefix, tab);
+    setActiveTabState(tab);
+  }, [chipKeyPrefix]);
 
   const handleSelectDistanceTab = useCallback(() => {
     setActiveTab('distance');
-  }, []);
+  }, [setActiveTab]);
 
   const handleSelectDateTab = useCallback(() => {
     setActiveTab('date');
-  }, []);
+  }, [setActiveTab]);
 
   const handleSelectTimeTab = useCallback(() => {
     setActiveTab('time');
-  }, []);
+  }, [setActiveTab]);
 
   const handleToggleCustomDistanceInput = useCallback(() => {
     onShowCustomDistanceInputChange(!showCustomDistanceInput);
