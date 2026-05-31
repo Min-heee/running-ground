@@ -48,7 +48,6 @@ export function DuelMatchSetupCard({
   onCancelMatch,
   onForceLeaveStuckMatch,
   onRequestMatch,
-  onRequestTestMatch,
   onRequestRematch,
 }: DuelMatchSetupCardProps) {
   return (
@@ -144,7 +143,6 @@ export function DuelMatchSetupCard({
         waitingCancelLabel="1대1 대기 취소"
         matchedCancelLabel="1대1 예약 취소"
         requestLabel="1대1 매칭 찾기"
-        testRequestLabel="1대1 테스트 매칭"
         isCancelingMatch={isCancelingMatch}
         reservationLocked={reservationLocked}
         canCreateMatch={canCreateMatch}
@@ -154,7 +152,6 @@ export function DuelMatchSetupCard({
         onCancelMatch={onCancelMatch}
         onForceLeaveStuckMatch={onForceLeaveStuckMatch}
         onRequestMatch={onRequestMatch}
-        onRequestTestMatch={onRequestTestMatch}
       />
     </View>
   );

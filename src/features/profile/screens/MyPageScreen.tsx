@@ -9,7 +9,6 @@ import { MatchRecordSummaryCard } from '@/features/profile/components/MatchRecor
 import { ProfileEnvironmentDebugCard } from '@/features/profile/components/ProfileEnvironmentDebugCard';
 import { ProfileSettingsCard } from '@/features/profile/components/ProfileSettingsCard';
 import { ProfileSummaryCard } from '@/features/profile/components/ProfileSummaryCard';
-import { UniversityVerificationCard } from '@/features/profile/components/UniversityVerificationCard';
 import { useMyPageScreen } from '@/features/profile/hooks/useMyPageScreen';
 import { shouldShowRgEnvironmentDebugByDefault } from '@/utils/rgEnvTrace';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
@@ -17,7 +16,6 @@ import { colors, fontWeights } from '@/theme/tokens';
 
 export default function MyPageScreen() {
   useTabWarmupTrace('mypage');
-  const universityVerificationHref = '/university-verification' as Href;
   const matchRecordHref = '/match-record' as Href;
   const showDebugByDefault = useMemo(() => shouldShowRgEnvironmentDebugByDefault(), []);
   const [showEnvironmentDebug, setShowEnvironmentDebug] = useState(showDebugByDefault);
@@ -69,8 +67,6 @@ export default function MyPageScreen() {
             tagShared={tagShared}
             onShareTag={handleShareTag}
           />
-
-          <UniversityVerificationCard profile={profile} href={universityVerificationHref} />
 
           <IntegrationStatus sources={integrationStatus.sources} />
 

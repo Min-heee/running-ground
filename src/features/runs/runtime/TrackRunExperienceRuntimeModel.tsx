@@ -2349,10 +2349,6 @@ export function TrackRunExperienceRuntime({
     void handleRequestDuelMatch();
   });
 
-  const handleRequestDuelTestMatchPress = useStableCallback(() => {
-    void handleRequestDuelMatch(activeDuelSlotStartAt, { testMode: true });
-  });
-
   const handleRequestDuelRematchPress = useStableCallback(() => {
     void handleRequestDuelMatch(activeDuelSlotStartAt);
   });
@@ -2376,10 +2372,6 @@ export function TrackRunExperienceRuntime({
 
   const handleRequestGroupMatchPress = useStableCallback(() => {
     void handleRequestGroupMatch();
-  });
-
-  const handleRequestGroupTestMatchPress = useStableCallback(() => {
-    void handleRequestGroupMatch(activeGroupSlotStartAt, { testMode: true });
   });
 
   const handleRequestGroupRematchPress = useStableCallback(() => {
@@ -2461,10 +2453,8 @@ export function TrackRunExperienceRuntime({
     onReadyAction: handleReadyAction,
     onRequestDuelMatch: handleRequestDuelMatchPress,
     onRequestDuelRematch: handleRequestDuelRematchPress,
-    onRequestDuelTestMatch: handleRequestDuelTestMatchPress,
     onRequestGroupMatch: handleRequestGroupMatchPress,
     onRequestGroupRematch: handleRequestGroupRematchPress,
-    onRequestGroupTestMatch: handleRequestGroupTestMatchPress,
     onSelectDuelDate: handleSelectDuelDate,
     onSelectDuelSlot: setSelectedDuelSlotStartAt,
     onSelectDuelTimeSection: selectDuelTimeSection,

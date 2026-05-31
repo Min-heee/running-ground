@@ -76,7 +76,6 @@ export function GroupMatchSetupCard({
   onCancelMatch,
   onForceLeaveStuckMatch,
   onRequestMatch,
-  onRequestTestMatch,
   onRequestRematch,
 }: GroupMatchSetupCardProps) {
   const participantPreviewRows = useMemo(() => participants.slice(0, 3).map((participant) => (
@@ -192,7 +191,6 @@ export function GroupMatchSetupCard({
         waitingCancelLabel="그룹 대기 취소"
         matchedCancelLabel="그룹 예약 취소"
         requestLabel="그룹 매칭 찾기"
-        testRequestLabel="그룹 테스트 매칭"
         isCancelingMatch={isCancelingMatch}
         reservationLocked={reservationLocked}
         canCreateMatch={canCreateMatch}
@@ -202,7 +200,6 @@ export function GroupMatchSetupCard({
         onCancelMatch={onCancelMatch}
         onForceLeaveStuckMatch={onForceLeaveStuckMatch}
         onRequestMatch={onRequestMatch}
-        onRequestTestMatch={onRequestTestMatch}
       />
     </View>
   );

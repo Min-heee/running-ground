@@ -34,7 +34,6 @@ export function MatchActionButtons({
   waitingCancelLabel,
   matchedCancelLabel,
   requestLabel,
-  testRequestLabel,
   isCancelingMatch,
   reservationLocked,
   canCreateMatch,
@@ -44,14 +43,12 @@ export function MatchActionButtons({
   onCancelMatch,
   onForceLeaveStuckMatch,
   onRequestMatch,
-  onRequestTestMatch,
 }: {
   matchState: RunningMatchState;
   cancelingLabel: string;
   waitingCancelLabel: string;
   matchedCancelLabel: string;
   requestLabel: string;
-  testRequestLabel: string;
   isCancelingMatch: boolean;
   reservationLocked: boolean;
   canCreateMatch: boolean;
@@ -61,7 +58,6 @@ export function MatchActionButtons({
   onCancelMatch: () => void;
   onForceLeaveStuckMatch: () => void;
   onRequestMatch: () => void;
-  onRequestTestMatch: () => void;
 }) {
   return (
     <>
@@ -77,7 +73,6 @@ export function MatchActionButtons({
       ) : matchState === 'active' ? null : (
         <View style={styles.matchActionColumn}>
           <SecondaryButton label={requestLabel} onPress={onRequestMatch} disabled={!canCreateMatch} />
-          <SecondaryButton label={testRequestLabel} onPress={onRequestTestMatch} disabled={!canCreateMatch} />
         </View>
       )}
       {!canCreateMatch && blockingMatchHelperText ? (

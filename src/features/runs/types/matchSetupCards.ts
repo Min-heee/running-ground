@@ -59,7 +59,6 @@ export type BaseMatchSetupProps = {
   onCancelMatch: () => void;
   onForceLeaveStuckMatch: () => void;
   onRequestMatch: () => void;
-  onRequestTestMatch: () => void;
   onRequestRematch: () => void;
 };
 

@@ -64,10 +64,8 @@ type UseIdleRunModeModelInput = Pick<
   | 'onForceLeaveStuckMatch'
   | 'onRequestDuelMatch'
   | 'onRequestDuelRematch'
-  | 'onRequestDuelTestMatch'
   | 'onRequestGroupMatch'
   | 'onRequestGroupRematch'
-  | 'onRequestGroupTestMatch'
   | 'onSelectDuelDate'
   | 'onSelectDuelSlot'
   | 'onSelectDuelTimeSection'
@@ -137,7 +135,6 @@ export function useIdleRunModeModel(input: UseIdleRunModeModelInput) {
         onCancelMatch: input.onCancelDuelMatch,
         onForceLeaveStuckMatch: input.onForceLeaveStuckMatch,
         onRequestMatch: input.onRequestDuelMatch,
-        onRequestTestMatch: input.onRequestDuelTestMatch,
         onRequestRematch: input.onRequestDuelRematch,
       }
     : null), [input]);
@@ -181,7 +178,6 @@ export function useIdleRunModeModel(input: UseIdleRunModeModelInput) {
         onCancelMatch: input.onCancelGroupMatch,
         onForceLeaveStuckMatch: input.onForceLeaveStuckMatch,
         onRequestMatch: input.onRequestGroupMatch,
-        onRequestTestMatch: input.onRequestGroupTestMatch,
         onRequestRematch: input.onRequestGroupRematch,
       }
     : null), [input]);

@@ -89,10 +89,8 @@ export type UseIdleRunRuntimeModelInput = {
   onReadyAction: () => void;
   onRequestDuelMatch: () => void;
   onRequestDuelRematch: () => void;
-  onRequestDuelTestMatch: () => void;
   onRequestGroupMatch: () => void;
   onRequestGroupRematch: () => void;
-  onRequestGroupTestMatch: () => void;
   onSelectDuelDate: (dateKey: string) => void;
   onSelectDuelSlot: DuelSetupProps['onSelectSlot'];
   onSelectDuelTimeSection: DuelSetupProps['onSelectTimeSection'];
