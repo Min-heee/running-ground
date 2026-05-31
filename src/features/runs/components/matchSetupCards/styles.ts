@@ -14,21 +14,12 @@ export const matchSetupCardStyles = StyleSheet.create({
     gap: spacing.s10,
   },
   tabBarWrapper: {
-    position: 'relative',
     marginBottom: spacing.s12,
   },
   tabBar: {
     flexDirection: 'row',
     gap: spacing.xxl,
     paddingBottom: spacing.xxl,
-  },
-  tabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    height: 3,
-    backgroundColor: colors.brandLight,
-    borderRadius: radii.pill,
   },
   tabPill: {
     flex: 1,
@@ -109,6 +100,21 @@ export const matchSetupCardStyles = StyleSheet.create({
     color: colors.brandTint,
     fontSize: fontSizes.sm,
     lineHeight: 18,
+  },
+  scrollIndicatorTrack: {
+    height: 4,
+    borderRadius: radii.pill,
+    backgroundColor: colors.darkSoft,
+    overflow: 'hidden',
+    marginTop: spacing.xxs,
+  },
+  scrollIndicatorTrackHidden: {
+    opacity: 0,
+  },
+  scrollIndicatorThumb: {
+    height: '100%',
+    borderRadius: radii.pill,
+    backgroundColor: colors.brandLight,
   },
   slotDateScroll: {
     marginHorizontal: -2,

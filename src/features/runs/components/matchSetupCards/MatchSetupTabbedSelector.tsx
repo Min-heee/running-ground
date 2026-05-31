@@ -1,5 +1,6 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { Animated, Pressable, Text, TextInput, View, type LayoutChangeEvent } from 'react-native';
+import { HorizontalScrollIndicator } from '@/features/runs/components/matchSetupCards/HorizontalScrollIndicator';
 import {
   RECOMMENDED_MATCH_DISTANCES,
   findNearestRecommendedDistance,
@@ -16,7 +17,31 @@ const TIME_SECTIONS = [{ key: 'am' as const, label: '오전' }, { key: 'pm' as c
 type TimeSectionKey = (typeof TIME_SECTIONS)[number]['key'];
 type TabKey = 'distance' | 'date' | 'time';
 type MatchSetupTabbedSelectorProps = DistanceSelectorProps & TimeSlotSelectorProps;
-const TAB_ORDER: TabKey[] = ['date', 'time', 'distance'];
+
+function useHorizontalChipScrollMetrics() {
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const [contentWidth, setContentWidth] = useState(0);
+  const [visibleWidth, setVisibleWidth] = useState(0);
+  const handleLayout = useCallback((event: LayoutChangeEvent) => {
+    setVisibleWidth(event.nativeEvent.layout.width);
+  }, []);
+  const handleContentSizeChange = useCallback((width: number) => {
+    setContentWidth(width);
+  }, []);
+  const handleScroll = useMemo(() => Animated.event(
+    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+    { useNativeDriver: true },
+  ), [scrollX]);
+
+  return {
+    contentWidth,
+    handleContentSizeChange,
+    handleLayout,
+    handleScroll,
+    scrollX,
+    visibleWidth,
+  };
+}
 
 export function MatchSetupTabbedSelector({
   distanceKm,
@@ -37,29 +62,9 @@ export function MatchSetupTabbedSelector({
   onSelectSlot,
 }: MatchSetupTabbedSelectorProps) {
   const [activeTab, setActiveTab] = useState<TabKey>('date');
-  const [tabBarWidth, setTabBarWidth] = useState(0);
-  const indicatorAnim = useRef(new Animated.Value(0)).current;
-  const tabWidth = tabBarWidth / TAB_ORDER.length;
-  const indicatorTranslateX = useMemo(() => indicatorAnim.interpolate({
-    inputRange: [0, 1, 2],
-    outputRange: [0, tabWidth, tabWidth * 2],
-  }), [indicatorAnim, tabWidth]);
-  const indicatorStyle = useMemo(() => [
-    styles.tabIndicator,
-    {
-      width: tabWidth,
-      transform: [{ translateX: indicatorTranslateX }],
-    },
-  ], [indicatorTranslateX, tabWidth]);
-
-  useEffect(() => {
-    Animated.spring(indicatorAnim, {
-      toValue: TAB_ORDER.indexOf(activeTab),
-      useNativeDriver: true,
-      friction: 8,
-      tension: 80,
-    }).start();
-  }, [activeTab, indicatorAnim]);
+  const distanceScrollMetrics = useHorizontalChipScrollMetrics();
+  const dateScrollMetrics = useHorizontalChipScrollMetrics();
+  const slotScrollMetrics = useHorizontalChipScrollMetrics();
 
   const handleSelectDistanceTab = useCallback(() => {
     setActiveTab('distance');
@@ -76,10 +81,6 @@ export function MatchSetupTabbedSelector({
   const handleToggleCustomDistanceInput = useCallback(() => {
     onShowCustomDistanceInputChange(!showCustomDistanceInput);
   }, [onShowCustomDistanceInputChange, showCustomDistanceInput]);
-
-  const handleTabBarLayout = useCallback((event: { nativeEvent: { layout: { width: number } } }) => {
-    setTabBarWidth(event.nativeEvent.layout.width);
-  }, []);
 
   const distanceChips = useMemo(() => RECOMMENDED_MATCH_DISTANCES.map((recommendedDistanceKm) => (
     <MatchDistanceChip
@@ -120,26 +121,25 @@ export function MatchSetupTabbedSelector({
 
   return (
     <View style={styles.duelSection}>
-      <View style={styles.tabBarWrapper} onLayout={handleTabBarLayout}>
+      <View style={styles.tabBarWrapper}>
         <View style={styles.tabBar}>
           <TabPill label="날짜" active={activeTab === 'date'} onPress={handleSelectDateTab} />
           <TabPill label="시간" active={activeTab === 'time'} onPress={handleSelectTimeTab} />
           <TabPill label="거리" active={activeTab === 'distance'} onPress={handleSelectDistanceTab} />
         </View>
-        {tabBarWidth > 0 ? (
-          <Animated.View
-            style={indicatorStyle}
-          />
-        ) : null}
       </View>
 
       {activeTab === 'distance' ? (
         <>
-          <ScrollView
+          <Animated.ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.matchDistanceScrollContent}
             style={styles.matchDistanceScroll}
+            onContentSizeChange={distanceScrollMetrics.handleContentSizeChange}
+            onLayout={distanceScrollMetrics.handleLayout}
+            onScroll={distanceScrollMetrics.handleScroll}
+            scrollEventThrottle={16}
           >
             <Pressable style={styles.distanceInputToggleChip} onPress={handleToggleCustomDistanceInput}>
               <Text style={styles.distanceInputToggleText}>
@@ -147,7 +147,12 @@ export function MatchSetupTabbedSelector({
               </Text>
             </Pressable>
             {distanceChips}
-          </ScrollView>
+          </Animated.ScrollView>
+          <HorizontalScrollIndicator
+            contentWidth={distanceScrollMetrics.contentWidth}
+            scrollX={distanceScrollMetrics.scrollX}
+            visibleWidth={distanceScrollMetrics.visibleWidth}
+          />
           {showCustomDistanceInput ? (
             <TextInput
               value={distanceText}
@@ -167,14 +172,25 @@ export function MatchSetupTabbedSelector({
       ) : null}
 
       {activeTab === 'date' ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.slotDateScrollContent}
-          style={styles.slotDateScroll}
-        >
-          {dateChips}
-        </ScrollView>
+        <>
+          <Animated.ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.slotDateScrollContent}
+            style={styles.slotDateScroll}
+            onContentSizeChange={dateScrollMetrics.handleContentSizeChange}
+            onLayout={dateScrollMetrics.handleLayout}
+            onScroll={dateScrollMetrics.handleScroll}
+            scrollEventThrottle={16}
+          >
+            {dateChips}
+          </Animated.ScrollView>
+          <HorizontalScrollIndicator
+            contentWidth={dateScrollMetrics.contentWidth}
+            scrollX={dateScrollMetrics.scrollX}
+            visibleWidth={dateScrollMetrics.visibleWidth}
+          />
+        </>
       ) : null}
 
       {activeTab === 'time' ? (
@@ -182,14 +198,23 @@ export function MatchSetupTabbedSelector({
           <View style={styles.slotSectionRow}>
             {sectionChips}
           </View>
-          <ScrollView
+          <Animated.ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.duelSlotScrollContent}
             style={styles.duelSlotScroll}
+            onContentSizeChange={slotScrollMetrics.handleContentSizeChange}
+            onLayout={slotScrollMetrics.handleLayout}
+            onScroll={slotScrollMetrics.handleScroll}
+            scrollEventThrottle={16}
           >
             {slotChips}
-          </ScrollView>
+          </Animated.ScrollView>
+          <HorizontalScrollIndicator
+            contentWidth={slotScrollMetrics.contentWidth}
+            scrollX={slotScrollMetrics.scrollX}
+            visibleWidth={slotScrollMetrics.visibleWidth}
+          />
         </>
       ) : null}
     </View>
