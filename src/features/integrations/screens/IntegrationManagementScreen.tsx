@@ -5,19 +5,15 @@ import { Screen } from '@/components/Screen';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { ExclusiveSourceSelectorCard } from '@/features/integrations/components/ExclusiveSourceSelectorCard';
 import { IntegrationResultCard } from '@/features/integrations/components/IntegrationResultCard';
-import { AvailableSourcesCard, ConnectedSourcesCard } from '@/features/integrations/components/IntegrationSourcesCards';
 import { NativeImportDiagnosticCard } from '@/features/integrations/components/NativeImportDiagnosticCard';
 import {
   integrationDeviceImportMessages,
   useIntegrationActions,
 } from '@/features/integrations/hooks/useIntegrationActions';
 import { NrcBridgeGuideCard } from '@/features/integrations/NrcBridgeGuideCard';
-import {
-  getCurrentDevicePlatform,
-  sortSourcesByPriority,
-  splitSourcesByStatus,
-} from '@/features/integrations/sourceCatalog';
+import { getCurrentDevicePlatform } from '@/features/integrations/sourceCatalog';
 import { buildSyncSummary } from '@/features/integrations/utils/integrationMessages';
 import { getRecommendedNativeHealthReadiness } from '@/integrations/nativeHealth';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
@@ -53,9 +49,6 @@ export default function IntegrationManagementScreen() {
   });
 
   const platform = getCurrentDevicePlatform();
-  const { connected, available } = splitSourcesByStatus(sources);
-  const connectedSources = sortSourcesByPriority(connected);
-  const availableSources = sortSourcesByPriority(available);
   const nativeHealthReadiness = getRecommendedNativeHealthReadiness(sources);
   const backHref = returnTo === 'connect-sources' ? '/connect-sources' : '/(tabs)/mypage';
   const backLabel = returnTo === 'connect-sources' ? '연동 시작으로 돌아가기' : '마이페이지로 돌아가기';
@@ -102,18 +95,12 @@ export default function IntegrationManagementScreen() {
 
           <NativeImportDiagnosticCard result={lastImportResult} />
 
-          <ConnectedSourcesCard
-            sources={connectedSources}
-            platform={platform}
-            actionSourceType={actionSourceType}
-            onDisconnectSource={handleDisconnect}
-          />
-
-          <AvailableSourcesCard
-            sources={availableSources}
+          <ExclusiveSourceSelectorCard
+            sources={sources}
             platform={platform}
             actionSourceType={actionSourceType}
             onConnectSource={handleConnect}
+            onDisconnectSource={handleDisconnect}
           />
 
           <SecondaryButton label="연동 상태 새로고침" onPress={loadIntegrationStatus} />
