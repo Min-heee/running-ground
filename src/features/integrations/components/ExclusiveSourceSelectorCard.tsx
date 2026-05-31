@@ -3,7 +3,9 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { ConnectedSource, RunSourceType } from '@/domain';
+import { SourceMethodGuideModal } from '@/features/integrations/components/SourceMethodGuideModal';
 import { buildExclusiveSourceSelectorModel } from '@/features/integrations/exclusiveSourceSelectorModel';
+import { getSourceMethodGuide } from '@/features/integrations/sourceMethodGuide';
 import {
   getSourceMetadata,
   type DevicePlatform,
@@ -149,14 +151,9 @@ export function ExclusiveSourceSelectorCard({
 }: ExclusiveSourceSelectorCardProps) {
   const [methodSourceType, setMethodSourceType] = useState<RunSourceType | null>(null);
   const model = useMemo(() => buildExclusiveSourceSelectorModel(sources, platform), [platform, sources]);
-  const methodSource = useMemo(() => (
-    methodSourceType
-      ? (model.rows.find((row) => row.source.sourceType === methodSourceType)?.source ?? null)
-      : null
-  ), [methodSourceType, model.rows]);
-  const methodMetadata = useMemo(() => (
-    methodSource ? getSourceMetadata(methodSource.sourceType, platform) : null
-  ), [methodSource, platform]);
+  const methodGuide = useMemo(() => (
+    methodSourceType ? getSourceMethodGuide(methodSourceType, platform) : null
+  ), [methodSourceType, platform]);
   const handleCloseMethod = useCallback(() => {
     setMethodSourceType(null);
   }, []);
@@ -187,26 +184,11 @@ export function ExclusiveSourceSelectorCard({
           selectedSourceType={model.selectedSourceType}
         />
       </View>
-      {methodSource && methodMetadata ? (
-        <View style={styles.methodCard}>
-          <View style={styles.methodHeader}>
-            <View style={styles.methodHeaderCopy}>
-              <Text style={styles.methodEyebrow}>연동 방법</Text>
-              <Text style={styles.methodTitle}>{methodSource.displayName} 연동 방법</Text>
-            </View>
-            <Pressable
-              accessibilityLabel="설명 닫기"
-              accessibilityRole="button"
-              onPress={handleCloseMethod}
-              style={styles.methodCloseButton}
-            >
-              <Text style={styles.methodCloseText}>X</Text>
-            </Pressable>
-          </View>
-          <Text style={styles.methodDescription}>{methodMetadata.shortDescription}</Text>
-          <Text style={styles.methodHint}>{methodMetadata.setupHint}</Text>
-        </View>
-      ) : null}
+      <SourceMethodGuideModal
+        guide={methodGuide}
+        onClose={handleCloseMethod}
+        visible={methodSourceType !== null}
+      />
     </Card>
   );
 }
@@ -315,55 +297,5 @@ const styles = StyleSheet.create({
     color: colors.brand,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extraBold,
-  },
-  methodCard: {
-    backgroundColor: colors.brandSoft,
-    borderColor: colors.brandSoftBorder,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    gap: spacing.s10,
-    padding: spacing.s14,
-  },
-  methodHeader: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: spacing.s12,
-    justifyContent: 'space-between',
-  },
-  methodHeaderCopy: {
-    flex: 1,
-    gap: spacing.xxs,
-  },
-  methodEyebrow: {
-    color: colors.brand,
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.extraBold,
-  },
-  methodTitle: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.base,
-    fontWeight: fontWeights.extraBold,
-  },
-  methodCloseButton: {
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: radii.pill,
-    height: 28,
-    justifyContent: 'center',
-    width: 28,
-  },
-  methodCloseText: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.extraBold,
-  },
-  methodDescription: {
-    color: colors.textSecondary,
-    fontWeight: fontWeights.bold,
-    lineHeight: 19,
-  },
-  methodHint: {
-    color: colors.textPrimary,
-    lineHeight: 20,
   },
 });

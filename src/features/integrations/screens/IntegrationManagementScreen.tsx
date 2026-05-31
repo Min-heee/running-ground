@@ -12,7 +12,6 @@ import {
   integrationDeviceImportMessages,
   useIntegrationActions,
 } from '@/features/integrations/hooks/useIntegrationActions';
-import { NrcBridgeGuideCard } from '@/features/integrations/NrcBridgeGuideCard';
 import { getCurrentDevicePlatform } from '@/features/integrations/sourceCatalog';
 import { buildSyncSummary } from '@/features/integrations/utils/integrationMessages';
 import { getRecommendedNativeHealthReadiness } from '@/integrations/nativeHealth';
@@ -74,17 +73,22 @@ export default function IntegrationManagementScreen() {
 
       {integrationStatus ? (
         <>
-          <NrcBridgeGuideCard
-            sources={sources}
-            platform={platform}
-            actionSourceType={actionSourceType}
-            syncing={syncing}
-            importing={deviceImporting}
-            nativeHealthReady={nativeHealthReadiness?.state === 'config_ready'}
-            onConnectSource={handleConnect}
-            onImportDevice={handleImportFromDevice}
-            onSync={handleSync}
-          />
+          <Card style={styles.syncActionCard}>
+            <Text style={styles.stateTitle}>기록 동기화</Text>
+            <Text style={styles.helperText}>연결된 자동 소스에서 최신 러닝 기록을 다시 확인해요.</Text>
+            {nativeHealthReadiness?.state === 'config_ready' ? (
+              <PrimaryButton
+                label={deviceImporting ? '기기 기록 가져오는 중...' : '기기에서 기록 가져오기'}
+                onPress={handleImportFromDevice}
+                disabled={deviceImporting}
+              />
+            ) : null}
+            <SecondaryButton
+              label={syncing ? '동기화 중...' : '동기화 다시 하기'}
+              onPress={handleSync}
+              disabled={syncing}
+            />
+          </Card>
 
           <IntegrationResultCard
             actionMessage={actionMessage}
@@ -122,5 +126,12 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
     marginTop: spacing.s10,
     lineHeight: 20,
+  },
+  helperText: {
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  syncActionCard: {
+    gap: spacing.s12,
   },
 });
