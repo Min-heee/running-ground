@@ -1,11 +1,15 @@
-import { memo, useCallback, useMemo, type ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { RankingItemRow } from '@/components/ranking/RankingItemRow';
 import { RankMarker } from '@/features/league/components/LeagueRankBadges';
 import { useRankLeaderboard } from '@/features/league/hooks/useRankLeaderboard';
 import type { RankLeaderboardTier, RankLeaderboardUser } from '@/features/league/types/league';
+import {
+  resolveDefaultSelectedTier,
+  resolveOrderedRankTiers,
+} from '@/features/league/utils/rankLeaderboardView';
 import { RANK_TIER_COLOR } from '@/features/rank/rankDisplay';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
@@ -68,26 +72,84 @@ const RankTierSection = memo(function RankTierSection({
   );
 });
 
+const RankTierSelectorChip = memo(function RankTierSelectorChip({
+  active,
+  onSelect,
+  tierGroup,
+}: {
+  active: boolean;
+  onSelect: (tier: string) => void;
+  tierGroup: RankLeaderboardTier;
+}) {
+  const accentColor = RANK_TIER_COLOR[tierGroup.tier] ?? colors.brand;
+  const handlePress = useCallback(() => {
+    onSelect(tierGroup.tier);
+  }, [onSelect, tierGroup.tier]);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      style={[
+        styles.tierSelectorChip,
+        active ? { backgroundColor: accentColor, borderColor: accentColor } : null,
+      ]}
+      onPress={handlePress}
+    >
+      <Text style={[styles.tierSelectorText, active ? styles.tierSelectorTextActive : null]}>
+        {tierGroup.tier}
+      </Text>
+      <Text style={[styles.tierSelectorCount, active ? styles.tierSelectorTextActive : null]}>
+        {tierGroup.users.length}명
+      </Text>
+    </Pressable>
+  );
+});
+
 export function RankLeaderboardCard() {
   const { data, error, loadRankLeaderboard, loading } = useRankLeaderboard();
+  const [selectedTier, setSelectedTier] = useState<string | null>(null);
   const handleRetry = useCallback(() => {
     loadRankLeaderboard();
   }, [loadRankLeaderboard]);
-  const tierSections = useMemo(() => {
+  const orderedTiers = useMemo(() => resolveOrderedRankTiers(data), [data]);
+  const defaultSelectedTier = useMemo(() => resolveDefaultSelectedTier(data), [data]);
+  const effectiveSelectedTier = useMemo(() => {
+    if (selectedTier && orderedTiers.some((tierGroup) => tierGroup.tier === selectedTier)) {
+      return selectedTier;
+    }
+
+    return defaultSelectedTier;
+  }, [defaultSelectedTier, orderedTiers, selectedTier]);
+  const selectedTierGroup = useMemo(() => (
+    orderedTiers.find((tierGroup) => tierGroup.tier === effectiveSelectedTier) ?? null
+  ), [effectiveSelectedTier, orderedTiers]);
+  const handleSelectTier = useCallback((tier: string) => {
+    setSelectedTier(tier);
+  }, []);
+
+  useEffect(() => {
+    if (selectedTier !== effectiveSelectedTier) {
+      setSelectedTier(effectiveSelectedTier);
+    }
+  }, [effectiveSelectedTier, selectedTier]);
+
+  const tierSelectorChips = useMemo(() => {
     const items: ReactNode[] = [];
 
-    for (const tierGroup of data?.tiers ?? []) {
+    for (const tierGroup of orderedTiers) {
       items.push(
-        <RankTierSection
+        <RankTierSelectorChip
           key={tierGroup.tier}
-          currentUserId={data?.currentUserId ?? ''}
+          active={tierGroup.tier === effectiveSelectedTier}
+          onSelect={handleSelectTier}
           tierGroup={tierGroup}
         />,
       );
     }
 
     return items;
-  }, [data?.currentUserId, data?.tiers]);
+  }, [effectiveSelectedTier, handleSelectTier, orderedTiers]);
 
   return (
     <Card style={styles.card}>
@@ -115,7 +177,31 @@ export function RankLeaderboardCard() {
       ) : null}
 
       {!loading && !error && data ? (
-        <View style={styles.tierList}>{tierSections}</View>
+        <View style={styles.tierList}>
+          {orderedTiers.length > 0 ? (
+            <>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tierSelectorContent}
+                style={styles.tierSelector}
+              >
+                {tierSelectorChips}
+              </ScrollView>
+              {selectedTierGroup ? (
+                <RankTierSection
+                  currentUserId={data.currentUserId}
+                  tierGroup={selectedTierGroup}
+                />
+              ) : null}
+            </>
+          ) : (
+            <View style={styles.stateBlock}>
+              <Text style={styles.emptyTitle}>아직 랭크 랭킹이 없어요</Text>
+              <Text style={styles.stateText}>첫 LP 기록이 생기면 이곳에 바로 반영돼요.</Text>
+            </View>
+          )}
+        </View>
       ) : null}
     </Card>
   );
@@ -174,6 +260,37 @@ const styles = StyleSheet.create({
   tierList: {
     gap: spacing.s16,
   },
+  tierSelector: {
+    marginHorizontal: -spacing.sm,
+  },
+  tierSelectorContent: {
+    gap: spacing.s10,
+    paddingHorizontal: spacing.sm,
+  },
+  tierSelectorChip: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSoft,
+    borderColor: colors.borderSoft,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s10,
+  },
+  tierSelectorText: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  tierSelectorCount: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.bold,
+  },
+  tierSelectorTextActive: {
+    color: colors.white,
+  },
   tierSection: {
     gap: spacing.xxl,
   },
@@ -202,5 +319,10 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 20,
     paddingHorizontal: spacing.s10,
+  },
+  emptyTitle: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.extraBold,
   },
 });
