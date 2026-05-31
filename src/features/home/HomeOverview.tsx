@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import type { MyRunRecord, RankState, WeeklySummary } from '@/domain';
+import { HomeActivityStatusCard } from '@/features/home/components/overview/HomeActivityStatusCard';
 import { HomePointGaugeCard } from '@/features/home/components/overview/HomePointGaugeCard';
 import { HomeRankCard } from '@/features/home/components/overview/HomeRankCard';
 import { HomeRegionBattleCard } from '@/features/home/components/overview/HomeRegionBattleCard';
-import { HomeWeeklyStatusCard } from '@/features/home/components/overview/HomeWeeklyStatusCard';
 import {
   buildHomeOverviewCalendarRows,
   buildHomeOverviewPointHeaderLabel,
@@ -52,10 +52,11 @@ export function HomeOverview({
         totalDistanceKm={summary.districtBattle.totalDistanceKm}
       />
       <HomeRankCard rankState={rankState} />
-      <HomeWeeklyStatusCard
+      <HomeActivityStatusCard
         totalDistanceKm={summary.totalDistanceKm}
         totalRuns={summary.totalRuns}
         streakDays={streakTrack.currentValue}
+        runs={runs}
       />
       <HomePointGaugeCard
         tracks={pointOverview.tracks}
