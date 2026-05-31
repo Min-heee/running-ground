@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
@@ -24,11 +24,13 @@ type ExclusiveSourceRowProps = {
   selected: boolean;
   source: ConnectedSource;
   onConnectSource: (sourceType: RunSourceType) => Promise<void> | void;
+  onShowMethod: (sourceType: RunSourceType) => void;
 };
 
 const ExclusiveSourceRow = memo(function ExclusiveSourceRow({
   actionSourceType,
   onConnectSource,
+  onShowMethod,
   platform,
   selected,
   source,
@@ -42,38 +44,52 @@ const ExclusiveSourceRow = memo(function ExclusiveSourceRow({
 
     void onConnectSource(source.sourceType);
   }, [onConnectSource, selected, source.sourceType]);
+  const handleShowMethod = useCallback(() => {
+    onShowMethod(source.sourceType);
+  }, [onShowMethod, source.sourceType]);
 
   return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      disabled={selected || isBusy}
-      onPress={handlePress}
+    <View
       style={[
         styles.optionRow,
         selected ? styles.optionRowSelected : null,
         isBusy ? styles.optionRowDisabled : null,
       ]}
     >
-      <Text style={[styles.radioMark, selected ? styles.radioMarkSelected : null]}>
-        {selected ? '◉' : '○'}
-      </Text>
-      <View style={styles.optionCopy}>
-        <View style={styles.optionHeader}>
-          <Text style={styles.optionName}>{source.displayName}</Text>
-          {isBusy ? <Text style={styles.busyText}>{selected ? '처리 중...' : '연결 중...'}</Text> : null}
-        </View>
-        <Text style={styles.optionDescription}>{metadata.shortDescription}</Text>
-        {selected ? (
-          <View style={styles.selectedMetaBlock}>
-            <Text style={styles.selectedMetaText}>마지막 동기화 {source.lastSyncedAt ?? '아직 없음'}</Text>
-            {source.pendingImportCount ? (
-              <Text style={styles.pendingText}>대기 중인 가져오기 {source.pendingImportCount}개</Text>
-            ) : null}
+      <Pressable
+        accessibilityRole="radio"
+        accessibilityState={{ selected }}
+        disabled={selected || isBusy}
+        onPress={handlePress}
+        style={styles.optionSelectArea}
+      >
+        <Text style={[styles.radioMark, selected ? styles.radioMarkSelected : null]}>
+          {selected ? '◉' : '○'}
+        </Text>
+        <View style={styles.optionCopy}>
+          <View style={styles.optionHeader}>
+            <Text style={styles.optionName}>{source.displayName}</Text>
+            {isBusy ? <Text style={styles.busyText}>{selected ? '처리 중...' : '연결 중...'}</Text> : null}
           </View>
-        ) : null}
-      </View>
-    </Pressable>
+          <Text style={styles.optionDescription}>{metadata.shortDescription}</Text>
+          {selected ? (
+            <View style={styles.selectedMetaBlock}>
+              <Text style={styles.selectedMetaText}>마지막 동기화 {source.lastSyncedAt ?? '아직 없음'}</Text>
+              {source.pendingImportCount ? (
+                <Text style={styles.pendingText}>대기 중인 가져오기 {source.pendingImportCount}개</Text>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        onPress={handleShowMethod}
+        style={styles.methodButton}
+      >
+        <Text style={styles.methodButtonText}>연동 방법</Text>
+      </Pressable>
+    </View>
   );
 });
 
@@ -131,7 +147,19 @@ export function ExclusiveSourceSelectorCard({
   platform,
   sources,
 }: ExclusiveSourceSelectorCardProps) {
+  const [methodSourceType, setMethodSourceType] = useState<RunSourceType | null>(null);
   const model = useMemo(() => buildExclusiveSourceSelectorModel(sources, platform), [platform, sources]);
+  const methodSource = useMemo(() => (
+    methodSourceType
+      ? (model.rows.find((row) => row.source.sourceType === methodSourceType)?.source ?? null)
+      : null
+  ), [methodSourceType, model.rows]);
+  const methodMetadata = useMemo(() => (
+    methodSource ? getSourceMetadata(methodSource.sourceType, platform) : null
+  ), [methodSource, platform]);
+  const handleCloseMethod = useCallback(() => {
+    setMethodSourceType(null);
+  }, []);
 
   return (
     <Card style={styles.card}>
@@ -147,6 +175,7 @@ export function ExclusiveSourceSelectorCard({
             key={row.source.sourceType}
             actionSourceType={actionSourceType}
             onConnectSource={onConnectSource}
+            onShowMethod={setMethodSourceType}
             platform={platform}
             selected={row.selected}
             source={row.source}
@@ -158,6 +187,26 @@ export function ExclusiveSourceSelectorCard({
           selectedSourceType={model.selectedSourceType}
         />
       </View>
+      {methodSource && methodMetadata ? (
+        <View style={styles.methodCard}>
+          <View style={styles.methodHeader}>
+            <View style={styles.methodHeaderCopy}>
+              <Text style={styles.methodEyebrow}>연동 방법</Text>
+              <Text style={styles.methodTitle}>{methodSource.displayName} 연동 방법</Text>
+            </View>
+            <Pressable
+              accessibilityLabel="설명 닫기"
+              accessibilityRole="button"
+              onPress={handleCloseMethod}
+              style={styles.methodCloseButton}
+            >
+              <Text style={styles.methodCloseText}>X</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.methodDescription}>{methodMetadata.shortDescription}</Text>
+          <Text style={styles.methodHint}>{methodMetadata.setupHint}</Text>
+        </View>
+      ) : null}
     </Card>
   );
 }
@@ -191,6 +240,12 @@ const styles = StyleSheet.create({
     gap: spacing.s12,
     paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s14,
+  },
+  optionSelectArea: {
+    alignItems: 'flex-start',
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.s12,
   },
   optionRowSelected: {
     backgroundColor: colors.brandSoft,
@@ -248,5 +303,67 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
     lineHeight: 18,
+  },
+  methodButton: {
+    borderColor: colors.brandSoftBorder,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    paddingHorizontal: spacing.s10,
+    paddingVertical: spacing.lg,
+  },
+  methodButtonText: {
+    color: colors.brand,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
+  },
+  methodCard: {
+    backgroundColor: colors.brandSoft,
+    borderColor: colors.brandSoftBorder,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    gap: spacing.s10,
+    padding: spacing.s14,
+  },
+  methodHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.s12,
+    justifyContent: 'space-between',
+  },
+  methodHeaderCopy: {
+    flex: 1,
+    gap: spacing.xxs,
+  },
+  methodEyebrow: {
+    color: colors.brand,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
+  },
+  methodTitle: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.base,
+    fontWeight: fontWeights.extraBold,
+  },
+  methodCloseButton: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  methodCloseText: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
+  },
+  methodDescription: {
+    color: colors.textSecondary,
+    fontWeight: fontWeights.bold,
+    lineHeight: 19,
+  },
+  methodHint: {
+    color: colors.textPrimary,
+    lineHeight: 20,
   },
 });
