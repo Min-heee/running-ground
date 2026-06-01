@@ -110,11 +110,21 @@ function HomeActivityStatusCardImpl({ runs }: HomeActivityStatusCardProps) {
         <Text style={styles.periodChevron}>▾</Text>
       </Pressable>
 
-      <View style={styles.summaryPanel}>
-        <Text style={styles.distanceValue}>{formatRunPeriodDistanceKm(periodSummary.distanceKm)}km</Text>
-        <Text style={styles.summaryText}>
-          러닝 {periodSummary.runCount}회 · 시간 {formatRunPeriodDurationLabel(periodSummary.durationSeconds)}
-        </Text>
+      <View style={styles.metricRow}>
+        <View style={styles.metric}>
+          <Text style={styles.metricLabel}>거리</Text>
+          <Text style={styles.metricValue}>{formatRunPeriodDistanceKm(periodSummary.distanceKm)}km</Text>
+        </View>
+        <View style={styles.metricDivider} />
+        <View style={styles.metric}>
+          <Text style={styles.metricLabel}>횟수</Text>
+          <Text style={styles.metricValue}>{periodSummary.runCount}회</Text>
+        </View>
+        <View style={styles.metricDivider} />
+        <View style={styles.metric}>
+          <Text style={styles.metricLabel}>시간</Text>
+          <Text style={styles.metricValue}>{formatRunPeriodDurationLabel(periodSummary.durationSeconds)}</Text>
+        </View>
       </View>
 
       <Pressable
@@ -227,19 +237,30 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
-  summaryPanel: {
+  metricRow: {
     alignItems: 'center',
-    gap: spacing.sm,
+    flexDirection: 'row',
     paddingVertical: spacing.s10,
   },
-  distanceValue: {
+  metric: {
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.sm,
+  },
+  metricLabel: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.semibold,
+  },
+  metricValue: {
     color: colors.textPrimary,
-    fontSize: 34,
+    fontSize: fontSizes.metric,
     fontWeight: fontWeights.extraBold,
   },
-  summaryText: {
-    color: colors.textSecondary,
-    fontWeight: fontWeights.bold,
+  metricDivider: {
+    backgroundColor: colors.borderMuted,
+    height: 32,
+    width: 1,
   },
   detailToggleButton: {
     alignItems: 'center',
