@@ -1,7 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
-import { formatDuration } from '@/features/runs/tracking';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type RunHeroCardProps = {
@@ -15,33 +14,6 @@ export function RunHeroCard({ startedLabel, distanceKm }: RunHeroCardProps) {
       <Text style={styles.heroDate}>{startedLabel}</Text>
       <Text style={styles.heroDistance}>{distanceKm}km</Text>
     </Card>
-  );
-}
-
-type RunSummaryMetricRowProps = {
-  durationSeconds?: number;
-  estimatedMinutes: number;
-  earnedPoint: number;
-};
-
-export function RunSummaryMetricRow({
-  durationSeconds,
-  estimatedMinutes,
-  earnedPoint,
-}: RunSummaryMetricRowProps) {
-  return (
-    <View style={styles.summaryRow}>
-      <Card style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>예상 소요 시간</Text>
-        <Text style={styles.summaryValue}>
-          {typeof durationSeconds === 'number' ? formatDuration(durationSeconds) : `${estimatedMinutes}분`}
-        </Text>
-      </Card>
-      <Card style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>획득 포인트</Text>
-        <Text style={styles.summaryValue}>{earnedPoint}P</Text>
-      </Card>
-    </View>
   );
 }
 
@@ -94,11 +66,6 @@ const styles = StyleSheet.create({
   summaryLabel: {
     color: colors.textSecondary,
     fontWeight: fontWeights.bold,
-  },
-  summaryValue: {
-    color: colors.textPrimary,
-    fontSize: 24,
-    fontWeight: fontWeights.extraBold,
   },
   summaryValueSmall: {
     color: colors.textPrimary,

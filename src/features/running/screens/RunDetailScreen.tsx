@@ -8,7 +8,7 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RunDetailInfoCard } from '@/features/running/components/RunDetailInfoCard';
 import { RunMatchResultCard } from '@/features/running/components/RunMatchResultCard';
 import { RunPointBreakdownCard } from '@/features/running/components/RunPointBreakdownCard';
-import { RunExtraMetricsRow, RunHeroCard, RunSummaryMetricRow } from '@/features/running/components/RunSummaryCards';
+import { RunExtraMetricsRow, RunHeroCard } from '@/features/running/components/RunSummaryCards';
 import { useRunDetail } from '@/features/running/hooks/useRunDetail';
 import { formatRunStartLabel } from '@/features/running/utils/runStartLabel';
 import { RunRouteMap } from '@/features/runs/RunRouteMap';
@@ -88,12 +88,6 @@ export default function RunDetailScreen() {
           <RunHeroCard
             startedLabel={formatRunStartLabel(runDetail.run)}
             distanceKm={runDetail.run.distanceKm}
-          />
-
-          <RunSummaryMetricRow
-            durationSeconds={runDetail.run.durationSeconds}
-            estimatedMinutes={runDetail.estimatedMinutes}
-            earnedPoint={runDetail.earnedPoint}
           />
 
           <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
