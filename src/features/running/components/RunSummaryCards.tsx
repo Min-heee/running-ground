@@ -4,22 +4,6 @@ import { Card } from '@/components/Card';
 import { formatDuration } from '@/features/runs/tracking';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
-type RunHeroCardProps = {
-  distanceKm: number;
-  pace: string;
-  sourceLabel: string;
-};
-
-export function RunHeroCard({ distanceKm, pace, sourceLabel }: RunHeroCardProps) {
-  return (
-    <Card style={styles.heroCard}>
-      <Text style={styles.heroLabel}>기록 요약</Text>
-      <Text style={styles.heroTitle}>{distanceKm}km</Text>
-      <Text style={styles.heroSub}>페이스 {pace} · {sourceLabel}</Text>
-    </Card>
-  );
-}
-
 type RunSummaryMetricRowProps = {
   durationSeconds?: number;
   estimatedMinutes: number;
@@ -72,24 +56,6 @@ export function RunExtraMetricsRow({ cadenceSpm, elevationGainM }: RunExtraMetri
 }
 
 const styles = StyleSheet.create({
-  heroCard: {
-    backgroundColor: colors.textPrimary,
-    gap: spacing.xxl,
-  },
-  heroLabel: {
-    color: colors.brandLighter,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.bold,
-  },
-  heroTitle: {
-    color: colors.white,
-    fontSize: fontSizes.pageTitle,
-    fontWeight: fontWeights.extraBold,
-  },
-  heroSub: {
-    color: colors.textTertiary,
-    fontWeight: fontWeights.bold,
-  },
   summaryRow: {
     flexDirection: 'row',
     gap: spacing.s10,
