@@ -45,6 +45,7 @@ export function buildLiveMatchRaceBoardPageProps({
 export function buildLiveMatchResultPageProps({
   matchMode,
   estimatedBonusPoints,
+  estimatedLpDelta,
   duelRows,
   groupRows,
   groupStatusLabel,
@@ -52,6 +53,7 @@ export function buildLiveMatchResultPageProps({
   return {
     matchMode,
     estimatedBonusPoints,
+    estimatedLpDelta,
     duelRows,
     groupRows,
     groupStatusLabel,

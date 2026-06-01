@@ -92,6 +92,7 @@ export function useLiveMatchViewModel({
   elevationGainM,
   onContinueSoloFromMatch,
   estimatedBonusPoints,
+  estimatedLpDelta,
   duelRows,
   groupRows,
   groupStatusLabel,
@@ -271,6 +272,7 @@ export function useLiveMatchViewModel({
       ? {
       matchMode,
       estimatedBonusPoints,
+      estimatedLpDelta,
       duelRows,
       groupRows,
       groupStatusLabel,
@@ -279,6 +281,7 @@ export function useLiveMatchViewModel({
   ), [
     duelRows,
     estimatedBonusPoints,
+    estimatedLpDelta,
     groupRows,
     groupStatusLabel,
     hasResultPage,

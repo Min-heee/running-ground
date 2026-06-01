@@ -69,6 +69,7 @@ const trackingPageProps: LiveMatchTrackingViewProps = {
 const resultPageProps: LiveMatchResultPageProps = {
   matchMode: 'duel',
   estimatedBonusPoints: 10,
+  estimatedLpDelta: 20,
   duelRows: [],
   groupRows: [],
   groupStatusLabel: '완료',
@@ -108,9 +109,18 @@ test('tracking and result page props are only built for selected heavy pages', (
     resultPageProps,
   })?.estimatedBonusPoints, 10);
   assert.equal(buildLiveMatchResultPagePropsForPage({
+    hasResultPage: true,
+    page: 0,
+    resultPageProps,
+  })?.estimatedLpDelta, 20);
+  assert.equal(buildLiveMatchResultPagePropsForPage({
     page: 3,
     resultPageProps,
   })?.estimatedBonusPoints, 10);
+  assert.equal(buildLiveMatchResultPagePropsForPage({
+    page: 3,
+    resultPageProps,
+  })?.estimatedLpDelta, 20);
 });
 
 test('page view model builder gates heavy page props by selected page', () => {
@@ -132,6 +142,7 @@ test('page view model builder gates heavy page props by selected page', () => {
   assert.equal(pageZeroModels.livePagesProps.raceBoardProps, null);
   assert.equal(pageZeroModels.livePagesProps.trackingProps, null);
   assert.equal(pageZeroModels.livePagesProps.resultProps?.estimatedBonusPoints, 10);
+  assert.equal(pageZeroModels.livePagesProps.resultProps?.estimatedLpDelta, 20);
   assert.equal(pageZeroModels.livePagesProps.arenaProps.stableMatchId, 'match-1');
 
   const pageTwoModels = buildLiveMatchPageViewModels({
@@ -151,6 +162,7 @@ test('page view model builder gates heavy page props by selected page', () => {
 
   assert.equal(pageTwoModels.livePagesProps.raceBoardProps, null);
   assert.equal(pageTwoModels.livePagesProps.resultProps?.estimatedBonusPoints, 10);
+  assert.equal(pageTwoModels.livePagesProps.resultProps?.estimatedLpDelta, 20);
   assert.equal(pageTwoModels.livePagesProps.trackingProps?.includeMatchCards, false);
 
   const pageThreeModels = buildLiveMatchPageViewModels({
@@ -170,4 +182,5 @@ test('page view model builder gates heavy page props by selected page', () => {
 
   assert.equal(pageThreeModels.livePagesProps.trackingProps, null);
   assert.equal(pageThreeModels.livePagesProps.resultProps?.estimatedBonusPoints, 10);
+  assert.equal(pageThreeModels.livePagesProps.resultProps?.estimatedLpDelta, 20);
 });

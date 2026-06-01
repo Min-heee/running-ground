@@ -8,6 +8,7 @@ import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 export type LiveMatchResultPageProps = {
   matchMode: RunMatchMode;
   estimatedBonusPoints: number;
+  estimatedLpDelta: number;
   duelRows: DuelMatchResultRow[];
   groupRows: GroupMatchResultRow[];
   groupStatusLabel?: string | null;
@@ -16,6 +17,7 @@ export type LiveMatchResultPageProps = {
 export function LiveMatchResultPage({
   matchMode,
   estimatedBonusPoints,
+  estimatedLpDelta,
   duelRows,
   groupRows,
   groupStatusLabel,
@@ -24,6 +26,7 @@ export function LiveMatchResultPage({
     <MatchResultPanel
       mode={matchMode === 'group' ? 'group' : 'duel'}
       estimatedBonusPoints={estimatedBonusPoints}
+      estimatedLpDelta={estimatedLpDelta}
       duelRows={duelRows}
       groupRows={groupRows}
       groupStatusLabel={groupStatusLabel}

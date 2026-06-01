@@ -3,6 +3,7 @@ import { Card } from '@/components/Card';
 import {
   DuelResultRow,
   GroupResultRow,
+  LpPill,
   PointPill,
   type DuelMatchResultRow,
   type GroupMatchResultRow,
@@ -14,6 +15,7 @@ export type { DuelMatchResultRow, GroupMatchResultRow } from '@/features/runs/co
 type MatchResultPanelProps = {
   mode: 'duel' | 'group';
   estimatedBonusPoints: number;
+  estimatedLpDelta: number;
   duelRows: DuelMatchResultRow[];
   groupRows: GroupMatchResultRow[];
   groupStatusLabel?: string | null;
@@ -22,6 +24,7 @@ type MatchResultPanelProps = {
 export function MatchResultPanel({
   mode,
   estimatedBonusPoints,
+  estimatedLpDelta,
   duelRows,
   groupRows,
   groupStatusLabel,
@@ -42,7 +45,10 @@ export function MatchResultPanel({
                 : '먼저 들어온 러너가 위에 정렬돼요.'}
             </Text>
           </View>
-          <PointPill points={estimatedBonusPoints} />
+          <View style={styles.rewardPills}>
+            <LpPill lpDelta={estimatedLpDelta} />
+            <PointPill points={estimatedBonusPoints} />
+          </View>
         </View>
         <View style={styles.list}>
           {duelRows.map((row) => (
@@ -66,7 +72,10 @@ export function MatchResultPanel({
                 : '들어오는 기록 순서대로 계속 업데이트돼요.'}
             </Text>
           </View>
-          <PointPill points={estimatedBonusPoints} />
+          <View style={styles.rewardPills}>
+            <LpPill lpDelta={estimatedLpDelta} />
+            <PointPill points={estimatedBonusPoints} />
+          </View>
         </View>
         <View style={styles.list}>
           {groupRows.map((row) => (
@@ -103,6 +112,12 @@ const styles = StyleSheet.create({
     gap: spacing.s12,
   },
   headerCopy: {
+    gap: spacing.sm,
+  },
+  rewardPills: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   eyebrow: {

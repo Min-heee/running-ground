@@ -774,6 +774,7 @@ export function TrackRunExperienceRuntime({
   const {
     trackedMatchResult,
     estimatedMatchBonusPoints,
+    estimatedMatchLpDelta,
     duelResultRows,
     groupResultRows,
     groupResultStatusLabel,
@@ -2282,6 +2283,7 @@ export function TrackRunExperienceRuntime({
       elevationGainM: liveMatchDisplayFrame.elevationGainM,
       onContinueSoloFromMatch: handleContinueSoloFromMatch,
       estimatedBonusPoints: estimatedMatchBonusPoints,
+      estimatedLpDelta: estimatedMatchLpDelta,
       duelRows: effectiveDuelResultRows,
       groupRows: effectiveGroupResultRows,
       groupStatusLabel: groupResultStatusLabel,

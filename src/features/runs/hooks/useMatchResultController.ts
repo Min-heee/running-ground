@@ -7,7 +7,10 @@ import {
   buildDuelMatchFinishModel,
   buildGroupMatchFinishModel,
 } from '@/features/runs/viewModels/matchResultModel';
-import { getEstimatedMatchBonusPoints } from '@/features/runs/utils/matchScheduling';
+import {
+  getEstimatedMatchBonusPoints,
+  getEstimatedMatchLpDelta,
+} from '@/features/runs/utils/matchScheduling';
 import type {
   DuelMatchOpponent,
   RunningMatchLiveStatus,
@@ -127,6 +130,10 @@ export function useMatchResultController({
     () => getEstimatedMatchBonusPoints(trackedMatchResult),
     [trackedMatchResult],
   );
+  const estimatedMatchLpDelta = useMemo(
+    () => getEstimatedMatchLpDelta(trackedMatchResult),
+    [trackedMatchResult],
+  );
 
   const duelResultRows = matchMode === 'duel' ? duelFinishSummary?.rows ?? [] : [];
   const groupResultRows = matchMode === 'group' ? groupFinishSummary?.rows ?? [] : [];
@@ -137,6 +144,7 @@ export function useMatchResultController({
     groupFinishSummary,
     trackedMatchResult,
     estimatedMatchBonusPoints,
+    estimatedMatchLpDelta,
     duelResultRows,
     groupResultRows,
     groupResultStatusLabel,

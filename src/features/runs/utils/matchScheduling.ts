@@ -22,6 +22,13 @@ export const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.195];
 
 const MATCH_BOOKING_WINDOW_DAYS = 7;
 const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
+const ESTIMATED_DUEL_WIN_LP_DELTA = 20;
+const ESTIMATED_DUEL_LOSS_LP_DELTA = -20;
+const GROUP_TOP_LP_DELTA = 20;
+const GROUP_MIDDLE_LP_DELTA = 6;
+const GROUP_BOTTOM_LP_DELTA = -15;
+const GROUP_TOP_RATIO = 0.3;
+const GROUP_BOTTOM_RATIO = 0.7;
 
 export function formatMatchTargetDistance(distanceKm: number) {
   return `${Number(distanceKm.toFixed(1))}km`;
@@ -193,6 +200,53 @@ export function getEstimatedMatchBonusPoints(matchResult?: RunMatchResult) {
     if (typeof matchResult.rank === 'number' && matchResult.rank >= 4) {
       return 10;
     }
+  }
+
+  return 0;
+}
+
+export function getEstimatedMatchLpDelta(matchResult?: RunMatchResult) {
+  if (!matchResult) {
+    return 0;
+  }
+
+  if (matchResult.mode === 'duel') {
+    if (matchResult.resultTone === 'win') {
+      return ESTIMATED_DUEL_WIN_LP_DELTA;
+    }
+
+    if (matchResult.resultTone === 'lose') {
+      return ESTIMATED_DUEL_LOSS_LP_DELTA;
+    }
+
+    return 0;
+  }
+
+  if (matchResult.mode === 'group') {
+    const { participantCount, rank } = matchResult;
+    const hasValidPlacement = (
+      typeof rank === 'number'
+      && typeof participantCount === 'number'
+      && Number.isFinite(rank)
+      && Number.isFinite(participantCount)
+      && rank >= 1
+      && participantCount >= 1
+      && rank <= participantCount
+    );
+
+    if (!hasValidPlacement) {
+      return 0;
+    }
+
+    if (rank <= participantCount * GROUP_TOP_RATIO) {
+      return GROUP_TOP_LP_DELTA;
+    }
+
+    if (rank > participantCount * GROUP_BOTTOM_RATIO) {
+      return GROUP_BOTTOM_LP_DELTA;
+    }
+
+    return GROUP_MIDDLE_LP_DELTA;
   }
 
   return 0;

@@ -98,6 +98,24 @@ export function PointPill({ points }: { points: number }) {
   );
 }
 
+export function LpPill({ lpDelta }: { lpDelta: number }) {
+  if (!lpDelta) {
+    return null;
+  }
+
+  const isGain = lpDelta > 0;
+  const lpPillStyle = isGain ? lpGainPillStyle : lpLossPillStyle;
+  const lpPillTextStyle = isGain ? lpGainPillTextStyle : lpLossPillTextStyle;
+
+  return (
+    <View style={lpPillStyle}>
+      <Text style={lpPillTextStyle}>
+        랭크 {isGain ? '+' : ''}{lpDelta} LP
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   duelRow: {
     flexDirection: 'row',
@@ -215,4 +233,34 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.black,
   },
+  lpPill: {
+    alignSelf: 'flex-start',
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
+  },
+  lpPillGain: {
+    backgroundColor: colors.matchResultWinBg,
+    borderColor: colors.matchResultWinBorder,
+  },
+  lpPillLoss: {
+    backgroundColor: colors.matchResultLoseBg,
+    borderColor: colors.matchResultLoseBorder,
+  },
+  lpPillText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.black,
+  },
+  lpPillTextGain: {
+    color: colors.brandLighter,
+  },
+  lpPillTextLoss: {
+    color: colors.dangerLight,
+  },
 });
+
+const lpGainPillStyle = [styles.lpPill, styles.lpPillGain];
+const lpLossPillStyle = [styles.lpPill, styles.lpPillLoss];
+const lpGainPillTextStyle = [styles.lpPillText, styles.lpPillTextGain];
+const lpLossPillTextStyle = [styles.lpPillText, styles.lpPillTextLoss];

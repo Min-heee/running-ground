@@ -6,6 +6,7 @@ import {
   findNearestRecommendedDistance,
   formatMatchExpiryCountdown,
   getEstimatedMatchBonusPoints,
+  getEstimatedMatchLpDelta,
   isMatchSlotClosed,
   parseDuelMatchDistanceKm,
   resolveMatchTimeSection,
@@ -46,4 +47,15 @@ test('match display helpers keep user-facing labels stable', () => {
   assert.equal(formatMatchExpiryCountdown(3661), '1시간 2분');
   assert.equal(getEstimatedMatchBonusPoints({ mode: 'duel', resultTone: 'win', title: '', summary: '', badgeLabel: '' }), 20);
   assert.equal(getEstimatedMatchBonusPoints({ mode: 'group', rank: 3, title: '', summary: '', badgeLabel: '' }), 15);
+});
+
+test('estimated match LP mirrors result rules with safe duel fallback', () => {
+  assert.equal(getEstimatedMatchLpDelta({ mode: 'duel', resultTone: 'win', title: '', summary: '', badgeLabel: '' }), 20);
+  assert.equal(getEstimatedMatchLpDelta({ mode: 'duel', resultTone: 'lose', title: '', summary: '', badgeLabel: '' }), -20);
+  assert.equal(getEstimatedMatchLpDelta({ mode: 'duel', resultTone: 'draw', title: '', summary: '', badgeLabel: '' }), 0);
+  assert.equal(getEstimatedMatchLpDelta({ mode: 'group', rank: 1, participantCount: 4, title: '', summary: '', badgeLabel: '' }), 20);
+  assert.equal(getEstimatedMatchLpDelta({ mode: 'group', rank: 2, participantCount: 4, title: '', summary: '', badgeLabel: '' }), 6);
+  assert.equal(getEstimatedMatchLpDelta({ mode: 'group', rank: 3, participantCount: 4, title: '', summary: '', badgeLabel: '' }), -15);
+  assert.equal(getEstimatedMatchLpDelta({ mode: 'group', rank: 4, participantCount: 4, title: '', summary: '', badgeLabel: '' }), -15);
+  assert.equal(getEstimatedMatchLpDelta({ mode: 'group', rank: 0, participantCount: 4, title: '', summary: '', badgeLabel: '' }), 0);
 });
