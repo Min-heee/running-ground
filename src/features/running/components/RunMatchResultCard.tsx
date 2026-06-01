@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
+import { getEstimatedMatchLpDelta } from '@/features/runs/utils/matchScheduling';
 import type { RunDetailResponse } from '@/lib/api/types';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
@@ -13,6 +14,11 @@ type RunMatchResultCardProps = {
 };
 
 export function RunMatchResultCard({ matchResult, matchBonusPoints }: RunMatchResultCardProps) {
+  const lpDelta = getEstimatedMatchLpDelta(matchResult);
+  const isLpGain = lpDelta > 0;
+  const lpPillStyle = isLpGain ? matchResultLpGainPillStyle : matchResultLpLossPillStyle;
+  const lpPillTextStyle = isLpGain ? matchResultLpGainPillTextStyle : matchResultLpLossPillTextStyle;
+
   return (
     <Card style={styles.matchResultCard}>
       <View style={styles.matchResultHeader}>
@@ -38,8 +44,17 @@ export function RunMatchResultCard({ matchResult, matchBonusPoints }: RunMatchRe
         </View>
       </View>
       <Text style={styles.matchResultSummary}>{matchResult.summary}</Text>
-      <View style={styles.matchResultPointPill}>
-        <Text style={styles.matchResultPointPillText}>매치 포인트 +{matchBonusPoints}P</Text>
+      <View style={styles.matchResultRewardRow}>
+        {lpDelta ? (
+          <View style={lpPillStyle}>
+            <Text style={lpPillTextStyle}>
+              랭크 {isLpGain ? '+' : ''}{lpDelta} LP
+            </Text>
+          </View>
+        ) : null}
+        <View style={styles.matchResultPointPill}>
+          <Text style={styles.matchResultPointPillText}>매치 포인트 +{matchBonusPoints}P</Text>
+        </View>
       </View>
       <View style={styles.matchResultMetaRow}>
         {matchResult.opponentName ? (
@@ -111,6 +126,37 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
+  matchResultRewardRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  matchResultLpPill: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxl,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+  },
+  matchResultLpPillGain: {
+    backgroundColor: colors.successSoft,
+    borderColor: colors.successCardBorder,
+  },
+  matchResultLpPillLoss: {
+    backgroundColor: colors.dangerWash,
+    borderColor: colors.dangerBorder,
+  },
+  matchResultLpPillText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  matchResultLpPillTextGain: {
+    color: colors.successStrong,
+  },
+  matchResultLpPillTextLoss: {
+    color: colors.danger,
+  },
   matchResultPointPill: {
     alignSelf: 'flex-start',
     paddingHorizontal: spacing.s12,
@@ -134,3 +180,14 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
   },
 });
+
+const matchResultLpGainPillStyle = [styles.matchResultLpPill, styles.matchResultLpPillGain];
+const matchResultLpLossPillStyle = [styles.matchResultLpPill, styles.matchResultLpPillLoss];
+const matchResultLpGainPillTextStyle = [
+  styles.matchResultLpPillText,
+  styles.matchResultLpPillTextGain,
+];
+const matchResultLpLossPillTextStyle = [
+  styles.matchResultLpPillText,
+  styles.matchResultLpPillTextLoss,
+];
