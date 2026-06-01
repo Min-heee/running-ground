@@ -193,6 +193,7 @@ export const fontSizes = {
   pageTitle: 28,
   metricLarge: 29,
   hero: 30,
+  heroLarge: 36,
   authTitle: 32,
 } as const;
 

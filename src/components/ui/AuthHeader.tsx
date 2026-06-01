@@ -6,14 +6,12 @@ import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 export function AuthHeader({
   title,
   subtitle,
-  compact = false,
   showBack = false,
   backLabel = '뒤로가기',
   backHref,
 }: {
-  title: string;
+  title?: string;
   subtitle?: string;
-  compact?: boolean;
   showBack?: boolean;
   backLabel?: string;
   backHref?: Href;
@@ -46,7 +44,7 @@ export function AuthHeader({
         </Pressable>
       ) : null}
       <Text style={styles.logo}>RunningGround</Text>
-      <Text style={compact ? compactTitleStyle : styles.title}>{title}</Text>
+      {title ? <Text style={styles.title}>{title}</Text> : null}
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
   );
@@ -72,8 +70,5 @@ const styles = StyleSheet.create({
   },
   logo: { color: colors.brand, fontWeight: fontWeights.extraBold, fontSize: 13 },
   title: { fontSize: fontSizes.authTitle, fontWeight: fontWeights.extraBold, color: colors.textHeading },
-  titleCompact: { fontSize: fontSizes.metric },
   subtitle: { color: colors.textMuted, lineHeight: 22 },
 });
-
-const compactTitleStyle = [styles.title, styles.titleCompact];

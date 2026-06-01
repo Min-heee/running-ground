@@ -8,7 +8,7 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RunDetailInfoCard } from '@/features/running/components/RunDetailInfoCard';
 import { RunMatchResultCard } from '@/features/running/components/RunMatchResultCard';
 import { RunPointBreakdownCard } from '@/features/running/components/RunPointBreakdownCard';
-import { RunExtraMetricsRow, RunSummaryMetricRow } from '@/features/running/components/RunSummaryCards';
+import { RunExtraMetricsRow, RunHeroCard, RunSummaryMetricRow } from '@/features/running/components/RunSummaryCards';
 import { useRunDetail } from '@/features/running/hooks/useRunDetail';
 import { formatRunStartLabel } from '@/features/running/utils/runStartLabel';
 import { RunRouteMap } from '@/features/runs/RunRouteMap';
@@ -83,14 +83,12 @@ export default function RunDetailScreen() {
 
       {runDetail ? (
         <>
-          <AuthHeader
-            title={formatRunStartLabel(runDetail.run)}
-            compact
-            showBack
-            backHref={backHref}
-          />
+          <AuthHeader showBack backHref={backHref} />
 
-          <Text style={styles.distanceValue}>{runDetail.run.distanceKm}km</Text>
+          <RunHeroCard
+            startedLabel={formatRunStartLabel(runDetail.run)}
+            distanceKm={runDetail.run.distanceKm}
+          />
 
           <RunSummaryMetricRow
             durationSeconds={runDetail.run.durationSeconds}
@@ -150,11 +148,6 @@ export default function RunDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  distanceValue: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.hero,
-    fontWeight: fontWeights.extraBold,
-  },
   sectionTitle: {
     fontSize: fontSizes.title,
     fontWeight: fontWeights.extraBold,

@@ -4,6 +4,20 @@ import { Card } from '@/components/Card';
 import { formatDuration } from '@/features/runs/tracking';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
+type RunHeroCardProps = {
+  startedLabel: string;
+  distanceKm: number;
+};
+
+export function RunHeroCard({ startedLabel, distanceKm }: RunHeroCardProps) {
+  return (
+    <Card style={styles.heroCard}>
+      <Text style={styles.heroDate}>{startedLabel}</Text>
+      <Text style={styles.heroDistance}>{distanceKm}km</Text>
+    </Card>
+  );
+}
+
 type RunSummaryMetricRowProps = {
   durationSeconds?: number;
   estimatedMinutes: number;
@@ -56,6 +70,20 @@ export function RunExtraMetricsRow({ cadenceSpm, elevationGainM }: RunExtraMetri
 }
 
 const styles = StyleSheet.create({
+  heroCard: {
+    backgroundColor: colors.textPrimary,
+    gap: spacing.xs,
+  },
+  heroDate: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.semibold,
+  },
+  heroDistance: {
+    color: colors.white,
+    fontSize: fontSizes.heroLarge,
+    fontWeight: fontWeights.black,
+  },
   summaryRow: {
     flexDirection: 'row',
     gap: spacing.s10,
