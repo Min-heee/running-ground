@@ -16,27 +16,23 @@ type TrackRunShellRouterProps = {
   shellKind: TrackRunShellKind;
 };
 
-export const IdleRunShell = memo(function IdleRunShell({
+type ReadyRunShellKind = Extract<TrackRunShellKind, 'idle' | 'lobby'>;
+
+export const ReadyRunShell = memo(function ReadyRunShell({
+  shellKind,
   readyScreenProps,
 }: {
+  shellKind: ReadyRunShellKind;
   readyScreenProps: ComponentProps<typeof RunningReadyScreen>;
 }) {
-  useTrackRunShellDiagnostics('idle');
-  useReadyRunShellMountTrace('idle');
+  useTrackRunShellDiagnostics(shellKind);
+  useReadyRunShellMountTrace(shellKind);
 
   return <RunningReadyScreen {...readyScreenProps} />;
-});
-
-export const MatchLobbyShell = memo(function MatchLobbyShell({
-  readyScreenProps,
-}: {
-  readyScreenProps: ComponentProps<typeof RunningReadyScreen>;
-}) {
-  useTrackRunShellDiagnostics('lobby');
-  useReadyRunShellMountTrace('lobby');
-
-  return <RunningReadyScreen {...readyScreenProps} />;
-});
+}, (prevProps, nextProps) => (
+  prevProps.shellKind === nextProps.shellKind
+  && prevProps.readyScreenProps === nextProps.readyScreenProps
+));
 
 export const LiveMatchShell = memo(function LiveMatchShell({
   liveContainerProps,
@@ -70,11 +66,7 @@ export const TrackRunShellRouter = memo(function TrackRunShellRouter({
     );
   }
 
-  if (shellKind === 'lobby') {
-    return <MatchLobbyShell readyScreenProps={readyScreenProps} />;
-  }
-
-  return <IdleRunShell readyScreenProps={readyScreenProps} />;
+  return <ReadyRunShell shellKind={shellKind} readyScreenProps={readyScreenProps} />;
 }, (prevProps, nextProps) => {
   if (
     prevProps.shellKind !== nextProps.shellKind

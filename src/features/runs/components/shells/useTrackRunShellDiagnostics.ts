@@ -6,9 +6,9 @@ import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 export function useTrackRunShellDiagnostics(shellKind: TrackRunShellKind) {
   useDevRenderCounter(
     shellKind === 'idle'
-      ? 'IdleRunShell'
+      ? 'ReadyRunShell(idle)'
       : shellKind === 'lobby'
-        ? 'MatchLobbyShell'
+        ? 'ReadyRunShell(lobby)'
         : 'LiveMatchShell',
   );
 
