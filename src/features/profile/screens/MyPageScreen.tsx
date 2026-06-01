@@ -1,11 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, ActivityIndicator } from 'react-native';
-import { type Href } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { AccountActionsCard } from '@/features/profile/components/AccountActionsCard';
-import { MatchRecordSummaryCard } from '@/features/profile/components/MatchRecordSummaryCard';
 import { ProfileEnvironmentDebugCard } from '@/features/profile/components/ProfileEnvironmentDebugCard';
 import { ProfileSettingsCard } from '@/features/profile/components/ProfileSettingsCard';
 import { ProfileSummaryCard } from '@/features/profile/components/ProfileSummaryCard';
@@ -16,7 +14,6 @@ import { colors, fontWeights } from '@/theme/tokens';
 
 export default function MyPageScreen() {
   useTabWarmupTrace('mypage');
-  const matchRecordHref = '/match-record' as Href;
   const showDebugByDefault = useMemo(() => shouldShowRgEnvironmentDebugByDefault(), []);
   const [showEnvironmentDebug, setShowEnvironmentDebug] = useState(showDebugByDefault);
   const [, setEnvironmentDebugTapCount] = useState(0);
@@ -32,7 +29,6 @@ export default function MyPageScreen() {
     loading,
     logoutConfirm,
     logoutSubmitting,
-    matchSummary,
     profile,
     tagShared,
   } = useMyPageScreen();
@@ -69,13 +65,6 @@ export default function MyPageScreen() {
           />
 
           <IntegrationStatus sources={integrationStatus.sources} />
-
-          <MatchRecordSummaryCard
-            href={matchRecordHref}
-            totalCount={matchSummary.totalCount}
-            duelCount={matchSummary.duelCount}
-            groupCount={matchSummary.groupCount}
-          />
 
           <ProfileSettingsCard onDebugUnlockPress={handleEnvironmentDebugUnlock} />
 

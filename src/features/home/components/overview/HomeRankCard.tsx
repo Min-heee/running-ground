@@ -13,21 +13,24 @@ import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type HomeRankCardProps = {
   rankState?: RankState;
+  compact?: boolean;
 };
 
-export function HomeRankCard({ rankState }: HomeRankCardProps) {
+export function HomeRankCard({ rankState, compact = false }: HomeRankCardProps) {
   const normalizedRankState = useMemo(() => normalizeRankStateForDisplay(rankState), [rankState]);
   const rankLabel = useMemo(() => formatRankLabel(normalizedRankState), [normalizedRankState]);
   const accentColor = RANK_TIER_COLOR[normalizedRankState.tier] ?? colors.brand;
   const progressPercent = Math.max(0, Math.min(100, (normalizedRankState.lp / LP_PER_TIER) * 100));
   const tierBadgeStyle = useMemo<StyleProp<ViewStyle>>(() => [
     styles.tierBadge,
+    compact ? styles.tierBadgeCompact : null,
     { borderColor: accentColor },
-  ], [accentColor]);
+  ], [accentColor, compact]);
   const rankLabelStyle = useMemo<StyleProp<TextStyle>>(() => [
     styles.rankLabel,
+    compact ? styles.rankLabelCompact : null,
     { color: accentColor },
-  ], [accentColor]);
+  ], [accentColor, compact]);
   const progressFillStyle = useMemo<StyleProp<ViewStyle>>(() => [
     styles.lpProgressFill,
     {
@@ -40,7 +43,7 @@ export function HomeRankCard({ rankState }: HomeRankCardProps) {
     <Card style={styles.rankCard}>
       <View style={styles.rankHeader}>
         <Text style={styles.sectionEyebrow}>내 랭크</Text>
-        <Text style={styles.rankHelper}>대결 결과가 LP에 반영돼요</Text>
+        {compact ? null : <Text style={styles.rankHelper}>대결 결과가 LP에 반영돼요</Text>}
       </View>
 
       <View style={styles.rankBody}>
@@ -63,6 +66,7 @@ export function HomeRankCard({ rankState }: HomeRankCardProps) {
 const styles = StyleSheet.create({
   rankCard: {
     gap: spacing.s12,
+    justifyContent: 'space-between',
   },
   rankHeader: {
     flexDirection: 'row',
@@ -93,9 +97,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.s16,
     paddingVertical: spacing.s12,
   },
+  tierBadgeCompact: {
+    paddingHorizontal: spacing.s12,
+  },
   rankLabel: {
     fontSize: fontSizes.pageTitle,
     fontWeight: fontWeights.extraBold,
+  },
+  rankLabelCompact: {
+    fontSize: fontSizes.comingSoon,
   },
   lpText: {
     color: colors.textPrimary,

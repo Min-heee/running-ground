@@ -20,7 +20,7 @@ export function MatchRecordSummaryCard({
 }: MatchRecordSummaryCardProps) {
   return (
     <Link href={href} asChild>
-      <Pressable>
+      <Pressable style={styles.matchRecordPressable}>
         <Card style={styles.matchRecordCard}>
           <View style={styles.sectionHeaderRow}>
             <SectionTitle>전적 보기</SectionTitle>
@@ -37,6 +37,9 @@ export function MatchRecordSummaryCard({
 }
 
 const styles = StyleSheet.create({
+  matchRecordPressable: {
+    width: '100%',
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -50,6 +53,7 @@ const styles = StyleSheet.create({
   },
   matchRecordCard: {
     gap: spacing.lg,
+    justifyContent: 'space-between',
   },
   matchRecordHeadline: {
     color: colors.textPrimary,

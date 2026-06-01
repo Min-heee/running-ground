@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
-import type { IntegrationStatusResponse, MyActivityResponse, MyProfileResponse } from '@/lib/api/types';
+import type { IntegrationStatusResponse, MyProfileResponse } from '@/lib/api/types';
 import { deleteAccount, signOut } from '@/lib/session';
-import { fetchIntegrationStatus, fetchMyActivity, fetchMyProfile, getApiErrorMessage } from '@/services';
+import { fetchIntegrationStatus, fetchMyProfile, getApiErrorMessage } from '@/services';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 
 const MYPAGE_INITIAL_FETCH_DEFER_MS = 120;
@@ -10,7 +10,6 @@ const MYPAGE_INITIAL_FETCH_DEFER_MS = 120;
 export function useMyPageScreen() {
   const [profile, setProfile] = useState<MyProfileResponse | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
-  const [activity, setActivity] = useState<MyActivityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [tagShared, setTagShared] = useState(false);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
@@ -28,15 +27,14 @@ export function useMyPageScreen() {
       setLoading(true);
     }
 
-    Promise.all([fetchMyProfile(), fetchIntegrationStatus(), fetchMyActivity()])
-      .then(([profileData, integrationData, activityData]) => {
+    Promise.all([fetchMyProfile(), fetchIntegrationStatus()])
+      .then(([profileData, integrationData]) => {
         if (canceled) {
           return;
         }
 
         setProfile(profileData);
         setIntegrationStatus(integrationData);
-        setActivity(activityData);
       })
       .catch((loadError) => {
         if (!canceled) {
@@ -60,18 +58,6 @@ export function useMyPageScreen() {
     traceInitialFetch: true,
     work: 'mypage data fetch',
   });
-
-  const matchSummary = useMemo(() => {
-    const matchRuns = activity?.runs.filter((run) => run.matchResult) ?? [];
-    const duelMatchRuns = matchRuns.filter((run) => run.matchResult?.mode === 'duel');
-    const groupMatchRuns = matchRuns.filter((run) => run.matchResult?.mode === 'group');
-
-    return {
-      duelCount: duelMatchRuns.length,
-      groupCount: groupMatchRuns.length,
-      totalCount: matchRuns.length,
-    };
-  }, [activity?.runs]);
 
   const connectedSourceCount = useMemo(
     () => integrationStatus?.sources.filter((source) => source.connected).length ?? 0,
@@ -135,7 +121,6 @@ export function useMyPageScreen() {
     loading,
     logoutConfirm,
     logoutSubmitting,
-    matchSummary,
     profile,
     tagShared,
   };

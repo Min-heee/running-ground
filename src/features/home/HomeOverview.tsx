@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import type { MyRunRecord, RankState, WeeklySummary } from '@/domain';
 import { HomeActivityStatusCard } from '@/features/home/components/overview/HomeActivityStatusCard';
 import { HomePointGaugeCard } from '@/features/home/components/overview/HomePointGaugeCard';
@@ -9,6 +10,9 @@ import {
   buildHomeOverviewPointHeaderLabel,
 } from '@/features/home/utils/homeOverview';
 import { buildWeeklyPointOverview, type WeeklyPointTrackId } from '@/features/points/pointSystem';
+import { MatchRecordSummaryCard } from '@/features/profile/components/MatchRecordSummaryCard';
+import { buildMatchRecordSummary } from '@/features/runs/utils/matchRecordSummary';
+import { spacing } from '@/theme/tokens';
 
 type HomeOverviewProps = {
   summary: WeeklySummary;
@@ -42,6 +46,7 @@ export function HomeOverview({
   );
   const calendarRows = useMemo(() => buildHomeOverviewCalendarRows(selectedTrack), [selectedTrack]);
   const pointHeaderLabel = buildHomeOverviewPointHeaderLabel(selectedTrack);
+  const matchRecordSummary = useMemo(() => buildMatchRecordSummary(runs), [runs]);
 
   return (
     <>
@@ -50,7 +55,19 @@ export function HomeOverview({
         districtRank={summary.districtBattle.districtRank}
         totalDistanceKm={summary.districtBattle.totalDistanceKm}
       />
-      <HomeRankCard rankState={rankState} />
+      <View style={styles.rankRow}>
+        <View style={styles.rankRowItem}>
+          <HomeRankCard rankState={rankState} compact />
+        </View>
+        <View style={styles.rankRowItem}>
+          <MatchRecordSummaryCard
+            href="/match-record"
+            totalCount={matchRecordSummary.totalCount}
+            duelCount={matchRecordSummary.duelCount}
+            groupCount={matchRecordSummary.groupCount}
+          />
+        </View>
+      </View>
       <HomeActivityStatusCard runs={runs} />
       <HomePointGaugeCard
         tracks={pointOverview.tracks}
@@ -66,3 +83,14 @@ export function HomeOverview({
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  rankRow: {
+    alignItems: 'stretch',
+    flexDirection: 'row',
+    gap: spacing.s12,
+  },
+  rankRowItem: {
+    flex: 1,
+  },
+});
