@@ -41,7 +41,6 @@ export function HomeOverview({
     [pointOverview.tracks, selectedTrackId],
   );
   const calendarRows = useMemo(() => buildHomeOverviewCalendarRows(selectedTrack), [selectedTrack]);
-  const streakTrack = pointOverview.tracks.find((track) => track.id === 'streak') ?? pointOverview.tracks[1];
   const pointHeaderLabel = buildHomeOverviewPointHeaderLabel(selectedTrack);
 
   return (
@@ -52,12 +51,7 @@ export function HomeOverview({
         totalDistanceKm={summary.districtBattle.totalDistanceKm}
       />
       <HomeRankCard rankState={rankState} />
-      <HomeActivityStatusCard
-        totalDistanceKm={summary.totalDistanceKm}
-        totalRuns={summary.totalRuns}
-        streakDays={streakTrack.currentValue}
-        runs={runs}
-      />
+      <HomeActivityStatusCard runs={runs} />
       <HomePointGaugeCard
         tracks={pointOverview.tracks}
         selectedTrack={selectedTrack}

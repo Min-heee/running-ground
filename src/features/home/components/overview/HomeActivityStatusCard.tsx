@@ -4,16 +4,28 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import type { MyRunRecord } from '@/domain';
+import { RunPeriodPickerSheet } from '@/features/home/components/overview/RunPeriodPickerSheet';
 import { selectRecentRuns } from '@/features/home/utils/homeRecentRuns';
+import {
+  buildRunPeriodOptions,
+  formatRunPeriodDistanceKm,
+  formatRunPeriodDurationLabel,
+  resolveCurrentPeriodKey,
+  summarizeRunsForPeriod,
+  type RunPeriodMode,
+} from '@/features/home/utils/runPeriodSummary';
 import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
-import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type HomeActivityStatusCardProps = {
-  totalDistanceKm: number;
-  totalRuns: number;
-  streakDays: number;
   runs: MyRunRecord[];
 };
+
+const periodModes: { key: RunPeriodMode; label: string }[] = [
+  { key: 'week', label: '주' },
+  { key: 'month', label: '월' },
+  { key: 'year', label: '년' },
+];
 
 const HomeActivityRunRow = memo(function HomeActivityRunRow({ run }: { run: MyRunRecord }) {
   return (
@@ -31,13 +43,20 @@ const HomeActivityRunRow = memo(function HomeActivityRunRow({ run }: { run: MyRu
   );
 });
 
-function HomeActivityStatusCardImpl({
-  totalDistanceKm,
-  totalRuns,
-  streakDays,
-  runs,
-}: HomeActivityStatusCardProps) {
+function HomeActivityStatusCardImpl({ runs }: HomeActivityStatusCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [nowMs] = useState(() => Date.now());
+  const [mode, setMode] = useState<RunPeriodMode>('week');
+  const [selectedKey, setSelectedKey] = useState(() => resolveCurrentPeriodKey('week', Date.now()));
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const periodOptions = useMemo(() => buildRunPeriodOptions(runs, mode, nowMs), [mode, nowMs, runs]);
+  const selectedOption = useMemo(() => (
+    periodOptions.find((option) => option.key === selectedKey) ?? periodOptions.at(-1) ?? null
+  ), [periodOptions, selectedKey]);
+  const periodSummary = useMemo(
+    () => summarizeRunsForPeriod(runs, selectedOption),
+    [runs, selectedOption],
+  );
   const recentRuns = useMemo(() => selectRecentRuns(runs), [runs]);
   const recentRunRows = useMemo(() => recentRuns.map((run) => (
     <HomeActivityRunRow key={run.id} run={run} />
@@ -45,39 +64,66 @@ function HomeActivityStatusCardImpl({
   const handleToggleExpanded = useCallback(() => {
     setExpanded((current) => !current);
   }, []);
+  const handleOpenPicker = useCallback(() => {
+    setPickerOpen(true);
+  }, []);
+  const handleClosePicker = useCallback(() => {
+    setPickerOpen(false);
+  }, []);
+  const handleSelectPeriod = useCallback((key: string) => {
+    setSelectedKey(key);
+    setPickerOpen(false);
+  }, []);
+  const periodModeButtons = useMemo(() => periodModes.map((periodMode) => {
+    const selected = mode === periodMode.key;
+    const handlePress = () => {
+      setMode(periodMode.key);
+      setSelectedKey(resolveCurrentPeriodKey(periodMode.key, nowMs));
+    };
+
+    return (
+      <Pressable
+        key={periodMode.key}
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        onPress={handlePress}
+        style={[styles.segmentButton, selected ? styles.segmentButtonActive : null]}
+      >
+        <Text style={[styles.segmentText, selected ? styles.segmentTextActive : null]}>{periodMode.label}</Text>
+      </Pressable>
+    );
+  }), [mode, nowMs]);
 
   return (
     <Card style={styles.card}>
+      <View style={styles.headerRow}>
+        <View style={styles.headerCopy}>
+          <Text style={styles.eyebrow}>ACTIVITY</Text>
+          <Text style={styles.sectionTitle}>내 러닝 기록</Text>
+        </View>
+      </View>
+
+      <View style={styles.segmentRow}>{periodModeButtons}</View>
+
+      <Pressable accessibilityRole="button" onPress={handleOpenPicker} style={styles.periodButton}>
+        <Text style={styles.periodLabel}>{selectedOption?.label ?? '기간 선택'}</Text>
+        <Text style={styles.periodChevron}>▾</Text>
+      </Pressable>
+
+      <View style={styles.summaryPanel}>
+        <Text style={styles.distanceValue}>{formatRunPeriodDistanceKm(periodSummary.distanceKm)}km</Text>
+        <Text style={styles.summaryText}>
+          러닝 {periodSummary.runCount}회 · 시간 {formatRunPeriodDurationLabel(periodSummary.durationSeconds)}
+        </Text>
+      </View>
+
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         onPress={handleToggleExpanded}
-        style={styles.summaryButton}
+        style={styles.detailToggleButton}
       >
-        <View style={styles.headerRow}>
-          <View style={styles.headerCopy}>
-            <Text style={styles.eyebrow}>ACTIVITY</Text>
-            <Text style={styles.sectionTitle}>내 러닝 기록</Text>
-          </View>
-          <Text style={styles.toggleText}>{expanded ? '접기' : '자세히'}</Text>
-        </View>
-
-        <View style={styles.statusRow}>
-          <View style={styles.statusMetric}>
-            <Text style={styles.statusLabel}>이번 주 거리</Text>
-            <Text style={styles.statusValue}>{totalDistanceKm}km</Text>
-          </View>
-          <View style={styles.statusDivider} />
-          <View style={styles.statusMetric}>
-            <Text style={styles.statusLabel}>러닝</Text>
-            <Text style={styles.statusValue}>{totalRuns}회</Text>
-          </View>
-          <View style={styles.statusDivider} />
-          <View style={styles.statusMetric}>
-            <Text style={styles.statusLabel}>연속</Text>
-            <Text style={styles.statusValue}>{streakDays}일</Text>
-          </View>
-        </View>
+        <Text style={styles.detailToggleText}>{expanded ? '최근 기록 접기' : '최근 기록 자세히'}</Text>
       </Pressable>
 
       {expanded ? (
@@ -97,6 +143,13 @@ function HomeActivityStatusCardImpl({
           </Link>
         </View>
       ) : null}
+      <RunPeriodPickerSheet
+        onClose={handleClosePicker}
+        onSelect={handleSelectPeriod}
+        options={periodOptions}
+        selectedKey={selectedOption?.key ?? selectedKey}
+        visible={pickerOpen}
+      />
     </Card>
   );
 }
@@ -106,9 +159,6 @@ export const HomeActivityStatusCard = memo(HomeActivityStatusCardImpl);
 const styles = StyleSheet.create({
   card: {
     gap: spacing.s12,
-  },
-  summaryButton: {
-    gap: spacing.s14,
   },
   headerRow: {
     alignItems: 'flex-start',
@@ -131,37 +181,75 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.title,
     fontWeight: fontWeights.extraBold,
   },
-  toggleText: {
+  segmentRow: {
+    backgroundColor: colors.surfaceSoft,
+    borderRadius: radii.pill,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.sm,
+  },
+  segmentButton: {
+    alignItems: 'center',
+    borderRadius: radii.pill,
+    flex: 1,
+    paddingVertical: spacing.s10,
+  },
+  segmentButtonActive: {
+    backgroundColor: colors.textPrimary,
+  },
+  segmentText: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  segmentTextActive: {
+    color: colors.white,
+  },
+  periodButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: colors.brandSoft,
+    borderColor: colors.brandSoftBorder,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.s10,
+  },
+  periodLabel: {
     color: colors.brand,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
-    paddingVertical: spacing.xs,
   },
-  statusRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 0,
-    paddingTop: spacing.xs,
-  },
-  statusMetric: {
-    alignItems: 'center',
-    flex: 1,
-    gap: spacing.sm,
-  },
-  statusLabel: {
-    color: colors.textSecondary,
+  periodChevron: {
+    color: colors.brand,
     fontSize: fontSizes.sm,
-    fontWeight: fontWeights.semibold,
-  },
-  statusValue: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.metric,
     fontWeight: fontWeights.extraBold,
   },
-  statusDivider: {
-    backgroundColor: colors.borderMuted,
-    height: 32,
-    width: 1,
+  summaryPanel: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingVertical: spacing.s10,
+  },
+  distanceValue: {
+    color: colors.textPrimary,
+    fontSize: 34,
+    fontWeight: fontWeights.extraBold,
+  },
+  summaryText: {
+    color: colors.textSecondary,
+    fontWeight: fontWeights.bold,
+  },
+  detailToggleButton: {
+    alignItems: 'center',
+    borderTopColor: colors.borderSoft,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingTop: spacing.s12,
+  },
+  detailToggleText: {
+    color: colors.brand,
+    fontWeight: fontWeights.extraBold,
   },
   detailPanel: {
     borderTopColor: colors.borderSoft,
