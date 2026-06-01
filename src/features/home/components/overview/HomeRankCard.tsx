@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Link, type Href } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { DimensionValue, StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { Card } from '@/components/Card';
 import type { RankState } from '@/domain';
@@ -13,24 +14,27 @@ import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type HomeRankCardProps = {
   rankState?: RankState;
-  compact?: boolean;
+  matchRecord: {
+    totalCount: number;
+    duelCount: number;
+    groupCount: number;
+  };
+  recordHref: Href;
 };
 
-export function HomeRankCard({ rankState, compact = false }: HomeRankCardProps) {
+export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCardProps) {
   const normalizedRankState = useMemo(() => normalizeRankStateForDisplay(rankState), [rankState]);
   const rankLabel = useMemo(() => formatRankLabel(normalizedRankState), [normalizedRankState]);
   const accentColor = RANK_TIER_COLOR[normalizedRankState.tier] ?? colors.brand;
   const progressPercent = Math.max(0, Math.min(100, (normalizedRankState.lp / LP_PER_TIER) * 100));
   const tierBadgeStyle = useMemo<StyleProp<ViewStyle>>(() => [
     styles.tierBadge,
-    compact ? styles.tierBadgeCompact : null,
     { borderColor: accentColor },
-  ], [accentColor, compact]);
+  ], [accentColor]);
   const rankLabelStyle = useMemo<StyleProp<TextStyle>>(() => [
     styles.rankLabel,
-    compact ? styles.rankLabelCompact : null,
     { color: accentColor },
-  ], [accentColor, compact]);
+  ], [accentColor]);
   const progressFillStyle = useMemo<StyleProp<ViewStyle>>(() => [
     styles.lpProgressFill,
     {
@@ -43,7 +47,6 @@ export function HomeRankCard({ rankState, compact = false }: HomeRankCardProps) 
     <Card style={styles.rankCard}>
       <View style={styles.rankHeader}>
         <Text style={styles.sectionEyebrow}>내 랭크</Text>
-        {compact ? null : <Text style={styles.rankHelper}>대결 결과가 LP에 반영돼요</Text>}
       </View>
 
       <View style={styles.rankBody}>
@@ -59,6 +62,18 @@ export function HomeRankCard({ rankState, compact = false }: HomeRankCardProps) 
       <View style={styles.lpProgressTrack}>
         <View style={progressFillStyle} />
       </View>
+
+      <Link href={recordHref} asChild>
+        <Pressable accessibilityRole="button" style={styles.recordFooter}>
+          <View style={styles.recordCopy}>
+            <Text style={styles.recordTitle}>전적</Text>
+            <Text style={styles.recordDetail}>
+              {matchRecord.totalCount}번 대결 · 1대1 {matchRecord.duelCount} · 그룹 {matchRecord.groupCount}
+            </Text>
+          </View>
+          <Text style={styles.recordChevron}>›</Text>
+        </Pressable>
+      </Link>
     </Card>
   );
 }
@@ -66,46 +81,34 @@ export function HomeRankCard({ rankState, compact = false }: HomeRankCardProps) 
 const styles = StyleSheet.create({
   rankCard: {
     gap: spacing.s12,
-    justifyContent: 'space-between',
   },
   rankHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    flexDirection: 'row',
     gap: spacing.s12,
+    justifyContent: 'space-between',
   },
   sectionEyebrow: {
     color: colors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
-  rankHelper: {
-    color: colors.textTertiary,
-    fontSize: fontSizes.xs,
-    fontWeight: fontWeights.bold,
-  },
   rankBody: {
-    flexDirection: 'row',
     alignItems: 'flex-end',
-    justifyContent: 'space-between',
+    flexDirection: 'row',
     gap: spacing.s12,
+    justifyContent: 'space-between',
   },
   tierBadge: {
     backgroundColor: colors.surfaceSubtle,
-    borderWidth: 1,
     borderRadius: radii.cardLarge,
+    borderWidth: 1,
     paddingHorizontal: spacing.s16,
     paddingVertical: spacing.s12,
-  },
-  tierBadgeCompact: {
-    paddingHorizontal: spacing.s12,
   },
   rankLabel: {
     fontSize: fontSizes.pageTitle,
     fontWeight: fontWeights.extraBold,
-  },
-  rankLabelCompact: {
-    fontSize: fontSizes.comingSoon,
   },
   lpText: {
     color: colors.textPrimary,
@@ -119,13 +122,41 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.bold,
   },
   lpProgressTrack: {
-    height: spacing.s10,
     backgroundColor: colors.borderMuted,
     borderRadius: radii.pill,
+    height: spacing.s10,
     overflow: 'hidden',
   },
   lpProgressFill: {
-    height: '100%',
     borderRadius: radii.pill,
+    height: '100%',
+  },
+  recordFooter: {
+    alignItems: 'center',
+    borderTopColor: colors.borderSoft,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    gap: spacing.s12,
+    justifyContent: 'space-between',
+    paddingTop: spacing.s12,
+  },
+  recordCopy: {
+    flex: 1,
+    gap: spacing.xxs,
+  },
+  recordTitle: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+  },
+  recordDetail: {
+    color: colors.textPrimary,
+    fontWeight: fontWeights.extraBold,
+    lineHeight: 20,
+  },
+  recordChevron: {
+    color: colors.textTertiary,
+    fontSize: fontSizes.metric,
+    fontWeight: fontWeights.extraBold,
   },
 });
