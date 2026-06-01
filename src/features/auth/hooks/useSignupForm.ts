@@ -244,7 +244,7 @@ export function useSignupForm() {
         addressDetail,
         birthDate,
       });
-      router.replace('/(tabs)/home');
+      router.replace('/welcome');
     } catch (signupError) {
       const message = getApiErrorMessage(signupError, '회원가입에 실패했어요.');
 
