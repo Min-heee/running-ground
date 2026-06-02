@@ -1,13 +1,22 @@
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
 import { useMatchRecords } from '@/features/match/hooks/useMatchRecords';
-import { MatchRecordRun } from '@/features/match/utils/matchRecordStats';
+import type { MatchRecordRun } from '@/features/match/utils/matchRecordStats';
 import { formatDuration } from '@/features/runs/tracking';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+
+type MatchModeFilter = 'all' | 'duel' | 'group';
+
+const MATCH_MODE_FILTER_OPTIONS = [
+  { key: 'all', label: '전체' },
+  { key: 'duel', label: '1대1' },
+  { key: 'group', label: '그룹' },
+] as const;
 
 const MatchRecordRow = memo(function MatchRecordRow({ run }: { run: MatchRecordRun }) {
   const result = run.matchResult;
@@ -68,12 +77,23 @@ function buildMatchRecordDetail(durationSeconds: number | null | undefined, gapK
 
 export default function MatchRecordScreen() {
   const { activity, error, loading, stats } = useMatchRecords();
+  const [modeFilter, setModeFilter] = useState<MatchModeFilter>('all');
+  const visibleMatchRuns = useMemo(
+    () => modeFilter === 'all'
+      ? stats.matchRuns
+      : stats.matchRuns.filter((run) => run.matchResult?.mode === modeFilter),
+    [modeFilter, stats.matchRuns],
+  );
+  const emptyTitle = modeFilter === 'all' ? '아직 저장된 대결 전적이 없어요.' : '해당 전적이 없어요.';
+  const emptyText = modeFilter === 'all'
+    ? '공식 매칭 대결을 저장하면 여기서 바로 볼 수 있어요.'
+    : '다른 전적 필터를 선택하거나 새 공식 매칭 대결을 저장해보세요.';
 
   return (
     <Screen>
       <AuthHeader
         title="전적 보기"
-        subtitle="매칭과 친구 방 대결 결과를 한 번에 모아봤어요."
+        subtitle="공식 매칭 대결 결과를 한 번에 모아봤어요."
         showBack
         backHref="/(tabs)/mypage"
       />
@@ -101,14 +121,19 @@ export default function MatchRecordScreen() {
 
           <Card style={styles.historyCard}>
             <Text style={styles.sectionTitle}>최근 전적</Text>
-            {stats.matchRuns.length ? (
-              stats.matchRuns.map((run) => (
+            <SegmentedTabs
+              options={MATCH_MODE_FILTER_OPTIONS}
+              value={modeFilter}
+              onChange={setModeFilter}
+            />
+            {visibleMatchRuns.length ? (
+              visibleMatchRuns.map((run) => (
                 <MatchRecordRow key={run.id} run={run} />
               ))
             ) : (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>아직 저장된 대결 전적이 없어요.</Text>
-                <Text style={styles.emptyText}>매칭이나 친구 방 대결을 저장하면 여기서 바로 볼 수 있어요.</Text>
+                <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+                <Text style={styles.emptyText}>{emptyText}</Text>
               </View>
             )}
           </Card>

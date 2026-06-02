@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -6,9 +6,22 @@ import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { ActivityRun, useMyActivity } from '@/features/profile/hooks/useMyActivity';
+import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
+import { useMyActivity } from '@/features/profile/hooks/useMyActivity';
+import type { ActivityRun } from '@/features/profile/hooks/useMyActivity';
+import { getRunKind } from '@/features/runs/utils/runKind';
+import type { RunKind } from '@/features/runs/utils/runKind';
 import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
+
+type ActivityKindFilter = 'all' | RunKind;
+
+const ACTIVITY_KIND_FILTER_OPTIONS = [
+  { key: 'all', label: '전체' },
+  { key: 'solo', label: '혼자러닝' },
+  { key: 'party', label: '파티런' },
+  { key: 'match', label: '매칭대결' },
+] as const;
 
 const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun }) {
   return (
@@ -26,6 +39,17 @@ const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun 
 
 export default function MyActivityScreen() {
   const { activity, activityRuns, error, loading } = useMyActivity();
+  const [kindFilter, setKindFilter] = useState<ActivityKindFilter>('all');
+  const visibleRuns = useMemo(
+    () => kindFilter === 'all'
+      ? activityRuns
+      : activityRuns.filter((run) => getRunKind(run) === kindFilter),
+    [activityRuns, kindFilter],
+  );
+  const emptyTitle = kindFilter === 'all' ? '아직 저장된 러닝 기록이 없어.' : '해당 종류의 기록이 없어.';
+  const emptyText = kindFilter === 'all'
+    ? '첫 기록을 추가하면 홈 게이지와 친구 순위가 바로 움직이기 시작해.'
+    : '전체를 선택하거나 다른 종류의 기록을 확인해봐.';
 
   return (
     <Screen>
@@ -57,16 +81,21 @@ export default function MyActivityScreen() {
             </Card>
           </View>
 
-          <Card>
+          <Card style={styles.historyCard}>
             <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
-            {activityRuns.length > 0 ? (
-              activityRuns.map((run) => (
+            <SegmentedTabs
+              options={ACTIVITY_KIND_FILTER_OPTIONS}
+              value={kindFilter}
+              onChange={setKindFilter}
+            />
+            {visibleRuns.length > 0 ? (
+              visibleRuns.map((run) => (
                 <ActivityRunRow key={run.id} run={run} />
               ))
             ) : (
               <View style={styles.emptyState}>
-                <Text style={styles.emptyTitle}>아직 저장된 러닝 기록이 없어.</Text>
-                <Text style={styles.emptyText}>첫 기록을 추가하면 홈 게이지와 친구 순위가 바로 움직이기 시작해.</Text>
+                <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+                <Text style={styles.emptyText}>{emptyText}</Text>
               </View>
             )}
           </Card>
@@ -97,6 +126,9 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: 24,
     fontWeight: fontWeights.extraBold,
+  },
+  historyCard: {
+    gap: spacing.s10,
   },
   sectionTitle: {
     fontSize: fontSizes.title,

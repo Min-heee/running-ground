@@ -1,4 +1,5 @@
 import type { MyRunRecord } from '@/domain';
+import { isMatchRecordRun } from '@/features/runs/utils/runKind';
 
 export type MatchRecordSummary = {
   totalCount: number;
@@ -14,7 +15,7 @@ export function buildMatchRecordSummary(
   }
 
   return runs.reduce<MatchRecordSummary>((summary, run) => {
-    if (!run.matchResult) {
+    if (!isMatchRecordRun(run)) {
       return summary;
     }
 

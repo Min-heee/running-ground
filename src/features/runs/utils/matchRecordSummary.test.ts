@@ -43,6 +43,29 @@ test('match record summary ignores non-match runs', () => {
   });
 });
 
+test('match record summary excludes party runs from official match record counts', () => {
+  const summary = buildMatchRecordSummary([
+    run({
+      id: 'party-duel',
+      matchResult: { mode: 'duel', source: 'party', title: '', summary: '', badgeLabel: '' },
+    }),
+    run({
+      id: 'official-duel',
+      matchResult: { mode: 'duel', source: 'official', title: '', summary: '', badgeLabel: '' },
+    }),
+    run({
+      id: 'legacy-group',
+      matchResult: { mode: 'group', title: '', summary: '', badgeLabel: '' },
+    }),
+  ]);
+
+  assert.deepEqual(summary, {
+    duelCount: 1,
+    groupCount: 1,
+    totalCount: 2,
+  });
+});
+
 test('match record summary is safe for empty or missing runs', () => {
   assert.deepEqual(buildMatchRecordSummary([]), { duelCount: 0, groupCount: 0, totalCount: 0 });
   assert.deepEqual(buildMatchRecordSummary(null), { duelCount: 0, groupCount: 0, totalCount: 0 });

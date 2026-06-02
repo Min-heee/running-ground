@@ -1,9 +1,10 @@
 import type { MyActivityResponse } from '@/lib/api/types';
+import { isMatchRecordRun } from '@/features/runs/utils/runKind';
 
 export type MatchRecordRun = MyActivityResponse['runs'][number];
 
 export function buildMatchRecordStats(activity: MyActivityResponse | null) {
-  const matchRuns = (activity?.runs ?? []).filter((run) => run.matchResult);
+  const matchRuns = (activity?.runs ?? []).filter(isMatchRecordRun);
   const duelRuns = matchRuns.filter((run) => run.matchResult?.mode === 'duel');
   const groupRuns = matchRuns.filter((run) => run.matchResult?.mode === 'group');
   const duelWins = duelRuns.filter((run) => run.matchResult?.resultTone === 'win').length;
