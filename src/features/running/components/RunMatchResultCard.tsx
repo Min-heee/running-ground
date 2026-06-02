@@ -58,7 +58,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.brandSoft,
     borderWidth: 1,
     borderColor: colors.purpleSoft,
+    flex: 1,
     gap: spacing.s10,
+    justifyContent: 'space-between',
   },
   matchResultHeader: {
     flexDirection: 'row',

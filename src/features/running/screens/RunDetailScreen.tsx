@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   recordDuoRow: {
     flexDirection: 'row',
     gap: spacing.s10,
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
   },
   recordDuoItem: {
     flex: 1,
