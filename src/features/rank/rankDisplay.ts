@@ -14,6 +14,15 @@ export const RANK_TIER_COLOR: Record<string, string> = {
   엘리트: colors.blueStrong,
 };
 
+export const RANK_TIER_SOFT_COLOR: Record<string, string> = {
+  입문: colors.rankIntroSoft,
+  조거: colors.rankJoggerSoft,
+  러너: colors.rankRunnerSoft,
+  페이서: colors.rankPacerSoft,
+  레이서: colors.rankRacerSoft,
+  엘리트: colors.rankEliteSoft,
+};
+
 function isRankTier(value: unknown): value is (typeof RANK_TIERS)[number] {
   return typeof value === 'string' && RANK_TIERS.includes(value as (typeof RANK_TIERS)[number]);
 }

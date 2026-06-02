@@ -3,7 +3,6 @@ import type { MyRunRecord, RankState, WeeklySummary } from '@/domain';
 import { HomeActivityStatusCard } from '@/features/home/components/overview/HomeActivityStatusCard';
 import { HomePointGaugeCard } from '@/features/home/components/overview/HomePointGaugeCard';
 import { HomeRankCard } from '@/features/home/components/overview/HomeRankCard';
-import { HomeRegionBattleCard } from '@/features/home/components/overview/HomeRegionBattleCard';
 import {
   buildHomeOverviewCalendarRows,
   buildHomeOverviewPointHeaderLabel,
@@ -47,11 +46,6 @@ export function HomeOverview({
 
   return (
     <>
-      <HomeRegionBattleCard
-        districtName={summary.districtBattle.myDistrict}
-        districtRank={summary.districtBattle.districtRank}
-        totalDistanceKm={summary.districtBattle.totalDistanceKm}
-      />
       <HomeRankCard rankState={rankState} matchRecord={matchRecordSummary} recordHref="/match-record" />
       <HomeActivityStatusCard runs={runs} />
       <HomePointGaugeCard

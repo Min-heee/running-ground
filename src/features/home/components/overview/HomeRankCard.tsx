@@ -8,7 +8,9 @@ import {
   formatRankLabel,
   LP_PER_TIER,
   normalizeRankStateForDisplay,
+  RANK_TIERS,
   RANK_TIER_COLOR,
+  RANK_TIER_SOFT_COLOR,
 } from '@/features/rank/rankDisplay';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
@@ -26,7 +28,19 @@ export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCar
   const normalizedRankState = useMemo(() => normalizeRankStateForDisplay(rankState), [rankState]);
   const rankLabel = useMemo(() => formatRankLabel(normalizedRankState), [normalizedRankState]);
   const accentColor = RANK_TIER_COLOR[normalizedRankState.tier] ?? colors.brand;
+  const softColor = RANK_TIER_SOFT_COLOR[normalizedRankState.tier] ?? colors.surfaceSubtle;
   const progressPercent = Math.max(0, Math.min(100, (normalizedRankState.lp / LP_PER_TIER) * 100));
+  const tierIndex = RANK_TIERS.indexOf(normalizedRankState.tier as (typeof RANK_TIERS)[number]);
+  const isMaxTier = tierIndex === RANK_TIERS.length - 1;
+  const lpToNext = Math.max(0, LP_PER_TIER - normalizedRankState.lp);
+  const nextTierLabel = isMaxTier ? '최고 티어' : `다음 티어까지 ${lpToNext} LP`;
+  const rankCardStyle = useMemo<StyleProp<ViewStyle>>(() => [
+    styles.rankCard,
+    {
+      backgroundColor: softColor,
+      borderColor: accentColor,
+    },
+  ], [accentColor, softColor]);
   const tierBadgeStyle = useMemo<StyleProp<ViewStyle>>(() => [
     styles.tierBadge,
     { borderColor: accentColor },
@@ -44,14 +58,14 @@ export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCar
   ], [accentColor, progressPercent]);
 
   return (
-    <Card style={styles.rankCard}>
+    <Card style={rankCardStyle}>
       <View style={styles.rankHeader}>
         <Text style={styles.sectionEyebrow}>내 랭크</Text>
       </View>
 
       <View style={styles.rankBody}>
         <View style={tierBadgeStyle}>
-          <Text style={rankLabelStyle}>{rankLabel}</Text>
+          <Text style={rankLabelStyle}>◆ {rankLabel}</Text>
         </View>
         <Text style={styles.lpText}>
           {normalizedRankState.lp}
@@ -62,6 +76,7 @@ export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCar
       <View style={styles.lpProgressTrack}>
         <View style={progressFillStyle} />
       </View>
+      <Text style={styles.nextTierLabel}>{nextTierLabel}</Text>
 
       <Link href={recordHref} asChild>
         <Pressable accessibilityRole="button" style={styles.recordFooter}>
@@ -80,6 +95,7 @@ export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCar
 
 const styles = StyleSheet.create({
   rankCard: {
+    borderWidth: 1,
     gap: spacing.s12,
   },
   rankHeader: {
@@ -100,9 +116,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   tierBadge: {
-    backgroundColor: colors.surfaceSubtle,
+    backgroundColor: colors.white,
     borderRadius: radii.cardLarge,
-    borderWidth: 1,
+    borderWidth: 2,
     paddingHorizontal: spacing.s16,
     paddingVertical: spacing.s12,
   },
@@ -112,8 +128,8 @@ const styles = StyleSheet.create({
   },
   lpText: {
     color: colors.textPrimary,
-    fontSize: fontSizes.display,
-    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.heroLarge,
+    fontWeight: fontWeights.black,
     paddingBottom: spacing.sm,
   },
   lpUnit: {
@@ -130,6 +146,11 @@ const styles = StyleSheet.create({
   lpProgressFill: {
     borderRadius: radii.pill,
     height: '100%',
+  },
+  nextTierLabel: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   recordFooter: {
     alignItems: 'center',
