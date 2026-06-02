@@ -7,6 +7,7 @@ import { routeRaceRequest } from './raceRoutes.mjs';
 import { routeRunningMatchRequest } from './runningMatchRoutes.mjs';
 import { routeRunRequest } from './runRoutes.mjs';
 import { routeSocialRequest } from './socialRoutes.mjs';
+import { routeUserRequest } from './userRoutes.mjs';
 
 const ROUTE_HANDLERS = [
   routeHealthRequest,
@@ -14,6 +15,7 @@ const ROUTE_HANDLERS = [
   routeAuthRequest,
   routeRunningMatchRequest,
   routeRunRequest,
+  routeUserRequest,
   routeMarketRequest,
   routeRaceRequest,
   routeSocialRequest,
