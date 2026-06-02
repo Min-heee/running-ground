@@ -1,18 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { FriendsRanking } from '@/features/friends/FriendsRanking';
 import { fetchFriendLeaderboard, fetchMyProfile } from '@/lib/api/services';
-import { FriendLeaderboardResponse, MyProfileResponse } from '@/lib/api/types';
+import { FriendLeaderboardResponse } from '@/lib/api/types';
+import { FriendRequest, UserProfile } from '@/domain/types';
 import { InfoCard } from '@/components/ui/InfoCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/Card';
-import { FriendRequest } from '@/domain/types';
+import { ErrorBanner } from '@/components/ui/ErrorBanner';
+import { Tappable } from '@/components/ui/Tappable';
+import { colors, radius } from '@/theme';
 
 export default function FriendsScreen() {
   const [leaderboard, setLeaderboard] = useState<FriendLeaderboardResponse | null>(null);
-  const [profile, setProfile] = useState<MyProfileResponse | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [requests, setRequests] = useState<FriendRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,23 +35,31 @@ export default function FriendsScreen() {
   const received = useMemo(() => requests.filter((request) => request.status === 'received'), [requests]);
   const accepted = useMemo(() => requests.filter((request) => request.status === 'accepted'), [requests]);
 
-  const handleAccept = (requestId: string) => {
+  const handleAccept = useCallback((requestId: string) => {
     setRequests((prev) => prev.map((request) => (
       request.id === requestId ? { ...request, status: 'accepted' } : request
     )));
-  };
+  }, []);
+
+  const ranks = leaderboard?.ranks;
+  const handleOpenFriend = useCallback((request: FriendRequest) => {
+    const friendId = ranks?.find((rank) => rank.tag === request.tag)?.id ?? request.id;
+    router.push({ pathname: '/friend-detail', params: { id: friendId } });
+  }, [ranks]);
+
+  const handleAddFriend = useCallback(() => router.push('/add-friend'), []);
 
   return (
     <Screen>
       <View style={styles.headerWrap}>
         <PageHeader title="친구 랭킹" subtitle="친구들과 주간 거리와 포인트를 비교해볼 수 있어." />
-        <Pressable style={styles.addButton} onPress={() => router.push('/add-friend')}>
+        <Tappable style={styles.addButton} onPress={handleAddFriend}>
           <Text style={styles.addButtonText}>친구 추가하기</Text>
-        </Pressable>
+        </Tappable>
       </View>
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
-      {error ? <Text>{error}</Text> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brandPrimary} /> : null}
+      {error ? <ErrorBanner message={error} /> : null}
 
       {leaderboard && profile ? (
         <>
@@ -65,26 +76,10 @@ export default function FriendsScreen() {
           <Card>
             <Text style={styles.sectionTitle}>친구 요청 상태</Text>
             {received.map((request) => (
-              <View key={request.id} style={styles.requestRow}>
-                <View style={styles.requestMeta}>
-                  <Text style={styles.requestName}>{request.name}</Text>
-                  <Text style={styles.requestDetail}>{request.tag} · 나에게 친구 요청 보냄</Text>
-                </View>
-                <Pressable style={styles.acceptButton} onPress={() => handleAccept(request.id)}>
-                  <Text style={styles.acceptButtonText}>수락</Text>
-                </Pressable>
-              </View>
+              <ReceivedRow key={request.id} request={request} onAccept={handleAccept} />
             ))}
             {pending.map((request) => (
-              <View key={request.id} style={styles.requestRow}>
-                <View style={styles.requestMeta}>
-                  <Text style={styles.requestName}>{request.name}</Text>
-                  <Text style={styles.requestDetail}>{request.tag} · 수락 대기중</Text>
-                </View>
-                <View style={styles.pendingBadge}>
-                  <Text style={styles.pendingBadgeText}>대기중</Text>
-                </View>
-              </View>
+              <PendingRow key={request.id} request={request} />
             ))}
             {received.length === 0 && pending.length === 0 ? (
               <Text style={styles.emptyText}>처리할 친구 요청이 없어.</Text>
@@ -94,13 +89,7 @@ export default function FriendsScreen() {
           <Card>
             <Text style={styles.sectionTitle}>친구 구경가기</Text>
             {accepted.map((request) => (
-              <Pressable key={request.id} style={styles.compareRow} onPress={() => router.push('/friend-detail')}>
-                <View style={styles.requestMeta}>
-                  <Text style={styles.requestName}>{request.name}</Text>
-                  <Text style={styles.requestDetail}>{request.tag} · 친구가 뛴 기록 보러가기</Text>
-                </View>
-                <Text style={styles.compareLink}>보기</Text>
-              </Pressable>
+              <AcceptedRow key={request.id} request={request} onOpen={handleOpenFriend} />
             ))}
           </Card>
         </>
@@ -109,41 +98,93 @@ export default function FriendsScreen() {
   );
 }
 
+const ReceivedRow = memo(function ReceivedRow({
+  request,
+  onAccept,
+}: {
+  request: FriendRequest;
+  onAccept: (id: string) => void;
+}) {
+  return (
+    <View style={styles.requestRow}>
+      <View style={styles.requestMeta}>
+        <Text style={styles.requestName}>{request.name}</Text>
+        <Text style={styles.requestDetail}>{request.tag} · 나에게 친구 요청 보냄</Text>
+      </View>
+      <Tappable style={styles.acceptButton} onPress={() => onAccept(request.id)}>
+        <Text style={styles.acceptButtonText}>수락</Text>
+      </Tappable>
+    </View>
+  );
+});
+
+const PendingRow = memo(function PendingRow({ request }: { request: FriendRequest }) {
+  return (
+    <View style={styles.requestRow}>
+      <View style={styles.requestMeta}>
+        <Text style={styles.requestName}>{request.name}</Text>
+        <Text style={styles.requestDetail}>{request.tag} · 수락 대기중</Text>
+      </View>
+      <View style={styles.pendingBadge}>
+        <Text style={styles.pendingBadgeText}>대기중</Text>
+      </View>
+    </View>
+  );
+});
+
+const AcceptedRow = memo(function AcceptedRow({
+  request,
+  onOpen,
+}: {
+  request: FriendRequest;
+  onOpen: (request: FriendRequest) => void;
+}) {
+  return (
+    <Tappable style={styles.compareRow} onPress={() => onOpen(request)}>
+      <View style={styles.requestMeta}>
+        <Text style={styles.requestName}>{request.name}</Text>
+        <Text style={styles.requestDetail}>{request.tag} · 친구가 뛴 기록 보러가기</Text>
+      </View>
+      <Text style={styles.compareLink}>보기</Text>
+    </Tappable>
+  );
+});
+
 const styles = StyleSheet.create({
   headerWrap: { gap: 12 },
   addButton: {
-    backgroundColor: '#6D5EF7',
-    borderRadius: 16,
+    backgroundColor: colors.brandPrimary,
+    borderRadius: radius.lg,
     paddingVertical: 14,
     alignItems: 'center',
   },
   addButtonText: {
-    color: '#FFFFFF',
+    color: colors.textOnDark,
     fontWeight: '800',
     fontSize: 15,
   },
   heroRankingCard: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.inkBg,
     gap: 6,
   },
   heroLabel: {
-    color: '#C7D2FE',
+    color: colors.brandPrimaryMuted,
     fontSize: 12,
     fontWeight: '700',
   },
   heroTitle: {
-    color: '#FFFFFF',
+    color: colors.textOnDark,
     fontSize: 28,
     fontWeight: '800',
   },
   heroSub: {
-    color: '#D0D5DD',
+    color: colors.textOnDarkMuted,
     lineHeight: 20,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   requestRow: {
     flexDirection: 'row',
@@ -152,7 +193,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSubtle,
   },
   compareRow: {
     flexDirection: 'row',
@@ -161,45 +202,45 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSubtle,
   },
   requestMeta: {
     flex: 1,
     gap: 2,
   },
   requestName: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   requestDetail: {
-    color: '#667085',
+    color: colors.textMuted,
   },
   acceptButton: {
-    backgroundColor: '#6D5EF7',
-    borderRadius: 12,
+    backgroundColor: colors.brandPrimary,
+    borderRadius: radius.sm,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   acceptButtonText: {
-    color: '#FFFFFF',
+    color: colors.textOnDark,
     fontWeight: '800',
   },
   pendingBadge: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 12,
+    backgroundColor: colors.brandPrimarySoft,
+    borderRadius: radius.sm,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   pendingBadgeText: {
-    color: '#4F46E5',
+    color: colors.brandPrimaryDark,
     fontWeight: '800',
   },
   compareLink: {
-    color: '#6D5EF7',
+    color: colors.brandPrimary,
     fontWeight: '800',
   },
   emptyText: {
-    color: '#667085',
+    color: colors.textMuted,
     marginTop: 10,
   },
 });

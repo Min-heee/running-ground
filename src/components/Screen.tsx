@@ -1,10 +1,15 @@
 import { PropsWithChildren } from 'react';
 import { SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { colors } from '@/theme';
 
 export function Screen({ children }: PropsWithChildren) {
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews
+      >
         <View style={styles.inner}>{children}</View>
       </ScrollView>
     </SafeAreaView>
@@ -14,7 +19,7 @@ export function Screen({ children }: PropsWithChildren) {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#F5F7FB',
+    backgroundColor: colors.surfaceApp,
   },
   content: {
     paddingBottom: 120,

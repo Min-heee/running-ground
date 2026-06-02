@@ -5,6 +5,7 @@ import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { InfoCard } from '@/components/ui/InfoCard';
+import { colors, radius } from '@/theme';
 
 const features = [
   '친구와 주간 랭킹 경쟁',
@@ -45,16 +46,16 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   hero: {
-    backgroundColor: '#6D5EF7',
+    backgroundColor: colors.brandPrimary,
     borderRadius: 28,
     padding: 24,
     gap: 10,
     minHeight: 240,
     justifyContent: 'flex-end',
   },
-  logo: { color: '#E9E7FF', fontWeight: '800', fontSize: 13 },
-  title: { color: '#FFFFFF', fontSize: 30, fontWeight: '800', lineHeight: 38 },
-  subtitle: { color: '#F4F3FF', lineHeight: 22 },
+  logo: { color: colors.brandPrimaryTint, fontWeight: '800', fontSize: 13 },
+  title: { color: colors.textOnDark, fontSize: 30, fontWeight: '800', lineHeight: 38 },
+  subtitle: { color: colors.brandPrimaryHero, lineHeight: 22 },
   featureList: { gap: 14 },
   featureRow: {
     flexDirection: 'row',
@@ -64,12 +65,12 @@ const styles = StyleSheet.create({
   dot: {
     width: 10,
     height: 10,
-    borderRadius: 99,
-    backgroundColor: '#6D5EF7',
+    borderRadius: radius.full,
+    backgroundColor: colors.brandPrimary,
   },
   featureText: {
     flex: 1,
-    color: '#101828',
+    color: colors.textTitle,
     fontWeight: '700',
   },
   actions: { gap: 10 },

@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { colors } from '@/theme';
 
 export function PageHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
@@ -16,10 +17,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#101828',
+    color: colors.textTitle,
   },
   subtitle: {
-    color: '#475467',
+    color: colors.textSecondary,
     lineHeight: 21,
   },
 });

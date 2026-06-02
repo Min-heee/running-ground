@@ -7,24 +7,23 @@ import {
   myRunRecords,
   weeklySummary,
 } from '@/data/mock';
+import { UserProfile, WeeklySummary } from '@/domain/types';
 import { apiGet } from './client';
 import { USE_MOCK_API } from './config';
 import {
   FriendActivityResponse,
   FriendLeaderboardResponse,
-  HomeSummaryResponse,
   IntegrationStatusResponse,
   MyActivityResponse,
-  MyProfileResponse,
   RunDetailResponse,
 } from './types';
 
-export async function fetchHomeSummary(): Promise<HomeSummaryResponse> {
+export async function fetchHomeSummary(): Promise<WeeklySummary> {
   if (USE_MOCK_API) {
     return weeklySummary;
   }
 
-  return apiGet<HomeSummaryResponse>('/home/summary');
+  return apiGet<WeeklySummary>('/home/summary');
 }
 
 export async function fetchMyActivity(): Promise<MyActivityResponse> {
@@ -50,17 +49,18 @@ export async function fetchFriendLeaderboard(): Promise<FriendLeaderboardRespons
   return apiGet<FriendLeaderboardResponse>('/friends/leaderboard');
 }
 
-export async function fetchFriendActivity(): Promise<FriendActivityResponse> {
+export async function fetchFriendActivity(friendId: string): Promise<FriendActivityResponse> {
   if (USE_MOCK_API) {
+    const friend = friendRanks.find((rank) => rank.id === friendId) ?? friendRanks[0];
     return {
-      friend: friendRanks[0],
+      friend,
       runs: friendRunRecords,
       monthlyDistanceKm: Number(friendRunRecords.reduce((sum, run) => sum + run.distanceKm, 0).toFixed(1)),
-      monthlyPoints: friendRanks[0].points,
+      monthlyPoints: friend.points,
     };
   }
 
-  return apiGet<FriendActivityResponse>('/friends/1/activity');
+  return apiGet<FriendActivityResponse>(`/friends/${encodeURIComponent(friendId)}/activity`);
 }
 
 export async function fetchIntegrationStatus(): Promise<IntegrationStatusResponse> {
@@ -73,17 +73,17 @@ export async function fetchIntegrationStatus(): Promise<IntegrationStatusRespons
   return apiGet<IntegrationStatusResponse>('/integrations/sources');
 }
 
-export async function fetchMyProfile(): Promise<MyProfileResponse> {
+export async function fetchMyProfile(): Promise<UserProfile> {
   if (USE_MOCK_API) {
     return myProfile;
   }
 
-  return apiGet<MyProfileResponse>('/me/profile');
+  return apiGet<UserProfile>('/me/profile');
 }
 
-export async function fetchRunDetail(): Promise<RunDetailResponse> {
+export async function fetchRunDetail(runId: string): Promise<RunDetailResponse> {
   if (USE_MOCK_API) {
-    const run = myRunRecords[0];
+    const run = myRunRecords.find((record) => record.id === runId) ?? myRunRecords[0];
     return {
       run,
       weeklyDistanceKm: weeklySummary.totalDistanceKm,
@@ -92,5 +92,5 @@ export async function fetchRunDetail(): Promise<RunDetailResponse> {
     };
   }
 
-  return apiGet<RunDetailResponse>('/runs/latest');
+  return apiGet<RunDetailResponse>(`/runs/${encodeURIComponent(runId)}`);
 }

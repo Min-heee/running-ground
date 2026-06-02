@@ -1,4 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { colors } from '@/theme';
 
 export function AuthHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -12,7 +13,7 @@ export function AuthHeader({ title, subtitle }: { title: string; subtitle: strin
 
 const styles = StyleSheet.create({
   header: { gap: 8, paddingTop: 10 },
-  logo: { color: '#6D5EF7', fontWeight: '800', fontSize: 13 },
-  title: { fontSize: 32, fontWeight: '800', color: '#101828' },
-  subtitle: { color: '#475467', lineHeight: 22 },
+  logo: { color: colors.brandPrimary, fontWeight: '800', fontSize: 13 },
+  title: { fontSize: 32, fontWeight: '800', color: colors.textTitle },
+  subtitle: { color: colors.textSecondary, lineHeight: 22 },
 });

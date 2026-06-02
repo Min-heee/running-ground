@@ -1,6 +1,4 @@
-import { ConnectedSource, FriendRank, FriendRequest, FriendRunRecord, MyRunRecord, UserProfile, WeeklySummary } from '@/domain/types';
-
-export type HomeSummaryResponse = WeeklySummary;
+import { ConnectedSource, FriendRank, FriendRequest, FriendRunRecord, MyRunRecord } from '@/domain/types';
 
 export type MyActivityResponse = {
   runs: MyRunRecord[];
@@ -15,18 +13,14 @@ export type FriendLeaderboardResponse = {
 
 export type FriendActivityResponse = {
   friend: FriendRank;
-  runs: FriendRunRecordsResponse;
+  runs: FriendRunRecord[];
   monthlyDistanceKm: number;
   monthlyPoints: number;
 };
 
-export type FriendRunRecordsResponse = FriendRunRecord[];
-
 export type IntegrationStatusResponse = {
   sources: ConnectedSource[];
 };
-
-export type MyProfileResponse = UserProfile;
 
 export type RunDetailResponse = {
   run: MyRunRecord;

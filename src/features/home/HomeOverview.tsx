@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { WeeklySummary } from '@/domain/types';
+import { colors, radius } from '@/theme';
 
 export function HomeOverview({ summary }: { summary: WeeklySummary }) {
   return (
@@ -116,25 +117,25 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 const styles = StyleSheet.create({
   headerCard: {
-    backgroundColor: '#6D5EF7',
-    borderRadius: 24,
+    backgroundColor: colors.brandPrimary,
+    borderRadius: radius.xxxl,
     padding: 20,
     gap: 8,
   },
-  eyebrow: { color: '#E9E7FF', fontWeight: '700', fontSize: 12 },
-  title: { fontSize: 28, fontWeight: '800', color: '#FFFFFF' },
-  subtitle: { color: '#F4F3FF', lineHeight: 21 },
+  eyebrow: { color: colors.brandPrimaryTint, fontWeight: '700', fontSize: 12 },
+  title: { fontSize: 28, fontWeight: '800', color: colors.textOnDark },
+  subtitle: { color: colors.brandPrimaryHero, lineHeight: 21 },
   heroBattleCard: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.inkBg,
     gap: 10,
   },
   heroLabel: {
-    color: '#C7D2FE',
+    color: colors.brandPrimaryMuted,
     fontWeight: '700',
     fontSize: 12,
   },
   heroDistrict: {
-    color: '#FFFFFF',
+    color: colors.textOnDark,
     fontSize: 30,
     fontWeight: '800',
   },
@@ -144,31 +145,31 @@ const styles = StyleSheet.create({
   },
   heroMetricBox: {
     flex: 1,
-    backgroundColor: '#1F2937',
-    borderRadius: 16,
+    backgroundColor: colors.inkBgAlt,
+    borderRadius: radius.lg,
     padding: 14,
     gap: 4,
   },
   heroMetricValue: {
-    color: '#FFFFFF',
+    color: colors.textOnDark,
     fontSize: 22,
     fontWeight: '800',
   },
   heroMetricLabel: {
-    color: '#D0D5DD',
+    color: colors.textOnDarkMuted,
   },
   heroFootnote: {
-    color: '#98A2B3',
+    color: colors.textOnDarkSubtle,
     lineHeight: 20,
   },
   heroAction: {
-    backgroundColor: '#6D5EF7',
-    borderRadius: 14,
+    backgroundColor: colors.brandPrimary,
+    borderRadius: radius.md,
     paddingVertical: 12,
     alignItems: 'center',
   },
   heroActionText: {
-    color: '#FFFFFF',
+    color: colors.textOnDark,
     fontWeight: '800',
   },
   quickActionGrid: {
@@ -178,31 +179,31 @@ const styles = StyleSheet.create({
   },
   quickActionCard: {
     width: '47%',
-    backgroundColor: '#F8F7FF',
-    borderRadius: 16,
+    backgroundColor: colors.brandPrimaryGhost,
+    borderRadius: radius.lg,
     padding: 14,
     gap: 4,
     borderWidth: 1,
-    borderColor: '#E9E7FF',
+    borderColor: colors.brandPrimaryTint,
   },
   quickActionTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
   },
   quickActionSub: {
-    color: '#667085',
+    color: colors.textMuted,
     fontSize: 13,
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   metric: {
     width: '47%',
-    backgroundColor: '#F2F4F7',
-    borderRadius: 16,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: radius.lg,
     padding: 12,
     gap: 4,
   },
-  metricLabel: { color: '#667085', fontSize: 12 },
-  metricValue: { color: '#111827', fontSize: 20, fontWeight: '800' },
+  metricLabel: { color: colors.textMuted, fontSize: 12 },
+  metricValue: { color: colors.textPrimary, fontSize: 20, fontWeight: '800' },
   twoColumnRow: {
     flexDirection: 'row',
     gap: 10,
@@ -214,7 +215,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 132,
   },
-  body: { color: '#101828', fontSize: 16, fontWeight: '700' },
-  highlight: { color: '#6D5EF7', fontSize: 24, fontWeight: '800' },
-  muted: { color: '#667085', lineHeight: 20 },
+  body: { color: colors.textTitle, fontSize: 16, fontWeight: '700' },
+  highlight: { color: colors.brandPrimary, fontSize: 24, fontWeight: '800' },
+  muted: { color: colors.textMuted, lineHeight: 20 },
 });

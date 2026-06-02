@@ -7,6 +7,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import { colors, radius } from '@/theme';
 
 export default function ConnectSourcesScreen() {
   const recommended = connectedSources.filter((source) => ['apple_health', 'health_connect', 'manual'].includes(source.sourceType));
@@ -47,7 +48,7 @@ export default function ConnectSourcesScreen() {
 }
 
 const styles = StyleSheet.create({
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: colors.textPrimary },
   list: { gap: 12, marginTop: 8 },
   sourceRow: {
     flexDirection: 'row',
@@ -55,26 +56,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  sourceName: { color: '#101828', fontWeight: '700' },
-  sourceDetail: { color: '#667085', marginTop: 2 },
+  sourceName: { color: colors.textTitle, fontWeight: '700' },
+  sourceDetail: { color: colors.textMuted, marginTop: 2 },
   badge: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 999,
+    backgroundColor: colors.brandPrimarySoft,
+    borderRadius: radius.full,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   badgeConnected: {
-    backgroundColor: '#ECFDF3',
-    borderRadius: 999,
+    backgroundColor: colors.successBg,
+    borderRadius: radius.full,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   badgeText: {
-    color: '#4F46E5',
+    color: colors.brandPrimaryDark,
     fontWeight: '700',
   },
   badgeConnectedText: {
-    color: '#067647',
+    color: colors.success,
     fontWeight: '700',
   },
   actions: { gap: 10 },

@@ -3,9 +3,11 @@ import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-nati
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { fetchIntegrationStatus } from '@/lib/api/services';
 import { IntegrationStatusResponse } from '@/lib/api/types';
+import { colors, radius } from '@/theme';
 
 export default function IntegrationManagementScreen() {
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatusResponse | null>(null);
@@ -21,13 +23,18 @@ export default function IntegrationManagementScreen() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!syncDone) return;
+    const timer = setTimeout(() => setSyncDone(false), 2000);
+    return () => clearTimeout(timer);
+  }, [syncDone]);
+
   const handleSync = () => {
     setSyncing(true);
     setSyncDone(false);
     setTimeout(() => {
       setSyncing(false);
       setSyncDone(true);
-      setTimeout(() => setSyncDone(false), 2000);
     }, 1000);
   };
 
@@ -38,8 +45,8 @@ export default function IntegrationManagementScreen() {
     <Screen>
       <AuthHeader title="기록 연동 관리" subtitle="러닝 기록이 들어오는 소스를 관리하고 연결 상태를 확인할 수 있어." />
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
-      {error ? <Text>{error}</Text> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brandPrimary} /> : null}
+      {error ? <ErrorBanner message={error} /> : null}
 
       {integrationStatus ? (
         <>
@@ -91,16 +98,16 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   summaryText: {
-    color: '#475467',
+    color: colors.textSecondary,
     lineHeight: 21,
     marginTop: 8,
     marginBottom: 12,
   },
   successText: {
-    color: '#067647',
+    color: colors.success,
     fontWeight: '700',
     marginTop: 10,
   },
@@ -111,30 +118,30 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSubtle,
   },
   meta: { flex: 1, gap: 2 },
-  name: { color: '#111827', fontWeight: '700' },
-  detail: { color: '#667085' },
-  platform: { color: '#6D5EF7', fontWeight: '700', fontSize: 12 },
+  name: { color: colors.textPrimary, fontWeight: '700' },
+  detail: { color: colors.textMuted },
+  platform: { color: colors.brandPrimary, fontWeight: '700', fontSize: 12 },
   manageButton: {
-    backgroundColor: '#EEF2FF',
-    borderRadius: 12,
+    backgroundColor: colors.brandPrimarySoft,
+    borderRadius: radius.sm,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   manageButtonText: {
-    color: '#4F46E5',
+    color: colors.brandPrimaryDark,
     fontWeight: '800',
   },
   plannedBadge: {
-    backgroundColor: '#FFF7ED',
-    borderRadius: 12,
+    backgroundColor: colors.warningBg,
+    borderRadius: radius.sm,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
   plannedBadgeText: {
-    color: '#C2410C',
+    color: colors.warningText,
     fontWeight: '800',
   },
 });

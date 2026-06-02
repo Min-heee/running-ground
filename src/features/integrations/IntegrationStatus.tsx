@@ -2,6 +2,7 @@ import { StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
 import { ConnectedSource } from '@/domain/types';
+import { colors } from '@/theme';
 
 export function IntegrationStatus({ sources }: { sources: ConnectedSource[] }) {
   const connected = sources.filter((source) => source.connected);
@@ -27,5 +28,5 @@ export function IntegrationStatus({ sources }: { sources: ConnectedSource[] }) {
 }
 
 const styles = StyleSheet.create({
-  row: { color: '#344054', paddingVertical: 8, fontWeight: '600' },
+  row: { color: colors.textBody, paddingVertical: 8, fontWeight: '600' },
 });

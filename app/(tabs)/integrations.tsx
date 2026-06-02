@@ -3,6 +3,7 @@ import { Screen } from '@/components/Screen';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
 import { connectedSources } from '@/data/mock';
 import { Card } from '@/components/Card';
+import { colors } from '@/theme';
 
 export default function IntegrationsScreen() {
   return (
@@ -24,8 +25,8 @@ export default function IntegrationsScreen() {
 
 const styles = StyleSheet.create({
   header: { gap: 6 },
-  title: { fontSize: 28, fontWeight: '800', color: '#101828' },
-  subtitle: { color: '#475467', lineHeight: 21 },
-  tipTitle: { fontSize: 16, fontWeight: '800', color: '#111827' },
-  tipBody: { color: '#475467', lineHeight: 21, marginTop: 6 },
+  title: { fontSize: 28, fontWeight: '800', color: colors.textTitle },
+  subtitle: { color: colors.textSecondary, lineHeight: 21 },
+  tipTitle: { fontSize: 16, fontWeight: '800', color: colors.textPrimary },
+  tipBody: { color: colors.textSecondary, lineHeight: 21, marginTop: 6 },
 });

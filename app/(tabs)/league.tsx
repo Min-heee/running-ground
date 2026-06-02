@@ -7,6 +7,7 @@ import { regionDrilldownTree } from '@/data/mock';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
 import { RegionDrilldownNode } from '@/domain/types';
+import { colors, radius } from '@/theme';
 
 const FEATURED_REGION_COUNT = 6;
 
@@ -14,17 +15,21 @@ export default function LeagueScreen() {
   const [path, setPath] = useState<RegionDrilldownNode[]>([regionDrilldownTree]);
   const [showAllRegions, setShowAllRegions] = useState(false);
   const currentNode = path[path.length - 1];
-  const children = currentNode.children ?? [];
   const isCountry = currentNode.level === 'country';
 
   const breadcrumb = useMemo(() => path.map((node) => node.name).join(' > '), [path]);
 
-  const sortedChildren = useMemo(() => [...children].sort((a, b) => a.rank - b.rank), [children]);
+  const sortedChildren = useMemo(
+    () => [...(currentNode.children ?? [])].sort((a, b) => a.rank - b.rank),
+    [currentNode],
+  );
 
   const visibleChildren = useMemo(() => {
     if (!isCountry || showAllRegions) return sortedChildren;
     return sortedChildren.slice(0, FEATURED_REGION_COUNT);
   }, [sortedChildren, isCountry, showAllRegions]);
+
+  const childCount = sortedChildren.length;
 
   return (
     <Screen>
@@ -47,7 +52,7 @@ export default function LeagueScreen() {
           </View>
         </View>
         {isCountry ? (
-          <Text style={styles.heroFootnote}>참여율 {currentNode.participationRate}% · 하위 지역 {children.length}개</Text>
+          <Text style={styles.heroFootnote}>참여율 {currentNode.participationRate}% · 하위 지역 {childCount}개</Text>
         ) : null}
       </Card>
 
@@ -71,7 +76,7 @@ export default function LeagueScreen() {
                 <Text style={styles.regionMeta}>회원수 {node.participants}명</Text>
               </Pressable>
             ))}
-            {children.length === 0 ? (
+            {childCount === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyTitle}>더 내려갈 지역이 없어요</Text>
                 <Text style={styles.emptyText}>현재 선택된 지역의 순위와 평균 km를 아래에서 확인하면 돼.</Text>
@@ -79,7 +84,7 @@ export default function LeagueScreen() {
             ) : null}
           </View>
 
-          {isCountry && children.length > FEATURED_REGION_COUNT ? (
+          {isCountry && childCount > FEATURED_REGION_COUNT ? (
             <Pressable style={styles.toggleButton} onPress={() => setShowAllRegions((prev) => !prev)}>
               <Text style={styles.toggleButtonText}>{showAllRegions ? '대표 지역만 보기' : '전체 지역 보기'}</Text>
             </Pressable>
@@ -114,8 +119,8 @@ export default function LeagueScreen() {
       ) : null}
 
       <Card>
-        <SectionTitle>{children.length > 0 ? '하위 지역 순위' : '현재 지역 정보'}</SectionTitle>
-        {(children.length > 0 ? visibleChildren : [currentNode]).map((node) => (
+        <SectionTitle>{childCount > 0 ? '하위 지역 순위' : '현재 지역 정보'}</SectionTitle>
+        {(childCount > 0 ? visibleChildren : [currentNode]).map((node) => (
           <View key={node.id} style={styles.rankRow}>
             <Text style={styles.rankNumber}>{node.rank}</Text>
             <View style={styles.rankMeta}>
@@ -131,21 +136,21 @@ export default function LeagueScreen() {
 
 const styles = StyleSheet.create({
   heroCard: {
-    backgroundColor: '#6D5EF7',
+    backgroundColor: colors.brandPrimary,
     gap: 10,
   },
   heroLabel: {
-    color: '#E9E7FF',
+    color: colors.brandPrimaryTint,
     fontWeight: '700',
     fontSize: 12,
   },
   heroTitle: {
-    color: '#FFFFFF',
+    color: colors.textOnDark,
     fontSize: 30,
     fontWeight: '800',
   },
   breadcrumb: {
-    color: '#E9E7FF',
+    color: colors.brandPrimaryTint,
     lineHeight: 20,
   },
   heroMetrics: {
@@ -154,21 +159,21 @@ const styles = StyleSheet.create({
   },
   heroMetricBox: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderRadius: 16,
+    backgroundColor: colors.overlayWhiteSoft,
+    borderRadius: radius.lg,
     padding: 14,
     gap: 4,
   },
   heroMetricValue: {
-    color: '#FFFFFF',
+    color: colors.textOnDark,
     fontSize: 22,
     fontWeight: '800',
   },
   heroMetricLabel: {
-    color: '#E9E7FF',
+    color: colors.brandPrimaryTint,
   },
   heroFootnote: {
-    color: '#E9E7FF',
+    color: colors.brandPrimaryTint,
     lineHeight: 20,
   },
   selectorWrap: {
@@ -176,13 +181,13 @@ const styles = StyleSheet.create({
   },
   backButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandPrimarySoft,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderRadius: 14,
+    borderRadius: radius.md,
   },
   backButtonText: {
-    color: '#4F46E5',
+    color: colors.brandPrimaryDark,
     fontWeight: '800',
   },
   regionGrid: {
@@ -192,12 +197,12 @@ const styles = StyleSheet.create({
   },
   regionCard: {
     width: '47%',
-    backgroundColor: '#F8F7FF',
-    borderRadius: 16,
+    backgroundColor: colors.brandPrimaryGhost,
+    borderRadius: radius.lg,
     padding: 12,
     gap: 4,
     borderWidth: 1,
-    borderColor: '#E9E7FF',
+    borderColor: colors.brandPrimaryTint,
     minHeight: 92,
     position: 'relative',
   },
@@ -205,52 +210,52 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 10,
     left: 10,
-    backgroundColor: '#6D5EF7',
-    borderRadius: 999,
+    backgroundColor: colors.brandPrimary,
+    borderRadius: radius.full,
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
   rankBadgeText: {
-    color: '#FFFFFF',
+    color: colors.textOnDark,
     fontSize: 11,
     fontWeight: '800',
   },
   regionName: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
     fontSize: 14,
     marginTop: 26,
   },
   regionMeta: {
-    color: '#667085',
+    color: colors.textMuted,
     fontSize: 12,
   },
   toggleButton: {
     alignSelf: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: '#D0D5DD',
-    borderRadius: 999,
+    borderColor: colors.border,
+    borderRadius: radius.full,
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
   toggleButtonText: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   emptyState: {
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.lg,
     padding: 16,
     gap: 6,
     width: '100%',
   },
   emptyTitle: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
   },
   emptyText: {
-    color: '#667085',
+    color: colors.textMuted,
     lineHeight: 20,
   },
   summaryGrid: {
@@ -260,18 +265,18 @@ const styles = StyleSheet.create({
   },
   summaryBox: {
     flex: 1,
-    backgroundColor: '#F2F4F7',
-    borderRadius: 16,
+    backgroundColor: colors.surfaceSubtle,
+    borderRadius: radius.lg,
     padding: 14,
     gap: 4,
   },
   summaryValue: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   summaryLabel: {
-    color: '#667085',
+    color: colors.textMuted,
   },
   rankRow: {
     flexDirection: 'row',
@@ -279,22 +284,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSubtle,
   },
   rankNumber: {
     width: 24,
     fontWeight: '800',
-    color: '#344054',
+    color: colors.textBody,
   },
   rankMeta: {
     flex: 1,
     gap: 2,
   },
   rankName: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   rankDetail: {
-    color: '#667085',
+    color: colors.textMuted,
   },
 });

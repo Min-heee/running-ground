@@ -3,6 +3,8 @@
     "name": "runnigapp",
     "slug": "runnigapp",
     "scheme": "runnigapp",
+    "jsEngine": "hermes",
+    "newArchEnabled": true,
     "plugins": ["expo-router"],
     "experiments": {
       "typedRoutes": true

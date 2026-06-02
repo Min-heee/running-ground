@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, TextInput, Pressable } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
@@ -6,15 +6,27 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
 import { myProfile, friendRequests } from '@/data/mock';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { colors, radius } from '@/theme';
 
 export default function AddFriendScreen() {
   const [friendTag, setFriendTag] = useState('');
   const [copied, setCopied] = useState(false);
   const [added, setAdded] = useState(false);
 
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  useEffect(() => {
+    if (!added) return;
+    const timer = setTimeout(() => setAdded(false), 2000);
+    return () => clearTimeout(timer);
+  }, [added]);
+
   const handleCopy = () => {
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
   };
 
   const handleAddFriend = () => {
@@ -22,7 +34,6 @@ export default function AddFriendScreen() {
       return;
     }
     setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
   };
 
   const pendingCount = friendRequests.filter((request) => request.status === 'pending').length;
@@ -53,7 +64,7 @@ export default function AddFriendScreen() {
         <View style={styles.form}>
           <TextInput
             placeholder="예: #AB7K2"
-            placeholderTextColor="#98A2B3"
+            placeholderTextColor={colors.textPlaceholder}
             style={styles.input}
             autoCapitalize="characters"
             value={friendTag}
@@ -74,11 +85,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   tagBox: {
-    backgroundColor: '#F5F3FF',
-    borderRadius: 18,
+    backgroundColor: colors.brandPrimaryAlt,
+    borderRadius: radius.xl,
     padding: 16,
     gap: 8,
     marginTop: 8,
@@ -86,27 +97,27 @@ const styles = StyleSheet.create({
   tag: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#6D5EF7',
+    color: colors.brandPrimary,
   },
   tagHint: {
-    color: '#667085',
+    color: colors.textMuted,
     lineHeight: 20,
   },
   copyButton: {
     alignSelf: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    backgroundColor: colors.surfaceCard,
+    borderRadius: radius.md,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: '#DDD6FE',
+    borderColor: colors.brandPrimaryDeep,
   },
   copyButtonText: {
-    color: '#6D5EF7',
+    color: colors.brandPrimary,
     fontWeight: '800',
   },
   statusText: {
-    color: '#475467',
+    color: colors.textSecondary,
     lineHeight: 21,
     marginTop: 8,
   },
@@ -115,20 +126,20 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 16,
+    borderColor: colors.borderInput,
+    borderRadius: radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: '#111827',
+    color: colors.textPrimary,
   },
   helperText: {
-    color: '#667085',
+    color: colors.textMuted,
     fontWeight: '600',
   },
   successText: {
-    color: '#067647',
+    color: colors.success,
     fontWeight: '700',
     lineHeight: 20,
   },

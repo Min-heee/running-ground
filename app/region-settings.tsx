@@ -4,6 +4,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { colors, radius } from '@/theme';
 
 const regions = ['강남구', '서초구', '송파구', '마포구', '성동구'];
 
@@ -39,29 +40,29 @@ export default function RegionSettingsScreen() {
 const styles = StyleSheet.create({
   list: { gap: 10 },
   regionRow: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 16,
+    borderColor: colors.borderInput,
+    borderRadius: radius.lg,
     padding: 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   regionRowSelected: {
-    backgroundColor: '#F5F3FF',
-    borderColor: '#C7D2FE',
+    backgroundColor: colors.brandPrimaryAlt,
+    borderColor: colors.brandPrimaryMuted,
   },
   regionName: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   regionMeta: {
-    color: '#667085',
+    color: colors.textMuted,
     marginTop: 4,
   },
   selectedText: {
-    color: '#6D5EF7',
+    color: colors.brandPrimary,
     fontWeight: '800',
   },
 });

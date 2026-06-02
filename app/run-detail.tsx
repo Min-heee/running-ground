@@ -1,27 +1,38 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { ErrorBanner } from '@/components/ui/ErrorBanner';
 import { fetchRunDetail } from '@/lib/api/services';
 import { RunDetailResponse } from '@/lib/api/types';
+import { colors } from '@/theme';
 
 export default function RunDetailScreen() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
   const [runDetail, setRunDetail] = useState<RunDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchRunDetail()
+    if (!id) {
+      setError('어떤 기록인지 알 수 없어.');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    fetchRunDetail(id)
       .then((data) => setRunDetail(data))
       .catch(() => setError('기록 상세 정보를 불러오지 못했어.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [id]);
 
   return (
     <Screen>
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
-      {error ? <Text>{error}</Text> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brandPrimary} /> : null}
+      {error ? <ErrorBanner message={error} /> : null}
 
       {runDetail ? (
         <>
@@ -60,21 +71,21 @@ export default function RunDetailScreen() {
 
 const styles = StyleSheet.create({
   heroCard: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.inkBg,
     gap: 8,
   },
   heroLabel: {
-    color: '#C7D2FE',
+    color: colors.brandPrimaryMuted,
     fontSize: 12,
     fontWeight: '700',
   },
   heroTitle: {
-    color: '#FFFFFF',
+    color: colors.textOnDark,
     fontSize: 28,
     fontWeight: '800',
   },
   heroSub: {
-    color: '#98A2B3',
+    color: colors.textOnDarkSubtle,
     fontWeight: '700',
   },
   summaryRow: {
@@ -85,18 +96,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   summaryLabel: {
-    color: '#667085',
+    color: colors.textMuted,
     fontWeight: '700',
   },
   summaryValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: '800',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   detailRow: {
     flexDirection: 'row',
@@ -104,14 +115,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSubtle,
   },
   detailLabel: {
-    color: '#667085',
+    color: colors.textMuted,
     fontWeight: '700',
   },
   detailValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
 });

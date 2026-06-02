@@ -1,20 +1,36 @@
+import { useState } from 'react';
 import { StyleSheet, Text, View, Pressable, TextInput } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { InfoCard } from '@/components/ui/InfoCard';
+import { SocialAuthButtons } from '@/components/ui/SocialAuthButtons';
 import { signIn } from '@/lib/session';
-
-const providers = [
-  { id: 'kakao', label: '카카오톡으로 로그인하기', buttonStyle: 'kakao' },
-  { id: 'google', label: 'Google로 로그인하기', buttonStyle: 'google' },
-  { id: 'apple', label: 'Apple로 로그인하기', buttonStyle: 'apple' },
-  { id: 'naver', label: '네이버로 로그인하기', buttonStyle: 'naver' },
-] as const;
+import { colors, radius } from '@/theme';
 
 export default function LoginScreen() {
-  const handleLogin = async () => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleAccountLogin = async () => {
+    if (!username.trim() || !password) {
+      setFormError('아이디와 비밀번호를 모두 입력해줘.');
+      return;
+    }
+    setFormError(null);
+    setSubmitting(true);
+    try {
+      await signIn();
+      router.push('/connect-sources');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSocialLogin = async () => {
     await signIn();
     router.push('/connect-sources');
   };
@@ -28,9 +44,28 @@ export default function LoginScreen() {
       <Card>
         <Text style={styles.sectionTitle}>계정으로 로그인</Text>
         <View style={styles.form}>
-          <TextInput placeholder="아이디" placeholderTextColor="#98A2B3" style={styles.input} autoCapitalize="none" />
-          <TextInput placeholder="비밀번호" placeholderTextColor="#98A2B3" style={styles.input} secureTextEntry />
-          <Pressable style={styles.accountButton} onPress={handleLogin}>
+          <TextInput
+            placeholder="아이디"
+            placeholderTextColor={colors.textPlaceholder}
+            style={styles.input}
+            autoCapitalize="none"
+            value={username}
+            onChangeText={setUsername}
+          />
+          <TextInput
+            placeholder="비밀번호"
+            placeholderTextColor={colors.textPlaceholder}
+            style={styles.input}
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
+          {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
+          <Pressable
+            style={[styles.accountButton, submitting && styles.accountButtonDisabled]}
+            onPress={handleAccountLogin}
+            disabled={submitting}
+          >
             <Text style={styles.accountButtonText}>로그인하고 연동 단계로</Text>
           </Pressable>
         </View>
@@ -38,22 +73,15 @@ export default function LoginScreen() {
 
       <Card>
         <Text style={styles.sectionTitle}>간편 로그인</Text>
-        <View style={styles.socialButtons}>
-          {providers.map((provider) => {
-            const isDarkText = provider.buttonStyle === 'kakao' || provider.buttonStyle === 'google';
-            return (
-              <Pressable key={provider.id} style={getButtonStyle(provider.buttonStyle)} onPress={handleLogin}>
-                <Text style={isDarkText ? styles.darkButtonText : styles.lightButtonText}>{provider.label}</Text>
-              </Pressable>
-            );
-          })}
+        <View style={styles.socialWrap}>
+          <SocialAuthButtons intent="login" onSocialPress={handleSocialLogin} />
         </View>
       </Card>
 
       <View style={styles.footer}>
         <Text style={styles.footerText}>처음이신가요?</Text>
         <Link href="/signup" asChild>
-          <Pressable>
+          <Pressable hitSlop={8}>
             <Text style={styles.footerLink}>회원가입</Text>
           </Pressable>
         </Link>
@@ -62,91 +90,40 @@ export default function LoginScreen() {
   );
 }
 
-function getButtonStyle(type: 'kakao' | 'google' | 'apple' | 'naver') {
-  switch (type) {
-    case 'kakao':
-      return styles.kakaoButton;
-    case 'google':
-      return styles.googleButton;
-    case 'apple':
-      return styles.appleButton;
-    case 'naver':
-      return styles.naverButton;
-  }
-}
-
 const styles = StyleSheet.create({
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#111827' },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: colors.textPrimary },
   form: { gap: 12, marginTop: 8 },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 16,
+    borderColor: colors.borderInput,
+    borderRadius: radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: '#111827',
+    color: colors.textPrimary,
   },
   accountButton: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: colors.brandPrimarySoft,
     borderWidth: 1,
-    borderColor: '#C7D2FE',
-    borderRadius: 16,
+    borderColor: colors.brandPrimaryMuted,
+    borderRadius: radius.lg,
     paddingVertical: 15,
     alignItems: 'center',
   },
+  accountButtonDisabled: {
+    opacity: 0.6,
+  },
   accountButtonText: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '800',
     fontSize: 15,
   },
-  socialButtons: { gap: 10, marginTop: 8 },
-  kakaoButton: {
-    backgroundColor: '#FEE500',
-    borderWidth: 1,
-    borderColor: '#FEE500',
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    alignItems: 'center',
+  errorText: {
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: '600',
   },
-  googleButton: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#D0D5DD',
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-  },
-  appleButton: {
-    backgroundColor: '#111111',
-    borderWidth: 1,
-    borderColor: '#111111',
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-  },
-  naverButton: {
-    backgroundColor: '#03C75A',
-    borderWidth: 1,
-    borderColor: '#03C75A',
-    borderRadius: 18,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-  },
-  darkButtonText: {
-    color: '#111827',
-    fontWeight: '800',
-    fontSize: 16,
-  },
-  lightButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 16,
-  },
+  socialWrap: { marginTop: 8 },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -154,10 +131,10 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   footerText: {
-    color: '#667085',
+    color: colors.textMuted,
   },
   footerLink: {
-    color: '#6D5EF7',
+    color: colors.brandPrimary,
     fontWeight: '700',
   },
 });

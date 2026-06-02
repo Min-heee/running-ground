@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { ErrorBanner } from '@/components/ui/ErrorBanner';
+import { Tappable } from '@/components/ui/Tappable';
 import { MyActivityResponse } from '@/lib/api/types';
 import { fetchMyActivity } from '@/lib/api/services';
+import { colors } from '@/theme';
 
 export default function MyActivityScreen() {
   const [activity, setActivity] = useState<MyActivityResponse | null>(null);
@@ -23,8 +26,8 @@ export default function MyActivityScreen() {
     <Screen>
       <AuthHeader title="내 활동" subtitle="내가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어." />
 
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
-      {error ? <Text>{error}</Text> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brandPrimary} /> : null}
+      {error ? <ErrorBanner message={error} /> : null}
 
       {activity ? (
         <>
@@ -42,14 +45,14 @@ export default function MyActivityScreen() {
           <Card>
             <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
             {activity.runs.map((run) => (
-              <Link key={run.id} href="/run-detail" asChild>
-                <Pressable style={styles.recordRow}>
+              <Link key={run.id} href={{ pathname: '/run-detail', params: { id: run.id } }} asChild>
+                <Tappable style={styles.recordRow}>
                   <View style={styles.recordMeta}>
                     <Text style={styles.recordDate}>{run.date}</Text>
                     <Text style={styles.recordDetail}>{run.distanceKm}km · 페이스 {run.pace} · {run.source}</Text>
                   </View>
                   <Text style={styles.recordLink}>보기</Text>
-                </Pressable>
+                </Tappable>
               </Link>
             ))}
           </Card>
@@ -68,23 +71,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   summaryLabel: {
-    color: '#667085',
+    color: colors.textMuted,
     fontWeight: '700',
   },
   summaryValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: '800',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   recordRow: {
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSubtle,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -95,14 +98,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   recordDate: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   recordDetail: {
-    color: '#667085',
+    color: colors.textMuted,
   },
   recordLink: {
-    color: '#6D5EF7',
+    color: colors.brandPrimary,
     fontWeight: '800',
   },
 });

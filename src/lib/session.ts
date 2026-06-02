@@ -1,24 +1,17 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 const SESSION_STORAGE_KEY = 'runnigapp.mock.session';
+const SIGNED_IN_VALUE = 'signed-in';
 
 let mockSignedIn = false;
 
-function getStorage() {
-  if (typeof globalThis === 'undefined' || !('localStorage' in globalThis)) {
-    return null;
-  }
-
-  return globalThis.localStorage;
-}
-
 export async function hydrateSession() {
-  const storage = getStorage();
-
-  if (!storage) {
-    return mockSignedIn;
+  try {
+    const storedValue = await AsyncStorage.getItem(SESSION_STORAGE_KEY);
+    mockSignedIn = storedValue === SIGNED_IN_VALUE;
+  } catch {
+    mockSignedIn = false;
   }
-
-  const storedValue = storage.getItem(SESSION_STORAGE_KEY);
-  mockSignedIn = storedValue === 'signed-in';
   return mockSignedIn;
 }
 
@@ -28,12 +21,10 @@ export function getIsSignedIn() {
 
 export async function signIn() {
   mockSignedIn = true;
-  const storage = getStorage();
-  storage?.setItem(SESSION_STORAGE_KEY, 'signed-in');
+  await AsyncStorage.setItem(SESSION_STORAGE_KEY, SIGNED_IN_VALUE);
 }
 
 export async function signOut() {
   mockSignedIn = false;
-  const storage = getStorage();
-  storage?.removeItem(SESSION_STORAGE_KEY);
+  await AsyncStorage.removeItem(SESSION_STORAGE_KEY);
 }

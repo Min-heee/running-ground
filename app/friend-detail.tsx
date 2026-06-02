@@ -1,28 +1,39 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
-import { Link } from 'expo-router';
+import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { Link, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { ErrorBanner } from '@/components/ui/ErrorBanner';
+import { Tappable } from '@/components/ui/Tappable';
 import { fetchFriendActivity } from '@/lib/api/services';
 import { FriendActivityResponse } from '@/lib/api/types';
+import { colors } from '@/theme';
 
 export default function FriendDetailScreen() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
   const [activity, setActivity] = useState<FriendActivityResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchFriendActivity()
+    if (!id) {
+      setError('어떤 친구인지 알 수 없어.');
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    fetchFriendActivity(id)
       .then((data) => setActivity(data))
       .catch(() => setError('친구 활동 정보를 불러오지 못했어.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [id]);
 
   return (
     <Screen>
-      {loading ? <ActivityIndicator size="large" color="#6D5EF7" /> : null}
-      {error ? <Text>{error}</Text> : null}
+      {loading ? <ActivityIndicator size="large" color={colors.brandPrimary} /> : null}
+      {error ? <ErrorBanner message={error} /> : null}
 
       {activity ? (
         <>
@@ -48,14 +59,14 @@ export default function FriendDetailScreen() {
           <Card>
             <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
             {activity.runs.map((run) => (
-              <Link key={run.id} href="/run-detail" asChild>
-                <Pressable style={styles.recordRow}>
+              <Link key={run.id} href={{ pathname: '/run-detail', params: { id: run.id } }} asChild>
+                <Tappable style={styles.recordRow}>
                   <View style={styles.recordMeta}>
                     <Text style={styles.recordDate}>{run.date}</Text>
                     <Text style={styles.recordDetail}>{run.distanceKm}km · 페이스 {run.pace}</Text>
                   </View>
                   <Text style={styles.recordLink}>보기</Text>
-                </Pressable>
+                </Tappable>
               </Link>
             ))}
           </Card>
@@ -67,21 +78,21 @@ export default function FriendDetailScreen() {
 
 const styles = StyleSheet.create({
   heroCard: {
-    backgroundColor: '#111827',
+    backgroundColor: colors.inkBg,
     gap: 8,
   },
   heroLabel: {
-    color: '#C7D2FE',
+    color: colors.brandPrimaryMuted,
     fontSize: 12,
     fontWeight: '700',
   },
   heroTitle: {
-    color: '#FFFFFF',
+    color: colors.textOnDark,
     fontSize: 28,
     fontWeight: '800',
   },
   heroTag: {
-    color: '#98A2B3',
+    color: colors.textOnDarkSubtle,
     fontWeight: '700',
   },
   summaryRow: {
@@ -92,23 +103,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   summaryLabel: {
-    color: '#667085',
+    color: colors.textMuted,
     fontWeight: '700',
   },
   summaryValue: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontSize: 24,
     fontWeight: '800',
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#111827',
+    color: colors.textPrimary,
   },
   recordRow: {
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EAECF0',
+    borderBottomColor: colors.borderSubtle,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -119,14 +130,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   recordDate: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   recordDetail: {
-    color: '#667085',
+    color: colors.textMuted,
   },
   recordLink: {
-    color: '#6D5EF7',
+    color: colors.brandPrimary,
     fontWeight: '800',
   },
 });

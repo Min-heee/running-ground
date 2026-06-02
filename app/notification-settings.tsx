@@ -4,6 +4,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { colors, radius } from '@/theme';
 
 export default function NotificationSettingsScreen() {
   const [friendAlerts, setFriendAlerts] = useState(true);
@@ -44,10 +45,10 @@ function ToggleRow({ label, active, onPress }: { label: string; active: boolean;
 const styles = StyleSheet.create({
   list: { gap: 10 },
   row: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surfaceCard,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 16,
+    borderColor: colors.borderInput,
+    borderRadius: radius.lg,
     padding: 14,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -55,33 +56,33 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   rowActive: {
-    backgroundColor: '#F5F3FF',
-    borderColor: '#C7D2FE',
+    backgroundColor: colors.brandPrimaryAlt,
+    borderColor: colors.brandPrimaryMuted,
   },
   rowMeta: { flex: 1, gap: 4 },
   rowLabel: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
   },
   rowStatus: {
-    color: '#667085',
+    color: colors.textMuted,
   },
   toggle: {
     width: 48,
     height: 28,
-    borderRadius: 99,
-    backgroundColor: '#D0D5DD',
+    borderRadius: radius.full,
+    backgroundColor: colors.border,
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
   toggleActive: {
-    backgroundColor: '#6D5EF7',
+    backgroundColor: colors.brandPrimary,
   },
   knob: {
     width: 20,
     height: 20,
-    borderRadius: 99,
-    backgroundColor: '#FFFFFF',
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceCard,
   },
   knobActive: {
     marginLeft: 20,

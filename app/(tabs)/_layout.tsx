@@ -1,12 +1,13 @@
 import { Tabs } from 'expo-router';
 import { Text } from 'react-native';
+import { colors } from '@/theme';
 
 function TabIcon({ label, focused }: { label: string; focused: boolean }) {
   return (
     <Text
       style={{
         fontSize: 18,
-        color: focused ? '#6D5EF7' : '#98A2B3',
+        color: focused ? colors.brandPrimary : colors.textPlaceholder,
         fontWeight: '700',
       }}
     >
@@ -20,16 +21,18 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#6D5EF7',
-        tabBarInactiveTintColor: '#98A2B3',
+        lazy: true,
+        freezeOnBlur: true,
+        tabBarActiveTintColor: colors.brandPrimary,
+        tabBarInactiveTintColor: colors.textPlaceholder,
         tabBarStyle: {
           height: 78,
           paddingTop: 8,
           paddingBottom: 12,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.surfaceCard,
           borderTopWidth: 1,
-          borderTopColor: '#EAECF0',
-          elevation: 12,
+          borderTopColor: colors.borderSubtle,
+          elevation: 6,
         },
         tabBarLabelStyle: {
           fontSize: 12,

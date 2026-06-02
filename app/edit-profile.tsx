@@ -1,17 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View, TextInput } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { myProfile } from '@/data/mock';
+import { colors, radius } from '@/theme';
 
 export default function EditProfileScreen() {
   const [saved, setSaved] = useState(false);
 
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => setSaved(false), 1500);
+    return () => clearTimeout(timer);
+  }, [saved]);
+
   const handleSave = () => {
     setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
   };
 
   return (
@@ -35,7 +41,7 @@ function Input({ label, value, editable = true }: { label: string; value: string
   return (
     <View style={styles.inputGroup}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput value={value} editable={editable} style={[styles.input, !editable && styles.disabledInput]} placeholderTextColor="#98A2B3" />
+      <TextInput value={value} editable={editable} style={[styles.input, !editable && styles.disabledInput]} placeholderTextColor={colors.textPlaceholder} />
     </View>
   );
 }
@@ -44,25 +50,25 @@ const styles = StyleSheet.create({
   form: { gap: 14 },
   inputGroup: { gap: 8 },
   label: {
-    color: '#111827',
+    color: colors.textPrimary,
     fontWeight: '700',
     fontSize: 15,
   },
   input: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 16,
+    borderColor: colors.borderInput,
+    borderRadius: radius.lg,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: '#111827',
+    color: colors.textPrimary,
   },
   disabledInput: {
-    color: '#98A2B3',
-    backgroundColor: '#F2F4F7',
+    color: colors.textPlaceholder,
+    backgroundColor: colors.surfaceSubtle,
   },
   savedText: {
-    color: '#067647',
+    color: colors.success,
     fontWeight: '700',
   },
 });
