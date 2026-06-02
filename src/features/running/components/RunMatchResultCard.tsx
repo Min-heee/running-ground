@@ -10,67 +10,45 @@ type MatchResult = NonNullable<RunRecord['matchResult']>;
 
 type RunMatchResultCardProps = {
   matchResult: MatchResult;
-  matchBonusPoints: number;
 };
 
-export function RunMatchResultCard({ matchResult, matchBonusPoints }: RunMatchResultCardProps) {
+export function RunMatchResultCard({ matchResult }: RunMatchResultCardProps) {
   const lpDelta = getEstimatedMatchLpDelta(matchResult);
   const isLpGain = lpDelta > 0;
   const lpPillStyle = isLpGain ? matchResultLpGainPillStyle : matchResultLpLossPillStyle;
   const lpPillTextStyle = isLpGain ? matchResultLpGainPillTextStyle : matchResultLpLossPillTextStyle;
+  const badgeStyle = [
+    styles.matchResultBadge,
+    matchResult.resultTone === 'win'
+      ? styles.matchResultBadgeWin
+      : matchResult.resultTone === 'lose'
+        ? styles.matchResultBadgeLose
+        : matchResult.resultTone === 'draw'
+          ? styles.matchResultBadgeDraw
+          : null,
+  ];
+  const metaText = typeof matchResult.gapKm === 'number'
+    ? `차이 ${matchResult.gapKm.toFixed(2)}km`
+    : typeof matchResult.rank === 'number' && typeof matchResult.participantCount === 'number'
+      ? `${matchResult.participantCount}명 중 ${matchResult.rank}위`
+      : null;
 
   return (
     <Card style={styles.matchResultCard}>
       <View style={styles.matchResultHeader}>
-        <View>
-          <Text style={styles.matchResultLabel}>
-            {matchResult.mode === 'duel' ? '1대1 대결 결과' : '그룹 대결 결과'}
-          </Text>
-          <Text style={styles.matchResultTitle}>{matchResult.title}</Text>
-        </View>
-        <View
-          style={[
-            styles.matchResultBadge,
-            matchResult.resultTone === 'win'
-              ? styles.matchResultBadgeWin
-              : matchResult.resultTone === 'lose'
-                ? styles.matchResultBadgeLose
-                : matchResult.resultTone === 'draw'
-                  ? styles.matchResultBadgeDraw
-                  : null,
-          ]}
-        >
+        <Text style={styles.matchResultTitle}>대결</Text>
+        <View style={badgeStyle}>
           <Text style={styles.matchResultBadgeText}>{matchResult.badgeLabel}</Text>
         </View>
       </View>
-      <Text style={styles.matchResultSummary}>{matchResult.summary}</Text>
-      <View style={styles.matchResultRewardRow}>
-        {lpDelta ? (
-          <View style={lpPillStyle}>
-            <Text style={lpPillTextStyle}>
-              랭크 {isLpGain ? '+' : ''}{lpDelta} LP
-            </Text>
-          </View>
-        ) : null}
-        <View style={styles.matchResultPointPill}>
-          <Text style={styles.matchResultPointPillText}>매치 포인트 +{matchBonusPoints}P</Text>
+      {lpDelta ? (
+        <View style={lpPillStyle}>
+          <Text style={lpPillTextStyle}>
+            랭크 {isLpGain ? '+' : ''}{lpDelta} LP
+          </Text>
         </View>
-      </View>
-      <View style={styles.matchResultMetaRow}>
-        {matchResult.opponentName ? (
-          <Text style={styles.matchResultMeta}>상대 {matchResult.opponentName}</Text>
-        ) : null}
-        {typeof matchResult.rank === 'number' && typeof matchResult.participantCount === 'number' ? (
-          <Text style={styles.matchResultMeta}>
-            {matchResult.participantCount}명 중 {matchResult.rank}위
-          </Text>
-        ) : null}
-        {typeof matchResult.gapKm === 'number' ? (
-          <Text style={styles.matchResultMeta}>
-            거리 차이 {matchResult.gapKm.toFixed(2)}km
-          </Text>
-        ) : null}
-      </View>
+      ) : null}
+      {metaText ? <Text style={styles.matchResultMeta}>{metaText}</Text> : null}
     </Card>
   );
 }
@@ -85,25 +63,20 @@ const styles = StyleSheet.create({
   matchResultHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     gap: spacing.s12,
-  },
-  matchResultLabel: {
-    color: colors.brand,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extraBold,
   },
   matchResultTitle: {
     color: colors.textPrimary,
     fontSize: fontSizes.title,
     fontWeight: fontWeights.extraBold,
-    marginTop: spacing.sm,
   },
   matchResultBadge: {
-    minWidth: 70,
+    minWidth: 64,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.pill,
-    paddingHorizontal: spacing.s14,
+    paddingHorizontal: spacing.s12,
     paddingVertical: spacing.s10,
     backgroundColor: colors.textPrimary,
   },
@@ -120,17 +93,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
-  },
-  matchResultSummary: {
-    color: colors.textStrongMuted,
-    fontWeight: fontWeights.bold,
-    lineHeight: 20,
-  },
-  matchResultRewardRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: spacing.sm,
   },
   matchResultLpPill: {
     alignSelf: 'flex-start',
@@ -156,23 +118,6 @@ const styles = StyleSheet.create({
   },
   matchResultLpPillTextLoss: {
     color: colors.danger,
-  },
-  matchResultPointPill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing.s12,
-    paddingVertical: spacing.xxl,
-    borderRadius: radii.pill,
-    backgroundColor: colors.brandWash,
-  },
-  matchResultPointPillText: {
-    color: colors.brandDeep,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extraBold,
-  },
-  matchResultMetaRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xxl,
   },
   matchResultMeta: {
     color: colors.textMuted,

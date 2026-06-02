@@ -90,14 +90,18 @@ export default function RunDetailScreen() {
             distanceKm={runDetail.run.distanceKm}
           />
 
-          <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
-
           {matchResult ? (
-            <RunMatchResultCard
-              matchResult={matchResult}
-              matchBonusPoints={runDetail.pointBreakdown.matchBonusPoints}
-            />
-          ) : null}
+            <View style={styles.recordDuoRow}>
+              <View style={styles.recordDuoItem}>
+                <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
+              </View>
+              <View style={styles.recordDuoItem}>
+                <RunMatchResultCard matchResult={matchResult} />
+              </View>
+            </View>
+          ) : (
+            <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
+          )}
 
           {mapRegion ? (
             <Card style={styles.mapCard}>
@@ -155,5 +159,13 @@ const styles = StyleSheet.create({
     borderRadius: radii.xl,
     overflow: 'hidden',
     backgroundColor: colors.borderMuted,
+  },
+  recordDuoRow: {
+    flexDirection: 'row',
+    gap: spacing.s10,
+    alignItems: 'flex-start',
+  },
+  recordDuoItem: {
+    flex: 1,
   },
 });
