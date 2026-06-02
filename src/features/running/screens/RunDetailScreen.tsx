@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { Platform, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
@@ -103,7 +103,7 @@ export default function RunDetailScreen() {
             <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
           )}
 
-          {mapRegion ? (
+          {mapRegion && Platform.OS !== 'android' ? (
             <Card style={styles.mapCard}>
               <Text style={styles.sectionTitle}>러닝 경로</Text>
               <View style={styles.mapWrap}>
