@@ -41,6 +41,7 @@ type UseRunForfeitCommandInput = Pick<
   | 'trackedMatchResult'
 > & {
   handleSaveTracking: (options?: SaveTrackingOptions) => Promise<boolean>;
+  isPartyRun: boolean;
   isSaving: boolean;
   setMatchLeaving: (source: MatchExitSource, isLeaving: boolean) => void;
 };
@@ -53,6 +54,7 @@ export function useRunForfeitCommand({
   groupMatchStatus,
   getDisplayedTrackingSnapshot,
   handleSaveTracking,
+  isPartyRun,
   isTabMode,
   isSaving,
   loadUpcomingMatches,
@@ -125,6 +127,7 @@ export function useRunForfeitCommand({
         ? buildCurrentUserForfeitMatchResult({
             currentDistanceKm: displayedSnapshot.distanceKm,
             mode: source,
+            source: isPartyRun ? 'party' : 'official',
             trackedMatchResult,
           })
         : undefined,

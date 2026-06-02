@@ -24,6 +24,7 @@ function snapshot(overrides?: Partial<DisplayedTrackingSnapshot>): DisplayedTrac
 test('run save result mapper preserves tracked run payload shape', () => {
   const result = buildRunSaveResultSnapshot({
     displayedSnapshot: snapshot(),
+    matchSource: 'official',
     totalSteps: 3_000,
     trackedMatchResult: {
       mode: 'duel',
@@ -41,6 +42,7 @@ test('run save result mapper preserves tracked run payload shape', () => {
   assert.equal(result.createRunInput.startedAt, '2026-05-15T00:00:00.000Z');
   assert.equal(result.createRunInput.endedAt, '2026-05-15T00:30:00.000Z');
   assert.equal(result.createRunInput.matchResult?.mode, 'duel');
+  assert.equal(result.createRunInput.matchResult?.source, 'official');
   assert.equal(result.averagePaceLabel, result.createRunInput.pace);
 });
 
@@ -72,6 +74,7 @@ test('current user forfeit match result always stores duel loss even when distan
   const result = buildCurrentUserForfeitMatchResult({
     currentDistanceKm: 0.08,
     mode: 'duel',
+    source: 'party',
     trackedMatchResult: {
       mode: 'duel',
       title: '상대를 이겼어요',
@@ -90,6 +93,7 @@ test('current user forfeit match result always stores duel loss even when distan
   assert.match(result.title, /기권/);
   assert.match(result.summary, /기권 패/);
   assert.equal(result.opponentName, '상대');
+  assert.equal(result.source, 'party');
 });
 
 test('forfeit override can be persisted through the save payload', () => {

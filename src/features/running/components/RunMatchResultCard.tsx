@@ -15,8 +15,14 @@ type RunMatchResultCardProps = {
 export function RunMatchResultCard({ matchResult }: RunMatchResultCardProps) {
   const lpDelta = getEstimatedMatchLpDelta(matchResult);
   const isLpGain = lpDelta > 0;
+  const showLp = matchResult.source !== 'party' && lpDelta !== 0;
   const lpPillStyle = isLpGain ? matchResultLpGainPillStyle : matchResultLpLossPillStyle;
   const lpPillTextStyle = isLpGain ? matchResultLpGainPillTextStyle : matchResultLpLossPillTextStyle;
+  const sourceLabel = matchResult.source === 'party'
+    ? '파티런'
+    : matchResult.source === 'official' ? '공식' : '';
+  const modeLabel = matchResult.mode === 'duel' ? '1대1 대결' : '그룹 대결';
+  const typeLabel = sourceLabel ? `${sourceLabel} ${modeLabel}` : modeLabel;
   const badgeStyle = [
     styles.matchResultBadge,
     matchResult.resultTone === 'win'
@@ -35,13 +41,14 @@ export function RunMatchResultCard({ matchResult }: RunMatchResultCardProps) {
 
   return (
     <Card style={styles.matchResultCard}>
-      <View style={styles.matchResultHeader}>
-        <Text style={styles.matchResultTitle}>대결</Text>
-        <View style={badgeStyle}>
-          <Text style={styles.matchResultBadgeText}>{matchResult.badgeLabel}</Text>
-        </View>
+      <Text style={styles.matchResultLabel}>{typeLabel}</Text>
+      <View style={badgeStyle}>
+        <Text style={styles.matchResultBadgeText}>{matchResult.badgeLabel}</Text>
       </View>
-      {lpDelta ? (
+      {matchResult.opponentName ? (
+        <Text style={styles.matchResultOpponent}>vs {matchResult.opponentName}</Text>
+      ) : null}
+      {showLp ? (
         <View style={lpPillStyle}>
           <Text style={lpPillTextStyle}>
             랭크 {isLpGain ? '+' : ''}{lpDelta} LP
@@ -62,18 +69,13 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
     justifyContent: 'space-between',
   },
-  matchResultHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing.s12,
-  },
-  matchResultTitle: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.title,
+  matchResultLabel: {
+    color: colors.brand,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.extraBold,
   },
   matchResultBadge: {
+    alignSelf: 'flex-start',
     minWidth: 64,
     alignItems: 'center',
     justifyContent: 'center',
@@ -95,6 +97,11 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
+  },
+  matchResultOpponent: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
   },
   matchResultLpPill: {
     alignSelf: 'flex-start',

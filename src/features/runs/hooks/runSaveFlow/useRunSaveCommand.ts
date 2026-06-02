@@ -35,6 +35,7 @@ export function useRunSaveCommand({
   syncLiveSharing,
   totalStepsRef,
   trackedMatchResult,
+  isPartyRun,
 }: Pick<
   UseRunSaveFlowInput,
   | 'autoStartedMatchIdRef'
@@ -60,6 +61,7 @@ export function useRunSaveCommand({
   | 'trackedMatchResult'
 > & {
   discardCurrentTracking: () => Promise<void>;
+  isPartyRun: boolean;
 }) {
   return async (options: SaveTrackingOptions = {}) => {
     try {
@@ -77,6 +79,7 @@ export function useRunSaveCommand({
         allowShortDistanceSave: Boolean(options.allowShortDistanceSave),
         allowStationaryForfeitSave: Boolean(options.allowStationaryForfeitSave),
         displayedSnapshot,
+        matchSource: isPartyRun ? 'party' : 'official',
         totalSteps: totalStepsRef.current,
         trackedMatchResult: options.matchResultOverride ?? trackedMatchResult,
       });

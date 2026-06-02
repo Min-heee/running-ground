@@ -1,4 +1,4 @@
-import type { RunMatchResult, RunRoutePoint } from '@/domain';
+import type { RunMatchResult, RunMatchSource, RunRoutePoint } from '@/domain';
 import {
   buildAveragePace,
   buildRunDateFromTimestamp,
@@ -53,10 +53,12 @@ function buildStationaryForfeitRoute({
 export function buildCurrentUserForfeitMatchResult({
   currentDistanceKm,
   mode,
+  source,
   trackedMatchResult,
 }: {
   currentDistanceKm: number;
   mode: 'duel' | 'group';
+  source?: RunMatchSource;
   trackedMatchResult?: RunMatchResult | null;
 }): RunMatchResult {
   const base = trackedMatchResult?.mode === mode ? trackedMatchResult : null;
@@ -69,6 +71,7 @@ export function buildCurrentUserForfeitMatchResult({
       summary: `내 기록은 ${currentDistanceKm.toFixed(2)}km로 저장되고, 대결 전적은 기권 패로 남아요.`,
       badgeLabel: '기권 패',
       resultTone: 'lose',
+      ...(source ? { source } : {}),
     };
   }
 
@@ -83,6 +86,7 @@ export function buildCurrentUserForfeitMatchResult({
     badgeLabel: '기권',
     rank,
     participantCount,
+    ...(source ? { source } : {}),
   };
 }
 
@@ -90,12 +94,14 @@ export function buildRunSaveResultSnapshot({
   allowShortDistanceSave = false,
   allowStationaryForfeitSave = false,
   displayedSnapshot,
+  matchSource,
   totalSteps,
   trackedMatchResult,
 }: {
   allowShortDistanceSave?: boolean;
   allowStationaryForfeitSave?: boolean;
   displayedSnapshot: DisplayedTrackingSnapshot;
+  matchSource?: RunMatchSource;
   totalSteps: number;
   trackedMatchResult?: RunMatchResult | null;
 }): RunSaveResultSnapshot {
@@ -149,7 +155,9 @@ export function buildRunSaveResultSnapshot({
       route: savableRoute,
       startedAt,
       endedAt,
-      ...(trackedMatchResult ? { matchResult: trackedMatchResult } : {}),
+      ...(trackedMatchResult
+        ? { matchResult: { ...trackedMatchResult, ...(matchSource ? { source: matchSource } : {}) } }
+        : {}),
     },
   };
 }

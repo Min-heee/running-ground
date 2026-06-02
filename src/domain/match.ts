@@ -1,5 +1,8 @@
+export type RunMatchSource = 'official' | 'party';
+
 export type RunMatchResult = {
   mode: 'duel' | 'group';
+  source?: RunMatchSource;
   title: string;
   summary: string;
   badgeLabel: string;

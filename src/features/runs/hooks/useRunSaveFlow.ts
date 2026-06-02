@@ -10,6 +10,7 @@ import type {
 
 export function useRunSaveFlow(input: UseRunSaveFlowInput) {
   const isSaving = input.status === 'saving';
+  const isPartyRun = Boolean(input.roomLinkedMatchContext);
   const setMatchLeaving = (source: MatchExitSource, isLeaving: boolean) => {
     if (source === 'duel') {
       input.setIsLeavingDuelMatch(isLeaving);
@@ -30,6 +31,7 @@ export function useRunSaveFlow(input: UseRunSaveFlowInput) {
   const handleSaveTracking = useRunSaveCommand({
     ...input,
     discardCurrentTracking,
+    isPartyRun,
   });
   const {
     forfeitMatchAndEndRun,
@@ -39,6 +41,7 @@ export function useRunSaveFlow(input: UseRunSaveFlowInput) {
   } = useRunForfeitCommand({
     ...input,
     handleSaveTracking,
+    isPartyRun,
     isSaving,
     setMatchLeaving,
   });
