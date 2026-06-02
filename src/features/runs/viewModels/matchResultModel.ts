@@ -25,6 +25,7 @@ import type {
   DuelMatchResultRowModel,
   GroupMatchFinishModel,
   GroupMatchResultRowModel,
+  MatchResultTone,
 } from '@/features/runs/types/matchResult';
 
 export type {
@@ -63,8 +64,16 @@ export function buildDuelMatchFinishModel({
     ? resolveParticipantDisplayDistanceKm(opponent, targetDistanceKm)
     : 0;
   const gapKm = Number(Math.abs(currentDistanceKm - opponentDistanceKm).toFixed(2));
-  const isDraw = !currentForfeited && !opponentForfeited && !opponentInProgress && gapKm < 0.03;
-  const resultTone = resolveDuelResultTone({
+  const bothOfficiallyFinished = currentFinished && opponentFinished && !currentForfeited && !opponentForfeited;
+  const officialResultTone: MatchResultTone | null = bothOfficiallyFinished
+    && typeof opponent.officialRank === 'number'
+    && Number.isFinite(opponent.officialRank)
+    ? (opponent.officialRank === 1 ? 'lose' : 'win')
+    : null;
+  const isDraw = officialResultTone
+    ? false
+    : !currentForfeited && !opponentForfeited && !opponentInProgress && gapKm < 0.03;
+  const resultTone = officialResultTone ?? resolveDuelResultTone({
     currentForfeited,
     opponentForfeited,
     opponentInProgress,

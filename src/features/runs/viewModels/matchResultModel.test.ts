@@ -223,6 +223,50 @@ test('duel result records normal loss when opponent distance is ahead', () => {
   assert.equal(result?.rows[1].resultLabel, 'LOSER');
 });
 
+test('duel result uses official finish order when both runners finish at the same distance', () => {
+  const currentUserFirst = buildDuelMatchFinishModel({
+    opponent: opponent({
+      officialReady: true,
+      officialDistanceKm: 1,
+      officialElapsedSeconds: 610,
+      officialAveragePace: '10:10/km',
+      officialRank: 2,
+      liveStatus: 'finished',
+    }),
+    currentDistanceKm: 1,
+    targetDistanceKm: 1,
+    currentElapsedSeconds: 600,
+    currentPaceLabel: '10:00/km',
+    currentUserLiveStatus: 'finished',
+  });
+
+  assert.equal(currentUserFirst?.matchResult.resultTone, 'win');
+  assert.equal(currentUserFirst?.matchResult.badgeLabel, '승리');
+  assert.equal(currentUserFirst?.matchResult.gapKm, 0);
+  assert.deepEqual(currentUserFirst?.rows.map((row) => row.resultLabel), ['WIN', 'LOSER']);
+
+  const opponentFirst = buildDuelMatchFinishModel({
+    opponent: opponent({
+      officialReady: true,
+      officialDistanceKm: 1,
+      officialElapsedSeconds: 590,
+      officialAveragePace: '09:50/km',
+      officialRank: 1,
+      liveStatus: 'finished',
+    }),
+    currentDistanceKm: 1,
+    targetDistanceKm: 1,
+    currentElapsedSeconds: 600,
+    currentPaceLabel: '10:00/km',
+    currentUserLiveStatus: 'finished',
+  });
+
+  assert.equal(opponentFirst?.matchResult.resultTone, 'lose');
+  assert.equal(opponentFirst?.matchResult.badgeLabel, '패배');
+  assert.equal(opponentFirst?.matchResult.gapKm, 0);
+  assert.deepEqual(opponentFirst?.rows.map((row) => row.resultLabel), ['WIN', 'LOSER']);
+});
+
 test('duel result records near-equal distances as draw', () => {
   const result = buildDuelMatchFinishModel({
     opponent: opponent({
