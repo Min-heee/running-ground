@@ -64,6 +64,8 @@ test('duel result records current user forfeit as loss even when distance is ahe
 
   assert.equal(result?.matchResult.resultTone, 'lose');
   assert.equal(result?.matchResult.badgeLabel, '기권 패');
+  assert.equal(result?.matchResult.opponentId, 'opponent');
+  assert.equal(result?.matchResult.opponentName, '상대');
   assert.equal(result?.rows[0].isCurrentUser, false);
   assert.equal(result?.rows[0].resultLabel, 'WIN');
   assert.equal(result?.rows[1].isCurrentUser, true);

@@ -8,3 +8,4 @@ export * from './market';
 export * from './races';
 export * from './integrations';
 export * from './profile';
+export * from './users';

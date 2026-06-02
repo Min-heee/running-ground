@@ -6,3 +6,4 @@ export * from './types/matches';
 export * from './types/profile';
 export * from './types/rooms';
 export * from './types/runs';
+export * from './types/users';

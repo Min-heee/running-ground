@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Link } from 'expo-router';
 
 import { Card } from '@/components/Card';
 import { getEstimatedMatchLpDelta } from '@/features/runs/utils/matchScheduling';
@@ -38,8 +39,7 @@ export function RunMatchResultCard({ matchResult }: RunMatchResultCardProps) {
     : typeof matchResult.rank === 'number' && typeof matchResult.participantCount === 'number'
       ? `${matchResult.participantCount}명 중 ${matchResult.rank}위`
       : null;
-
-  return (
+  const card = (
     <Card style={styles.matchResultCard}>
       <Text style={styles.matchResultLabel}>{typeLabel}</Text>
       <View style={badgeStyle}>
@@ -56,11 +56,36 @@ export function RunMatchResultCard({ matchResult }: RunMatchResultCardProps) {
         </View>
       ) : null}
       {metaText ? <Text style={styles.matchResultMeta}>{metaText}</Text> : null}
+      {matchResult.opponentId ? <Text style={styles.profileLinkText}>프로필 보기 ›</Text> : null}
     </Card>
+  );
+
+  if (!matchResult.opponentId) {
+    return card;
+  }
+
+  return (
+    <Link
+      href={{
+        pathname: '/opponent-profile',
+        params: {
+          userId: matchResult.opponentId,
+          name: matchResult.opponentName ?? '',
+        },
+      }}
+      asChild
+    >
+      <Pressable accessibilityRole="button" style={styles.matchResultPressable}>
+        {card}
+      </Pressable>
+    </Link>
   );
 }
 
 const styles = StyleSheet.create({
+  matchResultPressable: {
+    flex: 1,
+  },
   matchResultCard: {
     backgroundColor: colors.brandSoft,
     borderWidth: 1,
@@ -132,6 +157,11 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
+  },
+  profileLinkText: {
+    color: colors.brand,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
 });
 

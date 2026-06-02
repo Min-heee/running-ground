@@ -8,6 +8,7 @@ export * from './matchService';
 export * from './pointsService';
 export * from './profileService';
 export * from './runningService';
+export * from './usersService';
 export {
   ApiError,
   apiDelete,

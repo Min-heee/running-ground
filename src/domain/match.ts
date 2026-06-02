@@ -6,6 +6,7 @@ export type RunMatchResult = {
   title: string;
   summary: string;
   badgeLabel: string;
+  opponentId?: string;
   opponentName?: string;
   resultTone?: 'win' | 'lose' | 'draw';
   rank?: number;

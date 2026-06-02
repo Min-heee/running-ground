@@ -153,6 +153,7 @@ export function buildDuelMatchFinishModel({
       title,
       summary,
       badgeLabel,
+      opponentId: opponent.id,
       opponentName: opponent.name,
       resultTone,
       gapKm,
