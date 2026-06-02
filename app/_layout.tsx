@@ -8,6 +8,8 @@ import { useRootAuthGate } from '@/navigation/rootAuthGate';
 import { logRgEnvironmentOnce } from '@/utils/rgEnvTrace';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 
+export { RouteErrorBoundary as ErrorBoundary } from '@/components/RouteErrorBoundary';
+
 export default function RootLayout() {
   const { ready, redirectHref } = useRootAuthGate();
   const didLogEnvironmentRef = useRef(false);
