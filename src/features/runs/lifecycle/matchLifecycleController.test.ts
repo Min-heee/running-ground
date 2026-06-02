@@ -54,6 +54,22 @@ function room(overrides: Partial<RunningMatchRoom>): RunningMatchRoom {
   };
 }
 
+function duelOpponent(
+  overrides: Partial<NonNullable<RunningMatchStatusResponse['opponent']>> = {},
+): NonNullable<RunningMatchStatusResponse['opponent']> {
+  return {
+    id: 'opponent',
+    name: '상대',
+    districtName: '일산동구',
+    averagePace: '06:20/km',
+    levelLabel: 'Lv.4',
+    weeklyDistanceKm: 20,
+    lifetimeDistanceKm: 120,
+    compatibilitySummary: '비슷한 러너',
+    ...overrides,
+  };
+}
+
 function baseInput(overrides: Partial<MatchLifecycleControllerInput> = {}): MatchLifecycleControllerInput {
   const matchRoom = overrides.matchRoom ?? null;
   const visibleMatchRoom = overrides.visibleMatchRoom ?? matchRoom;
@@ -410,6 +426,46 @@ test('finished direct match stops polling, GPS, and heartbeat side effects', () 
   assert.equal(controller.effects.shouldRunHeartbeat, false);
 });
 
+test('finished direct match keeps polling until the opponent resolves', () => {
+  const opponentRunning = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'running',
+    isRunning: true,
+    duelMatchState: 'active',
+    duelMatchStatus: status({
+      currentUserLiveStatus: 'finished',
+      state: 'active',
+      matchId: 'duel-finished',
+      readyToStart: true,
+      opponent: duelOpponent({ liveStatus: 'running' }),
+    }),
+  }));
+
+  assert.equal(opponentRunning.stage, 'finished');
+  assert.equal(opponentRunning.effects.shouldPollDirectMatchStatus, true);
+  assert.equal(opponentRunning.effects.shouldPollLinkedMatch, false);
+  assert.equal(opponentRunning.effects.shouldRunHeartbeat, false);
+
+  const opponentFinished = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'running',
+    isRunning: true,
+    duelMatchState: 'active',
+    duelMatchStatus: status({
+      currentUserLiveStatus: 'finished',
+      state: 'active',
+      matchId: 'duel-finished',
+      readyToStart: true,
+      opponent: duelOpponent({ liveStatus: 'finished' }),
+    }),
+  }));
+
+  assert.equal(opponentFinished.stage, 'finished');
+  assert.equal(opponentFinished.effects.shouldPollDirectMatchStatus, false);
+  assert.equal(opponentFinished.effects.shouldPollLinkedMatch, false);
+  assert.equal(opponentFinished.effects.shouldRunHeartbeat, false);
+});
+
 test('active linked party room starts active GPS only before running heartbeat', () => {
   const linkedRoom = room({
     state: 'active',
@@ -458,4 +514,64 @@ test('active linked party room starts active GPS only before running heartbeat',
 
   assert.equal(running.effects.shouldStartGpsActive, false);
   assert.equal(running.effects.shouldRunHeartbeat, true);
+});
+
+test('finished linked party match keeps polling only until the opponent resolves', () => {
+  const linkedRoom = room({
+    state: 'active',
+    linkedMatchId: 'room-active-match',
+    linkedMatchStatus: 'active',
+    linkedMatchSlotStartAt: '2026-05-14T12:00:00.000Z',
+  });
+  const flow = buildPartyRunFlowSnapshot({
+    room: linkedRoom,
+    isCountdownReady: true,
+    remainingSeconds: 0,
+  });
+  const commonInput = {
+    matchMode: 'duel' as const,
+    trackingStatus: 'running' as const,
+    isRunning: true,
+    matchRoom: linkedRoom,
+    visibleMatchRoom: linkedRoom,
+    visiblePartyRunFlow: flow,
+    matchRoomFlow: flow,
+    roomLinkedMatchContext: flow.linkedMatchContext,
+  };
+
+  const opponentRunning = buildMatchLifecycleController(baseInput({
+    ...commonInput,
+    duelMatchState: 'active',
+    duelMatchStatus: status({
+      currentUserLiveStatus: 'finished',
+      state: 'active',
+      matchId: 'room-active-match',
+      readyToStart: true,
+      opponent: duelOpponent({ liveStatus: 'running' }),
+    }),
+  }));
+
+  assert.equal(opponentRunning.stage, 'active');
+  assert.equal(opponentRunning.source, 'party-room');
+  assert.equal(opponentRunning.effects.shouldPollLinkedMatch, true);
+  assert.equal(opponentRunning.effects.shouldPollDirectMatchStatus, false);
+  assert.equal(opponentRunning.effects.shouldRunHeartbeat, false);
+
+  const opponentFinished = buildMatchLifecycleController(baseInput({
+    ...commonInput,
+    duelMatchState: 'active',
+    duelMatchStatus: status({
+      currentUserLiveStatus: 'finished',
+      state: 'active',
+      matchId: 'room-active-match',
+      readyToStart: true,
+      opponent: duelOpponent({ liveStatus: 'finished' }),
+    }),
+  }));
+
+  assert.equal(opponentFinished.stage, 'active');
+  assert.equal(opponentFinished.source, 'party-room');
+  assert.equal(opponentFinished.effects.shouldPollLinkedMatch, false);
+  assert.equal(opponentFinished.effects.shouldPollDirectMatchStatus, false);
+  assert.equal(opponentFinished.effects.shouldRunHeartbeat, false);
 });

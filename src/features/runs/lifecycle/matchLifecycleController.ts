@@ -156,6 +156,26 @@ function buildStatusTarget(
   };
 }
 
+function isTerminalLiveStatus(status: RunningMatchStatusResponse['currentUserLiveStatus']) {
+  return status === 'finished' || status === 'forfeited';
+}
+
+function shouldAwaitOpponentResolution(status: RunningMatchStatusResponse | null) {
+  if (!status || status.state !== 'active' || !isTerminalLiveStatus(status.currentUserLiveStatus)) {
+    return false;
+  }
+
+  if (status.opponent) {
+    return !isTerminalLiveStatus(status.opponent.liveStatus);
+  }
+
+  if (Array.isArray(status.participants)) {
+    return status.participants.some((participant) => !isTerminalLiveStatus(participant.liveStatus));
+  }
+
+  return false;
+}
+
 function promoteLinkedContextWithStatus(
   context: PartyRunLinkedMatchContext | null,
   duelMatchStatus: RunningMatchStatusResponse | null,
@@ -284,14 +304,26 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
     ?? input.fallbackMatchId
     ?? null;
   const isCompetitiveMode = mode === 'duel' || mode === 'group';
+  const activeStatus = mode === 'duel'
+    ? input.duelMatchStatus
+    : mode === 'group'
+      ? input.groupMatchStatus
+      : null;
+  const awaitingOpponentResolution = shouldAwaitOpponentResolution(activeStatus);
+  const currentUserTerminalInActiveStatus = Boolean(
+    activeStatus?.state === 'active'
+    && isTerminalLiveStatus(activeStatus.currentUserLiveStatus),
+  );
+  const shouldPollActiveStatus = !currentUserTerminalInActiveStatus || awaitingOpponentResolution;
   const shouldPollLinkedMatch = Boolean(
     roomLinkedContext
     && (
       stage === 'arming'
       || stage === 'countdown'
-      || stage === 'active'
+      || (stage === 'active' && shouldPollActiveStatus)
+      || awaitingOpponentResolution
       || roomLinkedContext.state === 'matched'
-      || roomLinkedContext.state === 'active'
+      || (roomLinkedContext.state === 'active' && shouldPollActiveStatus)
     ),
   );
   const shouldPollRoom = Boolean(partyRoom && !partyRoom.linkedMatchId && stage !== 'waiting');
@@ -306,6 +338,7 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
     && isCompetitiveMode
     && matchId
     && !input.isCurrentUserForfeited
+    && !currentUserTerminalInActiveStatus
     && stage === 'active',
   );
   logLinkedMatchPollGating({
@@ -335,7 +368,13 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
         source !== 'party-room'
         && isCompetitiveMode
         && matchId
-        && (stage === 'waiting' || stage === 'arming' || stage === 'countdown' || stage === 'active'),
+        && (
+          stage === 'waiting'
+          || stage === 'arming'
+          || stage === 'countdown'
+          || stage === 'active'
+          || awaitingOpponentResolution
+        ),
       ),
       shouldPollLinkedMatch,
       shouldRefreshUpcomingMatches: Boolean(input.liveMatchHeavyWorkReady && matchId),
