@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
+import type { RunMatchResult } from '@/domain';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import {
   type GroupLiveStanding,
@@ -18,6 +19,7 @@ import type {
 
 type UseMatchResultControllerInput = {
   matchMode: RunMatchMode;
+  isPartyRun?: boolean;
   effectiveDuelOpponent: DuelMatchOpponent | null;
   currentGroupStanding: GroupLiveStanding | null;
   effectiveGroupParticipantCount: number;
@@ -36,8 +38,19 @@ type FrozenDuelResultMetrics = {
   paceLabel: string;
 };
 
+export function resolveEstimatedMatchLpDelta({
+  isPartyRun = false,
+  trackedMatchResult,
+}: {
+  isPartyRun?: boolean;
+  trackedMatchResult?: RunMatchResult | null;
+}) {
+  return isPartyRun ? 0 : getEstimatedMatchLpDelta(trackedMatchResult ?? undefined);
+}
+
 export function useMatchResultController({
   matchMode,
+  isPartyRun = false,
   effectiveDuelOpponent,
   currentGroupStanding,
   effectiveGroupParticipantCount,
@@ -131,8 +144,8 @@ export function useMatchResultController({
     [trackedMatchResult],
   );
   const estimatedMatchLpDelta = useMemo(
-    () => getEstimatedMatchLpDelta(trackedMatchResult),
-    [trackedMatchResult],
+    () => resolveEstimatedMatchLpDelta({ isPartyRun, trackedMatchResult }),
+    [isPartyRun, trackedMatchResult],
   );
 
   const duelResultRows = matchMode === 'duel' ? duelFinishSummary?.rows ?? [] : [];

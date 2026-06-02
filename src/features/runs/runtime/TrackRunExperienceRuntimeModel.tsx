@@ -780,6 +780,7 @@ export function TrackRunExperienceRuntime({
     groupResultStatusLabel,
   } = useMatchResultController({
     matchMode,
+    isPartyRun: Boolean(roomLinkedMatchContext),
     effectiveDuelOpponent: effectiveDuelOpponentForLive,
     currentGroupStanding,
     effectiveGroupParticipantCount,
