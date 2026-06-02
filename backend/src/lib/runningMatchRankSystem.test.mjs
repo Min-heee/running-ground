@@ -84,11 +84,12 @@ function createStore(users, runs, session) {
   };
 }
 
-function createSession({ id = 'rank-match', mode = 'duel', participants, lpApplied = false }) {
+function createSession({ id = 'rank-match', mode = 'duel', participants, isPartyRun = false, lpApplied = false }) {
   return {
     id,
     mode,
     isTestMatch: false,
+    isPartyRun,
     distanceKm: 1,
     slotStartAt: iso(-5 * 60 * 1000),
     startedAt: iso(-5 * 60 * 1000),
@@ -147,6 +148,43 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
 
   assert.equal(winner.rankState.lp, 50 + DUEL_LP.winVsFaster);
   assert.equal(loser.rankState.lp, 50 + DUEL_LP.lossVsSlower);
+  assert.equal(session.lpApplied, true);
+}
+
+{
+  const winner = createUser('party-winner');
+  const loser = createUser('party-loser');
+  const session = createSession({
+    isPartyRun: true,
+    participants: [
+      createParticipant('party-winner', 1, {
+        liveStatus: 'finished',
+        liveDistanceKm: 1,
+        liveElapsedSeconds: 300,
+        finishedAt: iso(-1000),
+      }),
+      createParticipant('party-loser', 2, {
+        liveDistanceKm: 0.8,
+        liveElapsedSeconds: 290,
+      }),
+    ],
+  });
+  const store = createStore(
+    [winner, loser],
+    [createRun('party-winner', '06:00/km'), createRun('party-loser', '06:05/km')],
+    session,
+  );
+
+  updateRunningMatchProgress(store, loser, {
+    matchId: session.id,
+    distanceKm: 0.8,
+    elapsedSeconds: 300,
+    currentPace: '06:20/km',
+    status: 'finished',
+  });
+
+  assert.equal(winner.rankState.lp, 50);
+  assert.equal(loser.rankState.lp, 50);
   assert.equal(session.lpApplied, true);
 }
 

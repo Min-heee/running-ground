@@ -40,6 +40,11 @@ function applyMatchLpIfComplete(store, session) {
     return;
   }
 
+  if (session.isPartyRun) {
+    session.lpApplied = true;
+    return;
+  }
+
   const participants = Array.isArray(session.participants) ? session.participants : [];
   const now = new Date();
   if (!participants.length || !participants.every((participant) => isParticipantDoneWithMatch(participant, now))) {

@@ -141,6 +141,7 @@ export function createMatchSession(store, mode, distanceKm, slotStartAt, partici
     id: nextId(`${mode}-match`),
     mode,
     isTestMatch: options.isTestMatch === true,
+    isPartyRun: options.isPartyRun === true,
     distanceKm: normalizeMatchQueueDistance(distanceKm),
     slotStartAt,
     createdAt: new Date().toISOString(),

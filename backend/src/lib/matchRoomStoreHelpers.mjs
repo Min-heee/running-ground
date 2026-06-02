@@ -192,6 +192,7 @@ function syncScheduledMatchRoom(room, store, now = new Date()) {
       id: participant.userId,
       seedRank: index + 1,
     })),
+    { isPartyRun: true },
   );
 
   room.linkedMatchId = session.id;
@@ -709,6 +710,7 @@ export function startRunningMatchRoom(store, currentUser, { roomId }) {
       id: participant.userId,
       seedRank: index + 1,
     })),
+    { isPartyRun: true },
   );
   room.linkedMatchId = session.id;
 
