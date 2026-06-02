@@ -26,8 +26,9 @@ export const COLD_START_MAX_BUFFER_FIXES = 8;
 export const COLD_START_EXCURSION_WINDOW_MS = 45_000;
 export const COLD_START_EXCURSION_LOOKBACK_POINTS = 5;
 export const COLD_START_EXCURSION_DIRECT_RADIUS_METERS = 22;
-export const COLD_START_EXCURSION_MIN_PATH_METERS = 55;
-export const COLD_START_EXCURSION_MIN_EXTRA_METERS = 40;
+export const COLD_START_EXCURSION_MIN_PATH_METERS = 24;
+export const COLD_START_EXCURSION_MIN_EXTRA_METERS = 12;
+export const COLD_START_EXCURSION_MIN_INTERNAL_POINTS = 2;
 export const MID_RUN_LATERAL_JITTER_LOOKBACK_POINTS = 5;
 export const MID_RUN_LATERAL_JITTER_MAX_WINDOW_MS = 18_000;
 export const MID_RUN_LATERAL_JITTER_MIN_DIRECT_METERS = 22;
@@ -239,10 +240,12 @@ export function findColdStartExcursionAnchorIndex(route: RunRoutePoint[], nextPo
     }
 
     const candidatePath = [...route.slice(anchorIndex), nextPoint];
+    const internalPointCount = candidatePath.length - 2;
     const candidatePathDistanceMeters = calculateRouteWindowDistanceMeters(candidatePath);
 
     if (
-      candidatePathDistanceMeters >= COLD_START_EXCURSION_MIN_PATH_METERS
+      internalPointCount >= COLD_START_EXCURSION_MIN_INTERNAL_POINTS
+      && candidatePathDistanceMeters >= COLD_START_EXCURSION_MIN_PATH_METERS
       && candidatePathDistanceMeters - directDistanceMeters >= COLD_START_EXCURSION_MIN_EXTRA_METERS
     ) {
       return anchorIndex;

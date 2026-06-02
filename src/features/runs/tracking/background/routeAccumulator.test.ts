@@ -50,6 +50,33 @@ function locationAt({
   } as Location.LocationObject;
 }
 
+function locationFromCoordinate({
+  latitude,
+  longitude,
+  timestampMs,
+  accuracyM = 8,
+  speedMps = 3,
+}: {
+  latitude: number;
+  longitude: number;
+  timestampMs: number;
+  accuracyM?: number;
+  speedMps?: number;
+}) {
+  return {
+    coords: {
+      latitude,
+      longitude,
+      altitude: 15,
+      accuracy: accuracyM,
+      altitudeAccuracy: 4,
+      heading: null,
+      speed: speedMps,
+    },
+    timestamp: timestampMs,
+  } as Location.LocationObject;
+}
+
 function resetRunningSnapshot(baseMs: number) {
   resetRouteAccumulator();
   setSnapshotState({
@@ -91,6 +118,40 @@ test('route accumulator keeps normal straight-line movement after cold-start sta
   assert.equal(snapshot.route.length, 4);
   assert.ok(getAccumulatedDistanceMeters() >= 24);
   assert.ok(getAccumulatedDistanceMeters() <= 34);
+});
+
+test('route accumulator collapses small cold-start GPS loops before normal movement', () => {
+  const baseMs = Date.now() - 12_000;
+  resetRunningSnapshot(baseMs);
+
+  const startLoopCoordinates = [
+    [37.565112, 126.981717],
+    [37.565112, 126.981717],
+    [37.565084, 126.981728],
+    [37.565071, 126.981770],
+    [37.565111, 126.981790],
+    [37.565092, 126.981740],
+    [37.565055, 126.981714],
+    [37.565011, 126.981677],
+    [37.564972, 126.981648],
+    [37.564922, 126.981623],
+  ];
+
+  startLoopCoordinates.forEach(([latitude, longitude], index) => {
+    appendTrackedLocation(locationFromCoordinate({
+      latitude,
+      longitude,
+      timestampMs: baseMs + index * 1_000,
+    }));
+  });
+
+  const snapshot = getSnapshotState();
+  assert.ok(getAccumulatedDistanceMeters() < 30);
+  assert.ok(snapshot.route.length <= 6);
+  assert.equal(
+    snapshot.route.some((point) => point.longitude > 126.981750),
+    false,
+  );
 });
 
 test('route accumulator collapses mid-run lateral GPS jitter on a straight road', () => {
