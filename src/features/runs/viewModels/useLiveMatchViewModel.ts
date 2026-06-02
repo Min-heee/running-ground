@@ -171,6 +171,17 @@ export function useLiveMatchViewModel({
     visibleMatchRoom,
   ]);
 
+  const duelRaceBoardResultLabels = useMemo(() => {
+    const participants = roomLinkedDuelPlaceholderParticipants.length > 0
+      ? roomLinkedDuelPlaceholderParticipants
+      : duelArenaParticipants;
+
+    return {
+      currentUserDuelResultLabel: participants.find((participant) => participant.isCurrentUser)?.resultLabel ?? null,
+      opponentDuelResultLabel: participants.find((participant) => !participant.isCurrentUser)?.resultLabel ?? null,
+    };
+  }, [duelArenaParticipants, roomLinkedDuelPlaceholderParticipants]);
+
   const raceBoardViewModel = useMemo(() => (
     buildLiveMatchRaceBoardViewModelForPage({
       page,
@@ -184,7 +195,9 @@ export function useLiveMatchViewModel({
         syncedDuelDistanceKm,
         syncedDuelOpponentDistanceKm,
         currentUserDuelLiveStatus,
+        currentUserDuelResultLabel: duelRaceBoardResultLabels.currentUserDuelResultLabel,
         currentUserGroupLiveStatus,
+        opponentDuelResultLabel: duelRaceBoardResultLabels.opponentDuelResultLabel,
         roomLinkedDuelPlaceholderParticipants,
         roomLinkedGroupPlaceholderParticipants,
         visibleMatchRoom,
@@ -197,6 +210,8 @@ export function useLiveMatchViewModel({
     currentUserArenaPace,
     currentUserDuelLiveStatus,
     currentUserGroupLiveStatus,
+    duelRaceBoardResultLabels.currentUserDuelResultLabel,
+    duelRaceBoardResultLabels.opponentDuelResultLabel,
     distanceKm,
     duelDistanceKm,
     duelLiveGapKm,

@@ -1,5 +1,6 @@
 import type { LiveMatchRaceBoardRow } from '@/components/matches/LiveMatchRaceBoard';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
+import type { DuelResultLabel } from '@/features/runs/types/matchResult';
 import type { GroupLiveStanding } from '@/features/runs/viewModels/matchProgress';
 import type { ArenaParticipantViewModel } from '@/features/runs/viewModels/matchViewModels';
 import type { DuelMatchOpponent, RunningMatchRoom } from '@/lib/api/types';
@@ -23,7 +24,9 @@ export type LiveMatchRaceBoardViewModelInput = {
   syncedDuelDistanceKm: number;
   syncedDuelOpponentDistanceKm: number;
   currentUserDuelLiveStatus: DuelMatchOpponent['liveStatus'] | null;
+  currentUserDuelResultLabel?: DuelResultLabel | null;
   currentUserGroupLiveStatus: DuelMatchOpponent['liveStatus'] | null;
+  opponentDuelResultLabel?: DuelResultLabel | null;
   roomLinkedDuelPlaceholderParticipants: ArenaParticipantViewModel[];
   roomLinkedGroupPlaceholderParticipants: ArenaParticipantViewModel[];
   visibleMatchRoom: RunningMatchRoom | null;

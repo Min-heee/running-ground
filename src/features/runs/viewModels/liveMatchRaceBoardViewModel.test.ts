@@ -116,6 +116,7 @@ test('duel race board shows running opponent while current user is still running
 test('duel race board shows finished opponent while current user is still running', () => {
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
     distanceKm: 0.42,
+    opponentDuelResultLabel: 'WIN',
     visibleMatchRoom: duelRoom({
       participants: [
         participant({
@@ -138,6 +139,8 @@ test('duel race board shows finished opponent while current user is still runnin
   assert.equal(viewModel?.rows.length, 2);
   assert.equal(opponentRow?.id, 'guest-user');
   assert.equal(opponentRow?.distanceKm, 0);
+  assert.equal(opponentRow?.resultLabel, 'WIN');
+  assert.equal(viewModel?.rows.find((row) => row.isCurrentUser)?.resultLabel, null);
 });
 
 test('duel race board shows unfinished opponents as placeholders after current user finishes', () => {
@@ -172,6 +175,8 @@ test('duel race board shows unfinished opponents as placeholders after current u
 test('duel race board shows all finished participants without placeholders', () => {
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
     currentUserDuelLiveStatus: 'finished',
+    currentUserDuelResultLabel: 'WIN',
+    opponentDuelResultLabel: 'LOSE',
     visibleMatchRoom: duelRoom({
       participants: [
         participant({
@@ -194,6 +199,8 @@ test('duel race board shows all finished participants without placeholders', () 
   assert.equal(viewModel?.rows.filter((row) => row.isCurrentUser).length, 1);
   assert.equal(viewModel?.rows.filter((row) => !row.isCurrentUser).length, 1);
   assert.equal(viewModel?.rows.some((row) => row.isProgressivePlaceholder), false);
+  assert.equal(viewModel?.rows.find((row) => row.isCurrentUser)?.resultLabel, 'WIN');
+  assert.equal(viewModel?.rows.find((row) => !row.isCurrentUser)?.resultLabel, 'LOSE');
 });
 
 test('duel race board shows forfeited opponent regardless of current user finish state', () => {

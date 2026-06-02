@@ -10,10 +10,12 @@ import { traceRaceBoardRows } from './raceBoardTrace';
 type DuelRaceBoardSectionInput = Pick<
   LiveMatchRaceBoardViewModelInput,
   | 'currentUserDuelLiveStatus'
+  | 'currentUserDuelResultLabel'
   | 'distanceKm'
   | 'duelDistanceKm'
   | 'duelLiveGapKm'
   | 'effectiveDuelOpponent'
+  | 'opponentDuelResultLabel'
   | 'roomLinkedDuelPlaceholderParticipants'
   | 'syncedDuelDistanceKm'
   | 'syncedDuelOpponentDistanceKm'
@@ -22,10 +24,12 @@ type DuelRaceBoardSectionInput = Pick<
 
 export function buildDuelRaceBoardSection({
   currentUserDuelLiveStatus,
+  currentUserDuelResultLabel,
   distanceKm,
   duelDistanceKm,
   duelLiveGapKm,
   effectiveDuelOpponent,
+  opponentDuelResultLabel,
   roomLinkedDuelPlaceholderParticipants,
   syncedDuelDistanceKm,
   syncedDuelOpponentDistanceKm,
@@ -35,9 +39,11 @@ export function buildDuelRaceBoardSection({
     const placeholderDistanceKm = visibleMatchRoom.linkedMatchDistanceKm ?? visibleMatchRoom.distanceKm ?? duelDistanceKm;
     const progressiveRows = buildDuelParticipantFirstRows({
       currentUserDuelLiveStatus,
+      currentUserDuelResultLabel,
       distanceKm,
       duelLiveGapKm,
       effectiveDuelOpponent,
+      opponentDuelResultLabel,
       room: visibleMatchRoom,
       syncedDuelDistanceKm,
       syncedDuelOpponentDistanceKm,
@@ -72,6 +78,7 @@ export function buildDuelRaceBoardSection({
         progress: duelDistanceKm > 0 ? currentBoardDistanceKm / duelDistanceKm : 0,
         isCurrentUser: true,
         liveStatus: currentUserDuelLiveStatus ?? undefined,
+        resultLabel: currentUserDuelResultLabel ?? null,
       },
       {
         id: effectiveDuelOpponent.id,
@@ -81,6 +88,7 @@ export function buildDuelRaceBoardSection({
         progress: duelDistanceKm > 0 ? opponentBoardDistanceKm / duelDistanceKm : 0,
         isCurrentUser: false,
         liveStatus: effectiveDuelOpponent.liveStatus,
+        resultLabel: opponentDuelResultLabel ?? null,
       },
     ], { hideRunningOthers: false });
     const rows = progressiveRows.rows;
@@ -106,6 +114,9 @@ export function buildDuelRaceBoardSection({
       progress: placeholderDistanceKm > 0 ? participant.distanceKm / placeholderDistanceKm : 0,
       isCurrentUser: participant.isCurrentUser,
       liveStatus: participant.liveStatus,
+      resultLabel: participant.isCurrentUser
+        ? currentUserDuelResultLabel ?? null
+        : opponentDuelResultLabel ?? null,
     })), { hideRunningOthers: false });
     const rows = progressiveRows.rows;
     traceRaceBoardRows({ matchMode: 'duel', rows, source: 'room linked duel placeholder' });
@@ -133,6 +144,7 @@ export function buildDuelRaceBoardSection({
         progress: duelDistanceKm > 0 ? distanceKm / duelDistanceKm : 0,
         isCurrentUser: true,
         liveStatus: currentUserDuelLiveStatus ?? undefined,
+        resultLabel: currentUserDuelResultLabel ?? null,
       },
     ],
   };

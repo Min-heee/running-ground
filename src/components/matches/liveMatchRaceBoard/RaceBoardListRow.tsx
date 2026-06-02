@@ -17,11 +17,13 @@ function areRaceBoardRowsEqual(left: LiveMatchRaceBoardRow, right: LiveMatchRace
     && left.progress === right.progress
     && left.isCurrentUser === right.isCurrentUser
     && left.isProgressivePlaceholder === right.isProgressivePlaceholder
-    && left.liveStatus === right.liveStatus;
+    && left.liveStatus === right.liveStatus
+    && left.resultLabel === right.resultLabel;
 }
 
 export const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: LiveMatchRaceBoardRow }) {
   const isForfeited = row.liveStatus === 'forfeited';
+  const isFinished = row.liveStatus === 'finished';
   const isProgressivePlaceholder = Boolean(row.isProgressivePlaceholder);
   const rawProgress = clamp(row.progress, 0, 1);
   const lineProgressPercent = `${rawProgress * 100}%` as const;
@@ -70,13 +72,26 @@ export const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: L
   const metaRemainingStyle = useMemo(() => [
     styles.metaRemaining,
     isForfeited ? styles.metaRemainingForfeited : undefined,
+    isFinished ? styles.metaRemainingFinished : undefined,
     isProgressivePlaceholder ? styles.metaRemainingProgressivePlaceholder : undefined,
-  ], [isForfeited, isProgressivePlaceholder]);
+  ], [isFinished, isForfeited, isProgressivePlaceholder]);
+  const resultBadgeStyle = useMemo(() => [
+    styles.resultBadge,
+    row.resultLabel === 'WIN'
+      ? styles.resultBadgeWin
+      : row.resultLabel === 'LOSE'
+        ? styles.resultBadgeLose
+        : row.resultLabel === 'DRAW'
+          ? styles.resultBadgeDraw
+          : undefined,
+  ], [row.resultLabel]);
   const remainingLabel = isForfeited
     ? '기권'
-    : isProgressivePlaceholder
-      ? '진행 중'
-      : `${row.remainingKm.toFixed(2)}km 남음`;
+    : isFinished
+      ? '완주'
+      : isProgressivePlaceholder
+        ? '진행 중'
+        : `${row.remainingKm.toFixed(2)}km 남음`;
 
   return (
     <View style={rowStyle}>
@@ -88,6 +103,11 @@ export const RaceBoardListRow = memo(function RaceBoardListRow({ row }: { row: L
         >
           {row.isCurrentUser ? '나' : row.name}
         </Text>
+        {row.resultLabel ? (
+          <View style={resultBadgeStyle}>
+            <Text style={styles.resultBadgeText}>{row.resultLabel}</Text>
+          </View>
+        ) : null}
       </View>
       <View style={styles.trackColumn}>
         <View style={styles.trackStack}>

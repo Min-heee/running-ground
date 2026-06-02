@@ -2,6 +2,7 @@ import {
   buildMatchProgressModel,
   resolveParticipantDisplayDistanceKm,
 } from '@/features/runs/viewModels/matchProgress';
+import type { DuelResultLabel } from '@/features/runs/types/matchResult';
 import {
   sortProgressiveRaceRows,
   type ProgressiveSortedRaceBoardRowsResult,
@@ -102,15 +103,19 @@ function buildDuelParticipantRaceBoardSeeds({
 function mergeDuelParticipantProgress({
   currentBoardDistanceKm,
   currentUserDuelLiveStatus,
+  currentUserDuelResultLabel,
   effectiveDuelOpponent,
   effectiveOpponentDistanceKm,
+  opponentDuelResultLabel,
   seed,
   targetDistanceKm,
 }: {
   currentBoardDistanceKm: number;
   currentUserDuelLiveStatus: DuelMatchOpponent['liveStatus'] | null;
+  currentUserDuelResultLabel?: DuelResultLabel | null;
   effectiveDuelOpponent: DuelMatchOpponent | null;
   effectiveOpponentDistanceKm: number;
+  opponentDuelResultLabel?: DuelResultLabel | null;
   seed: DuelParticipantRaceBoardSeed;
   targetDistanceKm: number;
 }): DuelParticipantProgressMergeResult {
@@ -134,24 +139,31 @@ function mergeDuelParticipantProgress({
       liveStatus: seed.isCurrentUser
         ? resolveMergedLiveStatus(seed.participant.liveStatus, currentUserDuelLiveStatus)
         : resolveMergedLiveStatus(seed.participant.liveStatus, effectiveDuelOpponent?.liveStatus),
+      resultLabel: seed.isCurrentUser
+        ? currentUserDuelResultLabel ?? null
+        : opponentDuelResultLabel ?? null,
     },
   };
 }
 
 export function buildDuelParticipantFirstRows({
   currentUserDuelLiveStatus,
+  currentUserDuelResultLabel,
   distanceKm,
   duelLiveGapKm,
   effectiveDuelOpponent,
+  opponentDuelResultLabel,
   room,
   syncedDuelDistanceKm,
   syncedDuelOpponentDistanceKm,
   targetDistanceKm,
 }: {
   currentUserDuelLiveStatus: DuelMatchOpponent['liveStatus'] | null;
+  currentUserDuelResultLabel?: DuelResultLabel | null;
   distanceKm: number;
   duelLiveGapKm: number | null;
   effectiveDuelOpponent: DuelMatchOpponent | null;
+  opponentDuelResultLabel?: DuelResultLabel | null;
   room: RunningMatchRoom;
   syncedDuelDistanceKm: number;
   syncedDuelOpponentDistanceKm: number;
@@ -173,8 +185,10 @@ export function buildDuelParticipantFirstRows({
     const mergeResult = mergeDuelParticipantProgress({
       currentBoardDistanceKm,
       currentUserDuelLiveStatus,
+      currentUserDuelResultLabel,
       effectiveDuelOpponent,
       effectiveOpponentDistanceKm,
+      opponentDuelResultLabel,
       seed,
       targetDistanceKm,
     });

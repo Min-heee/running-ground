@@ -86,6 +86,27 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   nameTextProgressivePlaceholder: {
     color: colors.borderMuted,
   },
+  resultBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.xxl,
+    paddingVertical: spacing.xs,
+    backgroundColor: colors.textNeutral,
+  },
+  resultBadgeWin: {
+    backgroundColor: colors.successGoogle,
+  },
+  resultBadgeLose: {
+    backgroundColor: colors.orange,
+  },
+  resultBadgeDraw: {
+    backgroundColor: colors.textNeutral,
+  },
+  resultBadgeText: {
+    color: colors.white,
+    fontSize: fontSizes.xxs,
+    fontWeight: fontWeights.black,
+  },
   trackColumn: {
     flex: 1,
     minWidth: 106,
@@ -183,6 +204,9 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
   },
   metaRemainingForfeited: {
     color: colors.dangerLight,
+  },
+  metaRemainingFinished: {
+    color: colors.successBright,
   },
   metaRemainingProgressivePlaceholder: {
     color: colors.textTertiary,
