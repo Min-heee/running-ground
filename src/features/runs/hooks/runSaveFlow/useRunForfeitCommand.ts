@@ -151,6 +151,21 @@ export function useRunForfeitCommand({
     }
   };
 
+  const saveSelfForfeitResultAndNavigate = async (source: MatchExitSource, matchId: string | null) => {
+    if (pendingCounterpartForfeitResultRef.current) {
+      return;
+    }
+
+    pendingCounterpartForfeitResultRef.current = true;
+    try {
+      await saveForfeitResultAndNavigate(source, matchId, { currentUserForfeited: true });
+    } catch (saveError) {
+      setError(getApiErrorMessage(saveError, '기권 결과 저장에 실패했어. 잠시 후 결과보기를 다시 눌러줘.'));
+    } finally {
+      pendingCounterpartForfeitResultRef.current = false;
+    }
+  };
+
   const stopForfeitedTracking = async () => {
     if (status !== 'running') {
       return;
@@ -213,7 +228,7 @@ export function useRunForfeitCommand({
     try {
       if (source === 'duel') {
         setDuelMatchStatus((currentStatus) => markDuelStatusForfeited(currentStatus, matchId));
-        setDuelMatchNotice('기권 처리됐어요. 결과보기를 누르면 기록 상세로 이동해요.');
+        setDuelMatchNotice('기권 처리됐어요. 기록 상세로 이동할게요.');
         await leaveRunningMatch({ matchId });
         didLeaveMatch = true;
         markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
@@ -222,7 +237,7 @@ export function useRunForfeitCommand({
         matchProgressHeartbeatRef.current = Date.now();
       } else {
         setGroupMatchStatus((currentStatus) => markGroupStatusForfeited(currentStatus, matchId));
-        setGroupMatchNotice('기권 처리됐어요. 결과보기를 누르면 기록 상세로 이동해요.');
+        setGroupMatchNotice('기권 처리됐어요. 기록 상세로 이동할게요.');
         await leaveRunningMatch({ matchId });
         didLeaveMatch = true;
         markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
@@ -233,6 +248,7 @@ export function useRunForfeitCommand({
 
       await stopForfeitedTracking();
       void loadUpcomingMatches().catch(() => {});
+      await saveSelfForfeitResultAndNavigate(source, matchId);
     } catch (matchError) {
       if (!didLeaveMatch) {
         if (source === 'duel') {
@@ -289,7 +305,6 @@ export function useRunForfeitCommand({
     }
 
     rgPerfMark('self forfeit result action dispatch', { source, status });
-    pendingCounterpartForfeitResultRef.current = true;
     setMatchLeaving(source, true);
     const matchId = resolveMatchExitId({
       source,
@@ -299,9 +314,8 @@ export function useRunForfeitCommand({
     });
 
     try {
-      await saveForfeitResultAndNavigate(source, matchId, { currentUserForfeited: true });
+      await saveSelfForfeitResultAndNavigate(source, matchId);
     } finally {
-      pendingCounterpartForfeitResultRef.current = false;
       setMatchLeaving(source, false);
     }
   };
