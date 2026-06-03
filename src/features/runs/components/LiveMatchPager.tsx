@@ -70,13 +70,13 @@ export const LiveMatchPager = memo(function LiveMatchPager({
         />
         <View style={styles.androidPage}>
           <View style={page === 0 ? styles.androidPageSlot : styles.androidPageHiddenSlot}>
-            {renderArenaPage()}
+            {page === 0 ? renderArenaPage() : null}
           </View>
           <View style={page === 1 ? styles.androidPageSlot : styles.androidPageHiddenSlot}>
-            {renderRaceBoardPage()}
+            {page === 1 ? renderRaceBoardPage() : null}
           </View>
           <View style={page === 2 ? styles.androidPageSlot : styles.androidPageHiddenSlot}>
-            {renderStatsPage()}
+            {page === 2 ? renderStatsPage() : null}
           </View>
         </View>
         <Text style={styles.hint}>위 탭을 누르면 순위와 기록 화면을 볼 수 있어요.</Text>
