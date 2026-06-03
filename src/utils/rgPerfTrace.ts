@@ -81,6 +81,10 @@ function logRgPerf(level: 'log' | 'warn', label: string, detail?: RgPerfDetail) 
 }
 
 export function rgDiagLog(label: string, detail?: RgPerfDetail) {
+  if (!isRgPerfTraceEnabled()) {
+    return;
+  }
+
   const message = `[RG diag] ${label}${formatDetail(detail)}`;
   globalThis.console.log(message);
 }
