@@ -27,7 +27,7 @@ function run(
   };
 }
 
-test('match record stats exclude party runs but keep official and legacy match results', () => {
+test('match record stats exclude party and source-less runs while keeping official match results', () => {
   const stats = buildMatchRecordStats(activity([
     run('solo'),
     run('party-duel', {
@@ -46,6 +46,14 @@ test('match record stats exclude party runs but keep official and legacy match r
       badgeLabel: '',
       resultTone: 'win',
     }),
+    run('official-group', {
+      mode: 'group',
+      source: 'official',
+      title: '',
+      summary: '',
+      badgeLabel: '',
+      rank: 2,
+    }),
     run('legacy-group', {
       mode: 'group',
       title: '',
@@ -55,7 +63,7 @@ test('match record stats exclude party runs but keep official and legacy match r
     }),
   ]));
 
-  assert.deepEqual(stats.matchRuns.map((matchRun) => matchRun.id), ['official-duel', 'legacy-group']);
+  assert.deepEqual(stats.matchRuns.map((matchRun) => matchRun.id), ['official-duel', 'official-group']);
   assert.equal(stats.duelRuns.length, 1);
   assert.equal(stats.groupRuns.length, 1);
   assert.equal(stats.duelWins, 1);

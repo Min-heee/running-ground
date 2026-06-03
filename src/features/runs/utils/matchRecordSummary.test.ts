@@ -18,9 +18,9 @@ function run(overrides: Partial<MyRunRecord>): MyRunRecord {
 
 test('match record summary counts duel and group match runs', () => {
   const summary = buildMatchRecordSummary([
-    run({ id: 'duel-a', matchResult: { mode: 'duel', title: '', summary: '', badgeLabel: '' } }),
-    run({ id: 'group-a', matchResult: { mode: 'group', title: '', summary: '', badgeLabel: '' } }),
-    run({ id: 'duel-b', matchResult: { mode: 'duel', title: '', summary: '', badgeLabel: '' } }),
+    run({ id: 'duel-a', matchResult: { mode: 'duel', source: 'official', title: '', summary: '', badgeLabel: '' } }),
+    run({ id: 'group-a', matchResult: { mode: 'group', source: 'official', title: '', summary: '', badgeLabel: '' } }),
+    run({ id: 'duel-b', matchResult: { mode: 'duel', source: 'official', title: '', summary: '', badgeLabel: '' } }),
   ]);
 
   assert.deepEqual(summary, {
@@ -33,7 +33,7 @@ test('match record summary counts duel and group match runs', () => {
 test('match record summary ignores non-match runs', () => {
   const summary = buildMatchRecordSummary([
     run({ id: 'solo' }),
-    run({ id: 'duel', matchResult: { mode: 'duel', title: '', summary: '', badgeLabel: '' } }),
+    run({ id: 'duel', matchResult: { mode: 'duel', source: 'official', title: '', summary: '', badgeLabel: '' } }),
   ]);
 
   assert.deepEqual(summary, {
@@ -43,7 +43,7 @@ test('match record summary ignores non-match runs', () => {
   });
 });
 
-test('match record summary excludes party runs from official match record counts', () => {
+test('match record summary excludes party and source-less runs from official match record counts', () => {
   const summary = buildMatchRecordSummary([
     run({
       id: 'party-duel',
@@ -61,8 +61,8 @@ test('match record summary excludes party runs from official match record counts
 
   assert.deepEqual(summary, {
     duelCount: 1,
-    groupCount: 1,
-    totalCount: 2,
+    groupCount: 0,
+    totalCount: 1,
   });
 });
 

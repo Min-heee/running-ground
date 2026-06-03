@@ -6,10 +6,10 @@ export function getRunKind(run: Pick<MyRunRecord, 'matchResult'>): RunKind {
   if (!run.matchResult) {
     return 'solo';
   }
-  if (run.matchResult.source === 'party') {
-    return 'party';
+  if (run.matchResult.source === 'official') {
+    return 'match';
   }
-  return 'match';
+  return 'party';
 }
 
 export function isMatchRecordRun(run: Pick<MyRunRecord, 'matchResult'>): boolean {

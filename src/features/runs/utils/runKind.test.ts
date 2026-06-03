@@ -23,7 +23,7 @@ test('run kind classifies party runs from saved match source', () => {
   assert.equal(isMatchRecordRun(partyRun), false);
 });
 
-test('run kind classifies official and legacy match results as match records', () => {
+test('run kind classifies official match results as match records', () => {
   const officialRun = {
     matchResult: {
       mode: 'group' as const,
@@ -33,7 +33,13 @@ test('run kind classifies official and legacy match results as match records', (
       badgeLabel: '',
     },
   };
-  const legacyRun = {
+
+  assert.equal(getRunKind(officialRun), 'match');
+  assert.equal(isMatchRecordRun(officialRun), true);
+});
+
+test('run kind treats source-less match results as party runs', () => {
+  const sourceLessRun = {
     matchResult: {
       mode: 'duel' as const,
       title: '',
@@ -42,8 +48,6 @@ test('run kind classifies official and legacy match results as match records', (
     },
   };
 
-  assert.equal(getRunKind(officialRun), 'match');
-  assert.equal(isMatchRecordRun(officialRun), true);
-  assert.equal(getRunKind(legacyRun), 'match');
-  assert.equal(isMatchRecordRun(legacyRun), true);
+  assert.equal(getRunKind(sourceLessRun), 'party');
+  assert.equal(isMatchRecordRun(sourceLessRun), false);
 });
