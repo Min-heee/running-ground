@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -15,12 +15,19 @@ import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type ActivityKindFilter = 'all' | RunKind;
+type ActivityModeFilter = 'all' | 'duel' | 'group';
 
 const ACTIVITY_KIND_FILTER_OPTIONS = [
   { key: 'all', label: '전체' },
   { key: 'solo', label: '혼자러닝' },
   { key: 'party', label: '파티런' },
   { key: 'match', label: '매칭대결' },
+] as const;
+
+const ACTIVITY_MODE_FILTER_OPTIONS = [
+  { key: 'all', label: '전체' },
+  { key: 'duel', label: '1대1' },
+  { key: 'group', label: '그룹' },
 ] as const;
 
 const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun }) {
@@ -40,16 +47,34 @@ const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun 
 export default function MyActivityScreen() {
   const { activity, activityRuns, error, loading } = useMyActivity();
   const [kindFilter, setKindFilter] = useState<ActivityKindFilter>('all');
-  const visibleRuns = useMemo(
-    () => kindFilter === 'all'
+  const [modeFilter, setModeFilter] = useState<ActivityModeFilter>('all');
+  const showModeFilter = kindFilter === 'party' || kindFilter === 'match';
+  const handleKindChange = useCallback((next: ActivityKindFilter) => {
+    setKindFilter(next);
+    setModeFilter('all');
+  }, []);
+  const visibleRuns = useMemo(() => {
+    const baseRuns = kindFilter === 'all'
       ? activityRuns
-      : activityRuns.filter((run) => getRunKind(run) === kindFilter),
-    [activityRuns, kindFilter],
-  );
-  const emptyTitle = kindFilter === 'all' ? '아직 저장된 러닝 기록이 없어.' : '해당 종류의 기록이 없어.';
+      : activityRuns.filter((run) => getRunKind(run) === kindFilter);
+
+    if (!showModeFilter || modeFilter === 'all') {
+      return baseRuns;
+    }
+
+    return baseRuns.filter((run) => run.matchResult?.mode === modeFilter);
+  }, [activityRuns, kindFilter, modeFilter, showModeFilter]);
+  const hasModeSpecificFilter = showModeFilter && modeFilter !== 'all';
+  const emptyTitle = kindFilter === 'all'
+    ? '아직 저장된 러닝 기록이 없어.'
+    : hasModeSpecificFilter
+      ? '해당 대결 기록이 없어.'
+      : '해당 종류의 기록이 없어.';
   const emptyText = kindFilter === 'all'
     ? '첫 기록을 추가하면 홈 게이지와 친구 순위가 바로 움직이기 시작해.'
-    : '전체를 선택하거나 다른 종류의 기록을 확인해봐.';
+    : hasModeSpecificFilter
+      ? '전체를 선택하거나 다른 모드의 기록을 확인해봐.'
+      : '전체를 선택하거나 다른 종류의 기록을 확인해봐.';
 
   return (
     <Screen>
@@ -86,8 +111,15 @@ export default function MyActivityScreen() {
             <SegmentedTabs
               options={ACTIVITY_KIND_FILTER_OPTIONS}
               value={kindFilter}
-              onChange={setKindFilter}
+              onChange={handleKindChange}
             />
+            {showModeFilter ? (
+              <SegmentedTabs
+                options={ACTIVITY_MODE_FILTER_OPTIONS}
+                value={modeFilter}
+                onChange={setModeFilter}
+              />
+            ) : null}
             {visibleRuns.length > 0 ? (
               visibleRuns.map((run) => (
                 <ActivityRunRow key={run.id} run={run} />
