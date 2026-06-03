@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link, type Href } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { DimensionValue, StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { Card } from '@/components/Card';
 import type { RankState } from '@/domain';
@@ -11,6 +11,7 @@ import {
   RANK_TIERS,
   RANK_TIER_COLOR,
   RANK_TIER_SOFT_COLOR,
+  RANK_TIER_SYMBOL,
 } from '@/features/rank/rankDisplay';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
@@ -29,6 +30,7 @@ export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCar
   const rankLabel = useMemo(() => formatRankLabel(normalizedRankState), [normalizedRankState]);
   const accentColor = RANK_TIER_COLOR[normalizedRankState.tier] ?? colors.brand;
   const softColor = RANK_TIER_SOFT_COLOR[normalizedRankState.tier] ?? colors.surfaceSubtle;
+  const tierSymbol = RANK_TIER_SYMBOL[normalizedRankState.tier];
   const progressPercent = Math.max(0, Math.min(100, (normalizedRankState.lp / LP_PER_TIER) * 100));
   const tierIndex = RANK_TIERS.indexOf(normalizedRankState.tier as (typeof RANK_TIERS)[number]);
   const isMaxTier = tierIndex === RANK_TIERS.length - 1;
@@ -64,8 +66,13 @@ export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCar
       </View>
 
       <View style={styles.rankBody}>
-        <View style={tierBadgeStyle}>
-          <Text style={rankLabelStyle}>◆ {rankLabel}</Text>
+        <View style={styles.tierGroup}>
+          {tierSymbol ? (
+            <Image source={tierSymbol} style={styles.tierSymbol} resizeMode="contain" />
+          ) : null}
+          <View style={tierBadgeStyle}>
+            <Text style={rankLabelStyle}>{rankLabel}</Text>
+          </View>
         </View>
         <Text style={styles.lpText}>
           {normalizedRankState.lp}
@@ -114,6 +121,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.s12,
     justifyContent: 'space-between',
+  },
+  tierGroup: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexShrink: 1,
+    gap: spacing.s10,
+  },
+  tierSymbol: {
+    height: 56,
+    width: 56,
   },
   tierBadge: {
     backgroundColor: colors.white,
