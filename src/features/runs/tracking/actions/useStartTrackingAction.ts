@@ -5,6 +5,7 @@ import {
   resetBackgroundRunTracking,
   startBackgroundRunTracking,
 } from '@/features/runs/tracking/background';
+import { requestAndroidRunTrackingNotificationPermission } from '@/features/runs/tracking/runTrackingNotificationPermission';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import { getTrackingStartKey, resolveStartBlockedMessage } from './startTrackingGuards';
 import {
@@ -93,6 +94,7 @@ export function useStartTrackingAction({
       await ensureBackgroundLocationPermission(
         shouldRequireBackgroundPermission ? { required: true } : undefined,
       );
+      void requestAndroidRunTrackingNotificationPermission().catch(() => false);
       resetForegroundTrackingState();
       await resetBackgroundRunTracking();
 
