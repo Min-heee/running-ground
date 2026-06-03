@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AddressRegionNode } from './addressCatalog';
-import { colors, spacing, fontWeights, radii } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export function buildRegionSelectionState(
   regions: AddressRegionNode[],
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
   selectionTitle: {
     color: colors.textPrimary,
     fontWeight: fontWeights.bold,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
   },
   selectionList: {
     flexDirection: 'row',

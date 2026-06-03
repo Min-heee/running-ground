@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   },
   roomModeChipText: {
     color: colors.borderMuted,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.black,
   },
   roomModeChipTextSelected: {
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s12,
     color: colors.white,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.extraBold,
   },
 });

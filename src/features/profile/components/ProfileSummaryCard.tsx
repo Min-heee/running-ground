@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     color: colors.white,
-    fontSize: 24,
+    fontSize: fontSizes.summaryValue,
     fontWeight: fontWeights.extraBold,
   },
   profileMeta: {

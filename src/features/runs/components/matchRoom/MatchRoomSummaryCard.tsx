@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
   },
   roomModeTitle: {
     color: colors.textPrimary,
-    fontSize: 24,
+    fontSize: fontSizes.summaryValue,
     fontWeight: fontWeights.black,
   },
   roomMeta: {

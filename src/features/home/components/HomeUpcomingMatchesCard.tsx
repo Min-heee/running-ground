@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   },
   upcomingTitle: {
     color: colors.white,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.extraBold,
   },
   upcomingMeta: {

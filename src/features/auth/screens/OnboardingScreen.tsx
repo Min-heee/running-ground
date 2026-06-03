@@ -40,8 +40,8 @@ const styles = StyleSheet.create({
     minHeight: 220,
     justifyContent: 'center',
   },
-  logo: { color: colors.brandSoftBorder, fontWeight: fontWeights.extraBold, fontSize: 13 },
+  logo: { color: colors.brandSoftBorder, fontWeight: fontWeights.extraBold, fontSize: fontSizes.md },
   title: { color: colors.white, fontSize: fontSizes.authTitle, fontWeight: fontWeights.extraBold, lineHeight: 40 },
-  subtitle: { color: colors.purpleRowSoft, lineHeight: 22, fontSize: 15 },
+  subtitle: { color: colors.purpleRowSoft, lineHeight: 22, fontSize: fontSizes.rank },
   actions: { gap: 10 },
 });

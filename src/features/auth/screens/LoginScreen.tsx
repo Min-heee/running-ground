@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   accountButtonText: {
     color: colors.textPrimary,
     fontWeight: fontWeights.extraBold,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
   },
   serverCardHeader: {
     flexDirection: 'row',
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   serverTitle: {
     color: colors.textPrimary,
     fontWeight: fontWeights.extraBold,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
   },
   serverAction: {
     color: colors.brand,

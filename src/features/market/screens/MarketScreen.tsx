@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
   },
   statusDescription: {
     color: colors.slateLabel,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.semibold,
     lineHeight: 24,
   },

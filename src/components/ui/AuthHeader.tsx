@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.md,
     includeFontPadding: false,
   },
-  logo: { color: colors.brand, fontWeight: fontWeights.extraBold, fontSize: 13 },
+  logo: { color: colors.brand, fontWeight: fontWeights.extraBold, fontSize: fontSizes.md },
   title: { fontSize: fontSizes.authTitle, fontWeight: fontWeights.extraBold, color: colors.textHeading },
   subtitle: { color: colors.textMuted, lineHeight: 22 },
 });

@@ -54,7 +54,7 @@ export const universityVerificationStyles = StyleSheet.create({
   methodPickerButtonTitle: {
     color: colors.textPrimary,
     fontWeight: fontWeights.extraBold,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
   },
   methodPickerButtonTitleSelected: {
     color: colors.brandDeep,
@@ -79,7 +79,7 @@ export const universityVerificationStyles = StyleSheet.create({
   },
   inputLabel: {
     color: colors.textPrimary,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.bold,
   },
   input: {

@@ -107,7 +107,7 @@ const styles = StyleSheet.create({
   addButtonText: {
     color: colors.white,
     fontWeight: fontWeights.extraBold,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
   },
   errorTitle: {
     color: colors.textPrimary,

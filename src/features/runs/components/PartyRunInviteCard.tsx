@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
   title: {
     marginTop: spacing.sm,
     color: colors.textPrimary,
-    fontSize: 17,
+    fontSize: fontSizes.large,
     fontWeight: fontWeights.black,
     lineHeight: 23,
   },
@@ -121,12 +121,12 @@ const styles = StyleSheet.create({
   },
   declineText: {
     color: colors.slateMuted,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.black,
   },
   acceptText: {
     color: colors.white,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.black,
   },
 });

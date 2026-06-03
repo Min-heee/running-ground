@@ -19,7 +19,7 @@ export const friendsRankingStyles = StyleSheet.create({
   },
   title: {
     color: colors.white,
-    fontSize: 24,
+    fontSize: fontSizes.summaryValue,
     fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },
@@ -188,7 +188,7 @@ export const friendsRankingStyles = StyleSheet.create({
   },
   metricInlineValue: {
     color: colors.white,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
   },

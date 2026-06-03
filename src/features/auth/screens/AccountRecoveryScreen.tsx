@@ -279,14 +279,14 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: colors.white,
     fontWeight: fontWeights.extraBold,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
   },
   disabledButton: {
     opacity: 0.7,
   },
   resultText: {
     color: colors.textPrimary,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.extraBold,
   },
   errorText: {

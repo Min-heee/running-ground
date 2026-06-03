@@ -46,7 +46,7 @@ export const signupFormStyles = StyleSheet.create({
   displayNameOptionTitle: {
     color: colors.textPrimary,
     fontWeight: fontWeights.extraBold,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
   },
   displayNameOptionTitleSelected: {
     color: colors.brandDeep,
@@ -84,7 +84,7 @@ export const signupFormStyles = StyleSheet.create({
   label: {
     color: colors.textPrimary,
     fontWeight: fontWeights.bold,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
   },
   labelRow: {
     flexDirection: 'row',

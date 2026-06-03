@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
   },
   tagValue: {
     color: colors.textPrimary,
-    fontSize: 24,
+    fontSize: fontSizes.summaryValue,
     fontWeight: fontWeights.black,
     includeFontPadding: false,
   },

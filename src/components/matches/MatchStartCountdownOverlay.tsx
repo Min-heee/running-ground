@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colors.white,
-    fontSize: 24,
+    fontSize: fontSizes.summaryValue,
     fontWeight: fontWeights.extraBold,
     textAlign: 'center',
   },

@@ -196,6 +196,7 @@ export const fontSizes = {
   display: 19,
   metric: 20,
   comingSoon: 22,
+  summaryValue: 24,
   pageTitle: 28,
   metricLarge: 29,
   hero: 30,

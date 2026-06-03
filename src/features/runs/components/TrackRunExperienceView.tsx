@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
   },
   roomArmingOverlayText: {
     color: colors.lavenderSoft,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.semibold,
     textAlign: 'center',
     lineHeight: 22,
@@ -217,7 +217,7 @@ const styles = StyleSheet.create({
   soloStartCountdownTitle: {
     marginTop: spacing.xxl,
     color: colors.white,
-    fontSize: 24,
+    fontSize: fontSizes.summaryValue,
     fontWeight: fontWeights.black,
   },
   soloStartCountdownNumber: {

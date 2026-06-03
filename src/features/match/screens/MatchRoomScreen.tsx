@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
   backText: {
     color: colors.brand,
     fontWeight: fontWeights.black,
-    fontSize: 24,
+    fontSize: fontSizes.summaryValue,
     lineHeight: 24,
   },
   pageTitle: {

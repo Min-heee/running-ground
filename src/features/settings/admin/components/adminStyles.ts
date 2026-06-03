@@ -46,7 +46,7 @@ export const styles = StyleSheet.create({
   },
   heroSubtitle: {
     color: colors.border,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     lineHeight: 22,
   },
   heroMeta: {
@@ -279,7 +279,7 @@ export const styles = StyleSheet.create({
   },
   listTitle: {
     color: colors.textPrimary,
-    fontSize: 17,
+    fontSize: fontSizes.large,
     fontWeight: fontWeights.black,
   },
   listMeta: {

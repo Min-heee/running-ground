@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   },
   pointUnit: {
     color: colors.textSecondary,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.bold,
   },
   pointSub: {

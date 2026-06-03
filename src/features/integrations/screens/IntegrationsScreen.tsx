@@ -119,6 +119,6 @@ const styles = StyleSheet.create({
   coverageText: { color: colors.brand, fontWeight: fontWeights.bold, marginTop: 8 },
   syncText: { color: colors.textMuted, lineHeight: 20, marginTop: 8 },
   successText: { color: colors.successText, fontWeight: fontWeights.bold, marginTop: spacing.xxl, lineHeight: 20 },
-  errorTitle: { color: colors.textPrimary, fontWeight: fontWeights.extraBold, fontSize: 18 },
+  errorTitle: { color: colors.textPrimary, fontWeight: fontWeights.extraBold, fontSize: fontSizes.title },
   errorText: { color: colors.danger, fontWeight: fontWeights.bold, lineHeight: 20, marginTop: 10 },
 });

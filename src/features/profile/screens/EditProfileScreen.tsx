@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
   label: {
     color: colors.textPrimary,
     fontWeight: fontWeights.bold,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
   },
   input: {
     backgroundColor: colors.surfaceSubtleAlt,

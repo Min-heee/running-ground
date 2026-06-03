@@ -309,7 +309,7 @@ export const matchSetupCardStyles = StyleSheet.create({
   },
   matchDemandHeadline: {
     color: colors.white,
-    fontSize: 15,
+    fontSize: fontSizes.rank,
     fontWeight: fontWeights.black,
   },
   matchDemandText: {
