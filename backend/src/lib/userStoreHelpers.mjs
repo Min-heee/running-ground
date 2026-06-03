@@ -5,6 +5,7 @@ import { isActiveRewardRedemption } from './adminNormalizers.mjs';
 import {
   INITIAL_RANK,
   RANK_TIERS,
+  resolveRankTier,
 } from './rankSystem.mjs';
 
 const metricsCacheByStore = new WeakMap();
@@ -80,11 +81,13 @@ export function buildProfileWithMetrics(user, metrics) {
 }
 
 function normalizeUserRankState(rankState) {
+  const tier = resolveRankTier(rankState?.tier);
+
   if (
     !rankState
     || typeof rankState !== 'object'
     || Array.isArray(rankState)
-    || !RANK_TIERS.includes(rankState.tier)
+    || !RANK_TIERS.includes(tier)
     || 'division' in rankState
     || !Number.isFinite(rankState.lp)
     || rankState.lp < 0
@@ -93,7 +96,7 @@ function normalizeUserRankState(rankState) {
   }
 
   return {
-    tier: rankState.tier,
+    tier,
     lp: Math.trunc(rankState.lp),
   };
 }

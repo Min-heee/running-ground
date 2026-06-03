@@ -19,6 +19,13 @@ test('normalizeRankStateForDisplay preserves valid rank state', () => {
   );
 });
 
+test('normalizeRankStateForDisplay maps legacy jogger tier to runner', () => {
+  assert.deepEqual(
+    normalizeRankStateForDisplay({ tier: '조거', lp: 20 }),
+    { tier: '러너', lp: 20 },
+  );
+});
+
 test('normalizeRankStateForDisplay falls back for malformed rank state', () => {
   assert.deepEqual(normalizeRankStateForDisplay(undefined), DEFAULT_RANK_STATE);
   assert.deepEqual(normalizeRankStateForDisplay({ tier: '마스터', lp: 20 }), DEFAULT_RANK_STATE);

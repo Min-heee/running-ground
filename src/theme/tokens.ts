@@ -93,7 +93,6 @@ export const colors = {
   purpleSoft: '#D9D6FE',
   purpleTextSoft: '#EDE9FE',
   rankIntroSoft: '#F1F4F8',
-  rankJoggerSoft: '#FAF3EA',
   rankRunnerSoft: '#F3F4F6',
   rankPacerSoft: '#FCF6E6',
   rankRacerSoft: '#EEF1FE',

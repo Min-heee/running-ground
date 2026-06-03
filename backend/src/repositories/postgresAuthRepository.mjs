@@ -2,6 +2,7 @@ import { buildSessionExpiry, hashPassword, verifyPassword } from '../auth.mjs';
 import {
   INITIAL_RANK,
   RANK_TIERS,
+  resolveRankTier,
 } from '../lib/rankSystem.mjs';
 import { createDefaultConnectedSources, createDefaultNotificationSettings } from './authRepository.mjs';
 
@@ -33,9 +34,10 @@ function asNumber(value, fallback = 0) {
 
 function asRankState(value) {
   const rankState = asObject(value);
+  const tier = resolveRankTier(rankState.tier);
 
   if (
-    !RANK_TIERS.includes(rankState.tier)
+    !RANK_TIERS.includes(tier)
     || 'division' in rankState
     || !Number.isFinite(rankState.lp)
     || rankState.lp < 0
@@ -44,7 +46,7 @@ function asRankState(value) {
   }
 
   return {
-    tier: rankState.tier,
+    tier,
     lp: Math.trunc(rankState.lp),
   };
 }

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { INITIAL_RANK, RANK_TIERS } from '../src/lib/rankSystem.mjs';
+import { INITIAL_RANK, RANK_TIERS, resolveRankTier } from '../src/lib/rankSystem.mjs';
 
 const backendDirectory = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const defaultStoreFile = resolve(backendDirectory, 'data', 'store.json');
@@ -158,9 +158,10 @@ function normalizeRankState(value) {
   }
 
   const lp = Number(value.lp);
+  const tier = resolveRankTier(value.tier);
 
   if (
-    !RANK_TIERS.includes(value.tier)
+    !RANK_TIERS.includes(tier)
     || 'division' in value
     || !Number.isFinite(lp)
     || lp < 0
@@ -169,7 +170,7 @@ function normalizeRankState(value) {
   }
 
   return {
-    tier: value.tier,
+    tier,
     lp: Math.trunc(lp),
   };
 }

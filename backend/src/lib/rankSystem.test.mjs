@@ -24,14 +24,14 @@ assert.deepEqual(applyLpDelta({ tier: '입문', lp: 40 }, -10), {
 });
 
 assert.deepEqual(applyLpDelta({ tier: '입문', lp: 150 }, 50), {
-  tier: '조거',
+  tier: '러너',
   lp: 0,
   promoted: true,
   demoted: false,
 });
 
 assert.deepEqual(applyLpDelta(INITIAL_RANK, 250), {
-  tier: '조거',
+  tier: '러너',
   lp: 50,
   promoted: true,
   demoted: false,
@@ -56,6 +56,13 @@ assert.deepEqual(applyLpDelta({ tier: '조거', lp: 50 }, -100), {
   lp: 150,
   promoted: false,
   demoted: true,
+});
+
+assert.deepEqual(applyLpDelta({ tier: '조거', lp: 50 }, 0), {
+  tier: '러너',
+  lp: 50,
+  promoted: false,
+  demoted: false,
 });
 
 assert.deepEqual(applyLpDelta({ tier: '엘리트', lp: 1000 }, 200), {

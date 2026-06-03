@@ -1,13 +1,15 @@
 import type { RankState } from '@/domain';
 import { colors } from '@/theme/tokens';
 
-export const RANK_TIERS = ['입문', '조거', '러너', '페이서', '레이서', '엘리트'] as const;
+export const RANK_TIERS = ['입문', '러너', '페이서', '레이서', '엘리트'] as const;
 export const LP_PER_TIER = 200;
 export const DEFAULT_RANK_STATE: RankState = { tier: '입문', lp: 0 };
+const LEGACY_TIER_ALIASES: Record<string, (typeof RANK_TIERS)[number]> = {
+  조거: '러너',
+};
 
 export const RANK_TIER_COLOR: Record<string, string> = {
   입문: colors.slateMuted,
-  조거: colors.podiumBronze,
   러너: colors.podiumSilver,
   페이서: colors.podiumGold,
   레이서: colors.indigoAccent,
@@ -16,7 +18,6 @@ export const RANK_TIER_COLOR: Record<string, string> = {
 
 export const RANK_TIER_SOFT_COLOR: Record<string, string> = {
   입문: colors.rankIntroSoft,
-  조거: colors.rankJoggerSoft,
   러너: colors.rankRunnerSoft,
   페이서: colors.rankPacerSoft,
   레이서: colors.rankRacerSoft,
@@ -25,6 +26,10 @@ export const RANK_TIER_SOFT_COLOR: Record<string, string> = {
 
 function isRankTier(value: unknown): value is (typeof RANK_TIERS)[number] {
   return typeof value === 'string' && RANK_TIERS.includes(value as (typeof RANK_TIERS)[number]);
+}
+
+function resolveRankTier(value: unknown): unknown {
+  return typeof value === 'string' ? (LEGACY_TIER_ALIASES[value] ?? value) : value;
 }
 
 function buildDefaultRankState(): RankState {
@@ -37,10 +42,11 @@ export function normalizeRankStateForDisplay(rankState: unknown): RankState {
   }
 
   const candidate = rankState as Partial<RankState>;
+  const tier = resolveRankTier(candidate.tier);
   const lp = Number(candidate.lp);
 
   if (
-    !isRankTier(candidate.tier)
+    !isRankTier(tier)
     || 'division' in candidate
     || !Number.isFinite(lp)
     || lp < 0
@@ -49,7 +55,7 @@ export function normalizeRankStateForDisplay(rankState: unknown): RankState {
   }
 
   return {
-    tier: candidate.tier,
+    tier,
     lp: Math.trunc(lp),
   };
 }

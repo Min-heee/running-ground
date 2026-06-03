@@ -1,6 +1,7 @@
-export const RANK_TIERS = ['입문', '조거', '러너', '페이서', '레이서', '엘리트'];
+export const RANK_TIERS = ['입문', '러너', '페이서', '레이서', '엘리트'];
 export const LP_PER_TIER = 200;
 export const INITIAL_RANK = { tier: '입문', lp: 0 };
+const LEGACY_TIER_ALIASES = { '조거': '러너' };
 
 export const DUEL_LP = {
   winVsFaster: 28,
@@ -17,12 +18,18 @@ export const GROUP_LP = { top: 20, middle: 6, bottom: -15 };
 export const GROUP_TOP_RATIO = 0.3;
 export const GROUP_BOTTOM_RATIO = 0.7;
 
+export function resolveRankTier(tier) {
+  return typeof tier === 'string' ? (LEGACY_TIER_ALIASES[tier] ?? tier) : tier;
+}
+
 function normalizeRankState(rankState) {
+  const tier = resolveRankTier(rankState?.tier);
+
   if (
     !rankState
     || typeof rankState !== 'object'
     || Array.isArray(rankState)
-    || !RANK_TIERS.includes(rankState.tier)
+    || !RANK_TIERS.includes(tier)
     || 'division' in rankState
   ) {
     return {
@@ -31,7 +38,7 @@ function normalizeRankState(rankState) {
     };
   }
 
-  const tierIndex = RANK_TIERS.indexOf(rankState?.tier);
+  const tierIndex = RANK_TIERS.indexOf(tier);
   const rawLp = Number(rankState?.lp);
   const safeLp = Number.isFinite(rawLp) && rawLp >= 0 ? Math.trunc(rawLp) : INITIAL_RANK.lp;
 

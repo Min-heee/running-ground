@@ -13,7 +13,6 @@ function leaderboard(overrides: Partial<RankLeaderboard> = {}): RankLeaderboard 
       { tier: '레이서', users: [] },
       { tier: '입문', users: [] },
       { tier: '엘리트', users: [] },
-      { tier: '조거', users: [] },
       { tier: '러너', users: [] },
       { tier: '페이서', users: [] },
     ],
@@ -24,7 +23,7 @@ function leaderboard(overrides: Partial<RankLeaderboard> = {}): RankLeaderboard 
 test('resolveOrderedRankTiers follows the canonical rank tier order', () => {
   const result = resolveOrderedRankTiers(leaderboard());
 
-  assert.deepEqual(result.map((entry) => entry.tier), ['입문', '조거', '러너', '페이서', '레이서', '엘리트']);
+  assert.deepEqual(result.map((entry) => entry.tier), ['입문', '러너', '페이서', '레이서', '엘리트']);
 });
 
 test('resolveOrderedRankTiers keeps unknown tiers after known tiers', () => {
@@ -56,11 +55,11 @@ test('resolveDefaultSelectedTier falls back to the first ordered tier', () => {
     currentUserId: 'missing',
     tiers: [
       { tier: '엘리트', users: [] },
-      { tier: '조거', users: [] },
+      { tier: '러너', users: [] },
     ],
   }));
 
-  assert.equal(result, '조거');
+  assert.equal(result, '러너');
 });
 
 test('rank leaderboard view helpers are null safe', () => {
