@@ -11,8 +11,8 @@ import {
   RANK_TIERS,
   RANK_TIER_COLOR,
   RANK_TIER_SOFT_COLOR,
-  RANK_TIER_SYMBOL,
 } from '@/features/rank/rankDisplay';
+import { RANK_TIER_SYMBOL } from '@/features/rank/rankSymbols';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type HomeRankCardProps = {

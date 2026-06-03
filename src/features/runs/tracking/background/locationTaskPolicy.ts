@@ -15,25 +15,25 @@ export type LocationTaskControllerAdapter = {
   stopBackgroundLocationTasksIfNeeded: () => Promise<void>;
 };
 
-function shouldUseForegroundLocationWatch(platform: LocationTaskPlatform, appState: AppStateStatus) {
+function shouldUseForegroundLocationWatch(platform: LocationTaskPlatform, _appState: AppStateStatus) {
   if (platform === 'web') {
     return false;
   }
 
   if (platform === 'android') {
-    return appState === 'active';
+    return false;
   }
 
   return true;
 }
 
-function shouldUseBackgroundLocationTask(platform: LocationTaskPlatform, appState: AppStateStatus) {
+function shouldUseBackgroundLocationTask(platform: LocationTaskPlatform, _appState: AppStateStatus) {
   if (platform === 'web') {
     return false;
   }
 
   if (platform === 'android') {
-    return appState !== 'active';
+    return true;
   }
 
   return true;
