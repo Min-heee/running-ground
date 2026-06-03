@@ -129,8 +129,8 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
   },
   tierSymbol: {
-    height: 56,
-    width: 56,
+    height: 96,
+    width: 72,
   },
   tierBadge: {
     backgroundColor: colors.white,
