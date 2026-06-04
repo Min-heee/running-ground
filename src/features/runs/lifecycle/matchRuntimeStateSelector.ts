@@ -20,16 +20,40 @@ export type PartyRunRuntimeSource = {
 export function isLinkedRoomRuntimeState(room: RunningMatchRoom | null | undefined) {
   return Boolean(
     room?.linkedMatchId
+    && room.joined !== false
     && (room.state === 'arming' || room.state === 'countdown' || room.state === 'active'),
   );
 }
 
+export function isInviteOnlyRuntimeRoom(room: RunningMatchRoom | null | undefined) {
+  return Boolean(room && room.joined === false);
+}
+
 function getLinkedRoomPriority(room: RunningMatchRoom | null | undefined) {
-  if (!room?.linkedMatchId) {
+  if (!room?.linkedMatchId || isInviteOnlyRuntimeRoom(room)) {
     return 0;
   }
 
   return LINKED_ROOM_STATE_PRIORITY[room.state] ?? 0;
+}
+
+function getRuntimeRoomCandidate(room: RunningMatchRoom | null | undefined) {
+  return isInviteOnlyRuntimeRoom(room) ? null : room ?? null;
+}
+
+function withoutLinkedRuntimeFlow(flow: PartyRunFlowSnapshot): PartyRunFlowSnapshot {
+  return {
+    ...flow,
+    phase: 'waiting',
+    hasLinkedMatch: false,
+    canAcknowledgeCountdownReady: false,
+    canOpenLinkedMatch: false,
+    shouldShowLoading: false,
+    shouldShowCountdown: false,
+    shouldOpenArena: false,
+    shouldPreferArena: false,
+    linkedMatchContext: null,
+  };
 }
 
 export function selectLinkedRuntimeRoom({
@@ -39,14 +63,16 @@ export function selectLinkedRuntimeRoom({
   matchRoom: RunningMatchRoom | null;
   visibleMatchRoom: RunningMatchRoom | null;
 }) {
-  const visiblePriority = getLinkedRoomPriority(visibleMatchRoom);
-  const roomPriority = getLinkedRoomPriority(matchRoom);
+  const visibleRoomCandidate = getRuntimeRoomCandidate(visibleMatchRoom);
+  const matchRoomCandidate = getRuntimeRoomCandidate(matchRoom);
+  const visiblePriority = getLinkedRoomPriority(visibleRoomCandidate);
+  const roomPriority = getLinkedRoomPriority(matchRoomCandidate);
 
-  if (matchRoom && roomPriority > visiblePriority) {
-    return matchRoom;
+  if (matchRoomCandidate && roomPriority > visiblePriority) {
+    return matchRoomCandidate;
   }
 
-  return visibleMatchRoom ?? matchRoom;
+  return visibleRoomCandidate ?? matchRoomCandidate;
 }
 
 export function selectPartyRunRuntimeSource({
@@ -64,11 +90,14 @@ export function selectPartyRunRuntimeSource({
 }): PartyRunRuntimeSource {
   const room = selectLinkedRuntimeRoom({ matchRoom, visibleMatchRoom });
   const shouldUseMatchRoom = Boolean(room && matchRoom && room === matchRoom);
-  const flow = shouldUseMatchRoom ? matchRoomFlow : visiblePartyRunFlow;
+  const selectedFlow = shouldUseMatchRoom ? matchRoomFlow : visiblePartyRunFlow;
+  const flow = room ? selectedFlow : withoutLinkedRuntimeFlow(selectedFlow);
 
   return {
     flow,
-    linkedMatchContext: flow.linkedMatchContext ?? explicitLinkedMatchContext ?? null,
+    linkedMatchContext: room
+      ? flow.linkedMatchContext ?? explicitLinkedMatchContext ?? null
+      : explicitLinkedMatchContext ?? null,
     room,
   };
 }
