@@ -9,11 +9,11 @@ const LEGACY_TIER_ALIASES: Record<string, (typeof RANK_TIERS)[number]> = {
 };
 
 export const RANK_TIER_COLOR: Record<string, string> = {
-  입문: colors.slateMuted,
-  러너: colors.podiumSilver,
-  페이서: colors.podiumGold,
-  레이서: colors.indigoAccent,
-  엘리트: colors.blueStrong,
+  입문: colors.rankIntroAccent,
+  러너: colors.rankRunnerAccent,
+  페이서: colors.rankPacerAccent,
+  레이서: colors.rankRacerAccent,
+  엘리트: colors.rankEliteAccent,
 };
 
 export const RANK_TIER_SOFT_COLOR: Record<string, string> = {
