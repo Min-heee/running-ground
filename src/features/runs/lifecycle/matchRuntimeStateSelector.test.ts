@@ -4,6 +4,7 @@ import type { RunningMatchRoom, UpcomingRunningMatchItem } from '@/lib/api/types
 import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
 import {
   filterUpcomingMatchesForRuntime,
+  isInviteOnlyRuntimeRoom,
   isLinkedRoomRuntimeState,
   selectLinkedRuntimeRoom,
   selectPartyRunRuntimeSource,
@@ -61,6 +62,86 @@ test('linked runtime state identifies arming, countdown, and active linked rooms
   assert.equal(isLinkedRoomRuntimeState(room({ linkedMatchId: 'match-1', state: 'arming' })), true);
   assert.equal(isLinkedRoomRuntimeState(room({ linkedMatchId: 'match-1', state: 'countdown' })), true);
   assert.equal(isLinkedRoomRuntimeState(room({ linkedMatchId: 'match-1', state: 'active' })), true);
+});
+
+test('linked runtime selector ignores invite-only linked rooms before accept', () => {
+  const invitedLinkedRoom = room({
+    isHost: false,
+    joined: false,
+    state: 'active',
+    linkedMatchId: 'match-1',
+    linkedMatchStatus: 'active',
+    participants: [],
+  });
+  const invitedFlow = buildPartyRunFlowSnapshot({
+    room: invitedLinkedRoom,
+    isCountdownReady: false,
+    remainingSeconds: null,
+  });
+
+  assert.equal(isInviteOnlyRuntimeRoom(invitedLinkedRoom), true);
+  assert.equal(isLinkedRoomRuntimeState(invitedLinkedRoom), false);
+  assert.equal(selectLinkedRuntimeRoom({
+    matchRoom: invitedLinkedRoom,
+    visibleMatchRoom: null,
+  }), null);
+
+  const runtime = selectPartyRunRuntimeSource({
+    matchRoom: invitedLinkedRoom,
+    matchRoomFlow: invitedFlow,
+    visibleMatchRoom: null,
+    visiblePartyRunFlow: buildPartyRunFlowSnapshot({ room: null }),
+  });
+
+  assert.equal(runtime.room, null);
+  assert.equal(runtime.flow.hasLinkedMatch, false);
+  assert.equal(runtime.flow.canAcknowledgeCountdownReady, false);
+  assert.equal(runtime.flow.canOpenLinkedMatch, false);
+  assert.equal(runtime.flow.shouldOpenArena, false);
+  assert.equal(runtime.linkedMatchContext, null);
+});
+
+test('linked runtime selector accepts linked rooms after invite accept joins the room', () => {
+  const joinedLinkedRoom = room({
+    isHost: false,
+    joined: true,
+    state: 'active',
+    linkedMatchId: 'match-1',
+    linkedMatchStatus: 'active',
+    participants: [{
+      averagePace: '06:20/km',
+      districtName: '일산서구',
+      invited: false,
+      isHost: false,
+      joinedAt: '2026-05-14T11:59:00.000Z',
+      levelLabel: 'Lv.1',
+      name: '게스트',
+      tag: 'guest',
+      userId: 'guest',
+    }],
+  });
+  const joinedFlow = buildPartyRunFlowSnapshot({
+    room: joinedLinkedRoom,
+    isCountdownReady: true,
+    remainingSeconds: null,
+  });
+
+  assert.equal(isInviteOnlyRuntimeRoom(joinedLinkedRoom), false);
+  assert.equal(isLinkedRoomRuntimeState(joinedLinkedRoom), true);
+  assert.equal(selectLinkedRuntimeRoom({
+    matchRoom: joinedLinkedRoom,
+    visibleMatchRoom: null,
+  })?.roomId, 'room-1');
+
+  const runtime = selectPartyRunRuntimeSource({
+    matchRoom: joinedLinkedRoom,
+    matchRoomFlow: joinedFlow,
+    visibleMatchRoom: null,
+    visiblePartyRunFlow: buildPartyRunFlowSnapshot({ room: null }),
+  });
+
+  assert.equal(runtime.room?.roomId, 'room-1');
+  assert.equal(runtime.linkedMatchContext?.matchId, 'match-1');
 });
 
 test('runtime selector prefers linked matchRoom flow when visible room snapshot is missing linked state', () => {
