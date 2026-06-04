@@ -20,10 +20,10 @@ function shouldUseForegroundLocationWatch(platform: LocationTaskPlatform, _appSt
     return false;
   }
 
-  if (platform === 'android') {
-    return false;
-  }
-
+  // Android + iOS both run the foreground watch for reliable in-app GPS.
+  // (Expo's background task does not fire dependably while foregrounded, so a
+  // foreground watch is required; the background FG-service task below covers
+  // screen-off / backgrounded tracking.)
   return true;
 }
 
@@ -32,10 +32,8 @@ function shouldUseBackgroundLocationTask(platform: LocationTaskPlatform, _appSta
     return false;
   }
 
-  if (platform === 'android') {
-    return true;
-  }
-
+  // Keep the foreground-service background task armed for the whole run so
+  // screen-off / backgrounded GPS + match progress keep flowing.
   return true;
 }
 

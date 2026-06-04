@@ -77,35 +77,36 @@ function createFakeLocationAdapter(platform: LocationTaskPlatform = 'android') {
   };
 }
 
-test('android active keeps the background task running and leaves foreground watch off', async () => {
+test('android keeps both the foreground watch and background task running', async () => {
   const { adapter, state } = createFakeLocationAdapter('android');
   const controller = createLocationTaskController(adapter);
 
   await controller.startLocationTask({ appState: 'background' });
   assert.equal(state.backgroundStarted, true);
-  assert.equal(state.foregroundStarted, false);
+  assert.equal(state.foregroundStarted, true);
 
   await controller.startLocationTask({ appState: 'active' });
   await controller.startLocationTask({ appState: 'active' });
 
-  assert.equal(state.foregroundStarted, false);
+  assert.equal(state.foregroundStarted, true);
   assert.equal(state.backgroundStarted, true);
-  assert.equal(state.foregroundStarts, 0);
+  assert.equal(state.foregroundStarts, 1);
   assert.equal(state.backgroundStarts, 1);
   assert.equal(state.backgroundStops, 0);
+  assert.equal(state.foregroundStops, 0);
 });
 
-test('android active state starts the background foreground-service task from a clean run', async () => {
+test('android active state starts both foreground watch and background task from a clean run', async () => {
   const { adapter, state } = createFakeLocationAdapter('android');
   const controller = createLocationTaskController(adapter);
 
   await controller.startLocationTask({ appState: 'active' });
 
-  assert.equal(state.foregroundStarted, false);
+  assert.equal(state.foregroundStarted, true);
   assert.equal(state.backgroundStarted, true);
-  assert.equal(state.foregroundStarts, 0);
+  assert.equal(state.foregroundStarts, 1);
   assert.equal(state.backgroundStarts, 1);
-  assert.equal(state.operations.includes('start-foreground'), false);
+  assert.equal(state.operations.includes('start-foreground'), true);
   assert.equal(state.operations.includes('start-background'), true);
 });
 
@@ -126,7 +127,7 @@ test('pause stop removes foreground watcher and stops background task', async ()
   assert.deepEqual(state.operations.slice(-2), ['stop-foreground', 'stop-background']);
 });
 
-test('android background state does not start the same background task twice', async () => {
+test('android does not start the same sources twice on repeated starts', async () => {
   const { adapter, state } = createFakeLocationAdapter('android');
   const controller = createLocationTaskController(adapter);
 
@@ -134,9 +135,9 @@ test('android background state does not start the same background task twice', a
   await controller.startLocationTask({ appState: 'background' });
 
   assert.equal(state.backgroundStarted, true);
-  assert.equal(state.foregroundStarted, false);
+  assert.equal(state.foregroundStarted, true);
   assert.equal(state.backgroundStarts, 1);
-  assert.equal(state.foregroundStarts, 0);
+  assert.equal(state.foregroundStarts, 1);
 });
 
 test('reset cleanup includes the current and legacy background task names', () => {
@@ -146,27 +147,28 @@ test('reset cleanup includes the current and legacy background task names', () =
   ]);
 });
 
-test('android app state changes do not leave foreground and background sources alive together', async () => {
+test('android keeps both foreground and background sources alive across app state changes', async () => {
   const { adapter, state } = createFakeLocationAdapter('android');
   const controller = createLocationTaskController(adapter);
 
   await controller.startLocationTask({ appState: 'active' });
-  assert.equal(state.foregroundStarted, false);
+  assert.equal(state.foregroundStarted, true);
   assert.equal(state.backgroundStarted, true);
 
   await controller.startLocationTask({ appState: 'background' });
-  assert.equal(state.foregroundStarted, false);
+  assert.equal(state.foregroundStarted, true);
   assert.equal(state.backgroundStarted, true);
 
   await controller.startLocationTask({ appState: 'active' });
-  assert.equal(state.foregroundStarted, false);
+  assert.equal(state.foregroundStarted, true);
   assert.equal(state.backgroundStarted, true);
-  assert.equal(state.foregroundStarts, 0);
+  assert.equal(state.foregroundStarts, 1);
   assert.equal(state.backgroundStarts, 1);
   assert.equal(state.backgroundStops, 0);
+  assert.equal(state.foregroundStops, 0);
 });
 
-test('android does not start foreground watcher if background task cannot start during inactive transition', async () => {
+test('android still starts the foreground watch even if the background task cannot start', async () => {
   const { adapter, state } = createFakeLocationAdapter('android');
   const controller = createLocationTaskController(adapter);
 
@@ -178,7 +180,8 @@ test('android does not start foreground watcher if background task cannot start 
 
   await controller.startLocationTask({ appState: 'inactive' });
 
-  assert.equal(state.foregroundStarted, false);
+  // Foreground watch is independent of the background task: in-app GPS keeps
+  // working even when the background foreground-service task fails to start.
+  assert.equal(state.foregroundStarted, true);
   assert.equal(state.backgroundStarted, false);
-  assert.equal(state.foregroundStops, 0);
 });

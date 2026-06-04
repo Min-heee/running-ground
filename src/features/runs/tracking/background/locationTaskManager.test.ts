@@ -118,7 +118,7 @@ test('location task manager traces active starts as foreground GPS and blocks ba
   await start;
 });
 
-test('location task manager active state delegates to android background service policy', async () => {
+test('location task manager active state starts both android foreground watch and background task', async () => {
   const operations: string[] = [];
   const locationAdapter: LocationTaskControllerAdapter = {
     platform: 'android',
@@ -151,8 +151,8 @@ test('location task manager active state delegates to android background service
     trackingKey: 'duel:match-foreground',
   });
 
-  assert.equal(operations.includes('start-foreground'), false);
-  assert.deepEqual(operations, ['start-background', 'stop-foreground']);
+  assert.equal(operations.includes('start-foreground'), true);
+  assert.deepEqual(operations, ['start-foreground', 'start-background']);
 });
 
 test('location task manager cancels detached active run without a tracking key before native call', async () => {
