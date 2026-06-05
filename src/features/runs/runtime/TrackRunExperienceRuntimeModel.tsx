@@ -68,11 +68,6 @@ import {
   isLiveMatchState,
   type PartyRunLinkedMatchContext,
 } from '@/features/runs/lifecycle/matchStateMachine';
-import {
-  shouldAutoEndStuckMatch,
-  STUCK_MATCH_MIN_PROGRESS_KM,
-  STUCK_MATCH_WATCHDOG_CHECK_MS,
-} from '@/features/runs/lifecycle/stuckMatchWatchdog';
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import {
   filterUpcomingMatchesForRuntime,
@@ -414,10 +409,6 @@ export function TrackRunExperienceRuntime({
   const hasMatchResultPageRef = useRef(false);
   const previousHasMatchResultPageRef = useRef<boolean | null>(null);
   const previousMatchLifecycleStageRef = useRef<string | null>(null);
-  const stuckMatchWatchdogIdentityRef = useRef<string | null>(null);
-  const stuckMatchLastProgressAtMsRef = useRef<number | null>(null);
-  const stuckMatchLastDistanceKmRef = useRef<number | null>(null);
-  const stuckMatchAutoResetFiredRef = useRef(false);
 
   const {
     matchRoom,
@@ -1069,15 +1060,6 @@ export function TrackRunExperienceRuntime({
   );
   const activeMatchExitSelfFinished = activeMatchExitSource === 'duel'
     && currentUserDuelLiveStatus === 'finished';
-  const stuckMatchWatchdogKey = Boolean(
-    activeLiveMatchProgressMatchId
-    && matchLifecycleController.stage === 'active'
-    && (matchMode === 'duel' || matchMode === 'group')
-    && !activeMatchExitIsTest
-    && !currentUserDoneWithCurrentMatch,
-  )
-    ? `${matchMode}:${activeLiveMatchProgressMatchId}`
-    : null;
   const shouldSuppressDoneMatchAutoOpen = currentUserDoneWithCurrentMatch && !isRunning;
   const shouldForceLiveArenaFromRoute = Boolean(
     !shouldSuppressDoneMatchAutoOpen
@@ -1873,94 +1855,6 @@ export function TrackRunExperienceRuntime({
       setIsForceResettingRunningMatch(false);
     }
   });
-
-  useEffect(() => {
-    if (!stuckMatchWatchdogKey) {
-      stuckMatchWatchdogIdentityRef.current = null;
-      stuckMatchLastProgressAtMsRef.current = null;
-      stuckMatchLastDistanceKmRef.current = null;
-      stuckMatchAutoResetFiredRef.current = false;
-      return;
-    }
-
-    const nowMsForProgress = getSyncedNowMs();
-    const currentDistanceKm = Number.isFinite(liveMatchDisplayDistanceKm)
-      ? liveMatchDisplayDistanceKm
-      : 0;
-
-    if (stuckMatchWatchdogIdentityRef.current !== stuckMatchWatchdogKey) {
-      stuckMatchWatchdogIdentityRef.current = stuckMatchWatchdogKey;
-      stuckMatchLastProgressAtMsRef.current = nowMsForProgress;
-      stuckMatchLastDistanceKmRef.current = currentDistanceKm;
-      stuckMatchAutoResetFiredRef.current = false;
-      return;
-    }
-
-    const previousDistanceKm = stuckMatchLastDistanceKmRef.current;
-    if (previousDistanceKm === null) {
-      stuckMatchLastProgressAtMsRef.current = nowMsForProgress;
-      stuckMatchLastDistanceKmRef.current = currentDistanceKm;
-      return;
-    }
-
-    if (currentDistanceKm - previousDistanceKm >= STUCK_MATCH_MIN_PROGRESS_KM) {
-      stuckMatchLastProgressAtMsRef.current = nowMsForProgress;
-      stuckMatchLastDistanceKmRef.current = currentDistanceKm;
-    }
-  }, [getSyncedNowMs, liveMatchDisplayDistanceKm, stuckMatchWatchdogKey]);
-
-  useEffect(() => {
-    if (!stuckMatchWatchdogKey) {
-      return undefined;
-    }
-
-    const checkStuckMatch = () => {
-      if (stuckMatchAutoResetFiredRef.current) {
-        return;
-      }
-
-      const nowMsForWatchdog = getSyncedNowMs();
-      const lastProgressAtMs = stuckMatchLastProgressAtMsRef.current;
-      if (!shouldAutoEndStuckMatch({
-        isRealMatchActive: true,
-        lastProgressAtMs,
-        nowMs: nowMsForWatchdog,
-      })) {
-        return;
-      }
-
-      stuckMatchAutoResetFiredRef.current = true;
-      const elapsedMs = lastProgressAtMs === null ? null : nowMsForWatchdog - lastProgressAtMs;
-      const distanceKmForTrace = stuckMatchLastDistanceKmRef.current;
-      rgPerfMark('stuck match auto reset', {
-        distanceKm: distanceKmForTrace ?? -1,
-        elapsedMs: elapsedMs ?? -1,
-        matchId: activeLiveMatchProgressMatchId ?? 'unknown',
-        matchMode,
-      });
-
-      if (matchMode === 'duel') {
-        setDuelMatchNotice('측정 신호가 30분 이상 끊겨 대결을 자동 종료했어요.');
-      } else if (matchMode === 'group') {
-        setGroupMatchNotice('측정 신호가 30분 이상 끊겨 대결을 자동 종료했어요.');
-      }
-
-      void runForceResetRunningMatchState();
-    };
-
-    const intervalId = setInterval(checkStuckMatch, STUCK_MATCH_WATCHDOG_CHECK_MS);
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [
-    activeLiveMatchProgressMatchId,
-    getSyncedNowMs,
-    matchMode,
-    runForceResetRunningMatchState,
-    setDuelMatchNotice,
-    setGroupMatchNotice,
-    stuckMatchWatchdogKey,
-  ]);
 
   const handleForceResetRunningMatchPress = useStableCallback(() => {
     Alert.alert(
