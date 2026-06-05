@@ -24,6 +24,7 @@ export function useRunSaveCommand({
   officialStartBaselineRef,
   preStartWarmupMatchIdRef,
   pushRunningMatchProgress,
+  resetMatchRuntimeAfterTrackingCleared,
   resetForegroundTrackingState,
   roomLinkedMatchContext,
   setError,
@@ -48,6 +49,7 @@ export function useRunSaveCommand({
   | 'officialStartBaselineRef'
   | 'preStartWarmupMatchIdRef'
   | 'pushRunningMatchProgress'
+  | 'resetMatchRuntimeAfterTrackingCleared'
   | 'resetForegroundTrackingState'
   | 'roomLinkedMatchContext'
   | 'setError'
@@ -115,6 +117,7 @@ export function useRunSaveCommand({
         officialStartBaselineRef,
         options,
         preStartWarmupMatchIdRef,
+        resetMatchRuntimeAfterTrackingCleared,
         resetForegroundTrackingState,
         setStatus,
         syncLiveSharing,

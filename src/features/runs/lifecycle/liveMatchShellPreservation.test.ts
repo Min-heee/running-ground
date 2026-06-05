@@ -48,6 +48,26 @@ test('GPS or tracking transition does not drop the LiveMatchShell for the same a
   assert.equal(next.shouldRenderLiveArena, true);
 });
 
+test('finished match stage releases the previous LiveMatchShell key', () => {
+  const previous = {
+    key: buildLiveMatchShellKey('duel-match-finished'),
+    matchId: 'duel-match-finished',
+    mode: 'duel' as const,
+  };
+  const next = resolveLiveMatchShellPreservation({
+    currentMatchId: 'duel-match-finished',
+    currentMode: 'duel',
+    isCurrentUserForfeited: false,
+    previous,
+    requestedShowLiveArena: false,
+    stage: 'finished',
+  });
+
+  assert.equal(next.preserved, false);
+  assert.equal(next.next, null);
+  assert.equal(next.shouldRenderLiveArena, false);
+});
+
 test('deferred heavy content changes keep the same LiveMatchShell key for the same match', () => {
   const previous = resolveLiveMatchShellPreservation({
     currentMatchId: 'duel-match-defer',

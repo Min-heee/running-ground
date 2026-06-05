@@ -9,6 +9,7 @@ type RunCleanupAfterSaveInput = Pick<
   | 'autoStartedMatchIdRef'
   | 'officialStartBaselineRef'
   | 'preStartWarmupMatchIdRef'
+  | 'resetMatchRuntimeAfterTrackingCleared'
   | 'resetForegroundTrackingState'
   | 'setStatus'
   | 'syncLiveSharing'
@@ -21,6 +22,7 @@ export async function runCleanupAfterSave({
   officialStartBaselineRef,
   options,
   preStartWarmupMatchIdRef,
+  resetMatchRuntimeAfterTrackingCleared,
   resetForegroundTrackingState,
   setStatus,
   syncLiveSharing,
@@ -37,5 +39,6 @@ export async function runCleanupAfterSave({
     await resetBackgroundRunTracking();
     resetForegroundTrackingState();
     setStatus('idle');
+    resetMatchRuntimeAfterTrackingCleared('save-reset');
   }
 }

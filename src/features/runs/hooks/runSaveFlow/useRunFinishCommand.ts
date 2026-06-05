@@ -24,6 +24,7 @@ type UseRunFinishCommandInput = Pick<
   | 'matchProgressHeartbeatRef'
   | 'officialStartBaselineRef'
   | 'preStartWarmupMatchIdRef'
+  | 'resetMatchRuntimeAfterTrackingCleared'
   | 'resetForegroundTrackingState'
   | 'roomLinkedMatchContext'
   | 'setDuelMatchNotice'
@@ -52,6 +53,7 @@ export function useRunFinishCommand({
   matchProgressHeartbeatRef,
   officialStartBaselineRef,
   preStartWarmupMatchIdRef,
+  resetMatchRuntimeAfterTrackingCleared,
   resetForegroundTrackingState,
   roomLinkedMatchContext,
   setDuelMatchNotice,
@@ -84,6 +86,7 @@ export function useRunFinishCommand({
     resetForegroundTrackingState();
     setStatus('idle');
     setError(null);
+    resetMatchRuntimeAfterTrackingCleared('discard-tracking');
 
     if (discardRedirectHref) {
       router.replace(discardRedirectHref);

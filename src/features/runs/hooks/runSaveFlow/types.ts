@@ -36,6 +36,8 @@ export type ContinueSoloOptions = {
   errorMessage?: string;
 };
 
+export type MatchRuntimeResetReason = 'discard-tracking' | 'save-reset';
+
 export type RoomLinkedMatchContext = {
   mode: MatchExitSource;
   matchId: string;
@@ -76,6 +78,7 @@ export type UseRunSaveFlowInput = {
   autoStartedMatchIdRef: MutableRefObject<string | null>;
   focusedDuelMatchIdRef: MutableRefObject<string | null>;
   focusedGroupMatchIdRef: MutableRefObject<string | null>;
+  resetMatchRuntimeAfterTrackingCleared: (reason: MatchRuntimeResetReason) => void;
   stopForegroundTrackingHelpers: () => void;
   resetForegroundTrackingState: () => void;
   syncFromBackgroundTracking: (snapshot?: BackgroundRunTrackingSnapshot) => void;

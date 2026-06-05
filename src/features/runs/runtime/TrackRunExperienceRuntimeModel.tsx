@@ -75,7 +75,10 @@ import {
   selectLinkedRuntimeRoom,
   selectPartyRunRuntimeSource,
 } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
-import { getLiveMatchRouteHydration } from '@/features/runs/lifecycle/liveMatchRouteHydration';
+import {
+  clearLiveMatchRouteHydration,
+  getLiveMatchRouteHydration,
+} from '@/features/runs/lifecycle/liveMatchRouteHydration';
 import {
   resolveLiveMatchShellPreservation,
   type PreservedLiveMatchShell,
@@ -1766,6 +1769,42 @@ export function TrackRunExperienceRuntime({
     setGroupMatchNotice(notice ?? null);
   };
 
+  const resetMatchRuntimeAfterTrackingCleared = useStableCallback((reason: 'discard-tracking' | 'save-reset') => {
+    rgPerfMark('post-run match runtime reset', {
+      duelMatchId: duelMatchStatusRef.current?.matchId ?? null,
+      groupMatchId: groupMatchStatusRef.current?.matchId ?? null,
+      liveMatchId: liveMatchMountedRef.current?.matchId ?? null,
+      preservedKey: preservedLiveMatchShellRef.current?.key ?? null,
+      reason,
+      roomId: matchRoom?.roomId ?? visibleMatchRoom?.roomId ?? null,
+    });
+
+    clearLiveMatchRouteHydration();
+    commitMatchRoom(null);
+    preservedLiveMatchShellRef.current = null;
+    liveMatchMountedRef.current = null;
+    liveMatchViewConfirmationRef.current = {
+      matchId: null,
+      mode: null,
+      showLiveArena: false,
+    };
+    roomLinkedMatchContextRef.current = null;
+    focusedDuelMatchIdRef.current = null;
+    focusedGroupMatchIdRef.current = null;
+    matchProgressHeartbeatRef.current = 0;
+    setForceOpenActiveMatch(false);
+    setLiveArenaPage(0);
+    setMatchMode('solo');
+    setSelectedRoomFriendIds([]);
+    setDuelMatchResult(null);
+    setDuelMatchStatus(null);
+    setDuelMatchNotice(null);
+    setGroupMatchResult(null);
+    setGroupMatchStatus(null);
+    setGroupMatchNotice(null);
+    setLastSyncedMatchProgress(null);
+  });
+
   const {
     acknowledgeRoomCountdownReady,
     clearLocalForfeitedMatchState,
@@ -2195,6 +2234,7 @@ export function TrackRunExperienceRuntime({
     autoStartedMatchIdRef,
     focusedDuelMatchIdRef,
     focusedGroupMatchIdRef,
+    resetMatchRuntimeAfterTrackingCleared,
     stopForegroundTrackingHelpers,
     resetForegroundTrackingState,
     syncFromBackgroundTracking,
