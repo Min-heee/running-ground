@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  Platform,
   ScrollView,
   useWindowDimensions,
 } from 'react-native';
@@ -735,6 +736,9 @@ export function TrackRunExperienceRuntime({
   );
   const liveMatchDisplayDistanceKm = liveMatchDisplayFrame.distanceKm;
   const liveMatchDisplayElapsedSeconds = liveMatchDisplayFrame.elapsedSeconds;
+  const useLeafLiveTrackingMetrics = Platform.OS === 'android'
+    && isRunning
+    && (matchMode === 'duel' || matchMode === 'group');
   const {
     groupLiveStandings,
     currentGroupStanding,
@@ -2340,6 +2344,7 @@ export function TrackRunExperienceRuntime({
       currentPace: liveMatchDisplayFrame.currentPace,
       cadenceSpm: liveMatchDisplayFrame.cadenceSpm,
       elevationGainM: liveMatchDisplayFrame.elevationGainM,
+      useLiveTrackingMetrics: useLeafLiveTrackingMetrics,
       onContinueSoloFromMatch: handleContinueSoloFromMatch,
       estimatedBonusPoints: estimatedMatchBonusPoints,
       estimatedLpDelta: estimatedMatchLpDelta,

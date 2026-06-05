@@ -11,6 +11,10 @@ import {
   calculateCadenceSpm,
 } from '@/features/runs/tracking';
 import {
+  getLiveTrackingMetricFrameSnapshot,
+  publishLiveTrackingMetricFrame,
+} from '@/features/runs/tracking/liveTrackingMetricStore';
+import {
   buildOfficialStartBaseline,
 } from '@/features/runs/tracking/trackingSession';
 import {
@@ -127,6 +131,13 @@ export function useTrackingSessionSnapshots({
     source?: string;
   }) => {
     const commitState = options?.commitState ?? true;
+    const nextCadenceSpm = calculateCadenceSpm(totalStepsRef.current, nextElapsedSeconds);
+    const previousMetricFrame = getLiveTrackingMetricFrameSnapshot();
+    publishLiveTrackingMetricFrame({
+      elapsedSeconds: nextElapsedSeconds,
+      averagePace: buildAveragePace(previousMetricFrame.distanceKm, nextElapsedSeconds),
+      cadenceSpm: nextCadenceSpm,
+    });
     rgDiagLog('elapsed-trace syncElapsedSeconds', {
       commitState,
       nowMs: Date.now(),
@@ -137,12 +148,17 @@ export function useTrackingSessionSnapshots({
     });
     elapsedSecondsRef.current = nextElapsedSeconds;
 
-    if (commitState) {
+    const shouldCommitReactState = commitState && !(
+      Platform.OS === 'android' && matchModeRef.current !== 'solo'
+    );
+
+    if (shouldCommitReactState) {
       setElapsedSeconds(nextElapsedSeconds);
-      setCadenceSpm(calculateCadenceSpm(totalStepsRef.current, nextElapsedSeconds));
+      setCadenceSpm(nextCadenceSpm);
     }
   }, [
     elapsedSecondsRef,
+    matchModeRef,
     setCadenceSpm,
     setElapsedSeconds,
     totalStepsRef,
@@ -399,6 +415,15 @@ export function useTrackingSessionSnapshots({
     if (shouldUseSlotElapsedTicker) {
       nextUiFrame.elapsedSeconds = elapsedSecondsRef.current;
     }
+    const nextCadenceSpm = calculateCadenceSpm(totalStepsRef.current, nextUiFrame.elapsedSeconds);
+    publishLiveTrackingMetricFrame({
+      distanceKm: displayedSnapshot.distanceKm,
+      elapsedSeconds: nextUiFrame.elapsedSeconds,
+      currentPace: displayedSnapshot.currentPace,
+      averagePace: buildAveragePace(displayedSnapshot.distanceKm, nextUiFrame.elapsedSeconds),
+      cadenceSpm: nextCadenceSpm,
+      elevationGainM: displayedSnapshot.elevationGainM,
+    });
     const shouldThrottleLiveMatchUi = Platform.OS === 'android'
       && matchModeRef.current !== 'solo'
       && snapshot.status === 'running';
@@ -467,6 +492,7 @@ export function useTrackingSessionSnapshots({
     setElevationGainM,
     setStatus,
     syncElapsedSeconds,
+    totalStepsRef,
   ]);
 
   return {

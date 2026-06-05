@@ -18,6 +18,7 @@ export function useLiveMatchTrackingViewProps({
   currentPace,
   cadenceSpm,
   elevationGainM,
+  useLiveTrackingMetrics,
   matchMode,
   liveMatchTitle,
   liveMatchText,
@@ -77,6 +78,7 @@ export function useLiveMatchTrackingViewProps({
     currentPace,
     cadenceSpm,
     elevationGainM,
+    useLiveTrackingMetrics,
     onContinueSoloFromMatch,
   }), [
     averagePace,
@@ -103,6 +105,7 @@ export function useLiveMatchTrackingViewProps({
     liveMatchTitle,
     matchMode,
     onContinueSoloFromMatch,
+    useLiveTrackingMetrics,
   ]);
 
   return useMemo<LiveMatchTrackingViewProps>(() => (

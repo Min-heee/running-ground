@@ -90,6 +90,7 @@ export function useLiveMatchViewModel({
   currentPace,
   cadenceSpm,
   elevationGainM,
+  useLiveTrackingMetrics,
   onContinueSoloFromMatch,
   estimatedBonusPoints,
   estimatedLpDelta,
@@ -252,6 +253,7 @@ export function useLiveMatchViewModel({
     currentPace,
     cadenceSpm,
     elevationGainM,
+    useLiveTrackingMetrics,
     onContinueSoloFromMatch,
   });
 

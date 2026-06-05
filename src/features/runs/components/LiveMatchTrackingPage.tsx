@@ -20,6 +20,7 @@ export type LiveMatchTrackingPageProps = LiveMatchProgressSectionProps & {
   cadenceSpm: number | null;
   elevationGainM: number;
   metricLabels: LiveMatchMetricLabels;
+  useLiveTrackingMetrics?: boolean;
 };
 
 export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
@@ -43,6 +44,7 @@ export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
   groupLiveStandings,
   currentGroupLeader,
   metricLabels,
+  useLiveTrackingMetrics,
   onContinueSoloFromMatch,
 }: LiveMatchTrackingPageProps) {
   useDevRenderCounter(`LiveMatchTrackingPage:${matchMode}`);
@@ -71,7 +73,10 @@ export const LiveMatchTrackingPage = memo(function LiveMatchTrackingPage({
         currentGroupLeader={currentGroupLeader}
         onContinueSoloFromMatch={onContinueSoloFromMatch}
       />
-      <LiveMatchStatsSection metricLabels={metricLabels} />
+      <LiveMatchStatsSection
+        metricLabels={metricLabels}
+        useLiveTrackingMetrics={useLiveTrackingMetrics}
+      />
     </>
   );
 });

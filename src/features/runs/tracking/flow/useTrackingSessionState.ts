@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { resetLiveTrackingMetricFrame } from '@/features/runs/tracking/liveTrackingMetricStore';
 import type { UseRunTrackingFlowInput } from '@/features/runs/types/runTrackingFlow';
 
 export function useTrackingSessionState({
@@ -38,6 +39,7 @@ export function useTrackingSessionState({
     setLastSyncedMatchProgress(null);
     setElevationGainM(0);
     setCadenceSpm(null);
+    resetLiveTrackingMetricFrame();
   }, [
     elapsedSecondsRef,
     finishSoloStartCountdown,

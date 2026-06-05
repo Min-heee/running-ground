@@ -5,6 +5,7 @@ import type { UseRunTrackingFlowInput } from '@/features/runs/types/runTrackingF
 export function useTrackingGpsController({
   status,
   trackerStatusRef,
+  matchModeRef,
   pedometerSubscriptionRef,
   pedometerStepOffsetRef,
   elapsedSecondsRef,
@@ -18,6 +19,7 @@ export function useTrackingGpsController({
   const { stopPedometerSubscription } = usePedometerTracking({
     status,
     trackerStatusRef,
+    matchModeRef,
     pedometerSubscriptionRef,
     pedometerStepOffsetRef,
     elapsedSecondsRef,

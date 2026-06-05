@@ -70,6 +70,7 @@ export function buildLiveMatchTrackingViewProps({
     cadenceSpm: input.cadenceSpm,
     elevationGainM: input.elevationGainM,
     metricLabels,
+    useLiveTrackingMetrics: input.useLiveTrackingMetrics,
     onContinueSoloFromMatch: input.onContinueSoloFromMatch,
   };
 }

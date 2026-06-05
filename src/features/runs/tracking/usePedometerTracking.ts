@@ -1,8 +1,11 @@
 import { useCallback, useEffect } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
+import { Platform } from 'react-native';
 import { Pedometer } from 'expo-sensors';
+import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import { calculateCadenceSpm } from '@/features/runs/tracking';
+import { publishLiveTrackingMetricFrame } from '@/features/runs/tracking/liveTrackingMetricStore';
 
 type PedometerSubscription = {
   remove: () => void;
@@ -11,6 +14,7 @@ type PedometerSubscription = {
 type UsePedometerTrackingInput = {
   status: TrackerStatus;
   trackerStatusRef: MutableRefObject<TrackerStatus>;
+  matchModeRef: MutableRefObject<RunMatchMode>;
   pedometerSubscriptionRef: MutableRefObject<PedometerSubscription | null>;
   pedometerStepOffsetRef: MutableRefObject<number>;
   elapsedSecondsRef: MutableRefObject<number>;
@@ -22,6 +26,7 @@ type UsePedometerTrackingInput = {
 export function usePedometerTracking({
   status,
   trackerStatusRef,
+  matchModeRef,
   pedometerSubscriptionRef,
   pedometerStepOffsetRef,
   elapsedSecondsRef,
@@ -62,13 +67,18 @@ export function usePedometerTracking({
       pedometerSubscriptionRef.current = Pedometer.watchStepCount((result) => {
         const totalSteps = pedometerStepOffsetRef.current + result.steps;
         totalStepsRef.current = totalSteps;
-        setCadenceSpm(calculateCadenceSpm(totalSteps, elapsedSecondsRef.current));
+        const cadenceSpm = calculateCadenceSpm(totalSteps, elapsedSecondsRef.current);
+        publishLiveTrackingMetricFrame({ cadenceSpm });
+        if (!(Platform.OS === 'android' && matchModeRef.current !== 'solo')) {
+          setCadenceSpm(cadenceSpm);
+        }
       });
     } catch {
       setMotionPermissionGranted(false);
     }
   }, [
     elapsedSecondsRef,
+    matchModeRef,
     pedometerStepOffsetRef,
     pedometerSubscriptionRef,
     setCadenceSpm,
