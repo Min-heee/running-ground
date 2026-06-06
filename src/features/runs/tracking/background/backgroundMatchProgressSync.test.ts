@@ -95,8 +95,55 @@ test('background match progress sync uploads the latest snapshot while backgroun
     distanceKm: 0.42,
     elapsedSeconds: 12,
     currentPace: '05:12/km',
-    status: 'background',
+    status: 'running',
   }]);
+});
+
+test('background match progress sync uses native upload on android when available', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs, {
+    distanceKm: 0.426,
+    currentPace: '05:09/km',
+  });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-native',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  const nativeCalls: { body: string; token: string; url: string }[] = [];
+  const didFlush = await flushBackgroundMatchProgressSync({
+    apiBaseUrl: 'https://preview.example.test/api',
+    getAccessToken: async () => 'native-token',
+    getNativeMatchProgressUploader: async () => ({
+      isNativeMatchProgressUploaderAvailable: () => true,
+      uploadMatchProgressNative: (url, token, body) => {
+        nativeCalls.push({ body, token, url });
+      },
+    }),
+    isAppBackground: true,
+    nowMs,
+    platform: 'android',
+    updateRunningMatchProgress: async () => {
+      throw new Error('JS uploader should not run for native android background sync');
+    },
+  });
+
+  assert.equal(didFlush, true);
+  assert.equal(nativeCalls.length, 1);
+  assert.deepEqual(nativeCalls[0], {
+    url: 'https://preview.example.test/api/running/matches/progress',
+    token: 'native-token',
+    body: JSON.stringify({
+      matchId: 'duel-match-native',
+      distanceKm: 0.43,
+      elapsedSeconds: 12,
+      currentPace: '05:09/km',
+      status: 'running',
+    }),
+  });
 });
 
 test('background match progress sync throttles repeated background location batches', async () => {

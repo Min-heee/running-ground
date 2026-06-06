@@ -32,7 +32,7 @@ export function stopBackgroundMatchProgressTimer(
 
 export function startBackgroundMatchProgressTimer({
   enabled = true,
-  flush = flushBackgroundMatchProgressSync,
+  flush,
   platformOS,
   setIntervalFn = setInterval,
   clearIntervalFn = clearInterval,
@@ -46,8 +46,10 @@ export function startBackgroundMatchProgressTimer({
     return false;
   }
 
+  const runFlush = flush ?? (() => flushBackgroundMatchProgressSync({ platform: platformOS }));
+
   backgroundMatchProgressTimer = setIntervalFn(() => {
-    void flush().catch(() => false);
+    void runFlush().catch(() => false);
   }, ANDROID_BACKGROUND_MATCH_PROGRESS_TIMER_MS);
   return true;
 }

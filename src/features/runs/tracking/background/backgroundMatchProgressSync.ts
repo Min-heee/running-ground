@@ -29,9 +29,21 @@ type BackgroundMatchProgressUploader = (
   options?: { signal?: AbortSignal },
 ) => Promise<unknown>;
 
+type NativeBackgroundMatchProgressUploader = (url: string, authToken: string, jsonBody: string) => void;
+type NativeMatchProgressUploaderModule = {
+  isNativeMatchProgressUploaderAvailable(): boolean;
+  uploadMatchProgressNative: NativeBackgroundMatchProgressUploader;
+};
+type BackgroundMatchProgressPlatform = 'android' | 'ios' | 'web' | 'windows' | 'macos' | string;
+
 type FlushBackgroundMatchProgressOptions = {
+  apiBaseUrl?: string;
+  getAccessToken?: () => Promise<string | null>;
+  getApiBaseUrl?: () => Promise<string>;
+  getNativeMatchProgressUploader?: () => Promise<NativeMatchProgressUploaderModule | null>;
   isAppBackground?: boolean;
   nowMs?: number;
+  platform?: BackgroundMatchProgressPlatform;
   updateRunningMatchProgress?: BackgroundMatchProgressUploader;
 };
 
@@ -47,6 +59,24 @@ async function updateRunningMatchProgressService(
 ) {
   const { updateRunningMatchProgress } = await import('@/services');
   return updateRunningMatchProgress(input, options);
+}
+
+async function getAccessTokenService() {
+  const { getAccessToken } = await import('@/lib/session/sessionState');
+  return getAccessToken();
+}
+
+async function getApiBaseUrlService() {
+  const { API_CONFIG } = await import('@/services/apiClient');
+  return API_CONFIG.baseUrl;
+}
+
+async function getNativeMatchProgressUploaderService(): Promise<NativeMatchProgressUploaderModule | null> {
+  try {
+    return await import('../../../../../modules/match-progress-uploader');
+  } catch {
+    return null;
+  }
 }
 
 function normalizeBackgroundMatchProgressContext(
@@ -106,7 +136,7 @@ function resolveBackgroundHeartbeatStatus(
 ): UpdateRunningMatchProgressInput['status'] {
   return distanceKm >= targetDistanceKm - MATCH_GOAL_DISTANCE_TOLERANCE_KM
     ? 'finished'
-    : 'background';
+    : 'running';
 }
 
 export function isBackgroundMatchProgressInFlightStale(startedAtMs: number, nowMs: number) {
@@ -114,8 +144,13 @@ export function isBackgroundMatchProgressInFlightStale(startedAtMs: number, nowM
 }
 
 export async function flushBackgroundMatchProgressSync({
+  apiBaseUrl,
+  getAccessToken = getAccessTokenService,
+  getApiBaseUrl = getApiBaseUrlService,
+  getNativeMatchProgressUploader = getNativeMatchProgressUploaderService,
   isAppBackground = getBackgroundSyncDiagnostics().isAppBackground,
   nowMs = Date.now(),
+  platform = 'unknown',
   updateRunningMatchProgress = updateRunningMatchProgressService,
 }: FlushBackgroundMatchProgressOptions = {}) {
   const context = activeMatchProgressContext;
@@ -165,6 +200,31 @@ export async function flushBackgroundMatchProgressSync({
     currentPace: progress.currentPace,
     status,
   };
+
+  if (platform === 'android') {
+    const nativeUploader = await getNativeMatchProgressUploader();
+
+    if (nativeUploader?.isNativeMatchProgressUploaderAvailable()) {
+      const token = await getAccessToken();
+
+      if (token) {
+        const resolvedApiBaseUrl = apiBaseUrl ?? await getApiBaseUrl();
+        const requestBody = JSON.stringify({
+          ...input,
+          distanceKm: Number(input.distanceKm.toFixed(2)),
+          elapsedSeconds: Math.max(0, Math.round(input.elapsedSeconds)),
+        });
+
+        lastBackgroundMatchProgressSyncAtMs = nowMs;
+        recordBackgroundHeartbeatAttempt();
+        globalThis.console.log(
+          `[RG flush] path=native fired matchId=${context.matchId} dist=${input.distanceKm.toFixed(3)} status=${status}`,
+        );
+        nativeUploader.uploadMatchProgressNative(`${resolvedApiBaseUrl}/running/matches/progress`, token, requestBody);
+        return true;
+      }
+    }
+  }
 
   lastBackgroundMatchProgressSyncAtMs = nowMs;
   recordBackgroundHeartbeatAttempt();

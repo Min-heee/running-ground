@@ -50,7 +50,7 @@ function defineBackgroundRunTask(taskName: string) {
       : [];
 
     locations.forEach(appendTrackedLocation);
-    await flushBackgroundMatchProgressSync().catch(() => false);
+    await flushBackgroundMatchProgressSync({ platform: Platform.OS }).catch(() => false);
   });
 }
 
