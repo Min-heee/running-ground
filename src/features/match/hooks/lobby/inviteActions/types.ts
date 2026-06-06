@@ -9,7 +9,7 @@ export type RoomInviteActionSharedInput = {
   selectedFriendIds: string[];
   latestRoomServerNowMsRef: MutableRefObject<number>;
   commitRoom: (room: RunningMatchRoom | null) => void;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
   setError: Dispatch<SetStateAction<string | null>>;
   setSaving: Dispatch<SetStateAction<boolean>>;
   saveRoomSettings: (overrides?: UpdateRoomSettingsInput) => Promise<RunningMatchRoom | null>;

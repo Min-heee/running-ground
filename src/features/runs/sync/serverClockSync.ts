@@ -7,10 +7,60 @@ const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 500;
 // round-trip jitter so the countdown digit doesn't visibly twitch.
 const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
 const SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR = 0.25;
+const SERVER_CLOCK_MAX_RTT_SAMPLE_MS = 3000;
+
+type ServerClockTimingSource = {
+  clientRequestStartedAtMs?: unknown;
+  clientResponseReceivedAtMs?: unknown;
+};
+
+type ServerClockOffsetSample = {
+  serverNowMs: number;
+  offsetMs: number;
+};
 
 export function parseServerNowMs(serverNow?: string) {
   const parsedMs = serverNow ? new Date(serverNow).getTime() : NaN;
   return Number.isFinite(parsedMs) ? parsedMs : null;
+}
+
+function readFiniteNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+export function resolveServerClockOffsetSample(
+  serverNow?: string,
+  timingSource?: unknown,
+  nowMs = Date.now(),
+): ServerClockOffsetSample | null {
+  const serverNowMs = parseServerNowMs(serverNow);
+  if (serverNowMs === null) {
+    return null;
+  }
+
+  const timing = typeof timingSource === 'object' && timingSource !== null
+    ? timingSource as ServerClockTimingSource
+    : null;
+  const requestStartedAtMs = readFiniteNumber(timing?.clientRequestStartedAtMs);
+
+  if (requestStartedAtMs !== null) {
+    const responseReceivedAtMs = readFiniteNumber(timing?.clientResponseReceivedAtMs) ?? nowMs;
+    const rttMs = responseReceivedAtMs - requestStartedAtMs;
+
+    if (rttMs < 0 || rttMs > SERVER_CLOCK_MAX_RTT_SAMPLE_MS) {
+      return null;
+    }
+
+    return {
+      serverNowMs,
+      offsetMs: Math.round(serverNowMs + rttMs / 2 - responseReceivedAtMs),
+    };
+  }
+
+  return {
+    serverNowMs,
+    offsetMs: serverNowMs - nowMs,
+  };
 }
 
 export function resolveStableServerClockOffset(currentOffsetMs: number, nextOffsetMs: number) {
@@ -38,20 +88,19 @@ export function getSharedServerClockOffsetMs() {
   return sharedServerClockOffsetMs;
 }
 
-export function applySharedServerClock(serverNow?: string) {
-  const serverNowMs = parseServerNowMs(serverNow);
-  if (serverNowMs === null) {
+export function applySharedServerClock(serverNow?: string, timingSource?: unknown) {
+  const offsetSample = resolveServerClockOffsetSample(serverNow, timingSource);
+  if (offsetSample === null) {
     return sharedServerClockOffsetMs;
   }
 
-  if (serverNowMs < latestAcceptedServerNowMs) {
+  if (offsetSample.serverNowMs < latestAcceptedServerNowMs) {
     return sharedServerClockOffsetMs;
   }
 
-  latestAcceptedServerNowMs = serverNowMs;
+  latestAcceptedServerNowMs = offsetSample.serverNowMs;
 
-  const nextOffsetMs = serverNowMs - Date.now();
-  const stableOffsetMs = resolveStableServerClockOffset(sharedServerClockOffsetMs, nextOffsetMs);
+  const stableOffsetMs = resolveStableServerClockOffset(sharedServerClockOffsetMs, offsetSample.offsetMs);
   if (stableOffsetMs !== sharedServerClockOffsetMs) {
     sharedServerClockOffsetMs = stableOffsetMs;
     sharedServerClockListeners.forEach((listener) => {

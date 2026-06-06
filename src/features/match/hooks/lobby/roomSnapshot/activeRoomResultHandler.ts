@@ -51,7 +51,7 @@ export async function handleMatchRoomActiveRoomResult({
   pollingPausedRef: MutableRefObject<boolean>;
   roomRef: MutableRefObject<RunningMatchRoom | null>;
   setError: Dispatch<SetStateAction<string | null>>;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
 }) {
   const currentRouteKey = buildRouteKey();
   const skipReason = getActiveRoomCheckResultSkipReason({
@@ -176,7 +176,7 @@ export async function handleMatchRoomActiveRoomResult({
     source: 'match-room snapshot',
   }));
 
-  syncServerClock(payload.serverNow);
+  syncServerClock(payload.serverNow, payload);
   if (payload.room) {
     rgPerfMark('already joined room detected', {
       roomId: payload.room.roomId,

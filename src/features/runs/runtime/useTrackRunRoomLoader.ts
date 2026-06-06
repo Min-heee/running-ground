@@ -54,7 +54,7 @@ type UseTrackRunRoomLoaderInput = {
   liveMatchRenderMode: Extract<RunMatchMode, 'duel' | 'group'> | null;
   liveMatchShellPreservation: LiveMatchShellPreservation;
   matchRoom: RunningMatchRoom | null;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
 };
 
 export function useTrackRunRoomLoader({
@@ -291,7 +291,7 @@ export function useTrackRunRoomLoader({
       source: 'track-run experience',
     }));
 
-    syncServerClock(payload.serverNow);
+    syncServerClock(payload.serverNow, payload);
     if (payload.room) {
       rgPerfMark('already joined room detected', {
         roomId: payload.room.roomId,

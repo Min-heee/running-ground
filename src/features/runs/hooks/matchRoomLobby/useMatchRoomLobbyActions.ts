@@ -17,7 +17,7 @@ type UseMatchRoomLobbyActionsInput = {
   setError: Dispatch<SetStateAction<string | null>>;
   setSaving: Dispatch<SetStateAction<boolean>>;
   settings: Pick<MatchRoomSettings, 'saveRoomSettings' | 'selectedFriendIds'>;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
 };
 
 export function useMatchRoomLobbyActions({

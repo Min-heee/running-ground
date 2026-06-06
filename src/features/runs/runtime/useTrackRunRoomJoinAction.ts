@@ -40,7 +40,7 @@ type UseTrackRunRoomJoinActionInput = {
   setError: Dispatch<SetStateAction<string | null>>;
   setIsJoiningMatchRoom: Dispatch<SetStateAction<boolean>>;
   setRoomInviteTokenInput: Dispatch<SetStateAction<string>>;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
   visibleMatchRoom: RunningMatchRoom | null;
 };
 
@@ -195,7 +195,7 @@ export function useTrackRunRoomJoinAction({
             roomId: payload.room.roomId,
             source: MANUAL_INVITE_CODE_JOIN_SOURCE,
           });
-          syncServerClock(payload.serverNow);
+          syncServerClock(payload.serverNow, payload);
           clearMatchRoomDeletedTombstone(payload.room.roomId, 'room join');
           commitMatchRoom(payload.room);
           setRoomInviteTokenInput('');

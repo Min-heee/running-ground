@@ -38,7 +38,7 @@ type UseTrackRunRuntimeRecipientInviteInboxInput = {
   linkedMatchId?: string | null;
   liveMatchKey?: string | null;
   recipientInviteFetchInFlightRef: MutableRefObject<boolean>;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
 };
 
 function markRecipientInviteTraceEvents(events: RecipientInviteInboxTraceEvent[]) {

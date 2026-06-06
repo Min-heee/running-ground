@@ -32,7 +32,7 @@ type UseTrackRunRuntimeRoomActionsInput = {
   setIsJoiningMatchRoom: Dispatch<SetStateAction<boolean>>;
   setIsLeavingMatchRoom: Dispatch<SetStateAction<boolean>>;
   setSelectedRoomFriendIds: Dispatch<SetStateAction<string[]>>;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
   visibleMatchRoom: RunningMatchRoom | null;
 };
 

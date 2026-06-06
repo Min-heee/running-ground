@@ -33,7 +33,7 @@ type ApplyRecipientInviteFetchSuccessInput = {
   roomAtStart: RunningMatchRoom | null;
   runtimeStateRef: MutableRefObject<RecipientInviteInboxRuntimeState>;
   source: string;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
 };
 
 function markRecipientInviteTraceEvents(events: RecipientInviteInboxTraceEvent[]) {
@@ -155,7 +155,7 @@ export function applyRecipientInviteFetchSuccess({
   }
 
   if (shouldCommitRecipientInviteRoom(responseModel)) {
-    syncServerClock(payload.serverNow);
+    syncServerClock(payload.serverNow, payload);
     commitMatchRoom(payload.room);
   }
 

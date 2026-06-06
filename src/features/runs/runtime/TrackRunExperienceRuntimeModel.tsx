@@ -1478,7 +1478,7 @@ export function TrackRunExperienceRuntime({
       return duelMatchStatus ?? payload;
     }
 
-    syncServerClock(payload.serverNow);
+    syncServerClock(payload.serverNow, payload);
     if (payload.matchId && forfeitedMatchIdsRef.current.has(payload.matchId)) {
       clearLocalDuelMatchState(null);
       return payload;
@@ -1555,7 +1555,7 @@ export function TrackRunExperienceRuntime({
       return groupMatchStatus ?? payload;
     }
 
-    syncServerClock(payload.serverNow);
+    syncServerClock(payload.serverNow, payload);
     if (payload.matchId && forfeitedMatchIdsRef.current.has(payload.matchId)) {
       clearLocalGroupMatchState(null);
       return payload;
@@ -1590,7 +1590,7 @@ export function TrackRunExperienceRuntime({
       return upcomingMatches;
     }
 
-    syncServerClock(payload.serverNow);
+    syncServerClock(payload.serverNow, payload);
     setUpcomingMatches(payload.items);
     return payload.items;
   };

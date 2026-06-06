@@ -121,7 +121,7 @@ export function useTrackRunRuntimeMatchMaintenanceActions(input: UseTrackRunRunt
       return;
     }
 
-    syncServerClock(payload.serverNow);
+    syncServerClock(payload.serverNow, payload);
     commitMatchRoom(payload.room);
   }
 

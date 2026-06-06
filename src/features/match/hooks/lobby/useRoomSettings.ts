@@ -24,7 +24,7 @@ type UseRoomSettingsInput = {
   room: RunningMatchRoom | null;
   latestRoomServerNowMsRef: MutableRefObject<number>;
   commitRoom: (room: RunningMatchRoom | null) => void;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
   setError: Dispatch<SetStateAction<string | null>>;
   setSaving: Dispatch<SetStateAction<boolean>>;
 };
@@ -93,7 +93,7 @@ export function useRoomSettings({
         return null;
       }
 
-      syncServerClock(payload.serverNow);
+      syncServerClock(payload.serverNow, payload);
       commitRoom(payload.room);
       return payload.room;
     } catch (roomError) {

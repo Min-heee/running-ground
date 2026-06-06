@@ -16,6 +16,11 @@ type ApiHealthResponse = {
   publicBaseUrl?: string;
 };
 
+type ApiResponseTimingMetadata = {
+  clientRequestStartedAtMs: number;
+  clientResponseReceivedAtMs: number;
+};
+
 function readBooleanEnv(value: string | undefined, fallbackValue: boolean) {
   if (!value) {
     return fallbackValue;
@@ -75,6 +80,27 @@ function buildResponseErrorMessage(kind: ApiErrorKind, fallbackMessage: string) 
     default:
       return fallbackMessage;
   }
+}
+
+function attachResponseTimingMetadata<T>(payload: T, metadata: ApiResponseTimingMetadata): T {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    return payload;
+  }
+
+  Object.defineProperties(payload, {
+    clientRequestStartedAtMs: {
+      value: metadata.clientRequestStartedAtMs,
+      enumerable: true,
+      configurable: true,
+    },
+    clientResponseReceivedAtMs: {
+      value: metadata.clientResponseReceivedAtMs,
+      enumerable: true,
+      configurable: true,
+    },
+  });
+
+  return payload;
 }
 
 async function readErrorPayload(response: Response, fallbackMessage: string) {
@@ -172,11 +198,13 @@ export async function apiRequest<T>(
   }
 
   try {
+    const requestStartedAtMs = Date.now();
     const response = await fetch(`${API_CONFIG.baseUrl}${path}`, {
       ...init,
       headers,
       signal: controller.signal,
     });
+    const responseReceivedAtMs = Date.now();
 
     if (!response.ok) {
       const kind = getResponseErrorKind(response.status);
@@ -210,7 +238,10 @@ export async function apiRequest<T>(
     }
 
     try {
-      return JSON.parse(rawBody) as T;
+      return attachResponseTimingMetadata(JSON.parse(rawBody) as T, {
+        clientRequestStartedAtMs: requestStartedAtMs,
+        clientResponseReceivedAtMs: responseReceivedAtMs,
+      });
     } catch (parseError) {
       throw new ApiError('invalid-json', `${fallbackMessage} 서버 응답을 해석하지 못했어요.`, {
         cause: parseError,

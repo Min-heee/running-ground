@@ -38,7 +38,7 @@ type UseMatchEntryEffectsInput = {
   onForceOpenActiveMatchChange: (value: boolean) => void;
   onLiveArenaPageChange: (page: number) => void;
   onRoomInviteTokenInputChange: (token: string) => void;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
   commitMatchRoom: (room: RunningMatchRoom | null) => void;
   onError: (message: string | null) => void;
   focusRunningMatch: (input: FocusRunningMatchInput) => Promise<unknown>;
@@ -230,7 +230,7 @@ export function useMatchEntryEffects({
           return;
         }
 
-        syncServerClock(payload.serverNow);
+        syncServerClock(payload.serverNow, payload);
         clearMatchRoomDeletedTombstone(payload.room.roomId, 'room invite token effect');
         commitMatchRoom(payload.room);
 

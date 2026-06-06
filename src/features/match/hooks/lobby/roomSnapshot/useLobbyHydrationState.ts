@@ -39,8 +39,8 @@ export function useLobbyHydrationState() {
     });
   }, []);
 
-  const syncServerClock = useCallback((serverNow?: string) => {
-    applySharedServerClock(serverNow);
+  const syncServerClock = useCallback((serverNow?: string, timingSource?: unknown) => {
+    applySharedServerClock(serverNow, timingSource);
   }, []);
 
   const commitRoom = useCallback((nextRoom: RunningMatchRoom | null) => {

@@ -21,7 +21,7 @@ type UseMatchRoomLobbyEffectsInput = {
   room: RunningMatchRoom | null;
   serverClockOffsetMs: number;
   setError: Dispatch<SetStateAction<string | null>>;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
 };
 
 export function useMatchRoomLobbyEffects({
@@ -162,7 +162,7 @@ export function useMatchRoomLobbyEffects({
           return;
         }
 
-        syncServerClock(payload.serverNow);
+        syncServerClock(payload.serverNow, payload);
         commitRoom(payload.room);
         setError(null);
       })

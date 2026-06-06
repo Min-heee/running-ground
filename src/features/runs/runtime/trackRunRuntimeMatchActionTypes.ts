@@ -79,7 +79,7 @@ export type UseTrackRunRuntimeMatchActionsInput = {
   setMatchMode: Dispatch<SetStateAction<RunMatchMode>>;
   setUpcomingMatches: Dispatch<SetStateAction<UpcomingRunningMatchItem[]>>;
   status: TrackerStatus;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
   trackRunIdleViewModel: TrackRunIdleViewModel;
   upcomingMatches: UpcomingRunningMatchItem[];
 };

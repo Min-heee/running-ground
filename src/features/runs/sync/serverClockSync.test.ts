@@ -5,6 +5,7 @@ import {
   getSharedServerClockOffsetMs,
   parseServerNowMs,
   resetSharedServerClockForTest,
+  resolveServerClockOffsetSample,
   resolveStableServerClockOffset,
   shouldAcceptServerSnapshot,
   subscribeSharedServerClock,
@@ -28,6 +29,30 @@ test('server clock offset smoothing ignores small local jitter and smooths large
   assert.equal(resolveStableServerClockOffset(4000, 8000), 5000);
 });
 
+test('server clock offset sample compensates for normal round-trip latency', () => {
+  const requestStartedAtMs = Date.parse('2026-05-12T00:00:00.000Z');
+  const responseReceivedAtMs = Date.parse('2026-05-12T00:00:01.000Z');
+  const serverNow = '2026-05-12T00:00:00.500Z';
+
+  assert.deepEqual(resolveServerClockOffsetSample(serverNow, {
+    clientRequestStartedAtMs: requestStartedAtMs,
+    clientResponseReceivedAtMs: responseReceivedAtMs,
+  }), {
+    serverNowMs: Date.parse(serverNow),
+    offsetMs: 0,
+  });
+});
+
+test('server clock offset sample rejects abnormal round-trip latency', () => {
+  const requestStartedAtMs = Date.parse('2026-05-12T00:00:00.000Z');
+  const responseReceivedAtMs = Date.parse('2026-05-12T00:00:04.000Z');
+
+  assert.equal(resolveServerClockOffsetSample('2026-05-12T00:00:02.000Z', {
+    clientRequestStartedAtMs: requestStartedAtMs,
+    clientResponseReceivedAtMs: responseReceivedAtMs,
+  }), null);
+});
+
 test('server snapshot guard rejects older server snapshots', () => {
   const latestRef = { current: 0 };
 
@@ -46,6 +71,36 @@ test('shared server clock applies the first accepted offset', () => {
     assert.equal(getSharedServerClockOffsetMs(), 0);
     assert.equal(applySharedServerClock('2026-05-12T00:00:04.000Z'), 4000);
     assert.equal(getSharedServerClockOffsetMs(), 4000);
+  } finally {
+    Date.now = originalDateNow;
+    resetSharedServerClockForTest();
+  }
+});
+
+test('shared server clock applies RTT-corrected offsets from API timing metadata', () => {
+  resetSharedServerClockForTest();
+  const requestStartedAtMs = Date.parse('2026-05-12T00:00:00.000Z');
+  const responseReceivedAtMs = Date.parse('2026-05-12T00:00:01.000Z');
+
+  assert.equal(applySharedServerClock('2026-05-12T00:00:00.500Z', {
+    clientRequestStartedAtMs: requestStartedAtMs,
+    clientResponseReceivedAtMs: responseReceivedAtMs,
+  }), 0);
+
+  resetSharedServerClockForTest();
+});
+
+test('shared server clock keeps the previous offset when RTT timing is abnormal', () => {
+  resetSharedServerClockForTest();
+  const originalDateNow = Date.now;
+  Date.now = () => Date.parse('2026-05-12T00:00:00.000Z');
+
+  try {
+    assert.equal(applySharedServerClock('2026-05-12T00:00:04.000Z'), 4000);
+    assert.equal(applySharedServerClock('2026-05-12T00:00:08.000Z', {
+      clientRequestStartedAtMs: Date.parse('2026-05-12T00:00:00.000Z'),
+      clientResponseReceivedAtMs: Date.parse('2026-05-12T00:00:04.001Z'),
+    }), 4000);
   } finally {
     Date.now = originalDateNow;
     resetSharedServerClockForTest();

@@ -35,8 +35,8 @@ export function useMatchQueueActions() {
     });
   }, []);
 
-  const syncServerClock = (serverNow?: string) => {
-    const nextOffsetMs = applySharedServerClock(serverNow);
+  const syncServerClock = (serverNow?: string, timingSource?: unknown) => {
+    const nextOffsetMs = applySharedServerClock(serverNow, timingSource);
     serverClockOffsetMsRef.current = nextOffsetMs;
     setServerClockOffsetMs(nextOffsetMs);
   };

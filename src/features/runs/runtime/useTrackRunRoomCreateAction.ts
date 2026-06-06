@@ -48,7 +48,7 @@ type UseTrackRunRoomCreateActionInput = {
   roomStartMode: RoomStartMode;
   setError: Dispatch<SetStateAction<string | null>>;
   setIsCreatingMatchRoom: Dispatch<SetStateAction<boolean>>;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
   visibleMatchRoom: RunningMatchRoom | null;
 };
 
@@ -232,7 +232,7 @@ export function useTrackRunRoomCreateAction({
         return;
       }
 
-      syncServerClock(payload.serverNow);
+      syncServerClock(payload.serverNow, payload);
       clearMatchRoomDeletedTombstone(payload.room?.roomId, 'room create');
       commitMatchRoom(payload.room);
       if (payload.room) {

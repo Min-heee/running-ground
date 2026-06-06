@@ -91,7 +91,7 @@ export function useRoomInviteActions({
         return;
       }
 
-      syncServerClock(payload.serverNow);
+      syncServerClock(payload.serverNow, payload);
       commitRoom(payload.room);
     } catch (roomError) {
       endJoinApiTrace({ success: false });
@@ -154,7 +154,7 @@ export function useRoomInviteActions({
         return;
       }
 
-      syncServerClock(payload.serverNow);
+      syncServerClock(payload.serverNow, payload);
       commitRoom(payload.room);
       rgPerfMark('local room state cleared', {
         roomId: room.roomId,

@@ -30,7 +30,7 @@ type UseTrackRunRuntimeRoomInviteActionsInput = {
   setIsJoiningMatchRoom: Dispatch<SetStateAction<boolean>>;
   setIsLeavingMatchRoom: Dispatch<SetStateAction<boolean>>;
   setSelectedRoomFriendIds: Dispatch<SetStateAction<string[]>>;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
   visibleMatchRoom: RunningMatchRoom | null;
 };
 
@@ -121,7 +121,7 @@ export function useTrackRunRuntimeRoomInviteActions({
         return;
       }
 
-      syncServerClock(payload.serverNow);
+      syncServerClock(payload.serverNow, payload);
       clearMatchRoomDeletedTombstone(payload.room.roomId, 'invite card accept');
       commitMatchRoom(payload.room);
       navigateToMatchRoomWithTrace('invite card accept', payload.room, payload.serverNow);
@@ -220,7 +220,7 @@ export function useTrackRunRuntimeRoomInviteActions({
         return;
       }
 
-      syncServerClock(payload.serverNow);
+      syncServerClock(payload.serverNow, payload);
       commitMatchRoom(payload.room);
       rgPerfMark('local room state cleared', {
         roomId: visibleMatchRoom.roomId,

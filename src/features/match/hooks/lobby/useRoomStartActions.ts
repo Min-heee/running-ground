@@ -61,7 +61,7 @@ type UseRoomStartActionsInput = {
   isReady: boolean;
   latestRoomServerNowMsRef: MutableRefObject<number>;
   commitRoom: (room: RunningMatchRoom | null) => void;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
   pauseRoomPolling: () => void;
   setError: Dispatch<SetStateAction<string | null>>;
   setSaving: Dispatch<SetStateAction<boolean>>;
@@ -124,7 +124,7 @@ export function useRoomStartActions({
         return;
       }
 
-      syncServerClock(payload.serverNow);
+      syncServerClock(payload.serverNow, payload);
       commitRoom(payload.room);
     } catch (roomError) {
       setError(getApiErrorMessage(roomError, '준비 상태를 바꾸지 못했어.'));
@@ -183,7 +183,7 @@ export function useRoomStartActions({
         return;
       }
 
-      syncServerClock(payload.serverNow);
+      syncServerClock(payload.serverNow, payload);
       commitRoom(payload.room);
       if (payload.room?.linkedMatchId) {
         pauseRoomPolling();

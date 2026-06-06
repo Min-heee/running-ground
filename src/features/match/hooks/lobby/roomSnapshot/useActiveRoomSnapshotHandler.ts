@@ -34,7 +34,7 @@ export function useActiveRoomSnapshotHandler({
   pollingPausedRef: MutableRefObject<boolean>;
   roomRef: MutableRefObject<RunningMatchRoom | null>;
   setError: Dispatch<SetStateAction<string | null>>;
-  syncServerClock: (serverNow?: string) => void;
+  syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
 }) {
   const handleRecipientInviteInbox = useInviteInboxReceiver({
     currentUserTag,
