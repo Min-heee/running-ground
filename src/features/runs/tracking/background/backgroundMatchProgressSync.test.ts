@@ -2,10 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
 import {
+  BACKGROUND_MATCH_PROGRESS_INFLIGHT_STALE_MS,
   BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS,
   clearBackgroundMatchProgressContext,
   flushBackgroundMatchProgressSync,
   getBackgroundMatchProgressContext,
+  isBackgroundMatchProgressInFlightStale,
   resetBackgroundMatchProgressSyncForTest,
   setBackgroundMatchProgressContext,
 } from '@/features/runs/tracking/background/backgroundMatchProgressSync';
@@ -129,6 +131,99 @@ test('background match progress sync throttles repeated background location batc
     updateRunningMatchProgress,
   }), true);
   assert.equal(calls.length, 2);
+});
+
+test('background match progress sync keeps a recent in-flight upload from duplicating', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs);
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-inflight-recent',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  const calls: UpdateRunningMatchProgressInput[] = [];
+  const firstFlush = flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs,
+    updateRunningMatchProgress: async (input) => {
+      calls.push(input);
+      return new Promise(() => undefined);
+    },
+  });
+  void firstFlush.catch(() => undefined);
+
+  assert.equal(await flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs: nowMs + BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS,
+    updateRunningMatchProgress: async (input) => {
+      calls.push(input);
+    },
+  }), false);
+  assert.equal(calls.length, 1);
+});
+
+test('background match progress sync aborts a stale in-flight upload and retries', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs);
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-inflight-stale',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  let callCount = 0;
+  let didAbortFirstUpload = false;
+  const updateRunningMatchProgress = async (
+    input: UpdateRunningMatchProgressInput,
+    options?: { signal?: AbortSignal },
+  ) => {
+    callCount += 1;
+
+    if (callCount === 1) {
+      return new Promise((_, reject) => {
+        options?.signal?.addEventListener('abort', () => {
+          didAbortFirstUpload = true;
+          reject(new Error('aborted stale upload'));
+        }, { once: true });
+      });
+    }
+
+    assert.equal(input.matchId, 'duel-match-inflight-stale');
+    return undefined;
+  };
+
+  const firstFlush = flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs,
+    updateRunningMatchProgress,
+  });
+  void firstFlush.catch(() => undefined);
+
+  assert.equal(await flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs: nowMs + BACKGROUND_MATCH_PROGRESS_INFLIGHT_STALE_MS + 1,
+    updateRunningMatchProgress,
+  }), true);
+  assert.equal(didAbortFirstUpload, true);
+  assert.equal(callCount, 2);
+});
+
+test('background match progress sync stale helper requires the stale threshold to pass', () => {
+  const startedAtMs = 1_000;
+
+  assert.equal(isBackgroundMatchProgressInFlightStale(
+    startedAtMs,
+    startedAtMs + BACKGROUND_MATCH_PROGRESS_INFLIGHT_STALE_MS,
+  ), false);
+  assert.equal(isBackgroundMatchProgressInFlightStale(
+    startedAtMs,
+    startedAtMs + BACKGROUND_MATCH_PROGRESS_INFLIGHT_STALE_MS + 1,
+  ), true);
 });
 
 test('background match progress sync clears only the active context match when requested', () => {

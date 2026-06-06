@@ -15,6 +15,7 @@ import {
 } from '@/features/runs/sync/matchProgressSync';
 
 export const BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS = 5_000;
+export const BACKGROUND_MATCH_PROGRESS_INFLIGHT_STALE_MS = 12_000;
 
 export type BackgroundMatchProgressContext = {
   matchId: string;
@@ -25,6 +26,7 @@ export type BackgroundMatchProgressContext = {
 
 type BackgroundMatchProgressUploader = (
   input: UpdateRunningMatchProgressInput,
+  options?: { signal?: AbortSignal },
 ) => Promise<unknown>;
 
 type FlushBackgroundMatchProgressOptions = {
@@ -36,10 +38,15 @@ type FlushBackgroundMatchProgressOptions = {
 let activeMatchProgressContext: BackgroundMatchProgressContext | null = null;
 let lastBackgroundMatchProgressSyncAtMs = 0;
 let inFlightBackgroundMatchProgressSync: Promise<unknown> | null = null;
+let inFlightBackgroundMatchProgressSyncStartedAtMs = 0;
+let inFlightBackgroundMatchProgressAbort: AbortController | null = null;
 
-async function updateRunningMatchProgressService(input: UpdateRunningMatchProgressInput) {
+async function updateRunningMatchProgressService(
+  input: UpdateRunningMatchProgressInput,
+  options?: { signal?: AbortSignal },
+) {
   const { updateRunningMatchProgress } = await import('@/services');
-  return updateRunningMatchProgress(input);
+  return updateRunningMatchProgress(input, options);
 }
 
 function normalizeBackgroundMatchProgressContext(
@@ -88,6 +95,9 @@ export function resetBackgroundMatchProgressSyncForTest() {
   activeMatchProgressContext = null;
   lastBackgroundMatchProgressSyncAtMs = 0;
   inFlightBackgroundMatchProgressSync = null;
+  inFlightBackgroundMatchProgressSyncStartedAtMs = 0;
+  inFlightBackgroundMatchProgressAbort?.abort();
+  inFlightBackgroundMatchProgressAbort = null;
 }
 
 function resolveBackgroundHeartbeatStatus(
@@ -97,6 +107,10 @@ function resolveBackgroundHeartbeatStatus(
   return distanceKm >= targetDistanceKm - MATCH_GOAL_DISTANCE_TOLERANCE_KM
     ? 'finished'
     : 'background';
+}
+
+export function isBackgroundMatchProgressInFlightStale(startedAtMs: number, nowMs: number) {
+  return nowMs - startedAtMs > BACKGROUND_MATCH_PROGRESS_INFLIGHT_STALE_MS;
 }
 
 export async function flushBackgroundMatchProgressSync({
@@ -116,10 +130,22 @@ export async function flushBackgroundMatchProgressSync({
     return false;
   }
 
-  if (
-    nowMs - lastBackgroundMatchProgressSyncAtMs < BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS
-    || inFlightBackgroundMatchProgressSync
-  ) {
+  if (nowMs - lastBackgroundMatchProgressSyncAtMs < BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS) {
+    return false;
+  }
+
+  if (inFlightBackgroundMatchProgressSync) {
+    if (!isBackgroundMatchProgressInFlightStale(inFlightBackgroundMatchProgressSyncStartedAtMs, nowMs)) {
+      return false;
+    }
+
+    inFlightBackgroundMatchProgressAbort?.abort();
+    inFlightBackgroundMatchProgressSync = null;
+    inFlightBackgroundMatchProgressSyncStartedAtMs = 0;
+    inFlightBackgroundMatchProgressAbort = null;
+  }
+
+  if (nowMs - lastBackgroundMatchProgressSyncAtMs < BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS) {
     return false;
   }
 
@@ -142,10 +168,18 @@ export async function flushBackgroundMatchProgressSync({
 
   lastBackgroundMatchProgressSyncAtMs = nowMs;
   recordBackgroundHeartbeatAttempt();
-  inFlightBackgroundMatchProgressSync = updateRunningMatchProgress(input)
+  const abortController = new AbortController();
+  inFlightBackgroundMatchProgressAbort = abortController;
+  inFlightBackgroundMatchProgressSyncStartedAtMs = nowMs;
+  const syncPromise = updateRunningMatchProgress(input, { signal: abortController.signal })
     .finally(() => {
-      inFlightBackgroundMatchProgressSync = null;
+      if (inFlightBackgroundMatchProgressSync === syncPromise) {
+        inFlightBackgroundMatchProgressSync = null;
+        inFlightBackgroundMatchProgressSyncStartedAtMs = 0;
+        inFlightBackgroundMatchProgressAbort = null;
+      }
     });
+  inFlightBackgroundMatchProgressSync = syncPromise;
 
   await inFlightBackgroundMatchProgressSync;
   return true;

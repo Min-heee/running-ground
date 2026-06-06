@@ -324,6 +324,7 @@ export async function leaveRunningMatch(input: LeaveRunningMatchInput): Promise<
 
 export async function updateRunningMatchProgress(
   input: UpdateRunningMatchProgressInput,
+  options: { signal?: AbortSignal } = {},
 ): Promise<UpdateRunningMatchProgressResponse> {
   if (USE_MOCK_API) {
     const duelSession = syncMockRunningMatchSession('duel');
@@ -411,6 +412,7 @@ export async function updateRunningMatchProgress(
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '실시간 경쟁 상태를 업데이트하지 못했어.',
+      signal: options.signal,
     },
   );
 
