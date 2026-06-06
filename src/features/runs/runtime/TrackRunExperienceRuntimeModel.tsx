@@ -112,6 +112,7 @@ import { useTrackRunRuntimePropsComposer } from '@/features/runs/runtime/useTrac
 import {
   MATCH_ROOM_FAST_POLL_MS,
   MATCH_ROOM_IDLE_POLL_MS,
+  MATCH_STATUS_COUNTDOWN_POLL_MS,
   MATCH_STATUS_FAST_POLL_MS,
   MATCH_STATUS_IDLE_POLL_MS,
   OFFICIAL_START_DISTANCE_NOISE_GRACE_KM,
@@ -122,7 +123,10 @@ import {
 } from './trackRunExperienceConstants';
 import { shouldHidePastUpcomingMatch } from './matchVisibility';
 import { useStableCallback } from './useStableCallback';
-import { useMatchModeDerivedState } from './useMatchModeDerivedState';
+import {
+  shouldDeferLiveMatchHeavyArenaWork,
+  useMatchModeDerivedState,
+} from './useMatchModeDerivedState';
 import {
   resolveCurrentUserArenaPace,
   resolveDuelLiveSummary,
@@ -650,7 +654,19 @@ export function TrackRunExperienceRuntime({
     active: shouldStageAndroidLiveMatchStartup,
     identity: liveMatchStartupIdentity,
   });
-  const liveMatchHeavyWorkReady = androidLiveMatchStartup.ready;
+  const liveMatchStartupWorkReady = androidLiveMatchStartup.ready;
+  const shouldDeferLiveMatchHeavyWork = shouldDeferLiveMatchHeavyArenaWork({
+    matchMode,
+    isRunning,
+    duelMatchState,
+    groupMatchState,
+    roomLinkedMatchMode: roomLinkedMatchContext?.mode ?? null,
+    roomLinkedMatchState: roomLinkedMatchContext?.state ?? null,
+    hasVisibleCountdownEntry: Boolean(visibleCountdownEntry),
+    hasRoomCountdownEntry: Boolean(roomCountdownEntry),
+    shouldShowRoomArmingOverlay,
+  });
+  const liveMatchHeavyWorkReady = liveMatchStartupWorkReady && !shouldDeferLiveMatchHeavyWork;
   const activeLiveMatchProgressMatchId = useMemo(() => {
     if (matchMode === 'duel') {
       return duelMatchStatus?.matchId
@@ -1011,7 +1027,7 @@ export function TrackRunExperienceRuntime({
     isRunning,
     isCurrentUserForfeited: currentUserHasForfeitedActiveMatch,
     isCurrentUserDoneWithMatch: currentUserDoneWithCurrentMatch,
-    liveMatchHeavyWorkReady,
+    liveMatchHeavyWorkReady: liveMatchStartupWorkReady,
     visiblePartyRunFlow,
     matchRoomFlow,
     matchRoom,
@@ -1949,7 +1965,7 @@ export function TrackRunExperienceRuntime({
       idleRoomPollMs: MATCH_ROOM_IDLE_POLL_MS,
       fastMatchStatusPollMs: MATCH_STATUS_FAST_POLL_MS,
       idleMatchStatusPollMs: MATCH_STATUS_IDLE_POLL_MS,
-      linkedMatchSyncEnabled: liveMatchHeavyWorkReady,
+      linkedMatchSyncEnabled: liveMatchStartupWorkReady,
       lifecycleController: matchLifecycleController,
       getSyncedNowMs,
       loadMatchRoom,
@@ -2039,18 +2055,20 @@ export function TrackRunExperienceRuntime({
       duelMatchStatus,
       groupMatchStatus,
       syncedNowMs,
-      fastPollMs: MATCH_STATUS_FAST_POLL_MS,
+      fastPollMs: shouldDeferLiveMatchHeavyWork
+        ? MATCH_STATUS_COUNTDOWN_POLL_MS
+        : MATCH_STATUS_FAST_POLL_MS,
       // Was 15000 — the guest could sit ~7.5s on the lobby/main tab waiting
       // for the next status poll to deliver `matched`, which is the main
       // visible delay before the host's start API result reaches them.
       // 5000ms keeps the worst-case under ~2.5s without a meaningful
-      // increase in load (we only poll while heavy work is ready and the
-      // lifecycle controller asks for direct status polling).
-      idlePollMs: 5000,
+      // increase in load. During the visible countdown, cadence relaxes so
+      // polling responses do not compete with the countdown ticker.
+      idlePollMs: shouldDeferLiveMatchHeavyWork ? MATCH_STATUS_COUNTDOWN_POLL_MS : 5000,
       loadDuelMatchStatus,
       loadGroupMatchStatus,
       enabled: !trackRunIdleViewModel.disableHeavySubscriptions
-        && liveMatchHeavyWorkReady
+        && liveMatchStartupWorkReady
         && (
           matchLifecycleController.effects.shouldPollDirectMatchStatus
           || matchLifecycleController.effects.shouldPollLinkedMatch

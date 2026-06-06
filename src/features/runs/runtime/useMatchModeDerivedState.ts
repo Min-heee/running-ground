@@ -99,6 +99,48 @@ export function shouldStageLiveMatchStartup({
   return false;
 }
 
+export function shouldDeferLiveMatchHeavyArenaWork({
+  matchMode,
+  isRunning,
+  duelMatchState,
+  groupMatchState,
+  roomLinkedMatchMode,
+  roomLinkedMatchState,
+  hasVisibleCountdownEntry,
+  hasRoomCountdownEntry,
+  shouldShowRoomArmingOverlay,
+}: {
+  matchMode: RunMatchMode;
+  isRunning: boolean;
+  duelMatchState: RunningMatchState;
+  groupMatchState: RunningMatchState;
+  roomLinkedMatchMode?: PartyRunLinkedMatchContext['mode'] | null;
+  roomLinkedMatchState?: PartyRunLinkedMatchContext['state'] | null;
+  hasVisibleCountdownEntry: boolean;
+  hasRoomCountdownEntry: boolean;
+  shouldShowRoomArmingOverlay: boolean;
+}) {
+  if (isRunning) {
+    return false;
+  }
+
+  if (hasVisibleCountdownEntry || hasRoomCountdownEntry || shouldShowRoomArmingOverlay) {
+    return true;
+  }
+
+  if (matchMode === 'duel') {
+    return duelMatchState === 'matched'
+      || (roomLinkedMatchMode === 'duel' && roomLinkedMatchState === 'matched');
+  }
+
+  if (matchMode === 'group') {
+    return groupMatchState === 'matched'
+      || (roomLinkedMatchMode === 'group' && roomLinkedMatchState === 'matched');
+  }
+
+  return false;
+}
+
 export function resolveRoomLinkedContextFlags(roomLinkedMatchContext: PartyRunLinkedMatchContext | null) {
   return {
     hasRoomLinkedDuelContext: roomLinkedMatchContext?.mode === 'duel',

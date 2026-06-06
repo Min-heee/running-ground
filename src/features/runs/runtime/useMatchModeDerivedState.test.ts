@@ -6,6 +6,7 @@ import {
   resolveArenaUsesLivePace,
   resolveMatchModeIdentity,
   resolveOfficialCurrentAveragePace,
+  shouldDeferLiveMatchHeavyArenaWork,
   shouldStageLiveMatchStartup,
 } from './useMatchModeDerivedState';
 
@@ -109,6 +110,68 @@ test('shouldStageLiveMatchStartup follows existing match-mode gates', () => {
     duelStartCountdownSeconds: 0,
     groupStartCountdownSeconds: 0,
     roomLinkedMatchContext: linkedDuelContext,
+  }), false);
+});
+
+test('shouldDeferLiveMatchHeavyArenaWork defers only during pre-run startup phases', () => {
+  assert.equal(shouldDeferLiveMatchHeavyArenaWork({
+    matchMode: 'duel',
+    isRunning: false,
+    duelMatchState: 'matched',
+    groupMatchState: 'idle',
+    roomLinkedMatchMode: null,
+    roomLinkedMatchState: null,
+    hasVisibleCountdownEntry: false,
+    hasRoomCountdownEntry: false,
+    shouldShowRoomArmingOverlay: false,
+  }), true);
+
+  assert.equal(shouldDeferLiveMatchHeavyArenaWork({
+    matchMode: 'group',
+    isRunning: false,
+    duelMatchState: 'idle',
+    groupMatchState: 'idle',
+    roomLinkedMatchMode: 'group',
+    roomLinkedMatchState: 'matched',
+    hasVisibleCountdownEntry: false,
+    hasRoomCountdownEntry: false,
+    shouldShowRoomArmingOverlay: false,
+  }), true);
+
+  assert.equal(shouldDeferLiveMatchHeavyArenaWork({
+    matchMode: 'group',
+    isRunning: false,
+    duelMatchState: 'idle',
+    groupMatchState: 'idle',
+    roomLinkedMatchMode: null,
+    roomLinkedMatchState: null,
+    hasVisibleCountdownEntry: false,
+    hasRoomCountdownEntry: false,
+    shouldShowRoomArmingOverlay: true,
+  }), true);
+
+  assert.equal(shouldDeferLiveMatchHeavyArenaWork({
+    matchMode: 'duel',
+    isRunning: true,
+    duelMatchState: 'matched',
+    groupMatchState: 'idle',
+    roomLinkedMatchMode: 'duel',
+    roomLinkedMatchState: 'matched',
+    hasVisibleCountdownEntry: true,
+    hasRoomCountdownEntry: true,
+    shouldShowRoomArmingOverlay: true,
+  }), false);
+
+  assert.equal(shouldDeferLiveMatchHeavyArenaWork({
+    matchMode: 'duel',
+    isRunning: false,
+    duelMatchState: 'idle',
+    groupMatchState: 'idle',
+    roomLinkedMatchMode: 'group',
+    roomLinkedMatchState: 'matched',
+    hasVisibleCountdownEntry: false,
+    hasRoomCountdownEntry: false,
+    shouldShowRoomArmingOverlay: false,
   }), false);
 });
 
