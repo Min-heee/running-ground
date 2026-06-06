@@ -1,5 +1,6 @@
 package expo.modules.matchprogressuploader
 
+import android.util.Log
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.net.HttpURLConnection
@@ -37,8 +38,9 @@ class MatchProgressUploaderModule : Module() {
 
       try {
         send(job)
-      } catch (_: Throwable) {
+      } catch (error: Throwable) {
         // Best-effort: the next location tick sends fresher progress.
+        Log.w("RGNativeUpload", "upload failed: ${error.message}")
       }
     }
 
@@ -63,6 +65,7 @@ class MatchProgressUploaderModule : Module() {
     try {
       conn.outputStream.use { it.write(job.body.toByteArray(Charsets.UTF_8)) }
       val code = conn.responseCode
+      Log.i("RGNativeUpload", "POST $code ${job.url}")
       val stream = if (code in 200..299) conn.inputStream else conn.errorStream
       stream?.use { it.readBytes() }
     } finally {

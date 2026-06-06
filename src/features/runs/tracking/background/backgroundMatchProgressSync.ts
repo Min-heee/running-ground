@@ -155,6 +155,18 @@ export async function flushBackgroundMatchProgressSync({
 }: FlushBackgroundMatchProgressOptions = {}) {
   const context = activeMatchProgressContext;
 
+  // [RG flush] TEMP diagnostic — remove after on-device verification.
+  try {
+    const diagSnapshot = getSnapshotState();
+    globalThis.console.log(
+      `[RG flush] platform=${platform} bg=${isAppBackground} ctx=${context ? context.matchId : 'null'} status=${diagSnapshot.status} dist=${
+        typeof diagSnapshot.distanceKm === 'number' ? diagSnapshot.distanceKm.toFixed(3) : String(diagSnapshot.distanceKm)
+      } thr=${nowMs - lastBackgroundMatchProgressSyncAtMs} inflight=${inFlightBackgroundMatchProgressSync ? 1 : 0}`,
+    );
+  } catch {
+    // diagnostic only
+  }
+
   if (!isAppBackground || !context) {
     return false;
   }
@@ -223,6 +235,10 @@ export async function flushBackgroundMatchProgressSync({
         nativeUploader.uploadMatchProgressNative(`${resolvedApiBaseUrl}/running/matches/progress`, token, requestBody);
         return true;
       }
+
+      globalThis.console.log('[RG flush] path=native NO_TOKEN — JS fallback');
+    } else {
+      globalThis.console.log('[RG flush] path=native UNAVAILABLE (module not linked) — JS fallback');
     }
   }
 
