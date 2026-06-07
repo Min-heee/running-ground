@@ -19,7 +19,7 @@ export function getMatchStartRemainingSeconds(slotStartAt: string, nowMs = Date.
     return null;
   }
 
-  return Math.ceil(remainingMs / 1000);
+  return Math.max(1, Math.round(remainingMs / 1000));
 }
 
 export function shouldShowMatchCardCountdown(remainingSeconds: number | null) {

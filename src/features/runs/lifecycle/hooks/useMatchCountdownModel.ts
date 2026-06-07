@@ -188,6 +188,10 @@ export function normalizePartyRunFlowRemainingSeconds(remainingSeconds: number |
   return 61;
 }
 
+function shouldTrackDirectMatchCountdown(state: RunningMatchStatusResponse['state']) {
+  return state === 'matched' || state === 'active';
+}
+
 export function resolvePartyRunFlowSyncedNowMs({
   room,
   remainingSeconds,
@@ -227,22 +231,22 @@ export function useMatchCountdownModel({
   currentRoomParticipantIsCountdownReady,
 }: UseMatchCountdownModelInput) {
   const rawDuelStartCountdownSeconds =
-    duelMatchState === 'matched'
+    shouldTrackDirectMatchCountdown(duelMatchState)
       ? getMatchStartRemainingSeconds(duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt, syncedNowMs)
       : null;
   const duelStartCountdownSeconds = useStableCountdownSeconds({
-    key: duelMatchState === 'matched'
+    key: shouldTrackDirectMatchCountdown(duelMatchState)
       ? `${duelMatchStatus?.matchId ?? 'duel'}:${duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt}`
       : null,
     rawRemainingSeconds: rawDuelStartCountdownSeconds,
     nowMs,
   });
   const rawGroupStartCountdownSeconds =
-    groupMatchState === 'matched'
+    shouldTrackDirectMatchCountdown(groupMatchState)
       ? getMatchStartRemainingSeconds(groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt, syncedNowMs)
       : null;
   const groupStartCountdownSeconds = useStableCountdownSeconds({
-    key: groupMatchState === 'matched'
+    key: shouldTrackDirectMatchCountdown(groupMatchState)
       ? `${groupMatchStatus?.matchId ?? 'group'}:${groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt}`
       : null,
     rawRemainingSeconds: rawGroupStartCountdownSeconds,
@@ -278,7 +282,12 @@ export function useMatchCountdownModel({
     [visibleUpcomingMatches],
   );
   const fallbackCountdownEntry = useMemo<CountdownEntry | null>(() => {
-    if (matchMode === 'duel' && duelMatchState === 'matched' && duelMatchStatus && typeof duelStartCountdownSeconds === 'number') {
+    if (
+      matchMode === 'duel'
+      && shouldTrackDirectMatchCountdown(duelMatchState)
+      && duelMatchStatus
+      && typeof duelStartCountdownSeconds === 'number'
+    ) {
       return {
         title: '1대1 대결 곧 시작',
         subtitle: `${duelMatchStatus.opponent?.name ?? '상대'} · ${duelMatchStatus.distanceKm.toFixed(1)}km`,
@@ -286,7 +295,12 @@ export function useMatchCountdownModel({
       };
     }
 
-    if (matchMode === 'group' && groupMatchState === 'matched' && groupMatchStatus && typeof groupStartCountdownSeconds === 'number') {
+    if (
+      matchMode === 'group'
+      && shouldTrackDirectMatchCountdown(groupMatchState)
+      && groupMatchStatus
+      && typeof groupStartCountdownSeconds === 'number'
+    ) {
       return {
         title: '그룹 대결 곧 시작',
         subtitle: `${groupMatchStatus.participantCount}명 그룹 · ${groupMatchStatus.distanceKm.toFixed(1)}km`,

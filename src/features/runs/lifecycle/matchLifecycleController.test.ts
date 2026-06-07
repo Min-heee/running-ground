@@ -95,6 +95,7 @@ function baseInput(overrides: Partial<MatchLifecycleControllerInput> = {}): Matc
     groupMatchStatus: null,
     duelStartCountdownSeconds: null,
     groupStartCountdownSeconds: null,
+    syncedNowMs: Date.parse('2026-05-14T12:05:00.000Z'),
     ...overrides,
   };
 }
@@ -403,6 +404,52 @@ test('lifecycle controller starts active GPS from idle before heartbeat', () => 
   });
   assert.equal(controller.effects.shouldStartGpsActive, true);
   assert.equal(controller.effects.shouldRunHeartbeat, false);
+});
+
+test('active direct match waits for the shared slot time before starting GPS', () => {
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'idle',
+    isRunning: false,
+    syncedNowMs: Date.parse('2026-05-14T12:00:17.000Z'),
+    duelMatchState: 'active',
+    duelMatchStatus: status({
+      state: 'active',
+      matchId: 'duel-active-early',
+      readyToStart: true,
+      slotStartAt: '2026-05-14T12:00:20.000Z',
+    }),
+  }));
+
+  assert.equal(controller.stage, 'active');
+  assert.equal(controller.effects.shouldPollDirectMatchStatus, true);
+  assert.equal(controller.effects.shouldStartGpsActive, false);
+  assert.equal(controller.effects.shouldRunHeartbeat, false);
+  assert.equal(controller.gps.activeMatch, null);
+});
+
+test('active direct match starts GPS once the shared slot time has elapsed', () => {
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'idle',
+    isRunning: false,
+    syncedNowMs: Date.parse('2026-05-14T12:00:20.000Z'),
+    duelMatchState: 'active',
+    duelMatchStatus: status({
+      state: 'active',
+      matchId: 'duel-active-on-time',
+      readyToStart: true,
+      slotStartAt: '2026-05-14T12:00:20.000Z',
+    }),
+  }));
+
+  assert.equal(controller.stage, 'active');
+  assert.deepEqual(controller.gps.activeMatch, {
+    matchId: 'duel-active-on-time',
+    mode: 'duel',
+    slotStartAt: '2026-05-14T12:00:20.000Z',
+  });
+  assert.equal(controller.effects.shouldStartGpsActive, true);
 });
 
 test('finished direct match stops polling, GPS, and heartbeat side effects', () => {

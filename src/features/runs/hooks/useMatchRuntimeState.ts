@@ -34,6 +34,7 @@ type UseMatchRuntimeStateInput = {
   groupMatchStatus: RunningMatchStatusResponse | null;
   duelStartCountdownSeconds: number | null;
   groupStartCountdownSeconds: number | null;
+  syncedNowMs: number;
   fallbackMatchId: string | null;
   duelArenaParticipants: ArenaParticipantViewModel[];
   roomLinkedDuelPlaceholderParticipants: ArenaParticipantViewModel[];
@@ -73,6 +74,7 @@ export function useMatchRuntimeState({
   groupMatchStatus,
   duelStartCountdownSeconds,
   groupStartCountdownSeconds,
+  syncedNowMs,
   fallbackMatchId,
   duelArenaParticipants,
   roomLinkedDuelPlaceholderParticipants,
@@ -110,6 +112,7 @@ export function useMatchRuntimeState({
     groupMatchStatus,
     duelStartCountdownSeconds,
     groupStartCountdownSeconds,
+    syncedNowMs,
     fallbackMatchId,
   }), [
     duelMatchState,
@@ -126,6 +129,7 @@ export function useMatchRuntimeState({
     matchRoom,
     matchRoomFlow,
     roomLinkedMatchContext,
+    syncedNowMs,
     trackingStatus,
     visibleMatchRoom,
     visiblePartyRunFlow,

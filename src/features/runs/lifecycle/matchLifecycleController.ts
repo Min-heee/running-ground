@@ -38,6 +38,7 @@ export type MatchLifecycleControllerInput = {
   groupMatchStatus: RunningMatchStatusResponse | null;
   duelStartCountdownSeconds: number | null;
   groupStartCountdownSeconds: number | null;
+  syncedNowMs: number;
   fallbackMatchId?: string | null;
 };
 
@@ -156,6 +157,20 @@ function buildStatusTarget(
   };
 }
 
+function hasMatchSlotStarted(target: MatchLifecycleMatchTarget | null, syncedNowMs: number) {
+  if (!target) {
+    return false;
+  }
+
+  const slotStartMs = Date.parse(target.slotStartAt);
+
+  if (!Number.isFinite(slotStartMs) || !Number.isFinite(syncedNowMs)) {
+    return true;
+  }
+
+  return syncedNowMs >= slotStartMs;
+}
+
 function isTerminalLiveStatus(status: RunningMatchStatusResponse['currentUserLiveStatus']) {
   return status === 'finished' || status === 'forfeited';
 }
@@ -233,19 +248,23 @@ function resolveActiveMatch(input: MatchLifecycleControllerInput): MatchLifecycl
     : null;
 
   if (roomTarget) {
-    return roomTarget;
+    return hasMatchSlotStarted(roomTarget, input.syncedNowMs) ? roomTarget : null;
   }
 
   if (input.matchMode === 'duel') {
-    return input.duelMatchStatus?.state === 'active'
+    const duelTarget = input.duelMatchStatus?.state === 'active'
       ? buildStatusTarget('duel', input.duelMatchStatus)
       : null;
+
+    return hasMatchSlotStarted(duelTarget, input.syncedNowMs) ? duelTarget : null;
   }
 
   if (input.matchMode === 'group') {
-    return input.groupMatchStatus?.state === 'active'
+    const groupTarget = input.groupMatchStatus?.state === 'active'
       ? buildStatusTarget('group', input.groupMatchStatus)
       : null;
+
+    return hasMatchSlotStarted(groupTarget, input.syncedNowMs) ? groupTarget : null;
   }
 
   return null;

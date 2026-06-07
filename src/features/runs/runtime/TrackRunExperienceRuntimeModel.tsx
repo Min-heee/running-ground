@@ -1046,6 +1046,7 @@ export function TrackRunExperienceRuntime({
     groupMatchStatus,
     duelStartCountdownSeconds,
     groupStartCountdownSeconds,
+    syncedNowMs,
     fallbackMatchId: runningMatchIdentity,
     duelArenaParticipants,
     roomLinkedDuelPlaceholderParticipants,
