@@ -36,6 +36,8 @@ export const MID_RUN_LATERAL_JITTER_MIN_PATH_METERS = 45;
 export const MID_RUN_LATERAL_JITTER_MIN_EXTRA_METERS = 14;
 export const MID_RUN_LATERAL_JITTER_MIN_EXTRA_RATIO = 0.24;
 export const MID_RUN_LATERAL_JITTER_MIN_SIDE_METERS = 6;
+export const DISTANCE_GATE_BASE_METERS = 2.5;
+export const DISTANCE_GATE_ACCURACY_SCALE = 0.15;
 
 export function normalizeAccuracyMeters(value?: number | null) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
@@ -119,6 +121,10 @@ export function resolveDynamicMinMovementMeters(worstAccuracyM: number) {
     MIN_MOVEMENT_DISTANCE_METERS,
     Math.min(4.5, worstAccuracyM * 0.1),
   );
+}
+
+export function resolveDistanceGateMeters(worstAccuracyM: number) {
+  return DISTANCE_GATE_BASE_METERS + Math.max(0, worstAccuracyM) * DISTANCE_GATE_ACCURACY_SCALE;
 }
 
 export function shouldIgnoreNoisySegment({

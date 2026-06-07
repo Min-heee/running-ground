@@ -120,6 +120,58 @@ test('route accumulator keeps normal straight-line movement after cold-start sta
   assert.ok(getAccumulatedDistanceMeters() <= 34);
 });
 
+test('route accumulator gates sub-threshold movement without increasing distance', () => {
+  const baseMs = Date.now() - 8_000;
+  resetRunningSnapshot(baseMs);
+
+  appendTrackedLocation(locationAt({ metersEast: 0, timestampMs: baseMs, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: baseMs + 1_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 16, timestampMs: baseMs + 2_000, speedMps: 3 }));
+
+  const beforeGateDistanceMeters = getAccumulatedDistanceMeters();
+
+  appendTrackedLocation(locationAt({
+    metersEast: 20,
+    timestampMs: baseMs + 3_200,
+    accuracyM: 20,
+    speedMps: 3,
+  }));
+
+  const snapshot = getSnapshotState();
+  assert.equal(snapshot.route.length, 4);
+  assert.equal(getAccumulatedDistanceMeters(), beforeGateDistanceMeters);
+});
+
+test('route accumulator adds displacement from the last counted point once the gate is crossed', () => {
+  const baseMs = Date.now() - 9_000;
+  resetRunningSnapshot(baseMs);
+
+  appendTrackedLocation(locationAt({ metersEast: 0, timestampMs: baseMs, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: baseMs + 1_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 16, timestampMs: baseMs + 2_000, speedMps: 3 }));
+
+  const beforeGateDistanceMeters = getAccumulatedDistanceMeters();
+
+  appendTrackedLocation(locationAt({
+    metersEast: 20,
+    timestampMs: baseMs + 3_200,
+    accuracyM: 20,
+    speedMps: 3,
+  }));
+  appendTrackedLocation(locationAt({
+    metersEast: 24,
+    timestampMs: baseMs + 4_400,
+    accuracyM: 20,
+    speedMps: 3,
+  }));
+
+  const snapshot = getSnapshotState();
+  const addedDistanceMeters = getAccumulatedDistanceMeters() - beforeGateDistanceMeters;
+  assert.equal(snapshot.route.length, 5);
+  assert.ok(addedDistanceMeters >= 7);
+  assert.ok(addedDistanceMeters <= 9);
+});
+
 test('route accumulator collapses small cold-start GPS loops before normal movement', () => {
   const baseMs = Date.now() - 12_000;
   resetRunningSnapshot(baseMs);

@@ -22,6 +22,7 @@ import {
   MIN_TELEPORT_FILTER_DISTANCE_METERS,
   normalizeAccuracyMeters,
   normalizeReliableSpeedMps,
+  resolveDistanceGateMeters,
   resolveLocationTimestampMs,
   resolveRoutePointTimestampMs,
   shouldIgnoreNoisySegment,
@@ -40,6 +41,7 @@ let accumulatedElevationGainMeters = 0;
 let smoothedCurrentPaceSecondsPerKm: number | null = null;
 let smoothedPaceUpdatedAtMs: number | null = null;
 let coldStartFixBuffer: RunRoutePoint[] = [];
+let lastCountedPoint: RunRoutePoint | null = null;
 
 export function resetRouteAccumulator() {
   globalThis.console.log('[RG dist] ===== RESET (run start) =====');
@@ -48,6 +50,7 @@ export function resetRouteAccumulator() {
   smoothedCurrentPaceSecondsPerKm = null;
   smoothedPaceUpdatedAtMs = null;
   coldStartFixBuffer = [];
+  lastCountedPoint = null;
 }
 
 export function getAccumulatedDistanceMeters() {
@@ -222,6 +225,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
 
     accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(stableRoute);
     accumulatedElevationGainMeters = calculateRouteElevationGainMeters(stableRoute);
+    lastCountedPoint = stableRoute[stableRoute.length - 1] ?? null;
     coldStartFixBuffer = [];
 
     commitSnapshot({
@@ -242,6 +246,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
     const nextRoute = [...snapshotState.route.slice(0, excursionAnchorIndex + 1), nextPoint];
     accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute);
     accumulatedElevationGainMeters = calculateRouteElevationGainMeters(nextRoute);
+    lastCountedPoint = nextRoute[nextRoute.length - 1] ?? null;
 
     commitSnapshot({
       ...snapshotState,
@@ -313,6 +318,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
     accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute);
     globalThis.console.log(`[RG dist] COLLAPSE jitter seg=${segmentDistanceMeters.toFixed(1)} total=${(accumulatedDistanceMeters / 1000).toFixed(3)}`);
     accumulatedElevationGainMeters = calculateRouteElevationGainMeters(nextRoute);
+    lastCountedPoint = nextRoute[nextRoute.length - 1] ?? null;
 
     commitSnapshot({
       ...snapshotState,
@@ -325,10 +331,31 @@ export function appendTrackedLocation(location: Location.LocationObject) {
     return;
   }
 
-  nextAccumulatedDistanceMeters += segmentDistanceMeters;
-  globalThis.console.log(`[RG dist] ADD seg=${segmentDistanceMeters.toFixed(1)} acc=${accuracyM ?? -1} dt=${timeDelta} spd=${segmentSpeedMps.toFixed(2)} total=${(nextAccumulatedDistanceMeters / 1000).toFixed(3)}`);
-
+  const distanceGateAnchorPoint = lastCountedPoint ?? previousPoint;
+  if (lastCountedPoint === null) {
+    lastCountedPoint = distanceGateAnchorPoint;
+  }
+  const distanceGateMeters = resolveDistanceGateMeters(worstAccuracyM);
+  const distanceFromCountedMeters = calculateDistanceBetweenPoints(distanceGateAnchorPoint, nextPoint);
   const nextRoute = [...snapshotState.route, nextPoint];
+
+  if (distanceFromCountedMeters < distanceGateMeters) {
+    globalThis.console.log(`[RG dist] GATE seg=${segmentDistanceMeters.toFixed(1)} distFromCounted=${distanceFromCountedMeters.toFixed(1)} gate=${distanceGateMeters.toFixed(1)} total=${(accumulatedDistanceMeters / 1000).toFixed(3)}`);
+    commitSnapshot({
+      ...snapshotState,
+      route: nextRoute,
+      startedAt: snapshotState.startedAt ?? nextPoint.timestamp,
+      distanceKm: Number((accumulatedDistanceMeters / 1000).toFixed(2)),
+      elevationGainM: Math.round(accumulatedElevationGainMeters),
+      currentPace: buildSmoothedCurrentPace(nextRoute, reliableSpeedMps, locationTimestampMs),
+    });
+    return;
+  }
+
+  nextAccumulatedDistanceMeters += distanceFromCountedMeters;
+  lastCountedPoint = nextPoint;
+  globalThis.console.log(`[RG dist] ADD seg=${segmentDistanceMeters.toFixed(1)} distFromCounted=${distanceFromCountedMeters.toFixed(1)} gate=${distanceGateMeters.toFixed(1)} acc=${accuracyM ?? -1} dt=${timeDelta} spd=${segmentSpeedMps.toFixed(2)} total=${(nextAccumulatedDistanceMeters / 1000).toFixed(3)}`);
+
   accumulatedDistanceMeters = nextAccumulatedDistanceMeters;
   accumulatedElevationGainMeters += calculateElevationGainForSegment(previousPoint, nextPoint);
   commitSnapshot({
