@@ -6,7 +6,9 @@ const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 500;
 // Once a stable offset is in place, ignore small fluctuations from network
 // round-trip jitter so the countdown digit doesn't visibly twitch.
 const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
-const SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR = 0.25;
+// Never let a late server snapshot move the countdown clock by seconds in a
+// single render. Large offsets move toward the target over a few snapshots.
+const SERVER_CLOCK_OFFSET_MAX_STEP_MS = 400;
 const SERVER_CLOCK_MAX_RTT_SAMPLE_MS = 3000;
 
 type ServerClockTimingSource = {
@@ -47,8 +49,15 @@ export function resolveServerClockOffsetSample(
     const responseReceivedAtMs = readFiniteNumber(timing?.clientResponseReceivedAtMs) ?? nowMs;
     const rttMs = responseReceivedAtMs - requestStartedAtMs;
 
-    if (rttMs < 0 || rttMs > SERVER_CLOCK_MAX_RTT_SAMPLE_MS) {
+    if (rttMs < 0) {
       return null;
+    }
+
+    if (rttMs > SERVER_CLOCK_MAX_RTT_SAMPLE_MS) {
+      return {
+        serverNowMs,
+        offsetMs: Math.round(serverNowMs - responseReceivedAtMs),
+      };
     }
 
     return {
@@ -63,21 +72,35 @@ export function resolveServerClockOffsetSample(
   };
 }
 
+function clampOffsetStep(offsetDeltaMs: number) {
+  if (offsetDeltaMs > SERVER_CLOCK_OFFSET_MAX_STEP_MS) {
+    return SERVER_CLOCK_OFFSET_MAX_STEP_MS;
+  }
+
+  if (offsetDeltaMs < -SERVER_CLOCK_OFFSET_MAX_STEP_MS) {
+    return -SERVER_CLOCK_OFFSET_MAX_STEP_MS;
+  }
+
+  return offsetDeltaMs;
+}
+
 export function resolveStableServerClockOffset(currentOffsetMs: number, nextOffsetMs: number) {
-  if (Math.abs(nextOffsetMs) < SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS) {
-    return 0;
-  }
+  const targetOffsetMs = Math.abs(nextOffsetMs) < SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS ? 0 : nextOffsetMs;
+  const offsetDeltaMs = targetOffsetMs - currentOffsetMs;
 
-  if (currentOffsetMs === 0) {
-    return nextOffsetMs;
-  }
-
-  const offsetDeltaMs = nextOffsetMs - currentOffsetMs;
-  if (Math.abs(offsetDeltaMs) < SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS) {
+  if (offsetDeltaMs === 0) {
     return currentOffsetMs;
   }
 
-  return Math.round(currentOffsetMs + offsetDeltaMs * SERVER_CLOCK_OFFSET_SMOOTHING_FACTOR);
+  if (
+    currentOffsetMs !== 0
+    && targetOffsetMs !== 0
+    && Math.abs(offsetDeltaMs) < SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS
+  ) {
+    return currentOffsetMs;
+  }
+
+  return Math.round(currentOffsetMs + clampOffsetStep(offsetDeltaMs));
 }
 
 let sharedServerClockOffsetMs = 0;

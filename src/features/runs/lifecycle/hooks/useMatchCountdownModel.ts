@@ -29,6 +29,33 @@ type MonotonicCountdownTracker = {
   displayedAtMs: number;
 };
 
+const MONOTONIC_COUNTDOWN_TRACKER_MAX_ENTRIES = 8;
+const hostStartCountdownTrackers = new Map<string, MonotonicCountdownTracker>();
+
+function clearHostStartCountdownTracker(key: string | null) {
+  if (key) {
+    hostStartCountdownTrackers.delete(key);
+  }
+}
+
+function writeHostStartCountdownTracker(key: string, tracker: MonotonicCountdownTracker | null) {
+  if (tracker === null) {
+    hostStartCountdownTrackers.delete(key);
+    return;
+  }
+
+  hostStartCountdownTrackers.delete(key);
+  hostStartCountdownTrackers.set(key, tracker);
+
+  while (hostStartCountdownTrackers.size > MONOTONIC_COUNTDOWN_TRACKER_MAX_ENTRIES) {
+    const oldestKey = hostStartCountdownTrackers.keys().next().value;
+    if (typeof oldestKey !== 'string') {
+      break;
+    }
+    hostStartCountdownTrackers.delete(oldestKey);
+  }
+}
+
 type UseMatchCountdownModelInput = {
   matchMode: RunMatchMode;
   nowMs: number;
@@ -146,6 +173,43 @@ export function resolveMonotonicCountdownRemainingSeconds({
   return nextDisplayedSeconds;
 }
 
+export function resolvePersistentHostStartCountdownRemainingSeconds({
+  key,
+  maxStartSeconds,
+  nowMs,
+  rawRemainingSeconds,
+}: {
+  key: string | null;
+  maxStartSeconds: number;
+  nowMs: number;
+  rawRemainingSeconds: number | null;
+}) {
+  if (!key) {
+    return rawRemainingSeconds;
+  }
+
+  const tracker = {
+    get current() {
+      return hostStartCountdownTrackers.get(key) ?? null;
+    },
+    set current(nextTracker: MonotonicCountdownTracker | null) {
+      writeHostStartCountdownTracker(key, nextTracker);
+    },
+  };
+
+  return resolveMonotonicCountdownRemainingSeconds({
+    key,
+    maxStartSeconds,
+    nowMs,
+    rawRemainingSeconds,
+    tracker,
+  });
+}
+
+export function resetPersistentHostStartCountdownForTest() {
+  hostStartCountdownTrackers.clear();
+}
+
 function useMonotonicCountdownSeconds({
   key,
   maxStartSeconds,
@@ -157,14 +221,17 @@ function useMonotonicCountdownSeconds({
   nowMs: number;
   rawRemainingSeconds: number | null;
 }) {
-  const trackerRef = useRef<MonotonicCountdownTracker | null>(null);
+  const previousKeyRef = useRef<string | null>(null);
+  if (previousKeyRef.current !== key) {
+    clearHostStartCountdownTracker(previousKeyRef.current);
+    previousKeyRef.current = key;
+  }
 
-  return resolveMonotonicCountdownRemainingSeconds({
+  return resolvePersistentHostStartCountdownRemainingSeconds({
     key,
     maxStartSeconds,
     nowMs,
     rawRemainingSeconds,
-    tracker: trackerRef,
   });
 }
 

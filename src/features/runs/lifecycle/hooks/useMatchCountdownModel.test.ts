@@ -4,7 +4,9 @@ import test from 'node:test';
 import { MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS } from '@/lib/matchCountdown';
 import {
   normalizePartyRunFlowRemainingSeconds,
+  resetPersistentHostStartCountdownForTest,
   resolveMonotonicCountdownRemainingSeconds,
+  resolvePersistentHostStartCountdownRemainingSeconds,
   resolveShouldShowRoomArmingOverlay,
   resolvePartyRunFlowSyncedNowMs,
   shouldShowRoomCountdownNumbers,
@@ -135,6 +137,39 @@ test('host-start monotonic countdown never increases after display starts', () =
     nowMs: 1000,
     rawRemainingSeconds: 10,
   }), 8);
+});
+
+test('host-start monotonic countdown persists across handoff remounts by match key', () => {
+  resetPersistentHostStartCountdownForTest();
+  const input = {
+    key: 'match-1:host-display',
+    maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+  };
+
+  try {
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 0,
+      rawRemainingSeconds: 10,
+    }), 10);
+
+    // Simulates /match-room → running-tab handoff remount: no hook-local ref is
+    // carried over, but the same match key keeps the one-second monotonic clamp.
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 1000,
+      rawRemainingSeconds: 7,
+    }), 9);
+
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      key: 'match-2:host-display',
+      nowMs: 1000,
+      rawRemainingSeconds: 7,
+    }), 7);
+  } finally {
+    resetPersistentHostStartCountdownForTest();
+  }
 });
 
 test('host-start room arming overlay covers the poll-in buffer before numeric countdown', () => {
