@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { fetchFriendLeaderboard } from '@/services/friendsService';
 import type { FriendLeaderboardResponse, RunningMatchRoom } from '@/lib/api/types';
@@ -24,6 +24,7 @@ export function useRoomSnapshotPolling({
   setFriendLeaderboard: Dispatch<SetStateAction<FriendLeaderboardResponse | null>>;
   setLoading: Dispatch<SetStateAction<boolean>>;
 }) {
+  const hydrateGenerationRef = useRef(0);
   const pollingRoomId = room?.roomId ?? null;
   const pollingLinkedMatchId = room?.linkedMatchId ?? null;
   const pollingRoomState = room?.state ?? null;
@@ -67,22 +68,29 @@ export function useRoomSnapshotPolling({
     }
 
     const hydrate = async () => {
+      const hydrateGeneration = hydrateGenerationRef.current + 1;
+      hydrateGenerationRef.current = hydrateGeneration;
       setLoading(true);
-      const [nextRoom, friends] = await Promise.all([
-        loadRoom(),
-        fetchFriendLeaderboard().catch(() => null),
-      ]);
+      try {
+        const [nextRoom, friends] = await Promise.all([
+          loadRoom(),
+          fetchFriendLeaderboard().catch(() => null),
+        ]);
 
-      if (cancelled) {
-        return;
+        if (cancelled) {
+          return null;
+        }
+
+        if (friends) {
+          setFriendLeaderboard(friends);
+        }
+
+        return nextRoom;
+      } finally {
+        if (hydrateGenerationRef.current === hydrateGeneration) {
+          setLoading(false);
+        }
       }
-
-      if (friends) {
-        setFriendLeaderboard(friends);
-      }
-
-      setLoading(false);
-      return nextRoom;
     };
 
     void hydrate();
@@ -110,6 +118,8 @@ export function useRoomSnapshotPolling({
     if (!polling.acquired) {
       return () => {
         cancelled = true;
+        hydrateGenerationRef.current += 1;
+        setLoading(false);
       };
     }
 
@@ -133,7 +143,9 @@ export function useRoomSnapshotPolling({
     });
     return () => {
       cancelled = true;
+      hydrateGenerationRef.current += 1;
       polling.stop();
+      setLoading(false);
     };
   }, [
     currentUserTag,

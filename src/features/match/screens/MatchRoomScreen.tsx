@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
@@ -13,6 +13,8 @@ import { MatchRoomSummaryCard } from '@/features/runs/components/matchRoom/Match
 import { PartyRunParticipantListCard } from '@/features/runs/components/PartyRunParticipantListCard';
 import { useMatchRoomLobby } from '@/features/runs/hooks/useMatchRoomLobby';
 import { colors, fontSizes, fontWeights, radii } from '@/theme/tokens';
+
+const LOADING_ESCAPE_DELAY_MS = 7_000;
 
 export default function MatchRoomScreen() {
   const {
@@ -50,6 +52,7 @@ export default function MatchRoomScreen() {
     handleInviteFriends,
     handleApplyCustomDistance,
   } = useMatchRoomLobby();
+  const [showLoadingEscape, setShowLoadingEscape] = useState(false);
   const isRoomExiting = roomExitState !== 'idle';
   const roomExitLabel = useMemo(
     () => (roomExitState === 'deleting' ? '방 삭제 중...' : '방 나가기 중...'),
@@ -99,6 +102,19 @@ export default function MatchRoomScreen() {
     void handleLeave();
   }, [handleLeave]);
 
+  useEffect(() => {
+    if (!loading) {
+      setShowLoadingEscape(false);
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      setShowLoadingEscape(true);
+    }, LOADING_ESCAPE_DELAY_MS);
+
+    return () => clearTimeout(timer);
+  }, [loading]);
+
   return (
     <Screen>
       <View style={styles.headerRow}>
@@ -106,7 +122,12 @@ export default function MatchRoomScreen() {
       </View>
       <Text style={styles.pageTitle}>대기실</Text>
 
-      {loading ? <LoadingRoomCard /> : null}
+      {loading ? (
+        <LoadingRoomCard
+          showReturnAction={showLoadingEscape}
+          onReturnToRunning={handleReturnToRunning}
+        />
+      ) : null}
 
       {!loading && !room ? <EmptyRoomCard onReturnToRunning={handleReturnToRunning} /> : null}
 
@@ -204,10 +225,22 @@ const BackButton = memo(function BackButton({ onPress }: { onPress: () => void }
   );
 });
 
-const LoadingRoomCard = memo(function LoadingRoomCard() {
+const LoadingRoomCard = memo(function LoadingRoomCard({
+  showReturnAction,
+  onReturnToRunning,
+}: {
+  showReturnAction: boolean;
+  onReturnToRunning: () => void;
+}) {
   return (
     <Card>
       <Text style={styles.helperText}>대기실을 불러오는 중이에요...</Text>
+      {showReturnAction ? (
+        <>
+          <Text style={styles.helperText}>오래 걸리면 러닝 탭으로 돌아가서 이어갈 수 있어요.</Text>
+          <PrimaryButton label="러닝 탭으로 돌아가기" onPress={onReturnToRunning} />
+        </>
+      ) : null}
     </Card>
   );
 });

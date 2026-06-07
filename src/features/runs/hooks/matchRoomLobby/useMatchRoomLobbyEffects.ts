@@ -9,6 +9,7 @@ import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateM
 import { hydrateLiveMatchRouteState } from '@/features/runs/lifecycle/liveMatchRouteHydration';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
+import { shouldRouteLinkedMatchRoomToRunning } from './linkedMatchRoomRouting';
 
 type PartyRunFlowSnapshot = ReturnType<typeof buildPartyRunFlowSnapshot>;
 
@@ -58,7 +59,11 @@ export function useMatchRoomLobbyEffects({
       syncedNowMs,
     });
 
-    if (!flow.canOpenLinkedMatch) {
+    if (!shouldRouteLinkedMatchRoomToRunning({
+      flow,
+      room: nextRoom,
+      syncedNowMs,
+    })) {
       return;
     }
 
