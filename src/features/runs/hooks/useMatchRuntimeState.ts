@@ -56,6 +56,16 @@ type UseMatchRuntimeStateInput = {
   isLeavingGroupMatch: boolean;
 };
 
+function resolveMatchSlotStarted(slotStartAt: string | null | undefined, syncedNowMs: number) {
+  if (!slotStartAt || !Number.isFinite(syncedNowMs)) {
+    return true;
+  }
+
+  const slotStartMs = Date.parse(slotStartAt);
+
+  return Number.isFinite(slotStartMs) ? syncedNowMs >= slotStartMs : true;
+}
+
 export function useMatchRuntimeState({
   matchMode,
   trackingStatus,
@@ -95,6 +105,18 @@ export function useMatchRuntimeState({
   isLeavingDuelMatch,
   isLeavingGroupMatch,
 }: UseMatchRuntimeStateInput) {
+  const roomLinkedMatchSlotStarted = resolveMatchSlotStarted(
+    roomLinkedMatchContext?.slotStartAt,
+    syncedNowMs,
+  );
+  const duelMatchSlotStarted = resolveMatchSlotStarted(
+    duelMatchStatus?.slotStartAt,
+    syncedNowMs,
+  );
+  const groupMatchSlotStarted = resolveMatchSlotStarted(
+    groupMatchStatus?.slotStartAt,
+    syncedNowMs,
+  );
   const matchLifecycleController = useMemo(() => buildMatchLifecycleController({
     matchMode,
     trackingStatus,
@@ -112,13 +134,17 @@ export function useMatchRuntimeState({
     groupMatchStatus,
     duelStartCountdownSeconds,
     groupStartCountdownSeconds,
-    syncedNowMs,
+    roomLinkedMatchSlotStarted,
+    duelMatchSlotStarted,
+    groupMatchSlotStarted,
     fallbackMatchId,
   }), [
+    duelMatchSlotStarted,
     duelMatchState,
     duelMatchStatus,
     duelStartCountdownSeconds,
     fallbackMatchId,
+    groupMatchSlotStarted,
     groupMatchState,
     groupMatchStatus,
     groupStartCountdownSeconds,
@@ -128,8 +154,8 @@ export function useMatchRuntimeState({
     matchMode,
     matchRoom,
     matchRoomFlow,
+    roomLinkedMatchSlotStarted,
     roomLinkedMatchContext,
-    syncedNowMs,
     trackingStatus,
     visibleMatchRoom,
     visiblePartyRunFlow,

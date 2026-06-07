@@ -95,7 +95,9 @@ function baseInput(overrides: Partial<MatchLifecycleControllerInput> = {}): Matc
     groupMatchStatus: null,
     duelStartCountdownSeconds: null,
     groupStartCountdownSeconds: null,
-    syncedNowMs: Date.parse('2026-05-14T12:05:00.000Z'),
+    roomLinkedMatchSlotStarted: true,
+    duelMatchSlotStarted: true,
+    groupMatchSlotStarted: true,
     ...overrides,
   };
 }
@@ -411,7 +413,7 @@ test('active direct match waits for the shared slot time before starting GPS', (
     matchMode: 'duel',
     trackingStatus: 'idle',
     isRunning: false,
-    syncedNowMs: Date.parse('2026-05-14T12:00:17.000Z'),
+    duelMatchSlotStarted: false,
     duelMatchState: 'active',
     duelMatchStatus: status({
       state: 'active',
@@ -433,7 +435,7 @@ test('active direct match starts GPS once the shared slot time has elapsed', () 
     matchMode: 'duel',
     trackingStatus: 'idle',
     isRunning: false,
-    syncedNowMs: Date.parse('2026-05-14T12:00:20.000Z'),
+    duelMatchSlotStarted: true,
     duelMatchState: 'active',
     duelMatchStatus: status({
       state: 'active',

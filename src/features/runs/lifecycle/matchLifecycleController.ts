@@ -38,7 +38,9 @@ export type MatchLifecycleControllerInput = {
   groupMatchStatus: RunningMatchStatusResponse | null;
   duelStartCountdownSeconds: number | null;
   groupStartCountdownSeconds: number | null;
-  syncedNowMs: number;
+  roomLinkedMatchSlotStarted: boolean;
+  duelMatchSlotStarted: boolean;
+  groupMatchSlotStarted: boolean;
   fallbackMatchId?: string | null;
 };
 
@@ -157,20 +159,6 @@ function buildStatusTarget(
   };
 }
 
-function hasMatchSlotStarted(target: MatchLifecycleMatchTarget | null, syncedNowMs: number) {
-  if (!target) {
-    return false;
-  }
-
-  const slotStartMs = Date.parse(target.slotStartAt);
-
-  if (!Number.isFinite(slotStartMs) || !Number.isFinite(syncedNowMs)) {
-    return true;
-  }
-
-  return syncedNowMs >= slotStartMs;
-}
-
 function isTerminalLiveStatus(status: RunningMatchStatusResponse['currentUserLiveStatus']) {
   return status === 'finished' || status === 'forfeited';
 }
@@ -248,7 +236,7 @@ function resolveActiveMatch(input: MatchLifecycleControllerInput): MatchLifecycl
     : null;
 
   if (roomTarget) {
-    return hasMatchSlotStarted(roomTarget, input.syncedNowMs) ? roomTarget : null;
+    return input.roomLinkedMatchSlotStarted ? roomTarget : null;
   }
 
   if (input.matchMode === 'duel') {
@@ -256,7 +244,7 @@ function resolveActiveMatch(input: MatchLifecycleControllerInput): MatchLifecycl
       ? buildStatusTarget('duel', input.duelMatchStatus)
       : null;
 
-    return hasMatchSlotStarted(duelTarget, input.syncedNowMs) ? duelTarget : null;
+    return input.duelMatchSlotStarted ? duelTarget : null;
   }
 
   if (input.matchMode === 'group') {
@@ -264,7 +252,7 @@ function resolveActiveMatch(input: MatchLifecycleControllerInput): MatchLifecycl
       ? buildStatusTarget('group', input.groupMatchStatus)
       : null;
 
-    return hasMatchSlotStarted(groupTarget, input.syncedNowMs) ? groupTarget : null;
+    return input.groupMatchSlotStarted ? groupTarget : null;
   }
 
   return null;
