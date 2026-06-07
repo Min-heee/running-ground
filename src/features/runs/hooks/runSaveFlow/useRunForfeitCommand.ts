@@ -28,6 +28,7 @@ type UseRunForfeitCommandInput = Pick<
   | 'matchProgressHeartbeatRef'
   | 'pendingCounterpartForfeitResultRef'
   | 'pendingForfeitMatchRef'
+  | 'resetMatchRuntimeAfterTrackingCleared'
   | 'roomLinkedMatchContext'
   | 'setDuelMatchNotice'
   | 'setDuelMatchStatus'
@@ -62,6 +63,7 @@ export function useRunForfeitCommand({
   matchProgressHeartbeatRef,
   pendingCounterpartForfeitResultRef,
   pendingForfeitMatchRef,
+  resetMatchRuntimeAfterTrackingCleared,
   roomLinkedMatchContext,
   setDuelMatchNotice,
   setDuelMatchStatus,
@@ -145,9 +147,10 @@ export function useRunForfeitCommand({
       const redirect = buildForfeitRunDetailRedirect(source, savedRunId, matchId);
       router.replace(redirect);
     } else {
+      resetMatchRuntimeAfterTrackingCleared('save-reset');
       setError(options.currentUserForfeited
-        ? '기권 결과 저장에 실패했어. 잠시 후 결과보기를 다시 눌러줘.'
-        : '대결 결과 저장에 실패했어. 잠시 후 대결종료를 다시 눌러줘.');
+        ? '기권 처리는 완료됐지만 러닝 기록 저장에 실패했어.'
+        : '대결은 종료됐지만 러닝 기록 저장에 실패했어.');
     }
   };
 
