@@ -29,30 +29,29 @@ type MonotonicCountdownTracker = {
   displayedAtMs: number;
 };
 
-const MONOTONIC_COUNTDOWN_TRACKER_MAX_ENTRIES = 8;
-const hostStartCountdownTrackers = new Map<string, MonotonicCountdownTracker>();
+type HostStartCountdownLock = {
+  localTargetMs: number;
+};
 
-function clearHostStartCountdownTracker(key: string | null) {
+const HOST_START_COUNTDOWN_LOCK_MAX_ENTRIES = 8;
+const hostStartCountdownLocks = new Map<string, HostStartCountdownLock>();
+
+function clearHostStartCountdownLock(key: string | null) {
   if (key) {
-    hostStartCountdownTrackers.delete(key);
+    hostStartCountdownLocks.delete(key);
   }
 }
 
-function writeHostStartCountdownTracker(key: string, tracker: MonotonicCountdownTracker | null) {
-  if (tracker === null) {
-    hostStartCountdownTrackers.delete(key);
-    return;
-  }
+function writeHostStartCountdownLock(key: string, lock: HostStartCountdownLock) {
+  hostStartCountdownLocks.delete(key);
+  hostStartCountdownLocks.set(key, lock);
 
-  hostStartCountdownTrackers.delete(key);
-  hostStartCountdownTrackers.set(key, tracker);
-
-  while (hostStartCountdownTrackers.size > MONOTONIC_COUNTDOWN_TRACKER_MAX_ENTRIES) {
-    const oldestKey = hostStartCountdownTrackers.keys().next().value;
+  while (hostStartCountdownLocks.size > HOST_START_COUNTDOWN_LOCK_MAX_ENTRIES) {
+    const oldestKey = hostStartCountdownLocks.keys().next().value;
     if (typeof oldestKey !== 'string') {
       break;
     }
-    hostStartCountdownTrackers.delete(oldestKey);
+    hostStartCountdownLocks.delete(oldestKey);
   }
 }
 
@@ -185,32 +184,42 @@ export function resolvePersistentHostStartCountdownRemainingSeconds({
   rawRemainingSeconds: number | null;
 }) {
   if (!key) {
-    return rawRemainingSeconds;
+    return null;
   }
 
-  const tracker = {
-    get current() {
-      return hostStartCountdownTrackers.get(key) ?? null;
-    },
-    set current(nextTracker: MonotonicCountdownTracker | null) {
-      writeHostStartCountdownTracker(key, nextTracker);
-    },
-  };
+  let lock = hostStartCountdownLocks.get(key) ?? null;
+  if (!lock) {
+    if (
+      typeof rawRemainingSeconds !== 'number'
+      || rawRemainingSeconds <= 0
+      || rawRemainingSeconds > maxStartSeconds
+    ) {
+      return null;
+    }
 
-  return resolveMonotonicCountdownRemainingSeconds({
-    key,
-    maxStartSeconds,
-    nowMs,
-    rawRemainingSeconds,
-    tracker,
-  });
+    lock = {
+      localTargetMs: nowMs + Math.min(maxStartSeconds, rawRemainingSeconds) * 1000,
+    };
+    writeHostStartCountdownLock(key, lock);
+  }
+
+  const remainingMs = lock.localTargetMs - nowMs;
+  if (remainingMs <= 0) {
+    clearHostStartCountdownLock(key);
+    return null;
+  }
+
+  return Math.max(
+    1,
+    Math.min(maxStartSeconds, Math.ceil(remainingMs / 1000)),
+  );
 }
 
 export function resetPersistentHostStartCountdownForTest() {
-  hostStartCountdownTrackers.clear();
+  hostStartCountdownLocks.clear();
 }
 
-function useMonotonicCountdownSeconds({
+function useHostStartCountdownSeconds({
   key,
   maxStartSeconds,
   nowMs,
@@ -223,7 +232,7 @@ function useMonotonicCountdownSeconds({
 }) {
   const previousKeyRef = useRef<string | null>(null);
   if (previousKeyRef.current !== key) {
-    clearHostStartCountdownTracker(previousKeyRef.current);
+    clearHostStartCountdownLock(previousKeyRef.current);
     previousKeyRef.current = key;
   }
 
@@ -420,14 +429,12 @@ export function useMatchCountdownModel({
     startMode: runtimeRoom?.startMode,
   });
   const shouldUseHostStartCountdownClamp = runtimeRoom?.startMode === 'host';
-  const hostRoomCountdownDisplayRemainingSeconds = useMonotonicCountdownSeconds({
-    key: runtimeRoom?.linkedMatchId && shouldUseHostStartCountdownClamp && shouldShowRuntimeRoomCountdownNumbers
+  const hostRoomCountdownDisplayRemainingSeconds = useHostStartCountdownSeconds({
+    key: runtimeRoom?.linkedMatchId && shouldUseHostStartCountdownClamp
       ? `${runtimeRoom.linkedMatchId}:host-display`
       : null,
     maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
-    rawRemainingSeconds: shouldShowRuntimeRoomCountdownNumbers
-      ? rawRoomCountdownRemainingSeconds
-      : null,
+    rawRemainingSeconds: rawRoomCountdownRemainingSeconds,
     nowMs,
   });
   const stableRoomCountdownDisplayRemainingSeconds = useStableCountdownSeconds({
@@ -481,7 +488,6 @@ export function useMatchCountdownModel({
       !runtimeRoom?.linkedMatchId
       || typeof roomCountdownDisplayRemainingSeconds !== 'number'
       || !['arming', 'countdown', 'active'].includes(runtimeRoom.state)
-      || !shouldShowRuntimeRoomCountdownNumbers
     ) {
       return null;
     }
@@ -491,9 +497,9 @@ export function useMatchCountdownModel({
       subtitle: `${runtimeRoom.hostName}님 방 · ${(runtimeRoom.linkedMatchDistanceKm ?? runtimeRoom.distanceKm).toFixed(1)}km`,
       remainingSeconds: roomCountdownDisplayRemainingSeconds,
     };
-  }, [roomCountdownDisplayRemainingSeconds, runtimeRoom, shouldShowRuntimeRoomCountdownNumbers]);
-  const visibleCountdownEntry = shouldShowRuntimeRoomCountdownNumbers
-    ? roomCountdownEntry ?? (stableNextStartingMatch
+  }, [roomCountdownDisplayRemainingSeconds, runtimeRoom]);
+  const fallbackVisibleCountdownEntry = shouldShowRuntimeRoomCountdownNumbers
+    ? (stableNextStartingMatch
       ? {
           title: stableNextStartingMatch.match.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',
           subtitle: `${stableNextStartingMatch.match.counterpartLabel} · ${stableNextStartingMatch.match.summary}`,
@@ -501,6 +507,7 @@ export function useMatchCountdownModel({
         }
       : fallbackCountdownEntry)
     : null;
+  const visibleCountdownEntry = roomCountdownEntry ?? fallbackVisibleCountdownEntry;
 
   return {
     duelStartCountdownSeconds,

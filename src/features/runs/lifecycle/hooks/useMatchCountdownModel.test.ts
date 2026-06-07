@@ -139,7 +139,7 @@ test('host-start monotonic countdown never increases after display starts', () =
   }), 8);
 });
 
-test('host-start monotonic countdown persists across handoff remounts by match key', () => {
+test('host-start local countdown lock persists across handoff remounts by match key', () => {
   resetPersistentHostStartCountdownForTest();
   const input = {
     key: 'match-1:host-display',
@@ -167,6 +167,72 @@ test('host-start monotonic countdown persists across handoff remounts by match k
       nowMs: 1000,
       rawRemainingSeconds: 7,
     }), 7);
+  } finally {
+    resetPersistentHostStartCountdownForTest();
+  }
+});
+
+test('host-start local countdown lock keeps ticking after raw countdown ends early', () => {
+  resetPersistentHostStartCountdownForTest();
+  const input = {
+    key: 'match-1:host-display',
+    maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+  };
+
+  try {
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 0,
+      rawRemainingSeconds: 5,
+    }), 5);
+
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 1000,
+      rawRemainingSeconds: 2,
+    }), 4);
+
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 2000,
+      rawRemainingSeconds: null,
+    }), 3);
+
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 4000,
+      rawRemainingSeconds: null,
+    }), 1);
+
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 5000,
+      rawRemainingSeconds: null,
+    }), null);
+  } finally {
+    resetPersistentHostStartCountdownForTest();
+  }
+});
+
+test('host-start local countdown lock waits for the visible host window before locking', () => {
+  resetPersistentHostStartCountdownForTest();
+  const input = {
+    key: 'match-1:host-display',
+    maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+  };
+
+  try {
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 0,
+      rawRemainingSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS + 1,
+    }), null);
+
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 1000,
+      rawRemainingSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+    }), MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS);
   } finally {
     resetPersistentHostStartCountdownForTest();
   }
