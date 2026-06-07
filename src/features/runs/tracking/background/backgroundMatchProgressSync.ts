@@ -14,7 +14,9 @@ import {
   MATCH_GOAL_DISTANCE_TOLERANCE_KM,
 } from '@/features/runs/sync/matchProgressSync';
 
-export const BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS = 5_000;
+// 3s (was 5s): tighten how stale a backgrounded runner's progress is on the server so the
+// opponent's live distance lags less. Aligned with ANDROID_BACKGROUND_MATCH_PROGRESS_TIMER_MS (3s).
+export const BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS = 3_000;
 export const BACKGROUND_MATCH_PROGRESS_INFLIGHT_STALE_MS = 12_000;
 
 export type BackgroundMatchProgressContext = {
