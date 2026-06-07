@@ -167,10 +167,10 @@ export function useRunForfeitCommand({
   };
 
   const stopForfeitedTracking = async () => {
-    if (status !== 'running') {
-      return;
-    }
-
+    // Always tear down tracking on forfeit — never gate on status. A non-'running'
+    // status (starting/paused/saving/idle) would otherwise skip stopLocationUpdatesAsync,
+    // leaving the Android foreground service + "측정 중" notification alive and the
+    // measuring session stuck (user cannot exit the live screen).
     await pauseBackgroundRunTracking().catch(() => {});
     stopForegroundTrackingHelpers();
     setStatus('paused');
