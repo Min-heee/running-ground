@@ -22,6 +22,11 @@ export async function routeMeNotificationRequest({
   parseJsonBody,
 }) {
   if (pathname === '/api/me/notifications' && method === 'GET') {
+    sendJson(response, 200, await buildNotificationSettingsReadPayload(request));
+    return true;
+  }
+
+  if (pathname === '/api/me/inbox' && method === 'GET') {
     handleListMyNotifications({
       loadStore,
       request,
@@ -32,12 +37,7 @@ export async function routeMeNotificationRequest({
     return true;
   }
 
-  if (pathname === '/api/me/notification-settings' && method === 'GET') {
-    sendJson(response, 200, await buildNotificationSettingsReadPayload(request));
-    return true;
-  }
-
-  if (pathname === '/api/me/notifications/read' && method === 'POST') {
+  if (pathname === '/api/me/inbox/read' && method === 'POST') {
     await handleMarkMyNotificationsRead({
       mutateStore,
       parseJsonBody,

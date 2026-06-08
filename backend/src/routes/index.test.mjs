@@ -217,7 +217,7 @@ await test('serves authenticated user notifications feed only for the current us
     loadStore: () => store,
     requireUser: () => store.users[0],
   })(
-    { method: 'GET', url: '/api/me/notifications', headers: { host: 'localhost' } },
+    { method: 'GET', url: '/api/me/inbox', headers: { host: 'localhost' } },
     response,
   );
 
@@ -260,7 +260,7 @@ await test('marks selected user notifications as read', async () => {
     parseJsonBody: async () => ({ ids: ['target'] }),
     requireUser: () => store.users[0],
   })(
-    { method: 'POST', url: '/api/me/notifications/read', headers: { host: 'localhost' } },
+    { method: 'POST', url: '/api/me/inbox/read', headers: { host: 'localhost' } },
     response,
   );
 
