@@ -118,6 +118,17 @@ export function useTrackRunRuntimeMatchMaintenanceActions(input: UseTrackRunRunt
   async function acknowledgeRoomCountdownReady(roomId: string) {
     const payload = await acknowledgeRunningMatchRoomCountdown({ roomId });
     if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
+      // This one-shot ACK response is a guest's ONLY delivery of linkedMatchSlotStartAt
+      // (room polling + the active-room re-fetch are both disabled once linkedMatchId is
+      // set, and the ACK never re-fires after an HTTP success). The shared monotonic room
+      // guard is a never-reset high-water mark, so on a 2nd consecutive party-run it can
+      // drop this response, leaving the room with no slot start and the arming overlay
+      // stuck forever. The slot-start transition is authoritative, so commit it even when
+      // the snapshot is otherwise rejected — never regressing, since the room only gains a
+      // slot start it previously lacked (commitMatchRoom dedupes by render key).
+      if (payload.room?.linkedMatchSlotStartAt) {
+        commitMatchRoom(payload.room);
+      }
       return;
     }
 
