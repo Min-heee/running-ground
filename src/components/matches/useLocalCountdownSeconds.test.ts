@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { resolveLocalCountdownSeconds } from '@/components/matches/useLocalCountdownSeconds';
+import {
+  resolveLocalCountdownSeconds,
+  resolveMonotonicCountdownFloor,
+} from '@/components/matches/useLocalCountdownSeconds';
 
 test('local countdown seconds are derived from the locked target time', () => {
   const targetMs = 10_000;
@@ -31,4 +34,12 @@ test('local countdown holds the same whole second across a full sub-second sweep
   }
 
   assert.equal(resolveLocalCountdownSeconds({ nowMs: 6_000, targetMs }), 4);
+});
+
+test('monotonic floor lets the digit count down but never back up', () => {
+  assert.equal(resolveMonotonicCountdownFloor(null, 5), 5); // seed
+  assert.equal(resolveMonotonicCountdownFloor(5, 4), 4); // step down
+  assert.equal(resolveMonotonicCountdownFloor(2, 1), 1); // step down to the last second
+  assert.equal(resolveMonotonicCountdownFloor(1, 2), 1); // suppress a backwards jump (the bug)
+  assert.equal(resolveMonotonicCountdownFloor(1, 1), 1); // hold at one
 });
