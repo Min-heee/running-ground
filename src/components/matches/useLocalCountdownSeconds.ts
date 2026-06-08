@@ -51,9 +51,19 @@ export function useLocalCountdownSeconds({
   // fresh overlay, so a brand-new countdown re-seeds high — while within one countdown
   // the digit can never increase regardless of which source (local tick or prop) drives it.
   const floorRef = useRef<number | null>(null);
+  // Once this countdown reaches zero it is terminal for this mount: the overlay must
+  // never flash back on. Without this, the local tick hits the target (-> null, hidden),
+  // then the host lock releases and the fallback re-offers the laggy clamped-at-1 prop,
+  // making the digit reappear as "1" for a frame before the entry finally collapses.
+  const endedRef = useRef(false);
 
   const commit = useCallback((candidate: number | null) => {
+    if (endedRef.current) {
+      return;
+    }
+
     if (candidate === null) {
+      endedRef.current = true;
       setDisplayedSeconds(null);
       return;
     }
