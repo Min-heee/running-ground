@@ -2,18 +2,8 @@ import { useEffect, useState } from 'react';
 
 import { MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS } from '@/lib/matchCountdown';
 
-const LOCAL_COUNTDOWN_MIN_TICK_DELAY_MS = 50;
-const LOCAL_COUNTDOWN_MAX_TICK_DELAY_MS = 1000;
-
 function clampCountdownSeconds(seconds: number, maxSeconds: number) {
   return Math.max(1, Math.min(maxSeconds, seconds));
-}
-
-function clampCountdownDelayMs(delayMs: number) {
-  return Math.max(
-    LOCAL_COUNTDOWN_MIN_TICK_DELAY_MS,
-    Math.min(LOCAL_COUNTDOWN_MAX_TICK_DELAY_MS, delayMs),
-  );
 }
 
 export function resolveLocalCountdownSeconds({
@@ -33,29 +23,10 @@ export function resolveLocalCountdownSeconds({
   return clampCountdownSeconds(Math.ceil(remainingMs / 1000), maxSeconds);
 }
 
-export function resolveLocalCountdownTickerDelayMs({
-  nowMs,
-  targetMs,
-}: {
-  nowMs: number;
-  targetMs: number;
-}) {
-  const remainingMs = targetMs - nowMs;
-  if (remainingMs <= 0) {
-    return null;
-  }
-
-  const visibleSeconds = Math.ceil(remainingMs / 1000);
-  const nextBoundaryRemainingMs = Math.max(0, visibleSeconds - 1) * 1000;
-  return clampCountdownDelayMs(remainingMs - nextBoundaryRemainingMs);
-}
-
 function readLocalNowMs() {
   // The lock's localTargetMs is built from the model's `nowMs` (a Date.now()-based
   // local clock, NOT syncedNowMs), so the server-clock offset is already baked into
-  // the target. Evaluate against local Date.now() to stay in the same frame —
-  // adding the offset again would shift the displayed count by the offset and make
-  // the digit jump when the local ticker takes over.
+  // the target. Evaluate against local Date.now() to stay in the same frame.
   return Date.now();
 }
 
@@ -81,34 +52,38 @@ export function useLocalCountdownSeconds({
       return undefined;
     }
 
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let frameId: ReturnType<typeof requestAnimationFrame> | null = null;
     let cancelled = false;
+    // Re-check every animation frame and re-render ONLY when the whole-second value
+    // changes, so the digit flips within ~one frame of each true second boundary —
+    // uniform cadence regardless of setTimeout jitter — while React still re-renders
+    // only ~once per second (and only the overlay, never the arena).
+    let lastSeconds: number | null | undefined;
 
-    const tick = () => {
+    const update = () => {
       if (cancelled) {
         return;
       }
 
-      const nowMs = readLocalNowMs();
-      const nextSecondsRemaining = resolveLocalCountdownSeconds({ nowMs, targetMs });
-      setLocalSecondsRemaining(nextSecondsRemaining);
+      const nextSecondsRemaining = resolveLocalCountdownSeconds({ nowMs: readLocalNowMs(), targetMs });
+      if (nextSecondsRemaining !== lastSeconds) {
+        lastSeconds = nextSecondsRemaining;
+        setLocalSecondsRemaining(nextSecondsRemaining);
+      }
 
       if (nextSecondsRemaining === null) {
         return;
       }
 
-      const delayMs = resolveLocalCountdownTickerDelayMs({ nowMs, targetMs });
-      if (delayMs !== null) {
-        timeoutId = setTimeout(tick, delayMs);
-      }
+      frameId = requestAnimationFrame(update);
     };
 
-    tick();
+    update();
 
     return () => {
       cancelled = true;
-      if (timeoutId !== null) {
-        clearTimeout(timeoutId);
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId);
       }
     };
   }, [targetMs]);

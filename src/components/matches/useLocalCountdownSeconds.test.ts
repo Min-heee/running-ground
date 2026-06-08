@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import {
-  resolveLocalCountdownSeconds,
-  resolveLocalCountdownTickerDelayMs,
-} from '@/components/matches/useLocalCountdownSeconds';
+import { resolveLocalCountdownSeconds } from '@/components/matches/useLocalCountdownSeconds';
 
 test('local countdown seconds are derived from the locked target time', () => {
   const targetMs = 10_000;
@@ -24,11 +21,14 @@ test('local countdown clamps to the host visible window', () => {
   }), 10);
 });
 
-test('local countdown schedules the next tick at the next second boundary', () => {
+test('local countdown holds the same whole second across a full sub-second sweep', () => {
   const targetMs = 10_000;
 
-  assert.equal(resolveLocalCountdownTickerDelayMs({ nowMs: 5_000, targetMs }), 1_000);
-  assert.equal(resolveLocalCountdownTickerDelayMs({ nowMs: 5_400, targetMs }), 600);
-  assert.equal(resolveLocalCountdownTickerDelayMs({ nowMs: 9_990, targetMs }), 50);
-  assert.equal(resolveLocalCountdownTickerDelayMs({ nowMs: 10_000, targetMs }), null);
+  // Every poll within the same second window must return the same digit, so the
+  // per-frame ticker re-renders exactly once per boundary (uniform cadence).
+  for (let nowMs = 5_000; nowMs <= 5_999; nowMs += 1) {
+    assert.equal(resolveLocalCountdownSeconds({ nowMs, targetMs }), 5);
+  }
+
+  assert.equal(resolveLocalCountdownSeconds({ nowMs: 6_000, targetMs }), 4);
 });
