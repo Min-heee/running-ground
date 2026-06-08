@@ -13,6 +13,7 @@ import {
 } from '@/features/runs/components/shells/TrackRunShells';
 
 type CountdownEntry = {
+  countdownKey?: string | null;
   remainingSeconds: number;
   subtitle?: string;
   targetMs?: number | null;
@@ -101,6 +102,7 @@ export function TrackRunExperienceView({
           subtitle={fullscreenCountdownEntry.subtitle}
           secondsRemaining={fullscreenCountdownEntry.remainingSeconds}
           targetMs={fullscreenCountdownEntry.targetMs}
+          countdownKey={fullscreenCountdownEntry.countdownKey}
         />
       ) : null}
       {shouldShowRoomArmingOverlay ? (
@@ -128,6 +130,7 @@ export function TrackRunExperienceView({
         <MatchStartCountdownOverlay
           secondsRemaining={centeredCountdownEntry.remainingSeconds}
           targetMs={centeredCountdownEntry.targetMs}
+          countdownKey={centeredCountdownEntry.countdownKey}
           variant="centered"
         />
       ) : null}

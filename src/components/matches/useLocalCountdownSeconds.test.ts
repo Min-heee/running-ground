@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  isCountdownKeyFinished,
+  markCountdownKeyFinished,
   resolveLocalCountdownSeconds,
   resolveMonotonicCountdownFloor,
 } from '@/components/matches/useLocalCountdownSeconds';
@@ -42,4 +44,21 @@ test('monotonic floor lets the digit count down but never back up', () => {
   assert.equal(resolveMonotonicCountdownFloor(2, 1), 1); // step down to the last second
   assert.equal(resolveMonotonicCountdownFloor(1, 2), 1); // suppress a backwards jump (the bug)
   assert.equal(resolveMonotonicCountdownFloor(1, 1), 1); // hold at one
+});
+
+test('a finished countdown key stays finished so it can never re-show', () => {
+  assert.equal(isCountdownKeyFinished('match-finish-A'), false);
+
+  markCountdownKeyFinished('match-finish-A');
+
+  // Survives a remount / the room -> fallback handoff of the same match.
+  assert.equal(isCountdownKeyFinished('match-finish-A'), true);
+  // A different match (or no key) is unaffected.
+  assert.equal(isCountdownKeyFinished('match-finish-B'), false);
+  assert.equal(isCountdownKeyFinished(null), false);
+  assert.equal(isCountdownKeyFinished(undefined), false);
+
+  // Empty keys are ignored (never latched).
+  markCountdownKeyFinished('');
+  assert.equal(isCountdownKeyFinished(''), false);
 });

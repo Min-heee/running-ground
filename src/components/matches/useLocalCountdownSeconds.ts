@@ -31,6 +31,33 @@ export function resolveMonotonicCountdownFloor(floor: number | null, candidate: 
   return floor === null ? candidate : Math.min(floor, candidate);
 }
 
+// Countdowns that already reached zero, keyed by match identity. This survives an
+// overlay UNMOUNT+REMOUNT (which a component-local ref cannot): at the countdown->active
+// boundary the model briefly drops `roomCountdownEntry` to null and the `?? fallback`
+// re-offers the SAME just-finished match for a frame, which would otherwise flash the
+// digit back on (…1, gone, 1, gone). Once a key is finished it never shows again.
+const FINISHED_COUNTDOWN_KEY_LIMIT = 24;
+const finishedCountdownKeys = new Set<string>();
+
+export function markCountdownKeyFinished(countdownKey: string | null | undefined) {
+  if (typeof countdownKey !== 'string' || countdownKey.length === 0) {
+    return;
+  }
+
+  finishedCountdownKeys.add(countdownKey);
+  while (finishedCountdownKeys.size > FINISHED_COUNTDOWN_KEY_LIMIT) {
+    const oldest = finishedCountdownKeys.values().next().value as string | undefined;
+    if (oldest === undefined) {
+      break;
+    }
+    finishedCountdownKeys.delete(oldest);
+  }
+}
+
+export function isCountdownKeyFinished(countdownKey: string | null | undefined) {
+  return typeof countdownKey === 'string' && finishedCountdownKeys.has(countdownKey);
+}
+
 function readLocalNowMs() {
   // The lock's localTargetMs is built from the model's `nowMs` (a Date.now()-based
   // local clock, NOT syncedNowMs), so the server-clock offset is already baked into
@@ -39,9 +66,11 @@ function readLocalNowMs() {
 }
 
 export function useLocalCountdownSeconds({
+  countdownKey,
   secondsRemaining,
   targetMs,
 }: {
+  countdownKey?: string | null;
   secondsRemaining: number;
   targetMs?: number | null;
 }) {
@@ -51,10 +80,8 @@ export function useLocalCountdownSeconds({
   // fresh overlay, so a brand-new countdown re-seeds high — while within one countdown
   // the digit can never increase regardless of which source (local tick or prop) drives it.
   const floorRef = useRef<number | null>(null);
-  // Once this countdown reaches zero it is terminal for this mount: the overlay must
-  // never flash back on. Without this, the local tick hits the target (-> null, hidden),
-  // then the host lock releases and the fallback re-offers the laggy clamped-at-1 prop,
-  // making the digit reappear as "1" for a frame before the entry finally collapses.
+  // Once this countdown reaches zero it is terminal for this mount as well, so a late
+  // prop within the same mount can't re-show it.
   const endedRef = useRef(false);
 
   const commit = useCallback((candidate: number | null) => {
@@ -64,6 +91,7 @@ export function useLocalCountdownSeconds({
 
     if (candidate === null) {
       endedRef.current = true;
+      markCountdownKeyFinished(countdownKey);
       setDisplayedSeconds(null);
       return;
     }
@@ -71,22 +99,27 @@ export function useLocalCountdownSeconds({
     const nextFloor = resolveMonotonicCountdownFloor(floorRef.current, candidate);
     floorRef.current = nextFloor;
     setDisplayedSeconds(nextFloor);
-  }, []);
+  }, [countdownKey]);
 
   // Fallback path: no locked target (non-host / direct / solo, or a host lock released
   // at the very end) → follow the seconds prop, still clamped monotonically down.
   useEffect(() => {
-    if (typeof targetMs === 'number') {
+    if (typeof targetMs === 'number' || isCountdownKeyFinished(countdownKey)) {
       return;
     }
 
     commit(secondsRemaining);
-  }, [commit, secondsRemaining, targetMs]);
+  }, [commit, countdownKey, secondsRemaining, targetMs]);
 
   // Local path: re-check the locked target every animation frame and re-render only
   // when the whole-second value changes — uniform cadence, leaf-local, never the arena.
   useEffect(() => {
     if (typeof targetMs !== 'number') {
+      return undefined;
+    }
+
+    if (isCountdownKeyFinished(countdownKey)) {
+      setDisplayedSeconds(null);
       return undefined;
     }
 
@@ -120,7 +153,11 @@ export function useLocalCountdownSeconds({
         cancelAnimationFrame(frameId);
       }
     };
-  }, [commit, targetMs]);
+  }, [commit, countdownKey, targetMs]);
+
+  if (isCountdownKeyFinished(countdownKey)) {
+    return null;
+  }
 
   return displayedSeconds;
 }

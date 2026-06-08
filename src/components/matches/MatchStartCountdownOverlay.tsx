@@ -3,12 +3,14 @@ import { useLocalCountdownSeconds } from '@/components/matches/useLocalCountdown
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 export function MatchStartCountdownOverlay({
+  countdownKey,
   secondsRemaining,
   targetMs,
   title,
   subtitle,
   variant = 'fullscreen',
 }: {
+  countdownKey?: string | null;
   secondsRemaining: number;
   targetMs?: number | null;
   title?: string;
@@ -16,6 +18,7 @@ export function MatchStartCountdownOverlay({
   variant?: 'fullscreen' | 'centered';
 }) {
   const displayedSecondsRemaining = useLocalCountdownSeconds({
+    countdownKey,
     secondsRemaining,
     targetMs,
   });

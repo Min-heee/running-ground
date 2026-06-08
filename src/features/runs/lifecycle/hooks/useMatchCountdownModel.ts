@@ -22,6 +22,7 @@ type CountdownEntry = {
   subtitle: string;
   remainingSeconds: number;
   targetMs?: number | null;
+  countdownKey?: string | null;
 };
 
 type MonotonicCountdownTracker = {
@@ -504,6 +505,7 @@ export function useMatchCountdownModel({
       subtitle: `${runtimeRoom.hostName}님 방 · ${(runtimeRoom.linkedMatchDistanceKm ?? runtimeRoom.distanceKm).toFixed(1)}km`,
       remainingSeconds: roomCountdownDisplayRemainingSeconds,
       targetMs: shouldUseHostStartCountdownClamp ? hostRoomCountdownTargetMs : null,
+      countdownKey: runtimeRoom.linkedMatchId ?? null,
     };
   }, [
     hostRoomCountdownTargetMs,
@@ -517,6 +519,7 @@ export function useMatchCountdownModel({
           title: stableNextStartingMatch.match.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',
           subtitle: `${stableNextStartingMatch.match.counterpartLabel} · ${stableNextStartingMatch.match.summary}`,
           remainingSeconds: stableNextStartingMatch.remainingSeconds,
+          countdownKey: stableNextStartingMatch.match.matchId ?? null,
         }
       : fallbackCountdownEntry)
     : null;
