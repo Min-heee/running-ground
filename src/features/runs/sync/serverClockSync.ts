@@ -7,14 +7,8 @@ const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 500;
 // round-trip jitter so the countdown digit doesn't visibly twitch.
 const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
 // Never let a late server snapshot move the countdown clock by seconds in a
-// single render. Small offsets move toward the target over a few snapshots.
+// single render. Large offsets move toward the target over a few snapshots.
 const SERVER_CLOCK_OFFSET_MAX_STEP_MS = 400;
-// A large gap is a real multi-second clock difference (cold acquisition or an NTP
-// correction), not jitter. Crawling it 400ms at a time takes ~8 snapshots — long
-// enough for a countdown to lock a stale, multi-second offset (two phones ending the
-// count seconds apart). Close large gaps in one or two snapshots instead.
-const SERVER_CLOCK_OFFSET_FAST_CONVERGE_DELTA_MS = 1000;
-const SERVER_CLOCK_OFFSET_FAST_MAX_STEP_MS = 2000;
 const SERVER_CLOCK_MAX_RTT_SAMPLE_MS = 3000;
 
 type ServerClockTimingSource = {
@@ -78,38 +72,20 @@ export function resolveServerClockOffsetSample(
   };
 }
 
-function resolveOffsetStep(offsetDeltaMs: number) {
-  // Large gaps converge fast (one or two snapshots); small gaps stay gentle so the
-  // measurement clock never visibly twitches once it is already close.
-  const maxStepMs = Math.abs(offsetDeltaMs) > SERVER_CLOCK_OFFSET_FAST_CONVERGE_DELTA_MS
-    ? SERVER_CLOCK_OFFSET_FAST_MAX_STEP_MS
-    : SERVER_CLOCK_OFFSET_MAX_STEP_MS;
-
-  if (offsetDeltaMs > maxStepMs) {
-    return maxStepMs;
+function clampOffsetStep(offsetDeltaMs: number) {
+  if (offsetDeltaMs > SERVER_CLOCK_OFFSET_MAX_STEP_MS) {
+    return SERVER_CLOCK_OFFSET_MAX_STEP_MS;
   }
 
-  if (offsetDeltaMs < -maxStepMs) {
-    return -maxStepMs;
+  if (offsetDeltaMs < -SERVER_CLOCK_OFFSET_MAX_STEP_MS) {
+    return -SERVER_CLOCK_OFFSET_MAX_STEP_MS;
   }
 
   return offsetDeltaMs;
 }
 
-export function resolveStableServerClockOffset(
-  currentOffsetMs: number,
-  nextOffsetMs: number,
-  isFirstSample = false,
-) {
+export function resolveStableServerClockOffset(currentOffsetMs: number, nextOffsetMs: number) {
   const targetOffsetMs = Math.abs(nextOffsetMs) < SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS ? 0 : nextOffsetMs;
-
-  // Cold acquisition: lock straight onto the (RTT-corrected) offset instead of
-  // crawling up from zero, so the very first countdown can't freeze a not-yet-converged
-  // multi-second offset.
-  if (isFirstSample) {
-    return Math.round(targetOffsetMs);
-  }
-
   const offsetDeltaMs = targetOffsetMs - currentOffsetMs;
 
   if (offsetDeltaMs === 0) {
@@ -124,7 +100,7 @@ export function resolveStableServerClockOffset(
     return currentOffsetMs;
   }
 
-  return Math.round(currentOffsetMs + resolveOffsetStep(offsetDeltaMs));
+  return Math.round(currentOffsetMs + clampOffsetStep(offsetDeltaMs));
 }
 
 let sharedServerClockOffsetMs = 0;
@@ -145,14 +121,9 @@ export function applySharedServerClock(serverNow?: string, timingSource?: unknow
     return sharedServerClockOffsetMs;
   }
 
-  const isFirstSample = latestAcceptedServerNowMs === 0;
   latestAcceptedServerNowMs = offsetSample.serverNowMs;
 
-  const stableOffsetMs = resolveStableServerClockOffset(
-    sharedServerClockOffsetMs,
-    offsetSample.offsetMs,
-    isFirstSample,
-  );
+  const stableOffsetMs = resolveStableServerClockOffset(sharedServerClockOffsetMs, offsetSample.offsetMs);
   if (stableOffsetMs !== sharedServerClockOffsetMs) {
     sharedServerClockOffsetMs = stableOffsetMs;
     sharedServerClockListeners.forEach((listener) => {

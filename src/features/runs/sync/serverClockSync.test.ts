@@ -17,27 +17,18 @@ test('server clock parser ignores invalid timestamps', () => {
   assert.equal(parseServerNowMs('2026-05-12T00:00:00.000Z'), Date.parse('2026-05-12T00:00:00.000Z'));
 });
 
-test('server clock offset stabilization snaps cold, fast-converges large gaps, holds jitter', () => {
+test('server clock offset stabilization ignores small local jitter and steps large jumps', () => {
   // Below 500ms apply threshold → treated as no offset (NTP jitter range).
   assert.equal(resolveStableServerClockOffset(0, 200), 0);
-
-  // Cold acquisition (first sample) snaps straight onto the offset so the first
-  // countdown can't lock a not-yet-converged multi-second clock.
-  assert.equal(resolveStableServerClockOffset(0, 3000, true), 3000);
-  assert.equal(resolveStableServerClockOffset(0, 200, true), 0);
-
-  // Small gaps still move gently (≤400ms) so the measurement clock never twitches.
+  // Large offsets converge in bounded steps so an in-flight countdown never jumps
+  // forward by multiple seconds from a late server snapshot.
+  assert.equal(resolveStableServerClockOffset(0, 1200), 400);
   assert.equal(resolveStableServerClockOffset(400, 1200), 800);
   assert.equal(resolveStableServerClockOffset(800, 1200), 800);
-
-  // Large gaps (a real multi-second clock difference) converge in one or two
-  // snapshots (≤2000ms/step) instead of crawling 400ms at a time.
-  assert.equal(resolveStableServerClockOffset(0, 1200), 1200);
-  assert.equal(resolveStableServerClockOffset(0, 4000), 2000);
-  assert.equal(resolveStableServerClockOffset(4000, 8000), 6000);
-
+  assert.equal(resolveStableServerClockOffset(0, 4000), 400);
   // Once near a stable offset, small deltas within jitter tolerance are kept.
   assert.equal(resolveStableServerClockOffset(4000, 4300), 4000);
+  assert.equal(resolveStableServerClockOffset(4000, 8000), 4400);
   assert.equal(resolveStableServerClockOffset(400, 200), 0);
 });
 
@@ -77,15 +68,15 @@ test('server snapshot guard rejects older server snapshots', () => {
   assert.equal(shouldAcceptServerSnapshot(latestRef, '2026-05-12T00:00:03.000Z'), true);
 });
 
-test('shared server clock snaps onto the first accepted offset so the countdown locks an accurate clock', () => {
+test('shared server clock steps the first accepted offset instead of jumping', () => {
   resetSharedServerClockForTest();
   const originalDateNow = Date.now;
   Date.now = () => Date.parse('2026-05-12T00:00:00.000Z');
 
   try {
     assert.equal(getSharedServerClockOffsetMs(), 0);
-    assert.equal(applySharedServerClock('2026-05-12T00:00:04.000Z'), 4000);
-    assert.equal(getSharedServerClockOffsetMs(), 4000);
+    assert.equal(applySharedServerClock('2026-05-12T00:00:04.000Z'), 400);
+    assert.equal(getSharedServerClockOffsetMs(), 400);
   } finally {
     Date.now = originalDateNow;
     resetSharedServerClockForTest();
@@ -105,20 +96,17 @@ test('shared server clock applies RTT-corrected offsets from API timing metadata
   resetSharedServerClockForTest();
 });
 
-test('shared server clock accepts a provisional offset when RTT timing is abnormal', () => {
+test('shared server clock keeps converging with a provisional offset when RTT timing is abnormal', () => {
   resetSharedServerClockForTest();
   const originalDateNow = Date.now;
   Date.now = () => Date.parse('2026-05-12T00:00:00.000Z');
 
   try {
-    // First sample snaps onto the 4s offset.
-    assert.equal(applySharedServerClock('2026-05-12T00:00:04.000Z'), 4000);
-    // Abnormal RTT (>3s) falls back to a provisional offset (3999) that is held as
-    // jitter since it is within tolerance of the already-converged 4000.
+    assert.equal(applySharedServerClock('2026-05-12T00:00:04.000Z'), 400);
     assert.equal(applySharedServerClock('2026-05-12T00:00:08.000Z', {
       clientRequestStartedAtMs: Date.parse('2026-05-12T00:00:00.000Z'),
       clientResponseReceivedAtMs: Date.parse('2026-05-12T00:00:04.001Z'),
-    }), 4000);
+    }), 800);
   } finally {
     Date.now = originalDateNow;
     resetSharedServerClockForTest();
@@ -131,26 +119,24 @@ test('shared server clock rejects older snapshots globally', () => {
   Date.now = () => Date.parse('2026-05-12T00:00:00.000Z');
 
   try {
-    assert.equal(applySharedServerClock('2026-05-12T00:00:04.000Z'), 4000);
-    assert.equal(applySharedServerClock('2026-05-12T00:00:03.000Z'), 4000);
-    assert.equal(getSharedServerClockOffsetMs(), 4000);
+    assert.equal(applySharedServerClock('2026-05-12T00:00:04.000Z'), 400);
+    assert.equal(applySharedServerClock('2026-05-12T00:00:03.000Z'), 400);
+    assert.equal(getSharedServerClockOffsetMs(), 400);
   } finally {
     Date.now = originalDateNow;
     resetSharedServerClockForTest();
   }
 });
 
-test('shared server clock snaps the first sample then steps large newer jumps with the fast-converge cap', () => {
+test('shared server clock steps newer snapshots with the bounded jump policy', () => {
   resetSharedServerClockForTest();
   const originalDateNow = Date.now;
   Date.now = () => Date.parse('2026-05-12T00:00:00.000Z');
 
   try {
-    assert.equal(applySharedServerClock('2026-05-12T00:00:04.000Z'), 4000);
-    // Within jitter tolerance of 4000 → held.
-    assert.equal(applySharedServerClock('2026-05-12T00:00:04.300Z'), 4000);
-    // A fresh 8s jump is large → moves one fast step (2000) toward it, capped.
-    assert.equal(applySharedServerClock('2026-05-12T00:00:08.000Z'), 6000);
+    assert.equal(applySharedServerClock('2026-05-12T00:00:04.000Z'), 400);
+    assert.equal(applySharedServerClock('2026-05-12T00:00:04.300Z'), 800);
+    assert.equal(applySharedServerClock('2026-05-12T00:00:08.000Z'), 1200);
   } finally {
     Date.now = originalDateNow;
     resetSharedServerClockForTest();
@@ -167,13 +153,12 @@ test('shared server clock notifies subscribers only when the shared offset chang
   });
 
   try {
-    // First sample is sub-threshold → snaps to 0 → no change → no notify.
     applySharedServerClock('2026-05-12T00:00:00.200Z');
     applySharedServerClock('2026-05-12T00:00:04.000Z');
     applySharedServerClock('2026-05-12T00:00:04.300Z');
     applySharedServerClock('2026-05-12T00:00:08.000Z');
 
-    assert.deepEqual(observedOffsets, [2000, 4000, 6000]);
+    assert.deepEqual(observedOffsets, [400, 800, 1200]);
   } finally {
     unsubscribe();
     Date.now = originalDateNow;
