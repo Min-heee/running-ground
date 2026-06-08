@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 
-import { getSharedServerClockOffsetMs } from '@/features/runs/sync/serverClockSync';
 import { MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS } from '@/lib/matchCountdown';
 
 const LOCAL_COUNTDOWN_MIN_TICK_DELAY_MS = 50;
@@ -51,8 +50,13 @@ export function resolveLocalCountdownTickerDelayMs({
   return clampCountdownDelayMs(remainingMs - nextBoundaryRemainingMs);
 }
 
-function readSyncedLocalNowMs() {
-  return Date.now() + getSharedServerClockOffsetMs();
+function readLocalNowMs() {
+  // The lock's localTargetMs is built from the model's `nowMs` (a Date.now()-based
+  // local clock, NOT syncedNowMs), so the server-clock offset is already baked into
+  // the target. Evaluate against local Date.now() to stay in the same frame —
+  // adding the offset again would shift the displayed count by the offset and make
+  // the digit jump when the local ticker takes over.
+  return Date.now();
 }
 
 export function useLocalCountdownSeconds({
@@ -85,7 +89,7 @@ export function useLocalCountdownSeconds({
         return;
       }
 
-      const nowMs = readSyncedLocalNowMs();
+      const nowMs = readLocalNowMs();
       const nextSecondsRemaining = resolveLocalCountdownSeconds({ nowMs, targetMs });
       setLocalSecondsRemaining(nextSecondsRemaining);
 
