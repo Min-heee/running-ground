@@ -5,6 +5,7 @@ export * from './integrationsService';
 export * from './leagueService';
 export * from './marketService';
 export * from './matchService';
+export * from './notificationsService';
 export * from './pointsService';
 export * from './profileService';
 export * from './runningService';

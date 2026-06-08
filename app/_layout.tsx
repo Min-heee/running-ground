@@ -63,6 +63,7 @@ export default function RootLayout() {
         <Stack.Screen name="university-verification" />
         <Stack.Screen name="region-settings" />
         <Stack.Screen name="notification-settings" />
+        <Stack.Screen name="notification-center" />
         <Stack.Screen name="match-room" />
         <Stack.Screen name="opponent-profile" />
         <Stack.Screen name="friend-detail" />

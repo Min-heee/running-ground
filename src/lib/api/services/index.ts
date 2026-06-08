@@ -1,6 +1,7 @@
 export * from './home';
 export * from './runs';
 export * from './matches';
+export * from './notifications';
 export * from './rooms';
 export * from './friends';
 export * from './league';
