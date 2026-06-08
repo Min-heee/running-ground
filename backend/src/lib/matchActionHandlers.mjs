@@ -34,26 +34,36 @@ import {
 } from './runningMatchSessionStoreHelpers.mjs';
 import { buildRunningMatchStatusResponse } from './matchResponseBuilders.mjs';
 import { pruneMatchRooms } from './matchRoomStoreHelpers.mjs';
+import { appendUserNotification } from './userNotifications.mjs';
 
 function applyMatchLpIfComplete(store, session) {
-  if (!session || session.lpApplied) {
-    return;
-  }
-
-  if (session.isPartyRun) {
-    session.lpApplied = true;
+  if (!session || (session.lpApplied && session.resultNotificationApplied)) {
     return;
   }
 
   const participants = Array.isArray(session.participants) ? session.participants : [];
   const now = new Date();
   if (!participants.length || !participants.every((participant) => isParticipantDoneWithMatch(participant, now))) {
+    if (session.isPartyRun) {
+      session.lpApplied = true;
+    }
     return;
   }
 
   try {
     const standings = buildOfficialSessionStandings(store, session, now);
     const officialByUserId = new Map(standings.map((standing) => [standing.userId, standing]));
+    appendMatchResultNotifications(store, session, participants, officialByUserId);
+
+    if (session.lpApplied) {
+      return;
+    }
+
+    if (session.isPartyRun) {
+      session.lpApplied = true;
+      return;
+    }
+
     let updates;
 
     if (session.mode === 'duel' && participants.length === 2) {
@@ -92,16 +102,80 @@ function applyMatchLpIfComplete(store, session) {
     }
 
     for (const { user, deltaLp } of updates) {
-      const nextRankState = applyLpDelta(ensureUserRankState(user), deltaLp);
+      const previousRankState = { ...ensureUserRankState(user) };
+      const nextRankState = applyLpDelta(previousRankState, deltaLp);
       user.rankState = {
         tier: nextRankState.tier,
         lp: nextRankState.lp,
       };
+      appendRankChangeNotification(store, session, user, deltaLp, previousRankState, user.rankState);
     }
     session.lpApplied = true;
   } catch {
     // Rank updates must never block match completion responses.
   }
+}
+
+function getMatchModeLabel(mode) {
+  return mode === 'duel' ? '1대1 대결' : '그룹 대결';
+}
+
+function appendMatchResultNotifications(store, session, participants, officialByUserId) {
+  if (session.resultNotificationApplied) {
+    return;
+  }
+
+  const modeLabel = getMatchModeLabel(session.mode);
+
+  for (const participant of participants) {
+    const standing = officialByUserId.get(participant.userId);
+    const rankText = Number.isFinite(standing?.officialRank)
+      ? ` ${standing.officialRank}위`
+      : '';
+
+    appendUserNotification(store, {
+      userId: participant.userId,
+      type: 'match_result',
+      title: `${modeLabel} 결과`,
+      body: `${modeLabel}${rankText} 결과가 확정됐어요.`,
+      data: {
+        matchId: session.id,
+        mode: session.mode,
+        ...(Number.isFinite(standing?.officialRank) ? { rank: standing.officialRank } : {}),
+        participantCount: participants.length,
+      },
+    });
+  }
+
+  session.resultNotificationApplied = true;
+}
+
+function appendRankChangeNotification(store, session, user, deltaLp, previousRankState, nextRankState) {
+  const safeDeltaLp = Math.trunc(Number(deltaLp) || 0);
+
+  if (
+    safeDeltaLp === 0
+    || (
+      previousRankState.tier === nextRankState.tier
+      && previousRankState.lp === nextRankState.lp
+    )
+  ) {
+    return;
+  }
+
+  appendUserNotification(store, {
+    userId: user.id,
+    type: 'rank_change',
+    title: '랭크 LP 변동',
+    body: `대결 결과로 랭크 ${safeDeltaLp > 0 ? '+' : ''}${safeDeltaLp} LP가 반영됐어요.`,
+    data: {
+      matchId: session.id,
+      mode: session.mode,
+      tier: nextRankState.tier,
+      lp: nextRankState.lp,
+      lpDelta: safeDeltaLp,
+    },
+  });
 }
 
 export function leaveRunningMatch(store, currentUser, { matchId }) {

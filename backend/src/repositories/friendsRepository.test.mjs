@@ -210,6 +210,10 @@ await runTest('creates a friend request and rejects duplicates', () => {
     status: 'pending',
   });
   assert.equal(storeHarness.getStore().friendRequests.length, 1);
+  assert.equal(storeHarness.getStore().notifications.length, 1);
+  assert.equal(storeHarness.getStore().notifications[0].userId, 'user-new');
+  assert.equal(storeHarness.getStore().notifications[0].type, 'friend_request');
+  assert.deepEqual(storeHarness.getStore().notifications[0].data.friendUserId, 'user-me');
 
   assert.throws(() => repository.createRequest({
     token: 'token-me',
@@ -249,6 +253,10 @@ await runTest('accepts a received friend request and creates a friendship', () =
   assert.equal(store.friendRequests[0].status, 'accepted');
   assert.equal(store.friendships.length, 1);
   assert.deepEqual(store.friendships[0].userIds, ['user-other', 'user-me']);
+  assert.equal(store.notifications.length, 1);
+  assert.equal(store.notifications[0].userId, 'user-other');
+  assert.equal(store.notifications[0].type, 'friend_accepted');
+  assert.deepEqual(store.notifications[0].data.friendUserId, 'user-me');
 });
 
 await runTest('returns friend activity and friend run detail', () => {

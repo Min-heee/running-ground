@@ -48,6 +48,15 @@ function migrateIntegrationStore(store) {
   return false;
 }
 
+function migrateNotificationStore(store) {
+  if (!Array.isArray(store.notifications)) {
+    store.notifications = [];
+    return true;
+  }
+
+  return false;
+}
+
 function migratePhoneVerificationStore(store) {
   if (!Array.isArray(store.phoneVerificationChallenges)) {
     store.phoneVerificationChallenges = [];
@@ -359,6 +368,7 @@ export function loadStore() {
       migrateAuthStore(cachedStore, { sessionTtlMs: SESSION_TTL_MS, now: new Date() }),
       migrateProfileStore(cachedStore),
       migrateIntegrationStore(cachedStore),
+      migrateNotificationStore(cachedStore),
       migratePhoneVerificationStore(cachedStore),
       migrateMatchQueueStore(cachedStore),
       migrateAdminStore(cachedStore),

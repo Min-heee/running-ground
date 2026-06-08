@@ -380,6 +380,32 @@ await runTest('party run room start creates a linked match and accepts countdown
   });
 });
 
+await runTest('party run room invite creates a recipient notification', async () => {
+  const store = createBaseStore();
+  store.friendships.push({
+    id: 'friendship-host-guest',
+    userIds: ['host-user', 'guest-user'],
+    createdAt: iso(-60 * 1000),
+  });
+
+  await withBackend(store, async ({ request, readStore }) => {
+    await request('host-token', 'POST', '/api/running/rooms', {
+      mode: 'duel',
+      distanceKm: 5,
+      startMode: 'host',
+      maxParticipants: 2,
+      invitedFriendIds: ['guest-user'],
+    });
+    const persisted = readStore();
+    const notification = persisted.notifications.find((item) => item.userId === 'guest-user' && item.type === 'match_invite');
+
+    assert.equal(Boolean(notification), true);
+    assert.equal(notification.data.mode, 'duel');
+    assert.equal(typeof notification.data.roomId, 'string');
+    assert.equal(typeof notification.data.inviteToken, 'string');
+  });
+});
+
 await runTest('stale room cleanup detaches finished participant before new room creation', async () => {
   const store = createBaseStore();
   const slotStartAt = iso(-60 * 1000);
@@ -1162,6 +1188,39 @@ await runTest('duel winner finish response survives while resolved linked room i
     const persisted = readStore();
     assert.equal(persisted.matchSessions.some((session) => session.id === 'duel-contract-match'), false);
     assert.equal(persisted.matchRooms.some((room) => room.linkedMatchId === 'duel-contract-match'), false);
+  });
+});
+
+await runTest('match completion creates result and rank notifications for participants', async () => {
+  const { store } = createActiveDuelStore();
+  for (const user of store.users) {
+    user.rankState = { tier: '입문', lp: 50 };
+  }
+
+  await withBackend(store, async ({ request, readStore }) => {
+    await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 5.2,
+      elapsedSeconds: 1530,
+      currentPace: '05:02/km',
+      status: 'running',
+    });
+    await request('guest-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 5.01,
+      elapsedSeconds: 1590,
+      currentPace: '05:18/km',
+      status: 'running',
+    });
+
+    const persisted = readStore();
+    const resultNotifications = persisted.notifications.filter((item) => item.type === 'match_result');
+    const rankNotifications = persisted.notifications.filter((item) => item.type === 'rank_change');
+
+    assert.equal(resultNotifications.length, 2);
+    assert.deepEqual(new Set(resultNotifications.map((item) => item.userId)), new Set(['host-user', 'guest-user']));
+    assert.equal(rankNotifications.length, 2);
+    assert.deepEqual(new Set(rankNotifications.map((item) => item.data.matchId)), new Set(['duel-contract-match']));
   });
 });
 

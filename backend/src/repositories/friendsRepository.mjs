@@ -1,3 +1,5 @@
+import { appendUserNotification } from '../lib/userNotifications.mjs';
+
 function getFriendIds(store, userId) {
   return (store.friendships ?? []).flatMap((friendship) => {
     if (friendship.userIds[0] === userId) {
@@ -267,6 +269,17 @@ export function createJsonFriendsRepository({
           status: 'pending',
           createdAt: nowIso(),
         });
+        appendUserNotification(store, {
+          userId: targetUser.id,
+          type: 'friend_request',
+          title: '새 친구 요청',
+          body: `${currentUser.name}님이 친구 요청을 보냈어요.`,
+          data: {
+            friendUserId: currentUser.id,
+            requestId,
+          },
+          nowIso,
+        });
 
         return {
           success: true,
@@ -311,6 +324,17 @@ export function createJsonFriendsRepository({
               createdAt: nowIso(),
             });
           }
+          appendUserNotification(store, {
+            userId: friendRequest.requesterId,
+            type: 'friend_accepted',
+            title: '친구 요청 수락',
+            body: `${currentUser.name}님이 친구 요청을 수락했어요.`,
+            data: {
+              friendUserId: currentUser.id,
+              requestId: friendRequest.id,
+            },
+            nowIso,
+          });
         }
 
         if (action === 'reject') {

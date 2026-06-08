@@ -177,6 +177,101 @@ await test('returns 404 for missing opponent match profile user', async () => {
   );
 });
 
+await test('serves authenticated user notifications feed only for the current user', async () => {
+  const response = createMockResponse();
+  const store = {
+    users: [{ id: 'viewer', name: '조회자' }],
+    notifications: [
+      {
+        id: 'old',
+        userId: 'viewer',
+        type: 'friend_request',
+        title: '오래된 알림',
+        body: '먼저 온 알림이에요.',
+        createdAt: '2026-06-08T00:00:00.000Z',
+        readAt: null,
+      },
+      {
+        id: 'latest',
+        userId: 'viewer',
+        type: 'match_invite',
+        title: '새 초대',
+        body: '새 파티런 초대예요.',
+        data: { roomId: 'room-1' },
+        createdAt: '2026-06-08T00:01:00.000Z',
+        readAt: null,
+      },
+      {
+        id: 'other-user-item',
+        userId: 'other-user',
+        type: 'match_invite',
+        title: '다른 사용자',
+        body: '보이면 안 돼요.',
+        createdAt: '2026-06-08T00:02:00.000Z',
+        readAt: null,
+      },
+    ],
+  };
+
+  await createRouteRequest({
+    loadStore: () => store,
+    requireUser: () => store.users[0],
+  })(
+    { method: 'GET', url: '/api/me/notifications', headers: { host: 'localhost' } },
+    response,
+  );
+
+  const payload = JSON.parse(response.body);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.unreadCount, 2);
+  assert.deepEqual(payload.items.map((item) => item.id), ['latest', 'old']);
+  assert.deepEqual(payload.items[0].data, { roomId: 'room-1' });
+});
+
+await test('marks selected user notifications as read', async () => {
+  const response = createMockResponse();
+  const store = {
+    users: [{ id: 'viewer', name: '조회자' }],
+    notifications: [
+      {
+        id: 'target',
+        userId: 'viewer',
+        type: 'friend_request',
+        title: '읽을 알림',
+        body: '읽음 처리 대상이에요.',
+        createdAt: '2026-06-08T00:00:00.000Z',
+        readAt: null,
+      },
+      {
+        id: 'keep-unread',
+        userId: 'viewer',
+        type: 'match_invite',
+        title: '남길 알림',
+        body: '계속 unread예요.',
+        createdAt: '2026-06-08T00:01:00.000Z',
+        readAt: null,
+      },
+    ],
+  };
+
+  await createRouteRequest({
+    mutateStore: (mutator) => mutator(store),
+    parseJsonBody: async () => ({ ids: ['target'] }),
+    requireUser: () => store.users[0],
+  })(
+    { method: 'POST', url: '/api/me/notifications/read', headers: { host: 'localhost' } },
+    response,
+  );
+
+  const payload = JSON.parse(response.body);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(payload.unreadCount, 1);
+  assert.equal(Boolean(store.notifications.find((item) => item.id === 'target').readAt), true);
+  assert.equal(store.notifications.find((item) => item.id === 'keep-unread').readAt, null);
+});
+
 await test('throws a typed 404 for unknown APIs', async () => {
   await assert.rejects(
     () => createRouteRequest()(

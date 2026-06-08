@@ -92,7 +92,7 @@ export async function fetchNotificationSettings(): Promise<NotificationSettingsR
     return { ...mockApiState.notificationPreferences };
   }
 
-  return apiGet<NotificationSettingsResponse>('/me/notifications', {
+  return apiGet<NotificationSettingsResponse>('/me/notification-settings', {
     accessToken: await requireAccessToken(),
     fallbackMessage: '알림 설정을 불러오지 못했어.',
   });

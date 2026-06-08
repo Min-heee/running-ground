@@ -44,6 +44,7 @@ import {
 import { nextId } from './idHelpers.mjs';
 import { areFriends } from './socialStoreHelpers.mjs';
 import { findUserById } from './userStoreHelpers.mjs';
+import { appendUserNotification } from './userNotifications.mjs';
 
 function ensureMatchRooms(store) {
   if (!Array.isArray(store.matchRooms)) {
@@ -66,6 +67,26 @@ function createMatchRoomInviteToken(store) {
   }
 
   return nextId('room-invite').replace(/[^A-Z0-9]/gi, '').slice(-8).toUpperCase();
+}
+
+function getMatchRoomModeLabel(mode) {
+  return mode === 'duel' ? '1대1' : '그룹';
+}
+
+function appendMatchRoomInviteNotifications(store, currentUser, room, invitedUserIds) {
+  for (const invitedUserId of invitedUserIds) {
+    appendUserNotification(store, {
+      userId: invitedUserId,
+      type: 'match_invite',
+      title: '파티런 초대',
+      body: `${currentUser.name}님이 ${getMatchRoomModeLabel(room.mode)} 파티런에 초대했어요.`,
+      data: {
+        roomId: room.id,
+        inviteToken: room.inviteToken,
+        mode: room.mode,
+      },
+    });
+  }
 }
 
 export function pruneMatchRooms(store, now = new Date()) {
@@ -602,6 +623,7 @@ export function createRunningMatchRoom(store, currentUser, {
   };
 
   ensureMatchRooms(store).push(room);
+  appendMatchRoomInviteNotifications(store, currentUser, room, normalizedInvitedFriendIds);
   syncMatchRooms(store);
   return buildRunningMatchRoomResponse(store, currentUser, room);
 }
@@ -816,6 +838,8 @@ export function updateRunningMatchRoom(store, currentUser, {
     }
   }
 
+  const previousInvitedFriendIds = new Set(room.invitedFriendIds ?? []);
+
   room.distanceKm = normalizeMatchQueueDistance(distanceKm);
   room.startMode = startMode === 'host' ? 'host' : 'scheduled';
   room.slotStartAt = room.startMode === 'host'
@@ -824,6 +848,12 @@ export function updateRunningMatchRoom(store, currentUser, {
   room.maxParticipants = normalizeMatchRoomMaxParticipants(room.mode, maxParticipants);
   room.invitedFriendIds = normalizedInvitedFriendIds;
   room.updatedAt = new Date().toISOString();
+  appendMatchRoomInviteNotifications(
+    store,
+    currentUser,
+    room,
+    normalizedInvitedFriendIds.filter((userId) => !previousInvitedFriendIds.has(userId)),
+  );
   syncMatchRooms(store);
 
   return buildRunningMatchRoomResponse(store, currentUser, room);

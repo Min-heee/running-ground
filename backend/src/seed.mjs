@@ -515,6 +515,7 @@ export function createSeedStore() {
     friendRequests: [],
     friendships: [],
     rewardRedemptions: [],
+    notifications: [],
     sessions: [],
     marketCatalog: [],
     notices: [],

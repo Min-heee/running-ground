@@ -1,9 +1,15 @@
+import {
+  listUserNotifications,
+  markUserNotificationsRead,
+} from '../lib/userNotifications.mjs';
+
 export async function routeMeNotificationRequest({
   method,
   pathname,
   request,
   response,
   sendJson,
+  loadStore,
   mutateStore,
   getAccessToken,
   getPostgresFriendsRepository,
@@ -16,7 +22,30 @@ export async function routeMeNotificationRequest({
   parseJsonBody,
 }) {
   if (pathname === '/api/me/notifications' && method === 'GET') {
+    handleListMyNotifications({
+      loadStore,
+      request,
+      requireUser,
+      response,
+      sendJson,
+    });
+    return true;
+  }
+
+  if (pathname === '/api/me/notification-settings' && method === 'GET') {
     sendJson(response, 200, await buildNotificationSettingsReadPayload(request));
+    return true;
+  }
+
+  if (pathname === '/api/me/notifications/read' && method === 'POST') {
+    await handleMarkMyNotificationsRead({
+      mutateStore,
+      parseJsonBody,
+      request,
+      requireUser,
+      response,
+      sendJson,
+    });
     return true;
   }
 
@@ -50,6 +79,36 @@ export async function routeMeNotificationRequest({
   }
 
   return false;
+}
+
+function handleListMyNotifications({
+  loadStore,
+  request,
+  requireUser,
+  response,
+  sendJson,
+}) {
+  const store = loadStore();
+  const user = requireUser(store, request);
+  sendJson(response, 200, listUserNotifications(store, user.id));
+}
+
+async function handleMarkMyNotificationsRead({
+  mutateStore,
+  parseJsonBody,
+  request,
+  requireUser,
+  response,
+  sendJson,
+}) {
+  const body = await parseJsonBody(request);
+  const ids = Array.isArray(body.ids) ? body.ids : undefined;
+  const payload = mutateStore((store) => {
+    const user = requireUser(store, request);
+    return markUserNotificationsRead(store, user.id, ids);
+  });
+
+  sendJson(response, 200, payload);
 }
 
 async function handlePatchMyNotifications({
