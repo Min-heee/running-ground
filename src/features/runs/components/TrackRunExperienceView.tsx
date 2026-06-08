@@ -15,6 +15,7 @@ import {
 type CountdownEntry = {
   remainingSeconds: number;
   subtitle?: string;
+  targetMs?: number | null;
   title?: string;
 };
 
@@ -99,6 +100,7 @@ export function TrackRunExperienceView({
           title={fullscreenCountdownEntry.title}
           subtitle={fullscreenCountdownEntry.subtitle}
           secondsRemaining={fullscreenCountdownEntry.remainingSeconds}
+          targetMs={fullscreenCountdownEntry.targetMs}
         />
       ) : null}
       {shouldShowRoomArmingOverlay ? (
@@ -125,6 +127,7 @@ export function TrackRunExperienceView({
       {centeredCountdownEntry ? (
         <MatchStartCountdownOverlay
           secondsRemaining={centeredCountdownEntry.remainingSeconds}
+          targetMs={centeredCountdownEntry.targetMs}
           variant="centered"
         />
       ) : null}

@@ -21,6 +21,7 @@ type CountdownEntry = {
   title: string;
   subtitle: string;
   remainingSeconds: number;
+  targetMs?: number | null;
 };
 
 type MonotonicCountdownTracker = {
@@ -53,6 +54,10 @@ function writeHostStartCountdownLock(key: string, lock: HostStartCountdownLock) 
     }
     hostStartCountdownLocks.delete(oldestKey);
   }
+}
+
+export function readPersistentHostStartCountdownTargetMs(key: string | null) {
+  return key ? hostStartCountdownLocks.get(key)?.localTargetMs ?? null : null;
 }
 
 type UseMatchCountdownModelInput = {
@@ -429,14 +434,16 @@ export function useMatchCountdownModel({
     startMode: runtimeRoom?.startMode,
   });
   const shouldUseHostStartCountdownClamp = runtimeRoom?.startMode === 'host';
+  const hostStartCountdownKey = runtimeRoom?.linkedMatchId && shouldUseHostStartCountdownClamp
+    ? `${runtimeRoom.linkedMatchId}:host-display`
+    : null;
   const hostRoomCountdownDisplayRemainingSeconds = useHostStartCountdownSeconds({
-    key: runtimeRoom?.linkedMatchId && shouldUseHostStartCountdownClamp
-      ? `${runtimeRoom.linkedMatchId}:host-display`
-      : null,
+    key: hostStartCountdownKey,
     maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
     rawRemainingSeconds: rawRoomCountdownRemainingSeconds,
     nowMs,
   });
+  const hostRoomCountdownTargetMs = readPersistentHostStartCountdownTargetMs(hostStartCountdownKey);
   const stableRoomCountdownDisplayRemainingSeconds = useStableCountdownSeconds({
     key: runtimeRoom?.linkedMatchId && !shouldUseHostStartCountdownClamp && shouldShowRuntimeRoomCountdownNumbers
       ? `${runtimeRoom.linkedMatchId}:${runtimeRoom.linkedMatchSlotStartAt ?? runtimeRoom.slotStartAt}:display`
@@ -496,8 +503,14 @@ export function useMatchCountdownModel({
       title: runtimeRoom.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',
       subtitle: `${runtimeRoom.hostName}님 방 · ${(runtimeRoom.linkedMatchDistanceKm ?? runtimeRoom.distanceKm).toFixed(1)}km`,
       remainingSeconds: roomCountdownDisplayRemainingSeconds,
+      targetMs: shouldUseHostStartCountdownClamp ? hostRoomCountdownTargetMs : null,
     };
-  }, [roomCountdownDisplayRemainingSeconds, runtimeRoom]);
+  }, [
+    hostRoomCountdownTargetMs,
+    roomCountdownDisplayRemainingSeconds,
+    runtimeRoom,
+    shouldUseHostStartCountdownClamp,
+  ]);
   const fallbackVisibleCountdownEntry = shouldShowRuntimeRoomCountdownNumbers
     ? (stableNextStartingMatch
       ? {

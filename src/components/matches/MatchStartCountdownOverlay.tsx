@@ -1,17 +1,29 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { useLocalCountdownSeconds } from '@/components/matches/useLocalCountdownSeconds';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 export function MatchStartCountdownOverlay({
   secondsRemaining,
+  targetMs,
   title,
   subtitle,
   variant = 'fullscreen',
 }: {
   secondsRemaining: number;
+  targetMs?: number | null;
   title?: string;
   subtitle?: string;
   variant?: 'fullscreen' | 'centered';
 }) {
+  const displayedSecondsRemaining = useLocalCountdownSeconds({
+    secondsRemaining,
+    targetMs,
+  });
+
+  if (displayedSecondsRemaining === null) {
+    return null;
+  }
+
   return (
     <View style={[styles.overlay, variant === 'centered' ? styles.overlayCentered : null]} pointerEvents="none">
       <View style={styles.content}>
@@ -22,7 +34,7 @@ export function MatchStartCountdownOverlay({
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
           </>
         ) : null}
-        <Text style={styles.countdown}>{secondsRemaining}</Text>
+        <Text style={styles.countdown}>{displayedSecondsRemaining}</Text>
       </View>
     </View>
   );

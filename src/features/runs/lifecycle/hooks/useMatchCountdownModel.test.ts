@@ -4,6 +4,7 @@ import test from 'node:test';
 import { MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS } from '@/lib/matchCountdown';
 import {
   normalizePartyRunFlowRemainingSeconds,
+  readPersistentHostStartCountdownTargetMs,
   resetPersistentHostStartCountdownForTest,
   resolveMonotonicCountdownRemainingSeconds,
   resolvePersistentHostStartCountdownRemainingSeconds,
@@ -167,6 +168,27 @@ test('host-start local countdown lock persists across handoff remounts by match 
       nowMs: 1000,
       rawRemainingSeconds: 7,
     }), 7);
+  } finally {
+    resetPersistentHostStartCountdownForTest();
+  }
+});
+
+test('host-start local countdown exposes the locked local target time', () => {
+  resetPersistentHostStartCountdownForTest();
+  const input = {
+    key: 'match-1:host-display',
+    maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+  };
+
+  try {
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 1_000,
+      rawRemainingSeconds: 6,
+    }), 6);
+    assert.equal(readPersistentHostStartCountdownTargetMs(input.key), 7_000);
+    assert.equal(readPersistentHostStartCountdownTargetMs('missing:host-display'), null);
+    assert.equal(readPersistentHostStartCountdownTargetMs(null), null);
   } finally {
     resetPersistentHostStartCountdownForTest();
   }
