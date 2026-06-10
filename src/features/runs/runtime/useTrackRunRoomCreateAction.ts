@@ -228,6 +228,12 @@ export function useTrackRunRoomCreateAction({
         }
       }
 
+      // Re-baseline the shared room-snapshot high-water mark for this fresh room. It is
+      // never otherwise reset, so a previous party-run's late timestamp would make this
+      // guard drop the new room (and the later countdown-ready ACK that carries the slot
+      // start), stranding a device on the arming overlay when a new room is made without a
+      // clean exit between runs.
+      latestMatchRoomServerNowMsRef.current = 0;
       if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
         return;
       }

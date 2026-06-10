@@ -186,6 +186,10 @@ export function useTrackRunRoomJoinAction({
             payload = await joinRoom('manual invite code retry');
           }
 
+          // Re-baseline the never-reset shared room-snapshot high-water mark for this
+          // fresh room so a previous run's late timestamp can't drop the new room or its
+          // countdown-ready ACK (see useTrackRunRoomCreateAction for the full rationale).
+          latestMatchRoomServerNowMsRef.current = 0;
           if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
             return;
           }
