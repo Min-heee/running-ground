@@ -544,6 +544,9 @@ export function useMatchCountdownModel({
       startMode: matchRoom?.startMode,
       syncedNowMs,
     }),
+    // TEMP diagnostic: surfaces WHY the arming overlay is stuck (link id / slot start
+    // present?, phase, start mode, remaining). Shown on the overlay; remove later.
+    roomArmingDebugInfo: `L${matchRoom?.linkedMatchId ? 1 : 0} S${matchRoom?.linkedMatchSlotStartAt ? 1 : 0} ${matchRoomFlow.phase ?? '-'} sm:${matchRoom?.startMode ?? '-'} r:${matchRoomCountdownRemainingSeconds ?? '-'}`,
     canOpenRoomArena: visiblePartyRunFlow.shouldOpenArena,
   };
 }

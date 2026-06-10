@@ -35,6 +35,7 @@ type TrackRunExperienceViewProps = {
   shouldShowReadyScreen: boolean;
   showForceResetAction: boolean;
   shouldShowRoomArmingOverlay: boolean;
+  roomArmingDebugInfo?: string;
   soloStartCountdownSeconds: number | null;
 };
 
@@ -53,6 +54,7 @@ export function TrackRunExperienceView({
   shouldShowReadyScreen,
   showForceResetAction,
   shouldShowRoomArmingOverlay,
+  roomArmingDebugInfo,
   soloStartCountdownSeconds,
 }: TrackRunExperienceViewProps) {
   return (
@@ -112,9 +114,9 @@ export function TrackRunExperienceView({
           <Text style={styles.roomArmingOverlayText}>
             대결 화면을 맞추는 중이에요. 잠시 뒤 모든 참가자에게 같은 카운트다운이 보여요.
           </Text>
-          {/* TEMP diagnostic build tag — confirms this device is running the latest OTA. */}
-          <Text style={{ color: colors.white, fontSize: 11, marginTop: spacing.md, opacity: 0.7 }}>
-            진단 빌드 RG-A2
+          {/* TEMP diagnostic: build tag + arming state (why it's stuck). Remove later. */}
+          <Text style={{ color: colors.white, fontSize: 11, marginTop: spacing.md, opacity: 0.75 }}>
+            RG-A3 · {roomArmingDebugInfo ?? '-'}
           </Text>
         </View>
       ) : null}

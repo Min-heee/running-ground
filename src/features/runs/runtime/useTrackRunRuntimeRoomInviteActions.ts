@@ -117,6 +117,11 @@ export function useTrackRunRuntimeRoomInviteActions({
         roomId: payload.room.roomId,
         success: true,
       });
+      // Accepting an invite enters a FRESH room — re-baseline the never-reset shared
+      // room-snapshot high-water mark so a previous party-run's late timestamp can't drop
+      // this room or its later countdown-ready ACK (the most common friend party-run join
+      // path; see useTrackRunRoomCreateAction for the full rationale).
+      latestMatchRoomServerNowMsRef.current = 0;
       if (!shouldAcceptServerSnapshot(latestMatchRoomServerNowMsRef, payload.serverNow)) {
         return;
       }

@@ -540,6 +540,7 @@ export function TrackRunExperienceRuntime({
     nextStartingMatch,
     activeUpcomingMatch,
     shouldShowRoomArmingOverlay,
+    roomArmingDebugInfo,
   } = useMatchCountdownModel({
     matchMode,
     nowMs,
@@ -2585,6 +2586,7 @@ export function TrackRunExperienceRuntime({
     shouldShowReadyScreen: liveShellGateDecision.shouldShowReadyScreen,
     showForceResetAction: isRunningMatchForceResetCandidate(error),
     shouldShowRoomArmingOverlay,
+    roomArmingDebugInfo,
     soloStartCountdownSeconds: runtimeSoloStartCountdownSeconds,
   });
 
