@@ -112,6 +112,10 @@ export function TrackRunExperienceView({
           <Text style={styles.roomArmingOverlayText}>
             대결 화면을 맞추는 중이에요. 잠시 뒤 모든 참가자에게 같은 카운트다운이 보여요.
           </Text>
+          {/* TEMP diagnostic build tag — confirms this device is running the latest OTA. */}
+          <Text style={{ color: colors.white, fontSize: 11, marginTop: spacing.md, opacity: 0.7 }}>
+            진단 빌드 RG-A2
+          </Text>
         </View>
       ) : null}
       {typeof soloStartCountdownSeconds === 'number' ? (
