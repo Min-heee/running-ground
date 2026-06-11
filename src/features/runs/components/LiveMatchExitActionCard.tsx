@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
@@ -54,6 +54,29 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
     rgPerfMark('self forfeit result button press', { source });
     onShowResultAfterSelfForfeit(source);
   }, [onShowResultAfterSelfForfeit, source]);
+
+  // Match endings go straight to the run detail without a manual button press:
+  // the moment the finish/counterpart-forfeit/self-forfeit card becomes actionable,
+  // trigger its save-and-navigate once. The card stays rendered (with its '저장 중'
+  // label) purely as the in-between state.
+  const autoExitTriggeredRef = useRef(false);
+  const isAutoExitKind = actionState.kind === 'self-finished'
+    || actionState.kind === 'counterpart-forfeited'
+    || actionState.kind === 'self-forfeited';
+  const isAutoExitReady = isAutoExitKind && !actionState.disabled;
+  useEffect(() => {
+    if (!source || !isAutoExitReady || autoExitTriggeredRef.current) {
+      return;
+    }
+
+    autoExitTriggeredRef.current = true;
+    rgPerfMark('match end auto result dispatch', { kind: actionState.kind, source });
+    if (actionState.kind === 'self-forfeited') {
+      onShowResultAfterSelfForfeit(source);
+    } else {
+      onShowResultAfterCounterpartForfeit(source);
+    }
+  }, [actionState.kind, isAutoExitReady, onShowResultAfterCounterpartForfeit, onShowResultAfterSelfForfeit, source]);
 
   if (!source || actionState.kind === 'hidden') {
     return null;

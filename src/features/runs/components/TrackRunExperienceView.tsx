@@ -36,6 +36,7 @@ type TrackRunExperienceViewProps = {
   showForceResetAction: boolean;
   shouldShowRoomArmingOverlay: boolean;
   roomArmingDebugInfo?: string;
+  shouldShowMatchEndTransitionOverlay?: boolean;
   soloStartCountdownSeconds: number | null;
 };
 
@@ -55,6 +56,7 @@ export function TrackRunExperienceView({
   showForceResetAction,
   shouldShowRoomArmingOverlay,
   roomArmingDebugInfo,
+  shouldShowMatchEndTransitionOverlay,
   soloStartCountdownSeconds,
 }: TrackRunExperienceViewProps) {
   return (
@@ -117,6 +119,15 @@ export function TrackRunExperienceView({
           {/* TEMP diagnostic: build tag + arming state (why it's stuck). Remove later. */}
           <Text style={{ color: colors.white, fontSize: 11, marginTop: spacing.md, opacity: 0.75 }}>
             RG-A3 · {roomArmingDebugInfo ?? '-'}
+          </Text>
+        </View>
+      ) : null}
+      {shouldShowMatchEndTransitionOverlay ? (
+        <View style={styles.roomArmingOverlay}>
+          <ActivityIndicator size="large" color={colors.white} />
+          <Text style={styles.roomArmingOverlayTitle}>결과 저장 중...</Text>
+          <Text style={styles.roomArmingOverlayText}>
+            대결을 정리하고 기록 상세로 이동해요.
           </Text>
         </View>
       ) : null}
