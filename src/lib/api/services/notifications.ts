@@ -6,6 +6,7 @@ import {
 import { USE_MOCK_API } from '../config';
 
 import type {
+  DeleteInboxResponse,
   InboxResponse,
   MarkInboxReadResponse,
 } from '../types';
@@ -66,6 +67,33 @@ export async function markInboxRead(ids?: string[]): Promise<MarkInboxReadRespon
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '알림 읽음 처리에 실패했어.',
+    },
+  );
+}
+
+export async function deleteInbox(ids?: string[]): Promise<DeleteInboxResponse> {
+  if (USE_MOCK_API) {
+    const idSet = Array.isArray(ids)
+      ? new Set(ids.filter((id) => typeof id === 'string' && id.trim()))
+      : null;
+    const beforeCount = mockApiState.inboxNotifications.length;
+
+    mockApiState.inboxNotifications = mockApiState.inboxNotifications.filter(
+      (item) => (idSet ? !idSet.has(item.id) : false),
+    );
+
+    return {
+      deletedCount: beforeCount - mockApiState.inboxNotifications.length,
+      unreadCount: mockApiState.inboxNotifications.filter((item) => !item.readAt).length,
+    };
+  }
+
+  return apiPost<DeleteInboxResponse>(
+    '/me/inbox/delete',
+    ids ? { ids } : {},
+    {
+      accessToken: await requireAccessToken(),
+      fallbackMessage: '알림 삭제에 실패했어.',
     },
   );
 }

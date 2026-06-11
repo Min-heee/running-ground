@@ -1,4 +1,5 @@
 import {
+  deleteUserNotifications,
   listUserNotifications,
   markUserNotificationsRead,
 } from '../lib/userNotifications.mjs';
@@ -39,6 +40,18 @@ export async function routeMeNotificationRequest({
 
   if (pathname === '/api/me/inbox/read' && method === 'POST') {
     await handleMarkMyNotificationsRead({
+      mutateStore,
+      parseJsonBody,
+      request,
+      requireUser,
+      response,
+      sendJson,
+    });
+    return true;
+  }
+
+  if (pathname === '/api/me/inbox/delete' && method === 'POST') {
+    await handleDeleteMyNotifications({
       mutateStore,
       parseJsonBody,
       request,
@@ -106,6 +119,24 @@ async function handleMarkMyNotificationsRead({
   const payload = mutateStore((store) => {
     const user = requireUser(store, request);
     return markUserNotificationsRead(store, user.id, ids);
+  });
+
+  sendJson(response, 200, payload);
+}
+
+async function handleDeleteMyNotifications({
+  mutateStore,
+  parseJsonBody,
+  request,
+  requireUser,
+  response,
+  sendJson,
+}) {
+  const body = await parseJsonBody(request);
+  const ids = Array.isArray(body.ids) ? body.ids : undefined;
+  const payload = mutateStore((store) => {
+    const user = requireUser(store, request);
+    return deleteUserNotifications(store, user.id, ids);
   });
 
   sendJson(response, 200, payload);

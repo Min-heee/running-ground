@@ -128,6 +128,29 @@ export function listUserNotifications(store, userId, { limit = MAX_USER_NOTIFICA
   };
 }
 
+export function deleteUserNotifications(store, userId, ids) {
+  const notifications = ensureUserNotificationsStore(store);
+  const idSet = Array.isArray(ids)
+    ? new Set(ids.filter((id) => typeof id === 'string' && id.trim()).map((id) => id.trim()))
+    : null;
+
+  // ids omitted -> clear the user's whole inbox; ids given -> delete just those.
+  store.notifications = notifications.filter((item) => {
+    if (!item || item.userId !== userId) {
+      return true;
+    }
+
+    return idSet ? !idSet.has(item.id) : false;
+  });
+
+  const remaining = store.notifications.filter((item) => item?.userId === userId);
+
+  return {
+    deletedCount: notifications.length - store.notifications.length,
+    unreadCount: remaining.filter((item) => !item.readAt).length,
+  };
+}
+
 export function markUserNotificationsRead(store, userId, ids, { nowIso = () => new Date().toISOString() } = {}) {
   const notifications = ensureUserNotificationsStore(store);
   const idSet = Array.isArray(ids)

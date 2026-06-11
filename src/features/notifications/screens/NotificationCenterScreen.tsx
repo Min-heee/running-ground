@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { type Href, router, useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
@@ -10,6 +10,7 @@ import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
 import { HomeNoticeCard } from '@/features/home/components/HomeNoticeCard';
 import {
   fetchActiveNotices,
+  deleteInbox,
   fetchInbox,
   getApiErrorMessage,
   markInboxRead,
@@ -165,6 +166,8 @@ function InboxList({
   error,
   items,
   loading,
+  onDeleteAll,
+  onDeleteItem,
   onMarkAllRead,
   onPressItem,
   unreadCount,
@@ -172,6 +175,8 @@ function InboxList({
   error: string | null;
   items: InboxNotification[];
   loading: boolean;
+  onDeleteAll: () => void;
+  onDeleteItem: (item: InboxNotification) => void;
   onMarkAllRead: () => void;
   onPressItem: (item: InboxNotification) => void;
   unreadCount: number;
@@ -191,20 +196,31 @@ function InboxList({
           <Text style={styles.sectionTitle}>내 알림</Text>
           <Text style={styles.sectionHint}>읽지 않은 알림 {unreadCount}개</Text>
         </View>
-        {unreadCount > 0 ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={onMarkAllRead}
-            style={styles.markAllButton}
-          >
-            <Text style={styles.markAllButtonText}>모두 읽음</Text>
-          </Pressable>
-        ) : null}
+        <View style={styles.inboxHeaderActions}>
+          {unreadCount > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={onMarkAllRead}
+              style={styles.markAllButton}
+            >
+              <Text style={styles.markAllButtonText}>모두 읽음</Text>
+            </Pressable>
+          ) : null}
+          {items.length > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={onDeleteAll}
+              style={styles.markAllButton}
+            >
+              <Text style={styles.deleteAllButtonText}>모두 삭제</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       {items.length ? (
         items.map((item) => (
-          <NotificationRow key={item.id} item={item} onPress={onPressItem} />
+          <NotificationRow key={item.id} item={item} onDelete={onDeleteItem} onPress={onPressItem} />
         ))
       ) : (
         <View style={styles.emptyState}>
@@ -218,9 +234,11 @@ function InboxList({
 
 function NotificationRow({
   item,
+  onDelete,
   onPress,
 }: {
   item: InboxNotification;
+  onDelete: (item: InboxNotification) => void;
   onPress: (item: InboxNotification) => void;
 }) {
   const unread = item.readAt === null;
@@ -244,6 +262,15 @@ function NotificationRow({
         <Text style={styles.notificationBody}>{item.body}</Text>
       </View>
       {unread ? <View style={styles.unreadDot} /> : null}
+      <Pressable
+        accessibilityLabel="알림 삭제"
+        accessibilityRole="button"
+        hitSlop={8}
+        onPress={() => onDelete(item)}
+        style={styles.notificationDeleteButton}
+      >
+        <Feather name="x" size={fontSizes.md} color={colors.textSecondary} />
+      </Pressable>
     </Pressable>
   );
 }
@@ -294,6 +321,33 @@ export default function NotificationCenterScreen() {
 
     loadInbox();
   }, [activeTab, loadInbox, loadNotices]);
+
+  const handleDeleteItem = useCallback((item: InboxNotification) => {
+    deleteInbox([item.id])
+      .then((payload) => {
+        setInboxItems((currentItems) => currentItems.filter((current) => current.id !== item.id));
+        setUnreadCount(payload.unreadCount);
+      })
+      .catch((error) => setInboxError(getApiErrorMessage(error, '알림 삭제에 실패했어.')));
+  }, []);
+
+  const handleDeleteAll = useCallback(() => {
+    Alert.alert('알림 모두 삭제', '받은 알림을 모두 삭제할까요?', [
+      { text: '취소', style: 'cancel' },
+      {
+        text: '모두 삭제',
+        style: 'destructive',
+        onPress: () => {
+          deleteInbox()
+            .then((payload) => {
+              setInboxItems([]);
+              setUnreadCount(payload.unreadCount);
+            })
+            .catch((error) => setInboxError(getApiErrorMessage(error, '알림 삭제에 실패했어.')));
+        },
+      },
+    ]);
+  }, []);
 
   const handleMarkAllRead = useCallback(() => {
     markInboxRead()
@@ -357,6 +411,8 @@ export default function NotificationCenterScreen() {
           error={inboxError}
           items={inboxItems}
           loading={inboxLoading}
+          onDeleteAll={handleDeleteAll}
+          onDeleteItem={handleDeleteItem}
           onMarkAllRead={handleMarkAllRead}
           onPressItem={handlePressNotification}
           unreadCount={unreadCount}
@@ -418,6 +474,21 @@ const styles = StyleSheet.create({
     color: colors.brandStrong,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
+  },
+  inboxHeaderActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  deleteAllButtonText: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  notificationDeleteButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: spacing.xs,
   },
   notificationRow: {
     alignItems: 'flex-start',

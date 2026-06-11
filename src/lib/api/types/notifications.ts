@@ -34,3 +34,8 @@ export type InboxResponse = {
 export type MarkInboxReadResponse = {
   unreadCount: number;
 };
+
+export type DeleteInboxResponse = {
+  deletedCount: number;
+  unreadCount: number;
+};
