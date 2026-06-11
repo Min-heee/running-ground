@@ -77,13 +77,18 @@ export function useRunSaveCommand({
       const trackingSnapshot = getBackgroundRunTrackingSnapshot();
       const displayedSnapshot = getDisplayedTrackingSnapshot(trackingSnapshot);
       syncFromBackgroundTracking(trackingSnapshot);
+      const resolvedMatchResult = options.matchResultOverride ?? trackedMatchResult;
       const saveSnapshot = buildRunSaveResultSnapshot({
         allowShortDistanceSave: Boolean(options.allowShortDistanceSave),
-        allowStationaryForfeitSave: Boolean(options.allowStationaryForfeitSave),
+        // A run that carries a match result is a decided competition — it must save even
+        // at 0.00km with no GPS fixes (e.g. friends start a party run, then immediately
+        // forfeit to redo it). Without this, the manual save button on the fallback
+        // screen kept rejecting with '이동한 러닝 경로가 필요해', leaving no way out.
+        allowStationaryForfeitSave: Boolean(options.allowStationaryForfeitSave) || Boolean(resolvedMatchResult),
         displayedSnapshot,
         matchSource: isPartyRun ? 'party' : 'official',
         totalSteps: totalStepsRef.current,
-        trackedMatchResult: options.matchResultOverride ?? trackedMatchResult,
+        trackedMatchResult: resolvedMatchResult,
       });
       syncElapsedSeconds(saveSnapshot.finalElapsedSeconds);
 
