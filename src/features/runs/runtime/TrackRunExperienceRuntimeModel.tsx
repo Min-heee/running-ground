@@ -1083,8 +1083,12 @@ export function TrackRunExperienceRuntime({
     currentUserHasForfeitedActiveMatch
     && (activeMatchExitSource === 'duel' || activeMatchExitSource === 'group'),
   );
-  const activeMatchExitSelfFinished = activeMatchExitSource === 'duel'
-    && currentUserDuelLiveStatus === 'finished';
+  // Group parity: a group runner who reaches the goal must get the same self-finished
+  // exit (auto save -> run detail) as a duel runner, instead of being left on the live
+  // page with a 기권하기 card.
+  const activeMatchExitSelfFinished = (activeMatchExitSource === 'duel'
+    && currentUserDuelLiveStatus === 'finished')
+    || (activeMatchExitSource === 'group' && currentUserGroupLiveStatus === 'finished');
   const shouldSuppressDoneMatchAutoOpen = currentUserDoneWithCurrentMatch && !isRunning;
   const shouldForceLiveArenaFromRoute = Boolean(
     !shouldSuppressDoneMatchAutoOpen

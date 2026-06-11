@@ -278,7 +278,9 @@ test('duel race board applies safe opponent label fallback without nickname or u
   assert.equal(viewModel?.rows.find((row) => !row.isCurrentUser)?.name, '상대');
 });
 
-test('group race board hides running rivals but keeps finished runners before current user finishes', () => {
+test('group race board keeps running rivals visible alongside finished runners', () => {
+  // Same contract the duel board already has: rivals who are still running must stay
+  // on the live rank page instead of collapsing to a finished-only list.
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
     matchMode: 'group',
     groupLiveStandings: [
@@ -288,8 +290,7 @@ test('group race board hides running rivals but keeps finished runners before cu
     ],
   }));
 
-  assert.deepEqual(viewModel?.rows.map((row) => row.id), ['me', 'finished']);
-  assert.match(viewModel?.subtitle ?? '', /완주한 러너만/);
+  assert.deepEqual(viewModel?.rows.map((row) => row.id), ['me', 'finished', 'running']);
 });
 
 test('group race board shows running rivals as placeholders after current user finishes', () => {

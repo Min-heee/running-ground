@@ -107,7 +107,6 @@ export function buildGroupLiveProgressModel({
   participants,
   seedRank,
   distanceKm,
-  elapsedSeconds,
   targetDistanceKm,
 }: {
   deferRankingCalculations: boolean;
@@ -115,12 +114,11 @@ export function buildGroupLiveProgressModel({
   participants: GroupMatchParticipant[];
   seedRank?: number;
   distanceKm: number;
-  elapsedSeconds: number;
   targetDistanceKm: number;
 }): GroupLiveProgressModel {
   const groupLiveStandings = deferRankingCalculations && matchMode === 'group'
     ? []
-    : buildGroupLiveStandings(participants, seedRank, distanceKm, elapsedSeconds, targetDistanceKm);
+    : buildGroupLiveStandings(participants, seedRank, distanceKm, targetDistanceKm);
 
   return {
     groupLiveStandings,

@@ -372,7 +372,6 @@ export function buildGroupLiveStandings(
   participants: GroupMatchParticipant[],
   mySeedRank: number | undefined,
   currentDistanceKm: number,
-  elapsedSeconds: number,
   targetDistanceKm: number,
 ): GroupLiveStanding[] {
   if (!participants.length) {

@@ -191,7 +191,6 @@ test('buildGroupLiveStandings ranks distance first and pushes forfeited runners 
     ],
     2,
     1,
-    380,
     5,
   );
 
@@ -211,7 +210,6 @@ test('buildGroupLiveStandings trusts official server ranks when available', () =
     ],
     2,
     0.5,
-    180,
     5,
   );
 
@@ -222,7 +220,7 @@ test('buildGroupLiveStandings trusts official server ranks when available', () =
 });
 
 test('buildGroupLiveStandings returns empty standings for empty participant input', () => {
-  assert.deepEqual(buildGroupLiveStandings([], 1, 0, 0, 5), []);
+  assert.deepEqual(buildGroupLiveStandings([], 1, 0, 5), []);
 });
 
 test('buildGroupLiveStandings breaks distance ties by faster average pace', () => {
@@ -233,7 +231,6 @@ test('buildGroupLiveStandings breaks distance ties by faster average pace', () =
     ],
     1,
     1,
-    360,
     5,
   );
 

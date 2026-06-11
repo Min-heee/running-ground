@@ -263,6 +263,11 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
       liveDistanceKm,
       liveElapsedSeconds,
       liveStatus,
+      finishedAt: typeof liveSnapshot.finishedAt === 'string' && liveSnapshot.finishedAt
+        ? liveSnapshot.finishedAt
+        : typeof participant.finishedAt === 'string' && participant.finishedAt
+          ? participant.finishedAt
+          : null,
       hasProgress,
       contributesToLiveCheckpoint,
       officialAveragePace: buildProgressAveragePaceLabel(liveDistanceKm, liveElapsedSeconds),
@@ -301,8 +306,27 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
         return left.officialReady ? -1 : 1;
       }
 
-      if (left.liveStatus === 'forfeited' || right.liveStatus === 'forfeited') {
-        return left.liveStatus === 'forfeited' ? 1 : -1;
+      const leftForfeited = left.liveStatus === 'forfeited';
+      const rightForfeited = right.liveStatus === 'forfeited';
+      // Only order forfeited BELOW non-forfeited; two forfeited runners must fall
+      // through to the stable comparisons or the sort is inconsistent and their ranks
+      // flap between responses.
+      if (leftForfeited !== rightForfeited) {
+        return leftForfeited ? 1 : -1;
+      }
+
+      // Finish order IS the rank. Finished runners are capped at the goal distance,
+      // so their projected distances tie and the old sort fell through to seedRank —
+      // letting a later finisher outrank someone who finished a minute earlier.
+      const leftFinishedMs = typeof left.finishedAt === 'string' ? Date.parse(left.finishedAt) : NaN;
+      const rightFinishedMs = typeof right.finishedAt === 'string' ? Date.parse(right.finishedAt) : NaN;
+      const leftHasFinish = Number.isFinite(leftFinishedMs);
+      const rightHasFinish = Number.isFinite(rightFinishedMs);
+      if (leftHasFinish !== rightHasFinish) {
+        return leftHasFinish ? -1 : 1;
+      }
+      if (leftHasFinish && rightHasFinish && leftFinishedMs !== rightFinishedMs) {
+        return leftFinishedMs - rightFinishedMs;
       }
 
       if (right.officialDistanceKm !== left.officialDistanceKm) {

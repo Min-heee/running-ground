@@ -64,14 +64,14 @@ export function useLiveMatchProgress({
     participants: effectiveGroupParticipants,
     seedRank: effectiveGroupSeedRank,
     distanceKm,
-    elapsedSeconds,
     targetDistanceKm: groupDistanceKm,
+    // elapsedSeconds was never read by the standings builder, but keeping it in the
+    // deps rebuilt and re-sorted N standings objects every single second.
   }), [
     deferRankingCalculations,
     distanceKm,
     effectiveGroupParticipants,
     effectiveGroupSeedRank,
-    elapsedSeconds,
     groupDistanceKm,
     matchMode,
   ]);

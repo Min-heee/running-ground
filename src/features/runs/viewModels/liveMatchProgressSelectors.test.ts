@@ -42,7 +42,6 @@ test('buildGroupLiveProgressModel defers group ranking calculations when request
     ],
     seedRank: 1,
     distanceKm: 0.5,
-    elapsedSeconds: 300,
     targetDistanceKm: 5,
   });
 
@@ -62,7 +61,6 @@ test('buildGroupLiveProgressModel keeps non-group ranking behavior unchanged', (
     ],
     seedRank: 1,
     distanceKm: 0.5,
-    elapsedSeconds: 300,
     targetDistanceKm: 5,
   });
 
