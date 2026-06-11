@@ -338,6 +338,28 @@ export function useMatchProgressSync({
     });
   }, [canSendMatchProgressHeartbeat, getActiveMatchProgressTarget, heartbeatEnabled, matchProgressHeartbeatRef, pushRunningMatchProgress]);
 
+  // Stationary keep-alive. The heartbeat is the channel that brings the OTHER
+  // participants' liveStatus (forfeited/finished) back into duel/groupMatchStatus, but
+  // it was fired only from GPS snapshot emissions — a runner standing still stopped
+  // hearing about the match entirely (an opponent's forfeit never arrived; worse with
+  // group sizes, where any one of N runners may stop). Tick the same heartbeat on a
+  // plain timer: refreshMatchProgressHeartbeat's own gates (running status + interval
+  // since the last beat + single-flight) make this a no-op while GPS is already
+  // covering, and the only sender when stationary.
+  useEffect(() => {
+    if (!heartbeatEnabled || !activeHeartbeatMatchId) {
+      return undefined;
+    }
+
+    const intervalId = setInterval(() => {
+      refreshMatchProgressHeartbeat(getBackgroundRunTrackingSnapshot({ cloneRoute: false }));
+    }, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [activeHeartbeatMatchId, heartbeatEnabled, refreshMatchProgressHeartbeat]);
+
   return {
     getActiveMatchProgressTarget,
     pushRunningMatchProgress,
