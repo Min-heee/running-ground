@@ -55,13 +55,12 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
     onShowResultAfterSelfForfeit(source);
   }, [onShowResultAfterSelfForfeit, source]);
 
-  // Match endings go straight to the run detail without a manual button press:
-  // the moment the finish/counterpart-forfeit/self-forfeit card becomes actionable,
-  // trigger its save-and-navigate once. The card stays rendered (with its '저장 중'
-  // label) purely as the in-between state.
+  // MY endings go straight to the run detail without a manual press: finishing the
+  // goal distance and a self-forfeit retry both auto-dispatch their save-and-navigate.
+  // counterpart-forfeited stays MANUAL on purpose — when the opponent forfeits, this
+  // runner keeps running and decides when to press 대결종료 themselves.
   const autoExitTriggeredRef = useRef(false);
   const isAutoExitKind = actionState.kind === 'self-finished'
-    || actionState.kind === 'counterpart-forfeited'
     || actionState.kind === 'self-forfeited';
   const isAutoExitReady = isAutoExitKind && !actionState.disabled;
   useEffect(() => {

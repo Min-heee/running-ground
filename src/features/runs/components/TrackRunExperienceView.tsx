@@ -123,7 +123,7 @@ export function TrackRunExperienceView({
         </View>
       ) : null}
       {shouldShowMatchEndTransitionOverlay ? (
-        <View style={styles.roomArmingOverlay}>
+        <View style={[styles.roomArmingOverlay, styles.matchEndTransitionOverlay]}>
           <ActivityIndicator size="large" color={colors.white} />
           <Text style={styles.roomArmingOverlayTitle}>결과 저장 중...</Text>
           <Text style={styles.roomArmingOverlayText}>
@@ -194,6 +194,12 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
     paddingHorizontal: 28,
     zIndex: 30,
+  },
+  matchEndTransitionOverlay: {
+    // Fully opaque: the shell underneath churns through live/matching states while the
+    // save runs, and a translucent cover let that thrash bleed through.
+    backgroundColor: colors.navyInk,
+    zIndex: 40,
   },
   roomArmingOverlayTitle: {
     color: colors.white,
