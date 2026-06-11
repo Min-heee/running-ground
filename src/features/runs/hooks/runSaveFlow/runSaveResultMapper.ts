@@ -156,7 +156,14 @@ export function buildRunSaveResultSnapshot({
       startedAt,
       endedAt,
       ...(trackedMatchResult
-        ? { matchResult: { ...trackedMatchResult, ...(matchSource ? { source: matchSource } : {}) } }
+        ? {
+            matchResult: {
+              ...trackedMatchResult,
+              myPaceLabel: trackedMatchResult.myPaceLabel ?? averagePaceLabel,
+              myDurationSeconds: trackedMatchResult.myDurationSeconds ?? finalElapsedSeconds,
+              ...(matchSource ? { source: matchSource } : {}),
+            },
+          }
         : {}),
     },
   };
