@@ -167,6 +167,10 @@ export function buildDuelMatchFinishModel({
       resultTone,
       gapKm,
       comparedDistanceKm: opponentDistanceKm,
+      myPaceLabel: currentPaceLabel,
+      myDurationSeconds: currentElapsedSeconds,
+      opponentPaceLabel: opponentPace,
+      opponentDurationSeconds: opponentElapsedSeconds,
     },
   };
 }

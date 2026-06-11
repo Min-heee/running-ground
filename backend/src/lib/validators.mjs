@@ -367,6 +367,24 @@ export function validateRunMatchResult(rawMatchResult) {
     throw new ApiError(400, '매치 결과 상태 값이 올바르지 않아.');
   }
 
+  const myPaceLabel = normalizeOptionalString(rawMatchResult.myPaceLabel);
+  const opponentPaceLabel = normalizeOptionalString(rawMatchResult.opponentPaceLabel);
+  const validateOptionalDurationSeconds = (value, message) => {
+    if (typeof value === 'undefined' || value === null) {
+      return undefined;
+    }
+
+    const seconds = Number(value);
+
+    if (!Number.isInteger(seconds) || seconds < 0 || seconds > 24 * 60 * 60) {
+      throw new ApiError(400, message);
+    }
+
+    return seconds;
+  };
+  const myDurationSeconds = validateOptionalDurationSeconds(rawMatchResult.myDurationSeconds, '내 기록 시간 값이 올바르지 않아.');
+  const opponentDurationSeconds = validateOptionalDurationSeconds(rawMatchResult.opponentDurationSeconds, '상대 기록 시간 값이 올바르지 않아.');
+
   return {
     mode,
     title,
@@ -378,6 +396,10 @@ export function validateRunMatchResult(rawMatchResult) {
     ...(typeof participantCount === 'number' ? { participantCount } : {}),
     ...(typeof gapKm === 'number' ? { gapKm } : {}),
     ...(typeof comparedDistanceKm === 'number' ? { comparedDistanceKm } : {}),
+    ...(myPaceLabel ? { myPaceLabel } : {}),
+    ...(typeof myDurationSeconds === 'number' ? { myDurationSeconds } : {}),
+    ...(opponentPaceLabel ? { opponentPaceLabel } : {}),
+    ...(typeof opponentDurationSeconds === 'number' ? { opponentDurationSeconds } : {}),
   };
 }
 

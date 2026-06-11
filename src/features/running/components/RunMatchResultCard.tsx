@@ -13,17 +13,55 @@ type RunMatchResultCardProps = {
   matchResult: MatchResult;
 };
 
+function formatDurationLabel(durationSeconds?: number) {
+  if (typeof durationSeconds !== 'number' || !Number.isFinite(durationSeconds) || durationSeconds < 0) {
+    return null;
+  }
+
+  const totalSeconds = Math.round(durationSeconds);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const padded = (value: number) => String(value).padStart(2, '0');
+
+  return hours > 0
+    ? `${hours}:${padded(minutes)}:${padded(seconds)}`
+    : `${padded(minutes)}:${padded(seconds)}`;
+}
+
+function RunnerColumn({
+  name,
+  paceLabel,
+  durationLabel,
+  highlight,
+}: {
+  name: string;
+  paceLabel: string | null;
+  durationLabel: string | null;
+  highlight: boolean;
+}) {
+  return (
+    <View style={styles.runnerColumn}>
+      <Text style={[styles.runnerName, highlight ? styles.runnerNameMe : null]} numberOfLines={1}>
+        {name}
+      </Text>
+      {paceLabel ? <Text style={styles.runnerMetric}>{paceLabel}</Text> : null}
+      {durationLabel ? <Text style={styles.runnerMetric}>{durationLabel}</Text> : null}
+    </View>
+  );
+}
+
 export function RunMatchResultCard({ matchResult }: RunMatchResultCardProps) {
   const lpDelta = getEstimatedMatchLpDelta(matchResult);
   const isLpGain = lpDelta > 0;
+  // Party runs never carry rank LP — in either direction.
   const showLp = matchResult.source !== 'party' && lpDelta !== 0;
   const lpPillStyle = isLpGain ? matchResultLpGainPillStyle : matchResultLpLossPillStyle;
   const lpPillTextStyle = isLpGain ? matchResultLpGainPillTextStyle : matchResultLpLossPillTextStyle;
-  const sourceLabel = matchResult.source === 'party'
-    ? '파티런'
-    : matchResult.source === 'official' ? '공식' : '';
-  const modeLabel = matchResult.mode === 'duel' ? '1대1 대결' : '그룹 대결';
-  const typeLabel = sourceLabel ? `${sourceLabel} ${modeLabel}` : modeLabel;
+  const isParty = matchResult.source === 'party';
+  const typeLabel = matchResult.mode === 'duel'
+    ? isParty ? '1대1 파티런' : '1대1 대결'
+    : isParty ? '그룹 파티런' : '그룹 대결';
   const badgeStyle = [
     styles.matchResultBadge,
     matchResult.resultTone === 'win'
@@ -34,20 +72,48 @@ export function RunMatchResultCard({ matchResult }: RunMatchResultCardProps) {
           ? styles.matchResultBadgeDraw
           : null,
   ];
-  const metaText = typeof matchResult.gapKm === 'number'
+  const showDuelComparison = matchResult.mode === 'duel' && Boolean(matchResult.opponentName);
+  const gapText = typeof matchResult.gapKm === 'number'
     ? `차이 ${matchResult.gapKm.toFixed(2)}km`
-    : typeof matchResult.rank === 'number' && typeof matchResult.participantCount === 'number'
-      ? `${matchResult.participantCount}명 중 ${matchResult.rank}위`
-      : null;
+    : null;
+  const groupRankText = typeof matchResult.rank === 'number' && typeof matchResult.participantCount === 'number'
+    ? `${matchResult.participantCount}명 중 ${matchResult.rank}위`
+    : null;
   const card = (
     <Card style={styles.matchResultCard}>
       <Text style={styles.matchResultLabel}>{typeLabel}</Text>
       <View style={badgeStyle}>
         <Text style={styles.matchResultBadgeText}>{matchResult.badgeLabel}</Text>
       </View>
-      {matchResult.opponentName ? (
-        <Text style={styles.matchResultOpponent}>vs {matchResult.opponentName}</Text>
-      ) : null}
+      {showDuelComparison ? (
+        <>
+          <View style={styles.duelComparisonRow}>
+            <RunnerColumn
+              name="나"
+              paceLabel={matchResult.myPaceLabel ?? null}
+              durationLabel={formatDurationLabel(matchResult.myDurationSeconds)}
+              highlight
+            />
+            <Text style={styles.duelVersus}>vs</Text>
+            <RunnerColumn
+              name={matchResult.opponentName ?? '상대'}
+              paceLabel={matchResult.opponentPaceLabel ?? null}
+              durationLabel={formatDurationLabel(matchResult.opponentDurationSeconds)}
+              highlight={false}
+            />
+          </View>
+          {gapText ? <Text style={styles.matchResultMeta}>{gapText}</Text> : null}
+        </>
+      ) : (
+        <>
+          {matchResult.opponentName ? (
+            <Text style={styles.matchResultOpponent}>vs {matchResult.opponentName}</Text>
+          ) : null}
+          {gapText ?? groupRankText ? (
+            <Text style={styles.matchResultMeta}>{gapText ?? groupRankText}</Text>
+          ) : null}
+        </>
+      )}
       {showLp ? (
         <View style={lpPillStyle}>
           <Text style={lpPillTextStyle}>
@@ -55,7 +121,6 @@ export function RunMatchResultCard({ matchResult }: RunMatchResultCardProps) {
           </Text>
         </View>
       ) : null}
-      {metaText ? <Text style={styles.matchResultMeta}>{metaText}</Text> : null}
       {matchResult.opponentId ? <Text style={styles.profileLinkText}>프로필 보기 ›</Text> : null}
     </Card>
   );
@@ -122,6 +187,34 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
+  },
+  duelComparisonRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  duelVersus: {
+    color: colors.textMuted,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+    paddingTop: spacing.xxs,
+  },
+  runnerColumn: {
+    flex: 1,
+    gap: spacing.xxs,
+  },
+  runnerName: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extraBold,
+  },
+  runnerNameMe: {
+    color: colors.brandStrong,
+  },
+  runnerMetric: {
+    color: colors.textMuted,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
   matchResultOpponent: {
     color: colors.textPrimary,

@@ -13,6 +13,10 @@ export type RunMatchResult = {
   participantCount?: number;
   gapKm?: number;
   comparedDistanceKm?: number;
+  myPaceLabel?: string;
+  myDurationSeconds?: number;
+  opponentPaceLabel?: string;
+  opponentDurationSeconds?: number;
 };
 
 export type OfflineRaceStatus =
