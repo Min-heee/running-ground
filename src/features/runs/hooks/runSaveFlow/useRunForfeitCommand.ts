@@ -115,15 +115,17 @@ export function useRunForfeitCommand({
     options: { currentUserForfeited?: boolean } = {},
   ) => {
     let savedRunId: string | null = null;
-    const shouldAllowStationaryEndSave = Boolean(
-      options.currentUserForfeited
-      || (source === 'duel' && duelMatchStatus?.opponent?.liveStatus === 'forfeited'),
-    );
-    const displayedSnapshot = shouldAllowStationaryEndSave ? getDisplayedTrackingSnapshot() : null;
+    // This command only runs once the duel/group is decisively over (self forfeit,
+    // opponent forfeit, or a terminal match state), so a stationary 0.00km snapshot
+    // must still save and flow on to the run detail. Gating this on
+    // opponent.liveStatus === 'forfeited' raced the slow stationary status sync: the
+    // 0km save was rejected ("이동한 러닝 경로가 필요해") and the user was dumped on the
+    // manual save/restart/discard screen with "대결은 종료됐지만 저장에 실패했어".
+    const displayedSnapshot = getDisplayedTrackingSnapshot();
     const didSave = await handleSaveTracking({
       // Duel-ending actions can happen before 0.1km or before GPS yields two points.
       allowShortDistanceSave: true,
-      allowStationaryForfeitSave: shouldAllowStationaryEndSave,
+      allowStationaryForfeitSave: true,
       exitIfUnsavable: true,
       matchResultOverride: options.currentUserForfeited && displayedSnapshot
         ? buildCurrentUserForfeitMatchResult({
