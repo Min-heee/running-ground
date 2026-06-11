@@ -236,6 +236,77 @@ test('host-start local countdown lock keeps ticking after raw countdown ends ear
   }
 });
 
+test('host-start lock re-locks once when the implied slot drifts after a late offset converge', () => {
+  resetPersistentHostStartCountdownForTest();
+  const input = {
+    key: 'match-relock:host-display',
+    maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+  };
+
+  try {
+    // Cold lock while the server-clock offset is still converging: raw says 10s.
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 0,
+      rawRemainingSeconds: 10,
+    }), 10);
+
+    // 1s later the offset has converged (+3s), so the implied slot moved by -3s.
+    // The lock corrects ONCE to the accurate target (digit steps down, never up).
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 1000,
+      rawRemainingSeconds: 6,
+    }), 6);
+
+    // Re-lock is one-shot: later raw swings no longer move the target.
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 2000,
+      rawRemainingSeconds: 9,
+    }), 5);
+
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 6000,
+      rawRemainingSeconds: null,
+    }), 1);
+
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 7000,
+      rawRemainingSeconds: null,
+    }), null);
+  } finally {
+    resetPersistentHostStartCountdownForTest();
+  }
+});
+
+test('host-start lock holds through small jitter without re-locking', () => {
+  resetPersistentHostStartCountdownForTest();
+  const input = {
+    key: 'match-jitter:host-display',
+    maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+  };
+
+  try {
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 0,
+      rawRemainingSeconds: 10,
+    }), 10);
+
+    // +1.0s implied drift is within the jitter tolerance → the lock holds steady.
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      ...input,
+      nowMs: 1000,
+      rawRemainingSeconds: 10,
+    }), 9);
+  } finally {
+    resetPersistentHostStartCountdownForTest();
+  }
+});
+
 test('host-start local countdown lock waits for the visible host window before locking', () => {
   resetPersistentHostStartCountdownForTest();
   const input = {

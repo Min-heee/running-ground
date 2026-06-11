@@ -33,7 +33,22 @@ type MonotonicCountdownTracker = {
 
 type HostStartCountdownLock = {
   localTargetMs: number;
+  // Where the slot start sits on the LOCAL clock as implied by rawRemainingSeconds at
+  // lock time (nowMs + raw*1000). rawRemainingSeconds is computed from syncedNow, so if
+  // the server-clock offset converges after we locked, the implied slot shifts — letting
+  // us detect that the frozen target was built on a stale offset.
+  impliedSlotLocalMs: number;
+  hasRelocked: boolean;
 };
+
+// A lock created while the server-clock offset was still converging (cold start; mostly
+// Android, whose hardware clock can be seconds off) freezes the wrong target and ends
+// the countdown seconds late. Allow ONE re-lock when the implied slot has drifted by
+// clearly more than handoff/raw jitter (the lock must still absorb ~2s remount swings)
+// and there is comfortably enough time left that the corrected digit just steps down
+// (the overlay's monotonic floor forbids upward jumps, so it can never count back up).
+const HOST_START_COUNTDOWN_RELOCK_MIN_DRIFT_MS = 2500;
+const HOST_START_COUNTDOWN_RELOCK_MIN_REMAINING_MS = 4000;
 
 const HOST_START_COUNTDOWN_LOCK_MAX_ENTRIES = 8;
 const hostStartCountdownLocks = new Map<string, HostStartCountdownLock>();
@@ -205,8 +220,32 @@ export function resolvePersistentHostStartCountdownRemainingSeconds({
 
     lock = {
       localTargetMs: nowMs + Math.min(maxStartSeconds, rawRemainingSeconds) * 1000,
+      impliedSlotLocalMs: nowMs + rawRemainingSeconds * 1000,
+      hasRelocked: false,
     };
     writeHostStartCountdownLock(key, lock);
+  } else if (
+    !lock.hasRelocked
+    && typeof rawRemainingSeconds === 'number'
+    && rawRemainingSeconds > 0
+    && rawRemainingSeconds <= maxStartSeconds
+  ) {
+    const impliedSlotLocalMs = nowMs + rawRemainingSeconds * 1000;
+    const driftMs = impliedSlotLocalMs - lock.impliedSlotLocalMs;
+    const lockedRemainingMs = lock.localTargetMs - nowMs;
+
+    if (
+      Math.abs(driftMs) > HOST_START_COUNTDOWN_RELOCK_MIN_DRIFT_MS
+      && lockedRemainingMs >= HOST_START_COUNTDOWN_RELOCK_MIN_REMAINING_MS
+      && rawRemainingSeconds * 1000 >= HOST_START_COUNTDOWN_RELOCK_MIN_REMAINING_MS
+    ) {
+      lock = {
+        localTargetMs: nowMs + Math.min(maxStartSeconds, rawRemainingSeconds) * 1000,
+        impliedSlotLocalMs,
+        hasRelocked: true,
+      };
+      writeHostStartCountdownLock(key, lock);
+    }
   }
 
   const remainingMs = lock.localTargetMs - nowMs;
@@ -546,7 +585,7 @@ export function useMatchCountdownModel({
     }),
     // TEMP diagnostic: surfaces WHY the arming overlay is stuck (link id / slot start
     // present?, phase, start mode, remaining). Shown on the overlay; remove later.
-    roomArmingDebugInfo: `L${matchRoom?.linkedMatchId ? 1 : 0} S${matchRoom?.linkedMatchSlotStartAt ? 1 : 0} ${matchRoomFlow.phase ?? '-'} sm:${matchRoom?.startMode ?? '-'} r:${matchRoomCountdownRemainingSeconds ?? '-'}`,
+    roomArmingDebugInfo: `L${matchRoom?.linkedMatchId ? 1 : 0} S${matchRoom?.linkedMatchSlotStartAt ? 1 : 0} ${matchRoomFlow.phase ?? '-'} sm:${matchRoom?.startMode ?? '-'} r:${matchRoomCountdownRemainingSeconds ?? '-'} n:${Math.floor(nowMs / 1000) % 1000}`,
     canOpenRoomArena: visiblePartyRunFlow.shouldOpenArena,
   };
 }

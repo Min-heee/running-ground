@@ -13,21 +13,41 @@ import type { PartyRunSyncCallbackRef } from './types';
 // which now carries the slot start) gets through and is committed.
 const COUNTDOWN_READY_RECOVERY_INTERVAL_MS = 2000;
 const COUNTDOWN_READY_RECOVERY_MAX_ATTEMPTS = 20;
+// A delivered slot start is only trustworthy when it is near. The host-start visible
+// window is 10s; a slot sitting further out than this is a stale PRE-ARM slot (start
+// +18s) the device got before the backend re-armed it (+12s), with no remaining
+// delivery channel to correct it — observed live as the overlay frozen at r:17.
+const COUNTDOWN_READY_SLOT_FAR_MS = 13_000;
 
 export function isRoomStuckArming({
   hasLinkedMatch,
   linkedMatchSlotStartAt,
+  nowMs,
   phase,
 }: {
   hasLinkedMatch: boolean;
   linkedMatchSlotStartAt?: string | null;
+  nowMs: number;
   phase: PartyRunFlowSnapshot['phase'];
 }) {
-  // Both pre-countdown phases can stall with no slot start: 'arming' (the ACK was
-  // dropped, so the room never updated) and 'readyAcked' (we acked, but in a group the
-  // slot start only lands once the LAST participant acks, and that later room update has
-  // no delivery channel either).
-  return hasLinkedMatch && (phase === 'arming' || phase === 'readyAcked') && !linkedMatchSlotStartAt;
+  if (!hasLinkedMatch) {
+    return false;
+  }
+
+  // All pre-countdown phases can stall: 'arming' (the ACK was dropped, so the room
+  // never updated), 'readyAcked' (in a group the slot start only lands once the LAST
+  // participant acks), and 'arenaHandoff' (a stale far-out slot keeps the phase pinned
+  // before the visible countdown).
+  if (phase !== 'arming' && phase !== 'readyAcked' && phase !== 'arenaHandoff') {
+    return false;
+  }
+
+  if (!linkedMatchSlotStartAt) {
+    return true;
+  }
+
+  const slotStartMs = Date.parse(linkedMatchSlotStartAt);
+  return Number.isFinite(slotStartMs) && slotStartMs - nowMs > COUNTDOWN_READY_SLOT_FAR_MS;
 }
 
 type UseCountdownReadyAckInput = {
@@ -90,17 +110,30 @@ export function useCountdownReadyAck({
     if (!isRoomStuckArming({
       hasLinkedMatch: matchRoomFlow.hasLinkedMatch,
       linkedMatchSlotStartAt: matchRoom.linkedMatchSlotStartAt,
+      nowMs: Date.now(),
       phase: matchRoomFlow.phase,
     })) {
       recoveryAttemptsRef.current = 0;
       return undefined;
     }
 
-    const { roomId } = matchRoom;
+    const { roomId, linkedMatchSlotStartAt } = matchRoom;
     const intervalId = setInterval(() => {
       if (recoveryAttemptsRef.current >= COUNTDOWN_READY_RECOVERY_MAX_ATTEMPTS) {
         clearInterval(intervalId);
         return;
+      }
+
+      // Re-check inside the tick with the live clock: once the (closure) slot is near
+      // enough to be the real armed slot, the room is progressing normally — stop.
+      // This runs even if React renders are wedged, so a re-ACK that commits a fresh
+      // room snapshot also restarts the frozen UI.
+      if (typeof linkedMatchSlotStartAt === 'string') {
+        const slotStartMs = Date.parse(linkedMatchSlotStartAt);
+        if (Number.isFinite(slotStartMs) && slotStartMs - Date.now() <= COUNTDOWN_READY_SLOT_FAR_MS) {
+          clearInterval(intervalId);
+          return;
+        }
       }
 
       recoveryAttemptsRef.current += 1;
