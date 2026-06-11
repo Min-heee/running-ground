@@ -236,6 +236,60 @@ test('host-start local countdown lock keeps ticking after raw countdown ends ear
   }
 });
 
+test('host-start lock targets the exact slot instant regardless of lock-tick phase', () => {
+  resetPersistentHostStartCountdownForTest();
+
+  try {
+    // Two phones with agreeing clocks cross the 10s gate on different render-tick
+    // phases against the SAME slot (at local 10_000ms). Their displayed boundaries must
+    // land on the same instants — the old nowMs + raw*1000 quantization put them up to
+    // ~1s apart.
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      key: 'phone-a:host-display',
+      maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+      nowMs: 0,
+      rawRemainingSeconds: 10,
+      rawRemainingMs: 10_000,
+    }), 10);
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      key: 'phone-b:host-display',
+      maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+      nowMs: 480,
+      rawRemainingSeconds: 10,
+      rawRemainingMs: 9_520,
+    }), 10);
+
+    // Both countdowns end at the same local instant (10_000ms): just before it both
+    // still show 1, at it both are done.
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      key: 'phone-a:host-display',
+      maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+      nowMs: 9_900,
+      rawRemainingSeconds: null,
+    }), 1);
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      key: 'phone-b:host-display',
+      maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+      nowMs: 9_900,
+      rawRemainingSeconds: null,
+    }), 1);
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      key: 'phone-a:host-display',
+      maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+      nowMs: 10_000,
+      rawRemainingSeconds: null,
+    }), null);
+    assert.equal(resolvePersistentHostStartCountdownRemainingSeconds({
+      key: 'phone-b:host-display',
+      maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
+      nowMs: 10_000,
+      rawRemainingSeconds: null,
+    }), null);
+  } finally {
+    resetPersistentHostStartCountdownForTest();
+  }
+});
+
 test('host-start lock re-locks once when the implied slot drifts after a late offset converge', () => {
   resetPersistentHostStartCountdownForTest();
   const input = {

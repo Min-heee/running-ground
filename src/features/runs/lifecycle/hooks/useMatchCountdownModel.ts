@@ -198,15 +198,28 @@ export function resolvePersistentHostStartCountdownRemainingSeconds({
   maxStartSeconds,
   nowMs,
   rawRemainingSeconds,
+  rawRemainingMs = null,
 }: {
   key: string | null;
   maxStartSeconds: number;
   nowMs: number;
   rawRemainingSeconds: number | null;
+  // Millisecond-precise remaining (slotStartMs - syncedNowMs). The whole-second raw
+  // gates WHEN to lock, but the target itself must use the exact remaining: locking to
+  // nowMs + raw*1000 quantizes the target by the phase of the render tick that crossed
+  // the gate, putting the two phones' second boundaries up to ~1s apart even when their
+  // clocks agree. With the exact remaining, every device's boundaries align to the same
+  // server instants — same moment to appear, same moment per digit, same moment to end.
+  rawRemainingMs?: number | null;
 }) {
   if (!key) {
     return null;
   }
+
+  const resolveTargetRemainingMs = (rawSeconds: number) => Math.min(
+    maxStartSeconds * 1000,
+    typeof rawRemainingMs === 'number' && rawRemainingMs > 0 ? rawRemainingMs : rawSeconds * 1000,
+  );
 
   let lock = hostStartCountdownLocks.get(key) ?? null;
   if (!lock) {
@@ -218,9 +231,10 @@ export function resolvePersistentHostStartCountdownRemainingSeconds({
       return null;
     }
 
+    const targetRemainingMs = resolveTargetRemainingMs(rawRemainingSeconds);
     lock = {
-      localTargetMs: nowMs + Math.min(maxStartSeconds, rawRemainingSeconds) * 1000,
-      impliedSlotLocalMs: nowMs + rawRemainingSeconds * 1000,
+      localTargetMs: nowMs + targetRemainingMs,
+      impliedSlotLocalMs: nowMs + targetRemainingMs,
       hasRelocked: false,
     };
     writeHostStartCountdownLock(key, lock);
@@ -230,17 +244,18 @@ export function resolvePersistentHostStartCountdownRemainingSeconds({
     && rawRemainingSeconds > 0
     && rawRemainingSeconds <= maxStartSeconds
   ) {
-    const impliedSlotLocalMs = nowMs + rawRemainingSeconds * 1000;
+    const targetRemainingMs = resolveTargetRemainingMs(rawRemainingSeconds);
+    const impliedSlotLocalMs = nowMs + targetRemainingMs;
     const driftMs = impliedSlotLocalMs - lock.impliedSlotLocalMs;
     const lockedRemainingMs = lock.localTargetMs - nowMs;
 
     if (
       Math.abs(driftMs) > HOST_START_COUNTDOWN_RELOCK_MIN_DRIFT_MS
       && lockedRemainingMs >= HOST_START_COUNTDOWN_RELOCK_MIN_REMAINING_MS
-      && rawRemainingSeconds * 1000 >= HOST_START_COUNTDOWN_RELOCK_MIN_REMAINING_MS
+      && targetRemainingMs >= HOST_START_COUNTDOWN_RELOCK_MIN_REMAINING_MS
     ) {
       lock = {
-        localTargetMs: nowMs + Math.min(maxStartSeconds, rawRemainingSeconds) * 1000,
+        localTargetMs: nowMs + targetRemainingMs,
         impliedSlotLocalMs,
         hasRelocked: true,
       };
@@ -269,11 +284,13 @@ function useHostStartCountdownSeconds({
   maxStartSeconds,
   nowMs,
   rawRemainingSeconds,
+  rawRemainingMs,
 }: {
   key: string | null;
   maxStartSeconds: number;
   nowMs: number;
   rawRemainingSeconds: number | null;
+  rawRemainingMs?: number | null;
 }) {
   const previousKeyRef = useRef<string | null>(null);
   if (previousKeyRef.current !== key) {
@@ -286,6 +303,7 @@ function useHostStartCountdownSeconds({
     maxStartSeconds,
     nowMs,
     rawRemainingSeconds,
+    rawRemainingMs,
   });
 }
 
@@ -477,10 +495,14 @@ export function useMatchCountdownModel({
   const hostStartCountdownKey = runtimeRoom?.linkedMatchId && shouldUseHostStartCountdownClamp
     ? `${runtimeRoom.linkedMatchId}:host-display`
     : null;
+  const runtimeRoomSlotStartMs = runtimeRoom?.linkedMatchSlotStartAt
+    ? Date.parse(runtimeRoom.linkedMatchSlotStartAt)
+    : NaN;
   const hostRoomCountdownDisplayRemainingSeconds = useHostStartCountdownSeconds({
     key: hostStartCountdownKey,
     maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
     rawRemainingSeconds: rawRoomCountdownRemainingSeconds,
+    rawRemainingMs: Number.isFinite(runtimeRoomSlotStartMs) ? runtimeRoomSlotStartMs - syncedNowMs : null,
     nowMs,
   });
   const hostRoomCountdownTargetMs = readPersistentHostStartCountdownTargetMs(hostStartCountdownKey);
