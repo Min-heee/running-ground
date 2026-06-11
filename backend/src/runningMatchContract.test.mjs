@@ -358,12 +358,16 @@ await runTest('party run room start creates a linked match and accepts countdown
       roomId: created.room.roomId,
     });
     assert.equal(guestReady.room.linkedMatchId, started.room.linkedMatchId);
-    assert.notEqual(guestReady.room.slotStartAt, started.room.slotStartAt);
+    // Arming must NOT move the shared start time: the host has no room-update channel
+    // once linkedMatchId is set, so a rewritten slot would leave the two devices
+    // counting down against different slots (a variable gap of however long the last
+    // ack took). The slot agreed at start is kept.
+    assert.equal(guestReady.room.slotStartAt, started.room.slotStartAt);
     assert.equal(guestReady.room.linkedMatchSlotStartAt, guestReady.room.slotStartAt);
     const armedSlotStartAtMs = new Date(guestReady.room.linkedMatchSlotStartAt).getTime();
     const armedSlotLeadMs = armedSlotStartAtMs - Date.now();
     assert.ok(armedSlotLeadMs > MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000);
-    assert.ok(armedSlotLeadMs <= (MATCH_ROOM_HOST_START_DELAY_SECONDS + MATCH_ROOM_HOST_LOADING_SECONDS + 1) * 1000);
+    assert.ok(armedSlotLeadMs <= (MATCH_ROOM_HOST_START_DELAY_SECONDS + MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS + 1) * 1000);
     assert.equal(guestReady.room.state, 'arming');
     assert.equal(guestReady.room.countdownReadyCount, 2);
     assert.equal(guestReady.room.participants.every((participant) => participant.isCountdownReady), true);

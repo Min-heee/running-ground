@@ -295,7 +295,18 @@ function armRunningMatchRoomCountdown(store, room, now = new Date()) {
     return room;
   }
 
-  const slotStartAt = buildHostStartedMatchSlotStartAt(now);
+  // Arming signals "everyone is ready" — it must NOT move the shared start time. The
+  // host has no room-update channel once linkedMatchId is set, so rewriting the slot
+  // here left the host counting against the slot agreed at start while guests counted
+  // against the rewritten one: the two countdowns finished apart by however long the
+  // last ack took (observed live as a variable 0.4s–7s gap). Keep the start slot while
+  // it still leaves the full visible countdown; only rebuild it in the edge case where
+  // it no longer does.
+  const existingSlotMs = Date.parse(linkedSession.slotStartAt ?? room.slotStartAt ?? '');
+  const minSlotMs = now.getTime() + MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000;
+  const slotStartAt = Number.isFinite(existingSlotMs) && existingSlotMs >= minSlotMs
+    ? new Date(existingSlotMs).toISOString()
+    : buildHostStartedMatchSlotStartAt(now);
   room.slotStartAt = slotStartAt;
   room.countdownArmedAt = now.toISOString();
   linkedSession.slotStartAt = slotStartAt;
