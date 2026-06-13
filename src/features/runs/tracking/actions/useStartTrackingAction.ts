@@ -149,7 +149,10 @@ export function useStartTrackingAction({
         try {
           await syncInitialLiveShareState();
         } catch {
-          setError('러닝은 시작됐지만 위치 공유 상태를 반영하지 못했어요.');
+          // Non-fatal: the run is tracking and the live-share heartbeat re-syncs the
+          // status every cycle, so a transient init failure self-heals. Don't alarm the
+          // user with a persistent banner — just record it.
+          rgPerfMark('live share initial sync failed', { matchMode, phase: 'solo' });
         }
         return;
       }
@@ -178,7 +181,9 @@ export function useStartTrackingAction({
       try {
         await syncInitialLiveShareState();
       } catch {
-        setError('러닝은 시작됐지만 위치 공유 상태를 반영하지 못했어요.');
+        // Non-fatal: the live-share heartbeat re-syncs the status every cycle, so this
+        // self-heals. Record it instead of showing a persistent, misleading banner.
+        rgPerfMark('live share initial sync failed', { matchMode, phase: 'match' });
       }
     } catch (trackingError) {
       await handleStartFailure(trackingError, endGpsStartTrace);

@@ -8,6 +8,7 @@ import {
   apiGet,
   apiPatch,
   apiPost,
+  LIVE_MATCH_REQUEST_TIMEOUT_MS,
 } from '../client';
 
 import { USE_MOCK_API } from '../config';
@@ -205,6 +206,10 @@ export async function updateRunningLiveShare(
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '위치 공유 상태를 반영하지 못했어.',
+      // Best-effort live-share sync fired at run start and on the live-share heartbeat —
+      // a tight timeout keeps a stalled request from blocking the start flow and showing
+      // the scary "위치 공유 상태를 반영하지 못했어요" banner for ~10s.
+      timeoutMs: LIVE_MATCH_REQUEST_TIMEOUT_MS,
     },
   );
 }

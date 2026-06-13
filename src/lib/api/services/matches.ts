@@ -1,6 +1,7 @@
 import {
   apiGet,
   apiPost,
+  LIVE_MATCH_REQUEST_TIMEOUT_MS,
 } from '../client';
 
 import { USE_MOCK_API } from '../config';
@@ -413,6 +414,9 @@ export async function updateRunningMatchProgress(
       accessToken: await requireAccessToken(),
       fallbackMessage: '실시간 경쟁 상태를 업데이트하지 못했어.',
       signal: options.signal,
+      // Heartbeat fires every ~2.5s; abort a stalled push fast so the next tick retries
+      // instead of freezing live progress for the full default timeout.
+      timeoutMs: LIVE_MATCH_REQUEST_TIMEOUT_MS,
     },
   );
 

@@ -8,7 +8,17 @@ type ApiRequestOptions = {
   fallbackMessage?: string;
   headers?: HeadersInit;
   signal?: AbortSignal;
+  // Per-request abort timeout. Defaults to API_CONFIG.timeoutMs. Hot, retried live-match
+  // calls (progress heartbeat, live-share sync) pass a tighter value so one stalled
+  // request aborts fast and frees the single-flight slot for the next tick instead of
+  // freezing progress for the full default timeout.
+  timeoutMs?: number;
 };
+
+// Tight timeout for high-frequency, retried live-match requests. Well above a healthy
+// backend's sub-second latency, far below the default so a network/backend stall can't
+// freeze live progress for ~10s.
+export const LIVE_MATCH_REQUEST_TIMEOUT_MS = 5000;
 
 type ApiHealthResponse = {
   status?: string;
@@ -160,10 +170,10 @@ async function readErrorPayload(response: Response, fallbackMessage: string) {
 export async function apiRequest<T>(
   path: string,
   init: RequestInit,
-  { accessToken, fallbackMessage = '요청 처리에 실패했어.', headers: optionHeaders, signal }: ApiRequestOptions = {},
+  { accessToken, fallbackMessage = '요청 처리에 실패했어.', headers: optionHeaders, signal, timeoutMs }: ApiRequestOptions = {},
 ): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), API_CONFIG.timeoutMs);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs ?? API_CONFIG.timeoutMs);
   const headers = new Headers(init.headers ?? {});
   let removeExternalAbortListener: (() => void) | null = null;
 
