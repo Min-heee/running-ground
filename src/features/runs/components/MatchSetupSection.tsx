@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { MatchOptionSelector } from '@/features/runs/components/MatchOptionSelector';
 import { PartyRunHomePanel } from '@/features/runs/components/PartyRunHomePanel';
+import { LiveGapPushCard } from '@/features/runs/components/matchSetupCards/LiveGapPushCard';
 import { colors, spacing, radii } from '@/theme/tokens';
 import {
   DuelMatchSetupCard,
@@ -27,6 +28,11 @@ export function MatchSetupSection({
       <PartyRunHomePanel {...partyRunProps} />
       {duelSetupProps ? <DuelMatchSetupCard {...duelSetupProps} /> : null}
       {groupSetupProps ? <GroupMatchSetupCard {...groupSetupProps} /> : null}
+      {groupSetupProps ? (
+        <LiveGapPushCard mode="group" />
+      ) : duelSetupProps ? (
+        <LiveGapPushCard mode="duel" />
+      ) : null}
     </View>
   );
 }

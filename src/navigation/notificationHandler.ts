@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
 import { router } from 'expo-router';
 import { fetchUpcomingRunningMatches } from '@/services/matchService';
 import {
@@ -120,16 +119,17 @@ export function useConfigureNotificationHandler() {
           return;
         }
 
-        if (Platform.OS !== 'ios') {
-          Notifications.setNotificationHandler({
-            handleNotification: async () => ({
-              shouldShowBanner: true,
-              shouldShowList: true,
-              shouldPlaySound: true,
-              shouldSetBadge: false,
-            }),
-          });
-        }
+        // Show foreground banners on both platforms. Live-match gap notifications are
+        // meant to surface even while the runner has the arena open ("항상 띄움"); iOS
+        // suppresses foreground notifications unless a handler opts in.
+        Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+          }),
+        });
 
         receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
           handleMatchReminderReceived(buildNotificationTraceDetail(notification.request.content.data));

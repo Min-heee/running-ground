@@ -22,6 +22,7 @@ import {
 } from '@/features/runs/hooks/useMatchLifecycle';
 import { useMatchResultController } from '@/features/runs/hooks/useMatchResultController';
 import { useLiveMatchProgress } from '@/features/runs/viewModels/useLiveMatchProgress';
+import { useLiveGapNotificationScheduler } from '@/features/runs/liveGap/useLiveGapNotificationScheduler';
 import {
   applyDuelOpponentForfeitLatch,
   resolveDuelOpponentForfeitLatch,
@@ -889,6 +890,15 @@ export function TrackRunExperienceRuntime({
     }),
     [currentUserArenaPace, featuredGroupArenaParticipantIds, groupArenaUsesLivePace, groupLiveStandings],
   );
+  useLiveGapNotificationScheduler({
+    active: isRunning && (matchMode === 'duel' || matchMode === 'group'),
+    matchMode: matchMode === 'group' ? 'group' : 'duel',
+    opponentName: effectiveDuelOpponentForLive?.name ?? null,
+    myPaceLabel: currentUserArenaPace,
+    opponentPaceLabel: effectiveDuelOpponentArenaPace,
+    duelGapKm: duelLiveGapKm,
+    groupStandings: groupLiveStandings,
+  });
   const roomLinkedGroupPlaceholderParticipants = useMemo(() => buildRoomLinkedGroupPlaceholderParticipants({
     room: linkedRuntimeRoom,
     hasRoomLinkedGroupContext,
