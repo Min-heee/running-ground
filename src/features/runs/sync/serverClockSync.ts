@@ -10,6 +10,15 @@ const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
 // single render. Large offsets move toward the target over a few snapshots.
 const SERVER_CLOCK_OFFSET_MAX_STEP_MS = 400;
 const SERVER_CLOCK_MAX_RTT_SAMPLE_MS = 3000;
+// Lowest-RTT sample selection (NTP-style clock filter). Each offset sample carries
+// up to ±RTT/2 of uncertainty from one-way latency asymmetry, so among recent
+// RTT-measured samples we trust the one with the SMALLEST round trip rather than
+// chasing whichever (possibly high-latency) sample arrived last. This tightens the
+// cross-device countdown agreement without changing the slow-crawl dynamics below.
+const SERVER_CLOCK_SAMPLE_BUFFER_SIZE = 8;
+// Only keep samples measured within this window of server time so a stale low-RTT
+// reading can't pin the offset to an outdated value.
+const SERVER_CLOCK_SAMPLE_FRESHNESS_MS = 12000;
 
 type ServerClockTimingSource = {
   clientRequestStartedAtMs?: unknown;
@@ -19,6 +28,16 @@ type ServerClockTimingSource = {
 type ServerClockOffsetSample = {
   serverNowMs: number;
   offsetMs: number;
+  // Measured round-trip time when API timing metadata is present and within the
+  // normal range; null for untimed or abnormally slow samples (those still produce a
+  // provisional offset but are not trusted as best-sample candidates).
+  rttMs: number | null;
+};
+
+type BufferedServerClockSample = {
+  serverNowMs: number;
+  offsetMs: number;
+  rttMs: number;
 };
 
 export function parseServerNowMs(serverNow?: string) {
@@ -57,19 +76,48 @@ export function resolveServerClockOffsetSample(
       return {
         serverNowMs,
         offsetMs: Math.round(serverNowMs - responseReceivedAtMs),
+        rttMs: null,
       };
     }
 
     return {
       serverNowMs,
       offsetMs: Math.round(serverNowMs + rttMs / 2 - responseReceivedAtMs),
+      rttMs,
     };
   }
 
   return {
     serverNowMs,
     offsetMs: serverNowMs - nowMs,
+    rttMs: null,
   };
+}
+
+// Among recent RTT-measured samples, prefer the one with the smallest round trip
+// (tightest uncertainty); break ties toward the most recent reading. Returns null
+// when there is no fresh timed sample to trust.
+export function selectBestServerClockOffsetMs(
+  samples: readonly BufferedServerClockSample[],
+  referenceServerNowMs: number,
+): number | null {
+  let best: BufferedServerClockSample | null = null;
+
+  for (const sample of samples) {
+    if (referenceServerNowMs - sample.serverNowMs > SERVER_CLOCK_SAMPLE_FRESHNESS_MS) {
+      continue;
+    }
+
+    if (
+      best === null
+      || sample.rttMs < best.rttMs
+      || (sample.rttMs === best.rttMs && sample.serverNowMs > best.serverNowMs)
+    ) {
+      best = sample;
+    }
+  }
+
+  return best === null ? null : best.offsetMs;
 }
 
 function clampOffsetStep(offsetDeltaMs: number) {
@@ -105,6 +153,7 @@ export function resolveStableServerClockOffset(currentOffsetMs: number, nextOffs
 
 let sharedServerClockOffsetMs = 0;
 let latestAcceptedServerNowMs = 0;
+let recentTimedSamples: BufferedServerClockSample[] = [];
 const sharedServerClockListeners = new Set<(offsetMs: number) => void>();
 
 export function getSharedServerClockOffsetMs() {
@@ -123,7 +172,23 @@ export function applySharedServerClock(serverNow?: string, timingSource?: unknow
 
   latestAcceptedServerNowMs = offsetSample.serverNowMs;
 
-  const stableOffsetMs = resolveStableServerClockOffset(sharedServerClockOffsetMs, offsetSample.offsetMs);
+  // Feed the slow crawl the lowest-RTT recent offset rather than this sample's raw
+  // offset, so an unlucky high-latency reading can't drag the countdown clock off the
+  // value our best (lowest-uncertainty) measurement agrees on. Untimed / abnormal-RTT
+  // samples keep their original provisional behavior when no trusted sample exists.
+  if (offsetSample.rttMs !== null) {
+    recentTimedSamples = [
+      ...recentTimedSamples.filter(
+        (sample) => offsetSample.serverNowMs - sample.serverNowMs <= SERVER_CLOCK_SAMPLE_FRESHNESS_MS,
+      ),
+      { serverNowMs: offsetSample.serverNowMs, offsetMs: offsetSample.offsetMs, rttMs: offsetSample.rttMs },
+    ].slice(-SERVER_CLOCK_SAMPLE_BUFFER_SIZE);
+  }
+
+  const bestOffsetMs = selectBestServerClockOffsetMs(recentTimedSamples, offsetSample.serverNowMs);
+  const targetOffsetMs = bestOffsetMs ?? offsetSample.offsetMs;
+
+  const stableOffsetMs = resolveStableServerClockOffset(sharedServerClockOffsetMs, targetOffsetMs);
   if (stableOffsetMs !== sharedServerClockOffsetMs) {
     sharedServerClockOffsetMs = stableOffsetMs;
     sharedServerClockListeners.forEach((listener) => {
@@ -144,6 +209,7 @@ export function subscribeSharedServerClock(listener: (offsetMs: number) => void)
 export function resetSharedServerClockForTest() {
   sharedServerClockOffsetMs = 0;
   latestAcceptedServerNowMs = 0;
+  recentTimedSamples = [];
   sharedServerClockListeners.clear();
 }
 

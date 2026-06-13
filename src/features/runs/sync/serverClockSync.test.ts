@@ -7,6 +7,7 @@ import {
   resetSharedServerClockForTest,
   resolveServerClockOffsetSample,
   resolveStableServerClockOffset,
+  selectBestServerClockOffsetMs,
   shouldAcceptServerSnapshot,
   subscribeSharedServerClock,
 } from './serverClockSync';
@@ -43,6 +44,7 @@ test('server clock offset sample compensates for normal round-trip latency', () 
   }), {
     serverNowMs: Date.parse(serverNow),
     offsetMs: 0,
+    rttMs: 1000,
   });
 });
 
@@ -56,6 +58,7 @@ test('server clock offset sample falls back to provisional offset for abnormal r
   }), {
     serverNowMs: Date.parse('2026-05-12T00:00:02.000Z'),
     offsetMs: -2000,
+    rttMs: null,
   });
 });
 
@@ -162,6 +165,62 @@ test('shared server clock notifies subscribers only when the shared offset chang
   } finally {
     unsubscribe();
     Date.now = originalDateNow;
+    resetSharedServerClockForTest();
+  }
+});
+
+test('selectBestServerClockOffsetMs prefers the lowest-RTT fresh sample', () => {
+  assert.equal(selectBestServerClockOffsetMs([], 1000), null);
+
+  assert.equal(selectBestServerClockOffsetMs([
+    { serverNowMs: 1000, offsetMs: 500, rttMs: 300 },
+    { serverNowMs: 2000, offsetMs: 480, rttMs: 80 },
+  ], 2000), 480);
+
+  // Tie on RTT → most recent reading wins.
+  assert.equal(selectBestServerClockOffsetMs([
+    { serverNowMs: 1000, offsetMs: 500, rttMs: 80 },
+    { serverNowMs: 2000, offsetMs: 470, rttMs: 80 },
+  ], 2000), 470);
+
+  // A stale low-RTT sample is pruned; the fresher (if higher-RTT) sample wins.
+  assert.equal(selectBestServerClockOffsetMs([
+    { serverNowMs: 0, offsetMs: 500, rttMs: 40 },
+    { serverNowMs: 20000, offsetMs: 460, rttMs: 250 },
+  ], 20000), 460);
+});
+
+test('shared server clock ignores a high-RTT outlier in favor of the lowest-RTT samples', () => {
+  resetSharedServerClockForTest();
+  const base = Date.parse('2026-05-12T00:00:00.000Z');
+  const timedSample = (serverNowMs: number, rttMs: number, offsetMs: number) => {
+    const clientResponseReceivedAtMs = serverNowMs + rttMs / 2 - offsetMs;
+    return {
+      serverNow: new Date(serverNowMs).toISOString(),
+      timing: {
+        clientRequestStartedAtMs: clientResponseReceivedAtMs - rttMs,
+        clientResponseReceivedAtMs,
+      },
+    };
+  };
+
+  try {
+    // Six clean low-RTT samples agree the device is ~2000ms behind the server and crawl
+    // the clock up toward that value (the jitter tolerance parks it at 1600).
+    for (let i = 0; i < 6; i += 1) {
+      const sample = timedSample(base + i * 500, 100, 2000);
+      applySharedServerClock(sample.serverNow, sample.timing);
+    }
+    const offsetBeforeOutlier = getSharedServerClockOffsetMs();
+    assert.equal(offsetBeforeOutlier, 1600);
+
+    // A newer but high-latency sample claims a wildly different +5000ms offset. Its RTT
+    // dwarfs the clean samples', so the best-sample filter keeps trusting them and the
+    // clock does not lurch toward the outlier.
+    const outlier = timedSample(base + 3500, 2500, 5000);
+    applySharedServerClock(outlier.serverNow, outlier.timing);
+    assert.equal(getSharedServerClockOffsetMs(), offsetBeforeOutlier);
+  } finally {
     resetSharedServerClockForTest();
   }
 });
