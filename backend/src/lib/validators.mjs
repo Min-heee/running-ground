@@ -342,6 +342,11 @@ export function validateRunMatchResult(rawMatchResult) {
   const title = validateRequiredString(rawMatchResult.title, '매치 결과 제목이 비어 있어.');
   const summary = validateRequiredString(rawMatchResult.summary, '매치 결과 요약이 비어 있어.');
   const badgeLabel = validateRequiredString(rawMatchResult.badgeLabel, '매치 결과 배지가 비어 있어.');
+  // Persist source so party vs official is recoverable on the record (the client decides
+  // 파티런 vs 대결 and whether rank LP applies from this). Anything other than the two
+  // known values is dropped rather than rejected.
+  const source = normalizeOptionalString(rawMatchResult.source);
+  const normalizedSource = source === 'official' || source === 'party' ? source : undefined;
   const opponentName = normalizeOptionalString(rawMatchResult.opponentName);
   const resultTone = normalizeOptionalString(rawMatchResult.resultTone);
   const rank = typeof rawMatchResult.rank !== 'undefined' && rawMatchResult.rank !== null
@@ -390,6 +395,7 @@ export function validateRunMatchResult(rawMatchResult) {
     title,
     summary,
     badgeLabel,
+    ...(normalizedSource ? { source: normalizedSource } : {}),
     ...(opponentName ? { opponentName } : {}),
     ...(resultTone ? { resultTone } : {}),
     ...(typeof rank === 'number' ? { rank } : {}),

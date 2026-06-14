@@ -62,11 +62,16 @@ export function RunMatchResultCard({ matchResult, myPaceLabel, myDurationSeconds
     ?? (typeof myDurationSeconds === 'number' ? myDurationSeconds : undefined);
   const lpDelta = getEstimatedMatchLpDelta(matchResult);
   const isLpGain = lpDelta > 0;
-  // Party runs never carry rank LP — in either direction.
-  const showLp = matchResult.source !== 'party' && lpDelta !== 0;
+  // A record is a ranked OFFICIAL match only when source === 'official'. Anything else —
+  // a party run, OR a record whose source the backend hasn't persisted — is treated as a
+  // party run: it shows the 파티런 label and NEVER rank LP (matches getRunKind's split).
+  // This is why we gate on 'official' rather than '!== party': a missing source must not
+  // leak rank LP onto a party-run record.
+  const isOfficial = matchResult.source === 'official';
+  const showLp = isOfficial && lpDelta !== 0;
   const lpPillStyle = isLpGain ? matchResultLpGainPillStyle : matchResultLpLossPillStyle;
   const lpPillTextStyle = isLpGain ? matchResultLpGainPillTextStyle : matchResultLpLossPillTextStyle;
-  const isParty = matchResult.source === 'party';
+  const isParty = !isOfficial;
   const typeLabel = matchResult.mode === 'duel'
     ? isParty ? '1대1 파티런' : '1대1 대결'
     : isParty ? '그룹 파티런' : '그룹 대결';
