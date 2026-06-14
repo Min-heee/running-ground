@@ -839,7 +839,9 @@ export function TrackRunExperienceRuntime({
     () => buildDuelArenaParticipants({
       currentUserPaceLabel: currentUserArenaPace,
       currentUserLiveStatus: currentUserDuelLiveStatus ?? undefined,
-      currentDistanceKm: syncedDuelDistanceKm,
+      // My arena chip shows my LOCAL distance (not the 30s-checkpoint server echo) so it
+      // stays live regardless of sync lag or screen state. Opponent stays synced.
+      currentDistanceKm: liveMatchDisplayDistanceKm,
       opponent: effectiveDuelOpponentForLive,
       opponentPaceLabel: effectiveDuelOpponentArenaPace,
       opponentDistanceKm: syncedDuelOpponentDistanceKm,
@@ -851,7 +853,7 @@ export function TrackRunExperienceRuntime({
       duelLiveGapKm,
       effectiveDuelOpponentForLive,
       effectiveDuelOpponentArenaPace,
-      syncedDuelDistanceKm,
+      liveMatchDisplayDistanceKm,
       syncedDuelOpponentDistanceKm,
     ],
   );

@@ -65,7 +65,14 @@ export function buildDuelRaceBoardSection({
   }
 
   if (effectiveDuelOpponent) {
-    const currentBoardDistanceKm = duelLiveGapKm === null ? distanceKm : syncedDuelDistanceKm;
+    // MY row always shows my LOCAL measured distance — never the server-echoed,
+    // 30s-checkpoint-projected syncedDuelDistanceKm. It's my own data either way; the
+    // server already gets the exact same number from my push, so there's no reason to
+    // wait for it to echo back (quantized to a 30s checkpoint) before drawing my own
+    // progress. This keeps my distance live and screen-state independent. The opponent
+    // row stays on the synced value (that genuinely needs fetching). The official result
+    // is computed server-side, so this estimate-only display change is duel-fair.
+    const currentBoardDistanceKm = distanceKm;
     const opponentBoardDistanceKm = duelLiveGapKm === null
       ? resolveParticipantDisplayDistanceKm(effectiveDuelOpponent, duelDistanceKm)
       : syncedDuelOpponentDistanceKm;

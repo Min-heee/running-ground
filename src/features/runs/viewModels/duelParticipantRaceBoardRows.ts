@@ -169,7 +169,11 @@ export function buildDuelParticipantFirstRows({
   syncedDuelOpponentDistanceKm: number;
   targetDistanceKm: number;
 }): ProgressiveSortedRaceBoardRowsResult {
-  const currentBoardDistanceKm = duelLiveGapKm === null ? distanceKm : syncedDuelDistanceKm;
+  // Party-run (room-linked) duel: MY row uses my LOCAL measured distance, never the
+  // 30s-checkpoint server echo (syncedDuelDistanceKm), mirroring the matched-duel path.
+  // Math.max below only ever raises my row, so this can't regress it. Opponent stays
+  // synced. Result/LP are server-determined, so this estimate-only display is duel-fair.
+  const currentBoardDistanceKm = distanceKm;
   const effectiveOpponentDistanceKm = effectiveDuelOpponent
     ? (duelLiveGapKm === null
       ? resolveParticipantDisplayDistanceKm(effectiveDuelOpponent, targetDistanceKm)

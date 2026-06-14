@@ -17,7 +17,12 @@ import {
 // 3s (was 5s): tighten how stale a backgrounded runner's progress is on the server so the
 // opponent's live distance lags less. Aligned with ANDROID_BACKGROUND_MATCH_PROGRESS_TIMER_MS (3s).
 export const BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS = 3_000;
-export const BACKGROUND_MATCH_PROGRESS_INFLIGHT_STALE_MS = 12_000;
+// 6s (was 12s): a hung JS-fallback push holds the single-flight slot until it's this
+// stale, blocking the next push + opponent-bearing response. Kept just above the 5s live
+// request timeout so a healthy in-flight request is never aborted early, but a genuinely
+// stalled one is force-aborted and retried ~one interval late instead of starving the
+// boards for 12s.
+export const BACKGROUND_MATCH_PROGRESS_INFLIGHT_STALE_MS = 6_000;
 
 export type BackgroundMatchProgressContext = {
   matchId: string;
