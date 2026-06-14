@@ -892,11 +892,17 @@ export function TrackRunExperienceRuntime({
     }),
     [currentUserArenaPace, featuredGroupArenaParticipantIds, groupArenaUsesLivePace, groupLiveStandings],
   );
+  const liveGapTargetDistanceKm = matchMode === 'group' ? groupDistanceKm : duelDistanceKm;
+  const liveGapRemainingDistanceKm = typeof liveGapTargetDistanceKm === 'number'
+    ? Math.max(0, liveGapTargetDistanceKm - liveMatchDisplayDistanceKm)
+    : null;
   useLiveGapNotificationScheduler({
     active: isRunning && (matchMode === 'duel' || matchMode === 'group'),
     matchMode: matchMode === 'group' ? 'group' : 'duel',
     opponentName: effectiveDuelOpponentForLive?.name ?? null,
     myPaceLabel: currentUserArenaPace,
+    myCurrentPaceLabel: currentPace,
+    remainingDistanceKm: liveGapRemainingDistanceKm,
     opponentPaceLabel: effectiveDuelOpponentArenaPace,
     duelGapKm: duelLiveGapKm,
     groupStandings: groupLiveStandings,

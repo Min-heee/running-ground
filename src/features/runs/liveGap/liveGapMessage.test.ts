@@ -3,10 +3,7 @@ import test from 'node:test';
 
 import type { GroupLiveStanding } from '@/features/runs/types/matchProgress';
 import {
-  buildDuelGapMessage,
-  buildDuelGapSpeech,
-  buildGroupGapMessage,
-  buildGroupGapSpeech,
+  buildLiveGapOutput,
   buildPaceDiffLabel,
   buildPaceDiffSpeech,
   parseMeasuredPaceSecondsPerKm,
@@ -30,6 +27,12 @@ function standing(partial: Partial<GroupLiveStanding>): GroupLiveStanding {
   } as unknown as GroupLiveStanding;
 }
 
+const GROUP_STANDINGS = [
+  standing({ id: 'a', name: '철수', rank: 1, currentDistanceKm: 3.2, averagePace: '05:00/km' }),
+  standing({ id: 'b', name: '영희', rank: 2, currentDistanceKm: 3.0, averagePace: '05:20/km' }),
+  standing({ id: 'me', name: '나', rank: 3, currentDistanceKm: 2.8, averagePace: '05:30/km', isCurrentUser: true }),
+];
+
 test('parseMeasuredPaceSecondsPerKm returns null for placeholder paces', () => {
   assert.equal(parseMeasuredPaceSecondsPerKm('05:30/km'), 330);
   assert.equal(parseMeasuredPaceSecondsPerKm('5:30/km'), 330);
@@ -47,60 +50,15 @@ test('buildPaceDiffLabel describes my pace relative to the other runner', () => 
   assert.equal(buildPaceDiffLabel(null, '05:30/km'), null);
 });
 
-test('buildDuelGapMessage returns null without a distance gap', () => {
-  assert.equal(
-    buildDuelGapMessage({ opponentName: '민희', myPaceLabel: '05:30/km', opponentPaceLabel: '05:45/km', gapKm: null }),
-    null,
-  );
-});
-
-test('buildDuelGapMessage reports who is ahead with pace context', () => {
-  const ahead = buildDuelGapMessage({
-    opponentName: '민희',
-    myPaceLabel: '05:30/km',
-    opponentPaceLabel: '05:45/km',
-    gapKm: 0.28,
-  });
-  assert.equal(ahead?.title, '민희보다 280m 앞');
-  assert.equal(ahead?.body, '내 페이스 05:30/km · 상대 05:45/km (15초/km 빠름)');
-
-  const behind = buildDuelGapMessage({
-    opponentName: '민희',
-    myPaceLabel: '05:45/km',
-    opponentPaceLabel: '05:30/km',
-    gapKm: -0.12,
-  });
-  assert.equal(behind?.title, '민희보다 120m 뒤');
-  assert.equal(behind?.body, '내 페이스 05:45/km · 상대 05:30/km (15초/km 느림)');
-});
-
-test('buildDuelGapMessage handles a dead heat and missing names/paces', () => {
-  const tie = buildDuelGapMessage({
-    opponentName: null,
-    myPaceLabel: '--:--/km',
-    opponentPaceLabel: '--:--/km',
-    gapKm: 0.003,
-  });
-  assert.equal(tie?.title, '상대와 거의 동률');
-  assert.equal(tie?.body, '내 페이스 --:--/km · 상대 --:--/km');
-
-  const kmGap = buildDuelGapMessage({
-    opponentName: '민희',
-    myPaceLabel: '05:30/km',
-    opponentPaceLabel: '06:10/km',
-    gapKm: 1.4,
-  });
-  assert.equal(kmGap?.title, '민희보다 1.40km 앞');
+test('buildPaceDiffSpeech phrases the pace gap for TTS', () => {
+  assert.equal(buildPaceDiffSpeech('05:30/km', '05:45/km'), '페이스는 15초 빨라요');
+  assert.equal(buildPaceDiffSpeech('05:45/km', '05:30/km'), '페이스는 15초 느려요');
+  assert.equal(buildPaceDiffSpeech('05:30/km', '05:30/km'), '페이스는 비슷해요');
+  assert.equal(buildPaceDiffSpeech('05:30/km', '--:--/km'), null);
 });
 
 test('resolveGroupGapTargets resolves relative + absolute targets and dedupes', () => {
-  const standings = [
-    standing({ id: 'a', name: '철수', rank: 1, currentDistanceKm: 3.2, averagePace: '05:00/km' }),
-    standing({ id: 'b', name: '영희', rank: 2, currentDistanceKm: 3.0, averagePace: '05:20/km' }),
-    standing({ id: 'me', name: '나', rank: 3, currentDistanceKm: 2.8, averagePace: '05:30/km', isCurrentUser: true }),
-  ];
-
-  const resolved = resolveGroupGapTargets(standings, ['ahead1', 'rank1'], '05:30/km');
+  const resolved = resolveGroupGapTargets(GROUP_STANDINGS, ['ahead1', 'rank1'], '05:30/km');
   assert.equal(resolved.length, 2);
   assert.deepEqual(
     resolved.map((entry) => [entry.label, entry.name, entry.gapKm]),
@@ -109,6 +67,8 @@ test('resolveGroupGapTargets resolves relative + absolute targets and dedupes', 
       ['1등', '철수', -0.4],
     ],
   );
+  assert.equal(resolved[0].paceDiff, '10초/km 느림');
+  assert.equal(resolved[0].paceDiffSpeech, '페이스는 10초 느려요');
 
   // When I'm rank 2, 앞사람 and 1등 are the same runner — only one entry survives.
   const tightStandings = [
@@ -122,69 +82,87 @@ test('resolveGroupGapTargets resolves relative + absolute targets and dedupes', 
   assert.equal(deduped[0].label, '앞사람');
 });
 
-test('buildGroupGapMessage builds a multi-line body and bails when I am absent', () => {
-  const standings = [
-    standing({ id: 'a', name: '철수', rank: 1, currentDistanceKm: 3.2, averagePace: '05:00/km' }),
-    standing({ id: 'b', name: '영희', rank: 2, currentDistanceKm: 3.0, averagePace: '05:20/km' }),
-    standing({ id: 'me', name: '나', rank: 3, currentDistanceKm: 2.8, averagePace: '05:30/km', isCurrentUser: true }),
-  ];
+test('buildLiveGapOutput combines every selected duel metric into notification + speech', () => {
+  const out = buildLiveGapOutput({
+    matchMode: 'duel',
+    metrics: ['remainingDistance', 'avgPace', 'currentPace', 'opponentDistance', 'opponentPace'],
+    remainingDistanceKm: 1.2,
+    avgPaceLabel: '05:30/km',
+    currentPaceLabel: '05:20/km',
+    opponentName: '민희',
+    opponentGapKm: 0.28,
+    opponentPaceLabel: '05:45/km',
+  });
 
-  const message = buildGroupGapMessage({ standings, selectedTargets: ['ahead1', 'rank1'], myPaceLabel: '05:30/km' });
-  assert.equal(message?.title, '중간 점검 · 현재 3위');
-  assert.equal(message?.body, '앞사람 영희: 200m 뒤, 10초/km 느림\n1등 철수: 400m 뒤, 30초/km 느림');
-
+  assert.equal(out.notification?.title, '대결 중간 점검');
   assert.equal(
-    buildGroupGapMessage({ standings: [], selectedTargets: ['ahead1'], myPaceLabel: '05:30/km' }),
-    null,
+    out.notification?.body,
+    '남은 거리 1.20km\n평균 05:30/km\n현재 05:20/km\n민희 280m 앞, 15초/km 빠름',
   );
-  // No targets selected → nothing to push.
   assert.equal(
-    buildGroupGapMessage({ standings, selectedTargets: [], myPaceLabel: '05:30/km' }),
-    null,
+    out.speech,
+    '남은 거리 1.2킬로미터. 평균 페이스 5분 30초. 현재 페이스 5분 20초. 민희님보다 280미터 앞서고 있어요. 페이스는 15초 빨라요.',
   );
 });
 
-test('buildPaceDiffSpeech phrases the pace gap for TTS', () => {
-  assert.equal(buildPaceDiffSpeech('05:30/km', '05:45/km'), '페이스는 15초 빨라요');
-  assert.equal(buildPaceDiffSpeech('05:45/km', '05:30/km'), '페이스는 15초 느려요');
-  assert.equal(buildPaceDiffSpeech('05:30/km', '05:30/km'), '페이스는 비슷해요');
-  assert.equal(buildPaceDiffSpeech('05:30/km', '--:--/km'), null);
+test('buildLiveGapOutput honours metric selection (opponent distance only, behind)', () => {
+  const out = buildLiveGapOutput({
+    matchMode: 'duel',
+    metrics: ['opponentDistance'],
+    avgPaceLabel: '05:45/km',
+    opponentName: '민희',
+    opponentGapKm: -0.12,
+    opponentPaceLabel: '05:30/km',
+  });
+
+  assert.equal(out.notification?.body, '민희 120m 뒤');
+  assert.equal(out.speech, '민희님보다 120미터 뒤처졌어요.');
 });
 
-test('buildDuelGapSpeech reads a natural sentence with the right particle', () => {
+test('buildLiveGapOutput formats sub-kilometre remaining distance in metres', () => {
+  const out = buildLiveGapOutput({
+    matchMode: 'duel',
+    metrics: ['remainingDistance'],
+    remainingDistanceKm: 0.45,
+  });
+
+  assert.equal(out.notification?.body, '남은 거리 450m');
+  assert.equal(out.speech, '남은 거리 450미터.');
+});
+
+test('buildLiveGapOutput builds a per-target group push with rank in the title', () => {
+  const out = buildLiveGapOutput({
+    matchMode: 'group',
+    metrics: ['opponentDistance', 'opponentPace'],
+    avgPaceLabel: '05:30/km',
+    standings: GROUP_STANDINGS,
+    groupTargets: ['ahead1', 'rank1'],
+  });
+
+  assert.equal(out.notification?.title, '중간 점검 · 현재 3위');
   assert.equal(
-    buildDuelGapSpeech({ opponentName: '민희', myPaceLabel: '05:30/km', opponentPaceLabel: '05:45/km', gapKm: 0.28 }),
-    '민희님보다 280미터 앞서고 있어요. 페이스는 15초 빨라요.',
+    out.notification?.body,
+    '앞사람 영희: 200m 뒤, 10초/km 느림\n1등 철수: 400m 뒤, 30초/km 느림',
   );
   assert.equal(
-    buildDuelGapSpeech({ opponentName: '민희', myPaceLabel: '05:45/km', opponentPaceLabel: '05:30/km', gapKm: -0.12 }),
-    '민희님보다 120미터 뒤처졌어요. 페이스는 15초 느려요.',
-  );
-  // km-scale gap reads with one decimal; missing names fall back to '상대' + 와 particle.
-  assert.equal(
-    buildDuelGapSpeech({ opponentName: '민희', myPaceLabel: '05:30/km', opponentPaceLabel: '06:10/km', gapKm: 1.4 }),
-    '민희님보다 1.4킬로미터 앞서고 있어요. 페이스는 40초 빨라요.',
-  );
-  assert.equal(
-    buildDuelGapSpeech({ opponentName: null, myPaceLabel: '--:--/km', opponentPaceLabel: '--:--/km', gapKm: 0.003 }),
-    '상대와 거의 같아요.',
-  );
-  assert.equal(
-    buildDuelGapSpeech({ opponentName: '민희', myPaceLabel: '05:30/km', opponentPaceLabel: '05:45/km', gapKm: null }),
-    null,
+    out.speech,
+    '앞사람 영희님보다 200미터 뒤처졌어요. 페이스는 10초 느려요. 1등 철수님보다 400미터 뒤처졌어요. 페이스는 30초 느려요.',
   );
 });
 
-test('buildGroupGapSpeech reads rank and each chosen runner', () => {
-  const standings = [
-    standing({ id: 'a', name: '철수', rank: 1, currentDistanceKm: 3.2, averagePace: '05:00/km' }),
-    standing({ id: 'b', name: '영희', rank: 2, currentDistanceKm: 3.0, averagePace: '05:20/km' }),
-    standing({ id: 'me', name: '나', rank: 3, currentDistanceKm: 2.8, averagePace: '05:30/km', isCurrentUser: true }),
-  ];
-
-  assert.equal(
-    buildGroupGapSpeech({ standings, selectedTargets: ['ahead1', 'rank1'], myPaceLabel: '05:30/km' }),
-    '현재 3위. 앞사람 영희님보다 200미터 뒤처졌어요. 1등 철수님보다 400미터 뒤처졌어요.',
+test('buildLiveGapOutput returns nulls when nothing is selected or data is missing', () => {
+  assert.deepEqual(
+    buildLiveGapOutput({ matchMode: 'duel', metrics: [] }),
+    { notification: null, speech: null },
   );
-  assert.equal(buildGroupGapSpeech({ standings: [], selectedTargets: ['ahead1'], myPaceLabel: '05:30/km' }), null);
+  // Opponent distance selected but the gap has not synced yet → nothing to push.
+  assert.deepEqual(
+    buildLiveGapOutput({ matchMode: 'duel', metrics: ['opponentDistance'], opponentGapKm: null }),
+    { notification: null, speech: null },
+  );
+  // Average pace selected but still unmeasured → excluded, leaving nothing.
+  assert.deepEqual(
+    buildLiveGapOutput({ matchMode: 'duel', metrics: ['avgPace'], avgPaceLabel: '--:--/km' }),
+    { notification: null, speech: null },
+  );
 });

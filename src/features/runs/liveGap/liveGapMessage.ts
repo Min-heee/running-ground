@@ -5,6 +5,7 @@ import type { GroupLiveStanding } from '@/features/runs/types/matchProgress';
 import {
   LIVE_GAP_GROUP_TARGET_OPTIONS,
   type LiveGapGroupTarget,
+  type LiveGapMetric,
 } from '@/features/runs/liveGap/liveGapPushConfig';
 
 export type LiveGapMessage = {
@@ -69,41 +70,6 @@ function buildCompactDistanceGap(gapKm: number): CompactGap {
   return { magnitude, direction: gapKm >= 0 ? '앞' : '뒤' };
 }
 
-function buildGapPhrase(gapKm: number): string {
-  const { magnitude, direction } = buildCompactDistanceGap(gapKm);
-  return direction === '동률' ? '거의 동률' : `${magnitude} ${direction}`;
-}
-
-export type DuelGapMessageInput = {
-  opponentName: string | null | undefined;
-  myPaceLabel: string | null | undefined;
-  opponentPaceLabel: string | null | undefined;
-  // My distance minus the opponent's, in km.
-  gapKm: number | null | undefined;
-};
-
-export function buildDuelGapMessage(input: DuelGapMessageInput): LiveGapMessage | null {
-  if (typeof input.gapKm !== 'number' || !Number.isFinite(input.gapKm)) {
-    // The distance gap is the core of the notification; without it there is nothing
-    // meaningful to push yet (opponent progress hasn't synced).
-    return null;
-  }
-
-  const name = input.opponentName?.trim() || '상대';
-  const { magnitude, direction } = buildCompactDistanceGap(input.gapKm);
-  const title = direction === '동률'
-    ? `${name}와 거의 동률`
-    : `${name}보다 ${magnitude} ${direction}`;
-
-  const paceDiff = buildPaceDiffLabel(input.myPaceLabel, input.opponentPaceLabel);
-  const myPace = parseMeasuredPaceSecondsPerKm(input.myPaceLabel) === null ? '--:--/km' : String(input.myPaceLabel);
-  const opponentPace = parseMeasuredPaceSecondsPerKm(input.opponentPaceLabel) === null ? '--:--/km' : String(input.opponentPaceLabel);
-  const paceSuffix = paceDiff ? ` (${paceDiff})` : '';
-  const body = `내 페이스 ${myPace} · 상대 ${opponentPace}${paceSuffix}`;
-
-  return { title, body };
-}
-
 function resolveTargetParticipant(
   standings: GroupLiveStanding[],
   myIndex: number,
@@ -136,6 +102,7 @@ export type ResolvedGroupGapTarget = {
   // My distance minus theirs, in km.
   gapKm: number;
   paceDiff: string | null;
+  paceDiffSpeech: string | null;
 };
 
 function resolveParticipantKey(participant: GroupLiveStanding): string {
@@ -184,42 +151,11 @@ export function resolveGroupGapTargets(
       name: participant.name?.trim() || '상대',
       gapKm: Number((me.currentDistanceKm - participant.currentDistanceKm).toFixed(2)),
       paceDiff: buildPaceDiffLabel(myPaceLabel, participant.averagePace),
+      paceDiffSpeech: buildPaceDiffSpeech(myPaceLabel, participant.averagePace),
     });
   }
 
   return resolved;
-}
-
-export type GroupGapMessageInput = {
-  standings: GroupLiveStanding[];
-  selectedTargets: readonly LiveGapGroupTarget[];
-  myPaceLabel: string | null | undefined;
-};
-
-export function buildGroupGapMessage(input: GroupGapMessageInput): LiveGapMessage | null {
-  const myIndex = input.standings.findIndex((standing) => standing.isCurrentUser);
-
-  if (myIndex < 0) {
-    return null;
-  }
-
-  const resolved = resolveGroupGapTargets(input.standings, input.selectedTargets, input.myPaceLabel);
-
-  if (!resolved.length) {
-    return null;
-  }
-
-  const myRank = input.standings[myIndex].rank || myIndex + 1;
-  const title = `중간 점검 · 현재 ${myRank}위`;
-  const body = resolved
-    .map((entry) => {
-      const gapPhrase = buildGapPhrase(entry.gapKm);
-      const pacePart = entry.paceDiff ? `, ${entry.paceDiff}` : '';
-      return `${entry.label} ${entry.name}: ${gapPhrase}${pacePart}`;
-    })
-    .join('\n');
-
-  return { title, body };
 }
 
 // --- Spoken (TTS) phrasings: more natural than the compact notification text ---
@@ -261,48 +197,211 @@ export function buildPaceDiffSpeech(
   return diff > 0 ? `페이스는 ${diff}초 빨라요` : `페이스는 ${Math.abs(diff)}초 느려요`;
 }
 
-export function buildDuelGapSpeech(input: DuelGapMessageInput): string | null {
-  if (typeof input.gapKm !== 'number' || !Number.isFinite(input.gapKm)) {
+// --- Metric-driven builder: one push assembled from the user's selected metrics ---
+// (남은거리 / 평균페이스 / 현재페이스 / 상대와 거리 / 상대와 페이스). Produces both the
+// notification (compact, stacked) and the spoken text (natural), so the scheduler can
+// deliver either or both depending on the chosen mode.
+
+const PACE_SPEECH_PATTERN = /^(\d{1,2}):(\d{2})\/km$/i;
+
+// '5:30/km' → '5분 30초'. Returns null for unmeasured/placeholder paces so we never
+// speak a fake pace.
+function buildPaceSpeech(paceLabel: string | null | undefined): string | null {
+  const matched = String(paceLabel ?? '').trim().match(PACE_SPEECH_PATTERN);
+
+  if (!matched) {
     return null;
   }
 
-  const name = withHonorific(input.opponentName?.trim() || '상대');
-  const absoluteKm = Math.abs(input.gapKm);
-  const distancePart = absoluteKm < 0.005
-    ? `${withWaParticle(name)} 거의 같아요`
-    : input.gapKm >= 0
-      ? `${name}보다 ${buildSpeechDistance(absoluteKm)} 앞서고 있어요`
-      : `${name}보다 ${buildSpeechDistance(absoluteKm)} 뒤처졌어요`;
+  const minutes = Number(matched[1]);
+  const seconds = Number(matched[2]);
 
-  const paceSpeech = buildPaceDiffSpeech(input.myPaceLabel, input.opponentPaceLabel);
-  return paceSpeech ? `${distancePart}. ${paceSpeech}.` : `${distancePart}.`;
+  if (minutes === 0 && seconds === 0) {
+    return null;
+  }
+
+  if (seconds === 0) {
+    return `${minutes}분`;
+  }
+
+  return minutes === 0 ? `${seconds}초` : `${minutes}분 ${seconds}초`;
 }
 
-export function buildGroupGapSpeech(input: GroupGapMessageInput): string | null {
-  const myIndex = input.standings.findIndex((standing) => standing.isCurrentUser);
+function formatRemainingDistanceNotif(km: number): string {
+  return km < 1
+    ? `남은 거리 ${Math.round(km * 1000)}m`
+    : `남은 거리 ${km.toFixed(2)}km`;
+}
 
-  if (myIndex < 0) {
-    return null;
-  }
+type GapLine = { notif: string; speech: string };
 
-  const resolved = resolveGroupGapTargets(input.standings, input.selectedTargets, input.myPaceLabel);
+// Combine the selected opponent metrics (distance and/or pace) into one line for a single
+// runner. Returns null when neither selected metric has real data yet.
+function buildOpponentLine(params: {
+  label: string | null;
+  name: string;
+  gapKm: number | null;
+  paceDiffNotif: string | null;
+  paceDiffSpeech: string | null;
+  wantDistance: boolean;
+  wantPace: boolean;
+}): GapLine | null {
+  const honorific = withHonorific(params.name);
+  const labelPrefixNotif = params.label ? `${params.label} ${params.name}: ` : `${params.name} `;
+  const labelPrefixSpeech = params.label ? `${params.label} ` : '';
 
-  if (!resolved.length) {
-    return null;
-  }
+  const notifParts: string[] = [];
+  const speechParts: string[] = [];
 
-  const myRank = input.standings[myIndex].rank || myIndex + 1;
-  const parts = resolved.map((entry) => {
-    const name = withHonorific(entry.name);
-    const absoluteKm = Math.abs(entry.gapKm);
+  if (params.wantDistance && typeof params.gapKm === 'number' && Number.isFinite(params.gapKm)) {
+    const { magnitude, direction } = buildCompactDistanceGap(params.gapKm);
+    const absoluteKm = Math.abs(params.gapKm);
 
-    if (absoluteKm < 0.005) {
-      return `${entry.label} ${withWaParticle(name)} 거의 같아요`;
+    if (direction === '동률') {
+      notifParts.push('거의 동률');
+      speechParts.push(`${labelPrefixSpeech}${withWaParticle(honorific)} 거의 같아요`);
+    } else {
+      notifParts.push(`${magnitude} ${direction}`);
+      const phrase = direction === '앞' ? '앞서고 있어요' : '뒤처졌어요';
+      speechParts.push(`${labelPrefixSpeech}${honorific}보다 ${buildSpeechDistance(absoluteKm)} ${phrase}`);
     }
+  }
 
-    const direction = entry.gapKm >= 0 ? '앞서고 있어요' : '뒤처졌어요';
-    return `${entry.label} ${name}보다 ${buildSpeechDistance(absoluteKm)} ${direction}`;
-  });
+  if (params.wantPace && params.paceDiffNotif) {
+    notifParts.push(params.paceDiffNotif);
+  }
+  if (params.wantPace && params.paceDiffSpeech) {
+    // When distance was already spoken the label is consumed; otherwise lead with it.
+    speechParts.push(speechParts.length ? params.paceDiffSpeech : `${labelPrefixSpeech}${params.paceDiffSpeech}`);
+  }
 
-  return `현재 ${myRank}위. ${parts.join('. ')}.`;
+  if (!notifParts.length && !speechParts.length) {
+    return null;
+  }
+
+  return {
+    notif: `${labelPrefixNotif}${notifParts.join(', ')}`,
+    speech: speechParts.join('. '),
+  };
+}
+
+export type LiveGapOutput = {
+  notification: LiveGapMessage | null;
+  speech: string | null;
+};
+
+export type LiveGapOutputInput = {
+  matchMode: 'duel' | 'group';
+  metrics: readonly LiveGapMetric[];
+  // My metrics (apply to both modes).
+  remainingDistanceKm?: number | null;
+  avgPaceLabel?: string | null;
+  currentPaceLabel?: string | null;
+  // Duel opponent.
+  opponentName?: string | null;
+  // My distance minus the opponent's, in km.
+  opponentGapKm?: number | null;
+  opponentPaceLabel?: string | null;
+  // Group.
+  standings?: GroupLiveStanding[];
+  groupTargets?: readonly LiveGapGroupTarget[];
+};
+
+export function buildLiveGapOutput(input: LiveGapOutputInput): LiveGapOutput {
+  const wants = (metric: LiveGapMetric) => input.metrics.includes(metric);
+  const lines: GapLine[] = [];
+
+  // --- My metrics ---
+  if (wants('remainingDistance')
+    && typeof input.remainingDistanceKm === 'number'
+    && Number.isFinite(input.remainingDistanceKm)) {
+    const km = Math.max(0, input.remainingDistanceKm);
+    lines.push({
+      notif: formatRemainingDistanceNotif(km),
+      speech: `남은 거리 ${buildSpeechDistance(km)}`,
+    });
+  }
+
+  if (wants('avgPace') && parseMeasuredPaceSecondsPerKm(input.avgPaceLabel) !== null) {
+    lines.push({
+      notif: `평균 ${String(input.avgPaceLabel)}`,
+      speech: `평균 페이스 ${buildPaceSpeech(input.avgPaceLabel)}`,
+    });
+  }
+
+  if (wants('currentPace') && parseMeasuredPaceSecondsPerKm(input.currentPaceLabel) !== null) {
+    lines.push({
+      notif: `현재 ${String(input.currentPaceLabel)}`,
+      speech: `현재 페이스 ${buildPaceSpeech(input.currentPaceLabel)}`,
+    });
+  }
+
+  // --- Opponent metrics ---
+  const wantOppDistance = wants('opponentDistance');
+  const wantOppPace = wants('opponentPace');
+
+  if (wantOppDistance || wantOppPace) {
+    if (input.matchMode === 'duel') {
+      const gapKm = typeof input.opponentGapKm === 'number' && Number.isFinite(input.opponentGapKm)
+        ? input.opponentGapKm
+        : null;
+      const line = buildOpponentLine({
+        label: null,
+        name: input.opponentName?.trim() || '상대',
+        gapKm,
+        paceDiffNotif: buildPaceDiffLabel(input.avgPaceLabel, input.opponentPaceLabel),
+        paceDiffSpeech: buildPaceDiffSpeech(input.avgPaceLabel, input.opponentPaceLabel),
+        wantDistance: wantOppDistance,
+        wantPace: wantOppPace,
+      });
+      if (line) {
+        lines.push(line);
+      }
+    } else {
+      const resolved = resolveGroupGapTargets(
+        input.standings ?? [],
+        input.groupTargets ?? [],
+        input.avgPaceLabel,
+      );
+      for (const entry of resolved) {
+        const line = buildOpponentLine({
+          label: entry.label,
+          name: entry.name,
+          gapKm: entry.gapKm,
+          paceDiffNotif: entry.paceDiff,
+          paceDiffSpeech: entry.paceDiffSpeech,
+          wantDistance: wantOppDistance,
+          wantPace: wantOppPace,
+        });
+        if (line) {
+          lines.push(line);
+        }
+      }
+    }
+  }
+
+  if (!lines.length) {
+    // Nothing to say yet (data not ready, or every selected metric is unmeasured).
+    return { notification: null, speech: null };
+  }
+
+  let title = '대결 중간 점검';
+  if (input.matchMode === 'group') {
+    const standings = input.standings ?? [];
+    const myIndex = standings.findIndex((standing) => standing.isCurrentUser);
+    if (myIndex >= 0) {
+      const myRank = standings[myIndex].rank || myIndex + 1;
+      title = `중간 점검 · 현재 ${myRank}위`;
+    } else {
+      title = '중간 점검';
+    }
+  }
+
+  const notification: LiveGapMessage = {
+    title,
+    body: lines.map((line) => line.notif).join('\n'),
+  };
+  const speech = `${lines.map((line) => line.speech).join('. ')}.`;
+
+  return { notification, speech };
 }

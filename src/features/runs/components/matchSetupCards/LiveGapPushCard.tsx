@@ -3,14 +3,19 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
   getLiveGapPushConfig,
+  LIVE_GAP_DELIVERY_MODE_OPTIONS,
   LIVE_GAP_GROUP_TARGET_OPTIONS,
   LIVE_GAP_INTERVAL_OPTIONS,
+  LIVE_GAP_METRIC_OPTIONS,
+  setLiveGapDeliveryMode,
   setLiveGapInterval,
-  setLiveGapVoiceEnabled,
   subscribeLiveGapPushConfig,
   toggleLiveGapGroupTarget,
+  toggleLiveGapMetric,
+  type LiveGapDeliveryMode,
   type LiveGapGroupTarget,
   type LiveGapInterval,
+  type LiveGapMetric,
 } from '@/features/runs/liveGap/liveGapPushConfig';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
 
@@ -41,14 +46,15 @@ export function LiveGapPushCard({ mode }: LiveGapPushCardProps) {
     getLiveGapPushConfig,
   );
   const intervalEnabled = config.interval !== 'off';
+  const voiceOn = config.deliveryMode === 'voice' || config.deliveryMode === 'both';
 
   return (
     <View style={styles.card}>
       <Text style={styles.title}>대결 중간 알림</Text>
       <Text style={styles.subtitle}>
         {mode === 'duel'
-          ? '정한 시간마다 상대와의 거리·페이스 차이를 푸시로 알려줘요.'
-          : '정한 시간마다 고른 상대들과의 거리·페이스 차이를 푸시로 알려줘요.'}
+          ? '정한 시간마다 고른 정보를 푸시로 알려줘요.'
+          : '정한 시간마다 고른 상대들과의 정보를 푸시로 알려줘요.'}
       </Text>
       <View style={styles.chipRow}>
         {LIVE_GAP_INTERVAL_OPTIONS.map((option) => (
@@ -61,8 +67,8 @@ export function LiveGapPushCard({ mode }: LiveGapPushCardProps) {
         ))}
       </View>
       {mode === 'group' && intervalEnabled ? (
-        <View style={styles.targetSection}>
-          <Text style={styles.targetLabel}>누구와 비교할까요?</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>누구와 비교할까요?</Text>
           <View style={styles.chipRow}>
             {LIVE_GAP_GROUP_TARGET_OPTIONS.map((option) => (
               <Chip
@@ -74,23 +80,45 @@ export function LiveGapPushCard({ mode }: LiveGapPushCardProps) {
             ))}
           </View>
           {config.groupTargets.length === 0 ? (
-            <Text style={styles.targetHint}>최소 한 명은 골라야 알림이 가요.</Text>
+            <Text style={styles.hint}>최소 한 명은 골라야 알림이 가요.</Text>
           ) : null}
         </View>
       ) : null}
       {intervalEnabled ? (
-        <View style={styles.voiceSection}>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>무엇을 알려줄까요?</Text>
           <View style={styles.chipRow}>
-            <Chip
-              label="🔊 음성 안내"
-              selected={config.voiceEnabled}
-              onPress={() => setLiveGapVoiceEnabled(!config.voiceEnabled)}
-            />
+            {LIVE_GAP_METRIC_OPTIONS.map((option) => (
+              <Chip
+                key={option.value}
+                label={option.label}
+                selected={config.metrics.includes(option.value)}
+                onPress={() => toggleLiveGapMetric(option.value as LiveGapMetric)}
+              />
+            ))}
           </View>
-          <Text style={styles.targetHint}>
-            {config.voiceEnabled
-              ? '이어폰으로 차이를 읽어줘요 (음악은 잠깐 작아져요).'
-              : '켜면 이어폰으로 차이를 음성으로 들을 수 있어요.'}
+          {config.metrics.length === 0 ? (
+            <Text style={styles.hint}>최소 한 개는 골라야 알림이 가요.</Text>
+          ) : null}
+        </View>
+      ) : null}
+      {intervalEnabled ? (
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>알림 방식</Text>
+          <View style={styles.chipRow}>
+            {LIVE_GAP_DELIVERY_MODE_OPTIONS.map((option) => (
+              <Chip
+                key={option.value}
+                label={option.label}
+                selected={config.deliveryMode === option.value}
+                onPress={() => setLiveGapDeliveryMode(option.value as LiveGapDeliveryMode)}
+              />
+            ))}
+          </View>
+          <Text style={styles.hint}>
+            {voiceOn
+              ? '이어폰으로 음성을 읽어줘요 (음악은 잠깐 작아져요).'
+              : '화면 알림으로만 보여줘요.'}
           </Text>
         </View>
       ) : null}
@@ -143,20 +171,16 @@ const styles = StyleSheet.create({
   chipTextSelected: {
     color: colors.white,
   },
-  targetSection: {
+  section: {
     gap: spacing.xxs,
     marginTop: spacing.xxs,
   },
-  voiceSection: {
-    gap: spacing.xxs,
-    marginTop: spacing.xxs,
-  },
-  targetLabel: {
+  sectionLabel: {
     color: colors.white,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
-  targetHint: {
+  hint: {
     color: colors.brandLight,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.semibold,

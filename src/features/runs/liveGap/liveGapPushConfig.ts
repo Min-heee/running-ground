@@ -11,6 +11,19 @@ export type LiveGapInterval = 'off' | '30s' | '1m' | '3m' | '5m';
 // follow the leaderboard position regardless of where I sit.
 export type LiveGapGroupTarget = 'ahead1' | 'ahead2' | 'rank1' | 'rank2' | 'rank3';
 
+// Which metrics the push reports. The first three are about me; the last two are about
+// the opponent (the single opponent in a duel, or each selected group target).
+export type LiveGapMetric =
+  | 'remainingDistance'
+  | 'avgPace'
+  | 'currentPace'
+  | 'opponentDistance'
+  | 'opponentPace';
+
+// How the gap is delivered: a notification (vibration/banner), spoken voice (earphones),
+// or both.
+export type LiveGapDeliveryMode = 'notification' | 'voice' | 'both';
+
 export type LiveGapIntervalOption = {
   value: LiveGapInterval;
   label: string;
@@ -38,6 +51,30 @@ export const LIVE_GAP_GROUP_TARGET_OPTIONS: readonly LiveGapGroupTargetOption[] 
   { value: 'rank3', label: '3등' },
 ];
 
+export type LiveGapMetricOption = {
+  value: LiveGapMetric;
+  label: string;
+};
+
+export const LIVE_GAP_METRIC_OPTIONS: readonly LiveGapMetricOption[] = [
+  { value: 'remainingDistance', label: '남은거리' },
+  { value: 'avgPace', label: '평균페이스' },
+  { value: 'currentPace', label: '현재페이스' },
+  { value: 'opponentDistance', label: '상대와 거리' },
+  { value: 'opponentPace', label: '상대와 페이스' },
+];
+
+export type LiveGapDeliveryModeOption = {
+  value: LiveGapDeliveryMode;
+  label: string;
+};
+
+export const LIVE_GAP_DELIVERY_MODE_OPTIONS: readonly LiveGapDeliveryModeOption[] = [
+  { value: 'notification', label: '알림만' },
+  { value: 'voice', label: '음성만' },
+  { value: 'both', label: '둘다' },
+];
+
 export function resolveLiveGapIntervalMs(interval: LiveGapInterval): number | null {
   return LIVE_GAP_INTERVAL_OPTIONS.find((option) => option.value === interval)?.ms ?? null;
 }
@@ -45,15 +82,17 @@ export function resolveLiveGapIntervalMs(interval: LiveGapInterval): number | nu
 export type LiveGapPushConfig = {
   interval: LiveGapInterval;
   groupTargets: readonly LiveGapGroupTarget[];
-  // Read the gap aloud via TTS (in addition to the push notification) so it can be heard
-  // through earphones while running. Requires a native build with expo-speech.
-  voiceEnabled: boolean;
+  // Which metrics to include in each push.
+  metrics: readonly LiveGapMetric[];
+  // Notification, voice (TTS — needs a native expo-speech build), or both.
+  deliveryMode: LiveGapDeliveryMode;
 };
 
 const DEFAULT_CONFIG: LiveGapPushConfig = {
   interval: 'off',
   groupTargets: ['ahead1', 'rank1'],
-  voiceEnabled: false,
+  metrics: ['remainingDistance', 'opponentDistance', 'opponentPace'],
+  deliveryMode: 'notification',
 };
 
 let currentConfig: LiveGapPushConfig = DEFAULT_CONFIG;
@@ -88,12 +127,24 @@ export function toggleLiveGapGroupTarget(target: LiveGapGroupTarget) {
   emit();
 }
 
-export function setLiveGapVoiceEnabled(voiceEnabled: boolean) {
-  if (currentConfig.voiceEnabled === voiceEnabled) {
+export function toggleLiveGapMetric(metric: LiveGapMetric) {
+  const isSelected = currentConfig.metrics.includes(metric);
+  // Keep stored order aligned with the option order so the push reads top-down
+  // (남은거리 → 상대와 페이스) regardless of the tap sequence.
+  const metrics = LIVE_GAP_METRIC_OPTIONS
+    .map((option) => option.value)
+    .filter((value) => (value === metric ? !isSelected : currentConfig.metrics.includes(value)));
+
+  currentConfig = { ...currentConfig, metrics };
+  emit();
+}
+
+export function setLiveGapDeliveryMode(deliveryMode: LiveGapDeliveryMode) {
+  if (currentConfig.deliveryMode === deliveryMode) {
     return;
   }
 
-  currentConfig = { ...currentConfig, voiceEnabled };
+  currentConfig = { ...currentConfig, deliveryMode };
   emit();
 }
 

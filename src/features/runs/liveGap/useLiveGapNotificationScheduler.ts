@@ -2,17 +2,16 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 
 import type { GroupLiveStanding } from '@/features/runs/types/matchProgress';
 import {
-  buildDuelGapMessage,
-  buildDuelGapSpeech,
-  buildGroupGapMessage,
-  buildGroupGapSpeech,
-  type LiveGapMessage,
+  buildLiveGapOutput,
+  type LiveGapOutput,
 } from '@/features/runs/liveGap/liveGapMessage';
 import {
   getLiveGapPushConfig,
   resolveLiveGapIntervalMs,
   subscribeLiveGapPushConfig,
+  type LiveGapDeliveryMode,
   type LiveGapGroupTarget,
+  type LiveGapMetric,
 } from '@/features/runs/liveGap/liveGapPushConfig';
 import {
   ensureLiveGapNotificationPermissions,
@@ -27,54 +26,38 @@ export type LiveGapSchedulerInput = {
   active: boolean;
   matchMode: 'duel' | 'group';
   opponentName?: string | null;
+  // My average (arena) pace label, e.g. '5:30/km'.
   myPaceLabel?: string | null;
+  // My instantaneous pace label, e.g. '5:20/km'.
+  myCurrentPaceLabel?: string | null;
+  // Distance left to the match target, in km (my distance subtracted from target).
+  remainingDistanceKm?: number | null;
   opponentPaceLabel?: string | null;
   duelGapKm?: number | null;
   groupStandings?: GroupLiveStanding[];
 };
 
-function buildSchedulerMessage(
+function buildSchedulerOutput(
   input: LiveGapSchedulerInput,
+  metrics: readonly LiveGapMetric[],
   groupTargets: readonly LiveGapGroupTarget[],
-): LiveGapMessage | null {
-  if (input.matchMode === 'group') {
-    return buildGroupGapMessage({
-      standings: input.groupStandings ?? [],
-      selectedTargets: groupTargets,
-      myPaceLabel: input.myPaceLabel,
-    });
-  }
-
-  return buildDuelGapMessage({
+): LiveGapOutput {
+  return buildLiveGapOutput({
+    matchMode: input.matchMode,
+    metrics,
+    remainingDistanceKm: input.remainingDistanceKm,
+    avgPaceLabel: input.myPaceLabel,
+    currentPaceLabel: input.myCurrentPaceLabel,
     opponentName: input.opponentName,
-    myPaceLabel: input.myPaceLabel,
+    opponentGapKm: input.duelGapKm,
     opponentPaceLabel: input.opponentPaceLabel,
-    gapKm: input.duelGapKm,
+    standings: input.groupStandings ?? [],
+    groupTargets,
   });
 }
 
-function buildSchedulerSpeech(
-  input: LiveGapSchedulerInput,
-  groupTargets: readonly LiveGapGroupTarget[],
-): string | null {
-  if (input.matchMode === 'group') {
-    return buildGroupGapSpeech({
-      standings: input.groupStandings ?? [],
-      selectedTargets: groupTargets,
-      myPaceLabel: input.myPaceLabel,
-    });
-  }
-
-  return buildDuelGapSpeech({
-    opponentName: input.opponentName,
-    myPaceLabel: input.myPaceLabel,
-    opponentPaceLabel: input.opponentPaceLabel,
-    gapKm: input.duelGapKm,
-  });
-}
-
-// Fires a local notification (and optional voice) every chosen interval during an active
-// match. Driven by TWO cadences so it survives the screen being off on both platforms:
+// Fires a local notification (and/or voice) every chosen interval during an active match.
+// Driven by TWO cadences so it survives the screen being off on both platforms:
 //   1. a 1s timer — reliable while the screen is on, and on iOS during the background
 //      location CPU windows;
 //   2. each GPS tracking-snapshot emission — on Android the screen-off JS timer is
@@ -91,14 +74,17 @@ export function useLiveGapNotificationScheduler(input: LiveGapSchedulerInput) {
   );
 
   const intervalMs = resolveLiveGapIntervalMs(config.interval);
-  const schedulerActive = input.active && intervalMs !== null;
+  // With no metric selected there is nothing to push, so treat it as inactive.
+  const schedulerActive = input.active && intervalMs !== null && config.metrics.length > 0;
 
   const inputRef = useRef(input);
   inputRef.current = input;
+  const metricsRef = useRef(config.metrics);
+  metricsRef.current = config.metrics;
   const groupTargetsRef = useRef(config.groupTargets);
   groupTargetsRef.current = config.groupTargets;
-  const voiceEnabledRef = useRef(config.voiceEnabled);
-  voiceEnabledRef.current = config.voiceEnabled;
+  const deliveryModeRef = useRef<LiveGapDeliveryMode>(config.deliveryMode);
+  deliveryModeRef.current = config.deliveryMode;
 
   const permissionRequestedRef = useRef(false);
   useEffect(() => {
@@ -129,22 +115,26 @@ export function useLiveGapNotificationScheduler(input: LiveGapSchedulerInput) {
         return;
       }
 
-      const message = buildSchedulerMessage(inputRef.current, groupTargetsRef.current);
+      const output = buildSchedulerOutput(inputRef.current, metricsRef.current, groupTargetsRef.current);
 
-      if (!message) {
-        // Opponent data not ready yet — keep the clock past-due so we fire as soon as
-        // it arrives rather than waiting another full interval.
+      if (!output.notification && !output.speech) {
+        // Data not ready yet — keep the clock past-due so we fire as soon as it arrives
+        // rather than waiting another full interval.
         return;
       }
 
       lastFiredAtRef.current = now;
-      void presentLiveGapNotification(message);
 
-      if (voiceEnabledRef.current) {
-        const speech = buildSchedulerSpeech(inputRef.current, groupTargetsRef.current);
-        if (speech) {
-          void speakLiveGapMessage(speech);
-        }
+      const deliveryMode = deliveryModeRef.current;
+      const wantNotification = deliveryMode === 'notification' || deliveryMode === 'both';
+      const wantVoice = deliveryMode === 'voice' || deliveryMode === 'both';
+
+      if (wantNotification && output.notification) {
+        void presentLiveGapNotification(output.notification);
+      }
+
+      if (wantVoice && output.speech) {
+        void speakLiveGapMessage(output.speech);
       }
     };
 

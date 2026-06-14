@@ -5,10 +5,11 @@ import {
   getLiveGapPushConfig,
   resetLiveGapPushConfigForTests,
   resolveLiveGapIntervalMs,
+  setLiveGapDeliveryMode,
   setLiveGapInterval,
-  setLiveGapVoiceEnabled,
   subscribeLiveGapPushConfig,
   toggleLiveGapGroupTarget,
+  toggleLiveGapMetric,
 } from './liveGapPushConfig';
 
 test('resolveLiveGapIntervalMs maps interval keys to milliseconds', () => {
@@ -19,33 +20,53 @@ test('resolveLiveGapIntervalMs maps interval keys to milliseconds', () => {
   assert.equal(resolveLiveGapIntervalMs('5m'), 300_000);
 });
 
-test('default config is off with sensible default group targets and voice off', () => {
+test('default config is off with sensible default metrics and notification delivery', () => {
   resetLiveGapPushConfigForTests();
   const config = getLiveGapPushConfig();
   assert.equal(config.interval, 'off');
   assert.deepEqual(config.groupTargets, ['ahead1', 'rank1']);
-  assert.equal(config.voiceEnabled, false);
+  assert.deepEqual(config.metrics, ['remainingDistance', 'opponentDistance', 'opponentPace']);
+  assert.equal(config.deliveryMode, 'notification');
 });
 
-test('setLiveGapVoiceEnabled toggles voice and notifies once per change', () => {
+test('setLiveGapDeliveryMode switches mode and notifies once per change', () => {
   resetLiveGapPushConfigForTests();
   let notifications = 0;
   const unsubscribe = subscribeLiveGapPushConfig(() => {
     notifications += 1;
   });
 
-  setLiveGapVoiceEnabled(true);
-  assert.equal(getLiveGapPushConfig().voiceEnabled, true);
+  setLiveGapDeliveryMode('voice');
+  assert.equal(getLiveGapPushConfig().deliveryMode, 'voice');
   assert.equal(notifications, 1);
 
-  setLiveGapVoiceEnabled(true);
+  // Setting the same value is a no-op.
+  setLiveGapDeliveryMode('voice');
   assert.equal(notifications, 1);
 
-  setLiveGapVoiceEnabled(false);
-  assert.equal(getLiveGapPushConfig().voiceEnabled, false);
+  setLiveGapDeliveryMode('both');
+  assert.equal(getLiveGapPushConfig().deliveryMode, 'both');
   assert.equal(notifications, 2);
 
   unsubscribe();
+});
+
+test('toggleLiveGapMetric adds and removes while keeping canonical order', () => {
+  resetLiveGapPushConfigForTests();
+  // Clear the default selection.
+  toggleLiveGapMetric('remainingDistance');
+  toggleLiveGapMetric('opponentDistance');
+  toggleLiveGapMetric('opponentPace');
+  assert.deepEqual(getLiveGapPushConfig().metrics, []);
+
+  // Toggle on out of order — stored order should still follow option order.
+  toggleLiveGapMetric('opponentPace');
+  toggleLiveGapMetric('avgPace');
+  toggleLiveGapMetric('remainingDistance');
+  assert.deepEqual(getLiveGapPushConfig().metrics, ['remainingDistance', 'avgPace', 'opponentPace']);
+
+  toggleLiveGapMetric('avgPace');
+  assert.deepEqual(getLiveGapPushConfig().metrics, ['remainingDistance', 'opponentPace']);
 });
 
 test('setLiveGapInterval updates the store and notifies subscribers', () => {
