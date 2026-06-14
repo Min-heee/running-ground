@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
@@ -11,7 +11,7 @@ import type { ActivityRun } from '@/features/profile/hooks/useMyActivity';
 import { getRunKind } from '@/features/runs/utils/runKind';
 import type { RunKind } from '@/features/runs/utils/runKind';
 import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
-import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type ActivityKindFilter = 'all' | RunKind;
 type ActivityModeFilter = 'all' | 'duel' | 'group';
@@ -28,6 +28,40 @@ const ACTIVITY_MODE_FILTER_OPTIONS = [
   { key: 'duel', label: '1대1' },
   { key: 'group', label: '그룹' },
 ] as const;
+
+type ActivityMonthFilter = 'all' | string;
+
+// '전체' + 1월~12월. Keys are the zero-padded month strings that match run.date (YYYY-MM-DD).
+const ACTIVITY_MONTH_FILTER_OPTIONS: readonly { key: ActivityMonthFilter; label: string }[] = [
+  { key: 'all', label: '전체' },
+  ...Array.from({ length: 12 }, (_, index) => {
+    const month = String(index + 1).padStart(2, '0');
+    return { key: month, label: `${index + 1}월` };
+  }),
+];
+
+const FilterChip = memo(function FilterChip({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={[styles.filterChip, selected ? styles.filterChipActive : styles.filterChipIdle]}
+    >
+      <Text style={[styles.filterChipText, selected ? styles.filterChipTextActive : styles.filterChipTextIdle]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+});
 
 const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun }) {
   return (
@@ -47,33 +81,54 @@ export default function MyActivityScreen() {
   const { activity, activityRuns, error, loading } = useMyActivity();
   const [kindFilter, setKindFilter] = useState<ActivityKindFilter>('all');
   const [modeFilter, setModeFilter] = useState<ActivityModeFilter>('all');
+  const [yearFilter, setYearFilter] = useState<string | null>(null);
+  const [monthFilter, setMonthFilter] = useState<ActivityMonthFilter>('all');
   const showModeFilter = kindFilter === 'party' || kindFilter === 'match';
   const handleKindChange = useCallback((next: ActivityKindFilter) => {
     setKindFilter(next);
     setModeFilter('all');
   }, []);
+
+  // Years present in the records, newest first. The active year follows the user's pick
+  // when it's still available, otherwise it falls back to the newest year — so it stays
+  // valid as data loads or changes without needing a sync effect.
+  const availableYears = useMemo(
+    () => Array.from(new Set(activityRuns.map((run) => run.date.slice(0, 4))))
+      .sort((a, b) => b.localeCompare(a)),
+    [activityRuns],
+  );
+  const selectedYear = (yearFilter && availableYears.includes(yearFilter))
+    ? yearFilter
+    : (availableYears[0] ?? null);
+
   const visibleRuns = useMemo(() => {
+    const periodRuns = activityRuns.filter((run) => {
+      if (selectedYear && run.date.slice(0, 4) !== selectedYear) {
+        return false;
+      }
+      if (monthFilter !== 'all' && run.date.slice(5, 7) !== monthFilter) {
+        return false;
+      }
+      return true;
+    });
+
     const baseRuns = kindFilter === 'all'
-      ? activityRuns
-      : activityRuns.filter((run) => getRunKind(run) === kindFilter);
+      ? periodRuns
+      : periodRuns.filter((run) => getRunKind(run) === kindFilter);
 
     if (!showModeFilter || modeFilter === 'all') {
       return baseRuns;
     }
 
     return baseRuns.filter((run) => run.matchResult?.mode === modeFilter);
-  }, [activityRuns, kindFilter, modeFilter, showModeFilter]);
-  const hasModeSpecificFilter = showModeFilter && modeFilter !== 'all';
-  const emptyTitle = kindFilter === 'all'
+  }, [activityRuns, kindFilter, modeFilter, monthFilter, selectedYear, showModeFilter]);
+  const noRunsAtAll = activityRuns.length === 0;
+  const emptyTitle = noRunsAtAll
     ? '아직 저장된 러닝 기록이 없어.'
-    : hasModeSpecificFilter
-      ? '해당 대결 기록이 없어.'
-      : '해당 종류의 기록이 없어.';
-  const emptyText = kindFilter === 'all'
+    : '해당 조건의 기록이 없어.';
+  const emptyText = noRunsAtAll
     ? '첫 기록을 추가하면 홈 게이지와 친구 순위가 바로 움직이기 시작해.'
-    : hasModeSpecificFilter
-      ? '전체를 선택하거나 다른 모드의 기록을 확인해봐.'
-      : '전체를 선택하거나 다른 종류의 기록을 확인해봐.';
+    : '다른 연도·월이나 종류를 선택해봐.';
 
   return (
     <Screen>
@@ -101,6 +156,36 @@ export default function MyActivityScreen() {
 
           <Card style={styles.historyCard}>
             <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
+            {availableYears.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipScrollRow}
+              >
+                {availableYears.map((year) => (
+                  <FilterChip
+                    key={year}
+                    label={`${year}년`}
+                    selected={year === selectedYear}
+                    onPress={() => setYearFilter(year)}
+                  />
+                ))}
+              </ScrollView>
+            ) : null}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.chipScrollRow}
+            >
+              {ACTIVITY_MONTH_FILTER_OPTIONS.map((option) => (
+                <FilterChip
+                  key={option.key}
+                  label={option.label}
+                  selected={option.key === monthFilter}
+                  onPress={() => setMonthFilter(option.key)}
+                />
+              ))}
+            </ScrollView>
             <SegmentedTabs
               options={ACTIVITY_KIND_FILTER_OPTIONS}
               value={kindFilter}
@@ -151,6 +236,32 @@ const styles = StyleSheet.create({
   },
   historyCard: {
     gap: spacing.s10,
+  },
+  chipScrollRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingRight: spacing.s12,
+  },
+  filterChip: {
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.s10,
+  },
+  filterChipActive: {
+    backgroundColor: colors.brand,
+  },
+  filterChipIdle: {
+    backgroundColor: colors.surfaceSubtle,
+  },
+  filterChipText: {
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  filterChipTextActive: {
+    color: colors.white,
+  },
+  filterChipTextIdle: {
+    color: colors.textSecondary,
   },
   sectionTitle: {
     fontSize: fontSizes.title,
