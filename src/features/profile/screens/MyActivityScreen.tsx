@@ -6,18 +6,16 @@ import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
-import { RunPeriodPickerSheet } from '@/features/home/components/overview/RunPeriodPickerSheet';
+import { YearMonthFilterRow } from '@/components/ui/YearMonthFilterRow';
 import { useMyActivity } from '@/features/profile/hooks/useMyActivity';
 import type { ActivityRun } from '@/features/profile/hooks/useMyActivity';
 import { getRunKind } from '@/features/runs/utils/runKind';
 import type { RunKind } from '@/features/runs/utils/runKind';
 import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type ActivityKindFilter = 'all' | RunKind;
 type ActivityModeFilter = 'all' | 'duel' | 'group';
-type ActivityMonthFilter = 'all' | string;
-type ActivePicker = 'year' | 'month' | null;
 
 const ACTIVITY_KIND_FILTER_OPTIONS = [
   { key: 'all', label: '전체' },
@@ -31,15 +29,6 @@ const ACTIVITY_MODE_FILTER_OPTIONS = [
   { key: 'duel', label: '1대1' },
   { key: 'group', label: '그룹' },
 ] as const;
-
-// '전체' + 1월~12월. Keys are the zero-padded month strings that match run.date (YYYY-MM-DD).
-const ACTIVITY_MONTH_FILTER_OPTIONS: readonly { key: ActivityMonthFilter; label: string }[] = [
-  { key: 'all', label: '전체' },
-  ...Array.from({ length: 12 }, (_, index) => {
-    const month = String(index + 1).padStart(2, '0');
-    return { key: month, label: `${index + 1}월` };
-  }),
-];
 
 const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun }) {
   return (
@@ -60,8 +49,7 @@ export default function MyActivityScreen() {
   const [kindFilter, setKindFilter] = useState<ActivityKindFilter>('all');
   const [modeFilter, setModeFilter] = useState<ActivityModeFilter>('all');
   const [yearFilter, setYearFilter] = useState<string | null>(null);
-  const [monthFilter, setMonthFilter] = useState<ActivityMonthFilter>('all');
-  const [activePicker, setActivePicker] = useState<ActivePicker>(null);
+  const [monthFilter, setMonthFilter] = useState<string>('all');
   const showModeFilter = kindFilter === 'party' || kindFilter === 'match';
   const handleKindChange = useCallback((next: ActivityKindFilter) => {
     setKindFilter(next);
@@ -79,11 +67,6 @@ export default function MyActivityScreen() {
   const selectedYear = (yearFilter && availableYears.includes(yearFilter))
     ? yearFilter
     : (availableYears[0] ?? null);
-  const yearOptions = useMemo(
-    () => availableYears.map((year) => ({ key: year, label: `${year}년` })),
-    [availableYears],
-  );
-  const selectedMonthLabel = ACTIVITY_MONTH_FILTER_OPTIONS.find((option) => option.key === monthFilter)?.label ?? '전체';
 
   const visibleRuns = useMemo(() => {
     const periodRuns = activityRuns.filter((run) => {
@@ -114,18 +97,6 @@ export default function MyActivityScreen() {
     ? '첫 기록을 추가하면 홈 게이지와 친구 순위가 바로 움직이기 시작해.'
     : '다른 연도·월이나 종류를 선택해봐.';
 
-  const handlePickerSelect = useCallback((key: string) => {
-    setActivePicker((picker) => {
-      if (picker === 'year') {
-        setYearFilter(key);
-      } else if (picker === 'month') {
-        setMonthFilter(key);
-      }
-      return null;
-    });
-  }, []);
-  const closePicker = useCallback(() => setActivePicker(null), []);
-
   return (
     <Screen>
       <AuthHeader
@@ -152,26 +123,13 @@ export default function MyActivityScreen() {
 
           <Card style={styles.historyCard}>
             <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
-            {availableYears.length > 0 ? (
-              <View style={styles.periodRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setActivePicker('year')}
-                  style={styles.periodButton}
-                >
-                  <Text style={styles.periodLabel}>{selectedYear ? `${selectedYear}년` : '년도'}</Text>
-                  <Text style={styles.periodChevron}>▾</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setActivePicker('month')}
-                  style={styles.periodButton}
-                >
-                  <Text style={styles.periodLabel}>{selectedMonthLabel}</Text>
-                  <Text style={styles.periodChevron}>▾</Text>
-                </Pressable>
-              </View>
-            ) : null}
+            <YearMonthFilterRow
+              availableYears={availableYears}
+              selectedYear={selectedYear}
+              monthFilter={monthFilter}
+              onSelectYear={(year) => setYearFilter(year)}
+              onSelectMonth={(month) => setMonthFilter(month)}
+            />
             <SegmentedTabs
               options={ACTIVITY_KIND_FILTER_OPTIONS}
               value={kindFilter}
@@ -197,15 +155,6 @@ export default function MyActivityScreen() {
           </Card>
 
           <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} />
-
-          <RunPeriodPickerSheet
-            visible={activePicker !== null}
-            title={activePicker === 'year' ? '년도 선택' : '월 선택'}
-            options={activePicker === 'year' ? yearOptions : ACTIVITY_MONTH_FILTER_OPTIONS}
-            selectedKey={activePicker === 'year' ? (selectedYear ?? '') : monthFilter}
-            onSelect={handlePickerSelect}
-            onClose={closePicker}
-          />
         </>
       ) : null}
     </Screen>
@@ -231,31 +180,6 @@ const styles = StyleSheet.create({
   },
   historyCard: {
     gap: spacing.s10,
-  },
-  periodRow: {
-    flexDirection: 'row',
-    gap: spacing.s10,
-  },
-  periodButton: {
-    alignItems: 'center',
-    backgroundColor: colors.brandSoft,
-    borderColor: colors.brandSoftBorder,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.s12,
-    paddingVertical: spacing.s10,
-  },
-  periodLabel: {
-    color: colors.brand,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extraBold,
-  },
-  periodChevron: {
-    color: colors.brand,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extraBold,
   },
   sectionTitle: {
     fontSize: fontSizes.title,

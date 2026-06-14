@@ -5,6 +5,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
+import { YearMonthFilterRow } from '@/components/ui/YearMonthFilterRow';
 import { useMatchRecords } from '@/features/match/hooks/useMatchRecords';
 import type { MatchRecordRun } from '@/features/match/utils/matchRecordStats';
 import { formatDuration } from '@/features/runs/tracking';
@@ -78,16 +79,40 @@ function buildMatchRecordDetail(durationSeconds: number | null | undefined, gapK
 export default function MatchRecordScreen() {
   const { activity, error, loading, stats } = useMatchRecords();
   const [modeFilter, setModeFilter] = useState<MatchModeFilter>('all');
-  const visibleMatchRuns = useMemo(
-    () => modeFilter === 'all'
-      ? stats.matchRuns
-      : stats.matchRuns.filter((run) => run.matchResult?.mode === modeFilter),
-    [modeFilter, stats.matchRuns],
+  const [yearFilter, setYearFilter] = useState<string | null>(null);
+  const [monthFilter, setMonthFilter] = useState<string>('all');
+
+  // Years present in the records, newest first; the active year follows the user's pick
+  // and falls back to the newest year so it stays valid as data loads/changes.
+  const availableYears = useMemo(
+    () => Array.from(new Set(stats.matchRuns.map((run) => run.date.slice(0, 4))))
+      .sort((a, b) => b.localeCompare(a)),
+    [stats.matchRuns],
   );
-  const emptyTitle = modeFilter === 'all' ? '아직 저장된 대결 전적이 없어요.' : '해당 전적이 없어요.';
-  const emptyText = modeFilter === 'all'
+  const selectedYear = (yearFilter && availableYears.includes(yearFilter))
+    ? yearFilter
+    : (availableYears[0] ?? null);
+
+  const visibleMatchRuns = useMemo(
+    () => stats.matchRuns.filter((run) => {
+      if (selectedYear && run.date.slice(0, 4) !== selectedYear) {
+        return false;
+      }
+      if (monthFilter !== 'all' && run.date.slice(5, 7) !== monthFilter) {
+        return false;
+      }
+      if (modeFilter !== 'all' && run.matchResult?.mode !== modeFilter) {
+        return false;
+      }
+      return true;
+    }),
+    [modeFilter, monthFilter, selectedYear, stats.matchRuns],
+  );
+  const noMatchesAtAll = stats.matchRuns.length === 0;
+  const emptyTitle = noMatchesAtAll ? '아직 저장된 대결 전적이 없어요.' : '해당 전적이 없어요.';
+  const emptyText = noMatchesAtAll
     ? '공식 매칭 대결을 저장하면 여기서 바로 볼 수 있어요.'
-    : '다른 전적 필터를 선택하거나 새 공식 매칭 대결을 저장해보세요.';
+    : '다른 연도·월이나 전적 필터를 선택해보세요.';
 
   return (
     <Screen>
@@ -121,6 +146,13 @@ export default function MatchRecordScreen() {
 
           <Card style={styles.historyCard}>
             <Text style={styles.sectionTitle}>최근 전적</Text>
+            <YearMonthFilterRow
+              availableYears={availableYears}
+              selectedYear={selectedYear}
+              monthFilter={monthFilter}
+              onSelectYear={(year) => setYearFilter(year)}
+              onSelectMonth={(month) => setMonthFilter(month)}
+            />
             <SegmentedTabs
               options={MATCH_MODE_FILTER_OPTIONS}
               value={modeFilter}
