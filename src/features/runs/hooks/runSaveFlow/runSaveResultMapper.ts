@@ -105,9 +105,13 @@ export function buildRunSaveResultSnapshot({
   totalSteps: number;
   trackedMatchResult?: RunMatchResult | null;
 }): RunSaveResultSnapshot {
+  // Whole seconds only: the run's durationSeconds is validated as a positive integer
+  // server-side, so a raw float elapsed would 400 the save. Round once here so every
+  // downstream consumer (durationSeconds, the matchResult my/opponent durations,
+  // endedAt, pace/cadence) sees the same integer.
   const finalElapsedSeconds = allowStationaryForfeitSave
-    ? Math.max(1, displayedSnapshot.elapsedSeconds)
-    : displayedSnapshot.elapsedSeconds;
+    ? Math.max(1, Math.round(displayedSnapshot.elapsedSeconds))
+    : Math.round(displayedSnapshot.elapsedSeconds);
   const startedAt = displayedSnapshot.startedAt ?? displayedSnapshot.route[0]?.timestamp ?? new Date().toISOString();
   const endedAt = displayedSnapshot.route.length >= 2
     ? displayedSnapshot.route[displayedSnapshot.route.length - 1].timestamp

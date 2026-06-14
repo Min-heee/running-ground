@@ -168,9 +168,12 @@ export function buildDuelMatchFinishModel({
       gapKm,
       comparedDistanceKm: opponentDistanceKm,
       myPaceLabel: currentPaceLabel,
-      myDurationSeconds: currentElapsedSeconds,
+      // Durations must be whole seconds — the backend validates them as positive
+      // integers, so a raw float elapsed (esp. the opponent's synced liveElapsed)
+      // would 400 the whole run save and strand the runner on the live screen.
+      myDurationSeconds: Math.round(currentElapsedSeconds),
       opponentPaceLabel: opponentPace,
-      opponentDurationSeconds: opponentElapsedSeconds,
+      opponentDurationSeconds: Math.round(opponentElapsedSeconds),
     },
   };
 }
