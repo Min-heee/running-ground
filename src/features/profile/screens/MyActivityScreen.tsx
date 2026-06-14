@@ -1,11 +1,12 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
+import { RunPeriodPickerSheet } from '@/features/home/components/overview/RunPeriodPickerSheet';
 import { useMyActivity } from '@/features/profile/hooks/useMyActivity';
 import type { ActivityRun } from '@/features/profile/hooks/useMyActivity';
 import { getRunKind } from '@/features/runs/utils/runKind';
@@ -15,6 +16,8 @@ import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type ActivityKindFilter = 'all' | RunKind;
 type ActivityModeFilter = 'all' | 'duel' | 'group';
+type ActivityMonthFilter = 'all' | string;
+type ActivePicker = 'year' | 'month' | null;
 
 const ACTIVITY_KIND_FILTER_OPTIONS = [
   { key: 'all', label: '전체' },
@@ -29,8 +32,6 @@ const ACTIVITY_MODE_FILTER_OPTIONS = [
   { key: 'group', label: '그룹' },
 ] as const;
 
-type ActivityMonthFilter = 'all' | string;
-
 // '전체' + 1월~12월. Keys are the zero-padded month strings that match run.date (YYYY-MM-DD).
 const ACTIVITY_MONTH_FILTER_OPTIONS: readonly { key: ActivityMonthFilter; label: string }[] = [
   { key: 'all', label: '전체' },
@@ -39,29 +40,6 @@ const ACTIVITY_MONTH_FILTER_OPTIONS: readonly { key: ActivityMonthFilter; label:
     return { key: month, label: `${index + 1}월` };
   }),
 ];
-
-const FilterChip = memo(function FilterChip({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={[styles.filterChip, selected ? styles.filterChipActive : styles.filterChipIdle]}
-    >
-      <Text style={[styles.filterChipText, selected ? styles.filterChipTextActive : styles.filterChipTextIdle]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-});
 
 const ActivityRunRow = memo(function ActivityRunRow({ run }: { run: ActivityRun }) {
   return (
@@ -83,6 +61,7 @@ export default function MyActivityScreen() {
   const [modeFilter, setModeFilter] = useState<ActivityModeFilter>('all');
   const [yearFilter, setYearFilter] = useState<string | null>(null);
   const [monthFilter, setMonthFilter] = useState<ActivityMonthFilter>('all');
+  const [activePicker, setActivePicker] = useState<ActivePicker>(null);
   const showModeFilter = kindFilter === 'party' || kindFilter === 'match';
   const handleKindChange = useCallback((next: ActivityKindFilter) => {
     setKindFilter(next);
@@ -100,6 +79,11 @@ export default function MyActivityScreen() {
   const selectedYear = (yearFilter && availableYears.includes(yearFilter))
     ? yearFilter
     : (availableYears[0] ?? null);
+  const yearOptions = useMemo(
+    () => availableYears.map((year) => ({ key: year, label: `${year}년` })),
+    [availableYears],
+  );
+  const selectedMonthLabel = ACTIVITY_MONTH_FILTER_OPTIONS.find((option) => option.key === monthFilter)?.label ?? '전체';
 
   const visibleRuns = useMemo(() => {
     const periodRuns = activityRuns.filter((run) => {
@@ -130,6 +114,18 @@ export default function MyActivityScreen() {
     ? '첫 기록을 추가하면 홈 게이지와 친구 순위가 바로 움직이기 시작해.'
     : '다른 연도·월이나 종류를 선택해봐.';
 
+  const handlePickerSelect = useCallback((key: string) => {
+    setActivePicker((picker) => {
+      if (picker === 'year') {
+        setYearFilter(key);
+      } else if (picker === 'month') {
+        setMonthFilter(key);
+      }
+      return null;
+    });
+  }, []);
+  const closePicker = useCallback(() => setActivePicker(null), []);
+
   return (
     <Screen>
       <AuthHeader
@@ -157,35 +153,25 @@ export default function MyActivityScreen() {
           <Card style={styles.historyCard}>
             <Text style={styles.sectionTitle}>최근 러닝 기록</Text>
             {availableYears.length > 0 ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipScrollRow}
-              >
-                {availableYears.map((year) => (
-                  <FilterChip
-                    key={year}
-                    label={`${year}년`}
-                    selected={year === selectedYear}
-                    onPress={() => setYearFilter(year)}
-                  />
-                ))}
-              </ScrollView>
+              <View style={styles.periodRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setActivePicker('year')}
+                  style={styles.periodButton}
+                >
+                  <Text style={styles.periodLabel}>{selectedYear ? `${selectedYear}년` : '년도'}</Text>
+                  <Text style={styles.periodChevron}>▾</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setActivePicker('month')}
+                  style={styles.periodButton}
+                >
+                  <Text style={styles.periodLabel}>{selectedMonthLabel}</Text>
+                  <Text style={styles.periodChevron}>▾</Text>
+                </Pressable>
+              </View>
             ) : null}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.chipScrollRow}
-            >
-              {ACTIVITY_MONTH_FILTER_OPTIONS.map((option) => (
-                <FilterChip
-                  key={option.key}
-                  label={option.label}
-                  selected={option.key === monthFilter}
-                  onPress={() => setMonthFilter(option.key)}
-                />
-              ))}
-            </ScrollView>
             <SegmentedTabs
               options={ACTIVITY_KIND_FILTER_OPTIONS}
               value={kindFilter}
@@ -211,6 +197,15 @@ export default function MyActivityScreen() {
           </Card>
 
           <SecondaryButton label="마이페이지로 돌아가기" onPress={() => router.replace('/(tabs)/mypage')} />
+
+          <RunPeriodPickerSheet
+            visible={activePicker !== null}
+            title={activePicker === 'year' ? '년도 선택' : '월 선택'}
+            options={activePicker === 'year' ? yearOptions : ACTIVITY_MONTH_FILTER_OPTIONS}
+            selectedKey={activePicker === 'year' ? (selectedYear ?? '') : monthFilter}
+            onSelect={handlePickerSelect}
+            onClose={closePicker}
+          />
         </>
       ) : null}
     </Screen>
@@ -237,31 +232,30 @@ const styles = StyleSheet.create({
   historyCard: {
     gap: spacing.s10,
   },
-  chipScrollRow: {
+  periodRow: {
+    flexDirection: 'row',
+    gap: spacing.s10,
+  },
+  periodButton: {
+    alignItems: 'center',
+    backgroundColor: colors.brandSoft,
+    borderColor: colors.brandSoftBorder,
+    borderRadius: radii.pill,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
-    paddingRight: spacing.s12,
-  },
-  filterChip: {
-    borderRadius: radii.pill,
     paddingHorizontal: spacing.s12,
     paddingVertical: spacing.s10,
   },
-  filterChipActive: {
-    backgroundColor: colors.brand,
-  },
-  filterChipIdle: {
-    backgroundColor: colors.surfaceSubtle,
-  },
-  filterChipText: {
+  periodLabel: {
+    color: colors.brand,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
-  filterChipTextActive: {
-    color: colors.white,
-  },
-  filterChipTextIdle: {
-    color: colors.textSecondary,
+  periodChevron: {
+    color: colors.brand,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
   },
   sectionTitle: {
     fontSize: fontSizes.title,

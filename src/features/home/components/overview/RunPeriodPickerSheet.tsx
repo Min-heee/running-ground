@@ -11,15 +11,22 @@ import {
   type NativeSyntheticEvent,
 } from 'react-native';
 
-import type { RunPeriodOption } from '@/features/home/utils/runPeriodSummary';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+
+// Only key/label are needed to render the wheel, so any option shape with those fields
+// works (the home RunPeriodOption, or the activity year/month options).
+type PickerOption = {
+  key: string;
+  label: string;
+};
 
 type RunPeriodPickerSheetProps = {
   visible: boolean;
-  options: RunPeriodOption[];
+  options: readonly PickerOption[];
   selectedKey: string;
   onSelect: (key: string) => void;
   onClose: () => void;
+  title?: string;
 };
 
 const ITEM_HEIGHT = 48;
@@ -44,6 +51,7 @@ function RunPeriodPickerSheetImpl({
   selectedKey,
   onSelect,
   onClose,
+  title = '기간 선택',
 }: RunPeriodPickerSheetProps) {
   const scrollRef = useRef<ScrollView | null>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -135,7 +143,7 @@ function RunPeriodPickerSheetImpl({
         <View style={styles.sheet}>
           <View style={styles.handle} />
           <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>기간 선택</Text>
+            <Text style={styles.sheetTitle}>{title}</Text>
             <Pressable accessibilityRole="button" onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeText}>X</Text>
             </Pressable>
