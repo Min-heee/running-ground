@@ -24,3 +24,23 @@ export function formatRunStartLabel(run: Pick<MyRunRecord, 'date' | 'startedAt'>
 
   return `${datePart} ${timePart}`;
 }
+
+// The local-clock start time, e.g. '오후 10:44'. startedAt is stored as a UTC ISO string,
+// so we MUST go through Date + toLocaleTimeString — slicing the raw ISO ('HH:MM') would
+// show the UTC time (9h off in KST), which reads as a wrong "이상한 시간".
+export function formatRunStartTime(startedAt?: string | null): string | null {
+  if (!startedAt) {
+    return null;
+  }
+
+  const date = new Date(startedAt);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toLocaleTimeString('ko-KR', {
+    hour: 'numeric',
+    hour12: true,
+    minute: '2-digit',
+  });
+}

@@ -13,7 +13,7 @@ import { useRunDetail } from '@/features/running/hooks/useRunDetail';
 import { formatRunStartLabel } from '@/features/running/utils/runStartLabel';
 import { RunRouteMap } from '@/features/runs/RunRouteMap';
 import { forceResetRunningMatchState, getApiErrorMessage } from '@/services';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, spacing, radii } from '@/theme/tokens';
 
 export default function RunDetailScreen() {
   const {
@@ -45,7 +45,6 @@ export default function RunDetailScreen() {
     routeCoordinates,
     runDetail,
     showMatchResultExit,
-    sourceLabel,
   } = useRunDetail({
     friendId,
     matchDistanceKm,
@@ -109,7 +108,6 @@ export default function RunDetailScreen() {
 
           {mapRegion && Platform.OS !== 'android' ? (
             <Card style={styles.mapCard}>
-              <Text style={styles.sectionTitle}>러닝 경로</Text>
               <View style={styles.mapWrap}>
                 <RunRouteMap
                   actualCoordinates={routeCoordinates}
@@ -129,7 +127,7 @@ export default function RunDetailScreen() {
             />
           ) : null}
 
-          <RunDetailInfoCard run={runDetail.run} sourceLabel={sourceLabel} weeklyDistanceKm={runDetail.weeklyDistanceKm} />
+          <RunDetailInfoCard run={runDetail.run} />
 
           {showMatchResultExit ? (
             <SecondaryButton
@@ -150,11 +148,6 @@ export default function RunDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  sectionTitle: {
-    fontSize: fontSizes.title,
-    fontWeight: fontWeights.extraBold,
-    color: colors.textPrimary,
-  },
   mapCard: {
     gap: spacing.s12,
   },

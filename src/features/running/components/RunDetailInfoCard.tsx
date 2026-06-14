@@ -2,6 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { formatDuration } from '@/features/runs/tracking';
+import { formatRunStartTime } from '@/features/running/utils/runStartLabel';
 import type { RunDetailResponse } from '@/lib/api/types';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
@@ -9,62 +10,55 @@ type RunRecord = RunDetailResponse['run'];
 
 type RunDetailInfoCardProps = {
   run: RunRecord;
-  sourceLabel: string;
-  weeklyDistanceKm: number;
 };
 
-export function RunDetailInfoCard({ run, sourceLabel, weeklyDistanceKm }: RunDetailInfoCardProps) {
+function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card>
-      <Text style={styles.sectionTitle}>상세 정보</Text>
-      <DetailRow label="날짜" value={run.date} />
-      <DetailRow label="거리" value={`${run.distanceKm}km`} />
-      <DetailRow label="페이스" value={run.pace} />
-      {typeof run.durationSeconds === 'number' ? (
-        <DetailRow label="측정 시간" value={formatDuration(run.durationSeconds)} />
-      ) : null}
-      {run.startedAt ? <DetailRow label="시작 시각" value={run.startedAt.slice(11, 16)} /> : null}
-      {run.endedAt ? <DetailRow label="종료 시각" value={run.endedAt.slice(11, 16)} /> : null}
-      <DetailRow label="기록 소스" value={sourceLabel} />
-      <DetailRow label="주간 누적 거리" value={`${weeklyDistanceKm}km`} />
+    <Card style={styles.metricCard}>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={styles.metricValue} numberOfLines={1}>{value}</Text>
     </Card>
   );
 }
 
-type DetailRowProps = {
-  label: string;
-  value: string;
-};
+export function RunDetailInfoCard({ run }: RunDetailInfoCardProps) {
+  const durationLabel = typeof run.durationSeconds === 'number'
+    ? formatDuration(run.durationSeconds)
+    : '--';
+  const startTimeLabel = formatRunStartTime(run.startedAt) ?? '--';
 
-function DetailRow({ label, value }: DetailRowProps) {
   return (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={styles.detailValue}>{value}</Text>
+    <View style={styles.grid}>
+      <View style={styles.row}>
+        <MetricCard label="거리" value={`${run.distanceKm}km`} />
+        <MetricCard label="페이스" value={run.pace ?? '--'} />
+      </View>
+      <View style={styles.row}>
+        <MetricCard label="시간" value={durationLabel} />
+        <MetricCard label="시작 시간" value={startTimeLabel} />
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionTitle: {
-    fontSize: fontSizes.title,
-    fontWeight: fontWeights.extraBold,
-    color: colors.textPrimary,
+  grid: {
+    gap: spacing.s10,
   },
-  detailRow: {
+  row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: spacing.s10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.borderSoft,
+    gap: spacing.s10,
   },
-  detailLabel: {
+  metricCard: {
+    flex: 1,
+  },
+  metricLabel: {
     color: colors.textSecondary,
     fontWeight: fontWeights.bold,
   },
-  detailValue: {
+  metricValue: {
     color: colors.textPrimary,
-    fontWeight: fontWeights.bold,
+    fontSize: fontSizes.metric,
+    fontWeight: fontWeights.extraBold,
   },
 });
