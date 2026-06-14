@@ -19,6 +19,7 @@ import {
   presentLiveGapNotification,
 } from '@/lib/liveMatchGapNotifications';
 import { speakLiveGapMessage } from '@/lib/liveMatchGapVoice';
+import { subscribeBackgroundRunTracking } from '@/features/runs/tracking/background';
 
 const SCHEDULER_TICK_MS = 1000;
 
@@ -72,13 +73,16 @@ function buildSchedulerSpeech(
   });
 }
 
-// Fires a local notification every chosen interval during an active match. Cadence is
-// driven by a 1s timer (cheap boundary check). On Android the run's GPS foreground
-// service keeps this ticking with the screen off, so backgrounded delivery is reliable.
-// On iOS the app only holds the `location` background mode, so a backgrounded timer is
-// best-effort — in practice this is foreground-reliable on iPhone and may miss ticks
-// when the screen is off. Reads the latest live data through a ref so the timer closure
-// never goes stale.
+// Fires a local notification (and optional voice) every chosen interval during an active
+// match. Driven by TWO cadences so it survives the screen being off on both platforms:
+//   1. a 1s timer — reliable while the screen is on, and on iOS during the background
+//      location CPU windows;
+//   2. each GPS tracking-snapshot emission — on Android the screen-off JS timer is
+//      suspended even with the run's foreground service, but the native GPS location task
+//      keeps emitting snapshots, so re-checking the boundary on each emission is what
+//      actually delivers the gap with the Android screen off.
+// Both call the same boundary check sharing one lastFiredAt clock, so there is no
+// double-fire. Reads the latest live data through refs so neither closure goes stale.
 export function useLiveGapNotificationScheduler(input: LiveGapSchedulerInput) {
   const config = useSyncExternalStore(
     subscribeLiveGapPushConfig,
@@ -117,7 +121,7 @@ export function useLiveGapNotificationScheduler(input: LiveGapSchedulerInput) {
     // in, not immediately.
     lastFiredAtRef.current = Date.now();
 
-    const intervalId = setInterval(() => {
+    const maybeFire = () => {
       const now = Date.now();
       const lastFiredAt = lastFiredAtRef.current ?? now;
 
@@ -142,10 +146,18 @@ export function useLiveGapNotificationScheduler(input: LiveGapSchedulerInput) {
           void speakLiveGapMessage(speech);
         }
       }
-    }, SCHEDULER_TICK_MS);
+    };
+
+    const intervalId = setInterval(maybeFire, SCHEDULER_TICK_MS);
+    // GPS-emission cadence — the screen-off-reliable driver on Android. The immediate
+    // listener call on subscribe is a no-op here (we just anchored lastFiredAt).
+    const unsubscribeTracking = subscribeBackgroundRunTracking(() => {
+      maybeFire();
+    }, { cloneRoute: false });
 
     return () => {
       clearInterval(intervalId);
+      unsubscribeTracking();
     };
   }, [schedulerActive, intervalMs]);
 }
