@@ -17,7 +17,8 @@
         "NSLocalNetworkUsageDescription": "Allow RunningGround to connect to local development servers on your network.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
-        }
+        },
+        "UIBackgroundModes": ["location", "audio"]
       },
       "buildNumber": "28"
     },

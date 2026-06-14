@@ -221,3 +221,88 @@ export function buildGroupGapMessage(input: GroupGapMessageInput): LiveGapMessag
 
   return { title, body };
 }
+
+// --- Spoken (TTS) phrasings: more natural than the compact notification text ---
+
+function buildSpeechDistance(absoluteKm: number): string {
+  return absoluteKm < 1
+    ? `${Math.round(absoluteKm * 1000)}미터`
+    : `${absoluteKm.toFixed(1)}킬로미터`;
+}
+
+function withHonorific(name: string): string {
+  // The '상대' fallback already reads naturally; only real names take 님.
+  return name === '상대' ? name : `${name}님`;
+}
+
+// Attach the 와/과 subject particle by whether the (honorific) name ends in a consonant.
+// Real names always end in '님' (consonant → 과); the '상대' fallback ends in a vowel (와).
+function withWaParticle(honorificName: string): string {
+  return `${honorificName}${honorificName.endsWith('님') ? '과' : '와'}`;
+}
+
+export function buildPaceDiffSpeech(
+  myPaceLabel: string | null | undefined,
+  otherPaceLabel: string | null | undefined,
+): string | null {
+  const mySeconds = parseMeasuredPaceSecondsPerKm(myPaceLabel);
+  const otherSeconds = parseMeasuredPaceSecondsPerKm(otherPaceLabel);
+
+  if (mySeconds === null || otherSeconds === null) {
+    return null;
+  }
+
+  const diff = Math.round(otherSeconds - mySeconds);
+
+  if (Math.abs(diff) < 1) {
+    return '페이스는 비슷해요';
+  }
+
+  return diff > 0 ? `페이스는 ${diff}초 빨라요` : `페이스는 ${Math.abs(diff)}초 느려요`;
+}
+
+export function buildDuelGapSpeech(input: DuelGapMessageInput): string | null {
+  if (typeof input.gapKm !== 'number' || !Number.isFinite(input.gapKm)) {
+    return null;
+  }
+
+  const name = withHonorific(input.opponentName?.trim() || '상대');
+  const absoluteKm = Math.abs(input.gapKm);
+  const distancePart = absoluteKm < 0.005
+    ? `${withWaParticle(name)} 거의 같아요`
+    : input.gapKm >= 0
+      ? `${name}보다 ${buildSpeechDistance(absoluteKm)} 앞서고 있어요`
+      : `${name}보다 ${buildSpeechDistance(absoluteKm)} 뒤처졌어요`;
+
+  const paceSpeech = buildPaceDiffSpeech(input.myPaceLabel, input.opponentPaceLabel);
+  return paceSpeech ? `${distancePart}. ${paceSpeech}.` : `${distancePart}.`;
+}
+
+export function buildGroupGapSpeech(input: GroupGapMessageInput): string | null {
+  const myIndex = input.standings.findIndex((standing) => standing.isCurrentUser);
+
+  if (myIndex < 0) {
+    return null;
+  }
+
+  const resolved = resolveGroupGapTargets(input.standings, input.selectedTargets, input.myPaceLabel);
+
+  if (!resolved.length) {
+    return null;
+  }
+
+  const myRank = input.standings[myIndex].rank || myIndex + 1;
+  const parts = resolved.map((entry) => {
+    const name = withHonorific(entry.name);
+    const absoluteKm = Math.abs(entry.gapKm);
+
+    if (absoluteKm < 0.005) {
+      return `${entry.label} ${withWaParticle(name)} 거의 같아요`;
+    }
+
+    const direction = entry.gapKm >= 0 ? '앞서고 있어요' : '뒤처졌어요';
+    return `${entry.label} ${name}보다 ${buildSpeechDistance(absoluteKm)} ${direction}`;
+  });
+
+  return `현재 ${myRank}위. ${parts.join('. ')}.`;
+}

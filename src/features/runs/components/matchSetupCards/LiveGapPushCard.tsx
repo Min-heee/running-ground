@@ -6,6 +6,7 @@ import {
   LIVE_GAP_GROUP_TARGET_OPTIONS,
   LIVE_GAP_INTERVAL_OPTIONS,
   setLiveGapInterval,
+  setLiveGapVoiceEnabled,
   subscribeLiveGapPushConfig,
   toggleLiveGapGroupTarget,
   type LiveGapGroupTarget,
@@ -77,6 +78,22 @@ export function LiveGapPushCard({ mode }: LiveGapPushCardProps) {
           ) : null}
         </View>
       ) : null}
+      {intervalEnabled ? (
+        <View style={styles.voiceSection}>
+          <View style={styles.chipRow}>
+            <Chip
+              label="🔊 음성 안내"
+              selected={config.voiceEnabled}
+              onPress={() => setLiveGapVoiceEnabled(!config.voiceEnabled)}
+            />
+          </View>
+          <Text style={styles.targetHint}>
+            {config.voiceEnabled
+              ? '이어폰으로 차이를 읽어줘요 (음악은 잠깐 작아져요).'
+              : '켜면 이어폰으로 차이를 음성으로 들을 수 있어요.'}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -127,6 +144,10 @@ const styles = StyleSheet.create({
     color: colors.white,
   },
   targetSection: {
+    gap: spacing.xxs,
+    marginTop: spacing.xxs,
+  },
+  voiceSection: {
     gap: spacing.xxs,
     marginTop: spacing.xxs,
   },

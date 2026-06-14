@@ -4,8 +4,11 @@ import test from 'node:test';
 import type { GroupLiveStanding } from '@/features/runs/types/matchProgress';
 import {
   buildDuelGapMessage,
+  buildDuelGapSpeech,
   buildGroupGapMessage,
+  buildGroupGapSpeech,
   buildPaceDiffLabel,
+  buildPaceDiffSpeech,
   parseMeasuredPaceSecondsPerKm,
   resolveGroupGapTargets,
 } from './liveGapMessage';
@@ -139,4 +142,49 @@ test('buildGroupGapMessage builds a multi-line body and bails when I am absent',
     buildGroupGapMessage({ standings, selectedTargets: [], myPaceLabel: '05:30/km' }),
     null,
   );
+});
+
+test('buildPaceDiffSpeech phrases the pace gap for TTS', () => {
+  assert.equal(buildPaceDiffSpeech('05:30/km', '05:45/km'), '페이스는 15초 빨라요');
+  assert.equal(buildPaceDiffSpeech('05:45/km', '05:30/km'), '페이스는 15초 느려요');
+  assert.equal(buildPaceDiffSpeech('05:30/km', '05:30/km'), '페이스는 비슷해요');
+  assert.equal(buildPaceDiffSpeech('05:30/km', '--:--/km'), null);
+});
+
+test('buildDuelGapSpeech reads a natural sentence with the right particle', () => {
+  assert.equal(
+    buildDuelGapSpeech({ opponentName: '민희', myPaceLabel: '05:30/km', opponentPaceLabel: '05:45/km', gapKm: 0.28 }),
+    '민희님보다 280미터 앞서고 있어요. 페이스는 15초 빨라요.',
+  );
+  assert.equal(
+    buildDuelGapSpeech({ opponentName: '민희', myPaceLabel: '05:45/km', opponentPaceLabel: '05:30/km', gapKm: -0.12 }),
+    '민희님보다 120미터 뒤처졌어요. 페이스는 15초 느려요.',
+  );
+  // km-scale gap reads with one decimal; missing names fall back to '상대' + 와 particle.
+  assert.equal(
+    buildDuelGapSpeech({ opponentName: '민희', myPaceLabel: '05:30/km', opponentPaceLabel: '06:10/km', gapKm: 1.4 }),
+    '민희님보다 1.4킬로미터 앞서고 있어요. 페이스는 40초 빨라요.',
+  );
+  assert.equal(
+    buildDuelGapSpeech({ opponentName: null, myPaceLabel: '--:--/km', opponentPaceLabel: '--:--/km', gapKm: 0.003 }),
+    '상대와 거의 같아요.',
+  );
+  assert.equal(
+    buildDuelGapSpeech({ opponentName: '민희', myPaceLabel: '05:30/km', opponentPaceLabel: '05:45/km', gapKm: null }),
+    null,
+  );
+});
+
+test('buildGroupGapSpeech reads rank and each chosen runner', () => {
+  const standings = [
+    standing({ id: 'a', name: '철수', rank: 1, currentDistanceKm: 3.2, averagePace: '05:00/km' }),
+    standing({ id: 'b', name: '영희', rank: 2, currentDistanceKm: 3.0, averagePace: '05:20/km' }),
+    standing({ id: 'me', name: '나', rank: 3, currentDistanceKm: 2.8, averagePace: '05:30/km', isCurrentUser: true }),
+  ];
+
+  assert.equal(
+    buildGroupGapSpeech({ standings, selectedTargets: ['ahead1', 'rank1'], myPaceLabel: '05:30/km' }),
+    '현재 3위. 앞사람 영희님보다 200미터 뒤처졌어요. 1등 철수님보다 400미터 뒤처졌어요.',
+  );
+  assert.equal(buildGroupGapSpeech({ standings: [], selectedTargets: ['ahead1'], myPaceLabel: '05:30/km' }), null);
 });

@@ -45,11 +45,15 @@ export function resolveLiveGapIntervalMs(interval: LiveGapInterval): number | nu
 export type LiveGapPushConfig = {
   interval: LiveGapInterval;
   groupTargets: readonly LiveGapGroupTarget[];
+  // Read the gap aloud via TTS (in addition to the push notification) so it can be heard
+  // through earphones while running. Requires a native build with expo-speech.
+  voiceEnabled: boolean;
 };
 
 const DEFAULT_CONFIG: LiveGapPushConfig = {
   interval: 'off',
   groupTargets: ['ahead1', 'rank1'],
+  voiceEnabled: false,
 };
 
 let currentConfig: LiveGapPushConfig = DEFAULT_CONFIG;
@@ -81,6 +85,15 @@ export function toggleLiveGapGroupTarget(target: LiveGapGroupTarget) {
     .filter((value) => (value === target ? !isSelected : currentConfig.groupTargets.includes(value)));
 
   currentConfig = { ...currentConfig, groupTargets };
+  emit();
+}
+
+export function setLiveGapVoiceEnabled(voiceEnabled: boolean) {
+  if (currentConfig.voiceEnabled === voiceEnabled) {
+    return;
+  }
+
+  currentConfig = { ...currentConfig, voiceEnabled };
   emit();
 }
 

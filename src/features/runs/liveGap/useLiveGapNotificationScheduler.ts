@@ -3,7 +3,9 @@ import { useEffect, useRef, useSyncExternalStore } from 'react';
 import type { GroupLiveStanding } from '@/features/runs/types/matchProgress';
 import {
   buildDuelGapMessage,
+  buildDuelGapSpeech,
   buildGroupGapMessage,
+  buildGroupGapSpeech,
   type LiveGapMessage,
 } from '@/features/runs/liveGap/liveGapMessage';
 import {
@@ -16,6 +18,7 @@ import {
   ensureLiveGapNotificationPermissions,
   presentLiveGapNotification,
 } from '@/lib/liveMatchGapNotifications';
+import { speakLiveGapMessage } from '@/lib/liveMatchGapVoice';
 
 const SCHEDULER_TICK_MS = 1000;
 
@@ -49,6 +52,26 @@ function buildSchedulerMessage(
   });
 }
 
+function buildSchedulerSpeech(
+  input: LiveGapSchedulerInput,
+  groupTargets: readonly LiveGapGroupTarget[],
+): string | null {
+  if (input.matchMode === 'group') {
+    return buildGroupGapSpeech({
+      standings: input.groupStandings ?? [],
+      selectedTargets: groupTargets,
+      myPaceLabel: input.myPaceLabel,
+    });
+  }
+
+  return buildDuelGapSpeech({
+    opponentName: input.opponentName,
+    myPaceLabel: input.myPaceLabel,
+    opponentPaceLabel: input.opponentPaceLabel,
+    gapKm: input.duelGapKm,
+  });
+}
+
 // Fires a local notification every chosen interval during an active match. Cadence is
 // driven by a 1s timer (cheap boundary check). On Android the run's GPS foreground
 // service keeps this ticking with the screen off, so backgrounded delivery is reliable.
@@ -70,6 +93,8 @@ export function useLiveGapNotificationScheduler(input: LiveGapSchedulerInput) {
   inputRef.current = input;
   const groupTargetsRef = useRef(config.groupTargets);
   groupTargetsRef.current = config.groupTargets;
+  const voiceEnabledRef = useRef(config.voiceEnabled);
+  voiceEnabledRef.current = config.voiceEnabled;
 
   const permissionRequestedRef = useRef(false);
   useEffect(() => {
@@ -110,6 +135,13 @@ export function useLiveGapNotificationScheduler(input: LiveGapSchedulerInput) {
 
       lastFiredAtRef.current = now;
       void presentLiveGapNotification(message);
+
+      if (voiceEnabledRef.current) {
+        const speech = buildSchedulerSpeech(inputRef.current, groupTargetsRef.current);
+        if (speech) {
+          void speakLiveGapMessage(speech);
+        }
+      }
     }, SCHEDULER_TICK_MS);
 
     return () => {

@@ -6,6 +6,7 @@ import {
   resetLiveGapPushConfigForTests,
   resolveLiveGapIntervalMs,
   setLiveGapInterval,
+  setLiveGapVoiceEnabled,
   subscribeLiveGapPushConfig,
   toggleLiveGapGroupTarget,
 } from './liveGapPushConfig';
@@ -18,11 +19,33 @@ test('resolveLiveGapIntervalMs maps interval keys to milliseconds', () => {
   assert.equal(resolveLiveGapIntervalMs('5m'), 300_000);
 });
 
-test('default config is off with sensible default group targets', () => {
+test('default config is off with sensible default group targets and voice off', () => {
   resetLiveGapPushConfigForTests();
   const config = getLiveGapPushConfig();
   assert.equal(config.interval, 'off');
   assert.deepEqual(config.groupTargets, ['ahead1', 'rank1']);
+  assert.equal(config.voiceEnabled, false);
+});
+
+test('setLiveGapVoiceEnabled toggles voice and notifies once per change', () => {
+  resetLiveGapPushConfigForTests();
+  let notifications = 0;
+  const unsubscribe = subscribeLiveGapPushConfig(() => {
+    notifications += 1;
+  });
+
+  setLiveGapVoiceEnabled(true);
+  assert.equal(getLiveGapPushConfig().voiceEnabled, true);
+  assert.equal(notifications, 1);
+
+  setLiveGapVoiceEnabled(true);
+  assert.equal(notifications, 1);
+
+  setLiveGapVoiceEnabled(false);
+  assert.equal(getLiveGapPushConfig().voiceEnabled, false);
+  assert.equal(notifications, 2);
+
+  unsubscribe();
 });
 
 test('setLiveGapInterval updates the store and notifies subscribers', () => {
