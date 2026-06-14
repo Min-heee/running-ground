@@ -4,7 +4,6 @@ import { Link, router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { SegmentedTabs } from '@/components/ui/SegmentedTabs';
 import { useMyActivity } from '@/features/profile/hooks/useMyActivity';
@@ -80,7 +79,6 @@ export default function MyActivityScreen() {
     <Screen>
       <AuthHeader
         title="내 활동"
-        subtitle="내가 최근에 뛴 기록과 이번 달 누적 거리를 볼 수 있어."
         showBack
         backHref="/(tabs)/mypage"
       />
@@ -90,11 +88,6 @@ export default function MyActivityScreen() {
 
       {activity ? (
         <>
-          <View style={styles.actionColumn}>
-            <PrimaryButton label="런닝 탭으로 이동" onPress={() => router.push('/(tabs)/running')} />
-            <SecondaryButton label="수동 기록 추가" onPress={() => router.push('/add-run')} />
-          </View>
-
           <View style={styles.summaryRow}>
             <Card style={styles.summaryCard}>
               <Text style={styles.summaryLabel}>이번 달 총 거리</Text>
@@ -140,9 +133,6 @@ export default function MyActivityScreen() {
 }
 
 const styles = StyleSheet.create({
-  actionColumn: {
-    gap: spacing.s10,
-  },
   summaryRow: {
     flexDirection: 'row',
     gap: spacing.s10,
