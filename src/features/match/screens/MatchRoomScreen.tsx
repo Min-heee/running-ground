@@ -11,6 +11,7 @@ import { MatchRoomInviteActionCard } from '@/features/runs/components/matchRoom/
 import { MatchRoomStartModeCard } from '@/features/runs/components/matchRoom/MatchRoomStartModeCard';
 import { MatchRoomSummaryCard } from '@/features/runs/components/matchRoom/MatchRoomSummaryCard';
 import { PartyRunParticipantListCard } from '@/features/runs/components/PartyRunParticipantListCard';
+import { LiveGapPushCard } from '@/features/runs/components/matchSetupCards/LiveGapPushCard';
 import { useMatchRoomLobby } from '@/features/runs/hooks/useMatchRoomLobby';
 import { colors, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
@@ -160,6 +161,8 @@ export default function MatchRoomScreen() {
 	                onToggleReady={handleToggleReadyPress}
 	                onStart={handleStartPress}
 	              />
+
+              <LiveGapPushCard mode={room.mode} />
 
               {room.isHost && !room.linkedMatchId ? (
                 <>
