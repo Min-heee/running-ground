@@ -1,13 +1,20 @@
 // Sub-second offsets matter for cross-device countdown sync (two phones
 // drifting by ~1s caused "한쪽은 카운팅 끝났는데 한쪽은 아직" mismatch).
-// 500ms keeps us above typical NTP jitter (~100ms) while still applying
-// small-but-meaningful clock differences between devices.
-const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 500;
-// Once a stable offset is in place, ignore small fluctuations from network
-// round-trip jitter so the countdown digit doesn't visibly twitch.
-const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 750;
+// 250ms stays above typical NTP jitter (~100ms) yet still APPLIES a real
+// ~300-450ms device bias instead of zeroing it: the dominant ~1s gap came from
+// two phones with opposite sub-500ms biases BOTH being suppressed to 0 and
+// running up to ~900ms apart. Lowering this (not the bounded step) shrinks the
+// dead zone where a genuine offset is discarded.
+const SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS = 250;
+// Once a stable offset is in place, ignore fluctuations from network round-trip
+// jitter so the countdown digit doesn't visibly twitch. Kept ABOVE the 400ms
+// bounded step so the hold branch can never deadlock a single legitimate step,
+// but lowered from 750 so the crawl freezes closer to the true offset.
+const SERVER_CLOCK_OFFSET_JITTER_TOLERANCE_MS = 450;
 // Never let a late server snapshot move the countdown clock by seconds in a
 // single render. Large offsets move toward the target over a few snapshots.
+// DELIBERATELY UNCHANGED: raising this (the reverted c3b6402 fast-converge) is
+// what let the clock jump multiple seconds in one render and regressed.
 const SERVER_CLOCK_OFFSET_MAX_STEP_MS = 400;
 const SERVER_CLOCK_MAX_RTT_SAMPLE_MS = 3000;
 // Lowest-RTT sample selection (NTP-style clock filter). Each offset sample carries

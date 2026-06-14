@@ -19,8 +19,12 @@ test('server clock parser ignores invalid timestamps', () => {
 });
 
 test('server clock offset stabilization ignores small local jitter and steps large jumps', () => {
-  // Below 500ms apply threshold → treated as no offset (NTP jitter range).
+  // Below the 250ms apply threshold → treated as no offset (NTP jitter range).
   assert.equal(resolveStableServerClockOffset(0, 200), 0);
+  // A real ~300ms device bias now APPLIES (it was zeroed under the old 500ms
+  // dead zone), so two opposite-bias phones converge toward true server time
+  // instead of both suppressing to 0 and locking the countdown ~1s apart.
+  assert.equal(resolveStableServerClockOffset(0, 300), 300);
   // Large offsets converge in bounded steps so an in-flight countdown never jumps
   // forward by multiple seconds from a late server snapshot.
   assert.equal(resolveStableServerClockOffset(0, 1200), 400);
