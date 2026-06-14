@@ -11,6 +11,11 @@ type MatchResult = NonNullable<RunRecord['matchResult']>;
 
 type RunMatchResultCardProps = {
   matchResult: MatchResult;
+  // My own pace/time fallback from the saved run record — used for the '나' column when
+  // the matchResult itself didn't persist them (e.g. records saved before the backend
+  // accepts the new fields). The opponent's pace/time only come from the matchResult.
+  myPaceLabel?: string | null;
+  myDurationSeconds?: number | null;
 };
 
 function formatDurationLabel(durationSeconds?: number) {
@@ -51,7 +56,10 @@ function RunnerColumn({
   );
 }
 
-export function RunMatchResultCard({ matchResult }: RunMatchResultCardProps) {
+export function RunMatchResultCard({ matchResult, myPaceLabel, myDurationSeconds }: RunMatchResultCardProps) {
+  const myDisplayPaceLabel = matchResult.myPaceLabel ?? myPaceLabel ?? null;
+  const myDisplayDurationSeconds = matchResult.myDurationSeconds
+    ?? (typeof myDurationSeconds === 'number' ? myDurationSeconds : undefined);
   const lpDelta = getEstimatedMatchLpDelta(matchResult);
   const isLpGain = lpDelta > 0;
   // Party runs never carry rank LP — in either direction.
@@ -90,8 +98,8 @@ export function RunMatchResultCard({ matchResult }: RunMatchResultCardProps) {
           <View style={styles.duelComparisonRow}>
             <RunnerColumn
               name="나"
-              paceLabel={matchResult.myPaceLabel ?? null}
-              durationLabel={formatDurationLabel(matchResult.myDurationSeconds)}
+              paceLabel={myDisplayPaceLabel}
+              durationLabel={formatDurationLabel(myDisplayDurationSeconds)}
               highlight
             />
             <Text style={styles.duelVersus}>vs</Text>
@@ -195,18 +203,22 @@ const styles = StyleSheet.create({
   },
   duelVersus: {
     color: colors.textMuted,
-    fontSize: fontSizes.sm,
+    fontSize: fontSizes.md,
     fontWeight: fontWeights.extraBold,
-    paddingTop: spacing.xxs,
+    // Line up 'vs' with the name row (both columns are centered), so it reads
+    // 나  vs  상대 with vs sitting between the two names.
+    lineHeight: fontSizes.md + spacing.xs,
   },
   runnerColumn: {
     flex: 1,
     gap: spacing.xxs,
+    alignItems: 'center',
   },
   runnerName: {
     color: colors.textPrimary,
     fontSize: fontSizes.md,
     fontWeight: fontWeights.extraBold,
+    textAlign: 'center',
   },
   runnerNameMe: {
     color: colors.brandStrong,
@@ -215,6 +227,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
+    textAlign: 'center',
   },
   matchResultOpponent: {
     color: colors.textPrimary,

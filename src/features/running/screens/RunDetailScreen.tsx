@@ -96,7 +96,11 @@ export default function RunDetailScreen() {
                 <RunPointBreakdownCard pointBreakdown={runDetail.pointBreakdown} matchBonusLabel={matchBonusLabel} />
               </View>
               <View style={styles.recordDuoItem}>
-                <RunMatchResultCard matchResult={matchResult} />
+                <RunMatchResultCard
+                  matchResult={matchResult}
+                  myPaceLabel={runDetail.run.pace}
+                  myDurationSeconds={runDetail.run.durationSeconds}
+                />
               </View>
             </View>
           ) : (
