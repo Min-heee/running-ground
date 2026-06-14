@@ -20,14 +20,14 @@
         },
         "UIBackgroundModes": ["location", "audio"]
       },
-      "buildNumber": "28"
+      "buildNumber": "29"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/adaptive-icon.png",
         "backgroundColor": "#11161B"
       },
-      "versionCode": 28,
+      "versionCode": 29,
       "package": "com.minheee.runnigapp"
     },
     "web": {
