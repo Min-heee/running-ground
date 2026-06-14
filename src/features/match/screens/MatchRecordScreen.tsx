@@ -113,14 +113,13 @@ export default function MatchRecordScreen() {
   const noMatchesAtAll = stats.matchRuns.length === 0;
   const emptyTitle = noMatchesAtAll ? '아직 저장된 대결 전적이 없어요.' : '해당 전적이 없어요.';
   const emptyText = noMatchesAtAll
-    ? '공식 매칭 대결을 저장하면 여기서 바로 볼 수 있어요.'
+    ? null
     : '다른 연도·월이나 전적 필터를 선택해보세요.';
 
   return (
     <Screen>
       <AuthHeader
         title="전적 보기"
-        subtitle="공식 매칭 대결 결과를 한 번에 모아봤어요."
         showBack
         backHref="/(tabs)/mypage"
       />
@@ -167,7 +166,7 @@ export default function MatchRecordScreen() {
             ) : (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyTitle}>{emptyTitle}</Text>
-                <Text style={styles.emptyText}>{emptyText}</Text>
+                {emptyText ? <Text style={styles.emptyText}>{emptyText}</Text> : null}
               </View>
             )}
           </Card>
