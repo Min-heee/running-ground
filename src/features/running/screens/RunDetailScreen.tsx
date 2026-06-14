@@ -8,7 +8,7 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { RunDetailInfoCard } from '@/features/running/components/RunDetailInfoCard';
 import { RunMatchResultCard } from '@/features/running/components/RunMatchResultCard';
 import { RunPointBreakdownCard } from '@/features/running/components/RunPointBreakdownCard';
-import { RunExtraMetricsRow, RunHeroCard } from '@/features/running/components/RunSummaryCards';
+import { RunHeroCard } from '@/features/running/components/RunSummaryCards';
 import { useRunDetail } from '@/features/running/hooks/useRunDetail';
 import { formatRunStartLabel } from '@/features/running/utils/runStartLabel';
 import { RunRouteMap } from '@/features/runs/RunRouteMap';
@@ -118,13 +118,6 @@ export default function RunDetailScreen() {
                 />
               </View>
             </Card>
-          ) : null}
-
-          {runDetail.run.durationSeconds || runDetail.run.cadenceSpm || runDetail.run.elevationGainM ? (
-            <RunExtraMetricsRow
-              cadenceSpm={runDetail.run.cadenceSpm}
-              elevationGainM={runDetail.run.elevationGainM}
-            />
           ) : null}
 
           <RunDetailInfoCard run={runDetail.run} />

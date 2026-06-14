@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
@@ -17,30 +17,6 @@ export function RunHeroCard({ startedLabel, distanceKm }: RunHeroCardProps) {
   );
 }
 
-type RunExtraMetricsRowProps = {
-  cadenceSpm?: number | null;
-  elevationGainM?: number | null;
-};
-
-export function RunExtraMetricsRow({ cadenceSpm, elevationGainM }: RunExtraMetricsRowProps) {
-  return (
-    <View style={styles.summaryRow}>
-      <Card style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>케이던스</Text>
-        <Text style={styles.summaryValueSmall}>
-          {cadenceSpm ? `${cadenceSpm}spm` : '--'}
-        </Text>
-      </Card>
-      <Card style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>고도 상승</Text>
-        <Text style={styles.summaryValueSmall}>
-          {typeof elevationGainM === 'number' ? `${elevationGainM}m` : '--'}
-        </Text>
-      </Card>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   heroCard: {
     backgroundColor: colors.textPrimary,
@@ -55,21 +31,5 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: fontSizes.heroLarge,
     fontWeight: fontWeights.black,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    gap: spacing.s10,
-  },
-  summaryCard: {
-    flex: 1,
-  },
-  summaryLabel: {
-    color: colors.textSecondary,
-    fontWeight: fontWeights.bold,
-  },
-  summaryValueSmall: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.metric,
-    fontWeight: fontWeights.extraBold,
   },
 });

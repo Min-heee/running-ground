@@ -26,6 +26,8 @@ export function RunDetailInfoCard({ run }: RunDetailInfoCardProps) {
     ? formatDuration(run.durationSeconds)
     : '--';
   const startTimeLabel = formatRunStartTime(run.startedAt) ?? '--';
+  const cadenceLabel = run.cadenceSpm ? `${run.cadenceSpm}spm` : '--';
+  const elevationLabel = typeof run.elevationGainM === 'number' ? `${run.elevationGainM}m` : '--';
 
   return (
     <View style={styles.grid}>
@@ -35,7 +37,11 @@ export function RunDetailInfoCard({ run }: RunDetailInfoCardProps) {
       </View>
       <View style={styles.row}>
         <MetricCard label="시간" value={durationLabel} />
-        <MetricCard label="시작 시간" value={startTimeLabel} />
+        <MetricCard label="출발 시간" value={startTimeLabel} />
+      </View>
+      <View style={styles.row}>
+        <MetricCard label="케이던스" value={cadenceLabel} />
+        <MetricCard label="고도 상승" value={elevationLabel} />
       </View>
     </View>
   );
