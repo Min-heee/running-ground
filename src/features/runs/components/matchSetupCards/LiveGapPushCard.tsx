@@ -9,6 +9,7 @@ import {
   LIVE_GAP_METRIC_OPTIONS,
   setLiveGapDeliveryMode,
   setLiveGapInterval,
+  setLiveGapRemember,
   subscribeLiveGapPushConfig,
   toggleLiveGapGroupTarget,
   toggleLiveGapMetric,
@@ -35,6 +36,30 @@ const Chip = memo(function Chip({
   return (
     <Pressable style={[styles.chip, selected ? styles.chipSelected : undefined]} onPress={onPress}>
       <Text style={[styles.chipText, selected ? styles.chipTextSelected : undefined]}>{label}</Text>
+    </Pressable>
+  );
+});
+
+const CheckboxRow = memo(function CheckboxRow({
+  label,
+  checked,
+  onPress,
+}: {
+  label: string;
+  checked: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={styles.checkboxRow}
+      onPress={onPress}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+    >
+      <View style={[styles.checkbox, checked ? styles.checkboxChecked : undefined]}>
+        {checked ? <Text style={styles.checkboxMark}>✓</Text> : null}
+      </View>
+      <Text style={styles.checkboxLabel}>{label}</Text>
     </Pressable>
   );
 });
@@ -122,6 +147,18 @@ export function LiveGapPushCard({ mode }: LiveGapPushCardProps) {
           </Text>
         </View>
       ) : null}
+      <View style={styles.rememberSection}>
+        <CheckboxRow
+          label="다음에도 이 설정 기억하기"
+          checked={config.remember}
+          onPress={() => setLiveGapRemember(!config.remember)}
+        />
+        <Text style={styles.hint}>
+          {config.remember
+            ? '앱을 다시 켜도 이 옵션 그대로 유지돼요.'
+            : '끄면 이번만 적용되고 다음 실행엔 기본값으로 돌아가요.'}
+        </Text>
+      </View>
     </View>
   );
 }
@@ -185,5 +222,41 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.semibold,
     marginTop: spacing.xxs,
+  },
+  rememberSection: {
+    gap: spacing.xxs,
+    marginTop: spacing.lg,
+    paddingTop: spacing.s12,
+    borderTopWidth: 1,
+    borderTopColor: colors.darkSoft,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xxl,
+  },
+  checkbox: {
+    width: spacing.s20,
+    height: spacing.s20,
+    borderRadius: radii.xs,
+    borderWidth: 1,
+    borderColor: colors.darkSoft,
+    backgroundColor: colors.darkMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxChecked: {
+    borderColor: colors.brandLight,
+    backgroundColor: colors.indigoDeep,
+  },
+  checkboxMark: {
+    color: colors.white,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  checkboxLabel: {
+    color: colors.white,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
   },
 });

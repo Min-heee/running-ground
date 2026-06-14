@@ -86,6 +86,10 @@ export type LiveGapPushConfig = {
   metrics: readonly LiveGapMetric[];
   // Notification, voice (TTS — needs a native expo-speech build), or both.
   deliveryMode: LiveGapDeliveryMode;
+  // When true, this config is persisted to device storage and restored on the next app
+  // launch (the "다음에도 이 설정 기억하기" checkbox). When false, the choice lives only for
+  // the session and the store falls back to DEFAULT_CONFIG after a full restart.
+  remember: boolean;
 };
 
 const DEFAULT_CONFIG: LiveGapPushConfig = {
@@ -93,6 +97,7 @@ const DEFAULT_CONFIG: LiveGapPushConfig = {
   groupTargets: ['ahead1', 'rank1'],
   metrics: ['remainingDistance', 'opponentDistance', 'opponentPace'],
   deliveryMode: 'notification',
+  remember: false,
 };
 
 let currentConfig: LiveGapPushConfig = DEFAULT_CONFIG;
@@ -145,6 +150,63 @@ export function setLiveGapDeliveryMode(deliveryMode: LiveGapDeliveryMode) {
   }
 
   currentConfig = { ...currentConfig, deliveryMode };
+  emit();
+}
+
+export function setLiveGapRemember(remember: boolean) {
+  if (currentConfig.remember === remember) {
+    return;
+  }
+
+  currentConfig = { ...currentConfig, remember };
+  emit();
+}
+
+const VALID_INTERVALS = new Set<LiveGapInterval>(LIVE_GAP_INTERVAL_OPTIONS.map((option) => option.value));
+const VALID_GROUP_TARGETS = LIVE_GAP_GROUP_TARGET_OPTIONS.map((option) => option.value);
+const VALID_METRICS = LIVE_GAP_METRIC_OPTIONS.map((option) => option.value);
+const VALID_DELIVERY_MODES = new Set<LiveGapDeliveryMode>(
+  LIVE_GAP_DELIVERY_MODE_OPTIONS.map((option) => option.value),
+);
+
+// Coerce an untrusted (persisted / possibly stale) blob into a valid config: unknown
+// enum values fall back to the default, and array fields are filtered to known options in
+// canonical order so a corrupt or older-schema payload can never break the store.
+export function normalizeLiveGapPushConfig(raw: unknown): LiveGapPushConfig {
+  if (!raw || typeof raw !== 'object') {
+    return DEFAULT_CONFIG;
+  }
+
+  const candidate = raw as Record<string, unknown>;
+
+  const interval = VALID_INTERVALS.has(candidate.interval as LiveGapInterval)
+    ? (candidate.interval as LiveGapInterval)
+    : DEFAULT_CONFIG.interval;
+
+  const rawGroupTargets = Array.isArray(candidate.groupTargets) ? candidate.groupTargets : [];
+  const groupTargets = VALID_GROUP_TARGETS.filter((value) => rawGroupTargets.includes(value));
+
+  const rawMetrics = Array.isArray(candidate.metrics) ? candidate.metrics : [];
+  const metrics = VALID_METRICS.filter((value) => rawMetrics.includes(value));
+
+  const deliveryMode = VALID_DELIVERY_MODES.has(candidate.deliveryMode as LiveGapDeliveryMode)
+    ? (candidate.deliveryMode as LiveGapDeliveryMode)
+    : DEFAULT_CONFIG.deliveryMode;
+
+  return {
+    interval,
+    groupTargets,
+    metrics,
+    deliveryMode,
+    remember: candidate.remember === true,
+  };
+}
+
+// Replace the whole config from a persisted payload (called once on app launch). Goes
+// through normalize so a malformed payload degrades to defaults rather than corrupting
+// the store.
+export function hydrateLiveGapPushConfig(raw: unknown) {
+  currentConfig = normalizeLiveGapPushConfig(raw);
   emit();
 }
 

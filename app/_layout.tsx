@@ -3,6 +3,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect, Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '@/features/runs/tracking/background';
+import { initializeLiveGapPushConfigPersistence } from '@/features/runs/liveGap/liveGapPushConfigPersistence';
 import { useConfigureNotificationHandler } from '@/navigation/notificationHandler';
 import { useRootAuthGate } from '@/navigation/rootAuthGate';
 import { logRgEnvironmentOnce } from '@/utils/rgEnvTrace';
@@ -19,6 +20,10 @@ export default function RootLayout() {
     rgPerfMark('app root layout mounted', {
       source: 'root layout',
     });
+    // Restore the saved live-gap push options (if the user opted in) and start mirroring
+    // future changes to device storage. Device-level preference, so it runs once at mount
+    // independently of the auth gate.
+    void initializeLiveGapPushConfigPersistence();
   }, []);
 
   useEffect(() => {

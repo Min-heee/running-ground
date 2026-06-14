@@ -3,10 +3,13 @@ import test from 'node:test';
 
 import {
   getLiveGapPushConfig,
+  hydrateLiveGapPushConfig,
+  normalizeLiveGapPushConfig,
   resetLiveGapPushConfigForTests,
   resolveLiveGapIntervalMs,
   setLiveGapDeliveryMode,
   setLiveGapInterval,
+  setLiveGapRemember,
   subscribeLiveGapPushConfig,
   toggleLiveGapGroupTarget,
   toggleLiveGapMetric,
@@ -27,6 +30,102 @@ test('default config is off with sensible default metrics and notification deliv
   assert.deepEqual(config.groupTargets, ['ahead1', 'rank1']);
   assert.deepEqual(config.metrics, ['remainingDistance', 'opponentDistance', 'opponentPace']);
   assert.equal(config.deliveryMode, 'notification');
+  assert.equal(config.remember, false);
+});
+
+test('setLiveGapRemember toggles the persistence flag and notifies once per change', () => {
+  resetLiveGapPushConfigForTests();
+  let notifications = 0;
+  const unsubscribe = subscribeLiveGapPushConfig(() => {
+    notifications += 1;
+  });
+
+  setLiveGapRemember(true);
+  assert.equal(getLiveGapPushConfig().remember, true);
+  assert.equal(notifications, 1);
+
+  // No-op when unchanged.
+  setLiveGapRemember(true);
+  assert.equal(notifications, 1);
+
+  setLiveGapRemember(false);
+  assert.equal(getLiveGapPushConfig().remember, false);
+  assert.equal(notifications, 2);
+
+  unsubscribe();
+});
+
+test('normalizeLiveGapPushConfig coerces a stored payload and drops unknown values', () => {
+  // A clean, fully-valid payload round-trips unchanged (canonical array order enforced).
+  assert.deepEqual(
+    normalizeLiveGapPushConfig({
+      interval: '3m',
+      groupTargets: ['rank1', 'ahead1'],
+      metrics: ['opponentPace', 'remainingDistance'],
+      deliveryMode: 'both',
+      remember: true,
+    }),
+    {
+      interval: '3m',
+      groupTargets: ['ahead1', 'rank1'],
+      metrics: ['remainingDistance', 'opponentPace'],
+      deliveryMode: 'both',
+      remember: true,
+    },
+  );
+
+  // Unknown enum values fall back to defaults; bogus array entries are filtered out.
+  assert.deepEqual(
+    normalizeLiveGapPushConfig({
+      interval: '99m',
+      groupTargets: ['ahead1', 'nope'],
+      metrics: ['remainingDistance', 'garbage'],
+      deliveryMode: 'telepathy',
+      remember: 'yes',
+    }),
+    {
+      interval: 'off',
+      groupTargets: ['ahead1'],
+      metrics: ['remainingDistance'],
+      deliveryMode: 'notification',
+      remember: false,
+    },
+  );
+
+  // Non-object input degrades to the default config.
+  assert.deepEqual(normalizeLiveGapPushConfig(null), {
+    interval: 'off',
+    groupTargets: ['ahead1', 'rank1'],
+    metrics: ['remainingDistance', 'opponentDistance', 'opponentPace'],
+    deliveryMode: 'notification',
+    remember: false,
+  });
+});
+
+test('hydrateLiveGapPushConfig replaces the store from a payload and notifies', () => {
+  resetLiveGapPushConfigForTests();
+  let notifications = 0;
+  const unsubscribe = subscribeLiveGapPushConfig(() => {
+    notifications += 1;
+  });
+
+  hydrateLiveGapPushConfig({
+    interval: '1m',
+    groupTargets: ['rank1'],
+    metrics: ['currentPace'],
+    deliveryMode: 'voice',
+    remember: true,
+  });
+
+  const config = getLiveGapPushConfig();
+  assert.equal(config.interval, '1m');
+  assert.deepEqual(config.groupTargets, ['rank1']);
+  assert.deepEqual(config.metrics, ['currentPace']);
+  assert.equal(config.deliveryMode, 'voice');
+  assert.equal(config.remember, true);
+  assert.equal(notifications, 1);
+
+  unsubscribe();
 });
 
 test('setLiveGapDeliveryMode switches mode and notifies once per change', () => {
