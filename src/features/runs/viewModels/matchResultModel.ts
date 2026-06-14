@@ -172,8 +172,16 @@ export function buildDuelMatchFinishModel({
       // integers, so a raw float elapsed (esp. the opponent's synced liveElapsed)
       // would 400 the whole run save and strand the runner on the live screen.
       myDurationSeconds: Math.round(currentElapsedSeconds),
-      opponentPaceLabel: opponentPace,
-      opponentDurationSeconds: Math.round(opponentElapsedSeconds),
+      // Persist the opponent's pace/time only when it is genuinely theirs: a measured
+      // pace, and an elapsed that actually came from their live sync. The previous code
+      // stored a '--:--/km' placeholder, and — when their progress had not synced —
+      // silently saved MY elapsed (the `?? currentElapsedSeconds` fallback) as the
+      // opponent's. Omitting instead means the saved 대결 카드 shows nothing for the
+      // opponent rather than a wrong value when their live data is missing.
+      ...(isMeasuredPaceLabel(opponentPace) ? { opponentPaceLabel: opponentPace } : {}),
+      ...(opponentHasLiveElapsed
+        ? { opponentDurationSeconds: Math.round(opponentElapsedSeconds) }
+        : {}),
     },
   };
 }

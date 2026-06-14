@@ -382,3 +382,39 @@ test('group result returns null for missing current standing or empty participan
     targetDistanceKm: 5,
   }), null);
 });
+
+test('duel matchResult persists the opponent\'s own measured pace and synced duration', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      liveDistanceKm: 3.1,
+      liveElapsedSeconds: 1200,
+      livePace: '06:27/km',
+      liveStatus: 'running',
+    }),
+    currentDistanceKm: 5,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 1500,
+    currentPaceLabel: '05:00/km',
+    currentUserLiveStatus: 'finished',
+  });
+
+  assert.equal(result?.matchResult.opponentPaceLabel, '06:27/km');
+  assert.equal(result?.matchResult.opponentDurationSeconds, 1200);
+});
+
+test('duel matchResult omits opponent pace/time when their live progress never synced', () => {
+  const result = buildDuelMatchFinishModel({
+    // No liveDistanceKm / liveElapsedSeconds / livePace → their progress never arrived.
+    opponent: opponent({ liveStatus: 'running' }),
+    currentDistanceKm: 5,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 1500,
+    currentPaceLabel: '05:00/km',
+    currentUserLiveStatus: 'finished',
+  });
+
+  // Persist nothing for the opponent rather than a '--:--/km' placeholder or the current
+  // user's own elapsed (1500) masquerading as the opponent's time.
+  assert.equal(result?.matchResult.opponentPaceLabel, undefined);
+  assert.equal(result?.matchResult.opponentDurationSeconds, undefined);
+});
