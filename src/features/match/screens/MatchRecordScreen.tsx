@@ -83,12 +83,14 @@ export default function MatchRecordScreen() {
   const [monthFilter, setMonthFilter] = useState<string>('all');
 
   // Years present in the records, newest first; the active year follows the user's pick
-  // and falls back to the newest year so it stays valid as data loads/changes.
-  const availableYears = useMemo(
-    () => Array.from(new Set(stats.matchRuns.map((run) => run.date.slice(0, 4))))
-      .sort((a, b) => b.localeCompare(a)),
-    [stats.matchRuns],
-  );
+  // and falls back to the newest year so it stays valid as data loads/changes. When there
+  // are no official 전적 records yet, fall back to the current year so the year/month picker
+  // still shows (otherwise it would hide itself and look like nothing changed).
+  const availableYears = useMemo(() => {
+    const recordYears = Array.from(new Set(stats.matchRuns.map((run) => run.date.slice(0, 4))))
+      .sort((a, b) => b.localeCompare(a));
+    return recordYears.length > 0 ? recordYears : [String(new Date().getFullYear())];
+  }, [stats.matchRuns]);
   const selectedYear = (yearFilter && availableYears.includes(yearFilter))
     ? yearFilter
     : (availableYears[0] ?? null);

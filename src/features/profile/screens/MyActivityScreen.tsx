@@ -58,12 +58,13 @@ export default function MyActivityScreen() {
 
   // Years present in the records, newest first. The active year follows the user's pick
   // when it's still available, otherwise it falls back to the newest year — so it stays
-  // valid as data loads or changes without needing a sync effect.
-  const availableYears = useMemo(
-    () => Array.from(new Set(activityRuns.map((run) => run.date.slice(0, 4))))
-      .sort((a, b) => b.localeCompare(a)),
-    [activityRuns],
-  );
+  // valid as data loads or changes without needing a sync effect. With no records yet,
+  // fall back to the current year so the year/month picker still shows.
+  const availableYears = useMemo(() => {
+    const recordYears = Array.from(new Set(activityRuns.map((run) => run.date.slice(0, 4))))
+      .sort((a, b) => b.localeCompare(a));
+    return recordYears.length > 0 ? recordYears : [String(new Date().getFullYear())];
+  }, [activityRuns]);
   const selectedYear = (yearFilter && availableYears.includes(yearFilter))
     ? yearFilter
     : (availableYears[0] ?? null);
