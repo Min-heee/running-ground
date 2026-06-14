@@ -1,144 +1,223 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { router } from 'expo-router';
-import {
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { AppState, Linking, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
+import {
+  getOnboardingPermissionStatuses,
+  ONBOARDING_PERMISSION_DENIED,
+  requestAllOnboardingPermissions,
+  type OnboardingPermissionKey,
+  type OnboardingPermissionStatuses,
+} from '@/features/auth/onboarding/onboardingPermissions';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
-type WelcomeTourSlide = {
-  description: string;
-  icon: string;
-  kicker: string;
-  title: string;
-};
+type TourStep = 'welcome' | 'permissions' | 'connect';
 
-type WelcomeTourSlidePageProps = {
-  index: number;
-  slide: WelcomeTourSlide;
-  slideWidth: number;
-};
+const STEP_ORDER: TourStep[] = ['welcome', 'permissions', 'connect'];
 
-const welcomeTourSlides: WelcomeTourSlide[] = [
-  {
-    description: '혼자 뛰던 러닝을 친구·지역과 비교하며 경쟁으로 바꿔요.',
-    icon: '🏁',
-    kicker: 'WELCOME',
-    title: '러닝이 경쟁이 되는 앱',
-  },
-  {
-    description: '비슷한 페이스의 러너와 1대1, 친구들과 파티런 그룹 대결로 LP를 쌓고 랭크를 올려요.',
-    icon: '⚡',
-    kicker: 'MATCH',
-    title: '1대1 · 그룹 대결',
-  },
-  {
-    description: '이미 쓰던 NRC·Strava·애플워치·갤럭시워치 기록을 가져와 한 곳에 모아요.',
-    icon: '🔗',
-    kicker: 'SYNC',
-    title: '기록 연동',
-  },
+const PERMISSION_ITEMS: { key: OnboardingPermissionKey; label: string; hint: string }[] = [
+  { key: 'location', label: '위치 (사용 중)', hint: 'GPS로 러닝 경로·거리·페이스를 측정해요.' },
+  { key: 'backgroundLocation', label: '위치 (항상 허용)', hint: '화면을 꺼도 대결 측정이 끊기지 않아요.' },
+  { key: 'notifications', label: '알림', hint: '대결 시작·중간 차이를 알려줘요.' },
 ];
 
-const WelcomeTourSlidePage = memo(function WelcomeTourSlidePage({
-  index,
-  slide,
-  slideWidth,
-}: WelcomeTourSlidePageProps) {
-  const slideStyle = useMemo(() => [styles.slide, { width: slideWidth }], [slideWidth]);
-
+const StepDots = memo(function StepDots({ activeIndex }: { activeIndex: number }) {
   return (
-    <View style={slideStyle}>
-      <View style={styles.iconBadge} accessibilityLabel={`${index + 1}번째 소개`}>
-        <Text style={styles.icon}>{slide.icon}</Text>
-      </View>
-      <Text style={styles.kicker}>{slide.kicker}</Text>
-      <Text style={styles.title}>{slide.title}</Text>
-      <Text style={styles.description}>{slide.description}</Text>
+    <View style={styles.dots} accessibilityLabel={`${activeIndex + 1} / ${STEP_ORDER.length}`}>
+      {STEP_ORDER.map((step, index) => (
+        <View key={step} style={index === activeIndex ? styles.dotActive : styles.dot} />
+      ))}
     </View>
   );
 });
 
-const PaginationDot = memo(function PaginationDot({ active }: { active: boolean }) {
-  return <View style={active ? styles.dotActive : styles.dot} />;
+const PermissionRow = memo(function PermissionRow({
+  label,
+  hint,
+  granted,
+}: {
+  label: string;
+  hint: string;
+  granted: boolean;
+}) {
+  return (
+    <View style={styles.permissionRow}>
+      <View style={styles.permissionCopy}>
+        <Text style={styles.permissionLabel}>{label}</Text>
+        <Text style={styles.permissionHint}>{hint}</Text>
+      </View>
+      <Text style={[styles.permissionBadge, granted ? styles.permissionBadgeOn : styles.permissionBadgeOff]}>
+        {granted ? '✓ 허용됨' : '허용 필요'}
+      </Text>
+    </View>
+  );
 });
 
 export default function WelcomeTourScreen() {
-  const scrollRef = useRef<ScrollView>(null);
-  const { width } = useWindowDimensions();
-  const slideWidth = Math.max(280, width - spacing.s16 * 2);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const isLastSlide = activeIndex === welcomeTourSlides.length - 1;
+  const [step, setStep] = useState<TourStep>('welcome');
+  const [statuses, setStatuses] = useState<OnboardingPermissionStatuses>(ONBOARDING_PERMISSION_DENIED);
+  const [requesting, setRequesting] = useState(false);
+  const [hasRequested, setHasRequested] = useState(false);
 
-  const handleSkip = useCallback(() => {
-    router.replace('/(tabs)/home');
+  const requestingRef = useRef(false);
+  const mountedRef = useRef(true);
+  useEffect(() => () => {
+    mountedRef.current = false;
   }, []);
 
-  const handleConnectSources = useCallback(() => {
+  const activeIndex = STEP_ORDER.indexOf(step);
+  const allGranted = statuses.location && statuses.backgroundLocation && statuses.notifications;
+
+  // Skip while a request is in flight so the foreground-refresh and the request don't both
+  // write statuses out of order (the request's result is the authoritative one).
+  const refreshStatuses = useCallback(async () => {
+    if (requestingRef.current) {
+      return;
+    }
+    const next = await getOnboardingPermissionStatuses();
+    if (mountedRef.current) {
+      setStatuses(next);
+    }
+  }, []);
+
+  // Re-check on mount and whenever the app returns to the foreground — covers the case
+  // where the user grants a denied permission from the OS Settings app and comes back.
+  useEffect(() => {
+    void refreshStatuses();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void refreshStatuses();
+      }
+    });
+    return () => subscription.remove();
+  }, [refreshStatuses]);
+
+  const handleRequestPermissions = useCallback(async () => {
+    requestingRef.current = true;
+    setRequesting(true);
+    try {
+      const next = await requestAllOnboardingPermissions();
+      if (mountedRef.current) {
+        setStatuses(next);
+        setHasRequested(true);
+      }
+    } finally {
+      requestingRef.current = false;
+      if (mountedRef.current) {
+        setRequesting(false);
+      }
+    }
+  }, []);
+
+  const handleOpenSettings = useCallback(() => {
+    void Linking.openSettings();
+  }, []);
+
+  const handleConnect = useCallback(() => {
     router.replace('/connect-sources');
   }, []);
 
-  const handleNext = useCallback(() => {
-    const nextIndex = Math.min(activeIndex + 1, welcomeTourSlides.length - 1);
-    scrollRef.current?.scrollTo({ x: nextIndex * slideWidth, animated: true });
-    setActiveIndex(nextIndex);
-  }, [activeIndex, slideWidth]);
-
-  const handleMomentumScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const nextIndex = Math.round(event.nativeEvent.contentOffset.x / slideWidth);
-    const clampedIndex = Math.max(0, Math.min(nextIndex, welcomeTourSlides.length - 1));
-    setActiveIndex(clampedIndex);
-  }, [slideWidth]);
+  const handleStart = useCallback(() => {
+    router.replace('/(tabs)/home');
+  }, []);
 
   return (
     <Screen>
       <View style={styles.container}>
         <View style={styles.topBar}>
           <Text style={styles.logo}>RunningGround</Text>
-          <SecondaryButton label="건너뛰기" onPress={handleSkip} />
+          <StepDots activeIndex={activeIndex} />
         </View>
 
-        <View style={styles.carouselCard}>
-          <ScrollView
-            ref={scrollRef}
-            horizontal
-            pagingEnabled
-            onMomentumScrollEnd={handleMomentumScrollEnd}
-            scrollEventThrottle={16}
-            showsHorizontalScrollIndicator={false}
-          >
-            <WelcomeTourSlidePage index={0} slide={welcomeTourSlides[0]} slideWidth={slideWidth} />
-            <WelcomeTourSlidePage index={1} slide={welcomeTourSlides[1]} slideWidth={slideWidth} />
-            <WelcomeTourSlidePage index={2} slide={welcomeTourSlides[2]} slideWidth={slideWidth} />
-          </ScrollView>
-
-          <View style={styles.dots} accessibilityLabel={`${activeIndex + 1} / ${welcomeTourSlides.length}`}>
-            <PaginationDot active={activeIndex === 0} />
-            <PaginationDot active={activeIndex === 1} />
-            <PaginationDot active={activeIndex === 2} />
+        {step === 'welcome' ? (
+          <View style={styles.heroCard}>
+            <View style={styles.iconBadge}>
+              <Text style={styles.icon}>🏁</Text>
+            </View>
+            <Text style={styles.kicker}>WELCOME</Text>
+            <Text style={styles.title}>러닝이 경쟁이 되는 앱</Text>
+            <Text style={styles.description}>
+              혼자 뛰던 러닝을 친구·러너들과 1대1, 그룹 대결로 바꿔요. 시작하려면 몇 가지만 켜면 돼요.
+            </Text>
           </View>
-        </View>
+        ) : null}
+
+        {step === 'permissions' ? (
+          <View style={styles.heroCard}>
+            <Text style={styles.kicker}>STEP 1 · 필수</Text>
+            <Text style={styles.permissionTitle}>권한 허용</Text>
+            <Text style={styles.permissionSubtitle}>
+              러닝 측정엔 위치와 알림이 꼭 필요해요. 모두 허용해야 시작할 수 있어요.
+            </Text>
+            <View style={styles.permissionList}>
+              {PERMISSION_ITEMS.map((item) => (
+                <PermissionRow
+                  key={item.key}
+                  label={item.label}
+                  hint={item.hint}
+                  granted={statuses[item.key]}
+                />
+              ))}
+            </View>
+            {hasRequested && !allGranted ? (
+              <Text style={styles.deniedHint}>
+                꺼진 권한이 있어요. 특히 “위치(항상 허용)”는 휴대폰 설정 &gt; 위치에서 “항상”으로 바꿔야 할 수 있어요.
+                설정에서 켜고 돌아오면 자동으로 확인돼요.
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {step === 'connect' ? (
+          <View style={styles.heroCard}>
+            <View style={styles.iconBadge}>
+              <Text style={styles.icon}>🔗</Text>
+            </View>
+            <Text style={styles.kicker}>STEP 2 · 선택</Text>
+            <Text style={styles.title}>기록 연동</Text>
+            <Text style={styles.description}>
+              NRC·Strava·애플워치·갤럭시워치 기록을 가져와 한 곳에 모을 수 있어요. 나중에 설정에서도 할 수 있어요.
+            </Text>
+          </View>
+        ) : null}
 
         <View style={styles.actions}>
-          {isLastSlide ? (
+          {step === 'welcome' ? (
+            <PrimaryButton label="시작하기" onPress={() => setStep('permissions')} />
+          ) : null}
+
+          {step === 'permissions' ? (
+            allGranted ? (
+              <PrimaryButton label="다음" onPress={() => setStep('connect')} />
+            ) : hasRequested ? (
+              // After a denial the in-app prompt can't re-ask on iOS, so make 설정 열기 the
+              // primary path; 다시 시도 stays as a secondary fallback (it can still re-prompt
+              // on Android in some states).
+              <>
+                <PrimaryButton label="설정 열기" onPress={handleOpenSettings} />
+                <SecondaryButton
+                  label={requesting ? '확인 중...' : '다시 시도'}
+                  onPress={handleRequestPermissions}
+                  disabled={requesting}
+                />
+              </>
+            ) : (
+              <PrimaryButton
+                label={requesting ? '요청 중...' : '권한 허용하기'}
+                onPress={handleRequestPermissions}
+                disabled={requesting}
+              />
+            )
+          ) : null}
+
+          {step === 'connect' ? (
             <>
-              <PrimaryButton label="기록 연동하기" onPress={handleConnectSources} />
-              <SecondaryButton label="바로 시작하기" onPress={handleSkip} />
+              <PrimaryButton label="기록 연동하기" onPress={handleConnect} />
+              <SecondaryButton label="건너뛰고 시작하기" onPress={handleStart} />
             </>
-          ) : (
-            <>
-              <PrimaryButton label="다음" onPress={handleNext} />
-              <SecondaryButton label="홈으로 바로 가기" onPress={handleSkip} />
-            </>
-          )}
+          ) : null}
         </View>
       </View>
     </Screen>
@@ -165,20 +244,13 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.large,
     fontWeight: fontWeights.black,
   },
-  carouselCard: {
+  heroCard: {
     backgroundColor: colors.night,
     borderRadius: radii.heroLg,
-    gap: spacing.s20,
-    overflow: 'hidden',
-    paddingBottom: spacing.s24,
-    paddingTop: spacing.s24,
-  },
-  slide: {
-    alignItems: 'center',
     gap: spacing.s12,
-    justifyContent: 'center',
-    minHeight: 420,
+    overflow: 'hidden',
     paddingHorizontal: spacing.s24,
+    paddingVertical: spacing.s24,
   },
   iconBadge: {
     alignItems: 'center',
@@ -205,14 +277,67 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.authTitle,
     fontWeight: fontWeights.black,
     lineHeight: 40,
-    textAlign: 'center',
   },
   description: {
     color: colors.lavenderSoft,
     fontSize: fontSizes.large,
     lineHeight: 26,
-    maxWidth: 300,
-    textAlign: 'center',
+  },
+  permissionTitle: {
+    color: colors.white,
+    fontSize: fontSizes.authTitle,
+    fontWeight: fontWeights.black,
+    lineHeight: 40,
+  },
+  permissionSubtitle: {
+    color: colors.lavenderSoft,
+    fontSize: fontSizes.rank,
+    lineHeight: 22,
+  },
+  permissionList: {
+    gap: spacing.s10,
+    marginTop: spacing.sm,
+  },
+  permissionRow: {
+    alignItems: 'center',
+    backgroundColor: colors.translucentWhite18,
+    borderRadius: radii.lg,
+    flexDirection: 'row',
+    gap: spacing.s12,
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.s16,
+    paddingVertical: spacing.s12,
+  },
+  permissionCopy: {
+    flex: 1,
+    gap: spacing.xxs,
+  },
+  permissionLabel: {
+    color: colors.white,
+    fontSize: fontSizes.rank,
+    fontWeight: fontWeights.extraBold,
+  },
+  permissionHint: {
+    color: colors.lavenderSoft,
+    fontSize: fontSizes.xs,
+    lineHeight: 16,
+  },
+  permissionBadge: {
+    fontSize: fontSizes.xs,
+    fontWeight: fontWeights.extraBold,
+    overflow: 'hidden',
+  },
+  permissionBadgeOn: {
+    color: colors.green,
+  },
+  permissionBadgeOff: {
+    color: colors.orange,
+  },
+  deniedHint: {
+    color: colors.orange,
+    fontSize: fontSizes.xs,
+    lineHeight: 18,
+    marginTop: spacing.xs,
   },
   dots: {
     alignItems: 'center',
@@ -227,7 +352,7 @@ const styles = StyleSheet.create({
     width: 8,
   },
   dotActive: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.brand,
     borderRadius: radii.pill,
     height: 8,
     width: 26,
