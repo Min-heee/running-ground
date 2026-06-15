@@ -58,12 +58,13 @@ export async function signIn(input?: SignInInput) {
 // Opens the backend-driven OAuth flow in an in-app browser. The backend handles the
 // provider redirect + code exchange (client secret stays server-side) and sends us back
 // a session token via the runningground:// scheme, which openAuthSessionAsync captures.
-// Returns the signed-in profile, or null when the user dismisses the browser (silent cancel).
+// Returns { profile, isNewUser }, or null when the user dismisses the browser (silent
+// cancel). isNewUser=true (backend sent created=1) routes the caller into onboarding.
 export async function signInWithProvider(provider: 'kakao' | 'google' | 'apple' | 'naver') {
   await ensureHydrated();
 
   if (USE_MOCK_API) {
-    return applyMockSignIn();
+    return { profile: await applyMockSignIn(), isNewUser: false };
   }
 
   if (provider === 'apple') {
@@ -86,8 +87,10 @@ export async function signInWithProvider(provider: 'kakao' | 'google' | 'apple' 
     throw new Error(resolveSocialError(errorCode));
   }
 
-  const profile = await fetchBackendProfile(token);
-  return applyBackendAuthSession({ accessToken: token, user: profile });
+  const isNewUser = queryParams?.created === '1';
+  const backendProfile = await fetchBackendProfile(token);
+  const profile = await applyBackendAuthSession({ accessToken: token, user: backendProfile });
+  return { profile, isNewUser };
 }
 
 export async function signOut() {

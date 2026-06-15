@@ -21,14 +21,16 @@ export function useSocialLogin() {
       setBusyProvider(provider);
 
       try {
-        const profile = await signInWithProvider(provider);
+        const result = await signInWithProvider(provider);
 
-        if (!profile) {
+        if (!result) {
           // User dismissed the in-app browser — stay on the screen, no error.
           return;
         }
 
-        router.replace('/(tabs)/home');
+        // New social accounts go through the onboarding tutorial (permission gate);
+        // returning users drop straight into the app.
+        router.replace(result.isNewUser ? '/welcome' : '/(tabs)/home');
       } catch (socialError) {
         setError(getApiErrorMessage(socialError, '간편 로그인에 실패했어요.'));
       } finally {

@@ -427,6 +427,7 @@ await runTest('findOrCreateSocialUser creates a passwordless user then reuses it
   });
   assert.equal(typeof first.accessToken, 'string');
   assert.equal(first.user.name, '카카오유저');
+  assert.equal(first.isNewUser, true);
 
   const afterFirst = storeHarness.getStore();
   assert.equal(afterFirst.users.length, 1);
@@ -438,12 +439,14 @@ await runTest('findOrCreateSocialUser creates a passwordless user then reuses it
   // Same social identity → no new user, same id, fresh session token.
   const second = repository.findOrCreateSocialUser({ provider: 'kakao', providerUserId: 'kakao-123' });
   assert.equal(second.user.id, first.user.id);
+  assert.equal(second.isNewUser, false);
   assert.equal(storeHarness.getStore().users.length, 1);
   assert.notEqual(second.accessToken, first.accessToken);
 
   // Same providerUserId but different provider → a distinct user; blank name falls back.
   const third = repository.findOrCreateSocialUser({ provider: 'naver', providerUserId: 'kakao-123', name: '  ' });
   assert.notEqual(third.user.id, first.user.id);
+  assert.equal(third.isNewUser, true);
   assert.equal(storeHarness.getStore().users.length, 2);
   assert.equal(third.user.name, '네이버 러너');
 });

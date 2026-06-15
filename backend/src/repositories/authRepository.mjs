@@ -346,7 +346,7 @@ export function createJsonAuthRepository({
             sessionTtlMs,
           });
 
-          return { accessToken, user: buildProfile(store, matched) };
+          return { accessToken, user: buildProfile(store, matched), isNewUser: false };
         }
 
         const userId = nextId('user');
@@ -388,7 +388,7 @@ export function createJsonAuthRepository({
           sessionTtlMs,
         });
 
-        return { accessToken, user: buildProfile(store, user) };
+        return { accessToken, user: buildProfile(store, user), isNewUser: true };
       });
     },
   };

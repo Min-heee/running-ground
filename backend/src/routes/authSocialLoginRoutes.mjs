@@ -105,8 +105,13 @@ export async function routeAuthSocialLoginRequest({ method, pathname, url, respo
       clientId: providerConfig.clientId,
       clientSecret: providerConfig.clientSecret,
     });
-    const { accessToken } = await getAuthRepository().findOrCreateSocialUser(profile);
-    redirectTo(response, appReturnUrl(appRedirect, { token: accessToken }));
+    const { accessToken, isNewUser } = await getAuthRepository().findOrCreateSocialUser(profile);
+    // Newly-created accounts carry created=1 so the app routes them through the
+    // onboarding tutorial (permission gate); returning users go straight to home.
+    redirectTo(
+      response,
+      appReturnUrl(appRedirect, isNewUser ? { token: accessToken, created: '1' } : { token: accessToken }),
+    );
   } catch {
     redirectTo(response, appReturnUrl(appRedirect, { error: 'auth_failed' }));
   }
