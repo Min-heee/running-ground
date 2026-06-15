@@ -28,6 +28,7 @@ class FakePostgresDatabase {
     this.friendships = clone(initialStore.friendships ?? []);
     this.rewardRedemptions = clone(initialStore.rewardRedemptions ?? []);
     this.offlineRaceEntries = clone(initialStore.offlineRaceEntries ?? []);
+    this.socialAccounts = clone(initialStore.socialAccounts ?? []);
     this.appMetadata = clone(initialStore.appMetadata ?? {});
     this.insertUserError = initialStore.insertUserError;
     this.transactions = 0;
@@ -65,6 +66,20 @@ class FakePostgresDatabase {
           && user.phone === params[2]
           && user.birth_date === params[3]
         )).slice(0, 1),
+      };
+    }
+
+    if (normalizedSql.startsWith('select users.* from social_accounts join users on users.id = social_accounts.user_id where social_accounts.provider = $1 and social_accounts.provider_user_id = $2')) {
+      const account = this.socialAccounts.find((entry) => (
+        entry.provider === params[0] && entry.provider_user_id === params[1]
+      ));
+
+      if (!account) {
+        return { rows: [] };
+      }
+
+      return {
+        rows: this.users.filter((user) => user.id === account.user_id).slice(0, 1),
       };
     }
 
@@ -110,6 +125,19 @@ class FakePostgresDatabase {
         notification_settings: clone(params[18]),
         created_at: params[19],
         updated_at: params[20],
+      });
+
+      return { rows: [] };
+    }
+
+    if (normalizedSql.startsWith('insert into social_accounts')) {
+      this.socialAccounts.push({
+        id: params[0],
+        user_id: params[1],
+        provider: params[2],
+        provider_user_id: params[3],
+        email: params[4],
+        connected_at: params[5],
       });
 
       return { rows: [] };
@@ -619,4 +647,46 @@ await runTest('requires a valid session to delete the current account', async ()
     assertApiError(error, 401, '로그인이 필요해요.');
     return true;
   });
+});
+
+await runTest('findOrCreateSocialUser creates a passwordless user then reuses it by identity', async () => {
+  const { repository, database } = createRepositoryHarness();
+
+  const first = await repository.findOrCreateSocialUser({
+    provider: 'kakao',
+    providerUserId: 'kakao-123',
+    email: 'a@b.com',
+    name: '카카오유저',
+  });
+  assert.equal(typeof first.accessToken, 'string');
+  assert.equal(first.user.name, '카카오유저');
+  assert.equal(first.isNewUser, true);
+  assert.equal(database.transactions, 1);
+
+  // Passwordless: the inserted user row carries a null password_hash.
+  assert.equal(database.users.length, 1);
+  assert.equal(database.users[0].password_hash, null);
+
+  // The social account row links the provider identity to the new user.
+  assert.equal(database.socialAccounts.length, 1);
+  assert.equal(database.socialAccounts[0].user_id, database.users[0].id);
+  assert.equal(database.socialAccounts[0].provider, 'kakao');
+  assert.equal(database.socialAccounts[0].provider_user_id, 'kakao-123');
+  assert.equal(database.socialAccounts[0].email, 'a@b.com');
+
+  // Same social identity → no new user, same id, fresh session token.
+  const second = await repository.findOrCreateSocialUser({ provider: 'kakao', providerUserId: 'kakao-123' });
+  assert.equal(second.user.id, first.user.id);
+  assert.equal(second.isNewUser, false);
+  assert.equal(database.users.length, 1);
+  assert.equal(database.socialAccounts.length, 1);
+  assert.notEqual(second.accessToken, first.accessToken);
+
+  // Same providerUserId but different provider → a distinct user; blank name falls back.
+  const third = await repository.findOrCreateSocialUser({ provider: 'naver', providerUserId: 'kakao-123', name: '  ' });
+  assert.notEqual(third.user.id, first.user.id);
+  assert.equal(third.isNewUser, true);
+  assert.equal(database.users.length, 2);
+  assert.equal(database.socialAccounts.length, 2);
+  assert.equal(third.user.name, '네이버 러너');
 });

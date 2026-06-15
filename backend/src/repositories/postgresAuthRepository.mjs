@@ -4,10 +4,13 @@ import {
   RANK_TIERS,
   resolveRankTier,
 } from '../lib/rankSystem.mjs';
+import { SOCIAL_PROVIDER_LABEL } from '../lib/socialAuthProviders.mjs';
 import { createDefaultConnectedSources, createDefaultNotificationSettings } from './authRepository.mjs';
 
 const PUBLIC_TAG_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PUBLIC_TAG_MAX_ATTEMPTS = 50;
+const SOCIAL_USERNAME_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
+const SOCIAL_USERNAME_MAX_ATTEMPTS = 50;
 
 function createDefaultPublicTag() {
   let suffix = '';
@@ -132,6 +135,44 @@ async function findUserByUsername(database, username) {
   );
 
   return result.rows[0] ? mapUserRow(result.rows[0]) : null;
+}
+
+async function findUserBySocialAccount(database, { provider, providerUserId }) {
+  const result = await database.query(
+    `
+      select users.*
+      from social_accounts
+      join users on users.id = social_accounts.user_id
+      where social_accounts.provider = $1 and social_accounts.provider_user_id = $2
+      limit 1
+    `,
+    [provider, providerUserId],
+  );
+
+  return result.rows[0] ? mapUserRow(result.rows[0]) : null;
+}
+
+function buildSocialUsername(provider) {
+  let suffix = '';
+
+  for (let index = 0; index < 8; index += 1) {
+    suffix += SOCIAL_USERNAME_ALPHABET[Math.floor(Math.random() * SOCIAL_USERNAME_ALPHABET.length)];
+  }
+
+  return `${provider}_${suffix}`;
+}
+
+async function createAvailableSocialUsername(database, provider, createError) {
+  for (let attempt = 0; attempt < SOCIAL_USERNAME_MAX_ATTEMPTS; attempt += 1) {
+    const username = buildSocialUsername(provider);
+    const existing = await findUserByUsername(database, username);
+
+    if (!existing) {
+      return username;
+    }
+  }
+
+  throw createError(500, '소셜 계정을 만드는 중 문제가 생겼어요. 다시 시도해주세요.');
 }
 
 async function findUserByIdentity(database, { realName, phone, birthDate }) {
@@ -523,6 +564,112 @@ export function createPostgresAuthRepository({
         return {
           accessToken,
           user: buildProfile(profileStore, user),
+        };
+      });
+    },
+
+    async findOrCreateSocialUser({ provider, providerUserId, email, name }) {
+      return runWriteOperation(database, async (client) => {
+        const existingUser = await findUserBySocialAccount(client, { provider, providerUserId });
+
+        if (existingUser) {
+          const accessToken = await createSessionForUser(client, {
+            userId: existingUser.id,
+            createToken,
+            sessionTtlMs,
+          });
+          const profileStore = await loadProfileStore(client, existingUser.id);
+
+          return {
+            accessToken,
+            user: buildProfile(profileStore, existingUser),
+            isNewUser: false,
+          };
+        }
+
+        const createdAt = new Date().toISOString();
+        const trimmedName = typeof name === 'string' ? name.trim() : '';
+        const user = {
+          id: nextId('user'),
+          username: await createAvailableSocialUsername(client, provider, createError),
+          passwordHash: null,
+          passwordUpdatedAt: '',
+          name: trimmedName || `${SOCIAL_PROVIDER_LABEL[provider] ?? '소셜'} 러너`,
+          realName: trimmedName,
+          phone: '',
+          birthDate: '',
+          provinceName: '',
+          cityName: '',
+          districtName: '',
+          universityName: '',
+          addressDetail: '',
+          publicTag: await createAvailablePublicTag(client, createPublicTag, createError),
+          rewardPoints: 0,
+          streakDays: 0,
+          rankState: { ...INITIAL_RANK },
+          connectedSources: createDefaultConnectedSources(),
+          notificationSettings: createDefaultNotificationSettings(),
+          createdAt,
+          updatedAt: createdAt,
+        };
+
+        await client.query(
+          `
+            insert into users (
+              id, username, password_hash, password_updated_at, nickname, real_name, phone, birth_date,
+              public_tag, province_name, city_name, district_name, university_name, address_detail,
+              reward_points, streak_days, rank_state, connected_sources, notification_settings, created_at, updated_at
+            )
+            values (
+              $1, $2, $3, $4, $5, $6, $7, $8,
+              $9, $10, $11, $12, $13, $14,
+              $15, $16, $17, $18, $19, $20, $21
+            )
+          `,
+          [
+            user.id,
+            user.username,
+            user.passwordHash,
+            user.passwordUpdatedAt || null,
+            user.name,
+            user.realName,
+            user.phone,
+            user.birthDate || null,
+            user.publicTag,
+            user.provinceName,
+            user.cityName,
+            user.districtName,
+            user.universityName || null,
+            user.addressDetail,
+            user.rewardPoints,
+            user.streakDays,
+            user.rankState,
+            user.connectedSources,
+            user.notificationSettings,
+            user.createdAt,
+            user.updatedAt,
+          ],
+        );
+
+        await client.query(
+          `
+            insert into social_accounts (id, user_id, provider, provider_user_id, email, connected_at)
+            values ($1, $2, $3, $4, $5, $6)
+          `,
+          [nextId('social'), user.id, provider, providerUserId, email || null, createdAt],
+        );
+
+        const accessToken = await createSessionForUser(client, {
+          userId: user.id,
+          createToken,
+          sessionTtlMs,
+        });
+        const profileStore = await loadProfileStore(client, user.id);
+
+        return {
+          accessToken,
+          user: buildProfile(profileStore, user),
+          isNewUser: true,
         };
       });
     },

@@ -13,7 +13,7 @@ create table if not exists app_metadata (
 create table if not exists users (
   id text primary key,
   username text not null,
-  password_hash text not null,
+  password_hash text,
   password_updated_at timestamptz,
   nickname text not null,
   real_name text,
@@ -48,6 +48,18 @@ create table if not exists sessions (
 
 create index if not exists sessions_user_id_idx on sessions (user_id);
 create index if not exists sessions_expires_at_idx on sessions (expires_at);
+
+create table if not exists social_accounts (
+  id text primary key,
+  user_id text not null references users (id) on delete cascade,
+  provider text not null,
+  provider_user_id text not null,
+  email text,
+  connected_at timestamptz not null default now(),
+  unique (provider, provider_user_id)
+);
+
+create index if not exists social_accounts_user_id_idx on social_accounts (user_id);
 
 create table if not exists runs (
   id text primary key,
