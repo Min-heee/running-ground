@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 import {
   SOCIAL_PROVIDERS,
+  buildSocialAuthorizeUrl,
   exchangeSocialAuthCode,
   resolveSocialProviderConfig,
 } from './socialAuthProviders.mjs';
@@ -76,7 +77,25 @@ async function run() {
     { clientId: 'k', clientSecret: undefined },
   );
 
-  console.log('[socialAuthProviders] ok - exchange + config resolution');
+  // buildSocialAuthorizeUrl: correct endpoint + params per provider.
+  const googleUrl = new URL(buildSocialAuthorizeUrl({
+    provider: 'google', clientId: 'gid', redirectUri: 'https://b/api/auth/google/callback', state: 'st',
+  }));
+  assert.equal(googleUrl.origin + googleUrl.pathname, 'https://accounts.google.com/o/oauth2/v2/auth');
+  assert.equal(googleUrl.searchParams.get('client_id'), 'gid');
+  assert.equal(googleUrl.searchParams.get('redirect_uri'), 'https://b/api/auth/google/callback');
+  assert.equal(googleUrl.searchParams.get('response_type'), 'code');
+  assert.equal(googleUrl.searchParams.get('state'), 'st');
+  assert.equal(googleUrl.searchParams.get('scope'), 'openid email profile');
+
+  const naverUrl = new URL(buildSocialAuthorizeUrl({
+    provider: 'naver', clientId: 'nid', redirectUri: 'https://b/api/auth/naver/callback', state: 'st2',
+  }));
+  assert.equal(naverUrl.origin + naverUrl.pathname, 'https://nid.naver.com/oauth2.0/authorize');
+  assert.equal(naverUrl.searchParams.get('state'), 'st2');
+  assert.equal(naverUrl.searchParams.get('scope'), null); // naver has no scope param
+
+  console.log('[socialAuthProviders] ok - exchange + config resolution + authorize url');
 }
 
 run().catch((error) => {

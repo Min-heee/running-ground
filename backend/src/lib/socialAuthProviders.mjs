@@ -101,6 +101,34 @@ const PROVIDER_DEFS = {
   },
 };
 
+const AUTHORIZE_DEFS = {
+  google: { url: 'https://accounts.google.com/o/oauth2/v2/auth', scope: 'openid email profile' },
+  kakao: { url: 'https://kauth.kakao.com/oauth/authorize', scope: null },
+  naver: { url: 'https://nid.naver.com/oauth2.0/authorize', scope: null },
+};
+
+// Builds the provider's authorize URL the in-app browser is sent to. redirectUri is our own
+// backend callback (https), and state round-trips our app-return info.
+export function buildSocialAuthorizeUrl({ provider, clientId, redirectUri, state }) {
+  const def = AUTHORIZE_DEFS[provider];
+
+  if (!def) {
+    throw new ApiError(400, '지원하지 않는 소셜 로그인이에요.');
+  }
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    state,
+  });
+  if (def.scope) {
+    params.set('scope', def.scope);
+  }
+
+  return `${def.url}?${params.toString()}`;
+}
+
 // Returns { clientId, clientSecret } from backend config, or null when the provider isn't
 // configured yet (so the route can answer 503 cleanly instead of a confusing provider error).
 export function resolveSocialProviderConfig(provider, config) {

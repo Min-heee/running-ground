@@ -1,76 +1,115 @@
+import crypto from 'node:crypto';
+
 import * as backendConfig from '../config.mjs';
 import {
-  SOCIAL_PROVIDERS,
+  buildSocialAuthorizeUrl,
   exchangeSocialAuthCode,
   resolveSocialProviderConfig,
 } from '../lib/socialAuthProviders.mjs';
 
-// POST /api/auth/social — the client ran the provider's web OAuth (PKCE) and sends us the
-// authorization code; we exchange it server-side (where the client secret lives), read the
-// profile, and find-or-create the matching user, returning the same { accessToken, user }
-// payload as password login so the client session logic is unchanged.
-export async function routeAuthSocialLoginRequest({
-  method,
-  pathname,
-  request,
-  response,
-  sendJson,
-  getAuthRepository,
-  parseJsonBody,
-  validateRequiredString,
-  ApiError,
-}) {
-  if (pathname === '/api/auth/social' && method === 'POST') {
-    await handleSocialLogin({
-      ApiError,
-      getAuthRepository,
-      parseJsonBody,
-      request,
-      response,
-      sendJson,
-      validateRequiredString,
+// Browser-redirect social login (Google/Naver/Kakao all require an https callback — custom
+// app schemes can't be registered with them):
+//   GET /api/auth/<provider>/start    → 302 to the provider's authorize page
+//   (provider) → GET /api/auth/<provider>/callback?code&state
+//                                      → exchange code, find-or-create user, then 302 back to
+//                                        the app's runningground:// scheme carrying the session
+//                                        token, which expo-web-browser captures.
+const SOCIAL_PATH_PATTERN = /^\/api\/auth\/(google|kakao|naver)\/(start|callback)$/;
+const DEFAULT_APP_REDIRECT = 'runningground://oauth';
+
+function encodeState(payload) {
+  return Buffer.from(JSON.stringify(payload)).toString('base64url');
+}
+
+function decodeState(state) {
+  try {
+    const parsed = JSON.parse(Buffer.from(String(state ?? ''), 'base64url').toString('utf8'));
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Only allow returning to our own app scheme — never an attacker-supplied URL (open redirect).
+function safeAppRedirect(value) {
+  return typeof value === 'string' && value.startsWith('runningground://') ? value : DEFAULT_APP_REDIRECT;
+}
+
+function appReturnUrl(appRedirect, params) {
+  const query = new URLSearchParams(params).toString();
+  return `${appRedirect}${appRedirect.includes('?') ? '&' : '?'}${query}`;
+}
+
+function redirectTo(response, location) {
+  response.writeHead(302, { Location: location });
+  response.end();
+}
+
+function callbackUrl(provider) {
+  const base = (backendConfig.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
+  return `${base}/api/auth/${provider}/callback`;
+}
+
+export async function routeAuthSocialLoginRequest({ method, pathname, url, response, getAuthRepository }) {
+  const match = pathname.match(SOCIAL_PATH_PATTERN);
+
+  if (!match || method !== 'GET') {
+    return false;
+  }
+
+  const provider = match[1];
+  const action = match[2];
+  const providerConfig = resolveSocialProviderConfig(provider, backendConfig);
+
+  if (action === 'start') {
+    const appRedirect = safeAppRedirect(url.searchParams.get('app_redirect'));
+
+    if (!providerConfig) {
+      redirectTo(response, appReturnUrl(appRedirect, { error: 'not_configured' }));
+      return true;
+    }
+
+    const state = encodeState({ nonce: crypto.randomUUID(), appRedirect });
+    const authorizeUrl = buildSocialAuthorizeUrl({
+      provider,
+      clientId: providerConfig.clientId,
+      redirectUri: callbackUrl(provider),
+      state,
     });
+    redirectTo(response, authorizeUrl);
     return true;
   }
 
-  return false;
-}
-
-async function handleSocialLogin({
-  ApiError,
-  getAuthRepository,
-  parseJsonBody,
-  request,
-  response,
-  sendJson,
-  validateRequiredString,
-}) {
-  const body = await parseJsonBody(request);
-  const provider = validateRequiredString(body.provider, '소셜 제공자를 지정해주세요.').toLowerCase();
-
-  if (!SOCIAL_PROVIDERS.includes(provider)) {
-    throw new ApiError(400, '지원하지 않는 소셜 로그인이에요.');
-  }
-
-  const code = validateRequiredString(body.code, '소셜 인증 코드가 없어요.');
-  const redirectUri = validateRequiredString(body.redirectUri, '리다이렉트 주소가 없어요.');
-  const providerConfig = resolveSocialProviderConfig(provider, backendConfig);
+  // action === 'callback'
+  const stateRaw = url.searchParams.get('state');
+  const appRedirect = safeAppRedirect(decodeState(stateRaw)?.appRedirect);
+  const providerError = url.searchParams.get('error');
+  const code = url.searchParams.get('code');
 
   if (!providerConfig) {
-    throw new ApiError(503, '소셜 로그인이 아직 서버에 설정되지 않았어요. 잠시 후 다시 시도해주세요.');
+    redirectTo(response, appReturnUrl(appRedirect, { error: 'not_configured' }));
+    return true;
   }
 
-  const profile = await exchangeSocialAuthCode({
-    provider,
-    code,
-    redirectUri,
-    codeVerifier: typeof body.codeVerifier === 'string' ? body.codeVerifier : undefined,
-    state: typeof body.state === 'string' ? body.state : undefined,
-    clientId: providerConfig.clientId,
-    clientSecret: providerConfig.clientSecret,
-  });
+  if (providerError || !code) {
+    redirectTo(response, appReturnUrl(appRedirect, { error: providerError || 'no_code' }));
+    return true;
+  }
 
-  const result = await getAuthRepository().findOrCreateSocialUser(profile);
+  try {
+    const profile = await exchangeSocialAuthCode({
+      provider,
+      code,
+      redirectUri: callbackUrl(provider),
+      state: stateRaw ?? undefined,
+      clientId: providerConfig.clientId,
+      clientSecret: providerConfig.clientSecret,
+    });
+    const { accessToken } = await getAuthRepository().findOrCreateSocialUser(profile);
+    redirectTo(response, appReturnUrl(appRedirect, { token: accessToken }));
+  } catch {
+    redirectTo(response, appReturnUrl(appRedirect, { error: 'auth_failed' }));
+  }
 
-  sendJson(response, 200, result);
+  return true;
 }
