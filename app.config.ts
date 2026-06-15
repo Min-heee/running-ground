@@ -159,6 +159,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       new Set([
         ...(baseConfig.plugins ?? []),
         'expo-router',
+        'expo-web-browser',
         ...(isDevelopmentVariant ? ['expo-dev-client'] : []),
         [
           'expo-location',

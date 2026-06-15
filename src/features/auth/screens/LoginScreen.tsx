@@ -3,7 +3,9 @@ import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { SocialLoginButtons } from '@/features/auth/components/SocialLoginButtons';
 import { useLoginScreen } from '@/features/auth/hooks/useLoginScreen';
+import { useSocialLogin } from '@/features/auth/hooks/useSocialLogin';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function LoginScreen() {
@@ -21,6 +23,7 @@ export default function LoginScreen() {
     submitting,
     username,
   } = useLoginScreen();
+  const social = useSocialLogin();
 
   return (
     <Screen>
@@ -61,6 +64,8 @@ export default function LoginScreen() {
           </Pressable>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
+        <SocialLoginButtons busyProvider={social.busyProvider} onPress={social.handleSocialLogin} disabled={submitting} />
+        {social.error ? <Text style={styles.errorText}>{social.error}</Text> : null}
       </Card>
 
       <Card>

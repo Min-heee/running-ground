@@ -3,9 +3,13 @@ import { Link } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { SocialLoginButtons } from '@/features/auth/components/SocialLoginButtons';
+import { useSocialLogin } from '@/features/auth/hooks/useSocialLogin';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function SignupScreen() {
+  const social = useSocialLogin();
+
   return (
     <Screen>
       <AuthHeader title="회원가입" subtitle="계정을 만들고, 공개 표시 이름까지 정한 뒤 바로 러닝 경쟁을 시작해보세요." showBack backHref="/onboarding" />
@@ -17,6 +21,8 @@ export default function SignupScreen() {
             <Text style={styles.darkButtonText}>계정으로 회원가입하기</Text>
           </Pressable>
         </Link>
+        <SocialLoginButtons busyProvider={social.busyProvider} onPress={social.handleSocialLogin} />
+        {social.error ? <Text style={styles.errorText}>{social.error}</Text> : null}
       </Card>
 
       <View style={styles.footer}>
@@ -63,5 +69,11 @@ const styles = StyleSheet.create({
   footerLink: {
     color: colors.brand,
     fontWeight: fontWeights.bold,
+  },
+  errorText: {
+    color: colors.danger,
+    fontWeight: fontWeights.bold,
+    lineHeight: 20,
+    marginTop: spacing.s12,
   },
 });
