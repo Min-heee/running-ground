@@ -234,22 +234,25 @@ export function useRunForfeitCommand({
       if (source === 'duel') {
         setDuelMatchStatus((currentStatus) => markDuelStatusForfeited(currentStatus, matchId));
         setDuelMatchNotice('기권 처리됐어요. 기록 상세로 이동할게요.');
-        await leaveRunningMatch({ matchId });
-        didLeaveMatch = true;
-        markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
-        forfeitApiTraceCompleted = true;
-        endForfeitApiTrace({ success: true });
-        matchProgressHeartbeatRef.current = Date.now();
       } else {
         setGroupMatchStatus((currentStatus) => markGroupStatusForfeited(currentStatus, matchId));
         setGroupMatchNotice('기권 처리됐어요. 기록 상세로 이동할게요.');
-        await leaveRunningMatch({ matchId });
-        didLeaveMatch = true;
-        markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
-        forfeitApiTraceCompleted = true;
-        endForfeitApiTrace({ success: true });
-        matchProgressHeartbeatRef.current = Date.now();
       }
+
+      // Forfeit is local-first: the user committed to quitting, so the server "leave"
+      // call is best-effort. On a flaky mobile network the response can time out even
+      // though the server already recorded the forfeit — that must NOT roll back the
+      // forfeit or block navigation to the record screen.
+      try {
+        await leaveRunningMatch({ matchId });
+      } catch {
+        // Swallow: the forfeit still stands locally and we proceed to save + navigate.
+      }
+      didLeaveMatch = true;
+      markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
+      forfeitApiTraceCompleted = true;
+      endForfeitApiTrace({ success: true });
+      matchProgressHeartbeatRef.current = Date.now();
 
       await stopForfeitedTracking();
       void loadUpcomingMatches().catch(() => {});
