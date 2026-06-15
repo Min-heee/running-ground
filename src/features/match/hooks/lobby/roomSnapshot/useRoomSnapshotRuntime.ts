@@ -91,6 +91,7 @@ export function useRoomSnapshotRuntime() {
     serverClockOffsetMs: hydration.serverClockOffsetMs,
     latestRoomServerNowMsRef: hydration.latestRoomServerNowMsRef,
     commitRoom: hydration.commitRoom,
+    loadRoom,
     pauseRoomPolling: handoff.pauseRoomPolling,
     syncServerClock: hydration.syncServerClock,
   };

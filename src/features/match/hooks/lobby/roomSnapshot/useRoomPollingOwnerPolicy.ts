@@ -5,12 +5,15 @@ import { resolveMatchRoomSnapshotPollingPolicy } from './roomSnapshotPollingPoli
 export function useRoomPollingOwnerPolicy({
   linkedMatchId,
   state,
+  linkedMatchStatus,
 }: {
   linkedMatchId?: string | null;
   state?: RunningMatchRoom['state'] | null;
+  linkedMatchStatus?: RunningMatchRoom['linkedMatchStatus'] | null;
 }) {
   return useMemo(() => resolveMatchRoomSnapshotPollingPolicy({
     linkedMatchId,
     state,
-  }), [linkedMatchId, state]);
+    linkedMatchStatus,
+  }), [linkedMatchId, state, linkedMatchStatus]);
 }

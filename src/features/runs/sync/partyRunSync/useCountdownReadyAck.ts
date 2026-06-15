@@ -12,7 +12,13 @@ import type { PartyRunSyncCallbackRef } from './types';
 // short timer so a later response (whose serverNow has advanced past the stale guard, or
 // which now carries the slot start) gets through and is committed.
 const COUNTDOWN_READY_RECOVERY_INTERVAL_MS = 2000;
+// After this many fast attempts (~40s) we stop spamming at the fast cadence and surface a
+// recoverable error so the user knows to use the always-visible leave control — but we do
+// NOT give up: the watchdog keeps retrying at a slower backoff cadence so a late ACK can
+// still rescue the room without the user having to bail out. The user is never frozen with
+// no path forward (the arming overlay's force-leave control is always available too).
 const COUNTDOWN_READY_RECOVERY_MAX_ATTEMPTS = 20;
+const COUNTDOWN_READY_RECOVERY_BACKOFF_INTERVAL_MS = 8000;
 // A delivered slot start is only trustworthy when it is near. The host-start visible
 // window is 10s; a slot sitting further out than this is a stale PRE-ARM slot (start
 // +18s) the device got before the backend re-armed it (+12s), with no remaining
@@ -67,6 +73,7 @@ export function useCountdownReadyAck({
 }: UseCountdownReadyAckInput) {
   const countdownReadyRoomAckRef = useRef<string | null>(null);
   const recoveryAttemptsRef = useRef(0);
+  const recoveryErrorSurfacedRef = useRef(false);
 
   useEffect(() => {
     if (!enabled || !matchRoom?.roomId || !matchRoomFlow.canAcknowledgeCountdownReady) {
@@ -100,8 +107,11 @@ export function useCountdownReadyAck({
 
   // Recovery watchdog: while stuck in arming with no slot start (a dropped ACK with no
   // other delivery channel), re-issue the ACK on a timer until the slot start lands.
-  // Capped so a genuinely broken match isn't spammed forever, and self-clearing — once a
-  // slot start arrives this effect re-runs with isRoomStuckArming() === false.
+  // Self-clearing — once a slot start arrives this effect re-runs with
+  // isRoomStuckArming() === false. It NEVER permanently gives up: after a fast burst it
+  // surfaces a recoverable error (so the user is told to use the leave control) and slows
+  // to a backoff cadence, but keeps re-issuing the ACK so a late response can still rescue
+  // the room. A self-rescheduling timeout (not a fixed interval) lets the cadence change.
   useEffect(() => {
     if (!enabled || !matchRoom?.roomId) {
       return undefined;
@@ -114,34 +124,62 @@ export function useCountdownReadyAck({
       phase: matchRoomFlow.phase,
     })) {
       recoveryAttemptsRef.current = 0;
+      recoveryErrorSurfacedRef.current = false;
       return undefined;
     }
 
     const { roomId, linkedMatchSlotStartAt } = matchRoom;
-    const intervalId = setInterval(() => {
-      if (recoveryAttemptsRef.current >= COUNTDOWN_READY_RECOVERY_MAX_ATTEMPTS) {
-        clearInterval(intervalId);
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
+    const slotIsNearEnough = () => {
+      if (typeof linkedMatchSlotStartAt !== 'string') {
+        return false;
+      }
+      const slotStartMs = Date.parse(linkedMatchSlotStartAt);
+      return Number.isFinite(slotStartMs) && slotStartMs - Date.now() <= COUNTDOWN_READY_SLOT_FAR_MS;
+    };
+
+    const scheduleNext = (delayMs: number) => {
+      if (cancelled) {
         return;
       }
+      timeoutId = setTimeout(tick, delayMs);
+    };
 
+    const tick = () => {
       // Re-check inside the tick with the live clock: once the (closure) slot is near
       // enough to be the real armed slot, the room is progressing normally — stop.
       // This runs even if React renders are wedged, so a re-ACK that commits a fresh
       // room snapshot also restarts the frozen UI.
-      if (typeof linkedMatchSlotStartAt === 'string') {
-        const slotStartMs = Date.parse(linkedMatchSlotStartAt);
-        if (Number.isFinite(slotStartMs) && slotStartMs - Date.now() <= COUNTDOWN_READY_SLOT_FAR_MS) {
-          clearInterval(intervalId);
-          return;
-        }
+      if (slotIsNearEnough()) {
+        return;
+      }
+
+      const pastFastCap = recoveryAttemptsRef.current >= COUNTDOWN_READY_RECOVERY_MAX_ATTEMPTS;
+      if (pastFastCap && !recoveryErrorSurfacedRef.current) {
+        recoveryErrorSurfacedRef.current = true;
+        // Surface a recoverable error instead of silently freezing. The arming overlay's
+        // always-visible leave control gives the user an immediate way out; retries continue.
+        callbacksRef.current.onError(
+          '대결 시작 준비가 늦어지고 있어요. 잠시 더 기다리거나 나가기를 눌러 다시 시도해줘.',
+        );
       }
 
       recoveryAttemptsRef.current += 1;
       void callbacksRef.current.acknowledgeCountdownReady(roomId).catch(() => {});
-    }, COUNTDOWN_READY_RECOVERY_INTERVAL_MS);
+      scheduleNext(pastFastCap
+        ? COUNTDOWN_READY_RECOVERY_BACKOFF_INTERVAL_MS
+        : COUNTDOWN_READY_RECOVERY_INTERVAL_MS);
+    };
+
+    scheduleNext(COUNTDOWN_READY_RECOVERY_INTERVAL_MS);
 
     return () => {
-      clearInterval(intervalId);
+      cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [
     callbacksRef,

@@ -2636,6 +2636,10 @@ export function TrackRunExperienceRuntime({
     showForceResetAction: isRunningMatchForceResetCandidate(error),
     shouldShowRoomArmingOverlay,
     roomArmingDebugInfo,
+    // Always-visible escape from the arming overlay. Reuses the force-reset path so a
+    // guest stuck at "로딩중" (dropped countdown-ready ACK) is never trapped — it clears
+    // all match/room state and returns to a clean screen.
+    onLeaveArmingMatch: handleForceResetRunningMatchPress,
     // Covers the whole live shell from the moment a match-ending button is pressed
     // (forfeit / 대결종료 / finish) until the run-detail replace lands, so none of the
     // intermediate live/matching screens flash by during the save.

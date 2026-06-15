@@ -18,6 +18,9 @@ import {
   clearBackgroundMatchProgressContext,
   setBackgroundMatchProgressContext,
 } from '@/features/runs/tracking/background/backgroundMatchProgressSync';
+import {
+  stopBackgroundMatchProgressTimer,
+} from '@/features/runs/tracking/background/backgroundMatchProgressTimer';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
@@ -70,6 +73,10 @@ export function useMatchProgressSync({
 }: UseMatchProgressSyncInput) {
   const firstLiveProgressReceivedRef = useRef(false);
   const heartbeatSlotOwnerRef = useRef<{ key: string; ownerId: number } | null>(null);
+  // Remembers the most recent active match target so that when the match ends and the
+  // active target collapses to null, we can still deliver a FINAL status push for the
+  // just-ended match before tearing the context down (see the cleanup effect below).
+  const lastActiveHeartbeatTargetRef = useRef<{ matchId: string; distanceKm: number } | null>(null);
   const callbackRef = useRef({
     buildDisplayedMatchProgress,
     setLastSyncedMatchProgress,
@@ -103,9 +110,17 @@ export function useMatchProgressSync({
 
   useEffect(() => {
     if (!heartbeatEnabled || !activeHeartbeatMatchId || activeHeartbeatDistanceKm === null) {
-      clearBackgroundMatchProgressContext();
+      // Match ended (or heartbeat disabled): do NOT abruptly null the background context
+      // here. The dedicated match-end teardown effect below first delivers a FINAL status
+      // push for the just-ended match, then stops the background timer, then clears the
+      // context — in that order — so an in-flight/final push is never orphaned.
       return undefined;
     }
+
+    lastActiveHeartbeatTargetRef.current = {
+      matchId: activeHeartbeatMatchId,
+      distanceKm: activeHeartbeatDistanceKm,
+    };
 
     const duelMatchStatus = duelMatchStatusRef.current;
     const groupMatchStatus = groupMatchStatusRef.current;
@@ -137,9 +152,7 @@ export function useMatchProgressSync({
       slotStartAt,
     });
 
-    return () => {
-      clearBackgroundMatchProgressContext(activeHeartbeatMatchId);
-    };
+    return undefined;
   }, [
     activeHeartbeatDistanceKm,
     activeHeartbeatMatchId,
@@ -185,6 +198,14 @@ export function useMatchProgressSync({
       }
     };
   }, [activeHeartbeatMatchId, heartbeatEnabled]);
+
+  // Defensive unmount-only cleanup. The match-end teardown above handles the normal
+  // end-of-match path; this only fires if the hook unmounts while a context is still set
+  // (e.g. navigating away mid-match) so the background context never leaks for a dead run.
+  useEffect(() => () => {
+    stopBackgroundMatchProgressTimer();
+    clearBackgroundMatchProgressContext();
+  }, []);
 
   const canSendMatchProgressHeartbeat = useCallback((matchId: string) => {
     const heartbeatKey = buildMatchProgressRegistryKey(matchId);
@@ -268,6 +289,84 @@ export function useMatchProgressSync({
     groupMatchStatusRef,
     roomLinkedMatchContextRef,
   ]);
+
+  // Match-end final status delivery. When a match ends the active target collapses to
+  // null, so the regular heartbeat (which gates on getActiveMatchProgressTarget) stops
+  // firing. Without a terminal push the OPPONENT keeps seeing this runner frozen at the
+  // last synced position forever. Deliver one explicit FINAL 'finished' progress push for
+  // the just-ended match — outside the active-target gate — so the server marks this
+  // runner done and the opponent's board unfreezes. Best-effort with a single retry.
+  const deliverFinalMatchStatus = useCallback(async (endedTarget: { matchId: string; distanceKm: number }) => {
+    const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
+    const progress = callbackRef.current.buildDisplayedMatchProgress(snapshot);
+    const finalStatus = resolveMatchProgressHeartbeatStatus({
+      progressDistanceKm: progress.distanceKm,
+      targetDistanceKm: endedTarget.distanceKm,
+    });
+    // Only a genuine finish needs a terminal push — that's the status whose loss freezes
+    // the opponent's board. If the match ended for any other reason (forfeit / opponent
+    // ended it / cancel), the live-progress channel must NOT push 'running': that could
+    // flip this runner back to "running" after they forfeited. Those cases are covered by
+    // leaveRunningMatch + status polling, not here.
+    if (finalStatus !== 'finished') {
+      return;
+    }
+    const input: UpdateRunningMatchProgressInput = {
+      matchId: endedTarget.matchId,
+      distanceKm: progress.distanceKm,
+      elapsedSeconds: progress.elapsedSeconds,
+      currentPace: progress.currentPace,
+      status: 'finished',
+    };
+    rgPerfMark('match end final status push', {
+      matchId: endedTarget.matchId,
+      status: input.status,
+    });
+
+    try {
+      await pushRunningMatchProgress(input);
+    } catch {
+      // Retry once: this is the last chance to unfreeze the opponent's board, so a single
+      // transient failure (flaky mobile network at match end) should not be the end of it.
+      try {
+        await pushRunningMatchProgress(input);
+      } catch {
+        // Give up after the retry; teardown still proceeds so the dead context is cleared.
+      }
+    }
+  }, [pushRunningMatchProgress]);
+
+  // Ordered match-end teardown. Fires only on the real end transition: a previously
+  // active match target collapses to null (finish / forfeit / goal reached). Order:
+  //   1) deliver the FINAL status push for the just-ended match (unfreezes the opponent),
+  //   2) stop the Android background match-progress timer (no more dead-context flushes),
+  //   3) clear the background context.
+  // Keeping these in order means the final push runs while the context is still alive.
+  useEffect(() => {
+    if (activeHeartbeatMatchId) {
+      return undefined;
+    }
+
+    const endedTarget = lastActiveHeartbeatTargetRef.current;
+    if (!endedTarget) {
+      return undefined;
+    }
+
+    lastActiveHeartbeatTargetRef.current = null;
+
+    void (async () => {
+      try {
+        if (heartbeatEnabled) {
+          await deliverFinalMatchStatus(endedTarget);
+        }
+      } finally {
+        stopBackgroundMatchProgressTimer();
+        clearBackgroundMatchProgressContext(endedTarget.matchId);
+      }
+    })();
+
+    return undefined;
+  }, [activeHeartbeatMatchId, deliverFinalMatchStatus, heartbeatEnabled]);
 
   const syncMatchLifecycleStatus = useCallback(async (
     nextStatus: Extract<UpdateRunningMatchProgressInput['status'], 'running' | 'background'>,

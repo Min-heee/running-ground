@@ -28,9 +28,11 @@ export function useRoomSnapshotPolling({
   const pollingRoomId = room?.roomId ?? null;
   const pollingLinkedMatchId = room?.linkedMatchId ?? null;
   const pollingRoomState = room?.state ?? null;
+  const pollingLinkedMatchStatus = room?.linkedMatchStatus ?? null;
   const policy = useRoomPollingOwnerPolicy({
     linkedMatchId: pollingLinkedMatchId,
     state: pollingRoomState,
+    linkedMatchStatus: pollingLinkedMatchStatus,
   });
 
   useEffect(() => {
@@ -152,6 +154,7 @@ export function useRoomSnapshotPolling({
     loadRoom,
     policy,
     pollingLinkedMatchId,
+    pollingLinkedMatchStatus,
     pollingPaused,
     pollingRoomId,
     pollingRoomState,
