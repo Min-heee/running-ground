@@ -43,6 +43,7 @@ export function buildGroupRaceBoardSection({
       progress: groupDistanceKm > 0 ? participant.currentDistanceKm / groupDistanceKm : 0,
       isCurrentUser: participant.isCurrentUser,
       liveStatus: participant.liveStatus,
+      forfeitedAt: participant.forfeitedAt,
       // Same fix the duel board already has: rivals who are still RUNNING must stay
       // visible on the live rank page instead of collapsing to "완주한 러너만 보여요".
     })), { hideRunningOthers: false });

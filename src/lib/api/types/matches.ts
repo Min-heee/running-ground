@@ -30,6 +30,7 @@ export type DuelMatchOpponent = {
   liveUpdatedAt?: string;
   liveStatus?: RunningMatchLiveStatus;
   finishedAt?: string;
+  forfeitedAt?: string;
   officialDistanceKm?: number;
   officialElapsedSeconds?: number;
   officialAveragePace?: string;
@@ -79,6 +80,7 @@ export type GroupMatchParticipant = {
   liveUpdatedAt?: string;
   liveStatus?: RunningMatchLiveStatus;
   finishedAt?: string;
+  forfeitedAt?: string;
   officialDistanceKm?: number;
   officialElapsedSeconds?: number;
   officialAveragePace?: string;

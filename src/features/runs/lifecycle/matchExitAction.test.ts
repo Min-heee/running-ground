@@ -166,3 +166,86 @@ test('exit action keeps test match cleanup ahead of self-forfeited result action
   assert.equal(testExit.kind, 'test-exit');
   assert.equal(testExit.buttonLabel, '테스트 대결 그만');
 });
+
+test('group sole-survivor gets a finish action, not a forfeit action', () => {
+  const soleSurvivor = buildMatchExitActionState({
+    source: 'group',
+    isTestMatch: false,
+    isLeaving: false,
+    isSaving: false,
+    isRunning: true,
+    counterpartForfeited: false,
+    selfForfeited: false,
+    selfFinished: false,
+    allOthersForfeited: true,
+  });
+
+  assert.equal(soleSurvivor.kind, 'sole-survivor');
+  assert.notEqual(soleSurvivor.kind, 'forfeit');
+  assert.equal(soleSurvivor.title, '혼자 남았어요');
+  assert.equal(soleSurvivor.buttonLabel, '대결 종료');
+  assert.equal(soleSurvivor.disabled, false);
+});
+
+test('group sole-survivor button shows saving label and disables while saving', () => {
+  const saving = buildMatchExitActionState({
+    source: 'group',
+    isTestMatch: false,
+    isLeaving: false,
+    isSaving: true,
+    isRunning: true,
+    counterpartForfeited: false,
+    selfForfeited: false,
+    selfFinished: false,
+    allOthersForfeited: true,
+  });
+
+  assert.equal(saving.kind, 'sole-survivor');
+  assert.equal(saving.buttonLabel, '결과 저장 중...');
+  assert.equal(saving.disabled, true);
+});
+
+test('sole-survivor never overrides a finished or forfeited current user', () => {
+  const finished = buildMatchExitActionState({
+    source: 'group',
+    isTestMatch: false,
+    isLeaving: false,
+    isSaving: false,
+    isRunning: true,
+    counterpartForfeited: false,
+    selfForfeited: false,
+    selfFinished: true,
+    allOthersForfeited: true,
+  });
+  assert.equal(finished.kind, 'self-finished');
+
+  const forfeited = buildMatchExitActionState({
+    source: 'group',
+    isTestMatch: false,
+    isLeaving: false,
+    isSaving: false,
+    isRunning: true,
+    counterpartForfeited: false,
+    selfForfeited: true,
+    selfFinished: false,
+    allOthersForfeited: true,
+  });
+  assert.equal(forfeited.kind, 'self-forfeited');
+});
+
+test('allOthersForfeited does NOT change duel behavior', () => {
+  const duel = buildMatchExitActionState({
+    source: 'duel',
+    isTestMatch: false,
+    isLeaving: false,
+    isSaving: false,
+    isRunning: true,
+    counterpartForfeited: false,
+    selfForfeited: false,
+    selfFinished: false,
+    allOthersForfeited: true,
+  });
+
+  assert.equal(duel.kind, 'forfeit');
+  assert.equal(duel.buttonLabel, '기권하기');
+});

@@ -1107,6 +1107,32 @@ export function TrackRunExperienceRuntime({
   const activeMatchExitSelfFinished = (activeMatchExitSource === 'duel'
     && currentUserDuelLiveStatus === 'finished')
     || (activeMatchExitSource === 'group' && currentUserGroupLiveStatus === 'finished');
+  // Group sole-survivor: I'm still active but every OTHER participant has left the race
+  // (forfeited / finished / disconnected). The exit card must then offer a finish action
+  // ("대결 종료") instead of "기권하기", so I'm not penalized as a forfeiter.
+  const activeMatchExitAllOthersForfeited = useMemo(() => {
+    if (activeMatchExitSource !== 'group') {
+      return false;
+    }
+    const others = groupArenaParticipants.filter((participant) => !participant.isCurrentUser);
+    if (others.length === 0) {
+      return false;
+    }
+    const allOthersDone = others.every((participant) =>
+      participant.liveStatus === 'forfeited'
+      || participant.liveStatus === 'finished'
+      || participant.liveStatus === 'disconnected',
+    );
+    const selfDone = currentUserGroupLiveStatus === 'finished'
+      || currentUserGroupLiveStatus === 'forfeited'
+      || currentUserHasForfeitedActiveMatch;
+    return allOthersDone && !selfDone;
+  }, [
+    activeMatchExitSource,
+    currentUserGroupLiveStatus,
+    currentUserHasForfeitedActiveMatch,
+    groupArenaParticipants,
+  ]);
   const shouldSuppressDoneMatchAutoOpen = currentUserDoneWithCurrentMatch && !isRunning;
   const shouldForceLiveArenaFromRoute = Boolean(
     !shouldSuppressDoneMatchAutoOpen
@@ -2302,6 +2328,7 @@ export function TrackRunExperienceRuntime({
       counterpartForfeited: activeMatchExitCounterpartForfeited,
       selfForfeited: activeMatchExitSelfForfeited,
       selfFinished: activeMatchExitSelfFinished,
+      allOthersForfeited: activeMatchExitAllOthersForfeited,
       onContinueSolo: handleContinueSoloFromMatch,
       onForfeit: handleForfeitMatch,
       onShowResultAfterCounterpartForfeit: handleShowResultAfterCounterpartForfeit,

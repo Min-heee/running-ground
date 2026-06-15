@@ -13,6 +13,7 @@ type UseForfeitControllerInput = {
   counterpartForfeited: boolean;
   selfForfeited: boolean;
   selfFinished: boolean;
+  allOthersForfeited?: boolean;
   onContinueSolo: (source: MatchExitSource) => void;
   onForfeit: (source: MatchExitSource) => void;
   onShowResultAfterCounterpartForfeit: (source: MatchExitSource) => Promise<void> | void;
@@ -28,6 +29,7 @@ export function useForfeitController({
   counterpartForfeited,
   selfForfeited,
   selfFinished,
+  allOthersForfeited = false,
   onContinueSolo,
   onForfeit,
   onShowResultAfterCounterpartForfeit,
@@ -42,7 +44,9 @@ export function useForfeitController({
     counterpartForfeited,
     selfForfeited,
     selfFinished,
+    allOthersForfeited,
   }), [
+    allOthersForfeited,
     counterpartForfeited,
     isLeaving,
     isRunning,

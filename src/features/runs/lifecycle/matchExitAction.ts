@@ -17,6 +17,13 @@ export type MatchExitActionState =
       disabled: boolean;
     }
   | {
+      kind: 'sole-survivor';
+      title: string;
+      body: string;
+      buttonLabel: string;
+      disabled: boolean;
+    }
+  | {
       kind: 'self-forfeited';
       title: string;
       body: string;
@@ -47,6 +54,7 @@ export function buildMatchExitActionState({
   counterpartForfeited,
   selfForfeited,
   selfFinished,
+  allOthersForfeited = false,
 }: {
   source: MatchExitActionSource | null;
   isTestMatch: boolean;
@@ -56,6 +64,7 @@ export function buildMatchExitActionState({
   counterpartForfeited: boolean;
   selfForfeited: boolean;
   selfFinished: boolean;
+  allOthersForfeited?: boolean;
 }): MatchExitActionState {
   if (!source) {
     return { kind: 'hidden' };
@@ -111,6 +120,25 @@ export function buildMatchExitActionState({
       buttonLabel: isLeaving || isSaving
         ? '결과 저장 중...'
         : '대결종료',
+      disabled,
+    };
+  }
+
+  // Group sole-survivor: I'm still active but everyone else has left the race
+  // (forfeited / finished / disconnected). Reaching here means I'm NOT
+  // forfeited/finished (those return above) and the counterpart-forfeited duel
+  // case didn't apply. Offer a finish action that ends WITHOUT marking me as
+  // forfeited — the button must call the non-forfeit show-result handler.
+  if (source === 'group' && allOthersForfeited) {
+    const disabled = isLeaving || isSaving;
+
+    return {
+      kind: 'sole-survivor',
+      title: '혼자 남았어요',
+      body: '다른 참가자가 모두 기권했어요. 종료하면 결과 화면에서 기록을 확인할 수 있어요.',
+      buttonLabel: isLeaving || isSaving
+        ? '결과 저장 중...'
+        : '대결 종료',
       disabled,
     };
   }

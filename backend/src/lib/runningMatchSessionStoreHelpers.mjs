@@ -236,6 +236,9 @@ export function buildParticipantLiveSnapshot(session, participant, now = new Dat
       : typeof participant.finishedAt === 'string' && participant.finishedAt
         ? { finishedAt: participant.finishedAt }
       : {}),
+    ...(typeof participant.forfeitedAt === 'string' && participant.forfeitedAt
+      ? { forfeitedAt: participant.forfeitedAt }
+      : {}),
   };
 }
 
@@ -267,6 +270,11 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
         ? liveSnapshot.finishedAt
         : typeof participant.finishedAt === 'string' && participant.finishedAt
           ? participant.finishedAt
+          : null,
+      forfeitedAt: typeof liveSnapshot.forfeitedAt === 'string' && liveSnapshot.forfeitedAt
+        ? liveSnapshot.forfeitedAt
+        : typeof participant.forfeitedAt === 'string' && participant.forfeitedAt
+          ? participant.forfeitedAt
           : null,
       hasProgress,
       contributesToLiveCheckpoint,
@@ -308,11 +316,26 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
 
       const leftForfeited = left.liveStatus === 'forfeited';
       const rightForfeited = right.liveStatus === 'forfeited';
-      // Only order forfeited BELOW non-forfeited; two forfeited runners must fall
-      // through to the stable comparisons or the sort is inconsistent and their ranks
-      // flap between responses.
+      // Order forfeited BELOW non-forfeited.
       if (leftForfeited !== rightForfeited) {
         return leftForfeited ? 1 : -1;
+      }
+      // Two forfeiters are ranked among themselves by distance covered desc, then by
+      // forfeit time desc (whoever quit LATER ran longer/further and ranks better).
+      // Otherwise they'd tie on officialDistanceKm (both 0) + seedRank and show as
+      // "공동 N등".
+      if (leftForfeited && rightForfeited) {
+        if (right.officialDistanceKm !== left.officialDistanceKm) {
+          return right.officialDistanceKm - left.officialDistanceKm;
+        }
+        const leftForfeitMs = typeof left.forfeitedAt === 'string' ? Date.parse(left.forfeitedAt) : NaN;
+        const rightForfeitMs = typeof right.forfeitedAt === 'string' ? Date.parse(right.forfeitedAt) : NaN;
+        const leftForfeitValue = Number.isFinite(leftForfeitMs) ? leftForfeitMs : 0;
+        const rightForfeitValue = Number.isFinite(rightForfeitMs) ? rightForfeitMs : 0;
+        if (rightForfeitValue !== leftForfeitValue) {
+          return rightForfeitValue - leftForfeitValue;
+        }
+        return left.seedRank - right.seedRank;
       }
 
       // Finish order IS the rank. Finished runners are capped at the goal distance,

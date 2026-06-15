@@ -95,7 +95,9 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
     );
   }
 
-  if (actionState.kind === 'counterpart-forfeited') {
+  if (actionState.kind === 'counterpart-forfeited' || actionState.kind === 'sole-survivor') {
+    // Both end the run WITHOUT marking the current user as forfeited, so they share the
+    // non-forfeit show-result handler (handleShowResultPress).
     return (
       <Card style={styles.card}>
         <Text style={styles.title}>{actionState.title}</Text>

@@ -313,3 +313,63 @@ test('official group standing ranking helper keeps forfeited runners behind offi
 
   assert.deepEqual(sorted.map((standing) => standing.id), ['active', 'forfeited']);
 });
+
+test('estimated group standing ranking orders two forfeiters by forfeitedAt desc (later = better)', () => {
+  // Both forfeited with equal distance: the runner who forfeited LATER must rank above
+  // the one who forfeited earlier, instead of tying / falling back to pace.
+  const sorted = appendGroupLiveStandingGaps(sortEstimatedGroupLiveStandings([
+    {
+      ...participant({ id: 'early-quit', averagePace: '05:00/km', forfeitedAt: '2026-05-12T00:01:00.000Z' }),
+      rank: 0,
+      currentDistanceKm: 2,
+      gapAheadKm: null,
+      gapLeaderKm: 0,
+      isForfeited: true,
+      forfeitedAt: '2026-05-12T00:01:00.000Z',
+      isCurrentUser: false,
+    },
+    {
+      ...participant({ id: 'late-quit', averagePace: '08:00/km', forfeitedAt: '2026-05-12T00:03:00.000Z' }),
+      rank: 0,
+      currentDistanceKm: 2,
+      gapAheadKm: null,
+      gapLeaderKm: 0,
+      isForfeited: true,
+      forfeitedAt: '2026-05-12T00:03:00.000Z',
+      isCurrentUser: false,
+    },
+  ]));
+
+  assert.deepEqual(sorted.map((standing) => [standing.id, standing.rank]), [
+    ['late-quit', 1],
+    ['early-quit', 2],
+  ]);
+});
+
+test('official group standing ranking orders two forfeiters by forfeitedAt desc (later = better)', () => {
+  const sorted = sortOfficialGroupLiveStandings([
+    {
+      ...participant({ id: 'early-quit', forfeitedAt: '2026-05-12T00:01:00.000Z' }),
+      rank: 2,
+      currentDistanceKm: 0,
+      gapAheadKm: null,
+      gapLeaderKm: 0,
+      isForfeited: true,
+      forfeitedAt: '2026-05-12T00:01:00.000Z',
+      isCurrentUser: false,
+    },
+    {
+      ...participant({ id: 'late-quit', forfeitedAt: '2026-05-12T00:03:00.000Z' }),
+      rank: 3,
+      currentDistanceKm: 0,
+      gapAheadKm: null,
+      gapLeaderKm: 0,
+      isForfeited: true,
+      forfeitedAt: '2026-05-12T00:03:00.000Z',
+      isCurrentUser: false,
+    },
+  ]);
+
+  // Equal distance (0) => forfeitedAt desc decides: later forfeit ('late-quit') first.
+  assert.deepEqual(sorted.map((standing) => standing.id), ['late-quit', 'early-quit']);
+});

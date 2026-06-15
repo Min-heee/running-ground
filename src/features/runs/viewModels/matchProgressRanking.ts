@@ -10,10 +10,28 @@ function parseRankingPaceSecondsPerKm(paceLabel: string) {
   return Number(matched[1]) * 60 + Number(matched[2]);
 }
 
+// Two forfeiters must never tie ("공동 N등"): order by distance covered desc, then by
+// forfeit time desc (whoever forfeited LATER ranks better). Returns null when not both
+// forfeited so callers fall through to their normal tiebreak.
+function compareForfeitersByDistanceThenForfeitTime(left: GroupLiveStanding, right: GroupLiveStanding) {
+  if (!left.isForfeited || !right.isForfeited) {
+    return null;
+  }
+  if (right.currentDistanceKm !== left.currentDistanceKm) {
+    return right.currentDistanceKm - left.currentDistanceKm;
+  }
+  return (Date.parse(right.forfeitedAt ?? '') || 0) - (Date.parse(left.forfeitedAt ?? '') || 0);
+}
+
 export function sortOfficialGroupLiveStandings(standings: GroupLiveStanding[]) {
   return [...standings].sort((left, right) => {
     if (left.isForfeited !== right.isForfeited) {
       return left.isForfeited ? 1 : -1;
+    }
+
+    const forfeitOrder = compareForfeitersByDistanceThenForfeitTime(left, right);
+    if (forfeitOrder !== null && forfeitOrder !== 0) {
+      return forfeitOrder;
     }
 
     return left.rank - right.rank;
@@ -24,6 +42,11 @@ export function sortEstimatedGroupLiveStandings(standings: GroupLiveStanding[]) 
   return [...standings].sort((left, right) => {
     if (left.isForfeited !== right.isForfeited) {
       return left.isForfeited ? 1 : -1;
+    }
+
+    const forfeitOrder = compareForfeitersByDistanceThenForfeitTime(left, right);
+    if (forfeitOrder !== null && forfeitOrder !== 0) {
+      return forfeitOrder;
     }
 
     if (right.currentDistanceKm !== left.currentDistanceKm) {

@@ -58,6 +58,7 @@ function createParticipant(userId, seedRank, {
   livePace = '06:00/km',
   liveUpdatedAt = iso(-1000),
   finishedAt = null,
+  forfeitedAt = null,
   profileSnapshot = null,
 } = {}) {
   return {
@@ -71,6 +72,7 @@ function createParticipant(userId, seedRank, {
     livePace,
     liveUpdatedAt,
     finishedAt,
+    ...(forfeitedAt ? { forfeitedAt } : {}),
   };
 }
 
@@ -520,4 +522,78 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
 
   assert.equal(standings.find((standing) => standing.userId === 'left-finished').officialDistanceKm, 5);
   assert.equal(standings.find((standing) => standing.userId === 'right-finished').officialDistanceKm, 4.9);
+}
+
+// Two forfeiters in a group run must NOT tie: the runner who forfeited LATER ranks
+// better (2nd), the EARLIER forfeit ranks worse (3rd/last).
+{
+  const survivor = createUser('group-survivor');
+  const lateQuitter = createUser('late-quitter');
+  const earlyQuitter = createUser('early-quitter');
+  const session = createSession({
+    mode: 'group',
+    participants: [
+      createParticipant('group-survivor', 1, {
+        liveStatus: 'running',
+        liveDistanceKm: 3.0,
+        liveElapsedSeconds: 1200,
+        livePace: '06:40/km',
+      }),
+      // Both forfeiters end up with officialDistanceKm 0 (forfeited => not officialReady),
+      // so distance ties and forfeitedAt must break the tie (later forfeit = better).
+      createParticipant('early-quitter', 2, {
+        liveStatus: 'forfeited',
+        liveDistanceKm: 1.2,
+        liveElapsedSeconds: 400,
+        livePace: '05:33/km',
+        liveUpdatedAt: iso(-200000),
+        forfeitedAt: iso(-200000),
+      }),
+      createParticipant('late-quitter', 3, {
+        liveStatus: 'forfeited',
+        liveDistanceKm: 1.2,
+        liveElapsedSeconds: 600,
+        livePace: '08:20/km',
+        liveUpdatedAt: iso(-100000),
+        forfeitedAt: iso(-100000),
+      }),
+    ],
+  });
+  session.distanceKm = 5;
+  const store = createStore(
+    [survivor, lateQuitter, earlyQuitter],
+    [createRun('group-survivor'), createRun('late-quitter'), createRun('early-quitter')],
+    session,
+  );
+  const standings = buildOfficialSessionStandings(store, session);
+
+  const survivorStanding = standings.find((standing) => standing.userId === 'group-survivor');
+  const lateStanding = standings.find((standing) => standing.userId === 'late-quitter');
+  const earlyStanding = standings.find((standing) => standing.userId === 'early-quitter');
+
+  // Active survivor ranks above both forfeiters.
+  assert.equal(survivorStanding.officialRank, 1);
+  // Later forfeit ranks better than earlier forfeit; ranks are DISTINCT (no tie).
+  assert.equal(lateStanding.officialRank, 2);
+  assert.equal(earlyStanding.officialRank, 3);
+  assert.notEqual(lateStanding.officialRank, earlyStanding.officialRank);
+}
+
+// buildParticipantLiveSnapshot exposes forfeitedAt when the participant has forfeited.
+{
+  const forfeitedAtIso = iso(-50000);
+  const session = createSession({
+    mode: 'group',
+    participants: [
+      createParticipant('snap-quitter', 1, {
+        liveStatus: 'forfeited',
+        liveDistanceKm: 0.8,
+        liveElapsedSeconds: 300,
+        forfeitedAt: forfeitedAtIso,
+      }),
+    ],
+  });
+  session.distanceKm = 5;
+  const snapshot = buildParticipantLiveSnapshot(session, session.participants[0]);
+  assert.equal(snapshot.forfeitedAt, forfeitedAtIso);
 }

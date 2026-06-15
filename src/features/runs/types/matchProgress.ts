@@ -9,6 +9,9 @@ export type GroupLiveStanding = GroupMatchParticipant & {
   gapAheadKm: number | null;
   gapLeaderKm: number;
   isForfeited: boolean;
+  // ISO forfeit time (inherited from GroupMatchParticipant). Restated for clarity:
+  // forfeiters are tie-broken by forfeitedAt desc (later forfeit ranks better).
+  forfeitedAt?: string;
   isCurrentUser: boolean;
 };
 

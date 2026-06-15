@@ -35,6 +35,20 @@ export function sortRaceRows(rows: RaceBoardSourceRow[]): LiveMatchRaceBoardRow[
         return leftForfeited ? 1 : -1;
       }
 
+      // Two forfeiters are ordered by distance covered desc, then forfeit time desc
+      // (whoever forfeited LATER ranks better). Without this they'd tie on distance +
+      // isCurrentUser and render as "공동 N등".
+      if (leftForfeited && rightForfeited) {
+        if (right.distanceKm !== left.distanceKm) {
+          return right.distanceKm - left.distanceKm;
+        }
+        const forfeitDiff = (Date.parse(right.forfeitedAt ?? '') || 0) - (Date.parse(left.forfeitedAt ?? '') || 0);
+        if (forfeitDiff !== 0) {
+          return forfeitDiff;
+        }
+        return left.isCurrentUser ? -1 : 1;
+      }
+
       if (right.distanceKm !== left.distanceKm) {
         return right.distanceKm - left.distanceKm;
       }
