@@ -350,6 +350,13 @@ try {
 
     const registered = await authRepository.register(buildRegistration({ username: 'runs-runner' }));
 
+    const matchResult = {
+      mode: 'duel',
+      resultTone: 'win',
+      opponentName: '상대러너',
+      opponentDistanceKm: 8.1,
+    };
+
     const created = await runsRepository.createTrackedRun({
       token: registered.accessToken,
       input: {
@@ -365,19 +372,25 @@ try {
         ],
         startedAt: '2026-05-01T11:00:00.000Z',
         endedAt: '2026-05-01T11:43:24.000Z',
+        matchResult,
       },
     });
 
     assert.equal(created.run.sourceType, 'runningground');
     assert.equal(created.run.distanceKm, 8.4);
+    // The created detail surfaces the match result it was given.
+    assert.deepEqual(created.run.matchResult, matchResult);
 
     const fetched = await runsRepository.getRun({ token: registered.accessToken, runId: created.run.id });
     assert.equal(fetched.run.id, created.run.id);
     assert.equal(fetched.run.distanceKm, 8.4);
+    // match_result round-trips intact through Postgres jsonb (stored as a string, read back as an object).
+    assert.deepEqual(fetched.run.matchResult, matchResult);
 
     // And the latest run without an explicit id.
     const latest = await runsRepository.getRun({ token: registered.accessToken });
     assert.equal(latest.run.id, created.run.id);
+    assert.deepEqual(latest.run.matchResult, matchResult);
   });
 
   // ---------------------------------------------------------------------------

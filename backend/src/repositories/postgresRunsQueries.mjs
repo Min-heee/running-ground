@@ -40,7 +40,7 @@ export async function loadRunsForUser(database, userId) {
   const result = await database.query(
     `
       select id, user_id, run_date, distance_km, pace, source_label, source_type, external_id,
-             route, duration_seconds, cadence_spm, elevation_gain_m, started_at, ended_at,
+             route, match_result, duration_seconds, cadence_spm, elevation_gain_m, started_at, ended_at,
              imported_at, created_at, updated_at
       from runs
       where user_id = $1
@@ -140,13 +140,13 @@ export async function insertRun(database, run) {
     `
       insert into runs (
         id, user_id, run_date, distance_km, pace, source_label, source_type, external_id,
-        route, duration_seconds, cadence_spm, elevation_gain_m, started_at, ended_at,
+        route, match_result, duration_seconds, cadence_spm, elevation_gain_m, started_at, ended_at,
         imported_at, created_at, updated_at
       )
       values (
         $1, $2, $3, $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, $13, $14,
-        $15, $16, $17
+        $9, $10, $11, $12, $13, $14, $15,
+        $16, $17, $18
       )
     `,
     [
@@ -159,6 +159,7 @@ export async function insertRun(database, run) {
       run.sourceType,
       run.externalId ?? null,
       Array.isArray(run.route) ? JSON.stringify(run.route) : null,
+      run.matchResult ? JSON.stringify(run.matchResult) : null,
       typeof run.durationSeconds === 'number' ? run.durationSeconds : null,
       typeof run.cadenceSpm === 'number' ? run.cadenceSpm : null,
       typeof run.elevationGainM === 'number' ? run.elevationGainM : null,

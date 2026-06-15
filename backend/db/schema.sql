@@ -71,6 +71,7 @@ create table if not exists runs (
   source_type text not null default 'manual',
   external_id text,
   route jsonb,
+  match_result jsonb,
   duration_seconds integer check (duration_seconds is null or duration_seconds >= 0),
   cadence_spm integer check (cadence_spm is null or cadence_spm >= 0),
   elevation_gain_m numeric(8, 2) check (elevation_gain_m is null or elevation_gain_m >= 0),

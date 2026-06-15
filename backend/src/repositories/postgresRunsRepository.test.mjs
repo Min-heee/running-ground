@@ -165,14 +165,15 @@ class FakePostgresDatabase {
         source_type: params[6],
         external_id: params[7],
         route: typeof params[8] === 'string' ? JSON.parse(params[8]) : clone(params[8]),
-        duration_seconds: params[9],
-        cadence_spm: params[10],
-        elevation_gain_m: params[11],
-        started_at: params[12],
-        ended_at: params[13],
-        imported_at: params[14],
-        created_at: params[15],
-        updated_at: params[16],
+        match_result: typeof params[9] === 'string' ? JSON.parse(params[9]) : clone(params[9]),
+        duration_seconds: params[10],
+        cadence_spm: params[11],
+        elevation_gain_m: params[12],
+        started_at: params[13],
+        ended_at: params[14],
+        imported_at: params[15],
+        created_at: params[16],
+        updated_at: params[17],
       });
       return { rows: [] };
     }
@@ -298,6 +299,11 @@ await runTest('creates tracked runs with route metrics', async () => {
       ],
       startedAt: '2026-04-23T11:00:00.000Z',
       endedAt: '2026-04-23T11:43:24.000Z',
+      matchResult: {
+        mode: 'duel',
+        resultTone: 'win',
+        opponentName: '상대러너',
+      },
     },
   });
 
@@ -307,7 +313,18 @@ await runTest('creates tracked runs with route metrics', async () => {
   assert.equal(result.run.cadenceSpm, 176);
   assert.equal(result.run.elevationGainM, 32);
   assert.equal(Array.isArray(result.run.route), true);
+  assert.deepEqual(result.run.matchResult, {
+    mode: 'duel',
+    resultTone: 'win',
+    opponentName: '상대러너',
+  });
   assert.equal(database.runs[0].source_type, 'runningground');
+  // match_result lands in the stored row as parsed jsonb and reads back intact.
+  assert.deepEqual(database.runs[0].match_result, {
+    mode: 'duel',
+    resultTone: 'win',
+    opponentName: '상대러너',
+  });
 });
 
 await runTest('queues integration imports and syncs only new runs', async () => {

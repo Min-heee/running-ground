@@ -43,6 +43,7 @@ export function mapRunRow(row) {
     sourceType: row.source_type ?? 'manual',
     ...(row.external_id ? { externalId: row.external_id } : {}),
     ...(Array.isArray(row.route) ? { route: clone(row.route) } : {}),
+    ...(row.match_result ? { matchResult: clone(row.match_result) } : {}),
     ...(hasValue(row.duration_seconds) ? { durationSeconds: asNumber(row.duration_seconds) } : {}),
     ...(hasValue(row.cadence_spm) ? { cadenceSpm: asNumber(row.cadence_spm) } : {}),
     ...(hasValue(row.elevation_gain_m) ? { elevationGainM: asNumber(row.elevation_gain_m) } : {}),

@@ -76,6 +76,7 @@ function mapRunRow(row) {
     sourceType: row.source_type ?? 'manual',
     ...(row.external_id ? { externalId: row.external_id } : {}),
     ...(Array.isArray(row.route) ? { route: clone(row.route) } : {}),
+    ...(row.match_result ? { matchResult: clone(row.match_result) } : {}),
     ...(hasValue(row.duration_seconds) ? { durationSeconds: asNumber(row.duration_seconds) } : {}),
     ...(hasValue(row.cadence_spm) ? { cadenceSpm: asNumber(row.cadence_spm) } : {}),
     ...(hasValue(row.elevation_gain_m) ? { elevationGainM: asNumber(row.elevation_gain_m) } : {}),
@@ -173,7 +174,7 @@ async function loadRunsByUserIds(database, userIds) {
   const result = await database.query(
     `
       select id, user_id, run_date, distance_km, pace, source_label, source_type, external_id,
-             route, duration_seconds, cadence_spm, elevation_gain_m, started_at, ended_at,
+             route, match_result, duration_seconds, cadence_spm, elevation_gain_m, started_at, ended_at,
              imported_at, created_at, updated_at
       from runs
       where user_id = any($1::text[])
