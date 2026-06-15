@@ -151,6 +151,14 @@ export const PHONE_VERIFICATION_EXPOSE_TEST_CODE = parseBoolean(process.env.BACK
 export const SOLAPI_API_KEY = normalizeOptionalString(process.env.BACKEND_SOLAPI_API_KEY);
 export const SOLAPI_API_SECRET = normalizeOptionalString(process.env.BACKEND_SOLAPI_API_SECRET);
 export const SOLAPI_SENDER = normalizeOptionalString(process.env.BACKEND_SOLAPI_SENDER);
+// Social login (Google/Naver/Kakao) OAuth credentials. The public client IDs also live in the
+// app's EXPO_PUBLIC_* env; the secrets used for the server-side code exchange live only here.
+export const GOOGLE_CLIENT_ID = normalizeOptionalString(process.env.BACKEND_GOOGLE_CLIENT_ID);
+export const GOOGLE_CLIENT_SECRET = normalizeOptionalString(process.env.BACKEND_GOOGLE_CLIENT_SECRET);
+export const KAKAO_REST_API_KEY = normalizeOptionalString(process.env.BACKEND_KAKAO_REST_API_KEY);
+export const KAKAO_CLIENT_SECRET = normalizeOptionalString(process.env.BACKEND_KAKAO_CLIENT_SECRET);
+export const NAVER_CLIENT_ID = normalizeOptionalString(process.env.BACKEND_NAVER_CLIENT_ID);
+export const NAVER_CLIENT_SECRET = normalizeOptionalString(process.env.BACKEND_NAVER_CLIENT_SECRET);
 export const MAX_BODY_SIZE_KB = Math.max(16, parseNumber(process.env.BACKEND_MAX_BODY_SIZE_KB, 256));
 export const MAX_BODY_SIZE_BYTES = MAX_BODY_SIZE_KB * 1024;
 export const REQUEST_TIMEOUT_MS = Math.max(5000, parseNumber(process.env.BACKEND_REQUEST_TIMEOUT_MS, 30000));

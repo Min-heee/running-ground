@@ -415,3 +415,35 @@ await runTest('requires a valid session to delete the current account', () => {
     return true;
   });
 });
+
+await runTest('findOrCreateSocialUser creates a passwordless user then reuses it by identity', () => {
+  const { repository, storeHarness } = createRepositoryHarness();
+
+  const first = repository.findOrCreateSocialUser({
+    provider: 'kakao',
+    providerUserId: 'kakao-123',
+    email: 'a@b.com',
+    name: '카카오유저',
+  });
+  assert.equal(typeof first.accessToken, 'string');
+  assert.equal(first.user.name, '카카오유저');
+
+  const afterFirst = storeHarness.getStore();
+  assert.equal(afterFirst.users.length, 1);
+  assert.equal(afterFirst.users[0].passwordHash, undefined);
+  assert.equal(afterFirst.users[0].socialAccounts[0].provider, 'kakao');
+  assert.equal(afterFirst.users[0].socialAccounts[0].providerUserId, 'kakao-123');
+  assert.equal(afterFirst.users[0].socialAccounts[0].email, 'a@b.com');
+
+  // Same social identity → no new user, same id, fresh session token.
+  const second = repository.findOrCreateSocialUser({ provider: 'kakao', providerUserId: 'kakao-123' });
+  assert.equal(second.user.id, first.user.id);
+  assert.equal(storeHarness.getStore().users.length, 1);
+  assert.notEqual(second.accessToken, first.accessToken);
+
+  // Same providerUserId but different provider → a distinct user; blank name falls back.
+  const third = repository.findOrCreateSocialUser({ provider: 'naver', providerUserId: 'kakao-123', name: '  ' });
+  assert.notEqual(third.user.id, first.user.id);
+  assert.equal(storeHarness.getStore().users.length, 2);
+  assert.equal(third.user.name, '네이버 러너');
+});

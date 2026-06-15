@@ -1,5 +1,21 @@
 import { buildSessionExpiry, setUserPassword, verifyPassword } from '../auth.mjs';
 import { INITIAL_RANK } from '../lib/rankSystem.mjs';
+import { SOCIAL_PROVIDER_LABEL } from '../lib/socialAuthProviders.mjs';
+
+function createSocialUsername(store, provider) {
+  const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let username = '';
+
+  do {
+    let suffix = '';
+    for (let index = 0; index < 8; index += 1) {
+      suffix += alphabet[Math.floor(Math.random() * alphabet.length)];
+    }
+    username = `${provider}_${suffix}`;
+  } while (store.users.some((entry) => entry.username === username));
+
+  return username;
+}
 
 export function createDefaultConnectedSources() {
   return [
@@ -313,6 +329,66 @@ export function createJsonAuthRepository({
           accessToken,
           user: buildProfile(store, user),
         };
+      });
+    },
+
+    findOrCreateSocialUser({ provider, providerUserId, email, name }) {
+      return mutateStore((store) => {
+        const matched = store.users.find((entry) => Array.isArray(entry.socialAccounts)
+          && entry.socialAccounts.some((account) => (
+            account.provider === provider && account.providerUserId === providerUserId
+          )));
+
+        if (matched) {
+          const accessToken = createSessionForUser(store, {
+            userId: matched.id,
+            createToken,
+            sessionTtlMs,
+          });
+
+          return { accessToken, user: buildProfile(store, matched) };
+        }
+
+        const userId = nextId('user');
+        const trimmedName = typeof name === 'string' ? name.trim() : '';
+        const user = {
+          id: userId,
+          username: createSocialUsername(store, provider),
+          name: trimmedName || `${SOCIAL_PROVIDER_LABEL[provider] ?? '소셜'} 러너`,
+          realName: trimmedName,
+          phone: '',
+          provinceName: '',
+          cityName: '',
+          districtName: '',
+          addressDetail: '',
+          publicTag: createPublicTag(store),
+          friendDistanceKm: 0,
+          friendPoints: 0,
+          districtDistanceKm: 0,
+          districtPoints: 0,
+          rewardPoints: 0,
+          streakDays: 0,
+          rankState: { ...INITIAL_RANK },
+          connectedSources: createDefaultConnectedSources(),
+          notificationSettings: createDefaultNotificationSettings(),
+          socialAccounts: [{
+            provider,
+            providerUserId,
+            ...(email ? { email } : {}),
+            connectedAt: new Date().toISOString(),
+          }],
+          createdAt: new Date().toISOString(),
+        };
+
+        store.users.push(user);
+        store.runs.push(...createStarterRuns(userId));
+        const accessToken = createSessionForUser(store, {
+          userId: user.id,
+          createToken,
+          sessionTtlMs,
+        });
+
+        return { accessToken, user: buildProfile(store, user) };
       });
     },
   };

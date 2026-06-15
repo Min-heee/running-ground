@@ -1,6 +1,7 @@
 import { routeAuthLoginRequest } from './authLoginRoutes.mjs';
 import { routeAuthPhoneVerificationRequest } from './authPhoneVerificationRoutes.mjs';
 import { routeAuthRegisterRequest } from './authRegisterRoutes.mjs';
+import { routeAuthSocialLoginRequest } from './authSocialLoginRoutes.mjs';
 import { routeCatalogRequest } from './catalogRoutes.mjs';
 import { routeMeNotificationRequest } from './meNotificationRoutes.mjs';
 import { routeMeProfileRequest } from './meProfileRoutes.mjs';
@@ -15,6 +16,10 @@ export async function routeAuthRequest(routeContext) {
   }
 
   if (await routeAuthRegisterRequest(routeContext)) {
+    return true;
+  }
+
+  if (await routeAuthSocialLoginRequest(routeContext)) {
     return true;
   }
 
