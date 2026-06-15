@@ -132,7 +132,7 @@ class FakePostgresDatabase {
         user.id === params[0]
           ? {
             ...user,
-            connected_sources: clone(params[1]),
+            connected_sources: typeof params[1] === 'string' ? JSON.parse(params[1]) : clone(params[1]),
             updated_at: params[2],
           }
           : user
@@ -164,7 +164,7 @@ class FakePostgresDatabase {
         source_label: params[5],
         source_type: params[6],
         external_id: params[7],
-        route: clone(params[8]),
+        route: typeof params[8] === 'string' ? JSON.parse(params[8]) : clone(params[8]),
         duration_seconds: params[9],
         cadence_spm: params[10],
         elevation_gain_m: params[11],
@@ -202,7 +202,7 @@ class FakePostgresDatabase {
         distance_km: params[6],
         pace: params[7],
         import_status: params[8],
-        raw_payload: clone(params[9]),
+        raw_payload: typeof params[9] === 'string' ? JSON.parse(params[9]) : clone(params[9]),
         received_at: params[10],
         processed_at: params[11],
       });

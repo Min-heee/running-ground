@@ -120,9 +120,9 @@ class FakePostgresDatabase {
         address_detail: params[13],
         reward_points: params[14],
         streak_days: params[15],
-        rank_state: clone(params[16]),
-        connected_sources: clone(params[17]),
-        notification_settings: clone(params[18]),
+        rank_state: typeof params[16] === 'string' ? JSON.parse(params[16]) : clone(params[16]),
+        connected_sources: typeof params[17] === 'string' ? JSON.parse(params[17]) : clone(params[17]),
+        notification_settings: typeof params[18] === 'string' ? JSON.parse(params[18]) : clone(params[18]),
         created_at: params[19],
         updated_at: params[20],
       });

@@ -131,7 +131,7 @@ export async function updateUserConnectedSources(database, userId, connectedSour
           updated_at = $3
       where id = $1
     `,
-    [userId, clone(connectedSources), updatedAt],
+    [userId, JSON.stringify(connectedSources), updatedAt],
   );
 }
 
@@ -158,7 +158,7 @@ export async function insertRun(database, run) {
       run.source,
       run.sourceType,
       run.externalId ?? null,
-      Array.isArray(run.route) ? clone(run.route) : null,
+      Array.isArray(run.route) ? JSON.stringify(run.route) : null,
       typeof run.durationSeconds === 'number' ? run.durationSeconds : null,
       typeof run.cadenceSpm === 'number' ? run.cadenceSpm : null,
       typeof run.elevationGainM === 'number' ? run.elevationGainM : null,
@@ -193,7 +193,7 @@ export async function insertImport(database, entry) {
       entry.distanceKm,
       entry.pace,
       entry.importStatus ?? 'pending',
-      clone(entry.rawPayload ?? {}),
+      JSON.stringify(entry.rawPayload ?? {}),
       entry.receivedAt,
       entry.processedAt ?? null,
     ],
