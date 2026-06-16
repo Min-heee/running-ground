@@ -38,7 +38,7 @@ async function handleFetchRunningMatchStatus({
     : matchId
       ? parseLenientMatchSlotInput(body.slotStartAt)
       : validateMatchSlotInput(body.slotStartAt);
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return buildRunningMatchStatusResponse(store, currentUser, {
       mode,
@@ -76,7 +76,7 @@ async function handleUpdateRunningMatchProgress({
   const status = ['running', 'background', 'paused', 'finished'].includes(body.status)
     ? body.status
     : 'running';
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return updateRunningMatchProgress(store, currentUser, {
       matchId,

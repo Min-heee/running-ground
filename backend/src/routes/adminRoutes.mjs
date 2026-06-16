@@ -34,7 +34,7 @@ export async function routeAdminRequest(routeContext) {
     }
 
     requireAdmin(request);
-    const nextStore = resetStore();
+    const nextStore = await resetStore();
     sendJson(response, 200, {
       success: true,
       storeFile: getStoreFilePath(),

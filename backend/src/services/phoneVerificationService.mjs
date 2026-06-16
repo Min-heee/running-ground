@@ -69,11 +69,11 @@ export function createPhoneVerificationHelpers({
     };
   }
 
-  function requireVerifiedPhoneChallenge({
+  async function requireVerifiedPhoneChallenge({
     phone,
     verifiedToken,
   }) {
-    const store = loadStore();
+    const store = await loadStore();
     cleanupPhoneVerificationChallenges(store);
     const challenge = ensurePhoneVerificationChallenges(store).find((entry) => (
       entry.purpose === 'signup'

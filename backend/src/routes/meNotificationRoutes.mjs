@@ -28,7 +28,7 @@ export async function routeMeNotificationRequest({
   }
 
   if (pathname === '/api/me/inbox' && method === 'GET') {
-    handleListMyNotifications({
+    await handleListMyNotifications({
       loadStore,
       request,
       requireUser,
@@ -94,14 +94,14 @@ export async function routeMeNotificationRequest({
   return false;
 }
 
-function handleListMyNotifications({
+async function handleListMyNotifications({
   loadStore,
   request,
   requireUser,
   response,
   sendJson,
 }) {
-  const store = loadStore();
+  const store = await loadStore();
   const user = requireUser(store, request);
   sendJson(response, 200, listUserNotifications(store, user.id));
 }
@@ -116,7 +116,7 @@ async function handleMarkMyNotificationsRead({
 }) {
   const body = await parseJsonBody(request);
   const ids = Array.isArray(body.ids) ? body.ids : undefined;
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const user = requireUser(store, request);
     return markUserNotificationsRead(store, user.id, ids);
   });
@@ -134,7 +134,7 @@ async function handleDeleteMyNotifications({
 }) {
   const body = await parseJsonBody(request);
   const ids = Array.isArray(body.ids) ? body.ids : undefined;
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const user = requireUser(store, request);
     return deleteUserNotifications(store, user.id, ids);
   });
@@ -154,7 +154,7 @@ async function handlePatchMyNotifications({
 }) {
   const body = await parseJsonBody(request);
 
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const user = requireUser(store, request);
     user.notificationSettings = {
       friendAlerts: validateBoolean(body.friendAlerts, '친구 알림 설정값이 올바르지 않아.'),

@@ -56,7 +56,7 @@ async function handleRequestDuelMatch({
   const slotStartAt = testMode
     ? (typeof body.slotStartAt === 'string' && body.slotStartAt.trim() ? body.slotStartAt.trim() : new Date().toISOString())
     : validateMatchSlotInput(body.slotStartAt);
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return buildDuelMatchResponse(store, currentUser, {
       distanceKm,
@@ -85,7 +85,7 @@ async function handleRequestGroupMatch({
   const slotStartAt = testMode
     ? (typeof body.slotStartAt === 'string' && body.slotStartAt.trim() ? body.slotStartAt.trim() : new Date().toISOString())
     : validateMatchSlotInput(body.slotStartAt);
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return buildGroupMatchResponse(store, currentUser, {
       distanceKm,
@@ -110,7 +110,7 @@ async function handleFetchMatchDemandSummary({
   validateMatchSlotInput,
 }) {
   const body = await parseJsonBody(request);
-  const store = loadStore();
+  const store = await loadStore();
   const currentUser = requireUser(store, request);
   const payload = buildMatchDemandSummaryResponse(store, currentUser, {
     mode: validateMatchMode(body.mode),
@@ -133,7 +133,7 @@ async function handleAcceptRunningMatch({
 }) {
   const body = await parseJsonBody(request);
   const matchId = validateRequiredString(body.matchId, '수락할 매치 아이디가 필요해.');
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return acceptRunningMatch(store, currentUser, matchId);
   });
@@ -161,7 +161,7 @@ async function handleCancelRunningMatch({
     ? (typeof body.slotStartAt === 'string' && body.slotStartAt.trim() ? body.slotStartAt.trim() : new Date().toISOString())
     : validateMatchSlotInput(body.slotStartAt);
   const matchId = typeof body.matchId === 'string' && body.matchId.trim() ? body.matchId.trim() : '';
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return cancelRunningMatch(store, currentUser, {
       mode,
@@ -187,7 +187,7 @@ async function handleLeaveRunningMatch({
 }) {
   const body = await parseJsonBody(request);
   const matchId = validateRequiredString(body.matchId, '이탈할 매치 아이디가 필요해.');
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return leaveRunningMatch(store, currentUser, { matchId });
   });

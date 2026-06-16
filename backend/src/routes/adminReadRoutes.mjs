@@ -1,4 +1,4 @@
-function routeAdminStatusReadRequest({
+async function routeAdminStatusReadRequest({
   method,
   pathname,
   request,
@@ -17,7 +17,7 @@ function routeAdminStatusReadRequest({
     }
 
     requireAdmin(request);
-    const store = loadStore();
+    const store = await loadStore();
     sendJson(response, 200, buildAdminStatus(store));
     return true;
   }
@@ -92,8 +92,8 @@ function routeAdminCatalogReadRequest({
   return false;
 }
 
-export function routeAdminReadRequest(routeContext) {
-  return routeAdminStatusReadRequest(routeContext)
+export async function routeAdminReadRequest(routeContext) {
+  return (await routeAdminStatusReadRequest(routeContext))
     || routeAdminRepositoryReadRequest(routeContext)
     || routeAdminCatalogReadRequest(routeContext);
 }

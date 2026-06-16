@@ -57,7 +57,7 @@ export function createReadPayloadBuilders({
 
   async function buildFriendLeaderboardReadPayload(request) {
     const { payload } = await getFriendsLeagueBridge().getFriendLeaderboard({
-      store: loadStore(),
+      store: await loadStore(),
       token: getAccessToken(request),
     });
 
@@ -66,7 +66,7 @@ export function createReadPayloadBuilders({
 
   async function buildFriendActivityReadPayload(request, friendId) {
     const { payload } = await getFriendsLeagueBridge().getFriendActivity({
-      store: loadStore(),
+      store: await loadStore(),
       token: getAccessToken(request),
       friendId,
     });
@@ -76,7 +76,7 @@ export function createReadPayloadBuilders({
 
   async function buildFriendRunReadPayload(request, friendId, runId) {
     const { payload } = await getFriendsLeagueBridge().getFriendRun({
-      store: loadStore(),
+      store: await loadStore(),
       token: getAccessToken(request),
       friendId,
       runId,

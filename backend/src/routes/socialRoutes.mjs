@@ -80,7 +80,7 @@ export async function routeSocialRequest({
   const integrationSourceActionMatch = pathname.match(/^\/api\/integrations\/sources\/([^/]+)\/(connect|disconnect)$/);
 
   if (integrationSourceActionMatch && method === 'POST') {
-    handleIntegrationSourceConnection({
+    await handleIntegrationSourceConnection({
       buildIntegrationSourceActionResult,
       ensureIntegrationImports,
       isExclusiveIntegrationSourceType,
@@ -161,7 +161,7 @@ function handleFriendRequestAction({
   sendJson(response, 200, payload);
 }
 
-function handleIntegrationSourceConnection({
+async function handleIntegrationSourceConnection({
   buildIntegrationSourceActionResult,
   ensureIntegrationImports,
   isExclusiveIntegrationSourceType,
@@ -174,7 +174,7 @@ function handleIntegrationSourceConnection({
   sendJson,
   sourceType,
 }) {
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const user = requireUser(store, request);
     requireConnectedSource(user, sourceType);
     const sourceTypesToClear = new Set();

@@ -30,7 +30,7 @@ export async function routeRunRequest({
   }
 
   if (pathname === '/api/running/route-preview' && method === 'POST') {
-    const store = loadStore();
+    const store = await loadStore();
     requireUser(store, request);
     const body = await parseJsonBody(request);
     const keyword = validateRequiredString(body.keyword, '원하는 모양을 입력해줘.');

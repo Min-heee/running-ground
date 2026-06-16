@@ -1,6 +1,14 @@
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { loadStore, mutateStore, getStoreFilePath, getStoreDiagnostics, resetStore, STORE_DRIVER } from './storage/index.mjs';
+// The json repositories are the json-driver store layer and call their injected loadStore/
+// mutateStore SYNCHRONOUSLY (their read-and-build methods cannot await without changing their
+// public/sync contract). They are wired with the synchronous json adapter directly, while every
+// other (direct) seam call site awaits the async seam exports above.
+import {
+  loadStore as loadStoreSync,
+  mutateStore as mutateStoreSync,
+} from './store.mjs';
 import { createFriendsLeagueBridge } from './bridges/friendsLeagueBridge.mjs';
 import { createSessionRunsBridge } from './bridges/sessionRunsBridge.mjs';
 import { createPostgresDatabase } from './database/postgresDatabase.mjs';
@@ -271,8 +279,8 @@ function cleanupPhoneVerificationChallenges(store, now = new Date()) {
 function getAuthRepository() {
   if (!authRepository) {
     authRepository = createJsonAuthRepository({
-      loadStore,
-      mutateStore,
+      loadStore: loadStoreSync,
+      mutateStore: mutateStoreSync,
       sessionTtlMs: SESSION_TTL_MS,
       createToken,
       nextId,
@@ -308,8 +316,8 @@ function getAdminRepository() {
     const adminRead = getAdminReadService();
 
     adminRepository = createJsonAdminRepository({
-      loadStore,
-      mutateStore,
+      loadStore: loadStoreSync,
+      mutateStore: mutateStoreSync,
       ensureNoticeStore,
       ensureOfflineRaceStore,
       ensureIntegrationImports,
@@ -366,8 +374,8 @@ function getSessionRunsBridge() {
 function getRunsRepository() {
   if (!runsRepository) {
     runsRepository = createJsonRunsRepository({
-      loadStore,
-      mutateStore,
+      loadStore: loadStoreSync,
+      mutateStore: mutateStoreSync,
       requireUserByToken: (store, token) => findUserByToken(store, token),
       nextId,
       buildRunDetail,
@@ -385,8 +393,8 @@ function getRunsRepository() {
 function getFriendsRepository() {
   if (!friendsRepository) {
     friendsRepository = createJsonFriendsRepository({
-      loadStore,
-      mutateStore,
+      loadStore: loadStoreSync,
+      mutateStore: mutateStoreSync,
       requireUserByToken: (store, token) => findUserByToken(store, token),
       findUserById,
       getRunsForUser,
@@ -403,7 +411,7 @@ function getFriendsRepository() {
 function getLeagueRepository() {
   if (!leagueRepository) {
     leagueRepository = createJsonLeagueRepository({
-      loadStore,
+      loadStore: loadStoreSync,
       requireUserByToken: (store, token) => findUserByToken(store, token),
       getUserMetrics,
       createError: (statusCode, message) => new ApiError(statusCode, message),
@@ -416,8 +424,8 @@ function getLeagueRepository() {
 function getMarketRepository() {
   if (!marketRepository) {
     marketRepository = createJsonMarketRepository({
-      loadStore,
-      mutateStore,
+      loadStore: loadStoreSync,
+      mutateStore: mutateStoreSync,
       requireUserByToken: (store, token) => findUserByToken(store, token),
       ensureMarketCatalogStore,
       buildMarketOverviewWithMetrics,
@@ -442,8 +450,8 @@ function getMarketRepository() {
 function getRaceRepository() {
   if (!raceRepository) {
     raceRepository = createJsonRaceRepository({
-      loadStore,
-      mutateStore,
+      loadStore: loadStoreSync,
+      mutateStore: mutateStoreSync,
       requireUserByToken: (store, token) => findUserByToken(store, token),
       ensureOfflineRaceStore,
       buildOfflineRaceHub,
@@ -556,7 +564,7 @@ async function loadCurrentUserReadContext(request, {
   includeMetrics = false,
   fallbackToJsonIfEmpty = true,
 } = {}) {
-  const store = loadStore();
+  const store = await loadStore();
   const token = getAccessToken(request);
   const bridge = getSessionRunsBridge();
   const { user, source: userSource } = await bridge.findUserByToken({

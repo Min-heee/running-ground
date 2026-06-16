@@ -8,7 +8,7 @@ export function createLeagueReadService({
 }) {
   async function buildDistrictPersonalReadPayload(request) {
     const { payload } = await getFriendsLeagueBridge().getDistrictPersonal({
-      store: loadStore(),
+      store: await loadStore(),
       token: getAccessToken(request),
     });
 
@@ -17,7 +17,7 @@ export function createLeagueReadService({
 
   async function buildRegionLeagueReadPayload(request, nodeId) {
     const { payload } = await getFriendsLeagueBridge().getRegions({
-      store: loadStore(),
+      store: await loadStore(),
       token: getAccessToken(request),
       nodeId,
     });
@@ -27,7 +27,7 @@ export function createLeagueReadService({
 
   async function buildUniversityLeagueReadPayload(request) {
     const { payload } = await getFriendsLeagueBridge().getUniversities({
-      store: loadStore(),
+      store: await loadStore(),
       token: getAccessToken(request),
     });
 
@@ -37,7 +37,7 @@ export function createLeagueReadService({
   async function buildTodayRankingReadPayload(request, category) {
     const { payload } = await getFriendsLeagueBridge().getTodayRankings({
       category,
-      store: loadStore(),
+      store: await loadStore(),
       token: getAccessToken(request),
     });
 

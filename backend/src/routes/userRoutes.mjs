@@ -41,7 +41,7 @@ export async function routeUserRequest({
       throw new ApiError(400, '사용자 정보가 올바르지 않아.');
     }
 
-    const store = loadStore();
+    const store = await loadStore();
     requireUser(store, request);
     const user = findUserById(store, userId);
     const profile = buildProfile(store, user);

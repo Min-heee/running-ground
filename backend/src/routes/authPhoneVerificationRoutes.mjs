@@ -87,7 +87,7 @@ async function handleRequestPhoneVerificationCode({
   let createdChallenge = null;
   let rawCode = '';
 
-  mutateStore((store) => {
+  await mutateStore((store) => {
     cleanupPhoneVerificationChallenges(store, now);
     const challenges = ensurePhoneVerificationChallenges(store);
     const activeChallenge = challenges.find((entry) => (
@@ -132,7 +132,7 @@ async function handleRequestPhoneVerificationCode({
     });
     sendJson(response, 200, buildPhoneVerificationPayload(createdChallenge, providerResult));
   } catch (error) {
-    mutateStore((store) => {
+    await mutateStore((store) => {
       cleanupPhoneVerificationChallenges(store);
       store.phoneVerificationChallenges = ensurePhoneVerificationChallenges(store)
         .filter((entry) => entry.id !== createdChallenge?.id);
@@ -165,7 +165,7 @@ async function handleVerifyPhoneVerificationCode({
   const now = new Date();
   let verifiedChallenge = null;
 
-  mutateStore((store) => {
+  await mutateStore((store) => {
     cleanupPhoneVerificationChallenges(store, now);
     const challenge = ensurePhoneVerificationChallenges(store).find((entry) => entry.id === requestId && entry.purpose === purpose);
 

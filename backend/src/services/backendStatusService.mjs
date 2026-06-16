@@ -36,7 +36,7 @@ export function createBackendStatusService({
     };
   }
 
-  function buildHealthStatus() {
+  async function buildHealthStatus() {
     const basePayload = {
       environment: APP_ENV,
       startedAt: STARTED_AT,
@@ -50,7 +50,7 @@ export function createBackendStatusService({
     };
 
     try {
-      const store = loadStore();
+      const store = await loadStore();
 
       return {
         statusCode: 200,

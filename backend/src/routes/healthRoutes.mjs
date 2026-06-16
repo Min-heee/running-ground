@@ -6,7 +6,7 @@ export async function routeHealthRequest({
   buildHealthStatus,
 }) {
   if (pathname === '/api/health' && method === 'GET') {
-    const healthStatus = buildHealthStatus();
+    const healthStatus = await buildHealthStatus();
     sendJson(response, healthStatus.statusCode, healthStatus.payload);
     return true;
   }

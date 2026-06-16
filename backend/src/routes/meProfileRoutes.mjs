@@ -87,7 +87,7 @@ async function handlePatchMyProfile({
 }) {
   const body = await parseJsonBody(request);
 
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const user = requireUser(store, request);
     user.name = validateRequiredString(body.name, '닉네임을 입력해줘.');
     user.universityName = typeof body.universityName === 'string' && body.universityName.trim()
@@ -111,7 +111,7 @@ async function handlePatchMyRegion({
 }) {
   const body = await parseJsonBody(request);
 
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const user = requireUser(store, request);
     const region = resolveRegionSelection(body.provinceName, body.cityName, body.districtName);
     user.provinceName = region.provinceName;

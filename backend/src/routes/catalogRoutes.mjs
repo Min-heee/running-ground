@@ -14,7 +14,7 @@ export async function routeCatalogRequest({
   }
 
   if (pathname === '/api/catalog/universities' && method === 'GET') {
-    const store = loadStore();
+    const store = await loadStore();
     sendJson(response, 200, buildUniversityCatalog(store));
     return true;
   }

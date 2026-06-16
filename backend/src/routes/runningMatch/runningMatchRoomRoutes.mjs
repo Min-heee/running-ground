@@ -2,12 +2,12 @@ export async function routeRunningMatchRoomRoutes(deps) {
   const { method, pathname } = deps;
 
   if (pathname === '/api/running/rooms/my' && method === 'GET') {
-    handleFetchMyRunningMatchRoom(deps);
+    await handleFetchMyRunningMatchRoom(deps);
     return true;
   }
 
   if (pathname === '/api/running/rooms/invite-inbox' && method === 'GET') {
-    handleFetchRunningMatchRoomInviteInbox(deps);
+    await handleFetchRunningMatchRoomInviteInbox(deps);
     return true;
   }
 
@@ -52,14 +52,14 @@ export async function routeRunningMatchRoomRoutes(deps) {
   }
 
   if (pathname === '/api/running/rooms/force-reset' && method === 'POST') {
-    handleForceResetRunningMatchState(deps);
+    await handleForceResetRunningMatchState(deps);
     return true;
   }
 
   return false;
 }
 
-function handleFetchMyRunningMatchRoom({
+async function handleFetchMyRunningMatchRoom({
   buildRunningMatchRoomResponse,
   findRunningMatchRoomForUser,
   mutateStore,
@@ -68,7 +68,7 @@ function handleFetchMyRunningMatchRoom({
   response,
   sendJson,
 }) {
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     const room = findRunningMatchRoomForUser(store, currentUser.id);
     return buildRunningMatchRoomResponse(store, currentUser, room);
@@ -77,7 +77,7 @@ function handleFetchMyRunningMatchRoom({
   sendJson(response, 200, payload);
 }
 
-function handleFetchRunningMatchRoomInviteInbox({
+async function handleFetchRunningMatchRoomInviteInbox({
   buildRunningMatchRoomResponse,
   findRunningMatchRoomInviteInboxForUser,
   mutateStore,
@@ -86,7 +86,7 @@ function handleFetchRunningMatchRoomInviteInbox({
   response,
   sendJson,
 }) {
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     const room = findRunningMatchRoomInviteInboxForUser(store, currentUser);
     return buildRunningMatchRoomResponse(store, currentUser, room);
@@ -109,7 +109,7 @@ async function handleCreateRunningMatchRoom({
   validateOptionalUserIdArray,
 }) {
   const body = await parseJsonBody(request);
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return createRunningMatchRoom(store, currentUser, {
       mode: validateMatchMode(body.mode),
@@ -135,7 +135,7 @@ async function handleJoinRunningMatchRoom({
   validateRequiredString,
 }) {
   const body = await parseJsonBody(request);
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return joinRunningMatchRoom(store, currentUser, {
       inviteToken: validateRequiredString(body.inviteToken, '방 초대 코드를 입력해줘.'),
@@ -156,7 +156,7 @@ async function handleStartRunningMatchRoom({
   validateRequiredString,
 }) {
   const body = await parseJsonBody(request);
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return startRunningMatchRoom(store, currentUser, {
       roomId: validateRequiredString(body.roomId, '시작할 방 아이디가 필요해.'),
@@ -180,7 +180,7 @@ async function handleUpdateRunningMatchRoom({
   validateRequiredString,
 }) {
   const body = await parseJsonBody(request);
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return updateRunningMatchRoom(store, currentUser, {
       roomId: validateRequiredString(body.roomId, '설정할 방 아이디가 필요해.'),
@@ -206,7 +206,7 @@ async function handleUpdateRunningMatchRoomReady({
   validateRequiredString,
 }) {
   const body = await parseJsonBody(request);
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return updateRunningMatchRoomReady(store, currentUser, {
       roomId: validateRequiredString(body.roomId, '준비 상태를 바꿀 방 아이디가 필요해.'),
@@ -228,7 +228,7 @@ async function handleAcknowledgeRunningMatchRoomCountdown({
   validateRequiredString,
 }) {
   const body = await parseJsonBody(request);
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return acknowledgeRunningMatchRoomCountdown(store, currentUser, {
       roomId: validateRequiredString(body.roomId, '카운트다운 준비를 반영할 방 아이디가 필요해.'),
@@ -249,7 +249,7 @@ async function handleLeaveRunningMatchRoom({
   validateRequiredString,
 }) {
   const body = await parseJsonBody(request);
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return leaveRunningMatchRoom(store, currentUser, {
       roomId: validateRequiredString(body.roomId, '나갈 방 아이디가 필요해.'),
@@ -267,7 +267,7 @@ async function handleCleanupStaleRunningMatchRoomState({
   response,
   sendJson,
 }) {
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return cleanupStaleRunningMatchRoomState(store, currentUser);
   });
@@ -275,7 +275,7 @@ async function handleCleanupStaleRunningMatchRoomState({
   sendJson(response, 200, payload);
 }
 
-function handleForceResetRunningMatchState({
+async function handleForceResetRunningMatchState({
   forceResetRunningMatchStateForUser,
   mutateStore,
   request,
@@ -283,7 +283,7 @@ function handleForceResetRunningMatchState({
   response,
   sendJson,
 }) {
-  const payload = mutateStore((store) => {
+  const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     return forceResetRunningMatchStateForUser(store, currentUser);
   });
