@@ -1,7 +1,6 @@
-import { StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
@@ -9,7 +8,9 @@ export default function RaceScreen() {
   useTabWarmupTrace('race');
   return (
     <Screen>
-      <PageHeader title="레이스" />
+      <View style={styles.headerRow}>
+        <Text style={styles.screenTitle}>레이스</Text>
+      </View>
 
       <Card>
         <Text style={styles.statusEyebrow}>COMING SOON</Text>
@@ -24,6 +25,14 @@ export default function RaceScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerRow: {
+    marginBottom: spacing.s12,
+  },
+  screenTitle: {
+    color: colors.nearBlack,
+    fontSize: fontSizes.hero,
+    fontWeight: fontWeights.extraBold,
+  },
   statusEyebrow: {
     color: colors.brandAccent,
     fontSize: fontSizes.sm,

@@ -173,8 +173,7 @@ function RunningTabInitialShell({
   return (
     <Screen>
       <AuthHeader
-        title={isTabMode ? '러닝' : '실시간 러닝'}
-        brandPlacement={isTabMode ? 'below-title' : 'above-title'}
+        title="실시간 러닝"
         showBack={!isTabMode}
         backHref="/"
       />

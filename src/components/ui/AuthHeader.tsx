@@ -6,14 +6,12 @@ import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 export function AuthHeader({
   title,
   subtitle,
-  brandPlacement = 'above-title',
   showBack = false,
   backLabel = '뒤로가기',
   backHref,
 }: {
   title?: string;
   subtitle?: string;
-  brandPlacement?: 'above-title' | 'below-title' | 'hidden';
   showBack?: boolean;
   backLabel?: string;
   backHref?: Href;
@@ -45,9 +43,8 @@ export function AuthHeader({
           <Text style={styles.backButtonText}>{backLabel}</Text>
         </Pressable>
       ) : null}
-      {brandPlacement === 'above-title' ? <Text style={styles.logo}>RunningGround</Text> : null}
+      <Text style={styles.logo}>RunningGround</Text>
       {title ? <Text style={styles.title}>{title}</Text> : null}
-      {brandPlacement === 'below-title' ? <Text style={styles.logo}>RunningGround</Text> : null}
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
   );

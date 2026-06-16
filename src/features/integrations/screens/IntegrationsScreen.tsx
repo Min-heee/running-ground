@@ -1,7 +1,6 @@
-import { ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
-import { PageHeader } from '@/components/ui/PageHeader';
 import { IntegrationJourneyCard } from '@/features/integrations/IntegrationJourneyCard';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
 import { NrcBridgeGuideCard } from '@/features/integrations/NrcBridgeGuideCard';
@@ -47,10 +46,10 @@ export default function IntegrationsScreen() {
 
   return (
     <Screen>
-      <PageHeader
-        title="기록 연동"
-        subtitle="로그인 이후 연결한 기록 소스들이 자동 반영되는 영역."
-      />
+      <View style={styles.header}>
+        <Text style={styles.title}>기록 연동</Text>
+        <Text style={styles.subtitle}>로그인 이후 연결한 기록 소스들이 자동 반영되는 영역.</Text>
+      </View>
 
       <Card>
         <Text style={styles.tipTitle}>{getPlatformLabel(platform)} 기준 추천 시작 순서</Text>
@@ -111,6 +110,9 @@ export default function IntegrationsScreen() {
 }
 
 const styles = StyleSheet.create({
+  header: { gap: 6 },
+  title: { fontSize: fontSizes.pageTitle, fontWeight: fontWeights.extraBold, color: colors.textHeading },
+  subtitle: { color: colors.textMuted, lineHeight: 21 },
   tipTitle: { fontSize: fontSizes.button, fontWeight: fontWeights.extraBold, color: colors.textPrimary },
   tipBody: { color: colors.textMuted, lineHeight: 21, marginTop: 6 },
   policyText: { color: colors.textSecondary, lineHeight: 20, marginTop: 8 },
