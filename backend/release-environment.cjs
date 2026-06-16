@@ -1,7 +1,7 @@
 const { isAbsolute, relative } = require('node:path');
 
 const APP_ENVS = ['development', 'preview', 'production'];
-const STORE_DRIVERS = ['json'];
+const STORE_DRIVERS = ['json', 'postgres'];
 
 function normalizeOptionalString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -185,6 +185,10 @@ function validateBackendReleaseEnvironment(env, options = {}) {
 
   if (!STORE_DRIVERS.includes(resolved.storeDriver)) {
     errors.push(`BACKEND_STORE_DRIVER 는 현재 ${STORE_DRIVERS.join(', ')} 만 지원해.`);
+  }
+
+  if (resolved.storeDriver === 'postgres' && !resolved.postgresDatabaseUrl) {
+    errors.push('BACKEND_STORE_DRIVER=postgres 면 BACKEND_POSTGRES_DATABASE_URL 이 꼭 필요해.');
   }
 
   if (parsedPostgresUrl && !['postgres:', 'postgresql:'].includes(parsedPostgresUrl.protocol)) {
