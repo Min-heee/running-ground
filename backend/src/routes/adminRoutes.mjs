@@ -48,7 +48,7 @@ export async function routeAdminRequest(routeContext) {
 
   if (adminUserMatch && method === 'DELETE') {
     requireAdmin(request);
-    handleDeleteAdminUser({
+    await handleDeleteAdminUser({
       getAdminRepository,
       response,
       sendJson,
@@ -101,7 +101,7 @@ export async function routeAdminRequest(routeContext) {
 
   if (adminMarketItemMatch && method === 'DELETE') {
     requireAdmin(request);
-    handleDeleteAdminMarketItem({
+    await handleDeleteAdminMarketItem({
       getMarketRepository,
       itemId: adminMarketItemMatch[1],
       response,
@@ -128,7 +128,7 @@ export async function routeAdminRequest(routeContext) {
 
   if (adminNoticeMatch && method === 'DELETE') {
     requireAdmin(request);
-    handleDeleteAdminNotice({
+    await handleDeleteAdminNotice({
       getAdminRepository,
       noticeId: adminNoticeMatch[1],
       response,
@@ -185,7 +185,7 @@ export async function routeAdminRequest(routeContext) {
 
   if (adminOfflineRaceEventMatch && method === 'DELETE') {
     requireAdmin(request);
-    handleDeleteAdminOfflineRaceEvent({
+    await handleDeleteAdminOfflineRaceEvent({
       eventId: adminOfflineRaceEventMatch[1],
       getRaceRepository,
       response,
@@ -197,13 +197,13 @@ export async function routeAdminRequest(routeContext) {
   return false;
 }
 
-function handleDeleteAdminUser({
+async function handleDeleteAdminUser({
   getAdminRepository,
   response,
   sendJson,
   userId,
 }) {
-  const payload = getAdminRepository().deleteUser({
+  const payload = await getAdminRepository().deleteUser({
     userId,
   });
 
@@ -219,7 +219,7 @@ async function handleCreateAdminMarketItem({
   sendJson,
 }) {
   const body = await parseJsonBody(request);
-  const payload = getMarketRepository().createAdminItem({
+  const payload = await getMarketRepository().createAdminItem({
     input: normalizeAdminMarketItemInput(body),
   });
 
@@ -236,7 +236,7 @@ async function handleUpdateAdminMarketItem({
   sendJson,
 }) {
   const body = await parseJsonBody(request);
-  const payload = getMarketRepository().updateAdminItem({
+  const payload = await getMarketRepository().updateAdminItem({
     itemId,
     input: normalizeAdminMarketItemInput(body),
   });
@@ -244,13 +244,13 @@ async function handleUpdateAdminMarketItem({
   sendJson(response, 200, payload);
 }
 
-function handleDeleteAdminMarketItem({
+async function handleDeleteAdminMarketItem({
   getMarketRepository,
   itemId,
   response,
   sendJson,
 }) {
-  const payload = getMarketRepository().deleteAdminItem({
+  const payload = await getMarketRepository().deleteAdminItem({
     itemId,
   });
 
@@ -266,7 +266,7 @@ async function handleCreateAdminNotice({
   sendJson,
 }) {
   const body = await parseJsonBody(request);
-  const payload = getAdminRepository().createNotice({
+  const payload = await getAdminRepository().createNotice({
     input: normalizeAdminNoticeInput(body),
   });
 
@@ -283,7 +283,7 @@ async function handleUpdateAdminNotice({
   sendJson,
 }) {
   const body = await parseJsonBody(request);
-  const payload = getAdminRepository().updateNotice({
+  const payload = await getAdminRepository().updateNotice({
     noticeId,
     input: normalizeAdminNoticeInput(body),
   });
@@ -291,13 +291,13 @@ async function handleUpdateAdminNotice({
   sendJson(response, 200, payload);
 }
 
-function handleDeleteAdminNotice({
+async function handleDeleteAdminNotice({
   getAdminRepository,
   noticeId,
   response,
   sendJson,
 }) {
-  const payload = getAdminRepository().deleteNotice({
+  const payload = await getAdminRepository().deleteNotice({
     noticeId,
   });
 
@@ -315,7 +315,7 @@ async function handleUpdateAdminRewardRedemption({
   validateRewardRedemptionStatus,
 }) {
   const body = await parseJsonBody(request);
-  const payload = getMarketRepository().updateAdminRewardRedemption({
+  const payload = await getMarketRepository().updateAdminRewardRedemption({
     redemptionId,
     status: validateRewardRedemptionStatus(body.status),
     adminNote: normalizeOptionalString(body.adminNote),
@@ -333,7 +333,7 @@ async function handleCreateAdminOfflineRaceEvent({
   sendJson,
 }) {
   const body = await parseJsonBody(request);
-  const payload = getRaceRepository().createAdminEvent({
+  const payload = await getRaceRepository().createAdminEvent({
     input: normalizeAdminOfflineRaceEventInput(body),
   });
 
@@ -350,7 +350,7 @@ async function handleUpdateAdminOfflineRaceEvent({
   sendJson,
 }) {
   const body = await parseJsonBody(request);
-  const payload = getRaceRepository().updateAdminEvent({
+  const payload = await getRaceRepository().updateAdminEvent({
     eventId,
     input: normalizeAdminOfflineRaceEventInput(body),
   });
@@ -358,13 +358,13 @@ async function handleUpdateAdminOfflineRaceEvent({
   sendJson(response, 200, payload);
 }
 
-function handleDeleteAdminOfflineRaceEvent({
+async function handleDeleteAdminOfflineRaceEvent({
   eventId,
   getRaceRepository,
   response,
   sendJson,
 }) {
-  const payload = getRaceRepository().deleteAdminEvent({
+  const payload = await getRaceRepository().deleteAdminEvent({
     eventId,
   });
 

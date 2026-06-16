@@ -16,7 +16,7 @@ export async function routeMarketRequest({
   const marketClaimMatch = pathname.match(/^\/api\/market\/items\/([^/]+)\/claim$/);
 
   if (marketClaimMatch && method === 'POST') {
-    handleClaimMarketItem({
+    await handleClaimMarketItem({
       getAccessToken,
       getMarketRepository,
       itemId: marketClaimMatch[1],
@@ -30,7 +30,7 @@ export async function routeMarketRequest({
   return false;
 }
 
-function handleClaimMarketItem({
+async function handleClaimMarketItem({
   getAccessToken,
   getMarketRepository,
   itemId,
@@ -38,7 +38,7 @@ function handleClaimMarketItem({
   response,
   sendJson,
 }) {
-  const payload = getMarketRepository().claimItem({
+  const payload = await getMarketRepository().claimItem({
     token: getAccessToken(request),
     itemId,
   });

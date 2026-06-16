@@ -138,7 +138,7 @@ async function runTest(name, testFn) {
   }
 }
 
-await runTest('claims an item and refreshes the user overview', () => {
+await runTest('claims an item and refreshes the user overview', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     users: [{ id: 'user-me', name: '민병희' }],
     sessions: [{ token: 'token-me', userId: 'user-me' }],
@@ -154,7 +154,7 @@ await runTest('claims an item and refreshes the user overview', () => {
     'user-me': { currentWeekPoints: 80 },
   });
 
-  const result = repository.claimItem({
+  const result = await repository.claimItem({
     token: 'token-me',
     itemId: 'market-1',
   });
@@ -170,7 +170,7 @@ await runTest('claims an item and refreshes the user overview', () => {
   assert.equal(storeHarness.getStore().rewardRedemptions.length, 1);
 });
 
-await runTest('rejects duplicate claims for non-repeatable items', () => {
+await runTest('rejects duplicate claims for non-repeatable items', async () => {
   const { repository } = createRepositoryHarness({
     users: [{ id: 'user-me', name: '민병희' }],
     sessions: [{ token: 'token-me', userId: 'user-me' }],
@@ -193,7 +193,7 @@ await runTest('rejects duplicate claims for non-repeatable items', () => {
     'user-me': { currentWeekPoints: 80 },
   });
 
-  assert.throws(() => repository.claimItem({
+  await assert.rejects(repository.claimItem({
     token: 'token-me',
     itemId: 'market-1',
   }), (error) => {
@@ -202,7 +202,7 @@ await runTest('rejects duplicate claims for non-repeatable items', () => {
   });
 });
 
-await runTest('updates redemption fulfillment state and admin note', () => {
+await runTest('updates redemption fulfillment state and admin note', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     rewardRedemptions: [{
       id: 'redemption-1',
@@ -214,7 +214,7 @@ await runTest('updates redemption fulfillment state and admin note', () => {
     }],
   });
 
-  const result = repository.updateAdminRewardRedemption({
+  const result = await repository.updateAdminRewardRedemption({
     redemptionId: 'redemption-1',
     status: 'fulfilled',
     adminNote: '택배 발송 완료',

@@ -145,10 +145,10 @@ async function runTest(name, testFn) {
   }
 }
 
-await runTest('creates, updates, lists, and deletes notices', () => {
+await runTest('creates, updates, lists, and deletes notices', async () => {
   const { repository, storeHarness } = createRepositoryHarness();
 
-  const created = repository.createNotice({
+  const created = await repository.createNotice({
     input: {
       title: '긴급 점검',
       message: '오늘 밤 점검 예정',
@@ -159,11 +159,11 @@ await runTest('creates, updates, lists, and deletes notices', () => {
 
   assert.equal(created.item.id, 'notice-test-1');
   assert.equal(storeHarness.getStore().notices.length, 1);
-  assert.deepEqual(repository.getActiveNotices(), {
+  assert.deepEqual(await repository.getActiveNotices(), {
     items: [{ id: 'notice-test-1', title: '긴급 점검' }],
   });
 
-  const updated = repository.updateNotice({
+  const updated = await repository.updateNotice({
     noticeId: 'notice-test-1',
     input: {
       title: '점검 연기',
@@ -174,16 +174,16 @@ await runTest('creates, updates, lists, and deletes notices', () => {
   });
 
   assert.equal(updated.item.title, '점검 연기');
-  assert.equal(repository.getActiveNotices().items.length, 0);
+  assert.equal((await repository.getActiveNotices()).items.length, 0);
 
-  const deleted = repository.deleteNotice({
+  const deleted = await repository.deleteNotice({
     noticeId: 'notice-test-1',
   });
 
   assert.deepEqual(deleted, { items: [] });
 });
 
-await runTest('deletes a user and cleans related records', () => {
+await runTest('deletes a user and cleans related records', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     users: [
       { id: 'user-me', name: '민병희', publicTag: '#ME001' },
@@ -212,7 +212,7 @@ await runTest('deletes a user and cleans related records', () => {
     ],
   });
 
-  const result = repository.deleteUser({ userId: 'user-me' });
+  const result = await repository.deleteUser({ userId: 'user-me' });
   const store = storeHarness.getStore();
 
   assert.deepEqual(result, {
@@ -230,10 +230,10 @@ await runTest('deletes a user and cleans related records', () => {
   assert.deepEqual(store.offlineRaceEvents[0].registeredUserTags, ['#FRI01']);
 });
 
-await runTest('surfaces missing notice errors', () => {
+await runTest('surfaces missing notice errors', async () => {
   const { repository } = createRepositoryHarness();
 
-  assert.throws(() => repository.updateNotice({
+  await assert.rejects(repository.updateNotice({
     noticeId: 'notice-missing',
     input: {
       title: '없음',

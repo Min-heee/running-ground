@@ -116,7 +116,7 @@ async function runTest(name, testFn) {
   }
 }
 
-await runTest('joins and cancels an offline race entry', () => {
+await runTest('joins and cancels an offline race entry', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     users: [{ id: 'user-me', publicTag: '#ME001' }],
     sessions: [{ token: 'token-me', userId: 'user-me' }],
@@ -128,7 +128,7 @@ await runTest('joins and cancels an offline race entry', () => {
     }],
   });
 
-  const joined = repository.applyEntryAction({
+  const joined = await repository.applyEntryAction({
     token: 'token-me',
     eventId: 'race-1',
     action: 'join',
@@ -145,7 +145,7 @@ await runTest('joins and cancels an offline race entry', () => {
   });
   assert.deepEqual(storeHarness.getStore().offlineRaceEvents[0].registeredUserTags, ['#ME001']);
 
-  const cancelled = repository.applyEntryAction({
+  const cancelled = await repository.applyEntryAction({
     token: 'token-me',
     eventId: 'race-1',
     action: 'cancel',
@@ -155,7 +155,7 @@ await runTest('joins and cancels an offline race entry', () => {
   assert.deepEqual(storeHarness.getStore().offlineRaceEvents[0].registeredUserTags, []);
 });
 
-await runTest('rejects joining a full race', () => {
+await runTest('rejects joining a full race', async () => {
   const { repository } = createRepositoryHarness({
     users: [{ id: 'user-me', publicTag: '#ME001' }],
     sessions: [{ token: 'token-me', userId: 'user-me' }],
@@ -167,7 +167,7 @@ await runTest('rejects joining a full race', () => {
     }],
   });
 
-  assert.throws(() => repository.applyEntryAction({
+  await assert.rejects(repository.applyEntryAction({
     token: 'token-me',
     eventId: 'race-1',
     action: 'join',
@@ -177,10 +177,10 @@ await runTest('rejects joining a full race', () => {
   });
 });
 
-await runTest('creates, updates, and deletes admin offline race events', () => {
+await runTest('creates, updates, and deletes admin offline race events', async () => {
   const { repository, storeHarness } = createRepositoryHarness();
 
-  const created = repository.createAdminEvent({
+  const created = await repository.createAdminEvent({
     input: {
       title: '주말 10K',
       capacity: 50,
@@ -189,7 +189,7 @@ await runTest('creates, updates, and deletes admin offline race events', () => {
 
   assert.equal(created.event.id, 'race-test-1');
 
-  const updated = repository.updateAdminEvent({
+  const updated = await repository.updateAdminEvent({
     eventId: 'race-test-1',
     input: {
       title: '주말 15K',
@@ -199,7 +199,7 @@ await runTest('creates, updates, and deletes admin offline race events', () => {
 
   assert.equal(updated.event.title, '주말 15K');
 
-  const deleted = repository.deleteAdminEvent({
+  const deleted = await repository.deleteAdminEvent({
     eventId: 'race-test-1',
   });
 

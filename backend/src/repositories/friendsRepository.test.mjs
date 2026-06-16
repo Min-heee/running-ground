@@ -109,7 +109,7 @@ async function runTest(name, testFn) {
   }
 }
 
-await runTest('returns leaderboard with ranks and actionable requests', () => {
+await runTest('returns leaderboard with ranks and actionable requests', async () => {
   const { repository } = createRepositoryHarness({
     users: [
       { id: 'user-me', name: '민병희', publicTag: '#ME001' },
@@ -136,7 +136,7 @@ await runTest('returns leaderboard with ranks and actionable requests', () => {
     'user-seoyeon': { currentWeekDistanceKm: 10, currentWeekPoints: 25, currentMonthDistanceKm: 45, currentMonthPoints: 55 },
   });
 
-  const result = repository.getLeaderboard({ token: 'token-me' });
+  const result = await repository.getLeaderboard({ token: 'token-me' });
 
   assert.deepEqual(result.ranks.map((entry) => `${entry.rank}:${entry.name}`), [
     '1:준호',
@@ -149,7 +149,7 @@ await runTest('returns leaderboard with ranks and actionable requests', () => {
   ]);
 });
 
-await runTest('stores live sharing and exposes running location on leaderboard', () => {
+await runTest('stores live sharing and exposes running location on leaderboard', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     users: [
       { id: 'user-me', name: '민병희', publicTag: '#ME001' },
@@ -166,13 +166,13 @@ await runTest('stores live sharing and exposes running location on leaderboard',
     'user-juno': { currentWeekDistanceKm: 12, currentWeekPoints: 18, currentMonthDistanceKm: 40, currentMonthPoints: 50 },
   });
 
-  const updated = repository.updateLiveSharing({
+  const updated = await repository.updateLiveSharing({
     token: 'token-me',
     enabled: true,
     status: 'running',
     locationLabel: '성수동 근처',
   });
-  const leaderboard = repository.getLeaderboard({ token: 'token-me' });
+  const leaderboard = await repository.getLeaderboard({ token: 'token-me' });
 
   assert.deepEqual(updated, {
     success: true,
@@ -188,7 +188,7 @@ await runTest('stores live sharing and exposes running location on leaderboard',
   );
 });
 
-await runTest('creates a friend request and rejects duplicates', () => {
+await runTest('creates a friend request and rejects duplicates', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     users: [
       { id: 'user-me', name: '민병희', publicTag: '#ME001' },
@@ -199,7 +199,7 @@ await runTest('creates a friend request and rejects duplicates', () => {
     ],
   });
 
-  const created = repository.createRequest({
+  const created = await repository.createRequest({
     token: 'token-me',
     tag: '#NEW01',
   });
@@ -215,7 +215,7 @@ await runTest('creates a friend request and rejects duplicates', () => {
   assert.equal(storeHarness.getStore().notifications[0].type, 'friend_request');
   assert.deepEqual(storeHarness.getStore().notifications[0].data.friendUserId, 'user-me');
 
-  assert.throws(() => repository.createRequest({
+  await assert.rejects(repository.createRequest({
     token: 'token-me',
     tag: '#NEW01',
   }), (error) => {
@@ -224,7 +224,7 @@ await runTest('creates a friend request and rejects duplicates', () => {
   });
 });
 
-await runTest('accepts a received friend request and creates a friendship', () => {
+await runTest('accepts a received friend request and creates a friendship', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     users: [
       { id: 'user-me', name: '민병희', publicTag: '#ME001' },
@@ -238,7 +238,7 @@ await runTest('accepts a received friend request and creates a friendship', () =
     ],
   });
 
-  const result = repository.respondToRequest({
+  const result = await repository.respondToRequest({
     token: 'token-me',
     requestId: 'request-1',
     action: 'accept',
@@ -259,7 +259,7 @@ await runTest('accepts a received friend request and creates a friendship', () =
   assert.deepEqual(store.notifications[0].data.friendUserId, 'user-me');
 });
 
-await runTest('returns friend activity and friend run detail', () => {
+await runTest('returns friend activity and friend run detail', async () => {
   const { repository } = createRepositoryHarness({
     users: [
       { id: 'user-me', name: '민병희', publicTag: '#ME001' },
@@ -280,11 +280,11 @@ await runTest('returns friend activity and friend run detail', () => {
     'user-friend': { currentWeekDistanceKm: 12.2, currentWeekPoints: 22, currentMonthDistanceKm: 50, currentMonthPoints: 80 },
   });
 
-  const activity = repository.getFriendActivity({
+  const activity = await repository.getFriendActivity({
     token: 'token-me',
     friendId: 'user-friend',
   });
-  const runDetail = repository.getFriendRun({
+  const runDetail = await repository.getFriendRun({
     token: 'token-me',
     friendId: 'user-friend',
     runId: 'run-2',
@@ -300,7 +300,7 @@ await runTest('returns friend activity and friend run detail', () => {
   assert.equal(runDetail.weeklyDistanceKm, 12.2);
 });
 
-await runTest('rejects access to non-friend activity', () => {
+await runTest('rejects access to non-friend activity', async () => {
   const { repository } = createRepositoryHarness({
     users: [
       { id: 'user-me', name: '민병희', publicTag: '#ME001' },
@@ -311,7 +311,7 @@ await runTest('rejects access to non-friend activity', () => {
     ],
   });
 
-  assert.throws(() => repository.getFriendActivity({
+  await assert.rejects(repository.getFriendActivity({
     token: 'token-me',
     friendId: 'user-stranger',
   }), (error) => {

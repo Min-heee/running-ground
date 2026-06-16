@@ -182,8 +182,8 @@ export function createJsonFriendsRepository({
   createError,
 }) {
   return {
-    getLeaderboard({ token }) {
-      const store = loadStore();
+    async getLeaderboard({ token }) {
+      const store = await loadStore();
       const user = requireUserByToken(store, token);
 
       return buildFriendLeaderboard(store, user, {
@@ -193,7 +193,7 @@ export function createJsonFriendsRepository({
       });
     },
 
-    updateLiveSharing({ token, enabled, status, locationLabel }) {
+    async updateLiveSharing({ token, enabled, status, locationLabel }) {
       return mutateStore((store) => {
         ensureLiveRunSharesStore(store);
 
@@ -227,7 +227,7 @@ export function createJsonFriendsRepository({
       });
     },
 
-    createRequest({ token, tag }) {
+    async createRequest({ token, tag }) {
       return mutateStore((store) => {
         if (!Array.isArray(store.friendRequests)) {
           store.friendRequests = [];
@@ -289,7 +289,7 @@ export function createJsonFriendsRepository({
       });
     },
 
-    respondToRequest({ token, requestId, action }) {
+    async respondToRequest({ token, requestId, action }) {
       return mutateStore((store) => {
         if (!Array.isArray(store.friendRequests)) {
           store.friendRequests = [];
@@ -353,8 +353,8 @@ export function createJsonFriendsRepository({
       });
     },
 
-    getFriendActivity({ token, friendId }) {
-      const store = loadStore();
+    async getFriendActivity({ token, friendId }) {
+      const store = await loadStore();
       const currentUser = requireUserByToken(store, token);
       requireFriendAccess(store, currentUser.id, friendId, createError);
 
@@ -382,8 +382,8 @@ export function createJsonFriendsRepository({
       };
     },
 
-    getFriendRun({ token, friendId, runId }) {
-      const store = loadStore();
+    async getFriendRun({ token, friendId, runId }) {
+      const store = await loadStore();
       const currentUser = requireUserByToken(store, token);
       requireFriendAccess(store, currentUser.id, friendId, createError);
 

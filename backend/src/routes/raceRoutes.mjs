@@ -16,7 +16,7 @@ export async function routeRaceRequest({
   const offlineRaceActionMatch = pathname.match(/^\/api\/offline-races\/([^/]+)\/(join|cancel)$/);
 
   if (offlineRaceActionMatch && method === 'POST') {
-    handleOfflineRaceEntryAction({
+    await handleOfflineRaceEntryAction({
       action: offlineRaceActionMatch[2],
       eventId: offlineRaceActionMatch[1],
       getAccessToken,
@@ -31,7 +31,7 @@ export async function routeRaceRequest({
   return false;
 }
 
-function handleOfflineRaceEntryAction({
+async function handleOfflineRaceEntryAction({
   action,
   eventId,
   getAccessToken,
@@ -40,7 +40,7 @@ function handleOfflineRaceEntryAction({
   response,
   sendJson,
 }) {
-  const payload = getRaceRepository().applyEntryAction({
+  const payload = await getRaceRepository().applyEntryAction({
     token: getAccessToken(request),
     eventId,
     action,

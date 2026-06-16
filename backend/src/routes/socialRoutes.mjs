@@ -30,7 +30,7 @@ export async function routeSocialRequest({
 
   if (pathname === '/api/friends/requests' && method === 'POST') {
     const body = await parseJsonBody(request);
-    handleFriendRequestCreate({
+    await handleFriendRequestCreate({
       body,
       getAccessToken,
       getFriendsRepository,
@@ -46,7 +46,7 @@ export async function routeSocialRequest({
   const friendRequestActionMatch = pathname.match(/^\/api\/friends\/requests\/([^/]+)\/(accept|reject|cancel)$/);
 
   if (friendRequestActionMatch && method === 'POST') {
-    handleFriendRequestAction({
+    await handleFriendRequestAction({
       action: friendRequestActionMatch[2],
       getAccessToken,
       getFriendsRepository,
@@ -125,7 +125,7 @@ export async function routeSocialRequest({
   return false;
 }
 
-function handleFriendRequestCreate({
+async function handleFriendRequestCreate({
   body,
   getAccessToken,
   getFriendsRepository,
@@ -135,7 +135,7 @@ function handleFriendRequestCreate({
   sendJson,
   validateRequiredString,
 }) {
-  const payload = getFriendsRepository().createRequest({
+  const payload = await getFriendsRepository().createRequest({
     token: getAccessToken(request),
     tag: normalizeTag(validateRequiredString(body.tag, '친구 태그를 입력해줘.')),
   });
@@ -143,7 +143,7 @@ function handleFriendRequestCreate({
   sendJson(response, 201, payload);
 }
 
-function handleFriendRequestAction({
+async function handleFriendRequestAction({
   action,
   getAccessToken,
   getFriendsRepository,
@@ -152,7 +152,7 @@ function handleFriendRequestAction({
   response,
   sendJson,
 }) {
-  const payload = getFriendsRepository().respondToRequest({
+  const payload = await getFriendsRepository().respondToRequest({
     token: getAccessToken(request),
     requestId,
     action,

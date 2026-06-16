@@ -71,7 +71,7 @@ async function runTest(name, testFn) {
   }
 }
 
-await runTest('returns district personal ranks focused around current user', () => {
+await runTest('returns district personal ranks focused around current user', async () => {
   const { repository } = createRepositoryHarness({
     users: [
       { id: 'user-me', name: '민병희', provinceName: '서울특별시', cityName: '', districtName: '강남구' },
@@ -89,7 +89,7 @@ await runTest('returns district personal ranks focused around current user', () 
     'user-other': { currentWeekDistanceKm: 50, currentWeekPoints: 80 },
   });
 
-  const result = repository.getDistrictPersonal({ token: 'token-me' });
+  const result = await repository.getDistrictPersonal({ token: 'token-me' });
 
   assert.equal(result.districtName, '강남구');
   assert.equal(result.myRank.rank, 2);
@@ -102,7 +102,7 @@ await runTest('returns district personal ranks focused around current user', () 
   ]);
 });
 
-await runTest('returns ranked region children with breadcrumb', () => {
+await runTest('returns ranked region children with breadcrumb', async () => {
   const { repository } = createRepositoryHarness({
     users: [
       { id: 'user-me', name: '민병희' },
@@ -156,7 +156,7 @@ await runTest('returns ranked region children with breadcrumb', () => {
     },
   });
 
-  const result = repository.getRegions({
+  const result = await repository.getRegions({
     token: 'token-me',
     nodeId: 'region-seoul',
   });
@@ -172,7 +172,7 @@ await runTest('returns ranked region children with breadcrumb', () => {
   ]);
 });
 
-await runTest('aggregates university league ranks', () => {
+await runTest('aggregates university league ranks', async () => {
   const { repository } = createRepositoryHarness({
     users: [
       { id: 'user-me', name: '민병희', universityName: '서울대학교' },
@@ -192,7 +192,7 @@ await runTest('aggregates university league ranks', () => {
     'user-d': { currentWeekDistanceKm: 7, currentWeekPoints: 8 },
   });
 
-  const result = repository.getUniversities({ token: 'token-me' });
+  const result = await repository.getUniversities({ token: 'token-me' });
 
   assert.deepEqual(result.ranks, [
     {

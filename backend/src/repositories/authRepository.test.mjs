@@ -89,7 +89,7 @@ async function runTest(name, testFn) {
   }
 }
 
-await runTest('checks username availability', () => {
+await runTest('checks username availability', async () => {
   const { repository } = createRepositoryHarness({
     users: [
       {
@@ -101,19 +101,19 @@ await runTest('checks username availability', () => {
     ],
   });
 
-  assert.deepEqual(repository.checkUsername('new-runner'), {
+  assert.deepEqual(await repository.checkUsername('new-runner'), {
     username: 'new-runner',
     available: true,
     message: '사용할 수 있는 아이디예요.',
   });
-  assert.deepEqual(repository.checkUsername('runner'), {
+  assert.deepEqual(await repository.checkUsername('runner'), {
     username: 'runner',
     available: false,
     message: '이미 사용 중인 아이디예요.',
   });
 });
 
-await runTest('finds username by identity fields', () => {
+await runTest('finds username by identity fields', async () => {
   const { repository } = createRepositoryHarness({
     users: [
       {
@@ -128,7 +128,7 @@ await runTest('finds username by identity fields', () => {
     ],
   });
 
-  assert.deepEqual(repository.findUsername({
+  assert.deepEqual(await repository.findUsername({
     realName: '민병희',
     phone: '01012345678',
     birthDate: '1990-01-01',
@@ -139,9 +139,9 @@ await runTest('finds username by identity fields', () => {
   });
 });
 
-await runTest('registers a user, hashes password, and creates a session', () => {
+await runTest('registers a user, hashes password, and creates a session', async () => {
   const { repository, storeHarness } = createRepositoryHarness();
-  const result = repository.register({
+  const result = await repository.register({
     username: 'new-runner',
     password: 'Password123',
     name: '새러너',
@@ -182,7 +182,7 @@ await runTest('registers a user, hashes password, and creates a session', () => 
   });
 });
 
-await runTest('rejects duplicate registration', () => {
+await runTest('rejects duplicate registration', async () => {
   const { repository } = createRepositoryHarness({
     users: [
       {
@@ -194,7 +194,7 @@ await runTest('rejects duplicate registration', () => {
     ],
   });
 
-  assert.throws(() => repository.register({
+  await assert.rejects(repository.register({
     username: 'runner',
     password: 'Password123',
     name: '중복러너',
@@ -214,7 +214,7 @@ await runTest('rejects duplicate registration', () => {
   });
 });
 
-await runTest('logs in with a valid password and rejects invalid credentials', () => {
+await runTest('logs in with a valid password and rejects invalid credentials', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     users: [
       {
@@ -234,7 +234,7 @@ await runTest('logs in with a valid password and rejects invalid credentials', (
     ],
   });
 
-  assert.throws(() => repository.login({
+  await assert.rejects(repository.login({
     username: 'runner',
     password: 'WrongPassword1',
   }), (error) => {
@@ -242,7 +242,7 @@ await runTest('logs in with a valid password and rejects invalid credentials', (
     return true;
   });
 
-  const result = repository.login({
+  const result = await repository.login({
     username: 'runner',
     password: 'Password123',
   });
@@ -255,7 +255,7 @@ await runTest('logs in with a valid password and rejects invalid credentials', (
   assert.equal(store.sessions[0].token, 'token-1');
 });
 
-await runTest('resets password by identity and clears sessions', () => {
+await runTest('resets password by identity and clears sessions', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     users: [
       {
@@ -279,7 +279,7 @@ await runTest('resets password by identity and clears sessions', () => {
     ],
   });
 
-  assert.deepEqual(repository.resetPassword({
+  assert.deepEqual(await repository.resetPassword({
     username: 'runner',
     realName: '민병희',
     phone: '01012345678',
@@ -296,7 +296,7 @@ await runTest('resets password by identity and clears sessions', () => {
   assert.equal(verifyPassword('NewPassword123', store.users[0].passwordHash), true);
 });
 
-await runTest('logs out idempotently', () => {
+await runTest('logs out idempotently', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     sessions: [
       {
@@ -308,16 +308,16 @@ await runTest('logs out idempotently', () => {
     ],
   });
 
-  assert.deepEqual(repository.logout({ token: 'token-1' }), {
+  assert.deepEqual(await repository.logout({ token: 'token-1' }), {
     success: true,
   });
   assert.equal(storeHarness.getStore().sessions.length, 0);
-  assert.deepEqual(repository.logout({ token: 'token-1' }), {
+  assert.deepEqual(await repository.logout({ token: 'token-1' }), {
     success: true,
   });
 });
 
-await runTest('deletes the current account and cleans related records', () => {
+await runTest('deletes the current account and cleans related records', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     users: [
       {
@@ -389,7 +389,7 @@ await runTest('deletes the current account and cleans related records', () => {
     ],
   });
 
-  assert.deepEqual(repository.deleteAccount({ token: 'token-1' }), {
+  assert.deepEqual(await repository.deleteAccount({ token: 'token-1' }), {
     success: true,
     deletedUserId: 'user-existing',
   });
@@ -407,19 +407,19 @@ await runTest('deletes the current account and cleans related records', () => {
   assert.deepEqual(store.offlineRaceEvents[0].registeredUserTags, ['#FRI01']);
 });
 
-await runTest('requires a valid session to delete the current account', () => {
+await runTest('requires a valid session to delete the current account', async () => {
   const { repository } = createRepositoryHarness();
 
-  assert.throws(() => repository.deleteAccount({ token: 'missing-token' }), (error) => {
+  await assert.rejects(repository.deleteAccount({ token: 'missing-token' }), (error) => {
     assertApiError(error, 401, '로그인이 필요해요.');
     return true;
   });
 });
 
-await runTest('findOrCreateSocialUser creates a passwordless user then reuses it by identity', () => {
+await runTest('findOrCreateSocialUser creates a passwordless user then reuses it by identity', async () => {
   const { repository, storeHarness } = createRepositoryHarness();
 
-  const first = repository.findOrCreateSocialUser({
+  const first = await repository.findOrCreateSocialUser({
     provider: 'kakao',
     providerUserId: 'kakao-123',
     email: 'a@b.com',
@@ -437,14 +437,14 @@ await runTest('findOrCreateSocialUser creates a passwordless user then reuses it
   assert.equal(afterFirst.users[0].socialAccounts[0].email, 'a@b.com');
 
   // Same social identity → no new user, same id, fresh session token.
-  const second = repository.findOrCreateSocialUser({ provider: 'kakao', providerUserId: 'kakao-123' });
+  const second = await repository.findOrCreateSocialUser({ provider: 'kakao', providerUserId: 'kakao-123' });
   assert.equal(second.user.id, first.user.id);
   assert.equal(second.isNewUser, false);
   assert.equal(storeHarness.getStore().users.length, 1);
   assert.notEqual(second.accessToken, first.accessToken);
 
   // Same providerUserId but different provider → a distinct user; blank name falls back.
-  const third = repository.findOrCreateSocialUser({ provider: 'naver', providerUserId: 'kakao-123', name: '  ' });
+  const third = await repository.findOrCreateSocialUser({ provider: 'naver', providerUserId: 'kakao-123', name: '  ' });
   assert.notEqual(third.user.id, first.user.id);
   assert.equal(third.isNewUser, true);
   assert.equal(storeHarness.getStore().users.length, 2);

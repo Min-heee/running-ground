@@ -151,8 +151,8 @@ export function createJsonAuthRepository({
   createError,
 }) {
   return {
-    checkUsername(username) {
-      const store = loadStore();
+    async checkUsername(username) {
+      const store = await loadStore();
       const available = !store.users.some((entry) => entry.username === username);
 
       return {
@@ -162,8 +162,8 @@ export function createJsonAuthRepository({
       };
     },
 
-    findUsername({ realName, phone, birthDate }) {
-      const store = loadStore();
+    async findUsername({ realName, phone, birthDate }) {
+      const store = await loadStore();
       const user = store.users.find((entry) => (
         entry.realName === realName
         && entry.phone === phone
@@ -181,7 +181,7 @@ export function createJsonAuthRepository({
       };
     },
 
-    login({ username, password }) {
+    async login({ username, password }) {
       return mutateStore((store) => {
         const user = store.users.find((entry) => entry.username === username);
 
@@ -202,7 +202,7 @@ export function createJsonAuthRepository({
       });
     },
 
-    logout({ token }) {
+    async logout({ token }) {
       return mutateStore((store) => {
         const existingSessionIndex = store.sessions.findIndex((entry) => entry.token === token);
 
@@ -216,7 +216,7 @@ export function createJsonAuthRepository({
       });
     },
 
-    deleteAccount({ token }) {
+    async deleteAccount({ token }) {
       return mutateStore((store) => {
         const sessionUser = findUserBySessionToken(store, token);
 
@@ -248,7 +248,7 @@ export function createJsonAuthRepository({
       });
     },
 
-    resetPassword({ username, realName, phone, birthDate, newPassword }) {
+    async resetPassword({ username, realName, phone, birthDate, newPassword }) {
       return mutateStore((store) => {
         const user = store.users.find((entry) => (
           entry.username === username
@@ -272,7 +272,7 @@ export function createJsonAuthRepository({
       });
     },
 
-    register({
+    async register({
       username,
       password,
       name,
@@ -332,7 +332,7 @@ export function createJsonAuthRepository({
       });
     },
 
-    findOrCreateSocialUser({ provider, providerUserId, email, name }) {
+    async findOrCreateSocialUser({ provider, providerUserId, email, name }) {
       return mutateStore((store) => {
         const matched = store.users.find((entry) => Array.isArray(entry.socialAccounts)
           && entry.socialAccounts.some((account) => (

@@ -16,11 +16,11 @@ export function createJsonRaceRepository({
       return buildOfflineRaceHub(store, user);
     },
 
-    getAdminEvents() {
-      return buildAdminOfflineRaceEvents(loadStore());
+    async getAdminEvents() {
+      return buildAdminOfflineRaceEvents(await loadStore());
     },
 
-    applyEntryAction({ token, eventId, action }) {
+    async applyEntryAction({ token, eventId, action }) {
       return mutateStore((store) => {
         ensureOfflineRaceStore(store);
         const user = requireUserByToken(store, token);
@@ -66,7 +66,7 @@ export function createJsonRaceRepository({
       });
     },
 
-    createAdminEvent({ input }) {
+    async createAdminEvent({ input }) {
       return mutateStore((store) => {
         ensureOfflineRaceStore(store);
         const event = {
@@ -85,7 +85,7 @@ export function createJsonRaceRepository({
       });
     },
 
-    updateAdminEvent({ eventId, input }) {
+    async updateAdminEvent({ eventId, input }) {
       return mutateStore((store) => {
         ensureOfflineRaceStore(store);
         const event = store.offlineRaceEvents.find((entry) => entry.id === eventId);
@@ -104,7 +104,7 @@ export function createJsonRaceRepository({
       });
     },
 
-    deleteAdminEvent({ eventId }) {
+    async deleteAdminEvent({ eventId }) {
       return mutateStore((store) => {
         ensureOfflineRaceStore(store);
         const nextEvents = store.offlineRaceEvents.filter((entry) => entry.id !== eventId);

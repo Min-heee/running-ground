@@ -27,15 +27,15 @@ export function createJsonMarketRepository({
       return buildMarketOverviewWithMetrics(store, user, metrics);
     },
 
-    getAdminCatalog() {
-      return buildAdminMarketCatalog(loadStore());
+    async getAdminCatalog() {
+      return buildAdminMarketCatalog(await loadStore());
     },
 
-    getAdminRewardRedemptions() {
-      return buildAdminRewardRedemptions(loadStore());
+    async getAdminRewardRedemptions() {
+      return buildAdminRewardRedemptions(await loadStore());
     },
 
-    claimItem({ token, itemId }) {
+    async claimItem({ token, itemId }) {
       return mutateStore((store) => {
         const user = requireUserByToken(store, token);
         ensureMarketCatalogStore(store);
@@ -90,7 +90,7 @@ export function createJsonMarketRepository({
       });
     },
 
-    createAdminItem({ input }) {
+    async createAdminItem({ input }) {
       return mutateStore((store) => {
         ensureMarketCatalogStore(store);
         const item = {
@@ -108,7 +108,7 @@ export function createJsonMarketRepository({
       });
     },
 
-    updateAdminItem({ itemId, input }) {
+    async updateAdminItem({ itemId, input }) {
       return mutateStore((store) => {
         ensureMarketCatalogStore(store);
         const item = store.marketCatalog.find((entry) => entry.id === itemId);
@@ -127,7 +127,7 @@ export function createJsonMarketRepository({
       });
     },
 
-    deleteAdminItem({ itemId }) {
+    async deleteAdminItem({ itemId }) {
       return mutateStore((store) => {
         ensureMarketCatalogStore(store);
         const nextItems = store.marketCatalog.filter((entry) => entry.id !== itemId);
@@ -141,7 +141,7 @@ export function createJsonMarketRepository({
       });
     },
 
-    updateAdminRewardRedemption({ redemptionId, status, adminNote }) {
+    async updateAdminRewardRedemption({ redemptionId, status, adminNote }) {
       return mutateStore((store) => {
         const redemption = (store.rewardRedemptions ?? []).find((entry) => entry.id === redemptionId);
 

@@ -31,7 +31,7 @@ async function routeAdminStatusReadRequest({
   return false;
 }
 
-function routeAdminRepositoryReadRequest({
+async function routeAdminRepositoryReadRequest({
   method,
   pathname,
   request,
@@ -42,26 +42,26 @@ function routeAdminRepositoryReadRequest({
 }) {
   if (pathname === '/api/admin/overview' && method === 'GET') {
     requireAdmin(request);
-    sendJson(response, 200, getAdminRepository().getOverview());
+    sendJson(response, 200, await getAdminRepository().getOverview());
     return true;
   }
 
   if (pathname === '/api/admin/users' && method === 'GET') {
     requireAdmin(request);
-    sendJson(response, 200, getAdminRepository().getUsers());
+    sendJson(response, 200, await getAdminRepository().getUsers());
     return true;
   }
 
   if (pathname === '/api/admin/notices' && method === 'GET') {
     requireAdmin(request);
-    sendJson(response, 200, getAdminRepository().getNotices());
+    sendJson(response, 200, await getAdminRepository().getNotices());
     return true;
   }
 
   return false;
 }
 
-function routeAdminCatalogReadRequest({
+async function routeAdminCatalogReadRequest({
   method,
   pathname,
   request,
@@ -73,19 +73,19 @@ function routeAdminCatalogReadRequest({
 }) {
   if (pathname === '/api/admin/market/items' && method === 'GET') {
     requireAdmin(request);
-    sendJson(response, 200, getMarketRepository().getAdminCatalog());
+    sendJson(response, 200, await getMarketRepository().getAdminCatalog());
     return true;
   }
 
   if (pathname === '/api/admin/reward-redemptions' && method === 'GET') {
     requireAdmin(request);
-    sendJson(response, 200, getMarketRepository().getAdminRewardRedemptions());
+    sendJson(response, 200, await getMarketRepository().getAdminRewardRedemptions());
     return true;
   }
 
   if (pathname === '/api/admin/offline-races/events' && method === 'GET') {
     requireAdmin(request);
-    sendJson(response, 200, getRaceRepository().getAdminEvents());
+    sendJson(response, 200, await getRaceRepository().getAdminEvents());
     return true;
   }
 
@@ -94,6 +94,6 @@ function routeAdminCatalogReadRequest({
 
 export async function routeAdminReadRequest(routeContext) {
   return (await routeAdminStatusReadRequest(routeContext))
-    || routeAdminRepositoryReadRequest(routeContext)
-    || routeAdminCatalogReadRequest(routeContext);
+    || (await routeAdminRepositoryReadRequest(routeContext))
+    || (await routeAdminCatalogReadRequest(routeContext));
 }

@@ -19,23 +19,23 @@ export function createJsonAdminRepository({
   createError,
 }) {
   return {
-    getOverview() {
-      return buildAdminOverview(loadStore());
+    async getOverview() {
+      return buildAdminOverview(await loadStore());
     },
 
-    getUsers() {
-      return buildAdminUsers(loadStore());
+    async getUsers() {
+      return buildAdminUsers(await loadStore());
     },
 
-    getNotices() {
-      return buildAdminNotices(loadStore());
+    async getNotices() {
+      return buildAdminNotices(await loadStore());
     },
 
-    getActiveNotices() {
-      return buildActiveNotices(loadStore());
+    async getActiveNotices() {
+      return buildActiveNotices(await loadStore());
     },
 
-    createNotice({ input }) {
+    async createNotice({ input }) {
       return mutateStore((store) => {
         ensureNoticeStore(store);
         const timestamp = nowIso();
@@ -56,7 +56,7 @@ export function createJsonAdminRepository({
       });
     },
 
-    updateNotice({ noticeId, input }) {
+    async updateNotice({ noticeId, input }) {
       return mutateStore((store) => {
         ensureNoticeStore(store);
         const notice = store.notices.find((entry) => entry.id === noticeId);
@@ -77,7 +77,7 @@ export function createJsonAdminRepository({
       });
     },
 
-    deleteNotice({ noticeId }) {
+    async deleteNotice({ noticeId }) {
       return mutateStore((store) => {
         ensureNoticeStore(store);
         const nextItems = store.notices.filter((entry) => entry.id !== noticeId);
@@ -91,7 +91,7 @@ export function createJsonAdminRepository({
       });
     },
 
-    deleteUser({ userId }) {
+    async deleteUser({ userId }) {
       return mutateStore((store) => {
         ensureOfflineRaceStore(store);
         const deletedUser = findUserById(store, userId);

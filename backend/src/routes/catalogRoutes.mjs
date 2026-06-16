@@ -20,7 +20,7 @@ export async function routeCatalogRequest({
   }
 
   if (pathname === '/api/notices/active' && method === 'GET') {
-    sendJson(response, 200, getAdminRepository().getActiveNotices());
+    sendJson(response, 200, await getAdminRepository().getActiveNotices());
     return true;
   }
 

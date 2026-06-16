@@ -210,26 +210,26 @@ export function createJsonLeagueRepository({
   createError,
 }) {
   return {
-    getDistrictPersonal({ token }) {
-      const store = loadStore();
+    async getDistrictPersonal({ token }) {
+      const store = await loadStore();
       const user = requireUserByToken(store, token);
       return buildDistrictPersonal(store, user, getUserMetrics);
     },
 
-    getRegions({ token, nodeId }) {
-      const store = loadStore();
+    async getRegions({ token, nodeId }) {
+      const store = await loadStore();
       requireUserByToken(store, token);
       return buildRegionLeague(store, nodeId, createError);
     },
 
-    getUniversities({ token }) {
-      const store = loadStore();
+    async getUniversities({ token }) {
+      const store = await loadStore();
       requireUserByToken(store, token);
       return buildUniversityLeague(store, getUserMetrics);
     },
 
-    getTodayRankings({ token, category }) {
-      const store = loadStore();
+    async getTodayRankings({ token, category }) {
+      const store = await loadStore();
       const user = requireUserByToken(store, token);
       const safeCategory = requireTodayRankingCategory(category, createError);
       const users = store.users ?? [];

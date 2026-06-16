@@ -126,9 +126,9 @@ async function runTest(name, testFn) {
   }
 }
 
-await runTest('creates manual runs and marks manual source connected', () => {
+await runTest('creates manual runs and marks manual source connected', async () => {
   const { repository, storeHarness } = createRepositoryHarness();
-  const result = repository.createManualRun({
+  const result = await repository.createManualRun({
     token: 'token-1',
     input: {
       date: '2026-04-23',
@@ -147,7 +147,7 @@ await runTest('creates manual runs and marks manual source connected', () => {
   assert.equal(manualSource.lastSyncedAt, '2026-04-23 21:30');
 });
 
-await runTest('queues integration imports and syncs only new runs', () => {
+await runTest('queues integration imports and syncs only new runs', async () => {
   const { repository, storeHarness } = createRepositoryHarness();
   const normalizedRuns = [
     {
@@ -168,7 +168,7 @@ await runTest('queues integration imports and syncs only new runs', () => {
     },
   ];
 
-  const queueResult = repository.queueIntegrationImports({
+  const queueResult = await repository.queueIntegrationImports({
     token: 'token-1',
     sourceType: 'health_connect',
     normalizedRuns,
@@ -178,7 +178,7 @@ await runTest('queues integration imports and syncs only new runs', () => {
   assert.equal(queueResult.pendingRuns, 2);
   assert.equal(storeHarness.getStore().integrationImports.length, 2);
 
-  const syncResult = repository.syncIntegrationImports({
+  const syncResult = await repository.syncIntegrationImports({
     token: 'token-1',
   });
 
@@ -189,12 +189,12 @@ await runTest('queues integration imports and syncs only new runs', () => {
   assert.equal(storeHarness.getStore().integrationImports.length, 0);
   assert.equal(storeHarness.getStore().runs.length, 2);
 
-  repository.queueIntegrationImports({
+  await repository.queueIntegrationImports({
     token: 'token-1',
     sourceType: 'health_connect',
     normalizedRuns,
   });
-  const duplicateSyncResult = repository.syncIntegrationImports({
+  const duplicateSyncResult = await repository.syncIntegrationImports({
     token: 'token-1',
   });
 
@@ -205,7 +205,7 @@ await runTest('queues integration imports and syncs only new runs', () => {
   assert.equal(storeHarness.getStore().runs.length, 2);
 });
 
-await runTest('deduplicates overlapping runs imported from different sources', () => {
+await runTest('deduplicates overlapping runs imported from different sources', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     users: [
       {
@@ -243,7 +243,7 @@ await runTest('deduplicates overlapping runs imported from different sources', (
     integrationImports: [],
   });
 
-  repository.queueIntegrationImports({
+  await repository.queueIntegrationImports({
     token: 'token-1',
     sourceType: 'health_connect',
     normalizedRuns: [
@@ -261,7 +261,7 @@ await runTest('deduplicates overlapping runs imported from different sources', (
     ],
   });
 
-  repository.queueIntegrationImports({
+  await repository.queueIntegrationImports({
     token: 'token-1',
     sourceType: 'nrc',
     normalizedRuns: [
@@ -279,7 +279,7 @@ await runTest('deduplicates overlapping runs imported from different sources', (
     ],
   });
 
-  const syncResult = repository.syncIntegrationImports({
+  const syncResult = await repository.syncIntegrationImports({
     token: 'token-1',
   });
 
@@ -290,7 +290,7 @@ await runTest('deduplicates overlapping runs imported from different sources', (
   assert.equal(storeHarness.getStore().integrationImports.length, 0);
 });
 
-await runTest('returns latest and specific run details', () => {
+await runTest('returns latest and specific run details', async () => {
   const { repository } = createRepositoryHarness({
     runs: [
       {
@@ -314,6 +314,6 @@ await runTest('returns latest and specific run details', () => {
     ],
   });
 
-  assert.equal(repository.getRun({ token: 'token-1' }).run.id, 'run-new');
-  assert.equal(repository.getRun({ token: 'token-1', runId: 'run-old' }).run.id, 'run-old');
+  assert.equal((await repository.getRun({ token: 'token-1' })).run.id, 'run-new');
+  assert.equal((await repository.getRun({ token: 'token-1', runId: 'run-old' })).run.id, 'run-old');
 });

@@ -336,8 +336,8 @@ export function createJsonRunsRepository({
   formatTimestamp = createDisplayTimestamp,
 }) {
   return {
-    getRun({ token, runId }) {
-      const store = loadStore();
+    async getRun({ token, runId }) {
+      const store = await loadStore();
       const user = requireUserByToken(store, token);
       const run = getRunForUser(store, user.id, runId, createError);
       const metrics = getUserMetrics(store, user.id);
@@ -345,7 +345,7 @@ export function createJsonRunsRepository({
       return buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics);
     },
 
-    createManualRun({ token, input }) {
+    async createManualRun({ token, input }) {
       return mutateStore((store) => {
         const user = requireUserByToken(store, token);
         const run = {
@@ -374,7 +374,7 @@ export function createJsonRunsRepository({
       });
     },
 
-    createTrackedRun({ token, input }) {
+    async createTrackedRun({ token, input }) {
       return mutateStore((store) => {
         const user = requireUserByToken(store, token);
         const run = {
@@ -402,7 +402,7 @@ export function createJsonRunsRepository({
       });
     },
 
-    queueIntegrationImports({ token, sourceType, normalizedRuns }) {
+    async queueIntegrationImports({ token, sourceType, normalizedRuns }) {
       return mutateStore((store) => {
         const user = requireUserByToken(store, token);
         const source = requireSyncableConnectedSource(user, sourceType, createError);
@@ -427,7 +427,7 @@ export function createJsonRunsRepository({
       });
     },
 
-    syncIntegrationImports({ token }) {
+    async syncIntegrationImports({ token }) {
       return mutateStore((store) => {
         const user = requireUserByToken(store, token);
         return importPendingRunsForUser(store, user, {
