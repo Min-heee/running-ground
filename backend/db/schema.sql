@@ -4,6 +4,16 @@
 
 begin;
 
+-- Whole-store (Path B) durable backing row. The legacy JSON whole-store model is
+-- persisted here as a single canonical jsonb document (id = 1). The Postgres store
+-- adapter serializes concurrent writers via SELECT ... FOR UPDATE on this row, giving
+-- the JSON store real ACID durability without a per-entity schema migration.
+create table if not exists app_store (
+  id integer primary key,
+  data jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists app_metadata (
   key text primary key,
   value jsonb not null default '{}'::jsonb,
