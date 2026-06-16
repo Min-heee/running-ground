@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "RunningGround",
+    "name": "러닝그라운드",
     "slug": "runnigapp",
     "scheme": "runningground",
     "icon": "./assets/branding/icon.png",
@@ -23,14 +23,14 @@
           "audio"
         ]
       },
-      "buildNumber": "32"
+      "buildNumber": "33"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/adaptive-icon.png",
         "backgroundColor": "#11161B"
       },
-      "versionCode": 29,
+      "versionCode": 30,
       "package": "com.minheee.runnigapp"
     },
     "web": {
