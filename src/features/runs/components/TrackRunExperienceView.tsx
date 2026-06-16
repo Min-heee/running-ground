@@ -65,7 +65,8 @@ export function TrackRunExperienceView({
     <View style={styles.root}>
       <Screen>
         <AuthHeader
-          title="실시간 러닝"
+          title={isTabMode ? '러닝' : '실시간 러닝'}
+          brandPlacement={isTabMode ? 'below-title' : 'above-title'}
           showBack={!isTabMode}
           backHref={backHref}
         />

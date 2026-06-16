@@ -6,12 +6,14 @@ import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 export function PageHeader({
   title,
   subtitle,
+  brandLabel = 'RunningGround',
   showBack = false,
   backLabel = '뒤로가기',
   backHref,
 }: {
   title: string;
   subtitle?: string;
+  brandLabel?: string | null;
   showBack?: boolean;
   backLabel?: string;
   backHref?: Href;
@@ -44,6 +46,7 @@ export function PageHeader({
         </Pressable>
       ) : null}
       <Text style={styles.title}>{title}</Text>
+      {brandLabel ? <Text style={styles.brand}>{brandLabel}</Text> : null}
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>
   );
@@ -74,6 +77,12 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.pageTitle,
     fontWeight: fontWeights.extraBold,
     color: colors.textHeading,
+  },
+  brand: {
+    color: colors.brand,
+    fontSize: fontSizes.md,
+    fontWeight: fontWeights.extraBold,
+    letterSpacing: 0.4,
   },
   subtitle: {
     color: colors.textMuted,
