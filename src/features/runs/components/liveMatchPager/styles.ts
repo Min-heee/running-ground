@@ -18,10 +18,14 @@ export const liveMatchPagerStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.white,
+    overflow: 'hidden',
   },
   tabSelected: {
     borderColor: colors.brand,
     backgroundColor: colors.brandWash,
+  },
+  tabPressed: {
+    opacity: 0.7,
   },
   tabText: {
     color: colors.textSecondary,

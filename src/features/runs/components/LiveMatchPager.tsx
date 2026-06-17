@@ -1,10 +1,11 @@
-import { memo, useCallback, useMemo } from 'react';
+import { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import type { RefObject } from 'react';
 import { NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, Text, View } from 'react-native';
 import {
   EMPTY_PAGE_RENDERER,
   LiveMatchPagerPageSlot,
 } from '@/features/runs/components/liveMatchPager/LiveMatchPagerPageSlot';
+import { resolveSyncedActiveTab } from '@/features/runs/components/liveMatchPager/liveMatchPagerActiveTab';
 import {
   shouldRenderLiveMatchScrollPage,
 } from '@/features/runs/components/liveMatchPager/liveMatchPagerContentAdapter';
@@ -39,6 +40,18 @@ export const LiveMatchPager = memo(function LiveMatchPager({
   useDevRenderCounter(`LiveMatchPager:page-${page}`);
   const pageStyle = useMemo(() => [styles.page, { width: pageWidth }], [pageWidth]);
 
+  // LOCAL active-tab index drives the tab highlight so it never waits on the
+  // JS-thread-saturated parent re-render (Android defers the heavy page-content
+  // commit via startTransition). A tab press sets this SYNCHRONOUSLY for instant
+  // highlight movement; the effect below snaps it back onto the real `page` prop
+  // for any EXTERNAL change (auto-switch to 결과 보기 on finish, an iOS swipe, or
+  // a remount) so the local value can never permanently strand out of sync.
+  const [activeTab, setActiveTab] = useState(page);
+
+  useEffect(() => {
+    setActiveTab((current) => resolveSyncedActiveTab(current, page));
+  }, [page]);
+
   const shouldRenderScrollPage = useCallback((index: number) => {
     return shouldRenderLiveMatchScrollPage({ index, page, hasResultPage });
   }, [hasResultPage, page]);
@@ -51,11 +64,23 @@ export const LiveMatchPager = memo(function LiveMatchPager({
   }, [onPageChange, pageWidth]);
 
   const handleTabPress = useCallback((index: number) => {
+    // Move the highlight instantly off local state, before the (possibly
+    // deferred) page-content commit lands, so the tap always reads as responsive.
+    setActiveTab(index);
+
     if (Platform.OS === 'android') {
-      onPageChange(index);
+      // Defer only the heavy target-page mount/re-render so it no longer competes
+      // with the tap on the JS thread. The highlight already moved synchronously
+      // above; only the page CONTENT swap lands in the transition.
+      startTransition(() => {
+        onPageChange(index);
+      });
       return;
     }
 
+    // iOS keeps every page mounted in the paging ScrollView, so the scroll and
+    // the page-index commit both stay synchronous — deferring the commit here
+    // would let the ScrollView scroll to a still-conditionally-empty page.
     scrollRef.current?.scrollTo({ x: pageWidth * index, animated: true });
     onPageChange(index);
   }, [onPageChange, pageWidth, scrollRef]);
@@ -64,7 +89,7 @@ export const LiveMatchPager = memo(function LiveMatchPager({
     return (
       <View style={styles.shell}>
         <LiveMatchPagerTabs
-          page={page}
+          activeTab={activeTab}
           hasResultPage={hasResultPage}
           onTabPress={handleTabPress}
         />
@@ -87,7 +112,7 @@ export const LiveMatchPager = memo(function LiveMatchPager({
   return (
     <View style={styles.shell}>
       <LiveMatchPagerTabs
-        page={page}
+        activeTab={activeTab}
         hasResultPage={hasResultPage}
         onTabPress={handleTabPress}
       />

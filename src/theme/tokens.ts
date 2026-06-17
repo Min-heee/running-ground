@@ -128,6 +128,7 @@ export const colors = {
   warningText: '#B54708',
   adminSurface: '#F3F5F9',
   translucentWhite18: 'rgba(255,255,255,0.18)',
+  pagerTabRipple: 'rgba(109,94,247,0.12)',
   matchResultWinBorder: 'rgba(129, 140, 248, 0.42)',
   matchResultWinBg: 'rgba(67, 56, 202, 0.24)',
   matchResultLoseBorder: 'rgba(244, 114, 182, 0.28)',

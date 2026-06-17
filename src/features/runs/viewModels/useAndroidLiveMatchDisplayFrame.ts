@@ -110,15 +110,14 @@ export function useAndroidLiveMatchDisplayFrames(
       };
     }
 
+    // The 1Hz elapsed display is owned entirely by the leaf metric store
+    // (liveTrackingMetricStore + LiveMatchStatsSectionFromStore), so the frame no
+    // longer needs to re-inject the live 1Hz elapsed here. Keeping `frame` pinned
+    // to the throttled `displayFrame` stops the elapsed value from re-running the
+    // arena/raceboard view models + useLiveMatchProgress every second; both the
+    // arena frame and the derived pace labels read the same throttled cadence.
     return {
-      frame: {
-        ...displayFrame,
-        // The slot ticker owns elapsed time, so keep it visibly 1Hz while
-        // Android still throttles noisier GPS-derived fields.
-        elapsedSeconds: frame.elapsedSeconds,
-      },
-      // Heavy arena/raceboard view models should not churn on the 1Hz elapsed
-      // override; use the throttled metric frame for derived pace labels.
+      frame: displayFrame,
       metricFrame: displayFrame,
     };
   }, [displayFrame, frame, shouldThrottle]);
