@@ -203,6 +203,7 @@ export function useMatchEntryEffects({
             hydrateOptimisticMatchRoom({
               room: cleanupPayload.room,
               serverNow: cleanupPayload.serverNow,
+              timingSource: cleanupPayload,
               source: 'room invite token existing room',
             });
             router.push('/match-room' as Href);
@@ -241,6 +242,7 @@ export function useMatchEntryEffects({
         hydrateOptimisticMatchRoom({
           room: payload.room,
           serverNow: payload.serverNow,
+          timingSource: payload,
           source: 'room invite token effect',
         });
         router.push('/match-room' as Href);

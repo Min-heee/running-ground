@@ -129,7 +129,7 @@ export function useTrackRunRuntimeRoomInviteActions({
       syncServerClock(payload.serverNow, payload);
       clearMatchRoomDeletedTombstone(payload.room.roomId, 'invite card accept');
       commitMatchRoom(payload.room);
-      navigateToMatchRoomWithTrace('invite card accept', payload.room, payload.serverNow);
+      navigateToMatchRoomWithTrace('invite card accept', payload.room, payload.serverNow, payload);
     } catch (roomError) {
       endJoinApiTrace?.({ success: false });
       const blocker = getRunningMatchBlockerFromError(roomError);

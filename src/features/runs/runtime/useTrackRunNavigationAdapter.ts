@@ -59,6 +59,7 @@ export function useTrackRunNavigationAdapter({
     focusRoomLinkedMatch,
     focusRunningMatch,
     markLiveMatchMounted,
+    resetLiveMatchNavigationOwner,
   } = useRunningMatchFocus({
     ...focusInput,
     isLiveMatchViewConfirmed,
@@ -86,6 +87,7 @@ export function useTrackRunNavigationAdapter({
     source: string,
     room?: RunningMatchRoom | null,
     serverNow?: string,
+    timingSource?: unknown,
   ) => {
     const roomId = room?.roomId ?? null;
     if (isMatchRoomDeleted(roomId)) {
@@ -105,6 +107,7 @@ export function useTrackRunNavigationAdapter({
       hydrateOptimisticMatchRoom({
         room,
         serverNow,
+        timingSource,
         source,
       });
     }
@@ -122,5 +125,6 @@ export function useTrackRunNavigationAdapter({
     focusRunningMatch,
     handleLiveMatchMounted,
     navigateToMatchRoomWithTrace,
+    resetLiveMatchNavigationOwner,
   };
 }

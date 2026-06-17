@@ -81,6 +81,16 @@ export function isLiveMatchMarkedMounted({
   return Boolean(key && mountedMatches.has(key));
 }
 
+export function unmarkLiveMatchMounted({
+  matchId,
+  mode,
+}: Pick<LiveMatchMountedRegistryInput, 'matchId' | 'mode'>) {
+  const key = buildLiveMatchMountedRegistryKey({ matchId, mode });
+  if (key) {
+    mountedMatches.delete(key);
+  }
+}
+
 export function resetLiveMatchMountedRegistryForTest() {
   mountedMatches.clear();
   mountedMatchListeners.clear();

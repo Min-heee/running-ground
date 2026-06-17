@@ -5,6 +5,7 @@ import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
 import type { TrackRunIdleViewModel } from '@/features/runs/viewModels/useTrackRunIdleViewModel';
+import type { PreservedLiveMatchShell } from '@/features/runs/lifecycle/liveMatchShellPreservation';
 import type {
   RequestDuelMatchResponse,
   RequestGroupMatchResponse,
@@ -46,6 +47,12 @@ export type UseTrackRunRuntimeMatchActionsInput = {
   isDuelTestFlow: boolean;
   isGroupTestFlow: boolean;
   latestMatchRoomServerNowMsRef: MutableRefObject<number>;
+  liveMatchMountedRef: MutableRefObject<{ matchId: string | null; mode: 'duel' | 'group'; mountedAtMs: number } | null>;
+  liveMatchViewConfirmationRef: MutableRefObject<{
+    matchId: string | null;
+    mode: 'duel' | 'group' | null;
+    showLiveArena: boolean;
+  }>;
   livePagerRef: MutableRefObject<ScrollView | null>;
   loadDuelMatchStatus: LoadMatchStatus;
   loadGroupMatchStatus: LoadMatchStatus;
@@ -53,7 +60,9 @@ export type UseTrackRunRuntimeMatchActionsInput = {
   loadUpcomingMatches: () => Promise<UpcomingRunningMatchItem[]>;
   matchProgressHeartbeatRef: MutableRefObject<number>;
   matchRoom: RunningMatchRoom | null;
+  preservedLiveMatchShellRef: MutableRefObject<PreservedLiveMatchShell | null>;
   preStartWarmupMatchIdRef: MutableRefObject<string | null>;
+  resetLiveMatchNavigationOwner: () => void;
   roomLinkedMatchContextRef: MutableRefObject<PartyRunLinkedMatchContext | null>;
   selectedDuelSlot?: { startsAt: string } | null;
   selectedDuelSlotStartAt: string;

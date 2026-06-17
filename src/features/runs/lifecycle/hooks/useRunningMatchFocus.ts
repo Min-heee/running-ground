@@ -6,6 +6,7 @@ export function useRunningMatchFocus(input: UseRunningMatchFocusInput) {
   const {
     focusRunningMatch,
     markLiveMatchMounted,
+    resetLiveMatchNavigationOwner,
   } = useLiveMatchNavigationOwner(input);
   const {
     focusRoomLinkedMatch,
@@ -17,5 +18,6 @@ export function useRunningMatchFocus(input: UseRunningMatchFocusInput) {
     focusRoomLinkedMatch,
     focusRunningMatch,
     markLiveMatchMounted,
+    resetLiveMatchNavigationOwner,
   };
 }

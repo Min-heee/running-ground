@@ -66,6 +66,16 @@ export function useLiveMatchNavigationOwner({
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
   }, [livePagerRef, setForceOpenActiveMatch, setLiveArenaPage]);
 
+  // Drop the navigation-owner latches so a back-to-back match isn't blocked by a
+  // stale active/completed/failed record from the previous match (B2). Pairs with
+  // unmarkLiveMatchMounted on every match-end path; clears any suppressed 'failed'
+  // record so re-armed polling can navigate match #2 cleanly.
+  const resetLiveMatchNavigationOwner = useCallback(() => {
+    activeNavigationRef.current = null;
+    completedNavigationRef.current = null;
+    navigationRecordRef.current = null;
+  }, []);
+
   const markLiveMatchMounted = useLiveMatchMountSignalBridge({
     activeNavigationRef,
     completedNavigationRef,
@@ -239,5 +249,6 @@ export function useLiveMatchNavigationOwner({
   return {
     focusRunningMatch,
     markLiveMatchMounted,
+    resetLiveMatchNavigationOwner,
   };
 }

@@ -30,6 +30,7 @@ type NavigateToMatchRoomWithTrace = (
   source: string,
   room?: RunningMatchRoom | null,
   serverNow?: string,
+  timingSource?: unknown,
 ) => void;
 
 type UseTrackRunRoomCreateActionInput = {
@@ -244,7 +245,7 @@ export function useTrackRunRoomCreateAction({
       clearMatchRoomDeletedTombstone(payload.room?.roomId, 'room create');
       commitMatchRoom(payload.room);
       if (payload.room) {
-        navigateToMatchRoomWithTrace('room create', payload.room, payload.serverNow);
+        navigateToMatchRoomWithTrace('room create', payload.room, payload.serverNow, payload);
       }
     } catch (roomError) {
       const message = getApiErrorMessage(roomError, '방을 만들지 못했어.');

@@ -17,6 +17,13 @@ import type {
 
 export type MatchLifecycleStage = 'waiting' | 'arming' | 'countdown' | 'active' | 'finished';
 
+// A live/active arena exists at these stages (same arming/countdown/active triplet the
+// runtime model already uses to gate live polling). Used as a "has confirmed arena"
+// signal so safeguards never treat a genuinely-live match as stuck.
+export function isLiveLifecycleStage(stage: MatchLifecycleStage | null | undefined) {
+  return stage === 'arming' || stage === 'countdown' || stage === 'active';
+}
+
 export type MatchLifecycleMode = Extract<RunMatchMode, 'duel' | 'group'>;
 
 export type MatchLifecycleTrackingStatus = 'idle' | 'starting' | 'running' | 'paused' | 'saving';

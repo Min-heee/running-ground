@@ -26,6 +26,7 @@ type NavigateToMatchRoomWithTrace = (
   source: string,
   room?: RunningMatchRoom | null,
   serverNow?: string,
+  timingSource?: unknown,
 ) => void;
 
 type UseTrackRunRoomJoinActionInput = {
@@ -203,7 +204,7 @@ export function useTrackRunRoomJoinAction({
           clearMatchRoomDeletedTombstone(payload.room.roomId, 'room join');
           commitMatchRoom(payload.room);
           setRoomInviteTokenInput('');
-          navigateToMatchRoomWithTrace('invite code join', payload.room, payload.serverNow);
+          navigateToMatchRoomWithTrace('invite code join', payload.room, payload.serverNow, payload);
           rgPerfMark('room join hydration end', {
             inviteTokenLength: inviteToken.length,
             roomId: payload.room.roomId,

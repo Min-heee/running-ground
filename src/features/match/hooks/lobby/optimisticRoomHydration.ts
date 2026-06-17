@@ -8,6 +8,11 @@ export type OptimisticMatchRoomHydration = {
   createdAtMs: number;
   room: RunningMatchRoom;
   serverNow?: string;
+  // The timed API response object (carries clientRequestStartedAtMs /
+  // clientResponseReceivedAtMs as dynamically-attached enumerable props). Typed as
+  // `unknown` to match resolveServerClockOffsetSample, which reads those two fields
+  // defensively rather than depending on the static response shape.
+  timingSource?: unknown;
   source: string;
 };
 
@@ -16,12 +21,14 @@ let pendingOptimisticRoomHydration: OptimisticMatchRoomHydration | null = null;
 export function hydrateOptimisticMatchRoom({
   room,
   serverNow,
+  timingSource,
   source,
   nowMs = Date.now(),
 }: {
   nowMs?: number;
   room: RunningMatchRoom | null | undefined;
   serverNow?: string;
+  timingSource?: unknown;
   source: string;
 }) {
   if (!room?.roomId) {
@@ -41,6 +48,7 @@ export function hydrateOptimisticMatchRoom({
     createdAtMs: nowMs,
     room,
     serverNow,
+    timingSource,
     source,
   };
 

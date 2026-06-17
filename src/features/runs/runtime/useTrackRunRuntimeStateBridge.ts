@@ -26,6 +26,7 @@ type NavigateToMatchRoomWithTrace = (
   source: string,
   room?: RunningMatchRoom | null,
   serverNow?: string,
+  timingSource?: unknown,
 ) => void;
 
 function isRoomCreateSource(source: string) {
@@ -236,7 +237,7 @@ export function useTrackRunRuntimeStateBridge({
       && payload.room.joined !== false
       && payload.room.inviteToken.toUpperCase() === inviteToken.toUpperCase()
     ) {
-      navigateToMatchRoomWithTrace(`${source} existing room`, payload.room, payload.serverNow);
+      navigateToMatchRoomWithTrace(`${source} existing room`, payload.room, payload.serverNow, payload);
       return false;
     }
 

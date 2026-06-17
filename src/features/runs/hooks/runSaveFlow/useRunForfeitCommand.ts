@@ -6,6 +6,7 @@ import {
   type MatchExitSource,
 } from '@/features/runs/lifecycle/matchExitFlow';
 import { pauseBackgroundRunTracking } from '@/features/runs/tracking/background';
+import { unmarkLiveMatchMounted } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
 import { buildRunDetailRedirect } from '@/features/runs/lifecycle/runSaveNavigation';
 import { getApiErrorMessage, leaveRunningMatch } from '@/services';
 import type { SaveTrackingOptions } from '@/features/runs/hooks/useRunTracking';
@@ -28,6 +29,7 @@ type UseRunForfeitCommandInput = Pick<
   | 'matchProgressHeartbeatRef'
   | 'pendingCounterpartForfeitResultRef'
   | 'pendingForfeitMatchRef'
+  | 'resetLiveMatchNavigationOwner'
   | 'resetMatchRuntimeAfterTrackingCleared'
   | 'roomLinkedMatchContext'
   | 'setDuelMatchNotice'
@@ -63,6 +65,7 @@ export function useRunForfeitCommand({
   matchProgressHeartbeatRef,
   pendingCounterpartForfeitResultRef,
   pendingForfeitMatchRef,
+  resetLiveMatchNavigationOwner,
   resetMatchRuntimeAfterTrackingCleared,
   roomLinkedMatchContext,
   setDuelMatchNotice,
@@ -143,6 +146,15 @@ export function useRunForfeitCommand({
 
     if (didSave && matchId && !options.currentUserForfeited) {
       clearLocalForfeitedMatchState(source, matchId);
+    } else if (didSave && matchId && options.currentUserForfeited) {
+      // Self-forfeit save-success can't run the full clearLocalForfeitedMatchState
+      // (that wipes the duel/group state + result this branch is about to navigate to),
+      // but it must still evict the same mount-registry latch + reset the nav owner that
+      // the leave/forfeit path drops — otherwise a back-to-back match #2 is blocked in the
+      // loading shell (B2b). Scope the eviction to the ended matchId only; it's idempotent
+      // and never revives the match (the save already terminated it).
+      unmarkLiveMatchMounted({ matchId, mode: source });
+      resetLiveMatchNavigationOwner();
     }
 
     if (didSave && savedRunId) {

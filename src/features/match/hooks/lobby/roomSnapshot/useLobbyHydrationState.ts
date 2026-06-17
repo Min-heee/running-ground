@@ -28,7 +28,7 @@ export function useLobbyHydrationState() {
   const [loading, setLoading] = useState(!initialOptimisticRoom);
   const [serverClockOffsetMs, setServerClockOffsetMs] = useState(() => {
     if (optimisticRoomHydration?.serverNow) {
-      applySharedServerClock(optimisticRoomHydration.serverNow);
+      applySharedServerClock(optimisticRoomHydration.serverNow, optimisticRoomHydration.timingSource);
     }
     return getSharedServerClockOffsetMs();
   });

@@ -1,4 +1,5 @@
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
+import { unmarkLiveMatchMounted } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
 import { acknowledgeRunningMatchRoomCountdown } from '@/services';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import type { UseTrackRunRuntimeMatchActionsInput } from '@/features/runs/runtime/trackRunRuntimeMatchActionTypes';
@@ -20,6 +21,8 @@ export function useTrackRunRuntimeMatchMaintenanceActions(input: UseTrackRunRunt
     isDuelTestFlow,
     isGroupTestFlow,
     latestMatchRoomServerNowMsRef,
+    liveMatchMountedRef,
+    liveMatchViewConfirmationRef,
     livePagerRef,
     loadDuelMatchStatus,
     loadGroupMatchStatus,
@@ -27,7 +30,9 @@ export function useTrackRunRuntimeMatchMaintenanceActions(input: UseTrackRunRunt
     loadUpcomingMatches,
     matchProgressHeartbeatRef,
     matchRoom,
+    preservedLiveMatchShellRef,
     preStartWarmupMatchIdRef,
+    resetLiveMatchNavigationOwner,
     roomLinkedMatchContextRef,
     setForceOpenActiveMatch,
     setLastSyncedMatchProgress,
@@ -46,6 +51,27 @@ export function useTrackRunRuntimeMatchMaintenanceActions(input: UseTrackRunRunt
     preStartWarmupMatchIdRef.current = null;
     autoStartedMatchIdRef.current = null;
     roomLinkedMatchContextRef.current = null;
+
+    // Leave/forfeit is the most stale end path: evict only this ended matchId from the
+    // module mount registry, clear the same per-instance shell latches the save path
+    // clears, and drop the navigation-owner records so a back-to-back match #2 isn't
+    // blocked from loading→active (B2b). Eviction is a mounted-latch removal scoped to
+    // the ended matchId — it does NOT revive this match; forfeitedMatchIdsRef still drops
+    // any later payload for it.
+    unmarkLiveMatchMounted({ matchId, mode: source });
+    preservedLiveMatchShellRef.current = null;
+    if (liveMatchMountedRef.current?.matchId === matchId) {
+      liveMatchMountedRef.current = null;
+    }
+    if (liveMatchViewConfirmationRef.current.matchId === matchId) {
+      liveMatchViewConfirmationRef.current = {
+        matchId: null,
+        mode: null,
+        showLiveArena: false,
+      };
+    }
+    resetLiveMatchNavigationOwner();
+
     setForceOpenActiveMatch(false);
     setLiveArenaPage(0);
     setLastSyncedMatchProgress(null);

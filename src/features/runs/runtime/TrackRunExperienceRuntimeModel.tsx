@@ -110,6 +110,8 @@ import { getCurrentUserProfile } from '@/lib/session';
 import { rgDiagLog, rgPerfMark } from '@/utils/rgPerfTrace';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
 import { useTrackRunNavigationAdapter } from '@/features/runs/runtime/useTrackRunNavigationAdapter';
+import { unmarkLiveMatchMounted } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
+import { isLiveLifecycleStage } from '@/features/runs/lifecycle/matchLifecycleController';
 import { useTrackRunRuntimeTrace } from '@/features/runs/runtime/useTrackRunRuntimeTrace';
 import { useTrackRunLiveShellGateTrace } from '@/features/runs/runtime/useTrackRunLiveShellGateTrace';
 import { useTrackRunRuntimeEffects } from '@/features/runs/runtime/useTrackRunRuntimeEffects';
@@ -424,6 +426,14 @@ export function TrackRunExperienceRuntime({
   const hasMatchResultPageRef = useRef(false);
   const previousHasMatchResultPageRef = useRef<boolean | null>(null);
   const previousMatchLifecycleStageRef = useRef<string | null>(null);
+  // Wedged-loading watchdog (B2c): tracks the current LIVE loading-shell episode and
+  // which one-shot recovery stages have fired for it, so a back-to-back match #2 stuck
+  // in the loading shell self-recovers without a relaunch (closes #198/#200).
+  const wedgedLoadingWatchdogRef = useRef<{ episodeKey: string | null; rearmedAtMs: number | null; dropped: boolean }>({
+    episodeKey: null,
+    rearmedAtMs: null,
+    dropped: false,
+  });
 
   const {
     matchRoom,
@@ -1740,6 +1750,7 @@ export function TrackRunExperienceRuntime({
     focusRunningMatch,
     handleLiveMatchMounted,
     navigateToMatchRoomWithTrace,
+    resetLiveMatchNavigationOwner,
   } = useTrackRunNavigationAdapter({
     livePagerRef,
     activeDuelSlotStartAt,
@@ -1899,14 +1910,34 @@ export function TrackRunExperienceRuntime({
   };
 
   const resetMatchRuntimeAfterTrackingCleared = useStableCallback((reason: 'discard-tracking' | 'save-reset') => {
+    const endedDuelMatchId = duelMatchStatusRef.current?.matchId ?? null;
+    const endedGroupMatchId = groupMatchStatusRef.current?.matchId ?? null;
+    const endedLiveMatch = liveMatchMountedRef.current;
+
     rgPerfMark('post-run match runtime reset', {
-      duelMatchId: duelMatchStatusRef.current?.matchId ?? null,
-      groupMatchId: groupMatchStatusRef.current?.matchId ?? null,
-      liveMatchId: liveMatchMountedRef.current?.matchId ?? null,
+      duelMatchId: endedDuelMatchId,
+      groupMatchId: endedGroupMatchId,
+      liveMatchId: endedLiveMatch?.matchId ?? null,
       preservedKey: preservedLiveMatchShellRef.current?.key ?? null,
       reason,
       roomId: matchRoom?.roomId ?? visibleMatchRoom?.roomId ?? null,
     });
+
+    // Evict the just-ended match(es) from the module-level mount registry and drop
+    // the navigation-owner latches so a back-to-back match #2 is not blocked from
+    // its loading→active transition (B2b). Scope eviction to the ended matchIds only
+    // — this is a mounted-latch removal, not a server-ended-match revival, so the
+    // forfeitedMatchIdsRef guard still drops any payload for a left/forfeited match.
+    if (endedDuelMatchId) {
+      unmarkLiveMatchMounted({ matchId: endedDuelMatchId, mode: 'duel' });
+    }
+    if (endedGroupMatchId) {
+      unmarkLiveMatchMounted({ matchId: endedGroupMatchId, mode: 'group' });
+    }
+    if (endedLiveMatch?.matchId) {
+      unmarkLiveMatchMounted({ matchId: endedLiveMatch.matchId, mode: endedLiveMatch.mode });
+    }
+    resetLiveMatchNavigationOwner();
 
     clearLiveMatchRouteHydration();
     commitMatchRoom(null);
@@ -1963,6 +1994,8 @@ export function TrackRunExperienceRuntime({
     isDuelTestFlow,
     isGroupTestFlow,
     latestMatchRoomServerNowMsRef,
+    liveMatchMountedRef,
+    liveMatchViewConfirmationRef,
     livePagerRef,
     loadDuelMatchStatus,
     loadGroupMatchStatus,
@@ -1970,7 +2003,9 @@ export function TrackRunExperienceRuntime({
     loadUpcomingMatches,
     matchProgressHeartbeatRef,
     matchRoom,
+    preservedLiveMatchShellRef,
     preStartWarmupMatchIdRef,
+    resetLiveMatchNavigationOwner,
     roomLinkedMatchContextRef,
     selectedDuelSlot,
     selectedDuelSlotStartAt,
@@ -2374,6 +2409,7 @@ export function TrackRunExperienceRuntime({
     syncLiveSharing,
     loadUpcomingMatches,
     clearLocalForfeitedMatchState,
+    resetLiveMatchNavigationOwner,
     markMatchLocallyForfeited,
   });
 
@@ -2691,6 +2727,149 @@ export function TrackRunExperienceRuntime({
     requestedShell: trackRunShellKind,
     routeShellHint,
   });
+
+  // Wedged-loading watchdog (B2c): a back-to-back match #2 can get pinned in the LIVE
+  // loading shell when the previous match left a stale mount latch / navigation-owner
+  // record (the resets in B2a/B2b are the primary fix; this is the belt-and-suspenders
+  // self-recovery so a wedge can never require an app relaunch — closes #198/#200).
+  //
+  // It fires ONLY while shellKind==='live' AND isResolvingFocusedMatch is true AND the
+  // focused match has NO confirmed mount, continuously for ~9s. A legitimately-mounting
+  // arena (a normal slow match-2 entry that mounts at ~5-7s) sets the mount confirmation
+  // and trips the early-return below, so it never fires. The watchdog never resurrects a
+  // forfeited match: it only clears a mount latch + navigation record and re-arms polling
+  // for the focused matchId; loadDuel/GroupMatchStatus still drop payloads for any matchId
+  // in forfeitedMatchIdsRef.
+  const watchdogFocusMatchId = liveShellGateDecision.routeMatchId;
+  const watchdogFocusMode = hydratedFocusMatchMode === 'duel' || hydratedFocusMatchMode === 'group'
+    ? hydratedFocusMatchMode
+    : null;
+  const watchdogShellIsLiveLoading = liveShellGateDecision.shellKind === 'live' && isResolvingFocusedMatch;
+  // Route the (non-memoized) status loaders through a ref so the watchdog effect does not
+  // list them as deps — otherwise it would re-create (and re-arm the 9s timer) every render
+  // and break the one-shot-per-episode guarantee.
+  const watchdogLoadersRef = useRef({ loadDuelMatchStatus, loadGroupMatchStatus });
+  watchdogLoadersRef.current = { loadDuelMatchStatus, loadGroupMatchStatus };
+  // Mirror the lifecycle stage through a ref so the in-timer stillWedged() can re-check it
+  // without listing matchLifecycleController.stage as an effect dep (which would re-arm the
+  // 9s timer every render). A confirmed-live/active stage means an arena exists via a signal
+  // path other than the mount latches, so it must count as "has mount" (never wedged).
+  const watchdogLifecycleStageRef = useRef(matchLifecycleController.stage);
+  watchdogLifecycleStageRef.current = matchLifecycleController.stage;
+  const watchdogFocusStageIsLive = isLiveLifecycleStage(matchLifecycleController.stage);
+  const watchdogFocusHasMount = Boolean(
+    watchdogFocusMatchId
+    && (
+      watchdogFocusStageIsLive
+      || (liveMatchMountedRef.current?.matchId === watchdogFocusMatchId)
+      || (
+        liveMatchViewConfirmationRef.current.showLiveArena
+        && liveMatchViewConfirmationRef.current.matchId === watchdogFocusMatchId
+      )
+    ),
+  );
+  useEffect(() => {
+    const watchdog = wedgedLoadingWatchdogRef.current;
+
+    // The arena is legitimately mounted/resolved (or there is no live-loading episode):
+    // close any open episode so the one-shot stages re-arm for a future wedge, and bail.
+    if (!watchdogShellIsLiveLoading || !watchdogFocusMatchId || !watchdogFocusMode || watchdogFocusHasMount) {
+      watchdog.episodeKey = null;
+      watchdog.rearmedAtMs = null;
+      watchdog.dropped = false;
+      return undefined;
+    }
+
+    const episodeKey = `${watchdogFocusMode}:${watchdogFocusMatchId}`;
+    if (watchdog.episodeKey !== episodeKey) {
+      watchdog.episodeKey = episodeKey;
+      watchdog.rearmedAtMs = null;
+      watchdog.dropped = false;
+    }
+
+    const WEDGED_LOADING_WATCHDOG_WINDOW_MS = 9000;
+    let cancelled = false;
+    let cleanupSecondStage: (() => void) | null = null;
+
+    const stillWedged = () =>
+      Boolean(
+        watchdog.episodeKey === episodeKey
+        && !isLiveLifecycleStage(watchdogLifecycleStageRef.current)
+        && !(
+          (liveMatchMountedRef.current?.matchId === watchdogFocusMatchId)
+          || (
+            liveMatchViewConfirmationRef.current.showLiveArena
+            && liveMatchViewConfirmationRef.current.matchId === watchdogFocusMatchId
+          )
+        ),
+      );
+
+    const reloadFocusedStatus = () => {
+      // The status loaders await network → setDuel/GroupMatchStatus; skip after unmount so
+      // the watchdog re-arm never triggers a setState-on-unmounted-component warning/leak.
+      if (!isMountedRef.current) {
+        return;
+      }
+      const loaders = watchdogLoadersRef.current;
+      if (watchdogFocusMode === 'duel') {
+        void loaders.loadDuelMatchStatus(activeDuelSlotStartAt, { matchId: watchdogFocusMatchId, forceAccept: true }).catch(() => {});
+      } else {
+        void loaders.loadGroupMatchStatus(activeGroupSlotStartAt, { matchId: watchdogFocusMatchId, forceAccept: true }).catch(() => {});
+      }
+    };
+
+    const firstStageTimeout = setTimeout(() => {
+      if (cancelled || !stillWedged()) {
+        return;
+      }
+      // Stage 1 (one-shot per episode): clear the stale mount latch + navigation-owner
+      // record (drops any 'failed'/suppressed record), then re-arm polling so status can
+      // reach live and the arena gate can open.
+      unmarkLiveMatchMounted({ matchId: watchdogFocusMatchId, mode: watchdogFocusMode });
+      resetLiveMatchNavigationOwner();
+      rgPerfMark('wedged live loading watchdog re-armed', {
+        matchId: watchdogFocusMatchId,
+        mode: watchdogFocusMode,
+      });
+      watchdog.rearmedAtMs = Date.now();
+      reloadFocusedStatus();
+
+      const secondStageTimeout = setTimeout(() => {
+        if (cancelled || watchdog.dropped || !stillWedged()) {
+          return;
+        }
+        // Stage 2 (final, one-shot): still unresolved after a second window — drop the
+        // LIVE loading shell back to the resolved/ready state locally (no server reset,
+        // no finished-match revival) so the user is never pinned on the loading shell.
+        watchdog.dropped = true;
+        rgPerfMark('wedged live loading watchdog dropped shell', {
+          matchId: watchdogFocusMatchId,
+          mode: watchdogFocusMode,
+        });
+        setIsResolvingFocusedMatch(false);
+        setForceOpenActiveMatch(false);
+      }, WEDGED_LOADING_WATCHDOG_WINDOW_MS);
+
+      // Chain the second timeout into cleanup via the outer cancelled flag + ref.
+      cleanupSecondStage = () => clearTimeout(secondStageTimeout);
+    }, WEDGED_LOADING_WATCHDOG_WINDOW_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(firstStageTimeout);
+      cleanupSecondStage?.();
+    };
+  }, [
+    activeDuelSlotStartAt,
+    activeGroupSlotStartAt,
+    resetLiveMatchNavigationOwner,
+    setForceOpenActiveMatch,
+    setIsResolvingFocusedMatch,
+    watchdogFocusHasMount,
+    watchdogFocusMatchId,
+    watchdogFocusMode,
+    watchdogShellIsLiveLoading,
+  ]);
   const trackRunViewProps = useTrackRunRuntimePropsComposer({
     backHref,
     centeredCountdownEntry: shouldShowCenteredMatchCountdown && visibleCountdownEntry

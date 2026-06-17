@@ -19,22 +19,28 @@ test('server clock parser ignores invalid timestamps', () => {
 });
 
 test('server clock offset stabilization ignores small local jitter and steps large jumps', () => {
-  // Below the 250ms apply threshold → treated as no offset (NTP jitter range).
-  assert.equal(resolveStableServerClockOffset(0, 200), 0);
-  // A real ~300ms device bias now APPLIES (it was zeroed under the old 500ms
+  // Below the 100ms apply threshold → treated as no offset (residual jitter range).
+  assert.equal(resolveStableServerClockOffset(0, 80), 0);
+  // A real ~200ms device bias now APPLIES (it was zeroed under the old 250ms
   // dead zone), so two opposite-bias phones converge toward true server time
   // instead of both suppressing to 0 and locking the countdown ~1s apart.
+  assert.equal(resolveStableServerClockOffset(0, 200), 200);
   assert.equal(resolveStableServerClockOffset(0, 300), 300);
   // Large offsets converge in bounded steps so an in-flight countdown never jumps
   // forward by multiple seconds from a late server snapshot.
   assert.equal(resolveStableServerClockOffset(0, 1200), 400);
   assert.equal(resolveStableServerClockOffset(400, 1200), 800);
-  assert.equal(resolveStableServerClockOffset(800, 1200), 800);
+  // A 400ms delta exceeds the 150ms jitter band so it steps (was held under 450).
+  assert.equal(resolveStableServerClockOffset(800, 1200), 1200);
   assert.equal(resolveStableServerClockOffset(0, 4000), 400);
-  // Once near a stable offset, small deltas within jitter tolerance are kept.
-  assert.equal(resolveStableServerClockOffset(4000, 4300), 4000);
+  // A ~300ms residual delta now exceeds the tightened 150ms jitter band, so the
+  // crawl keeps converging toward the true offset instead of freezing ~300ms off.
+  assert.equal(resolveStableServerClockOffset(4000, 4300), 4300);
   assert.equal(resolveStableServerClockOffset(4000, 8000), 4400);
-  assert.equal(resolveStableServerClockOffset(400, 200), 0);
+  // A genuine 200ms offset still applies even while shrinking toward it.
+  assert.equal(resolveStableServerClockOffset(400, 200), 200);
+  // Deltas inside the 150ms jitter band are still held so the digit doesn't twitch.
+  assert.equal(resolveStableServerClockOffset(4000, 4100), 4000);
 });
 
 test('server clock offset sample compensates for normal round-trip latency', () => {
@@ -103,6 +109,29 @@ test('shared server clock applies RTT-corrected offsets from API timing metadata
   resetSharedServerClockForTest();
 });
 
+test('optimistic-room seed sample is RTT-corrected when API timing is threaded through', () => {
+  // The optimistic-room seed now forwards the API timing fields (A1). A single
+  // seed sample must therefore land the RTT/2-compensated offset immediately
+  // instead of the uncompensated one-way fallback that biased each device.
+  resetSharedServerClockForTest();
+  const originalDateNow = Date.now;
+  // Response landed at +200ms; the untimed fallback would read offset = serverNow - now.
+  Date.now = () => Date.parse('2026-05-12T00:00:00.200Z');
+
+  try {
+    // serverNow=+300, request=+0, response=+200 → rtt=200, RTT-corrected offset
+    // = 300 + 100 - 200 = 200. The untimed one-way fallback would have read only
+    // 300 - 200 = 100, so the timed seed path is what produces 200 here.
+    assert.equal(applySharedServerClock('2026-05-12T00:00:00.300Z', {
+      clientRequestStartedAtMs: Date.parse('2026-05-12T00:00:00.000Z'),
+      clientResponseReceivedAtMs: Date.parse('2026-05-12T00:00:00.200Z'),
+    }), 200);
+  } finally {
+    Date.now = originalDateNow;
+    resetSharedServerClockForTest();
+  }
+});
+
 test('shared server clock keeps converging with a provisional offset when RTT timing is abnormal', () => {
   resetSharedServerClockForTest();
   const originalDateNow = Date.now;
@@ -160,7 +189,8 @@ test('shared server clock notifies subscribers only when the shared offset chang
   });
 
   try {
-    applySharedServerClock('2026-05-12T00:00:00.200Z');
+    // First sample is within the 100ms apply threshold → suppressed, no notify.
+    applySharedServerClock('2026-05-12T00:00:00.080Z');
     applySharedServerClock('2026-05-12T00:00:04.000Z');
     applySharedServerClock('2026-05-12T00:00:04.300Z');
     applySharedServerClock('2026-05-12T00:00:08.000Z');
@@ -210,13 +240,14 @@ test('shared server clock ignores a high-RTT outlier in favor of the lowest-RTT 
 
   try {
     // Six clean low-RTT samples agree the device is ~2000ms behind the server and crawl
-    // the clock up toward that value (the jitter tolerance parks it at 1600).
+    // the clock up to that value (the tightened 150ms jitter band lets the final 400ms
+    // step land instead of freezing ~400ms short).
     for (let i = 0; i < 6; i += 1) {
       const sample = timedSample(base + i * 500, 100, 2000);
       applySharedServerClock(sample.serverNow, sample.timing);
     }
     const offsetBeforeOutlier = getSharedServerClockOffsetMs();
-    assert.equal(offsetBeforeOutlier, 1600);
+    assert.equal(offsetBeforeOutlier, 2000);
 
     // A newer but high-latency sample claims a wildly different +5000ms offset. Its RTT
     // dwarfs the clean samples', so the best-sample filter keeps trusting them and the
