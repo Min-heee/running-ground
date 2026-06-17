@@ -41,6 +41,7 @@ import { nextId } from './idHelpers.mjs';
 import { findUserById } from './userStoreHelpers.mjs';
 import { validateMatchSlotStartAt } from './matchSlotValidation.mjs';
 import {
+  buildDuelVerdict,
   buildMatchRunnerProfile,
   buildOfficialSessionStandings,
   buildParticipantLiveSnapshot,
@@ -336,6 +337,14 @@ export function buildRunningMatchStatusResponse(store, currentUser, { mode, dist
 
     if (mode === 'duel') {
       const opponent = buildSessionDuelOpponent(store, session, currentUser.id, now, officialStandings);
+      // The duel verdict is the single source of truth for who won (server-decided
+      // by MEASURED finish elapsed). The self standing surfaces the requesting user's
+      // OWN authoritative finish the same way opponent finish fields are surfaced.
+      const duelVerdict = buildDuelVerdict(session, officialStandings, currentUser.id, now);
+      const currentUserStanding = officialStandings.find((standing) => standing.userId === currentUser.id) ?? null;
+      const myFinishElapsedSeconds = Number.isInteger(currentUserStanding?.finishElapsedSeconds)
+        ? currentUserStanding.finishElapsedSeconds
+        : null;
       return {
         success: true,
         serverNow: now.toISOString(),
@@ -364,6 +373,7 @@ export function buildRunningMatchStatusResponse(store, currentUser, { mode, dist
         userAccepted: true,
         readyToStart,
         ...(currentUserLiveSnapshot?.liveStatus ? { currentUserLiveStatus: currentUserLiveSnapshot.liveStatus } : {}),
+        ...(myFinishElapsedSeconds !== null ? { currentUserFinishElapsedSeconds: myFinishElapsedSeconds } : {}),
         canCancel: state === 'matched' ? canCancelReservation : false,
         cancelableUntilAt,
         ...(countdownRemainingSeconds !== undefined ? {
@@ -372,6 +382,7 @@ export function buildRunningMatchStatusResponse(store, currentUser, { mode, dist
         } : {}),
         ...(opponent ? { opponent } : {}),
         ...(officialComparison ? { officialComparison } : {}),
+        ...(duelVerdict ? { duelVerdict } : {}),
       };
     }
 

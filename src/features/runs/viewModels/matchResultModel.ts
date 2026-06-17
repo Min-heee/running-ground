@@ -19,7 +19,11 @@ import {
   resolveGroupTitle,
 } from '@/features/runs/viewModels/matchResultRowsPolicy';
 import { formatDuration } from '@/features/runs/tracking';
-import type { DuelMatchOpponent, RunningMatchLiveStatus } from '@/lib/api/types';
+import type {
+  DuelMatchOpponent,
+  DuelVerdict,
+  RunningMatchLiveStatus,
+} from '@/lib/api/types';
 import type {
   DuelMatchFinishModel,
   DuelMatchResultRowModel,
@@ -35,6 +39,16 @@ export type {
   GroupMatchResultRowModel,
 } from '@/features/runs/types/matchResult';
 
+// The duel verdict is the server's single source of truth, but only once it has actually
+// RESOLVED. A `duelVerdict` whose `resolved` is false (outcome === 'pending') is still
+// pending — the client must keep its local placeholders and never flip to a final 승/패.
+// Likewise an ABSENT verdict (older backend that has not redeployed) falls through to the
+// pure-local heuristics below, so deploy skew degrades gracefully instead of crashing or
+// pinning the card on "pending" forever.
+function isResolvedDuelVerdict(verdict?: DuelVerdict | null): verdict is DuelVerdict {
+  return Boolean(verdict && verdict.resolved && verdict.outcome !== 'pending');
+}
+
 export function buildDuelMatchFinishModel({
   opponent,
   currentDistanceKm,
@@ -42,6 +56,8 @@ export function buildDuelMatchFinishModel({
   currentElapsedSeconds,
   currentPaceLabel,
   currentUserLiveStatus,
+  duelVerdict,
+  currentUserFinishElapsedSeconds,
 }: {
   opponent: DuelMatchOpponent | null;
   currentDistanceKm: number;
@@ -49,6 +65,8 @@ export function buildDuelMatchFinishModel({
   currentElapsedSeconds: number;
   currentPaceLabel: string;
   currentUserLiveStatus?: RunningMatchLiveStatus | null;
+  duelVerdict?: DuelVerdict | null;
+  currentUserFinishElapsedSeconds?: number | null;
 }): DuelMatchFinishModel | null {
   if (!opponent) {
     return null;
@@ -64,16 +82,52 @@ export function buildDuelMatchFinishModel({
     ? resolveParticipantDisplayDistanceKm(opponent, targetDistanceKm)
     : 0;
   const gapKm = Number(Math.abs(currentDistanceKm - opponentDistanceKm).toFixed(2));
+
+  // C2: when the server has RESOLVED the duel, its verdict — not the local distance/finish
+  // -order heuristic — decides win/lose/draw. A forfeit still wins/loses by the forfeit
+  // rules (the verdict's outcome already reflects forfeits), but we keep the local forfeit
+  // copy/labels below so the "기권" UX is unchanged.
+  const verdictResolved = isResolvedDuelVerdict(duelVerdict);
+  const verdictResultTone: MatchResultTone | null = verdictResolved
+    ? (duelVerdict.outcome as MatchResultTone)
+    : null;
+
+  // Self finish time/pace come from the server when it has frozen them (so both phones show
+  // the SAME official numbers). Fall back to the local frozen values only when the server
+  // has not provided them yet (deploy skew / pre-finish).
+  const hasServerSelfFinish = verdictResolved
+    && typeof duelVerdict.myFinishElapsedSeconds === 'number'
+    && Number.isFinite(duelVerdict.myFinishElapsedSeconds);
+  const resolvedCurrentElapsedSeconds = hasServerSelfFinish
+    ? duelVerdict.myFinishElapsedSeconds!
+    : typeof currentUserFinishElapsedSeconds === 'number' && Number.isFinite(currentUserFinishElapsedSeconds)
+      ? currentUserFinishElapsedSeconds
+      : currentElapsedSeconds;
+  const resolvedCurrentPaceLabel = hasServerSelfFinish && isMeasuredPaceLabel(duelVerdict.myPaceLabel)
+    ? duelVerdict.myPaceLabel!
+    : currentPaceLabel;
+
+  // Opponent finish time/pace from the verdict when resolved + present.
+  const hasServerOpponentFinish = verdictResolved
+    && typeof duelVerdict.opponentFinishElapsedSeconds === 'number'
+    && Number.isFinite(duelVerdict.opponentFinishElapsedSeconds);
+  const serverOpponentPaceLabel = verdictResolved && isMeasuredPaceLabel(duelVerdict.opponentPaceLabel)
+    ? duelVerdict.opponentPaceLabel!
+    : null;
+
   const bothOfficiallyFinished = currentFinished && opponentFinished && !currentForfeited && !opponentForfeited;
   const officialResultTone: MatchResultTone | null = bothOfficiallyFinished
     && typeof opponent.officialRank === 'number'
     && Number.isFinite(opponent.officialRank)
     ? (opponent.officialRank === 1 ? 'lose' : 'win')
     : null;
-  const isDraw = officialResultTone
-    ? false
-    : !currentForfeited && !opponentForfeited && !opponentInProgress && gapKm < 0.03;
-  const resultTone = officialResultTone ?? resolveDuelResultTone({
+  // Draw: server outcome wins when resolved; otherwise keep the local near-equal heuristic.
+  const isDraw = verdictResolved
+    ? duelVerdict.outcome === 'draw'
+    : officialResultTone
+      ? false
+      : !currentForfeited && !opponentForfeited && !opponentInProgress && gapKm < 0.03;
+  const resultTone = verdictResultTone ?? officialResultTone ?? resolveDuelResultTone({
     currentForfeited,
     opponentForfeited,
     opponentInProgress,
@@ -104,13 +158,21 @@ export function buildDuelMatchFinishModel({
     isDraw,
     resultTone,
   });
+  // Opponent finish elapsed: prefer the server's frozen value once resolved (keeps both
+  // phones identical), then their live elapsed, then the forfeit-zero / current fallback.
+  // The forfeit branch is untouched so "기권"/"00:00" still render exactly as before.
   const opponentElapsedSeconds = opponentForfeited
     ? (opponent.liveElapsedSeconds ?? 0)
-    : (opponent.liveElapsedSeconds ?? currentElapsedSeconds);
-  const opponentHasLiveElapsed = typeof opponent.liveElapsedSeconds === 'number'
-    && Number.isFinite(opponent.liveElapsedSeconds)
-    && opponent.liveElapsedSeconds > 0;
-  const resolvedOpponentPace = buildParticipantAveragePaceLabel(opponent, true);
+    : hasServerOpponentFinish
+      ? duelVerdict.opponentFinishElapsedSeconds!
+      : (opponent.liveElapsedSeconds ?? currentElapsedSeconds);
+  const opponentHasLiveElapsed = hasServerOpponentFinish
+    || (typeof opponent.liveElapsedSeconds === 'number'
+      && Number.isFinite(opponent.liveElapsedSeconds)
+      && opponent.liveElapsedSeconds > 0);
+  const resolvedOpponentPace = !opponentForfeited && serverOpponentPaceLabel
+    ? serverOpponentPaceLabel
+    : buildParticipantAveragePaceLabel(opponent, true);
   const opponentPace = opponentForfeited && !isMeasuredPaceLabel(resolvedOpponentPace)
     ? '기권'
     : resolvedOpponentPace;
@@ -118,8 +180,11 @@ export function buildDuelMatchFinishModel({
     id: 'me',
     resultLabel: resolveDuelCurrentRowLabel({ isDraw, resultTone, currentForfeited }),
     name: '나',
-    paceLabel: currentPaceLabel,
-    durationLabel: formatDuration(currentElapsedSeconds),
+    // C4: the 나 column pace + duration come from the SAME finish elapsed/distance the
+    // server froze (when resolved), so the result card 나 pace and the bottom metric pace
+    // never diverge (the 6:17-vs-6:14 bug).
+    paceLabel: resolvedCurrentPaceLabel,
+    durationLabel: formatDuration(resolvedCurrentElapsedSeconds),
     distanceKm: currentDistanceKm,
     isCurrentUser: true,
   };
@@ -167,11 +232,12 @@ export function buildDuelMatchFinishModel({
       resultTone,
       gapKm,
       comparedDistanceKm: opponentDistanceKm,
-      myPaceLabel: currentPaceLabel,
+      // C4: persist the SAME pace the 나 column shows (server-frozen when resolved).
+      myPaceLabel: resolvedCurrentPaceLabel,
       // Durations must be whole seconds — the backend validates them as positive
       // integers, so a raw float elapsed (esp. the opponent's synced liveElapsed)
       // would 400 the whole run save and strand the runner on the live screen.
-      myDurationSeconds: Math.round(currentElapsedSeconds),
+      myDurationSeconds: Math.round(resolvedCurrentElapsedSeconds),
       // Persist the opponent's pace/time only when it is genuinely theirs: a measured
       // pace, and an elapsed that actually came from their live sync. The previous code
       // stored a '--:--/km' placeholder, and — when their progress had not synced —

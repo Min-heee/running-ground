@@ -832,6 +832,10 @@ export function TrackRunExperienceRuntime({
     duelDistanceKm,
     groupDistanceKm,
     elapsedSeconds,
+    // C2: feed the server-authoritative duel verdict + the user's own frozen finish elapsed
+    // into the result model. Both are absent on older backends → graceful local fallback.
+    duelVerdict: duelMatchStatus?.duelVerdict ?? null,
+    currentUserFinishElapsedSeconds: duelMatchStatus?.currentUserFinishElapsedSeconds ?? null,
   });
   const effectiveDuelOpponentArenaPace = useMemo(
     () => resolveDuelOpponentArenaPace({

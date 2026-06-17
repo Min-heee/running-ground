@@ -30,7 +30,9 @@ import {
   findMatchSessionById,
   findMatchSessionForUser,
   hydrateMatchSessionState,
+  isParticipantSealedDnf,
   pruneMatchSessions,
+  sealDuelFallbackResolutionIfElapsed,
 } from './runningMatchSessionStoreHelpers.mjs';
 import { buildRunningMatchStatusResponse } from './matchResponseBuilders.mjs';
 import { pruneMatchRooms } from './matchRoomStoreHelpers.mjs';
@@ -321,7 +323,29 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
   // progress uploads and makes finish irreversible against stale heartbeats.
   const reachedGoalDistance = normalizedProgress.distanceKm >= session.distanceKm - MATCH_GOAL_DISTANCE_TOLERANCE_KM;
   const alreadyFinished = currentParticipant.liveStatus === 'finished' || Boolean(currentParticipant.finishedAt);
-  const effectiveStatus = alreadyFinished || status === 'finished' || reachedGoalDistance ? 'finished' : status;
+  const requestedFinished = alreadyFinished || status === 'finished' || reachedGoalDistance;
+
+  // F4: seal the §B4 fallback FIRST, from raw participant state, BEFORE we apply any
+  // finished state. This way a late finish push from the missing runner is blocked even
+  // when it is the very first request to arrive after the window elapsed (no poll sealed
+  // it yet). A runner the server already SEALED as a DNF must NEVER be marked finished —
+  // not finishedAt, not liveStatus='finished', not finishElapsedSeconds — otherwise their
+  // late finish would re-enter the standings (via the legacy liveElapsed fallback) and
+  // flip the sealed verdict AND the once-only LP application. Their finish is simply
+  // ignored; they stay a non-finisher (their reported running/background/paused/etc.).
+  if (requestedFinished) {
+    sealDuelFallbackResolutionIfElapsed(session, new Date());
+  }
+  const sealedAsDnf = isParticipantSealedDnf(session, currentParticipant.userId);
+  // A sealed DNF runner is never marked finished; downgrade any finish signal to a live,
+  // non-terminal status ('running') so they read as a non-finisher. Otherwise honor the
+  // finish transition as before. A non-finish status push from a sealed runner passes
+  // through unchanged.
+  const effectiveStatus = sealedAsDnf
+    ? (requestedFinished || status === 'finished' ? 'running' : status)
+    : requestedFinished
+      ? 'finished'
+      : status;
 
   currentParticipant.liveDistanceKm = normalizedProgress.distanceKm;
   currentParticipant.liveElapsedSeconds = normalizedProgress.elapsedSeconds;
@@ -334,6 +358,32 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
 
   if (effectiveStatus === 'finished') {
     currentParticipant.finishedAt = currentParticipant.finishedAt ?? currentParticipant.liveUpdatedAt;
+    // Freeze the MEASURED finish time once, first-write-wins. The rank key is the
+    // runner's OWN slot-anchored elapsed at the finishing sample (the client-reported
+    // elapsedSeconds), NOT the server receive time (finishedAt), which is jitter-prone.
+    // finishedAt stays for audit but no longer decides the duel.
+    //
+    // F1: freeze ONLY a POSITIVE measured value. A client-reported elapsedSeconds of 0
+    // (or any non-positive/invalid value) must never be frozen as the official finish —
+    // otherwise a runner could "win" with a 0-second finish. If no positive value is
+    // available yet, leave finishElapsedSeconds null; the standings legacy-fallback still
+    // ranks a finished runner via liveElapsedSeconds.
+    if (currentParticipant.finishElapsedSeconds === null || currentParticipant.finishElapsedSeconds === undefined) {
+      const measured = Number.isInteger(elapsedSeconds) && elapsedSeconds > 0
+        ? elapsedSeconds
+        : normalizedProgress.elapsedSeconds > 0
+          ? normalizedProgress.elapsedSeconds
+          : null;
+      if (Number.isInteger(measured) && measured > 0) {
+        currentParticipant.finishElapsedSeconds = measured;
+        // F2: the displayed self-time (liveElapsedSeconds, the value the runner sees and
+        // the value buildOfficialSessionStandings reads when no frozen finish exists) must
+        // equal the authoritative rank key, so the shown time and the ranked time can never
+        // diverge on the finishing push. The already-finished short-circuit in
+        // normalizeRunningMatchProgress keeps BOTH frozen on every subsequent push.
+        currentParticipant.liveElapsedSeconds = currentParticipant.finishElapsedSeconds;
+      }
+    }
   }
 
   if (effectiveStatus === 'running') {

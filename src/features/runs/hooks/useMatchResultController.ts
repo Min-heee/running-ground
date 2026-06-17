@@ -14,6 +14,7 @@ import {
 } from '@/features/runs/utils/matchScheduling';
 import type {
   DuelMatchOpponent,
+  DuelVerdict,
   RunningMatchLiveStatus,
 } from '@/lib/api/types';
 
@@ -30,6 +31,10 @@ type UseMatchResultControllerInput = {
   duelDistanceKm: number;
   groupDistanceKm: number;
   elapsedSeconds: number;
+  // C2: server-authoritative duel verdict + the user's own frozen finish elapsed. Both are
+  // optional/absent on older backends — the model degrades to today's local behavior then.
+  duelVerdict?: DuelVerdict | null;
+  currentUserFinishElapsedSeconds?: number | null;
 };
 
 type FrozenDuelResultMetrics = {
@@ -48,6 +53,44 @@ export function resolveEstimatedMatchLpDelta({
   return isPartyRun ? 0 : getEstimatedMatchLpDelta(trackedMatchResult ?? undefined);
 }
 
+// F4 (client latch): a RESOLVED duel verdict is terminal. Once latched it must survive a
+// later poll that, near the §B4 fallback boundary, carries an unresolved or differing
+// verdict — the displayed result can never revert to pending or flip the winner. The latch
+// is keyed to the opponent identity: a brand-new match (different opponent, including the
+// transition from no-opponent) drops the latch so a fresh duel starts clean. Pure so it can
+// be unit-tested without rendering the hook; the hook threads it through refs.
+export function resolveLatchedDuelVerdict({
+  matchMode,
+  latchedVerdict,
+  latchedOpponentId,
+  currentOpponentId,
+  incomingVerdict,
+}: {
+  matchMode: RunMatchMode;
+  latchedVerdict: DuelVerdict | null;
+  latchedOpponentId: string | null;
+  currentOpponentId: string | null;
+  incomingVerdict?: DuelVerdict | null;
+}): { latchedVerdict: DuelVerdict | null; effectiveVerdict: DuelVerdict | null | undefined } {
+  // Reset the latch whenever the opponent identity changes (new/cleared match).
+  let nextLatched = latchedOpponentId !== currentOpponentId ? null : latchedVerdict;
+
+  if (
+    matchMode === 'duel'
+    && !nextLatched
+    && incomingVerdict
+    && incomingVerdict.resolved
+    && incomingVerdict.outcome !== 'pending'
+  ) {
+    nextLatched = incomingVerdict;
+  }
+
+  return {
+    latchedVerdict: nextLatched,
+    effectiveVerdict: matchMode === 'duel' ? (nextLatched ?? incomingVerdict) : incomingVerdict,
+  };
+}
+
 export function useMatchResultController({
   matchMode,
   isPartyRun = false,
@@ -61,9 +104,29 @@ export function useMatchResultController({
   duelDistanceKm,
   groupDistanceKm,
   elapsedSeconds,
+  duelVerdict,
+  currentUserFinishElapsedSeconds,
 }: UseMatchResultControllerInput) {
   const duelFrozenRef = useRef<FrozenDuelResultMetrics | null>(null);
   const isCurrentUserDuelFinished = currentUserDuelLiveStatus === 'finished';
+
+  // F4 (client latch): once the server duel verdict has RESOLVED, latch it as terminal so
+  // a later poll near the §B4 fallback boundary can't revert/flip the displayed result.
+  // The server seals the verdict too (F4 server seal); this is belt-and-suspenders for
+  // transient client-side response skew. Decision logic lives in the pure, unit-tested
+  // resolveLatchedDuelVerdict; the refs only persist the latch across renders.
+  const latchedDuelVerdictRef = useRef<DuelVerdict | null>(null);
+  const latchedOpponentIdRef = useRef<string | null>(null);
+  const currentOpponentId = effectiveDuelOpponent?.id ?? null;
+  const { latchedVerdict: nextLatchedVerdict, effectiveVerdict: effectiveDuelVerdict } = resolveLatchedDuelVerdict({
+    matchMode,
+    latchedVerdict: latchedDuelVerdictRef.current,
+    latchedOpponentId: latchedOpponentIdRef.current,
+    currentOpponentId,
+    incomingVerdict: duelVerdict,
+  });
+  latchedDuelVerdictRef.current = nextLatchedVerdict;
+  latchedOpponentIdRef.current = currentOpponentId;
 
   useEffect(() => {
     if (matchMode !== 'duel' || !isCurrentUserDuelFinished) {
@@ -105,16 +168,23 @@ export function useMatchResultController({
         opponent: effectiveDuelOpponent,
         currentDistanceKm: effectiveDistanceKm,
         targetDistanceKm: duelDistanceKm,
+        // The local frozen self time/pace is only a PLACEHOLDER while the server verdict is
+        // pending; once resolved the model swaps in the server's frozen finish + pace.
         currentElapsedSeconds: effectiveElapsedSeconds,
         currentPaceLabel: effectivePaceLabel,
         currentUserLiveStatus: currentUserDuelLiveStatus,
+        // F4: the LATCHED verdict — never reverts once resolved.
+        duelVerdict: effectiveDuelVerdict,
+        currentUserFinishElapsedSeconds,
       });
     },
     [
       currentUserArenaPace,
       currentUserDuelLiveStatus,
+      currentUserFinishElapsedSeconds,
       distanceKm,
       duelDistanceKm,
+      effectiveDuelVerdict,
       effectiveDuelOpponent,
       elapsedSeconds,
       isCurrentUserDuelFinished,

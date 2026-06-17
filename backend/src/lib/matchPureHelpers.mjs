@@ -177,6 +177,11 @@ export function buildOfficialStandingFields(standing) {
     officialGapLeaderKm: standing.officialGapLeaderKm,
     officialComparedAt: standing.officialComparedAt,
     officialReady: standing.officialReady,
+    // F3: surface the frozen MEASURED finish elapsed (the duel rank key) onto every
+    // standings projection so the response contract's promise that each standing carries
+    // finishElapsedSeconds is met. Additive/optional — older clients ignore it. The
+    // standing already carries finishElapsedSeconds from buildOfficialSessionStandings.
+    finishElapsedSeconds: standing.finishElapsedSeconds ?? null,
   };
 }
 

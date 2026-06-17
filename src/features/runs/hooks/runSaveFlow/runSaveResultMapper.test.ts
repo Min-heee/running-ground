@@ -178,3 +178,58 @@ test('run save result mapper rejects missing pace calculation', () => {
     totalSteps: 10,
   }), /페이스 계산/);
 });
+
+test('C1 no-0 guard: a 0 tracked myDurationSeconds is not persisted over the real elapsed', () => {
+  const result = buildRunSaveResultSnapshot({
+    displayedSnapshot: snapshot({ elapsedSeconds: 1_800 }),
+    totalSteps: 3_000,
+    trackedMatchResult: {
+      mode: 'duel',
+      title: '1대1 승리',
+      summary: '',
+      badgeLabel: '승리',
+      resultTone: 'win',
+      // A snapshot with no startedAt / warmup branch collapsed this to 0.
+      myDurationSeconds: 0,
+    },
+  });
+
+  // Falls back to the run's real finalElapsedSeconds instead of persisting 00:00.
+  assert.equal(result.createRunInput.matchResult?.myDurationSeconds, 1_800);
+});
+
+test('C4 single pace source: the run bottom pace reuses the duel matchResult myPaceLabel', () => {
+  const result = buildRunSaveResultSnapshot({
+    displayedSnapshot: snapshot({ distanceKm: 5, elapsedSeconds: 1_800 }),
+    totalSteps: 3_000,
+    trackedMatchResult: {
+      mode: 'duel',
+      title: '1대1 승리',
+      summary: '',
+      badgeLabel: '승리',
+      resultTone: 'win',
+      // The server-frozen 나 pace (6:17). The local buildAveragePace would be 6:00.
+      myPaceLabel: '6:17/km',
+      myDurationSeconds: 1_800,
+    },
+  });
+
+  // Bottom metric pace == the matchResult 나 pace (single source, no 6:17-vs-6:00 divergence).
+  assert.equal(result.createRunInput.pace, '6:17/km');
+  assert.equal(result.createRunInput.matchResult?.myPaceLabel, '6:17/km');
+});
+
+test('C4: forfeit 00:00/km pace path is unchanged by the single-pace-source rule', () => {
+  const result = buildRunSaveResultSnapshot({
+    allowStationaryForfeitSave: true,
+    displayedSnapshot: snapshot({ distanceKm: 0, elapsedSeconds: 90 }),
+    totalSteps: 0,
+    trackedMatchResult: buildCurrentUserForfeitMatchResult({
+      currentDistanceKm: 0,
+      mode: 'duel',
+    }),
+  });
+
+  // The forfeit pace stays 00:00/km even though the matchResult has no measured myPaceLabel.
+  assert.equal(result.createRunInput.pace, '00:00/km');
+});

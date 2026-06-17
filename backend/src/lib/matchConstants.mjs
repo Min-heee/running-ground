@@ -29,3 +29,8 @@ export const MATCH_ROOM_INVITE_LINK_BASE = 'runningground://running';
 export const MATCH_GOAL_DISTANCE_TOLERANCE_KM = 0.02;
 export const MATCH_PROGRESS_MAX_SPEED_MPS = 12;
 export const MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND = MATCH_PROGRESS_MAX_SPEED_MPS / 1000;
+// Once one duel runner finishes, the other has a bounded window to land their own
+// finish before the server resolves the duel server-side (missing runner = DNF) so
+// neither client is stranded on a 'pending' verdict forever. Sized to the running
+// stale window so a runner who genuinely stopped reporting is treated as a DNF.
+export const MATCH_DUEL_FINISH_FALLBACK_MS = MATCH_PARTICIPANT_RUNNING_STALE_MS;

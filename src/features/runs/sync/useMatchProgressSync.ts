@@ -31,6 +31,12 @@ import {
   shouldSendMatchProgressHeartbeat,
 } from '@/features/runs/sync/matchProgressSync';
 import { buildMatchProgressRegistryKey } from '@/features/runs/sync/registryKeys';
+import {
+  clearPendingFinish,
+  hydratePendingFinishes,
+  listPendingFinishes,
+  rememberPendingFinish,
+} from '@/features/runs/sync/pendingFinishStore';
 import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 import {
   acquireRgHeartbeatSlot,
@@ -297,12 +303,87 @@ export function useMatchProgressSync({
     roomLinkedMatchContextRef,
   ]);
 
+  // C1: decide whether a successful finish push counts as ACKed (so we can stop re-sending).
+  // The server ACKs by reporting this runner's terminal status. An OLDER backend that does
+  // not expose those fields still froze the finish first-write-wins on a successful push, so
+  // we treat "push succeeded + no signal that the user is still mid-run" as delivered — this
+  // avoids an infinite resend loop against a backend (or the mock) that omits the ack fields.
+  // We keep re-sending ONLY when the response actively contradicts the finish (the user is
+  // reported as still running/background/paused for this match).
+  const isFinishAcknowledged = useCallback((status: RunningMatchStatusResponse | null | undefined, matchId: string) => {
+    if (!status || status.matchId !== matchId) {
+      // Status for a different/cleared match — the push still landed; do not loop forever.
+      return true;
+    }
+    if (status.currentUserLiveStatus === 'finished'
+      || typeof status.currentUserFinishElapsedSeconds === 'number') {
+      return true;
+    }
+    const stillRunning = status.currentUserLiveStatus === 'running'
+      || status.currentUserLiveStatus === 'background'
+      || status.currentUserLiveStatus === 'paused';
+    return !stillRunning;
+  }, []);
+
+  // C1: send (or re-send) the durable finish push for one pending intent. Idempotent — the
+  // server freezes the finish first-write-wins, so re-sends are always safe. Clears the
+  // intent only when the response confirms the finish landed.
+  const sendPendingFinishPush = useCallback(async (intent: {
+    matchId: string;
+    finishElapsedSeconds: number;
+    distanceKm: number;
+    pace: string;
+  }): Promise<boolean> => {
+    const input: UpdateRunningMatchProgressInput = {
+      matchId: intent.matchId,
+      distanceKm: intent.distanceKm,
+      // Never push a 0 elapsed as the finish — the intent store already rejects 0, but guard
+      // again here so a corrupted intent can never freeze 00:00 into the official record.
+      elapsedSeconds: intent.finishElapsedSeconds > 0 ? intent.finishElapsedSeconds : 0,
+      currentPace: intent.pace,
+      status: 'finished',
+    };
+    if (input.elapsedSeconds <= 0) {
+      // A 0-elapsed finish is meaningless and would clobber a real time — drop the intent
+      // rather than push it.
+      clearPendingFinish(intent.matchId);
+      return false;
+    }
+    try {
+      const nextStatus = await pushRunningMatchProgress(input);
+      if (isFinishAcknowledged(nextStatus, intent.matchId)) {
+        clearPendingFinish(intent.matchId);
+        return true;
+      }
+      // The push succeeded but the response still reports this runner mid-run (race against
+      // a not-yet-applied finish) — keep the intent and let the next tick re-send.
+      return true;
+    } catch {
+      // Keep the intent for the next foreground/poll tick.
+      return false;
+    }
+  }, [isFinishAcknowledged, pushRunningMatchProgress]);
+
+  // C1: re-send every outstanding pending-finish intent. Driven from the foreground/poll
+  // tick AND a self-contained interval (below) so delivery survives the match-end teardown,
+  // app backgrounding, and even a cold restart (hydrated intents are re-sent too).
+  const resendPendingFinishes = useCallback(async () => {
+    const intents = listPendingFinishes();
+    if (!intents.length) {
+      return;
+    }
+    // Sequential to avoid hammering the API with all pending pushes at once.
+    for (const intent of intents) {
+      await sendPendingFinishPush(intent);
+    }
+  }, [sendPendingFinishPush]);
+
   // Match-end final status delivery. When a match ends the active target collapses to
   // null, so the regular heartbeat (which gates on getActiveMatchProgressTarget) stops
   // firing. Without a terminal push the OPPONENT keeps seeing this runner frozen at the
-  // last synced position forever. Deliver one explicit FINAL 'finished' progress push for
-  // the just-ended match — outside the active-target gate — so the server marks this
-  // runner done and the opponent's board unfreezes. Best-effort with a single retry.
+  // last synced position forever. C1 makes this DURABLE: persist a pending-finish intent
+  // FIRST, then attempt the push; if it does not land, the resend loop re-delivers it on
+  // every foreground/poll tick (and after a cold restart) until the server ACKs.
   const deliverFinalMatchStatus = useCallback(async (endedTarget: { matchId: string; distanceKm: number }) => {
     const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
     const progress = callbackRef.current.buildDisplayedMatchProgress(snapshot);
@@ -318,30 +399,27 @@ export function useMatchProgressSync({
     if (finalStatus !== 'finished') {
       return;
     }
-    const input: UpdateRunningMatchProgressInput = {
+    // Guard: never persist/push a 0 elapsed finish (no-startedAt / warmup snapshot).
+    if (!(progress.elapsedSeconds > 0)) {
+      return;
+    }
+    rememberPendingFinish({
       matchId: endedTarget.matchId,
+      finishElapsedSeconds: progress.elapsedSeconds,
       distanceKm: progress.distanceKm,
-      elapsedSeconds: progress.elapsedSeconds,
-      currentPace: progress.currentPace,
-      status: 'finished',
-    };
+      pace: progress.currentPace,
+    });
     rgPerfMark('match end final status push', {
       matchId: endedTarget.matchId,
-      status: input.status,
+      status: 'finished',
     });
-
-    try {
-      await pushRunningMatchProgress(input);
-    } catch {
-      // Retry once: this is the last chance to unfreeze the opponent's board, so a single
-      // transient failure (flaky mobile network at match end) should not be the end of it.
-      try {
-        await pushRunningMatchProgress(input);
-      } catch {
-        // Give up after the retry; teardown still proceeds so the dead context is cleared.
-      }
-    }
-  }, [pushRunningMatchProgress]);
+    await sendPendingFinishPush({
+      matchId: endedTarget.matchId,
+      finishElapsedSeconds: progress.elapsedSeconds,
+      distanceKm: progress.distanceKm,
+      pace: progress.currentPace,
+    });
+  }, [sendPendingFinishPush]);
 
   // Ordered match-end teardown. Fires only on the real end transition: a previously
   // active match target collapses to null (finish / forfeit / goal reached). Order:
@@ -466,10 +544,38 @@ export function useMatchProgressSync({
     };
   }, [activeHeartbeatMatchId, heartbeatEnabled, refreshMatchProgressHeartbeat]);
 
+  // C1: durable finish-delivery driver. Rehydrate any pending-finish intent that outlived a
+  // previous app session, then re-send all outstanding intents on a slow interval — this is
+  // the channel that survives the match-end teardown (the active heartbeat above stops once
+  // the match ends) and even a cold restart. Each intent self-clears once the server ACKs.
+  // The single-flight + first-write-wins server semantics make the periodic re-send safe.
+  useEffect(() => {
+    if (!heartbeatEnabled) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    void hydratePendingFinishes().then(() => {
+      if (!cancelled) {
+        void resendPendingFinishes();
+      }
+    });
+
+    const intervalId = setInterval(() => {
+      void resendPendingFinishes();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [heartbeatEnabled, resendPendingFinishes]);
+
   return {
     getActiveMatchProgressTarget,
     pushRunningMatchProgress,
     refreshMatchProgressHeartbeat,
+    resendPendingFinishes,
     syncMatchLifecycleStatus,
   };
 }

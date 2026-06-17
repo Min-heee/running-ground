@@ -39,6 +39,9 @@ export type DuelMatchOpponent = {
   officialGapLeaderKm?: number;
   officialComparedAt?: string;
   officialReady?: boolean;
+  // Frozen MEASURED finish elapsed (the duel rank key) — null for non-finishers/forfeiters.
+  // Additive; do NOT derive winner from finishedAt ordering anymore.
+  finishElapsedSeconds?: number | null;
 };
 
 export type RequestDuelMatchResponse = {
@@ -89,6 +92,26 @@ export type GroupMatchParticipant = {
   officialGapLeaderKm?: number;
   officialComparedAt?: string;
   officialReady?: boolean;
+  // Frozen MEASURED finish elapsed (the rank key) — null for non-finishers/forfeiters.
+  finishElapsedSeconds?: number | null;
+};
+
+export type DuelVerdictOutcome = 'win' | 'lose' | 'draw' | 'pending';
+
+// Server-authoritative duel resolution. Additive: omitted by older backends, in which
+// case the client must fall back to its local distance/finish-order heuristics. When
+// present, it is the single source of truth for win/lose/draw and the official frozen
+// finish times + paces (both derived from the SAME official numbers so the two phones
+// can never disagree). `resolved === false` (outcome === 'pending') means the duel is
+// still pending — render a placeholder, never a fabricated 승/패.
+export type DuelVerdict = {
+  resolved: boolean;
+  winnerUserId: string | null;
+  outcome: DuelVerdictOutcome;
+  myFinishElapsedSeconds: number | null;
+  opponentFinishElapsedSeconds: number | null;
+  myPaceLabel: string | null;
+  opponentPaceLabel: string | null;
 };
 
 export type RunningMatchState = 'idle' | 'waiting' | 'matched' | 'active';
@@ -146,6 +169,13 @@ export type RunningMatchStatusResponse = {
   userAccepted: boolean;
   readyToStart: boolean;
   currentUserLiveStatus?: RunningMatchLiveStatus;
+  // Server-authoritative duel resolution (mode === 'duel' only). Additive: omitted by
+  // older backends — when absent the client falls back to its local heuristics.
+  duelVerdict?: DuelVerdict;
+  // The requesting user's OWN frozen MEASURED finish elapsed (seconds). Omitted until the
+  // user finishes. Self-counterpart to opponent.finishElapsedSeconds; render this as the
+  // official finish time instead of a local stopwatch value.
+  currentUserFinishElapsedSeconds?: number;
   canCancel?: boolean;
   cancelableUntilAt?: string;
   countdownRemainingSeconds?: number;

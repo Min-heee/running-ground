@@ -1,5 +1,6 @@
 import { parsePaceToMinutes } from '../points.mjs';
 import {
+  MATCH_DUEL_FINISH_FALLBACK_MS,
   MATCH_SESSION_ACTIVE_TTL_MS,
   MATCH_SESSION_UNSTARTED_ACTIVE_GRACE_MS,
 } from './matchConstants.mjs';
@@ -157,6 +158,7 @@ export function createMatchSession(store, mode, distanceKm, slotStartAt, partici
       livePace: '--:--/km',
       liveUpdatedAt: null,
       finishedAt: null,
+      finishElapsedSeconds: null,
     })),
   };
   ensureMatchSessions(store).push(session);
@@ -258,6 +260,19 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
       && liveElapsedSeconds > 0
       && !['ready', 'forfeited'].includes(liveStatus);
     const contributesToLiveCheckpoint = hasProgress && ['running', 'background'].includes(liveStatus);
+    // The frozen MEASURED finish elapsed is the duel rank key. For legacy/in-flight
+    // participants that finished before this field existed, fall back to the recorded
+    // elapsed at finish so a finisher is never treated as "not finished" in the sort.
+    const isFinished = liveStatus === 'finished'
+      || (typeof participant.finishedAt === 'string' && Boolean(participant.finishedAt));
+    const storedFinishElapsedSeconds = Number.isInteger(participant.finishElapsedSeconds) && participant.finishElapsedSeconds >= 0
+      ? participant.finishElapsedSeconds
+      : null;
+    const finishElapsedSeconds = storedFinishElapsedSeconds !== null
+      ? storedFinishElapsedSeconds
+      : isFinished
+        ? liveElapsedSeconds
+        : null;
 
     return {
       userId: participant.userId,
@@ -271,6 +286,7 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
         : typeof participant.finishedAt === 'string' && participant.finishedAt
           ? participant.finishedAt
           : null,
+      finishElapsedSeconds,
       forfeitedAt: typeof liveSnapshot.forfeitedAt === 'string' && liveSnapshot.forfeitedAt
         ? liveSnapshot.forfeitedAt
         : typeof participant.forfeitedAt === 'string' && participant.forfeitedAt
@@ -338,18 +354,30 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
         return left.seedRank - right.seedRank;
       }
 
-      // Finish order IS the rank. Finished runners are capped at the goal distance,
-      // so their projected distances tie and the old sort fell through to seedRank —
-      // letting a later finisher outrank someone who finished a minute earlier.
-      const leftFinishedMs = typeof left.finishedAt === 'string' ? Date.parse(left.finishedAt) : NaN;
-      const rightFinishedMs = typeof right.finishedAt === 'string' ? Date.parse(right.finishedAt) : NaN;
-      const leftHasFinish = Number.isFinite(leftFinishedMs);
-      const rightHasFinish = Number.isFinite(rightFinishedMs);
+      // Finish order IS the rank, decided by the MEASURED finish elapsed (each
+      // runner's own slot-anchored stopwatch at the goal), NOT the server receive
+      // time — receive time is network-jitter-dependent and let a later finisher
+      // outrank someone who actually crossed the line a second earlier. A finished
+      // runner carries finishElapsedSeconds; a still-running one carries null.
+      const leftHasFinish = Number.isInteger(left.finishElapsedSeconds);
+      const rightHasFinish = Number.isInteger(right.finishElapsedSeconds);
       if (leftHasFinish !== rightHasFinish) {
         return leftHasFinish ? -1 : 1;
       }
-      if (leftHasFinish && rightHasFinish && leftFinishedMs !== rightFinishedMs) {
-        return leftFinishedMs - rightFinishedMs;
+      if (leftHasFinish && rightHasFinish) {
+        if (left.finishElapsedSeconds !== right.finishElapsedSeconds) {
+          return left.finishElapsedSeconds - right.finishElapsedSeconds;
+        }
+        // Exact dead-heat on measured elapsed: deterministic tie-break so the
+        // result is always defined — earlier server receipt first, then seedRank.
+        const leftFinishedMs = typeof left.finishedAt === 'string' ? Date.parse(left.finishedAt) : NaN;
+        const rightFinishedMs = typeof right.finishedAt === 'string' ? Date.parse(right.finishedAt) : NaN;
+        const leftFinishedValue = Number.isFinite(leftFinishedMs) ? leftFinishedMs : Number.POSITIVE_INFINITY;
+        const rightFinishedValue = Number.isFinite(rightFinishedMs) ? rightFinishedMs : Number.POSITIVE_INFINITY;
+        if (leftFinishedValue !== rightFinishedValue) {
+          return leftFinishedValue - rightFinishedValue;
+        }
+        return left.seedRank - right.seedRank;
       }
 
       if (right.officialDistanceKm !== left.officialDistanceKm) {
@@ -373,6 +401,168 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
         : null,
     };
   });
+}
+
+
+// The authoritative pace for each side is derived from the SAME official numbers
+// (goal distance over the runner's frozen finishElapsedSeconds for a finisher, the
+// official average pace otherwise) so the two paces can never diverge per device.
+function resolveDuelVerdictPaceLabel(standing, goalDistanceKm) {
+  if (!standing) {
+    return null;
+  }
+
+  if (Number.isInteger(standing.finishElapsedSeconds) && standing.finishElapsedSeconds > 0) {
+    return buildProgressAveragePaceLabel(goalDistanceKm, standing.finishElapsedSeconds);
+  }
+
+  return typeof standing.officialAveragePace === 'string' && standing.officialAveragePace.trim()
+    ? standing.officialAveragePace
+    : null;
+}
+
+// F4: a runner the server sealed as the DNF side of a fallback resolution must never
+// be allowed to record a finish afterward (it would otherwise flip the sealed verdict).
+export function isParticipantSealedDnf(session, userId) {
+  return Boolean(session?.duelFallbackResolution && session.duelFallbackResolution.dnfUserId === userId);
+}
+
+// F4: seal the §B4 fallback resolution directly from raw participant state, independent
+// of the per-perspective standings projection. The finish handler calls this BEFORE it
+// freezes a finish so a late finish push from the missing runner — even if it is the very
+// FIRST request to arrive after the window elapsed (no poll has sealed yet) — is correctly
+// blocked. Once sealed it is never recomputed (sticky), so the verdict can never flip.
+export function sealDuelFallbackResolutionIfElapsed(session, now = new Date()) {
+  if (!session || session.mode !== 'duel' || session.duelFallbackResolution) {
+    return session?.duelFallbackResolution ?? null;
+  }
+
+  const participants = Array.isArray(session.participants) ? session.participants : [];
+  if (participants.length !== 2) {
+    return null;
+  }
+
+  const [a, b] = participants;
+  const aFinished = Number.isInteger(a.finishElapsedSeconds) && a.finishElapsedSeconds > 0;
+  const bFinished = Number.isInteger(b.finishElapsedSeconds) && b.finishElapsedSeconds > 0;
+  const anyForfeit = a.liveStatus === 'forfeited' || b.liveStatus === 'forfeited';
+
+  // Only the clear one-finisher / one-missing case is sealed here. Forfeits and both-
+  // finished are already deterministic, so they need no seal.
+  if (anyForfeit || aFinished === bFinished) {
+    return null;
+  }
+
+  const finisher = aFinished ? a : b;
+  const missing = aFinished ? b : a;
+  const finisherFinishMs = Date.parse(typeof finisher.finishedAt === 'string' ? finisher.finishedAt : '');
+  if (!Number.isFinite(finisherFinishMs)) {
+    return null;
+  }
+
+  if (now.getTime() - finisherFinishMs < MATCH_DUEL_FINISH_FALLBACK_MS) {
+    return null;
+  }
+
+  session.duelFallbackResolution = {
+    resolvedAt: now.toISOString(),
+    winnerUserId: finisher.userId,
+    dnfUserId: missing.userId,
+  };
+  return session.duelFallbackResolution;
+}
+
+// Single source of truth for a 1:1 duel result. Derived purely from the official
+// standings (already ranked by MEASURED finishElapsedSeconds) so both phones read
+// the identical verdict. Resolves only when BOTH finishes landed, OR a runner
+// forfeits, OR the §B4 fallback window elapsed after the first finish (missing
+// runner = DNF) — never strands a client on 'pending' forever. Once the §B4 fallback
+// resolves, it is SEALED on the session (F4) so a later finish push can neither
+// reopen nor flip it, and both phones read the identical sealed verdict.
+export function buildDuelVerdict(session, standings, currentUserId, now = new Date()) {
+  if (!session || session.mode !== 'duel' || !Array.isArray(standings) || standings.length !== 2) {
+    return null;
+  }
+
+  const goalDistanceKm = session.distanceKm;
+  const mine = standings.find((standing) => standing.userId === currentUserId) ?? null;
+  const opponent = standings.find((standing) => standing.userId !== currentUserId) ?? null;
+
+  if (!mine || !opponent) {
+    return null;
+  }
+
+  const myFinishElapsedSeconds = Number.isInteger(mine.finishElapsedSeconds) ? mine.finishElapsedSeconds : null;
+  const opponentFinishElapsedSeconds = Number.isInteger(opponent.finishElapsedSeconds)
+    ? opponent.finishElapsedSeconds
+    : null;
+  const myFinished = myFinishElapsedSeconds !== null;
+  const opponentFinished = opponentFinishElapsedSeconds !== null;
+  const myForfeited = mine.liveStatus === 'forfeited';
+  const opponentForfeited = opponent.liveStatus === 'forfeited';
+
+  // §B4 fallback: if exactly one runner has finished, give the other a bounded
+  // window (measured from the earliest finish receipt) to land their own finish.
+  // After it elapses, resolve server-side treating the missing runner as a DNF.
+  const finishReceiptMsList = [mine.finishedAt, opponent.finishedAt]
+    .map((value) => (typeof value === 'string' ? Date.parse(value) : NaN))
+    .filter((value) => Number.isFinite(value));
+  const earliestFinishMs = finishReceiptMsList.length ? Math.min(...finishReceiptMsList) : NaN;
+  const fallbackElapsed = Number.isFinite(earliestFinishMs)
+    && now.getTime() - earliestFinishMs >= MATCH_DUEL_FINISH_FALLBACK_MS;
+
+  const anyForfeit = myForfeited || opponentForfeited;
+  const bothFinished = myFinished && opponentFinished;
+
+  // F4: seal the fallback resolution the FIRST time the window elapses with a missing
+  // finish (sealing from the raw, authoritative participant state). Thereafter the
+  // sealed result is read straight back, identical for both perspectives.
+  const sealed = sealDuelFallbackResolutionIfElapsed(session, now);
+
+  if (sealed) {
+    const iWon = sealed.winnerUserId === currentUserId;
+    return {
+      resolved: true,
+      winnerUserId: sealed.winnerUserId,
+      outcome: iWon ? 'win' : 'lose',
+      // The DNF side carries no official finish elapsed — keep it null on both phones.
+      myFinishElapsedSeconds: sealed.dnfUserId === currentUserId ? null : myFinishElapsedSeconds,
+      opponentFinishElapsedSeconds: sealed.dnfUserId === currentUserId ? opponentFinishElapsedSeconds : null,
+      myPaceLabel: sealed.dnfUserId === currentUserId ? null : resolveDuelVerdictPaceLabel(mine, goalDistanceKm),
+      opponentPaceLabel: sealed.dnfUserId === currentUserId ? resolveDuelVerdictPaceLabel(opponent, goalDistanceKm) : null,
+    };
+  }
+
+  const oneFinished = myFinished || opponentFinished;
+  const resolved = bothFinished || anyForfeit || (oneFinished && fallbackElapsed);
+
+  let outcome = 'pending';
+  let winnerUserId = null;
+
+  if (resolved) {
+    // officialRank already encodes measured-elapsed order, forfeit-below ordering,
+    // and the deterministic dead-heat tie-break — read the winner straight from it.
+    const exactDeadHeat = bothFinished
+      && myFinishElapsedSeconds === opponentFinishElapsedSeconds;
+
+    if (exactDeadHeat) {
+      outcome = 'draw';
+      winnerUserId = null;
+    } else {
+      winnerUserId = mine.officialRank === 1 ? mine.userId : opponent.userId;
+      outcome = winnerUserId === currentUserId ? 'win' : 'lose';
+    }
+  }
+
+  return {
+    resolved,
+    winnerUserId,
+    outcome,
+    myFinishElapsedSeconds,
+    opponentFinishElapsedSeconds,
+    myPaceLabel: resolveDuelVerdictPaceLabel(mine, goalDistanceKm),
+    opponentPaceLabel: resolveDuelVerdictPaceLabel(opponent, goalDistanceKm),
+  };
 }
 
 

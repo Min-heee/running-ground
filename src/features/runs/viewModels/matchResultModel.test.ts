@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DuelMatchOpponent } from '@/lib/api/types';
+import type { DuelMatchOpponent, DuelVerdict } from '@/lib/api/types';
 import type { GroupLiveStanding } from '@/features/runs/viewModels/matchProgress';
 import {
   buildDuelMatchFinishModel,
@@ -400,6 +400,173 @@ test('duel matchResult persists the opponent\'s own measured pace and synced dur
 
   assert.equal(result?.matchResult.opponentPaceLabel, '06:27/km');
   assert.equal(result?.matchResult.opponentDurationSeconds, 1200);
+});
+
+function verdict(overrides: Partial<DuelVerdict> = {}): DuelVerdict {
+  return {
+    resolved: true,
+    winnerUserId: 'me-user',
+    outcome: 'win',
+    myFinishElapsedSeconds: 1500,
+    opponentFinishElapsedSeconds: 1560,
+    myPaceLabel: '5:00/km',
+    opponentPaceLabel: '5:12/km',
+    ...overrides,
+  };
+}
+
+test('C2: resolved duelVerdict drives win/lose verdict and uses server finish times + paces', () => {
+  // Local distance compare would call this a LOSS (opponent distance ahead), but the server
+  // verdict resolved to a WIN — the server is the single source of truth.
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      officialReady: true,
+      officialDistanceKm: 1.4,
+      officialElapsedSeconds: 1560,
+      officialAveragePace: '07:09/km',
+      officialRank: 1,
+      liveStatus: 'finished',
+    }),
+    currentDistanceKm: 1.1,
+    targetDistanceKm: 5,
+    // Local frozen self time/pace are placeholders that must be overridden by the server.
+    currentElapsedSeconds: 999,
+    currentPaceLabel: '06:14/km',
+    currentUserLiveStatus: 'finished',
+    duelVerdict: verdict({ outcome: 'win', myFinishElapsedSeconds: 1500, myPaceLabel: '5:00/km' }),
+    currentUserFinishElapsedSeconds: 1234,
+  });
+
+  assert.equal(result?.matchResult.resultTone, 'win');
+  assert.equal(result?.matchResult.badgeLabel, '승리');
+  // Self row + persisted matchResult use the server finish time/pace, NOT the local 999/6:14.
+  const myRow = result?.rows.find((row) => row.isCurrentUser);
+  assert.equal(myRow?.durationLabel, '25:00');
+  assert.equal(myRow?.paceLabel, '5:00/km');
+  assert.equal(result?.matchResult.myDurationSeconds, 1500);
+  assert.equal(result?.matchResult.myPaceLabel, '5:00/km');
+  // Opponent row + persisted matchResult use the server opponent finish time/pace.
+  const opponentRow = result?.rows.find((row) => !row.isCurrentUser);
+  assert.equal(opponentRow?.durationLabel, '26:00');
+  assert.equal(opponentRow?.paceLabel, '5:12/km');
+  assert.equal(result?.matchResult.opponentDurationSeconds, 1560);
+  assert.equal(result?.matchResult.opponentPaceLabel, '5:12/km');
+});
+
+test('C2: resolved duelVerdict draw overrides the local distance compare', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      officialReady: true,
+      officialDistanceKm: 1.4,
+      officialElapsedSeconds: 1500,
+      officialAveragePace: '07:09/km',
+      officialRank: 1,
+      liveStatus: 'finished',
+    }),
+    currentDistanceKm: 1.0,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 1500,
+    currentPaceLabel: '05:00/km',
+    currentUserLiveStatus: 'finished',
+    duelVerdict: verdict({ outcome: 'draw', winnerUserId: null }),
+  });
+
+  assert.equal(result?.matchResult.resultTone, 'draw');
+  assert.equal(result?.matchResult.badgeLabel, '무승부');
+  assert.deepEqual(result?.rows.map((row) => row.resultLabel), ['DRAW', 'DRAW']);
+});
+
+test('C2: absent duelVerdict falls back to local distance-based verdict', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      officialReady: true,
+      officialDistanceKm: 1.1,
+      officialElapsedSeconds: 600,
+      officialAveragePace: '09:05/km',
+      officialRank: 2,
+      liveStatus: 'finished',
+    }),
+    currentDistanceKm: 1.25,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 600,
+    currentPaceLabel: '08:00/km',
+    currentUserLiveStatus: 'finished',
+    // No duelVerdict — older backend. Must behave exactly as today: local distance compare.
+    duelVerdict: null,
+  });
+
+  assert.equal(result?.matchResult.resultTone, 'win');
+  assert.equal(result?.matchResult.comparedDistanceKm, 1.1);
+  // Self time stays the local frozen value (no server override available).
+  assert.equal(result?.matchResult.myDurationSeconds, 600);
+  assert.equal(result?.matchResult.myPaceLabel, '08:00/km');
+});
+
+test('C2: pending duelVerdict (resolved=false) does not flip to a final verdict', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({ liveStatus: 'running' }),
+    currentDistanceKm: 5,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 1500,
+    currentPaceLabel: '05:00/km',
+    currentUserLiveStatus: 'finished',
+    duelVerdict: {
+      resolved: false,
+      winnerUserId: null,
+      outcome: 'pending',
+      myFinishElapsedSeconds: 1500,
+      opponentFinishElapsedSeconds: null,
+      myPaceLabel: '5:00/km',
+      opponentPaceLabel: null,
+    },
+  });
+
+  // Opponent still running → the progressive in-progress placeholder, not a fabricated result.
+  const opponentRow = result?.rows.find((row) => !row.isCurrentUser);
+  assert.equal(opponentRow?.resultLabel, 'ING');
+  assert.equal(opponentRow?.isInProgress, true);
+});
+
+test('C2: forfeit result card still shows 기권 even with a resolved verdict', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({ liveDistanceKm: 0.6, liveStatus: 'running' }),
+    currentDistanceKm: 1.2,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 360,
+    currentPaceLabel: '05:00/km',
+    currentUserLiveStatus: 'forfeited',
+    duelVerdict: verdict({ outcome: 'lose', winnerUserId: 'opponent', myFinishElapsedSeconds: null, myPaceLabel: null }),
+  });
+
+  assert.equal(result?.matchResult.resultTone, 'lose');
+  assert.equal(result?.matchResult.badgeLabel, '기권 패');
+  const myRow = result?.rows.find((row) => row.isCurrentUser);
+  assert.equal(myRow?.resultLabel, 'FORFEIT');
+});
+
+test('C4: single pace source — 나 column pace equals persisted myPaceLabel from the verdict', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      officialReady: true,
+      officialDistanceKm: 1.1,
+      officialElapsedSeconds: 1560,
+      officialAveragePace: '07:09/km',
+      officialRank: 2,
+      liveStatus: 'finished',
+    }),
+    currentDistanceKm: 1.25,
+    targetDistanceKm: 5,
+    // Local pace 6:14 must NOT win — the server verdict pace 6:17 is the single source.
+    currentElapsedSeconds: 1499,
+    currentPaceLabel: '06:14/km',
+    currentUserLiveStatus: 'finished',
+    duelVerdict: verdict({ outcome: 'win', myFinishElapsedSeconds: 1577, myPaceLabel: '6:17/km' }),
+  });
+
+  const myRow = result?.rows.find((row) => row.isCurrentUser);
+  assert.equal(myRow?.paceLabel, '6:17/km');
+  assert.equal(result?.matchResult.myPaceLabel, '6:17/km');
+  assert.equal(result?.matchResult.myDurationSeconds, 1577);
 });
 
 test('duel matchResult omits opponent pace/time when their live progress never synced', () => {

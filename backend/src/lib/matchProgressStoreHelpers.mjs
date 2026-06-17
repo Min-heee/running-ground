@@ -30,6 +30,19 @@ export function normalizeRunningMatchProgress(session, participant, { distanceKm
   const previousElapsedSeconds = Number.isInteger(participant.liveElapsedSeconds) && participant.liveElapsedSeconds >= 0
     ? participant.liveElapsedSeconds
     : 0;
+
+  // Once a runner has finished, their recorded distance (goal) and elapsed (the
+  // measured finishing sample) ARE the result — freeze them. A trailing heartbeat
+  // (e.g. a stale upload with a larger elapsed) must never advance a finished
+  // runner's elapsed, which is the duel rank key.
+  const alreadyFinished = participant.liveStatus === 'finished' || Boolean(participant.finishedAt);
+  if (alreadyFinished) {
+    return {
+      distanceKm: Number(Math.min(session.distanceKm, previousDistanceKm).toFixed(3)),
+      elapsedSeconds: previousElapsedSeconds,
+    };
+  }
+
   const inputElapsedSeconds = Number.isInteger(elapsedSeconds) && elapsedSeconds >= 0 ? elapsedSeconds : 0;
   const nextElapsedSeconds = Math.max(
     previousElapsedSeconds,

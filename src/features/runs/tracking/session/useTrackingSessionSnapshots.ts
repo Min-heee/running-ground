@@ -395,13 +395,25 @@ export function useTrackingSessionSnapshots({
     snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false }),
   ): DisplayedMatchProgress => {
     const displayedSnapshot = getDisplayedTrackingSnapshot(snapshot);
-    const displayedAveragePace = buildAveragePace(displayedSnapshot.distanceKm, displayedSnapshot.elapsedSeconds);
+    // C1 no-0 guard: a snapshot with no startedAt (snapshotStore returns 0) or one stuck in
+    // the pre-start warmup branch (trackingDisplayModel returns 0) yields elapsed=0. Pushing
+    // or saving 0 over a known-good measured elapsed would clobber the runner's real time
+    // (and on a finish push freeze a 00:00 into the official record). Prefer the last
+    // known-good elapsed ref whenever the displayed value collapsed to 0 but we already had
+    // a positive measured elapsed.
+    const knownGoodElapsedSeconds = elapsedSecondsRef.current;
+    const elapsedSeconds = displayedSnapshot.elapsedSeconds > 0
+      ? displayedSnapshot.elapsedSeconds
+      : knownGoodElapsedSeconds > 0
+        ? knownGoodElapsedSeconds
+        : displayedSnapshot.elapsedSeconds;
+    const displayedAveragePace = buildAveragePace(displayedSnapshot.distanceKm, elapsedSeconds);
     return {
       distanceKm: displayedSnapshot.distanceKm,
-      elapsedSeconds: displayedSnapshot.elapsedSeconds,
+      elapsedSeconds,
       currentPace: normalizeMatchProgressPace(displayedSnapshot.currentPace, displayedAveragePace),
     };
-  }, [getDisplayedTrackingSnapshot]);
+  }, [elapsedSecondsRef, getDisplayedTrackingSnapshot]);
 
   const syncFromBackgroundTracking = useCallback((
     snapshot: BackgroundRunTrackingSnapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false }),

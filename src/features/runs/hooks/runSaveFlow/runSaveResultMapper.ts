@@ -4,8 +4,25 @@ import {
   buildRunDateFromTimestamp,
   calculateCadenceSpm,
 } from '@/features/runs/tracking';
+import { isMeasuredPaceLabel } from '@/features/runs/viewModels/matchProgress';
 import type { CreateTrackedRunInput } from '@/lib/api/types/runs';
 import type { DisplayedTrackingSnapshot } from './types';
+
+// C4: the duel result card 나 column pace and the run-detail bottom metric pace must come
+// from a SINGLE source so they cannot diverge (the 6:17-vs-6:14 inconsistency). When a duel
+// matchResult carries a measured myPaceLabel (the server-frozen pace when the verdict is
+// resolved), reuse it as the run's own bottom pace. Forfeits keep the local '00:00/km' path.
+function resolveRunPaceLabel(
+  averagePaceLabel: string,
+  trackedMatchResult: RunMatchResult | null | undefined,
+): string {
+  if (averagePaceLabel === '00:00/km') {
+    // Stationary-forfeit save: leave the forfeit pace untouched.
+    return averagePaceLabel;
+  }
+  const matchPaceLabel = trackedMatchResult?.mode === 'duel' ? trackedMatchResult.myPaceLabel : undefined;
+  return isMeasuredPaceLabel(matchPaceLabel) ? matchPaceLabel! : averagePaceLabel;
+}
 
 export type RunSaveResultSnapshot = {
   averagePaceLabel: string;
@@ -144,6 +161,11 @@ export function buildRunSaveResultSnapshot({
     throw new Error('페이스 계산이 아직 부족해서 저장할 수 없어. 조금 더 측정한 뒤 다시 시도해줘.');
   }
 
+  // C4: single pace source — the run's bottom metric pace reuses the duel matchResult's
+  // measured myPaceLabel (server-frozen when resolved) so the 나 column and the bottom metric
+  // never disagree.
+  const runPaceLabel = resolveRunPaceLabel(averagePaceLabel, trackedMatchResult);
+
   return {
     averagePaceLabel,
     endedAt,
@@ -152,7 +174,7 @@ export function buildRunSaveResultSnapshot({
     createRunInput: {
       date: buildRunDateFromTimestamp(startedAt),
       distanceKm: saveDistanceKm,
-      pace: averagePaceLabel,
+      pace: runPaceLabel,
       durationSeconds: finalElapsedSeconds,
       cadenceSpm: finalCadenceSpm,
       elevationGainM: finalElevationGainM,
@@ -163,8 +185,16 @@ export function buildRunSaveResultSnapshot({
         ? {
             matchResult: {
               ...trackedMatchResult,
-              myPaceLabel: trackedMatchResult.myPaceLabel ?? averagePaceLabel,
-              myDurationSeconds: trackedMatchResult.myDurationSeconds ?? finalElapsedSeconds,
+              // C4: keep the matchResult 나 pace identical to the run's bottom pace.
+              myPaceLabel: trackedMatchResult.myPaceLabel ?? runPaceLabel,
+              // C1 no-0 guard: never persist a 0 duration when a real measured elapsed
+              // exists. A tracked result whose myDurationSeconds collapsed to 0 (snapshot
+              // with no startedAt / warmup branch) would otherwise freeze 00:00 into the
+              // saved 대결 카드. Fall back to the run's own finalElapsedSeconds so the saved
+              // record carries the real time instead of 00:00.
+              myDurationSeconds: trackedMatchResult.myDurationSeconds
+                ? trackedMatchResult.myDurationSeconds
+                : finalElapsedSeconds,
               ...(matchSource ? { source: matchSource } : {}),
             },
           }
