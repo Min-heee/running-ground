@@ -54,7 +54,6 @@ async function handleRegister({
     : validateRequiredString(body.name, '이름을 입력해주세요.');
   const phone = validateRequiredString(body.phone, '휴대폰 번호를 입력해주세요.').replace(/\D/g, '');
   const region = resolveRegionSelection(body.provinceName, body.cityName, body.districtName);
-  const universityName = typeof body.universityName === 'string' ? body.universityName.trim() : '';
   const addressDetail = validateRequiredString(body.addressDetail, '상세 주소를 입력해주세요.');
   const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해주세요.');
   const phoneVerificationToken = validateRequiredString(
@@ -78,7 +77,6 @@ async function handleRegister({
     phone,
     birthDate,
     region,
-    universityName,
     addressDetail,
     phoneVerificationToken,
   });

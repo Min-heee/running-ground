@@ -9,41 +9,11 @@ import type {
   RankLeaderboard,
   RegionDrilldownNode,
   TodayRankingCategory,
-  UniversityLeagueRank,
 } from '@/domain';
 import { LP_PER_TIER, RANK_TIERS } from '@/features/rank/rankDisplay';
 import { rankMockTodayEntries } from '@/features/league/utils/mockTodayRanking';
 import { getCurrentUserProfile } from '@/lib/session';
 import type { DistrictPersonalResponse, TodayRankingResponse } from '../../types';
-
-export function normalizeMockUniversityRanks(ranks: UniversityLeagueRank[]) {
-  return [...ranks]
-    .map((entry) => ({
-      ...entry,
-      averageDistanceKm: Number((entry.totalDistanceKm / Math.max(entry.participants, 1)).toFixed(1)),
-    }))
-    .sort((left, right) => {
-      if (right.averageDistanceKm !== left.averageDistanceKm) {
-        return right.averageDistanceKm - left.averageDistanceKm;
-      }
-
-      if (right.totalDistanceKm !== left.totalDistanceKm) {
-        return right.totalDistanceKm - left.totalDistanceKm;
-      }
-
-      if (right.participants !== left.participants) {
-        return right.participants - left.participants;
-      }
-
-      return left.universityName.localeCompare(right.universityName, 'ko');
-    })
-    .map((entry, index) => ({
-      ...entry,
-      rank: index + 1,
-      totalDistanceKm: Number(entry.totalDistanceKm.toFixed(1)),
-      averageDistanceKm: Number(entry.averageDistanceKm.toFixed(1)),
-    }));
-}
 
 export function normalizeRegionChildren(children: RegionDrilldownNode[]) {
   return [...children]

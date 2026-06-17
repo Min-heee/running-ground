@@ -142,7 +142,6 @@ function buildRegistration(overrides = {}) {
       cityName: '',
       districtName: '강남구',
     },
-    universityName: '서울대학교',
     addressDetail: '테헤란로 123',
     ...overrides,
   };
@@ -446,9 +445,6 @@ try {
     const district = await leagueRepository.getDistrictPersonal({ token: registered.accessToken });
     assert.equal(district.districtName, '강남구');
     assert.equal(Array.isArray(district.ranks), true);
-
-    const universities = await leagueRepository.getUniversities({ token: registered.accessToken });
-    assert.equal(Array.isArray(universities.ranks), true);
   });
 
   await runTest('sessions smoke: logout removes the session row', async () => {

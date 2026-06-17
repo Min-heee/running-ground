@@ -14,7 +14,6 @@ function isUserProfile(value: unknown): value is UserProfile {
     && (value.provinceName === undefined || typeof value.provinceName === 'string')
     && (value.cityName === undefined || typeof value.cityName === 'string')
     && typeof value.districtName === 'string'
-    && (value.universityName === undefined || typeof value.universityName === 'string')
     && (value.addressDetail === undefined || typeof value.addressDetail === 'string')
     && typeof value.publicTag === 'string'
     && (value.lifetimeDistanceKm === undefined || typeof value.lifetimeDistanceKm === 'number');

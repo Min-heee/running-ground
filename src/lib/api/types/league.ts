@@ -3,7 +3,6 @@ import type {
   RankLeaderboard,
   RegionDrilldownNode,
   TodayRankingResponse,
-  UniversityLeagueRank,
 } from '@/domain';
 
 export type DistrictPersonalResponse = {
@@ -21,10 +20,6 @@ export type RegionLeagueResponse = {
   currentNode: RegionDrilldownNode;
   breadcrumb: RegionBreadcrumbItem[];
   children: RegionDrilldownNode[];
-};
-
-export type UniversityLeagueResponse = {
-  ranks: UniversityLeagueRank[];
 };
 
 export type {

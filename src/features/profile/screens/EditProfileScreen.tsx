@@ -1,5 +1,5 @@
-import { StyleSheet, Text, View, TextInput, ActivityIndicator, Pressable } from 'react-native';
-import { type Href, Link, router } from 'expo-router';
+import { StyleSheet, Text, View, TextInput, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -9,7 +9,6 @@ import { useEditProfile } from '@/features/profile/hooks/useEditProfile';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export default function EditProfileScreen() {
-  const universityVerificationHref = '/university-verification' as Href;
   const {
     displayName,
     error,
@@ -36,17 +35,6 @@ export default function EditProfileScreen() {
         <Card>
           <View style={styles.form}>
             <Input label="표시 이름" value={displayName} onChangeText={setDisplayName} editable={!saving} />
-            <View style={styles.noticeCard}>
-              <Text style={styles.noticeTitle}>대학교 인증</Text>
-              <Text style={styles.helperText}>
-                소속 대학은 직접 입력 대신 마이페이지에서 재학증명서나 에브리타임 같은 인증 방식으로 연결할 수 있게 바꿀 예정이에요.
-              </Text>
-              <Link href={universityVerificationHref} asChild>
-                <Pressable style={styles.inlineLinkButton}>
-                  <Text style={styles.inlineLinkButtonText}>대학교 인증 안내 보기</Text>
-                </Pressable>
-              </Link>
-            </View>
             <Input label="내 태그" value={profile.publicTag} editable={false} />
             <Input label="대표 지역" value={profile.districtName} editable={false} />
             <Input label="상태 메시지" value="러닝 경쟁 진행 중" editable={false} />
@@ -91,37 +79,6 @@ function Input({
 const styles = StyleSheet.create({
   form: { gap: 14 },
   inputGroup: { gap: 8 },
-  noticeCard: {
-    gap: spacing.xxl,
-    padding: spacing.s14,
-    borderRadius: radii.md,
-    backgroundColor: colors.surfaceSoft,
-    borderWidth: 1,
-    borderColor: colors.indigoBorder,
-  },
-  noticeTitle: {
-    color: colors.textPrimary,
-    fontWeight: fontWeights.extraBold,
-  },
-  helperText: {
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
-  inlineLinkButton: {
-    alignSelf: 'flex-start',
-    marginTop: spacing.sm,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.pill,
-    paddingHorizontal: spacing.s12,
-    paddingVertical: spacing.xxl,
-  },
-  inlineLinkButtonText: {
-    color: colors.textPrimary,
-    fontWeight: fontWeights.bold,
-    fontSize: fontSizes.md,
-  },
   label: {
     color: colors.textPrimary,
     fontWeight: fontWeights.bold,

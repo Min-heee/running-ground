@@ -8,7 +8,6 @@ export type UserProfile = {
   provinceName?: string;
   cityName?: string;
   districtName: string;
-  universityName?: string;
   addressDetail?: string;
   publicTag: string;
   rankState?: RankState;

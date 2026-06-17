@@ -124,7 +124,6 @@ export async function registerAccount({
   provinceName,
   cityName,
   districtName,
-  universityName,
   addressDetail,
   birthDate,
   phoneVerificationToken,
@@ -139,7 +138,6 @@ export async function registerAccount({
   const normalizedProvinceName = provinceName.trim();
   const normalizedCityName = cityName?.trim() ?? '';
   const normalizedDistrictName = districtName.trim();
-  const normalizedUniversityName = universityName?.trim() ?? '';
   const normalizedAddressDetail = addressDetail.trim();
   const normalizedBirthDate = birthDate.trim();
 
@@ -194,7 +192,6 @@ export async function registerAccount({
       displayName: normalizedDisplayName,
       districtName: normalizedDistrictName,
       provinceName: normalizedProvinceName,
-      universityName: normalizedUniversityName,
     });
   }
 
@@ -216,7 +213,6 @@ export async function registerAccount({
       provinceName: normalizedProvinceName,
       cityName: normalizedCityName,
       districtName: normalizedDistrictName,
-      universityName: normalizedUniversityName,
       addressDetail: normalizedAddressDetail,
       birthDate: normalizedBirthDate,
       phoneVerificationToken: normalizedPhoneVerificationToken,

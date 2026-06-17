@@ -186,14 +186,12 @@ async function main() {
         provinceName: '서울특별시',
         cityName: '',
         districtName: '강남구',
-        universityName: '스모크대학교',
         addressDetail: '테스트로 100',
         birthDate: '1999-12-31',
       }),
     });
     assert(typeof registered.accessToken === 'string', '회원가입 토큰이 비어 있어.');
     assert(registered.user.name === '스모크러너', '회원가입 닉네임이 공개 프로필에 반영되지 않았어.');
-    assert(registered.user.universityName === '스모크대학교', '회원가입 대학 정보가 저장되지 않았어.');
     const storeAfterRegister = readFileSync(storeFile, 'utf8');
     assert(storeAfterRegister.includes('"expiresAt":'), '세션 만료 시간이 저장되지 않았어.');
     assert(storeAfterRegister.includes('"realName": "스모크 유저"'), '비공개 이름이 저장되지 않았어.');
@@ -235,19 +233,13 @@ async function main() {
       },
       body: JSON.stringify({
         name: '스모크캡틴',
-        universityName: '스모크대학교2',
       }),
     });
     assert(updatedProfile.name === '스모크캡틴', '프로필 닉네임 수정이 반영되지 않았어.');
-    assert(updatedProfile.universityName === '스모크대학교2', '프로필 대학 수정이 반영되지 않았어.');
 
     const regionCatalog = await request('/catalog/regions');
     assert(Array.isArray(regionCatalog.regions) && regionCatalog.regions.length > 0, '지역 카탈로그가 비어 있어.');
     assert(regionCatalog.regions.some((region) => region.name === '서울특별시'), '서울특별시가 지역 카탈로그에 없어.');
-
-    const universityCatalog = await request('/catalog/universities');
-    assert(Array.isArray(universityCatalog.universities), '대학 카탈로그 형식이 올바르지 않아.');
-    assert(universityCatalog.universities.includes('스모크대학교2'), '수정한 대학이 대학 카탈로그에 반영되지 않았어.');
 
     const updatedRegion = await request('/me/region', {
       method: 'PATCH',
@@ -375,16 +367,6 @@ async function main() {
     assert(districtPersonal.weeklyDistanceKm === expectedMetrics.currentWeekDistanceKm, '구 내 개인 경쟁 주간 거리가 예상과 달라.');
     assert(districtPersonal.myPoints === expectedMetrics.currentWeekPoints, '구 내 개인 경쟁 포인트가 예상과 달라.');
     logStep('league flow ok');
-
-    const universityLeague = await request('/league/universities', {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-    assert(Array.isArray(universityLeague.ranks), '대학 리그 응답 형식이 올바르지 않아.');
-    assert(universityLeague.ranks.some((entry) => entry.universityName === '스모크대학교2'), '수정한 대학이 대학 리그에 반영되지 않았어.');
-    assert(universityLeague.ranks.some((entry) => entry.universityName === '스모크대학교2' && entry.totalDistanceKm === expectedMetrics.currentWeekDistanceKm), '대학 리그 거리가 이번 주 기준으로 집계되지 않았어.');
-    logStep('university league flow ok');
 
     const integrationSources = await request('/integrations/sources', {
       headers: {
@@ -610,7 +592,6 @@ async function main() {
         provinceName: '부산광역시',
         cityName: '',
         districtName: '중구',
-        universityName: '',
         addressDetail: '테스트로 200',
         birthDate: '1998-05-05',
       }),

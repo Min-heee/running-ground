@@ -86,7 +86,6 @@ function mapUserRow(row) {
     provinceName: row.province_name ?? '',
     cityName: row.city_name ?? '',
     districtName: row.district_name ?? '',
-    universityName: row.university_name ?? '',
     addressDetail: row.address_detail ?? '',
     rewardPoints: asNumber(row.reward_points),
     streakDays: asNumber(row.streak_days),

@@ -26,15 +26,6 @@ export function createLeagueReadService({
     return payload;
   }
 
-  async function buildUniversityLeagueReadPayload(request) {
-    const { payload } = await getFriendsLeagueBridge().getUniversities({
-      store: await loadStore(),
-      token: getAccessToken(request),
-    });
-
-    return payload;
-  }
-
   async function buildTodayRankingReadPayload(request, category) {
     const { payload } = await getFriendsLeagueBridge().getTodayRankings({
       category,
@@ -55,6 +46,5 @@ export function createLeagueReadService({
     buildRankLeaderboardReadPayload,
     buildRegionLeagueReadPayload,
     buildTodayRankingReadPayload,
-    buildUniversityLeagueReadPayload,
   };
 }

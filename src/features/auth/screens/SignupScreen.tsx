@@ -15,7 +15,7 @@ export default function SignupScreen() {
       <AuthHeader title="회원가입" subtitle="계정을 만들고, 공개 표시 이름까지 정한 뒤 바로 러닝 경쟁을 시작해보세요." showBack backHref="/onboarding" />
 
       <Card>
-        <Text style={styles.helperText}>회원가입할 때 지역 랭킹이나 친구 화면에 본명으로 보일지, 닉네임으로 보일지 직접 고를 수 있어요. 이름과 연락처는 비공개로 저장되고, 대학교는 가입 뒤 마이페이지에서 인증 방식으로 연결할 예정이에요.</Text>
+        <Text style={styles.helperText}>회원가입할 때 지역 랭킹이나 친구 화면에 본명으로 보일지, 닉네임으로 보일지 직접 고를 수 있어요. 이름과 연락처는 비공개로 저장돼요.</Text>
         <Link href="/signup-form" asChild>
           <Pressable style={styles.accountButton}>
             <Text style={styles.darkButtonText}>계정으로 회원가입하기</Text>

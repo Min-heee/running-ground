@@ -116,15 +116,14 @@ class FakePostgresDatabase {
         province_name: params[9],
         city_name: params[10],
         district_name: params[11],
-        university_name: params[12],
-        address_detail: params[13],
-        reward_points: params[14],
-        streak_days: params[15],
-        rank_state: typeof params[16] === 'string' ? JSON.parse(params[16]) : clone(params[16]),
-        connected_sources: typeof params[17] === 'string' ? JSON.parse(params[17]) : clone(params[17]),
-        notification_settings: typeof params[18] === 'string' ? JSON.parse(params[18]) : clone(params[18]),
-        created_at: params[19],
-        updated_at: params[20],
+        address_detail: params[12],
+        reward_points: params[13],
+        streak_days: params[14],
+        rank_state: typeof params[15] === 'string' ? JSON.parse(params[15]) : clone(params[15]),
+        connected_sources: typeof params[16] === 'string' ? JSON.parse(params[16]) : clone(params[16]),
+        notification_settings: typeof params[17] === 'string' ? JSON.parse(params[17]) : clone(params[17]),
+        created_at: params[18],
+        updated_at: params[19],
       });
 
       return { rows: [] };
@@ -343,7 +342,6 @@ await runTest('registers a user, hashes password, and creates a session', async 
       cityName: '',
       districtName: '강남구',
     },
-    universityName: '서울대학교',
     addressDetail: '테헤란로 123',
   });
   const user = database.users[0];
@@ -396,7 +394,6 @@ await runTest('rejects duplicate registration', async () => {
       cityName: '',
       districtName: '강남구',
     },
-    universityName: '',
     addressDetail: '테스트',
   }), (error) => {
     assertApiError(error, 409, '이미 사용 중인 아이디예요.');
@@ -424,7 +421,6 @@ await runTest('maps database username unique violations to duplicate registratio
       cityName: '',
       districtName: '강남구',
     },
-    universityName: '',
     addressDetail: '테스트',
   }), (error) => {
     assertApiError(error, 409, '이미 사용 중인 아이디예요.');

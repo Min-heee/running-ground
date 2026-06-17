@@ -7,10 +7,6 @@ function hasFriendLeaderboardContent(payload) {
     || Array.isArray(payload?.requests) && payload.requests.length > 0;
 }
 
-function hasUniversityLeagueContent(payload) {
-  return Array.isArray(payload?.ranks) && payload.ranks.length > 0;
-}
-
 function hasTodayRankingContent(payload) {
   return Array.isArray(payload?.entries) && payload.entries.length > 0;
 }
@@ -219,39 +215,6 @@ export function createFriendsLeagueBridge({
 
       return {
         payload: await leagueRepository.getRegions({ token, nodeId }),
-        source: 'json',
-      };
-    },
-
-    async getUniversities({
-      store,
-      token,
-      fallbackToJsonIfEmpty = true,
-      fallbackToJsonOnReadError = true,
-    }) {
-      if (leagueReadsEnabled && postgresLeagueRepository) {
-        const currentUser = await resolveCurrentUser({ store, token });
-
-        try {
-          const payload = await postgresLeagueRepository.getUniversitiesByUserId({
-            currentUserId: currentUser.id,
-          });
-
-          if (hasUniversityLeagueContent(payload) || !fallbackToJsonIfEmpty) {
-            return {
-              payload,
-              source: 'postgres',
-            };
-          }
-        } catch (error) {
-          if (!fallbackToJsonOnReadError || !isApiErrorWithStatus(error, [401, 404])) {
-            throw error;
-          }
-        }
-      }
-
-      return {
-        payload: await leagueRepository.getUniversities({ token }),
         source: 'json',
       };
     },

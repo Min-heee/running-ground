@@ -14,8 +14,8 @@ function createHarness({
   sessionUser = { id: 'user-1', name: '러너' },
   jsonFriendsPayload = { ranks: [{ id: 'user-1' }], requests: [] },
   postgresFriendsPayload = { ranks: [{ id: 'user-db-1' }], requests: [] },
-  jsonLeaguePayload = { ranks: [{ rank: 1, universityName: '서울대학교' }] },
-  postgresLeaguePayload = { ranks: [{ rank: 1, universityName: '연세대학교' }] },
+  jsonLeaguePayload = { currentNode: { id: 'region-seoul' }, breadcrumb: [{ id: 'region-root' }, { id: 'region-seoul' }], children: [] },
+  postgresLeaguePayload = { currentNode: { id: 'region-busan' }, breadcrumb: [{ id: 'region-root' }, { id: 'region-busan' }], children: [] },
   postgresFriendError = null,
   postgresLeagueError = null,
 } = {}) {
@@ -112,10 +112,6 @@ function createHarness({
         calls.jsonLeague.push(['regions', token, nodeId]);
         return jsonLeaguePayload;
       },
-      async getUniversities({ token }) {
-        calls.jsonLeague.push(['universities', token]);
-        return jsonLeaguePayload;
-      },
     },
     postgresLeagueRepository: {
       async getDistrictPersonalByUserId({ currentUserId }) {
@@ -136,15 +132,6 @@ function createHarness({
       },
       async getRegionsByUserId({ currentUserId, nodeId }) {
         calls.postgresLeague.push(['regions', currentUserId, nodeId]);
-
-        if (postgresLeagueError) {
-          throw postgresLeagueError;
-        }
-
-        return postgresLeaguePayload;
-      },
-      async getUniversitiesByUserId({ currentUserId }) {
-        calls.postgresLeague.push(['universities', currentUserId]);
 
         if (postgresLeagueError) {
           throw postgresLeagueError;
@@ -236,17 +223,4 @@ await runTest('falls back to JSON region league when postgres region tree is emp
 
   assert.equal(result.source, 'json');
   assert.deepEqual(calls.jsonLeague, [['regions', 'token-1', 'region-seoul']]);
-});
-
-await runTest('returns postgres university league when enabled', async () => {
-  const { bridge, calls } = createHarness({
-    leagueReadsEnabled: true,
-  });
-  const result = await bridge.getUniversities({
-    store: {},
-    token: 'token-1',
-  });
-
-  assert.equal(result.source, 'postgres');
-  assert.deepEqual(calls.postgresLeague, [['universities', 'user-1']]);
 });

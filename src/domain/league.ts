@@ -26,14 +26,6 @@ export type DistrictPersonalRank = {
 
 export type DistrictPersonalMetric = 'rankScore' | 'monthlyDistance';
 
-export type UniversityLeagueRank = {
-  rank: number;
-  universityName: string;
-  totalDistanceKm: number;
-  participants: number;
-  averageDistanceKm: number;
-};
-
 export type TodayRankingCategory = 'pace' | 'distance' | 'streak';
 
 export type TodayRankingEntry = {

@@ -173,19 +173,6 @@ async function loadUsersByCity(database, provinceName, cityName) {
   return result.rows.map(mapUserRow);
 }
 
-async function loadUsersWithUniversity(database) {
-  const result = await database.query(
-    `
-      select *
-      from users
-      where coalesce(university_name, '') <> ''
-    `,
-    [],
-  );
-
-  return result.rows.map(mapUserRow);
-}
-
 async function loadAllUsers(database) {
   const result = await database.query(
     `
@@ -416,59 +403,6 @@ async function resolveDistrictPersonalUsers(database, currentUser, nodeId, defau
   };
 }
 
-function buildUniversityLeague(users, metricsByUserId) {
-  const universityMap = new Map();
-
-  for (const user of users) {
-    const universityName = normalizeOptionalString(user.universityName);
-
-    if (!universityName) {
-      continue;
-    }
-
-    const current = universityMap.get(universityName) ?? {
-      universityName,
-      totalDistanceKm: 0,
-      participants: 0,
-    };
-    const metrics = metricsByUserId.get(user.id);
-
-    current.totalDistanceKm = Number((current.totalDistanceKm + (metrics?.currentWeekDistanceKm ?? 0)).toFixed(1));
-    current.participants += 1;
-    universityMap.set(universityName, current);
-  }
-
-  const ranks = [...universityMap.values()]
-    .map((entry) => ({
-      ...entry,
-      averageDistanceKm: Number((entry.totalDistanceKm / Math.max(entry.participants, 1)).toFixed(1)),
-    }))
-    .sort((left, right) => {
-      if (right.averageDistanceKm !== left.averageDistanceKm) {
-        return right.averageDistanceKm - left.averageDistanceKm;
-      }
-
-      if (right.totalDistanceKm !== left.totalDistanceKm) {
-        return right.totalDistanceKm - left.totalDistanceKm;
-      }
-
-      if (right.participants !== left.participants) {
-        return right.participants - left.participants;
-      }
-
-      return left.universityName.localeCompare(right.universityName, 'ko');
-    })
-    .map((entry, index) => ({
-      rank: index + 1,
-      universityName: entry.universityName,
-      totalDistanceKm: Number(entry.totalDistanceKm.toFixed(1)),
-      participants: entry.participants,
-      averageDistanceKm: entry.averageDistanceKm,
-    }));
-
-  return { ranks };
-}
-
 function requireTodayRankingCategory(category, createError) {
   if (!isTodayRankingCategory(category)) {
     throw createError(400, '오늘의 랭킹 카테고리가 올바르지 않아.');
@@ -526,23 +460,6 @@ export function createPostgresLeagueRepository({
       return this.getRegionsByUserId({
         currentUserId: currentUser.id,
         nodeId,
-      });
-    },
-
-    async getUniversitiesByUserId({ currentUserId }) {
-      await findUserById(database, currentUserId, createError);
-      const users = await loadUsersWithUniversity(database);
-      const userIds = users.map((user) => user.id);
-      const runsByUserId = await loadRunsByUserIds(database, userIds);
-      const metricsByUserId = buildMetricsByUserId(runsByUserId, userIds, buildUserMetrics);
-
-      return buildUniversityLeague(users, metricsByUserId);
-    },
-
-    async getUniversities({ token }) {
-      const currentUser = await requireUserByToken(database, token, createError);
-      return this.getUniversitiesByUserId({
-        currentUserId: currentUser.id,
       });
     },
 

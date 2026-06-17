@@ -69,10 +69,6 @@ export type RegionCatalogResponse = {
   regions: AddressRegionNode[];
 };
 
-export type UniversityCatalogResponse = {
-  universities: string[];
-};
-
 export type MyProfileResponse = UserProfile & {
   rankState: RankState;
 };
@@ -86,7 +82,6 @@ export type NotificationSettingsResponse = {
 
 export type UpdateMyProfileInput = {
   name: string;
-  universityName?: string;
 };
 
 export type UpdateMyProfileResponse = MyProfileResponse;

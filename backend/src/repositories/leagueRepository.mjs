@@ -233,58 +233,6 @@ function buildRegionLeague(store, nodeId, createError) {
   };
 }
 
-function buildUniversityLeague(store, getUserMetrics) {
-  const universityMap = new Map();
-
-  for (const user of store.users) {
-    const universityName = normalizeOptionalString(user.universityName);
-
-    if (!universityName) {
-      continue;
-    }
-
-    const current = universityMap.get(universityName) ?? {
-      universityName,
-      totalDistanceKm: 0,
-      participants: 0,
-    };
-
-    current.totalDistanceKm = Number((current.totalDistanceKm + getUserMetrics(store, user.id).currentWeekDistanceKm).toFixed(1));
-    current.participants += 1;
-    universityMap.set(universityName, current);
-  }
-
-  const ranks = [...universityMap.values()]
-    .map((entry) => ({
-      ...entry,
-      averageDistanceKm: Number((entry.totalDistanceKm / Math.max(entry.participants, 1)).toFixed(1)),
-    }))
-    .sort((left, right) => {
-      if (right.averageDistanceKm !== left.averageDistanceKm) {
-        return right.averageDistanceKm - left.averageDistanceKm;
-      }
-
-      if (right.totalDistanceKm !== left.totalDistanceKm) {
-        return right.totalDistanceKm - left.totalDistanceKm;
-      }
-
-      if (right.participants !== left.participants) {
-        return right.participants - left.participants;
-      }
-
-      return left.universityName.localeCompare(right.universityName, 'ko');
-    })
-    .map((entry, index) => ({
-      rank: index + 1,
-      universityName: entry.universityName,
-      totalDistanceKm: Number(entry.totalDistanceKm.toFixed(1)),
-      participants: entry.participants,
-      averageDistanceKm: entry.averageDistanceKm,
-    }));
-
-  return { ranks };
-}
-
 function requireTodayRankingCategory(category, createError) {
   if (!isTodayRankingCategory(category)) {
     throw createError(400, '오늘의 랭킹 카테고리가 올바르지 않아.');
@@ -310,12 +258,6 @@ export function createJsonLeagueRepository({
       const store = await loadStore();
       requireUserByToken(store, token);
       return buildRegionLeague(store, nodeId, createError);
-    },
-
-    async getUniversities({ token }) {
-      const store = await loadStore();
-      requireUserByToken(store, token);
-      return buildUniversityLeague(store, getUserMetrics);
     },
 
     async getTodayRankings({ token, category }) {

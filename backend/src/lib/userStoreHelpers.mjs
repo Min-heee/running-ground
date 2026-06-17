@@ -72,7 +72,6 @@ export function buildProfileWithMetrics(user, metrics) {
     ...(typeof user.provinceName === 'string' && user.provinceName ? { provinceName: user.provinceName } : {}),
     ...(typeof user.cityName === 'string' && user.cityName ? { cityName: user.cityName } : {}),
     districtName: user.districtName,
-    ...(typeof user.universityName === 'string' && user.universityName ? { universityName: user.universityName } : {}),
     ...(typeof user.addressDetail === 'string' && user.addressDetail ? { addressDetail: user.addressDetail } : {}),
     publicTag: user.publicTag,
     rankState: { ...ensureUserRankState(user) },

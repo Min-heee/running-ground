@@ -1,17 +1,10 @@
 import {
-  myProfile,
   regionDrilldownTree,
-  universityLeagueRanks,
-  weeklySummary,
 } from '@/data/mock';
 
 import type { TodayRankingCategory } from '@/domain';
 
 import { addressCatalog } from '@/features/location/addressCatalog';
-
-import {
-  getCurrentUserProfile,
-} from '@/lib/session';
 
 import {
   apiGet,
@@ -25,12 +18,9 @@ import {
   RegionLeagueResponse,
   RegionCatalogResponse,
   TodayRankingResponse,
-  UniversityCatalogResponse,
-  UniversityLeagueResponse,
 } from '../types';
 
 import {
-  normalizeMockUniversityRanks,
   normalizeRegionChildren,
   requireAccessToken,
   findRegionPath,
@@ -50,18 +40,6 @@ export async function fetchRegionCatalog(): Promise<RegionCatalogResponse> {
 
   return apiGet<RegionCatalogResponse>('/catalog/regions', {
     fallbackMessage: '지역 목록을 불러오지 못했어.',
-  });
-}
-
-export async function fetchUniversityCatalog(): Promise<UniversityCatalogResponse> {
-  if (USE_MOCK_API) {
-    return {
-      universities: [...new Set(universityLeagueRanks.map((entry) => entry.universityName))],
-    };
-  }
-
-  return apiGet<UniversityCatalogResponse>('/catalog/universities', {
-    fallbackMessage: '대학 목록을 불러오지 못했어.',
   });
 }
 
@@ -103,40 +81,6 @@ export async function fetchRegionLeague(nodeId?: string): Promise<RegionLeagueRe
   return apiGet<RegionLeagueResponse>(`/league/regions${query}`, {
     accessToken: await requireAccessToken(),
     fallbackMessage: '지역 랭킹 정보를 불러오지 못했어.',
-  });
-}
-
-export async function fetchUniversityLeague(): Promise<UniversityLeagueResponse> {
-  if (USE_MOCK_API) {
-    const profile = getCurrentUserProfile() ?? myProfile;
-    const normalizedUniversityName = profile.universityName?.trim() ?? '';
-    const ranks = universityLeagueRanks.map((entry) => ({ ...entry }));
-
-    if (normalizedUniversityName) {
-      const existingRank = ranks.find((entry) => entry.universityName === normalizedUniversityName);
-
-      if (existingRank) {
-        existingRank.totalDistanceKm = Number((existingRank.totalDistanceKm + weeklySummary.totalDistanceKm).toFixed(1));
-        existingRank.participants += 1;
-      } else {
-        ranks.push({
-          rank: ranks.length + 1,
-          universityName: normalizedUniversityName,
-          totalDistanceKm: weeklySummary.totalDistanceKm,
-          participants: 1,
-          averageDistanceKm: Number(weeklySummary.totalDistanceKm.toFixed(1)),
-        });
-      }
-    }
-
-    return {
-      ranks: normalizeMockUniversityRanks(ranks),
-    };
-  }
-
-  return apiGet<UniversityLeagueResponse>('/league/universities', {
-    accessToken: await requireAccessToken(),
-    fallbackMessage: '대학 리그 정보를 불러오지 못했어.',
   });
 }
 

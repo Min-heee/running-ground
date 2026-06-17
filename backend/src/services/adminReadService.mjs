@@ -53,7 +53,6 @@ function buildAdminUserSummary(store, user, dependencies) {
     ...(normalizeOptionalString(user.provinceName) ? { provinceName: user.provinceName } : {}),
     ...(normalizeOptionalString(user.cityName) ? { cityName: user.cityName } : {}),
     districtName: user.districtName,
-    ...(normalizeOptionalString(user.universityName) ? { universityName: user.universityName } : {}),
     ...(normalizeOptionalString(user.createdAt) ? { createdAt: user.createdAt } : {}),
     lifetimeDistanceKm: metrics.lifetimeDistanceKm,
     currentWeekDistanceKm: metrics.currentWeekDistanceKm,

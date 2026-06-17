@@ -174,53 +174,6 @@ await runTest('returns ranked region children with breadcrumb', async () => {
   ]);
 });
 
-await runTest('aggregates university league ranks', async () => {
-  const { repository } = createRepositoryHarness({
-    users: [
-      { id: 'user-me', name: '민병희', universityName: '서울대학교' },
-      { id: 'user-a', name: '가영', universityName: '서울대학교' },
-      { id: 'user-b', name: '준호', universityName: '연세대학교' },
-      { id: 'user-c', name: '서연', universityName: '연세대학교' },
-      { id: 'user-d', name: '하늘', universityName: '고려대학교' },
-    ],
-    sessions: [
-      { token: 'token-me', userId: 'user-me' },
-    ],
-  }, {
-    'user-me': { currentWeekDistanceKm: 8, currentWeekPoints: 10 },
-    'user-a': { currentWeekDistanceKm: 10, currentWeekPoints: 12 },
-    'user-b': { currentWeekDistanceKm: 12, currentWeekPoints: 16 },
-    'user-c': { currentWeekDistanceKm: 8, currentWeekPoints: 9 },
-    'user-d': { currentWeekDistanceKm: 7, currentWeekPoints: 8 },
-  });
-
-  const result = await repository.getUniversities({ token: 'token-me' });
-
-  assert.deepEqual(result.ranks, [
-    {
-      rank: 1,
-      universityName: '연세대학교',
-      totalDistanceKm: 20,
-      participants: 2,
-      averageDistanceKm: 10,
-    },
-    {
-      rank: 2,
-      universityName: '서울대학교',
-      totalDistanceKm: 18,
-      participants: 2,
-      averageDistanceKm: 9,
-    },
-    {
-      rank: 3,
-      universityName: '고려대학교',
-      totalDistanceKm: 7,
-      participants: 1,
-      averageDistanceKm: 7,
-    },
-  ]);
-});
-
 function createCappedRegionTree() {
   return {
     id: 'region-root',

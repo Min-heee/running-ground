@@ -172,7 +172,6 @@ await runTest('registers a user, hashes password, and creates a session', async 
       cityName: '',
       districtName: '강남구',
     },
-    universityName: '서울대학교',
     addressDetail: '테헤란로 123',
     phoneVerificationToken: 'vt-register-1',
   });
@@ -229,7 +228,6 @@ await runTest('rejects duplicate registration', async () => {
       cityName: '',
       districtName: '강남구',
     },
-    universityName: '',
     addressDetail: '테스트',
     phoneVerificationToken: 'vt-dup',
   }), (error) => {
@@ -253,7 +251,6 @@ await runTest('rejects registration without a verified phone challenge', async (
       cityName: '',
       districtName: '강남구',
     },
-    universityName: '',
     addressDetail: '테스트',
     phoneVerificationToken: 'no-such-token',
   }), (error) => {

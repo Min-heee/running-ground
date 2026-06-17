@@ -145,14 +145,12 @@ export async function applyMockRegisteredProfile({
   districtName,
   displayName,
   provinceName,
-  universityName,
 }: {
   addressDetail: string;
   cityName: string;
   districtName: string;
   displayName: string;
   provinceName: string;
-  universityName: string;
 }) {
   mockProfile = {
     ...mockProfile,
@@ -160,7 +158,6 @@ export async function applyMockRegisteredProfile({
     provinceName,
     cityName: cityName || undefined,
     districtName,
-    universityName: universityName || undefined,
     addressDetail,
     publicTag: myProfile.publicTag,
     lifetimeDistanceKm: mockProfile.lifetimeDistanceKm ?? 0,

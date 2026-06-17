@@ -28,16 +28,6 @@ export function buildActiveNotices(store) {
   };
 }
 
-export function buildUniversityCatalog(store) {
-  const universities = [...new Set(
-    store.users
-      .map((user) => normalizeOptionalString(user.universityName))
-      .filter(Boolean),
-  )].sort((left, right) => left.localeCompare(right, 'ko'));
-
-  return { universities };
-}
-
 export function ensureNoticeStore(store) {
   if (!Array.isArray(store.notices)) {
     store.notices = [];

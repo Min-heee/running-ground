@@ -34,7 +34,6 @@ export type AdminUserSummary = {
   provinceName?: string;
   cityName?: string;
   districtName: string;
-  universityName?: string;
   createdAt?: string;
   lifetimeDistanceKm: number;
   currentWeekDistanceKm: number;

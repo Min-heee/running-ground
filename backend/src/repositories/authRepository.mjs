@@ -285,7 +285,6 @@ export function createJsonAuthRepository({
       phone,
       birthDate,
       region,
-      universityName,
       addressDetail,
       phoneVerificationToken,
     }) {
@@ -324,7 +323,6 @@ export function createJsonAuthRepository({
           provinceName: region.provinceName,
           cityName: region.cityName,
           districtName: region.districtName,
-          ...(universityName ? { universityName } : {}),
           addressDetail,
           publicTag: createPublicTag(store),
           friendDistanceKm: 0,

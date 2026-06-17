@@ -230,7 +230,6 @@ export function filterAdminUsers(items: AdminUserSummary[], queryValue: string) 
     user.username,
     user.publicTag,
     user.districtName,
-    user.universityName,
     user.provinceName,
     user.cityName,
   ));

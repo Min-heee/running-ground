@@ -15,7 +15,6 @@ export type RegisterAccountInput = {
   provinceName: string;
   cityName?: string;
   districtName: string;
-  universityName?: string;
   addressDetail: string;
   birthDate: string;
   phoneVerificationToken?: string;

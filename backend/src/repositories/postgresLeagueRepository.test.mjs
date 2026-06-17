@@ -55,14 +55,6 @@ class FakePostgresDatabase {
       };
     }
 
-    if (normalizedSql.startsWith("select * from users where coalesce(university_name, '') <> ''")) {
-      return {
-        rows: this.users
-          .filter((entry) => String(entry.university_name ?? '').trim() !== '')
-          .map((row) => clone(row)),
-      };
-    }
-
     if (normalizedSql.startsWith('select id, user_id, run_date, distance_km, pace, source_label, source_type, external_id,')) {
       const ids = new Set(params[0]);
       return {
@@ -216,53 +208,5 @@ await runTest('returns region league from app metadata region tree', async () =>
   assert.deepEqual(result.children.map((entry) => `${entry.rank}:${entry.name}`), [
     '1:강남구',
     '2:마포구',
-  ]);
-});
-
-await runTest('aggregates university league from postgres rows', async () => {
-  const { repository } = createRepositoryHarness({
-    users: [
-      { id: 'user-me', nickname: '민병희', university_name: '서울대학교' },
-      { id: 'user-a', nickname: '가영', university_name: '서울대학교' },
-      { id: 'user-b', nickname: '준호', university_name: '연세대학교' },
-      { id: 'user-c', nickname: '서연', university_name: '연세대학교' },
-      { id: 'user-d', nickname: '하늘', university_name: '고려대학교' },
-    ],
-    sessions: [
-      { token: 'token-me', user_id: 'user-me', expires_at: '2099-01-01T00:00:00.000Z' },
-    ],
-    runs: [
-      { id: 'run-me', user_id: 'user-me', run_date: '2026-04-23', distance_km: 8, pace: '05:50/km', source_label: 'Manual', source_type: 'manual' },
-      { id: 'run-a', user_id: 'user-a', run_date: '2026-04-23', distance_km: 10, pace: '05:20/km', source_label: 'NRC', source_type: 'nrc' },
-      { id: 'run-b', user_id: 'user-b', run_date: '2026-04-23', distance_km: 12, pace: '05:10/km', source_label: 'NRC', source_type: 'nrc' },
-      { id: 'run-c', user_id: 'user-c', run_date: '2026-04-23', distance_km: 8, pace: '05:25/km', source_label: 'NRC', source_type: 'nrc' },
-      { id: 'run-d', user_id: 'user-d', run_date: '2026-04-23', distance_km: 7, pace: '05:30/km', source_label: 'NRC', source_type: 'nrc' },
-    ],
-  });
-
-  const result = await repository.getUniversities({ token: 'token-me' });
-
-  assert.deepEqual(result.ranks, [
-    {
-      rank: 1,
-      universityName: '연세대학교',
-      totalDistanceKm: 20,
-      participants: 2,
-      averageDistanceKm: 10,
-    },
-    {
-      rank: 2,
-      universityName: '서울대학교',
-      totalDistanceKm: 18,
-      participants: 2,
-      averageDistanceKm: 9,
-    },
-    {
-      rank: 3,
-      universityName: '고려대학교',
-      totalDistanceKm: 7,
-      participants: 1,
-      averageDistanceKm: 7,
-    },
   ]);
 });

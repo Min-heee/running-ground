@@ -29,9 +29,9 @@ export function UserAdminSection({
   return (
     <Card>
       <Text style={styles.sectionTitle}>회원 관리</Text>
-      <Text style={styles.sectionDescription}>가입한 회원과 지역, 대학, 활동량을 보고 바로 정리할 수 있어요.</Text>
+      <Text style={styles.sectionDescription}>가입한 회원과 지역, 활동량을 보고 바로 정리할 수 있어요.</Text>
       <View style={styles.listControls}>
-        <SearchInput value={userQuery} onChangeText={setUserQuery} placeholder="이름, 아이디, 태그, 지역, 대학으로 검색" />
+        <SearchInput value={userQuery} onChangeText={setUserQuery} placeholder="이름, 아이디, 태그, 지역으로 검색" />
         <Text style={styles.filterSummary}>검색 결과 {filteredUsers.length} / 전체 {users.length}</Text>
       </View>
       <AdminList
@@ -49,7 +49,6 @@ export function UserAdminSection({
             </View>
             <Text style={styles.listInfo}>
               {user.provinceName ?? ''}{user.cityName ? ` ${user.cityName}` : ''} {user.districtName}
-              {user.universityName ? ` · ${user.universityName}` : ''}
             </Text>
             <Text style={styles.listInfo}>
               누적 {user.lifetimeDistanceKm}km · 이번 주 {user.currentWeekDistanceKm}km / {user.currentWeekPoints}P · 연동 {user.connectedSourceCount}개

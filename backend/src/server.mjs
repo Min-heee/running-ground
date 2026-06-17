@@ -126,7 +126,6 @@ import {
   buildActiveNotices,
   buildAdminNotices,
   buildRegionCatalog,
-  buildUniversityCatalog,
   ensureNoticeStore,
 } from './lib/catalogBuilders.mjs';
 import {
@@ -698,7 +697,6 @@ const routeRequest = createApiRouteHandler({
   buildAdminStatus: backendStatusService.buildAdminStatus,
   buildAdminSession: backendStatusService.buildAdminSession,
   buildRegionCatalog,
-  buildUniversityCatalog,
   buildProfile,
   buildNotificationSettings,
   buildPhoneVerificationPayload,
@@ -715,7 +713,6 @@ const routeRequest = createApiRouteHandler({
   buildRankLeaderboardReadPayload: leagueReadService.buildRankLeaderboardReadPayload,
   buildRegionLeagueReadPayload: leagueReadService.buildRegionLeagueReadPayload,
   buildTodayRankingReadPayload: leagueReadService.buildTodayRankingReadPayload,
-  buildUniversityLeagueReadPayload: leagueReadService.buildUniversityLeagueReadPayload,
   buildMarketOverviewReadPayload,
   buildOfflineRaceHubReadPayload,
   buildCurrentRunReadPayload,

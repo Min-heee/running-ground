@@ -469,7 +469,6 @@ export function createPostgresAuthRepository({
       phone,
       birthDate,
       region,
-      universityName,
       addressDetail,
     }) {
       return runWriteOperation(database, async (client) => {
@@ -492,7 +491,6 @@ export function createPostgresAuthRepository({
           provinceName: region.provinceName,
           cityName: region.cityName,
           districtName: region.districtName,
-          universityName: universityName || '',
           addressDetail,
           publicTag: await createAvailablePublicTag(client, createPublicTag, createError),
           rewardPoints: 0,
@@ -509,13 +507,13 @@ export function createPostgresAuthRepository({
             `
               insert into users (
                 id, username, password_hash, password_updated_at, nickname, real_name, phone, birth_date,
-                public_tag, province_name, city_name, district_name, university_name, address_detail,
+                public_tag, province_name, city_name, district_name, address_detail,
                 reward_points, streak_days, rank_state, connected_sources, notification_settings, created_at, updated_at
               )
               values (
                 $1, $2, $3, $4, $5, $6, $7, $8,
-                $9, $10, $11, $12, $13, $14,
-                $15, $16, $17, $18, $19, $20, $21
+                $9, $10, $11, $12, $13,
+                $14, $15, $16, $17, $18, $19, $20
               )
             `,
             [
@@ -531,7 +529,6 @@ export function createPostgresAuthRepository({
               user.provinceName,
               user.cityName,
               user.districtName,
-              user.universityName || null,
               user.addressDetail,
               user.rewardPoints,
               user.streakDays,
@@ -601,7 +598,6 @@ export function createPostgresAuthRepository({
           provinceName: '',
           cityName: '',
           districtName: '',
-          universityName: '',
           addressDetail: '',
           publicTag: await createAvailablePublicTag(client, createPublicTag, createError),
           rewardPoints: 0,
@@ -617,13 +613,13 @@ export function createPostgresAuthRepository({
           `
             insert into users (
               id, username, password_hash, password_updated_at, nickname, real_name, phone, birth_date,
-              public_tag, province_name, city_name, district_name, university_name, address_detail,
+              public_tag, province_name, city_name, district_name, address_detail,
               reward_points, streak_days, rank_state, connected_sources, notification_settings, created_at, updated_at
             )
             values (
               $1, $2, $3, $4, $5, $6, $7, $8,
-              $9, $10, $11, $12, $13, $14,
-              $15, $16, $17, $18, $19, $20, $21
+              $9, $10, $11, $12, $13,
+              $14, $15, $16, $17, $18, $19, $20
             )
           `,
           [
@@ -639,7 +635,6 @@ export function createPostgresAuthRepository({
             user.provinceName,
             user.cityName,
             user.districtName,
-            user.universityName || null,
             user.addressDetail,
             user.rewardPoints,
             user.streakDays,

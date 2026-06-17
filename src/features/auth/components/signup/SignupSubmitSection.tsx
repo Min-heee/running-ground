@@ -1,7 +1,6 @@
 import { SignupActionFooter } from './SignupActionFooter';
 import { SignupAgreementSection } from './SignupAgreementSection';
 import { SignupBirthDateSection } from './SignupBirthDateSection';
-import { SignupUniversityRegionGuideSection } from './SignupUniversityRegionGuideSection';
 import type { SignupFormModel } from './types';
 
 type SignupSubmitSectionProps = Pick<
@@ -36,7 +35,6 @@ export function SignupSubmitSection({
 }: SignupSubmitSectionProps) {
   return (
     <>
-      <SignupUniversityRegionGuideSection />
       <SignupBirthDateSection
         birthDate={birthDate}
         handleBirthDateChange={handleBirthDateChange}

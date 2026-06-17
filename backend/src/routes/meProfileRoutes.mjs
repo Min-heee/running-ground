@@ -90,9 +90,6 @@ async function handlePatchMyProfile({
   const payload = await mutateStore((store) => {
     const user = requireUser(store, request);
     user.name = validateRequiredString(body.name, '닉네임을 입력해줘.');
-    user.universityName = typeof body.universityName === 'string' && body.universityName.trim()
-      ? body.universityName.trim()
-      : undefined;
     return buildProfile(store, user);
   });
 

@@ -20,8 +20,8 @@ export function ProfileSummaryCard({
   onShareTag,
 }: ProfileSummaryCardProps) {
   const profileSubline = useMemo(
-    () => [profile.districtName, profile.universityName].filter(Boolean).join(' · ') || '대학교 인증 전',
-    [profile.districtName, profile.universityName],
+    () => profile.districtName || '',
+    [profile.districtName],
   );
 
   return (
