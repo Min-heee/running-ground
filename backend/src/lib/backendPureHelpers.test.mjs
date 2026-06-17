@@ -15,9 +15,16 @@ import {
 import {
   buildDistanceRecommendationHint,
   calculateMatchCompatibilityScore,
+  getMatchRoomMinParticipants,
   normalizeMatchQueueDistance,
+  normalizeMatchRoomMaxParticipants,
   projectOfficialDistanceKm,
 } from './matchPureHelpers.mjs';
+import {
+  MATCH_ROOM_GROUP_DEFAULT_PARTICIPANTS,
+  MATCH_ROOM_GROUP_MAX_PARTICIPANTS,
+  MATCH_ROOM_GROUP_MIN_PARTICIPANTS,
+} from './matchConstants.mjs';
 import {
   buildTestMatchQueueExpiresAt,
   buildTestMatchStartAt,
@@ -57,3 +64,31 @@ assert.equal(calculateMatchCompatibilityScore(
   5,
   'duel',
 ), 100);
+
+// A group party-run room must hold more than two runners.
+assert.equal(MATCH_ROOM_GROUP_MIN_PARTICIPANTS > 2, true);
+
+// Duel rooms always seat exactly two, regardless of the client value.
+assert.equal(normalizeMatchRoomMaxParticipants('duel', 2), 2);
+assert.equal(normalizeMatchRoomMaxParticipants('duel', 30), 2);
+assert.equal(normalizeMatchRoomMaxParticipants('duel', undefined), 2);
+
+// Group rooms keep a sensible explicit value and respect the upper bound 30.
+assert.equal(normalizeMatchRoomMaxParticipants('group', 10), 10);
+assert.equal(normalizeMatchRoomMaxParticipants('group', 10), MATCH_ROOM_GROUP_DEFAULT_PARTICIPANTS);
+assert.equal(normalizeMatchRoomMaxParticipants('group', 30), 30);
+assert.equal(normalizeMatchRoomMaxParticipants('group', 100), MATCH_ROOM_GROUP_MAX_PARTICIPANTS);
+assert.equal(normalizeMatchRoomMaxParticipants('group', 5.4), 5);
+
+// Safety net: a stale duel value of 2 (or anything below the group minimum)
+// can never create a 2-person "group" — it is clamped up to the group floor.
+assert.equal(normalizeMatchRoomMaxParticipants('group', 2), MATCH_ROOM_GROUP_MIN_PARTICIPANTS);
+assert.equal(normalizeMatchRoomMaxParticipants('group', 1), MATCH_ROOM_GROUP_MIN_PARTICIPANTS);
+assert.equal(normalizeMatchRoomMaxParticipants('group', '2'), MATCH_ROOM_GROUP_MIN_PARTICIPANTS);
+
+// A missing/garbage group value falls back to the default capacity, never 2.
+assert.equal(normalizeMatchRoomMaxParticipants('group', undefined), MATCH_ROOM_GROUP_DEFAULT_PARTICIPANTS);
+assert.equal(normalizeMatchRoomMaxParticipants('group', 'not-a-number'), MATCH_ROOM_GROUP_DEFAULT_PARTICIPANTS);
+
+assert.equal(getMatchRoomMinParticipants('duel'), 2);
+assert.equal(getMatchRoomMinParticipants('group'), MATCH_ROOM_GROUP_MIN_PARTICIPANTS);

@@ -7,6 +7,7 @@ import {
   clearMatchRoomDeletedTombstone,
 } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { recoverDeletedRoomCreateBlocker } from '@/features/runs/runtime/deletedRoomBlockerPolicy';
+import { resolveCreateRoomMaxParticipants } from '@/features/runs/runtime/resolveCreateRoomMaxParticipants';
 import {
   getRunningMatchBlockerFromError,
   runStaleRoomCleanupWithTimeout,
@@ -153,6 +154,7 @@ export function useTrackRunRoomCreateAction({
           source,
         });
         try {
+          const groupMaxParticipants = resolveCreateRoomMaxParticipants(nextRoomMode, roomMaxParticipants);
           const payload = await createRunningMatchRoom({
             mode: nextRoomMode,
             distanceKm: nextDistanceKm,
@@ -160,7 +162,7 @@ export function useTrackRunRoomCreateAction({
             ...(roomStartMode === 'scheduled'
               ? { slotStartAt: nextRoomMode === 'duel' ? activeDuelSlotStartAt : activeGroupSlotStartAt }
               : {}),
-            ...(nextRoomMode === 'group' ? { maxParticipants: Number(roomMaxParticipants) || 10 } : {}),
+            ...(groupMaxParticipants !== undefined ? { maxParticipants: groupMaxParticipants } : {}),
           });
           endCreateApiTrace({
             roomId: payload.room?.roomId ?? null,

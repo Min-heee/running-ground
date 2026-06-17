@@ -18,7 +18,11 @@ export const MATCH_ROOM_HOST_START_DELAY_SECONDS = 10;
 export const MATCH_ROOM_HOST_LOADING_SECONDS = 2;
 // Safety ceiling for host-start loading if a participant never acknowledges countdown readiness.
 export const MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS = 8;
-export const MATCH_ROOM_GROUP_MIN_PARTICIPANTS = 2;
+// A group party-run room (그룹대결) must seat more than two runners — otherwise it
+// is just a duel. This is the floor for both the start gate and the room capacity.
+export const MATCH_ROOM_GROUP_MIN_PARTICIPANTS = 3;
+export const MATCH_ROOM_GROUP_DEFAULT_PARTICIPANTS = 10;
+export const MATCH_ROOM_GROUP_MAX_PARTICIPANTS = 30;
 export const MATCH_ROOM_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
 export const MATCH_ROOM_INVITE_LINK_BASE = 'runningground://running';
 // 20m: warmup baseline subtraction + toFixed(2) display rounding boundary margin.

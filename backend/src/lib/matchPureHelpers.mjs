@@ -1,6 +1,8 @@
 import {
   MATCH_PARTICIPANT_BACKGROUND_STALE_MS,
   MATCH_PARTICIPANT_RUNNING_STALE_MS,
+  MATCH_ROOM_GROUP_DEFAULT_PARTICIPANTS,
+  MATCH_ROOM_GROUP_MAX_PARTICIPANTS,
   MATCH_ROOM_GROUP_MIN_PARTICIPANTS,
   MATCH_ROOM_INVITE_LINK_BASE,
   RECOMMENDED_MATCH_DISTANCES,
@@ -51,10 +53,15 @@ export function normalizeMatchRoomMaxParticipants(mode, value) {
   const parsedValue = typeof value === 'number' ? value : Number(value);
 
   if (!Number.isFinite(parsedValue)) {
-    return 10;
+    return MATCH_ROOM_GROUP_DEFAULT_PARTICIPANTS;
   }
 
-  return Math.max(2, Math.min(30, Math.round(parsedValue)));
+  // Safety net: a group room must never be capped below the group minimum, so a
+  // stale duel value of 2 leaking from the client cannot create a 2-person "group".
+  return Math.max(
+    MATCH_ROOM_GROUP_MIN_PARTICIPANTS,
+    Math.min(MATCH_ROOM_GROUP_MAX_PARTICIPANTS, Math.round(parsedValue)),
+  );
 }
 
 export function getMatchRoomMinParticipants(mode) {

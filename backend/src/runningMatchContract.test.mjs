@@ -380,6 +380,41 @@ await runTest('party run room start creates a linked match and accepts countdown
   });
 });
 
+await runTest('group party run room never seats fewer than the group minimum', async () => {
+  await withBackend(createBaseStore(), async ({ request }) => {
+    // Simulates a stale duel value of 2 leaking into the group create payload
+    // (the original bug). The backend safety net must clamp the cap up so the
+    // group room can hold more than two runners.
+    const staleDuelValueRoom = await request('host-token', 'POST', '/api/running/rooms', {
+      mode: 'group',
+      distanceKm: 5,
+      startMode: 'host',
+      maxParticipants: 2,
+    });
+    assert.equal(staleDuelValueRoom.room.mode, 'group');
+    assert.equal(staleDuelValueRoom.room.maxParticipants > 2, true);
+    assert.equal(staleDuelValueRoom.room.minParticipants > 2, true);
+  });
+
+  await withBackend(createBaseStore(), async ({ request }) => {
+    // A sensible explicit group size is preserved, and a missing value falls
+    // back to the default capacity (never 2).
+    const explicitSizeRoom = await request('host-token', 'POST', '/api/running/rooms', {
+      mode: 'group',
+      distanceKm: 5,
+      startMode: 'host',
+      maxParticipants: 12,
+    });
+    assert.equal(explicitSizeRoom.room.maxParticipants, 12);
+
+    const guest = await request('guest-token', 'POST', '/api/running/rooms/join', {
+      inviteToken: explicitSizeRoom.room.inviteToken,
+    });
+    assert.equal(guest.room.participants.length, 2);
+    assert.equal(guest.room.participants.length < explicitSizeRoom.room.maxParticipants, true);
+  });
+});
+
 await runTest('party run room invite creates a recipient notification', async () => {
   const store = createBaseStore();
   store.friendships.push({
