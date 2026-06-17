@@ -325,7 +325,7 @@ export async function leaveRunningMatch(input: LeaveRunningMatchInput): Promise<
 
 export async function updateRunningMatchProgress(
   input: UpdateRunningMatchProgressInput,
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<UpdateRunningMatchProgressResponse> {
   if (USE_MOCK_API) {
     const duelSession = syncMockRunningMatchSession('duel');
@@ -415,8 +415,10 @@ export async function updateRunningMatchProgress(
       fallbackMessage: '실시간 경쟁 상태를 업데이트하지 못했어.',
       signal: options.signal,
       // Heartbeat fires every ~2.5s; abort a stalled push fast so the next tick retries
-      // instead of freezing live progress for the full default timeout.
-      timeoutMs: LIVE_MATCH_REQUEST_TIMEOUT_MS,
+      // instead of freezing live progress for the full default timeout. Callers (e.g. the
+      // background push) may pass a shorter timeout so a hung request self-aborts before
+      // their own stale guard would have to force-abort it.
+      timeoutMs: options.timeoutMs ?? LIVE_MATCH_REQUEST_TIMEOUT_MS,
     },
   );
 

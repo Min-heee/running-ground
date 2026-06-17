@@ -38,6 +38,64 @@ export function resolveMatchProgressHeartbeatStatus({
     : 'running';
 }
 
+// Pure routing/guard decision for applying a BACKGROUND match-progress response into React.
+// Extracted so the forfeit + mode-routing + live-id guards (the regression-prone part) are unit
+// testable without rendering the runtime tree. The serverNow monotonic guard (B2) and the
+// terminal teardown side-effect (M1) are applied by the caller around this decision, because they
+// mutate a ref / module state; this function stays pure.
+export type BackgroundMatchStatusApplyTarget = 'duel' | 'group' | null;
+
+export function isTerminalMatchLiveStatus(
+  status: RunningMatchStatusResponse['currentUserLiveStatus'] | null | undefined,
+): boolean {
+  return status === 'forfeited' || status === 'finished';
+}
+
+export function resolveBackgroundMatchStatusApplyTarget({
+  status,
+  duelMatchId,
+  groupMatchId,
+  roomLinkedMatchContext,
+  forfeitedMatchIds,
+}: {
+  status: RunningMatchStatusResponse;
+  duelMatchId: string | null | undefined;
+  groupMatchId: string | null | undefined;
+  roomLinkedMatchContext: { mode: 'duel' | 'group'; matchId: string } | null;
+  forfeitedMatchIds: ReadonlySet<string>;
+}): BackgroundMatchStatusApplyTarget {
+  const matchId = status.matchId;
+  if (!matchId) {
+    return null;
+  }
+
+  // B1 — never resurrect a self-forfeited match. A background response that was in flight when
+  // the user forfeited must be dropped rather than overwriting local 'forfeited' with 'active'.
+  if (forfeitedMatchIds.has(matchId)) {
+    return null;
+  }
+
+  // Mode-validated routing + live-id guard: only apply onto a status ref that currently holds
+  // this matchId, and only when the response mode matches, so a duel response can never
+  // cross-write the group status (and vice versa). Prefer the duel/group status ref over the
+  // roomLinkedMatchContext for a single canonical target.
+  if (status.mode === 'duel' && (
+    matchId === duelMatchId
+    || (matchId === roomLinkedMatchContext?.matchId && roomLinkedMatchContext.mode === 'duel')
+  )) {
+    return 'duel';
+  }
+
+  if (status.mode === 'group' && (
+    matchId === groupMatchId
+    || (matchId === roomLinkedMatchContext?.matchId && roomLinkedMatchContext.mode === 'group')
+  )) {
+    return 'group';
+  }
+
+  return null;
+}
+
 export function buildSyncedMatchProgressSnapshot(
   input: UpdateRunningMatchProgressInput,
   nowMs = Date.now(),

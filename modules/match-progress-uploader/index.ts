@@ -1,7 +1,10 @@
 import { requireNativeModule } from 'expo-modules-core';
 
 type MatchProgressUploaderNativeModule = {
-  upload(url: string, authToken: string, jsonBody: string): void;
+  // NATIVE (Android, next build): now async — resolves with the response body string the
+  // native side already reads (or null on non-2xx / failure) so the JS background flush can
+  // apply the opponent's live state instead of discarding it.
+  upload(url: string, authToken: string, jsonBody: string): Promise<string | null>;
 };
 
 let nativeModule: MatchProgressUploaderNativeModule | null = null;
@@ -16,10 +19,15 @@ export function isNativeMatchProgressUploaderAvailable(): boolean {
   return nativeModule != null;
 }
 
-export function uploadMatchProgressNative(url: string, authToken: string, jsonBody: string): void {
+export async function uploadMatchProgressNative(
+  url: string,
+  authToken: string,
+  jsonBody: string,
+): Promise<string | null> {
   try {
-    nativeModule?.upload(url, authToken, jsonBody);
+    return (await nativeModule?.upload(url, authToken, jsonBody)) ?? null;
   } catch {
     // Best-effort background upload; the next location tick will retry with fresher data.
+    return null;
   }
 }

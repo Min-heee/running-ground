@@ -239,6 +239,11 @@ export function useRunForfeitCommand({
         setGroupMatchNotice('기권 처리됐어요. 기록 상세로 이동할게요.');
       }
 
+      // Arm the local-forfeit guard BEFORE the best-effort network leave. forfeitedMatchIdsRef
+      // gates the background progress applier, so an in-flight background response that resolves
+      // during the leave await can no longer resurrect the match into 'running'.
+      markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
+
       // Forfeit is local-first: the user committed to quitting, so the server "leave"
       // call is best-effort. On a flaky mobile network the response can time out even
       // though the server already recorded the forfeit — that must NOT roll back the
@@ -249,7 +254,6 @@ export function useRunForfeitCommand({
         // Swallow: the forfeit still stands locally and we proceed to save + navigate.
       }
       didLeaveMatch = true;
-      markMatchLocallyForfeited(buildLocalForfeitSnapshot(matchId));
       forfeitApiTraceCompleted = true;
       endForfeitApiTrace({ success: true });
       matchProgressHeartbeatRef.current = Date.now();

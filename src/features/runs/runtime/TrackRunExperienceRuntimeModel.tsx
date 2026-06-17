@@ -88,6 +88,16 @@ import {
 import { resolveTrackRunLiveShellGate } from '@/features/runs/lifecycle/trackRunLiveShellGate';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import {
+  isTerminalMatchLiveStatus,
+  resolveBackgroundMatchStatusApplyTarget,
+} from '@/features/runs/sync/matchProgressSync';
+import {
+  clearBackgroundMatchProgressContext,
+  clearBackgroundMatchStatusApplier,
+  setBackgroundMatchStatusApplier,
+} from '@/features/runs/tracking/background/backgroundMatchProgressSync';
+import { stopBackgroundMatchProgressTimer } from '@/features/runs/tracking/background/backgroundMatchProgressTimer';
+import {
   advanceMatchStatusVanishState,
   buildVanishedMatchStatusFallback,
   isMatchStatusVanishConfirmed,
@@ -171,10 +181,6 @@ function isRunningMatchForceResetCandidate(message: string | null) {
       || message.includes('대결')
     )
   );
-}
-
-function isTerminalMatchLiveStatus(status: RunningMatchStatusResponse['currentUserLiveStatus'] | null | undefined) {
-  return status === 'forfeited' || status === 'finished';
 }
 
 export function TrackRunExperienceRuntime({
@@ -1640,6 +1646,75 @@ export function TrackRunExperienceRuntime({
     setGroupMatchStatus(payload);
     return payload;
   };
+
+  // Fix A/B-wiring — bridge the background push response into React FROM HERE, where the
+  // canonical guarded refs (forfeitedMatchIdsRef + the per-mode serverNow monotonic refs) and
+  // the status setters already live. The background flush (native Android / JS-fallback iOS) is
+  // the ONLY progress POST that fires while the screen is off; applying its opponent-bearing
+  // response is what unfreezes the OPPONENT's live distance/pace/gap (and the TTS voice). This
+  // routes through the SAME forfeit + monotonic-serverNow guards as the foreground/poll paths so
+  // a late in-flight response can neither resurrect a forfeited match nor apply out of order.
+  // Stable mount-once applier. All match state it reads comes through refs, and the only
+  // functions it closes over (setDuelMatchStatus / setGroupMatchStatus are React setters;
+  // syncServerClock itself only writes a stable ref + a stable setter + module state) carry no
+  // stale per-render values, so capturing them once here is safe.
+  const applyBackgroundMatchStatusRef = useRef((nextStatus: RunningMatchStatusResponse) => {
+    // B1 (forfeit) + mode-validated routing + live-match id guard, all in one pure decision so
+    // the regression-prone branching is unit tested (see matchProgressSync.test.ts). Reads only
+    // refs, so it never works off stale match state.
+    const applyTarget = resolveBackgroundMatchStatusApplyTarget({
+      status: nextStatus,
+      duelMatchId: duelMatchStatusRef.current?.matchId,
+      groupMatchId: groupMatchStatusRef.current?.matchId,
+      roomLinkedMatchContext: roomLinkedMatchContextRef.current,
+      forfeitedMatchIds: forfeitedMatchIdsRef.current,
+    });
+
+    if (!applyTarget) {
+      return;
+    }
+
+    // B2 — route through the SAME monotonic serverNow guard every other status-applying path
+    // uses, so a late 'active' response can't overwrite a newer 'finished'. Uses the per-mode
+    // ref to match the foreground loadDuel/GroupMatchStatus ordering exactly.
+    const serverNowRef = applyTarget === 'duel'
+      ? latestDuelStatusServerNowMsRef
+      : latestGroupStatusServerNowMsRef;
+    if (!shouldAcceptServerSnapshot(serverNowRef, nextStatus.serverNow)) {
+      return;
+    }
+
+    // Keep the shared server clock advancing on the same cadence as the foreground/poll paths.
+    syncServerClock(nextStatus.serverNow, nextStatus);
+
+    if (applyTarget === 'duel') {
+      setDuelMatchStatus(nextStatus);
+    } else {
+      setGroupMatchStatus(nextStatus);
+    }
+
+    // M1 — finish-path cooperation. If the applied status is terminal for THIS runner (finished
+    // or forfeited), idempotently tear down the background context + timer so the background
+    // flush stops firing for a dead match instead of racing the foreground finish teardown.
+    // clearBackgroundMatchProgressContext is match-id-scoped, so this is safe if another match
+    // has already taken over the context.
+    if (isTerminalMatchLiveStatus(nextStatus.currentUserLiveStatus)) {
+      stopBackgroundMatchProgressTimer();
+      clearBackgroundMatchProgressContext(nextStatus.matchId ?? undefined);
+    }
+  });
+
+  useEffect(() => {
+    // M2 — register the STABLE applier and tear it down BY IDENTITY. Given the duplicate
+    // runtime-mount history (#135) / StrictMode, an unconditional null on unmount could wipe a
+    // surviving instance's applier; clearBackgroundMatchStatusApplier no-ops unless this exact
+    // function is still the registered owner.
+    const applier = applyBackgroundMatchStatusRef.current;
+    setBackgroundMatchStatusApplier(applier);
+    return () => {
+      clearBackgroundMatchStatusApplier(applier);
+    };
+  }, []);
 
   const loadUpcomingMatches = async () => {
     const payload = await fetchUpcomingRunningMatches();

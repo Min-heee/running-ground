@@ -163,6 +163,13 @@ export function useMatchProgressSync({
     roomLinkedMatchContextRef,
   ]);
 
+  // NOTE: the background→React status applier (which unfreezes the OPPONENT while the screen is
+  // off) is intentionally NOT wired here. It is registered in TrackRunExperienceRuntimeModel,
+  // where the canonical guarded refs live (forfeitedMatchIdsRef + the serverNow monotonic refs),
+  // so the background apply goes through the same forfeit / out-of-order guards as the foreground
+  // and poll paths. Wiring it here would have only the weak live-id guard and could resurrect a
+  // forfeited match or apply a stale snapshot.
+
   useEffect(() => {
     if (!heartbeatEnabled || !activeHeartbeatMatchId) {
       return undefined;
