@@ -12,7 +12,11 @@ export async function routeLeagueRequest({
   buildUniversityLeagueReadPayload,
 }) {
   if (pathname === '/api/league/district-personal' && method === 'GET') {
-    sendJson(response, 200, await buildDistrictPersonalReadPayload(request));
+    sendJson(
+      response,
+      200,
+      await buildDistrictPersonalReadPayload(request, url.searchParams.get('nodeId') ?? undefined),
+    );
     return true;
   }
 

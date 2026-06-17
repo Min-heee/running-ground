@@ -11,7 +11,7 @@ import type {
   TodayRankingCategory,
   UniversityLeagueRank,
 } from '@/domain';
-import { RANK_TIERS } from '@/features/rank/rankDisplay';
+import { LP_PER_TIER, RANK_TIERS } from '@/features/rank/rankDisplay';
 import { rankMockTodayEntries } from '@/features/league/utils/mockTodayRanking';
 import { getCurrentUserProfile } from '@/lib/session';
 import type { DistrictPersonalResponse, TodayRankingResponse } from '../../types';
@@ -100,6 +100,25 @@ export function findRegionByName(node: RegionDrilldownNode, targetName: string):
   return null;
 }
 
+// The region drill is capped at three levels (country -> province -> city), so
+// city (시/군) nodes and anything deeper are treated as leaves. This mirrors the
+// backend cap so mock mode behaves the same as production.
+const REGION_LEAF_LEVELS = new Set<RegionDrilldownNode['level']>(['city', 'district']);
+
+export function isRegionLeafLevel(level: RegionDrilldownNode['level']) {
+  return REGION_LEAF_LEVELS.has(level);
+}
+
+export function capRegionPathDepth(path: RegionDrilldownNode[]) {
+  const leafIndex = path.findIndex((node) => isRegionLeafLevel(node.level));
+
+  if (leafIndex === -1) {
+    return path;
+  }
+
+  return path.slice(0, leafIndex + 1);
+}
+
 export const mockRegionalRunnerNames = [
   '김관우', '박지훈', '최민준', '한예린', '정이안', '이서윤', '박도윤', '김서하', '윤지후', '장민재',
   '이도현', '오하린', '조유준', '강서아', '백시우', '문가온', '남지호', '전유나', '신민호', '임다온',
@@ -117,6 +136,13 @@ export function buildMockDistrictPersonalResponse(nodeId?: string): DistrictPers
   const listSize = Math.min(Math.max(Math.round(targetNode.participants / 5), 18), 48);
   const myRankPosition = isMyRegion ? Math.min(Math.max(Math.round(listSize * 0.58), 6), listSize - 3) : -1;
   const topDistance = Math.max(targetNode.averageDistanceKm + 14, weeklySummary.totalDistanceKm + 8);
+  const profileTier = profile.rankState?.tier;
+  const profileTierIndex = profileTier
+    ? Math.max(0, RANK_TIERS.indexOf(profileTier as (typeof RANK_TIERS)[number]))
+    : 0;
+  const profileLp = Number.isFinite(profile.rankState?.lp) ? Math.trunc(profile.rankState?.lp ?? 0) : 0;
+  const myRankScore = profileTierIndex * LP_PER_TIER + profileLp;
+  const topRankScore = Math.max(myRankScore + 240, RANK_TIERS.length * LP_PER_TIER - 80);
   const ranks: DistrictPersonalRank[] = [];
   let runnerCursor = 0;
 
@@ -130,6 +156,8 @@ export function buildMockDistrictPersonalResponse(nodeId?: string): DistrictPers
         name: profile.name,
         distanceKm: Number(weeklySummary.totalDistanceKm.toFixed(1)),
         points: weeklySummary.districtPoints,
+        rankScore: myRankScore,
+        monthlyDistanceKm: Number((weeklySummary.totalDistanceKm * 3.4).toFixed(1)),
         isMe: true,
         isFriend: friendNameSet.has(profile.name),
       });
@@ -140,6 +168,8 @@ export function buildMockDistrictPersonalResponse(nodeId?: string): DistrictPers
     runnerCursor += 1;
     const distanceKm = Number(Math.max(3.2, topDistance - index * 1.15 - (index % 3) * 0.25).toFixed(1));
     const points = Math.max(12, Math.round(distanceKm * 2.15 + (listSize - index) * 0.6));
+    const rankScore = Math.max(0, Math.round(topRankScore - index * 18 - (index % 4) * 6));
+    const monthlyDistanceKm = Number(Math.max(distanceKm, distanceKm * 3.2 + (index % 5) * 1.4).toFixed(1));
 
     ranks.push({
       id: `${targetNode.id}-runner-${rank}`,
@@ -147,6 +177,8 @@ export function buildMockDistrictPersonalResponse(nodeId?: string): DistrictPers
       name: `${baseName}${runnerCursor > mockRegionalRunnerNames.length ? ` ${Math.ceil(runnerCursor / mockRegionalRunnerNames.length)}` : ''}`,
       distanceKm,
       points,
+      rankScore,
+      monthlyDistanceKm,
       isFriend: friendNameSet.has(baseName),
     });
   }

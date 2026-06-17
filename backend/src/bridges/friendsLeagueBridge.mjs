@@ -161,6 +161,7 @@ export function createFriendsLeagueBridge({
     async getDistrictPersonal({
       store,
       token,
+      nodeId,
       fallbackToJsonOnReadError = true,
     }) {
       if (leagueReadsEnabled && postgresLeagueRepository) {
@@ -170,6 +171,7 @@ export function createFriendsLeagueBridge({
           return {
             payload: await postgresLeagueRepository.getDistrictPersonalByUserId({
               currentUserId: currentUser.id,
+              nodeId,
             }),
             source: 'postgres',
           };
@@ -181,7 +183,7 @@ export function createFriendsLeagueBridge({
       }
 
       return {
-        payload: await leagueRepository.getDistrictPersonal({ token }),
+        payload: await leagueRepository.getDistrictPersonal({ token, nodeId }),
         source: 'json',
       };
     },

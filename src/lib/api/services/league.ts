@@ -34,6 +34,8 @@ import {
   normalizeRegionChildren,
   requireAccessToken,
   findRegionPath,
+  capRegionPathDepth,
+  isRegionLeafLevel,
   buildMockDistrictPersonalResponse,
   buildMockRankLeaderboardResponse,
   buildMockTodayRankingResponse,
@@ -78,12 +80,16 @@ export async function fetchDistrictPersonal(nodeId?: string): Promise<DistrictPe
 
 export async function fetchRegionLeague(nodeId?: string): Promise<RegionLeagueResponse> {
   if (USE_MOCK_API) {
-    const path = nodeId ? (findRegionPath(regionDrilldownTree, nodeId) ?? [regionDrilldownTree]) : [regionDrilldownTree];
+    const rawPath = nodeId ? (findRegionPath(regionDrilldownTree, nodeId) ?? [regionDrilldownTree]) : [regionDrilldownTree];
+    // Cap the drill at the city level so 시/군 nodes are leaves (matches backend).
+    const path = capRegionPathDepth(rawPath);
     const rawCurrentNode = path[path.length - 1];
     const parentNode = path[path.length - 2] ?? null;
     const normalizedSiblings = parentNode ? normalizeRegionChildren(parentNode.children ?? []) : [rawCurrentNode];
     const currentNode = normalizedSiblings.find((child) => child.id === rawCurrentNode.id) ?? rawCurrentNode;
-    const children = normalizeRegionChildren(currentNode.children ?? []);
+    const children = isRegionLeafLevel(currentNode.level)
+      ? []
+      : normalizeRegionChildren(currentNode.children ?? []);
 
     return {
       currentNode,

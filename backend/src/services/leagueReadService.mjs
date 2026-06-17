@@ -6,10 +6,11 @@ export function createLeagueReadService({
   loadCurrentUserReadContext,
   loadStore,
 }) {
-  async function buildDistrictPersonalReadPayload(request) {
+  async function buildDistrictPersonalReadPayload(request, nodeId) {
     const { payload } = await getFriendsLeagueBridge().getDistrictPersonal({
       store: await loadStore(),
       token: getAccessToken(request),
+      nodeId,
     });
 
     return payload;

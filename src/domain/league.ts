@@ -16,9 +16,15 @@ export type DistrictPersonalRank = {
   name: string;
   distanceKm: number;
   points: number;
+  // Combined rank score (tier index * LP_PER_TIER + LP), used by the 랭크 점수 metric.
+  rankScore: number;
+  // Total distance run in the current calendar month (km), used by the 이번달 거리 metric.
+  monthlyDistanceKm: number;
   isMe?: boolean;
   isFriend?: boolean;
 };
+
+export type DistrictPersonalMetric = 'rankScore' | 'monthlyDistance';
 
 export type UniversityLeagueRank = {
   rank: number;

@@ -1,4 +1,4 @@
-import type { RegionDrilldownNode } from '@/domain';
+import type { DistrictPersonalMetric, DistrictPersonalRank, RegionDrilldownNode } from '@/domain';
 import type { LeagueProfileRegion, LeagueRegionNodeIdentity, PodiumRank, PodiumTheme } from '@/features/league/types/league';
 import { colors } from '@/theme/tokens';
 import { formatDistanceValue } from '@/utils/formatUnits';
@@ -34,6 +34,37 @@ export function getPodiumTheme(rank: number) {
 
 export function sortRegionChildrenByRank(children: RegionDrilldownNode[]) {
   return [...children].sort((left, right) => left.rank - right.rank);
+}
+
+function getDistrictMetricValue(runner: DistrictPersonalRank, metric: DistrictPersonalMetric) {
+  return metric === 'monthlyDistance' ? runner.monthlyDistanceKm : runner.rankScore;
+}
+
+// Re-sort the member list by the selected metric (descending), re-numbering the
+// displayed rank. Sorting happens client-side because every row carries both
+// metric values, so no extra server round-trip is needed when the user toggles.
+export function sortDistrictRanksByMetric(
+  ranks: DistrictPersonalRank[],
+  metric: DistrictPersonalMetric,
+): DistrictPersonalRank[] {
+  return [...ranks]
+    .sort((left, right) => {
+      const metricDelta = getDistrictMetricValue(right, metric) - getDistrictMetricValue(left, metric);
+
+      if (metricDelta !== 0) {
+        return metricDelta;
+      }
+
+      // Stable tiebreak so equal metric values keep a deterministic order.
+      const distanceDelta = right.distanceKm - left.distanceKm;
+
+      if (distanceDelta !== 0) {
+        return distanceDelta;
+      }
+
+      return left.name.localeCompare(right.name, 'ko');
+    })
+    .map((runner, index) => ({ ...runner, rank: index + 1 }));
 }
 
 export function isMyRegionNode(node: LeagueRegionNodeIdentity, profile: LeagueProfileRegion | null | undefined) {

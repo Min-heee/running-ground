@@ -48,10 +48,12 @@ function createRepositoryHarness(initialStore = {}, metricsByUserId = {}) {
 
       return store.users.find((entry) => entry.id === session.userId);
     },
-    getUserMetrics: (_store, userId) => metricsByUserId[userId] ?? {
+    getUserMetrics: (_store, userId) => ({
       currentWeekDistanceKm: 0,
       currentWeekPoints: 0,
-    },
+      currentMonthDistanceKm: 0,
+      ...(metricsByUserId[userId] ?? {}),
+    }),
     createError: (statusCode, message) => new TestApiError(statusCode, message),
   });
 
@@ -217,4 +219,141 @@ await runTest('aggregates university league ranks', async () => {
       averageDistanceKm: 7,
     },
   ]);
+});
+
+function createCappedRegionTree() {
+  return {
+    id: 'region-root',
+    name: '대한민국',
+    level: 'country',
+    children: [
+      {
+        id: 'kr-gg',
+        name: '경기도',
+        level: 'province',
+        averageDistanceKm: 20,
+        totalDistanceKm: 2000,
+        participants: 200,
+        children: [
+          {
+            id: 'kr-gg-01',
+            name: '고양시',
+            level: 'city',
+            averageDistanceKm: 22,
+            totalDistanceKm: 880,
+            participants: 40,
+            children: [
+              {
+                id: 'kr-gg-01-01',
+                name: '덕양구',
+                level: 'district',
+                averageDistanceKm: 23,
+                totalDistanceKm: 460,
+                participants: 20,
+                children: [],
+              },
+              {
+                id: 'kr-gg-01-02',
+                name: '일산동구',
+                level: 'district',
+                averageDistanceKm: 21,
+                totalDistanceKm: 420,
+                participants: 20,
+                children: [],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+await runTest('caps the region drill at the city level (시/군 nodes are leaves)', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [{ id: 'user-me', name: '민병희' }],
+    sessions: [{ token: 'token-me', userId: 'user-me' }],
+    regionTree: createCappedRegionTree(),
+  });
+
+  const cityResult = await repository.getRegions({ token: 'token-me', nodeId: 'kr-gg-01' });
+
+  assert.equal(cityResult.currentNode.id, 'kr-gg-01');
+  // A city node must expose NO children even though 덕양구/일산동구 exist.
+  assert.deepEqual(cityResult.children, []);
+  // Breadcrumb stops at three levels (country -> province -> city).
+  assert.deepEqual(cityResult.breadcrumb, [
+    { id: 'region-root', name: '대한민국', level: 'country' },
+    { id: 'kr-gg', name: '경기도', level: 'province' },
+    { id: 'kr-gg-01', name: '고양시', level: 'city' },
+  ]);
+});
+
+await runTest('caps the breadcrumb when a district node is deep-linked', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [{ id: 'user-me', name: '민병희' }],
+    sessions: [{ token: 'token-me', userId: 'user-me' }],
+    regionTree: createCappedRegionTree(),
+  });
+
+  const districtResult = await repository.getRegions({ token: 'token-me', nodeId: 'kr-gg-01-01' });
+
+  // A deep-linked district collapses back to its 시/군 ancestor.
+  assert.equal(districtResult.currentNode.id, 'kr-gg-01');
+  assert.deepEqual(districtResult.children, []);
+  assert.deepEqual(
+    districtResult.breadcrumb.map((entry) => entry.id),
+    ['region-root', 'kr-gg', 'kr-gg-01'],
+  );
+});
+
+await runTest('aggregates a city ranking across all of its districts', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [
+      { id: 'user-me', name: '민병희', provinceName: '경기도', cityName: '고양시', districtName: '덕양구' },
+      { id: 'user-a', name: '가영', provinceName: '경기도', cityName: '고양시', districtName: '일산동구' },
+      { id: 'user-b', name: '준호', provinceName: '경기도', cityName: '고양시', districtName: '일산서구' },
+      { id: 'user-other', name: '수원러너', provinceName: '경기도', cityName: '수원시', districtName: '팔달구' },
+    ],
+    sessions: [{ token: 'token-me', userId: 'user-me' }],
+    regionTree: createCappedRegionTree(),
+  }, {
+    'user-me': { currentWeekDistanceKm: 10, currentWeekPoints: 15, currentMonthDistanceKm: 40 },
+    'user-a': { currentWeekDistanceKm: 12, currentWeekPoints: 20, currentMonthDistanceKm: 30 },
+    'user-b': { currentWeekDistanceKm: 8, currentWeekPoints: 11, currentMonthDistanceKm: 55 },
+    'user-other': { currentWeekDistanceKm: 50, currentWeekPoints: 80, currentMonthDistanceKm: 99 },
+  });
+
+  const result = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-gg-01' });
+
+  // Everyone in 고양시 rolls up regardless of their 구; 수원시 is excluded.
+  assert.equal(result.districtName, '고양시');
+  assert.deepEqual(result.ranks.map((entry) => entry.name), ['가영', '민병희', '준호']);
+  assert.equal(result.ranks.length, 3);
+});
+
+await runTest('district ranks carry both rank score and monthly distance', async () => {
+  const { repository } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-me',
+        name: '민병희',
+        provinceName: '경기도',
+        cityName: '고양시',
+        districtName: '덕양구',
+        rankState: { tier: '페이서', lp: 40 },
+      },
+    ],
+    sessions: [{ token: 'token-me', userId: 'user-me' }],
+    regionTree: createCappedRegionTree(),
+  }, {
+    'user-me': { currentWeekDistanceKm: 10, currentWeekPoints: 15, currentMonthDistanceKm: 42 },
+  });
+
+  const result = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-gg-01' });
+  const me = result.ranks[0];
+
+  // rankScore = tierIndex(페이서=2) * LP_PER_TIER(200) + lp(40) = 440.
+  assert.equal(me.rankScore, 440);
+  assert.equal(me.monthlyDistanceKm, 42);
 });

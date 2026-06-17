@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useMemo, useState } from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -9,10 +9,13 @@ import {
 
 import { Card } from '@/components/Card';
 import { RankingItemRow } from '@/components/ranking/RankingItemRow';
+import { DistrictMetricSwitch } from '@/features/league/components/DistrictMetricSwitch';
 import { RankMarker } from '@/features/league/components/LeagueRankBadges';
+import { sortDistrictRanksByMetric } from '@/features/league/utils/leagueRanking';
+import type { DistrictPersonalMetric } from '@/domain';
 import type { DistrictPersonalResponse } from '@/lib/api/types';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
-import { formatDistanceKm, formatPoints } from '@/utils/formatUnits';
+import { formatDistanceKm, formatRankScore } from '@/utils/formatUnits';
 
 type DistrictMemberRankingCardProps = {
   regionMembers: DistrictPersonalResponse;
@@ -23,18 +26,33 @@ type DistrictMemberRankingCardProps = {
 
 type DistrictMemberRank = DistrictPersonalResponse['ranks'][number];
 
+const DEFAULT_METRIC: DistrictPersonalMetric = 'rankScore';
+
+const METRIC_DESCRIPTION: Record<DistrictPersonalMetric, string> = {
+  rankScore: '해당 지역 회원들을 랭크 점수가 높은 순으로 정렬했어.',
+  monthlyDistance: '해당 지역 회원들을 이번 달 누적 거리가 많은 순으로 정렬했어.',
+};
+
+function formatMetricValue(runner: DistrictMemberRank, metric: DistrictPersonalMetric) {
+  return metric === 'monthlyDistance'
+    ? formatDistanceKm(runner.monthlyDistanceKm)
+    : formatRankScore(runner.rankScore);
+}
+
 const DistrictMemberRankRow = memo(function DistrictMemberRankRow({
   runner,
+  metric,
   onMyRankLayout,
 }: {
   runner: DistrictMemberRank;
+  metric: DistrictPersonalMetric;
   onMyRankLayout: (event: LayoutChangeEvent) => void;
 }) {
   return (
     <RankingItemRow
       leading={<RankMarker rank={runner.rank} />}
       name={runner.name}
-      detail={`${formatDistanceKm(runner.distanceKm)} / ${formatPoints(runner.points)}`}
+      detail={formatMetricValue(runner, metric)}
       friendLabel={runner.isFriend && !runner.isMe ? '친구' : undefined}
       friend={runner.isFriend}
       highlighted={runner.isMe}
@@ -49,34 +67,46 @@ export const DistrictMemberRankingCard = memo(function DistrictMemberRankingCard
   onMyRankLayout,
   onScrollToMyRank,
 }: DistrictMemberRankingCardProps) {
+  const [metric, setMetric] = useState<DistrictPersonalMetric>(DEFAULT_METRIC);
+
+  const sortedRanks = useMemo(
+    () => sortDistrictRanksByMetric(regionMembers.ranks, metric),
+    [regionMembers.ranks, metric],
+  );
+  const myRank = useMemo(
+    () => sortedRanks.find((runner) => runner.isMe) ?? null,
+    [sortedRanks],
+  );
+
   return (
     <Card onLayout={onCardLayout}>
       <View style={styles.memberHeader}>
         <View style={styles.memberHeaderCopy}>
           <Text style={styles.sectionTitle}>{regionMembers.districtName} 회원 순위</Text>
-          <Text style={styles.memberHeaderText}>해당 지역 회원들이 이번 주에 달린 거리와 포인트 순으로 정렬돼 있어.</Text>
+          <Text style={styles.memberHeaderText}>{METRIC_DESCRIPTION[metric]}</Text>
         </View>
 
-        {regionMembers.myRank ? (
+        {myRank ? (
           <Pressable style={styles.myRankButton} onPress={onScrollToMyRank}>
             <Text style={styles.myRankButtonText}>내 순위 보기</Text>
           </Pressable>
         ) : null}
       </View>
 
-      {regionMembers.myRank ? (
+      <DistrictMetricSwitch metric={metric} onChange={setMetric} />
+
+      {myRank ? (
         <View style={styles.myRankSummary}>
-          <Text style={styles.myRankSummaryText}>내 현재 순위 {regionMembers.myRank.rank}위</Text>
-          <Text style={styles.myRankSummaryText}>
-            {formatDistanceKm(regionMembers.myRank.distanceKm)} · {formatPoints(regionMembers.myRank.points)}
-          </Text>
+          <Text style={styles.myRankSummaryText}>내 현재 순위 {myRank.rank}위</Text>
+          <Text style={styles.myRankSummaryText}>{formatMetricValue(myRank, metric)}</Text>
         </View>
       ) : null}
 
-      {regionMembers.ranks.map((runner) => (
+      {sortedRanks.map((runner) => (
         <DistrictMemberRankRow
           key={runner.id}
           runner={runner}
+          metric={metric}
           onMyRankLayout={onMyRankLayout}
         />
       ))}

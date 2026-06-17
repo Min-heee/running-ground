@@ -2,9 +2,25 @@ import {
   buildTodayRanking,
   isTodayRankingCategory,
 } from '../services/todayRankingBuilder.mjs';
+import { ensureUserRankState } from '../lib/userStoreHelpers.mjs';
+import { LP_PER_TIER, RANK_TIERS } from '../lib/rankSystem.mjs';
+
+// Region drill is capped at three levels (country -> province -> city); city
+// (시/군) nodes and anything below are treated as leaves.
+const REGION_LEAF_LEVELS = new Set(['city', 'district']);
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function isRegionLeafLevel(level) {
+  return REGION_LEAF_LEVELS.has(level);
+}
+
+function getUserRankScore(user) {
+  const rankState = ensureUserRankState(user);
+  const tierIndex = Math.max(0, RANK_TIERS.indexOf(rankState.tier));
+  return tierIndex * LP_PER_TIER + rankState.lp;
 }
 
 function asNumber(value, fallback = 0) {
@@ -60,6 +76,7 @@ function mapUserRow(row) {
     addressDetail: row.address_detail ?? '',
     rewardPoints: asNumber(row.reward_points),
     streakDays: asNumber(row.streak_days),
+    ...(row.rank_state ? { rankState: clone(row.rank_state) } : {}),
     createdAt: toIsoString(row.created_at),
     updatedAt: toIsoString(row.updated_at),
   };
@@ -136,6 +153,21 @@ async function loadUsersByRegion(database, user) {
         and coalesce(district_name, '') = $3
     `,
     [user.provinceName ?? '', user.cityName ?? '', user.districtName ?? ''],
+  );
+
+  return result.rows.map(mapUserRow);
+}
+
+// Everyone in the same 시/군 rolls up together regardless of their stored 구/동.
+async function loadUsersByCity(database, provinceName, cityName) {
+  const result = await database.query(
+    `
+      select *
+      from users
+      where coalesce(province_name, '') = $1
+        and coalesce(city_name, '') = $2
+    `,
+    [provinceName ?? '', cityName ?? ''],
   );
 
   return result.rows.map(mapUserRow);
@@ -236,6 +268,8 @@ function buildDistrictRank(user, rank, currentUserId, metrics) {
     name: user.name,
     distanceKm: metrics.currentWeekDistanceKm,
     points: metrics.currentWeekPoints,
+    rankScore: getUserRankScore(user),
+    monthlyDistanceKm: metrics.currentMonthDistanceKm,
     ...(user.id === currentUserId ? { isMe: true } : {}),
   };
 }
@@ -299,7 +333,7 @@ function findRegionPath(node, targetId) {
   return null;
 }
 
-function buildDistrictPersonal(users, currentUser, metricsByUserId) {
+function buildDistrictPersonal(users, currentUser, metricsByUserId, regionName) {
   const ranks = [...users]
     .sort((left, right) => compareDistrictRank(left, right, metricsByUserId))
     .map((user, index) => buildDistrictRank(user, index + 1, currentUser.id, metricsByUserId.get(user.id)));
@@ -310,7 +344,7 @@ function buildDistrictPersonal(users, currentUser, metricsByUserId) {
   const myMetrics = metricsByUserId.get(currentUser.id);
 
   return {
-    districtName: currentUser.districtName,
+    districtName: regionName ?? currentUser.districtName,
     myRank,
     myPoints: myMetrics?.currentWeekPoints ?? 0,
     weeklyDistanceKm: myMetrics?.currentWeekDistanceKm ?? 0,
@@ -319,23 +353,66 @@ function buildDistrictPersonal(users, currentUser, metricsByUserId) {
   };
 }
 
-function buildRegionLeague(regionTree, nodeId, createError) {
-  const path = nodeId ? findRegionPath(regionTree, nodeId) : [regionTree];
+// Cap the drill path at the city level so the breadcrumb never exceeds three
+// levels even if a deeper node is targeted.
+function capRegionPathDepth(path) {
+  const leafIndex = path.findIndex((node) => isRegionLeafLevel(node.level));
 
-  if (!path) {
+  if (leafIndex === -1) {
+    return path;
+  }
+
+  return path.slice(0, leafIndex + 1);
+}
+
+function buildRegionLeague(regionTree, nodeId, createError) {
+  const rawPath = nodeId ? findRegionPath(regionTree, nodeId) : [regionTree];
+
+  if (!rawPath) {
     throw createError(404, '선택한 지역 정보를 찾을 수 없어.');
   }
 
+  const path = capRegionPathDepth(rawPath);
   const rawCurrentNode = path[path.length - 1];
   const parentNode = path[path.length - 2] ?? null;
   const normalizedSiblings = parentNode ? normalizeRegionChildren(parentNode.children ?? []) : [rawCurrentNode];
   const currentNode = normalizedSiblings.find((child) => child.id === rawCurrentNode.id) ?? rawCurrentNode;
-  const children = normalizeRegionChildren(currentNode.children ?? []);
+  // City (시/군) nodes are leaves; never expose their 구/동 children.
+  const children = isRegionLeafLevel(currentNode.level)
+    ? []
+    : normalizeRegionChildren(currentNode.children ?? []);
 
   return {
     currentNode,
     breadcrumb: path.map(({ id, name, level }) => ({ id, name, level })),
     children,
+  };
+}
+
+// Resolve which set of users a district-personal listing targets. With a city
+// nodeId we aggregate the whole 시/군; otherwise we use the requesting user's
+// own region.
+async function resolveDistrictPersonalUsers(database, currentUser, nodeId, defaultRegionTree) {
+  if (nodeId) {
+    const regionTree = await loadRegionTree(database, defaultRegionTree);
+    const path = findRegionPath(regionTree, nodeId);
+
+    if (path) {
+      const provinceNode = path.find((entry) => entry.level === 'province') ?? null;
+      const cityNode = path.find((entry) => entry.level === 'city') ?? null;
+
+      if (cityNode && provinceNode) {
+        return {
+          regionName: cityNode.name,
+          users: await loadUsersByCity(database, provinceNode.name, cityNode.name),
+        };
+      }
+    }
+  }
+
+  return {
+    regionName: currentUser.districtName,
+    users: await loadUsersByRegion(database, currentUser),
   };
 }
 
@@ -415,20 +492,26 @@ export function createPostgresLeagueRepository({
   }
 
   return {
-    async getDistrictPersonalByUserId({ currentUserId }) {
+    async getDistrictPersonalByUserId({ currentUserId, nodeId }) {
       const currentUser = await findUserById(database, currentUserId, createError);
-      const users = await loadUsersByRegion(database, currentUser);
+      const { regionName, users } = await resolveDistrictPersonalUsers(
+        database,
+        currentUser,
+        nodeId,
+        defaultRegionTree,
+      );
       const userIds = users.map((user) => user.id);
       const runsByUserId = await loadRunsByUserIds(database, userIds);
       const metricsByUserId = buildMetricsByUserId(runsByUserId, userIds, buildUserMetrics);
 
-      return buildDistrictPersonal(users, currentUser, metricsByUserId);
+      return buildDistrictPersonal(users, currentUser, metricsByUserId, regionName);
     },
 
-    async getDistrictPersonal({ token }) {
+    async getDistrictPersonal({ token, nodeId }) {
       const currentUser = await requireUserByToken(database, token, createError);
       return this.getDistrictPersonalByUserId({
         currentUserId: currentUser.id,
+        nodeId,
       });
     },
 
