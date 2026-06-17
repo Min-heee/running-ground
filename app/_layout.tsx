@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { Redirect, Stack } from 'expo-router';
+import { Redirect, router, Stack } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '@/features/runs/tracking/background';
+import { setUnauthorizedHandler } from '@/services/apiClient';
+import { clearSession, getBackendAccessToken } from '@/lib/session/sessionState';
 import { initializeLiveGapPushConfigPersistence } from '@/features/runs/liveGap/liveGapPushConfigPersistence';
 import { useConfigureNotificationHandler } from '@/navigation/notificationHandler';
 import { useRootAuthGate } from '@/navigation/rootAuthGate';
@@ -24,6 +26,29 @@ export default function RootLayout() {
     // future changes to device storage. Device-level preference, so it runs once at mount
     // independently of the auth gate.
     void initializeLiveGapPushConfigPersistence();
+  }, []);
+
+  useEffect(() => {
+    // Single active session: when an authenticated request comes back 401 — most
+    // commonly because this account just logged in on another device — clear the local
+    // session and return to onboarding. `signingOut` + the token check dedupe the burst
+    // of 401s a polling app fires so we only sign out once per invalidation.
+    let signingOut = false;
+    setUnauthorizedHandler(() => {
+      if (signingOut || !getBackendAccessToken()) {
+        return;
+      }
+      signingOut = true;
+      void (async () => {
+        try {
+          await clearSession();
+          router.replace('/onboarding');
+        } finally {
+          signingOut = false;
+        }
+      })();
+    });
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   useEffect(() => {

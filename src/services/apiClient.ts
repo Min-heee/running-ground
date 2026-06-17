@@ -79,6 +79,16 @@ function getResponseErrorKind(status: number): ApiErrorKind {
   return 'request';
 }
 
+// Fired when an AUTHENTICATED request (one that sent a Bearer token) comes back 401 —
+// i.e. the session was invalidated server-side (e.g. the account logged in on another
+// device). Registered once at app start to sign the user out. Not fired for login/
+// signup 401s, which carry no token.
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
+}
+
 function buildResponseErrorMessage(kind: ApiErrorKind, fallbackMessage: string) {
   switch (kind) {
     case 'auth':
@@ -218,6 +228,13 @@ export async function apiRequest<T>(
 
     if (!response.ok) {
       const kind = getResponseErrorKind(response.status);
+
+      // An authenticated request rejected with 401 means our token is no longer valid
+      // (most commonly: this account logged in on another device). Sign out globally.
+      if (accessToken && response.status === 401) {
+        unauthorizedHandler?.();
+      }
+
       const payload = await readErrorPayload(response, fallbackMessage);
       const responseMessage = payload.message || buildResponseErrorMessage(kind, fallbackMessage);
 

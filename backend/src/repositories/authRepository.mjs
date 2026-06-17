@@ -106,6 +106,11 @@ function createSessionForUser(store, {
   createToken,
   sessionTtlMs,
 }) {
+  // Single active session per user ("newest login wins"): a new login (password or
+  // social) invalidates any other device's existing session, so the previous device's
+  // next authenticated request gets 401 and the client signs out.
+  store.sessions = (store.sessions ?? []).filter((entry) => entry.userId !== userId);
+
   const createdAt = new Date();
   const token = createToken();
   store.sessions.push({
