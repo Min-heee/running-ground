@@ -287,8 +287,27 @@ export function createJsonAuthRepository({
       region,
       universityName,
       addressDetail,
+      phoneVerificationToken,
     }) {
       return mutateStore((store) => {
+        // Require a still-valid verified phone challenge for this exact number. The client
+        // obtains `phoneVerificationToken` from POST /auth/phone/verify-code; without it (or
+        // once it expires) registration is refused — closing the unverified-signup hole.
+        const phoneChallenge = (store.phoneVerificationChallenges ?? []).find((entry) => (
+          entry.purpose === 'signup'
+          && entry.status === 'verified'
+          && entry.verifiedToken === phoneVerificationToken
+          && String(entry.phone ?? '').replace(/\D/g, '') === phone
+        ));
+
+        if (
+          !phoneChallenge
+          || !phoneChallenge.registrationExpiresAt
+          || Date.parse(phoneChallenge.registrationExpiresAt) <= Date.now()
+        ) {
+          throw createError(400, '휴대폰 인증을 먼저 완료해주세요.');
+        }
+
         if (store.users.some((entry) => entry.username === username)) {
           throw createError(409, '이미 사용 중인 아이디예요.');
         }
@@ -324,6 +343,11 @@ export function createJsonAuthRepository({
 
         store.users.push(user);
         store.runs.push(...starterRuns);
+
+        // Consume the verified phone challenge so its token can't be reused for another signup.
+        phoneChallenge.status = 'consumed';
+        phoneChallenge.consumedAt = new Date().toISOString();
+
         const accessToken = createSessionForUser(store, {
           userId: user.id,
           createToken,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import type { AddressRegionNode } from '@/features/location/addressCatalog';
 import { buildRegionSelectionState } from '@/features/location/RegionSelection';
@@ -9,6 +9,8 @@ import {
   getUsernameValidationError,
   normalizeUsername,
   registerAccount,
+  requestSignupPhoneVerification,
+  verifySignupPhoneCode,
 } from '@/lib/session';
 import { formatBirthDateInput, formatPhoneInput } from '@/features/auth/utils/signupFormatters';
 
@@ -29,6 +31,15 @@ export function useSignupForm() {
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [phone, setPhone] = useState('');
+  const [phoneVerificationRequestId, setPhoneVerificationRequestId] = useState('');
+  const [phoneVerificationCode, setPhoneVerificationCode] = useState('');
+  const [phoneVerificationToken, setPhoneVerificationToken] = useState('');
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [isRequestingPhoneCode, setIsRequestingPhoneCode] = useState(false);
+  const [isVerifyingPhoneCode, setIsVerifyingPhoneCode] = useState(false);
+  const [phoneVerificationError, setPhoneVerificationError] = useState<string | null>(null);
+  const [phoneResendCooldown, setPhoneResendCooldown] = useState(0);
+  const phoneCooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [provinceName, setProvinceName] = useState('');
   const [secondaryRegionName, setSecondaryRegionName] = useState('');
   const [tertiaryRegionName, setTertiaryRegionName] = useState('');
@@ -90,17 +101,18 @@ export function useSignupForm() {
   const checkingUsername = usernameCheck.status === 'checking';
   const usernameReady = usernameCheck.status === 'available' && usernameCheck.checkedUsername === normalizedUsername;
   const normalizedPhone = useMemo(() => phone.replace(/\D/g, ''), [phone]);
+  const phoneValid = normalizedPhone.length >= 10;
   const requiredProfileReady = Boolean(
     publicDisplayName
     && realName.trim()
     && normalizedUsername
     && !usernameValidationMessage
-    && normalizedPhone.length >= 10
+    && phoneValid
     && selectedAddressLabel
     && addressDetail.trim()
     && /^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim()),
   );
-  const signupReady = requiredProfileReady && usernameReady && passwordReady;
+  const signupReady = requiredProfileReady && usernameReady && passwordReady && isPhoneVerified;
 
   useEffect(() => {
     if (!selectedProvince) {
@@ -121,6 +133,55 @@ export function useSignupForm() {
     setOpenRegionStep('detail');
   }, [finalRegion, selectedProvince, selectedSecondary, tertiaryOptions.length]);
 
+  useEffect(() => () => {
+    if (phoneCooldownTimerRef.current) {
+      clearInterval(phoneCooldownTimerRef.current);
+    }
+  }, []);
+
+  const startPhoneResendCooldown = useCallback((resendAvailableAt?: string) => {
+    if (phoneCooldownTimerRef.current) {
+      clearInterval(phoneCooldownTimerRef.current);
+    }
+
+    const parsedResendMs = resendAvailableAt ? new Date(resendAvailableAt).getTime() : Number.NaN;
+    const initialSeconds = Number.isFinite(parsedResendMs)
+      ? Math.max(0, Math.ceil((parsedResendMs - Date.now()) / 1000))
+      : 60;
+
+    setPhoneResendCooldown(initialSeconds);
+
+    if (initialSeconds <= 0) {
+      return;
+    }
+
+    phoneCooldownTimerRef.current = setInterval(() => {
+      setPhoneResendCooldown((current) => {
+        if (current <= 1) {
+          if (phoneCooldownTimerRef.current) {
+            clearInterval(phoneCooldownTimerRef.current);
+            phoneCooldownTimerRef.current = null;
+          }
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+  }, []);
+
+  const resetPhoneVerification = useCallback(() => {
+    if (phoneCooldownTimerRef.current) {
+      clearInterval(phoneCooldownTimerRef.current);
+      phoneCooldownTimerRef.current = null;
+    }
+    setPhoneVerificationRequestId('');
+    setPhoneVerificationCode('');
+    setPhoneVerificationToken('');
+    setIsPhoneVerified(false);
+    setPhoneVerificationError(null);
+    setPhoneResendCooldown(0);
+  }, []);
+
   const handleUsernameChange = (value: string) => {
     const nextUsername = value.trim().toLowerCase();
     setUsername(nextUsername);
@@ -140,7 +201,68 @@ export function useSignupForm() {
   };
 
   const handlePhoneChange = (nextValue: string) => {
-    setPhone(formatPhoneInput(nextValue));
+    const formattedPhone = formatPhoneInput(nextValue);
+
+    setPhone((currentPhone) => {
+      // The verification token is bound to the previously verified number.
+      // If the digits actually change, any prior verification must be discarded.
+      if (formattedPhone !== currentPhone) {
+        resetPhoneVerification();
+      }
+      return formattedPhone;
+    });
+  };
+
+  const handleRequestPhoneCode = async () => {
+    if (!phoneValid || isRequestingPhoneCode || phoneResendCooldown > 0) {
+      return;
+    }
+
+    setPhoneVerificationError(null);
+    setIsRequestingPhoneCode(true);
+
+    try {
+      const result = await requestSignupPhoneVerification(phone);
+      setPhoneVerificationRequestId(result.requestId);
+      setPhoneVerificationCode('');
+      setIsPhoneVerified(false);
+      setPhoneVerificationToken('');
+      startPhoneResendCooldown(result.resendAvailableAt);
+    } catch (requestError) {
+      setPhoneVerificationError(getApiErrorMessage(requestError, '인증번호 발송에 실패했어요.'));
+    } finally {
+      setIsRequestingPhoneCode(false);
+    }
+  };
+
+  const handlePhoneVerificationCodeChange = (nextValue: string) => {
+    setPhoneVerificationCode(nextValue.replace(/\D/g, '').slice(0, 6));
+    setPhoneVerificationError(null);
+  };
+
+  const handleVerifyPhoneCode = async () => {
+    if (!phoneVerificationRequestId || phoneVerificationCode.length !== 6 || isVerifyingPhoneCode) {
+      return;
+    }
+
+    setPhoneVerificationError(null);
+    setIsVerifyingPhoneCode(true);
+
+    try {
+      const result = await verifySignupPhoneCode(phoneVerificationRequestId, phoneVerificationCode);
+      setPhoneVerificationToken(result.verifiedToken);
+      setIsPhoneVerified(true);
+
+      if (phoneCooldownTimerRef.current) {
+        clearInterval(phoneCooldownTimerRef.current);
+        phoneCooldownTimerRef.current = null;
+      }
+      setPhoneResendCooldown(0);
+    } catch (verifyError) {
+      setPhoneVerificationError(getApiErrorMessage(verifyError, '인증번호 확인에 실패했어요.'));
+    } finally {
+      setIsVerifyingPhoneCode(false);
+    }
   };
 
   const handleBirthDateChange = (nextValue: string) => {
@@ -221,6 +343,10 @@ export function useSignupForm() {
         throw new Error('비밀번호 확인이 일치하지 않아요.');
       }
 
+      if (!isPhoneVerified) {
+        throw new Error('휴대폰 인증을 먼저 완료해주세요.');
+      }
+
       const hasAvailableUsername = usernameCheck.status === 'available' && usernameCheck.checkedUsername === normalizedUsername;
 
       if (!hasAvailableUsername) {
@@ -243,6 +369,7 @@ export function useSignupForm() {
         districtName: finalDistrictName,
         addressDetail,
         birthDate,
+        phoneVerificationToken,
       });
       router.replace('/welcome');
     } catch (signupError) {
@@ -274,6 +401,9 @@ export function useSignupForm() {
     handleBirthDateChange,
     handleCheckUsername,
     handlePhoneChange,
+    handlePhoneVerificationCodeChange,
+    handleRequestPhoneCode,
+    handleVerifyPhoneCode,
     handleSelectProvince,
     handleSelectSecondary,
     handleSelectTertiary,
@@ -282,6 +412,14 @@ export function useSignupForm() {
     nickname,
     normalizedPhone,
     openRegionStep,
+    isPhoneVerified,
+    isRequestingPhoneCode,
+    isVerifyingPhoneCode,
+    phoneResendCooldown,
+    phoneValid,
+    phoneVerificationCode,
+    phoneVerificationError,
+    phoneVerificationRequestId,
     password,
     passwordConfirm,
     passwordConfirmMessage,

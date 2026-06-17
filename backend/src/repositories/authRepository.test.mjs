@@ -73,6 +73,23 @@ function createRepositoryHarness(initialStore = {}) {
   };
 }
 
+// A store-seedable verified signup phone challenge — register() now requires one for
+// the exact number, matching by verifiedToken, and consumes it on success.
+function verifiedSignupPhoneChallenge(phone, verifiedToken) {
+  return {
+    id: `req-${verifiedToken}`,
+    purpose: 'signup',
+    phone,
+    status: 'verified',
+    verifiedToken,
+    verifiedAt: '2024-01-01T00:00:00.000Z',
+    registrationExpiresAt: '2999-12-31T00:00:00.000Z',
+    attempts: 0,
+    maxAttempts: 5,
+    consumedAt: '',
+  };
+}
+
 function assertApiError(error, statusCode, message) {
   assert(error instanceof TestApiError);
   assert.equal(error.statusCode, statusCode);
@@ -140,7 +157,9 @@ await runTest('finds username by identity fields', async () => {
 });
 
 await runTest('registers a user, hashes password, and creates a session', async () => {
-  const { repository, storeHarness } = createRepositoryHarness();
+  const { repository, storeHarness } = createRepositoryHarness({
+    phoneVerificationChallenges: [verifiedSignupPhoneChallenge('01012345678', 'vt-register-1')],
+  });
   const result = await repository.register({
     username: 'new-runner',
     password: 'Password123',
@@ -155,9 +174,12 @@ await runTest('registers a user, hashes password, and creates a session', async 
     },
     universityName: '서울대학교',
     addressDetail: '테헤란로 123',
+    phoneVerificationToken: 'vt-register-1',
   });
   const store = storeHarness.getStore();
   const user = store.users[0];
+
+  assert.equal(store.phoneVerificationChallenges[0].status, 'consumed');
 
   assert.equal(result.accessToken, 'token-1');
   assert.equal(result.user.name, '새러너');
@@ -192,6 +214,7 @@ await runTest('rejects duplicate registration', async () => {
         publicTag: '#RUN01',
       },
     ],
+    phoneVerificationChallenges: [verifiedSignupPhoneChallenge('01012345678', 'vt-dup')],
   });
 
   await assert.rejects(repository.register({
@@ -208,8 +231,33 @@ await runTest('rejects duplicate registration', async () => {
     },
     universityName: '',
     addressDetail: '테스트',
+    phoneVerificationToken: 'vt-dup',
   }), (error) => {
     assertApiError(error, 409, '이미 사용 중인 아이디예요.');
+    return true;
+  });
+});
+
+await runTest('rejects registration without a verified phone challenge', async () => {
+  const { repository } = createRepositoryHarness();
+
+  await assert.rejects(repository.register({
+    username: 'unverified-runner',
+    password: 'Password123',
+    name: '미인증',
+    realName: '미인증',
+    phone: '01012345678',
+    birthDate: '1990-01-01',
+    region: {
+      provinceName: '서울특별시',
+      cityName: '',
+      districtName: '강남구',
+    },
+    universityName: '',
+    addressDetail: '테스트',
+    phoneVerificationToken: 'no-such-token',
+  }), (error) => {
+    assertApiError(error, 400, '휴대폰 인증을 먼저 완료해주세요.');
     return true;
   });
 });

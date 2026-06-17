@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 import { PASSWORD_RULE_DESCRIPTION, USERNAME_RULE_DESCRIPTION } from '@/lib/session';
-import { SignupInput, ValidationItem } from './SignupFormPrimitives';
+import { ValidationItem } from './SignupFormPrimitives';
 import { signupFormStyles as styles } from './signupFormStyles';
 import type { SignupFormModel } from './types';
 import { colors } from '@/theme/tokens';
@@ -11,7 +11,13 @@ type SignupCredentialsSectionProps = Pick<
   | 'checkingUsername'
   | 'handleCheckUsername'
   | 'handlePhoneChange'
+  | 'handlePhoneVerificationCodeChange'
+  | 'handleRequestPhoneCode'
   | 'handleUsernameChange'
+  | 'handleVerifyPhoneCode'
+  | 'isPhoneVerified'
+  | 'isRequestingPhoneCode'
+  | 'isVerifyingPhoneCode'
   | 'password'
   | 'passwordConfirm'
   | 'passwordConfirmMessage'
@@ -19,6 +25,11 @@ type SignupCredentialsSectionProps = Pick<
   | 'passwordValidationMessage'
   | 'passwordVisible'
   | 'phone'
+  | 'phoneResendCooldown'
+  | 'phoneValid'
+  | 'phoneVerificationCode'
+  | 'phoneVerificationError'
+  | 'phoneVerificationRequestId'
   | 'setPassword'
   | 'setPasswordConfirm'
   | 'setPasswordVisible'
@@ -35,7 +46,13 @@ export function SignupCredentialsSection({
   checkingUsername,
   handleCheckUsername,
   handlePhoneChange,
+  handlePhoneVerificationCodeChange,
+  handleRequestPhoneCode,
   handleUsernameChange,
+  handleVerifyPhoneCode,
+  isPhoneVerified,
+  isRequestingPhoneCode,
+  isVerifyingPhoneCode,
   password,
   passwordConfirm,
   passwordConfirmMessage,
@@ -43,6 +60,11 @@ export function SignupCredentialsSection({
   passwordValidationMessage,
   passwordVisible,
   phone,
+  phoneResendCooldown,
+  phoneValid,
+  phoneVerificationCode,
+  phoneVerificationError,
+  phoneVerificationRequestId,
   setPassword,
   setPasswordConfirm,
   setPasswordVisible,
@@ -53,6 +75,35 @@ export function SignupCredentialsSection({
   usernameValidationMessage,
 }: SignupCredentialsSectionProps) {
   const usernameInputEditable = !submitting && !checkingUsername;
+  const phoneInputEditable = !submitting && !isPhoneVerified;
+  const phoneInputStyle = useMemo(
+    () => [styles.input, styles.inlineInput, phoneInputEditable ? null : styles.inputDisabled],
+    [phoneInputEditable],
+  );
+  const phoneCooldownActive = phoneResendCooldown > 0;
+  const requestButtonDisabled = submitting || !phoneValid || isRequestingPhoneCode || phoneCooldownActive;
+  const requestButtonStyle = useMemo(
+    () => [styles.secondaryActionButton, requestButtonDisabled && styles.disabledButton],
+    [requestButtonDisabled],
+  );
+  const hasRequestedPhoneCode = Boolean(phoneVerificationRequestId);
+  const codeInputEditable = !submitting && !isVerifyingPhoneCode;
+  const codeInputStyle = useMemo(
+    () => [styles.input, styles.inlineInput, codeInputEditable ? null : styles.inputDisabled],
+    [codeInputEditable],
+  );
+  const verifyButtonDisabled = submitting || phoneVerificationCode.length !== 6 || isVerifyingPhoneCode;
+  const verifyButtonStyle = useMemo(
+    () => [styles.secondaryActionButton, verifyButtonDisabled && styles.disabledButton],
+    [verifyButtonDisabled],
+  );
+  const requestButtonLabel = isRequestingPhoneCode
+    ? '발송 중'
+    : phoneCooldownActive
+      ? `${phoneResendCooldown}초 후 재발송`
+      : hasRequestedPhoneCode
+        ? '재발송'
+        : '인증번호 발송';
   const usernameInputStyle = useMemo(
     () => [styles.input, styles.inlineInput, usernameInputEditable ? null : styles.inputDisabled],
     [usernameInputEditable],
@@ -148,15 +199,71 @@ export function SignupCredentialsSection({
         {passwordConfirmMessage ? <Text style={ERROR_STATUS_TEXT_STYLE}>{passwordConfirmMessage}</Text> : null}
       </View>
 
-      <SignupInput
-        label="핸드폰번호"
-        helperText="비공개 정보예요. 계정 확인과 복구에 사용돼요."
-        placeholder="010-0000-0000"
-        keyboardType="phone-pad"
-        value={phone}
-        onChangeText={handlePhoneChange}
-        editable={!submitting}
-      />
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>핸드폰번호</Text>
+        <Text style={styles.helperText}>비공개 정보예요. 본인 인증과 계정 복구에 사용돼요.</Text>
+
+        {isPhoneVerified ? (
+          <View style={styles.phoneVerifiedRow}>
+            <Text style={styles.phoneVerifiedText}>✓ {phone} 인증 완료</Text>
+            <Pressable onPress={() => handlePhoneChange('')} disabled={submitting}>
+              <Text style={styles.phoneVerifiedChangeText}>번호 변경</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <View style={styles.inlineInputRow}>
+              <TextInput
+                placeholder="010-0000-0000"
+                placeholderTextColor={colors.textTertiary}
+                style={phoneInputStyle}
+                keyboardType="phone-pad"
+                value={phone}
+                onChangeText={handlePhoneChange}
+                editable={phoneInputEditable}
+                autoCorrect={false}
+              />
+              <Pressable
+                style={requestButtonStyle}
+                onPress={handleRequestPhoneCode}
+                disabled={requestButtonDisabled}
+              >
+                <Text style={styles.secondaryActionButtonText}>{requestButtonLabel}</Text>
+              </Pressable>
+            </View>
+
+            {hasRequestedPhoneCode ? (
+              <>
+                <Text style={[styles.statusText, styles.statusTextNeutral]}>
+                  문자로 받은 인증번호 6자리를 입력해주세요.
+                </Text>
+                <View style={styles.inlineInputRow}>
+                  <TextInput
+                    placeholder="인증번호 6자리"
+                    placeholderTextColor={colors.textTertiary}
+                    style={codeInputStyle}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    value={phoneVerificationCode}
+                    onChangeText={handlePhoneVerificationCodeChange}
+                    editable={codeInputEditable}
+                    autoCorrect={false}
+                  />
+                  <Pressable
+                    style={verifyButtonStyle}
+                    onPress={handleVerifyPhoneCode}
+                    disabled={verifyButtonDisabled}
+                  >
+                    <Text style={styles.secondaryActionButtonText}>{isVerifyingPhoneCode ? '확인 중' : '확인'}</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : null}
+          </>
+        )}
+
+        {phoneVerificationError ? <Text style={ERROR_STATUS_TEXT_STYLE}>{phoneVerificationError}</Text> : null}
+      </View>
     </>
   );
 }

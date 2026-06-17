@@ -12,7 +12,7 @@ type SignupSubmitSectionProps = Pick<
   | 'error'
   | 'handleBirthDateChange'
   | 'handleSignup'
-  | 'normalizedPhone'
+  | 'isPhoneVerified'
   | 'passwordReady'
   | 'requiredProfileReady'
   | 'signupReady'
@@ -27,7 +27,7 @@ export function SignupSubmitSection({
   error,
   handleBirthDateChange,
   handleSignup,
-  normalizedPhone,
+  isPhoneVerified,
   passwordReady,
   requiredProfileReady,
   signupReady,
@@ -43,7 +43,7 @@ export function SignupSubmitSection({
         submitting={submitting}
       />
       <SignupAgreementSection
-        normalizedPhone={normalizedPhone}
+        isPhoneVerified={isPhoneVerified}
         passwordReady={passwordReady}
         requiredProfileReady={requiredProfileReady}
         usernameReady={usernameReady}

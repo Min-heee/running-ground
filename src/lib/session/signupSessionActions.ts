@@ -127,6 +127,7 @@ export async function registerAccount({
   universityName,
   addressDetail,
   birthDate,
+  phoneVerificationToken,
 }: RegisterAccountInput) {
   await ensureHydrated();
 
@@ -197,6 +198,12 @@ export async function registerAccount({
     });
   }
 
+  const normalizedPhoneVerificationToken = phoneVerificationToken?.trim() ?? '';
+
+  if (!normalizedPhoneVerificationToken) {
+    throw new Error('휴대폰 인증을 먼저 완료해주세요.');
+  }
+
   const authResponse = await apiPost<AuthResponse>(
     '/auth/register',
     {
@@ -212,6 +219,7 @@ export async function registerAccount({
       universityName: normalizedUniversityName,
       addressDetail: normalizedAddressDetail,
       birthDate: normalizedBirthDate,
+      phoneVerificationToken: normalizedPhoneVerificationToken,
     },
     { fallbackMessage: '회원가입에 실패했어요.' },
   );

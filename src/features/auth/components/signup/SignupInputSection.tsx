@@ -8,7 +8,13 @@ type SignupInputSectionProps = Pick<
   | 'displayNamePreference'
   | 'handleCheckUsername'
   | 'handlePhoneChange'
+  | 'handlePhoneVerificationCodeChange'
+  | 'handleRequestPhoneCode'
   | 'handleUsernameChange'
+  | 'handleVerifyPhoneCode'
+  | 'isPhoneVerified'
+  | 'isRequestingPhoneCode'
+  | 'isVerifyingPhoneCode'
   | 'nickname'
   | 'password'
   | 'passwordConfirm'
@@ -17,6 +23,11 @@ type SignupInputSectionProps = Pick<
   | 'passwordValidationMessage'
   | 'passwordVisible'
   | 'phone'
+  | 'phoneResendCooldown'
+  | 'phoneValid'
+  | 'phoneVerificationCode'
+  | 'phoneVerificationError'
+  | 'phoneVerificationRequestId'
   | 'publicDisplayName'
   | 'realName'
   | 'setDisplayNamePreference'
@@ -50,7 +61,13 @@ export function SignupInputSection(props: SignupInputSectionProps) {
         checkingUsername={props.checkingUsername}
         handleCheckUsername={props.handleCheckUsername}
         handlePhoneChange={props.handlePhoneChange}
+        handlePhoneVerificationCodeChange={props.handlePhoneVerificationCodeChange}
+        handleRequestPhoneCode={props.handleRequestPhoneCode}
         handleUsernameChange={props.handleUsernameChange}
+        handleVerifyPhoneCode={props.handleVerifyPhoneCode}
+        isPhoneVerified={props.isPhoneVerified}
+        isRequestingPhoneCode={props.isRequestingPhoneCode}
+        isVerifyingPhoneCode={props.isVerifyingPhoneCode}
         password={props.password}
         passwordConfirm={props.passwordConfirm}
         passwordConfirmMessage={props.passwordConfirmMessage}
@@ -58,6 +75,11 @@ export function SignupInputSection(props: SignupInputSectionProps) {
         passwordValidationMessage={props.passwordValidationMessage}
         passwordVisible={props.passwordVisible}
         phone={props.phone}
+        phoneResendCooldown={props.phoneResendCooldown}
+        phoneValid={props.phoneValid}
+        phoneVerificationCode={props.phoneVerificationCode}
+        phoneVerificationError={props.phoneVerificationError}
+        phoneVerificationRequestId={props.phoneVerificationRequestId}
         setPassword={props.setPassword}
         setPasswordConfirm={props.setPasswordConfirm}
         setPasswordVisible={props.setPasswordVisible}

@@ -262,4 +262,23 @@ export const signupFormStyles = StyleSheet.create({
     fontWeight: fontWeights.bold,
     lineHeight: 20,
   },
+  phoneVerifiedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.s10,
+    backgroundColor: colors.successWash,
+    borderRadius: radii.md,
+    paddingHorizontal: spacing.s14,
+    paddingVertical: spacing.s14,
+  },
+  phoneVerifiedText: {
+    flex: 1,
+    color: colors.successText,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.base,
+  },
+  phoneVerifiedChangeText: {
+    color: colors.brand,
+    fontWeight: fontWeights.extraBold,
+  },
 });

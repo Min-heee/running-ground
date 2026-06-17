@@ -17,7 +17,13 @@ export function SignupFormContent({ form }: { form: SignupFormModel }) {
         displayNamePreference={form.displayNamePreference}
         handleCheckUsername={form.handleCheckUsername}
         handlePhoneChange={form.handlePhoneChange}
+        handlePhoneVerificationCodeChange={form.handlePhoneVerificationCodeChange}
+        handleRequestPhoneCode={form.handleRequestPhoneCode}
         handleUsernameChange={form.handleUsernameChange}
+        handleVerifyPhoneCode={form.handleVerifyPhoneCode}
+        isPhoneVerified={form.isPhoneVerified}
+        isRequestingPhoneCode={form.isRequestingPhoneCode}
+        isVerifyingPhoneCode={form.isVerifyingPhoneCode}
         nickname={form.nickname}
         password={form.password}
         passwordConfirm={form.passwordConfirm}
@@ -26,6 +32,11 @@ export function SignupFormContent({ form }: { form: SignupFormModel }) {
         passwordValidationMessage={form.passwordValidationMessage}
         passwordVisible={form.passwordVisible}
         phone={form.phone}
+        phoneResendCooldown={form.phoneResendCooldown}
+        phoneValid={form.phoneValid}
+        phoneVerificationCode={form.phoneVerificationCode}
+        phoneVerificationError={form.phoneVerificationError}
+        phoneVerificationRequestId={form.phoneVerificationRequestId}
         publicDisplayName={form.publicDisplayName}
         realName={form.realName}
         setDisplayNamePreference={form.setDisplayNamePreference}
@@ -70,7 +81,7 @@ export function SignupFormContent({ form }: { form: SignupFormModel }) {
         error={form.error}
         handleBirthDateChange={form.handleBirthDateChange}
         handleSignup={form.handleSignup}
-        normalizedPhone={form.normalizedPhone}
+        isPhoneVerified={form.isPhoneVerified}
         passwordReady={form.passwordReady}
         requiredProfileReady={form.requiredProfileReady}
         signupReady={form.signupReady}

@@ -57,6 +57,10 @@ async function handleRegister({
   const universityName = typeof body.universityName === 'string' ? body.universityName.trim() : '';
   const addressDetail = validateRequiredString(body.addressDetail, '상세 주소를 입력해주세요.');
   const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해주세요.');
+  const phoneVerificationToken = validateRequiredString(
+    body.phoneVerificationToken,
+    '휴대폰 인증을 먼저 완료해주세요.',
+  );
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
     throw new ApiError(400, '생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
@@ -76,6 +80,7 @@ async function handleRegister({
     region,
     universityName,
     addressDetail,
+    phoneVerificationToken,
   });
 
   sendJson(response, 201, result);
