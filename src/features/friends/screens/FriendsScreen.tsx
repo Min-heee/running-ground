@@ -6,7 +6,7 @@ import { FriendListCard } from '@/features/friends/components/FriendListCard';
 import { FriendRequestsCard } from '@/features/friends/components/FriendRequestsCard';
 import { FriendTagCard } from '@/features/friends/components/FriendTagCard';
 import { useFriendsScreen } from '@/features/friends/hooks/useFriendsScreen';
-import { PageHeader } from '@/components/ui/PageHeader';
+import { TabHeader } from '@/components/ui/TabHeader';
 import { Card } from '@/components/Card';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
@@ -38,7 +38,7 @@ export default function FriendsScreen() {
   return (
     <Screen scrollToTopKey={scrollToTop}>
       <View style={styles.headerWrap}>
-        <PageHeader title="친구 랭킹" />
+        <TabHeader title="친구" />
       </View>
 
       {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}

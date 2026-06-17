@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, ActivityIndicator } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
-import { PageHeader } from '@/components/ui/PageHeader';
+import { TabHeader } from '@/components/ui/TabHeader';
 import { AccountActionsCard } from '@/features/profile/components/AccountActionsCard';
 import { ProfileEnvironmentDebugCard } from '@/features/profile/components/ProfileEnvironmentDebugCard';
 import { ProfileSettingsCard } from '@/features/profile/components/ProfileSettingsCard';
@@ -50,7 +50,7 @@ export default function MyPageScreen() {
 
   return (
     <Screen>
-      <PageHeader title="마이페이지" />
+      <TabHeader title="마이" />
 
       {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
       {error ? <Text style={styles.errorText}>{error}</Text> : null}

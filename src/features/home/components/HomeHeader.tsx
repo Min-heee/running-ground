@@ -3,6 +3,7 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { TabHeader } from '@/components/ui/TabHeader';
 import { fetchInbox } from '@/services';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
@@ -37,63 +38,38 @@ export function HomeHeader() {
   }, []);
 
   return (
-    <View style={styles.headerRow}>
-      <View style={styles.headerCopy}>
-        <Text style={styles.headerLabel}>홈</Text>
-        <Text style={styles.headerBrand}>RunningGround</Text>
-      </View>
-      <View style={styles.headerActions}>
-        <Pressable
-          accessibilityLabel="공지사항 열기"
-          accessibilityRole="button"
-          onPress={openAnnouncements}
-          style={styles.iconButton}
-        >
-          <MaterialCommunityIcons name="bullhorn-outline" size={fontSizes.metric} color={colors.textPrimary} />
-        </Pressable>
-        <Pressable
-          accessibilityLabel="알림 열기"
-          accessibilityRole="button"
-          onPress={openNotifications}
-          style={styles.iconButton}
-        >
-          <Feather name="mail" size={fontSizes.metric} color={colors.textPrimary} />
-          {unreadCount > 0 ? (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-            </View>
-          ) : null}
-        </Pressable>
-      </View>
-    </View>
+    <TabHeader
+      title="홈"
+      right={
+        <>
+          <Pressable
+            accessibilityLabel="공지사항 열기"
+            accessibilityRole="button"
+            onPress={openAnnouncements}
+            style={styles.iconButton}
+          >
+            <MaterialCommunityIcons name="bullhorn-outline" size={fontSizes.metric} color={colors.textPrimary} />
+          </Pressable>
+          <Pressable
+            accessibilityLabel="알림 열기"
+            accessibilityRole="button"
+            onPress={openNotifications}
+            style={styles.iconButton}
+          >
+            <Feather name="mail" size={fontSizes.metric} color={colors.textPrimary} />
+            {unreadCount > 0 ? (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </>
+      }
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: spacing.sm,
-  },
-  headerCopy: {
-    gap: spacing.sm,
-  },
-  headerLabel: {
-    color: colors.textHeading,
-    fontSize: fontSizes.pageTitle,
-    fontWeight: fontWeights.extraBold,
-  },
-  headerBrand: {
-    color: colors.brand,
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.extraBold,
-    letterSpacing: 0.4,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
   iconButton: {
     alignItems: 'center',
     backgroundColor: colors.surface,

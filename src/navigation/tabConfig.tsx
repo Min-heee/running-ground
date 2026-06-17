@@ -4,7 +4,7 @@ const TAB_TITLES = {
   league: '랭킹',
   friends: '\uCE5C\uAD6C',
   home: '\uD648',
-  running: '\uB7F0\uB2DD',
+  running: '\uB7EC\uB2DD',
   race: '\uB808\uC774\uC2A4',
   market: '\uB9C8\uCF13',
   mypage: '\uB9C8\uC774',

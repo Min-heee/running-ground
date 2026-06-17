@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, type LayoutChangeEvent } from 'react-native';
 
 import { Screen } from '@/components/Screen';
-import { PageHeader } from '@/components/ui/PageHeader';
+import { TabHeader } from '@/components/ui/TabHeader';
 import { StateMessageCard } from '@/components/ui/StateMessageCard';
 import { DistrictMemberRankingCard } from '@/features/league/components/DistrictMemberRankingCard';
 import { LeagueHeroCard } from '@/features/league/components/LeagueHeroCard';
@@ -74,7 +74,7 @@ export default function LeagueScreen() {
 
   return (
     <Screen scrollRef={scrollRef}>
-      <PageHeader title="랭킹" />
+      <TabHeader title="랭킹" />
 
       <LeagueModeSwitch mode={leagueMode} onChange={setLeagueMode} />
 

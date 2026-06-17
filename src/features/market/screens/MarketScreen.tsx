@@ -1,6 +1,7 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
+import { TabHeader } from '@/components/ui/TabHeader';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
@@ -8,9 +9,7 @@ export default function MarketScreen() {
   useTabWarmupTrace('market');
   return (
     <Screen>
-      <View style={styles.headerRow}>
-        <Text style={styles.screenTitle}>마켓</Text>
-      </View>
+      <TabHeader title="마켓" />
 
       <Card>
         <Text style={styles.statusEyebrow}>COMING SOON</Text>
@@ -25,14 +24,6 @@ export default function MarketScreen() {
 }
 
 const styles = StyleSheet.create({
-  headerRow: {
-    marginBottom: spacing.s12,
-  },
-  screenTitle: {
-    color: colors.nearBlack,
-    fontSize: fontSizes.hero,
-    fontWeight: fontWeights.extraBold,
-  },
   statusEyebrow: {
     color: colors.brandAccent,
     fontSize: fontSizes.sm,

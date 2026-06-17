@@ -4,6 +4,7 @@ import type { Href } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { TabHeader } from '@/components/ui/TabHeader';
 import { LiveMatchContainer } from '@/features/runs/components/LiveMatchContainer';
 import { RunningReadyScreen } from '@/features/runs/components/RunningReadyScreen';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
@@ -64,11 +65,15 @@ export function TrackRunExperienceView({
   return (
     <View style={styles.root}>
       <Screen>
-        <AuthHeader
-          title="실시간 러닝"
-          showBack={!isTabMode}
-          backHref={backHref}
-        />
+        {isTabMode ? (
+          <TabHeader title="러닝" />
+        ) : (
+          <AuthHeader
+            title="실시간 러닝"
+            showBack
+            backHref={backHref}
+          />
+        )}
 
         <TrackRunShellRouter
           liveContainerProps={liveContainerProps}
