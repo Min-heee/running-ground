@@ -8,6 +8,7 @@ import type {
   RunningMatchRoomResponse,
   UpdateRunningMatchRoomInput,
 } from '../../types';
+import { CREATE_ROOM_GROUP_MIN_PARTICIPANTS } from '@/features/runs/runtime/resolveCreateRoomMaxParticipants';
 import { buildLevelLabel, formatDuelSlotLabel } from './matches';
 import { mockApiState } from './state';
 export {
@@ -126,8 +127,8 @@ export function createMockRunningMatchRoomState(input: CreateRunningMatchRoomInp
     distanceKm: Number(input.distanceKm.toFixed(1)),
     slotStartAt,
     slotLabel: input.startMode === 'host' ? '방장 시작' : formatDuelSlotLabel(slotStartAt),
-    maxParticipants: input.mode === 'duel' ? 2 : Math.max(2, Math.min(30, Math.round(input.maxParticipants ?? 10))),
-    minParticipants: input.mode === 'duel' ? 2 : 2,
+    maxParticipants: input.mode === 'duel' ? 2 : Math.max(CREATE_ROOM_GROUP_MIN_PARTICIPANTS, Math.min(30, Math.round(input.maxParticipants ?? 10))),
+    minParticipants: input.mode === 'duel' ? 2 : CREATE_ROOM_GROUP_MIN_PARTICIPANTS,
     canStart: false,
     isHost: true,
     hostUserId: participants[0].userId,
@@ -156,7 +157,7 @@ export function applyMockRunningMatchRoomUpdate(input: UpdateRunningMatchRoomInp
     slotLabel: input.startMode === 'host' ? '방장 시작' : formatDuelSlotLabel(slotStartAt),
     maxParticipants: mockApiState.runningMatchRoom.mode === 'duel'
       ? 2
-      : Math.max(2, Math.min(30, Math.round(input.maxParticipants ?? mockApiState.runningMatchRoom.maxParticipants))),
+      : Math.max(CREATE_ROOM_GROUP_MIN_PARTICIPANTS, Math.min(30, Math.round(input.maxParticipants ?? mockApiState.runningMatchRoom.maxParticipants))),
     invitedFriendIds: [...new Set((input.invitedFriendIds ?? []).filter(Boolean))],
   };
 

@@ -1,5 +1,6 @@
 import { myProfile, myRunRecords, weeklySummary } from '@/data/mock';
 import type { RunMatchResult } from '@/domain';
+import { CREATE_ROOM_GROUP_MIN_PARTICIPANTS } from '@/features/runs/runtime/resolveCreateRoomMaxParticipants';
 import { getCurrentUserProfile } from '@/lib/session';
 import type {
   FetchMatchDemandSummaryInput,
@@ -50,7 +51,9 @@ export const mockDuelMatchPool = [
 export const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.195];
 export const DUEL_MIN_COMPATIBILITY_SCORE = 72;
 export const GROUP_MIN_COMPATIBILITY_SCORE = 68;
-export const GROUP_MIN_PARTICIPANTS = 5;
+// Mirrors the backend MATCH_ROOM_GROUP_MIN_PARTICIPANTS (3) via the shared client
+// constant so mock-only copy never contradicts the group min-3 rule.
+export const GROUP_MIN_PARTICIPANTS = CREATE_ROOM_GROUP_MIN_PARTICIPANTS;
 export const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
 export const MATCH_CANCELLATION_CUTOFF_MS = 60 * 60 * 1000;
 export const MATCH_RUNNING_STALE_MS = 90 * 1000;

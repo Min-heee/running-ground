@@ -10,6 +10,7 @@ import {
 import { MatchSetupTabbedSelector } from '@/features/runs/components/matchSetupCards/MatchSetupTabbedSelector';
 import type { GroupMatchSetupCardProps } from '@/features/runs/components/matchSetupCards/types';
 import { matchSetupCardStyles as styles } from '@/features/runs/components/matchSetupCards/styles';
+import { CREATE_ROOM_GROUP_MIN_PARTICIPANTS } from '@/features/runs/runtime/resolveCreateRoomMaxParticipants';
 import { colors } from '@/theme/tokens';
 
 type GroupParticipant = GroupMatchSetupCardProps['participants'][number];
@@ -132,7 +133,7 @@ export function GroupMatchSetupCard({
           <Text style={styles.duelResultTitle}>{isTestFlow ? '테스트 그룹을 모으는 중이에요' : '비슷한 그룹을 모으는 중이에요'}</Text>
           <Text style={styles.duelResultMeta}>
             {isTestFlow
-              ? `현재 ${matchStatus?.participantCount ?? 0}/${matchStatus?.capacity ?? 30}명 대기 · 2명만 모이면 시작`
+              ? `현재 ${matchStatus?.participantCount ?? 0}/${matchStatus?.capacity ?? 30}명 대기 · ${CREATE_ROOM_GROUP_MIN_PARTICIPANTS}명만 모이면 시작`
               : `현재 ${matchStatus?.participantCount ?? 0}/${matchStatus?.capacity ?? 30}명 대기 · 평균 ${demandSummary?.averagePace ?? '페이스 계산 중'}`}
           </Text>
           {expiryCountdownLabel ? (
