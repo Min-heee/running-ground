@@ -1,10 +1,12 @@
 const {
+  AndroidConfig,
   createRunOncePlugin,
   IOSConfig,
   withAndroidManifest,
   withDangerousMod,
   withEntitlementsPlist,
   withInfoPlist,
+  withStringsXml,
   withXcodeProject,
 } = require('expo/config-plugins');
 const fs = require('fs');
@@ -19,6 +21,20 @@ const HEALTH_CONNECT_PERMISSIONS = [
   'android.permission.health.READ_DISTANCE',
   'android.permission.health.READ_STEPS',
 ];
+
+// Health Connect permission-rationale wiring. Android requires the app's launcher activity to
+// answer the rationale intents before it will show the permission sheet:
+//   - ACTION_SHOW_PERMISSIONS_RATIONALE: Android 13 and below.
+//   - VIEW_PERMISSION_USAGE + HEALTH_PERMISSIONS category: Android 14+.
+const RATIONALE_ACTION_SHOW = 'androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE';
+const RATIONALE_ACTION_VIEW = 'android.intent.action.VIEW_PERMISSION_USAGE';
+const RATIONALE_CATEGORY = 'android.intent.category.HEALTH_PERMISSIONS';
+const RATIONALE_ALIAS_NAME = 'ViewPermissionUsageActivity';
+const RATIONALE_PROPERTY_NAME = 'android.health.PERMISSIONS_RATIONALE';
+const RATIONALE_STRING_NAME = 'health_permissions_rationale_url';
+// A public privacy-policy URL is required by Health Connect on Android 14+. Update this to the
+// production policy URL when it changes.
+const RATIONALE_PRIVACY_POLICY_URL = 'https://running-ground.com/privacy';
 
 const APPLE_HEALTH_MODULE_SOURCE = `#import <Foundation/Foundation.h>
 #import <HealthKit/HealthKit.h>
@@ -274,6 +290,56 @@ function ensureHealthConnectQueries(manifest) {
   manifest.queries = queries;
 }
 
+function ensureRationaleActivityAlias(androidManifest) {
+  const application = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
+
+  if (!Array.isArray(application['activity-alias'])) {
+    application['activity-alias'] = [];
+  }
+
+  if (application['activity-alias'].some((alias) => alias.$?.['android:name'] === RATIONALE_ALIAS_NAME)) {
+    return;
+  }
+
+  // Activity-alias on the launcher activity that answers the Health Connect rationale intents.
+  application['activity-alias'].push({
+    $: {
+      'android:name': RATIONALE_ALIAS_NAME,
+      'android:exported': 'true',
+      'android:targetActivity': '.MainActivity',
+      'android:permission': 'android.permission.START_VIEW_PERMISSION_USAGE',
+    },
+    'intent-filter': [
+      {
+        action: [{ $: { 'android:name': RATIONALE_ACTION_SHOW } }],
+      },
+      {
+        action: [{ $: { 'android:name': RATIONALE_ACTION_VIEW } }],
+        category: [{ $: { 'android:name': RATIONALE_CATEGORY } }],
+      },
+    ],
+  });
+}
+
+function ensureRationaleProperty(androidManifest) {
+  const application = AndroidConfig.Manifest.getMainApplicationOrThrow(androidManifest);
+
+  if (!Array.isArray(application.property)) {
+    application.property = [];
+  }
+
+  if (application.property.some((entry) => entry.$?.['android:name'] === RATIONALE_PROPERTY_NAME)) {
+    return;
+  }
+
+  application.property.push({
+    $: {
+      'android:name': RATIONALE_PROPERTY_NAME,
+      'android:resource': `@string/${RATIONALE_STRING_NAME}`,
+    },
+  });
+}
+
 function withAndroidHealthAccess(config) {
   return withAndroidManifest(config, (nextConfig) => {
     const manifest = nextConfig.modResults.manifest;
@@ -283,6 +349,25 @@ function withAndroidHealthAccess(config) {
     }
 
     ensureHealthConnectQueries(manifest);
+    // The rationale helpers resolve the main <application> via AndroidConfig, which expects the
+    // full androidManifest wrapper (nextConfig.modResults), not the inner manifest node.
+    ensureRationaleActivityAlias(nextConfig.modResults);
+    ensureRationaleProperty(nextConfig.modResults);
+    return nextConfig;
+  });
+}
+
+function withAndroidHealthRationaleString(config) {
+  return withStringsXml(config, (nextConfig) => {
+    nextConfig.modResults = AndroidConfig.Strings.setStringItem(
+      [
+        {
+          $: { name: RATIONALE_STRING_NAME, translatable: 'false' },
+          _: RATIONALE_PRIVACY_POLICY_URL,
+        },
+      ],
+      nextConfig.modResults,
+    );
     return nextConfig;
   });
 }
@@ -293,6 +378,7 @@ function withHealthAccess(config) {
   config = withIosAppleHealthModuleFiles(config);
   config = withIosAppleHealthModuleProject(config);
   config = withAndroidHealthAccess(config);
+  config = withAndroidHealthRationaleString(config);
   return config;
 }
 

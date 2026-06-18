@@ -1,5 +1,6 @@
 import Constants, { AppOwnership } from 'expo-constants';
 import { NativeModules, Platform } from 'react-native';
+import { getRunnigappHealthConnectModule } from '../../modules/runnigapp-health-connect';
 import { ConnectedSource, RunSourceType } from '@/domain';
 import { syncIntegrationSources } from '@/services';
 import { IntegrationSyncResponse } from '@/lib/api/types';
@@ -202,11 +203,18 @@ export function getRecommendedNativeHealthReadiness(connectedSources: ConnectedS
 }
 
 function resolveNativeHealthBridgeModule(sourceType: NativeHealthSourceType): NativeHealthBridgeModule | null {
+  // Mixed resolution. Both paths return null when the native side is not linked into this build
+  // (e.g. Expo Go) so we degrade to the "reader 모듈이 아직 이 빌드에 연결되지 않았어" error
+  // instead of crashing.
   if (sourceType === 'apple_health') {
-    return (NativeModules.RunnigappAppleHealth ?? null) as NativeHealthBridgeModule | null;
+    // iOS Apple Health is the legacy ObjC RCT module written by plugins/withHealthAccess.js, so it
+    // surfaces through React Native's NativeModules registry rather than expo's requireNativeModule.
+    return (NativeModules.RunnigappAppleHealth as NativeHealthBridgeModule | undefined) ?? null;
   }
 
-  return (NativeModules.RunnigappHealthConnect ?? null) as NativeHealthBridgeModule | null;
+  // Android Health Connect is the Expo Kotlin module, resolved via requireNativeModule(...) inside
+  // modules/runnigapp-health-connect/index.ts (mirroring modules/match-progress-uploader).
+  return getRunnigappHealthConnectModule() as NativeHealthBridgeModule | null;
 }
 
 function toDateOnly(value: string) {

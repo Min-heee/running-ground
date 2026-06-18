@@ -1,0 +1,29 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.runnigapphealthconnect'
+version = '0.1.0'
+
+android {
+  namespace "expo.modules.runnigapphealthconnect"
+  defaultConfig {
+    versionCode 1
+    versionName "0.1.0"
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // Health Connect client (stable 1.1.0, released 2025-10-08) — compatible with the
+  // app's compileSdk 35 (Expo SDK 54 / RN 0.81). READ-ONLY usage: ExerciseSessionRecord
+  // + DistanceRecord aggregation.
+  implementation "androidx.health.connect:connect-client:1.1.0"
+
+  // Coroutines: the Health Connect client is suspend-based; we bridge it to Expo's
+  // AsyncFunction via a coroutine scope.
+  implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
+}

@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- READ-ONLY Health Connect access. These permissions merge into the app manifest so
+       the next EAS build requests them. The Health Connect <queries> entry and the
+       privacy-policy rationale activity-alias live in the app config plugin
+       (plugins/withHealthAccess.js) because they must sit on the main app's launcher
+       activity. -->
+  <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+  <uses-permission android:name="android.permission.health.READ_DISTANCE" />
+</manifest>
