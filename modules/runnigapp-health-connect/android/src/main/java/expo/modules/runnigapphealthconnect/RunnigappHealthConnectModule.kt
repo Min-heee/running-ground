@@ -204,7 +204,7 @@ class RunnigappHealthConnectModule : Module() {
           timeRangeFilter = TimeRangeFilter.between(start, end),
         ),
       )
-      result[DistanceRecord.DISTANCE_TOTAL]?.meters
+      result[DistanceRecord.DISTANCE_TOTAL]?.inMeters
     } catch (error: Throwable) {
       Log.w(TAG, "distance aggregate failed: ${error.message}")
       null
