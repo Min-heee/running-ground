@@ -4,6 +4,7 @@ import test from 'node:test';
 import type { RunRoutePoint } from '@/domain';
 import {
   buildAveragePace,
+  buildAveragePaceForFinishedRun,
   buildRunDateFromTimestamp,
   calculateCadenceSpm,
   calculateDistanceBetweenPoints,
@@ -51,6 +52,15 @@ test('running calculations return safe values for zero or invalid inputs', () =>
   assert.equal(buildAveragePace(0, 760), '--:--/km');
   assert.equal(buildAveragePace(Number.NaN, 760), '--:--/km');
   assert.equal(buildAveragePace(5, Number.POSITIVE_INFINITY), '--:--/km');
+  // Below the min-distance floor (cold-start GPS jitter while stationary): suppress, don't
+  // show a misleading inflating average pace. At/above the floor it computes normally.
+  assert.equal(buildAveragePace(0.03, 120), '--:--/km');
+  assert.equal(buildAveragePace(0.05, 300), '--:--/km');
+  assert.equal(buildAveragePace(0.1, 36), '06:00/km');
+  // The finished/saved variant has NO movement floor: a short forfeit (0.05km) still shows
+  // its true pace, only suppressing genuinely empty distance.
+  assert.equal(buildAveragePaceForFinishedRun(0.05, 90), '30:00/km');
+  assert.equal(buildAveragePaceForFinishedRun(0, 90), '--:--/km');
   assert.equal(formatPaceFromSpeedMps(Number.POSITIVE_INFINITY), '--:--/km');
   assert.equal(calculateCadenceSpm(Number.NaN, 300), null);
   assert.equal(calculateCadenceSpm(100, 0), null);

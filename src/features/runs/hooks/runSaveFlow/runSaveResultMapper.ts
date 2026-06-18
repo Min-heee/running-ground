@@ -1,6 +1,6 @@
 import type { RunMatchResult, RunMatchSource, RunRoutePoint } from '@/domain';
 import {
-  buildAveragePace,
+  buildAveragePaceForFinishedRun,
   buildRunDateFromTimestamp,
   calculateCadenceSpm,
 } from '@/features/runs/tracking';
@@ -139,7 +139,7 @@ export function buildRunSaveResultSnapshot({
   const finalCadenceSpm = calculateCadenceSpm(totalSteps, finalElapsedSeconds);
   const averagePaceLabel = allowStationaryForfeitSave && finalDistanceKm <= 0
     ? '00:00/km'
-    : buildAveragePace(finalDistanceKm, finalElapsedSeconds);
+    : buildAveragePaceForFinishedRun(finalDistanceKm, finalElapsedSeconds);
 
   const savableRoute = allowStationaryForfeitSave
     ? buildStationaryForfeitRoute({

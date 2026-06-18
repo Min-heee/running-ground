@@ -97,12 +97,30 @@ export function buildRunDateFromTimestamp(timestamp: string) {
   return timestamp.slice(0, 10);
 }
 
-export function buildAveragePace(distanceKm: number, elapsedSeconds: number) {
+// Raw cumulative average pace — NO movement floor. Use for a FINISHED/SAVED run, whose final
+// distance is real even when short (e.g. an allowed short-forfeit save), so it must show its
+// true pace rather than a placeholder.
+export function buildAveragePaceForFinishedRun(distanceKm: number, elapsedSeconds: number) {
   if (!Number.isFinite(distanceKm) || distanceKm <= 0 || elapsedSeconds <= 0) {
     return '--:--/km';
   }
 
   return formatPaceFromSecondsPerKm(elapsedSeconds / distanceKm);
+}
+
+// LIVE display floor: while stationary a runner still accrues ~50m of cold-start GPS jitter
+// (#182) as the slot-anchored elapsed keeps climbing, so a raw ratio shows a misleading ~6:xx
+// that then inflates toward 11:xx. Suppress the LIVE average pace until there is real movement
+// past the floor (well below any real run, which is >= 0.5km). The finished/saved record uses
+// buildAveragePaceForFinishedRun and is unaffected.
+export const MIN_LIVE_AVERAGE_PACE_DISTANCE_KM = 0.1;
+
+export function buildAveragePace(distanceKm: number, elapsedSeconds: number) {
+  if (!Number.isFinite(distanceKm) || distanceKm < MIN_LIVE_AVERAGE_PACE_DISTANCE_KM) {
+    return '--:--/km';
+  }
+
+  return buildAveragePaceForFinishedRun(distanceKm, elapsedSeconds);
 }
 
 export function getMapRegion(coordinates: MapCoordinate[]): RunMapRegion | null {
