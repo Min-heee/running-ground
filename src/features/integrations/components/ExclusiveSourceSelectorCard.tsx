@@ -6,10 +6,7 @@ import type { ConnectedSource, RunSourceType } from '@/domain';
 import { SourceMethodGuideModal } from '@/features/integrations/components/SourceMethodGuideModal';
 import { buildExclusiveSourceSelectorModel } from '@/features/integrations/exclusiveSourceSelectorModel';
 import { getSourceMethodGuide } from '@/features/integrations/sourceMethodGuide';
-import {
-  getSourceMetadata,
-  type DevicePlatform,
-} from '@/features/integrations/sourceCatalog';
+import { type DevicePlatform } from '@/features/integrations/sourceCatalog';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type ExclusiveSourceSelectorCardProps = {
@@ -22,7 +19,6 @@ type ExclusiveSourceSelectorCardProps = {
 
 type ExclusiveSourceRowProps = {
   actionSourceType: string | null;
-  platform: DevicePlatform;
   selected: boolean;
   source: ConnectedSource;
   onConnectSource: (sourceType: RunSourceType) => Promise<void> | void;
@@ -33,11 +29,9 @@ const ExclusiveSourceRow = memo(function ExclusiveSourceRow({
   actionSourceType,
   onConnectSource,
   onShowMethod,
-  platform,
   selected,
   source,
 }: ExclusiveSourceRowProps) {
-  const metadata = useMemo(() => getSourceMetadata(source.sourceType, platform), [platform, source.sourceType]);
   const isBusy = actionSourceType === source.sourceType;
   const handlePress = useCallback(() => {
     if (selected) {
@@ -73,7 +67,6 @@ const ExclusiveSourceRow = memo(function ExclusiveSourceRow({
             <Text style={styles.optionName}>{source.displayName}</Text>
             {isBusy ? <Text style={styles.busyText}>{selected ? '처리 중...' : '연결 중...'}</Text> : null}
           </View>
-          <Text style={styles.optionDescription}>{metadata.shortDescription}</Text>
           {selected ? (
             <View style={styles.selectedMetaBlock}>
               <Text style={styles.selectedMetaText}>마지막 동기화 {source.lastSyncedAt ?? '아직 없음'}</Text>
@@ -173,7 +166,6 @@ export function ExclusiveSourceSelectorCard({
             actionSourceType={actionSourceType}
             onConnectSource={onConnectSource}
             onShowMethod={setMethodSourceType}
-            platform={platform}
             selected={row.selected}
             source={row.source}
           />

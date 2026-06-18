@@ -56,7 +56,6 @@ export default function TabsLayout() {
     league: buildTabInputListeners('league'),
     market: buildTabInputListeners('market'),
     mypage: buildTabInputListeners('mypage'),
-    race: buildTabInputListeners('race'),
     running: buildTabInputListeners('running'),
   }), []);
   const tabOptions = useMemo(() => ({
@@ -65,7 +64,6 @@ export default function TabsLayout() {
     league: getTabScreenOptions('league'),
     market: getTabScreenOptions('market'),
     mypage: getTabScreenOptions('mypage'),
-    race: getTabScreenOptions('race'),
     running: getTabScreenOptions('running'),
   }), []);
   const hiddenTabOptions = useMemo(() => ({ href: null }), []);
@@ -78,7 +76,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="friends" options={tabOptions.friends} listeners={tabListeners.friends} />
       <Tabs.Screen name="running" options={tabOptions.running} listeners={tabListeners.running} />
       <Tabs.Screen name="home" options={tabOptions.home} listeners={tabListeners.home} />
-      <Tabs.Screen name="race" options={tabOptions.race} listeners={tabListeners.race} />
       <Tabs.Screen name="market" options={tabOptions.market} listeners={tabListeners.market} />
       <Tabs.Screen name="mypage" options={tabOptions.mypage} listeners={tabListeners.mypage} />
       <Tabs.Screen name="integrations" options={hiddenTabOptions} />
