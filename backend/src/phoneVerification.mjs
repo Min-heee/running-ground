@@ -66,7 +66,10 @@ export function createPhoneVerificationService({
         to: phone,
         from: solapiSender,
         text: buildSmsText(code),
-        autoTypeDetect: false,
+        // solapi v6 requires an explicit `type` when autoTypeDetect is false
+        // (v5 silently defaulted to SMS → error 1010). Let it auto-detect; the
+        // ~72-byte verification text resolves to SMS.
+        autoTypeDetect: true,
       });
     } catch (error) {
       // v6 throws MessageNotReceivedError (with failedMessageList) when SOLAPI/the
