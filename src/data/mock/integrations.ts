@@ -7,5 +7,5 @@ export const connectedSources: ConnectedSource[] = [
   { sourceType: 'garmin', displayName: 'Garmin', connected: false, connectionStatus: 'planned', recommendedPlatform: 'all' },
   { sourceType: 'strava', displayName: 'Strava', connected: false, connectionStatus: 'planned', recommendedPlatform: 'all' },
   { sourceType: 'nrc', displayName: 'Nike Run Club', connected: false, connectionStatus: 'planned', recommendedPlatform: 'all' },
-  { sourceType: 'mynb', displayName: 'MyNB', connected: false, connectionStatus: 'planned', recommendedPlatform: 'all' },
+  // MyNB(뉴발란스)는 러닝 기록 앱이 쇼핑·적립용이라 Apple 건강/Health Connect에 운동을 쓰지 않아 선택 가능한 가져오기 소스에서 제외합니다.
 ];

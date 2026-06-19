@@ -44,7 +44,7 @@ const appleHealthGuide: SourceMethodGuide = {
     },
     {
       title: '러닝 앱을 Apple 건강에 연결',
-      description: '애플워치·NRC 등으로 측정한 기록이 Apple 건강에 쌓이도록 각 앱에서 공유를 켜 주세요.',
+      description: "애플워치·NRC 등으로 측정한 기록이 Apple 건강에 쌓이도록 각 앱(스트라바·나이키런·가민)에서 Apple 건강 '운동(Workouts)' 쓰기 권한을 켜 주세요.",
     },
     {
       title: '반영 확인',
