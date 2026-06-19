@@ -59,7 +59,9 @@ export function createPhoneVerificationService({
       solapiMessageService = new SolapiMessageService(solapiApiKey, solapiApiSecret);
     }
 
-    await solapiMessageService.sendOne({
+    // solapi v6 merged sendOne/sendMany into send(); send() accepts a single
+    // message object and is the only single-send method on the v6 instance.
+    await solapiMessageService.send({
       to: phone,
       from: solapiSender,
       text: buildSmsText(code),
