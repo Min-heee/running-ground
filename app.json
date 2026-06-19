@@ -31,7 +31,10 @@
         "backgroundColor": "#11161B"
       },
       "versionCode": 31,
-      "package": "com.minheee.runnigapp"
+      "package": "com.minheee.runnigapp",
+      "permissions": [
+        "android.permission.ACTIVITY_RECOGNITION"
+      ]
     },
     "web": {
       "favicon": "./assets/branding/favicon.png"
