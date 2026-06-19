@@ -479,6 +479,168 @@ test('background match progress sync tolerates a malformed native response body'
   }
 });
 
+// Fix A.2(b) — self-healing single-flight lock. A background push that REJECTS (its abort/timeout
+// fired, e.g. JS thread frozen then resumed) must leave the in-flight slot CLEAR so the very next
+// flush proceeds instead of being wedged behind a dead in-flight reference until foreground.
+test('background match progress sync self-heals after an aborted/timed-out push so the next flush proceeds', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs);
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-selfheal',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  const calls: UpdateRunningMatchProgressInput[] = [];
+
+  // First push rejects immediately (simulating the per-request timeout/abort firing).
+  const firstFlush = flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs,
+    updateRunningMatchProgress: async (input) => {
+      calls.push(input);
+      throw new Error('timed out');
+    },
+  });
+  // The flush awaits the push, so a rejected push rejects the flush — swallow it like the caller
+  // (locationTask fire-and-forget) does.
+  await firstFlush.catch(() => undefined);
+
+  // The next flush is one interval later. Because the rejected push (a) did NOT advance the
+  // throttle and (b) cleared the in-flight slot in finally, this flush proceeds and POSTs again.
+  const secondCalls: UpdateRunningMatchProgressInput[] = [];
+  const didFlush = await flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs: nowMs + BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS,
+    updateRunningMatchProgress: async (input) => {
+      secondCalls.push(input);
+      return buildMatchStatusResponse(input.matchId);
+    },
+  });
+
+  assert.equal(didFlush, true);
+  assert.equal(calls.length, 1);
+  assert.equal(secondCalls.length, 1);
+  assert.equal(secondCalls[0].matchId, 'duel-match-selfheal');
+});
+
+// Fix A.2(a) — the throttle timestamp is advanced ONLY after a successful round-trip. A failed
+// push must NOT pre-commit the throttle, so the next tick can retry immediately rather than wait
+// out a full interval behind a push that never landed.
+test('background match progress sync does not advance the throttle on a failed push', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs);
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-no-throttle-on-fail',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  let callCount = 0;
+  const updateRunningMatchProgress = async (input: UpdateRunningMatchProgressInput) => {
+    callCount += 1;
+    if (callCount === 1) {
+      throw new Error('network down');
+    }
+    return buildMatchStatusResponse(input.matchId);
+  };
+
+  await flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs,
+    updateRunningMatchProgress,
+  }).catch(() => undefined);
+
+  // Only 1ms later — well within the throttle interval. Because the first push FAILED, the
+  // throttle was never advanced, so this retry is allowed (it is not throttle-blocked).
+  const didFlush = await flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs: nowMs + 1,
+    updateRunningMatchProgress,
+  });
+
+  assert.equal(didFlush, true);
+  assert.equal(callCount, 2);
+});
+
+// Fix A.5 / OTA-SAFETY — the iOS native branch is taken ONLY when the runtime availability check
+// is true. On the current iOS no-op binary (availability false) iOS must keep the JS fetch
+// fallback so the OTA does not break today's behavior.
+test('background match progress sync routes ios to native only when the native uploader is available', async () => {
+  const nowMs = Date.now();
+
+  // Available iOS build → native path is used, JS fallback is NOT.
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs);
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-ios-native',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  const iosNativeCalls: { body: string; token: string; url: string }[] = [];
+  const didFlushNative = await flushBackgroundMatchProgressSync({
+    apiBaseUrl: 'https://preview.example.test/api',
+    getAccessToken: async () => 'ios-token',
+    getNativeMatchProgressUploader: async () => ({
+      isNativeMatchProgressUploaderAvailable: () => true,
+      uploadMatchProgressNative: async (url, token, body) => {
+        iosNativeCalls.push({ body, token, url });
+        return null;
+      },
+    }),
+    isAppBackground: true,
+    nowMs,
+    platform: 'ios',
+    updateRunningMatchProgress: async () => {
+      throw new Error('JS fallback should not run when the iOS native uploader is available');
+    },
+  });
+
+  assert.equal(didFlushNative, true);
+  assert.equal(iosNativeCalls.length, 1);
+  assert.equal(iosNativeCalls[0].url, 'https://preview.example.test/api/running/matches/progress');
+
+  // Current iOS no-op binary (availability false) → native branch is skipped, JS fallback runs.
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs);
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-ios-noop',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  let nativeCalled = false;
+  const jsCalls: UpdateRunningMatchProgressInput[] = [];
+  const didFlushFallback = await flushBackgroundMatchProgressSync({
+    getNativeMatchProgressUploader: async () => ({
+      isNativeMatchProgressUploaderAvailable: () => false,
+      uploadMatchProgressNative: async () => {
+        nativeCalled = true;
+        return null;
+      },
+    }),
+    isAppBackground: true,
+    nowMs,
+    platform: 'ios',
+    updateRunningMatchProgress: async (input) => {
+      jsCalls.push(input);
+      return buildMatchStatusResponse(input.matchId);
+    },
+  });
+
+  assert.equal(didFlushFallback, true);
+  assert.equal(nativeCalled, false);
+  assert.equal(jsCalls.length, 1);
+  assert.equal(jsCalls[0].matchId, 'duel-match-ios-noop');
+});
+
 // M2 — identity-scoped applier teardown. An unmounting (older) instance clearing its applier must
 // NOT wipe a surviving (newer) instance's applier, so the background fix stays live across the
 // documented duplicate runtime-mount (#135) / StrictMode case.

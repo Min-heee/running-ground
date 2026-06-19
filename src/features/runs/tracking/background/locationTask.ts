@@ -16,12 +16,31 @@ export {
 } from '@/features/runs/tracking/background/locationTaskNames';
 
 export function buildLocationTaskOptions(): Location.LocationTaskOptions {
+  const isIOS = Platform.OS === 'ios';
+
   return {
     accuracy: Location.Accuracy.BestForNavigation,
+    // Fix A.4 — tighten the iOS background location cadence so the location-task callback (the
+    // only surviving screen-off trigger for the progress flush) fires often enough while walking.
+    // iOS gets a smaller distanceInterval (2m vs 4m) so a slow/walking runner still emits fixes
+    // that drive the flush. Android stays conservative (4m) to avoid worsening the known Android
+    // JS-thread saturation lag (#195/#201) and battery — Android already has the time-based timer
+    // + native-thread uploader, so it does not need a tighter GPS cadence.
     timeInterval: 2000,
-    distanceInterval: 4,
+    distanceInterval: isIOS ? 2 : 4,
+    // iOS deferred-updates: keep them OFF so iOS does not batch/withhold fixes in the background
+    // (batched delivery is what lets the screen-off flush go stale). A 0 distance/interval means
+    // "deliver each fix immediately" rather than deferring.
+    ...(isIOS
+      ? {
+          deferredUpdatesInterval: 0,
+          deferredUpdatesDistance: 0,
+        }
+      : {}),
     mayShowUserSettingsDialog: true,
+    // activityType fitness already biases iOS toward frequent pedestrian fixes.
     activityType: Location.ActivityType.Fitness,
+    // pausesUpdatesAutomatically=false so iOS never auto-pauses background updates mid-run.
     pausesUpdatesAutomatically: false,
     showsBackgroundLocationIndicator: true,
     ...(Platform.OS === 'android'
@@ -50,7 +69,12 @@ function defineBackgroundRunTask(taskName: string) {
       : [];
 
     locations.forEach(appendTrackedLocation);
-    await flushBackgroundMatchProgressSync({ platform: Platform.OS }).catch(() => false);
+    // Fix A.3 — fire-and-forget. Do NOT await the flush: a stuck/hung background push must never
+    // wedge the native location-task callback (which is what keeps the GPS route buffer + distance
+    // accumulating). The flush has its own single-flight + stale-reclaim + per-request timeout, so
+    // it self-heals. Swallow errors here so a rejected push can never surface as an unhandled
+    // rejection out of the task callback.
+    void flushBackgroundMatchProgressSync({ platform: Platform.OS }).catch(() => false);
   });
 }
 

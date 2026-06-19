@@ -16,6 +16,15 @@ class MatchProgressUploaderModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("MatchProgressUploader")
 
+    // OTA-SAFETY availability marker — mirrors the iOS Swift module's Property("available").
+    // The JS availability gate keys iOS off this property so the current iOS no-op binary (which
+    // lacks it) stays on the JS fetch fallback. Android already reports available via the non-null
+    // module proxy, so this is here for cross-platform symmetry / future tightening; it is a no-op
+    // for the currently-installed APK (native ships in the binary, not via OTA).
+    Property("available") {
+      true
+    }
+
     // NATIVE (Android, next build): was a fire-and-forget Function that discarded the response.
     // Now an AsyncFunction that resolves with the response body string the request already
     // reads (or null on non-2xx / failure) so the JS background flush can apply the opponent's

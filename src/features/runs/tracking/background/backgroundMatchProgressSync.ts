@@ -16,7 +16,7 @@ import {
 } from '@/features/runs/sync/matchProgressSync';
 
 // 3s (was 5s): tighten how stale a backgrounded runner's progress is on the server so the
-// opponent's live distance lags less. Aligned with ANDROID_BACKGROUND_MATCH_PROGRESS_TIMER_MS (3s).
+// opponent's live distance lags less. Aligned with BACKGROUND_MATCH_PROGRESS_TIMER_MS (3s).
 export const BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS = 3_000;
 // 6s (was 12s): backstop for a hung JS-fallback push that holds the single-flight slot,
 // blocking the next push + opponent-bearing response. The per-request timeout below should
@@ -147,6 +147,19 @@ let inFlightBackgroundMatchProgressSync: Promise<unknown> | null = null;
 let inFlightBackgroundMatchProgressSyncStartedAtMs = 0;
 let inFlightBackgroundMatchProgressAbort: AbortController | null = null;
 
+// Fix A.2(b) — self-healing single-flight teardown. Clears the in-flight slot (promise +
+// started-at + AbortController) ONLY when `token` is still the slot we registered, so a late
+// finally from a previously-reclaimed/aborted request can never wipe a NEWER in-flight request's
+// slot. Called from finally / abort / timeout / catch on EVERY background push path so a frozen
+// or aborted fetch can never wedge the channel until foreground.
+function clearInFlightBackgroundMatchProgressSync(token: Promise<unknown>) {
+  if (inFlightBackgroundMatchProgressSync === token) {
+    inFlightBackgroundMatchProgressSync = null;
+    inFlightBackgroundMatchProgressSyncStartedAtMs = 0;
+    inFlightBackgroundMatchProgressAbort = null;
+  }
+}
+
 async function updateRunningMatchProgressService(
   input: UpdateRunningMatchProgressInput,
   options?: { signal?: AbortSignal; timeoutMs?: number },
@@ -276,6 +289,11 @@ export async function flushBackgroundMatchProgressSync({
   }
 
   if (inFlightBackgroundMatchProgressSync) {
+    // Fix A.2(c) — stale-reclaim guard. A still-fresh in-flight push dedupes the new one (no
+    // double-POST). But an in-flight older than the small stale threshold is RECLAIMED: abort it
+    // and clear the slot so a frozen background fetch (JS timer suspended mid-request) can never
+    // wedge the channel until foreground. The abort fires the in-flight's own finally, which is a
+    // no-op now that we clear the slot here by identity.
     if (!isBackgroundMatchProgressInFlightStale(inFlightBackgroundMatchProgressSyncStartedAtMs, nowMs)) {
       return false;
     }
@@ -284,10 +302,6 @@ export async function flushBackgroundMatchProgressSync({
     inFlightBackgroundMatchProgressSync = null;
     inFlightBackgroundMatchProgressSyncStartedAtMs = 0;
     inFlightBackgroundMatchProgressAbort = null;
-  }
-
-  if (nowMs - lastBackgroundMatchProgressSyncAtMs < BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS) {
-    return false;
   }
 
   const elapsedSeconds = Math.floor(resolveSnapshotElapsedMs(snapshot, nowMs) / 1000);
@@ -307,10 +321,13 @@ export async function flushBackgroundMatchProgressSync({
     status,
   };
 
-  // iOS NOTE: iOS deliberately never reaches this native-uploader branch (platform is never
-  // 'android' there) and so always takes the JS-fallback push below. The iOS Swift uploader
-  // stays a no-op on purpose — the JS path is what applies the opponent-bearing response on iOS.
-  if (platform === 'android') {
+  // NATIVE branch (Android always; iOS ONLY on the new build whose Swift module reports
+  // available=true). Fix A.5 — widen from android-only to ALSO take iOS, but gate iOS on the
+  // RUNTIME availability check so the OTA stays safe: the current iOS no-op binary reports
+  // available=false → it skips this branch and keeps the JS-fallback push below (today's
+  // behavior, unchanged); only the new iOS build (real Swift module → available=true) routes
+  // here. Android keeps using the real Kotlin native uploader exactly as before.
+  if (platform === 'android' || platform === 'ios') {
     const nativeUploader = await getNativeMatchProgressUploader();
 
     if (nativeUploader?.isNativeMatchProgressUploaderAvailable()) {
@@ -324,24 +341,37 @@ export async function flushBackgroundMatchProgressSync({
           elapsedSeconds: Math.max(0, Math.round(input.elapsedSeconds)),
         });
 
-        lastBackgroundMatchProgressSyncAtMs = nowMs;
         recordBackgroundHeartbeatAttempt();
         globalThis.console.log(
           `[RG flush] path=native fired matchId=${context.matchId} dist=${input.distanceKm.toFixed(3)} status=${status}`,
         );
-        // NATIVE (Android, next build): the native uploader resolves with the response body it
-        // already reads. Await + apply it so the opponent's live state unfreezes while the
-        // screen is off. Best-effort: a network/parse failure must not throw out of the flush.
-        try {
-          const nativeBody = await nativeUploader.uploadMatchProgressNative(
-            `${resolvedApiBaseUrl}/running/matches/progress`,
-            token,
-            requestBody,
-          );
-          applyNativeMatchStatusBody(input.matchId, nativeBody);
-        } catch {
-          // Best-effort background upload; the next location tick retries with fresher data.
-        }
+        // NATIVE: the native uploader resolves with the response body it already reads on a
+        // native thread. Register it in the single-flight slot so a frozen native upload is
+        // reclaimable by the stale guard above (it cannot wedge the channel). Fix A.2(a) — the
+        // throttle timestamp is advanced ONLY after a successful round-trip (in .then), never
+        // before the request; Fix A.2(b) — .finally ALWAYS clears the slot by identity.
+        // Best-effort: a network/parse failure must not throw out of the flush.
+        const nativePromise = nativeUploader.uploadMatchProgressNative(
+          `${resolvedApiBaseUrl}/running/matches/progress`,
+          token,
+          requestBody,
+        )
+          .then((nativeBody) => {
+            lastBackgroundMatchProgressSyncAtMs = nowMs;
+            applyNativeMatchStatusBody(input.matchId, nativeBody);
+          })
+          .catch(() => {
+            // Best-effort background upload; the next location tick retries with fresher data.
+            // Throttle is NOT advanced on failure so the next tick can retry immediately.
+          })
+          .finally(() => {
+            clearInFlightBackgroundMatchProgressSync(nativePromise);
+          });
+        inFlightBackgroundMatchProgressSync = nativePromise;
+        inFlightBackgroundMatchProgressSyncStartedAtMs = nowMs;
+        inFlightBackgroundMatchProgressAbort = null;
+
+        await nativePromise;
         return true;
       }
 
@@ -351,20 +381,25 @@ export async function flushBackgroundMatchProgressSync({
     }
   }
 
-  lastBackgroundMatchProgressSyncAtMs = nowMs;
   recordBackgroundHeartbeatAttempt();
   const abortController = new AbortController();
   inFlightBackgroundMatchProgressAbort = abortController;
   inFlightBackgroundMatchProgressSyncStartedAtMs = nowMs;
-  // Fix A.2 — capture the resolved status and apply it. This is the channel iOS uses in
-  // background (its native uploader is a no-op), so applying the response here is what
-  // unfreezes the opponent on iOS. Fix B — pass an explicit timeout SHORTER than the stale
-  // window so a hung request self-aborts and frees the single-flight slot.
+  // Fix A.2 — capture the resolved status and apply it. This is the channel the CURRENT iOS
+  // no-op binary uses in background (its native uploader is unavailable), so applying the
+  // response here is what unfreezes the opponent on today's iOS. Fix B — pass an explicit
+  // timeout SHORTER than the stale window so a hung request self-aborts and frees the slot.
+  // Fix A.2(a) — the throttle timestamp is advanced ONLY after a successful round-trip (in
+  // .then), never before the request, so a hung/aborted push does not pre-commit the throttle
+  // and starve the next tick. Fix A.2(b) — .finally ALWAYS clears the slot by identity (on
+  // resolve, reject, abort, and timeout) so a frozen or aborted fetch can never wedge the
+  // channel until foreground.
   const syncPromise = updateRunningMatchProgress(input, {
     signal: abortController.signal,
     timeoutMs: BACKGROUND_MATCH_PROGRESS_PUSH_TIMEOUT_MS,
   })
     .then((nextStatus) => {
+      lastBackgroundMatchProgressSyncAtMs = nowMs;
       // Fix B1 (defense-in-depth) — drop the response if the context was cleared (forfeit /
       // finish teardown) while this request was in flight, so a late reply can't re-apply onto
       // a torn-down match. The React applier guards forfeit + serverNow on top of this.
@@ -372,11 +407,7 @@ export async function flushBackgroundMatchProgressSync({
       return nextStatus;
     })
     .finally(() => {
-      if (inFlightBackgroundMatchProgressSync === syncPromise) {
-        inFlightBackgroundMatchProgressSync = null;
-        inFlightBackgroundMatchProgressSyncStartedAtMs = 0;
-        inFlightBackgroundMatchProgressAbort = null;
-      }
+      clearInFlightBackgroundMatchProgressSync(syncPromise);
     });
   inFlightBackgroundMatchProgressSync = syncPromise;
 

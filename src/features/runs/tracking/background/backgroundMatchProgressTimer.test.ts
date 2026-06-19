@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  ANDROID_BACKGROUND_MATCH_PROGRESS_TIMER_MS,
+  BACKGROUND_MATCH_PROGRESS_TIMER_MS,
   startBackgroundMatchProgressTimer,
   stopBackgroundMatchProgressTimer,
 } from '@/features/runs/tracking/background/backgroundMatchProgressTimer';
@@ -45,7 +45,7 @@ test('android background match progress timer starts one 3s timer and flushes on
     clearIntervalFn: harness.clearIntervalFn,
   }), false);
   assert.equal(harness.timers.length, 1);
-  assert.equal(harness.timers[0].intervalMs, ANDROID_BACKGROUND_MATCH_PROGRESS_TIMER_MS);
+  assert.equal(harness.timers[0].intervalMs, BACKGROUND_MATCH_PROGRESS_TIMER_MS);
 
   harness.timers[0].callback();
   await Promise.resolve();
@@ -55,12 +55,29 @@ test('android background match progress timer starts one 3s timer and flushes on
   assert.equal(harness.cleared.length, 1);
 });
 
-test('background match progress timer stays stopped off android or when disabled', () => {
+// Fix A.1 — iOS now ALSO gets the time-based flush cadence (it was the only GPS-independent
+// trigger and was Android-only, which is what stalled the iOS screen-off opponent sync).
+test('background match progress timer now also starts on ios', () => {
   const harness = createFakeTimerHarness();
 
   stopBackgroundMatchProgressTimer(harness.clearIntervalFn);
   assert.equal(startBackgroundMatchProgressTimer({
     platformOS: 'ios',
+    setIntervalFn: harness.setIntervalFn,
+    clearIntervalFn: harness.clearIntervalFn,
+  }), true);
+  assert.equal(harness.timers.length, 1);
+  assert.equal(harness.timers[0].intervalMs, BACKGROUND_MATCH_PROGRESS_TIMER_MS);
+
+  assert.equal(stopBackgroundMatchProgressTimer(harness.clearIntervalFn), true);
+});
+
+test('background match progress timer stays stopped on web or when disabled', () => {
+  const harness = createFakeTimerHarness();
+
+  stopBackgroundMatchProgressTimer(harness.clearIntervalFn);
+  assert.equal(startBackgroundMatchProgressTimer({
+    platformOS: 'web',
     setIntervalFn: harness.setIntervalFn,
     clearIntervalFn: harness.clearIntervalFn,
   }), false);
