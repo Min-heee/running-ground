@@ -61,12 +61,32 @@ export function createPhoneVerificationService({
 
     // solapi v6 merged sendOne/sendMany into send(); send() accepts a single
     // message object and is the only single-send method on the v6 instance.
-    await solapiMessageService.send({
-      to: phone,
-      from: solapiSender,
-      text: buildSmsText(code),
-      autoTypeDetect: false,
-    });
+    try {
+      await solapiMessageService.send({
+        to: phone,
+        from: solapiSender,
+        text: buildSmsText(code),
+        autoTypeDetect: false,
+      });
+    } catch (error) {
+      // v6 throws MessageNotReceivedError (with failedMessageList) when SOLAPI/the
+      // carrier rejects the message — most commonly an unregistered sender number.
+      // The top-level message is generic ("failedMessageList를 확인해주세요"), so dig
+      // out the real per-message reason and surface it instead of a black box.
+      const failed = error?.failedMessageList;
+      if (Array.isArray(failed) && failed.length > 0) {
+        const detail = failed
+          .map((m) => [m?.statusMessage, m?.statusCode ? `(${m.statusCode})` : null].filter(Boolean).join(' '))
+          .filter(Boolean)
+          .join(' / ');
+        console.error('[phoneVerification] SOLAPI send failed:', detail || error?.message, failed);
+        throw new Error(
+          `문자 발송에 실패했어요: ${detail || '알 수 없는 사유'}. 발신번호가 SOLAPI에 등록·승인됐는지 확인해주세요.`,
+        );
+      }
+      console.error('[phoneVerification] SOLAPI send error:', error?.message ?? error);
+      throw error;
+    }
 
     return {
       provider: 'solapi',
