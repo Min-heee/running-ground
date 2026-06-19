@@ -29,15 +29,13 @@ export function SignupProfileSection({
     <>
       <SignupInput
         label="닉네임"
-        helperText="닉네임 표시를 선택하면 랭킹, 친구 화면, 기록 화면에 이 이름이 보여요."
         placeholder="닉네임을 입력하세요"
         value={nickname}
         onChangeText={setNickname}
         editable={!submitting}
       />
       <SignupInput
-        label="이름 (비공개)"
-        helperText="이름은 계정 확인용으로만 저장되고, 앱 화면이나 랭킹에는 공개되지 않아요."
+        label="이름"
         placeholder="이름을 입력하세요"
         value={realName}
         onChangeText={setRealName}
@@ -45,19 +43,16 @@ export function SignupProfileSection({
       />
       <View style={styles.displayNameCard}>
         <Text style={styles.privacyTitle}>공개 표시 이름 선택</Text>
-        <Text style={styles.helperText}>지역 랭킹, 친구 화면, 기록 화면에 어떤 이름으로 보일지 선택해주세요.</Text>
         <View style={styles.displayNameOptionRow}>
           <DisplayNameOption
             selected={displayNamePreference === 'nickname'}
-            title="닉네임으로 표시"
-            description="러닝 경쟁 화면에 닉네임을 보여줘요."
+            title="닉네임"
             disabled={submitting}
             onPress={() => setDisplayNamePreference('nickname')}
           />
           <DisplayNameOption
             selected={displayNamePreference === 'realName'}
-            title="본명으로 표시"
-            description="지역 랭킹과 기록 화면에 본명을 보여줘요."
+            title="본명"
             disabled={submitting}
             onPress={() => setDisplayNamePreference('realName')}
           />
@@ -78,13 +73,11 @@ export function SignupProfileSection({
 }
 
 function DisplayNameOption({
-  description,
   disabled,
   onPress,
   selected,
   title,
 }: {
-  description: string;
   disabled: boolean;
   onPress: () => void;
   selected: boolean;
@@ -98,9 +91,6 @@ function DisplayNameOption({
     >
       <Text style={[styles.displayNameOptionTitle, selected ? styles.displayNameOptionTitleSelected : null]}>
         {title}
-      </Text>
-      <Text style={[styles.displayNameOptionDescription, selected ? styles.displayNameOptionDescriptionSelected : null]}>
-        {description}
       </Text>
     </Pressable>
   );

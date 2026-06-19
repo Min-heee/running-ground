@@ -11,7 +11,6 @@ type SignupRegionSectionProps = Pick<
   | 'finalRegion'
   | 'handleSelectProvince'
   | 'handleSelectSecondary'
-  | 'handleSelectTertiary'
   | 'openRegionStep'
   | 'provinceName'
   | 'regions'
@@ -19,12 +18,9 @@ type SignupRegionSectionProps = Pick<
   | 'secondaryRegionName'
   | 'selectedAddressLabel'
   | 'selectedProvince'
-  | 'selectedSecondary'
   | 'setAddressDetail'
   | 'setOpenRegionStep'
   | 'submitting'
-  | 'tertiaryOptions'
-  | 'tertiaryRegionName'
 >;
 
 export function SignupRegionSection({
@@ -33,7 +29,6 @@ export function SignupRegionSection({
   finalRegion,
   handleSelectProvince,
   handleSelectSecondary,
-  handleSelectTertiary,
   openRegionStep,
   provinceName,
   regions,
@@ -41,17 +36,13 @@ export function SignupRegionSection({
   secondaryRegionName,
   selectedAddressLabel,
   selectedProvince,
-  selectedSecondary,
   setAddressDetail,
   setOpenRegionStep,
   submitting,
-  tertiaryOptions,
-  tertiaryRegionName,
 }: SignupRegionSectionProps) {
   return (
     <View style={styles.addressGroup}>
       <Text style={styles.label}>사는 지역 선택</Text>
-      <Text style={styles.helperText}>한 단계씩 차례대로 고르면 돼요. 지금 선택한 지역만 접힌 카드로 보여서 덜 복잡하게 정리했어요.</Text>
 
       <RegionPickerCard
         title="1. 시/도 선택"
@@ -83,24 +74,6 @@ export function SignupRegionSection({
             selectedName={secondaryRegionName}
             disabled={submitting || catalogLoading}
             onSelect={handleSelectSecondary}
-          />
-        </RegionPickerCard>
-      ) : null}
-
-      {selectedSecondary && tertiaryOptions.length > 0 ? (
-        <RegionPickerCard
-          title="3. 구 선택"
-          selectedLabel={tertiaryRegionName || '구를 선택해주세요'}
-          active={openRegionStep === 'tertiary'}
-          disabled={submitting || catalogLoading}
-          onPress={() => setOpenRegionStep('tertiary')}
-        >
-          <RegionChipSection
-            title="구 목록"
-            options={tertiaryOptions}
-            selectedName={tertiaryRegionName}
-            disabled={submitting || catalogLoading}
-            onSelect={handleSelectTertiary}
           />
         </RegionPickerCard>
       ) : null}

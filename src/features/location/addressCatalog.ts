@@ -6,11 +6,6 @@ export type AddressRegionNode = {
 
 const districts = (...names: string[]): AddressRegionNode[] => names.map((name) => ({ name, type: 'district' }));
 const municipalities = (...names: string[]): AddressRegionNode[] => names.map((name) => ({ name, type: 'city' }));
-const cityWithDistricts = (name: string, ...districtNames: string[]): AddressRegionNode => ({
-  name,
-  type: 'city',
-  children: districts(...districtNames),
-});
 
 function removeCountyRegions(node: AddressRegionNode): AddressRegionNode | null {
   if (node.name.endsWith('군')) {
@@ -83,16 +78,16 @@ const rawAddressCatalog: AddressRegionNode[] = [
     name: '경기도',
     type: 'province',
     children: [
-      cityWithDistricts('수원시', '장안구', '권선구', '팔달구', '영통구'),
-      cityWithDistricts('성남시', '수정구', '중원구', '분당구'),
+      municipalities('수원시')[0],
+      municipalities('성남시')[0],
       municipalities('의정부시')[0],
-      cityWithDistricts('안양시', '만안구', '동안구'),
+      municipalities('안양시')[0],
       municipalities('부천시')[0],
       municipalities('광명시')[0],
       municipalities('평택시')[0],
       municipalities('동두천시')[0],
-      cityWithDistricts('안산시', '상록구', '단원구'),
-      cityWithDistricts('고양시', '덕양구', '일산동구', '일산서구'),
+      municipalities('안산시')[0],
+      municipalities('고양시')[0],
       municipalities('과천시')[0],
       municipalities('구리시')[0],
       municipalities('남양주시')[0],
@@ -101,7 +96,7 @@ const rawAddressCatalog: AddressRegionNode[] = [
       municipalities('군포시')[0],
       municipalities('의왕시')[0],
       municipalities('하남시')[0],
-      cityWithDistricts('용인시', '처인구', '기흥구', '수지구'),
+      municipalities('용인시')[0],
       municipalities('파주시')[0],
       municipalities('이천시')[0],
       municipalities('안성시')[0],
@@ -129,17 +124,15 @@ const rawAddressCatalog: AddressRegionNode[] = [
     name: '충청북도',
     type: 'province',
     children: [
-      cityWithDistricts('청주시', '상당구', '서원구', '흥덕구', '청원구'),
-      ...municipalities('충주시', '제천시', '보은군', '옥천군', '영동군', '증평군', '진천군', '괴산군', '음성군', '단양군'),
+      ...municipalities('청주시', '충주시', '제천시', '보은군', '옥천군', '영동군', '증평군', '진천군', '괴산군', '음성군', '단양군'),
     ],
   },
   {
     name: '충청남도',
     type: 'province',
     children: [
-      cityWithDistricts('천안시', '동남구', '서북구'),
       ...municipalities(
-        '공주시', '보령시', '아산시', '서산시', '논산시', '계룡시', '당진시',
+        '천안시', '공주시', '보령시', '아산시', '서산시', '논산시', '계룡시', '당진시',
         '금산군', '부여군', '서천군', '청양군', '홍성군', '예산군', '태안군',
       ),
     ],
@@ -148,9 +141,8 @@ const rawAddressCatalog: AddressRegionNode[] = [
     name: '전북특별자치도',
     type: 'province',
     children: [
-      cityWithDistricts('전주시', '완산구', '덕진구'),
       ...municipalities(
-        '군산시', '익산시', '정읍시', '남원시', '김제시',
+        '전주시', '군산시', '익산시', '정읍시', '남원시', '김제시',
         '완주군', '진안군', '무주군', '장수군', '임실군', '순창군', '고창군', '부안군',
       ),
     ],
@@ -168,9 +160,8 @@ const rawAddressCatalog: AddressRegionNode[] = [
     name: '경상북도',
     type: 'province',
     children: [
-      cityWithDistricts('포항시', '남구', '북구'),
       ...municipalities(
-        '경주시', '김천시', '안동시', '구미시', '영주시', '영천시', '상주시', '문경시', '경산시',
+        '포항시', '경주시', '김천시', '안동시', '구미시', '영주시', '영천시', '상주시', '문경시', '경산시',
         '의성군', '청송군', '영양군', '영덕군', '청도군', '고령군', '성주군', '칠곡군',
         '예천군', '봉화군', '울진군', '울릉군',
       ),
@@ -180,9 +171,8 @@ const rawAddressCatalog: AddressRegionNode[] = [
     name: '경상남도',
     type: 'province',
     children: [
-      cityWithDistricts('창원시', '의창구', '성산구', '마산합포구', '마산회원구', '진해구'),
       ...municipalities(
-        '진주시', '통영시', '사천시', '김해시', '밀양시', '거제시', '양산시',
+        '창원시', '진주시', '통영시', '사천시', '김해시', '밀양시', '거제시', '양산시',
         '의령군', '함안군', '창녕군', '고성군', '남해군', '하동군', '산청군', '함양군', '거창군', '합천군',
       ),
     ],

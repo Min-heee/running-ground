@@ -11,7 +11,6 @@ export default function SignupFormScreen() {
     <Screen>
       <AuthHeader
         title="계정으로 회원가입"
-        subtitle="기본 정보만 입력하면 바로 홈으로 들어갈 수 있어요."
         showBack
         backHref="/signup"
       />

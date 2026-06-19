@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import type { AddressRegionNode } from '@/features/location/addressCatalog';
 import { buildRegionSelectionState } from '@/features/location/RegionSelection';
+import { deriveSignupTerminalRegion } from '@/features/location/signupRegionCap';
 import { fetchRegionCatalog, getApiErrorMessage } from '@/services';
 import {
   checkUsernameAvailability,
@@ -42,11 +43,10 @@ export function useSignupForm() {
   const phoneCooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [provinceName, setProvinceName] = useState('');
   const [secondaryRegionName, setSecondaryRegionName] = useState('');
-  const [tertiaryRegionName, setTertiaryRegionName] = useState('');
   const [regions, setRegions] = useState<AddressRegionNode[]>([]);
   const [addressDetail, setAddressDetail] = useState('');
   const [birthDate, setBirthDate] = useState('');
-  const [openRegionStep, setOpenRegionStep] = useState<'province' | 'secondary' | 'tertiary' | 'detail'>('province');
+  const [openRegionStep, setOpenRegionStep] = useState<'province' | 'secondary' | 'detail'>('province');
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -85,19 +85,23 @@ export function useSignupForm() {
   }, []);
 
   const selection = useMemo(
-    () => buildRegionSelectionState(regions, provinceName, secondaryRegionName, tertiaryRegionName),
-    [regions, provinceName, secondaryRegionName, tertiaryRegionName],
+    () => buildRegionSelectionState(regions, provinceName, secondaryRegionName, ''),
+    [regions, provinceName, secondaryRegionName],
   );
   const {
     selectedProvince,
     secondaryOptions,
     selectedSecondary,
-    tertiaryOptions,
+  } = selection;
+  // Signup picks a region in two steps (시/도 → 시/군/구). Every 시/군 is a leaf
+  // in the catalog now, so the second-level pick is always terminal and we never
+  // surface a third step here.
+  const {
     finalRegion,
     finalCityName,
     finalDistrictName,
     selectedAddressLabel,
-  } = selection;
+  } = deriveSignupTerminalRegion(provinceName, selectedSecondary);
   const checkingUsername = usernameCheck.status === 'checking';
   const usernameReady = usernameCheck.status === 'available' && usernameCheck.checkedUsername === normalizedUsername;
   const normalizedPhone = useMemo(() => phone.replace(/\D/g, ''), [phone]);
@@ -125,13 +129,10 @@ export function useSignupForm() {
       return;
     }
 
-    if (tertiaryOptions.length > 0 && !finalRegion) {
-      setOpenRegionStep('tertiary');
-      return;
-    }
-
+    // Two-level cap: a selected 시/군/구 is terminal, so advance straight to
+    // the detail step without ever opening a third (구) step.
     setOpenRegionStep('detail');
-  }, [finalRegion, selectedProvince, selectedSecondary, tertiaryOptions.length]);
+  }, [selectedProvince, selectedSecondary]);
 
   useEffect(() => () => {
     if (phoneCooldownTimerRef.current) {
@@ -272,21 +273,15 @@ export function useSignupForm() {
   const handleSelectProvince = (nextProvince: AddressRegionNode) => {
     setProvinceName(nextProvince.name);
     setSecondaryRegionName('');
-    setTertiaryRegionName('');
     setAddressDetail('');
     setOpenRegionStep('secondary');
   };
 
   const handleSelectSecondary = (nextSecondary: AddressRegionNode) => {
     setSecondaryRegionName(nextSecondary.name);
-    setTertiaryRegionName('');
     setAddressDetail('');
-    setOpenRegionStep(nextSecondary.children?.length ? 'tertiary' : 'detail');
-  };
-
-  const handleSelectTertiary = (nextTertiary: AddressRegionNode) => {
-    setTertiaryRegionName(nextTertiary.name);
-    setAddressDetail('');
+    // The 시/군/구 pick is terminal (every 시/군 is a leaf), so jump straight to
+    // the detail step instead of opening a third (구) step.
     setOpenRegionStep('detail');
   };
 
@@ -406,7 +401,6 @@ export function useSignupForm() {
     handleVerifyPhoneCode,
     handleSelectProvince,
     handleSelectSecondary,
-    handleSelectTertiary,
     handleSignup,
     handleUsernameChange,
     nickname,
@@ -447,8 +441,6 @@ export function useSignupForm() {
     setRealName,
     signupReady,
     submitting,
-    tertiaryOptions,
-    tertiaryRegionName,
     username,
     usernameCheck,
     usernameReady,
