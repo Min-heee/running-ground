@@ -428,11 +428,18 @@ export function useTrackingSessionSnapshots({
       nextUiFrame.elapsedSeconds = elapsedSecondsRef.current;
     }
     const nextCadenceSpm = calculateCadenceSpm(totalStepsRef.current, nextUiFrame.elapsedSeconds);
+    // RC-4: MY average/arena pace must use the wall-clock elapsed (slot/start-anchored,
+    // computed from syncedNow with NO JS timer) so it stays correct while the screen is off.
+    // `nextUiFrame.elapsedSeconds` is the slot-ticker / frozen-ref value the OS suspends in the
+    // background, which would freeze the avg pace while GPS keeps growing distanceKm. The
+    // on-screen 시간 metric stays pinned to `nextUiFrame.elapsedSeconds` (unchanged); only the
+    // avg-pace denominator switches to the wall-clock `displayedSnapshot.elapsedSeconds`.
     publishLiveTrackingMetricFrame({
       distanceKm: displayedSnapshot.distanceKm,
       elapsedSeconds: nextUiFrame.elapsedSeconds,
+      arenaElapsedSeconds: displayedSnapshot.elapsedSeconds,
       currentPace: displayedSnapshot.currentPace,
-      averagePace: buildAveragePace(displayedSnapshot.distanceKm, nextUiFrame.elapsedSeconds),
+      averagePace: buildAveragePace(displayedSnapshot.distanceKm, displayedSnapshot.elapsedSeconds),
       cadenceSpm: nextCadenceSpm,
       elevationGainM: displayedSnapshot.elevationGainM,
     });

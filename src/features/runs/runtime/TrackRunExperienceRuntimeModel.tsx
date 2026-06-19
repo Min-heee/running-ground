@@ -33,6 +33,7 @@ import {
   shouldShowMatchResultPageOnCurrentUserFinished,
 } from '@/features/runs/viewModels/matchResultPageVisibility';
 import { useAndroidLiveMatchDisplayFrames } from '@/features/runs/viewModels/useAndroidLiveMatchDisplayFrame';
+import { getLiveTrackingMetricFrameSnapshot } from '@/features/runs/tracking/liveTrackingMetricStore';
 import { useAndroidLiveMatchStartupGate } from '@/features/runs/lifecycle/hooks/useAndroidLiveMatchStartupGate';
 import { useTrackRunIdleViewModel } from '@/features/runs/viewModels/useTrackRunIdleViewModel';
 import { useMatchRuntimeState } from '@/features/runs/hooks/useMatchRuntimeState';
@@ -738,6 +739,13 @@ export function TrackRunExperienceRuntime({
     () => ({
       distanceKm,
       elapsedSeconds,
+      // RC-4: pair the throttled display distance with the wall-clock arena elapsed from the
+      // live tracking metric store (published from syncedNow on each GPS snapshot, NO JS timer)
+      // so MY avg/arena pace stays correct while backgrounded. This is a non-reactive read, but
+      // the memo recomputes whenever `distanceKm` commits — which is exactly the GPS-snapshot /
+      // throttle cadence that also refreshes arenaElapsedSeconds — so it rides the existing
+      // re-render without adding a 1Hz subscription to this component.
+      arenaElapsedSeconds: getLiveTrackingMetricFrameSnapshot().arenaElapsedSeconds,
       currentPace,
       averagePace,
       cadenceSpm,
@@ -803,12 +811,17 @@ export function TrackRunExperienceRuntime({
   const currentUserArenaPace = useMemo(() => resolveCurrentUserArenaPace({
     officialCurrentAveragePace,
     liveMatchDisplayDistanceKm: liveMatchMetricFrame.distanceKm,
-    liveMatchDisplayElapsedSeconds: liveMatchMetricFrame.elapsedSeconds,
+    // RC-4: feed the wall-clock arena elapsed (slot/start-anchored, no JS timer) instead of
+    // `elapsedSeconds` (slot-ticker value the OS freezes with the screen off). This keeps MY
+    // avg/arena pace — and the avg-pace voice announcement — correct while backgrounded and on
+    // resume. In foreground both are ≈equal so the displayed avg pace is unchanged.
+    liveMatchDisplayElapsedSeconds: liveMatchMetricFrame.arenaElapsedSeconds ?? liveMatchMetricFrame.elapsedSeconds,
     shouldUseLivePace: duelArenaUsesLivePace || groupArenaUsesLivePace,
   }), [
     duelArenaUsesLivePace,
     groupArenaUsesLivePace,
     liveMatchMetricFrame.distanceKm,
+    liveMatchMetricFrame.arenaElapsedSeconds,
     liveMatchMetricFrame.elapsedSeconds,
     officialCurrentAveragePace,
   ]);

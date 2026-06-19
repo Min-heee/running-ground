@@ -73,6 +73,28 @@ test('resolveCurrentUserArenaPace keeps official pace before calculating display
   }), '05:00/km');
 });
 
+test('resolveCurrentUserArenaPace tracks the wall-clock elapsed so a screen-off run does not freeze the avg pace', () => {
+  // RC-4: while backgrounded the slot-ticker elapsed freezes (e.g. 300s) but GPS keeps growing
+  // distance. Feeding the frozen ticker elapsed would drift the pace; feeding the wall-clock
+  // arena elapsed keeps it correct. Same distance, two elapsed inputs:
+  const frozenTickerPace = resolveCurrentUserArenaPace({
+    officialCurrentAveragePace: null,
+    liveMatchDisplayDistanceKm: 1.5,
+    liveMatchDisplayElapsedSeconds: 300, // frozen ticker — would read 03:20/km (too fast)
+    shouldUseLivePace: true,
+  });
+  const wallClockPace = resolveCurrentUserArenaPace({
+    officialCurrentAveragePace: null,
+    liveMatchDisplayDistanceKm: 1.5,
+    liveMatchDisplayElapsedSeconds: 450, // wall-clock elapsed kept advancing with the screen off
+    shouldUseLivePace: true,
+  });
+
+  assert.equal(frozenTickerPace, '03:20/km');
+  assert.equal(wallClockPace, '05:00/km');
+  assert.notEqual(wallClockPace, frozenTickerPace);
+});
+
 test('resolveDuelLiveSummary keeps opponent loading, forfeit, and status labels stable', () => {
   assert.equal(resolveDuelLiveSummary({
     opponent: null,

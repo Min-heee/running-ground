@@ -26,6 +26,7 @@ test('live tracking metric store publishes partial frame updates', () => {
   assert.deepEqual(getLiveTrackingMetricFrameSnapshot(), {
     distanceKm: 1.23,
     elapsedSeconds: 300,
+    arenaElapsedSeconds: 0,
     currentPace: '--:--/km',
     averagePace: '04:04/km',
     cadenceSpm: null,
@@ -79,6 +80,7 @@ test('live tracking metric store equality gate does not drop any changed field',
   const fieldUpdates: Partial<LiveTrackingMetricFrame>[] = [
     { distanceKm: 2.5 },
     { elapsedSeconds: 42 },
+    { arenaElapsedSeconds: 37 },
     { currentPace: '05:12/km' },
     { averagePace: '05:30/km' },
     { cadenceSpm: 168 },

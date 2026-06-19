@@ -3,6 +3,11 @@ import { useSyncExternalStore } from 'react';
 export type LiveTrackingMetricFrame = {
   distanceKm: number;
   elapsedSeconds: number;
+  // Wall-clock elapsed (slot/start-anchored, no JS timer) paired with distanceKm for MY
+  // average/arena pace. Unlike `elapsedSeconds` — which the slot ticker advances via a
+  // setInterval the OS freezes while JS is backgrounded — this stays fresh with the screen
+  // off, so the avg pace voice announcement and on-resume avg pace do not freeze (RC-4).
+  arenaElapsedSeconds: number;
   currentPace: string;
   averagePace: string;
   cadenceSpm: number | null;
@@ -12,6 +17,7 @@ export type LiveTrackingMetricFrame = {
 const INITIAL_LIVE_TRACKING_METRIC_FRAME: LiveTrackingMetricFrame = {
   distanceKm: 0,
   elapsedSeconds: 0,
+  arenaElapsedSeconds: 0,
   currentPace: '--:--/km',
   averagePace: '--:--/km',
   cadenceSpm: null,
@@ -24,6 +30,7 @@ const listeners = new Set<() => void>();
 function areLiveTrackingMetricFramesEqual(left: LiveTrackingMetricFrame, right: LiveTrackingMetricFrame) {
   return left.distanceKm === right.distanceKm
     && left.elapsedSeconds === right.elapsedSeconds
+    && left.arenaElapsedSeconds === right.arenaElapsedSeconds
     && left.currentPace === right.currentPace
     && left.averagePace === right.averagePace
     && left.cadenceSpm === right.cadenceSpm

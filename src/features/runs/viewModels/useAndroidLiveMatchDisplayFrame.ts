@@ -8,6 +8,10 @@ const ANDROID_LIVE_MATCH_UI_INTERVAL_MS = LIVE_MATCH_UI_DISPLAY_INTERVAL_MS;
 export type LiveMatchDisplayFrame = {
   distanceKm: number;
   elapsedSeconds: number;
+  // Wall-clock arena elapsed (RC-4): paired with distanceKm for MY average/arena pace so it
+  // stays fresh while backgrounded. Optional so callers that only build the on-screen display
+  // frame need not supply it.
+  arenaElapsedSeconds?: number;
   currentPace: string;
   averagePace: string;
   cadenceSpm: number | null;
@@ -22,6 +26,7 @@ export type LiveMatchDisplayFrames = {
 function areLiveMatchDisplayFramesEqual(left: LiveMatchDisplayFrame, right: LiveMatchDisplayFrame) {
   return left.distanceKm === right.distanceKm
     && left.elapsedSeconds === right.elapsedSeconds
+    && left.arenaElapsedSeconds === right.arenaElapsedSeconds
     && left.currentPace === right.currentPace
     && left.averagePace === right.averagePace
     && left.cadenceSpm === right.cadenceSpm
