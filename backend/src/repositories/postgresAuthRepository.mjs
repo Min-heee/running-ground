@@ -137,6 +137,20 @@ async function findUserByUsername(database, username) {
   return result.rows[0] ? mapUserRow(result.rows[0]) : null;
 }
 
+async function findUserByPhone(database, phone) {
+  const result = await database.query(
+    `
+      select *
+      from users
+      where phone = $1
+      limit 1
+    `,
+    [phone],
+  );
+
+  return result.rows[0] ? mapUserRow(result.rows[0]) : null;
+}
+
 async function findUserBySocialAccount(database, { provider, providerUserId }) {
   const result = await database.query(
     `
@@ -476,6 +490,12 @@ export function createPostgresAuthRepository({
 
         if (existingUser) {
           throw createError(409, '이미 사용 중인 아이디예요.');
+        }
+
+        const existingPhoneUser = await findUserByPhone(client, phone);
+
+        if (existingPhoneUser) {
+          throw createError(409, '이 번호로 이미 가입한 계정이 있어요. 로그인하거나 비밀번호 찾기를 이용해줘.');
         }
 
         const createdAt = new Date().toISOString();

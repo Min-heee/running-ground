@@ -311,6 +311,10 @@ export function createJsonAuthRepository({
           throw createError(409, '이미 사용 중인 아이디예요.');
         }
 
+        if (store.users.some((entry) => entry.phone === phone)) {
+          throw createError(409, '이 번호로 이미 가입한 계정이 있어요. 로그인하거나 비밀번호 찾기를 이용해줘.');
+        }
+
         const userId = nextId('user');
         const starterRuns = createStarterRuns(userId);
         const user = {

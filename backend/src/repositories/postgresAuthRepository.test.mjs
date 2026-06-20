@@ -48,6 +48,12 @@ class FakePostgresDatabase {
       };
     }
 
+    if (normalizedSql.startsWith('select * from users where phone = $1')) {
+      return {
+        rows: this.users.filter((user) => user.phone === params[0]).slice(0, 1),
+      };
+    }
+
     if (normalizedSql.startsWith('select * from users where real_name = $1 and phone = $2 and birth_date = $3 limit 1')) {
       return {
         rows: this.users.filter((user) => (
@@ -399,6 +405,49 @@ await runTest('rejects duplicate registration', async () => {
     assertApiError(error, 409, '이미 사용 중인 아이디예요.');
     return true;
   });
+});
+
+await runTest('rejects registration when the phone number is already in use', async () => {
+  const { repository, database } = createRepositoryHarness();
+
+  await repository.register({
+    username: 'first-runner',
+    password: 'Password123',
+    name: '첫러너',
+    realName: '민병희',
+    phone: '01012345678',
+    birthDate: '1990-01-01',
+    region: {
+      provinceName: '서울특별시',
+      cityName: '',
+      districtName: '강남구',
+    },
+    addressDetail: '테헤란로 123',
+  });
+
+  assert.equal(database.users.length, 1);
+
+  await assert.rejects(() => repository.register({
+    username: 'second-runner',
+    password: 'Password456',
+    name: '둘째러너',
+    realName: '김러너',
+    phone: '01012345678',
+    birthDate: '1999-02-24',
+    region: {
+      provinceName: '서울특별시',
+      cityName: '',
+      districtName: '서초구',
+    },
+    addressDetail: '서초대로 1',
+  }), (error) => {
+    assertApiError(error, 409, '이 번호로 이미 가입한 계정이 있어요. 로그인하거나 비밀번호 찾기를 이용해줘.');
+    return true;
+  });
+
+  // The second registration must not have created a user or a session.
+  assert.equal(database.users.length, 1);
+  assert.equal(database.sessions.length, 1);
 });
 
 await runTest('maps database username unique violations to duplicate registration', async () => {

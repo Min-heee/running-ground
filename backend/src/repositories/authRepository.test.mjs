@@ -236,6 +236,58 @@ await runTest('rejects duplicate registration', async () => {
   });
 });
 
+await runTest('rejects registration when the phone number is already in use', async () => {
+  const { repository, storeHarness } = createRepositoryHarness({
+    phoneVerificationChallenges: [
+      verifiedSignupPhoneChallenge('01012345678', 'vt-phone-first'),
+      verifiedSignupPhoneChallenge('01012345678', 'vt-phone-second'),
+    ],
+  });
+
+  await repository.register({
+    username: 'first-runner',
+    password: 'Password123',
+    name: '첫러너',
+    realName: '민병희',
+    phone: '01012345678',
+    birthDate: '1990-01-01',
+    region: {
+      provinceName: '서울특별시',
+      cityName: '',
+      districtName: '강남구',
+    },
+    addressDetail: '테헤란로 123',
+    phoneVerificationToken: 'vt-phone-first',
+  });
+
+  assert.equal(storeHarness.getStore().users.length, 1);
+
+  // A SECOND signup with the SAME phone (different username) is rejected, even though
+  // it carries its own freshly verified phone challenge.
+  await assert.rejects(repository.register({
+    username: 'second-runner',
+    password: 'Password456',
+    name: '둘째러너',
+    realName: '김러너',
+    phone: '01012345678',
+    birthDate: '1999-02-24',
+    region: {
+      provinceName: '서울특별시',
+      cityName: '',
+      districtName: '서초구',
+    },
+    addressDetail: '서초대로 1',
+    phoneVerificationToken: 'vt-phone-second',
+  }), (error) => {
+    assertApiError(error, 409, '이 번호로 이미 가입한 계정이 있어요. 로그인하거나 비밀번호 찾기를 이용해줘.');
+    return true;
+  });
+
+  const store = storeHarness.getStore();
+  assert.equal(store.users.length, 1);
+  assert.equal(store.sessions.length, 1);
+});
+
 await runTest('rejects registration without a verified phone challenge', async () => {
   const { repository } = createRepositoryHarness();
 
