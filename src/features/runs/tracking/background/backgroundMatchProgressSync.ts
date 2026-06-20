@@ -14,6 +14,11 @@ import {
   buildSyncedMatchProgressSnapshot,
   MATCH_GOAL_DISTANCE_TOLERANCE_KM,
 } from '@/features/runs/sync/matchProgressSync';
+import {
+  PERIODIC_MATCH_UPLOAD_INTERVAL_MS,
+  startPeriodicMatchUpload,
+  stopPeriodicMatchUpload,
+} from '@/features/runs/tracking/background/periodicMatchUploadController';
 
 // 3s (was 5s): tighten how stale a backgrounded runner's progress is on the server so the
 // opponent's live distance lags less. Aligned with BACKGROUND_MATCH_PROGRESS_TIMER_MS (3s).
@@ -128,6 +133,21 @@ function applyNativeMatchStatusBody(requestedMatchId: string, body: string | nul
   }
 }
 
+// NATIVE PERIODIC UPLOADER: apply a 2xx body emitted by the onMatchProgressResponse listener. The
+// emitter is not tied to a specific in-flight request (the native cadence re-POSTs on its own
+// thread), so scope it to the CURRENTLY ACTIVE context's matchId — the same defense-in-depth guard
+// applyBackgroundMatchStatusForRequest uses — so a late body whose match was torn down is dropped.
+// Routes through the EXACT same applier guards (B1 forfeit, B2 monotonic serverNow, identity
+// teardown) as the JS-fallback path, so the opponent board unfreezes WITHOUT a JS timer.
+function applyPeriodicNativeMatchStatusBody(body: string) {
+  const activeMatchId = getBackgroundMatchProgressContext()?.matchId;
+  if (!activeMatchId) {
+    return;
+  }
+
+  applyNativeMatchStatusBody(activeMatchId, body);
+}
+
 type BackgroundMatchProgressPlatform = 'android' | 'ios' | 'web' | 'windows' | 'macos' | string;
 
 type FlushBackgroundMatchProgressOptions = {
@@ -222,6 +242,10 @@ export function clearBackgroundMatchProgressContext(matchId?: string | null) {
 
   activeMatchProgressContext = null;
   lastBackgroundMatchProgressSyncAtMs = 0;
+  // Stop the native periodic cadence (and unsubscribe its response listener) the moment the live
+  // match is torn down so the second iOS location consumer / Android executor can never leak past
+  // the match. No-op on current binaries (availability gate). Fire-and-forget — never block clear.
+  void stopPeriodicMatchUpload().catch(() => undefined);
 }
 
 export function getBackgroundMatchProgressContext() {
@@ -340,6 +364,22 @@ export async function flushBackgroundMatchProgressSync({
           distanceKm: Number(input.distanceKm.toFixed(2)),
           elapsedSeconds: Math.max(0, Math.round(input.elapsedSeconds)),
         });
+
+        // NATIVE PERIODIC UPLOADER (next build only — OTA-safe via the controller's availability
+        // gate, which no-ops on every current binary). Hand the EXACT same {url, token, body} this
+        // flush is about to POST to the native wall-clock cadence so it re-sends the latest payload
+        // every ~3s while the screen is off, GPS+JS-independent. The native side NEVER recomputes —
+        // it only re-sends this body. On first flush for the match this starts the cadence + wires
+        // the onMatchProgressResponse listener (which applies the opponent board WITHOUT a JS
+        // timer); subsequent flushes just refresh the cached payload (no thread/listener churn).
+        // Fire-and-forget so the periodic wiring never blocks the existing one-shot push below.
+        const periodicUrl = `${resolvedApiBaseUrl}/running/matches/progress`;
+        void startPeriodicMatchUpload(
+          input.matchId,
+          { url: periodicUrl, authToken: token, jsonBody: requestBody },
+          applyPeriodicNativeMatchStatusBody,
+          PERIODIC_MATCH_UPLOAD_INTERVAL_MS,
+        ).catch(() => undefined);
 
         recordBackgroundHeartbeatAttempt();
         globalThis.console.log(

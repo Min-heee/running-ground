@@ -1,5 +1,11 @@
 import { Platform } from 'react-native';
-import { requireNativeModule } from 'expo-modules-core';
+import { EventSubscription, requireNativeModule } from 'expo-modules-core';
+
+type MatchProgressResponseEvent = {
+  // The raw 2xx response body string the native periodic re-POST already read, so JS can apply
+  // the opponent's live state WITHOUT a JS timer (the whole point of the native cadence).
+  body: string;
+};
 
 type MatchProgressUploaderNativeModule = {
   // NATIVE: resolves with the response body string the native side already reads (or null on
@@ -11,6 +17,20 @@ type MatchProgressUploaderNativeModule = {
   // reads back as `undefined`. This is the signal that lets isNativeMatchProgressUploaderAvailable
   // route iOS to the native path only on the new build (see below).
   available?: boolean;
+
+  // NATIVE PERIODIC UPLOADER (NEW — ships in the NEXT native build on BOTH platforms). These are
+  // the GPS+JS-independent wall-clock (~3s) cadence that re-sends the latest JS-built payload while
+  // the screen is off. They are OPTIONAL on the type because the CURRENTLY INSTALLED binaries do
+  // NOT define them — `typeof` guards below make every call a safe no-op on those binaries so a
+  // single OTA bundle stays safe (the existing JS-timer + location-task flush remains the fallback).
+  //
+  // The native side NEVER recomputes distance/pace/elapsed — it only re-sends the exact jsonBody JS
+  // hands it. JS stays the single source of truth.
+  startPeriodicUpload?(url: string, authToken: string, jsonBody: string, intervalMs: number): void;
+  updatePeriodicPayload?(url: string, authToken: string, jsonBody: string): void;
+  stopPeriodicUpload?(): void;
+  // Emitter contract used by addListener below (Expo Events("onMatchProgressResponse")).
+  addListener?(eventName: string, listener: (event: MatchProgressResponseEvent) => void): EventSubscription;
 };
 
 let nativeModule: MatchProgressUploaderNativeModule | null = null;
@@ -59,5 +79,106 @@ export async function uploadMatchProgressNative(
   } catch {
     // Best-effort background upload; the next location tick will retry with fresher data.
     return null;
+  }
+}
+
+// OTA-SAFETY availability gate for the NEW native periodic uploader. True ONLY when the resolved
+// native module actually exposes the periodic fns — i.e. ONLY on the next native build. On every
+// CURRENTLY INSTALLED binary (Android APK + iOS TestFlight, neither of which has these fns) this
+// returns false, so all the JS wrappers below become no-ops and the existing JS-timer +
+// location-task flush remains the unchanged fallback. This is what keeps the OTA bundle safe.
+export function isNativePeriodicUploaderAvailable(): boolean {
+  if (nativeModule == null) {
+    return false;
+  }
+
+  return (
+    typeof nativeModule.startPeriodicUpload === 'function'
+    && typeof nativeModule.updatePeriodicPayload === 'function'
+    && typeof nativeModule.stopPeriodicUpload === 'function'
+  );
+}
+
+// Start the native wall-clock cadence with the current JS-built payload. No-op (returns false) on
+// any binary that lacks the native fns, so callers do not need their own guard — but they SHOULD
+// still gate with isNativePeriodicUploaderAvailable() to avoid the wrapper churn on old binaries.
+export function startPeriodicMatchUpload(
+  url: string,
+  authToken: string,
+  jsonBody: string,
+  intervalMs: number,
+): boolean {
+  if (!isNativePeriodicUploaderAvailable()) {
+    return false;
+  }
+
+  try {
+    nativeModule?.startPeriodicUpload?.(url, authToken, jsonBody, intervalMs);
+    return true;
+  } catch {
+    // Best-effort: a failure to start leaves the JS-timer + location-task fallback in place.
+    return false;
+  }
+}
+
+// Cheaply overwrite the cached native payload (no thread restart). Called by JS on EVERY snapshot
+// commit + every bg-location tick so the native re-POST always carries the freshest JS-built body.
+export function updatePeriodicMatchPayload(
+  url: string,
+  authToken: string,
+  jsonBody: string,
+): boolean {
+  if (!isNativePeriodicUploaderAvailable()) {
+    return false;
+  }
+
+  try {
+    nativeModule?.updatePeriodicPayload?.(url, authToken, jsonBody);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Stop + clear the native cadence (match finish / forfeit / context clear / unmount).
+export function stopPeriodicMatchUpload(): boolean {
+  if (!isNativePeriodicUploaderAvailable()) {
+    return false;
+  }
+
+  try {
+    nativeModule?.stopPeriodicUpload?.();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Subscribe to the native onMatchProgressResponse emitter, which fires with the 2xx response body
+// string after each native re-POST. Returns an unsubscribe fn (no-op when unavailable). The caller
+// routes each body through the EXISTING applyNativeMatchStatusBody / applier guards so the opponent
+// board unfreezes WITHOUT a JS timer.
+export function addMatchProgressResponseListener(
+  listener: (body: string) => void,
+): () => void {
+  if (nativeModule == null || typeof nativeModule.addListener !== 'function') {
+    return () => undefined;
+  }
+
+  try {
+    const subscription = nativeModule.addListener('onMatchProgressResponse', (event) => {
+      if (event && typeof event.body === 'string') {
+        listener(event.body);
+      }
+    });
+    return () => {
+      try {
+        subscription.remove();
+      } catch {
+        // Best-effort teardown.
+      }
+    };
+  } catch {
+    return () => undefined;
   }
 }

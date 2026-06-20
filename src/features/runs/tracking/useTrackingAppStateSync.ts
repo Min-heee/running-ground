@@ -15,6 +15,9 @@ import {
   startBackgroundMatchProgressTimer,
   stopBackgroundMatchProgressTimer,
 } from '@/features/runs/tracking/background/backgroundMatchProgressTimer';
+import {
+  stopPeriodicMatchUpload,
+} from '@/features/runs/tracking/background/periodicMatchUploadController';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
 import {
@@ -142,6 +145,15 @@ export function useTrackingAppStateSync({
     const previousState = appStateRef.current;
     appStateRef.current = nextState;
     setAppBackgroundState(nextState !== 'active');
+
+    // Double-POST bound: the native periodic cadence only ever STARTS from a background flush, but
+    // once running it keeps re-POSTing on its own (iOS CLLocationManager fixes / Android executor)
+    // even after returning to foreground — where the foreground heartbeat already POSTs. On
+    // foreground resume, stop the native cadence so exactly ONE path owns the channel while active;
+    // it re-starts automatically on the next background flush. No-op on current binaries (gate).
+    if (nextState === 'active') {
+      void stopPeriodicMatchUpload().catch(() => undefined);
+    }
     const plan = resolveTrackingAppStateSyncPlan({
       nextState,
       previousState,
@@ -185,12 +197,16 @@ export function useTrackingAppStateSync({
   useEffect(() => {
     if (!enabled || trackerStatus !== 'running') {
       stopBackgroundMatchProgressTimer();
+      // Belt-and-braces: a non-running tracker must never leave the native periodic cadence (and
+      // its iOS second-location consumer) alive. No-op on current binaries (availability gate).
+      void stopPeriodicMatchUpload().catch(() => undefined);
       return undefined;
     }
 
     startBackgroundMatchProgressTimer({ platformOS: Platform.OS });
     return () => {
       stopBackgroundMatchProgressTimer();
+      void stopPeriodicMatchUpload().catch(() => undefined);
     };
   }, [enabled, trackerStatus]);
 
