@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import { PASSWORD_RULE_DESCRIPTION, USERNAME_RULE_DESCRIPTION } from '@/lib/session';
+import { USERNAME_RULE_DESCRIPTION } from '@/lib/session';
 import { ValidationItem } from './SignupFormPrimitives';
 import { signupFormStyles as styles } from './signupFormStyles';
 import type { SignupFormModel } from './types';
@@ -167,7 +167,6 @@ export function SignupCredentialsSection({
             <Text style={styles.inlineToggleText}>{passwordVisible ? '숨김' : '보기'}</Text>
           </Pressable>
         </View>
-        <Text style={styles.helperText}>{PASSWORD_RULE_DESCRIPTION}</Text>
         <TextInput
           placeholder="비밀번호를 입력하세요"
           placeholderTextColor={colors.textTertiary}
