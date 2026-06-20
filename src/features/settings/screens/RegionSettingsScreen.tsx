@@ -15,7 +15,6 @@ export default function RegionSettingsScreen() {
     handleSave,
     handleSelectProvince,
     handleSelectSecondary,
-    handleSelectTertiary,
     loading,
     provinceName,
     regions,
@@ -23,13 +22,10 @@ export default function RegionSettingsScreen() {
     saving,
     secondaryRegionName,
     selection,
-    tertiaryRegionName,
   } = useRegionSettings();
   const {
     selectedProvince,
     secondaryOptions,
-    selectedSecondary,
-    tertiaryOptions,
     selectedAddressLabel,
   } = selection;
 
@@ -63,16 +59,6 @@ export default function RegionSettingsScreen() {
                   selectedName={secondaryRegionName}
                   disabled={saving}
                   onSelect={handleSelectSecondary}
-                />
-              ) : null}
-
-              {selectedSecondary && tertiaryOptions.length > 0 ? (
-                <RegionChipSection
-                  title="3. 구 선택"
-                  options={tertiaryOptions}
-                  selectedName={tertiaryRegionName}
-                  disabled={saving}
-                  onSelect={handleSelectTertiary}
                 />
               ) : null}
 

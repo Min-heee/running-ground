@@ -1,21 +1,30 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AddressRegionNode } from '@/features/location/addressCatalog';
 import { buildRegionSelectionState } from '@/features/location/RegionSelection';
+import { deriveSignupTerminalRegion } from '@/features/location/signupRegionCap';
 import { fetchMyProfile, fetchRegionCatalog, getApiErrorMessage, updateMyRegion } from '@/services';
 
 export function useRegionSettings() {
   const [regions, setRegions] = useState<AddressRegionNode[]>([]);
   const [provinceName, setProvinceName] = useState('');
   const [secondaryRegionName, setSecondaryRegionName] = useState('');
-  const [tertiaryRegionName, setTertiaryRegionName] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const selection = useMemo(
-    () => buildRegionSelectionState(regions, provinceName, secondaryRegionName, tertiaryRegionName),
-    [regions, provinceName, secondaryRegionName, tertiaryRegionName],
+    () => buildRegionSelectionState(regions, provinceName, secondaryRegionName, ''),
+    [regions, provinceName, secondaryRegionName],
+  );
+  // Settings picks a region in two steps (시/도 → 시/군/구), mirroring signup.
+  // Every 시/군 is a leaf in the pruned catalog, so the second-level pick is
+  // always terminal and we never surface a third (구) step. The submitted payload
+  // comes from the SAME helper signup uses, so 경기도→고양시 sends
+  // cityName='고양시', districtName='고양시' (NOT '') per the backend contract.
+  const { finalCityName, finalDistrictName } = deriveSignupTerminalRegion(
+    provinceName,
+    selection.selectedSecondary,
   );
 
   useEffect(() => {
@@ -24,7 +33,6 @@ export function useRegionSettings() {
         setRegions(regionCatalog.regions);
         setProvinceName(profile.provinceName ?? '');
         setSecondaryRegionName(profile.cityName || profile.districtName);
-        setTertiaryRegionName(profile.cityName && profile.cityName !== profile.districtName ? profile.districtName : '');
       })
       .catch((loadError) => {
         setError(getApiErrorMessage(loadError, '지역 정보를 불러오지 못했어.'));
@@ -35,18 +43,14 @@ export function useRegionSettings() {
   const handleSelectProvince = (nextProvince: AddressRegionNode) => {
     setProvinceName(nextProvince.name);
     setSecondaryRegionName('');
-    setTertiaryRegionName('');
   };
 
   const handleSelectSecondary = (nextSecondary: AddressRegionNode) => {
     setSecondaryRegionName(nextSecondary.name);
-    setTertiaryRegionName('');
   };
 
-  const handleSelectTertiary = (nextTertiary: AddressRegionNode) => setTertiaryRegionName(nextTertiary.name);
-
   const handleSave = async () => {
-    if (!provinceName || !selection.finalDistrictName) {
+    if (!provinceName || !finalDistrictName) {
       setError('시/도와 최종 지역을 먼저 선택해줘.');
       return;
     }
@@ -57,12 +61,11 @@ export function useRegionSettings() {
     try {
       const nextProfile = await updateMyRegion({
         provinceName,
-        cityName: selection.finalCityName,
-        districtName: selection.finalDistrictName,
+        cityName: finalCityName,
+        districtName: finalDistrictName,
       });
       setProvinceName(nextProfile.provinceName ?? '');
       setSecondaryRegionName(nextProfile.cityName || nextProfile.districtName);
-      setTertiaryRegionName(nextProfile.cityName && nextProfile.cityName !== nextProfile.districtName ? nextProfile.districtName : '');
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } catch (saveError) {
@@ -77,7 +80,6 @@ export function useRegionSettings() {
     handleSave,
     handleSelectProvince,
     handleSelectSecondary,
-    handleSelectTertiary,
     loading,
     provinceName,
     regions,
@@ -85,6 +87,5 @@ export function useRegionSettings() {
     saving,
     secondaryRegionName,
     selection,
-    tertiaryRegionName,
   };
 }
