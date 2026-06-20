@@ -1,18 +1,28 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
+import { colors, radii, spacing, fontSizes, fontWeights } from '@/theme/tokens';
+
+const appIcon = require('../../../../assets/branding/icon.png');
 
 export default function OnboardingScreen() {
   return (
     <Screen>
       <View style={styles.container}>
-        <View style={styles.hero}>
-          <Text style={styles.logo}>RunningGround</Text>
-          <Text style={styles.title}>러닝 기록이 경쟁이 되는 앱</Text>
-          <Text style={styles.subtitle}>친구와 기록을 비교하고 내 러닝 흐름을 간단하게 쌓아가자.</Text>
+        <View style={styles.content}>
+          <Image source={appIcon} style={styles.icon} resizeMode="cover" />
+          <Text style={styles.title}>러닝그라운드</Text>
+          <Text style={styles.subtitle}>실시간 대결하고 랭킹을 확인할 수 있는 러닝앱</Text>
+          <View style={styles.chips}>
+            <View style={styles.chip}>
+              <Text style={styles.chipText}>실시간 대결</Text>
+            </View>
+            <View style={styles.chip}>
+              <Text style={styles.chipText}>지역 랭킹</Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.actions}>
@@ -27,21 +37,47 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'space-between',
     minHeight: 620,
-    paddingTop: 28,
     paddingBottom: spacing.s12,
   },
-  hero: {
-    backgroundColor: colors.brand,
-    borderRadius: 28,
-    padding: spacing.s24,
-    gap: spacing.s12,
-    minHeight: 220,
+  content: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
+    gap: spacing.s12,
   },
-  logo: { color: colors.brandSoftBorder, fontWeight: fontWeights.extraBold, fontSize: fontSizes.md },
-  title: { color: colors.white, fontSize: fontSizes.authTitle, fontWeight: fontWeights.extraBold, lineHeight: 40 },
-  subtitle: { color: colors.purpleRowSoft, lineHeight: 22, fontSize: fontSizes.rank },
+  icon: {
+    width: 76,
+    height: 76,
+    borderRadius: 22,
+  },
+  title: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.comingSoon,
+    fontWeight: fontWeights.extraBold,
+    textAlign: 'center',
+  },
+  subtitle: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.base,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  chips: {
+    flexDirection: 'row',
+    gap: spacing.xxl,
+    marginTop: spacing.sm,
+  },
+  chip: {
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.lg,
+    borderRadius: radii.pill,
+    backgroundColor: colors.brandSoft,
+  },
+  chipText: {
+    color: colors.brandStrong,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+  },
   actions: { gap: 10 },
 });
