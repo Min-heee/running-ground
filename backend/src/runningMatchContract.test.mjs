@@ -1515,3 +1515,234 @@ await runTest('tracked run API persists match result records and match bonus poi
     assert.equal(saved.pointBreakdown.matchBonusPoints, 10);
   });
 });
+
+function createResolvedGroupStore() {
+  const store = createBaseStore();
+  store.users.push(
+    createRunner({ id: 'third-user', name: '세번째 러너', publicTag: 'third', districtName: '마포구' }),
+  );
+  store.sessions.push(createSession('third-token', 'third-user'));
+  const slotStartAt = createSelectableMatchSlotStartAt();
+  const startedAt = iso(-30 * 60 * 1000);
+
+  store.matchSessions.push({
+    id: 'group-contract-match',
+    mode: 'group',
+    isTestMatch: false,
+    isPartyRun: false,
+    distanceKm: 5,
+    slotStartAt,
+    startedAt,
+    createdAt: iso(-31 * 60 * 1000),
+    matchedAt: iso(-31 * 60 * 1000),
+    participants: [
+      {
+        userId: 'host-user',
+        seedRank: 1,
+        acceptedAt: null,
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1500,
+        livePace: '05:00/km',
+        liveUpdatedAt: iso(-10 * 60 * 1000),
+        finishedAt: iso(-10 * 60 * 1000),
+        finishElapsedSeconds: 1500,
+      },
+      {
+        userId: 'guest-user',
+        seedRank: 2,
+        acceptedAt: null,
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1560,
+        livePace: '05:12/km',
+        liveUpdatedAt: iso(-9 * 60 * 1000),
+        finishedAt: iso(-9 * 60 * 1000),
+        finishElapsedSeconds: 1560,
+      },
+      {
+        userId: 'third-user',
+        seedRank: 3,
+        acceptedAt: null,
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1620,
+        livePace: '05:24/km',
+        liveUpdatedAt: iso(-8 * 60 * 1000),
+        finishedAt: iso(-8 * 60 * 1000),
+        finishElapsedSeconds: 1620,
+      },
+    ],
+  });
+
+  return { store, slotStartAt };
+}
+
+await runTest('match result endpoint returns a resolved duel pair with win/lose tones', async () => {
+  const { store } = createActiveDuelStore();
+  const session = store.matchSessions[0];
+  const hostParticipant = session.participants.find((participant) => participant.userId === 'host-user');
+  const guestParticipant = session.participants.find((participant) => participant.userId === 'guest-user');
+  hostParticipant.liveStatus = 'finished';
+  hostParticipant.liveDistanceKm = 5;
+  hostParticipant.liveElapsedSeconds = 1500;
+  hostParticipant.livePace = '05:00/km';
+  hostParticipant.liveUpdatedAt = iso(-10 * 60 * 1000);
+  hostParticipant.finishedAt = iso(-10 * 60 * 1000);
+  hostParticipant.finishElapsedSeconds = 1500;
+  guestParticipant.liveStatus = 'finished';
+  guestParticipant.liveDistanceKm = 5;
+  guestParticipant.liveElapsedSeconds = 1620;
+  guestParticipant.livePace = '05:24/km';
+  guestParticipant.liveUpdatedAt = iso(-9 * 60 * 1000);
+  guestParticipant.finishedAt = iso(-9 * 60 * 1000);
+  guestParticipant.finishElapsedSeconds = 1620;
+
+  await withBackend(store, async ({ request }) => {
+    const result = await request('host-token', 'GET', '/api/running/matches/duel-contract-match/result');
+    assert.equal(result.matchId, 'duel-contract-match');
+    assert.equal(result.mode, 'duel');
+    assert.equal(result.source, 'official');
+    assert.equal(result.comparedDistanceKm, 5);
+    assert.equal(result.participants.length, 2);
+
+    const [winner, loser] = result.participants;
+    assert.equal(winner.userId, 'host-user');
+    assert.equal(winner.rank, 1);
+    assert.equal(winner.resultTone, 'win');
+    assert.equal(winner.name, '방장 러너');
+    assert.equal(winner.districtName, '일산서구');
+    assert.equal(winner.provinceName, '경기도');
+    assert.equal(winner.cityName, '고양시');
+    assert.equal(winner.finishElapsedSeconds, 1500);
+    assert.equal(winner.paceSecondsPerKm, 300);
+    assert.equal(winner.isMe, true);
+    assert.equal(winner.forfeited, false);
+
+    assert.equal(loser.userId, 'guest-user');
+    assert.equal(loser.rank, 2);
+    assert.equal(loser.resultTone, 'lose');
+    assert.equal(loser.finishElapsedSeconds, 1620);
+    assert.equal(loser.paceSecondsPerKm, 324);
+    assert.equal(loser.isMe, false);
+
+    // The opposing participant fetches the identical result keyed by the same matchId,
+    // with only the isMe flag flipping.
+    const guestResult = await request('guest-token', 'GET', '/api/running/matches/duel-contract-match/result');
+    assert.equal(guestResult.participants[0].userId, 'host-user');
+    assert.equal(guestResult.participants[0].resultTone, 'win');
+    assert.equal(guestResult.participants[0].isMe, false);
+    assert.equal(guestResult.participants[1].isMe, true);
+  });
+});
+
+await runTest('match result endpoint returns a ranked group roster', async () => {
+  const { store } = createResolvedGroupStore();
+
+  await withBackend(store, async ({ request }) => {
+    const result = await request('third-token', 'GET', '/api/running/matches/group-contract-match/result');
+    assert.equal(result.mode, 'group');
+    assert.equal(result.source, 'official');
+    assert.equal(result.participants.length, 3);
+    assert.deepEqual(result.participants.map((participant) => participant.rank), [1, 2, 3]);
+    assert.deepEqual(result.participants.map((participant) => participant.userId), ['host-user', 'guest-user', 'third-user']);
+    // Group rows never carry a duel tone.
+    assert.equal(result.participants.every((participant) => participant.resultTone === null), true);
+    assert.equal(result.participants[0].finishElapsedSeconds, 1500);
+    assert.equal(result.participants[0].paceSecondsPerKm, 300);
+    assert.equal(result.participants[2].isMe, true);
+    assert.equal(result.participants[2].districtName, '마포구');
+  });
+});
+
+await runTest('match result endpoint hides matches from non-participants with a 404', async () => {
+  const { store } = createResolvedGroupStore();
+  // A real user who is NOT in this match.
+  store.users.push(createRunner({ id: 'stranger-user', name: '외부 러너', publicTag: 'stranger' }));
+  store.sessions.push(createSession('stranger-token', 'stranger-user'));
+
+  await withBackend(store, async ({ requestRaw }) => {
+    const denied = await requestRaw('stranger-token', 'GET', '/api/running/matches/group-contract-match/result');
+    assert.equal(denied.response.status, 404);
+    assert.equal(denied.payload.matchId, undefined);
+  });
+});
+
+await runTest('match result endpoint returns 404 while a match is not yet resolved', async () => {
+  const { store } = createActiveDuelStore();
+  // Both participants are still 'ready' (no finish / forfeit / official progress).
+
+  await withBackend(store, async ({ requestRaw }) => {
+    const pending = await requestRaw('host-token', 'GET', '/api/running/matches/duel-contract-match/result');
+    assert.equal(pending.response.status, 404);
+
+    const missing = await requestRaw('host-token', 'GET', '/api/running/matches/does-not-exist/result');
+    assert.equal(missing.response.status, 404);
+  });
+});
+
+await runTest('match result endpoint reconstructs a duel from saved runs after the session is pruned', async () => {
+  await withBackend(createBaseStore(), async ({ request, requestRaw }) => {
+    const matchId = 'saved-duel-match';
+    const guestStartedAt = iso(-9 * 60 * 1000);
+    const guestEndedAt = iso(-7 * 60 * 1000);
+    // The loser saves their tracked run carrying the matchId — no live session exists.
+    await request('guest-token', 'POST', '/api/runs/tracked', {
+      date: guestStartedAt.slice(0, 10),
+      distanceKm: 5,
+      pace: '05:24/km',
+      durationSeconds: 1620,
+      startedAt: guestStartedAt,
+      endedAt: guestEndedAt,
+      route: [
+        { latitude: 37.658, longitude: 126.77, timestamp: guestStartedAt },
+        { latitude: 37.661, longitude: 126.773, timestamp: guestEndedAt },
+      ],
+      matchResult: {
+        mode: 'duel',
+        matchId,
+        source: 'official',
+        title: '아쉽게 졌어요',
+        summary: '다음엔 이겨봐요.',
+        badgeLabel: '패',
+        opponentName: '방장 러너',
+        resultTone: 'lose',
+        comparedDistanceKm: 5,
+        myDurationSeconds: 1620,
+        myPaceLabel: '05:24/km',
+        opponentDurationSeconds: 1500,
+        opponentPaceLabel: '05:00/km',
+      },
+    });
+
+    // The matchId persists on the saved run-detail so the client can re-fetch from an old run.
+    const activity = await request('guest-token', 'GET', '/api/me/activity');
+    const savedRecord = activity.runs.find((run) => run.matchResult?.matchId === matchId);
+    assert.equal(Boolean(savedRecord), true);
+    assert.equal(savedRecord.matchResult.mode, 'duel');
+
+    const result = await request('guest-token', 'GET', `/api/running/matches/${matchId}/result`);
+    assert.equal(result.matchId, matchId);
+    assert.equal(result.mode, 'duel');
+    assert.equal(result.source, 'official');
+    assert.equal(result.participants.length, 2);
+
+    const me = result.participants.find((participant) => participant.isMe);
+    const opponent = result.participants.find((participant) => !participant.isMe);
+    assert.equal(me.userId, 'guest-user');
+    assert.equal(me.resultTone, 'lose');
+    assert.equal(me.finishElapsedSeconds, 1620);
+    assert.equal(me.paceSecondsPerKm, 324);
+    assert.equal(me.districtName, '일산동구');
+    assert.equal(opponent.name, '방장 러너');
+    assert.equal(opponent.resultTone, 'win');
+    assert.equal(opponent.finishElapsedSeconds, 1500);
+    assert.equal(opponent.paceSecondsPerKm, 300);
+    // The winning tone leads the ordered pair.
+    assert.equal(result.participants[0].resultTone, 'win');
+
+    // A different real user who never saved a run for this match cannot read it.
+    const denied = await requestRaw('host-token', 'GET', `/api/running/matches/${matchId}/result`);
+    assert.equal(denied.response.status, 404);
+  });
+});

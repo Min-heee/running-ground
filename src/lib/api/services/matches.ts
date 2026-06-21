@@ -1,6 +1,7 @@
 import {
   apiGet,
   apiPost,
+  isApiError,
   LIVE_MATCH_REQUEST_TIMEOUT_MS,
 } from '../client';
 
@@ -15,6 +16,7 @@ import {
   LeaveRunningMatchInput,
   LeaveRunningMatchResponse,
   MatchDemandSummaryResponse,
+  MatchResultResponse,
   RequestDuelMatchInput,
   RequestDuelMatchResponse,
   RequestGroupMatchInput,
@@ -33,6 +35,7 @@ import {
   buildMockDuelMatchResponse,
   buildMockGroupMatchResponse,
   buildMockMatchDemandSummary,
+  buildMockMatchResultResponse,
   syncMockRunningMatchSession,
   hydrateMockRunningMatchSessionStatuses,
   buildMockWaitingMatchStatus,
@@ -426,4 +429,63 @@ export async function updateRunningMatchProgress(
     action: 'update-match-progress',
     expectedMatchId: input.matchId,
   });
+}
+
+// Thrown when the result endpoint reports the match is not yet resolvable (404 /
+// not-found, or the live session/saved record cannot back a full result). The
+// result screen catches this to show a friendly "아직 결과가 없어요" state instead of
+// a hard error. Distinguishable via `isMatchResultNotResolvedError`.
+export class MatchResultNotResolvedError extends Error {
+  readonly matchId: string;
+  readonly cause?: unknown;
+
+  constructor(matchId: string, options: { cause?: unknown } = {}) {
+    super(`매치 결과를 아직 불러올 수 없어: ${matchId}`);
+    this.name = 'MatchResultNotResolvedError';
+    this.matchId = matchId;
+    this.cause = options.cause;
+  }
+}
+
+export function isMatchResultNotResolvedError(error: unknown): error is MatchResultNotResolvedError {
+  return error instanceof MatchResultNotResolvedError;
+}
+
+// GET /running/matches/:matchId/result — the dedicated final-result endpoint.
+// Always fetched by matchId (never from in-memory live state) so the result
+// screen renders identically from the live arena and from a saved/old record.
+// A 404 (or other not-found signal) is translated to MatchResultNotResolvedError
+// so callers can branch on a not-yet-resolved match without string-matching.
+export async function fetchMatchResult(matchId: string): Promise<MatchResultResponse> {
+  const trimmedMatchId = matchId.trim();
+
+  if (!trimmedMatchId) {
+    throw new MatchResultNotResolvedError(matchId);
+  }
+
+  if (USE_MOCK_API) {
+    const mockResult = buildMockMatchResultResponse(trimmedMatchId);
+
+    if (!mockResult) {
+      throw new MatchResultNotResolvedError(trimmedMatchId);
+    }
+
+    return mockResult;
+  }
+
+  try {
+    return await apiGet<MatchResultResponse>(
+      `/running/matches/${encodeURIComponent(trimmedMatchId)}/result`,
+      {
+        accessToken: await requireAccessToken(),
+        fallbackMessage: '매치 결과를 불러오지 못했어.',
+      },
+    );
+  } catch (error) {
+    if (isApiError(error) && error.status === 404) {
+      throw new MatchResultNotResolvedError(trimmedMatchId, { cause: error });
+    }
+
+    throw error;
+  }
 }

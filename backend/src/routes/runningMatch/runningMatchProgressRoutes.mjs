@@ -13,7 +13,44 @@ export async function routeRunningMatchProgressRoutes(deps) {
     return true;
   }
 
+  const resultMatch = pathname.match(/^\/api\/running\/matches\/([^/]+)\/result$/);
+
+  if (resultMatch && method === 'GET') {
+    await handleFetchRunningMatchResult(deps, resultMatch[1]);
+    return true;
+  }
+
   return false;
+}
+
+async function handleFetchRunningMatchResult({
+  ApiError,
+  buildMatchResultByMatchId,
+  loadStore,
+  request,
+  requireUser,
+  response,
+  sendJson,
+}, rawMatchId) {
+  let matchId;
+
+  try {
+    matchId = decodeURIComponent(rawMatchId).trim();
+  } catch {
+    // A malformed id can never name a real match → same 404 a participant check would give,
+    // so the endpoint never leaks whether an id format is "valid but missing".
+    throw new ApiError(404, '대결 결과를 찾을 수 없어.');
+  }
+
+  if (!matchId || matchId.length > 128) {
+    throw new ApiError(404, '대결 결과를 찾을 수 없어.');
+  }
+
+  const store = await loadStore();
+  const currentUser = requireUser(store, request);
+  const payload = buildMatchResultByMatchId(store, currentUser, matchId);
+
+  sendJson(response, 200, payload);
 }
 
 async function handleFetchRunningMatchStatus({

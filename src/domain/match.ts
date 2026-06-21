@@ -3,6 +3,10 @@ export type RunMatchSource = 'official' | 'party';
 export type RunMatchResult = {
   mode: 'duel' | 'group';
   source?: RunMatchSource;
+  // Persisted on the run record's matchResult JSON blob (run.matchResult.matchId).
+  // Lets a saved record open the dedicated match-result screen, which always fetches
+  // the authoritative per-participant result by matchId.
+  matchId?: string;
   title: string;
   summary: string;
   badgeLabel: string;

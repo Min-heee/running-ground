@@ -14,6 +14,8 @@ export {
   buildUpcomingRunningMatchesResponse,
 } from './matchResponseBuilders.mjs';
 
+export { buildMatchResultByMatchId } from './matchResultBuilders.mjs';
+
 export {
   acknowledgeRunningMatchRoomCountdown,
   buildRunningMatchRoomResponse,

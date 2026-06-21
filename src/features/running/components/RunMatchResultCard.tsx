@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 
@@ -16,6 +17,12 @@ type RunMatchResultCardProps = {
   // accepts the new fields). The opponent's pace/time only come from the matchResult.
   myPaceLabel?: string | null;
   myDurationSeconds?: number | null;
+  // Optional overrides for opening the dedicated match-result screen. The card normally
+  // reads matchId/mode straight off the matchResult blob (run.matchResult.matchId/.mode);
+  // these let the host screen (RunDetailScreen) thread the matchId it was navigated with as
+  // a fallback for older records whose blob never persisted matchId.
+  matchId?: string | null;
+  mode?: 'duel' | 'group' | null;
 };
 
 function formatDurationLabel(durationSeconds?: number) {
@@ -56,7 +63,19 @@ function RunnerColumn({
   );
 }
 
-export function RunMatchResultCard({ matchResult, myPaceLabel, myDurationSeconds }: RunMatchResultCardProps) {
+function RunMatchResultCardBase({
+  matchResult,
+  myPaceLabel,
+  myDurationSeconds,
+  matchId,
+  mode,
+}: RunMatchResultCardProps) {
+  // matchId is persisted on the run record's matchResult JSON blob (run.matchResult.matchId);
+  // fall back to the matchId the host screen was navigated with. Trim defensively in case a
+  // record stored a padded/empty string.
+  const resultMatchId = matchResult.matchId?.trim() || matchId?.trim() || null;
+  const resultMode = matchResult.mode ?? mode ?? undefined;
+  const canOpenResult = Boolean(resultMatchId);
   const myDisplayPaceLabel = matchResult.myPaceLabel ?? myPaceLabel ?? null;
   const myDisplayDurationSeconds = matchResult.myDurationSeconds
     ?? (typeof myDurationSeconds === 'number' ? myDurationSeconds : undefined);
@@ -134,15 +153,15 @@ export function RunMatchResultCard({ matchResult, myPaceLabel, myDurationSeconds
           </Text>
         </View>
       ) : null}
-      {matchResult.opponentId ? <Text style={styles.profileLinkText}>프로필 보기 ›</Text> : null}
+      {canOpenResult ? <Text style={styles.profileLinkText}>결과 보기 ›</Text> : null}
     </Card>
   );
 
-  if (!matchResult.opponentId) {
-    return card;
-  }
-
-  return (
+  // Preserve a way to reach the opponent profile for duels. The whole card now opens the
+  // dedicated match-result screen, so the opponent-profile link is a SEPARATE secondary
+  // affordance rendered as a sibling below the card (never nested inside the card's own
+  // Pressable, which would make a profile tap ambiguous with the card tap).
+  const opponentProfileLink = matchResult.mode === 'duel' && matchResult.opponentId ? (
     <Link
       href={{
         pathname: '/opponent-profile',
@@ -153,16 +172,70 @@ export function RunMatchResultCard({ matchResult, myPaceLabel, myDurationSeconds
       }}
       asChild
     >
+      <Pressable accessibilityRole="button" hitSlop={spacing.xs} style={styles.opponentProfileLink}>
+        <Text style={styles.profileLinkText}>상대 프로필 ›</Text>
+      </Pressable>
+    </Link>
+  ) : null;
+
+  // The whole card opens the dedicated match-result screen, fetched by matchId from the
+  // backend (works for both duel and group, official and party). Group records — which have
+  // no opponentId — are now tappable too. Falls back to a static card only when matchId is
+  // absent (e.g. an old record saved before the backend persisted run.matchResult.matchId).
+  if (!canOpenResult || !resultMatchId) {
+    if (!opponentProfileLink) {
+      return card;
+    }
+    return (
+      <View style={styles.matchResultWrap}>
+        {card}
+        {opponentProfileLink}
+      </View>
+    );
+  }
+
+  const tappableCard = (
+    <Link
+      href={{
+        pathname: '/match-result',
+        params: {
+          matchId: resultMatchId,
+          ...(resultMode ? { matchMode: resultMode } : {}),
+        },
+      }}
+      asChild
+    >
       <Pressable accessibilityRole="button" style={styles.matchResultPressable}>
         {card}
       </Pressable>
     </Link>
   );
+
+  if (!opponentProfileLink) {
+    return tappableCard;
+  }
+
+  return (
+    <View style={styles.matchResultWrap}>
+      {tappableCard}
+      {opponentProfileLink}
+    </View>
+  );
 }
 
+export const RunMatchResultCard = memo(RunMatchResultCardBase);
+
 const styles = StyleSheet.create({
+  matchResultWrap: {
+    flex: 1,
+    gap: spacing.xxs,
+  },
   matchResultPressable: {
     flex: 1,
+  },
+  opponentProfileLink: {
+    alignSelf: 'flex-start',
+    paddingVertical: spacing.xxs,
   },
   matchResultCard: {
     backgroundColor: colors.brandSoft,

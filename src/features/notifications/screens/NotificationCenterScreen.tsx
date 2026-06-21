@@ -83,6 +83,19 @@ function resolveNotificationHref(notification: InboxNotification): Href | null {
     return null;
   }
 
+  // A confirmed-result (결과확정) inbox row opens the dedicated match-result screen, fetched
+  // by matchId from the backend — NOT the live/finished arena. This must be checked before
+  // the roomId/matchId branches below, which route into the arena.
+  if (notification.type === 'match_result' && typeof data.matchId === 'string' && data.matchId.trim()) {
+    return {
+      pathname: '/match-result',
+      params: {
+        matchId: data.matchId.trim(),
+        ...(data.mode === 'duel' || data.mode === 'group' ? { matchMode: data.mode } : {}),
+      },
+    };
+  }
+
   if (typeof data.roomId === 'string' && data.roomId.trim()) {
     return '/match-room';
   }

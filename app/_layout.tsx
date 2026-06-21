@@ -101,6 +101,7 @@ export default function RootLayout() {
         <Stack.Screen name="add-run" />
         <Stack.Screen name="track-run" />
         <Stack.Screen name="run-detail" />
+        <Stack.Screen name="match-result" />
         <Stack.Screen name="(tabs)" />
       </Stack>
     </SafeAreaProvider>

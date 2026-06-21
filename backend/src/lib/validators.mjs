@@ -342,6 +342,10 @@ export function validateRunMatchResult(rawMatchResult) {
   const title = validateRequiredString(rawMatchResult.title, '매치 결과 제목이 비어 있어.');
   const summary = validateRequiredString(rawMatchResult.summary, '매치 결과 요약이 비어 있어.');
   const badgeLabel = validateRequiredString(rawMatchResult.badgeLabel, '매치 결과 배지가 비어 있어.');
+  // Persist the originating matchId so a SAVED run can re-fetch its full per-participant
+  // final result later (the result-by-matchId endpoint). It is optional — older clients
+  // that do not send it still save fine; only newer official/party matches carry it.
+  const matchId = normalizeOptionalString(rawMatchResult.matchId);
   // Persist source so party vs official is recoverable on the record (the client decides
   // 파티런 vs 대결 and whether rank LP applies from this). Anything other than the two
   // known values is dropped rather than rejected.
@@ -395,6 +399,7 @@ export function validateRunMatchResult(rawMatchResult) {
     title,
     summary,
     badgeLabel,
+    ...(matchId ? { matchId } : {}),
     ...(normalizedSource ? { source: normalizedSource } : {}),
     ...(opponentName ? { opponentName } : {}),
     ...(resultTone ? { resultTone } : {}),

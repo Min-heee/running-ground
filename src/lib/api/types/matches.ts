@@ -251,6 +251,48 @@ export type RequestGroupMatchResponse = {
   participants: GroupMatchParticipant[];
 };
 
+// ---------------------------------------------------------------------------
+// Final match-result-by-matchId endpoint: GET /running/matches/:matchId/result
+// Always fetched by matchId from the backend (no reliance on in-memory live
+// state), so the result screen renders identically from both the live arena and
+// a saved/old record. Pace/time are the OFFICIAL frozen values — never recomputed.
+// ---------------------------------------------------------------------------
+
+export type MatchResultMode = 'duel' | 'group';
+
+export type MatchResultSource = 'official' | 'party';
+
+export type MatchResultParticipantTone = 'win' | 'lose' | 'draw';
+
+export type MatchResultParticipant = {
+  // null only for a reconstructed opponent row in the saved-record fallback when
+  // the opponent never saved a run (synthetic/bot or unsaved).
+  userId: string | null;
+  name: string;
+  districtName: string | null;
+  provinceName: string | null;
+  cityName: string | null;
+  // Official frozen pace in seconds/km, else null.
+  paceSecondsPerKm: number | null;
+  finishElapsedSeconds: number | null;
+  distanceKm: number;
+  // Official 1-based; duel winner = 1. null when unranked.
+  rank: number | null;
+  // duel only; null for group rows.
+  resultTone: MatchResultParticipantTone | null;
+  forfeited: boolean;
+  isMe: boolean;
+};
+
+export type MatchResultResponse = {
+  matchId: string;
+  mode: MatchResultMode;
+  source: MatchResultSource;
+  comparedDistanceKm: number;
+  // Ordered by rank ascending (winner/1등 first); duel has exactly 2.
+  participants: MatchResultParticipant[];
+};
+
 export type FetchMatchDemandSummaryInput = {
   mode: 'duel' | 'group';
   distanceKm: number;

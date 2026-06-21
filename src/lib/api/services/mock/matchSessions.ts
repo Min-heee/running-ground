@@ -1,7 +1,11 @@
 import { myProfile, weeklySummary } from '@/data/mock';
 import { getCurrentUserProfile } from '@/lib/session';
 import type {
+  DuelMatchOpponent,
   FetchRunningMatchStatusInput,
+  GroupMatchParticipant,
+  MatchResultParticipant,
+  MatchResultResponse,
   RequestDuelMatchInput,
   RequestDuelMatchResponse,
   RequestGroupMatchInput,
@@ -446,5 +450,144 @@ export function buildMockGroupMatchStatus(response: RequestGroupMatchResponse): 
       liveStatus: 'ready',
     })),
     mySeedRank: response.mySeedRank,
+  };
+}
+
+// Reconstruct a MatchResultResponse from whatever live mock session currently
+// carries this matchId. Mirrors the backend's by-matchId result endpoint enough
+// for the result screen to render under USE_MOCK_API. Returns null when no mock
+// session matches (mapped to MatchResultNotResolvedError by the caller).
+function parseMockPaceLabel(label?: string | null): number | null {
+  if (!label || !/\d{1,2}:\d{2}\/km/i.test(label)) {
+    return null;
+  }
+
+  const seconds = parsePaceLabelToSeconds(label);
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+}
+
+function resolveMockPaceSecondsPerKm(
+  runner: Pick<DuelMatchOpponent, 'officialAveragePace' | 'livePace' | 'officialElapsedSeconds' | 'liveElapsedSeconds'>,
+  distanceKm: number,
+): number | null {
+  const parsedOfficial = parseMockPaceLabel(runner.officialAveragePace);
+  if (parsedOfficial !== null) {
+    return parsedOfficial;
+  }
+
+  const parsedLive = parseMockPaceLabel(runner.livePace);
+  if (parsedLive !== null) {
+    return parsedLive;
+  }
+
+  const elapsed = runner.officialElapsedSeconds ?? runner.liveElapsedSeconds ?? null;
+  if (typeof elapsed === 'number' && Number.isFinite(elapsed) && elapsed > 0 && distanceKm > 0) {
+    return Math.round(elapsed / distanceKm);
+  }
+
+  return null;
+}
+
+export function buildMockMatchResultResponse(matchId: string): MatchResultResponse | null {
+  const duelSession = mockApiState.runningMatchSessions.duel;
+  const groupSession = mockApiState.runningMatchSessions.group;
+  const session = duelSession?.matchId === matchId
+    ? duelSession
+    : groupSession?.matchId === matchId
+      ? groupSession
+      : null;
+
+  if (!session) {
+    return null;
+  }
+
+  const comparedDistanceKm = session.distanceKm;
+  const profile = getCurrentUserProfile() ?? myProfile;
+
+  if (session.mode === 'duel') {
+    const opponent = session.opponent;
+    if (!opponent) {
+      return null;
+    }
+
+    const myDistanceKm = session.officialComparison?.userDistanceKm ?? comparedDistanceKm;
+    const opponentDistanceKm = opponent.officialDistanceKm ?? opponent.liveDistanceKm ?? comparedDistanceKm;
+    const verdict = session.duelVerdict;
+    const myWon = (verdict?.resolved && verdict.outcome === 'win')
+      || (session.currentUserLiveStatus === 'finished' && opponent.liveStatus !== 'finished');
+    const isDraw = Boolean(verdict?.resolved && verdict.outcome === 'draw');
+    const myRow: MatchResultParticipant = {
+      userId: null,
+      name: '나',
+      districtName: profile.districtName ?? null,
+      provinceName: profile.provinceName ?? null,
+      cityName: profile.cityName ?? null,
+      paceSecondsPerKm: resolveMockPaceSecondsPerKm(
+        {
+          officialAveragePace: session.officialComparison?.userAveragePace,
+          livePace: undefined,
+          officialElapsedSeconds: session.currentUserFinishElapsedSeconds ?? undefined,
+          liveElapsedSeconds: undefined,
+        },
+        myDistanceKm,
+      ),
+      finishElapsedSeconds: session.currentUserFinishElapsedSeconds ?? null,
+      distanceKm: myDistanceKm,
+      rank: myWon ? 1 : 2,
+      resultTone: isDraw ? 'draw' : myWon ? 'win' : 'lose',
+      forfeited: session.currentUserLiveStatus === 'forfeited',
+      isMe: true,
+    };
+    const opponentRow: MatchResultParticipant = {
+      userId: opponent.id,
+      name: opponent.name,
+      districtName: opponent.districtName ?? null,
+      provinceName: null,
+      cityName: null,
+      paceSecondsPerKm: resolveMockPaceSecondsPerKm(opponent, opponentDistanceKm),
+      finishElapsedSeconds: opponent.finishElapsedSeconds ?? opponent.officialElapsedSeconds ?? null,
+      distanceKm: opponentDistanceKm,
+      rank: myWon ? 2 : 1,
+      resultTone: isDraw ? 'draw' : myWon ? 'lose' : 'win',
+      forfeited: opponent.liveStatus === 'forfeited',
+      isMe: false,
+    };
+
+    return {
+      matchId,
+      mode: 'duel',
+      source: 'official',
+      comparedDistanceKm,
+      participants: [myRow, opponentRow].sort((left, right) => (left.rank ?? 99) - (right.rank ?? 99)),
+    };
+  }
+
+  const participants = session.participants ?? [];
+  const mySeedRank = session.mySeedRank ?? 1;
+  const rows: MatchResultParticipant[] = participants.map((participant: GroupMatchParticipant) => {
+    const isMe = participant.seedRank === mySeedRank;
+    const distanceKm = participant.officialDistanceKm ?? participant.liveDistanceKm ?? comparedDistanceKm;
+    return {
+      userId: participant.id,
+      name: isMe ? '나' : participant.name,
+      districtName: participant.districtName ?? null,
+      provinceName: null,
+      cityName: null,
+      paceSecondsPerKm: resolveMockPaceSecondsPerKm(participant, distanceKm),
+      finishElapsedSeconds: participant.finishElapsedSeconds ?? participant.officialElapsedSeconds ?? null,
+      distanceKm,
+      rank: participant.officialRank ?? participant.seedRank,
+      resultTone: null,
+      forfeited: participant.liveStatus === 'forfeited',
+      isMe,
+    };
+  });
+
+  return {
+    matchId,
+    mode: 'group',
+    source: 'official',
+    comparedDistanceKm,
+    participants: rows.sort((left, right) => (left.rank ?? 99) - (right.rank ?? 99)),
   };
 }

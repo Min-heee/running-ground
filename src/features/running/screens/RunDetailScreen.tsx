@@ -99,6 +99,8 @@ export default function RunDetailScreen() {
                   matchResult={matchResult}
                   myPaceLabel={runDetail.run.pace}
                   myDurationSeconds={runDetail.run.durationSeconds}
+                  matchId={matchId}
+                  mode={matchMode === 'duel' || matchMode === 'group' ? matchMode : null}
                 />
               </View>
             </View>

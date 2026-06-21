@@ -3,11 +3,14 @@ import { router } from 'expo-router';
 import { fetchUpcomingRunningMatches } from '@/services/matchService';
 import {
   buildMatchReminderRouteTarget,
+  buildMatchResultRouteTarget,
   buildNotificationTraceDetail,
   findRecoveredMatchById,
   isMatchReminderMissingRoomId,
   isMatchReminderNotification,
+  isMatchResultNotification,
   shouldSkipDuplicateMatchReminderNotification,
+  shouldSkipDuplicateMatchResultNotification,
   type NotificationTraceDetail,
   type MatchReminderNotificationPhase,
 } from '@/navigation/matchReminderNotificationRouting';
@@ -65,7 +68,37 @@ function shouldSkipNotification(detail: NotificationTraceDetail, phase: MatchRem
   return true;
 }
 
+// A confirmed-result push must open the dedicated match-result screen and RETURN —
+// it must never fall through to the live-arena / forceMatchArena reminder path.
+// Returns true when the tap was a result notification (handled or skipped).
+function handleMatchResultTap(detail: NotificationTraceDetail) {
+  if (!isMatchResultNotification(detail)) {
+    return false;
+  }
+
+  if (shouldSkipDuplicateMatchResultNotification(detail, 'tap')) {
+    return true;
+  }
+
+  const routeTarget = buildMatchResultRouteTarget(detail);
+  if (!routeTarget) {
+    return true;
+  }
+
+  rgPerfMark('notification tap open match result', {
+    matchId: detail.matchId,
+    mode: detail.mode,
+    type: detail.type,
+  });
+  router.push(routeTarget);
+  return true;
+}
+
 async function handleMatchReminderTap(detail: NotificationTraceDetail) {
+  if (handleMatchResultTap(detail)) {
+    return;
+  }
+
   if (!isMatchReminderNotification(detail)) {
     return;
   }
