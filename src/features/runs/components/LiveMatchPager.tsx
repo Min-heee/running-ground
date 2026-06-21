@@ -1,4 +1,4 @@
-import { memo, startTransition, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import type { RefObject } from 'react';
 import { NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, Text, View } from 'react-native';
 import {
@@ -69,12 +69,13 @@ export const LiveMatchPager = memo(function LiveMatchPager({
     setActiveTab(index);
 
     if (Platform.OS === 'android') {
-      // Defer only the heavy target-page mount/re-render so it no longer competes
-      // with the tap on the JS thread. The highlight already moved synchronously
-      // above; only the page CONTENT swap lands in the transition.
-      startTransition(() => {
-        onPageChange(index);
-      });
+      // Commit the page change SYNCHRONOUSLY. A startTransition here gets starved
+      // by the constant live-match re-renders (GPS/timer), so the deferred page
+      // commit never lands — only the highlight moved while the CONTENT stayed put.
+      // Android content now renders off the local activeTab below (instant swap),
+      // and this keeps the parent's `page` in lockstep so the memo + external
+      // auto-switch stay consistent.
+      onPageChange(index);
       return;
     }
 
@@ -94,14 +95,14 @@ export const LiveMatchPager = memo(function LiveMatchPager({
           onTabPress={handleTabPress}
         />
         <View style={styles.androidPage}>
-          <View style={page === 0 ? styles.androidPageSlot : styles.androidPageHiddenSlot}>
-            {page === 0 ? renderArenaPage() : null}
+          <View style={activeTab === 0 ? styles.androidPageSlot : styles.androidPageHiddenSlot}>
+            {activeTab === 0 ? renderArenaPage() : null}
           </View>
-          <View style={page === 1 ? styles.androidPageSlot : styles.androidPageHiddenSlot}>
-            {page === 1 ? renderRaceBoardPage() : null}
+          <View style={activeTab === 1 ? styles.androidPageSlot : styles.androidPageHiddenSlot}>
+            {activeTab === 1 ? renderRaceBoardPage() : null}
           </View>
-          <View style={page === 2 ? styles.androidPageSlot : styles.androidPageHiddenSlot}>
-            {page === 2 ? renderStatsPage() : null}
+          <View style={activeTab === 2 ? styles.androidPageSlot : styles.androidPageHiddenSlot}>
+            {activeTab === 2 ? renderStatsPage() : null}
           </View>
         </View>
         <Text style={styles.hint}>위 탭을 누르면 순위와 기록 화면을 볼 수 있어요.</Text>
