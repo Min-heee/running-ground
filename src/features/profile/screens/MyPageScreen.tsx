@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
+import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { Screen } from '@/components/Screen';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
 import { TabHeader } from '@/components/ui/TabHeader';
@@ -52,7 +53,7 @@ export default function MyPageScreen() {
     <Screen>
       <TabHeader title="마이" />
 
-      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
+      {loading ? <BrandLoadingView /> : null}
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       {profile && integrationStatus ? (

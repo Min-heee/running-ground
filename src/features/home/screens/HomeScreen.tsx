@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
 import { Screen } from '@/components/Screen';
 import { HomeHeader } from '@/features/home/components/HomeHeader';
@@ -9,7 +10,7 @@ import { useHomeScreenModel } from '@/features/home/hooks/useHomeScreenModel';
 import { HomeOverview } from '@/features/home/HomeOverview';
 import { shouldShowMatchStartOverlay } from '@/lib/matchCountdown';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
-import { colors, spacing } from '@/theme/tokens';
+import { spacing } from '@/theme/tokens';
 
 export default function HomeScreen() {
   useTabWarmupTrace('home');
@@ -40,7 +41,7 @@ export default function HomeScreen() {
         <View style={styles.contentWrap}>
           <HomeHeader />
           {noticeCards}
-          {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
+          {loading ? <BrandLoadingView /> : null}
           {error ? <Text>{error}</Text> : null}
           <HomeUpcomingMatchesCard
             matches={visibleUpcomingMatches}

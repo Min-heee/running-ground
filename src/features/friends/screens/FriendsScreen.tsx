@@ -1,5 +1,6 @@
-import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { Screen } from '@/components/Screen';
 import { FriendsRanking } from '@/features/friends/FriendsRanking';
 import { FriendListCard } from '@/features/friends/components/FriendListCard';
@@ -41,7 +42,7 @@ export default function FriendsScreen() {
         <TabHeader title="친구" />
       </View>
 
-      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
+      {loading ? <BrandLoadingView /> : null}
       {error ? (
         <Card>
           <Text style={styles.errorTitle}>친구 정보를 아직 못 불러왔어</Text>

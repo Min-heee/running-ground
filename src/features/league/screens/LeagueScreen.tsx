@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, type LayoutChangeEvent } from 'react-native';
 
+import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { Screen } from '@/components/Screen';
 import { TabHeader } from '@/components/ui/TabHeader';
 import { StateMessageCard } from '@/components/ui/StateMessageCard';
@@ -84,7 +85,7 @@ export default function LeagueScreen() {
         <RankLeaderboardCard />
       ) : (
         <>
-          {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
+          {loading ? <BrandLoadingView /> : null}
 
           {!loading && error ? (
             <StateMessageCard

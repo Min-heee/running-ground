@@ -1,5 +1,6 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { Screen } from '@/components/Screen';
 import { IntegrationJourneyCard } from '@/features/integrations/IntegrationJourneyCard';
 import { IntegrationStatus } from '@/features/integrations/IntegrationStatus';
@@ -65,7 +66,7 @@ export default function IntegrationsScreen() {
         {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
       </Card>
 
-      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
+      {loading ? <BrandLoadingView /> : null}
       {!loading && error ? (
         <Card>
           <Text style={styles.errorTitle}>연동 상태를 아직 못 불러왔어</Text>
