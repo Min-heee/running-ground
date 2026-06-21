@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -56,6 +56,15 @@ export default function RunDetailScreen() {
   });
   const [isExitingMatchResult, setIsExitingMatchResult] = useState(false);
   const [exitMatchResultError, setExitMatchResultError] = useState<string | null>(null);
+  const navigation = useNavigation();
+
+  // After a match the run-detail is pushed ON TOP of the (now-stale) live match
+  // screen, so popping back — via a header chevron OR the iOS swipe-back gesture —
+  // would surface that dead 대결 화면. In that flow disable swipe-back; the only
+  // way out is the bottom 나가기 button (which resets match state + replaces home).
+  useEffect(() => {
+    navigation.setOptions({ gestureEnabled: !showMatchResultExit });
+  }, [navigation, showMatchResultExit]);
 
   const handleExitMatchResult = async () => {
     if (isExitingMatchResult) {
@@ -65,12 +74,16 @@ export default function RunDetailScreen() {
     setIsExitingMatchResult(true);
     setExitMatchResultError(null);
     try {
+      // Best-effort server-side cleanup. This match-result view intentionally has
+      // no back button / swipe-back (popping would surface the stale 대결 화면),
+      // so we must leave even if the reset call fails — otherwise a failed/offline
+      // reset would strand the user here with no way out.
       await forceResetRunningMatchState();
-      router.replace('/(tabs)/home');
     } catch (exitError) {
-      setExitMatchResultError(getApiErrorMessage(exitError, '매칭 상태 정리에 실패했어. 잠시 후 다시 시도해줘.'));
+      setExitMatchResultError(getApiErrorMessage(exitError, '매칭 상태 정리에 실패했어. 그래도 나갈게.'));
     } finally {
       setIsExitingMatchResult(false);
+      router.replace('/(tabs)/home');
     }
   };
 
@@ -82,7 +95,7 @@ export default function RunDetailScreen() {
 
       {runDetail ? (
         <>
-          <AuthHeader showBack backHref={backHref} />
+          <AuthHeader showBack={!showMatchResultExit} backHref={backHref} />
 
           <RunHeroCard
             startedLabel={formatRunStartLabel(runDetail.run)}
