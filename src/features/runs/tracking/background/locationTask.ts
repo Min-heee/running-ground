@@ -21,13 +21,14 @@ export function buildLocationTaskOptions(): Location.LocationTaskOptions {
   return {
     accuracy: Location.Accuracy.BestForNavigation,
     // Fix A.4 — tighten the iOS background location cadence so the location-task callback (the
-    // only surviving screen-off trigger for the progress flush) fires often enough while walking.
-    // iOS gets a smaller distanceInterval (2m vs 4m) so a slow/walking runner still emits fixes
-    // that drive the flush. Android stays conservative (4m) to avoid worsening the known Android
-    // JS-thread saturation lag (#195/#201) and battery — Android already has the time-based timer
-    // + native-thread uploader, so it does not need a tighter GPS cadence.
+    // only surviving screen-off trigger for the progress flush) fires as often as iOS will deliver.
+    // iOS gets distanceInterval 0 ("deliver every fix, do not gate on distance moved") so even a
+    // stationary/slow runner keeps emitting fixes that drive the flush AND tick the native
+    // CLLocationManager-backed re-POST. Android stays conservative (4m) to avoid worsening the known
+    // Android JS-thread saturation lag (#195/#201) and battery — Android already has the time-based
+    // ScheduledExecutorService + native-thread uploader, so it does not need a tighter GPS cadence.
     timeInterval: 2000,
-    distanceInterval: isIOS ? 2 : 4,
+    distanceInterval: isIOS ? 0 : 4,
     // iOS deferred-updates: keep them OFF so iOS does not batch/withhold fixes in the background
     // (batched delivery is what lets the screen-off flush go stale). A 0 distance/interval means
     // "deliver each fix immediately" rather than deferring.
