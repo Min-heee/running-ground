@@ -45,6 +45,10 @@ export default function IntegrationsScreen() {
   const coverage = integrationStatus ? getCoverageSummary(sources, platform) : null;
   const nativeHealthReadiness = getRecommendedNativeHealthReadiness(sources);
 
+  if (loading) {
+    return <BrandLoadingView />;
+  }
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -66,7 +70,6 @@ export default function IntegrationsScreen() {
         {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
       </Card>
 
-      {loading ? <BrandLoadingView /> : null}
       {!loading && error ? (
         <Card>
           <Text style={styles.errorTitle}>연동 상태를 아직 못 불러왔어</Text>

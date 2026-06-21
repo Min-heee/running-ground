@@ -49,11 +49,14 @@ export default function MyPageScreen() {
     });
   }, [showEnvironmentDebug]);
 
+  if (loading) {
+    return <BrandLoadingView />;
+  }
+
   return (
     <Screen>
       <TabHeader title="마이" />
 
-      {loading ? <BrandLoadingView /> : null}
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       {profile && integrationStatus ? (

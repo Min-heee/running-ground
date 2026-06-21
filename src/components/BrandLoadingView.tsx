@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View, type ViewStyle, type StyleProp } from 'react-native';
+import { Animated, Easing, StyleSheet, type ViewStyle, type StyleProp } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, radii } from '@/theme/tokens';
 
 const appIcon = require('../../assets/branding/icon.png');
@@ -44,13 +45,13 @@ export function BrandLoadingView({ style }: { style?: StyleProp<ViewStyle> }) {
   });
 
   return (
-    <View style={[styles.container, style]}>
+    <SafeAreaView style={[styles.container, style]} edges={['top']}>
       <Animated.Image
         source={appIcon}
         style={[styles.icon, { opacity, transform: [{ scale }] }]}
         resizeMode="cover"
       />
-    </View>
+    </SafeAreaView>
   );
 }
 

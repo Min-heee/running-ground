@@ -73,6 +73,12 @@ export default function LeagueScreen() {
     setMyRankRowY(event.nativeEvent.layout.y);
   }, []);
 
+  const isRegionView = !isTodayView && !isRankView;
+
+  if (isRegionView && loading) {
+    return <BrandLoadingView />;
+  }
+
   return (
     <Screen scrollRef={scrollRef}>
       <TabHeader title="랭킹" />
@@ -85,8 +91,6 @@ export default function LeagueScreen() {
         <RankLeaderboardCard />
       ) : (
         <>
-          {loading ? <BrandLoadingView /> : null}
-
           {!loading && error ? (
             <StateMessageCard
               title="지역 랭킹을 아직 못 불러왔어"

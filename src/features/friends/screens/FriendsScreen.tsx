@@ -36,13 +36,16 @@ export default function FriendsScreen() {
     setExpandedLiveFriendId,
   } = useFriendsScreen();
 
+  if (loading) {
+    return <BrandLoadingView />;
+  }
+
   return (
     <Screen scrollToTopKey={scrollToTop}>
       <View style={styles.headerWrap}>
         <TabHeader title="친구" />
       </View>
 
-      {loading ? <BrandLoadingView /> : null}
       {error ? (
         <Card>
           <Text style={styles.errorTitle}>친구 정보를 아직 못 불러왔어</Text>

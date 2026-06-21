@@ -35,13 +35,16 @@ export default function HomeScreen() {
     void handleCancelUpcomingMatch(match);
   }, [handleCancelUpcomingMatch]);
 
+  if (loading) {
+    return <BrandLoadingView />;
+  }
+
   return (
     <View style={styles.root}>
       <Screen>
         <View style={styles.contentWrap}>
           <HomeHeader />
           {noticeCards}
-          {loading ? <BrandLoadingView /> : null}
           {error ? <Text>{error}</Text> : null}
           <HomeUpcomingMatchesCard
             matches={visibleUpcomingMatches}
