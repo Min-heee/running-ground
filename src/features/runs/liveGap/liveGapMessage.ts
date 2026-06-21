@@ -29,6 +29,23 @@ export function parseMeasuredPaceSecondsPerKm(paceLabel: string | null | undefin
   return seconds > 0 ? seconds : null;
 }
 
+// A background-stale or early-run participant can report a real-but-absurd average pace
+// (e.g. '16:48/km' when distance barely accrued while elapsed climbed), which previously
+// printed as "678초/km 빠름". Bound both the input paces and the resulting diff so the
+// notification never shows an implausible comparison. Outside these bounds we omit the
+// pace fragment entirely (return null) rather than print a misleading number.
+//
+// 2:30/km (150s) is faster than the world-record marathon pace; 15:00/km (900s) is a slow
+// walk — anything beyond that range is a tracking artifact, not a real running pace.
+export const MIN_PLAUSIBLE_PACE_SECONDS_PER_KM = 150; // 2:30/km
+export const MAX_PLAUSIBLE_PACE_SECONDS_PER_KM = 900; // 15:00/km
+// Two runners ~50m apart in the same race cannot truly differ by more than ~2:30/km.
+export const MAX_PLAUSIBLE_PACE_DIFF_SECONDS = 150;
+
+function isPlausiblePaceSeconds(seconds: number): boolean {
+  return seconds >= MIN_PLAUSIBLE_PACE_SECONDS_PER_KM && seconds <= MAX_PLAUSIBLE_PACE_SECONDS_PER_KM;
+}
+
 // My pace relative to the other runner's. Positive direction = I'm faster.
 export function buildPaceDiffLabel(
   myPaceLabel: string | null | undefined,
@@ -41,13 +58,22 @@ export function buildPaceDiffLabel(
     return null;
   }
 
+  if (!isPlausiblePaceSeconds(mySeconds) || !isPlausiblePaceSeconds(otherSeconds)) {
+    return null;
+  }
+
   const diff = Math.round(otherSeconds - mySeconds);
+
+  if (Math.abs(diff) > MAX_PLAUSIBLE_PACE_DIFF_SECONDS) {
+    return null;
+  }
 
   if (Math.abs(diff) < 1) {
     return '페이스 비슷';
   }
 
-  return diff > 0 ? `${diff}초/km 빠름` : `${Math.abs(diff)}초/km 느림`;
+  // diff > 0 means the opponent is slower per km, i.e. I'm faster than them.
+  return diff > 0 ? `나보다 ${diff}초/km 느림` : `나보다 ${Math.abs(diff)}초/km 빠름`;
 }
 
 type CompactGap = {
@@ -188,13 +214,22 @@ export function buildPaceDiffSpeech(
     return null;
   }
 
+  if (!isPlausiblePaceSeconds(mySeconds) || !isPlausiblePaceSeconds(otherSeconds)) {
+    return null;
+  }
+
   const diff = Math.round(otherSeconds - mySeconds);
+
+  if (Math.abs(diff) > MAX_PLAUSIBLE_PACE_DIFF_SECONDS) {
+    return null;
+  }
 
   if (Math.abs(diff) < 1) {
     return '페이스는 비슷해요';
   }
 
-  return diff > 0 ? `페이스는 ${diff}초 빨라요` : `페이스는 ${Math.abs(diff)}초 느려요`;
+  // diff > 0 means the opponent is slower per km, i.e. I'm faster than them.
+  return diff > 0 ? `페이스는 저보다 ${diff}초 느려요` : `페이스는 저보다 ${Math.abs(diff)}초 빨라요`;
 }
 
 // --- Metric-driven builder: one push assembled from the user's selected metrics ---

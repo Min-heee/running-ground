@@ -43,18 +43,40 @@ test('parseMeasuredPaceSecondsPerKm returns null for placeholder paces', () => {
 });
 
 test('buildPaceDiffLabel describes my pace relative to the other runner', () => {
-  assert.equal(buildPaceDiffLabel('05:30/km', '05:45/km'), '15초/km 빠름');
-  assert.equal(buildPaceDiffLabel('05:45/km', '05:30/km'), '15초/km 느림');
+  // diff > 0 (opponent slower per km) → I am faster than them.
+  assert.equal(buildPaceDiffLabel('05:30/km', '05:45/km'), '나보다 15초/km 느림');
+  // diff < 0 (opponent faster per km) → I am slower than them.
+  assert.equal(buildPaceDiffLabel('05:45/km', '05:30/km'), '나보다 15초/km 빠름');
   assert.equal(buildPaceDiffLabel('05:30/km', '05:30/km'), '페이스 비슷');
   assert.equal(buildPaceDiffLabel('05:30/km', '--:--/km'), null);
   assert.equal(buildPaceDiffLabel(null, '05:30/km'), null);
 });
 
+test('buildPaceDiffLabel suppresses implausible comparisons', () => {
+  // The real-world garbage: a background-stale opponent reports e.g. 16:48/km against my
+  // 05:30/km. That diff (678s) is impossible for two runners in the same race → omit it.
+  assert.equal(buildPaceDiffLabel('05:30/km', '16:48/km'), null);
+  // An absurd opponent pace beyond the slow bound (15:00/km) is rejected outright.
+  assert.equal(buildPaceDiffLabel('05:30/km', '15:30/km'), null);
+  // An impossibly fast opponent pace (faster than 2:30/km) is also rejected.
+  assert.equal(buildPaceDiffLabel('05:30/km', '02:00/km'), null);
+  // A plausible-but-large diff exactly at the cap still renders; just over it is dropped.
+  assert.equal(buildPaceDiffLabel('05:00/km', '07:30/km'), '나보다 150초/km 느림');
+  assert.equal(buildPaceDiffLabel('05:00/km', '07:31/km'), null);
+  // The sane production cases (53s, 78s) must still render.
+  assert.equal(buildPaceDiffLabel('05:00/km', '05:53/km'), '나보다 53초/km 느림');
+  assert.equal(buildPaceDiffLabel('06:18/km', '05:00/km'), '나보다 78초/km 빠름');
+});
+
 test('buildPaceDiffSpeech phrases the pace gap for TTS', () => {
-  assert.equal(buildPaceDiffSpeech('05:30/km', '05:45/km'), '페이스는 15초 빨라요');
-  assert.equal(buildPaceDiffSpeech('05:45/km', '05:30/km'), '페이스는 15초 느려요');
+  // diff > 0 (opponent slower per km) → I am faster than them.
+  assert.equal(buildPaceDiffSpeech('05:30/km', '05:45/km'), '페이스는 저보다 15초 느려요');
+  // diff < 0 (opponent faster per km) → I am slower than them.
+  assert.equal(buildPaceDiffSpeech('05:45/km', '05:30/km'), '페이스는 저보다 15초 빨라요');
   assert.equal(buildPaceDiffSpeech('05:30/km', '05:30/km'), '페이스는 비슷해요');
   assert.equal(buildPaceDiffSpeech('05:30/km', '--:--/km'), null);
+  // An implausible opponent pace is suppressed for speech too.
+  assert.equal(buildPaceDiffSpeech('05:30/km', '16:48/km'), null);
 });
 
 test('resolveGroupGapTargets resolves relative + absolute targets and dedupes', () => {
@@ -67,8 +89,9 @@ test('resolveGroupGapTargets resolves relative + absolute targets and dedupes', 
       ['1등', '철수', -0.4],
     ],
   );
-  assert.equal(resolved[0].paceDiff, '10초/km 느림');
-  assert.equal(resolved[0].paceDiffSpeech, '페이스는 10초 느려요');
+  // 영희's averagePace 05:20/km is faster than my 05:30/km → 영희 is 10s/km faster than me.
+  assert.equal(resolved[0].paceDiff, '나보다 10초/km 빠름');
+  assert.equal(resolved[0].paceDiffSpeech, '페이스는 저보다 10초 빨라요');
 
   // When I'm rank 2, 앞사람 and 1등 are the same runner — only one entry survives.
   const tightStandings = [
@@ -97,11 +120,11 @@ test('buildLiveGapOutput combines every selected duel metric into notification +
   assert.equal(out.notification?.title, '대결 중간 점검');
   assert.equal(
     out.notification?.body,
-    '남은 거리 1.20km\n평균 05:30/km\n현재 05:20/km\n민희 280m 앞, 15초/km 빠름',
+    '남은 거리 1.20km\n평균 05:30/km\n현재 05:20/km\n민희 280m 앞, 나보다 15초/km 느림',
   );
   assert.equal(
     out.speech,
-    '남은 거리 1.2킬로미터. 평균 페이스 5분 30초. 현재 페이스 5분 20초. 민희님보다 280미터 앞서고 있어요. 페이스는 15초 빨라요.',
+    '남은 거리 1.2킬로미터. 평균 페이스 5분 30초. 현재 페이스 5분 20초. 민희님보다 280미터 앞서고 있어요. 페이스는 저보다 15초 느려요.',
   );
 });
 
@@ -142,12 +165,30 @@ test('buildLiveGapOutput builds a per-target group push with rank in the title',
   assert.equal(out.notification?.title, '중간 점검 · 현재 3위');
   assert.equal(
     out.notification?.body,
-    '앞사람 영희: 200m 뒤, 10초/km 느림\n1등 철수: 400m 뒤, 30초/km 느림',
+    '앞사람 영희: 200m 뒤, 나보다 10초/km 빠름\n1등 철수: 400m 뒤, 나보다 30초/km 빠름',
   );
   assert.equal(
     out.speech,
-    '앞사람 영희님보다 200미터 뒤처졌어요. 페이스는 10초 느려요. 1등 철수님보다 400미터 뒤처졌어요. 페이스는 30초 느려요.',
+    '앞사람 영희님보다 200미터 뒤처졌어요. 페이스는 저보다 10초 빨라요. 1등 철수님보다 400미터 뒤처졌어요. 페이스는 저보다 30초 빨라요.',
   );
+});
+
+test('buildLiveGapOutput drops the pace fragment when the opponent pace is implausible', () => {
+  // Real bug: a background-stale opponent ('A6') feeds a garbage 16:48/km average. The
+  // distance line must still render; the pace fragment is omitted, not printed as "null".
+  const out = buildLiveGapOutput({
+    matchMode: 'duel',
+    metrics: ['opponentDistance', 'opponentPace'],
+    avgPaceLabel: '05:30/km',
+    opponentName: 'A6',
+    opponentGapKm: -0.05,
+    opponentPaceLabel: '16:48/km',
+  });
+
+  assert.equal(out.notification?.body, 'A6 50m 뒤');
+  assert.ok(!out.notification?.body.includes('초/km'));
+  assert.ok(!out.notification?.body.includes('null'));
+  assert.equal(out.speech, 'A6님보다 50미터 뒤처졌어요.');
 });
 
 test('buildLiveGapOutput returns nulls when nothing is selected or data is missing', () => {
