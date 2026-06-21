@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
-import { ActivityIndicator, InteractionManager, Platform, StyleSheet, Text, View } from 'react-native';
+import { InteractionManager, Platform } from 'react-native';
 import type {
   TrackRunExperienceRuntimeProps,
 } from '@/features/runs/runtime/TrackRunExperienceRuntimeModel';
@@ -8,10 +8,8 @@ import {
   getRunningTabRuntimeInitialMountDelayMs,
   shouldDeferRunningTabRuntimeInitialMount,
 } from '@/features/runs/runtime/runningTabInitialLoadPolicy';
-import { AuthHeader } from '@/components/ui/AuthHeader';
-import { Screen } from '@/components/Screen';
+import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
-import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type RuntimeComponent = ComponentType<TrackRunExperienceRuntimeProps>;
 
@@ -138,21 +136,13 @@ export function TrackRunExperienceRuntime(props: TrackRunExperienceRuntimeProps)
   }, [Runtime, props.routeShellHint, runtimeDeferDelayMs, shouldDeferRuntime]);
 
   if (!Runtime) {
-    return (
-      <RunningTabInitialShell
-        isTabMode={props.mode === 'tab'}
-      />
-    );
+    return <RunningTabInitialShell />;
   }
 
   return <Runtime {...props} />;
 }
 
-function RunningTabInitialShell({
-  isTabMode,
-}: {
-  isTabMode: boolean;
-}) {
+function RunningTabInitialShell() {
   useEffect(() => {
     rgPerfMark('running tab initial shell mounted', {
       source: 'track-run runtime loader',
@@ -170,33 +160,5 @@ function RunningTabInitialShell({
     };
   }, []);
 
-  return (
-    <Screen>
-      <AuthHeader
-        title="실시간 러닝"
-        showBack={!isTabMode}
-        backHref="/"
-      />
-      <View style={styles.initialCard}>
-        <ActivityIndicator size="small" color={colors.brand} />
-        <Text style={styles.initialText}>러닝 화면을 준비 중이에요.</Text>
-      </View>
-    </Screen>
-  );
+  return <BrandLoadingView />;
 }
-
-const styles = StyleSheet.create({
-  initialCard: {
-    alignItems: 'center',
-    backgroundColor: colors.textPrimary,
-    borderRadius: 24,
-    gap: spacing.s10,
-    paddingHorizontal: spacing.s20,
-    paddingVertical: 28,
-  },
-  initialText: {
-    color: colors.lavenderSoft,
-    fontSize: fontSizes.base,
-    fontWeight: fontWeights.bold,
-  },
-});

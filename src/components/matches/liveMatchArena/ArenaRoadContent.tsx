@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Text, View } from 'react-native';
+import { BrandLoadingView } from '@/components/BrandLoadingView';
 import { DuelRoad } from '@/components/matches/liveMatchArena/DuelRoad';
 import { GroupRoad } from '@/components/matches/liveMatchArena/GroupRoad';
 import { areParticipantArraysEqual } from '@/components/matches/liveMatchArena/helpers';
@@ -7,11 +7,7 @@ import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchAr
 import type { ArenaParticipant } from '@/components/matches/liveMatchArena/types';
 
 const LiveMatchStartupRoad = memo(function LiveMatchStartupRoad() {
-  return (
-    <View style={styles.startupRoadShell}>
-      <Text style={styles.startupRoadText}>대결 화면 준비 중...</Text>
-    </View>
-  );
+  return <BrandLoadingView style={styles.startupRoadShell} edges={[]} />;
 });
 
 export const ArenaRoadContent = memo(function ArenaRoadContent({

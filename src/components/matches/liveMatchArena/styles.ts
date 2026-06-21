@@ -63,11 +63,6 @@ export const liveMatchArenaStyles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.navyInk,
   },
-  startupRoadText: {
-    color: colors.brandLighter,
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.extraBold,
-  },
   roadBackground: {
     ...StyleSheet.absoluteFillObject,
   },

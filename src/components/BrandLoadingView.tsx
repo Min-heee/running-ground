@@ -1,13 +1,22 @@
 import { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, type ViewStyle, type StyleProp } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { colors, radii } from '@/theme/tokens';
 
 const appIcon = require('../../assets/branding/icon.png');
 
 const PULSE_DURATION_MS = 900;
 
-export function BrandLoadingView({ style }: { style?: StyleProp<ViewStyle> }) {
+// `edges` defaults to ['top'] for full-screen use (avoid the status bar). Pass
+// [] when embedding inside a card (e.g. the arena road shell) so the safe-area
+// inset doesn't push the logo off-center within that smaller container.
+export function BrandLoadingView({
+  style,
+  edges = ['top'],
+}: {
+  style?: StyleProp<ViewStyle>;
+  edges?: readonly Edge[];
+}) {
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -45,7 +54,7 @@ export function BrandLoadingView({ style }: { style?: StyleProp<ViewStyle> }) {
   });
 
   return (
-    <SafeAreaView style={[styles.container, style]} edges={['top']}>
+    <SafeAreaView style={[styles.container, style]} edges={edges}>
       <Animated.Image
         source={appIcon}
         style={[styles.icon, { opacity, transform: [{ scale }] }]}
