@@ -21,6 +21,7 @@ test('resolveLiveGapIntervalMs maps interval keys to milliseconds', () => {
   assert.equal(resolveLiveGapIntervalMs('1m'), 60_000);
   assert.equal(resolveLiveGapIntervalMs('3m'), 180_000);
   assert.equal(resolveLiveGapIntervalMs('5m'), 300_000);
+  assert.equal(resolveLiveGapIntervalMs('10m'), 600_000);
 });
 
 test('default config is off with sensible default metrics and notification delivery', () => {
@@ -92,6 +93,26 @@ test('normalizeLiveGapPushConfig coerces a stored payload and drops unknown valu
     },
   );
 
+  // A config persisted before the options were trimmed (currentPace metric, ahead2/rank2/
+  // rank3 targets) degrades gracefully: the removed values are filtered to the surviving
+  // options, the still-valid ones (behind1) are kept in canonical order.
+  assert.deepEqual(
+    normalizeLiveGapPushConfig({
+      interval: '5m',
+      groupTargets: ['rank3', 'behind1', 'ahead2', 'ahead1'],
+      metrics: ['currentPace', 'opponentPace', 'remainingDistance'],
+      deliveryMode: 'voice',
+      remember: true,
+    }),
+    {
+      interval: '5m',
+      groupTargets: ['ahead1', 'behind1'],
+      metrics: ['remainingDistance', 'opponentPace'],
+      deliveryMode: 'voice',
+      remember: true,
+    },
+  );
+
   // Non-object input degrades to the default config.
   assert.deepEqual(normalizeLiveGapPushConfig(null), {
     interval: 'off',
@@ -112,7 +133,7 @@ test('hydrateLiveGapPushConfig replaces the store from a payload and notifies', 
   hydrateLiveGapPushConfig({
     interval: '1m',
     groupTargets: ['rank1'],
-    metrics: ['currentPace'],
+    metrics: ['avgPace'],
     deliveryMode: 'voice',
     remember: true,
   });
@@ -120,7 +141,7 @@ test('hydrateLiveGapPushConfig replaces the store from a payload and notifies', 
   const config = getLiveGapPushConfig();
   assert.equal(config.interval, '1m');
   assert.deepEqual(config.groupTargets, ['rank1']);
-  assert.deepEqual(config.metrics, ['currentPace']);
+  assert.deepEqual(config.metrics, ['avgPace']);
   assert.equal(config.deliveryMode, 'voice');
   assert.equal(config.remember, true);
   assert.equal(notifications, 1);
@@ -193,14 +214,15 @@ test('toggleLiveGapGroupTarget adds and removes while keeping canonical order', 
   toggleLiveGapGroupTarget('rank1');
   assert.deepEqual(getLiveGapPushConfig().groupTargets, []);
 
-  // Toggle on out of order — stored order should still follow option order.
-  toggleLiveGapGroupTarget('rank2');
-  toggleLiveGapGroupTarget('ahead2');
+  // Toggle on out of order — stored order should still follow option order
+  // (앞사람 → 뒷사람 → 1등).
+  toggleLiveGapGroupTarget('rank1');
+  toggleLiveGapGroupTarget('behind1');
   toggleLiveGapGroupTarget('ahead1');
-  assert.deepEqual(getLiveGapPushConfig().groupTargets, ['ahead1', 'ahead2', 'rank2']);
+  assert.deepEqual(getLiveGapPushConfig().groupTargets, ['ahead1', 'behind1', 'rank1']);
 
-  toggleLiveGapGroupTarget('ahead2');
-  assert.deepEqual(getLiveGapPushConfig().groupTargets, ['ahead1', 'rank2']);
+  toggleLiveGapGroupTarget('behind1');
+  assert.deepEqual(getLiveGapPushConfig().groupTargets, ['ahead1', 'rank1']);
 });
 
 test('subscribers stop receiving updates after unsubscribe', () => {

@@ -104,6 +104,8 @@ function resolveTargetParticipant(
   switch (target) {
     case 'ahead1':
       return standings[myIndex - 1] ?? null;
+    case 'behind1':
+      return standings[myIndex + 1] ?? null;
     case 'ahead2':
       return standings[myIndex - 2] ?? null;
     case 'rank1':
@@ -233,7 +235,7 @@ export function buildPaceDiffSpeech(
 }
 
 // --- Metric-driven builder: one push assembled from the user's selected metrics ---
-// (남은거리 / 평균페이스 / 현재페이스 / 상대와 거리 / 상대와 페이스). Produces both the
+// (남은거리 / 평균페이스 / 상대와 거리 / 상대와 평균페이스). Produces both the
 // notification (compact, stacked) and the spoken text (natural), so the scheduler can
 // deliver either or both depending on the chosen mode.
 
@@ -331,7 +333,6 @@ export type LiveGapOutputInput = {
   // My metrics (apply to both modes).
   remainingDistanceKm?: number | null;
   avgPaceLabel?: string | null;
-  currentPaceLabel?: string | null;
   // Duel opponent.
   opponentName?: string | null;
   // My distance minus the opponent's, in km.
@@ -361,13 +362,6 @@ export function buildLiveGapOutput(input: LiveGapOutputInput): LiveGapOutput {
     lines.push({
       notif: `평균 ${String(input.avgPaceLabel)}`,
       speech: `평균 페이스 ${buildPaceSpeech(input.avgPaceLabel)}`,
-    });
-  }
-
-  if (wants('currentPace') && parseMeasuredPaceSecondsPerKm(input.currentPaceLabel) !== null) {
-    lines.push({
-      notif: `현재 ${String(input.currentPaceLabel)}`,
-      speech: `현재 페이스 ${buildPaceSpeech(input.currentPaceLabel)}`,
     });
   }
 

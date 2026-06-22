@@ -46,7 +46,7 @@ test('initialize restores an opted-in saved config without rewriting or wiping i
   const saved = JSON.stringify({
     interval: '3m',
     groupTargets: ['rank1'],
-    metrics: ['currentPace'],
+    metrics: ['avgPace'],
     deliveryMode: 'both',
     remember: true,
   });
@@ -57,7 +57,7 @@ test('initialize restores an opted-in saved config without rewriting or wiping i
   const config = getLiveGapPushConfig();
   assert.equal(config.interval, '3m');
   assert.equal(config.deliveryMode, 'both');
-  assert.deepEqual(config.metrics, ['currentPace']);
+  assert.deepEqual(config.metrics, ['avgPace']);
   assert.equal(config.remember, true);
   // Hydration happens before the persist subscription is wired, so the restore must not
   // have written or removed anything.

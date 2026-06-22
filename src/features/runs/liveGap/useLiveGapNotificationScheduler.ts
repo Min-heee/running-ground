@@ -28,8 +28,6 @@ export type LiveGapSchedulerInput = {
   opponentName?: string | null;
   // My average (arena) pace label, e.g. '5:30/km'.
   myPaceLabel?: string | null;
-  // My instantaneous pace label, e.g. '5:20/km'.
-  myCurrentPaceLabel?: string | null;
   // Distance left to the match target, in km (my distance subtracted from target).
   remainingDistanceKm?: number | null;
   opponentPaceLabel?: string | null;
@@ -47,7 +45,6 @@ function buildSchedulerOutput(
     metrics,
     remainingDistanceKm: input.remainingDistanceKm,
     avgPaceLabel: input.myPaceLabel,
-    currentPaceLabel: input.myCurrentPaceLabel,
     opponentName: input.opponentName,
     opponentGapKm: input.duelGapKm,
     opponentPaceLabel: input.opponentPaceLabel,

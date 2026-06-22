@@ -105,13 +105,33 @@ test('resolveGroupGapTargets resolves relative + absolute targets and dedupes', 
   assert.equal(deduped[0].label, '앞사람');
 });
 
+test('resolveGroupGapTargets resolves behind1 to the next-lower-ranked runner', () => {
+  // 철수(1위) · 나(2위, 가운데) · 민수(3위). behind1 = 나 바로 뒤(인덱스+1)인 민수.
+  const midStandings = [
+    standing({ id: 'a', name: '철수', rank: 1, currentDistanceKm: 3.2 }),
+    standing({ id: 'me', name: '나', rank: 2, currentDistanceKm: 3.0, isCurrentUser: true }),
+    standing({ id: 'c', name: '민수', rank: 3, currentDistanceKm: 2.5 }),
+  ];
+  const resolved = resolveGroupGapTargets(midStandings, ['behind1'], '05:30/km');
+  assert.equal(resolved.length, 1);
+  assert.equal(resolved[0].label, '뒷사람');
+  assert.equal(resolved[0].name, '민수');
+  // me 3.0 - 민수 2.5 = +0.5km → 내가 앞섬.
+  assert.equal(resolved[0].gapKm, 0.5);
+});
+
+test('resolveGroupGapTargets skips behind1 when I am in last place', () => {
+  // GROUP_STANDINGS: 나는 꼴찌(3위) → 뒤에 아무도 없으므로 behind1은 줄을 만들지 않는다.
+  const resolved = resolveGroupGapTargets(GROUP_STANDINGS, ['behind1'], '05:30/km');
+  assert.equal(resolved.length, 0);
+});
+
 test('buildLiveGapOutput combines every selected duel metric into notification + speech', () => {
   const out = buildLiveGapOutput({
     matchMode: 'duel',
-    metrics: ['remainingDistance', 'avgPace', 'currentPace', 'opponentDistance', 'opponentPace'],
+    metrics: ['remainingDistance', 'avgPace', 'opponentDistance', 'opponentPace'],
     remainingDistanceKm: 1.2,
     avgPaceLabel: '05:30/km',
-    currentPaceLabel: '05:20/km',
     opponentName: '민희',
     opponentGapKm: 0.28,
     opponentPaceLabel: '05:45/km',
@@ -120,11 +140,11 @@ test('buildLiveGapOutput combines every selected duel metric into notification +
   assert.equal(out.notification?.title, '대결 중간 점검');
   assert.equal(
     out.notification?.body,
-    '남은 거리 1.20km\n평균 05:30/km\n현재 05:20/km\n민희 280m 앞, 나보다 15초/km 느림',
+    '남은 거리 1.20km\n평균 05:30/km\n민희 280m 앞, 나보다 15초/km 느림',
   );
   assert.equal(
     out.speech,
-    '남은 거리 1.2킬로미터. 평균 페이스 5분 30초. 현재 페이스 5분 20초. 민희님보다 280미터 앞서고 있어요. 페이스는 저보다 15초 느려요.',
+    '남은 거리 1.2킬로미터. 평균 페이스 5분 30초. 민희님보다 280미터 앞서고 있어요. 페이스는 저보다 15초 느려요.',
   );
 });
 

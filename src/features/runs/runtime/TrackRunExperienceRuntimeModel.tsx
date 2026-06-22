@@ -935,7 +935,6 @@ export function TrackRunExperienceRuntime({
     matchMode: matchMode === 'group' ? 'group' : 'duel',
     opponentName: effectiveDuelOpponentForLive?.name ?? null,
     myPaceLabel: currentUserArenaPace,
-    myCurrentPaceLabel: currentPace,
     remainingDistanceKm: liveGapRemainingDistanceKm,
     opponentPaceLabel: effectiveDuelOpponentArenaPace,
     duelGapKm: duelLiveGapKm,

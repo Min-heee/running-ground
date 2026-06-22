@@ -76,11 +76,7 @@ export function LiveGapPushCard({ mode }: LiveGapPushCardProps) {
   return (
     <View style={styles.card}>
       <Text style={styles.title}>대결 중간 알림</Text>
-      <Text style={styles.subtitle}>
-        {mode === 'duel'
-          ? '정한 시간마다 고른 정보를 푸시로 알려줘요.'
-          : '정한 시간마다 고른 상대들과의 정보를 푸시로 알려줘요.'}
-      </Text>
+      <Text style={styles.subtitle}>시간</Text>
       <View style={styles.chipRow}>
         {LIVE_GAP_INTERVAL_OPTIONS.map((option) => (
           <Chip
@@ -153,11 +149,6 @@ export function LiveGapPushCard({ mode }: LiveGapPushCardProps) {
           checked={config.remember}
           onPress={() => setLiveGapRemember(!config.remember)}
         />
-        <Text style={styles.hint}>
-          {config.remember
-            ? '앱을 다시 켜도 이 옵션 그대로 유지돼요.'
-            : '끄면 이번만 적용되고 다음 실행엔 기본값으로 돌아가요.'}
-        </Text>
       </View>
     </View>
   );

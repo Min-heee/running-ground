@@ -5,18 +5,25 @@
 // default; it intentionally resets to the default on a full app restart (no native
 // persistence layer is wired for non-session prefs).
 
-export type LiveGapInterval = 'off' | '30s' | '1m' | '3m' | '5m';
+export type LiveGapInterval = 'off' | '30s' | '1m' | '3m' | '5m' | '10m';
 
-// Relative targets (ahead1/ahead2) follow my live rank; absolute targets (rank1..3)
-// follow the leaderboard position regardless of where I sit.
-export type LiveGapGroupTarget = 'ahead1' | 'ahead2' | 'rank1' | 'rank2' | 'rank3';
+// Relative targets (ahead1/behind1) follow my live rank; absolute targets (rank1)
+// follow the leaderboard position regardless of where I sit. Legacy values
+// (ahead2/rank2/rank3) remain in the union for back-compat with stored configs but are no
+// longer offered in the options list / UI.
+export type LiveGapGroupTarget =
+  | 'ahead1'
+  | 'behind1'
+  | 'rank1'
+  | 'ahead2'
+  | 'rank2'
+  | 'rank3';
 
-// Which metrics the push reports. The first three are about me; the last two are about
+// Which metrics the push reports. The first two are about me; the last two are about
 // the opponent (the single opponent in a duel, or each selected group target).
 export type LiveGapMetric =
   | 'remainingDistance'
   | 'avgPace'
-  | 'currentPace'
   | 'opponentDistance'
   | 'opponentPace';
 
@@ -36,6 +43,7 @@ export const LIVE_GAP_INTERVAL_OPTIONS: readonly LiveGapIntervalOption[] = [
   { value: '1m', label: '1분', ms: 60_000 },
   { value: '3m', label: '3분', ms: 180_000 },
   { value: '5m', label: '5분', ms: 300_000 },
+  { value: '10m', label: '10분', ms: 600_000 },
 ];
 
 export type LiveGapGroupTargetOption = {
@@ -45,10 +53,8 @@ export type LiveGapGroupTargetOption = {
 
 export const LIVE_GAP_GROUP_TARGET_OPTIONS: readonly LiveGapGroupTargetOption[] = [
   { value: 'ahead1', label: '앞사람' },
-  { value: 'ahead2', label: '앞앞사람' },
+  { value: 'behind1', label: '뒷사람' },
   { value: 'rank1', label: '1등' },
-  { value: 'rank2', label: '2등' },
-  { value: 'rank3', label: '3등' },
 ];
 
 export type LiveGapMetricOption = {
@@ -59,9 +65,8 @@ export type LiveGapMetricOption = {
 export const LIVE_GAP_METRIC_OPTIONS: readonly LiveGapMetricOption[] = [
   { value: 'remainingDistance', label: '남은거리' },
   { value: 'avgPace', label: '평균페이스' },
-  { value: 'currentPace', label: '현재페이스' },
   { value: 'opponentDistance', label: '상대와 거리' },
-  { value: 'opponentPace', label: '상대와 페이스' },
+  { value: 'opponentPace', label: '상대와 평균페이스' },
 ];
 
 export type LiveGapDeliveryModeOption = {
@@ -123,7 +128,7 @@ export function setLiveGapInterval(interval: LiveGapInterval) {
 export function toggleLiveGapGroupTarget(target: LiveGapGroupTarget) {
   const isSelected = currentConfig.groupTargets.includes(target);
   // Keep the stored order aligned with the option order so the notification body
-  // reads top-down (앞사람 → 3등) regardless of the tap sequence.
+  // reads top-down (앞사람 → 1등) regardless of the tap sequence.
   const groupTargets = LIVE_GAP_GROUP_TARGET_OPTIONS
     .map((option) => option.value)
     .filter((value) => (value === target ? !isSelected : currentConfig.groupTargets.includes(value)));
@@ -135,7 +140,7 @@ export function toggleLiveGapGroupTarget(target: LiveGapGroupTarget) {
 export function toggleLiveGapMetric(metric: LiveGapMetric) {
   const isSelected = currentConfig.metrics.includes(metric);
   // Keep stored order aligned with the option order so the push reads top-down
-  // (남은거리 → 상대와 페이스) regardless of the tap sequence.
+  // (남은거리 → 상대와 평균페이스) regardless of the tap sequence.
   const metrics = LIVE_GAP_METRIC_OPTIONS
     .map((option) => option.value)
     .filter((value) => (value === metric ? !isSelected : currentConfig.metrics.includes(value)));
