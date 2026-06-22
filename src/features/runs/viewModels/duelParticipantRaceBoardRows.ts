@@ -150,7 +150,6 @@ export function buildDuelParticipantFirstRows({
   currentUserDuelLiveStatus,
   currentUserDuelResultLabel,
   distanceKm,
-  duelLiveGapKm,
   effectiveDuelOpponent,
   opponentDuelResultLabel,
   room,
@@ -161,7 +160,6 @@ export function buildDuelParticipantFirstRows({
   currentUserDuelLiveStatus: DuelMatchOpponent['liveStatus'] | null;
   currentUserDuelResultLabel?: DuelResultLabel | null;
   distanceKm: number;
-  duelLiveGapKm: number | null;
   effectiveDuelOpponent: DuelMatchOpponent | null;
   opponentDuelResultLabel?: DuelResultLabel | null;
   room: RunningMatchRoom;
@@ -171,12 +169,23 @@ export function buildDuelParticipantFirstRows({
 }): ProgressiveSortedRaceBoardRowsResult {
   // Party-run (room-linked) duel: MY row uses my LOCAL measured distance, never the
   // 30s-checkpoint server echo (syncedDuelDistanceKm), mirroring the matched-duel path.
-  // Math.max below only ever raises my row, so this can't regress it. Opponent stays
-  // synced. Result/LP are server-determined, so this estimate-only display is duel-fair.
+  // Math.max below only ever raises my row, so this can't regress it.
+  //
+  // The OPPONENT mirrors this: it uses the opponent's freshest LIVE distance
+  // (resolveParticipantDisplayDistanceKm, fed by liveDistanceKm, updated every sync),
+  // NOT the 30s-checkpoint-projected syncedDuelOpponentDistanceKm. Using the 30s value
+  // froze the opponent for ~30s while my live row climbed, inflating the displayed gap
+  // until it snapped back at each checkpoint. Guard preserved: when no live opponent
+  // distance exists yet (<= 0) we fall back to the synced checkpoint so the opponent
+  // row stays populated instead of flickering to 0.00.
+  // Result/LP are server-determined, so this estimate-only display is duel-fair.
   const currentBoardDistanceKm = distanceKm;
+  const liveOpponentDistanceKm = effectiveDuelOpponent
+    ? resolveParticipantDisplayDistanceKm(effectiveDuelOpponent, targetDistanceKm)
+    : 0;
   const effectiveOpponentDistanceKm = effectiveDuelOpponent
-    ? (duelLiveGapKm === null
-      ? resolveParticipantDisplayDistanceKm(effectiveDuelOpponent, targetDistanceKm)
+    ? (liveOpponentDistanceKm > 0
+      ? liveOpponentDistanceKm
       : syncedDuelOpponentDistanceKm)
     : 0;
   let missingProgressCount = 0;

@@ -13,7 +13,6 @@ type DuelRaceBoardSectionInput = Pick<
   | 'currentUserDuelResultLabel'
   | 'distanceKm'
   | 'duelDistanceKm'
-  | 'duelLiveGapKm'
   | 'effectiveDuelOpponent'
   | 'opponentDuelResultLabel'
   | 'roomLinkedDuelPlaceholderParticipants'
@@ -27,7 +26,6 @@ export function buildDuelRaceBoardSection({
   currentUserDuelResultLabel,
   distanceKm,
   duelDistanceKm,
-  duelLiveGapKm,
   effectiveDuelOpponent,
   opponentDuelResultLabel,
   roomLinkedDuelPlaceholderParticipants,
@@ -41,7 +39,6 @@ export function buildDuelRaceBoardSection({
       currentUserDuelLiveStatus,
       currentUserDuelResultLabel,
       distanceKm,
-      duelLiveGapKm,
       effectiveDuelOpponent,
       opponentDuelResultLabel,
       room: visibleMatchRoom,
@@ -71,12 +68,27 @@ export function buildDuelRaceBoardSection({
     // 30s-checkpoint-projected syncedDuelDistanceKm. It's my own data either way; the
     // server already gets the exact same number from my push, so there's no reason to
     // wait for it to echo back (quantized to a 30s checkpoint) before drawing my own
-    // progress. This keeps my distance live and screen-state independent. The opponent
-    // row stays on the synced value (that genuinely needs fetching). The official result
-    // is computed server-side, so this estimate-only display change is duel-fair.
+    // progress. This keeps my distance live and screen-state independent.
+    //
+    // The OPPONENT row mirrors this: it uses the opponent's freshest LIVE distance
+    // (resolveParticipantDisplayDistanceKm, fed by liveDistanceKm and updated every
+    // sync ~1-3s in foreground), NOT syncedDuelOpponentDistanceKm — which is the
+    // 30s-checkpoint-projected comparison value. Using the 30s value froze the opponent
+    // for ~30s while my live row kept climbing, so the displayed gap inflated to a full
+    // 30s of running (~80-150m) and snapped back at each checkpoint, disagreeing with the
+    // 기록/stats tab that compares both runners on the same instantaneous basis.
+    //
+    // Guard preserved: resolveParticipantDisplayDistanceKm returns the same value the
+    // `duelLiveGapKm === null` branch already used, so when the opponent has no live
+    // progress yet it stays whatever that resolver yields (no 0.00 flicker introduced).
+    // We only fall back to syncedDuelOpponentDistanceKm when the live value is missing
+    // (<= 0) but a synced checkpoint already exists, keeping the opponent visible.
+    // The official result is computed server-side, so this estimate-only display change
+    // is duel-fair.
     const currentBoardDistanceKm = distanceKm;
-    const opponentBoardDistanceKm = duelLiveGapKm === null
-      ? resolveParticipantDisplayDistanceKm(effectiveDuelOpponent, duelDistanceKm)
+    const liveOpponentDistanceKm = resolveParticipantDisplayDistanceKm(effectiveDuelOpponent, duelDistanceKm);
+    const opponentBoardDistanceKm = liveOpponentDistanceKm > 0
+      ? liveOpponentDistanceKm
       : syncedDuelOpponentDistanceKm;
     const progressiveRows = sortProgressiveRaceRows([
       {
