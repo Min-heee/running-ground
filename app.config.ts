@@ -94,6 +94,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...(baseConfig.ios?.infoPlist ?? {}),
     ITSAppUsesNonExemptEncryption: false,
     LSApplicationQueriesSchemes: iosApplicationQueriesSchemes,
+    // Enables the iOS Live Activity (lock-screen live-run card + Dynamic Island). Required on the
+    // MAIN APP target for ActivityKit to allow Activity.request(...). The widget extension that
+    // renders the card is the @bacons/apple-targets target under targets/live-activity/ (gated to
+    // iOS 16.2+; on older OSes the bridge no-ops and the app is unaffected).
+    NSSupportsLiveActivities: true,
     NSMotionUsageDescription:
       (baseConfig.ios?.infoPlist as Record<string, string | undefined> | undefined)?.NSMotionUsageDescription
       || 'Allow RunningGround to read your motion data so cadence can be shown while you run.',
@@ -182,6 +187,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         ],
         './plugins/withHealthAccess',
         './plugins/withAndroidBgLocationService',
+        // Generates + signs the iOS Live Activity widget-extension target from targets/live-activity/
+        // (expo-target.config.js). No-op for Android. Must run during prebuild so the widget target,
+        // its 16.2 deployment target, and the shared RunActivityAttributes are wired into the
+        // generated Xcode project.
+        '@bacons/apple-targets',
       ]),
     ),
     ios: {

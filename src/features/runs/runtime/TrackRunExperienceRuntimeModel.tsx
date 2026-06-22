@@ -127,6 +127,7 @@ import { useTrackRunRuntimeShareState } from '@/features/runs/runtime/useTrackRu
 import { useRuntimeMatchRoomHydration } from '@/features/runs/runtime/useRuntimeMatchRoomHydration';
 import { useTrackRunRuntimeScreenState } from '@/features/runs/runtime/useTrackRunRuntimeScreenState';
 import { useTrackRunRuntimePropsComposer } from '@/features/runs/runtime/useTrackRunRuntimePropsComposer';
+import { useLiveActivityBridge } from '@/features/runs/liveActivity/useLiveActivityBridge';
 import {
   MATCH_ROOM_FAST_POLL_MS,
   MATCH_ROOM_IDLE_POLL_MS,
@@ -1742,6 +1743,24 @@ export function TrackRunExperienceRuntime({
       clearBackgroundMatchStatusApplier(applier);
     };
   }, []);
+
+  // iOS Live Activity (lock-screen live-run card + Dynamic Island) — OTA-SAFE, FIRE-AND-FORGET.
+  // Starts the card on run/match start, refreshes it from the snapshot commit (solo) and the bg
+  // flush match-status response (match, via the hook this registers in backgroundMatchProgressSync),
+  // and ends it on run end / forfeit / unmount. No-op on every current binary (native module absent)
+  // and on Android; never awaits or mutates the bg-sync promise / throttle / inflight guards.
+  useLiveActivityBridge({
+    isRunning,
+    matchMode,
+    myName: currentUser?.name ?? '나',
+    duelDistanceKm,
+    groupDistanceKm,
+    distanceKm,
+    elapsedSecondsRef,
+    duelMatchStatusRef,
+    groupMatchStatusRef,
+    roomLinkedMatchContextRef,
+  });
 
   const loadUpcomingMatches = async () => {
     const payload = await fetchUpcomingRunningMatches();

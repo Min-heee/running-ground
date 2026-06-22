@@ -96,6 +96,7 @@
     "react-native-web": "^0.21.0"
   },
   "devDependencies": {
+    "@bacons/apple-targets": "^4.0.7",
     "@types/react": "~19.1.10",
     "eas-cli": "^18.8.1",
     "eslint": "^9.22.0",

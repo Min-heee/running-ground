@@ -99,6 +99,41 @@ function applyBackgroundMatchStatusSafe(status: UpdateRunningMatchProgressRespon
   }
 }
 
+// iOS Live Activity (lock-screen card) — FIRE-AND-FORGET hook injected from React, same pattern as
+// the applier above. When set, the background flush ALSO hands every fresh match status response to
+// the live-card updater so the lock-screen card refreshes WITHOUT a JS timer while the screen is
+// off. This is a SIDE CHANNEL only: it is invoked from the .then handlers but is NEVER awaited and
+// never touches the awaited sync promise / throttle / inflight guards, so the bg-sync hardening
+// stays intact. No-op on every current binary (the native module is absent → the hook itself
+// no-ops). Null until the runtime wires it, reset to null on unmount (by identity, like the applier).
+type LiveCardMatchStatusHook = (status: UpdateRunningMatchProgressResponse) => void;
+let liveCardMatchStatusHook: LiveCardMatchStatusHook | null = null;
+
+export function setLiveCardMatchStatusHook(fn: LiveCardMatchStatusHook | null) {
+  liveCardMatchStatusHook = fn;
+}
+
+export function clearLiveCardMatchStatusHook(fn: LiveCardMatchStatusHook) {
+  if (liveCardMatchStatusHook === fn) {
+    liveCardMatchStatusHook = null;
+  }
+}
+
+// Best-effort, fire-and-forget: push the resolved match status to the Live Activity card. Never
+// throws and never returns a value the flush waits on, so it cannot perturb the sync promise /
+// throttle / inflight guards.
+function updateLiveCardFromMatchStatusSafe(status: UpdateRunningMatchProgressResponse | null | undefined) {
+  if (!status || !liveCardMatchStatusHook) {
+    return;
+  }
+
+  try {
+    liveCardMatchStatusHook(status);
+  } catch {
+    // Live Activity is a non-essential affordance; swallow so the flush is unaffected.
+  }
+}
+
 // Fix B1 (defense-in-depth) — before applying a resolved response, re-check that the active
 // context is STILL the match this request was sent for. The applier in React also guards on
 // the forfeited-match set + the live-match id, but the context can be cleared (by forfeit /
@@ -399,6 +434,17 @@ export async function flushBackgroundMatchProgressSync({
           .then((nativeBody) => {
             lastBackgroundMatchProgressSyncAtMs = nowMs;
             applyNativeMatchStatusBody(input.matchId, nativeBody);
+            // Live Activity side channel — fire-and-forget, after the React apply. Parse-guarded
+            // and never awaited, so it can't affect the sync promise / throttle / inflight guards.
+            if (nativeBody) {
+              try {
+                updateLiveCardFromMatchStatusSafe(
+                  JSON.parse(nativeBody) as UpdateRunningMatchProgressResponse,
+                );
+              } catch {
+                // Non-JSON body — the next push refreshes the card.
+              }
+            }
           })
           .catch(() => {
             // Best-effort background upload; the next location tick retries with fresher data.
@@ -444,6 +490,9 @@ export async function flushBackgroundMatchProgressSync({
       // finish teardown) while this request was in flight, so a late reply can't re-apply onto
       // a torn-down match. The React applier guards forfeit + serverNow on top of this.
       applyBackgroundMatchStatusForRequest(input.matchId, nextStatus);
+      // Live Activity side channel — fire-and-forget, after the React apply. Never awaited, so it
+      // cannot perturb the awaited sync promise / throttle / inflight guards.
+      updateLiveCardFromMatchStatusSafe(nextStatus);
       return nextStatus;
     })
     .finally(() => {
