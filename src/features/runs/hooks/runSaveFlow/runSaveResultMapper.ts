@@ -111,6 +111,7 @@ export function buildRunSaveResultSnapshot({
   allowShortDistanceSave = false,
   allowStationaryForfeitSave = false,
   displayedSnapshot,
+  matchId,
   matchSource,
   totalSteps,
   trackedMatchResult,
@@ -118,6 +119,7 @@ export function buildRunSaveResultSnapshot({
   allowShortDistanceSave?: boolean;
   allowStationaryForfeitSave?: boolean;
   displayedSnapshot: DisplayedTrackingSnapshot;
+  matchId?: string | null;
   matchSource?: RunMatchSource;
   totalSteps: number;
   trackedMatchResult?: RunMatchResult | null;
@@ -196,6 +198,10 @@ export function buildRunSaveResultSnapshot({
                 ? trackedMatchResult.myDurationSeconds
                 : finalElapsedSeconds,
               ...(matchSource ? { source: matchSource } : {}),
+              // Persist the originating matchId so a SAVED run can re-fetch its full
+              // per-participant result — this is what makes '결과 보기' appear in 내 러닝
+              // 기록, not only right after the match (which threads matchId via nav params).
+              ...(matchId ? { matchId } : {}),
             },
           }
         : {}),

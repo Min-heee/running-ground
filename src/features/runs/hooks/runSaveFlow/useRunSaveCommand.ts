@@ -78,6 +78,13 @@ export function useRunSaveCommand({
       const displayedSnapshot = getDisplayedTrackingSnapshot(trackingSnapshot);
       syncFromBackgroundTracking(trackingSnapshot);
       const resolvedMatchResult = options.matchResultOverride ?? trackedMatchResult;
+      const activeMatchId = resolveActiveMatchId({
+        matchMode,
+        duelMatchId: duelMatchStatus?.matchId,
+        groupMatchId: groupMatchStatus?.matchId,
+        roomLinkedMatchContext,
+      });
+
       const saveSnapshot = buildRunSaveResultSnapshot({
         allowShortDistanceSave: Boolean(options.allowShortDistanceSave),
         // A run that carries a match result is a decided competition — it must save even
@@ -86,18 +93,15 @@ export function useRunSaveCommand({
         // screen kept rejecting with '이동한 러닝 경로가 필요해', leaving no way out.
         allowStationaryForfeitSave: Boolean(options.allowStationaryForfeitSave) || Boolean(resolvedMatchResult),
         displayedSnapshot,
+        // Persist the originating matchId onto the saved matchResult so '결과 보기' is
+        // reachable from 내 러닝 기록 too — not only right after the match (which threads
+        // matchId via nav params). The backend stores whatever the blob carries.
+        matchId: activeMatchId,
         matchSource: isPartyRun ? 'party' : 'official',
         totalSteps: totalStepsRef.current,
         trackedMatchResult: resolvedMatchResult,
       });
       syncElapsedSeconds(saveSnapshot.finalElapsedSeconds);
-
-      const activeMatchId = resolveActiveMatchId({
-        matchMode,
-        duelMatchId: duelMatchStatus?.matchId,
-        groupMatchId: groupMatchStatus?.matchId,
-        roomLinkedMatchContext,
-      });
 
       if (activeMatchId) {
         try {
