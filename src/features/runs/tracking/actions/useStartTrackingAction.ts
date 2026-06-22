@@ -7,6 +7,7 @@ import {
 } from '@/features/runs/tracking/background';
 import { requestAndroidRunTrackingNotificationPermission } from '@/features/runs/tracking/runTrackingNotificationPermission';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+import { maybeShowBatteryOptimizationNudge } from './batteryOptimizationNudge';
 import { getTrackingStartKey, resolveStartBlockedMessage } from './startTrackingGuards';
 import {
   runSoloStartWarmupFlow,
@@ -177,6 +178,14 @@ export function useStartTrackingAction({
         success: true,
         status: 'running',
       });
+
+      // ONE-TIME Android battery-optimization nudge for live-match runs: if the new native build
+      // can control battery optimization AND the app is not yet exempt, offer a single,
+      // non-blocking prompt so screen-off match recording does not freeze under Doze. Fire-and-
+      // forget so the run NEVER waits on it; no-op on iOS, on solo runs, and on old binaries.
+      if (matchMode !== 'solo') {
+        void maybeShowBatteryOptimizationNudge().catch(() => undefined);
+      }
 
       try {
         await syncInitialLiveShareState();

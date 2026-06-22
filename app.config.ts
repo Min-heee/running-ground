@@ -181,6 +181,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           },
         ],
         './plugins/withHealthAccess',
+        './plugins/withAndroidBgLocationService',
       ]),
     ),
     ios: {

@@ -1,2 +1,17 @@
-<manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <!-- Keep the periodic uploader's OWN foreground service + wakelock alive screen-off so One UI
+       cannot freeze the background re-POST cadence. ACCESS_FINE/BACKGROUND_LOCATION already come
+       from expo-location. -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+  <application>
+    <service
+      android:name="expo.modules.matchprogressuploader.MatchUploadForegroundService"
+      android:exported="false"
+      android:foregroundServiceType="location" />
+  </application>
 </manifest>

@@ -29,6 +29,19 @@ type MatchProgressUploaderNativeModule = {
   startPeriodicUpload?(url: string, authToken: string, jsonBody: string, intervalMs: number): void;
   updatePeriodicPayload?(url: string, authToken: string, jsonBody: string): void;
   stopPeriodicUpload?(): void;
+
+  // BATTERY OPTIMIZATION CONTROL (NEW — Android-only, ships in the NEXT native build). Synchronous
+  // Expo `Function(...)`s exposed by the Kotlin module. OPTIONAL on the type for the SAME reason as
+  // the periodic fns above: the CURRENTLY INSTALLED binaries do NOT define them, so the `typeof`
+  // probe below reports them unavailable and every wrapper no-ops on those binaries (single OTA
+  // bundle stays safe). iOS never links these.
+  //   - isIgnoringBatteryOptimizations: true when this app is already exempt from Doze/app-standby
+  //     battery optimization (so screen-off periodic upload won't be throttled).
+  //   - requestIgnoreBatteryOptimizations: fires the Android settings intent asking the user to
+  //     exempt the app; returns true when the intent was dispatched.
+  isIgnoringBatteryOptimizations?(): boolean;
+  requestIgnoreBatteryOptimizations?(): boolean;
+
   // Emitter contract used by addListener below (Expo Events("onMatchProgressResponse")).
   addListener?(eventName: string, listener: (event: MatchProgressResponseEvent) => void): EventSubscription;
 };
@@ -149,6 +162,54 @@ export function stopPeriodicMatchUpload(): boolean {
   try {
     nativeModule?.stopPeriodicUpload?.();
     return true;
+  } catch {
+    return false;
+  }
+}
+
+// OTA-SAFETY availability gate for the NEW Android battery-optimization control. Mirrors
+// isNativePeriodicUploaderAvailable EXACTLY: true ONLY when the resolved native module actually
+// exposes BOTH battery fns — i.e. ONLY on the next native build. On every CURRENTLY INSTALLED
+// binary (Android APK + iOS TestFlight, neither of which has these fns) this returns false, so the
+// wrappers below no-op and callers can gate on it to skip the nudge entirely (no false battery
+// nag on old binaries, and never on iOS). This is what keeps the OTA bundle safe.
+export function isBatteryOptimizationControlAvailable(): boolean {
+  if (nativeModule == null) {
+    return false;
+  }
+
+  return (
+    typeof nativeModule.isIgnoringBatteryOptimizations === 'function'
+    && typeof nativeModule.requestIgnoreBatteryOptimizations === 'function'
+  );
+}
+
+// True when this app is already exempt from Android battery optimization (Doze/app-standby), so the
+// screen-off periodic upload won't be throttled. On any binary lacking the native fn this returns
+// `true` (assume fine → no nag), so callers safely skip prompting on old binaries and on iOS.
+export function isIgnoringBatteryOptimizations(): boolean {
+  if (!isBatteryOptimizationControlAvailable()) {
+    return true;
+  }
+
+  try {
+    return nativeModule?.isIgnoringBatteryOptimizations?.() ?? true;
+  } catch {
+    // Best-effort: if the native probe throws, assume exempt so we never nag erroneously.
+    return true;
+  }
+}
+
+// Fire the Android settings intent asking the user to exempt this app from battery optimization.
+// Returns true when the intent was dispatched, false otherwise. No-op (returns false) on any binary
+// lacking the native fn and on iOS, so callers do not need their own guard.
+export function requestIgnoreBatteryOptimizations(): boolean {
+  if (!isBatteryOptimizationControlAvailable()) {
+    return false;
+  }
+
+  try {
+    return nativeModule?.requestIgnoreBatteryOptimizations?.() ?? false;
   } catch {
     return false;
   }
