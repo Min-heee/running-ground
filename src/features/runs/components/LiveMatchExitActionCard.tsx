@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import type { MatchExitActionState } from '@/features/runs/lifecycle/matchExitAction';
@@ -38,7 +38,17 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
       return;
     }
     rgPerfMark('forfeit button press', { source });
-    onForfeit(source);
+    // Confirm before forfeiting; only "예" runs the existing forfeit action.
+    Alert.alert('정말 기권하시겠습니까?', undefined, [
+      { text: '아니요', style: 'cancel' },
+      {
+        text: '예',
+        style: 'destructive',
+        onPress: () => {
+          onForfeit(source);
+        },
+      },
+    ]);
   }, [onForfeit, source]);
   const handleShowResultPress = useCallback(() => {
     if (!source) {
@@ -145,10 +155,10 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
     );
   }
 
+  // Forfeit card: only the 기권하기 button remains — the descriptive title/body
+  // were removed. The button now opens a confirm dialog (see handleForfeitPress).
   return (
     <Card style={styles.card}>
-      <Text style={styles.title}>{actionState.title}</Text>
-      <Text style={styles.text}>{actionState.body}</Text>
       <Pressable
         style={[styles.button, actionState.disabled ? styles.buttonDisabled : undefined]}
         onPress={handleForfeitPress}

@@ -107,7 +107,7 @@ export const LiveMatchArena = memo(function LiveMatchArena({
   return (
     <View style={cardStyle}>
       <LiveMatchArenaHeader mode={mode} title={title} subtitle={subtitle} />
-      <LiveMatchArenaSummaryChips chips={summaryChips} />
+      {summaryChips.length > 0 ? <LiveMatchArenaSummaryChips chips={summaryChips} /> : null}
       {perfPanel}
       {forfeitDebugPanel}
       <LiveMatchArenaRoadSection

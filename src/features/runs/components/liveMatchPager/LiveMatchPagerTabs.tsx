@@ -1,14 +1,18 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { liveMatchPagerStyles as styles } from '@/features/runs/components/liveMatchPager/styles';
 import type { PagerTab } from '@/features/runs/components/liveMatchPager/types';
 import { colors } from '@/theme/tokens';
 
-const BASE_TABS: PagerTab[] = [
-  { index: 0, label: '대결 보기' },
-  { index: 1, label: '순위 보기' },
-  { index: 2, label: '기록 보기' },
-];
+// Tab 0's label is mode-aware: a 1:1 duel reads "듀얼로드", a group match reads
+// "그룹로드" (matching the arena's DUEL ROAD / GROUP ROAD content).
+function buildArenaTabLabel(matchMode: RunMatchMode): string {
+  return matchMode === 'group' ? '그룹로드' : '듀얼로드';
+}
+
+const RACE_BOARD_TAB: PagerTab = { index: 1, label: '레이스보드' };
+const STATS_TAB: PagerTab = { index: 2, label: '기록' };
 const RESULT_TAB: PagerTab = { index: 3, label: '결과 보기' };
 const ANDROID_TAB_RIPPLE = { color: colors.pagerTabRipple, borderless: false } as const;
 
@@ -58,29 +62,36 @@ const PagerTabButton = memo(function PagerTabButton({
 export const LiveMatchPagerTabs = memo(function LiveMatchPagerTabs({
   activeTab,
   hasResultPage,
+  matchMode,
   onTabPress,
 }: {
   // Local active-tab index owned by LiveMatchPager; set synchronously on press
   // so the highlight is instant and not blocked by the deferred page commit.
   activeTab: number;
   hasResultPage: boolean;
+  matchMode: RunMatchMode;
   onTabPress: (index: number) => void;
 }) {
+  const arenaTab = useMemo<PagerTab>(
+    () => ({ index: 0, label: buildArenaTabLabel(matchMode) }),
+    [matchMode],
+  );
+
   return (
     <View style={styles.tabRow}>
       <PagerTabButton
-        tab={BASE_TABS[0]}
-        selected={activeTab === BASE_TABS[0].index}
+        tab={arenaTab}
+        selected={activeTab === arenaTab.index}
         onPress={onTabPress}
       />
       <PagerTabButton
-        tab={BASE_TABS[1]}
-        selected={activeTab === BASE_TABS[1].index}
+        tab={RACE_BOARD_TAB}
+        selected={activeTab === RACE_BOARD_TAB.index}
         onPress={onTabPress}
       />
       <PagerTabButton
-        tab={BASE_TABS[2]}
-        selected={activeTab === BASE_TABS[2].index}
+        tab={STATS_TAB}
+        selected={activeTab === STATS_TAB.index}
         onPress={onTabPress}
       />
       {hasResultPage ? (

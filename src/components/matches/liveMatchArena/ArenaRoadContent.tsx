@@ -31,7 +31,7 @@ export const ArenaRoadContent = memo(function ArenaRoadContent({
     return <DuelRoad participants={duelParticipants} targetDistanceKm={targetDistanceKm} />;
   }
 
-  return <GroupRoad participants={visibleGroupParticipants} targetDistanceKm={targetDistanceKm} />;
+  return <GroupRoad participants={visibleGroupParticipants} />;
 }, (prevProps, nextProps) => (
   prevProps.mode === nextProps.mode
   && prevProps.shouldDeferHeavyContent === nextProps.shouldDeferHeavyContent

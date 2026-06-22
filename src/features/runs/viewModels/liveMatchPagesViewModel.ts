@@ -75,6 +75,7 @@ export function buildLiveMatchPagesProps({
   page,
   pageWidth,
   hasResultPage,
+  matchMode,
   arenaProps,
   raceBoardProps,
   trackingStatsPageProps,
@@ -85,6 +86,7 @@ export function buildLiveMatchPagesProps({
   page: number;
   pageWidth: number;
   hasResultPage: boolean;
+  matchMode: RunMatchMode;
   arenaProps: LiveMatchArenaPageProps;
   raceBoardProps: LiveMatchRaceBoardPageProps;
   trackingStatsPageProps: LiveMatchTrackingPageProps | null;
@@ -96,6 +98,7 @@ export function buildLiveMatchPagesProps({
     page,
     pageWidth,
     hasResultPage,
+    matchMode,
     arenaProps,
     raceBoardProps: page === 1 ? raceBoardProps : null,
     trackingProps: trackingStatsPageProps,
@@ -182,6 +185,7 @@ export function buildLiveMatchPageViewModels({
       page,
       pageWidth,
       hasResultPage,
+      matchMode,
       arenaProps,
       raceBoardProps,
       trackingStatsPageProps,

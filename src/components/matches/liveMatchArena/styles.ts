@@ -262,15 +262,6 @@ export const liveMatchArenaStyles = StyleSheet.create({
     fontSize: fontSizes.md,
     letterSpacing: -0.2,
   },
-  runnerName: {
-    marginTop: spacing.xxl,
-    color: colors.white,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extraBold,
-  },
-  runnerNameForfeited: {
-    color: colors.dangerBorder,
-  },
   runnerBubbleForfeited: {
     backgroundColor: USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? colors.dangerDeep : 'rgba(220,38,38,0.36)',
   },
@@ -282,12 +273,6 @@ export const liveMatchArenaStyles = StyleSheet.create({
   },
   runnerMetaForfeited: {
     color: colors.dangerLight,
-  },
-  runnerMetaMuted: {
-    marginTop: spacing.xxs,
-    color: colors.textTertiary,
-    fontSize: fontSizes.xxs,
-    fontWeight: fontWeights.bold,
   },
   groupScroll: {
     flex: 1,
@@ -364,11 +349,6 @@ export const liveMatchArenaStyles = StyleSheet.create({
   },
   groupMetaForfeitedText: {
     color: colors.dangerBorder,
-  },
-  groupMetaSubtext: {
-    color: colors.textTertiary,
-    fontSize: fontSizes.xxs,
-    fontWeight: fontWeights.bold,
   },
   footer: {
     color: colors.textTertiary,

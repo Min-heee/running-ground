@@ -17,7 +17,7 @@ export const LiveMatchArenaHeader = memo(function LiveMatchArenaHeader({
     <>
       <Text style={styles.eyebrow}>{mode === 'duel' ? 'DUEL ROAD' : 'GROUP ROAD'}</Text>
       <Text style={styles.title}>{title}</Text>
-      <Text style={styles.subtitle}>{subtitle}</Text>
+      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </>
   );
 });

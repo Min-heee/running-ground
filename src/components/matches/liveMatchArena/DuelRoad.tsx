@@ -8,7 +8,6 @@ import {
   ROAD_HEIGHT_DUEL,
   areParticipantArraysEqual,
   areParticipantsEqual,
-  buildRemainingLabel,
   clamp,
   isForfeited,
   shouldShowRunnerBubble,
@@ -77,78 +76,49 @@ const DuelRunnerToken = memo(function DuelRunnerToken({
   && areDuelTokenVisualPropsEqual(prevProps.participant, nextProps.participant)
 ));
 
-const DuelRunnerName = memo(function DuelRunnerName({
-  displayName,
+// Under each duel runner circle we now show ONLY the distance run (뛴거리). The
+// name label and the remaining-distance (남은거리) label were removed; the average
+// pace (평균페이스) still renders as the pace bubble on the token above.
+const DuelRunnerDistanceMeta = memo(function DuelRunnerDistanceMeta({
+  distanceKm,
   forfeited,
 }: {
-  displayName: string;
+  distanceKm: number;
   forfeited: boolean;
 }) {
   return (
-    <Text style={[styles.runnerName, forfeited ? styles.runnerNameForfeited : undefined]}>
-      {displayName}
+    <Text style={[styles.runnerMeta, forfeited ? styles.runnerMetaForfeited : undefined]}>
+      {forfeited ? '기권' : `${distanceKm.toFixed(2)}km`}
     </Text>
   );
 });
 
-const DuelRunnerDistanceMeta = memo(function DuelRunnerDistanceMeta({
-  distanceKm,
-  targetDistanceKm,
-  forfeited,
-}: {
-  distanceKm: number;
-  targetDistanceKm: number;
-  forfeited: boolean;
-}) {
-  return (
-    <>
-      <Text style={[styles.runnerMeta, forfeited ? styles.runnerMetaForfeited : undefined]}>
-        {forfeited ? '기권' : `${distanceKm.toFixed(2)}km`}
-      </Text>
-      <Text style={styles.runnerMetaMuted}>
-        {forfeited ? '대결 중단' : buildRemainingLabel(distanceKm, targetDistanceKm)}
-      </Text>
-    </>
-  );
-});
-
 const DuelRunnerTextStack = memo(function DuelRunnerTextStack({
-  displayName,
   distanceKm,
-  targetDistanceKm,
   forfeited,
 }: {
-  displayName: string;
   distanceKm: number;
-  targetDistanceKm: number;
   forfeited: boolean;
 }) {
   return (
-    <>
-      <DuelRunnerName displayName={displayName} forfeited={forfeited} />
-      <DuelRunnerDistanceMeta
-        distanceKm={distanceKm}
-        targetDistanceKm={targetDistanceKm}
-        forfeited={forfeited}
-      />
-    </>
+    <DuelRunnerDistanceMeta
+      distanceKm={distanceKm}
+      forfeited={forfeited}
+    />
   );
 });
 
 const DuelRunner = memo(function DuelRunner({
   participant,
   top,
-  targetDistanceKm,
   side,
 }: {
   participant: ArenaParticipant;
   top: number;
-  targetDistanceKm: number;
   side: 'left' | 'right';
 }) {
   const participantForfeited = isForfeited(participant);
   const isCurrentUser = Boolean(participant.isCurrentUser);
-  const displayName = isCurrentUser ? '나' : participant.name;
   const fallbackLabel = isCurrentUser ? '나' : participant.name.slice(0, 1);
   const runnerStyle = useMemo(
     () => [
@@ -167,16 +137,13 @@ const DuelRunner = memo(function DuelRunner({
         isCurrentUser={isCurrentUser}
       />
       <DuelRunnerTextStack
-        displayName={displayName}
         distanceKm={participant.distanceKm}
-        targetDistanceKm={targetDistanceKm}
         forfeited={participantForfeited}
       />
     </View>
   );
 }, (prevProps, nextProps) => (
   prevProps.top === nextProps.top
-  && prevProps.targetDistanceKm === nextProps.targetDistanceKm
   && prevProps.side === nextProps.side
   && areParticipantsEqual(prevProps.participant, nextProps.participant)
 ));
@@ -236,8 +203,8 @@ export const DuelRoad = memo(function DuelRoad({
   return (
     <View style={roadCardStyle}>
       <RoadMotion laneMode="duel" />
-      <DuelRunner participant={opponent} top={opponentTop} targetDistanceKm={targetDistanceKm} side="left" />
-      <DuelRunner participant={currentUser} top={userTop} targetDistanceKm={targetDistanceKm} side="right" />
+      <DuelRunner participant={opponent} top={opponentTop} side="left" />
+      <DuelRunner participant={currentUser} top={userTop} side="right" />
     </View>
   );
 }, (prevProps, nextProps) => (

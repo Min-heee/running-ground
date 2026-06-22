@@ -8,7 +8,6 @@ import {
   ROAD_HEIGHT_GROUP,
   areParticipantArraysEqual,
   areParticipantsEqual,
-  buildRemainingLabel,
   isForfeited,
 } from '@/components/matches/liveMatchArena/helpers';
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
@@ -17,7 +16,6 @@ import type { ArenaParticipant } from '@/components/matches/liveMatchArena/types
 type GroupRoadRowProps = {
   participant: ArenaParticipant;
   index: number;
-  targetDistanceKm: number;
 };
 
 const GroupRankColumn = memo(function GroupRankColumn({
@@ -85,15 +83,14 @@ const GroupRunnerMarker = memo(function GroupRunnerMarker({
   );
 });
 
+// Group rows keep the average pace (평균페이스) but drop the remaining-distance
+// (남은거리) subtext — the analogous removal to the duel road. Participant names
+// stay (see GroupRankColumn) so a 3+ person board can tell runners apart.
 const GroupRunnerMeta = memo(function GroupRunnerMeta({
   averagePaceLabel,
-  distanceKm,
-  targetDistanceKm,
   forfeited,
 }: {
   averagePaceLabel: string;
-  distanceKm: number;
-  targetDistanceKm: number;
   forfeited: boolean;
 }) {
   return (
@@ -101,7 +98,6 @@ const GroupRunnerMeta = memo(function GroupRunnerMeta({
       <Text style={[styles.groupMetaText, forfeited ? styles.groupMetaForfeitedText : undefined]}>
         {averagePaceLabel}
       </Text>
-      <Text style={styles.groupMetaSubtext}>{buildRemainingLabel(distanceKm, targetDistanceKm)}</Text>
     </View>
   );
 });
@@ -109,7 +105,6 @@ const GroupRunnerMeta = memo(function GroupRunnerMeta({
 const GroupRoadRow = memo(function GroupRoadRow({
   participant,
   index,
-  targetDistanceKm,
 }: GroupRoadRowProps) {
   const isCurrentUser = Boolean(participant.isCurrentUser);
   const participantForfeited = isForfeited(participant);
@@ -160,24 +155,19 @@ const GroupRoadRow = memo(function GroupRoadRow({
       />
       <GroupRunnerMeta
         averagePaceLabel={visualState.averagePaceLabel}
-        distanceKm={participant.distanceKm}
-        targetDistanceKm={targetDistanceKm}
         forfeited={participantForfeited}
       />
     </View>
   );
 }, (prevProps, nextProps) => (
   prevProps.index === nextProps.index
-  && prevProps.targetDistanceKm === nextProps.targetDistanceKm
   && areParticipantsEqual(prevProps.participant, nextProps.participant)
 ));
 
 export const GroupRoad = memo(function GroupRoad({
   participants,
-  targetDistanceKm,
 }: {
   participants: ArenaParticipant[];
-  targetDistanceKm: number;
 }) {
   const roadCardStyle = useMemo(
     () => [styles.roadCard, { height: ROAD_HEIGHT_GROUP }],
@@ -202,8 +192,8 @@ export const GroupRoad = memo(function GroupRoad({
     [participants.length],
   );
   const renderItem = useCallback(({ item, index }: { item: ArenaParticipant; index: number }) => (
-    <GroupRoadRow participant={item} index={index} targetDistanceKm={targetDistanceKm} />
-  ), [targetDistanceKm]);
+    <GroupRoadRow participant={item} index={index} />
+  ), []);
   const keyExtractor = useCallback((participant: ArenaParticipant) => participant.id, []);
   const getItemLayout = useCallback((_: ArrayLike<ArenaParticipant> | null | undefined, index: number) => ({
     length: GROUP_ROW_HEIGHT,
@@ -236,6 +226,5 @@ export const GroupRoad = memo(function GroupRoad({
     </View>
   );
 }, (prevProps, nextProps) => (
-  prevProps.targetDistanceKm === nextProps.targetDistanceKm
-  && areParticipantArraysEqual(prevProps.participants, nextProps.participants)
+  areParticipantArraysEqual(prevProps.participants, nextProps.participants)
 ));

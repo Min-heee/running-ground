@@ -35,10 +35,6 @@ export function isForfeited(participant: ArenaParticipant) {
   return isRunnerForfeited(participant);
 }
 
-export function buildRemainingLabel(distanceKm: number, targetDistanceKm: number) {
-  return `${Math.max(0, targetDistanceKm - distanceKm).toFixed(2)}km 남음`;
-}
-
 export function buildAndroidLightParticipants(participants: ArenaParticipant[]) {
   if (Platform.OS !== 'android' || participants.length <= ANDROID_GROUP_LIGHT_MODE_THRESHOLD) {
     return participants;

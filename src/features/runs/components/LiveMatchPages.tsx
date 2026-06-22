@@ -19,6 +19,7 @@ import {
   type LiveMatchTrackingPageProps,
 } from '@/features/runs/components/LiveMatchTrackingPage';
 import { areLiveMatchPagesPropsEqualForActivePage } from '@/features/runs/components/liveMatchPager/liveMatchPagePropsComparator';
+import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { spacing } from '@/theme/tokens';
 
 export type LiveMatchPagesProps = {
@@ -26,6 +27,7 @@ export type LiveMatchPagesProps = {
   page: number;
   pageWidth: number;
   hasResultPage: boolean;
+  matchMode: RunMatchMode;
   arenaProps: LiveMatchArenaPageProps;
   raceBoardProps: LiveMatchRaceBoardPageProps | null;
   trackingProps: LiveMatchTrackingPageProps | null;
@@ -39,6 +41,7 @@ export const LiveMatchPages = memo(function LiveMatchPages({
   page,
   pageWidth,
   hasResultPage,
+  matchMode,
   arenaProps,
   raceBoardProps,
   trackingProps,
@@ -84,6 +87,7 @@ export const LiveMatchPages = memo(function LiveMatchPages({
       page={page}
       pageWidth={pageWidth}
       hasResultPage={false}
+      matchMode={matchMode}
       renderArenaPage={renderArenaPage}
       renderRaceBoardPage={renderRaceBoardPage}
       renderStatsPage={renderTrackingPage}

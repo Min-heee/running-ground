@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import type { RefObject } from 'react';
-import { NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, Text, View } from 'react-native';
+import { NativeScrollEvent, NativeSyntheticEvent, Platform, ScrollView, View } from 'react-native';
 import {
   EMPTY_PAGE_RENDERER,
   LiveMatchPagerPageSlot,
@@ -12,6 +12,7 @@ import {
 import { liveMatchPagerStyles as styles } from '@/features/runs/components/liveMatchPager/styles';
 import { LiveMatchPagerTabs } from '@/features/runs/components/liveMatchPager/LiveMatchPagerTabs';
 import type { LiveMatchPageRenderer } from '@/features/runs/components/liveMatchPager/types';
+import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
 
 type LiveMatchPagerProps = {
@@ -19,6 +20,7 @@ type LiveMatchPagerProps = {
   page: number;
   pageWidth: number;
   hasResultPage: boolean;
+  matchMode: RunMatchMode;
   renderArenaPage: LiveMatchPageRenderer;
   renderRaceBoardPage: LiveMatchPageRenderer;
   renderStatsPage: LiveMatchPageRenderer;
@@ -31,6 +33,7 @@ export const LiveMatchPager = memo(function LiveMatchPager({
   page,
   pageWidth,
   hasResultPage,
+  matchMode,
   renderArenaPage,
   renderRaceBoardPage,
   renderStatsPage,
@@ -92,6 +95,7 @@ export const LiveMatchPager = memo(function LiveMatchPager({
         <LiveMatchPagerTabs
           activeTab={activeTab}
           hasResultPage={hasResultPage}
+          matchMode={matchMode}
           onTabPress={handleTabPress}
         />
         <View style={styles.androidPage}>
@@ -105,7 +109,6 @@ export const LiveMatchPager = memo(function LiveMatchPager({
             {activeTab === 2 ? renderStatsPage() : null}
           </View>
         </View>
-        <Text style={styles.hint}>위 탭을 누르면 순위와 기록 화면을 볼 수 있어요.</Text>
       </View>
     );
   }
@@ -115,6 +118,7 @@ export const LiveMatchPager = memo(function LiveMatchPager({
       <LiveMatchPagerTabs
         activeTab={activeTab}
         hasResultPage={hasResultPage}
+        matchMode={matchMode}
         onTabPress={handleTabPress}
       />
       <ScrollView
@@ -152,11 +156,6 @@ export const LiveMatchPager = memo(function LiveMatchPager({
           />
         ) : null}
       </ScrollView>
-      <Text style={styles.hint}>
-        {hasResultPage
-          ? '옆으로 넘기면 순위, 기록, 결과 화면을 볼 수 있어요.'
-          : '옆으로 넘기면 순위와 기록 화면을 볼 수 있어요.'}
-      </Text>
     </View>
   );
 }, (prevProps, nextProps) => {
@@ -165,6 +164,7 @@ export const LiveMatchPager = memo(function LiveMatchPager({
     || prevProps.page !== nextProps.page
     || prevProps.pageWidth !== nextProps.pageWidth
     || prevProps.hasResultPage !== nextProps.hasResultPage
+    || prevProps.matchMode !== nextProps.matchMode
     || prevProps.onPageChange !== nextProps.onPageChange
   ) {
     return false;

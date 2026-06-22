@@ -320,6 +320,7 @@ export function useLiveMatchViewModel({
     page,
     pageWidth,
     hasResultPage,
+    matchMode,
     arenaProps,
     raceBoardProps,
     trackingStatsPageProps,
@@ -328,6 +329,7 @@ export function useLiveMatchViewModel({
   }), [
     arenaProps,
     hasResultPage,
+    matchMode,
     onPageChange,
     page,
     pageWidth,

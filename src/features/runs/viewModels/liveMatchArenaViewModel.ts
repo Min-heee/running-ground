@@ -1,7 +1,6 @@
 import type { LiveMatchArenaProps } from '@/components/matches/LiveMatchArena';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import {
-  buildDistanceGapLabel,
   formatArenaPaceChip,
   type DuelComparisonSnapshot,
   type GroupLiveStanding,
@@ -102,16 +101,10 @@ export function buildLiveMatchArenaViewModel({
       matchId: activeMatchId,
       targetDistanceKm: placeholderDistanceKm,
       title: `${placeholderOpponent?.name ?? '상대'}님과 1대1 대결`,
-      subtitle: placeholderOpponent?.liveStatus === 'forfeited' ? '상대가 기권했어요.' : '기권 상태를 정리하고 있어요.',
-      summaryChips: [
-        formatArenaPaceChip('내 페이스', currentUserArenaPace),
-        placeholderOpponent?.liveStatus === 'forfeited'
-          ? '상대 기권'
-          : formatArenaPaceChip('상대 페이스', placeholderOpponent?.paceLabel ?? ''),
-        hasRoomLinkedDuelLiveProgress
-          ? `실시간 수신 ${buildDistanceGapLabel(roomLinkedDuelGapKm)}`
-          : buildDistanceGapLabel(null),
-      ],
+      // Duel arena no longer shows the opponent-pace subtitle or the 내 페이스 /
+      // 상대 페이스 / 서버 기준 summary chips — only the title + road remain.
+      subtitle: '',
+      summaryChips: [],
       deferHeavyContent,
       participants: roomLinkedDuelPlaceholderParticipants,
       footer: placeholderOpponent?.liveStatus === 'forfeited'
@@ -126,20 +119,10 @@ export function buildLiveMatchArenaViewModel({
       matchId: activeMatchId,
       targetDistanceKm: duelDistanceKm,
       title: `${effectiveDuelOpponent.name}님과 1대1 대결`,
-      subtitle: duelLiveSummary,
-      summaryChips: [
-        formatArenaPaceChip('내 페이스', currentUserArenaPace),
-        isDuelOpponentForfeited
-          ? '상대 기권'
-          : formatArenaPaceChip('상대 페이스', effectiveDuelOpponentArenaPace),
-        isDuelOpponentForfeited
-          ? '내 기록은 계속 저장'
-          : duelComparisonSnapshot
-          ? `${officialDuelReady ? '서버' : '동기화'} ${formatDuration(duelComparisonSnapshot.checkpointSeconds)} 기준 ${buildDistanceGapLabel(duelLiveGapKm)}`
-          : duelLiveGapKm !== null
-            ? `실시간 수신 ${buildDistanceGapLabel(duelLiveGapKm)}`
-            : buildDistanceGapLabel(null),
-      ],
+      // Duel arena no longer shows the "상대 [pace] 페이스 러닝중" subtitle or the
+      // 내 페이스 / 상대 페이스 / 서버 기준 summary chips — only the title + road remain.
+      subtitle: '',
+      summaryChips: [],
       deferHeavyContent,
       participants: duelArenaParticipants,
       footer: isDuelOpponentForfeited
@@ -159,16 +142,9 @@ export function buildLiveMatchArenaViewModel({
       matchId: activeMatchId,
       targetDistanceKm: placeholderDistanceKm,
       title: `${placeholderOpponent?.name ?? '상대'}님과 1대1 대결`,
-      subtitle: '대결 정보를 맞추는 중이에요.',
-      summaryChips: [
-        formatArenaPaceChip('내 페이스', currentUserArenaPace),
-        formatArenaPaceChip('상대 페이스', placeholderOpponent?.paceLabel ?? ''),
-        typeof roomCountdownRemainingSeconds === 'number' && !duelArenaUsesLivePace
-          ? `시작까지 ${formatMatchCountdown(roomCountdownRemainingSeconds)}`
-          : hasRoomLinkedDuelLiveProgress
-            ? `실시간 수신 ${buildDistanceGapLabel(roomLinkedDuelGapKm)}`
-            : buildDistanceGapLabel(null),
-      ],
+      // Duel arena no longer shows a subtitle or the duel summary chips.
+      subtitle: '',
+      summaryChips: [],
       deferHeavyContent,
       participants: roomLinkedDuelPlaceholderParticipants,
       footer: hasRoomLinkedDuelLiveProgress && roomLinkedDuelCurrentParticipant && roomLinkedDuelOpponentParticipant
@@ -183,9 +159,9 @@ export function buildLiveMatchArenaViewModel({
       matchId: activeMatchId,
       targetDistanceKm: groupDistanceKm,
       title: `${effectiveGroupParticipantCount}명 그룹 대결`,
-      subtitle: currentGroupStanding.rank === 1
-        ? '지금은 선두예요. 흐름을 유지해보세요.'
-        : `현재 ${currentGroupStanding.rank}/${effectiveGroupParticipantCount}위 · 앞 사람과 ${currentGroupStanding.gapAheadKm?.toFixed(2) ?? '0.00'}km 차이`,
+      // Group arena drops the header subtitle (analogous to the duel cleanup) but
+      // KEEPS the group summary chips (내 페이스 / 현재 N위 / 선두 …).
+      subtitle: '',
       summaryChips: [
         formatArenaPaceChip('내 페이스', currentUserArenaPace),
         `현재 ${currentGroupStanding.rank}/${effectiveGroupParticipantCount}위`,
@@ -209,7 +185,8 @@ export function buildLiveMatchArenaViewModel({
       matchId: activeMatchId,
       targetDistanceKm: placeholderDistanceKm,
       title: `${roomLinkedGroupPlaceholderParticipants.length}명 그룹 대결`,
-      subtitle: '그룹 대결 정보를 맞추는 중이에요.',
+      // Group arena drops the header subtitle but keeps the group summary chips.
+      subtitle: '',
       summaryChips: [
         formatArenaPaceChip('내 페이스', currentUserArenaPace),
         `${roomLinkedGroupPlaceholderParticipants.length}명 연결됨`,
@@ -237,12 +214,9 @@ export function buildLiveMatchArenaViewModel({
       matchId: activeMatchId,
       targetDistanceKm: placeholderDistanceKm,
       title: `${opponentName}님과 1대1 대결`,
-      subtitle: '대결 화면을 유지하면서 기록 연결을 다시 맞추는 중이에요.',
-      summaryChips: [
-        formatArenaPaceChip('내 페이스', currentUserArenaPace),
-        formatArenaPaceChip('상대 페이스', opponentPaceLabel),
-        '대결 화면 유지 중',
-      ],
+      // Duel arena no longer shows a subtitle or the duel summary chips.
+      subtitle: '',
+      summaryChips: [],
       deferHeavyContent,
       participants: [
         {
@@ -297,7 +271,8 @@ export function buildLiveMatchArenaViewModel({
       matchId: activeMatchId,
       targetDistanceKm: placeholderDistanceKm,
       title: '그룹 대결',
-      subtitle: '그룹 대결 화면을 유지하면서 참가자 기록을 다시 맞추는 중이에요.',
+      // Group arena drops the header subtitle but keeps the group summary chips.
+      subtitle: '',
       summaryChips: [
         formatArenaPaceChip('내 페이스', currentUserArenaPace),
         `${fallbackGroupParticipants.length}명 연결 확인 중`,

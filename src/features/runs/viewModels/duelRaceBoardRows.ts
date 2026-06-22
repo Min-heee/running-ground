@@ -55,8 +55,10 @@ export function buildDuelRaceBoardSection({
     return {
       title: '1대1 레이스 보드',
       subtitle: buildRaceBoardSubtitle({
+        // The 1:1 raceBoard description was removed; only the partial-progressive
+        // subtitle (when rows are hidden) or the sync-in-progress message remain.
         fallback: effectiveDuelOpponent
-          ? '누가 더 앞서 있는지, 각각 얼마 남았는지 한눈에 볼 수 있어요.'
+          ? ''
           : '대결 정보를 맞추는 중에도 같은 방의 상대를 함께 표시해요.',
         progressiveRows,
       }),
@@ -104,7 +106,9 @@ export function buildDuelRaceBoardSection({
     return {
       title: '1대1 레이스 보드',
       subtitle: buildRaceBoardSubtitle({
-        fallback: '누가 더 앞서 있는지, 각각 얼마 남았는지 한눈에 볼 수 있어요.',
+        // The 1:1 raceBoard description was removed; the partial-progressive
+        // subtitle still surfaces when some rows are hidden.
+        fallback: '',
         progressiveRows,
       }),
       rows,

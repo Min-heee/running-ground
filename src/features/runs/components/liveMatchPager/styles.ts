@@ -49,10 +49,4 @@ export const liveMatchPagerStyles = StyleSheet.create({
     flex: 1,
     display: 'none',
   },
-  hint: {
-    color: colors.textTertiary,
-    fontSize: fontSizes.md,
-    textAlign: 'center',
-    fontWeight: fontWeights.bold,
-  },
 });
