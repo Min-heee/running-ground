@@ -3,6 +3,7 @@ import { FlatList, Platform, Text, View } from 'react-native';
 import { buildLiveMatchRunnerVisualState } from '@/components/matches/liveMatchArenaVisualState';
 import { RoadMotion } from '@/components/matches/liveMatchArena/RoadMotion';
 import {
+  GROUP_LIST_TOP_INSET,
   GROUP_ROW_HEIGHT,
   ROAD_HEIGHT_GROUP,
   areParticipantArraysEqual,
@@ -206,7 +207,10 @@ export const GroupRoad = memo(function GroupRoad({
   const keyExtractor = useCallback((participant: ArenaParticipant) => participant.id, []);
   const getItemLayout = useCallback((_: ArrayLike<ArenaParticipant> | null | undefined, index: number) => ({
     length: GROUP_ROW_HEIGHT,
-    offset: GROUP_ROW_HEIGHT * index,
+    // Include the content top inset so initialScrollIndex/scrollToIndex on Android
+    // (which scroll to the raw getItemLayout offset and ignore contentContainerStyle
+    // paddingTop) keep row 0 below the FINISH banner instead of riding up under it.
+    offset: GROUP_LIST_TOP_INSET + GROUP_ROW_HEIGHT * index,
     index,
   }), []);
 

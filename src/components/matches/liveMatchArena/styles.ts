@@ -2,6 +2,8 @@ import { StyleSheet } from 'react-native';
 import { USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI } from '@/components/matches/liveMatchArena/config';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import {
+  GROUP_LIST_BOTTOM_INSET,
+  GROUP_LIST_TOP_INSET,
   GROUP_ROW_HEIGHT,
   ROAD_STRIPE_HEIGHT,
   ROAD_STRIPE_SPACING,
@@ -291,8 +293,8 @@ export const liveMatchArenaStyles = StyleSheet.create({
     flex: 1,
   },
   groupScrollContent: {
-    paddingTop: 56,
-    paddingBottom: 72,
+    paddingTop: GROUP_LIST_TOP_INSET,
+    paddingBottom: GROUP_LIST_BOTTOM_INSET,
   },
   groupRow: {
     height: GROUP_ROW_HEIGHT,

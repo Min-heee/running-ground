@@ -8,6 +8,13 @@ export const ROAD_HEIGHT_GROUP = 432;
 export const ROAD_STRIPE_HEIGHT = 34;
 export const ROAD_STRIPE_SPACING = 88;
 export const GROUP_ROW_HEIGHT = 78;
+// Top padding that keeps the first group row (and its runner marker) clear of the
+// absolutely-positioned FINISH banner. It must be reflected in getItemLayout offsets
+// so that initialScrollIndex/scrollToIndex land row 0 *below* the banner on Android,
+// which (unlike iOS) does not preserve contentContainerStyle.paddingTop when scrolling
+// to a getItemLayout offset.
+export const GROUP_LIST_TOP_INSET = 56;
+export const GROUP_LIST_BOTTOM_INSET = 72;
 export const SHOULD_ANIMATE_ROAD = !USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI;
 export const DUEL_STRIPE_COUNT = USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 4 : 12;
 export const GROUP_STRIPE_COUNT = USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI ? 5 : 14;
