@@ -30,50 +30,38 @@ export function parseMeasuredPaceSecondsPerKm(paceLabel: string | null | undefin
 }
 
 // A background-stale or early-run participant can report a real-but-absurd average pace
-// (e.g. '16:48/km' when distance barely accrued while elapsed climbed), which previously
-// printed as "678초/km 빠름". Bound both the input paces and the resulting diff so the
-// notification never shows an implausible comparison. Outside these bounds we omit the
-// pace fragment entirely (return null) rather than print a misleading number.
+// (e.g. '16:48/km' when distance barely accrued while elapsed climbed), which would
+// otherwise print as a misleading "평균 16:48/km". Bound the pace so the notification never
+// shows an implausible value. Outside these bounds we omit the pace fragment entirely
+// (return null) rather than print a garbage number.
 //
 // 2:30/km (150s) is faster than the world-record marathon pace; 15:00/km (900s) is a slow
 // walk — anything beyond that range is a tracking artifact, not a real running pace.
 export const MIN_PLAUSIBLE_PACE_SECONDS_PER_KM = 150; // 2:30/km
 export const MAX_PLAUSIBLE_PACE_SECONDS_PER_KM = 900; // 15:00/km
-// Two runners ~50m apart in the same race cannot truly differ by more than ~2:30/km.
-export const MAX_PLAUSIBLE_PACE_DIFF_SECONDS = 150;
 
 function isPlausiblePaceSeconds(seconds: number): boolean {
   return seconds >= MIN_PLAUSIBLE_PACE_SECONDS_PER_KM && seconds <= MAX_PLAUSIBLE_PACE_SECONDS_PER_KM;
 }
 
-// My pace relative to the other runner's. Positive direction = I'm faster.
-export function buildPaceDiffLabel(
-  myPaceLabel: string | null | undefined,
-  otherPaceLabel: string | null | undefined,
-): string | null {
-  const mySeconds = parseMeasuredPaceSecondsPerKm(myPaceLabel);
-  const otherSeconds = parseMeasuredPaceSecondsPerKm(otherPaceLabel);
+// The metric is "상대와 평균페이스" — the compared runner's OWN average pace, not a diff
+// against me. Returns the runner's measured average pace label (e.g. '5:30/km') only when it
+// is a real, plausibly-bounded running pace; otherwise null, so a background-stale garbage
+// pace like '16:48/km' yields no pace fragment instead of an absurd "평균 16:48/km".
+function plausibleOpponentPaceLabel(paceLabel: string | null | undefined): string | null {
+  const seconds = parseMeasuredPaceSecondsPerKm(paceLabel);
 
-  if (mySeconds === null || otherSeconds === null) {
+  if (seconds === null || !isPlausiblePaceSeconds(seconds)) {
     return null;
   }
 
-  if (!isPlausiblePaceSeconds(mySeconds) || !isPlausiblePaceSeconds(otherSeconds)) {
-    return null;
-  }
+  return String(paceLabel).trim();
+}
 
-  const diff = Math.round(otherSeconds - mySeconds);
-
-  if (Math.abs(diff) > MAX_PLAUSIBLE_PACE_DIFF_SECONDS) {
-    return null;
-  }
-
-  if (Math.abs(diff) < 1) {
-    return '페이스 비슷';
-  }
-
-  // diff > 0 means the opponent is slower per km, i.e. I'm faster than them.
-  return diff > 0 ? `나보다 ${diff}초/km 느림` : `나보다 ${Math.abs(diff)}초/km 빠름`;
+// Notification fragment for the compared runner's average pace, e.g. '평균 5:30/km'.
+export function buildOpponentPaceLabel(paceLabel: string | null | undefined): string | null {
+  const label = plausibleOpponentPaceLabel(paceLabel);
+  return label ? `평균 ${label}` : null;
 }
 
 type CompactGap = {
@@ -129,8 +117,10 @@ export type ResolvedGroupGapTarget = {
   name: string;
   // My distance minus theirs, in km.
   gapKm: number;
-  paceDiff: string | null;
-  paceDiffSpeech: string | null;
+  // The compared runner's OWN average pace, formatted (e.g. '평균 5:30/km'), or null when
+  // their pace is unmeasured or implausible.
+  paceLabel: string | null;
+  paceSpeech: string | null;
 };
 
 function resolveParticipantKey(participant: GroupLiveStanding): string {
@@ -140,7 +130,6 @@ function resolveParticipantKey(participant: GroupLiveStanding): string {
 export function resolveGroupGapTargets(
   standings: GroupLiveStanding[],
   selectedTargets: readonly LiveGapGroupTarget[],
-  myPaceLabel: string | null | undefined,
 ): ResolvedGroupGapTarget[] {
   const myIndex = standings.findIndex((standing) => standing.isCurrentUser);
 
@@ -178,8 +167,8 @@ export function resolveGroupGapTargets(
       label: GROUP_TARGET_LABEL.get(option.value) ?? option.value,
       name: participant.name?.trim() || '상대',
       gapKm: Number((me.currentDistanceKm - participant.currentDistanceKm).toFixed(2)),
-      paceDiff: buildPaceDiffLabel(myPaceLabel, participant.averagePace),
-      paceDiffSpeech: buildPaceDiffSpeech(myPaceLabel, participant.averagePace),
+      paceLabel: buildOpponentPaceLabel(participant.averagePace),
+      paceSpeech: buildOpponentPaceSpeech(participant.averagePace),
     });
   }
 
@@ -205,33 +194,10 @@ function withWaParticle(honorificName: string): string {
   return `${honorificName}${honorificName.endsWith('님') ? '과' : '와'}`;
 }
 
-export function buildPaceDiffSpeech(
-  myPaceLabel: string | null | undefined,
-  otherPaceLabel: string | null | undefined,
-): string | null {
-  const mySeconds = parseMeasuredPaceSecondsPerKm(myPaceLabel);
-  const otherSeconds = parseMeasuredPaceSecondsPerKm(otherPaceLabel);
-
-  if (mySeconds === null || otherSeconds === null) {
-    return null;
-  }
-
-  if (!isPlausiblePaceSeconds(mySeconds) || !isPlausiblePaceSeconds(otherSeconds)) {
-    return null;
-  }
-
-  const diff = Math.round(otherSeconds - mySeconds);
-
-  if (Math.abs(diff) > MAX_PLAUSIBLE_PACE_DIFF_SECONDS) {
-    return null;
-  }
-
-  if (Math.abs(diff) < 1) {
-    return '페이스는 비슷해요';
-  }
-
-  // diff > 0 means the opponent is slower per km, i.e. I'm faster than them.
-  return diff > 0 ? `페이스는 저보다 ${diff}초 느려요` : `페이스는 저보다 ${Math.abs(diff)}초 빨라요`;
+// Spoken fragment for the compared runner's average pace, e.g. '평균 페이스 5분 30초'.
+export function buildOpponentPaceSpeech(paceLabel: string | null | undefined): string | null {
+  const label = plausibleOpponentPaceLabel(paceLabel);
+  return label ? `평균 페이스 ${buildPaceSpeech(label)}` : null;
 }
 
 // --- Metric-driven builder: one push assembled from the user's selected metrics ---
@@ -378,8 +344,8 @@ export function buildLiveGapOutput(input: LiveGapOutputInput): LiveGapOutput {
         label: null,
         name: input.opponentName?.trim() || '상대',
         gapKm,
-        paceDiffNotif: buildPaceDiffLabel(input.avgPaceLabel, input.opponentPaceLabel),
-        paceDiffSpeech: buildPaceDiffSpeech(input.avgPaceLabel, input.opponentPaceLabel),
+        paceDiffNotif: buildOpponentPaceLabel(input.opponentPaceLabel),
+        paceDiffSpeech: buildOpponentPaceSpeech(input.opponentPaceLabel),
         wantDistance: wantOppDistance,
         wantPace: wantOppPace,
       });
@@ -390,15 +356,14 @@ export function buildLiveGapOutput(input: LiveGapOutputInput): LiveGapOutput {
       const resolved = resolveGroupGapTargets(
         input.standings ?? [],
         input.groupTargets ?? [],
-        input.avgPaceLabel,
       );
       for (const entry of resolved) {
         const line = buildOpponentLine({
           label: entry.label,
           name: entry.name,
           gapKm: entry.gapKm,
-          paceDiffNotif: entry.paceDiff,
-          paceDiffSpeech: entry.paceDiffSpeech,
+          paceDiffNotif: entry.paceLabel,
+          paceDiffSpeech: entry.paceSpeech,
           wantDistance: wantOppDistance,
           wantPace: wantOppPace,
         });
