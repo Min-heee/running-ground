@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
-import { Alert } from 'react-native';
 import type { RunningMatchStatusResponse } from '@/lib/api/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/types/matchStateMachine';
@@ -20,11 +19,7 @@ import {
   updateLiveActivityForSolo,
   type LiveActivityRunContext,
 } from '@/features/runs/liveActivity/liveActivityController';
-import { getLiveActivityDebugInfo, isLiveActivityAvailable } from '../../../../modules/live-activity';
-
-// TEMP: one-shot-per-launch guard so the Live Activity diagnostic alert fires only once. Remove
-// along with the alert below once we've pinpointed why the card doesn't appear.
-let liveActivityDebugShown = false;
+import { isLiveActivityAvailable } from '../../../../modules/live-activity';
 
 // Wires the iOS Live Activity (lock-screen live-run card + Dynamic Island) into the run/match
 // lifecycle. OTA-SAFE + FIRE-AND-FORGET: every effect first checks isLiveActivityAvailable() (false
@@ -124,13 +119,15 @@ export function useLiveActivityBridge({
 
     if (mode === 'solo') {
       const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
-      if (!snapshot.startedAt) {
-        return null;
-      }
       return {
         mode: 'solo',
         goalDistanceKm: input.soloGoalDistanceKm,
-        startedAt: snapshot.startedAt,
+        // Start the card immediately at run start — don't wait for the first GPS-tracked
+        // startedAt (which lags by the countdown + first fix, which is why the card showed
+        // up late). The card's displayed time/distance/pace are driven by the subsequent
+        // updateLiveActivity calls, so a 'now' fallback just lets the card appear right away
+        // and fill in.
+        startedAt: snapshot.startedAt ?? new Date().toISOString(),
         myName: input.myName,
       };
     }
@@ -158,18 +155,6 @@ export function useLiveActivityBridge({
   useEffect(() => {
     if (!isRunning) {
       return undefined;
-    }
-
-    // TEMP DIAGNOSTIC (remove after we pinpoint why the card doesn't appear). One-shot-per-launch
-    // alert at the first run start — iOS can't be inspected locally, so this surfaces WHERE the
-    // start path fails: module not linked, the OS availability marker, or the composed gate.
-    if (!liveActivityDebugShown) {
-      liveActivityDebugShown = true;
-      const info = getLiveActivityDebugInfo();
-      Alert.alert(
-        'LA 진단 (임시)',
-        `platform: ${info.platform}\nmodule: ${info.moduleResolved}\nnative.available: ${String(info.nativeAvailable)}\nhasStart: ${info.hasStart}\nisAvailable: ${info.isAvailable}`,
-      );
     }
 
     if (!isLiveActivityAvailable()) {

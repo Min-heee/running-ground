@@ -108,25 +108,6 @@ export function isLiveActivityAvailable(): boolean {
   );
 }
 
-// TEMP DIAGNOSTIC (remove after debugging why the card doesn't appear). Surfaces the exact gate
-// state so a one-shot run-start alert can tell us WHERE the start path fails: module not linked
-// (moduleResolved=false), the OS marker (nativeAvailable), or the composed isAvailable gate.
-export function getLiveActivityDebugInfo(): {
-  platform: string;
-  moduleResolved: boolean;
-  nativeAvailable: unknown;
-  hasStart: boolean;
-  isAvailable: boolean;
-} {
-  return {
-    platform: Platform.OS,
-    moduleResolved: nativeModule != null,
-    nativeAvailable: nativeModule?.available,
-    hasStart: typeof nativeModule?.start === 'function',
-    isAvailable: isLiveActivityAvailable(),
-  };
-}
-
 // Start the lock-screen / Dynamic Island card. No-op (and never throws) on any binary lacking the
 // native module, so callers do not strictly need their own guard — but they SHOULD still gate with
 // isLiveActivityAvailable() to skip building the view-model on old binaries.
