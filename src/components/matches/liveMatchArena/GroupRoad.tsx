@@ -12,11 +12,43 @@ import {
 } from '@/components/matches/liveMatchArena/helpers';
 import { liveMatchArenaStyles as styles } from '@/components/matches/liveMatchArena/styles';
 import type { ArenaParticipant } from '@/components/matches/liveMatchArena/types';
+import { colors } from '@/theme/tokens';
 
 type GroupRoadRowProps = {
   participant: ArenaParticipant;
   index: number;
 };
+
+const RUNNER_DOT_PALETTE = [
+  colors.runnerDotTeal,
+  colors.runnerDotSky,
+  colors.runnerDotOrange,
+  colors.runnerDotPink,
+  colors.runnerDotLime,
+  colors.runnerDotAmber,
+];
+
+// Stable, RANK-INDEPENDENT dot color for a group runner. Keyed on the participant id
+// (which never changes during a race) so a runner keeps ONE color start to finish — the
+// dot never recolors as ranks swap. (The old logic flipped the leader's dot to gold every
+// time the lead changed, which re-rendered the marker and could stutter on Android.) 'me'
+// stays brand purple and a forfeited runner stays danger red — neither depends on rank.
+function getGroupRunnerDotColors(id: string, isCurrentUser: boolean, forfeited: boolean) {
+  if (forfeited) {
+    return { backgroundColor: colors.dangerVivid, borderColor: colors.dangerBorder };
+  }
+  if (isCurrentUser) {
+    return { backgroundColor: colors.brand, borderColor: colors.brandWashStrong };
+  }
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  return {
+    backgroundColor: RUNNER_DOT_PALETTE[Math.abs(hash) % RUNNER_DOT_PALETTE.length],
+    borderColor: colors.runnerDotBorder,
+  };
+}
 
 const GroupRankColumn = memo(function GroupRankColumn({
   rankLabel,
@@ -48,28 +80,23 @@ const GroupRankColumn = memo(function GroupRankColumn({
 
 const GroupRunnerMarker = memo(function GroupRunnerMarker({
   markerLabel,
-  isCurrentUser,
-  isLeader,
+  backgroundColor,
+  borderColor,
   forfeited,
 }: {
   markerLabel: string;
-  isCurrentUser: boolean;
-  isLeader: boolean;
+  backgroundColor: string;
+  borderColor: string;
   forfeited: boolean;
 }) {
+  const markerStyle = useMemo(
+    () => [styles.groupRunnerMarker, { backgroundColor, borderColor }],
+    [backgroundColor, borderColor],
+  );
+
   return (
     <View style={styles.groupRoadLane}>
-      <View
-        style={[
-          styles.groupRunnerMarker,
-          isCurrentUser
-            ? styles.runnerMarkerCurrent
-            : isLeader
-              ? styles.runnerMarkerLeader
-              : styles.runnerMarkerOpponent,
-          forfeited ? styles.runnerMarkerForfeited : undefined,
-        ]}
-      >
+      <View style={markerStyle}>
         <Text
           style={[
             styles.groupRunnerMarkerText,
@@ -139,6 +166,10 @@ const GroupRoadRow = memo(function GroupRoadRow({
     ],
     [isCurrentUser, participantForfeited],
   );
+  const dotColors = useMemo(
+    () => getGroupRunnerDotColors(participant.id, isCurrentUser, participantForfeited),
+    [participant.id, isCurrentUser, participantForfeited],
+  );
 
   return (
     <View style={rowStyle}>
@@ -149,8 +180,8 @@ const GroupRoadRow = memo(function GroupRoadRow({
       />
       <GroupRunnerMarker
         markerLabel={visualState.markerLabel}
-        isCurrentUser={isCurrentUser}
-        isLeader={Boolean(participant.isLeader)}
+        backgroundColor={dotColors.backgroundColor}
+        borderColor={dotColors.borderColor}
         forfeited={participantForfeited}
       />
       <GroupRunnerMeta

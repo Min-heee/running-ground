@@ -245,10 +245,6 @@ export const liveMatchArenaStyles = StyleSheet.create({
     backgroundColor: colors.darkMuted,
     borderColor: colors.podiumSilver,
   },
-  runnerMarkerLeader: {
-    backgroundColor: colors.podiumGold,
-    borderColor: colors.warningSoft,
-  },
   runnerMarkerForfeited: {
     backgroundColor: colors.dangerVivid,
     borderColor: colors.dangerBorder,

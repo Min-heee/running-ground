@@ -122,6 +122,17 @@ export const colors = {
   podiumBronzeSoft: '#FDEAD7',
   podiumBronzeBorder: '#D97706',
   podiumBronzeText: '#92400E',
+  // Stable per-runner dot palette for the group race board. Assigned by a hash of the
+  // participant id (NOT rank), so a runner keeps ONE color for the whole race — the dot
+  // never recolors as ranks swap (the old isLeader→gold switch caused re-render churn).
+  // 'me' stays brand purple + forfeited stays danger red (both are non-rank states).
+  runnerDotTeal: '#2DD4BF',
+  runnerDotSky: '#38BDF8',
+  runnerDotOrange: '#FB923C',
+  runnerDotPink: '#F472B6',
+  runnerDotLime: '#A3E635',
+  runnerDotAmber: '#FBBF24',
+  runnerDotBorder: 'rgba(255, 255, 255, 0.55)',
   warning: '#F79009',
   warningBright: '#FEF08A',
   warningSoft: '#FEF3C7',
