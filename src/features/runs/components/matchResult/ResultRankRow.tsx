@@ -1,6 +1,8 @@
 import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
+import { getPodiumTheme } from '@/features/league/utils/leagueRanking';
 import type { MatchResultScreenRow } from '@/features/runs/viewModels/matchResultScreenModel';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
@@ -8,21 +10,33 @@ type ResultRankRowProps = {
   row: MatchResultScreenRow;
 };
 
-// One slim ranked row for the GROUP result list: a 'N등' rank chip + name (마크 '나' for
-// isMe) + a 지역 · 페이스 · 시간 stat block. Top-3 get a subtle accent on the chip. This is
-// the SAVED/FINAL result list — intentionally NOT the live progress-track row (no track
-// dot / animated lane); it reuses the dark race-board palette via @/theme/tokens only.
+// One slim ranked row for the GROUP result list: a rank chip + name (마크 '나' for isMe) + a
+// 지역 · 페이스 · 시간 stat block. Top-3 get a 금/은/동 crown chip matching the 지역 랭킹 podium
+// (getPodiumTheme); 4등+ keep a plain '4등' chip. Every row uses the SAME background — the
+// current user is marked only by the small '나' tag, not a tinted row. This is the SAVED/FINAL
+// result list — intentionally NOT the live progress-track row (no track dot / animated lane).
 export const ResultRankRow = memo(function ResultRankRow({ row }: ResultRankRowProps) {
   const rankLabel = typeof row.rank === 'number' ? `${row.rank}등` : '-';
-  const isTopThree = typeof row.rank === 'number' && row.rank >= 1 && row.rank <= 3;
+  const podiumTheme = typeof row.rank === 'number' ? getPodiumTheme(row.rank) : null;
 
   return (
-    <View style={[styles.row, row.isMe ? styles.rowMe : null]}>
-      <View style={[styles.rankChip, isTopThree ? styles.rankChipTop : null]}>
-        <Text style={[styles.rankChipText, isTopThree ? styles.rankChipTextTop : null]}>
-          {rankLabel}
-        </Text>
-      </View>
+    <View style={styles.row}>
+      {podiumTheme ? (
+        <View
+          style={[
+            styles.rankChip,
+            styles.rankChipPodium,
+            { backgroundColor: podiumTheme.backgroundColor, borderColor: podiumTheme.borderColor },
+          ]}
+        >
+          <MaterialCommunityIcons name="crown" size={13} color={podiumTheme.iconColor} />
+          <Text style={[styles.rankChipText, { color: podiumTheme.textColor }]}>{rankLabel}</Text>
+        </View>
+      ) : (
+        <View style={styles.rankChip}>
+          <Text style={styles.rankChipText}>{rankLabel}</Text>
+        </View>
+      )}
 
       <View style={styles.nameColumn}>
         <Text style={styles.nameText} numberOfLines={1}>
@@ -65,10 +79,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.s12,
     paddingVertical: spacing.s14,
   },
-  rowMe: {
-    borderColor: colors.groupResultRowCurrentBorder,
-    backgroundColor: colors.groupResultRowCurrentBg,
-  },
   rankChip: {
     minWidth: 44,
     alignItems: 'center',
@@ -80,17 +90,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xxl,
     paddingVertical: spacing.lg,
   },
-  rankChipTop: {
-    backgroundColor: colors.matchResultPanelHighlightBg,
-    borderColor: colors.matchResultPanelHighlightBorder,
+  rankChipPodium: {
+    flexDirection: 'row',
+    gap: spacing.xxxs,
+    paddingHorizontal: spacing.md,
   },
   rankChipText: {
     color: colors.brandTint,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
-  },
-  rankChipTextTop: {
-    color: colors.white,
   },
   nameColumn: {
     width: 64,
