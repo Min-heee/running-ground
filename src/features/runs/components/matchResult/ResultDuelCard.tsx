@@ -71,12 +71,12 @@ const styles = StyleSheet.create({
     padding: spacing.s16,
   },
   cardWin: {
-    borderColor: colors.matchResultWinBorder,
-    backgroundColor: colors.matchResultWinBg,
+    borderColor: colors.matchResultWinCardBorder,
+    backgroundColor: colors.matchResultWinCardBg,
   },
   cardLose: {
-    borderColor: colors.matchResultLoseBorder,
-    backgroundColor: colors.matchResultLoseBg,
+    borderColor: colors.matchResultLoseCardBorder,
+    backgroundColor: colors.matchResultLoseCardBg,
   },
   headerRow: {
     flexDirection: 'row',
@@ -97,14 +97,14 @@ const styles = StyleSheet.create({
   },
   meBadge: {
     borderRadius: radii.pill,
-    backgroundColor: colors.matchResultPanelHighlightBg,
+    backgroundColor: colors.translucentWhite18,
     borderWidth: 1,
-    borderColor: colors.matchResultPanelHighlightBorder,
+    borderColor: colors.matchResultCardBadgeBorder,
     paddingHorizontal: spacing.xxl,
     paddingVertical: spacing.xxs,
   },
   meBadgeText: {
-    color: colors.brandLighter,
+    color: colors.white,
     fontSize: fontSizes.xxs,
     fontWeight: fontWeights.extraBold,
   },
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     gap: spacing.xxs,
   },
   statLabel: {
-    color: colors.textTertiary,
+    color: colors.matchResultCardLabel,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.bold,
   },

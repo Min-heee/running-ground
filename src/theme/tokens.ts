@@ -133,6 +133,14 @@ export const colors = {
   matchResultWinBg: 'rgba(67, 56, 202, 0.24)',
   matchResultLoseBorder: 'rgba(244, 114, 182, 0.28)',
   matchResultLoseBg: 'rgba(136, 19, 55, 0.22)',
+  // Solid, vivid fills for the dedicated 대결 결과 cards (ResultDuelCard sits on the LIGHT
+  // app surface, so the translucent *Bg tints above wash out — these read as bold color).
+  matchResultWinCardBg: '#4F46E5',
+  matchResultWinCardBorder: '#A5B4FC',
+  matchResultLoseCardBg: '#E11D48',
+  matchResultLoseCardBorder: '#FDA4AF',
+  matchResultCardLabel: 'rgba(255, 255, 255, 0.78)',
+  matchResultCardBadgeBorder: 'rgba(255, 255, 255, 0.45)',
   matchResultDrawBorder: 'rgba(148, 163, 184, 0.32)',
   matchResultDrawBg: 'rgba(30, 41, 59, 0.72)',
   matchResultInProgressBg: 'rgba(15, 23, 42, 0.52)',
