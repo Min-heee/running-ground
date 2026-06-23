@@ -1,25 +1,42 @@
 import Foundation
-import ActivityKit
 
-// SHARED ActivityKit attributes for the RunningGround Live Activity.
+#if canImport(ActivityKit)
+import ActivityKit
+#endif
+
+// SHARED ActivityKit attributes for the RunningGround Live Activity — the MODULE-POD copy.
 //
-// This file lives in targets/live-activity/_shared/ so @bacons/apple-targets links it into BOTH:
-//   1. the WIDGET target (which renders the card from RunActivityAttributes + .ContentState), and
-//   2. the MAIN APP target (where modules/live-activity/ios/LiveActivityModule.swift calls
-//      Activity<RunActivityAttributes>.request / .update / .end).
-// ActivityKit requires the EXACT same attributes type in both targets, so a single shared source of
-// truth here prevents the two from drifting.
+// WHY THIS LIVES IN THE MODULE POD (not only in the widget target):
+//   modules/live-activity/ios/LiveActivityModule.swift calls
+//   `Activity<RunActivityAttributes>.request/.update/.end`. Those references must resolve INSIDE the
+//   LiveActivity CocoaPods pod's own compile unit. @bacons/apple-targets only links files under
+//   targets/live-activity/ into the WIDGET extension (+ formerly the main app via `_shared/`), never
+//   into this pod — so the pod needs its OWN definition of the type, right here. With this file the
+//   pod compiles, the module registers, and requireNativeModule('LiveActivityModule') resolves.
+//
+// DUPLICATE-SYMBOL SAFETY (main app link graph):
+//   This pod is `static_framework = true`, so this type is linked into the MAIN APP exactly once via
+//   the LiveActivity static framework. The widget extension is a SEPARATE binary and compiles its
+//   OWN identical copy (targets/live-activity/RunActivityAttributes.swift). The old
+//   targets/live-activity/_shared/ copy was REMOVED so @bacons no longer ALSO compiles the type into
+//   the main app target — that would have double-defined it in the app's link graph.
+//
+// ACTIVITYKIT APP↔WIDGET MATCHING:
+//   ActivityKit matches a running Activity to the widget's
+//   `ActivityConfiguration(for: RunActivityAttributes.self)` by the attributes type's NAME and its
+//   Codable shape across the app/extension process boundary — NOT by a shared linked symbol. So this
+//   pod copy and the widget copy MUST stay byte-for-byte identical in type name + field names/types
+//   + Codable conformances. They are. Two compilations of an identically-named, identically-encoded
+//   struct in the two binaries is the supported pattern and ActivityKit treats them as the same type.
 //
 // MIRRORS THE TS CONTRACT field-for-field (modules/live-activity/index.ts):
 //   - Attributes (static)  ↔ TS LiveActivityAttributes
 //   - ContentState (live)  ↔ TS LiveActivityContentState
 //   - Runner               ↔ TS LiveActivityRunner
-// The bridge's LiveActivityContentStateRecord / LiveActivityAttributesRecord convert the JS payload
-// into these. Field NAMES match the TS names so the mapping in the bridge is 1:1.
 //
-// Gated to iOS 16.2 (ActivityAttributes + the pushType-less request/update API). The whole file is
-// compiled only when ActivityKit is available; on the main app target the references are already
-// behind `#available(iOS 16.2, *)` in LiveActivityModule.swift.
+// Gated to iOS 16.2 (ActivityAttributes + the pushType-less request/update API), compiled only when
+// ActivityKit is available.
+#if canImport(ActivityKit)
 @available(iOS 16.2, *)
 public struct RunActivityAttributes: ActivityAttributes {
   // ---- Live, frequently-updated state (TS LiveActivityContentState) ----
@@ -100,3 +117,4 @@ public struct RunActivityAttributes: ActivityAttributes {
     self.startedAt = startedAt
   }
 }
+#endif
