@@ -48,6 +48,7 @@ type UseTrackRunRuntimeTraceInput = {
   routeShellHint?: TrackRunShellKind;
   showLiveArena: boolean;
   trackerStatusRef: MutableRefObject<string | null>;
+  wasPartyRunRef: MutableRefObject<boolean>;
 };
 
 export function useTrackRunRuntimeTrace({
@@ -78,6 +79,7 @@ export function useTrackRunRuntimeTrace({
   routeShellHint,
   showLiveArena,
   trackerStatusRef,
+  wasPartyRunRef,
 }: UseTrackRunRuntimeTraceInput) {
   useTrackRunMountTrace({
     focusMatchId,
@@ -103,6 +105,7 @@ export function useTrackRunRuntimeTrace({
   useTrackRunRoomTrace({
     roomLinkedMatchContext,
     roomLinkedMatchContextRef,
+    wasPartyRunRef,
   });
 
   useTrackRunLiveMatchTrace({

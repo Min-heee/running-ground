@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import type { MatchExitSource } from '@/features/runs/lifecycle/matchExitFlow';
+import { isPartyRunForSave } from '@/features/runs/lifecycle/partyRunSourceClassifier';
 import { useRunFinishCommand } from '@/features/runs/hooks/runSaveFlow/useRunFinishCommand';
 import { useRunForfeitCommand } from '@/features/runs/hooks/runSaveFlow/useRunForfeitCommand';
 import { useRunSaveCommand } from '@/features/runs/hooks/runSaveFlow/useRunSaveCommand';
@@ -10,7 +11,14 @@ import type {
 
 export function useRunSaveFlow(input: UseRunSaveFlowInput) {
   const isSaving = input.status === 'saving';
-  const isPartyRun = Boolean(input.roomLinkedMatchContext);
+  // Durable classification: the live roomLinkedMatchContext is ephemeral and can already be
+  // null at the moment an early-forfeited party run is saved (the room is torn down first),
+  // which would mis-save it as 'official' and leak a ranked label + estimated LP. The latch
+  // (wasPartyRunRef) keeps party-ness for the whole run; an official match never sets it.
+  const isPartyRun = isPartyRunForSave({
+    wasPartyRun: input.wasPartyRunRef.current,
+    roomLinkedMatchContext: input.roomLinkedMatchContext,
+  });
   const setMatchLeaving = (source: MatchExitSource, isLeaving: boolean) => {
     if (source === 'duel') {
       input.setIsLeavingDuelMatch(isLeaving);

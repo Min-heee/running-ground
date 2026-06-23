@@ -279,6 +279,10 @@ export function TrackRunExperienceRuntime({
   const duelMatchStatusRef = useRef<RunningMatchStatusResponse | null>(null);
   const groupMatchStatusRef = useRef<RunningMatchStatusResponse | null>(null);
   const roomLinkedMatchContextRef = useRef<RoomLinkedMatchContext | null>(null);
+  // Durable party-run latch (see partyRunSourceClassifier). roomLinkedMatchContext is
+  // ephemeral and drops to null on an early forfeit before the save reads it; this stays
+  // true once the run is known to be a party run, and is reset by the post-run runtime reset.
+  const wasPartyRunRef = useRef(false);
   const duelOpponentForfeitLatchRef = useRef<DuelOpponentForfeitLatch>(null);
   const focusedDuelMatchIdRef = useRef<string | null>(null);
   const focusedGroupMatchIdRef = useRef<string | null>(null);
@@ -1337,6 +1341,7 @@ export function TrackRunExperienceRuntime({
     routeShellHint,
     showLiveArena: shouldRenderLiveArena,
     trackerStatusRef,
+    wasPartyRunRef,
   });
   const backHref: Href = '/my-activity';
   const discardRedirectHref: Href | null = isTabMode ? null : '/my-activity';
@@ -1984,6 +1989,9 @@ export function TrackRunExperienceRuntime({
       showLiveArena: false,
     };
     roomLinkedMatchContextRef.current = null;
+    // Drop the durable party-run latch so the NEXT run (e.g. a back-to-back official
+    // matchmaking match) is classified fresh and never inherits this run's party-ness.
+    wasPartyRunRef.current = false;
     focusedDuelMatchIdRef.current = null;
     focusedGroupMatchIdRef.current = null;
     matchProgressHeartbeatRef.current = 0;
@@ -2423,6 +2431,7 @@ export function TrackRunExperienceRuntime({
     setIsLeavingGroupMatch,
     setForceOpenActiveMatch,
     roomLinkedMatchContext,
+    wasPartyRunRef,
     trackedMatchResult,
     totalStepsRef,
     pendingForfeitMatchRef,

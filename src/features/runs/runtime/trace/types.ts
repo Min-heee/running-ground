@@ -38,6 +38,11 @@ export type TrackRunShellTraceInput = {
 export type TrackRunRoomTraceInput = {
   roomLinkedMatchContext: PartyRunLinkedMatchContext | null;
   roomLinkedMatchContextRef: MutableRefObject<PartyRunLinkedMatchContext | null>;
+  // Durable party-run latch. Once the current run is known to have come from a party room
+  // (roomLinkedMatchContext became truthy), this stays true for the rest of the run so an
+  // early forfeit — which tears the room down before the save reads the ephemeral context —
+  // still classifies as 'party'. Reset to false on the post-run runtime reset.
+  wasPartyRunRef: MutableRefObject<boolean>;
 };
 
 export type TrackRunLiveMatchTraceInput = {

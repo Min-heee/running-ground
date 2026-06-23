@@ -68,6 +68,11 @@ export type UseRunSaveFlowInput = {
   setIsLeavingGroupMatch: Dispatch<SetStateAction<boolean>>;
   setForceOpenActiveMatch: Dispatch<SetStateAction<boolean>>;
   roomLinkedMatchContext: RoomLinkedMatchContext;
+  // Durable party-run latch (see partyRunSourceClassifier). True for the whole run once the
+  // run is known to have started from a party room, even after the ephemeral
+  // roomLinkedMatchContext drops to null on an early forfeit. Combined with the live context so
+  // a party run ALWAYS saves/forfeits as 'party'; an official matchmaking match never sets it.
+  wasPartyRunRef: MutableRefObject<boolean>;
   trackedMatchResult?: RunMatchResult | null;
   totalStepsRef: MutableRefObject<number>;
   pendingForfeitMatchRef: MutableRefObject<string | null>;
