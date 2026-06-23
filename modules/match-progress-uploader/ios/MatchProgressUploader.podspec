@@ -5,9 +5,13 @@ Pod::Spec.new do |s|
   s.description    = 'A sample project description'
   s.author         = ''
   s.homepage       = 'https://docs.expo.dev/modules/'
+  # Must be <= the app's iOS deployment target (Expo SDK 54 default 15.1). A higher floor makes Expo
+  # autolinking's `Pod::Platform#supports?` check fail, silently DROPPING this pod from the Pods
+  # project so MatchProgressUploaderModule never links on iOS. The Swift uses only iOS 14-era Core
+  # Location APIs, so a 15.1 floor links + runs safely.
   s.platforms      = {
-    :ios => '16.4',
-    :tvos => '16.4'
+    :ios => '15.1',
+    :tvos => '15.1'
   }
   s.source         = { git: '' }
   s.static_framework = true
