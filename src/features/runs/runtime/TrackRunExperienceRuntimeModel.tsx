@@ -23,6 +23,7 @@ import {
 import { useMatchResultController } from '@/features/runs/hooks/useMatchResultController';
 import { useLiveMatchProgress } from '@/features/runs/viewModels/useLiveMatchProgress';
 import { useLiveGapNotificationScheduler } from '@/features/runs/liveGap/useLiveGapNotificationScheduler';
+import { useOpponentForfeitVoice } from '@/features/runs/liveGap/useOpponentForfeitVoice';
 import {
   applyDuelOpponentForfeitLatch,
   resolveDuelOpponentForfeitLatch,
@@ -943,6 +944,15 @@ export function TrackRunExperienceRuntime({
     opponentPaceLabel: effectiveDuelOpponentArenaPace,
     duelGapKm: duelLiveGapKm,
     groupStandings: groupLiveStandings,
+  });
+  // Speak a one-shot ko-KR forfeit announcement when an opponent (duel) / any other
+  // participant (group) quits, so a backgrounded runner hears it. Reads the SAME
+  // forfeit-latched duel opponent and group standings the arena uses.
+  useOpponentForfeitVoice({
+    active: isRunning && (matchMode === 'duel' || matchMode === 'group'),
+    matchMode: matchMode === 'group' ? 'group' : 'duel',
+    opponent: effectiveDuelOpponentForLive,
+    standings: groupLiveStandings,
   });
   const roomLinkedGroupPlaceholderParticipants = useMemo(() => buildRoomLinkedGroupPlaceholderParticipants({
     room: linkedRuntimeRoom,
