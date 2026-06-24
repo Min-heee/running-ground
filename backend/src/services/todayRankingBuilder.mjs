@@ -1,3 +1,5 @@
+import { buildCompetitiveRunsByUserId } from '../lib/competitiveRuns.mjs';
+
 const TODAY_RANKING_LIMIT = 50;
 const VALID_TODAY_RANKING_CATEGORIES = new Set(['pace', 'distance', 'streak']);
 
@@ -132,11 +134,11 @@ function buildDistanceEntries({ users, runsByUserId, todayKey, currentUserId }) 
   });
 }
 
-function buildStreakEntries({ users, currentUserId, getMetricsForUser }) {
+function buildStreakEntries({ users, currentUserId, getCompetitiveMetricsForUser }) {
   const entries = [];
 
   for (const user of users) {
-    const streakDays = Number(getMetricsForUser(user.id)?.currentStreakDays ?? 0);
+    const streakDays = Number(getCompetitiveMetricsForUser(user.id)?.currentStreakDays ?? 0);
 
     if (!Number.isFinite(streakDays) || streakDays <= 0) {
       continue;
@@ -161,7 +163,7 @@ function buildStreakEntries({ users, currentUserId, getMetricsForUser }) {
 export function buildTodayRanking({
   category,
   currentUserId,
-  getMetricsForUser,
+  buildUserMetrics,
   rankedAt = new Date(),
   runsByUserId,
   users,
@@ -170,14 +172,37 @@ export function buildTodayRanking({
     throw new Error(`Unsupported today ranking category: ${category}`);
   }
 
+  if (typeof buildUserMetrics !== 'function') {
+    throw new Error('buildTodayRanking requires a buildUserMetrics function.');
+  }
+
   const rankedAtDate = rankedAt instanceof Date ? rankedAt : new Date(rankedAt);
   const safeRankedAt = Number.isNaN(rankedAtDate.getTime()) ? new Date() : rankedAtDate;
   const todayKey = getDateKey(safeRankedAt);
+
+  // Imported runs (Apple Health / Health Connect / NRC / Strava / Garmin / MyNB
+  // and manual entries) are display-only and must never feed competitive
+  // leaderboards. Narrow every user's runs to the competitive-eligible set
+  // before aggregating any category, and recompute streaks from that same set
+  // so an imported run can't extend a competitive streak.
+  const competitiveRunsByUserId = buildCompetitiveRunsByUserId(runsByUserId);
+  const competitiveMetricsByUserId = new Map();
+  const getCompetitiveMetricsForUser = (userId) => {
+    if (!competitiveMetricsByUserId.has(userId)) {
+      competitiveMetricsByUserId.set(
+        userId,
+        buildUserMetrics(competitiveRunsByUserId.get(userId) ?? []),
+      );
+    }
+
+    return competitiveMetricsByUserId.get(userId);
+  };
+
   const rankedEntries = category === 'pace'
-    ? buildPaceEntries({ users, runsByUserId, todayKey, currentUserId })
+    ? buildPaceEntries({ users, runsByUserId: competitiveRunsByUserId, todayKey, currentUserId })
     : category === 'distance'
-      ? buildDistanceEntries({ users, runsByUserId, todayKey, currentUserId })
-      : buildStreakEntries({ users, currentUserId, getMetricsForUser });
+      ? buildDistanceEntries({ users, runsByUserId: competitiveRunsByUserId, todayKey, currentUserId })
+      : buildStreakEntries({ users, currentUserId, getCompetitiveMetricsForUser });
 
   return {
     category,

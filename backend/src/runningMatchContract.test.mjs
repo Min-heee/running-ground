@@ -1264,9 +1264,10 @@ await runTest('match progress finishes within goal distance tolerance before exa
   store.matchSessions[0].distanceKm = 0.5;
 
   await withBackend(store, async ({ request }) => {
+    // Tolerance is 5m (0.005km): for a 0.5km goal the finish threshold is 0.495km.
     const belowGoal = await request('host-token', 'POST', '/api/running/matches/progress', {
       matchId: 'duel-contract-match',
-      distanceKm: 0.479,
+      distanceKm: 0.49,
       elapsedSeconds: 1500,
       currentPace: '05:00/km',
       status: 'running',
@@ -1275,7 +1276,7 @@ await runTest('match progress finishes within goal distance tolerance before exa
 
     const reachedGoal = await request('host-token', 'POST', '/api/running/matches/progress', {
       matchId: 'duel-contract-match',
-      distanceKm: 0.48,
+      distanceKm: 0.496,
       elapsedSeconds: 1530,
       currentPace: '05:02/km',
       status: 'running',
@@ -1289,7 +1290,8 @@ await runTest('match progress finishes within goal distance tolerance before exa
       matchId: 'duel-contract-match',
     });
     assert.equal(guestView.opponent.liveStatus, 'finished');
-    assert.equal(guestView.opponent.liveDistanceKm, 0.48);
+    // The opponent view rounds liveDistanceKm to 2 decimals, so 0.496 surfaces as 0.50.
+    assert.equal(guestView.opponent.liveDistanceKm, 0.5);
     assert.equal(typeof guestView.opponent.finishedAt, 'string');
   });
 });

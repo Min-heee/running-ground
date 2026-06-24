@@ -4,6 +4,7 @@ import type { ConnectedSource } from '@/domain';
 import {
   getCoverageSummaryForPlatform,
   getPrimarySourceForCatalogPlatform,
+  getPrimarySourceTypeForPlatform,
   getRecommendedSourcesForPlatform,
   getSourceByTypeFromCatalog,
   sortSourcesByPriorityWithMetadata,
@@ -113,6 +114,38 @@ test('source catalog queries map sources by status and primary source', () => {
     connected: [sources[0]],
     available: [sources[1]],
   });
+});
+
+test('platform-native import target resolves by platform regardless of connected brand source', () => {
+  // The device-import path resolves the native reader purely by platform
+  // (iOS → Apple Health, Android → Health Connect), NOT by which brand source
+  // the user connected. A user who connected only NRC / Strava / Garmin must
+  // still resolve to the platform store, because brand apps route their workouts
+  // into it. This is what unblocks the import for brand-source-only users.
+  assert.equal(getPrimarySourceTypeForPlatform('ios'), 'apple_health');
+  assert.equal(getPrimarySourceTypeForPlatform('android'), 'health_connect');
+  assert.equal(getPrimarySourceTypeForPlatform('all'), null);
+
+  // Connecting NRC (a brand source) on Android does not change the platform
+  // resolution: the import still targets Health Connect.
+  const brandOnlySources = [
+    source({ connected: true, sourceType: 'nrc' }),
+    source({ connected: false, sourceType: 'health_connect' }),
+  ];
+  assert.equal(
+    getPrimarySourceForCatalogPlatform(brandOnlySources, 'android')?.sourceType,
+    'health_connect',
+  );
+
+  // Same on iOS with Strava connected: still resolves to Apple Health.
+  const stravaOnlySources = [
+    source({ connected: true, sourceType: 'strava' }),
+    source({ connected: false, sourceType: 'apple_health' }),
+  ];
+  assert.equal(
+    getPrimarySourceForCatalogPlatform(stravaOnlySources, 'ios')?.sourceType,
+    'apple_health',
+  );
 });
 
 test('source catalog queries build coverage summary from recommended sources', () => {

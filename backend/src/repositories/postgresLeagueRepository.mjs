@@ -469,12 +469,11 @@ export function createPostgresLeagueRepository({
       const users = await loadAllUsers(database);
       const userIds = users.map((user) => user.id);
       const runsByUserId = await loadRunsByUserIds(database, userIds);
-      const metricsByUserId = buildMetricsByUserId(runsByUserId, userIds, buildUserMetrics);
 
       return buildTodayRanking({
         category: safeCategory,
         currentUserId,
-        getMetricsForUser: (userId) => metricsByUserId.get(userId),
+        buildUserMetrics,
         runsByUserId,
         users,
       });

@@ -1,5 +1,19 @@
+import { Platform } from 'react-native';
+
 import type { NativeHealthImportResult } from '@/integrations/nativeHealth';
 import type { IntegrationSyncResponse } from '@/lib/api/types';
+
+// HealthKit never tells us whether a 0-result read means "no runs" or
+// "permission was silently denied", so on iOS we must steer the user to check
+// permissions / that their running app actually saved to Apple 건강.
+const IOS_ZERO_IMPORT_HINT =
+  '가져온 기록이 없어. 건강 앱 권한(설정 > 개인정보 보호 > 건강)을 확인하거나, 러닝 앱이 건강에 기록을 저장했는지 봐줘.';
+const ANDROID_ZERO_IMPORT_HINT =
+  '가져온 기록이 없어. Health Connect 권한을 확인하거나, 러닝 앱이 Health Connect에 기록을 저장했는지 봐줘.';
+
+export function buildZeroImportGuidance() {
+  return Platform.OS === 'ios' ? IOS_ZERO_IMPORT_HINT : ANDROID_ZERO_IMPORT_HINT;
+}
 
 export function buildSyncSummary(result: IntegrationSyncResponse) {
   if (result.importedRuns === 0 && result.duplicateRuns > 0) {
@@ -19,7 +33,7 @@ export function buildSyncSummary(result: IntegrationSyncResponse) {
 
 export function buildImportDiagnosisHint(result: NativeHealthImportResult) {
   if (result.fetchedRuns === 0) {
-    return '기기 허브 쪽에 아직 새 러닝이 없거나, 권한/동기화가 덜 끝난 상태일 가능성이 커.';
+    return buildZeroImportGuidance();
   }
 
   if (!result.syncResult) {

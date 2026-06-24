@@ -238,7 +238,7 @@ export async function requestHealthConnect(): Promise<boolean> {
     // Triggers the native authorization sheet via readRuns(); a thrown error (no native module,
     // user dismissed the sheet, nothing to import) is swallowed so we still report connected.
     try {
-      await importRunsFromRecommendedNativeHealthSource(sources);
+      await importRunsFromRecommendedNativeHealthSource();
     } catch {
       // Connection succeeded even if the inline read found nothing / was declined — that's fine.
     }

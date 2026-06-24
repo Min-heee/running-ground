@@ -2,6 +2,7 @@ import {
   buildTodayRanking,
   isTodayRankingCategory,
 } from '../services/todayRankingBuilder.mjs';
+import { buildUserRunMetrics } from '../points.mjs';
 import { ensureUserRankState } from '../lib/userStoreHelpers.mjs';
 import { LP_PER_TIER, RANK_TIERS } from '../lib/rankSystem.mjs';
 
@@ -270,7 +271,7 @@ export function createJsonLeagueRepository({
       return buildTodayRanking({
         category: safeCategory,
         currentUserId: user.id,
-        getMetricsForUser: (userId) => getUserMetrics(store, userId),
+        buildUserMetrics: buildUserRunMetrics,
         runsByUserId,
         users,
       });

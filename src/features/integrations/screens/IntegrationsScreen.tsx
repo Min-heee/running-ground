@@ -15,7 +15,10 @@ import {
   getRecommendationCopy,
 } from '@/features/integrations/sourceCatalog';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { getRecommendedNativeHealthReadiness } from '@/integrations/nativeHealth';
+import {
+  getNativeHealthImportEligibility,
+  getRecommendedNativeHealthReadiness,
+} from '@/integrations/nativeHealth';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 export default function IntegrationsScreen() {
@@ -44,6 +47,9 @@ export default function IntegrationsScreen() {
   const platform = getCurrentDevicePlatform();
   const coverage = integrationStatus ? getCoverageSummary(sources, platform) : null;
   const nativeHealthReadiness = getRecommendedNativeHealthReadiness(sources);
+  // Device import depends only on platform/runtime, not on which brand source is
+  // connected — brand apps write into the platform health store anyway.
+  const canImportFromDevice = Boolean(getNativeHealthImportEligibility()?.canImport);
 
   if (loading) {
     return <BrandLoadingView />;
@@ -80,7 +86,7 @@ export default function IntegrationsScreen() {
       {integrationStatus ? (
         <>
           <NativeHealthReadinessCard sources={sources}>
-            {nativeHealthReadiness?.state === 'config_ready' ? (
+            {canImportFromDevice ? (
               <PrimaryButton
                 label={deviceImporting ? '기기 기록 가져오는 중...' : '기기에서 기록 가져오기'}
                 onPress={handleImportFromDevice}
@@ -98,6 +104,7 @@ export default function IntegrationsScreen() {
           <IntegrationJourneyCard
             sources={sources}
             nativeHealthReadiness={nativeHealthReadiness}
+            importEligible={canImportFromDevice}
             actionSourceType={actionSourceType}
             syncing={syncing}
             importing={deviceImporting}

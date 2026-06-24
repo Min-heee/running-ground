@@ -18,6 +18,10 @@ type IntegrationJourneyCardProps = {
   sources: ConnectedSource[];
   platform?: DevicePlatform;
   nativeHealthReadiness?: NativeHealthReadiness | null;
+  // Whether the platform health store can be read right now (right platform +
+  // custom build), independent of which brand source is connected. When set,
+  // this drives whether the device-import button is shown.
+  importEligible?: boolean;
   actionSourceType?: string | null;
   syncing?: boolean;
   importing?: boolean;
@@ -38,6 +42,7 @@ export function IntegrationJourneyCard({
   sources,
   platform = getCurrentDevicePlatform(),
   nativeHealthReadiness = null,
+  importEligible,
   actionSourceType,
   syncing = false,
   importing = false,
@@ -59,6 +64,10 @@ export function IntegrationJourneyCard({
   const manualConnected = Boolean(manualSource?.connected);
   const deviceImportCompleted = syncedCount > 0 || pendingImportCount > 0;
   const canImportFromDevice = nativeHealthReadiness?.state === 'config_ready';
+  // The import button can appear whenever the platform store is readable, even
+  // if the connected source is a brand app (NRC / Strava / Garmin …). Fall back
+  // to the display readiness when the caller doesn't pass an explicit signal.
+  const showImportButton = importEligible ?? canImportFromDevice;
 
   const headline = !primaryConnected
     ? `${platformLabel}에서는 ${primarySource?.displayName ?? '기본 건강 허브'}부터 연결하면 돼.`
@@ -171,7 +180,7 @@ export function IntegrationJourneyCard({
           />
         ) : null}
 
-        {canImportFromDevice && onImportDevice ? (
+        {showImportButton && onImportDevice ? (
           <PrimaryButton
             label={importing ? '기기 기록 가져오는 중...' : '기기 기록 가져오기'}
             onPress={onImportDevice}

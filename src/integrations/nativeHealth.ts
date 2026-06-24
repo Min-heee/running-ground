@@ -202,6 +202,42 @@ export function getRecommendedNativeHealthReadiness(connectedSources: ConnectedS
   return getNativeHealthReadiness(preferredSource, connectedSources);
 }
 
+export type NativeHealthImportEligibility = {
+  sourceType: NativeHealthSourceType;
+  // Whether the device import button should be shown / be tappable.
+  canImport: boolean;
+  // Present when canImport is false, so the UI can explain why.
+  blockedReason?: string;
+};
+
+// Decide whether the platform-native health store import can run, INDEPENDENTLY
+// of which brand source (NRC / Strava / Garmin / MyNB) the user selected as
+// their display source. Brand apps route their workouts INTO the platform store
+// (iOS → Apple Health, Android → Health Connect) anyway, so as long as we're on
+// the right platform in a custom build with the reader linked, we can read the
+// device. We deliberately do NOT require the platform source itself
+// (apple_health / health_connect) to be the connected exclusive source.
+export function getNativeHealthImportEligibility(): NativeHealthImportEligibility | null {
+  const preferredSource = getPreferredNativeHealthSource();
+
+  if (!preferredSource) {
+    return null;
+  }
+
+  if (isExpoGoRuntime()) {
+    return {
+      sourceType: preferredSource,
+      canImport: false,
+      blockedReason: 'Expo Go에서는 기기 건강 데이터를 읽을 수 없어. 개발 빌드나 출시 빌드에서 가져와줘.',
+    };
+  }
+
+  return {
+    sourceType: preferredSource,
+    canImport: true,
+  };
+}
+
 function resolveNativeHealthBridgeModule(sourceType: NativeHealthSourceType): NativeHealthBridgeModule | null {
   // Mixed resolution. Both paths return null when the native side is not linked into this build
   // (e.g. Expo Go) so we degrade to the "reader 모듈이 아직 이 빌드에 연결되지 않았어" error
@@ -341,12 +377,14 @@ export async function readRunsFromNativeHealthSource(
 
 export async function importRunsFromNativeHealthSource(
   sourceType: NativeHealthSourceType,
-  connectedSources: ConnectedSource[],
 ): Promise<NativeHealthImportResult> {
-  const readiness = getNativeHealthReadiness(sourceType, connectedSources);
+  // Gate on platform/runtime eligibility only — NOT on which brand source is
+  // connected. Brand apps (NRC / Strava / Garmin / Samsung Health …) write their
+  // workouts into the platform health store, so we read that store directly.
+  const eligibility = getNativeHealthImportEligibility();
 
-  if (readiness.state !== 'config_ready') {
-    throw new Error(readiness.description);
+  if (!eligibility?.canImport) {
+    throw new Error(eligibility?.blockedReason ?? '이 기기에서는 자동 건강 연동을 바로 실행할 수 없어.');
   }
 
   const runs = await readRunsFromNativeHealthSource(sourceType);
@@ -373,14 +411,12 @@ export async function importRunsFromNativeHealthSource(
   };
 }
 
-export async function importRunsFromRecommendedNativeHealthSource(
-  connectedSources: ConnectedSource[],
-): Promise<NativeHealthImportResult> {
+export async function importRunsFromRecommendedNativeHealthSource(): Promise<NativeHealthImportResult> {
   const preferredSource = getPreferredNativeHealthSource();
 
   if (!preferredSource) {
     throw new Error('이 기기에서는 자동 건강 연동을 바로 실행할 수 없어.');
   }
 
-  return importRunsFromNativeHealthSource(preferredSource, connectedSources);
+  return importRunsFromNativeHealthSource(preferredSource);
 }

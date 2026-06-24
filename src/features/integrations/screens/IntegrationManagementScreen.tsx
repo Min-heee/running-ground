@@ -14,7 +14,7 @@ import {
 } from '@/features/integrations/hooks/useIntegrationActions';
 import { getCurrentDevicePlatform } from '@/features/integrations/sourceCatalog';
 import { buildSyncSummary } from '@/features/integrations/utils/integrationMessages';
-import { getRecommendedNativeHealthReadiness } from '@/integrations/nativeHealth';
+import { getNativeHealthImportEligibility } from '@/integrations/nativeHealth';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 export default function IntegrationManagementScreen() {
@@ -48,7 +48,10 @@ export default function IntegrationManagementScreen() {
   });
 
   const platform = getCurrentDevicePlatform();
-  const nativeHealthReadiness = getRecommendedNativeHealthReadiness(sources);
+  // Show the device-import button whenever the platform health store can be read
+  // (right platform + custom build), regardless of which brand source the user
+  // connected — brand apps route their workouts into the platform store anyway.
+  const importEligibility = getNativeHealthImportEligibility();
   const backHref = returnTo === 'connect-sources' ? '/connect-sources' : '/(tabs)/mypage';
   const backLabel = returnTo === 'connect-sources' ? '연동 시작으로 돌아가기' : '마이페이지로 돌아가기';
 
@@ -74,17 +77,21 @@ export default function IntegrationManagementScreen() {
       {integrationStatus ? (
         <>
           <Card style={styles.syncActionCard}>
-            <Text style={styles.stateTitle}>기록 동기화</Text>
-            <Text style={styles.helperText}>연결된 자동 소스에서 최신 러닝 기록을 다시 확인해요.</Text>
-            {nativeHealthReadiness?.state === 'config_ready' ? (
+            <Text style={styles.stateTitle}>기록 가져오기</Text>
+            <Text style={styles.helperText}>
+              소스를 연결하는 건 어디서 가져올지 고르는 것뿐이야. 실제로 러닝 기록을 끌어오려면 아래 [기기에서 기록 가져오기]를 눌러줘.
+            </Text>
+            {importEligibility?.canImport ? (
               <PrimaryButton
                 label={deviceImporting ? '기기 기록 가져오는 중...' : '기기에서 기록 가져오기'}
                 onPress={handleImportFromDevice}
                 disabled={deviceImporting}
               />
+            ) : importEligibility?.blockedReason ? (
+              <Text style={styles.blockedText}>{importEligibility.blockedReason}</Text>
             ) : null}
             <SecondaryButton
-              label={syncing ? '동기화 중...' : '동기화 다시 하기'}
+              label={syncing ? '확인 중...' : '다시 확인하기'}
               onPress={handleSync}
               disabled={syncing}
             />
@@ -128,6 +135,10 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   helperText: {
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  blockedText: {
     color: colors.textSecondary,
     lineHeight: 20,
   },

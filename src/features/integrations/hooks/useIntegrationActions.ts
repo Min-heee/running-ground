@@ -17,6 +17,7 @@ import {
   getConnectedExclusiveSources,
   isExclusiveIntegrationSourceType,
 } from '@/features/integrations/sourceCatalog';
+import { buildZeroImportGuidance } from '@/features/integrations/utils/integrationMessages';
 
 type UseIntegrationActionsOptions = {
   loadErrorMessage: string;
@@ -36,7 +37,7 @@ function buildDefaultSyncMessage(result: IntegrationSyncResponse) {
 
 function buildDefaultDeviceImportMessage(result: NativeHealthImportResult) {
   if (result.fetchedRuns === 0) {
-    return `${result.sourceLabel}에서 아직 가져올 새 기록을 찾지 못했어.`;
+    return buildZeroImportGuidance();
   }
 
   return `${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽었고, ${result.syncResult?.importedRuns ?? 0}개를 새로 반영했어.`;
@@ -44,7 +45,7 @@ function buildDefaultDeviceImportMessage(result: NativeHealthImportResult) {
 
 function buildManagementDeviceImportMessage(result: NativeHealthImportResult) {
   if (result.fetchedRuns === 0) {
-    return `${result.sourceLabel}에서 아직 가져올 새 기록을 찾지 못했어.`;
+    return buildZeroImportGuidance();
   }
 
   if (result.syncResult?.importedRuns === 0 && result.syncResult.duplicateRuns > 0) {
@@ -185,7 +186,7 @@ export function useIntegrationActions({
     setLastImportResult(null);
 
     try {
-      const result = await importRunsFromRecommendedNativeHealthSource(sources);
+      const result = await importRunsFromRecommendedNativeHealthSource();
       setLastImportResult(result);
 
       if (result.syncResult) {
@@ -200,7 +201,7 @@ export function useIntegrationActions({
     } finally {
       setDeviceImporting(false);
     }
-  }, [deviceImportErrorMessage, deviceImporting, formatDeviceImportMessage, sources]);
+  }, [deviceImportErrorMessage, deviceImporting, formatDeviceImportMessage]);
 
   return {
     actionError,
