@@ -12,8 +12,7 @@ import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 // A matched 1:1 (duel) opens the full-screen reservation waiting room (modeled on
 // the party room). The room itself renders the countdown + hands off to the arena
-// auto-open at the slot — so tapping the card before the arena window is valid for
-// duels (unlike group items, which only open at the ≤20s arena handoff).
+// auto-open at the slot — so tapping the card before the arena window is valid.
 function openDuelReservationRoom(match: UpcomingRunningMatchItem) {
   router.push({
     pathname: '/duel-reservation',
@@ -21,6 +20,22 @@ function openDuelReservationRoom(match: UpcomingRunningMatchItem) {
       matchId: match.matchId,
       distanceKm: String(match.distanceKm),
       slotStartAt: match.slotStartAt,
+      isTestMatch: match.isTestMatch ? '1' : '0',
+    },
+  });
+}
+
+// A matched (matchmade) group opens its own reservation waiting room, the group
+// analog of the duel room — same countdown + arena auto-open handoff, but listing
+// the whole roster instead of a 나/상대 pair.
+function openGroupReservationRoom(match: UpcomingRunningMatchItem) {
+  router.push({
+    pathname: '/group-reservation',
+    params: {
+      matchId: match.matchId,
+      distanceKm: String(match.distanceKm),
+      slotStartAt: match.slotStartAt,
+      participantCount: String(match.participantCount),
       isTestMatch: match.isTestMatch ? '1' : '0',
     },
   });
@@ -48,14 +63,18 @@ const UpcomingMatchRow = memo(function UpcomingMatchRow({
   onCancelMatch: (match: UpcomingRunningMatchItem) => void;
 }) {
   const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
-  const { canOpenArena, opensReservationRoom, isTappable } = resolveUpcomingMatchInteraction(
+  const { canOpenArena, opensReservationRoom, reservationRoomMode, isTappable } = resolveUpcomingMatchInteraction(
     match,
     remainingSeconds,
   );
 
   const handleOpenMatch = useCallback(() => {
     if (opensReservationRoom) {
-      openDuelReservationRoom(match);
+      if (reservationRoomMode === 'group') {
+        openGroupReservationRoom(match);
+      } else {
+        openDuelReservationRoom(match);
+      }
       return;
     }
 
@@ -64,7 +83,7 @@ const UpcomingMatchRow = memo(function UpcomingMatchRow({
     }
 
     onOpenMatch(match);
-  }, [canOpenArena, match, onOpenMatch, opensReservationRoom]);
+  }, [canOpenArena, match, onOpenMatch, opensReservationRoom, reservationRoomMode]);
 
   const handleCancelMatch = useCallback(() => {
     onCancelMatch(match);

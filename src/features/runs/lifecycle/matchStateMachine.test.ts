@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { RunningMatchStatusResponse } from '@/lib/api/types';
 import {
   buildDuelReservationRoomView,
+  buildGroupReservationRoomView,
   buildPartyRunFlowSnapshot,
   buildMatchParticipantStatusLabel,
   buildMatchTransitionNotice,
@@ -561,6 +562,127 @@ test('duel reservation room view locks cancel when the server says canCancel:fal
     fallbackSlotStartAt: null,
     fallbackDistanceKm: null,
     fallbackIsTestMatch: false,
+    syncedNowMs: Date.parse(status.slotStartAt) - 30 * 60 * 1000,
+  });
+
+  assert.equal(view.canCancel, false);
+  assert.equal(view.cancelLocked, true);
+});
+
+function buildGroupParticipant(
+  seedRank: number,
+  name: string,
+): NonNullable<RunningMatchStatusResponse['participants']>[number] {
+  return {
+    id: `g-${seedRank}`,
+    name,
+    districtName: '강남구',
+    averagePace: "5'30\"",
+    levelLabel: '러너',
+    weeklyDistanceKm: 12,
+    lifetimeDistanceKm: 200,
+    seedRank,
+    seedSummary: '',
+  };
+}
+
+function buildGroupStatus(
+  overrides: Partial<RunningMatchStatusResponse> = {},
+): RunningMatchStatusResponse {
+  return {
+    success: true,
+    mode: 'group',
+    state: 'matched',
+    distanceKm: 5,
+    slotStartAt: '2026-06-24T02:00:00.000Z',
+    slotLabel: '11:00',
+    paceBandLabel: '',
+    levelBandLabel: '',
+    criteriaSummary: '',
+    estimatedWaitMinutes: 0,
+    participantCount: 3,
+    acceptedCount: 3,
+    capacity: 3,
+    userAccepted: true,
+    readyToStart: false,
+    canCancel: true,
+    mySeedRank: 2,
+    // Deliberately out of order to prove the view sorts by seedRank.
+    participants: [
+      buildGroupParticipant(3, '박러너'),
+      buildGroupParticipant(1, '김러너'),
+      buildGroupParticipant(2, '이러너'),
+    ],
+    ...overrides,
+  };
+}
+
+test('group reservation room view lists the whole roster ordered by seedRank, marks 나', () => {
+  const status = buildGroupStatus();
+  const slotStartMs = Date.parse(status.slotStartAt);
+
+  const view = buildGroupReservationRoomView({
+    matchStatus: status,
+    fallbackSlotStartAt: null,
+    fallbackDistanceKm: null,
+    fallbackIsTestMatch: false,
+    fallbackParticipantCount: null,
+    syncedNowMs: slotStartMs - 5 * 60 * 1000,
+  });
+
+  assert.equal(view.distanceLabel, '5.0km');
+  assert.equal(view.participantCountLabel, '3명');
+  assert.equal(view.isTestMatch, false);
+  assert.equal(view.canCancel, true);
+  assert.equal(view.cancelLocked, false);
+  assert.equal(view.startTimeLabel, status.slotStartAt);
+  assert.equal(view.reservation.statusLabel, '5분 남음');
+  assert.equal(view.autoStartNotice, '시작 시간이 되면 자동으로 대결이 시작돼요.');
+  // Sorted by seedRank 1,2,3.
+  assert.deepEqual(
+    view.participants.map((participant) => participant.name),
+    ['김러너', '나', '박러너'],
+  );
+  // mySeedRank === 2 -> the seedRank-2 member is 나.
+  assert.equal(view.participants[1].isSelf, true);
+  assert.equal(view.participants[1].badgeLabel, '나');
+  assert.equal(view.participants[0].isSelf, false);
+  assert.equal(view.participants[0].badgeLabel, '순서 1');
+});
+
+test('group reservation room view falls back to route params before status loads', () => {
+  const slotStartAt = '2026-06-24T02:00:00.000Z';
+  const slotStartMs = Date.parse(slotStartAt);
+
+  const view = buildGroupReservationRoomView({
+    matchStatus: null,
+    fallbackSlotStartAt: slotStartAt,
+    fallbackDistanceKm: 7,
+    fallbackIsTestMatch: true,
+    fallbackParticipantCount: 4,
+    syncedNowMs: slotStartMs - 60 * 1000,
+  });
+
+  assert.equal(view.distanceLabel, '7.0km');
+  assert.equal(view.isTestMatch, true);
+  assert.equal(view.participantCountLabel, '4명');
+  assert.equal(view.canCancel, true);
+  assert.equal(view.cancelLocked, false);
+  assert.equal(view.startTimeLabel, slotStartAt);
+  assert.equal(view.autoStartNotice, '테스트 카운트다운이 끝나면 자동으로 대결이 시작돼요.');
+  // No roster yet -> empty list (the screen shows a loading line).
+  assert.equal(view.participants.length, 0);
+});
+
+test('group reservation room view locks cancel when the server says canCancel:false', () => {
+  const status = buildGroupStatus({ canCancel: false });
+
+  const view = buildGroupReservationRoomView({
+    matchStatus: status,
+    fallbackSlotStartAt: null,
+    fallbackDistanceKm: null,
+    fallbackIsTestMatch: false,
+    fallbackParticipantCount: null,
     syncedNowMs: Date.parse(status.slotStartAt) - 30 * 60 * 1000,
   });
 

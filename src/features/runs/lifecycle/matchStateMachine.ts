@@ -1,4 +1,5 @@
 import type {
+  GroupMatchParticipant,
   RunningMatchState,
   RunningMatchStatusResponse,
 } from '@/lib/api/types';
@@ -576,6 +577,130 @@ export function buildDuelReservationRoomView({
     distanceLabel: typeof distanceKm === 'number' ? `${distanceKm.toFixed(1)}km` : '거리 미정',
     startTimeLabel: slotStartAt ?? null,
     participants: buildDuelReservationParticipants(matchStatus),
+    autoStartNotice: isTestMatch
+      ? '테스트 카운트다운이 끝나면 자동으로 대결이 시작돼요.'
+      : '시작 시간이 되면 자동으로 대결이 시작돼요.',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Group reservation ROOM view (full-screen waiting room, mirrored on the duel
+// reservation room above). A matchmade group has a FIXED roster + distance and
+// auto-starts at the slot, so this is display-only: no ready toggle, host start,
+// invite, or distance editing — only the live countdown + cancel. The only
+// structural difference from the duel room is the participant list: instead of a
+// fixed 나/상대 pair it lists ALL group members (from the status `participants`
+// array), ordered by seedRank, with the current user (matched by mySeedRank)
+// marked 나. Reuses the same mode-agnostic reservation deriver as the duel room.
+// ---------------------------------------------------------------------------
+export type GroupReservationParticipant = {
+  id: string;
+  name: string;
+  // Brand 나 badge for the current user; the 순서(seed) order label otherwise.
+  badgeLabel: string | null;
+  isSelf: boolean;
+  statusLabel: string;
+};
+
+export type GroupReservationRoomViewInput = {
+  // Live status fetched by matchId; null while loading or if it could not be read.
+  matchStatus: RunningMatchStatusResponse | null;
+  // Route-param fallbacks so the room still renders sensible copy before/without
+  // a fresh status fetch (the upcoming card already knows these).
+  fallbackSlotStartAt: string | null;
+  fallbackDistanceKm: number | null;
+  fallbackIsTestMatch: boolean;
+  fallbackParticipantCount: number | null;
+  syncedNowMs: number;
+};
+
+export type GroupReservationRoomView = {
+  // Shared start-phase + countdown derivation (same deriver as the duel room).
+  reservation: DuelReservationView;
+  // Whether the reservation can still be cancelled (server `canCancel`, defaulting
+  // to true only while the status hasn't loaded so the button isn't hidden early;
+  // the cancel handler re-checks the rule before calling the API).
+  canCancel: boolean;
+  // True once we positively know cancellation is locked (server said canCancel:false).
+  cancelLocked: boolean;
+  isTestMatch: boolean;
+  distanceKm: number | null;
+  distanceLabel: string;
+  // "N명" headcount for the summary.
+  participantCountLabel: string;
+  // "6.24 (수) 11:00 시작" (display-only).
+  startTimeLabel: string | null;
+  // All group members, ordered by seedRank, with the current user marked 나.
+  participants: GroupReservationParticipant[];
+  // The footer copy under the summary.
+  autoStartNotice: string;
+};
+
+function buildGroupReservationParticipants(
+  matchStatus: RunningMatchStatusResponse | null,
+): GroupReservationParticipant[] {
+  const roster = matchStatus?.participants ?? [];
+  if (!roster.length) {
+    return [];
+  }
+
+  // mySeedRank pins the current user the same way the live group standings do
+  // (buildGroupLiveStandings): seedRank === (mySeedRank ?? 1).
+  const mySeedRank = matchStatus?.mySeedRank ?? 1;
+
+  return [...roster]
+    .sort((a, b) => a.seedRank - b.seedRank)
+    .map((participant: GroupMatchParticipant) => {
+      const isSelf = participant.seedRank === mySeedRank;
+      return {
+        id: participant.id,
+        name: isSelf ? '나' : participant.name,
+        badgeLabel: isSelf ? '나' : `순서 ${participant.seedRank}`,
+        isSelf,
+        statusLabel: '예약 완료',
+      };
+    });
+}
+
+export function buildGroupReservationRoomView({
+  matchStatus,
+  fallbackSlotStartAt,
+  fallbackDistanceKm,
+  fallbackIsTestMatch,
+  fallbackParticipantCount,
+  syncedNowMs,
+}: GroupReservationRoomViewInput): GroupReservationRoomView {
+  const slotStartAt = matchStatus?.slotStartAt ?? fallbackSlotStartAt;
+  const distanceKm = matchStatus?.distanceKm ?? fallbackDistanceKm;
+  const isTestMatch = Boolean(matchStatus?.isTestMatch ?? fallbackIsTestMatch);
+
+  const reservation = deriveDuelReservationView({
+    slotStartAt,
+    syncedNowMs,
+  });
+
+  const participants = buildGroupReservationParticipants(matchStatus);
+  // Prefer the live roster length once it loads; fall back to the count the
+  // upcoming card already knew so the headcount isn't blank before the fetch.
+  const participantCount = participants.length
+    || matchStatus?.participantCount
+    || fallbackParticipantCount
+    || 0;
+
+  // Default to cancelable while the status is still loading so we don't flash the
+  // locked copy; the cancel handler enforces the real rule before the API call.
+  const canCancel = matchStatus?.canCancel ?? true;
+
+  return {
+    reservation,
+    canCancel,
+    cancelLocked: matchStatus?.canCancel === false,
+    isTestMatch,
+    distanceKm,
+    distanceLabel: typeof distanceKm === 'number' ? `${distanceKm.toFixed(1)}km` : '거리 미정',
+    participantCountLabel: participantCount > 0 ? `${participantCount}명` : '인원 확인 중',
+    startTimeLabel: slotStartAt ?? null,
+    participants,
     autoStartNotice: isTestMatch
       ? '테스트 카운트다운이 끝나면 자동으로 대결이 시작돼요.'
       : '시작 시간이 되면 자동으로 대결이 시작돼요.',

@@ -9,6 +9,7 @@ test('matched duel far from start opens the reservation room (tappable, no arena
   );
 
   assert.equal(interaction.opensReservationRoom, true);
+  assert.equal(interaction.reservationRoomMode, 'duel');
   assert.equal(interaction.canOpenArena, false);
   assert.equal(interaction.isTappable, true);
 });
@@ -35,20 +36,38 @@ test('active duel opens the arena, never the reservation room', () => {
   assert.equal(interaction.isTappable, true);
 });
 
-test('matched group keeps existing behavior: not tappable until the arena window', () => {
-  const farOut = resolveUpcomingMatchInteraction(
+test('matched group far from start opens the group reservation room (mirrors duel)', () => {
+  const interaction = resolveUpcomingMatchInteraction(
     { mode: 'group', status: 'matched' },
-    5 * 60,
+    5 * 60, // 5 minutes out — well outside the ≤20s arena window
   );
-  assert.equal(farOut.opensReservationRoom, false);
-  assert.equal(farOut.canOpenArena, false);
-  assert.equal(farOut.isTappable, false);
 
-  const nearStart = resolveUpcomingMatchInteraction(
+  assert.equal(interaction.opensReservationRoom, true);
+  assert.equal(interaction.reservationRoomMode, 'group');
+  assert.equal(interaction.canOpenArena, false);
+  assert.equal(interaction.isTappable, true);
+});
+
+test('matched group inside the arena window hands off to the arena (no reservation room)', () => {
+  const interaction = resolveUpcomingMatchInteraction(
     { mode: 'group', status: 'matched' },
-    10,
+    10, // ≤20s — arena auto-open owns it for groups too
   );
-  assert.equal(nearStart.opensReservationRoom, false);
-  assert.equal(nearStart.canOpenArena, true);
-  assert.equal(nearStart.isTappable, true);
+
+  assert.equal(interaction.opensReservationRoom, false);
+  assert.equal(interaction.reservationRoomMode, null);
+  assert.equal(interaction.canOpenArena, true);
+  assert.equal(interaction.isTappable, true);
+});
+
+test('active group opens the arena, never the reservation room', () => {
+  const interaction = resolveUpcomingMatchInteraction(
+    { mode: 'group', status: 'active' },
+    null,
+  );
+
+  assert.equal(interaction.opensReservationRoom, false);
+  assert.equal(interaction.reservationRoomMode, null);
+  assert.equal(interaction.canOpenArena, true);
+  assert.equal(interaction.isTappable, true);
 });

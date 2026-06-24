@@ -95,6 +95,7 @@ export default function RootLayout() {
         <Stack.Screen name="notification-center" />
         <Stack.Screen name="match-room" />
         <Stack.Screen name="duel-reservation" />
+        <Stack.Screen name="group-reservation" />
         <Stack.Screen name="opponent-profile" />
         <Stack.Screen name="friend-detail" />
         <Stack.Screen name="integration-management" />
