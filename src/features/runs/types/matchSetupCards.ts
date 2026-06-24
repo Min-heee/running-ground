@@ -70,9 +70,6 @@ export type DuelMatchSetupCardProps = BaseMatchSetupProps & {
   // Count of people currently searching a 1:1 (duel) match per slot, keyed by the slot's
   // startsAt. Duel-only — GroupMatchSetupCard passes undefined.
   slotDuelCounts?: Record<string, number>;
-  // server-synced now (ms), used by the matched reservation waiting room to drive the
-  // "N분 남음 / 곧 시작" status off the slot start time.
-  syncedNowMs?: number;
 };
 
 export type GroupMatchSetupCardProps = BaseMatchSetupProps & {

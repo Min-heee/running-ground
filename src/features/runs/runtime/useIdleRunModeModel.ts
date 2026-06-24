@@ -82,7 +82,6 @@ type UseIdleRunModeModelInput = Pick<
   | 'showDuelCustomDistanceInput'
   | 'showGroupCustomDistanceInput'
   | 'slotDuelCounts'
-  | 'syncedNowMs'
   | 'visibleDuelSlotOptions'
   | 'visibleGroupSlotOptions'
   | 'visibleMatchRoom'
@@ -126,7 +125,6 @@ export function useIdleRunModeModel(input: UseIdleRunModeModelInput) {
         opponentStatusLabel: input.effectiveDuelOpponentStatusLabel,
         liveGapKm: input.duelLiveGapKm,
         slotDuelCounts: input.slotDuelCounts,
-        syncedNowMs: input.syncedNowMs,
         onDistanceTextChange: input.onDistanceTextChangeDuel,
         onShowCustomDistanceInputChange: input.onShowCustomDistanceInputChangeDuel,
         onSelectDate: input.onSelectDuelDate,

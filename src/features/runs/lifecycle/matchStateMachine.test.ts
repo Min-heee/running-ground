@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import type { RunningMatchStatusResponse } from '@/lib/api/types';
 import {
+  buildDuelReservationRoomView,
   buildPartyRunFlowSnapshot,
   buildMatchParticipantStatusLabel,
   buildMatchTransitionNotice,
@@ -463,4 +465,105 @@ test('duel reservation view tolerates a missing slot start time', () => {
   assert.equal(view.remainingSeconds, null);
   assert.equal(view.shouldShowStartOverlay, false);
   assert.equal(view.statusLabel, '곧 시작');
+});
+
+function buildDuelStatus(
+  overrides: Partial<RunningMatchStatusResponse> = {},
+): RunningMatchStatusResponse {
+  return {
+    success: true,
+    mode: 'duel',
+    state: 'matched',
+    distanceKm: 5,
+    slotStartAt: '2026-06-24T02:00:00.000Z',
+    slotLabel: '11:00',
+    paceBandLabel: '',
+    levelBandLabel: '',
+    criteriaSummary: '',
+    estimatedWaitMinutes: 0,
+    participantCount: 2,
+    acceptedCount: 2,
+    capacity: 2,
+    userAccepted: true,
+    readyToStart: false,
+    canCancel: true,
+    opponent: {
+      id: 'opp-1',
+      name: '김러너',
+      districtName: '강남구',
+      averagePace: "5'30\"",
+      levelLabel: '러너',
+      weeklyDistanceKm: 12,
+      lifetimeDistanceKm: 200,
+      compatibilitySummary: '',
+    },
+    ...overrides,
+  };
+}
+
+test('duel reservation room view prefers live status, builds 나+상대 rows', () => {
+  const status = buildDuelStatus();
+  const slotStartMs = Date.parse(status.slotStartAt);
+
+  const view = buildDuelReservationRoomView({
+    matchStatus: status,
+    fallbackSlotStartAt: null,
+    fallbackDistanceKm: null,
+    fallbackIsTestMatch: false,
+    syncedNowMs: slotStartMs - 5 * 60 * 1000,
+  });
+
+  assert.equal(view.distanceLabel, '5.0km');
+  assert.equal(view.isTestMatch, false);
+  assert.equal(view.canCancel, true);
+  assert.equal(view.cancelLocked, false);
+  assert.equal(view.startTimeLabel, status.slotStartAt);
+  assert.equal(view.reservation.statusLabel, '5분 남음');
+  assert.equal(view.autoStartNotice, '시작 시간이 되면 자동으로 대결이 시작돼요.');
+  assert.equal(view.participants.length, 2);
+  assert.deepEqual(
+    view.participants.map((participant) => participant.name),
+    ['나', '김러너'],
+  );
+  assert.equal(view.participants[0].isSelf, true);
+  assert.equal(view.participants[1].isSelf, false);
+});
+
+test('duel reservation room view falls back to route params before status loads', () => {
+  const slotStartAt = '2026-06-24T02:00:00.000Z';
+  const slotStartMs = Date.parse(slotStartAt);
+
+  const view = buildDuelReservationRoomView({
+    matchStatus: null,
+    fallbackSlotStartAt: slotStartAt,
+    fallbackDistanceKm: 7,
+    fallbackIsTestMatch: true,
+    syncedNowMs: slotStartMs - 60 * 1000,
+  });
+
+  assert.equal(view.distanceLabel, '7.0km');
+  assert.equal(view.isTestMatch, true);
+  // Defaults to cancelable while status hasn't loaded so the button isn't hidden early.
+  assert.equal(view.canCancel, true);
+  assert.equal(view.cancelLocked, false);
+  assert.equal(view.startTimeLabel, slotStartAt);
+  assert.equal(view.autoStartNotice, '테스트 카운트다운이 끝나면 자동으로 대결이 시작돼요.');
+  // Opponent unknown without a status -> placeholder name + "확인 중" status.
+  assert.equal(view.participants[1].name, '상대');
+  assert.equal(view.participants[1].statusLabel, '상대 확인 중');
+});
+
+test('duel reservation room view locks cancel when the server says canCancel:false', () => {
+  const status = buildDuelStatus({ canCancel: false });
+
+  const view = buildDuelReservationRoomView({
+    matchStatus: status,
+    fallbackSlotStartAt: null,
+    fallbackDistanceKm: null,
+    fallbackIsTestMatch: false,
+    syncedNowMs: Date.parse(status.slotStartAt) - 30 * 60 * 1000,
+  });
+
+  assert.equal(view.canCancel, false);
+  assert.equal(view.cancelLocked, true);
 });

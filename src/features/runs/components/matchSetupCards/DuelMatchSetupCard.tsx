@@ -1,7 +1,4 @@
 import { ActivityIndicator, Text, View } from 'react-native';
-import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
-import { buildMatchSlotDateLabel } from '@/features/runs/utils/matchScheduling';
-import { deriveDuelReservationView } from '@/features/runs/lifecycle/matchStateMachine';
 import {
   MatchActionButtons,
   MatchNotice,
@@ -23,7 +20,6 @@ export function DuelMatchSetupCard({
   isRequesting,
   matchState,
   matchStatus,
-  activeSlotStartAt,
   effectiveSlotLabel,
   matchNotice,
   needsManualRematch,
@@ -38,7 +34,6 @@ export function DuelMatchSetupCard({
   opponentStatusLabel,
   liveGapKm,
   slotDuelCounts,
-  syncedNowMs,
   onDistanceTextChange,
   onShowCustomDistanceInputChange,
   onSelectDate,
@@ -49,14 +44,6 @@ export function DuelMatchSetupCard({
   onRequestMatch,
   onRequestRematch,
 }: DuelMatchSetupCardProps) {
-  const reservationSlotStartAt = matchStatus?.slotStartAt ?? activeSlotStartAt;
-  // S4: when a duel is matched, this drives the "예약 대기실" status + the ≤30s
-  // start overlay off the slot time + synced clock. The existing arena auto-open
-  // (duelShouldOpenCountdownArena, ≤20s) still owns the actual match start.
-  const reservationView = deriveDuelReservationView({
-    slotStartAt: reservationSlotStartAt,
-    syncedNowMs: syncedNowMs ?? Date.now(),
-  });
   return (
     <View style={styles.duelSetupCard}>
       <MatchSetupTabbedSelector
@@ -89,49 +76,14 @@ export function DuelMatchSetupCard({
       ) : null}
 
       {matchState === 'matched' && opponent ? (
-        <View style={styles.reservationRoomCard}>
-          <Text style={styles.duelResultEyebrow}>예약 대기실</Text>
-          <Text style={styles.reservationRoomTitle}>
+        <View style={styles.duelResultCard}>
+          <Text style={styles.duelResultEyebrow}>예약 완료</Text>
+          <Text style={styles.duelResultTitle}>
             {matchStatus?.isTestMatch ? '테스트 매칭이 잡혔습니다' : '매칭이 잡혔습니다'}
           </Text>
-
-          <View style={styles.reservationRoomRow}>
-            <Text style={styles.reservationRoomLabel}>상대</Text>
-            <Text style={styles.reservationRoomValue}>
-              {opponent.name} · {opponent.averagePace} · {opponent.levelLabel}
-              {opponentStatusLabel ? ` · ${opponentStatusLabel}` : ''}
-            </Text>
-          </View>
-
-          <View style={styles.reservationRoomRow}>
-            <Text style={styles.reservationRoomLabel}>거리</Text>
-            <Text style={styles.reservationRoomValue}>{distanceKm.toFixed(1)}km</Text>
-          </View>
-
-          <View style={styles.reservationRoomRow}>
-            <Text style={styles.reservationRoomLabel}>시작</Text>
-            <Text style={styles.reservationRoomValue}>
-              {buildMatchSlotDateLabel(reservationSlotStartAt)} {effectiveSlotLabel} 시작
-            </Text>
-          </View>
-
-          <View style={styles.reservationRoomStatusPill}>
-            <Text style={styles.reservationRoomStatusText}>{reservationView.statusLabel}</Text>
-          </View>
-
           <Text style={styles.duelResultMeta}>
-            {matchStatus?.isTestMatch
-              ? '테스트 카운트다운이 끝나면 자동으로 대결이 시작돼요.'
-              : '시작 시간이 되면 자동으로 대결이 시작돼요.'}
+            위 다가오는 매치 카드를 눌러 예약 대기실에서 시작을 기다릴 수 있어요.
           </Text>
-
-          {reservationView.shouldShowStartOverlay && reservationView.remainingSeconds !== null ? (
-            <MatchStartCountdownOverlay
-              countdownKey={`duel-reservation-${reservationSlotStartAt}`}
-              secondsRemaining={reservationView.remainingSeconds}
-              variant="centered"
-            />
-          ) : null}
         </View>
       ) : null}
 

@@ -1,5 +1,6 @@
 import type {
   RunningMatchState,
+  RunningMatchStatusResponse,
 } from '@/lib/api/types';
 import type {
   ActiveMatchIdentityInput,
@@ -472,6 +473,112 @@ export function deriveDuelReservationView({
     remainingSeconds,
     statusLabel: buildDuelReservationStatusLabel(remainingSeconds),
     shouldShowStartOverlay: shouldShowMatchStartOverlay(remainingSeconds),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Duel reservation ROOM view (full-screen waiting room, modeled on the party
+// room). Builds everything the screen renders from the live duel match status
+// (fetched by matchId) plus the route params it was opened with as a fallback,
+// and the synced clock. Pure + display-only: a matchmade duel has a FIXED
+// opponent + distance and auto-starts at the slot, so there is no ready toggle,
+// host start, invite, or distance editing — only the live countdown + cancel.
+// ---------------------------------------------------------------------------
+export type DuelReservationParticipant = {
+  id: string;
+  name: string;
+  // 'host'-styled brand badge for "나", subtle badge for the opponent.
+  badgeLabel: string | null;
+  isSelf: boolean;
+  statusLabel: string;
+};
+
+export type DuelReservationRoomViewInput = {
+  // Live status fetched by matchId; null while loading or if it could not be read.
+  matchStatus: RunningMatchStatusResponse | null;
+  // Route-param fallbacks so the room still renders sensible copy before/without
+  // a fresh status fetch (the upcoming card already knows these).
+  fallbackSlotStartAt: string | null;
+  fallbackDistanceKm: number | null;
+  fallbackIsTestMatch: boolean;
+  syncedNowMs: number;
+};
+
+export type DuelReservationRoomView = {
+  // Shared start-phase + countdown derivation (same deriver as the party room).
+  reservation: DuelReservationView;
+  // Whether the reservation can still be cancelled (server `canCancel`, defaulting
+  // to true only when the status hasn't loaded yet so the button isn't hidden
+  // prematurely; the cancel handler re-checks the rule before calling the API).
+  canCancel: boolean;
+  // True once we positively know cancellation is locked (server said canCancel:false).
+  cancelLocked: boolean;
+  isTestMatch: boolean;
+  distanceKm: number | null;
+  distanceLabel: string;
+  // "6.24 (수) 11:00 시작" (display-only).
+  startTimeLabel: string | null;
+  // The 나 + 상대 rows for the participant list.
+  participants: DuelReservationParticipant[];
+  // The footer copy under the summary.
+  autoStartNotice: string;
+};
+
+function buildDuelReservationParticipants(
+  matchStatus: RunningMatchStatusResponse | null,
+): DuelReservationParticipant[] {
+  const selfRow: DuelReservationParticipant = {
+    id: 'self',
+    name: '나',
+    badgeLabel: '나',
+    isSelf: true,
+    statusLabel: '예약 완료',
+  };
+
+  const opponent = matchStatus?.opponent;
+  const opponentRow: DuelReservationParticipant = {
+    id: opponent?.id ?? 'opponent',
+    name: opponent?.name ?? '상대',
+    badgeLabel: '상대',
+    isSelf: false,
+    statusLabel: opponent?.name ? '예약 완료' : '상대 확인 중',
+  };
+
+  return [selfRow, opponentRow];
+}
+
+export function buildDuelReservationRoomView({
+  matchStatus,
+  fallbackSlotStartAt,
+  fallbackDistanceKm,
+  fallbackIsTestMatch,
+  syncedNowMs,
+}: DuelReservationRoomViewInput): DuelReservationRoomView {
+  const slotStartAt = matchStatus?.slotStartAt ?? fallbackSlotStartAt;
+  const distanceKm = matchStatus?.distanceKm ?? fallbackDistanceKm;
+  const isTestMatch = Boolean(matchStatus?.isTestMatch ?? fallbackIsTestMatch);
+
+  const reservation = deriveDuelReservationView({
+    slotStartAt,
+    syncedNowMs,
+  });
+
+  // Default to cancelable while the status is still loading so we don't flash the
+  // locked copy; the cancel handler enforces the real rule before the API call.
+  const canCancel = matchStatus?.canCancel ?? true;
+
+  return {
+    reservation,
+    canCancel,
+    cancelLocked: matchStatus?.canCancel === false,
+    isTestMatch,
+    distanceKm,
+    distanceLabel: typeof distanceKm === 'number' ? `${distanceKm.toFixed(1)}km` : '거리 미정',
+    startTimeLabel: slotStartAt ?? null,
+    participants: buildDuelReservationParticipants(matchStatus),
+    autoStartNotice: isTestMatch
+      ? '테스트 카운트다운이 끝나면 자동으로 대결이 시작돼요.'
+      : '시작 시간이 되면 자동으로 대결이 시작돼요.',
   };
 }
 

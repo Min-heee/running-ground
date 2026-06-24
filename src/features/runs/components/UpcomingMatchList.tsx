@@ -1,13 +1,30 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import {
   formatMatchCountdown,
   getMatchStartRemainingSeconds,
-  shouldAutoOpenMatchArena,
   shouldShowMatchCardCountdown,
 } from '@/lib/matchCountdown';
+import { resolveUpcomingMatchInteraction } from '@/features/runs/components/upcomingMatchInteraction';
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+
+// A matched 1:1 (duel) opens the full-screen reservation waiting room (modeled on
+// the party room). The room itself renders the countdown + hands off to the arena
+// auto-open at the slot — so tapping the card before the arena window is valid for
+// duels (unlike group items, which only open at the ≤20s arena handoff).
+function openDuelReservationRoom(match: UpcomingRunningMatchItem) {
+  router.push({
+    pathname: '/duel-reservation',
+    params: {
+      matchId: match.matchId,
+      distanceKm: String(match.distanceKm),
+      slotStartAt: match.slotStartAt,
+      isTestMatch: match.isTestMatch ? '1' : '0',
+    },
+  });
+}
 
 type UpcomingMatchListProps = {
   matches: UpcomingRunningMatchItem[];
@@ -31,16 +48,23 @@ const UpcomingMatchRow = memo(function UpcomingMatchRow({
   onCancelMatch: (match: UpcomingRunningMatchItem) => void;
 }) {
   const remainingSeconds = getMatchStartRemainingSeconds(match.slotStartAt, nowMs);
-  const canOpenArena = match.status === 'active'
-    || (match.status === 'matched' && shouldAutoOpenMatchArena(remainingSeconds));
+  const { canOpenArena, opensReservationRoom, isTappable } = resolveUpcomingMatchInteraction(
+    match,
+    remainingSeconds,
+  );
 
   const handleOpenMatch = useCallback(() => {
+    if (opensReservationRoom) {
+      openDuelReservationRoom(match);
+      return;
+    }
+
     if (!canOpenArena) {
       return;
     }
 
     onOpenMatch(match);
-  }, [canOpenArena, match, onOpenMatch]);
+  }, [canOpenArena, match, onOpenMatch, opensReservationRoom]);
 
   const handleCancelMatch = useCallback(() => {
     onCancelMatch(match);
@@ -49,7 +73,7 @@ const UpcomingMatchRow = memo(function UpcomingMatchRow({
   return (
     <Pressable
       style={styles.row}
-      disabled={!canOpenArena}
+      disabled={!isTappable}
       onPress={handleOpenMatch}
     >
       <View style={styles.copy}>
@@ -78,6 +102,8 @@ const UpcomingMatchRow = memo(function UpcomingMatchRow({
         ) : null}
         {canOpenArena ? (
           <Text style={styles.helperText}>누르면 바로 대결 보기로 이동해요.</Text>
+        ) : opensReservationRoom ? (
+          <Text style={styles.helperText}>누르면 예약 대기실로 이동해요.</Text>
         ) : null}
       </View>
       <Text style={styles.state}>
