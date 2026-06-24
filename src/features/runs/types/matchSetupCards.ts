@@ -67,6 +67,12 @@ export type DuelMatchSetupCardProps = BaseMatchSetupProps & {
   waitingTitle: string;
   opponentStatusLabel: string | null;
   liveGapKm: number | null;
+  // Count of people currently searching a 1:1 (duel) match per slot, keyed by the slot's
+  // startsAt. Duel-only — GroupMatchSetupCard passes undefined.
+  slotDuelCounts?: Record<string, number>;
+  // server-synced now (ms), used by the matched reservation waiting room to drive the
+  // "N분 남음 / 곧 시작" status off the slot start time.
+  syncedNowMs?: number;
 };
 
 export type GroupMatchSetupCardProps = BaseMatchSetupProps & {
@@ -102,4 +108,7 @@ export type TimeSlotSelectorProps = Pick<
 > & {
   dateKeyPrefix: string;
   sectionKeyPrefix: string;
+  // Per-slot count of people searching a 1:1 (duel) match, keyed by slot startsAt.
+  // Duel-only; the group selector leaves it undefined.
+  slotDuelCounts?: Record<string, number>;
 };

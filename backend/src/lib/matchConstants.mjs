@@ -4,7 +4,18 @@ export const GROUP_MIN_COMPATIBILITY_SCORE = 68;
 // Authoritative duel pairing gate: two runners pair whenever their average paces
 // are within ±15 seconds/km. Matching is pace-only — level no longer gates.
 export const DUEL_PACE_MATCH_TOLERANCE_SECONDS = 15;
+// Authoritative group pairing gate: a group of 3 forms from the tightest cluster of
+// paces all within ±15 seconds/km of each other; later joiners must be within ±15s
+// of the group anchor (the average pace of the founding 3). Pace-only — the legacy
+// GROUP_MIN_COMPATIBILITY_SCORE no longer gates pairing (it survives only as a
+// demand-summary label).
+export const GROUP_PACE_MATCH_TOLERANCE_SECONDS = 15;
 export const GROUP_MIN_PARTICIPANTS = 3;
+// Max runners a single forming/started group session may hold. Late joiners stop
+// being admitted once a group reaches this size even if they are within ±15s of the
+// anchor. Mirrors the response builder's long-standing maxGroupSize of 30 and the
+// room cap (MATCH_ROOM_GROUP_MAX_PARTICIPANTS).
+export const GROUP_MATCH_MAX_PARTICIPANTS = 30;
 export const MATCH_BOOKING_WINDOW_DAYS = 7;
 export const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;
 export const MATCH_PACE_BAND_OFFSET_MINUTES = 10 / 60;

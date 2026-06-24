@@ -90,6 +90,8 @@ export function useMatchLifecycle({ focusMatchMode, focusMatchIsTest }: TestFlow
     setGroupMatchNotice: groupLifecycle.setGroupMatchNotice,
     upcomingMatches: queueActions.upcomingMatches,
     setUpcomingMatches: queueActions.setUpcomingMatches,
+    duelSlotCounts: queueActions.duelSlotCounts,
+    setDuelSlotCounts: queueActions.setDuelSlotCounts,
     matchRemindersEnabled: queueActions.matchRemindersEnabled,
     setMatchRemindersEnabled: queueActions.setMatchRemindersEnabled,
     cancelingUpcomingMatchId: queueActions.cancelingUpcomingMatchId,

@@ -110,6 +110,8 @@ export type UseIdleRunRuntimeModelInput = {
   shouldShowReadyScreen: boolean;
   showDuelCustomDistanceInput: boolean;
   showGroupCustomDistanceInput: boolean;
+  slotDuelCounts: Record<string, number>;
+  syncedNowMs: number;
   visibleDuelSlotOptions: DuelSetupProps['slotOptions'];
   visibleGroupSlotOptions: GroupSetupProps['slotOptions'];
   visibleMatchRoom: RunningMatchRoom | null;

@@ -6,6 +6,7 @@ import {
   buildMatchTransitionNotice,
   canAutoStartMatchTracking,
   canShowMatchCountdown,
+  deriveDuelReservationView,
   derivePartyRunStartPhase,
   isBlockingMatchState,
   isLiveMatchState,
@@ -413,4 +414,53 @@ test('party run flow snapshot builds linked context when room state lags behind 
     distanceKm: 5,
     state: 'active',
   });
+});
+
+test('duel reservation view shows minutes-remaining far out and 곧 시작 inside overlay/start', () => {
+  const slotStartAt = '2026-06-24T18:00:00.000Z';
+  const slotStartMs = Date.parse(slotStartAt);
+
+  // 5 minutes out: still 'arming', shows "5분 남음", no start overlay.
+  const farOut = deriveDuelReservationView({
+    slotStartAt,
+    syncedNowMs: slotStartMs - 5 * 60 * 1000,
+  });
+  assert.equal(farOut.phase, 'arming');
+  assert.equal(farOut.remainingSeconds, 300);
+  assert.equal(farOut.statusLabel, '5분 남음');
+  assert.equal(farOut.shouldShowStartOverlay, false);
+
+  // 25 seconds out: inside the ≤30s overlay window -> 'countdown', "곧 시작", overlay on.
+  const insideOverlay = deriveDuelReservationView({
+    slotStartAt,
+    syncedNowMs: slotStartMs - 25 * 1000,
+  });
+  assert.equal(insideOverlay.phase, 'countdown');
+  assert.equal(insideOverlay.remainingSeconds, 25);
+  assert.equal(insideOverlay.statusLabel, '곧 시작');
+  assert.equal(insideOverlay.shouldShowStartOverlay, true);
+
+  // 15 seconds out: inside the ≤20s arena-handoff window -> 'arenaHandoff' (arena auto-opens),
+  // overlay no longer the gate (the centered arena countdown takes over).
+  const arenaHandoff = deriveDuelReservationView({
+    slotStartAt,
+    syncedNowMs: slotStartMs - 15 * 1000,
+  });
+  assert.equal(arenaHandoff.phase, 'arenaHandoff');
+
+  // At/after slot start: remaining is null, status is "곧 시작", overlay off (arena owns it).
+  const atStart = deriveDuelReservationView({
+    slotStartAt,
+    syncedNowMs: slotStartMs,
+  });
+  assert.equal(atStart.remainingSeconds, null);
+  assert.equal(atStart.statusLabel, '곧 시작');
+  assert.equal(atStart.shouldShowStartOverlay, false);
+});
+
+test('duel reservation view tolerates a missing slot start time', () => {
+  const view = deriveDuelReservationView({ slotStartAt: null, syncedNowMs: Date.now() });
+  assert.equal(view.remainingSeconds, null);
+  assert.equal(view.shouldShowStartOverlay, false);
+  assert.equal(view.statusLabel, '곧 시작');
 });

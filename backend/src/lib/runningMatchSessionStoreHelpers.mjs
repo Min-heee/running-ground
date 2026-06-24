@@ -1,5 +1,7 @@
 import { parsePaceToMinutes } from '../points.mjs';
 import {
+  GROUP_MATCH_MAX_PARTICIPANTS,
+  GROUP_PACE_MATCH_TOLERANCE_SECONDS,
   MATCH_DUEL_FINISH_FALLBACK_MS,
   MATCH_SESSION_ACTIVE_TTL_MS,
   MATCH_SESSION_UNSTARTED_ACTIVE_GRACE_MS,
@@ -136,6 +138,24 @@ function clearUsersFromMatchSessions(store, mode, userIds) {
   ));
 }
 
+// Single source of truth for the per-participant session shape. addParticipantToMatchSession
+// reuses it so a late joiner is byte-for-byte identical to a founding participant.
+function buildSessionParticipant(participant, index) {
+  return {
+    userId: participant.id,
+    seedRank: participant.seedRank ?? index + 1,
+    ...(participant.profileSnapshot ? { profileSnapshot: participant.profileSnapshot } : {}),
+    acceptedAt: null,
+    liveStatus: 'ready',
+    liveDistanceKm: 0,
+    liveElapsedSeconds: 0,
+    livePace: '--:--/km',
+    liveUpdatedAt: null,
+    finishedAt: null,
+    finishElapsedSeconds: null,
+  };
+}
+
 export function createMatchSession(store, mode, distanceKm, slotStartAt, participants, options = {}) {
   clearUsersFromMatchSessions(store, mode, participants.map((participant) => participant.id));
   const session = {
@@ -145,24 +165,80 @@ export function createMatchSession(store, mode, distanceKm, slotStartAt, partici
     isPartyRun: options.isPartyRun === true,
     distanceKm: normalizeMatchQueueDistance(distanceKm),
     slotStartAt,
+    // The group anchor — the average pace of the founding 3 — is the gate every later
+    // joiner is measured against (±GROUP_PACE_MATCH_TOLERANCE_SECONDS). Persisted at
+    // creation; undefined for duels/test sessions where no anchor is supplied.
+    ...(Number.isFinite(options.anchorPaceMinutes) ? { anchorPaceMinutes: options.anchorPaceMinutes } : {}),
     createdAt: new Date().toISOString(),
     matchedAt: new Date().toISOString(),
-    participants: participants.map((participant, index) => ({
-      userId: participant.id,
-      seedRank: participant.seedRank ?? index + 1,
-      ...(participant.profileSnapshot ? { profileSnapshot: participant.profileSnapshot } : {}),
-      acceptedAt: null,
-      liveStatus: 'ready',
-      liveDistanceKm: 0,
-      liveElapsedSeconds: 0,
-      livePace: '--:--/km',
-      liveUpdatedAt: null,
-      finishedAt: null,
-      finishElapsedSeconds: null,
-    })),
+    participants: participants.map((participant, index) => buildSessionParticipant(participant, index)),
   };
   ensureMatchSessions(store).push(session);
   return session;
+}
+
+// One-at-a-time late-join admission: push exactly one participant (the closest joiner
+// the caller already selected) onto an existing forming group session, using the same
+// shape createMatchSession produces. seedRank defaults to the next slot after the
+// current participants.
+export function addParticipantToMatchSession(session, participant) {
+  const index = session.participants.length;
+  session.participants.push(buildSessionParticipant(participant, index));
+  return session;
+}
+
+// Find an existing forming group session a joiner can slot into: same mode/distance
+// (±0.15km) + same slot, still in the 'matched' (pre-start) state, under the size cap,
+// and whose anchor pace is within ±GROUP_PACE_MATCH_TOLERANCE_SECONDS of the joiner.
+// Returns the session or null. Caller adds exactly one joiner per HTTP call so the
+// closest joiner wins the single open seat (closest-first, one at a time).
+export function findJoinableGroupSession(store, { distanceKm, slotStartAt, joinerPaceMinutes, now = new Date() } = {}) {
+  if (!Number.isFinite(joinerPaceMinutes)) {
+    return null;
+  }
+
+  const normalizedDistanceKm = distanceKm === undefined || distanceKm === null
+    ? null
+    : normalizeMatchQueueDistance(distanceKm);
+  const sessions = pruneMatchSessions(store, now);
+
+  for (let index = sessions.length - 1; index >= 0; index -= 1) {
+    const session = sessions[index];
+
+    if (session.mode !== 'group' || isTestMatchSession(session)) {
+      continue;
+    }
+
+    if (!Number.isFinite(session.anchorPaceMinutes)) {
+      continue;
+    }
+
+    if (hydrateMatchSessionState(session, now) !== 'matched') {
+      continue;
+    }
+
+    if (session.participants.length >= GROUP_MATCH_MAX_PARTICIPANTS) {
+      continue;
+    }
+
+    if (normalizedDistanceKm !== null && Math.abs(session.distanceKm - normalizedDistanceKm) >= 0.15) {
+      continue;
+    }
+
+    if (slotStartAt && session.slotStartAt !== slotStartAt) {
+      continue;
+    }
+
+    const anchorGapSeconds = Math.abs(joinerPaceMinutes - session.anchorPaceMinutes) * 60;
+
+    if (anchorGapSeconds > GROUP_PACE_MATCH_TOLERANCE_SECONDS) {
+      continue;
+    }
+
+    return session;
+  }
+
+  return null;
 }
 
 

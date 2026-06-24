@@ -221,6 +221,10 @@ export type UpcomingRunningMatchItem = {
 export type UpcomingRunningMatchesResponse = {
   serverNow?: string;
   items: UpcomingRunningMatchItem[];
+  // Count of people currently searching a 1:1 (duel) match per slot, keyed by the
+  // slot's start-at ISO string. Additive: omitted by older backends — when absent the
+  // slot selector simply renders no waiting-count line.
+  duelSlotCounts?: Record<string, number>;
 };
 
 export type CancelRunningMatchResponse = {

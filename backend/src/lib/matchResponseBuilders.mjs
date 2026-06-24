@@ -3,6 +3,7 @@ import {
   DUEL_PACE_MATCH_TOLERANCE_SECONDS,
   GROUP_MIN_COMPATIBILITY_SCORE,
   GROUP_MIN_PARTICIPANTS,
+  GROUP_PACE_MATCH_TOLERANCE_SECONDS,
   MATCH_BOOKING_CUTOFF_MS,
   MATCH_TEST_GROUP_MIN_PARTICIPANTS,
 } from './matchConstants.mjs';
@@ -34,6 +35,7 @@ import {
   isTestMatchSession,
 } from './matchScheduleHelpers.mjs';
 import {
+  countDuelQueueBySlot,
   ensureMatchQueues,
   getMatchQueueEntries,
   removeUsersFromMatchQueue,
@@ -43,12 +45,14 @@ import { nextId } from './idHelpers.mjs';
 import { findUserById } from './userStoreHelpers.mjs';
 import { validateMatchSlotStartAt } from './matchSlotValidation.mjs';
 import {
+  addParticipantToMatchSession,
   buildDuelVerdict,
   buildMatchRunnerProfile,
   buildOfficialSessionStandings,
   buildParticipantLiveSnapshot,
   createMatchSession,
   ensureMatchSessions,
+  findJoinableGroupSession,
   findMatchSessionForUser,
   hydrateMatchSessionState,
   pruneMatchSessions,
@@ -622,6 +626,44 @@ export function buildDuelMatchResponse(store, currentUser, { distanceKm, slotSta
   };
 }
 
+// From queued group entries (each {queueEntry, runner}), find the tightest window of
+// GROUP_MIN_PARTICIPANTS consecutive paces (when sorted by averagePaceMinutes) that
+// INCLUDES self and whose spread (max−min) is within
+// ±GROUP_PACE_MATCH_TOLERANCE_SECONDS. Returns the chosen entries (still in any order)
+// or null when no such cluster exists. Ties on spread prefer the earliest window.
+function selectGroupPaceCluster(entries, selfId, clusterSize = GROUP_MIN_PARTICIPANTS) {
+  if (entries.length < clusterSize) {
+    return null;
+  }
+
+  const sorted = [...entries].sort((left, right) => (
+    left.runner.averagePaceMinutes - right.runner.averagePaceMinutes
+  ));
+
+  let best = null;
+
+  for (let start = 0; start + clusterSize <= sorted.length; start += 1) {
+    const window = sorted.slice(start, start + clusterSize);
+
+    if (!window.some((entry) => entry.runner.id === selfId)) {
+      continue;
+    }
+
+    // The window is already sorted by pace, so min/max are the ends.
+    const spreadSeconds = (window[clusterSize - 1].runner.averagePaceMinutes - window[0].runner.averagePaceMinutes) * 60;
+
+    if (spreadSeconds > GROUP_PACE_MATCH_TOLERANCE_SECONDS) {
+      continue;
+    }
+
+    if (!best || spreadSeconds < best.spreadSeconds) {
+      best = { window, spreadSeconds };
+    }
+  }
+
+  return best ? best.window : null;
+}
+
 export function buildGroupMatchResponse(store, currentUser, { distanceKm, slotStartAt, testMode = false }) {
   if (testMode) {
     clearUserTestMatchArtifacts(store, currentUser.id);
@@ -640,25 +682,60 @@ export function buildGroupMatchResponse(store, currentUser, { distanceKm, slotSt
   const distanceRecommendationHint = buildDistanceRecommendationHint(distanceKm);
 
   upsertMatchQueueEntry(store, 'group', currentUser.id, distanceKm, normalizedSlotStartAt);
+
+  // LATE-JOINER: a group of 3 has already formed and anchored. If THIS requester is
+  // within ±15s of an existing forming group's anchor, slot them in as the single
+  // open seat for this HTTP call (closest-first one-at-a-time — only one joiner per
+  // call) and return matched immediately.
+  const joinableSession = findJoinableGroupSession(store, {
+    distanceKm,
+    slotStartAt: normalizedSlotStartAt,
+    joinerPaceMinutes: currentRunner.averagePaceMinutes,
+  });
+
+  if (joinableSession) {
+    addParticipantToMatchSession(joinableSession, {
+      id: currentRunner.id,
+      seedRank: joinableSession.participants.length + 1,
+    });
+    removeUsersFromMatchQueue(store, 'group', [currentRunner.id]);
+    const participants = buildSessionGroupParticipants(store, joinableSession);
+    const mySeedRank = participants.find((participant) => participant.id === currentRunner.id)?.seedRank ?? participants.length;
+
+    return {
+      success: true,
+      matched: true,
+      requestId: nextId('group-request'),
+      distanceKm,
+      slotStartAt: normalizedSlotStartAt,
+      slotLabel,
+      paceBandLabel,
+      levelBandLabel,
+      criteriaSummary: `${buildMatchSlotDateLabel(normalizedSlotStartAt)} ${slotLabel}에 이미 모인 ${participants.length}명 그룹에 합류했어요.`,
+      estimatedWaitMinutes: 0,
+      maxGroupSize,
+      participantsCount: participants.length,
+      mySeedRank,
+      participants,
+    };
+  }
+
+  // FORM-AT-3: from the same-slot + same-distance(±0.15km) queued entries, pick the
+  // tightest cluster of 3 paces (all within ±15s of each other) that includes self.
   const queuedEntries = buildQueuedMatchRunnerEntries(store, 'group', currentRunner, {
     distanceKm,
     slotStartAt: normalizedSlotStartAt,
     includeCurrentUser: true,
-  }).sort((left, right) => {
-    if (right.score !== left.score) {
-      return right.score - left.score;
-    }
-
-    return new Date(left.queueEntry.requestedAt).getTime() - new Date(right.queueEntry.requestedAt).getTime();
   });
+  const cluster = selectGroupPaceCluster(queuedEntries, currentRunner.id, GROUP_MIN_PARTICIPANTS);
 
-  const compatibleEntries = queuedEntries
-    .filter((entry) => entry.runner.id === currentRunner.id || entry.score >= GROUP_MIN_COMPATIBILITY_SCORE)
-    .slice(0, maxGroupSize);
-  const participants = buildQueuedParticipants(compatibleEntries);
-  const mySeedRank = participants.find((participant) => participant.id === currentRunner.id)?.seedRank ?? 1;
+  if (!cluster) {
+    // Not enough same-pace runners yet — keep the requester queued and wait. The
+    // displayed participants mirror the queued runners (sorted) so the caller still
+    // sees who is waiting.
+    const waitingParticipants = buildQueuedParticipants(queuedEntries.slice(0, maxGroupSize));
+    const waitingSeedRank = waitingParticipants.find((participant) => participant.id === currentRunner.id)?.seedRank ?? 1;
 
-  if (participants.length < GROUP_MIN_PARTICIPANTS) {
     return {
       success: true,
       matched: false,
@@ -668,17 +745,41 @@ export function buildGroupMatchResponse(store, currentUser, { distanceKm, slotSt
       slotLabel,
       paceBandLabel,
       levelBandLabel,
-      criteriaSummary: `나와 비슷한 페이스 러너를 계속 모으는 중이에요. 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 하고, 출발 30분 전까지만 매칭돼요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+      criteriaSummary: `나와 ±${GROUP_PACE_MATCH_TOLERANCE_SECONDS}초 이내 페이스 러너를 계속 모으는 중이에요. 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 하고, 출발 30분 전까지만 매칭돼요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
       estimatedWaitMinutes: 10,
       maxGroupSize,
-      participantsCount: participants.length,
-      mySeedRank,
-      participants,
+      participantsCount: waitingParticipants.length,
+      mySeedRank: waitingSeedRank,
+      participants: waitingParticipants,
     };
   }
 
-  removeUsersFromMatchQueue(store, 'group', participants.map((participant) => participant.id));
-  createMatchSession(store, 'group', distanceKm, normalizedSlotStartAt, participants);
+  // The anchor is the AVERAGE pace of the founding 3. Members are ordered closest-pace-
+  // first and seeded by closeness to that anchor (so seedRank 1 is the runner nearest
+  // the group's average pace).
+  const anchorPaceMinutes = cluster.reduce((sum, entry) => sum + entry.runner.averagePaceMinutes, 0) / cluster.length;
+  const orderedMembers = [...cluster].sort((left, right) => {
+    const leftGap = Math.abs(left.runner.averagePaceMinutes - anchorPaceMinutes);
+    const rightGap = Math.abs(right.runner.averagePaceMinutes - anchorPaceMinutes);
+
+    if (leftGap !== rightGap) {
+      return leftGap - rightGap;
+    }
+
+    // Deterministic tie-break: earlier queue request first.
+    return new Date(left.queueEntry.requestedAt).getTime() - new Date(right.queueEntry.requestedAt).getTime();
+  });
+  const participantSeeds = orderedMembers.map((entry, index) => ({
+    id: entry.runner.id,
+    seedRank: index + 1,
+  }));
+
+  removeUsersFromMatchQueue(store, 'group', participantSeeds.map((participant) => participant.id));
+  const session = createMatchSession(store, 'group', distanceKm, normalizedSlotStartAt, participantSeeds, {
+    anchorPaceMinutes,
+  });
+  const participants = buildSessionGroupParticipants(store, session);
+  const mySeedRank = participants.find((participant) => participant.id === currentRunner.id)?.seedRank ?? 1;
 
   return {
     success: true,
@@ -807,5 +908,9 @@ export function buildUpcomingRunningMatchesResponse(store, currentUser) {
   return {
     serverNow: now.toISOString(),
     items: sessions,
+    // Per-slot count of REAL duel searchers (excludes testMode). Keyed by ISO
+    // slotStartAt; slots with 0 searchers are absent. The client reads this as
+    // duelSlotCounts: Record<string, number>.
+    duelSlotCounts: countDuelQueueBySlot(store, { now }),
   };
 }

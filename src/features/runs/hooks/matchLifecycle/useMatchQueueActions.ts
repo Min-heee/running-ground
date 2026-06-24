@@ -14,6 +14,7 @@ export function useMatchQueueActions() {
   const serverClockOffsetMsRef = useRef(getSharedServerClockOffsetMs());
 
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingRunningMatchItem[]>([]);
+  const [duelSlotCounts, setDuelSlotCounts] = useState<Record<string, number>>({});
   const [matchRemindersEnabled, setMatchRemindersEnabled] = useState(true);
   const [cancelingUpcomingMatchId, setCancelingUpcomingMatchId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -48,6 +49,8 @@ export function useMatchQueueActions() {
     weeklyMatchSlotOptions,
     upcomingMatches,
     setUpcomingMatches,
+    duelSlotCounts,
+    setDuelSlotCounts,
     matchRemindersEnabled,
     setMatchRemindersEnabled,
     cancelingUpcomingMatchId,

@@ -210,9 +210,19 @@ export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatc
       }))
       .sort((left, right) => new Date(left.slotStartAt).getTime() - new Date(right.slotStartAt).getTime());
 
+    // Sample duel-slot waiting counts so mock mode + tests exercise the slot-count UI:
+    // one "person waiting" per slot that currently has a duel match in flight.
+    const duelSlotCounts = items.reduce<Record<string, number>>((counts, match) => {
+      if (match.mode === 'duel') {
+        counts[match.slotStartAt] = (counts[match.slotStartAt] ?? 0) + 1;
+      }
+      return counts;
+    }, {});
+
     return sanitizeUpcomingRunningMatchesResponse({
       serverNow: new Date().toISOString(),
       items,
+      duelSlotCounts,
     });
   }
 

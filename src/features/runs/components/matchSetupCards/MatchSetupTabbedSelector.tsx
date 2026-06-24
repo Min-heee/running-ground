@@ -61,6 +61,7 @@ export function MatchSetupTabbedSelector({
   selectedTimeSection,
   slotOptions,
   selectedSlotStartAt,
+  slotDuelCounts,
   onSelectDate,
   onSelectTimeSection,
   onSelectSlot,
@@ -121,11 +122,12 @@ export function MatchSetupTabbedSelector({
   const slotChips = useMemo(() => slotOptions.map((slot) => (
     <MatchSlotChip
       key={slot.startsAt}
+      count={slotDuelCounts?.[slot.startsAt] ?? 0}
       onSelectSlot={onSelectSlot}
       selected={slot.startsAt === selectedSlotStartAt}
       slot={slot}
     />
-  )), [onSelectSlot, selectedSlotStartAt, slotOptions]);
+  )), [onSelectSlot, selectedSlotStartAt, slotDuelCounts, slotOptions]);
 
   return (
     <View style={styles.duelSection}>
@@ -328,10 +330,12 @@ const TimeSectionChip = memo(function TimeSectionChip({
 });
 
 const MatchSlotChip = memo(function MatchSlotChip({
+  count,
   onSelectSlot,
   selected,
   slot,
 }: {
+  count: number;
   onSelectSlot: (slotStartAt: string) => void;
   selected: boolean;
   slot: TimeSlotSelectorProps['slotOptions'][number];
@@ -355,6 +359,7 @@ const MatchSlotChip = memo(function MatchSlotChip({
       <Text style={[styles.duelSlotLabel, selected ? styles.duelSlotLabelSelected : undefined]}>
         {slot.label}
       </Text>
+      {count > 0 ? <Text style={styles.duelSlotWaitingCount}>{count}명 대기</Text> : null}
       {slot.isClosed ? <Text style={styles.duelSlotClosedText}>마감</Text> : null}
     </Pressable>
   );

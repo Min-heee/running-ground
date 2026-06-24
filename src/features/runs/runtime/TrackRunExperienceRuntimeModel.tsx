@@ -353,6 +353,8 @@ export function TrackRunExperienceRuntime({
     setGroupMatchNotice,
     upcomingMatches,
     setUpcomingMatches,
+    duelSlotCounts,
+    setDuelSlotCounts,
     matchRemindersEnabled,
     setMatchRemindersEnabled,
     cancelingUpcomingMatchId,
@@ -1782,6 +1784,7 @@ export function TrackRunExperienceRuntime({
 
     syncServerClock(payload.serverNow, payload);
     setUpcomingMatches(payload.items);
+    setDuelSlotCounts(payload.duelSlotCounts ?? {});
     return payload.items;
   };
 
@@ -2767,6 +2770,8 @@ export function TrackRunExperienceRuntime({
     shouldShowReadyScreen,
     showDuelCustomDistanceInput,
     showGroupCustomDistanceInput,
+    slotDuelCounts: duelSlotCounts,
+    syncedNowMs,
     visibleDuelSlotOptions,
     visibleGroupSlotOptions,
     visibleMatchRoom,

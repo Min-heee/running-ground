@@ -18,6 +18,7 @@ import type {
   RunTrackingState,
 } from '@/features/runs/types/matchStateMachine';
 import {
+  getMatchStartRemainingSeconds,
   shouldAutoOpenMatchArena,
   shouldShowMatchStartOverlay,
 } from '@/lib/matchCountdown';
@@ -410,6 +411,67 @@ export function buildPartyRunFlowSnapshot({
     shouldOpenArena,
     shouldPreferArena: hasLinkedMatch && shouldPreferRoomLinkedArena(room?.linkedMatchStatus, remainingSeconds),
     linkedMatchContext,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Duel reservation waiting room (S4). When a 1:1 duel is `matched`, the running
+// tab shows a "예약 대기실" view that simply waits for the slot start time. This
+// pure helper derives everything that view needs from the slot time + synced
+// clock, reusing the same party-run phase deriver so the duel reservation and
+// the party-run waiting room agree on the start phase. It has NO host-start /
+// ready / join machinery — a duel reservation auto-opens the arena at start.
+// ---------------------------------------------------------------------------
+export type DuelReservationView = {
+  // Stable phase from derivePartyRunStartPhase: 'arming' (still far out),
+  // 'countdown' (≤30s, show the centered overlay), 'arenaHandoff'/'active'
+  // (let the existing arena auto-open take over).
+  phase: PartyRunStartPhase;
+  // Live seconds until slot start (null once the slot has fired).
+  remainingSeconds: number | null;
+  // '곧 시작' once we're inside the overlay window or the slot has fired, else 'N분 남음'.
+  statusLabel: string;
+  // True only inside the ≤30s overlay window — gates MatchStartCountdownOverlay.
+  // The existing arena auto-open (duelShouldOpenCountdownArena, ≤20s) takes over after.
+  shouldShowStartOverlay: boolean;
+};
+
+function buildDuelReservationStatusLabel(remainingSeconds: number | null): string {
+  if (remainingSeconds === null) {
+    return '곧 시작';
+  }
+
+  if (shouldShowMatchStartOverlay(remainingSeconds)) {
+    return '곧 시작';
+  }
+
+  const remainingMinutes = Math.ceil(remainingSeconds / 60);
+  return `${remainingMinutes}분 남음`;
+}
+
+export function deriveDuelReservationView({
+  slotStartAt,
+  syncedNowMs,
+}: {
+  slotStartAt: string | null | undefined;
+  syncedNowMs: number;
+}): DuelReservationView {
+  const remainingSeconds = slotStartAt
+    ? getMatchStartRemainingSeconds(slotStartAt, syncedNowMs)
+    : null;
+  const phase = derivePartyRunStartPhase({
+    linkedMatchStatus: 'matched',
+    remainingSeconds,
+    linkedMatchId: slotStartAt ?? null,
+    linkedMatchSlotStartAt: slotStartAt ?? null,
+    syncedNowMs,
+  });
+
+  return {
+    phase,
+    remainingSeconds,
+    statusLabel: buildDuelReservationStatusLabel(remainingSeconds),
+    shouldShowStartOverlay: shouldShowMatchStartOverlay(remainingSeconds),
   };
 }
 

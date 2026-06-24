@@ -101,6 +101,30 @@ export function getMatchQueueEntries(store, mode, distanceKm, slotStartAt, { tes
   ));
 }
 
+// Per-slot tally of REAL (non-testMode) duel searchers, keyed by ISO slotStartAt.
+// Slots with no duel searchers are absent from the result. Prunes the queues first so
+// expired/past-cutoff entries are never counted. Powers the upcoming-poll slot counts.
+export function countDuelQueueBySlot(store, { now = new Date() } = {}) {
+  const queues = pruneMatchQueues(store, now);
+  const countsBySlot = {};
+
+  for (const entry of queues.duel) {
+    if (entry.testMode) {
+      continue;
+    }
+
+    const slotKey = entry.slotStartAt;
+
+    if (typeof slotKey !== 'string' || !slotKey) {
+      continue;
+    }
+
+    countsBySlot[slotKey] = (countsBySlot[slotKey] ?? 0) + 1;
+  }
+
+  return countsBySlot;
+}
+
 export function findAnyQueuedMatchEntryForUser(store, userId) {
   const queues = pruneMatchQueues(store);
 

@@ -1,15 +1,16 @@
 import { Platform } from 'react-native';
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
+import { MATCH_REMINDER_OFFSETS_MINUTES } from '@/lib/matchNotificationOffsets';
+
+export { MATCH_REMINDER_OFFSETS_MINUTES };
 
 const MATCH_REMINDER_KIND = 'runningground-match-reminder';
 const MATCH_REMINDER_CHANNEL_ID = 'runningground-match-reminders';
-const MATCH_REMINDER_OFFSETS_MINUTES = [30, 10, 0] as const;
 
 async function getNotificationsModule() {
-  if (Platform.OS === 'ios') {
-    return null;
-  }
-
+  // DATE-trigger notifications are cross-platform; iOS schedules these the same as
+  // Android (ensureMatchReminderPermissions requests iOS alert/sound permission too),
+  // so we no longer short-circuit iOS here.
   try {
     return await import('expo-notifications');
   } catch {
@@ -59,16 +60,16 @@ export async function ensureMatchReminderPermissions() {
 function buildReminderTitle(match: UpcomingRunningMatchItem, minutesBefore: number) {
   const matchLabel = match.mode === 'duel' ? '1대1 대결' : '그룹 대결';
 
-  if (minutesBefore === 0) {
-    return `${matchLabel} 시작할 시간이에요`;
+  if (minutesBefore <= 1) {
+    return `${matchLabel} 곧 시작해요`;
   }
 
   return `${matchLabel} ${minutesBefore}분 전이에요`;
 }
 
 function buildReminderBody(match: UpcomingRunningMatchItem, minutesBefore: number) {
-  if (minutesBefore === 0) {
-    return `${match.counterpartLabel} · ${match.summary}`;
+  if (minutesBefore <= 1) {
+    return `잠시 후 ${match.counterpartLabel}과 ${match.summary}가 시작돼요.`;
   }
 
   return `${minutesBefore}분 뒤 ${match.counterpartLabel}과 ${match.summary}가 시작돼요.`;
