@@ -7,6 +7,7 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
 import { LiveGapPushCard } from '@/features/runs/components/matchSetupCards/LiveGapPushCard';
 import { useGroupReservationRoom } from '@/features/match/hooks/useGroupReservationRoom';
+import { useReservationArenaHandoff } from '@/features/match/hooks/useReservationArenaHandoff';
 import { formatRoomDateLabel } from '@/features/runs/utils/matchRoomScheduling';
 import type { GroupReservationParticipant } from '@/features/runs/lifecycle/matchStateMachine';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
@@ -48,6 +49,19 @@ export default function GroupReservationRoomScreen() {
     view,
     cancel,
   } = useGroupReservationRoom({ matchId, distanceKm, slotStartAt, participantCount, isTestMatch });
+
+  // A few seconds before the runtime's ≤20s arena window, hand off to the running tab so
+  // the live arena mounts UNDER this same countdown overlay (proven running-tab flow);
+  // the race then starts at 0 with no transition. Suspended while a cancel is settling.
+  useReservationArenaHandoff({
+    mode: 'group',
+    matchId,
+    distanceKm,
+    slotStartAt,
+    isTestMatch,
+    remainingSeconds: view.reservation.remainingSeconds,
+    enabled: !isCanceling,
+  });
 
   const handleBack = useCallback(() => {
     router.back();

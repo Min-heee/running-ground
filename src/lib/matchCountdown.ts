@@ -3,6 +3,15 @@ import type { UpcomingRunningMatchItem } from '@/lib/api/types';
 export const MATCH_CARD_COUNTDOWN_WINDOW_SECONDS = 10 * 60;
 export const MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS = 30;
 export const MATCH_ARENA_HANDOFF_COUNTDOWN_WINDOW_SECONDS = 20;
+// When a matched duel/group is being viewed in its full-screen RESERVATION ROOM, the
+// room pre-emptively navigates to the running tab a touch EARLIER than the runtime's
+// ≤20s arena-open window so the proven running-tab arena mounts UNDER the countdown
+// overlay with a few seconds of slack — never a screen transition at countdown 0. The
+// overlay window is 30s, so at 25s the centered overlay is already showing on both the
+// room and the running tab; both read the same slotStartAt + shared server clock, so the
+// visible number continues across the handoff without a jump. Must stay between the
+// arena-open window (20s) and the overlay window (30s).
+export const MATCH_RESERVATION_ARENA_HANDOFF_SECONDS = 25;
 // Mirrors backend MATCH_ROOM_HOST_START_DELAY_SECONDS: host-start rooms show numeric countdown only for the final 10s.
 export const MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS = 10;
 
