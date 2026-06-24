@@ -5,7 +5,7 @@
 // default; it intentionally resets to the default on a full app restart (no native
 // persistence layer is wired for non-session prefs).
 
-export type LiveGapInterval = 'off' | '30s' | '1m' | '3m' | '5m' | '10m';
+export type LiveGapInterval = 'off' | '1m' | '3m' | '5m' | '10m';
 
 // Relative targets (ahead1/behind1) follow my live rank; absolute targets (rank1)
 // follow the leaderboard position regardless of where I sit. Legacy values
@@ -39,7 +39,6 @@ export type LiveGapIntervalOption = {
 
 export const LIVE_GAP_INTERVAL_OPTIONS: readonly LiveGapIntervalOption[] = [
   { value: 'off', label: '끄기', ms: null },
-  { value: '30s', label: '30초', ms: 30_000 },
   { value: '1m', label: '1분', ms: 60_000 },
   { value: '3m', label: '3분', ms: 180_000 },
   { value: '5m', label: '5분', ms: 300_000 },

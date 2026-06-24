@@ -17,7 +17,6 @@ import {
 
 test('resolveLiveGapIntervalMs maps interval keys to milliseconds', () => {
   assert.equal(resolveLiveGapIntervalMs('off'), null);
-  assert.equal(resolveLiveGapIntervalMs('30s'), 30_000);
   assert.equal(resolveLiveGapIntervalMs('1m'), 60_000);
   assert.equal(resolveLiveGapIntervalMs('3m'), 180_000);
   assert.equal(resolveLiveGapIntervalMs('5m'), 300_000);
@@ -232,7 +231,7 @@ test('subscribers stop receiving updates after unsubscribe', () => {
     notifications += 1;
   });
 
-  setLiveGapInterval('30s');
+  setLiveGapInterval('1m');
   assert.equal(notifications, 1);
 
   unsubscribe();
