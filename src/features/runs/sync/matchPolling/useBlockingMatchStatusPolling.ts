@@ -10,7 +10,10 @@ import {
   getMatchStartRemainingSeconds,
   shouldShowMatchStartOverlay,
 } from '@/lib/matchCountdown';
-import { buildBlockingMatchStatusRegistryKey } from '@/features/runs/sync/registryKeys';
+import {
+  buildBlockingMatchStatusRegistryKey,
+  buildWaitingMatchDiscoveryRegistryKey,
+} from '@/features/runs/sync/registryKeys';
 import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 
@@ -26,6 +29,16 @@ type UseBlockingMatchStatusPollingInput = {
   enabled?: boolean;
   linkedMatchContext?: LinkedMatchStatusPollingContext | null;
   recoveryMatchId?: string | null;
+  waitingDiscovery?: WaitingMatchDiscoveryContext | null;
+};
+
+// A queued runner who got `matched:false` is waiting WITHOUT a matchId. The session that
+// pairs them is created server-side by the opponent's request, so this runner must keep
+// polling direct status (by slot + distance, no matchId) to discover the reservation the
+// moment a compatible opponent schedules the same slot.
+type WaitingMatchDiscoveryContext = {
+  mode: 'duel' | 'group';
+  slotStartAt: string;
 };
 
 type MatchStatusLoadOptions = {
@@ -137,6 +150,7 @@ export function useBlockingMatchStatusPolling({
   enabled = true,
   linkedMatchContext = null,
   recoveryMatchId = null,
+  waitingDiscovery = null,
 }: UseBlockingMatchStatusPollingInput) {
   const callbackRef = useRef({
     loadDuelMatchStatus,
@@ -408,5 +422,61 @@ export function useBlockingMatchStatusPolling({
     matchMode,
     mountedSignalVersion,
     shouldFastPollGroupMatchStatus,
+  ]);
+
+  // Waiting-discovery poll: a queued runner without a matchId keeps fetching direct
+  // status (by slot + distance) so they pick up the reservation the moment an opponent
+  // schedules the same slot. Runs on the idle searching cadence and is keyed by mode +
+  // slot (no matchId exists yet) so it never collides with the matchId-keyed live polls
+  // above. Once a session is discovered, the status payload carries a matchId, the mode
+  // status flips to 'matched', `waitingDiscovery` clears, and the live polls take over.
+  const waitingDiscoveryMode = waitingDiscovery?.mode ?? null;
+  const waitingDiscoverySlotStartAt = waitingDiscovery?.slotStartAt ?? null;
+  useEffect(() => {
+    if (!enabled || !waitingDiscoveryMode || !waitingDiscoverySlotStartAt) {
+      return;
+    }
+    if (matchMode !== waitingDiscoveryMode) {
+      return;
+    }
+
+    const pollingKey = buildWaitingMatchDiscoveryRegistryKey(waitingDiscoveryMode, waitingDiscoverySlotStartAt);
+    const polling = startRgPollingInterval({
+      intervalMs: idlePollMs,
+      key: pollingKey,
+      label: 'waiting match discovery polling',
+      onTick: () => (
+        waitingDiscoveryMode === 'duel'
+          ? callbackRef.current.loadDuelMatchStatus()
+          : callbackRef.current.loadGroupMatchStatus()
+      ),
+      detail: {
+        intervalMs: idlePollMs,
+        mode: waitingDiscoveryMode,
+        slotStartAt: waitingDiscoverySlotStartAt,
+        source: 'waiting match discovery',
+      },
+    });
+    if (!polling.acquired) {
+      return;
+    }
+
+    rgPerfMark('match polling start', {
+      intervalMs: idlePollMs,
+      matchId: null,
+      mode: waitingDiscoveryMode,
+      pollingKey,
+      source: 'waiting match discovery',
+    });
+
+    return () => {
+      polling.stop();
+    };
+  }, [
+    enabled,
+    idlePollMs,
+    matchMode,
+    waitingDiscoveryMode,
+    waitingDiscoverySlotStartAt,
   ]);
 }

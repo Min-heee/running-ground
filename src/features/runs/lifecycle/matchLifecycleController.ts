@@ -67,6 +67,9 @@ export type MatchLifecycleController = {
   effects: {
     shouldPollRoom: boolean;
     shouldPollDirectMatchStatus: boolean;
+    // A queued runner (no matchId, mode status 'waiting') must keep polling direct status
+    // by slot + distance to discover the reservation an opponent's request creates for them.
+    shouldDiscoverWaitingMatch: boolean;
     shouldPollLinkedMatch: boolean;
     shouldRefreshUpcomingMatches: boolean;
     shouldAcknowledgeCountdownReady: boolean;
@@ -324,6 +327,19 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
       ? input.groupMatchStatus
       : null;
   const awaitingOpponentResolution = shouldAwaitOpponentResolution(activeStatus);
+  // Waiting-discovery: a runner who scheduled a slot and got `matched:false` sits in
+  // the queue with a 'waiting' status and NO matchId. The session that pairs them is
+  // created by the OPPONENT's request (server-side), so this runner must keep polling
+  // direct status (by slot + distance, no matchId) to discover the reservation the
+  // moment a compatible opponent schedules the same slot. Without this they stay stuck
+  // on the searching screen forever ("상대가 나타나면 바로 예약 걸림" case).
+  const awaitingWaitingMatchDiscovery = Boolean(
+    !roomLinkedContext
+    && isCompetitiveMode
+    && !matchId
+    && activeStatus?.state === 'waiting'
+    && !activeStatus.isTestMatch,
+  );
   const currentUserTerminalInActiveStatus = Boolean(
     activeStatus?.state === 'active'
     && isTerminalLiveStatus(activeStatus.currentUserLiveStatus),
@@ -381,15 +397,24 @@ export function buildMatchLifecycleController(input: MatchLifecycleControllerInp
       shouldPollDirectMatchStatus: Boolean(
         source !== 'party-room'
         && isCompetitiveMode
-        && matchId
         && (
-          stage === 'waiting'
-          || stage === 'arming'
-          || stage === 'countdown'
-          || stage === 'active'
-          || awaitingOpponentResolution
+          // Waiting-discovery has no matchId yet — keep polling direct status (by slot +
+          // distance) so a queued runner finds the reservation the moment an opponent
+          // schedules the same slot. Every other case still requires a known matchId.
+          awaitingWaitingMatchDiscovery
+          || (
+            matchId
+            && (
+              stage === 'waiting'
+              || stage === 'arming'
+              || stage === 'countdown'
+              || stage === 'active'
+              || awaitingOpponentResolution
+            )
+          )
         ),
       ),
+      shouldDiscoverWaitingMatch: awaitingWaitingMatchDiscovery,
       shouldPollLinkedMatch,
       shouldRefreshUpcomingMatches: Boolean(input.liveMatchHeavyWorkReady && matchId),
       shouldAcknowledgeCountdownReady: partyFlow.canAcknowledgeCountdownReady,

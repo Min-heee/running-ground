@@ -1746,3 +1746,110 @@ await runTest('match result endpoint reconstructs a duel from saved runs after t
     assert.equal(denied.response.status, 404);
   });
 });
+
+await runTest('a waiting duel runner discovers the reservation an opponent creates on their next status poll', async () => {
+  await withBackend(createBaseStore(), async ({ request }) => {
+    const slotStartAt = createSelectableMatchSlotStartAt();
+
+    // Host schedules the slot first. No compatible opponent is waiting, so they sit in
+    // the queue with matched:false and NO matchId.
+    const hostRequest = await request('host-token', 'POST', '/api/running/matches/duel', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+    });
+    assert.equal(hostRequest.matched, false);
+    assert.equal(hostRequest.opponent, undefined);
+
+    // While waiting, the host polls status by slot + distance (NO matchId) — exactly what
+    // the client's waiting-discovery poll sends. Still waiting, still no matchId.
+    const hostWaiting = await request('host-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+    });
+    assert.equal(hostWaiting.state, 'waiting');
+    assert.equal(hostWaiting.matchId, undefined);
+
+    // Guest schedules the SAME slot. Their request pairs against the waiting host and
+    // creates one session containing BOTH runners.
+    const guestRequest = await request('guest-token', 'POST', '/api/running/matches/duel', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+    });
+    assert.equal(guestRequest.matched, true);
+    assert.equal(guestRequest.opponent.id, 'host-user');
+
+    // The host's NEXT status poll (still by slot + distance, no matchId) now discovers the
+    // reservation: state flips to 'matched', a matchId appears, and the opponent is the guest.
+    const hostDiscovered = await request('host-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+    });
+    assert.equal(hostDiscovered.state, 'matched');
+    assert.equal(typeof hostDiscovered.matchId, 'string');
+    assert.equal(hostDiscovered.matchId.length > 0, true);
+    assert.equal(hostDiscovered.opponent.id, 'guest-user');
+
+    // Both runners now see the SAME session.
+    const guestStatus = await request('guest-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+    });
+    assert.equal(guestStatus.matchId, hostDiscovered.matchId);
+
+    // The host's upcoming-matches list also surfaces the freshly-created reservation.
+    const hostUpcoming = await request('host-token', 'GET', '/api/running/matches/upcoming');
+    assert.equal(hostUpcoming.items.some((item) => item.matchId === hostDiscovered.matchId), true);
+  });
+});
+
+await runTest('a group match forms once three compatible runners schedule the same slot', async () => {
+  const store = createBaseStore();
+  store.users.push(
+    createRunner({ id: 'third-user', name: '세번째 러너', publicTag: 'third', districtName: '마포구' }),
+  );
+  store.sessions.push(createSession('third-token', 'third-user'));
+  store.runs.push(createRun({ id: 'third-run-1', userId: 'third-user', pace: '06:18/km' }));
+
+  await withBackend(store, async ({ request }) => {
+    const slotStartAt = createSelectableMatchSlotStartAt();
+
+    const first = await request('host-token', 'POST', '/api/running/matches/group', {
+      mode: 'group',
+      distanceKm: 5,
+      slotStartAt,
+    });
+    assert.equal(first.matched, false);
+
+    const second = await request('guest-token', 'POST', '/api/running/matches/group', {
+      mode: 'group',
+      distanceKm: 5,
+      slotStartAt,
+    });
+    // Two compatible runners still fall short of the group minimum (now 3, was 5).
+    assert.equal(second.matched, false);
+
+    const third = await request('third-token', 'POST', '/api/running/matches/group', {
+      mode: 'group',
+      distanceKm: 5,
+      slotStartAt,
+    });
+    // The third compatible runner reaches the lowered minimum and the group forms.
+    assert.equal(third.matched, true);
+    assert.equal(third.participants.length >= 3, true);
+
+    // The two earlier runners discover the group reservation on their next status poll.
+    const hostDiscovered = await request('host-token', 'POST', '/api/running/matches/status', {
+      mode: 'group',
+      distanceKm: 5,
+      slotStartAt,
+    });
+    assert.equal(hostDiscovered.state, 'matched');
+    assert.equal(typeof hostDiscovered.matchId, 'string');
+    assert.equal(hostDiscovered.participantCount >= 3, true);
+  });
+});

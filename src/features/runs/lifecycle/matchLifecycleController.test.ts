@@ -133,6 +133,71 @@ test('waiting direct match does not start GPS or heartbeat', () => {
   assert.equal(controller.effects.shouldRunHeartbeat, false);
 });
 
+test('queued runner waiting for an opponent keeps discovering its reservation without a matchId', () => {
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'idle',
+    isRunning: false,
+    duelMatchState: 'waiting',
+    // A `matched:false` request leaves the runner in the queue: status is 'waiting'
+    // and carries NO matchId (the pairing session is created later by the opponent).
+    duelMatchStatus: status({
+      state: 'waiting',
+      matchId: undefined,
+      userAccepted: false,
+    }),
+  }));
+
+  assert.equal(controller.stage, 'waiting');
+  assert.equal(controller.matchId, null);
+  // Must keep polling direct status so the reservation an opponent's request creates is
+  // discovered on the searching cadence.
+  assert.equal(controller.effects.shouldDiscoverWaitingMatch, true);
+  assert.equal(controller.effects.shouldPollDirectMatchStatus, true);
+  assert.equal(controller.effects.shouldPollLinkedMatch, false);
+  assert.equal(controller.effects.shouldStartGpsWarmup, false);
+  assert.equal(controller.effects.shouldStartGpsActive, false);
+  assert.equal(controller.effects.shouldRunHeartbeat, false);
+});
+
+test('a test-mode waiting runner does not run the waiting-discovery poll', () => {
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'idle',
+    isRunning: false,
+    duelMatchState: 'waiting',
+    duelMatchStatus: status({
+      state: 'waiting',
+      matchId: undefined,
+      isTestMatch: true,
+      userAccepted: false,
+    }),
+  }));
+
+  assert.equal(controller.stage, 'waiting');
+  assert.equal(controller.effects.shouldDiscoverWaitingMatch, false);
+  assert.equal(controller.effects.shouldPollDirectMatchStatus, false);
+});
+
+test('a matched runner with a matchId is not treated as waiting-discovery', () => {
+  const controller = buildMatchLifecycleController(baseInput({
+    matchMode: 'duel',
+    trackingStatus: 'idle',
+    isRunning: false,
+    duelMatchState: 'matched',
+    duelStartCountdownSeconds: 45,
+    duelMatchStatus: status({
+      state: 'matched',
+      matchId: 'duel-paired',
+      slotStartAt: '2026-05-14T12:00:45.000Z',
+    }),
+  }));
+
+  assert.equal(controller.effects.shouldDiscoverWaitingMatch, false);
+  // The normal matchId-keyed direct poll still runs for the paired/arming match.
+  assert.equal(controller.effects.shouldPollDirectMatchStatus, true);
+});
+
 test('focused route match id keeps recovery polling active before status arrives', () => {
   const controller = buildMatchLifecycleController(baseInput({
     matchMode: 'duel',

@@ -2328,11 +2328,24 @@ export function TrackRunExperienceRuntime({
         && (
           matchLifecycleController.effects.shouldPollDirectMatchStatus
           || matchLifecycleController.effects.shouldPollLinkedMatch
+          || matchLifecycleController.effects.shouldDiscoverWaitingMatch
         ),
       linkedMatchContext: matchLifecycleController.effects.shouldPollLinkedMatch
         ? roomLinkedMatchContext
         : null,
       recoveryMatchId: matchLifecycleController.source === 'party-room' ? null : matchLifecycleController.matchId,
+      // A queued runner waiting for an opponent (no matchId) keeps polling direct status
+      // by slot + distance so the reservation an opponent's request creates is discovered
+      // on the searching cadence. Cleared the moment the discovered session sets matchId.
+      waitingDiscovery: matchLifecycleController.effects.shouldDiscoverWaitingMatch
+        && matchLifecycleController.mode
+        ? {
+          mode: matchLifecycleController.mode,
+          slotStartAt: matchLifecycleController.mode === 'duel'
+            ? activeDuelSlotStartAt
+            : activeGroupSlotStartAt,
+        }
+        : null,
     },
   });
 

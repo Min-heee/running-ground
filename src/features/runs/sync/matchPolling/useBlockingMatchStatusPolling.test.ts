@@ -10,6 +10,7 @@ import {
   markLiveMatchMounted,
   resetLiveMatchMountedRegistryForTest,
 } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
+import { buildWaitingMatchDiscoveryRegistryKey } from '@/features/runs/sync/registryKeys';
 import {
   buildBlockingMatchStatusPollingKey,
   shouldSkipBlockingMatchStatusPollingForMountedMatch,
@@ -112,6 +113,42 @@ test('blocking match status interval keeps one active polling owner per matchId'
   assert.equal(restarted.acquired, true);
   assert.equal(getActiveRgPollingSlotCount(), 1);
   restarted.stop();
+  assert.equal(getActiveRgPollingSlotCount(), 0);
+});
+
+test('waiting match discovery polling is keyed per mode and slot, separate from matchId polling', () => {
+  resetRgPollingRegistryForTest();
+  const duelSlotA = buildWaitingMatchDiscoveryRegistryKey('duel', '2026-05-14T12:00:00.000Z');
+  const duelSlotB = buildWaitingMatchDiscoveryRegistryKey('duel', '2026-05-14T13:00:00.000Z');
+  const groupSlotA = buildWaitingMatchDiscoveryRegistryKey('group', '2026-05-14T12:00:00.000Z');
+
+  // Distinct slots / modes never collide with each other.
+  assert.notEqual(duelSlotA, duelSlotB);
+  assert.notEqual(duelSlotA, groupSlotA);
+  // The waiting-discovery key namespace never collides with a matchId-keyed live poll,
+  // so the discovery poll and a live poll can coexist without one starving the other.
+  assert.notEqual(duelSlotA, buildBlockingMatchStatusPollingKey('2026-05-14T12:00:00.000Z'));
+
+  const first = startRgPollingInterval({
+    intervalMs: 10_000,
+    key: duelSlotA,
+    label: 'waiting match discovery polling',
+    onTick: () => {},
+  });
+  const duplicate = startRgPollingInterval({
+    intervalMs: 10_000,
+    key: duelSlotA,
+    label: 'waiting match discovery polling',
+    onTick: () => {},
+  });
+
+  assert.equal(first.acquired, true);
+  // A second mount for the same waiting slot reuses the singleton instead of double-polling.
+  assert.equal(duplicate.acquired, false);
+  assert.equal(getActiveRgPollingSlotCount(), 1);
+
+  first.stop();
+  duplicate.stop();
   assert.equal(getActiveRgPollingSlotCount(), 0);
 });
 

@@ -22,6 +22,7 @@ function controller(overrides: Partial<MatchLifecycleController> = {}): MatchLif
     effects: {
       shouldPollRoom: false,
       shouldPollDirectMatchStatus: false,
+      shouldDiscoverWaitingMatch: false,
       shouldPollLinkedMatch: true,
       shouldRefreshUpcomingMatches: true,
       shouldAcknowledgeCountdownReady: false,
