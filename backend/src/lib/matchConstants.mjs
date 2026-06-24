@@ -1,15 +1,21 @@
 export const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.195];
 export const DUEL_MIN_COMPATIBILITY_SCORE = 72;
 export const GROUP_MIN_COMPATIBILITY_SCORE = 68;
-// Authoritative duel pairing gate: two runners pair whenever their average paces
-// are within ±15 seconds/km. Matching is pace-only — level no longer gates.
-export const DUEL_PACE_MATCH_TOLERANCE_SECONDS = 15;
-// Authoritative group pairing gate: a group of 3 forms from the tightest cluster of
-// paces all within ±15 seconds/km of each other; later joiners must be within ±15s
-// of the group anchor (the average pace of the founding 3). Pace-only — the legacy
-// GROUP_MIN_COMPATIBILITY_SCORE no longer gates pairing (it survives only as a
-// demand-summary label).
-export const GROUP_PACE_MATCH_TOLERANCE_SECONDS = 15;
+// Authoritative pace pairing gate (duel + group): two runners pair only when their
+// average paces are within ±this many seconds/km. Matching is pace-only — level no
+// longer gates. Default 15. Overridable via env for ON-DEVICE TESTING without code
+// changes: set BACKEND_MATCH_PACE_TOLERANCE_SECONDS (e.g. 3600) in .env.production to
+// widen it when test runs have polluted the last-3-run avg pace, then remove it to
+// restore 15. Closest-pace-first ranking still applies among eligible candidates.
+const PACE_TOLERANCE_OVERRIDE_SECONDS = Number(process.env.BACKEND_MATCH_PACE_TOLERANCE_SECONDS);
+const MATCH_PACE_TOLERANCE_SECONDS = Number.isFinite(PACE_TOLERANCE_OVERRIDE_SECONDS)
+  && PACE_TOLERANCE_OVERRIDE_SECONDS > 0
+  ? PACE_TOLERANCE_OVERRIDE_SECONDS
+  : 15;
+export const DUEL_PACE_MATCH_TOLERANCE_SECONDS = MATCH_PACE_TOLERANCE_SECONDS;
+// Group forms a 3-cluster all within ±tolerance of each other; later joiners within
+// ±tolerance of the group anchor (avg pace of the founding 3). Same override applies.
+export const GROUP_PACE_MATCH_TOLERANCE_SECONDS = MATCH_PACE_TOLERANCE_SECONDS;
 export const GROUP_MIN_PARTICIPANTS = 3;
 // Max runners a single forming/started group session may hold. Late joiners stop
 // being admitted once a group reaches this size even if they are within ±15s of the
