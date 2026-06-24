@@ -89,8 +89,10 @@ export function useGroupReservationRoom(
         testMode: isTestMatch,
         matchId,
       });
-      // Feed the shared clock so the countdown is server-aligned.
-      const nextOffsetMs = applySharedServerClock(status.serverNow);
+      // Feed the shared clock so the countdown is server-aligned. Pass the whole
+      // response (carries the apiClient request/response timing) so the offset is
+      // RTT-corrected — without it the two phones' countdowns skew ~1s.
+      const nextOffsetMs = applySharedServerClock(status.serverNow, status);
       setServerClockOffsetMs(nextOffsetMs);
       setMatchStatus(status);
       setError(null);

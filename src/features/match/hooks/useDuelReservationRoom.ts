@@ -89,8 +89,11 @@ export function useDuelReservationRoom(
         testMode: isTestMatch,
         matchId,
       });
-      // Feed the shared clock so the countdown is server-aligned.
-      const nextOffsetMs = applySharedServerClock(status.serverNow);
+      // Feed the shared clock so the countdown is server-aligned. Pass the whole
+      // response (carries clientRequestStartedAtMs/clientResponseReceivedAtMs from
+      // apiClient) so the offset is RTT-corrected (serverNow + rtt/2) — without it
+      // the offset drops the ~rtt/2 latency and the two phones' countdowns skew ~1s.
+      const nextOffsetMs = applySharedServerClock(status.serverNow, status);
       setServerClockOffsetMs(nextOffsetMs);
       setMatchStatus(status);
       setError(null);
