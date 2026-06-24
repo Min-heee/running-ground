@@ -544,8 +544,6 @@ export function TrackRunExperienceRuntime({
   const {
     duelExpiryCountdownLabel,
     groupExpiryCountdownLabel,
-    duelWaitingHint,
-    duelWaitingMeta,
     duelWaitingTitle,
   } = useMatchLobbyRuntimeModel({
     duelMatchStatus,
@@ -2697,8 +2695,6 @@ export function TrackRunExperienceRuntime({
     duelReservationLocked,
     duelSelectedSlotStartAt: selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt,
     duelStartCountdownSeconds,
-    duelWaitingHint,
-    duelWaitingMeta,
     duelWaitingTitle,
     effectiveDuelOpponent,
     effectiveDuelOpponentStatusLabel,

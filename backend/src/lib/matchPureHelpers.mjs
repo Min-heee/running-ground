@@ -8,13 +8,18 @@ import {
   RECOMMENDED_MATCH_DISTANCES,
 } from './matchConstants.mjs';
 
+export function getRunnerPaceGapSeconds(currentRunner, candidate) {
+  return Math.abs(candidate.averagePaceMinutes - currentRunner.averagePaceMinutes) * 60;
+}
+
+// Matching is pace-only: level (distanceLevel) no longer affects the score, so
+// two similar-pace runners are not pushed below the match threshold by a level
+// gap. The score remains usable for ranking candidates by closeness.
 export function calculateMatchCompatibilityScore(currentRunner, candidate, distanceKm, mode) {
-  const paceGapSeconds = Math.abs(candidate.averagePaceMinutes - currentRunner.averagePaceMinutes) * 60;
-  const levelGap = Math.abs(candidate.distanceLevel - currentRunner.distanceLevel);
+  const paceGapSeconds = getRunnerPaceGapSeconds(currentRunner, candidate);
   const distanceGap = Math.abs(candidate.latestDistanceKm - distanceKm);
   const weeklyGap = Math.abs(candidate.weeklyDistanceKm - currentRunner.weeklyDistanceKm);
   const penalty = paceGapSeconds * (mode === 'duel' ? 0.22 : 0.16)
-    + levelGap * (mode === 'duel' ? 8 : 6.5)
     + distanceGap * (mode === 'duel' ? 2.8 : 2.2)
     + weeklyGap * (mode === 'duel' ? 0.8 : 0.55);
 

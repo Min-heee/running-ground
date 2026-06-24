@@ -1,5 +1,6 @@
 import {
   DUEL_MIN_COMPATIBILITY_SCORE,
+  DUEL_PACE_MATCH_TOLERANCE_SECONDS,
   GROUP_MIN_COMPATIBILITY_SCORE,
   GROUP_MIN_PARTICIPANTS,
   MATCH_BOOKING_CUTOFF_MS,
@@ -16,6 +17,7 @@ import {
   buildOfficialStandingFields,
   buildQueuedParticipants,
   calculateMatchCompatibilityScore,
+  getRunnerPaceGapSeconds,
   isParticipantDoneWithMatch,
   normalizeMatchQueueDistance,
 } from './matchPureHelpers.mjs';
@@ -540,10 +542,18 @@ export function buildDuelMatchResponse(store, currentUser, { distanceKm, slotSta
   const distanceRecommendationHint = buildDistanceRecommendationHint(distanceKm);
 
   upsertMatchQueueEntry(store, 'duel', currentUser.id, distanceKm, normalizedSlotStartAt);
+  // Matching is pace-only. A candidate is eligible ONLY when the two runners'
+  // average paces are within ±DUEL_PACE_MATCH_TOLERANCE_SECONDS (15s/km). Among
+  // eligible candidates we pick the smallest pace gap (closest pace). The
+  // queue-store already enforces the same-slot + same-distance(0.15km) filters,
+  // so two similar-pace runners on the same slot/distance ALWAYS pair.
   const queuedEntries = buildQueuedMatchRunnerEntries(store, 'duel', currentRunner, {
     distanceKm,
     slotStartAt: normalizedSlotStartAt,
-  }).sort((left, right) => right.score - left.score);
+  }).map((entry) => ({
+    ...entry,
+    paceGapSeconds: getRunnerPaceGapSeconds(currentRunner, entry.runner),
+  }));
 
   if (!queuedEntries.length) {
     return {
@@ -560,9 +570,12 @@ export function buildDuelMatchResponse(store, currentUser, { distanceKm, slotSta
     };
   }
 
-  const bestCandidate = queuedEntries[0];
+  const eligibleCandidates = queuedEntries
+    .filter((entry) => entry.paceGapSeconds <= DUEL_PACE_MATCH_TOLERANCE_SECONDS)
+    .sort((left, right) => left.paceGapSeconds - right.paceGapSeconds);
+  const bestCandidate = eligibleCandidates[0];
 
-  if (!bestCandidate || bestCandidate.score < DUEL_MIN_COMPATIBILITY_SCORE) {
+  if (!bestCandidate) {
     return {
       success: true,
       matched: false,
@@ -572,7 +585,7 @@ export function buildDuelMatchResponse(store, currentUser, { distanceKm, slotSta
       slotLabel,
       paceBandLabel,
       levelBandLabel,
-      criteriaSummary: `신청자는 있지만 아직 바로 붙일 만큼 페이스와 레벨이 잘 맞지 않아요. 출발 30분 전까지 계속 찾아볼게요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
+      criteriaSummary: `신청자는 있지만 아직 페이스가 비슷한 상대가 없어요. 출발 30분 전까지 계속 찾아볼게요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
       estimatedWaitMinutes: 10,
     };
   }

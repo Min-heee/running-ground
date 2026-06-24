@@ -65,8 +65,6 @@ export type BaseMatchSetupProps = {
 export type DuelMatchSetupCardProps = BaseMatchSetupProps & {
   opponent: DuelMatchOpponent | null;
   waitingTitle: string;
-  waitingMeta: string;
-  waitingHint: string;
   opponentStatusLabel: string | null;
   liveGapKm: number | null;
 };

@@ -1,6 +1,9 @@
 export const RECOMMENDED_MATCH_DISTANCES = [3, 5, 7, 10, 15, 21.1, 42.195];
 export const DUEL_MIN_COMPATIBILITY_SCORE = 72;
 export const GROUP_MIN_COMPATIBILITY_SCORE = 68;
+// Authoritative duel pairing gate: two runners pair whenever their average paces
+// are within ±15 seconds/km. Matching is pace-only — level no longer gates.
+export const DUEL_PACE_MATCH_TOLERANCE_SECONDS = 15;
 export const GROUP_MIN_PARTICIPANTS = 3;
 export const MATCH_BOOKING_WINDOW_DAYS = 7;
 export const MATCH_BOOKING_CUTOFF_MS = 30 * 60 * 1000;

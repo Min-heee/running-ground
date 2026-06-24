@@ -16,11 +16,13 @@ import {
   buildDistanceRecommendationHint,
   calculateMatchCompatibilityScore,
   getMatchRoomMinParticipants,
+  getRunnerPaceGapSeconds,
   normalizeMatchQueueDistance,
   normalizeMatchRoomMaxParticipants,
   projectOfficialDistanceKm,
 } from './matchPureHelpers.mjs';
 import {
+  DUEL_PACE_MATCH_TOLERANCE_SECONDS,
   MATCH_ROOM_GROUP_DEFAULT_PARTICIPANTS,
   MATCH_ROOM_GROUP_MAX_PARTICIPANTS,
   MATCH_ROOM_GROUP_MIN_PARTICIPANTS,
@@ -64,6 +66,32 @@ assert.equal(calculateMatchCompatibilityScore(
   5,
   'duel',
 ), 100);
+
+// Matching is pace-only: a large level gap must NOT change the score. Two runners
+// with identical pace/distance/weekly but very different levels still score 100.
+assert.equal(calculateMatchCompatibilityScore(
+  { averagePaceMinutes: 5, distanceLevel: 1, latestDistanceKm: 5, weeklyDistanceKm: 15 },
+  { averagePaceMinutes: 5, distanceLevel: 20, latestDistanceKm: 5, weeklyDistanceKm: 15 },
+  5,
+  'duel',
+), 100);
+
+// getRunnerPaceGapSeconds returns the absolute pace difference in seconds/km.
+assert.equal(getRunnerPaceGapSeconds(
+  { averagePaceMinutes: 5 },
+  { averagePaceMinutes: 5.25 },
+), 15);
+assert.equal(getRunnerPaceGapSeconds(
+  { averagePaceMinutes: 5.25 },
+  { averagePaceMinutes: 5 },
+), 15);
+assert.equal(getRunnerPaceGapSeconds(
+  { averagePaceMinutes: 6 },
+  { averagePaceMinutes: 6 },
+), 0);
+
+// The duel pairing tolerance is ±15 seconds/km.
+assert.equal(DUEL_PACE_MATCH_TOLERANCE_SECONDS, 15);
 
 // A group party-run room must hold more than two runners.
 assert.equal(MATCH_ROOM_GROUP_MIN_PARTICIPANTS > 2, true);

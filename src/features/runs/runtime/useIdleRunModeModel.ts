@@ -21,8 +21,6 @@ type UseIdleRunModeModelInput = Pick<
   | 'duelReservationLocked'
   | 'duelSelectedSlotStartAt'
   | 'duelStartCountdownSeconds'
-  | 'duelWaitingHint'
-  | 'duelWaitingMeta'
   | 'duelWaitingTitle'
   | 'effectiveDuelOpponent'
   | 'effectiveDuelOpponentStatusLabel'
@@ -123,8 +121,6 @@ export function useIdleRunModeModel(input: UseIdleRunModeModelInput) {
         expiryCountdownLabel: input.duelExpiryCountdownLabel,
         opponent: input.effectiveDuelOpponent,
         waitingTitle: input.duelWaitingTitle,
-        waitingMeta: input.duelWaitingMeta,
-        waitingHint: input.duelWaitingHint,
         opponentStatusLabel: input.effectiveDuelOpponentStatusLabel,
         liveGapKm: input.duelLiveGapKm,
         onDistanceTextChange: input.onDistanceTextChangeDuel,

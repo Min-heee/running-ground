@@ -38,8 +38,6 @@ export type UseIdleRunRuntimeModelInput = {
   duelReservationLocked: boolean;
   duelSelectedSlotStartAt: string;
   duelStartCountdownSeconds: number | null;
-  duelWaitingHint: string;
-  duelWaitingMeta: string;
   duelWaitingTitle: string;
   effectiveDuelOpponent: DuelSetupProps['opponent'];
   effectiveDuelOpponentStatusLabel: string | null;

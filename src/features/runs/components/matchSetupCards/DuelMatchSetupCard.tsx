@@ -33,11 +33,8 @@ export function DuelMatchSetupCard({
   blockingMatchHelperText,
   forceLeaveStuckMatchError,
   isForceLeavingStuckMatch,
-  expiryCountdownLabel,
   opponent,
   waitingTitle,
-  waitingMeta,
-  waitingHint,
   opponentStatusLabel,
   liveGapKm,
   onDistanceTextChange,
@@ -77,12 +74,6 @@ export function DuelMatchSetupCard({
         <View style={styles.duelResultCard}>
           <Text style={styles.duelResultEyebrow}>WAITING</Text>
           <Text style={styles.duelResultTitle}>{waitingTitle}</Text>
-          <Text style={styles.duelResultMeta}>{waitingMeta}</Text>
-          <Text style={styles.duelResultMeta}>{waitingHint}</Text>
-          {expiryCountdownLabel ? (
-            <Text style={styles.duelResultMeta}>자동 정리까지 {expiryCountdownLabel} 남음</Text>
-          ) : null}
-          <Text style={styles.duelResultMeta}>{matchStatus?.criteriaSummary}</Text>
         </View>
       ) : null}
 
