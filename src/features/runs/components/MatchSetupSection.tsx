@@ -28,11 +28,9 @@ export function MatchSetupSection({
       <PartyRunHomePanel {...partyRunProps} />
       {duelSetupProps ? <DuelMatchSetupCard {...duelSetupProps} /> : null}
       {groupSetupProps ? <GroupMatchSetupCard {...groupSetupProps} /> : null}
-      {groupSetupProps ? (
-        <LiveGapPushCard mode="group" />
-      ) : duelSetupProps ? (
-        <LiveGapPushCard mode="duel" />
-      ) : null}
+      {/* 1대1(duel) 대결 중간 알림 설정은 매칭 후 예약 대기실(DuelReservationRoomScreen)에서
+          하므로 러닝 탭에선 중복이라 제거. 그룹은 아직 예약 대기실이 없어 여기서 설정한다. */}
+      {groupSetupProps ? <LiveGapPushCard mode="group" /> : null}
     </View>
   );
 }
