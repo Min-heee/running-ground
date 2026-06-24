@@ -50,6 +50,9 @@ function PointBreakdownRow({ label, value, highlight = false }: PointBreakdownRo
 
 const styles = StyleSheet.create({
   pointBreakdownCard: {
+    // Fill the stretched 50/50 row so the points card matches the match-result
+    // card's height (they sit side by side in RunDetailScreen.recordDuoRow).
+    flex: 1,
     gap: spacing.s10,
   },
   sectionTitle: {
@@ -74,7 +77,9 @@ const styles = StyleSheet.create({
     color: colors.blueStrong,
   },
   pointBreakdownTotalRow: {
-    marginTop: spacing.sm,
+    // Pin the total to the bottom so it lines up with the match card's bottom row
+    // when the card is stretched taller than its content.
+    marginTop: 'auto',
     paddingTop: spacing.s12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
