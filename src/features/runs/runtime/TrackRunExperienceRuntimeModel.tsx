@@ -73,6 +73,8 @@ import {
   type PartyRunLinkedMatchContext,
 } from '@/features/runs/lifecycle/matchStateMachine';
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
+import { markRouteFocusMatchTerminated } from '@/features/runs/lifecycle/terminatedRouteFocusMatch';
+import { resolveRouteForcedLiveArena } from '@/features/runs/lifecycle/routeForcedLiveArena';
 import {
   filterUpcomingMatchesForRuntime,
   isLinkedRoomRuntimeState,
@@ -1180,23 +1182,22 @@ export function TrackRunExperienceRuntime({
     currentUserHasForfeitedActiveMatch,
     groupArenaParticipants,
   ]);
-  const shouldSuppressDoneMatchAutoOpen = currentUserDoneWithCurrentMatch && !isRunning;
-  const shouldForceLiveArenaFromRoute = Boolean(
-    !shouldSuppressDoneMatchAutoOpen
-    && hydratedFocusMatchId
-    && (
-      hydratedForceMatchArena
-      || liveMatchRouteHydration?.preferArena
-      || (
-        routeShellHint === 'live'
-        && (
-          matchLifecycleController.stage === 'arming'
-          || matchLifecycleController.stage === 'countdown'
-          || matchLifecycleController.stage === 'active'
-        )
-      )
-    ),
-  );
+  // Whether a stale/active route should force the live arena. The terminated-route-focus
+  // tombstone (set by the post-run reset, keyed to the ended matchId) suppresses the stale
+  // forceMatchArena route param AFTER a match is done — covering the after-reset window where
+  // the duel/group statuses are null again and the in-component done-match guard would
+  // otherwise miss it, stranding the running tab on the live measuring shell. See
+  // resolveRouteForcedLiveArena for the full contract.
+  const shouldForceLiveArenaFromRoute = resolveRouteForcedLiveArena({
+    isRunning,
+    currentUserDoneWithCurrentMatch,
+    hydratedFocusMatchId,
+    hydratedForceMatchArena,
+    routeHydrationMatchId: liveMatchRouteHydration?.matchId,
+    routeHydrationPreferArena: liveMatchRouteHydration?.preferArena,
+    routeShellHint,
+    matchLifecycleStage: matchLifecycleController.stage,
+  });
   const previousPreservedLiveMatchShell = preservedLiveMatchShellRef.current;
   const liveMatchShellPreservation = resolveLiveMatchShellPreservation({
     currentMatchId: liveMatchRenderIdentity,
@@ -1989,6 +1990,17 @@ export function TrackRunExperienceRuntime({
       unmarkLiveMatchMounted({ matchId: endedLiveMatch.matchId, mode: endedLiveMatch.mode });
     }
     resetLiveMatchNavigationOwner();
+
+    // Tombstone every match id that could still drive the stale route-forced live arena
+    // (the running-tab route keeps forceMatchArena/focusMatchId from the reservation
+    // handoff after the match ends, and clearing the duel/group statuses below removes
+    // the in-component done-match suppression). Keyed to the ended match ids only, so a
+    // brand-new match, the reservation pre-mount, or an in-progress race is never blocked.
+    markRouteFocusMatchTerminated(endedDuelMatchId);
+    markRouteFocusMatchTerminated(endedGroupMatchId);
+    markRouteFocusMatchTerminated(endedLiveMatch?.matchId ?? null);
+    markRouteFocusMatchTerminated(hydratedFocusMatchId ?? null);
+    markRouteFocusMatchTerminated(liveMatchRouteHydration?.matchId ?? null);
 
     clearLiveMatchRouteHydration();
     commitMatchRoom(null);
