@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  buildDuelSlotCountKey,
   buildWeeklyHourlySlots,
   clampDuelMatchDistanceKm,
   findNearestRecommendedDistance,
@@ -17,6 +18,18 @@ test('parseDuelMatchDistanceKm clamps unsafe custom distances', () => {
   assert.equal(parseDuelMatchDistanceKm('abc'), 5);
   assert.equal(clampDuelMatchDistanceKm(1), 2);
   assert.equal(clampDuelMatchDistanceKm(99), 42.195);
+});
+
+test('buildDuelSlotCountKey keys per slot+distance and matches the backend normalization', () => {
+  const slot = '2026-05-12T10:00:00.000Z';
+  // Distance is normalized to one decimal, mirroring the backend buildDuelSlotCountKey /
+  // normalizeMatchQueueDistance so the client reads the exact bucket the server writes.
+  assert.equal(buildDuelSlotCountKey(slot, 5), '2026-05-12T10:00:00.000Z|5');
+  assert.equal(buildDuelSlotCountKey(slot, 5.04), '2026-05-12T10:00:00.000Z|5');
+  assert.equal(buildDuelSlotCountKey(slot, 21.1), '2026-05-12T10:00:00.000Z|21.1');
+  // Different distances on the same slot must produce DIFFERENT keys (so incompatible
+  // distances never share a waiting count).
+  assert.notEqual(buildDuelSlotCountKey(slot, 5), buildDuelSlotCountKey(slot, 10));
 });
 
 test('match slots close 30 minutes before start and expose am/pm sections', () => {

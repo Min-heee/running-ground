@@ -1807,6 +1807,61 @@ await runTest('a waiting duel runner discovers the reservation an opponent creat
   });
 });
 
+await runTest('duel slot count excludes self, is per-distance, and drops to none after cancel', async () => {
+  const store = createBaseStore();
+  // A third runner whose pace is far from the host/guest so nobody auto-pairs and all
+  // three sit in the duel queue together — letting us observe the slot-count badge.
+  store.users.push(
+    createRunner({ id: 'far-user', name: '먼 페이스 러너', publicTag: 'far', districtName: '강남구' }),
+  );
+  store.sessions.push(createSession('far-token', 'far-user'));
+  // 08:30/km is well beyond ±15s of the host (06:12) and guest (06:25), so far-user never
+  // pairs with them — they all remain waiting.
+  store.runs.push(createRun({ id: 'far-run-1', userId: 'far-user', pace: '08:30/km' }));
+
+  await withBackend(store, async ({ request }) => {
+    const slotStartAt = createSelectableMatchSlotStartAt();
+    const slotKey5km = `${slotStartAt}|5`;
+    const slotKey10km = `${slotStartAt}|10`;
+
+    // Host searches 5km. Alone → no matchId, and their OWN upcoming count must be absent
+    // (a lone searcher never counts themselves) — this is the "1명 대기" self-inclusion bug.
+    const hostRequest = await request('host-token', 'POST', '/api/running/matches/duel', {
+      mode: 'duel', distanceKm: 5, slotStartAt,
+    });
+    assert.equal(hostRequest.matched, false);
+    const hostUpcomingAlone = await request('host-token', 'GET', '/api/running/matches/upcoming');
+    assert.equal(hostUpcomingAlone.duelSlotCounts[slotKey5km], undefined, 'lone host does not count themselves');
+
+    // far-user searches the SAME slot at 5km but at an incompatible pace → no pair forms,
+    // so both stay waiting and can each observe the other in the slot count.
+    const farRequest = await request('far-token', 'POST', '/api/running/matches/duel', {
+      mode: 'duel', distanceKm: 5, slotStartAt,
+    });
+    assert.equal(farRequest.matched, false, 'incompatible paces do not pair');
+
+    // Host's upcoming now shows exactly ONE other 5km waiter (far-user) — counts the OTHER
+    // runner, never self — and nothing leaks into the unrelated 10km bucket (per-distance).
+    const hostUpcomingWithOther = await request('host-token', 'GET', '/api/running/matches/upcoming');
+    assert.equal(hostUpcomingWithOther.duelSlotCounts[slotKey5km], 1, 'host sees one OTHER 5km waiter');
+    assert.equal(hostUpcomingWithOther.duelSlotCounts[slotKey10km], undefined, 'no 10km waiter — separate bucket stays empty');
+
+    // Host cancels their 5km search. The backend removes their queue entry immediately.
+    await request('host-token', 'POST', '/api/running/matches/cancel', {
+      mode: 'duel', distanceKm: 5, slotStartAt,
+    });
+
+    // far-user (still waiting at 5km) now sees NO other 5km waiter — the host's cancelled
+    // entry is gone, so the badge drops to absent rather than lingering as a stale "1명".
+    const farUpcomingAfterHostCancel = await request('far-token', 'GET', '/api/running/matches/upcoming');
+    assert.equal(
+      farUpcomingAfterHostCancel.duelSlotCounts[slotKey5km],
+      undefined,
+      'cancelled host entry no longer counts toward the remaining waiter',
+    );
+  });
+});
+
 await runTest('a group match forms once three compatible runners schedule the same slot', async () => {
   const store = createBaseStore();
   store.users.push(

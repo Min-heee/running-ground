@@ -908,9 +908,11 @@ export function buildUpcomingRunningMatchesResponse(store, currentUser) {
   return {
     serverNow: now.toISOString(),
     items: sessions,
-    // Per-slot count of REAL duel searchers (excludes testMode). Keyed by ISO
-    // slotStartAt; slots with 0 searchers are absent. The client reads this as
-    // duelSlotCounts: Record<string, number>.
-    duelSlotCounts: countDuelQueueBySlot(store, { now }),
+    // Per-slot+distance count of REAL duel searchers (excludes testMode AND the viewer's
+    // own waiting entry). Keyed by `${slotStartAt}|${normalizedDistanceKm}`; buckets with
+    // 0 OTHER searchers are absent. The client reads this as
+    // duelSlotCounts: Record<string, number> and looks up the bucket for its selected
+    // distance, so "N명 대기" means N OTHER runners the viewer could actually match.
+    duelSlotCounts: countDuelQueueBySlot(store, { now, currentUserId: currentUser.id }),
   };
 }

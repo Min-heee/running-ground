@@ -211,10 +211,15 @@ export async function fetchUpcomingRunningMatches(): Promise<UpcomingRunningMatc
       .sort((left, right) => new Date(left.slotStartAt).getTime() - new Date(right.slotStartAt).getTime());
 
     // Sample duel-slot waiting counts so mock mode + tests exercise the slot-count UI:
-    // one "person waiting" per slot that currently has a duel match in flight.
+    // one "person waiting" per slot+distance that currently has a duel match in flight.
+    // Keyed by `${slotStartAt}|${normalizedDistanceKm}` to mirror the backend's
+    // buildDuelSlotCountKey (and the client's matchScheduling.buildDuelSlotCountKey the
+    // selector reads) — the format is inlined here to avoid a lib/api → features import
+    // cycle (matchScheduling imports back into @/services).
     const duelSlotCounts = items.reduce<Record<string, number>>((counts, match) => {
       if (match.mode === 'duel') {
-        counts[match.slotStartAt] = (counts[match.slotStartAt] ?? 0) + 1;
+        const countKey = `${match.slotStartAt}|${Number(match.distanceKm.toFixed(1))}`;
+        counts[countKey] = (counts[countKey] ?? 0) + 1;
       }
       return counts;
     }, {});

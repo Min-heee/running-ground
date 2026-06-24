@@ -8,6 +8,7 @@ import {
 } from '@/features/runs/components/matchSetupCards/matchSetupTabStore';
 import {
   RECOMMENDED_MATCH_DISTANCES,
+  buildDuelSlotCountKey,
   findNearestRecommendedDistance,
   isRecommendedMatchDistance,
 } from '@/features/runs/utils/matchScheduling';
@@ -122,12 +123,15 @@ export function MatchSetupTabbedSelector({
   const slotChips = useMemo(() => slotOptions.map((slot) => (
     <MatchSlotChip
       key={slot.startsAt}
-      count={slotDuelCounts?.[slot.startsAt] ?? 0}
+      // duelSlotCounts is keyed by slot + selected distance and already excludes the
+      // viewer's own waiting entry server-side, so this is the count of OTHER runners the
+      // viewer could match at this exact time AND distance.
+      count={slotDuelCounts?.[buildDuelSlotCountKey(slot.startsAt, distanceKm)] ?? 0}
       onSelectSlot={onSelectSlot}
       selected={slot.startsAt === selectedSlotStartAt}
       slot={slot}
     />
-  )), [onSelectSlot, selectedSlotStartAt, slotDuelCounts, slotOptions]);
+  )), [distanceKm, onSelectSlot, selectedSlotStartAt, slotDuelCounts, slotOptions]);
 
   return (
     <View style={styles.duelSection}>

@@ -101,28 +101,47 @@ export function getMatchQueueEntries(store, mode, distanceKm, slotStartAt, { tes
   ));
 }
 
-// Per-slot tally of REAL (non-testMode) duel searchers, keyed by ISO slotStartAt.
-// Slots with no duel searchers are absent from the result. Prunes the queues first so
-// expired/past-cutoff entries are never counted. Powers the upcoming-poll slot counts.
-export function countDuelQueueBySlot(store, { now = new Date() } = {}) {
+// Builds the per-slot+distance key the upcoming-poll slot counts are tallied under.
+// Distance is normalized to one decimal (the same bucketing the duel queue store uses
+// when it persists entries), so two runners who pick the same recommended distance land
+// in the same bucket. The client recomputes this exact key from its currently-selected
+// duel distance to read the matching count. Keeping the distance in the key is what makes
+// the badge reflect runners the viewer could ACTUALLY pair with (same time AND distance),
+// instead of the old slot-global tally that mixed incompatible distances together.
+export function buildDuelSlotCountKey(slotStartAt, distanceKm) {
+  return `${slotStartAt}|${normalizeMatchQueueDistance(distanceKm)}`;
+}
+
+// Per-slot+distance tally of REAL (non-testMode) duel searchers, keyed by
+// `${slotStartAt}|${normalizedDistanceKm}`. EXCLUDES the viewing user's own entry so a
+// lone searcher never counts themselves ("N명 대기" always means N OTHER matchable
+// runners). Buckets with no OTHER searchers are absent from the result. Prunes the queues
+// first so expired/past-cutoff entries are never counted. Powers the upcoming-poll slot
+// counts; the viewer (currentUserId) is passed through from the upcoming-matches builder.
+export function countDuelQueueBySlot(store, { now = new Date(), currentUserId = null } = {}) {
   const queues = pruneMatchQueues(store, now);
-  const countsBySlot = {};
+  const countsByKey = {};
 
   for (const entry of queues.duel) {
     if (entry.testMode) {
       continue;
     }
 
-    const slotKey = entry.slotStartAt;
-
-    if (typeof slotKey !== 'string' || !slotKey) {
+    if (currentUserId !== null && entry.userId === currentUserId) {
       continue;
     }
 
-    countsBySlot[slotKey] = (countsBySlot[slotKey] ?? 0) + 1;
+    const slotKey = entry.slotStartAt;
+
+    if (typeof slotKey !== 'string' || !slotKey || typeof entry.distanceKm !== 'number') {
+      continue;
+    }
+
+    const countKey = buildDuelSlotCountKey(slotKey, entry.distanceKm);
+    countsByKey[countKey] = (countsByKey[countKey] ?? 0) + 1;
   }
 
-  return countsBySlot;
+  return countsByKey;
 }
 
 export function findAnyQueuedMatchEntryForUser(store, userId) {

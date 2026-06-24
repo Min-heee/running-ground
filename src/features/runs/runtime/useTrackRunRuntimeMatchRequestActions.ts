@@ -117,6 +117,11 @@ export function useTrackRunRuntimeMatchRequestActions(input: UseTrackRunRuntimeM
       } else {
         setDuelDemandSummary(await fetchMatchDemandSummary({ mode: 'duel', distanceKm: duelDistanceKm, slotStartAt: activeDuelSlotStartAt }));
       }
+      // Refresh the per-slot duel waiting counts immediately on cancel. duelSlotCounts is
+      // ONLY set by loadUpcomingMatches, and the upcoming poll re-fires only on the
+      // viewer's OWN match-state transitions — so without this, a cancelled searcher kept
+      // showing a stale "N명 대기" (the badge never re-read the slot after settling idle).
+      await loadUpcomingMatches().catch(() => {});
       if (nextStatus.state === 'idle') {
         setDuelMatchStatus(null);
       }
@@ -151,6 +156,10 @@ export function useTrackRunRuntimeMatchRequestActions(input: UseTrackRunRuntimeM
       } else {
         setGroupDemandSummary(await fetchMatchDemandSummary({ mode: 'group', distanceKm: groupDistanceKm, slotStartAt: activeGroupSlotStartAt }));
       }
+      // Mirror the duel cancel path: refresh upcoming so duelSlotCounts re-reads the slot
+      // population right after leaving the queue (a group searcher who also has a duel
+      // badge showing must not see it linger). Keeps both modes' slot counts consistent.
+      await loadUpcomingMatches().catch(() => {});
       if (nextStatus.state === 'idle') {
         setGroupMatchStatus(null);
       }

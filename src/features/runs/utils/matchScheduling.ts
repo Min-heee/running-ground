@@ -34,6 +34,15 @@ export function formatMatchTargetDistance(distanceKm: number) {
   return `${Number(distanceKm.toFixed(1))}km`;
 }
 
+// Mirrors the backend's buildDuelSlotCountKey (matchQueueStoreHelpers.mjs): the
+// upcoming-poll duelSlotCounts map is keyed by `${slotStartAt}|${normalizedDistanceKm}`
+// so a slot's "N명 대기" badge reflects only OTHER waiters at the SAME distance the
+// viewer has selected (the server already excludes the viewer's own entry). Distance is
+// normalized to one decimal exactly like normalizeMatchQueueDistance on the backend.
+export function buildDuelSlotCountKey(slotStartAt: string, distanceKm: number) {
+  return `${slotStartAt}|${Number(distanceKm.toFixed(1))}`;
+}
+
 export function clampDuelMatchDistanceKm(value: number) {
   return Math.min(42.195, Math.max(2, Number(value.toFixed(1))));
 }

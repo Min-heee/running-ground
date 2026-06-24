@@ -6,7 +6,10 @@ import {
   GROUP_PACE_MATCH_TOLERANCE_SECONDS,
 } from './matchConstants.mjs';
 import { buildGroupMatchResponse } from './matchResponseBuilders.mjs';
-import { countDuelQueueBySlot } from './matchQueueStoreHelpers.mjs';
+import {
+  buildDuelSlotCountKey,
+  countDuelQueueBySlot,
+} from './matchQueueStoreHelpers.mjs';
 
 // Average pace is derived from the user's last (up to 3) runs' parsed paces, so a
 // single run at a known pace pins each runner's averagePaceMinutes deterministically.
@@ -215,7 +218,7 @@ test('GROUP_MATCH_MAX_PARTICIPANTS caps the group size', () => {
   assert.equal(GROUP_MATCH_MAX_PARTICIPANTS, 30);
 });
 
-test('countDuelQueueBySlot tallies duel entries per slot excluding testMode', () => {
+test('countDuelQueueBySlot tallies duel entries per slot+distance excluding testMode', () => {
   const now = new Date();
   const slotA = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString();
   const slotB = new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString();
@@ -225,6 +228,9 @@ test('countDuelQueueBySlot tallies duel entries per slot excluding testMode', ()
   store.matchQueues.duel = [
     { id: 'd1', userId: 'u1', distanceKm: 5, slotStartAt: slotA, requestedAt, testMode: false },
     { id: 'd2', userId: 'u2', distanceKm: 5, slotStartAt: slotA, requestedAt, testMode: false },
+    // SAME time as slotA but a DIFFERENT distance must land in a separate bucket — these
+    // two can never pair with the 5km waiters, so they must not inflate the 5km count.
+    { id: 'd2b', userId: 'u2b', distanceKm: 10, slotStartAt: slotA, requestedAt, testMode: false },
     { id: 'd3', userId: 'u3', distanceKm: 5, slotStartAt: slotB, requestedAt, testMode: false },
     // testMode entry must be skipped even though it is on slotA.
     { id: 'd4', userId: 'u4', distanceKm: 5, slotStartAt: slotA, requestedAt, testMode: true, expiresAt: new Date(now.getTime() + 60 * 60 * 1000).toISOString() },
@@ -234,11 +240,38 @@ test('countDuelQueueBySlot tallies duel entries per slot excluding testMode', ()
     { id: 'g1', userId: 'u5', distanceKm: 5, slotStartAt: slotA, requestedAt, testMode: false },
   ];
   // pruneMatchQueues drops entries whose userId is not an active user, so register them.
-  store.users = ['u1', 'u2', 'u3', 'u4', 'u5'].map((id) => createRunner(id));
+  store.users = ['u1', 'u2', 'u2b', 'u3', 'u4', 'u5'].map((id) => createRunner(id));
 
   const counts = countDuelQueueBySlot(store, { now });
 
-  assert.equal(counts[slotA], 2, 'two non-test duel searchers on slot A');
-  assert.equal(counts[slotB], 1, 'one non-test duel searcher on slot B');
-  assert.equal(Object.keys(counts).length, 2, 'no testMode/group/empty slots present');
+  assert.equal(counts[buildDuelSlotCountKey(slotA, 5)], 2, 'two 5km duel searchers on slot A');
+  assert.equal(counts[buildDuelSlotCountKey(slotA, 10)], 1, 'one 10km duel searcher on slot A');
+  assert.equal(counts[buildDuelSlotCountKey(slotB, 5)], 1, 'one 5km duel searcher on slot B');
+  assert.equal(Object.keys(counts).length, 3, 'no testMode/group/empty buckets present');
+});
+
+test('countDuelQueueBySlot excludes the viewing user so a lone searcher never counts themselves', () => {
+  const now = new Date();
+  const slotA = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString();
+  const requestedAt = new Date(now.getTime() - 1000).toISOString();
+
+  const store = createStore([]);
+  store.matchQueues.duel = [
+    { id: 'd1', userId: 'viewer', distanceKm: 5, slotStartAt: slotA, requestedAt, testMode: false },
+    { id: 'd2', userId: 'other', distanceKm: 5, slotStartAt: slotA, requestedAt, testMode: false },
+  ];
+  store.users = ['viewer', 'other'].map((id) => createRunner(id));
+
+  // The viewer is alone on a slot they themselves queued — count must be absent (0), not 1.
+  const loneStore = createStore([]);
+  loneStore.matchQueues.duel = [
+    { id: 'd1', userId: 'viewer', distanceKm: 5, slotStartAt: slotA, requestedAt, testMode: false },
+  ];
+  loneStore.users = [createRunner('viewer')];
+  const loneCounts = countDuelQueueBySlot(loneStore, { now, currentUserId: 'viewer' });
+  assert.equal(loneCounts[buildDuelSlotCountKey(slotA, 5)], undefined, 'lone searcher sees no badge for their own entry');
+
+  // With one OTHER waiter present, the viewer sees exactly that one matchable runner.
+  const counts = countDuelQueueBySlot(store, { now, currentUserId: 'viewer' });
+  assert.equal(counts[buildDuelSlotCountKey(slotA, 5)], 1, 'viewer counts the one OTHER 5km waiter, not themselves');
 });
