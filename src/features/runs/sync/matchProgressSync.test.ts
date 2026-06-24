@@ -99,8 +99,14 @@ test('progress heartbeat status finishes when local progress reaches the target 
     progressDistanceKm: 4.97,
     targetDistanceKm: 5,
   }), 'running');
+  // Just under the 5m (0.005km) tolerance → still running (no more 20m early finish at 4.98).
   assert.equal(resolveMatchProgressHeartbeatStatus({
     progressDistanceKm: 4.99,
+    targetDistanceKm: 5,
+  }), 'running');
+  // At/above target - 5m → finished (displays 5.00km).
+  assert.equal(resolveMatchProgressHeartbeatStatus({
+    progressDistanceKm: 4.997,
     targetDistanceKm: 5,
   }), 'finished');
   assert.equal(resolveMatchProgressHeartbeatStatus({

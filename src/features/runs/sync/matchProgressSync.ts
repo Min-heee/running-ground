@@ -11,8 +11,11 @@ import { LIVE_MATCH_SERVER_SYNC_INTERVAL_MS } from '@/features/runs/sync/liveMat
 import { buildAveragePace } from '@/features/runs/tracking';
 
 export const MATCH_PROGRESS_HEARTBEAT_INTERVAL_MS = LIVE_MATCH_SERVER_SYNC_INTERVAL_MS;
-// Keep aligned with backend MATCH_GOAL_DISTANCE_TOLERANCE_KM for boundary rounding margin.
-export const MATCH_GOAL_DISTANCE_TOLERANCE_KM = 0.02;
+// Keep aligned with backend MATCH_GOAL_DISTANCE_TOLERANCE_KM. A tiny 5m margin only covers
+// GPS discreteness + the toFixed(2) display boundary (so "5.00km" reads as 완주, not still
+// running) — NOT a 20m early finish. A 5km race now completes at ~4.995km (displays 5.00),
+// not 4.98km.
+export const MATCH_GOAL_DISTANCE_TOLERANCE_KM = 0.005;
 
 export type MatchProgressRoomContext = {
   mode: 'duel' | 'group';

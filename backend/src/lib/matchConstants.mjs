@@ -45,8 +45,9 @@ export const MATCH_ROOM_GROUP_DEFAULT_PARTICIPANTS = 10;
 export const MATCH_ROOM_GROUP_MAX_PARTICIPANTS = 30;
 export const MATCH_ROOM_IDLE_TTL_MS = 24 * 60 * 60 * 1000;
 export const MATCH_ROOM_INVITE_LINK_BASE = 'runningground://running';
-// 20m: warmup baseline subtraction + toFixed(2) display rounding boundary margin.
-export const MATCH_GOAL_DISTANCE_TOLERANCE_KM = 0.02;
+// 5m: GPS discreteness + toFixed(2) display rounding boundary only — so a 5km race finishes
+// at ~4.995km (displays 5.00), not 20m early at 4.98km. Keep aligned with the client constant.
+export const MATCH_GOAL_DISTANCE_TOLERANCE_KM = 0.005;
 export const MATCH_PROGRESS_MAX_SPEED_MPS = 12;
 export const MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND = MATCH_PROGRESS_MAX_SPEED_MPS / 1000;
 // Once one duel runner finishes, the other has a bounded window to land their own
