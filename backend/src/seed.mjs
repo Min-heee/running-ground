@@ -395,7 +395,11 @@ export function createRegionTree(data = {}) {
   }
 
   for (const user of users) {
-    const weeklyDistanceKm = buildUserRunMetrics(runsByUserId.get(user.id) ?? []).currentWeekDistanceKm;
+    // Display-only policy: the browsable region-tree rollup (totals/averages/sort) is a
+    // competitive surface, so it ranks on competitive runs only — an imported run
+    // (Apple Health / Health Connect / NRC / Strava) must not inflate a region's standing.
+    // Personal stats (home 내 주간거리 etc.) keep the full currentWeekDistanceKm elsewhere.
+    const weeklyDistanceKm = buildUserRunMetrics(runsByUserId.get(user.id) ?? []).competitiveWeekDistanceKm;
     distanceByUserId.set(user.id, weeklyDistanceKm);
   }
 

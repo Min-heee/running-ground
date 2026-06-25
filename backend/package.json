@@ -19,7 +19,7 @@
     "test:auth": "node ./src/phoneVerification.test.mjs && node ./src/repositories/authRepository.test.mjs && node ./src/repositories/postgresAuthRepository.test.mjs",
     "test:runs": "node ./src/repositories/runsRepository.test.mjs && node ./src/repositories/postgresRunsRepository.test.mjs",
     "test:friends": "node ./src/repositories/friendsRepository.test.mjs && node ./src/repositories/postgresFriendsRepository.test.mjs",
-    "test:league": "node ./src/services/todayRankingBuilder.test.mjs && node ./src/repositories/leagueRepository.test.mjs && node ./src/repositories/postgresLeagueRepository.test.mjs",
+    "test:league": "node ./src/services/todayRankingBuilder.test.mjs && node ./src/repositories/leagueRepository.test.mjs && node ./src/repositories/postgresLeagueRepository.test.mjs && node ./src/seed.test.mjs",
     "test:admin": "node ./src/repositories/adminRepository.test.mjs",
     "test:market": "node ./src/repositories/marketRepository.test.mjs",
     "test:race": "node ./src/repositories/raceRepository.test.mjs",
