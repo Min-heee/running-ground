@@ -14,10 +14,6 @@
       "bundleIdentifier": "com.minheee.runnigapp",
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "Allow RunningGround to connect to local development servers on your network.",
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true
-        },
         "UIBackgroundModes": [
           "location",
           "audio"
@@ -46,18 +42,7 @@
         "expo-secure-store",
         {
           "configureAndroidBackup": true,
-          "faceIDPermission": "Allow $(PRODUCT_NAME) to access your Face ID biometric data."
-        }
-      ],
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "RunningGround가 백그라운드에서도 거리를 측정하려면 위치 권한이 필요해요. 화면을 꺼도 GPS를 이어서 받아 대결 기록이 끊기지 않게 해요.",
-          "locationWhenInUsePermission": "러닝 거리와 페이스를 측정하려면 위치 권한이 필요해요.",
-          "locationAlwaysPermission": "RunningGround가 백그라운드에서도 거리를 측정하려면 위치 권한이 필요해요.",
-          "isIosBackgroundLocationEnabled": true,
-          "isAndroidBackgroundLocationEnabled": true,
-          "isAndroidForegroundServiceEnabled": true
+          "faceIDPermission": "로그인 정보를 안전하게 보관하기 위해 Face ID 생체 인증을 사용해요."
         }
       ],
       [

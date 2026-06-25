@@ -19,7 +19,6 @@ const IOS_APPLE_HEALTH_MODULE_FILENAME = 'RunnigappAppleHealth.m';
 const HEALTH_CONNECT_PERMISSIONS = [
   'android.permission.health.READ_EXERCISE',
   'android.permission.health.READ_DISTANCE',
-  'android.permission.health.READ_STEPS',
 ];
 
 // Health Connect permission-rationale wiring. Android requires the app's launcher activity to
@@ -159,7 +158,7 @@ RCT_REMAP_METHOD(readRuns,
                                            readTypes:readTypes
                                           completion:^(BOOL success, NSError * _Nullable error) {
     if (error) {
-      reject(@"apple_health_auth_failed", error.localizedDescription ?: @"Apple Health 권한 요청에 실패했어.", error);
+      reject(@"apple_health_auth_failed", error.localizedDescription ?: @"애플 건강 권한 요청에 실패했습니다.", error);
       return;
     }
 
@@ -172,7 +171,7 @@ RCT_REMAP_METHOD(readRuns,
                                                      sortDescriptors:@[sortDescriptor]
                                                       resultsHandler:^(HKSampleQuery * _Nonnull query, NSArray<HKSample *> * _Nullable results, NSError * _Nullable queryError) {
       if (queryError) {
-        reject(@"apple_health_query_failed", queryError.localizedDescription ?: @"Apple Health 기록을 읽지 못했어.", queryError);
+        reject(@"apple_health_query_failed", queryError.localizedDescription ?: @"애플 건강 기록을 읽을 수 없습니다.", queryError);
         return;
       }
 
@@ -191,10 +190,10 @@ function withIosHealthInfoPlist(config) {
   return withInfoPlist(config, (nextConfig) => {
     nextConfig.modResults.NSHealthShareUsageDescription =
       nextConfig.modResults.NSHealthShareUsageDescription
-      || 'Allow RunningGround to read your Apple Health running records so they can appear in your activity and rankings.';
+      || 'Apple 건강의 러닝 기록을 읽어 내 활동과 랭킹에 표시하기 위해 권한이 필요해요.';
     nextConfig.modResults.NSHealthUpdateUsageDescription =
       nextConfig.modResults.NSHealthUpdateUsageDescription
-      || 'Allow RunningGround to save synced running records and challenge progress updates to Apple Health when you choose to keep them in sync.';
+      || '동기화를 선택했을 때 러닝 기록과 대결 진행 상황을 Apple 건강에 저장하기 위해 권한이 필요해요.';
 
     return nextConfig;
   });

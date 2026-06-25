@@ -101,7 +101,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     NSSupportsLiveActivities: true,
     NSMotionUsageDescription:
       (baseConfig.ios?.infoPlist as Record<string, string | undefined> | undefined)?.NSMotionUsageDescription
-      || 'Allow RunningGround to read your motion data so cadence can be shown while you run.',
+      || '러닝 중 케이던스(분당 걸음 수)를 표시하기 위해 동작·피트니스 데이터 접근 권한이 필요해요.',
     ...(isDevelopmentVariant
       ? {
           NSLocalNetworkUsageDescription:
@@ -170,9 +170,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           'expo-location',
           {
             locationWhenInUsePermission:
-              'Allow RunningGround to use your location so your run route, distance, pace, and elevation can be tracked live.',
+              '러닝 중 경로·거리·페이스·고도를 실시간으로 측정하기 위해 위치 권한이 필요해요.',
             locationAlwaysAndWhenInUsePermission:
-              'Allow RunningGround to keep tracking your running route, distance, and pace even when the app is in the background.',
+              '화면을 꺼도 러닝 경로·거리·페이스 측정이 끊기지 않도록, 백그라운드에서도 위치 권한이 필요해요.',
             isIosBackgroundLocationEnabled: true,
             isAndroidBackgroundLocationEnabled: true,
             isAndroidForegroundServiceEnabled: true,
@@ -182,7 +182,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           'expo-sensors',
           {
             motionPermission:
-              'Allow RunningGround to read your motion data so cadence can be shown while you run.',
+              '러닝 중 케이던스(분당 걸음 수)를 표시하기 위해 동작·피트니스 데이터 접근 권한이 필요해요.',
           },
         ],
         './plugins/withHealthAccess',

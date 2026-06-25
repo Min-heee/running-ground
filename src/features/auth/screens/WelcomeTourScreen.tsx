@@ -6,7 +6,6 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import {
   getOnboardingPermissionStatuses,
-  MOTION_ANDROID_NEEDS_NATIVE_BUILD,
   ONBOARDING_PERMISSION_CAN_ASK,
   ONBOARDING_PERMISSION_DENIED,
   requestBackgroundLocation,
@@ -250,11 +249,6 @@ export default function WelcomeTourScreen() {
                   granted={statuses[item.key]}
                   canAsk={canAsk[item.key]}
                   busy={busyKey === item.key}
-                  noteText={
-                    item.key === 'motion' && MOTION_ANDROID_NEEDS_NATIVE_BUILD && !statuses.motion
-                      ? '※ 안드로이드는 다음 빌드부터 동작 권한을 요청해요.'
-                      : undefined
-                  }
                   onRequest={() => {
                     void runRequest(item.key, item.request);
                   }}
