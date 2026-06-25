@@ -1,8 +1,11 @@
 import { Link } from 'expo-router';
+import { openBrowserAsync } from 'expo-web-browser';
+import { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/Card';
 import { SectionTitle } from '@/components/SectionTitle';
+import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '@/config/legal';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type ProfileSettingsCardProps = {
@@ -10,6 +13,15 @@ type ProfileSettingsCardProps = {
 };
 
 export function ProfileSettingsCard({ onDebugUnlockPress }: ProfileSettingsCardProps) {
+  const openPrivacyPolicy = useCallback(() => {
+    void openBrowserAsync(PRIVACY_POLICY_URL);
+  }, []);
+  const openTerms = useCallback(() => {
+    if (TERMS_OF_SERVICE_URL) {
+      void openBrowserAsync(TERMS_OF_SERVICE_URL);
+    }
+  }, []);
+
   return (
     <Card style={styles.settingsCard}>
       <View style={styles.sectionHeaderRow}>
@@ -19,7 +31,7 @@ export function ProfileSettingsCard({ onDebugUnlockPress }: ProfileSettingsCardP
           hitSlop={8}
           onPress={onDebugUnlockPress}
         >
-          <Text style={styles.sectionLink}>3개</Text>
+          <Text style={styles.sectionLink}>{TERMS_OF_SERVICE_URL ? '5개' : '4개'}</Text>
         </Pressable>
       </View>
       <Link href="/region-settings" asChild>
@@ -40,6 +52,26 @@ export function ProfileSettingsCard({ onDebugUnlockPress }: ProfileSettingsCardP
           <Text style={styles.settingValue}>열기</Text>
         </Pressable>
       </Link>
+      <Pressable
+        style={styles.settingRow}
+        onPress={openPrivacyPolicy}
+        accessibilityRole="link"
+        accessibilityLabel="개인정보처리방침 열기"
+      >
+        <Text style={styles.settingLabel}>개인정보처리방침</Text>
+        <Text style={styles.settingValue}>보기</Text>
+      </Pressable>
+      {TERMS_OF_SERVICE_URL ? (
+        <Pressable
+          style={styles.settingRow}
+          onPress={openTerms}
+          accessibilityRole="link"
+          accessibilityLabel="이용약관 열기"
+        >
+          <Text style={styles.settingLabel}>이용약관</Text>
+          <Text style={styles.settingValue}>보기</Text>
+        </Pressable>
+      ) : null}
     </Card>
   );
 }
