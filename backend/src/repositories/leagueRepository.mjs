@@ -62,7 +62,9 @@ function buildDistrictRank(store, user, rank, currentUserId, getUserMetrics) {
     id: user.id,
     rank,
     name: user.name,
-    distanceKm: metrics.currentWeekDistanceKm,
+    // Competitive district ranking: rank by AND show the competitive weekly
+    // distance (imports excluded) so the shown number matches the sort key.
+    distanceKm: metrics.competitiveWeekDistanceKm,
     points: metrics.currentWeekPoints,
     rankScore: getUserRankScore(user),
     monthlyDistanceKm: metrics.currentMonthDistanceKm,
@@ -73,8 +75,8 @@ function buildDistrictRank(store, user, rank, currentUserId, getUserMetrics) {
 function compareDistrictRank(store, left, right, getUserMetrics) {
   const leftMetrics = getUserMetrics(store, left.id);
   const rightMetrics = getUserMetrics(store, right.id);
-  const leftDistanceKm = leftMetrics.currentWeekDistanceKm;
-  const rightDistanceKm = rightMetrics.currentWeekDistanceKm;
+  const leftDistanceKm = leftMetrics.competitiveWeekDistanceKm;
+  const rightDistanceKm = rightMetrics.competitiveWeekDistanceKm;
 
   if (rightDistanceKm !== leftDistanceKm) {
     return rightDistanceKm - leftDistanceKm;
@@ -190,7 +192,9 @@ function buildDistrictPersonal(store, user, getUserMetrics, nodeId) {
     districtName: regionName,
     myRank,
     myPoints: myMetrics.currentWeekPoints,
-    weeklyDistanceKm: myMetrics.currentWeekDistanceKm,
+    // Header "my weekly distance" on the competitive district board must match
+    // my ranked distance, so it uses the competitive value (imports excluded).
+    weeklyDistanceKm: myMetrics.competitiveWeekDistanceKm,
     focusRanks,
     ranks: districtUsers,
   };

@@ -1,3 +1,5 @@
+import { isCompetitiveRun } from './lib/competitiveRuns.mjs';
+
 function toFixed1(value) {
   return Number(value.toFixed(1));
 }
@@ -116,6 +118,12 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
   const sortedRuns = getSortedRuns(runs);
   const runPointsById = new Map();
   const weekDistanceByKey = new Map();
+  // Competitive weekly distance only counts in-app GPS-tracked + match runs
+  // (isCompetitiveRun). Imports (apple_health/health_connect/nrc/strava/garmin/
+  // manual) are display-only and excluded so they can't inflate a user's
+  // competitive leaderboard standing. The full weekDistanceByKey above stays
+  // unchanged for personal surfaces (home 기록 카드, profile, 내 활동).
+  const competitiveWeekDistanceByKey = new Map();
   const weekRunCountByKey = new Map();
   const weekRunsByKey = new Map();
   const monthDistanceByKey = new Map();
@@ -148,6 +156,14 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     });
 
     weekDistanceByKey.set(weekKey, toFixed1((weekDistanceByKey.get(weekKey) ?? 0) + run.distanceKm));
+
+    if (isCompetitiveRun(run)) {
+      competitiveWeekDistanceByKey.set(
+        weekKey,
+        toFixed1((competitiveWeekDistanceByKey.get(weekKey) ?? 0) + run.distanceKm),
+      );
+    }
+
     monthDistanceByKey.set(monthKey, toFixed1((monthDistanceByKey.get(monthKey) ?? 0) + run.distanceKm));
     weekRunCountByKey.set(weekKey, (weekRunCountByKey.get(weekKey) ?? 0) + 1);
     weekRunsByKey.set(weekKey, [...(weekRunsByKey.get(weekKey) ?? []), run]);
@@ -237,6 +253,7 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     : 0;
 
   const currentWeekDistanceKm = weekDistanceByKey.get(currentWeekKey) ?? 0;
+  const competitiveWeekDistanceKm = competitiveWeekDistanceByKey.get(currentWeekKey) ?? 0;
   const previousWeekDistanceKm = weekDistanceByKey.get(previousWeekKey) ?? 0;
   const currentWeekRunCount = weekRunCountByKey.get(currentWeekKey) ?? 0;
   const currentMonthDistanceKm = monthDistanceByKey.get(currentMonthKey) ?? 0;
@@ -264,6 +281,7 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     latestRun,
     currentStreakDays,
     currentWeekDistanceKm: toFixed1(currentWeekDistanceKm),
+    competitiveWeekDistanceKm: toFixed1(competitiveWeekDistanceKm),
     previousWeekDistanceKm: toFixed1(previousWeekDistanceKm),
     currentWeekRunCount,
     currentWeekPoints,

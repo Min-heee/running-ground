@@ -262,20 +262,30 @@ await runTest('returns leaderboard with ranks and actionable requests', async ()
       { id: 'request-2', requester_id: 'user-me', receiver_id: 'user-haneul', status: 'pending', created_at: '2026-04-23T01:00:00.000Z' },
     ],
     runs: [
-      { id: 'run-me', user_id: 'user-me', run_date: '2026-04-23', distance_km: 10, pace: '05:30/km', source_label: 'Manual', source_type: 'manual' },
-      { id: 'run-juno', user_id: 'user-juno', run_date: '2026-04-23', distance_km: 12, pace: '05:20/km', source_label: 'NRC', source_type: 'nrc' },
-      { id: 'run-seoyeon-1', user_id: 'user-seoyeon', run_date: '2026-04-22', distance_km: 5, pace: '05:20/km', source_label: 'NRC', source_type: 'nrc' },
-      { id: 'run-seoyeon-2', user_id: 'user-seoyeon', run_date: '2026-04-23', distance_km: 5, pace: '05:10/km', source_label: 'NRC', source_type: 'nrc' },
+      // Competitive (in-app GPS) runs drive the leaderboard ordering by distance:
+      // 준호 12 > 서연 10 > 민병희 8.
+      { id: 'run-me', user_id: 'user-me', run_date: '2026-04-23', distance_km: 8, pace: '05:30/km', source_label: 'RunningGround', source_type: 'runningground' },
+      // Import that hugely inflates user-me's FULL weekly distance (and full
+      // points) but must be excluded from the competitive leaderboard rank and
+      // shown distance.
+      { id: 'run-me-import', user_id: 'user-me', run_date: '2026-04-22', distance_km: 99, pace: '05:50/km', source_label: 'NRC', source_type: 'nrc' },
+      { id: 'run-juno', user_id: 'user-juno', run_date: '2026-04-23', distance_km: 12, pace: '05:20/km', source_label: 'RunningGround', source_type: 'runningground' },
+      { id: 'run-seoyeon-1', user_id: 'user-seoyeon', run_date: '2026-04-22', distance_km: 5, pace: '05:20/km', source_label: 'RunningGround', source_type: 'runningground' },
+      { id: 'run-seoyeon-2', user_id: 'user-seoyeon', run_date: '2026-04-23', distance_km: 5, pace: '05:10/km', source_label: 'RunningGround', source_type: 'runningground' },
     ],
   });
 
   const result = await repository.getLeaderboard({ token: 'token-me' });
 
+  // user-me's 99km import does not push them above 준호/서연: competitive
+  // distance stays 8, so the import-excluded order holds.
   assert.deepEqual(result.ranks.map((entry) => `${entry.rank}:${entry.name}`), [
     '1:준호',
     '2:서연',
     '3:민병희',
   ]);
+  // Shown distance is the competitive value (8), never the import-inflated full.
+  assert.equal(result.ranks.find((entry) => entry.name === '민병희')?.distanceKm, 8);
   assert.deepEqual(result.requests, [
     { id: 'request-1', name: '가영', tag: '#GAY01', status: 'received' },
     { id: 'request-2', name: '하늘', tag: '#HAN01', status: 'pending' },

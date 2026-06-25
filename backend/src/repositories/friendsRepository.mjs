@@ -81,7 +81,9 @@ function buildFriendRank(store, user, rank, getUserMetrics, {
     rank,
     name: user.name,
     tag: user.publicTag,
-    distanceKm: metrics.currentWeekDistanceKm,
+    // Competitive leaderboard: rank by AND show the competitive weekly distance
+    // (imports excluded) so the displayed number agrees with the sort key.
+    distanceKm: metrics.competitiveWeekDistanceKm,
     points: metrics.currentWeekPoints,
     ...(liveShare.isRunningNow ? { isRunningNow: true } : {}),
     ...(liveShare.liveLocationLabel ? { liveLocationLabel: liveShare.liveLocationLabel } : {}),
@@ -91,8 +93,8 @@ function buildFriendRank(store, user, rank, getUserMetrics, {
 function compareFriendRank(store, left, right, getUserMetrics) {
   const leftMetrics = getUserMetrics(store, left.id);
   const rightMetrics = getUserMetrics(store, right.id);
-  const leftDistanceKm = leftMetrics.currentWeekDistanceKm;
-  const rightDistanceKm = rightMetrics.currentWeekDistanceKm;
+  const leftDistanceKm = leftMetrics.competitiveWeekDistanceKm;
+  const rightDistanceKm = rightMetrics.competitiveWeekDistanceKm;
 
   if (rightDistanceKm !== leftDistanceKm) {
     return rightDistanceKm - leftDistanceKm;

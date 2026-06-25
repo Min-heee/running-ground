@@ -50,6 +50,7 @@ function createRepositoryHarness(initialStore = {}, metricsByUserId = {}) {
     },
     getUserMetrics: (_store, userId) => ({
       currentWeekDistanceKm: 0,
+      competitiveWeekDistanceKm: 0,
       currentWeekPoints: 0,
       currentMonthDistanceKm: 0,
       ...(metricsByUserId[userId] ?? {}),
@@ -85,10 +86,13 @@ await runTest('returns district personal ranks focused around current user', asy
       { token: 'token-me', userId: 'user-me' },
     ],
   }, {
-    'user-me': { currentWeekDistanceKm: 10, currentWeekPoints: 15 },
-    'user-a': { currentWeekDistanceKm: 12, currentWeekPoints: 20 },
-    'user-b': { currentWeekDistanceKm: 8, currentWeekPoints: 11 },
-    'user-other': { currentWeekDistanceKm: 50, currentWeekPoints: 80 },
+    // FULL weekly distance is import-inflated for everyone; the competitive
+    // weekly distance is the real ranking driver. The district board must rank
+    // by AND show competitive distance, so imports cannot reorder it.
+    'user-me': { currentWeekDistanceKm: 90, competitiveWeekDistanceKm: 10, currentWeekPoints: 15 },
+    'user-a': { currentWeekDistanceKm: 11, competitiveWeekDistanceKm: 12, currentWeekPoints: 20 },
+    'user-b': { currentWeekDistanceKm: 70, competitiveWeekDistanceKm: 8, currentWeekPoints: 11 },
+    'user-other': { currentWeekDistanceKm: 50, competitiveWeekDistanceKm: 50, currentWeekPoints: 80 },
   });
 
   const result = await repository.getDistrictPersonal({ token: 'token-me' });
@@ -96,7 +100,9 @@ await runTest('returns district personal ranks focused around current user', asy
   assert.equal(result.districtName, '강남구');
   assert.equal(result.myRank.rank, 2);
   assert.equal(result.myPoints, 15);
+  // Competitive weekly distance, not the import-inflated full 90.
   assert.equal(result.weeklyDistanceKm, 10);
+  assert.equal(result.myRank.distanceKm, 10);
   assert.deepEqual(result.focusRanks.map((entry) => `${entry.rank}:${entry.name}`), [
     '1:가영',
     '2:민병희',
@@ -271,10 +277,10 @@ await runTest('aggregates a city ranking across all of its districts', async () 
     sessions: [{ token: 'token-me', userId: 'user-me' }],
     regionTree: createCappedRegionTree(),
   }, {
-    'user-me': { currentWeekDistanceKm: 10, currentWeekPoints: 15, currentMonthDistanceKm: 40 },
-    'user-a': { currentWeekDistanceKm: 12, currentWeekPoints: 20, currentMonthDistanceKm: 30 },
-    'user-b': { currentWeekDistanceKm: 8, currentWeekPoints: 11, currentMonthDistanceKm: 55 },
-    'user-other': { currentWeekDistanceKm: 50, currentWeekPoints: 80, currentMonthDistanceKm: 99 },
+    'user-me': { currentWeekDistanceKm: 10, competitiveWeekDistanceKm: 10, currentWeekPoints: 15, currentMonthDistanceKm: 40 },
+    'user-a': { currentWeekDistanceKm: 12, competitiveWeekDistanceKm: 12, currentWeekPoints: 20, currentMonthDistanceKm: 30 },
+    'user-b': { currentWeekDistanceKm: 8, competitiveWeekDistanceKm: 8, currentWeekPoints: 11, currentMonthDistanceKm: 55 },
+    'user-other': { currentWeekDistanceKm: 50, competitiveWeekDistanceKm: 50, currentWeekPoints: 80, currentMonthDistanceKm: 99 },
   });
 
   const result = await repository.getDistrictPersonal({ token: 'token-me', nodeId: 'kr-gg-01' });

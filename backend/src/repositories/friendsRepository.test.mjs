@@ -66,12 +66,14 @@ function createRepositoryHarness(initialStore = {}, metricsByUserId = {}) {
     getRunsForUser: (store, userId) => store.runs
       .filter((entry) => entry.userId === userId)
       .sort((left, right) => right.date.localeCompare(left.date)),
-    getUserMetrics: (_store, userId) => metricsByUserId[userId] ?? {
+    getUserMetrics: (_store, userId) => ({
       currentWeekDistanceKm: 0,
+      competitiveWeekDistanceKm: 0,
       currentWeekPoints: 0,
       currentMonthDistanceKm: 0,
       currentMonthPoints: 0,
-    },
+      ...(metricsByUserId[userId] ?? {}),
+    }),
     buildRunDetail: (run, weeklyDistanceKm, sourceOverride) => ({
       run: {
         ...run,
@@ -131,9 +133,13 @@ await runTest('returns leaderboard with ranks and actionable requests', async ()
       { id: 'request-3', requesterId: 'user-haneul', receiverId: 'user-me', status: 'accepted' },
     ],
   }, {
-    'user-me': { currentWeekDistanceKm: 10, currentWeekPoints: 20, currentMonthDistanceKm: 30, currentMonthPoints: 40 },
-    'user-juno': { currentWeekDistanceKm: 12, currentWeekPoints: 18, currentMonthDistanceKm: 50, currentMonthPoints: 60 },
-    'user-seoyeon': { currentWeekDistanceKm: 10, currentWeekPoints: 25, currentMonthDistanceKm: 45, currentMonthPoints: 55 },
+    // Inflate the FULL weekly distance with imports for everyone, but keep the
+    // competitive weekly distance as the real ranking driver. The leaderboard
+    // must rank by AND display the competitive value, so imports cannot reorder
+    // the board or change the shown number.
+    'user-me': { currentWeekDistanceKm: 99, competitiveWeekDistanceKm: 10, currentWeekPoints: 20, currentMonthDistanceKm: 30, currentMonthPoints: 40 },
+    'user-juno': { currentWeekDistanceKm: 11, competitiveWeekDistanceKm: 12, currentWeekPoints: 18, currentMonthDistanceKm: 50, currentMonthPoints: 60 },
+    'user-seoyeon': { currentWeekDistanceKm: 80, competitiveWeekDistanceKm: 10, currentWeekPoints: 25, currentMonthDistanceKm: 45, currentMonthPoints: 55 },
   });
 
   const result = await repository.getLeaderboard({ token: 'token-me' });
@@ -142,6 +148,12 @@ await runTest('returns leaderboard with ranks and actionable requests', async ()
     '1:준호',
     '2:서연',
     '3:민병희',
+  ]);
+  // Shown distance is the competitive value, never the import-inflated full one.
+  assert.deepEqual(result.ranks.map((entry) => `${entry.name}:${entry.distanceKm}`), [
+    '준호:12',
+    '서연:10',
+    '민병희:10',
   ]);
   assert.deepEqual(result.requests, [
     { id: 'request-1', name: '가영', tag: '#GAY01', status: 'received' },

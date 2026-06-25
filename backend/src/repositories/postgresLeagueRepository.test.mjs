@@ -125,19 +125,39 @@ await runTest('returns district personal ranks from postgres rows', async () => 
       { token: 'token-me', user_id: 'user-me', expires_at: '2099-01-01T00:00:00.000Z' },
     ],
     runs: [
-      { id: 'run-me', user_id: 'user-me', run_date: '2026-04-23', distance_km: 10, pace: '05:40/km', source_label: 'Manual', source_type: 'manual' },
-      { id: 'run-a', user_id: 'user-a', run_date: '2026-04-23', distance_km: 12, pace: '05:20/km', source_label: 'NRC', source_type: 'nrc' },
-      { id: 'run-b', user_id: 'user-b', run_date: '2026-04-23', distance_km: 8, pace: '05:30/km', source_label: 'NRC', source_type: 'nrc' },
-      { id: 'run-other', user_id: 'user-other', run_date: '2026-04-23', distance_km: 50, pace: '05:00/km', source_label: 'NRC', source_type: 'nrc' },
+      // Competitive (in-app GPS) runs drive the district ranking by distance:
+      // 가영 12 > 민병희 10 > 준호 8.
+      { id: 'run-me', user_id: 'user-me', run_date: '2026-04-23', distance_km: 10, pace: '05:40/km', source_label: 'RunningGround', source_type: 'runningground' },
+      // Import that hugely inflates user-me's FULL weekly distance but must be
+      // excluded from the competitive district rank and shown distance.
+      { id: 'run-me-import', user_id: 'user-me', run_date: '2026-04-22', distance_km: 99, pace: '06:00/km', source_label: 'NRC', source_type: 'nrc' },
+      { id: 'run-a', user_id: 'user-a', run_date: '2026-04-23', distance_km: 12, pace: '05:20/km', source_label: 'RunningGround', source_type: 'runningground' },
+      { id: 'run-b', user_id: 'user-b', run_date: '2026-04-23', distance_km: 8, pace: '05:30/km', source_label: 'RunningGround', source_type: 'runningground' },
+      { id: 'run-other', user_id: 'user-other', run_date: '2026-04-23', distance_km: 50, pace: '05:00/km', source_label: 'RunningGround', source_type: 'runningground' },
     ],
   });
 
   const result = await repository.getDistrictPersonal({ token: 'token-me' });
 
+  // myPoints stays FULL (imports included) — points gating is out of scope; only
+  // the competitive weekly distance is gated. Derive the expected full points so
+  // the assertion does not hard-code the points formula.
+  const expectedMyMetrics = buildUserRunMetrics([
+    { id: 'run-me', userId: 'user-me', date: '2026-04-23', distanceKm: 10, pace: '05:40/km', source: 'RunningGround', sourceType: 'runningground' },
+    { id: 'run-me-import', userId: 'user-me', date: '2026-04-22', distanceKm: 99, pace: '06:00/km', source: 'NRC', sourceType: 'nrc' },
+  ], new Date('2026-04-24T00:00:00.000Z'));
+
   assert.equal(result.districtName, '강남구');
+  // The 99km import does not change my competitive rank (still 2) or the shown
+  // competitive weekly distance (10, not the import-inflated 109).
   assert.equal(result.myRank.rank, 2);
-  assert.equal(result.myPoints, 20);
+  assert.equal(result.myPoints, expectedMyMetrics.currentWeekPoints);
   assert.equal(result.weeklyDistanceKm, 10);
+  assert.equal(result.myRank.distanceKm, 10);
+  // Sanity: the import really did inflate the FULL weekly distance well past the
+  // competitive 10, proving the gate is what keeps the board at 10.
+  assert.equal(expectedMyMetrics.currentWeekDistanceKm, 109);
+  assert.equal(expectedMyMetrics.competitiveWeekDistanceKm, 10);
   assert.deepEqual(result.focusRanks.map((entry) => `${entry.rank}:${entry.name}`), [
     '1:가영',
     '2:민병희',

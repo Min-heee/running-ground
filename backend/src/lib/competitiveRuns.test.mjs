@@ -89,4 +89,45 @@ runTest('personal metrics still include imported runs', () => {
   );
 });
 
+// buildUserRunMetrics exposes BOTH a full currentWeekDistanceKm (personal) and a
+// competitiveWeekDistanceKm (leaderboard). The competitive value mirrors the
+// full value computed over only isCompetitiveRun runs, in the same week window.
+runTest('competitiveWeekDistanceKm excludes imports while currentWeekDistanceKm keeps them', () => {
+  const today = new Date('2026-06-25T09:00:00');
+  const allRuns = [
+    { id: 'r1', sourceType: 'runningground', date: '2026-06-25', distanceKm: 5, pace: '5:00/km' },
+    { id: 'r2', sourceType: 'apple_health', date: '2026-06-25', distanceKm: 8, pace: '4:30/km' },
+    { id: 'r3', sourceType: 'manual', date: '2026-06-24', distanceKm: 7, pace: '6:00/km' },
+  ];
+
+  const metrics = buildUserRunMetrics(allRuns, today);
+  const competitiveOnly = buildUserRunMetrics(filterCompetitiveRuns(allRuns), today);
+
+  // Personal weekly distance keeps every source (5 + 8 + 7 = 20).
+  assert.equal(metrics.currentWeekDistanceKm, 20);
+  // Competitive weekly distance counts only the tracked run (5) and exactly
+  // matches recomputing the full metric over the competitive subset.
+  assert.equal(metrics.competitiveWeekDistanceKm, 5);
+  assert.equal(metrics.competitiveWeekDistanceKm, competitiveOnly.currentWeekDistanceKm);
+});
+
+// (c) A tracked run AND a match run both count toward the competitive weekly
+// distance, so an in-app match still moves the leaderboard.
+runTest('competitiveWeekDistanceKm counts tracked and match runs', () => {
+  const today = new Date('2026-06-25T09:00:00');
+  const allRuns = [
+    { id: 'r1', sourceType: 'runningground', date: '2026-06-25', distanceKm: 5, pace: '5:00/km' },
+    // A match record stays competitive even if it carries an imported source.
+    { id: 'r2', sourceType: 'apple_health', date: '2026-06-24', distanceKm: 4, pace: '4:50/km', matchResult: { mode: 'duel', resultTone: 'win' } },
+    { id: 'r3', sourceType: 'strava', date: '2026-06-25', distanceKm: 9, pace: '4:10/km' },
+  ];
+
+  const metrics = buildUserRunMetrics(allRuns, today);
+
+  // Tracked (5) + match (4) count; the plain strava import (9) does not.
+  assert.equal(metrics.competitiveWeekDistanceKm, 9);
+  // Personal weekly distance still includes the strava import (5 + 4 + 9 = 18).
+  assert.equal(metrics.currentWeekDistanceKm, 18);
+});
+
 console.log('[competitiveRuns] all tests passed');
