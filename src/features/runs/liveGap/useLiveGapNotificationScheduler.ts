@@ -19,6 +19,7 @@ import {
 } from '@/lib/liveMatchGapNotifications';
 import { speakLiveGapMessage } from '@/lib/liveMatchGapVoice';
 import { subscribeBackgroundRunTracking } from '@/features/runs/tracking/background';
+import { isMyMatchDistanceStale } from '@/features/runs/sync/matchDistanceStaleness';
 
 const SCHEDULER_TICK_MS = 1000;
 
@@ -33,12 +34,18 @@ export type LiveGapSchedulerInput = {
   opponentPaceLabel?: string | null;
   duelGapKm?: number | null;
   groupStandings?: GroupLiveStanding[];
+  // Epoch ms of the freshest MY-distance signal (most recent local distance update or the synced
+  // match-progress checkpoint's updatedAt). Re-evaluated against Date.now() at each fire so a
+  // notification built from a frozen MY-distance (screen-off JS suspend) withholds the my-distance
+  // derived avg pace + gap. null when no fresh signal yet (early run) — then not treated as stale.
+  myDistanceUpdatedAtMs?: number | null;
 };
 
 function buildSchedulerOutput(
   input: LiveGapSchedulerInput,
   metrics: readonly LiveGapMetric[],
   groupTargets: readonly LiveGapGroupTarget[],
+  nowMs: number,
 ): LiveGapOutput {
   return buildLiveGapOutput({
     matchMode: input.matchMode,
@@ -50,6 +57,10 @@ function buildSchedulerOutput(
     opponentPaceLabel: input.opponentPaceLabel,
     standings: input.groupStandings ?? [],
     groupTargets,
+    isMyDistanceStale: isMyMatchDistanceStale({
+      lastUpdatedAtMs: input.myDistanceUpdatedAtMs,
+      nowMs,
+    }),
   });
 }
 
@@ -112,7 +123,7 @@ export function useLiveGapNotificationScheduler(input: LiveGapSchedulerInput) {
         return;
       }
 
-      const output = buildSchedulerOutput(inputRef.current, metricsRef.current, groupTargetsRef.current);
+      const output = buildSchedulerOutput(inputRef.current, metricsRef.current, groupTargetsRef.current, now);
 
       if (!output.notification && !output.speech) {
         // Data not ready yet — keep the clock past-due so we fire as soon as it arrives

@@ -49,24 +49,40 @@ export function resolveTrackRunRuntimeRouteHydration({
   };
 }
 
+// The not-ready sentinel already used elsewhere for distanceKm<=0 (see matchProgress.ts) —
+// reuse it so a stale MY-distance reads as "not measured yet", not as a real (ballooned) pace.
+const NOT_READY_PACE_LABEL = '--:--/km';
+
 export function resolveCurrentUserArenaPace({
   officialCurrentAveragePace,
   liveMatchDisplayDistanceKm,
   liveMatchDisplayElapsedSeconds,
   shouldUseLivePace,
+  isMyDistanceStale = false,
 }: {
   officialCurrentAveragePace: string | null;
   liveMatchDisplayDistanceKm: number;
   liveMatchDisplayElapsedSeconds: number;
   shouldUseLivePace: boolean;
+  // When MY live distance is stale (screen-off JS freeze: distance frozen, elapsed climbing) the
+  // cumulative live avg pace balloons, so render the not-ready sentinel instead. Official pace is
+  // server-authoritative (not JS-frozen), so it is shown unchanged even while stale. Staleness is
+  // timestamp-based, NEVER pace magnitude — a slow/walking-but-fresh pace is not suppressed.
+  isMyDistanceStale?: boolean;
 }) {
-  return isMeasuredPaceLabel(officialCurrentAveragePace)
-    ? officialCurrentAveragePace!
-    : buildAverageArenaPaceLabel(
-        liveMatchDisplayDistanceKm,
-        liveMatchDisplayElapsedSeconds,
-        shouldUseLivePace,
-      );
+  if (isMeasuredPaceLabel(officialCurrentAveragePace)) {
+    return officialCurrentAveragePace!;
+  }
+
+  if (isMyDistanceStale) {
+    return NOT_READY_PACE_LABEL;
+  }
+
+  return buildAverageArenaPaceLabel(
+    liveMatchDisplayDistanceKm,
+    liveMatchDisplayElapsedSeconds,
+    shouldUseLivePace,
+  );
 }
 
 export function resolveDuelLiveSummary({

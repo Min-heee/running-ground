@@ -219,3 +219,85 @@ test('buildLiveGapOutput returns nulls when nothing is selected or data is missi
     { notification: null, speech: null },
   );
 });
+
+// --- Stale MY-distance gating (screen-off JS freeze). Detection is timestamp-based upstream;
+// here we only assert that the isMyDistanceStale flag withholds the my-distance-derived avg pace
+// + gap while leaving opponent-only metrics (and remaining distance) intact. ---
+
+test('NOT stale (or flag absent): a real avg pace + duel gap are shown unchanged', () => {
+  const fresh = buildLiveGapOutput({
+    matchMode: 'duel',
+    metrics: ['avgPace', 'opponentDistance', 'opponentPace'],
+    avgPaceLabel: '05:30/km',
+    opponentName: '민희',
+    opponentGapKm: 0.04,
+    opponentPaceLabel: '05:45/km',
+    isMyDistanceStale: false,
+  });
+
+  assert.equal(fresh.notification?.body, '평균 05:30/km\n민희 40m 앞, 평균 05:45/km');
+});
+
+test('a slow/walking-but-fresh pace is NOT suppressed (gate is timestamp, not magnitude)', () => {
+  // 13:00/km is a slow walk but a REAL, GPS-fresh pace — it must still render.
+  const slowFresh = buildLiveGapOutput({
+    matchMode: 'duel',
+    metrics: ['avgPace', 'opponentDistance'],
+    avgPaceLabel: '13:00/km',
+    opponentName: '민희',
+    opponentGapKm: 0.04,
+    isMyDistanceStale: false,
+  });
+
+  assert.equal(slowFresh.notification?.body, '평균 13:00/km\n민희 40m 앞');
+});
+
+test('stale MY-distance: duel avg pace AND gap are withheld, opponent pace + remaining survive', () => {
+  const stale = buildLiveGapOutput({
+    matchMode: 'duel',
+    metrics: ['remainingDistance', 'avgPace', 'opponentDistance', 'opponentPace'],
+    remainingDistanceKm: 1.2,
+    // The ballooned cumulative pace the freeze would otherwise print.
+    avgPaceLabel: '13:02/km',
+    opponentName: '민희',
+    // The phantom "40m 앞" from my frozen checkpoint vs. the opponent's advancing poll.
+    opponentGapKm: 0.04,
+    opponentPaceLabel: '05:45/km',
+    isMyDistanceStale: true,
+  });
+
+  // Remaining distance (not my-distance-derived) and the opponent's OWN pace remain; the
+  // ballooned avg pace and the phantom gap are gone.
+  assert.equal(stale.notification?.body, '남은 거리 1.20km\n민희 평균 05:45/km');
+  assert.ok(!stale.notification?.body.includes('13:02'));
+  assert.ok(!stale.notification?.body.includes('40m'));
+});
+
+test('stale MY-distance with only my-distance metrics selected → nothing to push', () => {
+  const stale = buildLiveGapOutput({
+    matchMode: 'duel',
+    metrics: ['avgPace', 'opponentDistance'],
+    avgPaceLabel: '13:02/km',
+    opponentName: '민희',
+    opponentGapKm: 0.04,
+    isMyDistanceStale: true,
+  });
+
+  assert.deepEqual(stale, { notification: null, speech: null });
+});
+
+test('stale MY-distance: group gap is withheld but the opponent\'s own pace survives', () => {
+  const stale = buildLiveGapOutput({
+    matchMode: 'group',
+    metrics: ['opponentDistance', 'opponentPace'],
+    standings: GROUP_STANDINGS,
+    groupTargets: ['ahead1'],
+    isMyDistanceStale: true,
+  });
+
+  // 영희 sits directly ahead of me (rank 2 vs my rank 3); the my-distance-derived gap is
+  // suppressed, the opponent's own average pace remains.
+  assert.equal(stale.notification?.body, '앞사람 영희: 평균 05:20/km');
+  assert.ok(!stale.notification?.body.includes('m 뒤'));
+  assert.ok(!stale.notification?.body.includes('m 앞'));
+});

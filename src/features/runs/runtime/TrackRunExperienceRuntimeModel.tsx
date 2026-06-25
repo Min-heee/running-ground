@@ -91,6 +91,7 @@ import {
 } from '@/features/runs/lifecycle/liveMatchShellPreservation';
 import { resolveTrackRunLiveShellGate } from '@/features/runs/lifecycle/trackRunLiveShellGate';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
+import { isMyMatchDistanceStale } from '@/features/runs/sync/matchDistanceStaleness';
 import {
   isTerminalMatchLiveStatus,
   resolveBackgroundMatchStatusApplyTarget,
@@ -816,6 +817,31 @@ export function TrackRunExperienceRuntime({
     && !isScreenFocused
   );
   const liveArenaPageWidth = Math.max(windowWidth - 32, 280);
+  // Freshness stamp for MY live distance. The screen-off JS suspend FREEZES distance (it is
+  // 100% JS-computed) while the wall-clock elapsed keeps climbing, so the cumulative avg pace
+  // balloons and the my-vs-opponent gap goes phantom. Stamp the wall-clock instant whenever MY
+  // displayed distance actually CHANGES; while frozen this stamp stops advancing and ages out.
+  // We OR it with the synced checkpoint's updatedAt (also frozen in background) and take the more
+  // recent of the two as "last time MY distance was fresh". This is a render-time ref update
+  // (no effect / no extra subscription); it only writes when the value moves.
+  const myDistanceFreshnessRef = useRef<{ distanceKm: number; updatedAtMs: number }>({
+    distanceKm: liveMatchMetricFrame.distanceKm,
+    updatedAtMs: getSyncedNowMs(),
+  });
+  if (myDistanceFreshnessRef.current.distanceKm !== liveMatchMetricFrame.distanceKm) {
+    myDistanceFreshnessRef.current = {
+      distanceKm: liveMatchMetricFrame.distanceKm,
+      updatedAtMs: getSyncedNowMs(),
+    };
+  }
+  const myMatchDistanceUpdatedAtMs = Math.max(
+    myDistanceFreshnessRef.current.updatedAtMs,
+    lastSyncedMatchProgress?.updatedAt ?? 0,
+  );
+  const isMyMatchDistanceStaleNow = isMyMatchDistanceStale({
+    lastUpdatedAtMs: myMatchDistanceUpdatedAtMs,
+    nowMs: getSyncedNowMs(),
+  });
   const currentUserArenaPace = useMemo(() => resolveCurrentUserArenaPace({
     officialCurrentAveragePace,
     liveMatchDisplayDistanceKm: liveMatchMetricFrame.distanceKm,
@@ -825,9 +851,14 @@ export function TrackRunExperienceRuntime({
     // resume. In foreground both are ≈equal so the displayed avg pace is unchanged.
     liveMatchDisplayElapsedSeconds: liveMatchMetricFrame.arenaElapsedSeconds ?? liveMatchMetricFrame.elapsedSeconds,
     shouldUseLivePace: duelArenaUsesLivePace || groupArenaUsesLivePace,
+    // When MY distance is stale, withhold the ballooned cumulative avg pace and show the
+    // not-ready sentinel instead. A genuinely slow/walking pace with fresh GPS is NOT stale
+    // (gated by timestamp, never pace magnitude), so it still shows its real value.
+    isMyDistanceStale: isMyMatchDistanceStaleNow,
   }), [
     duelArenaUsesLivePace,
     groupArenaUsesLivePace,
+    isMyMatchDistanceStaleNow,
     liveMatchMetricFrame.distanceKm,
     liveMatchMetricFrame.arenaElapsedSeconds,
     liveMatchMetricFrame.elapsedSeconds,
@@ -946,6 +977,10 @@ export function TrackRunExperienceRuntime({
     opponentPaceLabel: effectiveDuelOpponentArenaPace,
     duelGapKm: duelLiveGapKm,
     groupStandings: groupLiveStandings,
+    // Same freshness stamp the arena uses, so the gap push and the arena avg pace gate on ONE
+    // staleness definition. The scheduler re-evaluates this against the wall clock at each fire,
+    // withholding the my-distance-derived avg pace + gap while MY distance is frozen.
+    myDistanceUpdatedAtMs: myMatchDistanceUpdatedAtMs,
   });
   // Speak a one-shot ko-KR forfeit announcement when an opponent (duel) / any other
   // participant (group) quits, so a backgrounded runner hears it. Reads the SAME

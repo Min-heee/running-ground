@@ -307,10 +307,18 @@ export type LiveGapOutputInput = {
   // Group.
   standings?: GroupLiveStanding[];
   groupTargets?: readonly LiveGapGroupTarget[];
+  // When MY live distance is stale (screen-off JS freeze: distance frozen while elapsed climbs),
+  // every metric DERIVED FROM MY DISTANCE is a lie and must be withheld this interval: the
+  // ballooned avg pace AND the my-vs-opponent gap (a frozen checkpoint vs. the opponent's
+  // still-advancing server poll prints a phantom "40m 뒤"). Opponent-only metrics (their distance
+  // is fed in pre-gapped, their pace) are unaffected. Detected by timestamp, never by pace
+  // magnitude — see isMyMatchDistanceStale.
+  isMyDistanceStale?: boolean;
 };
 
 export function buildLiveGapOutput(input: LiveGapOutputInput): LiveGapOutput {
   const wants = (metric: LiveGapMetric) => input.metrics.includes(metric);
+  const isMyDistanceStale = input.isMyDistanceStale === true;
   const lines: GapLine[] = [];
 
   // --- My metrics ---
@@ -324,7 +332,9 @@ export function buildLiveGapOutput(input: LiveGapOutputInput): LiveGapOutput {
     });
   }
 
-  if (wants('avgPace') && parseMeasuredPaceSecondsPerKm(input.avgPaceLabel) !== null) {
+  // avgPace is MY cumulative average (elapsed/distance) — when my distance is frozen the
+  // denominator is stale and this balloons, so withhold it while stale rather than print a lie.
+  if (!isMyDistanceStale && wants('avgPace') && parseMeasuredPaceSecondsPerKm(input.avgPaceLabel) !== null) {
     lines.push({
       notif: `평균 ${String(input.avgPaceLabel)}`,
       speech: `평균 페이스 ${buildPaceSpeech(input.avgPaceLabel)}`,
@@ -337,7 +347,11 @@ export function buildLiveGapOutput(input: LiveGapOutputInput): LiveGapOutput {
 
   if (wantOppDistance || wantOppPace) {
     if (input.matchMode === 'duel') {
-      const gapKm = typeof input.opponentGapKm === 'number' && Number.isFinite(input.opponentGapKm)
+      // The duel gap is MY distance minus the opponent's; when mine is stale the gap is a
+      // phantom, so drop the distance fragment (gapKm = null) but keep the opponent's own pace.
+      const gapKm = !isMyDistanceStale
+        && typeof input.opponentGapKm === 'number'
+        && Number.isFinite(input.opponentGapKm)
         ? input.opponentGapKm
         : null;
       const line = buildOpponentLine({
@@ -361,7 +375,9 @@ export function buildLiveGapOutput(input: LiveGapOutputInput): LiveGapOutput {
         const line = buildOpponentLine({
           label: entry.label,
           name: entry.name,
-          gapKm: entry.gapKm,
+          // entry.gapKm is me.currentDistanceKm minus theirs — phantom while my distance is
+          // stale, so suppress the distance fragment but keep the opponent's own pace.
+          gapKm: isMyDistanceStale ? null : entry.gapKm,
           paceDiffNotif: entry.paceLabel,
           paceDiffSpeech: entry.paceSpeech,
           wantDistance: wantOppDistance,

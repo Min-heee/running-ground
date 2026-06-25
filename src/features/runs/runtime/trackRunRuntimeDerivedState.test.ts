@@ -95,6 +95,43 @@ test('resolveCurrentUserArenaPace tracks the wall-clock elapsed so a screen-off 
   assert.notEqual(wallClockPace, frozenTickerPace);
 });
 
+test('resolveCurrentUserArenaPace shows the not-ready sentinel when MY distance is stale', () => {
+  // Screen-off JS freeze: distance frozen low while elapsed climbs → cumulative pace balloons
+  // (1290s / 1.65km ≈ 13:02/km). When flagged stale, show '--:--/km' instead of the lie.
+  const stale = resolveCurrentUserArenaPace({
+    officialCurrentAveragePace: null,
+    liveMatchDisplayDistanceKm: 1.65,
+    liveMatchDisplayElapsedSeconds: 1290,
+    shouldUseLivePace: true,
+    isMyDistanceStale: true,
+  });
+  assert.equal(stale, '--:--/km');
+});
+
+test('resolveCurrentUserArenaPace does NOT suppress a slow/walking-but-fresh pace', () => {
+  // 13:00/km is a slow walk but the SAME numbers are a REAL pace when GPS is fresh (not stale):
+  // it must render its true value, never the sentinel. The gate is staleness, not magnitude.
+  const slowFresh = resolveCurrentUserArenaPace({
+    officialCurrentAveragePace: null,
+    liveMatchDisplayDistanceKm: 1.65,
+    liveMatchDisplayElapsedSeconds: 1290,
+    shouldUseLivePace: true,
+    isMyDistanceStale: false,
+  });
+  assert.equal(slowFresh, '13:02/km');
+});
+
+test('resolveCurrentUserArenaPace keeps the server-authoritative official pace even when stale', () => {
+  // Official pace comes from the server, not the frozen JS distance, so staleness must not hide it.
+  assert.equal(resolveCurrentUserArenaPace({
+    officialCurrentAveragePace: '5:10/km',
+    liveMatchDisplayDistanceKm: 1.65,
+    liveMatchDisplayElapsedSeconds: 1290,
+    shouldUseLivePace: true,
+    isMyDistanceStale: true,
+  }), '5:10/km');
+});
+
 test('resolveDuelLiveSummary keeps opponent loading, forfeit, and status labels stable', () => {
   assert.equal(resolveDuelLiveSummary({
     opponent: null,
