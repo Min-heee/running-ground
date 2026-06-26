@@ -24,6 +24,8 @@ import { useMatchResultController } from '@/features/runs/hooks/useMatchResultCo
 import { useLiveMatchProgress } from '@/features/runs/viewModels/useLiveMatchProgress';
 import { useLiveGapNotificationScheduler } from '@/features/runs/liveGap/useLiveGapNotificationScheduler';
 import { useOpponentForfeitVoice } from '@/features/runs/liveGap/useOpponentForfeitVoice';
+import { useFinishApproachReminder } from '@/features/runs/finishReminder/useFinishApproachReminder';
+import { parseMeasuredPaceSecondsPerKm } from '@/features/runs/liveGap/liveGapMessage';
 import {
   applyDuelOpponentForfeitLatch,
   resolveDuelOpponentForfeitLatch,
@@ -984,6 +986,22 @@ export function TrackRunExperienceRuntime({
     // staleness definition. The scheduler re-evaluates this against the wall clock at each fire,
     // withholding the my-distance-derived avg pace + gap while MY distance is frozen.
     myDistanceUpdatedAtMs: myMatchDistanceUpdatedAtMs,
+  });
+  // "Finish approaching — turn your screen on" one-shot reminder. A locked iOS screen suspends
+  // JS so DISTANCE freezes; a distance-threshold trigger would never fire screen-off exactly
+  // when it matters, so this schedules a TIME-based local notification ~300m before the target
+  // (computed from the freshest distance + my average pace) that the OS fires even while JS is
+  // suspended, so the finish elapsed is captured accurately. Applies to ANY goal run (duel /
+  // group / party-run); a no-goal solo run passes no target and gets nothing. Fires once;
+  // cancelled on run end / finish / forfeit / unmount.
+  useFinishApproachReminder({
+    active: isRunning && (matchMode === 'duel' || matchMode === 'group'),
+    targetDistanceKm: liveGapTargetDistanceKm,
+    currentDistanceKm: liveMatchDisplayDistanceKm,
+    // My cumulative average pace label (e.g. '5:30/km'), already staleness-gated; null while a
+    // real pace isn't measurable yet (distance ~0 at start) so we never schedule a bogus time.
+    averagePaceSecondsPerKm: parseMeasuredPaceSecondsPerKm(currentUserArenaPace),
+    isFinished: currentUserDoneWithCurrentMatch || currentUserHasForfeitedActiveMatch,
   });
   // Speak a one-shot ko-KR forfeit announcement when an opponent (duel) / any other
   // participant (group) quits, so a backgrounded runner hears it. Reads the SAME
