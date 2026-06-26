@@ -144,7 +144,7 @@ async function main() {
     assert(health.environment === 'development', 'health 응답 환경 값이 예상과 달라.');
     assert(health.publicBaseUrl === `http://127.0.0.1:${port}`, 'health 응답 공개 주소가 반영되지 않았어.');
     assert(Array.isArray(health.config.corsOrigins) && health.config.corsOrigins.length === 2, 'health 응답 CORS 목록이 올바르지 않아.');
-    assert(health.config.maxBodySizeKb === 256, 'health 응답 최대 본문 크기가 예상과 달라.');
+    assert(health.config.maxBodySizeKb === 1024, 'health 응답 최대 본문 크기가 예상과 달라.');
     assert(health.config.requestTimeoutMs === 30000, 'health 응답 요청 타임아웃이 예상과 달라.');
     assert(health.config.headersTimeoutMs === 10000, 'health 응답 헤더 타임아웃이 예상과 달라.');
     assert(health.config.keepAliveTimeoutMs === 5000, 'health 응답 keep-alive 타임아웃이 예상과 달라.');

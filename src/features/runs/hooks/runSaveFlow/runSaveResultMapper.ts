@@ -5,6 +5,7 @@ import {
   calculateCadenceSpm,
 } from '@/features/runs/tracking';
 import { isMeasuredPaceLabel } from '@/features/runs/viewModels/matchProgress';
+import { downsampleRoute } from '@/features/runs/utils/downsampleRoute';
 import type { CreateTrackedRunInput } from '@/lib/api/types/runs';
 import type { DisplayedTrackingSnapshot } from './types';
 
@@ -180,7 +181,11 @@ export function buildRunSaveResultSnapshot({
       durationSeconds: finalElapsedSeconds,
       cadenceSpm: finalCadenceSpm,
       elevationGainM: finalElevationGainM,
-      route: savableRoute,
+      // Bound the uploaded polyline so the request body stays under the backend's body-size
+      // limit regardless of run length. distanceKm/pace/duration/elevation/cadence above are
+      // computed live and sent independently — the backend never derives distance from the
+      // route, so decimating it only shrinks the displayed map line, never the recorded stats.
+      route: downsampleRoute(savableRoute),
       startedAt,
       endedAt,
       ...(trackedMatchResult

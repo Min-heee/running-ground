@@ -191,7 +191,9 @@ export function buildTodayRanking({
     if (!competitiveMetricsByUserId.has(userId)) {
       competitiveMetricsByUserId.set(
         userId,
-        buildUserMetrics(competitiveRunsByUserId.get(userId) ?? []),
+        // Pass the ranking's reference time so the streak (and week windows) are
+        // computed against rankedAt, not whenever this runs — deterministic + correct.
+        buildUserMetrics(competitiveRunsByUserId.get(userId) ?? [], safeRankedAt),
       );
     }
 
