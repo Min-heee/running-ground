@@ -50,6 +50,18 @@ public struct RunActivityAttributes: ActivityAttributes {
     // Wall-clock ms after which the OS dims the card (TS staleDateMs). The bridge ALSO passes this
     // as the ActivityContent.staleDate; kept here too so the SwiftUI view can reason about it.
     public var staleDateMs: Double
+    // Whether the run is ACTIVELY counting right now (TS isRunning). Drives the card's native
+    // auto-ticking TIME: true → the SwiftUI view ticks the clock itself from `timerStartMs`
+    // (Text(timerInterval:)), JS-independent so the lock-screen TIME stays alive while JS is
+    // suspended; false (paused/finished) → TIME freezes at the last pushed elapsedSeconds.
+    // Defaulted in init (= true) so the app/bridge keep ticking; the JS Record always sends it.
+    public var isRunning: Bool
+    // PAUSE-AWARE timer anchor as an absolute epoch-ms (TS timerStartMs = pushTimeMs −
+    // elapsedSeconds*1000). The SwiftUI view runs Text(timerInterval: Date(timerStartMs)…) from
+    // this anchor while isRunning, so the displayed time excludes paused gaps and re-syncs on every
+    // push. Defaulted (= 0) so an old bridge that does not send it (or a pre-timerStartMs OTA) → the
+    // view falls back to the static elapsedSeconds render instead of anchoring to an invalid epoch.
+    public var timerStartMs: Double
 
     // ---- match-only (nil for solo, exactly like the TS optionals) ----
     public var myRank: Int?
@@ -62,6 +74,8 @@ public struct RunActivityAttributes: ActivityAttributes {
       distanceM: Int,
       paceText: String,
       staleDateMs: Double,
+      isRunning: Bool = true,
+      timerStartMs: Double = 0,
       myRank: Int? = nil,
       totalRunners: Int? = nil,
       adjacentGapText: String? = nil,
@@ -71,6 +85,8 @@ public struct RunActivityAttributes: ActivityAttributes {
       self.distanceM = distanceM
       self.paceText = paceText
       self.staleDateMs = staleDateMs
+      self.isRunning = isRunning
+      self.timerStartMs = timerStartMs
       self.myRank = myRank
       self.totalRunners = totalRunners
       self.adjacentGapText = adjacentGapText

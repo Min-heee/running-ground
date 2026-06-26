@@ -47,6 +47,74 @@ test('solo with goal: attributes carry goalDistanceKm (native shows the ring)', 
   assert.equal(attributes.goalDistanceKm, 5);
 });
 
+test('isRunning defaults to true when omitted (native clock keeps ticking)', () => {
+  const { contentState } = buildLiveCardState(baseInput());
+  assert.equal(contentState.isRunning, true);
+});
+
+test('isRunning=false is carried through so the native clock freezes (paused/finished)', () => {
+  const { contentState } = buildLiveCardState(baseInput({ isRunning: false }));
+  assert.equal(contentState.isRunning, false);
+});
+
+test('isRunning=true is carried through explicitly', () => {
+  const { contentState } = buildLiveCardState(baseInput({ isRunning: true }));
+  assert.equal(contentState.isRunning, true);
+});
+
+test('isRunning is set for match content too (carried alongside the board)', () => {
+  const { contentState } = buildLiveCardState(baseInput({
+    mode: 'duel',
+    matchId: 'duel-1',
+    goalDistanceKm: 5,
+    isRunning: false,
+    board: [
+      { name: '나', distanceKm: 2.0, isMe: true },
+      { name: '상대', distanceKm: 2.012, isMe: false },
+    ],
+  }));
+  assert.equal(contentState.isRunning, false);
+  assert.equal(contentState.myRank, 2);
+});
+
+test('timerStartMs is the pause-aware anchor: nowMs − elapsedSeconds*1000 (running)', () => {
+  // The pure function must derive the native timer anchor deterministically from nowMs so the
+  // native card's ticking TIME = (now − timerStartMs) starts at the pause-aware elapsedSeconds and
+  // excludes any paused gaps. 1_700_000_000_000 − 760*1000 = 1_699_999_240_000.
+  const { contentState } = buildLiveCardState(baseInput());
+  assert.equal(contentState.timerStartMs, FIXED_NOW - 760 * 1000);
+  assert.equal(contentState.timerStartMs, 1_699_999_240_000);
+  assert.equal(contentState.isRunning, true);
+});
+
+test('timerStartMs uses the CLAMPED whole-second elapsed (anchor matches the static fallback)', () => {
+  // elapsedSeconds is rounded/clamped before both the static render AND the anchor, so they agree.
+  const rounded = buildLiveCardState(baseInput({ elapsedSeconds: 12.6 }));
+  assert.equal(rounded.contentState.elapsedSeconds, 13);
+  assert.equal(rounded.contentState.timerStartMs, FIXED_NOW - 13 * 1000);
+
+  const negative = buildLiveCardState(baseInput({ elapsedSeconds: -5 }));
+  assert.equal(negative.contentState.elapsedSeconds, 0);
+  assert.equal(negative.contentState.timerStartMs, FIXED_NOW);
+});
+
+test('paused state: isRunning=false freezes TIME (static path) yet still carries a coherent timerStartMs', () => {
+  // When paused the native side renders the STATIC elapsedSeconds (frozen), not the ticking anchor.
+  // The anchor is still emitted (re-synced to nowMs − elapsedSeconds*1000) so a later resume push
+  // re-syncs cleanly; it is the isRunning=false flag that selects the frozen static render.
+  const { contentState } = buildLiveCardState(baseInput({ isRunning: false }));
+  assert.equal(contentState.isRunning, false);
+  assert.equal(contentState.elapsedSeconds, 760);
+  assert.equal(contentState.timerStartMs, FIXED_NOW - 760 * 1000);
+});
+
+test('timerStartMs is derived from the SAME nowMs as staleDate (single push clock)', () => {
+  const customNow = 1_700_000_500_000;
+  const { contentState } = buildLiveCardState(baseInput({ nowMs: customNow, elapsedSeconds: 100 }));
+  assert.equal(contentState.timerStartMs, customNow - 100 * 1000);
+  assert.equal(contentState.staleDateMs, customNow + LIVE_CARD_STALE_AFTER_MS);
+});
+
 test('staleDate is exactly now + ~10s so the card dims (not lies) on a location stall', () => {
   const { contentState } = buildLiveCardState(baseInput());
   assert.equal(contentState.staleDateMs, FIXED_NOW + LIVE_CARD_STALE_AFTER_MS);

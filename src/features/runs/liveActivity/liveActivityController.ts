@@ -97,7 +97,18 @@ export type LiveActivityRunContext = {
 // Start the card when a run/match begins. Idempotent + guarded; no-op on current binaries.
 export function startLiveActivityForRun(
   context: LiveActivityRunContext,
-  initial: { distanceKm: number; elapsedSeconds: number; board?: LiveCardBoardRunner[] },
+  initial: {
+    distanceKm: number;
+    elapsedSeconds: number;
+    board?: LiveCardBoardRunner[];
+    // Whether the run is actively counting at start. Defaults to true (a run always starts
+    // running); threaded to the card so the native clock begins ticking immediately.
+    isRunning?: boolean;
+    // Wall-clock at this push, captured by the bridge so the pause-aware native timer anchor
+    // (timerStartMs = nowMs − elapsedSeconds*1000) re-syncs to the real push instant. Defaults
+    // to Date.now() so any caller that omits it still gets a sane anchor.
+    nowMs?: number;
+  },
 ): void {
   if (!isLiveActivityAvailable() || liveActivityStarted) {
     return;
@@ -112,6 +123,8 @@ export function startLiveActivityForRun(
       distanceKm: initial.distanceKm,
       elapsedSeconds: initial.elapsedSeconds,
       board: initial.board,
+      isRunning: initial.isRunning,
+      nowMs: initial.nowMs ?? Date.now(),
     });
     startLiveActivity(attributes, contentState);
     liveActivityStarted = true;
@@ -121,7 +134,7 @@ export function startLiveActivityForRun(
 // SOLO update from a tracking snapshot. Fire-and-forget; no-op until a start + native ship.
 export function updateLiveActivityForSolo(
   context: LiveActivityRunContext,
-  snapshot: { distanceKm: number; elapsedSeconds: number },
+  snapshot: { distanceKm: number; elapsedSeconds: number; isRunning?: boolean; nowMs?: number },
 ): void {
   if (!isLiveActivityAvailable() || !liveActivityStarted) {
     return;
@@ -134,6 +147,9 @@ export function updateLiveActivityForSolo(
       startedAt: context.startedAt,
       distanceKm: snapshot.distanceKm,
       elapsedSeconds: snapshot.elapsedSeconds,
+      isRunning: snapshot.isRunning,
+      // Re-anchor the pause-aware native timer to this push instant (see startLiveActivityForRun).
+      nowMs: snapshot.nowMs ?? Date.now(),
     });
     updateLiveActivity(contentState);
   });
@@ -145,7 +161,7 @@ export function updateLiveActivityForSolo(
 export function updateLiveActivityForMatch(
   context: LiveActivityRunContext,
   status: RunningMatchStatusResponse,
-  mine: { distanceKm: number; elapsedSeconds: number },
+  mine: { distanceKm: number; elapsedSeconds: number; isRunning?: boolean; nowMs?: number },
 ): void {
   if (!isLiveActivityAvailable() || !liveActivityStarted) {
     return;
@@ -161,6 +177,9 @@ export function updateLiveActivityForMatch(
       distanceKm: mine.distanceKm,
       elapsedSeconds: mine.elapsedSeconds,
       board,
+      isRunning: mine.isRunning,
+      // Re-anchor the pause-aware native timer to this push instant (see startLiveActivityForRun).
+      nowMs: mine.nowMs ?? Date.now(),
     });
     updateLiveActivity(contentState);
   });

@@ -186,6 +186,17 @@ struct LiveActivityContentStateRecord: Record {
   @Field var distanceM: Double = 0
   @Field var paceText: String = "--:--/km"
   @Field var staleDateMs: Double = 0
+  // Whether the run is ACTIVELY counting right now. Drives the card's native auto-ticking TIME:
+  // true → the card ticks the clock itself from timerStartMs (JS-independent on the lock screen);
+  // false → TIME freezes at the last pushed elapsedSeconds. Defaults to true so a JS bundle that
+  // does not send the field (or a pre-isRunning OTA) keeps the clock ticking exactly as before.
+  @Field var isRunning: Bool = true
+  // PAUSE-AWARE timer anchor as an absolute epoch-ms (TS timerStartMs = pushTimeMs −
+  // elapsedSeconds*1000). The card runs Text(timerInterval: Date(timerStartMs)…) from this anchor
+  // while running, so the displayed time excludes paused gaps and re-syncs on every push. Defaults
+  // to 0 so a pre-timerStartMs OTA (or any caller that omits it) → the card falls back to the
+  // static elapsedSeconds render instead of anchoring the timer to an invalid epoch.
+  @Field var timerStartMs: Double = 0
   @Field var myRank: Int?
   @Field var totalRunners: Int?
   @Field var adjacentGapText: String?
@@ -222,6 +233,8 @@ extension LiveActivityContentStateRecord {
       distanceM: Int(max(0, distanceM)),
       paceText: paceText,
       staleDateMs: staleDateMs,
+      isRunning: isRunning,
+      timerStartMs: timerStartMs,
       myRank: myRank,
       totalRunners: totalRunners,
       adjacentGapText: adjacentGapText,

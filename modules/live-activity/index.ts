@@ -46,6 +46,20 @@ export type LiveActivityContentState = {
   paceText: string;
   // Wall-clock ms after which the card should DIM (not lie) if location stalls (~10s ahead).
   staleDateMs: number;
+  // Whether the run is ACTIVELY counting right now (true) vs paused/finished (false). Drives the
+  // native card's TIME rendering: when true the card ticks the clock itself from `timerStartMs`
+  // (ActivityKit Text(timerInterval:)), JS-independent so the lock-screen TIME stays alive while
+  // JS is suspended; when false the card freezes TIME at the last JS-pushed `elapsedSeconds`.
+  // Additive + backward-safe: omitted ⇒ treated as running on the native side (default true).
+  isRunning?: boolean;
+  // PAUSE-AWARE timer anchor as an absolute epoch-ms, re-computed on EVERY push as
+  // `pushTimeMs − elapsedSeconds*1000` (elapsedSeconds is the pause-aware value, so paused gaps are
+  // already excluded). The native card runs `Text(timerInterval: Date(timerStartMs)…)` from this
+  // anchor while `isRunning`, so between pushes it ticks up correctly for an active run, and a
+  // pause→resume re-anchors on the resume push — no paused-time over-count (the old `startedAt`
+  // anchor counted raw wall-clock and over-counted by the total paused time). Additive +
+  // backward-safe: omitted/0 ⇒ the native side falls back to the static `elapsedSeconds` render.
+  timerStartMs?: number;
 
   // ---- match-only fields (undefined for solo) ----
   // My current rank within the match (1-based).

@@ -50,6 +50,11 @@ export type BuildLiveCardStateInput = {
   // ---- my live metrics (the solo data source = tracking snapshot store) ----
   distanceKm: number;
   elapsedSeconds: number;
+  // Whether the run is actively counting right now. Drives the native card's TIME: when running
+  // the card ticks the clock itself from the pause-aware timerStartMs (JS-independent on the lock
+  // screen); when paused/finished it freezes TIME at the pushed elapsedSeconds. Additive +
+  // backward-safe: omitted ⇒ treated as running (default true), so existing call sites keep ticking.
+  isRunning?: boolean;
 
   // ---- match-only board (the match data source = live match status response) ----
   // The full set of competing runners with a single current distance each. Order does not matter
@@ -57,7 +62,10 @@ export type BuildLiveCardStateInput = {
   // Omit/empty for solo.
   board?: LiveCardBoardRunner[];
 
-  // Clock for staleDate; injectable for deterministic tests. Defaults to Date.now().
+  // Wall-clock at push time; the single clock this function reads. Drives BOTH the staleDate (now +
+  // ~10s) AND the pause-aware timer anchor (timerStartMs = nowMs − elapsedSeconds*1000). Injectable
+  // for deterministic tests; defaults to Date.now(). The CALLER should capture it once at each push
+  // so the timer anchor re-syncs to the real push instant.
   nowMs?: number;
 };
 
@@ -157,6 +165,14 @@ export function buildLiveCardState(input: BuildLiveCardStateInput): LiveCardStat
   // a future native build chooses to render the pre-formatted string instead of a timer.
   void formatDuration(elapsedSeconds);
 
+  // PAUSE-AWARE native timer anchor. The native card runs Text(timerInterval: Date(timerStartMs)…)
+  // while running, so the displayed time is (now − timerStartMs). Anchoring to (nowMs −
+  // pauseAwareElapsed) — NOT the run's wall-clock startedAt — means the displayed time equals the
+  // pause-aware elapsedSeconds at this push and keeps ticking from there; each push re-anchors so
+  // any paused gap is excluded (the locked screen is always unpaused, and a pause→resume re-syncs
+  // on the resume push). Computed deterministically from nowMs so the function stays pure.
+  const timerStartMs = nowMs - elapsedSeconds * 1000;
+
   const board = input.mode === 'solo' ? [] : input.board ?? [];
 
   const attributes: LiveActivityAttributes = {
@@ -172,6 +188,11 @@ export function buildLiveCardState(input: BuildLiveCardStateInput): LiveCardStat
     distanceM,
     paceText,
     staleDateMs,
+    // Default to running so existing call sites (which don't pass the flag) keep the native clock
+    // ticking exactly as before; only an explicit false freezes TIME on the card.
+    isRunning: input.isRunning ?? true,
+    // Pause-aware anchor for the native ticking timer (see above). Re-synced on every push.
+    timerStartMs,
   };
 
   if (input.mode === 'solo' || board.length === 0) {

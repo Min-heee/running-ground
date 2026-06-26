@@ -53,6 +53,32 @@ private func isMatch(_ attributes: RunActivityAttributes) -> Bool {
   return attributes.mode != "solo"
 }
 
+// The card's TIME view. When the run is actively counting AND we have a valid pause-aware anchor we
+// render ActivityKit's native auto-ticking timer (counts UP every second, JS-independent on the lock
+// screen). The anchor is `timerStartMs` (= pushTimeMs − pauseAwareElapsed*1000), re-synced on every
+// push — NOT the run's wall-clock `startedAt`, which would over-count by the total paused time. When
+// paused/finished — or when timerStartMs is missing/invalid (old bridge / pre-timerStartMs OTA: 0 or
+// non-positive) — we render the STATIC last-pushed elapsed so the clock shows the real pause-aware
+// value instead of a native timer that would keep running past a pause or anchor to epoch 0.
+@available(iOS 16.2, *)
+private func runTimeText(
+  state: RunActivityAttributes.ContentState,
+  font: Font
+) -> some View {
+  Group {
+    if state.isRunning && state.timerStartMs > 0 {
+      // count-up: from the pause-aware anchor to the far future; `countsDown: false` keeps it
+      // ascending. Date(timeIntervalSince1970:) converts the epoch-ms anchor to a Date.
+      let anchor = Date(timeIntervalSince1970: state.timerStartMs / 1000.0)
+      Text(timerInterval: anchor...Date.distantFuture, countsDown: false)
+    } else {
+      Text(formatElapsed(state.elapsedSeconds))
+    }
+  }
+  .font(font)
+  .monospacedDigit()
+}
+
 // MARK: - Lock-screen card
 
 @available(iOS 16.2, *)
@@ -100,7 +126,7 @@ struct RunLockScreenView: View {
           .frame(width: 56, height: 56)
       }
       HStack(spacing: 0) {
-        metric(title: "시간", value: formatElapsed(state.elapsedSeconds))
+        timeMetric
         Spacer(minLength: 8)
         metric(title: "페이스", value: state.paceText.replacingOccurrences(of: "/km", with: ""))
         Spacer(minLength: 8)
@@ -113,7 +139,7 @@ struct RunLockScreenView: View {
   private var matchBody: some View {
     VStack(alignment: .leading, spacing: 10) {
       HStack(spacing: 0) {
-        metric(title: "시간", value: formatElapsed(state.elapsedSeconds))
+        timeMetric
         Spacer(minLength: 8)
         metric(title: "페이스", value: state.paceText.replacingOccurrences(of: "/km", with: ""))
         Spacer(minLength: 8)
@@ -136,6 +162,24 @@ struct RunLockScreenView: View {
         .foregroundColor(CardPalette.primaryText)
         .lineLimit(1)
         .minimumScaleFactor(0.6)
+    }
+  }
+
+  // The 시간 (TIME) metric — same layout as `metric` but the value is the native auto-ticking
+  // clock (running) or the static last-pushed elapsed (paused/finished) instead of a plain String.
+  private var timeMetric: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text("시간")
+        .font(.caption2)
+        .foregroundColor(CardPalette.secondaryText)
+      runTimeText(
+        state: state,
+        font: .system(.title3, design: .rounded)
+      )
+      .fontWeight(.bold)
+      .foregroundColor(CardPalette.primaryText)
+      .lineLimit(1)
+      .minimumScaleFactor(0.6)
     }
   }
 }
@@ -221,9 +265,11 @@ struct RunLiveActivityWidget: Widget {
             Text("시간")
               .font(.caption2)
               .foregroundColor(CardPalette.secondaryText)
-            Text(formatElapsed(context.state.elapsedSeconds))
-              .font(.system(.headline, design: .rounded))
-              .foregroundColor(CardPalette.primaryText)
+            runTimeText(
+              state: context.state,
+              font: .system(.headline, design: .rounded)
+            )
+            .foregroundColor(CardPalette.primaryText)
           }
         }
         DynamicIslandExpandedRegion(.trailing) {
