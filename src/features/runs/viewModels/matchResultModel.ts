@@ -58,6 +58,7 @@ export function buildDuelMatchFinishModel({
   currentUserLiveStatus,
   duelVerdict,
   currentUserFinishElapsedSeconds,
+  matchId,
 }: {
   opponent: DuelMatchOpponent | null;
   currentDistanceKm: number;
@@ -67,11 +68,17 @@ export function buildDuelMatchFinishModel({
   currentUserLiveStatus?: RunningMatchLiveStatus | null;
   duelVerdict?: DuelVerdict | null;
   currentUserFinishElapsedSeconds?: number | null;
+  // C1: the originating matchId. Its PRESENCE marks this as a real server-tracked duel whose
+  // win/lose is server-authoritative — so when the server verdict is not yet resolved we must
+  // NOT invent a distance-based winner (the screen-off "always win" bug). Absent (a synthetic/
+  // legacy local-only duel with no server session) keeps the old local heuristic untouched.
+  matchId?: string | null;
 }): DuelMatchFinishModel | null {
   if (!opponent) {
     return null;
   }
 
+  const isRealMatch = typeof matchId === 'string' && matchId.trim().length > 0;
   const currentForfeited = currentUserLiveStatus === 'forfeited';
   const currentFinished = currentUserLiveStatus === 'finished';
   const opponentForfeited = opponent.liveStatus === 'forfeited';
@@ -121,43 +128,76 @@ export function buildDuelMatchFinishModel({
     && Number.isFinite(opponent.officialRank)
     ? (opponent.officialRank === 1 ? 'lose' : 'win')
     : null;
+
+  // C1: PENDING. For a real server-tracked match (matchId present) the win/lose is
+  // server-authoritative. When the server verdict has not resolved AND there is no other
+  // legitimate local basis for a definite result — no forfeit on either side, the opponent is
+  // not still in-progress (the "내가 먼저 완주" UX), and we have no official both-finished rank —
+  // we must NOT invent a winner. The only thing the old code could do here was the distance-
+  // based `resolveDuelResultTone` heuristic, which on a screen-off opponent (opponentDistanceKm
+  // falls to 0) always returned 'win'. That is the BUG: both phones wrote themselves a win.
+  //
+  // Instead we mark the result PENDING: the persisted matchResult carries NO resultTone (so the
+  // backend awards no +20P and the saved card shows a "결과 집계 중" state), and the run-detail
+  // reconcile path fills the official verdict on a later fetch.
+  const isPending = isRealMatch
+    && !verdictResolved
+    && !officialResultTone
+    && !currentForfeited
+    && !opponentForfeited
+    && !opponentInProgress;
+
   // Draw: server outcome wins when resolved; otherwise keep the local near-equal heuristic.
+  // A pending result is never a draw.
   const isDraw = verdictResolved
     ? duelVerdict.outcome === 'draw'
     : officialResultTone
       ? false
-      : !currentForfeited && !opponentForfeited && !opponentInProgress && gapKm < 0.03;
-  const resultTone = verdictResultTone ?? officialResultTone ?? resolveDuelResultTone({
-    currentForfeited,
-    opponentForfeited,
-    opponentInProgress,
-    isDraw,
-    currentDistanceKm,
-    opponentDistanceKm,
-  });
-  const title = resolveDuelTitle({
-    opponentName: opponent.name,
-    currentForfeited,
-    opponentForfeited,
-    opponentInProgress,
-    isDraw,
-    resultTone,
-  });
-  const summary = resolveDuelSummary({
-    currentForfeited,
-    opponentForfeited,
-    opponentInProgress,
-    isDraw,
-    resultTone,
-    currentDistanceKm,
-    gapKm,
-  });
-  const badgeLabel = resolveDuelBadgeLabel({
-    currentForfeited,
-    opponentForfeited,
-    isDraw,
-    resultTone,
-  });
+      : !isPending && !currentForfeited && !opponentForfeited && !opponentInProgress && gapKm < 0.03;
+  // The DISPLAY tone for the live arena card. For a pending result we keep a neutral 'win'-free
+  // placeholder by deferring to the in-progress copy; the PERSISTED matchResult below strips the
+  // tone entirely so nothing definite is saved.
+  const resultTone: MatchResultTone = verdictResultTone ?? officialResultTone ?? (isPending
+    ? 'draw'
+    : resolveDuelResultTone({
+      currentForfeited,
+      opponentForfeited,
+      opponentInProgress,
+      isDraw,
+      currentDistanceKm,
+      opponentDistanceKm,
+    }));
+  // C1: pending copy is the same "결과 집계 중" language the backend pending record uses, so the
+  // live card and the saved card read identically while the official verdict is awaited.
+  const title = isPending
+    ? '대결 결과를 집계하고 있어요'
+    : resolveDuelTitle({
+      opponentName: opponent.name,
+      currentForfeited,
+      opponentForfeited,
+      opponentInProgress,
+      isDraw,
+      resultTone,
+    });
+  const summary = isPending
+    ? '상대가 완주하면 결과가 자동으로 업데이트돼요.'
+    : resolveDuelSummary({
+      currentForfeited,
+      opponentForfeited,
+      opponentInProgress,
+      isDraw,
+      resultTone,
+      currentDistanceKm,
+      gapKm,
+    });
+  const badgeLabel = isPending
+    ? '결과 집계 중'
+    : resolveDuelBadgeLabel({
+      currentForfeited,
+      opponentForfeited,
+      isDraw,
+      resultTone,
+    });
   // Opponent finish elapsed: prefer the server's frozen value once resolved (keeps both
   // phones identical), then their live elapsed, then the forfeit-zero / current fallback.
   // The forfeit branch is untouched so "기권"/"00:00" still render exactly as before.
@@ -178,7 +218,9 @@ export function buildDuelMatchFinishModel({
     : resolvedOpponentPace;
   const currentRow: DuelMatchResultRowModel = {
     id: 'me',
-    resultLabel: resolveDuelCurrentRowLabel({ isDraw, resultTone, currentForfeited }),
+    // C1: a pending result shows the in-progress label, never a WIN/LOSER/DRAW, so the live
+    // card never claims a definite verdict before the server resolves one.
+    resultLabel: isPending ? 'ING' : resolveDuelCurrentRowLabel({ isDraw, resultTone, currentForfeited }),
     name: '나',
     // C4: the 나 column pace + duration come from the SAME finish elapsed/distance the
     // server froze (when resolved), so the result card 나 pace and the bottom metric pace
@@ -188,8 +230,11 @@ export function buildDuelMatchFinishModel({
     distanceKm: currentDistanceKm,
     isCurrentUser: true,
   };
+  // C1: a pending opponent row reuses the in-progress presentation ("진행 중" / "-"), so the
+  // opponent column never shows a fabricated WIN/LOSE or a guessed time before the verdict lands.
+  const opponentRowInProgress = isPending || opponentInProgress;
   const opponentRowLabels = resolveDuelOpponentRowLabels({
-    opponentInProgress,
+    opponentInProgress: opponentRowInProgress,
     isDraw,
     resultTone,
     opponentForfeited,
@@ -205,12 +250,12 @@ export function buildDuelMatchFinishModel({
     durationLabel: opponentRowLabels.durationLabel,
     distanceKm: opponentDistanceKm,
     isCurrentUser: false,
-    isInProgress: opponentInProgress,
+    isInProgress: opponentRowInProgress,
   };
   const rows = resolveDuelRowOrder({
     currentRow,
     opponentRow,
-    opponentInProgress,
+    opponentInProgress: opponentRowInProgress,
     isDraw,
   });
 
@@ -229,8 +274,14 @@ export function buildDuelMatchFinishModel({
       badgeLabel,
       opponentId: opponent.id,
       opponentName: opponent.name,
-      resultTone,
-      gapKm,
+      // C1: a PENDING result persists NO win/lose. Stripping resultTone means the backend
+      // awards no +20P from this device's claim, the saved card shows the "결과 집계 중" state,
+      // and isUnresolvedDuelMatchResult treats it as reconcilable so the official verdict fills
+      // it in later. We also drop the gap and any opponent finish numbers, which are meaningless
+      // until the verdict resolves. (Note: even though the backend now re-resolves the verdict at
+      // save, persisting a clean pending blob here keeps the client honest in deploy-skew where
+      // an older backend has not redeployed.)
+      ...(isPending ? {} : { resultTone, gapKm }),
       comparedDistanceKm: opponentDistanceKm,
       // C4: persist the SAME pace the 나 column shows (server-frozen when resolved).
       myPaceLabel: resolvedCurrentPaceLabel,
@@ -243,9 +294,10 @@ export function buildDuelMatchFinishModel({
       // stored a '--:--/km' placeholder, and — when their progress had not synced —
       // silently saved MY elapsed (the `?? currentElapsedSeconds` fallback) as the
       // opponent's. Omitting instead means the saved 대결 카드 shows nothing for the
-      // opponent rather than a wrong value when their live data is missing.
-      ...(isMeasuredPaceLabel(opponentPace) ? { opponentPaceLabel: opponentPace } : {}),
-      ...(opponentHasLiveElapsed
+      // opponent rather than a wrong value when their live data is missing. A pending
+      // result never persists an opponent time (we have no verified one yet).
+      ...(!isPending && isMeasuredPaceLabel(opponentPace) ? { opponentPaceLabel: opponentPace } : {}),
+      ...(!isPending && opponentHasLiveElapsed
         ? { opponentDurationSeconds: Math.round(opponentElapsedSeconds) }
         : {}),
     },

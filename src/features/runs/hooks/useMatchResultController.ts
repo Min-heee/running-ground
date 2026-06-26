@@ -35,6 +35,9 @@ type UseMatchResultControllerInput = {
   // optional/absent on older backends — the model degrades to today's local behavior then.
   duelVerdict?: DuelVerdict | null;
   currentUserFinishElapsedSeconds?: number | null;
+  // C1: the active match id. Present => server-tracked duel whose verdict is authoritative, so
+  // an unresolved result is held PENDING rather than locally invented.
+  matchId?: string | null;
 };
 
 type FrozenDuelResultMetrics = {
@@ -106,6 +109,7 @@ export function useMatchResultController({
   elapsedSeconds,
   duelVerdict,
   currentUserFinishElapsedSeconds,
+  matchId,
 }: UseMatchResultControllerInput) {
   const duelFrozenRef = useRef<FrozenDuelResultMetrics | null>(null);
   const isCurrentUserDuelFinished = currentUserDuelLiveStatus === 'finished';
@@ -176,6 +180,8 @@ export function useMatchResultController({
         // F4: the LATCHED verdict — never reverts once resolved.
         duelVerdict: effectiveDuelVerdict,
         currentUserFinishElapsedSeconds,
+        // C1: presence marks a server-tracked duel → unresolved result is held PENDING.
+        matchId,
       });
     },
     [
@@ -188,6 +194,7 @@ export function useMatchResultController({
       effectiveDuelOpponent,
       elapsedSeconds,
       isCurrentUserDuelFinished,
+      matchId,
     ],
   );
 

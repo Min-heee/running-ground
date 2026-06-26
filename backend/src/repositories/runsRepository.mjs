@@ -334,6 +334,16 @@ export function createJsonRunsRepository({
   sourceLabels,
   nowIso = createNowIso,
   formatTimestamp = createDisplayTimestamp,
+  // C1/C2: the SERVER decides a duel's win/lose at save. Given (store, user, matchResult) it
+  // returns the server-authoritative matchResult (overwriting any client-claimed verdict) or a
+  // PENDING result when the verdict is not yet resolvable. Defaults to identity so callers that
+  // do not pass it (and group/non-match runs) keep their behavior exactly as before.
+  resolveMatchResult = (store, user, matchResult) => matchResult,
+  // Drops the user's memoized metrics so the post-save recompute sees the just-pushed run. The
+  // verdict resolver reads the opponent's runner profile (→ metrics) before the run is pushed,
+  // which would otherwise leave a stale, pre-push metrics entry cached and miss the new run's
+  // match bonus. No-op by default for callers (and stores) without a metrics cache.
+  invalidateUserMetrics = () => {},
 }) {
   return {
     async getRun({ token, runId }) {
@@ -377,6 +387,13 @@ export function createJsonRunsRepository({
     async createTrackedRun({ token, input }) {
       return mutateStore((store) => {
         const user = requireUserByToken(store, token);
+        // C1/C2: resolve the duel verdict SERVER-side from the live match session before
+        // persisting. The client-supplied resultTone/opponentName are never trusted — they are
+        // overwritten by the server verdict, or replaced with a PENDING result when the verdict
+        // is not yet resolvable. Group runs and non-match runs pass through untouched.
+        const resolvedMatchResult = input.matchResult
+          ? resolveMatchResult(store, user, input.matchResult)
+          : undefined;
         const run = {
           id: nextId('run'),
           userId: user.id,
@@ -389,7 +406,7 @@ export function createJsonRunsRepository({
           route: clone(input.route),
           startedAt: input.startedAt,
           endedAt: input.endedAt,
-          ...(input.matchResult ? { matchResult: clone(input.matchResult) } : {}),
+          ...(resolvedMatchResult ? { matchResult: clone(resolvedMatchResult) } : {}),
           source: 'RunningGround',
           sourceType: 'runningground',
           createdAt: nowIso(),
@@ -397,6 +414,9 @@ export function createJsonRunsRepository({
 
         store.runs.push(run);
 
+        // The verdict resolver above may have read (and cached) this user's metrics before the
+        // run was pushed; drop that stale entry so the recompute includes the new run's bonus.
+        invalidateUserMetrics(store, user.id);
         const metrics = getUserMetrics(store, user.id);
         return buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics);
       });

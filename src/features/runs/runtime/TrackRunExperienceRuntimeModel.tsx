@@ -888,6 +888,9 @@ export function TrackRunExperienceRuntime({
     // into the result model. Both are absent on older backends → graceful local fallback.
     duelVerdict: duelMatchStatus?.duelVerdict ?? null,
     currentUserFinishElapsedSeconds: duelMatchStatus?.currentUserFinishElapsedSeconds ?? null,
+    // C1: the active match's id. Its presence marks the duel as server-tracked, so the result
+    // model produces a PENDING result (no invented winner) while the verdict is unresolved.
+    matchId: activeLiveMatchProgressMatchId,
   });
   const effectiveDuelOpponentArenaPace = useMemo(
     () => resolveDuelOpponentArenaPace({

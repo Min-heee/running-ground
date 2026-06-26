@@ -1684,12 +1684,24 @@ await runTest('match result endpoint returns 404 while a match is not yet resolv
 });
 
 await runTest('match result endpoint reconstructs a duel from saved runs after the session is pruned', async () => {
-  await withBackend(createBaseStore(), async ({ request, requestRaw }) => {
+  // The session is pruned (no live session), so BOTH the save path and the GET /result endpoint
+  // reconstruct the duel SERVER-side from the durable saved runs — the client's claimed tone is
+  // never trusted for a real matchId. The guest (slower, 1620s) lingers and saves FIRST while no
+  // opponent run exists yet → its record is stored PENDING. The host (faster, 1500s) saves
+  // SECOND; now the guest's run is present, so the host's verdict resolves SERVER-side to a
+  // verified 'win' against the guest's measured finish — even though the host claimed nothing
+  // special. The GET /result endpoint then reconstructs the full WIN/LOSE pair from the host's
+  // verified record.
+  const store = createBaseStore();
+  store.users.push(createRunner({ id: 'stranger-user', name: '외부 러너', publicTag: 'stranger' }));
+  store.sessions.push(createSession('stranger-token', 'stranger-user'));
+
+  await withBackend(store, async ({ request, requestRaw }) => {
     const matchId = 'saved-duel-match';
     const guestStartedAt = iso(-9 * 60 * 1000);
     const guestEndedAt = iso(-7 * 60 * 1000);
-    // The loser saves their tracked run carrying the matchId — no live session exists.
-    await request('guest-token', 'POST', '/api/runs/tracked', {
+    // Guest saves first (no opponent run yet) carrying the matchId — no live session exists.
+    const guestSaved = await request('guest-token', 'POST', '/api/runs/tracked', {
       date: guestStartedAt.slice(0, 10),
       distanceKm: 5,
       pace: '05:24/km',
@@ -1716,14 +1728,83 @@ await runTest('match result endpoint reconstructs a duel from saved runs after t
         opponentPaceLabel: '05:00/km',
       },
     });
+    // No opponent run yet → the guest's record is PENDING, not a self-trusted tone.
+    assert.equal(guestSaved.run.matchResult.resultTone, undefined);
+    assert.equal(guestSaved.pointBreakdown.matchBonusPoints, 0);
+
+    // Host saves second; the guest's run is now present, so the host's verdict resolves
+    // SERVER-side. Even a fabricated client tone would be overridden — here the host is the
+    // faster finish (1500 < 1620), so the server-verified outcome is 'win'.
+    const hostStartedAt = iso(-9 * 60 * 1000);
+    const hostEndedAt = iso(-7 * 60 * 1000);
+    const hostSaved = await request('host-token', 'POST', '/api/runs/tracked', {
+      date: hostStartedAt.slice(0, 10),
+      distanceKm: 5,
+      pace: '05:00/km',
+      durationSeconds: 1500,
+      startedAt: hostStartedAt,
+      endedAt: hostEndedAt,
+      route: [
+        { latitude: 37.668, longitude: 126.78, timestamp: hostStartedAt },
+        { latitude: 37.671, longitude: 126.783, timestamp: hostEndedAt },
+      ],
+      matchResult: {
+        mode: 'duel',
+        matchId,
+        source: 'official',
+        title: '이겼어요',
+        summary: '잘했어요.',
+        badgeLabel: '승',
+        opponentName: '참가 러너',
+        resultTone: 'win',
+        comparedDistanceKm: 5,
+        myDurationSeconds: 1500,
+        myPaceLabel: '05:00/km',
+        opponentDurationSeconds: 1620,
+        opponentPaceLabel: '05:24/km',
+      },
+    });
+    assert.equal(hostSaved.run.matchResult.resultTone, 'win');
+    assert.equal(hostSaved.run.matchResult.opponentId, 'guest-user');
+    assert.equal(hostSaved.pointBreakdown.matchBonusPoints, 20);
+
+    // The guest's reconcile path re-saves once the opponent's run has landed; the server now
+    // resolves the guest's PENDING record to a verified 'lose' against the host's measured finish.
+    const guestReconciled = await request('guest-token', 'POST', '/api/runs/tracked', {
+      date: guestStartedAt.slice(0, 10),
+      distanceKm: 5,
+      pace: '05:24/km',
+      durationSeconds: 1620,
+      startedAt: guestStartedAt,
+      endedAt: guestEndedAt,
+      route: [
+        { latitude: 37.658, longitude: 126.77, timestamp: guestStartedAt },
+        { latitude: 37.661, longitude: 126.773, timestamp: guestEndedAt },
+      ],
+      matchResult: {
+        mode: 'duel',
+        matchId,
+        source: 'official',
+        title: '아쉽게 졌어요',
+        summary: '다음엔 이겨봐요.',
+        badgeLabel: '패',
+        opponentName: '방장 러너',
+        resultTone: 'win', // a stale/crafted client still claims a win — the server must override.
+        comparedDistanceKm: 5,
+        myDurationSeconds: 1620,
+        myPaceLabel: '05:24/km',
+      },
+    });
+    assert.equal(guestReconciled.run.matchResult.resultTone, 'lose');
+    assert.equal(guestReconciled.pointBreakdown.matchBonusPoints, 10);
 
     // The matchId persists on the saved run-detail so the client can re-fetch from an old run.
-    const activity = await request('guest-token', 'GET', '/api/me/activity');
+    const activity = await request('host-token', 'GET', '/api/me/activity');
     const savedRecord = activity.runs.find((run) => run.matchResult?.matchId === matchId);
     assert.equal(Boolean(savedRecord), true);
     assert.equal(savedRecord.matchResult.mode, 'duel');
 
-    const result = await request('guest-token', 'GET', `/api/running/matches/${matchId}/result`);
+    const result = await request('host-token', 'GET', `/api/running/matches/${matchId}/result`);
     assert.equal(result.matchId, matchId);
     assert.equal(result.mode, 'duel');
     assert.equal(result.source, 'official');
@@ -1731,20 +1812,21 @@ await runTest('match result endpoint reconstructs a duel from saved runs after t
 
     const me = result.participants.find((participant) => participant.isMe);
     const opponent = result.participants.find((participant) => !participant.isMe);
-    assert.equal(me.userId, 'guest-user');
-    assert.equal(me.resultTone, 'lose');
-    assert.equal(me.finishElapsedSeconds, 1620);
-    assert.equal(me.paceSecondsPerKm, 324);
-    assert.equal(me.districtName, '일산동구');
-    assert.equal(opponent.name, '방장 러너');
-    assert.equal(opponent.resultTone, 'win');
-    assert.equal(opponent.finishElapsedSeconds, 1500);
-    assert.equal(opponent.paceSecondsPerKm, 300);
+    assert.equal(me.userId, 'host-user');
+    assert.equal(me.resultTone, 'win');
+    assert.equal(me.finishElapsedSeconds, 1500);
+    assert.equal(me.paceSecondsPerKm, 300);
+    assert.equal(opponent.userId, 'guest-user');
+    assert.equal(opponent.name, '참가 러너');
+    assert.equal(opponent.resultTone, 'lose');
+    assert.equal(opponent.finishElapsedSeconds, 1620);
+    assert.equal(opponent.paceSecondsPerKm, 324);
+    assert.equal(opponent.districtName, '일산동구');
     // The winning tone leads the ordered pair.
     assert.equal(result.participants[0].resultTone, 'win');
 
     // A different real user who never saved a run for this match cannot read it.
-    const denied = await requestRaw('host-token', 'GET', `/api/running/matches/${matchId}/result`);
+    const denied = await requestRaw('stranger-token', 'GET', `/api/running/matches/${matchId}/result`);
     assert.equal(denied.response.status, 404);
   });
 });
@@ -1908,5 +1990,259 @@ await runTest('a group match forms once three compatible runners schedule the sa
     assert.equal(hostDiscovered.state, 'matched');
     assert.equal(typeof hostDiscovered.matchId, 'string');
     assert.equal(hostDiscovered.participantCount >= 3, true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Competitive-correctness regression coverage for the server-authoritative
+// duel verdict at run save (the 1v1 party-run "both phones win" + wrong
+// opponent-name bug). matchId = 'duel-contract-match' (host finishes faster).
+// ---------------------------------------------------------------------------
+
+// A RESOLVED duel session both runners finished. Host (1500s) is faster than guest (1620s),
+// so the server-authoritative winner is the host regardless of what either device claims.
+// isPartyRun marks it a 1대1 파티런 — still COMPETITIVE (win/lose + the +20P duel bonus).
+function createResolvedPartyDuelStore() {
+  const { store, slotStartAt } = createActiveDuelStore();
+  const session = store.matchSessions[0];
+  session.isPartyRun = true;
+  const host = session.participants.find((participant) => participant.userId === 'host-user');
+  const guest = session.participants.find((participant) => participant.userId === 'guest-user');
+  host.liveStatus = 'finished';
+  host.liveDistanceKm = 5;
+  host.liveElapsedSeconds = 1500;
+  host.livePace = '05:00/km';
+  host.liveUpdatedAt = iso(-10 * 60 * 1000);
+  host.finishedAt = iso(-10 * 60 * 1000);
+  host.finishElapsedSeconds = 1500;
+  guest.liveStatus = 'finished';
+  guest.liveDistanceKm = 5;
+  guest.liveElapsedSeconds = 1620;
+  guest.livePace = '05:24/km';
+  guest.liveUpdatedAt = iso(-9 * 60 * 1000);
+  guest.finishedAt = iso(-9 * 60 * 1000);
+  guest.finishElapsedSeconds = 1620;
+  return { store, slotStartAt };
+}
+
+function saveDuelRun(request, token, { resultTone, opponentName, badgeLabel, extra = {} }) {
+  const startedAt = iso(-10 * 60 * 1000);
+  const endedAt = iso(-1 * 60 * 1000);
+  return request(token, 'POST', '/api/runs/tracked', {
+    date: startedAt.slice(0, 10),
+    distanceKm: 5,
+    pace: '05:00/km',
+    durationSeconds: 1500,
+    startedAt,
+    endedAt,
+    route: [
+      { latitude: 37.658, longitude: 126.77, timestamp: startedAt },
+      { latitude: 37.668, longitude: 126.78, timestamp: endedAt },
+    ],
+    matchResult: {
+      mode: 'duel',
+      matchId: 'duel-contract-match',
+      source: 'party',
+      title: '대결 결과',
+      summary: '대결 요약',
+      badgeLabel: badgeLabel ?? '승리',
+      opponentName,
+      resultTone,
+      comparedDistanceKm: 5,
+      myDurationSeconds: 1500,
+      myPaceLabel: '05:00/km',
+      ...extra,
+    },
+  });
+}
+
+await runTest('both 1v1 party-run devices claim a local win → the server resolves ONE winner (the faster finish) and persists agreeing tones', async () => {
+  const { store } = createResolvedPartyDuelStore();
+  await withBackend(store, async ({ request }) => {
+    // Both devices POST their tracked run each CLAIMING a local win (the screen-off bug input):
+    // the host with its own device label, the guest likewise. The server must overwrite both.
+    const hostSaved = await saveDuelRun(request, 'host-token', {
+      resultTone: 'win',
+      opponentName: '아이폰14',
+      badgeLabel: '승리',
+    });
+    const guestSaved = await saveDuelRun(request, 'guest-token', {
+      resultTone: 'win',
+      opponentName: '갤럭시S24',
+      badgeLabel: '승리',
+    });
+
+    // The host actually finished faster (1500 < 1620), so the server resolves the host the
+    // winner and the guest the loser — never both 'win'.
+    assert.equal(hostSaved.run.matchResult.resultTone, 'win');
+    assert.equal(guestSaved.run.matchResult.resultTone, 'lose');
+
+    // The opponent name is each runner's REAL account name, not the saved device label.
+    assert.equal(hostSaved.run.matchResult.opponentName, '참가 러너');
+    assert.equal(guestSaved.run.matchResult.opponentName, '방장 러너');
+
+    // KEEP party-run competitive points: only the server-resolved winner gets +20P; the loser
+    // gets the loss bonus (10), never a second +20P from a client-claimed win.
+    assert.equal(hostSaved.pointBreakdown.matchBonusPoints, 20);
+    assert.equal(guestSaved.pointBreakdown.matchBonusPoints, 10);
+  });
+});
+
+await runTest('the server-resolved loser cannot self-award the +20P win bonus even when it claims a win', async () => {
+  const { store } = createResolvedPartyDuelStore();
+  await withBackend(store, async ({ request }) => {
+    // The SLOWER runner (guest, 1620s) claims a win. The server must downgrade it to a loss so
+    // no double-award is possible.
+    const guestSaved = await saveDuelRun(request, 'guest-token', {
+      resultTone: 'win',
+      opponentName: '내 폰',
+      badgeLabel: '승리',
+    });
+    assert.equal(guestSaved.run.matchResult.resultTone, 'lose');
+    assert.equal(guestSaved.run.matchResult.badgeLabel, '패배');
+    assert.equal(guestSaved.pointBreakdown.matchBonusPoints, 10);
+  });
+});
+
+await runTest('the reconstructed 대결 결과 shows the OPPONENT real name + userId, not the viewer device label', async () => {
+  const { store } = createResolvedPartyDuelStore();
+  await withBackend(store, async ({ request }) => {
+    // Only the guest saves (server resolves its loss + the real opponent identity). Then the
+    // session is gone for the result endpoint's saved-run reconstruction path test below; here
+    // the live session is still present, so it resolves from the session directly.
+    await saveDuelRun(request, 'guest-token', {
+      resultTone: 'win',
+      opponentName: '갤럭시S24',
+      badgeLabel: '승리',
+    });
+
+    const result = await request('guest-token', 'GET', '/api/running/matches/duel-contract-match/result');
+    const me = result.participants.find((participant) => participant.isMe);
+    const opponent = result.participants.find((participant) => !participant.isMe);
+    assert.equal(me.userId, 'guest-user');
+    assert.equal(me.resultTone, 'lose');
+    // The opponent row is the host's REAL account name + userId — never the viewer's saved
+    // device label ('갤럭시S24').
+    assert.equal(opponent.userId, 'host-user');
+    assert.equal(opponent.name, '방장 러너');
+    assert.equal(opponent.resultTone, 'win');
+  });
+});
+
+await runTest('a duel saved before the opponent finishes is PENDING (no win, no +20P) and later reconciles to the official verdict', async () => {
+  // Only the host has finished; the guest never synced a finish, so the verdict is unresolvable
+  // at the host's save. The session is NOT pruned (the guest is not done), so the server-side
+  // resolver sees an unresolved verdict and stores the host's record PENDING.
+  const { store } = createActiveDuelStore();
+  const session = store.matchSessions[0];
+  session.isPartyRun = true;
+  const host = session.participants.find((participant) => participant.userId === 'host-user');
+  host.liveStatus = 'finished';
+  host.liveDistanceKm = 5;
+  host.liveElapsedSeconds = 1500;
+  host.livePace = '05:00/km';
+  host.liveUpdatedAt = iso(-30 * 1000);
+  host.finishedAt = iso(-30 * 1000);
+  host.finishElapsedSeconds = 1500;
+
+  await withBackend(store, async ({ request }) => {
+    // The host saves claiming a win while the guest has not finished.
+    const hostSaved = await saveDuelRun(request, 'host-token', {
+      resultTone: 'win',
+      opponentName: '아이폰14',
+      badgeLabel: '승리',
+    });
+    // PENDING: no definite tone, neutral badge, and crucially NO +20P from the client's claim.
+    assert.equal(hostSaved.run.matchResult.resultTone, undefined);
+    assert.equal(hostSaved.run.matchResult.badgeLabel, '결과 집계 중');
+    assert.equal(hostSaved.pointBreakdown.matchBonusPoints, 0);
+
+    // The guest now finishes SLOWER via the live progress endpoint, resolving the verdict. The
+    // progress response surfaces the resolved duelVerdict the client reconcile path consumes —
+    // here from the guest's perspective the outcome is 'lose' (the host won), which proves the
+    // official verdict the host's PENDING record reconciles to is the faster runner = the host.
+    const guestFinish = await request('guest-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 5.1,
+      elapsedSeconds: 1620,
+      currentPace: '05:24/km',
+      status: 'finished',
+    });
+    assert.equal(guestFinish.duelVerdict.resolved, true);
+    assert.equal(guestFinish.duelVerdict.outcome, 'lose');
+    // The winner is the faster finisher (the host), never both — the verdict names one winner.
+    assert.equal(guestFinish.duelVerdict.winnerUserId, 'host-user');
+  });
+});
+
+await runTest('after the session is PRUNED, a save with a fabricated client win is reconstructed from saved runs — the slower finisher is OVERRIDDEN to lose (0 bonus), the faster to win; an opponent-less save is PENDING then reconciles', async () => {
+  // The adversarial post-prune hole: a duel's live session is pruned as the NORMAL both-finished
+  // end-state, so the lingering SECOND saver hits the NO-SESSION branch. A stale build or a crafted
+  // POST then carries a fabricated resultTone:'win'. The server must NOT trust it — it reconstructs
+  // the verdict from the durable saved runs (faster finish wins) and overrides the claim.
+  const matchId = 'pruned-duel-match';
+
+  await withBackend(createBaseStore(), async ({ request }) => {
+    const startedAt = iso(-10 * 60 * 1000);
+    const endedAt = iso(-1 * 60 * 1000);
+    const saveFabricatedWin = (token, durationSeconds, opponentName) => request(token, 'POST', '/api/runs/tracked', {
+      date: startedAt.slice(0, 10),
+      distanceKm: 5,
+      pace: '05:00/km',
+      durationSeconds,
+      startedAt,
+      endedAt,
+      route: [
+        { latitude: 37.658, longitude: 126.77, timestamp: startedAt },
+        { latitude: 37.668, longitude: 126.78, timestamp: endedAt },
+      ],
+      // Every device CLAIMS a win with its own device label — the screen-off/stale-client input.
+      matchResult: {
+        mode: 'duel',
+        matchId,
+        source: 'party',
+        title: '대결 결과',
+        summary: '대결 요약',
+        badgeLabel: '승리',
+        opponentName,
+        resultTone: 'win',
+        comparedDistanceKm: 5,
+        myDurationSeconds: durationSeconds,
+        myPaceLabel: '05:00/km',
+      },
+    });
+
+    // 1) The SLOWER runner (guest, 1620s) saves FIRST. No opponent run exists yet, so the verdict
+    // cannot be reconstructed → PENDING, and crucially NO +20P from the client-claimed win.
+    const guestFirst = await saveFabricatedWin('guest-token', 1620, '아이폰14');
+    assert.equal(guestFirst.run.matchResult.resultTone, undefined);
+    assert.equal(guestFirst.run.matchResult.badgeLabel, '결과 집계 중');
+    assert.equal(guestFirst.pointBreakdown.matchBonusPoints, 0);
+
+    // 2) The FASTER runner (host, 1500s) saves SECOND. The guest's saved run is now present, so the
+    // server reconstructs the verdict from the two measured finishes → host is the verified winner.
+    const hostSaved = await saveFabricatedWin('host-token', 1500, '갤럭시S24');
+    assert.equal(hostSaved.run.matchResult.resultTone, 'win');
+    assert.equal(hostSaved.run.matchResult.badgeLabel, '승리');
+    // The opponent identity is the guest's REAL account, not the host's saved device label.
+    assert.equal(hostSaved.run.matchResult.opponentId, 'guest-user');
+    assert.equal(hostSaved.run.matchResult.opponentName, '참가 러너');
+    assert.equal(hostSaved.pointBreakdown.matchBonusPoints, 20);
+
+    // 3) The guest's reconcile re-save still fabricates a win, but the host's run is now present, so
+    // the server OVERRIDES the slower finisher to 'lose' — never a second self-awarded +20P.
+    const guestReconciled = await saveFabricatedWin('guest-token', 1620, '아이폰14');
+    assert.equal(guestReconciled.run.matchResult.resultTone, 'lose');
+    assert.equal(guestReconciled.run.matchResult.badgeLabel, '패배');
+    assert.equal(guestReconciled.run.matchResult.opponentId, 'host-user');
+    assert.equal(guestReconciled.run.matchResult.opponentName, '방장 러너');
+    assert.equal(guestReconciled.pointBreakdown.matchBonusPoints, 10);
+
+    // The GET /result endpoint reconstructs the same single-winner pair from the saved runs.
+    const result = await request('host-token', 'GET', `/api/running/matches/${matchId}/result`);
+    const winner = result.participants.find((participant) => participant.resultTone === 'win');
+    const loser = result.participants.find((participant) => participant.resultTone === 'lose');
+    assert.equal(winner.userId, 'host-user');
+    assert.equal(loser.userId, 'guest-user');
   });
 });

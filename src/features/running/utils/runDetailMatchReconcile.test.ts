@@ -61,6 +61,31 @@ test('C3: isUnresolvedDuelMatchResult flags a placeholder record as unresolved',
   assert.equal(isUnresolvedDuelMatchResult(placeholder), true);
 });
 
+test('C1/C3: a PENDING saved record (결과 집계 중, no tone) is reconcilable and upgrades to the official verdict', () => {
+  // The shape the server/client now persist when the verdict is unresolved at save: a neutral
+  // "결과 집계 중" badge and NO resultTone. It must NOT be treated as final (the old bug refused
+  // to reconcile an already-'win' record) and must upgrade to the official verdict on re-query.
+  const pending: RunMatchResult = {
+    mode: 'duel',
+    title: '대결 결과를 집계하고 있어요',
+    summary: '상대가 완주하면 결과가 자동으로 업데이트돼요.',
+    badgeLabel: '결과 집계 중',
+    opponentName: '상대',
+    myDurationSeconds: 1500,
+    myPaceLabel: '5:00/km',
+    // No resultTone, no opponent duration → unresolved/reconcilable.
+  };
+  assert.equal(isUnresolvedDuelMatchResult(pending), true);
+
+  const reconciled = reconcileDuelRunDetailMatchResult({
+    matchResult: pending,
+    status: duelStatus(resolvedWinVerdict),
+  });
+  assert.equal(reconciled?.resultTone, 'win');
+  assert.equal(reconciled?.badgeLabel, '승리');
+  assert.equal(reconciled?.opponentDurationSeconds, 1560);
+});
+
 test('C3: a complete saved record is NOT unresolved and is left untouched', () => {
   const complete: RunMatchResult = {
     mode: 'duel',

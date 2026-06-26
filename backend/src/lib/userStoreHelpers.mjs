@@ -49,6 +49,17 @@ export function getUserMetrics(store, userId) {
   return metricsByUserId.get(userId);
 }
 
+// Drop a user's memoized metrics for this store object so the NEXT getUserMetrics recomputes
+// from the current store.runs. The cache is computed lazily and never invalidated within a
+// request, which is fine when metrics are read once at the end. But a save path that reads
+// metrics-dependent data BEFORE pushing the new run (e.g. the server-authoritative duel verdict
+// resolver, which reads the opponent's runner profile → metrics) would otherwise poison the
+// cache with pre-push metrics and miss the just-saved run's match bonus. Callers that mutate
+// store.runs after such a read must invalidate before recomputing.
+export function invalidateUserMetrics(store, userId) {
+  metricsCacheByStore.get(store)?.delete(userId);
+}
+
 export function getRedeemedPointCost(store, userId) {
   const catalogByItemId = new Map((store.marketCatalog ?? []).map((item) => [item.id, item.costPoints]));
 

@@ -91,6 +91,7 @@ import {
   getRedeemedPointCost,
   getRunsForUser,
   getUserMetrics,
+  invalidateUserMetrics,
 } from './lib/userStoreHelpers.mjs';
 import {
   acceptRunningMatch,
@@ -99,6 +100,7 @@ import {
   buildGroupMatchResponse,
   buildMatchDemandSummaryResponse,
   buildMatchResultByMatchId,
+  resolveSavedDuelMatchResult,
   buildRunningMatchRoomResponse,
   buildRunningMatchStatusResponse,
   cancelRunningMatch,
@@ -379,6 +381,11 @@ function getRunsRepository() {
       sourceLabels: SOURCE_LABEL_BY_TYPE,
       formatTimestamp,
       createError: (statusCode, message) => new ApiError(statusCode, message),
+      // C1/C2: server is authoritative for the duel verdict at save. The JSON repo's
+      // mutateStore callback already holds the whole-store (incl. matchSessions) so the
+      // resolver reads the live session/standings directly to overwrite or pend the result.
+      resolveMatchResult: (store, user, matchResult) => resolveSavedDuelMatchResult(store, user, matchResult),
+      invalidateUserMetrics,
     });
   }
 

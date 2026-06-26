@@ -31,6 +31,13 @@ export function createPostgresRunsRepository({
   sourceLabels,
   nowIso = createNowIso,
   formatTimestamp = createDisplayTimestamp,
+  // C1/C2: server-authoritative duel verdict resolver, identical contract to the json
+  // repository. Given (user, matchResult) it returns the server-resolved matchResult or a
+  // PENDING one; defaults to identity so this repo is behaviorally identical to the json one
+  // (and so callers that do not wire it keep working). Match sessions live on the whole-store
+  // (the postgres jsonb store row / json file), NOT the runs table, so the wired resolver reads
+  // them via the whole-store seam — this repo just applies whatever it returns.
+  resolveMatchResult = async (user, matchResult) => matchResult,
 }) {
   if (!database || typeof database.query !== 'function') {
     throw new Error('createPostgresRunsRepository requires a database query adapter.');
@@ -91,6 +98,11 @@ export function createPostgresRunsRepository({
       return runWriteOperation(database, async (client) => {
         const user = await requireUserByToken(client, token, createError);
         const createdAt = nowIso();
+        // C1/C2: resolve the duel verdict SERVER-side before persisting — the client-claimed
+        // resultTone/opponentName are never trusted. Group runs and non-match runs pass through.
+        const resolvedMatchResult = input.matchResult
+          ? await resolveMatchResult(user, input.matchResult)
+          : undefined;
         const run = {
           id: nextId('run'),
           userId: user.id,
@@ -103,7 +115,7 @@ export function createPostgresRunsRepository({
           route: Array.isArray(input.route) ? clone(input.route) : [],
           startedAt: input.startedAt,
           endedAt: input.endedAt,
-          ...(input.matchResult ? { matchResult: clone(input.matchResult) } : {}),
+          ...(resolvedMatchResult ? { matchResult: clone(resolvedMatchResult) } : {}),
           source: 'RunningGround',
           sourceType: 'runningground',
           createdAt,

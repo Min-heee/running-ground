@@ -20,6 +20,240 @@ function findRawMatchSessionById(store, matchId) {
   return ensureMatchSessions(store).find((session) => session.id === matchId) ?? null;
 }
 
+// Server-authoritative duel win/lose copy. The verdict (buildDuelVerdict) is the ONE source
+// of truth, so the saved card's title/badge are rebuilt from the verdict outcome here rather
+// than trusting the client-supplied text.
+function buildAuthoritativeDuelCopy(outcome, opponentName) {
+  const name = typeof opponentName === 'string' && opponentName.trim() ? opponentName.trim() : '상대';
+
+  if (outcome === 'win') {
+    return { title: `${name}님을 이겼어요`, badgeLabel: '승리' };
+  }
+
+  if (outcome === 'lose') {
+    return { title: `${name}님에게 졌어요`, badgeLabel: '패배' };
+  }
+
+  return { title: `${name}님과 비슷한 흐름으로 마쳤어요`, badgeLabel: '무승부' };
+}
+
+// C1/C2: at run save, the SERVER decides the duel win/lose — never the client.
+//
+// Given the client-supplied (validated) matchResult for a duel run carrying a matchId, this
+// resolves the authoritative result against the live match session's buildDuelVerdict (ranked
+// by MEASURED finishElapsedSeconds). It returns a NEW matchResult object:
+//   - verdict RESOLVED (both finished / forfeit / §B4 fallback) → resultTone, opponentName,
+//     opponentId, and opponent finish/pace are OVERWRITTEN from the verdict + opponent's own
+//     user record, so both phones agree on one winner and the opponent name is the real
+//     account name (not the viewer's device label).
+//   - verdict NOT yet resolvable (opponent hasn't finished/synced) → a PENDING result:
+//     resultTone/opponentDuration/gapKm stripped, a "결과 집계 중" badge, so it is NEVER a
+//     wrong definite win. The client reconcile path fills the official verdict on re-query.
+//
+// Anything that is not a resolvable duel with a known session (group runs, missing session,
+// missing matchId, forfeit-only records the validator already shaped) is returned UNCHANGED so
+// no existing working case is altered. The §B4/forfeit verdicts already encode their outcome,
+// so they resolve here exactly as the live arena resolves them.
+export function resolveSavedDuelMatchResult(store, currentUser, matchResult, now = new Date()) {
+  if (!matchResult || matchResult.mode !== 'duel') {
+    return matchResult;
+  }
+
+  const matchId = typeof matchResult.matchId === 'string' ? matchResult.matchId.trim() : '';
+
+  // No matchId → an old/standalone record with no server session to consult. Leave it exactly
+  // as the client saved it (older clients that never sent matchId must keep saving fine).
+  if (!matchId) {
+    return matchResult;
+  }
+
+  const session = findRawMatchSessionById(store, matchId);
+
+  // No live session → the session was pruned. The session is pruned as the NORMAL end-state of a
+  // both-finished duel (the last finisher's /progress AND routine status/upcoming/room-sync polls
+  // all prune it), so by the time the SECOND device lingers and saves, no session remains. We must
+  // NOT trust the client's value here: a stale build or a crafted POST can carry a fabricated
+  // resultTone:'win' for the slower finisher, which would persist and self-award +20P. Instead
+  // reconstruct the verdict SERVER-side from the durable saved runs (the same source the GET
+  // /result endpoint reconstructs a pruned duel from). A real matchId NEVER survives unverified.
+  if (!session || session.mode !== 'duel') {
+    return resolveDuelMatchResultFromSavedRuns(store, currentUser, matchId, matchResult);
+  }
+
+  // A requester who is not a participant of this match cannot have it resolve — leave the saved
+  // value untouched (cannot server-resolve someone else's session for them).
+  if (!session.participants.some((participant) => participant.userId === currentUser.id)) {
+    return matchResult;
+  }
+
+  const standings = buildOfficialSessionStandings(store, session, now);
+  const verdict = buildDuelVerdict(session, standings, currentUser.id, now);
+
+  if (!verdict || !verdict.resolved || verdict.outcome === 'pending') {
+    return toPendingDuelMatchResult(matchResult);
+  }
+
+  const outcome = verdict.outcome;
+  const opponentStanding = standings.find((standing) => standing.userId !== currentUser.id) ?? null;
+  const opponentParticipant = opponentStanding
+    ? session.participants.find((participant) => participant.userId === opponentStanding.userId) ?? null
+    : null;
+  const opponentProfile = opponentParticipant
+    ? resolveSessionParticipantProfile(store, opponentParticipant)
+    : null;
+  const opponentName = (opponentProfile?.name ?? opponentStanding?.name ?? matchResult.opponentName ?? '상대');
+  const opponentId = opponentStanding?.userId ?? undefined;
+  const copy = buildAuthoritativeDuelCopy(outcome, opponentName);
+
+  const myDurationSeconds = Number.isInteger(verdict.myFinishElapsedSeconds) && verdict.myFinishElapsedSeconds > 0
+    ? verdict.myFinishElapsedSeconds
+    : matchResult.myDurationSeconds;
+  const opponentDurationSeconds = Number.isInteger(verdict.opponentFinishElapsedSeconds)
+    && verdict.opponentFinishElapsedSeconds > 0
+    ? verdict.opponentFinishElapsedSeconds
+    : undefined;
+
+  const resolved = {
+    ...matchResult,
+    title: copy.title,
+    badgeLabel: copy.badgeLabel,
+    resultTone: outcome,
+    opponentName,
+    ...(opponentId ? { opponentId } : {}),
+    ...(typeof myDurationSeconds === 'number' ? { myDurationSeconds } : {}),
+    ...(verdict.myPaceLabel ? { myPaceLabel: verdict.myPaceLabel } : {}),
+    ...(typeof opponentDurationSeconds === 'number' ? { opponentDurationSeconds } : {}),
+    ...(verdict.opponentPaceLabel ? { opponentPaceLabel: verdict.opponentPaceLabel } : {}),
+  };
+
+  // Strip a stale opponent pace/time the client may have guessed when the verdict has none for
+  // that side (a §B4 DNF opponent carries no official finish) so the card never shows a
+  // fabricated opponent number alongside the authoritative verdict.
+  if (typeof opponentDurationSeconds !== 'number') {
+    delete resolved.opponentDurationSeconds;
+  }
+  if (!verdict.opponentPaceLabel) {
+    delete resolved.opponentPaceLabel;
+  }
+
+  return resolved;
+}
+
+// A forfeit duel record carries its OWN authoritative verdict (a 기권 badge): a forfeit is a
+// deterministic terminal outcome the live arena already sealed (the forfeiter loses, the opponent
+// wins) and the validator already shaped it. It is NEVER a finish-time race we can reconstruct, so
+// it must resolve from the saved/forfeit record itself — never be forced PENDING forever.
+function isForfeitMatchResult(matchResult) {
+  return /기권/.test(String(matchResult?.badgeLabel ?? ''));
+}
+
+// The own measured finish elapsed a save (or a saved opponent run) carries. Prefer the duel
+// matchResult's myDurationSeconds (the rank key), else the run's durationSeconds.
+function finishElapsedFromSavedRun(matchResult, run) {
+  if (Number.isInteger(matchResult?.myDurationSeconds) && matchResult.myDurationSeconds > 0) {
+    return matchResult.myDurationSeconds;
+  }
+  if (Number.isInteger(run?.durationSeconds) && run.durationSeconds > 0) {
+    return run.durationSeconds;
+  }
+  return null;
+}
+
+// NO-SESSION branch resolver: the live session is gone (pruned as the normal both-finished
+// end-state), so the duel verdict is reconstructed SERVER-side from the durable saved runs —
+// the SAME source buildResultFromSavedRuns uses for the GET /result endpoint, so the save path
+// and the read path agree. The client-supplied resultTone/opponentName are NEVER trusted for a
+// real matchId:
+//   - A forfeit record carries its own sealed verdict (기권 badge) → returned UNCHANGED (a forfeit
+//     is a deterministic terminal outcome, not a finish-time race; forcing PENDING would strand it).
+//   - The OPPONENT's saved run exists → compute win/lose/draw from the two measured finish elapsed
+//     (faster wins; equal = draw), overriding resultTone + opponentName/opponentId/opponent finish
+//     from the opponent's own saved run, exactly like the session path — just sourced from runs.
+//   - The opponent has NOT saved yet (this device saved first) → PENDING (no resultTone, no +20P).
+//     The client reconcile path / a later GET upgrades it once the opponent's run lands.
+// The current run being saved is NOT yet in store.runs (it is pushed after this resolver returns),
+// so this device's own finish is read from the matchResult passed in, and only the OPPONENT's run
+// is looked up in the store.
+function resolveDuelMatchResultFromSavedRuns(store, currentUser, matchId, matchResult) {
+  // A forfeit verdict is self-contained and already authoritative — keep it as saved.
+  if (isForfeitMatchResult(matchResult)) {
+    return matchResult;
+  }
+
+  const savedRunsByUserId = collectSavedMatchRuns(store, matchId);
+  const opponentRun = [...savedRunsByUserId.entries()]
+    .filter(([userId]) => userId !== currentUser.id)
+    .map(([, run]) => run)[0] ?? null;
+
+  // The opponent has not saved their run for this match yet → we cannot verify a winner. Never
+  // trust the client's claimed win: store PENDING (0 bonus) and let the reconcile path upgrade it.
+  if (!opponentRun) {
+    return toPendingDuelMatchResult(matchResult);
+  }
+
+  const myFinishElapsedSeconds = finishElapsedFromSavedRun(matchResult, null);
+  const opponentMatchResult = opponentRun.matchResult ?? {};
+  const opponentFinishElapsedSeconds = finishElapsedFromSavedRun(opponentMatchResult, opponentRun);
+
+  // Without both measured finishes we cannot rank the duel — stay PENDING rather than trust a
+  // client tone (a missing finish elapsed must never resolve to a self-claimed win).
+  if (myFinishElapsedSeconds === null || opponentFinishElapsedSeconds === null) {
+    return toPendingDuelMatchResult(matchResult);
+  }
+
+  const outcome = myFinishElapsedSeconds === opponentFinishElapsedSeconds
+    ? 'draw'
+    : myFinishElapsedSeconds < opponentFinishElapsedSeconds
+      ? 'win'
+      : 'lose';
+
+  const opponentUser = store.users.find((entry) => entry.id === opponentRun.userId) ?? null;
+  const opponentName = (opponentUser?.name
+    ?? (typeof matchResult.opponentName === 'string' && matchResult.opponentName.trim()
+      ? matchResult.opponentName.trim()
+      : null)
+    ?? '상대');
+  const copy = buildAuthoritativeDuelCopy(outcome, opponentName);
+
+  const resolved = {
+    ...matchResult,
+    title: copy.title,
+    badgeLabel: copy.badgeLabel,
+    resultTone: outcome,
+    opponentName,
+    opponentId: opponentRun.userId,
+    myDurationSeconds: myFinishElapsedSeconds,
+    opponentDurationSeconds: opponentFinishElapsedSeconds,
+  };
+
+  // Carry the opponent's own saved pace label when available, else drop a stale client guess so
+  // the card never shows a fabricated opponent number alongside the authoritative verdict.
+  if (typeof opponentMatchResult.myPaceLabel === 'string' && opponentMatchResult.myPaceLabel) {
+    resolved.opponentPaceLabel = opponentMatchResult.myPaceLabel;
+  } else {
+    delete resolved.opponentPaceLabel;
+  }
+
+  return resolved;
+}
+
+// The PENDING duel record: a duel matchResult whose definite win/lose is not yet known. It keeps
+// the run's own measured pace/time but DROPS every win/lose-bearing field (resultTone, opponent
+// finish time/pace, gapKm) and carries a neutral "결과 집계 중" badge. Because resultTone is
+// absent, getMatchBonusPoints awards 0 (no +20P from a client-claimed win) and the client's
+// isUnresolvedDuelMatchResult treats it as reconcilable, so the official verdict fills in later.
+function toPendingDuelMatchResult(matchResult) {
+  const pending = { ...matchResult };
+  delete pending.resultTone;
+  delete pending.opponentDurationSeconds;
+  delete pending.opponentPaceLabel;
+  delete pending.gapKm;
+  pending.title = '대결 결과를 집계하고 있어요';
+  pending.summary = '상대가 완주하면 결과가 자동으로 업데이트돼요.';
+  pending.badgeLabel = '결과 집계 중';
+  return pending;
+}
+
 // Region (지역) is read straight off the persisted user record — the same shape the
 // opponent match-profile lookup in userRoutes uses (districtName/provinceName/cityName).
 // A user who has since been deleted (or a synthetic test bot with no real account)
@@ -185,9 +419,11 @@ function buildResultFromSavedRuns(store, currentUser, matchId, savedRunsByUserId
 
     return {
       userId: run.userId,
-      name: matchResult.opponentName && run.userId !== currentUser.id
-        ? matchResult.opponentName
-        : (store.users.find((entry) => entry.id === run.userId)?.name ?? '러너'),
+      // C2: each saved run's display name is that run OWNER's own real account name, looked up
+      // by run.userId. The previous code used `matchResult.opponentName` for the non-viewer row,
+      // but that field is the OTHER user's view of THEIR opponent (i.e. the viewer) — for a party
+      // run it is a device label, not the row owner's name — so it mislabeled the opponent.
+      name: store.users.find((entry) => entry.id === run.userId)?.name ?? '러너',
       districtName: region.districtName,
       provinceName: region.provinceName,
       cityName: region.cityName,
@@ -202,22 +438,43 @@ function buildResultFromSavedRuns(store, currentUser, matchId, savedRunsByUserId
   });
 
   // For a duel we may only have the requester's own saved run (the opponent had not
-  // saved, or is a synthetic bot). Reconstruct the missing opponent row from the
-  // requester's matchResult so the WIN/LOSE pair is always complete.
-  if (mode === 'duel' && participants.length === 1 && myMatchResult.opponentName) {
+  // saved, or is a synthetic bot). Reconstruct the missing opponent row so the WIN/LOSE
+  // pair is always complete.
+  //
+  // C2 fix: the opponent's REAL identity comes from the persisted opponent userId
+  // (myMatchResult.opponentId), resolved against the user store for the real account name +
+  // region — never the viewer's own `myMatchResult.opponentName`, which for a party run is the
+  // viewer's device label ("아이폰14"), not the opponent's account name. Only when no opponent
+  // userId was persisted (truly anonymous bot / very old record) do we fall back to the saved
+  // opponentName text.
+  if (mode === 'duel' && participants.length === 1 && (myMatchResult.opponentId || myMatchResult.opponentName)) {
     const myTone = myMatchResult.resultTone;
     const opponentTone = myTone === 'win' ? 'lose' : myTone === 'lose' ? 'win' : myTone === 'draw' ? 'draw' : null;
     const opponentDuration = Number.isInteger(myMatchResult.opponentDurationSeconds)
       ? myMatchResult.opponentDurationSeconds
       : null;
     const opponentPaceMinutes = parsePaceToMinutes(myMatchResult.opponentPaceLabel);
-
-    participants.push({
-      userId: null,
-      name: myMatchResult.opponentName,
+    const opponentUserId = typeof myMatchResult.opponentId === 'string' && myMatchResult.opponentId
+      ? myMatchResult.opponentId
+      : null;
+    const opponentUser = opponentUserId
+      ? store.users.find((entry) => entry.id === opponentUserId) ?? null
+      : null;
+    const opponentRegion = opponentUserId ? resolveParticipantRegion(store, opponentUserId) : {
       districtName: null,
       provinceName: null,
       cityName: null,
+    };
+    // Prefer the opponent's real account name; only fall back to the saved opponentName when no
+    // userId resolved a real user.
+    const opponentName = opponentUser?.name ?? myMatchResult.opponentName ?? '러너';
+
+    participants.push({
+      userId: opponentUserId,
+      name: opponentName,
+      districtName: opponentRegion.districtName,
+      provinceName: opponentRegion.provinceName,
+      cityName: opponentRegion.cityName,
       paceSecondsPerKm: opponentDuration && comparedDistanceKm > 0
         ? Math.round(opponentDuration / comparedDistanceKm)
         : opponentPaceMinutes !== null && opponentPaceMinutes > 0

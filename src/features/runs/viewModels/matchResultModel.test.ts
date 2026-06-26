@@ -502,6 +502,66 @@ test('C2: absent duelVerdict falls back to local distance-based verdict', () => 
   assert.equal(result?.matchResult.myPaceLabel, '08:00/km');
 });
 
+test('C1: a real match (matchId present) with an unresolved verdict and a screen-off opponent is PENDING, not a distance-based win', () => {
+  // The screen-off "always win" input: the current user finished, the opponent is locally marked
+  // finished but their progress NEVER synced (no officialRank, no live distance → opponentDistanceKm
+  // falls to 0) and there is no server verdict yet. The old code's distance compare returned 'win'
+  // here on BOTH phones. With matchId present this must be PENDING instead.
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({ liveStatus: 'finished' }),
+    currentDistanceKm: 5,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 1500,
+    currentPaceLabel: '05:00/km',
+    currentUserLiveStatus: 'finished',
+    duelVerdict: null,
+    matchId: 'match-123',
+  });
+
+  // No definite tone is persisted → the backend awards no +20P and the saved card shows the
+  // "결과 집계 중" state; the reconcile path fills the official verdict later.
+  assert.equal(result?.matchResult.resultTone, undefined);
+  assert.equal(result?.matchResult.badgeLabel, '결과 집계 중');
+  assert.equal(result?.matchResult.gapKm, undefined);
+  assert.equal(result?.matchResult.opponentDurationSeconds, undefined);
+  // The current user's own measured pace/time are still persisted (they are real).
+  assert.equal(result?.matchResult.myDurationSeconds, 1500);
+  assert.equal(result?.matchResult.myPaceLabel, '05:00/km');
+});
+
+test('C1: the SAME inputs WITHOUT a matchId keep the legacy local distance-based win (no regression)', () => {
+  // Identical to the test above but with no matchId — a synthetic/legacy local-only duel that
+  // never had a server session. The old local heuristic must be preserved exactly.
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({ liveStatus: 'finished' }),
+    currentDistanceKm: 5,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 1500,
+    currentPaceLabel: '05:00/km',
+    currentUserLiveStatus: 'finished',
+    duelVerdict: null,
+  });
+
+  assert.equal(result?.matchResult.resultTone, 'win');
+  assert.equal(result?.matchResult.badgeLabel, '승리');
+});
+
+test('C1: a resolved verdict on a real match still produces the definite win (pending only applies while unresolved)', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({ officialReady: true, officialRank: 2, liveStatus: 'finished' }),
+    currentDistanceKm: 5,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 1500,
+    currentPaceLabel: '05:00/km',
+    currentUserLiveStatus: 'finished',
+    duelVerdict: verdict({ outcome: 'win', myFinishElapsedSeconds: 1500, myPaceLabel: '5:00/km' }),
+    matchId: 'match-123',
+  });
+
+  assert.equal(result?.matchResult.resultTone, 'win');
+  assert.equal(result?.matchResult.badgeLabel, '승리');
+});
+
 test('C2: pending duelVerdict (resolved=false) does not flip to a final verdict', () => {
   const result = buildDuelMatchFinishModel({
     opponent: opponent({ liveStatus: 'running' }),
