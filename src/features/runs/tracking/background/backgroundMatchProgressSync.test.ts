@@ -27,6 +27,9 @@ import {
   startNativeDistanceAccumulator,
 } from '@/features/runs/tracking/background/distanceAccumulatorController';
 import { MATCH_GOAL_DISTANCE_TOLERANCE_KM } from '@/features/runs/sync/matchProgressSync';
+import { recordBackgroundSnapshotUpdate } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
+import { MY_MATCH_DISTANCE_STALE_THRESHOLD_MS } from '@/features/runs/sync/matchDistanceStaleness';
+import { setAccumulatedDistanceMeters } from '@/features/runs/tracking/background/routeAccumulator';
 
 // Wire a fake native DISTANCE accumulator that reports a fixed accumulated total (in meters) so the
 // flush merge reads a controllable native value. Returns a teardown to clear the seam + cache.
@@ -894,6 +897,184 @@ test('competitive-integrity: native unavailable sends exactly the JS snapshot di
     assert.equal(calls.length, 1);
     assert.equal(calls[0].status, 'running');
     assert.equal(calls[0].distanceKm, 2.75, 'exactly the JS snapshot distance — no native influence');
+  } finally {
+    teardown();
+  }
+});
+
+// ============================================================================================
+// COLD-START OVER-COUNT FIX — re-seed the native total to the JS authoritative total while MY JS
+// distance is FRESH. The native accumulator inherits the JS filters at t0 (it is SEEDED to the JS
+// total) but accumulates on its own GPS deltas, which omit the JS cold-start cluster collapse — so
+// at GPS cold start it OVER-COUNTS warmup jitter, and max(jsKm, nativeKm) would preserve that as a
+// CONSTANT offset forever. Re-seeding to the current JS total every fresh flush erases the
+// over-count; only when JS goes STALE (screen off) does the native stop being re-seeded and LEAD to
+// fill the frozen distance. These tests prove both halves end-to-end through the flush.
+// ============================================================================================
+
+// A native accumulator fake whose accumulated total is MUTATED by seedDistanceAccumulator — so the
+// flush's re-seed is observable as a change in the value the merge reads next. `startMeters` is the
+// native's current (cold-start over-counted) total. Records every seed for assertion.
+async function withSeedableNativeDistance(startMeters: number): Promise<{
+  teardown: () => void;
+  seedCalls: number[];
+  getNativeMeters: () => number;
+}> {
+  resetNativeDistanceAccumulatorForTest();
+
+  let nativeMeters = startMeters;
+  const seedCalls: number[] = [];
+  const fakeModule = {
+    isNativeDistanceAccumulatorAvailable: () => true,
+    startDistanceAccumulator: () => true,
+    seedDistanceAccumulator: (meters: number) => {
+      seedCalls.push(meters);
+      // Re-seeding realigns the native TOTAL to the supplied value (mirrors the native: the GPS
+      // anchor is kept, but the running total is overwritten to the seed).
+      nativeMeters = meters;
+    },
+    getAccumulatedDistanceMeters: () => nativeMeters,
+    resetDistanceAccumulator: () => undefined,
+    stopDistanceAccumulator: () => undefined,
+  };
+  setNativeDistanceAccumulatorModuleForTest(fakeModule);
+  // Populate the synchronous cachedModule the flush reads. The 'seed-match' start seeds to 0; reset
+  // the fake's total back to the cold-start over-count we want to test AFTER that wiring seed.
+  await startNativeDistanceAccumulator('seed-match', 0, async () => fakeModule);
+  nativeMeters = startMeters;
+  seedCalls.length = 0;
+
+  return {
+    seedCalls,
+    getNativeMeters: () => nativeMeters,
+    teardown: () => {
+      setNativeDistanceAccumulatorModuleForTest(undefined);
+      resetNativeDistanceAccumulatorForTest();
+    },
+  };
+}
+
+// (a) JS FRESH → the native cold-start over-count is re-seeded DOWN to the JS total, so the merge
+// equals the JS distance (the constant offset is erased) and seedDistanceAccumulator is called with
+// the JS total in meters.
+test('cold-start re-seed: JS fresh re-seeds the native over-count down to the JS total (merge == JS, no offset)', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  // JS snapshot + authoritative accumulator agree at 3.000 km (the JS-filtered truth).
+  setRunningSnapshot(nowMs, { distanceKm: 3.0 });
+  setAccumulatedDistanceMeters(3000);
+  // Stamp the JS distance as FRESH right now (a committed snapshot) so isMyMatchDistanceStale=false.
+  recordBackgroundSnapshotUpdate();
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-coldstart-fresh',
+    mode: 'duel',
+    distanceKm: COMPETITIVE_GOAL_KM,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  // Native carries a cold-start over-count: 3055m (a ~55m phantom lead over the 3000m JS truth).
+  const { teardown, seedCalls } = await withSeedableNativeDistance(3055);
+
+  const calls: UpdateRunningMatchProgressInput[] = [];
+  try {
+    const didFlush = await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      nowMs,
+      updateRunningMatchProgress: async (input) => {
+        calls.push(input);
+        return buildMatchStatusResponse(input.matchId);
+      },
+    });
+
+    assert.equal(didFlush, true);
+    // The re-seed fired with the JS authoritative total in METERS (3000m), realigning the native
+    // total down from its 3055m cold-start over-count.
+    assert.deepEqual(seedCalls, [3000], 'native re-seeded to the JS total while fresh');
+    assert.equal(calls.length, 1);
+    // The merge now reads the corrected native total (3000m) → max(3.0, 3.0) === 3.0 === JS. The
+    // ~55m constant offset is erased.
+    assert.equal(calls[0].distanceKm, 3.0, 'merge equals the JS total — cold-start over-count erased');
+  } finally {
+    teardown();
+  }
+});
+
+// (b) JS STALE (screen off) → the native is NOT re-seeded; it keeps its lead and FILLS the frozen
+// distance. The merge takes the native value (max), preserving the screen-off advance.
+test('cold-start re-seed: JS stale does NOT re-seed and the native leads to fill the frozen distance', async () => {
+  // Stamp the JS distance as fresh, then advance nowMs PAST the staleness threshold so the same
+  // committed-snapshot timestamp now reads as STALE (JS thread suspended, screen off).
+  resetBackgroundMatchProgressSyncForTest();
+  recordBackgroundSnapshotUpdate();
+  const staleNowMs = Date.now() + MY_MATCH_DISTANCE_STALE_THRESHOLD_MS + 5_000;
+
+  // JS distance is FROZEN at 3.000 km (screen-off suspend); the native kept advancing to 3.250 km.
+  setRunningSnapshot(staleNowMs, { distanceKm: 3.0 });
+  setAccumulatedDistanceMeters(3000);
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-coldstart-stale',
+    mode: 'duel',
+    distanceKm: COMPETITIVE_GOAL_KM,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  const { teardown, seedCalls } = await withSeedableNativeDistance(3250);
+
+  const calls: UpdateRunningMatchProgressInput[] = [];
+  try {
+    const didFlush = await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      nowMs: staleNowMs,
+      updateRunningMatchProgress: async (input) => {
+        calls.push(input);
+        return buildMatchStatusResponse(input.matchId);
+      },
+    });
+
+    assert.equal(didFlush, true);
+    // No re-seed while stale — the native keeps accumulating from the last fresh seed and LEADS.
+    assert.deepEqual(seedCalls, [], 'no re-seed while JS is stale (native must lead)');
+    assert.equal(calls.length, 1);
+    // The merge takes the native lead (3.25 km) → the frozen JS distance is filled screen-off.
+    assert.equal(calls[0].distanceKm, 3.25, 'native leads to fill the frozen distance (merge == native)');
+  } finally {
+    teardown();
+  }
+});
+
+// (c) Native unavailable / flag-off → no seed call, behavior unchanged (exactly the JS distance).
+test('cold-start re-seed: native unavailable performs no re-seed and is unchanged behavior', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs, { distanceKm: 2.75 });
+  setAccumulatedDistanceMeters(2750);
+  recordBackgroundSnapshotUpdate(); // JS fresh — the re-seed WOULD fire if native were available.
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-coldstart-unavailable',
+    mode: 'duel',
+    distanceKm: COMPETITIVE_GOAL_KM,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  // No native module resolves → the re-seed wrapper no-ops AND the merge degrades to JS-only.
+  const teardown = await withNativeDistance(null);
+
+  const calls: UpdateRunningMatchProgressInput[] = [];
+  try {
+    const didFlush = await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      nowMs,
+      updateRunningMatchProgress: async (input) => {
+        calls.push(input);
+        return buildMatchStatusResponse(input.matchId);
+      },
+    });
+
+    assert.equal(didFlush, true);
+    assert.equal(calls.length, 1);
+    // No native influence at all — exactly the JS snapshot distance (the re-seed could not throw or
+    // mutate anything because the native accumulator is unavailable).
+    assert.equal(calls[0].distanceKm, 2.75, 'exactly the JS snapshot distance — re-seed no-op');
   } finally {
     teardown();
   }

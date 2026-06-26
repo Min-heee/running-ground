@@ -22,9 +22,11 @@ import {
 import {
   getMergeableNativeDistanceMeters,
   resolveMergedDistanceKm,
+  seedNativeDistanceAccumulatorToMeters,
   startNativeDistanceAccumulator,
   stopNativeDistanceAccumulator,
 } from '@/features/runs/tracking/background/distanceAccumulatorController';
+import { isMyMatchDistanceStale } from '@/features/runs/sync/matchDistanceStaleness';
 // NAME CLASH: routeAccumulator's getAccumulatedDistanceMeters is the JS AUTHORITATIVE total (the
 // source of truth this whole feature seeds the NATIVE accumulator from). Alias it so it is never
 // confused with the native getAccumulatedDistanceMeters wrapper in the module.
@@ -412,6 +414,30 @@ export async function flushBackgroundMatchProgressSync({
   // "turn your screen on near the finish" reminder. FUTURE REFINEMENT (out of scope here): porting
   // the remaining JS jitter/cold-start/noisy-segment filters into the native accumulators would
   // tighten the live-gap accuracy — do NOT port them now.
+  // COLD-START OVER-COUNT FIX — re-seed the native total to the JS authoritative total whenever MY
+  // JS distance is FRESH. The native accumulator is SEEDED to the JS total at start (so it inherits
+  // every JS filter at t0) but afterward accumulates on its OWN GPS deltas, which mirror only SOME
+  // JS filters (it omits the JS cold-start cluster collapse). At GPS cold start the native therefore
+  // OVER-COUNTS the warmup jitter the JS pipeline discards; because the POST merge is max(jsKm,
+  // nativeKm), that one-time over-count would otherwise be preserved forever as a CONSTANT offset
+  // (real-device build-41: a fixed ~55m lead from the start despite near-equal pace).
+  //
+  // Re-seeding the native total to the CURRENT JS total on every fresh flush overwrites any native
+  // cold-start over-count with the fully-JS-filtered value, so foreground the merge is exactly the
+  // JS total (no offset). The native keeps its GPS anchor and accumulates correct deltas afterward.
+  // It only DIVERGES (leads) once JS goes STALE (screen off, JS suspended) and we STOP re-seeding —
+  // which is the existing screen-off behavior that fills the frozen distance, now from a clean
+  // (offset-free) baseline. Freshness uses the SAME isMyMatchDistanceStale signal used elsewhere; the
+  // freshness clock is the last committed JS snapshot (lastSnapshotAtMs), which stops advancing the
+  // instant the JS thread is suspended. No-op on every current binary (the wrapper no-ops when the
+  // native accumulator is unavailable / the kill-switch is off / build-40 lacks seedDistanceAccumulator).
+  const isMyDistanceStaleNow = isMyMatchDistanceStale({
+    lastUpdatedAtMs: getBackgroundSyncDiagnostics().lastSnapshotAtMs,
+    nowMs,
+  });
+  if (!isMyDistanceStaleNow) {
+    seedNativeDistanceAccumulatorToMeters(getJsAccumulatedDistanceMeters());
+  }
   const mergedRawKm = resolveMergedDistanceKm({
     jsDistanceKm: snapshot.distanceKm,
     nativeMeters: getMergeableNativeDistanceMeters(),

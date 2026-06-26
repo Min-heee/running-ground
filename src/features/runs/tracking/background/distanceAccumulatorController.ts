@@ -153,6 +153,45 @@ export function getMergeableNativeDistanceMeters(): number {
   }
 }
 
+// SYNCHRONOUS re-seed of the native total to the JS authoritative total, on the hot flush path.
+//
+// WHY: the native accumulator is SEEDED to the JS total at start, so it inherits all the JS distance
+// filters at t0 — but it then accumulates on its OWN GPS deltas, which mirror only SOME of the JS
+// filters (it omits the JS cold-start cluster collapse). At GPS cold start the native therefore
+// OVER-COUNTS the warmup jitter the JS pipeline discards, and because the POST merge is
+// max(jsKm, nativeKm), that one-time over-count is preserved forever as a CONSTANT offset.
+//
+// Re-seeding the native total to the CURRENT JS total whenever the JS distance is FRESH erases that
+// over-count: each fresh flush overwrites the native total with the fully-JS-filtered value, so the
+// native only ever DIVERGES (leads) once JS goes stale (screen off) and stops being re-seeded — the
+// existing screen-off lead behavior is preserved, just from a clean (offset-free) baseline. The
+// native keeps its GPS anchor, so it accumulates correct deltas after each re-seed.
+//
+// No-op (never throws) when the kill-switch is off, no module is cached, the native accumulator is
+// unavailable, OR the native lacks seedDistanceAccumulator (e.g. build 40, where the fn is absent) —
+// so this stays OTA-safe on every current binary, exactly like getMergeableNativeDistanceMeters.
+// Returns true only when the native total was actually re-seeded.
+export function seedNativeDistanceAccumulatorToMeters(meters: number): boolean {
+  if (!ENABLE_NATIVE_DISTANCE_MERGE || !cachedModule) {
+    return false;
+  }
+
+  const safeMeters = Number.isFinite(meters) && meters > 0 ? meters : 0;
+
+  try {
+    if (!cachedModule.isNativeDistanceAccumulatorAvailable()) {
+      return false;
+    }
+    if (typeof cachedModule.seedDistanceAccumulator !== 'function') {
+      return false;
+    }
+    cachedModule.seedDistanceAccumulator(safeMeters);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 let lastStartedMatchKey: string | null = null;
 
 // Start native GPS distance accumulation for the match + SEED it to the JS authoritative total at
