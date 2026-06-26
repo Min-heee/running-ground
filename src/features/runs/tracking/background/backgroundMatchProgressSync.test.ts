@@ -12,6 +12,7 @@ import {
   flushBackgroundMatchProgressSync,
   getBackgroundMatchProgressContext,
   isBackgroundMatchProgressInFlightStale,
+  NATIVE_SUBGOAL_CAP_EPSILON_KM,
   resetBackgroundMatchProgressSyncForTest,
   setBackgroundMatchProgressContext,
   setBackgroundMatchStatusApplier,
@@ -20,6 +21,46 @@ import {
   INITIAL_SNAPSHOT,
   setSnapshotState,
 } from '@/features/runs/tracking/background/snapshotStore';
+import {
+  resetNativeDistanceAccumulatorForTest,
+  setNativeDistanceAccumulatorModuleForTest,
+  startNativeDistanceAccumulator,
+} from '@/features/runs/tracking/background/distanceAccumulatorController';
+import { MATCH_GOAL_DISTANCE_TOLERANCE_KM } from '@/features/runs/sync/matchProgressSync';
+
+// Wire a fake native DISTANCE accumulator that reports a fixed accumulated total (in meters) so the
+// flush merge reads a controllable native value. Returns a teardown to clear the seam + cache.
+// `availableMeters` is the native accumulator's screen-off total — set it ABOVE the JS snapshot to
+// simulate native over-count (the competitive-integrity case under test).
+async function withNativeDistance(availableMeters: number | null): Promise<() => void> {
+  resetNativeDistanceAccumulatorForTest();
+
+  if (availableMeters == null) {
+    // No native module resolves (Expo Go / old binary / iOS no-op) → merge degrades to JS-only.
+    setNativeDistanceAccumulatorModuleForTest(null);
+    return () => {
+      setNativeDistanceAccumulatorModuleForTest(undefined);
+      resetNativeDistanceAccumulatorForTest();
+    };
+  }
+
+  const fakeModule = {
+    isNativeDistanceAccumulatorAvailable: () => true,
+    startDistanceAccumulator: () => true,
+    seedDistanceAccumulator: () => undefined,
+    getAccumulatedDistanceMeters: () => availableMeters,
+    resetDistanceAccumulator: () => undefined,
+    stopDistanceAccumulator: () => undefined,
+  };
+  setNativeDistanceAccumulatorModuleForTest(fakeModule);
+  // Populate the synchronous cachedModule the flush reads via getMergeableNativeDistanceMeters().
+  await startNativeDistanceAccumulator('seed-match', 0, async () => fakeModule);
+
+  return () => {
+    setNativeDistanceAccumulatorModuleForTest(undefined);
+    resetNativeDistanceAccumulatorForTest();
+  };
+}
 
 function buildMatchStatusResponse(
   matchId: string,
@@ -681,5 +722,179 @@ test('background match progress applier teardown is identity-scoped', async () =
     assert.equal(appliedBySurvivor.length, 1);
   } finally {
     setBackgroundMatchStatusApplier(null);
+  }
+});
+
+// ============================================================================================
+// COMPETITIVE-INTEGRITY GUARD — native distance is a GAP-ONLY floor that NEVER crosses the goal.
+// The native accumulator omits some JS jitter filters and can OVER-COUNT under real GPS jitter.
+// The flush (a) derives the finish status from the JS snapshot ONLY, and (b) caps the SENT distance
+// strictly below the goal threshold until the JS pipeline itself reaches the goal, so a native
+// over-count can never trigger a premature/unfair finish (client status OR the server's own
+// reachedGoalDistance check). These tests prove that contract end-to-end through the flush.
+// ============================================================================================
+
+const COMPETITIVE_GOAL_KM = 5;
+const COMPETITIVE_GOAL_THRESHOLD_KM = COMPETITIVE_GOAL_KM - MATCH_GOAL_DISTANCE_TOLERANCE_KM;
+
+// (a) Native OVER-COUNTS to/over the goal while the JS snapshot is clearly below it. The sent status
+// must stay 'running' AND the sent distance must be capped STRICTLY below the goal threshold — no
+// premature finish from native over-count (neither the client status nor the server reachedGoal).
+test('competitive-integrity: native over-count below the goal keeps status running AND caps the sent distance below the goal threshold', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs, { distanceKm: 4.6 }); // JS clearly under the goal (filtered, accurate)
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-native-overcount',
+    mode: 'duel',
+    distanceKm: COMPETITIVE_GOAL_KM,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  // Native over-counted PAST the goal (5200m = 5.2km > 5km goal) while the screen was off.
+  const teardown = await withNativeDistance(5200);
+
+  const calls: UpdateRunningMatchProgressInput[] = [];
+  try {
+    const didFlush = await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      nowMs,
+      updateRunningMatchProgress: async (input) => {
+        calls.push(input);
+        return buildMatchStatusResponse(input.matchId);
+      },
+    });
+
+    assert.equal(didFlush, true);
+    assert.equal(calls.length, 1);
+    // Status stays running — native over-count cannot flip the finish.
+    assert.equal(calls[0].status, 'running');
+    // Sent distance is the native floor (live-gap advance) but CAPPED strictly below the goal
+    // threshold so the server's reachedGoalDistance can't trip from native.
+    assert.ok(
+      calls[0].distanceKm < COMPETITIVE_GOAL_THRESHOLD_KM,
+      `sent distance ${calls[0].distanceKm} must be strictly below the goal threshold ${COMPETITIVE_GOAL_THRESHOLD_KM}`,
+    );
+    assert.equal(
+      calls[0].distanceKm,
+      COMPETITIVE_GOAL_THRESHOLD_KM - NATIVE_SUBGOAL_CAP_EPSILON_KM,
+      'capped to (goalThreshold - epsilon) — the native floor advances right up to just below the goal',
+    );
+    // The sent distance still ADVANCED the opponent gap above the JS snapshot (4.6km) — the whole
+    // point of the native floor — without crossing the goal.
+    assert.ok(calls[0].distanceKm > 4.6, 'native floor advanced the live gap above the JS snapshot');
+  } finally {
+    teardown();
+  }
+});
+
+// (b) The JS pipeline itself reaches the goal → the cap LIFTS: full merged distance is sent with
+// status 'finished'. A legit finish.
+test('competitive-integrity: when the JS snapshot reaches the goal, status is finished and the full merged distance is sent', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  // JS itself reached the goal threshold (accurate, all filters) — a legit finish.
+  setRunningSnapshot(nowMs, { distanceKm: COMPETITIVE_GOAL_KM });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-js-finished',
+    mode: 'duel',
+    distanceKm: COMPETITIVE_GOAL_KM,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  // Native is slightly ahead (5050m) — once JS has finished, the full merged value is sent uncapped.
+  const teardown = await withNativeDistance(5050);
+
+  const calls: UpdateRunningMatchProgressInput[] = [];
+  try {
+    const didFlush = await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      nowMs,
+      updateRunningMatchProgress: async (input) => {
+        calls.push(input);
+        return buildMatchStatusResponse(input.matchId);
+      },
+    });
+
+    assert.equal(didFlush, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].status, 'finished', 'JS reached the goal → legit finish');
+    // The cap is lifted: the full merged distance (max of js 5.0 and native 5.05) is sent.
+    assert.equal(calls[0].distanceKm, 5.05, 'full merged distance sent once JS has reached the goal');
+  } finally {
+    teardown();
+  }
+});
+
+// (c) Native BELOW the JS snapshot (the normal case — JS pipeline ahead) → unchanged behavior: the
+// JS distance is sent and the JS-derived status applies. Native never drags the value down.
+test('competitive-integrity: native below the JS snapshot is unchanged behavior (JS distance sent)', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs, { distanceKm: 3.2 });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-native-below',
+    mode: 'duel',
+    distanceKm: COMPETITIVE_GOAL_KM,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  // Native trails the JS snapshot (3000m = 3.0km < 3.2km).
+  const teardown = await withNativeDistance(3000);
+
+  const calls: UpdateRunningMatchProgressInput[] = [];
+  try {
+    const didFlush = await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      nowMs,
+      updateRunningMatchProgress: async (input) => {
+        calls.push(input);
+        return buildMatchStatusResponse(input.matchId);
+      },
+    });
+
+    assert.equal(didFlush, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].status, 'running');
+    // max(js, native) === js — the JS distance is sent, native never drags it down.
+    assert.equal(calls[0].distanceKm, 3.2, 'JS distance sent (native trailing) — unchanged behavior');
+  } finally {
+    teardown();
+  }
+});
+
+// (d) Flag-off / native-unavailable → EXACTLY today's behavior: the JS snapshot distance is sent and
+// the JS-derived status applies, with no native influence at all.
+test('competitive-integrity: native unavailable sends exactly the JS snapshot distance and JS status (today behavior)', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs, { distanceKm: 2.75 });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-native-unavailable',
+    mode: 'duel',
+    distanceKm: COMPETITIVE_GOAL_KM,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  // No native module resolves → getMergeableNativeDistanceMeters() returns 0 → merge is jsKm.
+  const teardown = await withNativeDistance(null);
+
+  const calls: UpdateRunningMatchProgressInput[] = [];
+  try {
+    const didFlush = await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      nowMs,
+      updateRunningMatchProgress: async (input) => {
+        calls.push(input);
+        return buildMatchStatusResponse(input.matchId);
+      },
+    });
+
+    assert.equal(didFlush, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].status, 'running');
+    assert.equal(calls[0].distanceKm, 2.75, 'exactly the JS snapshot distance — no native influence');
+  } finally {
+    teardown();
   }
 });

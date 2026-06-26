@@ -7,6 +7,35 @@ type MatchProgressResponseEvent = {
   body: string;
 };
 
+// NATIVE DISTANCE ACCUMULATOR (NEW — ships in the NEXT native build on BOTH platforms). The native
+// GPS consumer (iOS CLLocationManager fixes / Android FusedLocation) keeps advancing the run's
+// distance while the JS thread is suspended (screen off). It mirrors the JS distance filter
+// constants 1:1 so native and JS produce the same total, and is SEEDED to the JS total at start so
+// both share a single origin (the JS merge then takes max(jsKm, nativeKm) — never a sum).
+type DistanceAccumulatedEvent = {
+  // The native running total in METERS after a fix advanced it (emitted on advance only).
+  meters: number;
+};
+
+// The JS filter constants handed to the native accumulator so it mirrors JS EXACTLY (source:
+// src/features/runs/tracking/background/locationDistance.ts + routeAccumulator.ts). The native side
+// uses ONLY these — it never reads JS state — so the two pipelines stay in lockstep.
+export type DistanceAccumulatorOptions = {
+  // MAX_TRACKING_ACCURACY_METERS (60): reject a fix whose horizontal accuracy is worse than this.
+  maxAccuracyMeters: number;
+  // DISTANCE_GATE_BASE_METERS (2.5): the constant floor of the per-segment distance gate.
+  distanceGateBaseMeters: number;
+  // DISTANCE_GATE_ACCURACY_SCALE (0.15): how much the worst accuracy widens the gate.
+  distanceGateAccuracyScale: number;
+  // MIN_TELEPORT_FILTER_DISTANCE_METERS (35): a segment >= this AND faster than maxSpeedMps is a GPS
+  // teleport and is dropped.
+  teleportMinMeters: number;
+  // MAX_REASONABLE_RUNNING_SPEED_MPS (8.5): the teleport speed ceiling.
+  maxSpeedMps: number;
+  // MAX_LOCATION_AGE_MS (15000): reject a fix whose timestamp is older/newer than this vs now.
+  maxLocationAgeMs: number;
+};
+
 type MatchProgressUploaderNativeModule = {
   // NATIVE: resolves with the response body string the native side already reads (or null on
   // non-2xx / failure) so the JS background flush can apply the opponent's live state instead of
@@ -42,8 +71,31 @@ type MatchProgressUploaderNativeModule = {
   isIgnoringBatteryOptimizations?(): boolean;
   requestIgnoreBatteryOptimizations?(): boolean;
 
-  // Emitter contract used by addListener below (Expo Events("onMatchProgressResponse")).
-  addListener?(eventName: string, listener: (event: MatchProgressResponseEvent) => void): EventSubscription;
+  // NATIVE DISTANCE ACCUMULATOR (NEW — ships in the NEXT native build on BOTH platforms). These
+  // begin/seed/read/reset/stop a native GPS distance total that advances while JS is suspended.
+  // OPTIONAL on the type for the SAME reason as the periodic fns above: the CURRENTLY INSTALLED
+  // binaries do NOT define them, so the `typeof` probe below reports them unavailable and every
+  // wrapper no-ops on those binaries (single OTA bundle stays safe). The native side NEVER feeds
+  // distance back into the JS pipeline on its own — JS reads it explicitly via getAccumulatedDistance
+  // and merges with max(), so the native total can never double-count or jump JS backward.
+  //   - startDistanceAccumulator: begins native GPS accumulation with the JS filter constants. start
+  //     resets the per-fix anchor so the first fix only sets the origin (no initial jump).
+  //   - seedDistanceAccumulator: set the native running total to the JS total at start so native and
+  //     JS share one origin.
+  //   - getAccumulatedDistanceMeters: SYNCHRONOUS read of the native total (Expo Function).
+  //   - resetDistanceAccumulator / stopDistanceAccumulator: clear / stop the accumulation.
+  startDistanceAccumulator?(options: DistanceAccumulatorOptions): boolean;
+  seedDistanceAccumulator?(startMeters: number): void;
+  getAccumulatedDistanceMeters?(): number;
+  resetDistanceAccumulator?(): void;
+  stopDistanceAccumulator?(): void;
+
+  // Emitter contract used by addListener below (Expo Events("onMatchProgressResponse") +
+  // Events("onDistanceAccumulated")).
+  addListener?(
+    eventName: string,
+    listener: (event: MatchProgressResponseEvent | DistanceAccumulatedEvent) => void,
+  ): EventSubscription;
 };
 
 let nativeModule: MatchProgressUploaderNativeModule | null = null;
@@ -228,8 +280,135 @@ export function addMatchProgressResponseListener(
 
   try {
     const subscription = nativeModule.addListener('onMatchProgressResponse', (event) => {
-      if (event && typeof event.body === 'string') {
-        listener(event.body);
+      if (event && typeof (event as MatchProgressResponseEvent).body === 'string') {
+        listener((event as MatchProgressResponseEvent).body);
+      }
+    });
+    return () => {
+      try {
+        subscription.remove();
+      } catch {
+        // Best-effort teardown.
+      }
+    };
+  } catch {
+    return () => undefined;
+  }
+}
+
+// OTA-SAFETY availability gate for the NEW native distance accumulator. Mirrors
+// isNativePeriodicUploaderAvailable EXACTLY: true ONLY when the resolved native module actually
+// exposes ALL the accumulator fns — i.e. ONLY on the next native build. On every CURRENTLY INSTALLED
+// binary (Android APK + iOS TestFlight, neither of which has these fns) and on Expo Go / web / a
+// platform without the module this returns false, so all the wrappers below no-op (start→false,
+// get→0, seed/reset/stop→nothing) and the JS distance pipeline stays the single source of truth.
+// This is what keeps the single OTA bundle safe.
+export function isNativeDistanceAccumulatorAvailable(): boolean {
+  if (nativeModule == null) {
+    return false;
+  }
+
+  return (
+    typeof nativeModule.startDistanceAccumulator === 'function'
+    && typeof nativeModule.seedDistanceAccumulator === 'function'
+    && typeof nativeModule.getAccumulatedDistanceMeters === 'function'
+    && typeof nativeModule.resetDistanceAccumulator === 'function'
+    && typeof nativeModule.stopDistanceAccumulator === 'function'
+  );
+}
+
+// Begin native GPS distance accumulation with the JS filter constants so native mirrors JS. No-op
+// (returns false) on any binary lacking the native fns, so callers do not need their own guard — but
+// they SHOULD still gate with isNativeDistanceAccumulatorAvailable() to avoid the wrapper churn on
+// old binaries. start resets the per-fix anchor so the first fix only sets the origin (no jump).
+export function startDistanceAccumulator(options: DistanceAccumulatorOptions): boolean {
+  if (!isNativeDistanceAccumulatorAvailable()) {
+    return false;
+  }
+
+  try {
+    return nativeModule?.startDistanceAccumulator?.(options) ?? false;
+  } catch {
+    // Best-effort: a failure to start leaves the JS distance pipeline as the only source.
+    return false;
+  }
+}
+
+// Set the native running total to the JS total at start so native and JS share ONE origin. The JS
+// merge then takes max(jsKm, nativeKm), so seeding to the JS total guarantees the native side never
+// adds a backward jump and never double-counts the distance JS already accrued. No-op when
+// unavailable.
+export function seedDistanceAccumulator(startMeters: number): void {
+  if (!isNativeDistanceAccumulatorAvailable()) {
+    return;
+  }
+
+  try {
+    nativeModule?.seedDistanceAccumulator?.(startMeters);
+  } catch {
+    // Best-effort: a failed seed leaves the native total untouched; the merge's max() stays safe.
+  }
+}
+
+// SYNCHRONOUS read of the native distance total in METERS. Returns 0 on any binary lacking the
+// native fn (so max(jsKm, 0/1000) === jsKm === today's behavior) and on any throw, so the merge can
+// call it unconditionally.
+export function getAccumulatedDistanceMeters(): number {
+  if (!isNativeDistanceAccumulatorAvailable()) {
+    return 0;
+  }
+
+  try {
+    const meters = nativeModule?.getAccumulatedDistanceMeters?.();
+    return typeof meters === 'number' && Number.isFinite(meters) && meters > 0 ? meters : 0;
+  } catch {
+    return 0;
+  }
+}
+
+// Reset the native total + per-fix anchor to zero (e.g. a new run start). No-op when unavailable.
+export function resetDistanceAccumulator(): void {
+  if (!isNativeDistanceAccumulatorAvailable()) {
+    return;
+  }
+
+  try {
+    nativeModule?.resetDistanceAccumulator?.();
+  } catch {
+    // Best-effort.
+  }
+}
+
+// Stop native GPS accumulation + tear down the native location consumer (match finish / forfeit /
+// context clear / unmount) so no battery is drained after the run. No-op when unavailable.
+export function stopDistanceAccumulator(): void {
+  if (!isNativeDistanceAccumulatorAvailable()) {
+    return;
+  }
+
+  try {
+    nativeModule?.stopDistanceAccumulator?.();
+  } catch {
+    // Best-effort teardown.
+  }
+}
+
+// Subscribe to the native onDistanceAccumulated emitter, which fires with the running total in
+// METERS after each fix advances it. Returns an unsubscribe fn (no-op when unavailable). The merge
+// in VARIANT 1 reads the total synchronously via getAccumulatedDistanceMeters at flush time, so this
+// listener is OPTIONAL plumbing for a future variant-2 (UI) wiring; it never drives the POST path.
+export function addDistanceAccumulatedListener(
+  listener: (meters: number) => void,
+): () => void {
+  if (nativeModule == null || typeof nativeModule.addListener !== 'function') {
+    return () => undefined;
+  }
+
+  try {
+    const subscription = nativeModule.addListener('onDistanceAccumulated', (event) => {
+      const meters = (event as DistanceAccumulatedEvent)?.meters;
+      if (typeof meters === 'number' && Number.isFinite(meters)) {
+        listener(meters);
       }
     });
     return () => {

@@ -72,12 +72,28 @@ public class MatchProgressUploaderModule: Module {
   // on — here the main thread), so no extra locking is needed.
   private var locationDriver: PeriodicLocationDriver?
 
+  // Native distance accumulator — fed from the SAME PeriodicLocationDriver's didUpdateLocations (no
+  // new CLLocationManager / no new stream). Lives on the module (not the driver) so its total
+  // survives a driver restart and is readable synchronously via getAccumulatedDistanceMeters even
+  // when only the periodic re-POST started the driver. All its mutable state is touched on the main
+  // thread (where Core Location delivers callbacks), matching the driver's threading model — except
+  // the synchronous totalMeters read, which is a single atomic Double load (see DistanceAccumulator).
+  private let distanceAccumulator = DistanceAccumulator()
+
+  // Reference-count which consumers need the shared location driver alive. The driver is torn down
+  // only when BOTH the periodic re-POST and the distance accumulator are stopped, so stopping one
+  // never starves the other. Touched only on the main thread.
+  private var periodicWantsLocation = false
+  private var distanceWantsLocation = false
+
   public func definition() -> ModuleDefinition {
     Name("MatchProgressUploader")
 
     // The emitter the native periodic re-POST fires with the 2xx response body string, so JS can
     // apply the opponent's live state WITHOUT a JS timer (mirrors the Android module).
-    Events("onMatchProgressResponse")
+    // onDistanceAccumulated fires with the native running total in meters after a GPS fix advances
+    // the distance accumulator (so distance keeps moving while JS is suspended).
+    Events("onMatchProgressResponse", "onDistanceAccumulated")
 
     // OTA-SAFETY availability marker (see index.ts). Only the REAL module exposes this; the old
     // no-op binary does not, so iOS availability stays false there.
@@ -115,19 +131,107 @@ public class MatchProgressUploaderModule: Module {
         self.stopPeriodic()
       }
     }
+
+    // MARK: Native distance accumulator (screen-off distance advance)
+
+    // Begin native GPS distance accumulation, wiring the SAME location driver that already runs the
+    // periodic re-POST (no new CLLocationManager / no new stream). The filter constants mirror JS
+    // 1:1. start resets the per-fix anchor (last=nil) so the FIRST fix only sets the origin — the
+    // JS merge seeds the total separately via seedDistanceAccumulator. Returns true when the native
+    // accumulator started (the JS side only relies on the availability gate, but this mirrors the
+    // periodic surface's start/stop shape).
+    Function("startDistanceAccumulator") { (options: [String: Any]) -> Bool in
+      self.runOnMain {
+        self.startDistanceAccumulator(options: options)
+      }
+      return true
+    }
+
+    // Set the native running total to the given meters (the JS authoritative total at start) so
+    // native and JS share ONE origin. start has already reset last=nil, so the next fix anchors
+    // without adding a jump.
+    Function("seedDistanceAccumulator") { (startMeters: Double) in
+      self.runOnMain {
+        self.distanceAccumulator.seed(meters: startMeters)
+      }
+    }
+
+    // SYNCHRONOUS read of the native distance total in meters. Returns 0 before any accumulation.
+    Function("getAccumulatedDistanceMeters") { () -> Double in
+      return self.distanceAccumulator.totalMeters
+    }
+
+    // Reset the native total + per-fix anchor to zero (new run start).
+    Function("resetDistanceAccumulator") {
+      self.runOnMain {
+        self.distanceAccumulator.reset()
+      }
+    }
+
+    // Stop native distance accumulation. The shared location driver is torn down only when NEITHER
+    // the periodic re-POST nor the distance accumulator needs it (see stopDistanceAccumulator).
+    Function("stopDistanceAccumulator") {
+      self.runOnMain {
+        self.stopDistanceAccumulation()
+      }
+    }
   }
 
   // MARK: - Periodic lifecycle
 
   private func startPeriodic(url: String, authToken: String, jsonBody: String, intervalMs: Int) {
-    // Already running: refresh the payload and keep the existing location session (mirrors Kotlin's
-    // "scheduledTask != null → just update payload" early return).
-    if let driver = locationDriver {
-      driver.updatePayload(url: url, authToken: authToken, jsonBody: jsonBody)
-      return
-    }
-
     let intervalSeconds = (intervalMs > 0 ? Double(intervalMs) : Double(MatchProgressUploaderModule.defaultIntervalMs)) / 1000.0
+    periodicWantsLocation = true
+    let driver = ensureLocationDriver(intervalSeconds: intervalSeconds)
+    // Refresh the cached payload on every start (mirrors Kotlin's "scheduledTask != null → just
+    // update payload" early return — here the shared driver may already be running for the distance
+    // accumulator, so always refresh + (re-)start.)
+    driver.updatePayload(url: url, authToken: authToken, jsonBody: jsonBody)
+    // AUTHORIZATION/CRASH-SAFETY is enforced inside start(): the driver only flips
+    // allowsBackgroundLocationUpdates when status is .authorizedAlways, and no-ops the location
+    // session entirely for non-authorized states so it can never crash. start() is idempotent.
+    driver.start()
+  }
+
+  private func stopPeriodic() {
+    // BATTERY/LIFECYCLE: clear the cached payload so no re-POST fires, then tear down the shared
+    // location session ONLY if the distance accumulator no longer needs it either.
+    periodicWantsLocation = false
+    locationDriver?.clearPayload()
+    teardownLocationDriverIfIdle()
+  }
+
+  // MARK: - Distance accumulator lifecycle
+
+  private func startDistanceAccumulator(options: [String: Any]) {
+    distanceAccumulator.configure(options: options)
+    // start resets the per-fix anchor so the first fix only sets the origin (no initial jump); the
+    // running total is preserved so a same-run re-start (e.g. a second background flush) does not
+    // lose accrued distance — the JS merge seeds the baseline separately.
+    distanceAccumulator.beginSession()
+    distanceWantsLocation = true
+    // Reuse the SAME shared driver as the periodic re-POST (no new CLLocationManager). If the
+    // periodic path has not started it, this brings it up at the periodic default cadence; the
+    // distance accumulator does not care about the throttle interval (it consumes every fix).
+    let driver = ensureLocationDriver(intervalSeconds: Double(MatchProgressUploaderModule.defaultIntervalMs) / 1000.0)
+    driver.start()
+  }
+
+  private func stopDistanceAccumulation() {
+    // Stop feeding distance, then tear down the shared session ONLY if the periodic re-POST no
+    // longer needs it either — so distance stop never starves an in-flight match re-POST.
+    distanceWantsLocation = false
+    teardownLocationDriverIfIdle()
+  }
+
+  // MARK: - Shared location driver lifecycle
+
+  // Create the shared driver on first need; reuse it otherwise. The driver feeds BOTH the periodic
+  // re-POST throttle AND the distance accumulator from one didUpdateLocations stream.
+  private func ensureLocationDriver(intervalSeconds: Double) -> PeriodicLocationDriver {
+    if let driver = locationDriver {
+      return driver
+    }
 
     let driver = PeriodicLocationDriver(
       intervalSeconds: intervalSeconds,
@@ -137,19 +241,29 @@ public class MatchProgressUploaderModule: Module {
       emit: { [weak self] body in
         // On a 2xx, emit the body so JS applies the opponent board WITHOUT a JS timer.
         self?.sendEvent("onMatchProgressResponse", ["body": body])
+      },
+      onLocation: { [weak self] location in
+        // Feed every delivered fix into the distance accumulator. It self-gates on the want-flag so
+        // a driver kept alive purely for the periodic re-POST does not accrue distance.
+        guard let self = self, self.distanceWantsLocation else {
+          return
+        }
+        if let advancedMeters = self.distanceAccumulator.consume(location: location) {
+          self.sendEvent("onDistanceAccumulated", ["meters": advancedMeters])
+        }
       }
     )
     locationDriver = driver
-    driver.updatePayload(url: url, authToken: authToken, jsonBody: jsonBody)
-    // AUTHORIZATION/CRASH-SAFETY is enforced inside start(): the driver only flips
-    // allowsBackgroundLocationUpdates when status is .authorizedAlways, and no-ops the location
-    // session entirely for non-authorized states so it can never crash.
-    driver.start()
+    return driver
   }
 
-  private func stopPeriodic() {
-    // BATTERY/LIFECYCLE: fully stop + release the location session and clear the cached payload so
-    // nothing keeps the GPS/CPU alive once the match ends.
+  // Tear the shared driver down ONLY when neither consumer needs it, so stopping one path never
+  // kills the other's GPS. Fully releases the CLLocationManager so nothing drains battery once the
+  // match ends.
+  private func teardownLocationDriverIfIdle() {
+    if periodicWantsLocation || distanceWantsLocation {
+      return
+    }
     locationDriver?.stop()
     locationDriver = nil
   }
@@ -166,6 +280,9 @@ public class MatchProgressUploaderModule: Module {
 
   deinit {
     // OnDestroy-equivalent: guarantee the location session can never leak past module teardown.
+    // Clear both want-flags so neither consumer keeps the driver alive after teardown.
+    periodicWantsLocation = false
+    distanceWantsLocation = false
     let driver = locationDriver
     locationDriver = nil
     if let driver = driver {
@@ -242,6 +359,9 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
   // helper and never recomputes the payload.
   private let send: (String, String, String, @escaping (String?) -> Void) -> Void
   private let emit: (String) -> Void
+  // Per-fix hook so the module can feed the distance accumulator from this SAME location stream
+  // (no second CLLocationManager). Invoked on the main thread for every delivered location.
+  private let onLocation: (CLLocation) -> Void
 
   private var manager: CLLocationManager?
 
@@ -261,11 +381,13 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
   init(
     intervalSeconds: Double,
     send: @escaping (String, String, String, @escaping (String?) -> Void) -> Void,
-    emit: @escaping (String) -> Void
+    emit: @escaping (String) -> Void,
+    onLocation: @escaping (CLLocation) -> Void
   ) {
     self.intervalSeconds = intervalSeconds
     self.send = send
     self.emit = emit
+    self.onLocation = onLocation
     super.init()
   }
 
@@ -273,6 +395,17 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
     self.url = url
     self.token = authToken
     self.body = jsonBody
+  }
+
+  // Clear ONLY the cached re-POST payload (used when the periodic re-POST stops but the distance
+  // accumulator still needs the shared location stream). maybePost() then early-returns on the nil
+  // payload, so no POST fires, while didUpdateLocations keeps feeding the accumulator.
+  func clearPayload() {
+    self.url = nil
+    self.token = nil
+    self.body = nil
+    self.periodicInFlight = false
+    self.lastPostAt = 0
   }
 
   func start() {
@@ -328,6 +461,12 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
   // MARK: CLLocationManagerDelegate
 
   func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+    // Feed every delivered fix into the distance accumulator FIRST (in chronological order), then
+    // run the throttled re-POST. The accumulator self-gates inside the module, so this is a cheap
+    // no-op when distance accumulation is not active.
+    for location in locations {
+      onLocation(location)
+    }
     maybePost()
   }
 
@@ -370,5 +509,139 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
         }
       }
     }
+  }
+}
+
+// MARK: - DistanceAccumulator
+
+// Native running-total distance, advanced from the SAME location stream as the periodic re-POST so
+// a run's distance keeps moving while the JS thread is suspended (screen off). Mirrors the JS filter
+// chain (src/features/runs/tracking/background/locationDistance.ts + routeAccumulator.ts) 1:1, but
+// pared down to the per-segment gate the screen-off case needs — it intentionally does NOT replicate
+// JS's route-history cold-start / jitter-collapse passes (those re-walk the whole route, which the
+// native side does not keep). The JS pipeline stays the authoritative total in the foreground; the
+// JS merge takes max(jsKm, nativeKm) so this conservative-by-design total can only ADD distance JS
+// missed while suspended, never subtract or jump JS backward.
+//
+// Threading: configure/seed/reset/beginSession/consume are all invoked on the MAIN thread (Core
+// Location callbacks + the runOnMain-marshalled Expo Functions). The synchronous totalMeters read
+// can come from any thread (Expo Function bodies may run off-main), so the total is guarded by an
+// NSLock (Foundation — already imported) — a single Double load/store, no GPS work under the lock.
+private final class DistanceAccumulator {
+  // JS filter constants, injected from JS so the two pipelines stay in lockstep. Defaults mirror the
+  // JS source values so a missing/garbled option can never widen the gate open.
+  private var maxAccuracyMeters: Double = 60
+  private var distanceGateBaseMeters: Double = 2.5
+  private var distanceGateAccuracyScale: Double = 0.15
+  private var teleportMinMeters: Double = 35
+  private var maxSpeedMps: Double = 8.5
+  private var maxLocationAgeMs: Double = 15000
+
+  // The last COUNTED fix (the distance-gate anchor — mirrors JS lastCountedPoint). nil until the
+  // first accepted fix, so the first fix only sets the anchor (no initial jump).
+  private var lastCounted: CLLocation?
+
+  // Running total in meters, guarded for the cross-thread synchronous read.
+  private var total: Double = 0
+  private let lock = NSLock()
+
+  // Synchronous, thread-safe read of the running total in meters.
+  var totalMeters: Double {
+    lock.lock()
+    defer { lock.unlock() }
+    return total
+  }
+
+  // Apply the JS filter constants. Unknown/garbled values fall back to the JS defaults above, so the
+  // gate can never be accidentally disabled.
+  func configure(options: [String: Any]) {
+    if let value = options["maxAccuracyMeters"] as? Double { maxAccuracyMeters = value }
+    if let value = options["distanceGateBaseMeters"] as? Double { distanceGateBaseMeters = value }
+    if let value = options["distanceGateAccuracyScale"] as? Double { distanceGateAccuracyScale = value }
+    if let value = options["teleportMinMeters"] as? Double { teleportMinMeters = value }
+    if let value = options["maxSpeedMps"] as? Double { maxSpeedMps = value }
+    if let value = options["maxLocationAgeMs"] as? Double { maxLocationAgeMs = value }
+  }
+
+  // Begin a session: drop the per-fix anchor so the FIRST fix after start only sets the origin (no
+  // initial jump). The running total is PRESERVED so a same-run re-start does not lose accrued
+  // distance — the JS side seeds the baseline separately via seed(meters:).
+  func beginSession() {
+    lastCounted = nil
+  }
+
+  // Set the running total to the JS authoritative total at start so native and JS share one origin.
+  func seed(meters: Double) {
+    lock.lock()
+    total = meters.isFinite && meters > 0 ? meters : 0
+    lock.unlock()
+  }
+
+  // Full reset (new run): zero the total and drop the anchor.
+  func reset() {
+    lastCounted = nil
+    lock.lock()
+    total = 0
+    lock.unlock()
+  }
+
+  // Consume one delivered fix. Returns the NEW total in meters when the fix advanced the distance,
+  // or nil when the fix was rejected/gated (so the caller only emits onDistanceAccumulated on a real
+  // advance). Mirrors the JS appendTrackedLocation per-segment path:
+  //   - reject horizontalAccuracy < 0 (invalid) or > maxAccuracyMeters (MAX_TRACKING_ACCURACY_METERS)
+  //   - reject if abs(now - timestamp) > maxLocationAgeMs (resolveLocationTimestampMs age window)
+  //   - first accepted fix only sets the anchor (no jump)
+  //   - segment = current.distance(from: last) — CoreLocation's geodesic (battery-free), matching
+  //     the JS haversine within GPS noise
+  //   - gate = distanceGateBaseMeters + worstAccuracy * distanceGateAccuracyScale; skip if seg < gate
+  //   - teleport: skip if seg >= teleportMinMeters AND seg/dt > maxSpeedMps
+  //   - else total += seg, advance the anchor, return the new total
+  func consume(location current: CLLocation) -> Double? {
+    let accuracy = current.horizontalAccuracy
+    // Reject invalid (negative) or too-coarse fixes (mirrors normalizeAccuracyMeters + the JS
+    // MAX_TRACKING_ACCURACY_METERS drop).
+    if accuracy < 0 || accuracy > maxAccuracyMeters {
+      return nil
+    }
+
+    // Reject stale/future fixes (mirrors resolveLocationTimestampMs's age window). CLLocation.timestamp
+    // is wall-clock; compare to now in ms.
+    let ageMs = abs(Date().timeIntervalSince(current.timestamp)) * 1000.0
+    if ageMs > maxLocationAgeMs {
+      return nil
+    }
+
+    guard let last = lastCounted else {
+      // First accepted fix: set the anchor only. No distance is added (no initial jump), matching
+      // the JS "previousPoint == null" cold-start that just seeds lastCountedPoint.
+      lastCounted = current
+      return nil
+    }
+
+    let segmentMeters = current.distance(from: last)
+    let worstAccuracy = max(last.horizontalAccuracy >= 0 ? last.horizontalAccuracy : 0, accuracy >= 0 ? accuracy : 0)
+    let gate = distanceGateBaseMeters + worstAccuracy * distanceGateAccuracyScale
+
+    // Distance gate (mirrors resolveDistanceGateMeters): below the gate is GPS noise, not movement —
+    // do NOT advance the anchor (JS keeps the same lastCountedPoint), so a slow drift accumulates
+    // until it crosses the gate from the SAME anchor.
+    if segmentMeters < gate {
+      return nil
+    }
+
+    // Teleport filter (mirrors the JS MIN_TELEPORT_FILTER_DISTANCE_METERS + MAX_REASONABLE_RUNNING_SPEED_MPS
+    // drop): a long segment covered impossibly fast is a GPS jump — drop it and do NOT advance the
+    // anchor, so the next in-range fix re-anchors off the last good position.
+    let dtSeconds = current.timestamp.timeIntervalSince(last.timestamp)
+    if segmentMeters >= teleportMinMeters && dtSeconds > 0 && (segmentMeters / dtSeconds) > maxSpeedMps {
+      return nil
+    }
+
+    lock.lock()
+    total += segmentMeters
+    let newTotal = total
+    lock.unlock()
+    lastCounted = current
+    return newTotal
   }
 }

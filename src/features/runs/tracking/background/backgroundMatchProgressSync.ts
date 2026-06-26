@@ -19,6 +19,16 @@ import {
   startPeriodicMatchUpload,
   stopPeriodicMatchUpload,
 } from '@/features/runs/tracking/background/periodicMatchUploadController';
+import {
+  getMergeableNativeDistanceMeters,
+  resolveMergedDistanceKm,
+  startNativeDistanceAccumulator,
+  stopNativeDistanceAccumulator,
+} from '@/features/runs/tracking/background/distanceAccumulatorController';
+// NAME CLASH: routeAccumulator's getAccumulatedDistanceMeters is the JS AUTHORITATIVE total (the
+// source of truth this whole feature seeds the NATIVE accumulator from). Alias it so it is never
+// confused with the native getAccumulatedDistanceMeters wrapper in the module.
+import { getAccumulatedDistanceMeters as getJsAccumulatedDistanceMeters } from '@/features/runs/tracking/background/routeAccumulator';
 
 // 3s (was 5s): tighten how stale a backgrounded runner's progress is on the server so the
 // opponent's live distance lags less. Aligned with BACKGROUND_MATCH_PROGRESS_TIMER_MS (3s).
@@ -37,6 +47,13 @@ export const BACKGROUND_MATCH_PROGRESS_INFLIGHT_STALE_MS = 6_000;
 // IS a JS timeout (apiClient.ts wires AbortController + setTimeout); the 6s stale guard above
 // is the backstop for the case where that JS timer cannot fire because JS was frozen.
 export const BACKGROUND_MATCH_PROGRESS_PUSH_TIMEOUT_MS = 4_000;
+// COMPETITIVE-INTEGRITY GUARD — when the native distance accumulator (which omits some JS jitter
+// filters and can OVER-COUNT) would push the sent distance up to/over the goal before the
+// authoritative JS pipeline has actually reached it, the sent distance is capped to
+// (goalThreshold - EPSILON). This tiny epsilon keeps the capped value STRICTLY below the goal
+// threshold so the server's own `reachedGoalDistance = distanceKm >= goal - tolerance` check
+// cannot trip from native over-count. The finish only fires when JS itself crosses the goal.
+export const NATIVE_SUBGOAL_CAP_EPSILON_KM = 0.001;
 
 export type BackgroundMatchProgressContext = {
   matchId: string;
@@ -281,6 +298,10 @@ export function clearBackgroundMatchProgressContext(matchId?: string | null) {
   // match is torn down so the second iOS location consumer / Android executor can never leak past
   // the match. No-op on current binaries (availability gate). Fire-and-forget — never block clear.
   void stopPeriodicMatchUpload().catch(() => undefined);
+  // Stop the native DISTANCE accumulator too — strictly gated to an active match, so its GPS
+  // consumer must tear down the instant the match ends (no battery drain after the run). No-op on
+  // current binaries (availability gate). Fire-and-forget — never block clear.
+  void stopNativeDistanceAccumulator().catch(() => undefined);
 }
 
 export function getBackgroundMatchProgressContext() {
@@ -296,7 +317,7 @@ export function resetBackgroundMatchProgressSyncForTest() {
   inFlightBackgroundMatchProgressAbort = null;
 }
 
-function resolveBackgroundHeartbeatStatus(
+export function resolveBackgroundHeartbeatStatus(
   distanceKm: number,
   targetDistanceKm: number,
 ): UpdateRunningMatchProgressInput['status'] {
@@ -364,10 +385,52 @@ export async function flushBackgroundMatchProgressSync({
   }
 
   const elapsedSeconds = Math.floor(resolveSnapshotElapsedMs(snapshot, nowMs) / 1000);
+  // VARIANT 1 (POST-only) native distance merge. getMergeableNativeDistanceMeters() returns 0 unless
+  // BOTH the native accumulator is available AND ENABLE_NATIVE_DISTANCE_MERGE is on, so when native
+  // is unavailable / the kill-switch is off this is max(jsKm, 0) === jsKm === EXACTLY today's
+  // behavior. In the foreground the JS pipeline is ahead, so max() === jsKm and the foreground UI
+  // path is unchanged. This merged value drives the POST payload ONLY — the snapshot store / UI is
+  // NOT mutated here (that is a later variant-2 follow-up), so the foreground UI stays 100% on the
+  // existing JS path. The native total is SEEDED to the JS total at start and merged with max(), so
+  // it can never double-count or jump the distance backward.
+  //
+  // COMPETITIVE-INTEGRITY GUARD — native distance is a GAP-ONLY FLOOR that NEVER crosses the goal.
+  // The native accumulator mirrors only SOME of the JS distance filters (it omits the JS
+  // lateral-jitter collapse, cold-start, and noisy-segment filters), so under real GPS jitter the
+  // native total can OVER-COUNT vs the authoritative JS pipeline. Because the merge is max(), that
+  // over-count can only push the value UP — which, if it fed the finish status or an un-capped sent
+  // distance, could flip a runner to 'finished' (or trip the server's own
+  // `reachedGoalDistance = distanceKm >= goal - tolerance` check) BEFORE they actually reached the
+  // goal — a premature/unfair finish in a 1v1/group match. To make that impossible while still
+  // letting the opponent see my distance advance screen-off:
+  //   (1) FINISH STATUS comes from the JS snapshot ONLY (snapshot.distanceKm, fully filtered), never
+  //       the merged value, so native over-count can never flip the status to 'finished'.
+  //   (2) The SENT distance is CAPPED strictly below the goal threshold until JS itself reaches the
+  //       goal, so the server's own reachedGoalDistance can't trip from a native over-count either.
+  // When the JS pipeline (accurate, all filters) crosses the goal, the cap lifts: the full merged
+  // distance is sent with status 'finished' — a legit finish. This lines up with the shipped
+  // "turn your screen on near the finish" reminder. FUTURE REFINEMENT (out of scope here): porting
+  // the remaining JS jitter/cold-start/noisy-segment filters into the native accumulators would
+  // tighten the live-gap accuracy — do NOT port them now.
+  const mergedRawKm = resolveMergedDistanceKm({
+    jsDistanceKm: snapshot.distanceKm,
+    nativeMeters: getMergeableNativeDistanceMeters(),
+    nativeAvailable: true,
+  });
+  // (1) Finish status from the JS snapshot ONLY — native over-count can never flip to 'finished'.
   const status = resolveBackgroundHeartbeatStatus(snapshot.distanceKm, context.distanceKm);
+  // (2) Cap the sent distance strictly below the goal threshold until JS reaches the goal. EPSILON
+  // keeps the capped value below the threshold so the server's reachedGoalDistance can't trip from
+  // native. Once JS has reached the goal, send the full merged distance (legit finish).
+  const goalThresholdKm = context.distanceKm - MATCH_GOAL_DISTANCE_TOLERANCE_KM;
+  const jsReachedGoal = snapshot.distanceKm >= goalThresholdKm;
+  const distanceToSendKm = jsReachedGoal
+    ? mergedRawKm
+    : Math.min(mergedRawKm, goalThresholdKm - NATIVE_SUBGOAL_CAP_EPSILON_KM);
+  const mergedDistanceKm = distanceToSendKm;
   const progress = buildSyncedMatchProgressSnapshot({
     matchId: context.matchId,
-    distanceKm: snapshot.distanceKm,
+    distanceKm: mergedDistanceKm,
     elapsedSeconds,
     currentPace: snapshot.currentPace,
     status,
@@ -414,6 +477,17 @@ export async function flushBackgroundMatchProgressSync({
           { url: periodicUrl, authToken: token, jsonBody: requestBody },
           applyPeriodicNativeMatchStatusBody,
           PERIODIC_MATCH_UPLOAD_INTERVAL_MS,
+        ).catch(() => undefined);
+
+        // NATIVE DISTANCE ACCUMULATOR (next build only — OTA-safe via the controller's availability
+        // gate + the ENABLE_NATIVE_DISTANCE_MERGE kill-switch, which no-op on every current binary).
+        // Start the native GPS distance accumulation for this match and SEED it to the JS
+        // authoritative total at THIS instant, so native and JS share one origin (the merge above
+        // then takes max(jsKm, nativeKm) — never a sum, never a backward jump). Idempotent for the
+        // same match (a re-start just re-seeds). Fire-and-forget so it never blocks the push.
+        void startNativeDistanceAccumulator(
+          input.matchId,
+          getJsAccumulatedDistanceMeters(),
         ).catch(() => undefined);
 
         recordBackgroundHeartbeatAttempt();

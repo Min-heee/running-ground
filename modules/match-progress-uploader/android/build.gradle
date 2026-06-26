@@ -16,3 +16,11 @@ android {
     abortOnError false
   }
 }
+
+dependencies {
+  // FusedLocationProviderClient for the native distance accumulator's GPS consumer. The service
+  // falls back to the platform LocationManager GPS_PROVIDER (no extra dep) when Play Services is
+  // unavailable, so this is the happy-path provider only — kept minimal, no version pin so it
+  // resolves against the app's existing Play Services BOM via Expo autolinking.
+  implementation 'com.google.android.gms:play-services-location:21.3.0'
+}

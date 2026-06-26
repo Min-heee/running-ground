@@ -18,6 +18,9 @@ import {
 import {
   stopPeriodicMatchUpload,
 } from '@/features/runs/tracking/background/periodicMatchUploadController';
+import {
+  stopNativeDistanceAccumulator,
+} from '@/features/runs/tracking/background/distanceAccumulatorController';
 import type { TrackerStatus } from '@/features/runs/hooks/useRunTracking';
 import type { UpdateRunningMatchProgressInput } from '@/lib/api/types';
 import {
@@ -153,6 +156,11 @@ export function useTrackingAppStateSync({
     // it re-starts automatically on the next background flush. No-op on current binaries (gate).
     if (nextState === 'active') {
       void stopPeriodicMatchUpload().catch(() => undefined);
+      // Stop the native distance accumulator on foreground resume too: in the foreground the JS
+      // pipeline is authoritative (JS >= native via the merge's max()), so the native GPS consumer
+      // is redundant and only burns battery. It re-starts + re-seeds to the JS total on the next
+      // background flush. No-op on current binaries (availability gate).
+      void stopNativeDistanceAccumulator().catch(() => undefined);
     }
     const plan = resolveTrackingAppStateSyncPlan({
       nextState,
@@ -200,6 +208,9 @@ export function useTrackingAppStateSync({
       // Belt-and-braces: a non-running tracker must never leave the native periodic cadence (and
       // its iOS second-location consumer) alive. No-op on current binaries (availability gate).
       void stopPeriodicMatchUpload().catch(() => undefined);
+      // Likewise the native distance accumulator: a non-running tracker must never leave its GPS
+      // consumer alive (no battery drain after the run). No-op on current binaries.
+      void stopNativeDistanceAccumulator().catch(() => undefined);
       return undefined;
     }
 
@@ -207,6 +218,7 @@ export function useTrackingAppStateSync({
     return () => {
       stopBackgroundMatchProgressTimer();
       void stopPeriodicMatchUpload().catch(() => undefined);
+      void stopNativeDistanceAccumulator().catch(() => undefined);
     };
   }, [enabled, trackerStatus]);
 

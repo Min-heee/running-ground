@@ -29,6 +29,16 @@ class MatchProgressUploaderModule : Module() {
     }
   }
 
+  // Bridge the foreground service's native distance accumulator advances to the JS emitter. Mirrors
+  // responseListener above. Registered on distance start, cleared on stop/destroy.
+  private val distanceListener: (Double) -> Unit = { meters ->
+    try {
+      sendEvent("onDistanceAccumulated", mapOf("meters" to meters))
+    } catch (emitError: Throwable) {
+      Log.w("RGNativeUpload", "distance emit failed: ${emitError.message}")
+    }
+  }
+
   private val appContextOrNull: Context?
     get() = appContext.reactContext
 
@@ -36,8 +46,9 @@ class MatchProgressUploaderModule : Module() {
     Name("MatchProgressUploader")
 
     // The emitter the native periodic re-POST fires with the 2xx response body string, so JS can
-    // apply the opponent's live state WITHOUT a JS timer.
-    Events("onMatchProgressResponse")
+    // apply the opponent's live state WITHOUT a JS timer. onDistanceAccumulated fires with the
+    // native running total in meters after a GPS fix advances the distance accumulator.
+    Events("onMatchProgressResponse", "onDistanceAccumulated")
 
     // OTA-SAFETY availability marker — mirrors the iOS Swift module's Property("available").
     Property("available") {
@@ -74,6 +85,41 @@ class MatchProgressUploaderModule : Module() {
       stopUploadService()
     }
 
+    // NATIVE DISTANCE ACCUMULATOR — begin GPS distance accumulation in the foreground service with
+    // the JS filter constants so native mirrors JS. Wires the onDistanceAccumulated bridge so each
+    // advance can reach JS. Returns true when the start intent was dispatched.
+    Function("startDistanceAccumulator") { options: Map<String, Any?> ->
+      MatchDistanceBus.setListener(distanceListener)
+      startDistanceService(MatchUploadForegroundService.ACTION_DISTANCE_START, options)
+      true
+    }
+
+    // Seed the native running total to the JS authoritative total at start so native + JS share one
+    // origin (the JS merge then takes max(jsKm, nativeKm) — never a sum).
+    Function("seedDistanceAccumulator") { startMeters: Double ->
+      val intent = buildDistanceIntent(MatchUploadForegroundService.ACTION_DISTANCE_SEED) ?: return@Function
+      intent.putExtra(MatchUploadForegroundService.EXTRA_DISTANCE_SEED_METERS, startMeters)
+      dispatchServiceIntent(intent)
+    }
+
+    // SYNCHRONOUS read of the native distance total in meters, published by the service via
+    // MatchDistanceBus. 0 before any accumulation. The merge calls this at flush time.
+    Function("getAccumulatedDistanceMeters") {
+      MatchDistanceBus.totalMeters
+    }
+
+    // Reset the native total + per-fix anchor (new run start).
+    Function("resetDistanceAccumulator") {
+      startDistanceService(MatchUploadForegroundService.ACTION_DISTANCE_RESET, emptyMap())
+    }
+
+    // Stop native distance accumulation + tear down the GPS consumer (match finish / forfeit /
+    // context clear / unmount) so no battery is drained after the run.
+    Function("stopDistanceAccumulator") {
+      MatchDistanceBus.setListener(null)
+      startDistanceService(MatchUploadForegroundService.ACTION_DISTANCE_STOP, emptyMap())
+    }
+
     // BATTERY-OPT EXEMPTION — is the app currently exempt from Doze/적응형 배터리? Samsung needs an
     // explicit exemption on top of the manual exclusion the user did. Safe on every API level.
     Function("isIgnoringBatteryOptimizations") {
@@ -89,9 +135,60 @@ class MatchProgressUploaderModule : Module() {
 
     OnDestroy {
       MatchUploadResponseBus.setListener(null)
+      MatchDistanceBus.setListener(null)
       // Do NOT stop the service here on a routine reload — but DO shut down the in-process
       // executor. The service is stopped explicitly via stopPeriodicUpload on match end.
       executor.shutdownNow()
+    }
+  }
+
+  // Dispatch a distance-accumulator service intent carrying the JS filter constants (for START) or
+  // nothing extra (RESET/STOP). Mirrors startUploadService. Best-effort: never throws into JS.
+  private fun startDistanceService(action: String, options: Map<String, Any?>) {
+    val intent = buildDistanceIntent(action) ?: return
+    if (action == MatchUploadForegroundService.ACTION_DISTANCE_START) {
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MAX_ACCURACY_METERS, options["maxAccuracyMeters"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_DISTANCE_GATE_BASE_METERS, options["distanceGateBaseMeters"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_DISTANCE_GATE_ACCURACY_SCALE, options["distanceGateAccuracyScale"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_TELEPORT_MIN_METERS, options["teleportMinMeters"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MAX_SPEED_MPS, options["maxSpeedMps"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MAX_LOCATION_AGE_MS, options["maxLocationAgeMs"])
+    }
+    dispatchServiceIntent(intent)
+  }
+
+  private fun putDistanceOption(intent: Intent, key: String, value: Any?) {
+    val asDouble = when (value) {
+      is Double -> value
+      is Float -> value.toDouble()
+      is Int -> value.toDouble()
+      is Long -> value.toDouble()
+      is Number -> value.toDouble()
+      else -> return
+    }
+    intent.putExtra(key, asDouble)
+  }
+
+  private fun buildDistanceIntent(action: String): Intent? {
+    val context = appContextOrNull ?: return null
+    return Intent(context, MatchUploadForegroundService::class.java).apply {
+      this.action = action
+    }
+  }
+
+  // Dispatch a built service intent (foreground-start on O+ for START which promotes the FGS; plain
+  // start for SEED/RESET/STOP which only message an already-running service). Best-effort.
+  private fun dispatchServiceIntent(intent: Intent) {
+    val context = appContextOrNull ?: return
+    try {
+      if (intent.action == MatchUploadForegroundService.ACTION_DISTANCE_START
+        && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        context.startForegroundService(intent)
+      } else {
+        context.startService(intent)
+      }
+    } catch (error: Throwable) {
+      Log.w("RGNativeUpload", "distance service dispatch failed: ${error.message}")
     }
   }
 
