@@ -242,6 +242,14 @@ public class MatchProgressUploaderModule: Module {
         // On a 2xx, emit the body so JS applies the opponent board WITHOUT a JS timer.
         self?.sendEvent("onMatchProgressResponse", ["body": body])
       },
+      pushLiveActivity: { [weak self] responseBody, requestBody in
+        // On a 2xx, ALSO drive the iOS Live Activity card's match board (PACE + 간격/gap + both-runner
+        // board) natively, so it stays fresh while the screen is off / JS is suspended. iOS-only,
+        // fire-and-forget, and completely independent of the bg-sync promise / periodicInFlight /
+        // lastPostAt (it only reads the response + the cached request + the native accumulator total
+        // and posts a NotificationCenter notification the LiveActivity pod observes).
+        self?.pushLiveActivityUpdate(responseBody: responseBody, requestBody: requestBody)
+      },
       onLocation: { [weak self] location in
         // Feed every delivered fix into the distance accumulator. It self-gates on the want-flag so
         // a driver kept alive purely for the periodic re-POST does not accrue distance.
@@ -346,6 +354,293 @@ public class MatchProgressUploaderModule: Module {
 
     task.resume()
   }
+
+  // MARK: - iOS Live Activity native match-board push (screen-off)
+
+  // ONE board runner — the native mirror of LiveCardBoardRunner (buildLiveCardState.ts): a single
+  // current distance (km) per runner + isMe.
+  private struct BoardRunner {
+    let name: String
+    let distanceKm: Double
+    let isMe: Bool
+  }
+
+  // Display name used for the current user's own rank-bar row. The native side has no access to the
+  // JS `context.myName` (it is not in the request body nor the response), so the screen-off push uses
+  // this fallback. The foreground(JS) push uses the real display name; the row is matched by isMe so
+  // rank/gap/progress are identical — only the my-row LABEL can differ until the user unlocks. KNOWN
+  // GAP (see handoff): if the rank bar shows my real name in the foreground it will read "나" while
+  // screen-off. All numeric fields are identical.
+  private static let myDisplayNameFallback = "나"
+
+  // Build + post the native Live Activity match-board update. MIRRORS the JS pure helpers EXACTLY
+  // (buildLiveCardState.ts + liveActivityController.ts buildBoardFromMatchStatus/buildGroupBoard) so
+  // the screen-off(native) push produces an IDENTICAL ContentState to the foreground(JS) push.
+  //
+  // Parse RESPONSE (RunningMatchStatusResponse): mode, distanceKm(goal), duel opponent{name,
+  // liveDistanceKm, officialDistanceKm, officialReady}, group participants[]{name, seedRank,
+  // liveDistanceKm, officialDistanceKm, officialReady} + mySeedRank.
+  // Parse REQUEST (UpdateRunningMatchProgressInput): elapsedSeconds, matchId.
+  // my distanceKm = native distanceAccumulator total (meters)/1000.
+  //
+  // Fire-and-forget: posts a NotificationCenter notification the LiveActivity pod observes. NEVER
+  // touches periodicInFlight / lastPostAt / the bg-sync promise. iOS Live Activity is only applied
+  // inside the LiveActivity pod behind #available(iOS 16.2,*), so this is a harmless no-op pre-16.2.
+  private func pushLiveActivityUpdate(responseBody: Data?, requestBody: Data?) {
+    guard
+      let responseBody = responseBody,
+      let response = (try? JSONSerialization.jsonObject(with: responseBody)) as? [String: Any]
+    else {
+      return
+    }
+
+    // mode: only duel/group reach here (the uploader runs for matches). Solo is never a match board;
+    // if a "solo" sneaks in, bail so we never build a board for it.
+    let mode = (response["mode"] as? String) ?? ""
+    guard mode == "duel" || mode == "group" else {
+      return
+    }
+
+    // goal distance (km) — drives progress0to1 (response.distanceKm).
+    let goalDistanceKm = doubleFromJSON(response["distanceKm"]) ?? 0
+
+    // elapsedSeconds + matchId come from the REQUEST body we just POSTed (simpler than recomputing
+    // from slotStartAt). elapsedSeconds clamped to a non-negative whole second (mirrors
+    // buildLiveCardState's `Math.max(0, Math.round(...))`).
+    var requestElapsedSeconds = 0
+    if
+      let requestBody = requestBody,
+      let request = (try? JSONSerialization.jsonObject(with: requestBody)) as? [String: Any],
+      let elapsed = doubleFromJSON(request["elapsedSeconds"])
+    {
+      requestElapsedSeconds = Int(max(0, (elapsed).rounded()))
+    }
+    let elapsedSeconds = max(0, requestElapsedSeconds)
+
+    // my distance (km) from the native accumulator (the same source getAccumulatedDistanceMeters
+    // exposes), so distance keeps moving screen-off.
+    let myDistanceKm = distanceAccumulator.totalMeters / 1000.0
+
+    // Build the board EXACTLY like buildBoardFromMatchStatus/buildGroupBoard.
+    let board = buildBoardFromResponse(response: response, mode: mode, myDistanceKm: myDistanceKm)
+
+    // paceText — mirror buildAveragePace(myDistanceKm, elapsedSeconds) precisely.
+    let paceText = buildAveragePaceMirror(distanceKm: myDistanceKm, elapsedSeconds: elapsedSeconds)
+
+    // distanceM — mirror toWholeMeters(myDistanceKm).
+    let distanceM = toWholeMetersMirror(myDistanceKm)
+
+    let nowMs = Date().timeIntervalSince1970 * 1000.0
+    let staleDateMs = nowMs + 10_000.0 // LIVE_CARD_STALE_AFTER_MS
+    let timerStartMs = nowMs - Double(elapsedSeconds) * 1000.0
+
+    // Sort DESC (stable) → rank/gap/rank-bar, mirroring buildLiveCardState.
+    let sortedDesc = sortBoardByDistanceDescMirror(board)
+    let myIndex = sortedDesc.firstIndex(where: { $0.isMe })
+
+    let totalRunners = sortedDesc.count
+    let myRank: Int? = myIndex.map { $0 + 1 }
+    let adjacentGapText = buildAdjacentGapTextMirror(sortedDesc)
+    let rankBar = buildRankBarRunnersMirror(sortedDesc, goalDistanceKm: goalDistanceKm)
+
+    // Hand FINAL primitives to the LiveActivity pod (it does NO recomputation). Empty adjacentGapText
+    // string → the pod maps it to nil (matches the JS optional being omitted).
+    var userInfo: [String: Any] = [
+      "elapsedSeconds": elapsedSeconds,
+      "distanceM": distanceM,
+      "paceText": paceText,
+      "staleDateMs": staleDateMs,
+      "isRunning": true,
+      "timerStartMs": timerStartMs,
+      "totalRunners": totalRunners,
+      "goalDistanceKm": goalDistanceKm,
+      "mode": mode,
+      "runnerNames": rankBar.map { $0.name },
+      "runnerProgress": rankBar.map { $0.progress0to1 },
+      "runnerIsMe": rankBar.map { $0.isMe },
+      "adjacentGapText": adjacentGapText ?? "",
+    ]
+    if let myRank = myRank {
+      userInfo["myRank"] = myRank
+    }
+
+    NotificationCenter.default.post(
+      name: Notification.Name("RGMatchProgressNativeUpdate"),
+      object: nil,
+      userInfo: userInfo
+    )
+  }
+
+  // Mirror of buildBoardFromMatchStatus + buildGroupBoard (liveActivityController.ts). Per-runner
+  // distance = officialReady && officialDistanceKm != nil ? officialDistanceKm : (liveDistanceKm ?? 0).
+  private func buildBoardFromResponse(
+    response: [String: Any],
+    mode: String,
+    myDistanceKm: Double
+  ) -> [BoardRunner] {
+    if mode == "group" {
+      guard let participants = response["participants"] as? [[String: Any]], !participants.isEmpty else {
+        return []
+      }
+      // meSeedRank = mySeedRank ?? 1.
+      let meSeedRank = intFromJSON(response["mySeedRank"]) ?? 1
+      return participants.map { participant in
+        let name = (participant["name"] as? String) ?? ""
+        let distanceKm = liveOrOfficialKm(participant)
+        let seedRank = intFromJSON(participant["seedRank"]) ?? -1
+        return BoardRunner(name: name, distanceKm: distanceKm, isMe: seedRank == meSeedRank)
+      }
+    }
+
+    // duel
+    guard let opponent = response["opponent"] as? [String: Any] else {
+      return []
+    }
+    let opponentName = (opponent["name"] as? String) ?? ""
+    let opponentDistanceKm = liveOrOfficialKm(opponent)
+    return [
+      BoardRunner(name: MatchProgressUploaderModule.myDisplayNameFallback, distanceKm: myDistanceKm, isMe: true),
+      BoardRunner(name: opponentName, distanceKm: opponentDistanceKm, isMe: false),
+    ]
+  }
+
+  // officialReady && officialDistanceKm != nil ? officialDistanceKm : (liveDistanceKm ?? 0).
+  private func liveOrOfficialKm(_ runner: [String: Any]) -> Double {
+    let officialReady = (runner["officialReady"] as? Bool) ?? false
+    if officialReady, let official = doubleFromJSON(runner["officialDistanceKm"]) {
+      return official
+    }
+    return doubleFromJSON(runner["liveDistanceKm"]) ?? 0
+  }
+
+  // Mirror toWholeMeters: round(distanceKm*1000) when distanceKm finite & > 0, else 0.
+  private func toWholeMetersMirror(_ distanceKm: Double) -> Int {
+    guard distanceKm.isFinite, distanceKm > 0 else {
+      return 0
+    }
+    return Int((distanceKm * 1000.0).rounded())
+  }
+
+  // Mirror toProgress0to1: 0 when no positive goal OR distance<=0; else clamp(distanceKm/goal, 0...1).
+  private func toProgress0to1Mirror(_ distanceKm: Double, goalDistanceKm: Double) -> Double {
+    guard goalDistanceKm.isFinite, goalDistanceKm > 0 else {
+      return 0
+    }
+    guard distanceKm.isFinite, distanceKm > 0 else {
+      return 0
+    }
+    return max(0.0, min(1.0, distanceKm / goalDistanceKm))
+  }
+
+  // Mirror buildAveragePace → buildAveragePaceForFinishedRun → formatPaceFromSecondsPerKm.
+  //   - distance < MIN_LIVE_AVERAGE_PACE_DISTANCE_KM(0.1) OR not finite → "--:--/km"
+  //   - elapsedSeconds <= 0 → "--:--/km"
+  //   - else secondsPerKm = elapsedSeconds/distanceKm; rounded = round(secondsPerKm);
+  //     "MM:SS/km" zero-padded (minutes = rounded/60, seconds = rounded%60).
+  private func buildAveragePaceMirror(distanceKm: Double, elapsedSeconds: Int) -> String {
+    let minLiveDistanceKm = 0.1 // MIN_LIVE_AVERAGE_PACE_DISTANCE_KM
+    guard distanceKm.isFinite, distanceKm >= minLiveDistanceKm, elapsedSeconds > 0 else {
+      return "--:--/km"
+    }
+    let secondsPerKm = Double(elapsedSeconds) / distanceKm
+    guard secondsPerKm.isFinite, secondsPerKm > 0 else {
+      return "--:--/km"
+    }
+    let rounded = Int(secondsPerKm.rounded())
+    let minutes = rounded / 60
+    let seconds = rounded % 60
+    return String(format: "%02d:%02d/km", minutes, seconds)
+  }
+
+  // Stable sort by distance DESC; ties keep the original (caller) order — mirrors
+  // sortBoardByDistanceDesc (which carries the original index as the tie-break).
+  private func sortBoardByDistanceDescMirror(_ board: [BoardRunner]) -> [BoardRunner] {
+    return board.enumerated()
+      .sorted { lhs, rhs in
+        if lhs.element.distanceKm != rhs.element.distanceKm {
+          return lhs.element.distanceKm > rhs.element.distanceKm
+        }
+        return lhs.offset < rhs.offset
+      }
+      .map { $0.element }
+  }
+
+  // Mirror buildAdjacentGapText: nil when no me / fewer than 2 runners; "-Xm" trailing the runner just
+  // ahead; "+Xm" leading the runner just behind when I lead. Meters = round(max(0, Δkm)*1000).
+  private func buildAdjacentGapTextMirror(_ sortedDesc: [BoardRunner]) -> String? {
+    guard let myIndex = sortedDesc.firstIndex(where: { $0.isMe }), sortedDesc.count >= 2 else {
+      return nil
+    }
+    let me = sortedDesc[myIndex]
+    if myIndex > 0 {
+      let ahead = sortedDesc[myIndex - 1]
+      let gapMeters = Int((max(0.0, ahead.distanceKm - me.distanceKm) * 1000.0).rounded())
+      return "-\(gapMeters)m"
+    }
+    let behind = sortedDesc[myIndex + 1]
+    let gapMeters = Int((max(0.0, me.distanceKm - behind.distanceKm) * 1000.0).rounded())
+    return "+\(gapMeters)m"
+  }
+
+  // One rank-bar row (the native mirror of LiveActivityRunner), carried as primitives in userInfo.
+  private struct RankBarRunner {
+    let name: String
+    let progress0to1: Double
+    let isMe: Bool
+  }
+
+  // Mirror buildRankBarRunners: top-3 leader-first, plus me appended when not already in the top-3.
+  private func buildRankBarRunnersMirror(
+    _ sortedDesc: [BoardRunner],
+    goalDistanceKm: Double
+  ) -> [RankBarRunner] {
+    let rankBarTopCount = 3 // RANK_BAR_TOP_COUNT
+    let topRows = Array(sortedDesc.prefix(rankBarTopCount))
+    let myIndex = sortedDesc.firstIndex(where: { $0.isMe })
+    let meInTop = (myIndex != nil) && (myIndex! < rankBarTopCount)
+
+    let rows: [BoardRunner]
+    if meInTop || myIndex == nil {
+      rows = topRows
+    } else {
+      rows = topRows + [sortedDesc[myIndex!]]
+    }
+
+    return rows.map { runner in
+      RankBarRunner(
+        name: runner.name,
+        progress0to1: toProgress0to1Mirror(runner.distanceKm, goalDistanceKm: goalDistanceKm),
+        isMe: runner.isMe
+      )
+    }
+  }
+
+  // JSON number coercion: JSONSerialization yields NSNumber for both ints and doubles.
+  private func doubleFromJSON(_ value: Any?) -> Double? {
+    if let number = value as? NSNumber {
+      return number.doubleValue
+    }
+    if let doubleValue = value as? Double {
+      return doubleValue
+    }
+    if let intValue = value as? Int {
+      return Double(intValue)
+    }
+    return nil
+  }
+
+  private func intFromJSON(_ value: Any?) -> Int? {
+    if let number = value as? NSNumber {
+      return number.intValue
+    }
+    if let intValue = value as? Int {
+      return intValue
+    }
+    if let doubleValue = value as? Double {
+      return Int(doubleValue)
+    }
+    return nil
+  }
 }
 
 // MARK: - PeriodicLocationDriver
@@ -359,6 +654,11 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
   // helper and never recomputes the payload.
   private let send: (String, String, String, @escaping (String?) -> Void) -> Void
   private let emit: (String) -> Void
+  // iOS Live Activity native push hook. Invoked on the main thread right AFTER emit, with the 2xx
+  // RESPONSE body + the request body that produced it (both as Data?). Fire-and-forget; the module
+  // turns these into a Live Activity match-board update (iOS 16.2+ only) so the lock-screen card
+  // stays fresh while JS is suspended. Never touches periodicInFlight / lastPostAt / the bg promise.
+  private let pushLiveActivity: (Data?, Data?) -> Void
   // Per-fix hook so the module can feed the distance accumulator from this SAME location stream
   // (no second CLLocationManager). Invoked on the main thread for every delivered location.
   private let onLocation: (CLLocation) -> Void
@@ -382,11 +682,13 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
     intervalSeconds: Double,
     send: @escaping (String, String, String, @escaping (String?) -> Void) -> Void,
     emit: @escaping (String) -> Void,
+    pushLiveActivity: @escaping (Data?, Data?) -> Void,
     onLocation: @escaping (CLLocation) -> Void
   ) {
     self.intervalSeconds = intervalSeconds
     self.send = send
     self.emit = emit
+    self.pushLiveActivity = pushLiveActivity
     self.onLocation = onLocation
     super.init()
   }
@@ -495,6 +797,12 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
     periodicInFlight = true
     lastPostAt = now
 
+    // Snapshot the request body NOW (before the async send): the cached `body` may be overwritten by
+    // a fresher updatePayload before this POST's completion fires, but the Live Activity push must
+    // pair the RESPONSE with the REQUEST that produced it (elapsedSeconds/matchId come from this exact
+    // request body). UTF-8 → Data for the module's pushLiveActivity(responseBody:requestBody:).
+    let requestBodyData = body.data(using: .utf8)
+
     send(url, token, body) { [weak self] responseBody in
       guard let self = self else {
         return
@@ -506,6 +814,10 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
         // apply — mirrors the Android `if (responseBody != null) sendEvent(...)`.
         if let responseBody = responseBody {
           self.emit(responseBody)
+          // iOS-only: ALSO drive the Live Activity match board natively, right AFTER emit. Pairs the
+          // 2xx response with the snapshotted request body. Fire-and-forget; independent of
+          // periodicInFlight / lastPostAt / the bg-sync promise.
+          self.pushLiveActivity(responseBody.data(using: .utf8), requestBodyData)
         }
       }
     }

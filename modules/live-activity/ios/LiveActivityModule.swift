@@ -96,6 +96,13 @@ public class LiveActivityModule: Module {
         return
       }
 
+      // Bring up the PROCESS-GLOBAL native match-board updater's NotificationCenter observer for the
+      // whole match. Idempotent. The observer lives on a static singleton (NOT this module instance),
+      // so it keeps driving activity.update(...) from the background match-progress re-POST even after
+      // this module is deallocated while the screen is off. Harmless when no Activity is running (the
+      // `.activities.first` guard no-ops it), so we never tear it down on end.
+      LiveActivityNativeUpdater.ensureRegistered()
+
       // Idempotent: if a card is already running (e.g. a JS double-start), update it instead of
       // requesting a second Activity. Mirrors the JS controller's liveActivityStarted guard.
       if let existing = currentActivityBox as? Activity<RunActivityAttributes> {
