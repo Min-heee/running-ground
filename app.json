@@ -26,7 +26,7 @@
         "foregroundImage": "./assets/branding/adaptive-icon.png",
         "backgroundColor": "#11161B"
       },
-      "versionCode": 33,
+      "versionCode": 34,
       "package": "com.minheee.runnigapp",
       "permissions": [
         "android.permission.ACTIVITY_RECOGNITION"
