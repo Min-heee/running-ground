@@ -36,8 +36,6 @@ type TrackRunExperienceViewProps = {
   shouldShowReadyScreen: boolean;
   showForceResetAction: boolean;
   shouldShowRoomArmingOverlay: boolean;
-  roomArmingDebugInfo?: string;
-  onLeaveArmingMatch?: () => void;
   shouldShowMatchEndTransitionOverlay?: boolean;
   soloStartCountdownSeconds: number | null;
 };
@@ -57,8 +55,6 @@ export function TrackRunExperienceView({
   shouldShowReadyScreen,
   showForceResetAction,
   shouldShowRoomArmingOverlay,
-  roomArmingDebugInfo,
-  onLeaveArmingMatch,
   shouldShowMatchEndTransitionOverlay,
   soloStartCountdownSeconds,
 }: TrackRunExperienceViewProps) {
@@ -122,23 +118,6 @@ export function TrackRunExperienceView({
           <Text style={styles.roomArmingOverlayTitle}>로딩중...</Text>
           <Text style={styles.roomArmingOverlayText}>
             대결 화면을 맞추는 중이에요. 잠시 뒤 모든 참가자에게 같은 카운트다운이 보여요.
-          </Text>
-          {/* Always-visible safety net: a guest whose countdown-ready ACK never lands must
-              never be trapped on this overlay. This force-leave control is shown the whole
-              time the arming overlay is up so there is always a way out. */}
-          {onLeaveArmingMatch ? (
-            <Pressable
-              style={styles.armingLeaveButton}
-              onPress={onLeaveArmingMatch}
-              accessibilityRole="button"
-              accessibilityLabel="대결 준비 나가기"
-            >
-              <Text style={styles.armingLeaveButtonText}>나가기</Text>
-            </Pressable>
-          ) : null}
-          {/* TEMP diagnostic: build tag + arming state (why it's stuck). Remove later. */}
-          <Text style={{ color: colors.white, fontSize: 11, marginTop: spacing.md, opacity: 0.75 }}>
-            RG-A3 · {roomArmingDebugInfo ?? '-'}
           </Text>
         </View>
       ) : null}
@@ -232,21 +211,6 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.semibold,
     textAlign: 'center',
     lineHeight: 22,
-  },
-  armingLeaveButton: {
-    marginTop: spacing.s12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.white,
-    paddingVertical: spacing.s10,
-    paddingHorizontal: spacing.xxl,
-  },
-  armingLeaveButtonText: {
-    color: colors.white,
-    fontSize: fontSizes.button,
-    fontWeight: fontWeights.extraBold,
   },
   soloStartCountdownOverlay: {
     ...StyleSheet.absoluteFillObject,
