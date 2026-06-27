@@ -6,11 +6,13 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import {
   getOnboardingPermissionStatuses,
+  isBatteryControlAvailable,
   ONBOARDING_PERMISSION_CAN_ASK,
   ONBOARDING_PERMISSION_DENIED,
-  requestBackgroundLocation,
-  requestForegroundLocation,
+  readBatteryExempt,
+  requestBatteryExemption,
   requestHealthConnect,
+  requestLocation,
   requestMotion,
   requestNotifications,
   type OnboardingPermissionCanAsk,
@@ -34,22 +36,9 @@ type PermissionItem = {
   request: () => Promise<boolean>;
 };
 
-// Order matters: foreground location must be granted before background ("always") location can be
-// requested, so it comes first. Each row has its own button that fires only that permission's OS
-// dialog, and the requests are sequenced (await one before the next) by the per-row handler.
+// 위치 권한은 fg + bg("항상")를 하나의 행으로 합쳐 별도로 렌더해요 (아래 본문 참고). 여기엔
+// 알림·동작만 두고, 각 행은 자기 권한의 OS 다이얼로그만 띄워요.
 const PERMISSION_ITEMS: PermissionItem[] = [
-  {
-    key: 'location',
-    label: '위치 (사용 중)',
-    hint: 'GPS로 러닝 경로·거리·페이스를 측정해요. 러닝 측정의 핵심 권한이에요.',
-    request: requestForegroundLocation,
-  },
-  {
-    key: 'backgroundLocation',
-    label: '위치 (항상 허용)',
-    hint: '화면을 꺼도 대결·러닝 측정이 끊기지 않아요. 먼저 “사용 중”을 허용해야 켤 수 있어요.',
-    request: requestBackgroundLocation,
-  },
   {
     key: 'notifications',
     label: '알림',
@@ -135,7 +124,18 @@ export default function WelcomeTourScreen() {
   const [step, setStep] = useState<TourStep>('welcome');
   const [statuses, setStatuses] = useState<OnboardingPermissionStatuses>(ONBOARDING_PERMISSION_DENIED);
   const [canAsk, setCanAsk] = useState<OnboardingPermissionCanAsk>(ONBOARDING_PERMISSION_CAN_ASK);
+  // Battery state is isolated Android-only screen-local state — deliberately NOT part of the unified
+  // OnboardingPermissionKey model. 'battery' busy is tracked by its own flag, not busyKey.
+  const [batteryBusy, setBatteryBusy] = useState(false);
+
+  // busyKey covers the unified permission rows (location/notifications/motion/health). The merged
+  // 위치 row uses the 'backgroundLocation' busy key.
   const [busyKey, setBusyKey] = useState<OnboardingPermissionKey | null>(null);
+
+  // batteryAvailable is a constant for the session (hidden on iOS + old Android binaries). batteryExempt
+  // is re-read in refreshStatuses and on every AppState 'active' (covers returning from the settings intent).
+  const batteryAvailable = isBatteryControlAvailable();
+  const [batteryExempt, setBatteryExempt] = useState(false);
 
   const requestingRef = useRef(false);
   const mountedRef = useRef(true);
@@ -151,10 +151,15 @@ export default function WelcomeTourScreen() {
     if (requestingRef.current) {
       return;
     }
+    // Battery exemption read is synchronous and isolated from the permission model — refresh it here
+    // and on the AppState 'active' listener so returning from the Android battery-settings intent
+    // re-flips the ✓.
+    const battery = readBatteryExempt();
     const next = await getOnboardingPermissionStatuses();
     if (mountedRef.current) {
       setStatuses(next.statuses);
       setCanAsk(next.canAsk);
+      setBatteryExempt(battery);
     }
   }, []);
 
@@ -200,6 +205,28 @@ export default function WelcomeTourScreen() {
     }
   }, []);
 
+  // Android-only battery exemption request. Fires the native settings intent then re-reads the
+  // synchronous exempt flag. The real exemption is applied once the user returns from the intent →
+  // the AppState 'active' refresh catches it. Kept separate from runRequest / busyKey so 'battery'
+  // never enters the OnboardingPermissionKey model.
+  const handleRequestBattery = useCallback(async () => {
+    if (batteryBusy) {
+      return;
+    }
+    setBatteryBusy(true);
+    try {
+      await requestBatteryExemption();
+    } catch {
+      // Never let a battery request crash or trap onboarding.
+    } finally {
+      const exempt = readBatteryExempt();
+      if (mountedRef.current) {
+        setBatteryExempt(exempt);
+        setBatteryBusy(false);
+      }
+    }
+  }, [batteryBusy]);
+
   const handleOpenSettings = useCallback(() => {
     void Linking.openSettings();
   }, []);
@@ -241,6 +268,26 @@ export default function WelcomeTourScreen() {
               필요한 권한을 지금 켜두면 바로 달릴 수 있어요. 건너뛰어도 되고, 나중에 설정에서 켤 수 있어요.
             </Text>
             <View style={styles.permissionList}>
+              {/* Merged 위치 row: driven by the BACKGROUND ("항상") status. ✓ only when backgroundLocation
+                  is granted; onRequest sequences foreground→background via requestLocation. The orange
+                  note appears only in the fg-granted-but-not-always state. */}
+              <PermissionRow
+                key="location"
+                label="위치"
+                hint="GPS로 러닝 경로·거리·페이스를 측정해요. 화면을 꺼도 대결·러닝 측정이 끊기지 않으려면 '항상 허용'이 필요해요."
+                granted={statuses.backgroundLocation}
+                canAsk={canAsk.backgroundLocation}
+                busy={busyKey === 'backgroundLocation'}
+                noteText={
+                  statuses.location && !statuses.backgroundLocation
+                    ? "화면을 꺼도 측정하려면 '항상 허용'이 필요해요. (설정 › 위치 › 항상)"
+                    : undefined
+                }
+                onRequest={() => {
+                  void runRequest('backgroundLocation', requestLocation);
+                }}
+                onOpenSettings={handleOpenSettings}
+              />
               {PERMISSION_ITEMS.map((item) => (
                 <PermissionRow
                   key={item.key}
@@ -255,6 +302,25 @@ export default function WelcomeTourScreen() {
                   onOpenSettings={handleOpenSettings}
                 />
               ))}
+              {batteryAvailable ? (
+                // Android-only. canAsk is always true (no "denied" state — the settings intent can
+                // always be re-fired), so this shows 허용하기 until the user returns exempt. onOpenSettings
+                // re-fires the same intent.
+                <PermissionRow
+                  key="battery"
+                  label="배터리 최적화 제외"
+                  hint="화면을 꺼도 대결·러닝 측정이 멈추지 않아요."
+                  granted={batteryExempt}
+                  canAsk
+                  busy={batteryBusy}
+                  onRequest={() => {
+                    void handleRequestBattery();
+                  }}
+                  onOpenSettings={() => {
+                    void handleRequestBattery();
+                  }}
+                />
+              ) : null}
               <PermissionRow
                 key={HEALTH_ITEM.key}
                 label={HEALTH_ITEM.label}
@@ -269,7 +335,7 @@ export default function WelcomeTourScreen() {
               />
             </View>
             <Text style={styles.deniedHint}>
-              일부 권한을 꺼도 시작할 수 있어요. “위치(항상 허용)”는 휴대폰 설정 &gt; 위치에서 “항상”으로 바꿔야 할 수 있어요.
+              일부 권한을 꺼도 시작할 수 있어요. 위치 “항상 허용”은 휴대폰 설정 &gt; 위치에서 바꿔야 할 수 있어요.
               설정에서 켜고 돌아오면 자동으로 확인돼요.
             </Text>
           </View>

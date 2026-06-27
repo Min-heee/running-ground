@@ -22,6 +22,11 @@ import {
   importRunsFromRecommendedNativeHealthSource,
 } from '@/integrations/nativeHealth';
 import { connectIntegrationSource, fetchIntegrationStatus } from '@/services';
+import {
+  isBatteryOptimizationControlAvailable,
+  isIgnoringBatteryOptimizations,
+  requestIgnoreBatteryOptimizations,
+} from '../../../../modules/match-progress-uploader';
 
 export type OnboardingPermissionKey =
   | 'location'
@@ -184,6 +189,15 @@ export async function requestBackgroundLocation(): Promise<boolean> {
   }
 }
 
+// Merged "위치" row request: foreground first, then background ("always"), sequenced. The merged
+// onboarding row only shows ✓ once background is granted, so this returns the background result.
+// requestBackgroundLocation already no-ops to false until foreground is in place, so this order is
+// the only correct one.
+export async function requestLocation(): Promise<boolean> {
+  await requestForegroundLocation();
+  return requestBackgroundLocation();
+}
+
 export async function requestNotifications(): Promise<boolean> {
   const Notifications = await getNotificationsModule();
   if (!Notifications) {
@@ -261,4 +275,27 @@ export async function requestAllOnboardingPermissions(): Promise<{
   await requestNotifications();
   await requestMotion();
   return getOnboardingPermissionStatuses();
+}
+
+// --- Android-only battery-optimization exemption -------------------------------------------------
+// Thin wrappers over the native match-progress-uploader control. These are OTA-safe: on iOS and on
+// old Android binaries the native control reports unavailable, so isBatteryControlAvailable() is
+// false and the read/request helpers no-op to safe defaults. Kept OUT of the unified
+// OnboardingPermissionKey model — the welcome-tour screen tracks battery as isolated Android-only
+// local state so the permission model + its tests stay unchanged.
+
+export function isBatteryControlAvailable(): boolean {
+  return Platform.OS === 'android' && isBatteryOptimizationControlAvailable();
+}
+
+export function readBatteryExempt(): boolean {
+  return isBatteryControlAvailable() ? isIgnoringBatteryOptimizations() : false;
+}
+
+export async function requestBatteryExemption(): Promise<boolean> {
+  if (!isBatteryControlAvailable()) {
+    return false;
+  }
+  requestIgnoreBatteryOptimizations();
+  return isIgnoringBatteryOptimizations();
 }
