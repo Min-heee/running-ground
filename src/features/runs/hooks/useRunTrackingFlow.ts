@@ -19,8 +19,7 @@ export function useRunTrackingFlow(flow: UseRunTrackingFlowInput) {
     matchProgressHeartbeatEnabled = true,
     matchProgressHeartbeatRef,
     roomLinkedMatchContextRef,
-    setDuelMatchStatus,
-    setGroupMatchStatus,
+    applyMatchStatusSnapshot,
     setLastSyncedMatchProgress,
     setLiveShareLabel,
   } = flow;
@@ -44,8 +43,7 @@ export function useRunTrackingFlow(flow: UseRunTrackingFlowInput) {
     matchProgressHeartbeatRef,
     buildDisplayedMatchProgress,
     setLastSyncedMatchProgress,
-    setDuelMatchStatus,
-    setGroupMatchStatus,
+    applyMatchStatusSnapshot,
     heartbeatEnabled: matchProgressHeartbeatEnabled,
   });
 

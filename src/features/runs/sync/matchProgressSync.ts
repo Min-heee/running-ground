@@ -8,6 +8,7 @@ import {
   type LastSyncedMatchProgress,
 } from '@/features/runs/viewModels/matchProgress';
 import { LIVE_MATCH_SERVER_SYNC_INTERVAL_MS } from '@/features/runs/sync/liveMatchCadence';
+import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { buildAveragePace } from '@/features/runs/tracking';
 
 export const MATCH_PROGRESS_HEARTBEAT_INTERVAL_MS = LIVE_MATCH_SERVER_SYNC_INTERVAL_MS;
@@ -97,6 +98,69 @@ export function resolveBackgroundMatchStatusApplyTarget({
   }
 
   return null;
+}
+
+// Bundle A2 — THE single guarded apply DECISION, in one pure tested place so every channel
+// (heartbeat / background / mounted safety poll) applies snapshots under the SAME rules in the
+// SAME order. The runtime model executes the side effects (syncServerClock → setX → teardown)
+// around this decision; this function owns the GUARD ORDER:
+//   1) forfeit guard FIRST + mode-validated live-id routing (resolveBackgroundMatchStatusApplyTarget),
+//   2) monotonic serverNow guard on the per-mode ref (shouldAcceptServerSnapshot) — unless forceAccept.
+// IMPORTANT ORDER GUARANTEE: when the target resolves to null (forfeited / not-live / mode
+// mismatch) we return WITHOUT touching the serverNow ref, so a dropped snapshot never advances
+// the monotonic clock and can't wedge a later valid snapshot. The serverNow ref is only advanced
+// (the side effect inside shouldAcceptServerSnapshot) once the forfeit/routing guard has passed.
+export type MatchStatusSnapshotApplyDecision = {
+  apply: boolean;
+  target: BackgroundMatchStatusApplyTarget;
+  isTerminal: boolean;
+};
+
+export function resolveMatchStatusSnapshotApply({
+  status,
+  duelMatchId,
+  groupMatchId,
+  roomLinkedMatchContext,
+  forfeitedMatchIds,
+  duelServerNowMsRef,
+  groupServerNowMsRef,
+  forceAccept = false,
+}: {
+  status: RunningMatchStatusResponse;
+  duelMatchId: string | null | undefined;
+  groupMatchId: string | null | undefined;
+  roomLinkedMatchContext: { mode: 'duel' | 'group'; matchId: string } | null;
+  forfeitedMatchIds: ReadonlySet<string>;
+  duelServerNowMsRef: { current: number };
+  groupServerNowMsRef: { current: number };
+  forceAccept?: boolean;
+}): MatchStatusSnapshotApplyDecision {
+  // 1) Forfeit guard FIRST + routing. A forfeited / not-live / mode-mismatched snapshot is dropped
+  // here, before the monotonic ref is ever touched.
+  const target = resolveBackgroundMatchStatusApplyTarget({
+    status,
+    duelMatchId,
+    groupMatchId,
+    roomLinkedMatchContext,
+    forfeitedMatchIds,
+  });
+
+  if (!target) {
+    return { apply: false, target: null, isTerminal: false };
+  }
+
+  // 2) Monotonic serverNow guard SECOND, on the per-mode ref (matches loadDuel/GroupMatchStatus
+  // exactly). forceAccept skips ONLY this clock guard — the forfeit guard above always runs.
+  const serverNowRef = target === 'duel' ? duelServerNowMsRef : groupServerNowMsRef;
+  if (!forceAccept && !shouldAcceptServerSnapshot(serverNowRef, status.serverNow)) {
+    return { apply: false, target, isTerminal: false };
+  }
+
+  return {
+    apply: true,
+    target,
+    isTerminal: isTerminalMatchLiveStatus(status.currentUserLiveStatus),
+  };
 }
 
 export function buildSyncedMatchProgressSnapshot(

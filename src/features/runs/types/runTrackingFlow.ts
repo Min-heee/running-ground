@@ -71,8 +71,13 @@ export type UseRunTrackingFlowInput = {
   setElapsedSeconds: Dispatch<SetStateAction<number>>;
   setCurrentPace: Dispatch<SetStateAction<string>>;
   setLastSyncedMatchProgress: Dispatch<SetStateAction<LastSyncedMatchProgress | null>>;
-  setDuelMatchStatus: Dispatch<SetStateAction<RunningMatchStatusResponse | null>>;
-  setGroupMatchStatus: Dispatch<SetStateAction<RunningMatchStatusResponse | null>>;
+  // Bundle A2 — the heartbeat no longer writes duel/groupMatchStatus directly. It routes its
+  // progress-POST response through THE single guarded apply funnel (forfeit + monotonic-serverNow
+  // ordering), wired from TrackRunExperienceRuntimeModel where the canonical guard refs live.
+  applyMatchStatusSnapshot: (
+    status: RunningMatchStatusResponse,
+    options?: { source?: string; forceAccept?: boolean },
+  ) => void;
   setElevationGainM: Dispatch<SetStateAction<number>>;
   setCadenceSpm: Dispatch<SetStateAction<number | null>>;
   setLocationPermissionGranted: Dispatch<SetStateAction<boolean | null>>;

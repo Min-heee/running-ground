@@ -7,6 +7,7 @@ import {
   resolveActiveMatchProgressTarget,
   resolveBackgroundMatchStatusApplyTarget,
   resolveMatchProgressHeartbeatStatus,
+  resolveMatchStatusSnapshotApply,
   shouldSendMatchProgressHeartbeat,
 } from './matchProgressSync';
 import { resetSharedServerClockForTest, shouldAcceptServerSnapshot } from './serverClockSync';
@@ -261,4 +262,125 @@ test('terminal match live status detects finish and forfeit', () => {
   assert.equal(isTerminalMatchLiveStatus('running'), false);
   assert.equal(isTerminalMatchLiveStatus('background'), false);
   assert.equal(isTerminalMatchLiveStatus(undefined), false);
+});
+
+// ───────────────────────────────────────────────────────────────────────────────────────────
+// Bundle A2 — THE single guarded apply funnel decision (resolveMatchStatusSnapshotApply). Every
+// channel (foreground heartbeat / background flush / mounted safety poll) routes through this
+// decision, so these tests pin the unified ordering once.
+// ───────────────────────────────────────────────────────────────────────────────────────────
+
+function liveDuelArgs(overrides: {
+  status: RunningMatchStatusResponse;
+  forfeitedMatchIds?: ReadonlySet<string>;
+  duelServerNowMsRef?: { current: number };
+  groupServerNowMsRef?: { current: number };
+  forceAccept?: boolean;
+}) {
+  return {
+    status: overrides.status,
+    duelMatchId: 'duel-1' as string | null,
+    groupMatchId: null as string | null,
+    roomLinkedMatchContext: null,
+    forfeitedMatchIds: overrides.forfeitedMatchIds ?? new Set<string>(),
+    duelServerNowMsRef: overrides.duelServerNowMsRef ?? { current: 0 },
+    groupServerNowMsRef: overrides.groupServerNowMsRef ?? { current: 0 },
+    forceAccept: overrides.forceAccept ?? false,
+  };
+}
+
+// Step 1 — a heartbeat snapshot with an OLDER serverNow than the last accepted is DROPPED by the
+// funnel's monotonic guard, while the newest-first snapshot is accepted (newest serverNow wins).
+test('A2 funnel drops a heartbeat snapshot whose serverNow is older than the last accepted', () => {
+  const duelServerNowMsRef = { current: 0 };
+  const newer = status({ mode: 'duel', state: 'active', matchId: 'duel-1', serverNow: '2026-05-12T00:00:05.000Z' });
+  const older = status({ mode: 'duel', state: 'active', matchId: 'duel-1', serverNow: '2026-05-12T00:00:03.000Z' });
+
+  const acceptNewer = resolveMatchStatusSnapshotApply(liveDuelArgs({ status: newer, duelServerNowMsRef }));
+  assert.equal(acceptNewer.apply, true);
+  assert.equal(acceptNewer.target, 'duel');
+  // The accepted snapshot advanced the per-mode serverNow ref to its time.
+  assert.equal(duelServerNowMsRef.current, new Date('2026-05-12T00:00:05.000Z').getTime());
+
+  const dropOlder = resolveMatchStatusSnapshotApply(liveDuelArgs({ status: older, duelServerNowMsRef }));
+  // The later-arriving OLDER heartbeat is dropped — newest serverNow wins.
+  assert.equal(dropOlder.apply, false);
+  // ...and the ref is NOT moved backward by the dropped snapshot.
+  assert.equal(duelServerNowMsRef.current, new Date('2026-05-12T00:00:05.000Z').getTime());
+
+  // An equal-serverNow heartbeat is NOT wrongly dropped against itself.
+  const equal = status({ mode: 'duel', state: 'active', matchId: 'duel-1', serverNow: '2026-05-12T00:00:05.000Z' });
+  assert.equal(resolveMatchStatusSnapshotApply(liveDuelArgs({ status: equal, duelServerNowMsRef })).apply, true);
+});
+
+// Step 1 — a heartbeat for a forfeited matchId is dropped by the forfeit guard, which runs FIRST,
+// BEFORE the monotonic ref is ever touched (so a dropped forfeited snapshot can't wedge the clock).
+test('A2 funnel drops a heartbeat for a forfeited matchId without advancing the serverNow ref', () => {
+  const duelServerNowMsRef = { current: 0 };
+  const forfeited = status({
+    mode: 'duel',
+    state: 'active',
+    matchId: 'duel-1',
+    currentUserLiveStatus: 'running',
+    serverNow: '2026-05-12T00:00:09.000Z',
+  });
+
+  const decision = resolveMatchStatusSnapshotApply(liveDuelArgs({
+    status: forfeited,
+    forfeitedMatchIds: new Set(['duel-1']),
+    duelServerNowMsRef,
+  }));
+
+  assert.equal(decision.apply, false);
+  assert.equal(decision.target, null);
+  // Forfeit guard ran first → the monotonic ref was never advanced by the dropped snapshot.
+  assert.equal(duelServerNowMsRef.current, 0);
+});
+
+// Step 1 — an ACCEPTED heartbeat reports apply=true (the caller then runs syncServerClock + setX)
+// and surfaces terminal status so the caller tears down the background context/timer.
+test('A2 funnel accepts a live heartbeat and flags a terminal (finished) one for teardown', () => {
+  const running = resolveMatchStatusSnapshotApply(liveDuelArgs({
+    status: status({ mode: 'duel', state: 'active', matchId: 'duel-1', currentUserLiveStatus: 'running' }),
+  }));
+  assert.equal(running.apply, true);
+  assert.equal(running.target, 'duel');
+  assert.equal(running.isTerminal, false);
+
+  const finished = resolveMatchStatusSnapshotApply(liveDuelArgs({
+    status: status({ mode: 'duel', state: 'active', matchId: 'duel-1', currentUserLiveStatus: 'finished' }),
+  }));
+  assert.equal(finished.apply, true);
+  assert.equal(finished.isTerminal, true);
+});
+
+// Step 2 — the party LINKED poll now obeys the monotonic guard too (forceAccept no longer bypasses
+// the clock guard). With forceAccept=false an older linked snapshot is dropped; forceAccept=true
+// remains an explicit escape hatch that skips ONLY the clock guard (the forfeit guard still runs).
+test('A2 funnel: linked poll obeys the monotonic guard, forceAccept skips ONLY the clock guard', () => {
+  const duelServerNowMsRef = { current: new Date('2026-05-12T00:00:10.000Z').getTime() };
+  const olderLinked = status({ mode: 'duel', state: 'active', matchId: 'duel-1', serverNow: '2026-05-12T00:00:04.000Z' });
+
+  // forceAccept=false (the new default for the linked poll): the older linked snapshot is DROPPED.
+  assert.equal(
+    resolveMatchStatusSnapshotApply(liveDuelArgs({ status: olderLinked, duelServerNowMsRef })).apply,
+    false,
+  );
+
+  // forceAccept=true: clock guard skipped, so the older snapshot is accepted...
+  assert.equal(
+    resolveMatchStatusSnapshotApply(liveDuelArgs({ status: olderLinked, duelServerNowMsRef, forceAccept: true })).apply,
+    true,
+  );
+
+  // ...but forceAccept can NEVER resurrect a forfeited match — the forfeit guard always runs first.
+  assert.equal(
+    resolveMatchStatusSnapshotApply(liveDuelArgs({
+      status: olderLinked,
+      duelServerNowMsRef,
+      forfeitedMatchIds: new Set(['duel-1']),
+      forceAccept: true,
+    })).apply,
+    false,
+  );
 });

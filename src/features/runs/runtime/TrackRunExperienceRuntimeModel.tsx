@@ -96,7 +96,7 @@ import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync
 import { isMyMatchDistanceStale } from '@/features/runs/sync/matchDistanceStaleness';
 import {
   isTerminalMatchLiveStatus,
-  resolveBackgroundMatchStatusApplyTarget,
+  resolveMatchStatusSnapshotApply,
 } from '@/features/runs/sync/matchProgressSync';
 import {
   clearBackgroundMatchProgressContext,
@@ -1635,7 +1635,14 @@ export function TrackRunExperienceRuntime({
       }
       throw statusError;
     }
-    if (!options?.forceAccept && !shouldAcceptServerSnapshot(latestDuelStatusServerNowMsRef, payload.serverNow)) {
+    // Bundle A2 step 2 — the monotonic serverNow guard now applies to the party LINKED poll too
+    // (forceAccept no longer bypasses it). Backend evidence: the direct AND the linked status
+    // responses are both built by the SAME buildRunningMatchStatusResponse (matchResponseBuilders.mjs)
+    // off a SINGLE `const now = new Date()` stamped as serverNow at every return, so the linked
+    // snapshot's serverNow is consistent/monotonic with the direct one and the guard can never
+    // wrongly drop a fresh linked snapshot. forceAccept keeps its OTHER meanings (accept this
+    // matchId / skip the mounted-match poll skip); it just no longer skips the clock guard.
+    if (!shouldAcceptServerSnapshot(latestDuelStatusServerNowMsRef, payload.serverNow)) {
       return duelMatchStatus ?? payload;
     }
 
@@ -1712,7 +1719,10 @@ export function TrackRunExperienceRuntime({
       }
       throw statusError;
     }
-    if (!options?.forceAccept && !shouldAcceptServerSnapshot(latestGroupStatusServerNowMsRef, payload.serverNow)) {
+    // Bundle A2 step 2 — same unification as duel above: the party LINKED group poll now obeys the
+    // monotonic serverNow guard because the linked status response shares buildRunningMatchStatusResponse's
+    // single serverNow stamp with the direct response. forceAccept retains its non-clock meanings only.
+    if (!shouldAcceptServerSnapshot(latestGroupStatusServerNowMsRef, payload.serverNow)) {
       return groupMatchStatus ?? payload;
     }
 
@@ -1745,47 +1755,61 @@ export function TrackRunExperienceRuntime({
     return payload;
   };
 
-  // Fix A/B-wiring — bridge the background push response into React FROM HERE, where the
-  // canonical guarded refs (forfeitedMatchIdsRef + the per-mode serverNow monotonic refs) and
-  // the status setters already live. The background flush (native Android / JS-fallback iOS) is
-  // the ONLY progress POST that fires while the screen is off; applying its opponent-bearing
-  // response is what unfreezes the OPPONENT's live distance/pace/gap (and the TTS voice). This
-  // routes through the SAME forfeit + monotonic-serverNow guards as the foreground/poll paths so
-  // a late in-flight response can neither resurrect a forfeited match nor apply out of order.
-  // Stable mount-once applier. All match state it reads comes through refs, and the only
-  // functions it closes over (setDuelMatchStatus / setGroupMatchStatus are React setters;
-  // syncServerClock itself only writes a stable ref + a stable setter + module state) carry no
-  // stale per-render values, so capturing them once here is safe.
-  const applyBackgroundMatchStatusRef = useRef((nextStatus: RunningMatchStatusResponse) => {
-    // B1 (forfeit) + mode-validated routing + live-match id guard, all in one pure decision so
-    // the regression-prone branching is unit tested (see matchProgressSync.test.ts). Reads only
-    // refs, so it never works off stale match state.
-    const applyTarget = resolveBackgroundMatchStatusApplyTarget({
+  // Bundle A2 — THE ONE guarded apply funnel. Every channel that writes another participant's
+  // live status into duel/groupMatchStatus (background flush, foreground heartbeat, and the
+  // mounted safety poll) routes through this single applier so all match types (party /
+  // matched-duel / matched-group) apply snapshots under the SAME rules and in the SAME order:
+  //   1) resolve apply target  → forfeitedMatchIdsRef guard FIRST (never resurrect a left match),
+  //   2) shouldAcceptServerSnapshot monotonic serverNow guard on the per-mode ref,
+  //   3) syncServerClock (the shared countdown clock depends on this),
+  //   4) setDuel/GroupMatchStatus,
+  //   5) terminal-status background teardown.
+  // The background flush (native Android / JS-fallback iOS) is the ONLY progress POST that fires
+  // while the screen is off; the foreground heartbeat is the channel that brings the opponent's
+  // forfeited/finished status back while a runner is stationary. Routing BOTH through this funnel
+  // means a late in-flight response (heartbeat OR background) can neither resurrect a forfeited
+  // match nor apply out of order — newest serverNow wins regardless of which channel delivered it.
+  //
+  // Stable mount-once applier. All match state it reads comes through refs, and the only functions
+  // it closes over (setDuelMatchStatus / setGroupMatchStatus are React setters; syncServerClock
+  // itself only writes a stable ref + a stable setter + module state) carry no stale per-render
+  // values, so capturing them once here is safe. The `source` is for diagnostics only; the guard
+  // ordering is IDENTICAL for every source. `forceAccept` is an explicit escape hatch that skips
+  // ONLY the monotonic clock guard (the forfeit guard always stays first); it is currently used by
+  // NO wired caller — every channel obeys the monotonic guard — and is kept solely so a future
+  // caller whose serverNow stamp is NOT consistent with this clock can opt out deliberately.
+  const applyMatchStatusSnapshotRef = useRef((
+    nextStatus: RunningMatchStatusResponse,
+    options?: { source?: string; forceAccept?: boolean },
+  ) => {
+    // THE guard decision (forfeit FIRST, monotonic serverNow SECOND) lives in ONE pure tested
+    // place — resolveMatchStatusSnapshotApply (matchProgressSync.ts, matchProgressSync.test.ts) —
+    // so the heartbeat / background / mounted-safety-poll channels can never drift out of the
+    // same ordering. It reads ONLY refs here, so it never works off stale match state, and it
+    // never advances a per-mode serverNow ref for a snapshot it drops (forfeit/not-live/mode-
+    // mismatch return before the monotonic ref is touched).
+    const decision = resolveMatchStatusSnapshotApply({
       status: nextStatus,
       duelMatchId: duelMatchStatusRef.current?.matchId,
       groupMatchId: groupMatchStatusRef.current?.matchId,
       roomLinkedMatchContext: roomLinkedMatchContextRef.current,
       forfeitedMatchIds: forfeitedMatchIdsRef.current,
+      duelServerNowMsRef: latestDuelStatusServerNowMsRef,
+      groupServerNowMsRef: latestGroupStatusServerNowMsRef,
+      forceAccept: options?.forceAccept ?? false,
     });
 
-    if (!applyTarget) {
+    if (!decision.apply) {
       return;
     }
 
-    // B2 — route through the SAME monotonic serverNow guard every other status-applying path
-    // uses, so a late 'active' response can't overwrite a newer 'finished'. Uses the per-mode
-    // ref to match the foreground loadDuel/GroupMatchStatus ordering exactly.
-    const serverNowRef = applyTarget === 'duel'
-      ? latestDuelStatusServerNowMsRef
-      : latestGroupStatusServerNowMsRef;
-    if (!shouldAcceptServerSnapshot(serverNowRef, nextStatus.serverNow)) {
-      return;
-    }
-
-    // Keep the shared server clock advancing on the same cadence as the foreground/poll paths.
+    // Side effects, in the SAME order as the foreground/poll paths:
+    // 1) keep the shared server clock advancing (countdown depends on it),
+    // 2) write the per-mode status,
+    // 3) terminal teardown.
     syncServerClock(nextStatus.serverNow, nextStatus);
 
-    if (applyTarget === 'duel') {
+    if (decision.target === 'duel') {
       setDuelMatchStatus(nextStatus);
     } else {
       setGroupMatchStatus(nextStatus);
@@ -1796,18 +1820,33 @@ export function TrackRunExperienceRuntime({
     // flush stops firing for a dead match instead of racing the foreground finish teardown.
     // clearBackgroundMatchProgressContext is match-id-scoped, so this is safe if another match
     // has already taken over the context.
-    if (isTerminalMatchLiveStatus(nextStatus.currentUserLiveStatus)) {
+    if (decision.isTerminal) {
       stopBackgroundMatchProgressTimer();
       clearBackgroundMatchProgressContext(nextStatus.matchId ?? undefined);
     }
   });
 
+  // Stable funnel callback the foreground heartbeat (useMatchProgressSync) calls in place of its
+  // former bare setDuel/GroupMatchStatus. Identity is stable for the component lifetime (the
+  // closure lives in a ref), so passing it through the tracking-flow plumbing never re-subscribes
+  // the heartbeat hook. The background flush registers the SAME ref via the module-level applier
+  // setter below.
+  const applyMatchStatusSnapshot = useCallback((
+    nextStatus: RunningMatchStatusResponse,
+    options?: { source?: string; forceAccept?: boolean },
+  ) => {
+    applyMatchStatusSnapshotRef.current(nextStatus, options);
+  }, []);
+
   useEffect(() => {
     // M2 — register the STABLE applier and tear it down BY IDENTITY. Given the duplicate
     // runtime-mount history (#135) / StrictMode, an unconditional null on unmount could wipe a
     // surviving instance's applier; clearBackgroundMatchStatusApplier no-ops unless this exact
-    // function is still the registered owner.
-    const applier = applyBackgroundMatchStatusRef.current;
+    // function is still the registered owner. The background flush carries no `source`/options, so
+    // it lands as the default-source ('background') snapshot through the same guard order.
+    const applier = (nextStatus: RunningMatchStatusResponse) => {
+      applyMatchStatusSnapshotRef.current(nextStatus, { source: 'background' });
+    };
     setBackgroundMatchStatusApplier(applier);
     return () => {
       clearBackgroundMatchStatusApplier(applier);
@@ -2469,8 +2508,9 @@ export function TrackRunExperienceRuntime({
     setElapsedSeconds,
     setCurrentPace,
     setLastSyncedMatchProgress,
-    setDuelMatchStatus,
-    setGroupMatchStatus,
+    // Bundle A2 — the heartbeat writes other-participant live status ONLY through the single
+    // guarded apply funnel (forfeit + monotonic-serverNow), never via the bare status setters.
+    applyMatchStatusSnapshot,
     setElevationGainM,
     setCadenceSpm,
     setLocationPermissionGranted,

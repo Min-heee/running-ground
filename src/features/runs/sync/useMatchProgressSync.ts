@@ -58,8 +58,15 @@ type UseMatchProgressSyncInput = {
   matchProgressHeartbeatRef: MutableRefObject<number>;
   buildDisplayedMatchProgress: (snapshot?: BackgroundRunTrackingSnapshot) => DisplayedMatchProgress;
   setLastSyncedMatchProgress: (progress: LastSyncedMatchProgress | null) => void;
-  setDuelMatchStatus: (status: RunningMatchStatusResponse | null) => void;
-  setGroupMatchStatus: (status: RunningMatchStatusResponse | null) => void;
+  // Bundle A2 — THE single guarded apply funnel (registered by TrackRunExperienceRuntimeModel,
+  // where the canonical forfeitedMatchIdsRef + per-mode serverNow monotonic refs live). The
+  // heartbeat hands its progress-POST response here instead of writing duel/groupMatchStatus
+  // directly, so a late heartbeat obeys the SAME forfeit + monotonic-serverNow ordering as the
+  // poll/background paths and can neither resurrect a forfeited match nor apply out of order.
+  applyMatchStatusSnapshot: (
+    status: RunningMatchStatusResponse,
+    options?: { source?: string; forceAccept?: boolean },
+  ) => void;
   updateRunningMatchProgress?: typeof updateRunningMatchProgressService;
   heartbeatEnabled?: boolean;
 };
@@ -72,8 +79,7 @@ export function useMatchProgressSync({
   matchProgressHeartbeatRef,
   buildDisplayedMatchProgress,
   setLastSyncedMatchProgress,
-  setDuelMatchStatus,
-  setGroupMatchStatus,
+  applyMatchStatusSnapshot,
   updateRunningMatchProgress = updateRunningMatchProgressService,
   heartbeatEnabled = true,
 }: UseMatchProgressSyncInput) {
@@ -86,16 +92,14 @@ export function useMatchProgressSync({
   const callbackRef = useRef({
     buildDisplayedMatchProgress,
     setLastSyncedMatchProgress,
-    setDuelMatchStatus,
-    setGroupMatchStatus,
+    applyMatchStatusSnapshot,
     updateRunningMatchProgress,
   });
 
   callbackRef.current = {
     buildDisplayedMatchProgress,
     setLastSyncedMatchProgress,
-    setDuelMatchStatus,
-    setGroupMatchStatus,
+    applyMatchStatusSnapshot,
     updateRunningMatchProgress,
   };
 
@@ -280,28 +284,19 @@ export function useMatchProgressSync({
       });
     }
 
-    if (input.matchId === duelMatchStatusRef.current?.matchId) {
-      callbackRef.current.setDuelMatchStatus(nextStatus);
-    }
-
-    if (input.matchId === groupMatchStatusRef.current?.matchId) {
-      callbackRef.current.setGroupMatchStatus(nextStatus);
-    }
-
-    if (input.matchId === roomLinkedMatchContextRef.current?.matchId) {
-      if (roomLinkedMatchContextRef.current.mode === 'duel') {
-        callbackRef.current.setDuelMatchStatus(nextStatus);
-      } else {
-        callbackRef.current.setGroupMatchStatus(nextStatus);
-      }
-    }
+    // Bundle A2 step 1 (the keystone) — route the heartbeat response through THE ONE guarded
+    // apply funnel instead of the former bare setDuel/GroupMatchStatus. The funnel resolves the
+    // duel/group/linked apply target itself (resolveBackgroundMatchStatusApplyTarget, same routing
+    // these three branches used to do), then applies the forfeit guard FIRST and the monotonic
+    // serverNow guard SECOND. RESULT: a late heartbeat can no longer overwrite a newer poll/background
+    // snapshot (newest serverNow wins), and a heartbeat for a forfeited matchId is dropped. The
+    // heartbeat's nextStatus carries the same serverNow/matchId/mode/currentUserLiveStatus shape the
+    // funnel expects, so the equal-or-newer heartbeat snapshot is still accepted (never dropped vs
+    // itself) and still drives syncServerClock + setX through the funnel.
+    callbackRef.current.applyMatchStatusSnapshot(nextStatus, { source: 'heartbeat' });
 
     return nextStatus;
-  }, [
-    duelMatchStatusRef,
-    groupMatchStatusRef,
-    roomLinkedMatchContextRef,
-  ]);
+  }, []);
 
   // C1: decide whether a successful finish push counts as ACKed (so we can stop re-sending).
   // The server ACKs by reporting this runner's terminal status. An OLDER backend that does

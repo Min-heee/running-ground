@@ -13,6 +13,7 @@ import {
 import { buildWaitingMatchDiscoveryRegistryKey } from '@/features/runs/sync/registryKeys';
 import {
   buildBlockingMatchStatusPollingKey,
+  resolveBlockingMatchStatusPollIntervalMs,
   shouldSkipBlockingMatchStatusPollingForMountedMatch,
 } from './useBlockingMatchStatusPolling';
 
@@ -149,6 +150,93 @@ test('waiting match discovery polling is keyed per mode and slot, separate from 
 
   first.stop();
   duplicate.stop();
+  assert.equal(getActiveRgPollingSlotCount(), 0);
+});
+
+// Bundle A2 step 8 — the UNIFIED mounted safety poll runs at IDLE cadence (never fast), so it can
+// not compete with the foreground heartbeat or the linked poll. The non-mounted lobby/recovery path
+// keeps its normal fast/idle cadence.
+test('mounted safety poll forces idle cadence; non-mounted keeps fast/idle cadence', () => {
+  const fastPollMs = 1_000;
+  const idlePollMs = 5_000;
+
+  // Mounted matched-duel/group safety poll → ALWAYS idle, even when the fast-poll signal is on.
+  assert.equal(
+    resolveBlockingMatchStatusPollIntervalMs({
+      isMountedSafetyPoll: true,
+      shouldFastPoll: true,
+      fastPollMs,
+      idlePollMs,
+    }),
+    idlePollMs,
+  );
+  assert.equal(
+    resolveBlockingMatchStatusPollIntervalMs({
+      isMountedSafetyPoll: true,
+      shouldFastPoll: false,
+      fastPollMs,
+      idlePollMs,
+    }),
+    idlePollMs,
+  );
+
+  // Non-mounted (lobby/recovery) path keeps the fast-or-idle cadence.
+  assert.equal(
+    resolveBlockingMatchStatusPollIntervalMs({
+      isMountedSafetyPoll: false,
+      shouldFastPoll: true,
+      fastPollMs,
+      idlePollMs,
+    }),
+    fastPollMs,
+  );
+  assert.equal(
+    resolveBlockingMatchStatusPollIntervalMs({
+      isMountedSafetyPoll: false,
+      shouldFastPoll: false,
+      fastPollMs,
+      idlePollMs,
+    }),
+    idlePollMs,
+  );
+});
+
+// Bundle A2 step 8 — the mounted safety poll is SINGLE-FLIGHTED via rgPollingRegistry (keyed by
+// matchId), so it can never double up with the heartbeat or the linked poll for the same match.
+test('mounted safety poll is single-flighted per matchId (cannot double up)', () => {
+  resetRgPollingRegistryForTest();
+  const pollingKey = buildBlockingMatchStatusPollingKey('duel-mounted-safety');
+  let tickCount = 0;
+
+  const safetyPoll = startRgPollingInterval({
+    intervalMs: 5_000,
+    key: pollingKey,
+    label: 'blocking match status polling',
+    onTick: () => {
+      tickCount += 1;
+    },
+    detail: { source: 'mounted match safety poll' },
+  });
+  // A second acquirer for the SAME matchId (e.g. the linked poll / heartbeat-adjacent path) is
+  // refused — only one poll runs for the match.
+  const duplicate = startRgPollingInterval({
+    intervalMs: 5_000,
+    key: pollingKey,
+    label: 'blocking match status polling',
+    onTick: () => {
+      tickCount += 1;
+    },
+    detail: { source: 'linked match via blocking status' },
+  });
+
+  assert.equal(safetyPoll.acquired, true);
+  assert.equal(duplicate.acquired, false);
+  assert.equal(getActiveRgPollingSlotCount(), 1);
+  assert.equal(tickCount, 0);
+
+  duplicate.stop();
+  assert.equal(getActiveRgPollingSlotCount(), 1);
+  safetyPoll.stop();
   assert.equal(getActiveRgPollingSlotCount(), 0);
 });
 

@@ -101,6 +101,28 @@ export function buildBlockingMatchStatusPollingKey(matchId: string) {
   return buildBlockingMatchStatusRegistryKey(matchId);
 }
 
+// Bundle A2 step 8 — cadence for the unified blocking/safety poll. A mounted matched-duel/group
+// (no longer fully skipped) runs the safety poll at the IDLE cadence regardless of the fast/idle
+// signal, so it can never compete with the foreground heartbeat or the linked poll. The non-mounted
+// (lobby/recovery) path keeps its normal fast-or-idle cadence. Pure so the rule is unit tested.
+export function resolveBlockingMatchStatusPollIntervalMs({
+  isMountedSafetyPoll,
+  shouldFastPoll,
+  fastPollMs,
+  idlePollMs,
+}: {
+  isMountedSafetyPoll: boolean;
+  shouldFastPoll: boolean;
+  fastPollMs: number;
+  idlePollMs: number;
+}) {
+  if (isMountedSafetyPoll) {
+    return idlePollMs;
+  }
+
+  return shouldFastPoll ? fastPollMs : idlePollMs;
+}
+
 export function shouldSkipBlockingMatchStatusPollingForMountedMatch({
   matchId,
   mode,
@@ -217,21 +239,33 @@ export function useBlockingMatchStatusPolling({
       return;
     }
 
-    const intervalMs = shouldFastPollDuelMatchStatus ? fastPollMs : idlePollMs;
     const pollingKey = buildBlockingMatchStatusPollingKey(effectiveDuelMatchId);
     const isMountedMatch = shouldSkipBlockingMatchStatusPollingForMountedMatch({
       matchId: effectiveDuelMatchId,
       mode: 'duel',
     });
-    if (isMountedMatch && !isLinkedMatchPolling) {
+    // Bundle A2 step 8 — UNIFIED mounted safety poll. While a live match is mounted (and this is
+    // not already the party linked poll), we no longer FULLY skip: matched duel/group get the
+    // SAME low-cadence safety net the party run's linked poll already provides. The safety poll is
+    // forced to IDLE cadence and is single-flighted by matchId via rgPollingRegistry (pollingKey is
+    // keyed by matchId), so it can NOT double up with the foreground heartbeat or the linked poll —
+    // and it routes through loadDuelMatchStatus, the SAME guarded funnel (forfeit + monotonic
+    // serverNow) every other status apply uses. Non-mounted polling keeps its fast/idle cadence.
+    const isMountedSafetyPoll = isMountedMatch && !isLinkedMatchPolling;
+    if (isMountedSafetyPoll) {
       logMountedMatchPollingSkip({
         isRecoveryPolling,
         matchId: effectiveDuelMatchId,
         mode: 'duel',
         pollingKey,
       });
-      return;
     }
+    const intervalMs = resolveBlockingMatchStatusPollIntervalMs({
+      isMountedSafetyPoll,
+      shouldFastPoll: shouldFastPollDuelMatchStatus,
+      fastPollMs,
+      idlePollMs,
+    });
 
     const polling = startRgPollingInterval({
       intervalMs,
@@ -248,7 +282,11 @@ export function useBlockingMatchStatusPolling({
         intervalMs,
         matchId: effectiveDuelMatchId,
         mode: 'duel',
-        source: isLinkedMatchPolling ? 'linked match via blocking status' : 'blocking match status',
+        source: isLinkedMatchPolling
+          ? 'linked match via blocking status'
+          : isMountedSafetyPoll
+            ? 'mounted match safety poll'
+            : 'blocking match status',
       },
     });
     if (!polling.acquired) {
@@ -327,21 +365,30 @@ export function useBlockingMatchStatusPolling({
       return;
     }
 
-    const intervalMs = shouldFastPollGroupMatchStatus ? fastPollMs : idlePollMs;
     const pollingKey = buildBlockingMatchStatusPollingKey(effectiveGroupMatchId);
     const isMountedMatch = shouldSkipBlockingMatchStatusPollingForMountedMatch({
       matchId: effectiveGroupMatchId,
       mode: 'group',
     });
-    if (isMountedMatch && !isLinkedMatchPolling) {
+    // Bundle A2 step 8 — UNIFIED mounted safety poll (same as duel above): a mounted matched-group
+    // no longer fully skips; it runs an IDLE-cadence, single-flighted (rgPollingRegistry, keyed by
+    // matchId) safety poll through the SAME loadGroupMatchStatus guarded funnel, so it can NOT
+    // double up with the heartbeat or the linked poll.
+    const isMountedSafetyPoll = isMountedMatch && !isLinkedMatchPolling;
+    if (isMountedSafetyPoll) {
       logMountedMatchPollingSkip({
         isRecoveryPolling,
         matchId: effectiveGroupMatchId,
         mode: 'group',
         pollingKey,
       });
-      return;
     }
+    const intervalMs = resolveBlockingMatchStatusPollIntervalMs({
+      isMountedSafetyPoll,
+      shouldFastPoll: shouldFastPollGroupMatchStatus,
+      fastPollMs,
+      idlePollMs,
+    });
 
     const polling = startRgPollingInterval({
       intervalMs,
@@ -358,7 +405,11 @@ export function useBlockingMatchStatusPolling({
         intervalMs,
         matchId: effectiveGroupMatchId,
         mode: 'group',
-        source: isLinkedMatchPolling ? 'linked match via blocking status' : 'blocking match status',
+        source: isLinkedMatchPolling
+          ? 'linked match via blocking status'
+          : isMountedSafetyPoll
+            ? 'mounted match safety poll'
+            : 'blocking match status',
       },
     });
     if (!polling.acquired) {
