@@ -18,9 +18,25 @@ const heartbeatSlotRegistry = createKeyedSlotRegistry<RgHeartbeatDetail>({
   },
 });
 
+// A healthy progress push settles in well under a second (the live-match request even
+// aborts at 5s). Anything still in-flight after 12s is a stuck Android HTTP socket (#203
+// "inflight 고착"): treat it as abandoned and start a fresh push so the heartbeat channel
+// — which also carries the OTHER participants' live distances back via setGroupMatchStatus
+// — unblocks within ~12s instead of dying for the rest of the run. 12s is long enough to
+// never double-fire a merely-slow request and short enough to recover quickly.
+const HEARTBEAT_MAX_INFLIGHT_AGE_MS = 12000;
+
 const heartbeatSingleFlightRegistry = createKeyedSingleFlightRegistry<RgHeartbeatDetail>({
+  maxInflightAgeMs: HEARTBEAT_MAX_INFLIGHT_AGE_MS,
   onDuplicate: ({ detail, key }) => {
     rgPerfMark('heartbeat API duplicate blocked', {
+      heartbeatKey: key,
+      matchId: detail?.matchId,
+    });
+  },
+  onEvictStale: ({ ageMs, detail, key }) => {
+    rgPerfMark('heartbeat API stale inflight evicted', {
+      ageMs: Math.round(ageMs),
       heartbeatKey: key,
       matchId: detail?.matchId,
     });

@@ -25,8 +25,26 @@ type KeyedSingleFlightDuplicateContext<TDetail extends RgRegistryDetail> = {
   key: string;
 };
 
+type KeyedSingleFlightEvictionContext<TDetail extends RgRegistryDetail> = {
+  ageMs: number;
+  detail?: TDetail;
+  key: string;
+};
+
 type CreateKeyedSingleFlightRegistryOptions<TDetail extends RgRegistryDetail> = {
   onDuplicate?: (context: KeyedSingleFlightDuplicateContext<TDetail>) => void;
+  // When a request for a key has been in-flight longer than this many ms, it is
+  // treated as stuck/abandoned (e.g. an Android HTTP socket that never settles) and a
+  // FRESH request is started instead of returning the hung promise. Defaults to
+  // Infinity (the original behavior: an in-flight entry always blocks duplicates),
+  // so only callers that opt in (the heartbeat registry) change behavior.
+  onEvictStale?: (context: KeyedSingleFlightEvictionContext<TDetail>) => void;
+  maxInflightAgeMs?: number;
+};
+
+type InFlightSingleFlightEntry = {
+  promise: Promise<unknown>;
+  startedAtMs: number;
 };
 
 function getNowMs() {
@@ -95,8 +113,10 @@ export function createKeyedSlotRegistry<TDetail extends RgRegistryDetail = RgReg
 
 export function createKeyedSingleFlightRegistry<TDetail extends RgRegistryDetail = RgRegistryDetail>({
   onDuplicate,
+  onEvictStale,
+  maxInflightAgeMs = Infinity,
 }: CreateKeyedSingleFlightRegistryOptions<TDetail> = {}) {
-  const inFlightRequests = new Map<string, Promise<unknown>>();
+  const inFlightRequests = new Map<string, InFlightSingleFlightEntry>();
 
   return {
     clearForTest() {
@@ -106,25 +126,49 @@ export function createKeyedSingleFlightRegistry<TDetail extends RgRegistryDetail
       return inFlightRequests.size;
     },
     run<T>(key: string, task: () => Promise<T>, detail?: TDetail): { promise: Promise<T>; started: boolean } {
-      const inFlightRequest = inFlightRequests.get(key) as Promise<T> | undefined;
-      if (inFlightRequest) {
-        onDuplicate?.({
+      const existingEntry = inFlightRequests.get(key);
+      if (existingEntry) {
+        const ageMs = getNowMs() - existingEntry.startedAtMs;
+        if (ageMs < maxInflightAgeMs) {
+          // Genuine in-flight duplicate — coalesce onto the existing request.
+          onDuplicate?.({
+            detail,
+            key,
+          });
+
+          return {
+            promise: existingEntry.promise as Promise<T>,
+            started: false,
+          };
+        }
+
+        // The existing request has outlived maxInflightAgeMs: it is stuck/abandoned
+        // (e.g. an Android HTTP socket that never settles). Drop it from the registry and
+        // fall through to start a FRESH request so the channel unblocks. The stale
+        // promise's own `.finally` cleanup is identity-guarded below, so when (if ever) it
+        // finally settles it will NOT delete the newer entry we are about to install.
+        onEvictStale?.({
+          ageMs,
           detail,
           key,
         });
-
-        return {
-          promise: inFlightRequest,
-          started: false,
-        };
+        inFlightRequests.delete(key);
       }
 
+      const entry: InFlightSingleFlightEntry = {
+        promise: undefined as unknown as Promise<unknown>,
+        startedAtMs: getNowMs(),
+      };
       const promise = task().finally(() => {
-        if (inFlightRequests.get(key) === promise) {
+        // Identity guard: only clear the map slot if it still holds THIS entry. A stale
+        // entry that was evicted (and replaced by a newer request) must not delete the
+        // newer one when its abandoned promise eventually settles.
+        if (inFlightRequests.get(key) === entry) {
           inFlightRequests.delete(key);
         }
       });
-      inFlightRequests.set(key, promise);
+      entry.promise = promise;
+      inFlightRequests.set(key, entry);
 
       return {
         promise,
