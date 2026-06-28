@@ -72,7 +72,7 @@ function writeHostStartCountdownLock(key: string, lock: HostStartCountdownLock) 
   }
 }
 
-export function readPersistentHostStartCountdownTargetMs(key: string | null) {
+export function readLockedCountdownTargetMs(key: string | null) {
   return key ? hostStartCountdownLocks.get(key)?.localTargetMs ?? null : null;
 }
 
@@ -116,29 +116,34 @@ export function resolveShouldShowRoomArmingOverlay({
     && typeof remainingSeconds === 'number'
     && remainingSeconds > MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
   );
+  // Once the numeric countdown is on screen (Bundle B reveals it at the uniform 30s
+  // window for every start mode), it SUPERSEDES the "로딩중…" arming loader — otherwise
+  // the centered countdown number (zIndex 100) would render on top of the dark arming
+  // overlay (zIndex 30) for the host's ~12→10s poll-in buffer. So suppress the arming
+  // overlay whenever a real countdown digit is showing.
+  const isCountdownNumberVisible = typeof remainingSeconds === 'number'
+    && remainingSeconds > 0
+    && remainingSeconds <= MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS;
 
   return Boolean(
     linkedMatchId
     && (shouldShowLoading || shouldShowHostStartPollInLoading)
     && (matchMode === 'duel' || matchMode === 'group')
-    && !hasLinkedMatchSlotElapsed,
+    && !hasLinkedMatchSlotElapsed
+    && !isCountdownNumberVisible,
   );
 }
 
 export function shouldShowRoomCountdownNumbers({
   remainingSeconds,
-  startMode,
 }: {
   remainingSeconds: number | null;
+  // startMode no longer changes WHEN the digit surfaces — every start mode (host,
+  // scheduled, …) now reveals the numeric countdown at the same uniform 30s window so
+  // host and guest see the same digit at the same t. (Kept in the input shape for the
+  // call sites that still pass it; intentionally unused.)
   startMode?: RunningMatchRoom['startMode'] | null;
 }) {
-  if (startMode === 'host') {
-    return (
-      typeof remainingSeconds === 'number'
-      && remainingSeconds <= MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS
-    );
-  }
-
   return (
     typeof remainingSeconds !== 'number'
     || remainingSeconds <= MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS
@@ -193,7 +198,18 @@ export function resolveMonotonicCountdownRemainingSeconds({
   return nextDisplayedSeconds;
 }
 
-export function resolvePersistentHostStartCountdownRemainingSeconds({
+// The SINGLE producer of a locked, ms-precise countdown target for EVERY runtime
+// CountdownEntry (party host AND non-host, matched duel, matched group, and both
+// reservation rooms). It locks localTargetMs = nowMs + (slotStartMs - syncedNowMs)
+// — i.e. Date.now() + rawRemainingMs — ONCE per countdownKey (module-level lock map),
+// so every device that crosses the gate against the same slot derives the SAME
+// absolute instant and flips every digit on the same tick. The whole-second
+// rawRemainingSeconds only GATES when to lock (within [1, maxStartSeconds]); the
+// frozen target itself uses the exact rawRemainingMs so two phones with agreeing
+// clocks never land a second boundary ~1s apart. Renamed from the old host-only
+// resolvePersistentHostStartCountdownRemainingSeconds; the host path is now just one
+// caller of this shared helper.
+export function resolveLockedCountdownTarget({
   key,
   maxStartSeconds,
   nowMs,
@@ -275,11 +291,15 @@ export function resolvePersistentHostStartCountdownRemainingSeconds({
   );
 }
 
-export function resetPersistentHostStartCountdownForTest() {
+export function resetLockedCountdownTargetForTest() {
   hostStartCountdownLocks.clear();
 }
 
-function useHostStartCountdownSeconds({
+// Shared hook over resolveLockedCountdownTarget: locks the ms-precise target once per
+// key and returns BOTH the clamped seconds (for the seed) and the locked targetMs (the
+// overlay's LOCAL countdown source). Used by every runtime CountdownEntry — host AND
+// non-host room, duel AND group fallback — so they all flip on the same absolute tick.
+function useLockedCountdownTarget({
   key,
   maxStartSeconds,
   nowMs,
@@ -298,13 +318,18 @@ function useHostStartCountdownSeconds({
     previousKeyRef.current = key;
   }
 
-  return resolvePersistentHostStartCountdownRemainingSeconds({
+  const secondsRemaining = resolveLockedCountdownTarget({
     key,
     maxStartSeconds,
     nowMs,
     rawRemainingSeconds,
     rawRemainingMs,
   });
+
+  return {
+    secondsRemaining,
+    targetMs: readLockedCountdownTargetMs(key),
+  };
 }
 
 export function normalizePartyRunFlowRemainingSeconds(remainingSeconds: number | null) {
@@ -391,6 +416,39 @@ export function useMatchCountdownModel({
     rawRemainingSeconds: rawGroupStartCountdownSeconds,
     nowMs,
   });
+  // Locked ms-precise targets for the DIRECT matched duel/group fallback entries (no
+  // room). Same shared `${matchId}:${slotStartAt}` key + same 30s window as the room,
+  // so a phone handing off room→runtime (or reservation→running-tab) for the SAME match
+  // keeps one continuous countdown locked to one absolute instant — no per-tick rounding
+  // divergence between two phones, no re-flash at the boundary.
+  const duelFallbackSlotStartAt = duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt;
+  const duelFallbackSlotStartMs = duelFallbackSlotStartAt ? Date.parse(duelFallbackSlotStartAt) : NaN;
+  const {
+    secondsRemaining: duelFallbackLockedSeconds,
+    targetMs: duelFallbackTargetMs,
+  } = useLockedCountdownTarget({
+    key: shouldTrackDirectMatchCountdown(duelMatchState) && duelMatchStatus
+      ? `${duelMatchStatus.matchId ?? 'duel'}:${duelFallbackSlotStartAt}`
+      : null,
+    maxStartSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
+    rawRemainingSeconds: rawDuelStartCountdownSeconds,
+    rawRemainingMs: Number.isFinite(duelFallbackSlotStartMs) ? duelFallbackSlotStartMs - syncedNowMs : null,
+    nowMs,
+  });
+  const groupFallbackSlotStartAt = groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt;
+  const groupFallbackSlotStartMs = groupFallbackSlotStartAt ? Date.parse(groupFallbackSlotStartAt) : NaN;
+  const {
+    secondsRemaining: groupFallbackLockedSeconds,
+    targetMs: groupFallbackTargetMs,
+  } = useLockedCountdownTarget({
+    key: shouldTrackDirectMatchCountdown(groupMatchState) && groupMatchStatus
+      ? `${groupMatchStatus.matchId ?? 'group'}:${groupFallbackSlotStartAt}`
+      : null,
+    maxStartSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
+    rawRemainingSeconds: rawGroupStartCountdownSeconds,
+    rawRemainingMs: Number.isFinite(groupFallbackSlotStartMs) ? groupFallbackSlotStartMs - syncedNowMs : null,
+    nowMs,
+  });
   const nextStartingMatch = useMemo(
     () => findNextStartingMatchedMatch(visibleUpcomingMatches, syncedNowMs),
     [syncedNowMs, visibleUpcomingMatches],
@@ -404,6 +462,23 @@ export function useMatchCountdownModel({
   const stableNextStartingMatchRemainingSeconds = useStableCountdownSeconds({
     key: stableNextStartingMatchKey,
     rawRemainingSeconds: nextStartingMatch?.remainingSeconds ?? null,
+    nowMs,
+  });
+  // Locked ms-precise target for the upcoming-list "next starting matched match" overlay
+  // (the duel/group fallback sourced from the upcoming list rather than the live status).
+  // Same shared `${matchId}:${slotStartAt}` key + 30s window so it too flips on one
+  // absolute instant on both phones and stays continuous if it later hands to the room.
+  const nextStartingMatchSlotStartMs = nextStartingMatch?.match.slotStartAt
+    ? Date.parse(nextStartingMatch.match.slotStartAt)
+    : NaN;
+  const {
+    secondsRemaining: nextStartingMatchLockedSeconds,
+    targetMs: nextStartingMatchTargetMs,
+  } = useLockedCountdownTarget({
+    key: stableNextStartingMatchKey,
+    maxStartSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
+    rawRemainingSeconds: nextStartingMatch?.remainingSeconds ?? null,
+    rawRemainingMs: Number.isFinite(nextStartingMatchSlotStartMs) ? nextStartingMatchSlotStartMs - syncedNowMs : null,
     nowMs,
   });
   const stableNextStartingMatch = useMemo(() => {
@@ -427,10 +502,15 @@ export function useMatchCountdownModel({
       && duelMatchStatus
       && typeof duelStartCountdownSeconds === 'number'
     ) {
+      // Inside the 30s window the locked target drives the overlay's LOCAL countdown
+      // (identical absolute instant on both phones); outside it the seed is the stable
+      // seconds and the entry is gated off downstream anyway.
       return {
         title: '1대1 대결 곧 시작',
         subtitle: `${duelMatchStatus.opponent?.name ?? '상대'} · ${duelMatchStatus.distanceKm.toFixed(1)}km`,
-        remainingSeconds: duelStartCountdownSeconds,
+        remainingSeconds: duelFallbackLockedSeconds ?? duelStartCountdownSeconds,
+        targetMs: duelFallbackTargetMs,
+        countdownKey: `${duelMatchStatus.matchId ?? 'duel'}:${duelFallbackSlotStartAt}`,
       };
     }
 
@@ -443,15 +523,23 @@ export function useMatchCountdownModel({
       return {
         title: '그룹 대결 곧 시작',
         subtitle: `${groupMatchStatus.participantCount}명 그룹 · ${groupMatchStatus.distanceKm.toFixed(1)}km`,
-        remainingSeconds: groupStartCountdownSeconds,
+        remainingSeconds: groupFallbackLockedSeconds ?? groupStartCountdownSeconds,
+        targetMs: groupFallbackTargetMs,
+        countdownKey: `${groupMatchStatus.matchId ?? 'group'}:${groupFallbackSlotStartAt}`,
       };
     }
 
     return null;
   }, [
+    duelFallbackLockedSeconds,
+    duelFallbackSlotStartAt,
+    duelFallbackTargetMs,
     duelMatchState,
     duelMatchStatus,
     duelStartCountdownSeconds,
+    groupFallbackLockedSeconds,
+    groupFallbackSlotStartAt,
+    groupFallbackTargetMs,
     groupMatchState,
     groupMatchStatus,
     groupStartCountdownSeconds,
@@ -491,33 +579,31 @@ export function useMatchCountdownModel({
     remainingSeconds: rawRoomCountdownRemainingSeconds,
     startMode: runtimeRoom?.startMode,
   });
-  const shouldUseHostStartCountdownClamp = runtimeRoom?.startMode === 'host';
-  const hostStartCountdownKey = runtimeRoom?.linkedMatchId && shouldUseHostStartCountdownClamp
-    ? `${runtimeRoom.linkedMatchId}:host-display`
+  // Unified locked target for the runtime room (host AND non-host, duel AND group).
+  // The key is the SHARED `${linkedMatchId}:${slotStartAt}` scheme so the lock, the
+  // monotonic floor and the finished-key guard persist across the room→runtime and
+  // reservation→running-tab handoffs (the room's linkedMatchId/linkedMatchSlotStartAt
+  // ARE the direct match's matchId/slotStartAt, so both sides derive the same key —
+  // and the same absolute targetMs). A re-queued match with a new slotStartAt yields a
+  // new key, so its fresh countdown is never suppressed by the finished guard.
+  const runtimeRoomCountdownKey = runtimeRoom?.linkedMatchId && shouldShowRuntimeRoomCountdownNumbers
+    ? `${runtimeRoom.linkedMatchId}:${runtimeRoom.linkedMatchSlotStartAt ?? runtimeRoom.slotStartAt}`
     : null;
   const runtimeRoomSlotStartMs = runtimeRoom?.linkedMatchSlotStartAt
     ? Date.parse(runtimeRoom.linkedMatchSlotStartAt)
     : NaN;
-  const hostRoomCountdownDisplayRemainingSeconds = useHostStartCountdownSeconds({
-    key: hostStartCountdownKey,
-    maxStartSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
-    rawRemainingSeconds: rawRoomCountdownRemainingSeconds,
-    rawRemainingMs: Number.isFinite(runtimeRoomSlotStartMs) ? runtimeRoomSlotStartMs - syncedNowMs : null,
-    nowMs,
-  });
-  const hostRoomCountdownTargetMs = readPersistentHostStartCountdownTargetMs(hostStartCountdownKey);
-  const stableRoomCountdownDisplayRemainingSeconds = useStableCountdownSeconds({
-    key: runtimeRoom?.linkedMatchId && !shouldUseHostStartCountdownClamp && shouldShowRuntimeRoomCountdownNumbers
-      ? `${runtimeRoom.linkedMatchId}:${runtimeRoom.linkedMatchSlotStartAt ?? runtimeRoom.slotStartAt}:display`
-      : null,
+  const {
+    secondsRemaining: roomCountdownDisplayRemainingSeconds,
+    targetMs: roomCountdownTargetMs,
+  } = useLockedCountdownTarget({
+    key: runtimeRoomCountdownKey,
+    maxStartSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
     rawRemainingSeconds: shouldShowRuntimeRoomCountdownNumbers
       ? rawRoomCountdownRemainingSeconds
       : null,
+    rawRemainingMs: Number.isFinite(runtimeRoomSlotStartMs) ? runtimeRoomSlotStartMs - syncedNowMs : null,
     nowMs,
   });
-  const roomCountdownDisplayRemainingSeconds = shouldUseHostStartCountdownClamp
-    ? hostRoomCountdownDisplayRemainingSeconds
-    : stableRoomCountdownDisplayRemainingSeconds;
   const visiblePartyRunFlowRemainingSeconds = normalizePartyRunFlowRemainingSeconds(visibleRoomCountdownRemainingSeconds);
   const visiblePartyRunFlowSyncedNowMs = resolvePartyRunFlowSyncedNowMs({
     room: visibleMatchRoom,
@@ -565,22 +651,30 @@ export function useMatchCountdownModel({
       title: runtimeRoom.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',
       subtitle: `${runtimeRoom.hostName}님 방 · ${(runtimeRoom.linkedMatchDistanceKm ?? runtimeRoom.distanceKm).toFixed(1)}km`,
       remainingSeconds: roomCountdownDisplayRemainingSeconds,
-      targetMs: shouldUseHostStartCountdownClamp ? hostRoomCountdownTargetMs : null,
-      countdownKey: runtimeRoom.linkedMatchId ?? null,
+      // Locked ms-precise target for EVERY start mode (host AND non-host) — both phones
+      // run the same LOCAL countdown off the same absolute instant.
+      targetMs: roomCountdownTargetMs,
+      // Shared key (matches the direct-match fallback's key for the same match) so the
+      // monotonic floor + finished-key guard carry across the room→runtime handoff.
+      countdownKey: runtimeRoomCountdownKey,
     };
   }, [
-    hostRoomCountdownTargetMs,
+    roomCountdownTargetMs,
     roomCountdownDisplayRemainingSeconds,
     runtimeRoom,
-    shouldUseHostStartCountdownClamp,
+    runtimeRoomCountdownKey,
   ]);
   const fallbackVisibleCountdownEntry = shouldShowRuntimeRoomCountdownNumbers
     ? (stableNextStartingMatch
       ? {
           title: stableNextStartingMatch.match.mode === 'duel' ? '1대1 대결 곧 시작' : '그룹 대결 곧 시작',
           subtitle: `${stableNextStartingMatch.match.counterpartLabel} · ${stableNextStartingMatch.match.summary}`,
-          remainingSeconds: stableNextStartingMatch.remainingSeconds,
-          countdownKey: stableNextStartingMatch.match.matchId ?? null,
+          remainingSeconds: nextStartingMatchLockedSeconds ?? stableNextStartingMatch.remainingSeconds,
+          // Locked ms-precise target + shared `${matchId}:${slotStartAt}` key, so the
+          // upcoming-list overlay flips on one absolute instant on both phones and stays
+          // continuous if it later hands off to the room/runtime for the same match.
+          targetMs: nextStartingMatchTargetMs,
+          countdownKey: stableNextStartingMatchKey,
         }
       : fallbackCountdownEntry)
     : null;

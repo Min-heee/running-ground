@@ -13,7 +13,23 @@ import {
   buildGroupReservationRoomView,
   type GroupReservationRoomView,
 } from '@/features/runs/lifecycle/matchStateMachine';
+import {
+  readLockedCountdownTargetMs,
+  resolveLockedCountdownTarget,
+} from '@/features/runs/lifecycle/hooks/useMatchCountdownModel';
+import { MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS } from '@/lib/matchCountdown';
 import type { RunningMatchStatusResponse } from '@/lib/api/types';
+
+// The shared start-countdown overlay payload. The group reservation room derives the
+// SAME locked, ms-precise targetMs as the running-tab runtime (resolveLockedCountdownTarget,
+// keyed by `${matchId}:${slotStartAt}`), so the centered overlay flips every digit on the
+// same absolute instant on both phones — and stays continuous across the reservation →
+// running-tab handoff (same key) with no re-flash.
+export type ReservationCountdownOverlay = {
+  countdownKey: string;
+  targetMs: number | null;
+  secondsRemaining: number;
+};
 
 // How often the room re-fetches the live group status. The reservation room mostly
 // waits, so a relaxed cadence is fine — the per-second ticker drives the countdown
@@ -35,6 +51,9 @@ export type UseGroupReservationRoomResult = {
   // null until the first status fetch settles; the view still renders from params.
   matchStatus: RunningMatchStatusResponse | null;
   view: GroupReservationRoomView;
+  // The shared locked-target countdown payload for the centered start overlay (null
+  // until inside the 30s window with a finite remaining).
+  countdownOverlay: ReservationCountdownOverlay | null;
   // True once the slot has fired / the server says the match is active — the screen
   // hands off to the existing arena auto-open and stops offering cancel.
   isActive: boolean;
@@ -141,6 +160,47 @@ export function useGroupReservationRoom(
     [matchStatus, slotStartAt, distanceKm, isTestMatch, participantCount, syncedNowMs],
   );
 
+  // Derive the SAME locked, ms-precise countdown target the running-tab runtime uses,
+  // keyed by the shared `${matchId}:${slotStartAt}` scheme. The lock freezes once on
+  // localTargetMs = Date.now() + (slotStartMs - syncedNowMs), so the overlay runs an
+  // rAF off that absolute instant and two phones flip every digit on the same tick.
+  // The `view` clock tick (offset + nowMs) still gates WHEN the overlay/arena-handoff
+  // fire; it no longer rounds the displayed digit (that is the locked target's job).
+  const effectiveSlotStartAt = matchStatus?.slotStartAt ?? slotStartAt;
+  const effectiveSlotStartMs = effectiveSlotStartAt ? Date.parse(effectiveSlotStartAt) : NaN;
+  const reservationCountdownKey = matchId && effectiveSlotStartAt
+    ? `${matchId}:${effectiveSlotStartAt}`
+    : null;
+  const reservationLockedSeconds = resolveLockedCountdownTarget({
+    key: reservationCountdownKey,
+    maxStartSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
+    rawRemainingSeconds: view.reservation.remainingSeconds,
+    rawRemainingMs: Number.isFinite(effectiveSlotStartMs) ? effectiveSlotStartMs - syncedNowMs : null,
+    nowMs: Date.now(),
+  });
+  const reservationLockedTargetMs = readLockedCountdownTargetMs(reservationCountdownKey);
+  const countdownOverlay = useMemo<ReservationCountdownOverlay | null>(() => {
+    if (
+      !reservationCountdownKey
+      || !view.reservation.shouldShowStartOverlay
+      || view.reservation.remainingSeconds === null
+    ) {
+      return null;
+    }
+
+    return {
+      countdownKey: reservationCountdownKey,
+      targetMs: reservationLockedTargetMs,
+      secondsRemaining: reservationLockedSeconds ?? view.reservation.remainingSeconds,
+    };
+  }, [
+    reservationCountdownKey,
+    reservationLockedSeconds,
+    reservationLockedTargetMs,
+    view.reservation.remainingSeconds,
+    view.reservation.shouldShowStartOverlay,
+  ]);
+
   const isActive = matchStatus?.state === 'active' || view.reservation.remainingSeconds === null;
 
   const cancel = useCallback(async () => {
@@ -184,6 +244,7 @@ export function useGroupReservationRoom(
     isCanceling,
     matchStatus,
     view,
+    countdownOverlay,
     isActive,
     cancel,
     refresh: loadStatus,

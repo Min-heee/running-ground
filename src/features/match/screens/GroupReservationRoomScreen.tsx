@@ -47,6 +47,7 @@ export default function GroupReservationRoomScreen() {
     error,
     isCanceling,
     view,
+    countdownOverlay,
     cancel,
   } = useGroupReservationRoom({ matchId, distanceKm, slotStartAt, participantCount, isTestMatch });
 
@@ -134,10 +135,11 @@ export default function GroupReservationRoomScreen() {
         </>
       )}
 
-      {reservation.shouldShowStartOverlay && reservation.remainingSeconds !== null ? (
+      {countdownOverlay ? (
         <MatchStartCountdownOverlay
-          countdownKey={`group-reservation-room-${view.startTimeLabel ?? 'slot'}`}
-          secondsRemaining={reservation.remainingSeconds}
+          countdownKey={countdownOverlay.countdownKey}
+          secondsRemaining={countdownOverlay.secondsRemaining}
+          targetMs={countdownOverlay.targetMs}
           variant="centered"
         />
       ) : null}

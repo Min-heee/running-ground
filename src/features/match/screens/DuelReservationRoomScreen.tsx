@@ -45,6 +45,7 @@ export default function DuelReservationRoomScreen() {
     error,
     isCanceling,
     view,
+    countdownOverlay,
     cancel,
   } = useDuelReservationRoom({ matchId, distanceKm, slotStartAt, isTestMatch });
 
@@ -133,10 +134,11 @@ export default function DuelReservationRoomScreen() {
         </>
       )}
 
-      {reservation.shouldShowStartOverlay && reservation.remainingSeconds !== null ? (
+      {countdownOverlay ? (
         <MatchStartCountdownOverlay
-          countdownKey={`duel-reservation-room-${view.startTimeLabel ?? 'slot'}`}
-          secondsRemaining={reservation.remainingSeconds}
+          countdownKey={countdownOverlay.countdownKey}
+          secondsRemaining={countdownOverlay.secondsRemaining}
+          targetMs={countdownOverlay.targetMs}
           variant="centered"
         />
       ) : null}
