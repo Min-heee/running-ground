@@ -22,12 +22,19 @@
 // unit-testable without the native layer — mirroring periodicMatchUploadController.
 
 import {
+  COLD_START_MAX_STABLE_ACCURACY_METERS,
+  COLD_START_MAX_STABLE_CLUSTER_RADIUS_METERS,
+  COLD_START_MAX_STABLE_WINDOW_MS,
+  COLD_START_STABLE_FIX_COUNT,
   DISTANCE_GATE_ACCURACY_SCALE,
   DISTANCE_GATE_BASE_METERS,
   MAX_LOCATION_AGE_MS,
   MAX_REASONABLE_RUNNING_SPEED_MPS,
   MAX_TRACKING_ACCURACY_METERS,
+  MIN_LOCATION_TIME_DELTA_MS,
   MIN_TELEPORT_FILTER_DISTANCE_METERS,
+  POOR_ACCURACY_METERS,
+  STATIONARY_SPEED_MPS,
 } from '@/features/runs/tracking/background/locationDistance';
 
 // OTA kill-switch (default true). An OTA can flip this to false to force the pure-JS distance path
@@ -44,6 +51,29 @@ export type NativeDistanceAccumulatorOptions = {
   teleportMinMeters: number;
   maxSpeedMps: number;
   maxLocationAgeMs: number;
+  // STEP 4 — new wire-format fields pushed ahead of the native build (steps 5-6, separate). A native
+  // binary that predates these fields simply ignores the extra keys, so adding them is OTA-safe. They
+  // mirror the JS filter chain so the native accumulator can match JS EXACTLY once the native build
+  // reads them; the JS pipeline is unaffected by their presence here.
+  //
+  // Minimum time delta between counted fixes (JS: MIN_LOCATION_TIME_DELTA_MS).
+  minTimeDeltaMs: number;
+  // 2nd (accuracy-scaled) teleport gate: drop a fix when it jumps farther than
+  // max(teleportMinMeters, accuracy * teleportAccuracyScale) AND faster than teleportMaxSpeedMps.
+  teleportAccuracyScale: number;
+  teleportMaxSpeedMps: number;
+  // Stationary noise rejection (JS shouldIgnoreNoisySegment): a fix moving slower than
+  // stationarySpeedMps within a small accuracy-scaled radius is treated as jitter, not movement.
+  stationarySpeedMps: number;
+  poorAccuracyMeters: number;
+  // Cold-start stabilization gate (JS buildStableColdStartRouteCandidate). The native side waits for
+  // coldStartStableFixCount fixes inside coldStartMaxClusterRadiusMeters / coldStartMaxAccuracyMeters
+  // within coldStartMaxWindowMs before anchoring, then (matching the JS seed=0) banks NO intra-cluster
+  // path — distance only accumulates after the stable anchor.
+  coldStartStableFixCount: number;
+  coldStartMaxClusterRadiusMeters: number;
+  coldStartMaxAccuracyMeters: number;
+  coldStartMaxWindowMs: number;
 };
 
 export const NATIVE_DISTANCE_ACCUMULATOR_OPTIONS: NativeDistanceAccumulatorOptions = {
@@ -53,6 +83,16 @@ export const NATIVE_DISTANCE_ACCUMULATOR_OPTIONS: NativeDistanceAccumulatorOptio
   teleportMinMeters: MIN_TELEPORT_FILTER_DISTANCE_METERS,
   maxSpeedMps: MAX_REASONABLE_RUNNING_SPEED_MPS,
   maxLocationAgeMs: MAX_LOCATION_AGE_MS,
+  // STEP 4 — new wire-format fields (OTA-safe; ignored by binaries that predate them).
+  minTimeDeltaMs: MIN_LOCATION_TIME_DELTA_MS,
+  teleportAccuracyScale: 1.8,
+  teleportMaxSpeedMps: 5.8,
+  stationarySpeedMps: STATIONARY_SPEED_MPS,
+  poorAccuracyMeters: POOR_ACCURACY_METERS,
+  coldStartStableFixCount: COLD_START_STABLE_FIX_COUNT,
+  coldStartMaxClusterRadiusMeters: COLD_START_MAX_STABLE_CLUSTER_RADIUS_METERS,
+  coldStartMaxAccuracyMeters: COLD_START_MAX_STABLE_ACCURACY_METERS,
+  coldStartMaxWindowMs: COLD_START_MAX_STABLE_WINDOW_MS,
 };
 
 type NativeDistanceAccumulatorModule = {
@@ -88,32 +128,72 @@ export function setNativeDistanceAccumulatorModuleForTest(module: NativeDistance
 
 // PURE merge decision — the single safety-critical helper, unit-tested in isolation.
 //
-//   mergedDistanceKm = (nativeMergeEnabled && nativeAvailable)
-//     ? max(jsDistanceKm, nativeMeters / 1000)
-//     : jsDistanceKm
+// FRESH-JS-WINS + NATIVE-DELTA-ONLY (replaces the old unconditional max()):
 //
-// Invariants this encodes (proven by the tests):
-//   - never summed → max() of two same-origin totals → NO double-count.
-//   - max() never drops below jsDistanceKm → never a backward jump from the JS value.
+//   mergedDistanceKm =
+//     (!nativeMergeEnabled || !nativeAvailable) ? jsDistanceKm           // today's pure-JS behavior
+//   : jsIsFresh                                 ? jsDistanceKm           // FRESH → JS EXACTLY (all filters)
+//   : /* JS stale (screen off) */                 max(lastFreshJsKm, nativeKm)  // native FILLS the gap
+//
+// WHY this is not max() while JS is fresh: the native accumulator omits some JS jitter/cold-start
+// filters and can OVER-COUNT, so an unconditional max() let the noisier native path WIN an interval
+// and lock in jitter the JS chain already filtered. When JS is FRESH (foreground / screen on), the
+// fully-filtered JS chain is authoritative, so we return jsDistanceKm EXACTLY — native can never win.
+//
+// WHY this still advances screen-off (no freeze / no under-count): the native total is RE-SEEDED to
+// the JS total on every fresh flush (see seedNativeDistanceAccumulatorToMeters + the flush wiring), so
+// at the moment JS goes stale, native == the last fresh JS total and then accumulates its OWN GPS
+// deltas on top. So nativeKm === lastFreshJsKm + nativeDeltaSinceLastFreshSeed — i.e. the last fresh
+// JS baseline PLUS native's gap-fill delta, additively, NEVER a re-add of pre-seed jitter. The
+// max(lastFreshJsKm, nativeKm) is a monotonic FLOOR: it can never drop below the last fresh JS total
+// (no backward jump) and the native delta keeps it climbing while the screen is off (no freeze).
+//
+// Invariants (proven by the tests):
 //   - flag off OR native unavailable → returns jsDistanceKm EXACTLY (today's behavior).
-//   - foreground (jsDistanceKm >= nativeMeters/1000) → returns jsDistanceKm (foreground unchanged).
-//   - a non-finite/negative native total is treated as 0 → cannot corrupt the merge.
+//   - jsIsFresh → returns jsDistanceKm EXACTLY (native NEVER wins an interval the JS chain filtered).
+//   - jsIsFresh and native ahead → STILL jsDistanceKm (the old max() would have taken native; now it
+//     cannot — this is the whole point of killing the noisier-path-over-counts win).
+//   - stale → max(lastFreshJsKm, nativeKm): never below the last fresh JS total (no backward jump /
+//     no decrease), advances with the native delta (no freeze / no under-count screen-off).
+//   - a non-finite/negative native total is treated as 0 → cannot corrupt the merge (stale falls back
+//     to lastFreshJsKm, never a drop).
 export function resolveMergedDistanceKm(args: {
   jsDistanceKm: number;
   nativeMeters: number;
   nativeAvailable: boolean;
+  jsIsFresh: boolean;
+  lastFreshJsKm?: number;
   nativeMergeEnabled?: boolean;
 }): number {
-  const { jsDistanceKm, nativeMeters, nativeAvailable, nativeMergeEnabled = ENABLE_NATIVE_DISTANCE_MERGE } = args;
+  const {
+    jsDistanceKm,
+    nativeMeters,
+    nativeAvailable,
+    jsIsFresh,
+    lastFreshJsKm,
+    nativeMergeEnabled = ENABLE_NATIVE_DISTANCE_MERGE,
+  } = args;
 
   const safeJsKm = Number.isFinite(jsDistanceKm) && jsDistanceKm > 0 ? jsDistanceKm : 0;
 
+  // Flag off / native unavailable → pure JS path, byte-for-byte today's behavior.
   if (!nativeMergeEnabled || !nativeAvailable) {
     return safeJsKm;
   }
 
+  // FRESH JS → the fully-filtered JS chain is authoritative; native can never win an interval.
+  if (jsIsFresh) {
+    return safeJsKm;
+  }
+
+  // STALE JS (screen off) → native fills the gap, additively from the last fresh JS baseline. The
+  // baseline floor is the last fresh JS total (falls back to the current — frozen but equal — JS
+  // total if no explicit baseline was captured), so the merged value can never drop below it.
+  const safeBaselineKm = Number.isFinite(lastFreshJsKm) && (lastFreshJsKm as number) > 0
+    ? (lastFreshJsKm as number)
+    : safeJsKm;
   const safeNativeKm = Number.isFinite(nativeMeters) && nativeMeters > 0 ? nativeMeters / 1000 : 0;
-  return Math.max(safeJsKm, safeNativeKm);
+  return Math.max(safeBaselineKm, safeNativeKm);
 }
 
 // Synchronous read of the native distance total in METERS, merged into the flush. Returns 0 when the
@@ -192,6 +272,25 @@ export function seedNativeDistanceAccumulatorToMeters(meters: number): boolean {
   }
 }
 
+// LAST-FRESH-JS BASELINE — the JS authoritative total (in METERS) captured at the most recent FRESH
+// flush, i.e. the value the native accumulator was last re-seeded to. This is the floor the stale
+// merge fills the gap from: while JS is stale (screen off) the native total === this baseline + its
+// own GPS delta, so the merge returns max(baseline, native) — additive from a clean JS baseline,
+// never a re-add of pre-seed jitter, never below the last fresh JS total. Reset to 0 between runs.
+let lastFreshJsAuthoritativeMeters = 0;
+
+// Record the JS authoritative total at a FRESH flush. Called ONLY when MY JS distance is fresh (the
+// flush guards this with the same isMyMatchDistanceStale signal that gates the native re-seed), so it
+// always holds the last screen-on, fully-JS-filtered total. Floors garbage/negative to 0.
+export function recordFreshJsAuthoritativeMeters(meters: number) {
+  lastFreshJsAuthoritativeMeters = Number.isFinite(meters) && meters > 0 ? meters : 0;
+}
+
+// The last fresh JS total in KM, for the stale-branch baseline floor in resolveMergedDistanceKm.
+export function getLastFreshJsAuthoritativeKm(): number {
+  return lastFreshJsAuthoritativeMeters / 1000;
+}
+
 let lastStartedMatchKey: string | null = null;
 
 // Start native GPS distance accumulation for the match + SEED it to the JS authoritative total at
@@ -237,6 +336,8 @@ export async function stopNativeDistanceAccumulator(
   resolveModule: () => Promise<NativeDistanceAccumulatorModule | null> = resolveNativeDistanceAccumulatorModule,
 ): Promise<boolean> {
   lastStartedMatchKey = null;
+  // Clear the last-fresh baseline so the next run's stale merge cannot floor off a previous run's total.
+  lastFreshJsAuthoritativeMeters = 0;
 
   const module = await ensureCachedModule(resolveModule);
 
@@ -255,6 +356,7 @@ export async function stopNativeDistanceAccumulator(
 // Test reset: clear the module-level cadence state + the cached module between tests.
 export function resetNativeDistanceAccumulatorForTest() {
   lastStartedMatchKey = null;
+  lastFreshJsAuthoritativeMeters = 0;
   cachedModule = null;
   cachedModuleResolved = false;
 }

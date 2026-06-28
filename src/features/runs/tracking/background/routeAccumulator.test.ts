@@ -109,15 +109,20 @@ test('route accumulator keeps normal straight-line movement after cold-start sta
   const baseMs = Date.now() - 7_000;
   resetRunningSnapshot(baseMs);
 
+  // Tight warmup cluster (<= COLD_START_MAX_STABLE_CLUSTER_RADIUS_METERS = 15) anchors at the 3rd fix
+  // with seed=0 (no intra-cluster path banked); the last warmup fix (8m) becomes lastCounted.
   appendTrackedLocation(locationAt({ metersEast: 0, timestampMs: baseMs, speedMps: 3 }));
-  appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: baseMs + 1_000, speedMps: 3 }));
-  appendTrackedLocation(locationAt({ metersEast: 16, timestampMs: baseMs + 2_000, speedMps: 3 }));
-  appendTrackedLocation(locationAt({ metersEast: 28, timestampMs: baseMs + 3_200, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 4, timestampMs: baseMs + 1_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: baseMs + 2_000, speedMps: 3 }));
+  // Then a clean straight run: each +12m segment is above the distance gate and is counted in full.
+  appendTrackedLocation(locationAt({ metersEast: 20, timestampMs: baseMs + 3_200, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 32, timestampMs: baseMs + 4_400, speedMps: 3 }));
 
   const snapshot = getSnapshotState();
-  assert.equal(snapshot.route.length, 4);
-  assert.ok(getAccumulatedDistanceMeters() >= 24);
-  assert.ok(getAccumulatedDistanceMeters() <= 34);
+  assert.equal(snapshot.route.length, 5);
+  // 8 -> 20 -> 32 from the anchor: ~24m of real movement counted, none under-counted.
+  assert.ok(getAccumulatedDistanceMeters() >= 22);
+  assert.ok(getAccumulatedDistanceMeters() <= 26);
 });
 
 test('route accumulator gates sub-threshold movement without increasing distance', () => {
@@ -125,14 +130,19 @@ test('route accumulator gates sub-threshold movement without increasing distance
   resetRunningSnapshot(baseMs);
 
   appendTrackedLocation(locationAt({ metersEast: 0, timestampMs: baseMs, speedMps: 3 }));
-  appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: baseMs + 1_000, speedMps: 3 }));
-  appendTrackedLocation(locationAt({ metersEast: 16, timestampMs: baseMs + 2_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 4, timestampMs: baseMs + 1_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: baseMs + 2_000, speedMps: 3 }));
+  // Move clearly past the anchor so lastCounted = 20m and there is real banked distance.
+  appendTrackedLocation(locationAt({ metersEast: 20, timestampMs: baseMs + 3_200, speedMps: 3 }));
 
   const beforeGateDistanceMeters = getAccumulatedDistanceMeters();
+  assert.ok(beforeGateDistanceMeters > 0);
 
+  // A +3m wobble (< MIN_MOVEMENT_DISTANCE_METERS = 5.0) is rejected as sub-noise jitter — it adds
+  // NOTHING and is not even appended to the route. This is the raised 5m noise floor at work.
   appendTrackedLocation(locationAt({
-    metersEast: 20,
-    timestampMs: baseMs + 3_200,
+    metersEast: 23,
+    timestampMs: baseMs + 4_400,
     accuracyM: 20,
     speedMps: 3,
   }));
@@ -147,20 +157,23 @@ test('route accumulator adds displacement from the last counted point once the g
   resetRunningSnapshot(baseMs);
 
   appendTrackedLocation(locationAt({ metersEast: 0, timestampMs: baseMs, speedMps: 3 }));
-  appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: baseMs + 1_000, speedMps: 3 }));
-  appendTrackedLocation(locationAt({ metersEast: 16, timestampMs: baseMs + 2_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 4, timestampMs: baseMs + 1_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: baseMs + 2_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 20, timestampMs: baseMs + 3_200, speedMps: 3 }));
 
   const beforeGateDistanceMeters = getAccumulatedDistanceMeters();
 
+  // A +3m wobble is rejected as sub-noise (not even routed), then a real segment to 33m is counted as
+  // the displacement FROM THE LAST COUNTED POINT (20m, not the dropped wobble at 23m): 33 - 20 = 13m.
   appendTrackedLocation(locationAt({
-    metersEast: 20,
-    timestampMs: baseMs + 3_200,
+    metersEast: 23,
+    timestampMs: baseMs + 4_400,
     accuracyM: 20,
     speedMps: 3,
   }));
   appendTrackedLocation(locationAt({
-    metersEast: 24,
-    timestampMs: baseMs + 4_400,
+    metersEast: 33,
+    timestampMs: baseMs + 5_600,
     accuracyM: 20,
     speedMps: 3,
   }));
@@ -168,8 +181,10 @@ test('route accumulator adds displacement from the last counted point once the g
   const snapshot = getSnapshotState();
   const addedDistanceMeters = getAccumulatedDistanceMeters() - beforeGateDistanceMeters;
   assert.equal(snapshot.route.length, 5);
-  assert.ok(addedDistanceMeters >= 7);
-  assert.ok(addedDistanceMeters <= 9);
+  // Displacement measured from the last COUNTED point (20m), so the gated 23m wobble does not shorten
+  // it: 33 - 20 = 13m added, NOT 33 - 23 = 10m. Real movement is never under-counted.
+  assert.ok(addedDistanceMeters >= 12);
+  assert.ok(addedDistanceMeters <= 14);
 });
 
 test('route accumulator collapses small cold-start GPS loops before normal movement', () => {
@@ -269,11 +284,87 @@ test('route accumulator still rejects large teleport jumps after stabilization',
   resetRunningSnapshot(baseMs);
 
   appendTrackedLocation(locationAt({ metersEast: 0, timestampMs: baseMs, speedMps: 3 }));
-  appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: baseMs + 1_000, speedMps: 3 }));
-  appendTrackedLocation(locationAt({ metersEast: 16, timestampMs: baseMs + 2_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 4, timestampMs: baseMs + 1_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: baseMs + 2_000, speedMps: 3 }));
+  // 212m in 1.2s after a tight warmup cluster is a teleport (>> MAX_REASONABLE_RUNNING_SPEED_MPS) — dropped.
   appendTrackedLocation(locationAt({ metersEast: 220, timestampMs: baseMs + 3_200, speedMps: 3 }));
 
   const snapshot = getSnapshotState();
   assert.equal(snapshot.route.length, 3);
   assert.ok(getAccumulatedDistanceMeters() < 25);
+});
+
+// STEP 1 — the cold-start cluster must bank ZERO intra-cluster path (seed = 0). A tight 3-fix warmup
+// cluster (spread within the radius gate) anchors at the cluster centroid/last fix; NONE of the
+// intra-cluster warmup jitter is counted, so the start spike (~30-60m banked at t0) is gone.
+test('route accumulator banks ZERO intra-cluster path at cold start (seed 0)', () => {
+  const baseMs = Date.now() - 6_000;
+  resetRunningSnapshot(baseMs);
+
+  // Three fixes scattered ~10m apart inside the cold-start cluster (still <= 15m radius). Pre-fix the
+  // seed banked calculateRouteWindowDistanceMeters over these (~20m of jitter); now it must be 0.
+  appendTrackedLocation(locationAt({ metersEast: 0, metersNorth: 0, timestampMs: baseMs, speedMps: 1.2 }));
+  appendTrackedLocation(locationAt({ metersEast: 9, metersNorth: 4, timestampMs: baseMs + 1_000, speedMps: 1.2 }));
+  appendTrackedLocation(locationAt({ metersEast: 3, metersNorth: 8, timestampMs: baseMs + 2_000, speedMps: 1.2 }));
+
+  const snapshot = getSnapshotState();
+  assert.equal(snapshot.route.length, 3, 'the cluster is anchored as the baseline route');
+  assert.equal(
+    getAccumulatedDistanceMeters(),
+    0,
+    'NO intra-cluster warmup path is banked — distance accumulates only after the anchor',
+  );
+});
+
+// DO-NOT-UNDER-COUNT proof — a straight synthetic ~5km track must still read ~5km under the new,
+// tighter gates (MAX_TRACKING_ACCURACY_METERS=40, MIN_MOVEMENT_DISTANCE_METERS=5.0, gate base 5.0).
+// A genuine runner moving well above the 5m floor between fixes is NEVER dropped, so the competitive
+// distance is not shortened. (The old loose gates also read ~5km; this guards against regression.)
+test('route accumulator does not materially under-count a straight 5km track under the new gates', () => {
+  // The location-freshness gate (MAX_LOCATION_AGE_MS) rejects fixes far from "now", so to drive a
+  // realistic multi-minute track we advance a mocked clock in lockstep with each fix timestamp — the
+  // same wall-clock relationship a real run has. Real Date.now is restored in finally.
+  const realDateNow = Date.now;
+  const stepMeters = 12; // each segment is well above MIN_MOVEMENT_DISTANCE_METERS = 5.0
+  const stepMs = 2_000; // 12m / 2s = 6 m/s, a normal running pace (below the teleport ceiling)
+  const stepCount = 420; // 420 * 12 = 5040m from the anchor — a straight ~5km track
+  const startMs = realDateNow();
+
+  try {
+    let mockNowMs = startMs;
+    Date.now = () => mockNowMs;
+
+    resetRunningSnapshot(startMs);
+
+    // Tight warmup cluster anchors at the 3rd fix (seed 0), lastCounted ~ 0m east.
+    appendTrackedLocation(locationAt({ metersEast: 0, timestampMs: startMs, speedMps: 3 }));
+    mockNowMs = startMs + 1_000;
+    appendTrackedLocation(locationAt({ metersEast: 4, timestampMs: mockNowMs, speedMps: 3 }));
+    mockNowMs = startMs + 2_000;
+    appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: mockNowMs, speedMps: 3 }));
+
+    for (let stepIndex = 1; stepIndex <= stepCount; stepIndex += 1) {
+      mockNowMs = startMs + 2_000 + stepIndex * stepMs;
+      appendTrackedLocation(locationAt({
+        metersEast: 8 + stepIndex * stepMeters,
+        timestampMs: mockNowMs,
+        accuracyM: 8,
+        speedMps: 6,
+      }));
+    }
+
+    const realDistanceMeters = stepCount * stepMeters; // 5040m straight-line from the anchor
+    const measuredMeters = getAccumulatedDistanceMeters();
+    // Must read essentially the full distance — no material under-count (tiny rounding margin only).
+    assert.ok(
+      measuredMeters >= realDistanceMeters * 0.99,
+      `5km track under-counted: measured ${measuredMeters.toFixed(0)}m vs real ${realDistanceMeters}m`,
+    );
+    assert.ok(
+      measuredMeters <= realDistanceMeters * 1.01,
+      `5km track over-counted: measured ${measuredMeters.toFixed(0)}m vs real ${realDistanceMeters}m`,
+    );
+  } finally {
+    Date.now = realDateNow;
+  }
 });

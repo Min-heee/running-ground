@@ -744,9 +744,14 @@ const COMPETITIVE_GOAL_THRESHOLD_KM = COMPETITIVE_GOAL_KM - MATCH_GOAL_DISTANCE_
 // must stay 'running' AND the sent distance must be capped STRICTLY below the goal threshold — no
 // premature finish from native over-count (neither the client status nor the server reachedGoal).
 test('competitive-integrity: native over-count below the goal keeps status running AND caps the sent distance below the goal threshold', async () => {
-  const nowMs = Date.now();
+  // SCREEN OFF (STALE) is the only path where the native floor fills the frozen gap. Stamp a fresh
+  // snapshot, record the JS authoritative total as the last-fresh baseline (4.6km), then advance nowMs
+  // past the staleness threshold so the flush takes the stale (native-fill) branch.
   resetBackgroundMatchProgressSyncForTest();
-  setRunningSnapshot(nowMs, { distanceKm: 4.6 }); // JS clearly under the goal (filtered, accurate)
+  setAccumulatedDistanceMeters(4600);
+  recordBackgroundSnapshotUpdate();
+  const staleNowMs = Date.now() + MY_MATCH_DISTANCE_STALE_THRESHOLD_MS + 5_000;
+  setRunningSnapshot(staleNowMs, { distanceKm: 4.6 }); // JS frozen under the goal (filtered, accurate)
   setBackgroundMatchProgressContext({
     matchId: 'duel-match-native-overcount',
     mode: 'duel',
@@ -761,7 +766,7 @@ test('competitive-integrity: native over-count below the goal keeps status runni
   try {
     const didFlush = await flushBackgroundMatchProgressSync({
       isAppBackground: true,
-      nowMs,
+      nowMs: staleNowMs,
       updateRunningMatchProgress: async (input) => {
         calls.push(input);
         return buildMatchStatusResponse(input.matchId);
@@ -770,7 +775,7 @@ test('competitive-integrity: native over-count below the goal keeps status runni
 
     assert.equal(didFlush, true);
     assert.equal(calls.length, 1);
-    // Status stays running — native over-count cannot flip the finish.
+    // Status stays running — native over-count cannot flip the finish (status is JS-snapshot only).
     assert.equal(calls[0].status, 'running');
     // Sent distance is the native floor (live-gap advance) but CAPPED strictly below the goal
     // threshold so the server's reachedGoalDistance can't trip from native.
@@ -783,20 +788,59 @@ test('competitive-integrity: native over-count below the goal keeps status runni
       COMPETITIVE_GOAL_THRESHOLD_KM - NATIVE_SUBGOAL_CAP_EPSILON_KM,
       'capped to (goalThreshold - epsilon) — the native floor advances right up to just below the goal',
     );
-    // The sent distance still ADVANCED the opponent gap above the JS snapshot (4.6km) — the whole
-    // point of the native floor — without crossing the goal.
+    // The sent distance still ADVANCED the opponent gap above the frozen JS snapshot (4.6km) — the
+    // whole point of the native floor — without crossing the goal.
     assert.ok(calls[0].distanceKm > 4.6, 'native floor advanced the live gap above the JS snapshot');
   } finally {
     teardown();
   }
 });
 
-// (b) The JS pipeline itself reaches the goal → the cap LIFTS: full merged distance is sent with
-// status 'finished'. A legit finish.
-test('competitive-integrity: when the JS snapshot reaches the goal, status is finished and the full merged distance is sent', async () => {
+// FRESH-JS-WINS (screen on): when JS is fresh, native over-count can NOT inflate the sent distance at
+// all — even stronger competitive integrity than the cap. The sent distance is the JS total exactly.
+test('competitive-integrity: when JS is fresh, native over-count cannot inflate the sent distance (JS total sent)', async () => {
   const nowMs = Date.now();
   resetBackgroundMatchProgressSyncForTest();
-  // JS itself reached the goal threshold (accurate, all filters) — a legit finish.
+  setAccumulatedDistanceMeters(4600);
+  recordBackgroundSnapshotUpdate(); // FRESH
+  setRunningSnapshot(nowMs, { distanceKm: 4.6 });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-native-overcount-fresh',
+    mode: 'duel',
+    distanceKm: COMPETITIVE_GOAL_KM,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  const teardown = await withNativeDistance(5200); // native far ahead — must be ignored while fresh
+
+  const calls: UpdateRunningMatchProgressInput[] = [];
+  try {
+    const didFlush = await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      nowMs,
+      updateRunningMatchProgress: async (input) => {
+        calls.push(input);
+        return buildMatchStatusResponse(input.matchId);
+      },
+    });
+
+    assert.equal(didFlush, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].status, 'running');
+    assert.equal(calls[0].distanceKm, 4.6, 'fresh JS is authoritative — native over-count is ignored');
+  } finally {
+    teardown();
+  }
+});
+
+// (b) The JS pipeline itself reaches the goal → status 'finished'. JS is FRESH here, so the sent
+// distance is the JS total exactly (native cannot inflate a fresh flush) — a legit finish.
+test('competitive-integrity: when the JS snapshot reaches the goal, status is finished and the JS distance is sent', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  // JS itself reached the goal threshold (accurate, all filters) — a legit finish. FRESH.
+  setAccumulatedDistanceMeters(COMPETITIVE_GOAL_KM * 1000);
+  recordBackgroundSnapshotUpdate();
   setRunningSnapshot(nowMs, { distanceKm: COMPETITIVE_GOAL_KM });
   setBackgroundMatchProgressContext({
     matchId: 'duel-match-js-finished',
@@ -805,7 +849,7 @@ test('competitive-integrity: when the JS snapshot reaches the goal, status is fi
     slotStartAt: '2026-05-29T00:00:00.000Z',
   });
 
-  // Native is slightly ahead (5050m) — once JS has finished, the full merged value is sent uncapped.
+  // Native is slightly ahead (5050m) — but JS is fresh, so the JS total is sent (native ignored).
   const teardown = await withNativeDistance(5050);
 
   const calls: UpdateRunningMatchProgressInput[] = [];
@@ -822,8 +866,8 @@ test('competitive-integrity: when the JS snapshot reaches the goal, status is fi
     assert.equal(didFlush, true);
     assert.equal(calls.length, 1);
     assert.equal(calls[0].status, 'finished', 'JS reached the goal → legit finish');
-    // The cap is lifted: the full merged distance (max of js 5.0 and native 5.05) is sent.
-    assert.equal(calls[0].distanceKm, 5.05, 'full merged distance sent once JS has reached the goal');
+    // Fresh JS wins: the JS total (5.0) is sent, not the native 5.05.
+    assert.equal(calls[0].distanceKm, 5.0, 'fresh JS distance sent once JS has reached the goal');
   } finally {
     teardown();
   }

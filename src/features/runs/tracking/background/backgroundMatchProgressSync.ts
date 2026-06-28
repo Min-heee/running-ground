@@ -20,7 +20,9 @@ import {
   stopPeriodicMatchUpload,
 } from '@/features/runs/tracking/background/periodicMatchUploadController';
 import {
+  getLastFreshJsAuthoritativeKm,
   getMergeableNativeDistanceMeters,
+  recordFreshJsAuthoritativeMeters,
   resolveMergedDistanceKm,
   seedNativeDistanceAccumulatorToMeters,
   startNativeDistanceAccumulator,
@@ -436,12 +438,25 @@ export async function flushBackgroundMatchProgressSync({
     nowMs,
   });
   if (!isMyDistanceStaleNow) {
-    seedNativeDistanceAccumulatorToMeters(getJsAccumulatedDistanceMeters());
+    // FRESH: re-seed native to the JS total AND record that total as the last-fresh baseline. The
+    // merge below then returns jsKm EXACTLY while fresh (native can never win an interval the JS
+    // chain already filtered); the recorded baseline is the floor the STALE branch fills the gap
+    // from. Record the JS authoritative total (meters) regardless of whether the native re-seed
+    // actually fired, so the baseline is correct the moment native becomes available.
+    const jsAuthoritativeMeters = getJsAccumulatedDistanceMeters();
+    recordFreshJsAuthoritativeMeters(jsAuthoritativeMeters);
+    seedNativeDistanceAccumulatorToMeters(jsAuthoritativeMeters);
   }
+  // FRESH-JS-WINS + native-delta-only merge (replaces the old unconditional max()): fresh → jsKm
+  // EXACTLY; stale (screen off) → max(lastFreshJsKm, nativeKm) so native fills the gap additively
+  // from the last fresh JS baseline (advances screen-off, never below the last fresh total, never a
+  // re-add of pre-seed jitter). No-op on current binaries (native unavailable → jsKm).
   const mergedRawKm = resolveMergedDistanceKm({
     jsDistanceKm: snapshot.distanceKm,
     nativeMeters: getMergeableNativeDistanceMeters(),
     nativeAvailable: true,
+    jsIsFresh: !isMyDistanceStaleNow,
+    lastFreshJsKm: getLastFreshJsAuthoritativeKm(),
   });
   // (1) Finish status from the JS snapshot ONLY — native over-count can never flip to 'finished'.
   const status = resolveBackgroundHeartbeatStatus(snapshot.distanceKm, context.distanceKm);

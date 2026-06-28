@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  getLastFreshJsAuthoritativeKm,
   NATIVE_DISTANCE_ACCUMULATOR_OPTIONS,
+  recordFreshJsAuthoritativeMeters,
   resetNativeDistanceAccumulatorForTest,
   resolveMergedDistanceKm,
   startNativeDistanceAccumulator,
@@ -48,79 +50,122 @@ function buildFakeModule(available: boolean): { module: FakeNativeModule; record
   return { module, recorder };
 }
 
-// ---- PURE MERGE DECISION (the safety-critical helper) ----
+// ---- PURE MERGE DECISION (the safety-critical helper) — FRESH-JS-WINS + native-delta-only ----
 
-// max(js, native): when native is ahead (screen-off advance JS missed), the merge takes the native
-// total — this is the whole point of the feature.
-test('resolveMergedDistanceKm takes the larger of js and native when both enabled and available', () => {
+// FRESH JS WINS — when JS is fresh, the fully-filtered JS chain is authoritative, so the merge
+// returns jsKm EXACTLY even when the (noisier) native total is AHEAD. This is the core of the fix:
+// the over-counting native path can NEVER win an interval the JS chain already filtered. The OLD
+// unconditional max() would have taken the 1.5km native total here; it no longer can.
+test('resolveMergedDistanceKm returns jsKm EXACTLY when fresh, even if native is ahead (no max)', () => {
   const merged = resolveMergedDistanceKm({
     jsDistanceKm: 1.0,
-    nativeMeters: 1500, // 1.5 km
+    nativeMeters: 1500, // 1.5 km — would have WON under the old max()
     nativeAvailable: true,
+    jsIsFresh: true,
+    lastFreshJsKm: 1.0,
     nativeMergeEnabled: true,
   });
-  assert.equal(merged, 1.5);
+  assert.equal(merged, 1.0, 'fresh JS is authoritative — native cannot win the interval');
 });
 
-// FOREGROUND UNCHANGED: when JS is ahead (foreground, JS pipeline authoritative), max() === jsKm so
-// the foreground path is byte-for-byte the JS value.
-test('resolveMergedDistanceKm returns jsKm when js >= native (foreground unchanged)', () => {
+// FOREGROUND UNCHANGED: foreground is always fresh and JS is ahead, so the merge is the JS value.
+test('resolveMergedDistanceKm returns jsKm when fresh and js >= native (foreground unchanged)', () => {
   const merged = resolveMergedDistanceKm({
     jsDistanceKm: 2.4,
     nativeMeters: 2000, // 2.0 km < 2.4
     nativeAvailable: true,
+    jsIsFresh: true,
+    lastFreshJsKm: 2.4,
     nativeMergeEnabled: true,
   });
   assert.equal(merged, 2.4);
 });
 
-// NO DOUBLE-COUNT: native is seeded to the JS total, so an equal native total merges to the SAME
-// value (max of two equal same-origin totals) — never a sum.
-test('resolveMergedDistanceKm never sums (no double-count) — equal totals merge to that total', () => {
+// STALE → native fills the gap additively from the last fresh JS baseline. nativeMeters here is the
+// last fresh JS total (3.0km) PLUS a screen-off GPS delta (→ 3.4km), so the merge advances to 3.4 —
+// no freeze, no under-count while the screen is off.
+test('resolveMergedDistanceKm takes the native gap-fill when STALE (screen off advances distance)', () => {
+  const merged = resolveMergedDistanceKm({
+    jsDistanceKm: 3.0, // frozen JS snapshot (screen off)
+    nativeMeters: 3400, // last fresh JS (3.0km) + 0.4km native delta
+    nativeAvailable: true,
+    jsIsFresh: false,
+    lastFreshJsKm: 3.0,
+    nativeMergeEnabled: true,
+  });
+  assert.equal(merged, 3.4, 'native delta fills the screen-off gap from the last fresh baseline');
+});
+
+// NO DOUBLE-COUNT: native is seeded to the JS total, so when stale with no delta yet the native
+// total equals the last fresh baseline → merges to that total, never a sum.
+test('resolveMergedDistanceKm never sums (no double-count) — stale with no delta merges to baseline', () => {
   const merged = resolveMergedDistanceKm({
     jsDistanceKm: 3.0,
-    nativeMeters: 3000, // 3.0 km == js
+    nativeMeters: 3000, // == last fresh JS, no screen-off delta yet
     nativeAvailable: true,
+    jsIsFresh: false,
+    lastFreshJsKm: 3.0,
     nativeMergeEnabled: true,
   });
   assert.equal(merged, 3.0);
 });
 
-// FLAG OFF = jsKm: the OTA kill-switch forces the pure-JS path (today's behavior) without a rebuild.
+// FLAG OFF = jsKm: the OTA kill-switch forces the pure-JS path (today's behavior) without a rebuild,
+// even when stale and native is far ahead.
 test('resolveMergedDistanceKm returns jsKm exactly when the merge flag is off', () => {
   const merged = resolveMergedDistanceKm({
     jsDistanceKm: 1.0,
     nativeMeters: 9999, // would dominate if merged
     nativeAvailable: true,
+    jsIsFresh: false,
+    lastFreshJsKm: 1.0,
     nativeMergeEnabled: false,
   });
   assert.equal(merged, 1.0);
 });
 
-// NO-OP WHEN UNAVAILABLE: native unavailable → max(jsKm, 0) === jsKm === today's behavior.
+// NO-OP WHEN UNAVAILABLE: native unavailable → jsKm === today's behavior, fresh or stale.
 test('resolveMergedDistanceKm returns jsKm exactly when native is unavailable', () => {
   const merged = resolveMergedDistanceKm({
     jsDistanceKm: 1.23,
     nativeMeters: 9999,
     nativeAvailable: false,
+    jsIsFresh: false,
+    lastFreshJsKm: 1.23,
     nativeMergeEnabled: true,
   });
   assert.equal(merged, 1.23);
 });
 
-// NEVER A BACKWARD JUMP: a smaller/zero/garbage native total can never drag the merged value below
-// the JS total.
-test('resolveMergedDistanceKm never drops below jsKm for a smaller or invalid native total', () => {
+// NEVER A BACKWARD JUMP / NEVER A FREEZE-TO-ZERO: a smaller/zero/garbage native total when stale can
+// never drag the merged value below the last fresh JS baseline (the floor).
+test('resolveMergedDistanceKm never drops below the last fresh baseline for a smaller/invalid native total', () => {
   assert.equal(
-    resolveMergedDistanceKm({ jsDistanceKm: 2.0, nativeMeters: 0, nativeAvailable: true }),
+    resolveMergedDistanceKm({
+      jsDistanceKm: 2.0, nativeMeters: 0, nativeAvailable: true, jsIsFresh: false, lastFreshJsKm: 2.0,
+    }),
     2.0,
   );
   assert.equal(
-    resolveMergedDistanceKm({ jsDistanceKm: 2.0, nativeMeters: Number.NaN, nativeAvailable: true }),
+    resolveMergedDistanceKm({
+      jsDistanceKm: 2.0, nativeMeters: Number.NaN, nativeAvailable: true, jsIsFresh: false, lastFreshJsKm: 2.0,
+    }),
     2.0,
   );
   assert.equal(
-    resolveMergedDistanceKm({ jsDistanceKm: 2.0, nativeMeters: -500, nativeAvailable: true }),
+    resolveMergedDistanceKm({
+      jsDistanceKm: 2.0, nativeMeters: -500, nativeAvailable: true, jsIsFresh: false, lastFreshJsKm: 2.0,
+    }),
+    2.0,
+  );
+});
+
+// STALE with no explicit baseline → floors to the (frozen but equal) JS total, never a drop.
+test('resolveMergedDistanceKm falls back to the frozen JS total when no baseline is provided (stale)', () => {
+  assert.equal(
+    resolveMergedDistanceKm({
+      jsDistanceKm: 2.0, nativeMeters: 0, nativeAvailable: true, jsIsFresh: false,
+    }),
     2.0,
   );
 });
@@ -128,7 +173,9 @@ test('resolveMergedDistanceKm never drops below jsKm for a smaller or invalid na
 // A negative/garbage JS total is floored to 0 so the merge can never produce a negative distance.
 test('resolveMergedDistanceKm floors a non-finite jsKm to 0', () => {
   assert.equal(
-    resolveMergedDistanceKm({ jsDistanceKm: Number.NaN, nativeMeters: 0, nativeAvailable: false }),
+    resolveMergedDistanceKm({
+      jsDistanceKm: Number.NaN, nativeMeters: 0, nativeAvailable: false, jsIsFresh: true,
+    }),
     0,
   );
 });
@@ -219,13 +266,16 @@ test('finish status comes from the JS snapshot, never the merged distance (nativ
   const jsSnapshotKm = 4.8; // JS frozen while screen-off, clearly under the goal
   const nativeMeters = 5000; // native OVER-COUNTED screen-off to the goal (jitter, missing filters)
 
+  // Screen-off / STALE: native fills the gap and can cross the goal as a live-gap floor.
   const merged = resolveMergedDistanceKm({
     jsDistanceKm: jsSnapshotKm,
     nativeMeters,
     nativeAvailable: true,
+    jsIsFresh: false,
+    lastFreshJsKm: jsSnapshotKm,
     nativeMergeEnabled: true,
   });
-  assert.equal(merged, 5.0, 'merge takes the native goal-crossing total (live-gap floor)');
+  assert.equal(merged, 5.0, 'stale merge takes the native goal-crossing total (live-gap floor)');
 
   // The OLD (vulnerable) wiring derived the status from the merged value → 'finished' prematurely.
   assert.equal(
@@ -247,4 +297,75 @@ test('finish status comes from the JS snapshot, never the merged distance (nativ
     resolveBackgroundHeartbeatStatus(goalKm - MATCH_GOAL_DISTANCE_TOLERANCE_KM, goalKm),
     'finished',
   );
+});
+
+// ---- LAST-FRESH BASELINE PLUMBING (drives the stale-branch floor) ----
+
+// The flush records the JS authoritative total on every FRESH flush; the stale merge then fills the
+// gap from that baseline. This proves the recorded baseline + the stale merge advance distance
+// screen-off WITHOUT freezing and WITHOUT dropping below the last fresh total.
+test('last-fresh baseline + stale merge advances screen-off without freezing or dropping', () => {
+  resetNativeDistanceAccumulatorForTest();
+
+  // FRESH flush at 2.0km — recorded as the baseline.
+  recordFreshJsAuthoritativeMeters(2000);
+  assert.equal(getLastFreshJsAuthoritativeKm(), 2.0);
+
+  // Fresh tick: native is (briefly) ahead at 2.05km, but FRESH JS wins → 2.0km exactly (no max).
+  assert.equal(
+    resolveMergedDistanceKm({
+      jsDistanceKm: 2.0, nativeMeters: 2050, nativeAvailable: true, jsIsFresh: true,
+      lastFreshJsKm: getLastFreshJsAuthoritativeKm(), nativeMergeEnabled: true,
+    }),
+    2.0,
+  );
+
+  // Screen goes OFF → JS freezes at 2.0km, native keeps accumulating its delta from the 2.0km seed.
+  // The stale merge advances: 2.0 → 2.3 → 2.6 (never frozen, never below the 2.0km baseline).
+  assert.equal(
+    resolveMergedDistanceKm({
+      jsDistanceKm: 2.0, nativeMeters: 2300, nativeAvailable: true, jsIsFresh: false,
+      lastFreshJsKm: getLastFreshJsAuthoritativeKm(), nativeMergeEnabled: true,
+    }),
+    2.3,
+  );
+  assert.equal(
+    resolveMergedDistanceKm({
+      jsDistanceKm: 2.0, nativeMeters: 2600, nativeAvailable: true, jsIsFresh: false,
+      lastFreshJsKm: getLastFreshJsAuthoritativeKm(), nativeMergeEnabled: true,
+    }),
+    2.6,
+  );
+
+  // A momentary native read BELOW the baseline cannot drag the distance backward (no freeze-to-zero).
+  assert.equal(
+    resolveMergedDistanceKm({
+      jsDistanceKm: 2.0, nativeMeters: 1000, nativeAvailable: true, jsIsFresh: false,
+      lastFreshJsKm: getLastFreshJsAuthoritativeKm(), nativeMergeEnabled: true,
+    }),
+    2.0,
+  );
+
+  // A new run clears the baseline so it cannot floor off a previous run's total.
+  resetNativeDistanceAccumulatorForTest();
+  assert.equal(getLastFreshJsAuthoritativeKm(), 0);
+});
+
+// ---- STEP 4: NEW WIRE-FORMAT FIELDS ON THE NATIVE OPTIONS (OTA-safe) ----
+
+// The native options object carries the full filter chain so the native build can mirror JS exactly.
+// A binary that predates these fields ignores the extra keys (OTA-safe); this just locks the wire.
+test('NATIVE_DISTANCE_ACCUMULATOR_OPTIONS carries the new step-4 wire-format fields', () => {
+  const options = NATIVE_DISTANCE_ACCUMULATOR_OPTIONS;
+  assert.equal(options.minTimeDeltaMs, 900);
+  assert.equal(options.teleportMaxSpeedMps, 5.8);
+  assert.equal(options.teleportAccuracyScale, 1.8);
+  // Cold-start gate mirrors the (now tightened) JS constants.
+  assert.equal(options.coldStartStableFixCount, 3);
+  assert.equal(options.coldStartMaxClusterRadiusMeters, 30);
+  assert.equal(options.coldStartMaxAccuracyMeters, 20);
+  assert.equal(options.coldStartMaxWindowMs, 10_000);
+  // The tightened tracking-accuracy + distance-gate base flow through too.
+  assert.equal(options.maxAccuracyMeters, 40);
+  assert.equal(options.distanceGateBaseMeters, 3.0);
 });

@@ -223,7 +223,10 @@ export function appendTrackedLocation(location: Location.LocationObject) {
       return;
     }
 
-    accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(stableRoute);
+    // COLD-START SEED = 0: do NOT bank the intra-cluster warmup path. The stable anchor is the
+    // cluster centroid/last fix; distance accumulates only AFTER it from the last counted point, so
+    // ~30-60m of warmup jitter (the start spike that made two phones diverge) is never counted.
+    accumulatedDistanceMeters = 0;
     accumulatedElevationGainMeters = calculateRouteElevationGainMeters(stableRoute);
     lastCountedPoint = stableRoute[stableRoute.length - 1] ?? null;
     coldStartFixBuffer = [];
