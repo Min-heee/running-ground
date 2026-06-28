@@ -22,6 +22,7 @@ import { formatDuration } from '@/features/runs/tracking';
 import type {
   DuelMatchOpponent,
   DuelVerdict,
+  GroupVerdict,
   RunningMatchLiveStatus,
 } from '@/lib/api/types';
 import type {
@@ -304,12 +305,24 @@ export function buildDuelMatchFinishModel({
   };
 }
 
+// The group verdict is the server's single source of truth for the FINAL placement, but only
+// once it has actually RESOLVED. A `groupVerdict` whose `resolved` is false is still settling —
+// the client must keep its PENDING placeholder and never flip to a final 순위. Likewise an
+// ABSENT verdict (older backend that has not redeployed) falls through to the pure-local
+// standings below, so deploy skew degrades gracefully instead of crashing or pinning the card
+// on "pending" forever. Mirrors isResolvedDuelVerdict.
+function isResolvedGroupVerdict(verdict?: GroupVerdict | null): verdict is GroupVerdict {
+  return Boolean(verdict && verdict.resolved && typeof verdict.myRank === 'number');
+}
+
 export function buildGroupMatchFinishModel({
   currentStanding,
   participantCount,
   standings,
   currentPaceLabel,
   currentElapsedSeconds,
+  groupVerdict,
+  matchId,
 }: {
   currentStanding: GroupLiveStanding | null;
   participantCount: number;
@@ -317,23 +330,65 @@ export function buildGroupMatchFinishModel({
   currentPaceLabel: string;
   currentElapsedSeconds: number;
   targetDistanceKm: number;
+  // C (group parity): server-authoritative group placement. Optional/absent on older backends —
+  // the model degrades to today's local behavior then.
+  groupVerdict?: GroupVerdict | null;
+  // C (group parity): the active match id. Its PRESENCE marks this as a real server-tracked group
+  // whose placement is server-authoritative — so when the server verdict is not yet resolved we
+  // must NOT persist a fabricated local rank (the screen-off "wrong placement" bug). Absent (a
+  // synthetic/legacy local-only group with no server session) keeps the old local heuristic.
+  matchId?: string | null;
 }): GroupMatchFinishModel | null {
   if (!currentStanding || !participantCount) {
     return null;
   }
 
+  const isRealMatch = typeof matchId === 'string' && matchId.trim().length > 0;
   const currentForfeited = currentStanding.liveStatus === 'forfeited' || currentStanding.isForfeited;
-  const title = resolveGroupTitle({
-    currentForfeited,
-    currentRank: currentStanding.rank,
-    participantCount,
-  });
-  const summary = resolveGroupSummary({
-    currentForfeited,
-    currentRank: currentStanding.rank,
-    participantCount,
-    gapAheadKm: currentStanding.gapAheadKm,
-  });
+
+  // C (group parity): when the server has RESOLVED the group, its verdict — not the local
+  // standings rank — decides the persisted final placement. A forfeit still resolves by the
+  // forfeit rules (the verdict already ranks forfeiters below finishers), and we keep the local
+  // forfeit copy/labels so the "기권" UX is unchanged.
+  const verdictResolved = isResolvedGroupVerdict(groupVerdict);
+  // The server-sealed placement for the current user (only when resolved).
+  const verdictRank = verdictResolved ? groupVerdict.myRank! : null;
+
+  // C (group parity): PENDING. For a real server-tracked match (matchId present) the placement is
+  // server-authoritative. When the server verdict has not resolved AND there is no other legitimate
+  // local basis for a definite placement — the user did not forfeit, and at least one participant is
+  // still in progress (so the ordering can still change) — we must NOT persist a fabricated rank.
+  // The local standings rank on a screen-off / not-yet-synced rival is exactly the wrong-placement
+  // bug. Instead we mark the result PENDING: the persisted matchResult carries NO rank (so the
+  // backend awards no rank LP and the saved card shows a "결과 집계 중" state), and the run-detail
+  // reconcile path fills the official placement on a later fetch.
+  const hasOngoingStandings = standings.some((participant) => (
+    participant.liveStatus !== 'finished' && participant.liveStatus !== 'forfeited'
+  ));
+  const isPending = isRealMatch
+    && !verdictResolved
+    && !currentForfeited
+    && hasOngoingStandings;
+
+  // The DISPLAY rank for the result card: the server-sealed rank when resolved, else the local
+  // standings rank (used only for the non-pending copy below).
+  const displayRank = verdictRank ?? currentStanding.rank;
+
+  const title = isPending
+    ? '그룹 결과를 집계하고 있어요'
+    : resolveGroupTitle({
+      currentForfeited,
+      currentRank: displayRank,
+      participantCount,
+    });
+  const summary = isPending
+    ? '다른 참가자가 완주하면 순위가 자동으로 업데이트돼요.'
+    : resolveGroupSummary({
+      currentForfeited,
+      currentRank: displayRank,
+      participantCount,
+      gapAheadKm: currentStanding.gapAheadKm,
+    });
   const podium = standings.slice(0, 3);
   const rows: GroupMatchResultRowModel[] = standings.map((participant) => {
     const isInProgress = participant.liveStatus !== 'finished' && participant.liveStatus !== 'forfeited';
@@ -370,6 +425,16 @@ export function buildGroupMatchFinishModel({
   });
   const hasOngoingParticipants = rows.some((participant) => participant.isInProgress);
 
+  // C (group parity): pending badge is the same "결과 집계 중" language the backend pending record
+  // uses, so the live card and the saved card read identically while the official placement is
+  // awaited. A forfeit keeps its 기권 badge; otherwise the badge shows the server-sealed (or, for a
+  // legacy/non-real match, the local) rank.
+  const badgeLabel = isPending
+    ? '결과 집계 중'
+    : currentForfeited
+      ? '기권'
+      : `${displayRank}위`;
+
   return {
     title,
     summary,
@@ -383,10 +448,14 @@ export function buildGroupMatchFinishModel({
       mode: 'group',
       title,
       summary,
-      badgeLabel: currentForfeited ? '기권' : `${currentStanding.rank}위`,
-      rank: currentStanding.rank,
+      badgeLabel,
+      // C (group parity): a PENDING result persists NO rank. Stripping rank means the backend
+      // awards no rank LP from this device's claim, the saved card shows the "결과 집계 중" state,
+      // and isUnresolvedGroupMatchResult treats it as reconcilable so the official placement fills
+      // it in later. When resolved we persist the SERVER-sealed rank (never the local standings
+      // rank); when absent (older backend) we fall back to the local standings rank as before.
+      ...(isPending ? {} : { rank: displayRank, gapKm: currentStanding.gapAheadKm ?? undefined }),
       participantCount,
-      gapKm: currentStanding.gapAheadKm ?? undefined,
     },
   };
 }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DuelMatchOpponent, DuelVerdict } from '@/lib/api/types';
+import type { DuelMatchOpponent, DuelVerdict, GroupVerdict } from '@/lib/api/types';
 import type { GroupLiveStanding } from '@/features/runs/viewModels/matchProgress';
 import {
   buildDuelMatchFinishModel,
@@ -381,6 +381,146 @@ test('group result returns null for missing current standing or empty participan
     currentElapsedSeconds: 0,
     targetDistanceKm: 5,
   }), null);
+});
+
+function groupVerdict(overrides: Partial<GroupVerdict> = {}): GroupVerdict {
+  return {
+    resolved: true,
+    myRank: 2,
+    participants: [
+      { userId: 'leader', rank: 1, finishElapsedSeconds: 1500, paceLabel: '05:00/km', forfeited: false, finished: true },
+      { userId: 'me', rank: 2, finishElapsedSeconds: 1560, paceLabel: '05:12/km', forfeited: false, finished: true },
+      { userId: 'third', rank: 3, finishElapsedSeconds: 1620, paceLabel: '05:24/km', forfeited: false, finished: true },
+    ],
+    ...overrides,
+  };
+}
+
+test('group parity: a RESOLVED groupVerdict drives the persisted server placement (not the local standings rank)', () => {
+  // The local standings would call this 3위 (currentStanding.rank), but the server verdict
+  // sealed 2위 — the server is the single source of truth.
+  const standings = [
+    standing({ id: 'leader', name: '1등', rank: 1, currentDistanceKm: 2.2, liveStatus: 'finished' }),
+    standing({ id: 'me', name: '나', rank: 3, currentDistanceKm: 2, isCurrentUser: true, liveStatus: 'finished' }),
+    standing({ id: 'third', name: '3등', rank: 2, currentDistanceKm: 1.7, liveStatus: 'finished' }),
+  ];
+
+  const result = buildGroupMatchFinishModel({
+    currentStanding: standings[1],
+    participantCount: 3,
+    standings,
+    currentPaceLabel: '05:12/km',
+    currentElapsedSeconds: 1560,
+    targetDistanceKm: 5,
+    groupVerdict: groupVerdict({ myRank: 2 }),
+    matchId: 'group-123',
+  });
+
+  assert.equal(result?.matchResult.rank, 2);
+  assert.equal(result?.matchResult.badgeLabel, '2위');
+  assert.match(result?.matchResult.title ?? '', /2위/);
+  assert.equal(result?.matchResult.participantCount, 3);
+});
+
+test('group parity: a real match (matchId present) with an UNRESOLVED verdict + an in-progress rival is PENDING, not a fabricated rank', () => {
+  // The screen-off "wrong placement" input: the current user finished 1st locally, but a rival
+  // is still running and there is no server verdict yet. With matchId present this must be
+  // PENDING — never a persisted local rank (which the backend would award rank LP for).
+  const standings = [
+    standing({ id: 'me', name: '나', rank: 1, currentDistanceKm: 5, isCurrentUser: true, liveStatus: 'finished' }),
+    standing({ id: 'rival', name: '상대', rank: 2, currentDistanceKm: 3, liveStatus: 'running' }),
+  ];
+
+  const result = buildGroupMatchFinishModel({
+    currentStanding: standings[0],
+    participantCount: 2,
+    standings,
+    currentPaceLabel: '05:00/km',
+    currentElapsedSeconds: 1500,
+    targetDistanceKm: 5,
+    groupVerdict: null,
+    matchId: 'group-123',
+  });
+
+  // No rank persisted → the backend awards no rank LP and the saved card shows "결과 집계 중".
+  assert.equal(result?.matchResult.rank, undefined);
+  assert.equal(result?.matchResult.badgeLabel, '결과 집계 중');
+  assert.match(result?.title ?? '', /집계/);
+});
+
+test('group parity: a real match whose participants are ALL terminal but with NO server verdict is NOT pending (graceful — no fabricated wait)', () => {
+  // Every participant is finished/forfeited locally, so there is no ongoing rival to wait on.
+  // An older backend (no groupVerdict) must still resolve to the local standings rank rather
+  // than hang on PENDING forever.
+  const standings = [
+    standing({ id: 'leader', name: '1등', rank: 1, currentDistanceKm: 2.2, liveStatus: 'finished' }),
+    standing({ id: 'me', name: '나', rank: 2, currentDistanceKm: 2, isCurrentUser: true, liveStatus: 'finished' }),
+  ];
+
+  const result = buildGroupMatchFinishModel({
+    currentStanding: standings[1],
+    participantCount: 2,
+    standings,
+    currentPaceLabel: '05:12/km',
+    currentElapsedSeconds: 1560,
+    targetDistanceKm: 5,
+    groupVerdict: null,
+    matchId: 'group-123',
+  });
+
+  assert.equal(result?.matchResult.badgeLabel, '2위');
+  assert.equal(result?.matchResult.rank, 2);
+});
+
+test('group parity: WITHOUT a matchId (legacy local-only group) the local standings rank is kept (no regression)', () => {
+  // Same in-progress-rival input as the PENDING test, but no matchId → a synthetic/legacy group
+  // with no server session → keep today's local behavior (persist the local standings rank).
+  const standings = [
+    standing({ id: 'me', name: '나', rank: 1, currentDistanceKm: 5, isCurrentUser: true, liveStatus: 'finished' }),
+    standing({ id: 'rival', name: '상대', rank: 2, currentDistanceKm: 3, liveStatus: 'running' }),
+  ];
+
+  const result = buildGroupMatchFinishModel({
+    currentStanding: standings[0],
+    participantCount: 2,
+    standings,
+    currentPaceLabel: '05:00/km',
+    currentElapsedSeconds: 1500,
+    targetDistanceKm: 5,
+    // No matchId, no verdict — pure legacy local path.
+  });
+
+  assert.equal(result?.matchResult.rank, 1);
+  assert.equal(result?.matchResult.badgeLabel, '1위');
+});
+
+test('group parity: a forfeit on a real match keeps the 기권 badge even while the verdict is unresolved', () => {
+  const standings = [
+    standing({ id: 'leader', name: '1등', rank: 1, currentDistanceKm: 2.2, liveStatus: 'finished' }),
+    standing({
+      id: 'me',
+      name: '나',
+      rank: 2,
+      currentDistanceKm: 1.1,
+      isCurrentUser: true,
+      isForfeited: true,
+      liveStatus: 'forfeited',
+    }),
+  ];
+
+  const result = buildGroupMatchFinishModel({
+    currentStanding: standings[1],
+    participantCount: 2,
+    standings,
+    currentPaceLabel: '06:10/km',
+    currentElapsedSeconds: 420,
+    targetDistanceKm: 5,
+    groupVerdict: null,
+    matchId: 'group-123',
+  });
+
+  assert.equal(result?.matchResult.badgeLabel, '기권');
+  assert.match(result?.matchResult.title ?? '', /기권/);
 });
 
 test('duel matchResult persists the opponent\'s own measured pace and synced duration', () => {

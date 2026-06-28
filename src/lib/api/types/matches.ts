@@ -114,6 +114,30 @@ export type DuelVerdict = {
   opponentPaceLabel: string | null;
 };
 
+// One participant's sealed slot in the group's final ordering.
+export type GroupVerdictParticipant = {
+  userId: string;
+  // Server-authoritative 1-based placement (null only when unresolved/unranked).
+  rank: number | null;
+  finishElapsedSeconds: number | null;
+  paceLabel: string | null;
+  forfeited: boolean;
+  finished: boolean;
+};
+
+// Server-authoritative group FINAL placement — the parity twin of DuelVerdict (mode === 'group'
+// only). Additive: omitted by older backends, in which case the client must fall back to a PENDING
+// placeholder rather than a fabricated local rank. When present, it is the single source of truth
+// for every participant's final placement, so a not-yet-synced / screen-off rival can never produce
+// a divergent local rank. `resolved === false` means the group is still settling — render the
+// PENDING placeholder, never a final 순위. `myRank` is the requesting user's sealed placement (null
+// until resolved).
+export type GroupVerdict = {
+  resolved: boolean;
+  participants: GroupVerdictParticipant[];
+  myRank: number | null;
+};
+
 export type RunningMatchState = 'idle' | 'waiting' | 'matched' | 'active';
 
 export type FetchRunningMatchStatusInput = {
@@ -172,6 +196,10 @@ export type RunningMatchStatusResponse = {
   // Server-authoritative duel resolution (mode === 'duel' only). Additive: omitted by
   // older backends — when absent the client falls back to its local heuristics.
   duelVerdict?: DuelVerdict;
+  // Server-authoritative group FINAL placement (mode === 'group' only). Additive: omitted
+  // by older backends — when absent the client renders a PENDING placeholder rather than a
+  // fabricated local rank.
+  groupVerdict?: GroupVerdict;
   // The requesting user's OWN frozen MEASURED finish elapsed (seconds). Omitted until the
   // user finishes. Self-counterpart to opponent.finishElapsedSeconds; render this as the
   // official finish time instead of a local stopwatch value.

@@ -30,9 +30,11 @@ import {
   findMatchSessionById,
   findMatchSessionForUser,
   hydrateMatchSessionState,
+  isParticipantGroupSealedDnf,
   isParticipantSealedDnf,
   pruneMatchSessions,
   sealDuelFallbackResolutionIfElapsed,
+  sealGroupFallbackResolutionIfElapsed,
 } from './runningMatchSessionStoreHelpers.mjs';
 import { buildRunningMatchStatusResponse } from './matchResponseBuilders.mjs';
 import { pruneMatchRooms } from './matchRoomStoreHelpers.mjs';
@@ -335,8 +337,14 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
   // ignored; they stay a non-finisher (their reported running/background/paused/etc.).
   if (requestedFinished) {
     sealDuelFallbackResolutionIfElapsed(session, new Date());
+    // Group parity: seal the §B4 group fallback FIRST too, from raw participant state, so a
+    // late finish from a runner the server already §B4-resolved as DNF — even the very first
+    // request after the window elapsed — is blocked and cannot flip an already-sealed group
+    // placement (mirrors the duel seal-then-downgrade exactly).
+    sealGroupFallbackResolutionIfElapsed(session, new Date());
   }
-  const sealedAsDnf = isParticipantSealedDnf(session, currentParticipant.userId);
+  const sealedAsDnf = isParticipantSealedDnf(session, currentParticipant.userId)
+    || isParticipantGroupSealedDnf(session, currentParticipant.userId);
   // A sealed DNF runner is never marked finished; downgrade any finish signal to a live,
   // non-terminal status ('running') so they read as a non-finisher. Otherwise honor the
   // finish transition as before. A non-finish status push from a sealed runner passes

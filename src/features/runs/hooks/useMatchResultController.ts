@@ -15,6 +15,7 @@ import {
 import type {
   DuelMatchOpponent,
   DuelVerdict,
+  GroupVerdict,
   RunningMatchLiveStatus,
 } from '@/lib/api/types';
 
@@ -35,8 +36,11 @@ type UseMatchResultControllerInput = {
   // optional/absent on older backends — the model degrades to today's local behavior then.
   duelVerdict?: DuelVerdict | null;
   currentUserFinishElapsedSeconds?: number | null;
-  // C1: the active match id. Present => server-tracked duel whose verdict is authoritative, so
-  // an unresolved result is held PENDING rather than locally invented.
+  // C (group parity): server-authoritative group final placement. Optional/absent on older
+  // backends — the group model degrades to a PENDING placeholder then (never a wrong rank).
+  groupVerdict?: GroupVerdict | null;
+  // C1: the active match id. Present => server-tracked duel/group whose verdict is authoritative,
+  // so an unresolved result is held PENDING rather than locally invented.
   matchId?: string | null;
 };
 
@@ -109,6 +113,7 @@ export function useMatchResultController({
   elapsedSeconds,
   duelVerdict,
   currentUserFinishElapsedSeconds,
+  groupVerdict,
   matchId,
 }: UseMatchResultControllerInput) {
   const duelFrozenRef = useRef<FrozenDuelResultMetrics | null>(null);
@@ -206,8 +211,12 @@ export function useMatchResultController({
       currentPaceLabel: currentUserArenaPace,
       currentElapsedSeconds: elapsedSeconds,
       targetDistanceKm: groupDistanceKm,
+      // C (group parity): the server-authoritative final placement, when present + resolved.
+      groupVerdict,
+      // C (group parity): presence marks a server-tracked group → unresolved result is held PENDING.
+      matchId,
     }),
-    [currentGroupStanding, currentUserArenaPace, effectiveGroupParticipantCount, elapsedSeconds, groupDistanceKm, groupLiveStandings],
+    [currentGroupStanding, currentUserArenaPace, effectiveGroupParticipantCount, elapsedSeconds, groupDistanceKm, groupLiveStandings, groupVerdict, matchId],
   );
 
   const trackedMatchResult = matchMode === 'duel'

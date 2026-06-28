@@ -101,6 +101,7 @@ import {
   buildMatchDemandSummaryResponse,
   buildMatchResultByMatchId,
   resolveSavedDuelMatchResult,
+  resolveSavedGroupMatchResult,
   buildRunningMatchRoomResponse,
   buildRunningMatchStatusResponse,
   cancelRunningMatch,
@@ -381,10 +382,16 @@ function getRunsRepository() {
       sourceLabels: SOURCE_LABEL_BY_TYPE,
       formatTimestamp,
       createError: (statusCode, message) => new ApiError(statusCode, message),
-      // C1/C2: server is authoritative for the duel verdict at save. The JSON repo's
+      // C1/C2: server is authoritative for the match verdict at save. The JSON repo's
       // mutateStore callback already holds the whole-store (incl. matchSessions) so the
       // resolver reads the live session/standings directly to overwrite or pend the result.
-      resolveMatchResult: (store, user, matchResult) => resolveSavedDuelMatchResult(store, user, matchResult),
+      // Duel → duel verdict (win/lose/draw); group → group verdict (final placement). Any
+      // other shape falls through both resolvers UNCHANGED.
+      resolveMatchResult: (store, user, matchResult) => (
+        matchResult?.mode === 'group'
+          ? resolveSavedGroupMatchResult(store, user, matchResult)
+          : resolveSavedDuelMatchResult(store, user, matchResult)
+      ),
       invalidateUserMetrics,
     });
   }

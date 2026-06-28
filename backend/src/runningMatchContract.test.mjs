@@ -1831,6 +1831,316 @@ await runTest('match result endpoint reconstructs a duel from saved runs after t
   });
 });
 
+// An active group session where exactly one runner has finished and the other two are
+// still running. `liveUpdatedAt` is recent so the still-running runners are NOT treated
+// as disconnected/DNF and the §B4 fallback window has not elapsed → the group is UNSETTLED.
+function createUnsettledGroupStore() {
+  const store = createBaseStore();
+  store.users.push(
+    createRunner({ id: 'third-user', name: '세번째 러너', publicTag: 'third', districtName: '마포구' }),
+  );
+  store.sessions.push(createSession('third-token', 'third-user'));
+  const slotStartAt = createSelectableMatchSlotStartAt();
+
+  store.matchSessions.push({
+    id: 'unsettled-group-match',
+    mode: 'group',
+    isTestMatch: false,
+    isPartyRun: false,
+    distanceKm: 5,
+    slotStartAt,
+    startedAt: iso(-20 * 60 * 1000),
+    createdAt: iso(-21 * 60 * 1000),
+    matchedAt: iso(-21 * 60 * 1000),
+    participants: [
+      {
+        userId: 'host-user',
+        seedRank: 1,
+        acceptedAt: null,
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1500,
+        livePace: '05:00/km',
+        liveUpdatedAt: iso(-5 * 1000),
+        finishedAt: iso(-5 * 1000),
+        finishElapsedSeconds: 1500,
+      },
+      {
+        userId: 'guest-user',
+        seedRank: 2,
+        acceptedAt: null,
+        liveStatus: 'running',
+        liveDistanceKm: 3.2,
+        liveElapsedSeconds: 1000,
+        livePace: '05:12/km',
+        liveUpdatedAt: iso(-3 * 1000),
+        finishedAt: null,
+        finishElapsedSeconds: null,
+      },
+      {
+        userId: 'third-user',
+        seedRank: 3,
+        acceptedAt: null,
+        liveStatus: 'running',
+        liveDistanceKm: 2.8,
+        liveElapsedSeconds: 1000,
+        livePace: '05:24/km',
+        liveUpdatedAt: iso(-3 * 1000),
+        finishedAt: null,
+        finishElapsedSeconds: null,
+      },
+    ],
+  });
+
+  return { store, slotStartAt };
+}
+
+await runTest('group status exposes a RESOLVED groupVerdict (§B4 sealed) while the live session still exists', async () => {
+  // Two finishers + one runner who stopped reporting long ago. The stalled runner keeps a
+  // non-terminal liveStatus so the session survives pruning (it is not "done"), but the §B4
+  // fallback window has elapsed since the earliest finish → the server seals the placement
+  // server-side, ranking the stalled runner as DNF after the finishers.
+  const store = createBaseStore();
+  store.users.push(
+    createRunner({ id: 'third-user', name: '세번째 러너', publicTag: 'third', districtName: '마포구' }),
+  );
+  store.sessions.push(createSession('third-token', 'third-user'));
+  const slotStartAt = createSelectableMatchSlotStartAt();
+  const longAgo = iso(-20 * 60 * 1000);
+
+  store.matchSessions.push({
+    id: 'sealed-group-match',
+    mode: 'group',
+    isTestMatch: false,
+    isPartyRun: false,
+    distanceKm: 5,
+    slotStartAt,
+    startedAt: iso(-25 * 60 * 1000),
+    createdAt: iso(-26 * 60 * 1000),
+    matchedAt: iso(-26 * 60 * 1000),
+    participants: [
+      {
+        userId: 'host-user',
+        seedRank: 1,
+        acceptedAt: null,
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1500,
+        livePace: '05:00/km',
+        liveUpdatedAt: longAgo,
+        finishedAt: longAgo,
+        finishElapsedSeconds: 1500,
+      },
+      {
+        userId: 'guest-user',
+        seedRank: 2,
+        acceptedAt: null,
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1560,
+        livePace: '05:12/km',
+        liveUpdatedAt: iso(-19 * 60 * 1000),
+        finishedAt: iso(-19 * 60 * 1000),
+        finishElapsedSeconds: 1560,
+      },
+      {
+        // Still 'running' in storage but no live update for ~20m → resolves to disconnected
+        // (non-terminal, so the session is NOT pruned) and is a DNF in the sealed verdict.
+        userId: 'third-user',
+        seedRank: 3,
+        acceptedAt: null,
+        liveStatus: 'running',
+        liveDistanceKm: 3,
+        liveElapsedSeconds: 900,
+        livePace: '05:24/km',
+        liveUpdatedAt: longAgo,
+        finishedAt: null,
+        finishElapsedSeconds: null,
+      },
+    ],
+  });
+
+  await withBackend(store, async ({ request }) => {
+    const guestStatus = await request('guest-token', 'POST', '/api/running/matches/status', {
+      mode: 'group',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: 'sealed-group-match',
+    });
+    assert.equal(guestStatus.mode, 'group');
+    assert.equal(Boolean(guestStatus.groupVerdict), true);
+    assert.equal(guestStatus.groupVerdict.resolved, true);
+    // Finishers lead by measured elapsed (host 1500 < guest 1560); the stalled runner is last.
+    assert.equal(guestStatus.groupVerdict.myRank, 2);
+    const order = guestStatus.groupVerdict.participants.map((participant) => participant.userId);
+    assert.equal(order[0], 'host-user');
+    assert.equal(order[1], 'guest-user');
+    assert.equal(order[order.length - 1], 'third-user');
+    // The live participants standings are untouched alongside the final verdict.
+    assert.equal(Array.isArray(guestStatus.participants), true);
+  });
+});
+
+await runTest('group status returns an UNRESOLVED groupVerdict while runners are still going (client holds PENDING, never a wrong rank)', async () => {
+  const { store, slotStartAt } = createUnsettledGroupStore();
+
+  await withBackend(store, async ({ request }) => {
+    const status = await request('host-token', 'POST', '/api/running/matches/status', {
+      mode: 'group',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: 'unsettled-group-match',
+    });
+    assert.equal(status.mode, 'group');
+    // The verdict is present but unresolved — a graceful, additive signal. The client must
+    // render a PENDING placeholder, never a fabricated final placement.
+    assert.equal(Boolean(status.groupVerdict), true);
+    assert.equal(status.groupVerdict.resolved, false);
+    assert.equal(status.groupVerdict.myRank, null);
+  });
+});
+
+await runTest('a group save against an unsettled session is PENDING (no rank, no rank LP), then reconciles to the server placement', async () => {
+  const { store, slotStartAt } = createUnsettledGroupStore();
+
+  await withBackend(store, async ({ request }) => {
+    const startedAt = iso(-9 * 60 * 1000);
+    const endedAt = iso(-7 * 60 * 1000);
+
+    // The host finished first and saves while the others are still running. Even a fabricated
+    // 1위 claim must be held PENDING (server cannot yet seal the final ordering).
+    const earlySave = await request('host-token', 'POST', '/api/runs/tracked', {
+      date: startedAt.slice(0, 10),
+      distanceKm: 5,
+      pace: '05:00/km',
+      durationSeconds: 1500,
+      startedAt,
+      endedAt,
+      route: [
+        { latitude: 37.668, longitude: 126.78, timestamp: startedAt },
+        { latitude: 37.671, longitude: 126.783, timestamp: endedAt },
+      ],
+      matchResult: {
+        mode: 'group',
+        matchId: 'unsettled-group-match',
+        source: 'official',
+        title: '1위로 마무리했어요',
+        summary: '가장 먼저 들어왔어요.',
+        badgeLabel: '1위',
+        rank: 1,
+        participantCount: 3,
+        comparedDistanceKm: 5,
+        myDurationSeconds: 1500,
+        myPaceLabel: '05:00/km',
+      },
+    });
+    // No rank persisted → the group rank LP bonus is 0, never a client-claimed placement.
+    assert.equal(earlySave.run.matchResult.rank, undefined);
+    assert.equal(earlySave.run.matchResult.badgeLabel, '결과 집계 중');
+    assert.equal(earlySave.pointBreakdown.matchBonusPoints, 0);
+    // The runner's own measured metrics are kept.
+    assert.equal(earlySave.run.matchResult.myDurationSeconds, 1500);
+  });
+});
+
+await runTest('a group save against a §B4-sealed live session overrides a fabricated rank and awards the rank-based LP', async () => {
+  // Two finishers + one stalled (disconnected) runner whose §B4 window has elapsed: the live
+  // session survives pruning (the stalled runner is non-terminal) so the save resolves from the
+  // live session's groupVerdict. The guest (real finish 1560 → 2위) claims a fabricated 1위; the
+  // server overrides it to 2위 and awards the 2위 group LP (20), never the self-claimed amount.
+  const store = createBaseStore();
+  store.users.push(
+    createRunner({ id: 'third-user', name: '세번째 러너', publicTag: 'third', districtName: '마포구' }),
+  );
+  store.sessions.push(createSession('third-token', 'third-user'));
+  const slotStartAt = createSelectableMatchSlotStartAt();
+  const longAgo = iso(-20 * 60 * 1000);
+
+  store.matchSessions.push({
+    id: 'sealed-save-group-match',
+    mode: 'group',
+    isTestMatch: false,
+    isPartyRun: false,
+    distanceKm: 5,
+    slotStartAt,
+    startedAt: iso(-25 * 60 * 1000),
+    createdAt: iso(-26 * 60 * 1000),
+    matchedAt: iso(-26 * 60 * 1000),
+    participants: [
+      {
+        userId: 'host-user',
+        seedRank: 1,
+        acceptedAt: null,
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1500,
+        livePace: '05:00/km',
+        liveUpdatedAt: longAgo,
+        finishedAt: longAgo,
+        finishElapsedSeconds: 1500,
+      },
+      {
+        userId: 'guest-user',
+        seedRank: 2,
+        acceptedAt: null,
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1560,
+        livePace: '05:12/km',
+        liveUpdatedAt: iso(-19 * 60 * 1000),
+        finishedAt: iso(-19 * 60 * 1000),
+        finishElapsedSeconds: 1560,
+      },
+      {
+        userId: 'third-user',
+        seedRank: 3,
+        acceptedAt: null,
+        liveStatus: 'running',
+        liveDistanceKm: 3,
+        liveElapsedSeconds: 900,
+        livePace: '05:24/km',
+        liveUpdatedAt: longAgo,
+        finishedAt: null,
+        finishElapsedSeconds: null,
+      },
+    ],
+  });
+
+  await withBackend(store, async ({ request }) => {
+    const startedAt = iso(-9 * 60 * 1000);
+    const endedAt = iso(-7 * 60 * 1000);
+
+    const guestSave = await request('guest-token', 'POST', '/api/runs/tracked', {
+      date: startedAt.slice(0, 10),
+      distanceKm: 5,
+      pace: '05:12/km',
+      durationSeconds: 1560,
+      startedAt,
+      endedAt,
+      route: [
+        { latitude: 37.658, longitude: 126.77, timestamp: startedAt },
+        { latitude: 37.661, longitude: 126.773, timestamp: endedAt },
+      ],
+      matchResult: {
+        mode: 'group',
+        matchId: 'sealed-save-group-match',
+        source: 'official',
+        title: '1위로 마무리했어요',
+        summary: '가장 먼저 들어왔어요.',
+        badgeLabel: '1위',
+        rank: 1,
+        participantCount: 3,
+        comparedDistanceKm: 5,
+        myDurationSeconds: 1560,
+        myPaceLabel: '05:12/km',
+      },
+    });
+    assert.equal(guestSave.run.matchResult.rank, 2);
+    assert.equal(guestSave.run.matchResult.badgeLabel, '2위');
+    assert.equal(guestSave.pointBreakdown.matchBonusPoints, 20);
+  });
+});
+
 await runTest('a waiting duel runner discovers the reservation an opponent creates on their next status poll', async () => {
   await withBackend(createBaseStore(), async ({ request }) => {
     const slotStartAt = createSelectableMatchSlotStartAt();

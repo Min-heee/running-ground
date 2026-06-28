@@ -7,7 +7,9 @@ import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
 import { getRunMapRegion } from '@/features/runs/tracking';
 import {
   isUnresolvedDuelMatchResult,
+  isUnresolvedGroupMatchResult,
   reconcileDuelRunDetailMatchResult,
+  reconcileGroupRunDetailMatchResult,
 } from '@/features/running/utils/runDetailMatchReconcile';
 
 type UseRunDetailParams = {
@@ -47,28 +49,34 @@ export function useRunDetail({
       .finally(() => setLoading(false));
   }, [friendId, runId]);
 
-  // C3: for a duel that was UNRESOLVED at save time, re-query the official duel record and
-  // reconcile so both phones' run-detail show identical times + verdict. Only runs for a
-  // 1대1 record that still looks placeholder; never downgrades a good saved record.
+  // C3 / group parity: for a duel OR group that was UNRESOLVED at save time, re-query the
+  // official record and reconcile so both phones' run-detail show the identical final
+  // verdict/placement. Only runs for a server-tracked record that still looks placeholder;
+  // never downgrades a good saved record.
   const savedMatchResult = runDetail?.run.matchResult ?? null;
   const parsedMatchMode = parseMatchMode(matchMode);
   const distanceKmNumber = matchDistanceKm ? Number(matchDistanceKm) : NaN;
-  const shouldReconcileDuel = Boolean(
+  const isUnresolvedSavedRecord = parsedMatchMode === 'duel'
+    ? isUnresolvedDuelMatchResult(savedMatchResult)
+    : parsedMatchMode === 'group'
+      ? isUnresolvedGroupMatchResult(savedMatchResult)
+      : false;
+  const shouldReconcileMatch = Boolean(
     matchId
-    && parsedMatchMode === 'duel'
+    && parsedMatchMode
     && matchSlotStartAt
     && Number.isFinite(distanceKmNumber)
-    && isUnresolvedDuelMatchResult(savedMatchResult),
+    && isUnresolvedSavedRecord,
   );
 
   useEffect(() => {
-    if (!shouldReconcileDuel || !matchId || !matchSlotStartAt) {
+    if (!shouldReconcileMatch || !matchId || !matchSlotStartAt || !parsedMatchMode) {
       return;
     }
 
     let cancelled = false;
     fetchRunningMatchStatus({
-      mode: 'duel',
+      mode: parsedMatchMode,
       distanceKm: distanceKmNumber,
       slotStartAt: matchSlotStartAt,
       matchId,
@@ -77,10 +85,9 @@ export function useRunDetail({
         if (cancelled) {
           return;
         }
-        const reconciled = reconcileDuelRunDetailMatchResult({
-          matchResult: savedMatchResult,
-          status,
-        });
+        const reconciled = parsedMatchMode === 'group'
+          ? reconcileGroupRunDetailMatchResult({ matchResult: savedMatchResult, status })
+          : reconcileDuelRunDetailMatchResult({ matchResult: savedMatchResult, status });
         if (reconciled) {
           setReconciledMatchResult(reconciled);
         }
@@ -93,7 +100,7 @@ export function useRunDetail({
     return () => {
       cancelled = true;
     };
-  }, [distanceKmNumber, matchId, matchSlotStartAt, savedMatchResult, shouldReconcileDuel]);
+  }, [distanceKmNumber, matchId, matchSlotStartAt, parsedMatchMode, savedMatchResult, shouldReconcileMatch]);
 
   const backHref: Href = friendId
     ? { pathname: '/friend-detail', params: { friendId } }

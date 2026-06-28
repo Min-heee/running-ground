@@ -47,6 +47,7 @@ import { validateMatchSlotStartAt } from './matchSlotValidation.mjs';
 import {
   addParticipantToMatchSession,
   buildDuelVerdict,
+  buildGroupVerdict,
   buildMatchRunnerProfile,
   buildOfficialSessionStandings,
   buildParticipantLiveSnapshot,
@@ -394,6 +395,11 @@ export function buildRunningMatchStatusResponse(store, currentUser, { mode, dist
 
     const participants = buildSessionGroupParticipants(store, session, now, officialStandings);
     const mySeedRank = participants.find((participant) => participant.id === currentUser.id)?.seedRank ?? 1;
+    // The group verdict is the server-authoritative FINAL placement — the parity twin of
+    // duelVerdict. Separate from the live `participants` standings above (which keep showing
+    // live progress); this is only the sealed final ordering, additive/optional so an older
+    // client ignores it. When unresolved (resolved=false), the client holds a PENDING result.
+    const groupVerdict = buildGroupVerdict(session, officialStandings, currentUser.id, now);
 
       return {
         success: true,
@@ -432,6 +438,7 @@ export function buildRunningMatchStatusResponse(store, currentUser, { mode, dist
         participants,
         mySeedRank,
         ...(officialComparison ? { officialComparison } : {}),
+        ...(groupVerdict ? { groupVerdict } : {}),
       };
   }
 

@@ -1,5 +1,5 @@
 import type { RunMatchResult } from '@/domain';
-import type { DuelVerdict, RunningMatchStatusResponse } from '@/lib/api/types';
+import type { DuelVerdict, GroupVerdict, RunningMatchStatusResponse } from '@/lib/api/types';
 
 // C3: reconcile a saved duel matchResult against the server's official duel record.
 //
@@ -107,5 +107,91 @@ export function reconcileDuelRunDetailMatchResult({
     ...(typeof myDurationSeconds === 'number' ? { myDurationSeconds } : {}),
     ...(verdict.opponentPaceLabel ? { opponentPaceLabel: verdict.opponentPaceLabel } : {}),
     ...(typeof opponentDurationSeconds === 'number' ? { opponentDurationSeconds } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Group parity: reconcile a saved GROUP matchResult against the server's official group verdict.
+// The exact twin of the duel reconcile path above — when a group was UNRESOLVED at save time
+// (the runner finished first and saved before the rest, so the placement could not be sealed),
+// the as-saved matchResult carries NO rank (a PENDING placeholder). On the run-detail screen we
+// re-query the official record and fill in the server-sealed placement — only as an upgrade,
+// never a downgrade of an already-ranked saved record.
+// ---------------------------------------------------------------------------
+
+function isResolvedGroupVerdict(verdict?: GroupVerdict | null): verdict is GroupVerdict {
+  return Boolean(verdict && verdict.resolved && typeof verdict.myRank === 'number');
+}
+
+// A saved group record is "unresolved/placeholder" when it never captured a definite placement.
+// We only reconcile these — a record that already carries a rank is considered good and left
+// untouched (guard against downgrade).
+export function isUnresolvedGroupMatchResult(matchResult: RunMatchResult | null | undefined): boolean {
+  if (!matchResult || matchResult.mode !== 'group') {
+    return false;
+  }
+  // A forfeit record is terminal and authoritative locally — never reconcile it away.
+  if (matchResult.badgeLabel === '기권') {
+    return false;
+  }
+  // Unresolved if it is missing a definite rank — the saved card could not show a final placement.
+  return typeof matchResult.rank !== 'number';
+}
+
+function resolveGroupBadge(rank: number): string {
+  return `${rank}위`;
+}
+
+function resolveGroupTitle(rank: number, participantCount?: number): string {
+  if (rank === 1) {
+    return '1위로 마무리했어요';
+  }
+  return typeof participantCount === 'number' && participantCount > 0
+    ? `${participantCount}명 중 ${rank}위로 마쳤어요`
+    : `${rank}위로 마쳤어요`;
+}
+
+// Build the reconciled group matchResult from the server verdict + the existing saved record.
+// Returns null when reconciliation is not warranted (no resolved verdict, mode mismatch, or the
+// saved record already carries a rank). Never downgrades: only fills in the official placement
+// the saved record was missing. Mirrors reconcileDuelRunDetailMatchResult.
+export function reconcileGroupRunDetailMatchResult({
+  matchResult,
+  status,
+}: {
+  matchResult: RunMatchResult | null | undefined;
+  status: RunningMatchStatusResponse | null | undefined;
+}): RunMatchResult | null {
+  if (!matchResult || matchResult.mode !== 'group') {
+    return null;
+  }
+  if (!status || status.mode !== 'group') {
+    return null;
+  }
+  const verdict = status.groupVerdict;
+  if (!isResolvedGroupVerdict(verdict)) {
+    return null;
+  }
+  if (!isUnresolvedGroupMatchResult(matchResult)) {
+    // Saved record already carries a definite rank — do not overwrite it.
+    return null;
+  }
+
+  const rank = verdict.myRank as number;
+  const participantCount = typeof matchResult.participantCount === 'number'
+    ? matchResult.participantCount
+    : verdict.participants.length;
+  const mine = verdict.participants.find((participant) => participant.rank === rank) ?? null;
+
+  return {
+    ...matchResult,
+    rank,
+    participantCount,
+    title: resolveGroupTitle(rank, participantCount),
+    badgeLabel: resolveGroupBadge(rank),
+    ...(mine?.paceLabel ? { myPaceLabel: mine.paceLabel } : {}),
+    ...(mine && typeof mine.finishElapsedSeconds === 'number' && mine.finishElapsedSeconds > 0
+      ? { myDurationSeconds: Math.round(mine.finishElapsedSeconds) }
+      : {}),
   };
 }

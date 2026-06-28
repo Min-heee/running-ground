@@ -889,8 +889,13 @@ export function TrackRunExperienceRuntime({
     // into the result model. Both are absent on older backends → graceful local fallback.
     duelVerdict: duelMatchStatus?.duelVerdict ?? null,
     currentUserFinishElapsedSeconds: duelMatchStatus?.currentUserFinishElapsedSeconds ?? null,
-    // C1: the active match's id. Its presence marks the duel as server-tracked, so the result
-    // model produces a PENDING result (no invented winner) while the verdict is unresolved.
+    // C (group parity): feed the server-authoritative group final placement into the result
+    // model. Absent on older backends → the group model holds a PENDING placeholder (never a
+    // fabricated local rank).
+    groupVerdict: groupMatchStatus?.groupVerdict ?? null,
+    // C1: the active match's id. Its presence marks the duel/group as server-tracked, so the
+    // result model produces a PENDING result (no invented winner/rank) while the verdict is
+    // unresolved.
     matchId: activeLiveMatchProgressMatchId,
   });
   const effectiveDuelOpponentArenaPace = useMemo(

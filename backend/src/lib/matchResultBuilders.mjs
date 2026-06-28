@@ -2,6 +2,7 @@ import { ApiError } from '../response/httpResponse.mjs';
 import { parsePaceToMinutes } from '../points.mjs';
 import {
   buildDuelVerdict,
+  buildGroupVerdict,
   buildOfficialSessionStandings,
   ensureMatchSessions,
   resolveSessionParticipantProfile,
@@ -137,6 +138,186 @@ export function resolveSavedDuelMatchResult(store, currentUser, matchResult, now
   }
 
   return resolved;
+}
+
+// Server-authoritative GROUP final-placement copy — the parity twin of buildAuthoritativeDuelCopy.
+// The verdict (buildGroupVerdict) decides the sealed rank, so the saved card's title/badge are
+// rebuilt from that rank here rather than trusting the client-supplied text.
+function buildAuthoritativeGroupCopy(rank, participantCount) {
+  const safeCount = Number.isInteger(participantCount) && participantCount > 0 ? participantCount : null;
+
+  if (rank === 1) {
+    return { title: '1위로 마무리했어요', badgeLabel: '1위' };
+  }
+
+  return {
+    title: safeCount ? `${safeCount}명 중 ${rank}위로 마쳤어요` : `${rank}위로 마쳤어요`,
+    badgeLabel: `${rank}위`,
+  };
+}
+
+// The PENDING group record: a group matchResult whose final placement is not yet sealed. It keeps
+// the run's own measured pace/time but DROPS the rank-bearing field (rank) and carries a neutral
+// "결과 집계 중" badge. Because rank is absent, getMatchBonusPoints awards 0 (no rank LP from a
+// client-claimed placement) and the client's isUnresolvedGroupMatchResult treats it as reconcilable
+// so the official placement fills in later. Mirrors toPendingDuelMatchResult.
+function toPendingGroupMatchResult(matchResult) {
+  const pending = { ...matchResult };
+  delete pending.rank;
+  delete pending.gapKm;
+  pending.title = '그룹 결과를 집계하고 있어요';
+  pending.summary = '다른 참가자가 완주하면 순위가 자동으로 업데이트돼요.';
+  pending.badgeLabel = '결과 집계 중';
+  return pending;
+}
+
+// A forfeit group record carries its OWN authoritative terminal state (a 기권 badge), exactly like
+// the duel forfeit: the forfeiter's placement is deterministic and the validator already shaped it,
+// so it must resolve from the saved/forfeit record itself — never be forced PENDING forever.
+function isForfeitGroupMatchResult(matchResult) {
+  return /기권/.test(String(matchResult?.badgeLabel ?? ''));
+}
+
+// C (group parity): at run save, the SERVER decides the group's final placement — never the client.
+//
+// Given the client-supplied (validated) matchResult for a group run carrying a matchId, this
+// resolves the authoritative placement against the live session's buildGroupVerdict (ranked by the
+// SAME official standings the duel uses). It returns a NEW matchResult object:
+//   - verdict RESOLVED (every participant terminal, or §B4 fallback elapsed) → rank, title, badge
+//     are OVERWRITTEN from the verdict's per-participant placement, so every phone agrees on one
+//     sealed ordering and a screen-off rival can never yield a wrong LOCAL rank.
+//   - verdict NOT yet resolvable (someone still running, fallback window open) → a PENDING result:
+//     rank/gapKm stripped, a "결과 집계 중" badge, so it is NEVER a wrong definite placement. The
+//     client reconcile path fills the official placement on re-query.
+//
+// Anything that is not a resolvable group with a known session (duel runs, missing session, missing
+// matchId, forfeit records the validator already shaped) is returned UNCHANGED. When the session is
+// pruned, the placement is reconstructed SERVER-side from the durable saved runs, mirroring the duel.
+export function resolveSavedGroupMatchResult(store, currentUser, matchResult, now = new Date()) {
+  if (!matchResult || matchResult.mode !== 'group') {
+    return matchResult;
+  }
+
+  const matchId = typeof matchResult.matchId === 'string' ? matchResult.matchId.trim() : '';
+
+  // No matchId → an old/standalone record with no server session to consult. Leave it as saved.
+  if (!matchId) {
+    return matchResult;
+  }
+
+  // A forfeit record is self-contained and already authoritative — keep it as saved.
+  if (isForfeitGroupMatchResult(matchResult)) {
+    return matchResult;
+  }
+
+  const session = findRawMatchSessionById(store, matchId);
+
+  // No live session → the session was pruned (the normal all-done end-state). Reconstruct the
+  // placement SERVER-side from the durable saved runs — never trust the client's claimed rank.
+  if (!session || session.mode !== 'group') {
+    return resolveGroupMatchResultFromSavedRuns(store, currentUser, matchId, matchResult);
+  }
+
+  // A requester who is not a participant cannot have it resolve — leave the saved value untouched.
+  if (!session.participants.some((participant) => participant.userId === currentUser.id)) {
+    return matchResult;
+  }
+
+  const standings = buildOfficialSessionStandings(store, session, now);
+  const verdict = buildGroupVerdict(session, standings, currentUser.id, now);
+
+  if (!verdict || !verdict.resolved || !Number.isInteger(verdict.myRank)) {
+    return toPendingGroupMatchResult(matchResult);
+  }
+
+  const participantCount = session.participants.length;
+  const copy = buildAuthoritativeGroupCopy(verdict.myRank, participantCount);
+  const mine = verdict.participants.find((participant) => participant.userId === currentUser.id) ?? null;
+  const myDurationSeconds = mine && Number.isInteger(mine.finishElapsedSeconds) && mine.finishElapsedSeconds > 0
+    ? mine.finishElapsedSeconds
+    : matchResult.myDurationSeconds;
+
+  return {
+    ...matchResult,
+    title: copy.title,
+    badgeLabel: copy.badgeLabel,
+    rank: verdict.myRank,
+    participantCount,
+    ...(typeof myDurationSeconds === 'number' ? { myDurationSeconds } : {}),
+    ...(mine?.paceLabel ? { myPaceLabel: mine.paceLabel } : {}),
+  };
+}
+
+// NO-SESSION branch for a group save: the live session is gone (pruned as the normal all-done
+// end-state), so the placement is reconstructed SERVER-side from the durable saved runs — the SAME
+// source buildResultFromSavedRuns uses for the GET /result endpoint, so the save path and read path
+// agree. The current run being saved is NOT yet in store.runs, so this device's own finish is read
+// from the matchResult passed in and merged with the OTHER participants' saved runs.
+//   - Until EVERY known participant has saved a run, the group is not yet fully settled from runs →
+//     PENDING (no rank, no LP). The reconcile path / a later GET upgrades it once the rest land.
+//   - Once all participants' runs exist, rank by their measured finish elapsed (finishers asc; a
+//     run without a usable finish sinks to the bottom) and seal this device's placement.
+// The client's claimed rank is NEVER trusted for a real matchId.
+function resolveGroupMatchResultFromSavedRuns(store, currentUser, matchId, matchResult) {
+  const savedRunsByUserId = collectSavedMatchRuns(store, matchId);
+
+  // Build the full finisher roster: every OTHER participant's saved run + this device's own
+  // in-flight save (not yet in store.runs). The expected participant count is the client-reported
+  // participantCount when present, else the number of distinct saved runs + this device.
+  const myFinishElapsedSeconds = finishElapsedFromSavedRun(matchResult, null);
+  const otherEntries = [...savedRunsByUserId.entries()].filter(([userId]) => userId !== currentUser.id);
+
+  const reportedCount = Number.isInteger(matchResult.participantCount) && matchResult.participantCount > 1
+    ? matchResult.participantCount
+    : null;
+  const knownCount = otherEntries.length + 1;
+
+  // Not every participant has saved yet → we cannot seal the final ordering. Stay PENDING rather
+  // than trust a client rank (a partial roster must never resolve to a self-claimed placement).
+  if (reportedCount !== null && knownCount < reportedCount) {
+    return toPendingGroupMatchResult(matchResult);
+  }
+
+  // Without this device's own measured finish we cannot place it — stay PENDING.
+  if (myFinishElapsedSeconds === null) {
+    return toPendingGroupMatchResult(matchResult);
+  }
+
+  const roster = [
+    { userId: currentUser.id, finishElapsedSeconds: myFinishElapsedSeconds, isMe: true },
+    ...otherEntries.map(([userId, run]) => ({
+      userId,
+      finishElapsedSeconds: finishElapsedFromSavedRun(run.matchResult ?? {}, run),
+      isMe: false,
+    })),
+  ];
+
+  // Rank by measured finish elapsed asc; a missing finish sinks to the bottom (DNF after finishers),
+  // mirroring buildOfficialSessionStandings' finisher-first ordering.
+  roster.sort((left, right) => {
+    const leftHas = Number.isInteger(left.finishElapsedSeconds);
+    const rightHas = Number.isInteger(right.finishElapsedSeconds);
+    if (leftHas !== rightHas) {
+      return leftHas ? -1 : 1;
+    }
+    if (leftHas && rightHas && left.finishElapsedSeconds !== right.finishElapsedSeconds) {
+      return left.finishElapsedSeconds - right.finishElapsedSeconds;
+    }
+    return 0;
+  });
+
+  const myRank = roster.findIndex((entry) => entry.isMe) + 1;
+  const participantCount = roster.length;
+  const copy = buildAuthoritativeGroupCopy(myRank, participantCount);
+
+  return {
+    ...matchResult,
+    title: copy.title,
+    badgeLabel: copy.badgeLabel,
+    rank: myRank,
+    participantCount,
+    myDurationSeconds: myFinishElapsedSeconds,
+  };
 }
 
 // A forfeit duel record carries its OWN authoritative verdict (a 기권 badge): a forfeit is a

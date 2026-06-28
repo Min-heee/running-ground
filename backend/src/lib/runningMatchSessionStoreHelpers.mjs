@@ -548,6 +548,105 @@ export function sealDuelFallbackResolutionIfElapsed(session, now = new Date()) {
   return session.duelFallbackResolution;
 }
 
+// F4 (group parity): a runner the server sealed as a DNF side of a GROUP §B4 fallback
+// resolution must never be allowed to record a finish afterward — generalises
+// isParticipantSealedDnf to N runners. Reads the sticky groupFallbackResolution written
+// by sealGroupFallbackResolutionIfElapsed; returns true only for a participant frozen as
+// DNF-below-finishers.
+export function isParticipantGroupSealedDnf(session, userId) {
+  return Boolean(
+    session?.groupFallbackResolution
+      && Array.isArray(session.groupFallbackResolution.dnfUserIds)
+      && session.groupFallbackResolution.dnfUserIds.includes(userId),
+  );
+}
+
+// F4 (group parity): seal the §B4 fallback resolution for a GROUP directly from raw
+// participant state — the N-runner twin of sealDuelFallbackResolutionIfElapsed. Once the
+// SAME §B4 window (MATCH_DUEL_FINISH_FALLBACK_MS, measured from the earliest group finish
+// receipt) has elapsed with at least one finisher and at least one runner still missing a
+// finish, this FREEZES the current ordering: the runners who have finished are locked in
+// their MEASURED finish-elapsed order (the finishers list), and every not-yet-finished
+// participant is locked as a DNF ranked BELOW all sealed finishers (the dnfUserIds list).
+// Written exactly once (sticky): if groupFallbackResolution already exists, or the window
+// has not elapsed, or every participant is already terminal (no missing finisher to strand
+// — the deterministic all-done path needs no seal), it is a no-op. The finish handler calls
+// this BEFORE it freezes a finish so a late finish from a sealed-DNF runner — even the FIRST
+// request to arrive after the window elapsed — is correctly blocked, exactly like the duel.
+export function sealGroupFallbackResolutionIfElapsed(session, now = new Date()) {
+  if (!session || session.mode !== 'group' || session.groupFallbackResolution) {
+    return session?.groupFallbackResolution ?? null;
+  }
+
+  const participants = Array.isArray(session.participants) ? session.participants : [];
+  if (participants.length < 2) {
+    return null;
+  }
+
+  const isFinished = (participant) => Number.isInteger(participant.finishElapsedSeconds)
+    && participant.finishElapsedSeconds > 0;
+  const isForfeited = (participant) => participant.liveStatus === 'forfeited';
+
+  const finishers = participants.filter(isFinished);
+  if (finishers.length === 0) {
+    return null;
+  }
+
+  // Every participant already terminal (finished or forfeited) → deterministic all-done
+  // path, no missing finisher to strand → no seal needed (mirrors the duel only sealing the
+  // clear one-finisher / one-missing case).
+  const allTerminal = participants.every((participant) => isFinished(participant) || isForfeited(participant));
+  if (allTerminal) {
+    return null;
+  }
+
+  // The §B4 window is measured from the EARLIEST finish receipt — identical to the duel and
+  // to buildGroupVerdict's live fallback gate.
+  const finishReceiptMsList = finishers
+    .map((participant) => Date.parse(typeof participant.finishedAt === 'string' ? participant.finishedAt : ''))
+    .filter((value) => Number.isFinite(value));
+  const earliestFinishMs = finishReceiptMsList.length ? Math.min(...finishReceiptMsList) : NaN;
+  if (!Number.isFinite(earliestFinishMs)) {
+    return null;
+  }
+
+  if (now.getTime() - earliestFinishMs < MATCH_DUEL_FINISH_FALLBACK_MS) {
+    return null;
+  }
+
+  // Freeze the sealed finisher order by MEASURED finish elapsed asc (the same rank key the
+  // standings sort uses), with finishedAt then seedRank as the deterministic dead-heat
+  // tie-break — so the sealed order is byte-stable and matches buildOfficialSessionStandings.
+  const sealedFinishers = [...finishers].sort((left, right) => {
+    if (left.finishElapsedSeconds !== right.finishElapsedSeconds) {
+      return left.finishElapsedSeconds - right.finishElapsedSeconds;
+    }
+    const leftFinishedMs = Date.parse(typeof left.finishedAt === 'string' ? left.finishedAt : '');
+    const rightFinishedMs = Date.parse(typeof right.finishedAt === 'string' ? right.finishedAt : '');
+    const leftValue = Number.isFinite(leftFinishedMs) ? leftFinishedMs : Number.POSITIVE_INFINITY;
+    const rightValue = Number.isFinite(rightFinishedMs) ? rightFinishedMs : Number.POSITIVE_INFINITY;
+    if (leftValue !== rightValue) {
+      return leftValue - rightValue;
+    }
+    return (left.seedRank ?? 0) - (right.seedRank ?? 0);
+  });
+
+  // Every participant who is NOT a sealed finisher is locked as a DNF ranked below the
+  // finishers — including a forfeiter (already below finishers by the standings sort) and any
+  // still-running / stalled runner. A late/faster finish from any of these must NOT reorder.
+  const finisherUserIds = new Set(sealedFinishers.map((participant) => participant.userId));
+  const dnfUserIds = participants
+    .filter((participant) => !finisherUserIds.has(participant.userId))
+    .map((participant) => participant.userId);
+
+  session.groupFallbackResolution = {
+    resolvedAt: now.toISOString(),
+    finisherUserIds: sealedFinishers.map((participant) => participant.userId),
+    dnfUserIds,
+  };
+  return session.groupFallbackResolution;
+}
+
 // Single source of truth for a 1:1 duel result. Derived purely from the official
 // standings (already ranked by MEASURED finishElapsedSeconds) so both phones read
 // the identical verdict. Resolves only when BOTH finishes landed, OR a runner
@@ -638,6 +737,123 @@ export function buildDuelVerdict(session, standings, currentUserId, now = new Da
     opponentFinishElapsedSeconds,
     myPaceLabel: resolveDuelVerdictPaceLabel(mine, goalDistanceKm),
     opponentPaceLabel: resolveDuelVerdictPaceLabel(opponent, goalDistanceKm),
+  };
+}
+
+
+// Single source of truth for a GROUP match's FINAL placement — the parity twin of
+// buildDuelVerdict. Derived purely from the official standings (already ranked by the
+// MEASURED finishElapsedSeconds, with forfeited ordered below finishers and the same
+// deterministic dead-heat tie-break), so every phone reads the IDENTICAL ordering and a
+// not-yet-synced / screen-off rival never produces a divergent LOCAL placement. No new
+// ranking rules are invented: the placement is read straight off standing.officialRank.
+//
+// Resolution mirrors the duel's "never strand on pending forever" contract, generalised
+// to N runners: the group resolves when EVERY participant is terminal (finished or
+// forfeited), OR — once at least one runner has finished — when the §B4 fallback window
+// (MATCH_DUEL_FINISH_FALLBACK_MS, measured from the earliest finish receipt) has elapsed,
+// treating any still-unfinished runner as a DNF ranked after the finishers. Until then it
+// stays unresolved (resolved=false) so the client renders a PENDING placeholder rather
+// than a fabricated final rank.
+//
+// Returns { resolved, participants: [{ userId, rank, finishElapsedSeconds, paceLabel,
+// forfeited, finished }], myRank } — additive/optional in the response so an older client
+// ignores it safely. `myRank` is the resolved placement for currentUserId (null if absent
+// or unresolved).
+export function buildGroupVerdict(session, standings, currentUserId, now = new Date()) {
+  if (!session || session.mode !== 'group' || !Array.isArray(standings) || standings.length < 2) {
+    return null;
+  }
+
+  const goalDistanceKm = session.distanceKm;
+
+  // Each runner's terminal state read from the SAME standings the live route uses.
+  const projected = standings.map((standing) => {
+    const finishElapsedSeconds = Number.isInteger(standing.finishElapsedSeconds)
+      ? standing.finishElapsedSeconds
+      : null;
+    return {
+      userId: standing.userId,
+      officialRank: Number.isInteger(standing.officialRank) ? standing.officialRank : null,
+      finishElapsedSeconds,
+      finished: finishElapsedSeconds !== null,
+      forfeited: standing.liveStatus === 'forfeited',
+      finishedAt: typeof standing.finishedAt === 'string' ? standing.finishedAt : null,
+      paceLabel: resolveDuelVerdictPaceLabel(standing, goalDistanceKm),
+    };
+  });
+
+  const everyoneTerminal = projected.every((entry) => entry.finished || entry.forfeited);
+  const anyFinished = projected.some((entry) => entry.finished);
+
+  // §B4 fallback (generalised): once the first finish has landed, give the rest a bounded
+  // window to record their own finish; after it elapses, resolve server-side and treat the
+  // missing runners as DNF (already ranked below finishers by buildOfficialSessionStandings).
+  const finishReceiptMsList = projected
+    .map((entry) => (entry.finishedAt ? Date.parse(entry.finishedAt) : NaN))
+    .filter((value) => Number.isFinite(value));
+  const earliestFinishMs = finishReceiptMsList.length ? Math.min(...finishReceiptMsList) : NaN;
+  const fallbackElapsed = Number.isFinite(earliestFinishMs)
+    && now.getTime() - earliestFinishMs >= MATCH_DUEL_FINISH_FALLBACK_MS;
+
+  // F4 (group parity): seal the fallback resolution the FIRST time the window elapses with a
+  // missing finish — exactly like buildDuelVerdict calls sealDuelFallbackResolutionIfElapsed.
+  // Once sealed, the order is read straight back (sticky): a later/faster finish from a
+  // sealed-DNF runner can NEVER reorder above the sealed finishers, so two devices can no
+  // longer persist conflicting placements.
+  const sealed = sealGroupFallbackResolutionIfElapsed(session, now);
+
+  if (sealed) {
+    // Honor the SEALED order: finishers in their frozen finish order first, then every
+    // sealed-DNF participant below them (in seal-recorded order). A sealed-DNF entry is
+    // forced to finished=false / finishElapsedSeconds=null so a late finish push that slipped
+    // a finishElapsedSeconds onto the participant can't resurrect them above the finishers.
+    const finisherRank = new Map(sealed.finisherUserIds.map((userId, index) => [userId, index + 1]));
+    const dnfRank = new Map(sealed.dnfUserIds.map((userId, index) => [userId, sealed.finisherUserIds.length + index + 1]));
+    const byUserId = new Map(projected.map((entry) => [entry.userId, entry]));
+
+    const sealedParticipants = [...sealed.finisherUserIds, ...sealed.dnfUserIds].map((userId) => {
+      const entry = byUserId.get(userId);
+      const isDnf = dnfRank.has(userId);
+      return {
+        userId,
+        rank: finisherRank.get(userId) ?? dnfRank.get(userId) ?? null,
+        finishElapsedSeconds: isDnf ? null : entry?.finishElapsedSeconds ?? null,
+        paceLabel: isDnf ? null : entry?.paceLabel ?? null,
+        forfeited: Boolean(entry?.forfeited),
+        finished: !isDnf,
+      };
+    });
+
+    const mineSealed = sealedParticipants.find((entry) => entry.userId === currentUserId) ?? null;
+
+    return {
+      resolved: true,
+      participants: sealedParticipants,
+      myRank: mineSealed && Number.isInteger(mineSealed.rank) ? mineSealed.rank : null,
+    };
+  }
+
+  const resolved = everyoneTerminal || (anyFinished && fallbackElapsed);
+
+  // Resolved placement reads straight off the standings rank — never recomputed. Unresolved
+  // entries still expose the live rank so the response is shape-stable, but `resolved=false`
+  // tells the client to hold the PENDING placeholder instead of trusting it as final.
+  const participants = projected.map((entry) => ({
+    userId: entry.userId,
+    rank: entry.officialRank,
+    finishElapsedSeconds: entry.finishElapsedSeconds,
+    paceLabel: entry.paceLabel,
+    forfeited: entry.forfeited,
+    finished: entry.finished,
+  }));
+
+  const mine = participants.find((entry) => entry.userId === currentUserId) ?? null;
+
+  return {
+    resolved,
+    participants,
+    myRank: resolved && mine && Number.isInteger(mine.rank) ? mine.rank : null,
   };
 }
 
