@@ -368,7 +368,14 @@ export function buildEstimatedCompetitiveDistanceKm(paceLabel: string, elapsedSe
   return Number(Math.max(0, estimatedDistanceKm).toFixed(2));
 }
 
-export function buildGroupLiveStandings(
+// Bare, ALWAYS-rendered group standing rows: every participant carries their real
+// live (else synced/official) distance, in a STABLE seed order, with NEUTRAL rank/gap
+// decoration (rank 0, gapAheadKm null, gapLeaderKm 0). This is the cheap mapping half
+// — one buildMatchProgressModel per participant, no sort, no rank/gap pass. It mirrors
+// the duel board, which renders the opponent's live distance directly and is never
+// gated. The expensive O(n log n) sort + rank assignment + leader/ahead gap decoration
+// lives in decorateGroupLiveStandings and may be deferred WITHOUT ever dropping a row.
+export function buildGroupLiveStandingRows(
   participants: GroupMatchParticipant[],
   mySeedRank: number | undefined,
   currentDistanceKm: number,
@@ -378,49 +385,91 @@ export function buildGroupLiveStandings(
     return [];
   }
 
-  if (participants.some((participant) => participant.officialReady && typeof participant.officialRank === 'number')) {
-    return sortOfficialGroupLiveStandings(
-      participants.map((participant) => {
-        const isCurrentUser = participant.seedRank === (mySeedRank ?? 1);
-        const progressModel = buildMatchProgressModel(participant, targetDistanceKm);
-        const officialProgress = progressModel.officialProgress;
+  const hasOfficial = participants.some(
+    (participant) => participant.officialReady && typeof participant.officialRank === 'number',
+  );
+  const currentSeedRank = mySeedRank ?? 1;
 
+  return participants.map((participant) => {
+    const isCurrentUser = participant.seedRank === currentSeedRank;
+    const progressModel = buildMatchProgressModel(participant, targetDistanceKm);
+
+    if (hasOfficial) {
+      return {
+        ...participant,
+        currentDistanceKm: progressModel.officialProgress?.distanceKm ?? 0,
+        isForfeited: participant.liveStatus === 'forfeited',
+        rank: 0,
+        gapAheadKm: null,
+        gapLeaderKm: 0,
+        isCurrentUser,
+      };
+    }
+
+    // Group rivals mirror the duel opponent: live-else-synced display distance via
+    // resolveParticipantDisplayDistanceKm (== progressModel.displayProgress.distanceKm),
+    // so a rival who has live progress NEVER renders as 0.00 just because the gate is up.
+    const estimatedDistanceKm = isCurrentUser
+      ? currentDistanceKm
+      : progressModel.displayProgress.hasProgress
+        ? progressModel.displayProgress.distanceKm
+        : 0;
+
+    return {
+      ...participant,
+      currentDistanceKm: estimatedDistanceKm,
+      isForfeited: participant.liveStatus === 'forfeited',
+      rank: 0,
+      gapAheadKm: null,
+      gapLeaderKm: 0,
+      isCurrentUser,
+    };
+  });
+}
+
+// HEAVY decoration half (deferrable): take the bare rows + their source participants,
+// sort them, assign ranks, and append the leader/ahead gap columns. Row existence and
+// live distances are entirely carried by the bare rows, so deferring this NEVER drops a
+// row or zeroes a distance — it only withholds the rank-ordering / gap polish.
+export function decorateGroupLiveStandings(
+  rows: GroupLiveStanding[],
+  participants: GroupMatchParticipant[],
+  targetDistanceKm: number,
+): GroupLiveStanding[] {
+  if (!rows.length) {
+    return [];
+  }
+
+  const hasOfficialRanks = participants.some(
+    (participant) => participant.officialReady && typeof participant.officialRank === 'number',
+  );
+
+  if (hasOfficialRanks) {
+    return sortOfficialGroupLiveStandings(
+      rows.map((row) => {
+        const officialProgress = buildOfficialMatchProgress(
+          participants.find((participant) => participant.id === row.id),
+          targetDistanceKm,
+        );
         return {
-          ...participant,
-          currentDistanceKm: officialProgress?.distanceKm ?? 0,
-          isForfeited: participant.liveStatus === 'forfeited',
+          ...row,
           rank: officialProgress?.rank ?? participants.length,
           gapAheadKm: officialProgress?.gapAheadKm ?? null,
           gapLeaderKm: officialProgress?.gapLeaderKm ?? 0,
-          isCurrentUser,
         };
       }),
     );
   }
 
-  const currentSeedRank = mySeedRank ?? 1;
-  return appendGroupLiveStandingGaps(
-    sortEstimatedGroupLiveStandings(
-      participants.map((participant) => {
-        const isCurrentUser = participant.seedRank === currentSeedRank;
-        const isForfeited = participant.liveStatus === 'forfeited';
-        const progressModel = buildMatchProgressModel(participant, targetDistanceKm);
-        const estimatedDistanceKm = isCurrentUser
-          ? currentDistanceKm
-          : progressModel.displayProgress.hasProgress
-            ? progressModel.displayProgress.distanceKm
-            : 0;
+  return appendGroupLiveStandingGaps(sortEstimatedGroupLiveStandings(rows));
+}
 
-        return {
-          ...participant,
-          currentDistanceKm: estimatedDistanceKm,
-          isForfeited,
-          rank: 0,
-          gapAheadKm: null,
-          gapLeaderKm: 0,
-          isCurrentUser,
-        };
-      }),
-    ),
-  );
+export function buildGroupLiveStandings(
+  participants: GroupMatchParticipant[],
+  mySeedRank: number | undefined,
+  currentDistanceKm: number,
+  targetDistanceKm: number,
+): GroupLiveStanding[] {
+  const rows = buildGroupLiveStandingRows(participants, mySeedRank, currentDistanceKm, targetDistanceKm);
+  return decorateGroupLiveStandings(rows, participants, targetDistanceKm);
 }

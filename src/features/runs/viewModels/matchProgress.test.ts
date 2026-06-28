@@ -9,9 +9,11 @@ import {
   buildDistanceGapLabel,
   buildDuelComparisonSnapshot,
   buildEstimatedCompetitiveDistanceKm,
+  buildGroupLiveStandingRows,
   buildGroupLiveStandings,
   buildMatchProgressModel,
   buildParticipantAveragePaceLabel,
+  decorateGroupLiveStandings,
   hasRemoteRunnerProgress,
   parsePaceSecondsPerKm,
   resolveParticipantDisplayDistanceKm,
@@ -221,6 +223,43 @@ test('buildGroupLiveStandings trusts official server ranks when available', () =
 
 test('buildGroupLiveStandings returns empty standings for empty participant input', () => {
   assert.deepEqual(buildGroupLiveStandings([], 1, 0, 5), []);
+});
+
+test('buildGroupLiveStandingRows keeps every participant with their live distance in STABLE seed order and NEUTRAL rank/gap (no sort/decoration)', () => {
+  const rows = buildGroupLiveStandingRows(
+    [
+      participant({ id: 'me', name: '나', seedRank: 2 }),
+      participant({ id: 'leader', name: '선두', seedRank: 1, liveDistanceKm: 1.2, liveUpdatedAt: '2026-05-12T00:02:00.000Z' }),
+      participant({ id: 'rival', name: '경쟁자', seedRank: 3, liveDistanceKm: 0.8, liveUpdatedAt: '2026-05-12T00:02:00.000Z' }),
+    ],
+    2,
+    1,
+    5,
+  );
+
+  // Rows preserve the source (seed) order — NOT distance-sorted — so deferral does no ranking work.
+  assert.deepEqual(rows.map((row) => row.id), ['me', 'leader', 'rival']);
+  // Every row carries its real live distance (rivals are never blanked to 0.00).
+  assert.deepEqual(rows.map((row) => row.currentDistanceKm), [1, 1.2, 0.8]);
+  // Neutral decoration while deferred: no rank, no gaps, no fabricated framing.
+  rows.forEach((row) => {
+    assert.equal(row.rank, 0);
+    assert.equal(row.gapAheadKm, null);
+    assert.equal(row.gapLeaderKm, 0);
+  });
+});
+
+test('buildGroupLiveStandingRows + decorateGroupLiveStandings equals buildGroupLiveStandings (deferred decoration is identical once applied)', () => {
+  const participants = [
+    participant({ id: 'me', name: '나', seedRank: 2 }),
+    participant({ id: 'leader', name: '선두', seedRank: 1, liveDistanceKm: 1.2, liveUpdatedAt: '2026-05-12T00:02:00.000Z' }),
+    participant({ id: 'forfeit', name: '기권', seedRank: 3, liveDistanceKm: 2, liveStatus: 'forfeited', liveUpdatedAt: '2026-05-12T00:02:00.000Z' }),
+  ];
+  const rows = buildGroupLiveStandingRows(participants, 2, 1, 5);
+  const decorated = decorateGroupLiveStandings(rows, participants, 5);
+  const direct = buildGroupLiveStandings(participants, 2, 1, 5);
+
+  assert.deepEqual(decorated, direct);
 });
 
 test('buildGroupLiveStandings breaks distance ties by faster average pace', () => {

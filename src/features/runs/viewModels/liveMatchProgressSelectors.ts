@@ -1,6 +1,7 @@
 import type { MatchStatusAlert } from '@/features/runs/components/liveMatchTracking/types';
 import type { RunMatchMode } from '@/features/runs/hooks/matchLifecycle/types';
 import {
+  buildGroupLiveStandingRows,
   buildGroupLiveStandings,
   type GroupLiveStanding,
 } from '@/features/runs/viewModels/matchProgress';
@@ -116,9 +117,35 @@ export function buildGroupLiveProgressModel({
   distanceKm: number;
   targetDistanceKm: number;
 }): GroupLiveProgressModel {
-  const groupLiveStandings = deferRankingCalculations && matchMode === 'group'
-    ? []
+  // Bundle A1 — never blank the group rows. The group board must render every
+  // participant with their real live distance on BOTH platforms, the same way the duel
+  // board renders the opponent (and is never gated). What the startup gate may defer is
+  // ONLY the heavy O(n log n) rank/gap decoration, never the row existence or the live
+  // distance. So when deferRankingCalculations is up we emit the bare rows (participants
+  // + live distances, stable seed order, neutral rank 0 / gap null) and skip ONLY the
+  // sort + rank assignment + leader/ahead gap pass; once the gate settles the full
+  // decorated standings take over. Non-group modes are untouched.
+  const shouldDeferDecoration = deferRankingCalculations && matchMode === 'group';
+  const groupLiveStandings = shouldDeferDecoration
+    ? buildGroupLiveStandingRows(participants, seedRank, distanceKm, targetDistanceKm)
     : buildGroupLiveStandings(participants, seedRank, distanceKm, targetDistanceKm);
+
+  // While decoration is deferred, the rank-derived snapshot (leader / ahead / behind /
+  // featured arena ids / rank-keyed status alert) would be meaningless against neutral
+  // rank-0 rows — and fabricating it would surface bogus ranks. So we expose the SAME
+  // neutral pending snapshot the pre-start group board shows: rows are present with live
+  // distances, but no leader/ahead/behind/rank framing until the gate settles.
+  if (shouldDeferDecoration) {
+    return {
+      groupLiveStandings,
+      currentGroupStanding: null,
+      currentGroupLeader: null,
+      groupAheadParticipant: null,
+      groupBehindParticipant: null,
+      featuredGroupArenaParticipantIds: new Set<string>(),
+      groupStatusAlert: buildGroupStatusAlert(groupLiveStandings),
+    };
+  }
 
   return {
     groupLiveStandings,

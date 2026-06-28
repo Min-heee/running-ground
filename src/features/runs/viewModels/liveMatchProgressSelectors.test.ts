@@ -32,7 +32,7 @@ const baseOpponent: DuelMatchOpponent = {
   compatibilitySummary: '테스트',
 };
 
-test('buildGroupLiveProgressModel defers group ranking calculations when requested', () => {
+test('buildGroupLiveProgressModel keeps group standings NON-empty and carrying live distances when deferRankingCalculations is true', () => {
   const model = buildGroupLiveProgressModel({
     deferRankingCalculations: true,
     matchMode: 'group',
@@ -45,10 +45,79 @@ test('buildGroupLiveProgressModel defers group ranking calculations when request
     targetDistanceKm: 5,
   });
 
-  assert.deepEqual(model.groupLiveStandings, []);
+  // Step 3: rows are ALWAYS present (never blanked to []) so every participant renders,
+  // on both platforms, even while the startup gate defers heavy decoration.
+  assert.equal(model.groupLiveStandings.length, 2);
+  assert.deepEqual(
+    [...model.groupLiveStandings].map((row) => row.id).sort(),
+    ['me', 'other'],
+  );
+
+  // The non-self rival carries its REAL live distance (1km), not 0.00 / 측정 대기.
+  const other = model.groupLiveStandings.find((row) => row.id === 'other');
+  assert.equal(other?.currentDistanceKm, 1);
+  // My row carries my measured distance.
+  const me = model.groupLiveStandings.find((row) => row.id === 'me');
+  assert.equal(me?.currentDistanceKm, 0.5);
+});
+
+test('buildGroupLiveProgressModel shows neutral pending (no fabricated ranks) while deferRankingCalculations is true', () => {
+  const model = buildGroupLiveProgressModel({
+    deferRankingCalculations: true,
+    matchMode: 'group',
+    participants: [
+      participant({ id: 'me', seedRank: 1 }),
+      participant({ id: 'other', seedRank: 2, liveDistanceKm: 1 }),
+    ],
+    seedRank: 1,
+    distanceKm: 0.5,
+    targetDistanceKm: 5,
+  });
+
+  // Heavy rank/gap decoration is deferred: rows carry NEUTRAL rank/gap, and the rank-keyed
+  // snapshot stays pending instead of surfacing bogus leader/ahead/behind framing.
+  model.groupLiveStandings.forEach((row) => {
+    assert.equal(row.rank, 0);
+    assert.equal(row.gapAheadKm, null);
+    assert.equal(row.gapLeaderKm, 0);
+  });
   assert.equal(model.currentGroupStanding, null);
   assert.equal(model.currentGroupLeader, null);
-  assert.equal(model.groupStatusAlert, null);
+  assert.equal(model.groupAheadParticipant, null);
+  assert.equal(model.groupBehindParticipant, null);
+  assert.equal(model.featuredGroupArenaParticipantIds.size, 0);
+});
+
+test('buildGroupLiveProgressModel decorates ranks once decoration is no longer deferred', () => {
+  const deferred = buildGroupLiveProgressModel({
+    deferRankingCalculations: true,
+    matchMode: 'group',
+    participants: [
+      participant({ id: 'me', seedRank: 1 }),
+      participant({ id: 'other', seedRank: 2, liveDistanceKm: 1 }),
+    ],
+    seedRank: 1,
+    distanceKm: 0.5,
+    targetDistanceKm: 5,
+  });
+  const settled = buildGroupLiveProgressModel({
+    deferRankingCalculations: false,
+    matchMode: 'group',
+    participants: [
+      participant({ id: 'me', seedRank: 1 }),
+      participant({ id: 'other', seedRank: 2, liveDistanceKm: 1 }),
+    ],
+    seedRank: 1,
+    distanceKm: 0.5,
+    targetDistanceKm: 5,
+  });
+
+  // Same rows + distances either way; only the rank/gap polish + snapshot differ.
+  assert.equal(deferred.groupLiveStandings.length, settled.groupLiveStandings.length);
+  // 'other' ran 1km vs my 0.5km, so once decorated the leader is 'other' at rank 1.
+  assert.equal(settled.currentGroupLeader?.id, 'other');
+  assert.equal(settled.currentGroupStanding?.id, 'me');
+  assert.ok(settled.groupLiveStandings.every((row) => row.rank > 0));
 });
 
 test('buildGroupLiveProgressModel keeps non-group ranking behavior unchanged', () => {
