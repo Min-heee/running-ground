@@ -4,10 +4,6 @@ import Foundation
 import ActivityKit
 #endif
 
-#if canImport(UIKit)
-import UIKit
-#endif
-
 // NATIVE, JS-INDEPENDENT Live Activity updater for the MATCH board (PACE + 간격/gap + both-runner
 // board) while the screen is OFF.
 //
@@ -36,8 +32,11 @@ import UIKit
 //   - The Activity is located via the PROCESS-GLOBAL `Activity<RunActivityAttributes>.activities`
 //     (NOT LiveActivityModule's private currentActivityBox, which is unreachable from here).
 //   - Never clobbers a solo card: bails when `activity.attributes.mode == "solo"`.
-//   - Background gate: only pushes when the app is NOT active (the JS foreground path already updates
-//     the card when foregrounded). applicationState is read on the main thread.
+//   - NO foreground/applicationState gate: the native push ALWAYS applies (last-writer-wins with the
+//     harmless, field-identical foreground JS push). The old gate read UIApplication.applicationState
+//     on the posting (main) thread and suppressed the push exactly when the lock-screen card needed
+//     it; it also carried a latent DispatchQueue.main.sync deadlock if ever called off-main. See the
+//     applyUpdate body for the full reasoning.
 //   - ALL ActivityKit touches are wrapped in `#if canImport(ActivityKit)` + `#available(iOS 16.2,*)`,
 //     so the pod still links pre-16.2 and the whole thing no-ops there.
 //   - Fire-and-forget: the observer never throws back into the poster; a missing/solo/finished
@@ -95,12 +94,29 @@ final class LiveActivityNativeUpdater {
         return
       }
 
-      // BACKGROUND GATE: only push from here when the app is NOT active. The JS foreground path
-      // already updates the card when the app is foregrounded; this native path exists purely to
-      // keep the card fresh while JS is suspended (screen off / backgrounded). Read on main.
-      if isAppActive() {
-        return
-      }
+      // NO FOREGROUND GATE. The native push ALWAYS applies. The previous build gated on
+      // UIApplication.shared.applicationState (only push when NOT active), reasoning that the JS
+      // foreground path owns the foreground. That gate was BOTH unnecessary and the bug:
+      //   1. WHY IT FROZE THE CARD SCREEN-OFF — this notification is posted from the uploader's
+      //      re-POST completion, which re-enters the MAIN thread (MatchProgressUploaderModule's
+      //      `DispatchQueue.main.async` in maybePost) before posting. NotificationCenter delivers
+      //      synchronously on the posting thread, so applyUpdate ran on MAIN. Reading applicationState
+      //      there made the push depend on a fragile foreground/background classification at exactly
+      //      the moment (display off / locked, app woken only for a Core Location delivery) when that
+      //      classification is least reliable — and any value of `.active`/`.inactive` it observed
+      //      suppressed the very push the lock-screen card needs. The TIME kept ticking only because
+      //      it is a self-driving `Text(timerInterval:)` that needs no push; PACE/간격/board are pushed
+      //      state, so they stayed frozen at the start sentinel.
+      //   2. WHY DROPPING IT IS SAFE — the foreground JS path (updateLiveActivity) and this native
+      //      push are LAST-WRITER-WINS on the SAME Activity. A redundant native push while the app is
+      //      foreground writes the SAME field-for-field ContentState the JS path would (the uploader
+      //      mirrors the JS pure helpers), so there is no jump and no conflict — at worst one extra,
+      //      identical activity.update.
+      //   3. LATENT DEADLOCK REMOVED — the old isAppActive() did `DispatchQueue.main.sync` when called
+      //      off-main. If any future caller ever posts this notification from a background thread (e.g.
+      //      the maybePost completion stops hopping to main), that main.sync would DEADLOCK against a
+      //      suspended main thread while the screen is off. Removing the gate removes that hazard too.
+      // activity.update is itself async/cheap, so always pushing is correct and harmless.
 
       // Read primitives (already final — built by the uploader mirroring the JS pure helpers).
       let elapsedSeconds = intValue(userInfo["elapsedSeconds"]) ?? 0
@@ -175,25 +191,6 @@ final class LiveActivityNativeUpdater {
     return rows
   }
   #endif
-
-  // Read applicationState on the main thread (UIApplication state must be read on main). Returns true
-  // when the app is .active. Synchronous main-hop is acceptable here: the notification is posted from
-  // the uploader's URLSession completion (off-main), so a brief main dispatch is safe and avoids the
-  // foreground/background double-push.
-  private func isAppActive() -> Bool {
-    #if canImport(UIKit)
-    if Thread.isMainThread {
-      return UIApplication.shared.applicationState == .active
-    }
-    var active = false
-    DispatchQueue.main.sync {
-      active = UIApplication.shared.applicationState == .active
-    }
-    return active
-    #else
-    return false
-    #endif
-  }
 
   // MARK: - Primitive coercion helpers
 
