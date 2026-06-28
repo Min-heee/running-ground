@@ -3,6 +3,7 @@ import test from 'node:test';
 import type { RunMatchResult } from '@/domain';
 import type { DuelVerdict, GroupVerdict, RunningMatchStatusResponse } from '@/lib/api/types';
 import {
+  deriveSavedMatchReconcileContext,
   isUnresolvedDuelMatchResult,
   isUnresolvedGroupMatchResult,
   reconcileDuelRunDetailMatchResult,
@@ -321,4 +322,105 @@ test('group parity: no reconciliation when the backend omits groupVerdict (deplo
     reconcileGroupRunDetailMatchResult({ matchResult: pending, status: groupStatus(undefined) }),
     null,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Saved-matchResult gate: a PENDING record re-queries from its OWN fields (matchId + mode +
+// compared distance), with NO route params — so re-opening it from 내 활동 / 기록 / 친구 reconciles.
+// ---------------------------------------------------------------------------
+
+test('saved-gate: a PENDING duel record (no route params) yields a reconcile context from its own fields', () => {
+  const pending: RunMatchResult = {
+    mode: 'duel',
+    matchId: 'm-duel-1',
+    title: '대결 결과를 집계하고 있어요',
+    summary: '',
+    badgeLabel: '결과 집계 중',
+    opponentName: '상대',
+    comparedDistanceKm: 5,
+    myDurationSeconds: 1500,
+    myPaceLabel: '5:00/km',
+  };
+  const context = deriveSavedMatchReconcileContext(pending);
+  assert.deepEqual(context, { matchId: 'm-duel-1', mode: 'duel', distanceKm: 5 });
+});
+
+test('saved-gate: a PENDING group record yields a reconcile context from its own fields', () => {
+  const pending: RunMatchResult = {
+    mode: 'group',
+    matchId: 'm-group-1',
+    title: '그룹 결과를 집계하고 있어요',
+    summary: '',
+    badgeLabel: '결과 집계 중',
+    participantCount: 3,
+    comparedDistanceKm: 3,
+    myDurationSeconds: 1560,
+  };
+  const context = deriveSavedMatchReconcileContext(pending);
+  assert.deepEqual(context, { matchId: 'm-group-1', mode: 'group', distanceKm: 3 });
+});
+
+test('saved-gate: a RESOLVED record yields NO reconcile context (no re-query, never downgraded)', () => {
+  const resolvedDuel: RunMatchResult = {
+    mode: 'duel',
+    matchId: 'm-duel-2',
+    title: '상대님을 이겼어요',
+    summary: '',
+    badgeLabel: '승리',
+    resultTone: 'win',
+    comparedDistanceKm: 5,
+    myDurationSeconds: 1500,
+    opponentDurationSeconds: 1560,
+    myPaceLabel: '5:00/km',
+    opponentPaceLabel: '5:12/km',
+  };
+  assert.equal(deriveSavedMatchReconcileContext(resolvedDuel), null);
+
+  const rankedGroup: RunMatchResult = {
+    mode: 'group',
+    matchId: 'm-group-2',
+    title: '3명 중 2위로 마쳤어요',
+    summary: '',
+    badgeLabel: '2위',
+    rank: 2,
+    participantCount: 3,
+    comparedDistanceKm: 5,
+  };
+  assert.equal(deriveSavedMatchReconcileContext(rankedGroup), null);
+});
+
+test('saved-gate: a forfeit record or a record without a matchId yields NO reconcile context', () => {
+  const forfeit: RunMatchResult = {
+    mode: 'duel',
+    matchId: 'm-duel-3',
+    title: '기권으로 대결을 마쳤어요',
+    summary: '',
+    badgeLabel: '기권 패',
+    resultTone: 'lose',
+  };
+  assert.equal(deriveSavedMatchReconcileContext(forfeit), null);
+
+  const noMatchId: RunMatchResult = {
+    mode: 'duel',
+    title: '대결 결과를 집계하고 있어요',
+    summary: '',
+    badgeLabel: '결과 집계 중',
+    myDurationSeconds: 1500,
+  };
+  assert.equal(deriveSavedMatchReconcileContext(noMatchId), null);
+
+  assert.equal(deriveSavedMatchReconcileContext(null), null);
+});
+
+test('saved-gate: a PENDING record missing comparedDistanceKm still reconciles (distance 0 sentinel; backend is lenient with a matchId)', () => {
+  const pending: RunMatchResult = {
+    mode: 'duel',
+    matchId: 'm-duel-4',
+    title: '대결 결과를 집계하고 있어요',
+    summary: '',
+    badgeLabel: '결과 집계 중',
+    myDurationSeconds: 1500,
+  };
+  const context = deriveSavedMatchReconcileContext(pending);
+  assert.deepEqual(context, { matchId: 'm-duel-4', mode: 'duel', distanceKm: 0 });
 });

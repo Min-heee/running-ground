@@ -1,6 +1,49 @@
 import type { RunMatchResult } from '@/domain';
 import type { DuelVerdict, GroupVerdict, RunningMatchStatusResponse } from '@/lib/api/types';
 
+// The server-side §B4 one-finisher fallback window (MATCH_DUEL_FINISH_FALLBACK_MS = 90s on the
+// backend). A duel/group saved as PENDING heals server-side only AFTER this window elapses (the
+// GET /result mutateStore seal + back-fill, or the periodic sweep). The client therefore must
+// RETRY its reconcile past this window — an immediate-only reconcile ~1-2s post-finish always
+// returns pending. A small buffer is added so the retry lands safely after the server has sealed.
+export const MATCH_FINISH_FALLBACK_MS = 90 * 1000;
+export const MATCH_RECONCILE_RETRY_MS = MATCH_FINISH_FALLBACK_MS + 5 * 1000;
+
+// The minimal reconcile context a SAVED matchResult carries on its own — matchId + mode +
+// the compared distance. This lets a record re-queried from 내 활동 / 기록 / 친구 (entry points
+// that pass only { runId }, never the post-save match route params) STILL reconcile, because the
+// gate no longer depends on route params. Returns null when the record cannot/should not be
+// reconciled (no matchId, wrong/absent mode, already resolved, or a forfeit).
+export function deriveSavedMatchReconcileContext(
+  matchResult: RunMatchResult | null | undefined,
+): { matchId: string; mode: 'duel' | 'group'; distanceKm: number } | null {
+  if (!matchResult) {
+    return null;
+  }
+  const matchId = typeof matchResult.matchId === 'string' ? matchResult.matchId.trim() : '';
+  if (!matchId) {
+    return null;
+  }
+  const mode = matchResult.mode === 'duel' || matchResult.mode === 'group' ? matchResult.mode : null;
+  if (!mode) {
+    return null;
+  }
+  const isUnresolved = mode === 'duel'
+    ? isUnresolvedDuelMatchResult(matchResult)
+    : isUnresolvedGroupMatchResult(matchResult);
+  if (!isUnresolved) {
+    return null;
+  }
+  // The compared distance is on the saved blob; fall back to a sentinel the backend treats
+  // leniently when a matchId is present (the status route only needs the matchId to find it).
+  const distanceKm = typeof matchResult.comparedDistanceKm === 'number'
+    && Number.isFinite(matchResult.comparedDistanceKm)
+    && matchResult.comparedDistanceKm > 0
+    ? matchResult.comparedDistanceKm
+    : 0;
+  return { matchId, mode, distanceKm };
+}
+
 // C3: reconcile a saved duel matchResult against the server's official duel record.
 //
 // When a duel is unresolved at save time (the runner finished first and saved before the

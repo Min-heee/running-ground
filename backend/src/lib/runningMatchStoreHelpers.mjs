@@ -15,10 +15,16 @@ export {
 } from './matchResponseBuilders.mjs';
 
 export {
+  backFillFinisherSavedRuns,
   buildMatchResultByMatchId,
   resolveSavedDuelMatchResult,
   resolveSavedGroupMatchResult,
 } from './matchResultBuilders.mjs';
+
+export {
+  pruneMatchSessions,
+  sweepStuckMatchSessionFallbacks,
+} from './runningMatchSessionStoreHelpers.mjs';
 
 export {
   acknowledgeRunningMatchRoomCountdown,

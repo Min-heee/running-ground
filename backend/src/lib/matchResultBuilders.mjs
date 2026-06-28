@@ -5,6 +5,7 @@ import {
   buildGroupVerdict,
   buildOfficialSessionStandings,
   ensureMatchSessions,
+  registerFinisherSavedRunBackfill,
   resolveSessionParticipantProfile,
 } from './runningMatchSessionStoreHelpers.mjs';
 
@@ -745,3 +746,70 @@ export function buildMatchResultByMatchId(store, currentUser, matchId, now = new
 
   return reconstructed;
 }
+
+// Back-fill the SAVED run.matchResult of every UNRESOLVED finisher of a live session so a
+// PENDING "결과 집계 중" card heals into the sealed verdict. Each finisher's saved record is
+// re-resolved against the (now-possibly-sealed) session via the SAME resolver the save path
+// uses (resolveSavedDuelMatchResult / resolveSavedGroupMatchResult), so the healed card is
+// byte-identical to what an at-save resolution would have produced — no new ranking/LP rule is
+// introduced here. Only an UNRESOLVED record (no resultTone for a duel / no rank for a group,
+// and not a forfeit) is rewritten — a card that already carries a definite verdict is never
+// downgraded. Exported so the session-store sweep (which has no import path to the resolvers)
+// can delegate the back-fill here, keeping the resolver as the single source of truth.
+// Returns true if any run was rewritten.
+export function backFillFinisherSavedRuns(store, session, now = new Date()) {
+  if (!session || !Array.isArray(store.runs) || !store.runs.length) {
+    return false;
+  }
+
+  const mode = session.mode === 'group' ? 'group' : session.mode === 'duel' ? 'duel' : null;
+  if (!mode) {
+    return false;
+  }
+
+  let changed = false;
+
+  for (const run of store.runs) {
+    const matchResult = run?.matchResult;
+    if (!matchResult || matchResult.matchId !== session.id || matchResult.mode !== mode) {
+      continue;
+    }
+
+    // Only heal an UNRESOLVED placeholder; a definite verdict (duel resultTone / group rank)
+    // or a forfeit record is authoritative and must never be downgraded.
+    const isForfeit = /기권/.test(String(matchResult.badgeLabel ?? ''));
+    const isUnresolved = mode === 'duel'
+      ? !['win', 'lose', 'draw'].includes(matchResult.resultTone)
+      : !Number.isInteger(matchResult.rank);
+    if (isForfeit || !isUnresolved) {
+      continue;
+    }
+
+    const owner = store.users.find((entry) => entry.id === run.userId);
+    if (!owner) {
+      continue;
+    }
+
+    const resolved = mode === 'group'
+      ? resolveSavedGroupMatchResult(store, owner, matchResult, now)
+      : resolveSavedDuelMatchResult(store, owner, matchResult, now);
+
+    // The resolver returns a NEW object only when it could resolve a verdict; a still-PENDING
+    // result keeps the neutral "결과 집계 중" badge. Persist only a genuine upgrade (a resolved
+    // duel tone / a sealed group rank) so the card heals exactly once and never thrashes.
+    const upgraded = mode === 'duel'
+      ? ['win', 'lose', 'draw'].includes(resolved?.resultTone)
+      : Number.isInteger(resolved?.rank);
+    if (resolved && upgraded && resolved !== matchResult) {
+      run.matchResult = resolved;
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+// Register the resolver-backed back-fill into the session-store sweep at module init, breaking
+// the load-time cycle (the session store imports nothing from here). pruneMatchSessions' sweep
+// then heals the finisher's saved run whenever it seals a stranded one-finisher match.
+registerFinisherSavedRunBackfill(backFillFinisherSavedRuns);

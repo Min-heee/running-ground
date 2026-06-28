@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import type { Href } from 'expo-router';
 import type { RunMatchResult } from '@/domain';
 import type { RunDetailResponse } from '@/lib/api/types';
@@ -6,8 +7,8 @@ import { fetchRunDetail, fetchRunningMatchStatus, getApiErrorMessage } from '@/s
 import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
 import { getRunMapRegion } from '@/features/runs/tracking';
 import {
-  isUnresolvedDuelMatchResult,
-  isUnresolvedGroupMatchResult,
+  deriveSavedMatchReconcileContext,
+  MATCH_RECONCILE_RETRY_MS,
   reconcileDuelRunDetailMatchResult,
   reconcileGroupRunDetailMatchResult,
 } from '@/features/running/utils/runDetailMatchReconcile';
@@ -42,65 +43,99 @@ export function useRunDetail({
   // saved one was unresolved at save time. Null means "use the as-saved record".
   const [reconciledMatchResult, setReconciledMatchResult] = useState<RunMatchResult | null>(null);
 
-  useEffect(() => {
-    fetchRunDetail({ runId, friendId })
+  // Re-fetchable run detail. After the server back-fills a PENDING one-finisher record (the
+  // GET /result mutateStore seal + sweep), re-fetching surfaces the HEALED matchResult blob
+  // directly — so re-opening the record, or simply re-focusing it after the §B4 window, shows
+  // the resolved verdict without depending on the status-endpoint reconcile.
+  const loadRunDetail = useCallback(() => {
+    return fetchRunDetail({ runId, friendId })
       .then((data) => setRunDetail(data))
       .catch((loadError) => setError(getApiErrorMessage(loadError, '기록 상세 정보를 불러오지 못했어.')))
       .finally(() => setLoading(false));
   }, [friendId, runId]);
 
-  // C3 / group parity: for a duel OR group that was UNRESOLVED at save time, re-query the
-  // official record and reconcile so both phones' run-detail show the identical final
-  // verdict/placement. Only runs for a server-tracked record that still looks placeholder;
-  // never downgrades a good saved record.
-  const savedMatchResult = runDetail?.run.matchResult ?? null;
-  const parsedMatchMode = parseMatchMode(matchMode);
-  const distanceKmNumber = matchDistanceKm ? Number(matchDistanceKm) : NaN;
-  const isUnresolvedSavedRecord = parsedMatchMode === 'duel'
-    ? isUnresolvedDuelMatchResult(savedMatchResult)
-    : parsedMatchMode === 'group'
-      ? isUnresolvedGroupMatchResult(savedMatchResult)
-      : false;
-  const shouldReconcileMatch = Boolean(
-    matchId
-    && parsedMatchMode
-    && matchSlotStartAt
-    && Number.isFinite(distanceKmNumber)
-    && isUnresolvedSavedRecord,
+  useEffect(() => {
+    loadRunDetail();
+  }, [loadRunDetail]);
+
+  // Re-fetch on every focus so a record that was PENDING at save heals as soon as the user
+  // re-opens it (by then the server has back-filled the saved run via /result or the sweep).
+  useFocusEffect(
+    useCallback(() => {
+      loadRunDetail();
+    }, [loadRunDetail]),
   );
 
-  useEffect(() => {
-    if (!shouldReconcileMatch || !matchId || !matchSlotStartAt || !parsedMatchMode) {
-      return;
-    }
+  // C3 / group parity: for a duel OR group that was UNRESOLVED at save time, re-query the
+  // official record and reconcile so both phones' run-detail show the identical final
+  // verdict/placement. The gate now derives from the SAVED matchResult itself (matchId + mode +
+  // compared distance) rather than route params, so re-opening a PENDING record from 내 활동 /
+  // 기록 / 친구 (which pass only { runId }) STILL reconciles. Never downgrades a good record.
+  const savedMatchResult = runDetail?.run.matchResult ?? null;
+  const savedReconcileContext = deriveSavedMatchReconcileContext(savedMatchResult);
+  // Route params (post-save navigation) supply the exact slotStartAt; otherwise the backend
+  // treats slotStartAt leniently when a matchId is present, so a sentinel works.
+  const routeMatchMode = parseMatchMode(matchMode);
+  const routeDistanceKm = matchDistanceKm ? Number(matchDistanceKm) : NaN;
+  const reconcileMode = savedReconcileContext?.mode ?? routeMatchMode ?? null;
+  const reconcileMatchId = savedReconcileContext?.matchId ?? (matchId ? matchId.trim() : '') ?? '';
+  const reconcileDistanceKm = savedReconcileContext && savedReconcileContext.distanceKm > 0
+    ? savedReconcileContext.distanceKm
+    : Number.isFinite(routeDistanceKm) ? routeDistanceKm : 0;
+  const reconcileSlotStartAt = matchSlotStartAt ?? '';
+  const shouldReconcileMatch = Boolean(savedReconcileContext && reconcileMatchId && reconcileMode);
 
-    let cancelled = false;
-    fetchRunningMatchStatus({
-      mode: parsedMatchMode,
-      distanceKm: distanceKmNumber,
-      slotStartAt: matchSlotStartAt,
-      matchId,
-    })
-      .then((status) => {
-        if (cancelled) {
-          return;
-        }
-        const reconciled = parsedMatchMode === 'group'
-          ? reconcileGroupRunDetailMatchResult({ matchResult: savedMatchResult, status })
-          : reconcileDuelRunDetailMatchResult({ matchResult: savedMatchResult, status });
-        if (reconciled) {
-          setReconciledMatchResult(reconciled);
-        }
+  // A single reconcile pass: re-query the official status, reconcile the saved record, and
+  // surface the upgrade. Best-effort — a failure falls back to the as-saved record.
+  const runReconcile = useCallback(
+    (signal: { cancelled: boolean }) => {
+      if (!shouldReconcileMatch || !reconcileMode || !reconcileMatchId) {
+        return;
+      }
+      fetchRunningMatchStatus({
+        mode: reconcileMode,
+        distanceKm: reconcileDistanceKm,
+        slotStartAt: reconcileSlotStartAt,
+        matchId: reconcileMatchId,
       })
-      .catch(() => {
-        // Reconciliation is best-effort: if the official record is unavailable, fall back to
-        // the as-saved record rather than blocking or erroring the run-detail screen.
-      });
+        .then((status) => {
+          if (signal.cancelled) {
+            return;
+          }
+          const reconciled = reconcileMode === 'group'
+            ? reconcileGroupRunDetailMatchResult({ matchResult: savedMatchResult, status })
+            : reconcileDuelRunDetailMatchResult({ matchResult: savedMatchResult, status });
+          if (reconciled) {
+            setReconciledMatchResult(reconciled);
+          }
+        })
+        .catch(() => {
+          // Best-effort: fall back to the as-saved record rather than erroring the screen.
+        });
+    },
+    [reconcileDistanceKm, reconcileMatchId, reconcileMode, reconcileSlotStartAt, savedMatchResult, shouldReconcileMatch],
+  );
 
-    return () => {
-      cancelled = true;
-    };
-  }, [distanceKmNumber, matchId, matchSlotStartAt, parsedMatchMode, savedMatchResult, shouldReconcileMatch]);
+  // Reconcile on focus AND schedule a one-shot retry PAST the §B4 fallback window. The original
+  // single reconcile fired once ~1-2s post-finish — far inside the 90s window — so it always
+  // returned pending and never retried. The retry lands after the server has sealed/back-filled,
+  // and on focus we also re-fetch the (now-healed) run detail above.
+  useFocusEffect(
+    useCallback(() => {
+      const signal = { cancelled: false };
+      runReconcile(signal);
+      const retryTimer = setTimeout(() => {
+        if (!signal.cancelled) {
+          loadRunDetail();
+          runReconcile(signal);
+        }
+      }, MATCH_RECONCILE_RETRY_MS);
+      return () => {
+        signal.cancelled = true;
+        clearTimeout(retryTimer);
+      };
+    }, [loadRunDetail, runReconcile]),
+  );
 
   const backHref: Href = friendId
     ? { pathname: '/friend-detail', params: { friendId } }

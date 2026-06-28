@@ -26,7 +26,8 @@ export async function routeRunningMatchProgressRoutes(deps) {
 async function handleFetchRunningMatchResult({
   ApiError,
   buildMatchResultByMatchId,
-  loadStore,
+  mutateStore,
+  sweepStuckMatchSessionFallbacks,
   request,
   requireUser,
   response,
@@ -46,9 +47,19 @@ async function handleFetchRunningMatchResult({
     throw new ApiError(404, '대결 결과를 찾을 수 없어.');
   }
 
-  const store = await loadStore();
-  const currentUser = requireUser(store, request);
-  const payload = buildMatchResultByMatchId(store, currentUser, matchId);
+  // DURABLE one-finisher resolution: this read now runs under mutateStore so the FIRST /result
+  // request after the §B4 window elapses PERSISTS the fallback seal AND back-fills the lone
+  // finisher's saved run (so the 기록상세 card heals), instead of computing the verdict against a
+  // throwaway loadStore() clone that is never written. We run the targeted seal+back-fill SWEEP
+  // (NOT pruneMatchSessions, which would DROP a both-finished session before the raw lookup can
+  // resolve it). The sweep only seals/heals — it never removes a session — and is idempotent +
+  // sticky, so concurrent /result reads can never corrupt or double-seal. buildMatchResultByMatchId
+  // then reads the still-present (now-persisted) session via its raw lookup, exactly as before.
+  const payload = await mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    sweepStuckMatchSessionFallbacks(store);
+    return buildMatchResultByMatchId(store, currentUser, matchId);
+  });
 
   sendJson(response, 200, payload);
 }

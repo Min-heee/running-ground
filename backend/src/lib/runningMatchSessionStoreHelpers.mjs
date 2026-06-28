@@ -21,6 +21,17 @@ import { nextId } from './idHelpers.mjs';
 import { isTestMatchSession } from './matchScheduleHelpers.mjs';
 import { findUserById, getRunsForUser, getUserMetrics } from './userStoreHelpers.mjs';
 
+// The saved-run back-fill lives in matchResultBuilders.mjs (it reuses the save-path resolvers,
+// the single source of truth for a healed card). matchResultBuilders already imports THIS
+// module, so to avoid a load-time import cycle the back-fill is INJECTED here via a setter that
+// matchResultBuilders calls at module init. Until it is registered the sweep still seals the
+// fallback (the load-bearing persistence step); the back-fill is a best-effort display heal.
+let backFillFinisherSavedRunsImpl = null;
+
+export function registerFinisherSavedRunBackfill(impl) {
+  backFillFinisherSavedRunsImpl = typeof impl === 'function' ? impl : null;
+}
+
 export function buildMatchRunnerProfile(store, user) {
   const metrics = getUserMetrics(store, user.id);
   const recentRuns = getRunsForUser(store, user.id).slice(0, 3);
@@ -105,9 +116,61 @@ export function hydrateMatchSessionState(session, now = new Date()) {
   return 'matched';
 }
 
+// One-finisher (DNF) self-heal sweep, run from the periodic prune so a stuck match resolves
+// even when nobody opens the result screen. For EVERY live session whose §B4 fallback window
+// has elapsed with one finisher and a missing finish, this seals the fallback (sealDuel/
+// GroupFallbackResolutionIfElapsed — idempotent + sticky; never seals a match still
+// legitimately running inside the window, a forfeit-only match, or an already-sealed one) and
+// back-fills the finisher's SAVED run so the 기록상세 card heals. The back-fill is the injected
+// resolver-backed impl (registerFinisherSavedRunBackfill). Returns true if anything was
+// sealed or healed.
+export function sweepStuckMatchSessionFallbacks(store, now = new Date()) {
+  const sessions = ensureMatchSessions(store);
+  if (!sessions.length) {
+    return false;
+  }
+
+  let changed = false;
+
+  for (const session of sessions) {
+    if (!session || (session.mode !== 'duel' && session.mode !== 'group')) {
+      continue;
+    }
+
+    const sealed = session.mode === 'duel'
+      ? sealDuelFallbackResolutionIfElapsed(session, now)
+      : sealGroupFallbackResolutionIfElapsed(session, now);
+    const alreadySealed = session.mode === 'duel'
+      ? session.duelFallbackResolution
+      : session.groupFallbackResolution;
+
+    // Only a (now or previously) sealed one-finisher match needs a saved-run back-fill. A match
+    // that did not seal (still inside the window, forfeit-only, both-finished) is left untouched.
+    if (!sealed && !alreadySealed) {
+      continue;
+    }
+
+    if (sealed) {
+      changed = true;
+    }
+
+    if (typeof backFillFinisherSavedRunsImpl === 'function' && backFillFinisherSavedRunsImpl(store, session, now)) {
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
 export function pruneMatchSessions(store, now = new Date()) {
   const sessions = ensureMatchSessions(store);
   const activeUserIds = new Set(store.users.map((user) => user.id));
+
+  // Self-heal stuck one-finisher matches BEFORE pruning so a sealed-but-stranded session is
+  // resolved + back-filled while it is still physically present. A sealed DNF runner stays a
+  // non-finisher (not "done"), so a freshly-sealed one-finisher session is NOT dropped by the
+  // filter below — it persists until both sides are terminal or it expires, exactly as before.
+  sweepStuckMatchSessionFallbacks(store, now);
 
   store.matchSessions = sessions.filter((session) => {
     if (!session || !Array.isArray(session.participants) || !session.participants.length) {

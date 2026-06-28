@@ -2556,3 +2556,311 @@ await runTest('after the session is PRUNED, a save with a fabricated client win 
     assert.equal(loser.userId, 'guest-user');
   });
 });
+
+// ---------------------------------------------------------------------------
+// DURABLE one-finisher (DNF) resolution: the permanent-PENDING launch blocker.
+// One runner finishes and saves a PENDING record; the other never finishes (quit /
+// screen-off). After the §B4 window elapses nobody re-invokes a verdict-builder, so the
+// seal never fired → the saved card was stuck on "결과 집계 중" forever. The fix routes
+// GET /result through mutateStore (seals + back-fills) AND sweeps in pruneMatchSessions.
+// ---------------------------------------------------------------------------
+
+// A duel where ONLY the host finished (>§B4 window ago) and the guest never finished — and the
+// host already SAVED a PENDING record. The window (90s) has elapsed because finishedAt is 100s old.
+function createStuckOneFinisherDuelStore() {
+  const store = createBaseStore();
+  const slotStartAt = createSelectableMatchSlotStartAt();
+  const finishedAt = iso(-100 * 1000); // > MATCH_DUEL_FINISH_FALLBACK_MS (90s) ago
+
+  store.matchSessions.push({
+    id: 'stuck-duel-match',
+    mode: 'duel',
+    isTestMatch: false,
+    distanceKm: 5,
+    slotStartAt,
+    startedAt: iso(-30 * 60 * 1000),
+    createdAt: iso(-31 * 60 * 1000),
+    matchedAt: iso(-31 * 60 * 1000),
+    participants: [
+      {
+        userId: 'host-user',
+        seedRank: 1,
+        acceptedAt: null,
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1500,
+        livePace: '05:00/km',
+        liveUpdatedAt: finishedAt,
+        finishedAt,
+        finishElapsedSeconds: 1500,
+      },
+      {
+        // The guest quit / went screen-off: a stale 'running' heartbeat, never a finish.
+        userId: 'guest-user',
+        seedRank: 2,
+        acceptedAt: null,
+        liveStatus: 'running',
+        liveDistanceKm: 3.2,
+        liveElapsedSeconds: 1100,
+        livePace: '05:40/km',
+        liveUpdatedAt: iso(-100 * 1000),
+        finishedAt: null,
+        finishElapsedSeconds: null,
+      },
+    ],
+  });
+
+  // The host's already-saved PENDING run (no resultTone, neutral badge) — exactly what the save
+  // path persists when the verdict is unresolvable at save time.
+  const startedAt = iso(-40 * 60 * 1000);
+  store.runs.push({
+    id: 'host-stuck-run',
+    userId: 'host-user',
+    date: startedAt.slice(0, 10),
+    distanceKm: 5,
+    pace: '05:00/km',
+    source: 'RunningGround',
+    sourceType: 'tracked',
+    startedAt,
+    endedAt: iso(-39 * 60 * 1000),
+    durationSeconds: 1500,
+    createdAt: iso(-39 * 60 * 1000),
+    matchResult: {
+      mode: 'duel',
+      matchId: 'stuck-duel-match',
+      source: 'official',
+      title: '대결 결과를 집계하고 있어요',
+      summary: '상대가 완주하면 결과가 자동으로 업데이트돼요.',
+      badgeLabel: '결과 집계 중',
+      opponentName: '참가 러너',
+      comparedDistanceKm: 5,
+      myDurationSeconds: 1500,
+      myPaceLabel: '05:00/km',
+    },
+  });
+
+  return { store, slotStartAt };
+}
+
+await runTest('STUCK one-finisher duel: GET /result after the §B4 window SEALS + PERSISTS the DNF win and BACK-FILLS the finisher saved run (heals the permanent PENDING)', async () => {
+  const { store } = createStuckOneFinisherDuelStore();
+
+  await withBackend(store, async ({ request, readStore }) => {
+    // BEFORE: the host's saved record is PENDING and the session carries no seal.
+    const before = readStore();
+    const beforeRun = before.runs.find((entry) => entry.id === 'host-stuck-run');
+    assert.equal(beforeRun.matchResult.resultTone, undefined);
+    assert.equal(beforeRun.matchResult.badgeLabel, '결과 집계 중');
+    assert.equal(before.matchSessions.find((entry) => entry.id === 'stuck-duel-match').duelFallbackResolution, undefined);
+
+    // The host opens 기록상세 → GET /result. This is the FIRST request after the window; it must
+    // resolve the DNF win, PERSIST the seal, and BACK-FILL the saved run.
+    const result = await request('host-token', 'GET', '/api/running/matches/stuck-duel-match/result');
+    assert.equal(result.matchId, 'stuck-duel-match');
+    const me = result.participants.find((participant) => participant.userId === 'host-user');
+    const opponent = result.participants.find((participant) => participant.userId === 'guest-user');
+    assert.equal(me.resultTone, 'win');
+    assert.equal(opponent.resultTone, 'lose');
+    // The DNF opponent carries no official finish.
+    assert.equal(opponent.finishElapsedSeconds, null);
+
+    // AFTER: the seal is PERSISTED on the session AND the host's saved run is healed to a definite win.
+    const after = readStore();
+    const sealedSession = after.matchSessions.find((entry) => entry.id === 'stuck-duel-match');
+    assert.equal(sealedSession.duelFallbackResolution.winnerUserId, 'host-user');
+    assert.equal(sealedSession.duelFallbackResolution.dnfUserId, 'guest-user');
+    const healedRun = after.runs.find((entry) => entry.id === 'host-stuck-run');
+    assert.equal(healedRun.matchResult.resultTone, 'win');
+    assert.equal(healedRun.matchResult.badgeLabel, '승리');
+    assert.notEqual(healedRun.matchResult.badgeLabel, '결과 집계 중');
+
+    // A SECOND /result read is idempotent: the verdict is identical and the seal is not recomputed.
+    const second = await request('host-token', 'GET', '/api/running/matches/stuck-duel-match/result');
+    assert.equal(second.participants.find((participant) => participant.userId === 'host-user').resultTone, 'win');
+    const afterSecond = readStore();
+    assert.equal(afterSecond.matchSessions.find((entry) => entry.id === 'stuck-duel-match').duelFallbackResolution.resolvedAt, sealedSession.duelFallbackResolution.resolvedAt);
+  });
+});
+
+await runTest('STUCK one-finisher duel: the SWEEP self-heals via pruneMatchSessions WITHOUT any /result call (another user\'s status poll triggers it)', async () => {
+  const { store } = createStuckOneFinisherDuelStore();
+  // A bystander whose unrelated status poll runs pruneMatchSessions across the whole store.
+  store.users.push(createRunner({ id: 'bystander', name: '구경 러너', publicTag: 'bystander' }));
+  store.sessions.push(createSession('bystander-token', 'bystander'));
+
+  await withBackend(store, async ({ request, readStore }) => {
+    // The bystander never touches the stuck match — they just poll their own (empty) duel status,
+    // which runs pruneMatchSessions → the sweep seals + back-fills the stranded match.
+    await request('bystander-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt: createSelectableMatchSlotStartAt(),
+    });
+
+    const after = readStore();
+    const sealedSession = after.matchSessions.find((entry) => entry.id === 'stuck-duel-match');
+    assert.equal(sealedSession.duelFallbackResolution.winnerUserId, 'host-user');
+    const healedRun = after.runs.find((entry) => entry.id === 'host-stuck-run');
+    assert.equal(healedRun.matchResult.resultTone, 'win');
+    assert.equal(healedRun.matchResult.badgeLabel, '승리');
+  });
+});
+
+// A group where ONLY the host finished (>§B4 window ago); guest + third never finished, and the
+// host already SAVED a rank-less PENDING group record.
+function createStuckOneFinisherGroupStore() {
+  const store = createBaseStore();
+  store.users.push(
+    createRunner({ id: 'third-user', name: '세번째 러너', publicTag: 'third', districtName: '마포구' }),
+  );
+  store.sessions.push(createSession('third-token', 'third-user'));
+  const slotStartAt = createSelectableMatchSlotStartAt();
+  const finishedAt = iso(-100 * 1000);
+
+  store.matchSessions.push({
+    id: 'stuck-group-match',
+    mode: 'group',
+    isTestMatch: false,
+    isPartyRun: false,
+    distanceKm: 5,
+    slotStartAt,
+    startedAt: iso(-30 * 60 * 1000),
+    createdAt: iso(-31 * 60 * 1000),
+    matchedAt: iso(-31 * 60 * 1000),
+    participants: [
+      {
+        userId: 'host-user',
+        seedRank: 1,
+        acceptedAt: null,
+        liveStatus: 'finished',
+        liveDistanceKm: 5,
+        liveElapsedSeconds: 1500,
+        livePace: '05:00/km',
+        liveUpdatedAt: finishedAt,
+        finishedAt,
+        finishElapsedSeconds: 1500,
+      },
+      {
+        userId: 'guest-user',
+        seedRank: 2,
+        acceptedAt: null,
+        liveStatus: 'running',
+        liveDistanceKm: 3.0,
+        liveElapsedSeconds: 1000,
+        livePace: '05:33/km',
+        liveUpdatedAt: iso(-100 * 1000),
+        finishedAt: null,
+        finishElapsedSeconds: null,
+      },
+      {
+        userId: 'third-user',
+        seedRank: 3,
+        acceptedAt: null,
+        liveStatus: 'running',
+        liveDistanceKm: 2.4,
+        liveElapsedSeconds: 900,
+        livePace: '06:15/km',
+        liveUpdatedAt: iso(-100 * 1000),
+        finishedAt: null,
+        finishElapsedSeconds: null,
+      },
+    ],
+  });
+
+  const startedAt = iso(-40 * 60 * 1000);
+  store.runs.push({
+    id: 'host-stuck-group-run',
+    userId: 'host-user',
+    date: startedAt.slice(0, 10),
+    distanceKm: 5,
+    pace: '05:00/km',
+    source: 'RunningGround',
+    sourceType: 'tracked',
+    startedAt,
+    endedAt: iso(-39 * 60 * 1000),
+    durationSeconds: 1500,
+    createdAt: iso(-39 * 60 * 1000),
+    matchResult: {
+      mode: 'group',
+      matchId: 'stuck-group-match',
+      source: 'official',
+      title: '그룹 결과를 집계하고 있어요',
+      summary: '다른 참가자가 완주하면 순위가 자동으로 업데이트돼요.',
+      badgeLabel: '결과 집계 중',
+      participantCount: 3,
+      comparedDistanceKm: 5,
+      myDurationSeconds: 1500,
+      myPaceLabel: '05:00/km',
+    },
+  });
+
+  return { store, slotStartAt };
+}
+
+await runTest('STUCK one-finisher group: GET /result after the §B4 window SEALS + PERSISTS the placement and BACK-FILLS the finisher saved run (1위, DNF below)', async () => {
+  const { store } = createStuckOneFinisherGroupStore();
+
+  await withBackend(store, async ({ request, readStore }) => {
+    const before = readStore();
+    assert.equal(before.runs.find((entry) => entry.id === 'host-stuck-group-run').matchResult.rank, undefined);
+    assert.equal(before.matchSessions.find((entry) => entry.id === 'stuck-group-match').groupFallbackResolution, undefined);
+
+    const result = await request('host-token', 'GET', '/api/running/matches/stuck-group-match/result');
+    assert.equal(result.mode, 'group');
+    const me = result.participants.find((participant) => participant.userId === 'host-user');
+    assert.equal(me.rank, 1);
+
+    const after = readStore();
+    const sealedSession = after.matchSessions.find((entry) => entry.id === 'stuck-group-match');
+    assert.deepEqual(sealedSession.groupFallbackResolution.finisherUserIds, ['host-user']);
+    assert.deepEqual(new Set(sealedSession.groupFallbackResolution.dnfUserIds), new Set(['guest-user', 'third-user']));
+    const healedRun = after.runs.find((entry) => entry.id === 'host-stuck-group-run');
+    assert.equal(healedRun.matchResult.rank, 1);
+    assert.equal(healedRun.matchResult.badgeLabel, '1위');
+    assert.notEqual(healedRun.matchResult.badgeLabel, '결과 집계 중');
+  });
+});
+
+await runTest('STUCK one-finisher group: the SWEEP self-heals via pruneMatchSessions WITHOUT any /result call', async () => {
+  const { store } = createStuckOneFinisherGroupStore();
+  store.users.push(createRunner({ id: 'bystander', name: '구경 러너', publicTag: 'bystander' }));
+  store.sessions.push(createSession('bystander-token', 'bystander'));
+
+  await withBackend(store, async ({ request, readStore }) => {
+    await request('bystander-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt: createSelectableMatchSlotStartAt(),
+    });
+
+    const after = readStore();
+    const sealedSession = after.matchSessions.find((entry) => entry.id === 'stuck-group-match');
+    assert.deepEqual(sealedSession.groupFallbackResolution.finisherUserIds, ['host-user']);
+    const healedRun = after.runs.find((entry) => entry.id === 'host-stuck-group-run');
+    assert.equal(healedRun.matchResult.rank, 1);
+    assert.equal(healedRun.matchResult.badgeLabel, '1위');
+  });
+});
+
+await runTest('HAPPY PATH unaffected: a one-finisher match still INSIDE the §B4 window is NOT sealed and stays PENDING (no premature DNF resolution)', async () => {
+  const { store } = createStuckOneFinisherDuelStore();
+  // Move the host finish to JUST 20s ago — inside the 90s window, so it must NOT seal yet.
+  const session = store.matchSessions.find((entry) => entry.id === 'stuck-duel-match');
+  const recentFinish = iso(-20 * 1000);
+  const host = session.participants.find((participant) => participant.userId === 'host-user');
+  host.finishedAt = recentFinish;
+  host.liveUpdatedAt = recentFinish;
+
+  await withBackend(store, async ({ request, readStore }) => {
+    // The bystander poll runs the sweep, but the window has NOT elapsed → no seal, no heal.
+    store.users.push(createRunner({ id: 'bystander', name: '구경 러너', publicTag: 'bystander' }));
+    await request('host-token', 'GET', '/api/running/matches/stuck-duel-match/result').catch(() => null);
+
+    const after = readStore();
+    const stillUnsealed = after.matchSessions.find((entry) => entry.id === 'stuck-duel-match');
+    assert.equal(stillUnsealed.duelFallbackResolution, undefined);
+    const stillPending = after.runs.find((entry) => entry.id === 'host-stuck-run');
+    assert.equal(stillPending.matchResult.resultTone, undefined);
+    assert.equal(stillPending.matchResult.badgeLabel, '결과 집계 중');
+  });
+});
