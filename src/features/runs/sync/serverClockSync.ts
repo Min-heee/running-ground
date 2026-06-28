@@ -28,6 +28,14 @@ const SERVER_CLOCK_SAMPLE_BUFFER_SIZE = 8;
 // Only keep samples measured within this window of server time so a stale low-RTT
 // reading can't pin the offset to an outdated value.
 const SERVER_CLOCK_SAMPLE_FRESHNESS_MS = 12000;
+// clockReady gate. The countdown lock must NOT freeze a target until the shared offset
+// is trustworthy. We require at least this many fresh, RTT-timed samples whose best
+// (lowest-RTT) candidates agree within the tolerance below — so a single unlucky reading
+// can't declare the clock "ready" and let the lock freeze a skewed instant. A device far
+// off NTP cold-starts at offset 0; the FIRST trusted sample SNAPS the offset to the true
+// value (bypassing the 400ms crawl), and clockReady then trips once a few samples concur.
+const SERVER_CLOCK_READY_MIN_SAMPLES = 2;
+const SERVER_CLOCK_READY_AGREEMENT_TOLERANCE_MS = 250;
 
 type ServerClockTimingSource = {
   clientRequestStartedAtMs?: unknown;
@@ -141,12 +149,27 @@ function clampOffsetStep(offsetDeltaMs: number) {
   return offsetDeltaMs;
 }
 
-export function resolveStableServerClockOffset(currentOffsetMs: number, nextOffsetMs: number) {
+export function resolveStableServerClockOffset(
+  currentOffsetMs: number,
+  nextOffsetMs: number,
+  // Cold start: until the FIRST trusted sample is accepted, the offset SNAPS straight to
+  // the best-sample value instead of crawling toward it 400ms/snapshot. A phone several
+  // seconds off NTP would otherwise need ~15 polls to converge — far longer than the
+  // countdown window — and the lock would freeze a multi-second-wrong instant. The 400ms
+  // clamp (clampOffsetStep) + the 100/150ms apply/jitter bands still govern every
+  // SUBSEQUENT in-countdown adjustment, so a late server snapshot can never jump the
+  // displayed digit by seconds in one render.
+  hasAcceptedSample = true,
+) {
   const targetOffsetMs = Math.abs(nextOffsetMs) < SERVER_CLOCK_OFFSET_APPLY_THRESHOLD_MS ? 0 : nextOffsetMs;
   const offsetDeltaMs = targetOffsetMs - currentOffsetMs;
 
   if (offsetDeltaMs === 0) {
     return currentOffsetMs;
+  }
+
+  if (!hasAcceptedSample) {
+    return Math.round(targetOffsetMs);
   }
 
   if (
@@ -163,10 +186,27 @@ export function resolveStableServerClockOffset(currentOffsetMs: number, nextOffs
 let sharedServerClockOffsetMs = 0;
 let latestAcceptedServerNowMs = 0;
 let recentTimedSamples: BufferedServerClockSample[] = [];
+// Cold-start gate: false until the first trusted, RTT-corrected sample has been folded in.
+// Drives the cold-start SNAP (resolveStableServerClockOffset) so the offset jumps straight
+// to the true value on the first reading rather than crawling toward it.
+let hasAcceptedServerClockSample = false;
+// How many fresh, RTT-timed samples whose best candidates agree we've folded in. The
+// countdown lock waits for clockReady before freezing, so a single reading can't pin a
+// skewed instant.
+let agreeingServerClockSampleCount = 0;
 const sharedServerClockListeners = new Set<(offsetMs: number) => void>();
 
 export function getSharedServerClockOffsetMs() {
   return sharedServerClockOffsetMs;
+}
+
+// True once the shared offset is trustworthy: at least SERVER_CLOCK_READY_MIN_SAMPLES fresh
+// RTT-timed samples whose best (lowest-RTT) candidates have agreed within the tolerance. The
+// countdown lock MUST NOT freeze its target until this trips — before it, the displayed
+// digit follows the live offset every frame (so it stays correct as the clock converges) but
+// no absolute instant is committed.
+export function hasSyncedServerClock() {
+  return agreeingServerClockSampleCount >= SERVER_CLOCK_READY_MIN_SAMPLES;
 }
 
 export function applySharedServerClock(serverNow?: string, timingSource?: unknown) {
@@ -196,8 +236,38 @@ export function applySharedServerClock(serverNow?: string, timingSource?: unknow
 
   const bestOffsetMs = selectBestServerClockOffsetMs(recentTimedSamples, offsetSample.serverNowMs);
   const targetOffsetMs = bestOffsetMs ?? offsetSample.offsetMs;
+  // Only a trusted, RTT-timed best sample (not an untimed / abnormal-RTT provisional one)
+  // may SNAP the cold-start offset or count toward clockReady. An untimed sample keeps the
+  // bounded crawl and never declares the clock ready.
+  const isTrustedSample = offsetSample.rttMs !== null && bestOffsetMs !== null;
 
-  const stableOffsetMs = resolveStableServerClockOffset(sharedServerClockOffsetMs, targetOffsetMs);
+  // clockReady accounting. The first trusted sample seeds the agreement run; later trusted
+  // samples that AGREE with the committed offset (within the tolerance) advance it; a
+  // disagreeing one (the offset is still moving) restarts it — so we never declare "ready"
+  // mid-convergence.
+  if (isTrustedSample) {
+    if (
+      hasAcceptedServerClockSample
+      && Math.abs(targetOffsetMs - sharedServerClockOffsetMs) <= SERVER_CLOCK_READY_AGREEMENT_TOLERANCE_MS
+    ) {
+      agreeingServerClockSampleCount += 1;
+    } else {
+      agreeingServerClockSampleCount = 1;
+    }
+  }
+
+  // Cold-start SNAP only on the first TRUSTED sample: pass hasAcceptedSample=false solely
+  // when this trusted sample is the first one we've folded in. An untimed cold sample still
+  // crawls (existing bounded-step behavior preserved).
+  const allowColdStartSnap = isTrustedSample && !hasAcceptedServerClockSample;
+  const stableOffsetMs = resolveStableServerClockOffset(
+    sharedServerClockOffsetMs,
+    targetOffsetMs,
+    !allowColdStartSnap,
+  );
+  if (isTrustedSample) {
+    hasAcceptedServerClockSample = true;
+  }
   if (stableOffsetMs !== sharedServerClockOffsetMs) {
     sharedServerClockOffsetMs = stableOffsetMs;
     sharedServerClockListeners.forEach((listener) => {
@@ -219,6 +289,8 @@ export function resetSharedServerClockForTest() {
   sharedServerClockOffsetMs = 0;
   latestAcceptedServerNowMs = 0;
   recentTimedSamples = [];
+  hasAcceptedServerClockSample = false;
+  agreeingServerClockSampleCount = 0;
   sharedServerClockListeners.clear();
 }
 

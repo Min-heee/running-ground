@@ -16,6 +16,16 @@ import {
   buildPartyRunFlowSnapshot,
 } from '@/features/runs/lifecycle/matchStateMachine';
 import { selectLinkedRuntimeRoom } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
+import {
+  clearCountdownLock,
+  freezeSlotStartMsForMatch,
+  isCountdownKeyFinished,
+  markCountdownKeyFinished,
+  readCountdownLock,
+  readLockedCountdownServerTargetMs,
+  resetCountdownLockStoreForTest,
+  writeCountdownLock,
+} from '@/features/runs/lifecycle/countdownLockStore';
 
 type CountdownEntry = {
   title: string;
@@ -31,62 +41,31 @@ type MonotonicCountdownTracker = {
   displayedAtMs: number;
 };
 
-type HostStartCountdownLock = {
-  localTargetMs: number;
-  // Where the slot start sits on the LOCAL clock as implied by rawRemainingSeconds at
-  // lock time (nowMs + raw*1000). rawRemainingSeconds is computed from syncedNow, so if
-  // the server-clock offset converges after we locked, the implied slot shifts — letting
-  // us detect that the frozen target was built on a stale offset.
-  impliedSlotLocalMs: number;
-  hasRelocked: boolean;
-};
-
-// A lock created while the server-clock offset was still converging (cold start; mostly
-// Android, whose hardware clock can be seconds off) freezes the wrong target and ends
-// the countdown seconds late. Allow ONE re-lock when the implied slot has drifted by
-// clearly more than handoff/raw jitter (the lock must still absorb ~2s remount swings)
-// and there is comfortably enough time left that the corrected digit just steps down
-// (the overlay's monotonic floor forbids upward jumps, so it can never count back up).
-const HOST_START_COUNTDOWN_RELOCK_MIN_DRIFT_MS = 2500;
-const HOST_START_COUNTDOWN_RELOCK_MIN_REMAINING_MS = 4000;
-
-const HOST_START_COUNTDOWN_LOCK_MAX_ENTRIES = 8;
-const hostStartCountdownLocks = new Map<string, HostStartCountdownLock>();
-
-function clearHostStartCountdownLock(key: string | null) {
-  if (key) {
-    hostStartCountdownLocks.delete(key);
-  }
-}
-
-function writeHostStartCountdownLock(key: string, lock: HostStartCountdownLock) {
-  hostStartCountdownLocks.delete(key);
-  hostStartCountdownLocks.set(key, lock);
-
-  while (hostStartCountdownLocks.size > HOST_START_COUNTDOWN_LOCK_MAX_ENTRIES) {
-    const oldestKey = hostStartCountdownLocks.keys().next().value;
-    if (typeof oldestKey !== 'string') {
-      break;
-    }
-    hostStartCountdownLocks.delete(oldestKey);
-  }
-}
-
-export function readLockedCountdownTargetMs(key: string | null) {
-  return key ? hostStartCountdownLocks.get(key)?.localTargetMs ?? null : null;
-}
+// The locked target is the ABSOLUTE SERVER instant (slotStartMs). The overlay ticks it
+// against the LIVE shared offset every frame, so a late offset convergence corrects both
+// phones continuously — the lock never freezes a baked-in, never-corrected LOCAL instant.
+// Exposed via readLockedCountdownServerTargetMs (shared countdownLockStore).
+export const readLockedCountdownTargetMs = readLockedCountdownServerTargetMs;
 
 type UseMatchCountdownModelInput = {
   matchMode: RunMatchMode;
   nowMs: number;
   syncedNowMs: number;
+  // True only once the shared server clock is trustworthy. The locked countdown target is
+  // NOT frozen until this is true, so a phone whose device clock is several seconds off NTP
+  // never freezes a skewed start instant during cold-start convergence.
+  serverClockReady: boolean;
   visibleUpcomingMatches: UpcomingRunningMatchItem[];
   duelMatchState: RunningMatchStatusResponse['state'];
   groupMatchState: RunningMatchStatusResponse['state'];
   duelMatchStatus: RunningMatchStatusResponse | null;
   groupMatchStatus: RunningMatchStatusResponse | null;
-  activeDuelSlotStartAt: string;
-  activeGroupSlotStartAt: string;
+  // Kept in the input shape (the caller still passes them; they're the user's locally
+  // selected slot), but the countdown no longer derives its slot from them — the start
+  // instant MUST come from the server-authoritative slot so both phones share it. Using the
+  // local selection here is exactly what let a phase-dependent per-phone slot leak in.
+  activeDuelSlotStartAt?: string;
+  activeGroupSlotStartAt?: string;
   visibleMatchRoom: RunningMatchRoom | null;
   matchRoom: RunningMatchRoom | null;
   currentRoomParticipantIsCountdownReady?: boolean | null;
@@ -198,132 +177,165 @@ export function resolveMonotonicCountdownRemainingSeconds({
   return nextDisplayedSeconds;
 }
 
-// The SINGLE producer of a locked, ms-precise countdown target for EVERY runtime
-// CountdownEntry (party host AND non-host, matched duel, matched group, and both
-// reservation rooms). It locks localTargetMs = nowMs + (slotStartMs - syncedNowMs)
-// — i.e. Date.now() + rawRemainingMs — ONCE per countdownKey (module-level lock map),
-// so every device that crosses the gate against the same slot derives the SAME
-// absolute instant and flips every digit on the same tick. The whole-second
-// rawRemainingSeconds only GATES when to lock (within [1, maxStartSeconds]); the
-// frozen target itself uses the exact rawRemainingMs so two phones with agreeing
-// clocks never land a second boundary ~1s apart. Renamed from the old host-only
-// resolvePersistentHostStartCountdownRemainingSeconds; the host path is now just one
-// caller of this shared helper.
+// The SINGLE producer of a locked countdown target for EVERY runtime CountdownEntry (party
+// host AND non-host, matched duel, matched group, and both reservation rooms). It freezes
+// the lock's target to the ABSOLUTE SERVER instant (slotStartMs) ONCE per countdownKey —
+// only on the FIRST render where the server clock is READY and an authoritative slot is
+// present. The overlay then ticks that server instant against the LIVE shared offset every
+// frame (Date.now()+offset), so two phones with different DEVICE-clock skew but the same
+// slotStartMs + the same converged offset compute the SAME remaining each tick.
+//
+// While !clockReady it returns the LIVE display digit (ceil(remainingMs/1000)) but DOES NOT
+// write a lock — so a skewed phone never freezes a multi-second-wrong instant during
+// cold-start convergence; the displayed number simply follows the converging offset until
+// the clock is trusted, then the lock freezes the (now-correct) server instant.
+//
+// `rawRemainingMs` is the authoritative remaining (slotStartMs - syncedNowMs). Where the
+// slot's absolute instant is known (slotStartMs passed, or derivable as syncedNowMs +
+// rawRemainingMs), the lock stores THAT instant; the whole-second rawRemainingSeconds only
+// GATES when to lock (within [1, maxStartSeconds]).
 export function resolveLockedCountdownTarget({
   key,
   maxStartSeconds,
-  nowMs,
   rawRemainingSeconds,
   rawRemainingMs = null,
+  slotStartMs = null,
+  syncedNowMs = null,
+  clockReady = true,
 }: {
   key: string | null;
   maxStartSeconds: number;
-  nowMs: number;
   rawRemainingSeconds: number | null;
-  // Millisecond-precise remaining (slotStartMs - syncedNowMs). The whole-second raw
-  // gates WHEN to lock, but the target itself must use the exact remaining: locking to
-  // nowMs + raw*1000 quantizes the target by the phase of the render tick that crossed
-  // the gate, putting the two phones' second boundaries up to ~1s apart even when their
-  // clocks agree. With the exact remaining, every device's boundaries align to the same
-  // server instants — same moment to appear, same moment per digit, same moment to end.
+  // Millisecond-precise remaining (slotStartMs - syncedNowMs).
   rawRemainingMs?: number | null;
+  // The slot start as an absolute instant on the SERVER clock. When omitted it is derived
+  // as syncedNowMs + rawRemainingMs (both must then be present).
+  slotStartMs?: number | null;
+  // The SERVER-synced now (Date.now() + live shared offset) at this render. Used both to
+  // derive slotStartMs when not given and to compute the live remaining each call.
+  syncedNowMs?: number | null;
+  // True only once the shared offset is trustworthy. While false the lock is NOT written.
+  clockReady?: boolean;
 }) {
   if (!key) {
     return null;
   }
 
-  const resolveTargetRemainingMs = (rawSeconds: number) => Math.min(
-    maxStartSeconds * 1000,
-    typeof rawRemainingMs === 'number' && rawRemainingMs > 0 ? rawRemainingMs : rawSeconds * 1000,
-  );
-
-  let lock = hostStartCountdownLocks.get(key) ?? null;
-  if (!lock) {
-    if (
-      typeof rawRemainingSeconds !== 'number'
-      || rawRemainingSeconds <= 0
-      || rawRemainingSeconds > maxStartSeconds
-    ) {
-      return null;
-    }
-
-    const targetRemainingMs = resolveTargetRemainingMs(rawRemainingSeconds);
-    lock = {
-      localTargetMs: nowMs + targetRemainingMs,
-      impliedSlotLocalMs: nowMs + targetRemainingMs,
-      hasRelocked: false,
-    };
-    writeHostStartCountdownLock(key, lock);
-  } else if (
-    !lock.hasRelocked
-    && typeof rawRemainingSeconds === 'number'
-    && rawRemainingSeconds > 0
-    && rawRemainingSeconds <= maxStartSeconds
-  ) {
-    const targetRemainingMs = resolveTargetRemainingMs(rawRemainingSeconds);
-    const impliedSlotLocalMs = nowMs + targetRemainingMs;
-    const driftMs = impliedSlotLocalMs - lock.impliedSlotLocalMs;
-    const lockedRemainingMs = lock.localTargetMs - nowMs;
-
-    if (
-      Math.abs(driftMs) > HOST_START_COUNTDOWN_RELOCK_MIN_DRIFT_MS
-      && lockedRemainingMs >= HOST_START_COUNTDOWN_RELOCK_MIN_REMAINING_MS
-      && targetRemainingMs >= HOST_START_COUNTDOWN_RELOCK_MIN_REMAINING_MS
-    ) {
-      lock = {
-        localTargetMs: nowMs + targetRemainingMs,
-        impliedSlotLocalMs,
-        hasRelocked: true,
-      };
-      writeHostStartCountdownLock(key, lock);
-    }
-  }
-
-  const remainingMs = lock.localTargetMs - nowMs;
-  if (remainingMs <= 0) {
-    clearHostStartCountdownLock(key);
+  // A key that already finished is tombstoned: never re-mint a lock for it (closes the
+  // one-frame re-flash where the model re-offers the just-finished match).
+  if (isCountdownKeyFinished(key)) {
     return null;
   }
 
-  return Math.max(
-    1,
-    Math.min(maxStartSeconds, Math.ceil(remainingMs / 1000)),
-  );
+  const effectiveSyncedNowMs = typeof syncedNowMs === 'number' ? syncedNowMs : null;
+  const effectiveSlotStartMs = typeof slotStartMs === 'number' && Number.isFinite(slotStartMs)
+    ? slotStartMs
+    : effectiveSyncedNowMs !== null && typeof rawRemainingMs === 'number'
+      ? effectiveSyncedNowMs + rawRemainingMs
+      : null;
+
+  const clampSeconds = (seconds: number) => Math.max(1, Math.min(maxStartSeconds, seconds));
+
+  // Compute the live remaining (ms) from whatever authoritative source we have: prefer the
+  // frozen server instant minus the synced now; else the passed rawRemainingMs; else the
+  // whole-second raw.
+  const liveRemainingMsFrom = (targetMs: number | null) => {
+    if (targetMs !== null && effectiveSyncedNowMs !== null) {
+      return targetMs - effectiveSyncedNowMs;
+    }
+    if (typeof rawRemainingMs === 'number') {
+      return rawRemainingMs;
+    }
+    if (typeof rawRemainingSeconds === 'number') {
+      return rawRemainingSeconds * 1000;
+    }
+    return null;
+  };
+
+  const existing = readCountdownLock(key);
+
+  if (!existing) {
+    // No lock yet. Only freeze when the clock is READY and an authoritative slot is present
+    // and we're inside the window. Until then, return the LIVE display digit without writing
+    // a lock, so the number stays correct as the offset converges.
+    const canFreeze = clockReady
+      && effectiveSlotStartMs !== null
+      && typeof rawRemainingSeconds === 'number'
+      && rawRemainingSeconds > 0
+      && rawRemainingSeconds <= maxStartSeconds;
+
+    if (!canFreeze) {
+      const liveRemainingMs = liveRemainingMsFrom(effectiveSlotStartMs);
+      if (
+        liveRemainingMs === null
+        || liveRemainingMs <= 0
+        || typeof rawRemainingSeconds !== 'number'
+        || rawRemainingSeconds <= 0
+        || rawRemainingSeconds > maxStartSeconds
+      ) {
+        return null;
+      }
+      return clampSeconds(Math.ceil(liveRemainingMs / 1000));
+    }
+
+    writeCountdownLock(key, { serverTargetMs: effectiveSlotStartMs });
+  }
+
+  const serverTargetMs = readLockedCountdownServerTargetMs(key);
+  const remainingMs = liveRemainingMsFrom(serverTargetMs);
+
+  if (remainingMs === null || remainingMs <= 0) {
+    // Tombstone-on-finish: mark the key finished BEFORE clearing the lock, so a one-frame
+    // gap (the model re-offering the same match) can't re-mint a fresh lock and re-flash a
+    // digit. Then drop the lock entry.
+    markCountdownKeyFinished(key);
+    clearCountdownLock(key);
+    return null;
+  }
+
+  return clampSeconds(Math.ceil(remainingMs / 1000));
 }
 
 export function resetLockedCountdownTargetForTest() {
-  hostStartCountdownLocks.clear();
+  resetCountdownLockStoreForTest();
 }
 
-// Shared hook over resolveLockedCountdownTarget: locks the ms-precise target once per
-// key and returns BOTH the clamped seconds (for the seed) and the locked targetMs (the
-// overlay's LOCAL countdown source). Used by every runtime CountdownEntry — host AND
-// non-host room, duel AND group fallback — so they all flip on the same absolute tick.
+// Shared hook over resolveLockedCountdownTarget: freezes the server-instant target once per
+// key (only once clockReady + an authoritative slot is present) and returns BOTH the clamped
+// seconds (for the seed) and the locked server targetMs (the overlay's LOCAL countdown
+// source). Used by every runtime CountdownEntry — host AND non-host room, duel AND group
+// fallback — so they all flip on the same absolute tick.
 function useLockedCountdownTarget({
   key,
   maxStartSeconds,
-  nowMs,
   rawRemainingSeconds,
   rawRemainingMs,
+  slotStartMs,
+  syncedNowMs,
+  clockReady,
 }: {
   key: string | null;
   maxStartSeconds: number;
-  nowMs: number;
   rawRemainingSeconds: number | null;
   rawRemainingMs?: number | null;
+  slotStartMs?: number | null;
+  syncedNowMs?: number | null;
+  clockReady?: boolean;
 }) {
   const previousKeyRef = useRef<string | null>(null);
   if (previousKeyRef.current !== key) {
-    clearHostStartCountdownLock(previousKeyRef.current);
+    clearCountdownLock(previousKeyRef.current);
     previousKeyRef.current = key;
   }
 
   const secondsRemaining = resolveLockedCountdownTarget({
     key,
     maxStartSeconds,
-    nowMs,
     rawRemainingSeconds,
     rawRemainingMs,
+    slotStartMs,
+    syncedNowMs,
+    clockReady,
   });
 
   return {
@@ -379,75 +391,99 @@ export function resolvePartyRunFlowSyncedNowMs({
   return linkedSlotStartMs + 1;
 }
 
+// Resolve the FROZEN authoritative slot instant for a match: parse the server slot, then
+// freeze the first value observed for this matchId so a later slotStartAt re-stamp (a status
+// echo / re-queue) can't rotate the countdownKey and re-flash. Returns null when no
+// server-authoritative slot is present yet (the overlay stays armed, no digit).
+function resolveAuthoritativeSlot(matchId: string | null | undefined, slotStartAt: string | null | undefined) {
+  if (!slotStartAt) {
+    return { slotStartAt: null as string | null, slotStartMs: null as number | null };
+  }
+  const parsedMs = Date.parse(slotStartAt);
+  if (!Number.isFinite(parsedMs)) {
+    return { slotStartAt: null, slotStartMs: null };
+  }
+  const frozenMs = freezeSlotStartMsForMatch(matchId, parsedMs);
+  return { slotStartAt, slotStartMs: frozenMs };
+}
+
 export function useMatchCountdownModel({
   matchMode,
   nowMs,
   syncedNowMs,
+  serverClockReady,
   visibleUpcomingMatches,
   duelMatchState,
   groupMatchState,
   duelMatchStatus,
   groupMatchStatus,
-  activeDuelSlotStartAt,
-  activeGroupSlotStartAt,
   visibleMatchRoom,
   matchRoom,
   currentRoomParticipantIsCountdownReady,
 }: UseMatchCountdownModelInput) {
+  // Server-authoritative slot ONLY — no local activeDuel/GroupSlotStartAt fallback. The start
+  // instant must be shared by both phones; the local selection is per-device.
+  const duelAuthoritativeSlot = resolveAuthoritativeSlot(duelMatchStatus?.matchId, duelMatchStatus?.slotStartAt);
   const rawDuelStartCountdownSeconds =
-    shouldTrackDirectMatchCountdown(duelMatchState)
-      ? getMatchStartRemainingSeconds(duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt, syncedNowMs)
+    shouldTrackDirectMatchCountdown(duelMatchState) && duelAuthoritativeSlot.slotStartMs !== null
+      ? getMatchStartRemainingSeconds(duelAuthoritativeSlot.slotStartAt as string, syncedNowMs)
       : null;
   const duelStartCountdownSeconds = useStableCountdownSeconds({
-    key: shouldTrackDirectMatchCountdown(duelMatchState)
-      ? `${duelMatchStatus?.matchId ?? 'duel'}:${duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt}`
+    key: shouldTrackDirectMatchCountdown(duelMatchState) && duelAuthoritativeSlot.slotStartAt
+      ? `${duelMatchStatus?.matchId ?? 'duel'}:${duelAuthoritativeSlot.slotStartAt}`
       : null,
     rawRemainingSeconds: rawDuelStartCountdownSeconds,
     nowMs,
   });
+  const groupAuthoritativeSlot = resolveAuthoritativeSlot(groupMatchStatus?.matchId, groupMatchStatus?.slotStartAt);
   const rawGroupStartCountdownSeconds =
-    shouldTrackDirectMatchCountdown(groupMatchState)
-      ? getMatchStartRemainingSeconds(groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt, syncedNowMs)
+    shouldTrackDirectMatchCountdown(groupMatchState) && groupAuthoritativeSlot.slotStartMs !== null
+      ? getMatchStartRemainingSeconds(groupAuthoritativeSlot.slotStartAt as string, syncedNowMs)
       : null;
   const groupStartCountdownSeconds = useStableCountdownSeconds({
-    key: shouldTrackDirectMatchCountdown(groupMatchState)
-      ? `${groupMatchStatus?.matchId ?? 'group'}:${groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt}`
+    key: shouldTrackDirectMatchCountdown(groupMatchState) && groupAuthoritativeSlot.slotStartAt
+      ? `${groupMatchStatus?.matchId ?? 'group'}:${groupAuthoritativeSlot.slotStartAt}`
       : null,
     rawRemainingSeconds: rawGroupStartCountdownSeconds,
     nowMs,
   });
-  // Locked ms-precise targets for the DIRECT matched duel/group fallback entries (no
-  // room). Same shared `${matchId}:${slotStartAt}` key + same 30s window as the room,
-  // so a phone handing off room→runtime (or reservation→running-tab) for the SAME match
-  // keeps one continuous countdown locked to one absolute instant — no per-tick rounding
-  // divergence between two phones, no re-flash at the boundary.
-  const duelFallbackSlotStartAt = duelMatchStatus?.slotStartAt ?? activeDuelSlotStartAt;
-  const duelFallbackSlotStartMs = duelFallbackSlotStartAt ? Date.parse(duelFallbackSlotStartAt) : NaN;
+  // Locked server-instant targets for the DIRECT matched duel/group fallback entries (no
+  // room). Same shared `${matchId}:${slotStartAt}` key + same 30s window as the room, so a
+  // phone handing off room→runtime (or reservation→running-tab) for the SAME match keeps one
+  // continuous countdown locked to one absolute SERVER instant — both phones tick it off the
+  // live offset, so no per-phone divergence and no re-flash at the boundary. The lock only
+  // freezes once clockReady (serverClockReady) is true.
+  const duelFallbackSlotStartAt = duelAuthoritativeSlot.slotStartAt;
+  const duelFallbackSlotStartMs = duelAuthoritativeSlot.slotStartMs;
   const {
     secondsRemaining: duelFallbackLockedSeconds,
     targetMs: duelFallbackTargetMs,
   } = useLockedCountdownTarget({
-    key: shouldTrackDirectMatchCountdown(duelMatchState) && duelMatchStatus
+    key: shouldTrackDirectMatchCountdown(duelMatchState) && duelMatchStatus && duelFallbackSlotStartAt
       ? `${duelMatchStatus.matchId ?? 'duel'}:${duelFallbackSlotStartAt}`
       : null,
     maxStartSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
     rawRemainingSeconds: rawDuelStartCountdownSeconds,
-    rawRemainingMs: Number.isFinite(duelFallbackSlotStartMs) ? duelFallbackSlotStartMs - syncedNowMs : null,
-    nowMs,
+    rawRemainingMs: duelFallbackSlotStartMs !== null ? duelFallbackSlotStartMs - syncedNowMs : null,
+    slotStartMs: duelFallbackSlotStartMs,
+    syncedNowMs,
+    clockReady: serverClockReady,
   });
-  const groupFallbackSlotStartAt = groupMatchStatus?.slotStartAt ?? activeGroupSlotStartAt;
-  const groupFallbackSlotStartMs = groupFallbackSlotStartAt ? Date.parse(groupFallbackSlotStartAt) : NaN;
+  const groupFallbackSlotStartAt = groupAuthoritativeSlot.slotStartAt;
+  const groupFallbackSlotStartMs = groupAuthoritativeSlot.slotStartMs;
   const {
     secondsRemaining: groupFallbackLockedSeconds,
     targetMs: groupFallbackTargetMs,
   } = useLockedCountdownTarget({
-    key: shouldTrackDirectMatchCountdown(groupMatchState) && groupMatchStatus
+    key: shouldTrackDirectMatchCountdown(groupMatchState) && groupMatchStatus && groupFallbackSlotStartAt
       ? `${groupMatchStatus.matchId ?? 'group'}:${groupFallbackSlotStartAt}`
       : null,
     maxStartSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
     rawRemainingSeconds: rawGroupStartCountdownSeconds,
-    rawRemainingMs: Number.isFinite(groupFallbackSlotStartMs) ? groupFallbackSlotStartMs - syncedNowMs : null,
-    nowMs,
+    rawRemainingMs: groupFallbackSlotStartMs !== null ? groupFallbackSlotStartMs - syncedNowMs : null,
+    slotStartMs: groupFallbackSlotStartMs,
+    syncedNowMs,
+    clockReady: serverClockReady,
   });
   const nextStartingMatch = useMemo(
     () => findNextStartingMatchedMatch(visibleUpcomingMatches, syncedNowMs),
@@ -468,9 +504,11 @@ export function useMatchCountdownModel({
   // (the duel/group fallback sourced from the upcoming list rather than the live status).
   // Same shared `${matchId}:${slotStartAt}` key + 30s window so it too flips on one
   // absolute instant on both phones and stays continuous if it later hands to the room.
-  const nextStartingMatchSlotStartMs = nextStartingMatch?.match.slotStartAt
-    ? Date.parse(nextStartingMatch.match.slotStartAt)
-    : NaN;
+  const nextStartingMatchAuthoritativeSlot = resolveAuthoritativeSlot(
+    nextStartingMatch?.match.matchId,
+    nextStartingMatch?.match.slotStartAt,
+  );
+  const nextStartingMatchSlotStartMs = nextStartingMatchAuthoritativeSlot.slotStartMs;
   const {
     secondsRemaining: nextStartingMatchLockedSeconds,
     targetMs: nextStartingMatchTargetMs,
@@ -478,8 +516,10 @@ export function useMatchCountdownModel({
     key: stableNextStartingMatchKey,
     maxStartSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
     rawRemainingSeconds: nextStartingMatch?.remainingSeconds ?? null,
-    rawRemainingMs: Number.isFinite(nextStartingMatchSlotStartMs) ? nextStartingMatchSlotStartMs - syncedNowMs : null,
-    nowMs,
+    rawRemainingMs: nextStartingMatchSlotStartMs !== null ? nextStartingMatchSlotStartMs - syncedNowMs : null,
+    slotStartMs: nextStartingMatchSlotStartMs,
+    syncedNowMs,
+    clockReady: serverClockReady,
   });
   const stableNextStartingMatch = useMemo(() => {
     if (!nextStartingMatch || stableNextStartingMatchRemainingSeconds === null) {
@@ -589,9 +629,11 @@ export function useMatchCountdownModel({
   const runtimeRoomCountdownKey = runtimeRoom?.linkedMatchId && shouldShowRuntimeRoomCountdownNumbers
     ? `${runtimeRoom.linkedMatchId}:${runtimeRoom.linkedMatchSlotStartAt ?? runtimeRoom.slotStartAt}`
     : null;
-  const runtimeRoomSlotStartMs = runtimeRoom?.linkedMatchSlotStartAt
-    ? Date.parse(runtimeRoom.linkedMatchSlotStartAt)
-    : NaN;
+  const runtimeRoomAuthoritativeSlot = resolveAuthoritativeSlot(
+    runtimeRoom?.linkedMatchId,
+    runtimeRoom?.linkedMatchSlotStartAt,
+  );
+  const runtimeRoomSlotStartMs = runtimeRoomAuthoritativeSlot.slotStartMs;
   const {
     secondsRemaining: roomCountdownDisplayRemainingSeconds,
     targetMs: roomCountdownTargetMs,
@@ -601,8 +643,10 @@ export function useMatchCountdownModel({
     rawRemainingSeconds: shouldShowRuntimeRoomCountdownNumbers
       ? rawRoomCountdownRemainingSeconds
       : null,
-    rawRemainingMs: Number.isFinite(runtimeRoomSlotStartMs) ? runtimeRoomSlotStartMs - syncedNowMs : null,
-    nowMs,
+    rawRemainingMs: runtimeRoomSlotStartMs !== null ? runtimeRoomSlotStartMs - syncedNowMs : null,
+    slotStartMs: runtimeRoomSlotStartMs,
+    syncedNowMs,
+    clockReady: serverClockReady,
   });
   const visiblePartyRunFlowRemainingSeconds = normalizePartyRunFlowRemainingSeconds(visibleRoomCountdownRemainingSeconds);
   const visiblePartyRunFlowSyncedNowMs = resolvePartyRunFlowSyncedNowMs({

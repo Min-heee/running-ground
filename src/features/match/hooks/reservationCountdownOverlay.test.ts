@@ -8,36 +8,42 @@ import {
   resolveLockedCountdownTarget,
 } from '@/features/runs/lifecycle/hooks/useMatchCountdownModel';
 
-// The reservation rooms (useDuelReservationRoom / useGroupReservationRoom) no longer
-// drive the centered start overlay off a PRIVATE per-second ticker. Instead they build a
+// The reservation rooms (useDuelReservationRoom / useGroupReservationRoom) build a
 // { countdownKey, targetMs, secondsRemaining } payload by calling the SAME shared
 // resolveLockedCountdownTarget helper the running-tab runtime uses, keyed by the shared
-// `${matchId}:${slotStartAt}` scheme and clamped to the 30s overlay window. These tests
-// exercise exactly that derivation (the pure core the hook performs) so two phones — and
-// the reservation→running-tab handoff for the same match — lock to one absolute instant.
+// `${matchId}:${slotStartAt}` scheme and clamped to the 30s overlay window. The lock now
+// freezes on the ABSOLUTE SERVER instant (slotStartMs) — only once the clock is READY — so
+// two phones (and the reservation→running-tab handoff for the same match) tick one absolute
+// instant against the live offset. These tests exercise that derivation.
 
-// Mirrors the reservation hook's overlay derivation: lock the shared target, then read it
-// back, gating on a finite remaining inside the overlay window.
+// Mirrors the reservation hook's overlay derivation: lock the shared SERVER-instant target,
+// then read it back, gating on a finite remaining inside the overlay window.
 function deriveReservationCountdownOverlay({
   matchId,
   slotStartAt,
-  rawRemainingSeconds,
-  rawRemainingMs,
-  nowMs,
+  slotStartMs,
+  syncedNowMs,
+  clockReady = true,
 }: {
   matchId: string | null;
   slotStartAt: string | null;
-  rawRemainingSeconds: number | null;
-  rawRemainingMs: number | null;
-  nowMs: number;
+  slotStartMs: number | null;
+  syncedNowMs: number;
+  clockReady?: boolean;
 }) {
   const countdownKey = matchId && slotStartAt ? `${matchId}:${slotStartAt}` : null;
+  const rawRemainingMs = slotStartMs !== null ? slotStartMs - syncedNowMs : null;
+  const rawRemainingSeconds = rawRemainingMs !== null && rawRemainingMs > 0
+    ? Math.max(1, Math.round(rawRemainingMs / 1000))
+    : null;
   const secondsRemaining = resolveLockedCountdownTarget({
     key: countdownKey,
     maxStartSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
     rawRemainingSeconds,
     rawRemainingMs,
-    nowMs,
+    slotStartMs,
+    syncedNowMs,
+    clockReady,
   });
   const targetMs = readLockedCountdownTargetMs(countdownKey);
   if (!countdownKey || rawRemainingSeconds === null || secondsRemaining === null) {
@@ -46,26 +52,26 @@ function deriveReservationCountdownOverlay({
   return { countdownKey, targetMs, secondsRemaining };
 }
 
-test('reservation overlay derives a locked targetMs from the shared helper (no private ticker)', () => {
+test('reservation overlay derives a locked SERVER-instant targetMs from the shared helper', () => {
   resetLockedCountdownTargetForTest();
 
   try {
+    // slot at server-instant 30_000; synced now 2_000 → 28s out, inside the 30s window.
     const overlay = deriveReservationCountdownOverlay({
       matchId: 'match-duel',
       slotStartAt: '2026-05-20T12:00:30.000Z',
-      rawRemainingSeconds: 28,
-      rawRemainingMs: 28_000,
-      nowMs: 1_000,
+      slotStartMs: 30_000,
+      syncedNowMs: 2_000,
     });
 
     assert.ok(overlay);
-    // Shared `${matchId}:${slotStartAt}` key — identical to the room + runtime entry for
-    // the same match, so the monotonic floor + finished-key guard carry across the
-    // reservation→running-tab handoff with no re-flash.
+    // Shared `${matchId}:${slotStartAt}` key — identical to the room + runtime entry for the
+    // same match, so the lock + finished-key guard carry across the reservation→running-tab
+    // handoff with no re-flash.
     assert.equal(overlay?.countdownKey, 'match-duel:2026-05-20T12:00:30.000Z');
-    // A non-null absolute target (nowMs + rawRemainingMs) — the overlay runs its rAF off
-    // this, NOT off a per-second prop that each phone would round differently.
-    assert.equal(overlay?.targetMs, 29_000);
+    // The locked target is the ABSOLUTE SERVER instant (slotStartMs), NOT nowMs+raw — the
+    // overlay ticks THIS against the live offset, so both phones agree.
+    assert.equal(overlay?.targetMs, 30_000);
     assert.equal(overlay?.secondsRemaining, 28);
   } finally {
     resetLockedCountdownTargetForTest();
@@ -76,13 +82,12 @@ test('reservation overlay is null outside the 30s window (helper has not locked 
   resetLockedCountdownTargetForTest();
 
   try {
-    // 45s out: outside the overlay window, the shared helper returns null → no overlay.
+    // 45s out: outside the overlay window → no lock, no overlay.
     const overlay = deriveReservationCountdownOverlay({
       matchId: 'match-group',
       slotStartAt: '2026-05-20T12:00:45.000Z',
-      rawRemainingSeconds: 45,
-      rawRemainingMs: 45_000,
-      nowMs: 0,
+      slotStartMs: 45_000,
+      syncedNowMs: 0,
     });
 
     assert.equal(overlay, null);
@@ -92,7 +97,7 @@ test('reservation overlay is null outside the 30s window (helper has not locked 
   }
 });
 
-test('reservation overlay stays locked to one instant across the per-render clock ticks', () => {
+test('reservation overlay stays locked to one server instant across the per-render clock ticks', () => {
   resetLockedCountdownTargetForTest();
   const matchId = 'match-duel';
   const slotStartAt = '2026-05-20T12:00:30.000Z';
@@ -101,23 +106,55 @@ test('reservation overlay stays locked to one instant across the per-render cloc
     const first = deriveReservationCountdownOverlay({
       matchId,
       slotStartAt,
-      rawRemainingSeconds: 26,
-      rawRemainingMs: 26_000,
-      nowMs: 0,
+      slotStartMs: 30_000,
+      syncedNowMs: 4_000,
     });
-    assert.equal(first?.targetMs, 26_000);
+    assert.equal(first?.targetMs, 30_000);
+    assert.equal(first?.secondsRemaining, 26);
 
-    // A later gating tick (the view clock advanced) with jittered raw must NOT move the
-    // locked target — only the displayed digit steps down off the frozen instant.
+    // A later gating tick (the synced clock advanced) must NOT move the locked target — only
+    // the displayed digit steps down off the frozen server instant.
     const later = deriveReservationCountdownOverlay({
       matchId,
       slotStartAt,
-      rawRemainingSeconds: 24,
-      rawRemainingMs: 23_900,
-      nowMs: 2_000,
+      slotStartMs: 30_000,
+      syncedNowMs: 6_100,
     });
-    assert.equal(later?.targetMs, 26_000);
+    assert.equal(later?.targetMs, 30_000);
     assert.equal(later?.secondsRemaining, 24);
+  } finally {
+    resetLockedCountdownTargetForTest();
+  }
+});
+
+test('reservation overlay does NOT lock while the clock is not ready, but still shows the live digit', () => {
+  resetLockedCountdownTargetForTest();
+  const matchId = 'match-duel';
+  const slotStartAt = '2026-05-20T12:00:30.000Z';
+
+  try {
+    // clockReady=false: the displayed digit follows the live remaining, but no lock is
+    // written, so a skewed phone never freezes a wrong instant during convergence.
+    const live = deriveReservationCountdownOverlay({
+      matchId,
+      slotStartAt,
+      slotStartMs: 30_000,
+      syncedNowMs: 2_000,
+      clockReady: false,
+    });
+    assert.equal(live?.secondsRemaining, 28);
+    assert.equal(readLockedCountdownTargetMs(`${matchId}:${slotStartAt}`), null);
+
+    // Once the clock is ready the lock freezes the (correct) server instant.
+    const locked = deriveReservationCountdownOverlay({
+      matchId,
+      slotStartAt,
+      slotStartMs: 30_000,
+      syncedNowMs: 3_000,
+      clockReady: true,
+    });
+    assert.equal(locked?.targetMs, 30_000);
+    assert.equal(locked?.secondsRemaining, 27);
   } finally {
     resetLockedCountdownTargetForTest();
   }

@@ -58,6 +58,13 @@ export function TrackRunExperienceView({
   shouldShowMatchEndTransitionOverlay,
   soloStartCountdownSeconds,
 }: TrackRunExperienceViewProps) {
+  // Both entries are the SAME visibleCountdownEntry, gated mutually-exclusively by the 20s
+  // boundary upstream (fullscreen >20s, centered ≤20s). Collapse them into ONE element +
+  // variant so the overlay keeps its React identity across the boundary (no remount → no
+  // floor/rAF reset → no digit re-flash). When the centered entry is present we're inside
+  // the arena-handoff window, so the variant is 'centered'; otherwise 'fullscreen'.
+  const countdownOverlayEntry = centeredCountdownEntry ?? fullscreenCountdownEntry;
+  const countdownOverlayVariant = centeredCountdownEntry ? 'centered' : 'fullscreen';
   return (
     <View style={styles.root}>
       <Screen>
@@ -103,15 +110,6 @@ export function TrackRunExperienceView({
           </View>
         ) : null}
       </Screen>
-      {fullscreenCountdownEntry ? (
-        <MatchStartCountdownOverlay
-          title={fullscreenCountdownEntry.title}
-          subtitle={fullscreenCountdownEntry.subtitle}
-          secondsRemaining={fullscreenCountdownEntry.remainingSeconds}
-          targetMs={fullscreenCountdownEntry.targetMs}
-          countdownKey={fullscreenCountdownEntry.countdownKey}
-        />
-      ) : null}
       {shouldShowRoomArmingOverlay ? (
         <View style={styles.roomArmingOverlay}>
           <ActivityIndicator size="large" color={colors.white} />
@@ -142,12 +140,24 @@ export function TrackRunExperienceView({
           </View>
         </View>
       ) : null}
-      {centeredCountdownEntry ? (
+      {/*
+        ONE countdown overlay for the whole pre-start window. The fullscreen entry (>20s)
+        and the centered entry (≤20s) are the SAME visibleCountdownEntry; rendering them as
+        two separate conditional elements made React unmount one and mount the other at the
+        20s boundary, resetting the overlay's mount-local floor/ended refs and re-seeding the
+        digit. Here a SINGLE element switches only its `variant` prop at the boundary, so its
+        React identity (and the rAF + monotonic floor inside useLocalCountdownSeconds)
+        persists across fullscreen→centered with no re-flash. The title/subtitle only render
+        in the fullscreen variant; the centered variant ignores them.
+      */}
+      {countdownOverlayEntry ? (
         <MatchStartCountdownOverlay
-          secondsRemaining={centeredCountdownEntry.remainingSeconds}
-          targetMs={centeredCountdownEntry.targetMs}
-          countdownKey={centeredCountdownEntry.countdownKey}
-          variant="centered"
+          title={countdownOverlayEntry.title}
+          subtitle={countdownOverlayEntry.subtitle}
+          secondsRemaining={countdownOverlayEntry.remainingSeconds}
+          targetMs={countdownOverlayEntry.targetMs}
+          countdownKey={countdownOverlayEntry.countdownKey}
+          variant={countdownOverlayVariant}
         />
       ) : null}
     </View>

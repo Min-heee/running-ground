@@ -7,6 +7,7 @@ import {
 import {
   applySharedServerClock,
   getSharedServerClockOffsetMs,
+  hasSyncedServerClock,
   subscribeSharedServerClock,
 } from '@/features/runs/sync/serverClockSync';
 import {
@@ -31,10 +32,14 @@ export type ReservationCountdownOverlay = {
   secondsRemaining: number;
 };
 
-// How often the room re-fetches the live group status. The reservation room mostly
-// waits, so a relaxed cadence is fine — the per-second ticker drives the countdown
-// locally between polls. Mirrors the duel reservation room cadence exactly.
+// How often the room re-fetches the live group status. Far from the start a relaxed cadence
+// is fine — the per-second ticker drives the countdown locally between polls. But each fetch
+// is also a SERVER-CLOCK SAMPLE, and the countdown lock won't freeze until the shared clock
+// is READY, so within the fast window we poll every ~1s to reach clockReady (and snap the
+// cold-start offset) BEFORE the lock freezes. Mirrors the duel reservation room cadence.
 const RESERVATION_STATUS_POLL_INTERVAL_MS = 15_000;
+const RESERVATION_STATUS_FAST_POLL_INTERVAL_MS = 1_000;
+const RESERVATION_STATUS_FAST_POLL_WITHIN_SECONDS = 60;
 
 export type GroupReservationRoomParams = {
   matchId: string | null;
@@ -124,6 +129,10 @@ export function useGroupReservationRoom(
     }
   }, [distanceKm, isTestMatch, matchId, slotStartAt]);
 
+  // Remaining seconds to the slot, read fresh by the self-rescheduling poll so it can speed
+  // up near the start without re-subscribing the effect each tick.
+  const remainingSecondsRef = useRef<number | null>(null);
+
   useEffect(() => {
     if (!matchId || !slotStartAt || typeof distanceKm !== 'number') {
       setLoading(false);
@@ -131,18 +140,36 @@ export function useGroupReservationRoom(
     }
 
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     setLoading(true);
-    void loadStatus();
 
-    const timer = setInterval(() => {
+    const scheduleNext = () => {
+      const remaining = remainingSecondsRef.current;
+      const interval = typeof remaining === 'number' && remaining <= RESERVATION_STATUS_FAST_POLL_WITHIN_SECONDS
+        ? RESERVATION_STATUS_FAST_POLL_INTERVAL_MS
+        : RESERVATION_STATUS_POLL_INTERVAL_MS;
+      timer = setTimeout(async () => {
+        if (cancelled) {
+          return;
+        }
+        await loadStatus();
+        if (!cancelled) {
+          scheduleNext();
+        }
+      }, interval);
+    };
+
+    void loadStatus().finally(() => {
       if (!cancelled) {
-        void loadStatus();
+        scheduleNext();
       }
-    }, RESERVATION_STATUS_POLL_INTERVAL_MS);
+    });
 
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (timer !== null) {
+        clearTimeout(timer);
+      }
     };
   }, [distanceKm, loadStatus, matchId, slotStartAt]);
 
@@ -159,13 +186,17 @@ export function useGroupReservationRoom(
     }),
     [matchStatus, slotStartAt, distanceKm, isTestMatch, participantCount, syncedNowMs],
   );
+  // Feed the poll's speed-up: keep the freshest remaining-to-slot so the next reschedule can
+  // switch to the ~1s cadence as the start approaches (gathers clock samples → clockReady).
+  remainingSecondsRef.current = view.reservation.remainingSeconds;
 
-  // Derive the SAME locked, ms-precise countdown target the running-tab runtime uses,
-  // keyed by the shared `${matchId}:${slotStartAt}` scheme. The lock freezes once on
-  // localTargetMs = Date.now() + (slotStartMs - syncedNowMs), so the overlay runs an
-  // rAF off that absolute instant and two phones flip every digit on the same tick.
-  // The `view` clock tick (offset + nowMs) still gates WHEN the overlay/arena-handoff
-  // fire; it no longer rounds the displayed digit (that is the locked target's job).
+  // Derive the SAME locked countdown target the running-tab runtime uses, keyed by the
+  // shared `${matchId}:${slotStartAt}` scheme. The lock freezes once on the ABSOLUTE SERVER
+  // instant (slotStartMs) — only after clockReady — so the overlay ticks it against the LIVE
+  // shared offset every frame and two phones flip every digit on the same tick, continuous
+  // across the reservation→running-tab handoff. The `view` clock tick still gates WHEN the
+  // overlay/arena-handoff fire; it no longer rounds the displayed digit (that's the lock's
+  // job). Prefer the server-authoritative status slot over the route param.
   const effectiveSlotStartAt = matchStatus?.slotStartAt ?? slotStartAt;
   const effectiveSlotStartMs = effectiveSlotStartAt ? Date.parse(effectiveSlotStartAt) : NaN;
   const reservationCountdownKey = matchId && effectiveSlotStartAt
@@ -176,7 +207,9 @@ export function useGroupReservationRoom(
     maxStartSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
     rawRemainingSeconds: view.reservation.remainingSeconds,
     rawRemainingMs: Number.isFinite(effectiveSlotStartMs) ? effectiveSlotStartMs - syncedNowMs : null,
-    nowMs: Date.now(),
+    slotStartMs: Number.isFinite(effectiveSlotStartMs) ? effectiveSlotStartMs : null,
+    syncedNowMs,
+    clockReady: hasSyncedServerClock(),
   });
   const reservationLockedTargetMs = readLockedCountdownTargetMs(reservationCountdownKey);
   const countdownOverlay = useMemo<ReservationCountdownOverlay | null>(() => {

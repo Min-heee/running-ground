@@ -379,28 +379,43 @@ test('the GET /result group roster still resolves from a live session (verdict i
 // ──────────────────────────────────────────────────────────────────────────────
 
 test('group SEALS at §B4 and a later FASTER finish from a sealed-DNF runner does NOT flip the order', () => {
+  // This test calls updateRunningMatchProgress, which goes through findMatchSessionById →
+  // pruneMatchSessions. That prune path defaults its clock to `new Date()` (REAL now) end to end,
+  // so it cannot see the frozen NOW the other tests use. Anchor THIS session's timestamps to real
+  // now so: (1) the §B4 fallback window (90s) is elapsed relative to real now and the seal fires,
+  // and (2) the session is well inside the 4h active TTL relative to real now so the prune KEEPS
+  // it. The verdict helpers get this same `realNow` so the seal and the prune share one clock.
+  // (The frozen-NOW tests stay untouched; only this one needs a real-now anchor.)
+  const realNow = new Date();
+  const realIso = (offsetMs) => new Date(realNow.getTime() + offsetMs).toISOString();
+  const elapsedFallback = -(MATCH_DUEL_FINISH_FALLBACK_MS + 5000);
   // A finished as rank 1; B was still running when the §B4 window elapsed → B is sealed DNF.
   const session = groupSession([
     participant('A', {
       seedRank: 1,
       finishElapsedSeconds: 1500,
-      finishedAt: iso(-(MATCH_DUEL_FINISH_FALLBACK_MS + 5000)),
-      liveUpdatedAt: iso(-(MATCH_DUEL_FINISH_FALLBACK_MS + 5000)),
+      finishedAt: realIso(elapsedFallback),
+      liveUpdatedAt: realIso(elapsedFallback),
     }),
     participant('B', {
       seedRank: 2,
       liveStatus: 'running',
       finishElapsedSeconds: undefined,
       finishedAt: null,
-      liveUpdatedAt: iso(-(MATCH_DUEL_FINISH_FALLBACK_MS + 5000)),
+      liveUpdatedAt: realIso(elapsedFallback),
       liveDistanceKm: 3,
     }),
-  ]);
+  ], {
+    slotStartAt: realIso(-30 * 60 * 1000),
+    startedAt: realIso(-30 * 60 * 1000),
+    createdAt: realIso(-31 * 60 * 1000),
+    matchedAt: realIso(-31 * 60 * 1000),
+  });
   const store = storeFor(session);
 
   // First poll seals: A is the lone finisher, B is sealed DNF below.
-  const standings1 = buildOfficialSessionStandings(store, session, NOW);
-  const verdict1 = buildGroupVerdict(session, standings1, 'A', NOW);
+  const standings1 = buildOfficialSessionStandings(store, session, realNow);
+  const verdict1 = buildGroupVerdict(session, standings1, 'A', realNow);
   assert.equal(verdict1.resolved, true);
   assert.deepEqual(verdict1.participants.map((p) => [p.userId, p.rank]), [['A', 1], ['B', 2]]);
   assert.equal(verdict1.myRank, 1);
@@ -426,9 +441,9 @@ test('group SEALS at §B4 and a later FASTER finish from a sealed-DNF runner doe
   assert.equal(bParticipant.finishedAt, null);
 
   // Both perspectives still read the SEALED order — A rank 1, B DNF-below. No flip.
-  const standings2 = buildOfficialSessionStandings(store, session, NOW);
-  const verdictA = buildGroupVerdict(session, standings2, 'A', NOW);
-  const verdictB = buildGroupVerdict(session, standings2, 'B', NOW);
+  const standings2 = buildOfficialSessionStandings(store, session, realNow);
+  const verdictA = buildGroupVerdict(session, standings2, 'A', realNow);
+  const verdictB = buildGroupVerdict(session, standings2, 'B', realNow);
   assert.deepEqual(verdictA.participants.map((p) => [p.userId, p.rank]), [['A', 1], ['B', 2]]);
   assert.equal(verdictA.myRank, 1);
   assert.deepEqual(verdictB.participants.map((p) => [p.userId, p.rank]), [['A', 1], ['B', 2]]);

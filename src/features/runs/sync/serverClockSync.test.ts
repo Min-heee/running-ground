@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   applySharedServerClock,
   getSharedServerClockOffsetMs,
+  hasSyncedServerClock,
   parseServerNowMs,
   resetSharedServerClockForTest,
   resolveServerClockOffsetSample,
@@ -11,6 +12,20 @@ import {
   shouldAcceptServerSnapshot,
   subscribeSharedServerClock,
 } from './serverClockSync';
+
+// Build a TIMED (RTT-corrected) server-clock sample. The RTT-corrected offset the parser
+// computes is serverNowMs + rtt/2 - clientResponseReceivedAtMs, so we solve backwards from
+// the offset we want this sample to assert.
+function timedSample(serverNowMs: number, rttMs: number, offsetMs: number) {
+  const clientResponseReceivedAtMs = serverNowMs + rttMs / 2 - offsetMs;
+  return {
+    serverNow: new Date(serverNowMs).toISOString(),
+    timing: {
+      clientRequestStartedAtMs: clientResponseReceivedAtMs - rttMs,
+      clientResponseReceivedAtMs,
+    },
+  };
+}
 
 test('server clock parser ignores invalid timestamps', () => {
   assert.equal(parseServerNowMs(undefined), null);
@@ -227,16 +242,6 @@ test('selectBestServerClockOffsetMs prefers the lowest-RTT fresh sample', () => 
 test('shared server clock ignores a high-RTT outlier in favor of the lowest-RTT samples', () => {
   resetSharedServerClockForTest();
   const base = Date.parse('2026-05-12T00:00:00.000Z');
-  const timedSample = (serverNowMs: number, rttMs: number, offsetMs: number) => {
-    const clientResponseReceivedAtMs = serverNowMs + rttMs / 2 - offsetMs;
-    return {
-      serverNow: new Date(serverNowMs).toISOString(),
-      timing: {
-        clientRequestStartedAtMs: clientResponseReceivedAtMs - rttMs,
-        clientResponseReceivedAtMs,
-      },
-    };
-  };
 
   try {
     // Six clean low-RTT samples agree the device is ~2000ms behind the server and crawl
@@ -255,6 +260,91 @@ test('shared server clock ignores a high-RTT outlier in favor of the lowest-RTT 
     const outlier = timedSample(base + 3500, 2500, 5000);
     applySharedServerClock(outlier.serverNow, outlier.timing);
     assert.equal(getSharedServerClockOffsetMs(), offsetBeforeOutlier);
+  } finally {
+    resetSharedServerClockForTest();
+  }
+});
+
+test('a single 6000ms cold-start sample SNAPS the offset in ONE step (not 400->800->...)', () => {
+  resetSharedServerClockForTest();
+  const base = Date.parse('2026-05-12T00:00:00.000Z');
+
+  try {
+    assert.equal(getSharedServerClockOffsetMs(), 0);
+
+    // A phone ~6s off NTP: the FIRST trusted RTT-corrected sample SNAPS the offset straight
+    // to ~6000ms instead of crawling 400 -> 800 -> ... (which would take ~15 polls and the
+    // countdown lock would freeze a 6s-wrong instant before convergence).
+    const cold = timedSample(base, 100, 6000);
+    applySharedServerClock(cold.serverNow, cold.timing);
+    assert.equal(getSharedServerClockOffsetMs(), 6000);
+  } finally {
+    resetSharedServerClockForTest();
+  }
+});
+
+test('clampOffsetStep still bounds SUBSEQUENT in-countdown adjustments after the cold snap', () => {
+  resetSharedServerClockForTest();
+  const base = Date.parse('2026-05-12T00:00:00.000Z');
+
+  try {
+    // Cold snap to 6000.
+    const cold = timedSample(base, 100, 6000);
+    applySharedServerClock(cold.serverNow, cold.timing);
+    assert.equal(getSharedServerClockOffsetMs(), 6000);
+
+    // A later trusted sample claims the true offset is +8000ms. This is NOT a cold start, so
+    // it must move in the bounded 400ms step (6000 -> 6400), never jump straight to 8000.
+    const later = timedSample(base + 1000, 100, 8000);
+    applySharedServerClock(later.serverNow, later.timing);
+    assert.equal(getSharedServerClockOffsetMs(), 6400);
+  } finally {
+    resetSharedServerClockForTest();
+  }
+});
+
+test('clockReady requires multiple agreeing RTT-timed samples before it trips', () => {
+  resetSharedServerClockForTest();
+  const base = Date.parse('2026-05-12T00:00:00.000Z');
+
+  try {
+    // No samples yet → not ready.
+    assert.equal(hasSyncedServerClock(), false);
+
+    // One trusted cold-start sample snaps the offset but is NOT enough to be ready.
+    const first = timedSample(base, 100, 6000);
+    applySharedServerClock(first.serverNow, first.timing);
+    assert.equal(getSharedServerClockOffsetMs(), 6000);
+    assert.equal(hasSyncedServerClock(), false);
+
+    // A second agreeing trusted sample (same ~6000ms offset) trips clockReady.
+    const second = timedSample(base + 500, 100, 6000);
+    applySharedServerClock(second.serverNow, second.timing);
+    assert.equal(hasSyncedServerClock(), true);
+  } finally {
+    resetSharedServerClockForTest();
+  }
+});
+
+test('clockReady does NOT trip while the offset is still moving (disagreeing samples reset the run)', () => {
+  resetSharedServerClockForTest();
+  const base = Date.parse('2026-05-12T00:00:00.000Z');
+
+  try {
+    // Cold snap to 6000 (sample 1).
+    const s1 = timedSample(base, 100, 6000);
+    applySharedServerClock(s1.serverNow, s1.timing);
+    assert.equal(hasSyncedServerClock(), false);
+
+    // Sample 2 disagrees materially (true offset is +8000): the committed offset is still
+    // moving (6000 -> 6400), so the agreement run restarts — NOT ready.
+    const s2 = timedSample(base + 500, 100, 8000);
+    applySharedServerClock(s2.serverNow, s2.timing);
+    assert.equal(hasSyncedServerClock(), false);
+
+    // Untimed samples never count toward readiness, so a bare server-now poll can't trip it.
+    applySharedServerClock(new Date(base + 1000).toISOString());
+    assert.equal(hasSyncedServerClock(), false);
   } finally {
     resetSharedServerClockForTest();
   }

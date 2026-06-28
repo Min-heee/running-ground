@@ -99,6 +99,7 @@ export function useMatchLifecycle({ focusMatchMode, focusMatchIsTest }: TestFlow
     nowMs: queueActions.nowMs,
     setNowMs: queueActions.setNowMs,
     serverClockOffsetMs: queueActions.serverClockOffsetMs,
+    serverClockReady: queueActions.serverClockReady,
     syncedNowMs: queueActions.syncedNowMs,
     serverClockOffsetMsRef: queueActions.serverClockOffsetMsRef,
     syncServerClock: queueActions.syncServerClock,

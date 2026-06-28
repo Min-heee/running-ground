@@ -316,6 +316,15 @@ function armRunningMatchRoomCountdown(store, room, now = new Date()) {
     return room;
   }
 
+  // Already armed → the shared start instant is locked; a re-entry (a status echo / re-queue
+  // path that re-reaches arm) must NOT re-stamp the slot. Re-stamping here is the key-churn
+  // re-flash vector at the source: it moves slotStartAt, which rotates the client countdownKey
+  // (`${matchId}:${slotStartAt}`) and re-mints the locked countdown mid-flight. Additive,
+  // idempotent guard — once armed, arming is a no-op for the slot.
+  if (room.countdownArmedAt) {
+    return room;
+  }
+
   // Arming signals "everyone is ready" — it must NOT move the shared start time. The
   // host has no room-update channel once linkedMatchId is set, so rewriting the slot
   // here left the host counting against the slot agreed at start while guests counted

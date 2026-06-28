@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS } from '@/lib/matchCountdown';
+import { getSharedServerClockOffsetMs } from '@/features/runs/sync/serverClockSync';
+import {
+  isCountdownKeyFinished,
+  markCountdownKeyFinished,
+} from '@/features/runs/lifecycle/countdownLockStore';
+
+// Re-export the finished-key tombstone helpers from the shared store so existing importers
+// (and the overlay leaf) keep one address for them.
+export { isCountdownKeyFinished, markCountdownKeyFinished };
 
 function clampCountdownSeconds(seconds: number, maxSeconds: number) {
   return Math.max(1, Math.min(maxSeconds, seconds));
@@ -12,6 +21,10 @@ export function resolveLocalCountdownSeconds({
   targetMs,
 }: {
   maxSeconds?: number;
+  // The locked target is an absolute instant on the SERVER clock (slotStartMs). `nowMs`
+  // must therefore be the SERVER-synced now (Date.now() + live shared offset), not raw
+  // Date.now() — that is what makes a late offset convergence correct BOTH phones every
+  // frame instead of the digit being pinned to a baked-in, never-corrected local instant.
   nowMs: number;
   targetMs: number;
 }) {
@@ -31,38 +44,19 @@ export function resolveMonotonicCountdownFloor(floor: number | null, candidate: 
   return floor === null ? candidate : Math.min(floor, candidate);
 }
 
-// Countdowns that already reached zero, keyed by match identity. This survives an
-// overlay UNMOUNT+REMOUNT (which a component-local ref cannot): at the countdown->active
-// boundary the model briefly drops `roomCountdownEntry` to null and the `?? fallback`
-// re-offers the SAME just-finished match for a frame, which would otherwise flash the
-// digit back on (…1, gone, 1, gone). Once a key is finished it never shows again.
-const FINISHED_COUNTDOWN_KEY_LIMIT = 24;
-const finishedCountdownKeys = new Set<string>();
+// The finished-key tombstone now lives in the shared countdownLockStore (re-exported at the
+// top of this file). It survives an overlay UNMOUNT+REMOUNT (which a component-local ref
+// cannot): at the countdown->active boundary the model briefly drops `roomCountdownEntry` to
+// null and the `?? fallback` re-offers the SAME just-finished match for a frame, which would
+// otherwise flash the digit back on (…1, gone, 1, gone). Once a key is finished it never
+// shows again.
 
-export function markCountdownKeyFinished(countdownKey: string | null | undefined) {
-  if (typeof countdownKey !== 'string' || countdownKey.length === 0) {
-    return;
-  }
-
-  finishedCountdownKeys.add(countdownKey);
-  while (finishedCountdownKeys.size > FINISHED_COUNTDOWN_KEY_LIMIT) {
-    const oldest = finishedCountdownKeys.values().next().value as string | undefined;
-    if (oldest === undefined) {
-      break;
-    }
-    finishedCountdownKeys.delete(oldest);
-  }
-}
-
-export function isCountdownKeyFinished(countdownKey: string | null | undefined) {
-  return typeof countdownKey === 'string' && finishedCountdownKeys.has(countdownKey);
-}
-
-function readLocalNowMs() {
-  // The lock's localTargetMs is built from the model's `nowMs` (a Date.now()-based
-  // local clock, NOT syncedNowMs), so the server-clock offset is already baked into
-  // the target. Evaluate against local Date.now() to stay in the same frame.
-  return Date.now();
+function readSyncedNowMs() {
+  // The lock's target is now the ABSOLUTE SERVER instant (slotStartMs), so we must evaluate
+  // it against the SERVER-synced now: Date.now() + the LIVE shared offset, read fresh every
+  // frame. This is what makes a late offset convergence correct BOTH phones continuously —
+  // there's no baked-in local instant frozen at lock time that would stay skewed.
+  return Date.now() + getSharedServerClockOffsetMs();
 }
 
 export function useLocalCountdownSeconds({
@@ -132,7 +126,7 @@ export function useLocalCountdownSeconds({
         return;
       }
 
-      const nextSecondsRemaining = resolveLocalCountdownSeconds({ nowMs: readLocalNowMs(), targetMs });
+      const nextSecondsRemaining = resolveLocalCountdownSeconds({ nowMs: readSyncedNowMs(), targetMs });
       if (nextSecondsRemaining !== lastSeconds) {
         lastSeconds = nextSecondsRemaining;
         commit(nextSecondsRemaining);
