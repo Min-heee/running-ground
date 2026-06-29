@@ -175,23 +175,20 @@ export function derivePartyRunStartPhase({
   linkedMatchSlotStartAt = null,
   syncedNowMs = null,
 }: PartyRunStartPhaseInput): PartyRunStartPhase {
-  // Slot-clamp the room's linkedMatchStatus the SAME way the duel/group status is clamped at
-  // ingestion. The shared linked session is hydrated to 'active' the instant ANY participant
-  // pushes live progress, and the active-room check (loadMatchRoom) can deliver that 'active' room
-  // snapshot to a guest BEFORE their own slot (room polling is otherwise frozen after link, but the
-  // active-room re-fetch still commits a fresh room). Without this clamp, the line below would
-  // return 'active' for a guest whose countdown is still on screen — a third early-active path
-  // beyond the two status-driven consumers. Hold it at 'matched' until this phone's slot is reached;
-  // the legitimate post-slot 'active' inference (hasInferredActiveFromSlotElapsed, below) is
-  // untouched, and roomState === 'active' (the host's own room transition) is intentionally NOT
-  // clamped.
-  const slotClampedLinkedMatchStatus = clampLinkedMatchStateToSlot(
-    linkedMatchStatus,
-    linkedMatchSlotStartAt,
-    syncedNowMs,
-  ) as PartyRunStartPhaseInput['linkedMatchStatus'];
-
-  if (roomState === 'active' || slotClampedLinkedMatchStatus === 'active') {
+  // NOTE: the room's linkedMatchStatus is intentionally NOT slot-clamped here. The shared linked
+  // session is hydrated to 'active' the instant ANY participant pushes live progress, so a fresh
+  // active-room snapshot can carry 'active' to a guest BEFORE their own slot, and the line below
+  // therefore leaks phase 'active' pre-slot. That leak is HARMLESS: phase 'active' from this room
+  // path only feeds distance-cleanup skips / the watchdog / diagnostics — it does NOT start
+  // measuring (GPS is independently slot-gated by resolveMatchSlotStarted in useMatchRuntimeState,
+  // on the live runtime clock) and it does NOT drive the slot-based countdown overlay. A clamp here
+  // would also be DEAD code in the runtime: resolvePartyRunFlowSyncedNowMs (useMatchCountdownModel)
+  // passes syncedNowMs=null for the ENTIRE pre-slot window (whenever remainingSeconds is a number)
+  // and only a post-slot instant otherwise, so clampLinkedMatchStateToSlot would never see a
+  // pre-slot clock to clamp against. The guest countdown-skip fix is enforced where it actually
+  // runs: the per-mode status-ingestion clamp (TrackRunExperienceRuntimeModel) and
+  // resolveLinkedMatchActiveTransition (useLinkedMatchSync), both on the live getSyncedNowMs().
+  if (roomState === 'active' || linkedMatchStatus === 'active') {
     return 'active';
   }
 
@@ -243,7 +240,7 @@ export function derivePartyRunStartPhase({
   }
 
   if (
-    slotClampedLinkedMatchStatus === 'matched'
+    linkedMatchStatus === 'matched'
     || roomState === 'countdown'
     || hasInferredMatchedFromSlot
   ) {
@@ -419,16 +416,13 @@ export function buildPartyRunFlowSnapshot({
 }: PartyRunFlowSnapshotInput): PartyRunFlowSnapshot {
   const linkedMatchSlotStartAt = room?.linkedMatchSlotStartAt ?? room?.slotStartAt;
   const linkedMatchDistanceKm = room?.linkedMatchDistanceKm ?? room?.distanceKm;
-  // Slot-clamp the room's linkedMatchStatus before it can promote linkedMatchContext.state to
-  // 'active' (which drives the room-active GPS auto-start + warmup path). Same shared-session early-
-  // 'active' trap as the duel/group status; hold at 'matched' until this phone's slot. The
-  // post-slot signals below (phase === 'active', room.state === 'active', hasReachedOfficialStart)
-  // are unaffected.
-  const slotClampedLinkedMatchStatus = clampLinkedMatchStateToSlot(
-    room?.linkedMatchStatus,
-    linkedMatchSlotStartAt,
-    syncedNowMs,
-  ) as 'matched' | 'active' | null | undefined;
+  // NOTE: room.linkedMatchStatus is intentionally NOT slot-clamped here (see derivePartyRunStartPhase
+  // for the full rationale). The runtime feeds syncedNowMs=null for the entire pre-slot window, so a
+  // clamp could never fire, and the early-'active' it would guard against is harmless at this layer:
+  // linkedMatchContext.state only feeds the room-active warmup/diagnostics path, while GPS measuring
+  // is independently slot-gated by resolveMatchSlotStarted (useMatchRuntimeState) on the live clock.
+  // The real guest countdown-skip fix lives at status ingestion (TrackRunExperienceRuntimeModel) and
+  // resolveLinkedMatchActiveTransition (useLinkedMatchSync), both on the live getSyncedNowMs().
   const phase = derivePartyRunStartPhase({
     roomState: room?.state,
     linkedMatchStatus: room?.linkedMatchStatus,
@@ -457,7 +451,7 @@ export function buildPartyRunFlowSnapshot({
         matchId: room.linkedMatchId,
         slotStartAt: linkedMatchSlotStartAt,
         distanceKm: linkedMatchDistanceKm,
-        state: phase === 'active' || slotClampedLinkedMatchStatus === 'active' || room.state === 'active' || hasReachedOfficialStart
+        state: phase === 'active' || room.linkedMatchStatus === 'active' || room.state === 'active' || hasReachedOfficialStart
           ? 'active' as const
           : 'matched' as const,
       }

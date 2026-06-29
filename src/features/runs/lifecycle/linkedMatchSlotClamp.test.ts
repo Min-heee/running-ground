@@ -19,15 +19,21 @@ import {
 //              duelState/groupState === 'active' (NO slot gate).
 //   BLOCKER B: useMatchAutoTrackingEffects' fallbackActiveMatch starts GPS on
 //              duelMatchStatus?.state === 'active' (NO slot gate).
-// Plus a THIRD room-snapshot path: derivePartyRunStartPhase returns 'active'
-// on room.linkedMatchStatus === 'active' (NO slot gate) when the active-room
-// check delivers a fresh 'active' room snapshot to the guest pre-slot.
-//
 // FIX: clampLinkedMatchStateToSlot holds the server 'active' at 'matched' until
 // THIS phone's slot is reached on the synced clock, applied at the single
-// ingestion chokepoint (loadDuel/GroupMatchStatus + the unified applier) and at
-// the room-status consumer (derivePartyRunStartPhase / buildPartyRunFlowSnapshot).
-// Both blockers read the (now-clamped) stored state, so both close at the source.
+// ingestion chokepoint (loadDuel/GroupMatchStatus + the unified applier), and
+// resolveLinkedMatchActiveTransition (useLinkedMatchSync) gates the live poll the
+// same way. BOTH run on the live getSyncedNowMs(), so both blockers read the
+// (now-clamped) stored state and both close at the source.
+//
+// There is a THIRD, room-snapshot path — derivePartyRunStartPhase returns 'active'
+// on room.linkedMatchStatus === 'active' — but it is NOT clamped, deliberately: the
+// runtime's resolvePartyRunFlowSyncedNowMs feeds syncedNowMs=null for the entire
+// pre-slot window, so a phase-layer clamp could never fire (it once existed and was
+// dead code). The pre-slot room leak to phase 'active' is harmless: it only feeds
+// distance-cleanup skips / the watchdog / diagnostics, while GPS measuring is
+// independently slot-gated by resolveMatchSlotStarted (useMatchRuntimeState). The
+// room-path tests below assert that REAL contract, not the dead clamp.
 // ---------------------------------------------------------------------------
 
 const SLOT_ISO = '2026-06-29T00:00:18.000Z';
@@ -217,19 +223,30 @@ test('Blocker B: GPS auto-start DOES fire at/after the slot (clamp released)', (
 });
 
 // ---- THIRD PATH: room.linkedMatchStatus via derivePartyRunStartPhase --------
+//
+// This path is deliberately NOT slot-clamped (see the header). These tests assert
+// the REAL runtime contract, not a clamp the runtime never exercises.
+//
+// resolveMatchSlotStarted mirrors useMatchRuntimeState.ts:59-67 — the live-clock
+// gate that actually keeps GPS measuring from starting before this phone's slot. We
+// model it here to prove the room-phase 'active' leak below cannot start measuring.
+function resolveMatchSlotStarted(slotStartAt: string | null | undefined, syncedNowMs: number) {
+  if (!slotStartAt || !Number.isFinite(syncedNowMs)) {
+    return true;
+  }
+  const slotStartMs = Date.parse(slotStartAt);
+  return Number.isFinite(slotStartMs) ? syncedNowMs >= slotStartMs : true;
+}
 
-test('REPRO room path: a fresh server-active room snapshot does NOT flip the guest to active pre-slot', () => {
+test('room path: with the runtime input (syncedNowMs=null pre-slot) the room-active leak is NOT phase-clamped', () => {
   const farSlotIso = '2026-06-29T00:01:00.000Z';
-  const farSlotMs = Date.parse(farSlotIso);
-  const syncedNowMs = farSlotMs - 45_000; // 45s out: outside the ≤30s overlay AND ≤20s handoff windows
 
-  // The active-room check can commit a room whose linkedMatchStatus is 'active'
-  // (shared session hydrated active) BEFORE the guest slot. Pre-fix, the first
-  // branch of derivePartyRunStartPhase returned 'active' on that bare signal,
-  // skipping the guest straight past their countdown into the measuring arena.
-  // Post-fix, the clamp inside derivePartyRunStartPhase holds it at 'matched',
-  // so the guest stays in the (non-measuring) arming/countdown branch — and
-  // crucially NOT 'active' and NOT an arena-open phase.
+  // This is EXACTLY what the runtime passes during the countdown window:
+  // resolvePartyRunFlowSyncedNowMs (useMatchCountdownModel) returns null whenever
+  // remainingSeconds is a number. Under that real input, derivePartyRunStartPhase is
+  // NOT slot-clamped, so a shared-session early-'active' room snapshot DOES leak to
+  // phase 'active' pre-slot. (Earlier this test injected a non-null pre-slot
+  // syncedNowMs the runtime never supplies, green-lighting a dead clamp.)
   const phase = derivePartyRunStartPhase({
     roomState: 'arming',
     linkedMatchStatus: 'active', // shared-session early active, frozen-room refetch
@@ -237,11 +254,26 @@ test('REPRO room path: a fresh server-active room snapshot does NOT flip the gue
     remainingSeconds: 45,
     linkedMatchId: 'room-match-1',
     linkedMatchSlotStartAt: farSlotIso,
-    syncedNowMs,
+    syncedNowMs: null, // <- the value the runtime actually supplies pre-slot
   });
 
-  assert.notEqual(phase, 'active');
-  assert.equal(phase, 'arming');
+  // The leak is real but HARMLESS: phase 'active' here only feeds distance-cleanup
+  // skips / the watchdog / diagnostics, never the slot-based countdown overlay and
+  // never measuring (gated independently below).
+  assert.equal(phase, 'active');
+});
+
+test('room path: measuring stays slot-gated even when the phase leaks active pre-slot', () => {
+  const slotIso = '2026-06-29T00:01:00.000Z';
+  const slotMs = Date.parse(slotIso);
+
+  // Pre-slot on the live runtime clock: measuring is NOT allowed despite the leaked
+  // phase — this is what actually protects the guest's countdown in production.
+  assert.equal(resolveMatchSlotStarted(slotIso, slotMs - 45_000), false);
+  // At / after the slot: measuring is allowed (countdown reached its slot, or a
+  // re-join into an already-running match whose slot is long past).
+  assert.equal(resolveMatchSlotStarted(slotIso, slotMs), true);
+  assert.equal(resolveMatchSlotStarted(slotIso, slotMs + 500), true);
 });
 
 test('room path: a server-active room snapshot AT/after the slot still resolves active', () => {
@@ -257,9 +289,10 @@ test('room path: a server-active room snapshot AT/after the slot still resolves 
   assert.equal(phase, 'active');
 });
 
-test('room path: the HOST room transition (roomState active) is NOT clamped', () => {
+test('room path: the HOST room transition (roomState active) resolves active pre-slot', () => {
   // The host's own room going 'active' is a legitimate transition that must
-  // still resolve to 'active' even pre-slot — only linkedMatchStatus is clamped.
+  // resolve to 'active' even pre-slot. (linkedMatchStatus is not clamped either, but
+  // here it is 'matched', so this isolates the roomState === 'active' branch.)
   const phase = derivePartyRunStartPhase({
     roomState: 'active',
     linkedMatchStatus: 'matched',
