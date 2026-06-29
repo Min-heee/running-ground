@@ -188,13 +188,24 @@ function getRunningMatchRoomState(room, store, now = new Date()) {
   }
 
   const linkedState = hydrateMatchSessionState(linkedSession, now);
+  const linkedSlotMs = new Date(linkedSession.slotStartAt).getTime();
+  const linkedSlotPassed = Number.isFinite(linkedSlotMs) && now.getTime() >= linkedSlotMs;
 
-  if (linkedState === 'active') {
+  // The SHARED linked session hydrates to 'active' the instant ANY participant pushes live
+  // progress — i.e. the HOST's pre-start GPS warm-up, which can land 60-90s BEFORE this room's
+  // OWN slot. The ROOM must NOT report 'active' before its slot: a pre-slot 'active' makes the
+  // guest's derivePartyRunStartPhase return 'active' (the roomState==='active' branch) and SKIP
+  // its countdown entirely (observed on-device: phase→active at remaining=85s). Only honor
+  // 'active' once the slot has actually passed.
+  if (linkedState === 'active' && linkedSlotPassed) {
     return 'active';
   }
 
-  if (linkedState === 'matched') {
-    const remainingSeconds = Math.max(0, Math.ceil((new Date(linkedSession.slotStartAt).getTime() - now.getTime()) / 1000));
+  if (linkedState === 'active' || linkedState === 'matched') {
+    // Pre-slot — whether the session reads 'matched' OR is already warm-up-'active'. Count the
+    // room down to its OWN slot so the guest shows the countdown, then it flips to 'active' at
+    // the slot.
+    const remainingSeconds = Math.max(0, Math.ceil((linkedSlotMs - now.getTime()) / 1000));
 
     if (room.startMode === 'host' && remainingSeconds > MATCH_ROOM_HOST_START_DELAY_SECONDS) {
       return 'arming';
@@ -399,6 +410,13 @@ export function buildRunningMatchRoomResponse(store, currentUser, room, now = ne
   const hostUser = findUserById(store, room.hostUserId);
   const linkedSession = getMatchRoomLinkedSession(room, store);
   const linkedMatchState = linkedSession ? hydrateMatchSessionState(linkedSession, now) : null;
+  // The shared session can hydrate 'active' from the host's warm-up BEFORE this room's slot;
+  // the room-facing linkedMatchStatus must only report 'active' once the slot has passed, or
+  // the guest's phase skips the countdown (mirrors the getRunningMatchRoomState slot gate).
+  const linkedMatchSlotStartAt = linkedSession?.slotStartAt ?? room.slotStartAt;
+  const linkedMatchSlotPassed = linkedMatchSlotStartAt
+    ? new Date(linkedMatchSlotStartAt).getTime() <= now.getTime()
+    : false;
   const linkedOfficialByUserId = linkedSession
     ? new Map(buildOfficialSessionStandings(store, linkedSession, now).map((standing) => [standing.userId, standing]))
     : null;
@@ -474,8 +492,8 @@ export function buildRunningMatchRoomResponse(store, currentUser, room, now = ne
       // can never vanish while a linked match is attached.
       ...(room.linkedMatchId ? {
         linkedMatchId: room.linkedMatchId,
-        linkedMatchStatus: linkedMatchState === 'active' ? 'active' : 'matched',
-        linkedMatchSlotStartAt: linkedSession?.slotStartAt ?? room.slotStartAt,
+        linkedMatchStatus: linkedMatchState === 'active' && linkedMatchSlotPassed ? 'active' : 'matched',
+        linkedMatchSlotStartAt: linkedMatchSlotStartAt,
         linkedMatchDistanceKm: linkedSession?.distanceKm ?? room.distanceKm,
       } : {}),
       joined: hasJoined,
