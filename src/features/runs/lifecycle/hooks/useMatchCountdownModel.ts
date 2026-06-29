@@ -17,6 +17,7 @@ import {
   buildPartyRunFlowSnapshot,
 } from '@/features/runs/lifecycle/matchStateMachine';
 import { selectLinkedRuntimeRoom } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
+import { selectCountdownDigit } from '@/features/runs/lifecycle/liveMatchSlot';
 import {
   clearCountdownLock,
   freezeSlotStartMsForMatch,
@@ -668,20 +669,21 @@ export function useMatchCountdownModel({
     runtimeRoom?.linkedMatchSlotStartAt,
   );
   const runtimeRoomSlotStartMs = runtimeRoomAuthoritativeSlot.slotStartMs;
-  const {
-    secondsRemaining: roomCountdownDisplayRemainingSeconds,
-    targetMs: roomCountdownTargetMs,
-  } = useLockedCountdownTarget({
-    key: runtimeRoomCountdownKey,
-    maxStartSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
-    rawRemainingSeconds: shouldShowRuntimeRoomCountdownNumbers
-      ? rawRoomCountdownRemainingSeconds
-      : null,
-    rawRemainingMs: runtimeRoomSlotStartMs !== null ? runtimeRoomSlotStartMs - syncedNowMs : null,
-    slotStartMs: runtimeRoomSlotStartMs,
-    syncedNowMs,
-    clockReady: serverClockReady,
-  });
+  // STAGE 1 (clean core): the RUNTIME ROOM countdown digit derives from ONE fact —
+  // selectCountdownDigit(slotStartMs, syncedNowMs) — bypassing resolveLockedCountdownTarget's
+  // freeze/clockReady/tombstone path entirely. The digit therefore renders whenever
+  // 0<remaining≤30 REGARDLESS of clockReady (a cold, not-yet-trusted clock still shows the
+  // number; the offset self-corrects). The overlay ticks the absolute slot instant
+  // (runtimeRoomSlotStartMs) against the live offset, so two phones with different device-clock
+  // skew but the same slot + converged offset compute the same digit each tick — no lock needed.
+  const roomCountdownDisplayRemainingSeconds = shouldShowRuntimeRoomCountdownNumbers
+    ? selectCountdownDigit({
+        slotStartMs: runtimeRoomSlotStartMs,
+        syncedNowMs,
+        windowSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
+      })
+    : null;
+  const roomCountdownTargetMs = runtimeRoomSlotStartMs;
   const visiblePartyRunFlowRemainingSeconds = normalizePartyRunFlowRemainingSeconds(visibleRoomCountdownRemainingSeconds);
   const visiblePartyRunFlowSyncedNowMs = resolvePartyRunFlowSyncedNowMs({
     room: visibleMatchRoom,
