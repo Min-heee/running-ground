@@ -25,6 +25,13 @@ Scales to 30+ group because it is O(1)/client (one server slot + one scalar offs
   Backend: slot-gate the DIRECT status endpoint (`matchResponseBuilders.mjs buildRunningMatchStatusResponse`)
   so `duelMatchStatus.state`/`groupMatchStatus.state` report 'matched' until `slot <= now` (mirror 52a9a17).
   Diag: `phase` stays arming/countdown until `remainSec≈0`; NO `phase→active` before `remainSec≈0`.
+  NOTE (intentional exception): the ROOM-LOBBY auto-route (useMatchRoomLobbyEffects) sets
+  forceMatchArena='1' during the arenaHandoff window (≤20s pre-slot) → routeForceMatchArena makes
+  useSlotGatedArenaOpen return true, so `forceOpen=y` CAN appear at remaining≈20 when entering via the
+  lobby. That is benign and NOT the skip: the centered countdown still renders OVER the arena (digit
+  from selectCountdownDigit, no clockReady gate) and GPS stays slot-gated. On-device verify the
+  distinguishing facts (countdown keeps ticking 20→0, GPS not started until remaining≤0), not a bare
+  forceOpen=y at ~20s.
 - **3** Single `useSlotGatedArenaOpen` = the ONLY caller of `setForceOpenActiveMatch(true)` (gate:
   `syncedNow>=slot || (serverActive && slotPassed)` + explicit route force). Reroute the pre-slot
   force-opens (useActiveArenaPinEffect, useLiveMatchNavigationExecutor, navOwner, useMatchEntryEffects);

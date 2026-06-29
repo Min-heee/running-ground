@@ -98,9 +98,16 @@ function createBaseStore() {
   return store;
 }
 
-function createActiveDuelStore() {
+// `pastSlot: true` puts the session's slot in the PAST so the Stage-2 slot gate
+// (buildRunningMatchStatusResponse) reports the session's real hydrated 'active'
+// state instead of down-ranking a pre-slot session to 'matched'. Use it for tests
+// that model a genuinely in-progress match (live progress / forfeit / official
+// comparison). The default keeps the ~2h-future slot the pre-slot/countdown and
+// cancel-reservation tests depend on. -60s keeps the slot well inside the 4h
+// active TTL while making readyToStart true.
+function createActiveDuelStore({ pastSlot = false } = {}) {
   const store = createBaseStore();
-  const slotStartAt = createSelectableMatchSlotStartAt();
+  const slotStartAt = pastSlot ? iso(-60 * 1000) : createSelectableMatchSlotStartAt();
   const startedAt = iso(-120 * 1000);
 
   store.matchSessions.push({
@@ -980,7 +987,12 @@ await runTest('match status accepts sub-hour slot timestamps when matchId is pro
       matchId: 'duel-contract-match',
     });
     assert.equal(status.matchId, 'duel-contract-match');
-    assert.equal(status.state, 'active');
+    // The slot is in the future (createActiveDuelStore's slot is ~2h out), so the server
+    // slot-gates the status to 'matched' with a live countdown — it must NOT report 'active'
+    // before the slot (mirrors the room slot gate; a pre-slot 'active' from the direct status
+    // endpoint is exactly what re-created the guest countdown skip).
+    assert.equal(status.state, 'matched');
+    assert.equal(typeof status.countdownRemainingSeconds, 'number');
 
     const rejected = await requestRaw('host-token', 'POST', '/api/running/matches/status', {
       mode: 'duel',
@@ -993,7 +1005,9 @@ await runTest('match status accepts sub-hour slot timestamps when matchId is pro
 });
 
 await runTest('match progress uploads feed official comparison and forfeit state', async () => {
-  const { store, slotStartAt } = createActiveDuelStore();
+  // Genuinely active match (live progress + official comparison + forfeit), so the slot
+  // must be in the past for the gate to report the real 'active' state.
+  const { store, slotStartAt } = createActiveDuelStore({ pastSlot: true });
 
   await withBackend(store, async ({ request }) => {
     const hostProgress = await request('host-token', 'POST', '/api/running/matches/progress', {
@@ -1048,7 +1062,9 @@ await runTest('match progress uploads feed official comparison and forfeit state
 });
 
 await runTest('duel forfeit keeps active session when the opponent never started', async () => {
-  const { store, slotStartAt } = createActiveDuelStore();
+  // The host is mid-run (currentUserLiveStatus 'ready' then 'running') and the match must
+  // report 'active', so the slot has to be in the past for the gate to surface that state.
+  const { store, slotStartAt } = createActiveDuelStore({ pastSlot: true });
 
   await withBackend(store, async ({ request, readStore }) => {
     const forfeitResult = await request('guest-token', 'POST', '/api/running/matches/leave', {
