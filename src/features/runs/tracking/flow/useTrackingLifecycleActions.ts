@@ -53,7 +53,8 @@ export function useTrackingLifecycleActions({
 }) {
   const elapsedTickerEnabled = flow.elapsedTickerEnabled ?? true;
   const trackingSubscriptionsEnabled = flow.trackingSubscriptionsEnabled ?? true;
-  const lifecycleWarmupMatchId = flow.matchLifecycleController?.gps.warmupMatch?.matchId ?? null;
+  // STAGE 4 (clean core): the controller's pre-slot gps.warmupMatch no longer starts GPS —
+  // measuring is slot-gated via gps.activeMatch (state==='active') only.
   const lifecycleActiveMatchId = flow.matchLifecycleController?.gps.activeMatch?.matchId ?? null;
   const lifecycleActiveMatchSlotStartAt = flow.matchLifecycleController?.gps.activeMatch?.slotStartAt ?? null;
   const hasLifecycleController = Boolean(flow.matchLifecycleController);
@@ -94,20 +95,14 @@ export function useTrackingLifecycleActions({
     preStartWarmupMatchIdRef: flow.preStartWarmupMatchIdRef,
     officialStartBaselineRef: flow.officialStartBaselineRef,
     matchMode: flow.matchMode,
-    duelMatchState: flow.duelMatchState,
-    groupMatchState: flow.groupMatchState,
     duelMatchStatus: flow.duelMatchStatus,
     groupMatchStatus: flow.groupMatchStatus,
     roomLinkedMatchContext: flow.roomLinkedMatchContext,
     status: flow.status,
-    visiblePartyRunShouldOpenArena: flow.visiblePartyRunShouldOpenArena,
-    duelStartCountdownSeconds: flow.duelStartCountdownSeconds,
-    groupStartCountdownSeconds: flow.groupStartCountdownSeconds,
     trackingSubscriptionsEnabled,
     hasLifecycleController,
     lifecycleActiveMatchId,
     lifecycleActiveMatchSlotStartAt,
-    lifecycleWarmupMatchId,
     skippedAndroidWarmupMatchIdRef: actions.skippedAndroidWarmupMatchIdRef,
     startMatchTrackingAutomatically: actions.startMatchTrackingAutomatically,
     syncFromBackgroundTracking,

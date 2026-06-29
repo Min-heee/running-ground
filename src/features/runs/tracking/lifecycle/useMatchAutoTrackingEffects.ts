@@ -10,10 +10,13 @@ import {
   buildOfficialStartBaseline,
 } from '@/features/runs/tracking/trackingSession';
 import type { UseRunTrackingFlowInput } from '@/features/runs/types/runTrackingFlow';
-import { shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 // TEMPORARY DIAG (revert before ship): observe-only event log for the measuring-start.
 import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 
+// STAGE 4 (clean core): the pre-slot-warm-up inputs (duelMatchState/groupMatchState,
+// visiblePartyRunShouldOpenArena, duel/groupStartCountdownSeconds, lifecycleWarmupMatchId)
+// are gone — measuring now starts only on the slot-gated active path, which keys off the
+// match STATUS (state === 'active') rather than any pre-slot countdown signal.
 type UseMatchAutoTrackingEffectsInput = Pick<
   UseRunTrackingFlowInput,
   | 'autoStartedMatchIdRef'
@@ -21,21 +24,15 @@ type UseMatchAutoTrackingEffectsInput = Pick<
   | 'preStartWarmupMatchIdRef'
   | 'officialStartBaselineRef'
   | 'matchMode'
-  | 'duelMatchState'
-  | 'groupMatchState'
   | 'duelMatchStatus'
   | 'groupMatchStatus'
   | 'roomLinkedMatchContext'
   | 'status'
-  | 'visiblePartyRunShouldOpenArena'
-  | 'duelStartCountdownSeconds'
-  | 'groupStartCountdownSeconds'
   | 'trackingSubscriptionsEnabled'
 > & {
   hasLifecycleController: boolean;
   lifecycleActiveMatchId: string | null;
   lifecycleActiveMatchSlotStartAt: string | null;
-  lifecycleWarmupMatchId: string | null;
   skippedAndroidWarmupMatchIdRef: MutableRefObject<string | null>;
   startMatchTrackingAutomatically: (
     matchId: string,
@@ -50,96 +47,38 @@ export function useMatchAutoTrackingEffects({
   preStartWarmupMatchIdRef,
   officialStartBaselineRef,
   matchMode,
-  duelMatchState,
-  groupMatchState,
   duelMatchStatus,
   groupMatchStatus,
   roomLinkedMatchContext,
   status,
-  visiblePartyRunShouldOpenArena,
-  duelStartCountdownSeconds,
-  groupStartCountdownSeconds,
   trackingSubscriptionsEnabled,
   hasLifecycleController,
   lifecycleActiveMatchId,
   lifecycleActiveMatchSlotStartAt,
-  lifecycleWarmupMatchId,
   skippedAndroidWarmupMatchIdRef,
   startMatchTrackingAutomatically,
   syncFromBackgroundTracking,
 }: UseMatchAutoTrackingEffectsInput) {
   const restoringMatchIdRef = useRef<string | null>(null);
 
+  // STAGE 4 (clean core): the pre-slot GPS warm-up is GONE. The old warm-up branch was gated
+  // on shouldAutoOpenMatchArena (≤20s) / the arena-handoff phase — i.e. it started MEASURING
+  // during the countdown. GPS/measuring now starts ONLY at/after the slot, via the active path
+  // below (which keys off the now-slot-gated state === 'active'). This effect is reduced to
+  // clearing the pre-start warm-up ref so the active path's official-start baseline
+  // reconciliation still resets cleanly when no live match is in flight.
   useEffect(() => {
     if (!trackingSubscriptionsEnabled) {
       return;
     }
 
-    const roomWarmupMatchId = !hasLifecycleController
-      && roomLinkedMatchContext
-      && roomLinkedMatchContext.mode === matchMode
-      && roomLinkedMatchContext.state === 'matched'
-      && visiblePartyRunShouldOpenArena
-        ? roomLinkedMatchContext.matchId
-        : null;
-    const warmupMatchId = lifecycleWarmupMatchId
-      ?? (matchMode === 'duel'
-        ? duelMatchState === 'matched' && shouldAutoOpenMatchArena(duelStartCountdownSeconds)
-          ? duelMatchStatus?.matchId ?? roomWarmupMatchId
-          : roomWarmupMatchId
-        : matchMode === 'group'
-          ? groupMatchState === 'matched' && shouldAutoOpenMatchArena(groupStartCountdownSeconds)
-            ? groupMatchStatus?.matchId ?? roomWarmupMatchId
-            : roomWarmupMatchId
-          : roomWarmupMatchId);
-
-    if (!warmupMatchId) {
-      if (!officialStartBaselineRef.current) {
-        preStartWarmupMatchIdRef.current = null;
-      }
-      return;
+    if (!officialStartBaselineRef.current) {
+      preStartWarmupMatchIdRef.current = null;
     }
-
-    if (status !== 'idle') {
-      return;
-    }
-
-    if (autoStartedMatchIdRef.current === warmupMatchId) {
-      return;
-    }
-
-    if (skippedAndroidWarmupMatchIdRef.current === warmupMatchId) {
-      return;
-    }
-
-    // TEMPORARY DIAG (revert before ship): log the auto-start of measuring (warmup path).
-    pushLiveMatchDiagEvent('startTracking', {
-      src: 'autoTracking:warmup',
-      matchId: warmupMatchId,
-      mode: matchMode,
-      duelCd: duelStartCountdownSeconds ?? null,
-      groupCd: groupStartCountdownSeconds ?? null,
-    });
-    startMatchTrackingAutomatically(warmupMatchId, { allowCountdownWarmup: true });
   }, [
-    autoStartedMatchIdRef,
-    duelMatchState,
-    duelMatchStatus?.matchId,
-    duelStartCountdownSeconds,
-    groupMatchState,
-    groupMatchStatus?.matchId,
-    groupStartCountdownSeconds,
-    hasLifecycleController,
-    lifecycleWarmupMatchId,
-    matchMode,
     officialStartBaselineRef,
     preStartWarmupMatchIdRef,
-    roomLinkedMatchContext,
-    skippedAndroidWarmupMatchIdRef,
-    startMatchTrackingAutomatically,
-    status,
     trackingSubscriptionsEnabled,
-    visiblePartyRunShouldOpenArena,
   ]);
 
   useEffect(() => {
