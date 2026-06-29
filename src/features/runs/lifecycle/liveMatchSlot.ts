@@ -40,11 +40,6 @@ export type ResolveActiveMatchSlotInput = {
   // The next upcoming matched match (the upcoming-list overlay fallback), used
   // when neither a room nor a direct match is present.
   upcomingMatch?: SlotBearingMatch | null;
-  // The live synced clock. When provided, lets the per-match freeze swap a STALE
-  // (already-elapsed) frozen instant for a fresh future re-arm — so an early
-  // transient slot can't pin the countdown to a dead past instant. Optional so the
-  // pure unit tests can omit it (original first-value-wins freeze).
-  syncedNowMs?: number;
 };
 
 function parseSlotMs(slotStartAt: string | null | undefined): number | null {
@@ -69,7 +64,6 @@ export function resolveActiveMatchSlot({
   room,
   directMatch,
   upcomingMatch,
-  syncedNowMs,
 }: ResolveActiveMatchSlotInput): ActiveMatchSlot | null {
   const candidates: SlotCandidate[] = [
     room?.linkedMatchId
@@ -87,7 +81,7 @@ export function resolveActiveMatchSlot({
     if (slotStartMs === null) {
       continue;
     }
-    const frozenMs = freezeSlotStartMsForMatch(candidate.matchId, slotStartMs, syncedNowMs);
+    const frozenMs = freezeSlotStartMsForMatch(candidate.matchId, slotStartMs);
     return { matchId: candidate.matchId, slotStartMs: frozenMs };
   }
 

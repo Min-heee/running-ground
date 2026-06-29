@@ -52,35 +52,11 @@ test('party room polling defers waiting room sync to match-room snapshot owner',
   assert.equal(policy.reason, 'match-room-snapshot-owner');
 });
 
-test('party room polling KEEPS a fast refresh while a linked match has not yet started', () => {
-  // Before the slot the room carries the authoritative party slot (linkedMatchSlotStartAt);
-  // the guest must keep fetching it so its countdown runs the full window instead of only
-  // flashing ~2s out. So a linked, pre-slot room polls (it does NOT defer to the ACK).
-  for (const state of ['matched', 'arming', 'countdown'] as const) {
-    const nextRoom = room({
-      linkedMatchId: `match-${state}`,
-      linkedMatchStatus: 'matched',
-      state: state === 'matched' ? 'countdown' : state,
-    });
-    const policy = resolvePartyRoomPollingPolicy({
-      fastRoomPollMs: 2500,
-      idleRoomPollMs: 5000,
-      linkedMatchId: nextRoom.linkedMatchId,
-      roomId: nextRoom.roomId,
-      state: nextRoom.state,
-    });
-
-    assert.equal(policy.enabled, true);
-    assert.equal(policy.intervalMs, 2500);
-    assert.equal(policy.reason, 'linked-pre-slot-refresh');
-  }
-});
-
-test('party room polling hands the linked room off to the runtime only once active', () => {
+test('party room polling defers linked room sync to linked match status owner', () => {
   const nextRoom = room({
-    linkedMatchId: 'match-active',
-    linkedMatchStatus: 'active',
-    state: 'active',
+    linkedMatchId: 'match-1',
+    linkedMatchStatus: 'matched',
+    state: 'countdown',
   });
   const policy = resolvePartyRoomPollingPolicy({
     fastRoomPollMs: 2500,
@@ -91,8 +67,28 @@ test('party room polling hands the linked room off to the runtime only once acti
   });
 
   assert.equal(policy.enabled, false);
-  assert.equal(policy.intervalMs, 5000);
   assert.equal(policy.reason, 'linked-match-status-owner');
+});
+
+test('party room polling never owns linked match transition states', () => {
+  for (const state of ['arming', 'countdown', 'active'] as const) {
+    const nextRoom = room({
+      linkedMatchId: `match-${state}`,
+      linkedMatchStatus: state === 'active' ? 'active' : 'matched',
+      state,
+    });
+    const policy = resolvePartyRoomPollingPolicy({
+      fastRoomPollMs: 2500,
+      idleRoomPollMs: 5000,
+      linkedMatchId: nextRoom.linkedMatchId,
+      roomId: nextRoom.roomId,
+      state: nextRoom.state,
+    });
+
+    assert.equal(policy.enabled, false);
+    assert.equal(policy.intervalMs, 5000);
+    assert.equal(policy.reason, 'linked-match-status-owner');
+  }
 });
 
 test('party room polling keeps transitional room states owned by lifecycle handoff', () => {

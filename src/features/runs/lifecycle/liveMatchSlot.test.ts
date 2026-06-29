@@ -230,46 +230,6 @@ test('resolveActiveMatchSlot: freezes the first slot per matchId against later r
   assert.deepEqual(restamped, { matchId: 'frozen-match', slotStartMs: SLOT_MS });
 });
 
-test('resolveActiveMatchSlot: a stale (elapsed) frozen slot is replaced by a fresh future re-arm', () => {
-  // The guest first observes slot A (future) → freezes A. The match is then re-armed to a
-  // LATER slot B while A has already elapsed. With the live clock the freeze MUST adopt B —
-  // else the countdown pins to the dead instant A (selectCountdownDigit→null, and the
-  // slot-gated arena open sees slotPassed=true → skips the countdown). This is the freeze
-  // half of the slot-propagation fix (paired with re-enabling the pre-slot room poll).
-  const SLOT_A_MS = Date.parse('2026-06-30T01:00:00.000Z');
-  const SLOT_B_ISO = '2026-06-30T01:00:40.000Z'; // +40s re-arm
-  const SLOT_B_MS = Date.parse(SLOT_B_ISO);
-
-  const first = resolveActiveMatchSlot({
-    room: { linkedMatchId: 'rearm-match', linkedMatchSlotStartAt: '2026-06-30T01:00:00.000Z' },
-    syncedNowMs: SLOT_A_MS - 15_000, // 15s before A — frozen as a future instant
-  });
-  assert.deepEqual(first, { matchId: 'rearm-match', slotStartMs: SLOT_A_MS });
-
-  const rearmed = resolveActiveMatchSlot({
-    room: { linkedMatchId: 'rearm-match', linkedMatchSlotStartAt: SLOT_B_ISO },
-    syncedNowMs: SLOT_A_MS + 5_000, // past A, still 35s before B
-  });
-  assert.deepEqual(rearmed, { matchId: 'rearm-match', slotStartMs: SLOT_B_MS });
-});
-
-test('resolveActiveMatchSlot: a STILL-FUTURE frozen slot absorbs jitter even with the clock provided', () => {
-  // A small forward nudge while the frozen slot is still in the FUTURE must be absorbed —
-  // the freeze only swaps a stale/elapsed instant, never a live one, so no mid-countdown
-  // re-flash.
-  const first = resolveActiveMatchSlot({
-    directMatch: { matchId: 'jitter-match', slotStartAt: SLOT_ISO },
-    syncedNowMs: SLOT_MS - 20_000,
-  });
-  assert.deepEqual(first, { matchId: 'jitter-match', slotStartMs: SLOT_MS });
-
-  const nudged = resolveActiveMatchSlot({
-    directMatch: { matchId: 'jitter-match', slotStartAt: '2026-06-30T01:00:03.000Z' },
-    syncedNowMs: SLOT_MS - 17_000, // still before the original slot
-  });
-  assert.deepEqual(nudged, { matchId: 'jitter-match', slotStartMs: SLOT_MS });
-});
-
 test('resolveActiveMatchSlot: skips a slotless room and uses the next candidate', () => {
   const slot = resolveActiveMatchSlot({
     room: { linkedMatchId: null, slotStartAt: null },

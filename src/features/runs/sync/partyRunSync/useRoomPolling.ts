@@ -34,24 +34,10 @@ export function resolvePartyRoomPollingPolicy({
   }
 
   if (linkedMatchId) {
-    // Once host-start links the room, the backend stamps the authoritative party slot
-    // (linkedMatchSlotStartAt) and ships it in EVERY /rooms/my poll. Polling used to stop
-    // the instant the room linked, so the guest learned the slot only via a one-shot
-    // countdown-ACK — ~2s before the slot — and its countdown only flashed instead of
-    // running the full window. Keep a recurring poll while the linked match has NOT yet
-    // started so the slot reaches the guest within one interval; hand off to the live
-    // runtime once the room reports 'active' (server-gated on the slot having passed).
-    if (state === 'active') {
-      return {
-        enabled: false,
-        intervalMs: idleRoomPollMs,
-        reason: 'linked-match-status-owner',
-      };
-    }
     return {
-      enabled: true,
-      intervalMs: fastRoomPollMs,
-      reason: 'linked-pre-slot-refresh',
+      enabled: false,
+      intervalMs: idleRoomPollMs,
+      reason: 'linked-match-status-owner',
     };
   }
 
