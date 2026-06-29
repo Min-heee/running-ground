@@ -11,12 +11,52 @@
 // non-host's countdown. The number simply follows the converging offset.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { freezeSlotStartMsForMatch } from '@/features/runs/lifecycle/countdownLockStore';
+import {
+  freezeSlotStartMsForMatch,
+  readFrozenSlotStartMsForMatch,
+} from '@/features/runs/lifecycle/countdownLockStore';
 
 export type ActiveMatchSlot = {
   matchId: string;
   slotStartMs: number;
 };
+
+// A candidate slot is committed to the per-match FREEZE only when it is the imminent
+// countdown target — strictly future and within FREEZE_ELIGIBLE_AHEAD_MS. This is the
+// guard that keeps a bogus far-future placeholder (e.g. a duel/group status's 03:00:00
+// sentinel that SHARES the party matchId) from SEEDING the freeze for that matchId and
+// pinning the real slot out — which is exactly what could leave the countdown blank and
+// the arena gate reading the placeholder. A past slot (a re-join) is also not frozen; it
+// drives 'active' via serverActive. With no clock provided (pure callers/tests) the freeze
+// is unconditional, preserving the original first-value-wins behavior.
+export const FREEZE_ELIGIBLE_AHEAD_MS = 120_000;
+
+export function isSlotFreezeEligible(slotStartMs: number, syncedNowMs: number | undefined): boolean {
+  if (typeof syncedNowMs !== 'number') {
+    return true;
+  }
+  const aheadMs = slotStartMs - syncedNowMs;
+  return aheadMs > 0 && aheadMs <= FREEZE_ELIGIBLE_AHEAD_MS;
+}
+
+// Resolve a match's authoritative slot ms: an ALREADY-frozen instant wins (write-once, so
+// the value is stable across renders — the property the arena open key relies on); else an
+// ELIGIBLE in-window slot is frozen now; else the raw parsed slot is returned WITHOUT
+// seeding the freeze (so a placeholder can never poison the per-match freeze).
+export function resolveFrozenSlotMs(
+  matchId: string | null | undefined,
+  slotStartMs: number,
+  syncedNowMs: number | undefined,
+): number {
+  const existing = readFrozenSlotStartMsForMatch(matchId);
+  if (existing !== null) {
+    return existing;
+  }
+  if (isSlotFreezeEligible(slotStartMs, syncedNowMs)) {
+    return freezeSlotStartMsForMatch(matchId, slotStartMs);
+  }
+  return slotStartMs;
+}
 
 // Minimal slot-bearing shapes — kept structural (NOT the full API types) so the
 // pure core has no dependency on the network layer and is trivially testable.
@@ -40,6 +80,10 @@ export type ResolveActiveMatchSlotInput = {
   // The next upcoming matched match (the upcoming-list overlay fallback), used
   // when neither a room nor a direct match is present.
   upcomingMatch?: SlotBearingMatch | null;
+  // The live synced clock. Used ONLY to decide freeze eligibility (see resolveFrozenSlotMs)
+  // — never to mutate an already-frozen value, so the resolved slot is stable across renders
+  // and the arena open key cannot oscillate. Optional: omitted in pure tests.
+  syncedNowMs?: number;
 };
 
 function parseSlotMs(slotStartAt: string | null | undefined): number | null {
@@ -64,6 +108,7 @@ export function resolveActiveMatchSlot({
   room,
   directMatch,
   upcomingMatch,
+  syncedNowMs,
 }: ResolveActiveMatchSlotInput): ActiveMatchSlot | null {
   const candidates: SlotCandidate[] = [
     room?.linkedMatchId
@@ -81,7 +126,7 @@ export function resolveActiveMatchSlot({
     if (slotStartMs === null) {
       continue;
     }
-    const frozenMs = freezeSlotStartMsForMatch(candidate.matchId, slotStartMs);
+    const frozenMs = resolveFrozenSlotMs(candidate.matchId, slotStartMs, syncedNowMs);
     return { matchId: candidate.matchId, slotStartMs: frozenMs };
   }
 

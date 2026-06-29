@@ -16,10 +16,9 @@ import {
   buildPartyRunFlowSnapshot,
 } from '@/features/runs/lifecycle/matchStateMachine';
 import { selectLinkedRuntimeRoom } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
-import { selectCountdownDigit } from '@/features/runs/lifecycle/liveMatchSlot';
+import { resolveFrozenSlotMs, selectCountdownDigit } from '@/features/runs/lifecycle/liveMatchSlot';
 import {
   clearCountdownLock,
-  freezeSlotStartMsForMatch,
   isCountdownKeyFinished,
   markCountdownKeyFinished,
   readCountdownLock,
@@ -429,7 +428,11 @@ export function resolvePartyRunFlowSyncedNowMs({
 // freeze the first value observed for this matchId so a later slotStartAt re-stamp (a status
 // echo / re-queue) can't rotate the countdownKey and re-flash. Returns null when no
 // server-authoritative slot is present yet (the overlay stays armed, no digit).
-function resolveAuthoritativeSlot(matchId: string | null | undefined, slotStartAt: string | null | undefined) {
+function resolveAuthoritativeSlot(
+  matchId: string | null | undefined,
+  slotStartAt: string | null | undefined,
+  syncedNowMs?: number,
+) {
   if (!slotStartAt) {
     return { slotStartAt: null as string | null, slotStartMs: null as number | null };
   }
@@ -437,7 +440,11 @@ function resolveAuthoritativeSlot(matchId: string | null | undefined, slotStartA
   if (!Number.isFinite(parsedMs)) {
     return { slotStartAt: null, slotStartMs: null };
   }
-  const frozenMs = freezeSlotStartMsForMatch(matchId, parsedMs);
+  // resolveFrozenSlotMs only SEEDS the per-match freeze for an imminent in-window slot — a
+  // far-future placeholder (a duel/group status's 03:00:00 sentinel that shares the party
+  // matchId) is returned raw and never poisons the freeze; an already-frozen instant wins, so
+  // the resolved slot is stable across renders (the property the arena open key relies on).
+  const frozenMs = resolveFrozenSlotMs(matchId, parsedMs, syncedNowMs);
   return { slotStartAt, slotStartMs: frozenMs };
 }
 
@@ -457,7 +464,7 @@ export function useMatchCountdownModel({
 }: UseMatchCountdownModelInput) {
   // Server-authoritative slot ONLY — no local activeDuel/GroupSlotStartAt fallback. The start
   // instant must be shared by both phones; the local selection is per-device.
-  const duelAuthoritativeSlot = resolveAuthoritativeSlot(duelMatchStatus?.matchId, duelMatchStatus?.slotStartAt);
+  const duelAuthoritativeSlot = resolveAuthoritativeSlot(duelMatchStatus?.matchId, duelMatchStatus?.slotStartAt, syncedNowMs);
   const rawDuelStartCountdownSeconds =
     shouldTrackDirectMatchCountdown(duelMatchState) && duelAuthoritativeSlot.slotStartMs !== null
       ? getMatchStartRemainingSeconds(duelAuthoritativeSlot.slotStartAt as string, syncedNowMs)
@@ -469,7 +476,7 @@ export function useMatchCountdownModel({
     rawRemainingSeconds: rawDuelStartCountdownSeconds,
     nowMs,
   });
-  const groupAuthoritativeSlot = resolveAuthoritativeSlot(groupMatchStatus?.matchId, groupMatchStatus?.slotStartAt);
+  const groupAuthoritativeSlot = resolveAuthoritativeSlot(groupMatchStatus?.matchId, groupMatchStatus?.slotStartAt, syncedNowMs);
   const rawGroupStartCountdownSeconds =
     shouldTrackDirectMatchCountdown(groupMatchState) && groupAuthoritativeSlot.slotStartMs !== null
       ? getMatchStartRemainingSeconds(groupAuthoritativeSlot.slotStartAt as string, syncedNowMs)
@@ -541,6 +548,7 @@ export function useMatchCountdownModel({
   const nextStartingMatchAuthoritativeSlot = resolveAuthoritativeSlot(
     nextStartingMatch?.match.matchId,
     nextStartingMatch?.match.slotStartAt,
+    syncedNowMs,
   );
   const nextStartingMatchSlotStartMs = nextStartingMatchAuthoritativeSlot.slotStartMs;
   const {
@@ -666,6 +674,7 @@ export function useMatchCountdownModel({
   const runtimeRoomAuthoritativeSlot = resolveAuthoritativeSlot(
     runtimeRoom?.linkedMatchId,
     runtimeRoom?.linkedMatchSlotStartAt,
+    syncedNowMs,
   );
   const runtimeRoomSlotStartMs = runtimeRoomAuthoritativeSlot.slotStartMs;
   // STAGE 1 (clean core): the RUNTIME ROOM countdown digit derives from ONE fact —

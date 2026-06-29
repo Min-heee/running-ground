@@ -2,10 +2,18 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   deriveSlotPhase,
+  FREEZE_ELIGIBLE_AHEAD_MS,
+  isSlotFreezeEligible,
   resolveActiveMatchSlot,
+  resolveFrozenSlotMs,
   selectCountdownDigit,
 } from './liveMatchSlot';
-import { resetCountdownLockStoreForTest } from './countdownLockStore';
+import {
+  readFrozenSlotStartMsForMatch,
+  resetCountdownLockStoreForTest,
+} from './countdownLockStore';
+
+const PLACEHOLDER_MS = Date.parse('2026-06-30T03:00:00.000Z'); // far-future duel-status sentinel
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pure live-match slot core (clean rewrite). ONE fact — Date.now()+offset >= slot
@@ -236,4 +244,67 @@ test('resolveActiveMatchSlot: skips a slotless room and uses the next candidate'
     directMatch: { matchId: 'm2', slotStartAt: SLOT_ISO },
   });
   assert.deepEqual(slot, { matchId: 'm2', slotStartMs: SLOT_MS });
+});
+
+// ── freeze eligibility + placeholder-poison guard (the loop-STABILITY invariant) ─────────
+// These pin the property the Maximum-update-depth crash violated: the slot resolved for a
+// matchId must be STABLE across renders / advancing clock, and a far-future placeholder that
+// SHARES the party matchId must never seed or flip the per-match freeze.
+
+test('isSlotFreezeEligible: in-window future only', () => {
+  const now = 1_000_000;
+  assert.equal(isSlotFreezeEligible(now + 18_000, now), true);
+  assert.equal(isSlotFreezeEligible(now + FREEZE_ELIGIBLE_AHEAD_MS, now), true);
+  assert.equal(isSlotFreezeEligible(now + FREEZE_ELIGIBLE_AHEAD_MS + 1, now), false); // too far (placeholder)
+  assert.equal(isSlotFreezeEligible(now, now), false); // not strictly future
+  assert.equal(isSlotFreezeEligible(now - 1, now), false); // past (re-join)
+  assert.equal(isSlotFreezeEligible(now + 18_000, undefined), true); // no clock → eligible (pure)
+});
+
+test('resolveFrozenSlotMs: an in-window slot freezes write-once; far-future/past are NOT frozen', () => {
+  const now = SLOT_MS - 18_000;
+  assert.equal(resolveFrozenSlotMs('m', SLOT_MS, now), SLOT_MS);
+  assert.equal(readFrozenSlotStartMsForMatch('m'), SLOT_MS);
+
+  resetCountdownLockStoreForTest();
+  // Far-future placeholder → returned raw, Map untouched (cannot seed the freeze).
+  assert.equal(resolveFrozenSlotMs('m', PLACEHOLDER_MS, now), PLACEHOLDER_MS);
+  assert.equal(readFrozenSlotStartMsForMatch('m'), null);
+
+  resetCountdownLockStoreForTest();
+  // Already-past slot (a re-join) → returned raw, not frozen.
+  assert.equal(resolveFrozenSlotMs('m', SLOT_MS, SLOT_MS + 5_000), SLOT_MS);
+  assert.equal(readFrozenSlotStartMsForMatch('m'), null);
+});
+
+test('resolveFrozenSlotMs: a shared matchId seeded by the REAL slot is never flipped by the placeholder, even as the clock advances past the slot', () => {
+  const nowAtSeed = SLOT_MS - 18_000;
+  assert.equal(resolveFrozenSlotMs('M', SLOT_MS, nowAtSeed), SLOT_MS); // seed M from the real slot
+  // The duel placeholder candidate now arrives for the SAME matchId M while the clock crosses
+  // the real slot — the frozen real instant wins on EVERY call (constant → openKey constant →
+  // the arena guard reaches a fixed point; the inverse is what looped).
+  for (const nowMs of [SLOT_MS - 1_000, SLOT_MS, SLOT_MS + 10_000, SLOT_MS + 60_000]) {
+    assert.equal(resolveFrozenSlotMs('M', PLACEHOLDER_MS, nowMs), SLOT_MS, `nowMs=${nowMs}`);
+  }
+});
+
+test('resolveFrozenSlotMs: the placeholder seen FIRST still does not seed M — the real slot wins', () => {
+  const now = SLOT_MS - 18_000;
+  assert.equal(resolveFrozenSlotMs('M', PLACEHOLDER_MS, now), PLACEHOLDER_MS); // not frozen
+  assert.equal(readFrozenSlotStartMsForMatch('M'), null);
+  assert.equal(resolveFrozenSlotMs('M', SLOT_MS, now), SLOT_MS); // real slot freezes M
+  assert.equal(readFrozenSlotStartMsForMatch('M'), SLOT_MS);
+});
+
+test('resolveActiveMatchSlot: a stable room slot resolves identically across advancing syncedNowMs (openKey stability)', () => {
+  const input = (syncedNowMs: number) => resolveActiveMatchSlot({
+    room: { linkedMatchId: 'M', linkedMatchSlotStartAt: SLOT_ISO },
+    directMatch: { matchId: 'M', slotStartAt: '2026-06-30T03:00:00.000Z' }, // placeholder, same matchId
+    syncedNowMs,
+  });
+  const first = input(SLOT_MS - 18_000);
+  assert.deepEqual(first, { matchId: 'M', slotStartMs: SLOT_MS });
+  for (const nowMs of [SLOT_MS - 5_000, SLOT_MS, SLOT_MS + 30_000]) {
+    assert.deepEqual(input(nowMs), { matchId: 'M', slotStartMs: SLOT_MS }, `nowMs=${nowMs}`);
+  }
 });

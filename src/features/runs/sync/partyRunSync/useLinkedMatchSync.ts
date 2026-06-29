@@ -11,6 +11,11 @@ import type { LinkedMatchSyncInput } from './types';
 
 export const LINKED_MATCH_ARMING_POLL_MS = 1000;
 
+// A room slot this far in the future (or nearer) is treated as already-delivered, so the
+// one-shot re-fetch below stays idle. Generous enough to cover any real countdown slot
+// (party ~18s, matched ~30s) yet exclude a missing/stale/far-future room slot.
+export const ROOM_SLOT_REFETCH_AHEAD_MS = 600_000;
+
 // Decide whether the linked-match poll should flip THIS phone into the active/measuring
 // arena. Pure so it can be reproduced deterministically.
 //
@@ -145,6 +150,46 @@ export function useLinkedMatchSync({
   const roomLinkedMatchAutoFocusRef = useRef<string | null>(null);
   const roomLinkedArenaPinRef = useRef<string | null>(null);
   const lastLinkedMatchSyncGateKeyRef = useRef<string | null>(null);
+  const roomSlotRefetchGateRef = useRef<string | null>(null);
+
+  // ONE-SHOT room re-fetch — the party slot delivery fix.
+  // Host-start stamps the authoritative party slot (linkedMatchSlotStartAt) into /rooms/my,
+  // but the guest stops polling /rooms/my the instant the room links, so a stale pre-link
+  // snapshot can leave the slot missing/old — the countdown then only flashes at the last
+  // second. When this guest's CURRENT snapshot has no in-window slot for the linked match, do
+  // exactly ONE /rooms/my re-fetch to pull the real slot in. Guarded to fire at most once per
+  // (room,match) key, and never on a recurring timer — so it cannot churn the matchRoom
+  // identity render-after-render (which is what re-drove the arena setState effect into the
+  // Maximum-update-depth loop). A no-op refetch is deduped by the loader snapshot key.
+  useEffect(() => {
+    const linkedMatchId = matchRoom?.linkedMatchId;
+    const roomId = matchRoom?.roomId;
+    if (!enabled || !linkedMatchId || !roomId) {
+      return;
+    }
+
+    const slotMs = Date.parse(matchRoom?.linkedMatchSlotStartAt ?? matchRoom?.slotStartAt ?? '');
+    const nowMs = callbacksRef.current.getSyncedNowMs();
+    const aheadMs = slotMs - nowMs;
+    const hasInWindowSlot = Number.isFinite(slotMs) && aheadMs > 0 && aheadMs <= ROOM_SLOT_REFETCH_AHEAD_MS;
+    if (hasInWindowSlot) {
+      return;
+    }
+
+    const gateKey = `${roomId}:${linkedMatchId}`;
+    if (roomSlotRefetchGateRef.current === gateKey) {
+      return;
+    }
+    roomSlotRefetchGateRef.current = gateKey;
+    void callbacksRef.current.loadMatchRoom().catch(() => {});
+  }, [
+    callbacksRef,
+    enabled,
+    matchRoom?.linkedMatchId,
+    matchRoom?.linkedMatchSlotStartAt,
+    matchRoom?.roomId,
+    matchRoom?.slotStartAt,
+  ]);
 
   useEffect(() => {
     if (enabled && currentUserDoneWithLinkedMatch) {
