@@ -11,6 +11,8 @@ import {
 } from '@/features/runs/tracking/trackingSession';
 import type { UseRunTrackingFlowInput } from '@/features/runs/types/runTrackingFlow';
 import { shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
+// TEMPORARY DIAG (revert before ship): observe-only event log for the measuring-start.
+import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 
 type UseMatchAutoTrackingEffectsInput = Pick<
   UseRunTrackingFlowInput,
@@ -110,6 +112,14 @@ export function useMatchAutoTrackingEffects({
       return;
     }
 
+    // TEMPORARY DIAG (revert before ship): log the auto-start of measuring (warmup path).
+    pushLiveMatchDiagEvent('startTracking', {
+      src: 'autoTracking:warmup',
+      matchId: warmupMatchId,
+      mode: matchMode,
+      duelCd: duelStartCountdownSeconds ?? null,
+      groupCd: groupStartCountdownSeconds ?? null,
+    });
     startMatchTrackingAutomatically(warmupMatchId, { allowCountdownWarmup: true });
   }, [
     autoStartedMatchIdRef,
@@ -223,6 +233,13 @@ export function useMatchAutoTrackingEffects({
       }
 
       if (getBackgroundRunTrackingSnapshot({ cloneRoute: false }).status !== 'running') {
+        // TEMPORARY DIAG (revert before ship): log the auto-start of measuring (active path).
+        pushLiveMatchDiagEvent('startTracking', {
+          src: 'autoTracking:active',
+          matchId: activeMatchId,
+          mode: matchMode,
+          slotStartAt: activeMatch?.slotStartAt ?? null,
+        });
         startMatchTrackingAutomatically(activeMatchId);
       }
     }).finally(() => {

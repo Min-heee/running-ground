@@ -6,6 +6,8 @@ import {
   shouldEnterMatchArenaForLifecycle,
   shouldKeepMatchArenaForceOpen,
 } from '@/features/runs/lifecycle/matchStateMachine';
+// TEMPORARY DIAG (revert before ship): observe-only event log for the arena-open skip.
+import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 
 type UseActiveArenaPinEffectInput = {
   livePagerRef: RefObject<ScrollView | null>;
@@ -104,6 +106,17 @@ export function useActiveArenaPinEffect({
     }
 
     lifecycleArenaEntryKeyRef.current = nextEntryKey;
+    // TEMPORARY DIAG (revert before ship): log the decisive lifecycle-entry values at the
+    // instant this effect opens the arena (covers a non-party lifecycle force-open path).
+    pushLiveMatchDiagEvent('forceOpenActive=true', {
+      src: 'useActiveArenaPinEffect:lifecycle',
+      duelState,
+      groupState,
+      duelCdArena: duelShouldOpenCountdownArena,
+      groupCdArena: groupShouldOpenCountdownArena,
+      duelMatchId: duelMatchId ?? null,
+      groupMatchId: groupMatchId ?? null,
+    });
     callbackRef.current.onForceOpenActiveMatchChange(true);
     callbackRef.current.onLiveArenaPageChange(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });

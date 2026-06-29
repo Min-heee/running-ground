@@ -12,6 +12,8 @@ import {
 import { hydrateOptimisticMatchRoom } from '@/features/match/hooks/lobby/optimisticRoomHydration';
 import { clearMatchRoomDeletedTombstone } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+// TEMPORARY DIAG (revert before ship): observe-only event log for the arena-open skip.
+import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 
 type FocusRunningMatchInput = {
   mode: Extract<RunMatchMode, 'duel' | 'group'>;
@@ -79,6 +81,14 @@ export function useMatchEntryEffects({
     handledFocusMatchNonceRef.current = focusMatchNonce;
 
     if (forceMatchArena) {
+      // TEMPORARY DIAG (revert before ship): log the route-driven force-open of the arena.
+      pushLiveMatchDiagEvent('forceOpenActive=true', {
+        src: 'useMatchEntryEffects:route',
+        mode: focusMatchMode ?? null,
+        matchId: focusMatchId ?? null,
+        slotStartAt: focusMatchSlotStartAt ?? null,
+        forceMatchArena: true,
+      });
       onForceOpenActiveMatchChange(true);
       onLiveArenaPageChange(0);
       livePagerRef.current?.scrollTo({ x: 0, animated: false });

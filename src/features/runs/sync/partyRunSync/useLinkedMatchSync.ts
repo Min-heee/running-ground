@@ -5,6 +5,8 @@ import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateM
 import type { PartyRunStartPhase } from '@/features/runs/types/matchStateMachine';
 import { rgDiagLog, rgPerfMark } from '@/utils/rgPerfTrace';
 import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
+// TEMPORARY DIAG (revert before ship): observe-only event log for the arena-open skip.
+import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 import type { LinkedMatchSyncInput } from './types';
 
 export const LINKED_MATCH_ARMING_POLL_MS = 1000;
@@ -292,6 +294,19 @@ export function useLinkedMatchSync({
           // Flip to active/measuring ONLY once the countdown has genuinely finished (or the
           // server says active) — never on the bare ≤20s pre-empt.
           if (shouldTransitionToActive) {
+            // TEMPORARY DIAG (revert before ship): log the decisive values at the instant the
+            // party-run linked sync opens the measuring arena for the guest. Reads ONLY values
+            // already in this effect's closure (no new reactive deps), so it cannot alter the
+            // polling/subscription behavior it is observing.
+            pushLiveMatchDiagEvent('forceOpenActive=true', {
+              src: 'useLinkedMatchSync',
+              remaining: getMatchStartRemainingSeconds(payload.slotStartAt, syncedNowMs),
+              ctxState: roomLinkedMatchContext?.state ?? null,
+              mode: roomLinkedMatchContext?.mode ?? null,
+              serverState: payload.state ?? null,
+              slotStartAt: payload.slotStartAt,
+              syncedNow: syncedNowMs,
+            });
             callbacksRef.current.onForceOpenActiveMatchChange(true);
           }
         }

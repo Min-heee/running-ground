@@ -12,6 +12,12 @@ import {
   TrackRunShellRouter,
   type TrackRunShellKind,
 } from '@/features/runs/components/shells/TrackRunShells';
+// TEMPORARY DIAG (revert before ship): always-on-top observe-only live-match diagnostic overlay.
+import { LiveMatchDiagOverlay } from '@/features/runs/runtime/LiveMatchDiagOverlay';
+
+// TEMPORARY DIAG (revert before ship): one-off switch to surface the live-match runtime state
+// on a physical device. Flip to false / remove the overlay mount below before any real ship.
+const SHOW_LIVE_MATCH_DIAG = true;
 
 type CountdownEntry = {
   countdownKey?: string | null;
@@ -159,6 +165,20 @@ export function TrackRunExperienceView({
           countdownKey={countdownOverlayEntry.countdownKey}
           variant={countdownOverlayVariant}
         />
+      ) : null}
+      {/*
+        TEMPORARY DIAG (revert before ship): mounted LAST so it overlays everything — the
+        countdown screen AND the measuring arena. Renders whenever a live-match context exists
+        (live shell, room arming, a countdown entry, or the solo-start countdown) so it is
+        visible across the whole arming → countdown → measuring sequence.
+      */}
+      {SHOW_LIVE_MATCH_DIAG && (
+        shellKind === 'live'
+        || shouldShowRoomArmingOverlay
+        || countdownOverlayEntry != null
+        || typeof soloStartCountdownSeconds === 'number'
+      ) ? (
+        <LiveMatchDiagOverlay />
       ) : null}
     </View>
   );

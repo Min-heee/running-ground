@@ -15,6 +15,8 @@ import {
 } from '@/features/runs/lifecycle/liveMatchNavigationGate';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import type { rgPerfMeasureStart } from '@/utils/rgPerfTrace';
+// TEMPORARY DIAG (revert before ship): observe-only event log for the arena-open skip.
+import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 import type {
   ActiveLiveMatchNavigation,
   CompletedLiveMatchNavigation,
@@ -188,6 +190,17 @@ export function useLiveMatchNavigationExecutor({
             && shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
           ),
         });
+        if (effectivePreferArena) {
+          // TEMPORARY DIAG (revert before ship): log the focus-navigation force-open (duel).
+          pushLiveMatchDiagEvent('forceOpenActive=true', {
+            src: 'navExecutor:duel',
+            matchId: matchId ?? null,
+            serverState: payload.state ?? null,
+            remaining: getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()),
+            slotStartAt: payload.slotStartAt ?? null,
+            syncedNow: getSyncedNowMs(),
+          });
+        }
         setForceOpenActiveMatch(effectivePreferArena);
         navigationResult = payload;
         return payload;
@@ -222,6 +235,17 @@ export function useLiveMatchNavigationExecutor({
           && shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
         ),
       });
+      if (effectivePreferArena) {
+        // TEMPORARY DIAG (revert before ship): log the focus-navigation force-open (group).
+        pushLiveMatchDiagEvent('forceOpenActive=true', {
+          src: 'navExecutor:group',
+          matchId: matchId ?? null,
+          serverState: payload.state ?? null,
+          remaining: getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()),
+          slotStartAt: payload.slotStartAt ?? null,
+          syncedNow: getSyncedNowMs(),
+        });
+      }
       setForceOpenActiveMatch(effectivePreferArena);
       navigationResult = payload;
       return payload;

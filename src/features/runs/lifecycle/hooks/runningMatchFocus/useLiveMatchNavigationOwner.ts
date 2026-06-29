@@ -2,6 +2,8 @@ import { useCallback, useRef } from 'react';
 import {
   buildLiveMatchNavigationKey,
 } from '@/features/runs/lifecycle/liveMatchNavigationGate';
+// TEMPORARY DIAG (revert before ship): observe-only event log for the arena-open skip.
+import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import {
   type ActiveLiveMatchNavigation,
@@ -61,10 +63,16 @@ export function useLiveMatchNavigationOwner({
   } = useLiveMatchRecoveryPolicy();
 
   const promoteLiveArena = useCallback(() => {
+    // TEMPORARY DIAG (revert before ship): log the navigation-owner promotion that force-opens
+    // the arena (the focusRunningMatch duplicate/already-mounted promotion path).
+    pushLiveMatchDiagEvent('forceOpenActive=true', {
+      src: 'navOwner:promoteLiveArena',
+      syncedNow: getSyncedNowMs(),
+    });
     setForceOpenActiveMatch(true);
     setLiveArenaPage(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
-  }, [livePagerRef, setForceOpenActiveMatch, setLiveArenaPage]);
+  }, [getSyncedNowMs, livePagerRef, setForceOpenActiveMatch, setLiveArenaPage]);
 
   // Drop the navigation-owner latches so a back-to-back match isn't blocked by a
   // stale active/completed/failed record from the previous match (B2). Pairs with

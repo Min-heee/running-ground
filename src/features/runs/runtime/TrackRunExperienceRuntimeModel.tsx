@@ -135,6 +135,12 @@ import { useTrackRunRuntimeShareState } from '@/features/runs/runtime/useTrackRu
 import { useRuntimeMatchRoomHydration } from '@/features/runs/runtime/useRuntimeMatchRoomHydration';
 import { useTrackRunRuntimeScreenState } from '@/features/runs/runtime/useTrackRunRuntimeScreenState';
 import { useTrackRunRuntimePropsComposer } from '@/features/runs/runtime/useTrackRunRuntimePropsComposer';
+// TEMPORARY DIAG (revert before ship): observe-only live-match runtime snapshot/event store.
+import {
+  pushLiveMatchDiagEvent,
+  setLiveMatchDiagSnapshot,
+} from '@/features/runs/runtime/liveMatchDiagStore';
+import { getMatchStartRemainingSeconds } from '@/lib/matchCountdown';
 import { useLiveActivityBridge } from '@/features/runs/liveActivity/useLiveActivityBridge';
 import {
   MATCH_ROOM_FAST_POLL_MS,
@@ -287,6 +293,9 @@ export function TrackRunExperienceRuntime({
   const latestMatchRoomServerNowMsRef = useRef(0);
   const lastRouteKeyCorrectionRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
+  // TEMPORARY DIAG (revert before ship): track prior slot/phase to log null→value transitions.
+  const diagPrevSlotStartAtRef = useRef<string | null>(null);
+  const diagPrevPhaseRef = useRef<string | null>(null);
   const linkedMatchVanishStateRef = useRef<Record<'duel' | 'group', MatchStatusVanishState>>({
     duel: { count: 0, matchId: null },
     group: { count: 0, matchId: null },
@@ -2915,6 +2924,80 @@ export function TrackRunExperienceRuntime({
     watchdogFocusMode,
     watchdogShellIsLiveLoading,
   ]);
+  // ───────────────────────────────────────────────────────────────────────────
+  // TEMPORARY DIAG (revert before ship): publish the REAL live-match runtime state
+  // every render so the on-screen overlay can show, on a physical device, exactly
+  // why a party-run GUEST shows no countdown and jumps to the measuring arena.
+  // Observe-only — reads existing values, changes nothing.
+  // ───────────────────────────────────────────────────────────────────────────
+  const diagFmtClock = (ms: number | null | undefined): string => {
+    if (ms == null || !Number.isFinite(ms)) {
+      return 'null';
+    }
+    const d = new Date(ms);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    const ss = String(d.getSeconds()).padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+  };
+  const diagFmtSlot = (slotStartAt: string | null | undefined): string => {
+    if (!slotStartAt) {
+      return 'null';
+    }
+    const ms = Date.parse(slotStartAt);
+    return Number.isFinite(ms) ? diagFmtClock(ms) : 'null';
+  };
+  const diagSlotStartAt = matchRoom?.linkedMatchSlotStartAt ?? matchRoom?.slotStartAt ?? null;
+  const diagRemainingSeconds = diagSlotStartAt
+    ? getMatchStartRemainingSeconds(diagSlotStartAt, syncedNowMs)
+    : null;
+  // Transition detection: log when the guest FIRST sees a non-null linked slot and when the
+  // party-run phase FIRST becomes 'active' (render-time refs; no effect, no extra subscription).
+  if (diagSlotStartAt && diagPrevSlotStartAtRef.current == null) {
+    pushLiveMatchDiagEvent('slotStart null→val', {
+      src: 'runtimeModel',
+      slotStartAt: diagFmtSlot(diagSlotStartAt),
+      remaining: diagRemainingSeconds ?? null,
+      syncedNow: diagFmtClock(syncedNowMs),
+    });
+  }
+  diagPrevSlotStartAtRef.current = diagSlotStartAt;
+  if (visiblePartyRunFlow.phase === 'active' && diagPrevPhaseRef.current !== 'active') {
+    pushLiveMatchDiagEvent('phase→active', {
+      src: 'runtimeModel',
+      remaining: diagRemainingSeconds ?? null,
+      forceOpen: forceOpenActiveMatch,
+      renderArena: shouldRenderLiveArena,
+      syncedNow: diagFmtClock(syncedNowMs),
+    });
+  }
+  diagPrevPhaseRef.current = visiblePartyRunFlow.phase;
+  setLiveMatchDiagSnapshot({
+    matchMode,
+    startMode: roomStartMode,
+    user: currentUserId ? currentUserId.slice(-4) : 'null',
+    amIHost: matchRoom?.isHost ?? false,
+    roomState: matchRoom?.state ?? 'null',
+    linkedStatus: matchRoom?.linkedMatchStatus ?? 'null',
+    linkedId: matchRoom?.linkedMatchId ? 'y' : 'n',
+    slotStart: diagFmtSlot(diagSlotStartAt),
+    duelState: duelMatchStatus?.state ?? 'null',
+    duelSlot: diagFmtSlot(duelMatchStatus?.slotStartAt),
+    groupState: groupMatchStatus?.state ?? 'null',
+    groupSlot: diagFmtSlot(groupMatchStatus?.slotStartAt),
+    syncedNow: diagFmtClock(syncedNowMs),
+    clockReady: serverClockReady,
+    remainSec: diagRemainingSeconds ?? 'null',
+    forceOpen: forceOpenActiveMatch,
+    trackState: status,
+    roomCdEntry: roomCountdownEntry != null,
+    visCdEntry: visibleCountdownEntry != null,
+    armingOverlay: shouldShowRoomArmingOverlay,
+    phase: visiblePartyRunFlow.phase,
+    showArena: showLiveArena,
+    renderArena: shouldRenderLiveArena,
+  });
+
   const trackRunViewProps = useTrackRunRuntimePropsComposer({
     backHref,
     centeredCountdownEntry: shouldShowCenteredMatchCountdown && visibleCountdownEntry
