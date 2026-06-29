@@ -70,6 +70,7 @@ import {
 } from '@/features/runs/viewModels/matchResultFallbackRows';
 import {
   buildMatchTransitionNotice,
+  clampLinkedMatchStateToSlot,
   type PartyRunLinkedMatchContext,
 } from '@/features/runs/lifecycle/matchStateMachine';
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
@@ -1488,39 +1489,50 @@ export function TrackRunExperienceRuntime({
     }
 
     focusedDuelMatchIdRef.current = payload.matchId ?? focusedDuelMatchIdRef.current;
+    // Single-source slot clamp (see clampLinkedMatchStateToSlot). The linked duel session is SHARED:
+    // the backend reports state:'active' the instant ANY participant pushes live progress, which can
+    // land before THIS phone's slot. We hold that early 'active' at 'matched' until the synced clock
+    // reaches the slot, so NO consumer that keys off duelMatchStatus.state (arena force-open, GPS
+    // auto-start, …) can skip the guest past their countdown. Releases exactly at the slot, so a
+    // matched match still goes active at its slot and a re-join into an already-running match (slot
+    // long past) flows 'active' immediately.
+    const clampedState = clampLinkedMatchStateToSlot(payload.state, payload.slotStartAt, getSyncedNowMs());
+    const clampedPayload = clampedState === payload.state ? payload : { ...payload, state: clampedState };
     const transitionNotice = duelMatchStatus
-      && duelMatchStatus.slotStartAt === payload.slotStartAt
-      && Math.abs(duelMatchStatus.distanceKm - payload.distanceKm) < 0.15
-      ? buildMatchTransitionNotice('duel', duelMatchStatus.state, payload.state)
+      && duelMatchStatus.slotStartAt === clampedPayload.slotStartAt
+      && Math.abs(duelMatchStatus.distanceKm - clampedPayload.distanceKm) < 0.15
+      ? buildMatchTransitionNotice('duel', duelMatchStatus.state, clampedPayload.state)
       : null;
 
-    if (payload.state === 'idle') {
+    if (clampedPayload.state === 'idle') {
       setDuelMatchResult(null);
-    } else if (payload.state === 'waiting' && duelMatchStatus && duelMatchStatus.state !== 'waiting') {
+    } else if (clampedPayload.state === 'waiting' && duelMatchStatus && duelMatchStatus.state !== 'waiting') {
       setDuelMatchResult(null);
     }
 
     if (transitionNotice) {
       setDuelMatchNotice(transitionNotice);
-    } else if (payload.state !== 'idle') {
+    } else if (clampedPayload.state !== 'idle') {
       setDuelMatchNotice(null);
     }
 
     rgDiagLog('duel match status set from poll', {
       currentUserId,
-      hasOpponent: Boolean(payload.opponent),
-      nextMatchId: payload.matchId ?? null,
-      nextState: payload.state ?? null,
-      opponentId: payload.opponent?.id ?? null,
-      opponentLiveDistanceKm: payload.opponent?.liveDistanceKm ?? null,
-      opponentLiveUpdatedAt: payload.opponent?.liveUpdatedAt ?? null,
+      hasOpponent: Boolean(clampedPayload.opponent),
+      nextMatchId: clampedPayload.matchId ?? null,
+      nextState: clampedPayload.state ?? null,
+      serverState: payload.state ?? null,
+      clampedBeforeSlot: clampedState !== payload.state,
+      opponentId: clampedPayload.opponent?.id ?? null,
+      opponentLiveDistanceKm: clampedPayload.opponent?.liveDistanceKm ?? null,
+      opponentLiveUpdatedAt: clampedPayload.opponent?.liveUpdatedAt ?? null,
       requestedDistanceKm: options?.distanceKm ?? duelDistanceKm,
       requestedMatchId: options?.matchId ?? focusedDuelMatchIdRef.current ?? null,
       requestedSlotStartAt: slotStartAt,
       source: options?.forceAccept ? 'force-accept' : 'poll',
     });
-    setDuelMatchStatus(payload);
-    return payload;
+    setDuelMatchStatus(clampedPayload);
+    return clampedPayload;
   };
 
   const loadGroupMatchStatus = async (
@@ -1568,26 +1580,33 @@ export function TrackRunExperienceRuntime({
     }
 
     focusedGroupMatchIdRef.current = payload.matchId ?? focusedGroupMatchIdRef.current;
+    // Single-source slot clamp — identical rationale to loadDuelMatchStatus above. The linked group
+    // session is SHARED, so the backend can report state:'active' before THIS phone's slot; hold it
+    // at 'matched' until the synced clock reaches the slot so no consumer skips the guest past their
+    // countdown. Releases exactly at the slot (matched still goes active at its slot; re-join into an
+    // already-running match flows 'active' immediately).
+    const clampedState = clampLinkedMatchStateToSlot(payload.state, payload.slotStartAt, getSyncedNowMs());
+    const clampedPayload = clampedState === payload.state ? payload : { ...payload, state: clampedState };
     const transitionNotice = groupMatchStatus
-      && groupMatchStatus.slotStartAt === payload.slotStartAt
-      && Math.abs(groupMatchStatus.distanceKm - payload.distanceKm) < 0.15
-      ? buildMatchTransitionNotice('group', groupMatchStatus.state, payload.state)
+      && groupMatchStatus.slotStartAt === clampedPayload.slotStartAt
+      && Math.abs(groupMatchStatus.distanceKm - clampedPayload.distanceKm) < 0.15
+      ? buildMatchTransitionNotice('group', groupMatchStatus.state, clampedPayload.state)
       : null;
 
-    if (payload.state === 'idle') {
+    if (clampedPayload.state === 'idle') {
       setGroupMatchResult(null);
-    } else if (payload.state === 'waiting' && groupMatchStatus && groupMatchStatus.state !== 'waiting') {
+    } else if (clampedPayload.state === 'waiting' && groupMatchStatus && groupMatchStatus.state !== 'waiting') {
       setGroupMatchResult(null);
     }
 
     if (transitionNotice) {
       setGroupMatchNotice(transitionNotice);
-    } else if (payload.state !== 'idle') {
+    } else if (clampedPayload.state !== 'idle') {
       setGroupMatchNotice(null);
     }
 
-    setGroupMatchStatus(payload);
-    return payload;
+    setGroupMatchStatus(clampedPayload);
+    return clampedPayload;
   };
 
   // Bundle A2 — THE ONE guarded apply funnel. Every channel that writes another participant's
@@ -1640,14 +1659,30 @@ export function TrackRunExperienceRuntime({
 
     // Side effects, in the SAME order as the foreground/poll paths:
     // 1) keep the shared server clock advancing (countdown depends on it),
-    // 2) write the per-mode status,
+    // 2) write the per-mode status (slot-clamped, like the poll funnel),
     // 3) terminal teardown.
     syncServerClock(nextStatus.serverNow, nextStatus);
 
+    // Same single-source slot clamp the poll funnel applies (clampLinkedMatchStateToSlot). This
+    // channel (foreground heartbeat / background flush) only fires while a runner is actively
+    // measuring — i.e. already past its slot — so this is a no-op in today's wiring, but clamping
+    // here too makes the guarantee airtight: NO server-derived write of an early 'active' can reach
+    // a consumer before this phone's slot, regardless of which channel delivered the snapshot. Only
+    // `.state` is touched; `decision.isTerminal` is derived from currentUserLiveStatus, so finish /
+    // forfeit teardown is unaffected.
+    const clampedState = clampLinkedMatchStateToSlot(
+      nextStatus.state,
+      nextStatus.slotStartAt,
+      getSyncedNowMs(),
+    );
+    const clampedStatus = clampedState === nextStatus.state
+      ? nextStatus
+      : { ...nextStatus, state: clampedState };
+
     if (decision.target === 'duel') {
-      setDuelMatchStatus(nextStatus);
+      setDuelMatchStatus(clampedStatus);
     } else {
-      setGroupMatchStatus(nextStatus);
+      setGroupMatchStatus(clampedStatus);
     }
 
     // M1 — finish-path cooperation. If the applied status is terminal for THIS runner (finished

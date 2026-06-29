@@ -78,6 +78,51 @@ export function canAutoStartMatchTracking(state?: RunningMatchState | null) {
   return state === 'active';
 }
 
+// Single-source slot clamp for the (duel/group) match status `state`.
+//
+// The trap this closes: the linked duel/group session in a party run is SHARED. The backend
+// hydrates it to `'active'` the instant ANY participant pushes live progress
+// (runningMatchSessionStoreHelpers.hydrateMatchSessionState → hasLiveProgress branch) — which can
+// land a beat BEFORE this phone's OWN slot fires (the host starts measuring slightly early / a
+// warm-up heartbeat lands). If that server `'active'` is stored verbatim, EVERY consumer that keys
+// off `duelMatchStatus.state === 'active'` (arena force-open, GPS auto-start, …) fires early and the
+// guest is yanked past their on-screen countdown — the non-host "skips the countdown" bug.
+//
+// Per-consumer gating already missed this twice, so we clamp ONCE at the ingestion chokepoint where
+// the server-derived status is committed to React state: when the server says `'active'` but this
+// phone's slotStartAt is still in the FUTURE on the SYNCED clock, hold the stored state at the
+// pre-active `'matched'`. The clamp releases EXACTLY at the slot:
+//   - syncedNow >= slotStartMs  → not clamped → true `'active'` flows (countdown reached its slot,
+//     or this is a re-join into an already-running match whose slot is long past),
+//   - no parseable slot at all   → not clamped → server `'active'` is the only signal we have,
+//   - any non-`'active'` server state (waiting / matched / idle) → returned unchanged.
+//
+// This is purely client-side and derives the decision from the SAME server-authoritative slot + this
+// phone's synced clock the countdown already uses. It does NOT re-enable room polling and introduces
+// no second state source, so it cannot re-create the dual-source thrash. It is mode-agnostic, so the
+// matched (matchmaking) path that ALSO hydrates active-early is held to its slot the same way and
+// transitions to `'active'` exactly when its slot is reached — neither early-skip nor delayed.
+export function clampLinkedMatchStateToSlot<T extends RunningMatchState | null | undefined>(
+  serverState: T,
+  slotStartAt: string | null | undefined,
+  syncedNowMs: number | null | undefined,
+): T | 'matched' {
+  if (serverState !== 'active') {
+    return serverState;
+  }
+
+  if (!slotStartAt || typeof syncedNowMs !== 'number' || !Number.isFinite(syncedNowMs)) {
+    return serverState;
+  }
+
+  const slotStartMs = Date.parse(slotStartAt);
+  if (!Number.isFinite(slotStartMs)) {
+    return serverState;
+  }
+
+  return syncedNowMs < slotStartMs ? 'matched' : serverState;
+}
+
 export function isTerminalMatchLifecycleState(state?: MatchLifecycleState | null) {
   return state === 'idle' || state === 'forfeited';
 }
@@ -130,7 +175,23 @@ export function derivePartyRunStartPhase({
   linkedMatchSlotStartAt = null,
   syncedNowMs = null,
 }: PartyRunStartPhaseInput): PartyRunStartPhase {
-  if (roomState === 'active' || linkedMatchStatus === 'active') {
+  // Slot-clamp the room's linkedMatchStatus the SAME way the duel/group status is clamped at
+  // ingestion. The shared linked session is hydrated to 'active' the instant ANY participant
+  // pushes live progress, and the active-room check (loadMatchRoom) can deliver that 'active' room
+  // snapshot to a guest BEFORE their own slot (room polling is otherwise frozen after link, but the
+  // active-room re-fetch still commits a fresh room). Without this clamp, the line below would
+  // return 'active' for a guest whose countdown is still on screen — a third early-active path
+  // beyond the two status-driven consumers. Hold it at 'matched' until this phone's slot is reached;
+  // the legitimate post-slot 'active' inference (hasInferredActiveFromSlotElapsed, below) is
+  // untouched, and roomState === 'active' (the host's own room transition) is intentionally NOT
+  // clamped.
+  const slotClampedLinkedMatchStatus = clampLinkedMatchStateToSlot(
+    linkedMatchStatus,
+    linkedMatchSlotStartAt,
+    syncedNowMs,
+  ) as PartyRunStartPhaseInput['linkedMatchStatus'];
+
+  if (roomState === 'active' || slotClampedLinkedMatchStatus === 'active') {
     return 'active';
   }
 
@@ -182,7 +243,7 @@ export function derivePartyRunStartPhase({
   }
 
   if (
-    linkedMatchStatus === 'matched'
+    slotClampedLinkedMatchStatus === 'matched'
     || roomState === 'countdown'
     || hasInferredMatchedFromSlot
   ) {
@@ -358,6 +419,16 @@ export function buildPartyRunFlowSnapshot({
 }: PartyRunFlowSnapshotInput): PartyRunFlowSnapshot {
   const linkedMatchSlotStartAt = room?.linkedMatchSlotStartAt ?? room?.slotStartAt;
   const linkedMatchDistanceKm = room?.linkedMatchDistanceKm ?? room?.distanceKm;
+  // Slot-clamp the room's linkedMatchStatus before it can promote linkedMatchContext.state to
+  // 'active' (which drives the room-active GPS auto-start + warmup path). Same shared-session early-
+  // 'active' trap as the duel/group status; hold at 'matched' until this phone's slot. The
+  // post-slot signals below (phase === 'active', room.state === 'active', hasReachedOfficialStart)
+  // are unaffected.
+  const slotClampedLinkedMatchStatus = clampLinkedMatchStateToSlot(
+    room?.linkedMatchStatus,
+    linkedMatchSlotStartAt,
+    syncedNowMs,
+  ) as 'matched' | 'active' | null | undefined;
   const phase = derivePartyRunStartPhase({
     roomState: room?.state,
     linkedMatchStatus: room?.linkedMatchStatus,
@@ -386,7 +457,7 @@ export function buildPartyRunFlowSnapshot({
         matchId: room.linkedMatchId,
         slotStartAt: linkedMatchSlotStartAt,
         distanceKm: linkedMatchDistanceKm,
-        state: phase === 'active' || room.linkedMatchStatus === 'active' || room.state === 'active' || hasReachedOfficialStart
+        state: phase === 'active' || slotClampedLinkedMatchStatus === 'active' || room.state === 'active' || hasReachedOfficialStart
           ? 'active' as const
           : 'matched' as const,
       }

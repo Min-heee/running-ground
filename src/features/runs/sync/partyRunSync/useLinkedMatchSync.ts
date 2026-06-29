@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { RunningMatchRoom } from '@/lib/api/types';
+import type { RunningMatchRoom, RunningMatchState } from '@/lib/api/types';
 import { getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
 import type { PartyRunStartPhase } from '@/features/runs/types/matchStateMachine';
@@ -8,6 +8,46 @@ import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
 import type { LinkedMatchSyncInput } from './types';
 
 export const LINKED_MATCH_ARMING_POLL_MS = 1000;
+
+// Decide whether the linked-match poll should flip THIS phone into the active/measuring
+// arena. Pure so it can be reproduced deterministically.
+//
+// The trap this guards against: in a party run the linked duel/group session is SHARED, and
+// the backend hydrates it to `'active'` the instant ANY participant pushes live progress
+// (runningMatchSessionStoreHelpers.hydrateMatchSessionState → hasLiveProgress branch) — which
+// can happen a beat BEFORE this phone's own slot fires (the host starts measuring slightly
+// early / a warm-up heartbeat lands). If we transitioned merely because `serverState ===
+// 'active'`, the guest would be yanked into the measuring arena while their OWN countdown
+// digit is still on screen — exactly the non-host "skips the countdown" bug.
+//
+// Fix: the server-active signal may force the transition ONLY once this phone's countdown has
+// genuinely reached its slot. Before the slot, the ONLY way to go active is this phone's own
+// monotonic clock crossing the slot (`hasCountdownFinished`). After the slot, server-active
+// stays a valid backstop (covers a momentary sub-second clock skew where `syncedNow >= slot`
+// reads false for a frame). When there is no parseable slot at all, server-active is the only
+// signal we have, so it still transitions.
+//
+// This is purely client-side and derives the decision from the SAME server-authoritative slot
+// + this phone's synced clock the countdown already uses — it does NOT re-enable room polling
+// and introduces no second state source, so it cannot re-create the dual-source thrash.
+export function resolveLinkedMatchActiveTransition({
+  serverState,
+  slotStartMs,
+  syncedNowMs,
+}: {
+  serverState: RunningMatchState | null | undefined;
+  slotStartMs: number;
+  syncedNowMs: number;
+}) {
+  const hasParseableSlot = Number.isFinite(slotStartMs);
+  const hasCountdownFinished = hasParseableSlot && syncedNowMs >= slotStartMs;
+  // Server-active only counts once this phone's slot has been reached — or when there is no
+  // slot to count down to at all. It must never pre-empt a still-running local countdown.
+  const serverActiveAfterSlot = serverState === 'active'
+    && (!hasParseableSlot || syncedNowMs >= slotStartMs);
+
+  return hasCountdownFinished || serverActiveAfterSlot;
+}
 
 export function resolveLinkedMatchPollingCadence({
   fastMatchStatusPollMs,
@@ -217,17 +257,20 @@ export function useLinkedMatchSync({
         const shouldPinArenaPage = shouldAutoOpenMatchArena(
           getMatchStartRemainingSeconds(payload.slotStartAt, syncedNowMs),
         );
-        // The active/measuring TRANSITION must NOT be pre-empted by the bare ≤20s slot-elapsed
-        // inference before THIS phone's own countdown has reached 0 — that is exactly what made
-        // the non-host skip the countdown and jump to the arena. Gate it on:
-        //   • server state === 'active' (authoritative), OR
-        //   • this phone's countdown actually finished (slot instant reached / passed).
-        // SAFETY NET (no user-trap): hasCountdownFinished is a monotonic time predicate
-        // re-evaluated on EVERY poll, so a dropped frame at the boundary is caught by the very
-        // next tick, and payload.state === 'active' is the server-authoritative backstop. (No
-        // separate +grace term — syncedNow >= slot already subsumes syncedNow >= slot+grace.)
-        const hasCountdownFinished = Number.isFinite(slotStartMs) && syncedNowMs >= slotStartMs;
-        const shouldTransitionToActive = payload.state === 'active' || hasCountdownFinished;
+        // The active/measuring TRANSITION must NOT be pre-empted before THIS phone's own
+        // countdown has reached its slot — that is exactly what made the non-host skip the
+        // countdown and jump to the arena. The naive `payload.state === 'active'` backstop is
+        // NOT safe on its own here: the linked duel/group session is SHARED, so the backend
+        // flips it to 'active' the instant ANY participant pushes live progress (the host
+        // starting a beat early), which would yank the guest past their on-screen countdown.
+        // resolveLinkedMatchActiveTransition gates the server-active signal on the slot being
+        // reached, so it can never pre-empt the local countdown, while still acting as a
+        // backstop at/after the slot (and as the sole signal when there is no parseable slot).
+        const shouldTransitionToActive = resolveLinkedMatchActiveTransition({
+          serverState: payload.state,
+          slotStartMs,
+          syncedNowMs,
+        });
 
         if (!currentUserDoneWithLinkedMatch) {
           // Mount + scroll the arena page under the overlay during the handoff window (does not
