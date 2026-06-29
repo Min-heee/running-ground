@@ -121,6 +121,7 @@ export function useSlotGatedArenaOpen({
       directMatch: directMatch
         ? { matchId: directMatch.matchId, slotStartAt: directMatch.slotStartAt }
         : null,
+      syncedNowMs,
     });
 
     const serverActive = Boolean(

@@ -429,7 +429,11 @@ export function resolvePartyRunFlowSyncedNowMs({
 // freeze the first value observed for this matchId so a later slotStartAt re-stamp (a status
 // echo / re-queue) can't rotate the countdownKey and re-flash. Returns null when no
 // server-authoritative slot is present yet (the overlay stays armed, no digit).
-function resolveAuthoritativeSlot(matchId: string | null | undefined, slotStartAt: string | null | undefined) {
+function resolveAuthoritativeSlot(
+  matchId: string | null | undefined,
+  slotStartAt: string | null | undefined,
+  nowMs?: number,
+) {
   if (!slotStartAt) {
     return { slotStartAt: null as string | null, slotStartMs: null as number | null };
   }
@@ -437,7 +441,9 @@ function resolveAuthoritativeSlot(matchId: string | null | undefined, slotStartA
   if (!Number.isFinite(parsedMs)) {
     return { slotStartAt: null, slotStartMs: null };
   }
-  const frozenMs = freezeSlotStartMsForMatch(matchId, parsedMs);
+  // nowMs lets the freeze swap a stale (already-elapsed) frozen instant for a fresh future
+  // re-arm, so an early transient slot can't pin the countdown to a dead past instant.
+  const frozenMs = freezeSlotStartMsForMatch(matchId, parsedMs, nowMs);
   return { slotStartAt, slotStartMs: frozenMs };
 }
 
@@ -457,7 +463,7 @@ export function useMatchCountdownModel({
 }: UseMatchCountdownModelInput) {
   // Server-authoritative slot ONLY — no local activeDuel/GroupSlotStartAt fallback. The start
   // instant must be shared by both phones; the local selection is per-device.
-  const duelAuthoritativeSlot = resolveAuthoritativeSlot(duelMatchStatus?.matchId, duelMatchStatus?.slotStartAt);
+  const duelAuthoritativeSlot = resolveAuthoritativeSlot(duelMatchStatus?.matchId, duelMatchStatus?.slotStartAt, syncedNowMs);
   const rawDuelStartCountdownSeconds =
     shouldTrackDirectMatchCountdown(duelMatchState) && duelAuthoritativeSlot.slotStartMs !== null
       ? getMatchStartRemainingSeconds(duelAuthoritativeSlot.slotStartAt as string, syncedNowMs)
@@ -469,7 +475,7 @@ export function useMatchCountdownModel({
     rawRemainingSeconds: rawDuelStartCountdownSeconds,
     nowMs,
   });
-  const groupAuthoritativeSlot = resolveAuthoritativeSlot(groupMatchStatus?.matchId, groupMatchStatus?.slotStartAt);
+  const groupAuthoritativeSlot = resolveAuthoritativeSlot(groupMatchStatus?.matchId, groupMatchStatus?.slotStartAt, syncedNowMs);
   const rawGroupStartCountdownSeconds =
     shouldTrackDirectMatchCountdown(groupMatchState) && groupAuthoritativeSlot.slotStartMs !== null
       ? getMatchStartRemainingSeconds(groupAuthoritativeSlot.slotStartAt as string, syncedNowMs)
@@ -541,6 +547,7 @@ export function useMatchCountdownModel({
   const nextStartingMatchAuthoritativeSlot = resolveAuthoritativeSlot(
     nextStartingMatch?.match.matchId,
     nextStartingMatch?.match.slotStartAt,
+    syncedNowMs,
   );
   const nextStartingMatchSlotStartMs = nextStartingMatchAuthoritativeSlot.slotStartMs;
   const {
@@ -666,6 +673,7 @@ export function useMatchCountdownModel({
   const runtimeRoomAuthoritativeSlot = resolveAuthoritativeSlot(
     runtimeRoom?.linkedMatchId,
     runtimeRoom?.linkedMatchSlotStartAt,
+    syncedNowMs,
   );
   const runtimeRoomSlotStartMs = runtimeRoomAuthoritativeSlot.slotStartMs;
   // STAGE 1 (clean core): the RUNTIME ROOM countdown digit derives from ONE fact —

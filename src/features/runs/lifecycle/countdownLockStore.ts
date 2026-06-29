@@ -66,13 +66,29 @@ export function readLockedCountdownServerTargetMs(key: string | null | undefined
 // Freeze the first slotStartMs observed for a matchId. Later re-stamps for the same match
 // return the originally frozen value, so the countdownKey (`${matchId}:${slotStartAt}`)
 // never rotates mid-countdown from a server echo that nudged the slot.
-export function freezeSlotStartMsForMatch(matchId: string | null | undefined, slotStartMs: number) {
+//
+// ONE exception, guarded by nowMs: if the frozen instant has already ELAPSED (it is stale /
+// in the past) and a NEW future instant arrives for the same match, the match was re-armed
+// to a later slot — adopt it. Without this, a transient/stale early slot (observed once,
+// now past) pins the countdown to a dead instant: selectCountdownDigit→null (no digit) AND
+// the slot-gated arena open sees slotPassed=true and skips the countdown. When nowMs is
+// omitted the behavior is exactly the original first-value-wins freeze.
+export function freezeSlotStartMsForMatch(
+  matchId: string | null | undefined,
+  slotStartMs: number,
+  nowMs?: number,
+) {
   if (typeof matchId !== 'string' || matchId.length === 0 || !Number.isFinite(slotStartMs)) {
     return slotStartMs;
   }
 
   const existing = frozenSlotStartMsByMatchId.get(matchId);
   if (existing !== undefined) {
+    if (typeof nowMs === 'number' && existing <= nowMs && slotStartMs > nowMs) {
+      // Stale frozen instant + a fresh future re-arm → adopt the new slot.
+      frozenSlotStartMsByMatchId.set(matchId, slotStartMs);
+      return slotStartMs;
+    }
     return existing;
   }
 
