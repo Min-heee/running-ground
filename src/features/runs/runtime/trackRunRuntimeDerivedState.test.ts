@@ -1,12 +1,78 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ArenaParticipantViewModel } from '@/features/runs/viewModels/matchViewModels';
+import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import {
+  isRunningMatchForceResetCandidate,
+  resolveActiveLiveMatchProgressMatchId,
+  resolveActiveMatchExitAllOthersForfeited,
   resolveCurrentUserArenaPace,
   resolveDuelLiveSummary,
   resolveRoomLinkedDuelProgress,
   resolveTrackRunRuntimeRouteHydration,
 } from './trackRunRuntimeDerivedState';
+
+test('resolveActiveMatchExitAllOthersForfeited is true only when every other group runner is done and I am still active', () => {
+  const otherDone: ArenaParticipantViewModel = {
+    id: 'other',
+    name: '상대',
+    distanceKm: 1,
+    paceLabel: '5:00/km',
+    liveStatus: 'finished',
+  };
+  const otherActive: ArenaParticipantViewModel = {
+    id: 'other-2',
+    name: '상대2',
+    distanceKm: 1,
+    paceLabel: '5:00/km',
+    liveStatus: 'running',
+  };
+
+  assert.equal(resolveActiveMatchExitAllOthersForfeited({
+    activeMatchExitSource: 'duel',
+    groupArenaParticipants: [otherDone],
+    currentUserGroupLiveStatus: 'running',
+    currentUserHasForfeitedActiveMatch: false,
+  }), false);
+
+  assert.equal(resolveActiveMatchExitAllOthersForfeited({
+    activeMatchExitSource: 'group',
+    groupArenaParticipants: [],
+    currentUserGroupLiveStatus: 'running',
+    currentUserHasForfeitedActiveMatch: false,
+  }), false);
+
+  assert.equal(resolveActiveMatchExitAllOthersForfeited({
+    activeMatchExitSource: 'group',
+    groupArenaParticipants: [otherDone, otherActive],
+    currentUserGroupLiveStatus: 'running',
+    currentUserHasForfeitedActiveMatch: false,
+  }), false);
+
+  assert.equal(resolveActiveMatchExitAllOthersForfeited({
+    activeMatchExitSource: 'group',
+    groupArenaParticipants: [otherDone],
+    currentUserGroupLiveStatus: 'running',
+    currentUserHasForfeitedActiveMatch: false,
+  }), true);
+
+  assert.equal(resolveActiveMatchExitAllOthersForfeited({
+    activeMatchExitSource: 'group',
+    groupArenaParticipants: [otherDone],
+    currentUserGroupLiveStatus: 'finished',
+    currentUserHasForfeitedActiveMatch: false,
+  }), false);
+});
+
+test('isRunningMatchForceResetCandidate matches "already in room/match" messages', () => {
+  assert.equal(isRunningMatchForceResetCandidate(null), false);
+  assert.equal(isRunningMatchForceResetCandidate(''), false);
+  assert.equal(isRunningMatchForceResetCandidate('이미 진행 중인 방이 있어요.'), true);
+  assert.equal(isRunningMatchForceResetCandidate('이미 매칭 중이에요.'), true);
+  assert.equal(isRunningMatchForceResetCandidate('이미 대결이 진행 중이에요.'), true);
+  assert.equal(isRunningMatchForceResetCandidate('네트워크 오류가 발생했어요.'), false);
+  assert.equal(isRunningMatchForceResetCandidate('이미 완료되었습니다.'), false);
+});
 
 test('resolveTrackRunRuntimeRouteHydration prefers explicit route props over hydrated route state', () => {
   const result = resolveTrackRunRuntimeRouteHydration({
@@ -178,4 +244,76 @@ test('resolveRoomLinkedDuelProgress separates current and opponent participants 
   assert.equal(result.roomLinkedDuelOpponentParticipant?.id, 'opponent');
   assert.equal(result.roomLinkedDuelGapKm, 0.23);
   assert.equal(result.hasRoomLinkedDuelLiveProgress, true);
+});
+
+test('resolveActiveLiveMatchProgressMatchId selects by mode, falling back to the linked room context', () => {
+  const duelLinkedContext: Pick<PartyRunLinkedMatchContext, 'mode' | 'matchId'> = {
+    mode: 'duel',
+    matchId: 'room-duel-match',
+  };
+  const groupLinkedContext: Pick<PartyRunLinkedMatchContext, 'mode' | 'matchId'> = {
+    mode: 'group',
+    matchId: 'room-group-match',
+  };
+
+  // duel: prefers the live duel status matchId
+  assert.equal(resolveActiveLiveMatchProgressMatchId({
+    matchMode: 'duel',
+    duelMatchStatusMatchId: 'duel-status-match',
+    groupMatchStatusMatchId: undefined,
+    roomLinkedMatchContextMatchId: duelLinkedContext.matchId,
+    roomLinkedMatchContextMode: duelLinkedContext.mode,
+  }), 'duel-status-match');
+
+  // duel: falls back to the linked room context only when it is a duel context
+  assert.equal(resolveActiveLiveMatchProgressMatchId({
+    matchMode: 'duel',
+    duelMatchStatusMatchId: undefined,
+    groupMatchStatusMatchId: undefined,
+    roomLinkedMatchContextMatchId: duelLinkedContext.matchId,
+    roomLinkedMatchContextMode: duelLinkedContext.mode,
+  }), 'room-duel-match');
+
+  assert.equal(resolveActiveLiveMatchProgressMatchId({
+    matchMode: 'duel',
+    duelMatchStatusMatchId: undefined,
+    groupMatchStatusMatchId: undefined,
+    roomLinkedMatchContextMatchId: groupLinkedContext.matchId,
+    roomLinkedMatchContextMode: groupLinkedContext.mode,
+  }), null);
+
+  // group: prefers the live group status matchId, falls back to a group linked context
+  assert.equal(resolveActiveLiveMatchProgressMatchId({
+    matchMode: 'group',
+    duelMatchStatusMatchId: undefined,
+    groupMatchStatusMatchId: 'group-status-match',
+    roomLinkedMatchContextMatchId: groupLinkedContext.matchId,
+    roomLinkedMatchContextMode: groupLinkedContext.mode,
+  }), 'group-status-match');
+
+  assert.equal(resolveActiveLiveMatchProgressMatchId({
+    matchMode: 'group',
+    duelMatchStatusMatchId: undefined,
+    groupMatchStatusMatchId: undefined,
+    roomLinkedMatchContextMatchId: groupLinkedContext.matchId,
+    roomLinkedMatchContextMode: groupLinkedContext.mode,
+  }), 'room-group-match');
+
+  // no linked context: nothing to fall back to
+  assert.equal(resolveActiveLiveMatchProgressMatchId({
+    matchMode: 'duel',
+    duelMatchStatusMatchId: undefined,
+    groupMatchStatusMatchId: undefined,
+    roomLinkedMatchContextMatchId: undefined,
+    roomLinkedMatchContextMode: undefined,
+  }), null);
+
+  // solo / other modes resolve to null
+  assert.equal(resolveActiveLiveMatchProgressMatchId({
+    matchMode: 'solo',
+    duelMatchStatusMatchId: 'duel-status-match',
+    groupMatchStatusMatchId: 'group-status-match',
+    roomLinkedMatchContextMatchId: duelLinkedContext.matchId,
+    roomLinkedMatchContextMode: duelLinkedContext.mode,
+  }), null);
 });

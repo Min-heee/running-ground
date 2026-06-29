@@ -1,6 +1,7 @@
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { LiveMatchRouteHydration } from '@/features/runs/lifecycle/liveMatchRouteHydration';
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
+import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import {
   buildAverageArenaPaceLabel,
   buildParticipantAveragePaceLabel,
@@ -138,4 +139,78 @@ export function resolveDuelOpponentArenaPace({
   duelArenaUsesLivePace: boolean;
 }) {
   return buildParticipantAveragePaceLabel(opponent, duelArenaUsesLivePace);
+}
+
+// Group sole-survivor: I'm still active but every OTHER participant has left the race
+// (forfeited / finished / disconnected). The exit card must then offer a finish action
+// ("대결 종료") instead of "기권하기", so I'm not penalized as a forfeiter.
+export function resolveActiveMatchExitAllOthersForfeited({
+  activeMatchExitSource,
+  groupArenaParticipants,
+  currentUserGroupLiveStatus,
+  currentUserHasForfeitedActiveMatch,
+}: {
+  activeMatchExitSource: 'duel' | 'group' | null;
+  groupArenaParticipants: ArenaParticipantViewModel[];
+  currentUserGroupLiveStatus: ArenaParticipantViewModel['liveStatus'] | null;
+  currentUserHasForfeitedActiveMatch: boolean;
+}) {
+  if (activeMatchExitSource !== 'group') {
+    return false;
+  }
+  const others = groupArenaParticipants.filter((participant) => !participant.isCurrentUser);
+  if (others.length === 0) {
+    return false;
+  }
+  const allOthersDone = others.every((participant) =>
+    participant.liveStatus === 'forfeited'
+    || participant.liveStatus === 'finished'
+    || participant.liveStatus === 'disconnected',
+  );
+  const selfDone = currentUserGroupLiveStatus === 'finished'
+    || currentUserGroupLiveStatus === 'forfeited'
+    || currentUserHasForfeitedActiveMatch;
+  return allOthersDone && !selfDone;
+}
+
+export function resolveActiveLiveMatchProgressMatchId({
+  matchMode,
+  duelMatchStatusMatchId,
+  groupMatchStatusMatchId,
+  roomLinkedMatchContextMatchId,
+  roomLinkedMatchContextMode,
+}: {
+  matchMode: RunMatchMode;
+  duelMatchStatusMatchId: string | undefined;
+  groupMatchStatusMatchId: string | undefined;
+  roomLinkedMatchContextMatchId: string | undefined;
+  roomLinkedMatchContextMode: PartyRunLinkedMatchContext['mode'] | undefined;
+}): string | null {
+  if (matchMode === 'duel') {
+    return duelMatchStatusMatchId
+      ?? (roomLinkedMatchContextMode === 'duel' ? roomLinkedMatchContextMatchId ?? null : null);
+  }
+
+  if (matchMode === 'group') {
+    return groupMatchStatusMatchId
+      ?? (roomLinkedMatchContextMode === 'group' ? roomLinkedMatchContextMatchId ?? null : null);
+  }
+
+  return null;
+}
+
+export function isRunningMatchForceResetCandidate(message: string | null) {
+  if (!message) {
+    return false;
+  }
+
+  return (
+    message.includes('이미')
+    && (
+      message.includes('방')
+      || message.includes('매치')
+      || message.includes('매칭')
+      || message.includes('대결')
+    )
+  );
 }
