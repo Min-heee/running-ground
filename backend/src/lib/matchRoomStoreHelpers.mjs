@@ -155,6 +155,27 @@ function getRunningMatchRoomState(room, store, now = new Date()) {
   const linkedSession = getMatchRoomLinkedSession(room, store);
 
   if (!linkedSession) {
+    // A transient findMatchSessionById miss while a linked match is STILL attached (the same
+    // race that was dropping the slot block) must NOT collapse the room to 'waiting' — that
+    // flickers the guest's room state active↔waiting, which kills its countdown overlay
+    // (roomCountdownEntry needs state ∈ arming/countdown/active). Derive the pre-active state
+    // from the DURABLE room.slotStartAt instead; the client infers 'active' from the slot
+    // elapsing on its own clock. Never claim a false 'active' from this no-session path.
+    if (room.linkedMatchId) {
+      const slotMs = room.slotStartAt ? new Date(room.slotStartAt).getTime() : Number.NaN;
+      if (
+        room.startMode === 'host'
+        && !room.countdownArmedAt
+        && !areAllRunningMatchRoomParticipantsCountdownReady(room)
+      ) {
+        return 'arming';
+      }
+      if (Number.isFinite(slotMs)) {
+        const remainingSeconds = Math.max(0, Math.ceil((slotMs - now.getTime()) / 1000));
+        return remainingSeconds <= MATCH_ROOM_HOST_START_DELAY_SECONDS ? 'countdown' : 'arming';
+      }
+      return 'arming';
+    }
     return 'waiting';
   }
 
@@ -442,11 +463,20 @@ export function buildRunningMatchRoomResponse(store, currentUser, room, now = ne
       invitedFriends: pendingInvitedFriendIds.map((userId) => buildRunningMatchRoomInviteePayload(store, room, userId, room.updatedAt ?? room.createdAt)),
       countdownReadyCount: room.participants.filter((participant) => participant.isCountdownReady).length,
       countdownReadyRequiredCount: room.participants.length,
-      ...(linkedSession ? {
-        linkedMatchId: linkedSession.id,
+      // Gate on the DURABLE room.linkedMatchId, NOT the transient linkedSession lookup. A
+      // momentary findMatchSessionById miss (store read race / brief absence while the session
+      // is still attached) was dropping this whole block — nulling the guest's
+      // linkedMatchSlotStartAt. Because the client commits the room wholesale (no merge), that
+      // made the guest's countdown SLOT FLICKER null↔value, which bypasses the slot clamp
+      // (clampLinkedMatchStateToSlot passes 'active' through when slot is null) and force-opens
+      // the guest past its countdown — the on-device root cause of the guest countdown skip.
+      // Fall back to room.slotStartAt (reconciled to the session slot at arm time) so the slot
+      // can never vanish while a linked match is attached.
+      ...(room.linkedMatchId ? {
+        linkedMatchId: room.linkedMatchId,
         linkedMatchStatus: linkedMatchState === 'active' ? 'active' : 'matched',
-        linkedMatchSlotStartAt: linkedSession.slotStartAt,
-        linkedMatchDistanceKm: linkedSession.distanceKm,
+        linkedMatchSlotStartAt: linkedSession?.slotStartAt ?? room.slotStartAt,
+        linkedMatchDistanceKm: linkedSession?.distanceKm ?? room.distanceKm,
       } : {}),
       joined: hasJoined,
     },
