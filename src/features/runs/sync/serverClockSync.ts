@@ -215,11 +215,23 @@ export function applySharedServerClock(serverNow?: string, timingSource?: unknow
     return sharedServerClockOffsetMs;
   }
 
-  if (offsetSample.serverNowMs < latestAcceptedServerNowMs) {
+  // The monotonic guard exists ONLY to stop a late/stale snapshot from dragging an
+  // already-converged countdown clock backward. It must NOT swallow the ONE sample that should
+  // perform the cold-start SNAP: a sibling feeder (the room poll / countdown-ACK) often advances
+  // this SHARED high-water mark first, so when this phone's first RTT-timed sample arrives with a
+  // serverNow at/just below that mark, the guard would reject it before it can snap — dropping
+  // the phone into the 400ms crawl (the observed ~5s cross-device countdown skew). So exempt
+  // exactly that sample: an RTT-timed reading while no trusted sample has been folded in yet.
+  // Untimed samples (which never snap) stay fully guarded, and once cold start is done the guard
+  // behaves exactly as before — a converged clock is still protected from a stale snapshot.
+  const isColdStartTrustedSample = offsetSample.rttMs !== null && !hasAcceptedServerClockSample;
+  if (!isColdStartTrustedSample && offsetSample.serverNowMs < latestAcceptedServerNowMs) {
     return sharedServerClockOffsetMs;
   }
 
-  latestAcceptedServerNowMs = offsetSample.serverNowMs;
+  // Keep the high-water mark monotone even when a cold-start sample with an older serverNow is
+  // accepted above, so it can never move backward and re-open the guard to a stale snapshot.
+  latestAcceptedServerNowMs = Math.max(latestAcceptedServerNowMs, offsetSample.serverNowMs);
 
   // Feed the slow crawl the lowest-RTT recent offset rather than this sample's raw
   // offset, so an unlucky high-latency reading can't drag the countdown clock off the

@@ -179,6 +179,32 @@ test('shared server clock rejects older snapshots globally', () => {
   }
 });
 
+test('a sibling feeder advancing the global serverNow does not swallow the first trusted cold-start snap', () => {
+  // The guest's room poll / countdown-ACK (an UNTIMED feeder) advances the SHARED high-water
+  // mark first; the guest's first RTT-timed linked-status sample then arrives with a serverNow
+  // at/just BELOW that mark. It must STILL snap (not be rejected by the monotonic guard and
+  // fall into the 400ms crawl) — that rejection is exactly the ~5s cross-device skew this fixes.
+  resetSharedServerClockForTest();
+  const originalDateNow = Date.now;
+  const wall = Date.parse('2026-05-12T00:00:00.000Z');
+  Date.now = () => wall;
+
+  try {
+    // Sibling (untimed) feed advances latestAcceptedServerNowMs to +6500ms; not trusted.
+    applySharedServerClock(new Date(wall + 6500).toISOString());
+    assert.equal(hasSyncedServerClock(), false);
+
+    // First TRUSTED sample (true offset 5000ms) with serverNow +6000ms — BELOW the mark.
+    const cold = timedSample(wall + 6000, 100, 5000);
+    applySharedServerClock(cold.serverNow, cold.timing);
+    // Snaps straight to 5000 in ONE step (pre-fix it stays mid-crawl because the guard rejects it).
+    assert.equal(getSharedServerClockOffsetMs(), 5000);
+  } finally {
+    Date.now = originalDateNow;
+    resetSharedServerClockForTest();
+  }
+});
+
 test('shared server clock steps newer snapshots with the bounded jump policy', () => {
   resetSharedServerClockForTest();
   const originalDateNow = Date.now;
