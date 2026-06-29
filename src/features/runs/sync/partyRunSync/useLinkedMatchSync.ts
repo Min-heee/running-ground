@@ -209,23 +209,47 @@ export function useLinkedMatchSync({
 
         callbacksRef.current.onMatchModeChange(roomLinkedMatchContext.mode);
 
+        const syncedNowMs = callbacksRef.current.getSyncedNowMs();
+        const slotStartMs = Date.parse(payload.slotStartAt);
+        // The arena may still MOUNT under the countdown overlay at the ≤20s handoff window —
+        // this only scrolls the proven arena page into place beneath the centered countdown,
+        // it does NOT measure yet.
         const shouldPinArenaPage = shouldAutoOpenMatchArena(
-          getMatchStartRemainingSeconds(payload.slotStartAt, callbacksRef.current.getSyncedNowMs()),
+          getMatchStartRemainingSeconds(payload.slotStartAt, syncedNowMs),
         );
+        // The active/measuring TRANSITION must NOT be pre-empted by the bare ≤20s slot-elapsed
+        // inference before THIS phone's own countdown has reached 0 — that is exactly what made
+        // the non-host skip the countdown and jump to the arena. Gate it on:
+        //   • server state === 'active' (authoritative), OR
+        //   • this phone's countdown actually finished (slot instant reached / passed).
+        // SAFETY NET (no user-trap): hasCountdownFinished is a monotonic time predicate
+        // re-evaluated on EVERY poll, so a dropped frame at the boundary is caught by the very
+        // next tick, and payload.state === 'active' is the server-authoritative backstop. (No
+        // separate +grace term — syncedNow >= slot already subsumes syncedNow >= slot+grace.)
+        const hasCountdownFinished = Number.isFinite(slotStartMs) && syncedNowMs >= slotStartMs;
+        const shouldTransitionToActive = payload.state === 'active' || hasCountdownFinished;
 
-        if (!currentUserDoneWithLinkedMatch && (payload.state === 'active' || shouldPinArenaPage)) {
-          callbacksRef.current.onForceOpenActiveMatchChange(true);
+        if (!currentUserDoneWithLinkedMatch) {
+          // Mount + scroll the arena page under the overlay during the handoff window (does not
+          // start measuring). This is decoupled from the active transition below.
+          if (shouldPinArenaPage) {
+            const pinKey = [
+              roomLinkedMatchContext.matchId,
+              payload.slotStartAt,
+              'arena-handoff',
+            ].join(':');
 
-          const pinKey = [
-            roomLinkedMatchContext.matchId,
-            payload.slotStartAt,
-            'arena-handoff',
-          ].join(':');
+            if (roomLinkedArenaPinRef.current !== pinKey) {
+              roomLinkedArenaPinRef.current = pinKey;
+              callbacksRef.current.onLiveArenaPageChange(0);
+              livePagerRef.current?.scrollTo({ x: 0, animated: false });
+            }
+          }
 
-          if (shouldPinArenaPage && roomLinkedArenaPinRef.current !== pinKey) {
-            roomLinkedArenaPinRef.current = pinKey;
-            callbacksRef.current.onLiveArenaPageChange(0);
-            livePagerRef.current?.scrollTo({ x: 0, animated: false });
+          // Flip to active/measuring ONLY once the countdown has genuinely finished (or the
+          // server says active) — never on the bare ≤20s pre-empt.
+          if (shouldTransitionToActive) {
+            callbacksRef.current.onForceOpenActiveMatchChange(true);
           }
         }
       } catch {

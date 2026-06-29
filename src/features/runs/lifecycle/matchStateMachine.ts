@@ -96,7 +96,7 @@ export function resolveRunTrackingState(currentState: RunTrackingState, event: R
 // 120s rather than 60s — two-phone tests on Wide 6 showed the host's start
 // API response sometimes lags by tens of seconds, so a longer grace covers
 // the realistic worst case without letting the inference rot indefinitely.
-const ACTIVE_INFERENCE_GRACE_SECONDS = 120;
+export const ACTIVE_INFERENCE_GRACE_SECONDS = 120;
 
 // We treat slot-time-derived state as "matched-equivalent" further out
 // than the visible overlay window, because the host phone's start API

@@ -13,6 +13,7 @@ import {
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { useStableCountdownSeconds } from '@/features/runs/lifecycle/hooks/useStableCountdownSeconds';
 import {
+  ACTIVE_INFERENCE_GRACE_SECONDS,
   buildPartyRunFlowSnapshot,
 } from '@/features/runs/lifecycle/matchStateMachine';
 import { selectLinkedRuntimeRoom } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
@@ -73,23 +74,35 @@ type UseMatchCountdownModelInput = {
 
 export function resolveShouldShowRoomArmingOverlay({
   linkedMatchId,
-  linkedMatchSlotStartAt,
   matchMode,
   remainingSeconds,
   shouldShowLoading,
   startMode,
-  syncedNowMs,
+  isMatchActive = false,
+  hasLinkedMatchSlotElapsed = false,
 }: {
   linkedMatchId?: string | null;
-  linkedMatchSlotStartAt?: string | null;
   matchMode: RunMatchMode;
   remainingSeconds?: number | null;
   shouldShowLoading: boolean;
   startMode?: RunningMatchRoom['startMode'] | null;
-  syncedNowMs: number;
+  // True only when the match is GENUINELY active (server room.state === 'active' or
+  // linkedMatchStatus === 'active'). This — together with "a digit is now showing" — is what
+  // releases the shared 맞추는중/arming hold. The bare per-phone slot-elapsed inference must
+  // NOT release it: a peer whose slot just elapsed but who has no countdown digit yet (cold
+  // clock, delayed poll) used to skip straight past the hold to active; now it stays held on
+  // 맞추는중 until it actually has a digit to count, so both phones count together.
+  isMatchActive?: boolean;
+  // Pure-time release CEILING (immune to room-poll liveness). The caller sets this once the
+  // synced clock is past slot + ACTIVE_INFERENCE_GRACE — exactly the instant derivePartyRun
+  // StartPhase stops inferring 'active' and would otherwise fall back to 'arming' and re-show
+  // the opaque loader OVER an already-running arena with no escape (the only window where the
+  // loader can re-appear, since within the grace the phase is still 'active' so shouldShow
+  // Loading is already false). Releasing only at that boundary — not at the bare slot — is
+  // deliberate: a bare-slot ceiling on a cold, not-yet-converged clock could release the hold
+  // mid-countdown and re-create the non-host skip.
+  hasLinkedMatchSlotElapsed?: boolean;
 }) {
-  const linkedSlotStartMs = linkedMatchSlotStartAt ? Date.parse(linkedMatchSlotStartAt) : NaN;
-  const hasLinkedMatchSlotElapsed = Number.isFinite(linkedSlotStartMs) && syncedNowMs >= linkedSlotStartMs;
   const shouldShowHostStartPollInLoading = Boolean(
     startMode === 'host'
     && typeof remainingSeconds === 'number'
@@ -104,12 +117,16 @@ export function resolveShouldShowRoomArmingOverlay({
     && remainingSeconds > 0
     && remainingSeconds <= MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS;
 
+  // Release the hold ONLY once this phone has a countdown digit to show OR the match is
+  // genuinely active. Until one of those is true, keep holding on 맞추는중 — never drop to
+  // active merely because this phone's own slot instant elapsed.
   return Boolean(
     linkedMatchId
     && (shouldShowLoading || shouldShowHostStartPollInLoading)
     && (matchMode === 'duel' || matchMode === 'group')
-    && !hasLinkedMatchSlotElapsed
-    && !isCountdownNumberVisible,
+    && !isCountdownNumberVisible
+    && !isMatchActive
+    && !hasLinkedMatchSlotElapsed,
   );
 }
 
@@ -254,17 +271,28 @@ export function resolveLockedCountdownTarget({
 
   const existing = readCountdownLock(key);
 
+  // A digit must appear whenever a server-authoritative slot is present AND the raw remaining
+  // is in the window (0, max] — REGARDLESS of clockReady. clockReady gates ONLY whether we
+  // FREEZE the precise instant (writeCountdownLock), never whether a number is shown. This is
+  // the desync fix: the non-host (cold clock) used to race clockReady and lose, opening the
+  // arena with a null digit; now it shows the live digit immediately and the freeze catches
+  // up once the offset is trusted.
+  const slotInWindow = effectiveSlotStartMs !== null
+    && typeof rawRemainingSeconds === 'number'
+    && rawRemainingSeconds > 0
+    && rawRemainingSeconds <= maxStartSeconds;
+
   if (!existing) {
-    // No lock yet. Only freeze when the clock is READY and an authoritative slot is present
-    // and we're inside the window. Until then, return the LIVE display digit without writing
-    // a lock, so the number stays correct as the offset converges.
-    const canFreeze = clockReady
-      && effectiveSlotStartMs !== null
-      && typeof rawRemainingSeconds === 'number'
-      && rawRemainingSeconds > 0
-      && rawRemainingSeconds <= maxStartSeconds;
+    // Only freeze when the clock is READY and an authoritative slot is in the window. Until
+    // then, return the LIVE display digit (ceil(liveRemainingMs/1000) off the live synced
+    // offset) WITHOUT writing a lock, so a skewed phone never freezes a multi-second-wrong
+    // instant — but it still counts down in lock-step with the offset.
+    const canFreeze = clockReady && slotInWindow;
 
     if (!canFreeze) {
+      // No lock to freeze yet. If a slot is present + in window, ALWAYS return a live digit
+      // (clockReady false is fine — the offset still ticks it down). Return null ONLY when
+      // there is genuinely no slot/remaining or it is out of window.
       const liveRemainingMs = liveRemainingMsFrom(effectiveSlotStartMs);
       if (
         liveRemainingMs === null
@@ -285,11 +313,17 @@ export function resolveLockedCountdownTarget({
   const remainingMs = liveRemainingMsFrom(serverTargetMs);
 
   if (remainingMs === null || remainingMs <= 0) {
-    // Tombstone-on-finish: mark the key finished BEFORE clearing the lock, so a one-frame
-    // gap (the model re-offering the same match) can't re-mint a fresh lock and re-flash a
-    // digit. Then drop the lock entry.
-    markCountdownKeyFinished(key);
-    clearCountdownLock(key);
+    // Tombstone-on-finish ONLY when a lock had PREVIOUSLY been frozen for this key (existing
+    // !== null at entry). A countdown that genuinely COUNTED DOWN to zero is terminal — the
+    // tombstone stops the model re-offering the same match for a frame and re-flashing the
+    // digit. But a FIRST observation that is already <=0 (e.g. a slot that elapsed before
+    // this phone ever saw it, or a momentarily-stale clock) must NOT tombstone the key: doing
+    // so would permanently suppress a countdown that never actually counted down — exactly
+    // the trap that skipped the non-host straight to the arena with no countdown.
+    if (existing) {
+      markCountdownKeyFinished(key);
+      clearCountdownLock(key);
+    }
     return null;
   }
 
@@ -724,6 +758,23 @@ export function useMatchCountdownModel({
     : null;
   const visibleCountdownEntry = roomCountdownEntry ?? fallbackVisibleCountdownEntry;
 
+  // Pure-time release CEILING for the 맞추는중 hold, set at slot + ACTIVE_INFERENCE_GRACE.
+  // That instant is EXACTLY when derivePartyRunStartPhase stops inferring 'active' and would
+  // otherwise fall back to 'arming' and re-show the loader over an already-running arena.
+  // Tying the ceiling to the SAME constant and the SAME synced-clock read (matchRoomFlowSynced
+  // NowMs) as the phase machine makes the two flip atomically, so the loader can never
+  // re-cover. The 120s grace (NOT 0) is deliberate: a smaller ceiling would let a cold,
+  // not-yet-converged clock that reads slightly past-slot release the hold mid-countdown and
+  // re-create the non-host skip — within 120s the phase is still inferred 'active', so the
+  // loader is already hidden and the ceiling only matters at the re-arm boundary.
+  const matchRoomArmingSlotStartAt = matchRoom?.linkedMatchSlotStartAt ?? matchRoom?.slotStartAt;
+  const matchRoomArmingSlotStartMs = matchRoomArmingSlotStartAt
+    ? Date.parse(matchRoomArmingSlotStartAt)
+    : Number.NaN;
+  const hasMatchRoomArmingSlotElapsedPastGrace = Number.isFinite(matchRoomArmingSlotStartMs)
+    && typeof matchRoomFlowSyncedNowMs === 'number'
+    && matchRoomFlowSyncedNowMs >= matchRoomArmingSlotStartMs + ACTIVE_INFERENCE_GRACE_SECONDS * 1000;
+
   return {
     duelStartCountdownSeconds,
     groupStartCountdownSeconds,
@@ -736,12 +787,16 @@ export function useMatchCountdownModel({
     activeUpcomingMatch,
     shouldShowRoomArmingOverlay: resolveShouldShowRoomArmingOverlay({
       linkedMatchId: matchRoom?.linkedMatchId,
-      linkedMatchSlotStartAt: matchRoom?.linkedMatchSlotStartAt,
       matchMode,
       remainingSeconds: matchRoomCountdownRemainingSeconds,
       shouldShowLoading: matchRoomFlow.shouldShowLoading,
       startMode: matchRoom?.startMode,
-      syncedNowMs,
+      // Genuinely active only — the bare slot-elapsed inference must NOT release the hold
+      // DURING the window; the pure-time ceiling below only releases it AT/after the slot.
+      isMatchActive: matchRoom?.state === 'active' || matchRoom?.linkedMatchStatus === 'active',
+      // Backstop so a stalled room poll can never re-cover a running arena once the
+      // active-inference grace expires (the only window where the loader can re-appear).
+      hasLinkedMatchSlotElapsed: hasMatchRoomArmingSlotElapsedPastGrace,
     }),
     canOpenRoomArena: visiblePartyRunFlow.shouldOpenArena,
   };

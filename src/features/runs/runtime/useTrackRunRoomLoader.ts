@@ -270,6 +270,14 @@ export function useTrackRunRoomLoader({
       return null;
     }
 
+    // Feed the shared server clock from EVERY timed room response — BEFORE the snapshot-dedup
+    // early-return below — so clock convergence keeps advancing even when the room snapshot is
+    // unchanged. The non-host's room poll used to SKIP syncServerClock on an unchanged snapshot,
+    // starving its cold clock of agreeing RTT samples; it then lost the race to clockReady and
+    // skipped the countdown. This sample is now always taken; it changes NO room-state commit
+    // behavior (the dedup return below is unchanged).
+    syncServerClock(payload.serverNow, payload);
+
     const snapshotKey = buildActiveRoomSnapshotKey({
       room: payload.room,
       userId: currentUserId,
@@ -291,7 +299,6 @@ export function useTrackRunRoomLoader({
       source: 'track-run experience',
     }));
 
-    syncServerClock(payload.serverNow, payload);
     if (payload.room) {
       rgPerfMark('already joined room detected', {
         roomId: payload.room.roomId,

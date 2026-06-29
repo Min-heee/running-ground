@@ -44,6 +44,61 @@ export function resolveMonotonicCountdownFloor(floor: number | null, candidate: 
   return floor === null ? candidate : Math.min(floor, candidate);
 }
 
+// Per-mount state for one overlay leaf: the monotonic floor + whether this mount's countdown
+// has reached its terminal zero, scoped to the countdownKey that state belongs to.
+export type LocalCountdownMountState = {
+  key: string | null | undefined;
+  floor: number | null;
+  ended: boolean;
+};
+
+export function createLocalCountdownMountState(key: string | null | undefined): LocalCountdownMountState {
+  return { key, floor: null, ended: false };
+}
+
+// Pure transition for the overlay leaf, scoped to countdownKey. Two desync-fix invariants:
+//   1. KEY ROTATION within one persisted mount (room→runtime / reservation→running-tab handoff
+//      re-uses the same mount but rotates the key) RESETS ended/floor so the new countdown is
+//      born fresh — the old key's terminal state must never leak into a different match.
+//   2. TOMBSTONE-ON-FINISH only when this mount actually counted down (floor was a positive
+//      value). A mount that reaches candidate=null without ever showing a positive digit never
+//      counted down, so it must NOT tombstone the key (which would permanently suppress a
+//      countdown that should still appear — e.g. a key that briefly read <=0 on a stale clock).
+export function advanceLocalCountdownMountState(
+  state: LocalCountdownMountState,
+  next: { key: string | null | undefined; candidate: number | null },
+): {
+  state: LocalCountdownMountState;
+  displayedSeconds: number | null;
+  // The key to tombstone as finished (only when this mount genuinely counted a positive digit
+  // down to zero), or null when nothing should be tombstoned this step.
+  tombstoneKey: string | null | undefined;
+} {
+  // Reset the per-mount terminal/floor state when the key rotates, BEFORE applying the candidate.
+  let working: LocalCountdownMountState = state.key !== next.key
+    ? { key: next.key, floor: null, ended: false }
+    : state;
+
+  if (working.ended) {
+    // Terminal for this key+mount: a late prop can't re-show it. Hold null, tombstone nothing.
+    return { state: working, displayedSeconds: null, tombstoneKey: null };
+  }
+
+  if (next.candidate === null) {
+    const countedDown = typeof working.floor === 'number' && working.floor > 0;
+    working = { ...working, ended: true };
+    return {
+      state: working,
+      displayedSeconds: null,
+      tombstoneKey: countedDown ? next.key : null,
+    };
+  }
+
+  const nextFloor = resolveMonotonicCountdownFloor(working.floor, next.candidate);
+  working = { ...working, floor: nextFloor };
+  return { state: working, displayedSeconds: nextFloor, tombstoneKey: null };
+}
+
 // The finished-key tombstone now lives in the shared countdownLockStore (re-exported at the
 // top of this file). It survives an overlay UNMOUNT+REMOUNT (which a component-local ref
 // cannot): at the countdown->active boundary the model briefly drops `roomCountdownEntry` to
@@ -70,29 +125,24 @@ export function useLocalCountdownSeconds({
 }) {
   const [displayedSeconds, setDisplayedSeconds] = useState<number | null>(secondsRemaining);
 
-  // Monotonic floor for this countdown. Resets on mount — each countdown renders a
-  // fresh overlay, so a brand-new countdown re-seeds high — while within one countdown
-  // the digit can never increase regardless of which source (local tick or prop) drives it.
-  const floorRef = useRef<number | null>(null);
-  // Once this countdown reaches zero it is terminal for this mount as well, so a late
-  // prop within the same mount can't re-show it.
-  const endedRef = useRef(false);
+  // The whole per-mount countdown state (monotonic floor + terminal flag + the key it belongs
+  // to), driven through the pure advanceLocalCountdownMountState reducer. The reducer:
+  //   • RESETS floor/ended when the key rotates within one persisted mount (room→runtime /
+  //     reservation→running-tab handoff re-uses the mount but rotates the key) — so a fresh
+  //     slot is never born already-finished or floored to the old value;
+  //   • tombstones the key ONLY when this mount actually counted a positive digit down to 0.
+  const mountStateRef = useRef<LocalCountdownMountState>(createLocalCountdownMountState(countdownKey));
 
   const commit = useCallback((candidate: number | null) => {
-    if (endedRef.current) {
-      return;
+    const result = advanceLocalCountdownMountState(mountStateRef.current, {
+      key: countdownKey,
+      candidate,
+    });
+    mountStateRef.current = result.state;
+    if (result.tombstoneKey !== null) {
+      markCountdownKeyFinished(result.tombstoneKey);
     }
-
-    if (candidate === null) {
-      endedRef.current = true;
-      markCountdownKeyFinished(countdownKey);
-      setDisplayedSeconds(null);
-      return;
-    }
-
-    const nextFloor = resolveMonotonicCountdownFloor(floorRef.current, candidate);
-    floorRef.current = nextFloor;
-    setDisplayedSeconds(nextFloor);
+    setDisplayedSeconds(result.displayedSeconds);
   }, [countdownKey]);
 
   // Fallback path: no locked target (non-host / direct / solo, or a host lock released

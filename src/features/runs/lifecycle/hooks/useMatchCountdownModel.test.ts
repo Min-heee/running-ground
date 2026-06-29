@@ -52,13 +52,47 @@ function tick({
   });
 }
 
-test('room arming overlay stays hidden after the linked match slot elapsed', () => {
+test('room arming overlay HOLDS after the slot elapses when no digit is showing yet (no active)', () => {
+  // Behavior change (countdown desync fix): a bare slot-elapsed inference NO LONGER releases
+  // the shared 맞추는중/arming hold. A peer whose slot just elapsed but which has no countdown
+  // digit yet (cold clock / delayed poll) must STAY held — not skip to active — so both phones
+  // count together. The hold is released only by a visible digit OR genuine active.
   const shouldShow = resolveShouldShowRoomArmingOverlay({
     linkedMatchId: 'match-1',
-    linkedMatchSlotStartAt: '2026-05-20T12:00:00.000Z',
     matchMode: 'duel',
+    remainingSeconds: null,
     shouldShowLoading: true,
-    syncedNowMs: Date.parse('2026-05-20T12:02:01.000Z'),
+    isMatchActive: false,
+  });
+
+  assert.equal(shouldShow, true);
+});
+
+test('room arming overlay RELEASES once past the active-inference grace ceiling (stalled-poll trap guard)', () => {
+  // Pure-time ceiling: even with no digit and a stale (non-active) room poll, once the synced
+  // clock is past slot + ACTIVE_INFERENCE_GRACE the loader MUST release — otherwise a room poll
+  // that died across the boundary re-covers a correctly-running arena with no escape. Within the
+  // grace the phase is still inferred 'active' (shouldShowLoading false), so this ceiling only
+  // ever matters at the re-arm boundary; releasing here cannot re-create the non-host skip.
+  const shouldShow = resolveShouldShowRoomArmingOverlay({
+    linkedMatchId: 'match-1',
+    matchMode: 'duel',
+    remainingSeconds: null,
+    shouldShowLoading: true,
+    isMatchActive: false,
+    hasLinkedMatchSlotElapsed: true,
+  });
+
+  assert.equal(shouldShow, false);
+});
+
+test('room arming overlay releases once the match is genuinely active', () => {
+  const shouldShow = resolveShouldShowRoomArmingOverlay({
+    linkedMatchId: 'match-1',
+    matchMode: 'duel',
+    remainingSeconds: null,
+    shouldShowLoading: true,
+    isMatchActive: true,
   });
 
   assert.equal(shouldShow, false);
@@ -67,10 +101,9 @@ test('room arming overlay stays hidden after the linked match slot elapsed', () 
 test('room arming overlay keeps existing loading behavior before the linked match slot', () => {
   const shouldShow = resolveShouldShowRoomArmingOverlay({
     linkedMatchId: 'match-1',
-    linkedMatchSlotStartAt: '2026-05-20T12:00:00.000Z',
     matchMode: 'duel',
     shouldShowLoading: true,
-    syncedNowMs: Date.parse('2026-05-20T11:59:50.000Z'),
+    isMatchActive: false,
   });
 
   assert.equal(shouldShow, true);
@@ -79,10 +112,9 @@ test('room arming overlay keeps existing loading behavior before the linked matc
 test('room arming overlay keeps existing behavior when no linked slot is available', () => {
   const shouldShow = resolveShouldShowRoomArmingOverlay({
     linkedMatchId: 'match-1',
-    linkedMatchSlotStartAt: null,
     matchMode: 'group',
     shouldShowLoading: true,
-    syncedNowMs: Date.parse('2026-05-20T12:02:01.000Z'),
+    isMatchActive: false,
   });
 
   assert.equal(shouldShow, true);
@@ -91,18 +123,16 @@ test('room arming overlay keeps existing behavior when no linked slot is availab
 test('room arming overlay remains limited to competitive match modes with loading state', () => {
   assert.equal(resolveShouldShowRoomArmingOverlay({
     linkedMatchId: 'match-1',
-    linkedMatchSlotStartAt: '2026-05-20T12:05:00.000Z',
     matchMode: 'solo',
     shouldShowLoading: true,
-    syncedNowMs: Date.parse('2026-05-20T12:00:00.000Z'),
+    isMatchActive: false,
   }), false);
 
   assert.equal(resolveShouldShowRoomArmingOverlay({
     linkedMatchId: 'match-1',
-    linkedMatchSlotStartAt: '2026-05-20T12:05:00.000Z',
     matchMode: 'duel',
     shouldShowLoading: false,
-    syncedNowMs: Date.parse('2026-05-20T12:00:00.000Z'),
+    isMatchActive: false,
   }), false);
 });
 
@@ -385,23 +415,128 @@ test('party run flow synced time only changes when a linked slot has elapsed', (
 test('host-start room arming overlay is superseded by the numeric countdown once it shows', () => {
   const whileCountdownVisible = resolveShouldShowRoomArmingOverlay({
     linkedMatchId: 'match-1',
-    linkedMatchSlotStartAt: '2026-05-20T12:00:12.000Z',
     matchMode: 'duel',
     remainingSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS + 2,
     shouldShowLoading: true,
     startMode: 'host',
-    syncedNowMs: Date.parse('2026-05-20T12:00:00.000Z'),
+    isMatchActive: false,
   });
   assert.equal(whileCountdownVisible, false);
 
   const whileStillSyncing = resolveShouldShowRoomArmingOverlay({
     linkedMatchId: 'match-1',
-    linkedMatchSlotStartAt: '2026-05-20T12:00:40.000Z',
     matchMode: 'duel',
     remainingSeconds: null,
     shouldShowLoading: true,
     startMode: 'host',
-    syncedNowMs: Date.parse('2026-05-20T12:00:00.000Z'),
+    isMatchActive: false,
   });
   assert.equal(whileStillSyncing, true);
+});
+
+// ---------------------------------------------------------------------------
+// Countdown desync fix (A + D): the live digit must appear off a server slot REGARDLESS of
+// clockReady (clockReady gates ONLY the precise freeze), and a FIRST observation that is
+// already <=0 must NOT tombstone the key — only a countdown that genuinely counted down does.
+// ---------------------------------------------------------------------------
+
+test('A: with clockReady=false but a slot in-window, a live digit shows and NO lock is written', () => {
+  resetLockedCountdownTargetForTest();
+  const key = 'match-desync:slot';
+
+  try {
+    // Non-host with a cold clock (clockReady=false): the slot is server-authoritative and in
+    // window, so the digit MUST be returned (not null) and ticks off the live offset...
+    assert.equal(tick({ key, slotStartMs: 28_000, syncedNowMs: 0, clockReady: false }), 28);
+    // ...but the precise FREEZE is gated on clockReady, so NO lock is written yet.
+    assert.equal(readLockedCountdownTargetMs(key), null);
+
+    assert.equal(tick({ key, slotStartMs: 28_000, syncedNowMs: 18_000, clockReady: false }), 10);
+    assert.equal(readLockedCountdownTargetMs(key), null);
+
+    // Once the clock is trusted, the FIRST ready render freezes the (now-correct) server instant.
+    assert.equal(tick({ key, slotStartMs: 28_000, syncedNowMs: 20_000, clockReady: true }), 8);
+    assert.equal(readLockedCountdownTargetMs(key), 28_000);
+  } finally {
+    resetLockedCountdownTargetForTest();
+  }
+});
+
+test('D: a FIRST observation already <=0 returns null WITHOUT tombstoning the key', () => {
+  resetLockedCountdownTargetForTest();
+  const key = 'match-first-elapsed:slot';
+
+  try {
+    // The very first time we see this key the slot has already elapsed (e.g. momentarily stale
+    // clock). No lock had ever been frozen → return null but do NOT tombstone, so the key can
+    // still count down once it re-enters the window.
+    assert.equal(resolveLockedCountdownTarget({
+      key,
+      maxStartSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
+      rawRemainingSeconds: null,
+      rawRemainingMs: -500,
+      slotStartMs: 9_500,
+      syncedNowMs: 10_000,
+      clockReady: true,
+    }), null);
+    assert.equal(isCountdownKeyFinished(key), false);
+
+    // It re-enters the window (clock corrected): the digit appears and a lock can freeze.
+    assert.equal(tick({ key, slotStartMs: 40_000, syncedNowMs: 15_000, clockReady: true }), 25);
+    assert.equal(readLockedCountdownTargetMs(key), 40_000);
+    assert.equal(isCountdownKeyFinished(key), false);
+  } finally {
+    resetLockedCountdownTargetForTest();
+  }
+});
+
+test('D: a key that FROZE then reaches 0 DOES tombstone', () => {
+  resetLockedCountdownTargetForTest();
+  const key = 'match-froze-then-zero:slot';
+
+  try {
+    // Freeze a lock (clockReady) and count down...
+    assert.equal(tick({ key, slotStartMs: 5_000, syncedNowMs: 0, clockReady: true }), 5);
+    assert.equal(readLockedCountdownTargetMs(key), 5_000);
+    assert.equal(isCountdownKeyFinished(key), false);
+
+    // ...then reach 0: the countdown genuinely finished → tombstone.
+    assert.equal(tick({ key, slotStartMs: 5_000, syncedNowMs: 5_000, clockReady: true }), null);
+    assert.equal(isCountdownKeyFinished(key), true);
+  } finally {
+    resetLockedCountdownTargetForTest();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Arming hold (C1): hold while no slot/digit is available; release on a visible digit OR active.
+// ---------------------------------------------------------------------------
+
+test('C1: arming overlay HOLDS when no countdown digit is available yet, releases on a digit', () => {
+  // No digit (remainingSeconds null) + not active → HOLD.
+  assert.equal(resolveShouldShowRoomArmingOverlay({
+    linkedMatchId: 'match-1',
+    matchMode: 'group',
+    remainingSeconds: null,
+    shouldShowLoading: true,
+    isMatchActive: false,
+  }), true);
+
+  // A digit is now available (in the 30s window) → RELEASE.
+  assert.equal(resolveShouldShowRoomArmingOverlay({
+    linkedMatchId: 'match-1',
+    matchMode: 'group',
+    remainingSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
+    shouldShowLoading: true,
+    isMatchActive: false,
+  }), false);
+
+  // Genuinely active → RELEASE even with no digit.
+  assert.equal(resolveShouldShowRoomArmingOverlay({
+    linkedMatchId: 'match-1',
+    matchMode: 'group',
+    remainingSeconds: null,
+    shouldShowLoading: true,
+    isMatchActive: true,
+  }), false);
 });
