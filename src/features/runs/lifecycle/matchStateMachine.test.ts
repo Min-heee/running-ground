@@ -246,9 +246,10 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
     linkedMatchSlotStartAt: '2026-05-12T00:03:00.000Z',
   }), 'arming');
 
-  // Slot has just fired but the server's 'active' status push hasn't
-  // landed yet. Within the grace window the phase stays 'active' so the
-  // match arena doesn't unmount and drop the user back to the running tab.
+  // STAGE 2 (clean core): the SLOT is the single gate. remaining≤0 → 'active' the
+  // instant the slot is reached, with NO inference-grace cap. The match arena stays
+  // mounted because 'active' is reported as soon as the slot fires (not deferred to a
+  // server status push), and stays 'active' however long the slot has been past.
   assert.equal(derivePartyRunStartPhase({
     roomState: 'countdown',
     linkedMatchStatus: 'matched',
@@ -265,8 +266,6 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
     linkedMatchId: 'room-match-1',
     linkedMatchSlotStartAt: '2026-05-11T23:59:45.000Z',
   }), 'active');
-  // Within the 120s grace window we keep inferring 'active' even when the
-  // slot has been elapsed for a while (covers slow start API responses).
   assert.equal(derivePartyRunStartPhase({
     roomState: 'arming',
     linkedMatchStatus: null,
@@ -275,7 +274,8 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
     linkedMatchId: 'room-match-1',
     linkedMatchSlotStartAt: '2026-05-11T23:58:30.000Z',
   }), 'active');
-  // Outside the 120s grace window we stop inferring (treat it as stale).
+  // No grace cap: a slot elapsed long ago is STILL 'active' on remaining≤0 alone —
+  // there is no upper bound that re-falls-back to 'arming' (the old 120s ceiling is gone).
   assert.equal(derivePartyRunStartPhase({
     roomState: 'arming',
     linkedMatchStatus: null,
@@ -283,10 +283,8 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
     remainingSeconds: -180,
     linkedMatchId: 'room-match-1',
     linkedMatchSlotStartAt: '2026-05-11T23:57:00.000Z',
-  }), 'arming');
-  // Some production builds report `null` once the slot has elapsed. The
-  // absolute room-linked slot timestamp should still infer active inside the
-  // same grace window, instead of falling back to 'arming'.
+  }), 'active');
+  // remaining=null but the SYNCED clock is past the slot → 'active' (slot reached by clock).
   assert.equal(derivePartyRunStartPhase({
     roomState: 'countdown',
     linkedMatchStatus: 'matched',
@@ -296,6 +294,7 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
     linkedMatchSlotStartAt: '2026-05-12T00:00:00.000Z',
     syncedNowMs: Date.parse('2026-05-12T00:00:15.000Z'),
   }), 'active');
+  // remaining=null and the synced clock is well past the slot → still 'active' (no grace cap).
   assert.equal(derivePartyRunStartPhase({
     roomState: 'countdown',
     linkedMatchStatus: 'matched',
@@ -304,6 +303,16 @@ test('party run start phase normalizes host loading, countdown, arena handoff, a
     linkedMatchId: 'room-match-1',
     linkedMatchSlotStartAt: '2026-05-12T00:00:00.000Z',
     syncedNowMs: Date.parse('2026-05-12T00:03:00.000Z'),
+  }), 'active');
+  // remaining=null, syncedNow=null, slot far in the FUTURE → pre-slot, no countdown yet → arming.
+  assert.equal(derivePartyRunStartPhase({
+    roomState: 'arming',
+    linkedMatchStatus: null,
+    isCountdownReady: false,
+    remainingSeconds: null,
+    linkedMatchId: 'room-match-1',
+    linkedMatchSlotStartAt: '2026-05-12T00:03:00.000Z',
+    syncedNowMs: null,
   }), 'arming');
 });
 

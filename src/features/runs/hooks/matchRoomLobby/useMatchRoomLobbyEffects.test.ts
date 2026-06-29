@@ -72,8 +72,13 @@ test('linked room routing returns stale elapsed lobbies to the running tab', () 
     syncedNowMs,
   });
 
-  assert.equal(flow.phase, 'arming');
-  assert.equal(flow.canOpenLinkedMatch, false);
+  // STAGE 2 (clean core): a linked room whose slot has elapsed (synced clock past
+  // the slot) is 'active' — the slot is the single gate, so a slot-reached room is
+  // post-countdown regardless of how long ago it fired. The routing outcome is
+  // UNCHANGED — the elapsed lobby still returns to the running tab — but now via the
+  // slot-reached 'active' phase (canOpenLinkedMatch) instead of a stale-'arming' label.
+  assert.equal(flow.phase, 'active');
+  assert.equal(flow.canOpenLinkedMatch, true);
   assert.equal(hasRoomLinkedMatchSlotStarted(room, syncedNowMs), true);
   assert.equal(shouldRouteLinkedMatchRoomToRunning({ flow, room, syncedNowMs }), true);
 });

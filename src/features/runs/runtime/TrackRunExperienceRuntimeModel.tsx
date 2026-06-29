@@ -70,7 +70,6 @@ import {
 } from '@/features/runs/viewModels/matchResultFallbackRows';
 import {
   buildMatchTransitionNotice,
-  clampLinkedMatchStateToSlot,
   type PartyRunLinkedMatchContext,
 } from '@/features/runs/lifecycle/matchStateMachine';
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
@@ -1498,15 +1497,13 @@ export function TrackRunExperienceRuntime({
     }
 
     focusedDuelMatchIdRef.current = payload.matchId ?? focusedDuelMatchIdRef.current;
-    // Single-source slot clamp (see clampLinkedMatchStateToSlot). The linked duel session is SHARED:
-    // the backend reports state:'active' the instant ANY participant pushes live progress, which can
-    // land before THIS phone's slot. We hold that early 'active' at 'matched' until the synced clock
-    // reaches the slot, so NO consumer that keys off duelMatchStatus.state (arena force-open, GPS
-    // auto-start, …) can skip the guest past their countdown. Releases exactly at the slot, so a
-    // matched match still goes active at its slot and a re-join into an already-running match (slot
-    // long past) flows 'active' immediately.
-    const clampedState = clampLinkedMatchStateToSlot(payload.state, payload.slotStartAt, getSyncedNowMs());
-    const clampedPayload = clampedState === payload.state ? payload : { ...payload, state: clampedState };
+    // STAGE 2 (clean core): NO client-side state clamp. The server is now the single slot gate —
+    // buildRunningMatchStatusResponse reports 'matched' (with countdownRemainingSeconds) until this
+    // match's slot passes, then 'active' — so an early SHARED-session 'active' (host warm-up) never
+    // reaches this phone before its slot. The countdown/arena/GPS are themselves slot-gated client-
+    // side (selectCountdownDigit, deriveSlotPhase, useSlotGatedArenaOpen), so no consumer can skip
+    // the guest past their countdown even if a stray pre-slot 'active' ever arrived.
+    const clampedPayload = payload;
     const transitionNotice = duelMatchStatus
       && duelMatchStatus.slotStartAt === clampedPayload.slotStartAt
       && Math.abs(duelMatchStatus.distanceKm - clampedPayload.distanceKm) < 0.15
@@ -1531,7 +1528,7 @@ export function TrackRunExperienceRuntime({
       nextMatchId: clampedPayload.matchId ?? null,
       nextState: clampedPayload.state ?? null,
       serverState: payload.state ?? null,
-      clampedBeforeSlot: clampedState !== payload.state,
+      clampedBeforeSlot: false,
       opponentId: clampedPayload.opponent?.id ?? null,
       opponentLiveDistanceKm: clampedPayload.opponent?.liveDistanceKm ?? null,
       opponentLiveUpdatedAt: clampedPayload.opponent?.liveUpdatedAt ?? null,
@@ -1589,13 +1586,11 @@ export function TrackRunExperienceRuntime({
     }
 
     focusedGroupMatchIdRef.current = payload.matchId ?? focusedGroupMatchIdRef.current;
-    // Single-source slot clamp — identical rationale to loadDuelMatchStatus above. The linked group
-    // session is SHARED, so the backend can report state:'active' before THIS phone's slot; hold it
-    // at 'matched' until the synced clock reaches the slot so no consumer skips the guest past their
-    // countdown. Releases exactly at the slot (matched still goes active at its slot; re-join into an
-    // already-running match flows 'active' immediately).
-    const clampedState = clampLinkedMatchStateToSlot(payload.state, payload.slotStartAt, getSyncedNowMs());
-    const clampedPayload = clampedState === payload.state ? payload : { ...payload, state: clampedState };
+    // STAGE 2 (clean core): NO client-side state clamp — identical rationale to loadDuelMatchStatus.
+    // The backend status endpoint slot-gates the reported state ('matched' until the slot passes),
+    // and the countdown/arena/GPS are slot-gated client-side, so the guest can never be skipped past
+    // their countdown.
+    const clampedPayload = payload;
     const transitionNotice = groupMatchStatus
       && groupMatchStatus.slotStartAt === clampedPayload.slotStartAt
       && Math.abs(groupMatchStatus.distanceKm - clampedPayload.distanceKm) < 0.15
@@ -1672,21 +1667,12 @@ export function TrackRunExperienceRuntime({
     // 3) terminal teardown.
     syncServerClock(nextStatus.serverNow, nextStatus);
 
-    // Same single-source slot clamp the poll funnel applies (clampLinkedMatchStateToSlot). This
-    // channel (foreground heartbeat / background flush) only fires while a runner is actively
-    // measuring — i.e. already past its slot — so this is a no-op in today's wiring, but clamping
-    // here too makes the guarantee airtight: NO server-derived write of an early 'active' can reach
-    // a consumer before this phone's slot, regardless of which channel delivered the snapshot. Only
-    // `.state` is touched; `decision.isTerminal` is derived from currentUserLiveStatus, so finish /
-    // forfeit teardown is unaffected.
-    const clampedState = clampLinkedMatchStateToSlot(
-      nextStatus.state,
-      nextStatus.slotStartAt,
-      getSyncedNowMs(),
-    );
-    const clampedStatus = clampedState === nextStatus.state
-      ? nextStatus
-      : { ...nextStatus, state: clampedState };
+    // STAGE 2 (clean core): NO client-side slot clamp. The server slot-gates the reported state and
+    // the client gates countdown/arena/GPS on the slot, so an early SHARED-session 'active' can't
+    // skip the guest. This channel (foreground heartbeat / background flush) only fires while a
+    // runner is already measuring (past its slot) anyway. decision.isTerminal is derived from
+    // currentUserLiveStatus, so finish / forfeit teardown is unaffected.
+    const clampedStatus = nextStatus;
 
     if (decision.target === 'duel') {
       setDuelMatchStatus(clampedStatus);

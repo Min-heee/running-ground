@@ -324,9 +324,17 @@ export function buildRunningMatchStatusResponse(store, currentUser, { mode, dist
   const distanceRecommendationHint = buildDistanceRecommendationHint(distanceKm);
 
   if (session) {
-    const state = hydrateMatchSessionState(session, now);
+    const hydratedState = hydrateMatchSessionState(session, now);
     const isTestMatch = isTestMatchSession(session);
     const readyToStart = new Date(session.slotStartAt).getTime() <= now.getTime();
+    // STAGE 2 (clean core) — slot-gate the reported state, mirroring the room gate (52a9a17).
+    // The SHARED session hydrates to 'active' the instant ANY participant pushes live progress
+    // (the host's pre-start warm-up, which can land 60-90s BEFORE this match's slot). This DIRECT
+    // matched-duel/group status endpoint must NOT report 'active' before the slot, or a consumer
+    // keyed off duel/groupMatchStatus.state === 'active' would skip the guest past their countdown.
+    // Report 'matched' (with countdownRemainingSeconds) until the slot passes, then 'active'. The
+    // underlying session/live data is unchanged — only the client-facing state label is gated.
+    const state = hydratedState === 'active' && !readyToStart ? 'matched' : hydratedState;
     const cancelableUntilAt = buildMatchCancellationDeadline(session.slotStartAt, {
       isTestMatch,
     }).toISOString();

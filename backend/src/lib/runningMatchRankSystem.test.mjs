@@ -1293,3 +1293,103 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
     'a finished runner must carry a positive-integer finishElapsedSeconds',
   );
 }
+
+// ===========================================================================
+// STAGE 2 (clean core) — the DIRECT matched-duel/group status endpoint SLOT-GATES
+// the reported state (mirrors the room gate, 52a9a17). The SHARED session hydrates
+// 'active' from the host's pre-start warm-up (live progress) BEFORE this match's
+// slot; the endpoint must report 'matched' (+ countdownRemainingSeconds) until the
+// slot passes, then 'active' — so a guest keyed off the reported state can never be
+// skipped past their countdown.
+// ===========================================================================
+
+// A future-slot duel whose shared session is warm-up-'active' (a participant is
+// pushing live progress before the slot) reports 'matched' with the countdown, NOT
+// 'active'. hydrateMatchSessionState itself returns 'active' here (live progress on a
+// future slot), so this proves the response-builder gate, not the hydration.
+{
+  const host = createUser('gate-host');
+  const guest = createUser('gate-guest');
+  const session = createSession({
+    participants: [
+      // The guest is "me"; seedRank 1 so the self lookup resolves.
+      createParticipant('gate-guest', 1, {
+        liveStatus: 'ready',
+        liveDistanceKm: 0,
+        liveElapsedSeconds: 0,
+        liveUpdatedAt: null,
+      }),
+      // The host has already started measuring (warm-up) before the slot.
+      createParticipant('gate-host', 2, {
+        liveStatus: 'running',
+        liveDistanceKm: 0.2,
+        liveElapsedSeconds: 30,
+        liveUpdatedAt: iso(-1000),
+      }),
+    ],
+  });
+  session.distanceKm = 1;
+  // Slot is 40s in the FUTURE; no startedAt yet, so hydrateMatchSessionState takes the
+  // hasLiveProgress branch and returns 'active' (and stamps startedAt) even pre-slot.
+  session.slotStartAt = iso(40 * 1000);
+  session.startedAt = null;
+
+  const store = createStore([host, guest], [createRun('gate-host'), createRun('gate-guest')], session);
+
+  const response = buildRunningMatchStatusResponse(store, guest, {
+    mode: 'duel',
+    distanceKm: session.distanceKm,
+    slotStartAt: session.slotStartAt,
+    matchId: session.id,
+    sessionOverride: session,
+  });
+
+  assert.equal(response.state, 'matched', 'pre-slot warm-up-active must report matched, not active');
+  assert.equal(typeof response.countdownRemainingSeconds, 'number');
+  assert.ok(
+    response.countdownRemainingSeconds > 0 && response.countdownRemainingSeconds <= 40,
+    'countdownRemainingSeconds reflects the seconds to the slot',
+  );
+  assert.equal(response.readyToStart, false);
+}
+
+// At/after the slot the SAME endpoint reports 'active' (the gate releases exactly at
+// the slot) with no countdown.
+{
+  const host = createUser('gate2-host');
+  const guest = createUser('gate2-guest');
+  const session = createSession({
+    participants: [
+      createParticipant('gate2-guest', 1, {
+        liveStatus: 'running',
+        liveDistanceKm: 0.1,
+        liveElapsedSeconds: 5,
+        liveUpdatedAt: iso(-1000),
+      }),
+      createParticipant('gate2-host', 2, {
+        liveStatus: 'running',
+        liveDistanceKm: 0.3,
+        liveElapsedSeconds: 40,
+        liveUpdatedAt: iso(-1000),
+      }),
+    ],
+  });
+  session.distanceKm = 1;
+  // Slot already passed.
+  session.slotStartAt = iso(-1000);
+  session.startedAt = iso(-1000);
+
+  const store = createStore([host, guest], [createRun('gate2-host'), createRun('gate2-guest')], session);
+
+  const response = buildRunningMatchStatusResponse(store, guest, {
+    mode: 'duel',
+    distanceKm: session.distanceKm,
+    slotStartAt: session.slotStartAt,
+    matchId: session.id,
+    sessionOverride: session,
+  });
+
+  assert.equal(response.state, 'active', 'at/after the slot the endpoint reports active');
+  assert.equal(response.countdownRemainingSeconds, undefined);
+  assert.equal(response.readyToStart, true);
+}

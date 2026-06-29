@@ -78,50 +78,11 @@ export function canAutoStartMatchTracking(state?: RunningMatchState | null) {
   return state === 'active';
 }
 
-// Single-source slot clamp for the (duel/group) match status `state`.
-//
-// The trap this closes: the linked duel/group session in a party run is SHARED. The backend
-// hydrates it to `'active'` the instant ANY participant pushes live progress
-// (runningMatchSessionStoreHelpers.hydrateMatchSessionState → hasLiveProgress branch) — which can
-// land a beat BEFORE this phone's OWN slot fires (the host starts measuring slightly early / a
-// warm-up heartbeat lands). If that server `'active'` is stored verbatim, EVERY consumer that keys
-// off `duelMatchStatus.state === 'active'` (arena force-open, GPS auto-start, …) fires early and the
-// guest is yanked past their on-screen countdown — the non-host "skips the countdown" bug.
-//
-// Per-consumer gating already missed this twice, so we clamp ONCE at the ingestion chokepoint where
-// the server-derived status is committed to React state: when the server says `'active'` but this
-// phone's slotStartAt is still in the FUTURE on the SYNCED clock, hold the stored state at the
-// pre-active `'matched'`. The clamp releases EXACTLY at the slot:
-//   - syncedNow >= slotStartMs  → not clamped → true `'active'` flows (countdown reached its slot,
-//     or this is a re-join into an already-running match whose slot is long past),
-//   - no parseable slot at all   → not clamped → server `'active'` is the only signal we have,
-//   - any non-`'active'` server state (waiting / matched / idle) → returned unchanged.
-//
-// This is purely client-side and derives the decision from the SAME server-authoritative slot + this
-// phone's synced clock the countdown already uses. It does NOT re-enable room polling and introduces
-// no second state source, so it cannot re-create the dual-source thrash. It is mode-agnostic, so the
-// matched (matchmaking) path that ALSO hydrates active-early is held to its slot the same way and
-// transitions to `'active'` exactly when its slot is reached — neither early-skip nor delayed.
-export function clampLinkedMatchStateToSlot<T extends RunningMatchState | null | undefined>(
-  serverState: T,
-  slotStartAt: string | null | undefined,
-  syncedNowMs: number | null | undefined,
-): T | 'matched' {
-  if (serverState !== 'active') {
-    return serverState;
-  }
-
-  if (!slotStartAt || typeof syncedNowMs !== 'number' || !Number.isFinite(syncedNowMs)) {
-    return serverState;
-  }
-
-  const slotStartMs = Date.parse(slotStartAt);
-  if (!Number.isFinite(slotStartMs)) {
-    return serverState;
-  }
-
-  return syncedNowMs < slotStartMs ? 'matched' : serverState;
-}
+// STAGE 2 (clean core): clampLinkedMatchStateToSlot is GONE. The single slot gate now lives on
+// the SERVER (buildRunningMatchStatusResponse reports 'matched' until the slot passes), and the
+// client gates countdown/arena/GPS on the slot directly (selectCountdownDigit, deriveSlotPhase,
+// useSlotGatedArenaOpen). No second client state source means no dual-source thrash and no early
+// 'active' reaching a consumer before this phone's slot.
 
 export function isTerminalMatchLifecycleState(state?: MatchLifecycleState | null) {
   return state === 'idle' || state === 'forfeited';
@@ -131,18 +92,6 @@ export function resolveRunTrackingState(currentState: RunTrackingState, event: R
   return RUN_TRACKING_TRANSITIONS[currentState][event] ?? currentState;
 }
 
-// Once the slot has just elapsed and we still have a linkedMatchId on the
-// room, assume the match is `active` until the server explicitly says
-// otherwise. Without this grace window the phase flips back to 'arming'
-// the moment `remainingSeconds` hits 0 because `shouldShowMatchStartOverlay`
-// turns false there — which yanks users out of the match arena and back
-// to the running tab while waiting for the server's 'active' push.
-//
-// 120s rather than 60s — two-phone tests on Wide 6 showed the host's start
-// API response sometimes lags by tens of seconds, so a longer grace covers
-// the realistic worst case without letting the inference rot indefinitely.
-export const ACTIVE_INFERENCE_GRACE_SECONDS = 120;
-
 // We treat slot-time-derived state as "matched-equivalent" further out
 // than the visible overlay window, because the host phone's start API
 // response can land while remainingSeconds is still well above 30. Without
@@ -150,22 +99,19 @@ export const ACTIVE_INFERENCE_GRACE_SECONDS = 120;
 // first ~30s of the matched lifetime even though the slot is locked in.
 const INFERRED_MATCHED_WINDOW_SECONDS = 60;
 
-function getLinkedMatchSlotElapsedMs(
-  linkedMatchSlotStartAt: string | null,
-  syncedNowMs: number | null | undefined,
-) {
-  if (
-    !linkedMatchSlotStartAt
-    || typeof syncedNowMs !== 'number'
-    || !Number.isFinite(syncedNowMs)
-  ) {
-    return null;
-  }
-
-  const slotStartMs = Date.parse(linkedMatchSlotStartAt);
-  return Number.isFinite(slotStartMs) ? syncedNowMs - slotStartMs : null;
-}
-
+// STAGE 2 (clean core): the phase is SLOT-GATED. The decisive question is the
+// one fact deriveSlotPhase answers — has THIS phone's synced clock reached THIS
+// match's slot? — so a SHARED session that the backend hydrated 'active' early
+// (the host's pre-start warm-up) can NEVER pre-empt this phone's countdown. The
+// old roomState/linkedMatchStatus==='active' early-return and the
+// ACTIVE_INFERENCE_GRACE fallback (which leaked 'active' pre-slot / held it on a
+// momentarily-null remaining) are both GONE: 'active' is reported only once the
+// slot is reached, with serverActive corroborating only at remaining≤0.
+//
+// The richer PartyRunStartPhase (waiting/arming/readyAcked/countdown/arenaHandoff
+// /active) wraps the 3-value SlotPhase: 'active' maps straight through; 'countdown'
+// splits into arenaHandoff (≤20s) / countdown (≤30s); 'pre' resolves the
+// arming/readyAcked/waiting host-start + ready machinery as before.
 export function derivePartyRunStartPhase({
   roomState,
   linkedMatchStatus,
@@ -175,34 +121,39 @@ export function derivePartyRunStartPhase({
   linkedMatchSlotStartAt = null,
   syncedNowMs = null,
 }: PartyRunStartPhaseInput): PartyRunStartPhase {
-  // NOTE: the room's linkedMatchStatus is intentionally NOT slot-clamped here. The shared linked
-  // session is hydrated to 'active' the instant ANY participant pushes live progress, so a fresh
-  // active-room snapshot can carry 'active' to a guest BEFORE their own slot, and the line below
-  // therefore leaks phase 'active' pre-slot. That leak is HARMLESS: phase 'active' from this room
-  // path only feeds distance-cleanup skips / the watchdog / diagnostics — it does NOT start
-  // measuring (GPS is independently slot-gated by resolveMatchSlotStarted in useMatchRuntimeState,
-  // on the live runtime clock) and it does NOT drive the slot-based countdown overlay. A clamp here
-  // would also be DEAD code in the runtime: resolvePartyRunFlowSyncedNowMs (useMatchCountdownModel)
-  // passes syncedNowMs=null for the ENTIRE pre-slot window (whenever remainingSeconds is a number)
-  // and only a post-slot instant otherwise, so clampLinkedMatchStateToSlot would never see a
-  // pre-slot clock to clamp against. The guest countdown-skip fix is enforced where it actually
-  // runs: the per-mode status-ingestion clamp (TrackRunExperienceRuntimeModel) and
-  // resolveLinkedMatchActiveTransition (useLinkedMatchSync), both on the live getSyncedNowMs().
-  if (roomState === 'active' || linkedMatchStatus === 'active') {
+  const serverActive = roomState === 'active' || linkedMatchStatus === 'active';
+
+  // The slot decision drives off BOTH available sources: pre-slot the runtime feeds
+  // remainingSeconds (a positive countdown) with syncedNowMs=null; post-slot it feeds
+  // a post-slot syncedNowMs with remainingSeconds=null. Either reaching its terminal
+  // (remaining≤0, or syncedNow past the slot) means the slot is reached — and ONLY
+  // then may serverActive corroborate. serverActive can never short-circuit a
+  // still-running countdown.
+  const parsedSlotMs = linkedMatchSlotStartAt ? Date.parse(linkedMatchSlotStartAt) : Number.NaN;
+  const hasParseableSlot = Number.isFinite(parsedSlotMs);
+  const slotReachedByClock = hasParseableSlot
+    && typeof syncedNowMs === 'number'
+    && Number.isFinite(syncedNowMs)
+    && syncedNowMs >= parsedSlotMs;
+  const slotReachedByRemaining = typeof remainingSeconds === 'number' && remainingSeconds <= 0;
+  // remainingSeconds===null is this codebase's "official start reached" signal: every caller
+  // feeds a POSITIVE countdown pre-slot (getMatchStartRemainingSeconds / the room countdown),
+  // and null only once the slot has fired. A linked match present + null remaining is therefore
+  // a slot-reached signal too — but it must be CORROBORATED by serverActive so a momentary
+  // null can never spuriously activate without the server agreeing the session is live.
+  const slotReachedByNullRemaining = remainingSeconds == null && Boolean(linkedMatchId) && serverActive;
+  const slotReached = slotReachedByClock || slotReachedByRemaining || slotReachedByNullRemaining;
+
+  // 'active' ONLY at/after the slot. With no parseable slot at all, serverActive is the
+  // only signal we have (a re-join into an already-running match), so it still promotes.
+  if (slotReached || (serverActive && !hasParseableSlot)) {
     return 'active';
   }
 
-  // Two-phone testing showed host/guest divergence: the guest's polling
-  // delivers `linkedMatchStatus = 'matched'` before the host's
-  // /running/rooms/start response does. Result: one phone enters countdown
-  // while the other is still on the loading banner.
-  //
-  // If the room already has a linked match scheduled and the slot is within
-  // a generous matched-equivalent window, treat that as "matched". The slot
-  // time is a server-authoritative absolute timestamp, so two clients
-  // reaching this branch agree on the countdown second. Once the real
-  // 'matched' status arrives we still take the same branch, so the
-  // fallback doesn't introduce a separate transition path.
+  // Host/guest divergence: the guest's polling delivers linkedMatchStatus='matched'
+  // before the host's /running/rooms/start response. If the room already has a linked
+  // match scheduled and the slot is within the matched-equivalent window, treat it as
+  // matched so both phones agree on the (server-authoritative) countdown second.
   const hasInferredMatchedFromSlot = Boolean(
     linkedMatchId
     && linkedMatchSlotStartAt
@@ -210,34 +161,6 @@ export function derivePartyRunStartPhase({
     && remainingSeconds > 0
     && remainingSeconds <= INFERRED_MATCHED_WINDOW_SECONDS,
   );
-
-  // Just after the slot fires, `remainingSeconds` is 0 or slightly negative
-  // and neither `shouldShowMatchStartOverlay` nor `shouldAutoOpenMatchArena`
-  // returns true. Some production devices also report `null` immediately
-  // after the slot elapses; fall back to the absolute slot timestamp in that
-  // gap. If the room still has a linked match (i.e. nothing cancelled it),
-  // infer 'active' for a short grace window so the match arena stays mounted
-  // while the server's status push is in flight.
-  const linkedMatchSlotElapsedMs = getLinkedMatchSlotElapsedMs(linkedMatchSlotStartAt, syncedNowMs);
-  const hasInferredActiveFromSlotElapsed = Boolean(
-    linkedMatchId
-    && linkedMatchSlotStartAt
-    && (
-      (
-        typeof remainingSeconds === 'number'
-        && remainingSeconds <= 0
-        && remainingSeconds > -ACTIVE_INFERENCE_GRACE_SECONDS
-      )
-      || (
-        linkedMatchSlotElapsedMs !== null
-        && linkedMatchSlotElapsedMs >= 0
-        && linkedMatchSlotElapsedMs < ACTIVE_INFERENCE_GRACE_SECONDS * 1000
-      )
-    ),
-  );
-  if (hasInferredActiveFromSlotElapsed) {
-    return 'active';
-  }
 
   if (
     linkedMatchStatus === 'matched'

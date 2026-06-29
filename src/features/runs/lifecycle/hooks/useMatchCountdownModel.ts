@@ -13,7 +13,6 @@ import {
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import { useStableCountdownSeconds } from '@/features/runs/lifecycle/hooks/useStableCountdownSeconds';
 import {
-  ACTIVE_INFERENCE_GRACE_SECONDS,
   buildPartyRunFlowSnapshot,
 } from '@/features/runs/lifecycle/matchStateMachine';
 import { selectLinkedRuntimeRoom } from '@/features/runs/lifecycle/matchRuntimeStateSelector';
@@ -760,22 +759,19 @@ export function useMatchCountdownModel({
     : null;
   const visibleCountdownEntry = roomCountdownEntry ?? fallbackVisibleCountdownEntry;
 
-  // Pure-time release CEILING for the 맞추는중 hold, set at slot + ACTIVE_INFERENCE_GRACE.
-  // That instant is EXACTLY when derivePartyRunStartPhase stops inferring 'active' and would
-  // otherwise fall back to 'arming' and re-show the loader over an already-running arena.
-  // Tying the ceiling to the SAME constant and the SAME synced-clock read (matchRoomFlowSynced
-  // NowMs) as the phase machine makes the two flip atomically, so the loader can never
-  // re-cover. The 120s grace (NOT 0) is deliberate: a smaller ceiling would let a cold,
-  // not-yet-converged clock that reads slightly past-slot release the hold mid-countdown and
-  // re-create the non-host skip — within 120s the phase is still inferred 'active', so the
-  // loader is already hidden and the ceiling only matters at the re-arm boundary.
+  // STAGE 2 (clean core): release the 맞추는중 hold EXACTLY at the slot. derivePartyRun
+  // StartPhase now flips to 'active' the instant the slot is reached (no inference grace), so
+  // the loader (driven by shouldShowLoading, false once phase is countdown/arenaHandoff/active)
+  // can never re-cover a running arena. matchRoomFlowSyncedNowMs is itself non-null ONLY post-
+  // slot (resolvePartyRunFlowSyncedNowMs feeds slot+1 once syncedNow≥slot), so this backstop
+  // reads true exactly at/after the slot — atomically with the phase flip, no 120s ceiling.
   const matchRoomArmingSlotStartAt = matchRoom?.linkedMatchSlotStartAt ?? matchRoom?.slotStartAt;
   const matchRoomArmingSlotStartMs = matchRoomArmingSlotStartAt
     ? Date.parse(matchRoomArmingSlotStartAt)
     : Number.NaN;
   const hasMatchRoomArmingSlotElapsedPastGrace = Number.isFinite(matchRoomArmingSlotStartMs)
     && typeof matchRoomFlowSyncedNowMs === 'number'
-    && matchRoomFlowSyncedNowMs >= matchRoomArmingSlotStartMs + ACTIVE_INFERENCE_GRACE_SECONDS * 1000;
+    && matchRoomFlowSyncedNowMs >= matchRoomArmingSlotStartMs;
 
   return {
     duelStartCountdownSeconds,
