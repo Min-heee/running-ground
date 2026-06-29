@@ -106,9 +106,11 @@ export function useActiveArenaPinEffect({
     }
 
     lifecycleArenaEntryKeyRef.current = nextEntryKey;
-    // TEMPORARY DIAG (revert before ship): log the decisive lifecycle-entry values at the
-    // instant this effect opens the arena (covers a non-party lifecycle force-open path).
-    pushLiveMatchDiagEvent('forceOpenActive=true', {
+    // STAGE 3 (clean core): this lifecycle entry MOUNTS/SCROLLS the arena page into place
+    // but no longer flips forceOpenActiveMatch — useSlotGatedArenaOpen is the single,
+    // slot-gated owner of that flag, so the measuring arena can't force-open pre-slot.
+    // TEMPORARY DIAG (revert before ship): log the mount/scroll (no longer a force-open).
+    pushLiveMatchDiagEvent('arenaPin:scroll', {
       src: 'useActiveArenaPinEffect:lifecycle',
       duelState,
       groupState,
@@ -117,7 +119,6 @@ export function useActiveArenaPinEffect({
       duelMatchId: duelMatchId ?? null,
       groupMatchId: groupMatchId ?? null,
     });
-    callbackRef.current.onForceOpenActiveMatchChange(true);
     callbackRef.current.onLiveArenaPageChange(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
   }, [

@@ -291,14 +291,15 @@ export function useLinkedMatchSync({
             }
           }
 
-          // Flip to active/measuring ONLY once the countdown has genuinely finished (or the
-          // server says active) — never on the bare ≤20s pre-empt.
+          // STAGE 3 (clean core): the force-open flag is now owned solely by
+          // useSlotGatedArenaOpen, which gates on this same slot fact (syncedNow>=slot, or
+          // serverActive corroborating at/after the slot) — equivalent to
+          // resolveLinkedMatchActiveTransition, folded into the single owner. This sync still
+          // drives polling cadence + the arena-handoff page pin above; it no longer flips the
+          // flag, so it can never pre-empt the guest's countdown.
           if (shouldTransitionToActive) {
-            // TEMPORARY DIAG (revert before ship): log the decisive values at the instant the
-            // party-run linked sync opens the measuring arena for the guest. Reads ONLY values
-            // already in this effect's closure (no new reactive deps), so it cannot alter the
-            // polling/subscription behavior it is observing.
-            pushLiveMatchDiagEvent('forceOpenActive=true', {
+            // TEMPORARY DIAG (revert before ship): log the slot-reached transition signal.
+            pushLiveMatchDiagEvent('linkedSync:slotReached', {
               src: 'useLinkedMatchSync',
               remaining: getMatchStartRemainingSeconds(payload.slotStartAt, syncedNowMs),
               ctxState: roomLinkedMatchContext?.state ?? null,
@@ -307,7 +308,6 @@ export function useLinkedMatchSync({
               slotStartAt: payload.slotStartAt,
               syncedNow: syncedNowMs,
             });
-            callbacksRef.current.onForceOpenActiveMatchChange(true);
           }
         }
       } catch {

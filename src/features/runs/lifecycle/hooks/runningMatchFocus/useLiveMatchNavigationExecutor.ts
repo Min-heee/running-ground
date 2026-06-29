@@ -156,7 +156,12 @@ export function useLiveMatchNavigationExecutor({
 
     setLiveArenaPage(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
-    setForceOpenActiveMatch(requestedPreferArena);
+    // STAGE 3 (clean core): navigation MOUNTS/SCROLLS the arena but no longer flips
+    // forceOpenActiveMatch — useSlotGatedArenaOpen is the single slot-gated owner of the
+    // flag (route-force flows through it via shouldForceLiveArenaFromRoute). Reset to a
+    // clean slate here so a stale true from a prior nav can't leak into this match; the
+    // slot-gated hook flips it back on at/after the slot (or immediately for a route force).
+    setForceOpenActiveMatch(false);
     setIsResolvingFocusedMatch(true);
 
     try {
@@ -190,9 +195,13 @@ export function useLiveMatchNavigationExecutor({
             && shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
           ),
         });
+        // STAGE 3 (clean core): navigation no longer flips forceOpenActiveMatch (it could
+        // do so on the pre-slot state==='matched' && ≤20s branch — the countdown skip).
+        // useSlotGatedArenaOpen owns the flag and opens at/after the slot (or for a route
+        // force). effectivePreferArena is still kept on the navigation record/trace.
+        // TEMPORARY DIAG (revert before ship): log the navigation handoff (duel).
         if (effectivePreferArena) {
-          // TEMPORARY DIAG (revert before ship): log the focus-navigation force-open (duel).
-          pushLiveMatchDiagEvent('forceOpenActive=true', {
+          pushLiveMatchDiagEvent('navHandoff', {
             src: 'navExecutor:duel',
             matchId: matchId ?? null,
             serverState: payload.state ?? null,
@@ -201,7 +210,6 @@ export function useLiveMatchNavigationExecutor({
             syncedNow: getSyncedNowMs(),
           });
         }
-        setForceOpenActiveMatch(effectivePreferArena);
         navigationResult = payload;
         return payload;
       }
@@ -235,9 +243,11 @@ export function useLiveMatchNavigationExecutor({
           && shouldAutoOpenMatchArena(getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()))
         ),
       });
+      // STAGE 3 (clean core): see the duel branch — navigation no longer flips
+      // forceOpenActiveMatch; useSlotGatedArenaOpen owns it.
+      // TEMPORARY DIAG (revert before ship): log the navigation handoff (group).
       if (effectivePreferArena) {
-        // TEMPORARY DIAG (revert before ship): log the focus-navigation force-open (group).
-        pushLiveMatchDiagEvent('forceOpenActive=true', {
+        pushLiveMatchDiagEvent('navHandoff', {
           src: 'navExecutor:group',
           matchId: matchId ?? null,
           serverState: payload.state ?? null,
@@ -246,7 +256,6 @@ export function useLiveMatchNavigationExecutor({
           syncedNow: getSyncedNowMs(),
         });
       }
-      setForceOpenActiveMatch(effectivePreferArena);
       navigationResult = payload;
       return payload;
     } catch (navigationError) {

@@ -63,16 +63,18 @@ export function useLiveMatchNavigationOwner({
   } = useLiveMatchRecoveryPolicy();
 
   const promoteLiveArena = useCallback(() => {
-    // TEMPORARY DIAG (revert before ship): log the navigation-owner promotion that force-opens
-    // the arena (the focusRunningMatch duplicate/already-mounted promotion path).
-    pushLiveMatchDiagEvent('forceOpenActive=true', {
+    // STAGE 3 (clean core): the duplicate/already-mounted promotion MOUNTS/SCROLLS the arena
+    // page but no longer flips forceOpenActiveMatch — useSlotGatedArenaOpen is the single
+    // slot-gated owner of the flag, so a re-focus during the countdown can't open the
+    // measuring arena early.
+    // TEMPORARY DIAG (revert before ship): log the promotion mount/scroll.
+    pushLiveMatchDiagEvent('arenaPin:scroll', {
       src: 'navOwner:promoteLiveArena',
       syncedNow: getSyncedNowMs(),
     });
-    setForceOpenActiveMatch(true);
     setLiveArenaPage(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
-  }, [getSyncedNowMs, livePagerRef, setForceOpenActiveMatch, setLiveArenaPage]);
+  }, [getSyncedNowMs, livePagerRef, setLiveArenaPage]);
 
   // Drop the navigation-owner latches so a back-to-back match isn't blocked by a
   // stale active/completed/failed record from the previous match (B2). Pairs with

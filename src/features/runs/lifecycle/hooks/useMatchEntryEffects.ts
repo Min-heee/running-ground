@@ -58,7 +58,6 @@ export function useMatchEntryEffects({
   roomInviteToken,
   livePagerRef,
   latestMatchRoomServerNowMsRef,
-  onForceOpenActiveMatchChange,
   onLiveArenaPageChange,
   onRoomInviteTokenInputChange,
   syncServerClock,
@@ -81,15 +80,18 @@ export function useMatchEntryEffects({
     handledFocusMatchNonceRef.current = focusMatchNonce;
 
     if (forceMatchArena) {
-      // TEMPORARY DIAG (revert before ship): log the route-driven force-open of the arena.
-      pushLiveMatchDiagEvent('forceOpenActive=true', {
+      // STAGE 3 (clean core): the route force MOUNTS/SCROLLS the arena page here, but the
+      // forceOpenActiveMatch flag is now owned solely by useSlotGatedArenaOpen (which gates
+      // on the slot OR the staleness-checked route force). This keeps a single owner of the
+      // flag and prevents a stale route param from re-opening a finished arena.
+      // TEMPORARY DIAG (revert before ship): log the route-driven mount/scroll.
+      pushLiveMatchDiagEvent('arenaPin:scroll', {
         src: 'useMatchEntryEffects:route',
         mode: focusMatchMode ?? null,
         matchId: focusMatchId ?? null,
         slotStartAt: focusMatchSlotStartAt ?? null,
         forceMatchArena: true,
       });
-      onForceOpenActiveMatchChange(true);
       onLiveArenaPageChange(0);
       livePagerRef.current?.scrollTo({ x: 0, animated: false });
     }
@@ -114,7 +116,6 @@ export function useMatchEntryEffects({
     focusRunningMatch,
     forceMatchArena,
     livePagerRef,
-    onForceOpenActiveMatchChange,
     onLiveArenaPageChange,
   ]);
 

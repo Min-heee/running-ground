@@ -44,6 +44,7 @@ import { useMatchRoomSelectionSync } from '@/features/runs/hooks/useMatchRoomSel
 import { useMatchSelectionModel } from '@/features/runs/hooks/useMatchSelectionModel';
 import { useForceLeaveStuckMatch } from '@/features/runs/hooks/useForceLeaveStuckMatch';
 import { useMatchCountdownModel } from '@/features/runs/lifecycle/hooks/useMatchCountdownModel';
+import { useSlotGatedArenaOpen } from '@/features/runs/lifecycle/hooks/useSlotGatedArenaOpen';
 import {
   fetchRunningMatchStatus,
   fetchUpcomingRunningMatches,
@@ -1196,6 +1197,36 @@ export function TrackRunExperienceRuntime({
   preservedLiveMatchShellRef.current = liveMatchShellPreservation.next;
   const effectiveShowLiveArena = liveMatchShellPreservation.shouldRenderLiveArena;
   const shouldRenderLiveArena = effectiveShowLiveArena || shouldForceLiveArenaFromRoute;
+
+  // STAGE 3 (clean core): the SINGLE slot-gated arena force-open. This is now the only
+  // path that flips forceOpenActiveMatch ON for a live match — gated on syncedNow>=slot
+  // (or serverActive corroborating at/after the slot), plus the explicit route force.
+  // The pre-slot navigation hooks below may still mount/scroll the arena page, but they
+  // no longer flip the flag pre-slot, so the measuring arena can never open under a
+  // running countdown.
+  useSlotGatedArenaOpen({
+    enabled: matchMode === 'duel' || matchMode === 'group' || Boolean(roomLinkedMatchContext),
+    matchMode,
+    duelMatch: duelMatchStatus
+      ? { matchId: duelMatchStatus.matchId, slotStartAt: duelMatchStatus.slotStartAt, state: duelMatchStatus.state }
+      : null,
+    groupMatch: groupMatchStatus
+      ? { matchId: groupMatchStatus.matchId, slotStartAt: groupMatchStatus.slotStartAt, state: groupMatchStatus.state }
+      : null,
+    roomLinkedMatchContext: roomLinkedMatchContext
+      ? {
+          matchId: roomLinkedMatchContext.matchId,
+          slotStartAt: roomLinkedMatchContext.slotStartAt,
+          state: roomLinkedMatchContext.state,
+        }
+      : null,
+    routeForceMatchArena: shouldForceLiveArenaFromRoute,
+    syncedNowMs,
+    forceOpenActiveMatch,
+    onForceOpenActiveMatchChange: setForceOpenActiveMatch,
+    onLiveArenaPageChange: setLiveArenaPage,
+    livePagerRef,
+  });
 
   useTrackRunLiveArenaDiagnostics({
     appStateRef,
