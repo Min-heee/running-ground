@@ -14,8 +14,13 @@ import { PartyRunParticipantListCard } from '@/features/runs/components/PartyRun
 import { LiveGapPushCard } from '@/features/runs/components/matchSetupCards/LiveGapPushCard';
 import { useMatchRoomLobby } from '@/features/runs/hooks/useMatchRoomLobby';
 import { colors, fontSizes, fontWeights, radii } from '@/theme/tokens';
+// TEMPORARY DIAG (revert before ship): surface the GUEST's 대기실 state so a two-phone test shows
+// whether the host's 시작 (linkedMatchId) reaches the guest fast enough to route before the countdown.
+import { LiveMatchDiagOverlay } from '@/features/runs/runtime/LiveMatchDiagOverlay';
+import { setLiveMatchDiagSnapshot } from '@/features/runs/runtime/liveMatchDiagStore';
 
 const LOADING_ESCAPE_DELAY_MS = 7_000;
+const SHOW_LIVE_MATCH_DIAG = true; // TEMPORARY DIAG (revert before ship)
 
 export default function MatchRoomScreen() {
   const {
@@ -54,6 +59,23 @@ export default function MatchRoomScreen() {
     handleApplyCustomDistance,
   } = useMatchRoomLobby();
   const [showLoadingEscape, setShowLoadingEscape] = useState(false);
+
+  // TEMPORARY DIAG (revert before ship): push the 대기실 snapshot so a two-phone test reveals
+  // whether the host's 시작 (linkedId→y, roomState→arming) reaches THIS guest fast enough to route.
+  useEffect(() => {
+    if (!SHOW_LIVE_MATCH_DIAG) {
+      return;
+    }
+    setLiveMatchDiagSnapshot({
+      scr: 'lobby',
+      linkedId: room?.linkedMatchId ? 'y' : 'n',
+      roomState: room?.state ?? null,
+      startMode: room?.startMode ?? null,
+      amHost: room?.isHost ?? null,
+      remainSec: linkedMatchRemainingSeconds ?? null,
+    });
+  }, [room?.linkedMatchId, room?.state, room?.startMode, room?.isHost, linkedMatchRemainingSeconds]);
+
   const isRoomExiting = roomExitState !== 'idle';
   const roomExitLabel = useMemo(
     () => (roomExitState === 'deleting' ? '방 삭제 중...' : '방 나가기 중...'),
@@ -216,6 +238,7 @@ export default function MatchRoomScreen() {
           )}
         </>
       ) : null}
+      {SHOW_LIVE_MATCH_DIAG ? <LiveMatchDiagOverlay /> : null}
     </Screen>
   );
 }
