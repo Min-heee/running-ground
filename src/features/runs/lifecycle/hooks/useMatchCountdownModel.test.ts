@@ -412,11 +412,25 @@ test('party run flow synced time only changes when a linked slot has elapsed', (
   }), Date.parse('2026-05-20T12:00:00.000Z') + 1);
 });
 
-test('host-start room arming overlay is superseded by the numeric countdown once it shows', () => {
+test('host-start room arming overlay SHOWS during the buffer and RELEASES at the 10s digit window', () => {
+  // During the buffer (remaining 11..30) NO digit is on screen yet (host-start reveals it only in
+  // the final 10s), so 로딩중/맞추는중 must show — this is what hides the route/mount/clock-sync
+  // latency so the digit only appears synchronized at "10".
+  const whileInBuffer = resolveShouldShowRoomArmingOverlay({
+    linkedMatchId: 'match-1',
+    matchMode: 'duel',
+    remainingSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS + 2, // 12s → buffer, no digit yet
+    shouldShowLoading: true,
+    startMode: 'host',
+    isMatchActive: false,
+  });
+  assert.equal(whileInBuffer, true);
+
+  // At the 10s boundary the host-start digit is on screen → the overlay is superseded.
   const whileCountdownVisible = resolveShouldShowRoomArmingOverlay({
     linkedMatchId: 'match-1',
     matchMode: 'duel',
-    remainingSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS + 2,
+    remainingSeconds: MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS, // 10s → digit visible
     shouldShowLoading: true,
     startMode: 'host',
     isMatchActive: false,
@@ -432,6 +446,18 @@ test('host-start room arming overlay is superseded by the numeric countdown once
     isMatchActive: false,
   });
   assert.equal(whileStillSyncing, true);
+});
+
+test('non-host (scheduled) arming overlay still releases at the uniform 30s window', () => {
+  const released = resolveShouldShowRoomArmingOverlay({
+    linkedMatchId: 'match-1',
+    matchMode: 'duel',
+    remainingSeconds: 25, // within the 30s window → digit visible for scheduled
+    shouldShowLoading: true,
+    startMode: 'scheduled',
+    isMatchActive: false,
+  });
+  assert.equal(released, false);
 });
 
 // ---------------------------------------------------------------------------

@@ -107,14 +107,17 @@ export function resolveShouldShowRoomArmingOverlay({
     && typeof remainingSeconds === 'number'
     && remainingSeconds > MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS,
   );
-  // Once the numeric countdown is on screen (Bundle B reveals it at the uniform 30s
-  // window for every start mode), it SUPERSEDES the "로딩중…" arming loader — otherwise
-  // the centered countdown number (zIndex 100) would render on top of the dark arming
-  // overlay (zIndex 30) for the host's ~12→10s poll-in buffer. So suppress the arming
-  // overlay whenever a real countdown digit is showing.
+  // The arming overlay is suppressed only once a digit is REALLY on screen, so it must use the
+  // SAME window the runtime room actually reveals the digit at: host-start shows the digit only
+  // in the final 10s (MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS), every other mode at the uniform
+  // 30s. Using 30 for host-start would suppress 로딩중 during its 30→11s buffer while NO digit is
+  // showing yet — re-exposing the bare lobby / cross-phone divergence the buffer exists to hide.
+  const digitWindowSeconds = startMode === 'host'
+    ? MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS
+    : MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS;
   const isCountdownNumberVisible = typeof remainingSeconds === 'number'
     && remainingSeconds > 0
-    && remainingSeconds <= MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS;
+    && remainingSeconds <= digitWindowSeconds;
 
   // Release the hold ONLY once this phone has a countdown digit to show OR the match is
   // genuinely active. Until one of those is true, keep holding on 맞추는중 — never drop to
@@ -684,11 +687,18 @@ export function useMatchCountdownModel({
   // number; the offset self-corrects). The overlay ticks the absolute slot instant
   // (runtimeRoomSlotStartMs) against the live offset, so two phones with different device-clock
   // skew but the same slot + converged offset compute the same digit each tick — no lock needed.
+  // Host-start party rooms reveal the digit ONLY in the final 10s (MATCH_ROOM_HOST_COUNTDOWN_
+  // VISIBLE_SECONDS) so it appears synchronized at "10" once every phone is on the running tab and
+  // clock-synced; the buffer (remaining 10..start) is the 로딩중 arming overlay. Matched/scheduled
+  // rooms keep the uniform 30s window.
+  const runtimeRoomDigitWindowSeconds = runtimeRoom?.startMode === 'host'
+    ? MATCH_ROOM_HOST_COUNTDOWN_VISIBLE_SECONDS
+    : MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS;
   const roomCountdownDisplayRemainingSeconds = shouldShowRuntimeRoomCountdownNumbers
     ? selectCountdownDigit({
         slotStartMs: runtimeRoomSlotStartMs,
         syncedNowMs,
-        windowSeconds: MATCH_OVERLAY_COUNTDOWN_WINDOW_SECONDS,
+        windowSeconds: runtimeRoomDigitWindowSeconds,
       })
     : null;
   const roomCountdownTargetMs = runtimeRoomSlotStartMs;

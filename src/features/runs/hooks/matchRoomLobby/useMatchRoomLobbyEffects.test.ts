@@ -33,7 +33,10 @@ function createLinkedRoom(overrides: Partial<RunningMatchRoom> = {}): RunningMat
   };
 }
 
-test('linked room routing stays off before the handoff window', () => {
+test('host-start linked room routes the guest during the arming buffer (before the 10s window)', () => {
+  // The host has started (linkedMatchId present, host-start) but roomState is still 'arming' and
+  // the digit window hasn't opened — the guest must route to the running tab NOW so it shows
+  // 로딩중 there before the synced 10s countdown, instead of routing mid-countdown at ~7s.
   const room = createLinkedRoom();
   const syncedNowMs = Date.parse('2026-06-08T11:59:05.000Z');
   const flow = buildPartyRunFlowSnapshot({
@@ -43,8 +46,21 @@ test('linked room routing stays off before the handoff window', () => {
   });
 
   assert.equal(flow.phase, 'arming');
-  assert.equal(flow.canOpenLinkedMatch, false);
+  assert.equal(flow.canOpenLinkedMatch, false); // the ARENA gate is unchanged — routing != measuring
   assert.equal(hasRoomLinkedMatchSlotStarted(room, syncedNowMs), false);
+  assert.equal(shouldRouteLinkedMatchRoomToRunning({ flow, room, syncedNowMs }), true);
+});
+
+test('non-host (scheduled) linked room does NOT route early on the arming buffer rule', () => {
+  const room = createLinkedRoom({ startMode: 'scheduled' });
+  const syncedNowMs = Date.parse('2026-06-08T11:59:05.000Z');
+  const flow = buildPartyRunFlowSnapshot({
+    room,
+    remainingSeconds: 55,
+    syncedNowMs,
+  });
+
+  assert.equal(flow.canOpenLinkedMatch, false);
   assert.equal(shouldRouteLinkedMatchRoomToRunning({ flow, room, syncedNowMs }), false);
 });
 

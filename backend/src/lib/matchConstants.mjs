@@ -35,7 +35,10 @@ export const MATCH_TEST_MAX_WAIT_MS = 30 * 60 * 1000;
 export const MATCH_TEST_GROUP_MIN_PARTICIPANTS = 2;
 export const MATCH_ROOM_HOST_START_DELAY_SECONDS = 10;
 // All participants ready -> shared countdown poll-in buffer before the visible 10s countdown starts.
-export const MATCH_ROOM_HOST_LOADING_SECONDS = 2;
+// 5s (not 2) so even the arm-rebuild worst case leaves enough buffer for the guest's clock-sync +
+// lobby->running route + tab mount to finish DURING the 로딩중 hold, before the visible 10s
+// countdown begins (otherwise the digit appears mid-route and diverges across phones).
+export const MATCH_ROOM_HOST_LOADING_SECONDS = 5;
 // Safety ceiling for host-start loading if a participant never acknowledges countdown readiness.
 export const MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS = 8;
 // A group party-run room (그룹대결) must seat more than two runners — otherwise it
