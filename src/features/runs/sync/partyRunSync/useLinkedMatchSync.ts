@@ -16,6 +16,11 @@ export const LINKED_MATCH_ARMING_POLL_MS = 1000;
 // (party ~18s, matched ~30s) yet exclude a missing/stale/far-future room slot.
 export const ROOM_SLOT_REFETCH_AHEAD_MS = 600_000;
 
+// Minimum gap between keep-fresh /rooms/my re-fetches while the guest lacks an in-window slot.
+// Bounds the re-fetch rate (the linked-status poll itself ticks faster) and stops entirely once
+// a fresh slot lands — so a re-stamped slot reaches the guest within ~one of these windows.
+export const ROOM_SLOT_REFETCH_THROTTLE_MS = 1500;
+
 // Decide whether the linked-match poll should flip THIS phone into the active/measuring
 // arena. Pure so it can be reproduced deterministically.
 //
@@ -150,46 +155,19 @@ export function useLinkedMatchSync({
   const roomLinkedMatchAutoFocusRef = useRef<string | null>(null);
   const roomLinkedArenaPinRef = useRef<string | null>(null);
   const lastLinkedMatchSyncGateKeyRef = useRef<string | null>(null);
-  const roomSlotRefetchGateRef = useRef<string | null>(null);
-
-  // ONE-SHOT room re-fetch — the party slot delivery fix.
-  // Host-start stamps the authoritative party slot (linkedMatchSlotStartAt) into /rooms/my,
-  // but the guest stops polling /rooms/my the instant the room links, so a stale pre-link
-  // snapshot can leave the slot missing/old — the countdown then only flashes at the last
-  // second. When this guest's CURRENT snapshot has no in-window slot for the linked match, do
-  // exactly ONE /rooms/my re-fetch to pull the real slot in. Guarded to fire at most once per
-  // (room,match) key, and never on a recurring timer — so it cannot churn the matchRoom
-  // identity render-after-render (which is what re-drove the arena setState effect into the
-  // Maximum-update-depth loop). A no-op refetch is deduped by the loader snapshot key.
-  useEffect(() => {
-    const linkedMatchId = matchRoom?.linkedMatchId;
-    const roomId = matchRoom?.roomId;
-    if (!enabled || !linkedMatchId || !roomId) {
-      return;
-    }
-
-    const slotMs = Date.parse(matchRoom?.linkedMatchSlotStartAt ?? matchRoom?.slotStartAt ?? '');
-    const nowMs = callbacksRef.current.getSyncedNowMs();
-    const aheadMs = slotMs - nowMs;
-    const hasInWindowSlot = Number.isFinite(slotMs) && aheadMs > 0 && aheadMs <= ROOM_SLOT_REFETCH_AHEAD_MS;
-    if (hasInWindowSlot) {
-      return;
-    }
-
-    const gateKey = `${roomId}:${linkedMatchId}`;
-    if (roomSlotRefetchGateRef.current === gateKey) {
-      return;
-    }
-    roomSlotRefetchGateRef.current = gateKey;
-    void callbacksRef.current.loadMatchRoom().catch(() => {});
-  }, [
-    callbacksRef,
-    enabled,
-    matchRoom?.linkedMatchId,
-    matchRoom?.linkedMatchSlotStartAt,
-    matchRoom?.roomId,
-    matchRoom?.slotStartAt,
-  ]);
+  // KEEP-FRESH room slot delivery (the party slot fix). Host-start stamps the authoritative
+  // party slot (linkedMatchSlotStartAt) into /rooms/my, but the guest stops polling /rooms/my
+  // the instant the room links — so a stale snapshot (the slot never delivered, OR RE-STAMPED by
+  // a host re-start) leaves the countdown entering late / only flashing at the end. The always-on
+  // linked-status poll below re-fetches /rooms/my (THROTTLED) whenever this guest has a linked
+  // match but no in-window room slot, pulling the CURRENT slot within ~1 poll. It rides the
+  // existing ~1s linked-status cadence (no new timer) and is bounded by the throttle + the
+  // has-fresh-slot gate, so it cannot churn the matchRoom identity render-after-render (the churn
+  // that — together with the now-fixed openKey oscillation — drove the Maximum-update-depth loop).
+  // A no-op refetch is deduped by the loader snapshot key.
+  const matchRoomRef = useRef(matchRoom);
+  matchRoomRef.current = matchRoom;
+  const lastRoomSlotRefetchSyncedNowMsRef = useRef(0);
 
   useEffect(() => {
     if (enabled && currentUserDoneWithLinkedMatch) {
@@ -297,6 +275,28 @@ export function useLinkedMatchSync({
         callbacksRef.current.onMatchModeChange(roomLinkedMatchContext.mode);
 
         const syncedNowMs = callbacksRef.current.getSyncedNowMs();
+
+        // KEEP-FRESH: if this guest has a linked match but its current room snapshot carries no
+        // in-window slot (the slot was never delivered post-link, or was RE-STAMPED by a host
+        // re-start), pull a fresh /rooms/my so the current slot reaches the countdown within ~one
+        // throttle window instead of arriving at the last second. Throttled, and skipped the
+        // moment a fresh in-window slot is present — a brief burst, never a steady churn.
+        const liveRoom = matchRoomRef.current;
+        if (liveRoom?.linkedMatchId && !canceled) {
+          const roomSlotMs = Date.parse(liveRoom.linkedMatchSlotStartAt ?? liveRoom.slotStartAt ?? '');
+          const roomSlotAheadMs = roomSlotMs - syncedNowMs;
+          const roomSlotInWindow = Number.isFinite(roomSlotMs)
+            && roomSlotAheadMs > 0
+            && roomSlotAheadMs <= ROOM_SLOT_REFETCH_AHEAD_MS;
+          if (
+            !roomSlotInWindow
+            && syncedNowMs - lastRoomSlotRefetchSyncedNowMsRef.current >= ROOM_SLOT_REFETCH_THROTTLE_MS
+          ) {
+            lastRoomSlotRefetchSyncedNowMsRef.current = syncedNowMs;
+            void callbacksRef.current.loadMatchRoom().catch(() => {});
+          }
+        }
+
         const slotStartMs = Date.parse(payload.slotStartAt);
         // The arena may still MOUNT under the countdown overlay at the ≤20s handoff window —
         // this only scrolls the proven arena page into place beneath the centered countdown,
