@@ -31,9 +31,10 @@ const RATIONALE_CATEGORY = 'android.intent.category.HEALTH_PERMISSIONS';
 const RATIONALE_ALIAS_NAME = 'ViewPermissionUsageActivity';
 const RATIONALE_PROPERTY_NAME = 'android.health.PERMISSIONS_RATIONALE';
 const RATIONALE_STRING_NAME = 'health_permissions_rationale_url';
-// A public privacy-policy URL is required by Health Connect on Android 14+. Update this to the
-// production policy URL when it changes.
-const RATIONALE_PRIVACY_POLICY_URL = 'https://running-ground.com/privacy';
+// A public privacy-policy URL is required by Health Connect on Android 14+. Served by the
+// production backend (backend/src/routes/legalRoutes.mjs) on the live api subdomain — the
+// apex domain has no DNS record. Baked into the manifest at the next native build.
+const RATIONALE_PRIVACY_POLICY_URL = 'https://api.running-ground.com/privacy';
 
 const APPLE_HEALTH_MODULE_SOURCE = `#import <Foundation/Foundation.h>
 #import <HealthKit/HealthKit.h>

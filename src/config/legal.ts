@@ -3,12 +3,12 @@
 // personal data — RunningGround collects location, health (Apple Health / Health Connect),
 // and account data, so this link must resolve before a production submission.
 //
-// ⚠️ BEFORE the production native build / store submission:
-//   1. Host docs/privacy-policy.html at PRIVACY_POLICY_URL (the team owns running-ground.com).
-//   2. Enter the same URL in App Store Connect + Play Console listing forms.
-//   3. If a 이용약관(Terms of Service) is required, host it and set TERMS_OF_SERVICE_URL;
-//      leave it null to hide that row.
-export const PRIVACY_POLICY_URL = 'https://running-ground.com/privacy-policy';
+// HOSTED: the production backend itself serves the policy (backend/src/routes/
+// legalRoutes.mjs) on the already-live api subdomain — both /privacy and
+// /privacy-policy respond, so no apex-domain DNS is needed. Enter this same URL in the
+// App Store Connect + Play Console listing forms. If a 이용약관(Terms of Service) is
+// required, host it the same way and set TERMS_OF_SERVICE_URL; null hides that row.
+export const PRIVACY_POLICY_URL = 'https://api.running-ground.com/privacy-policy';
 
 // Set to a hosted 이용약관 URL once written; null hides the Terms row.
 export const TERMS_OF_SERVICE_URL: string | null = null;
