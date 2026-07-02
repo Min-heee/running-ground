@@ -5,8 +5,10 @@ import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCount
 import { Screen } from '@/components/Screen';
 import { HomeHeader } from '@/features/home/components/HomeHeader';
 import { HomeNoticeCard } from '@/features/home/components/HomeNoticeCard';
+import { HomeOtaUpdateCard } from '@/features/home/components/HomeOtaUpdateCard';
 import { HomeUpcomingMatchesCard } from '@/features/home/components/HomeUpcomingMatchesCard';
 import { useHomeScreenModel } from '@/features/home/hooks/useHomeScreenModel';
+import { useOtaUpdatePrompt } from '@/features/home/hooks/useOtaUpdatePrompt';
 import { HomeOverview } from '@/features/home/HomeOverview';
 import { shouldShowMatchStartOverlay } from '@/lib/matchCountdown';
 import { useTabWarmupTrace } from '@/utils/useTabWarmupTrace';
@@ -28,6 +30,7 @@ export default function HomeScreen() {
     summary,
     visibleUpcomingMatches,
   } = useHomeScreenModel();
+  const { showUpdatePrompt, applyUpdate } = useOtaUpdatePrompt();
   const noticeCards = useMemo(() => notices.map((notice) => (
     <HomeNoticeCard key={notice.id} notice={notice} />
   )), [notices]);
@@ -44,6 +47,7 @@ export default function HomeScreen() {
       <Screen>
         <View style={styles.contentWrap}>
           <HomeHeader />
+          {showUpdatePrompt ? <HomeOtaUpdateCard onApply={applyUpdate} /> : null}
           {noticeCards}
           {error ? <Text>{error}</Text> : null}
           <HomeUpcomingMatchesCard

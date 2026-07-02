@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  hasAnyLiveMatchMarkedMounted,
   isLiveMatchMarkedMounted,
   markLiveMatchMounted,
   resetLiveMatchMountedRegistryForTest,
@@ -57,6 +58,19 @@ test('unmarkLiveMatchMounted evicts only the scoped match so isLiveMatchMarkedMo
   unmarkLiveMatchMounted({ matchId: 'duel-1', mode: 'duel' });
   unmarkLiveMatchMounted({ matchId: null, mode: 'duel' });
   assert.equal(isLiveMatchMarkedMounted({ matchId: 'group-1', mode: 'group' }), true);
+
+  resetLiveMatchMountedRegistryForTest();
+});
+
+test('hasAnyLiveMatchMarkedMounted reflects whether any match is mounted at all', () => {
+  resetLiveMatchMountedRegistryForTest();
+  assert.equal(hasAnyLiveMatchMarkedMounted(), false);
+
+  markLiveMatchMounted({ matchId: 'duel-any', mode: 'duel', source: 'test' });
+  assert.equal(hasAnyLiveMatchMarkedMounted(), true);
+
+  unmarkLiveMatchMounted({ matchId: 'duel-any', mode: 'duel' });
+  assert.equal(hasAnyLiveMatchMarkedMounted(), false);
 
   resetLiveMatchMountedRegistryForTest();
 });

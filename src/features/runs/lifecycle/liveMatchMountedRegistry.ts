@@ -81,6 +81,13 @@ export function isLiveMatchMarkedMounted({
   return Boolean(key && mountedMatches.has(key));
 }
 
+// Whether ANY live match (duel/group) is currently marked mounted, regardless of
+// matchId. Used by safety gates that must suppress disruptive actions (e.g. the
+// OTA update prompt's Updates.reloadAsync) while a match screen could be live.
+export function hasAnyLiveMatchMarkedMounted() {
+  return mountedMatches.size > 0;
+}
+
 export function unmarkLiveMatchMounted({
   matchId,
   mode,
