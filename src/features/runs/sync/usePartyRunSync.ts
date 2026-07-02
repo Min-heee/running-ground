@@ -53,7 +53,8 @@ type UsePartyRunSyncInput = {
   onMatchModeChange: (mode: Extract<RunMatchMode, 'duel' | 'group'>) => void;
   onForceOpenActiveMatchChange: (value: boolean) => void;
   onLiveArenaPageChange: (page: number) => void;
-  onError: (message: string) => void;
+  // null CLEARS the surfaced error (ready-ack recovery wipes its own notice on progress).
+  onError: (message: string | null) => void;
 };
 
 export { canOpenPartyRunLinkedMatch };

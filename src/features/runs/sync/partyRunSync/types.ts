@@ -25,7 +25,9 @@ export type PartyRunSyncCallbacks = {
   onMatchModeChange: (mode: Extract<RunMatchMode, 'duel' | 'group'>) => void;
   onForceOpenActiveMatchChange: (value: boolean) => void;
   onLiveArenaPageChange: (page: number) => void;
-  onError: (message: string) => void;
+  // null CLEARS the surfaced error — the ready-ack recovery wipes its own
+  // "start is delayed" notice once the room progresses again.
+  onError: (message: string | null) => void;
 };
 
 export type PartyRunSyncCallbackRef = MutableRefObject<PartyRunSyncCallbacks>;

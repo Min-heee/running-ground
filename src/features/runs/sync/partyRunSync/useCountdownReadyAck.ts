@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import type { PartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
 import { getApiErrorMessage } from '@/services/apiError';
+import { rgDiagLog } from '@/utils/rgPerfTrace';
 import type { PartyRunSyncCallbackRef } from './types';
 
 // A guest's slot start is delivered only by the one-shot countdown-ready ACK response,
@@ -91,8 +92,17 @@ export function useCountdownReadyAck({
     countdownReadyRoomAckRef.current = ackKey;
     void callbacksRef.current.acknowledgeCountdownReady(matchRoom.roomId)
       .catch((roomError) => {
+        // SILENT: the ack is best-effort (the backend arms the shared slot after its max
+        // loading wait even without it) and the recovery watchdog below re-issues it every
+        // 2s while the room is genuinely stuck. Painting the raw ApiError here (e.g. a
+        // one-off 10s timeout on cellular) stamped a scary red banner onto a perfectly
+        // healthy run — the countdown proceeded via the re-ack, but nothing ever cleared
+        // the text. The watchdog's friendly notice (after ~40s truly stuck) is the ONE
+        // user-facing surface for this failure, and it now self-clears on recovery.
         countdownReadyRoomAckRef.current = null;
-        callbacksRef.current.onError(getApiErrorMessage(roomError, '파티런 카운트다운 준비를 맞추지 못했어.'));
+        rgDiagLog('countdownReadyAck initial attempt failed; watchdog will retry', {
+          message: getApiErrorMessage(roomError, 'ack failed'),
+        });
       });
   }, [
     callbacksRef,
@@ -124,7 +134,13 @@ export function useCountdownReadyAck({
       phase: matchRoomFlow.phase,
     })) {
       recoveryAttemptsRef.current = 0;
-      recoveryErrorSurfacedRef.current = false;
+      if (recoveryErrorSurfacedRef.current) {
+        // The room progressed after we told the user the start was delayed — clear OUR
+        // notice so it doesn't linger over a now-healthy countdown/run. Only fires when
+        // this hook was the one that surfaced it.
+        recoveryErrorSurfacedRef.current = false;
+        callbacksRef.current.onError(null);
+      }
       return undefined;
     }
 
