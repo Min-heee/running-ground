@@ -35,6 +35,7 @@ import {
 import {
   buildWarmupLocationSnapshot,
 } from '@/features/runs/tracking/background/warmupSnapshotPolicy';
+import { rgDiagLog } from '@/utils/rgPerfTrace';
 
 let accumulatedDistanceMeters = 0;
 let accumulatedElevationGainMeters = 0;
@@ -44,7 +45,7 @@ let coldStartFixBuffer: RunRoutePoint[] = [];
 let lastCountedPoint: RunRoutePoint | null = null;
 
 export function resetRouteAccumulator() {
-  globalThis.console.log('[RG dist] ===== RESET (run start) =====');
+  rgDiagLog('[RG dist] ===== RESET (run start) =====');
   accumulatedDistanceMeters = 0;
   accumulatedElevationGainMeters = 0;
   smoothedCurrentPaceSecondsPerKm = null;
@@ -199,7 +200,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
   const reliableSpeedMps = normalizeReliableSpeedMps(location.coords.speed);
 
   if (accuracyM !== null && accuracyM > MAX_TRACKING_ACCURACY_METERS) {
-    globalThis.console.log(`[RG dist] DROP acc-high acc=${accuracyM}`);
+    rgDiagLog(`[RG dist] DROP acc-high acc=${accuracyM}`);
     commitSnapshot({
       ...snapshotState,
       currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
@@ -266,7 +267,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
   const timeDelta = new Date(nextPoint.timestamp).getTime() - new Date(previousPoint.timestamp).getTime();
 
   if (timeDelta < MIN_LOCATION_TIME_DELTA_MS) {
-    globalThis.console.log(`[RG dist] DROP time dt=${timeDelta} seg=${segmentDistanceMeters.toFixed(1)}`);
+    rgDiagLog(`[RG dist] DROP time dt=${timeDelta} seg=${segmentDistanceMeters.toFixed(1)}`);
     commitSnapshot({
       ...snapshotState,
       currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
@@ -306,7 +307,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
     worstAccuracyM,
     reliableSpeedMps,
   })) {
-    globalThis.console.log(`[RG dist] DROP noise seg=${segmentDistanceMeters.toFixed(1)} worstAcc=${worstAccuracyM.toFixed(0)} spd=${segmentSpeedMps.toFixed(2)}`);
+    rgDiagLog(`[RG dist] DROP noise seg=${segmentDistanceMeters.toFixed(1)} worstAcc=${worstAccuracyM.toFixed(0)} spd=${segmentSpeedMps.toFixed(2)}`);
     commitSnapshot({
       ...snapshotState,
       currentPace: buildSmoothedCurrentPace(snapshotState.route, reliableSpeedMps, locationTimestampMs),
@@ -319,7 +320,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
     // Collapse short side-to-side GPS jitter into the direct road segment instead of adding every wobble.
     const nextRoute = [...snapshotState.route.slice(0, jitterAnchorIndex + 1), nextPoint];
     accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute);
-    globalThis.console.log(`[RG dist] COLLAPSE jitter seg=${segmentDistanceMeters.toFixed(1)} total=${(accumulatedDistanceMeters / 1000).toFixed(3)}`);
+    rgDiagLog(`[RG dist] COLLAPSE jitter seg=${segmentDistanceMeters.toFixed(1)} total=${(accumulatedDistanceMeters / 1000).toFixed(3)}`);
     accumulatedElevationGainMeters = calculateRouteElevationGainMeters(nextRoute);
     lastCountedPoint = nextRoute[nextRoute.length - 1] ?? null;
 
@@ -343,7 +344,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
   const nextRoute = [...snapshotState.route, nextPoint];
 
   if (distanceFromCountedMeters < distanceGateMeters) {
-    globalThis.console.log(`[RG dist] GATE seg=${segmentDistanceMeters.toFixed(1)} distFromCounted=${distanceFromCountedMeters.toFixed(1)} gate=${distanceGateMeters.toFixed(1)} total=${(accumulatedDistanceMeters / 1000).toFixed(3)}`);
+    rgDiagLog(`[RG dist] GATE seg=${segmentDistanceMeters.toFixed(1)} distFromCounted=${distanceFromCountedMeters.toFixed(1)} gate=${distanceGateMeters.toFixed(1)} total=${(accumulatedDistanceMeters / 1000).toFixed(3)}`);
     commitSnapshot({
       ...snapshotState,
       route: nextRoute,
@@ -357,7 +358,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
 
   nextAccumulatedDistanceMeters += distanceFromCountedMeters;
   lastCountedPoint = nextPoint;
-  globalThis.console.log(`[RG dist] ADD seg=${segmentDistanceMeters.toFixed(1)} distFromCounted=${distanceFromCountedMeters.toFixed(1)} gate=${distanceGateMeters.toFixed(1)} acc=${accuracyM ?? -1} dt=${timeDelta} spd=${segmentSpeedMps.toFixed(2)} total=${(nextAccumulatedDistanceMeters / 1000).toFixed(3)}`);
+  rgDiagLog(`[RG dist] ADD seg=${segmentDistanceMeters.toFixed(1)} distFromCounted=${distanceFromCountedMeters.toFixed(1)} gate=${distanceGateMeters.toFixed(1)} acc=${accuracyM ?? -1} dt=${timeDelta} spd=${segmentSpeedMps.toFixed(2)} total=${(nextAccumulatedDistanceMeters / 1000).toFixed(3)}`);
 
   accumulatedDistanceMeters = nextAccumulatedDistanceMeters;
   accumulatedElevationGainMeters += calculateElevationGainForSegment(previousPoint, nextPoint);

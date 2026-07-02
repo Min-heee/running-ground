@@ -81,6 +81,17 @@ export function shouldShowRgEnvironmentDebugByDefault() {
     || isRgPerfTraceEnabled();
 }
 
+export function isAdminRouteEnabled() {
+  const info = getRgEnvironmentInfo(null);
+
+  // Store-review surface reduction: the /admin deep-link route only exists in dev builds and
+  // development/preview variants. Production treats it as an unknown route. Server-side data is
+  // already protected by requireAdmin — this only hides the client UI.
+  return info.buildMode === 'dev'
+    || info.appVariant === 'development'
+    || info.appVariant === 'preview';
+}
+
 export function logRgEnvironmentOnce() {
   if (!isRgPerfTraceEnabled()) {
     return;

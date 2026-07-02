@@ -5,6 +5,10 @@ import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/match
 import type { ArenaParticipantViewModel } from '@/features/runs/viewModels/matchViewModels';
 import type { RunningMatchRoom, RunningMatchStatusResponse } from '@/lib/api/types';
 
+// Same gate as LiveMatchForfeitDebugPanel — the only consumer of these snapshots. When the
+// panel cannot render, skip the per-poll bookkeeping entirely so release builds do zero work.
+const FORFEIT_DIAGNOSTICS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_ANDROID_MATCH_PERF === '1';
+
 type UseTrackRunForfeitDiagnosticsSnapshotInput = {
   matchMode: RunMatchMode;
   activeLiveMatchProgressMatchId: string | null;
@@ -33,6 +37,10 @@ export function useTrackRunForfeitDiagnosticsSnapshot({
   roomLinkedGroupPlaceholderParticipants,
 }: UseTrackRunForfeitDiagnosticsSnapshotInput) {
   useEffect(() => {
+    if (!FORFEIT_DIAGNOSTICS_ENABLED) {
+      return;
+    }
+
     const placeholderParticipants = matchMode === 'duel'
       ? roomLinkedDuelPlaceholderParticipants
       : matchMode === 'group'
