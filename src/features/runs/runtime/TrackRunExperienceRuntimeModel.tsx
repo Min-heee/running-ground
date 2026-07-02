@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Platform,
   ScrollView,
   useWindowDimensions,
@@ -8,7 +7,6 @@ import {
 import { type Href } from 'expo-router';
 import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { MatchOptionItem } from '@/features/runs/components/MatchOptionSelector';
 import {
   TrackRunExperienceView,
 } from '@/features/runs/components/TrackRunExperienceView';
@@ -46,19 +44,9 @@ import { useForceLeaveStuckMatch } from '@/features/runs/hooks/useForceLeaveStuc
 import { useMatchCountdownModel } from '@/features/runs/lifecycle/hooks/useMatchCountdownModel';
 import { useSlotGatedArenaOpen } from '@/features/runs/lifecycle/hooks/useSlotGatedArenaOpen';
 import {
-  fetchRunningMatchStatus,
-  fetchUpcomingRunningMatches,
-  forceResetRunningMatchState,
-  getApiErrorMessage,
-} from '@/services';
-import {
   type RunningMatchStatusResponse,
-  type UpcomingRunningMatchItem,
 } from '@/lib/api/types';
 import type { ForfeitedMatchSnapshot } from '@/features/runs/types/matchForfeit';
-import {
-  recordLiveMatchForfeitPoll,
-} from '@/features/runs/debug/liveMatchForfeitDiagnostics';
 import {
   buildDuelArenaParticipants,
   buildGroupArenaParticipants,
@@ -70,10 +58,8 @@ import {
   buildRoomLinkedGroupForfeitResultRows,
 } from '@/features/runs/viewModels/matchResultFallbackRows';
 import {
-  buildMatchTransitionNotice,
   type PartyRunLinkedMatchContext,
 } from '@/features/runs/lifecycle/matchStateMachine';
-import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { markRouteFocusMatchTerminated } from '@/features/runs/lifecycle/terminatedRouteFocusMatch';
 import { resolveRouteForcedLiveArena } from '@/features/runs/lifecycle/routeForcedLiveArena';
 import {
@@ -91,34 +77,22 @@ import {
   type PreservedLiveMatchShell,
 } from '@/features/runs/lifecycle/liveMatchShellPreservation';
 import { resolveTrackRunLiveShellGate } from '@/features/runs/lifecycle/trackRunLiveShellGate';
-import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { isMyMatchDistanceStale } from '@/features/runs/sync/matchDistanceStaleness';
 import {
   isTerminalMatchLiveStatus,
-  resolveMatchStatusSnapshotApply,
 } from '@/features/runs/sync/matchProgressSync';
 import {
-  clearBackgroundMatchProgressContext,
-  clearBackgroundMatchStatusApplier,
-  setBackgroundMatchStatusApplier,
-} from '@/features/runs/tracking/background/backgroundMatchProgressSync';
-import { stopBackgroundMatchProgressTimer } from '@/features/runs/tracking/background/backgroundMatchProgressTimer';
-import {
-  advanceMatchStatusVanishState,
-  buildVanishedMatchStatusFallback,
-  isMatchStatusVanishConfirmed,
-  isMatchStatusVanishError,
-  resetMatchStatusVanishState,
-  shouldTeardownVanishedLinkedMatch,
   type MatchStatusVanishState,
 } from '@/features/runs/sync/matchStatusVanish';
 import { getCurrentUserProfile } from '@/lib/session';
-import { rgDiagLog, rgPerfMark } from '@/utils/rgPerfTrace';
-import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
+import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { shouldEnableCountdownTicker } from '@/features/runs/runtime/countdownTickerGate';
+import { useTrackRunForceResetAction } from '@/features/runs/runtime/useTrackRunForceResetAction';
+import { useTrackRunIdlePressHandlers } from '@/features/runs/runtime/useTrackRunIdlePressHandlers';
+import { useTrackRunMatchStatusLoaders } from '@/features/runs/runtime/useTrackRunMatchStatusLoaders';
+import { useTrackRunMatchStatusSnapshotApplier } from '@/features/runs/runtime/useTrackRunMatchStatusSnapshotApplier';
 import { useTrackRunNavigationAdapter } from '@/features/runs/runtime/useTrackRunNavigationAdapter';
 import { unmarkLiveMatchMounted } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
-import { isLiveLifecycleStage } from '@/features/runs/lifecycle/matchLifecycleController';
 import { useTrackRunRuntimeTrace } from '@/features/runs/runtime/useTrackRunRuntimeTrace';
 import { useTrackRunLiveArenaDiagnostics } from '@/features/runs/runtime/useTrackRunLiveArenaDiagnostics';
 import { useTrackRunForfeitDiagnosticsSnapshot } from '@/features/runs/runtime/useTrackRunForfeitDiagnosticsSnapshot';
@@ -133,6 +107,8 @@ import { useTrackRunRuntimeStateBridge } from '@/features/runs/runtime/useTrackR
 import { useTrackRunRuntimeRoomActions } from '@/features/runs/runtime/useTrackRunRuntimeRoomActions';
 import { useTrackRunRuntimeMatchActions } from '@/features/runs/runtime/useTrackRunRuntimeMatchActions';
 import { useTrackRunRuntimeShareState } from '@/features/runs/runtime/useTrackRunRuntimeShareState';
+import { useTrackRunSlotDistanceCleanup } from '@/features/runs/runtime/useTrackRunSlotDistanceCleanup';
+import { useTrackRunWedgedLoadingWatchdog } from '@/features/runs/runtime/useTrackRunWedgedLoadingWatchdog';
 import { useRuntimeMatchRoomHydration } from '@/features/runs/runtime/useRuntimeMatchRoomHydration';
 import { useTrackRunRuntimeScreenState } from '@/features/runs/runtime/useTrackRunRuntimeScreenState';
 import { useTrackRunRuntimePropsComposer } from '@/features/runs/runtime/useTrackRunRuntimePropsComposer';
@@ -1293,468 +1269,83 @@ export function TrackRunExperienceRuntime({
   });
   const backHref: Href = '/my-activity';
   const discardRedirectHref: Href | null = isTabMode ? null : '/my-activity';
-  const shouldSkipDuelSlotDistanceCleanup = matchLifecycleController.source === 'party-room'
-    && roomLinkedMatchContext?.mode === 'duel'
-    && matchLifecycleController.stage !== 'waiting';
-  const shouldSkipGroupSlotDistanceCleanup = matchLifecycleController.source === 'party-room'
-    && roomLinkedMatchContext?.mode === 'group'
-    && matchLifecycleController.stage !== 'waiting';
-
-  useAndroidDeferredEffect(() => {
-    if (matchMode !== 'duel' || shouldSkipDuelSlotDistanceCleanup) {
-      return;
-    }
-
-    setDuelMatchResult((current) => {
-      if (!current) {
-        return null;
-      }
-
-      if (current.isTestMatch) {
-        return current;
-      }
-
-      if (current.matched) {
-        return current;
-      }
-
-      const activeSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
-      return current.distanceKm === duelDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
-    });
-    setDuelMatchStatus((current) => {
-      if (!current) {
-        return null;
-      }
-
-      if (current.isTestMatch) {
-        return current;
-      }
-
-      if (current.matchId) {
-        return current;
-      }
-
-      const activeSlotStartAt = selectedDuelSlot?.startsAt ?? selectedDuelSlotStartAt;
-      const shouldKeepStatus = current.distanceKm === duelDistanceKm && current.slotStartAt === activeSlotStartAt;
-      if (!shouldKeepStatus) {
-        rgDiagLog('duel match status reset by slot/distance effect', {
-          currentDistanceKm: current.distanceKm,
-          currentMatchId: current.matchId ?? null,
-          currentSlotStartAt: current.slotStartAt ?? null,
-          currentState: current.state,
-          isTestMatch: current.isTestMatch,
-          nextDistanceKm: duelDistanceKm,
-          nextSlotStartAt: activeSlotStartAt ?? null,
-          reason: 'slot-or-distance-mismatch',
-        });
-      }
-      return shouldKeepStatus ? current : null;
-    });
-    setDuelMatchNotice(null);
-  }, [duelDistanceKm, matchMode, selectedDuelSlot, selectedDuelSlotStartAt, shouldSkipDuelSlotDistanceCleanup]);
-
-  useAndroidDeferredEffect(() => {
-    if (matchMode !== 'group' || shouldSkipGroupSlotDistanceCleanup) {
-      return;
-    }
-
-    setGroupMatchResult((current) => {
-      if (!current) {
-        return null;
-      }
-
-      if (current.isTestMatch) {
-        return current;
-      }
-
-      if (current.matched) {
-        return current;
-      }
-
-      const activeSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
-      return current.distanceKm === groupDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
-    });
-    setGroupMatchStatus((current) => {
-      if (!current) {
-        return null;
-      }
-
-      if (current.isTestMatch) {
-        return current;
-      }
-
-      if (current.matchId) {
-        return current;
-      }
-
-      const activeSlotStartAt = selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt;
-      return current.distanceKm === groupDistanceKm && current.slotStartAt === activeSlotStartAt ? current : null;
-    });
-    setGroupMatchNotice(null);
-  }, [groupDistanceKm, matchMode, selectedGroupSlot, selectedGroupSlotStartAt, shouldSkipGroupSlotDistanceCleanup]);
-
-  const resetLinkedMatchVanishState = (source: 'duel' | 'group', matchId?: string | null) => {
-    linkedMatchVanishStateRef.current[source] = resetMatchStatusVanishState(
-      linkedMatchVanishStateRef.current[source],
-      matchId,
-    );
-  };
-
-  const clearVanishedLinkedMatch = (source: 'duel' | 'group', matchId: string) => {
-    rgPerfMark('linked match vanished confirmed', {
-      matchId,
-      source,
-    });
-
-    if (matchRoom?.linkedMatchId === matchId || visibleMatchRoom?.linkedMatchId === matchId) {
-      commitMatchRoom(null);
-    }
-
-    if (roomLinkedMatchContextRef.current?.matchId === matchId) {
-      roomLinkedMatchContextRef.current = null;
-    }
-
-    setForceOpenActiveMatch(false);
-    setLastSyncedMatchProgress(null);
-    setUpcomingMatches((currentItems) => currentItems.filter((match) => match.matchId !== matchId));
-    if (source === 'duel') {
-      clearLocalDuelMatchState(null);
-    } else {
-      clearLocalGroupMatchState(null);
-    }
-    setMatchMode('solo');
-    setLiveArenaPage(0);
-    livePagerRef.current?.scrollTo({ x: 0, animated: false });
-  };
-
-  const handleLinkedMatchStatusVanishError = ({
-    distanceKm: requestedDistanceKm,
-    error: statusError,
-    matchId,
-    mode: statusMode,
-    previousStatus,
-    slotStartAt,
-  }: {
-    distanceKm: number;
-    error: unknown;
-    matchId?: string | null;
-    mode: 'duel' | 'group';
-    previousStatus: RunningMatchStatusResponse | null;
-    slotStartAt: string;
-  }) => {
-    if (!matchId || !isMatchStatusVanishError(statusError, matchId)) {
-      return null;
-    }
-
-    const nextState = advanceMatchStatusVanishState(linkedMatchVanishStateRef.current[statusMode], matchId);
-    linkedMatchVanishStateRef.current[statusMode] = nextState;
-    rgPerfMark('linked match vanish signal observed', {
-      count: nextState.count,
-      matchId,
-      source: statusMode,
-    });
-
-    const vanishConfirmed = isMatchStatusVanishConfirmed(nextState);
-    if (vanishConfirmed) {
-      if (!shouldTeardownVanishedLinkedMatch({
-        hasMatchResultPage: hasMatchResultPageRef.current,
-        vanishConfirmed,
-      })) {
-        rgPerfMark('linked match vanish teardown skipped for visible result page', {
-          matchId,
-          source: statusMode,
-        });
-        return previousStatus ?? buildVanishedMatchStatusFallback({
-          distanceKm: requestedDistanceKm,
-          mode: statusMode,
-          slotStartAt,
-        });
-      }
-
-      clearVanishedLinkedMatch(statusMode, matchId);
-      return buildVanishedMatchStatusFallback({
-        distanceKm: requestedDistanceKm,
-        mode: statusMode,
-        slotStartAt,
-      });
-    }
-
-    return previousStatus ?? buildVanishedMatchStatusFallback({
-      distanceKm: requestedDistanceKm,
-      mode: statusMode,
-      slotStartAt,
-    });
-  };
-
-  const loadDuelMatchStatus = async (
-    slotStartAt = activeDuelSlotStartAt,
-    options?: { testMode?: boolean; distanceKm?: number; matchId?: string; forceAccept?: boolean },
-  ) => {
-    const requestedDistanceKm = options?.distanceKm ?? duelDistanceKm;
-    const requestedMatchId = options?.matchId ?? focusedDuelMatchIdRef.current ?? undefined;
-    let payload: RunningMatchStatusResponse;
-    recordLiveMatchForfeitPoll(options?.forceAccept ? 'duel:linked-force' : 'duel:poll');
-    try {
-      payload = await fetchRunningMatchStatus({
-        mode: 'duel',
-        distanceKm: requestedDistanceKm,
-        slotStartAt,
-        testMode: options?.testMode ?? isDuelTestFlow,
-        matchId: requestedMatchId,
-      });
-      resetLinkedMatchVanishState('duel', requestedMatchId);
-    } catch (statusError) {
-      const vanishedFallback = handleLinkedMatchStatusVanishError({
-        distanceKm: requestedDistanceKm,
-        error: statusError,
-        matchId: requestedMatchId,
-        mode: 'duel',
-        previousStatus: duelMatchStatus,
-        slotStartAt,
-      });
-      if (vanishedFallback) {
-        return vanishedFallback;
-      }
-      throw statusError;
-    }
-    // Bundle A2 step 2 — the monotonic serverNow guard now applies to the party LINKED poll too
-    // (forceAccept no longer bypasses it). Backend evidence: the direct AND the linked status
-    // responses are both built by the SAME buildRunningMatchStatusResponse (matchResponseBuilders.mjs)
-    // off a SINGLE `const now = new Date()` stamped as serverNow at every return, so the linked
-    // snapshot's serverNow is consistent/monotonic with the direct one and the guard can never
-    // wrongly drop a fresh linked snapshot. forceAccept keeps its OTHER meanings (accept this
-    // matchId / skip the mounted-match poll skip); it just no longer skips the clock guard.
-    if (!shouldAcceptServerSnapshot(latestDuelStatusServerNowMsRef, payload.serverNow)) {
-      return duelMatchStatus ?? payload;
-    }
-
-    syncServerClock(payload.serverNow, payload);
-    if (payload.matchId && forfeitedMatchIdsRef.current.has(payload.matchId)) {
-      clearLocalDuelMatchState(null);
-      return payload;
-    }
-
-    focusedDuelMatchIdRef.current = payload.matchId ?? focusedDuelMatchIdRef.current;
-    // STAGE 2 (clean core): NO client-side state clamp. The server is now the single slot gate —
-    // buildRunningMatchStatusResponse reports 'matched' (with countdownRemainingSeconds) until this
-    // match's slot passes, then 'active' — so an early SHARED-session 'active' (host warm-up) never
-    // reaches this phone before its slot. The countdown/arena/GPS are themselves slot-gated client-
-    // side (selectCountdownDigit, deriveSlotPhase, useSlotGatedArenaOpen), so no consumer can skip
-    // the guest past their countdown even if a stray pre-slot 'active' ever arrived.
-    const clampedPayload = payload;
-    const transitionNotice = duelMatchStatus
-      && duelMatchStatus.slotStartAt === clampedPayload.slotStartAt
-      && Math.abs(duelMatchStatus.distanceKm - clampedPayload.distanceKm) < 0.15
-      ? buildMatchTransitionNotice('duel', duelMatchStatus.state, clampedPayload.state)
-      : null;
-
-    if (clampedPayload.state === 'idle') {
-      setDuelMatchResult(null);
-    } else if (clampedPayload.state === 'waiting' && duelMatchStatus && duelMatchStatus.state !== 'waiting') {
-      setDuelMatchResult(null);
-    }
-
-    if (transitionNotice) {
-      setDuelMatchNotice(transitionNotice);
-    } else if (clampedPayload.state !== 'idle') {
-      setDuelMatchNotice(null);
-    }
-
-    rgDiagLog('duel match status set from poll', {
-      currentUserId,
-      hasOpponent: Boolean(clampedPayload.opponent),
-      nextMatchId: clampedPayload.matchId ?? null,
-      nextState: clampedPayload.state ?? null,
-      serverState: payload.state ?? null,
-      clampedBeforeSlot: false,
-      opponentId: clampedPayload.opponent?.id ?? null,
-      opponentLiveDistanceKm: clampedPayload.opponent?.liveDistanceKm ?? null,
-      opponentLiveUpdatedAt: clampedPayload.opponent?.liveUpdatedAt ?? null,
-      requestedDistanceKm: options?.distanceKm ?? duelDistanceKm,
-      requestedMatchId: options?.matchId ?? focusedDuelMatchIdRef.current ?? null,
-      requestedSlotStartAt: slotStartAt,
-      source: options?.forceAccept ? 'force-accept' : 'poll',
-    });
-    setDuelMatchStatus(clampedPayload);
-    return clampedPayload;
-  };
-
-  const loadGroupMatchStatus = async (
-    slotStartAt = activeGroupSlotStartAt,
-    options?: { testMode?: boolean; distanceKm?: number; matchId?: string; forceAccept?: boolean },
-  ) => {
-    const requestedDistanceKm = options?.distanceKm ?? groupDistanceKm;
-    const requestedMatchId = options?.matchId ?? focusedGroupMatchIdRef.current ?? undefined;
-    let payload: RunningMatchStatusResponse;
-    recordLiveMatchForfeitPoll(options?.forceAccept ? 'group:linked-force' : 'group:poll');
-    try {
-      payload = await fetchRunningMatchStatus({
-        mode: 'group',
-        distanceKm: requestedDistanceKm,
-        slotStartAt,
-        testMode: options?.testMode ?? isGroupTestFlow,
-        matchId: requestedMatchId,
-      });
-      resetLinkedMatchVanishState('group', requestedMatchId);
-    } catch (statusError) {
-      const vanishedFallback = handleLinkedMatchStatusVanishError({
-        distanceKm: requestedDistanceKm,
-        error: statusError,
-        matchId: requestedMatchId,
-        mode: 'group',
-        previousStatus: groupMatchStatus,
-        slotStartAt,
-      });
-      if (vanishedFallback) {
-        return vanishedFallback;
-      }
-      throw statusError;
-    }
-    // Bundle A2 step 2 — same unification as duel above: the party LINKED group poll now obeys the
-    // monotonic serverNow guard because the linked status response shares buildRunningMatchStatusResponse's
-    // single serverNow stamp with the direct response. forceAccept retains its non-clock meanings only.
-    if (!shouldAcceptServerSnapshot(latestGroupStatusServerNowMsRef, payload.serverNow)) {
-      return groupMatchStatus ?? payload;
-    }
-
-    syncServerClock(payload.serverNow, payload);
-    if (payload.matchId && forfeitedMatchIdsRef.current.has(payload.matchId)) {
-      clearLocalGroupMatchState(null);
-      return payload;
-    }
-
-    focusedGroupMatchIdRef.current = payload.matchId ?? focusedGroupMatchIdRef.current;
-    // STAGE 2 (clean core): NO client-side state clamp — identical rationale to loadDuelMatchStatus.
-    // The backend status endpoint slot-gates the reported state ('matched' until the slot passes),
-    // and the countdown/arena/GPS are slot-gated client-side, so the guest can never be skipped past
-    // their countdown.
-    const clampedPayload = payload;
-    const transitionNotice = groupMatchStatus
-      && groupMatchStatus.slotStartAt === clampedPayload.slotStartAt
-      && Math.abs(groupMatchStatus.distanceKm - clampedPayload.distanceKm) < 0.15
-      ? buildMatchTransitionNotice('group', groupMatchStatus.state, clampedPayload.state)
-      : null;
-
-    if (clampedPayload.state === 'idle') {
-      setGroupMatchResult(null);
-    } else if (clampedPayload.state === 'waiting' && groupMatchStatus && groupMatchStatus.state !== 'waiting') {
-      setGroupMatchResult(null);
-    }
-
-    if (transitionNotice) {
-      setGroupMatchNotice(transitionNotice);
-    } else if (clampedPayload.state !== 'idle') {
-      setGroupMatchNotice(null);
-    }
-
-    setGroupMatchStatus(clampedPayload);
-    return clampedPayload;
-  };
-
-  // Bundle A2 — THE ONE guarded apply funnel. Every channel that writes another participant's
-  // live status into duel/groupMatchStatus (background flush, foreground heartbeat, and the
-  // mounted safety poll) routes through this single applier so all match types (party /
-  // matched-duel / matched-group) apply snapshots under the SAME rules and in the SAME order:
-  //   1) resolve apply target  → forfeitedMatchIdsRef guard FIRST (never resurrect a left match),
-  //   2) shouldAcceptServerSnapshot monotonic serverNow guard on the per-mode ref,
-  //   3) syncServerClock (the shared countdown clock depends on this),
-  //   4) setDuel/GroupMatchStatus,
-  //   5) terminal-status background teardown.
-  // The background flush (native Android / JS-fallback iOS) is the ONLY progress POST that fires
-  // while the screen is off; the foreground heartbeat is the channel that brings the opponent's
-  // forfeited/finished status back while a runner is stationary. Routing BOTH through this funnel
-  // means a late in-flight response (heartbeat OR background) can neither resurrect a forfeited
-  // match nor apply out of order — newest serverNow wins regardless of which channel delivered it.
-  //
-  // Stable mount-once applier. All match state it reads comes through refs, and the only functions
-  // it closes over (setDuelMatchStatus / setGroupMatchStatus are React setters; syncServerClock
-  // itself only writes a stable ref + a stable setter + module state) carry no stale per-render
-  // values, so capturing them once here is safe. The `source` is for diagnostics only; the guard
-  // ordering is IDENTICAL for every source. `forceAccept` is an explicit escape hatch that skips
-  // ONLY the monotonic clock guard (the forfeit guard always stays first); it is currently used by
-  // NO wired caller — every channel obeys the monotonic guard — and is kept solely so a future
-  // caller whose serverNow stamp is NOT consistent with this clock can opt out deliberately.
-  const applyMatchStatusSnapshotRef = useRef((
-    nextStatus: RunningMatchStatusResponse,
-    options?: { source?: string; forceAccept?: boolean },
-  ) => {
-    // THE guard decision (forfeit FIRST, monotonic serverNow SECOND) lives in ONE pure tested
-    // place — resolveMatchStatusSnapshotApply (matchProgressSync.ts, matchProgressSync.test.ts) —
-    // so the heartbeat / background / mounted-safety-poll channels can never drift out of the
-    // same ordering. It reads ONLY refs here, so it never works off stale match state, and it
-    // never advances a per-mode serverNow ref for a snapshot it drops (forfeit/not-live/mode-
-    // mismatch return before the monotonic ref is touched).
-    const decision = resolveMatchStatusSnapshotApply({
-      status: nextStatus,
-      duelMatchId: duelMatchStatusRef.current?.matchId,
-      groupMatchId: groupMatchStatusRef.current?.matchId,
-      roomLinkedMatchContext: roomLinkedMatchContextRef.current,
-      forfeitedMatchIds: forfeitedMatchIdsRef.current,
-      duelServerNowMsRef: latestDuelStatusServerNowMsRef,
-      groupServerNowMsRef: latestGroupStatusServerNowMsRef,
-      forceAccept: options?.forceAccept ?? false,
-    });
-
-    if (!decision.apply) {
-      return;
-    }
-
-    // Side effects, in the SAME order as the foreground/poll paths:
-    // 1) keep the shared server clock advancing (countdown depends on it),
-    // 2) write the per-mode status (slot-clamped, like the poll funnel),
-    // 3) terminal teardown.
-    syncServerClock(nextStatus.serverNow, nextStatus);
-
-    // STAGE 2 (clean core): NO client-side slot clamp. The server slot-gates the reported state and
-    // the client gates countdown/arena/GPS on the slot, so an early SHARED-session 'active' can't
-    // skip the guest. This channel (foreground heartbeat / background flush) only fires while a
-    // runner is already measuring (past its slot) anyway. decision.isTerminal is derived from
-    // currentUserLiveStatus, so finish / forfeit teardown is unaffected.
-    const clampedStatus = nextStatus;
-
-    if (decision.target === 'duel') {
-      setDuelMatchStatus(clampedStatus);
-    } else {
-      setGroupMatchStatus(clampedStatus);
-    }
-
-    // M1 — finish-path cooperation. If the applied status is terminal for THIS runner (finished
-    // or forfeited), idempotently tear down the background context + timer so the background
-    // flush stops firing for a dead match instead of racing the foreground finish teardown.
-    // clearBackgroundMatchProgressContext is match-id-scoped, so this is safe if another match
-    // has already taken over the context.
-    if (decision.isTerminal) {
-      stopBackgroundMatchProgressTimer();
-      clearBackgroundMatchProgressContext(nextStatus.matchId ?? undefined);
-    }
+  useTrackRunSlotDistanceCleanup({
+    duelDistanceKm,
+    groupDistanceKm,
+    matchLifecycleSource: matchLifecycleController.source,
+    matchLifecycleStage: matchLifecycleController.stage,
+    matchMode,
+    roomLinkedMatchMode: roomLinkedMatchContext?.mode,
+    selectedDuelSlot,
+    selectedDuelSlotStartAt,
+    selectedGroupSlot,
+    selectedGroupSlotStartAt,
+    setDuelMatchNotice,
+    setDuelMatchResult,
+    setDuelMatchStatus,
+    setGroupMatchNotice,
+    setGroupMatchResult,
+    setGroupMatchStatus,
   });
 
-  // Stable funnel callback the foreground heartbeat (useMatchProgressSync) calls in place of its
-  // former bare setDuel/GroupMatchStatus. Identity is stable for the component lifetime (the
-  // closure lives in a ref), so passing it through the tracking-flow plumbing never re-subscribes
-  // the heartbeat hook. The background flush registers the SAME ref via the module-level applier
-  // setter below.
-  const applyMatchStatusSnapshot = useCallback((
-    nextStatus: RunningMatchStatusResponse,
-    options?: { source?: string; forceAccept?: boolean },
-  ) => {
-    applyMatchStatusSnapshotRef.current(nextStatus, options);
-  }, []);
+  const {
+    clearLocalDuelMatchState,
+    clearLocalGroupMatchState,
+    loadDuelMatchStatus,
+    loadGroupMatchStatus,
+    loadUpcomingMatches,
+  } = useTrackRunMatchStatusLoaders({
+    activeDuelSlotStartAt,
+    activeGroupSlotStartAt,
+    commitMatchRoom,
+    currentUserId,
+    duelDistanceKm,
+    duelMatchStatus,
+    focusedDuelMatchIdRef,
+    focusedGroupMatchIdRef,
+    forfeitedMatchIdsRef,
+    groupDistanceKm,
+    groupMatchStatus,
+    hasMatchResultPageRef,
+    isDuelTestFlow,
+    isGroupTestFlow,
+    latestDuelStatusServerNowMsRef,
+    latestGroupStatusServerNowMsRef,
+    latestUpcomingServerNowMsRef,
+    linkedMatchVanishStateRef,
+    livePagerRef,
+    matchRoom,
+    roomLinkedMatchContextRef,
+    setDuelMatchNotice,
+    setDuelMatchResult,
+    setDuelMatchStatus,
+    setDuelSlotCounts,
+    setForceOpenActiveMatch,
+    setGroupMatchNotice,
+    setGroupMatchResult,
+    setGroupMatchStatus,
+    setLastSyncedMatchProgress,
+    setLiveArenaPage,
+    setMatchMode,
+    setUpcomingMatches,
+    syncServerClock,
+    upcomingMatches,
+    visibleMatchRoom,
+  });
 
-  useEffect(() => {
-    // M2 — register the STABLE applier and tear it down BY IDENTITY. Given the duplicate
-    // runtime-mount history (#135) / StrictMode, an unconditional null on unmount could wipe a
-    // surviving instance's applier; clearBackgroundMatchStatusApplier no-ops unless this exact
-    // function is still the registered owner. The background flush carries no `source`/options, so
-    // it lands as the default-source ('background') snapshot through the same guard order.
-    const applier = (nextStatus: RunningMatchStatusResponse) => {
-      applyMatchStatusSnapshotRef.current(nextStatus, { source: 'background' });
-    };
-    setBackgroundMatchStatusApplier(applier);
-    return () => {
-      clearBackgroundMatchStatusApplier(applier);
-    };
-  }, []);
+  const {
+    applyMatchStatusSnapshot,
+  } = useTrackRunMatchStatusSnapshotApplier({
+    duelMatchStatusRef,
+    forfeitedMatchIdsRef,
+    groupMatchStatusRef,
+    latestDuelStatusServerNowMsRef,
+    latestGroupStatusServerNowMsRef,
+    roomLinkedMatchContextRef,
+    setDuelMatchStatus,
+    setGroupMatchStatus,
+    syncServerClock,
+  });
 
   // iOS Live Activity (lock-screen live-run card + Dynamic Island) — OTA-SAFE, FIRE-AND-FORGET.
   // Starts the card on run/match start, refreshes it from the snapshot commit (solo) and the bg
@@ -1773,18 +1364,6 @@ export function TrackRunExperienceRuntime({
     groupMatchStatusRef,
     roomLinkedMatchContextRef,
   });
-
-  const loadUpcomingMatches = async () => {
-    const payload = await fetchUpcomingRunningMatches();
-    if (!shouldAcceptServerSnapshot(latestUpcomingServerNowMsRef, payload.serverNow)) {
-      return upcomingMatches;
-    }
-
-    syncServerClock(payload.serverNow, payload);
-    setUpcomingMatches(payload.items);
-    setDuelSlotCounts(payload.duelSlotCounts ?? {});
-    return payload.items;
-  };
 
   const getCurrentLiveMatchId = useCallback(() => (
     liveMatchMountedRef.current?.matchId
@@ -1938,26 +1517,6 @@ export function TrackRunExperienceRuntime({
     visibleMatchRoom,
   });
 
-  const clearLocalDuelMatchState = (notice?: string | null) => {
-    focusedDuelMatchIdRef.current = null;
-    setDuelMatchResult(null);
-    rgDiagLog('duel match status set local clear', {
-      currentMatchId: duelMatchStatus?.matchId ?? null,
-      currentState: duelMatchStatus?.state ?? null,
-      notice: notice ?? null,
-      source: 'clearLocalDuelMatchState',
-    });
-    setDuelMatchStatus(null);
-    setDuelMatchNotice(notice ?? null);
-  };
-
-  const clearLocalGroupMatchState = (notice?: string | null) => {
-    focusedGroupMatchIdRef.current = null;
-    setGroupMatchResult(null);
-    setGroupMatchStatus(null);
-    setGroupMatchNotice(notice ?? null);
-  };
-
   const resetMatchRuntimeAfterTrackingCleared = useStableCallback((reason: 'discard-tracking' | 'save-reset') => {
     const endedDuelMatchId = duelMatchStatusRef.current?.matchId ?? null;
     const endedGroupMatchId = groupMatchStatusRef.current?.matchId ?? null;
@@ -2107,52 +1666,18 @@ export function TrackRunExperienceRuntime({
     onSettled: refreshStaleMatchArtifacts,
   });
 
-  const runForceResetRunningMatchState = useStableCallback(async () => {
-    if (isForceResettingRunningMatch) {
-      return;
-    }
-
-    setIsForceResettingRunningMatch(true);
-    try {
-      const payload = await forceResetRunningMatchState();
-      rgPerfMark('running match force reset completed', {
-        cleaned: payload.cleaned,
-        cleanedItems: payload.cleanedItems.join(','),
-        source: 'track-run emergency reset',
-      });
-      commitMatchRoom(null);
-      setSelectedRoomFriendIds([]);
-      clearLocalDuelMatchState(null);
-      clearLocalGroupMatchState(null);
-      setForceOpenActiveMatch(false);
-      setError(null);
-      await refreshStaleMatchArtifacts().catch(() => {});
-      Alert.alert('초기화 완료', '다시 방 만들기 또는 매칭을 눌러주세요.');
-    } catch (resetError) {
-      Alert.alert(
-        '초기화 실패',
-        getApiErrorMessage(resetError, '매칭 상태를 강제로 초기화하지 못했어.'),
-      );
-    } finally {
-      setIsForceResettingRunningMatch(false);
-    }
-  });
-
-  const handleForceResetRunningMatchPress = useStableCallback(() => {
-    Alert.alert(
-      '강제 초기화',
-      '진행 중인 모든 매치/방/대기열을 강제로 정리합니다. 진행 중인 대결은 패배 처리될 수 있어요. 계속할까요?',
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '초기화',
-          style: 'destructive',
-          onPress: () => {
-            void runForceResetRunningMatchState();
-          },
-        },
-      ],
-    );
+  const {
+    handleForceResetRunningMatchPress,
+  } = useTrackRunForceResetAction({
+    clearLocalDuelMatchState,
+    clearLocalGroupMatchState,
+    commitMatchRoom,
+    isForceResettingRunningMatch,
+    refreshStaleMatchArtifacts,
+    setError,
+    setForceOpenActiveMatch,
+    setIsForceResettingRunningMatch,
+    setSelectedRoomFriendIds,
   });
 
   const {
@@ -2602,94 +2127,45 @@ export function TrackRunExperienceRuntime({
     },
   });
 
-  const handleOpenUpcomingMatch = useStableCallback((match: UpcomingRunningMatchItem) => {
-    void focusRunningMatch({
-      mode: match.mode,
-      distanceKm: match.distanceKm,
-      slotStartAt: match.slotStartAt,
-      isTestMatch: match.isTestMatch,
-    }).catch(() => {});
-  });
-
-  const handleCancelUpcomingMatchPress = useStableCallback((match: UpcomingRunningMatchItem) => {
-    void handleCancelUpcomingMatch(match);
-  });
-
-  const handleSelectMatchOption = useStableCallback((option: MatchOptionItem) => {
-    if (option.mode === 'room' && visibleMatchRoom) {
-      if (isMatchRoomDeleted(visibleMatchRoom.roomId)) {
-        rgPerfMark('room entry skipped deleted room', {
-          roomId: visibleMatchRoom.roomId,
-          source: 'ready option existing room',
-          state: visibleMatchRoom.state,
-        });
-        return;
-      }
-
-      rgPerfMark('already joined room detected', {
-        roomId: visibleMatchRoom.roomId,
-        source: 'ready option select',
-        state: visibleMatchRoom.state,
-      });
-      navigateToMatchRoomWithTrace('ready option existing room', visibleMatchRoom);
-      return;
-    }
-
-    setMatchMode(option.mode);
-  });
-
-  const handleAcceptRoomInvitePress = useStableCallback(() => {
-    void handleAcceptRoomInviteFromRunning();
-  });
-
-  const handleDeclineRoomInvitePress = useStableCallback(() => {
-    void handleDeclineRoomInviteFromRunning();
-  });
-
-  const handleJoinRoomPress = useStableCallback(() => {
-    return handleJoinMatchRoom();
-  });
-
-  const handleSelectDuelDate = useStableCallback((dateKey: string) => {
-    setSelectedDuelDateKey(dateKey);
-    selectNextDuelSlotForDate(dateKey);
-  });
-
-  const handleCancelDuelMatchPress = useStableCallback(() => {
-    void handleCancelDuelMatch();
-  });
-
-  const handleRequestDuelMatchPress = useStableCallback(() => {
-    void handleRequestDuelMatch();
-  });
-
-  const handleRequestDuelRematchPress = useStableCallback(() => {
-    void handleRequestDuelMatch(activeDuelSlotStartAt);
-  });
-
-  const handleSelectGroupDate = useStableCallback((dateKey: string) => {
-    setSelectedGroupDateKey(dateKey);
-    selectNextGroupSlotForDate(dateKey);
-  });
-
-  const handleCancelGroupMatchPress = useStableCallback(() => {
-    void handleCancelGroupMatch();
-  });
-
-  const handleForceLeaveStuckMatchPress = useStableCallback(() => {
-    void forceLeaveStuckMatch({
-      roomId: blockingRoomId,
-      duelMatch: blockingDuelMatch,
-      groupMatch: blockingGroupMatch,
-    });
-  });
-
-  const handleRequestGroupMatchPress = useStableCallback(() => {
-    void handleRequestGroupMatch();
-  });
-
-  const handleRequestGroupRematchPress = useStableCallback(() => {
-    void handleRequestGroupMatch(activeGroupSlotStartAt);
+  const {
+    handleAcceptRoomInvitePress,
+    handleCancelDuelMatchPress,
+    handleCancelGroupMatchPress,
+    handleCancelUpcomingMatchPress,
+    handleDeclineRoomInvitePress,
+    handleForceLeaveStuckMatchPress,
+    handleJoinRoomPress,
+    handleOpenUpcomingMatch,
+    handleRequestDuelMatchPress,
+    handleRequestDuelRematchPress,
+    handleRequestGroupMatchPress,
+    handleRequestGroupRematchPress,
+    handleSelectDuelDate,
+    handleSelectGroupDate,
+    handleSelectMatchOption,
+  } = useTrackRunIdlePressHandlers({
+    activeDuelSlotStartAt,
+    activeGroupSlotStartAt,
+    blockingDuelMatch,
+    blockingGroupMatch,
+    blockingRoomId,
+    focusRunningMatch,
+    forceLeaveStuckMatch,
+    handleAcceptRoomInviteFromRunning,
+    handleCancelDuelMatch,
+    handleCancelGroupMatch,
+    handleCancelUpcomingMatch,
+    handleDeclineRoomInviteFromRunning,
+    handleJoinMatchRoom,
+    handleRequestDuelMatch,
+    handleRequestGroupMatch,
+    navigateToMatchRoomWithTrace,
+    selectNextDuelSlotForDate,
+    selectNextGroupSlotForDate,
+    setMatchMode,
+    setSelectedDuelDateKey,
+    setSelectedGroupDateKey,
+    visibleMatchRoom,
   });
 
   const shouldShowReadyScreen = isIdle && !shouldRenderLiveArena && !hasLinkedRuntimeRoom;
@@ -2814,148 +2290,23 @@ export function TrackRunExperienceRuntime({
     routeShellHint,
   });
 
-  // Wedged-loading watchdog (B2c): a back-to-back match #2 can get pinned in the LIVE
-  // loading shell when the previous match left a stale mount latch / navigation-owner
-  // record (the resets in B2a/B2b are the primary fix; this is the belt-and-suspenders
-  // self-recovery so a wedge can never require an app relaunch — closes #198/#200).
-  //
-  // It fires ONLY while shellKind==='live' AND isResolvingFocusedMatch is true AND the
-  // focused match has NO confirmed mount, continuously for ~9s. A legitimately-mounting
-  // arena (a normal slow match-2 entry that mounts at ~5-7s) sets the mount confirmation
-  // and trips the early-return below, so it never fires. The watchdog never resurrects a
-  // forfeited match: it only clears a mount latch + navigation record and re-arms polling
-  // for the focused matchId; loadDuel/GroupMatchStatus still drop payloads for any matchId
-  // in forfeitedMatchIdsRef.
-  const watchdogFocusMatchId = liveShellGateDecision.routeMatchId;
-  const watchdogFocusMode = hydratedFocusMatchMode === 'duel' || hydratedFocusMatchMode === 'group'
-    ? hydratedFocusMatchMode
-    : null;
-  const watchdogShellIsLiveLoading = liveShellGateDecision.shellKind === 'live' && isResolvingFocusedMatch;
-  // Route the (non-memoized) status loaders through a ref so the watchdog effect does not
-  // list them as deps — otherwise it would re-create (and re-arm the 9s timer) every render
-  // and break the one-shot-per-episode guarantee.
-  const watchdogLoadersRef = useRef({ loadDuelMatchStatus, loadGroupMatchStatus });
-  watchdogLoadersRef.current = { loadDuelMatchStatus, loadGroupMatchStatus };
-  // Mirror the lifecycle stage through a ref so the in-timer stillWedged() can re-check it
-  // without listing matchLifecycleController.stage as an effect dep (which would re-arm the
-  // 9s timer every render). A confirmed-live/active stage means an arena exists via a signal
-  // path other than the mount latches, so it must count as "has mount" (never wedged).
-  const watchdogLifecycleStageRef = useRef(matchLifecycleController.stage);
-  watchdogLifecycleStageRef.current = matchLifecycleController.stage;
-  const watchdogFocusStageIsLive = isLiveLifecycleStage(matchLifecycleController.stage);
-  const watchdogFocusHasMount = Boolean(
-    watchdogFocusMatchId
-    && (
-      watchdogFocusStageIsLive
-      || (liveMatchMountedRef.current?.matchId === watchdogFocusMatchId)
-      || (
-        liveMatchViewConfirmationRef.current.showLiveArena
-        && liveMatchViewConfirmationRef.current.matchId === watchdogFocusMatchId
-      )
-    ),
-  );
-  useEffect(() => {
-    const watchdog = wedgedLoadingWatchdogRef.current;
-
-    // The arena is legitimately mounted/resolved (or there is no live-loading episode):
-    // close any open episode so the one-shot stages re-arm for a future wedge, and bail.
-    if (!watchdogShellIsLiveLoading || !watchdogFocusMatchId || !watchdogFocusMode || watchdogFocusHasMount) {
-      watchdog.episodeKey = null;
-      watchdog.rearmedAtMs = null;
-      watchdog.dropped = false;
-      return undefined;
-    }
-
-    const episodeKey = `${watchdogFocusMode}:${watchdogFocusMatchId}`;
-    if (watchdog.episodeKey !== episodeKey) {
-      watchdog.episodeKey = episodeKey;
-      watchdog.rearmedAtMs = null;
-      watchdog.dropped = false;
-    }
-
-    const WEDGED_LOADING_WATCHDOG_WINDOW_MS = 9000;
-    let cancelled = false;
-    let cleanupSecondStage: (() => void) | null = null;
-
-    const stillWedged = () =>
-      Boolean(
-        watchdog.episodeKey === episodeKey
-        && !isLiveLifecycleStage(watchdogLifecycleStageRef.current)
-        && !(
-          (liveMatchMountedRef.current?.matchId === watchdogFocusMatchId)
-          || (
-            liveMatchViewConfirmationRef.current.showLiveArena
-            && liveMatchViewConfirmationRef.current.matchId === watchdogFocusMatchId
-          )
-        ),
-      );
-
-    const reloadFocusedStatus = () => {
-      // The status loaders await network → setDuel/GroupMatchStatus; skip after unmount so
-      // the watchdog re-arm never triggers a setState-on-unmounted-component warning/leak.
-      if (!isMountedRef.current) {
-        return;
-      }
-      const loaders = watchdogLoadersRef.current;
-      if (watchdogFocusMode === 'duel') {
-        void loaders.loadDuelMatchStatus(activeDuelSlotStartAt, { matchId: watchdogFocusMatchId, forceAccept: true }).catch(() => {});
-      } else {
-        void loaders.loadGroupMatchStatus(activeGroupSlotStartAt, { matchId: watchdogFocusMatchId, forceAccept: true }).catch(() => {});
-      }
-    };
-
-    const firstStageTimeout = setTimeout(() => {
-      if (cancelled || !stillWedged()) {
-        return;
-      }
-      // Stage 1 (one-shot per episode): clear the stale mount latch + navigation-owner
-      // record (drops any 'failed'/suppressed record), then re-arm polling so status can
-      // reach live and the arena gate can open.
-      unmarkLiveMatchMounted({ matchId: watchdogFocusMatchId, mode: watchdogFocusMode });
-      resetLiveMatchNavigationOwner();
-      rgPerfMark('wedged live loading watchdog re-armed', {
-        matchId: watchdogFocusMatchId,
-        mode: watchdogFocusMode,
-      });
-      watchdog.rearmedAtMs = Date.now();
-      reloadFocusedStatus();
-
-      const secondStageTimeout = setTimeout(() => {
-        if (cancelled || watchdog.dropped || !stillWedged()) {
-          return;
-        }
-        // Stage 2 (final, one-shot): still unresolved after a second window — drop the
-        // LIVE loading shell back to the resolved/ready state locally (no server reset,
-        // no finished-match revival) so the user is never pinned on the loading shell.
-        watchdog.dropped = true;
-        rgPerfMark('wedged live loading watchdog dropped shell', {
-          matchId: watchdogFocusMatchId,
-          mode: watchdogFocusMode,
-        });
-        setIsResolvingFocusedMatch(false);
-        setForceOpenActiveMatch(false);
-      }, WEDGED_LOADING_WATCHDOG_WINDOW_MS);
-
-      // Chain the second timeout into cleanup via the outer cancelled flag + ref.
-      cleanupSecondStage = () => clearTimeout(secondStageTimeout);
-    }, WEDGED_LOADING_WATCHDOG_WINDOW_MS);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(firstStageTimeout);
-      cleanupSecondStage?.();
-    };
-  }, [
+  useTrackRunWedgedLoadingWatchdog({
     activeDuelSlotStartAt,
     activeGroupSlotStartAt,
+    hydratedFocusMatchMode,
+    isMountedRef,
+    isResolvingFocusedMatch,
+    liveMatchMountedRef,
+    liveMatchViewConfirmationRef,
+    liveShellGateDecision,
+    loadDuelMatchStatus,
+    loadGroupMatchStatus,
+    matchLifecycleStage: matchLifecycleController.stage,
     resetLiveMatchNavigationOwner,
     setForceOpenActiveMatch,
     setIsResolvingFocusedMatch,
-    watchdogFocusHasMount,
-    watchdogFocusMatchId,
-    watchdogFocusMode,
-    watchdogShellIsLiveLoading,
-  ]);
+    wedgedLoadingWatchdogRef,
+  });
 
   const trackRunViewProps = useTrackRunRuntimePropsComposer({
     backHref,
