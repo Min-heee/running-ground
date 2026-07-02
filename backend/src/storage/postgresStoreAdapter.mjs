@@ -144,12 +144,31 @@ export function createPostgresStoreAdapter(options = {}) {
       }
 
       const store = locked.rows[0].data;
+      // Change-detection skip (the production hot path of the pre-launch P0-1 stopgap —
+      // this adapter IS the live driver, so the json-store skip alone was not enough):
+      // serialize the row pre/post mutator and skip the whole-store jsonb UPDATE when the
+      // mutation was read-only (status polls, lookups). Both serializations come from the
+      // SAME loaded object graph inside the FOR UPDATE transaction, so jsonb key-order
+      // normalization can't produce a false mismatch, and any real change — including the
+      // contract-pinned sweep-on-poll self-heals — still writes. The compare can only err
+      // toward writing, never toward skipping a real change.
+      const beforeSerialized = serializeStore(store);
       const result = mutator(store);
+      if (result && typeof result.then === 'function') {
+        // Mirror the json store's guard: an async mutator would let the UPDATE run before
+        // the mutation finishes — silent corruption.
+        throw new Error(
+          'mutateStore의 mutator는 동기 함수여야 해. 비동기 mutator는 변경이 끝나기 전에 저장이 실행돼 저장소가 조용히 손상될 수 있어.',
+        );
+      }
+      const afterSerialized = serializeStore(store);
 
-      await client.query(
-        'update app_store set data = $1, updated_at = now() where id = $2',
-        [serializeStore(store), STORE_ROW_ID],
-      );
+      if (afterSerialized !== beforeSerialized) {
+        await client.query(
+          'update app_store set data = $1, updated_at = now() where id = $2',
+          [afterSerialized, STORE_ROW_ID],
+        );
+      }
 
       return result;
     });
