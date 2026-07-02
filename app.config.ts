@@ -12,6 +12,26 @@ const {
 } = require('./release-environment.cjs');
 const DEFAULT_EAS_UPDATE_URL = `https://u.expo.dev/${DEFAULT_EAS_PROJECT_ID}`;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// RUNTIME VERSION INVARIANT — READ BEFORE CHANGING.
+//
+// This is the OTA compatibility contract, NOT the marketing version. Every
+// production install in the field currently runs runtime '0.1.0'; eas update
+// only delivers bundles whose runtimeVersion matches the installed binary's.
+//
+//  * The runtime version changes ONLY when native code changes (new native
+//    module, native config/plugin change, SDK upgrade) — NEVER with marketing
+//    version bumps (package.json "version" / APP_VERSION / store version).
+//  * If this were derived from package.json version (the old behavior), a
+//    store version bump would silently orphan every installed device: OTAs
+//    would publish to a runtime nobody runs, and installed apps would stop
+//    receiving updates without any error.
+//  * When the runtime DOES change (native release), dual-publish OTAs to the
+//    old runtime's branch for N weeks so not-yet-updated installs keep
+//    receiving fixes. See docs/release-runbook.md.
+// ─────────────────────────────────────────────────────────────────────────────
+const RUNTIME_VERSION = '0.1.0';
+
 type AppVariant = 'development' | 'preview' | 'production';
 
 function loadEnvFile(filePath: string) {
@@ -80,7 +100,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const appVariant = normalizeAppVariant(process.env.APP_VARIANT) as AppVariant;
   const isDevelopmentVariant = appVariant === 'development';
   const version = process.env.APP_VERSION?.trim() || packageJson.version || '0.1.0';
-  const runtimeVersion = process.env.EXPO_RUNTIME_VERSION?.trim() || version;
+  // Pinned: NEVER fall back to `version` here — see RUNTIME_VERSION invariant above.
+  const runtimeVersion = process.env.EXPO_RUNTIME_VERSION?.trim() || RUNTIME_VERSION;
   const baseDisplayName = baseConfig.name || 'RunningGround';
   const baseBundleIdentifier = baseConfig.ios?.bundleIdentifier;
   const iosApplicationQueriesSchemes = Array.from(

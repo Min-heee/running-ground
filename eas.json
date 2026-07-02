@@ -21,7 +21,8 @@
         "APP_VARIANT": "preview",
         "EXPO_PUBLIC_USE_MOCK_API": "false",
         "EXPO_PUBLIC_API_BASE_URL": "https://preview-api.running-ground.com/api",
-        "EXPO_PUBLIC_API_TIMEOUT_MS": "10000"
+        "EXPO_PUBLIC_API_TIMEOUT_MS": "10000",
+        "EXPO_RUNTIME_VERSION": "0.1.0"
       },
       "android": {
         "buildType": "apk"
@@ -36,6 +37,7 @@
         "EXPO_PUBLIC_USE_MOCK_API": "false",
         "EXPO_PUBLIC_API_BASE_URL": "https://api.running-ground.com/api",
         "EXPO_PUBLIC_API_TIMEOUT_MS": "10000",
+        "EXPO_RUNTIME_VERSION": "0.1.0",
         "IOS_BUNDLE_ID": "com.minheee.runnigapp",
         "ANDROID_PACKAGE": "com.minheee.runnigapp",
         "EAS_PROJECT_ID": "d57b0e4f-f084-4000-8ec7-188ee2561c52"
@@ -70,6 +72,7 @@
         "EXPO_PUBLIC_USE_MOCK_API": "false",
         "EXPO_PUBLIC_API_BASE_URL": "https://api.running-ground.com/api",
         "EXPO_PUBLIC_API_TIMEOUT_MS": "10000",
+        "EXPO_RUNTIME_VERSION": "0.1.0",
         "IOS_BUNDLE_ID": "com.minheee.runnigapp",
         "ANDROID_PACKAGE": "com.minheee.runnigapp",
         "EAS_PROJECT_ID": "d57b0e4f-f084-4000-8ec7-188ee2561c52"
