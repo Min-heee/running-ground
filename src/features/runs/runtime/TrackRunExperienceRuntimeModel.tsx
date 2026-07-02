@@ -115,6 +115,7 @@ import {
 import { getCurrentUserProfile } from '@/lib/session';
 import { rgDiagLog, rgPerfMark } from '@/utils/rgPerfTrace';
 import { useAndroidDeferredEffect } from '@/utils/useAndroidDeferredInteractionEffect';
+import { shouldEnableCountdownTicker } from '@/features/runs/runtime/countdownTickerGate';
 import { useTrackRunNavigationAdapter } from '@/features/runs/runtime/useTrackRunNavigationAdapter';
 import { unmarkLiveMatchMounted } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
 import { isLiveLifecycleStage } from '@/features/runs/lifecycle/matchLifecycleController';
@@ -791,6 +792,21 @@ export function TrackRunExperienceRuntime({
     && trackRunIdleViewModel.hasLocalActiveHint
     && !isScreenFocused
   );
+  // Stamp the synced-clock instant the slot-gated arena force-open fired. The measuring
+  // ticker quiesce (countdownTickerGate) keys its grace window off this stamp — a ref
+  // written in an effect (never in render) so the stamp itself can't cause a render.
+  // Cleared when the force-open drops (finish/leave/done), so a re-entered match re-arms
+  // the grace from its own open instant.
+  const arenaOpenAtMsRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (forceOpenActiveMatch) {
+      if (arenaOpenAtMsRef.current === null) {
+        arenaOpenAtMsRef.current = getSyncedNowMs();
+      }
+      return;
+    }
+    arenaOpenAtMsRef.current = null;
+  }, [forceOpenActiveMatch, getSyncedNowMs]);
   const liveArenaPageWidth = Math.max(windowWidth - 32, 280);
   // Freshness stamp for MY live distance. The screen-off JS suspend FREEZES distance (it is
   // 100% JS-computed) while the wall-clock elapsed keeps climbing, so the cumulative avg pace
@@ -2282,23 +2298,31 @@ export function TrackRunExperienceRuntime({
     countdownTicker: {
       serverClockOffsetMsRef,
       onNowMsChange: setNowMs,
-      enabled: heavyTickersFocusGate
-        && trackRunIdleViewModel.shouldRunCountdownTicker
-        && Boolean(
-          isStarting
-          || isRunning
-          || hydratedFocusMatchId
-          || visibleCountdownEntry
-          || roomCountdownEntry
-          || nextStartingMatch
-          || activeUpcomingMatch
-          || visibleUpcomingMatches.length > 0
-          || duelMatchState === 'matched'
-          || groupMatchState === 'matched'
-          || matchRoom?.linkedMatchId
-          || matchRoom?.state === 'arming'
-          || matchRoom?.state === 'countdown'
-        ),
+      // The 1Hz ticker re-renders this entire model per tick, so it QUIESCES for the long
+      // measuring phase once the slot-gated arena open has fired + a grace has passed
+      // (countdownTickerGate). Every start-adjacent term stays always-on and byte-identical
+      // to the old inline gate. Time terms use a FRESH getSyncedNowMs() read — the state
+      // syncedNowMs freezes while quiesced; heartbeat/poll/GPS renders (~2-3s) keep
+      // re-evaluating this gate, which is what wakes the ticker for an upcoming slot.
+      enabled: shouldEnableCountdownTicker({
+        heavyTickersFocusGate,
+        shouldRunCountdownTicker: trackRunIdleViewModel.shouldRunCountdownTicker,
+        isStarting,
+        isRunning,
+        hasHydratedFocusMatch: Boolean(hydratedFocusMatchId),
+        hasVisibleCountdownEntry: Boolean(visibleCountdownEntry),
+        hasRoomCountdownEntry: Boolean(roomCountdownEntry),
+        hasNextStartingMatch: Boolean(nextStartingMatch),
+        hasActiveUpcomingMatch: Boolean(activeUpcomingMatch),
+        upcomingMatches: visibleUpcomingMatches,
+        duelMatchState,
+        groupMatchState,
+        matchRoomLinkedMatchId: matchRoom?.linkedMatchId,
+        matchRoomState: matchRoom?.state,
+        arenaOpenFired: forceOpenActiveMatch,
+        arenaOpenAtMs: arenaOpenAtMsRef.current,
+        freshSyncedNowMs: getSyncedNowMs(),
+      }),
     },
     blockingMatchStatusPolling: {
       matchMode,
