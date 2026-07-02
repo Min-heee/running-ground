@@ -10,6 +10,14 @@ import {
   MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS,
   MATCH_ROOM_HOST_START_DELAY_SECONDS,
 } from './lib/matchConstants.mjs';
+import {
+  acknowledgeRunningMatchRoomCountdown,
+  createRunningMatchRoom,
+  joinRunningMatchRoom,
+  startRunningMatchRoom,
+  updateRunningMatchRoomReady,
+} from './lib/matchRoomStoreHelpers.mjs';
+import { findMatchSessionById } from './lib/runningMatchSessionStoreHelpers.mjs';
 
 const TEST_HOST = '127.0.0.1';
 const REQUEST_TIMEOUT_MS = 5000;
@@ -385,6 +393,36 @@ await runTest('party run room start creates a linked match and accepts countdown
     assert.equal(hostSynced.room.linkedMatchSlotStartAt, guestReady.room.linkedMatchSlotStartAt);
     assert.equal(hostSynced.room.state, 'arming');
   });
+});
+
+await runTest('LATE arm (straggler ack inside the final 10s) keeps the shared slot — never re-stamps mid-countdown', async () => {
+  // In-process (no HTTP) so the straggler case is reproducible without sleeping: the slot is
+  // pulled back to ~6s ahead, simulating a guest whose countdown-ready ack lands INSIDE the
+  // final 10s window. The old arm rebuilt any slot closer than now+10s to now+15s — re-stamping
+  // the shared start mid-countdown (observed live: the host counted 3-2-1 on the original
+  // instant while the guest's digit died at ~6 and the duel status carried a +9s-moved slot).
+  // GAME-GRADE RULE: a still-future slot NEVER moves; the straggler joins at the current digit.
+  const store = createBaseStore();
+  const hostUser = store.users.find((user) => user.id === 'host-user');
+  const guestUser = store.users.find((user) => user.id === 'guest-user');
+
+  const created = createRunningMatchRoom(store, hostUser, { mode: 'duel', distanceKm: 5, startMode: 'host' });
+  const roomId = created.room.roomId;
+  joinRunningMatchRoom(store, guestUser, { inviteToken: created.room.inviteToken });
+  updateRunningMatchRoomReady(store, guestUser, { roomId, ready: true });
+  const started = startRunningMatchRoom(store, hostUser, { roomId });
+
+  const lateSlotStartAt = iso(6_000);
+  const rawRoom = store.matchRooms.find((room) => room.id === roomId);
+  const linkedSession = findMatchSessionById(store, started.room.linkedMatchId);
+  rawRoom.slotStartAt = lateSlotStartAt;
+  linkedSession.slotStartAt = lateSlotStartAt;
+  assert.equal(rawRoom.countdownArmedAt, undefined);
+
+  const acked = acknowledgeRunningMatchRoomCountdown(store, guestUser, { roomId });
+  assert.equal(acked.room.slotStartAt, lateSlotStartAt);
+  assert.equal(acked.room.linkedMatchSlotStartAt, lateSlotStartAt);
+  assert.equal(Boolean(rawRoom.countdownArmedAt), true);
 });
 
 await runTest('group party run room never seats fewer than the group minimum', async () => {

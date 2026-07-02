@@ -361,12 +361,18 @@ function armRunningMatchRoomCountdown(store, room, now = new Date()) {
   // host has no room-update channel once linkedMatchId is set, so rewriting the slot
   // here left the host counting against the slot agreed at start while guests counted
   // against the rewritten one: the two countdowns finished apart by however long the
-  // last ack took (observed live as a variable 0.4s–7s gap). Keep the start slot while
-  // it still leaves the full visible countdown; only rebuild it in the edge case where
-  // it no longer does.
+  // last ack took (observed live as a variable 0.4s–7s gap).
+  //
+  // GAME-GRADE RULE: a still-FUTURE slot is NEVER moved — not even when a straggler's ack
+  // lands inside the final 10s. The old "keep only if >= now+10s, else rebuild to now+15s"
+  // branch re-stamped the slot mid-countdown (observed live: room slot :08 vs re-stamped
+  // duel slot :17 — the host counted 3-2-1 on the original instant while the guest's digit
+  // died at ~6). A late joiner simply gets a SHORTER visible countdown and joins at the
+  // current digit; every phone still starts at the SAME instant, which also scales to 30+
+  // (one late ack can no longer slide the start for everyone). Rebuild ONLY when the slot
+  // is missing/unparseable or already elapsed (a stale/aborted start needing a fresh slot).
   const existingSlotMs = Date.parse(linkedSession.slotStartAt ?? room.slotStartAt ?? '');
-  const minSlotMs = now.getTime() + MATCH_ROOM_HOST_START_DELAY_SECONDS * 1000;
-  const slotStartAt = Number.isFinite(existingSlotMs) && existingSlotMs >= minSlotMs
+  const slotStartAt = Number.isFinite(existingSlotMs) && existingSlotMs > now.getTime()
     ? new Date(existingSlotMs).toISOString()
     : buildHostStartedMatchSlotStartAt(now);
   room.slotStartAt = slotStartAt;
