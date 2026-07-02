@@ -29,6 +29,8 @@ import {
   stopNativeDistanceAccumulator,
 } from '@/features/runs/tracking/background/distanceAccumulatorController';
 import { isMyMatchDistanceStale } from '@/features/runs/sync/matchDistanceStaleness';
+import { isApiError } from '@/services/apiError';
+import { rgDiagLog } from '@/utils/rgPerfTrace';
 // NAME CLASH: routeAccumulator's getAccumulatedDistanceMeters is the JS AUTHORITATIVE total (the
 // source of truth this whole feature seeds the NATIVE accumulator from). Alias it so it is never
 // confused with the native getAccumulatedDistanceMeters wrapper in the module.
@@ -217,6 +219,34 @@ type FlushBackgroundMatchProgressOptions = {
   updateRunningMatchProgress?: BackgroundMatchProgressUploader;
 };
 
+// TERMINAL-STOP (P1-3) — matchIds the server has DEFINITIVELY declared gone: HTTP 410
+// { code: 'match_gone' } for a pruned/tombstoned match, HTTP 404 for an unknown one. A background
+// push for such a match can never succeed again, so retrying it every ~3s strands the device in a
+// permanent upload loop. Once a matchId lands here it is torn down (same teardown a normal finish
+// uses) and can NEVER be re-armed. ONLY a definitive HTTP 404/410 (ApiError with that status) may
+// add to this set — network errors/timeouts MUST keep retrying (screen-off runs depend on it, #203).
+const terminallyGoneMatchIds = new Set<string>();
+
+function isDefinitiveMatchGoneError(error: unknown): boolean {
+  // ApiError carries `status` ONLY when an actual HTTP response arrived (apiClient sets it from
+  // response.status). Timeouts ('timeout') and connection failures ('network') never have a
+  // status, so they can never match here — they stay retryable by construction.
+  return isApiError(error) && (error.status === 404 || error.status === 410);
+}
+
+function markMatchTerminallyGone(matchId: string) {
+  terminallyGoneMatchIds.add(matchId);
+  rgDiagLog(`[RG flush] terminal-stop matchId=${matchId} — HTTP 404/410, match gone; upload loop stopped`);
+  // Same teardown a normal finish/forfeit uses: clears the active context (matchId-scoped, so a
+  // different live match is untouched) AND stops the native periodic cadence + distance
+  // accumulator, so nothing keeps re-posting for the pruned match.
+  clearBackgroundMatchProgressContext(matchId);
+}
+
+export function isBackgroundMatchTerminallyGone(matchId: string) {
+  return terminallyGoneMatchIds.has(matchId);
+}
+
 let activeMatchProgressContext: BackgroundMatchProgressContext | null = null;
 let lastBackgroundMatchProgressSyncAtMs = 0;
 let inFlightBackgroundMatchProgressSync: Promise<unknown> | null = null;
@@ -284,7 +314,18 @@ function normalizeBackgroundMatchProgressContext(
 }
 
 export function setBackgroundMatchProgressContext(context: BackgroundMatchProgressContext | null) {
-  activeMatchProgressContext = normalizeBackgroundMatchProgressContext(context);
+  const normalized = normalizeBackgroundMatchProgressContext(context);
+
+  // TERMINAL-STOP (P1-3) — a matchId the server declared gone (HTTP 404/410) can NEVER be re-armed.
+  // The runtime layers re-set the context on their own cadence; without this guard a stranded
+  // device would immediately re-arm the pruned match and resume the forever-retry loop the
+  // terminal-stop just tore down. No-op (leave whatever context is active untouched).
+  if (normalized && terminallyGoneMatchIds.has(normalized.matchId)) {
+    rgDiagLog(`[RG flush] re-arm refused matchId=${normalized.matchId} — terminally gone (404/410)`);
+    return;
+  }
+
+  activeMatchProgressContext = normalized;
 
   if (!activeMatchProgressContext) {
     lastBackgroundMatchProgressSyncAtMs = 0;
@@ -319,6 +360,7 @@ export function resetBackgroundMatchProgressSyncForTest() {
   inFlightBackgroundMatchProgressSyncStartedAtMs = 0;
   inFlightBackgroundMatchProgressAbort?.abort();
   inFlightBackgroundMatchProgressAbort = null;
+  terminallyGoneMatchIds.clear();
 }
 
 export function resolveBackgroundHeartbeatStatus(
@@ -346,16 +388,26 @@ export async function flushBackgroundMatchProgressSync({
 }: FlushBackgroundMatchProgressOptions = {}) {
   const context = activeMatchProgressContext;
 
-  // [RG flush] TEMP diagnostic — remove after on-device verification.
+  // [RG flush] TEMP diagnostic for #203 (still open) — gated behind the rgPerfTrace debug flag so
+  // it stays available on a debug device but is silent in release.
   try {
     const diagSnapshot = getSnapshotState();
-    globalThis.console.log(
+    rgDiagLog(
       `[RG flush] platform=${platform} bg=${isAppBackground} ctx=${context ? context.matchId : 'null'} status=${diagSnapshot.status} dist=${
         typeof diagSnapshot.distanceKm === 'number' ? diagSnapshot.distanceKm.toFixed(3) : String(diagSnapshot.distanceKm)
       } thr=${nowMs - lastBackgroundMatchProgressSyncAtMs} inflight=${inFlightBackgroundMatchProgressSync ? 1 : 0}`,
     );
   } catch {
     // diagnostic only
+  }
+
+  // TERMINAL-STOP (P1-3) — belt-and-braces: if a terminally-gone matchId somehow ended up as the
+  // active context (e.g. it was armed before the 404/410 landed), tear it down here instead of
+  // pushing. clearBackgroundMatchProgressContext is the same finish teardown (stops the native
+  // periodic cadence + distance accumulator), matchId-scoped so any other match is untouched.
+  if (context && terminallyGoneMatchIds.has(context.matchId)) {
+    clearBackgroundMatchProgressContext(context.matchId);
+    return false;
   }
 
   if (!isAppBackground || !context) {
@@ -532,7 +584,7 @@ export async function flushBackgroundMatchProgressSync({
         ).catch(() => undefined);
 
         recordBackgroundHeartbeatAttempt();
-        globalThis.console.log(
+        rgDiagLog(
           `[RG flush] path=native fired matchId=${context.matchId} dist=${input.distanceKm.toFixed(3)} status=${status}`,
         );
         // NATIVE: the native uploader resolves with the response body it already reads on a
@@ -576,9 +628,9 @@ export async function flushBackgroundMatchProgressSync({
         return true;
       }
 
-      globalThis.console.log('[RG flush] path=native NO_TOKEN — JS fallback');
+      rgDiagLog('[RG flush] path=native NO_TOKEN — JS fallback');
     } else {
-      globalThis.console.log('[RG flush] path=native UNAVAILABLE (module not linked) — JS fallback');
+      rgDiagLog('[RG flush] path=native UNAVAILABLE (module not linked) — JS fallback');
     }
   }
 
@@ -609,6 +661,19 @@ export async function flushBackgroundMatchProgressSync({
       // cannot perturb the awaited sync promise / throttle / inflight guards.
       updateLiveCardFromMatchStatusSafe(nextStatus);
       return nextStatus;
+    })
+    .catch((error: unknown) => {
+      // TERMINAL-STOP (P1-3) — a DEFINITIVE HTTP 404 (unknown match) or 410 { code: 'match_gone' }
+      // (pruned/tombstoned match) means this matchId can never be uploaded again: mark it
+      // terminally gone and tear the context down (same teardown a normal finish uses) so the
+      // ~3s retry loop stops for good. ONLY an ApiError carrying that HTTP status qualifies —
+      // network errors / timeouts have no status and MUST keep retrying (screen-off runs depend
+      // on it, #203). The error is rethrown so the flush keeps its existing rejection contract
+      // (throttle not advanced, caller's fire-and-forget catch swallows).
+      if (isDefinitiveMatchGoneError(error)) {
+        markMatchTerminallyGone(input.matchId);
+      }
+      throw error;
     })
     .finally(() => {
       clearInFlightBackgroundMatchProgressSync(syncPromise);

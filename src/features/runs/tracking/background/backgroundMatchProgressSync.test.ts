@@ -12,6 +12,7 @@ import {
   flushBackgroundMatchProgressSync,
   getBackgroundMatchProgressContext,
   isBackgroundMatchProgressInFlightStale,
+  isBackgroundMatchTerminallyGone,
   NATIVE_SUBGOAL_CAP_EPSILON_KM,
   resetBackgroundMatchProgressSyncForTest,
   setBackgroundMatchProgressContext,
@@ -27,6 +28,7 @@ import {
   startNativeDistanceAccumulator,
 } from '@/features/runs/tracking/background/distanceAccumulatorController';
 import { MATCH_GOAL_DISTANCE_TOLERANCE_KM } from '@/features/runs/sync/matchProgressSync';
+import { ApiError } from '@/services/apiError';
 import { recordBackgroundSnapshotUpdate } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
 import { MY_MATCH_DISTANCE_STALE_THRESHOLD_MS } from '@/features/runs/sync/matchDistanceStaleness';
 import { setAccumulatedDistanceMeters } from '@/features/runs/tracking/background/routeAccumulator';
@@ -1123,3 +1125,185 @@ test('cold-start re-seed: native unavailable performs no re-seed and is unchange
     teardown();
   }
 });
+
+// ============================================================================================
+// TERMINAL-STOP (P1-3) — the server answers a DEFINITIVE HTTP 410 { code: 'match_gone' } for a
+// pruned (tombstoned) match and 404 for an unknown one. A background push for such a match can
+// never succeed again, so the flush must mark that matchId terminally gone, tear the context down
+// (the same finish teardown) and NEVER re-arm it — otherwise a stranded device retries every ~3s
+// forever. ONLY a definitive HTTP 404/410 qualifies: network errors and timeouts carry no HTTP
+// status and MUST keep retrying (screen-off runs depend on it, #203).
+// ============================================================================================
+
+test('terminal-stop: a definitive HTTP 410 (match_gone) stops the upload loop and never re-arms the match', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs);
+  const goneContext = {
+    matchId: 'duel-match-gone-410',
+    mode: 'duel' as const,
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  };
+  setBackgroundMatchProgressContext(goneContext);
+
+  let callCount = 0;
+  const flushError = await flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs,
+    updateRunningMatchProgress: async () => {
+      callCount += 1;
+      // apiClient throws ApiError with the response's HTTP status — 410 tombstone (match_gone).
+      throw new ApiError('request', '매치가 이미 정리됐어요.', { status: 410 });
+    },
+  }).then(() => null, (error: unknown) => error);
+
+  // The flush keeps its existing rejection contract (the caller fire-and-forgets)...
+  assert.ok(flushError instanceof ApiError, 'flush still rejects with the push error');
+  assert.equal(callCount, 1);
+  // ...and the match is marked terminally gone + torn down (same teardown as a normal finish).
+  assert.equal(isBackgroundMatchTerminallyGone('duel-match-gone-410'), true);
+  assert.equal(getBackgroundMatchProgressContext(), null);
+
+  // Re-arm attempts for the gone matchId are refused — the context stays null.
+  setBackgroundMatchProgressContext(goneContext);
+  assert.equal(getBackgroundMatchProgressContext(), null, 'a terminally gone match can never re-arm');
+
+  // So subsequent flushes never POST for it again (no ~3s forever-retry loop).
+  const didFlush = await flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs: nowMs + BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS,
+    updateRunningMatchProgress: async (input) => {
+      callCount += 1;
+      return buildMatchStatusResponse(input.matchId);
+    },
+  });
+  assert.equal(didFlush, false);
+  assert.equal(callCount, 1, 'no further POST after the terminal-stop');
+
+  // Test-isolation: the reset clears the terminal set so other tests can reuse matchIds.
+  resetBackgroundMatchProgressSyncForTest();
+  assert.equal(isBackgroundMatchTerminallyGone('duel-match-gone-410'), false);
+});
+
+test('terminal-stop: a definitive HTTP 404 (unknown match) also stops the upload loop', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs);
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-gone-404',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  await flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs,
+    updateRunningMatchProgress: async () => {
+      throw new ApiError('request', '매치를 찾을 수 없어요.', { status: 404 });
+    },
+  }).catch(() => undefined);
+
+  assert.equal(isBackgroundMatchTerminallyGone('duel-match-gone-404'), true);
+  assert.equal(getBackgroundMatchProgressContext(), null);
+});
+
+test('terminal-stop: network/timeout/5xx errors are NOT terminal — the match keeps retrying (#203)', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs);
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-retryable-errors',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  // Timeout (no HTTP status), connection failure (no HTTP status), and a 5xx: all retryable.
+  const retryableErrors: unknown[] = [
+    new ApiError('timeout', '요청 시간이 초과됐어요.'),
+    new ApiError('network', '서버에 연결하지 못했어요.'),
+    new ApiError('server', '서버 오류가 발생했어요.', { status: 500 }),
+    new Error('network request failed'),
+  ];
+
+  for (const [index, retryableError] of retryableErrors.entries()) {
+    await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      // Failed pushes never advance the throttle, so back-to-back retries are allowed.
+      nowMs: nowMs + index,
+      updateRunningMatchProgress: async () => {
+        throw retryableError;
+      },
+    }).catch(() => undefined);
+
+    assert.equal(
+      isBackgroundMatchTerminallyGone('duel-match-retryable-errors'),
+      false,
+      `error #${index} must stay retryable — screen-off runs depend on it`,
+    );
+    assert.equal(
+      getBackgroundMatchProgressContext()?.matchId,
+      'duel-match-retryable-errors',
+      `error #${index} must not tear the context down`,
+    );
+  }
+
+  // And the very next flush still POSTs (the loop was never stopped).
+  const calls: UpdateRunningMatchProgressInput[] = [];
+  const didFlush = await flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs: nowMs + BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS,
+    updateRunningMatchProgress: async (input) => {
+      calls.push(input);
+      return buildMatchStatusResponse(input.matchId);
+    },
+  });
+  assert.equal(didFlush, true);
+  assert.equal(calls.length, 1);
+});
+
+test('terminal-stop: a 410 for a superseded match is matchId-scoped — a newer active match stays armed', async () => {
+  const nowMs = Date.now();
+  resetBackgroundMatchProgressSyncForTest();
+  setRunningSnapshot(nowMs);
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-gone-old',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  await flushBackgroundMatchProgressSync({
+    isAppBackground: true,
+    nowMs,
+    updateRunningMatchProgress: async () => {
+      // While the push for the OLD match is in flight, the runtime moves on to a NEW match.
+      clearBackgroundMatchProgressContext('duel-match-gone-old');
+      setBackgroundMatchProgressContext({
+        matchId: 'duel-match-new-live',
+        mode: 'duel',
+        distanceKm: 3,
+        slotStartAt: '2026-05-29T01:00:00.000Z',
+      });
+      throw new ApiError('request', '매치가 이미 정리됐어요.', { status: 410 });
+    },
+  }).catch(() => undefined);
+
+  // Only the requested (old) matchId is marked gone; the teardown is matchId-scoped so the NEW
+  // live match keeps its context untouched.
+  assert.equal(isBackgroundMatchTerminallyGone('duel-match-gone-old'), true);
+  assert.equal(isBackgroundMatchTerminallyGone('duel-match-new-live'), false);
+  assert.equal(getBackgroundMatchProgressContext()?.matchId, 'duel-match-new-live');
+
+  // A re-arm attempt for the gone match is refused WITHOUT clobbering the live one.
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-match-gone-old',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+  assert.equal(getBackgroundMatchProgressContext()?.matchId, 'duel-match-new-live');
+});
+
