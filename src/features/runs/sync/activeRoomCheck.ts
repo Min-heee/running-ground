@@ -215,8 +215,16 @@ export async function runActiveRoomCheck({
 
   const promise = Promise.resolve()
     .then(async () => {
-      const activeFetcher = fetcher ?? (await import('@/services/matchService')).fetchRunningMatchRoom;
-      return activeFetcher(abortController.signal);
+      if (fetcher) {
+        return fetcher(abortController.signal);
+      }
+      // fetchRunningMatchRoom takes an OPTIONS OBJECT ({ signal }) — passing the AbortSignal
+      // positionally (the old code) meant options.signal was undefined, so the hard-timeout abort
+      // NEVER cancelled the HTTP request. Each timed-out tick then left a zombie /rooms/my alive up
+      // to the apiClient 10s cap while a fresh request started on the next poll tick — the stacking
+      // that kept every completion >=3s and starved the guest lobby of the host-start for 30s+.
+      const { fetchRunningMatchRoom } = await import('@/services/matchService');
+      return fetchRunningMatchRoom({ signal: abortController.signal });
     })
     .then((payload) => {
       const completedAtMs = getNowMs();

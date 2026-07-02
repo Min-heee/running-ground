@@ -37,12 +37,12 @@ export function mapCompletedActiveRoomCheckForCaller(
     routeKey,
     reused,
     skipped,
-    uiTimeoutMs,
   }: {
     routeKey?: string | null;
     reused: boolean;
     skipped: boolean;
-    uiTimeoutMs: number;
+    // Callers still pass their uiTimeoutMs; it is intentionally unused — see the stale note below.
+    uiTimeoutMs?: number;
   },
 ): ActiveRoomCheckResult {
   if (completed.aborted) {
@@ -68,7 +68,12 @@ export function mapCompletedActiveRoomCheckForCaller(
     routeKey: routeKey ?? completed.routeKey,
     reused,
     skipped,
-    stale: completed.stale || completed.durationMs >= uiTimeoutMs,
+    // A COMPLETED body is not stamped stale merely for being slow (>= uiTimeoutMs): freshness is
+    // arbitrated downstream by the monotonic serverNow guard, the exit/deletion tombstones and the
+    // snapshot-key dedup — duration says nothing about body validity. Stamping slow-but-successful
+    // bodies stale made the guest LOBBY fetch-and-discard every /rooms/my carrying the host-start
+    // (linkedMatchId) whenever the device was congested, stranding the guest in the 대기실.
+    stale: completed.stale,
     startedAtMs: completed.startedAtMs,
     timedOut: false,
   };

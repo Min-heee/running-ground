@@ -3,11 +3,19 @@ import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { getApiErrorMessage } from '@/services/apiError';
 import { runActiveRoomCheck } from '@/features/runs/sync/activeRoomCheck';
+import { getLastActiveRoomCheck } from '@/features/runs/sync/activeRoomCheckRequestRegistry';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import { isRgInputInteractionRecent } from '@/utils/rgInputTrace';
 import { getInviteInboxDebounceMs } from './roomSnapshotPollingPolicy';
 
 type ActiveRoomCheckResult = Awaited<ReturnType<typeof runActiveRoomCheck>>;
+
+// RUNTIME→LOBBY BRIDGE freshness: how recent the background running-tab runtime's successful
+// /rooms/my payload (the 'track-run experience' module cache) must be for the lobby to adopt it.
+// Covers the observed starvation: the runtime learns the host-start (linkedMatchId) within ~1-2s
+// via its own pollers while the lobby's own fetches are slow/timed-out on a congested device —
+// without this the guest sat in the 대기실 for 30s+ while its runtime already knew the match.
+const RUNTIME_ROOM_BRIDGE_FRESH_MS = 15_000;
 
 export function useRoomSnapshotFetcher({
   buildRouteKey,
@@ -110,7 +118,51 @@ export function useRoomSnapshotFetcher({
         userId: recipientUserId,
       });
 
-      return handleActiveRoomSnapshotResult(activeRoomCheckResult);
+      const handledRoom = await handleActiveRoomSnapshotResult(activeRoomCheckResult);
+
+      // RUNTIME→LOBBY BRIDGE: if this lobby still has no linked room (its own fetch timed out,
+      // was slow, or simply hasn't caught the host-start yet), adopt the background running-tab
+      // runtime's LAST SUCCESSFUL /rooms/my payload when it is fresh, for the SAME room, and
+      // carries a linkedMatchId. The synthesized result goes through the SAME handler, so every
+      // existing guard (monotonic serverNow, exit/deletion tombstones, snapshot-key dedup) still
+      // applies — re-feeding an identical cache entry dedupes to a no-op, and the moment a linked
+      // room commits, the linked-match early-return above stops this fetcher entirely. No new
+      // hook/effect/subscription — runs inside the existing async tick, so it cannot loop.
+      if (!handledRoom?.linkedMatchId && !roomRef.current?.linkedMatchId) {
+        const runtimeCheck = getLastActiveRoomCheck('track-run experience');
+        const runtimeRoom = runtimeCheck?.payload?.room ?? null;
+        const lobbyRoomId = roomRef.current?.roomId ?? null;
+        if (
+          runtimeCheck
+          && runtimeRoom?.linkedMatchId
+          && lobbyRoomId
+          && runtimeRoom.roomId === lobbyRoomId
+          && Date.now() - runtimeCheck.completedAtMs <= RUNTIME_ROOM_BRIDGE_FRESH_MS
+        ) {
+          rgPerfMark('active room bridged from runtime cache', {
+            linkedMatchId: runtimeRoom.linkedMatchId,
+            roomId: runtimeRoom.roomId,
+            routeKey,
+            source: 'match-room snapshot',
+          });
+          return handleActiveRoomSnapshotResult({
+            completedAtMs: runtimeCheck.completedAtMs,
+            generation: runtimeCheck.generation,
+            payload: runtimeCheck.payload,
+            requestId: runtimeCheck.requestId,
+            // The CURRENT route key — the cache entry's own routeKey belongs to the runtime's
+            // route and would trip the route-changed skip.
+            routeKey,
+            reused: true,
+            skipped: false,
+            stale: false,
+            startedAtMs: runtimeCheck.startedAtMs,
+            timedOut: false,
+          });
+        }
+      }
+
+      return handledRoom;
     } catch (roomError) {
       endInviteInboxPollingTrace({
         success: false,

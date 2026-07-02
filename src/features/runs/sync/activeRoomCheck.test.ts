@@ -205,9 +205,13 @@ test('active room check timeout aborts and releases the owner for retry', async 
   await Promise.resolve();
 });
 
-test('active room check marks slow completed results as stale generation', async () => {
+test('active room check does NOT mark a slow-but-completed result stale (slow bodies still commit)', async () => {
   resetActiveRoomCheckForTest();
 
+  // Duration says nothing about body validity — freshness is arbitrated downstream by the
+  // monotonic serverNow guard, tombstones and snapshot-key dedup. Stamping slow completions
+  // stale made the guest LOBBY fetch-and-discard every /rooms/my carrying the host-start on a
+  // congested device, stranding the guest in the 대기실 while the host counted down.
   const result = await runActiveRoomCheck({
     fetcher: () => new Promise<RunningMatchRoomResponse>((resolve) => {
       setTimeout(() => resolve(response('slow-room')), 8);
@@ -220,11 +224,11 @@ test('active room check marks slow completed results as stale generation', async
 
   assert.equal(result.payload?.room?.roomId, 'slow-room');
   assert.equal(result.timedOut, false);
-  assert.equal(result.stale, true);
+  assert.equal(result.stale, false);
   assert.equal(getActiveRoomCheckResultSkipReason({
     currentRouteKey: 'track-run:duel:room-1:no-match:page-0',
     result,
-  }), 'stale-generation');
+  }), null);
 });
 
 test('active room check result is ignored after route changes or live match mount', async () => {
