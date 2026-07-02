@@ -205,6 +205,43 @@ test('a sibling feeder advancing the global serverNow does not swallow the first
   }
 });
 
+test('a lower-RTT sample RE-SNAPS a cold snap that came from a congestion-inflated high-RTT reading', () => {
+  // A busy Android JS thread can process the FIRST trusted sample's response seconds late,
+  // inflating its RTT and baking ~RTT/2 of error into the snapped offset (observed live as
+  // the guest counting 1-2s behind the host on the SAME slot). While the committed offset
+  // derives from such a poor snap, a strictly lower-RTT sample must SNAP to the buffer's
+  // best offset — the 400ms crawl cannot close a 1-2s error inside a 10s countdown.
+  resetSharedServerClockForTest();
+  const base = Date.parse('2026-05-12T00:00:00.000Z');
+  try {
+    const congested = timedSample(base, 2_400, 6_200); // late-processed reading, offset ~1.2s wrong
+    applySharedServerClock(congested.serverNow, congested.timing);
+    assert.equal(getSharedServerClockOffsetMs(), 6_200);
+
+    const clean = timedSample(base + 1_000, 120, 5_000); // true offset from a clean reading
+    applySharedServerClock(clean.serverNow, clean.timing);
+    assert.equal(getSharedServerClockOffsetMs(), 5_000); // full snap, NOT 6_200-400
+  } finally {
+    resetSharedServerClockForTest();
+  }
+});
+
+test('after a good-RTT snap, an even lower-RTT sample crawls (steady state never jumps)', () => {
+  resetSharedServerClockForTest();
+  const base = Date.parse('2026-05-12T00:00:00.000Z');
+  try {
+    const good = timedSample(base, 300, 5_000); // ≤ good threshold → snaps and LOCKS
+    applySharedServerClock(good.serverNow, good.timing);
+    assert.equal(getSharedServerClockOffsetMs(), 5_000);
+
+    const better = timedSample(base + 1_000, 80, 6_000); // big move must NOT jump post-lock
+    applySharedServerClock(better.serverNow, better.timing);
+    assert.equal(getSharedServerClockOffsetMs(), 5_400); // bounded 400ms step only
+  } finally {
+    resetSharedServerClockForTest();
+  }
+});
+
 test('shared server clock steps newer snapshots with the bounded jump policy', () => {
   resetSharedServerClockForTest();
   const originalDateNow = Date.now;

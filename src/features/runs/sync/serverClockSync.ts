@@ -36,6 +36,17 @@ const SERVER_CLOCK_SAMPLE_FRESHNESS_MS = 12000;
 // value (bypassing the 400ms crawl), and clockReady then trips once a few samples concur.
 const SERVER_CLOCK_READY_MIN_SAMPLES = 2;
 const SERVER_CLOCK_READY_AGREEMENT_TOLERANCE_MS = 250;
+// Snap-quality gate. The cold-start SNAP takes the FIRST trusted sample — but on a congested
+// device (Android JS thread busy with pollers/renders) that first reading's responseReceivedAtMs
+// can be processed SECONDS late, inflating its RTT and baking a ~RTT/2 error into the snapped
+// offset (observed live as the guest counting a consistent 1-2s behind the host on the SAME
+// slot). While the last snap came from a sample with RTT ABOVE this threshold, a strictly
+// lower-RTT sample RE-SNAPS the offset (full jump, not the 400ms crawl — the crawl can't close
+// a 1-2s error inside a 10s countdown). Once a good (≤ threshold) sample has snapped, re-snaps
+// stop permanently — steady state keeps the exact bounded-crawl behavior (the c3b6402
+// fast-converge regression was about jumping in steady state; this only jumps while the
+// committed offset is known to derive from a poor-quality reading).
+const SERVER_CLOCK_GOOD_SNAP_RTT_MS = 500;
 
 type ServerClockTimingSource = {
   clientRequestStartedAtMs?: unknown;
@@ -190,6 +201,11 @@ let recentTimedSamples: BufferedServerClockSample[] = [];
 // Drives the cold-start SNAP (resolveStableServerClockOffset) so the offset jumps straight
 // to the true value on the first reading rather than crawling toward it.
 let hasAcceptedServerClockSample = false;
+// The RTT of the sample the committed offset was last SNAPPED from (a conservative upper
+// bound — the snap target is the buffer's lowest-RTT sample). While this is ABOVE the
+// good-snap threshold, a strictly lower-RTT sample may re-snap; once at/below it, no more
+// jumps ever (steady state = pure bounded crawl).
+let snappedSampleRttMs: number | null = null;
 // How many fresh, RTT-timed samples whose best candidates agree we've folded in. The
 // countdown lock waits for clockReady before freezing, so a single reading can't pin a
 // skewed instant.
@@ -272,11 +288,25 @@ export function applySharedServerClock(serverNow?: string, timingSource?: unknow
   // when this trusted sample is the first one we've folded in. An untimed cold sample still
   // crawls (existing bounded-step behavior preserved).
   const allowColdStartSnap = isTrustedSample && !hasAcceptedServerClockSample;
+  // QUALITY RE-SNAP: while the committed offset derives from a poor (high-RTT, likely
+  // congestion-inflated) snap, a strictly lower-RTT sample re-snaps to the buffer's best
+  // offset instead of crawling — the 400ms crawl cannot close a 1-2s baked-in error inside
+  // a 10s countdown. Stops permanently once a good (≤ SERVER_CLOCK_GOOD_SNAP_RTT_MS) sample
+  // has snapped, so steady-state behavior is exactly the pre-existing bounded crawl.
+  const allowQualityResnap = isTrustedSample
+    && !allowColdStartSnap
+    && offsetSample.rttMs !== null
+    && snappedSampleRttMs !== null
+    && snappedSampleRttMs > SERVER_CLOCK_GOOD_SNAP_RTT_MS
+    && offsetSample.rttMs < snappedSampleRttMs;
   const stableOffsetMs = resolveStableServerClockOffset(
     sharedServerClockOffsetMs,
     targetOffsetMs,
-    !allowColdStartSnap,
+    !(allowColdStartSnap || allowQualityResnap),
   );
+  if (allowColdStartSnap || allowQualityResnap) {
+    snappedSampleRttMs = offsetSample.rttMs;
+  }
   if (isTrustedSample) {
     hasAcceptedServerClockSample = true;
   }
@@ -302,6 +332,7 @@ export function resetSharedServerClockForTest() {
   latestAcceptedServerNowMs = 0;
   recentTimedSamples = [];
   hasAcceptedServerClockSample = false;
+  snappedSampleRttMs = null;
   agreeingServerClockSampleCount = 0;
   sharedServerClockListeners.clear();
 }
