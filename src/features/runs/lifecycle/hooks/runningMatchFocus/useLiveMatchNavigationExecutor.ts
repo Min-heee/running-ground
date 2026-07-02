@@ -15,8 +15,6 @@ import {
 } from '@/features/runs/lifecycle/liveMatchNavigationGate';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import type { rgPerfMeasureStart } from '@/utils/rgPerfTrace';
-// TEMPORARY DIAG (revert before ship): observe-only event log for the arena-open skip.
-import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 import type {
   ActiveLiveMatchNavigation,
   CompletedLiveMatchNavigation,
@@ -199,17 +197,6 @@ export function useLiveMatchNavigationExecutor({
         // do so on the pre-slot state==='matched' && ≤20s branch — the countdown skip).
         // useSlotGatedArenaOpen owns the flag and opens at/after the slot (or for a route
         // force). effectivePreferArena is still kept on the navigation record/trace.
-        // TEMPORARY DIAG (revert before ship): log the navigation handoff (duel).
-        if (effectivePreferArena) {
-          pushLiveMatchDiagEvent('navHandoff', {
-            src: 'navExecutor:duel',
-            matchId: matchId ?? null,
-            serverState: payload.state ?? null,
-            remaining: getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()),
-            slotStartAt: payload.slotStartAt ?? null,
-            syncedNow: getSyncedNowMs(),
-          });
-        }
         navigationResult = payload;
         return payload;
       }
@@ -245,17 +232,6 @@ export function useLiveMatchNavigationExecutor({
       });
       // STAGE 3 (clean core): see the duel branch — navigation no longer flips
       // forceOpenActiveMatch; useSlotGatedArenaOpen owns it.
-      // TEMPORARY DIAG (revert before ship): log the navigation handoff (group).
-      if (effectivePreferArena) {
-        pushLiveMatchDiagEvent('navHandoff', {
-          src: 'navExecutor:group',
-          matchId: matchId ?? null,
-          serverState: payload.state ?? null,
-          remaining: getMatchStartRemainingSeconds(payload.slotStartAt, getSyncedNowMs()),
-          slotStartAt: payload.slotStartAt ?? null,
-          syncedNow: getSyncedNowMs(),
-        });
-      }
       navigationResult = payload;
       return payload;
     } catch (navigationError) {

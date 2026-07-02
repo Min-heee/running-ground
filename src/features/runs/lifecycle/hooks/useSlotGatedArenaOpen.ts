@@ -2,8 +2,6 @@ import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { ScrollView } from 'react-native';
 import { resolveActiveMatchSlot } from '@/features/runs/lifecycle/liveMatchSlot';
-// TEMPORARY DIAG (revert before ship): observe-only event log for the arena-open skip.
-import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAGE 3 (clean core) — the SINGLE slot-gated arena force-open. This is the ONLY
@@ -149,17 +147,6 @@ export function useSlotGatedArenaOpen({
     }
     openedKeyRef.current = openKey;
 
-    // TEMPORARY DIAG (revert before ship): log the SINGLE slot-gated force-open with
-    // the decisive values — this should never appear with remaining>0.
-    pushLiveMatchDiagEvent('forceOpenActive=true', {
-      src: 'useSlotGatedArenaOpen',
-      matchId: slot?.matchId ?? directMatch?.matchId ?? null,
-      slotStartMs: slotStartMs ?? null,
-      syncedNow: syncedNowMs,
-      remaining: slotStartMs !== null ? Math.ceil((slotStartMs - syncedNowMs) / 1000) : null,
-      serverActive,
-      routeForce: routeForceMatchArena,
-    });
     onForceOpenActiveMatchChange(true);
     onLiveArenaPageChange(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });

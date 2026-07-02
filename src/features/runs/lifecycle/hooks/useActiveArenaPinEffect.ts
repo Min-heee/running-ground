@@ -6,8 +6,6 @@ import {
   shouldEnterMatchArenaForLifecycle,
   shouldKeepMatchArenaForceOpen,
 } from '@/features/runs/lifecycle/matchStateMachine';
-// TEMPORARY DIAG (revert before ship): observe-only event log for the arena-open skip.
-import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 
 type UseActiveArenaPinEffectInput = {
   livePagerRef: RefObject<ScrollView | null>;
@@ -109,16 +107,6 @@ export function useActiveArenaPinEffect({
     // STAGE 3 (clean core): this lifecycle entry MOUNTS/SCROLLS the arena page into place
     // but no longer flips forceOpenActiveMatch — useSlotGatedArenaOpen is the single,
     // slot-gated owner of that flag, so the measuring arena can't force-open pre-slot.
-    // TEMPORARY DIAG (revert before ship): log the mount/scroll (no longer a force-open).
-    pushLiveMatchDiagEvent('arenaPin:scroll', {
-      src: 'useActiveArenaPinEffect:lifecycle',
-      duelState,
-      groupState,
-      duelCdArena: duelShouldOpenCountdownArena,
-      groupCdArena: groupShouldOpenCountdownArena,
-      duelMatchId: duelMatchId ?? null,
-      groupMatchId: groupMatchId ?? null,
-    });
     callbackRef.current.onLiveArenaPageChange(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
   }, [

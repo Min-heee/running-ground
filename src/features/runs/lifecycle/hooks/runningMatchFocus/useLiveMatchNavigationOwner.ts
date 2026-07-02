@@ -2,8 +2,6 @@ import { useCallback, useRef } from 'react';
 import {
   buildLiveMatchNavigationKey,
 } from '@/features/runs/lifecycle/liveMatchNavigationGate';
-// TEMPORARY DIAG (revert before ship): observe-only event log for the arena-open skip.
-import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import {
   type ActiveLiveMatchNavigation,
@@ -67,14 +65,9 @@ export function useLiveMatchNavigationOwner({
     // page but no longer flips forceOpenActiveMatch — useSlotGatedArenaOpen is the single
     // slot-gated owner of the flag, so a re-focus during the countdown can't open the
     // measuring arena early.
-    // TEMPORARY DIAG (revert before ship): log the promotion mount/scroll.
-    pushLiveMatchDiagEvent('arenaPin:scroll', {
-      src: 'navOwner:promoteLiveArena',
-      syncedNow: getSyncedNowMs(),
-    });
     setLiveArenaPage(0);
     livePagerRef.current?.scrollTo({ x: 0, animated: false });
-  }, [getSyncedNowMs, livePagerRef, setLiveArenaPage]);
+  }, [livePagerRef, setLiveArenaPage]);
 
   // Drop the navigation-owner latches so a back-to-back match isn't blocked by a
   // stale active/completed/failed record from the previous match (B2). Pairs with

@@ -10,8 +10,6 @@ import {
   buildOfficialStartBaseline,
 } from '@/features/runs/tracking/trackingSession';
 import type { UseRunTrackingFlowInput } from '@/features/runs/types/runTrackingFlow';
-// TEMPORARY DIAG (revert before ship): observe-only event log for the measuring-start.
-import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 
 // STAGE 4 (clean core): the pre-slot-warm-up inputs (duelMatchState/groupMatchState,
 // visiblePartyRunShouldOpenArena, duel/groupStartCountdownSeconds, lifecycleWarmupMatchId)
@@ -172,13 +170,6 @@ export function useMatchAutoTrackingEffects({
       }
 
       if (getBackgroundRunTrackingSnapshot({ cloneRoute: false }).status !== 'running') {
-        // TEMPORARY DIAG (revert before ship): log the auto-start of measuring (active path).
-        pushLiveMatchDiagEvent('startTracking', {
-          src: 'autoTracking:active',
-          matchId: activeMatchId,
-          mode: matchMode,
-          slotStartAt: activeMatch?.slotStartAt ?? null,
-        });
         startMatchTrackingAutomatically(activeMatchId);
       }
     }).finally(() => {

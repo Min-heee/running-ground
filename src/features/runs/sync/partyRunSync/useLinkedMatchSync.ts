@@ -5,8 +5,6 @@ import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateM
 import type { PartyRunStartPhase } from '@/features/runs/types/matchStateMachine';
 import { rgDiagLog, rgPerfMark } from '@/utils/rgPerfTrace';
 import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
-// TEMPORARY DIAG (revert before ship): observe-only event log for the arena-open skip.
-import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 import type { LinkedMatchSyncInput } from './types';
 
 export const LINKED_MATCH_ARMING_POLL_MS = 1000;
@@ -297,31 +295,23 @@ export function useLinkedMatchSync({
           }
         }
 
-        const slotStartMs = Date.parse(payload.slotStartAt);
         // The arena may still MOUNT under the countdown overlay at the ≤20s handoff window —
         // this only scrolls the proven arena page into place beneath the centered countdown,
         // it does NOT measure yet.
         const shouldPinArenaPage = shouldAutoOpenMatchArena(
           getMatchStartRemainingSeconds(payload.slotStartAt, syncedNowMs),
         );
-        // The active/measuring TRANSITION must NOT be pre-empted before THIS phone's own
-        // countdown has reached its slot — that is exactly what made the non-host skip the
-        // countdown and jump to the arena. The naive `payload.state === 'active'` backstop is
-        // NOT safe on its own here: the linked duel/group session is SHARED, so the backend
-        // flips it to 'active' the instant ANY participant pushes live progress (the host
-        // starting a beat early), which would yank the guest past their on-screen countdown.
-        // resolveLinkedMatchActiveTransition gates the server-active signal on the slot being
-        // reached, so it can never pre-empt the local countdown, while still acting as a
-        // backstop at/after the slot (and as the sole signal when there is no parseable slot).
-        const shouldTransitionToActive = resolveLinkedMatchActiveTransition({
-          serverState: payload.state,
-          slotStartMs,
-          syncedNowMs,
-        });
 
         if (!currentUserDoneWithLinkedMatch) {
           // Mount + scroll the arena page under the overlay during the handoff window (does not
-          // start measuring). This is decoupled from the active transition below.
+          // start measuring).
+          //
+          // STAGE 3 (clean core): the force-open flag is now owned solely by
+          // useSlotGatedArenaOpen, which gates on the slot fact (syncedNow>=slot, or
+          // serverActive corroborating at/after the slot) — equivalent to
+          // resolveLinkedMatchActiveTransition, folded into the single owner. This sync still
+          // drives polling cadence + the arena-handoff page pin below; it no longer flips the
+          // flag, so it can never pre-empt the guest's countdown.
           if (shouldPinArenaPage) {
             const pinKey = [
               roomLinkedMatchContext.matchId,
@@ -334,25 +324,6 @@ export function useLinkedMatchSync({
               callbacksRef.current.onLiveArenaPageChange(0);
               livePagerRef.current?.scrollTo({ x: 0, animated: false });
             }
-          }
-
-          // STAGE 3 (clean core): the force-open flag is now owned solely by
-          // useSlotGatedArenaOpen, which gates on this same slot fact (syncedNow>=slot, or
-          // serverActive corroborating at/after the slot) — equivalent to
-          // resolveLinkedMatchActiveTransition, folded into the single owner. This sync still
-          // drives polling cadence + the arena-handoff page pin above; it no longer flips the
-          // flag, so it can never pre-empt the guest's countdown.
-          if (shouldTransitionToActive) {
-            // TEMPORARY DIAG (revert before ship): log the slot-reached transition signal.
-            pushLiveMatchDiagEvent('linkedSync:slotReached', {
-              src: 'useLinkedMatchSync',
-              remaining: getMatchStartRemainingSeconds(payload.slotStartAt, syncedNowMs),
-              ctxState: roomLinkedMatchContext?.state ?? null,
-              mode: roomLinkedMatchContext?.mode ?? null,
-              serverState: payload.state ?? null,
-              slotStartAt: payload.slotStartAt,
-              syncedNow: syncedNowMs,
-            });
           }
         }
       } catch {

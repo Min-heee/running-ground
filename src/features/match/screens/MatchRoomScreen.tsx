@@ -122,12 +122,6 @@ export default function MatchRoomScreen() {
         <BackButton onPress={handleBack} />
       </View>
       <Text style={styles.pageTitle}>대기실</Text>
-      {/* TEMPORARY DIAG (revert before ship): pure render of values already in scope — no store,
-          no effect, no subscription (the singleton diag overlay white-screened here before).
-          Shows whether the host-start (link) has reached THIS lobby's room snapshot. */}
-      <Text style={styles.lobbyDiagText}>
-        {`link:${room?.linkedMatchId ?? '-'} st:${room?.state ?? '-'} sm:${room?.startMode ?? '-'} ld:${loading ? 'y' : 'n'}`}
-      </Text>
 
       {loading ? (
         <LoadingRoomCard
@@ -290,11 +284,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: fontSizes.pageTitle,
     fontWeight: fontWeights.black,
-  },
-  // TEMPORARY DIAG (revert before ship)
-  lobbyDiagText: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.xs,
   },
   helperText: {
     color: colors.textSecondary,

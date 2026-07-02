@@ -12,8 +12,6 @@ import {
 import { hydrateOptimisticMatchRoom } from '@/features/match/hooks/lobby/optimisticRoomHydration';
 import { clearMatchRoomDeletedTombstone } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
-// TEMPORARY DIAG (revert before ship): observe-only event log for the arena-open skip.
-import { pushLiveMatchDiagEvent } from '@/features/runs/runtime/liveMatchDiagStore';
 
 type FocusRunningMatchInput = {
   mode: Extract<RunMatchMode, 'duel' | 'group'>;
@@ -84,14 +82,6 @@ export function useMatchEntryEffects({
       // forceOpenActiveMatch flag is now owned solely by useSlotGatedArenaOpen (which gates
       // on the slot OR the staleness-checked route force). This keeps a single owner of the
       // flag and prevents a stale route param from re-opening a finished arena.
-      // TEMPORARY DIAG (revert before ship): log the route-driven mount/scroll.
-      pushLiveMatchDiagEvent('arenaPin:scroll', {
-        src: 'useMatchEntryEffects:route',
-        mode: focusMatchMode ?? null,
-        matchId: focusMatchId ?? null,
-        slotStartAt: focusMatchSlotStartAt ?? null,
-        forceMatchArena: true,
-      });
       onLiveArenaPageChange(0);
       livePagerRef.current?.scrollTo({ x: 0, animated: false });
     }
