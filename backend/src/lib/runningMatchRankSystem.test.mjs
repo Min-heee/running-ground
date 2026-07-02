@@ -395,8 +395,12 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
     status: 'finished',
   });
 
+  // A snapshot-only opponent makes this a TEST match (isTestMatchSession): rank LP is
+  // skipped entirely AND lpApplied is sealed, so a retry poll can never re-enter the
+  // LP path. (Previously the bot lookup threw mid-application, leaving lpApplied unset
+  // and risking repeated LP awards on retry.)
   assert.equal(winner.rankState.lp, 50);
-  assert.equal(session.lpApplied, undefined);
+  assert.equal(session.lpApplied, true);
 }
 
 {

@@ -1,3 +1,12 @@
+import { ALLOW_TEST_MATCHES } from '../../config.mjs';
+
+// Client-supplied testMode is only honored where the env allows it (default: any
+// non-production APP_ENV). When disallowed it is silently coerced to false — never a
+// 400 — so an old client that still sends the flag just runs the real match flow.
+function resolveTestModeIntake(body) {
+  return ALLOW_TEST_MATCHES && body.testMode === true;
+}
+
 export async function routeRunningMatchRequestRoutes(deps) {
   const { method, pathname } = deps;
 
@@ -52,7 +61,7 @@ async function handleRequestDuelMatch({
 }) {
   const body = await parseJsonBody(request);
   const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
-  const testMode = body.testMode === true;
+  const testMode = resolveTestModeIntake(body);
   const slotStartAt = testMode
     ? (typeof body.slotStartAt === 'string' && body.slotStartAt.trim() ? body.slotStartAt.trim() : new Date().toISOString())
     : validateMatchSlotInput(body.slotStartAt);
@@ -81,7 +90,7 @@ async function handleRequestGroupMatch({
 }) {
   const body = await parseJsonBody(request);
   const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
-  const testMode = body.testMode === true;
+  const testMode = resolveTestModeIntake(body);
   const slotStartAt = testMode
     ? (typeof body.slotStartAt === 'string' && body.slotStartAt.trim() ? body.slotStartAt.trim() : new Date().toISOString())
     : validateMatchSlotInput(body.slotStartAt);
@@ -156,7 +165,7 @@ async function handleCancelRunningMatch({
   const body = await parseJsonBody(request);
   const mode = validateMatchMode(body.mode);
   const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
-  const testMode = body.testMode === true;
+  const testMode = resolveTestModeIntake(body);
   const slotStartAt = testMode
     ? (typeof body.slotStartAt === 'string' && body.slotStartAt.trim() ? body.slotStartAt.trim() : new Date().toISOString())
     : validateMatchSlotInput(body.slotStartAt);

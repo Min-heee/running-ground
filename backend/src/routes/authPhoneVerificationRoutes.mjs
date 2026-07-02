@@ -1,3 +1,22 @@
+import {
+  SMS_GLOBAL_PER_DAY,
+  SMS_PER_IP_PER_HOUR,
+  SMS_PER_PHONE_PER_DAY,
+  SMS_UNIQUE_PHONES_PER_IP_PER_DAY,
+  TRUST_PROXY,
+} from '../config.mjs';
+import { createSmsRequestCodeGuard, resolveClientIp } from '../lib/rateLimiter.mjs';
+import { logBackendError } from '../response/httpResponse.mjs';
+
+// request-code는 호출마다 실제 solapi SMS를 발송하므로(= 과금) 프로세스 수명 동안
+// 공유되는 계층형 rate limit 가드를 둔다. 테스트에서는 routeContext로 교체 주입한다.
+const defaultSmsRequestCodeGuard = createSmsRequestCodeGuard({
+  perIpPerHour: SMS_PER_IP_PER_HOUR,
+  uniquePhonesPerIpPerDay: SMS_UNIQUE_PHONES_PER_IP_PER_DAY,
+  perPhonePerDay: SMS_PER_PHONE_PER_DAY,
+  globalPerDay: SMS_GLOBAL_PER_DAY,
+});
+
 export async function routeAuthPhoneVerificationRequest({
   method,
   pathname,
@@ -5,6 +24,8 @@ export async function routeAuthPhoneVerificationRequest({
   response,
   sendJson,
   mutateStore,
+  smsRequestCodeGuard = defaultSmsRequestCodeGuard,
+  trustProxy = TRUST_PROXY,
   buildPhoneVerificationPayload,
   buildPhoneVerificationSuccessPayload,
   cleanupPhoneVerificationChallenges,
@@ -34,6 +55,8 @@ export async function routeAuthPhoneVerificationRequest({
       request,
       response,
       sendJson,
+      smsRequestCodeGuard,
+      trustProxy,
       validatePhoneNumber,
       validatePhoneVerificationPurpose,
     });
@@ -76,6 +99,8 @@ async function handleRequestPhoneVerificationCode({
   request,
   response,
   sendJson,
+  smsRequestCodeGuard,
+  trustProxy,
   validatePhoneNumber,
   validatePhoneVerificationPurpose,
 }) {
@@ -83,6 +108,26 @@ async function handleRequestPhoneVerificationCode({
   const purpose = validatePhoneVerificationPurpose(body.purpose);
   const phone = validatePhoneNumber(body.phone);
   const now = new Date();
+
+  const clientIp = resolveClientIp(request, { trustProxy });
+  const rateDecision = smsRequestCodeGuard.check({ ip: clientIp, phone, now: now.getTime() });
+
+  if (!rateDecision.allowed) {
+    if (rateDecision.reason === 'global') {
+      // 전역 일일 한도는 서비스 전체 SMS 예산 소진 신호라 시끄럽게 남긴다.
+      logBackendError('sms_global_daily_limit_exceeded', new Error('SMS 전역 일일 발송 한도를 초과했어요.'), {
+        clientIp,
+        phone,
+      });
+      throw new ApiError(429, '지금은 인증번호 요청이 많아요. 잠시 후 다시 시도해주세요.', {
+        retryAfterSeconds: rateDecision.retryAfterSeconds,
+      });
+    }
+
+    throw new ApiError(429, '인증번호 요청이 너무 많아요. 잠시 후 다시 시도해주세요.', {
+      retryAfterSeconds: rateDecision.retryAfterSeconds,
+    });
+  }
 
   let createdChallenge = null;
   let rawCode = '';

@@ -1,3 +1,4 @@
+import { ALLOW_TEST_MATCHES } from '../../config.mjs';
 import { parseLenientMatchSlotInput } from '../../lib/matchSlotValidation.mjs';
 
 export async function routeRunningMatchProgressRoutes(deps) {
@@ -79,7 +80,9 @@ async function handleFetchRunningMatchStatus({
   const body = await parseJsonBody(request);
   const mode = validateMatchMode(body.mode);
   const distanceKm = validateDuelMatchDistanceKm(body.distanceKm);
-  const testMode = body.testMode === true;
+  // Same intake gate as the request routes: when test matches are disallowed the
+  // client-supplied flag is silently ignored (coerced false), never rejected.
+  const testMode = ALLOW_TEST_MATCHES && body.testMode === true;
   const matchId = typeof body.matchId === 'string' && body.matchId.trim() ? body.matchId.trim() : undefined;
   const slotStartAt = testMode
     ? (typeof body.slotStartAt === 'string' && body.slotStartAt.trim() ? body.slotStartAt.trim() : new Date().toISOString())

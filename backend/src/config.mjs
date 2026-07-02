@@ -121,6 +121,9 @@ export const STORE_BACKUP_DIRECTORY = resolveConfiguredPath(
 );
 export const STORE_BACKUP_ON_SAVE = parseBoolean(process.env.BACKEND_STORE_BACKUP_ON_SAVE, APP_ENV !== 'development');
 export const STORE_BACKUP_RETENTION = Math.max(1, parseNumber(process.env.BACKEND_STORE_BACKUP_RETENTION, 10));
+// Save-triggered backups are debounced to at most one per interval; manual/explicit backups
+// (backup-store script, restore/reset paths) bypass the debounce.
+export const STORE_BACKUP_MIN_INTERVAL_MS = Math.max(0, parseNumber(process.env.BACKEND_STORE_BACKUP_MIN_INTERVAL_MS, 60_000));
 export const PUBLIC_BASE_URL = normalizeOptionalString(process.env.BACKEND_PUBLIC_BASE_URL) || '';
 export const ADMIN_TOKEN = process.env.BACKEND_ADMIN_TOKEN ?? '';
 export const POSTGRES_DATABASE_URL = normalizeOptionalString(
@@ -196,6 +199,7 @@ export function getPublicBackendConfig() {
     storeBackupDirectory: STORE_BACKUP_DIRECTORY,
     storeBackupOnSave: STORE_BACKUP_ON_SAVE,
     storeBackupRetention: STORE_BACKUP_RETENTION,
+    storeBackupMinIntervalMs: STORE_BACKUP_MIN_INTERVAL_MS,
     publicBaseUrl: PUBLIC_BASE_URL || undefined,
     postgres: {
       configured: Boolean(POSTGRES_DATABASE_URL),
@@ -230,3 +234,33 @@ export function getPublicBackendConfig() {
     usingEnvFile: existsSync(BACKEND_ENV_PATH),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Rate limiting (SMS 발송 + 로그인 남용 방지) — src/lib/rateLimiter.mjs에서 사용.
+// ---------------------------------------------------------------------------
+// X-Forwarded-For를 믿을지 여부. 리버스 프록시가 신뢰할 수 없는 클라이언트의 XFF를
+// 지우거나 덮어쓰도록 구성된 배포에서만 true로 켠다. 기본은 소켓 remoteAddress 사용.
+export const TRUST_PROXY = parseBoolean(process.env.BACKEND_TRUST_PROXY, false);
+// SMS request-code 계층 한도 (전부 고정 윈도우). per-IP 한도는 한국 통신사 CGNAT(한 IP 뒤에
+// 수백~수천 명)를 감안해 느슨하게 — 진짜 과금 방어선은 per-phone/일 + 전역/일 한도다.
+export const SMS_PER_IP_PER_HOUR = Math.max(1, parseNumber(process.env.BACKEND_SMS_PER_IP_PER_HOUR, 30));
+export const SMS_UNIQUE_PHONES_PER_IP_PER_DAY = Math.max(1, parseNumber(process.env.BACKEND_SMS_UNIQUE_PHONES_PER_IP_PER_DAY, 20));
+export const SMS_PER_PHONE_PER_DAY = Math.max(1, parseNumber(process.env.BACKEND_SMS_PER_PHONE_PER_DAY, 10));
+export const SMS_GLOBAL_PER_DAY = Math.max(1, parseNumber(process.env.BACKEND_SMS_GLOBAL_PER_DAY, 1000));
+// 로그인 한도. per-IP는 CGNAT 공유를 감안해 느슨하게; 브루트포스 방어는 per-account가 담당.
+export const LOGIN_PER_IP_PER_MINUTE = Math.max(1, parseNumber(process.env.BACKEND_LOGIN_PER_IP_PER_MINUTE, 60));
+export const LOGIN_PER_ACCOUNT_PER_HOUR = Math.max(1, parseNumber(process.env.BACKEND_LOGIN_PER_ACCOUNT_PER_HOUR, 20));
+
+// ---------------------------------------------------------------------------
+// Match integrity — testMode 게이트 + vanished-match tombstone.
+// ---------------------------------------------------------------------------
+// 클라이언트가 보낸 testMode:true(가짜 상대 매치)를 존중할지 여부. production에서는
+// 기본 차단. 차단 시 400을 내지 않고 조용히 false로 무시한다 — 옛 클라이언트가
+// 아직 필드를 보낼 수 있기 때문.
+export const ALLOW_TEST_MATCHES = parseBoolean(process.env.BACKEND_ALLOW_TEST_MATCHES, APP_ENV !== 'production');
+// prune/삭제로 사라진 매치 ID를 기억하는 in-memory tombstone TTL —
+// src/lib/vanishedMatchTombstones.mjs에서 사용. 재시작하면 비워지고 404로 폴백한다.
+export const VANISHED_MATCH_TOMBSTONE_TTL_MS = Math.max(
+  1000,
+  parseNumber(process.env.BACKEND_VANISHED_MATCH_TOMBSTONE_TTL_MS, 6 * 60 * 60 * 1000),
+);

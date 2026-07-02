@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { createLoginGuard, createSmsRequestCodeGuard } from '../lib/rateLimiter.mjs';
 import { createApiRouteHandler } from './index.mjs';
 
 class TestApiError extends Error {
-  constructor(statusCode, message) {
+  constructor(statusCode, message, details = null) {
     super(message);
     this.statusCode = statusCode;
+    this.details = details && typeof details === 'object' ? details : null;
   }
 }
 
@@ -270,6 +272,108 @@ await test('marks selected user notifications as read', async () => {
   assert.equal(payload.unreadCount, 1);
   assert.equal(Boolean(store.notifications.find((item) => item.id === 'target').readAt), true);
   assert.equal(store.notifications.find((item) => item.id === 'keep-unread').readAt, null);
+});
+
+function createPhoneVerificationRouteDeps({ smsRequestCodeGuard }) {
+  const store = { phoneVerificationChallenges: [] };
+
+  return {
+    parseJsonBody: async () => ({ purpose: 'register', phone: '01011112222' }),
+    validatePhoneVerificationPurpose: (value) => value,
+    validatePhoneNumber: (value) => value,
+    mutateStore: (mutator) => mutator(store),
+    cleanupPhoneVerificationChallenges: () => {},
+    ensurePhoneVerificationChallenges: (currentStore) => {
+      currentStore.phoneVerificationChallenges = currentStore.phoneVerificationChallenges ?? [];
+      return currentStore.phoneVerificationChallenges;
+    },
+    createPhoneVerificationChallenge: ({ purpose, phone, now }) => ({
+      challenge: {
+        id: `challenge-${Math.random()}`,
+        purpose,
+        phone,
+        status: 'pending',
+        expiresAt: new Date(now.getTime() + 5 * 60 * 1000).toISOString(),
+        resendAvailableAt: new Date(now.getTime()).toISOString(),
+      },
+      code: '123456',
+    }),
+    phoneVerificationService: { sendCode: async () => ({ provider: 'mock' }) },
+    buildPhoneVerificationPayload: (challenge) => ({ requestId: challenge.id }),
+    smsRequestCodeGuard,
+  };
+}
+
+await test('rate limits phone verification code requests with a Korean 429', async () => {
+  const deps = createPhoneVerificationRouteDeps({
+    smsRequestCodeGuard: createSmsRequestCodeGuard({
+      perIpPerHour: 1,
+      uniquePhonesPerIpPerDay: 5,
+      perPhonePerDay: 10,
+      globalPerDay: 100,
+    }),
+  });
+  const routeRequest = createRouteRequest(deps);
+  const request = { method: 'POST', url: '/api/auth/phone/request-code', headers: { host: 'localhost' } };
+
+  const firstResponse = createMockResponse();
+  await routeRequest(request, firstResponse);
+  assert.equal(firstResponse.statusCode, 200);
+
+  await assert.rejects(
+    () => routeRequest(request, createMockResponse()),
+    (error) => error instanceof TestApiError
+      && error.statusCode === 429
+      && error.message === '인증번호 요청이 너무 많아요. 잠시 후 다시 시도해주세요.'
+      && error.details.retryAfterSeconds > 0,
+  );
+});
+
+await test('rate limits distinct phone numbers per IP for verification codes', async () => {
+  let requestedPhone = '01000000001';
+  const deps = createPhoneVerificationRouteDeps({
+    smsRequestCodeGuard: createSmsRequestCodeGuard({
+      perIpPerHour: 100,
+      uniquePhonesPerIpPerDay: 2,
+      perPhonePerDay: 10,
+      globalPerDay: 100,
+    }),
+  });
+  deps.parseJsonBody = async () => ({ purpose: 'register', phone: requestedPhone });
+  const routeRequest = createRouteRequest(deps);
+  const request = { method: 'POST', url: '/api/auth/phone/request-code', headers: { host: 'localhost' } };
+
+  await routeRequest(request, createMockResponse());
+  requestedPhone = '01000000002';
+  await routeRequest(request, createMockResponse());
+  requestedPhone = '01000000003';
+
+  await assert.rejects(
+    () => routeRequest(request, createMockResponse()),
+    (error) => error instanceof TestApiError && error.statusCode === 429,
+  );
+});
+
+await test('rate limits login attempts per IP with a Korean 429', async () => {
+  const routeRequest = createRouteRequest({
+    parseJsonBody: async () => ({ username: 'Runner', password: 'secret' }),
+    validateRequiredString: (value) => value,
+    getAuthRepository: () => ({ login: async () => ({ token: 'token' }) }),
+    loginGuard: createLoginGuard({ perIpPerMinute: 1, perAccountPerHour: 20 }),
+  });
+  const request = { method: 'POST', url: '/api/auth/login', headers: { host: 'localhost' } };
+
+  const firstResponse = createMockResponse();
+  await routeRequest(request, firstResponse);
+  assert.equal(firstResponse.statusCode, 200);
+
+  await assert.rejects(
+    () => routeRequest(request, createMockResponse()),
+    (error) => error instanceof TestApiError
+      && error.statusCode === 429
+      && error.message === '로그인 시도가 너무 많아요. 잠시 후 다시 시도해주세요.'
+      && error.details.retryAfterSeconds > 0,
+  );
 });
 
 await test('throws a typed 404 for unknown APIs', async () => {

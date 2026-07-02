@@ -11,9 +11,9 @@ import {
 import { findUserById, getRunsForUser, getUserMetrics } from '../userStoreHelpers.mjs';
 import { hydrateMatchSessionState } from './matchSessionCore.mjs';
 
-export function buildMatchRunnerProfile(store, user) {
+export function buildMatchRunnerProfile(store, user, runs = getRunsForUser(store, user.id)) {
   const metrics = getUserMetrics(store, user.id);
-  const recentRuns = getRunsForUser(store, user.id).slice(0, 3);
+  const recentRuns = runs.slice(0, 3);
   const parsedPaces = recentRuns
     .map((run) => parsePaceToMinutes(run.pace))
     .filter((pace) => pace !== null);
@@ -37,12 +37,49 @@ export function buildMatchRunnerProfile(store, user) {
   };
 }
 
-export function resolveSessionParticipantProfile(store, participant) {
+// Group participants' runs in ONE pass over store.runs (instead of a full filter scan per
+// participant) and per-user sort. Array#filter keeps original order and Array#sort is stable,
+// so sorting each grouped subset yields exactly what getRunsForUser returns.
+function buildRunsByUserId(store) {
+  const runsByUserId = new Map();
+
+  for (const run of store.runs) {
+    const runs = runsByUserId.get(run.userId);
+
+    if (runs) {
+      runs.push(run);
+    } else {
+      runsByUserId.set(run.userId, [run]);
+    }
+  }
+
+  for (const runs of runsByUserId.values()) {
+    runs.sort((left, right) => right.date.localeCompare(left.date));
+  }
+
+  return runsByUserId;
+}
+
+function buildParticipantProfileLookups(store) {
+  return {
+    usersById: new Map(store.users.map((user) => [user.id, user])),
+    runsByUserId: buildRunsByUserId(store),
+  };
+}
+
+export function resolveSessionParticipantProfile(store, participant, lookups = null) {
   if (participant.profileSnapshot) {
     return participant.profileSnapshot;
   }
 
-  return buildMatchRunnerProfile(store, findUserById(store, participant.userId));
+  if (!lookups) {
+    return buildMatchRunnerProfile(store, findUserById(store, participant.userId));
+  }
+
+  // Missing map entry falls back to the scanning helper so the 404 behavior stays identical.
+  const user = lookups.usersById.get(participant.userId) ?? findUserById(store, participant.userId);
+
+  return buildMatchRunnerProfile(store, user, lookups.runsByUserId.get(participant.userId) ?? []);
 }
 
 function buildSyntheticParticipantLiveSnapshot(session, participant, now = new Date()) {
@@ -124,8 +161,12 @@ export function buildParticipantLiveSnapshot(session, participant, now = new Dat
 }
 
 export function buildOfficialSessionStandings(store, session, now = new Date()) {
+  // Build the users/runs lookup maps ONCE per call — the per-participant path otherwise
+  // re-scans store.users and store.runs for every participant without a profileSnapshot.
+  const needsProfileBuild = session.participants.some((participant) => !participant.profileSnapshot);
+  const profileLookups = needsProfileBuild ? buildParticipantProfileLookups(store) : null;
   const snapshots = session.participants.map((participant) => {
-    const runner = resolveSessionParticipantProfile(store, participant);
+    const runner = resolveSessionParticipantProfile(store, participant, profileLookups);
     const liveSnapshot = buildParticipantLiveSnapshot(session, participant, now);
     const liveDistanceKm = typeof liveSnapshot.liveDistanceKm === 'number' && Number.isFinite(liveSnapshot.liveDistanceKm)
       ? Math.max(0, liveSnapshot.liveDistanceKm)

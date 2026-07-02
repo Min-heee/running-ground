@@ -2,8 +2,10 @@ import { mkdirSync, existsSync, readFileSync, readdirSync, renameSync, rmSync, s
 import { basename, dirname, extname, isAbsolute, join } from 'node:path';
 import { createSeedStore, createRegionTree } from './seed.mjs';
 import {
+  APP_ENV,
   SESSION_TTL_MS,
   STORE_BACKUP_DIRECTORY,
+  STORE_BACKUP_MIN_INTERVAL_MS,
   STORE_BACKUP_ON_SAVE,
   STORE_BACKUP_RETENTION,
   STORE_FILE,
@@ -17,6 +19,15 @@ const storeBaseName = basename(storeFilePath, storeExtension);
 const backupDirectory = STORE_BACKUP_DIRECTORY;
 
 let cachedStore = null;
+// Serialization of cachedStore, kept in lockstep with every cachedStore (re)assignment.
+// It is BOTH the change-detection baseline for mutateStore's skip (a pure read poll must not
+// pay migrations/regionTree/serialize/write) and the pre-save snapshot the save-triggered
+// backup copies — killing the per-save whole-file readFileSync.
+let cachedSerializedStore = null;
+// Last time a save-triggered backup fired. Save backups are debounced to at most one per
+// STORE_BACKUP_MIN_INTERVAL_MS; manual/explicit backups (createStoreBackup, restore/reset
+// paths) are NOT debounced.
+let lastSaveBackupAtMs = 0;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -194,7 +205,10 @@ function migrateAdminStore(store) {
 }
 
 function serializeStore(store) {
-  return JSON.stringify(store, null, 2);
+  // Compact on purpose: the store is serialized on every persisted mutation, and the hot
+  // request path also serializes for change detection. JSON.parse consumers (loadStore,
+  // backup/restore/reset scripts, migrate-json-to-postgres) don't care about indentation.
+  return JSON.stringify(store);
 }
 
 function writeStoreFileAtomic(filePath, fileContents) {
@@ -351,10 +365,37 @@ function readStoreContentsFromDisk() {
 function ensureStoreFile() {
   mkdirSync(dataDirectory, { recursive: true });
 
-  if (!existsSync(storeFilePath)) {
-    const seedStore = createSeedStore();
-    writeStoreFileAtomic(storeFilePath, serializeStore(seedStore));
+  if (existsSync(storeFilePath)) {
+    return;
   }
+
+  // In production a missing store file means real user data vanished (volume detach, bad
+  // deploy, fat-fingered rm) — silently seeding a fresh store would LOOK healthy while
+  // erasing everyone. Recover from the newest valid backup instead; only seed as a last
+  // resort, loudly.
+  if (APP_ENV === 'production') {
+    for (const backup of listStoreBackupCandidates()) {
+      try {
+        const backupContents = readFileSync(backup.path, 'utf8');
+        JSON.parse(backupContents);
+        writeStoreFileAtomic(storeFilePath, backupContents);
+        console.error(
+          `[runningground-backend] store file was MISSING in production. Recovered from newest valid backup: ${backup.path}`,
+        );
+        return;
+      } catch {
+        // Keep scanning older backups until a valid JSON snapshot is found.
+      }
+    }
+
+    console.error(
+      `[runningground-backend] store file was MISSING in production and NO recoverable backup exists — seeding a FRESH store. `
+      + `Existing user data was NOT recovered. store=${storeFilePath} backups=${backupDirectory}`,
+    );
+  }
+
+  const seedStore = createSeedStore();
+  writeStoreFileAtomic(storeFilePath, serializeStore(seedStore));
 }
 
 export function loadStore() {
@@ -374,43 +415,89 @@ export function loadStore() {
       migrateAdminStore(cachedStore),
     ].some(Boolean);
 
+    cachedSerializedStore = serializeStore(cachedStore);
+
     if (changed || recoveredFromBackup) {
-      writeStoreFileAtomic(storeFilePath, serializeStore(cachedStore));
+      writeStoreFileAtomic(storeFilePath, cachedSerializedStore);
     }
   }
 
   return clone(cachedStore);
 }
 
-export function saveStore(nextStore) {
+export function saveStore(nextStore, precomputedSerializedStore = null) {
+  const previousSerializedStore = cachedSerializedStore;
   cachedStore = clone(nextStore);
-  migrateAuthStore(cachedStore, { sessionTtlMs: SESSION_TTL_MS, now: new Date() });
-  migrateProfileStore(cachedStore);
-  migrateIntegrationStore(cachedStore);
-  migratePhoneVerificationStore(cachedStore);
-  migrateMatchQueueStore(cachedStore);
-  migrateAdminStore(cachedStore);
+  const migrationsChanged = [
+    migrateAuthStore(cachedStore, { sessionTtlMs: SESSION_TTL_MS, now: new Date() }),
+    migrateProfileStore(cachedStore),
+    migrateIntegrationStore(cachedStore),
+    migratePhoneVerificationStore(cachedStore),
+    migrateMatchQueueStore(cachedStore),
+    migrateAdminStore(cachedStore),
+  ].some(Boolean);
+  const previousRegionTree = cachedStore.regionTree;
   cachedStore.regionTree = createRegionTree(cachedStore);
+  // The precomputed serialization (from mutateStore, taken BEFORE migrations + regionTree
+  // rebuild) is only reusable when neither step altered the store — otherwise re-serialize
+  // so the written file always matches cachedStore exactly.
+  const regionTreeChanged = JSON.stringify(previousRegionTree ?? null) !== JSON.stringify(cachedStore.regionTree);
   ensureStoreFile();
-  const serializedStore = serializeStore(cachedStore);
-  const currentStoreContents = existsSync(storeFilePath) ? readFileSync(storeFilePath, 'utf8') : '';
+  const serializedStore = precomputedSerializedStore !== null && !migrationsChanged && !regionTreeChanged
+    ? precomputedSerializedStore
+    : serializeStore(cachedStore);
 
-  if (STORE_BACKUP_ON_SAVE && currentStoreContents && currentStoreContents !== serializedStore) {
-    createStoreBackupFromContents(currentStoreContents, 'save');
+  // Backup the PREVIOUS serialization (what the store looked like before this save) instead
+  // of re-reading the whole store file from disk on every save. Save-triggered backups are
+  // debounced; explicit backups (createStoreBackup, restore/reset paths) are not.
+  if (
+    STORE_BACKUP_ON_SAVE
+    && previousSerializedStore
+    && previousSerializedStore !== serializedStore
+    && Date.now() - lastSaveBackupAtMs >= STORE_BACKUP_MIN_INTERVAL_MS
+  ) {
+    createStoreBackupFromContents(previousSerializedStore, 'save');
+    lastSaveBackupAtMs = Date.now();
   }
 
   writeStoreFileAtomic(storeFilePath, serializedStore);
+  cachedSerializedStore = serializedStore;
   return clone(cachedStore);
 }
 
 export function mutateStore(mutator) {
   const nextStore = loadStore();
   const result = mutator(nextStore);
-  saveStore(nextStore);
+
+  if (result && typeof result.then === 'function') {
+    throw new Error(
+      'mutateStore의 mutator는 동기 함수여야 해. 비동기 mutator는 변경이 끝나기 전에 저장이 실행돼 저장소가 조용히 손상될 수 있어.',
+    );
+  }
+
+  const serializedNextStore = serializeStore(nextStore);
+
+  // Pure read polls (and any mutator that ended up changing nothing) skip the whole save
+  // pipeline: no migrations, no regionTree rebuild, no file write, no backup. The compare
+  // may only err toward SAVING (e.g. key-order drift forces a save), never toward skipping
+  // a real change — cachedSerializedStore is always exactly serializeStore(cachedStore).
+  if (serializedNextStore === cachedSerializedStore) {
+    return result;
+  }
+
+  saveStore(nextStore, serializedNextStore);
   return result;
 }
 
 export function resetStore() {
+  // Explicit destructive path: snapshot the current store first (not debounced) so a reset
+  // never silently discards the only copy of live data. saveStore's own save-backup can no
+  // longer cover this — it compares against the in-memory serialization, which is empty when
+  // the reset script runs without a prior loadStore.
+  if (STORE_BACKUP_ON_SAVE && existsSync(storeFilePath)) {
+    createStoreBackup('pre-reset');
+  }
+
   const seedStore = createSeedStore();
   saveStore(seedStore);
   return clone(seedStore);
@@ -489,5 +576,6 @@ export function restoreStoreBackup(backupFileNameOrPath) {
   const backupContents = readFileSync(backupPath, 'utf8');
   writeStoreFileAtomic(storeFilePath, backupContents);
   cachedStore = null;
+  cachedSerializedStore = null;
   return loadStore();
 }

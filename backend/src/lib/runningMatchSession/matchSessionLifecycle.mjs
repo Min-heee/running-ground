@@ -13,6 +13,24 @@ import {
   hydrateMatchSessionState,
 } from './matchSessionCore.mjs';
 import { sweepStuckMatchSessionFallbacks } from './matchSessionFallbackSeals.mjs';
+import { recordVanishedMatch } from '../vanishedMatchTombstones.mjs';
+
+// Every session dropped from the store passes through here so a device still polling
+// the vanished matchId gets a terminal 410 (match_gone) instead of retrying a 404
+// forever. Cheap no-op when nothing was removed.
+function recordPrunedSessions(previousSessions, keptSessions, now) {
+  if (previousSessions.length === keptSessions.length) {
+    return;
+  }
+
+  const keptIds = new Set(keptSessions.map((session) => session.id));
+
+  for (const session of previousSessions) {
+    if (session?.id && !keptIds.has(session.id)) {
+      recordVanishedMatch(session.id, now);
+    }
+  }
+}
 
 export function pruneMatchSessions(store, now = new Date()) {
   const sessions = ensureMatchSessions(store);
@@ -24,7 +42,7 @@ export function pruneMatchSessions(store, now = new Date()) {
   // filter below — it persists until both sides are terminal or it expires, exactly as before.
   sweepStuckMatchSessionFallbacks(store, now);
 
-  store.matchSessions = sessions.filter((session) => {
+  const keptSessions = sessions.filter((session) => {
     if (!session || !Array.isArray(session.participants) || !session.participants.length) {
       return false;
     }
@@ -40,17 +58,23 @@ export function pruneMatchSessions(store, now = new Date()) {
     return hydrateMatchSessionState(session, now) !== 'expired';
   });
 
+  recordPrunedSessions(sessions, keptSessions, now);
+  store.matchSessions = keptSessions;
+
   return store.matchSessions;
 }
 
 function clearUsersFromMatchSessions(store, mode, userIds) {
   const blockedUserIds = new Set(userIds);
   const sessions = pruneMatchSessions(store);
-  store.matchSessions = sessions.filter((session) => (
+  const keptSessions = sessions.filter((session) => (
     session.mode !== mode || !session.participants.some((participant) => (
       blockedUserIds.has(participant.userId) && !isParticipantDoneWithMatch(participant)
     ))
   ));
+
+  recordPrunedSessions(sessions, keptSessions, new Date());
+  store.matchSessions = keptSessions;
 }
 
 // Single source of truth for the per-participant session shape. addParticipantToMatchSession

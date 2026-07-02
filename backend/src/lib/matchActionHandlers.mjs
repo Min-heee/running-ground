@@ -39,6 +39,7 @@ import {
 import { buildRunningMatchStatusResponse } from './matchResponseBuilders.mjs';
 import { pruneMatchRooms } from './matchRoomStoreHelpers.mjs';
 import { appendUserNotification } from './userNotifications.mjs';
+import { isMatchTombstoned, recordVanishedMatch } from './vanishedMatchTombstones.mjs';
 
 function applyMatchLpIfComplete(store, session) {
   if (!session || (session.lpApplied && session.resultNotificationApplied)) {
@@ -48,7 +49,7 @@ function applyMatchLpIfComplete(store, session) {
   const participants = Array.isArray(session.participants) ? session.participants : [];
   const now = new Date();
   if (!participants.length || !participants.every((participant) => isParticipantDoneWithMatch(participant, now))) {
-    if (session.isPartyRun) {
+    if (session.isPartyRun || isTestMatchSession(session)) {
       session.lpApplied = true;
     }
     return;
@@ -63,7 +64,12 @@ function applyMatchLpIfComplete(store, session) {
       return;
     }
 
-    if (session.isPartyRun) {
+    // Test matches never award rank LP. The guard also marks lpApplied BEFORE any
+    // rank math runs, because the group LP path below looks up participants as store
+    // users — a test-match bot (profileSnapshot participant) resolves to undefined and
+    // throws mid-loop, which used to leave lpApplied unset and re-award the real
+    // user's LP on every retry poll. Party runs keep their existing exclusion.
+    if (session.isPartyRun || isTestMatchSession(session)) {
       session.lpApplied = true;
       return;
     }
@@ -263,6 +269,9 @@ export function cancelRunningMatch(store, currentUser, { mode, distanceKm, slotS
       .map((participant) => findUserById(store, participant.userId));
 
     store.matchSessions = ensureMatchSessions(store).filter((entry) => entry.id !== session.id);
+    // The other participants' devices may still poll this matchId — tombstone it so
+    // their progress lookups get the terminal 410 instead of an endlessly-retried 404.
+    recordVanishedMatch(session.id);
 
     for (const participant of requeuedParticipants) {
       const nextTestSlotStartAt = buildTestMatchStartAt();
@@ -286,6 +295,13 @@ export function cancelRunningMatch(store, currentUser, { mode, distanceKm, slotS
 
 export function updateRunningMatchProgress(store, currentUser, { matchId, distanceKm, elapsedSeconds, currentPace, status }) {
   const session = findMatchSessionById(store, matchId);
+
+  if (!session && isMatchTombstoned(matchId)) {
+    // Terminal answer for a pruned/vanished match: 410 tells a stranded device to STOP
+    // its ~2s retry loop (a plain 404 reads as "maybe transient" and retries forever).
+    // The tombstone map is in-memory — after a restart this falls back to the 404 below.
+    throw new ApiError(410, '이미 종료돼 정리된 매치야.', { code: 'match_gone' });
+  }
 
   if (!session || !session.participants.some((participant) => participant.userId === currentUser.id)) {
     throw new ApiError(404, '진행 상태를 반영할 매치를 찾지 못했어.');

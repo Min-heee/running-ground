@@ -92,6 +92,10 @@ export function sendError(response, error) {
   if (error instanceof ApiError) {
     sendJson(response, error.statusCode, {
       message: error.message,
+      // Machine-readable error code hoisted to the top level so a client can branch on
+      // body.code (e.g. 'match_gone') without digging into details. Additive — the full
+      // details object is still sent unchanged below.
+      ...(typeof error.details?.code === 'string' ? { code: error.details.code } : {}),
       ...(error.details ? { details: error.details } : {}),
     });
     return;
