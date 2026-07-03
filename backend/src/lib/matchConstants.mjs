@@ -40,7 +40,13 @@ export const MATCH_ROOM_HOST_START_DELAY_SECONDS = 10;
 // countdown begins (otherwise the digit appears mid-route and diverges across phones).
 export const MATCH_ROOM_HOST_LOADING_SECONDS = 5;
 // Safety ceiling for host-start loading if a participant never acknowledges countdown readiness.
-export const MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS = 8;
+// ALSO the 로딩중 buffer the start action bakes into the slot (slot = press + this + the visible
+// 10s). 2026-07-03 on-device measurement (IMG_0800/0801): the GUEST's lobby learned host-start
+// 12-14s after press two runs in a row and joined mid-count at digit 6/4 — 8s did not cover it.
+// 14 puts the visible digit start (slot-10 = press+14) at/after the measured worst-case learn
+// time, so every phone shows 10→0 together even while delivery is slow. Dial back toward 8 once
+// the arm-delivery trace pins and fixes the real latency source.
+export const MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS = 14;
 // A group party-run room (그룹대결) must seat more than two runners — otherwise it
 // is just a duel. This is the floor for both the start gate and the room capacity.
 export const MATCH_ROOM_GROUP_MIN_PARTICIPANTS = 3;

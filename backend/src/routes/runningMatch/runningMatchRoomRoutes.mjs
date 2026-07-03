@@ -59,6 +59,36 @@ export async function routeRunningMatchRoomRoutes(deps) {
   return false;
 }
 
+// arm-delivery trace: the game-ready-go countdown depends on every guest's /rooms/my
+// poll learning host-start within the 로딩중 buffer, and on-device runs measured 12-14s
+// delivery. Log every host-room poll (arrival cadence + store-lock duration + whether the
+// response carries the linked match + margin until the slot) so ONE traced match pins
+// whether the latency is: polls not arriving (client), polls slow (store-lock convoy /
+// network), or responses missing the link (server). Bounded noise: only while the user is
+// in a host-mode room. Disable with BACKEND_ARM_DELIVERY_TRACE=false.
+const ARM_DELIVERY_TRACE_ENABLED = process.env.BACKEND_ARM_DELIVERY_TRACE !== 'false';
+
+function logArmDeliveryPoll({ payload, durationMs, userTag }) {
+  try {
+    const room = payload?.room;
+    if (!room || room.startMode !== 'host') {
+      return;
+    }
+    const slotMs = Date.parse(room.linkedMatchSlotStartAt ?? room.slotStartAt ?? '');
+    const msUntilSlot = Number.isFinite(slotMs) ? slotMs - Date.now() : null;
+    // Outside the start window (no link and no near slot), skip — keeps idle-lobby noise low.
+    if (!room.linkedMatchId && (msUntilSlot === null || msUntilSlot > 60_000 || msUntilSlot < -30_000)) {
+      return;
+    }
+    globalThis.console.log(
+      `[arm-delivery] poll user=${userTag} room=${String(room.roomId ?? '').slice(-6)} linked=${room.linkedMatchId ? 'y' : 'n'}`
+      + ` msUntilSlot=${msUntilSlot ?? '-'} durMs=${durationMs} state=${room.state ?? '-'}`,
+    );
+  } catch {
+    // trace only — never fail the request
+  }
+}
+
 async function handleFetchMyRunningMatchRoom({
   buildRunningMatchRoomResponse,
   findRunningMatchRoomForUser,
@@ -68,11 +98,18 @@ async function handleFetchMyRunningMatchRoom({
   response,
   sendJson,
 }) {
+  const startedAtMs = Date.now();
+  let tracedUserTag = '-';
   const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
+    tracedUserTag = currentUser.tag ?? String(currentUser.id ?? '-').slice(-6);
     const room = findRunningMatchRoomForUser(store, currentUser.id);
     return buildRunningMatchRoomResponse(store, currentUser, room);
   });
+
+  if (ARM_DELIVERY_TRACE_ENABLED) {
+    logArmDeliveryPoll({ payload, durationMs: Date.now() - startedAtMs, userTag: tracedUserTag });
+  }
 
   sendJson(response, 200, payload);
 }
