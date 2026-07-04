@@ -1,3 +1,5 @@
+import { runLockFreePollRead } from '../../lib/lockFreePollRead.mjs';
+
 export async function routeRunningMatchRoomRoutes(deps) {
   const { method, pathname } = deps;
 
@@ -92,6 +94,7 @@ function logArmDeliveryPoll({ payload, durationMs, userTag }) {
 async function handleFetchMyRunningMatchRoom({
   buildRunningMatchRoomResponse,
   findRunningMatchRoomForUser,
+  loadStore,
   mutateStore,
   request,
   requireUser,
@@ -100,11 +103,17 @@ async function handleFetchMyRunningMatchRoom({
 }) {
   const startedAtMs = Date.now();
   let tracedUserTag = '-';
-  const payload = await mutateStore((store) => {
-    const currentUser = requireUser(store, request);
-    tracedUserTag = currentUser.tag ?? String(currentUser.id ?? '-').slice(-6);
-    const room = findRunningMatchRoomForUser(store, currentUser.id);
-    return buildRunningMatchRoomResponse(store, currentUser, room);
+  // Lock-free: this is the highest-frequency poll in the app (2s lobby cadence per
+  // device) and it used to hold the whole-store row lock — see lockFreePollRead.mjs.
+  const payload = await runLockFreePollRead({
+    loadStore,
+    mutateStore,
+    compute: (store) => {
+      const currentUser = requireUser(store, request);
+      tracedUserTag = currentUser.tag ?? String(currentUser.id ?? '-').slice(-6);
+      const room = findRunningMatchRoomForUser(store, currentUser.id);
+      return buildRunningMatchRoomResponse(store, currentUser, room);
+    },
   });
 
   if (ARM_DELIVERY_TRACE_ENABLED) {
@@ -117,16 +126,22 @@ async function handleFetchMyRunningMatchRoom({
 async function handleFetchRunningMatchRoomInviteInbox({
   buildRunningMatchRoomResponse,
   findRunningMatchRoomInviteInboxForUser,
+  loadStore,
   mutateStore,
   request,
   requireUser,
   response,
   sendJson,
 }) {
-  const payload = await mutateStore((store) => {
-    const currentUser = requireUser(store, request);
-    const room = findRunningMatchRoomInviteInboxForUser(store, currentUser);
-    return buildRunningMatchRoomResponse(store, currentUser, room);
+  // Lock-free: 2s Android cadence while browsing — see lockFreePollRead.mjs.
+  const payload = await runLockFreePollRead({
+    loadStore,
+    mutateStore,
+    compute: (store) => {
+      const currentUser = requireUser(store, request);
+      const room = findRunningMatchRoomInviteInboxForUser(store, currentUser);
+      return buildRunningMatchRoomResponse(store, currentUser, room);
+    },
   });
 
   sendJson(response, 200, payload);
