@@ -12,6 +12,7 @@ import {
   getBackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background';
 import {
+  getBackgroundSyncDiagnostics,
   recordBackgroundHeartbeatAttempt,
 } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
 import {
@@ -49,6 +50,71 @@ type DisplayedMatchProgress = {
   elapsedSeconds: number;
   currentPace: string;
 };
+
+// §3.① (fair-verdict design) — NATIVE one-shot routing for the durable pending-finish push. The
+// JS fetch freezes with the JS thread the instant iOS suspends a backgrounded app (#203), which is
+// exactly when the terminal 'finished' push is most likely to be sent — so when the native
+// uploader module is available (Android APK; iOS from build 43) and the app is BACKGROUNDED (or
+// the JS fetch just threw), the finished body is POSTed on a native thread instead. The FOREGROUND
+// JS path stays first-choice untouched: its response feeds the guarded apply funnel.
+//
+// Everything is lazily imported (mirroring the background flush's service getters) so this module
+// keeps loading under the node test runner, where the native binding cannot resolve.
+type NativePendingFinishUploaderModule = {
+  isNativeMatchProgressUploaderAvailable(): boolean;
+  uploadMatchProgressNative(url: string, authToken: string, jsonBody: string): Promise<string | null>;
+};
+
+async function resolveNativePendingFinishUploader(): Promise<NativePendingFinishUploaderModule | null> {
+  try {
+    return await import('../../../../modules/match-progress-uploader');
+  } catch {
+    return null;
+  }
+}
+
+// POST one pending-finish body via the native uploader. Resolves with the parsed 2xx status
+// response, or null when the native module is unavailable / there is no token / the upload failed
+// (non-2xx, network) / the body is not JSON — every null lets the caller fall back to the JS push
+// so no existing delivery channel is ever weakened.
+async function uploadPendingFinishViaNative(
+  input: UpdateRunningMatchProgressInput,
+): Promise<RunningMatchStatusResponse | null> {
+  try {
+    const uploader = await resolveNativePendingFinishUploader();
+    if (!uploader?.isNativeMatchProgressUploaderAvailable()) {
+      return null;
+    }
+
+    const { getAccessToken } = await import('@/lib/session/sessionState');
+    const token = await getAccessToken();
+    if (!token) {
+      return null;
+    }
+
+    const { API_CONFIG } = await import('@/services/apiClient');
+    // Same body normalization the background flush's native branch applies.
+    const requestBody = JSON.stringify({
+      ...input,
+      distanceKm: Number(input.distanceKm.toFixed(2)),
+      elapsedSeconds: Math.max(0, Math.round(input.elapsedSeconds)),
+    });
+
+    const responseBody = await uploader.uploadMatchProgressNative(
+      `${API_CONFIG.baseUrl}/running/matches/progress`,
+      token,
+      requestBody,
+    );
+    if (!responseBody) {
+      return null;
+    }
+
+    return JSON.parse(responseBody) as RunningMatchStatusResponse;
+  } catch {
+    // Best-effort: any failure here just falls back to the JS push / next resend tick.
+    return null;
+  }
+}
 
 type UseMatchProgressSyncInput = {
   matchModeRef: MutableRefObject<RunMatchMode>;
@@ -320,9 +386,50 @@ export function useMatchProgressSync({
     return !stillRunning;
   }, []);
 
+  // §3.⑥ — terminal drop: the response carries a FINAL sealed verdict with me as DNF (resolved,
+  // NOT provisional, outcome 'lose', my official finish elapsed absent). Beyond the server's
+  // revision window every further 'finished' push is downgraded, so re-sending the intent every
+  // 5s forever is pure waste — drop it. `provisional` is additive (fair-verdict Stage 1): while
+  // it is true the seal is still revisable and the resend MUST continue (a landed finish annuls
+  // the seal); older backends omit the field entirely and their seals are immediately final, so
+  // treating `undefined` as final is correct against them too.
+  const isFinishTerminallySealedAsDnf = useCallback((status: RunningMatchStatusResponse | null | undefined, matchId: string) => {
+    if (!status || status.matchId !== matchId) {
+      return false;
+    }
+    const verdict = status.duelVerdict as
+      | (NonNullable<RunningMatchStatusResponse['duelVerdict']> & { provisional?: boolean })
+      | undefined;
+    return verdict?.resolved === true
+      && verdict.provisional !== true
+      && verdict.outcome === 'lose'
+      && verdict.myFinishElapsedSeconds === null;
+  }, []);
+
+  // Shared settle step for BOTH pending-finish channels (JS push + native one-shot): clear the
+  // intent on a server ACK or on the final sealed-DNF terminal shape; otherwise keep it so the
+  // next tick re-sends.
+  const settlePendingFinishFromStatus = useCallback((
+    nextStatus: RunningMatchStatusResponse | null | undefined,
+    matchId: string,
+  ) => {
+    if (isFinishTerminallySealedAsDnf(nextStatus, matchId)) {
+      // §3.⑥ — the verdict is FINAL with me sealed as DNF; the server will downgrade every
+      // further finish push, so the resend loop must stop here.
+      clearPendingFinish(matchId);
+      return;
+    }
+    if (isFinishAcknowledged(nextStatus, matchId)) {
+      clearPendingFinish(matchId);
+      return;
+    }
+    // The push landed but the response still reports this runner mid-run (race against a
+    // not-yet-applied finish) — keep the intent and let the next tick re-send.
+  }, [isFinishAcknowledged, isFinishTerminallySealedAsDnf]);
+
   // C1: send (or re-send) the durable finish push for one pending intent. Idempotent — the
   // server freezes the finish first-write-wins, so re-sends are always safe. Clears the
-  // intent only when the response confirms the finish landed.
+  // intent only when the response confirms the finish landed (or is terminally sealed, §3.⑥).
   const sendPendingFinishPush = useCallback(async (intent: {
     matchId: string;
     finishElapsedSeconds: number;
@@ -344,20 +451,37 @@ export function useMatchProgressSync({
       clearPendingFinish(intent.matchId);
       return false;
     }
-    try {
-      const nextStatus = await pushRunningMatchProgress(input);
-      if (isFinishAcknowledged(nextStatus, intent.matchId)) {
-        clearPendingFinish(intent.matchId);
+
+    // §3.① — app BACKGROUNDED: the JS fetch freezes with the suspended JS thread (#203), so
+    // route the finished body through the native one-shot uploader first. A null resolution
+    // (module unavailable on this binary / no token / non-2xx / network failure) falls through
+    // to the JS push below — today's channel for the current iOS binary stays fully intact.
+    if (getBackgroundSyncDiagnostics().isAppBackground) {
+      const nativeStatus = await uploadPendingFinishViaNative(input);
+      if (nativeStatus) {
+        settlePendingFinishFromStatus(nativeStatus, intent.matchId);
         return true;
       }
-      // The push succeeded but the response still reports this runner mid-run (race against
-      // a not-yet-applied finish) — keep the intent and let the next tick re-send.
+    }
+
+    // FOREGROUND (and background native-miss fallback): the JS push — kept first-choice in
+    // foreground because its response feeds the guarded apply funnel via pushRunningMatchProgress.
+    try {
+      const nextStatus = await pushRunningMatchProgress(input);
+      settlePendingFinishFromStatus(nextStatus, intent.matchId);
       return true;
     } catch {
+      // §3.① — the JS fetch threw (aborted / network / frozen-then-resumed): retry this one
+      // push via the native one-shot before giving the tick up.
+      const nativeStatus = await uploadPendingFinishViaNative(input);
+      if (nativeStatus) {
+        settlePendingFinishFromStatus(nativeStatus, intent.matchId);
+        return true;
+      }
       // Keep the intent for the next foreground/poll tick.
       return false;
     }
-  }, [isFinishAcknowledged, pushRunningMatchProgress]);
+  }, [pushRunningMatchProgress, settlePendingFinishFromStatus]);
 
   // C1: re-send every outstanding pending-finish intent. Driven from the foreground/poll
   // tick AND a self-contained interval (below) so delivery survives the match-end teardown,

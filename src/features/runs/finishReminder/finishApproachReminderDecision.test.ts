@@ -6,6 +6,7 @@ import {
   decideFinishApproachReminder,
   FINISH_REMINDER_BUFFER_KM,
   FINISH_REMINDER_RESCHEDULE_THRESHOLD_SECONDS,
+  GOAL_ETA_REMINDER_BUFFER_KM,
   MAX_REMINDER_PACE_SECONDS_PER_KM,
   MIN_REMINDER_PACE_SECONDS_PER_KM,
   type FinishApproachReminderInputs,
@@ -146,5 +147,53 @@ test('no pending schedule -> always schedules (first arm)', () => {
   assert.deepEqual(
     decideFinishApproachReminder(baseInputs({ scheduledInSeconds: null })),
     { action: 'schedule', etaSeconds: 2.7 * 330 },
+  );
+});
+
+// --- §3.⑤ goal-ETA reminder (bufferKm override) ---
+
+test('goal-ETA: etaSeconds with bufferKm 0 projects the goal crossing itself', () => {
+  // target 5km, buffer 0 → trigger at 5.0km; at 2km, 3km remain; 3 * 330 = 990s.
+  const eta = computeFinishReminderEtaSeconds({
+    targetDistanceKm: 5,
+    currentDistanceKm: 2,
+    averagePaceSecondsPerKm: 330,
+    bufferKm: GOAL_ETA_REMINDER_BUFFER_KM,
+  });
+  assert.equal(eta, 3 * 330);
+  assert.equal(GOAL_ETA_REMINDER_BUFFER_KM, 0);
+});
+
+test('goal-ETA: omitted bufferKm keeps the approach default (existing callers unchanged)', () => {
+  assert.equal(
+    computeFinishReminderEtaSeconds({
+      targetDistanceKm: 5,
+      currentDistanceKm: 2,
+      averagePaceSecondsPerKm: 330,
+    }),
+    (3 - FINISH_REMINDER_BUFFER_KM) * 330,
+  );
+});
+
+test('goal-ETA decision schedules to the goal crossing (later than the approach reminder)', () => {
+  const goal = decideFinishApproachReminder(baseInputs({ bufferKm: GOAL_ETA_REMINDER_BUFFER_KM }));
+  assert.deepEqual(goal, { action: 'schedule', etaSeconds: 3 * 330 });
+});
+
+test('goal-ETA decision still SCHEDULES inside the 300m approach buffer, presents only past the goal', () => {
+  // At 4.75km the approach reminder (trigger 4.7km) is already presenting…
+  assert.deepEqual(
+    decideFinishApproachReminder(baseInputs({ currentDistanceKm: 4.75 })),
+    { action: 'present-now' },
+  );
+  // …while the goal-ETA reminder still schedules ahead to the projected crossing (0.25km * 330).
+  assert.deepEqual(
+    decideFinishApproachReminder(baseInputs({ currentDistanceKm: 4.75, bufferKm: GOAL_ETA_REMINDER_BUFFER_KM })),
+    { action: 'schedule', etaSeconds: 0.25 * 330 },
+  );
+  // At/past the goal it presents immediately (rejoined/evaluated late).
+  assert.deepEqual(
+    decideFinishApproachReminder(baseInputs({ currentDistanceKm: 5, bufferKm: GOAL_ETA_REMINDER_BUFFER_KM })),
+    { action: 'present-now' },
   );
 });

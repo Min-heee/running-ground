@@ -11,13 +11,25 @@ import {
   clearBackgroundMatchStatusApplier,
   flushBackgroundMatchProgressSync,
   getBackgroundMatchProgressContext,
+  hasUnackedPendingNativeFinishForTest,
   isBackgroundMatchProgressInFlightStale,
   isBackgroundMatchTerminallyGone,
   NATIVE_SUBGOAL_CAP_EPSILON_KM,
+  PENDING_NATIVE_FINISH_MAX_HOLD_MS,
   resetBackgroundMatchProgressSyncForTest,
   setBackgroundMatchProgressContext,
   setBackgroundMatchStatusApplier,
 } from '@/features/runs/tracking/background/backgroundMatchProgressSync';
+import {
+  resetPeriodicMatchUploadForTest,
+  setPeriodicMatchUploaderModuleForTest,
+} from '@/features/runs/tracking/background/periodicMatchUploadController';
+import {
+  __resetPendingFinishesForTest,
+  __setPendingFinishStorageForTest,
+  clearPendingFinish,
+  rememberPendingFinish,
+} from '@/features/runs/sync/pendingFinishStore';
 import {
   INITIAL_SNAPSHOT,
   setSnapshotState,
@@ -1305,5 +1317,369 @@ test('terminal-stop: a 410 for a superseded match is matchId-scoped — a newer 
     slotStartAt: '2026-05-29T00:00:00.000Z',
   });
   assert.equal(getBackgroundMatchProgressContext()?.matchId, 'duel-match-new-live');
+});
+
+// ============================================================================================
+// PENDING NATIVE FINISH (fair-verdict design §3.② / §3.③) — once a background flush computes
+// status==='finished' in the NATIVE branch, the native periodic cadence must carry the FINISHED
+// body until the server ACKs it — surviving the normal match-end context clear — bounded by a
+// 10-minute hard cap; and a durable pending-finish intent must relax the running-only gate + 3s
+// throttle so every surviving tick retries the finish (native when available, JS fallback when
+// not). These tests prove that end-to-end through the flush + the periodic controller seam.
+// ============================================================================================
+
+// Fake for the periodic-uploader CONTROLLER seam (wrapper-shaped fns). Captures every cadence
+// payload handoff, every stop, and the wired response listener so a test can (a) assert the
+// cadence carries the finished body and (b) emit a server 2xx body as the native cadence would.
+function buildFakePeriodicUploaderModule() {
+  const state = {
+    startPayloads: [] as string[],
+    updatePayloads: [] as string[],
+    stopCalls: 0,
+    listener: null as ((body: string) => void) | null,
+  };
+  const module = {
+    isNativePeriodicUploaderAvailable: () => true,
+    startPeriodicMatchUpload: (_url: string, _authToken: string, jsonBody: string) => {
+      state.startPayloads.push(jsonBody);
+      return true;
+    },
+    updatePeriodicMatchPayload: (_url: string, _authToken: string, jsonBody: string) => {
+      state.updatePayloads.push(jsonBody);
+      return true;
+    },
+    stopPeriodicMatchUpload: () => {
+      state.stopCalls += 1;
+      return true;
+    },
+    addMatchProgressResponseListener: (listener: (body: string) => void) => {
+      state.listener = listener;
+      return () => {
+        if (state.listener === listener) {
+          state.listener = null;
+        }
+      };
+    },
+  };
+  return { state, module };
+}
+
+// The cadence stop is fire-and-forget (void promise) — let its microtasks settle before asserting.
+async function settleAsyncTeardown() {
+  await new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
+function setupPendingFinishFixture() {
+  resetBackgroundMatchProgressSyncForTest();
+  resetPeriodicMatchUploadForTest();
+  __setPendingFinishStorageForTest({ getItem: async () => null, setItem: async () => {} });
+  __resetPendingFinishesForTest();
+  const periodic = buildFakePeriodicUploaderModule();
+  setPeriodicMatchUploaderModuleForTest(periodic.module);
+  return {
+    periodic,
+    teardown: () => {
+      setPeriodicMatchUploaderModuleForTest(undefined);
+      resetPeriodicMatchUploadForTest();
+      __resetPendingFinishesForTest();
+      __setPendingFinishStorageForTest(null);
+      resetBackgroundMatchProgressSyncForTest();
+    },
+  };
+}
+
+const finishAckNativeUploader = (nativeCalls: { body: string; token: string; url: string }[]) => ({
+  isNativeMatchProgressUploaderAvailable: () => true,
+  uploadMatchProgressNative: async (url: string, token: string, body: string) => {
+    nativeCalls.push({ body, token, url });
+    return null; // one-shot lands nothing — the cadence is the delivery channel under test
+  },
+});
+
+test('pending finish §3.②: the native cadence carries the FINISHED body until the server ACKs', async () => {
+  const nowMs = Date.now();
+  const { periodic, teardown } = setupPendingFinishFixture();
+  // JS itself reached the goal → the flush computes status 'finished' (legit finish).
+  setRunningSnapshot(nowMs, { distanceKm: 5 });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-finish-cadence',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  const nativeCalls: { body: string; token: string; url: string }[] = [];
+  try {
+    assert.equal(await flushBackgroundMatchProgressSync({
+      apiBaseUrl: 'https://preview.example.test/api',
+      getAccessToken: async () => 'native-token',
+      getNativeMatchProgressUploader: async () => finishAckNativeUploader(nativeCalls),
+      isAppBackground: true,
+      nowMs,
+      platform: 'android',
+      updateRunningMatchProgress: async () => {
+        throw new Error('JS uploader should not run on the native path');
+      },
+    }), true);
+    await settleAsyncTeardown();
+
+    // The cadence was handed the FINISHED body and the pending finish is armed (unACKed).
+    assert.equal(periodic.state.startPayloads.length, 1);
+    assert.match(periodic.state.startPayloads[0], /"status":"finished"/);
+    assert.equal(hasUnackedPendingNativeFinishForTest('duel-finish-cadence'), true);
+
+    // The next tick refreshes the cadence payload — STILL the finished body (no downgrade).
+    assert.equal(await flushBackgroundMatchProgressSync({
+      apiBaseUrl: 'https://preview.example.test/api',
+      getAccessToken: async () => 'native-token',
+      getNativeMatchProgressUploader: async () => finishAckNativeUploader(nativeCalls),
+      isAppBackground: true,
+      nowMs: nowMs + BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS,
+      platform: 'android',
+      updateRunningMatchProgress: async () => {
+        throw new Error('JS uploader should not run on the native path');
+      },
+    }), true);
+    await settleAsyncTeardown();
+    assert.equal(periodic.state.updatePayloads.length, 1);
+    assert.match(periodic.state.updatePayloads[0], /"status":"finished"/);
+
+    // Server ACK arrives on the cadence listener (2xx body confirming MY frozen finish) → the
+    // pending finish settles. The context is still armed, so the cadence itself keeps serving the
+    // live match (NOT stopped here — no live channel is weakened).
+    periodic.state.listener?.(JSON.stringify(buildMatchStatusResponse('duel-finish-cadence', {
+      currentUserLiveStatus: 'finished',
+    })));
+    assert.equal(hasUnackedPendingNativeFinishForTest('duel-finish-cadence'), false);
+    assert.equal(periodic.state.stopCalls, 0);
+
+    // The normal teardown now stops the cadence exactly as before (nothing left pending).
+    clearBackgroundMatchProgressContext('duel-finish-cadence');
+    await settleAsyncTeardown();
+    assert.equal(periodic.state.stopCalls, 1);
+  } finally {
+    teardown();
+  }
+});
+
+test('pending finish §3.②: clearBackgroundMatchProgressContext does NOT stop the cadence while the finish is unACKed', async () => {
+  const nowMs = Date.now();
+  const { periodic, teardown } = setupPendingFinishFixture();
+  setRunningSnapshot(nowMs, { distanceKm: 5 });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-finish-hold',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  const nativeCalls: { body: string; token: string; url: string }[] = [];
+  try {
+    await flushBackgroundMatchProgressSync({
+      apiBaseUrl: 'https://preview.example.test/api',
+      getAccessToken: async () => 'native-token',
+      getNativeMatchProgressUploader: async () => finishAckNativeUploader(nativeCalls),
+      isAppBackground: true,
+      nowMs,
+      platform: 'android',
+      updateRunningMatchProgress: async () => {
+        throw new Error('JS uploader should not run on the native path');
+      },
+    });
+    await settleAsyncTeardown();
+    assert.equal(hasUnackedPendingNativeFinishForTest('duel-finish-hold'), true);
+
+    // Match-end teardown fires BEFORE any ACK: the context clears, but the cadence must be LEFT
+    // RUNNING — it is the screen-off runner's only remaining finish-delivery channel (#203).
+    clearBackgroundMatchProgressContext('duel-finish-hold');
+    await settleAsyncTeardown();
+    assert.equal(getBackgroundMatchProgressContext(), null);
+    assert.equal(periodic.state.stopCalls, 0, 'cadence held open past the context clear');
+
+    // A later defensive unscoped clear (unmount cleanup) must not kill the held finish either.
+    clearBackgroundMatchProgressContext();
+    await settleAsyncTeardown();
+    assert.equal(periodic.state.stopCalls, 0, 'unscoped clear also defers while the finish is pending');
+
+    // The ACK finally lands on the still-wired listener → deferred stop happens NOW.
+    periodic.state.listener?.(JSON.stringify(buildMatchStatusResponse('duel-finish-hold', {
+      currentUserLiveStatus: 'finished',
+    })));
+    await settleAsyncTeardown();
+    assert.equal(hasUnackedPendingNativeFinishForTest('duel-finish-hold'), false);
+    assert.equal(periodic.state.stopCalls, 1, 'ACK performs the deferred stop');
+  } finally {
+    teardown();
+  }
+});
+
+test('pending finish §3.②: the held cadence is hard-capped at 10 minutes without an ACK', async () => {
+  const nowMs = Date.now();
+  const { periodic, teardown } = setupPendingFinishFixture();
+  setRunningSnapshot(nowMs, { distanceKm: 5 });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-finish-cap',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  const nativeCalls: { body: string; token: string; url: string }[] = [];
+  try {
+    await flushBackgroundMatchProgressSync({
+      apiBaseUrl: 'https://preview.example.test/api',
+      getAccessToken: async () => 'native-token',
+      getNativeMatchProgressUploader: async () => finishAckNativeUploader(nativeCalls),
+      isAppBackground: true,
+      nowMs,
+      platform: 'android',
+      updateRunningMatchProgress: async () => {
+        throw new Error('JS uploader should not run on the native path');
+      },
+    });
+    await settleAsyncTeardown();
+
+    clearBackgroundMatchProgressContext('duel-finish-cap');
+    await settleAsyncTeardown();
+    assert.equal(periodic.state.stopCalls, 0, 'held while unACKed and within the cap');
+
+    // No ACK ever arrives. A surviving tick past the 10min cap releases the cadence — even with
+    // the context long gone (the cap check runs before the context gates).
+    assert.equal(await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      nowMs: nowMs + PENDING_NATIVE_FINISH_MAX_HOLD_MS + 1,
+      updateRunningMatchProgress: async () => {
+        throw new Error('no context — nothing should be pushed');
+      },
+    }), false);
+    await settleAsyncTeardown();
+    assert.equal(hasUnackedPendingNativeFinishForTest('duel-finish-cap'), false);
+    assert.equal(periodic.state.stopCalls, 1, '10min hard cap performed the deferred stop');
+  } finally {
+    teardown();
+  }
+});
+
+test('pending finish §3.③: the 3s throttle and running-only gate relax ONLY while a pending-finish intent exists', async () => {
+  const nowMs = Date.now();
+  const { teardown } = setupPendingFinishFixture();
+  setRunningSnapshot(nowMs);
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-finish-throttle',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  const calls: UpdateRunningMatchProgressInput[] = [];
+  const updateRunningMatchProgress = async (input: UpdateRunningMatchProgressInput) => {
+    calls.push(input);
+    return buildMatchStatusResponse(input.matchId);
+  };
+
+  try {
+    // WITHOUT an intent: the throttle applies exactly as before (regular progress unweakened).
+    assert.equal(await flushBackgroundMatchProgressSync({
+      isAppBackground: true, nowMs, updateRunningMatchProgress,
+    }), true);
+    assert.equal(await flushBackgroundMatchProgressSync({
+      isAppBackground: true, nowMs: nowMs + 1_000, updateRunningMatchProgress,
+    }), false, 'no intent → throttled as today');
+
+    // WITH a durable intent: the throttle no longer delays the retry, and the payload is the
+    // FROZEN finish from the intent (not re-derived from the snapshot).
+    rememberPendingFinish({
+      matchId: 'duel-finish-throttle',
+      finishElapsedSeconds: 1606,
+      distanceKm: 5,
+      pace: '05:21/km',
+    });
+    assert.equal(await flushBackgroundMatchProgressSync({
+      isAppBackground: true, nowMs: nowMs + 1_100, updateRunningMatchProgress,
+    }), true, 'intent → throttle relaxed');
+    const finishPush = calls[calls.length - 1];
+    assert.equal(finishPush.status, 'finished');
+    assert.equal(finishPush.elapsedSeconds, 1606);
+    assert.equal(finishPush.distanceKm, 5);
+
+    // The running-only gate relaxes too: an idle post-teardown snapshot still retries the finish…
+    setSnapshotState({ ...INITIAL_SNAPSHOT, status: 'idle' });
+    assert.equal(await flushBackgroundMatchProgressSync({
+      isAppBackground: true, nowMs: nowMs + 1_200, updateRunningMatchProgress,
+    }), true, 'idle snapshot + intent → finish still retried');
+    assert.equal(calls[calls.length - 1].status, 'finished');
+
+    // …but ONLY while the intent exists: once it clears, the idle gate returns exactly as today.
+    clearPendingFinish('duel-finish-throttle');
+    assert.equal(await flushBackgroundMatchProgressSync({
+      isAppBackground: true, nowMs: nowMs + BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS + 5_000, updateRunningMatchProgress,
+    }), false, 'no intent + idle snapshot → gated as today');
+  } finally {
+    teardown();
+  }
+});
+
+test('pending finish §3.①/③ routing: the finish intent goes NATIVE when available and falls back to the JS push when not', async () => {
+  const nowMs = Date.now();
+  const { teardown } = setupPendingFinishFixture();
+  // Post-teardown shape: idle snapshot, only the durable intent left.
+  setSnapshotState({ ...INITIAL_SNAPSHOT, status: 'idle' });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-finish-route',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+  rememberPendingFinish({
+    matchId: 'duel-finish-route',
+    finishElapsedSeconds: 1622,
+    distanceKm: 5,
+    pace: '05:24/km',
+  });
+
+  try {
+    // Native available → the FINISHED intent body rides the native uploader; JS fetch untouched.
+    const nativeCalls: { body: string; token: string; url: string }[] = [];
+    assert.equal(await flushBackgroundMatchProgressSync({
+      apiBaseUrl: 'https://preview.example.test/api',
+      getAccessToken: async () => 'native-token',
+      getNativeMatchProgressUploader: async () => finishAckNativeUploader(nativeCalls),
+      isAppBackground: true,
+      nowMs,
+      platform: 'android',
+      updateRunningMatchProgress: async () => {
+        throw new Error('JS uploader should not run when the native uploader is available');
+      },
+    }), true);
+    assert.equal(nativeCalls.length, 1);
+    assert.match(nativeCalls[0].body, /"status":"finished"/);
+    assert.match(nativeCalls[0].body, /"elapsedSeconds":1622/);
+
+    // Native unavailable (current iOS no-op binary) → the SAME finished body falls back to the JS
+    // push — the pre-native delivery channel stays fully intact.
+    const jsCalls: UpdateRunningMatchProgressInput[] = [];
+    assert.equal(await flushBackgroundMatchProgressSync({
+      getNativeMatchProgressUploader: async () => ({
+        isNativeMatchProgressUploaderAvailable: () => false,
+        uploadMatchProgressNative: async () => {
+          throw new Error('unavailable uploader must not be called');
+        },
+      }),
+      isAppBackground: true,
+      nowMs: nowMs + BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS,
+      platform: 'ios',
+      updateRunningMatchProgress: async (input) => {
+        jsCalls.push(input);
+        return buildMatchStatusResponse(input.matchId);
+      },
+    }), true);
+    assert.equal(jsCalls.length, 1);
+    assert.equal(jsCalls[0].status, 'finished');
+    assert.equal(jsCalls[0].elapsedSeconds, 1622);
+  } finally {
+    teardown();
+  }
 });
 

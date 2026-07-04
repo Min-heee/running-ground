@@ -3,12 +3,15 @@ import { useEffect, useRef } from 'react';
 import { subscribeBackgroundRunTracking } from '@/features/runs/tracking/background';
 import {
   decideFinishApproachReminder,
+  GOAL_ETA_REMINDER_BUFFER_KM,
   type FinishApproachReminderInputs,
 } from '@/features/runs/finishReminder/finishApproachReminderDecision';
 import {
   cancelFinishApproachReminder,
   presentFinishApproachReminderNow,
+  presentGoalEtaReminderNow,
   scheduleFinishApproachReminder,
+  scheduleGoalEtaReminder,
 } from '@/features/runs/finishReminder/finishApproachNotification';
 
 // How often the time-driven re-evaluation runs while the screen is on. The GPS-snapshot
@@ -32,23 +35,29 @@ export type FinishApproachReminderInput = {
   isFinished?: boolean;
 };
 
-// Schedules a single time-based "finish approaching — turn your screen on" local notification
-// ~1 min (300m) before the runner reaches the target distance, so a screen-off finish is
-// captured accurately. Fires ONCE per run; reschedules (throttled) as the ETA drifts; cancels
-// on run end / finish / forfeit / unmount. Permission is assumed already granted at onboarding;
-// the notification module no-ops when it isn't.
+// Schedules TWO time-based "turn your screen on" local notifications per run with a finish line:
+//   1) the APPROACH reminder ~1 min (300m) before the runner reaches the target distance, and
+//   2) (§3.⑤, fair-verdict design) the GOAL-ETA reminder at the projected moment of CROSSING it —
+//      the second nudge that wakes a still-screen-off runner exactly when the finish upload needs
+//      the screen, shrinking the only unbounded finish-delivery lag term (screen-off duration).
+// Each fires ONCE per run; each reschedules (throttled) as its ETA drifts; both cancel on run
+// end / finish / forfeit / unmount. Permission is assumed already granted at onboarding; the
+// notification module no-ops when it isn't.
 export function useFinishApproachReminder(input: FinishApproachReminderInput) {
   // Latest input read through a ref so neither the timer nor the GPS-snapshot closure goes stale.
   const inputRef = useRef(input);
   inputRef.current = input;
 
   // Per-run guard rails (reset on each new active run):
-  // - hasFiredRef: fire-once flag.
-  // - scheduledInSecondsRef: the fire-delay of the currently-pending reminder, for throttling.
+  // - hasFiredRef / goalHasFiredRef: fire-once flags, independent per reminder.
+  // - scheduledInSecondsRef / goalScheduledInSecondsRef: the fire-delay of each currently-pending
+  //   reminder, for throttling.
   // - runActiveRef: tracks whether we are inside an active-run episode, so we reset the
-  //   fire-once flag exactly when a NEW run starts (active false → true edge).
+  //   fire-once flags exactly when a NEW run starts (active false → true edge).
   const hasFiredRef = useRef(false);
   const scheduledInSecondsRef = useRef<number | null>(null);
+  const goalHasFiredRef = useRef(false);
+  const goalScheduledInSecondsRef = useRef<number | null>(null);
   const runActiveRef = useRef(false);
 
   const active = input.active
@@ -58,19 +67,23 @@ export function useFinishApproachReminder(input: FinishApproachReminderInput) {
 
   useEffect(() => {
     if (!active) {
-      // Run not active / no finish line: tear down any pending reminder and arm the next run.
+      // Run not active / no finish line: tear down any pending reminders and arm the next run.
       runActiveRef.current = false;
       hasFiredRef.current = false;
       scheduledInSecondsRef.current = null;
+      goalHasFiredRef.current = false;
+      goalScheduledInSecondsRef.current = null;
       void cancelFinishApproachReminder();
       return undefined;
     }
 
-    // New active-run episode → reset the fire-once flag.
+    // New active-run episode → reset the fire-once flags.
     if (!runActiveRef.current) {
       runActiveRef.current = true;
       hasFiredRef.current = false;
       scheduledInSecondsRef.current = null;
+      goalHasFiredRef.current = false;
+      goalScheduledInSecondsRef.current = null;
     }
 
     const evaluate = () => {
@@ -99,7 +112,39 @@ export function useFinishApproachReminder(input: FinishApproachReminderInput) {
           break;
         case 'cancel':
           scheduledInSecondsRef.current = null;
+          goalScheduledInSecondsRef.current = null;
+          // Tears down BOTH reminders (the cancel condition — run ended / finished / no goal —
+          // is identical for the two decisions, so the goal pass below will also be 'cancel').
           void cancelFinishApproachReminder();
+          break;
+        case 'none':
+        default:
+          break;
+      }
+
+      // §3.⑤ — the GOAL-ETA reminder: the SAME pure decision run with a 0km buffer and its own
+      // fire-once/throttle state, mirroring the approach reminder's scheduling idiom exactly.
+      const goalDecision = decideFinishApproachReminder({
+        ...decisionInputs,
+        bufferKm: GOAL_ETA_REMINDER_BUFFER_KM,
+        hasFired: goalHasFiredRef.current,
+        scheduledInSeconds: goalScheduledInSecondsRef.current,
+      });
+
+      switch (goalDecision.action) {
+        case 'schedule':
+          goalScheduledInSecondsRef.current = goalDecision.etaSeconds;
+          void scheduleGoalEtaReminder(goalDecision.etaSeconds);
+          break;
+        case 'present-now':
+          goalHasFiredRef.current = true;
+          goalScheduledInSecondsRef.current = null;
+          void presentGoalEtaReminderNow();
+          break;
+        case 'cancel':
+          // Already handled by the approach pass above (cancelFinishApproachReminder cancels
+          // both kinds); just drop the local schedule bookkeeping.
+          goalScheduledInSecondsRef.current = null;
           break;
         case 'none':
         default:
