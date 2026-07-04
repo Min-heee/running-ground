@@ -9,7 +9,9 @@ import {
   MATCH_ROOM_HOST_LOADING_SECONDS,
   MATCH_ROOM_HOST_MAX_LOADING_WAIT_SECONDS,
   MATCH_ROOM_HOST_START_DELAY_SECONDS,
+  MATCH_SEAL_REVISION_WINDOW_MS,
 } from './lib/matchConstants.mjs';
+import { DUEL_LP } from './lib/rankSystem.mjs';
 import {
   acknowledgeRunningMatchRoomCountdown,
   createRunningMatchRoom,
@@ -2097,7 +2099,13 @@ await runTest('a group save against an unsettled session is PENDING (no rank, no
   });
 });
 
-await runTest('a group save against a §B4-sealed live session overrides a fabricated rank and awards the rank-based LP', async () => {
+// PIN UPDATED for the fair-verdict design (2026-07-05): a save against a PROVISIONAL seal now
+// stays PENDING (never persist a verdict that may still flip once inside the revision window;
+// the finalization back-fill heals it — see the STUCK tests). The save-time rank override + the
+// rank-based bonus therefore apply to a save that arrives after the seal FINALIZED, which this
+// fixture models by pre-writing the window-closed seal + sealFinalizedAt (what the sweep stamps
+// on any match-route touch past resolvedAt+10min).
+await runTest('a group save against a FINALIZED §B4-sealed live session overrides a fabricated rank and awards the rank-based LP', async () => {
   // Two finishers + one stalled (disconnected) runner whose §B4 window has elapsed: the live
   // session survives pruning (the stalled runner is non-terminal) so the save resolves from the
   // live session's groupVerdict. The guest (real finish 1560 → 2위) claims a fabricated 1위; the
@@ -2120,6 +2128,12 @@ await runTest('a group save against a §B4-sealed live session overrides a fabri
     startedAt: iso(-25 * 60 * 1000),
     createdAt: iso(-26 * 60 * 1000),
     matchedAt: iso(-26 * 60 * 1000),
+    groupFallbackResolution: {
+      resolvedAt: iso(-(MATCH_SEAL_REVISION_WINDOW_MS + 5 * 60 * 1000)),
+      finisherUserIds: ['host-user', 'guest-user'],
+      dnfUserIds: ['third-user'],
+    },
+    sealFinalizedAt: iso(-60 * 1000),
     participants: [
       {
         userId: 'host-user',
@@ -2617,11 +2631,18 @@ await runTest('after the session is PRUNED, a save with a fabricated client win 
 // screen-off). After the §B4 window elapses nobody re-invokes a verdict-builder, so the
 // seal never fired → the saved card was stuck on "결과 집계 중" forever. The fix routes
 // GET /result through mutateStore (seals + back-fills) AND sweeps in pruneMatchSessions.
+// Fair-verdict design (2026-07-05) refinement: the seal is PROVISIONAL for a 10-minute
+// revision window (a delayed-but-plausible late finish may still flip it once), so the
+// irreversible effects — saved-run back-fill, LP, result notifications — run at
+// FINALIZATION (window close, or every-participant-done) instead of at seal time.
 // ---------------------------------------------------------------------------
 
 // A duel where ONLY the host finished (>§B4 window ago) and the guest never finished — and the
 // host already SAVED a PENDING record. The window (90s) has elapsed because finishedAt is 100s old.
-function createStuckOneFinisherDuelStore() {
+// `sealedAgoMs` optionally pre-writes the §B4 seal that many ms in the past — used to model a
+// session whose SEAL-REVISION window (10min from resolvedAt) has already closed, so the next
+// touch runs the FINALIZATION phase (sealFinalizedAt + LP + back-fill).
+function createStuckOneFinisherDuelStore({ sealedAgoMs = null } = {}) {
   const store = createBaseStore();
   const slotStartAt = createSelectableMatchSlotStartAt();
   const finishedAt = iso(-100 * 1000); // > MATCH_DUEL_FINISH_FALLBACK_MS (90s) ago
@@ -2635,6 +2656,15 @@ function createStuckOneFinisherDuelStore() {
     startedAt: iso(-30 * 60 * 1000),
     createdAt: iso(-31 * 60 * 1000),
     matchedAt: iso(-31 * 60 * 1000),
+    ...(sealedAgoMs !== null
+      ? {
+          duelFallbackResolution: {
+            resolvedAt: iso(-sealedAgoMs),
+            winnerUserId: 'host-user',
+            dnfUserId: 'guest-user',
+          },
+        }
+      : {}),
     participants: [
       {
         userId: 'host-user',
@@ -2696,8 +2726,16 @@ function createStuckOneFinisherDuelStore() {
   return { store, slotStartAt };
 }
 
-await runTest('STUCK one-finisher duel: GET /result after the §B4 window SEALS + PERSISTS the DNF win and BACK-FILLS the finisher saved run (heals the permanent PENDING)', async () => {
+// PIN UPDATED for the fair-verdict design (2026-07-05): the first /result after the §B4 window
+// still SEALS + PERSISTS, and still DISPLAYS the DNF win — but the verdict is now PROVISIONAL
+// for the 10-minute revision window, so the saved-run back-fill (an irreversible persist: its
+// never-downgrade guard would block a later correction) is DEFERRED to finalization. The
+// display heal is unchanged; the durable heal moves to the window close (next test).
+await runTest('STUCK one-finisher duel: GET /result after the §B4 window SEALS + shows the PROVISIONAL DNF win; back-fill/LP stay deferred inside the revision window', async () => {
   const { store } = createStuckOneFinisherDuelStore();
+  for (const user of store.users) {
+    user.rankState = { tier: '입문', lp: 50 };
+  }
 
   await withBackend(store, async ({ request, readStore }) => {
     // BEFORE: the host's saved record is PENDING and the session carries no seal.
@@ -2708,9 +2746,10 @@ await runTest('STUCK one-finisher duel: GET /result after the §B4 window SEALS 
     assert.equal(before.matchSessions.find((entry) => entry.id === 'stuck-duel-match').duelFallbackResolution, undefined);
 
     // The host opens 기록상세 → GET /result. This is the FIRST request after the window; it must
-    // resolve the DNF win, PERSIST the seal, and BACK-FILL the saved run.
+    // resolve + PERSIST the seal and DISPLAY the DNF win, flagged provisional (가확정).
     const result = await request('host-token', 'GET', '/api/running/matches/stuck-duel-match/result');
     assert.equal(result.matchId, 'stuck-duel-match');
+    assert.equal(result.provisional, true);
     const me = result.participants.find((participant) => participant.userId === 'host-user');
     const opponent = result.participants.find((participant) => participant.userId === 'guest-user');
     assert.equal(me.resultTone, 'win');
@@ -2718,15 +2757,19 @@ await runTest('STUCK one-finisher duel: GET /result after the §B4 window SEALS 
     // The DNF opponent carries no official finish.
     assert.equal(opponent.finishElapsedSeconds, null);
 
-    // AFTER: the seal is PERSISTED on the session AND the host's saved run is healed to a definite win.
+    // AFTER: the seal is PERSISTED on the session, but nothing irreversible ran — the saved run
+    // stays PENDING (deferred back-fill), no LP moved, no notifications, not finalized.
     const after = readStore();
     const sealedSession = after.matchSessions.find((entry) => entry.id === 'stuck-duel-match');
     assert.equal(sealedSession.duelFallbackResolution.winnerUserId, 'host-user');
     assert.equal(sealedSession.duelFallbackResolution.dnfUserId, 'guest-user');
-    const healedRun = after.runs.find((entry) => entry.id === 'host-stuck-run');
-    assert.equal(healedRun.matchResult.resultTone, 'win');
-    assert.equal(healedRun.matchResult.badgeLabel, '승리');
-    assert.notEqual(healedRun.matchResult.badgeLabel, '결과 집계 중');
+    assert.equal(sealedSession.sealFinalizedAt, undefined);
+    const stillPendingRun = after.runs.find((entry) => entry.id === 'host-stuck-run');
+    assert.equal(stillPendingRun.matchResult.resultTone, undefined);
+    assert.equal(stillPendingRun.matchResult.badgeLabel, '결과 집계 중');
+    assert.equal(after.users.find((entry) => entry.id === 'host-user').rankState.lp, 50);
+    assert.equal(after.users.find((entry) => entry.id === 'guest-user').rankState.lp, 50);
+    assert.equal((after.notifications ?? []).filter((entry) => ['match_result', 'rank_change'].includes(entry.type)).length, 0);
 
     // A SECOND /result read is idempotent: the verdict is identical and the seal is not recomputed.
     const second = await request('host-token', 'GET', '/api/running/matches/stuck-duel-match/result');
@@ -2736,15 +2779,22 @@ await runTest('STUCK one-finisher duel: GET /result after the §B4 window SEALS 
   });
 });
 
-await runTest('STUCK one-finisher duel: the SWEEP self-heals via pruneMatchSessions WITHOUT any /result call (another user\'s status poll triggers it)', async () => {
-  const { store } = createStuckOneFinisherDuelStore();
+// PIN UPDATED for the fair-verdict design (2026-07-05): the sweep's self-heal (back-fill) now
+// runs at FINALIZATION — the seal's revision window (10min) must have closed — and finalization
+// additionally applies the LP + result notifications the sealed path used to strand forever.
+// The fixture pre-writes the seal 11 minutes in the past to model that moment.
+await runTest('STUCK one-finisher duel: the SWEEP FINALIZES a window-closed seal WITHOUT any /result call (bystander poll) — back-fill + LP + notifications exactly once', async () => {
+  const { store } = createStuckOneFinisherDuelStore({ sealedAgoMs: MATCH_SEAL_REVISION_WINDOW_MS + 60 * 1000 });
+  for (const user of store.users) {
+    user.rankState = { tier: '입문', lp: 50 };
+  }
   // A bystander whose unrelated status poll runs pruneMatchSessions across the whole store.
   store.users.push(createRunner({ id: 'bystander', name: '구경 러너', publicTag: 'bystander' }));
   store.sessions.push(createSession('bystander-token', 'bystander'));
 
   await withBackend(store, async ({ request, readStore }) => {
     // The bystander never touches the stuck match — they just poll their own (empty) duel status,
-    // which runs pruneMatchSessions → the sweep seals + back-fills the stranded match.
+    // which runs pruneMatchSessions → the sweep finalizes + back-fills + applies LP.
     await request('bystander-token', 'POST', '/api/running/matches/status', {
       mode: 'duel',
       distanceKm: 5,
@@ -2754,15 +2804,33 @@ await runTest('STUCK one-finisher duel: the SWEEP self-heals via pruneMatchSessi
     const after = readStore();
     const sealedSession = after.matchSessions.find((entry) => entry.id === 'stuck-duel-match');
     assert.equal(sealedSession.duelFallbackResolution.winnerUserId, 'host-user');
+    assert.equal(typeof sealedSession.sealFinalizedAt, 'string');
     const healedRun = after.runs.find((entry) => entry.id === 'host-stuck-run');
     assert.equal(healedRun.matchResult.resultTone, 'win');
     assert.equal(healedRun.matchResult.badgeLabel, '승리');
+    // LP finally applies for the sealed win (host '06:12/km' vs guest '06:25/km' → 13s apart →
+    // win-vs-slower / loss-vs-faster deltas), and the DNF side takes the loser delta.
+    assert.equal(after.users.find((entry) => entry.id === 'host-user').rankState.lp, 50 + DUEL_LP.winVsSlower);
+    assert.equal(after.users.find((entry) => entry.id === 'guest-user').rankState.lp, 50 + DUEL_LP.lossVsFaster);
+    assert.equal((after.notifications ?? []).filter((entry) => entry.type === 'match_result').length, 2);
+
+    // A second bystander poll changes nothing (finalization is one-way idempotent).
+    await request('bystander-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt: createSelectableMatchSlotStartAt(),
+    });
+    const afterSecond = readStore();
+    assert.equal(afterSecond.matchSessions.find((entry) => entry.id === 'stuck-duel-match').sealFinalizedAt, sealedSession.sealFinalizedAt);
+    assert.equal(afterSecond.users.find((entry) => entry.id === 'host-user').rankState.lp, 50 + DUEL_LP.winVsSlower);
+    assert.equal((afterSecond.notifications ?? []).filter((entry) => entry.type === 'match_result').length, 2);
   });
 });
 
 // A group where ONLY the host finished (>§B4 window ago); guest + third never finished, and the
-// host already SAVED a rank-less PENDING group record.
-function createStuckOneFinisherGroupStore() {
+// host already SAVED a rank-less PENDING group record. `sealedAgoMs` optionally pre-writes the
+// group seal that many ms in the past (window-closed finalization fixture — see the duel twin).
+function createStuckOneFinisherGroupStore({ sealedAgoMs = null } = {}) {
   const store = createBaseStore();
   store.users.push(
     createRunner({ id: 'third-user', name: '세번째 러너', publicTag: 'third', districtName: '마포구' }),
@@ -2781,6 +2849,15 @@ function createStuckOneFinisherGroupStore() {
     startedAt: iso(-30 * 60 * 1000),
     createdAt: iso(-31 * 60 * 1000),
     matchedAt: iso(-31 * 60 * 1000),
+    ...(sealedAgoMs !== null
+      ? {
+          groupFallbackResolution: {
+            resolvedAt: iso(-sealedAgoMs),
+            finisherUserIds: ['host-user'],
+            dnfUserIds: ['guest-user', 'third-user'],
+          },
+        }
+      : {}),
     participants: [
       {
         userId: 'host-user',
@@ -2851,7 +2928,11 @@ function createStuckOneFinisherGroupStore() {
   return { store, slotStartAt };
 }
 
-await runTest('STUCK one-finisher group: GET /result after the §B4 window SEALS + PERSISTS the placement and BACK-FILLS the finisher saved run (1위, DNF below)', async () => {
+// PIN UPDATED for the fair-verdict design (2026-07-05): same deferral as the duel — the first
+// /result still SEALS + PERSISTS + DISPLAYS the placement (provisional), but the saved-run
+// back-fill waits for finalization so a late finisher inside the revision window can still
+// re-enter the ordering.
+await runTest('STUCK one-finisher group: GET /result after the §B4 window SEALS + shows the PROVISIONAL placement; back-fill stays deferred inside the revision window', async () => {
   const { store } = createStuckOneFinisherGroupStore();
 
   await withBackend(store, async ({ request, readStore }) => {
@@ -2861,6 +2942,7 @@ await runTest('STUCK one-finisher group: GET /result after the §B4 window SEALS
 
     const result = await request('host-token', 'GET', '/api/running/matches/stuck-group-match/result');
     assert.equal(result.mode, 'group');
+    assert.equal(result.provisional, true);
     const me = result.participants.find((participant) => participant.userId === 'host-user');
     assert.equal(me.rank, 1);
 
@@ -2868,15 +2950,18 @@ await runTest('STUCK one-finisher group: GET /result after the §B4 window SEALS
     const sealedSession = after.matchSessions.find((entry) => entry.id === 'stuck-group-match');
     assert.deepEqual(sealedSession.groupFallbackResolution.finisherUserIds, ['host-user']);
     assert.deepEqual(new Set(sealedSession.groupFallbackResolution.dnfUserIds), new Set(['guest-user', 'third-user']));
-    const healedRun = after.runs.find((entry) => entry.id === 'host-stuck-group-run');
-    assert.equal(healedRun.matchResult.rank, 1);
-    assert.equal(healedRun.matchResult.badgeLabel, '1위');
-    assert.notEqual(healedRun.matchResult.badgeLabel, '결과 집계 중');
+    assert.equal(sealedSession.sealFinalizedAt, undefined);
+    // The saved record stays PENDING until the revision window closes (deferred back-fill).
+    const stillPendingRun = after.runs.find((entry) => entry.id === 'host-stuck-group-run');
+    assert.equal(stillPendingRun.matchResult.rank, undefined);
+    assert.equal(stillPendingRun.matchResult.badgeLabel, '결과 집계 중');
   });
 });
 
-await runTest('STUCK one-finisher group: the SWEEP self-heals via pruneMatchSessions WITHOUT any /result call', async () => {
-  const { store } = createStuckOneFinisherGroupStore();
+// PIN UPDATED for the fair-verdict design (2026-07-05): the sweep's durable heal now runs at
+// FINALIZATION (window-closed seal, pre-written 11min ago), mirroring the duel twin above.
+await runTest('STUCK one-finisher group: the SWEEP FINALIZES a window-closed seal WITHOUT any /result call and back-fills the placement', async () => {
+  const { store } = createStuckOneFinisherGroupStore({ sealedAgoMs: MATCH_SEAL_REVISION_WINDOW_MS + 60 * 1000 });
   store.users.push(createRunner({ id: 'bystander', name: '구경 러너', publicTag: 'bystander' }));
   store.sessions.push(createSession('bystander-token', 'bystander'));
 
@@ -2890,6 +2975,7 @@ await runTest('STUCK one-finisher group: the SWEEP self-heals via pruneMatchSess
     const after = readStore();
     const sealedSession = after.matchSessions.find((entry) => entry.id === 'stuck-group-match');
     assert.deepEqual(sealedSession.groupFallbackResolution.finisherUserIds, ['host-user']);
+    assert.equal(typeof sealedSession.sealFinalizedAt, 'string');
     const healedRun = after.runs.find((entry) => entry.id === 'host-stuck-group-run');
     assert.equal(healedRun.matchResult.rank, 1);
     assert.equal(healedRun.matchResult.badgeLabel, '1위');

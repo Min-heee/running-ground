@@ -64,3 +64,12 @@ export const MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND = MATCH_PROGRESS_MAX_SPEED_M
 // neither client is stranded on a 'pending' verdict forever. Sized to the running
 // stale window so a runner who genuinely stopped reporting is treated as a DNF.
 export const MATCH_DUEL_FINISH_FALLBACK_MS = MATCH_PARTICIPANT_RUNNING_STALE_MS;
+// A §B4 fallback seal is PROVISIONAL for this long (measured from the seal's
+// resolvedAt): a sealed-DNF runner whose finish was merely delayed (iOS screen-off
+// upload freeze can lag minutes) may still land a plausible finish inside this
+// window, which ANNULS the seal and lets measured-elapsed truth re-resolve the
+// match (the winner can flip at most once). LP, result notifications, and the
+// saved-run back-fill are all deferred to the window close (finalization), so
+// nothing irreversible ever happens off a provisional verdict. Covers the observed
+// 2-10min screen-on lag while staying far below the 4h session TTL.
+export const MATCH_SEAL_REVISION_WINDOW_MS = 10 * 60 * 1000;

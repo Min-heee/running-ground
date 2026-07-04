@@ -73,6 +73,10 @@ export function buildDuelVerdict(session, standings, currentUserId, now = new Da
     const iWon = sealed.winnerUserId === currentUserId;
     return {
       resolved: true,
+      // PROVISIONAL until the revision window closes (sealFinalizedAt is stamped by the sweep's
+      // finalization phase): inside the window the sealed-DNF runner's plausible late finish may
+      // still annul the seal and flip this verdict (at most once). Additive — old clients ignore.
+      provisional: !session.sealFinalizedAt,
       winnerUserId: sealed.winnerUserId,
       outcome: iWon ? 'win' : 'lose',
       // The DNF side carries no official finish elapsed — keep it null on both phones.
@@ -104,6 +108,17 @@ export function buildDuelVerdict(session, standings, currentUserId, now = new Da
     }
   }
 
+  // REVISED: a §B4 seal was annulled by the sealed-DNF runner's accepted late finish and the
+  // re-resolved winner actually CHANGED from the provisionally shown one (a slower late finish
+  // keeps the winner — no flag; a flip or a dead-heat downgrade of the shown win sets it).
+  // Additive — old clients ignore both fields.
+  const revision = session.duelFallbackRevision;
+  const revised = resolved
+    && revision?.previousWinnerUserId
+    && revision.previousWinnerUserId !== winnerUserId
+    ? true
+    : undefined;
+
   return {
     resolved,
     winnerUserId,
@@ -112,6 +127,7 @@ export function buildDuelVerdict(session, standings, currentUserId, now = new Da
     opponentFinishElapsedSeconds,
     myPaceLabel: resolveDuelVerdictPaceLabel(mine, goalDistanceKm),
     opponentPaceLabel: resolveDuelVerdictPaceLabel(opponent, goalDistanceKm),
+    ...(revised ? { revised: true, revisedAt: revision.revisedAt } : {}),
   };
 }
 
@@ -204,6 +220,10 @@ export function buildGroupVerdict(session, standings, currentUserId, now = new D
 
     return {
       resolved: true,
+      // PROVISIONAL until the revision window closes (sealFinalizedAt) — mirrors the duel: a
+      // sealed-DNF runner's plausible late finish may still annul + deterministically re-seal
+      // this ordering within the window. Additive — old clients ignore it.
+      provisional: !session.sealFinalizedAt,
       participants: sealedParticipants,
       myRank: mineSealed && Number.isInteger(mineSealed.rank) ? mineSealed.rank : null,
     };

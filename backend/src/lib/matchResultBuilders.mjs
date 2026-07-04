@@ -91,7 +91,10 @@ export function resolveSavedDuelMatchResult(store, currentUser, matchResult, now
   const standings = buildOfficialSessionStandings(store, session, now);
   const verdict = buildDuelVerdict(session, standings, currentUser.id, now);
 
-  if (!verdict || !verdict.resolved || verdict.outcome === 'pending') {
+  // A PROVISIONAL verdict (sealed, revision window still open) is display-only: it may still
+  // flip once, and a persisted tone would trip the saved-run never-downgrade guard and block
+  // the correction forever. Keep the blob PENDING; the finalization back-fill heals it.
+  if (!verdict || !verdict.resolved || verdict.outcome === 'pending' || verdict.provisional === true) {
     return toPendingDuelMatchResult(matchResult);
   }
 
@@ -227,7 +230,9 @@ export function resolveSavedGroupMatchResult(store, currentUser, matchResult, no
   const standings = buildOfficialSessionStandings(store, session, now);
   const verdict = buildGroupVerdict(session, standings, currentUser.id, now);
 
-  if (!verdict || !verdict.resolved || !Number.isInteger(verdict.myRank)) {
+  // A PROVISIONAL sealed placement (revision window still open) is display-only — never
+  // persisted, exactly like the duel above. The finalization back-fill heals the blob.
+  if (!verdict || !verdict.resolved || !Number.isInteger(verdict.myRank) || verdict.provisional === true) {
     return toPendingGroupMatchResult(matchResult);
   }
 
@@ -483,6 +488,11 @@ function buildResultFromSession(store, session, currentUserId, now) {
   const duelVerdict = mode === 'duel'
     ? buildDuelVerdict(session, standings, currentUserId, now)
     : null;
+  // The group verdict is consulted here ONLY for the provisional flag (the roster/ranks below
+  // keep reading the standings exactly as before); like the duel verdict it seals idempotently.
+  const groupVerdict = mode === 'group'
+    ? buildGroupVerdict(session, standings, currentUserId, now)
+    : null;
 
   const participants = standings.map((standing) => {
     const sessionParticipant = session.participants.find((participant) => participant.userId === standing.userId);
@@ -520,12 +530,20 @@ function buildResultFromSession(store, session, currentUserId, now) {
     };
   });
 
+  // Additive top-level flags so the result surfaces can badge a still-revisable verdict
+  // (가확정) and an actually-flipped one (정정). Old clients ignore both.
+  const verdictForFlags = mode === 'duel' ? duelVerdict : groupVerdict;
+
   return {
     matchId: session.id,
     mode,
     source,
     comparedDistanceKm: goalDistanceKm,
     participants,
+    ...(verdictForFlags?.provisional === true ? { provisional: true } : {}),
+    ...(duelVerdict?.revised === true
+      ? { revised: true, ...(duelVerdict.revisedAt ? { revisedAt: duelVerdict.revisedAt } : {}) }
+      : {}),
   };
 }
 

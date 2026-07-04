@@ -12,7 +12,7 @@ import {
   buildMatchResultByMatchId,
 } from './matchResultBuilders.mjs';
 import { updateRunningMatchProgress } from './matchActionHandlers.mjs';
-import { MATCH_DUEL_FINISH_FALLBACK_MS } from './matchConstants.mjs';
+import { MATCH_DUEL_FINISH_FALLBACK_MS, MATCH_SEAL_REVISION_WINDOW_MS } from './matchConstants.mjs';
 
 // A frozen "now" well past every slot so sessions hydrate to 'active'.
 const NOW = new Date('2026-06-28T12:00:00.000Z');
@@ -378,7 +378,7 @@ test('the GET /result group roster still resolves from a live session (verdict i
 // placement. Mirrors backend/src/lib/runningMatchRankSystem.test.mjs's duel seal tests.
 // ──────────────────────────────────────────────────────────────────────────────
 
-test('group SEALS at §B4 and a later FASTER finish from a sealed-DNF runner does NOT flip the order', () => {
+test('group SEALS at §B4 and a later FASTER finish from a sealed-DNF runner does NOT flip the order beyond the revision window', () => {
   // This test calls updateRunningMatchProgress, which goes through findMatchSessionById →
   // pruneMatchSessions. That prune path defaults its clock to `new Date()` (REAL now) end to end,
   // so it cannot see the frozen NOW the other tests use. Anchor THIS session's timestamps to real
@@ -417,6 +417,8 @@ test('group SEALS at §B4 and a later FASTER finish from a sealed-DNF runner doe
   const standings1 = buildOfficialSessionStandings(store, session, realNow);
   const verdict1 = buildGroupVerdict(session, standings1, 'A', realNow);
   assert.equal(verdict1.resolved, true);
+  // A fresh group seal is PROVISIONAL — the revision window (10min from resolvedAt) is open.
+  assert.equal(verdict1.provisional, true);
   assert.deepEqual(verdict1.participants.map((p) => [p.userId, p.rank]), [['A', 1], ['B', 2]]);
   assert.equal(verdict1.myRank, 1);
   // The seal is now persisted on the session.
@@ -426,8 +428,15 @@ test('group SEALS at §B4 and a later FASTER finish from a sealed-DNF runner doe
   assert.equal(isParticipantGroupSealedDnf(session, 'B'), true);
   assert.equal(isParticipantGroupSealedDnf(session, 'A'), false);
 
-  // The sealed-DNF runner B now posts a LATER, FASTER finish (1200s < A's 1500s). The handler
-  // must NOT promote B above A — B stays a non-finisher (no finishElapsedSeconds, not finished).
+  // Rewind the seal past the revision window (absolute timestamps make this equivalent to
+  // waiting 11 minutes) so B's late finish below hits the CLOSED-window path. (INSIDE the
+  // window a plausible late finish now un-DNFs B via annul + deterministic re-seal — pinned
+  // in matchSealRevision.test.mjs.)
+  session.groupFallbackResolution.resolvedAt = realIso(-(MATCH_SEAL_REVISION_WINDOW_MS + 60_000));
+
+  // The sealed-DNF runner B now posts a LATER, FASTER finish (1200s < A's 1500s) BEYOND the
+  // window. The handler must NOT promote B above A — B stays a non-finisher (no
+  // finishElapsedSeconds, not finished).
   updateRunningMatchProgress(store, { id: 'B' }, {
     matchId: 'group-test-match',
     distanceKm: 5,

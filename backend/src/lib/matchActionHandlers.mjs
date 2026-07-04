@@ -40,23 +40,33 @@ import { buildRunningMatchStatusResponse } from './matchResponseBuilders.mjs';
 import { pruneMatchRooms } from './matchRoomStoreHelpers.mjs';
 import { appendUserNotification } from './userNotifications.mjs';
 import { isMatchTombstoned, recordVanishedMatch } from './vanishedMatchTombstones.mjs';
+// Imported straight from the submodule (not the facade) because ONLY the seal-revision hook
+// needs these; the facade re-export surface stays untouched for existing importers.
+import {
+  annulSealForLateFinish,
+  isSealWithinRevisionWindow,
+  registerSealFinalizationLpApplier,
+} from './runningMatchSession/matchSessionFallbackSeals.mjs';
 
-function applyMatchLpIfComplete(store, session) {
+// Plausibility slack for a sealed-DNF runner's late finish: the client-reported measured
+// elapsed may not exceed the wall clock since the session started by more than this many
+// seconds (you cannot measure more running time than has physically elapsed; the slack
+// absorbs device clock skew). No weaker than the trust the in-window finish path extends.
+const MATCH_SEAL_REVISION_ELAPSED_SLACK_SECONDS = 120;
+
+// The LP + result-notification CORE, callable from two places with the same idempotency
+// guarantees (the one-way lpApplied/resultNotificationApplied booleans):
+//   1. applyMatchLpIfComplete — the every-done wrapper on the normal finish/forfeit path.
+//   2. The sweep's seal-FINALIZATION phase (via registerSealFinalizationLpApplier below) —
+//      where the sealed-DNF side is 'disconnected', so the every-done gate can never pass.
+// Winner is standings rank 1: under a finalized seal that is the sole finisher; after a
+// revision it is measured-elapsed truth. The DNF side takes the loser LP delta.
+function applyMatchLpFromStandings(store, session, standings, participants) {
   if (!session || (session.lpApplied && session.resultNotificationApplied)) {
     return;
   }
 
-  const participants = Array.isArray(session.participants) ? session.participants : [];
-  const now = new Date();
-  if (!participants.length || !participants.every((participant) => isParticipantDoneWithMatch(participant, now))) {
-    if (session.isPartyRun || isTestMatchSession(session)) {
-      session.lpApplied = true;
-    }
-    return;
-  }
-
   try {
-    const standings = buildOfficialSessionStandings(store, session, now);
     const officialByUserId = new Map(standings.map((standing) => [standing.userId, standing]));
     appendMatchResultNotifications(store, session, participants, officialByUserId);
 
@@ -125,6 +135,53 @@ function applyMatchLpIfComplete(store, session) {
     // Rank updates must never block match completion responses.
   }
 }
+
+function applyMatchLpIfComplete(store, session) {
+  if (!session || (session.lpApplied && session.resultNotificationApplied)) {
+    return;
+  }
+
+  const participants = Array.isArray(session.participants) ? session.participants : [];
+  const now = new Date();
+  if (!participants.length || !participants.every((participant) => isParticipantDoneWithMatch(participant, now))) {
+    if (session.isPartyRun || isTestMatchSession(session)) {
+      session.lpApplied = true;
+    }
+    return;
+  }
+
+  let standings;
+  try {
+    standings = buildOfficialSessionStandings(store, session, now);
+  } catch {
+    // Rank updates must never block match completion responses.
+    return;
+  }
+
+  applyMatchLpFromStandings(store, session, standings, participants);
+}
+
+// Register the LP/notification core into the sweep's seal-FINALIZATION phase at module init —
+// the same injection pattern registerFinisherSavedRunBackfill uses (the session-store modules
+// must not import this handler module, or the load order would cycle). The finalizer applies
+// LP off the live standings (rank 1 = the finalized seal's sole finisher) with the identical
+// one-way boolean guards, so a finalize→forfeit→retry sequence can never double-apply.
+registerSealFinalizationLpApplier((store, session, now = new Date()) => {
+  const participants = Array.isArray(session?.participants) ? session.participants : [];
+  if (!participants.length) {
+    return;
+  }
+
+  let standings;
+  try {
+    standings = buildOfficialSessionStandings(store, session, now);
+  } catch {
+    // Finalization LP must never block the sweep.
+    return;
+  }
+
+  applyMatchLpFromStandings(store, session, standings, participants);
+});
 
 function getMatchModeLabel(mode) {
   return mode === 'duel' ? '1대1 대결' : '그룹 대결';
@@ -359,8 +416,37 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
     // placement (mirrors the duel seal-then-downgrade exactly).
     sealGroupFallbackResolutionIfElapsed(session, new Date());
   }
-  const sealedAsDnf = isParticipantSealedDnf(session, currentParticipant.userId)
+  let sealedAsDnf = isParticipantSealedDnf(session, currentParticipant.userId)
     || isParticipantGroupSealedDnf(session, currentParticipant.userId);
+
+  // SEAL REVISION: the §B4 seal is PROVISIONAL for a bounded window. A sealed-DNF runner whose
+  // finish was merely delayed in transit (iOS screen-off upload freeze) may still land it here:
+  // if the finish arrives inside the revision window AND the client-reported measured elapsed is
+  // PLAUSIBLE (a positive integer no greater than the wall clock since the session started, plus
+  // a small skew slack — you cannot measure more running time than has physically elapsed), the
+  // seal is ANNULLED (with a revision marker) and the push proceeds as a NORMAL finish below:
+  // the finish freezes first-write-wins, the verdict re-resolves from BOTH measured finishes
+  // (faster wins, incl. dead-heat), and the every-done LP path finally fires. The winner can
+  // flip AT MOST once: only the one sealed-DNF runner can revise, and once both finishes are
+  // frozen nothing can change. Beyond the window (or failing the guard) the existing downgrade
+  // below stands byte-for-byte.
+  if (sealedAsDnf && requestedFinished) {
+    const revisionNow = new Date();
+    const startedAtMs = Date.parse(typeof session.startedAt === 'string' ? session.startedAt : '');
+    const wallClockSecondsSinceStart = Number.isFinite(startedAtMs)
+      ? Math.floor((revisionNow.getTime() - startedAtMs) / 1000)
+      : null;
+    const plausibleElapsed = Number.isInteger(elapsedSeconds)
+      && elapsedSeconds > 0
+      && wallClockSecondsSinceStart !== null
+      && elapsedSeconds <= wallClockSecondsSinceStart + MATCH_SEAL_REVISION_ELAPSED_SLACK_SECONDS;
+
+    if (plausibleElapsed && isSealWithinRevisionWindow(session, revisionNow)) {
+      annulSealForLateFinish(session, currentParticipant.userId, revisionNow);
+      sealedAsDnf = false;
+    }
+  }
+
   // A sealed DNF runner is never marked finished; downgrade any finish signal to a live,
   // non-terminal status ('running') so they read as a non-finisher. Otherwise honor the
   // finish transition as before. A non-finish status push from a sealed runner passes

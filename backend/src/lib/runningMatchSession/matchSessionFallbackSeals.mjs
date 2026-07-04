@@ -1,4 +1,8 @@
-import { MATCH_DUEL_FINISH_FALLBACK_MS } from '../matchConstants.mjs';
+import {
+  MATCH_DUEL_FINISH_FALLBACK_MS,
+  MATCH_SEAL_REVISION_WINDOW_MS,
+} from '../matchConstants.mjs';
+import { isParticipantDoneWithMatch } from '../matchPureHelpers.mjs';
 import { ensureMatchSessions } from './matchSessionCore.mjs';
 
 // The saved-run back-fill lives in matchResultBuilders.mjs (it reuses the save-path resolvers,
@@ -12,14 +16,120 @@ export function registerFinisherSavedRunBackfill(impl) {
   backFillFinisherSavedRunsImpl = typeof impl === 'function' ? impl : null;
 }
 
+// The LP + result-notification finalizer lives in matchActionHandlers.mjs (it reuses the same
+// applyMatchLpFromStandings core the every-done path uses, guarded by the one-way lpApplied/
+// resultNotificationApplied booleans). matchActionHandlers imports the session helpers, so —
+// exactly like the back-fill above — the finalizer is INJECTED here via a sibling setter to
+// avoid a load-time import cycle. Until it is registered the sweep still stamps
+// sealFinalizedAt (the load-bearing finality marker); LP then applies on the next sweep after
+// the handler module has loaded.
+let sealFinalizationLpApplierImpl = null;
+
+export function registerSealFinalizationLpApplier(impl) {
+  sealFinalizationLpApplierImpl = typeof impl === 'function' ? impl : null;
+}
+
+function readSealResolution(session) {
+  return session?.mode === 'duel'
+    ? session.duelFallbackResolution ?? null
+    : session?.mode === 'group'
+      ? session.groupFallbackResolution ?? null
+      : null;
+}
+
+function readSealRevisionMarker(session) {
+  return session?.mode === 'duel'
+    ? session.duelFallbackRevision ?? null
+    : session?.mode === 'group'
+      ? session.groupFallbackRevision ?? null
+      : null;
+}
+
+function isEveryParticipantDone(session, now) {
+  const participants = Array.isArray(session?.participants) ? session.participants : [];
+  return participants.length > 0
+    && participants.every((participant) => isParticipantDoneWithMatch(participant, now));
+}
+
+// A sealed §B4 resolution is REVISABLE (provisional) while the bounded revision window —
+// measured from the seal's resolvedAt — is still open AND the seal has not been finalized.
+// Only within this window may a sealed-DNF runner's plausible late finish annul the seal.
+export function isSealWithinRevisionWindow(session, now = new Date()) {
+  if (!session || session.sealFinalizedAt) {
+    return false;
+  }
+
+  const resolution = readSealResolution(session);
+  if (!resolution) {
+    return false;
+  }
+
+  const resolvedAtMs = Date.parse(typeof resolution.resolvedAt === 'string' ? resolution.resolvedAt : '');
+  if (!Number.isFinite(resolvedAtMs)) {
+    return false;
+  }
+
+  return now.getTime() - resolvedAtMs < MATCH_SEAL_REVISION_WINDOW_MS;
+}
+
+// ANNUL (not edit) a provisional §B4 seal so a sealed-DNF runner's plausible late finish can
+// re-enter the match as a NORMAL finish and measured-elapsed truth re-resolves the verdict.
+// A revision marker records what was undone so the verdict can flag `revised` when the winner
+// actually changed. Duel: with both finishes subsequently frozen, the seal function's
+// one-finisher/one-missing guard can never re-seal, so the winner flips AT MOST once. Group:
+// the sticky sealer re-seals on the next touch from raw participant state with the new
+// finisher included at their measured-elapsed position (DNF-below-finishers recomputed, never
+// hand-edited); re-sealing is deterministic, so only a new accepted finish changes the order.
+export function annulSealForLateFinish(session, userId, now = new Date()) {
+  if (!session) {
+    return null;
+  }
+
+  const resolution = readSealResolution(session);
+  if (!resolution) {
+    return null;
+  }
+
+  const marker = {
+    revisedAt: now.toISOString(),
+    lateFinishUserId: userId,
+    previousWinnerUserId: session.mode === 'duel'
+      ? resolution.winnerUserId ?? null
+      : Array.isArray(resolution.finisherUserIds) ? resolution.finisherUserIds[0] ?? null : null,
+    sealResolvedAt: typeof resolution.resolvedAt === 'string' ? resolution.resolvedAt : null,
+  };
+
+  if (session.mode === 'duel') {
+    session.duelFallbackResolution = null;
+    session.duelFallbackRevision = marker;
+  } else {
+    session.groupFallbackResolution = null;
+    session.groupFallbackRevision = marker;
+  }
+
+  return marker;
+}
+
 // One-finisher (DNF) self-heal sweep, run from the periodic prune so a stuck match resolves
-// even when nobody opens the result screen. For EVERY live session whose §B4 fallback window
-// has elapsed with one finisher and a missing finish, this seals the fallback (sealDuel/
-// GroupFallbackResolutionIfElapsed — idempotent + sticky; never seals a match still
-// legitimately running inside the window, a forfeit-only match, or an already-sealed one) and
-// back-fills the finisher's SAVED run so the 기록상세 card heals. The back-fill is the injected
-// resolver-backed impl (registerFinisherSavedRunBackfill). Returns true if anything was
-// sealed or healed.
+// even when nobody opens the result screen. Three phases per duel/group session:
+//   1. SEAL — sealDuel/GroupFallbackResolutionIfElapsed (idempotent + sticky; never seals a
+//      match still legitimately running inside the §B4 window, a forfeit-only match, or an
+//      already-sealed one).
+//   2. FINALIZE — once the seal's revision window has closed (resolvedAt + 10min) OR every
+//      participant is terminal (the outcome can no longer change: the only possible reviser is
+//      the sealed-DNF runner, and a forfeited runner can never push a finish), stamp
+//      sealFinalizedAt exactly once and apply LP + result notifications via the injected
+//      finalizer (idempotent via the one-way lpApplied/resultNotificationApplied booleans).
+//   3. BACK-FILL — heal the finishers' SAVED runs via the injected resolver-backed impl
+//      (registerFinisherSavedRunBackfill), GATED on `sealFinalizedAt || everyParticipantDone`:
+//      a PROVISIONAL verdict is display-only and must never be persisted into a saved-run blob
+//      (the blob's own never-downgrade guard would otherwise permanently block a revision from
+//      correcting it). The every-done arm both covers the forfeit-during-window case (leave →
+//      everyone done → the prune that runs right after this sweep would drop the session before
+//      the window-close finalization could back-fill) and heals a REVISED (annulled-seal,
+//      both-finished) session whose pending blobs were saved during the window.
+// Persistence is inherited from the callers (the sweep runs under mutateStore). Returns true
+// if anything was sealed, finalized, or healed.
 export function sweepStuckMatchSessionFallbacks(store, now = new Date()) {
   const sessions = ensureMatchSessions(store);
   if (!sessions.length) {
@@ -36,13 +146,12 @@ export function sweepStuckMatchSessionFallbacks(store, now = new Date()) {
     const sealed = session.mode === 'duel'
       ? sealDuelFallbackResolutionIfElapsed(session, now)
       : sealGroupFallbackResolutionIfElapsed(session, now);
-    const alreadySealed = session.mode === 'duel'
-      ? session.duelFallbackResolution
-      : session.groupFallbackResolution;
+    const alreadySealed = readSealResolution(session);
 
-    // Only a (now or previously) sealed one-finisher match needs a saved-run back-fill. A match
-    // that did not seal (still inside the window, forfeit-only, both-finished) is left untouched.
-    if (!sealed && !alreadySealed) {
+    // Only a (now or previously) sealed match — or a REVISED one (seal annulled by an accepted
+    // late finish; its pending blobs still need the back-fill below) — needs this sweep. A match
+    // that never sealed (still inside the window, forfeit-only, both-finished) is left untouched.
+    if (!sealed && !alreadySealed && !readSealRevisionMarker(session)) {
       continue;
     }
 
@@ -50,7 +159,33 @@ export function sweepStuckMatchSessionFallbacks(store, now = new Date()) {
       changed = true;
     }
 
-    if (typeof backFillFinisherSavedRunsImpl === 'function' && backFillFinisherSavedRunsImpl(store, session, now)) {
+    const everyParticipantDone = isEveryParticipantDone(session, now);
+
+    // FINALIZATION phase: close the revision window exactly once. From here the seal can never
+    // be annulled (isSealWithinRevisionWindow requires !sealFinalizedAt), verdicts stop being
+    // provisional, and the irreversible effects (LP, notifications, back-fill) may run.
+    if (alreadySealed && !session.sealFinalizedAt) {
+      const resolvedAtMs = Date.parse(typeof alreadySealed.resolvedAt === 'string' ? alreadySealed.resolvedAt : '');
+      const revisionWindowClosed = Number.isFinite(resolvedAtMs)
+        && now.getTime() - resolvedAtMs >= MATCH_SEAL_REVISION_WINDOW_MS;
+
+      if (revisionWindowClosed || everyParticipantDone) {
+        session.sealFinalizedAt = now.toISOString();
+        changed = true;
+
+        if (typeof sealFinalizationLpApplierImpl === 'function') {
+          sealFinalizationLpApplierImpl(store, session, now);
+        }
+      }
+    }
+
+    // Never persist a provisional verdict: the back-fill runs only once the seal is finalized
+    // or every participant is terminal (fully-known outcome — incl. the revised/annulled case).
+    if (
+      (session.sealFinalizedAt || everyParticipantDone)
+      && typeof backFillFinisherSavedRunsImpl === 'function'
+      && backFillFinisherSavedRunsImpl(store, session, now)
+    ) {
       changed = true;
     }
   }

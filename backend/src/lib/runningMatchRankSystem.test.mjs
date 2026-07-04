@@ -12,7 +12,7 @@ import {
   buildParticipantLiveSnapshot,
   isParticipantSealedDnf,
 } from './runningMatchSessionStoreHelpers.mjs';
-import { MATCH_DUEL_FINISH_FALLBACK_MS } from './matchConstants.mjs';
+import { MATCH_DUEL_FINISH_FALLBACK_MS, MATCH_SEAL_REVISION_WINDOW_MS } from './matchConstants.mjs';
 
 function iso(offsetMs = 0) {
   return new Date(Date.now() + offsetMs).toISOString();
@@ -1136,8 +1136,11 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
 }
 
 // F4 — once the §B4 fallback window elapses with the rival's finish missing, the verdict
-// is SEALED. A subsequent late finish push from the (now DNF) rival can NOT flip it, and
-// both phones read the IDENTICAL sealed verdict.
+// is SEALED. BEYOND the seal-revision window a late finish push from the (now DNF) rival
+// can NOT flip it, and both phones read the IDENTICAL sealed verdict. (INSIDE the revision
+// window a plausible late finish now ANNULS the seal and re-resolves by measured elapsed —
+// pinned in matchSealRevision.test.mjs — so this pin rewinds the seal past the window to
+// keep covering the byte-identical downgrade path.)
 {
   const finisher = createUser('seal-finisher');
   const laggard = createUser('seal-laggard');
@@ -1169,6 +1172,8 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
   const standings1 = buildOfficialSessionStandings(store, session);
   const finisherVerdict1 = buildDuelVerdict(session, standings1, 'seal-finisher');
   assert.equal(finisherVerdict1.resolved, true);
+  // A fresh seal is PROVISIONAL — the revision window (10min from resolvedAt) is open.
+  assert.equal(finisherVerdict1.provisional, true);
   assert.equal(finisherVerdict1.outcome, 'win');
   assert.equal(finisherVerdict1.winnerUserId, 'seal-finisher');
   // The seal is now persisted on the session.
@@ -1177,8 +1182,13 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
   assert.equal(session.duelFallbackResolution.dnfUserId, 'seal-laggard');
   assert.equal(isParticipantSealedDnf(session, 'seal-laggard'), true);
 
-  // The DNF runner now sends a LATE finish (durable resend). It must be IGNORED — the
-  // server must not freeze a finishElapsedSeconds for them, so the verdict can't flip.
+  // Rewind the seal past the revision window (absolute timestamps make this equivalent to
+  // waiting 11 minutes) so the late finish below hits the CLOSED-window path.
+  session.duelFallbackResolution.resolvedAt = iso(-(MATCH_SEAL_REVISION_WINDOW_MS + 60_000));
+
+  // The DNF runner now sends a LATE finish (durable resend) BEYOND the window. It must be
+  // IGNORED — the server must not freeze a finishElapsedSeconds for them, so the verdict
+  // can't flip.
   updateRunningMatchProgress(store, laggard, {
     matchId: session.id,
     distanceKm: 1,
@@ -1203,9 +1213,16 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
   assert.equal(laggardVerdict2.winnerUserId, 'seal-finisher');
 }
 
-// F4 — race: the DNF runner's LATE finish push is the VERY FIRST request after the
-// window elapsed (no poll sealed it yet). The finish handler must seal first, then
-// reject the finish freeze, so the verdict still resolves to the finisher's win.
+// F4 + SEAL REVISION — race: the DNF runner's LATE finish push is the VERY FIRST request
+// after the §B4 window elapsed (no poll sealed it yet). The finish handler still seals
+// first (from raw state), but the seal it just created is PROVISIONAL and the plausible
+// late finish arrives INSIDE the revision window — so the seal is ANNULLED (with a revision
+// marker) and the finish proceeds normally: measured-elapsed truth decides (250 < 300 → the
+// late runner actually won), the verdict flags `revised`, and LP applies exactly once via
+// the every-done path. This is the fairness fix's flagship scenario (the iOS screen-off
+// upload freeze): a finish that was merely DELAYED in transit is no longer converted into
+// a DNF loss. The former reject-forever behavior is preserved ONLY beyond the window /
+// for implausible elapsed — pinned above and in matchSealRevision.test.mjs.
 {
   const finisher = createUser('race-finisher');
   const laggard = createUser('race-laggard');
@@ -1243,19 +1260,41 @@ function createProfileSnapshot(id, averagePace = '08:00/km') {
     status: 'finished',
   });
 
-  // The handler sealed first, so the late finish was rejected for ranking AND the runner
-  // was NOT marked finished (no finishElapsedSeconds, no finishedAt, status not finished) —
-  // otherwise their late finish would re-enter the standings and flip the sealed verdict.
-  assert.ok(session.duelFallbackResolution);
-  assert.equal(session.duelFallbackResolution.winnerUserId, 'race-finisher');
-  const laggardParticipant = session.participants.find((p) => p.userId === 'race-laggard');
-  assert.equal(laggardParticipant.finishElapsedSeconds, null);
-  assert.notEqual(laggardParticipant.liveStatus, 'finished');
-  assert.equal(laggardParticipant.finishedAt, null);
+  // The handler sealed first, then immediately annulled: the plausible late finish landed
+  // inside the fresh seal's revision window. The revision marker records what was undone.
+  assert.equal(session.duelFallbackResolution, null);
+  assert.ok(session.duelFallbackRevision);
+  assert.equal(session.duelFallbackRevision.lateFinishUserId, 'race-laggard');
+  assert.equal(session.duelFallbackRevision.previousWinnerUserId, 'race-finisher');
 
+  // The late finish froze normally (first-write-wins) — the runner IS a finisher now.
+  const laggardParticipant = session.participants.find((p) => p.userId === 'race-laggard');
+  assert.equal(laggardParticipant.finishElapsedSeconds, 250);
+  assert.equal(laggardParticipant.liveStatus, 'finished');
+  assert.equal(typeof laggardParticipant.finishedAt, 'string');
+
+  // Both perspectives read the measured-elapsed truth (250 < 300) with the revised flag —
+  // the winner flipped exactly once, from the provisional finisher to the late runner.
   const standings = buildOfficialSessionStandings(store, session);
-  assert.equal(buildDuelVerdict(session, standings, 'race-finisher').winnerUserId, 'race-finisher');
-  assert.equal(buildDuelVerdict(session, standings, 'race-laggard').winnerUserId, 'race-finisher');
+  const finisherVerdict = buildDuelVerdict(session, standings, 'race-finisher');
+  const laggardVerdict = buildDuelVerdict(session, standings, 'race-laggard');
+  assert.equal(finisherVerdict.resolved, true);
+  assert.equal(finisherVerdict.winnerUserId, 'race-laggard');
+  assert.equal(finisherVerdict.outcome, 'lose');
+  assert.equal(finisherVerdict.revised, true);
+  assert.equal(laggardVerdict.winnerUserId, 'race-laggard');
+  assert.equal(laggardVerdict.outcome, 'win');
+
+  // Both finishes are frozen → the one-finisher/one-missing guard can never re-seal, so the
+  // verdict can never flip again.
+  const resealed = buildDuelVerdict(session, buildOfficialSessionStandings(store, session), 'race-finisher');
+  assert.equal(resealed.winnerUserId, 'race-laggard');
+
+  // LP applied exactly once via the every-done gate (similar pace → ±20): the late runner
+  // takes the win delta, the provisionally-shown winner the loss delta.
+  assert.equal(laggard.rankState.lp, 50 + DUEL_LP.winVsSimilar);
+  assert.equal(finisher.rankState.lp, 50 + DUEL_LP.lossVsSimilar);
+  assert.equal(session.lpApplied, true);
 }
 
 // F5 — a finished runner ALWAYS carries a positive-integer finishElapsedSeconds when a
