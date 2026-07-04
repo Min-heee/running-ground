@@ -4,6 +4,10 @@ import { Link } from 'expo-router';
 
 import { Card } from '@/components/Card';
 import { getEstimatedMatchLpDelta } from '@/features/runs/utils/matchScheduling';
+import {
+  MATCH_PROVISIONAL_NOTICE_LABEL,
+  MATCH_REVISED_NOTICE_LABEL,
+} from '@/features/runs/viewModels/matchResultModel';
 import type { RunDetailResponse } from '@/lib/api/types';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
@@ -117,6 +121,14 @@ function RunMatchResultCardBase({
       <View style={badgeStyle}>
         <Text style={styles.matchResultBadgeText}>{matchResult.badgeLabel}</Text>
       </View>
+      {/* §3-⑨ fair-verdict notices — display-only flags set ONLY on the run-detail reconcile
+          overlay (never persisted); absent everywhere else, so nothing renders then. */}
+      {matchResult.provisional ? (
+        <Text style={styles.provisionalNotice}>{MATCH_PROVISIONAL_NOTICE_LABEL}</Text>
+      ) : null}
+      {matchResult.revised ? (
+        <Text style={styles.revisedNotice}>{MATCH_REVISED_NOTICE_LABEL}</Text>
+      ) : null}
       {showDuelComparison ? (
         <>
           <View style={styles.duelComparisonRow}>
@@ -340,6 +352,16 @@ const styles = StyleSheet.create({
   matchResultMeta: {
     color: colors.textMuted,
     fontSize: fontSizes.md,
+    fontWeight: fontWeights.bold,
+  },
+  provisionalNotice: {
+    color: colors.orangeText,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  revisedNotice: {
+    color: colors.brand,
+    fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
   profileLinkText: {

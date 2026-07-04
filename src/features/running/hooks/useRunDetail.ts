@@ -3,14 +3,25 @@ import { useFocusEffect } from 'expo-router';
 import type { Href } from 'expo-router';
 import type { RunMatchResult } from '@/domain';
 import type { RunDetailResponse } from '@/lib/api/types';
-import { fetchRunDetail, fetchRunningMatchStatus, getApiErrorMessage } from '@/services';
+import {
+  fetchMatchResult,
+  fetchRunDetail,
+  fetchRunningMatchStatus,
+  getApiErrorMessage,
+  isApiError,
+  isMatchResultNotResolvedError,
+} from '@/services';
 import { getRunSourceLabel } from '@/features/runs/utils/sourceLabel';
 import { getRunMapRegion } from '@/features/runs/tracking';
 import {
+  buildUnresolvedTerminalMatchResult,
   deriveSavedMatchReconcileContext,
   MATCH_RECONCILE_RETRY_MS,
   reconcileDuelRunDetailMatchResult,
+  reconcileDuelRunDetailMatchResultFromResult,
   reconcileGroupRunDetailMatchResult,
+  reconcileGroupRunDetailMatchResultFromResult,
+  shouldTerminalizeUnresolvedMatchResult,
 } from '@/features/running/utils/runDetailMatchReconcile';
 
 type UseRunDetailParams = {
@@ -42,6 +53,11 @@ export function useRunDetail({
   // C3: a reconciled duel matchResult rebuilt from the server's official record when the
   // saved one was unresolved at save time. Null means "use the as-saved record".
   const [reconciledMatchResult, setReconciledMatchResult] = useState<RunMatchResult | null>(null);
+  // §3-⑦ terminal: the match can NEVER resolve anymore (410 match_gone, or a >24h-old
+  // pending record answering 404). Overlay a neutral "결과 미확정으로 종료" record and stop
+  // re-polling — 집계 중 must not stick forever. Overlay-only; the persisted blob is never
+  // rewritten.
+  const [terminalMatchResult, setTerminalMatchResult] = useState<RunMatchResult | null>(null);
 
   // Re-fetchable run detail. After the server back-fills a PENDING one-finisher record (the
   // GET /result mutateStore seal + sweep), re-fetching surfaces the HEALED matchResult blob
@@ -85,11 +101,69 @@ export function useRunDetail({
   const reconcileSlotStartAt = matchSlotStartAt ?? '';
   const shouldReconcileMatch = Boolean(savedReconcileContext && reconcileMatchId && reconcileMode);
 
+  // §3-⑦: how old the still-pending record is — used to decide whether a /result 404 is
+  // terminal (>24h: the session is long pruned AND no saved run backs a reconstruction).
+  const runRecordTimestamp = runDetail?.run.endedAt ?? runDetail?.run.startedAt ?? runDetail?.run.date ?? null;
+  const isReconcileTerminal = terminalMatchResult !== null;
+
+  // §3-⑦ /result fallback: when the /status reconcile yields no resolved verdict (or /status
+  // itself fails — post-prune it answers idle-shaped and the response guard rejects it), the
+  // saved blob is still pending, so re-query the by-matchId /result endpoint and derive my
+  // tone/placement from the participant rows. Overlay only (setReconciledMatchResult) —
+  // never fabricate a persisted verdict.
+  const runResultFallback = useCallback(
+    (signal: { cancelled: boolean }) => {
+      if (!reconcileMatchId || !reconcileMode) {
+        return;
+      }
+      fetchMatchResult(reconcileMatchId)
+        .then((result) => {
+          if (signal.cancelled) {
+            return;
+          }
+          const reconciled = reconcileMode === 'group'
+            ? reconcileGroupRunDetailMatchResultFromResult({ matchResult: savedMatchResult, result })
+            : reconcileDuelRunDetailMatchResultFromResult({ matchResult: savedMatchResult, result });
+          if (reconciled) {
+            setReconciledMatchResult(reconciled);
+          }
+        })
+        .catch((resultError: unknown) => {
+          if (signal.cancelled) {
+            return;
+          }
+          // Anything but the friendly not-resolved signal (network, 5xx, …) → stay pending;
+          // the next focus retries. Never terminalize off an ambiguous failure.
+          if (!isMatchResultNotResolvedError(resultError)) {
+            return;
+          }
+          const cause = resultError.cause;
+          const notFound = isApiError(cause) && cause.status === 404;
+          const recordAtMs = runRecordTimestamp ? Date.parse(runRecordTimestamp) : NaN;
+          const pendingAgeMs = Number.isFinite(recordAtMs) ? Date.now() - recordAtMs : null;
+          if (
+            savedMatchResult
+            && shouldTerminalizeUnresolvedMatchResult({
+              matchGone: resultError.matchGone,
+              notFound,
+              pendingAgeMs,
+            })
+          ) {
+            setTerminalMatchResult(buildUnresolvedTerminalMatchResult(savedMatchResult));
+            return;
+          }
+          // MatchResultNotResolvedError without a terminal signal → stay pending.
+        });
+    },
+    [reconcileMatchId, reconcileMode, runRecordTimestamp, savedMatchResult],
+  );
+
   // A single reconcile pass: re-query the official status, reconcile the saved record, and
-  // surface the upgrade. Best-effort — a failure falls back to the as-saved record.
+  // surface the upgrade. Best-effort — a failure falls back to the as-saved record. Once a
+  // terminal state is reached, never re-poll (§3-⑦).
   const runReconcile = useCallback(
     (signal: { cancelled: boolean }) => {
-      if (!shouldReconcileMatch || !reconcileMode || !reconcileMatchId) {
+      if (!shouldReconcileMatch || !reconcileMode || !reconcileMatchId || isReconcileTerminal) {
         return;
       }
       fetchRunningMatchStatus({
@@ -107,13 +181,27 @@ export function useRunDetail({
             : reconcileDuelRunDetailMatchResult({ matchResult: savedMatchResult, status });
           if (reconciled) {
             setReconciledMatchResult(reconciled);
+            return;
           }
+          // No resolved verdict from /status while the blob is pending → /result fallback.
+          runResultFallback(signal);
         })
         .catch(() => {
-          // Best-effort: fall back to the as-saved record rather than erroring the screen.
+          // /status failed (idle-shaped post-prune response rejected by the guard, network, …)
+          // → the /result fallback still works, incl. against the current prod backend.
+          runResultFallback(signal);
         });
     },
-    [reconcileDistanceKm, reconcileMatchId, reconcileMode, reconcileSlotStartAt, savedMatchResult, shouldReconcileMatch],
+    [
+      isReconcileTerminal,
+      reconcileDistanceKm,
+      reconcileMatchId,
+      reconcileMode,
+      reconcileSlotStartAt,
+      runResultFallback,
+      savedMatchResult,
+      shouldReconcileMatch,
+    ],
   );
 
   // Reconcile on focus AND schedule a one-shot retry PAST the §B4 fallback window. The original
@@ -148,8 +236,9 @@ export function useRunDetail({
       ? '런닝으로 돌아가기'
       : '내 활동으로 돌아가기';
   const sourceLabel = runDetail ? getRunSourceLabel(runDetail.run) : '';
-  // C3: surface the server-reconciled verdict when we have one; otherwise the as-saved record.
-  const matchResult = reconciledMatchResult ?? savedMatchResult;
+  // C3: surface the server-reconciled verdict when we have one; else the terminal neutral
+  // overlay (§3-⑦, "결과 미확정으로 종료"); otherwise the as-saved record.
+  const matchResult = reconciledMatchResult ?? terminalMatchResult ?? savedMatchResult;
   const matchBonusLabel = matchResult
     ? matchResult.mode === 'duel'
       ? '1대1 대결 포인트'

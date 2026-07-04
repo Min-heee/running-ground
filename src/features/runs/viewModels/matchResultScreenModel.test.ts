@@ -224,3 +224,64 @@ test('region label is empty string when districtName is null', () => {
 
   assert.equal(model.rows[0].regionLabel, '');
 });
+
+test('§3-⑨: provisional/revised additive fields pass through onto the screen model (duel + group)', () => {
+  const provisionalDuel = buildMatchResultScreenModel({
+    matchId: 'match-duel-prov',
+    mode: 'duel',
+    source: 'official',
+    comparedDistanceKm: 5,
+    provisional: true,
+    participants: [
+      participant({ userId: 'me', rank: 1, resultTone: 'win', isMe: true }),
+      participant({ userId: 'opp', rank: 2, resultTone: 'lose' }),
+    ],
+  });
+  assertDuel(provisionalDuel);
+  assert.equal(provisionalDuel.provisional, true);
+  assert.equal(provisionalDuel.revised, undefined);
+
+  const revisedDuel = buildMatchResultScreenModel({
+    matchId: 'match-duel-rev',
+    mode: 'duel',
+    source: 'official',
+    comparedDistanceKm: 5,
+    revised: true,
+    participants: [
+      participant({ userId: 'me', rank: 1, resultTone: 'win', isMe: true }),
+      participant({ userId: 'opp', rank: 2, resultTone: 'lose' }),
+    ],
+  });
+  assertDuel(revisedDuel);
+  assert.equal(revisedDuel.revised, true);
+
+  const provisionalGroup = buildMatchResultScreenModel({
+    matchId: 'match-group-prov',
+    mode: 'group',
+    source: 'official',
+    comparedDistanceKm: 5,
+    provisional: true,
+    participants: [
+      participant({ userId: 'me', rank: 1, isMe: true }),
+      participant({ userId: 'p2', rank: 2 }),
+    ],
+  });
+  assertGroup(provisionalGroup);
+  assert.equal(provisionalGroup.provisional, true);
+});
+
+test('§3-⑨: fields absent on an old backend → model carries neither flag (renders nothing)', () => {
+  const model = buildMatchResultScreenModel({
+    matchId: 'match-duel-old',
+    mode: 'duel',
+    source: 'official',
+    comparedDistanceKm: 5,
+    participants: [
+      participant({ userId: 'me', rank: 1, resultTone: 'win', isMe: true }),
+      participant({ userId: 'opp', rank: 2, resultTone: 'lose' }),
+    ],
+  });
+  assertDuel(model);
+  assert.equal(model.provisional, undefined);
+  assert.equal(model.revised, undefined);
+});

@@ -40,6 +40,12 @@ export type {
   GroupMatchResultRowModel,
 } from '@/features/runs/types/matchResult';
 
+// Fair-verdict display copy (§3-⑨). Shared by the live arena result panel model here and
+// the saved-record surfaces (RunMatchResultCard / MatchResultScreen) so the 가확정/정정
+// language never diverges between the live card and the saved card.
+export const MATCH_PROVISIONAL_NOTICE_LABEL = '가확정 · 상대 기록 수신 대기 중';
+export const MATCH_REVISED_NOTICE_LABEL = '상대 기록이 지연 수신되어 결과가 정정됐어요';
+
 // The duel verdict is the server's single source of truth, but only once it has actually
 // RESOLVED. A `duelVerdict` whose `resolved` is false (outcome === 'pending') is still
 // pending — the client must keep its local placeholders and never flip to a final 승/패.
@@ -260,6 +266,16 @@ export function buildDuelMatchFinishModel({
     isDraw,
   });
 
+  // §3-⑨ fair-verdict notices — ADDITIVE server flags; both absent on an old backend, so
+  // nothing renders then. Display-only (kept OFF matchResult): the persisted blob must never
+  // carry a provisional outcome — write-once heal semantics stay intact.
+  const provisionalNoticeLabel = verdictResolved && duelVerdict.provisional === true
+    ? MATCH_PROVISIONAL_NOTICE_LABEL
+    : null;
+  const revisedNoticeLabel = verdictResolved && duelVerdict.revised === true
+    ? MATCH_REVISED_NOTICE_LABEL
+    : null;
+
   return {
     title,
     summary,
@@ -268,6 +284,8 @@ export function buildDuelMatchFinishModel({
     opponentDistanceKm,
     gapKm,
     rows,
+    provisionalNoticeLabel,
+    revisedNoticeLabel,
     matchResult: {
       mode: 'duel',
       title,
@@ -444,6 +462,11 @@ export function buildGroupMatchFinishModel({
       hasRows: rows.length > 0,
       hasOngoing: hasOngoingParticipants,
     }),
+    // §3-⑨ fair-verdict notice — additive server flag; absent on an old backend → renders
+    // nothing. Display-only, kept OFF the persisted matchResult (see duel twin above).
+    provisionalNoticeLabel: verdictResolved && groupVerdict.provisional === true
+      ? MATCH_PROVISIONAL_NOTICE_LABEL
+      : null,
     matchResult: {
       mode: 'group',
       title,

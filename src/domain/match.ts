@@ -21,6 +21,13 @@ export type RunMatchResult = {
   myDurationSeconds?: number;
   opponentPaceLabel?: string;
   opponentDurationSeconds?: number;
+  // Fair-verdict display-only flags. Set ONLY on the run-detail reconcile OVERLAY (the
+  // in-memory record rebuilt from the server's /status verdict or /result response) — the
+  // client never persists them, so a provisional outcome can never be written into a saved
+  // blob (write-once heal semantics preserved). provisional → 가확정 badge; revised → the
+  // one-line 정정 reason banner.
+  provisional?: boolean;
+  revised?: boolean;
 };
 
 export type OfflineRaceStatus =

@@ -13,6 +13,10 @@ import {
   type MatchResultScreenModel,
   type MatchResultScreenRow,
 } from '@/features/runs/viewModels/matchResultScreenModel';
+import {
+  MATCH_PROVISIONAL_NOTICE_LABEL,
+  MATCH_REVISED_NOTICE_LABEL,
+} from '@/features/runs/viewModels/matchResultModel';
 import { fetchMatchResult, isMatchResultNotResolvedError } from '@/lib/api/services';
 import type { MatchResultResponse } from '@/lib/api/types';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
@@ -145,11 +149,26 @@ export default function MatchResultScreen() {
       <AuthHeader title={headerTitle} showBack />
 
       {state.status === 'ready' ? (
-        state.model.mode === 'duel' ? (
-          <DuelBody model={state.model} />
-        ) : (
-          <GroupBody model={state.model} />
-        )
+        <>
+          {/* §3-⑨ fair-verdict notices — additive server fields; absent on an old backend,
+              so nothing renders then. provisional = the verdict may still be revised while
+              the opponent's late record is awaited; revised = the winner was corrected. */}
+          {state.model.provisional ? (
+            <View style={styles.provisionalBadge}>
+              <Text style={styles.provisionalBadgeText}>{MATCH_PROVISIONAL_NOTICE_LABEL}</Text>
+            </View>
+          ) : null}
+          {state.model.revised ? (
+            <View style={styles.revisedBanner}>
+              <Text style={styles.revisedBannerText}>{MATCH_REVISED_NOTICE_LABEL}</Text>
+            </View>
+          ) : null}
+          {state.model.mode === 'duel' ? (
+            <DuelBody model={state.model} />
+          ) : (
+            <GroupBody model={state.model} />
+          )}
+        </>
       ) : (
         <EmptyState
           message={
@@ -166,6 +185,32 @@ export default function MatchResultScreen() {
 const styles = StyleSheet.create({
   duelStack: {
     gap: spacing.s12,
+  },
+  provisionalBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: radii.pill,
+    backgroundColor: colors.orangeWash,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxs,
+    marginBottom: spacing.s12,
+  },
+  provisionalBadgeText: {
+    color: colors.orangeText,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.extraBold,
+  },
+  revisedBanner: {
+    borderRadius: radii.pill,
+    backgroundColor: colors.brandWash,
+    paddingHorizontal: spacing.s12,
+    paddingVertical: spacing.xxs,
+    marginBottom: spacing.s12,
+  },
+  revisedBannerText: {
+    color: colors.brand,
+    fontSize: fontSizes.sm,
+    fontWeight: fontWeights.bold,
+    textAlign: 'center',
   },
   groupStack: {
     gap: spacing.xxl,

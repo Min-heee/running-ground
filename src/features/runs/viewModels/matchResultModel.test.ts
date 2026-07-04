@@ -785,3 +785,128 @@ test('duel matchResult omits opponent pace/time when their live progress never s
   assert.equal(result?.matchResult.opponentPaceLabel, undefined);
   assert.equal(result?.matchResult.opponentDurationSeconds, undefined);
 });
+
+// ---------------------------------------------------------------------------
+// §3-⑨ fair-verdict notices on the live arena result panel model.
+// ---------------------------------------------------------------------------
+
+const resolvedProvisionalVerdict: DuelVerdict = {
+  resolved: true,
+  winnerUserId: 'me',
+  outcome: 'win',
+  myFinishElapsedSeconds: 1500,
+  opponentFinishElapsedSeconds: null,
+  myPaceLabel: '05:00/km',
+  opponentPaceLabel: null,
+  provisional: true,
+};
+
+test('§3-⑨ duel: a resolved PROVISIONAL verdict carries the 가확정 notice — display-only, never persisted', () => {
+  const result = buildDuelMatchFinishModel({
+    opponent: opponent({
+      liveDistanceKm: 4.2,
+      liveElapsedSeconds: 1400,
+      liveUpdatedAt: '2026-05-12T00:24:00.000Z',
+      liveStatus: 'running',
+    }),
+    currentDistanceKm: 5,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 1500,
+    currentPaceLabel: '05:00/km',
+    currentUserLiveStatus: 'finished',
+    duelVerdict: resolvedProvisionalVerdict,
+    matchId: 'm-prov',
+  });
+
+  assert.equal(result?.provisionalNoticeLabel, '가확정 · 상대 기록 수신 대기 중');
+  assert.equal(result?.revisedNoticeLabel, null);
+  // The notice flags never leak into the PERSISTED matchResult blob.
+  assert.equal('provisional' in (result?.matchResult ?? {}), false);
+  assert.equal('revised' in (result?.matchResult ?? {}), false);
+});
+
+test('§3-⑨ duel: a resolved REVISED verdict carries the 정정 banner; plain resolved carries neither', () => {
+  const base = {
+    opponent: opponent({
+      liveDistanceKm: 5,
+      liveElapsedSeconds: 1560,
+      liveUpdatedAt: '2026-05-12T00:26:00.000Z',
+      liveStatus: 'finished' as const,
+    }),
+    currentDistanceKm: 5,
+    targetDistanceKm: 5,
+    currentElapsedSeconds: 1500,
+    currentPaceLabel: '05:00/km',
+    currentUserLiveStatus: 'finished' as const,
+    matchId: 'm-rev',
+  };
+
+  const revised = buildDuelMatchFinishModel({
+    ...base,
+    duelVerdict: {
+      ...resolvedProvisionalVerdict,
+      provisional: undefined,
+      revised: true,
+      opponentFinishElapsedSeconds: 1560,
+      opponentPaceLabel: '05:12/km',
+    },
+  });
+  assert.equal(revised?.revisedNoticeLabel, '상대 기록이 지연 수신되어 결과가 정정됐어요');
+  assert.equal(revised?.provisionalNoticeLabel, null);
+
+  // Old backend / final verdict: both flags absent → both notices null (render nothing).
+  const plain = buildDuelMatchFinishModel({
+    ...base,
+    duelVerdict: {
+      ...resolvedProvisionalVerdict,
+      provisional: undefined,
+      opponentFinishElapsedSeconds: 1560,
+      opponentPaceLabel: '05:12/km',
+    },
+  });
+  assert.equal(plain?.provisionalNoticeLabel, null);
+  assert.equal(plain?.revisedNoticeLabel, null);
+});
+
+test('§3-⑨ group: a resolved PROVISIONAL group verdict carries the 가확정 notice; unresolved/absent carries none', () => {
+  const provisionalGroupVerdict: GroupVerdict = {
+    resolved: true,
+    myRank: 2,
+    provisional: true,
+    participants: [
+      { userId: 'leader', rank: 1, finishElapsedSeconds: 1500, paceLabel: '05:00/km', forfeited: false, finished: true },
+      { userId: 'me', rank: 2, finishElapsedSeconds: 1560, paceLabel: '05:12/km', forfeited: false, finished: true },
+    ],
+  };
+
+  const result = buildGroupMatchFinishModel({
+    currentStanding: standing({ id: 'me', isCurrentUser: true, rank: 2, liveStatus: 'finished' }),
+    participantCount: 2,
+    standings: [
+      standing({ id: 'leader', rank: 1, liveStatus: 'finished' }),
+      standing({ id: 'me', isCurrentUser: true, rank: 2, liveStatus: 'finished' }),
+    ],
+    currentPaceLabel: '05:12/km',
+    currentElapsedSeconds: 1560,
+    targetDistanceKm: 5,
+    groupVerdict: provisionalGroupVerdict,
+    matchId: 'g-prov',
+  });
+
+  assert.equal(result?.provisionalNoticeLabel, '가확정 · 상대 기록 수신 대기 중');
+  assert.equal('provisional' in (result?.matchResult ?? {}), false);
+
+  const withoutVerdict = buildGroupMatchFinishModel({
+    currentStanding: standing({ id: 'me', isCurrentUser: true, rank: 2, liveStatus: 'finished' }),
+    participantCount: 2,
+    standings: [
+      standing({ id: 'leader', rank: 1, liveStatus: 'finished' }),
+      standing({ id: 'me', isCurrentUser: true, rank: 2, liveStatus: 'finished' }),
+    ],
+    currentPaceLabel: '05:12/km',
+    currentElapsedSeconds: 1560,
+    targetDistanceKm: 5,
+    matchId: 'g-old',
+  });
+  assert.equal(withoutVerdict?.provisionalNoticeLabel, null);
+});

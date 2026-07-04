@@ -1,5 +1,12 @@
 import type { RunMatchResult } from '@/domain';
-import type { DuelVerdict, GroupVerdict, RunningMatchStatusResponse } from '@/lib/api/types';
+import type {
+  DuelVerdict,
+  GroupVerdict,
+  MatchResultParticipant,
+  MatchResultResponse,
+  RunningMatchStatusResponse,
+} from '@/lib/api/types';
+import { formatPaceFromSecondsPerKm } from '@/features/runs/tracking';
 
 // The server-side §B4 one-finisher fallback window (MATCH_DUEL_FINISH_FALLBACK_MS = 90s on the
 // backend). A duel/group saved as PENDING heals server-side only AFTER this window elapses (the
@@ -150,6 +157,10 @@ export function reconcileDuelRunDetailMatchResult({
     ...(typeof myDurationSeconds === 'number' ? { myDurationSeconds } : {}),
     ...(verdict.opponentPaceLabel ? { opponentPaceLabel: verdict.opponentPaceLabel } : {}),
     ...(typeof opponentDurationSeconds === 'number' ? { opponentDurationSeconds } : {}),
+    // §3-⑨ display-only flags (additive server fields; absent on old backends → spread
+    // nothing). Overlay-only — never persisted.
+    ...(verdict.provisional === true ? { provisional: true } : {}),
+    ...(verdict.revised === true ? { revised: true } : {}),
   };
 }
 
@@ -236,5 +247,211 @@ export function reconcileGroupRunDetailMatchResult({
     ...(mine && typeof mine.finishElapsedSeconds === 'number' && mine.finishElapsedSeconds > 0
       ? { myDurationSeconds: Math.round(mine.finishElapsedSeconds) }
       : {}),
+    // §3-⑨ display-only flag (additive server field; absent on old backends → spread
+    // nothing). Overlay-only — never persisted.
+    ...(verdict.provisional === true ? { provisional: true } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// §3-⑦ /result fallback: reconcile a PENDING saved matchResult against the by-matchId
+// GET /result response. The /status reconcile above requires a LIVE session — after the
+// session is pruned, /status answers idle-shaped and the pending record could stick on
+// 집계 중 forever. /result deliberately reconstructs from SAVED runs too, so this path
+// heals post-prune records even against the current prod backend. Overlay-only: callers
+// surface the result via setReconciledMatchResult and never persist it.
+// ---------------------------------------------------------------------------
+
+function resolveResultPaceLabel(participant: MatchResultParticipant | null): string | null {
+  if (
+    !participant
+    || typeof participant.paceSecondsPerKm !== 'number'
+    || !Number.isFinite(participant.paceSecondsPerKm)
+    || participant.paceSecondsPerKm <= 0
+  ) {
+    return null;
+  }
+  return formatPaceFromSecondsPerKm(participant.paceSecondsPerKm);
+}
+
+function resolveResultDurationSeconds(participant: MatchResultParticipant | null): number | null {
+  if (
+    !participant
+    || typeof participant.finishElapsedSeconds !== 'number'
+    || !Number.isFinite(participant.finishElapsedSeconds)
+    || participant.finishElapsedSeconds <= 0
+  ) {
+    return null;
+  }
+  return Math.round(participant.finishElapsedSeconds);
+}
+
+// Display-only provisional/revised flags passed through from the server response. Absent
+// on old backends → spread nothing (render nothing). Set ONLY on the overlay record.
+function resolveResultOverlayFlags(result: MatchResultResponse): Pick<RunMatchResult, 'provisional' | 'revised'> {
+  return {
+    ...(result.provisional === true ? { provisional: true } : {}),
+    ...(result.revised === true ? { revised: true } : {}),
+  };
+}
+
+// Duel twin of reconcileDuelRunDetailMatchResult, sourced from the /result participant
+// pair instead of the live-session verdict. My tone comes from MY participant row
+// (resultTone, else rank order). Returns null when reconciliation is not warranted —
+// the caller then stays on the as-saved (pending) record.
+export function reconcileDuelRunDetailMatchResultFromResult({
+  matchResult,
+  result,
+}: {
+  matchResult: RunMatchResult | null | undefined;
+  result: MatchResultResponse | null | undefined;
+}): RunMatchResult | null {
+  if (!matchResult || matchResult.mode !== 'duel') {
+    return null;
+  }
+  if (!result || result.mode !== 'duel') {
+    return null;
+  }
+  if (matchResult.matchId && result.matchId !== matchResult.matchId) {
+    return null;
+  }
+  if (!isUnresolvedDuelMatchResult(matchResult)) {
+    // Saved record already carries a full, definite result — do not overwrite it.
+    return null;
+  }
+
+  const me = result.participants.find((participant) => participant.isMe) ?? null;
+  const opponent = result.participants.find((participant) => !participant.isMe) ?? null;
+  if (!me || !opponent) {
+    return null;
+  }
+
+  const outcome: 'win' | 'lose' | 'draw' | null = me.resultTone
+    ?? (typeof me.rank === 'number' && typeof opponent.rank === 'number'
+      ? me.rank === opponent.rank ? 'draw' : me.rank < opponent.rank ? 'win' : 'lose'
+      : null);
+  if (!outcome) {
+    return null;
+  }
+
+  const opponentName = matchResult.opponentName ?? (opponent.name || undefined);
+  const myPaceLabel = resolveResultPaceLabel(me) ?? matchResult.myPaceLabel;
+  const opponentPaceLabel = resolveResultPaceLabel(opponent) ?? matchResult.opponentPaceLabel;
+  const myDurationSeconds = resolveResultDurationSeconds(me) ?? matchResult.myDurationSeconds;
+  const opponentDurationSeconds = resolveResultDurationSeconds(opponent)
+    ?? matchResult.opponentDurationSeconds;
+
+  return {
+    ...matchResult,
+    resultTone: outcome,
+    title: resolveVerdictTitle(outcome, opponentName),
+    badgeLabel: resolveVerdictBadge(outcome),
+    ...(opponentName ? { opponentName } : {}),
+    ...(myPaceLabel ? { myPaceLabel } : {}),
+    ...(typeof myDurationSeconds === 'number' ? { myDurationSeconds } : {}),
+    ...(opponentPaceLabel ? { opponentPaceLabel } : {}),
+    ...(typeof opponentDurationSeconds === 'number' ? { opponentDurationSeconds } : {}),
+    ...resolveResultOverlayFlags(result),
+  };
+}
+
+// Group twin of reconcileGroupRunDetailMatchResultFromResult's duel sibling — fills the
+// official placement from my /result participant row. Returns null when not warranted.
+export function reconcileGroupRunDetailMatchResultFromResult({
+  matchResult,
+  result,
+}: {
+  matchResult: RunMatchResult | null | undefined;
+  result: MatchResultResponse | null | undefined;
+}): RunMatchResult | null {
+  if (!matchResult || matchResult.mode !== 'group') {
+    return null;
+  }
+  if (!result || result.mode !== 'group') {
+    return null;
+  }
+  if (matchResult.matchId && result.matchId !== matchResult.matchId) {
+    return null;
+  }
+  if (!isUnresolvedGroupMatchResult(matchResult)) {
+    // Saved record already carries a definite rank — do not overwrite it.
+    return null;
+  }
+
+  const me = result.participants.find((participant) => participant.isMe) ?? null;
+  if (!me || typeof me.rank !== 'number') {
+    return null;
+  }
+
+  const rank = me.rank;
+  const participantCount = typeof matchResult.participantCount === 'number'
+    ? matchResult.participantCount
+    : result.participants.length;
+  const myPaceLabel = resolveResultPaceLabel(me) ?? matchResult.myPaceLabel;
+  const myDurationSeconds = resolveResultDurationSeconds(me) ?? matchResult.myDurationSeconds;
+
+  return {
+    ...matchResult,
+    rank,
+    participantCount,
+    title: resolveGroupTitle(rank, participantCount),
+    badgeLabel: resolveGroupBadge(rank),
+    ...(myPaceLabel ? { myPaceLabel } : {}),
+    ...(typeof myDurationSeconds === 'number' ? { myDurationSeconds } : {}),
+    ...resolveResultOverlayFlags(result),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// §3-⑦ terminal handling: when the match can NEVER resolve anymore, the pending record
+// must stop showing 집계 중 (which today can stick forever) and stop re-polling.
+// ---------------------------------------------------------------------------
+
+// A pending blob older than this that also gets a 404 from /result is unresolvable: the
+// session is long pruned (4h TTL) AND no saved run backs a reconstruction — nothing left
+// server-side to heal from.
+export const MATCH_RESULT_PENDING_TERMINAL_AGE_MS = 24 * 60 * 60 * 1000;
+
+// Decides whether an unresolved /result fetch is TERMINAL. matchGone (HTTP 410
+// { code: 'match_gone' }) is terminal on its own; a plain 404 is terminal only when the
+// pending record is older than 24h (a young 404 just means "not resolvable YET" — the
+// seal/backfill may still land). Pure so the policy is unit-testable.
+export function shouldTerminalizeUnresolvedMatchResult({
+  matchGone,
+  notFound,
+  pendingAgeMs,
+}: {
+  matchGone: boolean;
+  notFound: boolean;
+  pendingAgeMs: number | null;
+}): boolean {
+  if (matchGone) {
+    return true;
+  }
+  return notFound
+    && typeof pendingAgeMs === 'number'
+    && Number.isFinite(pendingAgeMs)
+    && pendingAgeMs >= MATCH_RESULT_PENDING_TERMINAL_AGE_MS;
+}
+
+// The terminal NEUTRAL overlay: no win/lose/draw tone, no rank — the run itself stays, but
+// the 집계 중 promise is replaced with an honest "결과 미확정으로 종료". Overlay-only; the
+// persisted blob is never rewritten (never fabricate a persisted verdict).
+export function buildUnresolvedTerminalMatchResult(
+  matchResult: RunMatchResult,
+): RunMatchResult {
+  const {
+    resultTone: _resultTone,
+    rank: _rank,
+    gapKm: _gapKm,
+    provisional: _provisional,
+    revised: _revised,
+    ...rest
+  } = matchResult;
+  return {
+    ...rest,
+    title: '결과 미확정으로 종료',
+    summary: '상대 기록을 끝까지 확인하지 못해 이 대결은 결과 없이 종료됐어요.',
+    badgeLabel: '결과 미확정',
   };
 }

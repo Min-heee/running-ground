@@ -447,18 +447,25 @@ export async function updateRunningMatchProgress(
 }
 
 // Thrown when the result endpoint reports the match is not yet resolvable (404 /
-// not-found, or the live session/saved record cannot back a full result). The
+// not-found, or the live session/saved record cannot back a full result) — or is
+// TERMINALLY gone (410 { code: 'match_gone' }, a pruned/tombstoned match). The
 // result screen catches this to show a friendly "아직 결과가 없어요" state instead of
-// a hard error. Distinguishable via `isMatchResultNotResolvedError`.
+// a hard error. Distinguishable via `isMatchResultNotResolvedError`; `matchGone`
+// tells callers apart the terminal 410 (never resolvable — stop waiting) from the
+// retryable 404 (not resolvable YET).
 export class MatchResultNotResolvedError extends Error {
   readonly matchId: string;
   readonly cause?: unknown;
+  // true only for the definitive HTTP 410 { code: 'match_gone' } tombstone — the match
+  // can never resolve; callers should surface a terminal state instead of re-polling.
+  readonly matchGone: boolean;
 
-  constructor(matchId: string, options: { cause?: unknown } = {}) {
+  constructor(matchId: string, options: { cause?: unknown; matchGone?: boolean } = {}) {
     super(`매치 결과를 아직 불러올 수 없어: ${matchId}`);
     this.name = 'MatchResultNotResolvedError';
     this.matchId = matchId;
     this.cause = options.cause;
+    this.matchGone = Boolean(options.matchGone);
   }
 }
 
@@ -499,6 +506,13 @@ export async function fetchMatchResult(matchId: string): Promise<MatchResultResp
   } catch (error) {
     if (isApiError(error) && error.status === 404) {
       throw new MatchResultNotResolvedError(trimmedMatchId, { cause: error });
+    }
+
+    // §3-⑧: HTTP 410 { code: 'match_gone' } (pruned/tombstoned match) maps to the SAME
+    // friendly not-resolved error type as 404 — previously it fell through to the generic
+    // error screen. Marked matchGone so run-detail can terminalize instead of re-polling.
+    if (isApiError(error) && error.status === 410) {
+      throw new MatchResultNotResolvedError(trimmedMatchId, { cause: error, matchGone: true });
     }
 
     throw error;

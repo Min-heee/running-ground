@@ -1,13 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { RunMatchResult } from '@/domain';
-import type { DuelVerdict, GroupVerdict, RunningMatchStatusResponse } from '@/lib/api/types';
+import type {
+  DuelVerdict,
+  GroupVerdict,
+  MatchResultResponse,
+  RunningMatchStatusResponse,
+} from '@/lib/api/types';
 import {
+  buildUnresolvedTerminalMatchResult,
   deriveSavedMatchReconcileContext,
   isUnresolvedDuelMatchResult,
   isUnresolvedGroupMatchResult,
+  MATCH_RESULT_PENDING_TERMINAL_AGE_MS,
   reconcileDuelRunDetailMatchResult,
+  reconcileDuelRunDetailMatchResultFromResult,
   reconcileGroupRunDetailMatchResult,
+  reconcileGroupRunDetailMatchResultFromResult,
+  shouldTerminalizeUnresolvedMatchResult,
 } from './runDetailMatchReconcile';
 
 function duelStatus(verdict: DuelVerdict | undefined): RunningMatchStatusResponse {
@@ -423,4 +433,353 @@ test('saved-gate: a PENDING record missing comparedDistanceKm still reconciles (
   };
   const context = deriveSavedMatchReconcileContext(pending);
   assert.deepEqual(context, { matchId: 'm-duel-4', mode: 'duel', distanceKm: 0 });
+});
+
+// ---------------------------------------------------------------------------
+// §3-⑦ /result fallback: reconcile a PENDING record from the by-matchId GET /result
+// response (heals post-prune records where /status goes idle-shaped).
+// ---------------------------------------------------------------------------
+
+function duelResult(overrides: Partial<MatchResultResponse> = {}): MatchResultResponse {
+  return {
+    matchId: 'm1',
+    mode: 'duel',
+    source: 'official',
+    comparedDistanceKm: 5,
+    participants: [
+      {
+        userId: 'me',
+        name: '나',
+        districtName: null,
+        provinceName: null,
+        cityName: null,
+        paceSecondsPerKm: 300,
+        finishElapsedSeconds: 1500,
+        distanceKm: 5,
+        rank: 1,
+        resultTone: 'win',
+        forfeited: false,
+        isMe: true,
+      },
+      {
+        userId: 'opp',
+        name: '상대',
+        districtName: null,
+        provinceName: null,
+        cityName: null,
+        paceSecondsPerKm: 312,
+        finishElapsedSeconds: 1560,
+        distanceKm: 5,
+        rank: 2,
+        resultTone: 'lose',
+        forfeited: false,
+        isMe: false,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+const pendingDuelBlob: RunMatchResult = {
+  mode: 'duel',
+  matchId: 'm1',
+  title: '대결 결과를 집계하고 있어요',
+  summary: '상대가 완주하면 결과가 자동으로 업데이트돼요.',
+  badgeLabel: '결과 집계 중',
+  opponentName: '상대',
+  comparedDistanceKm: 5,
+  myDurationSeconds: 1500,
+  myPaceLabel: '5:00/km',
+};
+
+test('§3-⑦: a PENDING duel record reconciles from the /result participant pair (tone from MY row)', () => {
+  const reconciled = reconcileDuelRunDetailMatchResultFromResult({
+    matchResult: pendingDuelBlob,
+    result: duelResult(),
+  });
+
+  assert.ok(reconciled);
+  assert.equal(reconciled?.resultTone, 'win');
+  assert.equal(reconciled?.badgeLabel, '승리');
+  assert.equal(reconciled?.myDurationSeconds, 1500);
+  assert.equal(reconciled?.opponentDurationSeconds, 1560);
+  assert.equal(reconciled?.myPaceLabel, '05:00/km');
+  assert.equal(reconciled?.opponentPaceLabel, '05:12/km');
+  // Not provisional/revised unless the server says so.
+  assert.equal(reconciled?.provisional, undefined);
+  assert.equal(reconciled?.revised, undefined);
+});
+
+test('§3-⑦: my tone falls back to rank order when the /result rows carry no resultTone', () => {
+  const result = duelResult();
+  result.participants = result.participants.map((row) => ({ ...row, resultTone: null }));
+  const reconciled = reconcileDuelRunDetailMatchResultFromResult({
+    matchResult: pendingDuelBlob,
+    result,
+  });
+  assert.equal(reconciled?.resultTone, 'win');
+
+  const flipped = duelResult();
+  flipped.participants = flipped.participants.map((row) => ({
+    ...row,
+    resultTone: null,
+    rank: row.isMe ? 2 : 1,
+  }));
+  const reconciledLose = reconcileDuelRunDetailMatchResultFromResult({
+    matchResult: pendingDuelBlob,
+    result: flipped,
+  });
+  assert.equal(reconciledLose?.resultTone, 'lose');
+  assert.equal(reconciledLose?.badgeLabel, '패배');
+});
+
+test('§3-⑦: a resolved/forfeit saved record is never overwritten by the /result fallback', () => {
+  const complete: RunMatchResult = {
+    ...pendingDuelBlob,
+    resultTone: 'lose',
+    badgeLabel: '패배',
+    opponentDurationSeconds: 1400,
+    opponentPaceLabel: '4:40/km',
+  };
+  assert.equal(
+    reconcileDuelRunDetailMatchResultFromResult({ matchResult: complete, result: duelResult() }),
+    null,
+  );
+
+  const forfeit: RunMatchResult = {
+    ...pendingDuelBlob,
+    badgeLabel: '기권 패',
+    resultTone: 'lose',
+  };
+  assert.equal(
+    reconcileDuelRunDetailMatchResultFromResult({ matchResult: forfeit, result: duelResult() }),
+    null,
+  );
+});
+
+test('§3-⑦: matchId mismatch or missing MY row → no reconciliation (stays pending)', () => {
+  assert.equal(
+    reconcileDuelRunDetailMatchResultFromResult({
+      matchResult: pendingDuelBlob,
+      result: duelResult({ matchId: 'other-match' }),
+    }),
+    null,
+  );
+
+  const noMeResult = duelResult();
+  noMeResult.participants = noMeResult.participants.map((row) => ({ ...row, isMe: false }));
+  assert.equal(
+    reconcileDuelRunDetailMatchResultFromResult({ matchResult: pendingDuelBlob, result: noMeResult }),
+    null,
+  );
+});
+
+test('§3-⑨: /result provisional/revised flags pass through onto the overlay (display-only)', () => {
+  const provisionalReconciled = reconcileDuelRunDetailMatchResultFromResult({
+    matchResult: pendingDuelBlob,
+    result: duelResult({ provisional: true }),
+  });
+  assert.equal(provisionalReconciled?.provisional, true);
+  assert.equal(provisionalReconciled?.revised, undefined);
+
+  const revisedReconciled = reconcileDuelRunDetailMatchResultFromResult({
+    matchResult: pendingDuelBlob,
+    result: duelResult({ revised: true }),
+  });
+  assert.equal(revisedReconciled?.revised, true);
+});
+
+test('§3-⑨: /status verdict provisional/revised flags pass through onto the overlay', () => {
+  const pending: RunMatchResult = { ...pendingDuelBlob };
+  const provisionalVerdict: DuelVerdict = { ...resolvedWinVerdict, provisional: true };
+  const provisionalReconciled = reconcileDuelRunDetailMatchResult({
+    matchResult: pending,
+    status: duelStatus(provisionalVerdict),
+  });
+  assert.equal(provisionalReconciled?.provisional, true);
+  assert.equal(provisionalReconciled?.resultTone, 'win');
+
+  const revisedVerdict: DuelVerdict = { ...resolvedWinVerdict, revised: true };
+  const revisedReconciled = reconcileDuelRunDetailMatchResult({
+    matchResult: pending,
+    status: duelStatus(revisedVerdict),
+  });
+  assert.equal(revisedReconciled?.revised, true);
+});
+
+function groupResult(overrides: Partial<MatchResultResponse> = {}): MatchResultResponse {
+  return {
+    matchId: 'g1',
+    mode: 'group',
+    source: 'official',
+    comparedDistanceKm: 5,
+    participants: [
+      {
+        userId: 'leader',
+        name: '1등',
+        districtName: null,
+        provinceName: null,
+        cityName: null,
+        paceSecondsPerKm: 300,
+        finishElapsedSeconds: 1500,
+        distanceKm: 5,
+        rank: 1,
+        resultTone: null,
+        forfeited: false,
+        isMe: false,
+      },
+      {
+        userId: 'me',
+        name: '나',
+        districtName: null,
+        provinceName: null,
+        cityName: null,
+        paceSecondsPerKm: 312,
+        finishElapsedSeconds: 1560,
+        distanceKm: 5,
+        rank: 2,
+        resultTone: null,
+        forfeited: false,
+        isMe: true,
+      },
+      {
+        userId: 'third',
+        name: '3등',
+        districtName: null,
+        provinceName: null,
+        cityName: null,
+        paceSecondsPerKm: 324,
+        finishElapsedSeconds: 1620,
+        distanceKm: 5,
+        rank: 3,
+        resultTone: null,
+        forfeited: false,
+        isMe: false,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+test('§3-⑦ group parity: a PENDING group record reconciles its placement from MY /result row', () => {
+  const pending: RunMatchResult = {
+    mode: 'group',
+    matchId: 'g1',
+    title: '그룹 결과를 집계하고 있어요',
+    summary: '',
+    badgeLabel: '결과 집계 중',
+    participantCount: 3,
+    myDurationSeconds: 1560,
+  };
+
+  const reconciled = reconcileGroupRunDetailMatchResultFromResult({
+    matchResult: pending,
+    result: groupResult({ provisional: true }),
+  });
+
+  assert.ok(reconciled);
+  assert.equal(reconciled?.rank, 2);
+  assert.equal(reconciled?.badgeLabel, '2위');
+  assert.match(reconciled?.title ?? '', /2위/);
+  assert.equal(reconciled?.myDurationSeconds, 1560);
+  assert.equal(reconciled?.provisional, true);
+});
+
+test('§3-⑦ group parity: a ranked group record is never overwritten; a rank-less MY row stays pending', () => {
+  const ranked: RunMatchResult = {
+    mode: 'group',
+    matchId: 'g1',
+    title: '3명 중 2위로 마쳤어요',
+    summary: '',
+    badgeLabel: '2위',
+    rank: 2,
+    participantCount: 3,
+  };
+  assert.equal(
+    reconcileGroupRunDetailMatchResultFromResult({ matchResult: ranked, result: groupResult() }),
+    null,
+  );
+
+  const pending: RunMatchResult = {
+    mode: 'group',
+    matchId: 'g1',
+    title: '그룹 결과를 집계하고 있어요',
+    summary: '',
+    badgeLabel: '결과 집계 중',
+    participantCount: 3,
+  };
+  const unranked = groupResult();
+  unranked.participants = unranked.participants.map((row) => (
+    row.isMe ? { ...row, rank: null } : row
+  ));
+  assert.equal(
+    reconcileGroupRunDetailMatchResultFromResult({ matchResult: pending, result: unranked }),
+    null,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// §3-⑦ terminal handling: 410 match_gone OR (>24h-old pending blob AND 404) → the
+// neutral "결과 미확정으로 종료" state; 집계 중 can never stick forever.
+// ---------------------------------------------------------------------------
+
+test('§3-⑦ terminal: 410 match_gone terminalizes regardless of age; a young 404 stays pending', () => {
+  assert.equal(
+    shouldTerminalizeUnresolvedMatchResult({ matchGone: true, notFound: false, pendingAgeMs: 0 }),
+    true,
+  );
+  assert.equal(
+    shouldTerminalizeUnresolvedMatchResult({ matchGone: true, notFound: false, pendingAgeMs: null }),
+    true,
+  );
+  // A 404 on a young pending record: the seal/backfill may still land — stay pending.
+  assert.equal(
+    shouldTerminalizeUnresolvedMatchResult({
+      matchGone: false,
+      notFound: true,
+      pendingAgeMs: 60 * 60 * 1000,
+    }),
+    false,
+  );
+  // A 404 on a >24h-old pending record: nothing left server-side to heal from — terminal.
+  assert.equal(
+    shouldTerminalizeUnresolvedMatchResult({
+      matchGone: false,
+      notFound: true,
+      pendingAgeMs: MATCH_RESULT_PENDING_TERMINAL_AGE_MS + 1,
+    }),
+    true,
+  );
+  // Unknown record age can never terminalize a plain 404.
+  assert.equal(
+    shouldTerminalizeUnresolvedMatchResult({ matchGone: false, notFound: true, pendingAgeMs: null }),
+    false,
+  );
+  // No terminal signal at all (network error path) → stay pending.
+  assert.equal(
+    shouldTerminalizeUnresolvedMatchResult({
+      matchGone: false,
+      notFound: false,
+      pendingAgeMs: MATCH_RESULT_PENDING_TERMINAL_AGE_MS * 2,
+    }),
+    false,
+  );
+});
+
+test('§3-⑦ terminal: buildUnresolvedTerminalMatchResult yields a NEUTRAL record (no tone/rank, 미확정 copy)', () => {
+  const terminal = buildUnresolvedTerminalMatchResult({
+    ...pendingDuelBlob,
+    provisional: true,
+  });
+  assert.equal(terminal.title, '결과 미확정으로 종료');
+  assert.equal(terminal.badgeLabel, '결과 미확정');
+  assert.equal(terminal.resultTone, undefined);
+  assert.equal(terminal.rank, undefined);
+  assert.equal(terminal.gapKm, undefined);
+  assert.equal(terminal.provisional, undefined);
+  assert.equal(terminal.revised, undefined);
+  // The run's own numbers are kept — only the verdict promise is replaced.
+  assert.equal(terminal.myDurationSeconds, 1500);
+  assert.equal(terminal.matchId, 'm1');
+  assert.equal(terminal.mode, 'duel');
 });

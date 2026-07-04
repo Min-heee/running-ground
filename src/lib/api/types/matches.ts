@@ -112,6 +112,14 @@ export type DuelVerdict = {
   opponentFinishElapsedSeconds: number | null;
   myPaceLabel: string | null;
   opponentPaceLabel: string | null;
+  // Fair-verdict §2-4 (additive; absent on older backends — render nothing then).
+  // provisional: the verdict came from the one-finisher fallback seal and is still inside
+  // the server's revision window — display it with a 가확정 badge, never as final.
+  provisional?: boolean;
+  // revised: a late finish inside the revision window flipped the sealed winner; show a
+  // one-line 정정 reason banner. Set only when the winner actually changed.
+  revised?: boolean;
+  revisedAt?: string;
 };
 
 // One participant's sealed slot in the group's final ordering.
@@ -136,6 +144,10 @@ export type GroupVerdict = {
   resolved: boolean;
   participants: GroupVerdictParticipant[];
   myRank: number | null;
+  // Fair-verdict §2-4 (additive; absent on older backends — render nothing then). True while
+  // the sealed group ordering is still inside the server's revision window — display the
+  // placement with a 가확정 badge, never as final.
+  provisional?: boolean;
 };
 
 export type RunningMatchState = 'idle' | 'waiting' | 'matched' | 'active';
@@ -323,6 +335,14 @@ export type MatchResultResponse = {
   comparedDistanceKm: number;
   // Ordered by rank ascending (winner/1등 first); duel has exactly 2.
   participants: MatchResultParticipant[];
+  // Fair-verdict §2-5 (additive; absent on older backends — render nothing then).
+  // provisional: the result reflects a one-finisher fallback seal still inside the server's
+  // revision window — badge it 가확정, never treat it as final.
+  provisional?: boolean;
+  // revised: a late finish inside the revision window flipped the sealed winner — show the
+  // one-line 정정 reason banner.
+  revised?: boolean;
+  revisedAt?: string;
 };
 
 export type FetchMatchDemandSummaryInput = {

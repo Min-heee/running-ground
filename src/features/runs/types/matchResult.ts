@@ -39,6 +39,12 @@ export type DuelMatchFinishModel = {
   gapKm: number;
   matchResult: RunMatchResult;
   rows: DuelMatchResultRowModel[];
+  // Fair-verdict display notices, derived from the ADDITIVE server verdict flags — both
+  // stay absent against an old backend (render nothing then). Display-only: NOT part of
+  // matchResult, so a provisional outcome is never persisted from the client.
+  // provisional → "가확정 · 상대 기록 수신 대기 중"; revised → the one-line 정정 reason banner.
+  provisionalNoticeLabel?: string | null;
+  revisedNoticeLabel?: string | null;
 };
 
 export type GroupMatchFinishModel = {
@@ -48,6 +54,8 @@ export type GroupMatchFinishModel = {
   matchResult: RunMatchResult;
   rows: GroupMatchResultRowModel[];
   statusLabel: string | null;
+  // Fair-verdict display notice (group seals carry only `provisional`; see the duel twin).
+  provisionalNoticeLabel?: string | null;
 };
 
 export type ParticipantViewState =

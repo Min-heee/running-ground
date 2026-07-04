@@ -36,10 +36,16 @@ export type MatchResultScreenModel =
     loser: MatchResultScreenRow;
     // true when the duel resolved to a draw (both rows carry resultTone 'draw').
     draw?: boolean;
+    // Fair-verdict additive server fields — absent on old backends (render nothing then).
+    // provisional → "가확정 · 상대 기록 수신 대기 중" badge; revised → the 정정 reason banner.
+    provisional?: boolean;
+    revised?: boolean;
   }
   | {
     mode: 'group';
     rows: MatchResultScreenRow[];
+    provisional?: boolean;
+    revised?: boolean;
   };
 
 // '-' for a missing pace, '기권' for a forfeit, otherwise the frozen official pace.
@@ -119,6 +125,8 @@ export function buildMatchResultScreenModel(
       winner: rows[winnerIndex],
       loser: rows[loserIndex] ?? rows[winnerIndex],
       ...(draw ? { draw: true } : {}),
+      ...(response.provisional === true ? { provisional: true } : {}),
+      ...(response.revised === true ? { revised: true } : {}),
     };
   }
 
@@ -134,5 +142,7 @@ export function buildMatchResultScreenModel(
   return {
     mode: 'group',
     rows,
+    ...(response.provisional === true ? { provisional: true } : {}),
+    ...(response.revised === true ? { revised: true } : {}),
   };
 }
