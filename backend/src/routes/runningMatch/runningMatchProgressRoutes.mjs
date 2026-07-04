@@ -1,6 +1,5 @@
 import { ALLOW_TEST_MATCHES } from '../../config.mjs';
 import { parseLenientMatchSlotInput } from '../../lib/matchSlotValidation.mjs';
-import { runLockFreePollRead } from '../../lib/lockFreePollRead.mjs';
 
 export async function routeRunningMatchProgressRoutes(deps) {
   const { method, pathname } = deps;
@@ -68,7 +67,6 @@ async function handleFetchRunningMatchResult({
 
 async function handleFetchRunningMatchStatus({
   buildRunningMatchStatusResponse,
-  loadStore,
   mutateStore,
   parseJsonBody,
   request,
@@ -91,23 +89,15 @@ async function handleFetchRunningMatchStatus({
     : matchId
       ? parseLenientMatchSlotInput(body.slotStartAt)
       : validateMatchSlotInput(body.slotStartAt);
-  // Lock-free: the linked-status poll runs ~1s per phone during a match start and its
-  // response feeds the clients' RTT-based clock sync — a lock-wait here directly becomes
-  // countdown clock skew. See lockFreePollRead.mjs. Real transitions (matching, hydrate,
-  // sweeps) still persist via the escalation path.
-  const payload = await runLockFreePollRead({
-    loadStore,
-    mutateStore,
-    compute: (store) => {
-      const currentUser = requireUser(store, request);
-      return buildRunningMatchStatusResponse(store, currentUser, {
-        mode,
-        distanceKm,
-        slotStartAt,
-        testMode,
-        matchId,
-      });
-    },
+  const payload = await mutateStore((store) => {
+    const currentUser = requireUser(store, request);
+    return buildRunningMatchStatusResponse(store, currentUser, {
+      mode,
+      distanceKm,
+      slotStartAt,
+      testMode,
+      matchId,
+    });
   });
 
   sendJson(response, 200, payload);
