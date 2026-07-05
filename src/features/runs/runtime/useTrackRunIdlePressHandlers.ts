@@ -1,6 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { MatchOptionItem } from '@/features/runs/components/MatchOptionSelector';
-import type { BlockingMatchReference } from '@/features/runs/components/matchSetupCards/types';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { FocusRunningMatchInput } from '@/features/runs/lifecycle/hooks/runningMatchFocus/types';
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
@@ -14,15 +13,7 @@ import { rgPerfMark } from '@/utils/rgPerfTrace';
 type UseTrackRunIdlePressHandlersInput = {
   activeDuelSlotStartAt: string;
   activeGroupSlotStartAt: string;
-  blockingDuelMatch: BlockingMatchReference | null;
-  blockingGroupMatch: BlockingMatchReference | null;
-  blockingRoomId: string | null;
   focusRunningMatch: (input: FocusRunningMatchInput) => Promise<unknown>;
-  forceLeaveStuckMatch: (input: {
-    roomId?: string | null;
-    duelMatch?: BlockingMatchReference | null;
-    groupMatch?: BlockingMatchReference | null;
-  }) => Promise<unknown>;
   handleAcceptRoomInviteFromRunning: () => Promise<unknown>;
   handleCancelDuelMatch: () => Promise<unknown>;
   handleCancelGroupMatch: () => Promise<unknown>;
@@ -48,11 +39,7 @@ type UseTrackRunIdlePressHandlersInput = {
 export function useTrackRunIdlePressHandlers({
   activeDuelSlotStartAt,
   activeGroupSlotStartAt,
-  blockingDuelMatch,
-  blockingGroupMatch,
-  blockingRoomId,
   focusRunningMatch,
-  forceLeaveStuckMatch,
   handleAcceptRoomInviteFromRunning,
   handleCancelDuelMatch,
   handleCancelGroupMatch,
@@ -143,14 +130,6 @@ export function useTrackRunIdlePressHandlers({
     void handleCancelGroupMatch();
   });
 
-  const handleForceLeaveStuckMatchPress = useStableCallback(() => {
-    void forceLeaveStuckMatch({
-      roomId: blockingRoomId,
-      duelMatch: blockingDuelMatch,
-      groupMatch: blockingGroupMatch,
-    });
-  });
-
   const handleRequestGroupMatchPress = useStableCallback(() => {
     void handleRequestGroupMatch();
   });
@@ -165,7 +144,6 @@ export function useTrackRunIdlePressHandlers({
     handleCancelGroupMatchPress,
     handleCancelUpcomingMatchPress,
     handleDeclineRoomInvitePress,
-    handleForceLeaveStuckMatchPress,
     handleJoinRoomPress,
     handleOpenUpcomingMatch,
     handleRequestDuelMatchPress,

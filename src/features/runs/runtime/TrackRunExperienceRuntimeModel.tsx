@@ -40,7 +40,6 @@ import { useTrackRunIdleViewModel } from '@/features/runs/viewModels/useTrackRun
 import { useMatchRuntimeState } from '@/features/runs/hooks/useMatchRuntimeState';
 import { useMatchRoomSelectionSync } from '@/features/runs/hooks/useMatchRoomSelectionSync';
 import { useMatchSelectionModel } from '@/features/runs/hooks/useMatchSelectionModel';
-import { useForceLeaveStuckMatch } from '@/features/runs/hooks/useForceLeaveStuckMatch';
 import { useMatchCountdownModel } from '@/features/runs/lifecycle/hooks/useMatchCountdownModel';
 import { useSlotGatedArenaOpen } from '@/features/runs/lifecycle/hooks/useSlotGatedArenaOpen';
 import {
@@ -477,9 +476,6 @@ export function TrackRunExperienceRuntime({
     canCreateDuelMatch,
     canCreateGroupMatch,
     blockingMatchHelperText,
-    blockingRoomId,
-    blockingDuelMatch,
-    blockingGroupMatch,
     duelReservationLocked,
     groupReservationLocked,
     effectiveDuelOpponent,
@@ -1659,14 +1655,6 @@ export function TrackRunExperienceRuntime({
   });
 
   const {
-    error: forceLeaveStuckMatchError,
-    forceLeave: forceLeaveStuckMatch,
-    isLeaving: isForceLeavingStuckMatch,
-  } = useForceLeaveStuckMatch({
-    onSettled: refreshStaleMatchArtifacts,
-  });
-
-  const {
     handleForceResetRunningMatchPress,
   } = useTrackRunForceResetAction({
     clearLocalDuelMatchState,
@@ -2133,7 +2121,6 @@ export function TrackRunExperienceRuntime({
     handleCancelGroupMatchPress,
     handleCancelUpcomingMatchPress,
     handleDeclineRoomInvitePress,
-    handleForceLeaveStuckMatchPress,
     handleJoinRoomPress,
     handleOpenUpcomingMatch,
     handleRequestDuelMatchPress,
@@ -2146,11 +2133,7 @@ export function TrackRunExperienceRuntime({
   } = useTrackRunIdlePressHandlers({
     activeDuelSlotStartAt,
     activeGroupSlotStartAt,
-    blockingDuelMatch,
-    blockingGroupMatch,
-    blockingRoomId,
     focusRunningMatch,
-    forceLeaveStuckMatch,
     handleAcceptRoomInviteFromRunning,
     handleCancelDuelMatch,
     handleCancelGroupMatch,
@@ -2212,7 +2195,6 @@ export function TrackRunExperienceRuntime({
     groupReservationLocked,
     groupSelectedSlotStartAt: selectedGroupSlot?.startsAt ?? selectedGroupSlotStartAt,
     groupStartCountdownSeconds,
-    forceLeaveStuckMatchError,
     hasLinkedRuntimeRoom,
     isCancelingDuelMatch,
     isCancelingGroupMatch,
@@ -2221,7 +2203,6 @@ export function TrackRunExperienceRuntime({
     isIdle,
     isJoiningMatchRoom,
     isLeavingMatchRoom,
-    isForceLeavingStuckMatch,
     isLoadingGroupDemandSummary,
     isRequestingDuelMatch,
     isRequestingGroupMatch,
@@ -2235,7 +2216,6 @@ export function TrackRunExperienceRuntime({
     onDeclineRoomInvite: handleDeclineRoomInvitePress,
     onDistanceTextChangeDuel: setDuelDistanceText,
     onDistanceTextChangeGroup: setGroupDistanceText,
-    onForceLeaveStuckMatch: handleForceLeaveStuckMatchPress,
     onJoinRoom: handleJoinRoomPress,
     onOpenUpcomingMatch: handleOpenUpcomingMatch,
     onReadyAction: handleReadyAction,

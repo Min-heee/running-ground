@@ -41,14 +41,12 @@ type UseIdleRunModeModelInput = Pick<
   | 'groupReservationLocked'
   | 'groupSelectedSlotStartAt'
   | 'groupStartCountdownSeconds'
-  | 'forceLeaveStuckMatchError'
   | 'isCancelingDuelMatch'
   | 'isCancelingGroupMatch'
   | 'isCreatingMatchRoom'
   | 'isGroupTestFlow'
   | 'isJoiningMatchRoom'
   | 'isLeavingMatchRoom'
-  | 'isForceLeavingStuckMatch'
   | 'isLoadingGroupDemandSummary'
   | 'isRequestingDuelMatch'
   | 'isRequestingGroupMatch'
@@ -59,7 +57,6 @@ type UseIdleRunModeModelInput = Pick<
   | 'onCancelGroupMatch'
   | 'onDistanceTextChangeDuel'
   | 'onDistanceTextChangeGroup'
-  | 'onForceLeaveStuckMatch'
   | 'onRequestDuelMatch'
   | 'onRequestDuelRematch'
   | 'onRequestGroupMatch'
@@ -117,8 +114,6 @@ export function useIdleRunModeModel(input: UseIdleRunModeModelInput) {
         reservationLocked: input.duelReservationLocked,
         canCreateMatch: input.canCreateDuelMatch,
         blockingMatchHelperText: input.blockingMatchHelperText,
-        forceLeaveStuckMatchError: input.forceLeaveStuckMatchError,
-        isForceLeavingStuckMatch: input.isForceLeavingStuckMatch,
         expiryCountdownLabel: input.duelExpiryCountdownLabel,
         opponent: input.effectiveDuelOpponent,
         waitingTitle: input.duelWaitingTitle,
@@ -131,7 +126,6 @@ export function useIdleRunModeModel(input: UseIdleRunModeModelInput) {
         onSelectTimeSection: input.onSelectDuelTimeSection,
         onSelectSlot: input.onSelectDuelSlot,
         onCancelMatch: input.onCancelDuelMatch,
-        onForceLeaveStuckMatch: input.onForceLeaveStuckMatch,
         onRequestMatch: input.onRequestDuelMatch,
         onRequestRematch: input.onRequestDuelRematch,
       }
@@ -159,8 +153,6 @@ export function useIdleRunModeModel(input: UseIdleRunModeModelInput) {
         reservationLocked: input.groupReservationLocked,
         canCreateMatch: input.canCreateGroupMatch,
         blockingMatchHelperText: input.blockingMatchHelperText,
-        forceLeaveStuckMatchError: input.forceLeaveStuckMatchError,
-        isForceLeavingStuckMatch: input.isForceLeavingStuckMatch,
         expiryCountdownLabel: input.groupExpiryCountdownLabel,
         isTestFlow: input.isGroupTestFlow,
         isLoadingDemandSummary: input.isLoadingGroupDemandSummary,
@@ -174,7 +166,6 @@ export function useIdleRunModeModel(input: UseIdleRunModeModelInput) {
         onSelectTimeSection: input.onSelectGroupTimeSection,
         onSelectSlot: input.onSelectGroupSlot,
         onCancelMatch: input.onCancelGroupMatch,
-        onForceLeaveStuckMatch: input.onForceLeaveStuckMatch,
         onRequestMatch: input.onRequestGroupMatch,
         onRequestRematch: input.onRequestGroupRematch,
       }

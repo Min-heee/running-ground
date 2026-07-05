@@ -38,10 +38,7 @@ export function MatchActionButtons({
   reservationLocked,
   canCreateMatch,
   blockingMatchHelperText,
-  forceLeaveStuckMatchError,
-  isForceLeavingStuckMatch,
   onCancelMatch,
-  onForceLeaveStuckMatch,
   onRequestMatch,
 }: {
   matchState: RunningMatchState;
@@ -53,10 +50,7 @@ export function MatchActionButtons({
   reservationLocked: boolean;
   canCreateMatch: boolean;
   blockingMatchHelperText: string | null;
-  forceLeaveStuckMatchError: string | null;
-  isForceLeavingStuckMatch: boolean;
   onCancelMatch: () => void;
-  onForceLeaveStuckMatch: () => void;
   onRequestMatch: () => void;
 }) {
   return (
@@ -78,14 +72,6 @@ export function MatchActionButtons({
       {!canCreateMatch && blockingMatchHelperText ? (
         <View style={styles.matchForceLeaveBlock}>
           <Text style={styles.matchCancelHelperText}>{blockingMatchHelperText}</Text>
-          <SecondaryButton
-            label={isForceLeavingStuckMatch ? '정리 중...' : '이 방·매치 강제 정리'}
-            onPress={onForceLeaveStuckMatch}
-            disabled={isForceLeavingStuckMatch}
-          />
-          {forceLeaveStuckMatchError ? (
-            <Text style={styles.matchCancelHelperText}>{forceLeaveStuckMatchError}</Text>
-          ) : null}
         </View>
       ) : null}
     </>

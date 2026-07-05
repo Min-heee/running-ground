@@ -59,8 +59,6 @@ export function GroupMatchSetupCard({
   reservationLocked,
   canCreateMatch,
   blockingMatchHelperText,
-  forceLeaveStuckMatchError,
-  isForceLeavingStuckMatch,
   isTestFlow,
   isLoadingDemandSummary,
   demandSummary,
@@ -73,7 +71,6 @@ export function GroupMatchSetupCard({
   onSelectTimeSection,
   onSelectSlot,
   onCancelMatch,
-  onForceLeaveStuckMatch,
   onRequestMatch,
   onRequestRematch,
 }: GroupMatchSetupCardProps) {
@@ -185,10 +182,7 @@ export function GroupMatchSetupCard({
         reservationLocked={reservationLocked}
         canCreateMatch={canCreateMatch}
         blockingMatchHelperText={blockingMatchHelperText}
-        forceLeaveStuckMatchError={forceLeaveStuckMatchError}
-        isForceLeavingStuckMatch={isForceLeavingStuckMatch}
         onCancelMatch={onCancelMatch}
-        onForceLeaveStuckMatch={onForceLeaveStuckMatch}
         onRequestMatch={onRequestMatch}
       />
     </View>

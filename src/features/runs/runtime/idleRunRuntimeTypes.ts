@@ -58,7 +58,6 @@ export type UseIdleRunRuntimeModelInput = {
   groupReservationLocked: boolean;
   groupSelectedSlotStartAt: string;
   groupStartCountdownSeconds: number | null;
-  forceLeaveStuckMatchError: string | null;
   hasLinkedRuntimeRoom: boolean;
   isCancelingDuelMatch: boolean;
   isCancelingGroupMatch: boolean;
@@ -67,7 +66,6 @@ export type UseIdleRunRuntimeModelInput = {
   isIdle: boolean;
   isJoiningMatchRoom: boolean;
   isLeavingMatchRoom: boolean;
-  isForceLeavingStuckMatch: boolean;
   isLoadingGroupDemandSummary: boolean;
   isRequestingDuelMatch: boolean;
   isRequestingGroupMatch: boolean;
@@ -81,7 +79,6 @@ export type UseIdleRunRuntimeModelInput = {
   onDeclineRoomInvite: () => void;
   onDistanceTextChangeDuel: DuelSetupProps['onDistanceTextChange'];
   onDistanceTextChangeGroup: GroupSetupProps['onDistanceTextChange'];
-  onForceLeaveStuckMatch: () => void;
   onJoinRoom: () => Promise<void> | void;
   onOpenUpcomingMatch: (match: UpcomingRunningMatchItem) => void;
   onReadyAction: () => void;

@@ -1,6 +1,5 @@
 export type {
   BaseMatchSetupProps,
-  BlockingMatchReference,
   DistanceSelectorProps,
   DuelMatchSetupCardProps,
   GroupMatchSetupCardProps,

@@ -8,13 +8,6 @@ import type {
 
 export type TimeSection = 'am' | 'pm';
 
-export type BlockingMatchReference = {
-  matchId: string;
-  distanceKm: number | null;
-  slotStartAt: string | null;
-  testMode?: boolean;
-};
-
 export type MatchDateOption = {
   key: string;
   label: string;
@@ -48,8 +41,6 @@ export type BaseMatchSetupProps = {
   reservationLocked: boolean;
   canCreateMatch: boolean;
   blockingMatchHelperText: string | null;
-  forceLeaveStuckMatchError: string | null;
-  isForceLeavingStuckMatch: boolean;
   expiryCountdownLabel: string | null;
   onDistanceTextChange: (text: string) => void;
   onShowCustomDistanceInputChange: (show: boolean) => void;
@@ -57,7 +48,6 @@ export type BaseMatchSetupProps = {
   onSelectTimeSection: (section: TimeSection) => void;
   onSelectSlot: (startsAt: string) => void;
   onCancelMatch: () => void;
-  onForceLeaveStuckMatch: () => void;
   onRequestMatch: () => void;
   onRequestRematch: () => void;
 };
