@@ -1,5 +1,5 @@
-import type { ComponentProps } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Href } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCountdownOverlay';
@@ -12,6 +12,60 @@ import {
   TrackRunShellRouter,
   type TrackRunShellKind,
 } from '@/features/runs/components/shells/TrackRunShells';
+
+const ARMING_VEIL_FADE_OUT_MS = 400;
+
+// The 로딩중 veil, extracted so its EXIT can be animated. Appearance stays instant (the veil
+// exists to cover lobby/shell churn, so showing it must never wait on an animation), but on
+// release it stays mounted and fades out ABOVE the countdown overlay — the digit is already
+// ticking underneath, so 로딩중 dissolves into the countdown instead of hard-cutting (or, when
+// the two flags flip on different frames, double-rendering beside it). Purely presentational:
+// the visibility flag itself still comes from resolveShouldShowRoomArmingOverlay, unchanged.
+function RoomArmingOverlayVeil({ visible }: { visible: boolean }) {
+  const [mounted, setMounted] = useState(visible);
+  const opacityRef = useRef(new Animated.Value(visible ? 1 : 0));
+
+  useEffect(() => {
+    const opacity = opacityRef.current;
+    if (visible) {
+      opacity.stopAnimation();
+      opacity.setValue(1);
+      setMounted(true);
+      return;
+    }
+    const animation = Animated.timing(opacity, {
+      toValue: 0,
+      duration: ARMING_VEIL_FADE_OUT_MS,
+      useNativeDriver: true,
+    });
+    animation.start(({ finished }) => {
+      if (finished) {
+        setMounted(false);
+      }
+    });
+    return () => {
+      animation.stop();
+    };
+  }, [visible]);
+
+  if (!mounted) {
+    return null;
+  }
+
+  return (
+    <Animated.View
+      style={[styles.roomArmingOverlay, styles.roomArmingOverlayAboveCountdown, { opacity: opacityRef.current }]}
+      // While fading out the veil must never eat touches meant for the arena underneath.
+      pointerEvents={visible ? 'auto' : 'none'}
+    >
+      <ActivityIndicator size="large" color={colors.white} />
+      <Text style={styles.roomArmingOverlayTitle}>로딩중...</Text>
+      <Text style={styles.roomArmingOverlayText}>
+        대결 화면을 맞추는 중이에요. 잠시 뒤 모든 참가자에게 같은 카운트다운이 보여요.
+      </Text>
+    </Animated.View>
+  );
+}
 
 type CountdownEntry = {
   countdownKey?: string | null;
@@ -110,15 +164,6 @@ export function TrackRunExperienceView({
           </View>
         ) : null}
       </Screen>
-      {shouldShowRoomArmingOverlay ? (
-        <View style={styles.roomArmingOverlay}>
-          <ActivityIndicator size="large" color={colors.white} />
-          <Text style={styles.roomArmingOverlayTitle}>로딩중...</Text>
-          <Text style={styles.roomArmingOverlayText}>
-            대결 화면을 맞추는 중이에요. 잠시 뒤 모든 참가자에게 같은 카운트다운이 보여요.
-          </Text>
-        </View>
-      ) : null}
       {shouldShowMatchEndTransitionOverlay ? (
         <View style={[styles.roomArmingOverlay, styles.matchEndTransitionOverlay]}>
           <ActivityIndicator size="large" color={colors.white} />
@@ -160,6 +205,13 @@ export function TrackRunExperienceView({
           variant={countdownOverlayVariant}
         />
       ) : null}
+      {/*
+        Rendered AFTER the countdown overlay (and with a higher zIndex) on purpose: during the
+        로딩중→digit handoff the veil sits on top and fades away, revealing the digit already
+        counting underneath — the smooth transition. Sibling order + zIndex agree so Android
+        and iOS stack identically.
+      */}
+      <RoomArmingOverlayVeil visible={shouldShowRoomArmingOverlay} />
     </View>
   );
 }
@@ -203,6 +255,11 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
     paddingHorizontal: 28,
     zIndex: 30,
+  },
+  // Above MatchStartCountdownOverlay (zIndex 100): during the release fade the veil must
+  // cover the digit and dissolve into it, never render beside/under it.
+  roomArmingOverlayAboveCountdown: {
+    zIndex: 110,
   },
   matchEndTransitionOverlay: {
     // Fully opaque: the shell underneath churns through live/matching states while the
