@@ -30,6 +30,8 @@ import {
 } from '@/features/runs/tracking/background/distanceAccumulatorController';
 import { isMyMatchDistanceStale } from '@/features/runs/sync/matchDistanceStaleness';
 import { getPendingFinish } from '@/features/runs/sync/pendingFinishStore';
+import { recordLocalGoalFreezeOnce } from '@/features/runs/sync/localGoalFreezeStore';
+import { presentFinishCelebrationOnce } from '@/features/runs/finishReminder/finishApproachNotification';
 import { isApiError } from '@/services/apiError';
 import { rgDiagLog } from '@/utils/rgPerfTrace';
 // NAME CLASH: routeAccumulator's getAccumulatedDistanceMeters is the JS AUTHORITATIVE total (the
@@ -855,6 +857,27 @@ export async function flushBackgroundMatchProgressSync({
   }
 
   const status = input.status;
+
+  // HANDS-FREE FINISH (Stage 2 call site A + Stage 3b record site) — the flush computed a
+  // FINISHED payload: fire the one-shot at-crossing celebration notification AND freeze the
+  // at-crossing record locally. Placed BEFORE the native/JS branch split so both delivery paths
+  // get it, and STRICTLY fire-and-forget/synchronous (no await) so the §3.④ zero-await invariant
+  // between the built finished payload and the native handoff below is untouched. The
+  // pendingFinishIntent re-send branch above also produces 'finished' on every retry tick; the
+  // module-level fired-set + the store's local first-write-wins collapse those to one each. The
+  // isAppBackground gate lives inside the presenter — a foreground finish shows the result UI
+  // instead. input.elapsedSeconds is wall-clock-anchored (resolveSnapshotElapsedMs), i.e. the
+  // crossing-time value even after a JS suspension.
+  if (status === 'finished') {
+    void presentFinishCelebrationOnce(input.matchId, input.distanceKm, input.elapsedSeconds);
+    recordLocalGoalFreezeOnce({
+      matchId: input.matchId,
+      elapsedSeconds: input.elapsedSeconds,
+      distanceKm: input.distanceKm,
+      pace: input.currentPace,
+      crossedAtIso: new Date(nowMs).toISOString(),
+    });
+  }
 
   // NATIVE branch (Android always; iOS ONLY on the new build whose Swift module reports
   // available=true). Fix A.5 — widen from android-only to ALSO take iOS, but gate iOS on the

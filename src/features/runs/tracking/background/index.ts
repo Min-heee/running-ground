@@ -14,6 +14,7 @@ import {
 import {
   clearBackgroundMatchProgressContext,
 } from '@/features/runs/tracking/background/backgroundMatchProgressSync';
+import { clearLocalGoalFreeze } from '@/features/runs/sync/localGoalFreezeStore';
 import {
   buildSnapshotClone,
   emitSnapshot,
@@ -265,6 +266,13 @@ export async function resetBackgroundRunTracking() {
   resetTrackingStateOnly();
   emitSnapshot();
   await clearBackgroundRunSnapshot(previousMatchId);
+  // HANDS-FREE FINISH — a reset-driven discard drops the local goal freeze together with the
+  // persisted snapshot (the user chose to throw the run away, or the post-save reset already ran
+  // after runCleanupAfterSave cleared it — double-clearing is a no-op). This is one of exactly
+  // two clear sites; the freeze is never cleared on server ACK.
+  if (previousMatchId) {
+    clearLocalGoalFreeze(previousMatchId);
+  }
 }
 
 export async function syncBackgroundRunTrackingAppState(appState: AppStateStatus) {

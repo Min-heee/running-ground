@@ -6,6 +6,7 @@ import {
   restorePersistedBackgroundRunTracking,
   type BackgroundRunTrackingSnapshot,
 } from '@/features/runs/tracking/background';
+import { getLocalGoalFreeze } from '@/features/runs/sync/localGoalFreezeStore';
 import {
   buildOfficialStartBaseline,
 } from '@/features/runs/tracking/trackingSession';
@@ -169,7 +170,15 @@ export function useMatchAutoTrackingEffects({
         return;
       }
 
-      if (getBackgroundRunTrackingSnapshot({ cloneRoute: false }).status !== 'running') {
+      // HANDS-FREE FINISH (Stage 4b) — never start a FRESH run for a match whose goal was already
+      // crossed (a local goal freeze exists for this exact matchId): after a stale-deleted or
+      // missing snapshot this used to re-launch a bogus 0km re-run over a finished match. The
+      // restore path above (freeze-aware 24h staleness, 4a) is the recovery channel instead.
+      // restoreBackgroundRunSnapshot awaited freeze hydration, so this synchronous read is settled.
+      if (
+        getBackgroundRunTrackingSnapshot({ cloneRoute: false }).status !== 'running'
+        && !getLocalGoalFreeze(activeMatchId)
+      ) {
         startMatchTrackingAutomatically(activeMatchId);
       }
     }).finally(() => {

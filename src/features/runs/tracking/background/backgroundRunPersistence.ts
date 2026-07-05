@@ -7,6 +7,10 @@ import {
   setAccumulatedElevationGainMeters,
 } from '@/features/runs/tracking/background/routeAccumulator';
 import {
+  getLocalGoalFreeze,
+  hydrateLocalGoalFreezes,
+} from '@/features/runs/sync/localGoalFreezeStore';
+import {
   emitSnapshot,
   getSnapshotState,
   setSnapshotState,
@@ -15,6 +19,11 @@ import {
 
 const STORAGE_DIR_NAME = 'rg-bg-tracking';
 const STALE_THRESHOLD_MS = 30 * 60 * 1000;
+// HANDS-FREE FINISH (Stage 4a) — when a local goal freeze exists for the match, the persisted
+// snapshot is a REAL finished run (the goal was crossed), not an abandoned one: deleting it at
+// the 30min mark would destroy the only local copy of the route/record before the user reopens
+// the app. Keep it restorable for a day instead.
+const GOAL_FROZEN_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
 
 type PersistedSnapshot = {
   accumulatedDistanceMeters: number;
@@ -159,6 +168,10 @@ export async function persistBackgroundRunSnapshot(matchId: string | null): Prom
 
 export async function restoreBackgroundRunSnapshot(matchId: string): Promise<boolean> {
   try {
+    // HANDS-FREE FINISH (Stage 4a) — make sure cold-start hydration has landed before consulting
+    // the freeze for the staleness decision below (idempotent; resolves instantly once hydrated).
+    await hydrateLocalGoalFreezes();
+
     const uri = getStorageUri(matchId);
     if (!uri) {
       return false;
@@ -174,7 +187,12 @@ export async function restoreBackgroundRunSnapshot(matchId: string): Promise<boo
       return false;
     }
 
-    if (Date.now() - data.savedAt > STALE_THRESHOLD_MS) {
+    // HANDS-FREE FINISH (Stage 4a) — freeze-aware staleness: a snapshot whose match already
+    // crossed the goal holds a real finished run, so it stays restorable for 24h instead of 30min.
+    const staleThresholdMs = getLocalGoalFreeze(matchId)
+      ? GOAL_FROZEN_STALE_THRESHOLD_MS
+      : STALE_THRESHOLD_MS;
+    if (Date.now() - data.savedAt > staleThresholdMs) {
       await FileSystem.deleteAsync(uri, { idempotent: true });
       return false;
     }

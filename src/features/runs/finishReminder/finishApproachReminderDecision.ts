@@ -11,13 +11,6 @@
 // Fire the reminder this far BEFORE the target distance (~1 min of lead at a typical 5:30/km).
 export const FINISH_REMINDER_BUFFER_KM = 0.3;
 
-// §3.⑤ (fair-verdict design) — SECOND reminder at the projected GOAL ETA itself (buffer 0km). The
-// ~300m approach reminder above asks the runner to turn the screen on BEFORE the finish; this one
-// fires at the moment they are projected to CROSS it, so a runner who ignored (or never saw) the
-// first nudge still gets woken right when the finish upload needs the screen — shrinking the only
-// unbounded term in finish-delivery lag (screen-off duration). Same OS-date-scheduling idiom.
-export const GOAL_ETA_REMINDER_BUFFER_KM = 0;
-
 // Only (re)schedule when the new fire-time moved by more than this, so we don't thrash the OS
 // scheduler on every GPS snapshot (the freshest distance jitters slightly each tick).
 export const FINISH_REMINDER_RESCHEDULE_THRESHOLD_SECONDS = 10;
@@ -48,7 +41,7 @@ export type FinishApproachReminderInputs = {
   // pending. Used to throttle reschedules.
   scheduledInSeconds?: number | null;
   // How far BEFORE the target distance the reminder should fire, in km. Defaults to the ~300m
-  // approach buffer; the goal-ETA reminder (§3.⑤) passes GOAL_ETA_REMINDER_BUFFER_KM (0).
+  // approach buffer (the only production caller; kept generic for tests / future reminders).
   bufferKm?: number;
 };
 
@@ -74,8 +67,7 @@ function clampPace(seconds: number): number {
 
 // Seconds from now until the runner is expected to reach (target − buffer), using the freshest
 // distance and the run's (clamped) average pace. Returns null when there is no real goal or no
-// usable pace yet. Clamped to >= 0. `bufferKm` defaults to the ~300m approach buffer; pass
-// GOAL_ETA_REMINDER_BUFFER_KM (0) for the projected goal-ETA itself (§3.⑤).
+// usable pace yet. Clamped to >= 0. `bufferKm` defaults to the ~300m approach buffer.
 export function computeFinishReminderEtaSeconds(params: {
   targetDistanceKm?: number | null;
   currentDistanceKm: number;

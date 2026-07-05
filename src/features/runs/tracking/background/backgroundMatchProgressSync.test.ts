@@ -31,6 +31,15 @@ import {
   rememberPendingFinish,
 } from '@/features/runs/sync/pendingFinishStore';
 import {
+  __resetLocalGoalFreezesForTest,
+  __setLocalGoalFreezeStorageForTest,
+  getLocalGoalFreeze,
+} from '@/features/runs/sync/localGoalFreezeStore';
+import {
+  __resetFinishCelebrationForTest,
+  __setFinishCelebrationPresenterForTest,
+} from '@/features/runs/finishReminder/finishApproachNotification';
+import {
   INITIAL_SNAPSHOT,
   setSnapshotState,
 } from '@/features/runs/tracking/background/snapshotStore';
@@ -1678,6 +1687,199 @@ test('pending finish §3.①/③ routing: the finish intent goes NATIVE when ava
     assert.equal(jsCalls.length, 1);
     assert.equal(jsCalls[0].status, 'finished');
     assert.equal(jsCalls[0].elapsedSeconds, 1622);
+  } finally {
+    teardown();
+  }
+});
+
+// ============================================================================================
+// HANDS-FREE FINISH (Stage 2 call site A + Stage 3b record site) — the flush is the FIRST place
+// a screen-off crossing computes 'finished': it must (a) freeze the at-crossing record locally
+// exactly once with the crossing-tick elapsed, (b) fire the one-shot celebration exactly once
+// across every re-send/retry tick, (c) leave the native finished-body handoff fully intact (the
+// additions are synchronous/fire-and-forget — no new await between payload build and handoff),
+// and (d) do NOTHING on non-finished ticks.
+// ============================================================================================
+
+function setupHandsFreeFinishFixture() {
+  resetBackgroundMatchProgressSyncForTest();
+  __setPendingFinishStorageForTest({ getItem: async () => null, setItem: async () => {} });
+  __resetPendingFinishesForTest();
+  __setLocalGoalFreezeStorageForTest({ getItem: async () => null, setItem: async () => {} });
+  __resetLocalGoalFreezesForTest();
+  __resetFinishCelebrationForTest();
+  const celebrationCalls: { distanceKm: number; elapsedSeconds: number }[] = [];
+  __setFinishCelebrationPresenterForTest((distanceKm, elapsedSeconds) => {
+    celebrationCalls.push({ distanceKm, elapsedSeconds });
+  });
+  return {
+    celebrationCalls,
+    teardown: () => {
+      __setFinishCelebrationPresenterForTest(null);
+      __resetFinishCelebrationForTest();
+      __resetLocalGoalFreezesForTest();
+      __setLocalGoalFreezeStorageForTest(null);
+      __resetPendingFinishesForTest();
+      __setPendingFinishStorageForTest(null);
+      resetBackgroundMatchProgressSyncForTest();
+    },
+  };
+}
+
+test('hands-free finish: the crossing tick records the freeze exactly once with the crossing-tick elapsed', async () => {
+  const nowMs = Date.now();
+  const { celebrationCalls, teardown } = setupHandsFreeFinishFixture();
+  // JS itself reached the goal → the flush computes 'finished'. startedAt is nowMs-12s, so the
+  // crossing-tick elapsed is 12s (wall-clock anchored via resolveSnapshotElapsedMs).
+  setRunningSnapshot(nowMs, { distanceKm: 5 });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-freeze-crossing',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  try {
+    assert.equal(await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      nowMs,
+      updateRunningMatchProgress: async (input) => buildMatchStatusResponse(input.matchId),
+    }), true);
+
+    const freeze = getLocalGoalFreeze('duel-freeze-crossing');
+    assert.ok(freeze, 'the crossing tick recorded the freeze');
+    assert.equal(freeze.elapsedSeconds, 12, 'the CROSSING-tick elapsed is frozen');
+    assert.equal(freeze.distanceKm, 5);
+    assert.equal(freeze.crossedAtIso, new Date(nowMs).toISOString());
+
+    // The next tick still computes 'finished' with a LATER elapsed (15s) — local first-write-wins
+    // must keep the crossing-tick value, and the celebration must not re-fire.
+    assert.equal(await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      nowMs: nowMs + BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS,
+      updateRunningMatchProgress: async (input) => buildMatchStatusResponse(input.matchId),
+    }), true);
+
+    assert.equal(getLocalGoalFreeze('duel-freeze-crossing')?.elapsedSeconds, 12, 'first-write-wins held');
+    assert.equal(celebrationCalls.length, 1, 'celebration fired exactly once');
+    assert.deepEqual(celebrationCalls[0], { distanceKm: 5, elapsedSeconds: 12 });
+  } finally {
+    teardown();
+  }
+});
+
+test('hands-free finish: celebration + freeze fire once across pendingFinishIntent re-sends', async () => {
+  const nowMs = Date.now();
+  const { celebrationCalls, teardown } = setupHandsFreeFinishFixture();
+  // Post-teardown shape: idle snapshot, only the durable intent keeps the finished body flowing.
+  setSnapshotState({ ...INITIAL_SNAPSHOT, status: 'idle' });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-freeze-intent-resend',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+  rememberPendingFinish({
+    matchId: 'duel-freeze-intent-resend',
+    finishElapsedSeconds: 1606,
+    distanceKm: 5,
+    pace: '05:21/km',
+  });
+
+  try {
+    // Two intent re-send ticks (the intent relaxes the throttle, so back-to-back is allowed).
+    for (let tick = 0; tick < 2; tick += 1) {
+      assert.equal(await flushBackgroundMatchProgressSync({
+        isAppBackground: true,
+        nowMs: nowMs + tick * 100,
+        updateRunningMatchProgress: async (input) => {
+          assert.equal(input.status, 'finished');
+          return buildMatchStatusResponse(input.matchId, {
+            // No ACK fields → the intent survives and the next tick re-sends.
+            currentUserLiveStatus: 'running',
+          });
+        },
+      }), true);
+    }
+
+    assert.equal(celebrationCalls.length, 1, 'one celebration across re-sends');
+    assert.deepEqual(celebrationCalls[0], { distanceKm: 5, elapsedSeconds: 1606 }, 'intent values used');
+    const freeze = getLocalGoalFreeze('duel-freeze-intent-resend');
+    assert.equal(freeze?.elapsedSeconds, 1606, 'freeze recorded once from the frozen intent payload');
+    assert.equal(freeze?.distanceKm, 5);
+  } finally {
+    teardown();
+  }
+});
+
+test('hands-free finish: the injected native uploader still receives the finished body (no new await before the handoff)', async () => {
+  const nowMs = Date.now();
+  const { celebrationCalls, teardown } = setupHandsFreeFinishFixture();
+  setRunningSnapshot(nowMs, { distanceKm: 5 });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-freeze-native-handoff',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  const nativeCalls: { body: string; token: string; url: string }[] = [];
+  try {
+    assert.equal(await flushBackgroundMatchProgressSync({
+      apiBaseUrl: 'https://preview.example.test/api',
+      getAccessToken: async () => 'native-token',
+      getNativeMatchProgressUploader: async () => ({
+        isNativeMatchProgressUploaderAvailable: () => true,
+        uploadMatchProgressNative: async (url, token, body) => {
+          nativeCalls.push({ body, token, url });
+          return null;
+        },
+      }),
+      isAppBackground: true,
+      nowMs,
+      platform: 'android',
+      updateRunningMatchProgress: async () => {
+        throw new Error('JS uploader should not run on the native path');
+      },
+    }), true);
+
+    // The native handoff is untouched by the celebration/freeze additions: the one-shot native
+    // uploader received the finished body exactly as before.
+    assert.equal(nativeCalls.length, 1);
+    assert.match(nativeCalls[0].body, /"status":"finished"/);
+    assert.equal(nativeCalls[0].url, 'https://preview.example.test/api/running/matches/progress');
+    // …and the additions themselves fired.
+    assert.equal(getLocalGoalFreeze('duel-freeze-native-handoff')?.elapsedSeconds, 12);
+    assert.equal(celebrationCalls.length, 1);
+  } finally {
+    teardown();
+  }
+});
+
+test('hands-free finish: non-finished ticks record no freeze and fire no celebration', async () => {
+  const nowMs = Date.now();
+  const { celebrationCalls, teardown } = setupHandsFreeFinishFixture();
+  // Clearly below the 5km goal → 'running'.
+  setRunningSnapshot(nowMs, { distanceKm: 2.4 });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-freeze-running-tick',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  try {
+    assert.equal(await flushBackgroundMatchProgressSync({
+      isAppBackground: true,
+      nowMs,
+      updateRunningMatchProgress: async (input) => {
+        assert.equal(input.status, 'running');
+        return buildMatchStatusResponse(input.matchId);
+      },
+    }), true);
+
+    assert.equal(getLocalGoalFreeze('duel-freeze-running-tick'), null);
+    assert.equal(celebrationCalls.length, 0);
   } finally {
     teardown();
   }

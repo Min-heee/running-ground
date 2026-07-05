@@ -38,6 +38,13 @@ import {
   listPendingFinishes,
   rememberPendingFinish,
 } from '@/features/runs/sync/pendingFinishStore';
+import {
+  buildPendingFinishIntentFromFreeze,
+  getLocalGoalFreeze,
+  hydrateLocalGoalFreezes,
+  recordLocalGoalFreezeOnce,
+} from '@/features/runs/sync/localGoalFreezeStore';
+import { presentFinishCelebrationOnce } from '@/features/runs/finishReminder/finishApproachNotification';
 import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgPerfTrace';
 import {
   acquireRgHeartbeatSlot,
@@ -522,22 +529,37 @@ export function useMatchProgressSync({
     if (!(progress.elapsedSeconds > 0)) {
       return;
     }
-    rememberPendingFinish({
+    // HANDS-FREE FINISH (Stage 3b, last-resort record site) — local first-write-wins: this only
+    // lands when neither the background flush nor the foreground heartbeat recorded the crossing.
+    recordLocalGoalFreezeOnce({
       matchId: endedTarget.matchId,
-      finishElapsedSeconds: progress.elapsedSeconds,
+      elapsedSeconds: progress.elapsedSeconds,
+      distanceKm: progress.distanceKm,
+      pace: progress.currentPace,
+      crossedAtIso: new Date().toISOString(),
+    });
+    // HANDS-FREE FINISH (Stage 3c) — build the intent PREFERRING the at-crossing freeze over the
+    // live progress: a screen-off crossing whose delivery failed used to fall through here with
+    // the DRIFTED foreground values, and the server froze that drift first-write-wins as the
+    // official finish. With a freeze the crossing-time values win; without one this is exactly
+    // the live progress (today's behavior). Idempotent server-side either way.
+    const intent = buildPendingFinishIntentFromFreeze(getLocalGoalFreeze(endedTarget.matchId), {
+      matchId: endedTarget.matchId,
+      elapsedSeconds: progress.elapsedSeconds,
       distanceKm: progress.distanceKm,
       pace: progress.currentPace,
     });
+    rememberPendingFinish(intent);
+    // HANDS-FREE FINISH (Stage 2, call site B) — celebration for the backgrounded-but-flush-missed
+    // and iOS late-detection crossings, with the SAME values the durable intent carries. Fire-and-
+    // forget; the module-level fired-set dedupes against the flush's call site A, and the internal
+    // isAppBackground gate suppresses it while the app is foregrounded (result UI shows instead).
+    void presentFinishCelebrationOnce(endedTarget.matchId, intent.distanceKm, intent.finishElapsedSeconds);
     rgPerfMark('match end final status push', {
       matchId: endedTarget.matchId,
       status: 'finished',
     });
-    await sendPendingFinishPush({
-      matchId: endedTarget.matchId,
-      finishElapsedSeconds: progress.elapsedSeconds,
-      distanceKm: progress.distanceKm,
-      pace: progress.currentPace,
-    });
+    await sendPendingFinishPush(intent);
   }, [sendPendingFinishPush]);
 
   // Ordered match-end teardown. Fires only on the real end transition: a previously
@@ -626,6 +648,19 @@ export function useMatchProgressSync({
       progressDistanceKm: progress.distanceKm,
       targetDistanceKm: target.distanceKm,
     });
+    // HANDS-FREE FINISH (Stage 3b, screen-ON record site) — the foreground heartbeat is the first
+    // place a screen-on crossing computes 'finished'; freeze the at-crossing values before the
+    // slot-anchored display model drifts past them. Synchronous, first-write-wins, and does not
+    // gate/reorder the push below.
+    if (heartbeatStatus === 'finished') {
+      recordLocalGoalFreezeOnce({
+        matchId: target.matchId,
+        elapsedSeconds: progress.elapsedSeconds,
+        distanceKm: progress.distanceKm,
+        pace: progress.currentPace,
+        crossedAtIso: new Date(now).toISOString(),
+      });
+    }
     rgPerfMark('progress heartbeat start', {
       matchId: target.matchId,
       status: heartbeatStatus,
@@ -674,6 +709,10 @@ export function useMatchProgressSync({
     }
 
     let cancelled = false;
+    // HANDS-FREE FINISH — hydrate persisted goal freezes alongside the pending-finish intents so
+    // the freeze-preferred intent builder (3c) and the save clamp see cold-start survivors.
+    // Fire-and-forget ADDITION: nothing about the resend loop below gates on it.
+    void hydrateLocalGoalFreezes();
     void hydratePendingFinishes().then(() => {
       if (!cancelled) {
         void resendPendingFinishes();
