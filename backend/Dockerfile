@@ -8,6 +8,8 @@ RUN npm ci --omit=dev
 COPY release-environment.cjs ./
 COPY src ./src
 COPY data ./data
+# One-off operational scripts (retro corrections etc.) — runnable via `compose exec api node ./scripts/...`
+COPY scripts ./scripts
 
 EXPOSE 8081
 
