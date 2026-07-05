@@ -23,8 +23,13 @@ import { isRoomCheckSignalActive, shouldOfferOtaUpdate, shouldRunOtaUpdateCheck 
 //      the countdown/arming phase before tracking starts).
 // Any error while reading the signals counts as "active" (fail closed).
 
-// Module-level so a HOME tab remount does not reset the 15-minute throttle.
+// Module-level so a HOME tab remount does not reset the throttle.
 let lastOtaCheckAtMs: number | null = null;
+
+// Defer the first (launch) OTA check off the cold-start critical path. The bundle
+// download and check compete for the JS thread / network right when HOME first
+// paints, so we wait out the first-touch window before sampling. Cleared on unmount.
+const LAUNCH_OTA_CHECK_DELAY_MS = 13_000;
 
 // Test-only escape hatch for the module-level throttle state.
 export function resetOtaUpdatePromptThrottleForTest() {
@@ -138,9 +143,13 @@ export function useOtaUpdatePrompt() {
       return;
     }
 
-    // The app is already foregrounded when HOME first mounts, so run one
-    // (throttled) check immediately instead of waiting for the next transition.
-    void runUpdateCheck();
+    // The app is already foregrounded when HOME first mounts, but the launch check
+    // is deferred off the cold-start critical path so the bundle download does not
+    // compete for the JS thread / network during the first-touch window. A later
+    // foreground transition still checks immediately.
+    const launchCheckTimeout = setTimeout(() => {
+      void runUpdateCheck();
+    }, LAUNCH_OTA_CHECK_DELAY_MS);
 
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
@@ -149,6 +158,7 @@ export function useOtaUpdatePrompt() {
     });
 
     return () => {
+      clearTimeout(launchCheckTimeout);
       subscription.remove();
     };
   }, [runUpdateCheck]);

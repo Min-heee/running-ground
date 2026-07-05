@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { buildWeeklyHourlySlots } from '@/features/runs/utils/matchScheduling';
+import { getWeeklyHourlySlotsForNow } from '@/features/runs/utils/matchScheduling';
 import {
   applySharedServerClock,
   getSharedServerClockOffsetMs,
@@ -9,9 +9,10 @@ import {
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
 
 export function useMatchQueueActions() {
-  const initialMatchSlotOptions = buildWeeklyHourlySlots();
-  const initialMatchSlot = initialMatchSlotOptions.find((slot) => !slot.isClosed) ?? initialMatchSlotOptions[0] ?? null;
-  const weeklyMatchSlotOptions = buildWeeklyHourlySlots();
+  // Built once (hour-keyed module cache) and shared for both the default-slot pick
+  // and the picker list, instead of two full 8-day×24-hour rebuilds per render.
+  const weeklyMatchSlotOptions = getWeeklyHourlySlotsForNow();
+  const initialMatchSlot = weeklyMatchSlotOptions.find((slot) => !slot.isClosed) ?? weeklyMatchSlotOptions[0] ?? null;
   const serverClockOffsetMsRef = useRef(getSharedServerClockOffsetMs());
 
   const [upcomingMatches, setUpcomingMatches] = useState<UpcomingRunningMatchItem[]>([]);

@@ -1,25 +1,31 @@
 import type {
+  PhoneVerificationPurpose,
   RequestPhoneVerificationCodeResponse,
   VerifyPhoneVerificationCodeResponse,
 } from '@/lib/api/types';
 
-let mockPhoneVerificationSession: {
+// One in-flight mock challenge per purpose, so a signup request never clobbers an
+// in-progress reset challenge (or vice versa) when both mock flows are exercised.
+type MockPhoneVerificationSession = {
   requestId: string;
   phone: string;
   code: string;
   verifiedToken: string | null;
-} | null = null;
+};
+
+const mockPhoneVerificationSessions: Partial<Record<PhoneVerificationPurpose, MockPhoneVerificationSession>> = {};
 
 function maskPhone(phone: string) {
   return `${phone.slice(0, 3)}-****-${phone.slice(-4)}`;
 }
 
-export function createMockSignupPhoneVerification(
+function createMockPhoneVerification(
+  purpose: PhoneVerificationPurpose,
   normalizedPhone: string,
 ): RequestPhoneVerificationCodeResponse {
-  const requestId = `mock-phone-${Date.now()}`;
+  const requestId = `mock-phone-${purpose}-${Date.now()}`;
   const testCode = '123456';
-  mockPhoneVerificationSession = {
+  mockPhoneVerificationSessions[purpose] = {
     requestId,
     phone: normalizedPhone,
     code: testCode,
@@ -28,7 +34,7 @@ export function createMockSignupPhoneVerification(
 
   return {
     success: true,
-    purpose: 'signup',
+    purpose,
     requestId,
     maskedPhone: maskPhone(normalizedPhone),
     expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
@@ -38,28 +44,57 @@ export function createMockSignupPhoneVerification(
   };
 }
 
-export function verifyMockSignupPhoneCode(
+function verifyMockPhoneCode(
+  purpose: PhoneVerificationPurpose,
   normalizedRequestId: string,
   normalizedCode: string,
 ): VerifyPhoneVerificationCodeResponse {
-  if (!mockPhoneVerificationSession || mockPhoneVerificationSession.requestId !== normalizedRequestId) {
+  const session = mockPhoneVerificationSessions[purpose];
+
+  if (!session || session.requestId !== normalizedRequestId) {
     throw new Error('인증 요청이 만료됐어요. 다시 요청해주세요.');
   }
 
-  if (mockPhoneVerificationSession.code !== normalizedCode) {
+  if (session.code !== normalizedCode) {
     throw new Error('인증번호가 맞지 않아요.');
   }
 
-  const verifiedToken = `mock-phone-token-${Date.now()}`;
-  mockPhoneVerificationSession.verifiedToken = verifiedToken;
+  const verifiedToken = `mock-phone-token-${purpose}-${Date.now()}`;
+  session.verifiedToken = verifiedToken;
 
   return {
     success: true,
-    purpose: 'signup',
-    phone: mockPhoneVerificationSession.phone,
-    maskedPhone: maskPhone(mockPhoneVerificationSession.phone),
+    purpose,
+    phone: session.phone,
+    maskedPhone: maskPhone(session.phone),
     verifiedAt: new Date().toISOString(),
     registrationExpiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
     verifiedToken,
   };
+}
+
+export function createMockSignupPhoneVerification(
+  normalizedPhone: string,
+): RequestPhoneVerificationCodeResponse {
+  return createMockPhoneVerification('signup', normalizedPhone);
+}
+
+export function verifyMockSignupPhoneCode(
+  normalizedRequestId: string,
+  normalizedCode: string,
+): VerifyPhoneVerificationCodeResponse {
+  return verifyMockPhoneCode('signup', normalizedRequestId, normalizedCode);
+}
+
+export function createMockResetPhoneVerification(
+  normalizedPhone: string,
+): RequestPhoneVerificationCodeResponse {
+  return createMockPhoneVerification('reset', normalizedPhone);
+}
+
+export function verifyMockResetPhoneCode(
+  normalizedRequestId: string,
+  normalizedCode: string,
+): VerifyPhoneVerificationCodeResponse {
+  return verifyMockPhoneCode('reset', normalizedRequestId, normalizedCode);
 }

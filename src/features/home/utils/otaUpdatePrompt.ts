@@ -7,8 +7,10 @@
 // active. A missed prompt is fine — a mid-run reload is a catastrophe — so every
 // predicate here fails CLOSED (returns "don't act") on any ambiguous input.
 
-// Foreground update checks are throttled to at most once per 15 minutes.
-export const OTA_UPDATE_CHECK_THROTTLE_MS = 15 * 60 * 1000;
+// Foreground update checks are throttled to at most once per 60 minutes. Raised
+// from 15m: a published OTA is not urgent, and the check + bundle fetch competes for
+// the JS thread / network, so we sample it far less often.
+export const OTA_UPDATE_CHECK_THROTTLE_MS = 60 * 60 * 1000;
 
 export type OtaUpdateCheckGateInput = {
   // __DEV__ — expo-updates throws in dev, so checks are skipped entirely.

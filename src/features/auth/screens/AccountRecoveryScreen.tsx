@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
@@ -8,7 +8,9 @@ import {
   findUsernameByIdentity,
   getPasswordValidationError,
   normalizeUsername,
+  requestResetPhoneVerification,
   resetPasswordByIdentity,
+  verifyResetPhoneCode,
 } from '@/lib/session';
 import { getApiErrorMessage } from '@/services';
 import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
@@ -58,10 +60,139 @@ export default function AccountRecoveryScreen() {
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
 
+  // Reset-password phone verification (P0-1): the backend requires a verified
+  // 'reset' phone token, so the form must send an OTP-verified token before it can
+  // change the password. Mirrors the signup phone-verify UX.
+  const [resetPhoneRequestId, setResetPhoneRequestId] = useState('');
+  const [resetPhoneCode, setResetPhoneCode] = useState('');
+  const [resetPhoneToken, setResetPhoneToken] = useState('');
+  const [isResetPhoneVerified, setIsResetPhoneVerified] = useState(false);
+  const [isRequestingResetCode, setIsRequestingResetCode] = useState(false);
+  const [isVerifyingResetCode, setIsVerifyingResetCode] = useState(false);
+  const [resetPhoneError, setResetPhoneError] = useState<string | null>(null);
+  const [resetResendCooldown, setResetResendCooldown] = useState(0);
+  const resetCooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const passwordError = resetPassword ? getPasswordValidationError(resetPassword) : null;
   const passwordConfirmError = resetPasswordConfirm && resetPassword !== resetPasswordConfirm
     ? '비밀번호 확인이 일치하지 않아요.'
     : null;
+
+  const resetPhoneDigits = resetPhone.replace(/\D/g, '');
+  const resetPhoneValid = resetPhoneDigits.length >= 10;
+
+  useEffect(() => () => {
+    if (resetCooldownTimerRef.current) {
+      clearInterval(resetCooldownTimerRef.current);
+    }
+  }, []);
+
+  const startResetResendCooldown = useCallback((resendAvailableAt?: string) => {
+    if (resetCooldownTimerRef.current) {
+      clearInterval(resetCooldownTimerRef.current);
+    }
+
+    const parsedResendMs = resendAvailableAt ? new Date(resendAvailableAt).getTime() : Number.NaN;
+    const initialSeconds = Number.isFinite(parsedResendMs)
+      ? Math.max(0, Math.ceil((parsedResendMs - Date.now()) / 1000))
+      : 60;
+
+    setResetResendCooldown(initialSeconds);
+
+    if (initialSeconds <= 0) {
+      return;
+    }
+
+    resetCooldownTimerRef.current = setInterval(() => {
+      setResetResendCooldown((current) => {
+        if (current <= 1) {
+          if (resetCooldownTimerRef.current) {
+            clearInterval(resetCooldownTimerRef.current);
+            resetCooldownTimerRef.current = null;
+          }
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+  }, []);
+
+  // Any change to the reset phone number invalidates a prior verification — the
+  // token is bound to the number that was verified.
+  const clearResetPhoneVerification = useCallback(() => {
+    if (resetCooldownTimerRef.current) {
+      clearInterval(resetCooldownTimerRef.current);
+      resetCooldownTimerRef.current = null;
+    }
+    setResetPhoneRequestId('');
+    setResetPhoneCode('');
+    setResetPhoneToken('');
+    setIsResetPhoneVerified(false);
+    setResetPhoneError(null);
+    setResetResendCooldown(0);
+  }, []);
+
+  const handleResetPhoneChange = (nextValue: string) => {
+    const formattedPhone = formatPhoneInput(nextValue);
+    setResetPhone((currentPhone) => {
+      if (formattedPhone !== currentPhone) {
+        clearResetPhoneVerification();
+      }
+      return formattedPhone;
+    });
+  };
+
+  const handleRequestResetCode = async () => {
+    if (!resetPhoneValid || isRequestingResetCode || resetResendCooldown > 0) {
+      return;
+    }
+
+    setResetPhoneError(null);
+    setIsRequestingResetCode(true);
+
+    try {
+      const result = await requestResetPhoneVerification(resetPhone);
+      setResetPhoneRequestId(result.requestId);
+      setResetPhoneCode('');
+      setResetPhoneToken('');
+      setIsResetPhoneVerified(false);
+      startResetResendCooldown(result.resendAvailableAt);
+    } catch (requestError) {
+      setResetPhoneError(getApiErrorMessage(requestError, '인증번호 발송에 실패했어요.'));
+    } finally {
+      setIsRequestingResetCode(false);
+    }
+  };
+
+  const handleResetPhoneCodeChange = (nextValue: string) => {
+    setResetPhoneCode(nextValue.replace(/\D/g, '').slice(0, 6));
+    setResetPhoneError(null);
+  };
+
+  const handleVerifyResetCode = async () => {
+    if (!resetPhoneRequestId || resetPhoneCode.length !== 6 || isVerifyingResetCode) {
+      return;
+    }
+
+    setResetPhoneError(null);
+    setIsVerifyingResetCode(true);
+
+    try {
+      const result = await verifyResetPhoneCode(resetPhoneRequestId, resetPhoneCode);
+      setResetPhoneToken(result.verifiedToken);
+      setIsResetPhoneVerified(true);
+
+      if (resetCooldownTimerRef.current) {
+        clearInterval(resetCooldownTimerRef.current);
+        resetCooldownTimerRef.current = null;
+      }
+      setResetResendCooldown(0);
+    } catch (verifyError) {
+      setResetPhoneError(getApiErrorMessage(verifyError, '인증번호 확인에 실패했어요.'));
+    } finally {
+      setIsVerifyingResetCode(false);
+    }
+  };
 
   const handleFindUsername = async () => {
     setFindMessage(null);
@@ -78,6 +209,9 @@ export default function AccountRecoveryScreen() {
       setFindMessage(`${result.maskedPhone} 정보로 가입된 아이디를 찾았어요.`);
       setResetUsername(result.username);
       setResetName(findName.trim());
+      // Prefilling the reset phone can change the number a prior OTP was bound to,
+      // so drop any existing reset verification to force a fresh one.
+      clearResetPhoneVerification();
       setResetPhone(findPhone);
       setResetBirthDate(findBirthDate);
     } catch (error) {
@@ -89,6 +223,11 @@ export default function AccountRecoveryScreen() {
 
   const handleResetPassword = async () => {
     setResetMessage(null);
+
+    if (!isResetPhoneVerified || !resetPhoneToken) {
+      setResetMessage('휴대폰 인증을 먼저 완료해주세요.');
+      return;
+    }
 
     if (passwordError) {
       setResetMessage(passwordError);
@@ -109,6 +248,7 @@ export default function AccountRecoveryScreen() {
         phone: resetPhone,
         birthDate: resetBirthDate,
         newPassword: resetPassword,
+        phoneVerificationToken: resetPhoneToken,
       });
       setResetMessage(result.message);
       setResetPassword('');
@@ -169,10 +309,72 @@ export default function AccountRecoveryScreen() {
           <Field
             label="휴대폰 번호"
             value={resetPhone}
-            onChangeText={(nextValue) => setResetPhone(formatPhoneInput(nextValue))}
+            onChangeText={handleResetPhoneChange}
             placeholder="010-0000-0000"
             keyboardType="phone-pad"
           />
+
+          {isResetPhoneVerified ? (
+            <View style={styles.verifiedRow}>
+              <Text style={styles.verifiedText}>휴대폰 인증 완료</Text>
+            </View>
+          ) : (
+            <View style={styles.otpBlock}>
+              <Pressable
+                style={[
+                  styles.secondaryButton,
+                  (!resetPhoneValid || isRequestingResetCode || resetResendCooldown > 0) ? styles.disabledButton : null,
+                ]}
+                onPress={handleRequestResetCode}
+                disabled={!resetPhoneValid || isRequestingResetCode || resetResendCooldown > 0}
+              >
+                {isRequestingResetCode ? (
+                  <ActivityIndicator color={colors.brand} />
+                ) : (
+                  <Text style={styles.secondaryButtonText}>
+                    {resetResendCooldown > 0
+                      ? `인증번호 다시 받기 (${resetResendCooldown}초)`
+                      : resetPhoneRequestId
+                        ? '인증번호 다시 받기'
+                        : '인증번호 받기'}
+                  </Text>
+                )}
+              </Pressable>
+
+              {resetPhoneRequestId ? (
+                <>
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.label}>인증번호</Text>
+                    <TextInput
+                      placeholder="문자로 받은 6자리"
+                      placeholderTextColor={colors.textTertiary}
+                      style={styles.input}
+                      keyboardType="number-pad"
+                      value={resetPhoneCode}
+                      onChangeText={handleResetPhoneCodeChange}
+                      maxLength={6}
+                    />
+                  </View>
+                  <Pressable
+                    style={[
+                      styles.secondaryButton,
+                      (resetPhoneCode.length !== 6 || isVerifyingResetCode) ? styles.disabledButton : null,
+                    ]}
+                    onPress={handleVerifyResetCode}
+                    disabled={resetPhoneCode.length !== 6 || isVerifyingResetCode}
+                  >
+                    {isVerifyingResetCode ? (
+                      <ActivityIndicator color={colors.brand} />
+                    ) : (
+                      <Text style={styles.secondaryButtonText}>인증 확인</Text>
+                    )}
+                  </Pressable>
+                </>
+              ) : null}
+            </View>
+          )}
+          {resetPhoneError ? <Text style={styles.errorText}>{resetPhoneError}</Text> : null}
+
           <Field
             label="생년월일"
             value={resetBirthDate}
@@ -200,9 +402,16 @@ export default function AccountRecoveryScreen() {
           />
           {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
           {passwordConfirmError ? <Text style={styles.errorText}>{passwordConfirmError}</Text> : null}
-          <Pressable style={[styles.primaryButton, resetting ? styles.disabledButton : null]} onPress={handleResetPassword} disabled={resetting}>
+          <Pressable
+            style={[styles.primaryButton, (resetting || !isResetPhoneVerified) ? styles.disabledButton : null]}
+            onPress={handleResetPassword}
+            disabled={resetting || !isResetPhoneVerified}
+          >
             {resetting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>비밀번호 바꾸기</Text>}
           </Pressable>
+          {!isResetPhoneVerified ? (
+            <Text style={styles.helperText}>휴대폰 인증을 완료하면 비밀번호를 바꿀 수 있어요.</Text>
+          ) : null}
           {resetMessage ? <Text style={styles.helperText}>{resetMessage}</Text> : null}
         </View>
       </Card>
@@ -280,6 +489,30 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: fontWeights.extraBold,
     fontSize: fontSizes.rank,
+  },
+  secondaryButton: {
+    backgroundColor: colors.surfaceSubtleAlt,
+    borderWidth: 1,
+    borderColor: colors.brandLighter,
+    borderRadius: radii.md,
+    paddingVertical: spacing.s12,
+    alignItems: 'center',
+  },
+  secondaryButtonText: {
+    color: colors.brand,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.base,
+  },
+  otpBlock: {
+    gap: spacing.s12,
+  },
+  verifiedRow: {
+    paddingVertical: spacing.s10,
+  },
+  verifiedText: {
+    color: colors.successText,
+    fontWeight: fontWeights.extraBold,
+    fontSize: fontSizes.base,
   },
   disabledButton: {
     opacity: 0.7,

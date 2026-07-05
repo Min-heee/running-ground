@@ -6,6 +6,7 @@ import {
   createBackendSession,
   fetchBackendProfile,
 } from '@/lib/session/backendSession';
+import { isSessionInvalidatingError } from '@/lib/session/sessionRevalidation';
 import { readStoredSession } from '@/lib/session/snapshot';
 import {
   clearStoredSessionValue,
@@ -67,6 +68,32 @@ export async function ensureHydrated() {
   }
 }
 
+// Revalidate the persisted token against the backend WITHOUT blocking first paint.
+// Refreshes the cached profile on success; only a genuine 401 (dead session token)
+// clears the session — a transient network failure / 5xx / offline is swallowed so
+// a cold start without connectivity never signs the user out.
+async function revalidateBackendSession(accessToken: string) {
+  try {
+    const freshProfile = await fetchBackendProfile(accessToken);
+    // Guard against a sign-out/token-swap that happened while this was in flight.
+    if (backendAccessToken !== accessToken) {
+      return;
+    }
+    backendProfile = freshProfile;
+    await persistSession();
+  } catch (error) {
+    if (backendAccessToken !== accessToken) {
+      return;
+    }
+    if (isSessionInvalidatingError(error)) {
+      backendAccessToken = null;
+      backendProfile = null;
+      await persistSession();
+    }
+    // Otherwise keep the session as-is — the cached profile stays valid.
+  }
+}
+
 export async function hydrateSession() {
   const storedSession = readStoredSession(await getStoredSessionValue());
 
@@ -85,16 +112,30 @@ export async function hydrateSession() {
     return false;
   }
 
+  hydrated = true;
+
+  if (backendProfile) {
+    // Fast path: we already have a persisted profile snapshot, so surface the
+    // session IMMEDIATELY and revalidate in the background (fire-and-forget). This
+    // keeps the cold-start auth gate off the network round-trip.
+    void revalidateBackendSession(backendAccessToken);
+    return true;
+  }
+
+  // No cached profile (older persisted session): we must fetch one before we can
+  // report a usable session, so this path still awaits — but a transient failure
+  // keeps the token (only a real 401 clears it).
   try {
     backendProfile = await fetchBackendProfile(backendAccessToken);
     await persistSession();
-  } catch {
-    backendAccessToken = null;
-    backendProfile = null;
-    await persistSession();
+  } catch (error) {
+    if (isSessionInvalidatingError(error)) {
+      backendAccessToken = null;
+      backendProfile = null;
+      await persistSession();
+    }
   }
 
-  hydrated = true;
   return Boolean(backendAccessToken);
 }
 

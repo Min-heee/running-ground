@@ -192,7 +192,14 @@ export function useRoomInviteActions({
 
     try {
       await Share.share({
-        message: `${room.mode === 'duel' ? '1대1 대결' : '그룹 대결'} 방에 같이 들어와요.\n초대 코드: ${room.inviteToken}\n링크: ${room.inviteLink}`,
+        message: [
+          `${room.mode === 'duel' ? '1대1 대결' : '그룹 대결'} 방에 같이 들어와요.`,
+          `초대 코드: ${room.inviteToken}`,
+          `링크: ${room.inviteLink}`,
+          // A recipient without the app can't open the runningground:// link, so tell
+          // them what to install. (Universal store links are a post-launch follow-up.)
+          '앱이 없다면 "러닝그라운드(RunningGround)"를 설치한 뒤 초대 코드로 입장하면 돼요.',
+        ].join('\n'),
       });
     } catch {
       Alert.alert('공유 실패', '지금은 친구 초대를 열지 못했어.');

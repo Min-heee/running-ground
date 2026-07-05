@@ -23,9 +23,13 @@ export type UsernameAvailabilityResponse = {
   message: string;
 };
 
+// Phone verification is shared by signup and password reset; the backend keys the
+// challenge on this purpose and only accepts a token issued for the matching flow.
+export type PhoneVerificationPurpose = 'signup' | 'reset';
+
 export type RequestPhoneVerificationCodeResponse = {
   success: boolean;
-  purpose: 'signup';
+  purpose: PhoneVerificationPurpose;
   requestId: string;
   maskedPhone: string;
   expiresAt: string;
@@ -36,7 +40,7 @@ export type RequestPhoneVerificationCodeResponse = {
 
 export type VerifyPhoneVerificationCodeResponse = {
   success: boolean;
-  purpose: 'signup';
+  purpose: PhoneVerificationPurpose;
   phone: string;
   maskedPhone: string;
   verifiedAt: string;

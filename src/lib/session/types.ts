@@ -32,6 +32,9 @@ export type ResetPasswordInput = {
   phone: string;
   birthDate: string;
   newPassword: string;
+  // Verified 'reset' phone-challenge token. The backend requires it, so the reset
+  // POST is rejected client-side (before the network) when it is missing.
+  phoneVerificationToken?: string;
 };
 
 export type SessionSnapshot = {

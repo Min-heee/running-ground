@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fontSizes, fontWeights, radii, spacing } from '@/theme/tokens';
+import { isSocialLoginEnabled } from '@/config/featureFlags';
 import type { SocialProvider } from '@/features/auth/hooks/useSocialLogin';
 
 type SocialLoginButtonsProps = {
@@ -17,6 +18,14 @@ const PROVIDER_BUTTONS: { provider: SocialProvider; label: string; background: s
 ];
 
 export function SocialLoginButtons({ busyProvider, onPress, disabled }: SocialLoginButtonsProps) {
+  // P0-3: while social login is gated off, render NOTHING — no divider dangling,
+  // no buttons — so a store reviewer can't tap a provider whose backend keys are
+  // unset (App Store Review 2.1 rejection vector). The component stays intact for
+  // a later flip of SOCIAL_LOGIN_ENABLED.
+  if (!isSocialLoginEnabled()) {
+    return null;
+  }
+
   const locked = disabled || busyProvider !== null;
 
   return (

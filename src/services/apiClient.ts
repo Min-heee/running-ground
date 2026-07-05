@@ -1,7 +1,14 @@
 import { Platform } from 'react-native';
 import { ApiError, type ApiErrorKind } from './apiError';
+import { DEFAULT_API_TIMEOUT_MS } from './apiTimeouts';
 export { ApiError, getApiErrorMessage, isApiError } from './apiError';
 export type { ApiErrorKind } from './apiError';
+// Re-exported so existing import sites keep importing timeout constants from here.
+export {
+  DEFAULT_API_TIMEOUT_MS,
+  LIVE_MATCH_REQUEST_TIMEOUT_MS,
+  TRACKED_RUN_SAVE_TIMEOUT_MS,
+} from './apiTimeouts';
 
 type ApiRequestOptions = {
   accessToken?: string | null;
@@ -14,11 +21,6 @@ type ApiRequestOptions = {
   // freezing progress for the full default timeout.
   timeoutMs?: number;
 };
-
-// Tight timeout for high-frequency, retried live-match requests. Well above a healthy
-// backend's sub-second latency, far below the default so a network/backend stall can't
-// freeze live progress for ~10s.
-export const LIVE_MATCH_REQUEST_TIMEOUT_MS = 5000;
 
 type ApiHealthResponse = {
   status?: string;
@@ -62,7 +64,7 @@ const expoPublicUseMockApi = process.env.EXPO_PUBLIC_USE_MOCK_API;
 
 export const API_CONFIG = {
   baseUrl: normalizeBaseUrl(expoPublicApiBaseUrl),
-  timeoutMs: readNumberEnv(expoPublicApiTimeoutMs, 10000),
+  timeoutMs: readNumberEnv(expoPublicApiTimeoutMs, DEFAULT_API_TIMEOUT_MS),
 };
 
 export const USE_MOCK_API = readBooleanEnv(expoPublicUseMockApi, false);

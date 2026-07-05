@@ -125,6 +125,35 @@ export function buildWeeklyHourlySlots(referenceDate = new Date()): MatchSlotOpt
     .filter((slot) => new Date(slot.startsAt).getTime() <= maxSelectableAtMs);
 }
 
+// Hour-keyed cache for the reservation-picker slot list. buildWeeklyHourlySlots
+// walks 8 days × 24 hours (formatting each label + closed check) on every call, and
+// the queue hook builds it twice per render, so the raw cost showed up in match-tab
+// jank. The list only meaningfully changes across hour boundaries (labels are fixed;
+// isClosed / the max-window filter move by the hour), so we memoize by the current
+// hour bucket and hand back the SAME array reference within that hour. This feeds the
+// picker only — the countdown funnel derives its timing elsewhere and is untouched.
+const MS_PER_HOUR = 3_600_000;
+
+let cachedSlotHourKey: number | null = null;
+let cachedWeeklyHourlySlots: MatchSlotOption[] | null = null;
+
+export function getWeeklyHourlySlotsForNow(): MatchSlotOption[] {
+  const hourKey = Math.floor(Date.now() / MS_PER_HOUR);
+
+  if (cachedWeeklyHourlySlots === null || cachedSlotHourKey !== hourKey) {
+    cachedSlotHourKey = hourKey;
+    cachedWeeklyHourlySlots = buildWeeklyHourlySlots();
+  }
+
+  return cachedWeeklyHourlySlots;
+}
+
+// Test-only escape hatch for the module-level hour cache.
+export function resetWeeklyHourlySlotsCacheForTest() {
+  cachedSlotHourKey = null;
+  cachedWeeklyHourlySlots = null;
+}
+
 export function buildMatchDateOptions(slotOptions: MatchSlotOption[]): MatchDateOption[] {
   const seen = new Set<string>();
   return slotOptions.filter((slot) => {

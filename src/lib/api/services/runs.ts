@@ -9,6 +9,7 @@ import {
   apiPatch,
   apiPost,
   LIVE_MATCH_REQUEST_TIMEOUT_MS,
+  TRACKED_RUN_SAVE_TIMEOUT_MS,
 } from '../client';
 
 import { USE_MOCK_API } from '../config';
@@ -140,6 +141,9 @@ export async function createTrackedRun(input: CreateTrackedRunInput): Promise<Cr
     {
       accessToken: await requireAccessToken(),
       fallbackMessage: '실시간 러닝 기록 저장에 실패했어.',
+      // Full GPS route upload → allow a slow 1vCPU write to finish once instead of
+      // aborting at 10s and re-sending the whole payload on retry.
+      timeoutMs: TRACKED_RUN_SAVE_TIMEOUT_MS,
     },
   );
 
