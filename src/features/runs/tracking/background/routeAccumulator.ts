@@ -1,11 +1,14 @@
 import * as Location from 'expo-location';
-import { calculateDistanceBetweenPoints, formatPaceFromSecondsPerKm } from '@/features/runs/tracking';
+import {
+  calculateDistanceBetweenPoints,
+  calculateElevationGainM,
+  formatPaceFromSecondsPerKm,
+} from '@/features/runs/tracking';
 import type { RunRoutePoint } from '@/domain';
 import {
   buildFallbackPaceSecondsPerKm,
   buildRoutePoint,
   buildStableColdStartRouteCandidate,
-  calculateElevationGainForSegment,
   calculateRouteWindowDistanceMeters,
   clamp,
   CURRENT_PACE_MIN_DISTANCE_METERS,
@@ -168,15 +171,6 @@ function buildSmoothedCurrentPace(
   return formatSmoothedPaceCandidate(secondsPerKm, referenceTimestampMs);
 }
 
-function calculateRouteElevationGainMeters(route: RunRoutePoint[]) {
-  let elevationGainMeters = 0;
-  for (let index = 1; index < route.length; index += 1) {
-    elevationGainMeters += calculateElevationGainForSegment(route[index - 1], route[index]);
-  }
-
-  return elevationGainMeters;
-}
-
 export function appendTrackedLocation(location: Location.LocationObject) {
   const snapshotState = getSnapshotState();
 
@@ -228,7 +222,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
     // cluster centroid/last fix; distance accumulates only AFTER it from the last counted point, so
     // ~30-60m of warmup jitter (the start spike that made two phones diverge) is never counted.
     accumulatedDistanceMeters = 0;
-    accumulatedElevationGainMeters = calculateRouteElevationGainMeters(stableRoute);
+    accumulatedElevationGainMeters = calculateElevationGainM(stableRoute);
     lastCountedPoint = stableRoute[stableRoute.length - 1] ?? null;
     coldStartFixBuffer = [];
 
@@ -249,7 +243,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
   if (excursionAnchorIndex !== null) {
     const nextRoute = [...snapshotState.route.slice(0, excursionAnchorIndex + 1), nextPoint];
     accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute);
-    accumulatedElevationGainMeters = calculateRouteElevationGainMeters(nextRoute);
+    accumulatedElevationGainMeters = calculateElevationGainM(nextRoute);
     lastCountedPoint = nextRoute[nextRoute.length - 1] ?? null;
 
     commitSnapshot({
@@ -321,7 +315,7 @@ export function appendTrackedLocation(location: Location.LocationObject) {
     const nextRoute = [...snapshotState.route.slice(0, jitterAnchorIndex + 1), nextPoint];
     accumulatedDistanceMeters = calculateRouteWindowDistanceMeters(nextRoute);
     rgDiagLog(`[RG dist] COLLAPSE jitter seg=${segmentDistanceMeters.toFixed(1)} total=${(accumulatedDistanceMeters / 1000).toFixed(3)}`);
-    accumulatedElevationGainMeters = calculateRouteElevationGainMeters(nextRoute);
+    accumulatedElevationGainMeters = calculateElevationGainM(nextRoute);
     lastCountedPoint = nextRoute[nextRoute.length - 1] ?? null;
 
     commitSnapshot({
@@ -361,7 +355,10 @@ export function appendTrackedLocation(location: Location.LocationObject) {
   rgDiagLog(`[RG dist] ADD seg=${segmentDistanceMeters.toFixed(1)} distFromCounted=${distanceFromCountedMeters.toFixed(1)} gate=${distanceGateMeters.toFixed(1)} acc=${accuracyM ?? -1} dt=${timeDelta} spd=${segmentSpeedMps.toFixed(2)} total=${(nextAccumulatedDistanceMeters / 1000).toFixed(3)}`);
 
   accumulatedDistanceMeters = nextAccumulatedDistanceMeters;
-  accumulatedElevationGainMeters += calculateElevationGainForSegment(previousPoint, nextPoint);
+  // Elevation gain is ALWAYS a full-route recompute through the single shared reducer — the
+  // incremental += is deleted so the incremental and recompute paths can never diverge (the EMA +
+  // deadband are stateful over the whole series and cannot be reproduced by a per-segment add).
+  accumulatedElevationGainMeters = calculateElevationGainM(nextRoute);
   commitSnapshot({
     ...snapshotState,
     route: nextRoute,

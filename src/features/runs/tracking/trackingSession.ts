@@ -144,10 +144,21 @@ export function buildRouteFromOfficialStart(snapshot: BackgroundRunTrackingSnaps
 }
 
 export function buildRoutePoint(location: Location.LocationObject): RunRoutePoint {
+  // Vertical accuracy feeds the elevation-gain accuracy gate; omit the key when the device does not
+  // report a usable (non-negative, finite) value so the reducer's route-level accuracy detection is
+  // not fooled into gating iOS / old routes that never carry it.
+  const rawAltitudeAccuracy = location.coords.altitudeAccuracy;
+  const altitudeAccuracyM = typeof rawAltitudeAccuracy === 'number'
+    && Number.isFinite(rawAltitudeAccuracy)
+    && rawAltitudeAccuracy >= 0
+    ? Number(rawAltitudeAccuracy.toFixed(1))
+    : null;
+
   return {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
     altitude: typeof location.coords.altitude === 'number' ? Number(location.coords.altitude.toFixed(1)) : null,
+    ...(altitudeAccuracyM !== null ? { altitudeAccuracyM } : {}),
     timestamp: new Date(location.timestamp).toISOString(),
   };
 }

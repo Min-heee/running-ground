@@ -4,6 +4,7 @@ import type * as Location from 'expo-location';
 import {
   appendTrackedLocation,
   getAccumulatedDistanceMeters,
+  getAccumulatedElevationGainMeters,
   resetRouteAccumulator,
 } from '@/features/runs/tracking/background/routeAccumulator';
 import {
@@ -363,6 +364,58 @@ test('route accumulator does not materially under-count a straight 5km track und
     assert.ok(
       measuredMeters <= realDistanceMeters * 1.01,
       `5km track over-counted: measured ${measuredMeters.toFixed(0)}m vs real ${realDistanceMeters}m`,
+    );
+  } finally {
+    Date.now = realDateNow;
+  }
+});
+
+// ELEVATION NOISE SUPPRESSION through the accumulator's live commit path — a straight run whose GPS
+// ALTITUDE oscillates +/-15m every fix (the Android sawtooth that fabricated hundreds of meters)
+// must accumulate ~0 elevation gain now that the commit path recomputes through the shared EMA +
+// deadband reducer instead of summing per-sample positive deltas.
+test('route accumulator suppresses fabricated elevation from noisy altitude', () => {
+  // The location-freshness gate (MAX_LOCATION_AGE_MS) rejects fixes far from "now", so drive a
+  // mocked clock in lockstep with each fix timestamp (same pattern as the 5km track test).
+  const realDateNow = Date.now;
+  const startMs = realDateNow();
+
+  function noisyAltitudeLocation(metersEast: number, timestampMs: number, altitude: number) {
+    return {
+      coords: {
+        latitude: BASE_LATITUDE,
+        longitude: BASE_LONGITUDE + longitudeOffsetForMeters(metersEast),
+        altitude,
+        accuracy: 8,
+        altitudeAccuracy: 4, // good horizontal+vertical accuracy: the noise is NOT gated, EMA kills it
+        heading: null,
+        speed: 3,
+      },
+      timestamp: timestampMs,
+    } as Location.LocationObject;
+  }
+
+  try {
+    let mockNowMs = startMs;
+    Date.now = () => mockNowMs;
+
+    resetRunningSnapshot(startMs);
+
+    // Warmup cluster anchors at the 3rd fix; then a clean straight eastward run of +12m segments,
+    // each above the distance gate, while altitude sawtooths +/-15m around 100m the entire time.
+    const easts = [0, 4, 8, 20, 32, 44, 56, 68, 80, 92, 104, 116, 128];
+    easts.forEach((metersEast, index) => {
+      mockNowMs = startMs + index * 1_200;
+      const altitude = 100 + (index % 2 === 0 ? 15 : -15);
+      appendTrackedLocation(noisyAltitudeLocation(metersEast, mockNowMs, altitude));
+    });
+
+    // Real horizontal distance was counted (proves the run actually progressed)...
+    assert.ok(getAccumulatedDistanceMeters() > 100);
+    // ...but the +/-15m altitude sawtooth accumulated ~0 elevation gain (was hundreds of m before).
+    assert.ok(
+      getAccumulatedElevationGainMeters() <= 2,
+      `noisy altitude fabricated elevation: ${getAccumulatedElevationGainMeters()}m`,
     );
   } finally {
     Date.now = realDateNow;

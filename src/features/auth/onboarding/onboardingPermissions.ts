@@ -8,11 +8,11 @@
 //   (expo-location plist + Android manifest, expo-notifications POST_NOTIFICATIONS, the
 //   withHealthAccess plugin's HealthKit entitlement + Health Connect manifest perms). Requesting
 //   them is a pure JS runtime call = OTA-safe, no rebuild.
-// - motion/activity (Pedometer): iOS NSMotionUsageDescription is declared (app.config.ts) so iOS
-//   is OTA-safe. ANDROID is NOT: android.permission.ACTIVITY_RECOGNITION is not in the manifest
-//   (expo-sensors' config plugin only injects the iOS usage string). We still fire the request
-//   call (OTA-shippable, just no-ops on Android until the manifest entry lands), and expose
-//   MOTION_ANDROID_NEEDS_NATIVE_BUILD so the UI can be honest about it. See the return notes.
+// - motion/activity (Pedometer): OTA-safe on BOTH platforms. iOS NSMotionUsageDescription is
+//   declared (app.config.ts); ANDROID android.permission.ACTIVITY_RECOGNITION is present in the
+//   merged manifest (expo-sensors ships it in its own module AndroidManifest, and it is also
+//   declared in app.json), so Pedometer.requestPermissionsAsync() shows a real runtime dialog on
+//   Android just like iOS. Motion is therefore a first-class grantable permission on both.
 
 import { Platform } from 'react-native';
 import * as Location from 'expo-location';
@@ -58,12 +58,6 @@ export const ONBOARDING_PERMISSION_CAN_ASK: OnboardingPermissionCanAsk = {
   motion: true,
   health: true,
 };
-
-// ANDROID-ONLY native-build flag. On Android the ACTIVITY_RECOGNITION manifest permission is not
-// declared yet, so Pedometer.requestPermissionsAsync() will not show a dialog there until a native
-// rebuild adds it. The request call below is still shipped (harmless no-op), and the UI uses this
-// to label the row honestly instead of looking broken. iOS is unaffected (usage string declared).
-export const MOTION_ANDROID_NEEDS_NATIVE_BUILD = Platform.OS === 'android';
 
 type PermissionLike = { granted?: boolean; status?: string; canAskAgain?: boolean } | null | undefined;
 
@@ -227,8 +221,10 @@ export async function requestMotion(): Promise<boolean> {
     if (isGranted(current)) {
       return true;
     }
-    // On Android with no ACTIVITY_RECOGNITION manifest entry this resolves without a dialog and
-    // reports not-granted; on iOS (usage string declared) it shows the motion prompt.
+    // Shows a real OS dialog on BOTH platforms: iOS via NSMotionUsageDescription, Android via the
+    // manifest-declared ACTIVITY_RECOGNITION runtime permission. If the user has hard-denied it
+    // before (canAskAgain === false) this no-ops to not-granted and the onboarding UI routes to
+    // Settings via resolvePermissionRowAction — same as every other permission.
     return isGranted(await Pedometer.requestPermissionsAsync());
   } catch {
     return false;

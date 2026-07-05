@@ -78,27 +78,19 @@ export function resolveLocationTimestampMs(location: Location.LocationObject) {
 
 export function buildRoutePoint(location: Location.LocationObject): RunRoutePoint {
   const accuracyM = normalizeAccuracyMeters(location.coords.accuracy);
+  // Vertical accuracy drives the elevation-gain accuracy gate. Reuse the same non-negative-finite
+  // guard as horizontal accuracy; when the device does not report it the key is omitted, so the
+  // elevation reducer's route-level "does this route report accuracy at all" detection stays honest.
+  const altitudeAccuracyM = normalizeAccuracyMeters(location.coords.altitudeAccuracy);
 
   return {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
     altitude: typeof location.coords.altitude === 'number' ? Number(location.coords.altitude.toFixed(1)) : null,
+    ...(altitudeAccuracyM !== null ? { altitudeAccuracyM } : {}),
     ...(accuracyM !== null ? { accuracyM } : {}),
     timestamp: new Date(location.timestamp).toISOString(),
   };
-}
-
-export function calculateElevationGainForSegment(previousPoint: RunRoutePoint | null, nextPoint: RunRoutePoint) {
-  if (!previousPoint) {
-    return 0;
-  }
-
-  if (typeof previousPoint.altitude !== 'number' || typeof nextPoint.altitude !== 'number') {
-    return 0;
-  }
-
-  const altitudeDelta = nextPoint.altitude - previousPoint.altitude;
-  return altitudeDelta > 0.8 ? altitudeDelta : 0;
 }
 
 export function resolveRoutePointTimestampMs(point: RunRoutePoint) {

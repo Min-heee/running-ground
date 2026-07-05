@@ -88,3 +88,16 @@ test('a denied permission can never gate finishing the step', () => {
   assert.equal(action, 'open_settings');
   assert.equal(canAdvanceFromPermissionStep({ ...ALL_DENIED }), true);
 });
+
+test('motion is a first-class grantable permission (no Android native-build special case)', () => {
+  // Android ACTIVITY_RECOGNITION is manifest-declared, so motion follows the SAME grant flow as
+  // every other permission on both platforms: request when askable, Settings once hard-denied,
+  // 허용됨 when granted. There is no longer any motion-specific "needs native build" branch.
+  assert.equal(shouldPromptPermission('motion', ALL_DENIED, ALL_ASKABLE), true);
+  assert.equal(resolvePermissionRowAction({ granted: false, canAsk: true }), 'request');
+  assert.equal(
+    shouldPromptPermission('motion', ALL_DENIED, { ...ALL_ASKABLE, motion: false }),
+    false,
+  );
+  assert.equal(resolvePermissionRowAction({ granted: false, canAsk: false }), 'open_settings');
+});
