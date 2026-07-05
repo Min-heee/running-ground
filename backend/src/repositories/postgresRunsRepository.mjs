@@ -98,6 +98,26 @@ export function createPostgresRunsRepository({
       return runWriteOperation(database, async (client) => {
         const user = await requireUserByToken(client, token, createError);
         const createdAt = nowIso();
+
+        // P1-2 stopgap idempotency: a retried /api/runs/tracked after a timeout must NOT double
+        // count points / weekly distance / records. If a run already exists for the SAME
+        // (userId, startedAt) — exact startedAt ISO string — return its payload instead of
+        // inserting a duplicate. The durable fix is a client-supplied clientRunId (post-launch).
+        //
+        // IMPORTANT: match saves (matchResult present) are EXCLUDED — the duel/group reconcile
+        // flow deliberately re-saves the same (userId, startedAt) to upgrade a PENDING verdict to
+        // the server-resolved outcome once the opponent's run lands. Short-circuiting those would
+        // freeze the result at PENDING. Match points already dedupe by matchId.
+        if (input.startedAt && !input.matchResult) {
+          const existingRuns = await loadRunsForUser(client, user.id);
+          const existingRun = existingRuns.find((entry) => entry.startedAt === input.startedAt);
+
+          if (existingRun) {
+            const existingMetrics = buildUserMetrics(existingRuns);
+            return buildRunDetail(existingRun, existingMetrics.currentWeekDistanceKm, undefined, existingMetrics);
+          }
+        }
+
         // C1/C2: resolve the duel verdict SERVER-side before persisting — the client-claimed
         // resultTone/opponentName are never trusted. Group runs and non-match runs pass through.
         const resolvedMatchResult = input.matchResult

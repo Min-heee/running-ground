@@ -327,6 +327,39 @@ await runTest('creates tracked runs with route metrics', async () => {
   });
 });
 
+await runTest('createTrackedRun is idempotent per (userId, startedAt) — a retry does not double-count', async () => {
+  const { repository, database } = createRepositoryHarness();
+
+  const trackedInput = {
+    date: '2026-04-23',
+    distanceKm: 5,
+    pace: '05:30/km',
+    durationSeconds: 1650,
+    route: [{ latitude: 37.5, longitude: 127.0 }],
+    startedAt: '2026-04-23T11:00:00.000Z',
+    endedAt: '2026-04-23T11:27:30.000Z',
+  };
+
+  const first = await repository.createTrackedRun({ token: 'token-1', input: trackedInput });
+  assert.equal(database.runs.length, 1);
+
+  // A retried submit with the SAME startedAt returns the already-saved run instead of inserting a
+  // second one (no duplicate points / weekly distance / record).
+  const retry = await repository.createTrackedRun({ token: 'token-1', input: trackedInput });
+
+  assert.equal(retry.run.id, first.run.id);
+  assert.equal(database.runs.length, 1);
+
+  // A genuinely different run (distinct startedAt) still inserts.
+  const second = await repository.createTrackedRun({
+    token: 'token-1',
+    input: { ...trackedInput, startedAt: '2026-04-23T13:00:00.000Z', endedAt: '2026-04-23T13:27:30.000Z' },
+  });
+
+  assert.notEqual(second.run.id, first.run.id);
+  assert.equal(database.runs.length, 2);
+});
+
 await runTest('queues integration imports and syncs only new runs', async () => {
   const { repository, database } = createRepositoryHarness();
   const normalizedRuns = [

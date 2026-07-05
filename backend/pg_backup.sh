@@ -120,4 +120,46 @@ find "$BACKUP_DIR" -type f -name "runningground-${POSTGRES_DB}-*.dump.gz" \
 # Clean up any stale .partial files from previously crashed runs.
 find "$BACKUP_DIR" -type f -name "*.dump.gz.partial" -mmin +60 -delete 2>/dev/null || true
 
+# --- Offsite copy (the load-bearing half of disaster recovery) ----------------
+# A backup on the SAME droplet disk as postgres_data dies WITH the droplet. Push
+# every fresh dump to object storage (DigitalOcean Spaces / any S3-compatible) via
+# rclone so a droplet/disk loss is recoverable. Configure a single env var in
+# .env.production:
+#
+#   BACKEND_BACKUP_RCLONE_REMOTE=spaces:<BACKUP_BUCKET>/postgres
+#
+# where `spaces` is an rclone remote (`rclone config`, type=s3, provider=DigitalOcean,
+# endpoint=<region>.digitaloceanspaces.com). Retention on the remote mirrors local.
+#
+# Design: the LOCAL dump already succeeded and is safe before we get here. If offsite
+# is unconfigured we WARN loudly (so it can't silently stay off) but exit 0 — a
+# missing remote must not fail the local backup. If offsite IS configured and the
+# push FAILS, we exit non-zero so cron mail / monitoring flags it, while the local
+# dump remains on disk.
+OFFSITE_REMOTE="${BACKEND_BACKUP_RCLONE_REMOTE:-}"
+
+if [ -z "$OFFSITE_REMOTE" ]; then
+  log "WARN: BACKEND_BACKUP_RCLONE_REMOTE is not set — backup is LOCAL-ONLY on this droplet's disk."
+  log "WARN: a droplet/disk loss would lose all data. Configure an rclone remote to enable offsite copy."
+  log "done (local-only)"
+  exit 0
+fi
+
+if ! command -v rclone >/dev/null 2>&1; then
+  fail "BACKEND_BACKUP_RCLONE_REMOTE is set but 'rclone' is not installed — cannot push offsite. Install rclone or unset the var."
+fi
+
+log "pushing $OUT -> $OFFSITE_REMOTE/$(basename "$OUT")"
+if ! rclone copyto --s3-no-check-bucket "$OUT" "$OFFSITE_REMOTE/$(basename "$OUT")" 2>&1 | sed 's/^/[pg_backup:rclone] /' >&2; then
+  fail "offsite push FAILED — local dump is safe at $OUT, but it is NOT replicated. Investigate rclone/remote now."
+fi
+log "offsite copy OK"
+
+# Prune remote dumps older than retention so the bucket doesn't grow unbounded.
+# min-age uses rclone's duration syntax; a prune failure is non-fatal (today's
+# offsite copy already landed) but is logged.
+if ! rclone delete --min-age "${RETENTION_DAYS}d" "$OFFSITE_REMOTE" 2>&1 | sed 's/^/[pg_backup:rclone] /' >&2; then
+  log "WARN: remote prune reported an error (continuing; today's offsite copy is safe)"
+fi
+
 log "done"

@@ -24,7 +24,7 @@
     "test:market": "node ./src/repositories/marketRepository.test.mjs",
     "test:race": "node ./src/repositories/raceRepository.test.mjs",
     "test:bridges": "node ./src/bridges/sessionRunsBridge.test.mjs && node ./src/bridges/friendsLeagueBridge.test.mjs",
-    "test:db": "node ./src/database/postgresDatabase.test.mjs && node ./src/storage/postgresStoreAdapter.test.mjs",
+    "test:db": "node ./src/database/postgresDatabase.test.mjs && node ./src/storage/postgresStoreAdapter.test.mjs && node ./src/storage/index.test.mjs",
     "test:integration": "node ./src/database/integration/postgresRepositories.integration.test.mjs",
     "test:routes": "node ./src/routes/index.test.mjs && node ./src/routes/legalRoutes.test.mjs",
     "test:contracts": "node ./src/runningMatchContract.test.mjs && node ./src/matchIntegrityContract.test.mjs",

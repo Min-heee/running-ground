@@ -73,12 +73,12 @@ function createRepositoryHarness(initialStore = {}) {
   };
 }
 
-// A store-seedable verified signup phone challenge — register() now requires one for
-// the exact number, matching by verifiedToken, and consumes it on success.
-function verifiedSignupPhoneChallenge(phone, verifiedToken) {
+// A store-seedable verified phone challenge — register() ('signup') and resetPassword() ('reset')
+// each require one for the exact number, matching by verifiedToken, and consume it on success.
+function verifiedPhoneChallenge(purpose, phone, verifiedToken) {
   return {
     id: `req-${verifiedToken}`,
-    purpose: 'signup',
+    purpose,
     phone,
     status: 'verified',
     verifiedToken,
@@ -88,6 +88,14 @@ function verifiedSignupPhoneChallenge(phone, verifiedToken) {
     maxAttempts: 5,
     consumedAt: '',
   };
+}
+
+function verifiedSignupPhoneChallenge(phone, verifiedToken) {
+  return verifiedPhoneChallenge('signup', phone, verifiedToken);
+}
+
+function verifiedResetPhoneChallenge(phone, verifiedToken) {
+  return verifiedPhoneChallenge('reset', phone, verifiedToken);
 }
 
 function assertApiError(error, statusCode, message) {
@@ -352,7 +360,7 @@ await runTest('logs in with a valid password and rejects invalid credentials', a
   assert.equal(store.sessions[0].token, 'token-1');
 });
 
-await runTest('resets password by identity and clears sessions', async () => {
+await runTest('resets password with a verified reset challenge, clears sessions, and consumes the challenge', async () => {
   const { repository, storeHarness } = createRepositoryHarness({
     users: [
       {
@@ -374,6 +382,7 @@ await runTest('resets password by identity and clears sessions', async () => {
         expiresAt: '2026-04-23T01:00:00.000Z',
       },
     ],
+    phoneVerificationChallenges: [verifiedResetPhoneChallenge('01012345678', 'vt-reset-1')],
   });
 
   assert.deepEqual(await repository.resetPassword({
@@ -382,6 +391,7 @@ await runTest('resets password by identity and clears sessions', async () => {
     phone: '01012345678',
     birthDate: '1990-01-01',
     newPassword: 'NewPassword123',
+    phoneVerificationToken: 'vt-reset-1',
   }), {
     success: true,
     username: 'runner',
@@ -391,6 +401,52 @@ await runTest('resets password by identity and clears sessions', async () => {
   const store = storeHarness.getStore();
   assert.equal(store.sessions.length, 0);
   assert.equal(verifyPassword('NewPassword123', store.users[0].passwordHash), true);
+  // The reset challenge is consumed so its token can't be replayed.
+  assert.equal(store.phoneVerificationChallenges[0].status, 'consumed');
+});
+
+await runTest('rejects password reset without a verified reset challenge', async () => {
+  const { repository, storeHarness } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-existing',
+        username: 'runner',
+        password: 'Password123',
+        realName: '민병희',
+        phone: '01012345678',
+        birthDate: '1990-01-01',
+        name: '러너',
+        publicTag: '#RUN01',
+      },
+    ],
+    sessions: [
+      {
+        token: 'token-1',
+        userId: 'user-existing',
+        createdAt: '2026-04-23T00:00:00.000Z',
+        expiresAt: '2026-04-23T01:00:00.000Z',
+      },
+    ],
+    // A verified SIGNUP challenge for the same phone must NOT satisfy a reset (purpose-scoped).
+    phoneVerificationChallenges: [verifiedSignupPhoneChallenge('01012345678', 'vt-wrong-purpose')],
+  });
+
+  await assert.rejects(repository.resetPassword({
+    username: 'runner',
+    realName: '민병희',
+    phone: '01012345678',
+    birthDate: '1990-01-01',
+    newPassword: 'NewPassword123',
+    phoneVerificationToken: 'vt-wrong-purpose',
+  }), (error) => {
+    assertApiError(error, 400, '휴대폰 인증을 먼저 완료해주세요.');
+    return true;
+  });
+
+  const store = storeHarness.getStore();
+  // The password and sessions are untouched when the reset is rejected.
+  assert.equal(store.sessions.length, 1);
+  assert.equal(verifyPassword('Password123', store.users[0].passwordHash ?? store.users[0].password), true);
 });
 
 await runTest('logs out idempotently', async () => {

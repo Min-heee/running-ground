@@ -317,3 +317,36 @@ await runTest('returns latest and specific run details', async () => {
   assert.equal((await repository.getRun({ token: 'token-1' })).run.id, 'run-new');
   assert.equal((await repository.getRun({ token: 'token-1', runId: 'run-old' })).run.id, 'run-old');
 });
+
+await runTest('createTrackedRun is idempotent per (userId, startedAt) — a retry does not double-count', async () => {
+  const { repository, storeHarness } = createRepositoryHarness();
+
+  const trackedInput = {
+    date: '2026-04-24',
+    distanceKm: 5,
+    pace: '05:30/km',
+    durationSeconds: 1650,
+    route: [{ latitude: 37.5, longitude: 127.0 }],
+    startedAt: '2026-04-24T10:00:00.000Z',
+    endedAt: '2026-04-24T10:27:30.000Z',
+  };
+
+  const first = await repository.createTrackedRun({ token: 'token-1', input: trackedInput });
+  assert.equal(storeHarness.getStore().runs.length, 1);
+
+  // A retried submit with the SAME startedAt returns the already-saved run instead of inserting a
+  // second one (no duplicate points / weekly distance / record).
+  const retry = await repository.createTrackedRun({ token: 'token-1', input: trackedInput });
+
+  assert.equal(retry.run.id, first.run.id);
+  assert.equal(storeHarness.getStore().runs.length, 1);
+
+  // A genuinely different run (distinct startedAt) still inserts.
+  const second = await repository.createTrackedRun({
+    token: 'token-1',
+    input: { ...trackedInput, startedAt: '2026-04-24T12:00:00.000Z', endedAt: '2026-04-24T12:27:30.000Z' },
+  });
+
+  assert.notEqual(second.run.id, first.run.id);
+  assert.equal(storeHarness.getStore().runs.length, 2);
+});

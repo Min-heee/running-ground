@@ -253,8 +253,27 @@ export function createJsonAuthRepository({
       });
     },
 
-    async resetPassword({ username, realName, phone, birthDate, newPassword }) {
+    async resetPassword({ username, realName, phone, birthDate, newPassword, phoneVerificationToken }) {
       return mutateStore((store) => {
+        // P0-1: password reset now REQUIRES a still-valid verified 'reset' phone challenge for
+        // this exact number — mirrors register()'s token consumption so a reset can only proceed
+        // after the number's owner passed an OTP. The realName+birthDate+username identity match
+        // below is kept as an ADDITIONAL factor (defense in depth), not the sole gate.
+        const phoneChallenge = (store.phoneVerificationChallenges ?? []).find((entry) => (
+          entry.purpose === 'reset'
+          && entry.status === 'verified'
+          && entry.verifiedToken === phoneVerificationToken
+          && String(entry.phone ?? '').replace(/\D/g, '') === phone
+        ));
+
+        if (
+          !phoneChallenge
+          || !phoneChallenge.registrationExpiresAt
+          || Date.parse(phoneChallenge.registrationExpiresAt) <= Date.now()
+        ) {
+          throw createError(400, '휴대폰 인증을 먼저 완료해주세요.');
+        }
+
         const user = store.users.find((entry) => (
           entry.username === username
           && entry.realName === realName
@@ -268,6 +287,10 @@ export function createJsonAuthRepository({
 
         setUserPassword(user, newPassword);
         store.sessions = (store.sessions ?? []).filter((entry) => entry.userId !== user.id);
+
+        // Consume the verified challenge so its token can't be reused for another reset.
+        phoneChallenge.status = 'consumed';
+        phoneChallenge.consumedAt = new Date().toISOString();
 
         return {
           success: true,

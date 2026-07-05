@@ -138,29 +138,45 @@ async function main() {
     await waitForServer(`${baseUrl}/health`);
     logStep('health endpoint ready');
 
+    // P2-6: /api/health is now a minimal, UNAUTHENTICATED liveness probe — {status:'ok', time}.
+    // It intentionally no longer exposes env/config/store/bridge detail; those infra fields moved
+    // behind the admin surface. Assert only the trimmed public shape here.
     const health = await request('/health');
     assert(health.status === 'ok', 'health 응답 상태가 올바르지 않아.');
-    assert(health.ready === true, 'health 응답 ready 값이 빠졌어.');
-    assert(health.environment === 'development', 'health 응답 환경 값이 예상과 달라.');
-    assert(health.publicBaseUrl === `http://127.0.0.1:${port}`, 'health 응답 공개 주소가 반영되지 않았어.');
-    assert(Array.isArray(health.config.corsOrigins) && health.config.corsOrigins.length === 2, 'health 응답 CORS 목록이 올바르지 않아.');
-    assert(health.config.maxBodySizeKb === 1024, 'health 응답 최대 본문 크기가 예상과 달라.');
-    assert(health.config.requestTimeoutMs === 30000, 'health 응답 요청 타임아웃이 예상과 달라.');
-    assert(health.config.headersTimeoutMs === 10000, 'health 응답 헤더 타임아웃이 예상과 달라.');
-    assert(health.config.keepAliveTimeoutMs === 5000, 'health 응답 keep-alive 타임아웃이 예상과 달라.');
-    assert(health.config.maxRequestsPerSocket === 1000, 'health 응답 소켓당 요청 수 제한이 예상과 달라.');
-    assert(health.config.storeWriteMode === 'atomic', 'health 응답 저장 방식이 원자적 저장으로 내려오지 않았어.');
-    assert(health.config.storeBackupOnSave === true, 'health 응답 자동 백업 설정이 반영되지 않았어.');
-    assert(health.config.storeBackupRetention === 5, 'health 응답 백업 보관 개수가 예상과 달라.');
-    assert(health.config.postgres.enableFriendReads === false, 'health 응답 친구 postgres read 플래그 기본값이 예상과 달라.');
-    assert(health.config.postgres.enableLeagueReads === false, 'health 응답 리그 postgres read 플래그 기본값이 예상과 달라.');
-    assert(health.readBridges.sessionRuns.sessionReadsEnabled === false, 'health 응답 session bridge 상태가 예상과 달라.');
-    assert(health.readBridges.sessionRuns.runReadsEnabled === false, 'health 응답 run bridge 상태가 예상과 달라.');
-    assert(health.readBridges.friendsLeague.friendReadsEnabled === false, 'health 응답 friend bridge 상태가 예상과 달라.');
-    assert(health.readBridges.friendsLeague.leagueReadsEnabled === false, 'health 응답 league bridge 상태가 예상과 달라.');
-    assert(health.store.storeExists === true, 'health 응답 store 진단이 파일 존재를 알려주지 않았어.');
-    assert(health.store.backupCount >= 1, 'health 응답 store 백업 개수가 예상과 달라.');
-    assert(health.store.counts.users === 0, 'health 응답 store 사용자 수가 예상과 달라.');
+    assert(typeof health.time === 'string' && health.time.length > 0, 'health 응답에 time 필드가 없어.');
+    assert(typeof health.environment === 'undefined', 'health 공개 응답이 환경 정보를 노출하면 안 돼.');
+    assert(typeof health.config === 'undefined', 'health 공개 응답이 config 정보를 노출하면 안 돼.');
+    assert(typeof health.store === 'undefined', 'health 공개 응답이 store 진단을 노출하면 안 돼.');
+    assert(typeof health.readBridges === 'undefined', 'health 공개 응답이 read bridge 상태를 노출하면 안 돼.');
+
+    // The rich infra/config/store diagnostics now live behind the authenticated admin surface.
+    // (A later block re-checks admin status/session after users register; here we assert the
+    // FRESH-boot config/store shape that used to be read off /api/health.)
+    const earlyAdminHeaders = { 'x-admin-token': adminToken };
+    const earlyAdminSession = await request('/admin/session', { headers: earlyAdminHeaders });
+    assert(earlyAdminSession.environment === 'development', 'admin session 환경 값이 예상과 달라.');
+    assert(earlyAdminSession.publicBaseUrl === `http://127.0.0.1:${port}`, 'admin session 공개 주소가 반영되지 않았어.');
+
+    const earlyAdminStatus = await request('/admin/status', { headers: earlyAdminHeaders });
+    assert(earlyAdminStatus.status === 'ok', 'admin status 응답 상태가 올바르지 않아.');
+    assert(Array.isArray(earlyAdminStatus.config.corsOrigins) && earlyAdminStatus.config.corsOrigins.length === 2, 'admin status CORS 목록이 올바르지 않아.');
+    assert(earlyAdminStatus.config.maxBodySizeKb === 1024, 'admin status 최대 본문 크기가 예상과 달라.');
+    assert(earlyAdminStatus.config.requestTimeoutMs === 30000, 'admin status 요청 타임아웃이 예상과 달라.');
+    assert(earlyAdminStatus.config.headersTimeoutMs === 10000, 'admin status 헤더 타임아웃이 예상과 달라.');
+    assert(earlyAdminStatus.config.keepAliveTimeoutMs === 5000, 'admin status keep-alive 타임아웃이 예상과 달라.');
+    assert(earlyAdminStatus.config.maxRequestsPerSocket === 1000, 'admin status 소켓당 요청 수 제한이 예상과 달라.');
+    assert(earlyAdminStatus.config.storeWriteMode === 'atomic', 'admin status 저장 방식이 원자적 저장으로 내려오지 않았어.');
+    assert(earlyAdminStatus.config.storeBackupOnSave === true, 'admin status 자동 백업 설정이 반영되지 않았어.');
+    assert(earlyAdminStatus.config.storeBackupRetention === 5, 'admin status 백업 보관 개수가 예상과 달라.');
+    assert(earlyAdminStatus.config.postgres.enableFriendReads === false, 'admin status 친구 postgres read 플래그 기본값이 예상과 달라.');
+    assert(earlyAdminStatus.config.postgres.enableLeagueReads === false, 'admin status 리그 postgres read 플래그 기본값이 예상과 달라.');
+    assert(earlyAdminStatus.readBridges.sessionRuns.sessionReadsEnabled === false, 'admin status session bridge 상태가 예상과 달라.');
+    assert(earlyAdminStatus.readBridges.sessionRuns.runReadsEnabled === false, 'admin status run bridge 상태가 예상과 달라.');
+    assert(earlyAdminStatus.readBridges.friendsLeague.friendReadsEnabled === false, 'admin status friend bridge 상태가 예상과 달라.');
+    assert(earlyAdminStatus.readBridges.friendsLeague.leagueReadsEnabled === false, 'admin status league bridge 상태가 예상과 달라.');
+    assert(earlyAdminStatus.store.storeExists === true, 'admin status store 진단이 파일 존재를 알려주지 않았어.');
+    assert(earlyAdminStatus.store.backupCount >= 1, 'admin status store 백업 개수가 예상과 달라.');
+    assert(earlyAdminStatus.counts.users === 0, 'admin status store 사용자 수가 예상과 달라.');
     assert(listCorruptStoreSnapshots().length >= 1, '손상된 store 스냅샷이 보관되지 않았어.');
 
     const seededStoreContents = readFileSync(storeFile, 'utf8');

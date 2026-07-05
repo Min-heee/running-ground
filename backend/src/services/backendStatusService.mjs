@@ -6,13 +6,14 @@ export function createBackendStatusService({
   ensureMarketCatalogStore,
   ensureNoticeStore,
   ensureOfflineRaceStore,
-  getErrorMessage,
   getFriendsLeagueBridge,
   getPublicBackendConfig,
   getSessionRunsBridge,
   getStoreDiagnostics,
   getStoreFilePath,
-  loadStore,
+  // NOTE: `getErrorMessage` and `loadStore` are intentionally no longer destructured here — the
+  // public /api/health path (buildHealthStatus) is now a cheap liveness probe that neither loads
+  // the store nor surfaces error detail (P2-6). The server may still pass them; they're ignored.
 }) {
   function buildStoreCounts(store) {
     return {
@@ -36,46 +37,21 @@ export function createBackendStatusService({
     };
   }
 
+  // P2-6: /api/health is UNAUTHENTICATED, so keep it minimal and cheap. It is a liveness probe —
+  // the process is up and serving HTTP — and deliberately does NOT parse the whole store (the
+  // postgres driver's loadStore() reads+parses the entire app_store jsonb row) nor leak any
+  // infra/config detail (env, store driver, file paths, bridge config, entity counts). This
+  // preserves the Dockerfile healthcheck contract (it only checks response.ok — 200 {status:'ok'}
+  // passes). Richer, store-backed status stays behind the authenticated admin surface
+  // (buildAdminStatus). Kept async to preserve the routeHealthRequest await contract.
   async function buildHealthStatus() {
-    const basePayload = {
-      environment: APP_ENV,
-      startedAt: STARTED_AT,
-      uptimeSeconds: Math.round(process.uptime()),
-      storeDriver: STORE_DRIVER,
-      storeFile: getStoreFilePath(),
-      publicBaseUrl: PUBLIC_BASE_URL || undefined,
-      config: getPublicBackendConfig(),
-      readBridges: buildReadBridgeConfig(),
-      now: new Date().toISOString(),
+    return {
+      statusCode: 200,
+      payload: {
+        status: 'ok',
+        time: new Date().toISOString(),
+      },
     };
-
-    try {
-      const store = await loadStore();
-
-      return {
-        statusCode: 200,
-        payload: {
-          status: 'ok',
-          ready: true,
-          ...basePayload,
-          store: {
-            ...getStoreDiagnostics(),
-            counts: buildStoreCounts(store),
-          },
-        },
-      };
-    } catch (error) {
-      return {
-        statusCode: 503,
-        payload: {
-          status: 'error',
-          ready: false,
-          ...basePayload,
-          message: getErrorMessage(error),
-          store: getStoreDiagnostics(),
-        },
-      };
-    }
   }
 
   function buildAdminStatus(store) {

@@ -376,6 +376,31 @@ await test('rate limits login attempts per IP with a Korean 429', async () => {
   );
 });
 
+await test('rate limits find-username (an unauthenticated PII oracle) per IP with a Korean 429', async () => {
+  // P1-1: find-username shares the login brute-force guard, keyed by the normalized phone.
+  const routeRequest = createRouteRequest({
+    parseJsonBody: async () => ({ realName: '홍길동', phone: '010-1234-5678', birthDate: '1990-01-01' }),
+    validateRequiredString: (value) => value,
+    getAuthRepository: () => ({ findUsername: async () => ({ success: true, username: 'runner', maskedPhone: '010-****-5678' }) }),
+    loginGuard: createLoginGuard({ perIpPerMinute: 1, perAccountPerHour: 20 }),
+  });
+  const request = { method: 'POST', url: '/api/auth/find-username', headers: { host: 'localhost' } };
+
+  const firstResponse = createMockResponse();
+  await routeRequest(request, firstResponse);
+  assert.equal(firstResponse.statusCode, 200);
+  assert.equal(JSON.parse(firstResponse.body).username, 'runner');
+
+  // The very next attempt from the same IP is throttled with the shared 429.
+  await assert.rejects(
+    () => routeRequest(request, createMockResponse()),
+    (error) => error instanceof TestApiError
+      && error.statusCode === 429
+      && error.message === '로그인 시도가 너무 많아요. 잠시 후 다시 시도해주세요.'
+      && error.details.retryAfterSeconds > 0,
+  );
+});
+
 await test('throws a typed 404 for unknown APIs', async () => {
   await assert.rejects(
     () => createRouteRequest()(

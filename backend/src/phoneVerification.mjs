@@ -3,7 +3,9 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-const PHONE_VERIFICATION_PURPOSES = new Set(['signup']);
+// 'signup' gates registration; 'reset' gates password reset. Both consume a verified,
+// still-valid phone challenge for the exact number (see authRepository.register / resetPassword).
+const PHONE_VERIFICATION_PURPOSES = new Set(['signup', 'reset']);
 
 export function isPhoneVerificationPurpose(value) {
   return PHONE_VERIFICATION_PURPOSES.has(value);

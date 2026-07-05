@@ -48,10 +48,12 @@ export async function routeAuthLoginRequest({
     await handleFindUsername({
       ApiError,
       getAuthRepository,
+      loginGuard,
       parseJsonBody,
       request,
       response,
       sendJson,
+      trustProxy,
       validateRequiredString,
     });
     return true;
@@ -130,10 +132,12 @@ function assertLoginRateLimit({ ApiError, loginGuard, request, trustProxy, usern
 async function handleFindUsername({
   ApiError,
   getAuthRepository,
+  loginGuard,
   parseJsonBody,
   request,
   response,
   sendJson,
+  trustProxy,
   validateRequiredString,
 }) {
   const body = await parseJsonBody(request);
@@ -148,6 +152,11 @@ async function handleFindUsername({
   if (phone.length < 10) {
     throw new ApiError(400, '휴대폰 번호를 정확히 입력해주세요.');
   }
+
+  // P1-1: find-username is an unauthenticated identity oracle (realName+birthDate+phone → username
+  // + masked phone). Share the login brute-force guard so it can't be scraped; the account here is
+  // unknown, so key the per-account bucket by the normalized phone number instead of a username.
+  assertLoginRateLimit({ ApiError, loginGuard, request, trustProxy, username: phone });
 
   const result = await getAuthRepository().findUsername({
     realName,
@@ -182,6 +191,10 @@ async function handleResetPassword({
   const phone = validateRequiredString(body.phone, '휴대폰 번호를 입력해주세요.').replace(/\D/g, '');
   const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해주세요.');
   const newPassword = validateNewPassword(body.newPassword);
+  // P0-1: reset requires a verified 'reset' phone challenge token (from POST
+  // /auth/phone/verify-code). The current shipping client sends none, so it will be rejected
+  // until tomorrow's OTA adds the OTP step — expected & acceptable pre-launch.
+  const phoneVerificationToken = validateRequiredString(body.phoneVerificationToken, '휴대폰 인증을 먼저 완료해주세요.');
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
     throw new ApiError(400, '생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
@@ -197,6 +210,7 @@ async function handleResetPassword({
     phone,
     birthDate,
     newPassword,
+    phoneVerificationToken,
   });
 
   sendJson(response, 200, result);

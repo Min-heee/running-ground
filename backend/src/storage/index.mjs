@@ -28,6 +28,22 @@ if (!SUPPORTED_STORE_DRIVERS.has(STORE_DRIVER)) {
   );
 }
 
+// P1-3 fail-fast: the compose default of BACKEND_STORE_DRIVER=json is a footgun once a Postgres
+// URL is configured — the app would boot on the empty seeded json store and silently ignore the
+// real data sitting in Postgres. Refuse to boot in that mismatch instead of serving a fake store.
+// (Resolution order mirrors config.mjs / postgresStoreAdapter: BACKEND_POSTGRES_DATABASE_URL then
+// DATABASE_URL.)
+const POSTGRES_URL_PRESENT = Boolean(
+  (process.env.BACKEND_POSTGRES_DATABASE_URL ?? process.env.DATABASE_URL ?? '').trim(),
+);
+
+if (STORE_DRIVER === 'json' && POSTGRES_URL_PRESENT) {
+  throw new Error(
+    'postgres URL is set but BACKEND_STORE_DRIVER=json — refusing to boot on the json store and '
+    + 'silently ignore Postgres data. Set BACKEND_STORE_DRIVER=postgres.',
+  );
+}
+
 // Resolve the active adapter once. For the postgres driver we build the database + adapter from
 // the environment at module init (its constructor is synchronous; only its store ops are async),
 // so the exported async methods all close over a single adapter instance. The json adapter is

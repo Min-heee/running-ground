@@ -387,6 +387,28 @@ export function createJsonRunsRepository({
     async createTrackedRun({ token, input }) {
       return mutateStore((store) => {
         const user = requireUserByToken(store, token);
+
+        // P1-2 stopgap idempotency: a retried /api/runs/tracked after a timeout must NOT double
+        // count points / weekly distance / records. Match an already-saved run for the SAME
+        // (userId, startedAt) — exact startedAt ISO string — and return its payload instead of
+        // inserting a duplicate. The durable fix is a client-supplied clientRunId (post-launch);
+        // startedAt collides only for genuine same-second re-submits of the same run.
+        //
+        // IMPORTANT: match saves (matchResult present) are EXCLUDED — the duel/group reconcile
+        // flow deliberately re-saves the same (userId, startedAt) to upgrade a PENDING verdict to
+        // the server-resolved win/lose/placement once the opponent's run lands. Short-circuiting
+        // those would freeze the result at PENDING. Match points already dedupe by matchId.
+        if (input.startedAt && !input.matchResult) {
+          const existingRun = store.runs.find((entry) => (
+            entry.userId === user.id && entry.startedAt === input.startedAt
+          ));
+
+          if (existingRun) {
+            const existingMetrics = getUserMetrics(store, user.id);
+            return buildRunDetail(existingRun, existingMetrics.currentWeekDistanceKm, undefined, existingMetrics);
+          }
+        }
+
         // C1/C2: resolve the duel verdict SERVER-side from the live match session before
         // persisting. The client-supplied resultTone/opponentName are never trusted — they are
         // overwritten by the server verdict, or replaced with a PENDING result when the verdict

@@ -30,6 +30,9 @@ class FakePostgresDatabase {
     this.offlineRaceEntries = clone(initialStore.offlineRaceEntries ?? []);
     this.socialAccounts = clone(initialStore.socialAccounts ?? []);
     this.appMetadata = clone(initialStore.appMetadata ?? {});
+    // Whole-store jsonb row (app_store id = 1). Phone verification challenges live here on both
+    // adapters, so resetPassword's 'reset' challenge consume reads/writes this — mirror it.
+    this.appStore = clone(initialStore.appStore ?? { phoneVerificationChallenges: [] });
     this.insertUserError = initialStore.insertUserError;
     this.transactions = 0;
   }
@@ -186,6 +189,19 @@ class FakePostgresDatabase {
       };
     }
 
+    // Whole-store jsonb row read (FOR UPDATE) used by resetPassword's reset-challenge consume.
+    if (normalizedSql.startsWith('select data from app_store where id = 1')) {
+      return {
+        rows: [{ data: clone(this.appStore) }],
+      };
+    }
+
+    // Whole-store jsonb row write-back after mutating the consumed reset challenge.
+    if (normalizedSql.startsWith('update app_store set data = $1, updated_at = now() where id = 1')) {
+      this.appStore = typeof params[0] === 'string' ? JSON.parse(params[0]) : clone(params[0]);
+      return { rows: [] };
+    }
+
     if (normalizedSql.startsWith('delete from sessions where token = $1')) {
       this.sessions = this.sessions.filter((session) => session.token !== params[0]);
       return { rows: [] };
@@ -271,6 +287,23 @@ function assertApiError(error, statusCode, message) {
   assert(error instanceof TestApiError);
   assert.equal(error.statusCode, statusCode);
   assert.equal(error.message, message);
+}
+
+// A verified 'reset' phone challenge seeded into the whole-store jsonb row — resetPassword()
+// requires one for the exact number (matching by verifiedToken) and consumes it on success.
+function verifiedResetPhoneChallenge(phone, verifiedToken) {
+  return {
+    id: `req-${verifiedToken}`,
+    purpose: 'reset',
+    phone,
+    status: 'verified',
+    verifiedToken,
+    verifiedAt: '2024-01-01T00:00:00.000Z',
+    registrationExpiresAt: '2999-12-31T00:00:00.000Z',
+    attempts: 0,
+    maxAttempts: 5,
+    consumedAt: '',
+  };
 }
 
 async function runTest(name, testFn) {
@@ -522,7 +555,7 @@ await runTest('logs in with a valid password and rejects invalid credentials', a
   assert.equal(database.sessions[0].token, 'token-1');
 });
 
-await runTest('resets password by identity and clears sessions', async () => {
+await runTest('resets password with a verified reset challenge, clears sessions, and consumes the challenge', async () => {
   const { repository, database } = createRepositoryHarness({
     users: [
       {
@@ -544,6 +577,9 @@ await runTest('resets password by identity and clears sessions', async () => {
         expires_at: '2026-04-23T01:00:00.000Z',
       },
     ],
+    appStore: {
+      phoneVerificationChallenges: [verifiedResetPhoneChallenge('01012345678', 'vt-reset-1')],
+    },
   });
 
   assert.deepEqual(await repository.resetPassword({
@@ -552,6 +588,7 @@ await runTest('resets password by identity and clears sessions', async () => {
     phone: '01012345678',
     birthDate: '1990-01-01',
     newPassword: 'NewPassword123',
+    phoneVerificationToken: 'vt-reset-1',
   }), {
     success: true,
     username: 'runner',
@@ -560,6 +597,51 @@ await runTest('resets password by identity and clears sessions', async () => {
 
   assert.equal(database.sessions.length, 0);
   assert.equal(verifyPassword('NewPassword123', database.users[0].password_hash), true);
+  // The reset challenge is consumed in the whole-store row so its token can't be replayed.
+  assert.equal(database.appStore.phoneVerificationChallenges[0].status, 'consumed');
+});
+
+await runTest('rejects password reset without a verified reset challenge', async () => {
+  const { repository, database } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-existing',
+        username: 'runner',
+        password_hash: hashPassword('Password123'),
+        nickname: '러너',
+        real_name: '민병희',
+        phone: '01012345678',
+        birth_date: '1990-01-01',
+        public_tag: '#RUN01',
+      },
+    ],
+    sessions: [
+      {
+        token: 'token-1',
+        user_id: 'user-existing',
+        created_at: '2026-04-23T00:00:00.000Z',
+        expires_at: '2026-04-23T01:00:00.000Z',
+      },
+    ],
+    // No verified 'reset' challenge for this number → reset must be refused.
+    appStore: { phoneVerificationChallenges: [] },
+  });
+
+  await assert.rejects(() => repository.resetPassword({
+    username: 'runner',
+    realName: '민병희',
+    phone: '01012345678',
+    birthDate: '1990-01-01',
+    newPassword: 'NewPassword123',
+    phoneVerificationToken: 'no-such-token',
+  }), (error) => {
+    assertApiError(error, 400, '휴대폰 인증을 먼저 완료해주세요.');
+    return true;
+  });
+
+  // Password + sessions are untouched: the challenge check runs before any user write.
+  assert.equal(database.sessions.length, 1);
+  assert.equal(verifyPassword('Password123', database.users[0].password_hash), true);
 });
 
 await runTest('logs out idempotently', async () => {

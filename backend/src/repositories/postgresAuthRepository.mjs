@@ -323,6 +323,46 @@ async function removeLiveRunShare(client, userId) {
   );
 }
 
+// P0-1 (postgres path): consume a verified 'reset' phone challenge for `phone`, matching by
+// `phoneVerificationToken`, from the whole-store jsonb row (app_store id = 1) — the SAME place
+// phone challenges are written on both the json and postgres store adapters. Locks the row FOR
+// UPDATE, applies the same match/expiry shape as register(), flips the challenge to 'consumed',
+// and writes the whole-store back. Throws a 400 when no still-valid challenge matches. No-op-safe
+// under the enclosing transaction: a throw rolls the whole reset back.
+async function consumeResetPhoneChallenge(client, { phone, phoneVerificationToken, createError }) {
+  const locked = await client.query(
+    'select data from app_store where id = 1 for update',
+  );
+
+  const store = locked.rows[0]?.data;
+  const challenges = store && Array.isArray(store.phoneVerificationChallenges)
+    ? store.phoneVerificationChallenges
+    : [];
+
+  const challenge = challenges.find((entry) => (
+    entry.purpose === 'reset'
+    && entry.status === 'verified'
+    && entry.verifiedToken === phoneVerificationToken
+    && String(entry.phone ?? '').replace(/\D/g, '') === phone
+  ));
+
+  if (
+    !challenge
+    || !challenge.registrationExpiresAt
+    || Date.parse(challenge.registrationExpiresAt) <= Date.now()
+  ) {
+    throw createError(400, '휴대폰 인증을 먼저 완료해주세요.');
+  }
+
+  challenge.status = 'consumed';
+  challenge.consumedAt = new Date().toISOString();
+
+  await client.query(
+    'update app_store set data = $1, updated_at = now() where id = 1',
+    [JSON.stringify(store)],
+  );
+}
+
 export function createPostgresAuthRepository({
   database,
   sessionTtlMs,
@@ -431,8 +471,17 @@ export function createPostgresAuthRepository({
       });
     },
 
-    async resetPassword({ username, realName, phone, birthDate, newPassword }) {
+    async resetPassword({ username, realName, phone, birthDate, newPassword, phoneVerificationToken }) {
       return runWriteOperation(database, async (client) => {
+        // P0-1: require a still-valid verified 'reset' phone challenge for this exact number,
+        // then consume it — the same token contract register/reset use on the json whole-store.
+        // Phone challenges live ONLY in the whole-store jsonb (app_store row, key
+        // `phoneVerificationChallenges`); there is no relational phone_verification table, and
+        // postgres register consumes nothing, so we mirror the whole-store access here: read the
+        // canonical row FOR UPDATE, mutate the matching challenge, and write it back — all inside
+        // this same transaction as the password update so token-consume + reset commit atomically.
+        await consumeResetPhoneChallenge(client, { phone, phoneVerificationToken, createError });
+
         const result = await client.query(
           `
             select *
