@@ -5,7 +5,7 @@ import type { PrepareMatchRoomMutation } from '@/features/runs/runtime/useTrackR
 import {
   clearMatchRoomDeletedTombstone,
 } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
-import { ensureCompetitiveMotionPermissionOrAlert } from '@/features/runs/permissions/ensureCompetitiveMotionPermission';
+import { ensureCompetitivePreflight } from '@/features/runs/permissions/ensureCompetitivePreflight';
 import { recoverDeletedRoomCreateBlocker } from '@/features/runs/runtime/deletedRoomBlockerPolicy';
 import { resolveCreateRoomMaxParticipants } from '@/features/runs/runtime/resolveCreateRoomMaxParticipants';
 import {
@@ -97,18 +97,19 @@ export function useTrackRunRoomCreateAction({
       return;
     }
 
-    // Anti-cheat V1: creating a party room enters a competitive mode, so the motion (step)
-    // permission is required first. Gated HERE (not in a press wrapper) so every create caller is
-    // covered; the in-flight ref is held across the await so a double-tap can't stack two OS
-    // permission dialogs. On the pass path the ref is re-set just below, with no await between.
+    // Competitive pre-flight: creating a party room enters a competitive mode, so location
+    // "항상 허용" + motion are required first (notifications/battery are soft-requested inside the
+    // guard). Gated HERE (not in a press wrapper) so every create caller is covered; the in-flight
+    // ref is held across the await so a double-tap can't stack OS permission dialogs. On the pass
+    // path the ref is re-set just below, with no await between.
     createMatchRoomInFlightRef.current = true;
-    let motionGatePassed = false;
+    let preflightPassed = false;
     try {
-      motionGatePassed = await ensureCompetitiveMotionPermissionOrAlert('room create action');
+      preflightPassed = await ensureCompetitivePreflight('room create action');
     } finally {
       createMatchRoomInFlightRef.current = false;
     }
-    if (!motionGatePassed) {
+    if (!preflightPassed) {
       return;
     }
 

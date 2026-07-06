@@ -11,7 +11,7 @@ import {
 } from '@/features/runs/sync/staleRoomCleanup';
 import { hydrateOptimisticMatchRoom } from '@/features/match/hooks/lobby/optimisticRoomHydration';
 import { clearMatchRoomDeletedTombstone } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
-import { ensureCompetitiveMotionPermissionOrAlert } from '@/features/runs/permissions/ensureCompetitiveMotionPermission';
+import { ensureCompetitivePreflight } from '@/features/runs/permissions/ensureCompetitivePreflight';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 
 type FocusRunningMatchInput = {
@@ -160,11 +160,12 @@ export function useMatchEntryEffects({
     };
 
     void (async () => {
-      // Anti-cheat V1: an invite deep link enters a competitive party room, so the motion (step)
-      // permission is required before joining. The invite code was already pre-filled above, so
-      // after granting (or returning from Settings) the user can still enter via the code-join
-      // button, which runs the same gate.
-      if (!(await ensureCompetitiveMotionPermissionOrAlert('room invite token effect'))) {
+      // Competitive pre-flight: an invite deep link enters a competitive party room, so location
+      // "항상 허용" + motion are required before joining (notifications/battery are soft-requested
+      // inside the guard). The invite code was already pre-filled above, so after granting (or
+      // returning from Settings) the user can still enter via the code-join button, which runs
+      // the same guard.
+      if (!(await ensureCompetitivePreflight('room invite token effect'))) {
         return;
       }
 

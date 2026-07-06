@@ -6,7 +6,8 @@
 // permission up front. Solo runs stay ungated.
 //
 // This module is intentionally React-Native-free so it runs under the node test runner; the async
-// wiring to the real Pedometer APIs lives in ensureCompetitiveMotionPermission.ts.
+// wiring to the real Pedometer APIs lives in ensureCompetitivePreflight.ts (motion is step 2 of
+// the competitive pre-flight, after the blocking location gate).
 
 export type CompetitiveMotionGateReason =
   | 'denied-can-ask'

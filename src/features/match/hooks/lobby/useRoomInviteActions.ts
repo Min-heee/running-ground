@@ -7,7 +7,7 @@ import {
   leaveRunningMatchRoom,
 } from '@/services/matchService';
 import { getApiErrorMessage } from '@/services/apiError';
-import { ensureCompetitiveMotionPermissionOrAlert } from '@/features/runs/permissions/ensureCompetitiveMotionPermission';
+import { ensureCompetitivePreflight } from '@/features/runs/permissions/ensureCompetitivePreflight';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
 import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
@@ -52,18 +52,18 @@ export function useRoomInviteActions({
       return;
     }
 
-    // Anti-cheat V1: accepting a party-room invite enters a competitive mode, so the motion
-    // (step) permission is required first. The in-flight ref is held across the await so a
-    // double-tap can't stack two OS permission dialogs; on the pass path it is re-set just
-    // below, with no await between.
+    // Competitive pre-flight: accepting a party-room invite enters a competitive mode, so location
+    // "항상 허용" + motion are required first (notifications/battery are soft-requested inside the
+    // guard). The in-flight ref is held across the await so a double-tap can't stack OS permission
+    // dialogs; on the pass path it is re-set just below, with no await between.
     acceptInviteInFlightRef.current = true;
-    let motionGatePassed = false;
+    let preflightPassed = false;
     try {
-      motionGatePassed = await ensureCompetitiveMotionPermissionOrAlert('match-room invite accept');
+      preflightPassed = await ensureCompetitivePreflight('match-room invite accept');
     } finally {
       acceptInviteInFlightRef.current = false;
     }
-    if (!motionGatePassed) {
+    if (!preflightPassed) {
       return;
     }
 

@@ -81,7 +81,9 @@ async function getNotificationsModule() {
 
 // --- read-only status (never prompts) -------------------------------------------------------
 
-async function readNotificationGate(): Promise<{ granted: boolean; canAsk: boolean }> {
+// Exported for the competitive pre-flight (ensureCompetitivePreflight), which soft-requests
+// notifications on match entry. Never prompts — pure read.
+export async function readNotificationGate(): Promise<{ granted: boolean; canAsk: boolean }> {
   const Notifications = await getNotificationsModule();
   if (!Notifications) {
     return { granted: false, canAsk: false };
@@ -94,7 +96,7 @@ async function readNotificationGate(): Promise<{ granted: boolean; canAsk: boole
   }
 }
 
-// Exported for the competitive motion gate (ensureCompetitiveMotionPermission), which needs the
+// Exported for the competitive pre-flight's motion gate (ensureCompetitivePreflight), which needs the
 // extra `available` flag to tell "no step sensor at all" apart from "hard-denied" — both read as
 // {granted: false, canAsk: false} otherwise. Onboarding callers ignore the extra field.
 export async function readMotionGate(): Promise<{
@@ -114,6 +116,27 @@ export async function readMotionGate(): Promise<{
   } catch {
     return { granted: false, canAsk: false, available: false };
   }
+}
+
+// Location gate read for the competitive pre-flight (ensureCompetitivePreflight). Never prompts.
+// backgroundGranted is expo's "always"-equivalent check (on iOS only authorizedAlways reads as
+// granted here — While-Using does not), which is exactly the bar competitive screen-off tracking
+// needs. backgroundCanAsk === false means the OS has locked further background prompts, so a
+// request would silently no-op and only the Settings app can fix it.
+export async function readLocationGate(): Promise<{
+  backgroundCanAsk: boolean;
+  backgroundGranted: boolean;
+  foregroundGranted: boolean;
+}> {
+  const [fg, bg] = await Promise.all([
+    Location.getForegroundPermissionsAsync().catch(() => null),
+    Location.getBackgroundPermissionsAsync().catch(() => null),
+  ]);
+  return {
+    backgroundCanAsk: canAskAgain(bg),
+    backgroundGranted: isGranted(bg),
+    foregroundGranted: isGranted(fg),
+  };
 }
 
 // Health "granted" here means the preferred native source is already backend-connected (the

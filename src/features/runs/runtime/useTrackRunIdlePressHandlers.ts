@@ -3,7 +3,7 @@ import type { MatchOptionItem } from '@/features/runs/components/MatchOptionSele
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { FocusRunningMatchInput } from '@/features/runs/lifecycle/hooks/runningMatchFocus/types';
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
-import { ensureCompetitiveMotionPermissionOrAlert } from '@/features/runs/permissions/ensureCompetitiveMotionPermission';
+import { ensureCompetitivePreflight } from '@/features/runs/permissions/ensureCompetitivePreflight';
 import { useStableCallback } from '@/features/runs/runtime/useStableCallback';
 import type {
   RunningMatchRoom,
@@ -93,13 +93,14 @@ export function useTrackRunIdlePressHandlers({
     setMatchMode(option.mode);
   });
 
-  // Anti-cheat V1: competitive entries (매칭찾기 + 파티런) require the motion (step) permission —
-  // cadence is the cycling-detection signal, so an entry without it can't be scored fairly. Each
-  // competitive press below awaits the shared gate BEFORE its existing action; the gate shows the
-  // shared explanation Alert (with a Settings path) when it blocks. Solo runs stay ungated.
+  // Competitive pre-flight: 매칭찾기 + 파티런 entries require location "항상 허용" (screen-off GPS
+  // measurement) and the motion (step) permission (anti-cheat V1 cadence signal), and soft-request
+  // notifications + the Android battery exemption. Each competitive press below awaits the shared
+  // guard BEFORE its existing action; the guard shows the shared explanation Alert (with a
+  // Settings path) when a blocking step fails. Solo runs stay ungated.
   const handleAcceptRoomInvitePress = useStableCallback(() => {
     void (async () => {
-      if (!(await ensureCompetitiveMotionPermissionOrAlert('invite card accept press'))) {
+      if (!(await ensureCompetitivePreflight('invite card accept press'))) {
         return;
       }
       await handleAcceptRoomInviteFromRunning();
@@ -111,7 +112,7 @@ export function useTrackRunIdlePressHandlers({
   });
 
   const handleJoinRoomPress = useStableCallback(async () => {
-    if (!(await ensureCompetitiveMotionPermissionOrAlert('invite code join press'))) {
+    if (!(await ensureCompetitivePreflight('invite code join press'))) {
       return;
     }
     await handleJoinMatchRoom();
@@ -128,7 +129,7 @@ export function useTrackRunIdlePressHandlers({
 
   const handleRequestDuelMatchPress = useStableCallback(() => {
     void (async () => {
-      if (!(await ensureCompetitiveMotionPermissionOrAlert('duel match request press'))) {
+      if (!(await ensureCompetitivePreflight('duel match request press'))) {
         return;
       }
       await handleRequestDuelMatch();
@@ -137,7 +138,7 @@ export function useTrackRunIdlePressHandlers({
 
   const handleRequestDuelRematchPress = useStableCallback(() => {
     void (async () => {
-      if (!(await ensureCompetitiveMotionPermissionOrAlert('duel rematch request press'))) {
+      if (!(await ensureCompetitivePreflight('duel rematch request press'))) {
         return;
       }
       await handleRequestDuelMatch(activeDuelSlotStartAt);
@@ -155,7 +156,7 @@ export function useTrackRunIdlePressHandlers({
 
   const handleRequestGroupMatchPress = useStableCallback(() => {
     void (async () => {
-      if (!(await ensureCompetitiveMotionPermissionOrAlert('group match request press'))) {
+      if (!(await ensureCompetitivePreflight('group match request press'))) {
         return;
       }
       await handleRequestGroupMatch();
@@ -164,7 +165,7 @@ export function useTrackRunIdlePressHandlers({
 
   const handleRequestGroupRematchPress = useStableCallback(() => {
     void (async () => {
-      if (!(await ensureCompetitiveMotionPermissionOrAlert('group rematch request press'))) {
+      if (!(await ensureCompetitivePreflight('group rematch request press'))) {
         return;
       }
       await handleRequestGroupMatch(activeGroupSlotStartAt);
