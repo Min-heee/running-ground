@@ -3,6 +3,7 @@ import type { MatchOptionItem } from '@/features/runs/components/MatchOptionSele
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { FocusRunningMatchInput } from '@/features/runs/lifecycle/hooks/runningMatchFocus/types';
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
+import { ensureCompetitiveMotionPermissionOrAlert } from '@/features/runs/permissions/ensureCompetitiveMotionPermission';
 import { useStableCallback } from '@/features/runs/runtime/useStableCallback';
 import type {
   RunningMatchRoom,
@@ -92,16 +93,28 @@ export function useTrackRunIdlePressHandlers({
     setMatchMode(option.mode);
   });
 
+  // Anti-cheat V1: competitive entries (매칭찾기 + 파티런) require the motion (step) permission —
+  // cadence is the cycling-detection signal, so an entry without it can't be scored fairly. Each
+  // competitive press below awaits the shared gate BEFORE its existing action; the gate shows the
+  // shared explanation Alert (with a Settings path) when it blocks. Solo runs stay ungated.
   const handleAcceptRoomInvitePress = useStableCallback(() => {
-    void handleAcceptRoomInviteFromRunning();
+    void (async () => {
+      if (!(await ensureCompetitiveMotionPermissionOrAlert('invite card accept press'))) {
+        return;
+      }
+      await handleAcceptRoomInviteFromRunning();
+    })();
   });
 
   const handleDeclineRoomInvitePress = useStableCallback(() => {
     void handleDeclineRoomInviteFromRunning();
   });
 
-  const handleJoinRoomPress = useStableCallback(() => {
-    return handleJoinMatchRoom();
+  const handleJoinRoomPress = useStableCallback(async () => {
+    if (!(await ensureCompetitiveMotionPermissionOrAlert('invite code join press'))) {
+      return;
+    }
+    await handleJoinMatchRoom();
   });
 
   const handleSelectDuelDate = useStableCallback((dateKey: string) => {
@@ -114,11 +127,21 @@ export function useTrackRunIdlePressHandlers({
   });
 
   const handleRequestDuelMatchPress = useStableCallback(() => {
-    void handleRequestDuelMatch();
+    void (async () => {
+      if (!(await ensureCompetitiveMotionPermissionOrAlert('duel match request press'))) {
+        return;
+      }
+      await handleRequestDuelMatch();
+    })();
   });
 
   const handleRequestDuelRematchPress = useStableCallback(() => {
-    void handleRequestDuelMatch(activeDuelSlotStartAt);
+    void (async () => {
+      if (!(await ensureCompetitiveMotionPermissionOrAlert('duel rematch request press'))) {
+        return;
+      }
+      await handleRequestDuelMatch(activeDuelSlotStartAt);
+    })();
   });
 
   const handleSelectGroupDate = useStableCallback((dateKey: string) => {
@@ -131,11 +154,21 @@ export function useTrackRunIdlePressHandlers({
   });
 
   const handleRequestGroupMatchPress = useStableCallback(() => {
-    void handleRequestGroupMatch();
+    void (async () => {
+      if (!(await ensureCompetitiveMotionPermissionOrAlert('group match request press'))) {
+        return;
+      }
+      await handleRequestGroupMatch();
+    })();
   });
 
   const handleRequestGroupRematchPress = useStableCallback(() => {
-    void handleRequestGroupMatch(activeGroupSlotStartAt);
+    void (async () => {
+      if (!(await ensureCompetitiveMotionPermissionOrAlert('group rematch request press'))) {
+        return;
+      }
+      await handleRequestGroupMatch(activeGroupSlotStartAt);
+    })();
   });
 
   return {

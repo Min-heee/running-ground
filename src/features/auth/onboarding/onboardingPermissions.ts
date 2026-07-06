@@ -94,18 +94,25 @@ async function readNotificationGate(): Promise<{ granted: boolean; canAsk: boole
   }
 }
 
-async function readMotionGate(): Promise<{ granted: boolean; canAsk: boolean }> {
+// Exported for the competitive motion gate (ensureCompetitiveMotionPermission), which needs the
+// extra `available` flag to tell "no step sensor at all" apart from "hard-denied" — both read as
+// {granted: false, canAsk: false} otherwise. Onboarding callers ignore the extra field.
+export async function readMotionGate(): Promise<{
+  granted: boolean;
+  canAsk: boolean;
+  available: boolean;
+}> {
   try {
     const available = await Pedometer.isAvailableAsync();
     if (!available) {
       // No hardware / Expo Go: surface as not-granted and not-askable so the UI shows a
       // graceful "나중에" instead of a button that does nothing.
-      return { granted: false, canAsk: false };
+      return { granted: false, canAsk: false, available: false };
     }
     const current = await Pedometer.getPermissionsAsync();
-    return { granted: isGranted(current), canAsk: canAskAgain(current) };
+    return { granted: isGranted(current), canAsk: canAskAgain(current), available: true };
   } catch {
-    return { granted: false, canAsk: false };
+    return { granted: false, canAsk: false, available: false };
   }
 }
 
