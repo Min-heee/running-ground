@@ -102,20 +102,47 @@ export function shouldRequestCompetitiveNotifications(input: {
   return !input.granted && input.canAsk && !input.requestedThisSession;
 }
 
-// Android battery-optimization exemption: one request per app session when the native control is
-// available and the app isn't already exempt. Never blocks (available is false on iOS and on old
-// Android binaries).
-export function shouldRequestCompetitiveBatteryExemption(input: {
+// --- battery gate (BLOCKING on Android) ----------------------------------------------------------
+
+// Android battery optimization can suspend screen-off measurement (#191: the OS killed the FG
+// service task while optimization was active) — a match where one phone's distance can freeze is
+// not a fair match, so on Android the exemption is REQUIRED for competitive entry. iOS and old
+// Android binaries report the control unavailable → pass (nothing to check, nothing to demand).
+//
+// The OS exemption dialog is fire-and-forget (no awaitable answer), so the gate blocks in two
+// stages: the first press FIRES the dialog and blocks silently (an alert would stack over the OS
+// sheet); if the user granted, the next press reads exempt and passes — otherwise the next press
+// shows the settings alert.
+export type CompetitiveBatteryGateReason =
+  // First not-exempt press this session: the wiring fires the OS dialog and blocks WITHOUT an
+  // alert. A grant makes the next press pass; nothing else to show yet.
+  | 'battery-request-fired'
+  // Still not exempt after a request already fired this session — settings alert.
+  | 'battery-denied';
+
+export type CompetitiveBatteryGateResult =
+  | { ok: true }
+  | { ok: false; reason: CompetitiveBatteryGateReason };
+
+export function resolveCompetitiveBatteryGate(input: {
   available: boolean;
   exempt: boolean;
   requestedThisSession: boolean;
-}): boolean {
-  return input.available && !input.exempt && !input.requestedThisSession;
+}): CompetitiveBatteryGateResult {
+  if (!input.available || input.exempt) {
+    return { ok: true };
+  }
+
+  return {
+    ok: false,
+    reason: input.requestedThisSession ? 'battery-denied' : 'battery-request-fired',
+  };
 }
 
 // --- overall combinator --------------------------------------------------------------------------
 
 export type CompetitivePreflightBlock =
+  | { kind: 'battery'; reason: CompetitiveBatteryGateReason }
   | { kind: 'location'; reason: CompetitiveLocationGateReason }
   | { kind: 'motion'; reason: CompetitiveMotionGateReason };
 
@@ -123,14 +150,15 @@ export type CompetitivePreflightResult =
   | { ok: true }
   | { ok: false; block: CompetitivePreflightBlock };
 
-// Folds the sequenced step results into the single entry decision. Location and motion are the
-// only blocking gates; notifications/battery state is accepted here precisely to pin the policy
-// that soft outcomes can NEVER block a competitive entry.
+// Folds the sequenced step results into the single entry decision. Location, motion, and (on
+// Android) battery are the blocking gates; notifications state is accepted here precisely to pin
+// the policy that the soft step can NEVER block a competitive entry.
 export function combineCompetitivePreflight(input: {
-  batteryExempt: boolean;
-  location: CompetitiveLocationGateResult;
-  // null = motion was skipped because the location gate already blocked (the wiring never runs
+  // null = battery was skipped because an earlier gate already blocked (the wiring never runs
   // later steps after a block).
+  battery: CompetitiveBatteryGateResult | null;
+  location: CompetitiveLocationGateResult;
+  // null = motion was skipped because the location gate already blocked.
   motion: CompetitiveMotionGateResult | null;
   notificationsGranted: boolean;
 }): CompetitivePreflightResult {
@@ -142,7 +170,11 @@ export function combineCompetitivePreflight(input: {
     return { block: { kind: 'motion', reason: input.motion.reason }, ok: false };
   }
 
-  // notificationsGranted / batteryExempt intentionally unread beyond this point: soft steps are
-  // best-effort and never blocking.
+  if (input.battery && !input.battery.ok) {
+    return { block: { kind: 'battery', reason: input.battery.reason }, ok: false };
+  }
+
+  // notificationsGranted intentionally unread beyond this point: the soft step is best-effort and
+  // never blocking.
   return { ok: true };
 }

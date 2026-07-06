@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
   combineCompetitivePreflight,
   resolveCompetitiveLocationGate,
-  shouldRequestCompetitiveBatteryExemption,
+  resolveCompetitiveBatteryGate,
   shouldRequestCompetitiveNotifications,
 } from './competitivePreflightModel';
 
@@ -156,48 +156,34 @@ test('notifications soft ask fires only when not granted, askable, and not yet a
   );
 });
 
-test('battery exemption soft ask fires only when available, not exempt, and not yet asked this session', () => {
-  assert.equal(
-    shouldRequestCompetitiveBatteryExemption({
-      available: true,
-      exempt: false,
-      requestedThisSession: false,
-    }),
-    true,
+test('battery gate: unavailable control or already-exempt passes; two-stage block otherwise', () => {
+  // iOS / old Android binary: native control unavailable — nothing to check, never blocks.
+  assert.deepEqual(
+    resolveCompetitiveBatteryGate({ available: false, exempt: false, requestedThisSession: false }),
+    { ok: true },
   );
-  // iOS / old Android binary: native control unavailable.
-  assert.equal(
-    shouldRequestCompetitiveBatteryExemption({
-      available: false,
-      exempt: false,
-      requestedThisSession: false,
-    }),
-    false,
+  assert.deepEqual(
+    resolveCompetitiveBatteryGate({ available: true, exempt: true, requestedThisSession: false }),
+    { ok: true },
   );
-  assert.equal(
-    shouldRequestCompetitiveBatteryExemption({
-      available: true,
-      exempt: true,
-      requestedThisSession: false,
-    }),
-    false,
+  // First not-exempt press: fire the OS dialog, block silently.
+  assert.deepEqual(
+    resolveCompetitiveBatteryGate({ available: true, exempt: false, requestedThisSession: false }),
+    { ok: false, reason: 'battery-request-fired' },
   );
-  assert.equal(
-    shouldRequestCompetitiveBatteryExemption({
-      available: true,
-      exempt: false,
-      requestedThisSession: true,
-    }),
-    false,
+  // Later presses while still not exempt: the user denied/dismissed — settings alert.
+  assert.deepEqual(
+    resolveCompetitiveBatteryGate({ available: true, exempt: false, requestedThisSession: true }),
+    { ok: false, reason: 'battery-denied' },
   );
 });
 
 // --- overall combinator -----------------------------------------------------------------------------
 
-test('soft denials never block: notifications denied + battery not exempt still resolves ok', () => {
+test('the soft notification denial never blocks when every gate passed', () => {
   assert.deepEqual(
     combineCompetitivePreflight({
-      batteryExempt: false,
+      battery: { ok: true },
       location: { ok: true },
       motion: { ok: true },
       notificationsGranted: false,
@@ -209,7 +195,7 @@ test('soft denials never block: notifications denied + battery not exempt still 
 test('a location block wins and carries its reason', () => {
   assert.deepEqual(
     combineCompetitivePreflight({
-      batteryExempt: true,
+      battery: null,
       location: { ok: false, reason: 'background-denied' },
       motion: null,
       notificationsGranted: true,
@@ -221,11 +207,23 @@ test('a location block wins and carries its reason', () => {
 test('a motion block after a passing location gate carries its reason', () => {
   assert.deepEqual(
     combineCompetitivePreflight({
-      batteryExempt: true,
+      battery: null,
       location: { ok: true },
       motion: { ok: false, reason: 'denied-settings' },
       notificationsGranted: true,
     }),
     { block: { kind: 'motion', reason: 'denied-settings' }, ok: false },
+  );
+});
+
+test('a battery block after passing location+motion carries its reason (Android fairness gate)', () => {
+  assert.deepEqual(
+    combineCompetitivePreflight({
+      battery: { ok: false, reason: 'battery-denied' },
+      location: { ok: true },
+      motion: { ok: true },
+      notificationsGranted: true,
+    }),
+    { block: { kind: 'battery', reason: 'battery-denied' }, ok: false },
   );
 });

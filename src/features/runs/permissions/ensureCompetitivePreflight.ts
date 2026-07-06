@@ -10,8 +10,13 @@
 //      Play policy requires a prominent disclosure BEFORE any background-location request, so the
 //      disclosure alert always precedes requestBackgroundLocation().
 //   2. MOTION (BLOCKING) — anti-cheat V1 (cadence is the cycling-detection signal), unchanged.
-//   3. NOTIFICATIONS (SOFT) — one request per app session when askable; denial never blocks.
-//   4. BATTERY (Android-only, SOFT) — one exemption request per app session; never blocks.
+//   3. BATTERY (Android-only, BLOCKING) — battery optimization can suspend screen-off measurement
+//      (#191: the OS killed the FG-service task while optimization was active); a match where one
+//      phone's distance can freeze is not a fair match, so the exemption is required to enter.
+//      The OS exemption dialog is fire-and-forget, so the first press fires it and blocks
+//      silently; a grant makes the next press pass, otherwise the next press shows the settings
+//      alert. iOS / old binaries (control unavailable) pass — nothing to check.
+//   4. NOTIFICATIONS (SOFT) — one request per app session when askable; denial never blocks.
 //
 // Fast path: when everything is already granted this is three parallel permission reads plus two
 // sync battery reads — zero dialogs. It runs on EVERY competitive press, so it must stay cheap.
@@ -40,9 +45,10 @@ import {
 } from './competitiveMotionGateModel';
 import {
   combineCompetitivePreflight,
+  resolveCompetitiveBatteryGate,
   resolveCompetitiveLocationGate,
-  shouldRequestCompetitiveBatteryExemption,
   shouldRequestCompetitiveNotifications,
+  type CompetitiveBatteryGateResult,
   type CompetitiveLocationGateReading,
   type CompetitiveLocationGateResult,
   type CompetitivePreflightBlock,
@@ -150,13 +156,41 @@ async function ensureCompetitiveMotionPermission(
   });
 }
 
-// --- steps 3+4: notifications + battery (soft, never block) --------------------------------------
+// --- step 3: battery exemption (blocking on Android) ----------------------------------------------
 
-// One-shot session flags: the pre-flight runs on EVERY competitive press, so each soft ask fires
-// at most once per app session instead of nagging every entry. Denial/dismissal is final for the
+// The OS exemption dialog is fire-and-forget (requestBatteryExemption launches it and reads the
+// still-unanswered state back), so a blocking flow can't await the answer. Session flag drives the
+// two-stage policy: first not-exempt press fires the dialog and blocks silently; later presses
+// (user denied or dismissed) get the settings alert. A grant flips readBatteryExempt() and every
+// later press passes without dialogs.
+let batteryExemptionRequestedThisSession = false;
+
+async function ensureCompetitiveBatteryExemption(): Promise<CompetitiveBatteryGateResult> {
+  const gate = resolveCompetitiveBatteryGate({
+    available: isBatteryControlAvailable(),
+    exempt: readBatteryExempt(),
+    requestedThisSession: batteryExemptionRequestedThisSession,
+  });
+
+  if (!gate.ok && gate.reason === 'battery-request-fired') {
+    batteryExemptionRequestedThisSession = true;
+    // Fires the Android OS exemption sheet (same native control the welcome tour uses). If the
+    // OS applied it synchronously the return says so and entry can proceed this same press.
+    const grantedImmediately = await requestBatteryExemption();
+    if (grantedImmediately) {
+      return { ok: true };
+    }
+  }
+
+  return gate;
+}
+
+// --- step 4: notifications (soft, never blocks) ---------------------------------------------------
+
+// One-shot session flag: the pre-flight runs on EVERY competitive press, so the soft ask fires at
+// most once per app session instead of nagging every entry. Denial/dismissal is final for the
 // session; a grant makes the flag irrelevant.
 let notificationsRequestedThisSession = false;
-let batteryExemptionRequestedThisSession = false;
 
 async function runCompetitiveSoftSteps(notificationReading: {
   canAsk: boolean;
@@ -171,18 +205,6 @@ async function runCompetitiveSoftSteps(notificationReading: {
     notificationsRequestedThisSession = true;
     // Best-effort: a deny just means celebration/alert pushes won't show. No settings-nag.
     await requestNotifications();
-  }
-
-  if (
-    shouldRequestCompetitiveBatteryExemption({
-      available: isBatteryControlAvailable(),
-      exempt: readBatteryExempt(),
-      requestedThisSession: batteryExemptionRequestedThisSession,
-    })
-  ) {
-    batteryExemptionRequestedThisSession = true;
-    // Android-only OS exemption sheet (same native control the welcome tour uses). Best-effort.
-    await requestBatteryExemption();
   }
 }
 
@@ -221,6 +243,20 @@ function showCompetitiveMotionPermissionAlert(reason: CompetitiveMotionGateReaso
 function showCompetitivePreflightBlockedAlert(block: CompetitivePreflightBlock): void {
   if (block.kind === 'motion') {
     showCompetitiveMotionPermissionAlert(block.reason);
+    return;
+  }
+
+  if (block.kind === 'battery') {
+    if (block.reason === 'battery-request-fired') {
+      // The OS exemption sheet is on screen right now — an alert would stack over it. A grant
+      // makes the very next press pass.
+      return;
+    }
+    Alert.alert(
+      '배터리 설정이 필요해요',
+      '배터리 최적화가 켜져 있으면 화면을 끈 동안 안드로이드가 측정을 멈출 수 있어요. 공정한 대결을 위해 이 앱의 배터리 사용을 "제한 없음"으로 바꿔야 참가할 수 있어요.',
+      SETTINGS_ALERT_BUTTONS,
+    );
     return;
   }
 
@@ -278,11 +314,13 @@ export async function ensureCompetitivePreflight(source: string): Promise<boolea
     ]);
 
     const location = await ensureCompetitiveLocationPermission(locationReading);
-    // Motion only runs once location passed — a blocked entry must not stack a second dialog.
+    // Each later gate only runs once every earlier one passed — a blocked entry must never stack
+    // a second dialog on top of the one the user is already answering.
     const motion = location.ok ? await ensureCompetitiveMotionPermission(motionReading) : null;
+    const battery = location.ok && motion?.ok ? await ensureCompetitiveBatteryExemption() : null;
 
     const result = combineCompetitivePreflight({
-      batteryExempt: readBatteryExempt(),
+      battery,
       location,
       motion,
       notificationsGranted: notificationReading.granted,
