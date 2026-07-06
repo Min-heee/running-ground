@@ -845,14 +845,19 @@ export function buildMatchDemandSummaryResponse(store, currentUser, { mode, dist
     participantsCount,
     competitiveParticipantsCount,
     capacity,
-    fillRatioLabel: `${participantsCount}/${capacity}`,
+    // Duel keeps the N/2 fraction (a duel literally needs exactly 2). Group shows a plain
+    // searcher COUNT: the 30 cap is an upper bound on one session, not a quota to fill —
+    // "0/30" read as "30 people required", which is exactly backwards for a 3-to-start mode.
+    fillRatioLabel: mode === 'duel'
+      ? `${participantsCount}/${capacity}`
+      : `${participantsCount}명 찾는 중`,
     paceBandLabel: averagePaceMinutes === null ? '대기 없음' : buildPaceBandLabel(averagePaceMinutes),
     summaryText: mode === 'duel'
       ? participantsCount
         ? `현재 실제 신청은 ${participantsCount}/${capacity}명이고, 바로 붙일 만한 러너는 ${competitiveParticipantsCount}/${capacity}명이에요. 출발 30분 전까지 자동으로 계속 맞춰봐요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
         : `아직 이 시간대 신청이 없어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
       : participantsCount
-        ? `현재 실제 신청은 ${participantsCount}/${capacity}명이고, 비슷한 러너는 ${competitiveParticipantsCount}/${capacity}명이에요.${competitiveParticipantsCount < GROUP_MIN_PARTICIPANTS ? ` 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.` : ''} 출발 30분 전까지 자동으로 계속 맞춰봐요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
+        ? `지금 ${participantsCount}명이 이 시간대 그룹을 찾고 있고, 비슷한 페이스 러너는 ${competitiveParticipantsCount}명이에요.${competitiveParticipantsCount < GROUP_MIN_PARTICIPANTS ? ` 최소 ${GROUP_MIN_PARTICIPANTS}명은 모여야 시작해요.` : ''} 출발 30분 전까지 자동으로 계속 맞춰봐요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`
         : `아직 이 시간대 신청이 없어요.${distanceRecommendationHint ? ` ${distanceRecommendationHint}` : ''}`,
   };
 }
