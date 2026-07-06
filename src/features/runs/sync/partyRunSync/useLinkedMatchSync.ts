@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { armBlockingMatchStatusPollRetry } from '@/features/runs/sync/matchPolling/useBlockingMatchStatusPolling';
 import type { RunningMatchRoom, RunningMatchState } from '@/lib/api/types';
 import { getMatchStartRemainingSeconds, shouldAutoOpenMatchArena } from '@/lib/matchCountdown';
 import { buildPartyRunFlowSnapshot } from '@/features/runs/lifecycle/matchStateMachine';
@@ -357,8 +358,56 @@ export function useLinkedMatchSync({
     });
 
     if (!polling.acquired) {
+      // Opponent-poll stall fix (docs/opponent-poll-stall-diag-2026-07-06.md) — organ-3 un-latch.
+      // A lost acquire used to return a cancel-only cleanup, and every dep of this effect is
+      // stable during a stable active match, so the linked poll stayed permanently dead until
+      // match end (a zombie runtime instance owning the key starves the visible one). Same df02afc
+      // retry seam as the blocking/party-room organs: re-attempt the SAME startRgPollingInterval
+      // invocation (identical args) every intervalMs; on re-acquire mark + fire ONE catch-up
+      // syncRoomLinkedMatch and hold the real handle. Cleanup stops whichever is live (retry timer
+      // or acquired poll handle). The acquired/success path below is untouched.
+      rgPerfMark('linked match polling lost acquire', {
+        activeOwnerId: polling.ownerId,
+        intervalMs,
+        matchId: roomLinkedMatchContext.matchId,
+        mode: roomLinkedMatchContext.mode,
+        pollingKey,
+        reason: transitionReason,
+        source: 'linked match status',
+        state: roomLinkedMatchContext.state ?? null,
+      });
+      const retry = armBlockingMatchStatusPollRetry({
+        intervalMs,
+        onReacquired: (handle) => {
+          rgPerfMark('linked match polling reacquired after retry', {
+            intervalMs,
+            matchId: roomLinkedMatchContext.matchId,
+            mode: roomLinkedMatchContext.mode,
+            ownerId: handle.ownerId,
+            pollingKey,
+            source: 'linked match status',
+          });
+        },
+        onTick: syncRoomLinkedMatch,
+        startPolling: () => startRgPollingInterval({
+          intervalMs,
+          key: pollingKey,
+          label: 'linked match status polling',
+          onTick: syncRoomLinkedMatch,
+          detail: {
+            intervalMs,
+            matchId: roomLinkedMatchContext.matchId,
+            mode: roomLinkedMatchContext.mode,
+            owner: 'linked match status',
+            reason: transitionReason,
+            source: 'linked match status',
+            state: roomLinkedMatchContext.state ?? null,
+          },
+        }),
+      });
       return () => {
         canceled = true;
+        retry.stop();
       };
     }
 

@@ -56,3 +56,32 @@ test('opponent sync lifeline skips when no duel/group match is active', () => {
 test('opponent sync lifeline never stacks fetches while one is in flight', () => {
   assert.equal(shouldFireOpponentSyncLifeline(buildTickInput({ inFlight: true })), false);
 });
+
+// Party-duel (room-linked) coverage — the decision is deliberately mode/flow-agnostic, so an
+// active PARTY-linked match rides the same rule. The party-specific plumbing around it is:
+// arming uses activeLiveMatchProgressMatchId, which falls back to roomLinkedMatchContext.matchId
+// (resolveActiveLiveMatchProgressMatchId, locked in trackRunRuntimeDerivedState.test.ts), and the
+// fired no-arg loader resolves the party session by focusedDuelMatchIdRef's matchId alone (the
+// backend ignores slot/distance when a matchId is present). Stamps cover party applies on BOTH
+// paths: the loader stamps linked/blocking/lifeline/resume applies, the funnel applier stamps
+// heartbeat/background applies — so a healthy party match keeps the lifeline zero-cost, and only
+// a fully wedged foreground GET state (every keyed-slot channel latched) crosses 8s and fires.
+test('opponent sync lifeline covers an active party-linked match: fires on a stale stamp, no-ops while party applies stamp', () => {
+  // Every party delivery channel silent >8s (e.g. zombie-owner starvation) → fires.
+  assert.equal(
+    shouldFireOpponentSyncLifeline(buildTickInput({
+      lastAppliedMs: BASE_NOW_MS - (OPPONENT_SYNC_LIFELINE_STALE_AFTER_MS + 5_000),
+      matchActive: true,
+    })),
+    true,
+  );
+  // Healthy party steady state: linked-poll/heartbeat-response applies land every ~2.5s and stamp
+  // through the loader/funnel accepted branches — the lifeline stays a no-op.
+  assert.equal(
+    shouldFireOpponentSyncLifeline(buildTickInput({
+      lastAppliedMs: BASE_NOW_MS - 2_500,
+      matchActive: true,
+    })),
+    false,
+  );
+});
