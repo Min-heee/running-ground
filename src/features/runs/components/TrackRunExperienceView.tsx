@@ -61,8 +61,9 @@ function RoomArmingOverlayVeil({ visible }: { visible: boolean }) {
       <ActivityIndicator size="large" color={colors.white} />
       <Text style={styles.roomArmingOverlayTitle}>로딩중...</Text>
       <Text style={styles.roomArmingOverlayText}>
-        대결 화면을 맞추는 중이에요. 잠시 뒤 모든 참가자에게 같은 카운트다운이 보여요.{'\n'}
-        측정이 시작될 때까지 화면을 켜두세요 — 출발 후에는 꺼도 돼요.
+        로딩이 끝나면 카운트다운이 시작돼요.{'\n'}
+        측정이 시작될 때까지 화면을 켜두세요.{'\n'}
+        카운트다운이 끝나면 뛰세요!
       </Text>
     </Animated.View>
   );
