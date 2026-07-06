@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { armBlockingMatchStatusPollRetry } from '@/features/runs/sync/matchPolling/useBlockingMatchStatusPolling';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { rgDiagLog, rgPerfMark } from '@/utils/rgPerfTrace';
 import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
@@ -64,6 +65,72 @@ export function resolvePartyRoomPollingPolicy({
   };
 }
 
+// Lobby-room poll latch fix (docs/lobby-room-poll-latch-diag-2026-07-06.md, Piece 1b) — the
+// party-room poller had the same never-retried keyed-slot latch as the lobby snapshot poller: a
+// lost acquire returned a bare `undefined` cleanup (and logged NOTHING), leaving the poll
+// permanently dead until an effect dep changed via new poll data — which a dead poll never
+// delivers. This seam marks the lost acquire and arms df02afc's proven retry helper on the
+// party-room key: re-attempt every intervalMs, one catch-up loadMatchRoom on re-acquire, stop()
+// halting whichever is live (retry timer or acquired poll handle). Exported so the node tests can
+// exercise it directly (same pattern as armBlockingMatchStatusPollRetry); timer fns are
+// injectable for those tests.
+export function armPartyRoomPollRetry({
+  intervalMs,
+  onTick,
+  pollingKey,
+  reason,
+  roomId,
+  state,
+  clearIntervalFn,
+  setIntervalFn,
+}: {
+  intervalMs: number;
+  onTick: () => unknown | Promise<unknown>;
+  pollingKey: string;
+  reason: string;
+  roomId: string;
+  state: RunningMatchRoom['state'] | null;
+  clearIntervalFn?: typeof clearInterval;
+  setIntervalFn?: typeof setInterval;
+}) {
+  rgPerfMark('party room polling lost acquire', {
+    intervalMs,
+    pollingKey,
+    reason,
+    roomId,
+    source: 'party room',
+    state,
+  });
+
+  return armBlockingMatchStatusPollRetry({
+    intervalMs,
+    onReacquired: (handle) => {
+      rgPerfMark('party room polling reacquired after retry', {
+        ownerId: handle.ownerId,
+        pollingKey,
+        source: 'party room',
+      });
+    },
+    onTick,
+    startPolling: () => startRgPollingInterval({
+      intervalMs,
+      key: pollingKey,
+      label: 'party room polling',
+      onTick,
+      detail: {
+        intervalMs,
+        owner: 'party room',
+        reason,
+        roomId,
+        source: 'party room',
+        state,
+      },
+    }),
+    ...(clearIntervalFn ? { clearIntervalFn } : {}),
+    ...(setIntervalFn ? { setIntervalFn } : {}),
+  });
+}
+
 export function useRoomPolling({
   matchRoom,
   fastRoomPollMs,
@@ -127,7 +194,19 @@ export function useRoomPolling({
     });
 
     if (!polling.acquired) {
-      return undefined;
+      // Piece 1b — same un-latch as the snapshot poller: keep re-attempting the slot at the poll
+      // cadence; on re-acquire fire one catch-up loadMatchRoom and hold the real handle.
+      const retry = armPartyRoomPollRetry({
+        intervalMs,
+        onTick: () => callbacksRef.current.loadMatchRoom(),
+        pollingKey,
+        reason: policy.reason,
+        roomId,
+        state: roomState,
+      });
+      return () => {
+        retry.stop();
+      };
     }
 
     rgPerfMark('match polling start', {

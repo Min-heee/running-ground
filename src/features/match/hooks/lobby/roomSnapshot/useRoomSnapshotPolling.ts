@@ -5,6 +5,7 @@ import type { FriendLeaderboardResponse, RunningMatchRoom } from '@/lib/api/type
 import { buildActiveRoomRegistryKey } from '@/features/runs/sync/registryKeys';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { startRgPollingInterval } from '@/utils/rgPollingRegistry';
+import { armRoomSnapshotPollRetry } from './roomSnapshotPollRetry';
 import { useRoomPollingOwnerPolicy } from './useRoomPollingOwnerPolicy';
 
 export function useRoomSnapshotPolling({
@@ -118,9 +119,29 @@ export function useRoomSnapshotPolling({
     });
 
     if (!polling.acquired) {
+      // Lobby-room poll latch fix (Piece 1a) — a lost acquire is no longer permanently dead: arm
+      // the retry seam so the slot is re-attempted every intervalMs, with one catch-up loadRoom on
+      // re-acquire. Cleanup stops whichever is live (retry timer or acquired poll handle) on top
+      // of the existing teardown.
+      const retry = armRoomSnapshotPollRetry({
+        detail: {
+          intervalMs,
+          linkedMatchId: pollingLinkedMatchId,
+          owner: policy.owner,
+          reason: policy.reason,
+          roomId: pollingRoomId,
+          source: 'match-room snapshot',
+          state: pollingRoomState,
+        },
+        intervalMs,
+        onTick: loadRoom,
+        pollingKey,
+        roomId: pollingRoomId,
+      });
       return () => {
         cancelled = true;
         hydrateGenerationRef.current += 1;
+        retry.stop();
         setLoading(false);
       };
     }

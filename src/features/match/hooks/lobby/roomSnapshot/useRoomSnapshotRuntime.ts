@@ -9,6 +9,7 @@ import { useRoomSnapshotRuntimeRefs } from './useRoomSnapshotRuntimeRefs';
 import { useRoomSnapshotHandoff } from './useRoomSnapshotHandoff';
 import { useRoomSnapshotFocusState } from './useRoomSnapshotFocusState';
 import { useRoomSnapshotForegroundRefresh } from './useRoomSnapshotForegroundRefresh';
+import { useRoomSnapshotLifeline } from './useRoomSnapshotLifeline';
 import { useRoomSnapshotRouteKey } from './useRoomSnapshotRouteKey';
 import { useLobbyHydrationSuppressionTrace } from './useLobbyHydrationSuppressionTrace';
 
@@ -68,6 +69,14 @@ export function useRoomSnapshotRuntime() {
     loadRoom,
     mountedRef: refs.mountedRef,
     pollingPausedRef: handoff.pollingPausedRef,
+    screenFocusedRef: refs.screenFocusedRef,
+  });
+
+  useRoomSnapshotLifeline({
+    loadRoom,
+    mountedRef: refs.mountedRef,
+    pollingPausedRef: handoff.pollingPausedRef,
+    roomRef: hydration.roomRef,
     screenFocusedRef: refs.screenFocusedRef,
   });
 
