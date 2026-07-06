@@ -1,7 +1,9 @@
 import type { ConnectedSource, RunSourceType } from '@/domain';
 import type { DevicePlatform, SourceMetadata } from './sourceCatalog';
 
-export type SourceMetadataMap = Record<RunSourceType, SourceMetadata>;
+// Partial: retired sources (e.g. legacy 'mynb' runs) keep their RunSourceType
+// but have no catalog metadata, so catalog queries silently drop them.
+export type SourceMetadataMap = Partial<Record<RunSourceType, SourceMetadata>>;
 
 export function getSourceByTypeFromCatalog(sources: ConnectedSource[], sourceType: RunSourceType) {
   return sources.find((source) => source.sourceType === sourceType) ?? null;
@@ -49,8 +51,8 @@ export function sortSourcesByPriorityWithMetadata(
       return Boolean(sourceMetadata[source.sourceType]);
     })
     .sort((left, right) => {
-      const leftScore = sourceMetadata[left.sourceType].priority + (left.connected ? 5 : 0);
-      const rightScore = sourceMetadata[right.sourceType].priority + (right.connected ? 5 : 0);
+      const leftScore = (sourceMetadata[left.sourceType]?.priority ?? 0) + (left.connected ? 5 : 0);
+      const rightScore = (sourceMetadata[right.sourceType]?.priority ?? 0) + (right.connected ? 5 : 0);
 
       return rightScore - leftScore;
     });

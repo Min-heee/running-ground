@@ -211,7 +211,7 @@ export type NativeHealthImportEligibility = {
 };
 
 // Decide whether the platform-native health store import can run, INDEPENDENTLY
-// of which brand source (NRC / Strava / Garmin / MyNB) the user selected as
+// of which brand source (NRC / Strava / Garmin) the user selected as
 // their display source. Brand apps route their workouts INTO the platform store
 // (iOS → Apple Health, Android → Health Connect) anyway, so as long as we're on
 // the right platform in a custom build with the reader linked, we can read the

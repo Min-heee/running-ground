@@ -6,7 +6,7 @@ export type GuideStep = {
   description: string;
 };
 
-export type GuideSectionId = 'nrc' | 'mynb' | 'strava' | 'garmin';
+export type GuideSectionId = 'nrc' | 'strava' | 'garmin';
 
 export type GuideSection = {
   id: GuideSectionId;
@@ -34,7 +34,6 @@ export type NrcBridgeGuideActionProps = {
   healthConnectConnected: boolean;
   healthConnectReady: boolean;
   nrcConnected: boolean;
-  mynbConnected: boolean;
   stravaConnected: boolean;
   garminConnected: boolean;
   onConnectSource?: (sourceType: RunSourceType) => void;

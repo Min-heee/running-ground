@@ -23,7 +23,6 @@ type NrcBridgeGuideStatus = {
   garminConnected: boolean;
   healthConnectConnected: boolean;
   healthConnectReady: boolean;
-  mynbConnected: boolean;
   nrcConnected: boolean;
   stravaConnected: boolean;
 };
@@ -113,7 +112,6 @@ export function NrcBridgeGuideCard({
 }: NrcBridgeGuideCardProps) {
   const [openSectionId, setOpenSectionId] = useState<GuideSectionId | null>('nrc');
   const nrcSource = getSourceByType(sources, 'nrc');
-  const mynbSource = getSourceByType(sources, 'mynb');
   const appleHealthSource = getSourceByType(sources, 'apple_health');
   const healthConnectSource = getSourceByType(sources, 'health_connect');
   const stravaSource = getSourceByType(sources, 'strava');
@@ -126,7 +124,6 @@ export function NrcBridgeGuideCard({
     garminConnected: Boolean(garminSource?.connected),
     healthConnectConnected: Boolean(healthConnectSource?.connected),
     healthConnectReady,
-    mynbConnected: Boolean(mynbSource?.connected),
     nrcConnected: Boolean(nrcSource?.connected),
     stravaConnected: Boolean(stravaSource?.connected),
   }), [
@@ -135,7 +132,6 @@ export function NrcBridgeGuideCard({
     garminSource?.connected,
     healthConnectReady,
     healthConnectSource?.connected,
-    mynbSource?.connected,
     nrcSource?.connected,
     stravaSource?.connected,
   ]);

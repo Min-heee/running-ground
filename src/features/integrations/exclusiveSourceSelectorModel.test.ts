@@ -29,17 +29,29 @@ test('exclusive selector filters platform-specific native health sources', () =>
     source({ sourceType: 'apple_health', recommendedPlatform: 'ios' }),
     source({ sourceType: 'health_connect', recommendedPlatform: 'android' }),
     source({ sourceType: 'garmin', recommendedPlatform: 'all' }),
-    source({ sourceType: 'mynb', recommendedPlatform: undefined }),
+    source({ sourceType: 'nrc', recommendedPlatform: undefined }),
   ], 'ios');
   const androidModel = buildExclusiveSourceSelectorModel([
     source({ sourceType: 'apple_health', recommendedPlatform: 'ios' }),
     source({ sourceType: 'health_connect', recommendedPlatform: 'android' }),
     source({ sourceType: 'garmin', recommendedPlatform: 'all' }),
-    source({ sourceType: 'mynb', recommendedPlatform: undefined }),
+    source({ sourceType: 'nrc', recommendedPlatform: undefined }),
   ], 'android');
 
-  assert.deepEqual(iosModel.rows.map((row) => row.source.sourceType), ['apple_health', 'garmin', 'mynb']);
-  assert.deepEqual(androidModel.rows.map((row) => row.source.sourceType), ['health_connect', 'garmin', 'mynb']);
+  assert.deepEqual(iosModel.rows.map((row) => row.source.sourceType), ['apple_health', 'garmin', 'nrc']);
+  assert.deepEqual(androidModel.rows.map((row) => row.source.sourceType), ['health_connect', 'garmin', 'nrc']);
+});
+
+test('exclusive selector drops retired mynb sources from legacy data', () => {
+  // Legacy connectedSources rows may still carry 'mynb'; the selector must not
+  // offer it because MyNB never writes workouts to the platform health stores.
+  const model = buildExclusiveSourceSelectorModel([
+    source({ connected: true, sourceType: 'mynb' }),
+    source({ sourceType: 'strava' }),
+  ], 'all');
+
+  assert.deepEqual(model.rows.map((row) => row.source.sourceType), ['strava']);
+  assert.equal(model.selectedSourceType, null);
 });
 
 test('exclusive selector marks the connected source as selected', () => {

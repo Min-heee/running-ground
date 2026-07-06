@@ -49,12 +49,6 @@ const metadata: SourceMetadataMap = {
     setupHint: '',
     priority: 55,
   },
-  mynb: {
-    shortDescription: 'MyNB',
-    capabilities: [],
-    setupHint: '',
-    priority: 45,
-  },
   nrc: {
     shortDescription: 'NRC',
     capabilities: [],

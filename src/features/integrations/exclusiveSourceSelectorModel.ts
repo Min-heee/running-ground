@@ -54,12 +54,6 @@ const EXCLUSIVE_SOURCE_SELECTOR_METADATA: SourceMetadataMap = {
     setupHint: '',
     priority: 55,
   },
-  mynb: {
-    shortDescription: '',
-    capabilities: [],
-    setupHint: '',
-    priority: 45,
-  },
   nrc: {
     shortDescription: '',
     capabilities: [],

@@ -19,7 +19,6 @@ type SourceMethodGuidePlatform = 'ios' | 'android' | 'all';
 
 const emptyIosGuideStatus = {
   nrcConnected: false,
-  mynbConnected: false,
   appleHealthConnected: false,
   appleHealthReady: false,
   stravaConnected: false,
@@ -28,7 +27,6 @@ const emptyIosGuideStatus = {
 
 const emptyAndroidGuideStatus = {
   nrcConnected: false,
-  mynbConnected: false,
   healthConnectConnected: false,
   healthConnectReady: false,
   stravaConnected: false,
@@ -110,7 +108,6 @@ export function getSourceMethodGuide(
 
   if (
     sourceType === 'nrc'
-    || sourceType === 'mynb'
     || sourceType === 'strava'
     || sourceType === 'garmin'
   ) {

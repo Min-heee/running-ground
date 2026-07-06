@@ -20,7 +20,6 @@ function buildActionButtons(input: NrcBridgeGuideActionProps) {
     healthConnectConnected,
     healthConnectReady,
     nrcConnected,
-    mynbConnected,
     stravaConnected,
     garminConnected,
     onConnectSource,
@@ -55,42 +54,6 @@ function buildActionButtons(input: NrcBridgeGuideActionProps) {
       buttons.push(
         <SecondaryButton
           key="sync-nrc"
-          label={syncing ? '동기화 중...' : '동기화 다시 하기'}
-          onPress={onSync}
-        />,
-      );
-    }
-
-    return buttons;
-  }
-
-  if (sectionId === 'mynb') {
-    if (!mynbConnected && onConnectSource) {
-      buttons.push(
-        <SecondaryButton
-          key="connect-mynb"
-          label={actionSourceType === 'mynb' ? 'MyNB 연결 중...' : 'MyNB 표시하기'}
-          onPress={() => onConnectSource('mynb')}
-        />,
-      );
-    }
-
-    appendBridgeActions(buttons, {
-      actionSourceType,
-      appleHealthConnected,
-      appleHealthReady,
-      healthConnectConnected,
-      healthConnectReady,
-      importing,
-      onConnectSource,
-      onImportDevice,
-      platform,
-    });
-
-    if ((appleHealthConnected || healthConnectConnected) && onSync) {
-      buttons.push(
-        <SecondaryButton
-          key="sync-mynb"
           label={syncing ? '동기화 중...' : '동기화 다시 하기'}
           onPress={onSync}
         />,

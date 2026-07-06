@@ -9,7 +9,6 @@ const exclusiveSources: RunSourceType[] = [
   'garmin',
   'strava',
   'nrc',
-  'mynb',
 ];
 
 test('source method guide returns title and steps for every exclusive source', () => {
@@ -42,4 +41,11 @@ test('source method guide falls back to iOS guide for all-platform bridge source
 test('source method guide ignores non-automatic sources', () => {
   assert.equal(getSourceMethodGuide('manual', 'ios'), null);
   assert.equal(getSourceMethodGuide('runningground', 'android'), null);
+});
+
+test('source method guide has no guide for retired mynb source', () => {
+  // MyNB consumes records (it reads FROM Strava) and never writes workouts to
+  // Apple Health / Health Connect, so it is not an import source anymore.
+  assert.equal(getSourceMethodGuide('mynb', 'ios'), null);
+  assert.equal(getSourceMethodGuide('mynb', 'android'), null);
 });

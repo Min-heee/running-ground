@@ -2,7 +2,6 @@ import type { GuideSection } from './types';
 
 export function buildIosSections(input: {
   nrcConnected: boolean;
-  mynbConnected: boolean;
   appleHealthConnected: boolean;
   appleHealthReady: boolean;
   stravaConnected: boolean;
@@ -40,24 +39,6 @@ export function buildIosSections(input: {
         {
           title: '우리 앱에서 기록 가져오기',
           description: '그다음 우리 앱에서 기기 기록 가져오기 또는 동기화 다시 하기를 누르면 돼요.',
-        },
-      ],
-    },
-    {
-      id: 'mynb',
-      kicker: '뉴발란스 안내',
-      title: '뉴발란스(MyNB)는 가져오기 소스로 쓸 수 없어요',
-      badge: '안내',
-      statusLabel: '가져오기',
-      statusValue: '불가',
-      sourceStatusLabel: 'MyNB',
-      sourceStatusValue: '운동 쓰기 미지원',
-      bridgeStatusLabel: 'Apple Health',
-      bridgeStatusValue: '연결 대상 아님',
-      steps: [
-        {
-          title: '왜 안 되나요',
-          description: '뉴발란스는 러닝 기록 앱(MyNB)이 쇼핑·적립용이라 Apple 건강에 운동을 쓰지 않아요. 뉴발란스 신발로 뛴 기록은 실제로 측정한 앱(스트라바·나이키런·애플워치)에서 Apple 건강 쓰기를 켜서 가져오세요.',
         },
       ],
     },
@@ -134,7 +115,6 @@ export function buildIosSections(input: {
 
 export function buildAndroidSections(input: {
   nrcConnected: boolean;
-  mynbConnected: boolean;
   healthConnectConnected: boolean;
   healthConnectReady: boolean;
   stravaConnected: boolean;
@@ -175,24 +155,6 @@ export function buildAndroidSections(input: {
         },
       ],
       footnote: 'Android에서는 NRC 직접 수집보다 Health Connect와 파트너 경로를 같이 보는 편이 덜 흔들려요.',
-    },
-    {
-      id: 'mynb',
-      kicker: '뉴발란스 안내',
-      title: '뉴발란스(MyNB)는 가져오기 소스로 쓸 수 없어요',
-      badge: '안내',
-      statusLabel: '가져오기',
-      statusValue: '불가',
-      sourceStatusLabel: 'MyNB',
-      sourceStatusValue: '운동 쓰기 미지원',
-      bridgeStatusLabel: 'Health Connect',
-      bridgeStatusValue: '연결 대상 아님',
-      steps: [
-        {
-          title: '왜 안 되나요',
-          description: '뉴발란스는 러닝 기록 앱(MyNB)이 쇼핑·적립용이라 Health Connect에 운동을 쓰지 않아요. 뉴발란스 신발로 뛴 기록은 실제로 측정한 앱(스트라바·나이키런·갤럭시워치)에서 Health Connect 쓰기를 켜서 가져오세요.',
-        },
-      ],
     },
     {
       id: 'strava',
