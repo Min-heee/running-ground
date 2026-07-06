@@ -564,7 +564,7 @@ export function buildDuelMatchResponse(store, currentUser, { distanceKm, slotSta
   // Matching is pace-only. A candidate is eligible ONLY when the two runners'
   // average paces are within ±DUEL_PACE_MATCH_TOLERANCE_SECONDS (15s/km). Among
   // eligible candidates we pick the smallest pace gap (closest pace). The
-  // queue-store already enforces the same-slot + same-distance(0.15km) filters,
+  // queue-store already enforces the same-slot + SAME-distance (exact) filters,
   // so two similar-pace runners on the same slot/distance ALWAYS pair.
   const queuedEntries = buildQueuedMatchRunnerEntries(store, 'duel', currentRunner, {
     distanceKm,
@@ -735,7 +735,7 @@ export function buildGroupMatchResponse(store, currentUser, { distanceKm, slotSt
     };
   }
 
-  // FORM-AT-3: from the same-slot + same-distance(±0.15km) queued entries, pick the
+  // FORM-AT-3: from the same-slot + SAME-distance (exact) queued entries, pick the
   // tightest cluster of 3 paces (all within ±15s of each other) that includes self.
   const queuedEntries = buildQueuedMatchRunnerEntries(store, 'group', currentRunner, {
     distanceKm,

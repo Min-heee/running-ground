@@ -9,7 +9,9 @@ import { buildGroupMatchResponse } from './matchResponseBuilders.mjs';
 import {
   buildDuelSlotCountKey,
   countDuelQueueBySlot,
+  getMatchQueueEntries,
 } from './matchQueueStoreHelpers.mjs';
+import { findJoinableGroupSession } from './runningMatchSession/matchSessionLifecycle.mjs';
 
 // Average pace is derived from the user's last (up to 3) runs' parsed paces, so a
 // single run at a known pace pins each runner's averagePaceMinutes deterministically.
@@ -274,4 +276,69 @@ test('countDuelQueueBySlot excludes the viewing user so a lone searcher never co
   // With one OTHER waiter present, the viewer sees exactly that one matchable runner.
   const counts = countDuelQueueBySlot(store, { now, currentUserId: 'viewer' });
   assert.equal(counts[buildDuelSlotCountKey(slotA, 5)], 1, 'viewer counts the one OTHER 5km waiter, not themselves');
+});
+
+// ---- Same-distance-only matching (5km races with 5km, never 5.1km) --------------------
+// The old ±0.15km band let adjacent 0.1km custom inputs (5.0 vs 5.1) pair into ONE race —
+// a 5.1km requester would silently run a 5.0km match. isSameMatchDistance pins exact
+// (normalized) distance identity while still absorbing float noise (42.195 ≡ 42.2).
+test('queue filter: 5.0km and 5.1km requesters never see each other; 42.195 matches its 42.2-normalized twin', () => {
+  const store = createStore([
+    { id: 'five-oh', paceSeconds: 330 },
+    { id: 'five-one', paceSeconds: 330 },
+    { id: 'marathon-raw', paceSeconds: 330 },
+  ]);
+  const slotStartAt = futureSlotStartAt();
+  const requestedAt = new Date(Date.now() - 1000).toISOString();
+
+  store.matchQueues.group = [
+    { id: 'g1', userId: 'five-oh', distanceKm: 5, slotStartAt, requestedAt, testMode: false },
+    { id: 'g2', userId: 'five-one', distanceKm: 5.1, slotStartAt, requestedAt, testMode: false },
+    { id: 'g3', userId: 'marathon-raw', distanceKm: 42.195, slotStartAt, requestedAt, testMode: false },
+  ];
+
+  const fiveEntries = getMatchQueueEntries(store, 'group', 5, slotStartAt);
+  assert.deepEqual(fiveEntries.map((entry) => entry.userId), ['five-oh'], '5.0km sees ONLY 5.0km — never the 5.1km neighbor');
+
+  const fiveOneEntries = getMatchQueueEntries(store, 'group', 5.1, slotStartAt);
+  assert.deepEqual(fiveOneEntries.map((entry) => entry.userId), ['five-one'], '5.1km sees ONLY 5.1km');
+
+  // Float-noise identity: a raw 42.195 entry and a 42.2 request are the SAME distance
+  // after one-decimal normalization — must still pair (marathon requesters are not split
+  // by representation noise).
+  const marathonEntries = getMatchQueueEntries(store, 'group', 42.2, slotStartAt);
+  assert.deepEqual(marathonEntries.map((entry) => entry.userId), ['marathon-raw'], '42.195 ≡ 42.2 after normalization');
+});
+
+test('late-join: a same-pace 5.1km requester never joins a formed 5.0km group', () => {
+  // Found a REAL 5.0km group of 3 through the actual API, then probe the late-join
+  // seam directly: identical pace/slot, distance one 0.1km custom-input step apart.
+  const store = createStore([
+    { id: 'r-fast', paceSeconds: 370 },
+    { id: 'r-mid', paceSeconds: 380 },
+    { id: 'r-slow', paceSeconds: 385 },
+  ]);
+  const slotStartAt = futureSlotStartAt();
+
+  requestGroup(store, 'r-fast', slotStartAt);
+  requestGroup(store, 'r-mid', slotStartAt);
+  const formed = requestGroup(store, 'r-slow', slotStartAt);
+  assert.equal(formed.matched, true, 'the 5.0km founding trio forms');
+
+  const session = store.matchSessions.find((entry) => entry.mode === 'group');
+  assert.ok(session, 'group session exists');
+
+  const mismatch = findJoinableGroupSession(store, {
+    distanceKm: 5.1,
+    slotStartAt,
+    joinerPaceMinutes: session.anchorPaceMinutes,
+  });
+  assert.equal(mismatch, null, '5.1km requester must NOT be slotted into the 5.0km group');
+
+  const exact = findJoinableGroupSession(store, {
+    distanceKm: 5,
+    slotStartAt,
+    joinerPaceMinutes: session.anchorPaceMinutes,
+  });
+  assert.equal(exact?.id, session.id, 'the exact-distance joiner still slots in');
 });

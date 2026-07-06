@@ -4,6 +4,7 @@ import {
 } from '../matchConstants.mjs';
 import {
   isParticipantDoneWithMatch,
+  isSameMatchDistance,
   normalizeMatchQueueDistance,
 } from '../matchPureHelpers.mjs';
 import { nextId } from '../idHelpers.mjs';
@@ -126,8 +127,9 @@ export function addParticipantToMatchSession(session, participant) {
   return session;
 }
 
-// Find an existing forming group session a joiner can slot into: same mode/distance
-// (±0.15km) + same slot, still in the 'matched' (pre-start) state, under the size cap,
+// Find an existing forming group session a joiner can slot into: same mode + SAME
+// distance (exact after normalization) + same slot, still in the 'matched' (pre-start)
+// state, under the size cap,
 // and whose anchor pace is within ±GROUP_PACE_MATCH_TOLERANCE_SECONDS of the joiner.
 // Returns the session or null. Caller adds exactly one joiner per HTTP call so the
 // closest joiner wins the single open seat (closest-first, one at a time).
@@ -160,7 +162,9 @@ export function findJoinableGroupSession(store, { distanceKm, slotStartAt, joine
       continue;
     }
 
-    if (normalizedDistanceKm !== null && Math.abs(session.distanceKm - normalizedDistanceKm) >= 0.15) {
+    // Same-distance ONLY (isSameMatchDistance): a 5.1km requester must never late-join
+    // a 5.0km group — the old ±0.15 band allowed exactly that.
+    if (normalizedDistanceKm !== null && !isSameMatchDistance(session.distanceKm, normalizedDistanceKm)) {
       continue;
     }
 

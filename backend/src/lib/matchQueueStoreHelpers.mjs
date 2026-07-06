@@ -1,5 +1,5 @@
 import { MATCH_BOOKING_CUTOFF_MS } from './matchConstants.mjs';
-import { normalizeMatchQueueDistance } from './matchPureHelpers.mjs';
+import { isSameMatchDistance, normalizeMatchQueueDistance } from './matchPureHelpers.mjs';
 import { getMatchQueueEntryExpiresAt } from './matchScheduleHelpers.mjs';
 import { nextId } from './idHelpers.mjs';
 
@@ -94,9 +94,11 @@ export function getMatchQueueEntries(store, mode, distanceKm, slotStartAt, { tes
   const normalizedDistanceKm = normalizeMatchQueueDistance(distanceKm);
   const queues = pruneMatchQueues(store);
 
+  // Same-distance ONLY: 5km races with 5km, never with 5.1km (isSameMatchDistance —
+  // the old ±0.15 band let adjacent 0.1km custom inputs pair into the same race).
   return queues[mode].filter((entry) => (
     Boolean(entry.testMode) === testMode
-    && Math.abs(entry.distanceKm - normalizedDistanceKm) < 0.15
+    && isSameMatchDistance(entry.distanceKm, normalizedDistanceKm)
     && (testMode || entry.slotStartAt === slotStartAt)
   ));
 }

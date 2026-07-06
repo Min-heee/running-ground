@@ -50,6 +50,17 @@ export function normalizeMatchQueueDistance(distanceKm) {
   return Number(distanceKm.toFixed(1));
 }
 
+// Matchmaking distance identity: two requests race together ONLY when they mean the SAME
+// distance (5km with 5km, 10km with 10km). Queue entries and sessions both store
+// normalizeMatchQueueDistance()d values (one decimal), so after normalizing both sides
+// equality holds exactly; the 0.05 epsilon only absorbs float representation noise
+// (42.195→42.2 vs a stored 42.2). It is deliberately SMALLER than the 0.1km custom-input
+// step, so 5.0km and 5.1km — different user intents — can never be paired (the old ±0.15
+// band wrongly allowed that: a 5.1km requester could land in a 5.0km race).
+export function isSameMatchDistance(leftDistanceKm, rightDistanceKm) {
+  return Math.abs(normalizeMatchQueueDistance(leftDistanceKm) - normalizeMatchQueueDistance(rightDistanceKm)) < 0.05;
+}
+
 export function normalizeMatchRoomMaxParticipants(mode, value) {
   if (mode === 'duel') {
     return 2;
