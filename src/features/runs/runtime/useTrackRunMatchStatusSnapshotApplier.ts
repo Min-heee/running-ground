@@ -10,10 +10,11 @@ import {
 import { stopBackgroundMatchProgressTimer } from '@/features/runs/tracking/background/backgroundMatchProgressTimer';
 import type { RunningMatchStatusResponse } from '@/lib/api/types';
 
-type UseTrackRunMatchStatusSnapshotApplierInput = {
+export type GuardedMatchStatusSnapshotApplyDeps = {
   duelMatchStatusRef: MutableRefObject<RunningMatchStatusResponse | null>;
   forfeitedMatchIdsRef: MutableRefObject<Set<string>>;
   groupMatchStatusRef: MutableRefObject<RunningMatchStatusResponse | null>;
+  lastMatchStatusAppliedAtMsRef: MutableRefObject<number>;
   latestDuelStatusServerNowMsRef: MutableRefObject<number>;
   latestGroupStatusServerNowMsRef: MutableRefObject<number>;
   roomLinkedMatchContextRef: MutableRefObject<PartyRunLinkedMatchContext | null>;
@@ -21,6 +22,84 @@ type UseTrackRunMatchStatusSnapshotApplierInput = {
   setGroupMatchStatus: Dispatch<SetStateAction<RunningMatchStatusResponse | null>>;
   syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
 };
+
+type UseTrackRunMatchStatusSnapshotApplierInput = GuardedMatchStatusSnapshotApplyDeps;
+
+// The funnel's guarded apply, extracted to module level so the guard→side-effect ordering
+// (and the Piece 2 lifeline stamp on ACCEPTED applies only) is node-testable without rendering
+// the hook. Behavior is identical to the former inline closure: every dep is a stable ref /
+// React setter / the stable syncServerClock, passed straight through by the hook below.
+export function applyGuardedMatchStatusSnapshot(
+  {
+    duelMatchStatusRef,
+    forfeitedMatchIdsRef,
+    groupMatchStatusRef,
+    lastMatchStatusAppliedAtMsRef,
+    latestDuelStatusServerNowMsRef,
+    latestGroupStatusServerNowMsRef,
+    roomLinkedMatchContextRef,
+    setDuelMatchStatus,
+    setGroupMatchStatus,
+    syncServerClock,
+  }: GuardedMatchStatusSnapshotApplyDeps,
+  nextStatus: RunningMatchStatusResponse,
+  options?: { source?: string; forceAccept?: boolean },
+) {
+  // THE guard decision (forfeit FIRST, monotonic serverNow SECOND) lives in ONE pure tested
+  // place — resolveMatchStatusSnapshotApply (matchProgressSync.ts, matchProgressSync.test.ts) —
+  // so the heartbeat / background / mounted-safety-poll channels can never drift out of the
+  // same ordering. It reads ONLY refs here, so it never works off stale match state, and it
+  // never advances a per-mode serverNow ref for a snapshot it drops (forfeit/not-live/mode-
+  // mismatch return before the monotonic ref is touched).
+  const decision = resolveMatchStatusSnapshotApply({
+    status: nextStatus,
+    duelMatchId: duelMatchStatusRef.current?.matchId,
+    groupMatchId: groupMatchStatusRef.current?.matchId,
+    roomLinkedMatchContext: roomLinkedMatchContextRef.current,
+    forfeitedMatchIds: forfeitedMatchIdsRef.current,
+    duelServerNowMsRef: latestDuelStatusServerNowMsRef,
+    groupServerNowMsRef: latestGroupStatusServerNowMsRef,
+    forceAccept: options?.forceAccept ?? false,
+  });
+
+  if (!decision.apply) {
+    return;
+  }
+
+  // Side effects, in the SAME order as the foreground/poll paths:
+  // 1) keep the shared server clock advancing (countdown depends on it),
+  // 2) write the per-mode status (slot-clamped, like the poll funnel),
+  // 3) terminal-status background teardown.
+  syncServerClock(nextStatus.serverNow, nextStatus);
+
+  // STAGE 2 (clean core): NO client-side slot clamp. The server slot-gates the reported state and
+  // the client gates countdown/arena/GPS on the slot, so an early SHARED-session 'active' can't
+  // skip the guest. This channel (foreground heartbeat / background flush) only fires while a
+  // runner is already measuring (past its slot) anyway. decision.isTerminal is derived from
+  // currentUserLiveStatus, so finish / forfeit teardown is unaffected.
+  const clampedStatus = nextStatus;
+
+  if (decision.target === 'duel') {
+    setDuelMatchStatus(clampedStatus);
+  } else {
+    setGroupMatchStatus(clampedStatus);
+  }
+  // Opponent-sync lifeline stamp (Piece 2) — ONLY on an ACCEPTED apply. A dropped snapshot
+  // (forfeited / not-live / stale serverNow) returned above without stamping, so a funnel that
+  // keeps dropping (or a channel that stopped delivering) leaves the stamp stale and trips the
+  // lifeline's recovery fetch.
+  lastMatchStatusAppliedAtMsRef.current = Date.now();
+
+  // M1 — finish-path cooperation. If the applied status is terminal for THIS runner (finished
+  // or forfeited), idempotently tear down the background context + timer so the background
+  // flush stops firing for a dead match instead of racing the foreground finish teardown.
+  // clearBackgroundMatchProgressContext is match-id-scoped, so this is safe if another match
+  // has already taken over the context.
+  if (decision.isTerminal) {
+    stopBackgroundMatchProgressTimer();
+    clearBackgroundMatchProgressContext(nextStatus.matchId ?? undefined);
+  }
+}
 
 // Bundle A2 — THE ONE guarded apply funnel. Every channel that writes another participant's
 // live status into duel/groupMatchStatus (background flush, foreground heartbeat, and the
@@ -40,6 +119,7 @@ export function useTrackRunMatchStatusSnapshotApplier({
   duelMatchStatusRef,
   forfeitedMatchIdsRef,
   groupMatchStatusRef,
+  lastMatchStatusAppliedAtMsRef,
   latestDuelStatusServerNowMsRef,
   latestGroupStatusServerNowMsRef,
   roomLinkedMatchContextRef,
@@ -59,55 +139,18 @@ export function useTrackRunMatchStatusSnapshotApplier({
     nextStatus: RunningMatchStatusResponse,
     options?: { source?: string; forceAccept?: boolean },
   ) => {
-    // THE guard decision (forfeit FIRST, monotonic serverNow SECOND) lives in ONE pure tested
-    // place — resolveMatchStatusSnapshotApply (matchProgressSync.ts, matchProgressSync.test.ts) —
-    // so the heartbeat / background / mounted-safety-poll channels can never drift out of the
-    // same ordering. It reads ONLY refs here, so it never works off stale match state, and it
-    // never advances a per-mode serverNow ref for a snapshot it drops (forfeit/not-live/mode-
-    // mismatch return before the monotonic ref is touched).
-    const decision = resolveMatchStatusSnapshotApply({
-      status: nextStatus,
-      duelMatchId: duelMatchStatusRef.current?.matchId,
-      groupMatchId: groupMatchStatusRef.current?.matchId,
-      roomLinkedMatchContext: roomLinkedMatchContextRef.current,
-      forfeitedMatchIds: forfeitedMatchIdsRef.current,
-      duelServerNowMsRef: latestDuelStatusServerNowMsRef,
-      groupServerNowMsRef: latestGroupStatusServerNowMsRef,
-      forceAccept: options?.forceAccept ?? false,
-    });
-
-    if (!decision.apply) {
-      return;
-    }
-
-    // Side effects, in the SAME order as the foreground/poll paths:
-    // 1) keep the shared server clock advancing (countdown depends on it),
-    // 2) write the per-mode status (slot-clamped, like the poll funnel),
-    // 3) terminal teardown.
-    syncServerClock(nextStatus.serverNow, nextStatus);
-
-    // STAGE 2 (clean core): NO client-side slot clamp. The server slot-gates the reported state and
-    // the client gates countdown/arena/GPS on the slot, so an early SHARED-session 'active' can't
-    // skip the guest. This channel (foreground heartbeat / background flush) only fires while a
-    // runner is already measuring (past its slot) anyway. decision.isTerminal is derived from
-    // currentUserLiveStatus, so finish / forfeit teardown is unaffected.
-    const clampedStatus = nextStatus;
-
-    if (decision.target === 'duel') {
-      setDuelMatchStatus(clampedStatus);
-    } else {
-      setGroupMatchStatus(clampedStatus);
-    }
-
-    // M1 — finish-path cooperation. If the applied status is terminal for THIS runner (finished
-    // or forfeited), idempotently tear down the background context + timer so the background
-    // flush stops firing for a dead match instead of racing the foreground finish teardown.
-    // clearBackgroundMatchProgressContext is match-id-scoped, so this is safe if another match
-    // has already taken over the context.
-    if (decision.isTerminal) {
-      stopBackgroundMatchProgressTimer();
-      clearBackgroundMatchProgressContext(nextStatus.matchId ?? undefined);
-    }
+    applyGuardedMatchStatusSnapshot({
+      duelMatchStatusRef,
+      forfeitedMatchIdsRef,
+      groupMatchStatusRef,
+      lastMatchStatusAppliedAtMsRef,
+      latestDuelStatusServerNowMsRef,
+      latestGroupStatusServerNowMsRef,
+      roomLinkedMatchContextRef,
+      setDuelMatchStatus,
+      setGroupMatchStatus,
+      syncServerClock,
+    }, nextStatus, options);
   });
 
   // Stable funnel callback the foreground heartbeat (useMatchProgressSync) calls in place of its

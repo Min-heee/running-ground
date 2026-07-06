@@ -101,6 +101,71 @@ export function buildBlockingMatchStatusPollingKey(matchId: string) {
   return buildBlockingMatchStatusRegistryKey(matchId);
 }
 
+type BlockingMatchStatusPollHandle = {
+  acquired: boolean;
+  ownerId: number;
+  stop: () => void;
+};
+
+// Opponent-poll stall fix (docs/opponent-poll-stall-diag-2026-07-06.md, Piece 1) — un-latch a
+// LOST polling-slot acquire. startRgPollingInterval returns a dead no-timer handle when the keyed
+// slot is already owned, and the duel/group effects below used to just return on that branch.
+// Their deps are all stable while a match is state==='active', so a lost acquire stayed
+// permanently dead (no effect re-run) until match end or an AppState resume — the match's only
+// foreground status GET silently stopped and the opponent froze at 0.00. This helper arms a local
+// retry interval that re-attempts the acquire every intervalMs; the moment the slot frees up it
+// keeps the real polling handle, fires ONE immediate catch-up tick (the dead owner may have
+// delivered nothing for a while), and stops retrying. stop() halts whichever is live (retry timer
+// or acquired poll handle), so effect cleanup can never leak either — and the acquired/stopped
+// guards make a straggler retry tick a no-op (no double-arm). The first-acquire SUCCESS path in
+// the effects is untouched (still no leading tick). Timer fns are injectable for the node tests.
+export function armBlockingMatchStatusPollRetry({
+  intervalMs,
+  onReacquired,
+  onTick,
+  startPolling,
+  clearIntervalFn = clearInterval,
+  setIntervalFn = setInterval,
+}: {
+  intervalMs: number;
+  onReacquired?: (handle: { ownerId: number }) => void;
+  onTick: () => unknown | Promise<unknown>;
+  startPolling: () => BlockingMatchStatusPollHandle;
+  clearIntervalFn?: typeof clearInterval;
+  setIntervalFn?: typeof setInterval;
+}) {
+  let acquiredPolling: BlockingMatchStatusPollHandle | null = null;
+  let stopped = false;
+  const retryTimer = setIntervalFn(() => {
+    if (stopped || acquiredPolling) {
+      return;
+    }
+
+    const polling = startPolling();
+    if (!polling.acquired) {
+      return;
+    }
+
+    clearIntervalFn(retryTimer);
+    acquiredPolling = polling;
+    onReacquired?.(polling);
+    // One immediate catch-up tick — same swallow-errors tick style as startRgPollingInterval.
+    void Promise.resolve(onTick()).catch(() => {});
+  }, intervalMs);
+
+  return {
+    stop: () => {
+      if (stopped) {
+        return;
+      }
+      stopped = true;
+      clearIntervalFn(retryTimer);
+      acquiredPolling?.stop();
+      acquiredPolling = null;
+    },
+  };
+}
+
 // Bundle A2 step 8 — cadence for the unified blocking/safety poll. A mounted matched-duel/group
 // (no longer fully skipped) runs the safety poll at the IDLE cadence regardless of the fast/idle
 // signal, so it can never compete with the foreground heartbeat or the linked poll. The non-mounted
@@ -267,17 +332,18 @@ export function useBlockingMatchStatusPolling({
       idlePollMs,
     });
 
-    const polling = startRgPollingInterval({
+    const onTick = () => {
+      if (isLinkedMatchPolling && linkedDuelMatchContext) {
+        const { slotStartAt, options } = buildLinkedMatchStatusLoadArgs(linkedDuelMatchContext);
+        return callbackRef.current.loadDuelMatchStatus(slotStartAt, options);
+      }
+      return callbackRef.current.loadDuelMatchStatus();
+    };
+    const startDuelPolling = () => startRgPollingInterval({
       intervalMs,
       key: pollingKey,
       label: 'blocking match status polling',
-      onTick: () => {
-        if (isLinkedMatchPolling && linkedDuelMatchContext) {
-          const { slotStartAt, options } = buildLinkedMatchStatusLoadArgs(linkedDuelMatchContext);
-          return callbackRef.current.loadDuelMatchStatus(slotStartAt, options);
-        }
-        return callbackRef.current.loadDuelMatchStatus();
-      },
+      onTick,
       detail: {
         intervalMs,
         matchId: effectiveDuelMatchId,
@@ -289,6 +355,8 @@ export function useBlockingMatchStatusPolling({
             : 'blocking match status',
       },
     });
+
+    const polling = startDuelPolling();
     if (!polling.acquired) {
       rgPerfMark('live match recovery polling skipped duplicate', {
         matchId: effectiveDuelMatchId,
@@ -303,7 +371,27 @@ export function useBlockingMatchStatusPolling({
         pollingKey,
         source: 'blocking match status',
       });
-      return;
+      // Piece 1 — a lost acquire is no longer permanently dead: keep re-attempting the slot at
+      // the poll cadence; on re-acquire fire one catch-up tick and hold the real handle. Cleanup
+      // stops whichever is live (retry timer or acquired poll).
+      const retry = armBlockingMatchStatusPollRetry({
+        intervalMs,
+        onReacquired: (handle) => {
+          rgPerfMark('blocking match status polling reacquired after retry', {
+            intervalMs,
+            matchId: effectiveDuelMatchId,
+            mode: 'duel',
+            ownerId: handle.ownerId,
+            pollingKey,
+            source: 'blocking match status',
+          });
+        },
+        onTick,
+        startPolling: startDuelPolling,
+      });
+      return () => {
+        retry.stop();
+      };
     }
 
     if (isRecoveryPolling) {
@@ -390,17 +478,18 @@ export function useBlockingMatchStatusPolling({
       idlePollMs,
     });
 
-    const polling = startRgPollingInterval({
+    const onTick = () => {
+      if (isLinkedMatchPolling && linkedGroupMatchContext) {
+        const { slotStartAt, options } = buildLinkedMatchStatusLoadArgs(linkedGroupMatchContext);
+        return callbackRef.current.loadGroupMatchStatus(slotStartAt, options);
+      }
+      return callbackRef.current.loadGroupMatchStatus();
+    };
+    const startGroupPolling = () => startRgPollingInterval({
       intervalMs,
       key: pollingKey,
       label: 'blocking match status polling',
-      onTick: () => {
-        if (isLinkedMatchPolling && linkedGroupMatchContext) {
-          const { slotStartAt, options } = buildLinkedMatchStatusLoadArgs(linkedGroupMatchContext);
-          return callbackRef.current.loadGroupMatchStatus(slotStartAt, options);
-        }
-        return callbackRef.current.loadGroupMatchStatus();
-      },
+      onTick,
       detail: {
         intervalMs,
         matchId: effectiveGroupMatchId,
@@ -412,6 +501,8 @@ export function useBlockingMatchStatusPolling({
             : 'blocking match status',
       },
     });
+
+    const polling = startGroupPolling();
     if (!polling.acquired) {
       rgPerfMark('live match recovery polling skipped duplicate', {
         matchId: effectiveGroupMatchId,
@@ -426,7 +517,26 @@ export function useBlockingMatchStatusPolling({
         pollingKey,
         source: 'blocking match status',
       });
-      return;
+      // Piece 1 — same un-latch as the duel effect above: keep re-attempting the slot at the
+      // poll cadence; on re-acquire fire one catch-up tick and hold the real handle.
+      const retry = armBlockingMatchStatusPollRetry({
+        intervalMs,
+        onReacquired: (handle) => {
+          rgPerfMark('blocking match status polling reacquired after retry', {
+            intervalMs,
+            matchId: effectiveGroupMatchId,
+            mode: 'group',
+            ownerId: handle.ownerId,
+            pollingKey,
+            source: 'blocking match status',
+          });
+        },
+        onTick,
+        startPolling: startGroupPolling,
+      });
+      return () => {
+        retry.stop();
+      };
     }
 
     if (isRecoveryPolling) {

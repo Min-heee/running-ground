@@ -45,6 +45,7 @@ type UseTrackRunMatchStatusLoadersInput = {
   hasMatchResultPageRef: MutableRefObject<boolean>;
   isDuelTestFlow: boolean;
   isGroupTestFlow: boolean;
+  lastMatchStatusAppliedAtMsRef: MutableRefObject<number>;
   latestDuelStatusServerNowMsRef: MutableRefObject<number>;
   latestGroupStatusServerNowMsRef: MutableRefObject<number>;
   latestUpcomingServerNowMsRef: MutableRefObject<number>;
@@ -89,6 +90,7 @@ export function useTrackRunMatchStatusLoaders({
   hasMatchResultPageRef,
   isDuelTestFlow,
   isGroupTestFlow,
+  lastMatchStatusAppliedAtMsRef,
   latestDuelStatusServerNowMsRef,
   latestGroupStatusServerNowMsRef,
   latestUpcomingServerNowMsRef,
@@ -315,6 +317,10 @@ export function useTrackRunMatchStatusLoaders({
       source: options?.forceAccept ? 'force-accept' : 'poll',
     });
     setDuelMatchStatus(clampedPayload);
+    // Opponent-sync lifeline stamp (Piece 2) — mark the wall-clock time of this ACCEPTED apply.
+    // Guard-dropped snapshots (stale serverNow / forfeited matchId) returned above without
+    // stamping, so a silent channel leaves the stamp stale and trips the lifeline.
+    lastMatchStatusAppliedAtMsRef.current = Date.now();
     return clampedPayload;
   };
 
@@ -387,6 +393,8 @@ export function useTrackRunMatchStatusLoaders({
     }
 
     setGroupMatchStatus(clampedPayload);
+    // Opponent-sync lifeline stamp (Piece 2) — accepted applies only, same as the duel loader.
+    lastMatchStatusAppliedAtMsRef.current = Date.now();
     return clampedPayload;
   };
 

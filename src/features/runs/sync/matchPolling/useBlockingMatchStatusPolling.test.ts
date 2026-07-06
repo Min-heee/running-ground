@@ -12,10 +12,31 @@ import {
 } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
 import { buildWaitingMatchDiscoveryRegistryKey } from '@/features/runs/sync/registryKeys';
 import {
+  armBlockingMatchStatusPollRetry,
   buildBlockingMatchStatusPollingKey,
   resolveBlockingMatchStatusPollIntervalMs,
   shouldSkipBlockingMatchStatusPollingForMountedMatch,
 } from './useBlockingMatchStatusPolling';
+
+type FakeTimer = { id: number; callback: () => void; intervalMs: number };
+
+function createFakeTimerHarness() {
+  const timers: FakeTimer[] = [];
+  const cleared: FakeTimer[] = [];
+
+  return {
+    timers,
+    cleared,
+    setIntervalFn: ((callback: () => void, intervalMs: number) => {
+      const timer = { id: timers.length + 1, callback, intervalMs };
+      timers.push(timer);
+      return timer;
+    }) as unknown as typeof setInterval,
+    clearIntervalFn: ((timer: FakeTimer) => {
+      cleared.push(timer);
+    }) as unknown as typeof clearInterval,
+  };
+}
 
 test('blocking match status recovery polling stays singleton for the same matchId', () => {
   resetRgPollingRegistryForTest();
@@ -237,6 +258,116 @@ test('mounted safety poll is single-flighted per matchId (cannot double up)', ()
   duplicate.stop();
   assert.equal(getActiveRgPollingSlotCount(), 1);
   safetyPoll.stop();
+  assert.equal(getActiveRgPollingSlotCount(), 0);
+});
+
+// Opponent-poll stall fix Piece 1 — a lost acquire is no longer permanently dead. The retry
+// keeps re-attempting the slot at the poll cadence; once the zombie owner releases, the next
+// retry tick re-acquires, fires exactly ONE immediate catch-up tick, and stops retrying.
+test('blocking poll retry re-acquires after a zombie owner releases and fires one catch-up tick', async () => {
+  resetRgPollingRegistryForTest();
+  const pollingKey = buildBlockingMatchStatusPollingKey('duel-match-retry');
+  const zombie = acquireRgPollingSlot(pollingKey, 'blocking match status polling', {
+    source: 'zombie owner',
+  });
+  assert.equal(zombie.acquired, true);
+
+  let tickCount = 0;
+  const harness = createFakeTimerHarness();
+  const startPolling = () => startRgPollingInterval({
+    // Real poll cadence far beyond the test lifetime — the acquired poll never ticks here, so
+    // any tickCount increment can only be the retry's immediate catch-up tick.
+    intervalMs: 600_000,
+    key: pollingKey,
+    label: 'blocking match status polling',
+    onTick: () => {
+      tickCount += 1;
+    },
+  });
+
+  // The effect's first startRgPollingInterval loses the acquire (the zombie owns the key)...
+  const initial = startPolling();
+  assert.equal(initial.acquired, false);
+
+  // ...so the retry is armed at the same cadence.
+  let reacquiredOwnerId: number | null = null;
+  const retry = armBlockingMatchStatusPollRetry({
+    intervalMs: 600_000,
+    onReacquired: (handle) => {
+      reacquiredOwnerId = handle.ownerId;
+    },
+    onTick: () => {
+      tickCount += 1;
+    },
+    startPolling,
+    clearIntervalFn: harness.clearIntervalFn,
+    setIntervalFn: harness.setIntervalFn,
+  });
+  assert.equal(harness.timers.length, 1);
+
+  // While the zombie still owns the slot, retry ticks stay unacquired — no poll, no tick.
+  harness.timers[0].callback();
+  await Promise.resolve();
+  assert.equal(tickCount, 0);
+  assert.equal(getActiveRgPollingSlotCount(), 1);
+
+  // Zombie dies (releases) → the NEXT retry tick re-acquires and fires ONE catch-up tick.
+  zombie.release();
+  harness.timers[0].callback();
+  await Promise.resolve();
+  assert.equal(tickCount, 1);
+  assert.notEqual(reacquiredOwnerId, null);
+  assert.equal(getActiveRgPollingSlotCount(), 1);
+  // The retry timer was stopped on re-acquire.
+  assert.equal(harness.cleared.includes(harness.timers[0]), true);
+
+  // A straggler retry callback after re-acquire is a no-op — no double-arm, no extra tick.
+  harness.timers[0].callback();
+  await Promise.resolve();
+  assert.equal(tickCount, 1);
+  assert.equal(getActiveRgPollingSlotCount(), 1);
+
+  // Effect cleanup stops the live poll handle → zero slots left behind.
+  retry.stop();
+  assert.equal(getActiveRgPollingSlotCount(), 0);
+});
+
+test('blocking poll retry cleanup before re-acquire clears the timer and acquires nothing', async () => {
+  resetRgPollingRegistryForTest();
+  const pollingKey = buildBlockingMatchStatusPollingKey('duel-match-retry-cleanup');
+  const zombie = acquireRgPollingSlot(pollingKey, 'blocking match status polling');
+  assert.equal(zombie.acquired, true);
+
+  let tickCount = 0;
+  const harness = createFakeTimerHarness();
+  const retry = armBlockingMatchStatusPollRetry({
+    intervalMs: 600_000,
+    onTick: () => {
+      tickCount += 1;
+    },
+    startPolling: () => startRgPollingInterval({
+      intervalMs: 600_000,
+      key: pollingKey,
+      label: 'blocking match status polling',
+      onTick: () => {
+        tickCount += 1;
+      },
+    }),
+    clearIntervalFn: harness.clearIntervalFn,
+    setIntervalFn: harness.setIntervalFn,
+  });
+  assert.equal(harness.timers.length, 1);
+
+  // Effect cleanup while still waiting for the slot: the retry timer is cleared...
+  retry.stop();
+  assert.equal(harness.cleared.includes(harness.timers[0]), true);
+
+  // ...and even if a straggler retry callback fires after stop (and the slot is now free), it
+  // must NOT acquire anything or tick — the retry is dead.
+  zombie.release();
+  harness.timers[0].callback();
+  await Promise.resolve();
+  assert.equal(tickCount, 0);
   assert.equal(getActiveRgPollingSlotCount(), 0);
 });
 

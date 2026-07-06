@@ -91,6 +91,7 @@ import { useTrackRunIdlePressHandlers } from '@/features/runs/runtime/useTrackRu
 import { useTrackRunMatchStatusLoaders } from '@/features/runs/runtime/useTrackRunMatchStatusLoaders';
 import { useTrackRunMatchStatusSnapshotApplier } from '@/features/runs/runtime/useTrackRunMatchStatusSnapshotApplier';
 import { useTrackRunNavigationAdapter } from '@/features/runs/runtime/useTrackRunNavigationAdapter';
+import { useTrackRunOpponentSyncLifeline } from '@/features/runs/runtime/useTrackRunOpponentSyncLifeline';
 import { unmarkLiveMatchMounted } from '@/features/runs/lifecycle/liveMatchMountedRegistry';
 import { useTrackRunRuntimeTrace } from '@/features/runs/runtime/useTrackRunRuntimeTrace';
 import { useTrackRunLiveArenaDiagnostics } from '@/features/runs/runtime/useTrackRunLiveArenaDiagnostics';
@@ -261,6 +262,10 @@ export function TrackRunExperienceRuntime({
   const latestGroupStatusServerNowMsRef = useRef(0);
   const latestUpcomingServerNowMsRef = useRef(0);
   const latestMatchRoomServerNowMsRef = useRef(0);
+  // Opponent-sync lifeline (Piece 2) — wall-clock stamp of the last ACCEPTED duel/group match
+  // status apply (written by the poll loaders and the snapshot-applier funnel; read by
+  // useTrackRunOpponentSyncLifeline's ref-only 5s timer).
+  const lastMatchStatusAppliedAtMsRef = useRef(0);
   const lastRouteKeyCorrectionRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
   const linkedMatchVanishStateRef = useRef<Record<'duel' | 'group', MatchStatusVanishState>>({
@@ -1305,6 +1310,7 @@ export function TrackRunExperienceRuntime({
     hasMatchResultPageRef,
     isDuelTestFlow,
     isGroupTestFlow,
+    lastMatchStatusAppliedAtMsRef,
     latestDuelStatusServerNowMsRef,
     latestGroupStatusServerNowMsRef,
     latestUpcomingServerNowMsRef,
@@ -1335,12 +1341,27 @@ export function TrackRunExperienceRuntime({
     duelMatchStatusRef,
     forfeitedMatchIdsRef,
     groupMatchStatusRef,
+    lastMatchStatusAppliedAtMsRef,
     latestDuelStatusServerNowMsRef,
     latestGroupStatusServerNowMsRef,
     roomLinkedMatchContextRef,
     setDuelMatchStatus,
     setGroupMatchStatus,
     syncServerClock,
+  });
+
+  // Opponent-sync lifeline (docs/opponent-poll-stall-diag-2026-07-06.md, Piece 2) — registry-free,
+  // render-independent safety net for the foreground opponent channel: a 5s ref-only timer fires
+  // one guarded status GET whenever no accepted status apply has landed for >8s while the app is
+  // foregrounded and a duel/group match is active. Zero work when healthy (heartbeat/poll applies
+  // keep the stamp fresh), zero renders by itself.
+  useTrackRunOpponentSyncLifeline({
+    activeLiveMatchProgressMatchId,
+    duelMatchStatusRef,
+    groupMatchStatusRef,
+    lastMatchStatusAppliedAtMsRef,
+    loadDuelMatchStatus,
+    loadGroupMatchStatus,
   });
 
   // iOS Live Activity (lock-screen live-run card + Dynamic Island) — OTA-SAFE, FIRE-AND-FORGET.
