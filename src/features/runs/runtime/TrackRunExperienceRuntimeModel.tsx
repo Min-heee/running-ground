@@ -1453,8 +1453,6 @@ export function TrackRunExperienceRuntime({
     matchRoom,
     recipientInviteFetchInFlightRef,
     roomCreateActionInput: {
-      activeDuelSlotStartAt,
-      activeGroupSlotStartAt,
       commitMatchRoom,
       createMatchRoomInFlightRef,
       duelDistanceKm,
@@ -1466,7 +1464,6 @@ export function TrackRunExperienceRuntime({
       prepareMatchRoomMutation,
       roomMatchMode,
       roomMaxParticipants,
-      roomStartMode,
       setError,
       setIsCreatingMatchRoom,
       syncServerClock,

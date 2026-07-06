@@ -8,7 +8,6 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { MatchRoomDistanceSettingsCard } from '@/features/runs/components/matchRoom/MatchRoomDistanceSettingsCard';
 import { MatchRoomFriendInviteCard } from '@/features/runs/components/matchRoom/MatchRoomFriendInviteCard';
 import { MatchRoomInviteActionCard } from '@/features/runs/components/matchRoom/MatchRoomInviteActionCard';
-import { MatchRoomStartModeCard } from '@/features/runs/components/matchRoom/MatchRoomStartModeCard';
 import { MatchRoomSummaryCard } from '@/features/runs/components/matchRoom/MatchRoomSummaryCard';
 import { PartyRunParticipantListCard } from '@/features/runs/components/PartyRunParticipantListCard';
 import { LiveGapPushCard } from '@/features/runs/components/matchSetupCards/LiveGapPushCard';
@@ -23,12 +22,6 @@ export default function MatchRoomScreen() {
     error,
     loading,
     saving,
-    meridiem,
-    setMeridiem,
-    hourIndex,
-    setHourIndex,
-    minuteIndex,
-    setMinuteIndex,
     selectedFriendIds,
     setSelectedFriendIds,
     customDistanceText,
@@ -37,7 +30,6 @@ export default function MatchRoomScreen() {
     roomUxModel,
     isInvitedOnly,
     hasInviteDraftChanges,
-    scheduledStartAt,
     linkedMatchRemainingSeconds,
     showPartyRunLoadingBanner,
     showPartyRunCountdownBanner,
@@ -93,9 +85,6 @@ export default function MatchRoomScreen() {
   const handleApplyCustomDistancePress = useCallback(() => {
     void handleApplyCustomDistance();
   }, [handleApplyCustomDistance]);
-  const handleSaveStartMode = useCallback((input: Parameters<typeof saveRoomSettings>[0]) => {
-    void saveRoomSettings(input);
-  }, [saveRoomSettings]);
   const handleSendFriendInvitesPress = useCallback(() => {
     void handleSendFriendInvites();
   }, [handleSendFriendInvites]);
@@ -173,19 +162,6 @@ export default function MatchRoomScreen() {
 	                    onDistanceChange={handleDistanceChange}
 	                    onCustomDistanceTextChange={setCustomDistanceText}
 	                    onApplyCustomDistance={handleApplyCustomDistancePress}
-	                  />
-
-                  <MatchRoomStartModeCard
-                    startMode={room.startMode}
-                    saving={saving}
-                    meridiem={meridiem}
-                    hourIndex={hourIndex}
-                    minuteIndex={minuteIndex}
-                    scheduledStartAt={scheduledStartAt}
-	                    onMeridiemChange={setMeridiem}
-	                    onHourIndexChange={setHourIndex}
-	                    onMinuteIndexChange={setMinuteIndex}
-	                    onSaveStartMode={handleSaveStartMode}
 	                  />
 
                   <MatchRoomFriendInviteCard

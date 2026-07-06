@@ -1,15 +1,9 @@
-import { useLayoutEffect, useMemo, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import { useLayoutEffect, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import { updateRunningMatchRoom } from '@/services/matchService';
 import { getApiErrorMessage } from '@/services/apiError';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { shouldAcceptServerSnapshot } from '@/features/runs/sync/serverClockSync';
-import type { MatchRoomMeridiem, UpdateRoomSettingsInput } from '@/features/runs/types/matchRoom';
-import {
-  MATCH_ROOM_HOUR_OPTIONS,
-  MATCH_ROOM_MINUTE_OPTIONS,
-  buildScheduledStartAt,
-  to12HourParts,
-} from '@/features/runs/utils/matchRoomScheduling';
+import type { UpdateRoomSettingsInput } from '@/features/runs/types/matchRoom';
 
 function areSameIdSet(left: string[], right: string[]) {
   if (left.length !== right.length) {
@@ -37,36 +31,23 @@ export function useRoomSettings({
   setError,
   setSaving,
 }: UseRoomSettingsInput) {
-  const [meridiem, setMeridiem] = useState<MatchRoomMeridiem>('오전');
-  const [hourIndex, setHourIndex] = useState(0);
-  const [minuteIndex, setMinuteIndex] = useState(0);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
   const [customDistanceText, setCustomDistanceText] = useState('5');
 
-  const roomSlotStartAt = room?.slotStartAt;
   const roomInvitedFriendIds = room?.invitedFriendIds;
   const roomDistanceKm = room?.distanceKm;
   const roomId = room?.roomId;
 
   useLayoutEffect(() => {
-    if (!roomSlotStartAt || !roomInvitedFriendIds || roomDistanceKm === undefined) {
+    if (!roomInvitedFriendIds || roomDistanceKm === undefined) {
       return;
     }
 
-    const nextParts = to12HourParts(roomSlotStartAt);
-    setMeridiem(nextParts.meridiem);
-    setHourIndex(Math.max(0, MATCH_ROOM_HOUR_OPTIONS.findIndex((value) => value === nextParts.hour12)));
-    setMinuteIndex(nextParts.minute);
     setSelectedFriendIds(roomInvitedFriendIds);
     setCustomDistanceText(String(roomDistanceKm));
-  }, [roomDistanceKm, roomId, roomInvitedFriendIds, roomSlotStartAt]);
+  }, [roomDistanceKm, roomId, roomInvitedFriendIds]);
 
   const hasInviteDraftChanges = room ? !areSameIdSet(selectedFriendIds, room.invitedFriendIds) : false;
-  const scheduledStartAt = useMemo(() => buildScheduledStartAt(
-    meridiem,
-    MATCH_ROOM_HOUR_OPTIONS[hourIndex] ?? 12,
-    MATCH_ROOM_MINUTE_OPTIONS[minuteIndex] ?? 0,
-  ), [hourIndex, meridiem, minuteIndex]);
 
   const saveRoomSettings = async (overrides: UpdateRoomSettingsInput = {}) => {
     if (!room || !room.isHost || room.linkedMatchId) {
@@ -80,10 +61,9 @@ export function useRoomSettings({
       const payload = await updateRunningMatchRoom({
         roomId: room.roomId,
         distanceKm: overrides.distanceKm ?? room.distanceKm,
-        startMode: overrides.startMode ?? room.startMode,
-        slotStartAt: overrides.startMode === 'host'
-          ? undefined
-          : overrides.slotStartAt ?? (room.startMode === 'scheduled' ? room.slotStartAt : scheduledStartAt),
+        // Party runs are always host-start now; the scheduled chooser is gone,
+        // so every settings save normalizes the room onto host mode.
+        startMode: 'host',
         maxParticipants: room.mode === 'group'
           ? overrides.maxParticipants ?? room.maxParticipants
           : 2,
@@ -119,18 +99,11 @@ export function useRoomSettings({
   };
 
   return {
-    meridiem,
-    setMeridiem,
-    hourIndex,
-    setHourIndex,
-    minuteIndex,
-    setMinuteIndex,
     selectedFriendIds,
     setSelectedFriendIds,
     customDistanceText,
     setCustomDistanceText,
     hasInviteDraftChanges,
-    scheduledStartAt,
     saveRoomSettings,
     handleApplyCustomDistance,
   };

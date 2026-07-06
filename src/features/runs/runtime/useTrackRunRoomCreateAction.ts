@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
-import type { RoomStartMode } from '@/features/runs/hooks/usePartyRunRoom';
 import type { PrepareMatchRoomMutation } from '@/features/runs/runtime/useTrackRunRuntimeStateBridge';
 import {
   clearMatchRoomDeletedTombstone,
@@ -34,8 +33,6 @@ type NavigateToMatchRoomWithTrace = (
 ) => void;
 
 type UseTrackRunRoomCreateActionInput = {
-  activeDuelSlotStartAt: string;
-  activeGroupSlotStartAt: string;
   commitMatchRoom: (room: RunningMatchRoom | null) => void;
   createMatchRoomInFlightRef: MutableRefObject<boolean>;
   duelDistanceKm: number;
@@ -47,7 +44,6 @@ type UseTrackRunRoomCreateActionInput = {
   prepareMatchRoomMutation: PrepareMatchRoomMutation;
   roomMatchMode: Extract<RunMatchMode, 'duel' | 'group'>;
   roomMaxParticipants: string;
-  roomStartMode: RoomStartMode;
   setError: Dispatch<SetStateAction<string | null>>;
   setIsCreatingMatchRoom: Dispatch<SetStateAction<boolean>>;
   syncServerClock: (serverNow?: string, timingSource?: unknown) => void;
@@ -79,8 +75,6 @@ async function leaveBlockerMatchIfPresent(matchId: string | null) {
 }
 
 export function useTrackRunRoomCreateAction({
-  activeDuelSlotStartAt,
-  activeGroupSlotStartAt,
   commitMatchRoom,
   createMatchRoomInFlightRef,
   duelDistanceKm,
@@ -92,7 +86,6 @@ export function useTrackRunRoomCreateAction({
   prepareMatchRoomMutation,
   roomMatchMode,
   roomMaxParticipants,
-  roomStartMode,
   setError,
   setIsCreatingMatchRoom,
   syncServerClock,
@@ -159,10 +152,9 @@ export function useTrackRunRoomCreateAction({
           const payload = await createRunningMatchRoom({
             mode: nextRoomMode,
             distanceKm: nextDistanceKm,
-            startMode: roomStartMode,
-            ...(roomStartMode === 'scheduled'
-              ? { slotStartAt: nextRoomMode === 'duel' ? activeDuelSlotStartAt : activeGroupSlotStartAt }
-              : {}),
+            // Party runs are always host-start; the scheduled chooser was removed
+            // from the client, but the server still accepts both modes for old rooms.
+            startMode: 'host',
             ...(groupMaxParticipants !== undefined ? { maxParticipants: groupMaxParticipants } : {}),
           });
           endCreateApiTrace({
@@ -260,8 +252,6 @@ export function useTrackRunRoomCreateAction({
       setIsCreatingMatchRoom(false);
     }
   }, [
-    activeDuelSlotStartAt,
-    activeGroupSlotStartAt,
     commitMatchRoom,
     createMatchRoomInFlightRef,
     duelDistanceKm,
@@ -273,7 +263,6 @@ export function useTrackRunRoomCreateAction({
     prepareMatchRoomMutation,
     roomMatchMode,
     roomMaxParticipants,
-    roomStartMode,
     setError,
     setIsCreatingMatchRoom,
     syncServerClock,
