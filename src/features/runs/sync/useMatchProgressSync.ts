@@ -25,7 +25,9 @@ import {
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
+import { armHeartbeatSlotAcquireRetry } from '@/features/runs/sync/heartbeatSlotRetry';
 import {
+  MATCH_PROGRESS_HEARTBEAT_INTERVAL_MS,
   buildSyncedMatchProgressSnapshot,
   resolveActiveMatchProgressTarget,
   resolveMatchProgressHeartbeatStatus,
@@ -266,7 +268,66 @@ export function useMatchProgressSync({
     });
 
     if (!heartbeatSlot.acquired) {
-      return undefined;
+      // Heartbeat-slot latch fix (4th organ of the no-retry latch; mirrors the shipped
+      // armBlockingMatchStatusPollRetry pattern) — a LOST acquire used to return silently, and
+      // this effect's deps (matchId + enabled) stay value-identical for the whole match, so the
+      // loser stayed latched out of the send gate forever: canSendMatchProgressHeartbeat kept
+      // reading canUseRgHeartbeatSlot(key, undefined) → false, every foreground send skipped as
+      // 'duplicate-heartbeat-owner', and NOTHING ever re-attempted the acquire (AppState resumes
+      // re-render but do not re-run a deps-stable effect). Keep re-attempting the SAME acquire at
+      // the heartbeat cadence; the moment the owner releases (unmount / unfreeze-processed
+      // cleanup / enabled-flip render) install the exact success-path bookkeeping and fire ONE
+      // catch-up heartbeat through the same refreshMatchProgressHeartbeat the 1s keep-alive tick
+      // uses — its throttle stamp never advanced during the latch (it only moves after canSend
+      // passes), so the catch-up sends immediately.
+      // RESIDUAL (deliberately NOT addressed here — no focus-based preemption in this file): a
+      // LIVE silent holder (frozen tab instance whose match target collapsed via a non-render
+      // ref mutation) never releases, so this retry never wins against it. On-device
+      // discriminators: this latched instance marks 'progress heartbeat skipped'
+      // reason:'duplicate-heartbeat-owner' ~1/s and the registry marks 'heartbeat duplicate
+      // blocked' per retry attempt, while the silent holder emits nothing.
+      rgPerfMark('progress heartbeat slot lost acquire', {
+        activeOwnerId: heartbeatSlot.ownerId,
+        heartbeatKey,
+        matchId: activeHeartbeatMatchId,
+      });
+      const retry = armHeartbeatSlotAcquireRetry({
+        intervalMs: MATCH_PROGRESS_HEARTBEAT_INTERVAL_MS,
+        acquireSlot: () => acquireRgHeartbeatSlot(heartbeatKey, 'match progress heartbeat', {
+          cadence: 'on tracking tick',
+          heartbeatKey,
+          matchId: activeHeartbeatMatchId,
+        }),
+        onReacquired: (retriedSlot) => {
+          heartbeatSlotOwnerRef.current = {
+            key: heartbeatKey,
+            ownerId: retriedSlot.ownerId,
+          };
+          rgPerfMark('progress heartbeat slot reacquired after retry', {
+            heartbeatKey,
+            matchId: activeHeartbeatMatchId,
+            ownerId: retriedSlot.ownerId,
+          });
+          const stopRetriedHeartbeatTrace = rgPerfTrackResource('heartbeat', 'match progress heartbeat', {
+            cadence: 'on tracking tick',
+            heartbeatKey,
+            matchId: activeHeartbeatMatchId,
+          });
+          return () => {
+            stopRetriedHeartbeatTrace();
+            if (heartbeatSlotOwnerRef.current?.ownerId === retriedSlot.ownerId) {
+              heartbeatSlotOwnerRef.current = null;
+            }
+          };
+        },
+        onCatchUp: () => refreshMatchProgressHeartbeatRef.current(
+          getBackgroundRunTrackingSnapshot({ cloneRoute: false }),
+        ),
+      });
+
+      return () => {
+        retry.stop();
+      };
     }
 
     heartbeatSlotOwnerRef.current = {
@@ -675,6 +736,16 @@ export function useMatchProgressSync({
       // Keep the run going even if the optional match heartbeat fails.
     });
   }, [canSendMatchProgressHeartbeat, getActiveMatchProgressTarget, heartbeatEnabled, matchProgressHeartbeatRef, pushRunningMatchProgress]);
+
+  // Heartbeat-slot latch fix — render-updated ref through which the slot effect above (deps
+  // deliberately kept [matchId, enabled]) fires its post-reacquire catch-up using the SAME send
+  // function the 1s keep-alive tick uses. A direct reference up there is impossible: the effect
+  // sits textually above this declaration, so putting the callback in its dep array would read a
+  // TDZ binding during render, while capturing it without the dep would trip exhaustive-deps.
+  // Assigned every render, so the closure always sees the current identity (which only changes
+  // with heartbeatEnabled — already a dep of that effect).
+  const refreshMatchProgressHeartbeatRef = useRef(refreshMatchProgressHeartbeat);
+  refreshMatchProgressHeartbeatRef.current = refreshMatchProgressHeartbeat;
 
   // Stationary keep-alive. The heartbeat is the channel that brings the OTHER
   // participants' liveStatus (forfeited/finished) back into duel/groupMatchStatus, but
