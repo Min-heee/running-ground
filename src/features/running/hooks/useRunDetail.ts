@@ -34,6 +34,14 @@ type UseRunDetailParams = {
   runId?: string;
 };
 
+// C-5 convoy relief — a fresh post-save arrival (origin==='running', set by
+// runSaveNavigation) delays its FIRST reconcile: the client just pushed the final status
+// itself and the server's §B4 fallback seal takes ~90s anyway, so an immediate /status
+// re-query only piles onto the finish-window lock convoy. The jitter de-syncs the two
+// finishing phones. Cold opens (내 활동 etc., no origin) keep the immediate reconcile.
+const POST_SAVE_FIRST_RECONCILE_DELAY_MS = 8_000;
+const POST_SAVE_FIRST_RECONCILE_JITTER_MS = 4_000;
+
 function parseMatchMode(value?: string): 'duel' | 'group' | null {
   return value === 'duel' || value === 'group' ? value : null;
 }
@@ -69,6 +77,14 @@ export function useRunDetail({
       .catch((loadError) => setError(getApiErrorMessage(loadError, '기록 상세 정보를 불러오지 못했어.')))
       .finally(() => setLoading(false));
   }, [friendId, runId]);
+
+  // C-5 — manual retry for the error state: clears the stale error and re-enters the
+  // skeleton-loading state before re-fetching (loadRunDetail alone would keep both).
+  const reload = useCallback(() => {
+    setError(null);
+    setLoading(true);
+    return loadRunDetail();
+  }, [loadRunDetail]);
 
   useEffect(() => {
     loadRunDetail();
@@ -208,10 +224,23 @@ export function useRunDetail({
   // single reconcile fired once ~1-2s post-finish — far inside the 90s window — so it always
   // returned pending and never retried. The retry lands after the server has sealed/back-filled,
   // and on focus we also re-fetch the (now-healed) run detail above.
+  // C-5: a fresh post-save arrival delays its FIRST reconcile by ~8s+jitter (see constants) so
+  // two finishing phones stop piling reads onto the finish-window lock; cold opens reconcile
+  // immediately as before.
+  const isPostSaveArrival = origin === 'running';
   useFocusEffect(
     useCallback(() => {
       const signal = { cancelled: false };
-      runReconcile(signal);
+      let firstReconcileTimer: ReturnType<typeof setTimeout> | null = null;
+      if (isPostSaveArrival) {
+        firstReconcileTimer = setTimeout(() => {
+          if (!signal.cancelled) {
+            runReconcile(signal);
+          }
+        }, POST_SAVE_FIRST_RECONCILE_DELAY_MS + Math.floor(Math.random() * POST_SAVE_FIRST_RECONCILE_JITTER_MS));
+      } else {
+        runReconcile(signal);
+      }
       const retryTimer = setTimeout(() => {
         if (!signal.cancelled) {
           loadRunDetail();
@@ -220,9 +249,12 @@ export function useRunDetail({
       }, MATCH_RECONCILE_RETRY_MS);
       return () => {
         signal.cancelled = true;
+        if (firstReconcileTimer) {
+          clearTimeout(firstReconcileTimer);
+        }
         clearTimeout(retryTimer);
       };
-    }, [loadRunDetail, runReconcile]),
+    }, [isPostSaveArrival, loadRunDetail, runReconcile]),
   );
 
   const backHref: Href = friendId
@@ -266,6 +298,7 @@ export function useRunDetail({
     mapRegion,
     matchBonusLabel,
     matchResult,
+    reload,
     routeCoordinates,
     runDetail,
     showMatchResultExit,

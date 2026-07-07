@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, View, ActivityIndicator } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
@@ -42,6 +42,7 @@ export default function RunDetailScreen() {
     mapRegion,
     matchBonusLabel,
     matchResult,
+    reload,
     routeCoordinates,
     runDetail,
     showMatchResultExit,
@@ -89,14 +90,34 @@ export default function RunDetailScreen() {
 
   return (
     <Screen>
-      {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
-      {error ? <Text>{error}</Text> : null}
+      {/*
+        C-5 skeleton-first: the header renders IMMEDIATELY, before the run detail arrives.
+        Post-save the fetch used to leave this screen a blank page with a lone spinner for
+        seconds (convoy-delayed backend) — now the frame is always recognizable.
+      */}
+      <AuthHeader showBack={!showMatchResultExit} backHref={backHref} />
+
+      {loading ? (
+        <>
+          <View style={[styles.skeletonBlock, styles.skeletonHero]} />
+          <View style={styles.recordDuoRow}>
+            <View style={[styles.skeletonBlock, styles.skeletonHalfCard]} />
+            <View style={[styles.skeletonBlock, styles.skeletonHalfCard]} />
+          </View>
+          <View style={[styles.skeletonBlock, styles.skeletonInfoCard]} />
+        </>
+      ) : null}
+      {!loading && error ? (
+        <>
+          <Text style={styles.errorText}>{error}</Text>
+          {/* Failed first load (no content at all) → actionable retry instead of a dead end. */}
+          {!runDetail ? <SecondaryButton label="다시 불러오기" onPress={() => { void reload(); }} /> : null}
+        </>
+      ) : null}
       {exitMatchResultError ? <Text>{exitMatchResultError}</Text> : null}
 
       {runDetail ? (
         <>
-          <AuthHeader showBack={!showMatchResultExit} backHref={backHref} />
-
           <RunHeroCard
             startedLabel={formatRunStartLabel(runDetail.run)}
             distanceKm={runDetail.run.distanceKm}
@@ -156,6 +177,23 @@ export default function RunDetailScreen() {
 }
 
 const styles = StyleSheet.create({
+  errorText: {
+    color: colors.danger,
+  },
+  skeletonBlock: {
+    backgroundColor: colors.borderMuted,
+    borderRadius: radii.xl,
+  },
+  skeletonHero: {
+    height: 140,
+  },
+  skeletonHalfCard: {
+    flex: 1,
+    height: 120,
+  },
+  skeletonInfoCard: {
+    height: 180,
+  },
   mapCard: {
     gap: spacing.s12,
   },

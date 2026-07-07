@@ -95,7 +95,11 @@ export function buildMatchExitActionState({
   }
 
   if (selfFinished) {
-    const disabled = isLeaving || isSaving || !isRunning;
+    // C-4 — do NOT gate on !isRunning: after a FAILED save the tracker is 'paused'
+    // (isRunning=false, isSaving=false), and the old `|| !isRunning` disable left a dead
+    // '결과 화면 준비 중...' card with no way to retry (H2). Idle here now means the save is
+    // not in flight → offer an actionable retry.
+    const disabled = isLeaving || isSaving;
 
     return {
       kind: 'self-finished',
@@ -104,7 +108,7 @@ export function buildMatchExitActionState({
       buttonLabel: isLeaving || isSaving
         ? '결과 저장 중...'
         : !isRunning
-          ? '결과 화면 준비 중...'
+          ? '결과 다시 저장하기'
           : '러닝 종료하고 결과보기',
       disabled,
     };

@@ -373,6 +373,10 @@ export function TrackRunExperienceRuntime({
   } = useMatchLifecycle({ focusMatchMode: hydratedFocusMatchMode, focusMatchIsTest });
   const pendingForfeitMatchRef = useRef<string | null>(null);
   const pendingCounterpartForfeitResultRef = useRef(false);
+  // C-1 — save-navigation epoch. saveForfeitResultAndNavigate captures this at entry; the
+  // overlay watchdog's abandon bumps it. A late-settling save whose epoch no longer matches
+  // must NOT yank the user with router.replace — it offers an Alert instead.
+  const saveNavEpochRef = useRef(0);
   const autoStartedMatchIdRef = useRef<string | null>(null);
   const autoStartingMatchTrackingRef = useRef(false);
   const preStartWarmupMatchIdRef = useRef<string | null>(null);
@@ -2009,6 +2013,7 @@ export function TrackRunExperienceRuntime({
     totalStepsRef,
     pendingForfeitMatchRef,
     pendingCounterpartForfeitResultRef,
+    saveNavEpochRef,
     matchProgressHeartbeatRef,
     preStartWarmupMatchIdRef,
     officialStartBaselineRef,
@@ -2306,6 +2311,18 @@ export function TrackRunExperienceRuntime({
     wedgedLoadingWatchdogRef,
   });
 
+  // C-1 abandon: release the user from the blocking 결과 저장 중 overlay WITHOUT touching the
+  // in-flight save. Bumping the epoch first makes the late-settling navigate at
+  // saveForfeitResultAndNavigate degrade to an Alert (no yank); dropping the isLeaving flags
+  // hides the overlay. Status stays 'saving', so the paused-shell action buttons stay hidden
+  // (shouldShowPausedTrackingActions = isPaused && !showLiveArena) — no duplicate-save tap is
+  // possible — and the small LiveMatchSavingIndicator keeps showing.
+  const handleAbandonMatchEndTransition = useCallback(() => {
+    saveNavEpochRef.current += 1;
+    setIsLeavingDuelMatch(false);
+    setIsLeavingGroupMatch(false);
+  }, [setIsLeavingDuelMatch, setIsLeavingGroupMatch]);
+
   const trackRunViewProps = useTrackRunRuntimePropsComposer({
     backHref,
     centeredCountdownEntry: shouldShowCenteredMatchCountdown && visibleCountdownEntry
@@ -2327,8 +2344,10 @@ export function TrackRunExperienceRuntime({
     shouldShowRoomArmingOverlay,
     // Covers the whole live shell from the moment a match-ending button is pressed
     // (forfeit / 대결종료 / finish) until the run-detail replace lands, so none of the
-    // intermediate live/matching screens flash by during the save.
+    // intermediate live/matching screens flash by during the save. C-1: the overlay carries
+    // a wall-clock watchdog and can abandon the WAIT via the handler below.
     shouldShowMatchEndTransitionOverlay: isLeavingDuelMatch || isLeavingGroupMatch,
+    onAbandonMatchEndTransition: handleAbandonMatchEndTransition,
     soloStartCountdownSeconds: runtimeSoloStartCountdownSeconds,
   });
 

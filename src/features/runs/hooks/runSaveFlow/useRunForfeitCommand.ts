@@ -1,3 +1,4 @@
+import { Alert } from 'react-native';
 import { router } from 'expo-router';
 import {
   markDuelStatusForfeited,
@@ -32,6 +33,7 @@ type UseRunForfeitCommandInput = Pick<
   | 'resetLiveMatchNavigationOwner'
   | 'resetMatchRuntimeAfterTrackingCleared'
   | 'roomLinkedMatchContext'
+  | 'saveNavEpochRef'
   | 'setDuelMatchNotice'
   | 'setDuelMatchStatus'
   | 'setError'
@@ -68,6 +70,7 @@ export function useRunForfeitCommand({
   resetLiveMatchNavigationOwner,
   resetMatchRuntimeAfterTrackingCleared,
   roomLinkedMatchContext,
+  saveNavEpochRef,
   setDuelMatchNotice,
   setDuelMatchStatus,
   setError,
@@ -117,6 +120,10 @@ export function useRunForfeitCommand({
     matchId: string | null,
     options: { currentUserForfeited?: boolean } = {},
   ) => {
+    // C-1 — capture the save-navigation epoch at entry. The overlay watchdog's abandon bumps
+    // it; if it moved by the time this save settles, the user already left the wait and a
+    // router.replace would yank them out of whatever they are doing now.
+    const entrySaveNavEpoch = saveNavEpochRef.current;
     let savedRunId: string | null = null;
     // This command only runs once the duel/group is decisively over (self forfeit,
     // opponent forfeit, or a terminal match state), so a stationary 0.00km snapshot
@@ -142,6 +149,10 @@ export function useRunForfeitCommand({
         savedRunId = runId;
       },
       resetAfterSave: true,
+      // C-1 — this command navigates to run-detail itself below (WITH matchId params), so the
+      // save command's runPointRankingPostProcessor matchId-less first replace must not fire:
+      // the double-replace mounted run-detail twice and doubled the reconcile fetches.
+      skipPostProcessorNavigation: true,
     });
 
     if (didSave && matchId && !options.currentUserForfeited) {
@@ -159,7 +170,21 @@ export function useRunForfeitCommand({
 
     if (didSave && savedRunId) {
       const redirect = buildForfeitRunDetailRedirect(source, savedRunId, matchId);
-      router.replace(redirect);
+      if (saveNavEpochRef.current === entrySaveNavEpoch) {
+        router.replace(redirect);
+      } else {
+        // C-1 late settle after an abandoned wait: the user already escaped the 결과 저장 중
+        // overlay, so never yank the screen. Offer the finished record instead.
+        Alert.alert('기록 저장 완료', '러닝 기록이 저장됐어요. 지금 확인할까요?', [
+          { text: '나중에', style: 'cancel' },
+          {
+            text: '보기',
+            onPress: () => {
+              router.push(redirect);
+            },
+          },
+        ]);
+      }
     } else {
       resetMatchRuntimeAfterTrackingCleared('save-reset');
       setError(options.currentUserForfeited

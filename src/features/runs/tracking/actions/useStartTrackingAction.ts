@@ -5,6 +5,7 @@ import {
   resetBackgroundRunTracking,
   startBackgroundRunTracking,
 } from '@/features/runs/tracking/background';
+import { clearPendingMatchSaveContext } from '@/features/runs/hooks/runSaveFlow/pendingMatchSaveContext';
 import { requestAndroidRunTrackingNotificationPermission } from '@/features/runs/tracking/runTrackingNotificationPermission';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
 import { maybeShowBatteryOptimizationNudge } from './batteryOptimizationNudge';
@@ -97,6 +98,10 @@ export function useStartTrackingAction({
       );
       void requestAndroidRunTrackingNotificationPermission().catch(() => false);
       resetForegroundTrackingState();
+      // FIX-2 — a fresh start abandons any un-retried failed save: drop its pending
+      // match-save context here so it can never attach an old match's verdict to the run
+      // that is about to begin.
+      clearPendingMatchSaveContext();
       await resetBackgroundRunTracking();
 
       if (options?.allowCountdownWarmup) {

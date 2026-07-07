@@ -14,6 +14,10 @@ export type SaveTrackingOptions = {
   matchResultOverride?: RunMatchResult | null;
   onSavedRun?: (runId: string) => void;
   resetAfterSave?: boolean;
+  // C-1 — the caller navigates to run-detail itself (with matchId params), so the save
+  // command must NOT also fire runPointRankingPostProcessor's matchId-less router.replace:
+  // that double-replace mounted run-detail twice and doubled the reconcile fetches.
+  skipPostProcessorNavigation?: boolean;
 };
 
 export function useRunTracking() {

@@ -77,17 +77,28 @@ function GroupBody({ model }: { model: Extract<MatchResultScreenModel, { mode: '
   );
 }
 
-function EmptyState({ message }: { message: string }) {
+function EmptyState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <View style={styles.emptyWrap}>
       <Text style={styles.emptyTitle}>{message}</Text>
       <Text style={styles.emptyCaption}>잠시 후 다시 시도해 주세요.</Text>
+      {/* C-6 — unexpected failures (network/5xx during the finish-window convoy) get an
+          in-place retry instead of forcing the user back out of the result. */}
+      {onRetry ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onRetry}
+          style={styles.emptyButton}
+        >
+          <Text style={styles.emptyButtonText}>다시 시도</Text>
+        </Pressable>
+      ) : null}
       <Pressable
         accessibilityRole="button"
         onPress={() => router.back()}
-        style={styles.emptyButton}
+        style={onRetry ? styles.emptyBackLink : styles.emptyButton}
       >
-        <Text style={styles.emptyButtonText}>돌아가기</Text>
+        <Text style={onRetry ? styles.emptyBackLinkText : styles.emptyButtonText}>돌아가기</Text>
       </Pressable>
     </View>
   );
@@ -96,6 +107,8 @@ function EmptyState({ message }: { message: string }) {
 export default function MatchResultScreen() {
   const { matchId, matchMode } = useLocalSearchParams<MatchResultParams>();
   const [state, setState] = useState<LoadState>({ status: 'loading' });
+  // C-6 — bumping the nonce re-runs the fetch effect with a fresh cancellation guard.
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -128,7 +141,7 @@ export default function MatchResultScreen() {
     return () => {
       cancelled = true;
     };
-  }, [matchId]);
+  }, [matchId, retryNonce]);
 
   // matchMode is an advisory hint from the entry point; the rendered branch always
   // follows the authoritative mode on the fetched model.
@@ -176,6 +189,9 @@ export default function MatchResultScreen() {
               ? '결과를 아직 불러올 수 없어요'
               : '결과를 불러오지 못했어요'
           }
+          onRetry={state.status === 'error'
+            ? () => setRetryNonce((nonce) => nonce + 1)
+            : undefined}
         />
       )}
     </Screen>
@@ -244,5 +260,15 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: fontSizes.button,
     fontWeight: fontWeights.extraBold,
+  },
+  emptyBackLink: {
+    marginTop: spacing.xxl,
+    paddingHorizontal: spacing.s24,
+    paddingVertical: spacing.xxs,
+  },
+  emptyBackLinkText: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.button,
+    fontWeight: fontWeights.bold,
   },
 });

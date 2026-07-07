@@ -101,6 +101,56 @@ test('exit action switches from forfeit to result button when current user finis
   assert.equal(selfFinished.disabled, false);
 });
 
+test('C-4: self-finished after a failed save (paused, not saving) offers an enabled retry', () => {
+  // A failed save leaves the tracker 'paused' (isRunning=false, isSaving=false). The old
+  // `disabled = ... || !isRunning` made the card a dead end ('결과 화면 준비 중...', disabled).
+  const failedSave = buildMatchExitActionState({
+    source: 'duel',
+    isTestMatch: false,
+    isLeaving: false,
+    isSaving: false,
+    isRunning: false,
+    counterpartForfeited: false,
+    selfForfeited: false,
+    selfFinished: true,
+  });
+
+  assert.equal(failedSave.kind, 'self-finished');
+  assert.equal(failedSave.buttonLabel, '결과 다시 저장하기');
+  assert.equal(failedSave.disabled, false);
+});
+
+test('C-4: self-finished stays disabled while a save is in flight', () => {
+  const saving = buildMatchExitActionState({
+    source: 'duel',
+    isTestMatch: false,
+    isLeaving: false,
+    isSaving: true,
+    isRunning: false,
+    counterpartForfeited: false,
+    selfForfeited: false,
+    selfFinished: true,
+  });
+
+  assert.equal(saving.kind, 'self-finished');
+  assert.equal(saving.buttonLabel, '결과 저장 중...');
+  assert.equal(saving.disabled, true);
+
+  const leaving = buildMatchExitActionState({
+    source: 'group',
+    isTestMatch: false,
+    isLeaving: true,
+    isSaving: false,
+    isRunning: false,
+    counterpartForfeited: false,
+    selfForfeited: false,
+    selfFinished: true,
+  });
+
+  assert.equal(leaving.kind, 'self-finished');
+  assert.equal(leaving.disabled, true);
+});
+
 test('exit action keeps test match cleanup ahead of self-finished result action', () => {
   const testExit = buildMatchExitActionState({
     source: 'duel',

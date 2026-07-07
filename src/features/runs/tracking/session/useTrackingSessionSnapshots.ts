@@ -58,6 +58,7 @@ type UseTrackingSessionSnapshotsInput = Pick<
   | 'duelMatchStatusRef'
   | 'groupMatchStatusRef'
   | 'matchModeRef'
+  | 'trackerStatusRef'
   | 'setStatus'
   | 'setRoute'
   | 'setDistanceKm'
@@ -109,6 +110,7 @@ export function useTrackingSessionSnapshots({
   groupMatchStatusRef,
   matchLifecycleController,
   matchModeRef,
+  trackerStatusRef,
   slotElapsedTickerEnabled = true,
   setStatus,
   setRoute,
@@ -480,7 +482,13 @@ export function useTrackingSessionSnapshots({
     setDistanceKm(displayedSnapshot.distanceKm);
     setElevationGainM(displayedSnapshot.elevationGainM);
     setCurrentPace(displayedSnapshot.currentPace);
-    setStatus(snapshot.status);
+    // C-3 — never downgrade 'saving' from a background snapshot. The bg store is 'paused' the
+    // whole time createTrackedRun runs, so a foreground resume mid-save flipped isSaving false
+    // and reopened the save buttons (duplicate-save window). 'saving' is a purely foreground
+    // stage; only the save flow itself may leave it.
+    if (!(trackerStatusRef.current === 'saving' && snapshot.status === 'paused')) {
+      setStatus(snapshot.status);
+    }
     if (!shouldUseSlotElapsedTicker) {
       const nextElapsedSeconds = displayedSnapshot.elapsedSeconds;
       if (nextElapsedSeconds >= elapsedSecondsRef.current) {
@@ -512,6 +520,7 @@ export function useTrackingSessionSnapshots({
     setStatus,
     syncElapsedSeconds,
     totalStepsRef,
+    trackerStatusRef,
   ]);
 
   return {

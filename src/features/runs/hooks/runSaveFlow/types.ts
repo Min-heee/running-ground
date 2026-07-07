@@ -77,6 +77,10 @@ export type UseRunSaveFlowInput = {
   totalStepsRef: MutableRefObject<number>;
   pendingForfeitMatchRef: MutableRefObject<string | null>;
   pendingCounterpartForfeitResultRef: MutableRefObject<boolean>;
+  // C-1 — save-navigation epoch: captured at saveForfeitResultAndNavigate entry, bumped by the
+  // overlay watchdog's abandon. Mismatch at settle time = the user already left the wait →
+  // no router.replace yank; offer an Alert instead.
+  saveNavEpochRef: MutableRefObject<number>;
   matchProgressHeartbeatRef: MutableRefObject<number>;
   preStartWarmupMatchIdRef: MutableRefObject<string | null>;
   officialStartBaselineRef: MutableRefObject<unknown | null>;

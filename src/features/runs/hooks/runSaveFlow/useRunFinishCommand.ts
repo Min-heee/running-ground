@@ -10,6 +10,7 @@ import {
 } from '@/features/runs/lifecycle/matchExitFlow';
 import { getApiErrorMessage, leaveRunningMatch } from '@/services';
 import { beginRgInputTrace, waitForRgInputFeedbackFrame } from '@/utils/rgInputTrace';
+import { clearPendingMatchSaveContext } from './pendingMatchSaveContext';
 import type { ContinueSoloOptions, UseRunSaveFlowInput } from './types';
 
 type UseRunFinishCommandInput = Pick<
@@ -72,6 +73,9 @@ export function useRunFinishCommand({
   const continueSoloInFlightRef = useRef<Set<MatchExitSource>>(new Set());
 
   const discardCurrentTracking = async () => {
+    // C-2 — discarding the tracking discards the failed-save context with it (mirrors the
+    // freeze, which the resetBackgroundRunTracking below releases).
+    clearPendingMatchSaveContext();
     await resetBackgroundRunTracking();
     await syncLiveSharing({
       enabled: false,

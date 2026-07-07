@@ -3,6 +3,7 @@ import {
 } from '@/features/runs/tracking/background';
 import { clearLocalGoalFreeze } from '@/features/runs/sync/localGoalFreezeStore';
 import type { SaveTrackingOptions } from '@/features/runs/hooks/useRunTracking';
+import { clearPendingMatchSaveContext } from './pendingMatchSaveContext';
 import type { UseRunSaveFlowInput } from './types';
 
 type RunCleanupAfterSaveInput = Pick<
@@ -42,6 +43,10 @@ export async function runCleanupAfterSave({
   if (activeMatchId) {
     clearLocalGoalFreeze(activeMatchId);
   }
+  // C-2 — the save landed, so the pending match-save context is consumed. Same clear sites as
+  // the freeze (save success here + the discard paths), so a stale context can never attach an
+  // old match to a future save.
+  clearPendingMatchSaveContext();
   preStartWarmupMatchIdRef.current = null;
   officialStartBaselineRef.current = null;
   autoStartedMatchIdRef.current = null;

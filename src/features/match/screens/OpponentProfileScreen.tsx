@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
+import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import {
   fetchOpponentMatchProfile,
   getApiErrorMessage,
@@ -22,16 +23,14 @@ export default function OpponentProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
+  // C-6 — fetch extracted to a callback so the error state can offer 다시 시도 (a slow/failed
+  // finish-window response used to leave only header + error text, dead-ended).
+  const loadProfile = useCallback((signal: { cancelled: boolean }) => {
     if (!userId) {
       setProfile(null);
       setError('상대 정보를 찾을 수 없어.');
       setLoading(false);
-      return () => {
-        cancelled = true;
-      };
+      return;
     }
 
     setLoading(true);
@@ -39,25 +38,32 @@ export default function OpponentProfileScreen() {
     setProfile(null);
     fetchOpponentMatchProfile(userId)
       .then((nextProfile) => {
-        if (!cancelled) {
+        if (!signal.cancelled) {
           setProfile(nextProfile);
         }
       })
       .catch((profileError) => {
-        if (!cancelled) {
+        if (!signal.cancelled) {
           setError(getApiErrorMessage(profileError, '상대 프로필을 불러오지 못했어.'));
         }
       })
       .finally(() => {
-        if (!cancelled) {
+        if (!signal.cancelled) {
           setLoading(false);
         }
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [userId]);
+  // Retry re-runs the effect (fresh cancellation signal) instead of calling loadProfile
+  // outside it, so an unmount mid-retry still cancels cleanly.
+  const [retryNonce, setRetryNonce] = useState(0);
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    loadProfile(signal);
+    return () => {
+      signal.cancelled = true;
+    };
+  }, [loadProfile, retryNonce]);
 
   const displayName = profile?.name ?? name ?? '상대';
   const regionLabel = useMemo(() => {
@@ -76,7 +82,14 @@ export default function OpponentProfileScreen() {
       />
 
       {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {error ? (
+        <>
+          <Text style={styles.errorText}>{error}</Text>
+          {userId ? (
+            <SecondaryButton label="다시 시도" onPress={() => setRetryNonce((nonce) => nonce + 1)} />
+          ) : null}
+        </>
+      ) : null}
 
       {profile ? (
         <>

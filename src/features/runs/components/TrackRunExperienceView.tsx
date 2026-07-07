@@ -6,6 +6,7 @@ import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCount
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { TabHeader } from '@/components/ui/TabHeader';
 import { LiveMatchContainer } from '@/features/runs/components/LiveMatchContainer';
+import { MatchEndTransitionOverlay } from '@/features/runs/components/MatchEndTransitionOverlay';
 import { RunningReadyScreen } from '@/features/runs/components/RunningReadyScreen';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 import {
@@ -93,6 +94,7 @@ type TrackRunExperienceViewProps = {
   showForceResetAction: boolean;
   shouldShowRoomArmingOverlay: boolean;
   shouldShowMatchEndTransitionOverlay?: boolean;
+  onAbandonMatchEndTransition?: () => void;
   soloStartCountdownSeconds: number | null;
 };
 
@@ -112,6 +114,7 @@ export function TrackRunExperienceView({
   showForceResetAction,
   shouldShowRoomArmingOverlay,
   shouldShowMatchEndTransitionOverlay,
+  onAbandonMatchEndTransition,
   soloStartCountdownSeconds,
 }: TrackRunExperienceViewProps) {
   // Both entries are the SAME visibleCountdownEntry, gated mutually-exclusively by the 20s
@@ -166,15 +169,17 @@ export function TrackRunExperienceView({
           </View>
         ) : null}
       </Screen>
-      {shouldShowMatchEndTransitionOverlay ? (
-        <View style={[styles.roomArmingOverlay, styles.matchEndTransitionOverlay]}>
-          <ActivityIndicator size="large" color={colors.white} />
-          <Text style={styles.roomArmingOverlayTitle}>결과 저장 중...</Text>
-          <Text style={styles.roomArmingOverlayText}>
-            대결을 정리하고 기록 상세로 이동해요.
-          </Text>
-        </View>
-      ) : null}
+      {/*
+        C-1 — the 결과 저장 중 overlay carries its own wall-clock watchdog (12s slow copy,
+        20s 기다리지 않고 나가기, 40s auto-abandon) so it can never be infinite, even across a
+        backgrounded/suspended-timer gap (H1). Kept mounted so its per-episode phase state
+        resets cleanly on the visible flip.
+      */}
+      <MatchEndTransitionOverlay
+        visible={Boolean(shouldShowMatchEndTransitionOverlay)}
+        onAbandon={onAbandonMatchEndTransition}
+      />
+
       {typeof soloStartCountdownSeconds === 'number' ? (
         <View style={styles.soloStartCountdownOverlay} pointerEvents="none">
           <View style={styles.soloStartCountdownCard}>
@@ -262,12 +267,6 @@ const styles = StyleSheet.create({
   // cover the digit and dissolve into it, never render beside/under it.
   roomArmingOverlayAboveCountdown: {
     zIndex: 110,
-  },
-  matchEndTransitionOverlay: {
-    // Fully opaque: the shell underneath churns through live/matching states while the
-    // save runs, and a translucent cover let that thrash bleed through.
-    backgroundColor: colors.navyInk,
-    zIndex: 40,
   },
   roomArmingOverlayTitle: {
     color: colors.white,
