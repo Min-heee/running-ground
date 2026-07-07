@@ -23,6 +23,7 @@ import {
 import { DUEL_LP } from './rankSystem.mjs';
 import {
   leaveRunningMatch,
+  resetProgressPruneThrottle,
   updateRunningMatchProgress,
 } from './matchActionHandlers.mjs';
 import {
@@ -186,6 +187,10 @@ function countNotifications(store, type) {
 }
 
 function pushFinish(store, userId, matchId, elapsedSeconds, { distanceKm = 5, pace = '05:21/km' } = {}) {
+  // These pins assert the push's OWN prune/sweep side effects (heal-then-prune ordering, blob
+  // back-fill on the same touch). The progress-POST prunes are throttled server-wide (B-3), so
+  // re-arm the throttle before every push to keep the per-push semantics this file pins.
+  resetProgressPruneThrottle();
   return updateRunningMatchProgress(store, { id: userId }, {
     matchId,
     distanceKm,

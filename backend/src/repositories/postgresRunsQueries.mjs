@@ -172,6 +172,21 @@ export async function insertRun(database, run) {
   );
 }
 
+// B-5 (finish-flow relief 2026-07-07): in-place matchResult upgrade for the match-save
+// dedupe-as-upgrade retry path — only the match_result jsonb (and updated_at) move, so a
+// retried match save can never duplicate the row it upgrades.
+export async function updateRunMatchResult(database, runId, matchResult, updatedAt) {
+  await database.query(
+    `
+      update runs
+      set match_result = $2,
+          updated_at = $3
+      where id = $1
+    `,
+    [runId, matchResult ? JSON.stringify(matchResult) : null, updatedAt],
+  );
+}
+
 export async function insertImport(database, entry) {
   await database.query(
     `

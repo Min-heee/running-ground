@@ -1,4 +1,9 @@
-import { areRunsPotentialDuplicates, buildRunExternalKey, buildRunFingerprint } from './runsRepository.mjs';
+import {
+  areRunsPotentialDuplicates,
+  buildRunExternalKey,
+  buildRunFingerprint,
+  shouldOverwriteMatchResult,
+} from './runsRepository.mjs';
 import {
   clone,
   createDisplayTimestamp,
@@ -19,6 +24,7 @@ import {
   requireSyncableConnectedSource,
   requireUserByToken,
   runWriteOperation,
+  updateRunMatchResult,
   updateUserConnectedSources,
 } from './postgresRunsQueries.mjs';
 
@@ -103,11 +109,6 @@ export function createPostgresRunsRepository({
         // count points / weekly distance / records. If a run already exists for the SAME
         // (userId, startedAt) — exact startedAt ISO string — return its payload instead of
         // inserting a duplicate. The durable fix is a client-supplied clientRunId (post-launch).
-        //
-        // IMPORTANT: match saves (matchResult present) are EXCLUDED — the duel/group reconcile
-        // flow deliberately re-saves the same (userId, startedAt) to upgrade a PENDING verdict to
-        // the server-resolved outcome once the opponent's run lands. Short-circuiting those would
-        // freeze the result at PENDING. Match points already dedupe by matchId.
         if (input.startedAt && !input.matchResult) {
           const existingRuns = await loadRunsForUser(client, user.id);
           const existingRun = existingRuns.find((entry) => entry.startedAt === input.startedAt);
@@ -115,6 +116,39 @@ export function createPostgresRunsRepository({
           if (existingRun) {
             const existingMetrics = buildUserMetrics(existingRuns);
             return buildRunDetail(existingRun, existingMetrics.currentWeekDistanceKm, undefined, existingMetrics);
+          }
+        }
+
+        // B-5 (finish-flow relief 2026-07-07) dedupe-as-UPGRADE for match saves — the json-repo
+        // twin, byte-for-byte semantics: a retried match save with the SAME (userId, startedAt)
+        // AND the SAME matchResult.matchId never inserts a duplicate row. Match saves cannot
+        // simply short-circuit (the duel/group reconcile flow deliberately re-saves the same run
+        // to upgrade a PENDING verdict once the opponent's run lands), so the retry RE-RUNS the
+        // server-authoritative resolver and rewrites the EXISTING row's match_result in place —
+        // preserving the intentional PENDING→resolved upgrade, never overwriting a definite
+        // verdict with a PENDING placeholder (shouldOverwriteMatchResult). Match points/LP
+        // already dedupe by matchId, and metrics recompute off the single stored row.
+        const retryMatchId = typeof input.matchResult?.matchId === 'string' && input.matchResult.matchId
+          ? input.matchResult.matchId
+          : null;
+
+        if (input.startedAt && retryMatchId) {
+          const existingRuns = await loadRunsForUser(client, user.id);
+          const existingRun = existingRuns.find((entry) => (
+            entry.startedAt === input.startedAt && entry.matchResult?.matchId === retryMatchId
+          ));
+
+          if (existingRun) {
+            const reResolvedMatchResult = await resolveMatchResult(user, input.matchResult);
+
+            if (reResolvedMatchResult && shouldOverwriteMatchResult(existingRun.matchResult, reResolvedMatchResult)) {
+              await updateRunMatchResult(client, existingRun.id, reResolvedMatchResult, nowIso());
+            }
+
+            const runs = await loadRunsForUser(client, user.id);
+            const metrics = buildUserMetrics(runs);
+            const upgradedRun = runs.find((entry) => entry.id === existingRun.id) ?? existingRun;
+            return buildRunDetail(upgradedRun, metrics.currentWeekDistanceKm, undefined, metrics);
           }
         }
 

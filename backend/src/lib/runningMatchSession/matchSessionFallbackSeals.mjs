@@ -143,6 +143,11 @@ export function sweepStuckMatchSessionFallbacks(store, now = new Date()) {
       continue;
     }
 
+    // The seal functions are sticky: on an ALREADY-sealed session they return the existing
+    // resolution untouched. `changed` must report only what THIS sweep wrote (its documented
+    // contract, and what the /result lock-free fast path keys on), so capture whether a seal
+    // pre-existed before invoking them.
+    const hadSealBeforeSweep = Boolean(readSealResolution(session));
     const sealed = session.mode === 'duel'
       ? sealDuelFallbackResolutionIfElapsed(session, now)
       : sealGroupFallbackResolutionIfElapsed(session, now);
@@ -155,7 +160,7 @@ export function sweepStuckMatchSessionFallbacks(store, now = new Date()) {
       continue;
     }
 
-    if (sealed) {
+    if (sealed && !hadSealBeforeSweep) {
       changed = true;
     }
 

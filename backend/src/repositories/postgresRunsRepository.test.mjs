@@ -210,6 +210,19 @@ class FakePostgresDatabase {
       return { rows: [] };
     }
 
+    if (normalizedSql.startsWith('update runs set match_result = $2,')) {
+      this.runs = this.runs.map((run) => (
+        run.id === params[0]
+          ? {
+            ...run,
+            match_result: typeof params[1] === 'string' ? JSON.parse(params[1]) : clone(params[1]),
+            updated_at: params[2],
+          }
+          : run
+      ));
+      return { rows: [] };
+    }
+
     if (normalizedSql.startsWith('delete from integration_imports where id = any($1::text[])')) {
       const ids = new Set(params[0]);
       this.integrationImports = this.integrationImports.filter((entry) => !ids.has(entry.id));
@@ -220,7 +233,7 @@ class FakePostgresDatabase {
   }
 }
 
-function createRepositoryHarness(initialStore = {}) {
+function createRepositoryHarness(initialStore = {}, repositoryOverrides = {}) {
   const database = new FakePostgresDatabase(initialStore);
   let idIndex = 0;
 
@@ -243,6 +256,7 @@ function createRepositoryHarness(initialStore = {}) {
     nowIso: () => '2026-04-23T12:00:00.000Z',
     formatTimestamp: () => '2026-04-23 21:30',
     createError: (statusCode, message) => new TestApiError(statusCode, message),
+    ...repositoryOverrides,
   });
 
   return {
@@ -357,6 +371,80 @@ await runTest('createTrackedRun is idempotent per (userId, startedAt) — a retr
   });
 
   assert.notEqual(second.run.id, first.run.id);
+  assert.equal(database.runs.length, 2);
+});
+
+await runTest('B5: a retried match save (same userId+startedAt+matchId) upgrades the existing row instead of duplicating', async () => {
+  const matchId = 'duel-b5-match';
+  const clientClaim = {
+    mode: 'duel',
+    matchId,
+    source: 'party',
+    title: '대결 결과',
+    summary: '대결 요약',
+    badgeLabel: '승리',
+    opponentName: '아이폰14',
+    resultTone: 'win',
+    comparedDistanceKm: 5,
+    myDurationSeconds: 1500,
+    myPaceLabel: '05:30/km',
+  };
+  const pendingResult = { ...clientClaim, title: '대결 결과를 집계하고 있어요', badgeLabel: '결과 집계 중', opponentName: '상대' };
+  delete pendingResult.resultTone;
+  const resolvedResult = { ...clientClaim, opponentName: '상대러너', opponentId: 'user-2', opponentDurationSeconds: 1620 };
+
+  // First save: unresolvable → PENDING. Retry: resolvable → definite win. Third: degraded
+  // re-resolve → PENDING again, which must never downgrade the stored definite verdict.
+  let resolverCalls = 0;
+  const { repository, database } = createRepositoryHarness({}, {
+    resolveMatchResult: async (user, matchResult) => {
+      if (matchResult.matchId !== matchId) {
+        return matchResult;
+      }
+      resolverCalls += 1;
+      return resolverCalls === 2 ? resolvedResult : pendingResult;
+    },
+  });
+
+  const input = {
+    date: '2026-07-07',
+    distanceKm: 5,
+    pace: '05:30/km',
+    durationSeconds: 1500,
+    route: [{ latitude: 37.5, longitude: 127.0 }],
+    startedAt: '2026-07-07T10:00:00.000Z',
+    endedAt: '2026-07-07T10:27:30.000Z',
+    matchResult: clientClaim,
+  };
+
+  const first = await repository.createTrackedRun({ token: 'token-1', input });
+  assert.equal(first.run.matchResult.badgeLabel, '결과 집계 중');
+  assert.equal(first.run.matchResult.resultTone, undefined);
+  assert.equal(database.runs.length, 1);
+
+  // The retry does NOT insert a second row — it re-runs the resolver and rewrites the
+  // EXISTING row's match_result in place, returning the existing (upgraded) detail.
+  const retry = await repository.createTrackedRun({ token: 'token-1', input });
+  assert.equal(retry.run.id, first.run.id);
+  assert.equal(retry.run.matchResult.resultTone, 'win');
+  assert.equal(resolverCalls, 2, 'the retry re-runs the server resolver');
+  assert.equal(database.runs.length, 1, 'no duplicate run row');
+  assert.deepEqual(database.runs[0].match_result, resolvedResult);
+  assert.equal(database.runs[0].updated_at, '2026-04-23T12:00:00.000Z');
+
+  // Never-downgrade: a later degraded re-resolve keeps the definite verdict.
+  const degraded = await repository.createTrackedRun({ token: 'token-1', input });
+  assert.equal(degraded.run.id, first.run.id);
+  assert.equal(degraded.run.matchResult.resultTone, 'win');
+  assert.equal(database.runs.length, 1);
+  assert.deepEqual(database.runs[0].match_result, resolvedResult);
+
+  // A save for a DIFFERENT match at the same startedAt still inserts (no false dedupe).
+  const otherMatch = await repository.createTrackedRun({
+    token: 'token-1',
+    input: { ...input, matchResult: { ...clientClaim, matchId: 'duel-b5-other' } },
+  });
+  assert.notEqual(otherMatch.run.id, first.run.id);
   assert.equal(database.runs.length, 2);
 });
 

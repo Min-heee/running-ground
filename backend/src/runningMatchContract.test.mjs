@@ -1422,6 +1422,74 @@ await runTest('match progress remains finished when a later heartbeat reports lo
   });
 });
 
+await runTest('a finished re-push (post-finish heartbeat) leaves the persisted store byte-identical', async () => {
+  // B-2 pin: once a participant's finish is frozen (liveStatus 'finished' +
+  // finishElapsedSeconds), re-pushing 'finished' — the client's post-finish heartbeat and the
+  // durable finish resend — must not re-stamp the live fields. The whole mutation becomes
+  // byte-identical, so the adapters' no-change serialization skip drops the whole-store row
+  // UPDATE entirely (the persisted store does not move at all), and the standings/verdict the
+  // opponent polls are unchanged.
+  const { store, slotStartAt } = createActiveDuelStore({ pastSlot: true });
+
+  await withBackend(store, async ({ request, readStore }) => {
+    const finish = await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 5,
+      elapsedSeconds: 1530,
+      currentPace: '05:02/km',
+      status: 'finished',
+    });
+    assert.equal(finish.currentUserLiveStatus, 'finished');
+    assert.equal(finish.currentUserFinishElapsedSeconds, 1530);
+
+    const guestViewAfterFinish = await request('guest-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: 'duel-contract-match',
+    });
+    const frozenFinishedAt = guestViewAfterFinish.opponent.finishedAt;
+    assert.equal(guestViewAfterFinish.opponent.liveStatus, 'finished');
+
+    const persistedAfterFinish = JSON.stringify(readStore());
+
+    // Far enough apart that a re-stamped liveUpdatedAt WOULD change the serialization.
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    const repush = await request('host-token', 'POST', '/api/running/matches/progress', {
+      matchId: 'duel-contract-match',
+      distanceKm: 5,
+      elapsedSeconds: 1530,
+      currentPace: '05:02/km',
+      status: 'finished',
+    });
+    assert.equal(repush.currentUserLiveStatus, 'finished');
+    assert.equal(repush.currentUserFinishElapsedSeconds, 1530);
+
+    assert.equal(
+      JSON.stringify(readStore()),
+      persistedAfterFinish,
+      'the finished re-push must not rewrite the persisted store',
+    );
+
+    // Standings/verdict unchanged: the opponent's poll reads the identical frozen snapshot.
+    const guestViewAfterRepush = await request('guest-token', 'POST', '/api/running/matches/status', {
+      mode: 'duel',
+      distanceKm: 5,
+      slotStartAt,
+      matchId: 'duel-contract-match',
+    });
+    assert.equal(guestViewAfterRepush.opponent.liveStatus, 'finished');
+    assert.equal(guestViewAfterRepush.opponent.finishedAt, frozenFinishedAt);
+    assert.equal(guestViewAfterRepush.opponent.liveDistanceKm, guestViewAfterFinish.opponent.liveDistanceKm);
+    // (officialComparison carries a poll-time comparedAt, so compare its standing-bearing
+    // fields rather than the whole object.)
+    assert.equal(guestViewAfterRepush.officialComparison?.leaderUserId, guestViewAfterFinish.officialComparison?.leaderUserId);
+    assert.equal(guestViewAfterRepush.officialComparison?.leaderDistanceKm, guestViewAfterFinish.officialComparison?.leaderDistanceKm);
+    assert.equal(guestViewAfterRepush.officialComparison?.participantCount, guestViewAfterFinish.officialComparison?.participantCount);
+  });
+});
+
 await runTest('duel forfeit flow persists both match results and exposes them in activity records', async () => {
   const { store, slotStartAt } = createActiveDuelStore();
 

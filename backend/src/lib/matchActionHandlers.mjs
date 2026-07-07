@@ -457,11 +457,27 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
       ? 'finished'
       : status;
 
-  currentParticipant.liveDistanceKm = normalizedProgress.distanceKm;
-  currentParticipant.liveElapsedSeconds = normalizedProgress.elapsedSeconds;
-  currentParticipant.livePace = currentPace;
-  currentParticipant.liveUpdatedAt = new Date().toISOString();
-  currentParticipant.liveStatus = effectiveStatus;
+  // B-2 (finish-flow relief 2026-07-07): an already-finished participant re-pushing 'finished'
+  // (post-finish heartbeat / durable finish resend) must NOT re-stamp the live fields. Distance
+  // and elapsed are already frozen by the finished short-circuit in
+  // normalizeRunningMatchProgress, and stall detection returns the stored status for 'finished'
+  // WITHOUT reading liveUpdatedAt (resolveParticipantLiveStatus), so skipping the five stamps
+  // changes nothing the server reports — it makes the whole mutation byte-identical, letting
+  // the store adapters' no-change serialization skip drop the whole-store row UPDATE for every
+  // post-finish push. The sealed-DNF downgrade (effectiveStatus 'running') and the F1 case of a
+  // finished participant whose measured finish was never frozen (finishElapsedSeconds null)
+  // stamp normally, exactly as before.
+  const skipFinishedRepushLiveStamps = currentParticipant.liveStatus === 'finished'
+    && effectiveStatus === 'finished'
+    && currentParticipant.finishElapsedSeconds != null;
+
+  if (!skipFinishedRepushLiveStamps) {
+    currentParticipant.liveDistanceKm = normalizedProgress.distanceKm;
+    currentParticipant.liveElapsedSeconds = normalizedProgress.elapsedSeconds;
+    currentParticipant.livePace = currentPace;
+    currentParticipant.liveUpdatedAt = new Date().toISOString();
+    currentParticipant.liveStatus = effectiveStatus;
+  }
   if (!session.startedAt) {
     session.startedAt = currentParticipant.liveUpdatedAt;
   }
@@ -513,8 +529,41 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
     sessionOverride: session,
   });
   const resolvedAt = new Date(currentParticipant.liveUpdatedAt);
-  pruneMatchSessions(store, resolvedAt);
-  pruneMatchRooms(store, resolvedAt);
+  runProgressPollPrunesIfDue(store, resolvedAt);
 
   return response;
+}
+
+// B-3 (finish-flow relief 2026-07-07): the ~2.5s progress-POST heartbeats from every live
+// runner each ran pruneMatchSessions + pruneMatchRooms (each re-running the seal/heal sweep)
+// while HOLDING the whole-store row lock. Physical pruning is time-based housekeeping, not
+// per-push semantics, so on THIS endpoint it is throttled to at most once per
+// PROGRESS_PRUNE_MIN_INTERVAL_MS server-wide. Seal/finalize timing shifts by at most the
+// interval inside the 90s §B4 window, and every OTHER prune caller (leave/forfeit, session
+// lookups, room sync, status polls, the /result locked path) still prunes immediately. The
+// finish handler's direct sealDuel/GroupFallbackResolutionIfElapsed calls above are untouched,
+// so a due seal still blocks a late finish on the very push that carries it. `now` drives the
+// throttle gate and is injectable for tests; the last-run marker is module-level (one server
+// process), exactly like the tombstone map.
+export const PROGRESS_PRUNE_MIN_INTERVAL_MS = 15_000;
+
+let lastProgressPruneMs = 0;
+
+export function runProgressPollPrunesIfDue(store, resolvedAt, now = new Date()) {
+  const nowMs = now.getTime();
+
+  if (Number.isFinite(nowMs) && nowMs - lastProgressPruneMs < PROGRESS_PRUNE_MIN_INTERVAL_MS) {
+    return false;
+  }
+
+  lastProgressPruneMs = Number.isFinite(nowMs) ? nowMs : Date.now();
+  pruneMatchSessions(store, resolvedAt);
+  pruneMatchRooms(store, resolvedAt);
+  return true;
+}
+
+// Test hook — the throttle marker is module-global, so tests that pin per-push prune/sweep
+// side effects reset it between pushes (mirrors clearVanishedMatchTombstones).
+export function resetProgressPruneThrottle() {
+  lastProgressPruneMs = 0;
 }

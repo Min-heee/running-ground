@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildUserRunMetrics, getRunPointValue } from '../points.mjs';
+import { buildUserRunMetrics, getRunPointBreakdown, getRunPointValue } from '../points.mjs';
 import { createJsonRunsRepository, getPendingImportCount } from './runsRepository.mjs';
 
 const SOURCE_LABELS = {
@@ -71,7 +71,7 @@ function createStoreHarness(initialStore = {}) {
   };
 }
 
-function createRepositoryHarness(initialStore = {}) {
+function createRepositoryHarness(initialStore = {}, repositoryOverrides = {}) {
   const storeHarness = createStoreHarness(initialStore);
   let idIndex = 0;
 
@@ -108,6 +108,7 @@ function createRepositoryHarness(initialStore = {}) {
     nowIso: () => '2026-04-23T12:00:00.000Z',
     formatTimestamp: () => '2026-04-23 21:30',
     createError: (statusCode, message) => new TestApiError(statusCode, message),
+    ...repositoryOverrides,
   });
 
   return {
@@ -348,5 +349,87 @@ await runTest('createTrackedRun is idempotent per (userId, startedAt) — a retr
   });
 
   assert.notEqual(second.run.id, first.run.id);
+  assert.equal(storeHarness.getStore().runs.length, 2);
+});
+
+await runTest('B5: a retried match save (same userId+startedAt+matchId) upgrades the existing run instead of duplicating', async () => {
+  const matchId = 'duel-b5-match';
+  const clientClaim = {
+    mode: 'duel',
+    matchId,
+    source: 'party',
+    title: '대결 결과',
+    summary: '대결 요약',
+    badgeLabel: '승리',
+    opponentName: '아이폰14',
+    resultTone: 'win',
+    comparedDistanceKm: 5,
+    myDurationSeconds: 1500,
+    myPaceLabel: '05:30/km',
+  };
+  const pendingResult = { ...clientClaim, title: '대결 결과를 집계하고 있어요', badgeLabel: '결과 집계 중', opponentName: '상대' };
+  delete pendingResult.resultTone;
+  const resolvedResult = { ...clientClaim, opponentName: '상대러너', opponentId: 'user-2', opponentDurationSeconds: 1620 };
+
+  // First save: verdict unresolvable (opponent not landed) → PENDING. Retry: resolvable →
+  // definite win. Third call: degraded re-resolve (e.g. session pruned, opponent run missing)
+  // → PENDING again, which must NEVER downgrade the stored definite verdict.
+  let resolverCalls = 0;
+  const { repository, storeHarness } = createRepositoryHarness({}, {
+    resolveMatchResult: (store, user, matchResult) => {
+      if (matchResult.matchId !== matchId) {
+        return matchResult;
+      }
+      resolverCalls += 1;
+      return resolverCalls === 2 ? resolvedResult : pendingResult;
+    },
+  });
+
+  const input = {
+    date: '2026-07-07',
+    distanceKm: 5,
+    pace: '05:30/km',
+    durationSeconds: 1500,
+    route: [{ latitude: 37.5, longitude: 127.0 }],
+    startedAt: '2026-07-07T10:00:00.000Z',
+    endedAt: '2026-07-07T10:27:30.000Z',
+    matchResult: clientClaim,
+  };
+
+  const first = await repository.createTrackedRun({ token: 'token-1', input });
+  assert.equal(first.run.matchResult.badgeLabel, '결과 집계 중');
+  assert.equal(first.run.matchResult.resultTone, undefined);
+  assert.equal(storeHarness.getStore().runs.length, 1);
+
+  // The retry does NOT insert a second row — it re-runs the resolver and upgrades the
+  // EXISTING run's matchResult PENDING→resolved in place, returning the existing detail.
+  const retry = await repository.createTrackedRun({ token: 'token-1', input });
+  assert.equal(retry.run.id, first.run.id);
+  assert.equal(retry.run.matchResult.resultTone, 'win');
+  assert.equal(retry.run.matchResult.badgeLabel, '승리');
+  assert.equal(resolverCalls, 2, 'the retry re-runs the server resolver');
+
+  const runsAfterRetry = storeHarness.getStore().runs;
+  assert.equal(runsAfterRetry.length, 1, 'no duplicate run row');
+  assert.equal(runsAfterRetry[0].matchResult.resultTone, 'win');
+
+  // Points not doubled: metrics recompute off the single stored row → exactly one point
+  // entry, carrying the win bonus exactly once.
+  const metrics = buildUserRunMetrics(runsAfterRetry);
+  assert.equal(metrics.runPointsById.size, 1);
+  assert.equal(getRunPointBreakdown(metrics, first.run.id).matchBonusPoints, 20);
+
+  // Never-downgrade: a later degraded re-resolve keeps the definite verdict.
+  const degraded = await repository.createTrackedRun({ token: 'token-1', input });
+  assert.equal(degraded.run.id, first.run.id);
+  assert.equal(degraded.run.matchResult.resultTone, 'win');
+  assert.equal(storeHarness.getStore().runs.length, 1);
+
+  // A save for a DIFFERENT match at the same startedAt still inserts (no false dedupe).
+  const otherMatch = await repository.createTrackedRun({
+    token: 'token-1',
+    input: { ...input, matchResult: { ...clientClaim, matchId: 'duel-b5-other' } },
+  });
+  assert.notEqual(otherMatch.run.id, first.run.id);
   assert.equal(storeHarness.getStore().runs.length, 2);
 });

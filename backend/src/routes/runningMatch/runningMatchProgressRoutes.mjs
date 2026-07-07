@@ -27,6 +27,7 @@ export async function routeRunningMatchProgressRoutes(deps) {
 async function handleFetchRunningMatchResult({
   ApiError,
   buildMatchResultByMatchId,
+  loadStore,
   mutateStore,
   sweepStuckMatchSessionFallbacks,
   request,
@@ -48,14 +49,36 @@ async function handleFetchRunningMatchResult({
     throw new ApiError(404, '대결 결과를 찾을 수 없어.');
   }
 
-  // DURABLE one-finisher resolution: this read now runs under mutateStore so the FIRST /result
-  // request after the §B4 window elapses PERSISTS the fallback seal AND back-fills the lone
-  // finisher's saved run (so the 기록상세 card heals), instead of computing the verdict against a
-  // throwaway loadStore() clone that is never written. We run the targeted seal+back-fill SWEEP
-  // (NOT pruneMatchSessions, which would DROP a both-finished session before the raw lookup can
-  // resolve it). The sweep only seals/heals — it never removes a session — and is idempotent +
-  // sticky, so concurrent /result reads can never corrupt or double-seal. buildMatchResultByMatchId
-  // then reads the still-present (now-persisted) session via its raw lookup, exactly as before.
+  // B-1 (finish-flow relief 2026-07-07): LOCK-FREE FAST PATH. Every /result poll used to run
+  // under mutateStore, so during a finish window each poll queued on the single whole-store
+  // row lock behind heartbeats and saves. But the locked read is only load-bearing when the
+  // seal/heal sweep actually has WORK to do (seal a §B4 fallback, finalize a closed revision
+  // window, back-fill a finisher's saved run). So: take an MVCC snapshot (loadStore — both
+  // adapters return a throwaway clone), run the SAME sweep on the clone, and when it reports
+  // no change — the overwhelmingly common finalized/back-filled steady state — answer as a
+  // pure read from the snapshot without ever touching the lock. buildMatchResultByMatchId is
+  // a pure read, and the sweep is idempotent, so the fast-path payload is byte-identical to
+  // what the locked path would have produced. Auth/404 semantics are identical on both paths
+  // (requireUser + the builder's participant checks run against the same store state).
+  const snapshot = await loadStore();
+  const probeUser = requireUser(snapshot, request);
+
+  if (!sweepStuckMatchSessionFallbacks(snapshot)) {
+    sendJson(response, 200, buildMatchResultByMatchId(snapshot, probeUser, matchId));
+    return;
+  }
+
+  // Heal needed → exactly today's locked path. DURABLE one-finisher resolution: this read runs
+  // under mutateStore so the FIRST /result request after the §B4 window elapses PERSISTS the
+  // fallback seal AND back-fills the lone finisher's saved run (so the 기록상세 card heals),
+  // instead of computing the verdict against a throwaway loadStore() clone that is never
+  // written. We run the targeted seal+back-fill SWEEP (NOT pruneMatchSessions, which would
+  // DROP a both-finished session before the raw lookup can resolve it). The sweep only
+  // seals/heals — it never removes a session — and is idempotent + sticky, so concurrent
+  // /result reads can never corrupt or double-seal (a racing writer that already persisted the
+  // heal simply makes this locked sweep a no-op and the adapter skips the write).
+  // buildMatchResultByMatchId then reads the still-present (now-persisted) session via its raw
+  // lookup, exactly as before.
   const payload = await mutateStore((store) => {
     const currentUser = requireUser(store, request);
     sweepStuckMatchSessionFallbacks(store);

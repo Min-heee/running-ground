@@ -322,6 +322,31 @@ function importPendingRunsForUser(store, user, {
   };
 }
 
+// B-5 (finish-flow relief 2026-07-07): shared never-downgrade predicate for the match-save
+// dedupe-as-upgrade below (used by BOTH the json and postgres repositories). A matchResult is
+// DEFINITE when it carries a final verdict the resolver produced (duel win/lose/draw tone,
+// group integer rank) or is a self-contained forfeit record (기권 badge — terminal by design).
+// A retry's re-resolved result may OVERWRITE the stored one unless that would replace a
+// definite verdict with a PENDING placeholder — the same direction-lock
+// backFillFinisherSavedRuns applies when it heals saved blobs.
+export function isDefiniteMatchResult(matchResult) {
+  if (!matchResult || typeof matchResult !== 'object') {
+    return false;
+  }
+
+  if (/기권/.test(String(matchResult.badgeLabel ?? ''))) {
+    return true;
+  }
+
+  return matchResult.mode === 'group'
+    ? Number.isInteger(matchResult.rank)
+    : ['win', 'lose', 'draw'].includes(matchResult.resultTone);
+}
+
+export function shouldOverwriteMatchResult(existingMatchResult, reResolvedMatchResult) {
+  return !isDefiniteMatchResult(existingMatchResult) || isDefiniteMatchResult(reResolvedMatchResult);
+}
+
 export function createJsonRunsRepository({
   loadStore,
   mutateStore,
@@ -393,17 +418,48 @@ export function createJsonRunsRepository({
         // (userId, startedAt) — exact startedAt ISO string — and return its payload instead of
         // inserting a duplicate. The durable fix is a client-supplied clientRunId (post-launch);
         // startedAt collides only for genuine same-second re-submits of the same run.
-        //
-        // IMPORTANT: match saves (matchResult present) are EXCLUDED — the duel/group reconcile
-        // flow deliberately re-saves the same (userId, startedAt) to upgrade a PENDING verdict to
-        // the server-resolved win/lose/placement once the opponent's run lands. Short-circuiting
-        // those would freeze the result at PENDING. Match points already dedupe by matchId.
         if (input.startedAt && !input.matchResult) {
           const existingRun = store.runs.find((entry) => (
             entry.userId === user.id && entry.startedAt === input.startedAt
           ));
 
           if (existingRun) {
+            const existingMetrics = getUserMetrics(store, user.id);
+            return buildRunDetail(existingRun, existingMetrics.currentWeekDistanceKm, undefined, existingMetrics);
+          }
+        }
+
+        // B-5 (finish-flow relief 2026-07-07) dedupe-as-UPGRADE for match saves: a retried match
+        // save with the SAME (userId, startedAt) AND the SAME matchResult.matchId must not insert
+        // a duplicate run row (a landed-but-timed-out original + the client retry used to double
+        // the run / weekly distance / records). Match saves cannot simply short-circuit like the
+        // solo dedupe above — the duel/group reconcile flow deliberately re-saves the same run to
+        // upgrade a PENDING verdict once the opponent's run lands — so the retry RE-RUNS the
+        // server-authoritative resolver and overwrites the EXISTING run's matchResult in place
+        // (preserving the intentional PENDING→resolved upgrade), never overwriting a definite
+        // verdict with a PENDING placeholder (shouldOverwriteMatchResult). Match points/LP
+        // already dedupe by matchId, and metrics recompute off the single stored row.
+        const retryMatchId = typeof input.matchResult?.matchId === 'string' && input.matchResult.matchId
+          ? input.matchResult.matchId
+          : null;
+
+        if (input.startedAt && retryMatchId) {
+          const existingRun = store.runs.find((entry) => (
+            entry.userId === user.id
+            && entry.startedAt === input.startedAt
+            && entry.matchResult?.matchId === retryMatchId
+          ));
+
+          if (existingRun) {
+            const reResolvedMatchResult = resolveMatchResult(store, user, input.matchResult);
+
+            if (reResolvedMatchResult && shouldOverwriteMatchResult(existingRun.matchResult, reResolvedMatchResult)) {
+              existingRun.matchResult = clone(reResolvedMatchResult);
+            }
+
+            // The resolver may have read (and cached) this user's metrics before the upgrade;
+            // drop the entry so the recompute sees the upgraded blob's match bonus exactly once.
+            invalidateUserMetrics(store, user.id);
             const existingMetrics = getUserMetrics(store, user.id);
             return buildRunDetail(existingRun, existingMetrics.currentWeekDistanceKm, undefined, existingMetrics);
           }
