@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { memo, useCallback } from 'react';
 import { Alert, Pressable, StyleSheet, Text } from 'react-native';
 import { Card } from '@/components/Card';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
@@ -65,27 +65,12 @@ export const LiveMatchExitActionCard = memo(function LiveMatchExitActionCard({
     onShowResultAfterSelfForfeit(source);
   }, [onShowResultAfterSelfForfeit, source]);
 
-  // MY endings go straight to the run detail without a manual press: finishing the
-  // goal distance and a self-forfeit retry both auto-dispatch their save-and-navigate.
-  // counterpart-forfeited stays MANUAL on purpose — when the opponent forfeits, this
-  // runner keeps running and decides when to press 대결종료 themselves.
-  const autoExitTriggeredRef = useRef(false);
-  const isAutoExitKind = actionState.kind === 'self-finished'
-    || actionState.kind === 'self-forfeited';
-  const isAutoExitReady = isAutoExitKind && !actionState.disabled;
-  useEffect(() => {
-    if (!source || !isAutoExitReady || autoExitTriggeredRef.current) {
-      return;
-    }
-
-    autoExitTriggeredRef.current = true;
-    rgPerfMark('match end auto result dispatch', { kind: actionState.kind, source });
-    if (actionState.kind === 'self-forfeited') {
-      onShowResultAfterSelfForfeit(source);
-    } else {
-      onShowResultAfterCounterpartForfeit(source);
-    }
-  }, [actionState.kind, isAutoExitReady, onShowResultAfterCounterpartForfeit, onShowResultAfterSelfForfeit, source]);
+  // FIX-C (2026-07-09) — the self-finished/self-forfeited AUTO-exit effect that lived here
+  // was HOISTED to useMatchSelfEndAutoExit (mounted at the runtime-model layer). This card is
+  // rendered only on the arena pager page / result page, so the effect never existed while
+  // the runner sat on another segment — and its one-shot ref latched BEFORE the handler ran
+  // (a single isSaving early-return permanently disabled auto-exit for the mount). The card
+  // keeps its UI (manual buttons) unchanged.
 
   if (!source || actionState.kind === 'hidden') {
     return null;

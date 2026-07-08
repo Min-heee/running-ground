@@ -126,6 +126,152 @@ test('FIX-2: the pending matchResult still backfills when it belongs to the live
   clearPendingMatchSaveContext();
 });
 
+test('FIX-A tier 3: a live goal freeze restores the matchId after a full runtime wipe', () => {
+  clearPendingMatchSaveContext();
+
+  // Runtime wiped BEFORE any save attempt (the 7/9 mid-run vanish demotion): no live match,
+  // no pending context — only the freeze recorded at the crossing survives.
+  const resolved = resolvePendingMatchSaveFallbacks({
+    liveMatchId: null,
+    liveMatchResult: undefined,
+    liveMatchSource: 'official',
+    pendingContext: null,
+    goalFreezes: [{
+      matchId: 'match-99',
+      crossedAtIso: '2026-07-09T00:35:00.000Z',
+      mode: 'duel',
+      matchSource: 'official',
+    }],
+    runStartedAtIso: '2026-07-08T23:55:00.000Z',
+  });
+
+  assert.equal(resolved.activeMatchId, 'match-99');
+  assert.equal(resolved.resolvedMatchResult, null);
+  assert.equal(resolved.matchSource, 'official');
+  assert.equal(resolved.matchModeFallback, 'duel');
+});
+
+test('ZOMBIE GATE: a freeze crossed BEFORE this run started never claims the save', () => {
+  // The 7/9 incident device still holds the old 40:30/7.01 freeze; a later pure solo run
+  // must save as solo — not adopt the dead matchId (and its clamp).
+  const resolved = resolvePendingMatchSaveFallbacks({
+    liveMatchId: null,
+    liveMatchResult: undefined,
+    liveMatchSource: 'official',
+    pendingContext: null,
+    goalFreezes: [{
+      matchId: 'match-dead',
+      crossedAtIso: '2026-07-09T00:35:00.000Z',
+      mode: 'duel',
+      matchSource: 'official',
+    }],
+    runStartedAtIso: '2026-07-10T10:00:00.000Z',
+  });
+
+  assert.equal(resolved.activeMatchId, null);
+  assert.equal(resolved.matchSource, 'official');
+});
+
+test('ZOMBIE GATE: no provable run window disables the freeze tier outright', () => {
+  const noWindow = resolvePendingMatchSaveFallbacks({
+    liveMatchId: null,
+    liveMatchResult: undefined,
+    liveMatchSource: 'official',
+    pendingContext: null,
+    goalFreezes: [{
+      matchId: 'match-99',
+      crossedAtIso: '2026-07-09T00:35:00.000Z',
+      mode: 'duel',
+      matchSource: 'official',
+    }],
+  });
+  assert.equal(noWindow.activeMatchId, null);
+
+  const unparseable = resolvePendingMatchSaveFallbacks({
+    liveMatchId: null,
+    liveMatchResult: undefined,
+    liveMatchSource: 'official',
+    pendingContext: null,
+    goalFreezes: [{
+      matchId: 'match-99',
+      crossedAtIso: '2026-07-09T00:35:00.000Z',
+      mode: 'duel',
+      matchSource: 'official',
+    }],
+    runStartedAtIso: 'not-a-date',
+  });
+  assert.equal(unparseable.activeMatchId, null);
+});
+
+test('FIX-A tier 3: the most recent crossing wins when several freezes linger', () => {
+  const resolved = resolvePendingMatchSaveFallbacks({
+    liveMatchId: null,
+    liveMatchResult: undefined,
+    liveMatchSource: 'official',
+    pendingContext: null,
+    goalFreezes: [
+      { matchId: 'match-old', crossedAtIso: '2026-07-08T00:00:00.000Z', mode: 'duel', matchSource: 'official' },
+      { matchId: 'match-new', crossedAtIso: '2026-07-09T00:35:00.000Z', mode: 'group', matchSource: 'party' },
+    ],
+    runStartedAtIso: '2026-07-07T23:00:00.000Z',
+  });
+
+  assert.equal(resolved.activeMatchId, 'match-new');
+  assert.equal(resolved.matchModeFallback, 'group');
+  assert.equal(resolved.matchSource, 'party');
+});
+
+test('FIX-A tier 3: source is never upgraded to official — party latch and unproven sources stay party', () => {
+  // In-session party latch (liveMatchSource) beats a freeze that recorded 'official'.
+  const latched = resolvePendingMatchSaveFallbacks({
+    liveMatchId: null,
+    liveMatchResult: undefined,
+    liveMatchSource: 'party',
+    pendingContext: null,
+    goalFreezes: [{ matchId: 'match-99', crossedAtIso: '2026-07-09T00:35:00.000Z', mode: 'duel', matchSource: 'official' }],
+    runStartedAtIso: '2026-07-08T23:55:00.000Z',
+  });
+  assert.equal(latched.matchSource, 'party');
+
+  // A pre-OTA freeze without a recorded source cannot prove official → label 'party'.
+  const unproven = resolvePendingMatchSaveFallbacks({
+    liveMatchId: null,
+    liveMatchResult: undefined,
+    liveMatchSource: 'official',
+    pendingContext: null,
+    goalFreezes: [{ matchId: 'match-99', crossedAtIso: '2026-07-09T00:35:00.000Z' }],
+    runStartedAtIso: '2026-07-08T23:55:00.000Z',
+  });
+  assert.equal(unproven.matchSource, 'party');
+  assert.equal(unproven.activeMatchId, 'match-99');
+  assert.equal(unproven.matchModeFallback, null);
+});
+
+test('FIX-A tier 3: live match and pending context both still win over the freeze', () => {
+  clearPendingMatchSaveContext();
+  setPendingMatchSaveContext(sampleContext); // match-77
+
+  const pendingWins = resolvePendingMatchSaveFallbacks({
+    liveMatchId: null,
+    liveMatchResult: undefined,
+    liveMatchSource: 'official',
+    pendingContext: getPendingMatchSaveContext(),
+    goalFreezes: [{ matchId: 'match-99', crossedAtIso: '2026-07-09T00:35:00.000Z', mode: 'duel', matchSource: 'official' }],
+  });
+  assert.equal(pendingWins.activeMatchId, 'match-77');
+
+  const liveWins = resolvePendingMatchSaveFallbacks({
+    liveMatchId: 'match-88',
+    liveMatchResult: undefined,
+    liveMatchSource: 'official',
+    pendingContext: null,
+    goalFreezes: [{ matchId: 'match-99', crossedAtIso: '2026-07-09T00:35:00.000Z', mode: 'duel', matchSource: 'official' }],
+  });
+  assert.equal(liveWins.activeMatchId, 'match-88');
+
+  clearPendingMatchSaveContext();
+});
+
 test('no live match and no pending context resolves to a plain solo save', () => {
   clearPendingMatchSaveContext();
 

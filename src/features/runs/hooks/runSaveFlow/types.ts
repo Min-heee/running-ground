@@ -94,7 +94,13 @@ export type UseRunSaveFlowInput = {
   syncElapsedSeconds: (elapsedSeconds: number) => void;
   getDisplayedTrackingSnapshot: (snapshot?: BackgroundRunTrackingSnapshot) => DisplayedTrackingSnapshot;
   buildDisplayedMatchProgress: (snapshot?: BackgroundRunTrackingSnapshot) => DisplayedMatchProgress;
-  pushRunningMatchProgress: (input: UpdateRunningMatchProgressInput) => Promise<RunningMatchStatusResponse>;
+  // FIX-D2 — the optional per-call timeout lets the save-time finished push cap itself below
+  // the 5s live-match default (the runtime function is useMatchProgressSync's single-flight
+  // wrapper, which threads it to the service; callers that omit it are unchanged).
+  pushRunningMatchProgress: (
+    input: UpdateRunningMatchProgressInput,
+    options?: { timeoutMs?: number },
+  ) => Promise<RunningMatchStatusResponse>;
   syncLiveSharing: (input: SyncLiveSharingInput) => Promise<unknown>;
   loadUpcomingMatches: () => Promise<unknown>;
   clearLocalForfeitedMatchState: (source: MatchExitSource, matchId: string) => void;

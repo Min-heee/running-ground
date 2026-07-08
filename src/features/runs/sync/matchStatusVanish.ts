@@ -76,11 +76,21 @@ export function isMatchStatusVanishConfirmed(state: MatchStatusVanishState) {
 export function shouldTeardownVanishedLinkedMatch({
   hasMatchResultPage,
   vanishConfirmed,
+  isActivelyRecordingMatch = false,
 }: {
   hasMatchResultPage: boolean;
   vanishConfirmed: boolean;
+  // FIX-B (2026-07-09 field incident) — a confirmed vanish must NEVER demote a run that is
+  // still actively recording this match (tracker status 'running', or a localGoalFreeze
+  // exists for the matchId = crossed-but-unsaved). The 7/9 duel loss chain: the loser's own
+  // un-acked finish made the session all-done → the next status poll pruned it → 200 'idle'
+  // without matchId ×2 → vanish confirmed → clearVanishedLinkedMatch set matchMode 'solo'
+  // MID-RUN, so the eventual save carried no matchId/matchResult (+0P, no 대결 card, no heal
+  // path). Deferring the teardown keeps the match context alive so the save stays match-
+  // sticky; the post-save cleanup tears everything down anyway.
+  isActivelyRecordingMatch?: boolean;
 }) {
-  return vanishConfirmed && !hasMatchResultPage;
+  return vanishConfirmed && !hasMatchResultPage && !isActivelyRecordingMatch;
 }
 
 export function buildVanishedMatchStatusFallback({

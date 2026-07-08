@@ -13,6 +13,7 @@
 // retry degrades to today's behavior — acceptable, the persisted bg snapshot + freeze survive.
 
 import type { RunMatchResult, RunMatchSource } from '@/domain';
+import type { LocalGoalFreeze } from '@/features/runs/sync/localGoalFreezeStore';
 
 export type PendingMatchSaveContext = {
   matchId: string;
@@ -20,6 +21,14 @@ export type PendingMatchSaveContext = {
   matchSource: RunMatchSource;
   matchResult: RunMatchResult | null;
 };
+
+// FIX-A (2026-07-09) — the minimal slice of a goal freeze the third fallback tier consumes.
+// A live (un-cleared) freeze proves a crossed-but-unsaved match and carries its matchId plus
+// the additive save metadata captured at the record sites.
+export type GoalFreezeSaveFallback = Pick<
+  LocalGoalFreeze,
+  'matchId' | 'crossedAtIso' | 'mode' | 'matchSource'
+>;
 
 let pendingMatchSaveContext: PendingMatchSaveContext | null = null;
 
@@ -42,20 +51,43 @@ export function clearPendingMatchSaveContext() {
 // knows the match; the pending context only backfills after the failure path wiped the runtime.
 // Never mixes sources — a live matchId keeps the live matchResult/matchSource resolution, a
 // pending matchId restores the pending snapshot wholesale.
+//
+// FIX-A third tier — when BOTH the live runtime and the pending context are gone (the 7/9
+// incident: a mid-run vanish demotion wiped the runtime BEFORE any save attempt existed), a
+// live goal freeze is the last proof of the crossed match: restore its matchId so the save
+// carries the match identity instead of degrading to a plain solo run (+0P, no 대결 card, no
+// heal path). matchSource correctness rule: NEVER mislabel a party run as official — the
+// in-session party latch (liveMatchSource==='party') wins outright, then the freeze's recorded
+// source, and an unprovable source resolves to 'party'.
 export function resolvePendingMatchSaveFallbacks({
   liveMatchId,
   liveMatchResult,
   liveMatchSource,
   pendingContext,
+  goalFreezes = [],
+  runStartedAtIso = null,
 }: {
   liveMatchId: string | null;
   liveMatchResult: RunMatchResult | null | undefined;
   liveMatchSource: RunMatchSource;
   pendingContext: PendingMatchSaveContext | null;
+  goalFreezes?: GoalFreezeSaveFallback[];
+  // ZOMBIE GATE (review FIX_FIRST 2026-07-09) — the start of the run being saved RIGHT NOW.
+  // The freeze tier may only consume a freeze whose crossing happened INSIDE this run's
+  // window: freezes are cleared solely on save-success/discard, so an orphaned one (goal
+  // crossed → app killed → never saved) is immortal and would otherwise hijack a future
+  // matchless solo save — attaching a dead matchId AND (via the save-site clamp keyed on
+  // that matchId) silently clamping the new run down to the old crossing's distance/time.
+  // No provable window (null/unparseable) → the freeze tier is disabled outright: a real
+  // crossing always has GPS fixes, so a legitimate save always carries a start timestamp.
+  runStartedAtIso?: string | null;
 }): {
   activeMatchId: string | null;
   resolvedMatchResult: RunMatchResult | null | undefined;
   matchSource: RunMatchSource;
+  // Set ONLY by the goal-freeze tier: the mode recorded at the crossing, so the save can
+  // synthesize a minimal pending matchResult blob when no live/pending result exists.
+  matchModeFallback?: 'duel' | 'group' | null;
 } {
   if (liveMatchId) {
     return {
@@ -74,6 +106,36 @@ export function resolvePendingMatchSaveFallbacks({
       activeMatchId: pendingContext.matchId,
       resolvedMatchResult: liveMatchResult ?? pendingContext.matchResult,
       matchSource: pendingContext.matchSource,
+    };
+  }
+
+  // FIX-A third tier — no live match, no pending context: a live goal freeze proves a
+  // crossed-but-unsaved match. Prefer the most recent crossing when (rarely) several linger.
+  // ZOMBIE GATE — only crossings inside THIS run's window qualify (see runStartedAtIso).
+  const runStartedAtMs = runStartedAtIso ? Date.parse(runStartedAtIso) : Number.NaN;
+  const freezeFallback = Number.isNaN(runStartedAtMs)
+    ? null
+    : goalFreezes
+      .filter((freeze) => {
+        if (!freeze?.matchId) {
+          return false;
+        }
+        const crossedAtMs = Date.parse(freeze.crossedAtIso);
+        return !Number.isNaN(crossedAtMs) && crossedAtMs >= runStartedAtMs;
+      })
+      .sort((left, right) => (left.crossedAtIso < right.crossedAtIso ? 1 : -1))[0] ?? null;
+
+  if (freezeFallback) {
+    return {
+      activeMatchId: freezeFallback.matchId,
+      resolvedMatchResult: liveMatchResult ?? null,
+      // Party latch first, then the recorded source; unprovable → 'party' (a party run must
+      // never leak into ranked 전적/LP; an official run degraded to 'party' only loses its
+      // bonus, never pollutes).
+      matchSource: liveMatchSource === 'party'
+        ? 'party'
+        : freezeFallback.matchSource ?? 'party',
+      matchModeFallback: freezeFallback.mode ?? null,
     };
   }
 

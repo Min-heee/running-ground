@@ -69,6 +69,12 @@ export type BackgroundMatchProgressContext = {
   mode: 'duel' | 'group';
   distanceKm: number;
   slotStartAt: string | null;
+  // FIX-A (2026-07-09) — ADDITIVE, resolved at arm time (useMatchProgressSync): 'party' when a
+  // room-linked context exists (isPartyRunForSave's signal), 'official' otherwise. Consumed
+  // ONLY as extra fields on the goal-freeze record below so the save fallback can rebuild a
+  // pending matchResult without mislabeling a party run as official. Optional — a stale armed
+  // context from an older JS bundle simply records no matchSource (consumer defaults 'party').
+  matchSource?: 'party' | 'official';
 };
 
 type BackgroundMatchProgressUploader = (
@@ -876,6 +882,9 @@ export async function flushBackgroundMatchProgressSync({
       distanceKm: input.distanceKm,
       pace: input.currentPace,
       crossedAtIso: new Date(nowMs).toISOString(),
+      // FIX-A — additive save-fallback metadata from the arm-time context (same matchId).
+      mode: context.mode,
+      ...(context.matchSource ? { matchSource: context.matchSource } : {}),
     });
   }
 

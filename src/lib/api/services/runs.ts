@@ -147,7 +147,12 @@ export async function createTrackedRun(input: CreateTrackedRunInput): Promise<Cr
     },
   );
 
-  await fetchMyProfile();
+  // FIX-D2 (2026-07-09) — fire-and-forget: this hidden await added a full serialized RTT
+  // (GET /me/profile, 10s default timeout) to every save's tap→run-detail path. No caller
+  // depends on the refreshed profile synchronously with the save result (the save command
+  // only reads savedRun.run.id; run-detail and home fetch their own data), so the cached
+  // profile refresh can land whenever it lands.
+  void fetchMyProfile().catch(() => {});
   return ensureRunSaveResponse(createdRun, { action: 'create-tracked-run' });
 }
 

@@ -66,3 +66,27 @@ test('vanished linked match teardown skips users already viewing their result pa
     vanishConfirmed: false,
   }), false);
 });
+
+test('FIX-B: vanished linked match teardown defers while the tracker actively records the match', () => {
+  // The 7/9 incident: vanish confirmed MID-RUN (status polls answered idle-without-matchId
+  // after the un-acked finish pruned the session) → the teardown demoted matchMode to 'solo'
+  // and the save lost its matchId/matchResult. Actively recording ⇒ never tear down.
+  assert.equal(shouldTeardownVanishedLinkedMatch({
+    hasMatchResultPage: false,
+    vanishConfirmed: true,
+    isActivelyRecordingMatch: true,
+  }), false);
+
+  // Not recording anymore (saved/discarded) ⇒ the deferred teardown proceeds as before.
+  assert.equal(shouldTeardownVanishedLinkedMatch({
+    hasMatchResultPage: false,
+    vanishConfirmed: true,
+    isActivelyRecordingMatch: false,
+  }), true);
+
+  // Omitted flag keeps the pre-FIX-B behavior (backwards compatible callers).
+  assert.equal(shouldTeardownVanishedLinkedMatch({
+    hasMatchResultPage: false,
+    vanishConfirmed: true,
+  }), true);
+});

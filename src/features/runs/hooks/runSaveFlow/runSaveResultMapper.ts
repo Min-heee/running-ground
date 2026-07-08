@@ -33,6 +33,41 @@ export type RunSaveResultSnapshot = {
   startedAt: string;
 };
 
+// FIX-A (2026-07-09) — minimal PENDING matchResult blob synthesized when a save carries a
+// matchId but NO resolved/live matchResult (runtime wiped before any result model existed).
+// Without it the matchId was silently dropped (matchId persists only INSIDE the matchResult
+// blob) and the run saved as plain solo: +0P match bonus, no 대결 card, and invisible to every
+// heal path (client reconcile, backend backFillFinisherSavedRuns, B-5 dedupe-as-upgrade — all
+// keyed off run.matchResult.matchId). Shape mirrors the client's pending duel blob copy
+// (matchResultModel) and satisfies the backend validator (mode/title/summary/badgeLabel
+// required); the backend's resolveMatchResult re-resolves any input.matchResult
+// server-authoritatively, so this pending blob is upgraded to the official verdict on landing
+// or healed later by the reconcile/backfill paths.
+export function buildPendingMatchSaveResultBlob({
+  matchId,
+  mode,
+  matchSource,
+  myPaceLabel,
+  myDurationSeconds,
+}: {
+  matchId: string;
+  mode: 'duel' | 'group';
+  matchSource?: RunMatchSource;
+  myPaceLabel: string;
+  myDurationSeconds: number;
+}): RunMatchResult {
+  return {
+    mode,
+    matchId,
+    ...(matchSource ? { source: matchSource } : {}),
+    title: '대결 결과를 집계하고 있어요',
+    summary: '상대가 완주하면 결과가 자동으로 업데이트돼요.',
+    badgeLabel: '결과 집계 중',
+    myPaceLabel,
+    ...(myDurationSeconds > 0 ? { myDurationSeconds } : {}),
+  };
+}
+
 function buildEndedAt(startedAt: string, elapsedSeconds: number) {
   const startedAtMs = new Date(startedAt).getTime();
   if (Number.isNaN(startedAtMs)) {
@@ -112,6 +147,7 @@ export function buildRunSaveResultSnapshot({
   allowShortDistanceSave = false,
   allowStationaryForfeitSave = false,
   displayedSnapshot,
+  fallbackMatchMode,
   matchId,
   matchSource,
   totalSteps,
@@ -120,6 +156,10 @@ export function buildRunSaveResultSnapshot({
   allowShortDistanceSave?: boolean;
   allowStationaryForfeitSave?: boolean;
   displayedSnapshot: DisplayedTrackingSnapshot;
+  // FIX-A — the mode used to synthesize a pending matchResult blob when a matchId exists but
+  // no live/pending result does (see buildPendingMatchSaveResultBlob). Absent/null keeps
+  // today's behavior (no blob) — a mode-less matchId cannot build a valid blob.
+  fallbackMatchMode?: 'duel' | 'group' | null;
   matchId?: string | null;
   matchSource?: RunMatchSource;
   totalSteps: number;
@@ -209,7 +249,20 @@ export function buildRunSaveResultSnapshot({
               ...(matchId ? { matchId } : {}),
             },
           }
-        : {}),
+        : matchId && fallbackMatchMode
+          ? {
+              // FIX-A — matchId with NO verdict: persist a minimal PENDING blob instead of
+              // dropping the match identity (the matchId lives only inside matchResult). The
+              // backend resolver/backfill upgrades it to the official verdict.
+              matchResult: buildPendingMatchSaveResultBlob({
+                matchId,
+                mode: fallbackMatchMode,
+                matchSource,
+                myPaceLabel: runPaceLabel,
+                myDurationSeconds: finalElapsedSeconds,
+              }),
+            }
+          : {}),
     },
   };
 }

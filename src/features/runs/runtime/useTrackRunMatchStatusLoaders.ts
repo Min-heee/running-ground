@@ -45,6 +45,12 @@ type UseTrackRunMatchStatusLoadersInput = {
   hasMatchResultPageRef: MutableRefObject<boolean>;
   isDuelTestFlow: boolean;
   isGroupTestFlow: boolean;
+  // FIX-B (2026-07-09) — optional predicate: is the tracker still actively recording THIS
+  // match (status 'running', or an un-cleared localGoalFreeze = crossed-but-unsaved)? While
+  // it returns true a confirmed status-vanish must DEFER the teardown instead of demoting
+  // matchMode to 'solo' mid-run (which silently converted the eventual save into a solo
+  // save with no matchId/matchResult — the 7/9 duel data-loss incident).
+  isMatchActivelyRecording?: (matchId: string) => boolean;
   lastMatchStatusAppliedAtMsRef: MutableRefObject<number>;
   latestDuelStatusServerNowMsRef: MutableRefObject<number>;
   latestGroupStatusServerNowMsRef: MutableRefObject<number>;
@@ -90,6 +96,7 @@ export function useTrackRunMatchStatusLoaders({
   hasMatchResultPageRef,
   isDuelTestFlow,
   isGroupTestFlow,
+  isMatchActivelyRecording,
   lastMatchStatusAppliedAtMsRef,
   latestDuelStatusServerNowMsRef,
   latestGroupStatusServerNowMsRef,
@@ -197,11 +204,19 @@ export function useTrackRunMatchStatusLoaders({
 
     const vanishConfirmed = isMatchStatusVanishConfirmed(nextState);
     if (vanishConfirmed) {
+      // FIX-B — a live recording (or a crossed-but-unsaved freeze) defers the teardown: the
+      // demotion is what turned the 7/9 incident's save into a match-less solo save. The
+      // vanish counter stays confirmed, so once the recording ends (save/discard) the next
+      // vanish signal tears down as before.
+      const deferForActiveRecording = Boolean(isMatchActivelyRecording?.(matchId));
       if (!shouldTeardownVanishedLinkedMatch({
         hasMatchResultPage: hasMatchResultPageRef.current,
         vanishConfirmed,
+        isActivelyRecordingMatch: deferForActiveRecording,
       })) {
-        rgPerfMark('linked match vanish teardown skipped for visible result page', {
+        rgPerfMark(deferForActiveRecording
+          ? 'linked match vanish demotion deferred for active recording'
+          : 'linked match vanish teardown skipped for visible result page', {
           matchId,
           source: statusMode,
         });

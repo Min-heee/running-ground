@@ -40,6 +40,10 @@ export function useRunSaveFlow(input: UseRunSaveFlowInput) {
     ...input,
     discardCurrentTracking,
     isPartyRun,
+    // FIX-D1 — the plain save command raises the same isLeaving flag for match-attached saves
+    // so the MatchEndTransitionOverlay watchdog bounds that wait too (forfeit-family callers
+    // keep owning the flag themselves; the command skips it for those).
+    setMatchLeaving,
   });
   const {
     forfeitMatchAndEndRun,

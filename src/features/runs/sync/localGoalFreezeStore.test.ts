@@ -56,6 +56,36 @@ test('LOCAL first-write-wins: a second record for the same matchId is ignored', 
   assert.equal(getLocalGoalFreeze('m1')?.distanceKm, 5);
 });
 
+test('FIX-A: save-fallback metadata (mode/matchSource) records, persists, and hydrates additively', async () => {
+  const storage = makeFakeStorage();
+  __setLocalGoalFreezeStorageForTest(storage);
+
+  recordLocalGoalFreezeOnce(freeze({ mode: 'duel', matchSource: 'official' }));
+  assert.equal(getLocalGoalFreeze('m1')?.mode, 'duel');
+  assert.equal(getLocalGoalFreeze('m1')?.matchSource, 'official');
+
+  // Cold-restart round-trip: the metadata survives persistence + hydration.
+  await Promise.resolve();
+  __resetLocalGoalFreezesForTest();
+  __setLocalGoalFreezeStorageForTest(storage);
+  await hydrateLocalGoalFreezes();
+  assert.equal(getLocalGoalFreeze('m1')?.mode, 'duel');
+  assert.equal(getLocalGoalFreeze('m1')?.matchSource, 'official');
+});
+
+test('FIX-A: a pre-OTA freeze WITHOUT the metadata fields stays valid (additive contract)', async () => {
+  const storage = makeFakeStorage();
+  __setLocalGoalFreezeStorageForTest(storage);
+  // Old persisted shape (no mode/matchSource).
+  storage.store.set(STORAGE_KEY, JSON.stringify([freeze()]));
+
+  await hydrateLocalGoalFreezes();
+  const hydrated = getLocalGoalFreeze('m1');
+  assert.ok(hydrated, 'old freezes must not be invalidated by the new optional fields');
+  assert.equal(hydrated.mode, undefined);
+  assert.equal(hydrated.matchSource, undefined);
+});
+
 test('validation rejects 0/NaN elapsed and non-positive/non-finite distance', () => {
   recordLocalGoalFreezeOnce(freeze({ elapsedSeconds: 0 }));
   recordLocalGoalFreezeOnce(freeze({ elapsedSeconds: Number.NaN }));

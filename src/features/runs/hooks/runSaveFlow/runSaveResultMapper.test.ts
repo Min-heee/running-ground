@@ -325,6 +325,68 @@ test('clamped snapshot: C1 no-0 guard still holds (0 myDurationSeconds falls bac
   assert.equal(result.createRunInput.matchResult?.myDurationSeconds, 1_606);
 });
 
+test('FIX-A: matchId with no verdict synthesizes a matchId-carrying PENDING matchResult blob', () => {
+  const result = buildRunSaveResultSnapshot({
+    displayedSnapshot: snapshot(),
+    fallbackMatchMode: 'duel',
+    matchId: 'match-99',
+    matchSource: 'official',
+    totalSteps: 3_000,
+    trackedMatchResult: null,
+  });
+
+  const blob = result.createRunInput.matchResult;
+  assert.ok(blob, 'the matchId must never be dropped: it persists only inside the blob');
+  assert.equal(blob.matchId, 'match-99');
+  assert.equal(blob.mode, 'duel');
+  assert.equal(blob.source, 'official');
+  assert.equal(blob.badgeLabel, '결과 집계 중');
+  // PENDING semantics: no verdict claimed — the backend resolver/backfill fills it in.
+  assert.equal(blob.resultTone, undefined);
+  // Backend validator requirements (mode/title/summary/badgeLabel non-empty).
+  assert.ok(blob.title.length > 0);
+  assert.ok(blob.summary.length > 0);
+  assert.equal(blob.myPaceLabel, result.createRunInput.pace);
+  assert.equal(blob.myDurationSeconds, 1_800);
+});
+
+test('FIX-A: no synthesis without a matchId or without a provable mode', () => {
+  const noMatch = buildRunSaveResultSnapshot({
+    displayedSnapshot: snapshot(),
+    fallbackMatchMode: 'duel',
+    totalSteps: 3_000,
+  });
+  assert.equal(noMatch.createRunInput.matchResult, undefined);
+
+  const noMode = buildRunSaveResultSnapshot({
+    displayedSnapshot: snapshot(),
+    fallbackMatchMode: null,
+    matchId: 'match-99',
+    totalSteps: 3_000,
+  });
+  assert.equal(noMode.createRunInput.matchResult, undefined);
+});
+
+test('FIX-A: a live/tracked matchResult always wins over the synthesized pending blob', () => {
+  const result = buildRunSaveResultSnapshot({
+    displayedSnapshot: snapshot(),
+    fallbackMatchMode: 'duel',
+    matchId: 'match-99',
+    matchSource: 'official',
+    totalSteps: 3_000,
+    trackedMatchResult: {
+      mode: 'duel',
+      title: '1대1 승리',
+      summary: '요약',
+      badgeLabel: '승리',
+      resultTone: 'win',
+    },
+  });
+
+  assert.equal(result.createRunInput.matchResult?.resultTone, 'win');
+  assert.equal(result.createRunInput.matchResult?.badgeLabel, '승리');
+});
+
 test('no freeze: the mapper output is byte-identical to feeding the raw snapshot (passthrough)', () => {
   const raw = driftedCrossedSnapshot();
   const viaClamp = buildRunSaveResultSnapshot({

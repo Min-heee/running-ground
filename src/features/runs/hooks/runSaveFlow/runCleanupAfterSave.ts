@@ -33,7 +33,12 @@ export async function runCleanupAfterSave({
   setStatus,
   syncLiveSharing,
 }: RunCleanupAfterSaveInput) {
-  await syncLiveSharing({
+  // FIX-D2 (2026-07-09) — fire-and-forget: this awaited PATCH /me/live-sharing (error already
+  // swallowed, latency fully paid) held the post-save navigation for up to a full RTT against
+  // the convoyed droplet. Nothing below reads its result; the synchronous clears that follow
+  // (goal freeze, pending context, refs) still run before the caller navigates. Do NOT reorder
+  // anything else here — the C-3/C-4 ghost-shell contracts depend on the current sequence.
+  void syncLiveSharing({
     enabled: false,
     status: 'idle',
   }).catch(() => {});

@@ -197,6 +197,32 @@ export function useMatchProgressSync({
   const activeHeartbeatMatchId = activeHeartbeatTarget?.matchId ?? null;
   const activeHeartbeatDistanceKm = activeHeartbeatTarget?.distanceKm ?? null;
 
+  // FIX-A (2026-07-09) — ADDITIVE metadata captured WITH the goal freeze so the save fallback
+  // can rebuild a matchId-carrying pending matchResult after a full runtime wipe (the 7/9
+  // solo-demotion data loss). mode mirrors exactly the background-context arm resolution
+  // below; matchSource mirrors isPartyRunForSave's room-context signal (any linked room ⇒
+  // party — an official matchmaking match never populates a RunningMatchRoom). Read-only over
+  // the same refs the heartbeat already owns; consumed only as extra freeze fields.
+  const resolveGoalFreezeSaveMeta = useCallback((matchId: string): {
+    mode?: 'duel' | 'group';
+    matchSource: 'party' | 'official';
+  } => {
+    const roomLinkedMatchContext = roomLinkedMatchContextRef.current;
+    const mode = roomLinkedMatchContext?.matchId === matchId
+      ? roomLinkedMatchContext.mode
+      : duelMatchStatusRef.current?.matchId === matchId
+        ? 'duel'
+        : groupMatchStatusRef.current?.matchId === matchId
+          ? 'group'
+          : matchModeRef.current === 'duel' || matchModeRef.current === 'group'
+            ? matchModeRef.current
+            : undefined;
+    return {
+      ...(mode ? { mode } : {}),
+      matchSource: roomLinkedMatchContext ? 'party' : 'official',
+    };
+  }, [duelMatchStatusRef, groupMatchStatusRef, matchModeRef, roomLinkedMatchContextRef]);
+
   useEffect(() => {
     if (!heartbeatEnabled || !activeHeartbeatMatchId || activeHeartbeatDistanceKm === null) {
       // Match ended (or heartbeat disabled): do NOT abruptly null the background context
@@ -239,6 +265,9 @@ export function useMatchProgressSync({
       mode,
       distanceKm: activeHeartbeatDistanceKm,
       slotStartAt,
+      // FIX-A — additive: lets the background flush's freeze record site carry the same
+      // save-fallback matchSource the foreground sites capture (room context ⇒ party).
+      matchSource: roomLinkedMatchContext ? 'party' : 'official',
     });
 
     return undefined;
@@ -405,7 +434,15 @@ export function useMatchProgressSync({
     return canSend;
   }, []);
 
-  const pushRunningMatchProgress = useCallback(async (input: UpdateRunningMatchProgressInput) => {
+  const pushRunningMatchProgress = useCallback(async (
+    input: UpdateRunningMatchProgressInput,
+    // FIX-D2 (2026-07-09) — optional per-call timeout so the save-time finished push can cap
+    // itself below the 5s live-match default. Omitted by every other call site (heartbeat,
+    // pause/resume, pending-finish resend), so their behavior is byte-identical. NOTE: when an
+    // older push for this matchId is already in flight, the single-flight below returns THAT
+    // promise and this timeout does not apply — the existing request keeps its own cap.
+    options?: { timeoutMs?: number },
+  ) => {
     const syncedProgress = buildSyncedMatchProgressSnapshot(input);
     const heartbeatKey = buildMatchProgressRegistryKey(input.matchId);
     recordBackgroundHeartbeatAttempt();
@@ -419,7 +456,7 @@ export function useMatchProgressSync({
         const nextStatus = await callbackRef.current.updateRunningMatchProgress({
           ...input,
           currentPace: syncedProgress.currentPace,
-        });
+        }, options);
         endHeartbeatApiTrace({ success: true });
         return nextStatus;
       } catch (progressError) {
@@ -626,6 +663,8 @@ export function useMatchProgressSync({
       distanceKm: progress.distanceKm,
       pace: progress.currentPace,
       crossedAtIso: new Date().toISOString(),
+      // FIX-A — additive save-fallback metadata (see resolveGoalFreezeSaveMeta above).
+      ...resolveGoalFreezeSaveMeta(endedTarget.matchId),
     });
     // HANDS-FREE FINISH (Stage 3c) — build the intent PREFERRING the at-crossing freeze over the
     // live progress: a screen-off crossing whose delivery failed used to fall through here with
@@ -649,7 +688,7 @@ export function useMatchProgressSync({
       status: 'finished',
     });
     await sendPendingFinishPush(intent);
-  }, [sendPendingFinishPush]);
+  }, [resolveGoalFreezeSaveMeta, sendPendingFinishPush]);
 
   // Ordered match-end teardown. Fires only on the real end transition: a previously
   // active match target collapses to null (finish / forfeit / goal reached). Order:
@@ -748,6 +787,8 @@ export function useMatchProgressSync({
         distanceKm: progress.distanceKm,
         pace: progress.currentPace,
         crossedAtIso: new Date(now).toISOString(),
+        // FIX-A — additive save-fallback metadata (see resolveGoalFreezeSaveMeta above).
+        ...resolveGoalFreezeSaveMeta(target.matchId),
       });
     }
     rgPerfMark('progress heartbeat start', {
@@ -763,7 +804,7 @@ export function useMatchProgressSync({
     }).catch(() => {
       // Keep the run going even if the optional match heartbeat fails.
     });
-  }, [canSendMatchProgressHeartbeat, getActiveMatchProgressTarget, heartbeatEnabled, matchProgressHeartbeatRef, pushRunningMatchProgress]);
+  }, [canSendMatchProgressHeartbeat, getActiveMatchProgressTarget, heartbeatEnabled, matchProgressHeartbeatRef, pushRunningMatchProgress, resolveGoalFreezeSaveMeta]);
 
   // Heartbeat-slot latch fix — render-updated ref through which the slot effect above (deps
   // deliberately kept [matchId, enabled]) fires its post-reacquire catch-up using the SAME send

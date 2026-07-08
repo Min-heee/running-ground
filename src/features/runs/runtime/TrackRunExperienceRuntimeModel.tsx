@@ -13,6 +13,8 @@ import {
 import type { TrackRunShellKind } from '@/features/runs/components/shells/TrackRunShells';
 import { useRunTrackingController } from '@/features/runs/hooks/useRunTrackingController';
 import { useRunSaveFlow } from '@/features/runs/hooks/useRunSaveFlow';
+import { useMatchSelfEndAutoExit } from '@/features/runs/hooks/useMatchSelfEndAutoExit';
+import { getLocalGoalFreeze } from '@/features/runs/sync/localGoalFreezeStore';
 import { usePartyRunRoom } from '@/features/runs/hooks/usePartyRunRoom';
 import {
   useMatchLifecycle,
@@ -1320,6 +1322,13 @@ export function TrackRunExperienceRuntime({
     hasMatchResultPageRef,
     isDuelTestFlow,
     isGroupTestFlow,
+    // FIX-B (2026-07-09) — a confirmed status-vanish must not demote matchMode to 'solo'
+    // while the tracker is actively recording this match: status 'running', or an un-cleared
+    // localGoalFreeze (crossed-but-unsaved). Keeping the match context makes the eventual
+    // save carry matchId+matchResult instead of degrading to a plain solo run.
+    isMatchActivelyRecording: (vanishedMatchId: string) => (
+      status === 'running' || Boolean(getLocalGoalFreeze(vanishedMatchId))
+    ),
     lastMatchStatusAppliedAtMsRef,
     latestDuelStatusServerNowMsRef,
     latestGroupStatusServerNowMsRef,
@@ -2039,6 +2048,25 @@ export function TrackRunExperienceRuntime({
     clearLocalForfeitedMatchState,
     resetLiveMatchNavigationOwner,
     markMatchLocallyForfeited,
+  });
+
+  // FIX-C (2026-07-09) — HOISTED self-end auto-exit. Lives here (always mounted with the
+  // runtime model) instead of inside the arena-page-only LiveMatchExitActionCard, so my own
+  // finish auto-saves and navigates regardless of which pager segment is active. Also carries
+  // the freeze-deadline fallback: a locally recorded goal crossing whose server 'finished'
+  // echo does not land within the grace window forces the same exit (the save path delivers
+  // the frozen finish idempotently). Single-flight via FIX-1's saveCommandInFlight.
+  useMatchSelfEndAutoExit({
+    source: activeMatchExitSource,
+    matchId: activeLiveMatchProgressMatchId,
+    isTestMatch: activeMatchExitIsTest,
+    selfFinished: activeMatchExitSelfFinished,
+    selfForfeited: activeMatchExitSelfForfeited,
+    isLeaving: activeMatchExitIsLeaving,
+    isSaving,
+    trackingStatus: status,
+    onShowResultAfterCounterpartForfeit: handleShowResultAfterCounterpartForfeit,
+    onShowResultAfterSelfForfeit: handleShowResultAfterSelfForfeit,
   });
 
   const trackRunActionHandlers = useTrackRunRuntimeActions({

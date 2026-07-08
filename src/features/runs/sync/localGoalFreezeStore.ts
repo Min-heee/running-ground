@@ -13,6 +13,7 @@
 // downward; a freeze can NEVER inflate a value, and it applies only to the exact matchId it was
 // recorded for.
 
+import type { RunMatchSource } from '@/domain';
 import type { PendingFinishIntent } from '@/features/runs/sync/pendingFinishStore';
 
 const LOCAL_GOAL_FREEZE_STORAGE_KEY = 'runningground.localGoalFreeze.v1';
@@ -28,6 +29,14 @@ export type LocalGoalFreeze = {
   pace: string;
   // ISO timestamp of the tick that computed the crossing; the save flow truncates the route here.
   crossedAtIso: string;
+  // FIX-A (2026-07-09) — ADDITIVE save-fallback metadata captured at the record sites. A live
+  // un-cleared freeze proves a crossed-but-unsaved match; when every other match-save source is
+  // gone (runtime wiped + no pending context), the save fallback restores matchId from the
+  // freeze and needs mode/matchSource to build a pending matchResult blob. Both OPTIONAL so
+  // persisted pre-OTA freezes stay valid; a missing matchSource is resolved as 'party' by the
+  // consumer (never mislabel a party run as official).
+  mode?: 'duel' | 'group';
+  matchSource?: RunMatchSource;
 };
 
 // Minimal persistence surface (same idiom as pendingFinishStore): lazy-load expo-secure-store at
