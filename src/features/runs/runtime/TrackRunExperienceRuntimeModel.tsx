@@ -944,7 +944,13 @@ export function TrackRunExperienceRuntime({
     }),
     [currentUserArenaPace, featuredGroupArenaParticipantIds, groupArenaUsesLivePace, groupLiveStandings],
   );
-  const liveGapTargetDistanceKm = matchMode === 'group' ? groupDistanceKm : duelDistanceKm;
+  // The live-gap push and finish reminder must use the ACTUAL match target, not the
+  // match-setup UI value (duelDistanceKm/groupDistanceKm, e.g. a default 2km while running
+  // a 1km room-linked duel). Prefer the same authority chain the race board resolves:
+  // room-linked match target → server match status target → setup value.
+  const liveGapTargetDistanceKm = roomLinkedMatchContext?.distanceKm
+    ?? (matchMode === 'group' ? groupMatchStatus?.distanceKm : duelMatchStatus?.distanceKm)
+    ?? (matchMode === 'group' ? groupDistanceKm : duelDistanceKm);
   const liveGapRemainingDistanceKm = typeof liveGapTargetDistanceKm === 'number'
     ? Math.max(0, liveGapTargetDistanceKm - liveMatchDisplayDistanceKm)
     : null;
