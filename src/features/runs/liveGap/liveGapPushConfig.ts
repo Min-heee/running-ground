@@ -45,6 +45,37 @@ export const LIVE_GAP_INTERVAL_OPTIONS: readonly LiveGapIntervalOption[] = [
   { value: '10m', label: '10분', ms: 600_000 },
 ];
 
+// Checkpoint-fairness contract: the opponent-gap fragment of every push inherits the
+// checkpoint-aligned duelLiveGapKm / group standings (both server-fed on the latest common
+// 10s checkpoint). Snapping the notification to that checkpoint basis is only LOSSLESS if
+// each firing interval is an exact multiple of the backend's 10s checkpoint step — otherwise
+// a 1-minute push could land between checkpoints and misreport the gap. All current options
+// (60/180/300/600s) are multiples of 10, so no interpolation is ever needed. This guard
+// tripwires any future interval that would break that invariant.
+export const LIVE_GAP_CHECKPOINT_STEP_SECONDS = 10;
+
+// Returns the first interval option (if any) whose period is NOT a whole multiple of the
+// checkpoint step — i.e. an option that would break the lossless-snap invariant. Pure and
+// unit-testable; returns null when every option is checkpoint-aligned.
+export function findNonCheckpointAlignedIntervalOption(
+  options: readonly LiveGapIntervalOption[] = LIVE_GAP_INTERVAL_OPTIONS,
+): LiveGapIntervalOption | null {
+  return options.find(
+    (option) => option.ms !== null && (option.ms / 1000) % LIVE_GAP_CHECKPOINT_STEP_SECONDS !== 0,
+  ) ?? null;
+}
+
+if (typeof __DEV__ !== 'undefined' && __DEV__) {
+  const offendingInterval = findNonCheckpointAlignedIntervalOption();
+  if (offendingInterval) {
+    throw new Error(
+      `Live-gap interval "${offendingInterval.value}" (${offendingInterval.ms}ms) is not a `
+        + `multiple of the ${LIVE_GAP_CHECKPOINT_STEP_SECONDS}s checkpoint step; the opponent-gap `
+        + 'notification would land between checkpoints and misreport the head-to-head gap.',
+    );
+  }
+}
+
 export type LiveGapGroupTargetOption = {
   value: LiveGapGroupTarget;
   label: string;

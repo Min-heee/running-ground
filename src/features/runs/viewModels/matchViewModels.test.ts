@@ -145,6 +145,56 @@ test('duel arena view model compares both finish times for WIN/LOSE labels', () 
   assert.equal(participants.find((participant) => !participant.isCurrentUser)?.resultLabel, 'WIN');
 });
 
+test('duel arena head-to-head dots sit on the caller-supplied synced (checkpoint) distances for both sides', () => {
+  // The caller (RuntimeModel) passes syncedDuelDistanceKm as currentDistanceKm and
+  // syncedDuelOpponentDistanceKm as opponentDistanceKm, so both dots are on the SAME
+  // latest-common-checkpoint basis. This view model must surface exactly those values —
+  // it never re-derives my dot from a live GPS number.
+  const participants = buildDuelArenaParticipants({
+    currentUserPaceLabel: '06:00/km',
+    currentUserLiveStatus: 'running',
+    // Checkpoint basis: my synced 1.20, opponent synced 1.05 (gap +0.15). If my dot ever
+    // read live GPS it would be a different, larger number — this asserts it does not.
+    currentDistanceKm: 1.2,
+    opponent: opponent({ liveStatus: 'running' }),
+    opponentPaceLabel: '06:20/km',
+    opponentDistanceKm: 1.05,
+    liveGapKm: 0.15,
+  });
+
+  const me = participants.find((participant) => participant.isCurrentUser);
+  const rival = participants.find((participant) => !participant.isCurrentUser);
+  assert.equal(me?.distanceKm, 1.2);
+  assert.equal(rival?.distanceKm, 1.05);
+  // isLeader is derived from the checkpoint-based gap, not from any live number.
+  assert.equal(me?.isLeader, true);
+  assert.equal(rival?.isLeader, false);
+  // No verdict decoration mid-run (nobody finished) — WIN/LOSE never comes from distances.
+  assert.equal(me?.resultLabel, null);
+  assert.equal(rival?.resultLabel, null);
+});
+
+test('duel arena WIN/LOSE stays from finishedAt/resultLabel even when the checkpoint gap disagrees', () => {
+  // Adversarial: my checkpoint distance is BEHIND the opponent's, but I finished FIRST.
+  // The verdict must follow finish order (finishedAt), never the checkpoint distances.
+  const participants = buildDuelArenaParticipants({
+    currentUserPaceLabel: '완주',
+    currentUserLiveStatus: 'finished',
+    currentUserFinishedAt: '2026-05-12T00:09:00.000Z',
+    currentDistanceKm: 4.8, // my last common-checkpoint distance is lower...
+    opponent: opponent({
+      liveStatus: 'finished',
+      finishedAt: '2026-05-12T00:09:30.000Z', // ...but the opponent finished later
+    }),
+    opponentPaceLabel: '완주',
+    opponentDistanceKm: 5, // opponent's checkpoint distance is higher
+    liveGapKm: -0.2,
+  });
+
+  assert.equal(participants.find((participant) => participant.isCurrentUser)?.resultLabel, 'WIN');
+  assert.equal(participants.find((participant) => !participant.isCurrentUser)?.resultLabel, 'LOSE');
+});
+
 test('room linked duel view model uses received remote distance and pace after active start', () => {
   const participants = buildRoomLinkedDuelPlaceholderParticipants({
     room: room(),

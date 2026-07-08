@@ -19,7 +19,14 @@ import {
   sortOfficialGroupLiveStandings,
 } from '@/features/runs/viewModels/matchProgressRanking';
 
-const MATCH_COMPARISON_INTERVAL_SECONDS = 30;
+// Client-side FALLBACK checkpoint step for buildDuelComparisonSnapshot — used only before
+// the server's official comparison is ready (pre-sync in-flight window). Tightened 30→10 to
+// match the backend's MATCH_CHECKPOINT_STEP_SECONDS=10 grid, so the pre-official fallback
+// buckets both runners at the SAME 10s common checkpoint the server will later serve. This
+// keeps the head-to-head basis continuous across the fallback→official handoff (no visible
+// jump when the server value takes over) and is lossless because every push cadence (2.5s)
+// is finer than the 10s grid.
+const MATCH_COMPARISON_INTERVAL_SECONDS = 10;
 
 export type {
   DisplayMatchProgress,

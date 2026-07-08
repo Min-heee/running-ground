@@ -122,9 +122,19 @@ function mergeDuelParticipantProgress({
   const progressModel = buildMatchProgressModel(seed.participant, targetDistanceKm);
   const displayProgress = progressModel.displayProgress;
   const participantProgressDistanceKm = displayProgress.distanceKm;
-  const participantDistanceKm = seed.isCurrentUser
-    ? Math.max(currentBoardDistanceKm, participantProgressDistanceKm)
-    : Math.max(effectiveOpponentDistanceKm, participantProgressDistanceKm);
+  // HEAD-TO-HEAD FAIRNESS: the checkpoint-basis distance (currentBoardDistanceKm /
+  // effectiveOpponentDistanceKm — both server-fed comparison values from the caller) is
+  // AUTHORITATIVE for each side. We only fall back to the room participant's own live
+  // display distance when the checkpoint value is missing (<= 0), so a side never shows a
+  // fake 0.00 pre-sync. We intentionally do NOT Math.max the checkpoint value up toward the
+  // per-participant LIVE progress — doing so would let one side's live GPS out-climb the
+  // other's checkpoint value and reintroduce the very asymmetry this checkpoint basis removes.
+  const checkpointBasisDistanceKm = seed.isCurrentUser
+    ? currentBoardDistanceKm
+    : effectiveOpponentDistanceKm;
+  const participantDistanceKm = checkpointBasisDistanceKm > 0
+    ? checkpointBasisDistanceKm
+    : participantProgressDistanceKm;
 
   return {
     missingProgress: !displayProgress.hasProgress,
@@ -167,26 +177,29 @@ export function buildDuelParticipantFirstRows({
   syncedDuelOpponentDistanceKm: number;
   targetDistanceKm: number;
 }): ProgressiveSortedRaceBoardRowsResult {
-  // Party-run (room-linked) duel: MY row uses my LOCAL measured distance, never the
-  // 30s-checkpoint server echo (syncedDuelDistanceKm), mirroring the matched-duel path.
-  // Math.max below only ever raises my row, so this can't regress it.
+  // Party-run (room-linked) duel — HEAD-TO-HEAD FAIRNESS mirrors the matched-duel path:
+  // both sides sit on the SAME latest-common-checkpoint basis served by the backend. MY row
+  // uses syncedDuelDistanceKm and the OPPONENT row uses syncedDuelOpponentDistanceKm, both
+  // the server-fed comparison values at one identical checkpoint time. This supersedes the
+  // earlier "live-both-sides" workaround (only needed under the coarse 30s step); the backend
+  // now buckets at 10s and both sides are symmetric, so the gap can no longer inflate-snap.
   //
-  // The OPPONENT mirrors this: it uses the opponent's freshest LIVE distance
-  // (resolveParticipantDisplayDistanceKm, fed by liveDistanceKm, updated every sync),
-  // NOT the 30s-checkpoint-projected syncedDuelOpponentDistanceKm. Using the 30s value
-  // froze the opponent for ~30s while my live row climbed, inflating the displayed gap
-  // until it snapped back at each checkpoint. Guard preserved: when no live opponent
-  // distance exists yet (<= 0) we fall back to the synced checkpoint so the opponent
-  // row stays populated instead of flickering to 0.00.
-  // Result/LP are server-determined, so this estimate-only display is duel-fair.
-  const currentBoardDistanceKm = distanceKm;
+  // Anti-0.00 guard preserved: syncedDuelDistanceKm falls back to my live `distanceKm` when no
+  // comparison snapshot exists yet; the opponent value falls back to the opponent's live
+  // display distance (resolveParticipantDisplayDistanceKm) if the synced value is missing
+  // (<= 0). The per-participant Math.max in mergeDuelParticipantProgress only ever raises a
+  // row toward its own room-participant progress, so it can't cross-contaminate the sides.
+  // Result/LP are server-determined (resultLabel), so this display change is duel-fair.
+  const currentBoardDistanceKm = syncedDuelDistanceKm > 0
+    ? syncedDuelDistanceKm
+    : distanceKm;
   const liveOpponentDistanceKm = effectiveDuelOpponent
     ? resolveParticipantDisplayDistanceKm(effectiveDuelOpponent, targetDistanceKm)
     : 0;
   const effectiveOpponentDistanceKm = effectiveDuelOpponent
-    ? (liveOpponentDistanceKm > 0
-      ? liveOpponentDistanceKm
-      : syncedDuelOpponentDistanceKm)
+    ? (syncedDuelOpponentDistanceKm > 0
+      ? syncedDuelOpponentDistanceKm
+      : liveOpponentDistanceKm)
     : 0;
   let missingProgressCount = 0;
   let opponentFallbackCount = 0;

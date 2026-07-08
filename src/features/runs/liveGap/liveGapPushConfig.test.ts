@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  findNonCheckpointAlignedIntervalOption,
   getLiveGapPushConfig,
   hydrateLiveGapPushConfig,
+  LIVE_GAP_CHECKPOINT_STEP_SECONDS,
+  LIVE_GAP_INTERVAL_OPTIONS,
   normalizeLiveGapPushConfig,
   resetLiveGapPushConfigForTests,
   resolveLiveGapIntervalMs,
@@ -14,6 +17,27 @@ import {
   toggleLiveGapGroupTarget,
   toggleLiveGapMetric,
 } from './liveGapPushConfig';
+
+test('every live-gap interval option is a whole multiple of the checkpoint step (lossless snap invariant)', () => {
+  // The opponent-gap fragment inherits the checkpoint-aligned gap; snapping is only lossless
+  // if each interval lands exactly on a 10s checkpoint. All shipped options must satisfy this.
+  assert.equal(findNonCheckpointAlignedIntervalOption(), null);
+  for (const option of LIVE_GAP_INTERVAL_OPTIONS) {
+    if (option.ms === null) {
+      continue;
+    }
+    assert.equal((option.ms / 1000) % LIVE_GAP_CHECKPOINT_STEP_SECONDS, 0, `${option.value} not aligned`);
+  }
+});
+
+test('findNonCheckpointAlignedIntervalOption flags an interval that would land between checkpoints', () => {
+  // A hypothetical 25s interval is NOT a multiple of the 10s step → must be reported.
+  const offending = findNonCheckpointAlignedIntervalOption([
+    { value: '1m', label: '1분', ms: 60_000 },
+    { value: '3m', label: '25초', ms: 25_000 },
+  ]);
+  assert.equal(offending?.ms, 25_000);
+});
 
 test('resolveLiveGapIntervalMs maps interval keys to milliseconds', () => {
   assert.equal(resolveLiveGapIntervalMs('off'), null);

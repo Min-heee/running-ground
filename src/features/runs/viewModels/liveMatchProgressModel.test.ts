@@ -191,6 +191,57 @@ test('buildDuelProgressDisplayModel keeps survivor distance live after opponent 
   assert.equal(model.duelComparisonSnapshot?.gapKm, -1.8);
 });
 
+test('buildDuelProgressDisplayModel: pre-sync (no comparison, no opponent progress) shows my live distance not a fake 0', () => {
+  // EDGE CASE: opponent has no checkpoint yet at match start and the server has not sent an
+  // official comparison. My head-to-head dot now reads syncedDuelDistanceKm — which MUST
+  // fall back to my live `distanceKm`, never 0, so I do not appear far ahead of a 0.00 rival.
+  const model = buildDuelProgressDisplayModel({
+    duelMatchStatus: buildStatus({}),
+    syncedDuelProgress: null,
+    effectiveDuelOpponent: { ...baseOpponent },
+    duelDistanceKm: 5,
+    distanceKm: 0.35,
+  });
+
+  assert.equal(model.officialDuelReady, false);
+  assert.equal(model.duelComparisonSnapshot, null);
+  // My synced dot distance falls back to my live 0.35 (NOT 0) — no fake head start.
+  assert.equal(model.syncedDuelDistanceKm, 0.35);
+  // Opponent has no progress at all → its display distance is 0 and there is no phantom gap
+  // (duelLiveGapKm stays null so the footer shows the '동기화 중' / not-ready presentation).
+  assert.equal(model.syncedDuelOpponentDistanceKm, 0);
+  assert.equal(model.duelLiveGapKm, null);
+});
+
+test('buildDuelProgressDisplayModel: fallback comparison buckets both runners at the 10s common checkpoint', () => {
+  // Before the official comparison is ready, buildDuelComparisonSnapshot supplies a fallback
+  // snapshot. With the client checkpoint step tightened to 10s, a common elapsed of 27s
+  // buckets to the 20s checkpoint (not 30s), aligning the fallback with the backend grid.
+  const model = buildDuelProgressDisplayModel({
+    duelMatchStatus: buildStatus({}),
+    syncedDuelProgress: {
+      matchId: 'match-1',
+      distanceKm: 0.9,
+      elapsedSeconds: 27,
+      currentPace: '05:00/km',
+      updatedAt: 1,
+    },
+    effectiveDuelOpponent: {
+      ...baseOpponent,
+      liveDistanceKm: 0.8,
+      liveElapsedSeconds: 27,
+      liveUpdatedAt: '2026-05-15T00:00:27.000Z',
+    },
+    duelDistanceKm: 5,
+    distanceKm: 0.9,
+  });
+
+  assert.equal(model.officialDuelReady, false);
+  // 27s common elapsed → floor to the 20s checkpoint under the 10s step (was 0s under 30s,
+  // which produced no fallback snapshot at all this early).
+  assert.equal(model.duelComparisonSnapshot?.checkpointSeconds, 20);
+});
+
 test('remote progress selector separates duel and group progress checks', () => {
   assert.equal(hasAnyLiveMatchRemoteDisplayProgress({
     matchMode: 'duel',

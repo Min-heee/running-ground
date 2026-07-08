@@ -128,7 +128,7 @@ test('buildMatchProgressModel estimates display progress when only elapsed time 
   assert.equal(hasRemoteRunnerProgress({ liveElapsedSeconds: 380, livePace: '06:20/km' }), true);
 });
 
-test('buildDuelComparisonSnapshot compares both runners at the same 30-second checkpoint', () => {
+test('buildDuelComparisonSnapshot compares both runners at the same common 10-second checkpoint', () => {
   const snapshot = buildDuelComparisonSnapshot(
     {
       matchId: 'match-1',
@@ -163,20 +163,22 @@ test('distance gap label is symmetric for current runner and opponent advantage'
   assert.equal(buildDistanceGapLabel(null), '서버 공식 판정 준비 중');
 });
 
-test('buildDuelComparisonSnapshot waits until a fair common checkpoint exists', () => {
+test('buildDuelComparisonSnapshot waits until a fair common checkpoint exists (before the first 10s)', () => {
+  // Under the tightened 10s client checkpoint step, no fallback comparison is fair until the
+  // first full 10s checkpoint has elapsed; a common elapsed of 9s floors below the step.
   const snapshot = buildDuelComparisonSnapshot(
     {
       matchId: 'match-1',
-      distanceKm: 0.2,
-      elapsedSeconds: 29,
+      distanceKm: 0.05,
+      elapsedSeconds: 9,
       currentPace: '05:00/km',
       updatedAt: 1,
     },
     {
       ...baseOpponent,
-      liveDistanceKm: 0.2,
-      liveElapsedSeconds: 29,
-      liveUpdatedAt: '2026-05-12T00:00:29.000Z',
+      liveDistanceKm: 0.05,
+      liveElapsedSeconds: 9,
+      liveUpdatedAt: '2026-05-12T00:00:09.000Z',
     },
     5,
   );
@@ -223,6 +225,30 @@ test('buildGroupLiveStandings trusts official server ranks when available', () =
 
 test('buildGroupLiveStandings returns empty standings for empty participant input', () => {
   assert.deepEqual(buildGroupLiveStandings([], 1, 0, 5), []);
+});
+
+test('buildGroupLiveStandingRows: once official, the CURRENT user row ranks on the server checkpoint distance, not the live arg', () => {
+  // Group head-to-head fairness: when the server has supplied official (checkpoint) distances,
+  // EVERY participant — including the current user — is ranked on their server distanceKm. The
+  // live `currentDistanceKm` arg (my hero GPS number) must NOT sneak into my standing row and
+  // give me a live head start over rivals frozen on their last checkpoint.
+  const rows = buildGroupLiveStandingRows(
+    [
+      participant({ id: 'me', name: '나', seedRank: 1, officialReady: true, officialRank: 1, officialDistanceKm: 1.05 }),
+      participant({ id: 'rival', name: '경쟁자', seedRank: 2, officialReady: true, officialRank: 2, officialDistanceKm: 1 }),
+    ],
+    1,
+    // Live GPS arg deliberately far ahead of my official checkpoint distance (1.05):
+    2.5,
+    5,
+  );
+
+  const me = rows.find((row) => row.id === 'me');
+  const rival = rows.find((row) => row.id === 'rival');
+  assert.equal(me?.isCurrentUser, true);
+  // My row uses the server checkpoint 1.05, NOT the live 2.5 arg.
+  assert.equal(me?.currentDistanceKm, 1.05);
+  assert.equal(rival?.currentDistanceKm, 1);
 });
 
 test('buildGroupLiveStandingRows keeps every participant with their live distance in STABLE seed order and NEUTRAL rank/gap (no sort/decoration)', () => {

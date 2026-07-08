@@ -47,6 +47,14 @@ function buildSchedulerOutput(
   groupTargets: readonly LiveGapGroupTarget[],
   nowMs: number,
 ): LiveGapOutput {
+  // Checkpoint fairness: the HEAD-TO-HEAD fragments here inherit the checkpoint-aligned
+  // values with NO transformation in this scheduler —
+  //   - opponentGapKm = input.duelGapKm (= duelLiveGapKm, server-fed latest-common-checkpoint)
+  //   - standings = input.groupStandings (= groupLiveStandings, checkpoint-based once official)
+  // so both are already snapped to the same 10s common checkpoint as the arena dots.
+  // MY-OWN fragments stay LIVE and are NOT snapped: remainingDistanceKm and avgPaceLabel
+  // (myPaceLabel) come straight from my live frame; they are only withheld when MY distance
+  // is stale (isMyDistanceStale below), never quantized to a checkpoint.
   return buildLiveGapOutput({
     matchMode: input.matchMode,
     metrics,

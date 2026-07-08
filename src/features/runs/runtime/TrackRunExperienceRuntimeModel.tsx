@@ -893,9 +893,15 @@ export function TrackRunExperienceRuntime({
     () => buildDuelArenaParticipants({
       currentUserPaceLabel: currentUserArenaPace,
       currentUserLiveStatus: currentUserDuelLiveStatus ?? undefined,
-      // My arena chip shows my LOCAL distance (not the 30s-checkpoint server echo) so it
-      // stays live regardless of sync lag or screen state. Opponent stays synced.
-      currentDistanceKm: liveMatchDisplayDistanceKm,
+      // HEAD-TO-HEAD FAIRNESS: my duel dot sits on the SAME latest-common-checkpoint basis
+      // as the opponent dot (syncedDuelOpponentDistanceKm) — both from the server-fed synced
+      // comparison — so the two dots and the gap between them are computed at one identical
+      // checkpoint time, removing the old asymmetry (my dot on live GPS vs opponent on the
+      // server value). syncedDuelDistanceKm falls back to my live `distanceKm` when no
+      // comparison snapshot exists yet (pre-sync), so it NEVER shows a fake 0.00.
+      // My HERO big number/time/pace stay LIVE (liveMatchDisplayDistanceKm / metric frame)
+      // and are unaffected by this — only the head-to-head dot moves to the checkpoint basis.
+      currentDistanceKm: syncedDuelDistanceKm,
       opponent: effectiveDuelOpponentForLive,
       opponentPaceLabel: effectiveDuelOpponentArenaPace,
       opponentDistanceKm: syncedDuelOpponentDistanceKm,
@@ -907,7 +913,7 @@ export function TrackRunExperienceRuntime({
       duelLiveGapKm,
       effectiveDuelOpponentForLive,
       effectiveDuelOpponentArenaPace,
-      liveMatchDisplayDistanceKm,
+      syncedDuelDistanceKm,
       syncedDuelOpponentDistanceKm,
     ],
   );

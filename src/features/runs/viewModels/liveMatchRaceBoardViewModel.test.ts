@@ -294,11 +294,13 @@ test('duel race board applies safe opponent label fallback without nickname or u
   assert.equal(viewModel?.rows.find((row) => !row.isCurrentUser)?.name, '상대');
 });
 
-test('matched-duel race board opponent row tracks the LIVE opponent distance, not the 30s-checkpoint synced value', () => {
-  // Regression guard: my row is live (1.00km) and the opponent is really only ~10m behind
-  // (liveDistanceKm 0.99). The 30s-checkpoint syncedDuelOpponentDistanceKm lags far behind
-  // (0.92km). The board must show the live 0.99 so the displayed gap stays ~10m instead of
-  // inflating to ~80m and snapping back at each 30s checkpoint.
+test('matched-duel race board puts BOTH rows on the same latest-common-checkpoint (synced) basis', () => {
+  // Head-to-head fairness: both rows sit on the server-fed common-checkpoint values —
+  // my row = syncedDuelDistanceKm (1.00) and the opponent row = syncedDuelOpponentDistanceKm
+  // (0.92). We intentionally do NOT track the opponent's fresher live 0.99: with the backend
+  // now bucketing at 10s (not 30s) and BOTH sides on the same checkpoint index, the displayed
+  // gap is apples-to-apples and cannot inflate-then-snap. This is the Stage-3 revert of the
+  // earlier "live-both-sides" workaround.
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
     visibleMatchRoom: null,
     effectiveDuelOpponent: duelOpponent({ liveDistanceKm: 0.99, liveElapsedSeconds: 360 }),
@@ -311,27 +313,33 @@ test('matched-duel race board opponent row tracks the LIVE opponent distance, no
   const opponentRow = viewModel?.rows.find((row) => !row.isCurrentUser);
   const myRow = viewModel?.rows.find((row) => row.isCurrentUser);
   assert.equal(viewModel?.rows.length, 2);
-  assert.equal(opponentRow?.distanceKm, 0.99);
-  assert.notEqual(opponentRow?.distanceKm, 0.92);
-  // The displayed gap tracks the live opponent distance (~10m), not the 30s-quantized 80m.
+  // Opponent row is the checkpoint (synced) value, not the fresher live 0.99.
+  assert.equal(opponentRow?.distanceKm, 0.92);
+  assert.notEqual(opponentRow?.distanceKm, 0.99);
+  // My row is also the checkpoint (synced) value, so the gap is checkpoint-fair (~80m).
   assert.ok(myRow !== undefined && opponentRow !== undefined);
-  assert.equal(Number((myRow!.distanceKm - opponentRow!.distanceKm).toFixed(2)), 0.01);
+  assert.equal(myRow?.distanceKm, 1.0);
+  assert.equal(Number((myRow!.distanceKm - opponentRow!.distanceKm).toFixed(2)), 0.08);
 });
 
-test('matched-duel race board opponent row falls back to the synced value when no live distance exists yet', () => {
-  // Guard preserved: when the opponent has no live progress yet (liveDistanceKm absent),
-  // keep the synced checkpoint so the opponent row stays populated instead of flickering to 0.
+test('matched-duel race board falls back to my live distance / opponent live distance when the synced value is missing (anti-0.00)', () => {
+  // Anti-0.00 guard preserved: when the synced comparison has not populated yet
+  // (syncedDuelDistanceKm / syncedDuelOpponentDistanceKm are 0), my row falls back to my live
+  // distanceKm and the opponent row falls back to the opponent's live display distance, so
+  // neither row flickers to a fake 0.00 pre-sync.
   const viewModel = buildLiveMatchRaceBoardViewModel(buildInput({
     visibleMatchRoom: null,
-    effectiveDuelOpponent: duelOpponent({ liveDistanceKm: undefined, liveElapsedSeconds: undefined }),
+    effectiveDuelOpponent: duelOpponent({ liveDistanceKm: 0.6, liveElapsedSeconds: 300 }),
     distanceKm: 1.0,
     duelLiveGapKm: 0.4,
-    syncedDuelDistanceKm: 1.0,
-    syncedDuelOpponentDistanceKm: 0.6,
+    syncedDuelDistanceKm: 0,
+    syncedDuelOpponentDistanceKm: 0,
   }));
 
   const opponentRow = viewModel?.rows.find((row) => !row.isCurrentUser);
+  const myRow = viewModel?.rows.find((row) => row.isCurrentUser);
   assert.equal(viewModel?.rows.length, 2);
+  assert.equal(myRow?.distanceKm, 1.0);
   assert.equal(opponentRow?.distanceKm, 0.6);
 });
 
