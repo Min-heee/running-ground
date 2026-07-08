@@ -29,6 +29,32 @@ test('keyed slot registry blocks duplicate starts and restarts after stop', () =
   restarted.release();
 });
 
+test('keyed slot registry evict force-frees a held key regardless of owner', () => {
+  const registry = createKeyedSlotRegistry();
+
+  // Evicting an empty key reports that nothing was held.
+  assert.equal(registry.evict('match-progress:match-evict'), false);
+
+  const ghost = registry.acquire('match-progress:match-evict', 'match progress heartbeat');
+  assert.equal(ghost.acquired, true);
+  assert.equal(registry.evict('match-progress:match-evict'), true);
+  assert.equal(registry.getActiveCount(), 0);
+  assert.equal(registry.getOwnerId('match-progress:match-evict'), null);
+
+  // A fresh acquire succeeds immediately after the eviction (this is the steal path).
+  const stealer = registry.acquire('match-progress:match-evict', 'match progress heartbeat');
+  assert.equal(stealer.acquired, true);
+  assert.notEqual(stealer.ownerId, ghost.ownerId);
+
+  // The evicted owner's late release is ownerId-guarded — it cannot free the new owner.
+  ghost.release();
+  assert.equal(registry.getActiveCount(), 1);
+  assert.equal(registry.getOwnerId('match-progress:match-evict'), stealer.ownerId);
+
+  stealer.release();
+  assert.equal(registry.getActiveCount(), 0);
+});
+
 test('keyed single-flight reuses in-flight work and guarantees cleanup', async () => {
   const registry = createKeyedSingleFlightRegistry();
   let callCount = 0;

@@ -102,6 +102,13 @@ export function createKeyedSlotRegistry<TDetail extends RgRegistryDetail = RgReg
       activeSlots.clear();
       nextOwnerId = 0;
     },
+    // Stale-owner eviction — deletes the active slot for the key REGARDLESS of who owns it, and
+    // returns whether a slot existed. The evicted owner's own release() closure stays safe: it is
+    // ownerId-identity-guarded above, so once a NEWER owner acquires the freed key the old
+    // owner's late release is a no-op and can never free the new owner.
+    evict(key: string) {
+      return activeSlots.delete(key);
+    },
     getActiveCount() {
       return activeSlots.size;
     },

@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   acquireRgHeartbeatSlot,
   canUseRgHeartbeatSlot,
+  evictRgHeartbeatSlot,
   getActiveRgHeartbeatSlotCount,
   getInFlightRgHeartbeatRequestCount,
   resetRgHeartbeatRegistryForTest,
@@ -41,6 +42,31 @@ test('heartbeat registry allows same matchId only after cleanup release', () => 
   assert.equal(nextAfterCleanup.acquired, true);
 
   nextAfterCleanup.release();
+  assert.equal(getActiveRgHeartbeatSlotCount(), 0);
+});
+
+test('heartbeat slot eviction force-frees the key and reports whether a slot existed', () => {
+  resetRgHeartbeatRegistryForTest();
+
+  // Nothing held → eviction reports false.
+  assert.equal(evictRgHeartbeatSlot('match-progress:match-evict'), false);
+
+  const silentHolder = acquireRgHeartbeatSlot('match-progress:match-evict', 'match progress heartbeat');
+  assert.equal(silentHolder.acquired, true);
+  assert.equal(evictRgHeartbeatSlot('match-progress:match-evict', { matchId: 'match-evict' }), true);
+  assert.equal(getActiveRgHeartbeatSlotCount(), 0);
+  assert.equal(canUseRgHeartbeatSlot('match-progress:match-evict', undefined), true);
+
+  // The stealer re-acquires the freed key; the evicted holder's late release is a no-op and
+  // cannot free the new owner (ownerId-guarded in the registry).
+  const stealer = acquireRgHeartbeatSlot('match-progress:match-evict', 'match progress heartbeat');
+  assert.equal(stealer.acquired, true);
+  silentHolder.release();
+  assert.equal(getActiveRgHeartbeatSlotCount(), 1);
+  assert.equal(canUseRgHeartbeatSlot('match-progress:match-evict', stealer.ownerId), true);
+  assert.equal(canUseRgHeartbeatSlot('match-progress:match-evict', silentHolder.ownerId), false);
+
+  stealer.release();
   assert.equal(getActiveRgHeartbeatSlotCount(), 0);
 });
 

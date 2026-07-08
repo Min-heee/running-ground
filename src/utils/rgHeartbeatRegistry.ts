@@ -47,6 +47,24 @@ export function acquireRgHeartbeatSlot(key: string, label: string, detail?: RgHe
   return heartbeatSlotRegistry.acquire(key, label, detail);
 }
 
+// Stale-owner eviction for the SLOT registry — force-frees the key regardless of who owns it.
+// Only the heartbeat-slot steal path (a viable sender that has watched the module-wide
+// push-activity stamp stay silent past the stall window) may call this; the evicted owner's own
+// release() closure is ownerId-guarded inside the registry, so it becomes a safe no-op.
+export function evictRgHeartbeatSlot(key: string, detail?: RgHeartbeatDetail) {
+  const evictedOwnerId = heartbeatSlotRegistry.getOwnerId(key);
+  const evicted = heartbeatSlotRegistry.evict(key);
+  if (evicted) {
+    rgPerfMark('heartbeat slot evicted stale owner', {
+      evictedOwnerId,
+      heartbeatKey: key,
+      matchId: detail?.matchId,
+    });
+  }
+
+  return evicted;
+}
+
 export function runRgHeartbeatSingleFlight<T>(
   key: string,
   task: () => Promise<T>,

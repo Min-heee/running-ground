@@ -25,7 +25,10 @@ import {
 import type { RunMatchMode } from '@/features/runs/hooks/useMatchLifecycle';
 import type { PartyRunLinkedMatchContext } from '@/features/runs/lifecycle/matchStateMachine';
 import type { LastSyncedMatchProgress } from '@/features/runs/viewModels/matchProgress';
-import { armHeartbeatSlotAcquireRetry } from '@/features/runs/sync/heartbeatSlotRetry';
+import {
+  HEARTBEAT_SLOT_STEAL_STALL_MS,
+  armHeartbeatSlotAcquireRetry,
+} from '@/features/runs/sync/heartbeatSlotRetry';
 import {
   MATCH_PROGRESS_HEARTBEAT_INTERVAL_MS,
   buildSyncedMatchProgressSnapshot,
@@ -51,6 +54,7 @@ import { rgPerfMark, rgPerfMeasureStart, rgPerfTrackResource } from '@/utils/rgP
 import {
   acquireRgHeartbeatSlot,
   canUseRgHeartbeatSlot,
+  evictRgHeartbeatSlot,
   runRgHeartbeatSingleFlight,
 } from '@/utils/rgHeartbeatRegistry';
 
@@ -280,12 +284,22 @@ export function useMatchProgressSync({
       // catch-up heartbeat through the same refreshMatchProgressHeartbeat the 1s keep-alive tick
       // uses — its throttle stamp never advanced during the latch (it only moves after canSend
       // passes), so the catch-up sends immediately.
-      // RESIDUAL (deliberately NOT addressed here — no focus-based preemption in this file): a
-      // LIVE silent holder (frozen tab instance whose match target collapsed via a non-render
-      // ref mutation) never releases, so this retry never wins against it. On-device
-      // discriminators: this latched instance marks 'progress heartbeat skipped'
-      // reason:'duplicate-heartbeat-owner' ~1/s and the registry marks 'heartbeat duplicate
-      // blocked' per retry attempt, while the silent holder emits nothing.
+      // STALE-OWNER STEAL (closes the former silent-live-holder RESIDUAL): a LIVE silent holder
+      // (frozen tab instance whose match target collapsed via a non-render ref mutation) never
+      // releases, so the retry alone never wins against it. The steal option below evicts such
+      // an owner once (a) the module-wide push-activity ATTEMPT stamp (lastHeartbeatAtMs —
+      // advanced by EVERY instance's pushRunningMatchProgress plus both background flush paths,
+      // so a fresh stamp means SOMEONE is pushing → never steal) has been silent past
+      // HEARTBEAT_SLOT_STEAL_STALL_MS AND (b) THIS instance can actually send right now (live
+      // match target — the SAFETY INVARIANT: ownership never migrates to a non-viable sender, so
+      // a ghost's own ticking retry can never steal from a healthy owner; see
+      // heartbeatSlotRetry.ts). A pusher whose HTTP hangs keeps the stamp fresh and is handled
+      // by the single-flight 12s eviction instead. On-device discriminators: a latched-but-
+      // blocked instance marks 'progress heartbeat skipped' reason:'duplicate-heartbeat-owner'
+      // ~1/s and the registry marks 'heartbeat duplicate blocked' per retry attempt; a steal
+      // marks 'heartbeat slot evicted stale owner' (registry, with the evicted ownerId) +
+      // 'progress heartbeat slot stolen from stale owner' then 'progress heartbeat slot
+      // reacquired after retry'; the silent holder itself still emits nothing.
       rgPerfMark('progress heartbeat slot lost acquire', {
         activeOwnerId: heartbeatSlot.ownerId,
         heartbeatKey,
@@ -323,6 +337,20 @@ export function useMatchProgressSync({
         onCatchUp: () => refreshMatchProgressHeartbeatRef.current(
           getBackgroundRunTrackingSnapshot({ cloneRoute: false }),
         ),
+        steal: {
+          stallMs: HEARTBEAT_SLOT_STEAL_STALL_MS,
+          getLastPushActivityAtMs: () => getBackgroundSyncDiagnostics().lastHeartbeatAtMs,
+          isViableSender: () => getActiveMatchProgressTargetRef.current() != null,
+          evict: () => evictRgHeartbeatSlot(heartbeatKey, {
+            heartbeatKey,
+            matchId: activeHeartbeatMatchId,
+          }),
+          onStolen: ({ evictedAfterMs }) => rgPerfMark('progress heartbeat slot stolen from stale owner', {
+            evictedAfterMs,
+            heartbeatKey,
+            matchId: activeHeartbeatMatchId,
+          }),
+        },
       });
 
       return () => {
@@ -746,6 +774,12 @@ export function useMatchProgressSync({
   // with heartbeatEnabled — already a dep of that effect).
   const refreshMatchProgressHeartbeatRef = useRef(refreshMatchProgressHeartbeat);
   refreshMatchProgressHeartbeatRef.current = refreshMatchProgressHeartbeat;
+
+  // Heartbeat-slot steal — render-updated ref (same precedent as refreshMatchProgressHeartbeatRef
+  // above) through which the slot effect's steal gate reads the LIVE match target for its
+  // isViableSender check without touching that effect's deliberately-frozen dep array.
+  const getActiveMatchProgressTargetRef = useRef(getActiveMatchProgressTarget);
+  getActiveMatchProgressTargetRef.current = getActiveMatchProgressTarget;
 
   // Stationary keep-alive. The heartbeat is the channel that brings the OTHER
   // participants' liveStatus (forfeited/finished) back into duel/groupMatchStatus, but
