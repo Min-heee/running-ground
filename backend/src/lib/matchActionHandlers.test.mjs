@@ -123,39 +123,24 @@ function pushFinish(store, userId, matchId, elapsedSeconds) {
   });
 }
 
-test('two finishing pushes within the interval: only the first push runs the epilogue prune', () => {
-  resetProgressPruneThrottle();
+function buildStore(matchSessions) {
+  return {
+    users: [createUser('store-a'), createUser('store-b')],
+    runs: [],
+    matchSessions,
+    matchQueues: { duel: [], group: [] },
+    matchRooms: [],
+    notifications: [],
+  };
+}
 
-  // Push 1 — throttle armed at 0 → the epilogue prune runs and drops the now-all-done session.
-  const first = createFinishingDuelFixture('prune-throttle-m1');
-  pushFinish(first.store, first.pusher.id, 'prune-throttle-m1', 1606);
-  assert.equal(first.store.matchSessions.length, 0, 'first push prunes the completed session');
-
-  // Push 2, milliseconds later on a fresh store — server-wide throttle still hot → the
-  // epilogue prune is skipped and the completed session SURVIVES this push.
-  const second = createFinishingDuelFixture('prune-throttle-m2');
-  pushFinish(second.store, second.pusher.id, 'prune-throttle-m2', 1606);
-  assert.equal(second.store.matchSessions.length, 1, 'second push within the interval skips the prune');
-
-  // Only housekeeping was skipped — the finish itself landed with full semantics.
-  const pusherParticipant = second.store.matchSessions[0].participants
-    .find((participant) => participant.userId === second.pusher.id);
-  assert.equal(pusherParticipant.liveStatus, 'finished');
-  assert.equal(pusherParticipant.finishElapsedSeconds, 1606);
-  assert.equal(second.store.matchSessions[0].lpApplied, true, 'the every-done LP path is not throttled');
-
-  // Re-armed throttle → the next push prunes again (the deferred drop catches up).
-  resetProgressPruneThrottle();
-  const third = createFinishingDuelFixture('prune-throttle-m3');
-  pushFinish(third.store, third.pusher.id, 'prune-throttle-m3', 1606);
-  assert.equal(third.store.matchSessions.length, 0);
-});
-
-test('runProgressPollPrunesIfDue gates on the injectable now at exactly the interval', () => {
-  resetProgressPruneThrottle();
-  const t0 = Date.parse('2026-07-07T00:00:00.000Z');
-
-  // An already-all-done stale session is the observable prune target.
+// A stale, already-all-done session whose retention window has expired — the observable a
+// due epilogue prune physically drops. POST-FINISH RETENTION (2026-07-09) means a
+// JUST-completed session now survives the epilogue prune (kept for the echo window), so the
+// old "the completing session disappears" observable no longer distinguishes throttled from
+// due. This decoy is instead consumed by whichever prune actually executes.
+function buildStaleDoneDecoySession(id) {
+  const doneAgoMs = 30 * 60 * 1000; // well past MATCH_SESSION_ALL_DONE_RETENTION_MS (10min)
   const doneParticipant = (userId) => ({
     userId,
     seedRank: 1,
@@ -164,9 +149,73 @@ test('runProgressPollPrunesIfDue gates on the injectable now at exactly the inte
     liveDistanceKm: 5,
     liveElapsedSeconds: 1500,
     livePace: '05:00/km',
-    liveUpdatedAt: iso(-60 * 1000),
-    finishedAt: iso(-60 * 1000),
+    liveUpdatedAt: iso(-doneAgoMs),
+    finishedAt: iso(-doneAgoMs),
     finishElapsedSeconds: 1500,
+    profileSnapshot: { name: userId },
+  });
+  return {
+    id,
+    mode: 'duel',
+    isTestMatch: false,
+    isPartyRun: true,
+    lpApplied: true,
+    resultNotificationApplied: true,
+    distanceKm: 5,
+    slotStartAt: iso(-40 * 60 * 1000),
+    startedAt: iso(-40 * 60 * 1000),
+    createdAt: iso(-41 * 60 * 1000),
+    matchedAt: iso(-41 * 60 * 1000),
+    participants: [doneParticipant(`${id}-a`), doneParticipant(`${id}-b`)],
+  };
+}
+
+test('two finishing pushes within the interval: only the first push runs the epilogue prune', () => {
+  resetProgressPruneThrottle();
+
+  // Push 1 — throttle armed at 0 → the finished push consumes the shared throttle window and
+  // its full match semantics land. (The JUST-completed session is retained for the echo
+  // window now, so it is not the observable — the throttle-consumption below is.)
+  const first = createFinishingDuelFixture('prune-throttle-m1');
+  pushFinish(first.store, first.pusher.id, 'prune-throttle-m1', 1606);
+  const firstSession = first.store.matchSessions.find((session) => session.id === 'prune-throttle-m1');
+  assert.equal(firstSession.lpApplied, true, 'the every-done LP path is not throttled');
+
+  // The first push consumed the server-wide throttle: a due-prune check within the interval is
+  // now gated off (returns false, physically prunes nothing) — proving the second ~2.5s push
+  // in the finish convoy skips its epilogue prune+sweep. The decoy would be dropped by a real
+  // prune, so its survival confirms the skip.
+  const throttledStore = { ...buildStore([buildStaleDoneDecoySession('prune-decoy-throttled')]) };
+  assert.equal(runProgressPollPrunesIfDue(throttledStore, new Date(), new Date()), false, 'throttle consumed by push 1');
+  assert.equal(throttledStore.matchSessions.length, 1, 'the throttled epilogue prune drops nothing');
+
+  // Re-armed throttle → a due prune runs and the stale decoy is physically dropped.
+  resetProgressPruneThrottle();
+  const dueStore = { ...buildStore([buildStaleDoneDecoySession('prune-decoy-due')]) };
+  assert.equal(runProgressPollPrunesIfDue(dueStore, new Date(), new Date()), true, 're-armed throttle prunes');
+  assert.equal(dueStore.matchSessions.length, 0, 'a due epilogue prune drops the stale decoy');
+});
+
+test('runProgressPollPrunesIfDue gates on the injectable now at exactly the interval', () => {
+  resetProgressPruneThrottle();
+  const t0 = Date.parse('2026-07-07T00:00:00.000Z');
+
+  // An already-all-done stale session is the observable prune target. Done stamps sit t0-15min
+  // — past the POST-FINISH RETENTION window relative to the injectable t0-based nows AND to
+  // real time, so the prune's drop stays observable under retention.
+  const isoAtT0 = (offsetMs) => new Date(t0 + offsetMs).toISOString();
+  const doneParticipant = (userId) => ({
+    userId,
+    seedRank: 1,
+    acceptedAt: null,
+    liveStatus: 'finished',
+    liveDistanceKm: 5,
+    liveElapsedSeconds: 1500,
+    livePace: '05:00/km',
+    liveUpdatedAt: isoAtT0(-15 * 60 * 1000),
+    finishedAt: isoAtT0(-15 * 60 * 1000),
+    finishElapsedSeconds: 1500,
+    profileSnapshot: { name: userId },
   });
   const buildStore = () => ({
     users: [createUser('gate-a'), createUser('gate-b')],
@@ -179,10 +228,10 @@ test('runProgressPollPrunesIfDue gates on the injectable now at exactly the inte
       lpApplied: true,
       resultNotificationApplied: true,
       distanceKm: 5,
-      slotStartAt: iso(-30 * 60 * 1000),
-      startedAt: iso(-30 * 60 * 1000),
-      createdAt: iso(-31 * 60 * 1000),
-      matchedAt: iso(-31 * 60 * 1000),
+      slotStartAt: isoAtT0(-30 * 60 * 1000),
+      startedAt: isoAtT0(-30 * 60 * 1000),
+      createdAt: isoAtT0(-31 * 60 * 1000),
+      matchedAt: isoAtT0(-31 * 60 * 1000),
       participants: [doneParticipant('gate-a'), doneParticipant('gate-b')],
     }],
     matchQueues: { duel: [], group: [] },

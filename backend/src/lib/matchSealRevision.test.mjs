@@ -19,6 +19,7 @@ import test from 'node:test';
 import {
   MATCH_DUEL_FINISH_FALLBACK_MS,
   MATCH_SEAL_REVISION_WINDOW_MS,
+  MATCH_SESSION_ALL_DONE_RETENTION_MS,
 } from './matchConstants.mjs';
 import { DUEL_LP } from './rankSystem.mjs';
 import {
@@ -36,6 +37,7 @@ import {
   buildOfficialSessionStandings,
   isParticipantGroupSealedDnf,
   isParticipantSealedDnf,
+  pruneMatchSessions,
   sweepStuckMatchSessionFallbacks,
 } from './runningMatchSessionStoreHelpers.mjs';
 import { isSealWithinRevisionWindow } from './runningMatchSession/matchSessionFallbackSeals.mjs';
@@ -320,7 +322,13 @@ test('3. faster late finish at seal+5m: seal annulled, winner flips once, LP/not
   assert.equal(galaxyBlob.resultTone, 'lose');
   assert.equal(galaxyBlob.badgeLabel, '패배');
   assert.equal(galaxyBlob.opponentDurationSeconds, 1606);
-  assert.equal(store.matchSessions.length, 0, 'both-finished session pruned only after the heal');
+  // POST-FINISH RETENTION (2026-07-09): the healed both-finished session is now RETAINED for
+  // MATCH_SESSION_ALL_DONE_RETENTION_MS (so the slower finisher's device can still receive
+  // its 'finished' echo) and prunes only after the window.
+  assert.equal(store.matchSessions.length, 1, 'both-finished session retained for the echo window');
+  const afterRetention = new Date(Date.now() + MATCH_SESSION_ALL_DONE_RETENTION_MS + 60_000);
+  pruneMatchSessions(store, afterRetention);
+  assert.equal(store.matchSessions.length, 0, 'both-finished session pruned once the retention window passes');
 });
 
 // ── 4. Revision, SLOWER: the late finish is accepted as a REAL finish (time visible), the
@@ -506,7 +514,11 @@ test('8. forfeit during the window: every-done LP + backfill-before-prune, no do
   const galaxyBlob = store.runs.find((run) => run.id === 'galaxy-pending-forfeit').matchResult;
   assert.equal(galaxyBlob.resultTone, 'win');
   assert.equal(galaxyBlob.badgeLabel, '승리');
-  assert.equal(store.matchSessions.length, 0, 'session pruned only after the heal');
+  // POST-FINISH RETENTION (2026-07-09): the healed every-done session is retained for the
+  // echo window and prunes only after it passes.
+  assert.equal(store.matchSessions.length, 1, 'every-done session retained for the echo window');
+  pruneMatchSessions(store, new Date(Date.now() + MATCH_SESSION_ALL_DONE_RETENTION_MS + 60_000));
+  assert.equal(store.matchSessions.length, 0, 'every-done session pruned once the retention window passes');
 
   // The window-close moment later can never double-apply anything (session is gone; absolute
   // values still exactly one delta).

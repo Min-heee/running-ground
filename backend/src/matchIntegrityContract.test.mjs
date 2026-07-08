@@ -15,6 +15,7 @@ const { createSeedStore } = await import('./seed.mjs');
 const { buildGroupMatchResponse } = await import('./lib/matchResponseBuilders.mjs');
 const { updateRunningMatchProgress } = await import('./lib/matchActionHandlers.mjs');
 const { clearVanishedMatchTombstones } = await import('./lib/vanishedMatchTombstones.mjs');
+const { MATCH_SESSION_ALL_DONE_RETENTION_MS } = await import('./lib/matchConstants.mjs');
 
 const TEST_HOST = '127.0.0.1';
 const REQUEST_TIMEOUT_MS = 5000;
@@ -330,16 +331,38 @@ await runTest('finished test match awards ZERO rank LP, marks lpApplied, and the
   const rankChangeNotifications = (store.notifications ?? []).filter((entry) => entry.type === 'rank_change');
   assert.equal(rankChangeNotifications.length, 0, 'no rank LP notification for a test match');
 
-  // The all-done session was pruned by the finishing push and tombstoned.
-  assert.equal(store.matchSessions.some((entry) => entry.id === matchId), false);
+  // POST-FINISH RETENTION (2026-07-09): the all-done session is now RETAINED for the echo
+  // window instead of being pruned on the finishing push — this is the fix for the mid-run
+  // solo-demotion incident (a device whose finish landed but whose response timed out must
+  // still be able to poll the matchId and receive its terminal status). A retry within the
+  // window therefore gets a normal (idempotent) response, NOT the terminal 410.
+  const retainedSession = store.matchSessions.find((entry) => entry.id === matchId);
+  assert.ok(retainedSession, 'the all-done session is retained for the echo window');
+  const retryWithinWindow = updateRunningMatchProgress(store, user, progressArgs);
+  assert.equal(retryWithinWindow.success, true, 'a retry within the retention window is idempotent, not 410');
+  assert.equal(JSON.stringify(user.rankState ?? null), rankStateBefore, 'the retry still awards no LP');
 
-  // Retrying the same push (the stranded-device loop) now gets the terminal 410.
+  // Age every participant's done stamps past the retention window: the NEXT lookup's prune
+  // now drops + tombstones the session (the retention only defers, never cancels).
+  const pastWindowIso = iso(-(MATCH_SESSION_ALL_DONE_RETENTION_MS + 60 * 1000));
+  for (const participant of retainedSession.participants) {
+    participant.liveUpdatedAt = pastWindowIso;
+    if (participant.finishedAt) {
+      participant.finishedAt = pastWindowIso;
+    }
+    if (participant.forfeitedAt) {
+      participant.forfeitedAt = pastWindowIso;
+    }
+  }
+
+  // Retrying now (the stranded-device loop, past the window) prunes+tombstones on entry and
+  // answers the terminal 410.
   assert.throws(
     () => updateRunningMatchProgress(store, user, progressArgs),
     (error) => error.statusCode === 410
       && error.details?.code === 'match_gone'
       && JSON.stringify(user.rankState ?? null) === rankStateBefore,
-    'pruned match must answer 410 match_gone (and still award no LP)',
+    'past-window match must answer 410 match_gone (and still award no LP)',
   );
 
   // After the TTL (pinned to 1000ms at the top of this file) the tombstone expires and

@@ -28,6 +28,15 @@ export const MATCH_PACE_BAND_OFFSET_MINUTES = 10 / 60;
 export const MATCH_CANCELLATION_CUTOFF_MS = 60 * 60 * 1000;
 export const MATCH_SESSION_ACTIVE_TTL_MS = 4 * 60 * 60 * 1000;
 export const MATCH_SESSION_UNSTARTED_ACTIVE_GRACE_MS = 10 * 60 * 1000;
+// POST-FINISH RETENTION (2026-07-09) — how long an ALL-done (every participant finished or
+// forfeited) session stays in the store before pruning + tombstoning. Dropping it on the very
+// next status lookup destroyed the slower finisher's own 'finished' echo whenever their finish
+// POST landed but the response timed out client-side: their next 3s status poll pruned the
+// session, received the idle-no-matchId payload, and the client contract read that as a
+// vanished match (mid-run solo demotion → the run saved without its matchId). The window lets
+// the device receive its echo/verdict via the direct-matchId status branch and lets the
+// save-time PENDING blob heal against a live session. TTL expiry still bounds everything.
+export const MATCH_SESSION_ALL_DONE_RETENTION_MS = 10 * 60 * 1000;
 export const MATCH_PARTICIPANT_RUNNING_STALE_MS = 90 * 1000;
 export const MATCH_PARTICIPANT_BACKGROUND_STALE_MS = 20 * 60 * 1000;
 export const MATCH_TEST_COUNTDOWN_SECONDS = 30;

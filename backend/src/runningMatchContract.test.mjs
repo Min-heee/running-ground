@@ -1247,7 +1247,7 @@ await runTest('match progress finishes a participant when they reach the goal di
   });
 });
 
-await runTest('duel winner finish response survives while resolved linked room is pruned', async () => {
+await runTest('duel winner finish: session retained for the echo window, linked room still pruned', async () => {
   const { store, slotStartAt } = createActiveDuelStore();
   const hostParticipant = store.matchSessions[0].participants.find((participant) => participant.userId === 'host-user');
   const guestParticipant = store.matchSessions[0].participants.find((participant) => participant.userId === 'guest-user');
@@ -1277,7 +1277,12 @@ await runTest('duel winner finish response survives while resolved linked room i
     assert.equal(finished.matchId, 'duel-contract-match');
 
     const persisted = readStore();
-    assert.equal(persisted.matchSessions.some((session) => session.id === 'duel-contract-match'), false);
+    // POST-FINISH RETENTION (2026-07-09): the now all-done session (host finished + guest
+    // forfeited) is RETAINED for the echo window so the slower finisher's device can still
+    // receive its 'finished' status and save with the matchId — this is the fix for the
+    // 2026-07-09 mid-run solo-demotion incident. The party ROOM has served its purpose and is
+    // still pruned immediately (a retained lobby would block starting a new party).
+    assert.equal(persisted.matchSessions.some((session) => session.id === 'duel-contract-match'), true);
     assert.equal(persisted.matchRooms.some((room) => room.linkedMatchId === 'duel-contract-match'), false);
   });
 });

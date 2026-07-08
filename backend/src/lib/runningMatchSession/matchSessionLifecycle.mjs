@@ -1,6 +1,7 @@
 import {
   GROUP_MATCH_MAX_PARTICIPANTS,
   GROUP_PACE_MATCH_TOLERANCE_SECONDS,
+  MATCH_SESSION_ALL_DONE_RETENTION_MS,
 } from '../matchConstants.mjs';
 import {
   isParticipantDoneWithMatch,
@@ -33,6 +34,26 @@ function recordPrunedSessions(previousSessions, keptSessions, now) {
   }
 }
 
+// The moment the LAST participant became done — max over finishedAt/forfeitedAt (with
+// liveUpdatedAt as a stamp of last contact) across all participants. 0 when nothing is
+// parseable, which makes the retention window read as long-expired (legacy rows keep
+// today's instant-drop behavior).
+function resolveSessionLastDoneAtMs(session) {
+  let lastDoneAtMs = 0;
+
+  for (const participant of session.participants) {
+    for (const candidate of [participant.finishedAt, participant.forfeitedAt, participant.liveUpdatedAt]) {
+      const candidateMs = typeof candidate === 'string' && candidate ? Date.parse(candidate) : Number.NaN;
+
+      if (Number.isFinite(candidateMs) && candidateMs > lastDoneAtMs) {
+        lastDoneAtMs = candidateMs;
+      }
+    }
+  }
+
+  return lastDoneAtMs;
+}
+
 export function pruneMatchSessions(store, now = new Date()) {
   const sessions = ensureMatchSessions(store);
   const activeUserIds = new Set(store.users.map((user) => user.id));
@@ -53,7 +74,14 @@ export function pruneMatchSessions(store, now = new Date()) {
     }
 
     if (session.participants.every((participant) => isParticipantDoneWithMatch(participant, now))) {
-      return false;
+      // POST-FINISH RETENTION — keep an all-done session for a window instead of dropping it
+      // on the very next lookup. The instant-drop destroyed the slower finisher's own
+      // 'finished' echo when their finish POST landed but the response timed out client-side:
+      // their next status poll pruned the session and got the idle-no-matchId payload, which
+      // the client contract reads as a vanished match (mid-run solo demotion, run saved
+      // without its matchId — the 2026-07-09 incident). Sessions without any parseable done
+      // timestamp fall out immediately, exactly as before.
+      return now.getTime() - resolveSessionLastDoneAtMs(session) < MATCH_SESSION_ALL_DONE_RETENTION_MS;
     }
 
     return hydrateMatchSessionState(session, now) !== 'expired';

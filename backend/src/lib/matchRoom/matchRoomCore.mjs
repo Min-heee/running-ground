@@ -3,7 +3,10 @@ import {
   MATCH_ROOM_IDLE_TTL_MS,
   MATCH_SESSION_ACTIVE_TTL_MS,
 } from '../matchConstants.mjs';
-import { areAllRunningMatchRoomParticipantsCountdownReady } from '../matchPureHelpers.mjs';
+import {
+  areAllRunningMatchRoomParticipantsCountdownReady,
+  isParticipantDoneWithMatch,
+} from '../matchPureHelpers.mjs';
 import {
   findMatchSessionById,
   hydrateMatchSessionState,
@@ -48,6 +51,15 @@ export function pruneMatchRooms(store, now = new Date()) {
       const linkedSession = findMatchSessionById(store, room.linkedMatchId);
 
       if (!linkedSession) {
+        return false;
+      }
+
+      // POST-FINISH RETENTION (2026-07-09) keeps an all-done SESSION alive for the finish-echo
+      // window, but the party ROOM has already served its purpose (launching the match) and
+      // must NOT linger — a retained lobby would block the host from starting a new party for
+      // the whole window. Drop the room as soon as the match is all-done, exactly as before
+      // (when the session itself vanished on the next prune). The session lives on for the echo.
+      if (linkedSession.participants.every((participant) => isParticipantDoneWithMatch(participant, now))) {
         return false;
       }
 
