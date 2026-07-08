@@ -121,6 +121,12 @@ function buildSessionParticipant(participant, index) {
     liveUpdatedAt: null,
     finishedAt: null,
     finishElapsedSeconds: null,
+    // CHECKPOINT-FAIR LIVE COMPARE — a compact, bounded parallel number[] where
+    // checkpoints[k] = distanceKm (2dp) at grid time T=(k+1)*MATCH_CHECKPOINT_STEP_SECONDS,
+    // k=floor(elapsedSeconds/STEP). Filled additively by the progress handler (Stage 1) and
+    // read by buildOfficialSessionStandings (Stage 2) so the head-to-head compares both
+    // runners at the latest COMMON checkpoint. Empty until the first running/background push.
+    checkpoints: [],
   };
 }
 

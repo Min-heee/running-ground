@@ -68,6 +68,17 @@ export const MATCH_ROOM_INVITE_LINK_BASE = 'runningground://running';
 export const MATCH_GOAL_DISTANCE_TOLERANCE_KM = 0.005;
 export const MATCH_PROGRESS_MAX_SPEED_MPS = 12;
 export const MATCH_PROGRESS_MAX_SPEED_KM_PER_SECOND = MATCH_PROGRESS_MAX_SPEED_MPS / 1000;
+// CHECKPOINT-FAIR LIVE COMPARE (2026-07-09) — the server buckets the 2.5s progress pushes it
+// already receives onto a coarse 10s grid so the head-to-head (duel dots/gap, group
+// rankings/rows/남은거리) compares BOTH runners at the LATEST COMMON checkpoint instead of a
+// per-runner linear projection. Index k = floor(elapsedSeconds / STEP) encodes grid time
+// T = (k+1)*STEP, so no per-entry timestamp is stored — checkpoints is a compact number[]
+// (distanceKm at 2dp). The MY hero number/time/pace stays LIVE (GPS-fed) and the final
+// win/lose verdict stays server-authoritative on finishElapsedSeconds; only the compared
+// distance is quantized. MAX caps the array so the hot whole-store serialize stays cheap
+// (120 = 20 min of grid, well past every recommended race duration).
+export const MATCH_CHECKPOINT_STEP_SECONDS = 10;
+export const MATCH_CHECKPOINT_MAX = 120;
 // Once one duel runner finishes, the other has a bounded window to land their own
 // finish before the server resolves the duel server-side (missing runner = DNF) so
 // neither client is stranded on a 'pending' verdict forever. Sized to the running

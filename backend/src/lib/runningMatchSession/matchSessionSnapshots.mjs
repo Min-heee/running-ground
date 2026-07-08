@@ -4,6 +4,7 @@ import {
   buildProgressAveragePaceLabel,
   formatPaceMinutesLabel,
 } from '../matchFormatting.mjs';
+import { resolveCommonCheckpoint } from '../matchCheckpointHelpers.mjs';
 import {
   projectOfficialDistanceKm,
   resolveParticipantLiveStatus,
@@ -214,34 +215,64 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
           : null,
       hasProgress,
       contributesToLiveCheckpoint,
+      checkpoints: Array.isArray(participant.checkpoints) ? participant.checkpoints : undefined,
       officialAveragePace: buildProgressAveragePaceLabel(liveDistanceKm, liveElapsedSeconds),
     };
   });
 
   const readySnapshots = snapshots.filter((snapshot) => snapshot.hasProgress);
   const liveCheckpointSnapshots = readySnapshots.filter((snapshot) => snapshot.contributesToLiveCheckpoint);
-  const officialElapsedSeconds = liveCheckpointSnapshots.length > 0
+  // CHECKPOINT-FAIR LIVE COMPARE (2026-07-09) — the head-to-head compares BOTH runners at the
+  // latest COMMON 10s checkpoint instead of a per-runner linear projection. The active set for
+  // the min is the running/background runners with progress (contributesToLiveCheckpoint), the
+  // SAME set liveCheckpointSnapshots uses; finished/forfeited/disconnected are excluded so one
+  // stale runner cannot pin everyone low. When it resolves (commonMaxIndex >= 0), commonT is the
+  // shared officialElapsedSeconds and each active runner's checkpoints[commonMaxIndex] is its
+  // officialDistanceKm. It FALLS BACK to the legacy projectOfficialDistanceKm path (below) for
+  // any runner without a checkpoint at that index, and entirely for legacy in-flight sessions
+  // (checkpoints undefined) or the first 10s before any checkpoint exists. The finisher sort
+  // (:~282-307, finishElapsedSeconds) is UNTOUCHED so the win/lose verdict never moves.
+  const commonCheckpoint = resolveCommonCheckpoint(
+    liveCheckpointSnapshots.map((snapshot) => ({
+      userId: snapshot.userId,
+      checkpoints: snapshot.checkpoints,
+      isActive: true,
+    })),
+  );
+  const hasCommonCheckpoint = commonCheckpoint.commonMaxIndex >= 0;
+  const legacyOfficialElapsedSeconds = liveCheckpointSnapshots.length > 0
     ? Math.max(0, Math.min(...liveCheckpointSnapshots.map((snapshot) => snapshot.liveElapsedSeconds)))
     : readySnapshots.length > 0
       ? Math.max(0, Math.max(...readySnapshots.map((snapshot) => snapshot.liveElapsedSeconds)))
       : 0;
+  const officialElapsedSeconds = hasCommonCheckpoint
+    ? commonCheckpoint.commonT
+    : legacyOfficialElapsedSeconds;
   const comparedAt = now.toISOString();
 
   const rankedSnapshots = snapshots
     .map((snapshot) => {
       const officialReady = officialElapsedSeconds > 0 && snapshot.hasProgress;
+      // Prefer this runner's latest-common-checkpoint distance; fall back to the continuous
+      // linear projection when it has no checkpoint at the common index (paused/legacy/pre-first
+      // checkpoint) so the compare never blanks or reads a fake 0.00.
+      const checkpointDistanceKm = hasCommonCheckpoint
+        ? commonCheckpoint.distanceByUserId.get(snapshot.userId)
+        : undefined;
       return {
         ...snapshot,
         officialReady,
         officialElapsedSeconds,
         officialComparedAt: comparedAt,
         officialDistanceKm: officialReady
-          ? projectOfficialDistanceKm(
-              snapshot.liveDistanceKm,
-              snapshot.liveElapsedSeconds,
-              officialElapsedSeconds,
-              session.distanceKm,
-            )
+          ? typeof checkpointDistanceKm === 'number' && Number.isFinite(checkpointDistanceKm)
+            ? Number(Math.max(0, Math.min(session.distanceKm, checkpointDistanceKm)).toFixed(2))
+            : projectOfficialDistanceKm(
+                snapshot.liveDistanceKm,
+                snapshot.liveElapsedSeconds,
+                officialElapsedSeconds,
+                session.distanceKm,
+              )
           : 0,
       };
     })
@@ -312,6 +343,10 @@ export function buildOfficialSessionStandings(store, session, now = new Date()) 
     const aheadRunner = index > 0 ? array[index - 1] : null;
     const publicSnapshot = { ...snapshot };
     delete publicSnapshot.contributesToLiveCheckpoint;
+    // Internal-only: the raw per-runner checkpoint grid never leaves the standings builder — the
+    // response SHAPE stays byte-identical to pre-checkpoint (only the value behind
+    // officialDistanceKm/officialElapsedSeconds changed).
+    delete publicSnapshot.checkpoints;
     return {
       ...publicSnapshot,
       officialRank: index + 1,

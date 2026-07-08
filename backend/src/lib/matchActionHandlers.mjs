@@ -1,4 +1,5 @@
 import { ApiError } from '../response/httpResponse.mjs';
+import { appendCheckpointSample } from './matchCheckpointHelpers.mjs';
 import { MATCH_GOAL_DISTANCE_TOLERANCE_KM } from './matchConstants.mjs';
 import {
   isParticipantDoneWithMatch,
@@ -477,6 +478,23 @@ export function updateRunningMatchProgress(store, currentUser, { matchId, distan
     currentParticipant.livePace = currentPace;
     currentParticipant.liveUpdatedAt = new Date().toISOString();
     currentParticipant.liveStatus = effectiveStatus;
+
+    // CHECKPOINT-FAIR LIVE COMPARE (2026-07-09) — sample this push onto the 10s grid, but ONLY
+    // for a genuine live progress push: effectiveStatus running/background (parity with the
+    // contributesToLiveCheckpoint gate in matchSessionSnapshots) AND a push that actually
+    // CARRIED a distance (a finite raw distanceKm). A finished/forfeited/paused push is never
+    // sampled (a finish must not snap a partial bucket into the grid — the verdict stays on
+    // finishElapsedSeconds), and a time-only server-backed backfill (no distanceKm) is skipped
+    // so the grid indexes off the elapsed of the sample that carried the distance.
+    // appendCheckpointSample is PURE + returns the SAME array reference on a no-change re-push,
+    // so the store's whole-blob no-change serialize skip is preserved (respects B-2/B-3).
+    if (['running', 'background'].includes(effectiveStatus) && Number.isFinite(distanceKm)) {
+      currentParticipant.checkpoints = appendCheckpointSample(
+        currentParticipant.checkpoints,
+        normalizedProgress.elapsedSeconds,
+        normalizedProgress.distanceKm,
+      );
+    }
   }
   if (!session.startedAt) {
     session.startedAt = currentParticipant.liveUpdatedAt;
