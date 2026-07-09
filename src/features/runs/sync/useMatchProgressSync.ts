@@ -164,6 +164,9 @@ export function useMatchProgressSync({
 }: UseMatchProgressSyncInput) {
   const firstLiveProgressReceivedRef = useRef(false);
   const heartbeatSlotOwnerRef = useRef<{ key: string; ownerId: number } | null>(null);
+  // SEND LIFELINE (2026-07-09) — single-flight guard for the registry-free foreground push
+  // backstop below (mirrors the receive-side useTrackRunOpponentSyncLifeline's inFlight ref).
+  const sendLifelineInFlightRef = useRef(false);
   // Remembers the most recent active match target so that when the match ends and the
   // active target collapses to null, we can still deliver a FINAL status push for the
   // just-ended match before tearing the context down (see the cleanup effect below).
@@ -843,6 +846,80 @@ export function useMatchProgressSync({
       clearInterval(intervalId);
     };
   }, [activeHeartbeatMatchId, heartbeatEnabled, refreshMatchProgressHeartbeat]);
+
+  // SEND LIFELINE — the send-side mirror of useTrackRunOpponentSyncLifeline, and the confirmed
+  // cure for the dual-mount heartbeat-slot latch (docs/party-duel-opponent-sync-root-2026-07-09).
+  // When a redundant/frozen runtime mount holds the module-level match-progress slot, the visible
+  // instance's foreground push is gated out at canSendMatchProgressHeartbeat, so MY server row
+  // never updates and the opponent sees me frozen at 0.00 — until backgrounding heals it (the
+  // background flush POSTs WITHOUT the slot gate) and resume re-wedges it. This timer IS that
+  // background-flush bypass, foregrounded: whenever I have an ACTIVE target and am measuring but
+  // canSend is FALSE (someone else owns the slot), push my live progress DIRECTLY (bypassing the
+  // slot gate, exactly as sendPendingFinishPush / the background flush already do). It fires ONLY
+  // when gated (canSend true → the normal 1s keep-alive owns delivery and this no-ops → never a
+  // double send), only while status is 'running' (never during countdown/warmup — the target also
+  // requires state 'active'), and never for a 'finished' status (the durable pending-finish resend
+  // already bypasses the gate for that). A zombie holder's own target resolves null → it no-ops.
+  useEffect(() => {
+    if (!heartbeatEnabled || !activeHeartbeatMatchId) {
+      return undefined;
+    }
+
+    const intervalId = setInterval(() => {
+      if (sendLifelineInFlightRef.current) {
+        return;
+      }
+      const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
+      if (snapshot.status !== 'running') {
+        return;
+      }
+      const target = getActiveMatchProgressTarget();
+      if (!target) {
+        return;
+      }
+      // ONLY when the normal gated path CANNOT send — i.e. the slot is held elsewhere. If I own
+      // the slot the 1s keep-alive delivers and this stays a no-op (no double send).
+      if (canSendMatchProgressHeartbeat(target.matchId)) {
+        return;
+      }
+      const progress = callbackRef.current.buildDisplayedMatchProgress(snapshot);
+      const status = resolveMatchProgressHeartbeatStatus({
+        progressDistanceKm: progress.distanceKm,
+        targetDistanceKm: target.distanceKm,
+      });
+      // Finish delivery has its own gate-bypassing durable path (pending-finish resend); the
+      // lifeline only backstops LIVE progress so it can never double-fire a terminal push.
+      if (status !== 'running') {
+        return;
+      }
+      sendLifelineInFlightRef.current = true;
+      rgPerfMark('progress heartbeat send lifeline fired', {
+        matchId: target.matchId,
+        status,
+      });
+      void pushRunningMatchProgress({
+        matchId: target.matchId,
+        distanceKm: progress.distanceKm,
+        elapsedSeconds: progress.elapsedSeconds,
+        currentPace: progress.currentPace,
+        status,
+      })
+        .catch(() => {})
+        .finally(() => {
+          sendLifelineInFlightRef.current = false;
+        });
+    }, MATCH_PROGRESS_HEARTBEAT_INTERVAL_MS);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [
+    activeHeartbeatMatchId,
+    canSendMatchProgressHeartbeat,
+    getActiveMatchProgressTarget,
+    heartbeatEnabled,
+    pushRunningMatchProgress,
+  ]);
 
   // C1: durable finish-delivery driver. Rehydrate any pending-finish intent that outlived a
   // previous app session, then re-send all outstanding intents on a slow interval — this is
