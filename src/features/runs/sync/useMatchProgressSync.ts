@@ -17,6 +17,7 @@ import {
 } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
 import {
   clearBackgroundMatchProgressContext,
+  getBackgroundMatchProgressContext,
   setBackgroundMatchProgressContext,
 } from '@/features/runs/tracking/background/backgroundMatchProgressSync';
 import {
@@ -847,21 +848,23 @@ export function useMatchProgressSync({
     };
   }, [activeHeartbeatMatchId, heartbeatEnabled, refreshMatchProgressHeartbeat]);
 
-  // SEND LIFELINE — the send-side mirror of useTrackRunOpponentSyncLifeline, and the confirmed
-  // cure for the dual-mount heartbeat-slot latch (docs/party-duel-opponent-sync-root-2026-07-09).
-  // When a redundant/frozen runtime mount holds the module-level match-progress slot, the visible
-  // instance's foreground push is gated out at canSendMatchProgressHeartbeat, so MY server row
-  // never updates and the opponent sees me frozen at 0.00 — until backgrounding heals it (the
-  // background flush POSTs WITHOUT the slot gate) and resume re-wedges it. This timer IS that
-  // background-flush bypass, foregrounded: whenever I have an ACTIVE target and am measuring but
-  // canSend is FALSE (someone else owns the slot), push my live progress DIRECTLY (bypassing the
-  // slot gate, exactly as sendPendingFinishPush / the background flush already do). It fires ONLY
-  // when gated (canSend true → the normal 1s keep-alive owns delivery and this no-ops → never a
-  // double send), only while status is 'running' (never during countdown/warmup — the target also
-  // requires state 'active'), and never for a 'finished' status (the durable pending-finish resend
-  // already bypasses the gate for that). A zombie holder's own target resolves null → it no-ops.
+  // SEND LIFELINE — the send-side mirror of useTrackRunOpponentSyncLifeline. Confirmed on-device
+  // (docs/party-duel-opponent-sync-root-2026-07-09): MY foreground progress push does not reach
+  // the shared session, so the opponent sees me frozen at 0.00 — and BACKGROUNDING one phone
+  // heals it (the background flush at backgroundMatchProgressSync.ts:1024 POSTs to the ARMED
+  // context matchId, bypassing BOTH the heartbeat slot gate AND the foreground target resolution).
+  // The flush returns early in the foreground (line 778, !isAppBackground), which is exactly why
+  // resume re-wedges. This timer IS that flush, foregrounded: it POSTs my live progress DIRECTLY
+  // to the ARMED context matchId (getBackgroundMatchProgressContext) — the one that heals — so it
+  // is robust to BOTH failure modes at once: the dual-mount slot latch (bypasses canSend) AND a
+  // foreground push target whose matchId differs from the armed shared-session id. It fires ONLY
+  // when the normal 1s keep-alive canNOT deliver correctly — the slot is held elsewhere OR the
+  // foreground target is missing/points at a different matchId than the armed context — so a
+  // healthy uncontended run (own the slot AND ids match) leaves this a pure no-op (no double
+  // send). Only while status is 'running' (never during countdown/warmup — a stray warmup push is
+  // 400'd server-side and swallowed); never a terminal push (the pending-finish resend owns that).
   useEffect(() => {
-    if (!heartbeatEnabled || !activeHeartbeatMatchId) {
+    if (!heartbeatEnabled) {
       return undefined;
     }
 
@@ -869,40 +872,42 @@ export function useMatchProgressSync({
       if (sendLifelineInFlightRef.current) {
         return;
       }
+      // The ARMED context matchId is the shared-session id the background flush uses (and that
+      // heals). Prefer it over the foreground target so a foreground/armed matchId divergence
+      // can't send my progress to the wrong session.
+      const contextMatchId = getBackgroundMatchProgressContext()?.matchId;
+      if (!contextMatchId) {
+        return;
+      }
       const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
       if (snapshot.status !== 'running') {
         return;
       }
-      const target = getActiveMatchProgressTarget();
-      if (!target) {
-        return;
-      }
-      // ONLY when the normal gated path CANNOT send — i.e. the slot is held elsewhere. If I own
-      // the slot the 1s keep-alive delivers and this stays a no-op (no double send).
-      if (canSendMatchProgressHeartbeat(target.matchId)) {
+      // Skip when the normal keep-alive is already delivering to the SAME id it should — i.e. I
+      // own the slot AND the foreground target's matchId equals the armed context id. Any other
+      // state (slot held elsewhere, or a divergent/absent foreground target) means the normal
+      // path is NOT reliably reaching the shared session, so the lifeline takes over.
+      const foregroundTarget = getActiveMatchProgressTarget();
+      const normalPathDelivers = foregroundTarget?.matchId === contextMatchId
+        && canSendMatchProgressHeartbeat(contextMatchId);
+      if (normalPathDelivers) {
         return;
       }
       const progress = callbackRef.current.buildDisplayedMatchProgress(snapshot);
-      const status = resolveMatchProgressHeartbeatStatus({
-        progressDistanceKm: progress.distanceKm,
-        targetDistanceKm: target.distanceKm,
-      });
-      // Finish delivery has its own gate-bypassing durable path (pending-finish resend); the
-      // lifeline only backstops LIVE progress so it can never double-fire a terminal push.
-      if (status !== 'running') {
+      // Never resurrect a 0-elapsed warmup snapshot as live progress.
+      if (!(progress.elapsedSeconds > 0)) {
         return;
       }
       sendLifelineInFlightRef.current = true;
       rgPerfMark('progress heartbeat send lifeline fired', {
-        matchId: target.matchId,
-        status,
+        matchId: contextMatchId,
       });
       void pushRunningMatchProgress({
-        matchId: target.matchId,
+        matchId: contextMatchId,
         distanceKm: progress.distanceKm,
         elapsedSeconds: progress.elapsedSeconds,
         currentPace: progress.currentPace,
-        status,
+        status: 'running',
       })
         .catch(() => {})
         .finally(() => {
@@ -914,7 +919,6 @@ export function useMatchProgressSync({
       clearInterval(intervalId);
     };
   }, [
-    activeHeartbeatMatchId,
     canSendMatchProgressHeartbeat,
     getActiveMatchProgressTarget,
     heartbeatEnabled,
