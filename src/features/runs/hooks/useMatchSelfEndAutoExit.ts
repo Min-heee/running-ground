@@ -128,10 +128,13 @@ export function useMatchSelfEndAutoExit({
       }
     };
 
-    // Immediate check on any relevant state change (the deps below), plus a 1s wall-clock
-    // tick that arms the freeze-deadline fallback even when nothing re-renders.
+    // Immediate check on any relevant state change (the deps below), plus a 500ms wall-clock
+    // tick that catches the local goal-crossing freeze (recorded in a module store, which does
+    // NOT re-render this hook) within ≤0.5s so 저장중 appears the moment the goal is reached —
+    // not ~0.2km later (the 7/9 report). Ref-only reads + a pure gate, no setState, so the
+    // tighter cadence adds negligible cost.
     tick();
-    const intervalId = setInterval(tick, 1_000);
+    const intervalId = setInterval(tick, 500);
     return () => {
       clearInterval(intervalId);
     };

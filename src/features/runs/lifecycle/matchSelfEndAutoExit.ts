@@ -5,11 +5,15 @@
 
 import type { MatchExitSource } from '@/features/runs/lifecycle/matchExitFlow';
 
-// Grace between the locally recorded goal crossing and the forced local exit. Long enough for
-// the healthy server echo (≤2.5s heartbeat tick + RTT) to win and keep today's behavior; short
-// enough that a degraded push channel no longer strands the runner on the live screen (the 7/9
-// incident sat 13s+ with a recorded crossing and no echo).
-export const LOCAL_GOAL_FREEZE_AUTO_EXIT_GRACE_MS = 5_000;
+// Grace between the locally recorded goal crossing and the forced local exit. ZERO on purpose:
+// for a DISTANCE goal the local crossing IS the finish — recordLocalGoalFreezeOnce already
+// clamps the saved run to the exact at-crossing distance/time, so the result is identical
+// whether we exit now or later, and the server 'finished' echo carries no independent judgment
+// (it is just my own finish push round-tripping). Waiting for it only made the runner keep
+// measuring past the goal (the 7/9 report: notification at 7.00km but 저장중 only ~0.2km later).
+// The moment the crossing freeze exists, the exit fires; the echo becomes redundant idempotent
+// confirmation. (Kept as a named, injectable param so tests can still exercise a non-zero grace.)
+export const LOCAL_GOAL_FREEZE_AUTO_EXIT_GRACE_MS = 0;
 
 export type SelfEndAutoExitKind = 'self-finished' | 'self-forfeited' | 'freeze-deadline';
 
@@ -71,10 +75,12 @@ export function resolveSelfEndAutoExit({
     return 'self-finished';
   }
 
-  // Freeze-deadline fallback — ONLY while the tracker is actively recording ('running' also
+  // Local goal-crossing trigger — the PRIMARY finish for a distance goal (grace defaults to 0),
+  // ahead of the server echo. Fires ONLY while the tracker is actively recording ('running' also
   // excludes the countdown phase: a freeze for the ACTIVE matchId cannot exist before that
   // match's own crossing, and a stale freeze from a previous match never matches this
-  // matchId). Wall-clock measured from the recorded crossedAtIso.
+  // matchId). Wall-clock measured from the recorded crossedAtIso, so a future-stamped crossing
+  // (clock skew) still waits until now catches up.
   if (
     trackingStatus === 'running'
     && typeof freezeCrossedAtMs === 'number'

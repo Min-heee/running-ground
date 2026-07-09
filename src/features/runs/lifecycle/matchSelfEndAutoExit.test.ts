@@ -66,17 +66,30 @@ test('once per matchId: a dispatched match never re-fires, a NEW match re-arms',
   );
 });
 
-test('freeze deadline: a recorded crossing with no terminal echo forces the exit after the grace', () => {
-  const crossedAt = T0 - LOCAL_GOAL_FREEZE_AUTO_EXIT_GRACE_MS;
+test('local goal-crossing: a recorded crossing fires the exit immediately (grace 0)', () => {
+  // grace defaults to 0 → the moment the crossing freeze exists, the exit fires (no waiting
+  // for the redundant server echo), so 저장중 appears the instant the goal is reached.
+  assert.equal(LOCAL_GOAL_FREEZE_AUTO_EXIT_GRACE_MS, 0);
   assert.equal(
-    resolveSelfEndAutoExit(input({ freezeCrossedAtMs: crossedAt })),
+    resolveSelfEndAutoExit(input({ freezeCrossedAtMs: T0 })),
     'freeze-deadline',
   );
 
-  // Inside the grace the server echo still gets its chance (no dispatch yet).
+  // A future-stamped crossing (clock skew) still waits until now catches up.
   assert.equal(
-    resolveSelfEndAutoExit(input({ freezeCrossedAtMs: crossedAt + 1_000 })),
+    resolveSelfEndAutoExit(input({ freezeCrossedAtMs: T0 + 1_000 })),
     null,
+  );
+
+  // An explicit non-zero grace is still honored (the param is injectable): inside the window
+  // nothing fires, at/after it does.
+  assert.equal(
+    resolveSelfEndAutoExit(input({ freezeCrossedAtMs: T0 - 1_000, graceMs: 5_000 })),
+    null,
+  );
+  assert.equal(
+    resolveSelfEndAutoExit(input({ freezeCrossedAtMs: T0 - 5_000, graceMs: 5_000 })),
+    'freeze-deadline',
   );
 });
 
