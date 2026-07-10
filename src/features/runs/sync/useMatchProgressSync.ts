@@ -39,6 +39,14 @@ import {
 } from '@/features/runs/sync/matchProgressSync';
 import { buildMatchProgressRegistryKey } from '@/features/runs/sync/registryKeys';
 import {
+  recordMatchSyncCanSend,
+  recordMatchSyncHeartbeatArmState,
+  recordMatchSyncLifelineTick,
+  recordMatchSyncPushAttempt,
+  recordMatchSyncPushErr,
+  recordMatchSyncPushOk,
+} from '@/features/runs/sync/matchSyncDiagnostics';
+import {
   clearPendingFinish,
   hydratePendingFinishes,
   listPendingFinishes,
@@ -426,6 +434,8 @@ export function useMatchProgressSync({
       heartbeatKey,
       owner?.key === heartbeatKey ? owner.ownerId : undefined,
     );
+    // ON-DEVICE SYNC DIAGNOSTICS — fire-and-forget instrumentation, no behavior change.
+    recordMatchSyncCanSend(canSend, owner?.key === heartbeatKey ? owner.ownerId : null);
 
     if (!canSend) {
       rgPerfMark('progress heartbeat skipped', {
@@ -476,7 +486,17 @@ export function useMatchProgressSync({
       return heartbeatRequest.promise;
     }
 
-    const nextStatus = await heartbeatRequest.promise;
+    // ON-DEVICE SYNC DIAGNOSTICS — count real HTTP attempts and their outcomes (rethrows
+    // preserve every caller's existing error handling; no behavior change).
+    recordMatchSyncPushAttempt();
+    let nextStatus: Awaited<typeof heartbeatRequest.promise>;
+    try {
+      nextStatus = await heartbeatRequest.promise;
+    } catch (pushError) {
+      recordMatchSyncPushErr(pushError instanceof Error ? pushError.message : String(pushError));
+      throw pushError;
+    }
+    recordMatchSyncPushOk();
     callbackRef.current.setLastSyncedMatchProgress(syncedProgress);
 
     if (!firstLiveProgressReceivedRef.current) {
@@ -848,6 +868,12 @@ export function useMatchProgressSync({
     };
   }, [activeHeartbeatMatchId, heartbeatEnabled, refreshMatchProgressHeartbeat]);
 
+  // ON-DEVICE SYNC DIAGNOSTICS — mirror the heartbeat arm state into the module store so the
+  // diagnostics panel can show whether THIS (visible) instance even has the heartbeat armed.
+  useEffect(() => {
+    recordMatchSyncHeartbeatArmState(heartbeatEnabled, activeHeartbeatMatchId);
+  }, [heartbeatEnabled, activeHeartbeatMatchId]);
+
   // SEND LIFELINE — the send-side mirror of useTrackRunOpponentSyncLifeline. Confirmed on-device
   // (docs/party-duel-opponent-sync-root-2026-07-09): MY foreground progress push does not reach
   // the shared session, so the opponent sees me frozen at 0.00 — and BACKGROUNDING one phone
@@ -870,6 +896,7 @@ export function useMatchProgressSync({
 
     const intervalId = setInterval(() => {
       if (sendLifelineInFlightRef.current) {
+        recordMatchSyncLifelineTick('inflight');
         return;
       }
       // The ARMED context matchId is the shared-session id the background flush uses (and that
@@ -877,10 +904,12 @@ export function useMatchProgressSync({
       // can't send my progress to the wrong session.
       const contextMatchId = getBackgroundMatchProgressContext()?.matchId;
       if (!contextMatchId) {
+        recordMatchSyncLifelineTick('no-ctx');
         return;
       }
       const snapshot = getBackgroundRunTrackingSnapshot({ cloneRoute: false });
       if (snapshot.status !== 'running') {
+        recordMatchSyncLifelineTick(`snap:${snapshot.status}`);
         return;
       }
       // Skip when the normal keep-alive is already delivering to the SAME id it should — i.e. I
@@ -891,13 +920,16 @@ export function useMatchProgressSync({
       const normalPathDelivers = foregroundTarget?.matchId === contextMatchId
         && canSendMatchProgressHeartbeat(contextMatchId);
       if (normalPathDelivers) {
+        recordMatchSyncLifelineTick('normal-path');
         return;
       }
       const progress = callbackRef.current.buildDisplayedMatchProgress(snapshot);
       // Never resurrect a 0-elapsed warmup snapshot as live progress.
       if (!(progress.elapsedSeconds > 0)) {
+        recordMatchSyncLifelineTick('zero-elapsed');
         return;
       }
+      recordMatchSyncLifelineTick('fired');
       sendLifelineInFlightRef.current = true;
       rgPerfMark('progress heartbeat send lifeline fired', {
         matchId: contextMatchId,
