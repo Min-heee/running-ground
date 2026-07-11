@@ -13,6 +13,7 @@ import type {
   RunningMatchStatusResponse,
 } from '@/lib/api/types';
 import type { ForfeitedMatchSnapshot } from '@/features/runs/types/matchForfeit';
+import { isOfficialDuelCheckpointStale } from '@/features/runs/viewModels/officialCheckpointStaleness';
 
 export type CurrentUserLiveStatusModel = {
   currentUserDuelLiveStatus: DuelMatchOpponent['liveStatus'] | null;
@@ -181,12 +182,14 @@ export function buildDuelProgressDisplayModel({
   effectiveDuelOpponent,
   duelDistanceKm,
   distanceKm,
+  nowMs = Date.now(),
 }: {
   duelMatchStatus: RunningMatchStatusResponse | null;
   syncedDuelProgress: LastSyncedMatchProgress | null;
   effectiveDuelOpponent: DuelMatchOpponent | null;
   duelDistanceKm: number;
   distanceKm: number;
+  nowMs?: number;
 }): DuelProgressDisplayModel {
   const fallbackDuelComparisonSnapshot = buildDuelComparisonSnapshot(
     syncedDuelProgress,
@@ -196,12 +199,26 @@ export function buildDuelProgressDisplayModel({
   const officialDuelComparison = duelMatchStatus?.officialComparison ?? null;
   const isDuelOpponentForfeited = effectiveDuelOpponent?.liveStatus === 'forfeited';
   const duelOpponentProgressModel = buildMatchProgressModel(effectiveDuelOpponent, duelDistanceKm);
-  const officialDuelReady = Boolean(
+  const officialDuelComparisonAvailable = Boolean(
     officialDuelComparison
     && officialDuelComparison.readyParticipantCount >= 2
     && typeof officialDuelComparison.userDistanceKm === 'number'
     && duelOpponentProgressModel.officialProgress?.ready,
   );
+  // CHECKPOINT STALE-FALLBACK — the common checkpoint advances only when BOTH server rows
+  // advance, so one dead push channel pins the whole head-to-head (the fairness design's one
+  // fragility). When the checkpoint has not MOVED for the stall window, degrade to the raw
+  // last-received comparison (the pre-official display path, footer drops '서버 공식') so the
+  // screen keeps living through transport hiccups; the fair comparison resumes automatically
+  // on the next checkpoint advance.
+  const officialCheckpointStale = officialDuelComparisonAvailable && officialDuelComparison
+    ? isOfficialDuelCheckpointStale(
+        duelMatchStatus?.matchId ?? 'duel',
+        officialDuelComparison.elapsedSeconds,
+        nowMs,
+      )
+    : false;
+  const officialDuelReady = officialDuelComparisonAvailable && !officialCheckpointStale;
   const officialDuelComparisonSnapshot = officialDuelReady && officialDuelComparison
     ? buildOfficialDuelComparisonSnapshot({
         officialDuelComparison,

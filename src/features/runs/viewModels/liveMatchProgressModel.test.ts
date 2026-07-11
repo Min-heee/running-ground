@@ -15,6 +15,7 @@ import {
   resolveActiveDuelArenaMatchId,
   selectSyncedDuelProgress,
 } from './liveMatchProgressModel';
+import { __resetOfficialCheckpointStalenessForTest } from './officialCheckpointStaleness';
 
 const baseOpponent: DuelMatchOpponent = {
   id: 'opponent',
@@ -158,6 +159,55 @@ test('buildDuelProgressDisplayModel prefers official comparison when both runner
   });
   assert.equal(model.syncedDuelDistanceKm, 1.4);
   assert.equal(model.syncedDuelOpponentDistanceKm, 1.1);
+});
+
+test('CHECKPOINT STALE-FALLBACK: a pinned official checkpoint degrades to the raw comparison and recovers on advance', () => {
+  __resetOfficialCheckpointStalenessForTest();
+  const T0 = Date.parse('2026-07-10T00:00:00.000Z');
+  const buildInput = (elapsedSeconds: number, opponentLiveKm: number, nowMs: number) => ({
+    duelMatchStatus: buildStatus({
+      officialComparison: {
+        comparedAt: '2026-07-10T00:01:00.000Z',
+        elapsedSeconds,
+        participantCount: 2,
+        readyParticipantCount: 2,
+        userDistanceKm: 1.0,
+      },
+    }),
+    syncedDuelProgress: null,
+    effectiveDuelOpponent: {
+      ...baseOpponent,
+      liveStatus: 'running' as const,
+      liveDistanceKm: opponentLiveKm,
+      officialReady: true,
+      officialDistanceKm: 0.9,
+      officialElapsedSeconds: elapsedSeconds,
+      officialAveragePace: '09:05/km',
+    },
+    duelDistanceKm: 5,
+    distanceKm: 1.2,
+  });
+
+  // Fresh checkpoint → official comparison wins.
+  const fresh = buildDuelProgressDisplayModel({ ...buildInput(600, 1.05, T0), nowMs: T0 });
+  assert.equal(fresh.officialDuelReady, true);
+  assert.equal(fresh.syncedDuelOpponentDistanceKm, 0.9);
+
+  // Same checkpoint 10s later — still inside the stall window, official still wins.
+  const inside = buildDuelProgressDisplayModel({ ...buildInput(600, 1.1, T0 + 10_000), nowMs: T0 + 10_000 });
+  assert.equal(inside.officialDuelReady, true);
+
+  // Same checkpoint past the stall window → degrade to the raw last-received comparison so
+  // the display keeps living while transport is degraded (footer drops '서버 공식').
+  const stale = buildDuelProgressDisplayModel({ ...buildInput(600, 1.15, T0 + 16_000), nowMs: T0 + 16_000 });
+  assert.equal(stale.officialDuelReady, false);
+
+  // The checkpoint ADVANCES → fairness comparison resumes immediately.
+  const recovered = buildDuelProgressDisplayModel({ ...buildInput(610, 1.2, T0 + 17_000), nowMs: T0 + 17_000 });
+  assert.equal(recovered.officialDuelReady, true);
+  assert.equal(recovered.syncedDuelOpponentDistanceKm, 0.9);
+
+  __resetOfficialCheckpointStalenessForTest();
 });
 
 test('buildDuelProgressDisplayModel keeps survivor distance live after opponent finishes', () => {
