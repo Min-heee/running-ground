@@ -47,12 +47,6 @@ export function acquireRgHeartbeatSlot(key: string, label: string, detail?: RgHe
   return heartbeatSlotRegistry.acquire(key, label, detail);
 }
 
-// ON-DEVICE SYNC DIAGNOSTICS — read-only owner lookup for the diagnostics panel (who currently
-// holds the match-progress key). No behavior; pure Map read.
-export function getRgHeartbeatSlotOwnerId(key: string) {
-  return heartbeatSlotRegistry.getOwnerId(key);
-}
-
 // Stale-owner eviction for the SLOT registry — force-frees the key regardless of who owns it.
 // Only the heartbeat-slot steal path (a viable sender that has watched the module-wide
 // push-activity stamp stay silent past the stall window) may call this; the evicted owner's own

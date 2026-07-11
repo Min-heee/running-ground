@@ -7,7 +7,6 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { TabHeader } from '@/components/ui/TabHeader';
 import { LiveMatchContainer } from '@/features/runs/components/LiveMatchContainer';
 import { MatchEndTransitionOverlay } from '@/features/runs/components/MatchEndTransitionOverlay';
-import { MatchSyncDiagnosticsPanel } from '@/features/runs/components/MatchSyncDiagnosticsPanel';
 import { RunningReadyScreen } from '@/features/runs/components/RunningReadyScreen';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 import {
@@ -220,11 +219,6 @@ export function TrackRunExperienceView({
         and iOS stack identically.
       */}
       <RoomArmingOverlayVeil visible={shouldShowRoomArmingOverlay} />
-      {/* ON-DEVICE SYNC DIAGNOSTICS (temporary) — tiny always-on panel during a live match so
-          the field test can pinpoint where the opponent-sync send chain dies. Self-contained
-          (module-store reads, no props); renders null outside a match. Remove after the
-          party-duel sync freeze is closed. */}
-      <MatchSyncDiagnosticsPanel />
     </View>
   );
 }
