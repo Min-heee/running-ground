@@ -27,12 +27,70 @@ import {
 
 const STORE_ROW_ID = 1;
 
+// GPS route side table (#209). Saved runs used to embed their full GPS route (up to ~1500
+// points, ~200KB) INSIDE the app_store jsonb blob, so every whole-store UPDATE re-serialized
+// the entire run history and the 2.5s match-progress POSTs convoyed behind multi-second row
+// writes. Routes are display-only polylines — verdicts/LP/points never read them — so they are
+// stored out-of-band in run_routes and the blob only keeps a `routeStored: true` marker.
+const RUN_ROUTES_TABLE_DDL = [
+  `create table if not exists run_routes (
+    run_id text primary key,
+    user_id text,
+    route jsonb not null,
+    created_at timestamptz not null default now()
+  )`,
+  'create index if not exists run_routes_user_idx on run_routes (user_id)',
+];
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
 function serializeStore(store) {
   return JSON.stringify(store);
+}
+
+// Strip every embedded GPS route out of store.runs IN PLACE and return the extracted
+// (runId, userId, route) rows. Runs keep all other fields (distance/pace/stats/matchResult/
+// startedAt/...) plus a `routeStored: true` marker so read paths know to re-attach from the
+// side table. Runs without an id are left untouched (nothing to key the side row on).
+export function extractEmbeddedRunRoutes(store) {
+  const extracted = [];
+
+  if (!Array.isArray(store?.runs)) {
+    return extracted;
+  }
+
+  for (const run of store.runs) {
+    if (!run || typeof run !== 'object' || !Array.isArray(run.route)) {
+      continue;
+    }
+
+    if (typeof run.id !== 'string' || !run.id) {
+      continue;
+    }
+
+    extracted.push({
+      runId: run.id,
+      userId: typeof run.userId === 'string' && run.userId ? run.userId : null,
+      route: run.route,
+    });
+    delete run.route;
+    run.routeStored = true;
+  }
+
+  return extracted;
+}
+
+async function insertRunRoutes(executor, extractedRoutes) {
+  for (const entry of extractedRoutes) {
+    // DO NOTHING on conflict: a route is written exactly once per run id (retried match saves
+    // upgrade matchResult only, never the polyline), so the first stored copy always wins.
+    await executor.query(
+      'insert into run_routes (run_id, user_id, route) values ($1, $2, $3) on conflict (run_id) do nothing',
+      [entry.runId, entry.userId, JSON.stringify(entry.route)],
+    );
+  }
 }
 
 function parseBoolean(value, defaultValue = false) {
@@ -106,6 +164,41 @@ export function createPostgresStoreAdapter(options = {}) {
   const database = options.database ?? buildDatabaseFromEnv();
   const backupOnSave = options.backupOnSave ?? parseBoolean(process.env.BACKEND_STORE_BACKUP_ON_SAVE, false);
 
+  // run_routes schema ensure — lazy, memoized on success only. Existing production volumes
+  // never re-run docker-entrypoint-initdb.d, so the runtime creates the side table itself.
+  // A failed ensure DEGRADES GRACEFULLY: routes stay embedded in the blob (pre-#209 behavior)
+  // instead of failing every write on a missing table, and the next call retries.
+  let runRoutesSchemaReady = false;
+  let runRoutesSchemaEnsurePromise = null;
+
+  function ensureRunRoutesSchema() {
+    if (runRoutesSchemaReady) {
+      return Promise.resolve(true);
+    }
+
+    if (!runRoutesSchemaEnsurePromise) {
+      runRoutesSchemaEnsurePromise = (async () => {
+        try {
+          for (const statement of RUN_ROUTES_TABLE_DDL) {
+            await database.query(statement);
+          }
+
+          runRoutesSchemaReady = true;
+        } catch (error) {
+          console.error(
+            `[runningground-backend] run_routes schema ensure failed (routes stay embedded until it succeeds): ${error?.message ?? error}`,
+          );
+        } finally {
+          runRoutesSchemaEnsurePromise = null;
+        }
+
+        return runRoutesSchemaReady;
+      })();
+    }
+
+    return runRoutesSchemaEnsurePromise;
+  }
+
   async function loadStore() {
     const existing = await database.query(
       'select data from app_store where id = $1',
@@ -128,6 +221,8 @@ export function createPostgresStoreAdapter(options = {}) {
   // propagates out of the transaction callback, so postgresDatabase.transaction rolls back —
   // no partial write reaches the row.
   async function mutateStore(mutator) {
+    const routeSideTableReady = await ensureRunRoutesSchema();
+
     return database.transaction(async (client) => {
       let locked = await client.query(
         'select data from app_store where id = $1 for update',
@@ -161,7 +256,17 @@ export function createPostgresStoreAdapter(options = {}) {
           'mutateStore의 mutator는 동기 함수여야 해. 비동기 mutator는 변경이 끝나기 전에 저장이 실행돼 저장소가 조용히 손상될 수 있어.',
         );
       }
+      // #209 GPS route side-table sweep: AFTER the mutator (so the result it built — e.g. the
+      // tracked-run detail payload — still references the embedded route array), move every
+      // embedded run route into run_routes and slim the blob. Runs inside the SAME transaction
+      // as the whole-store UPDATE, so a route row and its `routeStored: true` marker commit (or
+      // roll back) atomically — no crash window can strand a marker without a side row.
+      const extractedRoutes = routeSideTableReady ? extractEmbeddedRunRoutes(store) : [];
       const afterSerialized = serializeStore(store);
+
+      if (extractedRoutes.length > 0) {
+        await insertRunRoutes(client, extractedRoutes);
+      }
 
       if (afterSerialized !== beforeSerialized) {
         await client.query(
@@ -175,25 +280,108 @@ export function createPostgresStoreAdapter(options = {}) {
   }
 
   async function saveStore(nextStore) {
-    const serialized = serializeStore(nextStore);
-    const updated = await database.query(
-      'update app_store set data = $1, updated_at = now() where id = $2',
-      [serialized, STORE_ROW_ID],
-    );
+    // Sweep embedded routes here too so restoring an OLD (pre-#209) fat backup immediately
+    // re-slims the blob instead of waiting for the next mutateStore. Existing side rows win
+    // (insert ... on conflict do nothing).
+    const routeSideTableReady = await ensureRunRoutesSchema();
+    const storeToPersist = clone(nextStore);
+    const extractedRoutes = routeSideTableReady ? extractEmbeddedRunRoutes(storeToPersist) : [];
+    const serialized = serializeStore(storeToPersist);
 
-    if (updated.rowCount === 0) {
-      // No row yet — insert the provided store as the canonical row.
-      await database.query(
-        'insert into app_store (id, data, updated_at) values ($1, $2, now()) on conflict (id) do update set data = excluded.data, updated_at = now()',
-        [STORE_ROW_ID, serialized],
+    if (extractedRoutes.length > 0) {
+      await database.transaction(async (client) => {
+        await insertRunRoutes(client, extractedRoutes);
+        await client.query(
+          'insert into app_store (id, data, updated_at) values ($1, $2, now()) on conflict (id) do update set data = excluded.data, updated_at = now()',
+          [STORE_ROW_ID, serialized],
+        );
+      });
+    } else {
+      const updated = await database.query(
+        'update app_store set data = $1, updated_at = now() where id = $2',
+        [serialized, STORE_ROW_ID],
       );
+
+      if (updated.rowCount === 0) {
+        // No row yet — insert the provided store as the canonical row.
+        await database.query(
+          'insert into app_store (id, data, updated_at) values ($1, $2, now()) on conflict (id) do update set data = excluded.data, updated_at = now()',
+          [STORE_ROW_ID, serialized],
+        );
+      }
     }
 
     if (backupOnSave) {
       writeStoreBackupContents(serialized, 'save');
     }
 
-    return clone(nextStore);
+    return clone(storeToPersist);
+  }
+
+  // Read one run's GPS route back from the side table (null when absent or side table
+  // unavailable). jsonb arrives already parsed; clone so callers can't mutate the stored copy.
+  async function getRunRoute(runId) {
+    if (typeof runId !== 'string' || !runId) {
+      return null;
+    }
+
+    if (!(await ensureRunRoutesSchema())) {
+      return null;
+    }
+
+    const result = await database.query(
+      'select route from run_routes where run_id = $1',
+      [runId],
+    );
+    const route = result.rows[0]?.route;
+    return Array.isArray(route) ? clone(route) : null;
+  }
+
+  // One-time (idempotent) boot migration: sweep every legacy run that still embeds its GPS
+  // route inside the app_store blob into run_routes, then persist the slimmed blob ONCE.
+  // Re-runs are no-ops (nothing left to extract → no UPDATE). Safe across restarts: the
+  // route inserts and the blob UPDATE share one transaction under the row lock.
+  async function migrateEmbeddedRunRoutes() {
+    if (!(await ensureRunRoutesSchema())) {
+      console.error('[runningground-backend] run_routes boot migration skipped: schema ensure failed (routes stay embedded).');
+      return { migratedRuns: 0, bytesSaved: 0 };
+    }
+
+    const summary = await database.transaction(async (client) => {
+      const locked = await client.query(
+        'select data from app_store where id = $1 for update',
+        [STORE_ROW_ID],
+      );
+
+      if (locked.rows.length === 0) {
+        return { migratedRuns: 0, bytesSaved: 0 };
+      }
+
+      const store = locked.rows[0].data;
+      const beforeSerialized = serializeStore(store);
+      const extractedRoutes = extractEmbeddedRunRoutes(store);
+
+      if (extractedRoutes.length === 0) {
+        return { migratedRuns: 0, bytesSaved: 0 };
+      }
+
+      await insertRunRoutes(client, extractedRoutes);
+      const afterSerialized = serializeStore(store);
+      await client.query(
+        'update app_store set data = $1, updated_at = now() where id = $2',
+        [afterSerialized, STORE_ROW_ID],
+      );
+
+      return {
+        migratedRuns: extractedRoutes.length,
+        bytesSaved: Math.max(0, beforeSerialized.length - afterSerialized.length),
+      };
+    });
+
+    console.log(
+      `[runningground-backend] run_routes migration: ${summary.migratedRuns} run route(s) moved out of the app_store blob (~${Math.round(summary.bytesSaved / 1024)}KB trimmed).`,
+    );
+    return summary;
   }
 
   async function resetStore() {
@@ -256,6 +444,8 @@ export function createPostgresStoreAdapter(options = {}) {
     getStoreBackupDirectory,
     getStoreFilePath,
     getStoreDiagnostics,
+    getRunRoute,
+    migrateEmbeddedRunRoutes,
   };
 }
 

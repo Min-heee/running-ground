@@ -433,3 +433,160 @@ await runTest('B5: a retried match save (same userId+startedAt+matchId) upgrades
   assert.notEqual(otherMatch.run.id, first.run.id);
   assert.equal(storeHarness.getStore().runs.length, 2);
 });
+
+await runTest('#209: getRun re-attaches a side-table route for routeStored runs (postgres driver)', async () => {
+  const sideRoutes = new Map([
+    ['run-stored', [{ latitude: 37.5, longitude: 127.0, timestamp: '2026-04-21T10:00:00.000Z' }]],
+  ]);
+  const { repository } = createRepositoryHarness({
+    runs: [
+      {
+        id: 'run-stored',
+        userId: 'user-1',
+        date: '2026-04-21',
+        distanceKm: 3,
+        pace: '06:00/km',
+        source: 'RunningGround',
+        sourceType: 'runningground',
+        routeStored: true,
+      },
+    ],
+  }, {
+    getStoredRunRoute: async (runId) => sideRoutes.get(runId) ?? null,
+  });
+
+  const detail = await repository.getRun({ token: 'token-1', runId: 'run-stored' });
+  assert.deepEqual(detail.run.route, sideRoutes.get('run-stored'));
+});
+
+await runTest('#209: json-driver getRun (no side table wired) keeps embedded routes untouched', async () => {
+  const embeddedRoute = [{ latitude: 37.5, longitude: 127.0 }];
+  const { repository } = createRepositoryHarness({
+    runs: [
+      {
+        id: 'run-embedded',
+        userId: 'user-1',
+        date: '2026-04-21',
+        distanceKm: 3,
+        pace: '06:00/km',
+        source: 'RunningGround',
+        sourceType: 'runningground',
+        route: embeddedRoute,
+      },
+    ],
+  });
+
+  const detail = await repository.getRun({ token: 'token-1', runId: 'run-embedded' });
+  assert.deepEqual(detail.run.route, embeddedRoute);
+});
+
+await runTest('#209: a retried tracked save re-attaches the side-table route to its dedupe payload', async () => {
+  const storedRoute = [
+    { latitude: 37.5, longitude: 127.0, timestamp: '2026-04-24T10:00:00.000Z' },
+    { latitude: 37.51, longitude: 127.01, timestamp: '2026-04-24T10:10:00.000Z' },
+  ];
+  const routeFetches = [];
+  const { repository, storeHarness } = createRepositoryHarness({
+    runs: [
+      {
+        id: 'run-original',
+        userId: 'user-1',
+        date: '2026-04-24',
+        distanceKm: 5,
+        pace: '05:30/km',
+        durationSeconds: 1650,
+        routeStored: true,
+        startedAt: '2026-04-24T10:00:00.000Z',
+        endedAt: '2026-04-24T10:27:30.000Z',
+        source: 'RunningGround',
+        sourceType: 'runningground',
+        createdAt: '2026-04-24T10:27:40.000Z',
+      },
+    ],
+  }, {
+    getStoredRunRoute: async (runId) => {
+      routeFetches.push(runId);
+      return runId === 'run-original' ? storedRoute : null;
+    },
+  });
+
+  // The client retries the SAME save after a timeout: dedupe returns the stored run — and the
+  // response must still carry the route exactly like the original 201 did.
+  const retry = await repository.createTrackedRun({
+    token: 'token-1',
+    input: {
+      date: '2026-04-24',
+      distanceKm: 5,
+      pace: '05:30/km',
+      durationSeconds: 1650,
+      route: storedRoute,
+      startedAt: '2026-04-24T10:00:00.000Z',
+      endedAt: '2026-04-24T10:27:30.000Z',
+    },
+  });
+
+  assert.equal(retry.run.id, 'run-original');
+  assert.deepEqual(retry.run.route, storedRoute);
+  assert.deepEqual(routeFetches, ['run-original']);
+  assert.equal(storeHarness.getStore().runs.length, 1, 'no duplicate run row');
+});
+
+await runTest('#209: a fresh tracked save answers with its own input route without a side-table fetch', async () => {
+  const inputRoute = [{ latitude: 37.5, longitude: 127.0, timestamp: '2026-04-24T10:00:00.000Z' }];
+  const routeFetches = [];
+  const { repository } = createRepositoryHarness({}, {
+    getStoredRunRoute: async (runId) => {
+      routeFetches.push(runId);
+      return null;
+    },
+  });
+
+  const created = await repository.createTrackedRun({
+    token: 'token-1',
+    input: {
+      date: '2026-04-24',
+      distanceKm: 5,
+      pace: '05:30/km',
+      durationSeconds: 1650,
+      route: inputRoute,
+      startedAt: '2026-04-24T10:00:00.000Z',
+      endedAt: '2026-04-24T10:27:30.000Z',
+    },
+  });
+
+  assert.deepEqual(created.run.route, inputRoute);
+  assert.deepEqual(routeFetches, [], 'the embedded input route makes the side-table fetch unnecessary');
+});
+
+await runTest('#209: a re-attached route reproduces the embedded-route run detail BYTE-identically (real buildRunDetail)', async () => {
+  const { buildRunDetail, attachRouteToRunPayload } = await import('../lib/runHelpers.mjs');
+  const route = [
+    { latitude: 37.5665, longitude: 126.978, timestamp: '2026-04-24T10:00:00.000Z' },
+    { latitude: 37.5671, longitude: 126.9792, timestamp: '2026-04-24T10:10:00.000Z' },
+  ];
+  const baseRun = {
+    id: 'run-shape',
+    userId: 'user-1',
+    date: '2026-04-24',
+    distanceKm: 5.2,
+    pace: '05:30/km',
+    durationSeconds: 1650,
+    cadenceSpm: 172,
+    elevationGainM: 34,
+    startedAt: '2026-04-24T10:00:00.000Z',
+    endedAt: '2026-04-24T10:27:30.000Z',
+    matchResult: { mode: 'duel', matchId: 'duel-shape', resultTone: 'win', badgeLabel: '승리' },
+    source: 'RunningGround',
+    sourceType: 'runningground',
+    createdAt: '2026-04-24T10:27:40.000Z',
+  };
+  const metrics = buildUserRunMetrics([{ ...baseRun, route }]);
+
+  // Today's shape: the route embedded in the run object.
+  const embedded = buildRunDetail({ ...baseRun, route }, 12.3, undefined, metrics);
+  // #209 shape: slim routeStored run detail + post-hoc side-table re-attach.
+  const slim = buildRunDetail({ ...baseRun, routeStored: true }, 12.3, undefined, metrics);
+  const reattached = { ...slim, run: attachRouteToRunPayload(slim.run, route) };
+
+  assert.equal(JSON.stringify(reattached), JSON.stringify(embedded));
+});

@@ -1,3 +1,5 @@
+import { attachRouteToRunPayload, attachStoredRunRoute } from '../lib/runHelpers.mjs';
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -369,12 +371,16 @@ export function createJsonRunsRepository({
   // which would otherwise leave a stale, pre-push metrics entry cached and miss the new run's
   // match bonus. No-op by default for callers (and stores) without a metrics cache.
   invalidateUserMetrics = () => {},
+  // #209: resolves a run's GPS route from the run_routes side table when the store driver keeps
+  // routes out of the whole-store blob (postgres). Defaults to null so the json driver (and any
+  // caller that does not wire it) keeps today's embedded-route behavior byte-for-byte.
+  getStoredRunRoute = async () => null,
 }) {
   return {
     async getRun({ token, runId }) {
       const store = await loadStore();
       const user = requireUserByToken(store, token);
-      const run = getRunForUser(store, user.id, runId, createError);
+      const run = await attachStoredRunRoute(getRunForUser(store, user.id, runId, createError), getStoredRunRoute);
       const metrics = getUserMetrics(store, user.id);
 
       return buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics);
@@ -410,7 +416,7 @@ export function createJsonRunsRepository({
     },
 
     async createTrackedRun({ token, input }) {
-      return mutateStore((store) => {
+      const payload = await mutateStore((store) => {
         const user = requireUserByToken(store, token);
 
         // P1-2 stopgap idempotency: a retried /api/runs/tracked after a timeout must NOT double
@@ -498,6 +504,25 @@ export function createJsonRunsRepository({
         const metrics = getUserMetrics(store, user.id);
         return buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics);
       });
+
+      // #209: the dedupe-retry paths above build their payload from a run whose route lives in
+      // the run_routes side table (postgres driver), so the sync mutator could not attach it.
+      // Re-attach here — in buildRunDetail's canonical key position — so a retried save answers
+      // with exactly the same run detail shape as the original. The fresh-insert path already
+      // carries its embedded input route, and the json driver's stored runs stay embedded, so
+      // this only fires when the route is genuinely missing from the payload.
+      if (payload?.run && payload.run.id && payload.run.route === undefined) {
+        const storedRoute = await getStoredRunRoute(payload.run.id);
+
+        if (Array.isArray(storedRoute)) {
+          return {
+            ...payload,
+            run: attachRouteToRunPayload(payload.run, storedRoute),
+          };
+        }
+      }
+
+      return payload;
     },
 
     async queueIntegrationImports({ token, sourceType, normalizedRuns }) {

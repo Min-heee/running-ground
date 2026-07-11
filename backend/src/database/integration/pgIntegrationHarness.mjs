@@ -26,6 +26,7 @@ export const APP_TABLES = [
   'sessions',
   'social_accounts',
   'runs',
+  'run_routes',
   'integration_imports',
   'friend_requests',
   'friendships',

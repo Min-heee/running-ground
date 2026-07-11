@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { loadStore, mutateStore, getStoreFilePath, getStoreDiagnostics, resetStore, STORE_DRIVER } from './storage/index.mjs';
+import { loadStore, mutateStore, getStoreFilePath, getStoreDiagnostics, getStoredRunRoute, resetStore, STORE_DRIVER } from './storage/index.mjs';
 // The json repositories go through the ASYNC store seam (loadStore/mutateStore from
 // ./storage/index.mjs) so the WHOLE backend — not just the direct route call sites — runs on
 // Postgres when BACKEND_STORE_DRIVER=postgres. Each repo method awaits the injected seam.
@@ -394,6 +394,9 @@ function getRunsRepository() {
           : resolveSavedDuelMatchResult(store, user, matchResult)
       ),
       invalidateUserMetrics,
+      // #209: run detail responses re-attach GPS routes stored in the run_routes side table
+      // (postgres driver); the json driver keeps routes embedded and this resolves to null.
+      getStoredRunRoute,
     });
   }
 
@@ -412,6 +415,7 @@ function getFriendsRepository() {
       buildRunDetail,
       nextId,
       createError: (statusCode, message) => new ApiError(statusCode, message),
+      getStoredRunRoute,
     });
   }
 
@@ -664,6 +668,7 @@ const {
   getRaceRepository,
   loadCurrentUserReadContext,
   loadStore,
+  getStoredRunRoute,
 });
 
 const backendStatusService = createBackendStatusService({

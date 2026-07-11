@@ -20,6 +20,20 @@ create table if not exists app_metadata (
   updated_at timestamptz not null default now()
 );
 
+-- #209 GPS route side table for the whole-store (Path B) model. Saved runs keep every
+-- stat/verdict field inside the app_store blob but their GPS polyline (up to ~1500 points,
+-- ~200KB per run) lives here, keyed by the run's id, so per-mutation blob serialization stops
+-- scaling with run history. The runtime also creates this table on boot (create table if not
+-- exists) because existing volumes never re-run docker-entrypoint-initdb.d.
+create table if not exists run_routes (
+  run_id text primary key,
+  user_id text,
+  route jsonb not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists run_routes_user_idx on run_routes (user_id);
+
 create table if not exists users (
   id text primary key,
   username text not null,

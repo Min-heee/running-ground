@@ -1,3 +1,4 @@
+import { attachStoredRunRoute } from '../lib/runHelpers.mjs';
 import { appendUserNotification } from '../lib/userNotifications.mjs';
 
 function getFriendIds(store, userId) {
@@ -182,6 +183,10 @@ export function createJsonFriendsRepository({
   nextId,
   nowIso = () => new Date().toISOString(),
   createError,
+  // #209: resolves a run's GPS route from the run_routes side table when the store driver keeps
+  // routes out of the whole-store blob (postgres). Defaults to null so the json driver (and any
+  // caller that does not wire it) keeps today's embedded-route behavior byte-for-byte.
+  getStoredRunRoute = async () => null,
 }) {
   return {
     async getLeaderboard({ token }) {
@@ -389,7 +394,10 @@ export function createJsonFriendsRepository({
       const currentUser = requireUserByToken(store, token);
       requireFriendAccess(store, currentUser.id, friendId, createError);
 
-      const run = getRunForUser(getRunsForUser(store, friendId), runId, createError);
+      const run = await attachStoredRunRoute(
+        getRunForUser(getRunsForUser(store, friendId), runId, createError),
+        getStoredRunRoute,
+      );
       const metrics = getUserMetrics(store, friendId);
 
       return buildRunDetail(run, metrics.currentWeekDistanceKm, '친구 기록', metrics);

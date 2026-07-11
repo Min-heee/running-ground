@@ -54,6 +54,11 @@ let activeAdapter = jsonStoreAdapter;
 if (STORE_DRIVER === 'postgres') {
   const { createPostgresStoreAdapter } = await import('./postgresStoreAdapter.mjs');
   activeAdapter = createPostgresStoreAdapter();
+  // #209 GPS route side-table boot migration (postgres driver only, idempotent): move every
+  // legacy run route still embedded in the app_store blob into run_routes and persist the
+  // slimmed blob once, so per-mutation serialize cost stops scaling with run history. Runs at
+  // module init (top-level await), i.e. before the server accepts any request.
+  await activeAdapter.migrateEmbeddedRunRoutes();
 }
 
 // ---- Async-uniform core store operations -------------------------------------------------
@@ -83,6 +88,16 @@ export async function createStoreBackup(reason) {
 
 export async function restoreStoreBackup(backupFileNameOrPath) {
   return activeAdapter.restoreStoreBackup(backupFileNameOrPath);
+}
+
+// #209: read one run's GPS route from the side table. json driver keeps routes embedded in the
+// run objects (no side table), so it answers null and callers simply use run.route as before.
+export async function getStoredRunRoute(runId) {
+  if (typeof activeAdapter.getRunRoute !== 'function') {
+    return null;
+  }
+
+  return activeAdapter.getRunRoute(runId);
 }
 
 // ---- Synchronous helpers (sync in both adapters) -----------------------------------------

@@ -3,7 +3,7 @@ import { buildProfileWithMetrics } from '../lib/userStoreHelpers.mjs';
 import { buildUpcomingRunningMatchesResponse } from '../lib/runningMatchStoreHelpers.mjs';
 import { buildIntegrationSources } from '../lib/integrationSources.mjs';
 import { buildHomeSummaryWithMetrics, buildMyActivityWithRunsAndMetrics } from '../lib/homeBuilders.mjs';
-import { buildRunDetail, getRunFromList } from '../lib/runHelpers.mjs';
+import { attachStoredRunRoute, buildRunDetail, getRunFromList } from '../lib/runHelpers.mjs';
 
 export function createReadPayloadBuilders({
   getAccessToken,
@@ -12,6 +12,10 @@ export function createReadPayloadBuilders({
   getRaceRepository,
   loadCurrentUserReadContext,
   loadStore,
+  // #209: resolves a run's GPS route from the run_routes side table when the store driver keeps
+  // routes out of the whole-store blob (postgres). Defaults to null so json-driver callers keep
+  // today's embedded-route behavior byte-for-byte.
+  getStoredRunRoute = async () => null,
 }) {
   async function buildProfileReadPayload(request) {
     const { user, metrics } = await loadCurrentUserReadContext(request, {
@@ -103,7 +107,9 @@ export function createReadPayloadBuilders({
       includeRuns: true,
       includeMetrics: true,
     });
-    const run = getRunFromList(runs, runId);
+    // #209: run detail is the endpoint that actually needs the GPS route — re-attach it from
+    // the run_routes side table so the response shape stays exactly as before the blob split.
+    const run = await attachStoredRunRoute(getRunFromList(runs, runId), getStoredRunRoute);
 
     return buildRunDetail(run, metrics.currentWeekDistanceKm, undefined, metrics);
   }
