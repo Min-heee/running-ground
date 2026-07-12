@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import type { AddressRegionNode } from '@/features/location/addressCatalog';
 import { buildRegionSelectionState } from '@/features/location/RegionSelection';
@@ -14,6 +14,7 @@ import {
   verifySignupPhoneCode,
 } from '@/lib/session';
 import { formatBirthDateInput, formatPhoneInput } from '@/features/auth/utils/signupFormatters';
+import { usePhoneVerificationForm } from '@/features/auth/hooks/usePhoneVerificationForm';
 
 type UsernameCheckState = {
   status: 'idle' | 'checking' | 'available' | 'unavailable' | 'error';
@@ -32,15 +33,6 @@ export function useSignupForm() {
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [phone, setPhone] = useState('');
-  const [phoneVerificationRequestId, setPhoneVerificationRequestId] = useState('');
-  const [phoneVerificationCode, setPhoneVerificationCode] = useState('');
-  const [phoneVerificationToken, setPhoneVerificationToken] = useState('');
-  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
-  const [isRequestingPhoneCode, setIsRequestingPhoneCode] = useState(false);
-  const [isVerifyingPhoneCode, setIsVerifyingPhoneCode] = useState(false);
-  const [phoneVerificationError, setPhoneVerificationError] = useState<string | null>(null);
-  const [phoneResendCooldown, setPhoneResendCooldown] = useState(0);
-  const phoneCooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [provinceName, setProvinceName] = useState('');
   const [secondaryRegionName, setSecondaryRegionName] = useState('');
   const [regions, setRegions] = useState<AddressRegionNode[]>([]);
@@ -56,6 +48,15 @@ export function useSignupForm() {
     message: null,
     checkedUsername: '',
   });
+
+  // Shared signup/recovery phone-OTP state machine; the signup 'purpose' tag lives
+  // inside the injected signup service actions.
+  const phoneVerification = usePhoneVerificationForm({
+    phone,
+    requestCode: requestSignupPhoneVerification,
+    verifyCode: verifySignupPhoneCode,
+  });
+  const isPhoneVerified = phoneVerification.isVerified;
 
   const normalizedUsername = useMemo(() => normalizeUsername(username), [username]);
   const usernameValidationMessage = useMemo(() => (username ? getUsernameValidationError(username) : null), [username]);
@@ -105,7 +106,7 @@ export function useSignupForm() {
   const checkingUsername = usernameCheck.status === 'checking';
   const usernameReady = usernameCheck.status === 'available' && usernameCheck.checkedUsername === normalizedUsername;
   const normalizedPhone = useMemo(() => phone.replace(/\D/g, ''), [phone]);
-  const phoneValid = normalizedPhone.length >= 10;
+  const phoneValid = phoneVerification.phoneValid;
   const requiredProfileReady = Boolean(
     publicDisplayName
     && realName.trim()
@@ -134,55 +135,6 @@ export function useSignupForm() {
     setOpenRegionStep('detail');
   }, [selectedProvince, selectedSecondary]);
 
-  useEffect(() => () => {
-    if (phoneCooldownTimerRef.current) {
-      clearInterval(phoneCooldownTimerRef.current);
-    }
-  }, []);
-
-  const startPhoneResendCooldown = useCallback((resendAvailableAt?: string) => {
-    if (phoneCooldownTimerRef.current) {
-      clearInterval(phoneCooldownTimerRef.current);
-    }
-
-    const parsedResendMs = resendAvailableAt ? new Date(resendAvailableAt).getTime() : Number.NaN;
-    const initialSeconds = Number.isFinite(parsedResendMs)
-      ? Math.max(0, Math.ceil((parsedResendMs - Date.now()) / 1000))
-      : 60;
-
-    setPhoneResendCooldown(initialSeconds);
-
-    if (initialSeconds <= 0) {
-      return;
-    }
-
-    phoneCooldownTimerRef.current = setInterval(() => {
-      setPhoneResendCooldown((current) => {
-        if (current <= 1) {
-          if (phoneCooldownTimerRef.current) {
-            clearInterval(phoneCooldownTimerRef.current);
-            phoneCooldownTimerRef.current = null;
-          }
-          return 0;
-        }
-        return current - 1;
-      });
-    }, 1000);
-  }, []);
-
-  const resetPhoneVerification = useCallback(() => {
-    if (phoneCooldownTimerRef.current) {
-      clearInterval(phoneCooldownTimerRef.current);
-      phoneCooldownTimerRef.current = null;
-    }
-    setPhoneVerificationRequestId('');
-    setPhoneVerificationCode('');
-    setPhoneVerificationToken('');
-    setIsPhoneVerified(false);
-    setPhoneVerificationError(null);
-    setPhoneResendCooldown(0);
-  }, []);
-
   const handleUsernameChange = (value: string) => {
     const nextUsername = value.trim().toLowerCase();
     setUsername(nextUsername);
@@ -208,62 +160,10 @@ export function useSignupForm() {
       // The verification token is bound to the previously verified number.
       // If the digits actually change, any prior verification must be discarded.
       if (formattedPhone !== currentPhone) {
-        resetPhoneVerification();
+        phoneVerification.resetVerification();
       }
       return formattedPhone;
     });
-  };
-
-  const handleRequestPhoneCode = async () => {
-    if (!phoneValid || isRequestingPhoneCode || phoneResendCooldown > 0) {
-      return;
-    }
-
-    setPhoneVerificationError(null);
-    setIsRequestingPhoneCode(true);
-
-    try {
-      const result = await requestSignupPhoneVerification(phone);
-      setPhoneVerificationRequestId(result.requestId);
-      setPhoneVerificationCode('');
-      setIsPhoneVerified(false);
-      setPhoneVerificationToken('');
-      startPhoneResendCooldown(result.resendAvailableAt);
-    } catch (requestError) {
-      setPhoneVerificationError(getApiErrorMessage(requestError, '인증번호 발송에 실패했어요.'));
-    } finally {
-      setIsRequestingPhoneCode(false);
-    }
-  };
-
-  const handlePhoneVerificationCodeChange = (nextValue: string) => {
-    setPhoneVerificationCode(nextValue.replace(/\D/g, '').slice(0, 6));
-    setPhoneVerificationError(null);
-  };
-
-  const handleVerifyPhoneCode = async () => {
-    if (!phoneVerificationRequestId || phoneVerificationCode.length !== 6 || isVerifyingPhoneCode) {
-      return;
-    }
-
-    setPhoneVerificationError(null);
-    setIsVerifyingPhoneCode(true);
-
-    try {
-      const result = await verifySignupPhoneCode(phoneVerificationRequestId, phoneVerificationCode);
-      setPhoneVerificationToken(result.verifiedToken);
-      setIsPhoneVerified(true);
-
-      if (phoneCooldownTimerRef.current) {
-        clearInterval(phoneCooldownTimerRef.current);
-        phoneCooldownTimerRef.current = null;
-      }
-      setPhoneResendCooldown(0);
-    } catch (verifyError) {
-      setPhoneVerificationError(getApiErrorMessage(verifyError, '인증번호 확인에 실패했어요.'));
-    } finally {
-      setIsVerifyingPhoneCode(false);
-    }
   };
 
   const handleBirthDateChange = (nextValue: string) => {
@@ -364,7 +264,7 @@ export function useSignupForm() {
         districtName: finalDistrictName,
         addressDetail,
         birthDate,
-        phoneVerificationToken,
+        phoneVerificationToken: phoneVerification.verifiedToken,
       });
       router.replace('/welcome');
     } catch (signupError) {
@@ -396,9 +296,9 @@ export function useSignupForm() {
     handleBirthDateChange,
     handleCheckUsername,
     handlePhoneChange,
-    handlePhoneVerificationCodeChange,
-    handleRequestPhoneCode,
-    handleVerifyPhoneCode,
+    handlePhoneVerificationCodeChange: phoneVerification.handleCodeChange,
+    handleRequestPhoneCode: phoneVerification.handleRequestCode,
+    handleVerifyPhoneCode: phoneVerification.handleVerifyCode,
     handleSelectProvince,
     handleSelectSecondary,
     handleSignup,
@@ -407,13 +307,13 @@ export function useSignupForm() {
     normalizedPhone,
     openRegionStep,
     isPhoneVerified,
-    isRequestingPhoneCode,
-    isVerifyingPhoneCode,
-    phoneResendCooldown,
+    isRequestingPhoneCode: phoneVerification.isRequestingCode,
+    isVerifyingPhoneCode: phoneVerification.isVerifyingCode,
+    phoneResendCooldown: phoneVerification.resendCooldown,
     phoneValid,
-    phoneVerificationCode,
-    phoneVerificationError,
-    phoneVerificationRequestId,
+    phoneVerificationCode: phoneVerification.code,
+    phoneVerificationError: phoneVerification.error,
+    phoneVerificationRequestId: phoneVerification.requestId,
     password,
     passwordConfirm,
     passwordConfirmMessage,
