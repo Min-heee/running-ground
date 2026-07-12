@@ -3,6 +3,7 @@ import test from 'node:test';
 import { ApiError } from '../response/httpResponse.mjs';
 import {
   resolveRegionSelection,
+  validateDateOnly,
   validateDuelMatchDistanceKm,
   validateRunningMatchProgressDistanceKm,
 } from './validators.mjs';
@@ -71,4 +72,29 @@ test('resolveRegionSelection rejects a leaf 시 whose districtName does not equa
     () => resolveRegionSelection('경기도', '고양시', ''),
     (error) => error instanceof ApiError,
   );
+});
+
+// ── validateDateOnly: "오늘"은 KST 달력 기준 ─────────────────────────────────────
+// 2026-07-12T18:30:00Z = KST 2026-07-13 03:30 — UTC 날짜와 KST 날짜가 갈라지는 창.
+
+test('validateDateOnly accepts the KST-today date during the after-midnight window', () => {
+  const kstEarlyMorning = new Date('2026-07-12T18:30:00Z');
+  assert.equal(validateDateOnly('2026-07-13', '날짜를 입력해줘.', kstEarlyMorning), '2026-07-13');
+});
+
+test('validateDateOnly still rejects a genuinely future KST date', () => {
+  const kstEarlyMorning = new Date('2026-07-12T18:30:00Z');
+  assert.throws(
+    () => validateDateOnly('2026-07-14', '날짜를 입력해줘.', kstEarlyMorning),
+    (error) => error instanceof ApiError && error.statusCode === 400,
+  );
+});
+
+test('validateDateOnly keeps rejecting tomorrow when UTC and KST agree', () => {
+  const kstAfternoon = new Date('2026-07-13T06:00:00Z'); // KST 15:00 — same date both clocks
+  assert.throws(
+    () => validateDateOnly('2026-07-14', '날짜를 입력해줘.', kstAfternoon),
+    (error) => error instanceof ApiError && error.statusCode === 400,
+  );
+  assert.equal(validateDateOnly('2026-07-13', '날짜를 입력해줘.', kstAfternoon), '2026-07-13');
 });

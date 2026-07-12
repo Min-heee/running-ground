@@ -139,14 +139,25 @@ export function resolveRegionSelection(rawProvinceName, rawCityName, rawDistrict
   };
 }
 
-export function validateDateOnly(value, message) {
+// 서비스는 한국 전용이고 클라이언트가 보내는 날짜는 유저의 KST 달력 날짜다. "오늘"을
+// UTC(toISOString)나 서버 로컬 시계로 계산하면 KST 00:00~09:00 사이에 유저의 오늘이
+// 아직 어제로 보여서 같은 날 기록이 전부 "미래"로 거부된다 — 자정 넘어 수동 기록을
+// 추가하는 유저와 출시일 새벽 임포트가 실제로 이 경계에 걸린다.
+const KST_DATE_ONLY_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Seoul',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+
+export function validateDateOnly(value, message, now = new Date()) {
   const date = validateRequiredString(value, message);
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     throw new ApiError(400, '날짜는 YYYY-MM-DD 형식으로 입력해줘.');
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = KST_DATE_ONLY_FORMAT.format(now);
 
   if (date > today) {
     throw new ApiError(400, '미래 날짜의 기록은 아직 추가할 수 없어.');
