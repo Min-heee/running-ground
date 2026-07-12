@@ -52,7 +52,9 @@ function createRun({ id, userId, distanceKm = 5, pace = '06:20/km', startedAt = 
     distanceKm,
     pace,
     source: 'RunningGround',
-    sourceType: 'manual',
+    // Match surfaces read the COMPETITIVE-only runner profile — fixture runs must
+    // be app-tracked or the pace falls back to the neutral 5.5.
+    sourceType: 'runningground',
     startedAt,
     endedAt: iso(-24 * 60 * 60 * 1000 + 32 * 60 * 1000),
     durationSeconds: 32 * 60,

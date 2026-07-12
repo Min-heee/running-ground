@@ -118,64 +118,82 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
   const sortedRuns = getSortedRuns(runs);
   const runPointsById = new Map();
   const weekDistanceByKey = new Map();
-  // Competitive weekly distance only counts in-app GPS-tracked + match runs
-  // (isCompetitiveRun). Imports (apple_health/health_connect/nrc/strava/garmin/
-  // manual) are display-only and excluded so they can't inflate a user's
-  // competitive leaderboard standing. The full weekDistanceByKey above stays
-  // unchanged for personal surfaces (home 기록 카드, profile, 내 활동).
+  // Competitive aggregates only count in-app GPS-tracked + match runs
+  // (isCompetitiveRun). Imports (apple_health/health_connect/manual) are
+  // display-only and excluded so they can't inflate a user's competitive
+  // leaderboard standing. The full weekDistanceByKey above stays unchanged
+  // for personal surfaces (home 기록 카드, profile, 내 활동).
   const competitiveWeekDistanceByKey = new Map();
   const weekRunCountByKey = new Map();
-  const weekRunsByKey = new Map();
   const monthDistanceByKey = new Map();
-  const lastRunIdByDate = new Map();
   const distanceByDate = new Map();
+  // POINTS are competitive-only: a health-store import can be hand-typed into
+  // the platform health app, and points are redeemable in the market and used
+  // as a ranking tie-break — so imported runs mint nothing. Every points
+  // lattice below (level ladder, streak, weekly growth) therefore runs on its
+  // own competitive-only structures; imported runs simply have no
+  // runPointsById entry (getRunPointValue → 0).
+  const competitiveWeekRunsByKey = new Map();
+  const competitiveDistanceByDate = new Map();
+  const competitiveLastRunIdByDate = new Map();
 
   let cumulativeDistanceKm = 0;
+  let competitiveCumulativeDistanceKm = 0;
   let latestRun = null;
 
   for (const run of sortedRuns) {
-    const beforeLevel = Math.floor(cumulativeDistanceKm / 10);
     cumulativeDistanceKm = toFixed1(cumulativeDistanceKm + run.distanceKm);
-    const afterLevel = Math.floor(cumulativeDistanceKm / 10);
-    const levelPoints = Math.max(0, afterLevel - beforeLevel) * 10;
-    const matchBonusPoints = getMatchBonusPoints(run.matchResult);
 
     const runDate = parseRunDate(run.date);
     const weekKey = getWeekKey(runDate);
     const monthKey = getMonthKey(runDate);
 
-    runPointsById.set(run.id, {
-      earnedPoint: levelPoints + matchBonusPoints,
-      levelPoints,
-      matchBonusPoints,
-      streakPoints: 0,
-      growthPoints: 0,
-      weekKey,
-      monthKey,
-      dateKey: run.date,
-    });
-
-    weekDistanceByKey.set(weekKey, toFixed1((weekDistanceByKey.get(weekKey) ?? 0) + run.distanceKm));
-
     if (isCompetitiveRun(run)) {
+      // The level ladder for points climbs on the COMPETITIVE cumulative
+      // distance, so an imported run can neither trigger nor shift a level
+      // bonus. Match bonuses are safe here: a run carrying matchResult is
+      // competitive by definition.
+      const beforeLevel = Math.floor(competitiveCumulativeDistanceKm / 10);
+      competitiveCumulativeDistanceKm = toFixed1(competitiveCumulativeDistanceKm + run.distanceKm);
+      const afterLevel = Math.floor(competitiveCumulativeDistanceKm / 10);
+      const levelPoints = Math.max(0, afterLevel - beforeLevel) * 10;
+      const matchBonusPoints = getMatchBonusPoints(run.matchResult);
+
+      runPointsById.set(run.id, {
+        earnedPoint: levelPoints + matchBonusPoints,
+        levelPoints,
+        matchBonusPoints,
+        streakPoints: 0,
+        growthPoints: 0,
+        weekKey,
+        monthKey,
+        dateKey: run.date,
+      });
+
       competitiveWeekDistanceByKey.set(
         weekKey,
         toFixed1((competitiveWeekDistanceByKey.get(weekKey) ?? 0) + run.distanceKm),
       );
+      competitiveWeekRunsByKey.set(weekKey, [...(competitiveWeekRunsByKey.get(weekKey) ?? []), run]);
+      competitiveDistanceByDate.set(run.date, toFixed1((competitiveDistanceByDate.get(run.date) ?? 0) + run.distanceKm));
+      competitiveLastRunIdByDate.set(run.date, run.id);
     }
 
+    weekDistanceByKey.set(weekKey, toFixed1((weekDistanceByKey.get(weekKey) ?? 0) + run.distanceKm));
     monthDistanceByKey.set(monthKey, toFixed1((monthDistanceByKey.get(monthKey) ?? 0) + run.distanceKm));
     weekRunCountByKey.set(weekKey, (weekRunCountByKey.get(weekKey) ?? 0) + 1);
-    weekRunsByKey.set(weekKey, [...(weekRunsByKey.get(weekKey) ?? []), run]);
     distanceByDate.set(run.date, toFixed1((distanceByDate.get(run.date) ?? 0) + run.distanceKm));
-    lastRunIdByDate.set(run.date, run.id);
     latestRun = run;
   }
 
   const lifetimeDistanceKm = toFixed1(cumulativeDistanceKm);
   const distanceLevel = Math.floor(lifetimeDistanceKm / 10);
   const minimumRunDistanceKm = getMinimumRunDistanceForStreak(distanceLevel);
+  const competitiveLifetimeDistanceKm = toFixed1(competitiveCumulativeDistanceKm);
+  const competitiveDistanceLevel = Math.floor(competitiveLifetimeDistanceKm / 10);
 
+  // Display streak (home 연속 기록) — all runs, imports included: a personal
+  // surface, so it keeps the pre-existing behavior. It awards NO points.
   const qualifiedDateKeys = [...distanceByDate.entries()]
     .filter(([, totalDistanceKm]) => totalDistanceKm >= minimumRunDistanceKm)
     .map(([dateKey]) => dateKey)
@@ -189,10 +207,32 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     const streakDays = previousQualifiedDate && differenceInCalendarDays(runDate, previousQualifiedDate) === 1
       ? (streakByDate.get(getDateKey(previousQualifiedDate)) ?? 1) + 1
       : 1;
-    const rewardPoints = getConsecutiveRewardPoints(streakDays);
-    const runId = lastRunIdByDate.get(dateKey);
 
     streakByDate.set(dateKey, streakDays);
+    previousQualifiedDate = runDate;
+  }
+
+  // Points streak — competitive runs only, on the competitive qualification
+  // threshold, so imported runs can neither start, extend, nor qualify a
+  // points-earning streak day.
+  const competitiveMinimumRunDistanceKm = getMinimumRunDistanceForStreak(competitiveDistanceLevel);
+  const competitiveQualifiedDateKeys = [...competitiveDistanceByDate.entries()]
+    .filter(([, totalDistanceKm]) => totalDistanceKm >= competitiveMinimumRunDistanceKm)
+    .map(([dateKey]) => dateKey)
+    .sort((left, right) => left.localeCompare(right));
+
+  let previousCompetitiveQualifiedDate = null;
+  const competitiveStreakByDate = new Map();
+
+  for (const dateKey of competitiveQualifiedDateKeys) {
+    const runDate = parseRunDate(dateKey);
+    const streakDays = previousCompetitiveQualifiedDate && differenceInCalendarDays(runDate, previousCompetitiveQualifiedDate) === 1
+      ? (competitiveStreakByDate.get(getDateKey(previousCompetitiveQualifiedDate)) ?? 1) + 1
+      : 1;
+    const rewardPoints = getConsecutiveRewardPoints(streakDays);
+    const runId = competitiveLastRunIdByDate.get(dateKey);
+
+    competitiveStreakByDate.set(dateKey, streakDays);
 
     if (runId) {
       const currentPoints = runPointsById.get(runId);
@@ -203,21 +243,23 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
       }
     }
 
-    previousQualifiedDate = runDate;
+    previousCompetitiveQualifiedDate = runDate;
   }
 
-  const sortedWeekKeys = [...weekDistanceByKey.keys()].sort((left, right) => left.localeCompare(right));
+  // Growth points — competitive week-over-week only, so imports can't
+  // manufacture a "distance grew this week" bonus.
+  const sortedWeekKeys = [...competitiveWeekDistanceByKey.keys()].sort((left, right) => left.localeCompare(right));
 
   for (const weekKey of sortedWeekKeys) {
     const previousWeekKey = getDateKey(addDays(parseRunDate(weekKey), -7));
-    const currentWeekDistanceKm = weekDistanceByKey.get(weekKey) ?? 0;
-    const previousWeekDistanceKm = weekDistanceByKey.get(previousWeekKey) ?? 0;
+    const currentWeekDistanceKm = competitiveWeekDistanceByKey.get(weekKey) ?? 0;
+    const previousWeekDistanceKm = competitiveWeekDistanceByKey.get(previousWeekKey) ?? 0;
 
     if (currentWeekDistanceKm <= previousWeekDistanceKm || currentWeekDistanceKm <= 0) {
       continue;
     }
 
-    const weekRuns = weekRunsByKey.get(weekKey) ?? [];
+    const weekRuns = competitiveWeekRunsByKey.get(weekKey) ?? [];
     let progressedDistanceKm = 0;
     let runId = null;
 
@@ -280,6 +322,8 @@ export function buildUserRunMetrics(runs, currentDate = new Date()) {
     minimumRunDistanceKm,
     latestRun,
     currentStreakDays,
+    competitiveLifetimeDistanceKm,
+    competitiveDistanceLevel,
     currentWeekDistanceKm: toFixed1(currentWeekDistanceKm),
     competitiveWeekDistanceKm: toFixed1(competitiveWeekDistanceKm),
     previousWeekDistanceKm: toFixed1(previousWeekDistanceKm),

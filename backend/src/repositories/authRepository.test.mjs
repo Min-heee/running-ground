@@ -200,7 +200,9 @@ await runTest('registers a user, hashes password, and creates a session', async 
   assert.notEqual(user.passwordHash, 'Password123');
   assert.equal(verifyPassword('Password123', user.passwordHash), true);
   assert.match(user.publicTag, /^#[A-Z2-9]{5}$/);
-  assert.equal(user.connectedSources.length, 7);
+  // mynb was removed from the default sources (it consumes records, never produces them).
+  assert.equal(user.connectedSources.length, 6);
+  assert.equal(user.connectedSources.some((source) => source.sourceType === 'mynb'), false);
   assert.deepEqual(user.rankState, INITIAL_RANK);
   assert.deepEqual(result.user.rankState, INITIAL_RANK);
   assert.deepEqual(user.notificationSettings, {

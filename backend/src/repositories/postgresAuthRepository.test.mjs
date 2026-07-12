@@ -398,7 +398,9 @@ await runTest('registers a user, hashes password, and creates a session', async 
   assert.equal(user.public_tag, '#TAG01');
   assert.deepEqual(user.rank_state, INITIAL_RANK);
   assert.deepEqual(result.user.rankState, INITIAL_RANK);
-  assert.equal(user.connected_sources.length, 7);
+  // mynb was removed from the default sources (it consumes records, never produces them).
+  assert.equal(user.connected_sources.length, 6);
+  assert.equal(user.connected_sources.some((source) => source.sourceType === 'mynb'), false);
   assert.deepEqual(user.notification_settings, {
     friendAlerts: true,
     districtAlerts: true,

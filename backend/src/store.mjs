@@ -11,6 +11,7 @@ import {
   STORE_FILE,
 } from './config.mjs';
 import { migrateAuthStore } from './auth.mjs';
+import { cleanupLegacyIntegrationSources } from './lib/integrationSourceMigrations.mjs';
 
 const dataDirectory = dirname(STORE_FILE);
 const storeFilePath = STORE_FILE;
@@ -57,6 +58,10 @@ function migrateIntegrationStore(store) {
   }
 
   return false;
+}
+
+function migrateLegacyIntegrationSources(store) {
+  return cleanupLegacyIntegrationSources(store);
 }
 
 function migrateNotificationStore(store) {
@@ -409,6 +414,7 @@ export function loadStore() {
       migrateAuthStore(cachedStore, { sessionTtlMs: SESSION_TTL_MS, now: new Date() }),
       migrateProfileStore(cachedStore),
       migrateIntegrationStore(cachedStore),
+      migrateLegacyIntegrationSources(cachedStore),
       migrateNotificationStore(cachedStore),
       migratePhoneVerificationStore(cachedStore),
       migrateMatchQueueStore(cachedStore),

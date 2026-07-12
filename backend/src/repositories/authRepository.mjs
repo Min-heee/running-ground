@@ -61,13 +61,6 @@ export function createDefaultConnectedSources() {
       connectionStatus: 'planned',
       recommendedPlatform: 'all',
     },
-    {
-      sourceType: 'mynb',
-      displayName: 'MyNB',
-      connected: false,
-      connectionStatus: 'planned',
-      recommendedPlatform: 'all',
-    },
   ];
 }
 

@@ -29,7 +29,6 @@ function createConnectedSources(profile = 'default') {
     createSource({ sourceType: 'garmin', displayName: 'Garmin' }),
     createSource({ sourceType: 'strava', displayName: 'Strava' }),
     createSource({ sourceType: 'nrc', displayName: 'Nike Run Club' }),
-    createSource({ sourceType: 'mynb', displayName: 'MyNB' }),
   ];
 }
 

@@ -47,7 +47,10 @@ function createRun(userId, pace = '06:00/km') {
     distanceKm: 5,
     pace,
     source: 'RunningGround',
-    sourceType: 'manual',
+    // LP delta sizing reads the match runner profile, which is built from
+    // COMPETITIVE runs only — the fixture must be an app-tracked run or the
+    // pace falls back to the neutral 5.5 and the faster/slower buckets flip.
+    sourceType: 'runningground',
     startedAt: iso(-24 * 60 * 60 * 1000),
     endedAt: iso(-24 * 60 * 60 * 1000 + 30 * 60 * 1000),
     durationSeconds: 30 * 60,

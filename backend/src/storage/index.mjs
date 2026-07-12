@@ -59,6 +59,22 @@ if (STORE_DRIVER === 'postgres') {
   // slimmed blob once, so per-mutation serialize cost stops scaling with run history. Runs at
   // module init (top-level await), i.e. before the server accepts any request.
   await activeAdapter.migrateEmbeddedRunRoutes();
+  // Legacy integration-source cleanup (idempotent): drop mynb rows, force-disconnect the
+  // hidden nrc/strava/garmin brand rows. The postgres adapter does not run the json store's
+  // migration list, so user-shape migrations need an explicit boot sweep here; the change
+  // detection inside mutateStore makes the no-op case skip the row write entirely.
+  // Failure-tolerant on purpose: a transient DB blip must not crash-loop the boot — the
+  // sweep is idempotent and simply retries on the next restart.
+  const { cleanupLegacyIntegrationSources } = await import('../lib/integrationSourceMigrations.mjs');
+  try {
+    await activeAdapter.mutateStore((store) => {
+      cleanupLegacyIntegrationSources(store);
+    });
+  } catch (error) {
+    console.error(
+      `[runningground-backend] legacy integration-source cleanup failed (idempotent — retries next boot): ${error?.message ?? error}`,
+    );
+  }
 }
 
 // ---- Async-uniform core store operations -------------------------------------------------

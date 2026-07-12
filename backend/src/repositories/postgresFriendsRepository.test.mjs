@@ -419,9 +419,11 @@ await runTest('returns friend activity and friend run detail', async () => {
       { id: 'friendship-1', user_a_id: 'user-friend', user_b_id: 'user-me' },
     ],
     runs: [
-      { id: 'run-me', user_id: 'user-me', run_date: '2026-04-23', distance_km: 6, pace: '05:50/km', source_label: 'Manual', source_type: 'manual' },
-      { id: 'run-friend-1', user_id: 'user-friend', run_date: '2026-04-22', distance_km: 5, pace: '05:40/km', source_label: 'NRC', source_type: 'nrc' },
-      { id: 'run-friend-2', user_id: 'user-friend', run_date: '2026-04-23', distance_km: 7.2, pace: '05:15/km', source_label: 'NRC', source_type: 'nrc' },
+      // Friend-ranking sort/tie-break reads competitive-only aggregates — the ranked
+      // fixture runs must be app-tracked or everyone ties at zero.
+      { id: 'run-me', user_id: 'user-me', run_date: '2026-04-23', distance_km: 6, pace: '05:50/km', source_label: 'RunningGround', source_type: 'runningground' },
+      { id: 'run-friend-1', user_id: 'user-friend', run_date: '2026-04-22', distance_km: 5, pace: '05:40/km', source_label: 'RunningGround', source_type: 'runningground' },
+      { id: 'run-friend-2', user_id: 'user-friend', run_date: '2026-04-23', distance_km: 7.2, pace: '05:15/km', source_label: 'RunningGround', source_type: 'runningground' },
     ],
   });
 

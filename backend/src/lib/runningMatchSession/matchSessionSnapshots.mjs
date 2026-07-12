@@ -1,4 +1,5 @@
 import { parsePaceToMinutes } from '../../points.mjs';
+import { filterCompetitiveRuns } from '../competitiveRuns.mjs';
 import {
   buildLevelLabel,
   buildProgressAveragePaceLabel,
@@ -12,16 +13,25 @@ import {
 import { findUserById, getRunsForUser, getUserMetrics } from '../userStoreHelpers.mjs';
 import { hydrateMatchSessionState } from './matchSessionCore.mjs';
 
+// The match runner profile feeds ONLY competitive surfaces — duel LP delta
+// sizing (matchActionHandlers), matchmaking pace-band/seed compatibility
+// (matchPureHelpers), synthetic live standings, and the opponent-visible
+// profile card — so it is built from competitive runs only. A health-store
+// import can be hand-typed into the platform health app; letting it shape
+// pace/level/distance here would let a fabricated import buy easier
+// matchmaking or bigger LP wins. An import-only user keeps the neutral
+// fallbacks (5.5 pace, zeroed distances) and stays fully matchable.
 export function buildMatchRunnerProfile(store, user, runs = getRunsForUser(store, user.id)) {
   const metrics = getUserMetrics(store, user.id);
-  const recentRuns = runs.slice(0, 3);
+  const competitiveRuns = filterCompetitiveRuns(runs);
+  const recentRuns = competitiveRuns.slice(0, 3);
   const parsedPaces = recentRuns
     .map((run) => parsePaceToMinutes(run.pace))
     .filter((pace) => pace !== null);
   const averagePaceMinutes = parsedPaces.length
     ? parsedPaces.reduce((sum, pace) => sum + pace, 0) / parsedPaces.length
     : 5.5;
-  const latestDistanceKm = recentRuns[0]?.distanceKm ?? metrics.currentWeekDistanceKm ?? 0;
+  const latestDistanceKm = recentRuns[0]?.distanceKm ?? metrics.competitiveWeekDistanceKm ?? 0;
 
   return {
     id: user.id,
@@ -30,10 +40,10 @@ export function buildMatchRunnerProfile(store, user, runs = getRunsForUser(store
     districtName: user.districtName,
     averagePaceMinutes,
     averagePace: formatPaceMinutesLabel(averagePaceMinutes),
-    distanceLevel: metrics.distanceLevel,
-    levelLabel: buildLevelLabel(metrics.distanceLevel),
-    weeklyDistanceKm: metrics.currentWeekDistanceKm,
-    lifetimeDistanceKm: metrics.lifetimeDistanceKm,
+    distanceLevel: metrics.competitiveDistanceLevel,
+    levelLabel: buildLevelLabel(metrics.competitiveDistanceLevel),
+    weeklyDistanceKm: metrics.competitiveWeekDistanceKm,
+    lifetimeDistanceKm: metrics.competitiveLifetimeDistanceKm,
     latestDistanceKm,
   };
 }
