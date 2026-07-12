@@ -34,18 +34,6 @@ const EXCLUSIVE_SOURCE_SELECTOR_METADATA: SourceMetadataMap = {
     setupHint: '',
     priority: 95,
   },
-  manual: {
-    shortDescription: '',
-    capabilities: [],
-    setupHint: '',
-    priority: 80,
-  },
-  runningground: {
-    shortDescription: '',
-    capabilities: [],
-    setupHint: '',
-    priority: 70,
-  },
 };
 
 function isSourceVisibleOnPlatform(source: ConnectedSource, platform: ExclusiveSourceSelectorPlatform) {

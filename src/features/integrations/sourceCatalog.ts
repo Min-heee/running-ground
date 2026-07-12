@@ -84,9 +84,7 @@ export function getSourceByType(sources: ConnectedSource[], sourceType: RunSourc
   return getSourceByTypeFromCatalog(sources, sourceType);
 }
 
-export function isExclusiveIntegrationSourceType(sourceType: RunSourceType) {
-  return sourceType !== 'manual' && sourceType !== 'runningground';
-}
+export { isExclusiveIntegrationSourceType } from './sourceCatalogQueries';
 
 export function getConnectedExclusiveSources(sources: ConnectedSource[]) {
   return getConnectedExclusiveSourcesFromCatalog(sources);
@@ -103,17 +101,7 @@ export function getPrimarySourceForPlatform(
   return getPrimarySourceForCatalogPlatform(sources, platform);
 }
 
-export function getPlatformLabel(platform: DevicePlatform): string {
-  if (platform === 'ios') {
-    return 'iPhone';
-  }
-
-  if (platform === 'android') {
-    return 'Android';
-  }
-
-  return '현재 기기';
-}
+export { getPlatformLabel } from './sourceCatalogQueries';
 
 export function getRecommendationCopy(platform: DevicePlatform): string {
   if (platform === 'ios') {

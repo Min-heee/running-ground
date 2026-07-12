@@ -1,7 +1,9 @@
 import { requireNativeModule } from 'expo-modules-core';
 
-// Shape of a single workout the native Health Connect reader returns. Mirrors the
-// `NativeHealthBridgeRun` contract consumed by src/integrations/nativeHealth.ts.
+// Shape of a single workout the native Health Connect reader returns. This is the
+// single source of truth for the bridge-run contract consumed by
+// src/integrations/nativeHealth.ts. The pace fields are optional extras some
+// bridge implementations provide.
 export type NativeHealthBridgeRun = {
   externalId?: string;
   sourceLabel?: string;
@@ -10,6 +12,9 @@ export type NativeHealthBridgeRun = {
   endedAt?: string;
   distanceKm?: number;
   distanceMeters?: number;
+  pace?: string;
+  paceMinutesPerKm?: number;
+  paceSecondsPerKm?: number;
   durationSeconds?: number;
 };
 

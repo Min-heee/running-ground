@@ -17,6 +17,18 @@ export function getConnectedExclusiveSourcesFromCatalog(sources: ConnectedSource
   return sources.filter((source) => source.connected && isExclusiveIntegrationSourceType(source.sourceType));
 }
 
+export function getPlatformLabel(platform: DevicePlatform): string {
+  if (platform === 'ios') {
+    return 'iPhone';
+  }
+
+  if (platform === 'android') {
+    return 'Android';
+  }
+
+  return '현재 기기';
+}
+
 export function getPrimarySourceTypeForPlatform(platform: DevicePlatform): RunSourceType | null {
   if (platform === 'ios') {
     return 'apple_health';

@@ -289,20 +289,6 @@ export async function requestHealthConnect(): Promise<boolean> {
   }
 }
 
-// Request every permission in a sensible order, awaiting each so the OS dialogs don't stack:
-// foreground location -> background ("always") location -> notifications -> motion. Health is a
-// separate inline connect action (own button) and is intentionally NOT bundled here.
-export async function requestAllOnboardingPermissions(): Promise<{
-  statuses: OnboardingPermissionStatuses;
-  canAsk: OnboardingPermissionCanAsk;
-}> {
-  await requestForegroundLocation();
-  await requestBackgroundLocation();
-  await requestNotifications();
-  await requestMotion();
-  return getOnboardingPermissionStatuses();
-}
-
 // --- Android-only battery-optimization exemption -------------------------------------------------
 // Thin wrappers over the native match-progress-uploader control. These are OTA-safe: on iOS and on
 // old Android binaries the native control reports unavailable, so isBatteryControlAvailable() is

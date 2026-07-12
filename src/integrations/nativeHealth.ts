@@ -1,6 +1,9 @@
 import Constants, { AppOwnership } from 'expo-constants';
 import { NativeModules, Platform } from 'react-native';
-import { getRunnigappHealthConnectModule } from '../../modules/runnigapp-health-connect';
+import {
+  getRunnigappHealthConnectModule,
+  type NativeHealthBridgeRun,
+} from '../../modules/runnigapp-health-connect';
 import { ConnectedSource, RunSourceType } from '@/domain';
 import { syncIntegrationSources } from '@/services';
 import { IntegrationSyncResponse } from '@/lib/api/types';
@@ -25,20 +28,6 @@ export type NativeHealthReadiness = {
   steps: string[];
   expectedPlatform: 'ios' | 'android';
   connected: boolean;
-};
-
-type NativeHealthBridgeRun = {
-  externalId?: string;
-  sourceLabel?: string;
-  date?: string;
-  startedAt?: string;
-  endedAt?: string;
-  distanceKm?: number;
-  distanceMeters?: number;
-  pace?: string;
-  paceMinutesPerKm?: number;
-  paceSecondsPerKm?: number;
-  durationSeconds?: number;
 };
 
 type NativeHealthBridgeModule = {

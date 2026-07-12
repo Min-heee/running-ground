@@ -102,6 +102,89 @@ function countMatches(content, pattern) {
   return content.match(pattern)?.length ?? 0;
 }
 
+// Blank out // line comments and /* */ block comments while PRESERVING line structure
+// (every comment character becomes a space, newlines survive), so detectors that key off
+// call-like tokens (`fetch(`, `apiGet(` …) stop matching prose in comments and line numbers
+// computed on the stripped text still point at the original source. String contents are kept
+// as-is — a URL like 'https://…' inside a string is not a comment.
+function stripComments(content) {
+  let result = '';
+  let state = 'code';
+
+  for (let index = 0; index < content.length; index += 1) {
+    const character = content[index];
+    const nextCharacter = content[index + 1];
+
+    if (state === 'code') {
+      if (character === '/' && nextCharacter === '/') {
+        state = 'line';
+        result += '  ';
+        index += 1;
+        continue;
+      }
+
+      if (character === '/' && nextCharacter === '*') {
+        state = 'block';
+        result += '  ';
+        index += 1;
+        continue;
+      }
+
+      if (character === "'") {
+        state = 'single';
+      } else if (character === '"') {
+        state = 'double';
+      } else if (character === '`') {
+        state = 'template';
+      }
+
+      result += character;
+      continue;
+    }
+
+    if (state === 'line') {
+      if (character === '\n') {
+        state = 'code';
+        result += character;
+      } else {
+        result += ' ';
+      }
+      continue;
+    }
+
+    if (state === 'block') {
+      if (character === '*' && nextCharacter === '/') {
+        state = 'code';
+        result += '  ';
+        index += 1;
+      } else {
+        result += character === '\n' ? character : ' ';
+      }
+      continue;
+    }
+
+    // Inside a string literal: honor escapes, keep contents verbatim.
+    if (character === '\\') {
+      result += character + (nextCharacter ?? '');
+      index += 1;
+      continue;
+    }
+
+    if (
+      (state === 'single' && character === "'")
+      || (state === 'double' && character === '"')
+      || (state === 'template' && character === '`')
+      || (character === '\n' && state !== 'template')
+    ) {
+      state = 'code';
+    }
+
+    result += character;
+  }
+
+  return result;
+}
+
 function truncate(value, maxLength = 120) {
   const normalized = String(value ?? '').replace(/\s+/g, ' ').trim();
   return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1)}…` : normalized;
@@ -157,14 +240,18 @@ function getFileMetrics(filePath) {
   const extension = path.extname(filePath);
   const isCode = codeExtensions.has(extension);
   const isTsx = extension === '.tsx' || extension === '.jsx';
+  // Comment-free view for call-site detectors — prose like "// a fresh status fetch (…)"
+  // must not count as a fetch() call. Line structure is preserved, so indices line up.
+  const strippedContent = isCode ? stripComments(content) : content;
+  const strippedLines = strippedContent.split(/\r?\n/);
 
   const inlineStyleCount = countMatches(content, /style=\{\s*\{/g);
   const inlineObjectPropCount = isTsx ? countMatches(content, /\b[A-Za-z][\w$]*=\{\s*\{[^}\n]*[:]/g) : 0;
   const inlineArrayPropCount = isTsx ? countMatches(content, /\b[A-Za-z][\w$]*=\{\s*\[/g) : 0;
   const inlineFunctionPropCount = isTsx ? countMatches(content, /\b[A-Za-z][\w$]*=\{\s*(?:async\s*)?\([^)]*\)\s*=>/g) : 0;
   const typeDeclarationCount = countMatches(content, /\b(?:export\s+)?(?:interface\s+[A-Z]\w*|type\s+[A-Z]\w*\s*=)/g);
-  const apiCallCount = countMatches(content, /\bapi(?:Get|Post|Put|Patch|Delete|Request)\s*\(/g);
-  const fetchCallCount = countMatches(content, /\bfetch\s*\(/g);
+  const apiCallCount = countMatches(strippedContent, /\bapi(?:Get|Post|Put|Patch|Delete|Request)\s*\(/g);
+  const fetchCallCount = countMatches(strippedContent, /\bfetch\s*\(/g);
   const calculationSignalCount = countMatches(
     content,
     /\b(?:calculate|compute|derive|format|normalize|rank|sort|score|pace|distance|duration|build[A-Z]\w*Model|to[A-Z]\w*)\b/g,
@@ -192,6 +279,8 @@ function getFileMetrics(filePath) {
     lineCount: lines.length,
     locationSignalCount,
     relativePath,
+    strippedContent,
+    strippedLines,
     scrollViewMap: /<([A-Za-z]+\.)?ScrollView\b[\s\S]{0,2500}\.map\s*\(/.test(content),
     sortFilterMapCount: countMatches(content, /\.(?:sort|filter|map)\s*\(/g),
     subscriptionCount: countMatches(
@@ -344,7 +433,7 @@ function findCleanupIssues(metrics) {
   }
 
   const issues = [];
-  const effectStartPattern = /\buse(?:Effect|FocusEffect)\s*\(/;
+  const effectStartPattern = /\buse(?:Effect|FocusEffect)\s*\(/g;
   const cleanupTriggerPatterns = [
     /setInterval\(/,
     /setTimeout\(/,
@@ -364,41 +453,59 @@ function findCleanupIssues(metrics) {
     /unsubscribe\(/,
   ];
 
-  metrics.lines.forEach((line, index) => {
-    if (!effectStartPattern.test(line)) {
-      return;
+  // Brace-match each effect callback to its REAL end (comment-stripped view), so a
+  // `return () => { … }` cleanup at the end of a long effect is always inside the
+  // inspected block — the old fixed 60-line window truncated long effects right
+  // before their cleanup and flagged them as false positives.
+  const content = metrics.strippedContent;
+  let effectMatch;
+
+  while ((effectMatch = effectStartPattern.exec(content))) {
+    const openingBraceIndex = content.indexOf('{', effectMatch.index);
+
+    if (openingBraceIndex === -1) {
+      continue;
     }
 
-    const nextEffectIndex = metrics.lines.findIndex((candidateLine, candidateIndex) => (
-      candidateIndex > index && effectStartPattern.test(candidateLine)
-    ));
-    const dependencyArrayIndex = metrics.lines.findIndex((candidateLine, candidateIndex) => (
-      candidateIndex > index && /^\s*},\s*\[/.test(candidateLine)
-    ));
-    const fallbackEndIndex = Math.min(metrics.lines.length, index + 60);
-    const blockEndIndex = Math.min(
-      nextEffectIndex === -1 ? fallbackEndIndex : nextEffectIndex,
-      dependencyArrayIndex === -1 ? fallbackEndIndex : dependencyArrayIndex + 2,
-    );
-    const block = metrics.lines.slice(index, blockEndIndex).join('\n');
+    let depth = 0;
+    let endIndex = -1;
+
+    for (let index = openingBraceIndex; index < content.length; index += 1) {
+      const character = content[index];
+
+      if (character === '{') {
+        depth += 1;
+      } else if (character === '}') {
+        depth -= 1;
+
+        if (depth === 0) {
+          endIndex = index;
+          break;
+        }
+      }
+    }
+
+    const block = content.slice(effectMatch.index, endIndex === -1 ? content.length : endIndex + 1);
     const hasCleanupTrigger = cleanupTriggerPatterns.some((pattern) => pattern.test(block));
     const hasCleanup = cleanupPatterns.some((pattern) => pattern.test(block));
 
     if (!hasCleanupTrigger || hasCleanup) {
-      return;
+      continue;
     }
+
+    const lineNumber = lineNumberFromIndex(content, effectMatch.index);
 
     issues.push(createIssue({
       category: 'timer/subscription cleanup 의심',
-      evidence: line,
+      evidence: metrics.lines[lineNumber - 1] ?? '',
       file: metrics.relativePath,
-      line: getLineNumber(index),
+      line: lineNumber,
       priority: 'High',
       reason: 'effect 내부에 timer/subscription 후보가 있지만 cleanup 패턴이 같은 block에서 감지되지 않았다.',
       recommendation: 'unmount, dependency 변경, focus 해제 시 clear/remove/stop이 보장되는지 확인한다.',
       score: 40,
     }));
-  });
+  }
 
   if (metrics.timerCount > 0 && !metrics.content.includes('clearTimeout') && !metrics.content.includes('clearInterval')) {
     issues.push(createIssue({
@@ -433,7 +540,9 @@ function findServiceBoundaryIssues(metrics) {
     return [];
   }
 
-  const firstLineIndex = metrics.lines.findIndex((line) => /\b(?:fetch|apiGet|apiPost|apiPut|apiPatch|apiDelete|apiRequest)\s*\(/.test(line));
+  // Locate the evidence line on the comment-stripped view so a comment mentioning
+  // "fetch (…)" can never be reported as the call site; show the original line.
+  const firstLineIndex = metrics.strippedLines.findIndex((line) => /\b(?:fetch|apiGet|apiPost|apiPut|apiPatch|apiDelete|apiRequest)\s*\(/.test(line));
 
   return [createIssue({
     category: 'services 밖 API 호출 후보',
@@ -492,6 +601,7 @@ function isTypeBoundary(relativePath) {
     || relativePath.startsWith('src/domain/')
     || relativePath.startsWith('src/lib/api/types/')
     || /\.types\.tsx?$/.test(relativePath)
+    || /(?:^|\/)types\.tsx?$/.test(relativePath)
     || /Types\.tsx?$/.test(relativePath)
     || relativePath.endsWith('.test.ts')
     || relativePath.endsWith('.test.tsx')

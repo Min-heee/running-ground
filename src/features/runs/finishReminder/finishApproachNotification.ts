@@ -36,12 +36,6 @@ const FINISH_CELEBRATION_CHANNEL_ID = 'runningground-finish-celebration';
 
 export const FINISH_CELEBRATION_BODY = '완주 기록이 저장되고 있어요. 결과는 앱에서 확인하세요.';
 
-// LEGACY (removed goal-ETA alarm) — the kind is KEPT ONLY so the cancel sweep below can garbage-
-// collect a stale goal-ETA notification that a run started on PRE-OTA code left DATE-scheduled in
-// the OS queue (OS-scheduled notifications survive app restarts/updates). No code schedules this
-// kind anymore; drop the kind from the sweep after ≥1 OTA generation.
-const GOAL_ETA_REMINDER_KIND = 'runningground-finish-goal-eta';
-
 export const FINISH_REMINDER_TITLE = '🏁 결승선이 곧이에요!';
 export const FINISH_REMINDER_BODY = '화면을 켜두면 완주 시간이 정확하게 기록돼요.';
 
@@ -314,9 +308,9 @@ export function __resetFinishCelebrationForTest() {
   celebratedMatchIds.clear();
 }
 
-// Cancel every pending finish reminder — the ~300m approach one plus any stale legacy goal-ETA
-// one — on run end / finish / forfeit / unmount, so neither can fire after the run is over.
-// Cancels only our own kinds, so it never touches the match-reminder or live-gap notifications.
+// Cancel every pending finish reminder (~300m approach) on run end / finish / forfeit / unmount,
+// so it can never fire after the run is over. Cancels only our own kind, so it never touches the
+// match-reminder or live-gap notifications.
 export async function cancelFinishApproachReminder(): Promise<void> {
   const Notifications = await importNotifications();
 
@@ -326,6 +320,5 @@ export async function cancelFinishApproachReminder(): Promise<void> {
 
   await cancelReminderNotificationsOfKinds(Notifications, [
     FINISH_REMINDER_KIND,
-    GOAL_ETA_REMINDER_KIND, // legacy GC only
   ]);
 }
