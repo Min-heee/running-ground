@@ -105,6 +105,9 @@ export type QueueIntegrationImportResponse = {
   source: ConnectedSource;
   queuedRuns: number;
   pendingRuns: number;
+  // Entries the server dropped as pre-launch-dated (launch-date import cutoff).
+  // Optional/additive: older backends never send it, and no consumer requires it.
+  skippedPreLaunch?: number;
 };
 
 export type RunPointBreakdown = {

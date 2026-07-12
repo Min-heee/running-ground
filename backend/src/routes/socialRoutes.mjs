@@ -1,3 +1,5 @@
+import { partitionImportRunsByLaunchCutoff } from '../lib/integrationImportCutoff.mjs';
+
 export async function routeSocialRequest({
   method,
   pathname,
@@ -251,11 +253,23 @@ async function handleQueueIntegrationImports({
     throw new ApiError(400, '한 번에 가져오는 기록은 500개 이하로 제한해줘.');
   }
 
+  // Launch-date cutoff (authoritative, lib/integrationImportCutoff.mjs): drop
+  // pre-launch-dated entries right where each entry's date is normalized/validated,
+  // BEFORE anything reaches the import queue — old app versions that skip the
+  // client-side mirror still cannot push historical records past this point.
+  // When every entry is pre-launch we still queue the empty set (auth + source
+  // checks run as usual) and answer with queuedRuns: 0 + the skip count.
+  const { importableRuns, skippedPreLaunch } = partitionImportRunsByLaunchCutoff(
+    rawRuns.map((run) => normalizeImportedRun(sourceType, run)),
+  );
+
   const payload = await getRunsRepository().queueIntegrationImports({
     token: getAccessToken(request),
     sourceType,
-    normalizedRuns: rawRuns.map((run) => normalizeImportedRun(sourceType, run)),
+    normalizedRuns: importableRuns,
   });
 
-  sendJson(response, 202, payload);
+  // Additive optional field — existing consumers only read success/source/
+  // queuedRuns/pendingRuns, so tacking the skip count on is backward compatible.
+  sendJson(response, 202, { ...payload, skippedPreLaunch });
 }

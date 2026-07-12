@@ -18,6 +18,11 @@ import {
   isExclusiveIntegrationSourceType,
 } from '@/features/integrations/sourceCatalog';
 import { buildZeroImportGuidance } from '@/features/integrations/utils/integrationMessages';
+import {
+  appendPreLaunchSkipNotice,
+  buildAllPreLaunchImportMessage,
+  didSkipAllFetchedRunsAsPreLaunch,
+} from '@/integrations/importCutoff';
 
 type UseIntegrationActionsOptions = {
   loadErrorMessage: string;
@@ -40,7 +45,16 @@ function buildDefaultDeviceImportMessage(result: NativeHealthImportResult) {
     return buildZeroImportGuidance();
   }
 
-  return `${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽었고, ${result.syncResult?.importedRuns ?? 0}개를 새로 반영했어.`;
+  // All fetched records predate the launch cutoff — say so instead of the
+  // permission guidance (설정 안내는 여기서 오답이야).
+  if (didSkipAllFetchedRunsAsPreLaunch(result)) {
+    return buildAllPreLaunchImportMessage(result.skippedPreLaunchRuns);
+  }
+
+  return appendPreLaunchSkipNotice(
+    `${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽었고, ${result.syncResult?.importedRuns ?? 0}개를 새로 반영했어.`,
+    result.skippedPreLaunchRuns,
+  );
 }
 
 function buildManagementDeviceImportMessage(result: NativeHealthImportResult) {
@@ -48,15 +62,25 @@ function buildManagementDeviceImportMessage(result: NativeHealthImportResult) {
     return buildZeroImportGuidance();
   }
 
+  if (didSkipAllFetchedRunsAsPreLaunch(result)) {
+    return buildAllPreLaunchImportMessage(result.skippedPreLaunchRuns);
+  }
+
   if (result.syncResult?.importedRuns === 0 && result.syncResult.duplicateRuns > 0) {
-    return '이미 가져온 기록만 있어서 업데이트할 게 없었어.';
+    return appendPreLaunchSkipNotice('이미 가져온 기록만 있어서 업데이트할 게 없었어.', result.skippedPreLaunchRuns);
   }
 
   if (result.syncResult) {
-    return `${result.sourceLabel}에서 ${result.syncResult.importedRuns}개 기록을 새로 반영했어.`;
+    return appendPreLaunchSkipNotice(
+      `${result.sourceLabel}에서 ${result.syncResult.importedRuns}개 기록을 새로 반영했어.`,
+      result.skippedPreLaunchRuns,
+    );
   }
 
-  return `${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽어 가져오기 대기열에 올렸어.`;
+  return appendPreLaunchSkipNotice(
+    `${result.sourceLabel}에서 ${result.fetchedRuns}개 기록을 읽어 가져오기 대기열에 올렸어.`,
+    result.skippedPreLaunchRuns,
+  );
 }
 
 export function useIntegrationActions({

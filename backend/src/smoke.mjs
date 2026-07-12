@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { IMPORT_MIN_RUN_DATE } from './lib/integrationImportCutoff.mjs';
 import { buildUserRunMetrics, getRunPointValue } from './points.mjs';
 import { createSeedStore } from './seed.mjs';
 
@@ -405,16 +406,27 @@ async function main() {
     });
     assert(connectedSourceResult.source.connected === true, '연동 연결이 반영되지 않았어.');
 
+    // Launch-date import cutoff (lib/integrationImportCutoff.mjs): the import route
+    // drops entries dated before IMPORT_MIN_RUN_DATE, so clamp the smoke fixtures to
+    // the cutoff — otherwise every run of this script in the first days after launch
+    // would queue 0 entries and fail below. (While the wall clock is still BEFORE the
+    // cutoff there is no importable date at all by design; this smoke section can only
+    // pass on/after launch day.)
+    const clampToImportCutoff = (value) => {
+      const formatted = formatDate(value);
+      return formatted < IMPORT_MIN_RUN_DATE ? IMPORT_MIN_RUN_DATE : formatted;
+    };
+
     const importedRunInputs = [
       {
         externalId: 'hc-run-1',
-        date: formatDate(addDays(today, -2)),
+        date: clampToImportCutoff(addDays(today, -2)),
         distanceKm: 5.5,
         pace: '05:20/km',
       },
       {
         externalId: 'hc-run-2',
-        date: formatDate(addDays(today, -1)),
+        date: clampToImportCutoff(addDays(today, -1)),
         distanceKm: 7.3,
         pace: '05:10/km',
       },

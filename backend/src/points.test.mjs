@@ -160,7 +160,12 @@ runTest('the match runner profile ignores imported runs', () => {
   const user = { id: 'user-1', name: '러너', publicTag: '#RUN01', districtName: '일산서구' };
   // getUserMetrics inside the profile builder runs on the REAL clock, so the
   // fixture must use today's date for the weekly aggregates to be non-empty.
-  const today = new Date().toISOString().slice(0, 10);
+  // IMPORTANT: the metrics pipeline (points.mjs parseRunDate/getDateKey) works on
+  // the LOCAL clock, so build the key from local getters — toISOString() is the
+  // UTC date and lags by a day between local midnight and UTC midnight (e.g. KST
+  // Monday 00:00-09:00), which would drop the run into "last week".
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   // Newest first (the profile reads the head of the list as the latest run).
   const runs = [
     importedRun('import-1', today, 20, { pace: '04:00/km', userId: user.id }),

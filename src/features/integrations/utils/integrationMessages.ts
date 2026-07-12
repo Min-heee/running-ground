@@ -1,5 +1,10 @@
 import { Platform } from 'react-native';
 
+import {
+  appendPreLaunchSkipNotice,
+  buildAllPreLaunchImportMessage,
+  didSkipAllFetchedRunsAsPreLaunch,
+} from '@/integrations/importCutoff';
 import type { NativeHealthImportResult } from '@/integrations/nativeHealth';
 import type { IntegrationSyncResponse } from '@/lib/api/types';
 
@@ -36,17 +41,35 @@ export function buildImportDiagnosisHint(result: NativeHealthImportResult) {
     return buildZeroImportGuidance();
   }
 
+  // Every fetched record predates the launch cutoff: the honest reason is the
+  // cutoff, not permissions — never send the user to 설정 for this case.
+  if (didSkipAllFetchedRunsAsPreLaunch(result)) {
+    return buildAllPreLaunchImportMessage(result.skippedPreLaunchRuns);
+  }
+
   if (!result.syncResult) {
-    return '기기에서 읽은 기록을 가져오기 대기열에 올려둔 상태야. 이어서 동기화가 돌아야 실제 기록으로 보이게 돼.';
+    return appendPreLaunchSkipNotice(
+      '기기에서 읽은 기록을 가져오기 대기열에 올려둔 상태야. 이어서 동기화가 돌아야 실제 기록으로 보이게 돼.',
+      result.skippedPreLaunchRuns,
+    );
   }
 
   if (result.syncResult.importedRuns === 0 && result.syncResult.duplicateRuns > 0) {
-    return '이번 기록은 이미 들어와 있어서 중복 방지 규칙에 따라 건너뛴 상태야.';
+    return appendPreLaunchSkipNotice(
+      '이번 기록은 이미 들어와 있어서 중복 방지 규칙에 따라 건너뛴 상태야.',
+      result.skippedPreLaunchRuns,
+    );
   }
 
   if (result.syncResult.importedRuns > 0) {
-    return '기기에서 읽은 기록이 실제 러닝 기록으로 정상 반영됐어.';
+    return appendPreLaunchSkipNotice(
+      '기기에서 읽은 기록이 실제 러닝 기록으로 정상 반영됐어.',
+      result.skippedPreLaunchRuns,
+    );
   }
 
-  return '기록을 확인했지만 아직 반영할 새 변화는 없었어.';
+  return appendPreLaunchSkipNotice(
+    '기록을 확인했지만 아직 반영할 새 변화는 없었어.',
+    result.skippedPreLaunchRuns,
+  );
 }

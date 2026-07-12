@@ -4,6 +4,7 @@ import { getRunnigappHealthConnectModule } from '../../modules/runnigapp-health-
 import { ConnectedSource, RunSourceType } from '@/domain';
 import { syncIntegrationSources } from '@/services';
 import { IntegrationSyncResponse } from '@/lib/api/types';
+import { partitionRunsByLaunchCutoff } from './importCutoff';
 import { ImportableRunSourceType, NormalizedProviderRun, submitProviderRuns } from './provider';
 
 export type NativeHealthSourceType = Extract<RunSourceType, 'apple_health' | 'health_connect'>;
@@ -53,6 +54,9 @@ export type NativeHealthImportResult = {
   sourceLabel: string;
   fetchedRuns: number;
   queuedRuns: number;
+  // Records read off the device but dated before the launch cutoff — never queued
+  // (see importCutoff.ts; the server enforces the same cutoff authoritatively).
+  skippedPreLaunchRuns: number;
   syncResult: IntegrationSyncResponse | null;
 };
 
@@ -395,11 +399,32 @@ export async function importRunsFromNativeHealthSource(
       sourceLabel: getSourceLabel(sourceType),
       fetchedRuns: 0,
       queuedRuns: 0,
+      skippedPreLaunchRuns: 0,
       syncResult: null,
     };
   }
 
-  const queueResult = await submitProviderRuns(sourceType as ImportableRunSourceType, runs);
+  // Launch-date cutoff (client mirror): drop pre-launch-dated records AFTER
+  // readRuns() normalization and BEFORE anything is queued to the backend. The
+  // server enforces the same cutoff authoritatively at the import route
+  // (backend/src/lib/integrationImportCutoff.mjs), so this is UX-side trimming —
+  // it keeps the payload lean and lets the messaging explain what was excluded.
+  const { importableRuns, skippedPreLaunchRuns } = partitionRunsByLaunchCutoff(runs);
+
+  if (importableRuns.length === 0) {
+    // Every fetched record predates launch: nothing to queue (the import endpoint
+    // rejects empty batches), so report the read + skip counts for honest messaging.
+    return {
+      sourceType,
+      sourceLabel: getSourceLabel(sourceType),
+      fetchedRuns: runs.length,
+      queuedRuns: 0,
+      skippedPreLaunchRuns,
+      syncResult: null,
+    };
+  }
+
+  const queueResult = await submitProviderRuns(sourceType as ImportableRunSourceType, importableRuns);
   const syncResult = await syncIntegrationSources();
 
   return {
@@ -407,6 +432,7 @@ export async function importRunsFromNativeHealthSource(
     sourceLabel: getSourceLabel(sourceType),
     fetchedRuns: runs.length,
     queuedRuns: queueResult.queuedRuns,
+    skippedPreLaunchRuns,
     syncResult,
   };
 }
