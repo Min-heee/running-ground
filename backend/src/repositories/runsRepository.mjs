@@ -1,4 +1,5 @@
 import { attachRouteToRunPayload, attachStoredRunRoute } from '../lib/runHelpers.mjs';
+import { applyRunIntegrityCheck } from '../lib/runIntegrity.mjs';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -463,6 +464,12 @@ export function createJsonRunsRepository({
               existingRun.matchResult = clone(reResolvedMatchResult);
             }
 
+            // Anti-cheat V1 stage 2: the reconcile re-save that upgrades a PENDING verdict is
+            // also the moment the opponent's finish (and therefore this user's applied LP) may
+            // have landed since the original save — retry classification + LP revocation on
+            // the stored row. Idempotent via run.integrity.lpRevoked; never throws.
+            applyRunIntegrityCheck({ store, user, run: existingRun, nowIso });
+
             // The resolver may have read (and cached) this user's metrics before the upgrade;
             // drop the entry so the recompute sees the upgraded blob's match bonus exactly once.
             invalidateUserMetrics(store, user.id);
@@ -497,6 +504,12 @@ export function createJsonRunsRepository({
         };
 
         store.runs.push(run);
+
+        // Anti-cheat V1 stage 2 (lib/runIntegrity.mjs): classify the just-saved run BEFORE the
+        // metrics recompute below so a vehicle-flagged run never mints competitive points, and
+        // revoke this user's already-applied match LP when the verdict is 'vehicle'. Never
+        // throws — a bug in the integrity logic degrades to an un-flagged save.
+        applyRunIntegrityCheck({ store, user, run, nowIso });
 
         // The verdict resolver above may have read (and cached) this user's metrics before the
         // run was pushed; drop that stale entry so the recompute includes the new run's bonus.

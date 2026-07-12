@@ -43,6 +43,33 @@ runTest('any run carrying a match result is competitive (in-app match record)', 
   );
 });
 
+// Anti-cheat V1 stage 2: the server-side vehicle verdict (lib/runIntegrity.mjs) bars a run
+// from every competitive surface, and the matchResult fast-path must not resurrect it.
+runTest('vehicle-flagged tracked runs are not competitive', () => {
+  assert.equal(
+    isCompetitiveRun({ sourceType: 'runningground', integrity: { verdict: 'vehicle' } }),
+    false,
+  );
+});
+
+runTest('vehicle-flagged match runs are not competitive despite carrying a matchResult', () => {
+  assert.equal(
+    isCompetitiveRun({
+      sourceType: 'runningground',
+      matchResult: { mode: 'duel', source: 'official' },
+      integrity: { verdict: 'vehicle' },
+    }),
+    false,
+  );
+});
+
+runTest('suspect-flagged runs stay competitive (telemetry-only verdict)', () => {
+  assert.equal(
+    isCompetitiveRun({ sourceType: 'runningground', integrity: { verdict: 'suspect' } }),
+    true,
+  );
+});
+
 runTest('filterCompetitiveRuns drops imported runs', () => {
   const runs = [
     { id: '1', sourceType: 'runningground', distanceKm: 5 },

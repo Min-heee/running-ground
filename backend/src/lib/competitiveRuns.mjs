@@ -8,6 +8,12 @@
 // matchResult is also competitive-eligible because match results are only ever
 // produced by the in-app live arena (a defensive belt-and-suspenders check).
 //
+// Anti-cheat V1 stage 2 (lib/runIntegrity.mjs): a run the server classified as
+// vehicle-assisted at save time (run.integrity.verdict === 'vehicle') is barred
+// from every competitive surface — even when it carries a matchResult — while
+// staying visible on personal surfaces. 'suspect' verdicts are telemetry-only
+// and remain competitive.
+//
 // IMPORTANT: this gate is ONLY for competitive aggregations. Personal surfaces
 // (home 기록 카드 주/월/년 stats, 내 활동 기록 list, profile lifetime distance)
 // MUST keep showing imported runs and therefore MUST NOT use this filter.
@@ -16,6 +22,12 @@ const COMPETITIVE_SOURCE_TYPES = new Set(['runningground']);
 
 export function isCompetitiveRun(run) {
   if (!run || typeof run !== 'object') {
+    return false;
+  }
+
+  // Checked FIRST so the matchResult fast-path below cannot resurrect a
+  // vehicle-flagged match run (Anti-cheat V1 stage 2).
+  if (run.integrity?.verdict === 'vehicle') {
     return false;
   }
 

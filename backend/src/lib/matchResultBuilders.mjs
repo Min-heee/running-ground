@@ -1,5 +1,6 @@
 import { ApiError } from '../response/httpResponse.mjs';
 import { parsePaceToMinutes } from '../points.mjs';
+import { applyRunIntegrityCheck } from './runIntegrity.mjs';
 import {
   buildDuelVerdict,
   buildGroupVerdict,
@@ -821,6 +822,13 @@ export function backFillFinisherSavedRuns(store, session, now = new Date()) {
     if (resolved && upgraded && resolved !== matchResult) {
       run.matchResult = resolved;
       changed = true;
+
+      // Anti-cheat stage 2: this back-fill is the moment LP has certainly been applied
+      // for a FINISHER-FIRST runner (their save landed before the opponent finished, so
+      // the save-time check found no rank_change marker to revoke yet). Re-running the
+      // idempotent, never-throwing integrity check here closes exactly that timeline —
+      // a vehicle-flagged run gets its LP revoked against the by-now-appended marker.
+      applyRunIntegrityCheck({ store, user: owner, run });
     }
   }
 
