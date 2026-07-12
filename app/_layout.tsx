@@ -10,8 +10,13 @@ import { useConfigureNotificationHandler } from '@/navigation/notificationHandle
 import { useRootAuthGate } from '@/navigation/rootAuthGate';
 import { logRgEnvironmentOnce } from '@/utils/rgEnvTrace';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
+import { initSentryOnce } from '@/observability/sentry';
 
 export { RouteErrorBoundary as ErrorBoundary } from '@/components/RouteErrorBoundary';
+
+// Module scope on purpose: crash reporting must be armed before the first
+// render, or a crash during startup is exactly the one we never see.
+initSentryOnce();
 
 export default function RootLayout() {
   const { ready, redirectHref } = useRootAuthGate();
