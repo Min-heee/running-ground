@@ -16,6 +16,16 @@ export type NoticeFormState = {
   isActive: boolean;
 };
 
+// Context the useAdminDashboard composer hands to each admin domain hook
+// (notices/market/redemptions/races/users): the shared auth token plus the
+// composer-owned submission wrapper, overview refresher, and message setter.
+export type AdminDashboardDomainContext = {
+  adminToken: string;
+  withSubmission: (task: () => Promise<void>) => Promise<void>;
+  refreshOverview: (token: string) => Promise<void>;
+  setMessage: (message: string | null) => void;
+};
+
 export type RaceFormState = {
   title: string;
   subtitle: string;
