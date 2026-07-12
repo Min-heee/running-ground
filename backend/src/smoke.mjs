@@ -87,6 +87,28 @@ async function request(pathname, { expectedStatuses = [200], ...fetchOptions } =
   return payload;
 }
 
+// Registration (and password reset) consume a verified phone challenge. The smoke server runs
+// in development, where the mock SMS provider echoes the OTP back as `testCode`, so the full
+// request-code → verify-code flow can run without sending real SMS.
+async function verifyPhone(phone, purpose = 'signup') {
+  const requested = await request('/auth/phone/request-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ purpose, phone }),
+  });
+  assert(typeof requested.requestId === 'string' && requested.requestId, '휴대폰 인증 요청 ID가 내려오지 않았어.');
+  assert(typeof requested.testCode === 'string' && requested.testCode, '개발 모드 인증번호(testCode)가 내려오지 않았어.');
+
+  const verified = await request('/auth/phone/verify-code', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ purpose, requestId: requested.requestId, code: requested.testCode }),
+  });
+  assert(typeof verified.verifiedToken === 'string' && verified.verifiedToken, '휴대폰 인증 토큰이 내려오지 않았어.');
+
+  return verified.verifiedToken;
+}
+
 async function main() {
   if (existsSync(storeFile)) {
     rmSync(storeFile);
@@ -182,11 +204,17 @@ async function main() {
 
     const seededStoreContents = readFileSync(storeFile, 'utf8');
     assert(!seededStoreContents.includes('"password":'), '초기 저장소에 평문 비밀번호가 남아 있어.');
-    assert(seededStoreContents.includes('"users": []'), '초기 저장소가 빈 상태로 시작하지 않았어.');
+    // Parse instead of sniffing raw bytes: the store is persisted compactly (no indentation),
+    // so formatting-sensitive substring checks would break on a perfectly healthy store.
+    const seededStore = JSON.parse(seededStoreContents);
+    assert(Array.isArray(seededStore.users) && seededStore.users.length === 0, '초기 저장소가 빈 상태로 시작하지 않았어.');
 
     const availableUsername = await request('/auth/check-username?username=smoke-user');
     assert(availableUsername.available === true, '신규 아이디가 사용 가능으로 내려오지 않았어.');
     logStep('username availability flow ok');
+
+    const smokeUserPhoneToken = await verifyPhone('01099998888');
+    logStep('phone verification flow ok');
 
     const registered = await request('/auth/register', {
       expectedStatuses: [201],
@@ -200,6 +228,7 @@ async function main() {
         nickname: '스모크러너',
         realName: '스모크 유저',
         phone: '01099998888',
+        phoneVerificationToken: smokeUserPhoneToken,
         provinceName: '서울특별시',
         cityName: '',
         districtName: '강남구',
@@ -209,10 +238,11 @@ async function main() {
     });
     assert(typeof registered.accessToken === 'string', '회원가입 토큰이 비어 있어.');
     assert(registered.user.name === '스모크러너', '회원가입 닉네임이 공개 프로필에 반영되지 않았어.');
-    const storeAfterRegister = readFileSync(storeFile, 'utf8');
-    assert(storeAfterRegister.includes('"expiresAt":'), '세션 만료 시간이 저장되지 않았어.');
-    assert(storeAfterRegister.includes('"realName": "스모크 유저"'), '비공개 이름이 저장되지 않았어.');
-    assert(storeAfterRegister.includes('"passwordHash":'), '회원가입 후에도 비밀번호 해시가 저장되지 않았어.');
+    const storeAfterRegister = JSON.parse(readFileSync(storeFile, 'utf8'));
+    const persistedSmokeUser = storeAfterRegister.users.find((entry) => entry.username === 'smoke-user');
+    assert(storeAfterRegister.sessions.some((entry) => typeof entry.expiresAt === 'string' && entry.expiresAt), '세션 만료 시간이 저장되지 않았어.');
+    assert(persistedSmokeUser?.realName === '스모크 유저', '비공개 이름이 저장되지 않았어.');
+    assert(typeof persistedSmokeUser?.passwordHash === 'string' && persistedSmokeUser.passwordHash.length > 0, '회원가입 후에도 비밀번호 해시가 저장되지 않았어.');
     assert(listBackupFiles().length >= 1, '자동 백업이 저장 전 상태를 남기지 않았어.');
 
     const takenUsername = await request('/auth/check-username?username=smoke-user');
@@ -609,6 +639,7 @@ async function main() {
     assert(Array.isArray(trackedRun.run.route) && trackedRun.run.route.length === 3, '실시간 러닝 경로가 저장되지 않았어.');
     logStep('tracked run flow ok');
 
+    const friendUserPhoneToken = await verifyPhone('01011112222');
     const secondRegistered = await request('/auth/register', {
       expectedStatuses: [201],
       method: 'POST',
@@ -621,6 +652,7 @@ async function main() {
         nickname: '프렌드러너',
         realName: '친구 유저',
         phone: '01011112222',
+        phoneVerificationToken: friendUserPhoneToken,
         provinceName: '부산광역시',
         cityName: '',
         districtName: '중구',
