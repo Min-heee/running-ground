@@ -931,10 +931,22 @@ export async function flushBackgroundMatchProgressSync({
         // §3.② — when the payload above is the FINISHED body this call IS the cadence switch to
         // finished-body re-sends. Fire-and-forget so the periodic wiring never blocks the existing
         // one-shot push below.
+        // TERMINAL SELF-STOP (Stage 5) — `isTerminal` flags the FINISHED body (the same condition
+        // that arms the pending finish above) so the NEW iOS binary can self-stop its cadence +
+        // CLLocationManager + distance accumulator when THAT payload gets a terminal server
+        // response (2xx/404/410 — the same set isPendingFinishAckStatus/isDefinitiveMatchGoneError
+        // treat as terminal here) even while JS is suspended. Purely additive: no-op on every
+        // binary lacking the native mark fn (old iOS, all Android, web), and the ACK observation +
+        // deferred-stop path in this file keeps working unchanged as the fallback.
         const periodicUrl = `${resolvedApiBaseUrl}/running/matches/progress`;
         void startPeriodicMatchUpload(
           input.matchId,
-          { url: periodicUrl, authToken: token, jsonBody: requestBody },
+          {
+            url: periodicUrl,
+            authToken: token,
+            jsonBody: requestBody,
+            isTerminal: input.status === 'finished',
+          },
           applyPeriodicNativeMatchStatusBody,
           PERIODIC_MATCH_UPLOAD_INTERVAL_MS,
         ).catch(() => undefined);

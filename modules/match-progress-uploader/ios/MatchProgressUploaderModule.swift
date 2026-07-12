@@ -48,6 +48,17 @@ import CoreLocation
 // OTA-SAFETY: this build sets the `available` property to true so
 // isNativeMatchProgressUploaderAvailable() returns true on iOS for the NEW binary. The OLD no-op
 // Swift binary does not define `available`, so it stays unavailable and keeps the JS fetch path.
+//
+// TERMINAL SELF-STOP (hands-free finish Stage 5, items 1+2). Today a screen-off FINISH rides this
+// cadence until the server ACKs, but only JS (woken by GPS deliveries) observes the ACK — so the
+// cadence and this module's CLLocationManager keep running until foreground. Fix: JS marks the
+// FINISHED payload TERMINAL via markPeriodicPayloadTerminal (a NEW fn — see the OTA notes there);
+// when a re-POST of a terminal-marked payload gets a terminal server response (2xx, or a definitive
+// 404/410 — the exact status set the JS pending-finish path treats as terminal), the module stops
+// its own cadence, the shared CLLocationManager, and the distance accumulator, without JS. An OLD
+// JS bundle never marks a payload → the flag stays false → this binary behaves exactly like the
+// previous one (JS performs every stop). The JS observation/stop path is unchanged as the fallback:
+// every 2xx response body is still emitted to JS exactly as before.
 public class MatchProgressUploaderModule: Module {
   // Mirror Kotlin's 15_000ms connect/read timeouts.
   private static let timeoutSeconds: TimeInterval = 15
@@ -103,7 +114,7 @@ public class MatchProgressUploaderModule: Module {
 
     // Mirrors Kotlin's AsyncFunction("upload") { url, authToken, jsonBody, promise -> ... }.
     AsyncFunction("upload") { (url: String, authToken: String, jsonBody: String, promise: Promise) in
-      self.send(url: url, authToken: authToken, jsonBody: jsonBody) { body in
+      self.send(url: url, authToken: authToken, jsonBody: jsonBody) { body, _ in
         promise.resolve(body)
       }
     }
@@ -129,6 +140,23 @@ public class MatchProgressUploaderModule: Module {
     Function("stopPeriodicUpload") {
       self.runOnMain {
         self.stopPeriodic()
+      }
+    }
+
+    // TERMINAL SELF-STOP (Stage 5) — mark the CURRENTLY CACHED periodic payload TERMINAL (a
+    // finished body whose successful delivery ends this runner's match). Once marked, a terminal
+    // server response to a re-POST of that payload (2xx / 404 / 410) makes the module self-stop
+    // the cadence AND the distance accumulator without waiting for JS (see maybePost).
+    // startPeriodicUpload/updatePeriodicPayload RESET the mark (a fresher unmarked payload is by
+    // definition non-terminal — a superseding match's running payload can never inherit it), so JS
+    // re-marks right after every terminal payload handoff; both calls marshal through the SAME
+    // main queue, so the mark always lands on the payload it was issued for.
+    // OTA-SAFETY: NEW fn on this binary only. An OLD JS bundle never calls it → the mark stays
+    // false → this binary behaves exactly like the previous one (JS performs every stop). A NEW JS
+    // bundle on an OLD binary is safe because its wrapper `typeof`-gates the call (index.ts).
+    Function("markPeriodicPayloadTerminal") {
+      self.runOnMain {
+        self.locationDriver?.markPayloadTerminal()
       }
     }
 
@@ -202,6 +230,22 @@ public class MatchProgressUploaderModule: Module {
     teardownLocationDriverIfIdle()
   }
 
+  // TERMINAL SELF-STOP (Stage 5) — the driver observed a terminal server response (2xx/404/410)
+  // for a payload JS marked TERMINAL (the finished body). Perform the SAME teardown the JS ACK
+  // path eventually requests (stopPeriodicUpload + stopDistanceAccumulator): drop BOTH want-flags,
+  // clear the cached payload, release the shared CLLocationManager — the match is over for this
+  // runner, so nothing needs GPS anymore. Runs on the MAIN thread (the driver invokes it from its
+  // main-queue completion), so it is serialized with — and idempotent against — the JS-initiated
+  // stops that arrive later when the app wakes (they find the flags already false / the driver nil
+  // and no-op; double-stop can never crash or double-release). The distance accumulator's TOTAL is
+  // preserved (reset only happens on a new run start), matching the JS stop semantics.
+  private func stopAfterTerminalFinishAck() {
+    periodicWantsLocation = false
+    distanceWantsLocation = false
+    locationDriver?.clearPayload()
+    teardownLocationDriverIfIdle()
+  }
+
   // MARK: - Distance accumulator lifecycle
 
   private func startDistanceAccumulator(options: [String: Any]) {
@@ -260,6 +304,12 @@ public class MatchProgressUploaderModule: Module {
         if let advancedMeters = self.distanceAccumulator.consume(location: location) {
           self.sendEvent("onDistanceAccumulated", ["meters": advancedMeters])
         }
+      },
+      onTerminalAck: { [weak self] in
+        // TERMINAL SELF-STOP (Stage 5): a JS-marked TERMINAL payload got a terminal server response
+        // (2xx/404/410). JS may be suspended and unable to observe the ACK, so the module stops the
+        // cadence + shared CLLocationManager + distance accumulator natively. Invoked on main.
+        self?.stopAfterTerminalFinishAck()
       }
     )
     locationDriver = driver
@@ -307,17 +357,20 @@ public class MatchProgressUploaderModule: Module {
 
   // MARK: - Shared HTTP send
 
-  // Shared HTTP send. Resolves the 2xx body string (or nil on non-2xx / any error). Used by both
-  // the one-shot upload() and the location-driven periodic re-POST.
+  // Shared HTTP send. Resolves the 2xx body string (or nil on non-2xx / any error) PLUS the raw
+  // HTTP status code when an HTTP response actually arrived (nil on transport error/timeout), so
+  // the periodic driver can recognize a TERMINAL response (2xx/404/410) at the point the status is
+  // already inspected — no second URLSession, no change to the request path. Used by both the
+  // one-shot upload() (which ignores the status) and the location-driven periodic re-POST.
   private func send(
     url urlString: String,
     authToken: String,
     jsonBody: String,
-    completion: @escaping (String?) -> Void
+    completion: @escaping (String?, Int?) -> Void
   ) {
     guard let url = URL(string: urlString) else {
       // Mirror Kotlin: any failure resolves nil so the next tick retries (never rejects/crashes).
-      completion(nil)
+      completion(nil, nil)
       return
     }
 
@@ -330,27 +383,29 @@ public class MatchProgressUploaderModule: Module {
     request.httpBody = jsonBody.data(using: .utf8)
 
     let task = session.dataTask(with: request) { data, response, error in
-      // Mirror Kotlin's catch → null on any transport error.
+      // Mirror Kotlin's catch → null on any transport error. No HTTP response arrived, so there is
+      // no status code either — a transport error can never read as a terminal ACK.
       if error != nil {
-        completion(nil)
+        completion(nil, nil)
         return
       }
 
       guard let httpResponse = response as? HTTPURLResponse else {
-        completion(nil)
+        completion(nil, nil)
         return
       }
 
       let statusCode = httpResponse.statusCode
       // Mirror Kotlin: only hand back a body the JS side can apply; non-2xx bodies are diagnostics,
-      // not state, so resolve nil for them.
+      // not state, so resolve nil for them. The status code is still surfaced so the driver can
+      // recognize a definitive 404/410 as a terminal ACK for a terminal-marked payload.
       guard (200...299).contains(statusCode) else {
-        completion(nil)
+        completion(nil, statusCode)
         return
       }
 
       let body = data.flatMap { String(data: $0, encoding: .utf8) }
-      completion(body)
+      completion(body, statusCode)
     }
 
     task.resume()
@@ -652,8 +707,9 @@ public class MatchProgressUploaderModule: Module {
 private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate {
   private let intervalSeconds: Double
   // The shared module HTTP send + the Expo emit, injected so the driver reuses the EXISTING send()
-  // helper and never recomputes the payload.
-  private let send: (String, String, String, @escaping (String?) -> Void) -> Void
+  // helper and never recomputes the payload. send's completion carries (2xx body or nil, HTTP
+  // status code or nil on transport error) — the status is what the terminal self-stop reads.
+  private let send: (String, String, String, @escaping (String?, Int?) -> Void) -> Void
   private let emit: (String) -> Void
   // iOS Live Activity native push hook. Invoked on the main thread right AFTER emit, with the 2xx
   // RESPONSE body + the request body that produced it (both as Data?). Fire-and-forget; the module
@@ -663,6 +719,11 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
   // Per-fix hook so the module can feed the distance accumulator from this SAME location stream
   // (no second CLLocationManager). Invoked on the main thread for every delivered location.
   private let onLocation: (CLLocation) -> Void
+  // TERMINAL SELF-STOP hook (Stage 5). Invoked on the main thread when a re-POST of a JS-marked
+  // TERMINAL payload received a terminal server response (2xx/404/410). The module performs the
+  // full stop (cadence + shared manager + distance accumulator) — the driver never tears itself
+  // down directly because the module owns the want-flag refcount.
+  private let onTerminalAck: () -> Void
 
   private var manager: CLLocationManager?
 
@@ -670,6 +731,13 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
   private var url: String?
   private var token: String?
   private var body: String?
+
+  // TERMINAL mark (Stage 5) — true when JS marked the CURRENT cached payload TERMINAL (a finished
+  // body). RESET by updatePayload/clearPayload/stop: an unmarked fresher payload is by definition
+  // non-terminal, so a superseding match's running payload can never inherit the mark (its live
+  // cadence must survive a late ACK for the previous finished match). Old JS bundles never set it,
+  // so the self-stop below never fires for them — byte-identical behavior to the previous binary.
+  private var payloadIsTerminal = false
 
   // Single-flight: a delivery never overlaps an in-flight POST (mirrors the Android AtomicBoolean
   // / the JS inFlightBackgroundMatchProgressSync lock).
@@ -681,16 +749,18 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
 
   init(
     intervalSeconds: Double,
-    send: @escaping (String, String, String, @escaping (String?) -> Void) -> Void,
+    send: @escaping (String, String, String, @escaping (String?, Int?) -> Void) -> Void,
     emit: @escaping (String) -> Void,
     pushLiveActivity: @escaping (Data?, Data?) -> Void,
-    onLocation: @escaping (CLLocation) -> Void
+    onLocation: @escaping (CLLocation) -> Void,
+    onTerminalAck: @escaping () -> Void
   ) {
     self.intervalSeconds = intervalSeconds
     self.send = send
     self.emit = emit
     self.pushLiveActivity = pushLiveActivity
     self.onLocation = onLocation
+    self.onTerminalAck = onTerminalAck
     super.init()
   }
 
@@ -698,6 +768,15 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
     self.url = url
     self.token = authToken
     self.body = jsonBody
+    // A payload update is non-terminal until JS explicitly re-marks it (the mark call follows the
+    // handoff through the same main queue, so the ordering is deterministic).
+    self.payloadIsTerminal = false
+  }
+
+  // TERMINAL mark (Stage 5): flag the current cached payload as a finished body whose terminal
+  // server response (2xx/404/410) must self-stop the cadence. Main-thread only, like all state here.
+  func markPayloadTerminal() {
+    payloadIsTerminal = true
   }
 
   // Clear ONLY the cached re-POST payload (used when the periodic re-POST stops but the distance
@@ -707,6 +786,7 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
     self.url = nil
     self.token = nil
     self.body = nil
+    self.payloadIsTerminal = false
     self.periodicInFlight = false
     self.lastPostAt = 0
   }
@@ -757,6 +837,7 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
     url = nil
     token = nil
     body = nil
+    payloadIsTerminal = false
     periodicInFlight = false
     lastPostAt = 0
   }
@@ -803,8 +884,11 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
     // pair the RESPONSE with the REQUEST that produced it (elapsedSeconds/matchId come from this exact
     // request body). UTF-8 → Data for the module's pushLiveActivity(responseBody:requestBody:).
     let requestBodyData = body.data(using: .utf8)
+    // TERMINAL SELF-STOP (Stage 5) — snapshot the terminal mark WITH the request: the response must
+    // be judged against the payload that produced it, not whatever is cached when it lands.
+    let requestWasTerminal = payloadIsTerminal
 
-    send(url, token, body) { [weak self] responseBody in
+    send(url, token, body) { [weak self] responseBody, statusCode in
       guard let self = self else {
         return
       }
@@ -812,13 +896,30 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
       DispatchQueue.main.async {
         self.periodicInFlight = false
         // send() returns nil on non-2xx / failure, so the emit fires only when there is state to
-        // apply — mirrors the Android `if (responseBody != null) sendEvent(...)`.
+        // apply — mirrors the Android `if (responseBody != null) sendEvent(...)`. UNCHANGED by the
+        // terminal self-stop below: every 2xx body still reaches JS exactly as before, so the JS
+        // ACK bookkeeping (settle pending finish, clearPendingFinish, ...) keeps working on wake.
         if let responseBody = responseBody {
           self.emit(responseBody)
           // iOS-only: ALSO drive the Live Activity match board natively, right AFTER emit. Pairs the
           // 2xx response with the snapshotted request body. Fire-and-forget; independent of
           // periodicInFlight / lastPostAt / the bg-sync promise.
           self.pushLiveActivity(responseBody.data(using: .utf8), requestBodyData)
+        }
+        // TERMINAL SELF-STOP (Stage 5) — fires ONLY when (a) the POSTed payload was terminal-marked
+        // (a normal running-status 2xx can never get here), (b) the mark is STILL set (a superseding
+        // non-terminal payload cleared it — its live cadence must survive a late ACK for the
+        // finished match), and (c) the server response is terminal: 2xx (the server froze my finish
+        // first-write-wins) or a definitive 404/410 — the EXACT status set the JS pending-finish
+        // path treats as terminal (isDefinitiveMatchGoneError in backgroundMatchProgressSync.ts).
+        // Transport errors/timeouts carry no statusCode, so the cadence keeps retrying on them.
+        if
+          requestWasTerminal,
+          self.payloadIsTerminal,
+          let statusCode = statusCode,
+          (200...299).contains(statusCode) || statusCode == 404 || statusCode == 410
+        {
+          self.onTerminalAck()
         }
       }
     }

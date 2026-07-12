@@ -1345,6 +1345,8 @@ function buildFakePeriodicUploaderModule() {
     startPayloads: [] as string[],
     updatePayloads: [] as string[],
     stopCalls: 0,
+    // Stage 5 — how many times the flush marked the cadence payload TERMINAL (finished body only).
+    terminalMarks: 0,
     listener: null as ((body: string) => void) | null,
   };
   const module = {
@@ -1359,6 +1361,10 @@ function buildFakePeriodicUploaderModule() {
     },
     stopPeriodicMatchUpload: () => {
       state.stopCalls += 1;
+      return true;
+    },
+    markPeriodicMatchPayloadTerminal: () => {
+      state.terminalMarks += 1;
       return true;
     },
     addMatchProgressResponseListener: (listener: (body: string) => void) => {
@@ -1468,6 +1474,61 @@ test('pending finish §3.②: the native cadence carries the FINISHED body until
     clearBackgroundMatchProgressContext('duel-finish-cadence');
     await settleAsyncTeardown();
     assert.equal(periodic.state.stopCalls, 1);
+  } finally {
+    teardown();
+  }
+});
+
+// TERMINAL SELF-STOP (Stage 5) — the flush threads the terminal flag onto the cadence handoff for
+// FINISHED payloads ONLY, so the new iOS binary can self-stop on the server's terminal response
+// while a normal running-status payload can never trigger a native stop.
+test('terminal flag (Stage 5): only the FINISHED cadence handoff marks the native payload terminal', async () => {
+  const nowMs = Date.now();
+  const { periodic, teardown } = setupPendingFinishFixture();
+  // Below the goal → the flush computes status 'running' → the handoff must NOT mark terminal.
+  setRunningSnapshot(nowMs, { distanceKm: 1 });
+  setBackgroundMatchProgressContext({
+    matchId: 'duel-terminal-mark',
+    mode: 'duel',
+    distanceKm: 5,
+    slotStartAt: '2026-05-29T00:00:00.000Z',
+  });
+
+  const nativeCalls: { body: string; token: string; url: string }[] = [];
+  try {
+    assert.equal(await flushBackgroundMatchProgressSync({
+      apiBaseUrl: 'https://preview.example.test/api',
+      getAccessToken: async () => 'native-token',
+      getNativeMatchProgressUploader: async () => finishAckNativeUploader(nativeCalls),
+      isAppBackground: true,
+      nowMs,
+      platform: 'ios',
+      updateRunningMatchProgress: async () => {
+        throw new Error('JS uploader should not run on the native path');
+      },
+    }), true);
+    await settleAsyncTeardown();
+    assert.equal(periodic.state.startPayloads.length, 1);
+    assert.match(periodic.state.startPayloads[0], /"status":"running"/);
+    assert.equal(periodic.state.terminalMarks, 0, 'a running payload never marks terminal');
+
+    // JS crosses the goal → the flush computes status 'finished' → the refresh marks terminal.
+    setRunningSnapshot(nowMs, { distanceKm: 5 });
+    assert.equal(await flushBackgroundMatchProgressSync({
+      apiBaseUrl: 'https://preview.example.test/api',
+      getAccessToken: async () => 'native-token',
+      getNativeMatchProgressUploader: async () => finishAckNativeUploader(nativeCalls),
+      isAppBackground: true,
+      nowMs: nowMs + BACKGROUND_MATCH_PROGRESS_SYNC_INTERVAL_MS,
+      platform: 'ios',
+      updateRunningMatchProgress: async () => {
+        throw new Error('JS uploader should not run on the native path');
+      },
+    }), true);
+    await settleAsyncTeardown();
+    assert.equal(periodic.state.updatePayloads.length, 1);
+    assert.match(periodic.state.updatePayloads[0], /"status":"finished"/);
+    assert.equal(periodic.state.terminalMarks, 1, 'the finished payload handoff marks terminal');
   } finally {
     teardown();
   }

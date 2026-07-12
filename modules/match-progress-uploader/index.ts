@@ -58,6 +58,14 @@ type MatchProgressUploaderNativeModule = {
   startPeriodicUpload?(url: string, authToken: string, jsonBody: string, intervalMs: number): void;
   updatePeriodicPayload?(url: string, authToken: string, jsonBody: string): void;
   stopPeriodicUpload?(): void;
+  // TERMINAL SELF-STOP MARK (NEW — iOS build 44+ ONLY; the current iOS/Android binaries and the
+  // Kotlin module do NOT define it). Marks the currently cached periodic payload TERMINAL (a
+  // finished body) so the NATIVE side self-stops its cadence + location consumer + distance
+  // accumulator when THAT payload gets a terminal server response (2xx/404/410) — a screen-off iOS
+  // runner cannot rely on JS observing the ACK. OPTIONAL on the type for the same reason as the
+  // periodic fns above; the `typeof` gate in the wrapper below makes the call a safe no-op
+  // everywhere the fn is absent (old binaries, Android, web), so a single OTA bundle stays safe.
+  markPeriodicPayloadTerminal?(): void;
 
   // BATTERY OPTIMIZATION CONTROL (NEW — Android-only, ships in the NEXT native build). Synchronous
   // Expo `Function(...)`s exposed by the Kotlin module. OPTIONAL on the type for the SAME reason as
@@ -213,6 +221,32 @@ export function stopPeriodicMatchUpload(): boolean {
 
   try {
     nativeModule?.stopPeriodicUpload?.();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// TERMINAL SELF-STOP MARK (hands-free finish Stage 5) — mark the currently cached native periodic
+// payload TERMINAL. Called by the controller right AFTER a FINISHED payload handoff (the native
+// start/update reset the mark, so the mark must follow the payload it belongs to — both marshal
+// through the same native queue, preserving order). Once marked, the NEW iOS binary self-stops its
+// cadence + CLLocationManager + distance accumulator when that payload gets a terminal server
+// response (2xx/404/410), without waiting for JS. No-op (returns false) on ANY binary lacking the
+// native fn — the current iOS build, every Android build (the Kotlin module deliberately does not
+// implement it: Android's stop pipeline already works via the FG service), web, and Expo Go — so
+// the single OTA bundle stays safe and the JS-observed stop path remains the unchanged fallback.
+export function markPeriodicMatchPayloadTerminal(): boolean {
+  if (!isNativePeriodicUploaderAvailable()) {
+    return false;
+  }
+
+  if (typeof nativeModule?.markPeriodicPayloadTerminal !== 'function') {
+    return false;
+  }
+
+  try {
+    nativeModule?.markPeriodicPayloadTerminal?.();
     return true;
   } catch {
     return false;

@@ -20,6 +20,11 @@ type PeriodicMatchUploaderModule = {
   startPeriodicMatchUpload(url: string, authToken: string, jsonBody: string, intervalMs: number): boolean;
   updatePeriodicMatchPayload(url: string, authToken: string, jsonBody: string): boolean;
   stopPeriodicMatchUpload(): boolean;
+  // TERMINAL SELF-STOP MARK (Stage 5) — OPTIONAL on the type so injected test fakes without it stay
+  // valid; the call sites below use `?.()` so absence can never throw. The real wrapper (index.ts)
+  // always exports it and no-ops internally on every binary lacking the native fn (old iOS, all
+  // Android, web), so calling it here is OTA-safe on both platforms.
+  markPeriodicMatchPayloadTerminal?(): boolean;
   addMatchProgressResponseListener(listener: (body: string) => void): () => void;
 };
 
@@ -27,6 +32,12 @@ export type PeriodicMatchUploadPayload = {
   url: string;
   authToken: string;
   jsonBody: string;
+  // TERMINAL SELF-STOP (Stage 5) — true when jsonBody is a TERMINAL (finished) body: right after
+  // the handoff the cached native payload is marked terminal, so the NEW iOS binary self-stops its
+  // cadence + location consumer when that exact payload gets a terminal server response
+  // (2xx/404/410) even while JS is suspended. Optional and default-absent: every non-finish payload
+  // (and every existing caller) behaves exactly as before.
+  isTerminal?: boolean;
 };
 
 // 3s wall-clock cadence — aligned with BACKGROUND_MATCH_PROGRESS_TIMER_MS / the flush throttle so
@@ -88,6 +99,12 @@ export async function startPeriodicMatchUpload(
   if (lastStartedMatchKey === matchKey) {
     // Already running for this match — just refresh the cached payload (no thread/listener churn).
     module.updatePeriodicMatchPayload(payload.url, payload.authToken, payload.jsonBody);
+    // TERMINAL SELF-STOP (Stage 5) — re-mark AFTER the refresh: the native payload update RESETS
+    // the terminal mark, and both calls marshal through the same native queue, so marking here
+    // deterministically lands on the payload it was issued for.
+    if (payload.isTerminal === true) {
+      module.markPeriodicMatchPayloadTerminal?.();
+    }
     return true;
   }
 
@@ -99,7 +116,13 @@ export async function startPeriodicMatchUpload(
   });
   lastStartedMatchKey = matchKey;
 
-  return module.startPeriodicMatchUpload(payload.url, payload.authToken, payload.jsonBody, intervalMs);
+  const started = module.startPeriodicMatchUpload(payload.url, payload.authToken, payload.jsonBody, intervalMs);
+  // TERMINAL SELF-STOP (Stage 5) — mark AFTER the start handoff for the same ordering reason as the
+  // refresh branch above (start caches an unmarked payload first).
+  if (payload.isTerminal === true) {
+    module.markPeriodicMatchPayloadTerminal?.();
+  }
+  return started;
 }
 
 // NOTE: there is intentionally NO standalone updatePeriodicMatchPayload export. The same-match

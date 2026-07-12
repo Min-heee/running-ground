@@ -12,6 +12,7 @@ type FakeNativeModule = {
   startPeriodicMatchUpload(url: string, authToken: string, jsonBody: string, intervalMs: number): boolean;
   updatePeriodicMatchPayload(url: string, authToken: string, jsonBody: string): boolean;
   stopPeriodicMatchUpload(): boolean;
+  markPeriodicMatchPayloadTerminal?(): boolean;
   addMatchProgressResponseListener(listener: (body: string) => void): () => void;
 };
 
@@ -19,16 +20,25 @@ type Recorder = {
   startCalls: { url: string; authToken: string; jsonBody: string; intervalMs: number }[];
   updateCalls: { url: string; authToken: string; jsonBody: string }[];
   stopCalls: number;
+  // Stage 5 — terminal-mark count + a payload-vs-mark call-order log ('start'/'update'/'mark'),
+  // because the mark MUST land AFTER the payload it belongs to (the native update resets the mark).
+  terminalMarks: number;
+  order: string[];
   listeners: ((body: string) => void)[];
   removedListeners: number;
   emit(body: string): void;
 };
 
-function buildFakeModule(available: boolean): { module: FakeNativeModule; recorder: Recorder } {
+function buildFakeModule(
+  available: boolean,
+  options?: { withTerminalMark?: boolean },
+): { module: FakeNativeModule; recorder: Recorder } {
   const recorder: Recorder = {
     startCalls: [],
     updateCalls: [],
     stopCalls: 0,
+    terminalMarks: 0,
+    order: [],
     listeners: [],
     removedListeners: 0,
     emit(body: string) {
@@ -40,10 +50,12 @@ function buildFakeModule(available: boolean): { module: FakeNativeModule; record
     isNativePeriodicUploaderAvailable: () => available,
     startPeriodicMatchUpload: (url, authToken, jsonBody, intervalMs) => {
       recorder.startCalls.push({ url, authToken, jsonBody, intervalMs });
+      recorder.order.push('start');
       return true;
     },
     updatePeriodicMatchPayload: (url, authToken, jsonBody) => {
       recorder.updateCalls.push({ url, authToken, jsonBody });
+      recorder.order.push('update');
       return true;
     },
     stopPeriodicMatchUpload: () => {
@@ -58,6 +70,16 @@ function buildFakeModule(available: boolean): { module: FakeNativeModule; record
       };
     },
   };
+
+  // Stage 5 — the mark fn is OPTIONAL on the wrapper type; withTerminalMark=false simulates an
+  // older wrapper/module shape without it (the controller must not throw for a terminal payload).
+  if (options?.withTerminalMark !== false) {
+    module.markPeriodicMatchPayloadTerminal = () => {
+      recorder.terminalMarks += 1;
+      recorder.order.push('mark');
+      return true;
+    };
+  }
 
   return { module, recorder };
 }
@@ -187,6 +209,77 @@ test('stopPeriodicMatchUpload stops the cadence and unsubscribes the listener', 
   // After stop, a late native emit can no longer reach the applier (listener removed).
   recorder.emit('{"matchId":"m-1"}');
   assert.equal(applied.length, 0);
+});
+
+// TERMINAL SELF-STOP (Stage 5) — a FINISHED (isTerminal) payload handoff must mark the native
+// payload terminal AFTER the payload lands (start and same-match refresh both reset the mark
+// natively, so the mark must follow), and non-terminal payloads must never mark.
+test('startPeriodicMatchUpload marks the payload terminal AFTER the handoff (start + refresh)', async () => {
+  resetPeriodicMatchUploadForTest();
+  const { module, recorder } = buildFakeModule(true);
+
+  await startPeriodicMatchUpload(
+    'm-1',
+    { ...PAYLOAD, isTerminal: true },
+    () => undefined,
+    3_000,
+    async () => module,
+  );
+  assert.equal(recorder.terminalMarks, 1);
+  assert.deepEqual(recorder.order, ['start', 'mark'], 'mark follows the start handoff');
+
+  // Same-match refresh (the pending-finish re-send tick): payload refresh, then re-mark.
+  await startPeriodicMatchUpload(
+    'm-1',
+    { ...PAYLOAD, isTerminal: true },
+    () => undefined,
+    3_000,
+    async () => module,
+  );
+  assert.equal(recorder.terminalMarks, 2);
+  assert.deepEqual(recorder.order, ['start', 'mark', 'update', 'mark'], 'mark follows the refresh');
+
+  await stopPeriodicMatchUpload(async () => module);
+});
+
+test('startPeriodicMatchUpload never marks terminal for a non-terminal payload', async () => {
+  resetPeriodicMatchUploadForTest();
+  const { module, recorder } = buildFakeModule(true);
+
+  // isTerminal absent (every existing caller's shape) and explicitly false — neither marks.
+  await startPeriodicMatchUpload('m-1', PAYLOAD, () => undefined, 3_000, async () => module);
+  await startPeriodicMatchUpload(
+    'm-1',
+    { ...PAYLOAD, isTerminal: false },
+    () => undefined,
+    3_000,
+    async () => module,
+  );
+
+  assert.equal(recorder.terminalMarks, 0);
+  assert.deepEqual(recorder.order, ['start', 'update']);
+
+  await stopPeriodicMatchUpload(async () => module);
+});
+
+test('a terminal payload does not throw when the module lacks the terminal-mark fn', async () => {
+  resetPeriodicMatchUploadForTest();
+  const { module, recorder } = buildFakeModule(true, { withTerminalMark: false });
+
+  const started = await startPeriodicMatchUpload(
+    'm-1',
+    { ...PAYLOAD, isTerminal: true },
+    () => undefined,
+    3_000,
+    async () => module,
+  );
+
+  // The handoff still succeeds; the mark is silently skipped (old wrapper/binary behavior).
+  assert.equal(started, true);
+  assert.equal(recorder.startCalls.length, 1);
+  assert.equal(recorder.terminalMarks, 0);
+
+  await stopPeriodicMatchUpload(async () => module);
 });
 
 test('starting a different match tears down the prior listener before subscribing the new one', async () => {
