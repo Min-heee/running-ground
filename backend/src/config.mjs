@@ -251,6 +251,15 @@ export const SMS_GLOBAL_PER_DAY = Math.max(1, parseNumber(process.env.BACKEND_SM
 export const LOGIN_PER_IP_PER_MINUTE = Math.max(1, parseNumber(process.env.BACKEND_LOGIN_PER_IP_PER_MINUTE, 60));
 export const LOGIN_PER_ACCOUNT_PER_HOUR = Math.max(1, parseNumber(process.env.BACKEND_LOGIN_PER_ACCOUNT_PER_HOUR, 20));
 
+// App-Review 로그인 우회 계정: 앱 심사관은 한국 SMS를 못 받으므로, 지정된 심사용 번호는 실제
+// SMS 발송 없이 고정 6자리 OTP로 인증한다. 두 값이 모두 설정되고 OTP가 6자리 숫자일 때만
+// 활성화 — 기본은 완전히 꺼져 있어 우회 경로 자체가 존재하지 않는다. 이 번호는 심사 전용
+// 1회용 계정으로만 쓰고 실제 유저 번호를 넣지 말 것 (번호+OTP 조합을 아는 사람은 그 계정에
+// 로그인할 수 있다).
+const rawReviewLoginOtp = String(process.env.BACKEND_REVIEW_LOGIN_OTP ?? '').trim();
+export const REVIEW_LOGIN_PHONE = String(process.env.BACKEND_REVIEW_LOGIN_PHONE ?? '').replace(/[^\d]/g, '');
+export const REVIEW_LOGIN_OTP = /^\d{6}$/.test(rawReviewLoginOtp) ? rawReviewLoginOtp : '';
+
 // ---------------------------------------------------------------------------
 // Match integrity — testMode 게이트 + vanished-match tombstone.
 // ---------------------------------------------------------------------------

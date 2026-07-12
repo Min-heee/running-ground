@@ -1,4 +1,6 @@
 import {
+  REVIEW_LOGIN_OTP,
+  REVIEW_LOGIN_PHONE,
   SMS_GLOBAL_PER_DAY,
   SMS_PER_IP_PER_HOUR,
   SMS_PER_PHONE_PER_DAY,
@@ -26,6 +28,8 @@ export async function routeAuthPhoneVerificationRequest({
   mutateStore,
   smsRequestCodeGuard = defaultSmsRequestCodeGuard,
   trustProxy = TRUST_PROXY,
+  reviewLoginPhone = REVIEW_LOGIN_PHONE,
+  reviewLoginOtp = REVIEW_LOGIN_OTP,
   buildPhoneVerificationPayload,
   buildPhoneVerificationSuccessPayload,
   cleanupPhoneVerificationChallenges,
@@ -49,11 +53,14 @@ export async function routeAuthPhoneVerificationRequest({
       cleanupPhoneVerificationChallenges,
       createPhoneVerificationChallenge,
       ensurePhoneVerificationChallenges,
+      hashPhoneVerificationCode,
       mutateStore,
       parseJsonBody,
       phoneVerificationService,
       request,
       response,
+      reviewLoginOtp,
+      reviewLoginPhone,
       sendJson,
       smsRequestCodeGuard,
       trustProxy,
@@ -93,11 +100,14 @@ async function handleRequestPhoneVerificationCode({
   cleanupPhoneVerificationChallenges,
   createPhoneVerificationChallenge,
   ensurePhoneVerificationChallenges,
+  hashPhoneVerificationCode,
   mutateStore,
   parseJsonBody,
   phoneVerificationService,
   request,
   response,
+  reviewLoginOtp,
+  reviewLoginPhone,
   sendJson,
   smsRequestCodeGuard,
   trustProxy,
@@ -108,6 +118,11 @@ async function handleRequestPhoneVerificationCode({
   const purpose = validatePhoneVerificationPurpose(body.purpose);
   const phone = validatePhoneNumber(body.phone);
   const now = new Date();
+
+  // App-Review 우회: 심사관은 한국 SMS를 못 받으므로, 지정된 심사용 번호는 실제 발송 없이
+  // 서버의 고정 OTP로 인증한다. 두 env가 모두 유효할 때만 존재하는 경로이고(config.mjs),
+  // 그 외 모든 것(챌린지 수명, 시도 횟수, 레이트리밋)은 일반 번호와 동일하게 적용된다.
+  const isReviewLoginRequest = Boolean(reviewLoginPhone && reviewLoginOtp && phone === reviewLoginPhone);
 
   const clientIp = resolveClientIp(request, { trustProxy });
   const rateDecision = smsRequestCodeGuard.check({ ip: clientIp, phone, now: now.getTime() });
@@ -157,6 +172,12 @@ async function handleRequestPhoneVerificationCode({
       now,
     });
 
+    if (isReviewLoginRequest) {
+      // 심사용 번호는 무작위 코드 대신 서버 고정 OTP로 검증되도록 해시만 교체한다 —
+      // 챌린지의 나머지(수명·시도횟수·supersede)는 전부 일반 경로 그대로.
+      challenge.codeHash = hashPhoneVerificationCode(challenge.id, reviewLoginOtp);
+    }
+
     for (const existingChallenge of challenges) {
       if (existingChallenge.phone === phone && existingChallenge.purpose === purpose && existingChallenge.status === 'pending') {
         existingChallenge.status = 'superseded';
@@ -168,6 +189,13 @@ async function handleRequestPhoneVerificationCode({
     createdChallenge = challenge;
     rawCode = code;
   });
+
+  if (isReviewLoginRequest) {
+    // 실제 SMS는 절대 발송하지 않는다(과금 없음·심사관은 어차피 수신 불가). 클라이언트는
+    // 일반 발송과 동일한 성공 payload를 받고, 심사관은 심사 노트에 적힌 고정 OTP를 입력한다.
+    sendJson(response, 200, buildPhoneVerificationPayload(createdChallenge, { provider: 'review' }));
+    return;
+  }
 
   try {
     const providerResult = await phoneVerificationService.sendCode({
