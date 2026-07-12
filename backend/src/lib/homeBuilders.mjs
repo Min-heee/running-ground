@@ -1,19 +1,12 @@
-import { getActionableRequests, getFriendIds } from './socialStoreHelpers.mjs';
-import { findUserById, getRunsForUser, getUserMetrics } from './userStoreHelpers.mjs';
+import { getFriendIds } from './socialStoreHelpers.mjs';
+import { findUserById, getUserMetrics } from './userStoreHelpers.mjs';
 import {
-  buildDistrictRanks,
-  buildFriendRank,
   compareFriendRank,
   getDistrictBattle,
 } from './rankingBuilders.mjs';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
-}
-
-export function buildHomeSummary(store, user) {
-  const metrics = getUserMetrics(store, user.id);
-  return buildHomeSummaryWithMetrics(store, user, metrics);
 }
 
 export function buildHomeSummaryWithMetrics(store, user, metrics) {
@@ -55,13 +48,6 @@ export function buildHomeSummaryWithMetrics(store, user, metrics) {
   };
 }
 
-export function buildMyActivity(store, user) {
-  return buildMyActivityWithRunsAndMetrics(
-    getRunsForUser(store, user.id),
-    getUserMetrics(store, user.id),
-  );
-}
-
 export function buildMyActivityWithRunsAndMetrics(runs, metrics) {
   return {
     runs: runs.map((run) => ({
@@ -75,56 +61,5 @@ export function buildMyActivityWithRunsAndMetrics(runs, metrics) {
     })),
     monthlyDistanceKm: metrics.currentMonthDistanceKm,
     monthlyPoints: metrics.currentMonthPoints,
-  };
-}
-
-export function buildFriendLeaderboard(store, user) {
-  const relatedUserIds = [...new Set([user.id, ...getFriendIds(store, user.id)])];
-
-  const currentAndFriends = relatedUserIds
-    .map((userId) => findUserById(store, userId))
-    .sort((left, right) => compareFriendRank(store, left, right))
-    .map((entry, index) => buildFriendRank(store, entry, index + 1));
-
-  return {
-    ranks: currentAndFriends,
-    requests: getActionableRequests(store, user.id),
-  };
-}
-
-export function buildDistrictPersonal(store, user) {
-  const districtUsers = buildDistrictRanks(store, user);
-  const myRank = districtUsers.find((entry) => entry.id === user.id) ?? null;
-  const myRankIndex = myRank ? districtUsers.findIndex((entry) => entry.id === user.id) : -1;
-  const focusStart = Math.max(0, myRankIndex - 1);
-  const focusRanks = myRankIndex >= 0 ? districtUsers.slice(focusStart, focusStart + 4) : districtUsers.slice(0, 4);
-
-  return {
-    districtName: user.districtName,
-    myRank,
-    myPoints: getUserMetrics(store, user.id).currentWeekPoints,
-    weeklyDistanceKm: getUserMetrics(store, user.id).currentWeekDistanceKm,
-    focusRanks,
-    ranks: districtUsers,
-  };
-}
-
-export function buildFriendActivity(store, currentUserId, friendId) {
-  const friend = findUserById(store, friendId);
-  const runs = getRunsForUser(store, friend.id);
-  const friendMetrics = getUserMetrics(store, friend.id);
-  const leaderboard = buildFriendLeaderboard(store, findUserById(store, currentUserId));
-  const rankedFriend = leaderboard.ranks.find((entry) => entry.id === friend.id) ?? buildFriendRank(store, friend, 1);
-
-  return {
-    friend: rankedFriend,
-    runs: runs.map((run) => ({
-      id: run.id,
-      date: run.date,
-      distanceKm: run.distanceKm,
-      pace: run.pace,
-    })),
-    monthlyDistanceKm: friendMetrics.currentMonthDistanceKm,
-    monthlyPoints: friendMetrics.currentMonthPoints,
   };
 }
