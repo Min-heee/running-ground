@@ -1,5 +1,5 @@
-import { memo, useCallback } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback } from 'react';
+import { Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
@@ -8,24 +8,16 @@ import { MatchStartCountdownOverlay } from '@/components/matches/MatchStartCount
 import { LiveGapPushCard } from '@/features/runs/components/matchSetupCards/LiveGapPushCard';
 import { useDuelReservationRoom } from '@/features/match/hooks/useDuelReservationRoom';
 import { useReservationArenaHandoff } from '@/features/match/hooks/useReservationArenaHandoff';
+import {
+  parseNumberParam,
+  parseStringParam,
+} from '@/features/match/components/reservationRoom/reservationRoomParams';
+import {
+  BackButton,
+  ReservationParticipantList,
+} from '@/features/match/components/reservationRoom/ReservationRoomShared';
+import { reservationRoomScreenStyles as styles } from '@/features/match/components/reservationRoom/reservationRoomStyles';
 import { formatRoomDateLabel } from '@/features/runs/utils/matchRoomScheduling';
-import type { DuelReservationParticipant } from '@/features/runs/lifecycle/matchStateMachine';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
-
-function parseNumberParam(value: string | string[] | undefined): number | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function parseStringParam(value: string | string[] | undefined): string | null {
-  if (typeof value === 'string' && value.length > 0) {
-    return value;
-  }
-  return null;
-}
 
 export default function DuelReservationRoomScreen() {
   const params = useLocalSearchParams<{
@@ -112,7 +104,11 @@ export default function DuelReservationRoomScreen() {
             <Text style={styles.autoStartNotice}>{view.autoStartNotice}</Text>
           </Card>
 
-          <DuelReservationParticipantList participants={view.participants} />
+          <ReservationParticipantList
+            participants={view.participants}
+            highlightSelf={false}
+            helperText="예약된 1대1 대결은 시작 시간에 자동으로 시작돼요."
+          />
 
           <LiveGapPushCard mode="duel" />
 
@@ -145,183 +141,3 @@ export default function DuelReservationRoomScreen() {
     </Screen>
   );
 }
-
-const BackButton = memo(function BackButton({ onPress }: { onPress: () => void }) {
-  return (
-    <Pressable style={styles.backButton} onPress={onPress}>
-      <Text style={styles.backText}>←</Text>
-    </Pressable>
-  );
-});
-
-const DuelReservationParticipantRow = memo(function DuelReservationParticipantRow({
-  participant,
-}: {
-  participant: DuelReservationParticipant;
-}) {
-  return (
-    <View
-      style={[styles.participantRow, participant.isSelf ? undefined : styles.opponentParticipantRow]}
-    >
-      <View style={styles.participantIdentity}>
-        <Text style={styles.participantName}>{participant.name}</Text>
-        {participant.badgeLabel ? (
-          <Text style={participant.isSelf ? styles.selfBadge : styles.opponentBadge}>
-            {participant.badgeLabel}
-          </Text>
-        ) : null}
-      </View>
-      <Text style={styles.participantStatus}>{participant.statusLabel}</Text>
-    </View>
-  );
-});
-
-const DuelReservationParticipantList = memo(function DuelReservationParticipantList({
-  participants,
-}: {
-  participants: DuelReservationParticipant[];
-}) {
-  return (
-    <Card>
-      <Text style={styles.sectionTitle}>참가자 명단</Text>
-      <View style={styles.participantList}>
-        {participants.map((participant) => (
-          <DuelReservationParticipantRow key={participant.id} participant={participant} />
-        ))}
-      </View>
-      <Text style={styles.helperText}>예약된 1대1 대결은 시작 시간에 자동으로 시작돼요.</Text>
-    </Card>
-  );
-});
-
-const styles = StyleSheet.create({
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-  },
-  backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: radii.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backText: {
-    color: colors.brand,
-    fontWeight: fontWeights.black,
-    fontSize: fontSizes.summaryValue,
-    lineHeight: 24,
-  },
-  pageTitle: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.pageTitle,
-    fontWeight: fontWeights.black,
-  },
-  summaryCard: {
-    gap: spacing.s14,
-  },
-  summaryTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: spacing.s12,
-  },
-  summaryHeading: {
-    flex: 1,
-    gap: spacing.xxs,
-  },
-  summaryModeTitle: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.summaryValue,
-    fontWeight: fontWeights.black,
-  },
-  summaryMeta: {
-    color: colors.textMuted,
-    fontSize: fontSizes.base,
-    fontWeight: fontWeights.semibold,
-  },
-  statusPill: {
-    borderRadius: radii.pill,
-    backgroundColor: colors.indigoInk,
-    paddingHorizontal: spacing.s12,
-    paddingVertical: spacing.xxl,
-  },
-  statusPillText: {
-    color: colors.brandWashStrong,
-    fontSize: fontSizes.md,
-    fontWeight: fontWeights.extraBold,
-  },
-  autoStartNotice: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.base,
-    lineHeight: 20,
-  },
-  sectionTitle: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.title,
-    fontWeight: fontWeights.extraBold,
-  },
-  participantList: {
-    gap: spacing.s10,
-  },
-  participantRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: radii.md,
-    backgroundColor: colors.surfaceSoft,
-    paddingHorizontal: spacing.s14,
-    paddingVertical: spacing.s14,
-  },
-  opponentParticipantRow: {
-    borderWidth: 1,
-    borderColor: colors.brandLighter,
-    backgroundColor: colors.brandWash,
-  },
-  participantIdentity: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xxl,
-  },
-  participantName: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.button,
-    fontWeight: fontWeights.extraBold,
-  },
-  selfBadge: {
-    color: colors.brand,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extraBold,
-  },
-  opponentBadge: {
-    color: colors.brandDeep,
-    fontSize: fontSizes.sm,
-    fontWeight: fontWeights.extraBold,
-  },
-  participantStatus: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.base,
-    fontWeight: fontWeights.bold,
-  },
-  helperText: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.base,
-    lineHeight: 20,
-  },
-  cancelHelperText: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.sm,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-  emptyTitle: {
-    color: colors.textPrimary,
-    fontSize: fontSizes.title,
-    fontWeight: fontWeights.extraBold,
-  },
-  errorText: {
-    color: colors.dangerBright,
-    fontSize: fontSizes.base,
-    fontWeight: fontWeights.bold,
-  },
-});
