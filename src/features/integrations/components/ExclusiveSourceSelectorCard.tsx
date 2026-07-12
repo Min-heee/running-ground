@@ -129,7 +129,7 @@ const NoSourceRow = memo(function NoSourceRow({
           <Text style={styles.optionName}>연동 안 함</Text>
           {isBusy ? <Text style={styles.busyText}>해제 중...</Text> : null}
         </View>
-        <Text style={styles.optionDescription}>자동 기록 소스를 쓰지 않고, 앱 측정이나 수동 기록만 사용할게요.</Text>
+        <Text style={styles.optionDescription}>가져오기 소스를 쓰지 않고, 앱 측정이나 수동 기록만 사용할게요.</Text>
       </View>
     </Pressable>
   );
@@ -154,7 +154,7 @@ export function ExclusiveSourceSelectorCard({
   return (
     <Card style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.sectionTitle}>자동 기록 소스</Text>
+        <Text style={styles.sectionTitle}>기록 가져오기 소스</Text>
         <Text style={styles.helperText}>
           한 번에 1개만 연결돼요. 다른 소스를 고르면 이전 소스는 자동으로 해제돼서, 같은 러닝이 중복으로 쌓이지 않아요.
         </Text>

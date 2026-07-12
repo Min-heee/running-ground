@@ -63,16 +63,16 @@ const PLATFORM_COPY: Record<NativeHealthSourceType, {
   configReadyDescription: string;
 }> = {
   apple_health: {
-    title: 'Apple Health 자동 연동',
+    title: 'Apple 건강 연동',
     expectedPlatform: 'ios',
-    connectStep: '연동 관리에서 Apple Health 연결을 먼저 켜세요.',
-    configReadyDescription: 'NRC로 달린 뒤 Apple 건강 앱에 운동이 들어온 걸 확인하고, 여기서 바로 가져오면 돼.',
+    connectStep: '연동 관리에서 Apple 건강 연결을 먼저 켜세요.',
+    configReadyDescription: "러닝 앱(NRC 등)으로 달린 기록이 Apple 건강에 들어온 걸 확인하고, '기기에서 기록 가져오기' 버튼으로 가져오면 돼.",
   },
   health_connect: {
-    title: 'Health Connect 자동 연동',
+    title: '헬스 커넥트 연동',
     expectedPlatform: 'android',
-    connectStep: '연동 관리에서 Health Connect 연결을 먼저 켜세요.',
-    configReadyDescription: '앱 권한 설정은 준비됐고, 다음 단계는 실제 Health Connect reader를 붙여 기기 기록을 가져오는 것입니다.',
+    connectStep: '연동 관리에서 헬스 커넥트 연결을 먼저 켜세요.',
+    configReadyDescription: "권한 준비는 끝났어. '기기에서 기록 가져오기' 버튼을 누르면 헬스 커넥트에 쌓인 러닝 기록을 읽어와.",
   },
 };
 
@@ -136,7 +136,7 @@ export function getNativeHealthReadiness(
       connected,
       steps: [
         metadata.connectStep,
-        '연결 후 이 화면에서 기기 자동 연동 준비 상태를 다시 확인하세요.',
+        '연결 후 이 화면에서 기기 기록 가져오기 준비 상태를 다시 확인하세요.',
       ],
     };
   }
@@ -145,13 +145,13 @@ export function getNativeHealthReadiness(
     return {
       sourceType,
       title: metadata.title,
-      description: `${metadata.expectedPlatform === 'ios' ? 'iPhone' : 'Android'} 빌드에서 확인해야 하는 자동 연동 경로예요.`,
+      description: `${metadata.expectedPlatform === 'ios' ? 'iPhone' : 'Android'} 기기에서 쓸 수 있는 연동 경로예요.`,
       badgeLabel: '다른 플랫폼용',
       state: 'wrong_platform',
       expectedPlatform: metadata.expectedPlatform,
       connected,
       steps: [
-        `${metadata.expectedPlatform === 'ios' ? 'iPhone' : 'Android'} 기기에서 이 연동 경로를 테스트하세요.`,
+        `${metadata.expectedPlatform === 'ios' ? 'iPhone' : 'Android'} 기기에서 이 연동을 사용할 수 있어요.`,
         metadata.connectStep,
       ],
     };
@@ -161,14 +161,14 @@ export function getNativeHealthReadiness(
     return {
       sourceType,
       title: metadata.title,
-      description: 'Expo Go에서는 이 네이티브 건강 연동 권한을 실제로 붙일 수 없어서 개발 빌드나 출시 빌드가 필요해요.',
-      badgeLabel: '개발 빌드 필요',
+      description: '지금 실행 중인 미리보기 환경에서는 건강 데이터 권한을 쓸 수 없어서 정식 설치된 앱이 필요해요.',
+      badgeLabel: '정식 앱 필요',
       state: 'needs_custom_build',
       expectedPlatform: metadata.expectedPlatform,
       connected,
       steps: [
-        'EAS development build 또는 내부 테스트 빌드로 앱을 설치하세요.',
-        '그 빌드에서 건강 데이터 권한 요청과 실제 동기화 reader를 붙이면 됩니다.',
+        '앱스토어 또는 테스트 배포로 설치한 앱에서 다시 시도해 주세요.',
+        '정식 설치된 앱에서 건강 데이터 권한을 허용하면 기록을 가져올 수 있어요.',
       ],
     };
   }
@@ -183,11 +183,11 @@ export function getNativeHealthReadiness(
     connected,
     steps: [
       sourceType === 'apple_health'
-        ? '오늘 러닝은 NRC로 기록하고, 끝난 뒤 Apple 건강 앱에 운동이 들어왔는지 먼저 확인하세요.'
-        : '이제 네이티브 reader에서 러닝 기록을 읽어 shared import payload로 변환하면 됩니다.',
+        ? '러닝 앱(NRC 등)으로 달린 뒤 Apple 건강 앱에 운동이 들어왔는지 먼저 확인하세요.'
+        : '삼성헬스 등 러닝 앱 기록이 헬스 커넥트에 들어왔는지 먼저 확인하세요.',
       sourceType === 'apple_health'
-        ? '그다음 기기 기록 가져오기를 누르면 Apple Health 러닝 기록을 읽어오고 바로 동기화돼요.'
-        : '변환된 기록은 기존 backend import/sync 파이프라인으로 바로 보낼 수 있어요.',
+        ? "'기기에서 기록 가져오기'를 누르면 Apple 건강 러닝 기록을 읽어와 바로 반영돼요."
+        : "'기기에서 기록 가져오기'를 누르면 헬스 커넥트 러닝 기록을 읽어와 바로 반영돼요.",
     ],
   };
 }
@@ -228,7 +228,7 @@ export function getNativeHealthImportEligibility(): NativeHealthImportEligibilit
     return {
       sourceType: preferredSource,
       canImport: false,
-      blockedReason: 'Expo Go에서는 기기 건강 데이터를 읽을 수 없어. 개발 빌드나 출시 빌드에서 가져와줘.',
+      blockedReason: '지금 실행 중인 미리보기 환경에서는 기기 건강 데이터를 읽을 수 없어. 정식 설치된 앱에서 가져와줘.',
     };
   }
 
@@ -240,7 +240,7 @@ export function getNativeHealthImportEligibility(): NativeHealthImportEligibilit
 
 function resolveNativeHealthBridgeModule(sourceType: NativeHealthSourceType): NativeHealthBridgeModule | null {
   // Mixed resolution. Both paths return null when the native side is not linked into this build
-  // (e.g. Expo Go) so we degrade to the "reader 모듈이 아직 이 빌드에 연결되지 않았어" error
+  // (e.g. Expo Go) so we degrade to the "기록 읽기를 지원하지 않아" error
   // instead of crashing.
   if (sourceType === 'apple_health') {
     // iOS Apple Health is the legacy ObjC RCT module written by plugins/withHealthAccess.js, so it
@@ -352,7 +352,7 @@ export async function readRunsFromNativeHealthSource(
   const module = resolveNativeHealthBridgeModule(sourceType);
 
   if (!module?.readRuns) {
-    throw new Error(`${getSourceLabel(sourceType)} reader 모듈이 아직 이 빌드에 연결되지 않았어.`);
+    throw new Error(`이 앱 버전에서는 ${getSourceLabel(sourceType)} 기록 읽기를 지원하지 않아. 앱을 최신 버전으로 업데이트해줘.`);
   }
 
   if (module.isAvailable) {
@@ -384,7 +384,7 @@ export async function importRunsFromNativeHealthSource(
   const eligibility = getNativeHealthImportEligibility();
 
   if (!eligibility?.canImport) {
-    throw new Error(eligibility?.blockedReason ?? '이 기기에서는 자동 건강 연동을 바로 실행할 수 없어.');
+    throw new Error(eligibility?.blockedReason ?? '이 기기에서는 건강 기록 가져오기를 실행할 수 없어.');
   }
 
   const runs = await readRunsFromNativeHealthSource(sourceType);
@@ -415,7 +415,7 @@ export async function importRunsFromRecommendedNativeHealthSource(): Promise<Nat
   const preferredSource = getPreferredNativeHealthSource();
 
   if (!preferredSource) {
-    throw new Error('이 기기에서는 자동 건강 연동을 바로 실행할 수 없어.');
+    throw new Error('이 기기에서는 건강 기록 가져오기를 실행할 수 없어.');
   }
 
   return importRunsFromNativeHealthSource(preferredSource);

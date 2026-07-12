@@ -20,45 +20,31 @@ export type SourceMetadata = {
   priority: number;
 };
 
-// 'mynb' is intentionally absent: MyNB consumes records (Strava -> shopping
-// points) and never writes workouts to Apple Health / Health Connect, so it
-// is not an import source. Legacy runs keep the type; see LEGACY_SOURCE_METADATA.
-const SOURCE_METADATA: Record<Exclude<RunSourceType, 'mynb'>, SourceMetadata> = {
+// The selectable import catalog offers ONLY the two platform hubs
+// (apple_health / health_connect) plus the non-selector entries other code
+// needs (manual / runningground). Brand apps (NRC · Strava · Garmin · 삼성헬스
+// …) are intentionally absent — same mechanism as the retired 'mynb': their
+// runs flow INTO the hubs, so dropping their metadata makes every catalog and
+// priority filter skip them. Legacy connected rows keep their RunSourceType;
+// see LEGACY_SOURCE_METADATA.
+const SOURCE_METADATA: Partial<Record<RunSourceType, SourceMetadata>> = {
   apple_health: {
     shortDescription: 'Apple 건강에 모인 러닝 기록',
-    capabilities: ['자동 동기화', '백그라운드 기록 반영', 'iPhone 기본 추천'],
-    setupHint: '애플워치·NRC 등 기록을 Apple 건강에 모은 뒤 연결하면 자동으로 들어와요.',
+    capabilities: ['버튼 한 번으로 가져오기', '러닝 앱 기록 통합', 'iPhone 기본 추천'],
+    setupHint: "애플워치·NRC 등 기록이 Apple 건강에 모이게 해두면, '기기에서 기록 가져오기' 버튼으로 한 번에 가져와요.",
     priority: 100,
   },
   health_connect: {
-    shortDescription: 'Health Connect에 모인 러닝 기록',
-    capabilities: ['자동 동기화', '앱 간 기록 통합', 'Android 기본 추천'],
-    setupHint: '삼성헬스·갤럭시워치 등을 Health Connect에 연결한 뒤 연결하세요.',
+    shortDescription: '헬스 커넥트에 모인 러닝 기록',
+    capabilities: ['버튼 한 번으로 가져오기', '앱 간 기록 통합', 'Android 기본 추천'],
+    setupHint: "삼성헬스·갤럭시워치 등 기록이 헬스 커넥트에 모이게 해두면, '기기에서 기록 가져오기' 버튼으로 한 번에 가져와요.",
     priority: 95,
   },
   manual: {
     shortDescription: '직접 입력하는 러닝 기록',
     capabilities: ['즉시 기록 입력', '온보딩 안전망', '모든 플랫폼 사용 가능'],
-    setupHint: '자동 연동이 어려울 때 기록을 직접 추가해요.',
+    setupHint: '연동이 어려울 때 기록을 직접 추가해요.',
     priority: 80,
-  },
-  garmin: {
-    shortDescription: '가민 기기로 측정한 러닝 기록',
-    capabilities: ['외부 웨어러블 연동', '자동 동기화'],
-    setupHint: '가민 커넥트를 Apple 건강(iPhone)·Health Connect(Android)에 연결한 뒤 연결하세요.',
-    priority: 60,
-  },
-  strava: {
-    shortDescription: 'Strava에 쌓인 러닝 기록',
-    capabilities: ['외부 앱 연동', '자동 동기화'],
-    setupHint: 'Strava를 Apple 건강·Health Connect에 연결한 뒤 연결하세요.',
-    priority: 55,
-  },
-  nrc: {
-    shortDescription: 'Nike Run Club 러닝 기록',
-    capabilities: ['Apple Health 브리지', '파트너 앱/기기 브리지'],
-    setupHint: 'NRC 기록을 Apple 건강(iPhone)·파트너(Android)로 보낸 뒤 연결하세요.',
-    priority: 40,
   },
   runningground: {
     shortDescription: '앱에서 직접 측정한 러닝',
@@ -80,8 +66,9 @@ export function getCurrentDevicePlatform(): DevicePlatform {
   return 'all';
 }
 
-// Harmless fallback for retired source types (legacy runs/connectedSources
-// may still carry 'mynb'); never surfaced as a selectable import source.
+// Harmless fallback for source types outside the selectable catalog (legacy
+// runs/connectedSources may still carry 'mynb' / 'nrc' / 'strava' / 'garmin');
+// never surfaced as a selectable import source.
 const LEGACY_SOURCE_METADATA: SourceMetadata = {
   shortDescription: '지원이 종료된 소스',
   capabilities: [],
@@ -89,43 +76,8 @@ const LEGACY_SOURCE_METADATA: SourceMetadata = {
   priority: 0,
 };
 
-export function getSourceMetadata(
-  sourceType: RunSourceType,
-  platform = getCurrentDevicePlatform(),
-): SourceMetadata {
-  if (sourceType === 'mynb') {
-    return LEGACY_SOURCE_METADATA;
-  }
-
-  if (sourceType === 'nrc') {
-    if (platform === 'ios') {
-      return {
-        shortDescription: 'Nike Run Club 러닝 기록',
-        capabilities: ['Apple Health 브리지', 'NRC 가이드 런'],
-        setupHint: 'NRC를 Apple 건강에 연결한 뒤 연결하세요.',
-        priority: 40,
-      };
-    }
-
-    if (platform === 'android') {
-      return {
-        shortDescription: 'Nike Run Club 러닝 기록',
-        capabilities: ['Strava 브리지', 'Garmin/COROS 파트너'],
-        setupHint: 'NRC 설정 > 파트너에서 Strava·워치를 연결한 뒤 그 소스를 연결하세요.',
-        priority: 40,
-      };
-    }
-  }
-
-  if (sourceType === 'strava' && platform === 'android') {
-    return {
-      ...SOURCE_METADATA.strava,
-      shortDescription: 'Strava에 쌓인 러닝 기록',
-      setupHint: 'NRC를 쓰면 NRC > 파트너에서 Strava를 연결한 뒤 여기서 연결하세요.',
-    };
-  }
-
-  return SOURCE_METADATA[sourceType];
+export function getSourceMetadata(sourceType: RunSourceType): SourceMetadata {
+  return SOURCE_METADATA[sourceType] ?? LEGACY_SOURCE_METADATA;
 }
 
 export function getSourceByType(sources: ConnectedSource[], sourceType: RunSourceType) {
@@ -165,14 +117,14 @@ export function getPlatformLabel(platform: DevicePlatform): string {
 
 export function getRecommendationCopy(platform: DevicePlatform): string {
   if (platform === 'ios') {
-    return '지금 기기 기준으로는 Apple Health를 먼저 붙이고, NRC를 쓰고 있다면 그 앱 기록을 Apple Health까지 보내는 흐름이 가장 매끄러워.';
+    return "지금 기기 기준으로는 Apple 건강을 연결하는 게 기본이야. NRC·Strava 같은 러닝 앱 기록도 Apple 건강에 모아두면 '기기에서 기록 가져오기' 한 번으로 함께 들어와.";
   }
 
   if (platform === 'android') {
-    return '지금 기기 기준으로는 Health Connect를 먼저 붙이고, NRC를 주로 쓴다면 Strava나 워치 파트너까지 함께 보는 편이 현실적이야.';
+    return "지금 기기 기준으로는 헬스 커넥트를 연결하는 게 기본이야. 삼성헬스·워치 기록도 헬스 커넥트에 모아두면 '기기에서 기록 가져오기' 한 번으로 함께 들어와.";
   }
 
-  return '기본 건강 허브를 먼저 연결하고, 필요할 때 Manual이나 외부 앱 소스를 덧붙이는 흐름이 가장 안정적이야.';
+  return '기본 건강 허브를 먼저 연결하고, 필요할 때 수동 기록을 덧붙이는 흐름이 가장 안정적이야.';
 }
 
 export function getRecommendedSources(sources: ConnectedSource[], platform = getCurrentDevicePlatform()): ConnectedSource[] {

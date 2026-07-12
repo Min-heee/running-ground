@@ -74,33 +74,33 @@ export function IntegrationJourneyCard({
     : canImportFromDevice
       ? `${primarySource?.displayName ?? '기본 건강 허브'}는 준비됐고, 이제 기기 기록을 가져오면 돼.`
       : manualConnected
-        ? '자동 연동이 비는 구간은 수동 기록으로 바로 이어갈 수 있어.'
-        : '자동 연동 다음엔 수동 입력 안전망까지 열어두면 출시 흐름이 더 안정적이야.';
+        ? '연동으로 안 들어온 기록은 수동 기록으로 바로 채울 수 있어.'
+        : '소스 연결 다음엔 수동 입력 안전망까지 열어두면 든든해.';
 
   const body = !primaryConnected
-    ? '기본 연동 소스를 먼저 붙여두면 이후 실제 기기 기록, 홈 요약, 친구 경쟁까지 한 흐름으로 연결돼.'
+    ? '기본 연동 소스를 먼저 붙여두면 이후 기기 기록 가져오기, 홈 요약까지 한 흐름으로 연결돼.'
     : canImportFromDevice
-      ? '이 빌드에서는 네이티브 기록을 직접 읽어와 기존 백엔드 동기화 파이프라인으로 바로 넣을 수 있어.'
+      ? "'기기에서 기록 가져오기' 버튼을 누르면 기기에 쌓인 러닝 기록을 바로 가져올 수 있어."
       : manualConnected
-        ? '기록이 자동으로 안 들어오는 날도 직접 입력만 하면 포인트와 순위가 바로 반영돼.'
-        : '자동 연동과 별개로 수동 입력 경로를 열어 두면 초반 사용자 이탈을 많이 줄일 수 있어.';
+        ? '가져오기로 안 들어온 날도 직접 입력만 하면 기록이 바로 반영돼.'
+        : '가져오기와 별개로 수동 입력 경로를 열어 두면 기록이 빌 일이 없어.';
 
   const steps = useMemo<JourneyStep[]>(() => [
     {
       id: 'primary',
       title: `${primarySource?.displayName ?? '기본 건강 허브'} 연결`,
       description: primaryConnected
-        ? '기본 자동 연동 소스가 준비돼 있어.'
+        ? '기본 기록 소스가 준비돼 있어.'
         : `${platformLabel}에서 가장 먼저 연결할 기본 소스야.`,
       complete: primaryConnected,
     },
     {
       id: 'import',
-      title: canImportFromDevice ? '기기 기록 가져오기' : '자동 동기화 점검',
+      title: '기기 기록 가져오기',
       description: canImportFromDevice
-        ? '지금 빌드에서 기기 러닝 기록을 읽어 백엔드에 반영할 수 있어.'
+        ? "'기기에서 기록 가져오기' 버튼을 누르면 기기에 쌓인 러닝 기록이 들어와."
         : primaryConnected
-          ? '개발 빌드나 같은 플랫폼 기기에서 실제 자동 동기화를 점검하면 돼.'
+          ? "연동 관리에서 '기기에서 기록 가져오기' 버튼을 누르면 기록이 들어와."
           : '기본 소스를 연결하면 그다음 단계로 넘어갈 수 있어.',
       complete: primaryConnected && deviceImportCompleted,
     },
@@ -108,8 +108,8 @@ export function IntegrationJourneyCard({
       id: 'manual',
       title: manualConnected ? '수동 입력 준비 완료' : '수동 입력 안전망 열기',
       description: manualConnected
-        ? '자동 연동이 비는 날에는 수동 기록 추가로 바로 이어갈 수 있어.'
-        : '자동 연동과 별개로 수동 입력 경로를 열어 두면 초기 운영이 훨씬 안정적이야.',
+        ? '가져오기가 비는 날에는 수동 기록 추가로 바로 이어갈 수 있어.'
+        : '가져오기와 별개로 수동 입력 경로를 열어 두면 기록이 빌 일이 없어.',
       complete: manualConnected,
     },
   ], [
@@ -159,7 +159,7 @@ export function IntegrationJourneyCard({
           <Text style={styles.statusValue}>{primaryConnected ? '준비됨' : '연결 전'}</Text>
         </View>
         <View style={styles.statusChip}>
-          <Text style={styles.statusLabel}>동기화</Text>
+          <Text style={styles.statusLabel}>가져온 기록</Text>
           <Text style={styles.statusValue}>{deviceImportCompleted ? '기록 감지됨' : '아직 없음'}</Text>
         </View>
         <View style={styles.statusChip}>

@@ -12,6 +12,8 @@ import {
   type SourceMetadataMap,
 } from './sourceCatalogQueries';
 
+// Hub-only catalog: the selectable import sources are the two platform hubs;
+// brand apps (nrc / strava / garmin) intentionally have no metadata.
 const metadata: SourceMetadataMap = {
   apple_health: {
     shortDescription: 'Apple Health',
@@ -37,24 +39,6 @@ const metadata: SourceMetadataMap = {
     setupHint: '',
     priority: 70,
   },
-  garmin: {
-    shortDescription: 'Garmin',
-    capabilities: [],
-    setupHint: '',
-    priority: 60,
-  },
-  strava: {
-    shortDescription: 'Strava',
-    capabilities: [],
-    setupHint: '',
-    priority: 55,
-  },
-  nrc: {
-    shortDescription: 'NRC',
-    capabilities: [],
-    setupHint: '',
-    priority: 40,
-  },
 };
 
 function source(overrides: Partial<ConnectedSource> & Pick<ConnectedSource, 'sourceType'>): ConnectedSource {
@@ -68,17 +52,38 @@ function source(overrides: Partial<ConnectedSource> & Pick<ConnectedSource, 'sou
 }
 
 test('source catalog queries sort sources by priority and connection boost', () => {
+  // Local map with a <5 priority gap so the +5 connection boost decisively
+  // flips the order for the connected source.
+  const boostMetadata: SourceMetadataMap = {
+    apple_health: { shortDescription: '', capabilities: [], setupHint: '', priority: 100 },
+    health_connect: { shortDescription: '', capabilities: [], setupHint: '', priority: 97 },
+    manual: { shortDescription: '', capabilities: [], setupHint: '', priority: 80 },
+  };
   const sorted = sortSourcesByPriorityWithMetadata([
     source({ sourceType: 'manual' }),
-    source({ connected: true, sourceType: 'strava' }),
+    source({ connected: true, sourceType: 'health_connect' }),
+    source({ sourceType: 'apple_health' }),
+  ], boostMetadata);
+
+  assert.deepEqual(sorted.map((item) => item.sourceType), [
+    'health_connect',
+    'apple_health',
+    'manual',
+  ]);
+});
+
+test('source catalog queries drop sources without catalog metadata', () => {
+  // Legacy rows the server may still return (nrc / strava / garmin / mynb)
+  // have no metadata in the hub-only catalog and must be filtered out
+  // everywhere instead of rendering blank entries.
+  const sorted = sortSourcesByPriorityWithMetadata([
+    source({ connected: true, sourceType: 'nrc' }),
+    source({ sourceType: 'strava' }),
+    source({ sourceType: 'garmin' }),
     source({ sourceType: 'apple_health' }),
   ], metadata);
 
-  assert.deepEqual(sorted.map((item) => item.sourceType), [
-    'apple_health',
-    'manual',
-    'strava',
-  ]);
+  assert.deepEqual(sorted.map((item) => item.sourceType), ['apple_health']);
 });
 
 test('source catalog queries filter recommended sources by platform', () => {
@@ -86,13 +91,13 @@ test('source catalog queries filter recommended sources by platform', () => {
     source({ sourceType: 'apple_health', recommendedPlatform: 'ios' }),
     source({ sourceType: 'health_connect', recommendedPlatform: 'android' }),
     source({ sourceType: 'manual', recommendedPlatform: 'all' }),
-    source({ sourceType: 'strava', recommendedPlatform: 'all' }),
+    source({ sourceType: 'runningground', recommendedPlatform: 'all' }),
   ], 'ios', metadata);
 
   assert.deepEqual(recommended.map((item) => item.sourceType), [
     'apple_health',
     'manual',
-    'strava',
+    'runningground',
   ]);
 });
 
@@ -113,14 +118,14 @@ test('source catalog queries map sources by status and primary source', () => {
 test('platform-native import target resolves by platform regardless of connected brand source', () => {
   // The device-import path resolves the native reader purely by platform
   // (iOS → Apple Health, Android → Health Connect), NOT by which brand source
-  // the user connected. A user who connected only NRC / Strava / Garmin must
-  // still resolve to the platform store, because brand apps route their workouts
-  // into it. This is what unblocks the import for brand-source-only users.
+  // the user connected. A legacy user who still has NRC / Strava / Garmin
+  // connected must still resolve to the platform store, because brand apps
+  // route their workouts into it.
   assert.equal(getPrimarySourceTypeForPlatform('ios'), 'apple_health');
   assert.equal(getPrimarySourceTypeForPlatform('android'), 'health_connect');
   assert.equal(getPrimarySourceTypeForPlatform('all'), null);
 
-  // Connecting NRC (a brand source) on Android does not change the platform
+  // A legacy connected NRC row on Android does not change the platform
   // resolution: the import still targets Health Connect.
   const brandOnlySources = [
     source({ connected: true, sourceType: 'nrc' }),
@@ -131,7 +136,7 @@ test('platform-native import target resolves by platform regardless of connected
     'health_connect',
   );
 
-  // Same on iOS with Strava connected: still resolves to Apple Health.
+  // Same on iOS with a legacy Strava row: still resolves to Apple Health.
   const stravaOnlySources = [
     source({ connected: true, sourceType: 'strava' }),
     source({ connected: false, sourceType: 'apple_health' }),
@@ -146,7 +151,7 @@ test('source catalog queries build coverage summary from recommended sources', (
   const summary = getCoverageSummaryForPlatform([
     source({ connected: true, sourceType: 'apple_health', recommendedPlatform: 'ios' }),
     source({ sourceType: 'manual', recommendedPlatform: 'all' }),
-    source({ sourceType: 'strava', recommendedPlatform: 'all' }),
+    source({ sourceType: 'runningground', recommendedPlatform: 'all' }),
   ], 'ios', metadata);
 
   assert.deepEqual(summary, {

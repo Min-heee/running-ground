@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { MyRunRecord, RankState, WeeklySummary } from '@/domain';
+import type { MyRunRecord, RankState } from '@/domain';
 import { HomeActivityStatusCard } from '@/features/home/components/overview/HomeActivityStatusCard';
 import { HomePointGaugeCard } from '@/features/home/components/overview/HomePointGaugeCard';
 import { HomeRankCard } from '@/features/home/components/overview/HomeRankCard';
@@ -8,18 +8,15 @@ import {
   buildHomeOverviewPointHeaderLabel,
 } from '@/features/home/utils/homeOverview';
 import { buildWeeklyPointOverview, type WeeklyPointTrackId } from '@/features/points/pointSystem';
+import { buildCompetitivePointBasis } from '@/features/runs/utils/competitiveRuns';
 import { buildMatchRecordSummary } from '@/features/runs/utils/matchRecordSummary';
 
 type HomeOverviewProps = {
-  summary: WeeklySummary;
-  lifetimeDistanceKm?: number;
   rankState?: RankState;
   runs: MyRunRecord[];
 };
 
 export function HomeOverview({
-  summary,
-  lifetimeDistanceKm,
   rankState,
   runs,
 }: HomeOverviewProps) {
@@ -32,9 +29,18 @@ export function HomeOverview({
     date.setMonth(date.getMonth() + calendarMonthOffset);
     return date;
   }, [calendarMonthOffset]);
+  // The point gauge promises "+NP" rewards, and the server mints points for
+  // COMPETITIVE runs only (app-tracked / match) — so the gauge computes from
+  // the competitive-filtered basis, NOT the all-runs summary/lifetime props
+  // (those still feed the personal activity card above, imports included).
+  const competitivePointBasis = useMemo(() => buildCompetitivePointBasis(runs), [runs]);
   const pointOverview = useMemo(
-    () => buildWeeklyPointOverview(summary, { lifetimeDistanceKm, runs, currentDate: calendarReferenceDate }),
-    [calendarReferenceDate, lifetimeDistanceKm, runs, summary],
+    () => buildWeeklyPointOverview(competitivePointBasis.weeklySummary, {
+      lifetimeDistanceKm: competitivePointBasis.lifetimeDistanceKm,
+      runs: competitivePointBasis.competitiveRuns,
+      currentDate: calendarReferenceDate,
+    }),
+    [calendarReferenceDate, competitivePointBasis],
   );
   const selectedTrack = useMemo(
     () => pointOverview.tracks.find((track) => track.id === selectedTrackId) ?? pointOverview.tracks[0],

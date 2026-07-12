@@ -66,7 +66,7 @@ export default function ConnectSourcesScreen() {
     <Screen>
       <AuthHeader
         title="기록 연동 시작"
-        subtitle="출시 MVP에선 기록이 자동 또는 안정적으로 들어오는 연동 경로를 먼저 연결하고 홈으로 들어가는 흐름이 가장 중요해."
+        subtitle="러닝 기록이 들어올 소스를 먼저 연결해 두면 홈에서 바로 이어서 볼 수 있어."
         showBack
         backHref="/(tabs)/home"
       />
@@ -86,7 +86,7 @@ export default function ConnectSourcesScreen() {
         <Text style={styles.sectionTitle}>{getPlatformLabel(platform)} 기준 추천 연동</Text>
         <Text style={styles.sectionBody}>{getRecommendationCopy(platform)}</Text>
         <Text style={styles.helperText}>
-          현재 연결된 소스는 {connectedCount}개야. 자동 기록 소스는 한 번에 1개만 연결되고, 새로 연결하면 이전 자동 연동은 자동으로 해제돼.
+          현재 연결된 소스는 {connectedCount}개야. 기록 소스는 한 번에 1개만 연결되고, 새로 고르면 이전 소스는 자동으로 해제돼.
         </Text>
 
         {loading ? <ActivityIndicator size="large" color={colors.brand} /> : null}
@@ -99,7 +99,7 @@ export default function ConnectSourcesScreen() {
         {actionError ? <Text style={styles.errorText}>{actionError}</Text> : null}
       </Card>
 
-      <InfoCard title="왜 필요한가요?">기록 연동은 로그인과 별개야. Apple Health, Health Connect, Manual 같은 경로를 연결하면 달린 기록이 홈, 내 활동, 친구 경쟁에 반영돼.</InfoCard>
+      <InfoCard title="왜 필요한가요?">기록 연동은 로그인과 별개야. 애플 건강, 헬스 커넥트, 수동 기록으로 가져온 러닝은 홈과 내 활동에 표시돼. 랭킹·대결 같은 경쟁 기록은 앱에서 직접 측정한 러닝만 반영돼.</InfoCard>
 
       <View style={styles.actions}>
         <SecondaryButton

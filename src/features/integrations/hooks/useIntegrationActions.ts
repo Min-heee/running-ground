@@ -119,7 +119,7 @@ export function useIntegrationActions({
         setActionMessage(
           replacedSource
             ? `${result.source.displayName}로 기록 연동을 바꿨어. ${replacedSource.displayName}는 자동으로 해제돼.`
-            : `${result.source.displayName} 연결 준비가 끝났어. 자동 기록 소스는 한 번에 1개만 연결돼.`,
+            : `${result.source.displayName} 연결 준비가 끝났어. 가져오기 소스는 한 번에 1개만 연결돼.`,
         );
       } else {
         setActionMessage(`${result.source.displayName} 연결 준비가 끝났어.`);

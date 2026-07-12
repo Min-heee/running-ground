@@ -66,8 +66,6 @@ export default function TabsLayout() {
     mypage: getTabScreenOptions('mypage'),
     running: getTabScreenOptions('running'),
   }), []);
-  const hiddenTabOptions = useMemo(() => ({ href: null }), []);
-
   return (
     <Tabs
       screenOptions={screenOptions}
@@ -78,7 +76,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="home" options={tabOptions.home} listeners={tabListeners.home} />
       <Tabs.Screen name="market" options={tabOptions.market} listeners={tabListeners.market} />
       <Tabs.Screen name="mypage" options={tabOptions.mypage} listeners={tabListeners.mypage} />
-      <Tabs.Screen name="integrations" options={hiddenTabOptions} />
     </Tabs>
   );
 }

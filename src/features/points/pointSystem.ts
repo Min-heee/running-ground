@@ -16,6 +16,10 @@ export type {
   WeeklyPointTrackScope,
 } from '@/features/points/types/pointSystem';
 
+// Only the fields the point math reads — callers feeding COMPETITIVE-only
+// aggregates (the home gauge) shouldn't have to fabricate a full WeeklySummary.
+type WeeklyPointSummaryInput = Pick<WeeklySummary, 'totalDistanceKm' | 'totalRuns' | 'previousWeekDistanceKm'>;
+
 type WeeklyPointStats = {
   normalizedLifetimeDistanceKm: number;
   distanceLevel: number;
@@ -28,7 +32,7 @@ type WeeklyPointStats = {
   growthTargetDistanceKm: number;
 };
 
-function buildWeeklyPointStats(summary: WeeklySummary, lifetimeDistanceKm?: number): WeeklyPointStats {
+function buildWeeklyPointStats(summary: WeeklyPointSummaryInput, lifetimeDistanceKm?: number): WeeklyPointStats {
   const normalizedLifetimeDistanceKm = toFixed1(Math.max(lifetimeDistanceKm ?? summary.totalDistanceKm, summary.totalDistanceKm));
   const distanceLevel = Math.floor(normalizedLifetimeDistanceKm / 10);
   const nextDistanceTargetKm = Math.max(10, (distanceLevel + 1) * 10);
@@ -61,7 +65,7 @@ function buildDistanceTrack(stats: WeeklyPointStats): WeeklyPointTrack {
     rewardPoints: 10,
     progressPercent: Math.min(100, Math.max(0, stats.distanceLevelProgressPercent)),
     achieved: false,
-    helperText: '누적 거리 10km마다 1레벨업하고 포인트를 받아요.',
+    helperText: '앱에서 측정한 누적 거리 10km마다 1레벨업하고 포인트를 받아요.',
     statusText: `다음 레벨까지 ${stats.distanceLevelRemainingKm}km`,
     badgeText: `Lv.${stats.distanceLevel}`,
   };
@@ -84,7 +88,7 @@ function buildStreakTrack(stats: WeeklyPointStats, streakCalendar: StreakCalenda
   });
 }
 
-function buildGrowthTrack(summary: WeeklySummary, stats: WeeklyPointStats): WeeklyPointTrack {
+function buildGrowthTrack(summary: WeeklyPointSummaryInput, stats: WeeklyPointStats): WeeklyPointTrack {
   return buildPointTrack({
     id: 'growth',
     label: '저번주 대비',
@@ -93,7 +97,7 @@ function buildGrowthTrack(summary: WeeklySummary, stats: WeeklyPointStats): Week
     targetValue: stats.growthTargetDistanceKm,
     unit: 'km',
     rewardPoints: 10,
-    helperText: '저번주 총거리보다 더 많이 뛰면 성장 포인트를 받아요.',
+    helperText: '앱에서 측정한 거리가 저번주보다 많으면 성장 포인트를 받아요.',
     statusText: stats.improvementDistanceKm > 0
       ? '저번주 대비 향상 달성 · +10P'
       : `${toFixed1(Math.max(0, stats.growthTargetDistanceKm - summary.totalDistanceKm))}km 더 뛰면 +10P`,
@@ -106,8 +110,12 @@ function calculateWeeklyEarnedPoints(streakCalendar: StreakCalendar, tracks: Wee
     .reduce((sum, track) => sum + track.rewardPoints, 0);
 }
 
+// NOTE: the server mints points for COMPETITIVE runs only (app-tracked or
+// match runs — backend/src/lib/competitiveRuns.mjs), so the summary/runs/
+// lifetime passed in here must already be competitive-filtered
+// (buildCompetitivePointBasis) or the gauge promises points that never arrive.
 export function buildWeeklyPointOverview(
-  summary: WeeklySummary,
+  summary: WeeklyPointSummaryInput,
   options?: {
     lifetimeDistanceKm?: number;
     runs?: MyRunRecord[];

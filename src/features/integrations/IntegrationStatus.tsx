@@ -28,6 +28,9 @@ const ConnectedSourceRow = memo(function ConnectedSourceRow({
 export function IntegrationStatus({ sources }: { sources: ConnectedSource[] }) {
   const { connected } = useMemo(() => splitSourcesByStatus(sources), [sources]);
   const primarySource = useMemo(() => getPrimarySourceForPlatform(sources), [sources]);
+  // sortSourcesByPriority drops sources without catalog metadata, so legacy
+  // connected rows the server may still return (nrc / strava / garmin / mynb)
+  // never render — no blank rows, no crash.
   const connectedSources = useMemo(() => sortSourcesByPriority(connected), [connected]);
   const connectedSourceRows = useMemo(() => connectedSources.map((source) => (
     <ConnectedSourceRow
@@ -44,7 +47,7 @@ export function IntegrationStatus({ sources }: { sources: ConnectedSource[] }) {
         <Text style={styles.countText}>{connectedSources.length}개</Text>
       </View>
       {connectedSourceRows}
-      {connected.length === 0 ? <Text style={styles.empty}>아직 연결된 기록 소스가 없어.</Text> : null}
+      {connectedSources.length === 0 ? <Text style={styles.empty}>아직 연결된 기록 소스가 없어.</Text> : null}
     </Card>
   );
 }

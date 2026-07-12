@@ -54,15 +54,12 @@ test('weekly point overview keeps distance level, growth, and streak tracks stab
 });
 
 test('weekly point overview handles zero-distance summaries safely', () => {
+  // The overview now takes only the fields the point math reads, so a
+  // competitive-filtered basis can feed it without fabricating a full summary.
   const overview = buildWeeklyPointOverview({
-    ...summary,
     totalDistanceKm: 0,
     totalRuns: 0,
     previousWeekDistanceKm: 0,
-    latestRun: {
-      distanceKm: 0,
-      source: 'RunningGround',
-    },
   }, {
     lifetimeDistanceKm: 0,
     runs: [],

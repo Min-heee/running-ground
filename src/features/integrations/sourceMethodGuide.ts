@@ -1,8 +1,4 @@
 import type { RunSourceType } from '@/domain';
-import {
-  buildAndroidSections,
-  buildIosSections,
-} from '@/features/integrations/components/nrcBridge/nrcBridgeGuideSections';
 
 export type SourceMethodGuideStep = {
   title: string;
@@ -17,22 +13,6 @@ export type SourceMethodGuide = {
 
 type SourceMethodGuidePlatform = 'ios' | 'android' | 'all';
 
-const emptyIosGuideStatus = {
-  nrcConnected: false,
-  appleHealthConnected: false,
-  appleHealthReady: false,
-  stravaConnected: false,
-  garminConnected: false,
-};
-
-const emptyAndroidGuideStatus = {
-  nrcConnected: false,
-  healthConnectConnected: false,
-  healthConnectReady: false,
-  stravaConnected: false,
-  garminConnected: false,
-};
-
 const appleHealthGuide: SourceMethodGuide = {
   title: 'Apple 건강으로 러닝 기록 가져오기',
   steps: [
@@ -42,7 +22,7 @@ const appleHealthGuide: SourceMethodGuide = {
     },
     {
       title: '러닝 앱을 Apple 건강에 연결',
-      description: "애플워치·NRC 등으로 측정한 기록이 Apple 건강에 쌓이도록 각 앱(스트라바·나이키런·가민)에서 Apple 건강 '운동(Workouts)' 쓰기 권한을 켜 주세요.",
+      description: "NRC·Strava·가민 같은 러닝 앱이 Apple 건강에 기록을 저장하도록 켜두면, 가져오기 한 번으로 함께 들어와요. 각 앱 설정에서 Apple 건강 '운동(Workouts)' 쓰기 권한을 켜 주세요.",
     },
     {
       title: '반영 확인',
@@ -50,53 +30,36 @@ const appleHealthGuide: SourceMethodGuide = {
     },
     {
       title: '우리 앱에서 가져오기',
-      description: "'기기에서 기록 가져오기' 또는 '동기화 다시 하기'를 누르면 반영돼요.",
+      description: "'기기에서 기록 가져오기' 버튼을 누르면 그때 Apple 건강 기록을 읽어와요. 버튼을 눌러야 새 기록이 들어와요.",
     },
   ],
 };
 
 const healthConnectGuide: SourceMethodGuide = {
-  title: 'Health Connect로 러닝 기록 가져오기',
+  title: '헬스 커넥트로 러닝 기록 가져오기',
   steps: [
     {
-      title: 'Health Connect 준비',
-      description: 'Health Connect 앱을 설치·설정하고 우리 앱에 권한을 허용해 주세요.',
+      title: '헬스 커넥트 준비',
+      description: '헬스 커넥트 앱을 설치·설정하고 우리 앱에 권한을 허용해 주세요.',
     },
     {
-      title: '워치·앱 연결',
-      description: '삼성헬스·갤럭시워치 등 러닝 기록이 Health Connect에 모이도록 연결해 주세요.',
+      title: '워치·러닝 앱을 헬스 커넥트에 연결',
+      description: '삼성헬스·갤럭시워치는 물론 NRC·Strava 같은 러닝 앱도 헬스 커넥트에 기록을 저장하도록 켜두면, 가져오기 한 번으로 함께 들어와요.',
     },
     {
       title: '반영 확인',
-      description: '러닝 후 Health Connect에 운동이 들어왔는지 확인하면 흐름이 단순해요.',
+      description: '러닝 후 헬스 커넥트에 운동이 들어왔는지 확인하면 흐름이 단순해요.',
     },
     {
       title: '우리 앱에서 가져오기',
-      description: "'기기에서 기록 가져오기' 또는 '동기화 다시 하기'를 누르면 반영돼요.",
+      description: "'기기에서 기록 가져오기' 버튼을 누르면 그때 헬스 커넥트 기록을 읽어와요. 버튼을 눌러야 새 기록이 들어와요.",
     },
   ],
 };
 
-function getBridgeGuide(sourceType: RunSourceType, platform: SourceMethodGuidePlatform): SourceMethodGuide | null {
-  const sections = platform === 'android'
-    ? buildAndroidSections(emptyAndroidGuideStatus)
-    : buildIosSections(emptyIosGuideStatus);
-  const section = sections.find((item) => item.id === sourceType);
-
-  if (!section) {
-    return null;
-  }
-
-  return {
-    title: section.title,
-    steps: section.steps,
-    footnote: section.footnote,
-  };
-}
-
 export function getSourceMethodGuide(
   sourceType: RunSourceType,
-  platform: SourceMethodGuidePlatform,
+  _platform: SourceMethodGuidePlatform,
 ): SourceMethodGuide | null {
   if (sourceType === 'apple_health') {
     return appleHealthGuide;
@@ -106,13 +69,8 @@ export function getSourceMethodGuide(
     return healthConnectGuide;
   }
 
-  if (
-    sourceType === 'nrc'
-    || sourceType === 'strava'
-    || sourceType === 'garmin'
-  ) {
-    return getBridgeGuide(sourceType, platform === 'all' ? 'ios' : platform);
-  }
-
+  // Brand sources (nrc / strava / garmin) are no longer selectable — their
+  // runs flow in through the platform hubs, and the hub guides above explain
+  // that routing. Legacy source types (incl. 'mynb') get no guide.
   return null;
 }
