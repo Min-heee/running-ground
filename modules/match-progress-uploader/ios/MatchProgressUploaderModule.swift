@@ -136,8 +136,9 @@ public class MatchProgressUploaderModule: Module {
 
     // Begin native GPS distance accumulation, wiring the SAME location driver that already runs the
     // periodic re-POST (no new CLLocationManager / no new stream). The filter constants mirror JS
-    // 1:1. start resets the per-fix anchor (last=nil) so the FIRST fix only sets the origin — the
-    // JS merge seeds the total separately via seedDistanceAccumulator. Returns true when the native
+    // 1:1. start resets the per-fix anchors so the session re-runs the cold-start warmup (fixes
+    // anchor only after a stable cluster; no distance is banked for the warmup wobble) — the JS
+    // merge seeds the total separately via seedDistanceAccumulator. Returns true when the native
     // accumulator started (the JS side only relies on the availability gate, but this mirrors the
     // periodic surface's start/stop shape).
     Function("startDistanceAccumulator") { (options: [String: Any]) -> Bool in
@@ -827,31 +828,69 @@ private final class PeriodicLocationDriver: NSObject, CLLocationManagerDelegate 
 // MARK: - DistanceAccumulator
 
 // Native running-total distance, advanced from the SAME location stream as the periodic re-POST so
-// a run's distance keeps moving while the JS thread is suspended (screen off). Mirrors the JS filter
-// chain (src/features/runs/tracking/background/locationDistance.ts + routeAccumulator.ts) 1:1, but
-// pared down to the per-segment gate the screen-off case needs — it intentionally does NOT replicate
-// JS's route-history cold-start / jitter-collapse passes (those re-walk the whole route, which the
-// native side does not keep). The JS pipeline stays the authoritative total in the foreground; the
-// JS merge takes max(jsKm, nativeKm) so this conservative-by-design total can only ADD distance JS
-// missed while suspended, never subtract or jump JS backward.
+// a run's distance keeps moving while the JS thread is suspended (screen off). Mirrors the JS
+// per-fix filter chain (src/features/runs/tracking/background/locationDistance.ts +
+// routeAccumulator.ts appendTrackedLocation) in the SAME order: accuracy + age windows, cold-start
+// warmup discard, min time delta, both teleport gates, the stationary/poor-accuracy noise
+// rejection, and the accuracy-scaled distance gate. Only the JS route-REWRITE passes (cold-start
+// excursion collapse + mid-run lateral-jitter collapse) stay JS-only — they rewrite the whole route
+// and recompute the total from it, which needs the full route history the native side does not
+// keep. The JS merge is FRESH-JS-WINS, so this total only ever fills screen-off gaps.
+//
+// Wire-format compatibility: the six original constants keep their existing keys. Every LATER-ADDED
+// constant is OPTIONAL — an absent key leaves its gate DISABLED, so an OLD JS bundle (which never
+// sends the new keys) drives this binary exactly like the previous one, and a NEW JS bundle against
+// an OLD binary is safe because old binaries ignore unknown keys.
 //
 // Threading: configure/seed/reset/beginSession/consume are all invoked on the MAIN thread (Core
 // Location callbacks + the runOnMain-marshalled Expo Functions). The synchronous totalMeters read
 // can come from any thread (Expo Function bodies may run off-main), so the total is guarded by an
 // NSLock (Foundation — already imported) — a single Double load/store, no GPS work under the lock.
 private final class DistanceAccumulator {
-  // JS filter constants, injected from JS so the two pipelines stay in lockstep. Defaults mirror the
-  // JS source values so a missing/garbled option can never widen the gate open.
-  private var maxAccuracyMeters: Double = 60
-  private var distanceGateBaseMeters: Double = 2.5
+  // JS COLD_START_MAX_BUFFER_FIXES / MIN_RELIABLE_RUNNING_SPEED_MPS — formula internals the JS side
+  // also hardcodes (they are not part of the options wire format).
+  private static let coldStartMaxBufferFixes = 8
+  private static let minReliableSpeedMps: Double = 0.7
+
+  // Original filter constants (always in the wire format). Defaults mirror the CURRENT JS source
+  // values so a missing/garbled option can never widen the gate open.
+  private var maxAccuracyMeters: Double = 40
+  private var distanceGateBaseMeters: Double = 3.0
   private var distanceGateAccuracyScale: Double = 0.15
   private var teleportMinMeters: Double = 35
   private var maxSpeedMps: Double = 8.5
   private var maxLocationAgeMs: Double = 15000
 
-  // The last COUNTED fix (the distance-gate anchor — mirrors JS lastCountedPoint). nil until the
-  // first accepted fix, so the first fix only sets the anchor (no initial jump).
+  // Later-added filter constants (the 99693a0 wire-format extension). nil = not delivered = that
+  // gate stays disabled (the previous binary's behavior, for old JS bundles).
+  private var minTimeDeltaMs: Double?
+  private var teleportAccuracyScale: Double?
+  private var teleportMaxSpeedMps: Double?
+  private var stationarySpeedMps: Double?
+  private var poorAccuracyMeters: Double?
+  private var coldStartStableFixCount: Int?
+  private var coldStartMaxClusterRadiusMeters: Double?
+  private var coldStartMaxAccuracyMeters: Double?
+  private var coldStartMaxWindowMs: Double?
+
+  // Reserved overrides (no JS bundle sends them yet). minMovementMeters is the noisy-gate floor
+  // (JS MIN_MOVEMENT_DISTANCE_METERS); a nil maxFutureLocationMs keeps today's symmetric age window.
+  private var minMovementMeters: Double = 3.0
+  private var maxFutureLocationMs: Double?
+
+  // Per-fix anchors, mirroring JS: lastAppended = the route tail (advances on every fix that passes
+  // the segment filters, INCLUDING sub-distance-gate ones); lastCounted = the distance-gate anchor
+  // (advances only when distance is actually banked). The split is what lets a slow drift accumulate
+  // against ONE counted origin while the segment filters still compare consecutive fixes — exactly
+  // the JS previousPoint / lastCountedPoint pair.
+  private var lastAppended: CLLocation?
   private var lastCounted: CLLocation?
+
+  // Cold-start warmup buffer (mirrors JS coldStartFixBuffer): fixes collected BEFORE the first
+  // anchor. Once coldStartStableFixCount recent fixes form a tight cluster, the anchor is the
+  // cluster's LAST fix and the intra-cluster path is banked as ZERO — the JS cold-start seed=0
+  // semantics that killed the ~0.3km start spike.
+  private var coldStartBuffer: [CLLocation] = []
 
   // Running total in meters, guarded for the cross-thread synchronous read.
   private var total: Double = 0
@@ -864,22 +903,45 @@ private final class DistanceAccumulator {
     return total
   }
 
-  // Apply the JS filter constants. Unknown/garbled values fall back to the JS defaults above, so the
-  // gate can never be accidentally disabled.
+  // Apply the JS filter constants. The original six fall back to the JS-source defaults above when
+  // missing/garbled (the gate can never be accidentally disabled); the later-added constants stay
+  // nil (gate disabled) unless actually delivered — the old-bundle parity contract.
   func configure(options: [String: Any]) {
-    if let value = options["maxAccuracyMeters"] as? Double { maxAccuracyMeters = value }
-    if let value = options["distanceGateBaseMeters"] as? Double { distanceGateBaseMeters = value }
-    if let value = options["distanceGateAccuracyScale"] as? Double { distanceGateAccuracyScale = value }
-    if let value = options["teleportMinMeters"] as? Double { teleportMinMeters = value }
-    if let value = options["maxSpeedMps"] as? Double { maxSpeedMps = value }
-    if let value = options["maxLocationAgeMs"] as? Double { maxLocationAgeMs = value }
+    maxAccuracyMeters = DistanceAccumulator.doubleOption(options, "maxAccuracyMeters") ?? maxAccuracyMeters
+    distanceGateBaseMeters = DistanceAccumulator.doubleOption(options, "distanceGateBaseMeters") ?? distanceGateBaseMeters
+    distanceGateAccuracyScale = DistanceAccumulator.doubleOption(options, "distanceGateAccuracyScale") ?? distanceGateAccuracyScale
+    teleportMinMeters = DistanceAccumulator.doubleOption(options, "teleportMinMeters") ?? teleportMinMeters
+    maxSpeedMps = DistanceAccumulator.doubleOption(options, "maxSpeedMps") ?? maxSpeedMps
+    maxLocationAgeMs = DistanceAccumulator.doubleOption(options, "maxLocationAgeMs") ?? maxLocationAgeMs
+
+    minTimeDeltaMs = DistanceAccumulator.doubleOption(options, "minTimeDeltaMs")
+    teleportAccuracyScale = DistanceAccumulator.doubleOption(options, "teleportAccuracyScale")
+    teleportMaxSpeedMps = DistanceAccumulator.doubleOption(options, "teleportMaxSpeedMps")
+    stationarySpeedMps = DistanceAccumulator.doubleOption(options, "stationarySpeedMps")
+    poorAccuracyMeters = DistanceAccumulator.doubleOption(options, "poorAccuracyMeters")
+    if let rawCount = DistanceAccumulator.doubleOption(options, "coldStartStableFixCount") {
+      // A count outside the buffer's reach could never form a cluster (native distance would stay
+      // frozen), so a garbled value disables the warmup instead of bricking accumulation.
+      let count = Int(rawCount.rounded())
+      coldStartStableFixCount = (2...DistanceAccumulator.coldStartMaxBufferFixes).contains(count) ? count : nil
+    } else {
+      coldStartStableFixCount = nil
+    }
+    coldStartMaxClusterRadiusMeters = DistanceAccumulator.doubleOption(options, "coldStartMaxClusterRadiusMeters")
+    coldStartMaxAccuracyMeters = DistanceAccumulator.doubleOption(options, "coldStartMaxAccuracyMeters")
+    coldStartMaxWindowMs = DistanceAccumulator.doubleOption(options, "coldStartMaxWindowMs")
+    minMovementMeters = DistanceAccumulator.doubleOption(options, "minMovementMeters") ?? 3.0
+    maxFutureLocationMs = DistanceAccumulator.doubleOption(options, "maxFutureLocationMs")
   }
 
-  // Begin a session: drop the per-fix anchor so the FIRST fix after start only sets the origin (no
-  // initial jump). The running total is PRESERVED so a same-run re-start does not lose accrued
-  // distance — the JS side seeds the baseline separately via seed(meters:).
+  // Begin a session: drop the anchors + warmup buffer so the session re-runs the cold-start warmup
+  // (or, on an old wire format, re-anchors on the first accepted fix — no initial jump either way).
+  // The running total is PRESERVED so a same-run re-start does not lose accrued distance — the JS
+  // side seeds the baseline separately via seed(meters:).
   func beginSession() {
+    lastAppended = nil
     lastCounted = nil
+    coldStartBuffer.removeAll()
   }
 
   // Set the running total to the JS authoritative total at start so native and JS share one origin.
@@ -889,9 +951,11 @@ private final class DistanceAccumulator {
     lock.unlock()
   }
 
-  // Full reset (new run): zero the total and drop the anchor.
+  // Full reset (new run): zero the total, drop the anchors + warmup buffer.
   func reset() {
+    lastAppended = nil
     lastCounted = nil
+    coldStartBuffer.removeAll()
     lock.lock()
     total = 0
     lock.unlock()
@@ -899,61 +963,203 @@ private final class DistanceAccumulator {
 
   // Consume one delivered fix. Returns the NEW total in meters when the fix advanced the distance,
   // or nil when the fix was rejected/gated (so the caller only emits onDistanceAccumulated on a real
-  // advance). Mirrors the JS appendTrackedLocation per-segment path:
-  //   - reject horizontalAccuracy < 0 (invalid) or > maxAccuracyMeters (MAX_TRACKING_ACCURACY_METERS)
-  //   - reject if abs(now - timestamp) > maxLocationAgeMs (resolveLocationTimestampMs age window)
-  //   - first accepted fix only sets the anchor (no jump)
-  //   - segment = current.distance(from: last) — CoreLocation's geodesic (battery-free), matching
-  //     the JS haversine within GPS noise
-  //   - gate = distanceGateBaseMeters + worstAccuracy * distanceGateAccuracyScale; skip if seg < gate
-  //   - teleport: skip if seg >= teleportMinMeters AND seg/dt > maxSpeedMps
-  //   - else total += seg, advance the anchor, return the new total
+  // advance). Mirrors the JS appendTrackedLocation chain in the SAME order:
+  //   accuracy → age window → cold-start warmup → min time delta → teleport (hard +
+  //   accuracy-scaled) → stationary/poor-accuracy noise → accuracy-scaled distance gate → count.
+  // Distances are CoreLocation's geodesic distance(from:) — matching the JS haversine within GPS
+  // noise, battery-free.
   func consume(location current: CLLocation) -> Double? {
     let accuracy = current.horizontalAccuracy
-    // Reject invalid (negative) or too-coarse fixes (mirrors normalizeAccuracyMeters + the JS
-    // MAX_TRACKING_ACCURACY_METERS drop).
+    // FAIL CLOSED: a negative horizontalAccuracy means Core Location could not produce a radius —
+    // reject rather than letting an accuracy-less fix slide under the smallest gate (mirrors
+    // normalizeAccuracyMeters + the JS MAX_TRACKING_ACCURACY_METERS drop).
     if accuracy < 0 || accuracy > maxAccuracyMeters {
       return nil
     }
 
-    // Reject stale/future fixes (mirrors resolveLocationTimestampMs's age window). CLLocation.timestamp
-    // is wall-clock; compare to now in ms.
-    let ageMs = abs(Date().timeIntervalSince(current.timestamp)) * 1000.0
-    if ageMs > maxLocationAgeMs {
+    // Age window (JS resolveLocationTimestampMs): stale-past fixes beyond maxLocationAgeMs and
+    // future-stamped fixes beyond maxFutureLocationMs are clock artifacts. An absent
+    // maxFutureLocationMs keeps the previous binary's symmetric window. CLLocation.timestamp is
+    // wall-clock; compare to now in ms.
+    let pastMs = Date().timeIntervalSince(current.timestamp) * 1000.0
+    if pastMs > maxLocationAgeMs {
+      return nil
+    }
+    if -pastMs > (maxFutureLocationMs ?? maxLocationAgeMs) {
       return nil
     }
 
-    guard let last = lastCounted else {
-      // First accepted fix: set the anchor only. No distance is added (no initial jump), matching
-      // the JS "previousPoint == null" cold-start that just seeds lastCountedPoint.
-      lastCounted = current
+    // Cold-start warmup (JS buildStableColdStartRouteCandidate + the seed=0 anchor): before the
+    // first anchor, buffer fixes until a tight stable cluster forms, anchor at its LAST fix, and
+    // bank NOTHING for the intra-cluster path.
+    guard let previous = lastAppended else {
+      handleColdStart(current)
       return nil
     }
 
-    let segmentMeters = current.distance(from: last)
-    let worstAccuracy = max(last.horizontalAccuracy >= 0 ? last.horizontalAccuracy : 0, accuracy >= 0 ? accuracy : 0)
-    let gate = distanceGateBaseMeters + worstAccuracy * distanceGateAccuracyScale
+    let segmentMeters = current.distance(from: previous)
+    let dtSeconds = current.timestamp.timeIntervalSince(previous.timestamp)
+    let dtMs = dtSeconds * 1000.0
 
-    // Distance gate (mirrors resolveDistanceGateMeters): below the gate is GPS noise, not movement —
-    // do NOT advance the anchor (JS keeps the same lastCountedPoint), so a slow drift accumulates
-    // until it crosses the gate from the SAME anchor.
-    if segmentMeters < gate {
+    // Min time delta (JS MIN_LOCATION_TIME_DELTA_MS): sub-cadence duplicate fixes are noise.
+    if let minTimeDeltaMs = minTimeDeltaMs, dtMs < minTimeDeltaMs {
       return nil
     }
 
-    // Teleport filter (mirrors the JS MIN_TELEPORT_FILTER_DISTANCE_METERS + MAX_REASONABLE_RUNNING_SPEED_MPS
-    // drop): a long segment covered impossibly fast is a GPS jump — drop it and do NOT advance the
-    // anchor, so the next in-range fix re-anchors off the last good position.
-    let dtSeconds = current.timestamp.timeIntervalSince(last.timestamp)
+    let lastAccuracy = previous.horizontalAccuracy
+    let worstAccuracy = max(lastAccuracy >= 0 ? lastAccuracy : 0, accuracy)
+
+    // Teleport 1 (hard — JS MIN_TELEPORT_FILTER_DISTANCE_METERS + MAX_REASONABLE_RUNNING_SPEED_MPS):
+    // a long segment covered impossibly fast is a GPS jump — drop it and do NOT advance the anchor,
+    // so the next in-range fix re-anchors off the last good position.
     if segmentMeters >= teleportMinMeters && dtSeconds > 0 && (segmentMeters / dtSeconds) > maxSpeedMps {
       return nil
     }
 
+    // Teleport 2 (accuracy-scaled): a jump longer than max(teleportMin, worstAccuracy * scale)
+    // moving faster than teleportMaxSpeedMps is GPS relocation, not running.
+    if
+      let teleportAccuracyScale = teleportAccuracyScale,
+      let teleportMaxSpeedMps = teleportMaxSpeedMps,
+      dtSeconds > 0,
+      segmentMeters > max(teleportMinMeters, worstAccuracy * teleportAccuracyScale),
+      (segmentMeters / dtSeconds) > teleportMaxSpeedMps
+    {
+      return nil
+    }
+
+    // Stationary / poor-accuracy noise rejection (JS shouldIgnoreNoisySegment), including the
+    // dynamic min-movement floor.
+    if let stationarySpeedMps = stationarySpeedMps, let poorAccuracyMeters = poorAccuracyMeters {
+      let dynamicMinMovementMeters = max(minMovementMeters, min(4.5, worstAccuracy * 0.1))
+      if segmentMeters < dynamicMinMovementMeters {
+        return nil
+      }
+
+      let segmentSpeedMps = dtSeconds > 0 ? segmentMeters / dtSeconds : Double.infinity
+      // CLLocation.speed is negative when invalid; the JS normalizeReliableSpeedMps range check
+      // rejects it the same way.
+      let rawSpeedMps = current.speed
+      let speedIsReliable = rawSpeedMps >= DistanceAccumulator.minReliableSpeedMps && rawSpeedMps <= maxSpeedMps
+      let reliableSpeedMps: Double? = speedIsReliable ? rawSpeedMps : nil
+
+      let reliableLooksStationary = reliableSpeedMps.map { $0 < stationarySpeedMps } ?? false
+      let looksStationary = reliableLooksStationary || segmentSpeedMps < stationarySpeedMps
+      let stationaryNoiseRadiusMeters = max(4.0, min(12.0, worstAccuracy * 0.35))
+      if looksStationary && segmentMeters < stationaryNoiseRadiusMeters {
+        return nil
+      }
+
+      let poorAccuracyNoiseRadiusMeters = min(12.0, worstAccuracy * 0.25)
+      if worstAccuracy >= poorAccuracyMeters && segmentSpeedMps < 1.4 && segmentMeters < poorAccuracyNoiseRadiusMeters {
+        return nil
+      }
+    }
+
+    // Distance gate (JS resolveDistanceGateMeters), measured from the COUNTED anchor: below the
+    // gate is jitter, not movement. Mirror JS: the fix still becomes the segment anchor (JS appends
+    // it to the route) but the counted anchor stays, so a slow drift accumulates until it crosses
+    // the gate from the SAME counted origin.
+    let countedAnchor: CLLocation
+    if let lastCountedFix = lastCounted {
+      countedAnchor = lastCountedFix
+    } else {
+      countedAnchor = previous
+      lastCounted = previous
+    }
+    let gate = distanceGateBaseMeters + max(0, worstAccuracy) * distanceGateAccuracyScale
+    let distanceFromCountedMeters = current.distance(from: countedAnchor)
+
+    if distanceFromCountedMeters < gate {
+      lastAppended = current
+      return nil
+    }
+
     lock.lock()
-    total += segmentMeters
+    total += distanceFromCountedMeters
     let newTotal = total
     lock.unlock()
+    lastAppended = current
     lastCounted = current
     return newTotal
+  }
+
+  // Cold-start warmup: mirror buildStableColdStartRouteCandidate + trimColdStartFixBuffer — check
+  // the LAST coldStartStableFixCount fixes for (a) a strictly-increasing window <=
+  // coldStartMaxWindowMs, (b) per-fix accuracy <= coldStartMaxAccuracyMeters, and (c) a max
+  // pairwise distance <= coldStartMaxClusterRadiusMeters. Stable → anchor at the cluster's last
+  // fix, banking ZERO. When the cold-start constants were not delivered (old JS bundle), the first
+  // accepted fix anchors directly — the previous binary's behavior.
+  private func handleColdStart(_ current: CLLocation) {
+    guard
+      let stableFixCount = coldStartStableFixCount,
+      let clusterRadiusMeters = coldStartMaxClusterRadiusMeters,
+      let maxStableAccuracyMeters = coldStartMaxAccuracyMeters,
+      let maxWindowMs = coldStartMaxWindowMs
+    else {
+      lastAppended = current
+      lastCounted = current
+      return
+    }
+
+    coldStartBuffer.append(current)
+    if coldStartBuffer.count > DistanceAccumulator.coldStartMaxBufferFixes {
+      coldStartBuffer.removeFirst(coldStartBuffer.count - DistanceAccumulator.coldStartMaxBufferFixes)
+    }
+    if coldStartBuffer.count < stableFixCount {
+      return
+    }
+
+    let recent = Array(coldStartBuffer.suffix(stableFixCount))
+    guard let firstFix = recent.first, let lastFix = recent.last else {
+      return
+    }
+    let windowMs = lastFix.timestamp.timeIntervalSince(firstFix.timestamp) * 1000.0
+    if windowMs <= 0 || windowMs > maxWindowMs {
+      return
+    }
+    if recent.contains(where: { $0.horizontalAccuracy >= 0 && $0.horizontalAccuracy > maxStableAccuracyMeters }) {
+      return
+    }
+
+    var maxPairDistanceMeters: Double = 0
+    for leftIndex in 0..<(recent.count - 1) {
+      for rightIndex in (leftIndex + 1)..<recent.count {
+        maxPairDistanceMeters = max(maxPairDistanceMeters, recent[rightIndex].distance(from: recent[leftIndex]))
+      }
+    }
+    if maxPairDistanceMeters > clusterRadiusMeters {
+      return
+    }
+
+    // STABLE: anchor at the cluster's last fix; the intra-cluster warmup path is banked as ZERO
+    // (the JS cold-start seed=0 that killed the start spike — the JS merge seeds the baseline).
+    lastAppended = lastFix
+    lastCounted = lastFix
+    coldStartBuffer.removeAll()
+  }
+
+  // JS numbers can surface as Double, Int, or NSNumber depending on how Expo bridges the options
+  // dictionary — coerce all three so a constant is never silently dropped back to its default.
+  // Non-finite values (NaN/Inf) are treated as ABSENT, mirroring the Kotlin reader: a NaN here
+  // would trap in Int(rounded()) and, worse, fail every `x > NaN` gate comparison OPEN — the
+  // binary is frozen while options arrive over OTA, so a garbled option must never widen a gate.
+  private static func doubleOption(_ options: [String: Any], _ key: String) -> Double? {
+    let coerced: Double?
+    if let number = options[key] as? NSNumber {
+      coerced = number.doubleValue
+    } else if let value = options[key] as? Double {
+      coerced = value
+    } else if let value = options[key] as? Int {
+      coerced = Double(value)
+    } else {
+      coerced = nil
+    }
+
+    guard let value = coerced, value.isFinite else {
+      return nil
+    }
+
+    return value
   }
 }

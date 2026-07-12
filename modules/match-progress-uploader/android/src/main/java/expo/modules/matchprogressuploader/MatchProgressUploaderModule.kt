@@ -153,6 +153,22 @@ class MatchProgressUploaderModule : Module() {
       putDistanceOption(intent, MatchUploadForegroundService.EXTRA_TELEPORT_MIN_METERS, options["teleportMinMeters"])
       putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MAX_SPEED_MPS, options["maxSpeedMps"])
       putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MAX_LOCATION_AGE_MS, options["maxLocationAgeMs"])
+      // Later-added filter constants (99693a0 wire-format extension). putDistanceOption skips a
+      // missing key, so an OLD JS bundle (which never sends these) leaves the extras absent and the
+      // service keeps those gates disabled — the previous binary's behavior, byte-for-byte.
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MIN_TIME_DELTA_MS, options["minTimeDeltaMs"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_TELEPORT_ACCURACY_SCALE, options["teleportAccuracyScale"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_TELEPORT_MAX_SPEED_MPS, options["teleportMaxSpeedMps"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_STATIONARY_SPEED_MPS, options["stationarySpeedMps"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_POOR_ACCURACY_METERS, options["poorAccuracyMeters"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_COLD_START_STABLE_FIX_COUNT, options["coldStartStableFixCount"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_COLD_START_MAX_CLUSTER_RADIUS_METERS, options["coldStartMaxClusterRadiusMeters"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_COLD_START_MAX_ACCURACY_METERS, options["coldStartMaxAccuracyMeters"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_COLD_START_MAX_WINDOW_MS, options["coldStartMaxWindowMs"])
+      // Reserved overrides — no JS bundle sends these yet; forwarded so a future OTA can deliver
+      // them without another native build.
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MIN_MOVEMENT_METERS, options["minMovementMeters"])
+      putDistanceOption(intent, MatchUploadForegroundService.EXTRA_MAX_FUTURE_LOCATION_MS, options["maxFutureLocationMs"])
     }
     dispatchServiceIntent(intent)
   }

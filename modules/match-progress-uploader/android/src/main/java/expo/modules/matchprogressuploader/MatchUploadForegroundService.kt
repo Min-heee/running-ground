@@ -98,8 +98,10 @@ class MatchUploadForegroundService : Service() {
       }
       ACTION_DISTANCE_START -> {
         // Begin native GPS distance accumulation. Configure the JS filter constants, drop the per-fix
-        // anchor (first fix only sets the origin), and bring the foreground service + wakelock up so
-        // GPS keeps flowing screen-off — WITHOUT touching the periodic re-POST scheduler.
+        // anchors so the session re-runs the cold-start warmup (fixes anchor only after a stable
+        // cluster — no distance is banked for the warmup wobble), and bring the foreground service +
+        // wakelock up so GPS keeps flowing screen-off — WITHOUT touching the periodic re-POST
+        // scheduler.
         intent.let { distanceAccumulator.configureFromIntent(it) }
         distanceAccumulator.beginSession()
         distanceWanted = true
@@ -475,6 +477,26 @@ class MatchUploadForegroundService : Service() {
     const val EXTRA_MAX_SPEED_MPS = "maxSpeedMps"
     const val EXTRA_MAX_LOCATION_AGE_MS = "maxLocationAgeMs"
 
+    // Later-added filter constants (the 99693a0 wire-format extension). OPTIONAL: an old JS bundle
+    // never sends these keys, and each ABSENT extra leaves its native gate DISABLED — so an old
+    // bundle drives this binary exactly like the previous one, while a new bundle against an old
+    // binary is safe because old binaries ignore unknown extras.
+    const val EXTRA_MIN_TIME_DELTA_MS = "minTimeDeltaMs"
+    const val EXTRA_TELEPORT_ACCURACY_SCALE = "teleportAccuracyScale"
+    const val EXTRA_TELEPORT_MAX_SPEED_MPS = "teleportMaxSpeedMps"
+    const val EXTRA_STATIONARY_SPEED_MPS = "stationarySpeedMps"
+    const val EXTRA_POOR_ACCURACY_METERS = "poorAccuracyMeters"
+    const val EXTRA_COLD_START_STABLE_FIX_COUNT = "coldStartStableFixCount"
+    const val EXTRA_COLD_START_MAX_CLUSTER_RADIUS_METERS = "coldStartMaxClusterRadiusMeters"
+    const val EXTRA_COLD_START_MAX_ACCURACY_METERS = "coldStartMaxAccuracyMeters"
+    const val EXTRA_COLD_START_MAX_WINDOW_MS = "coldStartMaxWindowMs"
+
+    // Reserved overrides (no JS bundle sends these yet): the noisy-gate min-movement floor (JS
+    // MIN_MOVEMENT_DISTANCE_METERS) and an explicit future-timestamp window (JS
+    // MAX_FUTURE_LOCATION_MS). Absent → JS-source default 3.0 / today's symmetric age window.
+    const val EXTRA_MIN_MOVEMENT_METERS = "minMovementMeters"
+    const val EXTRA_MAX_FUTURE_LOCATION_MS = "maxFutureLocationMs"
+
     private const val DEFAULT_INTERVAL_MS = 3000L
     // ~2s GPS cadence for the distance consumer (the accumulator consumes every fix; the gate
     // collapses noise). minUpdateDistanceMeters=0 so a slow drift still produces fixes.
@@ -492,30 +514,63 @@ class MatchUploadForegroundService : Service() {
 /**
  * DistanceAccumulator — native running-total distance, advanced from the foreground service's GPS
  * consumer so a run's distance keeps moving while the JS thread is suspended (screen off). Mirrors
- * the JS per-segment filter chain (src/features/runs/tracking/background/locationDistance.ts +
- * routeAccumulator.ts) 1:1, pared to the gate the screen-off case needs (it does NOT replicate JS's
- * route-history cold-start / jitter-collapse passes — the native side keeps no route history). The
- * JS merge takes max(jsKm, nativeKm), so this conservative-by-design total can only ADD distance JS
- * missed while suspended, never subtract or jump JS backward.
+ * the JS per-fix filter chain (src/features/runs/tracking/background/locationDistance.ts +
+ * routeAccumulator.ts appendTrackedLocation) in the SAME order: accuracy + age windows, cold-start
+ * warmup discard, min time delta, both teleport gates, the stationary/poor-accuracy noise
+ * rejection, and the accuracy-scaled distance gate. Only the JS route-REWRITE passes (cold-start
+ * excursion collapse + mid-run lateral-jitter collapse) stay JS-only — they rewrite the whole route
+ * and recompute the total from it, which needs the full route history the native side does not
+ * keep. The JS merge is FRESH-JS-WINS, so this total only ever fills screen-off gaps.
+ *
+ * Wire-format compatibility: the six original constants keep their existing extras. Every
+ * LATER-ADDED constant is OPTIONAL — an absent extra leaves its gate DISABLED, so an old JS bundle
+ * (which never sends the new keys) drives this binary exactly like the previous one.
  *
  * Threading: configure/seed/reset/beginSession come from onStartCommand (main thread); consume()
  * comes from the LocationCallback (main looper). totalMeters is read synchronously from the module
  * (any thread), so the total is @Volatile and advanced under a small lock — no GPS work under it.
  */
 private class DistanceAccumulator {
-  // JS filter constants. Defaults mirror the JS source values so a missing extra can never widen the
-  // gate open.
-  @Volatile private var maxAccuracyMeters: Double = 60.0
-  @Volatile private var distanceGateBaseMeters: Double = 2.5
+  // Original filter constants (always in the wire format). Defaults mirror the CURRENT JS source
+  // values so a missing/garbled option can never widen the gate open.
+  @Volatile private var maxAccuracyMeters: Double = 40.0
+  @Volatile private var distanceGateBaseMeters: Double = 3.0
   @Volatile private var distanceGateAccuracyScale: Double = 0.15
   @Volatile private var teleportMinMeters: Double = 35.0
   @Volatile private var maxSpeedMps: Double = 8.5
   @Volatile private var maxLocationAgeMs: Double = 15000.0
 
-  // The last COUNTED fix (the distance-gate anchor — mirrors JS lastCountedPoint). null until the
-  // first accepted fix, so the first fix only sets the anchor (no initial jump). Touched only on the
-  // GPS-callback thread (the main looper) + onStartCommand (main thread).
+  // Later-added filter constants (the 99693a0 wire-format extension). null = not delivered = that
+  // gate stays disabled (the previous binary's behavior, for old JS bundles).
+  @Volatile private var minTimeDeltaMs: Double? = null
+  @Volatile private var teleportAccuracyScale: Double? = null
+  @Volatile private var teleportMaxSpeedMps: Double? = null
+  @Volatile private var stationarySpeedMps: Double? = null
+  @Volatile private var poorAccuracyMeters: Double? = null
+  @Volatile private var coldStartStableFixCount: Int? = null
+  @Volatile private var coldStartMaxClusterRadiusMeters: Double? = null
+  @Volatile private var coldStartMaxAccuracyMeters: Double? = null
+  @Volatile private var coldStartMaxWindowMs: Double? = null
+
+  // Reserved overrides (no JS bundle sends them yet). minMovementMeters is the noisy-gate floor
+  // (JS MIN_MOVEMENT_DISTANCE_METERS); a null maxFutureLocationMs keeps today's symmetric age window.
+  @Volatile private var minMovementMeters: Double = 3.0
+  @Volatile private var maxFutureLocationMs: Double? = null
+
+  // Per-fix anchors, mirroring JS: lastAppended = the route tail (advances on every fix that passes
+  // the segment filters, INCLUDING sub-distance-gate ones); lastCounted = the distance-gate anchor
+  // (advances only when distance is actually banked). The split is what lets a slow drift accumulate
+  // against ONE counted origin while the segment filters still compare consecutive fixes — exactly
+  // the JS previousPoint / lastCountedPoint pair. Touched only on the GPS-callback thread (the main
+  // looper) + onStartCommand (main thread).
+  private var lastAppended: Location? = null
   private var lastCounted: Location? = null
+
+  // Cold-start warmup buffer (mirrors JS coldStartFixBuffer): fixes collected BEFORE the first
+  // anchor. Once coldStartStableFixCount recent fixes form a tight cluster, the anchor is the
+  // cluster's LAST fix and the intra-cluster path is banked as ZERO — the JS cold-start seed=0
+  // semantics that killed the ~0.3km start spike.
+  private val coldStartBuffer = ArrayList<Location>()
 
   // Running total in meters. @Volatile for the cross-thread synchronous read; advanced under `lock`.
   @Volatile private var total: Double = 0.0
@@ -531,12 +586,34 @@ private class DistanceAccumulator {
     teleportMinMeters = intent.readDouble(MatchUploadForegroundService.EXTRA_TELEPORT_MIN_METERS, teleportMinMeters)
     maxSpeedMps = intent.readDouble(MatchUploadForegroundService.EXTRA_MAX_SPEED_MPS, maxSpeedMps)
     maxLocationAgeMs = intent.readDouble(MatchUploadForegroundService.EXTRA_MAX_LOCATION_AGE_MS, maxLocationAgeMs)
+
+    // Later-added constants: an absent extra reads null and DISABLES its gate (old-bundle parity).
+    minTimeDeltaMs = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_MIN_TIME_DELTA_MS)
+    teleportAccuracyScale = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_TELEPORT_ACCURACY_SCALE)
+    teleportMaxSpeedMps = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_TELEPORT_MAX_SPEED_MPS)
+    stationarySpeedMps = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_STATIONARY_SPEED_MPS)
+    poorAccuracyMeters = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_POOR_ACCURACY_METERS)
+    coldStartStableFixCount = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_COLD_START_STABLE_FIX_COUNT)
+      ?.let { raw ->
+        // A count outside the buffer's reach could never form a cluster (native distance would stay
+        // frozen), so a garbled value disables the warmup instead of bricking accumulation.
+        val count = Math.round(raw).toInt()
+        if (count in 2..COLD_START_MAX_BUFFER_FIXES) count else null
+      }
+    coldStartMaxClusterRadiusMeters = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_COLD_START_MAX_CLUSTER_RADIUS_METERS)
+    coldStartMaxAccuracyMeters = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_COLD_START_MAX_ACCURACY_METERS)
+    coldStartMaxWindowMs = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_COLD_START_MAX_WINDOW_MS)
+    minMovementMeters = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_MIN_MOVEMENT_METERS) ?: 3.0
+    maxFutureLocationMs = intent.readOptionalDouble(MatchUploadForegroundService.EXTRA_MAX_FUTURE_LOCATION_MS)
   }
 
-  // Drop the per-fix anchor so the FIRST fix after start only sets the origin (no initial jump). The
-  // running total is PRESERVED (the JS side seeds the baseline separately).
+  // Drop the anchors + warmup buffer so the session re-runs the cold-start warmup (or, on an old
+  // wire format, re-anchors on the first accepted fix — no initial jump either way). The running
+  // total is PRESERVED (the JS side seeds the baseline separately).
   fun beginSession() {
+    lastAppended = null
     lastCounted = null
+    coldStartBuffer.clear()
   }
 
   // Set the running total to the JS authoritative total at start so native and JS share one origin.
@@ -546,65 +623,204 @@ private class DistanceAccumulator {
     }
   }
 
-  // Full reset (new run): zero the total and drop the anchor.
+  // Full reset (new run): zero the total, drop the anchors + warmup buffer.
   fun reset() {
+    lastAppended = null
     lastCounted = null
+    coldStartBuffer.clear()
     synchronized(lock) {
       total = 0.0
     }
   }
 
-  // Consume one delivered fix. Returns the NEW total in meters when the fix advanced the distance, or
-  // null when the fix was rejected/gated. Mirrors the JS appendTrackedLocation per-segment path:
-  //   - reject accuracy < 0 (invalid) or > maxAccuracyMeters (MAX_TRACKING_ACCURACY_METERS)
-  //   - reject if abs(now - fixTime) > maxLocationAgeMs (resolveLocationTimestampMs age window)
-  //   - first accepted fix only sets the anchor (no jump)
-  //   - segment = last.distanceTo(current) (Location.distanceTo — geodesic, battery-free)
-  //   - gate = distanceGateBaseMeters + worstAccuracy * distanceGateAccuracyScale; skip if seg < gate
-  //   - teleport: skip if seg >= teleportMinMeters AND seg/dt > maxSpeedMps
-  //   - else total += seg, advance the anchor, return the new total
+  // Consume one delivered fix. Returns the NEW total in meters when the fix advanced the distance,
+  // or null when the fix was rejected/gated. Mirrors the JS appendTrackedLocation chain in the SAME
+  // order: accuracy → age window → cold-start warmup → min time delta → teleport (hard +
+  // accuracy-scaled) → stationary/poor-accuracy noise → accuracy-scaled distance gate → count.
   fun consume(current: Location): Double? {
-    val accuracy = if (current.hasAccuracy()) current.accuracy.toDouble() else 0.0
-    if (current.hasAccuracy() && (accuracy < 0 || accuracy > maxAccuracyMeters)) {
+    // FAIL CLOSED on missing accuracy: a fix with no accuracy value used to read as 0.0 (best
+    // possible) and slide under the smallest gate. Treat it as worst — reject.
+    if (!current.hasAccuracy()) {
+      return null
+    }
+    val accuracy = current.accuracy.toDouble()
+    if (accuracy < 0 || accuracy > maxAccuracyMeters) {
       return null
     }
 
-    val ageMs = Math.abs(System.currentTimeMillis() - current.time).toDouble()
-    if (ageMs > maxLocationAgeMs) {
+    // Age window (JS resolveLocationTimestampMs): stale-past fixes beyond maxLocationAgeMs and
+    // future-stamped fixes beyond maxFutureLocationMs are clock artifacts. An absent
+    // maxFutureLocationMs keeps the previous binary's symmetric window.
+    val nowMs = System.currentTimeMillis()
+    if ((nowMs - current.time).toDouble() > maxLocationAgeMs) {
+      return null
+    }
+    if ((current.time - nowMs).toDouble() > (maxFutureLocationMs ?: maxLocationAgeMs)) {
       return null
     }
 
-    val last = lastCounted
-    if (last == null) {
-      lastCounted = current
+    // Cold-start warmup (JS buildStableColdStartRouteCandidate + the seed=0 anchor): before the
+    // first anchor, buffer fixes until a tight stable cluster forms, anchor at its LAST fix, and
+    // bank NOTHING for the intra-cluster path.
+    val previous = lastAppended
+    if (previous == null) {
+      handleColdStart(current)
       return null
     }
 
-    val segmentMeters = last.distanceTo(current).toDouble()
-    val lastAccuracy = if (last.hasAccuracy()) last.accuracy.toDouble() else 0.0
-    val worstAccuracy = Math.max(if (lastAccuracy >= 0) lastAccuracy else 0.0, if (accuracy >= 0) accuracy else 0.0)
-    val gate = distanceGateBaseMeters + worstAccuracy * distanceGateAccuracyScale
+    val segmentMeters = previous.distanceTo(current).toDouble()
+    val dtMs = (current.time - previous.time).toDouble()
+    val dtSeconds = dtMs / 1000.0
 
-    if (segmentMeters < gate) {
+    // Min time delta (JS MIN_LOCATION_TIME_DELTA_MS): sub-cadence duplicate fixes are noise.
+    val activeMinTimeDeltaMs = minTimeDeltaMs
+    if (activeMinTimeDeltaMs != null && dtMs < activeMinTimeDeltaMs) {
       return null
     }
 
-    val dtSeconds = (current.time - last.time) / 1000.0
+    val lastAccuracy = if (previous.hasAccuracy()) previous.accuracy.toDouble() else 0.0
+    val worstAccuracy = Math.max(Math.max(lastAccuracy, 0.0), accuracy)
+
+    // Teleport 1 (hard — JS MIN_TELEPORT_FILTER_DISTANCE_METERS + MAX_REASONABLE_RUNNING_SPEED_MPS):
+    // a long segment covered impossibly fast is a GPS jump — drop it and do NOT advance the anchor,
+    // so the next in-range fix re-anchors off the last good position.
     if (segmentMeters >= teleportMinMeters && dtSeconds > 0 && (segmentMeters / dtSeconds) > maxSpeedMps) {
+      return null
+    }
+
+    // Teleport 2 (accuracy-scaled): a jump longer than max(teleportMin, worstAccuracy * scale)
+    // moving faster than teleportMaxSpeedMps is GPS relocation, not running.
+    val activeTeleportScale = teleportAccuracyScale
+    val activeTeleportMaxSpeed = teleportMaxSpeedMps
+    if (
+      activeTeleportScale != null && activeTeleportMaxSpeed != null && dtSeconds > 0 &&
+      segmentMeters > Math.max(teleportMinMeters, worstAccuracy * activeTeleportScale) &&
+      (segmentMeters / dtSeconds) > activeTeleportMaxSpeed
+    ) {
+      return null
+    }
+
+    // Stationary / poor-accuracy noise rejection (JS shouldIgnoreNoisySegment), including the
+    // dynamic min-movement floor.
+    val activeStationarySpeed = stationarySpeedMps
+    val activePoorAccuracy = poorAccuracyMeters
+    if (activeStationarySpeed != null && activePoorAccuracy != null) {
+      val dynamicMinMovementMeters = Math.max(minMovementMeters, Math.min(4.5, worstAccuracy * 0.1))
+      if (segmentMeters < dynamicMinMovementMeters) {
+        return null
+      }
+
+      val segmentSpeedMps = if (dtSeconds > 0) segmentMeters / dtSeconds else Double.POSITIVE_INFINITY
+      val rawSpeedMps = if (current.hasSpeed()) current.speed.toDouble() else null
+      val reliableSpeedMps = rawSpeedMps?.takeIf { it >= MIN_RELIABLE_SPEED_MPS && it <= maxSpeedMps }
+
+      val reliableLooksStationary = reliableSpeedMps != null && reliableSpeedMps < activeStationarySpeed
+      val looksStationary = reliableLooksStationary || segmentSpeedMps < activeStationarySpeed
+      val stationaryNoiseRadiusMeters = Math.max(4.0, Math.min(12.0, worstAccuracy * 0.35))
+      if (looksStationary && segmentMeters < stationaryNoiseRadiusMeters) {
+        return null
+      }
+
+      val poorAccuracyNoiseRadiusMeters = Math.min(12.0, worstAccuracy * 0.25)
+      if (worstAccuracy >= activePoorAccuracy && segmentSpeedMps < 1.4 && segmentMeters < poorAccuracyNoiseRadiusMeters) {
+        return null
+      }
+    }
+
+    // Distance gate (JS resolveDistanceGateMeters), measured from the COUNTED anchor: below the
+    // gate is jitter, not movement. Mirror JS: the fix still becomes the segment anchor (JS appends
+    // it to the route) but the counted anchor stays, so a slow drift accumulates until it crosses
+    // the gate from the SAME counted origin.
+    val countedAnchor = lastCounted ?: previous.also { lastCounted = it }
+    val gate = distanceGateBaseMeters + Math.max(0.0, worstAccuracy) * distanceGateAccuracyScale
+    val distanceFromCountedMeters = countedAnchor.distanceTo(current).toDouble()
+
+    if (distanceFromCountedMeters < gate) {
+      lastAppended = current
       return null
     }
 
     val newTotal: Double
     synchronized(lock) {
-      total += segmentMeters
+      total += distanceFromCountedMeters
       newTotal = total
     }
+    lastAppended = current
     lastCounted = current
     return newTotal
+  }
+
+  // Cold-start warmup: mirror buildStableColdStartRouteCandidate + trimColdStartFixBuffer — check
+  // the LAST coldStartStableFixCount fixes for (a) a strictly-increasing window <=
+  // coldStartMaxWindowMs, (b) per-fix accuracy <= coldStartMaxAccuracyMeters, and (c) a max
+  // pairwise distance <= coldStartMaxClusterRadiusMeters. Stable → anchor at the cluster's last
+  // fix, banking ZERO. When the cold-start constants were not delivered (old JS bundle), the first
+  // accepted fix anchors directly — the previous binary's behavior.
+  private fun handleColdStart(current: Location) {
+    val stableFixCount = coldStartStableFixCount
+    val clusterRadiusMeters = coldStartMaxClusterRadiusMeters
+    val maxStableAccuracyMeters = coldStartMaxAccuracyMeters
+    val maxWindowMs = coldStartMaxWindowMs
+    if (stableFixCount == null || clusterRadiusMeters == null || maxStableAccuracyMeters == null || maxWindowMs == null) {
+      lastAppended = current
+      lastCounted = current
+      return
+    }
+
+    coldStartBuffer.add(current)
+    while (coldStartBuffer.size > COLD_START_MAX_BUFFER_FIXES) {
+      coldStartBuffer.removeAt(0)
+    }
+    if (coldStartBuffer.size < stableFixCount) {
+      return
+    }
+
+    val recent = coldStartBuffer.subList(coldStartBuffer.size - stableFixCount, coldStartBuffer.size)
+    val windowMs = (recent.last().time - recent.first().time).toDouble()
+    if (windowMs <= 0 || windowMs > maxWindowMs) {
+      return
+    }
+    if (recent.any { it.hasAccuracy() && it.accuracy.toDouble() > maxStableAccuracyMeters }) {
+      return
+    }
+
+    var maxPairDistanceMeters = 0.0
+    for (leftIndex in 0 until recent.size - 1) {
+      for (rightIndex in leftIndex + 1 until recent.size) {
+        maxPairDistanceMeters = Math.max(
+          maxPairDistanceMeters,
+          recent[leftIndex].distanceTo(recent[rightIndex]).toDouble(),
+        )
+      }
+    }
+    if (maxPairDistanceMeters > clusterRadiusMeters) {
+      return
+    }
+
+    // STABLE: anchor at the cluster's last fix; the intra-cluster warmup path is banked as ZERO
+    // (the JS cold-start seed=0 that killed the start spike — the JS merge seeds the baseline).
+    val anchor = recent.last()
+    lastAppended = anchor
+    lastCounted = anchor
+    coldStartBuffer.clear()
+  }
+
+  private companion object {
+    // JS COLD_START_MAX_BUFFER_FIXES / MIN_RELIABLE_RUNNING_SPEED_MPS — formula internals the JS
+    // side also hardcodes (they are not part of the options wire format).
+    const val COLD_START_MAX_BUFFER_FIXES = 8
+    const val MIN_RELIABLE_SPEED_MPS = 0.7
   }
 }
 
 private fun Intent.readDouble(key: String, fallback: Double): Double {
   val value = getDoubleExtra(key, Double.NaN)
   return if (value.isFinite()) value else fallback
+}
+
+// Optional read for the later-added filter constants: an absent/garbled extra reads null, which
+// DISABLES the corresponding gate — the backward-compat contract for old JS bundles.
+private fun Intent.readOptionalDouble(key: String): Double? {
+  val value = getDoubleExtra(key, Double.NaN)
+  return if (value.isFinite()) value else null
 }
