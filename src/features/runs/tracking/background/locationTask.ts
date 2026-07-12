@@ -20,15 +20,28 @@ export function buildLocationTaskOptions(): Location.LocationTaskOptions {
 
   return {
     accuracy: Location.Accuracy.BestForNavigation,
-    // Fix A.4 — tighten the iOS background location cadence so the location-task callback (the
-    // only surviving screen-off trigger for the progress flush) fires as often as iOS will deliver.
-    // iOS gets distanceInterval 0 ("deliver every fix, do not gate on distance moved") so even a
-    // stationary/slow runner keeps emitting fixes that drive the flush AND tick the native
-    // CLLocationManager-backed re-POST. Android stays conservative (4m) to avoid worsening the known
-    // Android JS-thread saturation lag (#195/#201) and battery — Android already has the time-based
-    // ScheduledExecutorService + native-thread uploader, so it does not need a tighter GPS cadence.
-    timeInterval: 2000,
-    distanceInterval: isIOS ? 0 : 4,
+    // CROSS-DEVICE SAMPLING PARITY — the bg-task GPS options are now PLATFORM-IDENTICAL, leveling
+    // Android UP to iOS's fix density so both devices integrate the same route from the same-shaped
+    // input. Before this, Android was capped at timeInterval 2000ms AND >=4m displacement while iOS
+    // streamed every raw fix (~1 Hz), so Android chord-cut curves and read systematically SHORTER
+    // than iOS on the same route.
+    //
+    // timeInterval: iOS has NO such option (expo-location's iOS LocationOptions only reads
+    // accuracy/distanceInterval — the field is dead there) and streams ~1 Hz natively with
+    // distanceInterval 0. Android DOES honor it as a hard interval floor, so 1000ms makes Android
+    // match iOS's ~1 Hz delivery instead of the old 0.5 Hz.
+    timeInterval: 1000,
+    // distanceInterval 0 on BOTH ("deliver every fix, do not gate on displacement"): the old
+    // Android-only 4m pre-gate suppressed fixes on slow/tight turns (net displacement <4m while the
+    // path is longer), which is exactly the chord-cutting that shortened Android distances. The
+    // shared JS filter chain — not the OS displacement gate — decides what counts as movement.
+    //
+    // Perf note for the raised Android fix rate: the 2026-07 JS-thread saturation issues (#195/#201)
+    // were RENDER-driven, not filter-driven. The shared MIN_LOCATION_TIME_DELTA_MS (900ms) gate sits
+    // at the top of the chain and drops surplus fixes before the expensive stages; surviving fixes
+    // pay bounded per-fix work (route append + pace window + a counted-fix elevation pass) — the
+    // same cost profile iOS has shipped at this exact 1Hz/0m config since Fix A.4.
+    distanceInterval: 0,
     // iOS deferred-updates: keep them OFF so iOS does not batch/withhold fixes in the background
     // (batched delivery is what lets the screen-off flush go stale). A 0 distance/interval means
     // "deliver each fix immediately" rather than deferring.

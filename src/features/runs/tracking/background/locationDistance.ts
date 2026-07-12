@@ -38,6 +38,22 @@ export const MID_RUN_LATERAL_JITTER_MIN_EXTRA_RATIO = 0.24;
 export const MID_RUN_LATERAL_JITTER_MIN_SIDE_METERS = 6;
 export const DISTANCE_GATE_BASE_METERS = 3.0;
 export const DISTANCE_GATE_ACCURACY_SCALE = 0.15;
+// CROSS-DEVICE PARITY CAP for every ACCURACY-SCALED threshold (distance gate, dynamic min-movement,
+// stationary noise radius, poor-accuracy noise radius, mid-run jitter thresholds). Vendor accuracy
+// ESTIMATES differ: a Galaxy single-band chip reports 10-20m where an iPhone multi-band chip reports
+// 3-8m for fixes of comparable real quality (both nominally 1-sigma, but the estimators are
+// calibrated differently). Uncapped, that estimate difference widens the Galaxy's gates relative to
+// the iPhone's — coarser counted chords, more dropped slow segments — amplifying a mere chip
+// REPORTING difference into a measured-DISTANCE divergence. Capping the accuracy value fed to the
+// scaled terms at 15m bounds how far any vendor's estimate can widen a threshold.
+// NOTE: the hard REJECT threshold (accuracyM > MAX_TRACKING_ACCURACY_METERS = 40 drops the fix) is
+// intentionally UNCAPPED and unchanged — genuinely terrible fixes must still be discarded outright.
+export const ACCURACY_SCALE_CAP_METERS = 15;
+
+// The accuracy value to use wherever accuracy SCALES a threshold (never for hard-reject comparisons).
+export function capAccuracyForThresholdScaling(accuracyM: number) {
+  return Math.min(Math.max(0, accuracyM), ACCURACY_SCALE_CAP_METERS);
+}
 
 export function normalizeAccuracyMeters(value?: number | null) {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0
@@ -109,14 +125,20 @@ export function buildFallbackPaceSecondsPerKm(speedMps?: number | null) {
 }
 
 export function resolveDynamicMinMovementMeters(worstAccuracyM: number) {
+  // Accuracy-scaled term uses the capped accuracy (see ACCURACY_SCALE_CAP_METERS): an inflated
+  // vendor estimate may not raise the min-movement floor beyond what a 15m fix would.
   return Math.max(
     MIN_MOVEMENT_DISTANCE_METERS,
-    Math.min(4.5, worstAccuracyM * 0.1),
+    Math.min(4.5, capAccuracyForThresholdScaling(worstAccuracyM) * 0.1),
   );
 }
 
 export function resolveDistanceGateMeters(worstAccuracyM: number) {
-  return DISTANCE_GATE_BASE_METERS + Math.max(0, worstAccuracyM) * DISTANCE_GATE_ACCURACY_SCALE;
+  // Accuracy-scaled term uses the capped accuracy (see ACCURACY_SCALE_CAP_METERS): the gate tops out
+  // at 3.0 + 15 * 0.15 = 5.25m no matter how pessimistic the vendor's accuracy estimate is, so both
+  // devices bank comparably fine chords on the same route.
+  return DISTANCE_GATE_BASE_METERS
+    + capAccuracyForThresholdScaling(worstAccuracyM) * DISTANCE_GATE_ACCURACY_SCALE;
 }
 
 export function shouldIgnoreNoisySegment({
@@ -134,10 +156,22 @@ export function shouldIgnoreNoisySegment({
     return true;
   }
 
+  // The poor-accuracy radius SCALES with accuracy, so it uses the capped value: an inflated
+  // vendor accuracy estimate (Galaxy 10-20m vs iPhone 3-8m for comparable fixes) must not widen
+  // the drop radius and swallow more slow real movement on one device than the other. The
+  // CLASSIFICATION comparison (worstAccuracyM >= POOR_ACCURACY_METERS) intentionally stays on the
+  // raw value — it detects poor fixes, it does not scale a threshold.
+  const scaledAccuracyM = capAccuracyForThresholdScaling(worstAccuracyM);
+
   const looksStationary = (
     (reliableSpeedMps !== null && reliableSpeedMps < STATIONARY_SPEED_MPS)
     || segmentSpeedMps < STATIONARY_SPEED_MPS
   );
+  // STATIONARY radius deliberately EXEMPT from the accuracy cap: it only ever drops segments
+  // already classified stationary (sub-0.9 m/s), so it cannot swallow real running — but with
+  // Android now receiving the full 1 Hz drift stream (no more 4 m OS pre-gate), red-light
+  // multipath wander at acc 15-20m needs the full raw-accuracy suppression radius or standing
+  // still slowly accrues phantom meters on the noisier device.
   const stationaryNoiseRadiusMeters = Math.max(4, Math.min(12, worstAccuracyM * 0.35));
 
   if (looksStationary && segmentDistanceMeters < stationaryNoiseRadiusMeters) {
@@ -145,7 +179,7 @@ export function shouldIgnoreNoisySegment({
   }
 
   const hasPoorAccuracy = worstAccuracyM >= POOR_ACCURACY_METERS;
-  const poorAccuracyNoiseRadiusMeters = Math.min(12, worstAccuracyM * 0.25);
+  const poorAccuracyNoiseRadiusMeters = Math.min(12, scaledAccuracyM * 0.25);
 
   return hasPoorAccuracy
     && segmentSpeedMps < 1.4
@@ -360,7 +394,12 @@ export function findMidRunLateralJitterAnchorIndex(route: RunRoutePoint[], nextP
       continue;
     }
 
-    const maxAccuracyM = resolveRouteWindowMaxAccuracyMeters(candidatePath);
+    // Accuracy-scaled thresholds use the capped accuracy (ACCURACY_SCALE_CAP_METERS): the jitter
+    // collapse must engage equally on both devices for fixes of comparable real quality, instead of
+    // being deactivated on the device whose vendor reports pessimistic accuracy estimates.
+    const maxAccuracyM = capAccuracyForThresholdScaling(
+      resolveRouteWindowMaxAccuracyMeters(candidatePath),
+    );
     const extraDistanceMeters = candidatePathDistanceMeters - directDistanceMeters;
     const minExtraDistanceMeters = Math.max(
       MID_RUN_LATERAL_JITTER_MIN_EXTRA_METERS,

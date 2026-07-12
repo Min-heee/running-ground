@@ -370,6 +370,62 @@ test('route accumulator does not materially under-count a straight 5km track und
   }
 });
 
+// CROSS-DEVICE PARITY CAP — an accuracy-20 fix (typical inflated Galaxy estimate) must use the
+// CAPPED distance gate (3.0 + 15 * 0.15 = 5.25m), not the uncapped 6.0m. A 5.6m real segment sits
+// between the two, so it discriminates: pre-cap it was gated (distance frozen), now it is counted.
+test('route accumulator counts a 5.6m segment at accuracy 20 through the capped distance gate', () => {
+  const baseMs = Date.now() - 6_000;
+  resetRunningSnapshot(baseMs);
+
+  // Tight warmup cluster anchors at the 3rd fix (seed 0); lastCounted = 8m east.
+  appendTrackedLocation(locationAt({ metersEast: 0, timestampMs: baseMs, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 4, timestampMs: baseMs + 1_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: baseMs + 2_000, speedMps: 3 }));
+  assert.equal(getAccumulatedDistanceMeters(), 0);
+
+  // +5.6m at accuracy 20: worstAccuracy 20 is capped to 15 for the gate → 5.25m < 5.6m → counted.
+  // With the old uncapped gate (3.0 + 20 * 0.15 = 6.0m) this exact segment was silently gated.
+  appendTrackedLocation(locationAt({
+    metersEast: 13.6,
+    timestampMs: baseMs + 3_200,
+    accuracyM: 20,
+    speedMps: 3,
+  }));
+
+  const snapshot = getSnapshotState();
+  assert.equal(snapshot.route.length, 4);
+  assert.ok(getAccumulatedDistanceMeters() >= 5.2, `capped gate should count 5.6m, got ${getAccumulatedDistanceMeters().toFixed(2)}m`);
+  assert.ok(getAccumulatedDistanceMeters() <= 6.0);
+});
+
+// The hard accuracy REJECT is intentionally UNCAPPED and unchanged: a fix reporting accuracy 41
+// (> MAX_TRACKING_ACCURACY_METERS = 40) is still dropped outright — not routed, not counted — even
+// though the parity cap clamps the scaled thresholds at 15.
+test('route accumulator still hard-rejects fixes at accuracy 41', () => {
+  const baseMs = Date.now() - 6_000;
+  resetRunningSnapshot(baseMs);
+
+  appendTrackedLocation(locationAt({ metersEast: 0, timestampMs: baseMs, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 4, timestampMs: baseMs + 1_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 8, timestampMs: baseMs + 2_000, speedMps: 3 }));
+  appendTrackedLocation(locationAt({ metersEast: 20, timestampMs: baseMs + 3_200, speedMps: 3 }));
+
+  const beforeRejectDistanceMeters = getAccumulatedDistanceMeters();
+  const beforeRejectRouteLength = getSnapshotState().route.length;
+  assert.ok(beforeRejectDistanceMeters > 0);
+
+  appendTrackedLocation(locationAt({
+    metersEast: 32,
+    timestampMs: baseMs + 4_400,
+    accuracyM: 41,
+    speedMps: 3,
+  }));
+
+  const snapshot = getSnapshotState();
+  assert.equal(snapshot.route.length, beforeRejectRouteLength);
+  assert.equal(getAccumulatedDistanceMeters(), beforeRejectDistanceMeters);
+});
+
 // ELEVATION NOISE SUPPRESSION through the accumulator's live commit path — a straight run whose GPS
 // ALTITUDE oscillates +/-15m every fix (the Android sawtooth that fabricated hundreds of meters)
 // must accumulate ~0 elevation gain now that the commit path recomputes through the shared EMA +

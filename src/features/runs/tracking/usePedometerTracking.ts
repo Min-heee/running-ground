@@ -64,6 +64,13 @@ export function usePedometerTracking({
         return;
       }
 
+      // A fresh watchStepCount subscription restarts result.steps at 0. The offset must
+      // absorb everything already counted, or a pause/resume snaps the running total
+      // DOWN and the saved whole-run average cadence collapses — which the server-side
+      // vehicle classifier would read as a cheating signature on a real run. (Run start
+      // is unaffected: totalStepsRef is 0 there.)
+      pedometerStepOffsetRef.current = totalStepsRef.current;
+
       pedometerSubscriptionRef.current = Pedometer.watchStepCount((result) => {
         const totalSteps = pedometerStepOffsetRef.current + result.steps;
         totalStepsRef.current = totalSteps;

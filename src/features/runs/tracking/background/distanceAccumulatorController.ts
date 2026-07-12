@@ -76,6 +76,14 @@ export type NativeDistanceAccumulatorOptions = {
   coldStartMaxWindowMs: number;
 };
 
+// TODO(next native build): the JS filter chain now caps the accuracy value used by its
+// accuracy-SCALED thresholds at ACCURACY_SCALE_CAP_METERS = 15 (locationDistance.ts — cross-device
+// parity: vendor accuracy estimates differ, and uncapped estimates widen the Galaxy's gates vs the
+// iPhone's). The native accumulators mirror those gates from THESE wire constants and have no cap
+// yet, so this cap is JS-side only for now. Mirroring it natively needs a new optional wire key
+// (accuracyCapMeters) read by the NEXT binary. Do NOT add the key yet: build-44 natives ignore
+// unknown keys so it would be inert, and a half-wired key invites confusion — add accuracyCapMeters
+// here in the same change that teaches the native accumulators to read it.
 export const NATIVE_DISTANCE_ACCUMULATOR_OPTIONS: NativeDistanceAccumulatorOptions = {
   maxAccuracyMeters: MAX_TRACKING_ACCURACY_METERS,
   distanceGateBaseMeters: DISTANCE_GATE_BASE_METERS,
