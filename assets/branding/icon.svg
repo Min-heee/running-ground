@@ -1,9 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
-  <rect width="1024" height="1024" rx="224" fill="#11161B"/>
-  <circle cx="512" cy="512" r="296" stroke="#F5F1E8" stroke-width="82" opacity="0.9"/>
-  <circle cx="512" cy="512" r="224" stroke="#F5F1E8" stroke-width="18" stroke-dasharray="18 28" opacity="0.5"/>
-  <path
-    d="M332 742V282H540C651 282 714 342 714 431C714 512 663 566 582 590L718 742H606L486 608H442V742H332ZM442 516H528C594 516 628 487 628 439C628 389 593 360 528 360H442V516Z"
-    fill="#F5F1E8"
-  />
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6D5EF7"/><stop offset="1" stop-color="#4338CA"/></linearGradient></defs><rect width="1024" height="1024" fill="url(#g)"/><path d="M300 780V220H540C660 220 735 290 735 392C735 483 677 545 590 566L750 780H618L474 596H412V780H300ZM412 512H522C592 512 625 473 625 398C625 336 592 305 522 305H412V512Z" fill="#FFFFFF"/></svg>

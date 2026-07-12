@@ -5,7 +5,7 @@
     "scheme": "runningground",
     "icon": "./assets/branding/icon.png",
     "splash": {
-      "image": "./assets/branding/icon.png",
+      "image": "./assets/branding/splash-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#11161B"
     },
@@ -24,7 +24,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/branding/adaptive-icon.png",
-        "backgroundColor": "#11161B"
+        "backgroundColor": "#4338CA"
       },
       "versionCode": 34,
       "package": "com.minheee.runnigapp",
