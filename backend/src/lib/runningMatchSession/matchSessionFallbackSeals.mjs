@@ -16,9 +16,9 @@ export function registerFinisherSavedRunBackfill(impl) {
   backFillFinisherSavedRunsImpl = typeof impl === 'function' ? impl : null;
 }
 
-// The LP + result-notification finalizer lives in matchActionHandlers.mjs (it reuses the same
+// The LP + result-notification finalizer lives in matchCompletionAwards.mjs (it reuses the same
 // applyMatchLpFromStandings core the every-done path uses, guarded by the one-way lpApplied/
-// resultNotificationApplied booleans). matchActionHandlers imports the session helpers, so —
+// resultNotificationApplied booleans). That module imports the session helpers, so —
 // exactly like the back-fill above — the finalizer is INJECTED here via a sibling setter to
 // avoid a load-time import cycle. Until it is registered the sweep still stamps
 // sealFinalizedAt (the load-bearing finality marker); LP then applies on the next sweep after
