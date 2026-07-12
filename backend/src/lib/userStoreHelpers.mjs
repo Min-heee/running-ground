@@ -1,5 +1,5 @@
 import { createDefaultConnectedSources } from '../repositories/authRepository.mjs';
-import { buildUserRunMetrics } from '../points.mjs';
+import { buildUserRunMetrics } from './points.mjs';
 import { ApiError } from '../response/httpResponse.mjs';
 import { isActiveRewardRedemption } from './adminNormalizers.mjs';
 import {

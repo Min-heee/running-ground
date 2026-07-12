@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildUserRunMetrics, getRunPointValue } from '../points.mjs';
+import { buildUserRunMetrics, getRunPointValue } from '../lib/points.mjs';
 import { createPostgresRunsRepository } from './postgresRunsRepository.mjs';
 
 const SOURCE_LABELS = {

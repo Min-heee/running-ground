@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildUserRunMetrics, getRunPointBreakdown, getRunPointValue } from '../points.mjs';
+import { buildUserRunMetrics, getRunPointBreakdown, getRunPointValue } from '../lib/points.mjs';
 import { createJsonRunsRepository, getPendingImportCount } from './runsRepository.mjs';
 
 const SOURCE_LABELS = {

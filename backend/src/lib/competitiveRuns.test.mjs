@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { buildUserRunMetrics } from '../points.mjs';
+import { buildUserRunMetrics } from './points.mjs';
 import {
   buildCompetitiveRunsByUserId,
   filterCompetitiveRuns,

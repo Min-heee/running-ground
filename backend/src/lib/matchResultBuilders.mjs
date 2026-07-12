@@ -1,5 +1,5 @@
 import { ApiError } from '../response/httpResponse.mjs';
-import { parsePaceToMinutes } from '../points.mjs';
+import { parsePaceToMinutes } from './points.mjs';
 import { applyRunIntegrityCheck } from './runIntegrity.mjs';
 import {
   buildDuelVerdict,

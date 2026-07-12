@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildUserRunMetrics } from '../points.mjs';
+import { buildUserRunMetrics } from '../lib/points.mjs';
 import { createPostgresLeagueRepository } from './postgresLeagueRepository.mjs';
 
 class TestApiError extends Error {

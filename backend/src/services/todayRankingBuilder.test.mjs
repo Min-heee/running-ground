@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { buildUserRunMetrics } from '../points.mjs';
+import { buildUserRunMetrics } from '../lib/points.mjs';
 import { buildTodayRanking } from './todayRankingBuilder.mjs';
 
 const RANKED_AT = new Date('2026-06-25T09:00:00');

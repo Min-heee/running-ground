@@ -1,4 +1,4 @@
-import { parsePaceToMinutes } from '../../points.mjs';
+import { parsePaceToMinutes } from '../points.mjs';
 import { filterCompetitiveRuns } from '../competitiveRuns.mjs';
 import {
   buildLevelLabel,

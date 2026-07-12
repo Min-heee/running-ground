@@ -1,4 +1,4 @@
-import { parsePaceToMinutes } from '../points.mjs';
+import { parsePaceToMinutes } from './points.mjs';
 import { addressCatalog } from '../addressCatalog.mjs';
 import { isPhoneVerificationPurpose, isValidKoreanMobilePhoneNumber, normalizePhoneNumber } from '../phoneVerification.mjs';
 import { ApiError } from '../response/httpResponse.mjs';

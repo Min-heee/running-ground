@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { verifyPassword } from '../../auth.mjs';
 import { ApiError } from '../../response/httpResponse.mjs';
 import { buildRunDetail } from '../../lib/runHelpers.mjs';
-import { buildUserRunMetrics } from '../../points.mjs';
+import { buildUserRunMetrics } from '../../lib/points.mjs';
 import { createPostgresAuthRepository } from '../../repositories/postgresAuthRepository.mjs';
 import { createPostgresFriendsRepository } from '../../repositories/postgresFriendsRepository.mjs';
 import { createPostgresLeagueRepository } from '../../repositories/postgresLeagueRepository.mjs';

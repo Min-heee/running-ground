@@ -1,4 +1,4 @@
-import { isCompetitiveRun } from './lib/competitiveRuns.mjs';
+import { isCompetitiveRun } from './competitiveRuns.mjs';
 
 function toFixed1(value) {
   return Number(value.toFixed(1));

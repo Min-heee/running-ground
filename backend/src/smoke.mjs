@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { IMPORT_MIN_RUN_DATE } from './lib/integrationImportCutoff.mjs';
-import { buildUserRunMetrics, getRunPointValue } from './points.mjs';
+import { buildUserRunMetrics, getRunPointValue } from './lib/points.mjs';
 import { createSeedStore } from './seed.mjs';
 
 const currentFilePath = fileURLToPath(import.meta.url);

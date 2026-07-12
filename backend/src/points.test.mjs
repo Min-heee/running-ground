@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { buildUserRunMetrics, getRunPointBreakdown, getRunPointValue } from './points.mjs';
+import { buildUserRunMetrics, getRunPointBreakdown, getRunPointValue } from './lib/points.mjs';
 import { buildMatchRunnerProfile } from './lib/runningMatchSession/matchSessionSnapshots.mjs';
 import { cleanupLegacyIntegrationSources } from './lib/integrationSourceMigrations.mjs';
 

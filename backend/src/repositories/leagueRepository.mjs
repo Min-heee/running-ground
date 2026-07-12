@@ -2,7 +2,7 @@ import {
   buildTodayRanking,
   isTodayRankingCategory,
 } from '../services/todayRankingBuilder.mjs';
-import { buildUserRunMetrics } from '../points.mjs';
+import { buildUserRunMetrics } from '../lib/points.mjs';
 import { ensureUserRankState } from '../lib/userStoreHelpers.mjs';
 import { LP_PER_TIER, RANK_TIERS } from '../lib/rankSystem.mjs';
 

@@ -92,3 +92,7 @@ export function normalizeImportedRun(sourceType, rawRun) {
     ...(endedAt ? { endedAt } : {}),
   };
 }
+
+export function normalizeTag(tag) {
+  return String(tag ?? '').trim().toUpperCase();
+}

@@ -1,7 +1,7 @@
 import { addressCatalog } from './addressCatalog.mjs';
 import { hashPassword } from './auth.mjs';
 import { INITIAL_RANK } from './lib/rankSystem.mjs';
-import { buildUserRunMetrics } from './points.mjs';
+import { buildUserRunMetrics } from './lib/points.mjs';
 
 function createSource({
   sourceType,

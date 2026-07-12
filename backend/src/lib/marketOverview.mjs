@@ -1,4 +1,4 @@
-import { getAvailableRewardPoints } from '../points.mjs';
+import { getAvailableRewardPoints } from './points.mjs';
 import { isActiveRewardRedemption, normalizeOptionalString, normalizeRewardRedemptionStatus } from './adminNormalizers.mjs';
 import { getRedeemedPointCost, getUserMetrics } from './userStoreHelpers.mjs';
 

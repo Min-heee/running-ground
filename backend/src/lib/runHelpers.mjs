@@ -1,4 +1,4 @@
-import { getRunPointBreakdown, getRunPointValue, parsePaceToMinutes } from '../points.mjs';
+import { getRunPointBreakdown, getRunPointValue, parsePaceToMinutes } from './points.mjs';
 import { ApiError } from '../response/httpResponse.mjs';
 import { normalizeOptionalString } from './adminNormalizers.mjs';
 import { getRunsForUser } from './userStoreHelpers.mjs';

@@ -1,5 +1,5 @@
 import { isSessionExpired } from '../auth.mjs';
-import { buildUserRunMetrics } from '../points.mjs';
+import { buildUserRunMetrics } from '../lib/points.mjs';
 import {
   INITIAL_RANK,
   RANK_TIERS,

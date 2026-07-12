@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { buildUserRunMetrics, getRunPointValue } from '../points.mjs';
+import { buildUserRunMetrics, getRunPointValue } from './points.mjs';
 import { createJsonRunsRepository } from '../repositories/runsRepository.mjs';
 import {
   applyRunIntegrityCheck,
