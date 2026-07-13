@@ -14,13 +14,20 @@ type ButtonProps = {
 export function Button({ label, onPress, disabled = false, variant = 'primary' }: ButtonProps) {
   const isSecondary = variant === 'secondary';
 
+  // 테마 토큰(surface/border/text*)은 렌더 시점에 읽는다: 이 모듈은 RouteErrorBoundary 재수출
+  // 경로로 테마 게이트보다 먼저 import되므로, StyleSheet에 구우면 라이트 모드 부팅에서도 다크
+  // 값이 박제된다. brand/white는 양 모드 공통이라 그대로 구워도 안전.
   return (
     <Pressable
       style={[
         styles.button,
-        isSecondary ? styles.secondaryButton : styles.primaryButton,
+        isSecondary
+          ? { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border }
+          : styles.primaryButton,
         !isSecondary && disabled ? styles.primaryButtonDisabled : undefined,
-        isSecondary && disabled ? styles.secondaryButtonDisabled : undefined,
+        isSecondary && disabled
+          ? { backgroundColor: colors.surfaceMuted, borderColor: colors.borderSoft }
+          : undefined,
       ]}
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
@@ -29,8 +36,8 @@ export function Button({ label, onPress, disabled = false, variant = 'primary' }
       <Text
         style={[
           styles.text,
-          isSecondary ? styles.secondaryText : styles.primaryText,
-          isSecondary && disabled ? styles.secondaryTextDisabled : undefined,
+          isSecondary ? [styles.secondaryText, { color: colors.textPrimary }] : styles.primaryText,
+          isSecondary && disabled ? { color: colors.textTertiary } : undefined,
         ]}
       >
         {label}
@@ -49,17 +56,8 @@ const styles = StyleSheet.create({
   primaryButton: {
     backgroundColor: colors.brand,
   },
-  secondaryButton: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
   primaryButtonDisabled: {
     opacity: 0.55,
-  },
-  secondaryButtonDisabled: {
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.borderSoft,
   },
   text: {
     fontSize: fontSizes.button,
@@ -69,10 +67,6 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   secondaryText: {
-    color: colors.textPrimary,
     fontWeight: fontWeights.bold,
-  },
-  secondaryTextDisabled: {
-    color: colors.textTertiary,
   },
 });

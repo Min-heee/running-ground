@@ -55,7 +55,11 @@ export async function setStoredThemeMode(mode: ThemeMode): Promise<void> {
   const webStorage = getWebStorage();
 
   if (webStorage) {
-    webStorage.setItem(THEME_MODE_STORAGE_KEY, mode);
+    try {
+      webStorage.setItem(THEME_MODE_STORAGE_KEY, mode);
+    } catch {
+      // 쿼터/보안 예외가 토글을 죽이면 안 된다 — 저장 실패 시 다음 부팅에 기본값으로 복귀할 뿐.
+    }
     return;
   }
 

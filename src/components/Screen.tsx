@@ -28,7 +28,9 @@ export function Screen({
   }, [activeScrollRef, scrollToTopKey]);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    // 배경색은 렌더 시점에 읽는다: 이 모듈은 RouteErrorBoundary 재수출 경로로 테마 게이트보다
+    // 먼저 import되므로, StyleSheet에 구우면 라이트 모드 부팅에서도 다크 배경이 박제된다.
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.surfaceApp }]} edges={['top']}>
       <ScrollView
         ref={activeScrollRef}
         contentContainerStyle={[styles.content, { paddingBottom: 120 + Math.max(insets.bottom, 16) }]}
@@ -44,7 +46,6 @@ export function Screen({
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: colors.surfaceApp,
   },
   content: {
     paddingBottom: 136,
