@@ -14,6 +14,14 @@ create table if not exists app_store (
   updated_at timestamptz not null default now()
 );
 
+-- 매 진행 push가 이 행 전체를 새 버전으로 다시 쓰므로 dead tuple/TOAST 팽창이 빠르다.
+-- fillfactor 50 = 페이지 내 재사용 여지, autovacuum 임계 10 = 몇 번의 쓰기마다 즉시 청소.
+-- 런타임(postgresStoreAdapter)도 기존 볼륨을 위해 같은 ALTER를 idempotent하게 적용한다.
+alter table app_store set (fillfactor = 50);
+alter table app_store set (autovacuum_vacuum_scale_factor = 0.0, autovacuum_vacuum_threshold = 10);
+-- TOAST 파라미터는 본테이블 설정을 상속하지 않는다 — blob 팽창의 실체는 TOAST 쪽이므로 명시 필수.
+alter table app_store set (toast.autovacuum_vacuum_scale_factor = 0.0, toast.autovacuum_vacuum_threshold = 10);
+
 create table if not exists app_metadata (
   key text primary key,
   value jsonb not null default '{}'::jsonb,

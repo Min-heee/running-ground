@@ -58,7 +58,16 @@ if (STORE_DRIVER === 'postgres') {
   // legacy run route still embedded in the app_store blob into run_routes and persist the
   // slimmed blob once, so per-mutation serialize cost stops scaling with run history. Runs at
   // module init (top-level await), i.e. before the server accepts any request.
-  await activeAdapter.migrateEmbeddedRunRoutes();
+  // Failure-tolerant like the sweep below: with server-side statement/lock timeouts now armed,
+  // a transient DB stall here would otherwise become a boot crash-loop — the migration is
+  // idempotent, and any still-embedded route is re-extracted by the next mutateStore anyway.
+  try {
+    await activeAdapter.migrateEmbeddedRunRoutes();
+  } catch (error) {
+    console.error(
+      `[runningground-backend] run-route boot migration failed (idempotent — retries next boot/write): ${error?.message ?? error}`,
+    );
+  }
   // Legacy integration-source cleanup (idempotent): drop mynb rows, force-disconnect the
   // hidden nrc/strava/garmin brand rows. The postgres adapter does not run the json store's
   // migration list, so user-shape migrations need an explicit boot sweep here; the change

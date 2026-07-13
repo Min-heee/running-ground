@@ -132,7 +132,7 @@ export const POSTGRES_DATABASE_URL = normalizeOptionalString(
 export const POSTGRES_SSL = parseBoolean(process.env.BACKEND_POSTGRES_SSL, APP_ENV !== 'development');
 export const POSTGRES_POOL_MAX = Math.max(1, parseNumber(process.env.BACKEND_POSTGRES_POOL_MAX, 10));
 export const POSTGRES_IDLE_TIMEOUT_MS = Math.max(1000, parseNumber(process.env.BACKEND_POSTGRES_IDLE_TIMEOUT_MS, 30000));
-export const POSTGRES_CONNECTION_TIMEOUT_MS = Math.max(1000, parseNumber(process.env.BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS, 10000));
+export const POSTGRES_CONNECTION_TIMEOUT_MS = Math.max(1000, parseNumber(process.env.BACKEND_POSTGRES_CONNECTION_TIMEOUT_MS, 4000));
 export const POSTGRES_APPLICATION_NAME = normalizeOptionalString(process.env.BACKEND_POSTGRES_APPLICATION_NAME)
   || `runningground-backend-${APP_ENV}`;
 export const POSTGRES_ENABLE_SESSION_READS = parseBoolean(process.env.BACKEND_POSTGRES_ENABLE_SESSION_READS, false);
