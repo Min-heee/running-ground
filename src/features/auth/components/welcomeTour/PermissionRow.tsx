@@ -12,6 +12,7 @@ export const PermissionRow = memo(function PermissionRow({
   granted,
   canAsk,
   busy,
+  required = false,
   noteText,
   onRequest,
   onOpenSettings,
@@ -21,6 +22,7 @@ export const PermissionRow = memo(function PermissionRow({
   granted: boolean;
   canAsk: boolean;
   busy: boolean;
+  required?: boolean;
   noteText?: string;
   onRequest: () => void;
   onOpenSettings: () => void;
@@ -48,7 +50,13 @@ export const PermissionRow = memo(function PermissionRow({
             <Text style={styles.permissionButtonText}>허용하기</Text>
           </Pressable>
         )}
-        {action !== 'granted' && !busy ? <Text style={styles.permissionLater}>나중에 가능</Text> : null}
+        {action !== 'granted' && !busy ? (
+          required ? (
+            <Text style={styles.permissionRequired}>필수</Text>
+          ) : (
+            <Text style={styles.permissionLater}>나중에 가능</Text>
+          )
+        ) : null}
       </View>
     </View>
   );
@@ -104,6 +112,11 @@ const styles = StyleSheet.create({
   permissionLater: {
     color: colors.lavenderSoft,
     fontSize: fontSizes.xxs,
+  },
+  permissionRequired: {
+    color: colors.orange,
+    fontSize: fontSizes.xxs,
+    fontWeight: fontWeights.extraBold,
   },
   permissionBadge: {
     fontSize: fontSizes.xs,

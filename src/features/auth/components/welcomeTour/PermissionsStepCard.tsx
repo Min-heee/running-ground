@@ -38,7 +38,7 @@ export const PermissionsStepCard = memo(function PermissionsStepCard({
       <Text style={tourCardStyles.kicker}>STEP 1 · 권한</Text>
       <Text style={styles.permissionTitle}>권한 허용</Text>
       <Text style={styles.permissionSubtitle}>
-        필요한 권한을 지금 켜두면 바로 달릴 수 있어요. 건너뛰어도 되고, 나중에 설정에서 켤 수 있어요.
+        러닝을 측정하려면 위치와 동작 권한이 꼭 필요해요. 두 가지를 허용해야 다음으로 넘어갈 수 있어요.
       </Text>
       <View style={styles.permissionList}>
         {/* Merged 위치 row: driven by the BACKGROUND ("항상") status. ✓ only when backgroundLocation
@@ -47,13 +47,14 @@ export const PermissionsStepCard = memo(function PermissionsStepCard({
         <PermissionRow
           key="location"
           label="위치"
-          hint="GPS로 러닝 경로·거리·페이스를 측정해요. 화면을 꺼도 대결·러닝 측정이 끊기지 않으려면 '항상 허용'이 필요해요."
-          granted={statuses.backgroundLocation}
-          canAsk={canAsk.backgroundLocation}
+          hint="GPS로 러닝 경로·거리·페이스를 측정해요."
+          granted={statuses.location}
+          canAsk={canAsk.location}
           busy={busyKey === 'backgroundLocation'}
+          required
           noteText={
             statuses.location && !statuses.backgroundLocation
-              ? "화면을 꺼도 측정하려면 '항상 허용'이 필요해요. (설정 › 위치 › 항상)"
+              ? "화면을 꺼도 측정하려면 '항상 허용'을 권장해요. (설정 › 위치 › 항상)"
               : undefined
           }
           onRequest={() => {
@@ -69,6 +70,7 @@ export const PermissionsStepCard = memo(function PermissionsStepCard({
             granted={statuses[item.key]}
             canAsk={canAsk[item.key]}
             busy={busyKey === item.key}
+            required={item.key === 'motion'}
             onRequest={() => {
               void onRunRequest(item.key, item.request);
             }}
@@ -108,8 +110,8 @@ export const PermissionsStepCard = memo(function PermissionsStepCard({
         />
       </View>
       <Text style={styles.deniedHint}>
-        일부 권한을 꺼도 시작할 수 있어요. 위치 “항상 허용”은 휴대폰 설정 &gt; 위치에서 바꿔야 할 수 있어요.
-        설정에서 켜고 돌아오면 자동으로 확인돼요.
+        알림·연동은 나중에 설정에서 켤 수 있어요. 실수로 거부했다면 설정 열기로 켜고 돌아오면
+        자동으로 확인돼요.
       </Text>
     </View>
   );

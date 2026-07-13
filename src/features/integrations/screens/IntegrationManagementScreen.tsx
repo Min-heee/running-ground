@@ -1,5 +1,5 @@
 import { ActivityIndicator, StyleSheet, Text } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { Card } from '@/components/Card';
 import { Screen } from '@/components/Screen';
 import { AuthHeader } from '@/components/ui/AuthHeader';
@@ -18,7 +18,6 @@ import { getNativeHealthImportEligibility } from '@/integrations/nativeHealth';
 import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 export default function IntegrationManagementScreen() {
-  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const {
     actionError,
     actionMessage,
@@ -52,8 +51,8 @@ export default function IntegrationManagementScreen() {
   // (right platform + custom build), regardless of which brand source the user
   // connected — brand apps route their workouts into the platform store anyway.
   const importEligibility = getNativeHealthImportEligibility();
-  const backHref = returnTo === 'connect-sources' ? '/connect-sources' : '/(tabs)/mypage';
-  const backLabel = returnTo === 'connect-sources' ? '연동 시작으로 돌아가기' : '마이페이지로 돌아가기';
+  const backHref = '/(tabs)/mypage';
+  const backLabel = '마이페이지로 돌아가기';
 
   return (
     <Screen>

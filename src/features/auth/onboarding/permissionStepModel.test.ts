@@ -48,16 +48,50 @@ test('row action offers the request button on a fresh, still-promptable permissi
   assert.equal(resolvePermissionRowAction({ granted: false, canAsk: true }), 'request');
 });
 
-test('advancing is never blocked — true for every permission combination', () => {
-  assert.equal(canAdvanceFromPermissionStep(ALL_DENIED), true);
-  assert.equal(canAdvanceFromPermissionStep(ALL_GRANTED), true);
+test('필수 게이트: 포그라운드 위치 + 동작이 있어야 다음이 열린다', () => {
+  assert.equal(canAdvanceFromPermissionStep({ statuses: ALL_DENIED, motionAvailable: true }), false);
+  assert.equal(canAdvanceFromPermissionStep({ statuses: ALL_GRANTED, motionAvailable: true }), true);
+  // 위치만 있고 동작이 없으면 막힌다.
   assert.equal(
     canAdvanceFromPermissionStep({
-      ...ALL_DENIED,
-      location: true,
-      backgroundLocation: false,
+      statuses: { ...ALL_DENIED, location: true },
+      motionAvailable: true,
+    }),
+    false,
+  );
+  // 필수 둘이 켜지면 나머지(알림/건강/배경위치)는 꺼져 있어도 열린다.
+  assert.equal(
+    canAdvanceFromPermissionStep({
+      statuses: { ...ALL_DENIED, location: true, motion: true },
+      motionAvailable: true,
     }),
     true,
+  );
+});
+
+test('위치 "항상(백그라운드)"은 게이트에 절대 안 들어간다 — Android 매니페스트에 없음', () => {
+  // backgroundLocation이 영원히 false여도(현재 Android 빌드의 실제 상태) 통과되어야 한다.
+  assert.equal(
+    canAdvanceFromPermissionStep({
+      statuses: { ...ALL_DENIED, location: true, motion: true, backgroundLocation: false },
+      motionAvailable: true,
+    }),
+    true,
+  );
+});
+
+test('걸음 센서가 없는 기기는 동작 없이도 통과된다 (영원 불가 권한으로 가둘 금지)', () => {
+  assert.equal(
+    canAdvanceFromPermissionStep({
+      statuses: { ...ALL_DENIED, location: true },
+      motionAvailable: false,
+    }),
+    true,
+  );
+  // 센서가 없어도 위치 없이는 못 간다.
+  assert.equal(
+    canAdvanceFromPermissionStep({ statuses: ALL_DENIED, motionAvailable: false }),
+    false,
   );
 });
 
@@ -81,12 +115,17 @@ test('shouldPromptPermission is true only when not granted and still askable', (
   );
 });
 
-test('a denied permission can never gate finishing the step', () => {
-  // Pairs the row-level "open_settings" outcome with the step-level "always advance" invariant:
-  // a hard-denied permission shows Settings on its row but does not block 다음.
+test('필수 아닌 권한(알림)의 하드 거부는 진행을 막지 않는다', () => {
+  // 행 레벨에선 설정 열기를 안내하되, 필수 두 권한만 켜져 있으면 다음은 열린다.
   const action = resolvePermissionRowAction({ granted: false, canAsk: false });
   assert.equal(action, 'open_settings');
-  assert.equal(canAdvanceFromPermissionStep({ ...ALL_DENIED }), true);
+  assert.equal(
+    canAdvanceFromPermissionStep({
+      statuses: { ...ALL_DENIED, location: true, motion: true, notifications: false },
+      motionAvailable: true,
+    }),
+    true,
+  );
 });
 
 test('motion is a first-class grantable permission (no Android native-build special case)', () => {

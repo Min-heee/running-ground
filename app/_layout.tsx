@@ -92,7 +92,6 @@ export default function RootLayout() {
         <Stack.Screen name="login" />
         <Stack.Screen name="account-recovery" />
         <Stack.Screen name="admin" />
-        <Stack.Screen name="connect-sources" />
         <Stack.Screen name="add-friend" />
         <Stack.Screen name="edit-profile" />
         <Stack.Screen name="region-settings" />

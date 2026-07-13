@@ -8,6 +8,7 @@ import { StepDots } from '@/features/auth/components/welcomeTour/StepDots';
 import { TourActions } from '@/features/auth/components/welcomeTour/TourActions';
 import { WelcomeStepCard } from '@/features/auth/components/welcomeTour/WelcomeStepCard';
 import { STEP_ORDER, type TourStep } from '@/features/auth/components/welcomeTour/welcomeTourData';
+import { canAdvanceFromPermissionStep } from '@/features/auth/onboarding/permissionStepModel';
 import {
   getOnboardingPermissionStatuses,
   isBatteryControlAvailable,
@@ -25,6 +26,9 @@ export default function WelcomeTourScreen() {
   const [step, setStep] = useState<TourStep>('welcome');
   const [statuses, setStatuses] = useState<OnboardingPermissionStatuses>(ONBOARDING_PERMISSION_DENIED);
   const [canAsk, setCanAsk] = useState<OnboardingPermissionCanAsk>(ONBOARDING_PERMISSION_CAN_ASK);
+  // 걸음 센서 없는 기기는 동작 권한을 영원히 못 켜므로 필수 게이트에서 면제해야 한다.
+  // 첫 읽기 전 기본값은 false(면제) — 실제 상태가 오기 전에 게이트가 잘못 잠기지 않도록.
+  const [motionAvailable, setMotionAvailable] = useState(false);
   // Battery state is isolated Android-only screen-local state — deliberately NOT part of the unified
   // OnboardingPermissionKey model. 'battery' busy is tracked by its own flag, not busyKey.
   const [batteryBusy, setBatteryBusy] = useState(false);
@@ -60,6 +64,7 @@ export default function WelcomeTourScreen() {
     if (mountedRef.current) {
       setStatuses(next.statuses);
       setCanAsk(next.canAsk);
+      setMotionAvailable(next.motionAvailable);
       setBatteryExempt(battery);
     }
   }, []);
@@ -89,7 +94,11 @@ export default function WelcomeTourScreen() {
     } catch {
       // Never let a permission/connect failure crash or trap onboarding.
     } finally {
-      let next: { statuses: OnboardingPermissionStatuses; canAsk: OnboardingPermissionCanAsk } | null = null;
+      let next: {
+        statuses: OnboardingPermissionStatuses;
+        canAsk: OnboardingPermissionCanAsk;
+        motionAvailable: boolean;
+      } | null = null;
       try {
         next = await getOnboardingPermissionStatuses();
       } catch {
@@ -100,6 +109,7 @@ export default function WelcomeTourScreen() {
         if (next) {
           setStatuses(next.statuses);
           setCanAsk(next.canAsk);
+          setMotionAvailable(next.motionAvailable);
         }
         setBusyKey(null);
       }
@@ -133,7 +143,9 @@ export default function WelcomeTourScreen() {
   }, []);
 
   const handleConnect = useCallback(() => {
-    router.replace('/connect-sources');
+    // 온보딩의 연동 버튼은 별도 중간 페이지 없이 마이페이지의 기록 연동 관리로 직행한다.
+    // (뒤로가기는 그 화면의 기본 backHref인 마이페이지로 떨어져 온보딩으로 되돌아오지 않는다.)
+    router.replace('/integration-management');
   }, []);
 
   const handleStart = useCallback(() => {
@@ -168,6 +180,7 @@ export default function WelcomeTourScreen() {
 
         <TourActions
           step={step}
+          canAdvancePermissions={canAdvanceFromPermissionStep({ statuses, motionAvailable })}
           onBeginPermissions={() => setStep('permissions')}
           onAdvanceToConnect={() => setStep('connect')}
           onConnect={handleConnect}

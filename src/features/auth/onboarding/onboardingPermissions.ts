@@ -159,10 +159,12 @@ async function readHealthGate(): Promise<{ granted: boolean; canAsk: boolean }> 
 }
 
 // Read current grant state for every onboarding permission WITHOUT prompting — used to render the
-// checklist and to re-check after returning from the OS Settings app.
+// checklist and to re-check after returning from the OS Settings app. motionAvailable rides along
+// so the 필수 게이트 can exempt devices that have no step sensor at all (they could never pass).
 export async function getOnboardingPermissionStatuses(): Promise<{
   statuses: OnboardingPermissionStatuses;
   canAsk: OnboardingPermissionCanAsk;
+  motionAvailable: boolean;
 }> {
   const [fg, bg, notif, motion, health] = await Promise.all([
     Location.getForegroundPermissionsAsync().catch(() => null),
@@ -187,6 +189,7 @@ export async function getOnboardingPermissionStatuses(): Promise<{
       motion: motion.canAsk,
       health: health.canAsk,
     },
+    motionAvailable: motion.available,
   };
 }
 
