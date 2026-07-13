@@ -9,7 +9,7 @@ import { YearMonthFilterRow } from '@/components/ui/YearMonthFilterRow';
 import { useMatchRecords } from '@/features/match/hooks/useMatchRecords';
 import type { MatchRecordRun } from '@/features/match/utils/matchRecordStats';
 import { formatDuration } from '@/features/runs/tracking';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type MatchModeFilter = 'all' | 'duel' | 'group';
 
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerVivid,
   },
   recordBadgeNeutral: {
-    backgroundColor: colors.textMuted,
+    backgroundColor: fixedColors.textMuted,
   },
   emptyState: {
     paddingTop: spacing.lg,

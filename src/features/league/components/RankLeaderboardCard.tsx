@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   retryButton: {
-    backgroundColor: colors.dark,
+    backgroundColor: colors.inkPill,
     borderRadius: radii.pill,
     paddingHorizontal: spacing.s16,
     paddingVertical: spacing.s10,

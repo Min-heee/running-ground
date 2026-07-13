@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export type MatchOptionMode = 'solo' | 'duel' | 'group' | 'room';
 
@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
   },
   optionIdle: {
     borderColor: colors.darkSoft,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
   },
   optionSelected: {
     borderColor: colors.brandLight,

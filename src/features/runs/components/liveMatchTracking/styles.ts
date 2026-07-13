@@ -1,10 +1,10 @@
 import { StyleSheet } from 'react-native';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export const liveMatchTrackingStyles = StyleSheet.create({
   mapCard: {
     gap: spacing.s14,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
   },
   liveMatchCard: {
     gap: spacing.md,
@@ -26,7 +26,7 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   liveMatchText: {
-    color: colors.border,
+    color: fixedColors.border,
     lineHeight: 20,
   },
   groupLiveCard: {
@@ -35,14 +35,14 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.indigoDeep,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
   },
   duelLiveCard: {
     gap: spacing.s12,
     padding: spacing.s14,
     borderRadius: radii.xl,
     borderWidth: 1,
-    borderColor: colors.blueStrong,
+    borderColor: fixedColors.blueStrong,
     backgroundColor: colors.slateDark,
   },
   duelLiveHeader: {
@@ -87,7 +87,7 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   matchStatusBannerText: {
-    color: colors.border,
+    color: fixedColors.border,
     fontSize: fontSizes.sm,
     lineHeight: 18,
   },
@@ -122,7 +122,7 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   groupLiveSummary: {
-    color: colors.border,
+    color: fixedColors.border,
     lineHeight: 20,
   },
   groupLiveGapRow: {
@@ -148,7 +148,7 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   groupLiveGapText: {
-    color: colors.surfaceSubtleAlt,
+    color: fixedColors.surfaceSubtleAlt,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
   },
@@ -159,7 +159,7 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     paddingVertical: spacing.xl,
   },
   groupLiveBadgeText: {
-    color: colors.brandWash,
+    color: fixedColors.brandWash,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extraBold,
   },
@@ -193,7 +193,7 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   groupLiveMeta: {
-    color: colors.border,
+    color: fixedColors.border,
     fontSize: fontSizes.sm,
     lineHeight: 17,
   },
@@ -202,7 +202,7 @@ export const liveMatchTrackingStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   groupLiveFooter: {
-    color: colors.border,
+    color: fixedColors.border,
     lineHeight: 20,
   },
 });

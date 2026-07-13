@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export const liveMatchRaceBoardStyles = StyleSheet.create({
   card: {
@@ -24,7 +24,7 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   subtitle: {
-    color: colors.borderMuted,
+    color: fixedColors.borderMuted,
     fontSize: fontSizes.large,
     lineHeight: 27,
   },
@@ -69,7 +69,7 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     color: colors.dangerLight,
   },
   rankTextProgressivePlaceholder: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
   },
   nameText: {
     color: colors.white,
@@ -84,14 +84,14 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     color: colors.dangerBorder,
   },
   nameTextProgressivePlaceholder: {
-    color: colors.borderMuted,
+    color: fixedColors.borderMuted,
   },
   resultBadge: {
     alignSelf: 'flex-start',
     borderRadius: radii.pill,
     paddingHorizontal: spacing.xxl,
     paddingVertical: spacing.xs,
-    backgroundColor: colors.textNeutral,
+    backgroundColor: fixedColors.textNeutral,
   },
   resultBadgeWin: {
     backgroundColor: colors.successGoogle,
@@ -100,7 +100,7 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     backgroundColor: colors.orange,
   },
   resultBadgeDraw: {
-    backgroundColor: colors.textNeutral,
+    backgroundColor: fixedColors.textNeutral,
   },
   resultBadgeText: {
     color: colors.white,
@@ -149,7 +149,7 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: radii.pill,
-    backgroundColor: colors.white,
+    backgroundColor: fixedColors.white,
     borderWidth: 6,
     borderColor: colors.brand,
     alignItems: 'center',
@@ -168,7 +168,7 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     borderColor: colors.dangerBorder,
   },
   trackDotProgressivePlaceholder: {
-    borderColor: colors.textTertiary,
+    borderColor: fixedColors.textTertiary,
   },
   trackDotForfeitedText: {
     color: colors.white,
@@ -209,6 +209,6 @@ export const liveMatchRaceBoardStyles = StyleSheet.create({
     color: colors.successBright,
   },
   metaRemainingProgressivePlaceholder: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
   },
 });

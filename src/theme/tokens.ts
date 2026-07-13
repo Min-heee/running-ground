@@ -1,4 +1,21 @@
-export const colors = {
+// THEME SYSTEM (dark/light). Every screen bakes StyleSheets from the mutable `colors`
+// object below at module-import time, so the theme is selected by MUTATING `colors`
+// in place (applyThemePalette) BEFORE screen modules are imported — the root layout
+// applies the stored mode behind its boot gate, and expo-router loads route modules
+// lazily after that gate. Switching themes at runtime therefore requires a full JS
+// reload (see src/theme/themeMode.ts).
+//
+// Token groups:
+//  - THEMED tokens differ between LIGHT_COLORS and DARK_OVERRIDES (surfaces, the
+//    text/gray ladder, borders, wash chips and their deep-accent text partners).
+//  - CONSTANT tokens are identical in both modes: brand hues, tier/podium colors,
+//    the deliberately-dark chrome (night/midnight/dark*/slate*/navy*/indigo inks,
+//    the match arena/race board translucents) and pure fills like `white`.
+//  - `fixedColors` is a frozen copy of the LIGHT palette. Components that must NOT
+//    follow the theme (dark hero cards, live-match chrome, tier-pastel cards) point
+//    at fixedColors.X so they render identically in both modes.
+
+const LIGHT_COLORS = {
   black: '#000000',
   white: '#FFFFFF',
   brand: '#6D5EF7',
@@ -41,6 +58,10 @@ export const colors = {
   surfaceSoft: '#F8FAFC',
   surfaceSubtle: '#F3F4F6',
   surfaceSubtleAlt: '#F9FAFB',
+  // Dark chip/button fill that must stay legible with white text in BOTH modes.
+  // Light: near-black (the classic dark CTA); dark: an elevated indigo-slate so the
+  // active pill still reads as raised on navy cards instead of vanishing.
+  inkPill: '#111827',
   success: '#12B76A',
   successBright: '#32D583',
   successGoogle: '#0F9D58',
@@ -117,6 +138,11 @@ export const colors = {
   podiumGoldBorder: '#FACC15',
   podiumGoldText: '#B45309',
   podiumSilver: '#94A3B8',
+  // Dedicated silver-row surface/border so the podium chip no longer borrows the
+  // THEMED surfaceSoft/indigoBorder tokens — all three podium chips stay light
+  // pastel in both modes (medal identity, same as gold/bronze).
+  podiumSilverSoft: '#F8FAFC',
+  podiumSilverBorder: '#E2E8F0',
   podiumSilverText: '#475467',
   podiumBronze: '#B45309',
   podiumBronzeSoft: '#FDEAD7',
@@ -176,6 +202,111 @@ export const colors = {
   raceBoardTrackProgressForfeitedBg: 'rgba(248,113,113,0.42)',
   raceBoardTrackProgressPlaceholderBg: 'rgba(148,163,184,0.34)',
 } as const;
+
+export type ThemeColorKey = keyof typeof LIGHT_COLORS;
+export type ThemeColors = { [K in ThemeColorKey]: string };
+
+// The dark counterparts. Only THEMED tokens are listed; everything else spreads
+// through from LIGHT_COLORS unchanged (constant in both modes). Surfaces live in
+// the brand's navy family (night #0B1020 region) with a visible elevation step
+// between the app background and card backgrounds; the text ladder inverts
+// lightness (primary near-white → placeholder dimmest); semantic hues keep their
+// hue but brighten enough to hold contrast on navy.
+const DARK_COLORS: ThemeColors = {
+  ...LIGHT_COLORS,
+  // Surfaces (elevation: surfaceApp < surfaceSubtleAlt(inset inputs) < surface(card)
+  // < surfaceSoft/surfaceSubtle(inner sections) < surfaceMuted(secondary fills)).
+  surfaceApp: '#0B1020',
+  surface: '#161E36',
+  surfaceSoft: '#1C2440',
+  surfaceSubtle: '#1E2745',
+  surfaceSubtleAlt: '#111930',
+  surfaceMuted: '#242D4E',
+  adminSurface: '#0D1526',
+  inkPill: '#3E4678',
+  // Text ladder (inverted lightness, lavender-gray family).
+  textPrimary: '#F3F5FF',
+  textHeading: '#F7F8FF',
+  textSecondary: '#A6ADD3',
+  textTertiary: '#7D85AD',
+  textMuted: '#C7CDEC',
+  textNeutral: '#98A0C6',
+  // textPlaceholder stays constant: its only consumers are the pinned dark match
+  // chips (inputs use textTertiary for placeholderTextColor).
+  textStrongMuted: '#D6D9F9',
+  // Borders / dividers.
+  border: '#37406A',
+  borderMuted: '#283053',
+  borderSoft: '#232B4A',
+  // Brand wash chips + their deep-accent text partners (lighten text, darken wash).
+  brandSoft: '#1D2047',
+  brandSoftBorder: '#343879',
+  brandWash: '#232858',
+  brandDeep: '#B7BEFF',
+  brandStrong: '#AAB2FD',
+  brandMuted: '#9AA1F2',
+  purpleRow: '#231F50',
+  purpleRowSoft: '#211E4B',
+  purpleBorder: '#4A4496',
+  purpleSoft: '#453F8F',
+  indigoBorder: '#2D3560',
+  // Semantic: green.
+  successText: '#4ADE80',
+  successStrong: '#34D399',
+  successSoft: '#143D2A',
+  successWash: '#1B4D33',
+  successCard: '#102A1D',
+  successCardSoft: '#112B1E',
+  successCardBorder: '#20603E',
+  // Semantic: red.
+  danger: '#F97066',
+  dangerBright: '#FF6F65',
+  dangerWash: '#3B1418',
+  roseWash: '#321723',
+  // Semantic: orange/amber.
+  warningText: '#FDB022',
+  warningSoft: '#3A2B0B',
+  orangeText: '#FDBA74',
+  orangeWash: '#33200E',
+  // Semantic: blue.
+  blueAccent: '#6BA6FF',
+  blueStrong: '#96B7FF',
+  blueWashSoft: '#152238',
+  bluePale: '#152647',
+};
+
+// Frozen light-palette constants for deliberately theme-INDEPENDENT styling (dark
+// hero cards, live-match chrome, tier-pastel cards, white pills on dark chrome).
+// Pointing at fixedColors.X documents "this surface/text does not follow the theme".
+export const fixedColors: Readonly<ThemeColors> = Object.freeze({ ...LIGHT_COLORS });
+
+export type ThemeMode = 'dark' | 'light';
+
+// Fresh installs default to DARK.
+export const DEFAULT_THEME_MODE: ThemeMode = 'dark';
+
+let appliedThemeMode: ThemeMode = DEFAULT_THEME_MODE;
+
+// MUTABLE on purpose (see header comment). Initialized to the dark palette so the
+// default experience — and anything imported before the stored mode is read — is dark.
+export const colors: ThemeColors = { ...DARK_COLORS };
+
+// Mutates `colors` in place so every module-scope StyleSheet.create that runs AFTER
+// this call bakes the requested palette. Must run before route modules are imported
+// (the root layout's boot gate guarantees that ordering).
+export function applyThemePalette(mode: ThemeMode) {
+  appliedThemeMode = mode;
+  Object.assign(colors, mode === 'light' ? LIGHT_COLORS : DARK_COLORS);
+}
+
+export function getAppliedThemeMode(): ThemeMode {
+  return appliedThemeMode;
+}
+
+// Test-only view of both palettes (key parity / default assertions).
+export function getThemePalettesForTest() {
+  return { light: LIGHT_COLORS as ThemeColors, dark: DARK_COLORS };
+}
 
 export const spacing = {
   xxxs: 1,

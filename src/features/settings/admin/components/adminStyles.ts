@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export const styles = StyleSheet.create({
   safe: {
@@ -21,7 +21,7 @@ export const styles = StyleSheet.create({
     paddingHorizontal: spacing.s24,
   },
   hero: {
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
     borderRadius: 28,
     padding: spacing.s24,
     gap: spacing.s10,
@@ -34,7 +34,7 @@ export const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
   },
   heroBadgeText: {
-    color: colors.borderMuted,
+    color: fixedColors.borderMuted,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.extraBold,
     letterSpacing: 0.6,
@@ -45,12 +45,12 @@ export const styles = StyleSheet.create({
     fontWeight: fontWeights.black,
   },
   heroSubtitle: {
-    color: colors.border,
+    color: fixedColors.border,
     fontSize: fontSizes.rank,
     lineHeight: 22,
   },
   heroMeta: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
     fontSize: fontSizes.md,
     fontWeight: fontWeights.semibold,
   },
@@ -210,8 +210,8 @@ export const styles = StyleSheet.create({
     borderColor: colors.borderMuted,
   },
   toggleChipActive: {
-    backgroundColor: colors.textPrimary,
-    borderColor: colors.textPrimary,
+    backgroundColor: colors.inkPill,
+    borderColor: colors.inkPill,
   },
   toggleChipText: {
     color: colors.textStrongMuted,
@@ -226,7 +226,7 @@ export const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   actionButton: {
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.inkPill,
     borderRadius: radii.md,
     paddingHorizontal: spacing.s16,
     paddingVertical: spacing.s14,
@@ -235,12 +235,12 @@ export const styles = StyleSheet.create({
     minWidth: 110,
   },
   actionButtonSecondary: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
   actionButtonDanger: {
-    backgroundColor: colors.danger,
+    backgroundColor: fixedColors.danger,
   },
   actionButtonDisabled: {
     opacity: 0.45,

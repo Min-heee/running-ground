@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     gap: spacing.lg,
   },
   pathChipActive: {
-    backgroundColor: colors.dark,
+    backgroundColor: colors.inkPill,
   },
   pathChipText: {
     color: colors.textMuted,

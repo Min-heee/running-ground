@@ -111,11 +111,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   selectionChipSelected: {
-    backgroundColor: colors.textPrimary,
-    borderColor: colors.textPrimary,
+    backgroundColor: colors.inkPill,
+    borderColor: colors.inkPill,
   },
   selectionChipText: {
     color: colors.textMuted,

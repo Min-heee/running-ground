@@ -1,9 +1,9 @@
 import { StyleSheet } from 'react-native';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export const friendsRankingStyles = StyleSheet.create({
   card: {
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
     padding: spacing.s18,
     gap: spacing.s14,
   },
@@ -42,7 +42,7 @@ export const friendsRankingStyles = StyleSheet.create({
     backgroundColor: colors.darkSoft,
   },
   modeButtonText: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
     includeFontPadding: false,
@@ -85,7 +85,7 @@ export const friendsRankingStyles = StyleSheet.create({
     marginHorizontal: spacing.s12,
   },
   summaryLabel: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
     includeFontPadding: false,
@@ -119,7 +119,7 @@ export const friendsRankingStyles = StyleSheet.create({
   rankBadge: {
     minWidth: 52,
     borderRadius: radii.pill,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.s12,
@@ -156,7 +156,7 @@ export const friendsRankingStyles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   selfBadgeText: {
-    color: colors.textPrimary,
+    color: fixedColors.textPrimary,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extraBold,
     includeFontPadding: false,
@@ -177,7 +177,7 @@ export const friendsRankingStyles = StyleSheet.create({
     backgroundColor: colors.successBright,
   },
   livePillText: {
-    color: colors.successSoft,
+    color: fixedColors.successSoft,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.extraBold,
     includeFontPadding: false,

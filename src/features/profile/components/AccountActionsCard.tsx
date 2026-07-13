@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
   },
   logoutButton: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.md,

@@ -5,7 +5,7 @@ import { Screen } from '@/components/Screen';
 import { Card } from '@/components/Card';
 import { AuthHeader } from '@/components/ui/AuthHeader';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import {
   type FriendActivityRun,
   formatFriendActivityRefreshTime,
@@ -105,7 +105,7 @@ export default function FriendDetailScreen() {
 
 const styles = StyleSheet.create({
   heroCard: {
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
     gap: spacing.xxl,
   },
   heroLabel: {
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   heroTag: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
     fontWeight: fontWeights.bold,
   },
   liveCard: {

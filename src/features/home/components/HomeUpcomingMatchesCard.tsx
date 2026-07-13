@@ -9,7 +9,7 @@ import {
   shouldShowMatchCardCountdown,
 } from '@/lib/matchCountdown';
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type HomeUpcomingMatchesCardProps = {
   matches: UpcomingRunningMatchItem[];
@@ -113,7 +113,7 @@ export const HomeUpcomingMatchesCard = memo(HomeUpcomingMatchesCardImpl);
 
 const styles = StyleSheet.create({
   upcomingCard: {
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
     gap: spacing.s10,
   },
   upcomingLabel: {
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   upcomingMeta: {
-    color: colors.border,
+    color: fixedColors.border,
     lineHeight: 19,
   },
   upcomingLinkText: {

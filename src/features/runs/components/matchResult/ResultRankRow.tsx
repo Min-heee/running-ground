@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { getPodiumTheme } from '@/features/league/utils/leagueRanking';
 import type { MatchResultScreenRow } from '@/features/runs/viewModels/matchResultScreenModel';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type ResultRankRowProps = {
   row: MatchResultScreenRow;
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   statCaption: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
     fontSize: fontSizes.xxs,
     fontWeight: fontWeights.bold,
   },

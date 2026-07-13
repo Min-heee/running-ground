@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
   },
   copyButton: {
     alignSelf: 'flex-start',
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: radii.sm,
     paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s10,

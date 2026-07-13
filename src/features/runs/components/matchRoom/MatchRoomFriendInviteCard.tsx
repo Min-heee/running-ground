@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s10,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   friendChipSelected: {
     borderColor: colors.brandLight,

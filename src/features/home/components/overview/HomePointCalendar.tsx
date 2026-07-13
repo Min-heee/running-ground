@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   calendarNavButtonCurrent: {
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.inkPill,
   },
   calendarNavButtonCurrentText: {
     color: colors.white,

@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   },
   confirmButton: {
     alignItems: 'center',
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.inkPill,
     borderRadius: radii.pill,
     paddingVertical: spacing.s14,
   },

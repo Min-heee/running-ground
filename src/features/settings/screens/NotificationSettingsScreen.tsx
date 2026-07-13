@@ -7,7 +7,7 @@ import { AuthHeader } from '@/components/ui/AuthHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import { useNotificationSettings } from '@/features/settings/hooks/useNotificationSettings';
-import { colors, spacing, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontWeights, radii } from '@/theme/tokens';
 
 export default function NotificationSettingsScreen() {
   const {
@@ -105,7 +105,7 @@ const ToggleRow = memo(function ToggleRow({
 const styles = StyleSheet.create({
   list: { gap: 10 },
   row: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.borderMuted,
     borderRadius: radii.md,
@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 99,
-    backgroundColor: colors.white,
+    backgroundColor: fixedColors.white,
   },
   knobActive: {
     marginLeft: spacing.s20,

@@ -158,7 +158,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.s10,
   },
   segmentButtonActive: {
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.inkPill,
   },
   segmentText: {
     color: colors.textSecondary,

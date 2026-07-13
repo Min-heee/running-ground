@@ -8,7 +8,7 @@ import {
   type DuelMatchResultRow,
   type GroupMatchResultRow,
 } from '@/features/runs/components/MatchResultRows';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export type { DuelMatchResultRow, GroupMatchResultRow } from '@/features/runs/components/MatchResultRows';
 
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.cardLarge,
     borderWidth: 1,
     borderColor: colors.indigoDeep,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
   },
   header: {
     gap: spacing.s12,
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   subtitle: {
-    color: colors.border,
+    color: fixedColors.border,
     lineHeight: 20,
   },
   list: {

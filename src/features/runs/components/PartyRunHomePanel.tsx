@@ -11,7 +11,7 @@ import { hydrateOptimisticMatchRoom } from '@/features/match/hooks/lobby/optimis
 import { isMatchRoomDeleted } from '@/features/runs/lifecycle/matchRoomDeletionTombstone';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 import { rgPerfMark, rgPerfMeasureStart } from '@/utils/rgPerfTrace';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type PartyRunHomePanelProps = {
   visibleRoom: RunningMatchRoom | null;
@@ -165,11 +165,11 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.brandLight,
-    backgroundColor: colors.brandWash,
+    backgroundColor: fixedColors.brandWash,
     paddingVertical: spacing.s14,
   },
   partyRoomEntryButtonText: {
-    color: colors.brandDeep,
+    color: fixedColors.brandDeep,
     fontSize: fontSizes.button,
     fontWeight: fontWeights.black,
   },
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.slateMuted,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
     paddingVertical: spacing.s14,
   },
   roomModeChipSelected: {
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.purpleInk,
   },
   roomModeChipText: {
-    color: colors.borderMuted,
+    color: fixedColors.borderMuted,
     fontSize: fontSizes.rank,
     fontWeight: fontWeights.black,
   },
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
   },
   roomPickerTitle: {
-    color: colors.borderMuted,
+    color: fixedColors.borderMuted,
     fontSize: fontSizes.base,
     fontWeight: fontWeights.extraBold,
   },

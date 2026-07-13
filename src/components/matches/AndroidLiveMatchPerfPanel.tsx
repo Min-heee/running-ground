@@ -7,7 +7,7 @@ import {
 } from '@/components/matches/liveMatchPerfQaLog';
 import { LIVE_MATCH_PERF_QA_ENABLED } from '@/components/matches/useAndroidLiveMatchPerfProbe';
 import { useBackgroundSyncDiagnostics } from '@/features/runs/tracking/background/backgroundSyncDiagnostics';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type AndroidLiveMatchPerfPanelProps = {
   label: string;
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
   },
   diagnosisStable: {
     backgroundColor: 'rgba(34, 197, 94, 0.18)',
-    color: colors.successWash,
+    color: fixedColors.successWash,
   },
   diagnosisWatch: {
     backgroundColor: 'rgba(250, 204, 21, 0.18)',

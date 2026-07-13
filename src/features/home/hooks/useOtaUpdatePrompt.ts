@@ -59,7 +59,10 @@ function hasFreshActiveRoomSignal(nowMs: number): boolean {
   return false;
 }
 
-function isRunPossiblyActive(): boolean {
+// Exported for reuse by other reload-triggering actions (e.g. the theme toggle):
+// the same "never reload while a run/match could be live" rule applies to ANY
+// Updates.reloadAsync caller, not just the OTA prompt.
+export function isRunPossiblyActive(): boolean {
   try {
     if (getBackgroundRunTrackingSnapshot({ cloneRoute: false }).status !== 'idle') {
       return true;

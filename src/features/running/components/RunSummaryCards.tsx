@@ -1,7 +1,7 @@
 import { StyleSheet, Text } from 'react-native';
 
 import { Card } from '@/components/Card';
-import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 
 type RunHeroCardProps = {
   startedLabel: string;
@@ -19,11 +19,11 @@ export function RunHeroCard({ startedLabel, distanceKm }: RunHeroCardProps) {
 
 const styles = StyleSheet.create({
   heroCard: {
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
     gap: spacing.xs,
   },
   heroDate: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
     fontSize: fontSizes.md,
     fontWeight: fontWeights.semibold,
   },

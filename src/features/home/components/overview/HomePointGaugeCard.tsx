@@ -150,7 +150,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pointTabActive: {
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.inkPill,
   },
   pointTabText: {
     color: colors.textMuted,

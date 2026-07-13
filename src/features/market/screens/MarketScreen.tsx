@@ -32,13 +32,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.s10,
   },
   statusTitle: {
-    color: colors.nearBlack,
+    color: colors.textHeading,
     fontSize: fontSizes.pageTitle,
     fontWeight: fontWeights.extraBold,
     marginBottom: spacing.s12,
   },
   statusDescription: {
-    color: colors.slateLabel,
+    color: colors.textSecondary,
     fontSize: fontSizes.rank,
     fontWeight: fontWeights.semibold,
     lineHeight: 24,

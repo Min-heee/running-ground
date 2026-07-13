@@ -11,7 +11,7 @@ import {
   buildRunMatchResultCardModel,
   type RunMatchResultCardModelInput,
 } from '@/features/running/viewModels/runMatchResultCardModel';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type RunMatchResultCardProps = RunMatchResultCardModelInput;
 
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingHorizontal: spacing.s12,
     paddingVertical: spacing.s10,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.inkPill,
   },
   matchResultBadgeWin: {
     backgroundColor: colors.successGoogle,
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.orange,
   },
   matchResultBadgeDraw: {
-    backgroundColor: colors.textNeutral,
+    backgroundColor: fixedColors.textNeutral,
   },
   matchResultBadgeText: {
     color: colors.white,

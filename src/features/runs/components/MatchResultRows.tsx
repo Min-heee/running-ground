@@ -4,7 +4,7 @@ import type {
   DuelMatchResultRow,
   GroupMatchResultRow,
 } from '@/features/runs/types/matchResult';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export type { DuelMatchResultRow, GroupMatchResultRow } from '@/features/runs/types/matchResult';
 
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   duelLabelInProgress: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
   },
   rowCopy: {
     flex: 1,
@@ -164,14 +164,14 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   duelNameInProgress: {
-    color: colors.borderMuted,
+    color: fixedColors.borderMuted,
   },
   meta: {
-    color: colors.borderMuted,
+    color: fixedColors.borderMuted,
     lineHeight: 19,
   },
   metaInProgress: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
   },
   groupRow: {
     flexDirection: 'row',
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.black,
   },
   groupRankInProgress: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
     fontSize: fontSizes.sm,
   },
   groupCopy: {
@@ -212,24 +212,24 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   groupNameInProgress: {
-    color: colors.borderMuted,
+    color: fixedColors.borderMuted,
   },
   groupMeta: {
-    color: colors.border,
+    color: fixedColors.border,
     lineHeight: 19,
   },
   groupMetaInProgress: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
   },
   pointPill: {
     alignSelf: 'flex-start',
     borderRadius: radii.pill,
-    backgroundColor: colors.brandWash,
+    backgroundColor: fixedColors.brandWash,
     paddingHorizontal: spacing.s12,
     paddingVertical: spacing.xxl,
   },
   pointPillText: {
-    color: colors.brandStrong,
+    color: fixedColors.brandStrong,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.black,
   },

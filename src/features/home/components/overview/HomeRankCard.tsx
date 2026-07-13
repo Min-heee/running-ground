@@ -13,7 +13,7 @@ import {
   RANK_TIER_SOFT_COLOR,
 } from '@/features/rank/rankDisplay';
 import { RANK_TIER_SYMBOL } from '@/features/rank/rankSymbols';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type HomeRankCardProps = {
   rankState?: RankState;
@@ -29,7 +29,7 @@ export function HomeRankCard({ rankState, matchRecord, recordHref }: HomeRankCar
   const normalizedRankState = useMemo(() => normalizeRankStateForDisplay(rankState), [rankState]);
   const rankLabel = useMemo(() => formatRankLabel(normalizedRankState), [normalizedRankState]);
   const accentColor = RANK_TIER_COLOR[normalizedRankState.tier] ?? colors.brand;
-  const softColor = RANK_TIER_SOFT_COLOR[normalizedRankState.tier] ?? colors.surfaceSubtle;
+  const softColor = RANK_TIER_SOFT_COLOR[normalizedRankState.tier] ?? fixedColors.surfaceSubtle;
   const tierSymbol = RANK_TIER_SYMBOL[normalizedRankState.tier];
   const progressPercent = Math.max(0, Math.min(100, (normalizedRankState.lp / LP_PER_TIER) * 100));
   const tierIndex = RANK_TIERS.indexOf(normalizedRankState.tier as (typeof RANK_TIERS)[number]);
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sectionEyebrow: {
-    color: colors.textSecondary,
+    color: fixedColors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     width: 72,
   },
   tierBadge: {
-    backgroundColor: colors.white,
+    backgroundColor: fixedColors.white,
     borderRadius: radii.cardLarge,
     borderWidth: 2,
     paddingHorizontal: spacing.s16,
@@ -144,18 +144,18 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   lpText: {
-    color: colors.textPrimary,
+    color: fixedColors.textPrimary,
     fontSize: fontSizes.heroLarge,
     fontWeight: fontWeights.black,
     paddingBottom: spacing.sm,
   },
   lpUnit: {
-    color: colors.textSecondary,
+    color: fixedColors.textSecondary,
     fontSize: fontSizes.rank,
     fontWeight: fontWeights.bold,
   },
   lpProgressTrack: {
-    backgroundColor: colors.borderMuted,
+    backgroundColor: fixedColors.borderMuted,
     borderRadius: radii.pill,
     height: spacing.s10,
     overflow: 'hidden',
@@ -165,13 +165,13 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   nextTierLabel: {
-    color: colors.textSecondary,
+    color: fixedColors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
   recordFooter: {
     alignItems: 'center',
-    borderTopColor: colors.borderSoft,
+    borderTopColor: fixedColors.borderSoft,
     borderTopWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
     gap: spacing.s12,
@@ -183,17 +183,17 @@ const styles = StyleSheet.create({
     gap: spacing.xxs,
   },
   recordTitle: {
-    color: colors.textSecondary,
+    color: fixedColors.textSecondary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.bold,
   },
   recordDetail: {
-    color: colors.textPrimary,
+    color: fixedColors.textPrimary,
     fontWeight: fontWeights.extraBold,
     lineHeight: 20,
   },
   recordChevron: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
     fontSize: fontSizes.metric,
     fontWeight: fontWeights.extraBold,
   },

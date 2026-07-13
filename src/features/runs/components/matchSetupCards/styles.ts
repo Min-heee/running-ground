@@ -1,12 +1,12 @@
 import { StyleSheet } from 'react-native';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export const matchSetupCardStyles = StyleSheet.create({
   duelSetupCard: {
     borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.brandStrong,
-    backgroundColor: colors.textPrimary,
+    borderColor: fixedColors.brandStrong,
+    backgroundColor: fixedColors.textPrimary,
     padding: spacing.s12,
     gap: spacing.s12,
   },
@@ -273,12 +273,12 @@ export const matchSetupCardStyles = StyleSheet.create({
   matchNoticeAction: {
     alignSelf: 'flex-start',
     borderRadius: radii.pill,
-    backgroundColor: colors.brandWash,
+    backgroundColor: fixedColors.brandWash,
     paddingHorizontal: spacing.s12,
     paddingVertical: spacing.xl,
   },
   matchNoticeActionText: {
-    color: colors.brandStrong,
+    color: fixedColors.brandStrong,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.black,
   },

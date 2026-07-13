@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { USE_ANDROID_LIGHTWEIGHT_LIVE_MATCH_UI } from '@/components/matches/liveMatchArena/config';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 import {
   GROUP_LIST_BOTTOM_INSET,
   GROUP_LIST_TOP_INSET,
@@ -30,7 +30,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   subtitle: {
-    color: colors.border,
+    color: fixedColors.border,
     fontSize: fontSizes.base,
     lineHeight: 20,
   },
@@ -191,7 +191,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   runnerBubbleForfeitedText: {
-    color: colors.dangerWash,
+    color: fixedColors.dangerWash,
   },
   runnerMarker: {
     width: 56,
@@ -221,15 +221,15 @@ export const liveMatchArenaStyles = StyleSheet.create({
   },
   resultBadgeWin: {
     backgroundColor: colors.success,
-    borderColor: colors.successWash,
+    borderColor: fixedColors.successWash,
   },
   resultBadgeLose: {
     backgroundColor: colors.dangerVivid,
     borderColor: colors.dangerBorder,
   },
   resultBadgeDraw: {
-    backgroundColor: colors.textNeutral,
-    borderColor: colors.border,
+    backgroundColor: fixedColors.textNeutral,
+    borderColor: fixedColors.border,
   },
   resultBadgeText: {
     color: colors.white,
@@ -347,7 +347,7 @@ export const liveMatchArenaStyles = StyleSheet.create({
     color: colors.dangerBorder,
   },
   footer: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
     fontSize: fontSizes.sm,
     lineHeight: 18,
   },

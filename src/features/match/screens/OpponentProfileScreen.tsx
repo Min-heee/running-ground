@@ -11,7 +11,7 @@ import {
   getApiErrorMessage,
   type OpponentMatchProfile,
 } from '@/services';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 function formatLifetimeDistanceKm(distanceKm: number) {
   return Number(distanceKm.toFixed(1));
@@ -134,7 +134,7 @@ export default function OpponentProfileScreen() {
 
 const styles = StyleSheet.create({
   profileCard: {
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
     gap: spacing.lg,
   },
   profileLabel: {
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.black,
   },
   profileTag: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
     fontWeight: fontWeights.bold,
   },
   summaryRow: {

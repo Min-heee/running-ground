@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { Redirect, router, Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import '@/features/runs/tracking/background';
 import { setUnauthorizedHandler } from '@/services/apiClient';
@@ -8,6 +9,8 @@ import { clearSession, getBackendAccessToken } from '@/lib/session/sessionState'
 import { initializeLiveGapPushConfigPersistence } from '@/features/runs/liveGap/liveGapPushConfigPersistence';
 import { useConfigureNotificationHandler } from '@/navigation/notificationHandler';
 import { useRootAuthGate } from '@/navigation/rootAuthGate';
+import { colors, getAppliedThemeMode } from '@/theme/tokens';
+import { hydrateThemePalette } from '@/theme/themeMode';
 import { logRgEnvironmentOnce } from '@/utils/rgEnvTrace';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { initSentryOnce } from '@/observability/sentry';
@@ -20,8 +23,20 @@ initSentryOnce();
 
 export default function RootLayout() {
   const { ready, redirectHref } = useRootAuthGate();
+  // Theme gate: the stored mode must be applied to the mutable `colors` object
+  // BEFORE any route module is imported (their StyleSheets bake at import). Routes
+  // load lazily behind this gate, so blocking here is sufficient.
+  const [themeReady, setThemeReady] = useState(false);
   const didLogEnvironmentRef = useRef(false);
   useConfigureNotificationHandler();
+
+  useEffect(() => {
+    hydrateThemePalette()
+      .catch(() => {
+        // Palette hydration must never block boot — fall through on the dark default.
+      })
+      .finally(() => setThemeReady(true));
+  }, []);
 
   useEffect(() => {
     rgPerfMark('app root layout mounted', {
@@ -68,11 +83,14 @@ export default function RootLayout() {
     logRgEnvironmentOnce();
   }, [ready]);
 
-  if (!ready) {
+  if (!ready || !themeReady) {
+    // Pre-gate loader: the stored mode is not known yet, so this always renders on
+    // the dark default palette (matches the dark splash) — read colors at render
+    // time rather than from a module-baked StyleSheet to keep that explicit.
     return (
       <SafeAreaProvider>
-        <View style={styles.loaderWrap}>
-          <ActivityIndicator size="large" color="#6D5EF7" />
+        <View style={[styles.loaderWrap, { backgroundColor: colors.surfaceApp }]}>
+          <ActivityIndicator size="large" color={colors.brand} />
         </View>
       </SafeAreaProvider>
     );
@@ -84,6 +102,9 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      {/* Bar style follows the applied theme: dark surfaces need light glyphs and
+          vice versa. Evaluated at render time (post-gate), not baked at import. */}
+      <StatusBar style={getAppliedThemeMode() === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, freezeOnBlur: true }}>
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="signup" />
@@ -119,6 +140,5 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
   },
 });

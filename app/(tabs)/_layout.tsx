@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getTabScreenOptions } from '@/navigation/tabConfig';
+import { colors } from '@/theme/tokens';
 import { beginRgInputTrace } from '@/utils/rgInputTrace';
 
 function buildTabInputListeners(tab: string) {
@@ -25,15 +26,17 @@ export default function TabsLayout() {
     // tab. Both target the "탭 전환 처음에 로딩이 꽤 걸림" symptom on Wide 6.
     lazy: true,
     freezeOnBlur: true,
-    tabBarActiveTintColor: '#111827',
-    tabBarInactiveTintColor: '#98A2B3',
+    // Themed: this object is built at render time (post theme gate), so the tab bar
+    // follows the applied palette without a StyleSheet bake.
+    tabBarActiveTintColor: colors.textPrimary,
+    tabBarInactiveTintColor: colors.textTertiary,
     tabBarStyle: {
       height: tabBarHeight,
       paddingTop: 8,
       paddingBottom: tabBarBottomPadding,
-      backgroundColor: '#FFFFFF',
+      backgroundColor: colors.surface,
       borderTopWidth: 1,
-      borderTopColor: '#EAECF0',
+      borderTopColor: colors.borderSoft,
       // Lower than 10 — Android elevation contributes to per-frame overdraw,
       // and the tab bar visual was nearly identical at 6 in our PR comparison.
       elevation: 6,

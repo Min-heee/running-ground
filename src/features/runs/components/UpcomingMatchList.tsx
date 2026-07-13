@@ -8,7 +8,7 @@ import {
 } from '@/lib/matchCountdown';
 import { resolveUpcomingMatchInteraction } from '@/features/runs/components/upcomingMatchInteraction';
 import type { UpcomingRunningMatchItem } from '@/lib/api/types';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 // A matched 1:1 (duel) opens the full-screen reservation waiting room (modeled on
 // the party room). The room itself renders the countdown + hands off to the arena
@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   meta: {
-    color: colors.border,
+    color: fixedColors.border,
     lineHeight: 18,
   },
   countdownPill: {
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.s10,
     paddingVertical: spacing.lg,
     borderRadius: radii.pill,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: fixedColors.textPrimary,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
   },

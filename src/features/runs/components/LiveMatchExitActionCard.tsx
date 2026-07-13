@@ -6,7 +6,7 @@ import type { MatchExitActionState } from '@/features/runs/lifecycle/matchExitAc
 import type { MatchExitSource } from '@/features/runs/lifecycle/matchExitFlow';
 import { rgPerfMark } from '@/utils/rgPerfTrace';
 import { useDevRenderCounter } from '@/utils/useDevRenderCounter';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 export type LiveMatchExitActionCardProps = {
   source: MatchExitSource | null;
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     gap: spacing.s10,
     borderColor: colors.brandLight,
     borderWidth: 1,
-    backgroundColor: colors.brandWash,
+    backgroundColor: fixedColors.brandWash,
   },
   card: {
     gap: spacing.s10,
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.black,
   },
   text: {
-    color: colors.danger,
+    color: fixedColors.danger,
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
     lineHeight: 20,
@@ -208,7 +208,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     minHeight: 50,
     borderRadius: radii.md,
-    backgroundColor: colors.dangerBright,
+    backgroundColor: fixedColors.dangerBright,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.s14,

@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xxl,
   },
   ghostButton: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingHorizontal: spacing.s14,
     paddingVertical: spacing.xxl,

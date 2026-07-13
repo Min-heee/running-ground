@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { RunningMatchRoom } from '@/lib/api/types';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type PartyRunInviteCardProps = {
   room: RunningMatchRoom;
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.brandLight,
-    backgroundColor: colors.brandWash,
+    backgroundColor: fixedColors.brandWash,
     paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s14,
     gap: spacing.s12,
@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
   },
   title: {
     marginTop: spacing.sm,
-    color: colors.textPrimary,
+    color: fixedColors.textPrimary,
     fontSize: fontSizes.large,
     fontWeight: fontWeights.black,
     lineHeight: 23,
@@ -85,14 +85,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: radii.pill,
     backgroundColor: colors.indigoInk,
-    color: colors.brandWash,
+    color: fixedColors.brandWash,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.black,
     paddingHorizontal: spacing.s10,
     paddingVertical: spacing.xl,
   },
   meta: {
-    color: colors.textMuted,
+    color: fixedColors.textMuted,
     fontSize: fontSizes.md,
     fontWeight: fontWeights.bold,
   },
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.borderCool,
-    backgroundColor: colors.white,
+    backgroundColor: fixedColors.white,
     paddingVertical: 13,
   },
   acceptButton: {

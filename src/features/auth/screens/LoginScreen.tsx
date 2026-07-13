@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.s10,
     paddingVertical: spacing.xl,
     borderRadius: radii.pill,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.borderMuted,
   },

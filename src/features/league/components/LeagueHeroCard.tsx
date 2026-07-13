@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/Card';
 import type { RegionDrilldownNode } from '@/domain';
 import { formatLeagueDistanceValue } from '@/features/league/utils/leagueRanking';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type LeagueHeroCardProps = {
   node: RegionDrilldownNode;
@@ -90,7 +90,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   heroMetricLabel: {
-    color: colors.border,
+    color: fixedColors.border,
     fontSize: fontSizes.xs,
     fontWeight: fontWeights.bold,
   },

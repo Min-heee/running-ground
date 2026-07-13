@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   myRankButton: {
-    backgroundColor: colors.dark,
+    backgroundColor: colors.inkPill,
     borderRadius: radii.pill,
     paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s10,

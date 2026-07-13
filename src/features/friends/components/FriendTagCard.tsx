@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   copyButton: {
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.inkPill,
     borderRadius: radii.pill,
     paddingHorizontal: spacing.s16,
     paddingVertical: spacing.s10,

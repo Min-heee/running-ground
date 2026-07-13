@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 99,
-    backgroundColor: colors.textPrimary,
+    backgroundColor: colors.inkPill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -114,7 +114,7 @@ const styles = StyleSheet.create({
     gap: spacing.xxl,
   },
   inlineActionButton: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
     borderRadius: radii.pill,
     paddingHorizontal: spacing.s14,
     paddingVertical: spacing.s10,

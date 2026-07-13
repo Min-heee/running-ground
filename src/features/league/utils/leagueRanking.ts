@@ -12,8 +12,8 @@ export const PODIUM_THEME: Record<PodiumRank, PodiumTheme> = {
   },
   2: {
     iconColor: colors.podiumSilver,
-    backgroundColor: colors.surfaceSoft,
-    borderColor: colors.indigoBorder,
+    backgroundColor: colors.podiumSilverSoft,
+    borderColor: colors.podiumSilverBorder,
     textColor: colors.podiumSilverText,
   },
   3: {

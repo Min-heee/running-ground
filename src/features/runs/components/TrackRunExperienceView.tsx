@@ -8,7 +8,7 @@ import { TabHeader } from '@/components/ui/TabHeader';
 import { LiveMatchContainer } from '@/features/runs/components/LiveMatchContainer';
 import { MatchEndTransitionOverlay } from '@/features/runs/components/MatchEndTransitionOverlay';
 import { RunningReadyScreen } from '@/features/runs/components/RunningReadyScreen';
-import { colors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights } from '@/theme/tokens';
 import {
   TrackRunShellRouter,
   type TrackRunShellKind,
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   errorText: {
-    color: colors.danger,
+    color: fixedColors.danger,
     fontWeight: fontWeights.bold,
   },
   errorBlock: {
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   },
   forceResetButton: {
     alignItems: 'center',
-    backgroundColor: colors.danger,
+    backgroundColor: fixedColors.danger,
     borderRadius: 14,
     paddingVertical: spacing.s12,
   },
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     fontWeight: fontWeights.extraBold,
   },
   forceResetHelperText: {
-    color: colors.textTertiary,
+    color: fixedColors.textTertiary,
     fontSize: fontSizes.sm,
     fontWeight: fontWeights.semibold,
   },
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 34,
     paddingHorizontal: 26,
-    shadowColor: colors.textPrimary,
+    shadowColor: fixedColors.textPrimary,
     shadowOpacity: 0.22,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 16 },

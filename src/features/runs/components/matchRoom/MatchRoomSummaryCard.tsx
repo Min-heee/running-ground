@@ -4,7 +4,7 @@ import { SecondaryButton } from '@/components/ui/SecondaryButton';
 import type { RunningMatchRoom } from '@/lib/api/types';
 import { formatMatchCountdown } from '@/lib/matchCountdown';
 import { formatRoomDateLabel } from '@/features/runs/utils/matchRoomScheduling';
-import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
+import { colors, fixedColors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 
 type MatchRoomSummaryCardProps = {
   room: RunningMatchRoom;
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   countdownBannerTitle: {
-    color: colors.brandWash,
+    color: fixedColors.brandWash,
     fontSize: fontSizes.title,
     fontWeight: fontWeights.black,
   },

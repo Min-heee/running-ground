@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingHorizontal: spacing.s12,
     paddingVertical: 9,
-    backgroundColor: colors.white,
+    backgroundColor: colors.surface,
   },
   locationButtonActive: {
     borderColor: colors.successCardBorder,
