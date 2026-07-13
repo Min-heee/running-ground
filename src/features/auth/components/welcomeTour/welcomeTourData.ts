@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import {
   requestMotion,
   requestNotifications,
@@ -32,12 +31,3 @@ export const PERMISSION_ITEMS: PermissionItem[] = [
     request: requestMotion,
   },
 ];
-
-// 연동 카드는 별도 단계(STEP 2)지만, 헬스 연동도 같은 “허용/연동” UX로 인라인 처리해요.
-export const HEALTH_ITEM: { key: OnboardingPermissionKey; label: string; hint: string } = {
-  key: 'health',
-  label: Platform.OS === 'android' ? 'Health Connect 연동' : 'Apple 건강 연동',
-  hint: Platform.OS === 'android'
-    ? 'Health Connect의 러닝 기록을 가져와 한 곳에 모아요.'
-    : 'Apple 건강의 러닝 기록을 가져와 한 곳에 모아요.',
-};

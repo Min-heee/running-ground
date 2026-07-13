@@ -32,7 +32,7 @@ export const TourActions = memo(function TourActions({
         // 설정 열기 → 복귀 시 AppState 재확인으로 풀리므로 갇히는 상태는 없다.
         <>
           {!canAdvancePermissions ? (
-            <Text style={styles.gateHint}>위치와 동작 권한을 허용하면 다음으로 넘어갈 수 있어요</Text>
+            <Text style={styles.gateHint}>모든 권한을 허용하면 다음으로 넘어갈 수 있어요</Text>
           ) : null}
           <PrimaryButton label="다음" onPress={onAdvanceToConnect} disabled={!canAdvancePermissions} />
         </>

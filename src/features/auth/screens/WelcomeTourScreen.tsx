@@ -180,7 +180,12 @@ export default function WelcomeTourScreen() {
 
         <TourActions
           step={step}
-          canAdvancePermissions={canAdvanceFromPermissionStep({ statuses, motionAvailable })}
+          canAdvancePermissions={canAdvanceFromPermissionStep({
+            statuses,
+            motionAvailable,
+            batteryAvailable,
+            batteryExempt,
+          })}
           onBeginPermissions={() => setStep('permissions')}
           onAdvanceToConnect={() => setStep('connect')}
           onConnect={handleConnect}

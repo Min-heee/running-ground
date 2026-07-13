@@ -2,9 +2,8 @@ import { memo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { PermissionRow } from './PermissionRow';
 import { tourCardStyles } from './tourCardStyles';
-import { HEALTH_ITEM, PERMISSION_ITEMS } from './welcomeTourData';
+import { PERMISSION_ITEMS } from './welcomeTourData';
 import {
-  requestHealthConnect,
   requestLocation,
   type OnboardingPermissionCanAsk,
   type OnboardingPermissionKey,
@@ -38,7 +37,7 @@ export const PermissionsStepCard = memo(function PermissionsStepCard({
       <Text style={tourCardStyles.kicker}>STEP 1 · 권한</Text>
       <Text style={styles.permissionTitle}>권한 허용</Text>
       <Text style={styles.permissionSubtitle}>
-        러닝을 측정하려면 위치와 동작 권한이 꼭 필요해요. 두 가지를 허용해야 다음으로 넘어갈 수 있어요.
+        러닝그라운드를 시작하려면 아래 권한이 모두 필요해요. 전부 허용해야 다음으로 넘어갈 수 있어요.
       </Text>
       <View style={styles.permissionList}>
         {/* Merged 위치 row: driven by the BACKGROUND ("항상") status. ✓ only when backgroundLocation
@@ -51,7 +50,6 @@ export const PermissionsStepCard = memo(function PermissionsStepCard({
           granted={statuses.location}
           canAsk={canAsk.location}
           busy={busyKey === 'backgroundLocation'}
-          required
           noteText={
             statuses.location && !statuses.backgroundLocation
               ? "화면을 꺼도 측정하려면 '항상 허용'을 권장해요. (설정 › 위치 › 항상)"
@@ -70,7 +68,6 @@ export const PermissionsStepCard = memo(function PermissionsStepCard({
             granted={statuses[item.key]}
             canAsk={canAsk[item.key]}
             busy={busyKey === item.key}
-            required={item.key === 'motion'}
             onRequest={() => {
               void onRunRequest(item.key, item.request);
             }}
@@ -96,18 +93,6 @@ export const PermissionsStepCard = memo(function PermissionsStepCard({
             }}
           />
         ) : null}
-        <PermissionRow
-          key={HEALTH_ITEM.key}
-          label={HEALTH_ITEM.label}
-          hint={HEALTH_ITEM.hint}
-          granted={statuses.health}
-          canAsk={canAsk.health}
-          busy={busyKey === 'health'}
-          onRequest={() => {
-            void onRunRequest('health', requestHealthConnect);
-          }}
-          onOpenSettings={onOpenSettings}
-        />
       </View>
       <Text style={styles.deniedHint}>
         알림·연동은 나중에 설정에서 켤 수 있어요. 실수로 거부했다면 설정 열기로 켜고 돌아오면

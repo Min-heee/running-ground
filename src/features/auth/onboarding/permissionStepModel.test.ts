@@ -48,81 +48,73 @@ test('row action offers the request button on a fresh, still-promptable permissi
   assert.equal(resolvePermissionRowAction({ granted: false, canAsk: true }), 'request');
 });
 
-test('필수 게이트: 포그라운드 위치 + 동작이 있어야 다음이 열린다', () => {
-  assert.equal(canAdvanceFromPermissionStep({ statuses: ALL_DENIED, motionAvailable: true }), false);
-  assert.equal(canAdvanceFromPermissionStep({ statuses: ALL_GRANTED, motionAvailable: true }), true);
-  // 위치만 있고 동작이 없으면 막힌다.
+const GATE_DEFAULTS = { motionAvailable: true, batteryAvailable: false, batteryExempt: false };
+
+test('전부 필수: 위치·알림·동작이 모두 켜져야 다음이 열린다', () => {
+  assert.equal(canAdvanceFromPermissionStep({ statuses: ALL_DENIED, ...GATE_DEFAULTS }), false);
+  assert.equal(canAdvanceFromPermissionStep({ statuses: ALL_GRANTED, ...GATE_DEFAULTS }), true);
+  // 하나라도 빠지면 막힌다.
   assert.equal(
     canAdvanceFromPermissionStep({
-      statuses: { ...ALL_DENIED, location: true },
-      motionAvailable: true,
+      statuses: { ...ALL_GRANTED, notifications: false },
+      ...GATE_DEFAULTS,
     }),
     false,
   );
-  // 필수 둘이 켜지면 나머지(알림/건강/배경위치)는 꺼져 있어도 열린다.
   assert.equal(
     canAdvanceFromPermissionStep({
-      statuses: { ...ALL_DENIED, location: true, motion: true },
-      motionAvailable: true,
+      statuses: { ...ALL_GRANTED, motion: false },
+      ...GATE_DEFAULTS,
+    }),
+    false,
+  );
+  assert.equal(
+    canAdvanceFromPermissionStep({
+      statuses: { ...ALL_GRANTED, location: false },
+      ...GATE_DEFAULTS,
+    }),
+    false,
+  );
+});
+
+test('위치 "항상(백그라운드)"과 건강 연동은 게이트에 안 들어간다', () => {
+  // backgroundLocation/health가 영원히 false여도(현재 Android 빌드·미연동 계정의 실제 상태) 통과.
+  assert.equal(
+    canAdvanceFromPermissionStep({
+      statuses: { ...ALL_GRANTED, backgroundLocation: false, health: false },
+      ...GATE_DEFAULTS,
     }),
     true,
   );
 });
 
-test('위치 "항상(백그라운드)"은 게이트에 절대 안 들어간다 — Android 매니페스트에 없음', () => {
-  // backgroundLocation이 영원히 false여도(현재 Android 빌드의 실제 상태) 통과되어야 한다.
+test('영원히 켤 수 없는 항목은 면제된다 (감옥 금지)', () => {
+  // 걸음 센서 없는 기기: 동작 없이 통과.
   assert.equal(
     canAdvanceFromPermissionStep({
-      statuses: { ...ALL_DENIED, location: true, motion: true, backgroundLocation: false },
-      motionAvailable: true,
-    }),
-    true,
-  );
-});
-
-test('걸음 센서가 없는 기기는 동작 없이도 통과된다 (영원 불가 권한으로 가둘 금지)', () => {
-  assert.equal(
-    canAdvanceFromPermissionStep({
-      statuses: { ...ALL_DENIED, location: true },
+      statuses: { ...ALL_GRANTED, motion: false },
       motionAvailable: false,
+      batteryAvailable: false,
+      batteryExempt: false,
     }),
     true,
   );
-  // 센서가 없어도 위치 없이는 못 간다.
-  assert.equal(
-    canAdvanceFromPermissionStep({ statuses: ALL_DENIED, motionAvailable: false }),
-    false,
-  );
-});
-
-test('areAllOnboardingPermissionsGranted reflects full grant state only', () => {
-  assert.equal(areAllOnboardingPermissionsGranted(ALL_GRANTED), true);
-  assert.equal(areAllOnboardingPermissionsGranted(ALL_DENIED), false);
-  assert.equal(
-    areAllOnboardingPermissionsGranted({ ...ALL_GRANTED, motion: false }),
-    false,
-  );
-});
-
-test('shouldPromptPermission is true only when not granted and still askable', () => {
-  assert.equal(shouldPromptPermission('location', ALL_DENIED, ALL_ASKABLE), true);
-  // Already granted -> do not re-prompt.
-  assert.equal(shouldPromptPermission('location', ALL_GRANTED, ALL_ASKABLE), false);
-  // Denied and cannot ask again -> route to Settings instead of prompting.
-  assert.equal(
-    shouldPromptPermission('notifications', ALL_DENIED, { ...ALL_ASKABLE, notifications: false }),
-    false,
-  );
-});
-
-test('필수 아닌 권한(알림)의 하드 거부는 진행을 막지 않는다', () => {
-  // 행 레벨에선 설정 열기를 안내하되, 필수 두 권한만 켜져 있으면 다음은 열린다.
-  const action = resolvePermissionRowAction({ granted: false, canAsk: false });
-  assert.equal(action, 'open_settings');
+  // Android 배터리 컨트롤이 있으면 제외까지 받아야 열린다.
   assert.equal(
     canAdvanceFromPermissionStep({
-      statuses: { ...ALL_DENIED, location: true, motion: true, notifications: false },
+      statuses: ALL_GRANTED,
       motionAvailable: true,
+      batteryAvailable: true,
+      batteryExempt: false,
+    }),
+    false,
+  );
+  assert.equal(
+    canAdvanceFromPermissionStep({
+      statuses: ALL_GRANTED,
+      motionAvailable: true,
+      batteryAvailable: true,
+      batteryExempt: true,
     }),
     true,
   );
