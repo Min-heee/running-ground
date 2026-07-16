@@ -1,15 +1,12 @@
 import { SignupActionFooter } from './SignupActionFooter';
 import { SignupAgreementSection } from './SignupAgreementSection';
-import { SignupBirthDateSection } from './SignupBirthDateSection';
 import type { SignupFormModel } from './types';
 
 type SignupSubmitSectionProps = Pick<
   SignupFormModel,
-  | 'birthDate'
   | 'catalogError'
   | 'catalogLoading'
   | 'error'
-  | 'handleBirthDateChange'
   | 'handleSignup'
   | 'isPhoneVerified'
   | 'passwordReady'
@@ -20,11 +17,9 @@ type SignupSubmitSectionProps = Pick<
 >;
 
 export function SignupSubmitSection({
-  birthDate,
   catalogError,
   catalogLoading,
   error,
-  handleBirthDateChange,
   handleSignup,
   isPhoneVerified,
   passwordReady,
@@ -35,11 +30,6 @@ export function SignupSubmitSection({
 }: SignupSubmitSectionProps) {
   return (
     <>
-      <SignupBirthDateSection
-        birthDate={birthDate}
-        handleBirthDateChange={handleBirthDateChange}
-        submitting={submitting}
-      />
       <SignupAgreementSection
         isPhoneVerified={isPhoneVerified}
         passwordReady={passwordReady}

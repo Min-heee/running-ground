@@ -15,22 +15,21 @@ export type RegisterAccountInput = {
   provinceName: string;
   cityName?: string;
   districtName: string;
-  addressDetail: string;
-  birthDate: string;
   phoneVerificationToken?: string;
 };
 
 export type FindUsernameInput = {
   realName: string;
   phone: string;
-  birthDate: string;
+  // Verified 'find_username' phone-challenge token (Apple 5.1.1(v): replaces 생년월일 as the
+  // identity factor). Rejected client-side before the network when missing.
+  phoneVerificationToken?: string;
 };
 
 export type ResetPasswordInput = {
   username: string;
   realName: string;
   phone: string;
-  birthDate: string;
   newPassword: string;
   // Verified 'reset' phone-challenge token. The backend requires it, so the reset
   // POST is rejected client-side (before the network) when it is missing.

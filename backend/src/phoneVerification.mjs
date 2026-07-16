@@ -3,9 +3,10 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-// 'signup' gates registration; 'reset' gates password reset. Both consume a verified,
-// still-valid phone challenge for the exact number (see authRepository.register / resetPassword).
-const PHONE_VERIFICATION_PURPOSES = new Set(['signup', 'reset']);
+// 'signup' gates registration; 'reset' gates password reset; 'find_username' gates 아이디 찾기.
+// All three consume a verified, still-valid phone challenge for the exact number
+// (see authRepository.register / resetPassword / findUsername).
+const PHONE_VERIFICATION_PURPOSES = new Set(['signup', 'reset', 'find_username']);
 
 export function isPhoneVerificationPurpose(value) {
   return PHONE_VERIFICATION_PURPOSES.has(value);

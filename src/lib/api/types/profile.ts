@@ -23,9 +23,9 @@ export type UsernameAvailabilityResponse = {
   message: string;
 };
 
-// Phone verification is shared by signup and password reset; the backend keys the
+// Phone verification is shared by signup, password reset, and 아이디 찾기; the backend keys the
 // challenge on this purpose and only accepts a token issued for the matching flow.
-export type PhoneVerificationPurpose = 'signup' | 'reset';
+export type PhoneVerificationPurpose = 'signup' | 'reset' | 'find_username';
 
 export type RequestPhoneVerificationCodeResponse = {
   success: boolean;

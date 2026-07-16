@@ -26,9 +26,10 @@ await runTest('normalizes and validates Korean mobile numbers', () => {
   assert.equal(maskPhoneNumber('01012345678'), '010-****-5678');
 });
 
-await runTest('supports signup and reset phone verification purposes', () => {
+await runTest('supports signup, reset, and find_username phone verification purposes', () => {
   assert.equal(isPhoneVerificationPurpose('signup'), true);
   assert.equal(isPhoneVerificationPurpose('reset'), true);
+  assert.equal(isPhoneVerificationPurpose('find_username'), true);
   assert.equal(isPhoneVerificationPurpose('login'), false);
 });
 

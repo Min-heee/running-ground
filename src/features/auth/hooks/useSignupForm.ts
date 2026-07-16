@@ -13,7 +13,7 @@ import {
   requestSignupPhoneVerification,
   verifySignupPhoneCode,
 } from '@/lib/session';
-import { formatBirthDateInput, formatPhoneInput } from '@/features/auth/utils/signupFormatters';
+import { formatPhoneInput } from '@/features/auth/utils/signupFormatters';
 import { usePhoneVerificationForm } from '@/features/auth/hooks/usePhoneVerificationForm';
 
 type UsernameCheckState = {
@@ -36,8 +36,6 @@ export function useSignupForm() {
   const [provinceName, setProvinceName] = useState('');
   const [secondaryRegionName, setSecondaryRegionName] = useState('');
   const [regions, setRegions] = useState<AddressRegionNode[]>([]);
-  const [addressDetail, setAddressDetail] = useState('');
-  const [birthDate, setBirthDate] = useState('');
   const [openRegionStep, setOpenRegionStep] = useState<'province' | 'secondary' | 'detail'>('province');
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -113,9 +111,7 @@ export function useSignupForm() {
     && normalizedUsername
     && !usernameValidationMessage
     && phoneValid
-    && selectedAddressLabel
-    && addressDetail.trim()
-    && /^\d{4}-\d{2}-\d{2}$/.test(birthDate.trim()),
+    && selectedAddressLabel,
   );
   const signupReady = requiredProfileReady && usernameReady && passwordReady && isPhoneVerified;
 
@@ -166,22 +162,16 @@ export function useSignupForm() {
     });
   };
 
-  const handleBirthDateChange = (nextValue: string) => {
-    setBirthDate(formatBirthDateInput(nextValue));
-  };
-
   const handleSelectProvince = (nextProvince: AddressRegionNode) => {
     setProvinceName(nextProvince.name);
     setSecondaryRegionName('');
-    setAddressDetail('');
     setOpenRegionStep('secondary');
   };
 
   const handleSelectSecondary = (nextSecondary: AddressRegionNode) => {
     setSecondaryRegionName(nextSecondary.name);
-    setAddressDetail('');
     // The 시/군/구 pick is terminal (every 시/군 is a leaf), so jump straight to
-    // the detail step instead of opening a third (구) step.
+    // the terminal step instead of opening a third (구) step.
     setOpenRegionStep('detail');
   };
 
@@ -262,8 +252,6 @@ export function useSignupForm() {
         provinceName,
         cityName: finalCityName,
         districtName: finalDistrictName,
-        addressDetail,
-        birthDate,
         phoneVerificationToken: phoneVerification.verifiedToken,
       });
       router.replace('/welcome');
@@ -285,15 +273,12 @@ export function useSignupForm() {
   };
 
   return {
-    addressDetail,
-    birthDate,
     catalogError,
     catalogLoading,
     checkingUsername,
     displayNamePreference,
     error,
     finalRegion,
-    handleBirthDateChange,
     handleCheckUsername,
     handlePhoneChange,
     handlePhoneVerificationCodeChange: phoneVerification.handleCodeChange,
@@ -331,7 +316,6 @@ export function useSignupForm() {
     selectedAddressLabel,
     selectedProvince,
     selectedSecondary,
-    setAddressDetail,
     setDisplayNamePreference,
     setNickname,
     setOpenRegionStep,

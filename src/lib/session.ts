@@ -26,7 +26,9 @@ export {
 } from '@/lib/session/signupSessionActions';
 export {
   findUsernameByIdentity,
+  requestFindUsernamePhoneVerification,
   requestResetPhoneVerification,
   resetPasswordByIdentity,
+  verifyFindUsernamePhoneCode,
   verifyResetPhoneCode,
 } from '@/lib/session/accountRecoveryActions';

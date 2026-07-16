@@ -7,7 +7,7 @@ import {
   verifyResetPhoneCode,
 } from '@/lib/session';
 import { getApiErrorMessage } from '@/services/apiError';
-import { formatBirthDateInput, formatPhoneInput } from '@/features/auth/utils/signupFormatters';
+import { formatPhoneInput } from '@/features/auth/utils/signupFormatters';
 import { usePhoneVerificationForm } from '@/features/auth/hooks/usePhoneVerificationForm';
 import type { FoundUsernamePrefill } from '@/features/auth/hooks/useFindUsernameForm';
 
@@ -20,7 +20,6 @@ export function useResetPasswordForm() {
   const [resetUsername, setResetUsername] = useState('');
   const [resetName, setResetName] = useState('');
   const [resetPhone, setResetPhone] = useState('');
-  const [resetBirthDate, setResetBirthDate] = useState('');
   const [resetPassword, setResetPassword] = useState('');
   const [resetPasswordConfirm, setResetPasswordConfirm] = useState('');
   const [resetMessage, setResetMessage] = useState<string | null>(null);
@@ -56,18 +55,13 @@ export function useResetPasswordForm() {
     });
   };
 
-  const handleResetBirthDateChange = (nextValue: string) => {
-    setResetBirthDate(formatBirthDateInput(nextValue));
-  };
-
-  const prefillFromFoundIdentity = ({ username, realName, phone, birthDate }: FoundUsernamePrefill) => {
+  const prefillFromFoundIdentity = ({ username, realName, phone }: FoundUsernamePrefill) => {
     setResetUsername(username);
     setResetName(realName);
     // Prefilling the reset phone can change the number a prior OTP was bound to,
     // so drop any existing reset verification to force a fresh one.
     phoneVerification.resetVerification();
     setResetPhone(phone);
-    setResetBirthDate(birthDate);
   };
 
   const handleResetPassword = async () => {
@@ -95,7 +89,6 @@ export function useResetPasswordForm() {
         username: normalizeUsername(resetUsername),
         realName: resetName,
         phone: resetPhone,
-        birthDate: resetBirthDate,
         newPassword: resetPassword,
         phoneVerificationToken: phoneVerification.verifiedToken,
       });
@@ -110,7 +103,6 @@ export function useResetPasswordForm() {
   };
 
   return {
-    handleResetBirthDateChange,
     handleResetPassword,
     handleResetPhoneChange,
     handleResetUsernameChange,
@@ -118,7 +110,6 @@ export function useResetPasswordForm() {
     passwordError,
     phoneVerification,
     prefillFromFoundIdentity,
-    resetBirthDate,
     resetMessage,
     resetName,
     resetPassword,

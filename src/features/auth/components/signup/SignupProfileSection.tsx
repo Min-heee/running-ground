@@ -65,7 +65,7 @@ export function SignupProfileSection({
       <View style={styles.privacyCard}>
         <Text style={styles.privacyTitle}>공개되는 정보</Text>
         <Text style={styles.privacyText}>
-          랭킹과 친구 화면에는 지금 선택한 공개 표시 이름만 보여요. 이름, 휴대폰 번호, 상세 주소, 생년월일은 계정 확인용 비공개 정보로 처리해요.
+          랭킹과 친구 화면에는 지금 선택한 공개 표시 이름만 보여요. 이름과 휴대폰 번호는 계정 확인용 비공개 정보로 처리해요.
         </Text>
       </View>
     </>

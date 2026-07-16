@@ -160,23 +160,46 @@ export function createJsonAuthRepository({
       };
     },
 
-    async findUsername({ realName, phone, birthDate }) {
-      const store = await loadStore();
-      const user = store.users.find((entry) => (
-        entry.realName === realName
-        && entry.phone === phone
-        && entry.birthDate === birthDate
-      ));
+    async findUsername({ realName, phone, phoneVerificationToken }) {
+      return mutateStore((store) => {
+        // Apple 5.1.1(v): identity is realName + phone + a verified 'find_username' phone-OTP
+        // challenge (no 생년월일). Require a still-valid verified challenge for THIS number and
+        // consume it — mirrors register()/resetPassword() so the token can't be replayed. Phone
+        // is unique per account, so realName+phone resolves to at most one user.
+        const phoneChallenge = (store.phoneVerificationChallenges ?? []).find((entry) => (
+          entry.purpose === 'find_username'
+          && entry.status === 'verified'
+          && entry.verifiedToken === phoneVerificationToken
+          && String(entry.phone ?? '').replace(/\D/g, '') === phone
+        ));
 
-      if (!user) {
-        throw createError(404, '일치하는 계정을 찾지 못했어요.');
-      }
+        if (
+          !phoneChallenge
+          || !phoneChallenge.registrationExpiresAt
+          || Date.parse(phoneChallenge.registrationExpiresAt) <= Date.now()
+        ) {
+          throw createError(400, '휴대폰 인증을 먼저 완료해주세요.');
+        }
 
-      return {
-        success: true,
-        username: user.username,
-        maskedPhone: maskPhone(user.phone),
-      };
+        const user = store.users.find((entry) => (
+          entry.realName === realName
+          && entry.phone === phone
+        ));
+
+        if (!user) {
+          throw createError(404, '일치하는 계정을 찾지 못했어요.');
+        }
+
+        // Consume the verified challenge so its token can't be reused for another lookup.
+        phoneChallenge.status = 'consumed';
+        phoneChallenge.consumedAt = new Date().toISOString();
+
+        return {
+          success: true,
+          username: user.username,
+          maskedPhone: maskPhone(user.phone),
+        };
+      });
     },
 
     async login({ username, password }) {
@@ -246,12 +269,13 @@ export function createJsonAuthRepository({
       });
     },
 
-    async resetPassword({ username, realName, phone, birthDate, newPassword, phoneVerificationToken }) {
+    async resetPassword({ username, realName, phone, newPassword, phoneVerificationToken }) {
       return mutateStore((store) => {
         // P0-1: password reset now REQUIRES a still-valid verified 'reset' phone challenge for
         // this exact number — mirrors register()'s token consumption so a reset can only proceed
-        // after the number's owner passed an OTP. The realName+birthDate+username identity match
-        // below is kept as an ADDITIONAL factor (defense in depth), not the sole gate.
+        // after the number's owner passed an OTP. The realName+username identity match below is
+        // kept as an ADDITIONAL factor (defense in depth), not the sole gate. Apple 5.1.1(v):
+        // 생년월일 is no longer part of the match.
         const phoneChallenge = (store.phoneVerificationChallenges ?? []).find((entry) => (
           entry.purpose === 'reset'
           && entry.status === 'verified'
@@ -271,7 +295,6 @@ export function createJsonAuthRepository({
           entry.username === username
           && entry.realName === realName
           && entry.phone === phone
-          && entry.birthDate === birthDate
         ));
 
         if (!user) {

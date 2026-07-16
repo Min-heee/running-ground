@@ -1,14 +1,12 @@
 import { Text, View } from 'react-native';
 import { RegionChipSection } from '@/features/location/RegionSelection';
-import { RegionPickerCard, SignupInput } from './SignupFormPrimitives';
+import { RegionPickerCard } from './SignupFormPrimitives';
 import { signupFormStyles as styles } from './signupFormStyles';
 import type { SignupFormModel } from './types';
 
 type SignupRegionSectionProps = Pick<
   SignupFormModel,
-  | 'addressDetail'
   | 'catalogLoading'
-  | 'finalRegion'
   | 'handleSelectProvince'
   | 'handleSelectSecondary'
   | 'openRegionStep'
@@ -18,15 +16,12 @@ type SignupRegionSectionProps = Pick<
   | 'secondaryRegionName'
   | 'selectedAddressLabel'
   | 'selectedProvince'
-  | 'setAddressDetail'
   | 'setOpenRegionStep'
   | 'submitting'
 >;
 
 export function SignupRegionSection({
-  addressDetail,
   catalogLoading,
-  finalRegion,
   handleSelectProvince,
   handleSelectSecondary,
   openRegionStep,
@@ -36,7 +31,6 @@ export function SignupRegionSection({
   secondaryRegionName,
   selectedAddressLabel,
   selectedProvince,
-  setAddressDetail,
   setOpenRegionStep,
   submitting,
 }: SignupRegionSectionProps) {
@@ -83,16 +77,6 @@ export function SignupRegionSection({
           <Text style={styles.selectedAddressLabel}>현재 선택</Text>
           <Text style={styles.selectedAddressValue}>{selectedAddressLabel}</Text>
         </View>
-      ) : null}
-
-      {finalRegion ? (
-        <SignupInput
-          label="상세 주소"
-          placeholder="예: 테헤란로 123, 101동 1203호"
-          value={addressDetail}
-          onChangeText={setAddressDetail}
-          editable={!submitting}
-        />
       ) : null}
     </View>
   );

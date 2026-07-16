@@ -98,3 +98,16 @@ export function verifyMockResetPhoneCode(
 ): VerifyPhoneVerificationCodeResponse {
   return verifyMockPhoneCode('reset', normalizedRequestId, normalizedCode);
 }
+
+export function createMockFindUsernamePhoneVerification(
+  normalizedPhone: string,
+): RequestPhoneVerificationCodeResponse {
+  return createMockPhoneVerification('find_username', normalizedPhone);
+}
+
+export function verifyMockFindUsernamePhoneCode(
+  normalizedRequestId: string,
+  normalizedCode: string,
+): VerifyPhoneVerificationCodeResponse {
+  return verifyMockPhoneCode('find_username', normalizedRequestId, normalizedCode);
+}

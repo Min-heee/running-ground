@@ -53,9 +53,7 @@ export function SignupFormContent({ form }: { form: SignupFormModel }) {
       />
 
       <SignupRegionSection
-        addressDetail={form.addressDetail}
         catalogLoading={form.catalogLoading}
-        finalRegion={form.finalRegion}
         handleSelectProvince={form.handleSelectProvince}
         handleSelectSecondary={form.handleSelectSecondary}
         openRegionStep={form.openRegionStep}
@@ -65,17 +63,14 @@ export function SignupFormContent({ form }: { form: SignupFormModel }) {
         secondaryRegionName={form.secondaryRegionName}
         selectedAddressLabel={form.selectedAddressLabel}
         selectedProvince={form.selectedProvince}
-        setAddressDetail={form.setAddressDetail}
         setOpenRegionStep={form.setOpenRegionStep}
         submitting={form.submitting}
       />
 
       <SignupSubmitSection
-        birthDate={form.birthDate}
         catalogError={form.catalogError}
         catalogLoading={form.catalogLoading}
         error={form.error}
-        handleBirthDateChange={form.handleBirthDateChange}
         handleSignup={form.handleSignup}
         isPhoneVerified={form.isPhoneVerified}
         passwordReady={form.passwordReady}

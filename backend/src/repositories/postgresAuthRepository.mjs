@@ -189,15 +189,15 @@ async function createAvailableSocialUsername(database, provider, createError) {
   throw createError(500, '소셜 계정을 만드는 중 문제가 생겼어요. 다시 시도해주세요.');
 }
 
-async function findUserByIdentity(database, { realName, phone, birthDate }) {
+async function findUserByRealNameAndPhone(database, { realName, phone }) {
   const result = await database.query(
     `
       select *
       from users
-      where real_name = $1 and phone = $2 and birth_date = $3
+      where real_name = $1 and phone = $2
       limit 1
     `,
-    [realName, phone, birthDate],
+    [realName, phone],
   );
 
   return result.rows[0] ? mapUserRow(result.rows[0]) : null;
@@ -323,13 +323,14 @@ async function removeLiveRunShare(client, userId) {
   );
 }
 
-// P0-1 (postgres path): consume a verified 'reset' phone challenge for `phone`, matching by
-// `phoneVerificationToken`, from the whole-store jsonb row (app_store id = 1) — the SAME place
-// phone challenges are written on both the json and postgres store adapters. Locks the row FOR
-// UPDATE, applies the same match/expiry shape as register(), flips the challenge to 'consumed',
-// and writes the whole-store back. Throws a 400 when no still-valid challenge matches. No-op-safe
-// under the enclosing transaction: a throw rolls the whole reset back.
-async function consumeResetPhoneChallenge(client, { phone, phoneVerificationToken, createError }) {
+// P0-1 (postgres path): consume a verified phone challenge of the given `purpose` for `phone`,
+// matching by `phoneVerificationToken`, from the whole-store jsonb row (app_store id = 1) — the
+// SAME place phone challenges are written on both the json and postgres store adapters. Locks the
+// row FOR UPDATE, applies the same match/expiry shape as register(), flips the challenge to
+// 'consumed', and writes the whole-store back. Throws a 400 when no still-valid challenge matches.
+// No-op-safe under the enclosing transaction: a throw rolls the whole operation back. Shared by
+// resetPassword ('reset') and findUsername ('find_username').
+async function consumePhoneChallenge(client, { purpose, phone, phoneVerificationToken, createError }) {
   const locked = await client.query(
     'select data from app_store where id = 1 for update',
   );
@@ -340,7 +341,7 @@ async function consumeResetPhoneChallenge(client, { phone, phoneVerificationToke
     : [];
 
   const challenge = challenges.find((entry) => (
-    entry.purpose === 'reset'
+    entry.purpose === purpose
     && entry.status === 'verified'
     && entry.verifiedToken === phoneVerificationToken
     && String(entry.phone ?? '').replace(/\D/g, '') === phone
@@ -396,18 +397,31 @@ export function createPostgresAuthRepository({
       };
     },
 
-    async findUsername({ realName, phone, birthDate }) {
-      const user = await findUserByIdentity(database, { realName, phone, birthDate });
+    async findUsername({ realName, phone, phoneVerificationToken }) {
+      return runWriteOperation(database, async (client) => {
+        // Apple 5.1.1(v): identity is realName + phone + a verified 'find_username' phone-OTP
+        // challenge (no 생년월일). Consume the still-valid verified challenge for this number
+        // first (mirrors resetPassword), then resolve the username. Phone is unique per account,
+        // so realName+phone matches at most one user.
+        await consumePhoneChallenge(client, {
+          purpose: 'find_username',
+          phone,
+          phoneVerificationToken,
+          createError,
+        });
 
-      if (!user) {
-        throw createError(404, '일치하는 계정을 찾지 못했어요.');
-      }
+        const user = await findUserByRealNameAndPhone(client, { realName, phone });
 
-      return {
-        success: true,
-        username: user.username,
-        maskedPhone: maskPhone(user.phone),
-      };
+        if (!user) {
+          throw createError(404, '일치하는 계정을 찾지 못했어요.');
+        }
+
+        return {
+          success: true,
+          username: user.username,
+          maskedPhone: maskPhone(user.phone),
+        };
+      });
     },
 
     async login({ username, password }) {
@@ -471,7 +485,7 @@ export function createPostgresAuthRepository({
       });
     },
 
-    async resetPassword({ username, realName, phone, birthDate, newPassword, phoneVerificationToken }) {
+    async resetPassword({ username, realName, phone, newPassword, phoneVerificationToken }) {
       return runWriteOperation(database, async (client) => {
         // P0-1: require a still-valid verified 'reset' phone challenge for this exact number,
         // then consume it — the same token contract register/reset use on the json whole-store.
@@ -480,16 +494,22 @@ export function createPostgresAuthRepository({
         // postgres register consumes nothing, so we mirror the whole-store access here: read the
         // canonical row FOR UPDATE, mutate the matching challenge, and write it back — all inside
         // this same transaction as the password update so token-consume + reset commit atomically.
-        await consumeResetPhoneChallenge(client, { phone, phoneVerificationToken, createError });
+        // Apple 5.1.1(v): 생년월일 is no longer part of the match (username+realName+phone + OTP).
+        await consumePhoneChallenge(client, {
+          purpose: 'reset',
+          phone,
+          phoneVerificationToken,
+          createError,
+        });
 
         const result = await client.query(
           `
             select *
             from users
-            where username = $1 and real_name = $2 and phone = $3 and birth_date = $4
+            where username = $1 and real_name = $2 and phone = $3
             limit 1
           `,
-          [username, realName, phone, birthDate],
+          [username, realName, phone],
         );
 
         if (!result.rows[0]) {

@@ -124,8 +124,6 @@ export async function registerAccount({
   provinceName,
   cityName,
   districtName,
-  addressDetail,
-  birthDate,
   phoneVerificationToken,
 }: RegisterAccountInput) {
   await ensureHydrated();
@@ -138,8 +136,6 @@ export async function registerAccount({
   const normalizedProvinceName = provinceName.trim();
   const normalizedCityName = cityName?.trim() ?? '';
   const normalizedDistrictName = districtName.trim();
-  const normalizedAddressDetail = addressDetail.trim();
-  const normalizedBirthDate = birthDate.trim();
 
   if (displayNamePreference === 'nickname' && !normalizedNickname) {
     throw new Error('닉네임을 입력해주세요.');
@@ -177,17 +173,8 @@ export async function registerAccount({
     throw new Error('최종 지역을 선택해주세요.');
   }
 
-  if (!normalizedAddressDetail) {
-    throw new Error('상세 주소를 입력해주세요.');
-  }
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedBirthDate)) {
-    throw new Error('생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
-  }
-
   if (USE_MOCK_API) {
     return applyMockRegisteredProfile({
-      addressDetail: normalizedAddressDetail,
       cityName: normalizedCityName,
       displayName: normalizedDisplayName,
       districtName: normalizedDistrictName,
@@ -213,8 +200,6 @@ export async function registerAccount({
       provinceName: normalizedProvinceName,
       cityName: normalizedCityName,
       districtName: normalizedDistrictName,
-      addressDetail: normalizedAddressDetail,
-      birthDate: normalizedBirthDate,
       phoneVerificationToken: normalizedPhoneVerificationToken,
     },
     { fallbackMessage: '회원가입에 실패했어요.' },

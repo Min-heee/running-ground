@@ -16,12 +16,13 @@ export default function AccountRecoveryScreen() {
   const resetForm = useResetPasswordForm();
   const findForm = useFindUsernameForm({ onFound: resetForm.prefillFromFoundIdentity });
   const resetPhoneVerification = resetForm.phoneVerification;
+  const findPhoneVerification = findForm.phoneVerification;
 
   return (
     <Screen>
       <AuthHeader
         title="아이디/비밀번호 찾기"
-        subtitle="이름, 휴대폰 번호, 생년월일로 계정을 확인할게요."
+        subtitle="이름과 휴대폰 인증으로 계정을 확인할게요."
         showBack
         backHref="/login"
       />
@@ -37,19 +38,31 @@ export default function AccountRecoveryScreen() {
             placeholder="010-0000-0000"
             keyboardType="phone-pad"
           />
-          <Field
-            label="생년월일"
-            value={findForm.findBirthDate}
-            onChangeText={findForm.handleFindBirthDateChange}
-            placeholder="1990-01-01"
+
+          <ResetPhoneVerificationSection
+            code={findPhoneVerification.code}
+            error={findPhoneVerification.error}
+            isRequestingCode={findPhoneVerification.isRequestingCode}
+            isVerified={findPhoneVerification.isVerified}
+            isVerifyingCode={findPhoneVerification.isVerifyingCode}
+            onCodeChange={findPhoneVerification.handleCodeChange}
+            onRequestCode={findPhoneVerification.handleRequestCode}
+            onVerifyCode={findPhoneVerification.handleVerifyCode}
+            phoneValid={findPhoneVerification.phoneValid}
+            requestId={findPhoneVerification.requestId}
+            resendCooldown={findPhoneVerification.resendCooldown}
           />
+
           <Pressable
-            style={[styles.primaryButton, findForm.finding ? styles.disabledButton : null]}
+            style={[styles.primaryButton, (findForm.finding || !findPhoneVerification.isVerified) ? styles.disabledButton : null]}
             onPress={findForm.handleFindUsername}
-            disabled={findForm.finding}
+            disabled={findForm.finding || !findPhoneVerification.isVerified}
           >
             {findForm.finding ? <ActivityIndicator color={colors.white} /> : <Text style={styles.primaryButtonText}>아이디 찾기</Text>}
           </Pressable>
+          {!findPhoneVerification.isVerified ? (
+            <Text style={styles.helperText}>휴대폰 인증을 완료하면 아이디를 찾을 수 있어요.</Text>
+          ) : null}
           {findForm.foundUsername ? <Text style={styles.resultText}>가입된 아이디: {findForm.foundUsername}</Text> : null}
           {findForm.findMessage ? <Text style={styles.helperText}>{findForm.findMessage}</Text> : null}
         </View>
@@ -89,12 +102,6 @@ export default function AccountRecoveryScreen() {
             resendCooldown={resetPhoneVerification.resendCooldown}
           />
 
-          <Field
-            label="생년월일"
-            value={resetForm.resetBirthDate}
-            onChangeText={resetForm.handleResetBirthDateChange}
-            placeholder="1990-01-01"
-          />
           <Field
             label="새 비밀번호"
             value={resetForm.resetPassword}

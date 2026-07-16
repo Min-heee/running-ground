@@ -98,6 +98,10 @@ function verifiedResetPhoneChallenge(phone, verifiedToken) {
   return verifiedPhoneChallenge('reset', phone, verifiedToken);
 }
 
+function verifiedFindUsernamePhoneChallenge(phone, verifiedToken) {
+  return verifiedPhoneChallenge('find_username', phone, verifiedToken);
+}
+
 function assertApiError(error, statusCode, message) {
   assert(error instanceof TestApiError);
   assert.equal(error.statusCode, statusCode);
@@ -138,7 +142,38 @@ await runTest('checks username availability', async () => {
   });
 });
 
-await runTest('finds username by identity fields', async () => {
+await runTest('finds username by realName + phone with a verified find_username challenge, then consumes it', async () => {
+  const { repository, storeHarness } = createRepositoryHarness({
+    users: [
+      {
+        id: 'user-existing',
+        username: 'runner',
+        realName: '민병희',
+        phone: '01012345678',
+        // Legacy birthDate stays on the row but is NOT part of the match anymore.
+        birthDate: '1990-01-01',
+        name: '러너',
+        publicTag: '#RUN01',
+      },
+    ],
+    phoneVerificationChallenges: [verifiedFindUsernamePhoneChallenge('01012345678', 'vt-find-1')],
+  });
+
+  assert.deepEqual(await repository.findUsername({
+    realName: '민병희',
+    phone: '01012345678',
+    phoneVerificationToken: 'vt-find-1',
+  }), {
+    success: true,
+    username: 'runner',
+    maskedPhone: '010-****-5678',
+  });
+
+  // The find_username challenge is consumed so its token can't be replayed.
+  assert.equal(storeHarness.getStore().phoneVerificationChallenges[0].status, 'consumed');
+});
+
+await runTest('rejects find-username without a verified find_username challenge', async () => {
   const { repository } = createRepositoryHarness({
     users: [
       {
@@ -146,21 +181,21 @@ await runTest('finds username by identity fields', async () => {
         username: 'runner',
         realName: '민병희',
         phone: '01012345678',
-        birthDate: '1990-01-01',
         name: '러너',
         publicTag: '#RUN01',
       },
     ],
+    // A verified RESET challenge for the same phone must NOT satisfy find-username (purpose-scoped).
+    phoneVerificationChallenges: [verifiedResetPhoneChallenge('01012345678', 'vt-wrong-purpose')],
   });
 
-  assert.deepEqual(await repository.findUsername({
+  await assert.rejects(repository.findUsername({
     realName: '민병희',
     phone: '01012345678',
-    birthDate: '1990-01-01',
-  }), {
-    success: true,
-    username: 'runner',
-    maskedPhone: '010-****-5678',
+    phoneVerificationToken: 'vt-wrong-purpose',
+  }), (error) => {
+    assertApiError(error, 400, '휴대폰 인증을 먼저 완료해주세요.');
+    return true;
   });
 });
 
@@ -391,7 +426,6 @@ await runTest('resets password with a verified reset challenge, clears sessions,
     username: 'runner',
     realName: '민병희',
     phone: '01012345678',
-    birthDate: '1990-01-01',
     newPassword: 'NewPassword123',
     phoneVerificationToken: 'vt-reset-1',
   }), {
@@ -437,7 +471,6 @@ await runTest('rejects password reset without a verified reset challenge', async
     username: 'runner',
     realName: '민병희',
     phone: '01012345678',
-    birthDate: '1990-01-01',
     newPassword: 'NewPassword123',
     phoneVerificationToken: 'vt-wrong-purpose',
   }), (error) => {

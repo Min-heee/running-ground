@@ -143,25 +143,26 @@ async function handleFindUsername({
   const body = await parseJsonBody(request);
   const realName = validateRequiredString(body.realName, '이름을 입력해주세요.');
   const phone = validateRequiredString(body.phone, '휴대폰 번호를 입력해주세요.').replace(/\D/g, '');
-  const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해주세요.');
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
-    throw new ApiError(400, '생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
-  }
+  // Apple 5.1.1(v): find-username no longer keys on 생년월일. Instead it requires a verified
+  // 'find_username' phone-OTP token (same mechanism reset-password uses) — proving phone
+  // ownership is a strictly stronger identity factor than a knowable birth date.
+  const phoneVerificationToken = validateRequiredString(
+    body.phoneVerificationToken,
+    '휴대폰 인증을 먼저 완료해주세요.',
+  );
 
   if (phone.length < 10) {
     throw new ApiError(400, '휴대폰 번호를 정확히 입력해주세요.');
   }
 
-  // P1-1: find-username is an unauthenticated identity oracle (realName+birthDate+phone → username
-  // + masked phone). Share the login brute-force guard so it can't be scraped; the account here is
-  // unknown, so key the per-account bucket by the normalized phone number instead of a username.
+  // P1-1: find-username shares the login brute-force guard so it can't be scraped; the account
+  // here is unknown, so key the per-account bucket by the normalized phone number.
   assertLoginRateLimit({ ApiError, loginGuard, request, trustProxy, username: phone });
 
   const result = await getAuthRepository().findUsername({
     realName,
     phone,
-    birthDate,
+    phoneVerificationToken,
   });
 
   sendJson(response, 200, result);
@@ -189,16 +190,11 @@ async function handleResetPassword({
 
   const realName = validateRequiredString(body.realName, '이름을 입력해주세요.');
   const phone = validateRequiredString(body.phone, '휴대폰 번호를 입력해주세요.').replace(/\D/g, '');
-  const birthDate = validateRequiredString(body.birthDate, '생년월일을 입력해주세요.');
   const newPassword = validateNewPassword(body.newPassword);
   // P0-1: reset requires a verified 'reset' phone challenge token (from POST
-  // /auth/phone/verify-code). The current shipping client sends none, so it will be rejected
-  // until tomorrow's OTA adds the OTP step — expected & acceptable pre-launch.
+  // /auth/phone/verify-code). Apple 5.1.1(v): 생년월일 is no longer collected/required — the
+  // OTP token already gates the reset, so identity is username+realName+phone+verified OTP.
   const phoneVerificationToken = validateRequiredString(body.phoneVerificationToken, '휴대폰 인증을 먼저 완료해주세요.');
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
-    throw new ApiError(400, '생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
-  }
 
   if (phone.length < 10) {
     throw new ApiError(400, '휴대폰 번호를 정확히 입력해주세요.');
@@ -208,7 +204,6 @@ async function handleResetPassword({
     username,
     realName,
     phone,
-    birthDate,
     newPassword,
     phoneVerificationToken,
   });

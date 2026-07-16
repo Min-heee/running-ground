@@ -12,7 +12,6 @@ export type ResetPasswordRequestBody = {
   username: string;
   realName: string;
   phone: string;
-  birthDate: string;
   newPassword: string;
   phoneVerificationToken: string;
 };
@@ -20,19 +19,17 @@ export type ResetPasswordRequestBody = {
 // Validate + normalize the reset form and assemble the exact POST body. Throws an
 // Error (Korean, surfaced to the user) on the first invalid field. The backend now
 // REQUIRES a 'reset' phone-verification token, so a missing/blank token is rejected
-// here before we ever hit the network.
+// here before we ever hit the network. Apple 5.1.1(v): 생년월일 is no longer collected.
 export function buildResetPasswordRequestBody({
   username,
   realName,
   phone,
-  birthDate,
   newPassword,
   phoneVerificationToken,
 }: ResetPasswordInput): ResetPasswordRequestBody {
   const normalizedUsername = normalizeUsername(username);
   const normalizedRealName = realName.trim();
   const normalizedPhone = phone.replace(/\D/g, '');
-  const normalizedBirthDate = birthDate.trim();
   const normalizedToken = phoneVerificationToken?.trim() ?? '';
 
   if (getUsernameValidationError(normalizedUsername)) {
@@ -45,10 +42,6 @@ export function buildResetPasswordRequestBody({
 
   if (normalizedPhone.length < 10) {
     throw new Error('휴대폰 번호를 정확히 입력해주세요.');
-  }
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalizedBirthDate)) {
-    throw new Error('생년월일은 YYYY-MM-DD 형식으로 입력해주세요.');
   }
 
   const passwordValidationError = getPasswordValidationError(newPassword);
@@ -65,7 +58,6 @@ export function buildResetPasswordRequestBody({
     username: normalizedUsername,
     realName: normalizedRealName,
     phone: normalizedPhone,
-    birthDate: normalizedBirthDate,
     newPassword: newPassword.trim(),
     phoneVerificationToken: normalizedToken,
   };

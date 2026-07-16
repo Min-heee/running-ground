@@ -379,7 +379,7 @@ await test('rate limits login attempts per IP with a Korean 429', async () => {
 await test('rate limits find-username (an unauthenticated PII oracle) per IP with a Korean 429', async () => {
   // P1-1: find-username shares the login brute-force guard, keyed by the normalized phone.
   const routeRequest = createRouteRequest({
-    parseJsonBody: async () => ({ realName: '홍길동', phone: '010-1234-5678', birthDate: '1990-01-01' }),
+    parseJsonBody: async () => ({ realName: '홍길동', phone: '010-1234-5678', phoneVerificationToken: 'vt-find' }),
     validateRequiredString: (value) => value,
     getAuthRepository: () => ({ findUsername: async () => ({ success: true, username: 'runner', maskedPhone: '010-****-5678' }) }),
     loginGuard: createLoginGuard({ perIpPerMinute: 1, perAccountPerHour: 20 }),

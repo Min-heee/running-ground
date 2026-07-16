@@ -181,13 +181,11 @@ export async function applyBackendAuthSession(authResponse: AuthResponse) {
 }
 
 export async function applyMockRegisteredProfile({
-  addressDetail,
   cityName,
   districtName,
   displayName,
   provinceName,
 }: {
-  addressDetail: string;
   cityName: string;
   districtName: string;
   displayName: string;
@@ -199,7 +197,6 @@ export async function applyMockRegisteredProfile({
     provinceName,
     cityName: cityName || undefined,
     districtName,
-    addressDetail,
     publicTag: myProfile.publicTag,
     lifetimeDistanceKm: mockProfile.lifetimeDistanceKm ?? 0,
   };
