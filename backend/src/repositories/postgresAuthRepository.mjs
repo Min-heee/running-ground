@@ -613,7 +613,10 @@ export function createPostgresAuthRepository({
               user.name,
               user.realName,
               user.phone,
-              user.birthDate,
+              // 생년월일은 이제 선택값 — 새 클라는 ''를 보낸다. birth_date는 DATE 컬럼이라
+              // ''를 그대로 바인딩하면 "invalid input syntax for type date"로 register가 죽는다.
+              // 소셜 경로와 동일하게 빈 값은 SQL NULL로 저장한다. (auth의 postgres 전환 대비)
+              user.birthDate || null,
               user.publicTag,
               user.provinceName,
               user.cityName,
