@@ -1,13 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { router } from 'expo-router';
-import { API_CONFIG } from '@/services/apiClient';
 import { getApiErrorMessage } from '@/services/apiError';
-import { checkApiHealth, normalizeUsername, signIn } from '@/services/authService';
-
-type ServerCheckState = {
-  status: 'idle' | 'checking' | 'ok' | 'error';
-  message: string;
-};
+import { normalizeUsername, signIn } from '@/services/authService';
 
 export function useLoginScreen() {
   const [username, setUsername] = useState('');
@@ -15,41 +9,8 @@ export function useLoginScreen() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [serverCheck, setServerCheck] = useState<ServerCheckState>({
-    status: 'idle',
-    message: `API: ${API_CONFIG.baseUrl}`,
-  });
   const normalizedUsername = normalizeUsername(username);
   const loginReady = Boolean(normalizedUsername && password.trim());
-
-  const handleCheckServer = async () => {
-    setServerCheck({
-      status: 'checking',
-      message: `서버 연결을 확인하고 있어요. API: ${API_CONFIG.baseUrl}`,
-    });
-
-    try {
-      const payload = await checkApiHealth();
-
-      if (payload?.status !== 'ok') {
-        throw new Error(payload?.message ?? 'health check failed');
-      }
-
-      setServerCheck({
-        status: 'ok',
-        message: `서버 연결 정상 · ${payload.publicBaseUrl ?? API_CONFIG.baseUrl}`,
-      });
-    } catch (checkError) {
-      setServerCheck({
-        status: 'error',
-        message: `서버 연결 실패 · ${getApiErrorMessage(checkError, '서버 상태를 확인하지 못했어요.')} · API: ${API_CONFIG.baseUrl}`,
-      });
-    }
-  };
-
-  useEffect(() => {
-    handleCheckServer();
-  }, []);
 
   const handleLogin = async () => {
     if (!loginReady || submitting) {
@@ -76,13 +37,11 @@ export function useLoginScreen() {
 
   return {
     error,
-    handleCheckServer,
     handleLogin,
     handleUsernameChange,
     loginReady,
     password,
     passwordVisible,
-    serverCheck,
     setPassword,
     setPasswordVisible,
     submitting,

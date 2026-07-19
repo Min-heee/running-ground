@@ -11,13 +11,11 @@ import { colors, spacing, fontSizes, fontWeights, radii } from '@/theme/tokens';
 export default function LoginScreen() {
   const {
     error,
-    handleCheckServer,
     handleLogin,
     handleUsernameChange,
     loginReady,
     password,
     passwordVisible,
-    serverCheck,
     setPassword,
     setPasswordVisible,
     submitting,
@@ -66,27 +64,6 @@ export default function LoginScreen() {
         </View>
         <SocialLoginButtons busyProvider={social.busyProvider} onPress={social.handleSocialLogin} disabled={submitting} />
         {social.error ? <Text style={styles.errorText}>{social.error}</Text> : null}
-      </Card>
-
-      <Card>
-        <View style={styles.serverCardHeader}>
-          <Text style={styles.serverTitle}>서버 연결</Text>
-          <Pressable onPress={handleCheckServer} disabled={serverCheck.status === 'checking'}>
-            <Text style={styles.serverAction}>{serverCheck.status === 'checking' ? '확인 중' : '다시 확인'}</Text>
-          </Pressable>
-        </View>
-        <Text
-          style={[
-            styles.serverText,
-            serverCheck.status === 'ok'
-              ? styles.serverTextOk
-              : serverCheck.status === 'error'
-                ? styles.serverTextError
-                : null,
-          ]}
-        >
-          {serverCheck.message}
-        </Text>
       </Card>
 
       <View style={styles.footer}>
@@ -160,34 +137,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontWeight: fontWeights.extraBold,
     fontSize: fontSizes.rank,
-  },
-  serverCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.s12,
-  },
-  serverTitle: {
-    color: colors.textPrimary,
-    fontWeight: fontWeights.extraBold,
-    fontSize: fontSizes.rank,
-  },
-  serverAction: {
-    color: colors.brand,
-    fontWeight: fontWeights.extraBold,
-    fontSize: fontSizes.md,
-  },
-  serverText: {
-    marginTop: spacing.xxl,
-    color: colors.textSecondary,
-    lineHeight: 19,
-    fontSize: fontSizes.sm,
-  },
-  serverTextOk: {
-    color: colors.successText,
-  },
-  serverTextError: {
-    color: colors.danger,
   },
   disabledButton: {
     opacity: 0.6,
