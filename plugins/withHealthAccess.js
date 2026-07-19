@@ -1,21 +1,20 @@
+// Android-only Health Connect access plugin.
+//
+// The iOS Apple-Health half (entitlement, health usage-description Info.plist
+// keys, the native reader module, and the framework link) was removed for the
+// App Store 2.5.1 resolution — the reviewer's static check must find ZERO
+// health-framework references in the binary. The removed iOS pieces live in
+// git history for the planned post-launch re-add.
 const {
   AndroidConfig,
   createRunOncePlugin,
-  IOSConfig,
   withAndroidManifest,
-  withDangerousMod,
-  withEntitlementsPlist,
-  withInfoPlist,
   withStringsXml,
-  withXcodeProject,
 } = require('expo/config-plugins');
-const fs = require('fs');
-const path = require('path');
 
 const PLUGIN_NAME = 'with-runningground-health-access';
 const PLUGIN_VERSION = '1.0.0';
 const HEALTH_CONNECT_PACKAGE = 'com.google.android.apps.healthdata';
-const IOS_APPLE_HEALTH_MODULE_FILENAME = 'RunnigappAppleHealth.m';
 const HEALTH_CONNECT_PERMISSIONS = [
   'android.permission.health.READ_EXERCISE',
   'android.permission.health.READ_DISTANCE',
@@ -35,228 +34,6 @@ const RATIONALE_STRING_NAME = 'health_permissions_rationale_url';
 // production backend (backend/src/routes/legalRoutes.mjs) on the live api subdomain — the
 // apex domain has no DNS record. Baked into the manifest at the next native build.
 const RATIONALE_PRIVACY_POLICY_URL = 'https://api.running-ground.com/privacy';
-
-const APPLE_HEALTH_MODULE_SOURCE = `#import <Foundation/Foundation.h>
-#import <HealthKit/HealthKit.h>
-#import <React/RCTBridgeModule.h>
-
-@interface RunnigappAppleHealth : NSObject <RCTBridgeModule>
-@property (nonatomic, strong) HKHealthStore *healthStore;
-@property (nonatomic, strong) NSISO8601DateFormatter *isoFormatter;
-@end
-
-@implementation RunnigappAppleHealth
-
-RCT_EXPORT_MODULE(RunnigappAppleHealth);
-
-+ (BOOL)requiresMainQueueSetup
-{
-  return NO;
-}
-
-- (instancetype)init
-{
-  self = [super init];
-  if (self) {
-    _healthStore = [[HKHealthStore alloc] init];
-    _isoFormatter = [[NSISO8601DateFormatter alloc] init];
-    _isoFormatter.formatOptions = NSISO8601DateFormatWithInternetDateTime;
-  }
-  return self;
-}
-
-- (NSString *)isoStringFromDate:(NSDate *)date
-{
-  return [self.isoFormatter stringFromDate:date];
-}
-
-- (NSSet<HKObjectType *> *)readTypes
-{
-  HKObjectType *workoutType = [HKObjectType workoutType];
-  HKObjectType *distanceType = [HKObjectType quantityTypeForIdentifier:HKQuantityTypeIdentifierDistanceWalkingRunning];
-
-  if (distanceType) {
-    return [NSSet setWithObjects:workoutType, distanceType, nil];
-  }
-
-  return [NSSet setWithObject:workoutType];
-}
-
-- (NSArray<NSDictionary *> *)normalizeWorkouts:(NSArray<HKSample *> *)samples
-{
-  NSMutableArray<NSDictionary *> *normalizedRuns = [NSMutableArray array];
-  HKUnit *meterUnit = [HKUnit meterUnit];
-
-  for (HKSample *sample in samples) {
-    if (![sample isKindOfClass:[HKWorkout class]]) {
-      continue;
-    }
-
-    HKWorkout *workout = (HKWorkout *)sample;
-    HKQuantity *totalDistance = workout.totalDistance;
-
-    if (!totalDistance) {
-      continue;
-    }
-
-    double distanceKm = [totalDistance doubleValueForUnit:meterUnit] / 1000.0;
-
-    if (!isfinite(distanceKm) || distanceKm <= 0.0) {
-      continue;
-    }
-
-    NSTimeInterval durationSeconds = workout.duration;
-    double paceSecondsPerKm = durationSeconds > 0.0 ? durationSeconds / distanceKm : 0.0;
-    NSString *sourceName = workout.sourceRevision.source.name ?: @"";
-    NSString *normalizedSourceLabel = sourceName;
-
-    if ([[sourceName lowercaseString] containsString:@"nike"] && [[sourceName lowercaseString] containsString:@"run"]) {
-      normalizedSourceLabel = @"NRC";
-    }
-
-    NSMutableDictionary *payload = [@{
-      @"externalId": workout.UUID.UUIDString ?: @"",
-      @"startedAt": [self isoStringFromDate:workout.startDate],
-      @"date": [[self isoStringFromDate:workout.startDate] substringToIndex:10],
-      @"distanceKm": @(distanceKm),
-      @"durationSeconds": @(durationSeconds),
-      @"paceSecondsPerKm": @(paceSecondsPerKm),
-    } mutableCopy];
-
-    if (normalizedSourceLabel.length > 0) {
-      payload[@"sourceLabel"] = normalizedSourceLabel;
-    }
-
-    [normalizedRuns addObject:payload];
-  }
-
-  return normalizedRuns;
-}
-
-RCT_REMAP_METHOD(isAvailable,
-                 isAvailableWithResolver:(RCTPromiseResolveBlock)resolve
-                 rejecter:(RCTPromiseRejectBlock)reject)
-{
-  resolve(@([HKHealthStore isHealthDataAvailable]));
-}
-
-RCT_REMAP_METHOD(readRuns,
-                 readRunsWithInput:(NSDictionary * _Nullable)input
-                 resolver:(RCTPromiseResolveBlock)resolve
-                 rejecter:(RCTPromiseRejectBlock)reject)
-{
-  if (![HKHealthStore isHealthDataAvailable]) {
-    resolve(@[]);
-    return;
-  }
-
-  NSNumber *limitNumber = [input isKindOfClass:[NSDictionary class]] ? input[@"limit"] : nil;
-  NSInteger requestedLimit = [limitNumber respondsToSelector:@selector(integerValue)] ? limitNumber.integerValue : 30;
-  NSInteger limit = requestedLimit > 0 ? requestedLimit : 30;
-  NSSet<HKObjectType *> *readTypes = [self readTypes];
-
-  [self.healthStore requestAuthorizationToShareTypes:nil
-                                           readTypes:readTypes
-                                          completion:^(BOOL success, NSError * _Nullable error) {
-    if (error) {
-      reject(@"apple_health_auth_failed", error.localizedDescription ?: @"애플 건강 권한 요청에 실패했습니다.", error);
-      return;
-    }
-
-    NSPredicate *predicate = [HKQuery predicateForWorkoutsWithWorkoutActivityType:HKWorkoutActivityTypeRunning];
-    NSSortDescriptor *sortDescriptor = [NSSortDescriptor sortDescriptorWithKey:HKSampleSortIdentifierEndDate ascending:NO];
-
-    HKSampleQuery *query = [[HKSampleQuery alloc] initWithSampleType:[HKObjectType workoutType]
-                                                           predicate:predicate
-                                                               limit:limit
-                                                     sortDescriptors:@[sortDescriptor]
-                                                      resultsHandler:^(HKSampleQuery * _Nonnull query, NSArray<HKSample *> * _Nullable results, NSError * _Nullable queryError) {
-      if (queryError) {
-        reject(@"apple_health_query_failed", queryError.localizedDescription ?: @"애플 건강 기록을 읽을 수 없습니다.", queryError);
-        return;
-      }
-
-      NSArray<NSDictionary *> *normalizedRuns = [self normalizeWorkouts:results ?: @[]];
-      resolve(normalizedRuns);
-    }];
-
-    [self.healthStore executeQuery:query];
-  }];
-}
-
-@end
-`;
-
-function withIosHealthInfoPlist(config) {
-  return withInfoPlist(config, (nextConfig) => {
-    nextConfig.modResults.NSHealthShareUsageDescription =
-      nextConfig.modResults.NSHealthShareUsageDescription
-      || 'Apple 건강의 러닝 기록을 읽어 내 활동과 랭킹에 표시하기 위해 권한이 필요해요.';
-    nextConfig.modResults.NSHealthUpdateUsageDescription =
-      nextConfig.modResults.NSHealthUpdateUsageDescription
-      || '동기화를 선택했을 때 러닝 기록과 대결 진행 상황을 Apple 건강에 저장하기 위해 권한이 필요해요.';
-
-    return nextConfig;
-  });
-}
-
-function withIosHealthEntitlements(config) {
-  return withEntitlementsPlist(config, (nextConfig) => {
-    nextConfig.modResults['com.apple.developer.healthkit'] = true;
-    return nextConfig;
-  });
-}
-
-function withIosAppleHealthModuleFiles(config) {
-  return withDangerousMod(config, ['ios', async (nextConfig) => {
-    const iosRoot = nextConfig.modRequest.platformProjectRoot;
-    const projectName = nextConfig.modRequest.projectName;
-
-    if (!iosRoot || !projectName) {
-      return nextConfig;
-    }
-
-    const moduleFilePath = path.join(iosRoot, projectName, IOS_APPLE_HEALTH_MODULE_FILENAME);
-    fs.mkdirSync(path.dirname(moduleFilePath), { recursive: true });
-
-    const currentContents = fs.existsSync(moduleFilePath)
-      ? fs.readFileSync(moduleFilePath, 'utf8')
-      : null;
-
-    if (currentContents !== APPLE_HEALTH_MODULE_SOURCE) {
-      fs.writeFileSync(moduleFilePath, APPLE_HEALTH_MODULE_SOURCE);
-    }
-
-    return nextConfig;
-  }]);
-}
-
-function withIosAppleHealthModuleProject(config) {
-  return withXcodeProject(config, (nextConfig) => {
-    const project = nextConfig.modResults;
-    const projectName = nextConfig.modRequest.projectName;
-
-    if (!projectName) {
-      return nextConfig;
-    }
-
-    const sourceFilePath = `${projectName}/${IOS_APPLE_HEALTH_MODULE_FILENAME}`;
-
-    IOSConfig.XcodeUtils.ensureGroupRecursively(project, projectName);
-    IOSConfig.XcodeUtils.addBuildSourceFileToGroup({
-      filepath: sourceFilePath,
-      groupName: projectName,
-      project,
-    });
-    IOSConfig.XcodeUtils.addFramework({
-      project,
-      projectName,
-      framework: 'HealthKit.framework',
-    });
-
-    return nextConfig;
-  });
-}
 
 function ensureUsesPermission(manifest, permissionName) {
   const usesPermissions = manifest['uses-permission'] ?? [];
@@ -373,10 +150,6 @@ function withAndroidHealthRationaleString(config) {
 }
 
 function withHealthAccess(config) {
-  config = withIosHealthInfoPlist(config);
-  config = withIosHealthEntitlements(config);
-  config = withIosAppleHealthModuleFiles(config);
-  config = withIosAppleHealthModuleProject(config);
   config = withAndroidHealthAccess(config);
   config = withAndroidHealthRationaleString(config);
   return config;

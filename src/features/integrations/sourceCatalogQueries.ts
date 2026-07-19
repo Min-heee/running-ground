@@ -30,10 +30,9 @@ export function getPlatformLabel(platform: DevicePlatform): string {
 }
 
 export function getPrimarySourceTypeForPlatform(platform: DevicePlatform): RunSourceType | null {
-  if (platform === 'ios') {
-    return 'apple_health';
-  }
-
+  // iOS has no platform import hub: the Apple-Health integration was removed
+  // for the App Store 2.5.1 resolution (re-add deferred post-launch), so iOS
+  // resolves to null and the UI offers only the "연동 안 함" path.
   if (platform === 'android') {
     return 'health_connect';
   }

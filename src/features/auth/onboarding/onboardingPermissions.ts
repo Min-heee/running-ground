@@ -1,12 +1,13 @@
 // Standalone permission/connect helpers for the welcome-tour permissions gate. Thin wrappers
 // over the same native paths the rest of the app already uses, so the onboarding step can fire
-// the real OS dialogs and the Apple Health / Health Connect authorization sheet inline without
-// dragging in the whole run-tracking / 연동관리 flow.
+// the real OS dialogs and the Health Connect authorization sheet (Android-only — iOS has no
+// health integration in this version, see nativeHealth.ts) inline without dragging in the whole
+// run-tracking / 연동관리 flow.
 //
 // OTA-safety (see the per-key notes below):
 // - location (fg + bg), notifications, HEALTH read  -> declarations already in the native build
 //   (expo-location plist + Android manifest, expo-notifications POST_NOTIFICATIONS, the
-//   withHealthAccess plugin's HealthKit entitlement + Health Connect manifest perms). Requesting
+//   withHealthAccess plugin's Health Connect manifest perms). Requesting
 //   them is a pure JS runtime call = OTA-safe, no rebuild.
 // - motion/activity (Pedometer): OTA-safe on BOTH platforms. iOS NSMotionUsageDescription is
 //   declared (app.config.ts); ANDROID android.permission.ACTIVITY_RECOGNITION is present in the
@@ -140,9 +141,10 @@ export async function readLocationGate(): Promise<{
 }
 
 // Health "granted" here means the preferred native source is already backend-connected (the
-// prerequisite the 연동관리 import path enforces before it can read). The actual HealthKit /
-// Health Connect authorization sheet is fired lazily by the connect action below, mirroring the
-// import flow — we never block onboarding on the OS sheet itself.
+// prerequisite the 연동관리 import path enforces before it can read). The actual Health Connect
+// authorization sheet is fired lazily by the connect action below, mirroring the import flow —
+// we never block onboarding on the OS sheet itself. On iOS getPreferredNativeHealthSource()
+// is null (no health integration in this version), so this reads not-granted / not-askable.
 async function readHealthGate(): Promise<{ granted: boolean; canAsk: boolean }> {
   const preferred = getPreferredNativeHealthSource();
   if (!preferred) {
@@ -267,8 +269,9 @@ export async function requestMotion(): Promise<boolean> {
 // Connect + authorize the preferred native health source using the SAME path as 연동관리 import:
 // connectIntegrationSource(...) registers the source backend-side, then
 // importRunsFromRecommendedNativeHealthSource(...) drives readRuns(), which is what surfaces the
-// HealthKit / Health Connect authorization sheet. Fully guarded so a device without the native
-// module (Expo Go / unsupported) just returns false instead of crashing onboarding.
+// Health Connect authorization sheet. Fully guarded so a device without the native module
+// (Expo Go / unsupported) just returns false instead of crashing onboarding. On iOS the
+// preferred source is null, so this no-ops to false without touching any health API.
 export async function requestHealthConnect(): Promise<boolean> {
   const preferred = getPreferredNativeHealthSource();
   if (!preferred) {

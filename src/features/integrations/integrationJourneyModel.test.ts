@@ -16,13 +16,13 @@ function source(overrides: Partial<ConnectedSource> & Pick<ConnectedSource, 'sou
 
 function readiness(state: NativeHealthReadiness['state']): NativeHealthReadiness {
   return {
-    sourceType: 'apple_health',
+    sourceType: 'health_connect',
     title: '',
     description: '',
     badgeLabel: '',
     state,
     steps: [],
-    expectedPlatform: 'ios',
+    expectedPlatform: 'android',
     connected: true,
   };
 }
@@ -30,38 +30,56 @@ function readiness(state: NativeHealthReadiness['state']): NativeHealthReadiness
 test('journey model: primary not connected → connect-first copy, no step complete', () => {
   const model = buildIntegrationJourneyModel({
     sources: [
-      source({ sourceType: 'apple_health', displayName: 'Apple 건강' }),
+      source({ sourceType: 'health_connect', displayName: '헬스 커넥트' }),
       source({ sourceType: 'manual' }),
     ],
-    platform: 'ios',
+    platform: 'android',
     nativeHealthReadiness: null,
   });
 
-  assert.equal(model.headline, 'iPhone에서는 Apple 건강부터 연결하면 돼.');
+  assert.equal(model.headline, 'Android에서는 헬스 커넥트부터 연결하면 돼.');
   assert.equal(model.body, '기본 연동 소스를 먼저 붙여두면 이후 기기 기록 가져오기, 홈 요약까지 한 흐름으로 연결돼.');
   assert.deepEqual(model.steps.map((step) => [step.id, step.complete]), [
     ['primary', false],
     ['import', false],
     ['manual', false],
   ]);
-  assert.equal(model.steps[0].description, 'iPhone에서 가장 먼저 연결할 기본 소스야.');
+  assert.equal(model.steps[0].description, 'Android에서 가장 먼저 연결할 기본 소스야.');
   assert.equal(model.steps[1].description, '기본 소스를 연결하면 그다음 단계로 넘어갈 수 있어.');
   assert.equal(model.primaryConnected, false);
   assert.equal(model.showImportButton, false);
   assert.equal(model.connectedCount, 0);
 });
 
-test('journey model: primary connected + device readable → import copy and import button', () => {
+test('journey model: iOS resolves no primary source (Apple-Health import retired)', () => {
+  // App Store 2.5.1: the iOS binary has no Apple-Health reader, so even a
+  // legacy connected apple_health row must not resolve to a primary source
+  // and must never surface the import button.
   const model = buildIntegrationJourneyModel({
     sources: [
       source({ sourceType: 'apple_health', displayName: 'Apple 건강', connected: true }),
       source({ sourceType: 'manual' }),
     ],
     platform: 'ios',
+    nativeHealthReadiness: null,
+  });
+
+  assert.equal(model.primarySource, null);
+  assert.equal(model.primaryConnected, false);
+  assert.equal(model.showImportButton, false);
+});
+
+test('journey model: primary connected + device readable → import copy and import button', () => {
+  const model = buildIntegrationJourneyModel({
+    sources: [
+      source({ sourceType: 'health_connect', displayName: '헬스 커넥트', connected: true }),
+      source({ sourceType: 'manual' }),
+    ],
+    platform: 'android',
     nativeHealthReadiness: readiness('config_ready'),
   });
 
-  assert.equal(model.headline, 'Apple 건강는 준비됐고, 이제 기기 기록을 가져오면 돼.');
+  assert.equal(model.headline, '헬스 커넥트는 준비됐고, 이제 기기 기록을 가져오면 돼.');
   assert.equal(model.body, "'기기에서 기록 가져오기' 버튼을 누르면 기기에 쌓인 러닝 기록을 바로 가져올 수 있어.");
   assert.deepEqual(model.steps.map((step) => [step.id, step.complete]), [
     ['primary', true],
@@ -118,8 +136,8 @@ test('journey model: primary connected, device not readable, manual closed → o
 
 test('journey model: explicit importEligible overrides display readiness for the button', () => {
   const base = {
-    sources: [source({ sourceType: 'apple_health', connected: true })],
-    platform: 'ios' as const,
+    sources: [source({ sourceType: 'health_connect', connected: true })],
+    platform: 'android' as const,
   };
 
   assert.equal(

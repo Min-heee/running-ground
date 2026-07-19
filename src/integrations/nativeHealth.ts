@@ -1,5 +1,5 @@
 import Constants, { AppOwnership } from 'expo-constants';
-import { NativeModules, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import {
   getRunnigappHealthConnectModule,
   type NativeHealthBridgeRun,
@@ -82,10 +82,10 @@ export function isNativeHealthSource(sourceType: RunSourceType): sourceType is N
 }
 
 export function getPreferredNativeHealthSource(): NativeHealthSourceType | null {
-  if (Platform.OS === 'ios') {
-    return 'apple_health';
-  }
-
+  // iOS deliberately has NO native health source: the Apple-Health reader was
+  // removed from the binary for the App Store 2.5.1 resolution (re-add is
+  // deferred post-launch). Every iOS caller takes the same graceful null path
+  // a device without the native module already took.
   if (Platform.OS === 'android') {
     return 'health_connect';
   }
@@ -232,13 +232,12 @@ export function getNativeHealthImportEligibility(): NativeHealthImportEligibilit
 }
 
 function resolveNativeHealthBridgeModule(sourceType: NativeHealthSourceType): NativeHealthBridgeModule | null {
-  // Mixed resolution. Both paths return null when the native side is not linked into this build
-  // (e.g. Expo Go) so we degrade to the "기록 읽기를 지원하지 않아" error
-  // instead of crashing.
+  // Returns null when the native side is not linked into this build (e.g. Expo Go) so we degrade
+  // to the "기록 읽기를 지원하지 않아" error instead of crashing.
   if (sourceType === 'apple_health') {
-    // iOS Apple Health is the legacy ObjC RCT module written by plugins/withHealthAccess.js, so it
-    // surfaces through React Native's NativeModules registry rather than expo's requireNativeModule.
-    return (NativeModules.RunnigappAppleHealth as NativeHealthBridgeModule | undefined) ?? null;
+    // The iOS Apple-Health native reader was removed from the binary (App Store 2.5.1); the type
+    // survives only so previously imported records keep displaying. Hard-gated off.
+    return null;
   }
 
   // Android Health Connect is the Expo Kotlin module, resolved via requireNativeModule(...) inside

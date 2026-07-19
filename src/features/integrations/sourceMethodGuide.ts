@@ -13,28 +13,6 @@ export type SourceMethodGuide = {
 
 type SourceMethodGuidePlatform = 'ios' | 'android' | 'all';
 
-const appleHealthGuide: SourceMethodGuide = {
-  title: 'Apple 건강으로 러닝 기록 가져오기',
-  steps: [
-    {
-      title: '권한 켜기',
-      description: '아이폰 설정 > 개인정보 보호 및 보안 > 건강에서 우리 앱에 운동·거리 권한을 허용해 주세요.',
-    },
-    {
-      title: '러닝 앱을 Apple 건강에 연결',
-      description: "NRC·Strava·가민 같은 러닝 앱이 Apple 건강에 기록을 저장하도록 켜두면, 가져오기 한 번으로 함께 들어와요. 각 앱 설정에서 Apple 건강 '운동(Workouts)' 쓰기 권한을 켜 주세요.",
-    },
-    {
-      title: '반영 확인',
-      description: "러닝 후 Apple 건강 앱 '운동' 탭에 기록이 보이는지 확인하면 가장 안정적이에요.",
-    },
-    {
-      title: '우리 앱에서 가져오기',
-      description: "'기기에서 기록 가져오기' 버튼을 누르면 그때 Apple 건강 기록을 읽어와요. 버튼을 눌러야 새 기록이 들어와요.",
-    },
-  ],
-};
-
 const healthConnectGuide: SourceMethodGuide = {
   title: '헬스 커넥트로 러닝 기록 가져오기',
   steps: [
@@ -61,16 +39,14 @@ export function getSourceMethodGuide(
   sourceType: RunSourceType,
   _platform: SourceMethodGuidePlatform,
 ): SourceMethodGuide | null {
-  if (sourceType === 'apple_health') {
-    return appleHealthGuide;
-  }
-
   if (sourceType === 'health_connect') {
     return healthConnectGuide;
   }
 
   // Brand sources (nrc / strava / garmin) are no longer selectable — their
-  // runs flow in through the platform hubs, and the hub guides above explain
-  // that routing. Legacy source types (incl. 'mynb') get no guide.
+  // runs flow in through the platform hubs, and the hub guide above explains
+  // that routing. 'apple_health' was retired for the App Store 2.5.1
+  // resolution (re-add deferred post-launch). Legacy source types (incl.
+  // 'mynb') get no guide.
   return null;
 }

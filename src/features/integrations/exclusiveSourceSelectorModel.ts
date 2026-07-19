@@ -17,17 +17,13 @@ export type ExclusiveSourceSelectorModel = {
   selectedSourceType: RunSourceType | null;
 };
 
-// Selectable auto-import sources are the two platform hubs only. Brand apps
+// Selectable auto-import sources are the Android platform hub only. Brand apps
 // (NRC / Strava / Garmin …) have no metadata here, so legacy connected rows
 // the server may still return are silently dropped from the selector — the
-// same mechanism that retired 'mynb'.
+// same mechanism that retired 'mynb'. 'apple_health' was retired the same way
+// for the App Store 2.5.1 resolution (re-add deferred post-launch), so iOS
+// offers only the "연동 안 함" path.
 const EXCLUSIVE_SOURCE_SELECTOR_METADATA: SourceMetadataMap = {
-  apple_health: {
-    shortDescription: '',
-    capabilities: [],
-    setupHint: '',
-    priority: 100,
-  },
   health_connect: {
     shortDescription: '',
     capabilities: [],
