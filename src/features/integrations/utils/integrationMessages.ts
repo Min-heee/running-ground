@@ -8,10 +8,11 @@ import {
 import type { NativeHealthImportResult } from '@/integrations/nativeHealth';
 import type { IntegrationSyncResponse } from '@/lib/api/types';
 
-// The platform health store never tells us whether a 0-result read means "no
+// HealthKit / Health Connect never tell us whether a 0-result read means "no
 // runs" or "permission was silently denied", so we steer the user to check
-// permissions / that their running app actually saved to the store. (The iOS
-// hint is legacy-only: iOS has no device import in this version.)
+// permissions / that their running app actually saved to the platform store.
+// (On the HealthKit-free build 48 the iOS import path is unreachable, so the
+// iOS hint only ever shows on binaries with the RunnigappAppleHealth reader.)
 const IOS_ZERO_IMPORT_HINT =
   '가져온 기록이 없어. 건강 앱 권한(설정 > 개인정보 보호 > 건강)을 확인하거나, 러닝 앱이 건강에 기록을 저장했는지 봐줘.';
 const ANDROID_ZERO_IMPORT_HINT =

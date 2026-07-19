@@ -35,14 +35,19 @@ export function buildIntegrationJourneyModel({
   platform,
   nativeHealthReadiness,
   importEligible,
+  appleHealthAvailable = false,
 }: {
   sources: ConnectedSource[];
   platform: DevicePlatform;
   nativeHealthReadiness: NativeHealthReadiness | null;
   importEligible?: boolean;
+  // Whether the RunnigappAppleHealth native reader exists in the running
+  // binary (isAppleHealthModuleAvailable()). Defaults to the HealthKit-free
+  // build-48 behavior: iOS resolves no primary source.
+  appleHealthAvailable?: boolean;
 }): IntegrationJourneyModel {
   const platformLabel = getPlatformLabel(platform);
-  const primarySource = getPrimarySourceForCatalogPlatform(sources, platform);
+  const primarySource = getPrimarySourceForCatalogPlatform(sources, platform, appleHealthAvailable);
   const manualSource = getSourceByTypeFromCatalog(sources, 'manual');
   const connectedCount = sources.filter((source) => source.connected).length;
   const syncedCount = sources.filter((source) => Boolean(source.lastSyncedAt)).length;

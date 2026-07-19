@@ -1,9 +1,10 @@
 import Constants, { AppOwnership } from 'expo-constants';
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import {
   getRunnigappHealthConnectModule,
   type NativeHealthBridgeRun,
 } from '../../modules/runnigapp-health-connect';
+import { isAppleHealthModuleAvailable } from './appleHealthAvailability';
 import { ConnectedSource, RunSourceType } from '@/domain';
 import { syncIntegrationSources } from '@/services';
 import { IntegrationSyncResponse } from '@/lib/api/types';
@@ -82,10 +83,16 @@ export function isNativeHealthSource(sourceType: RunSourceType): sourceType is N
 }
 
 export function getPreferredNativeHealthSource(): NativeHealthSourceType | null {
-  // iOS deliberately has NO native health source: the Apple-Health reader was
-  // removed from the binary for the App Store 2.5.1 resolution (re-add is
-  // deferred post-launch). Every iOS caller takes the same graceful null path
-  // a device without the native module already took.
+  // iOS is gated on the RUNTIME presence of the RunnigappAppleHealth native
+  // module, not on Platform.OS alone: build 48 shipped HealthKit-free (App
+  // Store 2.5.1), build 49+ restores the reader via plugins/withHealthAccess.js,
+  // and this same OTA'd JS serves both binaries. On a HealthKit-free binary
+  // every iOS caller takes the same graceful null path a device without the
+  // native module already took.
+  if (Platform.OS === 'ios') {
+    return isAppleHealthModuleAvailable() ? 'apple_health' : null;
+  }
+
   if (Platform.OS === 'android') {
     return 'health_connect';
   }
@@ -232,12 +239,13 @@ export function getNativeHealthImportEligibility(): NativeHealthImportEligibilit
 }
 
 function resolveNativeHealthBridgeModule(sourceType: NativeHealthSourceType): NativeHealthBridgeModule | null {
-  // Returns null when the native side is not linked into this build (e.g. Expo Go) so we degrade
-  // to the "기록 읽기를 지원하지 않아" error instead of crashing.
+  // Mixed resolution. Both paths return null when the native side is not linked into this build
+  // (Expo Go, or the HealthKit-free build 48) so we degrade to the "기록 읽기를 지원하지 않아"
+  // error instead of crashing.
   if (sourceType === 'apple_health') {
-    // The iOS Apple-Health native reader was removed from the binary (App Store 2.5.1); the type
-    // survives only so previously imported records keep displaying. Hard-gated off.
-    return null;
+    // iOS Apple Health is the legacy ObjC RCT module written by plugins/withHealthAccess.js, so it
+    // surfaces through React Native's NativeModules registry rather than expo's requireNativeModule.
+    return (NativeModules.RunnigappAppleHealth as NativeHealthBridgeModule | undefined) ?? null;
   }
 
   // Android Health Connect is the Expo Kotlin module, resolved via requireNativeModule(...) inside

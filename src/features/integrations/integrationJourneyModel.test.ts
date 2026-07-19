@@ -14,15 +14,18 @@ function source(overrides: Partial<ConnectedSource> & Pick<ConnectedSource, 'sou
   };
 }
 
-function readiness(state: NativeHealthReadiness['state']): NativeHealthReadiness {
+function readiness(
+  state: NativeHealthReadiness['state'],
+  sourceType: NativeHealthReadiness['sourceType'] = 'health_connect',
+): NativeHealthReadiness {
   return {
-    sourceType: 'health_connect',
+    sourceType,
     title: '',
     description: '',
     badgeLabel: '',
     state,
     steps: [],
-    expectedPlatform: 'android',
+    expectedPlatform: sourceType === 'apple_health' ? 'ios' : 'android',
     connected: true,
   };
 }
@@ -51,10 +54,11 @@ test('journey model: primary not connected → connect-first copy, no step compl
   assert.equal(model.connectedCount, 0);
 });
 
-test('journey model: iOS resolves no primary source (Apple-Health import retired)', () => {
-  // App Store 2.5.1: the iOS binary has no Apple-Health reader, so even a
+test('journey model: module absent (build 48) → iOS resolves no primary source', () => {
+  // The HealthKit-free build 48 binary has no Apple-Health reader, so even a
   // legacy connected apple_health row must not resolve to a primary source
-  // and must never surface the import button.
+  // and must never surface the import button. This is the default (no
+  // appleHealthAvailable flag) so the OTA'd JS is safe on build 48.
   const model = buildIntegrationJourneyModel({
     sources: [
       source({ sourceType: 'apple_health', displayName: 'Apple 건강', connected: true }),
@@ -67,6 +71,26 @@ test('journey model: iOS resolves no primary source (Apple-Health import retired
   assert.equal(model.primarySource, null);
   assert.equal(model.primaryConnected, false);
   assert.equal(model.showImportButton, false);
+});
+
+test('journey model: module present (build 49+) → iOS resolves Apple 건강 and offers import', () => {
+  // Same sources, same OTA'd JS — but the caller reports the
+  // RunnigappAppleHealth module as present, so Apple 건강 is the primary
+  // source again and the import flow lights up.
+  const model = buildIntegrationJourneyModel({
+    sources: [
+      source({ sourceType: 'apple_health', displayName: 'Apple 건강', connected: true }),
+      source({ sourceType: 'manual' }),
+    ],
+    platform: 'ios',
+    nativeHealthReadiness: readiness('config_ready', 'apple_health'),
+    appleHealthAvailable: true,
+  });
+
+  assert.equal(model.primarySource?.sourceType, 'apple_health');
+  assert.equal(model.primaryConnected, true);
+  assert.equal(model.showImportButton, true);
+  assert.equal(model.headline, 'Apple 건강는 준비됐고, 이제 기기 기록을 가져오면 돼.');
 });
 
 test('journey model: primary connected + device readable → import copy and import button', () => {
